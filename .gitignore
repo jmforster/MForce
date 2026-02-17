@@ -1,0 +1,58 @@
+############################
+# Build directories
+############################
+build/
+out/
+bin/
+cmake-build-*/
+
+############################
+# CMake
+############################
+CMakeCache.txt
+CMakeFiles/
+*.cmake
+Makefile
+install_manifest.txt
+
+############################
+# Visual Studio
+############################
+.vs/
+*.vcxproj.user
+*.VC.db
+*.opendb
+*.sln.docstates
+*.user
+*.pdb
+*.ilk
+*.obj
+*.lib
+*.exp
+
+############################
+# VSCode
+############################
+.vscode/
+
+############################
+# Windows junk
+############################
+Thumbs.db
+desktop.ini
+
+############################
+# Logs
+############################
+*.log
+
+############################
+# Audio renders (optional)
+############################
+renders/*.wav
+
+############################
+# Temporary / misc
+############################
+*.tmp
+*.cache
