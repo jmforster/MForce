@@ -1,0 +1,31 @@
+{
+  "sampleRate": 48000, "seconds": 5,
+  "graph": { "nodes": [
+    { "id": "ampEnv", "type": "Envelope", "params": { "preset": "adsr", "attack": 0.05, "decay": 0.05, "sustainLevel": 0.8, "release": 0.0 } },
+    { "id": "blendEnv", "type": "Envelope", "params": { "preset": "ar", "attack": 0.0, "attackMax": 0.0 } },
+    { "id": "f_ah1", "type": "Formant", "params": { "frequency": 700,  "gain": 1.0, "width": 400, "power": 2.0 } },
+    { "id": "f_ah2", "type": "Formant", "params": { "frequency": 1200, "gain": 0.6, "width": 400, "power": 2.0 } },
+    { "id": "spec_ah", "type": "FormantSpectrum", "params": { "formants": [{"ref": "f_ah1"}, {"ref": "f_ah2"}] } },
+    { "id": "f_ee1", "type": "Formant", "params": { "frequency": 300,  "gain": 1.0, "width": 300, "power": 2.0 } },
+    { "id": "f_ee2", "type": "Formant", "params": { "frequency": 2700, "gain": 0.7, "width": 500, "power": 2.0 } },
+    { "id": "spec_ee", "type": "FormantSpectrum", "params": { "formants": [{"ref": "f_ee1"}, {"ref": "f_ee2"}] } },
+    { "id": "f_oo1", "type": "Formant", "params": { "frequency": 400,  "gain": 1.0, "width": 300, "power": 2.0 } },
+    { "id": "f_oo2", "type": "Formant", "params": { "frequency": 800,  "gain": 0.5, "width": 300, "power": 2.0 } },
+    { "id": "spec_oo", "type": "FormantSpectrum", "params": { "formants": [{"ref": "f_oo1"}, {"ref": "f_oo2"}] } },
+    { "id": "fseq", "type": "FormantSequence", "params": {
+        "formants": [{"ref": "spec_ah"}, {"ref": "spec_ee"}, {"ref": "spec_oo"}],
+        "blend": { "ref": "blendEnv" }
+    }},
+    { "id": "fas", "type": "FullAdditiveSource", "params": {
+        "seed": 42, "frequency": 130.0, "amplitude": { "ref": "ampEnv" },
+        "mode": "full", "maxPartials": 50, "minMult": 1,
+        "evenWeight1": 1.0, "evenWeight2": 1.0,
+        "oddWeight1": 1.0, "oddWeight2": 1.0,
+        "rolloff1": 0.5, "rolloff2": 0.5,
+        "formant": { "ref": "fseq" },
+        "formantWeight": 0.9
+    }},
+    { "id": "ch1", "type": "SoundChannel", "inputs": { "source": "fas" }, "params": { "volume": 0.8, "pan": 0.0 } },
+    { "id": "mix", "type": "StereoMixer", "inputs": { "channels": ["ch1"] }, "params": { "gainL": 1.0, "gainR": 1.0 } }
+  ], "output": "mix" }
+}

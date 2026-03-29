@@ -1,0 +1,12 @@
+{
+  "sampleRate": 48000, "seconds": 5,
+  "graph": { "nodes": [
+    { "id": "env", "type": "Envelope", "params": { "preset": "ar", "attack": 0.02 } },
+    { "id": "wn", "type": "WanderNoise3Source", "params": {
+        "amplitude": { "ref": "env" },
+        "speed": 2000, "deltaSpeed": 2000, "slopeLimit": 1.0
+    }},
+    { "id": "ch1", "type": "SoundChannel", "inputs": { "source": "wn" }, "params": { "volume": 0.8, "pan": 0.0 } },
+    { "id": "mix", "type": "StereoMixer", "inputs": { "channels": ["ch1"] }, "params": { "gainL": 1.0, "gainR": 1.0 } }
+  ], "output": "mix" }
+}

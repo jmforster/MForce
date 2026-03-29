@@ -1,0 +1,79 @@
+{
+  "sampleRate": 48000,
+  "seconds": 5,
+  "graph": {
+    "nodes": [
+      {
+        "id": "env",
+        "type": "Envelope",
+        "params": { "preset": "ar", "attack": 0.05 }
+      },
+      {
+        "id": "slow_mod",
+        "type": "SineSource",
+        "params": {
+          "frequency": 0.3,
+          "amplitude": 1.0,
+          "phase": 0.0
+        }
+      },
+      {
+        "id": "lfo_freq",
+        "type": "VarSource",
+        "params": {
+          "val": 2.0,
+          "var": { "ref": "slow_mod" },
+          "varPct": 0.6
+        }
+      },
+      {
+        "id": "lfo",
+        "type": "SineSource",
+        "params": {
+          "frequency": { "ref": "lfo_freq" },
+          "amplitude": 1.0,
+          "phase": 0.0
+        }
+      },
+      {
+        "id": "freq",
+        "type": "RangeSource",
+        "params": {
+          "min": 200.0,
+          "max": 600.0,
+          "var": { "ref": "lfo" },
+          "normalized": false
+        }
+      },
+      {
+        "id": "rn1",
+        "type": "RedNoiseSource",
+        "params": {
+          "seed": 12345,
+          "frequency": { "ref": "freq" },
+          "amplitude": { "ref": "env" },
+          "phase": 0.0,
+          "density": 1,
+          "smoothness": 0.5,
+          "rampVariation": 0.3,
+          "boost": 0,
+          "continuity": 0,
+          "zeroCrossTendency": 0
+        }
+      },
+      {
+        "id": "ch1",
+        "type": "SoundChannel",
+        "inputs": { "source": "rn1" },
+        "params": { "volume": 0.8, "pan": 0.0 }
+      },
+      {
+        "id": "mix",
+        "type": "StereoMixer",
+        "inputs": { "channels": ["ch1"] },
+        "params": { "gainL": 1.0, "gainR": 1.0 }
+      }
+    ],
+    "output": "mix"
+  }
+}

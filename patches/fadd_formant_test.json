@@ -1,0 +1,21 @@
+{
+  "sampleRate": 48000, "seconds": 4,
+  "graph": { "nodes": [
+    { "id": "ampEnv", "type": "Envelope", "params": { "preset": "adsr", "attack": 0.1, "decay": 0.1, "sustainLevel": 0.7, "release": 0.0 } },
+    { "id": "f1", "type": "Formant", "params": { "frequency": 800, "gain": 1.0, "width": 400, "power": 2.0 } },
+    { "id": "f2", "type": "Formant", "params": { "frequency": 2500, "gain": 0.8, "width": 600, "power": 2.0 } },
+    { "id": "f3", "type": "Formant", "params": { "frequency": 5000, "gain": 0.5, "width": 800, "power": 3.0 } },
+    { "id": "spec", "type": "FormantSpectrum", "params": { "formants": [{"ref": "f1"}, {"ref": "f2"}, {"ref": "f3"}] } },
+    { "id": "fas", "type": "FullAdditiveSource", "params": {
+        "seed": 42, "frequency": 130.0, "amplitude": { "ref": "ampEnv" },
+        "mode": "full", "maxPartials": 60, "minMult": 1,
+        "evenWeight1": 1.0, "evenWeight2": 1.0,
+        "oddWeight1": 1.0, "oddWeight2": 1.0,
+        "rolloff1": 0.5, "rolloff2": 0.5,
+        "formant": { "ref": "spec" },
+        "formantWeight": 0.85
+    }},
+    { "id": "ch1", "type": "SoundChannel", "inputs": { "source": "fas" }, "params": { "volume": 0.8, "pan": 0.0 } },
+    { "id": "mix", "type": "StereoMixer", "inputs": { "channels": ["ch1"] }, "params": { "gainL": 1.0, "gainR": 1.0 } }
+  ], "output": "mix" }
+}

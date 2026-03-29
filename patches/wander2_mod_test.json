@@ -1,0 +1,89 @@
+{
+  "sampleRate": 48000,
+  "seconds": 5,
+  "graph": {
+    "nodes": [
+      {
+        "id": "rn_minSpd",
+        "type": "RedNoiseSource",
+        "params": { "seed": 101, "frequency": 2.0, "smoothness": 0.8, "amplitude": 1.0 }
+      },
+      {
+        "id": "rn_maxSpd",
+        "type": "RedNoiseSource",
+        "params": { "seed": 102, "frequency": 2.5, "smoothness": 0.8, "amplitude": 1.0 }
+      },
+      {
+        "id": "rn_revProb",
+        "type": "RedNoiseSource",
+        "params": { "seed": 103, "frequency": 3.0, "smoothness": 0.8, "amplitude": 1.0 }
+      },
+      {
+        "id": "rn_retProb",
+        "type": "RedNoiseSource",
+        "params": { "seed": 104, "frequency": 3.5, "smoothness": 0.8, "amplitude": 1.0 }
+      },
+      {
+        "id": "rn_retPct",
+        "type": "RedNoiseSource",
+        "params": { "seed": 105, "frequency": 4.0, "smoothness": 0.8, "amplitude": 1.0 }
+      },
+      {
+        "id": "var_minSpd",
+        "type": "VarSource",
+        "params": { "val": 0.001, "var": { "ref": "rn_minSpd" }, "varPct": 0.3 }
+      },
+      {
+        "id": "var_maxSpd",
+        "type": "VarSource",
+        "params": { "val": 0.01, "var": { "ref": "rn_maxSpd" }, "varPct": 0.3 }
+      },
+      {
+        "id": "var_revProb",
+        "type": "VarSource",
+        "params": { "val": 0.005, "var": { "ref": "rn_revProb" }, "varPct": 0.3 }
+      },
+      {
+        "id": "var_retProb",
+        "type": "VarSource",
+        "params": { "val": 0.002, "var": { "ref": "rn_retProb" }, "varPct": 0.3 }
+      },
+      {
+        "id": "var_retPct",
+        "type": "VarSource",
+        "params": { "val": 0.1, "var": { "ref": "rn_retPct" }, "varPct": 0.3 }
+      },
+      {
+        "id": "env",
+        "type": "Envelope",
+        "params": { "preset": "ar", "attack": 0.02 }
+      },
+      {
+        "id": "wn",
+        "type": "WanderNoise2Source",
+        "params": {
+          "seed": 42,
+          "amplitude": { "ref": "env" },
+          "minSpeed": { "ref": "var_minSpd" },
+          "maxSpeed": { "ref": "var_maxSpd" },
+          "reverseProb": { "ref": "var_revProb" },
+          "retraceProb": { "ref": "var_retProb" },
+          "retracePct": { "ref": "var_retPct" }
+        }
+      },
+      {
+        "id": "ch1",
+        "type": "SoundChannel",
+        "inputs": { "source": "wn" },
+        "params": { "volume": 0.8, "pan": 0.0 }
+      },
+      {
+        "id": "mix",
+        "type": "StereoMixer",
+        "inputs": { "channels": ["ch1"] },
+        "params": { "gainL": 1.0, "gainR": 1.0 }
+      }
+    ],
+    "output": "mix"
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "sampleRate": 48000,
+  "seconds": 3,
+  "graph": {
+    "nodes": [
+      {
+        "id": "env",
+        "type": "Envelope",
+        "params": { "preset": "ar", "attack": 0.0, "attackMax": 0.0 }
+      },
+      {
+        "id": "pluck",
+        "type": "WavetableSource",
+        "params": {
+          "seed": 12345,
+          "frequency": 220.0,
+          "amplitude": { "ref": "env" },
+          "evolution": "pluck",
+          "muting": 0.0,
+          "evolutionSeed": 42
+        }
+      },
+      {
+        "id": "ch1",
+        "type": "SoundChannel",
+        "inputs": { "source": "pluck" },
+        "params": { "volume": 0.9, "pan": 0.0 }
+      },
+      {
+        "id": "mix",
+        "type": "StereoMixer",
+        "inputs": { "channels": ["ch1"] },
+        "params": { "gainL": 1.0, "gainR": 1.0 }
+      }
+    ],
+    "output": "mix"
+  }
+}

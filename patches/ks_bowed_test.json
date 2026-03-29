@@ -1,0 +1,15 @@
+{
+  "sampleRate": 48000, "seconds": 3,
+  "graph": { "nodes": [
+    { "id": "env", "type": "Envelope", "params": { "preset": "ar", "attack": 0.0, "attackMax": 0.0 } },
+    { "id": "excite", "type": "SawSource", "params": { "frequency": 220.0, "amplitude": 1.0 } },
+    { "id": "wt", "type": "WavetableSource", "params": {
+        "frequency": 220.0, "amplitude": { "ref": "env" },
+        "inputSource": { "ref": "excite" },
+        "evolution": "averaging", "sampleCount": 2, "speed": 0.5, "decayFactor": 0.999,
+        "evolutionSeed": 42
+    }},
+    { "id": "ch1", "type": "SoundChannel", "inputs": { "source": "wt" }, "params": { "volume": 0.8, "pan": 0.0 } },
+    { "id": "mix", "type": "StereoMixer", "inputs": { "channels": ["ch1"] }, "params": { "gainL": 1.0, "gainR": 1.0 } }
+  ], "output": "mix" }
+}

@@ -1,0 +1,27 @@
+{
+  "sampleRate": 48000,
+  "graph": {
+    "nodes": [
+      { "id": "env", "type": "Envelope", "params": { "preset": "adsr", "attack": 0.05, "decay": 0.1, "sustainLevel": 0.7, "release": 0.0 } },
+      { "id": "saw", "type": "SawSource", "params": { "frequency": 440.0, "amplitude": { "ref": "env" } } }
+    ],
+    "output": "saw"
+  },
+  "instrument": {
+    "paramMap": {
+      "frequency": "saw.frequency"
+    },
+    "polyphony": 4
+  },
+  "score": [
+    { "note": 60, "velocity": 0.8, "time": 0.0, "duration": 0.4 },
+    { "note": 62, "velocity": 0.7, "time": 0.5, "duration": 0.4 },
+    { "note": 64, "velocity": 0.8, "time": 1.0, "duration": 0.4 },
+    { "note": 65, "velocity": 0.7, "time": 1.5, "duration": 0.4 },
+    { "note": 67, "velocity": 0.9, "time": 2.0, "duration": 0.8 },
+    { "note": 65, "velocity": 0.7, "time": 3.0, "duration": 0.4 },
+    { "note": 64, "velocity": 0.8, "time": 3.5, "duration": 0.4 },
+    { "note": 62, "velocity": 0.7, "time": 4.0, "duration": 0.4 },
+    { "note": 60, "velocity": 0.9, "time": 4.5, "duration": 1.0 }
+  ]
+}

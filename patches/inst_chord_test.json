@@ -1,0 +1,27 @@
+{
+  "sampleRate": 48000,
+  "graph": {
+    "nodes": [
+      { "id": "env", "type": "Envelope", "params": { "preset": "adsr", "attack": 0.08, "decay": 0.1, "sustainLevel": 0.6, "release": 0.0 } },
+      { "id": "tri", "type": "TriangleSource", "params": { "frequency": 440.0, "amplitude": { "ref": "env" }, "bias": 0.5 } }
+    ],
+    "output": "tri"
+  },
+  "instrument": {
+    "paramMap": {
+      "frequency": "tri.frequency"
+    },
+    "polyphony": 6
+  },
+  "score": [
+    { "note": 60, "velocity": 0.6, "time": 0.0, "duration": 2.0 },
+    { "note": 64, "velocity": 0.6, "time": 0.0, "duration": 2.0 },
+    { "note": 67, "velocity": 0.6, "time": 0.0, "duration": 2.0 },
+    { "note": 72, "velocity": 0.5, "time": 0.0, "duration": 2.0 },
+
+    { "note": 60, "velocity": 0.6, "time": 2.5, "duration": 2.0 },
+    { "note": 65, "velocity": 0.6, "time": 2.5, "duration": 2.0 },
+    { "note": 69, "velocity": 0.6, "time": 2.5, "duration": 2.0 },
+    { "note": 72, "velocity": 0.5, "time": 2.5, "duration": 2.0 }
+  ]
+}

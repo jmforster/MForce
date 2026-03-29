@@ -1,0 +1,21 @@
+{
+  "sampleRate": 48000, "seconds": 4,
+  "graph": { "nodes": [
+    { "id": "ampEnv", "type": "Envelope", "params": { "preset": "ar", "attack": 0.05 } },
+    { "id": "amplEnv", "type": "Envelope", "params": { "preset": "ar", "attack": 0.0, "attackMax": 0.0 } },
+    { "id": "fas", "type": "FullAdditiveSource", "params": {
+        "seed": 42, "frequency": 196.0, "amplitude": { "ref": "ampEnv" },
+        "mode": "explicit",
+        "mult1": [1, 2.01, 3.03, 4.07, 5.5, 7.2, 9.8],
+        "mult2": [1, 2,    3,    4,    5,   7,   10 ],
+        "ampl1": [1, 0.9,  0.7,  0.5,  0.3, 0.15, 0.08],
+        "ampl2": [1, 0.5,  0.3,  0.2,  0.1, 0.05, 0.02],
+        "multEnv": { "ref": "amplEnv" },
+        "amplEnv": { "ref": "amplEnv" },
+        "rolloff1": 0.0, "rolloff2": 0.0,
+        "detune1": 0.0, "detune2": 0.0
+    }},
+    { "id": "ch1", "type": "SoundChannel", "inputs": { "source": "fas" }, "params": { "volume": 0.8, "pan": 0.0 } },
+    { "id": "mix", "type": "StereoMixer", "inputs": { "channels": ["ch1"] }, "params": { "gainL": 1.0, "gainR": 1.0 } }
+  ], "output": "mix" }
+}

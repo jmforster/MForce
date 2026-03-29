@@ -1,0 +1,13 @@
+{
+  "sampleRate": 48000, "seconds": 3,
+  "graph": { "nodes": [
+    { "id": "env", "type": "Envelope", "params": { "preset": "adsr", "attack": 0.05, "decay": 0.1, "sustainLevel": 0.7, "release": 0.0 } },
+    { "id": "sin", "type": "SineSource", "params": { "frequency": 220.0, "amplitude": 1.0 } },
+    { "id": "dist", "type": "DistortedSource", "params": {
+        "seed": 42, "source": { "ref": "sin" }, "amplitude": { "ref": "env" },
+        "density": 1.0, "gain": 3.0, "shift": 0.1
+    }},
+    { "id": "ch1", "type": "SoundChannel", "inputs": { "source": "dist" }, "params": { "volume": 0.6, "pan": 0.0 } },
+    { "id": "mix", "type": "StereoMixer", "inputs": { "channels": ["ch1"] }, "params": { "gainL": 1.0, "gainR": 1.0 } }
+  ], "output": "mix" }
+}

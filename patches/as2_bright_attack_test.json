@@ -1,0 +1,19 @@
+{
+  "sampleRate": 48000, "seconds": 4,
+  "graph": { "nodes": [
+    { "id": "hiEnv", "type": "Envelope", "params": { "preset": "ar", "attack": 0.0, "attackMax": 0.0 } },
+    { "id": "loEnv", "type": "Envelope", "params": { "preset": "adsr", "attack": 0.3, "decay": 0.1, "sustainLevel": 0.5, "release": 0.0 } },
+    { "id": "ampEnv", "type": "Envelope", "params": { "preset": "ar", "attack": 0.02 } },
+    { "id": "as2", "type": "AdditiveSource2", "params": {
+        "frequency": 165.0, "amplitude": { "ref": "ampEnv" },
+        "partialMode": "default", "partialCount": 60,
+        "amplVarDepth": 0.03, "amplVarSpeed": 0.2,
+        "amplEnvelopes": [
+          { "envelope": { "ref": "loEnv" }, "filter": "all", "from": 1, "to": 5 },
+          { "envelope": { "ref": "hiEnv" }, "filter": "all", "from": 6, "to": 60 }
+        ]
+    }},
+    { "id": "ch1", "type": "SoundChannel", "inputs": { "source": "as2" }, "params": { "volume": 0.8, "pan": 0.0 } },
+    { "id": "mix", "type": "StereoMixer", "inputs": { "channels": ["ch1"] }, "params": { "gainL": 1.0, "gainR": 1.0 } }
+  ], "output": "mix" }
+}

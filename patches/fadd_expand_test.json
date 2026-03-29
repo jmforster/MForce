@@ -1,0 +1,24 @@
+{
+  "sampleRate": 48000, "seconds": 4,
+  "graph": { "nodes": [
+    { "id": "ampEnv", "type": "Envelope", "params": { "preset": "adsr", "attack": 0.1, "decay": 0.1, "sustainLevel": 0.7, "release": 0.0 } },
+    { "id": "roEnv", "type": "Envelope", "params": { "preset": "ar", "attack": 0.0, "attackMax": 0.0 } },
+    { "id": "fas", "type": "FullAdditiveSource", "params": {
+        "seed": 42, "frequency": 220.0, "amplitude": { "ref": "ampEnv" },
+        "mode": "full", "maxPartials": 8, "minMult": 1,
+        "evenWeight1": 1.0, "evenWeight2": 1.0,
+        "oddWeight1": 1.0, "oddWeight2": 1.0,
+        "rolloff1": 0.3, "rolloff2": 1.5,
+        "roEnv": { "ref": "roEnv" },
+        "expandRule": {
+          "count": 3, "recurse": 0,
+          "spacing1": 0.3, "spacing2": 0.3,
+          "dt1": 0.02, "dt2": 0.02,
+          "loPct1": 0.15, "loPct2": 0.15,
+          "power1": 1.5, "power2": 1.5
+        }
+    }},
+    { "id": "ch1", "type": "SoundChannel", "inputs": { "source": "fas" }, "params": { "volume": 0.7, "pan": 0.0 } },
+    { "id": "mix", "type": "StereoMixer", "inputs": { "channels": ["ch1"] }, "params": { "gainL": 1.0, "gainR": 1.0 } }
+  ], "output": "mix" }
+}

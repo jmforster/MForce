@@ -1,0 +1,24 @@
+{
+  "sampleRate": 48000, "seconds": 5,
+  "graph": { "nodes": [
+    { "id": "evolveEnv", "type": "Envelope", "params": { "preset": "ar", "attack": 0.0, "attackMax": 0.0 } },
+    { "id": "ampEnv", "type": "Envelope", "params": { "preset": "adsr", "attack": 0.1, "decay": 0.1, "sustainLevel": 0.6, "release": 0.0 } },
+    { "id": "as2", "type": "AdditiveSource2", "params": {
+        "frequency": 196.0, "amplitude": { "ref": "ampEnv" },
+        "partialMode": "evolving",
+        "startPartials": [1, 2.2, 3.1, 4.7, 5.3, 7.1, 8.9, 10.5],
+        "startAmplitudes": [1, 0.8, 0.6, 0.4, 0.3, 0.2, 0.15, 0.1],
+        "endPartials": [1, 2, 3, 4, 5, 7, 9, 10],
+        "endAmplitudes": [1, 0.5, 0.3, 0.2, 0.15, 0.1, 0.08, 0.05],
+        "freqVarDepth": 0.01, "freqVarSpeed": 0.5,
+        "freqEnvelopes": [
+          { "envelope": { "ref": "evolveEnv" }, "filter": "all", "from": 1, "to": 8 }
+        ],
+        "amplEnvelopes": [
+          { "envelope": { "ref": "evolveEnv" }, "filter": "all", "from": 1, "to": 8 }
+        ]
+    }},
+    { "id": "ch1", "type": "SoundChannel", "inputs": { "source": "as2" }, "params": { "volume": 0.8, "pan": 0.0 } },
+    { "id": "mix", "type": "StereoMixer", "inputs": { "channels": ["ch1"] }, "params": { "gainL": 1.0, "gainR": 1.0 } }
+  ], "output": "mix" }
+}

@@ -1,0 +1,19 @@
+{
+  "sampleRate": 48000, "seconds": 5,
+  "graph": { "nodes": [
+    { "id": "oddEnv", "type": "Envelope", "params": { "preset": "ar", "attack": 0.02 } },
+    { "id": "evenEnv", "type": "Envelope", "params": { "preset": "ar", "attack": 0.0, "attackMax": 0.0 } },
+    { "id": "ampEnv", "type": "Envelope", "params": { "preset": "ar", "attack": 0.02 } },
+    { "id": "as2", "type": "AdditiveSource2", "params": {
+        "frequency": 220.0, "amplitude": { "ref": "ampEnv" },
+        "partialMode": "default", "partialCount": 60,
+        "freqVarDepth": 0.005, "freqVarSpeed": 0.3,
+        "amplEnvelopes": [
+          { "envelope": { "ref": "oddEnv" }, "filter": "odd", "from": 1, "to": 60 },
+          { "envelope": { "ref": "evenEnv" }, "filter": "even", "from": 1, "to": 60 }
+        ]
+    }},
+    { "id": "ch1", "type": "SoundChannel", "inputs": { "source": "as2" }, "params": { "volume": 0.8, "pan": 0.0 } },
+    { "id": "mix", "type": "StereoMixer", "inputs": { "channels": ["ch1"] }, "params": { "gainL": 1.0, "gainR": 1.0 } }
+  ], "output": "mix" }
+}

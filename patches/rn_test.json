@@ -1,0 +1,42 @@
+{
+  "sampleRate": 48000,
+  "seconds": 5,
+  "graph": {
+    "nodes": [
+      {
+        "id": "env",
+        "type": "Envelope",
+        "params": { "preset": "ar", "attack": 0.05 }
+      },
+      {
+        "id": "rn1",
+        "type": "RedNoiseSource",
+        "params": {
+          "seed": 12345,
+          "frequency": 400.0,
+          "amplitude": { "ref": "env" },
+          "phase": 0.0,
+          "density": 1,
+          "smoothness": 0,
+          "rampVariation": 0.5,
+          "boost": 0,
+          "continuity": 0,
+          "zeroCrossTendency": 0
+        }
+      },
+      {
+        "id": "ch1",
+        "type": "SoundChannel",
+        "inputs": { "source": "rn1" },
+        "params": { "volume": 0.8, "pan": -0.2 }
+      },
+      {
+        "id": "mix",
+        "type": "StereoMixer",
+        "inputs": { "channels": ["ch1"] },
+        "params": { "gainL": 1.0, "gainR": 1.0 }
+      }
+    ],
+    "output": "mix"
+  }
+}

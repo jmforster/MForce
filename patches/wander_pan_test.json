@@ -1,0 +1,36 @@
+{
+  "sampleRate": 48000,
+  "seconds": 5,
+  "graph": {
+    "nodes": [
+      {
+        "id": "env",
+        "type": "Envelope",
+        "params": { "preset": "adsr", "attack": 0.05, "decay": 0.05, "sustainLevel": 0.8, "release": 0.0 }
+      },
+      {
+        "id": "wander",
+        "type": "WanderNoiseSource",
+        "params": { "speed": 1.0, "deltaSpeed": 0.5, "slopeLimit": 0.8, "seed": 42 }
+      },
+      {
+        "id": "sin",
+        "type": "SineSource",
+        "params": { "frequency": 440.0, "amplitude": { "ref": "env" } }
+      },
+      {
+        "id": "ch1",
+        "type": "SoundChannel",
+        "inputs": { "source": "sin" },
+        "params": { "volume": 0.8, "pan": { "ref": "wander" } }
+      },
+      {
+        "id": "mix",
+        "type": "StereoMixer",
+        "inputs": { "channels": ["ch1"] },
+        "params": { "gainL": 1.0, "gainR": 1.0 }
+      }
+    ],
+    "output": "mix"
+  }
+}

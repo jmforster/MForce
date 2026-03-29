@@ -1,0 +1,13 @@
+{
+  "sampleRate": 48000, "seconds": 3,
+  "graph": { "nodes": [
+    { "id": "env", "type": "Envelope", "params": { "preset": "adsr", "attack": 0.05, "decay": 0.1, "sustainLevel": 0.7, "release": 0.0 } },
+    { "id": "add", "type": "AdditiveSource", "params": {
+        "seed": 42, "frequency": 220.0, "amplitude": { "ref": "env" },
+        "evenWeight": 0.0, "oddWeight": 1.0, "rolloff": 1.0,
+        "freqVarPct": 0.0, "freqVarSpeed": 0.0, "amplVarPct": 0.0, "amplVarSpeed": 0.0
+    }},
+    { "id": "ch1", "type": "SoundChannel", "inputs": { "source": "add" }, "params": { "volume": 0.8, "pan": 0.0 } },
+    { "id": "mix", "type": "StereoMixer", "inputs": { "channels": ["ch1"] }, "params": { "gainL": 1.0, "gainR": 1.0 } }
+  ], "output": "mix" }
+}

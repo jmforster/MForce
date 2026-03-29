@@ -1,0 +1,47 @@
+{
+  "sampleRate": 48000,
+  "seconds": 4,
+  "graph": {
+    "nodes": [
+      {
+        "id": "ampEnv",
+        "type": "Envelope",
+        "params": { "preset": "ar", "attack": 0.0, "attackMax": 0.0 }
+      },
+      {
+        "id": "depthEnv",
+        "type": "Envelope",
+        "params": { "preset": "ar", "attack": 0.0, "attackMax": 0.0 }
+      },
+      {
+        "id": "depth",
+        "type": "RangeSource",
+        "params": { "min": 0.0, "max": 10.0, "var": { "ref": "depthEnv" } }
+      },
+      {
+        "id": "fm",
+        "type": "FMSource",
+        "params": {
+          "frequency": 440.0,
+          "amplitude": { "ref": "ampEnv" },
+          "carrierRatio": 1.0,
+          "modRatio": 1.4,
+          "depth": { "ref": "depth" }
+        }
+      },
+      {
+        "id": "ch1",
+        "type": "SoundChannel",
+        "inputs": { "source": "fm" },
+        "params": { "volume": 0.7, "pan": 0.0 }
+      },
+      {
+        "id": "mix",
+        "type": "StereoMixer",
+        "inputs": { "channels": ["ch1"] },
+        "params": { "gainL": 1.0, "gainR": 1.0 }
+      }
+    ],
+    "output": "mix"
+  }
+}

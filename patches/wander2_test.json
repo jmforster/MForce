@@ -1,0 +1,39 @@
+{
+  "sampleRate": 48000,
+  "seconds": 5,
+  "graph": {
+    "nodes": [
+      {
+        "id": "env",
+        "type": "Envelope",
+        "params": { "preset": "ar", "attack": 0.02 }
+      },
+      {
+        "id": "wn",
+        "type": "WanderNoise2Source",
+        "params": {
+          "seed": 42,
+          "amplitude": { "ref": "env" },
+          "minSpeed": 0.001,
+          "maxSpeed": 0.01,
+          "reverseProb": 0.005,
+          "retraceProb": 0.002,
+          "retracePct": 0.1
+        }
+      },
+      {
+        "id": "ch1",
+        "type": "SoundChannel",
+        "inputs": { "source": "wn" },
+        "params": { "volume": 0.8, "pan": 0.0 }
+      },
+      {
+        "id": "mix",
+        "type": "StereoMixer",
+        "inputs": { "channels": ["ch1"] },
+        "params": { "gainL": 1.0, "gainR": 1.0 }
+      }
+    ],
+    "output": "mix"
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "sampleRate": 48000, "seconds": 4,
+  "graph": { "nodes": [
+    { "id": "ampEnv", "type": "Envelope", "params": { "preset": "adsr", "attack": 0.05, "decay": 0.1, "sustainLevel": 0.7, "release": 0.0 } },
+    { "id": "cutoffEnv", "type": "Envelope", "params": { "preset": "ar", "attack": 0.0, "attackMax": 0.0 } },
+    { "id": "cutoff", "type": "RangeSource", "params": { "min": 200.0, "max": 8000.0, "var": { "ref": "cutoffEnv" } } },
+    { "id": "saw", "type": "SawSource", "params": { "frequency": 110.0, "amplitude": { "ref": "ampEnv" } } },
+    { "id": "filt", "type": "BWLowpassFilter", "params": { "source": { "ref": "saw" }, "cutoff": { "ref": "cutoff" }, "sections": 3 } },
+    { "id": "ch1", "type": "SoundChannel", "inputs": { "source": "filt" }, "params": { "volume": 0.8, "pan": 0.0 } },
+    { "id": "mix", "type": "StereoMixer", "inputs": { "channels": ["ch1"] }, "params": { "gainL": 1.0, "gainR": 1.0 } }
+  ], "output": "mix" }
+}

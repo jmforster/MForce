@@ -1,0 +1,18 @@
+{
+  "sampleRate": 48000, "seconds": 5,
+  "graph": { "nodes": [
+    { "id": "ringEnv", "type": "Envelope", "params": { "preset": "ar", "attack": 0.02 } },
+    { "id": "dampEnv", "type": "Envelope", "params": { "preset": "ar", "attack": 0.0, "attackMax": 0.0 } },
+    { "id": "ampEnv", "type": "Envelope", "params": { "preset": "ar", "attack": 0.02 } },
+    { "id": "as2", "type": "AdditiveSource2", "params": {
+        "frequency": 330.0, "amplitude": { "ref": "ampEnv" },
+        "partialMode": "default", "partialCount": 40,
+        "amplEnvelopes": [
+          { "envelope": { "ref": "dampEnv" }, "filter": "nonMult3", "from": 1, "to": 40 },
+          { "envelope": { "ref": "ringEnv" }, "filter": "mult3", "from": 1, "to": 40 }
+        ]
+    }},
+    { "id": "ch1", "type": "SoundChannel", "inputs": { "source": "as2" }, "params": { "volume": 0.8, "pan": 0.0 } },
+    { "id": "mix", "type": "StereoMixer", "inputs": { "channels": ["ch1"] }, "params": { "gainL": 1.0, "gainR": 1.0 } }
+  ], "output": "mix" }
+}

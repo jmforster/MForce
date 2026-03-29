@@ -1,0 +1,12 @@
+{
+  "sampleRate": 48000, "seconds": 4,
+  "graph": { "nodes": [
+    { "id": "ampEnv", "type": "Envelope", "params": { "preset": "adsr", "attack": 0.15, "decay": 0.1, "sustainLevel": 0.7, "release": 0.0 } },
+    { "id": "vib", "type": "Vibrato", "params": {
+        "frequency": 440.0, "speed": 5.5, "depth": 0.015, "attack": 0.3, "seed": 42
+    }},
+    { "id": "sin", "type": "SineSource", "params": { "frequency": { "ref": "vib" }, "amplitude": { "ref": "ampEnv" } } },
+    { "id": "ch1", "type": "SoundChannel", "inputs": { "source": "sin" }, "params": { "volume": 0.8, "pan": 0.0 } },
+    { "id": "mix", "type": "StereoMixer", "inputs": { "channels": ["ch1"] }, "params": { "gainL": 1.0, "gainR": 1.0 } }
+  ], "output": "mix" }
+}

@@ -1,0 +1,22 @@
+{
+  "sampleRate": 48000, "seconds": 5,
+  "graph": { "nodes": [
+    { "id": "env", "type": "Envelope", "params": { "preset": "ar", "attack": 0.0, "attackMax": 0.0 } },
+    { "id": "excite", "type": "RedNoiseSource", "params": {
+        "seed": 777, "frequency": 2500.0, "amplitude": 1.0, "smoothness": 0.75,
+        "density": 1, "rampVariation": 0.3, "boost": 0, "continuity": 0.3
+    }},
+    { "id": "hks", "type": "HybridKSSource", "params": {
+        "seed": 12345, "frequency": 233.0, "amplitude": { "ref": "env" },
+        "inputSource": { "ref": "excite" },
+        "holdCycles": 36,
+        "morphDuration": 0.8,
+        "numPartials": 30,
+        "targetPartials": [0.40, 1.00, 0.75, 0.45, 0.28, 0.15, 0.10, 0.05, 0.02, 0.01,
+                           0.006, 0.004, 0.003, 0.002, 0.0015, 0.001, 0.0005, 0.0005, 0.0005, 0.0005,
+                           0.0002, 0.0002, 0.0002, 0.0002, 0.0002, 0.0001, 0.0001, 0.0001, 0.0001, 0.0001]
+    }},
+    { "id": "ch1", "type": "SoundChannel", "inputs": { "source": "hks" }, "params": { "volume": 0.8, "pan": 0.0 } },
+    { "id": "mix", "type": "StereoMixer", "inputs": { "channels": ["ch1"] }, "params": { "gainL": 1.0, "gainR": 1.0 } }
+  ], "output": "mix" }
+}
