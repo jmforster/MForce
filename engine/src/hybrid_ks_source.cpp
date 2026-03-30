@@ -1,4 +1,4 @@
-#include "mforce/hybrid_ks_source.h"
+#include "mforce/source/hybrid_ks_source.h"
 #include <algorithm>
 #include <cmath>
 

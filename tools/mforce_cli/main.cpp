@@ -1,5 +1,5 @@
-#include "mforce/patch_loader.h"
-#include "mforce/wav_writer.h"
+#include "mforce/render/patch_loader.h"
+#include "mforce/render/wav_writer.h"
 #include <iostream>
 #include <vector>
 #include <filesystem>

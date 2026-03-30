@@ -9,10 +9,10 @@
 //
 
 #define NOMINMAX   // prevent windows.h from defining min/max macros
-#include "mforce/patch_loader.h"
-#include "mforce/instrument.h"
-#include "mforce/equal_temperament.h"
-#include "mforce/dsp_value_source.h"
+#include "mforce/render/patch_loader.h"
+#include "mforce/render/instrument.h"
+#include "mforce/core/equal_temperament.h"
+#include "mforce/core/dsp_value_source.h"
 
 #include <windows.h>
 #include <mmsystem.h>

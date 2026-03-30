@@ -1,4 +1,4 @@
-#include "mforce/music.h"
+#include "mforce/music/basics.h"
 #include <stdexcept>
 
 namespace mforce {

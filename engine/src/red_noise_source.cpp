@@ -1,4 +1,4 @@
-#include "mforce/red_noise_source.h"
+#include "mforce/source/red_noise_source.h"
 #include <cmath>
 #include <algorithm>
 #include <iostream>
