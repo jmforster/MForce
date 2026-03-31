@@ -24,8 +24,6 @@ enum class Ornament {
 
 enum class KeyType { Major, Minor };
 
-enum class TimeUnit { Ticks, Beats, Bars, Seconds };
-
 // ===== PitchDef =====
 
 struct PitchDef {
@@ -136,92 +134,35 @@ struct Meter {
   static const Meter M_4_4, M_3_4, M_6_8, M_7_8, M_5_4;
 };
 
-// ===== TimeValue =====
-
-struct TimeValue {
-  float value;
-  TimeUnit unit;
-};
-
-// ===== MEvent =====
-
-struct MEvent {
-  virtual ~MEvent() = default;
-  virtual float duration() const = 0;
-};
-
-// ===== MNote =====
-
-struct MNote : MEvent {
-  float noteNumber;
-  float velocity;
-  float dur;
-  Articulation articulation{Articulation::Default};
-
-  MNote(float nn, float vel, float d, Articulation art = Articulation::Default)
-  : noteNumber(nn), velocity(vel), dur(d), articulation(art) {}
-
-  float duration() const override { return dur; }
-};
-
-// ===== DrumHit =====
-
-struct DrumHit : MEvent {
-  int drumNumber;
-  float velocity;
-  float dur;
-
-  DrumHit(int dn, float vel, float d) : drumNumber(dn), velocity(vel), dur(d) {}
-
-  float duration() const override { return dur; }
-};
-
-// ===== SequencedEvent =====
-
-struct SequencedEvent {
-  std::unique_ptr<MEvent> event;
-  double startTime;
-
-  SequencedEvent(std::unique_ptr<MEvent> e, double t)
-  : event(std::move(e)), startTime(t) {}
-};
-
-// ===== EventSequence =====
-
-struct EventSequence {
-  std::vector<SequencedEvent> events;
-  double totalTime{0.0};
-
-  void add_note(float noteNumber, float velocity, float duration, double startTime,
-                Articulation art = Articulation::Default) {
-    totalTime = std::max(totalTime, startTime + double(duration));
-    events.emplace_back(
-        std::make_unique<MNote>(noteNumber, velocity, duration, art),
-        startTime);
-  }
-
-  void add_note_sequential(float noteNumber, float velocity, float duration,
-                           Articulation art = Articulation::Default) {
-    add_note(noteNumber, velocity, duration, totalTime, art);
-  }
-
-  void add_drum(int drumNumber, float velocity, float duration, double startTime) {
-    totalTime = std::max(totalTime, startTime + double(duration));
-    events.emplace_back(
-        std::make_unique<DrumHit>(drumNumber, velocity, duration),
-        startTime);
-  }
-
-  int count() const { return int(events.size()); }
-};
-
-// ===== SimpleNote (higher-level note with Pitch + TimeValue) =====
+// ===== SimpleNote (higher-level note with Pitch + duration) =====
 
 struct SimpleNote {
   Pitch pitch;
-  TimeValue length;
+  float duration;  // beats
   Articulation articulation{Articulation::Default};
   Ornament ornament{Ornament::None};
+};
+
+// ===== Tone — render-ready note (output of Conductor) =====
+
+struct Tone {
+  float noteNumber;
+  float velocity;
+  float duration;  // seconds
+  Articulation articulation{Articulation::Default};
+
+  Tone(float nn, float vel, float dur, Articulation art = Articulation::Default)
+    : noteNumber(nn), velocity(vel), duration(dur), articulation(art) {}
+};
+
+// ===== DrumHit — render-ready drum event (output of Conductor) =====
+
+struct DrumHit {
+  int drumNumber;
+  float velocity;
+  float duration;  // seconds
+
+  DrumHit(int dn, float vel, float dur) : drumNumber(dn), velocity(vel), duration(dur) {}
 };
 
 // ===== Beat (drum pattern) =====
@@ -265,6 +206,24 @@ struct Chord {
   static Chord create(const std::string& rootName, int octave,
                        const std::string& chordType, float duration = 1.0f,
                        int inversion = 0, int spread = 0);
+
+  // Create using a specific dictionary for voicing
+  static Chord create(const std::string& dictName, const std::string& rootName,
+                       int octave, const std::string& chordType, float duration = 1.0f,
+                       int inversion = 0, int spread = 0);
+};
+
+// ===== ChordDictionary — named collection of ChordDefs for voicing =====
+
+struct ChordDictionary {
+  std::string shortName;
+  std::string name;
+  std::unordered_map<std::string, ChordDef> chords;
+
+  const ChordDef& get_chord_def(const std::string& name) const;
+
+  static const ChordDictionary& get(const std::string& name);
+  static void init_all();
 };
 
 } // namespace mforce

@@ -3,35 +3,104 @@
 
 namespace mforce {
 
-// ===== ChordDef static data =====
+// ===== ChordDef static data (compact/default voicings) =====
 
 static std::vector<ChordDef> s_chordDefs = {
   {"",    "",    "Major",        {"1", "M3", "5"}},
   {"m",   "m",   "Minor",        {"1", "m3", "5"}},
   {"dim", "dim", "Diminished",   {"1", "m3", "-5"}},
-  {"aug", "aug", "Augmented",    {"1", "M3", "+5"}},
+  {"+",   "+",   "Augmented",    {"1", "M3", "+5"}},
   {"sus2","sus2","Suspended 2nd",{"1", "M2", "5"}},
   {"sus4","sus4","Suspended 4th",{"1", "4",  "5"}},
+  {"5",   "5",   "Power",        {"5", "8"}},
   {"7",   "7",   "Dominant 7th", {"1", "M3", "5", "m7"}},
   {"M7",  "M7",  "Major 7th",   {"1", "M3", "5", "M7"}},
   {"m7",  "m7",  "Minor 7th",   {"1", "m3", "5", "m7"}},
   {"mM7", "mM7", "Minor Major 7th", {"1", "m3", "5", "M7"}},
   {"dim7","dim7","Diminished 7th",   {"1", "m3", "-5", "M6"}},
   {"m7b5","m7b5","Half Diminished",  {"1", "m3", "-5", "m7"}},
+  {"6",   "6",   "Major 6th",   {"1", "M3", "5", "M6"}},
+  {"m6",  "m6",  "Minor 6th",   {"1", "m3", "5", "M6"}},
   {"9",   "9",   "Dominant 9th", {"1", "M3", "5", "m7", "M9"}},
   {"M9",  "M9",  "Major 9th",   {"1", "M3", "5", "M7", "M9"}},
   {"m9",  "m9",  "Minor 9th",   {"1", "m3", "5", "m7", "M9"}},
-  {"6",   "6",   "Major 6th",   {"1", "M3", "5", "M6"}},
-  {"m6",  "m6",  "Minor 6th",   {"1", "m3", "5", "M6"}},
+  {"69",  "69",  "Six/Nine",    {"1", "M3", "5", "M6", "M9"}},
+  {"13",  "13",  "Thirteen",    {"1", "M3", "5", "m7", "M13"}},
   {"add9","add9","Add 9",        {"1", "M3", "5", "M9"}},
+  {"+7",  "+7",  "Augmented 7th",{"1", "M3", "+5", "m7"}},
+  {"+M7", "+M7", "Augmented Maj 7th",{"1", "M3", "+5", "M7"}},
+  {"-7",  "dim7","Diminished 7th",{"1", "m3", "-5", "-7"}},
+  {"h7",  "hd7", "Half-Diminished 7th",{"1", "m3", "-5", "m7"}},
 };
 
 const std::vector<ChordDef>& ChordDef::all() { return s_chordDefs; }
 
 const ChordDef& ChordDef::get(const std::string& name) {
+  // "M" is a common alias for Major (whose shortName is "")
+  if (name == "M") return get("");
   for (auto& cd : s_chordDefs)
     if (cd.shortName == name || cd.name == name) return cd;
   throw std::runtime_error("Unknown ChordDef: " + name);
+}
+
+// ===== ChordDictionary =====
+
+static std::unordered_map<std::string, ChordDictionary> s_dicts;
+static bool s_dictsInit = false;
+
+const ChordDef& ChordDictionary::get_chord_def(const std::string& n) const {
+  auto it = chords.find(n);
+  if (it == chords.end())
+    throw std::runtime_error("ChordDictionary '" + name + "': unknown chord '" + n + "'");
+  return it->second;
+}
+
+void ChordDictionary::init_all() {
+  if (s_dictsInit) return;
+  s_dictsInit = true;
+
+  // Default dictionary — compact voicings (same as ChordDef::all but in dict form)
+  ChordDictionary defCD;
+  defCD.shortName = "Default";
+  defCD.name = "Default Chord Definitions";
+  for (auto& cd : s_chordDefs) {
+    std::string key = cd.shortName.empty() ? "M" : cd.shortName;
+    defCD.chords[key] = cd;
+  }
+  // Also register Major as "M"
+  defCD.chords["M"] = ChordDef::get("");
+  s_dicts["Default"] = std::move(defCD);
+
+  // Guitar 6-string bar chords
+  ChordDictionary g6;
+  g6.shortName = "Guitar-Bar-6";
+  g6.name = "Guitar - 6-note Bar Chords";
+  g6.chords["M"]  = {"M",  "M",  "Major",       {"5", "8", "M10", "12", "15"}};
+  g6.chords["m"]  = {"m",  "m",  "Minor",       {"5", "8", "m10", "12", "15"}};
+  g6.chords["7"]  = {"7",  "7",  "Seven",       {"5", "m7", "M10", "12", "15"}};
+  g6.chords["m7"] = {"m7", "m7", "Minor Seven", {"5", "m7", "m10", "12", "15"}};
+  g6.chords["M7"] = {"M7", "M7", "Major Seven", {"5", "M7", "M10", "12", "15"}};
+  s_dicts["Guitar-Bar-6"] = std::move(g6);
+  s_dicts["g6"] = s_dicts["Guitar-Bar-6"]; // alias
+
+  // Piano voicings (spread with 10ths)
+  ChordDictionary piano;
+  piano.shortName = "Piano";
+  piano.name = "Piano";
+  piano.chords["M"]  = {"M",  "",   "Major",       {"5", "8", "M10"}};
+  piano.chords["m"]  = {"m",  "m",  "Minor",       {"5", "8", "m10"}};
+  piano.chords["7"]  = {"7",  "7",  "Seven",       {"5", "m7", "M10"}};
+  piano.chords["m7"] = {"m7", "m7", "Minor Seven", {"5", "m7", "m10"}};
+  piano.chords["M7"] = {"M7", "M7", "Major Seven", {"5", "M7", "M10"}};
+  s_dicts["Piano"] = std::move(piano);
+}
+
+const ChordDictionary& ChordDictionary::get(const std::string& name) {
+  init_all();
+  auto it = s_dicts.find(name);
+  if (it == s_dicts.end())
+    throw std::runtime_error("Unknown ChordDictionary: " + name);
+  return it->second;
 }
 
 // ===== Chord =====
@@ -51,7 +120,7 @@ void Chord::init_pitches() {
     pitches[i] = Pitch::from_note_number(nn);
   }
 
-  // Apply spread: space notes across octaves
+  // Apply spread
   if (spread > 0) {
     for (int i = 1; i < int(pitches.size()); ++i) {
       float nn = pitches[i].note_number() + float(i / 2) * 12.0f * float(spread);
@@ -70,6 +139,20 @@ Chord Chord::create(const std::string& rootName, int octave,
   Chord c;
   c.root = Pitch::from_name(rootName, octave);
   c.def = &ChordDef::get(chordType);
+  c.inversion = inversion;
+  c.spread = spread;
+  c.dur = duration;
+  c.init_pitches();
+  return c;
+}
+
+Chord Chord::create(const std::string& dictName, const std::string& rootName,
+                     int octave, const std::string& chordType, float duration,
+                     int inversion, int spread) {
+  const auto& dict = ChordDictionary::get(dictName);
+  Chord c;
+  c.root = Pitch::from_name(rootName, octave);
+  c.def = &dict.get_chord_def(chordType);
   c.inversion = inversion;
   c.spread = spread;
   c.dur = duration;

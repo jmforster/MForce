@@ -1,160 +1,153 @@
 #pragma once
 #include "mforce/music/basics.h"
 #include "mforce/music/figures.h"
-#include "mforce/music/pitch_reader.h"
 #include <vector>
-#include <memory>
+#include <variant>
 #include <string>
+#include <optional>
+#include <unordered_map>
 
 namespace mforce {
 
-// ---------------------------------------------------------------------------
-// Element — a musical event at a specific time.
-// ---------------------------------------------------------------------------
-struct Element {
-  TimeValue startTime;
+// ===========================================================================
+// Elements — the "ink on paper" of a score. A Part is a sequence of these.
+// Using std::variant: closed set, compiler-enforced exhaustive handling.
+// ===========================================================================
+
+struct Note {
   float noteNumber;
-  float duration;  // in same units as startTime
+  float velocity{1.0f};
+  float durationBeats;
   Articulation articulation{Articulation::Default};
   Ornament ornament{Ornament::None};
 };
 
-// ---------------------------------------------------------------------------
-// ElementCollection — ordered collection of Elements.
-// ---------------------------------------------------------------------------
-struct ElementCollection {
-  std::vector<Element> elements;
-  TimeUnit timeUnit{TimeUnit::Beats};
-  float totalTime{0.0f};
-
-  void add(float noteNumber, float duration, Articulation art = Articulation::Default,
-           Ornament orn = Ornament::None) {
-    elements.push_back({{totalTime, timeUnit}, noteNumber, duration, art, orn});
-    totalTime += duration;
-  }
-
-  void add_at(float startTime, float noteNumber, float duration,
-              Articulation art = Articulation::Default) {
-    elements.push_back({{startTime, timeUnit}, noteNumber, duration, art});
-    totalTime = std::max(totalTime, startTime + duration);
-  }
-
-  int count() const { return int(elements.size()); }
+struct Hit {
+  int drumNumber;
+  float velocity{1.0f};
+  float durationBeats{0.1f};
 };
 
-// ---------------------------------------------------------------------------
-// Passage — melodic figures joined by connectors → ElementCollection.
-// The core composition algorithm: walks the scale using PitchReader,
-// applying figure steps to generate a sequence of pitched notes.
-// ---------------------------------------------------------------------------
+struct Rest {
+  float durationBeats;
+};
+
+// Element — a timed event in a Part
+struct Element {
+  float startBeats{0.0f};
+  std::variant<Note, Chord, Hit, Rest> content;
+
+  bool is_note()  const { return std::holds_alternative<Note>(content); }
+  bool is_chord() const { return std::holds_alternative<Chord>(content); }
+  bool is_hit()   const { return std::holds_alternative<Hit>(content); }
+  bool is_rest()  const { return std::holds_alternative<Rest>(content); }
+
+  const Note&  note()  const { return std::get<Note>(content); }
+  const Chord& chord() const { return std::get<Chord>(content); }
+  const Hit&   hit()   const { return std::get<Hit>(content); }
+  const Rest&  rest()  const { return std::get<Rest>(content); }
+};
+
+// ===========================================================================
+// Phrase — a musical sentence. Collection of Figures with Connectors.
+// ===========================================================================
+struct Phrase {
+  Pitch startingPitch;
+  std::vector<MelodicFigure> figures;
+  std::vector<FigureConnector> connectors;  // between adjacent figures
+
+  void add_figure(MelodicFigure fig) {
+    figures.push_back(std::move(fig));
+  }
+
+  void add_figure(MelodicFigure fig, FigureConnector conn) {
+    connectors.push_back(std::move(conn));
+    figures.push_back(std::move(fig));
+  }
+
+  int figure_count() const { return int(figures.size()); }
+};
+
+// ===========================================================================
+// Passage — what a Part plays during a Section. Collection of Phrases.
+// ===========================================================================
 struct Passage {
-  TimeUnit timeUnit{TimeUnit::Beats};
-  Meter meter{Meter::M_4_4};
-  Scale scale;
-  Pitch startPitch;
+  std::vector<Phrase> phrases;
+  std::optional<Scale> scaleOverride;  // if different from Section's scale
 
-  struct FigureEntry {
-    MelodicFigure figure;
-    FigureConnector connector; // how to connect TO this figure
-  };
-
-  std::vector<FigureEntry> entries;
-
-  void add_figure(MelodicFigure fig, FigureConnector conn = FigureConnector::step(0)) {
-    entries.push_back({std::move(fig), conn});
-  }
-
-  // Compose: convert figures into a stream of pitched, timed elements.
-  ElementCollection compose() const {
-    ElementCollection coll;
-    coll.timeUnit = timeUnit;
-
-    PitchReader reader(scale, startPitch.octave);
-    reader.set_pitch(startPitch);
-
-    for (int f = 0; f < int(entries.size()); ++f) {
-      const auto& entry = entries[f];
-      const auto& fig = entry.figure;
-      const auto& conn = entry.connector;
-
-      // Apply connector (how we arrive at this figure's first note)
-      if (f > 0) {
-        switch (conn.type) {
-          case ConnectorType::Step:
-            reader.step(conn.stepValue);
-            break;
-          case ConnectorType::Pitch:
-            reader.set_pitch(conn.pitch);
-            break;
-          case ConnectorType::EndPitch:
-            reader.set_pitch(conn.pitch);
-            break;
-          case ConnectorType::Elide:
-            // No movement — first note of next figure = last note of previous
-            break;
-        }
-      }
-
-      // Generate notes from figure
-      for (int n = 0; n < fig.note_count(); ++n) {
-        float dur = fig.pulses.get(n).value;
-        Articulation art = (n < int(fig.articulations.size()))
-            ? fig.articulations[n] : Articulation::Default;
-        Ornament orn = (n < int(fig.ornaments.size()))
-            ? fig.ornaments[n] : Ornament::None;
-
-        coll.add(reader.get_note_number(), dur, art, orn);
-
-        // Step to next note (if not the last note in figure)
-        if (n < fig.steps.count()) {
-          reader.step(fig.steps.get(n));
-        }
-      }
-    }
-
-    return coll;
-  }
-
-  Passage() : scale(Scale::get("C", "Major")), startPitch(Pitch::from_name("C", 4)) {}
+  void add_phrase(Phrase p) { phrases.push_back(std::move(p)); }
+  int phrase_count() const { return int(phrases.size()); }
 };
 
-// ---------------------------------------------------------------------------
-// Section — a time-bounded portion of a Piece.
-// ---------------------------------------------------------------------------
+// ===========================================================================
+// Section — a time span with shared musical context.
+// Owns tempo, meter, scale. The "control track" of the DAW.
+// ===========================================================================
 struct Section {
   std::string name;
-  TimeValue startTime{0.0f, TimeUnit::Beats};
-  TimeValue endTime{0.0f, TimeUnit::Beats};
+  float beats;          // length in beats
+  Meter meter{Meter::M_4_4};
+  float tempo{120.0f};  // bpm
+  Scale scale;          // defaults from Piece key, overridden for modulations
+
+  Section() : scale(Scale::get("C", "Major")) {}
+  Section(const std::string& n, float b, float bpm, Meter m, Scale s)
+    : name(n), beats(b), meter(m), tempo(bpm), scale(s) {}
 };
 
-// ---------------------------------------------------------------------------
-// Part — a single voice/instrument line. Contains Passages.
-// ---------------------------------------------------------------------------
+// ===========================================================================
+// Part — a single voice/instrument line across the whole Piece.
+// Contains a Passage per Section (what this part plays in each section),
+// and a realized event list (produced by the Conductor).
+// ===========================================================================
 struct Part {
   std::string name;
-  TimeUnit timeUnit{TimeUnit::Beats};
-  std::vector<Passage> passages;
 
-  void add_passage(Passage p) { passages.push_back(std::move(p)); }
+  // Compositional content: keyed by section name
+  std::unordered_map<std::string, Passage> passages;
 
-  // Compose all passages into a single ElementCollection
-  ElementCollection compose() const {
-    ElementCollection coll;
-    coll.timeUnit = timeUnit;
-    for (auto& p : passages) {
-      auto pc = p.compose();
-      for (auto& e : pc.elements) {
-        coll.add_at(coll.totalTime + e.startTime.value, e.noteNumber, e.duration,
-                    e.articulation);
-      }
-    }
-    return coll;
+  // Realized events (produced by Conductor from Passages, or built directly)
+  std::vector<Element> events;
+  float totalBeats{0.0f};
+
+  // --- Direct event building (for testing, simple progressions) ---
+
+  void add_chord(float startBeat, const Chord& chord) {
+    events.push_back({startBeat, chord});
+    totalBeats = std::max(totalBeats, startBeat + chord.dur);
+  }
+
+  void add_chord(const Chord& chord) {
+    add_chord(totalBeats, chord);
+  }
+
+  void add_note(float startBeat, float noteNumber, float velocity, float durationBeats,
+                Articulation art = Articulation::Default, Ornament orn = Ornament::None) {
+    events.push_back({startBeat, Note{noteNumber, velocity, durationBeats, art, orn}});
+    totalBeats = std::max(totalBeats, startBeat + durationBeats);
+  }
+
+  void add_note(float noteNumber, float velocity, float durationBeats,
+                Articulation art = Articulation::Default) {
+    add_note(totalBeats, noteNumber, velocity, durationBeats, art);
+  }
+
+  void add_hit(float startBeat, int drumNumber, float velocity, float durationBeats = 0.1f) {
+    events.push_back({startBeat, Hit{drumNumber, velocity, durationBeats}});
+    totalBeats = std::max(totalBeats, startBeat + durationBeats);
+  }
+
+  void add_rest(float durationBeats) {
+    events.push_back({totalBeats, Rest{durationBeats}});
+    totalBeats += durationBeats;
   }
 };
 
-// ---------------------------------------------------------------------------
-// Piece — top-level composition. Has a Key, Sections, and Parts.
-// ---------------------------------------------------------------------------
+// ===========================================================================
+// Piece — top-level composition.
+// Sections (horizontal): tempo, meter, scale per time span.
+// Parts (vertical): voices/instruments, each with Passages per Section.
+// ===========================================================================
 struct Piece {
   Key key;
   std::vector<Section> sections;

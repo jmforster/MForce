@@ -1,0 +1,31 @@
+{
+  "sampleRate": 48000,
+  "graph": {
+    "nodes": [
+      {
+        "id": "env",
+        "type": "Envelope",
+        "params": { "preset": "ar", "attack": 0.001, "attackMax": 0.0 }
+      },
+      {
+        "id": "pluck",
+        "type": "WavetableSource",
+        "params": {
+          "seed": 12345,
+          "frequency": 220.0,
+          "amplitude": { "ref": "env" },
+          "evolution": "pluck",
+          "muting": 0.0,
+          "evolutionSeed": 42
+        }
+      }
+    ],
+    "output": "pluck"
+  },
+  "instrument": {
+    "paramMap": {
+      "frequency": "pluck.frequency"
+    },
+    "polyphony": 12
+  }
+}

@@ -14,6 +14,9 @@
 #include "mforce/source/additive/full_additive_source.h"
 #include "mforce/source/additive/additive_source2.h"
 #include "mforce/source/hybrid_ks_source.h"
+#include "mforce/source/phased_value_source.h"
+#include "mforce/source/segment_source.h"
+#include "mforce/source/repeating_source.h"
 #include "mforce/source/combined_source.h"
 #include "mforce/filter/filters.h"
 #include "mforce/filter/vibrato.h"
@@ -661,6 +664,81 @@ static GraphResult build_graph(
             valueNodes[id] = hks;
             monoNodes[id]  = std::make_unique<WaveSourceMono>(hks);
         }
+        else if (type == "PhasedValueSource") {
+            float overlap = 0.05f;
+            if (node.contains("params"))
+                overlap = node["params"].value("overlap", 0.05f);
+
+            auto pvs = std::make_shared<PhasedValueSource>(sampleRate, overlap);
+
+            if (node.contains("params")) {
+                const auto& p = node["params"];
+                pvs->amplitude = resolve_param_or(p, "amplitude", 1.0f, valueNodes);
+
+                if (p.contains("stages")) {
+                    for (auto& sj : p["stages"]) {
+                        PhasedValueSource::Stage stg;
+                        stg.source  = resolve_param(sj.at("source"), valueNodes);
+                        stg.percent = sj.value("percent", 0.0f);
+                        stg.minSec  = sj.value("min", 0.0f);
+                        stg.maxSec  = sj.value("max", 0.0f);
+                        stg.gainAdj = sj.value("gain", 1.0f);
+                        pvs->add_stage(std::move(stg));
+                    }
+                }
+            }
+            valueNodes[id] = pvs;
+            monoNodes[id]  = std::make_unique<ValueSourceMono>(pvs);
+        }
+        else if (type == "SegmentSource") {
+            uint32_t seed = 0x5E6A'0000u;
+            if (node.contains("params") && node["params"].contains("seed"))
+                seed = static_cast<uint32_t>(node["params"]["seed"].get<int>());
+
+            std::vector<float> values;
+            if (node.contains("params") && node["params"].contains("values"))
+                values = node["params"]["values"].get<std::vector<float>>();
+
+            bool oneShot = false;
+            if (node.contains("params"))
+                oneShot = node["params"].value("oneShot", false);
+
+            auto seg = std::make_shared<SegmentSource>(std::move(values), sampleRate, oneShot, seed);
+
+            if (node.contains("params")) {
+                const auto& p = node["params"];
+                seg->amplitude   = resolve_param_or(p, "amplitude",   1.0f, valueNodes);
+                seg->smoothness  = resolve_param_or(p, "smoothness",  0.5f, valueNodes);
+                seg->widthVarPct = resolve_param_or(p, "widthVarPct", 0.0f, valueNodes);
+                seg->valVarPct   = resolve_param_or(p, "valVarPct",   0.0f, valueNodes);
+                seg->gap         = resolve_param_or(p, "gap",         0.0f, valueNodes);
+                seg->gapVarPct   = resolve_param_or(p, "gapVarPct",   0.0f, valueNodes);
+            }
+            valueNodes[id] = seg;
+            monoNodes[id]  = std::make_unique<ValueSourceMono>(seg);
+        }
+        else if (type == "RepeatingSource") {
+            uint32_t seed = 0xAEAE'0000u;
+            if (node.contains("params") && node["params"].contains("seed"))
+                seed = static_cast<uint32_t>(node["params"]["seed"].get<int>());
+
+            auto rep = std::make_shared<RepeatingSource>(sampleRate, seed);
+
+            if (node.contains("params")) {
+                const auto& p = node["params"];
+                if (p.contains("source")) {
+                    std::string srcRef = p["source"].at("ref").get<std::string>();
+                    auto it = valueNodes.find(srcRef);
+                    if (it != valueNodes.end()) rep->source = it->second;
+                }
+                rep->duration    = p.value("duration", 0.5f);
+                rep->durVarPct   = p.value("durVarPct", 0.0f);
+                rep->gapDuration = p.value("gap", 0.2f);
+                rep->gapVarPct   = p.value("gapVarPct", 0.0f);
+            }
+            valueNodes[id] = rep;
+            monoNodes[id]  = std::make_unique<ValueSourceMono>(rep);
+        }
         else if (type == "CombinedSource") {
             if (!node.contains("params"))
                 throw std::runtime_error("CombinedSource requires params");
@@ -891,19 +969,19 @@ Patch load_patch_file(const std::string& path)
     }
 
     // -------------------------------------------------------------------
-    // Instrument mode: build voices, schedule notes
+    // PitchedInstrument mode: build voices, schedule notes
     // -------------------------------------------------------------------
     if (root.contains("instrument")) {
         const auto& instJson = root["instrument"];
         int polyphony = instJson.value("polyphony", 4);
 
-        auto inst = std::make_unique<Instrument>();
+        auto inst = std::make_unique<PitchedInstrument>();
         inst->sampleRate = sampleRate;
 
         // Build voice pool: N independent graph instances
         for (int v = 0; v < polyphony; ++v) {
             auto g = build_graph(nodeMap, nodeOrder, sampleRate);
-            Instrument::VoiceGraph vg;
+            PitchedInstrument::VoiceGraph vg;
 
             // Find the top-level source for this voice
             auto srcIt = g.valueNodes.find(outputId);
@@ -1018,6 +1096,55 @@ Patch load_patch_file(const std::string& path)
 
     patch.mixer = std::move(mixer);
     return patch;
+}
+
+// ---------------------------------------------------------------------------
+// Load just the Instrument (no score, no mixer) for external use
+// ---------------------------------------------------------------------------
+
+InstrumentPatch load_instrument_patch(const std::string& path)
+{
+    json root = json::parse(slurp(path));
+
+    int sampleRate = root.value("sampleRate", 48000);
+
+    if (!root.contains("instrument"))
+        throw std::runtime_error("Patch has no 'instrument' section: " + path);
+
+    const json& graph = root.at("graph");
+    const json& nodes = graph.at("nodes");
+    std::string outputId = graph.at("output").get<std::string>();
+
+    std::unordered_map<std::string, json> nodeMap;
+    std::vector<std::string> nodeOrder;
+    for (const auto& n : nodes) {
+        std::string id = n.at("id").get<std::string>();
+        nodeMap.emplace(id, n);
+        nodeOrder.push_back(id);
+    }
+
+    const auto& instJson = root["instrument"];
+    int polyphony = instJson.value("polyphony", 4);
+
+    auto inst = std::make_unique<PitchedInstrument>();
+    inst->sampleRate = sampleRate;
+
+    for (int v = 0; v < polyphony; ++v) {
+        auto g = build_graph(nodeMap, nodeOrder, sampleRate);
+        PitchedInstrument::VoiceGraph vg;
+
+        auto srcIt = g.valueNodes.find(outputId);
+        if (srcIt == g.valueNodes.end())
+            throw std::runtime_error("instrument: output node '" + outputId + "' not found");
+        vg.source = srcIt->second;
+
+        if (instJson.contains("paramMap"))
+            vg.params = resolve_param_map(instJson["paramMap"], g, nodeMap);
+
+        inst->voicePool.push_back(std::move(vg));
+    }
+
+    return {std::move(inst), sampleRate};
 }
 
 } // namespace mforce

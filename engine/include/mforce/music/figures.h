@@ -5,26 +5,23 @@
 #include <string>
 #include <algorithm>
 #include <cmath>
+#include <stdexcept>
 
 namespace mforce {
 
 // ---------------------------------------------------------------------------
-// PulseSequence — sequence of time values (durations).
+// PulseSequence — sequence of durations in beats.
 // ---------------------------------------------------------------------------
 struct PulseSequence {
-  std::vector<TimeValue> pulses;
+  std::vector<float> pulses;  // durations in beats
 
-  void add(float value, TimeUnit unit = TimeUnit::Beats) {
-    pulses.push_back({value, unit});
-  }
-
+  void add(float beats) { pulses.push_back(beats); }
   int count() const { return int(pulses.size()); }
-
-  TimeValue get(int i) const { return pulses[i]; }
+  float get(int i) const { return pulses[i]; }
 
   float total_length() const {
     float t = 0;
-    for (auto& p : pulses) t += p.value;
+    for (float p : pulses) t += p;
     return t;
   }
 };
@@ -58,7 +55,6 @@ struct StepGenerator {
     for (int i = 0; i < length; ++i) {
       int step;
       if (rng.decide(skipProb)) {
-        // Skip: step by 2 or more
         step = rng.decide(0.5f) ? 2 : -2;
       } else {
         step = rng.decide(0.5f) ? 1 : -1;
@@ -76,10 +72,8 @@ struct StepGenerator {
       int distance = target - pos;
 
       if (remaining <= std::abs(distance)) {
-        // Must head toward target
         seq.add(distance > 0 ? 1 : -1);
       } else {
-        // Random step with bias toward target
         int step = rng.decide(0.6f) ? (distance >= 0 ? 1 : -1) : (distance >= 0 ? -1 : 1);
         seq.add(step);
       }
@@ -87,6 +81,17 @@ struct StepGenerator {
     }
     return seq;
   }
+};
+
+// ---------------------------------------------------------------------------
+// FigureUnit — a single element within a MelodicFigure.
+// Replaces parallel arrays of durations, steps, articulations, ornaments.
+// ---------------------------------------------------------------------------
+struct FigureUnit {
+  float duration;  // beats
+  int step{0};     // scale-degree movement from previous note (0 for first)
+  Articulation articulation{Articulation::Default};
+  Ornament ornament{Ornament::None};
 };
 
 // ---------------------------------------------------------------------------
@@ -117,41 +122,44 @@ enum class ConnectorType { Step, Pitch, EndPitch, Elide };
 struct FigureConnector {
   ConnectorType type{ConnectorType::Step};
   int stepValue{0};     // for Step type
-  Pitch pitch;          // for Pitch/EndPitch types (uses default-constructed Pitch)
+  Pitch pitch;          // for Pitch/EndPitch types
 
   static FigureConnector step(int v) { return {ConnectorType::Step, v}; }
   static FigureConnector elide() { return {ConnectorType::Elide}; }
 };
 
 // ---------------------------------------------------------------------------
-// MelodicFigure — a melodic pattern: pulse sequence + step sequence.
-// Pulses define timing, steps define pitch movement.
-// pulse count = step count + 1 (one more note than steps between notes).
+// MelodicFigure — a melodic pattern built from FigureUnits.
+// Constructed from StepSequence + PulseSequence (Composer's building blocks),
+// stored as vector<FigureUnit> (Conductor's consumable form).
 // ---------------------------------------------------------------------------
 struct MelodicFigure {
-  PulseSequence pulses;
-  StepSequence steps;
-  std::vector<Articulation> articulations;
-  std::vector<Ornament> ornaments;
+  std::vector<FigureUnit> units;
 
-  int note_count() const { return pulses.count(); }
+  // Construct from Composer's building blocks
+  MelodicFigure() = default;
 
-  void add_note(float duration, TimeUnit unit = TimeUnit::Beats) {
-    pulses.add(duration, unit);
+  MelodicFigure(const PulseSequence& pulses, const StepSequence& steps) {
+    if (steps.count() != pulses.count() - 1)
+      throw std::runtime_error("MelodicFigure: step count must be pulse count - 1");
+
+    for (int i = 0; i < pulses.count(); ++i) {
+      FigureUnit u;
+      u.duration = pulses.get(i);
+      u.step = (i == 0) ? 0 : steps.get(i - 1);
+      units.push_back(u);
+    }
   }
 
-  void add_step(int step) {
-    steps.add(step);
-  }
+  int note_count() const { return int(units.size()); }
 
-  // Convenience: add a note with step (adds pulse + step together)
-  void add_element(float duration, int step, TimeUnit unit = TimeUnit::Beats,
-                   Articulation art = Articulation::Default, Ornament orn = Ornament::None) {
-    pulses.add(duration, unit);
-    if (pulses.count() > 1) // first note has no preceding step
-      steps.add(step);
-    articulations.push_back(art);
-    ornaments.push_back(orn);
+  void set_articulation(int index, Articulation art) { units[index].articulation = art; }
+  void set_ornament(int index, Ornament orn) { units[index].ornament = orn; }
+
+  float total_duration() const {
+    float t = 0;
+    for (auto& u : units) t += u.duration;
+    return t;
   }
 };
 
@@ -181,29 +189,28 @@ struct ChordFigure {
 
   struct Element {
     PitchSelection selection;
-    TimeValue duration;
+    float duration;  // beats
     int direction{DIR_ASCENDING};
     float delay{0.0f};
   };
 
   std::vector<Element> elements;
 
-  void add(PitchSelectionType selType, float duration, TimeUnit unit = TimeUnit::Beats,
+  void add(PitchSelectionType selType, float duration,
            int direction = DIR_ASCENDING, float delay = 0.0f) {
     Element e;
     e.selection.type = selType;
-    e.duration = {duration, unit};
+    e.duration = duration;
     e.direction = direction;
     e.delay = delay;
     elements.push_back(e);
   }
 
-  void add(PitchSelectionType selType, std::vector<int> indices,
-           float duration, TimeUnit unit = TimeUnit::Beats) {
+  void add(PitchSelectionType selType, std::vector<int> indices, float duration) {
     Element e;
     e.selection.type = selType;
     e.selection.indices = std::move(indices);
-    e.duration = {duration, unit};
+    e.duration = duration;
     elements.push_back(e);
   }
 
@@ -211,7 +218,7 @@ struct ChordFigure {
 
   float total_time() const {
     float t = 0;
-    for (auto& e : elements) t += e.duration.value;
+    for (auto& e : elements) t += e.duration;
     return t;
   }
 };
@@ -256,7 +263,6 @@ struct FigureBuilder {
   float defaultPulse{1.0f};
   float minPulse{0.5f};
   float maxPulse{2.0f};
-  TimeUnit pulseUnit{TimeUnit::Beats};
 
   int maxPeak{4};
   int maxFloor{-4};
@@ -267,40 +273,37 @@ struct FigureBuilder {
   : rng(seed), stepGen(seed + 1) {}
 
   MelodicFigure build(int noteCount) {
-    MelodicFigure fig;
-
-    // Generate pulses
+    PulseSequence pulses;
     for (int i = 0; i < noteCount; ++i) {
       float dur = rng.range(minPulse, maxPulse);
       dur = std::round(dur / minPulse) * minPulse; // quantize
-      fig.pulses.add(dur, pulseUnit);
+      pulses.add(dur);
     }
 
     // Generate steps (one fewer than notes)
-    auto steps = stepGen.random_sequence(noteCount - 1);
+    auto rawSteps = stepGen.random_sequence(noteCount - 1);
 
     // Constrain steps to range
+    StepSequence steps;
     int pos = 0;
-    for (int i = 0; i < steps.count(); ++i) {
-      int s = steps.get(i);
+    for (int i = 0; i < rawSteps.count(); ++i) {
+      int s = rawSteps.get(i);
       if (pos + s > maxPeak) s = -std::abs(s);
       if (pos + s < maxFloor) s = std::abs(s);
       pos += s;
-      fig.steps.add(s);
+      steps.add(s);
     }
 
-    return fig;
+    return MelodicFigure(pulses, steps);
   }
 
-  // Vary a figure's pulses slightly
+  // Vary a figure's durations slightly
   MelodicFigure vary(const MelodicFigure& source, float amount = 0.3f) {
     MelodicFigure fig = source;
-    for (int i = 0; i < fig.pulses.count(); ++i) {
+    for (auto& u : fig.units) {
       if (rng.decide(amount)) {
-        float v = fig.pulses.pulses[i].value;
-        v *= rng.range(0.75f, 1.25f);
-        v = std::max(minPulse, std::min(maxPulse, v));
-        fig.pulses.pulses[i].value = v;
+        u.duration *= rng.range(0.75f, 1.25f);
+        u.duration = std::max(minPulse, std::min(maxPulse, u.duration));
       }
     }
     return fig;

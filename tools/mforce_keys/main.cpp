@@ -13,6 +13,7 @@
 #include "mforce/render/instrument.h"
 #include "mforce/core/equal_temperament.h"
 #include "mforce/core/dsp_value_source.h"
+#include <nlohmann/json.hpp>
 
 #include <windows.h>
 #include <mmsystem.h>
@@ -122,7 +123,7 @@ static void shutdown_audio() {
 // Note rendering into mix buffer
 // ---------------------------------------------------------------------------
 
-static void render_note(Instrument::VoiceGraph& vg, float noteNum, float vel, float dur) {
+static void render_note(PitchedInstrument::VoiceGraph& vg, float noteNum, float vel, float dur) {
     float freq = note_to_freq(noteNum);
     int samples = int(dur * SAMPLE_RATE);
 
@@ -190,7 +191,7 @@ int main(int argc, char** argv)
         // Load instruments
         struct LoadedInstrument {
             std::string name;
-            std::vector<Instrument::VoiceGraph> voices;
+            std::vector<PitchedInstrument::VoiceGraph> voices;
             int nextVoice{0};
         };
 
@@ -216,7 +217,7 @@ int main(int argc, char** argv)
 
             // The first channel's source should be the Instrument
             if (patch.mixer->channels.empty()) continue;
-            auto* inst = dynamic_cast<Instrument*>(patch.mixer->channels[0].source.get());
+            auto* inst = dynamic_cast<PitchedInstrument*>(patch.mixer->channels[0].source.get());
             if (!inst) { std::cerr << "Not an instrument patch: " << path << "\n"; continue; }
 
             LoadedInstrument li;

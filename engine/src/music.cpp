@@ -140,6 +140,9 @@ static std::unordered_map<std::string, Interval> s_intervals = {
   {"m9",  {"m9",  "Minor 9th",       13}},  {"M9",  {"M9",  "Major 9th",     14}},
   {"+9",  {"+9",  "Augmented 9th",   15}},  {"11",  {"11",  "Perfect 11th",  17}},
   {"+11", {"+11", "Augmented 11th",  18}},  {"M13", {"M13", "Major 13th",    21}},
+  {"-7",  {"-7",  "Diminished 7th",  9}},
+  {"m10", {"m10", "Minor 10th",     15}},  {"M10", {"M10", "Major 10th",    16}},
+  {"12",  {"12",  "Perfect 12th",   19}},  {"15",  {"15",  "Double Octave", 24}},
 };
 
 const Interval& Interval::get(const std::string& name) {
