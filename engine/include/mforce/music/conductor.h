@@ -410,6 +410,10 @@ private:
             currentNN = conn.pitch.note_number();
             break;
           case ConnectorType::EndPitch:
+            // EndPitch = "figure should END at this pitch"
+            // Set to end pitch, then walk back by figure's net to find start
+            currentNN = conn.pitch.note_number();
+            currentNN = step_note(currentNN, -fig.net_step(), scale);
             break;
           case ConnectorType::Elide:
             break;
