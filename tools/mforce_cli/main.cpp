@@ -4,7 +4,9 @@
 #include "mforce/music/structure.h"
 #include "mforce/music/conductor.h"
 #include "mforce/music/classical_composer.h"
+#include "mforce/music/music_json.h"
 #include <iostream>
+#include <fstream>
 #include <vector>
 #include <filesystem>
 #include <cmath>
@@ -496,7 +498,7 @@ static int run_josie(int argc, char** argv) {
     }
 
     float bpm = 132.0f;
-    int baseOctave = 4;  // guitar at octave 4
+    int baseOctave = 3;  // guitar at octave 3
 
     // Parse chords
     auto parsed = parse_chord_string(chordStr, baseOctave, "Default", "Josie");
@@ -674,7 +676,92 @@ static int run_compose(int argc, char** argv) {
         std::cout << "Composed #" << (i + 1) << ": " << outPath
                   << " (" << totalBeats << " beats @ " << bpm << " bpm)\n";
         std::cerr << "  peak=" << peak << " rms=" << rms << "\n";
+
+        // Save piece as JSON
+        std::string jsonPath = outPrefix + "_" + std::to_string(i + 1) + ".json";
+        json pieceJson = piece;
+        std::ofstream jf(jsonPath);
+        jf << pieceJson.dump(2);
+        std::cout << "  Saved: " << jsonPath << "\n";
     }
+
+    return 0;
+}
+
+// ---------------------------------------------------------------------------
+// Play mode — load a piece JSON and render it
+// ---------------------------------------------------------------------------
+static int run_play(int argc, char** argv) {
+    if (argc < 5) {
+        std::cerr << "Usage: mforce_cli --play <piece.json> <patch.json> <out.wav>\n"
+                  << "  Maps all Part instrumentTypes to the given patch.\n";
+        return 1;
+    }
+
+    std::string pieceJsonPath = argv[2];
+    std::string patchPath     = argv[3];
+    std::string outPath       = argv[4];
+
+    // Load piece
+    std::ifstream pf(pieceJsonPath);
+    if (!pf) {
+        std::cerr << "Cannot open piece: " << pieceJsonPath << "\n";
+        return 1;
+    }
+    json pj = json::parse(pf);
+    Piece piece = pj.get<Piece>();
+
+    std::cout << "Loaded piece: " << piece.key.to_string()
+              << ", " << piece.sections.size() << " sections, "
+              << piece.parts.size() << " parts\n";
+
+    // Load instrument and register for all parts
+    auto ip = load_instrument_patch(patchPath);
+    ip.instrument->volume = 0.5f;
+    ip.instrument->hiBoost = 0.3f;
+
+    Conductor conductor;
+    for (auto& part : piece.parts) {
+        conductor.instruments[part.instrumentType] = ip.instrument.get();
+    }
+    conductor.perform(piece);
+
+    // Render
+    float totalBeats = 0;
+    float bpm = 120.0f;
+    for (auto& s : piece.sections) {
+        totalBeats += s.beats;
+        bpm = s.tempo;
+    }
+
+    float totalSeconds = totalBeats * 60.0f / bpm + 2.0f;
+    int frames = int(totalSeconds * float(ip.sampleRate));
+    std::vector<float> mono(frames, 0.0f);
+    ip.instrument->render(mono.data(), frames);
+
+    std::vector<float> stereo(frames * 2);
+    for (int i = 0; i < frames; ++i) {
+        stereo[i * 2]     = mono[i];
+        stereo[i * 2 + 1] = mono[i];
+    }
+
+    if (!write_wav_16le_stereo(outPath, ip.sampleRate, stereo)) {
+        std::cerr << "Failed to write: " << outPath << "\n";
+        return 1;
+    }
+
+    float peak = 0.0f;
+    double rms = 0.0;
+    for (auto s : stereo) {
+        float a = std::fabs(s);
+        if (a > peak) peak = a;
+        rms += double(s) * double(s);
+    }
+    rms = std::sqrt(rms / stereo.size());
+
+    std::cout << "Played: " << outPath
+              << " (" << totalBeats << " beats @ " << bpm << " bpm)\n";
+    std::cerr << "  peak=" << peak << " rms=" << rms << "\n";
 
     return 0;
 }
@@ -738,6 +825,8 @@ int main(int argc, char** argv)
             return run_josie(argc, argv);
         if (argc >= 2 && std::string(argv[1]) == "--compose")
             return run_compose(argc, argv);
+        if (argc >= 2 && std::string(argv[1]) == "--play")
+            return run_play(argc, argv);
 
         return run_patch(argc, argv);
     }
