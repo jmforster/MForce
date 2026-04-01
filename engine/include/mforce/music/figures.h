@@ -81,6 +81,70 @@ struct StepGenerator {
     }
     return seq;
   }
+
+  // Stepwise only (no skips), with direction changes
+  StepSequence no_skip_sequence(int length) {
+    StepSequence seq;
+    int dir = rng.decide(0.5f) ? 1 : -1;
+    int dirCount = 0;
+    for (int i = 0; i < length; ++i) {
+      if (i > 2 && rng.decide(dirCount * 0.15f)) {
+        // Prevent 2-note oscillation
+        if (i >= 3 && seq.get(i-3) != seq.get(i-1)) {
+          dir = -dir;
+          dirCount = 0;
+        }
+      }
+      seq.add(dir);
+      dirCount++;
+    }
+    return seq;
+  }
+
+  // Skip-based sequence for melodic outlines (skips of 2-7 scale degrees)
+  StepSequence skip_sequence(int length, int startDegree) {
+    StepSequence seq;
+    int currDegree = startDegree;
+    int dir = rng.decide(0.5f) ? 1 : -1;
+    int dirCount = 0;
+
+    for (int i = 0; i < length; ++i) {
+      if (rng.decide(dirCount * 0.4f)) {
+        dir = -dir;
+        dirCount = 0;
+      }
+
+      int skip;
+      if (dir == 1) {
+        if (currDegree == 0) {
+          skip = (i == 0)
+            ? rng.select_int({2, 4, 7}, {0.5f, 0.35f, 0.15f})
+            : rng.select_int({2, 4}, {0.65f, 0.35f});
+        } else if (currDegree == 2) {
+          skip = rng.select_int({2, 5}, {0.65f, 0.35f});
+        } else {
+          skip = rng.select_int({3, 5}, {0.65f, 0.35f});
+        }
+      } else {
+        if (currDegree == 0) {
+          skip = (i == 0)
+            ? rng.select_int({-3, -5, -7}, {0.5f, 0.35f, 0.15f})
+            : rng.select_int({-3, -5}, {0.65f, 0.35f});
+        } else if (currDegree == 2) {
+          skip = rng.select_int({-2, -5}, {0.65f, 0.35f});
+        } else {
+          skip = rng.select_int({-2, -4}, {0.65f, 0.35f});
+        }
+      }
+
+      seq.add(skip);
+      currDegree += skip;
+      if (currDegree < 0) currDegree += 7;
+      currDegree %= 7;
+      dirCount++;
+    }
+    return seq;
+  }
 };
 
 // ---------------------------------------------------------------------------
@@ -160,6 +224,13 @@ struct MelodicFigure {
     float t = 0;
     for (auto& u : units) t += u.duration;
     return t;
+  }
+
+  // Net pitch movement (sum of all steps)
+  int net_step() const {
+    int n = 0;
+    for (auto& u : units) n += u.step;
+    return n;
   }
 };
 
@@ -267,23 +338,22 @@ struct FigureBuilder {
   int maxPeak{4};
   int maxFloor{-4};
   int maxRange{8};
-  int maxNet{2};
+  int targetNet{0};  // constrained net pitch movement (0 = unconstrained)
 
   explicit FigureBuilder(uint32_t seed = 0xF1B0'0001u)
   : rng(seed), stepGen(seed + 1) {}
 
+  // Build from note count with random pulses and steps
   MelodicFigure build(int noteCount) {
     PulseSequence pulses;
     for (int i = 0; i < noteCount; ++i) {
       float dur = rng.range(minPulse, maxPulse);
-      dur = std::round(dur / minPulse) * minPulse; // quantize
+      dur = std::round(dur / minPulse) * minPulse;
       pulses.add(dur);
     }
 
-    // Generate steps (one fewer than notes)
     auto rawSteps = stepGen.random_sequence(noteCount - 1);
 
-    // Constrain steps to range
     StepSequence steps;
     int pos = 0;
     for (int i = 0; i < rawSteps.count(); ++i) {
@@ -297,7 +367,101 @@ struct FigureBuilder {
     return MelodicFigure(pulses, steps);
   }
 
-  // Vary a figure's durations slightly
+  // Build from step sequence with uniform pulse
+  MelodicFigure build(const StepSequence& ss, float pulse) {
+    PulseSequence pulses;
+    for (int i = 0; i < ss.count() + 1; ++i)
+      pulses.add(pulse);
+    return MelodicFigure(pulses, ss);
+  }
+
+  // Build from duration (total beats) with stepwise steps and optional variation
+  MelodicFigure build_from_length(float lengthBeats, bool doVary = false) {
+    int count = int(lengthBeats / defaultPulse);
+    if (count < 2) count = 2;
+
+    StepSequence steps = stepGen.no_skip_sequence(count - 1);
+
+    PulseSequence pulses;
+    for (int i = 0; i < count; ++i)
+      pulses.add(defaultPulse);
+
+    MelodicFigure fig(pulses, steps);
+    if (doVary) fig = vary_rhythm(fig);
+    return fig;
+  }
+
+  // Single-note figure (cadential note, held tone)
+  MelodicFigure single_note(float durationBeats) {
+    PulseSequence ps;
+    ps.add(durationBeats);
+    StepSequence ss;
+    return MelodicFigure(ps, ss);
+  }
+
+  // Rhythmic variation: split or dot pulses
+  MelodicFigure vary_rhythm(const MelodicFigure& source) {
+    MelodicFigure fig = source;
+
+    for (int x = 0; x < fig.note_count() - 1; ++x) {
+      if (rng.decide(0.2f)) {
+        // Split pulse into 2
+        float dur = fig.units[x].duration;
+        if (dur < minPulse * 2) continue;
+
+        float dur1, dur2;
+        if (dur < 1.0f || rng.decide(0.5f)) {
+          dur1 = dur * 0.5f;
+          dur2 = dur * 0.5f;
+        } else {
+          dur1 = dur * 0.75f;
+          dur2 = dur * 0.25f;
+        }
+
+        fig.units[x].duration = dur1;
+        FigureUnit newUnit;
+        newUnit.duration = dur2;
+        newUnit.step = 0;
+        fig.units.insert(fig.units.begin() + x + 1, newUnit);
+        break;
+      } else if (x < fig.note_count() - 1 && rng.decide(0.3f)) {
+        // Dot current, shorten next
+        float dur = fig.units[x].duration;
+        fig.units[x].duration = dur * 1.5f;
+        fig.units[x + 1].duration = dur * 0.5f;
+        break;
+      }
+    }
+
+    return fig;
+  }
+
+  // Replicate: repeat a figure N times with a step offset between copies
+  MelodicFigure replicate(const MelodicFigure& source, int count, int stepBetween) {
+    PulseSequence pulses;
+    StepSequence steps;
+
+    for (int rep = 0; rep < count; ++rep) {
+      for (int i = 0; i < source.note_count(); ++i) {
+        pulses.add(source.units[i].duration);
+
+        if (rep == 0 && i == 0) continue; // first note has no step
+
+        if (i == 0) {
+          // Connecting step between repetitions: offset minus net of source
+          int net = 0;
+          for (auto& u : source.units) net += u.step;
+          steps.add(stepBetween - net);
+        } else {
+          steps.add(source.units[i].step);
+        }
+      }
+    }
+
+    return MelodicFigure(pulses, steps);
+  }
+
+  // Vary a figure's durations slightly (simple version)
   MelodicFigure vary(const MelodicFigure& source, float amount = 0.3f) {
     MelodicFigure fig = source;
     for (auto& u : fig.units) {

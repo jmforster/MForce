@@ -2,6 +2,7 @@
 #include <random>
 #include <cmath>
 #include <algorithm>
+#include <vector>
 
 namespace mforce {
 
@@ -35,6 +36,35 @@ struct Randomizer {
     float frac = v - std::floor(v);
     if (decide(frac)) return int(std::ceil(v));
     return int(std::floor(v));
+  }
+
+  // Random integer in [min, max] inclusive
+  int int_range(int min, int max) {
+    return min + int(value() * float(max - min + 1));
+  }
+
+  // Random direction: -1 or +1 (with probabilities for each, rest = 0)
+  int direction(float upProb, float downProb) {
+    float v = value();
+    if (v < upProb) return 1;
+    if (v < upProb + downProb) return -1;
+    return 0;
+  }
+
+  // Select from array with equal probability
+  int select_int(const std::vector<int>& values) {
+    return values[int_range(0, int(values.size()) - 1)];
+  }
+
+  // Select from array with weighted probabilities
+  int select_int(const std::vector<int>& values, const std::vector<float>& probs) {
+    float v = value();
+    float cumul = 0;
+    for (int i = 0; i < int(values.size()); ++i) {
+      cumul += probs[i];
+      if (v <= cumul) return values[i];
+    }
+    return values.back();
   }
 
   std::mt19937 rng;

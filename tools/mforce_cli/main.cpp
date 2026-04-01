@@ -3,6 +3,7 @@
 #include "mforce/music/basics.h"
 #include "mforce/music/structure.h"
 #include "mforce/music/conductor.h"
+#include "mforce/music/classical_composer.h"
 #include <iostream>
 #include <vector>
 #include <filesystem>
@@ -142,6 +143,542 @@ static int run_chords(int argc, char** argv) {
 }
 
 // ---------------------------------------------------------------------------
+// Build a Phrase: starting pitch, fig repeated N times descending by step, then tail figure
+// ---------------------------------------------------------------------------
+static Phrase build_descending_phrase(Pitch startPitch, const MelodicFigure& repFig,
+                                     int reps, int stepDown,
+                                     const MelodicFigure& tailFig) {
+    Phrase phrase;
+    phrase.startingPitch = startPitch;
+
+    // First repetition
+    phrase.add_figure(repFig);
+
+    // Subsequent repetitions with step-down connectors
+    for (int i = 1; i < reps; ++i) {
+        phrase.add_figure(repFig, FigureConnector::step(stepDown));
+    }
+
+    // Tail figure continues from where we left off
+    phrase.add_figure(tailFig, FigureConnector::step(0));
+
+    return phrase;
+}
+
+// ---------------------------------------------------------------------------
+// Render a Piece to a stereo WAV
+// ---------------------------------------------------------------------------
+static bool render_piece_to_wav(Piece& piece, const std::string& instrumentType,
+                                PitchedInstrument& instrument,
+                                int sampleRate, const std::string& outPath) {
+    Conductor conductor;
+    conductor.instruments[instrumentType] = &instrument;
+    conductor.perform(piece);
+
+    // Compute total duration from sections
+    float totalBeats = 0;
+    float bpm = 100.0f;
+    for (const auto& s : piece.sections) {
+        totalBeats += s.beats;
+        bpm = s.tempo; // use last section's tempo for time calc
+    }
+    float totalSeconds = totalBeats * 60.0f / bpm + 2.0f;
+    int frames = int(totalSeconds * float(sampleRate));
+    std::vector<float> mono(frames, 0.0f);
+    instrument.render(mono.data(), frames);
+
+    instrument.renderedNotes.clear();
+
+    std::vector<float> stereo(frames * 2);
+    for (int i = 0; i < frames; ++i) {
+        stereo[i * 2]     = mono[i];
+        stereo[i * 2 + 1] = mono[i];
+    }
+
+    if (!write_wav_16le_stereo(outPath, sampleRate, stereo))
+        return false;
+
+    float peak = 0.0f;
+    double rms = 0.0;
+    for (auto s : stereo) {
+        float a = std::fabs(s);
+        if (a > peak) peak = a;
+        rms += double(s) * double(s);
+    }
+    rms = std::sqrt(rms / stereo.size());
+
+    std::cout << "Wrote: " << outPath
+              << " (" << frames << " frames, "
+              << totalBeats << " beats @ " << bpm << " bpm)\n";
+    std::cerr << "  peak=" << peak << " rms=" << rms << "\n";
+    return true;
+}
+
+// ---------------------------------------------------------------------------
+// Melody composition mode — uses compositional hierarchy (Piece/Passage/Phrase)
+// ---------------------------------------------------------------------------
+static int run_melody(int argc, char** argv) {
+    if (argc < 4) {
+        std::cerr << "Usage: mforce_cli --melody <patch.json> <out_prefix>\n";
+        return 1;
+    }
+
+    std::string patchPath = argv[2];
+    std::string outPrefix = argv[3];
+
+    if (!std::filesystem::exists(patchPath)) {
+        std::cerr << "Patch file not found: " << patchPath << "\n";
+        return 1;
+    }
+
+    Pitch E4 = Pitch::from_name("E", 4);
+    Pitch D4 = Pitch::from_name("D", 4);
+
+    // fig1: 3 repeated notes, quarter quarter half
+    PulseSequence ps1;
+    ps1.add(1.0f); ps1.add(1.0f); ps1.add(2.0f);
+    StepSequence ss1;
+    ss1.add(0); ss1.add(0);
+    MelodicFigure fig1(ps1, ss1);
+
+    for (int variation = 0; variation < 3; ++variation) {
+        auto ip = load_instrument_patch(patchPath);
+        ip.instrument->volume = 0.5f;
+        ip.instrument->hiBoost = 0.3f;
+
+        StepGenerator stepGen(0xBE10'0000u + uint32_t(variation) * 111);
+
+        // fig2: 4 notes, random stepwise, last pulse 4 beats
+        PulseSequence ps2;
+        ps2.add(1.0f); ps2.add(1.0f); ps2.add(1.0f); ps2.add(4.0f);
+        MelodicFigure fig2(ps2, stepGen.random_sequence(3, 0.0f));
+
+        // fig3: 6 notes, random stepwise, last pulse 8 beats
+        PulseSequence ps3;
+        ps3.add(1.0f); ps3.add(1.0f); ps3.add(1.0f);
+        ps3.add(1.0f); ps3.add(1.0f); ps3.add(8.0f);
+        MelodicFigure fig3(ps3, stepGen.random_sequence(5, 0.0f));
+
+        // fig4: 8 notes, random stepwise, last pulse 8 beats
+        PulseSequence ps4;
+        ps4.add(1.0f); ps4.add(1.0f); ps4.add(1.0f); ps4.add(1.0f);
+        ps4.add(1.0f); ps4.add(1.0f); ps4.add(1.0f); ps4.add(8.0f);
+        MelodicFigure fig4(ps4, stepGen.random_sequence(7, 0.0f));
+
+        // Build Phrases
+        Phrase p1 = build_descending_phrase(E4, fig1, 3, -2, fig2);
+        Phrase p2 = build_descending_phrase(D4, fig1, 3, -2, fig3);
+        Phrase p3 = build_descending_phrase(D4, fig1, 2, -2, fig4);
+
+        // Build Passage: p1, p2, p1, p3
+        Passage passage;
+        passage.add_phrase(p1);
+        passage.add_phrase(p2);
+        passage.add_phrase(p1);
+        passage.add_phrase(p3);
+
+        // Compute total beats
+        float totalBeats = 0;
+        for (const auto& ph : passage.phrases)
+            for (const auto& fig : ph.figures)
+                for (const auto& u : fig.units)
+                    totalBeats += u.duration;
+
+        // Build Piece
+        Piece piece;
+        piece.key = Key::get("C Major");
+
+        Section section("Main", totalBeats, 100.0f, Meter::M_4_4,
+                        Scale::get("C", "Major"));
+        piece.add_section(std::move(section));
+
+        Part part;
+        part.name = "melody";
+        part.instrumentType = "pluck";
+        part.passages["Main"] = std::move(passage);
+        piece.add_part(std::move(part));
+
+        std::string outPath = outPrefix + "_" + std::to_string(variation + 1) + ".wav";
+        if (!render_piece_to_wav(piece, "pluck", *ip.instrument, ip.sampleRate, outPath)) {
+            std::cerr << "Failed to write: " << outPath << "\n";
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
+// ---------------------------------------------------------------------------
+// Chord string parser (legacy format from SoundController)
+// Format: "Em7_d F#7#9_g6_q. O+ Cmu_hh O-"
+// ---------------------------------------------------------------------------
+static float parse_duration(const std::string& durStr) {
+    static const std::string durChars = "tseqhwdf";
+    static const float durBeats[] = {0.125f, 0.25f, 0.5f, 1.0f, 2.0f, 4.0f, 8.0f, 16.0f};
+
+    if (durStr.empty()) return 4.0f;
+
+    auto pos = durChars.find(durStr[0]);
+    if (pos == std::string::npos)
+        throw std::runtime_error("Unknown duration char: " + durStr);
+
+    float beats = durBeats[pos];
+    if (durStr.size() >= 2) {
+        beats *= (durStr[1] == '.') ? 1.5f : 1.25f;
+    }
+    return beats;
+}
+
+static std::string map_chord_group(const std::string& grp) {
+    if (grp == "g4") return "Guitar-Bar-4";
+    if (grp == "g5") return "Guitar-Bar-5";
+    if (grp == "g6") return "Guitar-Bar-6";
+    return grp;
+}
+
+struct ParsedChord {
+    Chord chord;
+    int octave;
+};
+
+static std::vector<ParsedChord> parse_chord_string(const std::string& input, int startOctave,
+                                                    const std::string& defaultDict) {
+    std::vector<ParsedChord> result;
+    std::istringstream iss(input);
+    std::string token;
+    int octave = startOctave;
+
+    while (iss >> token) {
+        // Octave shifts
+        if (token == "O+" || token == "O-") {
+            octave += (token[1] == '+') ? 1 : -1;
+            continue;
+        }
+
+        // Split on '_'
+        std::vector<std::string> parts;
+        {
+            std::istringstream ts(token);
+            std::string part;
+            while (std::getline(ts, part, '_')) parts.push_back(part);
+        }
+
+        if (parts.empty()) continue;
+
+        std::string chordName = parts[0];
+        std::string dictName;
+        std::string durStr;
+
+        if (parts.size() == 3) {
+            dictName = map_chord_group(parts[1]);
+            durStr = parts[2];
+        } else if (parts.size() == 2) {
+            dictName = defaultDict;
+            durStr = parts[1];
+        } else {
+            dictName = defaultDict;
+            durStr = "w"; // default whole note
+        }
+
+        // Strip trailing 'O' from chord name
+        while (!chordName.empty() && chordName.back() == 'O')
+            chordName.pop_back();
+
+        // Parse root pitch (1 or 2 chars if second is #/b)
+        std::string rootName, chordType;
+        if (chordName.size() >= 2 && (chordName[1] == '#' || chordName[1] == 'b')) {
+            rootName = chordName.substr(0, 2);
+            chordType = chordName.substr(2);
+        } else {
+            rootName = chordName.substr(0, 1);
+            chordType = chordName.substr(1);
+        }
+
+        // Empty chord type = Major
+        if (chordType.empty()) chordType = "M";
+
+        float dur = parse_duration(durStr);
+
+        Chord chord = Chord::create(dictName, rootName, octave, chordType, dur);
+        result.push_back({std::move(chord), octave});
+    }
+
+    return result;
+}
+
+// ---------------------------------------------------------------------------
+// Multi-instrument render helper
+// ---------------------------------------------------------------------------
+static void render_and_write(const std::vector<Instrument*>& instruments,
+                             int sampleRate, float totalBeats, float bpm,
+                             const std::string& outPath) {
+    float totalSeconds = totalBeats * 60.0f / bpm + 2.0f;
+    int frames = int(totalSeconds * float(sampleRate));
+
+    // Render each instrument into its own buffer and mix
+    std::vector<float> mix(frames, 0.0f);
+    std::vector<float> buf(frames);
+
+    for (auto* inst : instruments) {
+        std::fill(buf.begin(), buf.end(), 0.0f);
+        inst->render(buf.data(), frames);
+        for (int i = 0; i < frames; ++i)
+            mix[i] += buf[i];
+    }
+
+    // Convert mono to stereo
+    std::vector<float> stereo(frames * 2);
+    for (int i = 0; i < frames; ++i) {
+        stereo[i * 2]     = mix[i];
+        stereo[i * 2 + 1] = mix[i];
+    }
+
+    if (!write_wav_16le_stereo(outPath, sampleRate, stereo)) {
+        throw std::runtime_error("Failed to write: " + outPath);
+    }
+
+    float peak = 0.0f;
+    double rms = 0.0;
+    for (auto s : stereo) {
+        float a = std::fabs(s);
+        if (a > peak) peak = a;
+        rms += double(s) * double(s);
+    }
+    rms = std::sqrt(rms / stereo.size());
+
+    std::cout << "Wrote: " << outPath
+              << " (" << frames << " frames, "
+              << totalBeats << " beats @ " << bpm << " bpm)\n";
+    std::cerr << "  peak=" << peak << " rms=" << rms << "\n";
+}
+
+// ---------------------------------------------------------------------------
+// Josie mode — multi-part chord progression rendering
+// ---------------------------------------------------------------------------
+static int run_josie(int argc, char** argv) {
+    if (argc < 4) {
+        std::cerr << "Usage: mforce_cli --josie <patch.json> <out.wav> [chord_string]\n";
+        return 1;
+    }
+
+    std::string patchPath = argv[2];
+    std::string outPath   = argv[3];
+
+    if (!std::filesystem::exists(patchPath)) {
+        std::cerr << "Patch file not found: " << patchPath << "\n";
+        return 1;
+    }
+
+    // Default Josie chord string
+    std::string chordStr =
+        "Em7O_d Em7O_d Em7O_d "
+        "O+ DM7_g5_q. CM7_g5_hh Dmu_q. Emu_hh O- "
+        "Em7O_d A7_g6_w "
+        "Em7O_q O+ Dmu_q Cmu_h O- "
+        "Em7O_w O+ Dmu_h Emu_h O- "
+        "Em7O_w Em7O_h O+ Cmu_h O- "
+        "F#7#9_g6_q. B7_g5_hh Em7O_q. O+ Cmu_hh O- "
+        "F#7#9_g6_q. B7b13_g5_hh Em7O_q. A7_g6_hh "
+        "Am7_g6_q. O+ D7_g6_hh O- GM7_g4_q. O+ CM7_g5_hh O- "
+        "F#7_g6_q F#7#9_g6_h. B7#5#9_g5_q B7#5#9_g5_q B7#5#9_g5_q B7#5#9_g5_q "
+        "Em7O_d. Em7O_e";
+
+    if (argc > 4) {
+        // Allow override from command line
+        chordStr = "";
+        for (int i = 4; i < argc; ++i) {
+            if (i > 4) chordStr += " ";
+            chordStr += argv[i];
+        }
+    }
+
+    float bpm = 132.0f;
+    int baseOctave = 3;
+
+    // Parse chords
+    auto parsed = parse_chord_string(chordStr, baseOctave, "Default");
+
+    std::cout << "Parsed " << parsed.size() << " chords\n";
+
+    // Calculate total beats
+    float totalBeats = 0;
+    for (auto& pc : parsed) totalBeats += pc.chord.dur;
+
+    std::cout << "Total: " << totalBeats << " beats (" << (totalBeats / 4) << " bars) @ " << bpm << " bpm\n";
+
+    // Load instruments: guitar, bass, drums (all from same pluck patch for now)
+    auto guitarPatch = load_instrument_patch(patchPath);
+    auto bassPatch   = load_instrument_patch(patchPath);
+    auto drumPatch   = load_instrument_patch(patchPath);
+
+    guitarPatch.instrument->volume = 0.25f;
+    guitarPatch.instrument->hiBoost = 0.3f;
+    bassPatch.instrument->volume = 0.35f;
+    bassPatch.instrument->hiBoost = 0.0f;
+    drumPatch.instrument->volume = 0.15f;
+    drumPatch.instrument->hiBoost = 0.0f;
+
+    // Build guitar chord Part
+    Part guitarPart;
+    guitarPart.name = "guitar";
+    guitarPart.instrumentType = "guitar";
+    for (auto& pc : parsed) {
+        guitarPart.add_chord(pc.chord);
+    }
+
+    // Build bass Part — root note of each chord, 2 octaves below
+    Part bassPart;
+    bassPart.name = "bass";
+    bassPart.instrumentType = "bass";
+    for (auto& pc : parsed) {
+        float rootNN = pc.chord.root.note_number() - 12.0f; // 1 octave below chord
+        bassPart.add_note(rootNN, 0.9f, pc.chord.dur);
+    }
+
+    // Build drum Part — basic rock pattern using add_note at fixed pitches
+    // (Hack: using PitchedInstrument since DrumKit loading isn't implemented yet)
+    Part drumPart;
+    drumPart.name = "drums";
+    drumPart.instrumentType = "drums";
+    float kickNN = 36.0f, snareNN = 38.0f, hatNN = 70.0f;
+    float drumBeat = 0.0f;
+    while (drumBeat < totalBeats) {
+        float barBeat = std::fmod(drumBeat, 4.0f);
+
+        // Kick on 1 and 3
+        if (barBeat < 0.01f || std::abs(barBeat - 2.0f) < 0.01f) {
+            drumPart.add_note(drumBeat, kickNN, 0.8f, 0.15f);
+        }
+        // Snare on 2
+        if (std::abs(barBeat - 1.0f) < 0.01f) {
+            drumPart.add_note(drumBeat, snareNN, 0.7f, 0.1f);
+        }
+        // Snare on AND of 3 (beat 2.5)
+        if (std::abs(barBeat - 2.5f) < 0.01f) {
+            drumPart.add_note(drumBeat, snareNN, 0.5f, 0.1f);
+        }
+        // Snare on AND of 4 (beat 3.5)
+        if (std::abs(barBeat - 3.5f) < 0.01f) {
+            drumPart.add_note(drumBeat, snareNN, 0.5f, 0.1f);
+        }
+        // Hi-hat on quarters
+        if (barBeat < 0.01f || std::abs(barBeat - 1.0f) < 0.01f ||
+            std::abs(barBeat - 2.0f) < 0.01f || std::abs(barBeat - 3.0f) < 0.01f) {
+            drumPart.add_note(drumBeat, hatNN, 0.4f, 0.05f);
+        }
+
+        drumBeat += 0.5f; // advance by eighth note
+    }
+
+    // Build Piece
+    Piece piece;
+    piece.key = Key::get("E Minor");
+
+    Section section("Josie", totalBeats, bpm, Meter::M_4_4, Scale::get("E", "Minor"));
+    piece.add_section(std::move(section));
+    piece.add_part(std::move(guitarPart));
+    piece.add_part(std::move(bassPart));
+    piece.add_part(std::move(drumPart));
+
+    // Register instruments and perform
+    Conductor conductor;
+    conductor.chordPerformer.defaultSpreadMs = 12.0f;
+    conductor.chordPerformer.sloppiness = 0.3f;
+    conductor.instruments["guitar"] = guitarPatch.instrument.get();
+    conductor.instruments["bass"]   = bassPatch.instrument.get();
+    conductor.instruments["drums"]  = drumPatch.instrument.get();
+    conductor.perform(piece);
+
+    // Render and mix all instruments
+    std::vector<Instrument*> allInstruments = {
+        guitarPatch.instrument.get(),
+        bassPatch.instrument.get(),
+        drumPatch.instrument.get()
+    };
+    render_and_write(allInstruments, guitarPatch.sampleRate, totalBeats, bpm, outPath);
+
+    return 0;
+}
+
+// ---------------------------------------------------------------------------
+// Classical composition mode — algorithmic melody generation
+// ---------------------------------------------------------------------------
+static int run_compose(int argc, char** argv) {
+    if (argc < 4) {
+        std::cerr << "Usage: mforce_cli --compose <patch.json> <out_prefix> [count]\n";
+        return 1;
+    }
+
+    std::string patchPath = argv[2];
+    std::string outPrefix = argv[3];
+    int count = (argc > 4) ? std::stoi(argv[4]) : 3;
+
+    if (!std::filesystem::exists(patchPath)) {
+        std::cerr << "Patch file not found: " << patchPath << "\n";
+        return 1;
+    }
+
+    for (int i = 0; i < count; ++i) {
+        auto ip = load_instrument_patch(patchPath);
+        ip.instrument->volume = 0.5f;
+        ip.instrument->hiBoost = 0.3f;
+
+        // Build a Piece with one empty melody Part
+        Piece piece;
+        piece.key = Key::get("C Major");
+
+        Part melody;
+        melody.name = "melody";
+        melody.instrumentType = "melody";
+        piece.add_part(std::move(melody));
+
+        // Compose
+        ClassicalComposer composer(0xC1A5'0000u + uint32_t(i) * 137);
+        composer.compose(piece);
+
+        // Perform via Conductor
+        Conductor conductor;
+        conductor.instruments["melody"] = ip.instrument.get();
+        conductor.perform(piece);
+
+        // Render
+        float totalBeats = piece.sections[0].beats;
+        float bpm = piece.sections[0].tempo;
+        float totalSeconds = totalBeats * 60.0f / bpm + 2.0f;
+        int frames = int(totalSeconds * float(ip.sampleRate));
+        std::vector<float> mono(frames, 0.0f);
+        ip.instrument->render(mono.data(), frames);
+
+        std::vector<float> stereo(frames * 2);
+        for (int j = 0; j < frames; ++j) {
+            stereo[j * 2]     = mono[j];
+            stereo[j * 2 + 1] = mono[j];
+        }
+
+        std::string outPath = outPrefix + "_" + std::to_string(i + 1) + ".wav";
+        if (!write_wav_16le_stereo(outPath, ip.sampleRate, stereo)) {
+            std::cerr << "Failed to write: " << outPath << "\n";
+            return 1;
+        }
+
+        float peak = 0.0f;
+        double rms = 0.0;
+        for (auto s : stereo) {
+            float a = std::fabs(s);
+            if (a > peak) peak = a;
+            rms += double(s) * double(s);
+        }
+        rms = std::sqrt(rms / stereo.size());
+
+        std::cout << "Composed #" << (i + 1) << ": " << outPath
+                  << " (" << totalBeats << " beats @ " << bpm << " bpm)\n";
+        std::cerr << "  peak=" << peak << " rms=" << rms << "\n";
+    }
+
+    return 0;
+}
+
+// ---------------------------------------------------------------------------
 // Standard patch render mode
 // ---------------------------------------------------------------------------
 static int run_patch(int argc, char** argv) {
@@ -194,6 +731,12 @@ int main(int argc, char** argv)
     try {
         if (argc >= 2 && std::string(argv[1]) == "--chords")
             return run_chords(argc, argv);
+        if (argc >= 2 && std::string(argv[1]) == "--melody")
+            return run_melody(argc, argv);
+        if (argc >= 2 && std::string(argv[1]) == "--josie")
+            return run_josie(argc, argv);
+        if (argc >= 2 && std::string(argv[1]) == "--compose")
+            return run_compose(argc, argv);
 
         return run_patch(argc, argv);
     }

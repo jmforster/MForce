@@ -31,6 +31,10 @@ static std::vector<ChordDef> s_chordDefs = {
   {"+M7", "+M7", "Augmented Maj 7th",{"1", "M3", "+5", "M7"}},
   {"-7",  "dim7","Diminished 7th",{"1", "m3", "-5", "-7"}},
   {"h7",  "hd7", "Half-Diminished 7th",{"1", "m3", "-5", "m7"}},
+  {"mu",  "mu",  "Mu Major",     {"1", "M3", "4"}},
+  {"7#9", "7#9", "Seven Sharp Nine", {"1", "M3", "5", "m7", "+9"}},
+  {"7b13","7b13","Seven Flat Thirteen",{"1", "M3", "5", "m7", "m13"}},
+  {"7#5#9","7#5#9","Seven Sharp Five Sharp Nine",{"1", "M3", "+5", "m7", "+9"}},
 };
 
 const std::vector<ChordDef>& ChordDef::all() { return s_chordDefs; }
@@ -79,9 +83,46 @@ void ChordDictionary::init_all() {
   g6.chords["m"]  = {"m",  "m",  "Minor",       {"5", "8", "m10", "12", "15"}};
   g6.chords["7"]  = {"7",  "7",  "Seven",       {"5", "m7", "M10", "12", "15"}};
   g6.chords["m7"] = {"m7", "m7", "Minor Seven", {"5", "m7", "m10", "12", "15"}};
-  g6.chords["M7"] = {"M7", "M7", "Major Seven", {"5", "M7", "M10", "12", "15"}};
+  g6.chords["M7"]   = {"M7",   "M7",   "Major Seven",  {"5", "M7", "M10", "12", "15"}};
+  g6.chords["7#9"]  = {"7#9",  "7#9",  "Seven #9",     {"5", "m7", "M10", "12", "+16"}};
+  g6.chords["7b13"] = {"7b13", "7b13", "Seven b13",    {"5", "m7", "M10", "m13", "15"}};
   s_dicts["Guitar-Bar-6"] = std::move(g6);
   s_dicts["g6"] = s_dicts["Guitar-Bar-6"]; // alias
+
+  // Guitar 5-string bar chords
+  ChordDictionary g5;
+  g5.shortName = "Guitar-Bar-5";
+  g5.name = "Guitar - 5-note Bar Chords";
+  g5.chords["M"]     = {"M",     "M",     "Major",       {"5", "8", "M10", "12"}};
+  g5.chords["m"]     = {"m",     "m",     "Minor",       {"5", "8", "m10", "12"}};
+  g5.chords["7"]     = {"7",     "7",     "Seven",       {"5", "m7", "M10", "12"}};
+  g5.chords["m7"]    = {"m7",    "m7",    "Minor Seven", {"5", "m7", "m10", "12"}};
+  g5.chords["M7"]    = {"M7",    "M7",    "Major Seven", {"5", "M7", "M10", "12"}};
+  g5.chords["7b13"]  = {"7b13",  "7b13",  "Seven b13",   {"5", "m7", "M10", "m13"}};
+  g5.chords["7#5#9"] = {"7#5#9", "7#5#9", "Seven #5#9",  {"M3", "m7", "+9", "+12"}};
+  g5.chords["7#9"]   = {"7#9",   "7#9",   "Seven #9",    {"M3", "m7", "+9", "12"}};
+  s_dicts["Guitar-Bar-5"] = std::move(g5);
+  s_dicts["g5"] = s_dicts["Guitar-Bar-5"];
+
+  // Guitar 4-string bar chords
+  ChordDictionary g4;
+  g4.shortName = "Guitar-Bar-4";
+  g4.name = "Guitar - 4-note Bar Chords";
+  g4.chords["M"]    = {"M",    "M",    "Major",       {"5", "8", "M10"}};
+  g4.chords["m"]    = {"m",    "m",    "Minor",       {"5", "8", "m10"}};
+  g4.chords["7"]    = {"7",    "7",    "Seven",       {"5", "m7", "M10"}};
+  g4.chords["m7"]   = {"m7",   "m7",   "Minor Seven", {"5", "m7", "m10"}};
+  g4.chords["M7"]   = {"M7",   "M7",   "Major Seven", {"5", "M7", "M10"}};
+  g4.chords["7#9"]  = {"7#9",  "7#9",  "Seven #9",    {"M3", "m7", "+9"}};
+  s_dicts["Guitar-Bar-4"] = std::move(g4);
+  s_dicts["g4"] = s_dicts["Guitar-Bar-4"];
+
+  // Guitar-Alt (special voicings including mu)
+  ChordDictionary gAlt;
+  gAlt.shortName = "Guitar-Alt";
+  gAlt.name = "Guitar - Alternative Voicings";
+  gAlt.chords["mu"] = {"mu", "", "Mu Major", {"4", "8", "M10"}};
+  s_dicts["Guitar-Alt"] = std::move(gAlt);
 
   // Piano voicings (spread with 10ths)
   ChordDictionary piano;

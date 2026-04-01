@@ -27,6 +27,12 @@ struct PitchReader {
   void set_octave(int o) { octave = o; update_note_number(); }
   void set_degree(int d) { degree = d; update_note_number(); }
 
+  void set_pitch(int oct, int deg) {
+    octave = oct;
+    degree = deg;
+    update_note_number();
+  }
+
   void set_pitch(const Pitch& p) {
     noteNumber = p.note_number();
     octave = p.octave;

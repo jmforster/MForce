@@ -10,6 +10,28 @@
 namespace mforce {
 
 // ===========================================================================
+// Dynamic — standard musical dynamic levels
+// ===========================================================================
+enum class Dynamic { ppp, pp, p, mp, mf, f, ff, fff };
+
+inline float dynamic_to_velocity(Dynamic d) {
+  constexpr float step = 0.125f;
+  return step * (float(int(d)) + 1.0f);
+}
+
+// ===========================================================================
+// DynamicMarking — a dynamic change at a beat offset within a Passage
+// ===========================================================================
+struct DynamicMarking {
+  float beat;        // offset within passage
+  Dynamic level;
+  float rampBeats;   // 0 = instant change, >0 = crescendo/decrescendo
+
+  DynamicMarking(float b, Dynamic d, float ramp = 0.0f)
+    : beat(b), level(d), rampBeats(ramp) {}
+};
+
+// ===========================================================================
 // Elements — the "ink on paper" of a score. A Part is a sequence of these.
 // Using std::variant: closed set, compiler-enforced exhaustive handling.
 // ===========================================================================
@@ -70,10 +92,14 @@ struct Phrase {
 
 // ===========================================================================
 // Passage — what a Part plays during a Section. Collection of Phrases.
+// Carries dynamics (velocity timeline) for this Part in this Section.
 // ===========================================================================
 struct Passage {
   std::vector<Phrase> phrases;
   std::optional<Scale> scaleOverride;  // if different from Section's scale
+
+  // Dynamics: timeline of changes. If empty, defaults to mf.
+  std::vector<DynamicMarking> dynamicMarkings;
 
   void add_phrase(Phrase p) { phrases.push_back(std::move(p)); }
   int phrase_count() const { return int(phrases.size()); }
@@ -98,15 +124,16 @@ struct Section {
 // ===========================================================================
 // Part — a single voice/instrument line across the whole Piece.
 // Contains a Passage per Section (what this part plays in each section),
-// and a realized event list (produced by the Conductor).
+// and a realized event list (produced by the Conductor, or built directly).
 // ===========================================================================
 struct Part {
   std::string name;
+  std::string instrumentType;  // key into Conductor's instrument registry
 
   // Compositional content: keyed by section name
   std::unordered_map<std::string, Passage> passages;
 
-  // Realized events (produced by Conductor from Passages, or built directly)
+  // Realized events (built directly for simple cases)
   std::vector<Element> events;
   float totalBeats{0.0f};
 
