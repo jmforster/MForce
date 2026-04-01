@@ -457,17 +457,12 @@ static void render_and_write(const std::vector<Instrument*>& instruments,
 // ---------------------------------------------------------------------------
 static int run_josie(int argc, char** argv) {
     if (argc < 4) {
-        std::cerr << "Usage: mforce_cli --josie <patch.json> <out.wav> [chord_string]\n";
+        std::cerr << "Usage: mforce_cli --josie <patches_dir> <out.wav> [chord_string]\n";
         return 1;
     }
 
-    std::string patchPath = argv[2];
-    std::string outPath   = argv[3];
-
-    if (!std::filesystem::exists(patchPath)) {
-        std::cerr << "Patch file not found: " << patchPath << "\n";
-        return 1;
-    }
+    std::string patchDir = argv[2];
+    std::string outPath  = argv[3];
 
     // Default Josie chord string
     std::string chordStr =
@@ -484,7 +479,6 @@ static int run_josie(int argc, char** argv) {
         "Em7O_d. Em7O_e";
 
     if (argc > 4) {
-        // Allow override from command line
         chordStr = "";
         for (int i = 4; i < argc; ++i) {
             if (i > 4) chordStr += " ";
@@ -493,30 +487,34 @@ static int run_josie(int argc, char** argv) {
     }
 
     float bpm = 132.0f;
-    int baseOctave = 3;
+    int baseOctave = 4;  // guitar at octave 4
 
     // Parse chords
     auto parsed = parse_chord_string(chordStr, baseOctave, "Default");
 
     std::cout << "Parsed " << parsed.size() << " chords\n";
 
-    // Calculate total beats
     float totalBeats = 0;
     for (auto& pc : parsed) totalBeats += pc.chord.dur;
 
     std::cout << "Total: " << totalBeats << " beats (" << (totalBeats / 4) << " bars) @ " << bpm << " bpm\n";
 
-    // Load instruments: guitar, bass, drums (all from same pluck patch for now)
-    auto guitarPatch = load_instrument_patch(patchPath);
-    auto bassPatch   = load_instrument_patch(patchPath);
-    auto drumPatch   = load_instrument_patch(patchPath);
+    // Load separate patches for each instrument
+    std::string guitarPath = patchDir + "/guitar_pluck.json";
+    std::string bassPath   = patchDir + "/fm_bass.json";
+    std::string kickPath   = patchDir + "/kick_drum.json";
+    std::string snarePath  = patchDir + "/snare_drum.json";
+
+    auto guitarPatch = load_instrument_patch(guitarPath);
+    auto bassPatch   = load_instrument_patch(bassPath);
+    auto kickPatch   = load_instrument_patch(kickPath);
+    auto snarePatch  = load_instrument_patch(snarePath);
 
     guitarPatch.instrument->volume = 0.25f;
     guitarPatch.instrument->hiBoost = 0.3f;
-    bassPatch.instrument->volume = 0.35f;
-    bassPatch.instrument->hiBoost = 0.0f;
-    drumPatch.instrument->volume = 0.15f;
-    drumPatch.instrument->hiBoost = 0.0f;
+    bassPatch.instrument->volume = 0.30f;
+    kickPatch.instrument->volume = 0.40f;
+    snarePatch.instrument->volume = 0.25f;
 
     // Build guitar chord Part
     Part guitarPart;
@@ -526,48 +524,38 @@ static int run_josie(int argc, char** argv) {
         guitarPart.add_chord(pc.chord);
     }
 
-    // Build bass Part — root note of each chord, 2 octaves below
+    // Build bass Part — root note, 1 octave below chord
     Part bassPart;
     bassPart.name = "bass";
     bassPart.instrumentType = "bass";
     for (auto& pc : parsed) {
-        float rootNN = pc.chord.root.note_number() - 12.0f; // 1 octave below chord
+        float rootNN = pc.chord.root.note_number() - 12.0f;
         bassPart.add_note(rootNN, 0.9f, pc.chord.dur);
     }
 
-    // Build drum Part — basic rock pattern using add_note at fixed pitches
-    // (Hack: using PitchedInstrument since DrumKit loading isn't implemented yet)
-    Part drumPart;
-    drumPart.name = "drums";
-    drumPart.instrumentType = "drums";
-    float kickNN = 36.0f, snareNN = 38.0f, hatNN = 70.0f;
-    float drumBeat = 0.0f;
-    while (drumBeat < totalBeats) {
-        float barBeat = std::fmod(drumBeat, 4.0f);
+    // Build kick Part — beats 1 and 3
+    Part kickPart;
+    kickPart.name = "kick";
+    kickPart.instrumentType = "kick";
+    float kickNN = 40.0f;  // E2 — good kick fundamental
+    for (float beat = 0; beat < totalBeats; beat += 4.0f) {
+        kickPart.add_note(beat, kickNN, 0.9f, 0.15f);        // beat 1
+        if (beat + 2.0f < totalBeats)
+            kickPart.add_note(beat + 2.0f, kickNN, 0.8f, 0.15f);  // beat 3
+    }
 
-        // Kick on 1 and 3
-        if (barBeat < 0.01f || std::abs(barBeat - 2.0f) < 0.01f) {
-            drumPart.add_note(drumBeat, kickNN, 0.8f, 0.15f);
-        }
-        // Snare on 2
-        if (std::abs(barBeat - 1.0f) < 0.01f) {
-            drumPart.add_note(drumBeat, snareNN, 0.7f, 0.1f);
-        }
-        // Snare on AND of 3 (beat 2.5)
-        if (std::abs(barBeat - 2.5f) < 0.01f) {
-            drumPart.add_note(drumBeat, snareNN, 0.5f, 0.1f);
-        }
-        // Snare on AND of 4 (beat 3.5)
-        if (std::abs(barBeat - 3.5f) < 0.01f) {
-            drumPart.add_note(drumBeat, snareNN, 0.5f, 0.1f);
-        }
-        // Hi-hat on quarters
-        if (barBeat < 0.01f || std::abs(barBeat - 1.0f) < 0.01f ||
-            std::abs(barBeat - 2.0f) < 0.01f || std::abs(barBeat - 3.0f) < 0.01f) {
-            drumPart.add_note(drumBeat, hatNN, 0.4f, 0.05f);
-        }
-
-        drumBeat += 0.5f; // advance by eighth note
+    // Build snare Part — beat 2, AND of 3, AND of 4
+    Part snarePart;
+    snarePart.name = "snare";
+    snarePart.instrumentType = "snare";
+    float snareNN = 200.0f;  // high frequency for noise character
+    for (float beat = 0; beat < totalBeats; beat += 4.0f) {
+        if (beat + 1.0f < totalBeats)
+            snarePart.add_note(beat + 1.0f, snareNN, 0.8f, 0.12f);  // beat 2
+        if (beat + 2.5f < totalBeats)
+            snarePart.add_note(beat + 2.5f, snareNN, 0.6f, 0.08f);  // AND of 3
+        if (beat + 3.5f < totalBeats)
+            snarePart.add_note(beat + 3.5f, snareNN, 0.6f, 0.08f);  // AND of 4
     }
 
     // Build Piece
@@ -578,7 +566,8 @@ static int run_josie(int argc, char** argv) {
     piece.add_section(std::move(section));
     piece.add_part(std::move(guitarPart));
     piece.add_part(std::move(bassPart));
-    piece.add_part(std::move(drumPart));
+    piece.add_part(std::move(kickPart));
+    piece.add_part(std::move(snarePart));
 
     // Register instruments and perform
     Conductor conductor;
@@ -586,14 +575,16 @@ static int run_josie(int argc, char** argv) {
     conductor.chordPerformer.sloppiness = 0.3f;
     conductor.instruments["guitar"] = guitarPatch.instrument.get();
     conductor.instruments["bass"]   = bassPatch.instrument.get();
-    conductor.instruments["drums"]  = drumPatch.instrument.get();
+    conductor.instruments["kick"]   = kickPatch.instrument.get();
+    conductor.instruments["snare"]  = snarePatch.instrument.get();
     conductor.perform(piece);
 
     // Render and mix all instruments
     std::vector<Instrument*> allInstruments = {
         guitarPatch.instrument.get(),
         bassPatch.instrument.get(),
-        drumPatch.instrument.get()
+        kickPatch.instrument.get(),
+        snarePatch.instrument.get()
     };
     render_and_write(allInstruments, guitarPatch.sampleRate, totalBeats, bpm, outPath);
 

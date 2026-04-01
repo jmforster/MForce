@@ -67,17 +67,35 @@ struct StepGenerator {
   StepSequence targeted_sequence(int length, int target) {
     StepSequence seq;
     int pos = 0;
+    int dir = (target == 0) ? 1 : (target > 0 ? 1 : -1);
+
     for (int i = 0; i < length; ++i) {
       int remaining = length - i;
       int distance = target - pos;
 
-      if (remaining <= std::abs(distance)) {
-        seq.add(distance > 0 ? 1 : -1);
+      // Reverse if we've overshot
+      if ((target < 0 && pos < target) || (target > 0 && pos > target))
+        dir = -dir;
+
+      int step;
+      if (i == length - 1) {
+        // Last step: force exact landing
+        step = target - pos;
+      } else if (std::abs(distance) > remaining) {
+        // Need to skip to get there
+        step = (std::abs(distance) > (remaining - 1) * 2) ? 3 * dir : 2 * dir;
       } else {
-        int step = rng.decide(0.6f) ? (distance >= 0 ? 1 : -1) : (distance >= 0 ? -1 : 1);
-        seq.add(step);
+        // Random walk with bias toward target
+        float regProb = (1.0f - float(std::abs(distance)) / float(remaining)) * 0.8f;
+        if (rng.decide(regProb)) {
+          step = -dir; // regress (creates melodic interest)
+        } else {
+          step = dir;
+        }
       }
-      pos += seq.steps.back();
+
+      seq.add(step);
+      pos += step;
     }
     return seq;
   }

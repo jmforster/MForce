@@ -1,0 +1,50 @@
+{
+  "sampleRate": 48000,
+  "graph": {
+    "nodes": [
+      {
+        "id": "ampEnv",
+        "type": "Envelope",
+        "params": { "preset": "ar", "attack": 0.001, "attackMax": 0.0 }
+      },
+      {
+        "id": "pitchEnv",
+        "type": "Envelope",
+        "params": { "preset": "ar", "attack": 0.001, "attackMax": 0.0 }
+      },
+      {
+        "id": "pitchRange",
+        "type": "RangeSource",
+        "params": { "min": 1.0, "max": 4.0, "var": { "ref": "pitchEnv" } }
+      },
+      {
+        "id": "depthEnv",
+        "type": "Envelope",
+        "params": { "preset": "ar", "attack": 0.001, "attackMax": 0.0 }
+      },
+      {
+        "id": "depth",
+        "type": "RangeSource",
+        "params": { "min": 0.0, "max": 3.0, "var": { "ref": "depthEnv" } }
+      },
+      {
+        "id": "kick",
+        "type": "FMSource",
+        "params": {
+          "frequency": 55.0,
+          "amplitude": { "ref": "ampEnv" },
+          "carrierRatio": { "ref": "pitchRange" },
+          "modRatio": 1.0,
+          "depth": { "ref": "depth" }
+        }
+      }
+    ],
+    "output": "kick"
+  },
+  "instrument": {
+    "paramMap": {
+      "frequency": "kick.frequency"
+    },
+    "polyphony": 2
+  }
+}

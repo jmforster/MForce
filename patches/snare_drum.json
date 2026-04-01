@@ -1,0 +1,34 @@
+{
+  "sampleRate": 48000,
+  "graph": {
+    "nodes": [
+      {
+        "id": "ampEnv",
+        "type": "Envelope",
+        "params": { "preset": "ar", "attack": 0.001, "attackMax": 0.0 }
+      },
+      {
+        "id": "rn",
+        "type": "RedNoiseSource",
+        "params": {
+          "seed": 77777,
+          "frequency": 800.0,
+          "amplitude": { "ref": "ampEnv" },
+          "density": 2,
+          "smoothness": 0,
+          "rampVariation": 0.6,
+          "boost": 0,
+          "continuity": 0,
+          "zeroCrossTendency": 0
+        }
+      }
+    ],
+    "output": "rn"
+  },
+  "instrument": {
+    "paramMap": {
+      "frequency": "rn.frequency"
+    },
+    "polyphony": 2
+  }
+}
