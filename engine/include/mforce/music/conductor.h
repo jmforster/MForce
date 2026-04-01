@@ -125,6 +125,9 @@ struct ChordPerformer {
   float sloppiness{0.0f};
   Randomizer rng{0xCDAE'0000u};
 
+  // Named figures (looked up by chord.figureName)
+  std::unordered_map<std::string, ChordFigure> namedFigures;
+  // Duration-keyed figures (fallback when no figureName)
   std::unordered_map<std::string, ChordFigure> figures;
   ChordFigure* defaultFigure{nullptr};
 
@@ -133,7 +136,7 @@ struct ChordPerformer {
     float startSeconds = startBeats * 60.0f / bpm;
     float chordDurSeconds = chord.dur * 60.0f / bpm;
 
-    ChordFigure* fig = select_figure(chord.dur);
+    ChordFigure* fig = select_figure(chord);
 
     if (fig) {
       perform_with_figure(chord, velocity, *fig, startSeconds, chordDurSeconds, bpm, instrument);
@@ -142,15 +145,76 @@ struct ChordPerformer {
     }
   }
 
+  // Register the built-in Josie chord figures
+  void register_josie_figures() {
+    using PS = PitchSelectionType;
+
+    // Josie12, Josie8, Josie4 — identical pattern: bass, strum up, high pick, strum, descend
+    ChordFigure josie8;
+    josie8.add(PS::Low, 1.00f);
+    josie8.add(PS::AllExLow, 0.77f, ChordFigure::DIR_ASCENDING, 0.01f);
+    josie8.add(PS::High2, 0.24f, ChordFigure::DIR_DESCENDING, 0.01f);
+    josie8.add(PS::AllExLow, 0.48f, ChordFigure::DIR_ASCENDING, 0.01f);
+    josie8.add(PS::HighHalf, 1.02f, ChordFigure::DIR_DESCENDING, 0.01f);
+    josie8.add(PS::HighHalf, 0.49f, ChordFigure::DIR_DESCENDING, 0.0f);
+    namedFigures["Josie12"] = josie8;
+    namedFigures["Josie8"]  = josie8;
+    namedFigures["Josie4"]  = josie8;
+
+    // Josie3 — strum all, then pick individual strings
+    ChordFigure josie3;
+    josie3.add(PS::All, 1.50f, ChordFigure::DIR_ASCENDING, 0.03f);
+    josie3.add(PS::All, std::vector<int>{3}, 0.50f);  // single pitch index 3
+    josie3.add(PS::All, std::vector<int>{4}, 0.50f);  // single pitch index 4
+    josie3.add(PS::High, 0.50f);
+    namedFigures["Josie3"] = josie3;
+
+    // Josie2.5 — strum, then pick
+    ChordFigure josie25;
+    josie25.add(PS::All, 1.50f, ChordFigure::DIR_ASCENDING, 0.03f);
+    josie25.add(PS::All, std::vector<int>{1}, 0.50f);
+    josie25.add(PS::All, std::vector<int>{2}, 0.50f);
+    namedFigures["Josie2.5"] = josie25;
+
+    // Josie2 — single strum
+    ChordFigure josie2;
+    josie2.add(PS::All, 2.00f, ChordFigure::DIR_ASCENDING, 0.03f);
+    namedFigures["Josie2"] = josie2;
+
+    // Josie1.5 — strum + bass
+    ChordFigure josie15;
+    josie15.add(PS::All, 1.00f, ChordFigure::DIR_ASCENDING, 0.01f);
+    josie15.add(PS::Low, 0.50f);
+    namedFigures["Josie1.5"] = josie15;
+
+    // Josie1 — single strum (longer)
+    ChordFigure josie1;
+    josie1.add(PS::All, 2.00f, ChordFigure::DIR_ASCENDING, 0.01f);
+    namedFigures["Josie1"] = josie1;
+
+    // Josie0.5 — quick low+high
+    ChordFigure josie05;
+    josie05.add(PS::LowHigh, 0.50f, ChordFigure::DIR_DESCENDING, 0.01f);
+    namedFigures["Josie0.5"] = josie05;
+  }
+
 private:
-  ChordFigure* select_figure(float durationBeats) {
-    std::string key = std::to_string(int(durationBeats));
-    auto it = figures.find(key);
+  ChordFigure* select_figure(const Chord& chord) {
+    // 1. Check chord's explicit figure name
+    if (chord.figureName) {
+      auto it = namedFigures.find(*chord.figureName);
+      if (it != namedFigures.end()) return &it->second;
+    }
+
+    // 2. Fall back to duration-keyed lookup
+    char buf[16];
+    snprintf(buf, sizeof(buf), "%g", chord.dur);
+    auto it = figures.find(buf);
     if (it != figures.end()) return &it->second;
 
-    char buf[16];
-    snprintf(buf, sizeof(buf), "%g", durationBeats);
-    it = figures.find(buf);
+    // Also try integer key
+    std::string intKey = std::to_string(int(chord.dur));
+    it = figures.find(intKey);
     if (it != figures.end()) return &it->second;
 
     return defaultFigure;

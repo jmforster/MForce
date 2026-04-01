@@ -342,7 +342,8 @@ struct ParsedChord {
 };
 
 static std::vector<ParsedChord> parse_chord_string(const std::string& input, int startOctave,
-                                                    const std::string& defaultDict) {
+                                                    const std::string& defaultDict,
+                                                    const std::string& figurePrefix = "") {
     std::vector<ParsedChord> result;
     std::istringstream iss(input);
     std::string token;
@@ -400,6 +401,14 @@ static std::vector<ParsedChord> parse_chord_string(const std::string& input, int
         float dur = parse_duration(durStr);
 
         Chord chord = Chord::create(dictName, rootName, octave, chordType, dur);
+
+        // Set figure name hint if prefix specified
+        if (!figurePrefix.empty()) {
+            char durBuf[16];
+            snprintf(durBuf, sizeof(durBuf), "%g", dur);
+            chord.figureName = figurePrefix + durBuf;
+        }
+
         result.push_back({std::move(chord), octave});
     }
 
@@ -490,7 +499,7 @@ static int run_josie(int argc, char** argv) {
     int baseOctave = 4;  // guitar at octave 4
 
     // Parse chords
-    auto parsed = parse_chord_string(chordStr, baseOctave, "Default");
+    auto parsed = parse_chord_string(chordStr, baseOctave, "Default", "Josie");
 
     std::cout << "Parsed " << parsed.size() << " chords\n";
 
@@ -571,6 +580,7 @@ static int run_josie(int argc, char** argv) {
 
     // Register instruments and perform
     Conductor conductor;
+    conductor.chordPerformer.register_josie_figures();
     conductor.chordPerformer.defaultSpreadMs = 12.0f;
     conductor.chordPerformer.sloppiness = 0.3f;
     conductor.instruments["guitar"] = guitarPatch.instrument.get();

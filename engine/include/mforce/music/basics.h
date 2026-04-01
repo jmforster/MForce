@@ -6,6 +6,7 @@
 #include <cmath>
 #include <stdexcept>
 #include <algorithm>
+#include <optional>
 
 namespace mforce {
 
@@ -195,6 +196,7 @@ struct Chord {
   int inversion{0};
   int spread{0};
   float dur{1.0f};
+  std::optional<std::string> figureName;  // performance hint for ChordPerformer
 
   std::vector<Pitch> pitches;
 
