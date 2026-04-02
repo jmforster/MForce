@@ -32,7 +32,6 @@ using namespace mforce;
 #include <cstdint>
 #include <algorithm>
 #include <cstdio>
-#include <atomic>
 #include <fstream>
 #include <functional>
 #include <unordered_map>
@@ -246,6 +245,7 @@ struct GraphNode {
 
     // Rewire a specific input pin's DSP connection
     void wire_pin(const std::string& pinName, std::shared_ptr<ValueSource> src) {
+        if (!src || !dspSource) return;
         auto ws = std::dynamic_pointer_cast<WaveSource>(dspSource);
         if (ws) {
             if (pinName == "frequency")  { ws->set_frequency(src); return; }
@@ -499,8 +499,12 @@ static void update_node_dsp(GraphNode& node) {
 
 // Update ALL nodes' DSP (call after link changes)
 static void update_all_dsp() {
-    for (auto& node : s_nodes)
-        update_node_dsp(node);
+    try {
+        for (auto& node : s_nodes)
+            update_node_dsp(node);
+    } catch (...) {
+        // Don't crash the UI on DSP wiring errors
+    }
 }
 
 static bool is_pin_connected(int pinId) {
@@ -1118,39 +1122,36 @@ static void save_graph() {
 }
 
 // ===========================================================================
-// Audio: callback-driven streaming via waveOut
-// The callback pulls samples directly from the live DSP graph.
+// Audio: poll-driven streaming via waveOut
+// Buffers are filled from the main loop each frame — no callbacks,
+// no threading issues, no deadlocks on quit.
 // ===========================================================================
 
 static constexpr int AUDIO_SAMPLE_RATE = 48000;
-static constexpr int AUDIO_CHUNK = 1024;       // samples per callback
+static constexpr int AUDIO_CHUNK = 1024;
 static constexpr int NUM_AUDIO_BUFS = 4;
 
 static HWAVEOUT g_waveOut = nullptr;
 static WAVEHDR  g_waveHdrs[NUM_AUDIO_BUFS] = {};
-static int16_t  g_audioBufs[NUM_AUDIO_BUFS][AUDIO_CHUNK * 2] = {};  // stereo
+static int16_t  g_audioBufs[NUM_AUDIO_BUFS][AUDIO_CHUNK * 2] = {};
 
-// The source currently being streamed (set by play, cleared on stop)
-static std::atomic<ValueSource*> g_streamSource{nullptr};
-static std::atomic<int> g_streamRemaining{0};  // samples left, -1 = continuous
-static std::atomic<float> g_streamVelocity{0.5f};
+static ValueSource* g_streamSource = nullptr;
+static int g_streamRemaining = 0;
+static float g_streamVelocity = 0.5f;
 
-static void fill_audio_buffer(WAVEHDR* hdr, int bufIdx) {
+static void fill_audio_buffer(int bufIdx) {
     auto* out = g_audioBufs[bufIdx];
-    ValueSource* src = g_streamSource.load();
-    int remaining = g_streamRemaining.load();
+    auto* hdr = &g_waveHdrs[bufIdx];
 
     for (int i = 0; i < AUDIO_CHUNK; ++i) {
         float s = 0.0f;
 
-        if (src && remaining != 0) {
-            s = src->next() * g_streamVelocity.load();
-            if (remaining > 0) {
-                remaining--;
-                if (remaining == 0) {
-                    g_streamSource.store(nullptr);
-                    src = nullptr;
-                }
+        if (g_streamSource && g_streamRemaining != 0) {
+            s = g_streamSource->next() * g_streamVelocity;
+            if (g_streamRemaining > 0) {
+                g_streamRemaining--;
+                if (g_streamRemaining == 0)
+                    g_streamSource = nullptr;
             }
         }
 
@@ -1160,8 +1161,6 @@ static void fill_audio_buffer(WAVEHDR* hdr, int bufIdx) {
         out[i * 2 + 1] = v;
     }
 
-    g_streamRemaining.store(remaining);
-
     hdr->lpData = reinterpret_cast<LPSTR>(out);
     hdr->dwBufferLength = AUDIO_CHUNK * 2 * sizeof(int16_t);
     hdr->dwFlags = 0;
@@ -1170,15 +1169,15 @@ static void fill_audio_buffer(WAVEHDR* hdr, int bufIdx) {
     waveOutWrite(g_waveOut, hdr, sizeof(WAVEHDR));
 }
 
-static std::atomic<bool> g_audioShutdown{false};
+// Called each frame from the main loop — refill any completed buffers
+static void pump_audio() {
+    if (!g_waveOut) return;
 
-static void CALLBACK wave_callback(HWAVEOUT, UINT msg, DWORD_PTR, DWORD_PTR param1, DWORD_PTR) {
-    if (g_audioShutdown.load()) return;
-    if (msg == WOM_DONE) {
-        auto* hdr = reinterpret_cast<WAVEHDR*>(param1);
-        waveOutUnprepareHeader(g_waveOut, hdr, sizeof(WAVEHDR));
-        int idx = int(hdr - g_waveHdrs);
-        fill_audio_buffer(hdr, idx);
+    for (int i = 0; i < NUM_AUDIO_BUFS; ++i) {
+        if (g_waveHdrs[i].dwFlags & WHDR_DONE) {
+            waveOutUnprepareHeader(g_waveOut, &g_waveHdrs[i], sizeof(WAVEHDR));
+            fill_audio_buffer(i);
+        }
     }
 }
 
@@ -1191,26 +1190,27 @@ static bool init_audio() {
     fmt.nBlockAlign = fmt.nChannels * fmt.wBitsPerSample / 8;
     fmt.nAvgBytesPerSec = fmt.nSamplesPerSec * fmt.nBlockAlign;
 
-    MMRESULT res = waveOutOpen(&g_waveOut, WAVE_MAPPER, &fmt,
-                               (DWORD_PTR)wave_callback, 0, CALLBACK_FUNCTION);
+    // No callback — we poll from the main loop
+    MMRESULT res = waveOutOpen(&g_waveOut, WAVE_MAPPER, &fmt, 0, 0, CALLBACK_NULL);
     if (res != MMSYSERR_NOERROR) return false;
 
-    // Prime buffers with silence
+    // Prime all buffers
     for (int i = 0; i < NUM_AUDIO_BUFS; ++i) {
         g_waveHdrs[i] = {};
-        fill_audio_buffer(&g_waveHdrs[i], i);
+        fill_audio_buffer(i);
     }
 
     return true;
 }
 
 static void shutdown_audio() {
-    g_streamSource.store(nullptr);
-    g_audioShutdown.store(true);
+    g_streamSource = nullptr;
     if (g_waveOut) {
         waveOutReset(g_waveOut);
-        for (int i = 0; i < NUM_AUDIO_BUFS; ++i)
-            waveOutUnprepareHeader(g_waveOut, &g_waveHdrs[i], sizeof(WAVEHDR));
+        for (int i = 0; i < NUM_AUDIO_BUFS; ++i) {
+            if (g_waveHdrs[i].dwFlags & WHDR_PREPARED)
+                waveOutUnprepareHeader(g_waveOut, &g_waveHdrs[i], sizeof(WAVEHDR));
+        }
         waveOutClose(g_waveOut);
         g_waveOut = nullptr;
     }
@@ -1252,7 +1252,7 @@ static void play_note(float noteNum, float velocity, float durationSeconds) {
     if (!src) return;
 
     // Stop any current stream first
-    g_streamSource.store(nullptr);
+    g_streamSource = nullptr;
 
     // Set frequency on Parameter nodes named "frequency"
     float freq = note_to_freq(noteNum);
@@ -1266,9 +1266,9 @@ static void play_note(float noteNum, float velocity, float durationSeconds) {
     int samples = int(durationSeconds * float(AUDIO_SAMPLE_RATE));
     prepare_graph(samples);
 
-    g_streamVelocity.store(velocity);
-    g_streamRemaining.store(samples);
-    g_streamSource.store(src);
+    g_streamVelocity = velocity;
+    g_streamRemaining = samples;
+    g_streamSource = src;
 }
 
 // Start continuous streaming — uses a long fixed duration for Envelope compat
@@ -1278,19 +1278,18 @@ static void play_continuous(float velocity) {
     ValueSource* src = find_output_source();
     if (!src) return;
 
-    g_streamSource.store(nullptr);
+    g_streamSource = nullptr;
 
-    // Use a long duration so Envelope sustain stage is long
-    int samples = AUDIO_SAMPLE_RATE * 30;  // 30 seconds
+    int samples = AUDIO_SAMPLE_RATE * 30;
     prepare_graph(samples);
 
-    g_streamVelocity.store(velocity);
-    g_streamRemaining.store(-1);  // -1 = continuous (won't auto-stop)
-    g_streamSource.store(src);
+    g_streamVelocity = velocity;
+    g_streamRemaining = -1;
+    g_streamSource = src;
 }
 
 static void stop_playback() {
-    g_streamSource.store(nullptr);
+    g_streamSource = nullptr;
 }
 
 // ===========================================================================
@@ -1550,7 +1549,7 @@ int main(int, char**) {
             // Play/Stop in menu bar
             if (s_graphMode == GraphMode::PatchGraph) {
                 ImGui::Separator();
-                bool isPlaying = g_streamSource.load() != nullptr;
+                bool isPlaying = g_streamSource != nullptr;
                 if (!isPlaying) {
                     if (ImGui::MenuItem("Play", "Space"))
                         play_note(60.0f, 0.8f, 2.0f);
@@ -1596,13 +1595,13 @@ int main(int, char**) {
         if (ImGui::GetIO().KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_O))
             load_graph();
         if (ImGui::IsKeyPressed(ImGuiKey_Space) && !ImGui::GetIO().WantTextInput) {
-            if (g_streamSource.load() != nullptr)
+            if (g_streamSource != nullptr)
                 stop_playback();
             else
                 play_note(60.0f, 0.8f, 2.0f);
         }
         if (ImGui::IsKeyPressed(ImGuiKey_S) && !ImGui::GetIO().KeyCtrl && !ImGui::GetIO().WantTextInput) {
-            if (g_streamSource.load() != nullptr)
+            if (g_streamSource != nullptr)
                 stop_playback();
             else
                 play_continuous(0.5f);
@@ -1647,6 +1646,9 @@ int main(int, char**) {
         ImGui::End();
 
         // Render
+        // Pump audio: refill any completed waveOut buffers
+        pump_audio();
+
         ImGui::Render();
         int displayW, displayH;
         glfwGetFramebufferSize(window, &displayW, &displayH);
@@ -1658,7 +1660,6 @@ int main(int, char**) {
         glfwSwapBuffers(window);
     }
 
-    stop_playback();
     shutdown_audio();
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplGlfw_Shutdown();
