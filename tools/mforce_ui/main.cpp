@@ -427,6 +427,70 @@ static void dsp_rewire_link(int outputPinId, int inputPinId, bool connect) {
     }
 }
 
+// UpdateNode: re-apply ALL sources to a node's DSP object.
+// For each input pin: if connected, use the source node's dspSource; else use constantSrc.
+static void update_node_dsp(GraphNode& node) {
+    if (!node.dspSource) return;
+
+    // First pass: wire all pins to their ConstantSource defaults
+    for (auto& pin : node.inputs) {
+        if (pin.kind == PinKind::Input && pin.constantSrc)
+            node.wire_pin(pin.name, pin.constantSrc);
+    }
+
+    // Second pass: override with connected sources
+    for (auto& pin : node.inputs) {
+        for (auto& link : s_links) {
+            int otherPinId = -1;
+            if (link.endPinId == pin.id) otherPinId = link.startPinId;
+            if (link.startPinId == pin.id) otherPinId = link.endPinId;
+            if (otherPinId < 0) continue;
+
+            GraphNode* srcNode = find_node_for_pin(otherPinId);
+            Pin* otherPin = find_pin(otherPinId);
+            if (srcNode && otherPin && otherPin->kind == PinKind::Output && srcNode->dspSource)
+                node.wire_pin(pin.name, srcNode->dspSource);
+        }
+    }
+
+    // Envelope: recreate DSP with current param values (not streamable params)
+    if (node.type == NodeType::Envelope) {
+        auto* att = node.find_input("attack");
+        auto* dec = node.find_input("decay");
+        auto* sus = node.find_input("sustainLevel");
+        auto* rel = node.find_input("release");
+        float a = att ? att->defaultValue : 0.01f;
+        float d = dec ? dec->defaultValue : 0.1f;
+        float s = sus ? sus->defaultValue : 0.6f;
+        float r = rel ? rel->defaultValue : 0.0f;
+
+        auto newEnv = std::make_shared<Envelope>(
+            Envelope::make_adsr(DSP_SAMPLE_RATE, a, d, s, r));
+        node.dspSource = newEnv;
+
+        // Re-wire any nodes that reference this envelope
+        for (auto& link : s_links) {
+            for (auto& outPin : node.outputs) {
+                int targetPinId = -1;
+                if (link.startPinId == outPin.id) targetPinId = link.endPinId;
+                if (link.endPinId == outPin.id) targetPinId = link.startPinId;
+                if (targetPinId < 0) continue;
+
+                GraphNode* dstNode = find_node_for_pin(targetPinId);
+                Pin* dstPin = find_pin(targetPinId);
+                if (dstNode && dstPin && dstPin->kind == PinKind::Input)
+                    dstNode->wire_pin(dstPin->name, node.dspSource);
+            }
+        }
+    }
+}
+
+// Update ALL nodes' DSP (call after link changes)
+static void update_all_dsp() {
+    for (auto& node : s_nodes)
+        update_node_dsp(node);
+}
+
 static bool is_pin_connected(int pinId) {
     for (auto& link : s_links)
         if (link.startPinId == pinId || link.endPinId == pinId) return true;
@@ -455,16 +519,11 @@ static void delete_node(int nodeId) {
 }
 
 static void delete_link(int linkId) {
-    for (auto& l : s_links) {
-        if (l.id == linkId) {
-            dsp_rewire_link(l.startPinId, l.endPinId, false);
-            break;
-        }
-    }
     s_links.erase(
         std::remove_if(s_links.begin(), s_links.end(),
             [linkId](const Link& l) { return l.id == linkId; }),
         s_links.end());
+    update_all_dsp();
 }
 
 static void new_graph(GraphMode mode) {
@@ -1246,6 +1305,7 @@ static void draw_node(GraphNode& node) {
                 snprintf(label, sizeof(label), "##%d", pin.id);
                 if (ImGui::DragFloat(label, &pin.defaultValue, 0.01f, 0.0f, 0.0f, "%.3f")) {
                     if (pin.constantSrc) pin.constantSrc->set(pin.defaultValue);
+                    update_node_dsp(node);
                 }
                 ImGui::PopItemWidth();
                 ImGui::SameLine();
@@ -1499,7 +1559,7 @@ int main(int, char**) {
                 int outPin = (startPin->kind == PinKind::Output) ? startAttr : endAttr;
                 int inPin  = (startPin->kind == PinKind::Input)  ? startAttr : endAttr;
                 s_links.emplace_back(outPin, inPin);
-                dsp_rewire_link(outPin, inPin, true);
+                update_all_dsp();
             }
         }
 
@@ -1571,6 +1631,7 @@ int main(int, char**) {
         glfwSwapBuffers(window);
     }
 
+    stop_playback();
     shutdown_audio();
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplGlfw_Shutdown();
