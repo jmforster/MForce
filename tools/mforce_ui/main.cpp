@@ -239,6 +239,7 @@ struct Link {
 // ===========================================================================
 static std::vector<GraphNode> s_nodes;
 static std::vector<Link> s_links;
+static std::string s_currentFilePath;
 
 static Pin* find_pin(int pinId) {
     for (auto& node : s_nodes) {
@@ -283,6 +284,7 @@ static void delete_link(int linkId) {
 }
 
 static void new_graph(GraphMode mode) {
+    s_currentFilePath.clear();
     s_nodes.clear();
     s_links.clear();
     s_graphMode = mode;
@@ -362,6 +364,7 @@ static void load_graph() {
     std::ifstream f(path);
     if (!f) return;
     json root = json::parse(f);
+    s_currentFilePath = path;
 
     s_nodes.clear();
     s_links.clear();
@@ -604,11 +607,8 @@ static GraphNode* find_source_node(int inputPinId) {
     return nullptr;
 }
 
-static void save_patch_graph() {
+static void save_patch_graph(const std::string& path) {
     using json = nlohmann::json;
-
-    std::string path = save_file_dialog();
-    if (path.empty()) return;
 
     // Assign string IDs to nodes
     std::unordered_map<int, std::string> nodeIds;
@@ -748,11 +748,8 @@ static void save_patch_graph() {
     f.close();
 }
 
-static void save_node_graph() {
+static void save_node_graph(const std::string& path) {
     using json = nlohmann::json;
-
-    std::string path = save_file_dialog();
-    if (path.empty()) return;
 
     // Assign string IDs
     std::unordered_map<int, std::string> nodeIds;
@@ -844,11 +841,25 @@ static void save_node_graph() {
     f.close();
 }
 
-static void save_graph() {
+static void save_to_path(const std::string& path) {
     if (s_graphMode == GraphMode::PatchGraph)
-        save_patch_graph();
+        save_patch_graph(path);
     else
-        save_node_graph();
+        save_node_graph(path);
+    s_currentFilePath = path;
+}
+
+static void save_graph_as() {
+    std::string path = save_file_dialog();
+    if (!path.empty())
+        save_to_path(path);
+}
+
+static void save_graph() {
+    if (s_currentFilePath.empty())
+        save_graph_as();
+    else
+        save_to_path(s_currentFilePath);
 }
 
 // ===========================================================================
@@ -1047,7 +1058,17 @@ int main(int, char**) {
         // Full-window editor
         const char* modeLabel = s_graphMode == GraphMode::PatchGraph ? "Patch Graph" : "Node Graph";
         char titleBuf[64];
-        snprintf(titleBuf, sizeof(titleBuf), "MForce - %s", modeLabel);
+        if (s_currentFilePath.empty())
+            snprintf(titleBuf, sizeof(titleBuf), "MForce - %s (unsaved)", modeLabel);
+        else {
+            // Show just the filename, not full path
+            const char* fname = s_currentFilePath.c_str();
+            const char* slash = strrchr(fname, '/');
+            const char* bslash = strrchr(fname, '\\');
+            if (bslash && (!slash || bslash > slash)) slash = bslash;
+            if (slash) fname = slash + 1;
+            snprintf(titleBuf, sizeof(titleBuf), "MForce - %s - %s", fname, modeLabel);
+        }
         glfwSetWindowTitle(window, titleBuf);
 
         ImGui::SetNextWindowPos(ImVec2(0, 0));
@@ -1076,6 +1097,9 @@ int main(int, char**) {
                 }
                 if (ImGui::MenuItem("Save", "Ctrl+S")) {
                     save_graph();
+                }
+                if (ImGui::MenuItem("Save As...")) {
+                    save_graph_as();
                 }
                 ImGui::Separator();
                 if (ImGui::MenuItem("Quit")) {
