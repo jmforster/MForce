@@ -45,7 +45,8 @@ enum class NodeType {
     Envelope,
     VarSource, RangeSource,
     SoundChannel, StereoMixer,
-    PatchOutput
+    PatchOutput,
+    Parameter
 };
 
 static const char* node_type_name(NodeType t) {
@@ -62,6 +63,7 @@ static const char* node_type_name(NodeType t) {
         case NodeType::SoundChannel:     return "Channel";
         case NodeType::StereoMixer:      return "Mixer";
         case NodeType::PatchOutput:      return "Output";
+        case NodeType::Parameter:        return "Parameter";
     }
     return "?";
 }
@@ -86,16 +88,11 @@ static ImU32 node_title_color(NodeType t) {
             return IM_COL32(100, 100, 100, 255);  // gray — mixer/channel
         case NodeType::PatchOutput:
             return IM_COL32(60, 150, 150, 255);   // teal — output
+        case NodeType::Parameter:
+            return IM_COL32(180, 100, 180, 255);  // purple — parameter
     }
     return IM_COL32(128, 128, 128, 255);
 }
-
-// ParamMap entry for PatchOutput
-struct ParamMapEntry {
-    std::string paramName;   // e.g. "frequency"
-    std::string targetNode;  // e.g. "sine1"
-    std::string targetParam; // e.g. "frequency"
-};
 
 struct GraphNode {
     int id;
@@ -106,13 +103,20 @@ struct GraphNode {
 
     // PatchOutput-specific
     int polyphony{4};
-    std::vector<ParamMapEntry> paramMap;
+
+    // Parameter-specific
+    std::string paramName;  // editable name, e.g. "frequency"
+    char paramNameBuf[32]{};
 
     GraphNode(NodeType t) : id(next_id()), type(t), label(node_type_name(t)) {
         build_pins();
-        if (t == NodeType::PatchOutput) {
-            // Default paramMap: frequency mapped (user fills in target)
-            paramMap.push_back({"frequency", "", "frequency"});
+    }
+
+    GraphNode(NodeType t, const std::string& name) : GraphNode(t) {
+        if (t == NodeType::Parameter) {
+            paramName = name;
+            label = name;
+            snprintf(paramNameBuf, sizeof(paramNameBuf), "%s", name.c_str());
         }
     }
 
@@ -195,6 +199,10 @@ struct GraphNode {
             case NodeType::PatchOutput:
                 inputs.emplace_back("source", PinKind::Input, 0.0f);
                 break;
+            case NodeType::Parameter:
+                inputs.emplace_back("default", PinKind::Input, 440.0f);
+                outputs.emplace_back("out", PinKind::Output);
+                break;
         }
     }
 
@@ -272,6 +280,7 @@ static void new_graph(GraphMode mode) {
     s_nextId = 1;
 
     if (mode == GraphMode::PatchGraph) {
+        s_nodes.emplace_back(NodeType::Parameter, "frequency");
         s_nodes.emplace_back(NodeType::SineSource);
         s_nodes.emplace_back(NodeType::Envelope);
         s_nodes.emplace_back(NodeType::PatchOutput);
@@ -330,7 +339,7 @@ static void draw_node(GraphNode& node) {
         ImNodes::EndInputAttribute();
     }
 
-    // PatchOutput: polyphony + paramMap UI (below inputs, no pins)
+    // PatchOutput: polyphony (paramMap is derived from Parameter nodes)
     if (node.type == NodeType::PatchOutput) {
         ImGui::Spacing();
         ImGui::Separator();
@@ -343,46 +352,19 @@ static void draw_node(GraphNode& node) {
         ImGui::PopItemWidth();
         ImGui::SameLine();
         ImGui::Text("polyphony");
+    }
 
+    // Parameter: editable name
+    if (node.type == NodeType::Parameter) {
         ImGui::Spacing();
-        ImGui::Text("Param Map:");
-
-        for (int i = 0; i < (int)node.paramMap.size(); ++i) {
-            auto& entry = node.paramMap[i];
-            ImGui::PushItemWidth(60);
-            char buf[64];
-
-            snprintf(buf, sizeof(buf), "##pm_name_%d_%d", node.id, i);
-            char nameBuf[32];
-            snprintf(nameBuf, sizeof(nameBuf), "%s", entry.paramName.c_str());
-            if (ImGui::InputText(buf, nameBuf, sizeof(nameBuf)))
-                entry.paramName = nameBuf;
-
-            ImGui::SameLine();
-            ImGui::Text("->");
-            ImGui::SameLine();
-
-            snprintf(buf, sizeof(buf), "##pm_target_%d_%d", node.id, i);
-            char targetBuf[48];
-            snprintf(targetBuf, sizeof(targetBuf), "%s.%s",
-                     entry.targetNode.c_str(), entry.targetParam.c_str());
-            if (ImGui::InputText(buf, targetBuf, sizeof(targetBuf))) {
-                std::string s = targetBuf;
-                auto dot = s.find('.');
-                if (dot != std::string::npos) {
-                    entry.targetNode = s.substr(0, dot);
-                    entry.targetParam = s.substr(dot + 1);
-                }
-            }
-
-            ImGui::PopItemWidth();
+        ImGui::PushItemWidth(100);
+        char nameLabel[32];
+        snprintf(nameLabel, sizeof(nameLabel), "##pname%d", node.id);
+        if (ImGui::InputText(nameLabel, node.paramNameBuf, sizeof(node.paramNameBuf))) {
+            node.paramName = node.paramNameBuf;
+            node.label = node.paramName.empty() ? "Parameter" : node.paramName;
         }
-
-        char addBuf[32];
-        snprintf(addBuf, sizeof(addBuf), "+param##%d", node.id);
-        if (ImGui::SmallButton(addBuf)) {
-            node.paramMap.push_back({"", "", ""});
-        }
+        ImGui::PopItemWidth();
     }
 
     // Output pins
@@ -424,12 +406,13 @@ static void show_create_menu() {
     if (ImGui::MenuItem("Var"))      { s_nodes.emplace_back(NodeType::VarSource);  ImNodes::SetNodeScreenSpacePos(s_nodes.back().id, s_createMenuPos); }
     if (ImGui::MenuItem("Range"))    { s_nodes.emplace_back(NodeType::RangeSource); ImNodes::SetNodeScreenSpacePos(s_nodes.back().id, s_createMenuPos); }
 
-    ImGui::SeparatorText("Output");
-    if (s_graphMode == GraphMode::NodeGraph) {
-        if (ImGui::MenuItem("Channel")) { s_nodes.emplace_back(NodeType::SoundChannel); ImNodes::SetNodeScreenSpacePos(s_nodes.back().id, s_createMenuPos); }
-        if (ImGui::MenuItem("Mixer"))   { s_nodes.emplace_back(NodeType::StereoMixer);  ImNodes::SetNodeScreenSpacePos(s_nodes.back().id, s_createMenuPos); }
-    } else {
-        // Only allow one Output node
+    if (s_graphMode == GraphMode::PatchGraph) {
+        ImGui::SeparatorText("Instrument");
+        if (ImGui::MenuItem("Parameter")) {
+            s_nodes.emplace_back(NodeType::Parameter, "param");
+            ImNodes::SetNodeScreenSpacePos(s_nodes.back().id, s_createMenuPos);
+        }
+
         bool hasOutput = false;
         for (auto& n : s_nodes) if (n.type == NodeType::PatchOutput) hasOutput = true;
         if (!hasOutput) {
@@ -437,6 +420,10 @@ static void show_create_menu() {
         } else {
             ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "Output (exists)");
         }
+    } else {
+        ImGui::SeparatorText("Output");
+        if (ImGui::MenuItem("Channel")) { s_nodes.emplace_back(NodeType::SoundChannel); ImNodes::SetNodeScreenSpacePos(s_nodes.back().id, s_createMenuPos); }
+        if (ImGui::MenuItem("Mixer"))   { s_nodes.emplace_back(NodeType::StereoMixer);  ImNodes::SetNodeScreenSpacePos(s_nodes.back().id, s_createMenuPos); }
     }
 
     ImGui::EndPopup();
@@ -488,9 +475,10 @@ int main(int, char**) {
 
         if (firstFrame) {
             if (s_graphMode == GraphMode::PatchGraph) {
-                ImNodes::SetNodeScreenSpacePos(s_nodes[0].id, ImVec2(50, 100));
-                ImNodes::SetNodeScreenSpacePos(s_nodes[1].id, ImVec2(50, 380));
-                ImNodes::SetNodeScreenSpacePos(s_nodes[2].id, ImVec2(400, 100));
+                ImNodes::SetNodeScreenSpacePos(s_nodes[0].id, ImVec2(50, 80));   // frequency param
+                ImNodes::SetNodeScreenSpacePos(s_nodes[1].id, ImVec2(250, 80));  // sine
+                ImNodes::SetNodeScreenSpacePos(s_nodes[2].id, ImVec2(50, 300));  // envelope
+                ImNodes::SetNodeScreenSpacePos(s_nodes[3].id, ImVec2(500, 150)); // output
             } else {
                 ImNodes::SetNodeScreenSpacePos(s_nodes[0].id, ImVec2(50, 80));
                 ImNodes::SetNodeScreenSpacePos(s_nodes[1].id, ImVec2(50, 350));
