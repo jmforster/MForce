@@ -12,7 +12,7 @@
 #include <cstdio>
 
 // ===========================================================================
-// ID scheme: nodes get IDs 1000+, pins get unique IDs via counter
+// ID generation
 // ===========================================================================
 static int s_nextId = 1;
 static int next_id() { return s_nextId++; }
@@ -72,18 +72,30 @@ struct GraphNode {
     void build_pins() {
         switch (type) {
             case NodeType::SineSource:
+                inputs.emplace_back("frequency", PinKind::Input, 440.0f);
+                inputs.emplace_back("amplitude", PinKind::Input, 1.0f);
+                inputs.emplace_back("phase",     PinKind::Input, 0.0f);
+                outputs.emplace_back("out", PinKind::Output);
+                break;
             case NodeType::SawSource:
+                inputs.emplace_back("frequency", PinKind::Input, 440.0f);
+                inputs.emplace_back("amplitude", PinKind::Input, 1.0f);
+                inputs.emplace_back("phase",     PinKind::Input, 0.0f);
+                outputs.emplace_back("out", PinKind::Output);
+                break;
             case NodeType::TriangleSource:
                 inputs.emplace_back("frequency", PinKind::Input, 440.0f);
                 inputs.emplace_back("amplitude", PinKind::Input, 1.0f);
                 inputs.emplace_back("phase",     PinKind::Input, 0.0f);
+                inputs.emplace_back("bias",      PinKind::Input, 0.5f);
                 outputs.emplace_back("out", PinKind::Output);
                 break;
             case NodeType::PulseSource:
                 inputs.emplace_back("frequency",  PinKind::Input, 440.0f);
                 inputs.emplace_back("amplitude",  PinKind::Input, 1.0f);
                 inputs.emplace_back("phase",      PinKind::Input, 0.0f);
-                inputs.emplace_back("pulseWidth", PinKind::Input, 0.5f);
+                inputs.emplace_back("dutyCycle",  PinKind::Input, 0.5f);
+                inputs.emplace_back("bend",       PinKind::Input, 0.0f);
                 outputs.emplace_back("out", PinKind::Output);
                 break;
             case NodeType::WhiteNoiseSource:
@@ -91,21 +103,27 @@ struct GraphNode {
                 outputs.emplace_back("out", PinKind::Output);
                 break;
             case NodeType::RedNoiseSource:
-                inputs.emplace_back("frequency",  PinKind::Input, 400.0f);
-                inputs.emplace_back("amplitude",  PinKind::Input, 1.0f);
-                inputs.emplace_back("density",    PinKind::Input, 1.0f);
-                inputs.emplace_back("smoothness", PinKind::Input, 0.0f);
+                inputs.emplace_back("frequency",       PinKind::Input, 400.0f);
+                inputs.emplace_back("amplitude",       PinKind::Input, 1.0f);
+                inputs.emplace_back("density",         PinKind::Input, 1.0f);
+                inputs.emplace_back("smoothness",      PinKind::Input, 0.0f);
+                inputs.emplace_back("rampVariation",   PinKind::Input, 0.5f);
+                inputs.emplace_back("boost",           PinKind::Input, 0.0f);
+                inputs.emplace_back("continuity",      PinKind::Input, 0.0f);
+                inputs.emplace_back("zeroCrossTend",   PinKind::Input, 0.0f);
                 outputs.emplace_back("out", PinKind::Output);
                 break;
             case NodeType::Envelope:
-                inputs.emplace_back("attack",  PinKind::Input, 0.01f);
-                inputs.emplace_back("decay",   PinKind::Input, 0.1f);
-                inputs.emplace_back("sustain", PinKind::Input, 0.6f);
-                inputs.emplace_back("release", PinKind::Input, 0.0f);
+                inputs.emplace_back("attack",       PinKind::Input, 0.01f);
+                inputs.emplace_back("decay",        PinKind::Input, 0.1f);
+                inputs.emplace_back("sustainLevel", PinKind::Input, 0.6f);
+                inputs.emplace_back("release",      PinKind::Input, 0.0f);
                 outputs.emplace_back("out", PinKind::Output);
                 break;
             case NodeType::VarSource:
-                inputs.emplace_back("value", PinKind::Input, 1.0f);
+                inputs.emplace_back("val",    PinKind::Input, 1.0f);
+                inputs.emplace_back("var",    PinKind::Input, 0.0f);
+                inputs.emplace_back("varPct", PinKind::Input, 0.0f);
                 outputs.emplace_back("out", PinKind::Output);
                 break;
             case NodeType::RangeSource:
@@ -121,13 +139,27 @@ struct GraphNode {
                 outputs.emplace_back("out", PinKind::Output);
                 break;
             case NodeType::StereoMixer:
-                inputs.emplace_back("channel", PinKind::Input, 0.0f);
-                inputs.emplace_back("gainL",   PinKind::Input, 1.0f);
-                inputs.emplace_back("gainR",   PinKind::Input, 1.0f);
+                // Starts with one channel input; more can be added
+                inputs.emplace_back("ch 1", PinKind::Input, 0.0f);
+                inputs.emplace_back("gainL", PinKind::Input, 1.0f);
+                inputs.emplace_back("gainR", PinKind::Input, 1.0f);
                 outputs.emplace_back("outL", PinKind::Output);
                 outputs.emplace_back("outR", PinKind::Output);
                 break;
         }
+    }
+
+    // Add a channel input to mixer
+    void add_channel_input() {
+        if (type != NodeType::StereoMixer) return;
+        int chNum = 0;
+        for (auto& p : inputs)
+            if (p.name.substr(0, 2) == "ch") chNum++;
+        char name[16];
+        snprintf(name, sizeof(name), "ch %d", chNum + 1);
+        // Insert before gainL/gainR (last 2 inputs)
+        auto pos = inputs.end() - 2;
+        inputs.insert(pos, Pin(name, PinKind::Input, 0.0f));
     }
 };
 
@@ -153,10 +185,47 @@ static Pin* find_pin(int pinId) {
     return nullptr;
 }
 
+static GraphNode* find_node_for_pin(int pinId) {
+    for (auto& node : s_nodes) {
+        for (auto& pin : node.inputs)  if (pin.id == pinId) return &node;
+        for (auto& pin : node.outputs) if (pin.id == pinId) return &node;
+    }
+    return nullptr;
+}
+
 static bool is_pin_connected(int pinId) {
     for (auto& link : s_links)
         if (link.startPinId == pinId || link.endPinId == pinId) return true;
     return false;
+}
+
+static void delete_node(int nodeId) {
+    // Remove links connected to this node
+    for (auto& node : s_nodes) {
+        if (node.id != nodeId) continue;
+        s_links.erase(
+            std::remove_if(s_links.begin(), s_links.end(),
+                [&node](const Link& l) {
+                    for (auto& p : node.inputs)
+                        if (l.startPinId == p.id || l.endPinId == p.id) return true;
+                    for (auto& p : node.outputs)
+                        if (l.startPinId == p.id || l.endPinId == p.id) return true;
+                    return false;
+                }),
+            s_links.end());
+        break;
+    }
+    s_nodes.erase(
+        std::remove_if(s_nodes.begin(), s_nodes.end(),
+            [nodeId](const GraphNode& n) { return n.id == nodeId; }),
+        s_nodes.end());
+}
+
+static void delete_link(int linkId) {
+    s_links.erase(
+        std::remove_if(s_links.begin(), s_links.end(),
+            [linkId](const Link& l) { return l.id == linkId; }),
+        s_links.end());
 }
 
 // ===========================================================================
@@ -164,11 +233,30 @@ static bool is_pin_connected(int pinId) {
 // ===========================================================================
 
 static void draw_node(GraphNode& node) {
+    // Set title bar color based on type
+    ImNodes::PushColorStyle(ImNodesCol_TitleBar,
+        node.type <= NodeType::PulseSource      ? IM_COL32(70, 100, 180, 255) :
+        node.type <= NodeType::RedNoiseSource    ? IM_COL32(140, 80, 80, 255) :
+        node.type == NodeType::Envelope          ? IM_COL32(80, 140, 80, 255) :
+        node.type <= NodeType::RangeSource       ? IM_COL32(140, 120, 60, 255) :
+                                                   IM_COL32(100, 100, 100, 255));
+
     ImNodes::BeginNode(node.id);
 
     // Title bar
     ImNodes::BeginNodeTitleBar();
     ImGui::TextUnformatted(node.label.c_str());
+
+    // Mixer: add channel button in title bar
+    if (node.type == NodeType::StereoMixer) {
+        ImGui::SameLine();
+        char btnLabel[32];
+        snprintf(btnLabel, sizeof(btnLabel), " + ##addch%d", node.id);
+        if (ImGui::SmallButton(btnLabel)) {
+            node.add_channel_input();
+        }
+    }
+
     ImNodes::EndNodeTitleBar();
 
     // Input pins
@@ -176,17 +264,23 @@ static void draw_node(GraphNode& node) {
         ImNodes::BeginInputAttribute(pin.id);
 
         if (is_pin_connected(pin.id)) {
-            // Connected: just show label
             ImGui::TextUnformatted(pin.name.c_str());
         } else {
-            // Unconnected: editable value + label
-            ImGui::PushItemWidth(80);
-            char label[64];
-            snprintf(label, sizeof(label), "##%d", pin.id);
-            ImGui::DragFloat(label, &pin.defaultValue, 0.1f, 0.0f, 0.0f, "%.2f");
-            ImGui::PopItemWidth();
-            ImGui::SameLine();
-            ImGui::TextUnformatted(pin.name.c_str());
+            // Source-type inputs (like "source" on Channel, "ch N" on Mixer)
+            // don't need editable values — just show label
+            bool isSourcePin = (pin.name == "source" || pin.name.substr(0, 2) == "ch");
+
+            if (isSourcePin) {
+                ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "%s", pin.name.c_str());
+            } else {
+                ImGui::PushItemWidth(80);
+                char label[64];
+                snprintf(label, sizeof(label), "##%d", pin.id);
+                ImGui::DragFloat(label, &pin.defaultValue, 0.01f, 0.0f, 0.0f, "%.3f");
+                ImGui::PopItemWidth();
+                ImGui::SameLine();
+                ImGui::TextUnformatted(pin.name.c_str());
+            }
         }
 
         ImNodes::EndInputAttribute();
@@ -195,42 +289,54 @@ static void draw_node(GraphNode& node) {
     // Output pins
     for (auto& pin : node.outputs) {
         ImNodes::BeginOutputAttribute(pin.id);
-        ImGui::Indent(100);
+        float nodeWidth = 160.0f;
+        float textWidth = ImGui::CalcTextSize(pin.name.c_str()).x;
+        ImGui::Indent(nodeWidth - textWidth - 20);
         ImGui::TextUnformatted(pin.name.c_str());
         ImNodes::EndOutputAttribute();
     }
 
     ImNodes::EndNode();
+    ImNodes::PopColorStyle();
 }
 
 // ===========================================================================
 // Context menu
 // ===========================================================================
 
+static bool s_wantCreateMenu = false;
+static ImVec2 s_createMenuPos;
+
 static void show_create_menu() {
-    struct Entry { const char* name; NodeType type; };
+    struct Entry { const char* label; const char* name; NodeType type; };
     static const Entry entries[] = {
-        {"Sine",        NodeType::SineSource},
-        {"Saw",         NodeType::SawSource},
-        {"Triangle",    NodeType::TriangleSource},
-        {"Pulse",       NodeType::PulseSource},
-        {"White Noise", NodeType::WhiteNoiseSource},
-        {"Red Noise",   NodeType::RedNoiseSource},
-        {"Envelope",    NodeType::Envelope},
-        {"Var",         NodeType::VarSource},
-        {"Range",       NodeType::RangeSource},
-        {"Channel",     NodeType::SoundChannel},
-        {"Mixer",       NodeType::StereoMixer},
+        {"Oscillators",  nullptr,        NodeType::SineSource},
+        {"  Sine",       "Sine",         NodeType::SineSource},
+        {"  Saw",        "Saw",          NodeType::SawSource},
+        {"  Triangle",   "Triangle",     NodeType::TriangleSource},
+        {"  Pulse",      "Pulse",        NodeType::PulseSource},
+        {"Noise",        nullptr,        NodeType::WhiteNoiseSource},
+        {"  White Noise","White Noise",  NodeType::WhiteNoiseSource},
+        {"  Red Noise",  "Red Noise",    NodeType::RedNoiseSource},
+        {"Modifiers",    nullptr,        NodeType::Envelope},
+        {"  Envelope",   "Envelope",     NodeType::Envelope},
+        {"  Var",        "Var",          NodeType::VarSource},
+        {"  Range",      "Range",        NodeType::RangeSource},
+        {"Output",       nullptr,        NodeType::SoundChannel},
+        {"  Channel",    "Channel",      NodeType::SoundChannel},
+        {"  Mixer",      "Mixer",        NodeType::StereoMixer},
     };
 
-    if (ImGui::BeginPopup("CreateNode")) {
-        ImGui::TextUnformatted("Add Node");
-        ImGui::Separator();
-
+    if (ImGui::BeginPopup("CreateNodeMenu")) {
         for (auto& e : entries) {
-            if (ImGui::MenuItem(e.name)) {
-                s_nodes.emplace_back(e.type);
-                ImNodes::SetNodeScreenSpacePos(s_nodes.back().id, ImGui::GetMousePos());
+            if (e.name == nullptr) {
+                // Section header
+                ImGui::SeparatorText(e.label);
+            } else {
+                if (ImGui::MenuItem(e.label + 2)) {  // skip "  " indent
+                    s_nodes.emplace_back(e.type);
+                    ImNodes::SetNodeScreenSpacePos(s_nodes.back().id, s_createMenuPos);
+                }
             }
         }
         ImGui::EndPopup();
@@ -258,15 +364,15 @@ int main(int, char**) {
     ImGui::CreateContext();
     ImNodes::CreateContext();
 
-    ImGuiIO& io = ImGui::GetIO();
-    (void)io;
     ImGui::StyleColorsDark();
 
-    // Style the node editor
+    // Node editor style
     ImNodesStyle& style = ImNodes::GetStyle();
     style.NodeCornerRounding = 4.0f;
     style.NodePadding = ImVec2(8, 8);
     style.PinCircleRadius = 4.0f;
+    style.LinkThickness = 2.5f;
+    style.Flags |= ImNodesStyleFlags_GridLines;
 
     ImGui_ImplGlfw_InitForOpenGL(window, true);
     ImGui_ImplOpenGL3_Init("#version 330");
@@ -277,10 +383,7 @@ int main(int, char**) {
     s_nodes.emplace_back(NodeType::SoundChannel);
     s_nodes.emplace_back(NodeType::StereoMixer);
 
-    ImNodes::SetNodeScreenSpacePos(s_nodes[0].id, ImVec2(100, 100));
-    ImNodes::SetNodeScreenSpacePos(s_nodes[1].id, ImVec2(100, 300));
-    ImNodes::SetNodeScreenSpacePos(s_nodes[2].id, ImVec2(400, 200));
-    ImNodes::SetNodeScreenSpacePos(s_nodes[3].id, ImVec2(650, 200));
+    bool firstFrame = true;
 
     while (!glfwWindowShouldClose(window)) {
         glfwPollEvents();
@@ -289,29 +392,56 @@ int main(int, char**) {
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
 
-        // --- Node Editor ---
+        // Position starter nodes on first frame
+        if (firstFrame) {
+            ImNodes::SetNodeScreenSpacePos(s_nodes[0].id, ImVec2(50, 80));
+            ImNodes::SetNodeScreenSpacePos(s_nodes[1].id, ImVec2(50, 350));
+            ImNodes::SetNodeScreenSpacePos(s_nodes[2].id, ImVec2(350, 150));
+            ImNodes::SetNodeScreenSpacePos(s_nodes[3].id, ImVec2(600, 150));
+            firstFrame = false;
+        }
+
+        // Full-window editor
         ImGui::SetNextWindowPos(ImVec2(0, 0));
         ImGui::SetNextWindowSize(ImGui::GetIO().DisplaySize);
         ImGui::Begin("Patch Editor", nullptr,
                      ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
-                     ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoBringToFrontOnFocus);
+                     ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoBringToFrontOnFocus |
+                     ImGuiWindowFlags_MenuBar);
+
+        // Menu bar
+        if (ImGui::BeginMenuBar()) {
+            if (ImGui::BeginMenu("File")) {
+                if (ImGui::MenuItem("New")) {
+                    s_nodes.clear();
+                    s_links.clear();
+                }
+                ImGui::Separator();
+                if (ImGui::MenuItem("Quit")) {
+                    glfwSetWindowShouldClose(window, GLFW_TRUE);
+                }
+                ImGui::EndMenu();
+            }
+            ImGui::EndMenuBar();
+        }
 
         ImNodes::BeginNodeEditor();
 
-        // Draw all nodes
+        // Draw nodes and links
         for (auto& node : s_nodes)
             draw_node(node);
-
-        // Draw all links
         for (auto& link : s_links)
             ImNodes::Link(link.id, link.startPinId, link.endPinId);
 
+        // Right-click: open create menu
+        // Must be checked INSIDE the node editor scope
+        bool editorHovered = ImNodes::IsEditorHovered();
+
         ImNodes::EndNodeEditor();
 
-        // Handle new links
+        // Handle new links (after EndNodeEditor)
         int startAttr, endAttr;
         if (ImNodes::IsLinkCreated(&startAttr, &endAttr)) {
-            // Validate: one must be output, one input
             Pin* startPin = find_pin(startAttr);
             Pin* endPin = find_pin(endAttr);
             if (startPin && endPin && startPin->kind != endPin->kind) {
@@ -319,24 +449,57 @@ int main(int, char**) {
             }
         }
 
-        // Handle deleted links
-        int linkId;
-        if (ImNodes::IsLinkDestroyed(&linkId)) {
-            s_links.erase(
-                std::remove_if(s_links.begin(), s_links.end(),
-                    [linkId](const Link& l) { return l.id == linkId; }),
-                s_links.end());
+        // Handle link drop on empty space (after EndNodeEditor)
+        int droppedPin;
+        if (ImNodes::IsLinkDropped(&droppedPin, false)) {
+            // Could auto-create a node here in the future
         }
 
-        // Right-click context menu
-        if (ImNodes::IsEditorHovered() && ImGui::IsMouseClicked(ImGuiMouseButton_Right)) {
-            ImGui::OpenPopup("CreateNode");
+        // Delete selected nodes/links with Delete key
+        if (ImGui::IsKeyPressed(ImGuiKey_Delete) || ImGui::IsKeyPressed(ImGuiKey_Backspace)) {
+            int numSelectedNodes = ImNodes::NumSelectedNodes();
+            int numSelectedLinks = ImNodes::NumSelectedLinks();
+
+            if (numSelectedLinks > 0) {
+                std::vector<int> selectedLinks(numSelectedLinks);
+                ImNodes::GetSelectedLinks(selectedLinks.data());
+                for (int lid : selectedLinks)
+                    delete_link(lid);
+            }
+
+            if (numSelectedNodes > 0) {
+                std::vector<int> selectedNodes(numSelectedNodes);
+                ImNodes::GetSelectedNodes(selectedNodes.data());
+                for (int nid : selectedNodes)
+                    delete_node(nid);
+            }
+
+            ImNodes::ClearNodeSelection();
+            ImNodes::ClearLinkSelection();
         }
+
+        // Right-click context menu (outside node editor scope to avoid event conflicts)
+        if (editorHovered && ImGui::IsMouseClicked(ImGuiMouseButton_Right)) {
+            s_createMenuPos = ImGui::GetMousePos();
+            s_wantCreateMenu = true;
+        }
+
+        if (s_wantCreateMenu) {
+            ImGui::OpenPopup("CreateNodeMenu");
+            s_wantCreateMenu = false;
+        }
+
         show_create_menu();
+
+        // Status bar
+        ImGui::SetCursorPosY(ImGui::GetWindowHeight() - 30);
+        ImGui::Separator();
+        ImGui::Text("Nodes: %d  Links: %d  |  Right-click: add node  |  Delete: remove selected",
+                     (int)s_nodes.size(), (int)s_links.size());
 
         ImGui::End();
 
-        // --- Render ---
+        // Render
         ImGui::Render();
         int displayW, displayH;
         glfwGetFramebufferSize(window, &displayW, &displayH);
