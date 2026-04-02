@@ -1608,7 +1608,8 @@ int main(int, char**) {
         }
 
         // Delete
-        if (ImGui::IsKeyPressed(ImGuiKey_Delete) || ImGui::IsKeyPressed(ImGuiKey_Backspace)) {
+        if (!ImGui::GetIO().WantTextInput &&
+            (ImGui::IsKeyPressed(ImGuiKey_Delete) || ImGui::IsKeyPressed(ImGuiKey_Backspace))) {
             int numLinks = ImNodes::NumSelectedLinks();
             int numNodes = ImNodes::NumSelectedNodes();
 
