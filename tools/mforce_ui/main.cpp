@@ -7,14 +7,20 @@
 
 #define NOMINMAX
 #include <windows.h>
+#include <mmsystem.h>
 #include <commdlg.h>
 #include <nlohmann/json.hpp>
+#include "mforce/render/patch_loader.h"
+#include "mforce/core/equal_temperament.h"
+
+using namespace mforce;
 
 #include <vector>
 #include <string>
 #include <cstdint>
 #include <algorithm>
 #include <cstdio>
+#include <atomic>
 #include <fstream>
 #include <functional>
 #include <unordered_map>
@@ -863,6 +869,129 @@ static void save_graph() {
 }
 
 // ===========================================================================
+// Audio playback via waveOut
+// ===========================================================================
+
+static constexpr int SAMPLE_RATE = 48000;
+static constexpr int AUDIO_BUF_SAMPLES = 2048;
+static constexpr int NUM_AUDIO_BUFS = 4;
+static constexpr int MIX_SECONDS = 10;
+static constexpr int MIX_SIZE = SAMPLE_RATE * MIX_SECONDS;
+
+static float g_mixBuffer[MIX_SIZE] = {};
+static std::atomic<int> g_readPos{0};
+static int g_writePos = 0;
+
+static HWAVEOUT g_waveOut = nullptr;
+static WAVEHDR  g_waveHdrs[NUM_AUDIO_BUFS] = {};
+static int16_t  g_audioBufs[NUM_AUDIO_BUFS][AUDIO_BUF_SAMPLES * 2] = {};
+static bool g_audioRunning = false;
+
+static void fill_audio_buffer(WAVEHDR* hdr, int bufIdx) {
+    int rp = g_readPos.load();
+    auto* out = g_audioBufs[bufIdx];
+
+    for (int i = 0; i < AUDIO_BUF_SAMPLES; ++i) {
+        float s = g_mixBuffer[rp % MIX_SIZE];
+        g_mixBuffer[rp % MIX_SIZE] = 0.0f;
+        rp++;
+
+        s = std::clamp(s, -1.0f, 1.0f);
+        int16_t v = int16_t(s < 0 ? s * 32768.0f : s * 32767.0f);
+        out[i * 2]     = v;
+        out[i * 2 + 1] = v;
+    }
+
+    g_readPos.store(rp);
+
+    hdr->lpData = reinterpret_cast<LPSTR>(out);
+    hdr->dwBufferLength = AUDIO_BUF_SAMPLES * 2 * sizeof(int16_t);
+    hdr->dwFlags = 0;
+
+    waveOutPrepareHeader(g_waveOut, hdr, sizeof(WAVEHDR));
+    waveOutWrite(g_waveOut, hdr, sizeof(WAVEHDR));
+}
+
+static void CALLBACK wave_callback(HWAVEOUT, UINT msg, DWORD_PTR, DWORD_PTR param1, DWORD_PTR) {
+    if (msg == WOM_DONE) {
+        auto* hdr = reinterpret_cast<WAVEHDR*>(param1);
+        waveOutUnprepareHeader(g_waveOut, hdr, sizeof(WAVEHDR));
+        int idx = int(hdr - g_waveHdrs);
+        fill_audio_buffer(hdr, idx);
+    }
+}
+
+static bool init_audio() {
+    WAVEFORMATEX fmt = {};
+    fmt.wFormatTag = WAVE_FORMAT_PCM;
+    fmt.nChannels = 2;
+    fmt.nSamplesPerSec = SAMPLE_RATE;
+    fmt.wBitsPerSample = 16;
+    fmt.nBlockAlign = fmt.nChannels * fmt.wBitsPerSample / 8;
+    fmt.nAvgBytesPerSec = fmt.nSamplesPerSec * fmt.nBlockAlign;
+
+    MMRESULT res = waveOutOpen(&g_waveOut, WAVE_MAPPER, &fmt,
+                               (DWORD_PTR)wave_callback, 0, CALLBACK_FUNCTION);
+    if (res != MMSYSERR_NOERROR) return false;
+
+    for (int i = 0; i < NUM_AUDIO_BUFS; ++i) {
+        g_waveHdrs[i] = {};
+        fill_audio_buffer(&g_waveHdrs[i], i);
+    }
+
+    g_audioRunning = true;
+    return true;
+}
+
+static void shutdown_audio() {
+    if (g_waveOut) {
+        waveOutReset(g_waveOut);
+        for (int i = 0; i < NUM_AUDIO_BUFS; ++i)
+            waveOutUnprepareHeader(g_waveOut, &g_waveHdrs[i], sizeof(WAVEHDR));
+        waveOutClose(g_waveOut);
+        g_waveOut = nullptr;
+        g_audioRunning = false;
+    }
+}
+
+// Build instrument from current graph and play a note
+static void play_test_note(float noteNum, float velocity, float duration) {
+    using json = nlohmann::json;
+
+    // Only works in Patch Graph mode
+    if (s_graphMode != GraphMode::PatchGraph) return;
+
+    // Save to temp JSON, load as instrument, play note into mix buffer
+    std::string tempPath = "mforce_ui_temp_patch.json";
+    save_patch_graph(tempPath);
+
+    try {
+        auto ip = load_instrument_patch(tempPath);
+        ip.instrument->volume = 0.5f;
+
+        float freq = note_to_freq(noteNum);
+        int samples = int(duration * float(SAMPLE_RATE));
+
+        auto& vg = ip.instrument->voicePool[0];
+        if (vg.params.count("frequency"))
+            vg.params["frequency"]->set(freq);
+
+        vg.source->prepare(samples);
+
+        int wp = g_writePos;
+        for (int i = 0; i < samples; ++i) {
+            g_mixBuffer[(wp + i) % MIX_SIZE] += vg.source->next() * velocity * 0.5f;
+        }
+        g_writePos = (wp + samples) % MIX_SIZE;
+    } catch (const std::exception& e) {
+        // Silently fail — patch might be incomplete
+        (void)e;
+    }
+
+    std::remove(tempPath.c_str());
+}
+
+// ===========================================================================
 // Node rendering
 // ===========================================================================
 
@@ -1032,6 +1161,11 @@ int main(int, char**) {
     ImGui_ImplGlfw_InitForOpenGL(window, true);
     ImGui_ImplOpenGL3_Init("#version 330");
 
+    // Init audio
+    if (!init_audio()) {
+        // Non-fatal — UI works without audio
+    }
+
     // Start with a Patch Graph
     new_graph(GraphMode::PatchGraph);
     bool firstFrame = true;
@@ -1107,6 +1241,15 @@ int main(int, char**) {
                 }
                 ImGui::EndMenu();
             }
+
+            // Play button directly in menu bar
+            if (s_graphMode == GraphMode::PatchGraph) {
+                ImGui::Separator();
+                if (ImGui::MenuItem("Play C4", "Space")) {
+                    play_test_note(60.0f, 0.8f, 2.0f);
+                }
+            }
+
             ImGui::EndMenuBar();
         }
 
@@ -1130,11 +1273,13 @@ int main(int, char**) {
                 s_links.emplace_back(startAttr, endAttr);
         }
 
-        // Ctrl+S save, Ctrl+O open
+        // Ctrl+S save, Ctrl+O open, Space play
         if (ImGui::GetIO().KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_S))
             save_graph();
         if (ImGui::GetIO().KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_O))
             load_graph();
+        if (ImGui::IsKeyPressed(ImGuiKey_Space) && !ImGui::GetIO().WantTextInput)
+            play_test_note(60.0f, 0.8f, 2.0f);
 
         // Delete
         if (ImGui::IsKeyPressed(ImGuiKey_Delete) || ImGui::IsKeyPressed(ImGuiKey_Backspace)) {
@@ -1169,7 +1314,7 @@ int main(int, char**) {
         // Status bar
         ImGui::SetCursorPosY(ImGui::GetWindowHeight() - 30);
         ImGui::Separator();
-        ImGui::Text("%s  |  Nodes: %d  Links: %d  |  Right-click: add  |  Delete: remove",
+        ImGui::Text("%s  |  Nodes: %d  Links: %d  |  Right-click: add  |  Del: remove  |  Space: play",
                      modeLabel, (int)s_nodes.size(), (int)s_links.size());
 
         ImGui::End();
@@ -1186,6 +1331,7 @@ int main(int, char**) {
         glfwSwapBuffers(window);
     }
 
+    shutdown_audio();
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplGlfw_Shutdown();
     ImNodes::DestroyContext();

@@ -32,6 +32,7 @@ target_link_libraries(mforce_ui PRIVATE
   glfw
   opengl32
   comdlg32
+  winmm
 )
 
 if (MSVC)
