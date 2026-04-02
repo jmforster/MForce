@@ -1047,32 +1047,41 @@ static void save_graph() {
 }
 
 // ===========================================================================
-// Audio playback via waveOut
+// Audio: callback-driven streaming via waveOut
+// The callback pulls samples directly from the live DSP graph.
 // ===========================================================================
 
-static constexpr int SAMPLE_RATE = 48000;
-static constexpr int AUDIO_BUF_SAMPLES = 2048;
+static constexpr int AUDIO_SAMPLE_RATE = 48000;
+static constexpr int AUDIO_CHUNK = 1024;       // samples per callback
 static constexpr int NUM_AUDIO_BUFS = 4;
-static constexpr int MIX_SECONDS = 10;
-static constexpr int MIX_SIZE = SAMPLE_RATE * MIX_SECONDS;
-
-static float g_mixBuffer[MIX_SIZE] = {};
-static std::atomic<int> g_readPos{0};
-static int g_writePos = 0;
 
 static HWAVEOUT g_waveOut = nullptr;
 static WAVEHDR  g_waveHdrs[NUM_AUDIO_BUFS] = {};
-static int16_t  g_audioBufs[NUM_AUDIO_BUFS][AUDIO_BUF_SAMPLES * 2] = {};
-static bool g_audioRunning = false;
+static int16_t  g_audioBufs[NUM_AUDIO_BUFS][AUDIO_CHUNK * 2] = {};  // stereo
+
+// The source currently being streamed (set by play, cleared on stop)
+static std::atomic<ValueSource*> g_streamSource{nullptr};
+static std::atomic<int> g_streamRemaining{0};  // samples left, -1 = continuous
+static std::atomic<float> g_streamVelocity{0.5f};
 
 static void fill_audio_buffer(WAVEHDR* hdr, int bufIdx) {
-    int rp = g_readPos.load();
     auto* out = g_audioBufs[bufIdx];
+    ValueSource* src = g_streamSource.load();
+    int remaining = g_streamRemaining.load();
 
-    for (int i = 0; i < AUDIO_BUF_SAMPLES; ++i) {
-        float s = g_mixBuffer[rp % MIX_SIZE];
-        g_mixBuffer[rp % MIX_SIZE] = 0.0f;
-        rp++;
+    for (int i = 0; i < AUDIO_CHUNK; ++i) {
+        float s = 0.0f;
+
+        if (src && remaining != 0) {
+            s = src->next() * g_streamVelocity.load();
+            if (remaining > 0) {
+                remaining--;
+                if (remaining == 0) {
+                    g_streamSource.store(nullptr);
+                    src = nullptr;
+                }
+            }
+        }
 
         s = std::clamp(s, -1.0f, 1.0f);
         int16_t v = int16_t(s < 0 ? s * 32768.0f : s * 32767.0f);
@@ -1080,10 +1089,10 @@ static void fill_audio_buffer(WAVEHDR* hdr, int bufIdx) {
         out[i * 2 + 1] = v;
     }
 
-    g_readPos.store(rp);
+    g_streamRemaining.store(remaining);
 
     hdr->lpData = reinterpret_cast<LPSTR>(out);
-    hdr->dwBufferLength = AUDIO_BUF_SAMPLES * 2 * sizeof(int16_t);
+    hdr->dwBufferLength = AUDIO_CHUNK * 2 * sizeof(int16_t);
     hdr->dwFlags = 0;
 
     waveOutPrepareHeader(g_waveOut, hdr, sizeof(WAVEHDR));
@@ -1103,7 +1112,7 @@ static bool init_audio() {
     WAVEFORMATEX fmt = {};
     fmt.wFormatTag = WAVE_FORMAT_PCM;
     fmt.nChannels = 2;
-    fmt.nSamplesPerSec = SAMPLE_RATE;
+    fmt.nSamplesPerSec = AUDIO_SAMPLE_RATE;
     fmt.wBitsPerSample = 16;
     fmt.nBlockAlign = fmt.nChannels * fmt.wBitsPerSample / 8;
     fmt.nAvgBytesPerSec = fmt.nSamplesPerSec * fmt.nBlockAlign;
@@ -1112,53 +1121,57 @@ static bool init_audio() {
                                (DWORD_PTR)wave_callback, 0, CALLBACK_FUNCTION);
     if (res != MMSYSERR_NOERROR) return false;
 
+    // Prime buffers with silence
     for (int i = 0; i < NUM_AUDIO_BUFS; ++i) {
         g_waveHdrs[i] = {};
         fill_audio_buffer(&g_waveHdrs[i], i);
     }
 
-    g_audioRunning = true;
     return true;
 }
 
 static void shutdown_audio() {
+    g_streamSource.store(nullptr);
     if (g_waveOut) {
         waveOutReset(g_waveOut);
         for (int i = 0; i < NUM_AUDIO_BUFS; ++i)
             waveOutUnprepareHeader(g_waveOut, &g_waveHdrs[i], sizeof(WAVEHDR));
         waveOutClose(g_waveOut);
         g_waveOut = nullptr;
-        g_audioRunning = false;
     }
 }
 
-// Play a note using the live DSP objects
-static void play_test_note(float noteNum, float velocity, float duration) {
-    if (s_graphMode != GraphMode::PatchGraph) return;
-
-    // Find the Output node and trace back to get the source
-    GraphNode* outputNode = nullptr;
-    for (auto& n : s_nodes)
-        if (n.type == NodeType::PatchOutput) { outputNode = &n; break; }
-    if (!outputNode) return;
-
-    // Find what's connected to Output's source pin
-    GraphNode* srcNode = nullptr;
-    if (!outputNode->inputs.empty()) {
-        int srcPinId = outputNode->inputs[0].id;
+// Find the DSP source connected to the Output node
+static ValueSource* find_output_source() {
+    for (auto& n : s_nodes) {
+        if (n.type != NodeType::PatchOutput) continue;
+        if (n.inputs.empty()) return nullptr;
+        int srcPinId = n.inputs[0].id;
         for (auto& link : s_links) {
             int outPinId = -1;
             if (link.endPinId == srcPinId) outPinId = link.startPinId;
             if (link.startPinId == srcPinId) outPinId = link.endPinId;
             if (outPinId >= 0) {
-                srcNode = find_node_for_pin(outPinId);
-                break;
+                GraphNode* srcNode = find_node_for_pin(outPinId);
+                if (srcNode && srcNode->dspSource)
+                    return srcNode->dspSource.get();
             }
         }
     }
-    if (!srcNode || !srcNode->dspSource) return;
+    return nullptr;
+}
 
-    // Set frequency on any Parameter nodes named "frequency"
+// Play a note: set frequency param, prepare the graph, start streaming
+static void play_note(float noteNum, float velocity, float durationSeconds) {
+    if (s_graphMode != GraphMode::PatchGraph) return;
+
+    ValueSource* src = find_output_source();
+    if (!src) return;
+
+    // Stop any current stream
+    g_streamSource.store(nullptr);
+
+    // Set frequency on Parameter nodes named "frequency"
     float freq = note_to_freq(noteNum);
     for (auto& n : s_nodes) {
         if (n.type == NodeType::Parameter && n.paramName == "frequency") {
@@ -1167,14 +1180,31 @@ static void play_test_note(float noteNum, float velocity, float duration) {
         }
     }
 
-    int samples = int(duration * float(SAMPLE_RATE));
-    srcNode->dspSource->prepare(samples);
+    int samples = int(durationSeconds * float(AUDIO_SAMPLE_RATE));
+    src->prepare(samples);
 
-    int wp = g_writePos;
-    for (int i = 0; i < samples; ++i) {
-        g_mixBuffer[(wp + i) % MIX_SIZE] += srcNode->dspSource->next() * velocity * 0.5f;
-    }
-    g_writePos = (wp + samples) % MIX_SIZE;
+    g_streamVelocity.store(velocity);
+    g_streamRemaining.store(samples);
+    g_streamSource.store(src);  // this starts the callback pulling samples
+}
+
+// Start continuous streaming (no duration limit)
+static void play_continuous(float velocity) {
+    if (s_graphMode != GraphMode::PatchGraph) return;
+
+    ValueSource* src = find_output_source();
+    if (!src) return;
+
+    g_streamSource.store(nullptr);
+    src->prepare(0);  // continuous mode
+
+    g_streamVelocity.store(velocity);
+    g_streamRemaining.store(-1);  // -1 = continuous
+    g_streamSource.store(src);
+}
+
+static void stop_playback() {
+    g_streamSource.store(nullptr);
 }
 
 // ===========================================================================
@@ -1430,11 +1460,18 @@ int main(int, char**) {
                 ImGui::EndMenu();
             }
 
-            // Play button directly in menu bar
+            // Play/Stop in menu bar
             if (s_graphMode == GraphMode::PatchGraph) {
                 ImGui::Separator();
-                if (ImGui::MenuItem("Play C4", "Space")) {
-                    play_test_note(60.0f, 0.8f, 2.0f);
+                bool isPlaying = g_streamSource.load() != nullptr;
+                if (!isPlaying) {
+                    if (ImGui::MenuItem("Play", "Space"))
+                        play_note(60.0f, 0.8f, 2.0f);
+                    if (ImGui::MenuItem("Stream", "S"))
+                        play_continuous(0.5f);
+                } else {
+                    if (ImGui::MenuItem("Stop", "Space"))
+                        stop_playback();
                 }
             }
 
@@ -1471,8 +1508,18 @@ int main(int, char**) {
             save_graph();
         if (ImGui::GetIO().KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_O))
             load_graph();
-        if (ImGui::IsKeyPressed(ImGuiKey_Space) && !ImGui::GetIO().WantTextInput)
-            play_test_note(60.0f, 0.8f, 2.0f);
+        if (ImGui::IsKeyPressed(ImGuiKey_Space) && !ImGui::GetIO().WantTextInput) {
+            if (g_streamSource.load() != nullptr)
+                stop_playback();
+            else
+                play_note(60.0f, 0.8f, 2.0f);
+        }
+        if (ImGui::IsKeyPressed(ImGuiKey_S) && !ImGui::GetIO().KeyCtrl && !ImGui::GetIO().WantTextInput) {
+            if (g_streamSource.load() != nullptr)
+                stop_playback();
+            else
+                play_continuous(0.5f);
+        }
 
         // Delete
         if (ImGui::IsKeyPressed(ImGuiKey_Delete) || ImGui::IsKeyPressed(ImGuiKey_Backspace)) {
