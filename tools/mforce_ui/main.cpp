@@ -1158,7 +1158,10 @@ static void fill_audio_buffer(WAVEHDR* hdr, int bufIdx) {
     waveOutWrite(g_waveOut, hdr, sizeof(WAVEHDR));
 }
 
+static std::atomic<bool> g_audioShutdown{false};
+
 static void CALLBACK wave_callback(HWAVEOUT, UINT msg, DWORD_PTR, DWORD_PTR param1, DWORD_PTR) {
+    if (g_audioShutdown.load()) return;
     if (msg == WOM_DONE) {
         auto* hdr = reinterpret_cast<WAVEHDR*>(param1);
         waveOutUnprepareHeader(g_waveOut, hdr, sizeof(WAVEHDR));
@@ -1191,6 +1194,7 @@ static bool init_audio() {
 
 static void shutdown_audio() {
     g_streamSource.store(nullptr);
+    g_audioShutdown.store(true);
     if (g_waveOut) {
         waveOutReset(g_waveOut);
         for (int i = 0; i < NUM_AUDIO_BUFS; ++i)
@@ -1220,6 +1224,14 @@ static ValueSource* find_output_source() {
     return nullptr;
 }
 
+// Prepare the whole DSP graph for a given duration
+static void prepare_graph(int samples) {
+    // Prepare all nodes' DSP sources (order doesn't matter for prepare)
+    for (auto& n : s_nodes) {
+        if (n.dspSource) n.dspSource->prepare(samples);
+    }
+}
+
 // Play a note: set frequency param, prepare the graph, start streaming
 static void play_note(float noteNum, float velocity, float durationSeconds) {
     if (s_graphMode != GraphMode::PatchGraph) return;
@@ -1227,7 +1239,7 @@ static void play_note(float noteNum, float velocity, float durationSeconds) {
     ValueSource* src = find_output_source();
     if (!src) return;
 
-    // Stop any current stream
+    // Stop any current stream first
     g_streamSource.store(nullptr);
 
     // Set frequency on Parameter nodes named "frequency"
@@ -1240,14 +1252,14 @@ static void play_note(float noteNum, float velocity, float durationSeconds) {
     }
 
     int samples = int(durationSeconds * float(AUDIO_SAMPLE_RATE));
-    src->prepare(samples);
+    prepare_graph(samples);
 
     g_streamVelocity.store(velocity);
     g_streamRemaining.store(samples);
-    g_streamSource.store(src);  // this starts the callback pulling samples
+    g_streamSource.store(src);
 }
 
-// Start continuous streaming (no duration limit)
+// Start continuous streaming — uses a long fixed duration for Envelope compat
 static void play_continuous(float velocity) {
     if (s_graphMode != GraphMode::PatchGraph) return;
 
@@ -1255,10 +1267,13 @@ static void play_continuous(float velocity) {
     if (!src) return;
 
     g_streamSource.store(nullptr);
-    src->prepare(0);  // continuous mode
+
+    // Use a long duration so Envelope sustain stage is long
+    int samples = AUDIO_SAMPLE_RATE * 30;  // 30 seconds
+    prepare_graph(samples);
 
     g_streamVelocity.store(velocity);
-    g_streamRemaining.store(-1);  // -1 = continuous
+    g_streamRemaining.store(-1);  // -1 = continuous (won't auto-stop)
     g_streamSource.store(src);
 }
 
