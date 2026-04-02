@@ -319,6 +319,190 @@ static std::string save_file_dialog() {
     return "";
 }
 
+static std::string open_file_dialog() {
+    char filename[MAX_PATH] = "";
+    OPENFILENAMEA ofn{};
+    ofn.lStructSize = sizeof(ofn);
+    ofn.lpstrFilter = "JSON Files\0*.json\0All Files\0*.*\0";
+    ofn.lpstrFile = filename;
+    ofn.nMaxFile = MAX_PATH;
+    ofn.Flags = OFN_FILEMUSTEXIST | OFN_NOCHANGEDIR;
+    if (GetOpenFileNameA(&ofn))
+        return filename;
+    return "";
+}
+
+// ===========================================================================
+// JSON import
+// ===========================================================================
+
+static NodeType json_type_to_node(const std::string& t) {
+    if (t == "SineSource")      return NodeType::SineSource;
+    if (t == "SawSource")       return NodeType::SawSource;
+    if (t == "TriangleSource")  return NodeType::TriangleSource;
+    if (t == "PulseSource")     return NodeType::PulseSource;
+    if (t == "WhiteNoiseSource")return NodeType::WhiteNoiseSource;
+    if (t == "RedNoiseSource")  return NodeType::RedNoiseSource;
+    if (t == "Envelope")        return NodeType::Envelope;
+    if (t == "VarSource")       return NodeType::VarSource;
+    if (t == "RangeSource")     return NodeType::RangeSource;
+    if (t == "SoundChannel")    return NodeType::SoundChannel;
+    if (t == "StereoMixer")     return NodeType::StereoMixer;
+    return NodeType::SineSource;
+}
+
+static bool s_needsLayout = false;
+
+static void load_graph() {
+    using json = nlohmann::json;
+
+    std::string path = open_file_dialog();
+    if (path.empty()) return;
+
+    std::ifstream f(path);
+    if (!f) return;
+    json root = json::parse(f);
+
+    s_nodes.clear();
+    s_links.clear();
+    s_nextId = 1;
+
+    bool hasInstrument = root.contains("instrument");
+    s_graphMode = hasInstrument ? GraphMode::PatchGraph : GraphMode::NodeGraph;
+
+    const auto& nodes = root["graph"]["nodes"];
+    std::string outputId = root["graph"]["output"].get<std::string>();
+
+    // Map JSON node IDs to created GraphNodes
+    std::unordered_map<std::string, GraphNode*> nodeMap;
+    // Map "nodeId.paramName" → pin ID for wiring refs
+    std::unordered_map<std::string, int> inputPinMap;
+    // Map nodeId → output pin ID
+    std::unordered_map<std::string, int> outputPinMap;
+
+    // First pass: create all nodes
+    for (const auto& jnode : nodes) {
+        std::string id = jnode["id"].get<std::string>();
+        std::string type = jnode["type"].get<std::string>();
+
+        s_nodes.emplace_back(json_type_to_node(type));
+        GraphNode& gn = s_nodes.back();
+        gn.label = id;
+        nodeMap[id] = &gn;
+
+        // Map output pin
+        if (!gn.outputs.empty())
+            outputPinMap[id] = gn.outputs[0].id;
+
+        // Map input pins and set default values
+        for (auto& pin : gn.inputs) {
+            inputPinMap[id + "." + pin.name] = pin.id;
+        }
+
+        // Set default values from params
+        if (jnode.contains("params")) {
+            const auto& params = jnode["params"];
+            for (auto& pin : gn.inputs) {
+                if (!params.contains(pin.name)) continue;
+                const auto& val = params[pin.name];
+                if (val.is_number()) {
+                    pin.defaultValue = val.get<float>();
+                }
+                // refs handled in second pass
+            }
+        }
+
+        // Mixer: add extra channel inputs if needed
+        if (gn.type == NodeType::StereoMixer && jnode.contains("inputs") &&
+            jnode["inputs"].contains("channels")) {
+            int numCh = (int)jnode["inputs"]["channels"].size();
+            for (int c = 1; c < numCh; ++c)
+                gn.add_channel_input();
+            // Re-map input pins after adding channels
+            for (auto& pin : gn.inputs)
+                inputPinMap[id + "." + pin.name] = pin.id;
+        }
+    }
+
+    // Second pass: create links from refs
+    for (const auto& jnode : nodes) {
+        std::string id = jnode["id"].get<std::string>();
+        if (!jnode.contains("params")) continue;
+
+        for (auto& [paramName, val] : jnode["params"].items()) {
+            if (!val.is_object() || !val.contains("ref")) continue;
+            std::string refId = val["ref"].get<std::string>();
+
+            auto outIt = outputPinMap.find(refId);
+            auto inIt = inputPinMap.find(id + "." + paramName);
+            if (outIt != outputPinMap.end() && inIt != inputPinMap.end()) {
+                s_links.emplace_back(outIt->second, inIt->second);
+            }
+        }
+
+        // SoundChannel source input
+        if (jnode.contains("inputs") && jnode["inputs"].contains("source")) {
+            std::string srcId = jnode["inputs"]["source"].get<std::string>();
+            auto outIt = outputPinMap.find(srcId);
+            auto inIt = inputPinMap.find(id + ".source");
+            if (outIt != outputPinMap.end() && inIt != inputPinMap.end())
+                s_links.emplace_back(outIt->second, inIt->second);
+        }
+
+        // StereoMixer channel inputs
+        if (jnode.contains("inputs") && jnode["inputs"].contains("channels")) {
+            int chIdx = 0;
+            for (const auto& chId : jnode["inputs"]["channels"]) {
+                std::string srcId = chId.get<std::string>();
+                char chName[16];
+                snprintf(chName, sizeof(chName), "ch %d", chIdx + 1);
+                auto outIt = outputPinMap.find(srcId);
+                auto inIt = inputPinMap.find(id + "." + std::string(chName));
+                if (outIt != outputPinMap.end() && inIt != inputPinMap.end())
+                    s_links.emplace_back(outIt->second, inIt->second);
+                chIdx++;
+            }
+        }
+    }
+
+    // Patch Graph: create Output node and Parameter nodes
+    if (hasInstrument) {
+        // Output node
+        s_nodes.emplace_back(NodeType::PatchOutput);
+        GraphNode& outNode = s_nodes.back();
+        if (root["instrument"].contains("polyphony"))
+            outNode.polyphony = root["instrument"]["polyphony"].get<int>();
+
+        // Wire output node's source to the graph output
+        auto outIt = outputPinMap.find(outputId);
+        if (outIt != outputPinMap.end())
+            s_links.emplace_back(outIt->second, outNode.inputs[0].id);
+
+        // Create Parameter nodes from paramMap
+        if (root["instrument"].contains("paramMap")) {
+            for (auto& [paramName, targetStr] : root["instrument"]["paramMap"].items()) {
+                std::string target = targetStr.get<std::string>();
+
+                s_nodes.emplace_back(NodeType::Parameter, paramName);
+                GraphNode& pn = s_nodes.back();
+
+                // Find the target input pin and get its current default value
+                auto inIt = inputPinMap.find(target);
+                if (inIt != inputPinMap.end()) {
+                    Pin* targetPin = find_pin(inIt->second);
+                    if (targetPin)
+                        pn.inputs[0].defaultValue = targetPin->defaultValue;
+
+                    // Wire parameter output to target input
+                    s_links.emplace_back(pn.outputs[0].id, inIt->second);
+                }
+            }
+        }
+    }
+
+    s_needsLayout = true;
+}
+
 // ===========================================================================
 // JSON export
 // ===========================================================================
@@ -800,19 +984,16 @@ int main(int, char**) {
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
 
-        if (firstFrame) {
-            if (s_graphMode == GraphMode::PatchGraph) {
-                ImNodes::SetNodeScreenSpacePos(s_nodes[0].id, ImVec2(50, 80));   // frequency param
-                ImNodes::SetNodeScreenSpacePos(s_nodes[1].id, ImVec2(250, 80));  // sine
-                ImNodes::SetNodeScreenSpacePos(s_nodes[2].id, ImVec2(50, 300));  // envelope
-                ImNodes::SetNodeScreenSpacePos(s_nodes[3].id, ImVec2(500, 150)); // output
-            } else {
-                ImNodes::SetNodeScreenSpacePos(s_nodes[0].id, ImVec2(50, 80));
-                ImNodes::SetNodeScreenSpacePos(s_nodes[1].id, ImVec2(50, 350));
-                ImNodes::SetNodeScreenSpacePos(s_nodes[2].id, ImVec2(350, 150));
-                ImNodes::SetNodeScreenSpacePos(s_nodes[3].id, ImVec2(600, 150));
+        // Layout nodes (first frame or after load)
+        if (firstFrame || s_needsLayout) {
+            float x = 50, y = 80;
+            for (int i = 0; i < (int)s_nodes.size(); ++i) {
+                ImNodes::SetNodeScreenSpacePos(s_nodes[i].id, ImVec2(x, y));
+                x += 220;
+                if (x > 900) { x = 50; y += 250; }
             }
             firstFrame = false;
+            s_needsLayout = false;
         }
 
         // Full-window editor
@@ -841,6 +1022,9 @@ int main(int, char**) {
                         firstFrame = true;
                     }
                     ImGui::EndMenu();
+                }
+                if (ImGui::MenuItem("Open", "Ctrl+O")) {
+                    load_graph();
                 }
                 if (ImGui::MenuItem("Save", "Ctrl+S")) {
                     save_graph();
@@ -874,10 +1058,11 @@ int main(int, char**) {
                 s_links.emplace_back(startAttr, endAttr);
         }
 
-        // Ctrl+S save
-        if (ImGui::GetIO().KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_S)) {
+        // Ctrl+S save, Ctrl+O open
+        if (ImGui::GetIO().KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_S))
             save_graph();
-        }
+        if (ImGui::GetIO().KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_O))
+            load_graph();
 
         // Delete
         if (ImGui::IsKeyPressed(ImGuiKey_Delete) || ImGui::IsKeyPressed(ImGuiKey_Backspace)) {
