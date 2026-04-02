@@ -43,6 +43,10 @@ struct RangeSource final : ValueSource {
 
   float current() const override { return cur_; }
 
+  void set_min(std::shared_ptr<ValueSource> s) { min_ = std::move(s); }
+  void set_max(std::shared_ptr<ValueSource> s) { max_ = std::move(s); }
+  void set_var(std::shared_ptr<ValueSource> s) { var_ = std::move(s); }
+
 private:
   std::shared_ptr<ValueSource> min_;
   std::shared_ptr<ValueSource> max_;

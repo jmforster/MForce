@@ -269,6 +269,18 @@ struct GraphNode {
             if (pinName == "continuity")    { rn->continuity = src; return; }
             if (pinName == "zeroCrossTend") { rn->zeroCrossTendency = src; return; }
         }
+        auto range = std::dynamic_pointer_cast<RangeSource>(dspSource);
+        if (range) {
+            if (pinName == "min") { range->set_min(src); return; }
+            if (pinName == "max") { range->set_max(src); return; }
+            if (pinName == "var") { range->set_var(src); return; }
+        }
+        auto var = std::dynamic_pointer_cast<VarSource>(dspSource);
+        if (var) {
+            if (pinName == "val")    { var->set_val(src); return; }
+            if (pinName == "var")    { var->set_var(src); return; }
+            if (pinName == "varPct") { var->set_var_pct(src); return; }
+        }
     }
 
     Pin* find_input(const std::string& name) {

@@ -40,6 +40,10 @@ struct VarSource final : ValueSource {
 
   float current() const override { return cur_; }
 
+  void set_val(std::shared_ptr<ValueSource> s) { val_ = std::move(s); }
+  void set_var(std::shared_ptr<ValueSource> s) { var_ = std::move(s); }
+  void set_var_pct(std::shared_ptr<ValueSource> s) { varPct_ = std::move(s); }
+
 private:
   std::shared_ptr<ValueSource> val_;
   std::shared_ptr<ValueSource> var_;
