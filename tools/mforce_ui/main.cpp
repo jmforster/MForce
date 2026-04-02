@@ -12,6 +12,18 @@
 #include <nlohmann/json.hpp>
 #include "mforce/render/patch_loader.h"
 #include "mforce/core/equal_temperament.h"
+#include "mforce/core/dsp_value_source.h"
+#include "mforce/core/dsp_wave_source.h"
+#include "mforce/source/sine_source.h"
+#include "mforce/source/saw_source.h"
+#include "mforce/source/triangle_source.h"
+#include "mforce/source/pulse_source.h"
+#include "mforce/source/white_noise_source.h"
+#include "mforce/source/red_noise_source.h"
+#include "mforce/core/envelope.h"
+#include "mforce/core/var_source.h"
+#include "mforce/core/range_source.h"
+#include "mforce/render/mixer.h"
 
 using namespace mforce;
 
@@ -49,9 +61,11 @@ struct Pin {
     std::string name;
     PinKind kind;
     float defaultValue{0.0f};
+    std::shared_ptr<ConstantSource> constantSrc;  // holds editable value for unconnected pins
 
     Pin(const std::string& n, PinKind k, float def = 0.0f)
-        : id(next_id()), name(n), kind(k), defaultValue(def) {}
+        : id(next_id()), name(n), kind(k), defaultValue(def)
+        , constantSrc(std::make_shared<ConstantSource>(def)) {}
 };
 
 enum class NodeType {
@@ -109,6 +123,8 @@ static ImU32 node_title_color(NodeType t) {
     return IM_COL32(128, 128, 128, 255);
 }
 
+static constexpr int DSP_SAMPLE_RATE = 48000;
+
 struct GraphNode {
     int id;
     NodeType type;
@@ -116,15 +132,19 @@ struct GraphNode {
     std::vector<Pin> inputs;
     std::vector<Pin> outputs;
 
+    // Live DSP object
+    std::shared_ptr<ValueSource> dspSource;
+
     // PatchOutput-specific
     int polyphony{4};
 
     // Parameter-specific
-    std::string paramName;  // editable name, e.g. "frequency"
+    std::string paramName;
     char paramNameBuf[32]{};
 
     GraphNode(NodeType t) : id(next_id()), type(t), label(node_type_name(t)) {
         build_pins();
+        create_dsp();
     }
 
     GraphNode(NodeType t, const std::string& name) : GraphNode(t) {
@@ -133,6 +153,133 @@ struct GraphNode {
             label = name;
             snprintf(paramNameBuf, sizeof(paramNameBuf), "%s", name.c_str());
         }
+    }
+
+    // Create the DSP object and wire pins' ConstantSources as defaults
+    void create_dsp() {
+        switch (type) {
+            case NodeType::SineSource: {
+                auto s = std::make_shared<SineSource>(DSP_SAMPLE_RATE);
+                wire_wave_defaults(s);
+                dspSource = s;
+                break;
+            }
+            case NodeType::SawSource: {
+                auto s = std::make_shared<SawSource>(DSP_SAMPLE_RATE);
+                wire_wave_defaults(s);
+                dspSource = s;
+                break;
+            }
+            case NodeType::TriangleSource: {
+                auto s = std::make_shared<TriangleSource>(DSP_SAMPLE_RATE);
+                wire_wave_defaults(s);
+                if (auto* p = find_input("bias"))
+                    s->set_bias(p->constantSrc);
+                dspSource = s;
+                break;
+            }
+            case NodeType::PulseSource: {
+                auto s = std::make_shared<PulseSource>(DSP_SAMPLE_RATE);
+                wire_wave_defaults(s);
+                if (auto* p = find_input("dutyCycle"))
+                    s->set_duty_cycle(p->constantSrc);
+                if (auto* p = find_input("bend"))
+                    s->set_bend(p->constantSrc);
+                dspSource = s;
+                break;
+            }
+            case NodeType::WhiteNoiseSource: {
+                auto s = std::make_shared<WhiteNoiseSource>(DSP_SAMPLE_RATE);
+                dspSource = s;
+                break;
+            }
+            case NodeType::RedNoiseSource: {
+                auto s = std::make_shared<RedNoiseSource>(DSP_SAMPLE_RATE);
+                wire_wave_defaults(s);
+                if (auto* p = find_input("density"))       s->density = p->constantSrc;
+                if (auto* p = find_input("smoothness"))    s->smoothness = p->constantSrc;
+                if (auto* p = find_input("rampVariation")) s->rampVariation = p->constantSrc;
+                if (auto* p = find_input("boost"))         s->boost = p->constantSrc;
+                if (auto* p = find_input("continuity"))    s->continuity = p->constantSrc;
+                if (auto* p = find_input("zeroCrossTend")) s->zeroCrossTendency = p->constantSrc;
+                dspSource = s;
+                break;
+            }
+            case NodeType::Envelope: {
+                auto s = std::make_shared<Envelope>(
+                    Envelope::make_adsr(DSP_SAMPLE_RATE, 0.01f, 0.1f, 0.6f, 0.0f));
+                dspSource = s;
+                break;
+            }
+            case NodeType::VarSource: {
+                auto* val = find_input("val");
+                auto* var = find_input("var");
+                auto* pct = find_input("varPct");
+                auto s = std::make_shared<VarSource>(
+                    val ? val->constantSrc : std::make_shared<ConstantSource>(1.0f),
+                    var ? var->constantSrc : std::make_shared<ConstantSource>(0.0f),
+                    pct ? pct->constantSrc : std::make_shared<ConstantSource>(0.0f));
+                dspSource = s;
+                break;
+            }
+            case NodeType::RangeSource: {
+                auto* mn = find_input("min");
+                auto* mx = find_input("max");
+                auto* vr = find_input("var");
+                auto s = std::make_shared<RangeSource>(
+                    mn ? mn->constantSrc : std::make_shared<ConstantSource>(0.0f),
+                    mx ? mx->constantSrc : std::make_shared<ConstantSource>(1.0f),
+                    vr ? vr->constantSrc : std::make_shared<ConstantSource>(0.5f));
+                dspSource = s;
+                break;
+            }
+            case NodeType::Parameter: {
+                // Parameter node's DSP is just its constantSrc from the "default" pin
+                if (auto* p = find_input("default"))
+                    dspSource = p->constantSrc;
+                break;
+            }
+            default:
+                break;
+        }
+    }
+
+    // Rewire a specific input pin's DSP connection
+    void wire_pin(const std::string& pinName, std::shared_ptr<ValueSource> src) {
+        auto ws = std::dynamic_pointer_cast<WaveSource>(dspSource);
+        if (ws) {
+            if (pinName == "frequency")  { ws->set_frequency(src); return; }
+            if (pinName == "amplitude")  { ws->set_amplitude(src); return; }
+            if (pinName == "phase")      { ws->set_phase(src); return; }
+        }
+        auto tri = std::dynamic_pointer_cast<TriangleSource>(dspSource);
+        if (tri && pinName == "bias") { tri->set_bias(src); return; }
+
+        auto pulse = std::dynamic_pointer_cast<PulseSource>(dspSource);
+        if (pulse) {
+            if (pinName == "dutyCycle") { pulse->set_duty_cycle(src); return; }
+            if (pinName == "bend")     { pulse->set_bend(src); return; }
+        }
+        auto rn = std::dynamic_pointer_cast<RedNoiseSource>(dspSource);
+        if (rn) {
+            if (pinName == "density")       { rn->density = src; return; }
+            if (pinName == "smoothness")    { rn->smoothness = src; return; }
+            if (pinName == "rampVariation") { rn->rampVariation = src; return; }
+            if (pinName == "boost")         { rn->boost = src; return; }
+            if (pinName == "continuity")    { rn->continuity = src; return; }
+            if (pinName == "zeroCrossTend") { rn->zeroCrossTendency = src; return; }
+        }
+    }
+
+    Pin* find_input(const std::string& name) {
+        for (auto& p : inputs) if (p.name == name) return &p;
+        return nullptr;
+    }
+
+    void wire_wave_defaults(std::shared_ptr<WaveSource> ws) {
+        if (auto* p = find_input("frequency"))  ws->set_frequency(p->constantSrc);
+        if (auto* p = find_input("amplitude"))  ws->set_amplitude(p->constantSrc);
+        if (auto* p = find_input("phase"))      ws->set_phase(p->constantSrc);
     }
 
     void build_pins() {
@@ -255,6 +402,31 @@ static Pin* find_pin(int pinId) {
     return nullptr;
 }
 
+static GraphNode* find_node_for_pin(int pinId) {
+    for (auto& node : s_nodes) {
+        for (auto& pin : node.inputs)  if (pin.id == pinId) return &node;
+        for (auto& pin : node.outputs) if (pin.id == pinId) return &node;
+    }
+    return nullptr;
+}
+
+// Rewire DSP after a link is created or destroyed
+static void dsp_rewire_link(int outputPinId, int inputPinId, bool connect) {
+    GraphNode* srcNode = find_node_for_pin(outputPinId);
+    GraphNode* dstNode = find_node_for_pin(inputPinId);
+    Pin* dstPin = find_pin(inputPinId);
+
+    if (!srcNode || !dstNode || !dstPin) return;
+    if (dstPin->kind != PinKind::Input) return;
+
+    if (connect && srcNode->dspSource) {
+        dstNode->wire_pin(dstPin->name, srcNode->dspSource);
+    } else {
+        // Disconnect: wire back to the pin's ConstantSource
+        dstNode->wire_pin(dstPin->name, dstPin->constantSrc);
+    }
+}
+
 static bool is_pin_connected(int pinId) {
     for (auto& link : s_links)
         if (link.startPinId == pinId || link.endPinId == pinId) return true;
@@ -283,6 +455,12 @@ static void delete_node(int nodeId) {
 }
 
 static void delete_link(int linkId) {
+    for (auto& l : s_links) {
+        if (l.id == linkId) {
+            dsp_rewire_link(l.startPinId, l.endPinId, false);
+            break;
+        }
+    }
     s_links.erase(
         std::remove_if(s_links.begin(), s_links.end(),
             [linkId](const Link& l) { return l.id == linkId; }),
@@ -954,41 +1132,49 @@ static void shutdown_audio() {
     }
 }
 
-// Build instrument from current graph and play a note
+// Play a note using the live DSP objects
 static void play_test_note(float noteNum, float velocity, float duration) {
-    using json = nlohmann::json;
-
-    // Only works in Patch Graph mode
     if (s_graphMode != GraphMode::PatchGraph) return;
 
-    // Save to temp JSON, load as instrument, play note into mix buffer
-    std::string tempPath = "mforce_ui_temp_patch.json";
-    save_patch_graph(tempPath);
+    // Find the Output node and trace back to get the source
+    GraphNode* outputNode = nullptr;
+    for (auto& n : s_nodes)
+        if (n.type == NodeType::PatchOutput) { outputNode = &n; break; }
+    if (!outputNode) return;
 
-    try {
-        auto ip = load_instrument_patch(tempPath);
-        ip.instrument->volume = 0.5f;
-
-        float freq = note_to_freq(noteNum);
-        int samples = int(duration * float(SAMPLE_RATE));
-
-        auto& vg = ip.instrument->voicePool[0];
-        if (vg.params.count("frequency"))
-            vg.params["frequency"]->set(freq);
-
-        vg.source->prepare(samples);
-
-        int wp = g_writePos;
-        for (int i = 0; i < samples; ++i) {
-            g_mixBuffer[(wp + i) % MIX_SIZE] += vg.source->next() * velocity * 0.5f;
+    // Find what's connected to Output's source pin
+    GraphNode* srcNode = nullptr;
+    if (!outputNode->inputs.empty()) {
+        int srcPinId = outputNode->inputs[0].id;
+        for (auto& link : s_links) {
+            int outPinId = -1;
+            if (link.endPinId == srcPinId) outPinId = link.startPinId;
+            if (link.startPinId == srcPinId) outPinId = link.endPinId;
+            if (outPinId >= 0) {
+                srcNode = find_node_for_pin(outPinId);
+                break;
+            }
         }
-        g_writePos = (wp + samples) % MIX_SIZE;
-    } catch (const std::exception& e) {
-        // Silently fail — patch might be incomplete
-        (void)e;
+    }
+    if (!srcNode || !srcNode->dspSource) return;
+
+    // Set frequency on any Parameter nodes named "frequency"
+    float freq = note_to_freq(noteNum);
+    for (auto& n : s_nodes) {
+        if (n.type == NodeType::Parameter && n.paramName == "frequency") {
+            if (auto* p = n.find_input("default"))
+                p->constantSrc->set(freq);
+        }
     }
 
-    std::remove(tempPath.c_str());
+    int samples = int(duration * float(SAMPLE_RATE));
+    srcNode->dspSource->prepare(samples);
+
+    int wp = g_writePos;
+    for (int i = 0; i < samples; ++i) {
+        g_mixBuffer[(wp + i) % MIX_SIZE] += srcNode->dspSource->next() * velocity * 0.5f;
+    }
+    g_writePos = (wp + samples) % MIX_SIZE;
 }
 
 // ===========================================================================
@@ -1028,7 +1214,9 @@ static void draw_node(GraphNode& node) {
                 ImGui::PushItemWidth(80);
                 char label[64];
                 snprintf(label, sizeof(label), "##%d", pin.id);
-                ImGui::DragFloat(label, &pin.defaultValue, 0.01f, 0.0f, 0.0f, "%.3f");
+                if (ImGui::DragFloat(label, &pin.defaultValue, 0.01f, 0.0f, 0.0f, "%.3f")) {
+                    if (pin.constantSrc) pin.constantSrc->set(pin.defaultValue);
+                }
                 ImGui::PopItemWidth();
                 ImGui::SameLine();
                 ImGui::TextUnformatted(pin.name.c_str());
@@ -1269,8 +1457,13 @@ int main(int, char**) {
         if (ImNodes::IsLinkCreated(&startAttr, &endAttr)) {
             Pin* startPin = find_pin(startAttr);
             Pin* endPin = find_pin(endAttr);
-            if (startPin && endPin && startPin->kind != endPin->kind)
-                s_links.emplace_back(startAttr, endAttr);
+            if (startPin && endPin && startPin->kind != endPin->kind) {
+                // Ensure output→input order
+                int outPin = (startPin->kind == PinKind::Output) ? startAttr : endAttr;
+                int inPin  = (startPin->kind == PinKind::Input)  ? startAttr : endAttr;
+                s_links.emplace_back(outPin, inPin);
+                dsp_rewire_link(outPin, inPin, true);
+            }
         }
 
         // Ctrl+S save, Ctrl+O open, Space play
