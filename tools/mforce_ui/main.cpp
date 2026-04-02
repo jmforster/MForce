@@ -5,11 +5,18 @@
 
 #include <GLFW/glfw3.h>
 
+#define NOMINMAX
+#include <windows.h>
+#include <commdlg.h>
+#include <nlohmann/json.hpp>
+
 #include <vector>
 #include <string>
 #include <cstdint>
 #include <algorithm>
 #include <cstdio>
+#include <fstream>
+#include <unordered_map>
 
 // ===========================================================================
 // ID generation
@@ -293,6 +300,279 @@ static void new_graph(GraphMode mode) {
 }
 
 // ===========================================================================
+// Save file dialog
+// ===========================================================================
+
+static std::string save_file_dialog() {
+    char filename[MAX_PATH] = "patch.json";
+    OPENFILENAMEA ofn{};
+    ofn.lStructSize = sizeof(ofn);
+    ofn.lpstrFilter = "JSON Files\0*.json\0All Files\0*.*\0";
+    ofn.lpstrFile = filename;
+    ofn.nMaxFile = MAX_PATH;
+    ofn.Flags = OFN_OVERWRITEPROMPT | OFN_NOCHANGEDIR;
+    ofn.lpstrDefExt = "json";
+    if (GetSaveFileNameA(&ofn))
+        return filename;
+    return "";
+}
+
+// ===========================================================================
+// JSON export
+// ===========================================================================
+
+static const char* node_type_to_json(NodeType t) {
+    switch (t) {
+        case NodeType::SineSource:       return "SineSource";
+        case NodeType::SawSource:        return "SawSource";
+        case NodeType::TriangleSource:   return "TriangleSource";
+        case NodeType::PulseSource:      return "PulseSource";
+        case NodeType::WhiteNoiseSource: return "WhiteNoiseSource";
+        case NodeType::RedNoiseSource:   return "RedNoiseSource";
+        case NodeType::Envelope:         return "Envelope";
+        case NodeType::VarSource:        return "VarSource";
+        case NodeType::RangeSource:      return "RangeSource";
+        case NodeType::SoundChannel:     return "SoundChannel";
+        case NodeType::StereoMixer:      return "StereoMixer";
+        default: return "";
+    }
+}
+
+// Find which node's output is connected to a given input pin
+static GraphNode* find_source_node(int inputPinId) {
+    for (auto& link : s_links) {
+        if (link.endPinId == inputPinId) {
+            // startPinId is an output pin — find its node
+            for (auto& node : s_nodes)
+                for (auto& pin : node.outputs)
+                    if (pin.id == link.startPinId) return &node;
+        }
+        if (link.startPinId == inputPinId) {
+            for (auto& node : s_nodes)
+                for (auto& pin : node.outputs)
+                    if (pin.id == link.endPinId) return &node;
+        }
+    }
+    return nullptr;
+}
+
+static void save_patch_graph() {
+    using json = nlohmann::json;
+
+    std::string path = save_file_dialog();
+    if (path.empty()) return;
+
+    // Assign string IDs to nodes
+    std::unordered_map<int, std::string> nodeIds;
+    std::unordered_map<NodeType, int> typeCounts;
+    for (auto& node : s_nodes) {
+        if (node.type == NodeType::PatchOutput || node.type == NodeType::Parameter)
+            continue;
+        int& count = typeCounts[node.type];
+        count++;
+        std::string prefix;
+        switch (node.type) {
+            case NodeType::SineSource:       prefix = "sine"; break;
+            case NodeType::SawSource:        prefix = "saw"; break;
+            case NodeType::TriangleSource:   prefix = "tri"; break;
+            case NodeType::PulseSource:      prefix = "pulse"; break;
+            case NodeType::WhiteNoiseSource: prefix = "wn"; break;
+            case NodeType::RedNoiseSource:   prefix = "rn"; break;
+            case NodeType::Envelope:         prefix = "env"; break;
+            case NodeType::VarSource:        prefix = "var"; break;
+            case NodeType::RangeSource:      prefix = "range"; break;
+            default: prefix = "node"; break;
+        }
+        nodeIds[node.id] = prefix + std::to_string(count);
+    }
+
+    // Find Output and Parameter nodes
+    GraphNode* outputNode = nullptr;
+    std::vector<GraphNode*> paramNodes;
+    for (auto& node : s_nodes) {
+        if (node.type == NodeType::PatchOutput) outputNode = &node;
+        if (node.type == NodeType::Parameter) paramNodes.push_back(&node);
+    }
+
+    // Determine graph output: what's connected to Output's source pin
+    std::string outputId;
+    if (outputNode && !outputNode->inputs.empty()) {
+        GraphNode* src = find_source_node(outputNode->inputs[0].id);
+        if (src) outputId = nodeIds[src->id];
+    }
+
+    // Build paramMap: trace each Parameter node's output to find target
+    json paramMap = json::object();
+    for (auto* pn : paramNodes) {
+        if (pn->outputs.empty() || pn->paramName.empty()) continue;
+        int outPinId = pn->outputs[0].id;
+        // Find what this output connects to
+        for (auto& link : s_links) {
+            int targetPinId = -1;
+            if (link.startPinId == outPinId) targetPinId = link.endPinId;
+            if (link.endPinId == outPinId) targetPinId = link.startPinId;
+            if (targetPinId < 0) continue;
+
+            // Find the target node and pin name
+            for (auto& node : s_nodes) {
+                for (auto& pin : node.inputs) {
+                    if (pin.id == targetPinId && nodeIds.count(node.id)) {
+                        paramMap[pn->paramName] = nodeIds[node.id] + "." + pin.name;
+                    }
+                }
+            }
+        }
+    }
+
+    // Build graph nodes array
+    json nodes = json::array();
+    for (auto& node : s_nodes) {
+        if (node.type == NodeType::PatchOutput || node.type == NodeType::Parameter)
+            continue;
+
+        json jnode;
+        jnode["id"] = nodeIds[node.id];
+        jnode["type"] = node_type_to_json(node.type);
+
+        json params = json::object();
+        for (auto& pin : node.inputs) {
+            bool isSourcePin = (pin.name == "source" || pin.name.substr(0, 2) == "ch");
+            if (isSourcePin) continue;
+
+            GraphNode* src = find_source_node(pin.id);
+            if (src) {
+                if (src->type == NodeType::Parameter) {
+                    // Parameter node: emit default value (the instrument will set it)
+                    params[pin.name] = pin.defaultValue;
+                } else {
+                    params[pin.name] = json{{"ref", nodeIds[src->id]}};
+                }
+            } else {
+                params[pin.name] = pin.defaultValue;
+            }
+        }
+        if (!params.empty()) jnode["params"] = params;
+
+        // Envelope: add preset
+        if (node.type == NodeType::Envelope) {
+            if (!jnode.contains("params")) jnode["params"] = json::object();
+            jnode["params"]["preset"] = "adsr";
+        }
+
+        nodes.push_back(jnode);
+    }
+
+    // Build final JSON
+    json root;
+    root["sampleRate"] = 48000;
+    root["graph"]["nodes"] = nodes;
+    root["graph"]["output"] = outputId;
+
+    if (outputNode) {
+        root["instrument"]["polyphony"] = outputNode->polyphony;
+        if (!paramMap.empty())
+            root["instrument"]["paramMap"] = paramMap;
+    }
+
+    std::ofstream f(path);
+    f << root.dump(2);
+    f.close();
+}
+
+static void save_node_graph() {
+    using json = nlohmann::json;
+
+    std::string path = save_file_dialog();
+    if (path.empty()) return;
+
+    // Assign string IDs
+    std::unordered_map<int, std::string> nodeIds;
+    std::unordered_map<NodeType, int> typeCounts;
+    for (auto& node : s_nodes) {
+        int& count = typeCounts[node.type];
+        count++;
+        std::string prefix;
+        switch (node.type) {
+            case NodeType::SineSource:       prefix = "sine"; break;
+            case NodeType::SawSource:        prefix = "saw"; break;
+            case NodeType::TriangleSource:   prefix = "tri"; break;
+            case NodeType::PulseSource:      prefix = "pulse"; break;
+            case NodeType::WhiteNoiseSource: prefix = "wn"; break;
+            case NodeType::RedNoiseSource:   prefix = "rn"; break;
+            case NodeType::Envelope:         prefix = "env"; break;
+            case NodeType::VarSource:        prefix = "var"; break;
+            case NodeType::RangeSource:      prefix = "range"; break;
+            case NodeType::SoundChannel:     prefix = "ch"; break;
+            case NodeType::StereoMixer:      prefix = "mix"; break;
+            default: prefix = "node"; break;
+        }
+        nodeIds[node.id] = prefix + std::to_string(count);
+    }
+
+    // Find mixer for output
+    std::string outputId;
+    for (auto& node : s_nodes)
+        if (node.type == NodeType::StereoMixer)
+            outputId = nodeIds[node.id];
+
+    // Build nodes
+    json nodes = json::array();
+    for (auto& node : s_nodes) {
+        json jnode;
+        jnode["id"] = nodeIds[node.id];
+        jnode["type"] = node_type_to_json(node.type);
+
+        json params = json::object();
+        for (auto& pin : node.inputs) {
+            bool isSourcePin = (pin.name == "source" || pin.name.substr(0, 2) == "ch");
+
+            GraphNode* src = find_source_node(pin.id);
+
+            if (isSourcePin) {
+                if (src && node.type == NodeType::SoundChannel) {
+                    jnode["inputs"]["source"] = nodeIds[src->id];
+                }
+                if (src && node.type == NodeType::StereoMixer) {
+                    if (!jnode.contains("inputs") || !jnode["inputs"].contains("channels"))
+                        jnode["inputs"]["channels"] = json::array();
+                    jnode["inputs"]["channels"].push_back(nodeIds[src->id]);
+                }
+            } else {
+                if (src)
+                    params[pin.name] = json{{"ref", nodeIds[src->id]}};
+                else
+                    params[pin.name] = pin.defaultValue;
+            }
+        }
+        if (!params.empty()) jnode["params"] = params;
+
+        if (node.type == NodeType::Envelope) {
+            if (!jnode.contains("params")) jnode["params"] = json::object();
+            jnode["params"]["preset"] = "adsr";
+        }
+
+        nodes.push_back(jnode);
+    }
+
+    json root;
+    root["sampleRate"] = 48000;
+    root["seconds"] = 5;
+    root["graph"]["nodes"] = nodes;
+    root["graph"]["output"] = outputId;
+
+    std::ofstream f(path);
+    f << root.dump(2);
+    f.close();
+}
+
+static void save_graph() {
+    if (s_graphMode == GraphMode::PatchGraph)
+        save_patch_graph();
+    else
+        save_node_graph();
+}
+
+// ===========================================================================
 // Node rendering
 // ===========================================================================
 
@@ -515,6 +795,9 @@ int main(int, char**) {
                     }
                     ImGui::EndMenu();
                 }
+                if (ImGui::MenuItem("Save", "Ctrl+S")) {
+                    save_graph();
+                }
                 ImGui::Separator();
                 if (ImGui::MenuItem("Quit")) {
                     glfwSetWindowShouldClose(window, GLFW_TRUE);
@@ -542,6 +825,11 @@ int main(int, char**) {
             Pin* endPin = find_pin(endAttr);
             if (startPin && endPin && startPin->kind != endPin->kind)
                 s_links.emplace_back(startAttr, endAttr);
+        }
+
+        // Ctrl+S save
+        if (ImGui::GetIO().KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_S)) {
+            save_graph();
         }
 
         // Delete
