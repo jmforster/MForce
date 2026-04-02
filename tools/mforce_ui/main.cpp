@@ -16,7 +16,9 @@
 #include <algorithm>
 #include <cstdio>
 #include <fstream>
+#include <functional>
 #include <unordered_map>
+#include <unordered_set>
 
 // ===========================================================================
 // ID generation
@@ -338,6 +340,47 @@ static const char* node_type_to_json(NodeType t) {
     }
 }
 
+// Topological sort: dependencies before dependents
+static std::vector<GraphNode*> topo_sort() {
+    // Build adjacency: for each node, which nodes does it depend on?
+    std::unordered_map<int, std::vector<int>> deps; // nodeId → [dependency nodeIds]
+    for (auto& node : s_nodes) {
+        deps[node.id] = {};
+        for (auto& pin : node.inputs) {
+            for (auto& link : s_links) {
+                int srcPinId = -1;
+                if (link.endPinId == pin.id) srcPinId = link.startPinId;
+                if (link.startPinId == pin.id) srcPinId = link.endPinId;
+                if (srcPinId < 0) continue;
+
+                for (auto& srcNode : s_nodes) {
+                    for (auto& sp : srcNode.outputs) {
+                        if (sp.id == srcPinId)
+                            deps[node.id].push_back(srcNode.id);
+                    }
+                }
+            }
+        }
+    }
+
+    std::vector<GraphNode*> sorted;
+    std::unordered_set<int> visited;
+
+    std::function<void(int)> visit = [&](int nodeId) {
+        if (visited.count(nodeId)) return;
+        visited.insert(nodeId);
+        for (int depId : deps[nodeId])
+            visit(depId);
+        for (auto& n : s_nodes)
+            if (n.id == nodeId) { sorted.push_back(&n); break; }
+    };
+
+    for (auto& node : s_nodes)
+        visit(node.id);
+
+    return sorted;
+}
+
 // Find which node's output is connected to a given input pin
 static GraphNode* find_source_node(int inputPinId) {
     for (auto& link : s_links) {
@@ -424,9 +467,11 @@ static void save_patch_graph() {
         }
     }
 
-    // Build graph nodes array
+    // Build graph nodes array (topologically sorted)
+    auto sorted = topo_sort();
     json nodes = json::array();
-    for (auto& node : s_nodes) {
+    for (auto* nodePtr : sorted) {
+        auto& node = *nodePtr;
         if (node.type == NodeType::PatchOutput || node.type == NodeType::Parameter)
             continue;
 
@@ -515,9 +560,11 @@ static void save_node_graph() {
         if (node.type == NodeType::StereoMixer)
             outputId = nodeIds[node.id];
 
-    // Build nodes
+    // Build nodes (topologically sorted)
+    auto sorted = topo_sort();
     json nodes = json::array();
-    for (auto& node : s_nodes) {
+    for (auto* nodePtr : sorted) {
+        auto& node = *nodePtr;
         json jnode;
         jnode["id"] = nodeIds[node.id];
         jnode["type"] = node_type_to_json(node.type);
