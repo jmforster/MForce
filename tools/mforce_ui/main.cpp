@@ -500,7 +500,28 @@ static void load_graph() {
         }
     }
 
-    s_needsLayout = true;
+    // Restore positions from UI metadata, or fall back to grid layout
+    if (root.contains("ui") && root["ui"].contains("positions")) {
+        const auto& positions = root["ui"]["positions"];
+
+        for (auto& node : s_nodes) {
+            std::string key;
+            if (node.type == NodeType::PatchOutput)
+                key = "__output";
+            else if (node.type == NodeType::Parameter)
+                key = "__param_" + node.paramName;
+            else
+                key = node.label;  // label was set to the JSON id
+
+            if (positions.contains(key)) {
+                float x = positions[key][0].get<float>();
+                float y = positions[key][1].get<float>();
+                ImNodes::SetNodeGridSpacePos(node.id, ImVec2(x, y));
+            }
+        }
+    } else {
+        s_needsLayout = true;
+    }
 }
 
 // ===========================================================================
@@ -703,6 +724,25 @@ static void save_patch_graph() {
             root["instrument"]["paramMap"] = paramMap;
     }
 
+    // Save UI layout
+    json positions = json::object();
+    for (auto* nodePtr : sorted) {
+        if (nodePtr->type == NodeType::PatchOutput || nodePtr->type == NodeType::Parameter)
+            continue;
+        ImVec2 pos = ImNodes::GetNodeGridSpacePos(nodePtr->id);
+        positions[nodeIds[nodePtr->id]] = {pos.x, pos.y};
+    }
+    if (outputNode) {
+        ImVec2 pos = ImNodes::GetNodeGridSpacePos(outputNode->id);
+        positions["__output"] = {pos.x, pos.y};
+    }
+    for (auto* pn : paramNodes) {
+        if (pn->paramName.empty()) continue;
+        ImVec2 pos = ImNodes::GetNodeGridSpacePos(pn->id);
+        positions["__param_" + pn->paramName] = {pos.x, pos.y};
+    }
+    root["ui"]["positions"] = positions;
+
     std::ofstream f(path);
     f << root.dump(2);
     f.close();
@@ -790,6 +830,14 @@ static void save_node_graph() {
     root["seconds"] = 5;
     root["graph"]["nodes"] = nodes;
     root["graph"]["output"] = outputId;
+
+    // Save UI layout
+    json positions = json::object();
+    for (auto* nodePtr : sorted) {
+        ImVec2 pos = ImNodes::GetNodeGridSpacePos(nodePtr->id);
+        positions[nodeIds[nodePtr->id]] = {pos.x, pos.y};
+    }
+    root["ui"]["positions"] = positions;
 
     std::ofstream f(path);
     f << root.dump(2);
