@@ -23,34 +23,67 @@ struct IFormant {
 // Ported from C# Formant — spectral peak with evolving params.
 // ---------------------------------------------------------------------------
 struct Formant final : ValueSource, IFormant {
-  std::shared_ptr<ValueSource> frequency;
-  std::shared_ptr<ValueSource> gain;
-  std::shared_ptr<ValueSource> width;
-  std::shared_ptr<ValueSource> power;
-
   Formant()
-  : frequency(std::make_shared<ConstantSource>(1000.0f))
-  , gain(std::make_shared<ConstantSource>(1.0f))
-  , width(std::make_shared<ConstantSource>(500.0f))
-  , power(std::make_shared<ConstantSource>(2.0f)) {}
+  : frequency_(std::make_shared<ConstantSource>(1000.0f))
+  , gain_(std::make_shared<ConstantSource>(1.0f))
+  , width_(std::make_shared<ConstantSource>(500.0f))
+  , power_(std::make_shared<ConstantSource>(2.0f)) {}
+
+  void set_frequency(std::shared_ptr<ValueSource> s) { frequency_ = std::move(s); }
+  void set_gain(std::shared_ptr<ValueSource> s)      { gain_ = std::move(s); }
+  void set_width(std::shared_ptr<ValueSource> s)     { width_ = std::move(s); }
+  void set_power(std::shared_ptr<ValueSource> s)     { power_ = std::move(s); }
+
+  std::shared_ptr<ValueSource> get_frequency() const { return frequency_; }
+  std::shared_ptr<ValueSource> get_gain() const      { return gain_; }
+  std::shared_ptr<ValueSource> get_width() const     { return width_; }
+  std::shared_ptr<ValueSource> get_power() const     { return power_; }
+
+  const char* type_name() const override { return "Formant"; }
+  SourceCategory category() const override { return SourceCategory::Additive; }
+
+  std::span<const ParamDescriptor> param_descriptors() const override {
+    static constexpr ParamDescriptor descs[] = {
+      {"frequency", 1000.0f, 1.0f,    20000.0f},
+      {"gain",      1.0f,    0.0f,    10.0f},
+      {"width",     500.0f,  1.0f,    10000.0f},
+      {"power",     2.0f,    0.01f,   10.0f},
+    };
+    return descs;
+  }
+
+  void set_param(std::string_view name, std::shared_ptr<ValueSource> src) override {
+    if (name == "frequency") { frequency_ = std::move(src); return; }
+    if (name == "gain")      { gain_ = std::move(src); return; }
+    if (name == "width")     { width_ = std::move(src); return; }
+    if (name == "power")     { power_ = std::move(src); return; }
+  }
+
+  std::shared_ptr<ValueSource> get_param(std::string_view name) const override {
+    if (name == "frequency") return frequency_;
+    if (name == "gain")      return gain_;
+    if (name == "width")     return width_;
+    if (name == "power")     return power_;
+    return nullptr;
+  }
 
   void prepare(int frames) override { fmt_prepare(frames); }
   float next() override { fmt_next(); return 0.0f; }
   float current() const override { return 0.0f; }
 
   void fmt_prepare(int frames) override {
-    frequency->prepare(frames);
-    gain->prepare(frames);
-    width->prepare(frames);
-    power->prepare(frames);
+    frequency_->prepare(frames);
+    gain_->prepare(frames);
+    width_->prepare(frames);
+    power_->prepare(frames);
   }
 
   void fmt_next() override {
-    frequency->next(); gain->next(); width->next(); power->next();
-    currFreq_ = frequency->current();
-    currGain_ = gain->current();
-    float w   = width->current();
-    currPow_  = power->current();
+    frequency_->next(); gain_->next(); width_->next(); power_->next();
+    currFreq_ = frequency_->current();
+    currGain_ = gain_->current();
+    float w   = width_->current();
+    currPow_  = power_->current();
     loFreq_   = currFreq_ - w * 0.5f;
     hiFreq_   = currFreq_ + w * 0.5f;
   }
@@ -65,6 +98,10 @@ struct Formant final : ValueSource, IFormant {
   }
 
 private:
+  std::shared_ptr<ValueSource> frequency_;
+  std::shared_ptr<ValueSource> gain_;
+  std::shared_ptr<ValueSource> width_;
+  std::shared_ptr<ValueSource> power_;
   float currFreq_{1000.0f}, currGain_{1.0f}, currPow_{2.0f};
   float loFreq_{750.0f}, hiFreq_{1250.0f};
 };
@@ -74,6 +111,9 @@ private:
 // ---------------------------------------------------------------------------
 struct FormantSpectrum : ValueSource, IFormant {
   std::vector<std::shared_ptr<IFormant>> formants;
+
+  const char* type_name() const override { return "FormantSpectrum"; }
+  SourceCategory category() const override { return SourceCategory::Additive; }
 
   void prepare(int frames) override { fmt_prepare(frames); }
   float next() override { fmt_next(); return 0.0f; }
@@ -110,6 +150,9 @@ struct FixedSpectrum final : ValueSource, IFormant {
 
   explicit FixedSpectrum(std::vector<float> values) : gainValues(std::move(values)) {}
 
+  const char* type_name() const override { return "FixedSpectrum"; }
+  SourceCategory category() const override { return SourceCategory::Additive; }
+
   void prepare(int /*frames*/) override {}
   float next() override { return 0.0f; }
   float current() const override { return 0.0f; }
@@ -131,37 +174,62 @@ struct FixedSpectrum final : ValueSource, IFormant {
 // Ported from C# BandSpectrum — frequency-band gain lookup.
 // ---------------------------------------------------------------------------
 struct BandSpectrum final : ValueSource, IFormant {
-  std::shared_ptr<ValueSource> startFreq;
-  std::shared_ptr<ValueSource> freqIncrement;
   std::vector<float> gainValues;
 
   BandSpectrum()
-  : startFreq(std::make_shared<ConstantSource>(0.0f))
-  , freqIncrement(std::make_shared<ConstantSource>(1.0f)) {}
+  : startFreq_(std::make_shared<ConstantSource>(0.0f))
+  , freqIncrement_(std::make_shared<ConstantSource>(1.0f)) {}
+
+  void set_startFreq(std::shared_ptr<ValueSource> s)     { startFreq_ = std::move(s); }
+  void set_freqIncrement(std::shared_ptr<ValueSource> s) { freqIncrement_ = std::move(s); }
+  std::shared_ptr<ValueSource> get_startFreq() const     { return startFreq_; }
+  std::shared_ptr<ValueSource> get_freqIncrement() const { return freqIncrement_; }
+
+  const char* type_name() const override { return "BandSpectrum"; }
+  SourceCategory category() const override { return SourceCategory::Additive; }
+
+  std::span<const ParamDescriptor> param_descriptors() const override {
+    static constexpr ParamDescriptor descs[] = {
+      {"startFreq",     0.0f, 0.0f, 20000.0f},
+      {"freqIncrement", 1.0f, 0.01f, 1000.0f},
+    };
+    return descs;
+  }
+
+  void set_param(std::string_view name, std::shared_ptr<ValueSource> src) override {
+    if (name == "startFreq")     { startFreq_ = std::move(src); return; }
+    if (name == "freqIncrement") { freqIncrement_ = std::move(src); return; }
+  }
+
+  std::shared_ptr<ValueSource> get_param(std::string_view name) const override {
+    if (name == "startFreq")     return startFreq_;
+    if (name == "freqIncrement") return freqIncrement_;
+    return nullptr;
+  }
 
   void prepare(int frames) override { fmt_prepare(frames); }
   float next() override { fmt_next(); return 0.0f; }
   float current() const override { return 0.0f; }
 
   void fmt_prepare(int frames) override {
-    startFreq->prepare(frames);
-    freqIncrement->prepare(frames);
+    startFreq_->prepare(frames);
+    freqIncrement_->prepare(frames);
   }
 
   void fmt_next() override {
-    startFreq->next();
-    freqIncrement->next();
+    startFreq_->next();
+    freqIncrement_->next();
   }
 
   bool contains(float freq) const override {
-    float sf = startFreq->current();
-    float fi = freqIncrement->current();
+    float sf = startFreq_->current();
+    float fi = freqIncrement_->current();
     return freq >= sf && freq <= sf + fi * float(int(gainValues.size()) - 1);
   }
 
   float get_gain(float freq) const override {
-    float sf = startFreq->current();
-    float fi = freqIncrement->current();
+    float sf = startFreq_->current();
+    float fi = freqIncrement_->current();
     if (fi <= 0.0f) return 0.0f;
 
     float pos = (freq - sf) / fi;
@@ -171,6 +239,10 @@ struct BandSpectrum final : ValueSource, IFormant {
     float frac = pos - float(idx);
     return gainValues[idx] + (gainValues[idx + 1] - gainValues[idx]) * frac;
   }
+
+private:
+  std::shared_ptr<ValueSource> startFreq_;
+  std::shared_ptr<ValueSource> freqIncrement_;
 };
 
 // ---------------------------------------------------------------------------
@@ -180,27 +252,72 @@ struct BandSpectrum final : ValueSource, IFormant {
 // ---------------------------------------------------------------------------
 struct FormantSequence final : ValueSource, IFormant {
   std::vector<std::shared_ptr<IFormant>> formants;
-  std::shared_ptr<ValueSource> blend;  // 0..1
 
-  FormantSequence() : blend(std::make_shared<ConstantSource>(0.0f)) {}
+  FormantSequence() : blend_(std::make_shared<ConstantSource>(0.0f)) {}
+
+  void set_blend(std::shared_ptr<ValueSource> s) { blend_ = std::move(s); }
+  std::shared_ptr<ValueSource> get_blend() const { return blend_; }
+
+  const char* type_name() const override { return "FormantSequence"; }
+  SourceCategory category() const override { return SourceCategory::Additive; }
+
+  std::span<const ParamDescriptor> param_descriptors() const override {
+    static constexpr ParamDescriptor descs[] = {
+      {"blend", 0.0f, 0.0f, 1.0f},
+    };
+    return descs;
+  }
+
+  std::span<const InputDescriptor> input_descriptors() const override {
+    static constexpr InputDescriptor descs[] = {
+      {"spectra", true},  // multi-input: accepts multiple FormantSpectrum connections
+    };
+    return descs;
+  }
+
+  void set_param(std::string_view name, std::shared_ptr<ValueSource> src) override {
+    if (name == "blend") { blend_ = std::move(src); return; }
+    if (name == "spectra") {
+      // Single-set: replace all with one (used by generic wiring path)
+      auto fmt = std::dynamic_pointer_cast<IFormant>(src);
+      if (fmt) { formants.clear(); formants.push_back(std::move(fmt)); }
+      return;
+    }
+  }
+
+  void add_param(std::string_view name, std::shared_ptr<ValueSource> src) override {
+    if (name == "spectra") {
+      auto fmt = std::dynamic_pointer_cast<IFormant>(src);
+      if (fmt) formants.push_back(std::move(fmt));
+    }
+  }
+
+  void clear_param(std::string_view name) override {
+    if (name == "spectra") formants.clear();
+  }
+
+  std::shared_ptr<ValueSource> get_param(std::string_view name) const override {
+    if (name == "blend") return blend_;
+    return nullptr;
+  }
 
   void prepare(int frames) override { fmt_prepare(frames); }
   float next() override { fmt_next(); return 0.0f; }
   float current() const override { return 0.0f; }
 
   void fmt_prepare(int frames) override {
-    blend->prepare(frames);
+    blend_->prepare(frames);
     for (auto& f : formants) f->fmt_prepare(frames);
   }
 
   void fmt_next() override {
-    blend->next();
+    blend_->next();
     for (auto& f : formants) f->fmt_next();
 
     int n = int(formants.size());
     if (n < 2) { fPtr_ = 0; fWeight_ = 0.0f; return; }
 
-    float b = std::clamp(blend->current(), 0.0f, 1.0f) * float(n - 1);
+    float b = std::clamp(blend_->current(), 0.0f, 1.0f) * float(n - 1);
     fPtr_ = std::min(int(b), n - 2);
     fWeight_ = b - float(fPtr_);
   }
@@ -224,6 +341,7 @@ struct FormantSequence final : ValueSource, IFormant {
   }
 
 private:
+  std::shared_ptr<ValueSource> blend_;
   int fPtr_{0};
   float fWeight_{0.0f};
 };

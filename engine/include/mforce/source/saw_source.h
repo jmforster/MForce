@@ -9,6 +9,7 @@ namespace mforce {
 // Band-limited sawtooth via polynomial BLEP.
 struct SawSource final : WaveSource {
   explicit SawSource(int sampleRate) : WaveSource(sampleRate) {}
+  const char* type_name() const override { return "SawSource"; }
 
 protected:
   float compute_wave_value() override {

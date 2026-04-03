@@ -69,6 +69,31 @@ struct WaveSource : ValueSource {
   std::shared_ptr<ValueSource> get_frequency() const { return frequency_; }
   std::shared_ptr<ValueSource> get_phase()     const { return phase_; }
 
+  // Self-description — base params shared by all WaveSource subclasses
+  SourceCategory category() const override { return SourceCategory::Oscillator; }
+
+  std::span<const ParamDescriptor> param_descriptors() const override {
+    static constexpr ParamDescriptor descs[] = {
+      {"frequency", 440.0f, 0.01f, 20000.0f},
+      {"amplitude", 1.0f,   0.0f,  10.0f},
+      {"phase",     0.0f,  -1.0f,  1.0f},
+    };
+    return descs;
+  }
+
+  void set_param(std::string_view name, std::shared_ptr<ValueSource> src) override {
+    if (name == "frequency") { set_frequency(std::move(src)); return; }
+    if (name == "amplitude") { set_amplitude(std::move(src)); return; }
+    if (name == "phase")     { set_phase(std::move(src)); return; }
+  }
+
+  std::shared_ptr<ValueSource> get_param(std::string_view name) const override {
+    if (name == "frequency") return frequency_;
+    if (name == "amplitude") return amplitude_;
+    if (name == "phase")     return phase_;
+    return nullptr;
+  }
+
 protected:
   virtual float compute_wave_value() = 0;
 

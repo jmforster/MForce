@@ -1,30 +1,23 @@
 #include "mforce/render/patch_loader.h"
-#include "mforce/source/red_noise_source.h"
-#include "mforce/source/sine_source.h"
-#include "mforce/source/saw_source.h"
-#include "mforce/source/triangle_source.h"
-#include "mforce/source/pulse_source.h"
-#include "mforce/source/wavetable_source.h"
-#include "mforce/source/white_noise_source.h"
-#include "mforce/core/range_source.h"
-#include "mforce/core/var_source.h"
-#include "mforce/source/wander_noise_source.h"
-#include "mforce/source/fm_source.h"
-#include "mforce/source/additive/additive_source.h"
-#include "mforce/source/additive/full_additive_source.h"
-#include "mforce/source/additive/additive_source2.h"
-#include "mforce/source/hybrid_ks_source.h"
-#include "mforce/source/phased_value_source.h"
-#include "mforce/source/segment_source.h"
-#include "mforce/source/repeating_source.h"
-#include "mforce/source/combined_source.h"
-#include "mforce/filter/filters.h"
-#include "mforce/filter/vibrato.h"
-#include "mforce/source/additive/formant.h"
-#include "mforce/core/envelope.h"
-#include "mforce/render/instrument.h"
+#include "mforce/core/source_registry.h"
 #include "mforce/core/dsp_value_source.h"
 #include "mforce/core/dsp_wave_source.h"
+#include "mforce/core/range_source.h"
+#include "mforce/core/var_source.h"
+#include "mforce/core/envelope.h"
+#include "mforce/render/instrument.h"
+// Types still needed for special-case construction
+#include "mforce/source/additive/full_additive_source.h"
+#include "mforce/source/additive/partials.h"
+#include "mforce/source/additive/additive_source2.h"
+#include "mforce/source/additive/formant.h"
+#include "mforce/source/wavetable_source.h"
+#include "mforce/source/hybrid_ks_source.h"
+#include "mforce/source/segment_source.h"
+#include "mforce/source/phased_value_source.h"
+#include "mforce/source/wave_evolution.h"
+#include "mforce/filter/filters.h"
+#include "mforce/filter/vibrato.h"
 #include <nlohmann/json.hpp>
 #include <fstream>
 #include <sstream>
@@ -107,109 +100,157 @@ struct GraphResult {
     std::unordered_map<std::string, std::unique_ptr<MonoSource>>  monoNodes;
 };
 
+// Wire all connectable params generically via param_descriptors + input_descriptors + set_param.
+static void wire_params_generic(
+    ValueSource& src,
+    const json& params,
+    const std::unordered_map<std::string, std::shared_ptr<ValueSource>>& valueNodes)
+{
+    for (const auto& desc : src.input_descriptors()) {
+        if (params.contains(desc.name))
+            src.set_param(desc.name, resolve_param(params.at(desc.name), valueNodes));
+    }
+    for (const auto& desc : src.param_descriptors()) {
+        if (params.contains(desc.name))
+            src.set_param(desc.name, resolve_param(params.at(desc.name), valueNodes));
+    }
+}
+
+// Register MonoSource wrapper (WaveSource → WaveSourceMono, else ValueSourceMono).
+static void add_mono(
+    GraphResult& g, const std::string& id, std::shared_ptr<ValueSource> src)
+{
+    auto ws = std::dynamic_pointer_cast<WaveSource>(src);
+    if (ws) g.monoNodes[id] = std::make_unique<WaveSourceMono>(ws);
+    else    g.monoNodes[id] = std::make_unique<ValueSourceMono>(src);
+}
+
+// Register IFormant if the source implements it.
+static void add_formant(
+    GraphResult& g, const std::string& id, std::shared_ptr<ValueSource> src)
+{
+    auto fmt = std::dynamic_pointer_cast<IFormant>(src);
+    if (fmt) g.formantNodes[id] = fmt;
+}
+
 static GraphResult build_graph(
     const std::unordered_map<std::string, json>& nodeMap,
     const std::vector<std::string>& nodeOrder,
     int sampleRate)
 {
+    // Lazy init registry
+    static bool registered = false;
+    if (!registered) { register_all_sources(); registered = true; }
+
     GraphResult g;
-    auto& valueNodes  = g.valueNodes;
+    auto& valueNodes   = g.valueNodes;
     auto& formantNodes = g.formantNodes;
-    auto& monoNodes   = g.monoNodes;
+
+    auto& reg = SourceRegistry::instance();
+
+    // Resolve function for configurators
+    ResolveParamFn resolveFn = [&](const json& val) {
+        return resolve_param(val, valueNodes);
+    };
 
     for (const auto& id : nodeOrder) {
         const auto& node = nodeMap.at(id);
         std::string type = node.at("type").get<std::string>();
+        const json* pp = node.contains("params") ? &node["params"] : nullptr;
 
-        if (type == "SineSource") {
-            auto src = std::make_shared<SineSource>(sampleRate);
-            if (node.contains("params")) { auto& p = node["params"];
-                src->set_frequency(resolve_param_or(p, "frequency", 440.0f, valueNodes));
-                src->set_amplitude(resolve_param_or(p, "amplitude", 1.0f,   valueNodes));
-                src->set_phase(    resolve_param_or(p, "phase",     0.0f,   valueNodes));
-            }
-            valueNodes[id] = src; monoNodes[id] = std::make_unique<WaveSourceMono>(src);
-        }
-        else if (type == "SawSource") {
-            auto src = std::make_shared<SawSource>(sampleRate);
-            if (node.contains("params")) { auto& p = node["params"];
-                src->set_frequency(resolve_param_or(p, "frequency", 440.0f, valueNodes));
-                src->set_amplitude(resolve_param_or(p, "amplitude", 1.0f,   valueNodes));
-                src->set_phase(    resolve_param_or(p, "phase",     0.0f,   valueNodes));
-            }
-            valueNodes[id] = src; monoNodes[id] = std::make_unique<WaveSourceMono>(src);
-        }
-        else if (type == "TriangleSource") {
-            auto src = std::make_shared<TriangleSource>(sampleRate);
-            if (node.contains("params")) { auto& p = node["params"];
-                src->set_frequency(resolve_param_or(p, "frequency", 440.0f, valueNodes));
-                src->set_amplitude(resolve_param_or(p, "amplitude", 1.0f,   valueNodes));
-                src->set_phase(    resolve_param_or(p, "phase",     0.0f,   valueNodes));
-                src->set_bias(     resolve_param_or(p, "bias",      0.5f,   valueNodes));
-            }
-            valueNodes[id] = src; monoNodes[id] = std::make_unique<WaveSourceMono>(src);
-        }
-        else if (type == "PulseSource") {
-            auto src = std::make_shared<PulseSource>(sampleRate);
-            if (node.contains("params")) { auto& p = node["params"];
-                src->set_frequency(  resolve_param_or(p, "frequency",  440.0f, valueNodes));
-                src->set_amplitude(  resolve_param_or(p, "amplitude",  1.0f,   valueNodes));
-                src->set_phase(      resolve_param_or(p, "phase",      0.0f,   valueNodes));
-                src->set_duty_cycle( resolve_param_or(p, "dutyCycle",  0.5f,   valueNodes));
-                src->set_bend(       resolve_param_or(p, "bend",       0.0f,   valueNodes));
-            }
-            valueNodes[id] = src; monoNodes[id] = std::make_unique<WaveSourceMono>(src);
-        }
-        else if (type == "FMSource") {
-            auto src = std::make_shared<FMSource>(sampleRate);
-            if (node.contains("params")) { auto& p = node["params"];
-                src->set_frequency(    resolve_param_or(p, "frequency",     440.0f, valueNodes));
-                src->set_amplitude(    resolve_param_or(p, "amplitude",     1.0f,   valueNodes));
-                src->set_phase(        resolve_param_or(p, "phase",         0.0f,   valueNodes));
-                src->set_carrier_ratio(resolve_param_or(p, "carrierRatio",  1.0f,   valueNodes));
-                src->set_mod_ratio(    resolve_param_or(p, "modRatio",      1.0f,   valueNodes));
-                src->set_depth(        resolve_param_or(p, "depth",         1.0f,   valueNodes));
-            }
-            valueNodes[id] = src; monoNodes[id] = std::make_unique<WaveSourceMono>(src);
-        }
-        else if (type == "AdditiveSource") {
-            uint32_t seed = 0xADD1'0000u;
-            if (node.contains("params") && node["params"].contains("seed"))
-                seed = static_cast<uint32_t>(node["params"]["seed"].get<int>());
+        // ---- Extract seed if present ----
+        std::optional<uint32_t> seed;
+        if (pp && pp->contains("seed"))
+            seed = static_cast<uint32_t>((*pp)["seed"].get<int>());
 
-            auto add = std::make_shared<AdditiveSource>(sampleRate, seed);
+        // =================================================================
+        // Types that need special construction (config in constructor args)
+        // =================================================================
 
-            if (node.contains("params")) {
-                const auto& p = node["params"];
-                add->set_frequency(    resolve_param_or(p, "frequency",     440.0f, valueNodes));
-                add->set_amplitude(    resolve_param_or(p, "amplitude",     1.0f,   valueNodes));
-                add->set_phase(        resolve_param_or(p, "phase",         0.0f,   valueNodes));
-                add->set_even_weight(  resolve_param_or(p, "evenWeight",    1.0f,   valueNodes));
-                add->set_odd_weight(   resolve_param_or(p, "oddWeight",     1.0f,   valueNodes));
-                add->set_rolloff(      resolve_param_or(p, "rolloff",       1.0f,   valueNodes));
-                add->set_freq_var_pct( resolve_param_or(p, "freqVarPct",    0.0f,   valueNodes));
-                add->set_freq_var_speed(resolve_param_or(p, "freqVarSpeed", 0.0f,   valueNodes));
-                add->set_ampl_var_pct( resolve_param_or(p, "amplVarPct",    0.0f,   valueNodes));
-                add->set_ampl_var_speed(resolve_param_or(p, "amplVarSpeed", 0.0f,   valueNodes));
-            }
-
-            valueNodes[id] = add;
-            monoNodes[id]  = std::make_unique<WaveSourceMono>(add);
+        if (type == "VarSource") {
+            if (!pp) throw std::runtime_error("VarSource requires params");
+            const auto& p = *pp;
+            bool absolute = p.value("absolute", true);
+            auto src = std::make_shared<VarSource>(
+                resolve_param_or(p, "val",    0.0f, valueNodes),
+                resolve_param_or(p, "var",    0.0f, valueNodes),
+                resolve_param_or(p, "varPct", 0.0f, valueNodes), absolute);
+            valueNodes[id] = src;
         }
-        else if (type == "Formant") {
-            auto fmt = std::make_shared<Formant>();
-            if (node.contains("params")) { auto& p = node["params"];
-                fmt->frequency = resolve_param_or(p, "frequency", 1000.0f, valueNodes);
-                fmt->gain      = resolve_param_or(p, "gain",      1.0f,    valueNodes);
-                fmt->width     = resolve_param_or(p, "width",     500.0f,  valueNodes);
-                fmt->power     = resolve_param_or(p, "power",     2.0f,    valueNodes);
-            }
-            formantNodes[id] = fmt; valueNodes[id] = fmt;
+        else if (type == "RangeSource") {
+            if (!pp) throw std::runtime_error("RangeSource requires params");
+            const auto& p = *pp;
+            bool normalized = p.value("normalized", false);
+            auto src = std::make_shared<RangeSource>(
+                resolve_param_or(p, "min", 0.0f, valueNodes),
+                resolve_param_or(p, "max", 1.0f, valueNodes),
+                resolve_param_or(p, "var", 0.0f, valueNodes), normalized);
+            valueNodes[id] = src;
         }
+        else if (type == "Envelope") {
+            if (!pp) throw std::runtime_error("Envelope requires params");
+            const auto& p = *pp;
+            std::string preset = p.value("preset", std::string("ar"));
+            std::shared_ptr<Envelope> env;
+            if (preset == "ar") {
+                env = std::make_shared<Envelope>(Envelope::make_ar(sampleRate,
+                    p.value("attack", 0.2f), p.value("attackMin", 0.0f), p.value("attackMax", 1.0f)));
+            } else if (preset == "adsr") {
+                env = std::make_shared<Envelope>(Envelope::make_adsr(sampleRate,
+                    p.value("attack", 0.2f), p.value("decay", 0.1f),
+                    p.value("sustainLevel", 0.7f), p.value("release", 0.0f)));
+            } else {
+                throw std::runtime_error("Unknown envelope preset: " + preset);
+            }
+            valueNodes[id] = env;
+        }
+        else if (type == "SegmentSource") {
+            std::vector<float> values;
+            bool oneShot = false;
+            if (pp) {
+                if (pp->contains("values")) values = (*pp)["values"].get<std::vector<float>>();
+                oneShot = pp->value("oneShot", false);
+            }
+            auto src = std::make_shared<SegmentSource>(
+                std::move(values), sampleRate, oneShot, seed.value_or(0x5E6A'0000u));
+            if (pp) wire_params_generic(*src, *pp, valueNodes);
+            valueNodes[id] = src;
+            add_mono(g, id, src);
+        }
+        else if (type == "Vibrato") {
+            if (!pp) throw std::runtime_error("Vibrato requires params");
+            const auto& p = *pp;
+            auto vib = std::make_shared<Vibrato>(sampleRate,
+                p.value("speed", 5.0f), p.value("depth", 0.02f),
+                p.value("attack", 0.3f), p.value("threshold", 0.0f),
+                p.value("speedVar", 0.0f), p.value("depthVar", 0.0f),
+                seed.value_or(0xF1B0'0000u));
+            wire_params_generic(*vib, p, valueNodes);
+            valueNodes[id] = vib;
+        }
+        else if (type == "BWLowpassFilter" || type == "BWHighpassFilter" || type == "BWBandpassFilter") {
+            int sections = pp ? pp->value("sections", 2) : 2;
+            std::shared_ptr<ValueSource> src;
+            if (type == "BWLowpassFilter")
+                src = std::make_shared<BWLowpassFilter>(sampleRate, sections);
+            else if (type == "BWHighpassFilter")
+                src = std::make_shared<BWHighpassFilter>(sampleRate, sections);
+            else
+                src = std::make_shared<BWBandpassFilter>(sampleRate, sections);
+            if (pp) {
+                wire_params_generic(*src, *pp, valueNodes);
+                // JSON uses "cutoff" alias for single-band filters
+                if (pp->contains("cutoff"))
+                    src->set_param("cutoffFreq", resolve_param(pp->at("cutoff"), valueNodes));
+            }
+            valueNodes[id] = src;
+            add_mono(g, id, src);
+        }
+        // ---- Formant collection types (need formantNodes map) ----
         else if (type == "FormantSpectrum") {
             auto spec = std::make_shared<FormantSpectrum>();
-            if (node.contains("params") && node["params"].contains("formants")) {
-                for (auto& fref : node["params"]["formants"]) {
+            if (pp && pp->contains("formants")) {
+                for (auto& fref : (*pp)["formants"]) {
                     std::string fid = fref.at("ref").get<std::string>();
                     auto it = formantNodes.find(fid);
                     if (it == formantNodes.end()) throw std::runtime_error("Unresolved formant ref: " + fid);
@@ -219,164 +260,123 @@ static GraphResult build_graph(
             formantNodes[id] = spec; valueNodes[id] = spec;
         }
         else if (type == "FixedSpectrum") {
-            if (!node.contains("params") || !node["params"].contains("gains"))
+            if (!pp || !pp->contains("gains"))
                 throw std::runtime_error("FixedSpectrum requires params.gains");
-            auto fs = std::make_shared<FixedSpectrum>(node["params"]["gains"].get<std::vector<float>>());
+            auto fs = std::make_shared<FixedSpectrum>((*pp)["gains"].get<std::vector<float>>());
             formantNodes[id] = fs; valueNodes[id] = fs;
-        }
-        else if (type == "BandSpectrum") {
-            auto bs = std::make_shared<BandSpectrum>();
-            if (node.contains("params")) { auto& p = node["params"];
-                bs->startFreq     = resolve_param_or(p, "startFreq",     0.0f, valueNodes);
-                bs->freqIncrement = resolve_param_or(p, "freqIncrement", 1.0f, valueNodes);
-                if (p.contains("gains")) bs->gainValues = p["gains"].get<std::vector<float>>();
-            }
-            formantNodes[id] = bs; valueNodes[id] = bs;
         }
         else if (type == "FormantSequence") {
             auto fseq = std::make_shared<FormantSequence>();
-            if (node.contains("params")) { auto& p = node["params"];
-                if (p.contains("formants")) {
-                    for (auto& fref : p["formants"]) {
+            if (pp) {
+                if (pp->contains("formants")) {
+                    for (auto& fref : (*pp)["formants"]) {
                         std::string fid = fref.at("ref").get<std::string>();
                         auto it = formantNodes.find(fid);
                         if (it == formantNodes.end()) throw std::runtime_error("Unresolved formant ref: " + fid);
                         fseq->formants.push_back(it->second);
                     }
                 }
-                fseq->blend = resolve_param_or(p, "blend", 0.0f, valueNodes);
+                wire_params_generic(*fseq, *pp, valueNodes);
             }
             formantNodes[id] = fseq; valueNodes[id] = fseq;
         }
+        // ---- FullAdditiveSource / AdditiveSource (thin source + Partials) ----
         else if (type == "FullAdditiveSource") {
-            uint32_t seed = 0xADD2'0000u;
-            if (node.contains("params") && node["params"].contains("seed"))
-                seed = static_cast<uint32_t>(node["params"]["seed"].get<int>());
+            auto fas = std::make_shared<FullAdditiveSource>(sampleRate, seed.value_or(0xADD2'0000u));
+            if (pp) {
+                const auto& p = *pp;
+                // Wire frequency/amplitude/phase generically
+                wire_params_generic(*fas, p, valueNodes);
 
-            auto fas = std::make_shared<FullAdditiveSource>(sampleRate, seed);
-
-            if (node.contains("params")) {
-                const auto& p = node["params"];
-
-                // Base WaveSource params
-                fas->set_frequency(resolve_param_or(p, "frequency", 440.0f, valueNodes));
-                fas->set_amplitude(resolve_param_or(p, "amplitude", 1.0f,   valueNodes));
-                fas->set_phase(    resolve_param_or(p, "phase",     0.0f,   valueNodes));
-
-                // 5 evolution envelopes
-                fas->set_mult_env(resolve_param_or(p, "multEnv", 0.0f, valueNodes));
-                fas->set_ampl_env(resolve_param_or(p, "amplEnv", 0.0f, valueNodes));
-                fas->set_po_env(  resolve_param_or(p, "poEnv",   0.0f, valueNodes));
-                fas->set_ro_env(  resolve_param_or(p, "roEnv",   0.0f, valueNodes));
-                fas->set_dt_env(  resolve_param_or(p, "dtEnv",   0.0f, valueNodes));
-
-                // Global rolloff/detune ranges
-                fas->set_ro(p.value("rolloff1", 1.0f), p.value("rolloff2", 1.0f));
-                fas->set_dt(p.value("detune1",  0.0f), p.value("detune2",  0.0f));
-
-                // Formant (optional)
-                if (p.contains("formant")) {
-                    std::string fid = p["formant"].at("ref").get<std::string>();
-                    auto fit = formantNodes.find(fid);
-                    if (fit == formantNodes.end())
-                        throw std::runtime_error("Unresolved formant spectrum ref: " + fid);
-                    fas->set_formant(fit->second,
-                        resolve_param_or(p, "formantWeight", 0.0f, valueNodes));
-                }
-
-                // Partial mode
+                // Create the appropriate Partials subclass based on mode
                 std::string mode = p.value("mode", std::string("full"));
+                std::shared_ptr<Partials> partials;
 
                 if (mode == "full") {
-                    int maxP = p.value("maxPartials", 30);
-                    int minM = p.value("minMult", 1);
-                    fas->init_full_partials(maxP, minM,
+                    auto fp = std::make_shared<FullPartials>(seed.value_or(0xADD2'0000u));
+                    fp->setup(p.value("maxPartials", 30), p.value("minMult", 1),
                         p.value("evenWeight1", 1.0f), p.value("evenWeight2", 1.0f),
                         p.value("oddWeight1",  1.0f), p.value("oddWeight2",  1.0f),
                         p.value("unitPO1", 0.0f), p.value("unitPO2", 0.0f));
-                }
-                else if (mode == "sequence") {
-                    int maxP = p.value("maxPartials", 30);
-                    fas->init_sequence_partials(maxP,
+                    partials = fp;
+                } else if (mode == "sequence") {
+                    auto sp = std::make_shared<SequencePartials>(seed.value_or(0xADD2'0000u));
+                    sp->setup(p.value("maxPartials", 30),
                         p.value("minMult1", 1.0f), p.value("minMult2", 1.0f),
-                        p.value("incr1", 1.0f),    p.value("incr2", 1.0f),
-                        p.value("unitPO1", 0.0f),   p.value("unitPO2", 0.0f));
-                }
-                else if (mode == "explicit") {
-                    auto m1 = p.at("mult1").get<std::vector<float>>();
-                    auto m2 = p.at("mult2").get<std::vector<float>>();
-                    auto a1 = p.at("ampl1").get<std::vector<float>>();
-                    auto a2 = p.at("ampl2").get<std::vector<float>>();
-                    fas->init_explicit_partials(
-                        std::move(m1), std::move(m2),
-                        std::move(a1), std::move(a2),
+                        p.value("incr1", 1.0f), p.value("incr2", 1.0f),
                         p.value("unitPO1", 0.0f), p.value("unitPO2", 0.0f));
-                }
-                else {
+                    partials = sp;
+                } else if (mode == "explicit") {
+                    auto ep = std::make_shared<ExplicitPartials>(seed.value_or(0xADD2'0000u));
+                    ep->setup(
+                        p.at("mult1").get<std::vector<float>>(), p.at("mult2").get<std::vector<float>>(),
+                        p.at("ampl1").get<std::vector<float>>(), p.at("ampl2").get<std::vector<float>>(),
+                        p.value("unitPO1", 0.0f), p.value("unitPO2", 0.0f));
+                    partials = ep;
+                } else {
                     throw std::runtime_error("Unknown FullAdditiveSource mode: " + mode);
                 }
 
-                // Expand rule (optional)
+                // Configure partials: rolloff, detune, envelopes
+                partials->set_ro(p.value("rolloff1", 1.0f), p.value("rolloff2", 1.0f));
+                partials->set_dt(p.value("detune1",  0.0f), p.value("detune2",  0.0f));
+
+                // Wire envelope params to the partials object
+                if (p.contains("multEnv")) partials->set_param("multEnv", resolve_param(p.at("multEnv"), valueNodes));
+                if (p.contains("amplEnv")) partials->set_param("amplEnv", resolve_param(p.at("amplEnv"), valueNodes));
+                if (p.contains("poEnv"))   partials->set_param("poEnv",   resolve_param(p.at("poEnv"),   valueNodes));
+                if (p.contains("roEnv"))   partials->set_param("roEnv",   resolve_param(p.at("roEnv"),   valueNodes));
+                if (p.contains("dtEnv"))   partials->set_param("dtEnv",   resolve_param(p.at("dtEnv"),   valueNodes));
+
+                // Expand rule
                 if (p.contains("expandRule")) {
                     const auto& er = p["expandRule"];
-                    FullAdditiveSource::ExpandRule rule;
-                    rule.count    = er.value("count", 2);
-                    rule.recurse  = er.value("recurse", 0);
-                    rule.spacing1 = er.value("spacing1", 0.5f);
-                    rule.spacing2 = er.value("spacing2", 0.5f);
-                    rule.dt1      = er.value("dt1", 0.01f);
-                    rule.dt2      = er.value("dt2", 0.01f);
-                    rule.loPct1   = er.value("loPct1", 0.1f);
-                    rule.loPct2   = er.value("loPct2", 0.1f);
-                    rule.power1   = er.value("power1", 1.0f);
-                    rule.power2   = er.value("power2", 1.0f);
-                    rule.po1      = er.value("po1", 0.0f);
-                    rule.po2      = er.value("po2", 0.0f);
-                    fas->set_expand_rule(rule);
+                    ExpandRule rule;
+                    rule.count = er.value("count", 2); rule.recurse = er.value("recurse", 0);
+                    rule.spacing1 = er.value("spacing1", 0.5f); rule.spacing2 = er.value("spacing2", 0.5f);
+                    rule.dt1 = er.value("dt1", 0.01f); rule.dt2 = er.value("dt2", 0.01f);
+                    rule.loPct1 = er.value("loPct1", 0.1f); rule.loPct2 = er.value("loPct2", 0.1f);
+                    rule.power1 = er.value("power1", 1.0f); rule.power2 = er.value("power2", 1.0f);
+                    rule.po1 = er.value("po1", 0.0f); rule.po2 = er.value("po2", 0.0f);
+                    partials->set_expand_rule(rule);
                 }
+
+                // Wire partials into the thin source
+                fas->set_partials(partials);
+
+                // Formant
+                if (p.contains("formant")) {
+                    std::string fid = p["formant"].at("ref").get<std::string>();
+                    auto fit = formantNodes.find(fid);
+                    if (fit == formantNodes.end()) throw std::runtime_error("Unresolved formant spectrum ref: " + fid);
+                    fas->set_formant(fit->second, resolve_param_or(p, "formantWeight", 0.0f, valueNodes));
+                }
+
+                // Store partials in valueNodes so it can be referenced
+                valueNodes[id + "_partials"] = partials;
             }
-
             valueNodes[id] = fas;
-            monoNodes[id]  = std::make_unique<WaveSourceMono>(fas);
+            add_mono(g, id, fas);
         }
+        // ---- AdditiveSource2 (partial modes + per-partial envelopes) ----
         else if (type == "AdditiveSource2") {
-            uint32_t seed = 0xADD3'0000u;
-            if (node.contains("params") && node["params"].contains("seed"))
-                seed = static_cast<uint32_t>(node["params"]["seed"].get<int>());
-
-            auto as2 = std::make_shared<AdditiveSource2>(sampleRate, seed);
-
-            if (node.contains("params")) {
-                const auto& p = node["params"];
-
-                as2->set_frequency(resolve_param_or(p, "frequency", 440.0f, valueNodes));
-                as2->set_amplitude(resolve_param_or(p, "amplitude", 1.0f,   valueNodes));
-
-                // Variation params
-                as2->set_phase_offset(  resolve_param_or(p, "phaseOffset",   0.0f, valueNodes));
-                as2->set_freq_var_depth(resolve_param_or(p, "freqVarDepth",  0.0f, valueNodes));
-                as2->set_freq_var_speed(resolve_param_or(p, "freqVarSpeed",  0.0f, valueNodes));
-                as2->set_ampl_var_depth(resolve_param_or(p, "amplVarDepth",  0.0f, valueNodes));
-                as2->set_ampl_var_speed(resolve_param_or(p, "amplVarSpeed",  0.0f, valueNodes));
-
-                // Partials
+            auto as2 = std::make_shared<AdditiveSource2>(sampleRate, seed.value_or(0xADD3'0000u));
+            if (pp) {
+                const auto& p = *pp;
+                wire_params_generic(*as2, p, valueNodes);
                 std::string pMode = p.value("partialMode", std::string("default"));
                 if (pMode == "default") {
-                    int cnt = p.value("partialCount", 500);
-                    as2->set_default_partials(cnt);
+                    as2->set_default_partials(p.value("partialCount", 500));
                 } else if (pMode == "explicit") {
-                    auto idx  = p.at("partials").get<std::vector<float>>();
-                    auto ampl = p.at("amplitudes").get<std::vector<float>>();
-                    as2->set_partials(std::move(idx), std::move(ampl));
+                    as2->set_partials(p.at("partials").get<std::vector<float>>(),
+                                      p.at("amplitudes").get<std::vector<float>>());
                 } else if (pMode == "evolving") {
-                    auto si = p.at("startPartials").get<std::vector<float>>();
-                    auto sa = p.at("startAmplitudes").get<std::vector<float>>();
-                    auto ei = p.at("endPartials").get<std::vector<float>>();
-                    auto ea = p.at("endAmplitudes").get<std::vector<float>>();
-                    as2->set_partials(std::move(si), std::move(sa), std::move(ei), std::move(ea));
+                    as2->set_partials(
+                        p.at("startPartials").get<std::vector<float>>(),
+                        p.at("startAmplitudes").get<std::vector<float>>(),
+                        p.at("endPartials").get<std::vector<float>>(),
+                        p.at("endAmplitudes").get<std::vector<float>>());
                 }
-
-                // Per-partial envelope assignments
                 auto parse_filter = [](const std::string& s) -> AdditiveSource2::PartialFilter {
                     if (s == "even")     return AdditiveSource2::PartialFilter::Even;
                     if (s == "odd")      return AdditiveSource2::PartialFilter::Odd;
@@ -384,501 +384,105 @@ static GraphResult build_graph(
                     if (s == "nonMult3") return AdditiveSource2::PartialFilter::NonMult3;
                     return AdditiveSource2::PartialFilter::All;
                 };
-
-                if (p.contains("amplEnvelopes")) {
-                    for (const auto& ae : p["amplEnvelopes"]) {
-                        auto env = resolve_param(ae.at("envelope"), valueNodes);
-                        auto filt = parse_filter(ae.value("filter", std::string("all")));
-                        int from = ae.value("from", 1);
-                        int to   = ae.value("to", 500);
-                        as2->assign_ampl_envelope(std::move(env), filt, from, to);
-                    }
-                }
-
-                if (p.contains("freqEnvelopes")) {
-                    for (const auto& fe : p["freqEnvelopes"]) {
-                        auto env = resolve_param(fe.at("envelope"), valueNodes);
-                        auto filt = parse_filter(fe.value("filter", std::string("all")));
-                        int from = fe.value("from", 1);
-                        int to   = fe.value("to", 500);
-                        as2->assign_freq_envelope(std::move(env), filt, from, to);
+                for (const char* key : {"amplEnvelopes", "freqEnvelopes"}) {
+                    if (p.contains(key)) {
+                        for (const auto& ae : p[key]) {
+                            auto env = resolve_param(ae.at("envelope"), valueNodes);
+                            auto filt = parse_filter(ae.value("filter", std::string("all")));
+                            int from = ae.value("from", 1), to = ae.value("to", 500);
+                            if (std::string(key) == "amplEnvelopes")
+                                as2->assign_ampl_envelope(std::move(env), filt, from, to);
+                            else
+                                as2->assign_freq_envelope(std::move(env), filt, from, to);
+                        }
                     }
                 }
             }
-
             valueNodes[id] = as2;
-            monoNodes[id]  = std::make_unique<WaveSourceMono>(as2);
+            add_mono(g, id, as2);
         }
-        else if (type == "WanderNoiseSource") {
-            uint32_t seed = 0xFA0D'0001u;
-            if (node.contains("params") && node["params"].contains("seed"))
-                seed = static_cast<uint32_t>(node["params"]["seed"].get<int>());
-
-            auto wn = std::make_shared<WanderNoiseSource>(sampleRate, seed);
-
-            if (node.contains("params")) {
-                const auto& p = node["params"];
-                wn->amplitude  = resolve_param_or(p, "amplitude",  1.0f, valueNodes);
-                wn->speed      = resolve_param_or(p, "speed",      1.0f, valueNodes);
-                wn->deltaSpeed = resolve_param_or(p, "deltaSpeed", 1.0f, valueNodes);
-                wn->slopeLimit = resolve_param_or(p, "slopeLimit", 1.0f, valueNodes);
-            }
-
-            valueNodes[id] = wn;
-            monoNodes[id]  = std::make_unique<ValueSourceMono>(wn);
-        }
-        else if (type == "WanderNoise2Source") {
-            uint32_t seed = 0xFA0D'0002u;
-            if (node.contains("params") && node["params"].contains("seed"))
-                seed = static_cast<uint32_t>(node["params"]["seed"].get<int>());
-
-            auto wn = std::make_shared<WanderNoise2Source>(sampleRate, seed);
-
-            if (node.contains("params")) {
-                const auto& p = node["params"];
-                wn->amplitude   = resolve_param_or(p, "amplitude",   1.0f, valueNodes);
-                wn->minSpeed    = resolve_param_or(p, "minSpeed",    1.0f, valueNodes);
-                wn->maxSpeed    = resolve_param_or(p, "maxSpeed",    1.0f, valueNodes);
-                wn->reverseProb = resolve_param_or(p, "reverseProb", 0.0f, valueNodes);
-                wn->retraceProb = resolve_param_or(p, "retraceProb", 0.0f, valueNodes);
-                wn->retracePct  = resolve_param_or(p, "retracePct",  0.0f, valueNodes);
-            }
-
-            valueNodes[id] = wn;
-            monoNodes[id]  = std::make_unique<ValueSourceMono>(wn);
-        }
-        else if (type == "WanderNoise3Source") {
-            auto wn = std::make_shared<WanderNoise3Source>(sampleRate);
-
-            if (node.contains("params")) {
-                const auto& p = node["params"];
-                wn->amplitude  = resolve_param_or(p, "amplitude",  1.0f, valueNodes);
-                wn->speed      = resolve_param_or(p, "speed",      1.0f, valueNodes);
-                wn->deltaSpeed = resolve_param_or(p, "deltaSpeed", 1.0f, valueNodes);
-                wn->slopeLimit = resolve_param_or(p, "slopeLimit", 1.0f, valueNodes);
-            }
-
-            valueNodes[id] = wn;
-            monoNodes[id]  = std::make_unique<ValueSourceMono>(wn);
-        }
-        else if (type == "VarSource") {
-            if (!node.contains("params"))
-                throw std::runtime_error("VarSource requires params");
-            const auto& p = node["params"];
-
-            auto val    = resolve_param_or(p, "val",    0.0f, valueNodes);
-            auto var    = resolve_param_or(p, "var",    0.0f, valueNodes);
-            auto varPct = resolve_param_or(p, "varPct", 0.0f, valueNodes);
-            bool absolute = p.value("absolute", true);
-
-            valueNodes[id] = std::make_shared<VarSource>(
-                std::move(val), std::move(var), std::move(varPct), absolute);
-        }
-        else if (type == "RangeSource") {
-            if (!node.contains("params"))
-                throw std::runtime_error("RangeSource requires params");
-            const auto& p = node["params"];
-
-            auto min = resolve_param_or(p, "min", 0.0f, valueNodes);
-            auto max = resolve_param_or(p, "max", 1.0f, valueNodes);
-            auto var = resolve_param_or(p, "var", 0.0f, valueNodes);
-            bool normalized = p.value("normalized", false);
-
-            valueNodes[id] = std::make_shared<RangeSource>(
-                std::move(min), std::move(max), std::move(var), normalized);
-        }
-        else if (type == "Envelope") {
-            if (!node.contains("params"))
-                throw std::runtime_error("Envelope requires params");
-            const auto& p = node["params"];
-
-            std::string preset = p.value("preset", std::string("ar"));
-
-            std::shared_ptr<Envelope> env;
-
-            if (preset == "ar") {
-                float attack = p.value("attack", 0.2f);
-                float attackMin = p.value("attackMin", 0.0f);
-                float attackMax = p.value("attackMax", 1.0f);
-                env = std::make_shared<Envelope>(
-                    Envelope::make_ar(sampleRate, attack, attackMin, attackMax));
-            }
-            else if (preset == "adsr") {
-                float attack       = p.value("attack", 0.2f);
-                float decay        = p.value("decay",  0.1f);
-                float sustainLevel = p.value("sustainLevel", 0.7f);
-                float release      = p.value("release", 0.0f);
-                env = std::make_shared<Envelope>(
-                    Envelope::make_adsr(sampleRate,
-                        attack, decay, sustainLevel, release));
-            }
-            else {
-                throw std::runtime_error("Unknown envelope preset: " + preset);
-            }
-
-            valueNodes[id] = env;
-        }
-        else if (type == "RedNoiseSource") {
-            uint32_t seed = 0xBADC0DEu;
-            if (node.contains("params") && node["params"].contains("seed"))
-                seed = static_cast<uint32_t>(node["params"]["seed"].get<int>());
-
-            auto rn = std::make_shared<RedNoiseSource>(sampleRate, seed);
-
-            if (node.contains("params")) {
-                const auto& p = node["params"];
-
-                // Base WaveSource params
-                rn->set_frequency(resolve_param_or(p, "frequency", 440.0f, valueNodes));
-                rn->set_amplitude(resolve_param_or(p, "amplitude", 1.0f,   valueNodes));
-                rn->set_phase(    resolve_param_or(p, "phase",     0.0f,   valueNodes));
-
-                // RedNoise-specific params
-                rn->density           = resolve_param_or(p, "density",           1.0f, valueNodes);
-                rn->smoothness        = resolve_param_or(p, "smoothness",        1.0f, valueNodes);
-                rn->rampVariation     = resolve_param_or(p, "rampVariation",     1.0f, valueNodes);
-                rn->boost             = resolve_param_or(p, "boost",             0.0f, valueNodes);
-                rn->continuity        = resolve_param_or(p, "continuity",        0.0f, valueNodes);
-                rn->zeroCrossTendency = resolve_param_or(p, "zeroCrossTendency", 0.0f, valueNodes);
-            }
-
-            valueNodes[id] = rn;
-            monoNodes[id]  = std::make_unique<WaveSourceMono>(rn);
-        }
+        // ---- WavetableSource (evolution types) ----
         else if (type == "WavetableSource") {
-            uint32_t seed = 0xC0FFEEu;
-            if (node.contains("params") && node["params"].contains("seed"))
-                seed = static_cast<uint32_t>(node["params"]["seed"].get<int>());
-
-            auto wt = std::make_shared<WavetableSource>(sampleRate, seed);
-
-            if (node.contains("params")) {
-                const auto& p = node["params"];
-
-                wt->set_frequency(resolve_param_or(p, "frequency", 440.0f, valueNodes));
-                wt->set_amplitude(resolve_param_or(p, "amplitude", 1.0f,   valueNodes));
-                wt->set_phase(    resolve_param_or(p, "phase",     0.0f,   valueNodes));
-
-                if (p.contains("speedFactor"))
-                    wt->set_speed_factor(resolve_param_or(p, "speedFactor", 1.0f, valueNodes));
-
-                bool interpolate = p.value("interpolate", false);
-                wt->set_interpolate(interpolate);
-
-                // Input source override
-                if (p.contains("inputSource")) {
-                    std::string inputRef = p["inputSource"].at("ref").get<std::string>();
-                    auto it = valueNodes.find(inputRef);
-                    if (it == valueNodes.end())
-                        throw std::runtime_error("Unresolved inputSource ref: " + inputRef);
-                    wt->set_input_source(it->second);
-                }
-
-                // Evolution
+            auto wt = std::make_shared<WavetableSource>(sampleRate, seed.value_or(0xC0FFEEu));
+            if (pp) {
+                const auto& p = *pp;
+                wire_params_generic(*wt, p, valueNodes);
+                wt->set_interpolate(p.value("interpolate", false));
                 std::string evoType = p.value("evolution", std::string("none"));
-
                 if (evoType == "pluck") {
-                    float muting = p.value("muting", 0.0f);
-                    uint32_t evoSeed = p.value("evolutionSeed", 42);
-                    wt->set_evolution(
-                        std::make_unique<PluckEvolution>(muting, uint32_t(evoSeed)));
-                }
-                else if (evoType == "averaging") {
-                    float sc = p.value("sampleCount", 2.0f);
-                    float sp = p.value("speed", 1.0f);
-                    float df = p.value("decayFactor", 0.996f);
-                    bool leading    = p.value("leading", false);
-                    bool autoAdjust = p.value("autoAdjust", false);
-                    uint32_t evoSeed = p.value("evolutionSeed", 42);
-                    wt->set_evolution(
-                        std::make_unique<AveragingEvolution>(
-                            sc, sp, df, leading, autoAdjust, uint32_t(evoSeed)));
-                }
-                else if (evoType == "target") {
-                    float mr = p.value("morphRate", 0.001f);
-                    int hold = p.value("holdCycles", 3);
-                    float df = p.value("decayFactor", 0.998f);
-
-                    // Build target waveform
+                    wt->set_evolution(std::make_unique<PluckEvolution>(
+                        p.value("muting", 0.0f), uint32_t(p.value("evolutionSeed", 42))));
+                } else if (evoType == "averaging") {
+                    wt->set_evolution(std::make_unique<AveragingEvolution>(
+                        p.value("sampleCount", 2.0f), p.value("speed", 1.0f),
+                        p.value("decayFactor", 0.996f), p.value("leading", false),
+                        p.value("autoAdjust", false), uint32_t(p.value("evolutionSeed", 42))));
+                } else if (evoType == "target") {
                     std::vector<float> target;
-
                     if (p.contains("targetWave")) {
-                        // Explicit array
                         target = p["targetWave"].get<std::vector<float>>();
-                    }
-                    else if (p.contains("targetPartials")) {
-                        // Generate from partial amplitudes: sum of sines
+                    } else if (p.contains("targetPartials")) {
                         auto partials = p["targetPartials"].get<std::vector<float>>();
                         int tLen = p.value("targetLength", 1024);
                         target.resize(tLen, 0.0f);
                         constexpr float TAU = 2.0f * 3.14159265358979323846f;
                         for (int i = 0; i < tLen; ++i) {
                             float pos = float(i) / float(tLen);
-                            for (int h = 0; h < int(partials.size()); ++h) {
+                            for (int h = 0; h < int(partials.size()); ++h)
                                 target[i] += partials[h] * std::sin(pos * TAU * float(h + 1));
-                            }
                         }
-                        // Normalize
                         float peak = 0.0f;
                         for (float v : target) peak = std::max(peak, std::fabs(v));
                         if (peak > 0.0f) for (float& v : target) v /= peak;
                     }
-
-                    uint32_t evoSeed2 = p.value("evolutionSeed", 42);
-                    wt->set_evolution(
-                        std::make_unique<TargetEvolution>(
-                            mr, hold, df, std::move(target), uint32_t(evoSeed2)));
+                    wt->set_evolution(std::make_unique<TargetEvolution>(
+                        p.value("morphRate", 0.001f), p.value("holdCycles", 3),
+                        p.value("decayFactor", 0.998f), std::move(target),
+                        uint32_t(p.value("evolutionSeed", 42))));
                 }
             }
-
             valueNodes[id] = wt;
-            monoNodes[id]  = std::make_unique<WaveSourceMono>(wt);
+            add_mono(g, id, wt);
         }
+        // ---- HybridKSSource (config params) ----
         else if (type == "HybridKSSource") {
-            uint32_t seed = 0xBEEF'C0DEu;
-            if (node.contains("params") && node["params"].contains("seed"))
-                seed = static_cast<uint32_t>(node["params"]["seed"].get<int>());
-
-            auto hks = std::make_shared<HybridKSSource>(sampleRate, seed);
-
-            if (node.contains("params")) {
-                const auto& p = node["params"];
-                hks->set_frequency(resolve_param_or(p, "frequency", 440.0f, valueNodes));
-                hks->set_amplitude(resolve_param_or(p, "amplitude", 1.0f,   valueNodes));
-
+            auto hks = std::make_shared<HybridKSSource>(sampleRate, seed.value_or(0xBEEF'C0DEu));
+            if (pp) {
+                const auto& p = *pp;
+                wire_params_generic(*hks, p, valueNodes);
                 hks->set_hold_cycles(p.value("holdCycles", 5));
                 hks->set_morph_duration(p.value("morphDuration", 0.5f));
                 hks->set_num_partials(p.value("numPartials", 30));
-
-                if (p.contains("inputSource")) {
-                    std::string ref = p["inputSource"].at("ref").get<std::string>();
-                    auto it = valueNodes.find(ref);
-                    if (it != valueNodes.end())
-                        hks->set_input_source(it->second);
-                }
-
                 if (p.contains("targetPartials"))
                     hks->set_target_partials(p["targetPartials"].get<std::vector<float>>());
             }
-
             valueNodes[id] = hks;
-            monoNodes[id]  = std::make_unique<WaveSourceMono>(hks);
+            add_mono(g, id, hks);
         }
-        else if (type == "PhasedValueSource") {
-            float overlap = 0.05f;
-            if (node.contains("params"))
-                overlap = node["params"].value("overlap", 0.05f);
-
-            auto pvs = std::make_shared<PhasedValueSource>(sampleRate, overlap);
-
-            if (node.contains("params")) {
-                const auto& p = node["params"];
-                pvs->amplitude = resolve_param_or(p, "amplitude", 1.0f, valueNodes);
-
-                if (p.contains("stages")) {
-                    for (auto& sj : p["stages"]) {
-                        PhasedValueSource::Stage stg;
-                        stg.source  = resolve_param(sj.at("source"), valueNodes);
-                        stg.percent = sj.value("percent", 0.0f);
-                        stg.minSec  = sj.value("min", 0.0f);
-                        stg.maxSec  = sj.value("max", 0.0f);
-                        stg.gainAdj = sj.value("gain", 1.0f);
-                        pvs->add_stage(std::move(stg));
-                    }
-                }
+        // =================================================================
+        // Generic path: registry create + set_param + optional configurator
+        // =================================================================
+        else if (reg.has(type)) {
+            auto src = reg.create(type, sampleRate, seed);
+            if (pp) {
+                wire_params_generic(*src, *pp, valueNodes);
+                auto* configurator = reg.get_configurator(type);
+                if (configurator) (*configurator)(*src, *pp, resolveFn);
             }
-            valueNodes[id] = pvs;
-            monoNodes[id]  = std::make_unique<ValueSourceMono>(pvs);
-        }
-        else if (type == "SegmentSource") {
-            uint32_t seed = 0x5E6A'0000u;
-            if (node.contains("params") && node["params"].contains("seed"))
-                seed = static_cast<uint32_t>(node["params"]["seed"].get<int>());
-
-            std::vector<float> values;
-            if (node.contains("params") && node["params"].contains("values"))
-                values = node["params"]["values"].get<std::vector<float>>();
-
-            bool oneShot = false;
-            if (node.contains("params"))
-                oneShot = node["params"].value("oneShot", false);
-
-            auto seg = std::make_shared<SegmentSource>(std::move(values), sampleRate, oneShot, seed);
-
-            if (node.contains("params")) {
-                const auto& p = node["params"];
-                seg->amplitude   = resolve_param_or(p, "amplitude",   1.0f, valueNodes);
-                seg->smoothness  = resolve_param_or(p, "smoothness",  0.5f, valueNodes);
-                seg->widthVarPct = resolve_param_or(p, "widthVarPct", 0.0f, valueNodes);
-                seg->valVarPct   = resolve_param_or(p, "valVarPct",   0.0f, valueNodes);
-                seg->gap         = resolve_param_or(p, "gap",         0.0f, valueNodes);
-                seg->gapVarPct   = resolve_param_or(p, "gapVarPct",   0.0f, valueNodes);
-            }
-            valueNodes[id] = seg;
-            monoNodes[id]  = std::make_unique<ValueSourceMono>(seg);
-        }
-        else if (type == "RepeatingSource") {
-            uint32_t seed = 0xAEAE'0000u;
-            if (node.contains("params") && node["params"].contains("seed"))
-                seed = static_cast<uint32_t>(node["params"]["seed"].get<int>());
-
-            auto rep = std::make_shared<RepeatingSource>(sampleRate, seed);
-
-            if (node.contains("params")) {
-                const auto& p = node["params"];
-                if (p.contains("source")) {
-                    std::string srcRef = p["source"].at("ref").get<std::string>();
-                    auto it = valueNodes.find(srcRef);
-                    if (it != valueNodes.end()) rep->source = it->second;
-                }
-                rep->duration    = p.value("duration", 0.5f);
-                rep->durVarPct   = p.value("durVarPct", 0.0f);
-                rep->gapDuration = p.value("gap", 0.2f);
-                rep->gapVarPct   = p.value("gapVarPct", 0.0f);
-            }
-            valueNodes[id] = rep;
-            monoNodes[id]  = std::make_unique<ValueSourceMono>(rep);
-        }
-        else if (type == "CombinedSource") {
-            if (!node.contains("params"))
-                throw std::runtime_error("CombinedSource requires params");
-            const auto& p = node["params"];
-
-            auto s1 = resolve_param_or(p, "source1", 0.0f, valueNodes);
-            auto s2 = resolve_param_or(p, "source2", 0.0f, valueNodes);
-            std::string opStr = p.value("operation", std::string("add"));
-            float ga = p.value("gainAdj", 0.0f);
-
-            CombineOp op = CombineOp::Add;
-            if (opStr == "multiply") op = CombineOp::Multiply;
-            else if (opStr == "fade") op = CombineOp::Fade;
-
-            valueNodes[id] = std::make_shared<CombinedSource>(
-                std::move(s1), std::move(s2), op, ga);
-        }
-        else if (type == "CrossfadeSource") {
-            auto cs = std::make_shared<CrossfadeSource>();
-            if (node.contains("params")) {
-                const auto& p = node["params"];
-                cs->source1   = resolve_param_or(p, "source1",   0.0f, valueNodes);
-                cs->source2   = resolve_param_or(p, "source2",   0.0f, valueNodes);
-                cs->amplitude = resolve_param_or(p, "amplitude", 1.0f, valueNodes);
-                cs->ratio     = p.value("ratio", 0.5f);
-                cs->overlap   = p.value("overlap", 0.1f);
-                cs->gainAdj   = p.value("gainAdj", 0.0f);
-            }
-            valueNodes[id] = cs;
-        }
-        else if (type == "DistortedSource") {
-            uint32_t seed = 0xD157'0000u;
-            if (node.contains("params") && node["params"].contains("seed"))
-                seed = static_cast<uint32_t>(node["params"]["seed"].get<int>());
-
-            auto ds = std::make_shared<DistortedSource>(seed);
-            if (node.contains("params")) {
-                const auto& p = node["params"];
-                ds->source    = resolve_param_or(p, "source",    0.0f, valueNodes);
-                ds->amplitude = resolve_param_or(p, "amplitude", 1.0f, valueNodes);
-                ds->density   = resolve_param_or(p, "density",   1.0f, valueNodes);
-                ds->gain      = resolve_param_or(p, "gain",      1.0f, valueNodes);
-                ds->shift     = resolve_param_or(p, "shift",     0.0f, valueNodes);
-            }
-            valueNodes[id] = ds;
-            monoNodes[id]  = std::make_unique<ValueSourceMono>(ds);
-        }
-        else if (type == "StaticVarSource") {
-            const auto& p = node.at("params");
-            uint32_t seed = p.value("seed", 0x57A7'0001);
-            valueNodes[id] = std::make_shared<StaticVarSource>(
-                p.value("baseValue", 1.0f), p.value("varPct", 0.0f),
-                p.value("bias", 0.0f), uint32_t(seed));
-        }
-        else if (type == "StaticRangeSource") {
-            const auto& p = node.at("params");
-            uint32_t seed = p.value("seed", 0x57A7'0002);
-            valueNodes[id] = std::make_shared<StaticRangeSource>(
-                p.value("min", 0.0f), p.value("max", 1.0f),
-                p.value("bias", 0.0f), uint32_t(seed));
-        }
-        else if (type == "BWLowpassFilter") {
-            int sections = 2;
-            if (node.contains("params"))
-                sections = node["params"].value("sections", 2);
-
-            auto f = std::make_shared<BWLowpassFilter>(sampleRate, sections);
-            if (node.contains("params")) {
-                const auto& p = node["params"];
-                f->source     = resolve_param_or(p, "source",     0.0f, valueNodes);
-                f->cutoffFreq = resolve_param_or(p, "cutoff",  5000.0f, valueNodes);
-            }
-            valueNodes[id] = f;
-            monoNodes[id]  = std::make_unique<ValueSourceMono>(f);
-        }
-        else if (type == "BWHighpassFilter") {
-            int sections = 2;
-            if (node.contains("params"))
-                sections = node["params"].value("sections", 2);
-
-            auto f = std::make_shared<BWHighpassFilter>(sampleRate, sections);
-            if (node.contains("params")) {
-                const auto& p = node["params"];
-                f->source     = resolve_param_or(p, "source",    0.0f, valueNodes);
-                f->cutoffFreq = resolve_param_or(p, "cutoff",  100.0f, valueNodes);
-            }
-            valueNodes[id] = f;
-            monoNodes[id]  = std::make_unique<ValueSourceMono>(f);
-        }
-        else if (type == "BWBandpassFilter") {
-            int sections = 2;
-            if (node.contains("params"))
-                sections = node["params"].value("sections", 2);
-
-            auto f = std::make_shared<BWBandpassFilter>(sampleRate, sections);
-            if (node.contains("params")) {
-                const auto& p = node["params"];
-                f->source     = resolve_param_or(p, "source",      0.0f, valueNodes);
-                f->lowCutoff  = resolve_param_or(p, "lowCutoff", 100.0f, valueNodes);
-                f->highCutoff = resolve_param_or(p, "highCutoff",5000.0f, valueNodes);
-            }
-            valueNodes[id] = f;
-            monoNodes[id]  = std::make_unique<ValueSourceMono>(f);
-        }
-        else if (type == "DelayFilter") {
-            auto d = std::make_shared<DelayFilter>(sampleRate);
-            if (node.contains("params")) {
-                const auto& p = node["params"];
-                d->source     = resolve_param_or(p, "source",     0.0f, valueNodes);
-                d->delayTime  = resolve_param_or(p, "delayTime",  0.1f, valueNodes);
-                d->delayLevel = resolve_param_or(p, "delayLevel", 0.5f, valueNodes);
-                d->feedback   = resolve_param_or(p, "feedback",   0.3f, valueNodes);
-            }
-            valueNodes[id] = d;
-            monoNodes[id]  = std::make_unique<ValueSourceMono>(d);
-        }
-        else if (type == "Vibrato") {
-            if (!node.contains("params"))
-                throw std::runtime_error("Vibrato requires params");
-            const auto& p = node["params"];
-
-            float speed     = p.value("speed", 5.0f);
-            float depth     = p.value("depth", 0.02f);
-            float attack    = p.value("attack", 0.3f);
-            float threshold = p.value("threshold", 0.0f);
-            float speedVar  = p.value("speedVar", 0.0f);
-            float depthVar  = p.value("depthVar", 0.0f);
-            uint32_t seed   = p.value("seed", 0xF1B0'0000);
-
-            auto vib = std::make_shared<Vibrato>(
-                sampleRate, speed, depth, attack, threshold, speedVar, depthVar, uint32_t(seed));
-            vib->frequency = resolve_param_or(p, "frequency", 440.0f, valueNodes);
-
-            valueNodes[id] = vib;
+            valueNodes[id] = src;
+            add_formant(g, id, src);
+            add_mono(g, id, src);
         }
         // SoundChannel and StereoMixer handled by caller
-    }
+        else if (type != "SoundChannel" && type != "StereoMixer") {
+            throw std::runtime_error("Unknown node type: " + type);
+        }
+
+    } // end for each node
 
     return g;
 }
+
 
 // ---------------------------------------------------------------------------
 // Resolve paramMap: "frequency" → "rn1.frequency" → shared_ptr<ConstantSource>
@@ -907,21 +511,12 @@ resolve_param_map(
         }
 
         // Find the ValueSource wired as that param on that node.
-        // The node must exist in valueNodes, and the param must be a ConstantSource.
         auto nodeIt = g.valueNodes.find(nodeId);
         if (nodeIt == g.valueNodes.end())
             throw std::runtime_error("paramMap: unknown node '" + nodeId + "'");
 
-        // For WaveSource nodes, we can resolve known param names
-        auto ws = std::dynamic_pointer_cast<WaveSource>(nodeIt->second);
-        std::shared_ptr<ValueSource> paramSrc;
-
-        if (ws) {
-            if (paramName == "frequency") paramSrc = ws->get_frequency();
-            else if (paramName == "amplitude") paramSrc = ws->get_amplitude();
-            else if (paramName == "phase") paramSrc = ws->get_phase();
-        }
-
+        // Generic: use get_param() — works for any self-describing type
+        auto paramSrc = nodeIt->second->get_param(paramName);
         if (!paramSrc)
             throw std::runtime_error("paramMap: cannot resolve '" + target + "'");
 

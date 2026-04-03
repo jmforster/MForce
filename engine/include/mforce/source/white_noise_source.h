@@ -12,6 +12,9 @@ struct WhiteNoiseSource final : ValueSource {
   explicit WhiteNoiseSource(uint32_t seed = 0x12345678u)
   : rng_(seed) {}
 
+  const char* type_name() const override { return "WhiteNoiseSource"; }
+  SourceCategory category() const override { return SourceCategory::Generator; }
+
   void prepare(int /*frames*/) override {}
 
   float next() override {

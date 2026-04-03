@@ -47,6 +47,47 @@ struct RangeSource final : ValueSource {
   void set_max(std::shared_ptr<ValueSource> s) { max_ = std::move(s); }
   void set_var(std::shared_ptr<ValueSource> s) { var_ = std::move(s); }
 
+  const char* type_name() const override { return "RangeSource"; }
+  SourceCategory category() const override { return SourceCategory::Modulator; }
+
+  std::span<const ParamDescriptor> param_descriptors() const override {
+    static constexpr ParamDescriptor descs[] = {
+      {"min", 0.0f, -10000.0f, 10000.0f},
+      {"max", 1.0f, -10000.0f, 10000.0f},
+      {"var", 0.0f, -10000.0f, 10000.0f},
+    };
+    return descs;
+  }
+
+  void set_param(std::string_view name, std::shared_ptr<ValueSource> src) override {
+    if (name == "min") { set_min(std::move(src)); return; }
+    if (name == "max") { set_max(std::move(src)); return; }
+    if (name == "var") { set_var(std::move(src)); return; }
+  }
+
+  std::shared_ptr<ValueSource> get_param(std::string_view name) const override {
+    if (name == "min") return min_;
+    if (name == "max") return max_;
+    if (name == "var") return var_;
+    return nullptr;
+  }
+
+  std::span<const ConfigDescriptor> config_descriptors() const override {
+    static constexpr ConfigDescriptor descs[] = {
+      {"normalized", ConfigType::Bool, 1.0f, 0.0f, 1.0f},
+    };
+    return descs;
+  }
+
+  void set_config(std::string_view name, float value) override {
+    if (name == "normalized") { varNormalized_ = (value != 0.0f); return; }
+  }
+
+  float get_config(std::string_view name) const override {
+    if (name == "normalized") return varNormalized_ ? 1.0f : 0.0f;
+    return 0.0f;
+  }
+
 private:
   std::shared_ptr<ValueSource> min_;
   std::shared_ptr<ValueSource> max_;

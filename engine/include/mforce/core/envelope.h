@@ -63,7 +63,7 @@ struct Ramp {
 // Ported from C# StagedValueSource + MEnvelope + preset subclasses.
 // A multi-stage envelope where each stage is a Ramp with timing controls.
 // ---------------------------------------------------------------------------
-struct Envelope final : ValueSource {
+struct Envelope : ValueSource {
 
   struct Stage {
     Ramp ramp;
@@ -73,6 +73,9 @@ struct Envelope final : ValueSource {
   };
 
   explicit Envelope(int sampleRate) : sampleRate_(sampleRate) {}
+
+  const char* type_name() const override { return "Envelope"; }
+  SourceCategory category() const override { return SourceCategory::Envelope; }
 
   void add_stage(Stage s) { stages_.push_back(s); }
 

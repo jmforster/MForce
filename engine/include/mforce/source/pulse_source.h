@@ -18,6 +18,31 @@ struct PulseSource final : WaveSource {
   void set_duty_cycle(std::shared_ptr<ValueSource> d) { dutyCycle_ = std::move(d); }
   void set_bend(std::shared_ptr<ValueSource> b) { bend_ = std::move(b); }
 
+  const char* type_name() const override { return "PulseSource"; }
+
+  std::span<const ParamDescriptor> param_descriptors() const override {
+    static constexpr ParamDescriptor descs[] = {
+      {"frequency",  440.0f, 0.01f, 20000.0f},
+      {"amplitude",  1.0f,   0.0f,  10.0f},
+      {"phase",      0.0f,  -1.0f,  1.0f},
+      {"dutyCycle",  0.5f,   0.01f, 0.99f},
+      {"bend",       0.0f,  -1.0f,  1.0f},
+    };
+    return descs;
+  }
+
+  void set_param(std::string_view name, std::shared_ptr<ValueSource> src) override {
+    if (name == "dutyCycle") { set_duty_cycle(std::move(src)); return; }
+    if (name == "bend")     { set_bend(std::move(src)); return; }
+    WaveSource::set_param(name, std::move(src));
+  }
+
+  std::shared_ptr<ValueSource> get_param(std::string_view name) const override {
+    if (name == "dutyCycle") return dutyCycle_;
+    if (name == "bend")     return bend_;
+    return WaveSource::get_param(name);
+  }
+
   void prepare(int frames) override {
     WaveSource::prepare(frames);
     dutyCycle_->prepare(frames);

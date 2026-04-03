@@ -1,13 +1,23 @@
 # MForce project instructions
 
-## Shell commands                                                                                                       - Use literal paths, not shell variables ($CMAKE, $p, etc.)
+## Commands                                                                                                       - Use literal paths, not shell variables ($CMAKE, $p, etc.)
 - Use literal paths, not shell variables ($CMAKE, $p, etc.)
-- Avoid for/while loops in bash commands                                                                                - Chain independent commands with && instead
+- Avoid for/while loops in bash commands, chain independent commands with && instead
+- Never combine cd with git — use git -C path instead
+- Never combine cd with write operations (mv, rm, sed -i) — use absolute paths instead
+- For commands that need to run from the repo root, rely on the working directory already being correct rather than
+  prefixing with cd
 
 ## Repositories
 - Current C++ implementation: this repo
 - Legacy C# core implementation: ./mforce-legacy
 - Legacy C#/Unity controller and UI implementation: ./mforce-unity
+- The base class for all components is MUnityComponent which extended MonoBehaviour (base for all Unity objects)
+- The top-level unity class is SoundController.cs
+- There are 2 generations of unity wrapper classes per "core" class:
+  1 - *Wrapper are gen 1, scripts user can add added to Unity hierarchy and set params via inspector UI
+  2 - *Node are gen 2, UI nodes using 3rd party xNode library which user can add to a visual node graph
+- Both generations are functional but source for port should be gen 2 nodes
 
 When porting code:
 - Always use best practices for modern C++ architecture
@@ -52,7 +62,7 @@ Replicate legacy functionality of node-based UI to:
 ## Non-negotiables
 - No heap allocation in hot render loops
 - Avoid reflection-like designs; prefer explicit registries
-- Use deterministic seeds in examples and tests
+- Seeds: random at creation time, stored in JSON for reproducibility. Not user-facing.
 
 ## Architecture direction
 - ValueSource graph model is fundamental for DSP

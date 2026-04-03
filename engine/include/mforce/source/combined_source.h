@@ -11,29 +11,75 @@ namespace mforce {
 enum class CombineOp { Add, Multiply, Fade };
 
 struct CombinedSource final : ValueSource {
-  std::shared_ptr<ValueSource> source1;
-  std::shared_ptr<ValueSource> source2;
   CombineOp op{CombineOp::Add};
   float gainAdj{0.0f};
 
   CombinedSource(std::shared_ptr<ValueSource> s1, std::shared_ptr<ValueSource> s2,
                  CombineOp operation, float ga = 0.0f)
-  : source1(std::move(s1)), source2(std::move(s2)), op(operation), gainAdj(ga) {}
+  : source1_(std::move(s1)), source2_(std::move(s2)), op(operation), gainAdj(ga) {}
+
+  void set_source1(std::shared_ptr<ValueSource> s) { source1_ = std::move(s); }
+  void set_source2(std::shared_ptr<ValueSource> s) { source2_ = std::move(s); }
+  std::shared_ptr<ValueSource> get_source1() const { return source1_; }
+  std::shared_ptr<ValueSource> get_source2() const { return source2_; }
+
+  const char* type_name() const override { return "CombinedSource"; }
+  SourceCategory category() const override { return SourceCategory::Combiner; }
+
+  std::span<const ParamDescriptor> param_descriptors() const override { return {}; }
+
+  std::span<const InputDescriptor> input_descriptors() const override {
+    static constexpr InputDescriptor descs[] = {
+      {"source1"},
+      {"source2"},
+    };
+    return descs;
+  }
+
+  void set_param(std::string_view name, std::shared_ptr<ValueSource> src) override {
+    if (name == "source1") { source1_ = std::move(src); return; }
+    if (name == "source2") { source2_ = std::move(src); return; }
+  }
+
+  std::shared_ptr<ValueSource> get_param(std::string_view name) const override {
+    if (name == "source1") return source1_;
+    if (name == "source2") return source2_;
+    return nullptr;
+  }
+
+  std::span<const ConfigDescriptor> config_descriptors() const override {
+    static constexpr ConfigDescriptor descs[] = {
+      {"operation", ConfigType::Int,   0.0f, 0.0f, 2.0f},  // 0=Add, 1=Multiply, 2=Fade
+      {"gainAdj",   ConfigType::Float, 0.0f, -1.0f, 10.0f},
+    };
+    return descs;
+  }
+
+  void set_config(std::string_view name, float value) override {
+    if (name == "operation") { op = static_cast<CombineOp>(int(value)); return; }
+    if (name == "gainAdj")   { gainAdj = value; return; }
+  }
+
+  float get_config(std::string_view name) const override {
+    if (name == "operation") return float(static_cast<int>(op));
+    if (name == "gainAdj")   return gainAdj;
+    return 0.0f;
+  }
 
   void prepare(int frames) override {
     totalFrames_ = frames;
     ptr_ = -1;
-    source1->prepare(frames);
-    source2->prepare(frames);
+    source1_->prepare(frames);
+    source2_->prepare(frames);
   }
 
   float next() override {
     ++ptr_;
-    source1->next();
-    source2->next();
+    source1_->next();
+    source2_->next();
 
-    float v1 = source1->current();
-    float v2 = source2->current();
+    float v1 = source1_->current();
+    float v2 = source2_->current();
 
     if (op == CombineOp::Add) {
       cur_ = (v1 + v2 * (1.0f + gainAdj)) * 0.5f;
@@ -49,6 +95,8 @@ struct CombinedSource final : ValueSource {
   float current() const override { return cur_; }
 
 private:
+  std::shared_ptr<ValueSource> source1_;
+  std::shared_ptr<ValueSource> source2_;
   int ptr_{-1};
   int totalFrames_{1};
   float cur_{0.0f};
@@ -58,12 +106,69 @@ private:
 // ratio: fraction of total time for source1 (0.7 = 70% source1, 30% source2)
 // overlap: fraction of the shorter segment that overlaps during transition
 struct CrossfadeSource final : ValueSource {
-  std::shared_ptr<ValueSource> source1;
-  std::shared_ptr<ValueSource> source2;
-  std::shared_ptr<ValueSource> amplitude;
   float ratio{0.5f};
   float overlap{0.1f};
   float gainAdj{0.0f};
+
+  void set_source1(std::shared_ptr<ValueSource> s)   { source1_ = std::move(s); }
+  void set_source2(std::shared_ptr<ValueSource> s)   { source2_ = std::move(s); }
+  void set_amplitude(std::shared_ptr<ValueSource> s) { amplitude_ = std::move(s); }
+  std::shared_ptr<ValueSource> get_source1() const   { return source1_; }
+  std::shared_ptr<ValueSource> get_source2() const   { return source2_; }
+  std::shared_ptr<ValueSource> get_amplitude() const { return amplitude_; }
+
+  const char* type_name() const override { return "CrossfadeSource"; }
+  SourceCategory category() const override { return SourceCategory::Combiner; }
+
+  std::span<const ParamDescriptor> param_descriptors() const override {
+    static constexpr ParamDescriptor descs[] = {
+      {"amplitude", 1.0f,  0.0f,     10.0f},
+    };
+    return descs;
+  }
+
+  std::span<const InputDescriptor> input_descriptors() const override {
+    static constexpr InputDescriptor descs[] = {
+      {"source1"},
+      {"source2"},
+    };
+    return descs;
+  }
+
+  void set_param(std::string_view name, std::shared_ptr<ValueSource> src) override {
+    if (name == "source1")   { source1_ = std::move(src); return; }
+    if (name == "source2")   { source2_ = std::move(src); return; }
+    if (name == "amplitude") { amplitude_ = std::move(src); return; }
+  }
+
+  std::shared_ptr<ValueSource> get_param(std::string_view name) const override {
+    if (name == "source1")   return source1_;
+    if (name == "source2")   return source2_;
+    if (name == "amplitude") return amplitude_;
+    return nullptr;
+  }
+
+  std::span<const ConfigDescriptor> config_descriptors() const override {
+    static constexpr ConfigDescriptor descs[] = {
+      {"ratio",   ConfigType::Float, 0.5f, 0.0f, 1.0f},
+      {"overlap", ConfigType::Float, 0.1f, 0.0f, 1.0f},
+      {"gainAdj", ConfigType::Float, 0.0f, -1.0f, 10.0f},
+    };
+    return descs;
+  }
+
+  void set_config(std::string_view name, float value) override {
+    if (name == "ratio")   { ratio = value; return; }
+    if (name == "overlap") { overlap = value; return; }
+    if (name == "gainAdj") { gainAdj = value; return; }
+  }
+
+  float get_config(std::string_view name) const override {
+    if (name == "ratio")   return ratio;
+    if (name == "overlap") return overlap;
+    if (name == "gainAdj") return gainAdj;
+    return 0.0f;
+  }
 
   void prepare(int frames) override {
     totalFrames_ = frames;
@@ -76,22 +181,22 @@ struct CrossfadeSource final : ValueSource {
     s1End_ = s1Count + overlapCount_;
     s2Start_ = s1Count - overlapCount_;
 
-    if (amplitude) amplitude->prepare(frames);
-    source1->prepare(s1Count + overlapCount_);
-    source2->prepare(s2Count + overlapCount_);
+    if (amplitude_) amplitude_->prepare(frames);
+    source1_->prepare(s1Count + overlapCount_);
+    source2_->prepare(s2Count + overlapCount_);
   }
 
   float next() override {
     ++ptr_;
-    float amp = amplitude ? (amplitude->next(), amplitude->current()) : 1.0f;
+    float amp = amplitude_ ? (amplitude_->next(), amplitude_->current()) : 1.0f;
 
     if (ptr_ < s2Start_) {
-      cur_ = source1->next() * amp;
+      cur_ = source1_->next() * amp;
     } else if (ptr_ >= s1End_) {
-      cur_ = source2->next() * amp * (1.0f + gainAdj);
+      cur_ = source2_->next() * amp * (1.0f + gainAdj);
     } else {
-      float v1 = source1->next();
-      float v2 = source2->next();
+      float v1 = source1_->next();
+      float v2 = source2_->next();
       float t = float(ptr_ - s2Start_) / float(s1End_ - s2Start_);
       cur_ = (v1 * (1.0f - t) + v2 * (1.0f + gainAdj) * t) * amp;
     }
@@ -101,6 +206,9 @@ struct CrossfadeSource final : ValueSource {
   float current() const override { return cur_; }
 
 private:
+  std::shared_ptr<ValueSource> source1_;
+  std::shared_ptr<ValueSource> source2_;
+  std::shared_ptr<ValueSource> amplitude_;
   int totalFrames_{1};
   int ptr_{-1};
   int overlapCount_{0};
@@ -111,34 +219,77 @@ private:
 // Ported from C# DistortedSource — waveshaping distortion.
 // Shifts, amplifies, and clips the input. Density controls probability of effect.
 struct DistortedSource final : ValueSource {
-  std::shared_ptr<ValueSource> source;
-  std::shared_ptr<ValueSource> amplitude;
-  std::shared_ptr<ValueSource> density;
-  std::shared_ptr<ValueSource> gain;
-  std::shared_ptr<ValueSource> shift;
-
   explicit DistortedSource(uint32_t seed = 0xD1570000u) : rng_(seed) {}
 
+  void set_source(std::shared_ptr<ValueSource> s)    { source_ = std::move(s); }
+  void set_amplitude(std::shared_ptr<ValueSource> s) { amplitude_ = std::move(s); }
+  void set_density(std::shared_ptr<ValueSource> s)   { density_ = std::move(s); }
+  void set_gain(std::shared_ptr<ValueSource> s)      { gain_ = std::move(s); }
+  void set_shift(std::shared_ptr<ValueSource> s)     { shift_ = std::move(s); }
+
+  std::shared_ptr<ValueSource> get_source() const    { return source_; }
+  std::shared_ptr<ValueSource> get_amplitude() const { return amplitude_; }
+  std::shared_ptr<ValueSource> get_density() const   { return density_; }
+  std::shared_ptr<ValueSource> get_gain() const      { return gain_; }
+  std::shared_ptr<ValueSource> get_shift() const     { return shift_; }
+
+  const char* type_name() const override { return "DistortedSource"; }
+  SourceCategory category() const override { return SourceCategory::Modulator; }
+
+  std::span<const ParamDescriptor> param_descriptors() const override {
+    static constexpr ParamDescriptor descs[] = {
+      {"amplitude", 1.0f,  0.0f,     10.0f},
+      {"density",   1.0f,  0.0f,     1.0f},
+      {"gain",      1.0f,  0.0f,     100.0f},
+      {"shift",     0.0f, -1.0f,     1.0f},
+    };
+    return descs;
+  }
+
+  std::span<const InputDescriptor> input_descriptors() const override {
+    static constexpr InputDescriptor descs[] = {
+      {"source"},
+    };
+    return descs;
+  }
+
+  void set_param(std::string_view name, std::shared_ptr<ValueSource> src) override {
+    if (name == "source")    { source_ = std::move(src); return; }
+    if (name == "amplitude") { amplitude_ = std::move(src); return; }
+    if (name == "density")   { density_ = std::move(src); return; }
+    if (name == "gain")      { gain_ = std::move(src); return; }
+    if (name == "shift")     { shift_ = std::move(src); return; }
+  }
+
+  std::shared_ptr<ValueSource> get_param(std::string_view name) const override {
+    if (name == "source")    return source_;
+    if (name == "amplitude") return amplitude_;
+    if (name == "density")   return density_;
+    if (name == "gain")      return gain_;
+    if (name == "shift")     return shift_;
+    return nullptr;
+  }
+
   void prepare(int frames) override {
-    if (source) source->prepare(frames);
-    if (amplitude) amplitude->prepare(frames);
-    if (density) density->prepare(frames);
-    if (gain) gain->prepare(frames);
-    if (shift) shift->prepare(frames);
+    if (source_) source_->prepare(frames);
+    if (amplitude_) amplitude_->prepare(frames);
+    if (density_) density_->prepare(frames);
+    if (gain_) gain_->prepare(frames);
+    if (shift_) shift_->prepare(frames);
   }
 
   float next() override {
-    if (source) source->next();
-    if (density) density->next();
-    if (gain) gain->next();
-    if (shift) shift->next();
-    if (amplitude) amplitude->next();
+    if (source_) source_->next();
+    if (density_) density_->next();
+    if (gain_) gain_->next();
+    if (shift_) shift_->next();
+    if (amplitude_) amplitude_->next();
 
-    float s = source ? source->current() : 0.0f;
-    float d = density ? density->current() : 1.0f;
-    float g = gain ? gain->current() : 1.0f;
-    float sh = shift ? shift->current() : 0.0f;
-    float a = amplitude ? amplitude->current() : 1.0f;
+    float s = source_ ? source_->current() : 0.0f;
+    float d = density_ ? density_->current() : 1.0f;
+    float g = gain_ ? gain_->current() : 1.0f;
+    float sh = shift_ ? shift_->current() : 0.0f;
+    float a = amplitude_ ? amplitude_->current() : 1.0f;
 
     if (rng_.decide(d)) {
       float shifted = s + sh;
@@ -153,6 +304,11 @@ struct DistortedSource final : ValueSource {
   float current() const override { return cur_; }
 
 private:
+  std::shared_ptr<ValueSource> source_;
+  std::shared_ptr<ValueSource> amplitude_;
+  std::shared_ptr<ValueSource> density_;
+  std::shared_ptr<ValueSource> gain_;
+  std::shared_ptr<ValueSource> shift_;
   Randomizer rng_;
   float cur_{0.0f};
 };
@@ -166,6 +322,9 @@ struct StaticVarSource final : ValueSource {
 
   StaticVarSource(float base, float pct, float b = 0.0f, uint32_t seed = 0x57A70001u)
   : baseValue(base), varPct(pct), bias(b), rng_(seed) {}
+
+  const char* type_name() const override { return "StaticVarSource"; }
+  SourceCategory category() const override { return SourceCategory::Utility; }
 
   void prepare(int /*frames*/) override {
     float r = rng_.valuePN() * varPct;
@@ -187,6 +346,9 @@ struct StaticRangeSource final : ValueSource {
 
   StaticRangeSource(float mn, float mx, float b = 0.0f, uint32_t seed = 0x57A70002u)
   : min(mn), max(mx), bias(b), rng_(seed) {}
+
+  const char* type_name() const override { return "StaticRangeSource"; }
+  SourceCategory category() const override { return SourceCategory::Utility; }
 
   void prepare(int /*frames*/) override {
     cur_ = rng_.range(min, max, bias);

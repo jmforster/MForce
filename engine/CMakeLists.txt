@@ -9,6 +9,8 @@ add_library(mforce_engine
   src/mixer.cpp
   src/wav_writer.cpp
   src/patch_loader.cpp
+  src/source_registry.cpp
+  src/source_registrations.cpp
 )
 
 target_include_directories(mforce_engine PUBLIC

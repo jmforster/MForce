@@ -17,6 +17,9 @@ struct MultiSource final : ValueSource {
 
   std::vector<Entry> entries;
 
+  const char* type_name() const override { return "MultiSource"; }
+  SourceCategory category() const override { return SourceCategory::Combiner; }
+
   void add(std::shared_ptr<ValueSource> src, float weight = 1.0f, int delay = 0) {
     entries.push_back({std::move(src), weight, delay});
   }

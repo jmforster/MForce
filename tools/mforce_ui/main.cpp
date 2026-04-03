@@ -1,4 +1,5 @@
 #include "imgui.h"
+#include "imgui_internal.h"
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
 #include "imnodes.h"
@@ -12,17 +13,14 @@
 #include <nlohmann/json.hpp>
 #include "mforce/render/patch_loader.h"
 #include "mforce/core/equal_temperament.h"
+#include "mforce/core/source_registry.h"
 #include "mforce/core/dsp_value_source.h"
 #include "mforce/core/dsp_wave_source.h"
-#include "mforce/source/sine_source.h"
-#include "mforce/source/saw_source.h"
-#include "mforce/source/triangle_source.h"
-#include "mforce/source/pulse_source.h"
-#include "mforce/source/white_noise_source.h"
-#include "mforce/source/red_noise_source.h"
-#include "mforce/core/envelope.h"
-#include "mforce/core/var_source.h"
-#include "mforce/core/range_source.h"
+#include "mforce/core/envelope.h"      // needed for Envelope::make_adsr
+#include "mforce/core/envelope_presets.h" // ADSREnvelope for NT_ENVELOPE nodes
+#include "mforce/core/var_source.h"     // needed for VarSource constructor
+#include "mforce/core/range_source.h"   // needed for RangeSource constructor
+#include "mforce/source/additive/formant.h" // needed for FormantSpectrum inline table
 #include "mforce/render/mixer.h"
 
 using namespace mforce;
@@ -60,73 +58,71 @@ struct Pin {
     std::string name;
     PinKind kind;
     float defaultValue{0.0f};
+    bool inputOnly{false};  // true for input_descriptors pins (no editable value)
+    bool multi{false};      // true = accepts multiple connections
     std::shared_ptr<ConstantSource> constantSrc;  // holds editable value for unconnected pins
 
-    Pin(const std::string& n, PinKind k, float def = 0.0f)
-        : id(next_id()), name(n), kind(k), defaultValue(def)
+    Pin(const std::string& n, PinKind k, float def = 0.0f, bool inOnly = false, bool isMulti = false)
+        : id(next_id()), name(n), kind(k), defaultValue(def), inputOnly(inOnly), multi(isMulti)
         , constantSrc(std::make_shared<ConstantSource>(def)) {}
 };
 
-enum class NodeType {
-    SineSource, SawSource, TriangleSource, PulseSource,
-    WhiteNoiseSource, RedNoiseSource,
-    Envelope,
-    VarSource, RangeSource,
-    SoundChannel, StereoMixer,
-    PatchOutput,
-    Parameter
-};
+// Special UI-only type name constants (not in the registry)
+static constexpr const char* NT_SOUND_CHANNEL = "SoundChannel";
+static constexpr const char* NT_STEREO_MIXER  = "StereoMixer";
+static constexpr const char* NT_PATCH_OUTPUT  = "PatchOutput";
+static constexpr const char* NT_PARAMETER     = "Parameter";
+static constexpr const char* NT_ENVELOPE      = "Envelope";
 
-static const char* node_type_name(NodeType t) {
-    switch (t) {
-        case NodeType::SineSource:       return "Sine";
-        case NodeType::SawSource:        return "Saw";
-        case NodeType::TriangleSource:   return "Triangle";
-        case NodeType::PulseSource:      return "Pulse";
-        case NodeType::WhiteNoiseSource: return "White Noise";
-        case NodeType::RedNoiseSource:   return "Red Noise";
-        case NodeType::Envelope:         return "Envelope";
-        case NodeType::VarSource:        return "Var";
-        case NodeType::RangeSource:      return "Range";
-        case NodeType::SoundChannel:     return "Channel";
-        case NodeType::StereoMixer:      return "Mixer";
-        case NodeType::PatchOutput:      return "Output";
-        case NodeType::Parameter:        return "Parameter";
-    }
-    return "?";
+static bool is_special_ui_type(const std::string& typeName) {
+    return typeName == NT_SOUND_CHANNEL || typeName == NT_STEREO_MIXER
+        || typeName == NT_PATCH_OUTPUT  || typeName == NT_PARAMETER;
 }
 
-static ImU32 node_title_color(NodeType t) {
-    switch (t) {
-        case NodeType::SineSource:
-        case NodeType::SawSource:
-        case NodeType::TriangleSource:
-        case NodeType::PulseSource:
-            return IM_COL32(70, 100, 180, 255);   // blue — oscillators
-        case NodeType::WhiteNoiseSource:
-        case NodeType::RedNoiseSource:
-            return IM_COL32(140, 80, 80, 255);    // red-brown — noise
-        case NodeType::Envelope:
-            return IM_COL32(80, 140, 80, 255);    // green — envelope
-        case NodeType::VarSource:
-        case NodeType::RangeSource:
-            return IM_COL32(140, 120, 60, 255);   // gold — utility
-        case NodeType::SoundChannel:
-        case NodeType::StereoMixer:
-            return IM_COL32(100, 100, 100, 255);  // gray — mixer/channel
-        case NodeType::PatchOutput:
-            return IM_COL32(60, 150, 150, 255);   // teal — output
-        case NodeType::Parameter:
-            return IM_COL32(180, 100, 180, 255);  // purple — parameter
+static std::string node_display_name(const std::string& typeName) {
+    if (typeName == NT_SOUND_CHANNEL) return "Channel";
+    if (typeName == NT_STEREO_MIXER)  return "Mixer";
+    if (typeName == NT_PATCH_OUTPUT)  return "Output";
+    if (typeName == NT_PARAMETER)     return "Parameter";
+    // Strip "Source" suffix for cleaner display
+    std::string name = typeName;
+    if (name.size() > 6 && name.substr(name.size() - 6) == "Source")
+        name = name.substr(0, name.size() - 6);
+    return name;
+}
+
+static ImU32 node_title_color(const std::string& typeName) {
+    if (typeName == NT_SOUND_CHANNEL || typeName == NT_STEREO_MIXER)
+        return IM_COL32(100, 100, 100, 255);
+    if (typeName == NT_PATCH_OUTPUT) return IM_COL32(60, 150, 150, 255);
+    if (typeName == NT_PARAMETER)    return IM_COL32(180, 100, 180, 255);
+
+    auto& reg = SourceRegistry::instance();
+    if (!reg.has(typeName)) return IM_COL32(128, 128, 128, 255);
+
+    switch (reg.get_category(typeName)) {
+        case SourceCategory::Oscillator: return IM_COL32(70, 100, 180, 255);
+        case SourceCategory::Generator:  return IM_COL32(140, 80, 80, 255);
+        case SourceCategory::Envelope:   return IM_COL32(80, 140, 80, 255);
+        case SourceCategory::Modulator:  return IM_COL32(140, 120, 60, 255);
+        case SourceCategory::Filter:     return IM_COL32(80, 120, 160, 255);
+        case SourceCategory::Combiner:   return IM_COL32(120, 80, 140, 255);
+        case SourceCategory::Additive:   return IM_COL32(100, 140, 100, 255);
+        case SourceCategory::Utility:    return IM_COL32(140, 120, 60, 255);
     }
     return IM_COL32(128, 128, 128, 255);
 }
 
 static constexpr int DSP_SAMPLE_RATE = 48000;
 
+// Row data for inline formant table (FormantSpectrum node)
+struct FormantRow {
+    float frequency{1000.0f}, gain{1.0f}, width{500.0f}, power{2.0f};
+};
+
 struct GraphNode {
     int id;
-    NodeType type;
+    std::string typeName;
     std::string label;
     std::vector<Pin> inputs;
     std::vector<Pin> outputs;
@@ -134,20 +130,30 @@ struct GraphNode {
     // Live DSP object
     std::shared_ptr<ValueSource> dspSource;
 
+    // Config values (non-connectable params like holdCycles, absolute, etc.)
+    std::vector<std::pair<ConfigDescriptor, float>> configValues;
+
+    // Inline table data (FormantSpectrum)
+    std::vector<FormantRow> formantRows;
+
     // PatchOutput-specific
     int polyphony{4};
+
+    // Offline-rendered waveform samples for display
+    std::vector<float> waveformData;
 
     // Parameter-specific
     std::string paramName;
     char paramNameBuf[32]{};
 
-    GraphNode(NodeType t) : id(next_id()), type(t), label(node_type_name(t)) {
+    GraphNode(const std::string& type) : id(next_id()), typeName(type), label(node_display_name(type)) {
         build_pins();
         create_dsp();
+        init_config();
     }
 
-    GraphNode(NodeType t, const std::string& name) : GraphNode(t) {
-        if (t == NodeType::Parameter) {
+    GraphNode(const std::string& type, const std::string& name) : GraphNode(type) {
+        if (typeName == NT_PARAMETER) {
             paramName = name;
             label = name;
             snprintf(paramNameBuf, sizeof(paramNameBuf), "%s", name.c_str());
@@ -156,131 +162,76 @@ struct GraphNode {
 
     // Create the DSP object and wire pins' ConstantSources as defaults
     void create_dsp() {
-        switch (type) {
-            case NodeType::SineSource: {
-                auto s = std::make_shared<SineSource>(DSP_SAMPLE_RATE);
-                wire_wave_defaults(s);
-                dspSource = s;
-                break;
+        if (typeName == NT_PATCH_OUTPUT || typeName == NT_SOUND_CHANNEL || typeName == NT_STEREO_MIXER)
+            return;
+
+        if (typeName == NT_PARAMETER) {
+            // Parameter node's DSP is just its constantSrc from the "default" pin
+            if (auto* p = find_input("default"))
+                dspSource = p->constantSrc;
+            return;
+        }
+
+        if (typeName == NT_ENVELOPE) {
+            dspSource = std::make_shared<ADSREnvelope>(DSP_SAMPLE_RATE);
+            return;
+        }
+
+        if (typeName == "VarSource") {
+            auto* val = find_input("val");
+            auto* var = find_input("var");
+            auto* pct = find_input("varPct");
+            auto s = std::make_shared<VarSource>(
+                val ? val->constantSrc : std::make_shared<ConstantSource>(1.0f),
+                var ? var->constantSrc : std::make_shared<ConstantSource>(0.0f),
+                pct ? pct->constantSrc : std::make_shared<ConstantSource>(0.0f));
+            dspSource = s;
+            return;
+        }
+
+        if (typeName == "RangeSource") {
+            auto* mn = find_input("min");
+            auto* mx = find_input("max");
+            auto* vr = find_input("var");
+            auto s = std::make_shared<RangeSource>(
+                mn ? mn->constantSrc : std::make_shared<ConstantSource>(0.0f),
+                mx ? mx->constantSrc : std::make_shared<ConstantSource>(1.0f),
+                vr ? vr->constantSrc : std::make_shared<ConstantSource>(0.5f));
+            dspSource = s;
+            return;
+        }
+
+        // FormantSpectrum: inline table of formant rows
+        if (typeName == "FormantSpectrum") {
+            dspSource = std::make_shared<FormantSpectrum>();
+            if (formantRows.empty()) {
+                // Default: classic vowel-like formant set
+                formantRows = {
+                    {220.0f, 0.7f, 400.0f, 1.0f},
+                    {850.0f, 1.0f, 900.0f, 2.0f},
+                    {1850.0f, 0.6f, 1200.0f, 1.0f},
+                    {3100.0f, 0.65f, 1000.0f, 1.5f},
+                };
             }
-            case NodeType::SawSource: {
-                auto s = std::make_shared<SawSource>(DSP_SAMPLE_RATE);
-                wire_wave_defaults(s);
-                dspSource = s;
-                break;
-            }
-            case NodeType::TriangleSource: {
-                auto s = std::make_shared<TriangleSource>(DSP_SAMPLE_RATE);
-                wire_wave_defaults(s);
-                if (auto* p = find_input("bias"))
-                    s->set_bias(p->constantSrc);
-                dspSource = s;
-                break;
-            }
-            case NodeType::PulseSource: {
-                auto s = std::make_shared<PulseSource>(DSP_SAMPLE_RATE);
-                wire_wave_defaults(s);
-                if (auto* p = find_input("dutyCycle"))
-                    s->set_duty_cycle(p->constantSrc);
-                if (auto* p = find_input("bend"))
-                    s->set_bend(p->constantSrc);
-                dspSource = s;
-                break;
-            }
-            case NodeType::WhiteNoiseSource: {
-                auto s = std::make_shared<WhiteNoiseSource>(DSP_SAMPLE_RATE);
-                dspSource = s;
-                break;
-            }
-            case NodeType::RedNoiseSource: {
-                auto s = std::make_shared<RedNoiseSource>(DSP_SAMPLE_RATE);
-                wire_wave_defaults(s);
-                if (auto* p = find_input("density"))       s->density = p->constantSrc;
-                if (auto* p = find_input("smoothness"))    s->smoothness = p->constantSrc;
-                if (auto* p = find_input("rampVariation")) s->rampVariation = p->constantSrc;
-                if (auto* p = find_input("boost"))         s->boost = p->constantSrc;
-                if (auto* p = find_input("continuity"))    s->continuity = p->constantSrc;
-                if (auto* p = find_input("zeroCrossTend")) s->zeroCrossTendency = p->constantSrc;
-                dspSource = s;
-                break;
-            }
-            case NodeType::Envelope: {
-                auto s = std::make_shared<Envelope>(
-                    Envelope::make_adsr(DSP_SAMPLE_RATE, 0.01f, 0.1f, 0.6f, 0.0f));
-                dspSource = s;
-                break;
-            }
-            case NodeType::VarSource: {
-                auto* val = find_input("val");
-                auto* var = find_input("var");
-                auto* pct = find_input("varPct");
-                auto s = std::make_shared<VarSource>(
-                    val ? val->constantSrc : std::make_shared<ConstantSource>(1.0f),
-                    var ? var->constantSrc : std::make_shared<ConstantSource>(0.0f),
-                    pct ? pct->constantSrc : std::make_shared<ConstantSource>(0.0f));
-                dspSource = s;
-                break;
-            }
-            case NodeType::RangeSource: {
-                auto* mn = find_input("min");
-                auto* mx = find_input("max");
-                auto* vr = find_input("var");
-                auto s = std::make_shared<RangeSource>(
-                    mn ? mn->constantSrc : std::make_shared<ConstantSource>(0.0f),
-                    mx ? mx->constantSrc : std::make_shared<ConstantSource>(1.0f),
-                    vr ? vr->constantSrc : std::make_shared<ConstantSource>(0.5f));
-                dspSource = s;
-                break;
-            }
-            case NodeType::Parameter: {
-                // Parameter node's DSP is just its constantSrc from the "default" pin
-                if (auto* p = find_input("default"))
-                    dspSource = p->constantSrc;
-                break;
-            }
-            default:
-                break;
+            rebuild_formant_spectrum();
+            return;
+        }
+
+        // Generic: create via registry, wire all pin defaults
+        auto& reg = SourceRegistry::instance();
+        if (!reg.has(typeName)) return;
+
+        dspSource = reg.create(typeName, DSP_SAMPLE_RATE);
+        for (auto& pin : inputs) {
+            if (pin.constantSrc)
+                dspSource->set_param(pin.name, pin.constantSrc);
         }
     }
 
     // Rewire a specific input pin's DSP connection
     void wire_pin(const std::string& pinName, std::shared_ptr<ValueSource> src) {
         if (!src || !dspSource) return;
-        auto ws = std::dynamic_pointer_cast<WaveSource>(dspSource);
-        if (ws) {
-            if (pinName == "frequency")  { ws->set_frequency(src); return; }
-            if (pinName == "amplitude")  { ws->set_amplitude(src); return; }
-            if (pinName == "phase")      { ws->set_phase(src); return; }
-        }
-        auto tri = std::dynamic_pointer_cast<TriangleSource>(dspSource);
-        if (tri && pinName == "bias") { tri->set_bias(src); return; }
-
-        auto pulse = std::dynamic_pointer_cast<PulseSource>(dspSource);
-        if (pulse) {
-            if (pinName == "dutyCycle") { pulse->set_duty_cycle(src); return; }
-            if (pinName == "bend")     { pulse->set_bend(src); return; }
-        }
-        auto rn = std::dynamic_pointer_cast<RedNoiseSource>(dspSource);
-        if (rn) {
-            if (pinName == "density")       { rn->density = src; return; }
-            if (pinName == "smoothness")    { rn->smoothness = src; return; }
-            if (pinName == "rampVariation") { rn->rampVariation = src; return; }
-            if (pinName == "boost")         { rn->boost = src; return; }
-            if (pinName == "continuity")    { rn->continuity = src; return; }
-            if (pinName == "zeroCrossTend") { rn->zeroCrossTendency = src; return; }
-        }
-        auto range = std::dynamic_pointer_cast<RangeSource>(dspSource);
-        if (range) {
-            if (pinName == "min") { range->set_min(src); return; }
-            if (pinName == "max") { range->set_max(src); return; }
-            if (pinName == "var") { range->set_var(src); return; }
-        }
-        auto var = std::dynamic_pointer_cast<VarSource>(dspSource);
-        if (var) {
-            if (pinName == "val")    { var->set_val(src); return; }
-            if (pinName == "var")    { var->set_var(src); return; }
-            if (pinName == "varPct") { var->set_var_pct(src); return; }
-        }
+        dspSource->set_param(pinName, src);
     }
 
     Pin* find_input(const std::string& name) {
@@ -288,100 +239,78 @@ struct GraphNode {
         return nullptr;
     }
 
-    void wire_wave_defaults(std::shared_ptr<WaveSource> ws) {
-        if (auto* p = find_input("frequency"))  ws->set_frequency(p->constantSrc);
-        if (auto* p = find_input("amplitude"))  ws->set_amplitude(p->constantSrc);
-        if (auto* p = find_input("phase"))      ws->set_phase(p->constantSrc);
+    void init_config() {
+        if (!dspSource) return;
+        auto descs = dspSource->config_descriptors();
+        configValues.clear();
+        for (const auto& desc : descs)
+            configValues.push_back({desc, desc.default_value});
+    }
+
+    // Rebuild FormantSpectrum DSP from inline table rows
+    void rebuild_formant_spectrum() {
+        auto spec = std::dynamic_pointer_cast<FormantSpectrum>(dspSource);
+        if (!spec) return;
+        spec->formants.clear();
+        for (auto& row : formantRows) {
+            auto f = std::make_shared<Formant>();
+            f->set_frequency(std::make_shared<ConstantSource>(row.frequency));
+            f->set_gain(std::make_shared<ConstantSource>(row.gain));
+            f->set_width(std::make_shared<ConstantSource>(row.width));
+            f->set_power(std::make_shared<ConstantSource>(row.power));
+            spec->formants.push_back(f);
+        }
+    }
+
+    void apply_config() {
+        if (!dspSource) return;
+        for (auto& [desc, val] : configValues)
+            dspSource->set_config(desc.name, val);
     }
 
     void build_pins() {
-        switch (type) {
-            case NodeType::SineSource:
-                inputs.emplace_back("frequency", PinKind::Input, 440.0f);
-                inputs.emplace_back("amplitude", PinKind::Input, 1.0f);
-                inputs.emplace_back("phase",     PinKind::Input, 0.0f);
-                outputs.emplace_back("out", PinKind::Output);
-                break;
-            case NodeType::SawSource:
-                inputs.emplace_back("frequency", PinKind::Input, 440.0f);
-                inputs.emplace_back("amplitude", PinKind::Input, 1.0f);
-                inputs.emplace_back("phase",     PinKind::Input, 0.0f);
-                outputs.emplace_back("out", PinKind::Output);
-                break;
-            case NodeType::TriangleSource:
-                inputs.emplace_back("frequency", PinKind::Input, 440.0f);
-                inputs.emplace_back("amplitude", PinKind::Input, 1.0f);
-                inputs.emplace_back("phase",     PinKind::Input, 0.0f);
-                inputs.emplace_back("bias",      PinKind::Input, 0.5f);
-                outputs.emplace_back("out", PinKind::Output);
-                break;
-            case NodeType::PulseSource:
-                inputs.emplace_back("frequency",  PinKind::Input, 440.0f);
-                inputs.emplace_back("amplitude",  PinKind::Input, 1.0f);
-                inputs.emplace_back("phase",      PinKind::Input, 0.0f);
-                inputs.emplace_back("dutyCycle",  PinKind::Input, 0.5f);
-                inputs.emplace_back("bend",       PinKind::Input, 0.0f);
-                outputs.emplace_back("out", PinKind::Output);
-                break;
-            case NodeType::WhiteNoiseSource:
-                inputs.emplace_back("amplitude", PinKind::Input, 1.0f);
-                outputs.emplace_back("out", PinKind::Output);
-                break;
-            case NodeType::RedNoiseSource:
-                inputs.emplace_back("frequency",       PinKind::Input, 400.0f);
-                inputs.emplace_back("amplitude",       PinKind::Input, 1.0f);
-                inputs.emplace_back("density",         PinKind::Input, 1.0f);
-                inputs.emplace_back("smoothness",      PinKind::Input, 0.0f);
-                inputs.emplace_back("rampVariation",   PinKind::Input, 0.5f);
-                inputs.emplace_back("boost",           PinKind::Input, 0.0f);
-                inputs.emplace_back("continuity",      PinKind::Input, 0.0f);
-                inputs.emplace_back("zeroCrossTend",   PinKind::Input, 0.0f);
-                outputs.emplace_back("out", PinKind::Output);
-                break;
-            case NodeType::Envelope:
-                inputs.emplace_back("attack",       PinKind::Input, 0.01f);
-                inputs.emplace_back("decay",        PinKind::Input, 0.1f);
-                inputs.emplace_back("sustainLevel", PinKind::Input, 0.6f);
-                inputs.emplace_back("release",      PinKind::Input, 0.0f);
-                outputs.emplace_back("out", PinKind::Output);
-                break;
-            case NodeType::VarSource:
-                inputs.emplace_back("val",    PinKind::Input, 1.0f);
-                inputs.emplace_back("var",    PinKind::Input, 0.0f);
-                inputs.emplace_back("varPct", PinKind::Input, 0.0f);
-                outputs.emplace_back("out", PinKind::Output);
-                break;
-            case NodeType::RangeSource:
-                inputs.emplace_back("min", PinKind::Input, 0.0f);
-                inputs.emplace_back("max", PinKind::Input, 1.0f);
-                inputs.emplace_back("var", PinKind::Input, 0.5f);
-                outputs.emplace_back("out", PinKind::Output);
-                break;
-            case NodeType::SoundChannel:
+        if (is_special_ui_type(typeName)) {
+            // Special UI-only nodes with hand-crafted pins
+            if (typeName == NT_SOUND_CHANNEL) {
                 inputs.emplace_back("source", PinKind::Input, 0.0f);
                 inputs.emplace_back("volume", PinKind::Input, 1.0f);
                 inputs.emplace_back("pan",    PinKind::Input, 0.0f);
                 outputs.emplace_back("out", PinKind::Output);
-                break;
-            case NodeType::StereoMixer:
+            } else if (typeName == NT_STEREO_MIXER) {
                 inputs.emplace_back("ch 1", PinKind::Input, 0.0f);
                 inputs.emplace_back("gainL", PinKind::Input, 1.0f);
                 inputs.emplace_back("gainR", PinKind::Input, 1.0f);
                 outputs.emplace_back("outL", PinKind::Output);
                 outputs.emplace_back("outR", PinKind::Output);
-                break;
-            case NodeType::PatchOutput:
+            } else if (typeName == NT_PATCH_OUTPUT) {
                 inputs.emplace_back("source", PinKind::Input, 0.0f);
-                break;
-            case NodeType::Parameter:
+            } else if (typeName == NT_PARAMETER) {
                 inputs.emplace_back("default", PinKind::Input, 440.0f);
                 outputs.emplace_back("out", PinKind::Output);
-                break;
+            }
+            return;
         }
+
+        // Envelope: output only; ADSR params are config values shown in Properties
+        if (typeName == NT_ENVELOPE) {
+            outputs.emplace_back("out", PinKind::Output);
+            return;
+        }
+
+        // Generic: create a temporary instance to read descriptors
+        auto& reg = SourceRegistry::instance();
+        if (!reg.has(typeName)) return;
+
+        auto tmp = reg.create(typeName, DSP_SAMPLE_RATE);
+        for (const auto& desc : tmp->input_descriptors())
+            inputs.emplace_back(desc.name, PinKind::Input, 0.0f, true, desc.multi);
+        for (const auto& desc : tmp->param_descriptors())
+            inputs.emplace_back(desc.name, PinKind::Input, desc.default_value);
+        outputs.emplace_back("out", PinKind::Output);
     }
 
     void add_channel_input() {
-        if (type != NodeType::StereoMixer) return;
+        if (typeName != NT_STEREO_MIXER) return;
         int chNum = 0;
         for (auto& p : inputs)
             if (p.name.substr(0, 2) == "ch") chNum++;
@@ -444,13 +373,16 @@ static void dsp_rewire_link(int outputPinId, int inputPinId, bool connect) {
 static void update_node_dsp(GraphNode& node) {
     if (!node.dspSource) return;
 
-    // First pass: wire all pins to their ConstantSource defaults
+    // First pass: wire all pins to their ConstantSource defaults, clear multi pins
     for (auto& pin : node.inputs) {
-        if (pin.kind == PinKind::Input && pin.constantSrc)
+        if (pin.multi && node.dspSource) {
+            node.dspSource->clear_param(pin.name);
+        } else if (pin.kind == PinKind::Input && pin.constantSrc) {
             node.wire_pin(pin.name, pin.constantSrc);
+        }
     }
 
-    // Second pass: override with connected sources
+    // Second pass: override with connected sources (multi pins use add_param)
     for (auto& pin : node.inputs) {
         for (auto& link : s_links) {
             int otherPinId = -1;
@@ -460,48 +392,70 @@ static void update_node_dsp(GraphNode& node) {
 
             GraphNode* srcNode = find_node_for_pin(otherPinId);
             Pin* otherPin = find_pin(otherPinId);
-            if (srcNode && otherPin && otherPin->kind == PinKind::Output && srcNode->dspSource)
-                node.wire_pin(pin.name, srcNode->dspSource);
+            if (srcNode && otherPin && otherPin->kind == PinKind::Output && srcNode->dspSource) {
+                if (pin.multi && node.dspSource)
+                    node.dspSource->add_param(pin.name, srcNode->dspSource);
+                else
+                    node.wire_pin(pin.name, srcNode->dspSource);
+            }
         }
     }
 
-    // Envelope: recreate DSP with current param values (not streamable params)
-    if (node.type == NodeType::Envelope) {
-        auto* att = node.find_input("attack");
-        auto* dec = node.find_input("decay");
-        auto* sus = node.find_input("sustainLevel");
-        auto* rel = node.find_input("release");
-        float a = att ? att->defaultValue : 0.01f;
-        float d = dec ? dec->defaultValue : 0.1f;
-        float s = sus ? sus->defaultValue : 0.6f;
-        float r = rel ? rel->defaultValue : 0.0f;
-
-        auto newEnv = std::make_shared<Envelope>(
-            Envelope::make_adsr(DSP_SAMPLE_RATE, a, d, s, r));
-        node.dspSource = newEnv;
-
-        // Re-wire any nodes that reference this envelope
-        for (auto& link : s_links) {
-            for (auto& outPin : node.outputs) {
-                int targetPinId = -1;
-                if (link.startPinId == outPin.id) targetPinId = link.endPinId;
-                if (link.endPinId == outPin.id) targetPinId = link.startPinId;
-                if (targetPinId < 0) continue;
-
-                GraphNode* dstNode = find_node_for_pin(targetPinId);
-                Pin* dstPin = find_pin(targetPinId);
-                if (dstNode && dstPin && dstPin->kind == PinKind::Input)
-                    dstNode->wire_pin(dstPin->name, node.dspSource);
-            }
-        }
+    // Envelope: apply config values (ADSREnvelope rebuilds internally)
+    if (node.typeName == NT_ENVELOPE) {
+        node.apply_config();
     }
 }
 
 // Update ALL nodes' DSP (call after link changes)
+// Automatically wraps shared sources in RefSource for secondary consumers.
 static void update_all_dsp() {
     try {
+        // First: run standard per-node wiring (primary sources)
         for (auto& node : s_nodes)
             update_node_dsp(node);
+
+        // Second: find sources with multiple consumers and wrap secondaries in RefSource.
+        // Build map: source node output pin → list of (dest node, dest pin name)
+        struct Consumer { GraphNode* node; std::string pinName; };
+        std::unordered_map<int, std::vector<Consumer>> consumers; // output pin id → consumers
+
+        for (auto& link : s_links) {
+            // Find which is output and which is input
+            Pin* startPin = find_pin(link.startPinId);
+            Pin* endPin = find_pin(link.endPinId);
+            if (!startPin || !endPin) continue;
+
+            int outPinId = -1;
+            int inPinId = -1;
+            if (startPin->kind == PinKind::Output && endPin->kind == PinKind::Input) {
+                outPinId = link.startPinId; inPinId = link.endPinId;
+            } else if (endPin->kind == PinKind::Output && startPin->kind == PinKind::Input) {
+                outPinId = link.endPinId; inPinId = link.startPinId;
+            }
+            if (outPinId < 0) continue;
+
+            GraphNode* dstNode = find_node_for_pin(inPinId);
+            Pin* dstPin = find_pin(inPinId);
+            if (dstNode && dstPin)
+                consumers[outPinId].push_back({dstNode, dstPin->name});
+        }
+
+        // For each output with >1 consumer, first consumer keeps real source,
+        // rest get RefSource wrappers
+        for (auto& [outPinId, consList] : consumers) {
+            if (consList.size() <= 1) continue;
+
+            GraphNode* srcNode = find_node_for_pin(outPinId);
+            if (!srcNode || !srcNode->dspSource) continue;
+
+            // First consumer already has the real source wired (from update_node_dsp).
+            // Wrap for subsequent consumers.
+            for (size_t i = 1; i < consList.size(); ++i) {
+                auto ref = std::make_shared<RefSource>(srcNode->dspSource);
+                consList[i].node->wire_pin(consList[i].pinName, ref);
+            }
+        }
     } catch (...) {
         // Don't crash the UI on DSP wiring errors
     }
@@ -513,7 +467,19 @@ static bool is_pin_connected(int pinId) {
     return false;
 }
 
+// ===========================================================================
+// Selected node tracking
+// ===========================================================================
+static int g_selectedNodeId = -1;  // -1 = nothing selected
+
+static GraphNode* find_selected_node() {
+    for (auto& n : s_nodes)
+        if (n.id == g_selectedNodeId) return &n;
+    return nullptr;
+}
+
 static void delete_node(int nodeId) {
+    if (g_selectedNodeId == nodeId) g_selectedNodeId = -1;
     for (auto& node : s_nodes) {
         if (node.id != nodeId) continue;
         s_links.erase(
@@ -548,17 +514,18 @@ static void new_graph(GraphMode mode) {
     s_links.clear();
     s_graphMode = mode;
     s_nextId = 1;
+    g_selectedNodeId = -1;
 
     if (mode == GraphMode::PatchGraph) {
-        s_nodes.emplace_back(NodeType::Parameter, "frequency");
-        s_nodes.emplace_back(NodeType::SineSource);
-        s_nodes.emplace_back(NodeType::Envelope);
-        s_nodes.emplace_back(NodeType::PatchOutput);
+        s_nodes.emplace_back(std::string(NT_PARAMETER), "frequency");
+        s_nodes.emplace_back("SineSource");
+        s_nodes.emplace_back(std::string(NT_ENVELOPE));
+        s_nodes.emplace_back(std::string(NT_PATCH_OUTPUT));
     } else {
-        s_nodes.emplace_back(NodeType::SineSource);
-        s_nodes.emplace_back(NodeType::Envelope);
-        s_nodes.emplace_back(NodeType::SoundChannel);
-        s_nodes.emplace_back(NodeType::StereoMixer);
+        s_nodes.emplace_back("SineSource");
+        s_nodes.emplace_back(std::string(NT_ENVELOPE));
+        s_nodes.emplace_back(std::string(NT_SOUND_CHANNEL));
+        s_nodes.emplace_back(std::string(NT_STEREO_MIXER));
     }
 }
 
@@ -597,20 +564,7 @@ static std::string open_file_dialog() {
 // JSON import
 // ===========================================================================
 
-static NodeType json_type_to_node(const std::string& t) {
-    if (t == "SineSource")      return NodeType::SineSource;
-    if (t == "SawSource")       return NodeType::SawSource;
-    if (t == "TriangleSource")  return NodeType::TriangleSource;
-    if (t == "PulseSource")     return NodeType::PulseSource;
-    if (t == "WhiteNoiseSource")return NodeType::WhiteNoiseSource;
-    if (t == "RedNoiseSource")  return NodeType::RedNoiseSource;
-    if (t == "Envelope")        return NodeType::Envelope;
-    if (t == "VarSource")       return NodeType::VarSource;
-    if (t == "RangeSource")     return NodeType::RangeSource;
-    if (t == "SoundChannel")    return NodeType::SoundChannel;
-    if (t == "StereoMixer")     return NodeType::StereoMixer;
-    return NodeType::SineSource;
-}
+// json_type_to_node removed — typeName strings are used directly
 
 static bool s_needsLayout = false;
 
@@ -647,9 +601,9 @@ static void load_graph() {
         std::string id = jnode["id"].get<std::string>();
         std::string type = jnode["type"].get<std::string>();
 
-        s_nodes.emplace_back(json_type_to_node(type));
+        s_nodes.emplace_back(type);
         GraphNode& gn = s_nodes.back();
-        gn.label = id;
+        gn.label = id;  // use JSON id as label
         nodeMap[id] = &gn;
 
         // Map output pin
@@ -669,13 +623,37 @@ static void load_graph() {
                 const auto& val = params[pin.name];
                 if (val.is_number()) {
                     pin.defaultValue = val.get<float>();
+                    if (pin.constantSrc) pin.constantSrc->set(pin.defaultValue);
                 }
                 // refs handled in second pass
             }
+
+            // Restore inline formant table
+            if (params.contains("formants") && params["formants"].is_array()) {
+                gn.formantRows.clear();
+                for (const auto& fj : params["formants"]) {
+                    FormantRow row;
+                    row.frequency = fj.value("frequency", 1000.0f);
+                    row.gain      = fj.value("gain", 1.0f);
+                    row.width     = fj.value("width", 500.0f);
+                    row.power     = fj.value("power", 2.0f);
+                    gn.formantRows.push_back(row);
+                }
+                gn.rebuild_formant_spectrum();
+            }
+
+            // Restore config values
+            for (auto& [desc, val] : gn.configValues) {
+                if (!params.contains(desc.name)) continue;
+                const auto& jval = params[desc.name];
+                if (jval.is_boolean()) val = jval.get<bool>() ? 1.0f : 0.0f;
+                else if (jval.is_number()) val = jval.get<float>();
+            }
+            gn.apply_config();
         }
 
         // Mixer: add extra channel inputs if needed
-        if (gn.type == NodeType::StereoMixer && jnode.contains("inputs") &&
+        if (gn.typeName == NT_STEREO_MIXER && jnode.contains("inputs") &&
             jnode["inputs"].contains("channels")) {
             int numCh = (int)jnode["inputs"]["channels"].size();
             for (int c = 1; c < numCh; ++c)
@@ -692,6 +670,20 @@ static void load_graph() {
         if (!jnode.contains("params")) continue;
 
         for (auto& [paramName, val] : jnode["params"].items()) {
+            // Multi-input: array of refs
+            if (val.is_array()) {
+                auto inIt = inputPinMap.find(id + "." + paramName);
+                if (inIt == inputPinMap.end()) continue;
+                for (const auto& refObj : val) {
+                    if (!refObj.is_object() || !refObj.contains("ref")) continue;
+                    std::string refId = refObj["ref"].get<std::string>();
+                    auto outIt = outputPinMap.find(refId);
+                    if (outIt != outputPinMap.end())
+                        s_links.emplace_back(outIt->second, inIt->second);
+                }
+                continue;
+            }
+
             if (!val.is_object() || !val.contains("ref")) continue;
             std::string refId = val["ref"].get<std::string>();
 
@@ -730,7 +722,7 @@ static void load_graph() {
     // Patch Graph: create Output node and Parameter nodes
     if (hasInstrument) {
         // Output node
-        s_nodes.emplace_back(NodeType::PatchOutput);
+        s_nodes.emplace_back(NT_PATCH_OUTPUT);
         GraphNode& outNode = s_nodes.back();
         if (root["instrument"].contains("polyphony"))
             outNode.polyphony = root["instrument"]["polyphony"].get<int>();
@@ -745,15 +737,18 @@ static void load_graph() {
             for (auto& [paramName, targetStr] : root["instrument"]["paramMap"].items()) {
                 std::string target = targetStr.get<std::string>();
 
-                s_nodes.emplace_back(NodeType::Parameter, paramName);
+                s_nodes.emplace_back(std::string(NT_PARAMETER), paramName);
                 GraphNode& pn = s_nodes.back();
 
                 // Find the target input pin and get its current default value
                 auto inIt = inputPinMap.find(target);
                 if (inIt != inputPinMap.end()) {
                     Pin* targetPin = find_pin(inIt->second);
-                    if (targetPin)
+                    if (targetPin) {
                         pn.inputs[0].defaultValue = targetPin->defaultValue;
+                        if (pn.inputs[0].constantSrc)
+                            pn.inputs[0].constantSrc->set(targetPin->defaultValue);
+                    }
 
                     // Wire parameter output to target input
                     s_links.emplace_back(pn.outputs[0].id, inIt->second);
@@ -768,9 +763,9 @@ static void load_graph() {
 
         for (auto& node : s_nodes) {
             std::string key;
-            if (node.type == NodeType::PatchOutput)
+            if (node.typeName == NT_PATCH_OUTPUT)
                 key = "__output";
-            else if (node.type == NodeType::Parameter)
+            else if (node.typeName == NT_PARAMETER)
                 key = "__param_" + node.paramName;
             else
                 key = node.label;  // label was set to the JSON id
@@ -784,27 +779,27 @@ static void load_graph() {
     } else {
         s_needsLayout = true;
     }
+
+    // Wire all DSP connections (including RefSource for shared sources)
+    update_all_dsp();
 }
 
 // ===========================================================================
 // JSON export
 // ===========================================================================
 
-static const char* node_type_to_json(NodeType t) {
-    switch (t) {
-        case NodeType::SineSource:       return "SineSource";
-        case NodeType::SawSource:        return "SawSource";
-        case NodeType::TriangleSource:   return "TriangleSource";
-        case NodeType::PulseSource:      return "PulseSource";
-        case NodeType::WhiteNoiseSource: return "WhiteNoiseSource";
-        case NodeType::RedNoiseSource:   return "RedNoiseSource";
-        case NodeType::Envelope:         return "Envelope";
-        case NodeType::VarSource:        return "VarSource";
-        case NodeType::RangeSource:      return "RangeSource";
-        case NodeType::SoundChannel:     return "SoundChannel";
-        case NodeType::StereoMixer:      return "StereoMixer";
-        default: return "";
-    }
+// node_type_to_json removed — typeName strings are used directly
+
+// Generate a short prefix from a type name for JSON node IDs
+static std::string type_prefix(const std::string& typeName) {
+    if (typeName == NT_SOUND_CHANNEL) return "ch";
+    if (typeName == NT_STEREO_MIXER)  return "mix";
+    if (typeName == NT_ENVELOPE)      return "env";
+    // Strip "Source" suffix for shorter IDs
+    std::string name = typeName;
+    if (name.size() > 6 && name.substr(name.size() - 6) == "Source")
+        name = name.substr(0, name.size() - 6);
+    return name;
 }
 
 // Topological sort: dependencies before dependents
@@ -871,34 +866,21 @@ static void save_patch_graph(const std::string& path) {
 
     // Assign string IDs to nodes
     std::unordered_map<int, std::string> nodeIds;
-    std::unordered_map<NodeType, int> typeCounts;
+    std::unordered_map<std::string, int> typeCounts;
     for (auto& node : s_nodes) {
-        if (node.type == NodeType::PatchOutput || node.type == NodeType::Parameter)
+        if (node.typeName == NT_PATCH_OUTPUT || node.typeName == NT_PARAMETER)
             continue;
-        int& count = typeCounts[node.type];
+        int& count = typeCounts[node.typeName];
         count++;
-        std::string prefix;
-        switch (node.type) {
-            case NodeType::SineSource:       prefix = "sine"; break;
-            case NodeType::SawSource:        prefix = "saw"; break;
-            case NodeType::TriangleSource:   prefix = "tri"; break;
-            case NodeType::PulseSource:      prefix = "pulse"; break;
-            case NodeType::WhiteNoiseSource: prefix = "wn"; break;
-            case NodeType::RedNoiseSource:   prefix = "rn"; break;
-            case NodeType::Envelope:         prefix = "env"; break;
-            case NodeType::VarSource:        prefix = "var"; break;
-            case NodeType::RangeSource:      prefix = "range"; break;
-            default: prefix = "node"; break;
-        }
-        nodeIds[node.id] = prefix + std::to_string(count);
+        nodeIds[node.id] = type_prefix(node.typeName) + std::to_string(count);
     }
 
     // Find Output and Parameter nodes
     GraphNode* outputNode = nullptr;
     std::vector<GraphNode*> paramNodes;
     for (auto& node : s_nodes) {
-        if (node.type == NodeType::PatchOutput) outputNode = &node;
-        if (node.type == NodeType::Parameter) paramNodes.push_back(&node);
+        if (node.typeName == NT_PATCH_OUTPUT) outputNode = &node;
+        if (node.typeName == NT_PARAMETER) paramNodes.push_back(&node);
     }
 
     // Determine graph output: what's connected to Output's source pin
@@ -936,36 +918,77 @@ static void save_patch_graph(const std::string& path) {
     json nodes = json::array();
     for (auto* nodePtr : sorted) {
         auto& node = *nodePtr;
-        if (node.type == NodeType::PatchOutput || node.type == NodeType::Parameter)
+        if (node.typeName == NT_PATCH_OUTPUT || node.typeName == NT_PARAMETER)
             continue;
 
         json jnode;
         jnode["id"] = nodeIds[node.id];
-        jnode["type"] = node_type_to_json(node.type);
+        jnode["type"] = node.typeName;
 
         json params = json::object();
         for (auto& pin : node.inputs) {
-            bool isSourcePin = (pin.name == "source" || pin.name.substr(0, 2) == "ch");
-            if (isSourcePin) continue;
+            bool isChannelPin = (pin.name.substr(0, 2) == "ch");
+            if (isChannelPin) continue;
 
-            GraphNode* src = find_source_node(pin.id);
-            if (src) {
-                if (src->type == NodeType::Parameter) {
-                    // Parameter node: emit default value (the instrument will set it)
-                    params[pin.name] = pin.defaultValue;
-                } else {
-                    params[pin.name] = json{{"ref", nodeIds[src->id]}};
+            if (pin.multi) {
+                // Multi-input pin: collect all connected sources as array of refs
+                json refs = json::array();
+                for (auto& link : s_links) {
+                    int outPinId = -1;
+                    if (link.endPinId == pin.id) outPinId = link.startPinId;
+                    if (link.startPinId == pin.id) outPinId = link.endPinId;
+                    if (outPinId < 0) continue;
+                    GraphNode* srcNode = find_node_for_pin(outPinId);
+                    Pin* srcPin = find_pin(outPinId);
+                    if (srcNode && srcPin && srcPin->kind == PinKind::Output && nodeIds.count(srcNode->id))
+                        refs.push_back(json{{"ref", nodeIds[srcNode->id]}});
                 }
+                if (!refs.empty()) params[pin.name] = refs;
             } else {
-                params[pin.name] = pin.defaultValue;
+                GraphNode* src = find_source_node(pin.id);
+                if (pin.inputOnly) {
+                    if (src && nodeIds.count(src->id))
+                        params[pin.name] = json{{"ref", nodeIds[src->id]}};
+                } else if (src) {
+                    if (src->typeName == NT_PARAMETER)
+                        params[pin.name] = pin.defaultValue;
+                    else if (nodeIds.count(src->id))
+                        params[pin.name] = json{{"ref", nodeIds[src->id]}};
+                } else {
+                    params[pin.name] = pin.defaultValue;
+                }
             }
         }
         if (!params.empty()) jnode["params"] = params;
 
         // Envelope: add preset
-        if (node.type == NodeType::Envelope) {
+        if (node.typeName == NT_ENVELOPE) {
             if (!jnode.contains("params")) jnode["params"] = json::object();
             jnode["params"]["preset"] = "adsr";
+        }
+
+        // Inline formant table
+        if (!node.formantRows.empty()) {
+            if (!jnode.contains("params")) jnode["params"] = json::object();
+            json formants = json::array();
+            for (auto& row : node.formantRows) {
+                formants.push_back({
+                    {"frequency", row.frequency}, {"gain", row.gain},
+                    {"width", row.width}, {"power", row.power}
+                });
+            }
+            jnode["params"]["formants"] = formants;
+        }
+
+        // Config values
+        for (auto& [desc, val] : node.configValues) {
+            if (!jnode.contains("params")) jnode["params"] = json::object();
+            if (desc.type == ConfigType::Bool)
+                jnode["params"][desc.name] = (val != 0.0f);
+            else if (desc.type == ConfigType::Int)
+                jnode["params"][desc.name] = int(val);
+            else
+                jnode["params"][desc.name] = val;
         }
 
         nodes.push_back(jnode);
@@ -986,7 +1009,7 @@ static void save_patch_graph(const std::string& path) {
     // Save UI layout
     json positions = json::object();
     for (auto* nodePtr : sorted) {
-        if (nodePtr->type == NodeType::PatchOutput || nodePtr->type == NodeType::Parameter)
+        if (nodePtr->typeName == NT_PATCH_OUTPUT || nodePtr->typeName == NT_PARAMETER)
             continue;
         ImVec2 pos = ImNodes::GetNodeGridSpacePos(nodePtr->id);
         positions[nodeIds[nodePtr->id]] = {pos.x, pos.y};
@@ -1012,32 +1035,17 @@ static void save_node_graph(const std::string& path) {
 
     // Assign string IDs
     std::unordered_map<int, std::string> nodeIds;
-    std::unordered_map<NodeType, int> typeCounts;
+    std::unordered_map<std::string, int> typeCounts;
     for (auto& node : s_nodes) {
-        int& count = typeCounts[node.type];
+        int& count = typeCounts[node.typeName];
         count++;
-        std::string prefix;
-        switch (node.type) {
-            case NodeType::SineSource:       prefix = "sine"; break;
-            case NodeType::SawSource:        prefix = "saw"; break;
-            case NodeType::TriangleSource:   prefix = "tri"; break;
-            case NodeType::PulseSource:      prefix = "pulse"; break;
-            case NodeType::WhiteNoiseSource: prefix = "wn"; break;
-            case NodeType::RedNoiseSource:   prefix = "rn"; break;
-            case NodeType::Envelope:         prefix = "env"; break;
-            case NodeType::VarSource:        prefix = "var"; break;
-            case NodeType::RangeSource:      prefix = "range"; break;
-            case NodeType::SoundChannel:     prefix = "ch"; break;
-            case NodeType::StereoMixer:      prefix = "mix"; break;
-            default: prefix = "node"; break;
-        }
-        nodeIds[node.id] = prefix + std::to_string(count);
+        nodeIds[node.id] = type_prefix(node.typeName) + std::to_string(count);
     }
 
     // Find mixer for output
     std::string outputId;
     for (auto& node : s_nodes)
-        if (node.type == NodeType::StereoMixer)
+        if (node.typeName == NT_STEREO_MIXER)
             outputId = nodeIds[node.id];
 
     // Build nodes (topologically sorted)
@@ -1047,23 +1055,38 @@ static void save_node_graph(const std::string& path) {
         auto& node = *nodePtr;
         json jnode;
         jnode["id"] = nodeIds[node.id];
-        jnode["type"] = node_type_to_json(node.type);
+        jnode["type"] = node.typeName;
 
         json params = json::object();
         for (auto& pin : node.inputs) {
-            bool isSourcePin = (pin.name == "source" || pin.name.substr(0, 2) == "ch");
+            bool isChannelPin = (pin.name.substr(0, 2) == "ch");
 
             GraphNode* src = find_source_node(pin.id);
 
-            if (isSourcePin) {
-                if (src && node.type == NodeType::SoundChannel) {
-                    jnode["inputs"]["source"] = nodeIds[src->id];
-                }
-                if (src && node.type == NodeType::StereoMixer) {
+            if (node.typeName == NT_SOUND_CHANNEL && pin.name == "source") {
+                if (src) jnode["inputs"]["source"] = nodeIds[src->id];
+            } else if (isChannelPin && node.typeName == NT_STEREO_MIXER) {
+                if (src) {
                     if (!jnode.contains("inputs") || !jnode["inputs"].contains("channels"))
                         jnode["inputs"]["channels"] = json::array();
                     jnode["inputs"]["channels"].push_back(nodeIds[src->id]);
                 }
+            } else if (pin.multi) {
+                json refs = json::array();
+                for (auto& link : s_links) {
+                    int outPinId = -1;
+                    if (link.endPinId == pin.id) outPinId = link.startPinId;
+                    if (link.startPinId == pin.id) outPinId = link.endPinId;
+                    if (outPinId < 0) continue;
+                    GraphNode* srcNode = find_node_for_pin(outPinId);
+                    Pin* srcPin = find_pin(outPinId);
+                    if (srcNode && srcPin && srcPin->kind == PinKind::Output)
+                        refs.push_back(json{{"ref", nodeIds[srcNode->id]}});
+                }
+                if (!refs.empty()) params[pin.name] = refs;
+            } else if (pin.inputOnly) {
+                if (src)
+                    params[pin.name] = json{{"ref", nodeIds[src->id]}};
             } else {
                 if (src)
                     params[pin.name] = json{{"ref", nodeIds[src->id]}};
@@ -1073,9 +1096,31 @@ static void save_node_graph(const std::string& path) {
         }
         if (!params.empty()) jnode["params"] = params;
 
-        if (node.type == NodeType::Envelope) {
+        if (node.typeName == NT_ENVELOPE) {
             if (!jnode.contains("params")) jnode["params"] = json::object();
             jnode["params"]["preset"] = "adsr";
+        }
+
+        if (!node.formantRows.empty()) {
+            if (!jnode.contains("params")) jnode["params"] = json::object();
+            json formants = json::array();
+            for (auto& row : node.formantRows) {
+                formants.push_back({
+                    {"frequency", row.frequency}, {"gain", row.gain},
+                    {"width", row.width}, {"power", row.power}
+                });
+            }
+            jnode["params"]["formants"] = formants;
+        }
+
+        for (auto& [desc, val] : node.configValues) {
+            if (!jnode.contains("params")) jnode["params"] = json::object();
+            if (desc.type == ConfigType::Bool)
+                jnode["params"][desc.name] = (val != 0.0f);
+            else if (desc.type == ConfigType::Int)
+                jnode["params"][desc.name] = int(val);
+            else
+                jnode["params"][desc.name] = val;
         }
 
         nodes.push_back(jnode);
@@ -1131,6 +1176,16 @@ static constexpr int AUDIO_SAMPLE_RATE = 48000;
 static constexpr int AUDIO_CHUNK = 1024;
 static constexpr int NUM_AUDIO_BUFS = 4;
 
+// ===========================================================================
+// Offline waveform display buffers
+// ===========================================================================
+static std::vector<float> g_outputWaveform;  // final output waveform
+static int g_waveformSamples = 0;            // number of samples in waveform buffers
+
+static int g_waveZoom = 1;        // samples per pixel (1 = most zoomed in)
+static int g_waveScrollPos = 0;   // starting sample offset into available data
+static int g_waveColumns = 1;     // number of columns for waveform tiling
+
 static HWAVEOUT g_waveOut = nullptr;
 static WAVEHDR  g_waveHdrs[NUM_AUDIO_BUFS] = {};
 static int16_t  g_audioBufs[NUM_AUDIO_BUFS][AUDIO_CHUNK * 2] = {};
@@ -1156,6 +1211,7 @@ static void fill_audio_buffer(int bufIdx) {
         }
 
         s = std::clamp(s, -1.0f, 1.0f);
+
         int16_t v = int16_t(s < 0 ? s * 32768.0f : s * 32767.0f);
         out[i * 2]     = v;
         out[i * 2 + 1] = v;
@@ -1219,7 +1275,7 @@ static void shutdown_audio() {
 // Find the DSP source connected to the Output node
 static ValueSource* find_output_source() {
     for (auto& n : s_nodes) {
-        if (n.type != NodeType::PatchOutput) continue;
+        if (n.typeName != NT_PATCH_OUTPUT) continue;
         if (n.inputs.empty()) return nullptr;
         int srcPinId = n.inputs[0].id;
         for (auto& link : s_links) {
@@ -1244,6 +1300,50 @@ static void prepare_graph(int samples) {
     }
 }
 
+// Offline render: populate per-node waveformData and g_outputWaveform for display
+static void render_waveforms(float noteNum, float velocity, float durationSeconds) {
+    ValueSource* src = find_output_source();
+    if (!src) return;
+
+    // Set frequency on Parameter nodes named "frequency"
+    float freq = note_to_freq(noteNum);
+    for (auto& n : s_nodes) {
+        if (n.typeName == NT_PARAMETER && n.paramName == "frequency") {
+            if (auto* p = n.find_input("default"))
+                p->constantSrc->set(freq);
+        }
+    }
+
+    int samples = int(durationSeconds * float(AUDIO_SAMPLE_RATE));
+    prepare_graph(samples);
+
+    // Allocate per-node buffers for DSP nodes
+    for (auto& n : s_nodes) {
+        if (n.dspSource && !is_special_ui_type(n.typeName))
+            n.waveformData.resize(samples);
+        else
+            n.waveformData.clear();
+    }
+    g_outputWaveform.resize(samples);
+    g_waveformSamples = samples;
+
+    // Render the full note offline
+    for (int i = 0; i < samples; ++i) {
+        float s = src->next();
+        g_outputWaveform[i] = s * velocity;
+
+        // Capture each node's current output
+        for (auto& n : s_nodes) {
+            if (!n.waveformData.empty())
+                n.waveformData[i] = n.dspSource->current();
+        }
+    }
+
+    // Reset zoom to fit entire waveform, reset scroll
+    g_waveScrollPos = 0;
+    g_waveZoom = std::max(1, samples / 800);
+}
+
 // Play a note: set frequency param, prepare the graph, start streaming
 static void play_note(float noteNum, float velocity, float durationSeconds) {
     if (s_graphMode != GraphMode::PatchGraph) return;
@@ -1254,10 +1354,13 @@ static void play_note(float noteNum, float velocity, float durationSeconds) {
     // Stop any current stream first
     g_streamSource = nullptr;
 
-    // Set frequency on Parameter nodes named "frequency"
+    // Offline render for waveform display
+    render_waveforms(noteNum, velocity, durationSeconds);
+
+    // Re-prepare for audio playback (render_waveforms consumed the graph state)
     float freq = note_to_freq(noteNum);
     for (auto& n : s_nodes) {
-        if (n.type == NodeType::Parameter && n.paramName == "frequency") {
+        if (n.typeName == NT_PARAMETER && n.paramName == "frequency") {
             if (auto* p = n.find_input("default"))
                 p->constantSrc->set(freq);
         }
@@ -1297,7 +1400,7 @@ static void stop_playback() {
 // ===========================================================================
 
 static void draw_node(GraphNode& node) {
-    ImNodes::PushColorStyle(ImNodesCol_TitleBar, node_title_color(node.type));
+    ImNodes::PushColorStyle(ImNodesCol_TitleBar, node_title_color(node.typeName));
 
     ImNodes::BeginNode(node.id);
 
@@ -1305,7 +1408,8 @@ static void draw_node(GraphNode& node) {
     ImNodes::BeginNodeTitleBar();
     ImGui::TextUnformatted(node.label.c_str());
 
-    if (node.type == NodeType::StereoMixer) {
+    // Mixer "+" button stays — it's structural (adding channels), not parameter editing
+    if (node.typeName == NT_STEREO_MIXER) {
         ImGui::SameLine();
         char btnLabel[32];
         snprintf(btnLabel, sizeof(btnLabel), " + ##addch%d", node.id);
@@ -1315,65 +1419,31 @@ static void draw_node(GraphNode& node) {
 
     ImNodes::EndNodeTitleBar();
 
-    // Input pins
+    // Input pins — compact: show name + read-only value, no editing widgets
     for (auto& pin : node.inputs) {
+        ImNodes::PushAttributeFlag(ImNodesAttributeFlags_EnableLinkDetachWithDragClick);
         ImNodes::BeginInputAttribute(pin.id);
 
         if (is_pin_connected(pin.id)) {
+            // Connected: just show pin name in normal white (wire makes connection obvious)
             ImGui::TextUnformatted(pin.name.c_str());
+        } else if (pin.inputOnly || pin.name.substr(0, 2) == "ch") {
+            // Input-only or channel pin: gray text
+            ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "%s", pin.name.c_str());
         } else {
-            bool isSourcePin = (pin.name == "source" || pin.name.substr(0, 2) == "ch");
-            if (isSourcePin) {
-                ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "%s", pin.name.c_str());
-            } else {
-                ImGui::PushItemWidth(80);
-                char label[64];
-                snprintf(label, sizeof(label), "##%d", pin.id);
-                if (ImGui::DragFloat(label, &pin.defaultValue, 0.01f, 0.0f, 0.0f, "%.3f")) {
-                    if (pin.constantSrc) pin.constantSrc->set(pin.defaultValue);
-                    update_node_dsp(node);
-                }
-                ImGui::PopItemWidth();
-                ImGui::SameLine();
-                ImGui::TextUnformatted(pin.name.c_str());
-            }
+            // Unconnected value pin: show name + current value as gray read-only text
+            ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), "%s  %.3f",
+                               pin.name.c_str(), pin.defaultValue);
         }
 
         ImNodes::EndInputAttribute();
-    }
-
-    // PatchOutput: polyphony (paramMap is derived from Parameter nodes)
-    if (node.type == NodeType::PatchOutput) {
-        ImGui::Spacing();
-        ImGui::Separator();
-        ImGui::Spacing();
-
-        ImGui::PushItemWidth(60);
-        char polyLabel[32];
-        snprintf(polyLabel, sizeof(polyLabel), "##poly%d", node.id);
-        ImGui::DragInt(polyLabel, &node.polyphony, 0.1f, 1, 32);
-        ImGui::PopItemWidth();
-        ImGui::SameLine();
-        ImGui::Text("polyphony");
-    }
-
-    // Parameter: editable name
-    if (node.type == NodeType::Parameter) {
-        ImGui::Spacing();
-        ImGui::PushItemWidth(100);
-        char nameLabel[32];
-        snprintf(nameLabel, sizeof(nameLabel), "##pname%d", node.id);
-        if (ImGui::InputText(nameLabel, node.paramNameBuf, sizeof(node.paramNameBuf))) {
-            node.paramName = node.paramNameBuf;
-            node.label = node.paramName.empty() ? "Parameter" : node.paramName;
-        }
-        ImGui::PopItemWidth();
+        ImNodes::PopAttributeFlag();
     }
 
     // Output pins
     for (auto& pin : node.outputs) {
         ImNodes::BeginOutputAttribute(pin.id);
-        float nodeWidth = 180.0f;
+        float nodeWidth = 150.0f;
         float textWidth = ImGui::CalcTextSize(pin.name.c_str()).x;
         ImGui::Indent(nodeWidth - textWidth - 20);
         ImGui::TextUnformatted(pin.name.c_str());
@@ -1385,51 +1455,436 @@ static void draw_node(GraphNode& node) {
 }
 
 // ===========================================================================
+// Properties panel — full editing UI for selected node
+// ===========================================================================
+
+static void draw_properties_panel() {
+    ImGui::Begin("Properties", nullptr,
+                 ImGuiWindowFlags_NoCollapse);
+
+    GraphNode* node = find_selected_node();
+    if (!node) {
+        ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1), "Select a node to edit");
+        ImGui::End();
+        return;
+    }
+
+    // Header
+    ImGui::TextColored(ImColor(node_title_color(node->typeName)).Value, "%s", node->label.c_str());
+    ImGui::SameLine();
+    ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1), "(%s)", node_display_name(node->typeName).c_str());
+    ImGui::Separator();
+
+    // Layout: label on left (120px), widget on right
+    float labelW = 120.0f;
+    float widgetW = ImGui::GetContentRegionAvail().x - labelW;
+
+    // Parameter pins (connectable + editable value)
+    bool hasParams = false;
+    for (auto& pin : node->inputs) {
+        if (pin.inputOnly) continue;
+        if (pin.name.substr(0, 2) == "ch") continue;
+        hasParams = true;
+
+        bool connected = is_pin_connected(pin.id);
+        ImGui::Text("%s", pin.name.c_str());
+        ImGui::SameLine(labelW);
+        if (connected) {
+            GraphNode* srcNode = find_source_node(pin.id);
+            ImGui::TextColored(ImVec4(0.5f, 0.8f, 0.5f, 1), "-> %s", srcNode ? srcNode->label.c_str() : "?");
+        } else {
+            ImGui::PushItemWidth(widgetW);
+            char label[64];
+            snprintf(label, sizeof(label), "##prop%d", pin.id);
+            // Step = 1% of current value (min 0.001), fast step = 10x
+            float step = std::max(0.001f, std::abs(pin.defaultValue) * 0.01f);
+            if (ImGui::InputFloat(label, &pin.defaultValue, step, step * 10.0f, "%.4f")) {
+                if (pin.constantSrc) pin.constantSrc->set(pin.defaultValue);
+                update_node_dsp(*node);
+            }
+            ImGui::PopItemWidth();
+        }
+    }
+
+    // Input-only pins (connection status)
+    for (auto& pin : node->inputs) {
+        if (!pin.inputOnly) continue;
+        bool connected = is_pin_connected(pin.id);
+        ImGui::Text("%s", pin.name.c_str());
+        ImGui::SameLine(labelW);
+        if (connected) {
+            GraphNode* srcNode = find_source_node(pin.id);
+            ImGui::TextColored(ImVec4(0.5f, 0.8f, 0.5f, 1), "-> %s", srcNode ? srcNode->label.c_str() : "?");
+        } else {
+            ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1), "(not connected)");
+        }
+    }
+
+    // Config values
+    if (!node->configValues.empty()) {
+        if (hasParams) { ImGui::Spacing(); ImGui::Separator(); ImGui::Spacing(); }
+        ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1), "Settings");
+
+        for (auto& [desc, val] : node->configValues) {
+            ImGui::Text("%s", desc.name);
+            ImGui::SameLine(labelW);
+            ImGui::PushItemWidth(widgetW);
+            char cfgLabel[64];
+            snprintf(cfgLabel, sizeof(cfgLabel), "##pcfg_%s_%d", desc.name, node->id);
+            bool changed = false;
+            if (desc.type == ConfigType::Bool) {
+                bool b = (val != 0.0f);
+                if (ImGui::Checkbox(cfgLabel, &b)) { val = b ? 1.0f : 0.0f; changed = true; }
+            } else if (desc.type == ConfigType::Int) {
+                int iv = int(val);
+                if (ImGui::InputInt(cfgLabel, &iv, 1, 10)) {
+                    iv = std::clamp(iv, int(desc.min_value), int(desc.max_value));
+                    val = float(iv); changed = true;
+                }
+            } else {
+                float step = std::max(0.001f, (desc.max_value - desc.min_value) * 0.01f);
+                if (ImGui::InputFloat(cfgLabel, &val, step, step * 10.0f, "%.4f")) {
+                    val = std::clamp(val, desc.min_value, desc.max_value);
+                    changed = true;
+                }
+            }
+            ImGui::PopItemWidth();
+            if (changed && node->dspSource)
+                node->dspSource->set_config(desc.name, val);
+        }
+    }
+
+    // Inline formant table (FormantSpectrum)
+    if (node->typeName == "FormantSpectrum" && !node->formantRows.empty()) {
+        ImGui::Spacing(); ImGui::Separator(); ImGui::Spacing();
+        ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1), "Formants");
+
+        // Column headers
+        ImGui::Text("  Freq       Gain       Width      Power");
+
+        bool changed = false;
+        int removeIdx = -1;
+        for (int i = 0; i < (int)node->formantRows.size(); ++i) {
+            auto& row = node->formantRows[i];
+            ImGui::PushID(i);
+
+            ImGui::PushItemWidth(70);
+            changed |= ImGui::DragFloat("##freq", &row.frequency, 10.0f, 1.0f, 20000.0f, "%.0f");
+            ImGui::SameLine();
+            changed |= ImGui::DragFloat("##gain", &row.gain, 0.01f, 0.0f, 10.0f, "%.2f");
+            ImGui::SameLine();
+            changed |= ImGui::DragFloat("##wid", &row.width, 10.0f, 1.0f, 10000.0f, "%.0f");
+            ImGui::SameLine();
+            changed |= ImGui::DragFloat("##pow", &row.power, 0.05f, 0.01f, 10.0f, "%.2f");
+            ImGui::PopItemWidth();
+
+            ImGui::SameLine();
+            if (ImGui::SmallButton(" x ")) removeIdx = i;
+
+            ImGui::PopID();
+        }
+
+        if (removeIdx >= 0 && node->formantRows.size() > 1) {
+            node->formantRows.erase(node->formantRows.begin() + removeIdx);
+            changed = true;
+        }
+        if (ImGui::SmallButton(" + Add formant ")) {
+            node->formantRows.push_back({1000.0f, 1.0f, 500.0f, 2.0f});
+            changed = true;
+        }
+        if (changed) node->rebuild_formant_spectrum();
+    }
+
+    // PatchOutput: polyphony
+    if (node->typeName == NT_PATCH_OUTPUT) {
+        ImGui::Spacing(); ImGui::Separator(); ImGui::Spacing();
+        ImGui::PushItemWidth(-1);
+        char polyLabel[32];
+        snprintf(polyLabel, sizeof(polyLabel), "polyphony##ppoly%d", node->id);
+        ImGui::DragInt(polyLabel, &node->polyphony, 0.1f, 1, 32);
+        ImGui::PopItemWidth();
+    }
+
+    // Parameter: editable name
+    if (node->typeName == NT_PARAMETER) {
+        ImGui::Spacing(); ImGui::Separator(); ImGui::Spacing();
+        ImGui::PushItemWidth(-1);
+        char nameLabel[32];
+        snprintf(nameLabel, sizeof(nameLabel), "name##ppname%d", node->id);
+        if (ImGui::InputText(nameLabel, node->paramNameBuf, sizeof(node->paramNameBuf))) {
+            node->paramName = node->paramNameBuf;
+            node->label = node->paramName.empty() ? "Parameter" : node->paramName;
+        }
+        ImGui::PopItemWidth();
+    }
+
+    ImGui::End();
+}
+
+// ===========================================================================
 // Context menu
 // ===========================================================================
 
 static bool s_wantCreateMenu = false;
 static ImVec2 s_createMenuPos;
 
+static const char* category_label(SourceCategory cat) {
+    switch (cat) {
+        case SourceCategory::Oscillator: return "Oscillators";
+        case SourceCategory::Generator:  return "Generators";
+        case SourceCategory::Modulator:  return "Modulators";
+        case SourceCategory::Envelope:   return "Envelopes";
+        case SourceCategory::Filter:     return "Filters";
+        case SourceCategory::Combiner:   return "Combiners";
+        case SourceCategory::Additive:   return "Additive";
+        case SourceCategory::Utility:    return "Utility";
+    }
+    return "Other";
+}
+
 static void show_create_menu() {
     if (!ImGui::BeginPopup("CreateNodeMenu")) return;
 
-    ImGui::SeparatorText("Oscillators");
-    if (ImGui::MenuItem("Sine"))      { s_nodes.emplace_back(NodeType::SineSource);      ImNodes::SetNodeScreenSpacePos(s_nodes.back().id, s_createMenuPos); }
-    if (ImGui::MenuItem("Saw"))       { s_nodes.emplace_back(NodeType::SawSource);        ImNodes::SetNodeScreenSpacePos(s_nodes.back().id, s_createMenuPos); }
-    if (ImGui::MenuItem("Triangle"))  { s_nodes.emplace_back(NodeType::TriangleSource);   ImNodes::SetNodeScreenSpacePos(s_nodes.back().id, s_createMenuPos); }
-    if (ImGui::MenuItem("Pulse"))     { s_nodes.emplace_back(NodeType::PulseSource);      ImNodes::SetNodeScreenSpacePos(s_nodes.back().id, s_createMenuPos); }
+    // Build menu from registry, grouped by category as nested submenus
+    auto types = SourceRegistry::instance().registered_types();
+    SourceCategory lastCat = (SourceCategory)-1;
+    bool submenuOpen = false;
 
-    ImGui::SeparatorText("Noise");
-    if (ImGui::MenuItem("White Noise")) { s_nodes.emplace_back(NodeType::WhiteNoiseSource); ImNodes::SetNodeScreenSpacePos(s_nodes.back().id, s_createMenuPos); }
-    if (ImGui::MenuItem("Red Noise"))   { s_nodes.emplace_back(NodeType::RedNoiseSource);   ImNodes::SetNodeScreenSpacePos(s_nodes.back().id, s_createMenuPos); }
-
-    ImGui::SeparatorText("Modifiers");
-    if (ImGui::MenuItem("Envelope")) { s_nodes.emplace_back(NodeType::Envelope);  ImNodes::SetNodeScreenSpacePos(s_nodes.back().id, s_createMenuPos); }
-    if (ImGui::MenuItem("Var"))      { s_nodes.emplace_back(NodeType::VarSource);  ImNodes::SetNodeScreenSpacePos(s_nodes.back().id, s_createMenuPos); }
-    if (ImGui::MenuItem("Range"))    { s_nodes.emplace_back(NodeType::RangeSource); ImNodes::SetNodeScreenSpacePos(s_nodes.back().id, s_createMenuPos); }
+    for (const auto& [name, cat] : types) {
+        if (cat != lastCat) {
+            if (submenuOpen) ImGui::EndMenu();
+            submenuOpen = ImGui::BeginMenu(category_label(cat));
+            lastCat = cat;
+        }
+        if (submenuOpen) {
+            std::string displayName = node_display_name(name);
+            if (ImGui::MenuItem(displayName.c_str())) {
+                s_nodes.emplace_back(name);
+                ImNodes::SetNodeScreenSpacePos(s_nodes.back().id, s_createMenuPos);
+            }
+        }
+    }
+    if (submenuOpen) ImGui::EndMenu();
 
     if (s_graphMode == GraphMode::PatchGraph) {
-        ImGui::SeparatorText("Instrument");
-        if (ImGui::MenuItem("Parameter")) {
-            s_nodes.emplace_back(NodeType::Parameter, "param");
-            ImNodes::SetNodeScreenSpacePos(s_nodes.back().id, s_createMenuPos);
-        }
+        if (ImGui::BeginMenu("Instrument")) {
+            if (ImGui::MenuItem("Parameter")) {
+                s_nodes.emplace_back(std::string(NT_PARAMETER), "param");
+                ImNodes::SetNodeScreenSpacePos(s_nodes.back().id, s_createMenuPos);
+            }
 
-        bool hasOutput = false;
-        for (auto& n : s_nodes) if (n.type == NodeType::PatchOutput) hasOutput = true;
-        if (!hasOutput) {
-            if (ImGui::MenuItem("Output")) { s_nodes.emplace_back(NodeType::PatchOutput); ImNodes::SetNodeScreenSpacePos(s_nodes.back().id, s_createMenuPos); }
-        } else {
-            ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "Output (exists)");
+            bool hasOutput = false;
+            for (auto& n : s_nodes) if (n.typeName == NT_PATCH_OUTPUT) hasOutput = true;
+            if (!hasOutput) {
+                if (ImGui::MenuItem("Output")) {
+                    s_nodes.emplace_back(std::string(NT_PATCH_OUTPUT));
+                    ImNodes::SetNodeScreenSpacePos(s_nodes.back().id, s_createMenuPos);
+                }
+            } else {
+                ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "Output (exists)");
+            }
+            ImGui::EndMenu();
         }
     } else {
-        ImGui::SeparatorText("Output");
-        if (ImGui::MenuItem("Channel")) { s_nodes.emplace_back(NodeType::SoundChannel); ImNodes::SetNodeScreenSpacePos(s_nodes.back().id, s_createMenuPos); }
-        if (ImGui::MenuItem("Mixer"))   { s_nodes.emplace_back(NodeType::StereoMixer);  ImNodes::SetNodeScreenSpacePos(s_nodes.back().id, s_createMenuPos); }
+        if (ImGui::BeginMenu("Output")) {
+            if (ImGui::MenuItem("Channel")) {
+                s_nodes.emplace_back(std::string(NT_SOUND_CHANNEL));
+                ImNodes::SetNodeScreenSpacePos(s_nodes.back().id, s_createMenuPos);
+            }
+            if (ImGui::MenuItem("Mixer")) {
+                s_nodes.emplace_back(std::string(NT_STEREO_MIXER));
+                ImNodes::SetNodeScreenSpacePos(s_nodes.back().id, s_createMenuPos);
+            }
+            ImGui::EndMenu();
+        }
     }
 
     ImGui::EndPopup();
+}
+
+// ===========================================================================
+// Waveform display
+// ===========================================================================
+
+static constexpr float WAVE_MARGIN_W = 45.0f;  // left margin for peak values
+
+static void draw_waveform(const char* label, const float* buf, int sampleCount,
+                          ImU32 waveColor,
+                          float x, float y, float width, float height) {
+    ImDrawList* dl = ImGui::GetWindowDrawList();
+
+    // Background (full area including margin)
+    dl->AddRectFilled(ImVec2(x, y), ImVec2(x + width, y + height), IM_COL32(20, 20, 25, 255));
+
+    // Waveform drawing area (after margin)
+    float drawX = x + WAVE_MARGIN_W;
+    float drawW = width - WAVE_MARGIN_W;
+    float midY = y + height * 0.5f;
+
+    // Center line
+    dl->AddLine(ImVec2(drawX, midY), ImVec2(drawX + drawW, midY), IM_COL32(60, 60, 60, 255));
+
+    // Label in margin area
+    dl->AddText(ImVec2(x + 2, y + 2), IM_COL32(150, 150, 150, 255), label);
+
+    if (sampleCount > 0 && buf) {
+        // Find global peak for normalization
+        float peakPos = 0.0f, peakNeg = 0.0f;
+        for (int i = 0; i < sampleCount; ++i) {
+            peakPos = std::max(peakPos, buf[i]);
+            peakNeg = std::min(peakNeg, buf[i]);
+        }
+        float peakAbs = std::max(std::abs(peakPos), std::abs(peakNeg));
+        float scale = (peakAbs > 0.0001f) ? (1.0f / peakAbs) : 1.0f;
+
+        // Show peak values in margin
+        char peakBuf[16];
+        snprintf(peakBuf, sizeof(peakBuf), "%.3f", peakPos);
+        dl->AddText(ImVec2(x + 2, y + height * 0.15f), IM_COL32(100, 100, 100, 255), peakBuf);
+        snprintf(peakBuf, sizeof(peakBuf), "%.3f", peakNeg);
+        dl->AddText(ImVec2(x + 2, y + height * 0.75f), IM_COL32(100, 100, 100, 255), peakBuf);
+
+        // Draw waveform (normalized)
+        int pixelCount = (int)drawW;
+        for (int px = 0; px < pixelCount; ++px) {
+            int sampleStart = g_waveScrollPos + px * g_waveZoom;
+            if (sampleStart >= sampleCount) break;
+
+            float minVal = 1.0f, maxVal = -1.0f;
+            int sampleEnd = std::min(sampleStart + g_waveZoom, sampleCount);
+            for (int s = sampleStart; s < sampleEnd; ++s) {
+                float v = buf[s] * scale;
+                minVal = std::min(minVal, v);
+                maxVal = std::max(maxVal, v);
+            }
+
+            float y0 = midY - maxVal * (height * 0.45f);
+            float y1 = midY - minVal * (height * 0.45f);
+            if (y1 - y0 < 1.0f) { y0 -= 0.5f; y1 += 0.5f; }
+            dl->AddLine(ImVec2(drawX + px, y0), ImVec2(drawX + px, y1), waveColor);
+        }
+    }
+
+    // Border
+    dl->AddRect(ImVec2(x, y), ImVec2(x + width, y + height), IM_COL32(80, 80, 80, 255));
+    // Margin separator
+    dl->AddLine(ImVec2(drawX, y), ImVec2(drawX, y + height), IM_COL32(60, 60, 60, 255));
+}
+
+// ===========================================================================
+// Waveform window (dockable)
+// ===========================================================================
+
+static void draw_waveform_window() {
+    ImGui::Begin("Waveforms", nullptr,
+                 ImGuiWindowFlags_NoCollapse);
+
+    float waveAreaW = ImGui::GetContentRegionAvail().x;
+    float waveAreaH = ImGui::GetContentRegionAvail().y;
+
+    // Zoom/scroll controls at top
+    ImGui::Text("Zoom: %dx", g_waveZoom);
+    ImGui::SameLine();
+    if (ImGui::SmallButton(" - ##zout")) g_waveZoom = std::min(4096, g_waveZoom * 2);
+    ImGui::SameLine();
+    if (ImGui::SmallButton(" + ##zin")) g_waveZoom = std::max(1, g_waveZoom / 2);
+    ImGui::SameLine();
+    if (ImGui::SmallButton("Fit##zfit")) {
+        if (g_waveformSamples > 0)
+            g_waveZoom = std::max(1, g_waveformSamples / (int)waveAreaW);
+        g_waveScrollPos = 0;
+    }
+    ImGui::SameLine();
+    ImGui::Text("Cols:");
+    ImGui::SameLine();
+    if (ImGui::SmallButton(" - ##colm")) g_waveColumns = std::max(1, g_waveColumns - 1);
+    ImGui::SameLine();
+    if (ImGui::SmallButton(" + ##colp")) g_waveColumns = std::min(4, g_waveColumns + 1);
+
+    // Horizontal scrollbar
+    int maxScroll = std::max(0, g_waveformSamples - (int)(waveAreaW) * g_waveZoom);
+    g_waveScrollPos = std::clamp(g_waveScrollPos, 0, std::max(1, maxScroll));
+    if (maxScroll > 0) {
+        ImGui::PushItemWidth(waveAreaW);
+        int scrollVal = g_waveScrollPos;
+        if (ImGui::SliderInt("##hscroll", &scrollVal, 0, maxScroll, "")) {
+            g_waveScrollPos = scrollVal;
+        }
+        ImGui::PopItemWidth();
+    }
+
+    // Calculate strip heights from remaining space
+    int dspNodeCount = 0;
+    for (auto& n : s_nodes)
+        if (!n.waveformData.empty()) dspNodeCount++;
+
+    float remainH = ImGui::GetContentRegionAvail().y;
+    int totalStrips = 1 + dspNodeCount;  // output + per-node
+    int totalRows = (totalStrips + g_waveColumns - 1) / g_waveColumns;
+    float stripH = std::max(25.0f, (remainH - totalRows * 2.0f) / float(totalRows));
+
+    // Scrollable waveform area
+    ImGui::BeginChild("WaveScroll", ImVec2(0, 0), false);
+
+    ImVec2 cursor = ImGui::GetCursorScreenPos();
+    float yOff = 0.0f;
+
+    // Collect all strips: output first, then per-node
+    struct WaveStrip { const char* label; const float* buf; int count; ImU32 color; };
+    std::vector<WaveStrip> strips;
+    static const ImU32 audioColor = IM_COL32(80, 220, 80, 255);     // bright green
+    static const ImU32 envelopeColor = IM_COL32(220, 220, 60, 255); // yellow
+
+    strips.push_back({"Output",
+                      g_outputWaveform.empty() ? nullptr : g_outputWaveform.data(),
+                      g_waveformSamples, audioColor});
+
+    auto& reg = SourceRegistry::instance();
+    for (auto& n : s_nodes) {
+        if (n.waveformData.empty()) continue;
+        SourceCategory cat = reg.has(n.typeName) ? reg.get_category(n.typeName) : SourceCategory::Utility;
+        ImU32 col = (cat == SourceCategory::Envelope) ? envelopeColor : audioColor;
+        strips.push_back({n.label.c_str(),
+                          n.waveformData.data(), (int)n.waveformData.size(),
+                          col});
+    }
+
+    // Layout strips in g_waveColumns columns
+    int N = g_waveColumns;
+    float gap = 4.0f;
+    float colW = (waveAreaW - (N - 1) * gap) / float(N);
+
+    for (int i = 0; i < (int)strips.size(); ++i) {
+        int col = i % N;
+        int row = i / N;
+        float xPos = cursor.x + col * (colW + gap);
+        float yPos = cursor.y + row * (stripH + 2.0f);
+        draw_waveform(strips[i].label, strips[i].buf, strips[i].count,
+                      strips[i].color, xPos, yPos, colW, stripH);
+    }
+
+    int actualRows = ((int)strips.size() + N - 1) / N;
+    yOff = actualRows * (stripH + 2.0f);
+    ImGui::Dummy(ImVec2(waveAreaW, yOff));
+
+    // Mouse wheel zoom
+    if (ImGui::IsWindowHovered()) {
+        float wheel = ImGui::GetIO().MouseWheel;
+        if (wheel > 0.0f && g_waveZoom > 1)
+            g_waveZoom = std::max(1, g_waveZoom / 2);
+        else if (wheel < 0.0f && g_waveZoom < 4096)
+            g_waveZoom = std::min(4096, g_waveZoom * 2);
+    }
+
+    // Click-drag scroll
+    if (ImGui::IsWindowHovered() && ImGui::IsMouseDragging(ImGuiMouseButton_Left)) {
+        float dx = ImGui::GetIO().MouseDelta.x;
+        g_waveScrollPos -= (int)(dx * g_waveZoom);
+        g_waveScrollPos = std::clamp(g_waveScrollPos, 0, std::max(1, maxScroll));
+    }
+
+    ImGui::EndChild();
+    ImGui::End(); // Waveforms
 }
 
 // ===========================================================================
@@ -1453,6 +1908,9 @@ int main(int, char**) {
     ImGui::CreateContext();
     ImNodes::CreateContext();
 
+    ImGuiIO& io = ImGui::GetIO();
+    io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
+
     ImGui::StyleColorsDark();
 
     ImNodesStyle& style = ImNodes::GetStyle();
@@ -1470,9 +1928,13 @@ int main(int, char**) {
         // Non-fatal — UI works without audio
     }
 
+    // Initialize the source registry before creating any nodes
+    register_all_sources();
+
     // Start with a Patch Graph
     new_graph(GraphMode::PatchGraph);
-    bool firstFrame = true;
+    bool s_firstFrame = true;
+    bool s_dockLayoutInitialized = false;
 
     while (!glfwWindowShouldClose(window)) {
         glfwPollEvents();
@@ -1482,24 +1944,23 @@ int main(int, char**) {
         ImGui::NewFrame();
 
         // Layout nodes (first frame or after load)
-        if (firstFrame || s_needsLayout) {
+        if (s_firstFrame || s_needsLayout) {
             float x = 50, y = 80;
             for (int i = 0; i < (int)s_nodes.size(); ++i) {
                 ImNodes::SetNodeScreenSpacePos(s_nodes[i].id, ImVec2(x, y));
                 x += 220;
                 if (x > 900) { x = 50; y += 250; }
             }
-            firstFrame = false;
+            s_firstFrame = false;
             s_needsLayout = false;
         }
 
-        // Full-window editor
+        // Update GLFW window title
         const char* modeLabel = s_graphMode == GraphMode::PatchGraph ? "Patch Graph" : "Node Graph";
         char titleBuf[64];
         if (s_currentFilePath.empty())
             snprintf(titleBuf, sizeof(titleBuf), "MForce - %s (unsaved)", modeLabel);
         else {
-            // Show just the filename, not full path
             const char* fname = s_currentFilePath.c_str();
             const char* slash = strrchr(fname, '/');
             const char* bslash = strrchr(fname, '\\');
@@ -1509,12 +1970,16 @@ int main(int, char**) {
         }
         glfwSetWindowTitle(window, titleBuf);
 
+        // =================================================================
+        // Master frame window (fullscreen, contains menu bar + DockSpace)
+        // =================================================================
         ImGui::SetNextWindowPos(ImVec2(0, 0));
         ImGui::SetNextWindowSize(ImGui::GetIO().DisplaySize);
-        ImGui::Begin("Editor", nullptr,
-                     ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
-                     ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoBringToFrontOnFocus |
-                     ImGuiWindowFlags_MenuBar);
+        ImGui::Begin("MForce", nullptr,
+            ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
+            ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoBringToFrontOnFocus |
+            ImGuiWindowFlags_MenuBar | ImGuiWindowFlags_NoDocking |
+            ImGuiWindowFlags_NoBackground);
 
         // Menu bar
         if (ImGui::BeginMenuBar()) {
@@ -1522,11 +1987,11 @@ int main(int, char**) {
                 if (ImGui::BeginMenu("New")) {
                     if (ImGui::MenuItem("Patch Graph")) {
                         new_graph(GraphMode::PatchGraph);
-                        firstFrame = true;
+                        s_firstFrame = true;
                     }
                     if (ImGui::MenuItem("Node Graph")) {
                         new_graph(GraphMode::NodeGraph);
-                        firstFrame = true;
+                        s_firstFrame = true;
                     }
                     ImGui::EndMenu();
                 }
@@ -1564,32 +2029,37 @@ int main(int, char**) {
             ImGui::EndMenuBar();
         }
 
-        ImNodes::BeginNodeEditor();
+        // DockSpace fills the rest of the master window
+        ImGuiID dockspaceId = ImGui::GetID("MainDockSpace");
+        ImGui::DockSpace(dockspaceId);
 
-        for (auto& node : s_nodes)
-            draw_node(node);
-        for (auto& link : s_links)
-            ImNodes::Link(link.id, link.startPinId, link.endPinId);
+        // Set up initial dock layout on first run
+        if (!s_dockLayoutInitialized) {
+            s_dockLayoutInitialized = true;
 
-        bool editorHovered = ImNodes::IsEditorHovered();
+            ImGui::DockBuilderRemoveNode(dockspaceId);
+            ImGui::DockBuilderAddNode(dockspaceId, ImGuiDockNodeFlags_DockSpace);
+            ImGui::DockBuilderSetNodeSize(dockspaceId, ImGui::GetIO().DisplaySize);
 
-        ImNodes::EndNodeEditor();
+            // Split: right side for properties (22%)
+            ImGuiID dockRight;
+            ImGuiID dockRemaining;
+            ImGui::DockBuilderSplitNode(dockspaceId, ImGuiDir_Right, 0.22f, &dockRight, &dockRemaining);
 
-        // New links
-        int startAttr, endAttr;
-        if (ImNodes::IsLinkCreated(&startAttr, &endAttr)) {
-            Pin* startPin = find_pin(startAttr);
-            Pin* endPin = find_pin(endAttr);
-            if (startPin && endPin && startPin->kind != endPin->kind) {
-                // Ensure output→input order
-                int outPin = (startPin->kind == PinKind::Output) ? startAttr : endAttr;
-                int inPin  = (startPin->kind == PinKind::Input)  ? startAttr : endAttr;
-                s_links.emplace_back(outPin, inPin);
-                update_all_dsp();
-            }
+            // Split remaining: bottom for waveforms (35%)
+            ImGuiID dockBottom;
+            ImGuiID dockCenter;
+            ImGui::DockBuilderSplitNode(dockRemaining, ImGuiDir_Down, 0.35f, &dockBottom, &dockCenter);
+
+            // Dock windows
+            ImGui::DockBuilderDockWindow("Node Editor", dockCenter);
+            ImGui::DockBuilderDockWindow("Properties", dockRight);
+            ImGui::DockBuilderDockWindow("Waveforms", dockBottom);
+
+            ImGui::DockBuilderFinish(dockspaceId);
         }
 
-        // Ctrl+S save, Ctrl+O open, Space play
+        // Global keyboard shortcuts (work regardless of focused window)
         if (ImGui::GetIO().KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_S))
             save_graph();
         if (ImGui::GetIO().KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_O))
@@ -1607,7 +2077,112 @@ int main(int, char**) {
                 play_continuous(0.5f);
         }
 
-        // Delete
+        ImGui::End(); // MForce master window
+
+        // =================================================================
+        // Node Editor window
+        // =================================================================
+        ImGui::Begin("Node Editor", nullptr,
+                     ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+
+        ImNodes::BeginNodeEditor();
+
+        for (auto& node : s_nodes)
+            draw_node(node);
+        for (auto& link : s_links)
+            ImNodes::Link(link.id, link.startPinId, link.endPinId);
+
+        bool editorHovered = ImNodes::IsEditorHovered();
+
+        ImNodes::EndNodeEditor();
+
+        // Track selected node for properties panel
+        if (ImNodes::NumSelectedNodes() == 1) {
+            int sel;
+            ImNodes::GetSelectedNodes(&sel);
+            g_selectedNodeId = sel;
+        } else if (ImNodes::NumSelectedNodes() == 0) {
+            g_selectedNodeId = -1;
+        }
+
+        // New links (also handles rewiring: drag from connected pin removes old link)
+        int startAttr, endAttr;
+        if (ImNodes::IsLinkCreated(&startAttr, &endAttr)) {
+            Pin* startPin = find_pin(startAttr);
+            Pin* endPin = find_pin(endAttr);
+            if (startPin && endPin && startPin->kind != endPin->kind) {
+                int outPin = (startPin->kind == PinKind::Output) ? startAttr : endAttr;
+                int inPin  = (startPin->kind == PinKind::Input)  ? startAttr : endAttr;
+
+                Pin* inPinObj = find_pin(inPin);
+                if (!inPinObj || !inPinObj->multi) {
+                    s_links.erase(
+                        std::remove_if(s_links.begin(), s_links.end(),
+                            [inPin](const Link& l) { return l.endPinId == inPin || l.startPinId == inPin; }),
+                        s_links.end());
+                }
+
+                s_links.emplace_back(outPin, inPin);
+                update_all_dsp();
+            }
+        }
+
+        // Detached link
+        {
+            int destroyedLinkId;
+            if (ImNodes::IsLinkDestroyed(&destroyedLinkId)) {
+                s_links.erase(
+                    std::remove_if(s_links.begin(), s_links.end(),
+                        [destroyedLinkId](const Link& l) { return l.id == destroyedLinkId; }),
+                    s_links.end());
+                update_all_dsp();
+            }
+        }
+
+        // Right-click context menu
+        if (editorHovered && ImGui::IsMouseClicked(ImGuiMouseButton_Right)) {
+            s_createMenuPos = ImGui::GetMousePos();
+            s_wantCreateMenu = true;
+        }
+        if (s_wantCreateMenu) {
+            ImGui::OpenPopup("CreateNodeMenu");
+            s_wantCreateMenu = false;
+        }
+        show_create_menu();
+
+        // Fit/center helper lambda (used by F key and Fit button)
+        auto fitAllNodes = [&]() {
+            if (!s_nodes.empty()) {
+                float minX = 1e9f, minY = 1e9f, maxX = -1e9f, maxY = -1e9f;
+                for (auto& node : s_nodes) {
+                    ImVec2 pos = ImNodes::GetNodeGridSpacePos(node.id);
+                    minX = std::min(minX, pos.x); minY = std::min(minY, pos.y);
+                    maxX = std::max(maxX, pos.x + 200.0f);
+                    maxY = std::max(maxY, pos.y + 100.0f);
+                }
+                float cx = (minX + maxX) * 0.5f;
+                float cy = (minY + maxY) * 0.5f;
+                float winW = ImGui::GetWindowWidth();
+                float winH = ImGui::GetWindowHeight() - 50.0f;
+                ImNodes::EditorContextResetPanning(ImVec2(winW * 0.5f - cx, winH * 0.5f - cy));
+            }
+        };
+
+        // Node-editor-specific shortcuts: F (fit), arrow keys (pan), Delete
+        if (ImGui::IsKeyPressed(ImGuiKey_F) && !ImGui::GetIO().WantTextInput && !ImGui::GetIO().KeyCtrl) {
+            fitAllNodes();
+        }
+
+        // Arrow key panning (when not editing text)
+        if (!ImGui::GetIO().WantTextInput) {
+            float panSpeed = ImGui::GetIO().KeyShift ? 200.0f : 50.0f;
+            auto p = ImNodes::EditorContextGetPanning();
+            if (ImGui::IsKeyDown(ImGuiKey_LeftArrow))  ImNodes::EditorContextResetPanning(ImVec2(p.x + panSpeed, p.y));
+            if (ImGui::IsKeyDown(ImGuiKey_RightArrow)) ImNodes::EditorContextResetPanning(ImVec2(p.x - panSpeed, p.y));
+            if (ImGui::IsKeyDown(ImGuiKey_UpArrow))    ImNodes::EditorContextResetPanning(ImVec2(p.x, p.y + panSpeed));
+            if (ImGui::IsKeyDown(ImGuiKey_DownArrow))  ImNodes::EditorContextResetPanning(ImVec2(p.x, p.y - panSpeed));
+        }
+
         if (!ImGui::GetIO().WantTextInput &&
             (ImGui::IsKeyPressed(ImGuiKey_Delete) || ImGui::IsKeyPressed(ImGuiKey_Backspace))) {
             int numLinks = ImNodes::NumSelectedLinks();
@@ -1627,26 +2202,33 @@ int main(int, char**) {
             ImNodes::ClearLinkSelection();
         }
 
-        // Right-click
-        if (editorHovered && ImGui::IsMouseClicked(ImGuiMouseButton_Right)) {
-            s_createMenuPos = ImGui::GetMousePos();
-            s_wantCreateMenu = true;
-        }
-        if (s_wantCreateMenu) {
-            ImGui::OpenPopup("CreateNodeMenu");
-            s_wantCreateMenu = false;
-        }
-        show_create_menu();
-
         // Status bar
-        ImGui::SetCursorPosY(ImGui::GetWindowHeight() - 30);
         ImGui::Separator();
-        ImGui::Text("%s  |  Nodes: %d  Links: %d  |  Right-click: add  |  Del: remove  |  Space: play",
+        ImGui::Text("%s  |  Nodes: %d  Links: %d",
                      modeLabel, (int)s_nodes.size(), (int)s_links.size());
+        ImGui::SameLine();
+        if (ImGui::SmallButton("Fit##fitbtn")) { fitAllNodes(); }
+        ImGui::SameLine();
+        if (ImGui::SmallButton("<##panL")) { auto p = ImNodes::EditorContextGetPanning(); ImNodes::EditorContextResetPanning(ImVec2(p.x + 100, p.y)); }
+        ImGui::SameLine();
+        if (ImGui::SmallButton(">##panR")) { auto p = ImNodes::EditorContextGetPanning(); ImNodes::EditorContextResetPanning(ImVec2(p.x - 100, p.y)); }
+        ImGui::SameLine();
+        if (ImGui::SmallButton("^##panU")) { auto p = ImNodes::EditorContextGetPanning(); ImNodes::EditorContextResetPanning(ImVec2(p.x, p.y + 100)); }
+        ImGui::SameLine();
+        if (ImGui::SmallButton("v##panD")) { auto p = ImNodes::EditorContextGetPanning(); ImNodes::EditorContextResetPanning(ImVec2(p.x, p.y - 100)); }
 
-        ImGui::End();
+        ImGui::End(); // Node Editor
 
-        // Render
+        // =================================================================
+        // Properties panel
+        // =================================================================
+        draw_properties_panel();
+
+        // =================================================================
+        // Waveform display window
+        // =================================================================
+        draw_waveform_window();
+
         // Pump audio: refill any completed waveOut buffers
         pump_audio();
 

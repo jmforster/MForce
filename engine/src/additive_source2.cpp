@@ -37,6 +37,7 @@ void AdditiveSource2::set_partials(
 }
 
 void AdditiveSource2::set_default_partials(int count) {
+  partialCount_ = count;
   hasStart_ = false;
   endIdx_.resize(count);
   endAmpl_.resize(count);

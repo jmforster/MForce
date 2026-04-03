@@ -45,18 +45,38 @@ struct Vibrato final : ValueSource {
     lfo_ = std::make_shared<RedNoiseSource>(sampleRate, seed);
     lfo_->set_frequency(speedRange);
     lfo_->set_amplitude(depthRange);
-    lfo_->smoothness = std::make_shared<ConstantSource>(1.0f);
-    lfo_->rampVariation = std::make_shared<ConstantSource>(speedVar);
-    lfo_->boost = std::make_shared<ConstantSource>(1.0f - depthVar);
+    lfo_->set_smoothness(std::make_shared<ConstantSource>(1.0f));
+    lfo_->set_rampVariation(std::make_shared<ConstantSource>(speedVar));
+    lfo_->set_boost(std::make_shared<ConstantSource>(1.0f - depthVar));
   }
 
-  std::shared_ptr<ValueSource> frequency;
+  void set_frequency(std::shared_ptr<ValueSource> s) { frequency_ = std::move(s); }
+  std::shared_ptr<ValueSource> get_frequency() const { return frequency_; }
+
+  const char* type_name() const override { return "Vibrato"; }
+  SourceCategory category() const override { return SourceCategory::Modulator; }
+
+  std::span<const ParamDescriptor> param_descriptors() const override {
+    static constexpr ParamDescriptor descs[] = {
+      {"frequency", 440.0f, 0.01f, 20000.0f},
+    };
+    return descs;
+  }
+
+  void set_param(std::string_view name, std::shared_ptr<ValueSource> src) override {
+    if (name == "frequency") { frequency_ = std::move(src); return; }
+  }
+
+  std::shared_ptr<ValueSource> get_param(std::string_view name) const override {
+    if (name == "frequency") return frequency_;
+    return nullptr;
+  }
 
   void prepare(int frames) override {
     float duration = float(frames) / float(sampleRate_);
     enabled_ = duration > threshold_;
 
-    if (frequency) frequency->prepare(frames);
+    if (frequency_) frequency_->prepare(frames);
 
     if (enabled_) {
       lfo_->prepare(frames);
@@ -64,7 +84,7 @@ struct Vibrato final : ValueSource {
   }
 
   float next() override {
-    float freq = frequency ? (frequency->next(), frequency->current()) : 440.0f;
+    float freq = frequency_ ? (frequency_->next(), frequency_->current()) : 440.0f;
 
     if (enabled_) {
       float mod = lfo_->next();
@@ -78,6 +98,7 @@ struct Vibrato final : ValueSource {
   float current() const override { return cur_; }
 
 private:
+  std::shared_ptr<ValueSource> frequency_;
   int sampleRate_;
   float speed_, depth_, attack_, threshold_;
   float speedVar_, depthVar_;
