@@ -5,6 +5,7 @@
 #include "mforce/music/conductor.h"
 #include "mforce/music/classical_composer.h"
 #include "mforce/music/music_json.h"
+#include "mforce/music/parse_util.h"
 #include <iostream>
 #include <fstream>
 #include <vector>
@@ -15,25 +16,6 @@
 #include <sstream>
 
 using namespace mforce;
-
-// ---------------------------------------------------------------------------
-// Parse a chord token like "C:M", "Am:m7", "G:7", "F:M"
-// Format: root:chordType  (root = pitch name, chordType = ChordDef short name)
-// ---------------------------------------------------------------------------
-static Chord parse_chord_token(const std::string& token, int octave,
-                               const std::string& dictName, float durationBeats) {
-    auto colon = token.find(':');
-    if (colon == std::string::npos)
-        throw std::runtime_error("Bad chord token (expected Root:Type): " + token);
-
-    std::string rootName = token.substr(0, colon);
-    std::string chordType = token.substr(colon + 1);
-
-    if (dictName.empty())
-        return Chord::create(rootName, octave, chordType, durationBeats);
-    else
-        return Chord::create(dictName, rootName, octave, chordType, durationBeats);
-}
 
 // ---------------------------------------------------------------------------
 // Chord progression mode
@@ -308,113 +290,6 @@ static int run_melody(int argc, char** argv) {
     }
 
     return 0;
-}
-
-// ---------------------------------------------------------------------------
-// Chord string parser (legacy format from SoundController)
-// Format: "Em7_d F#7#9_g6_q. O+ Cmu_hh O-"
-// ---------------------------------------------------------------------------
-static float parse_duration(const std::string& durStr) {
-    static const std::string durChars = "tseqhwdf";
-    static const float durBeats[] = {0.125f, 0.25f, 0.5f, 1.0f, 2.0f, 4.0f, 8.0f, 16.0f};
-
-    if (durStr.empty()) return 4.0f;
-
-    auto pos = durChars.find(durStr[0]);
-    if (pos == std::string::npos)
-        throw std::runtime_error("Unknown duration char: " + durStr);
-
-    float beats = durBeats[pos];
-    if (durStr.size() >= 2) {
-        beats *= (durStr[1] == '.') ? 1.5f : 1.25f;
-    }
-    return beats;
-}
-
-static std::string map_chord_group(const std::string& grp) {
-    if (grp == "g4") return "Guitar-Bar-4";
-    if (grp == "g5") return "Guitar-Bar-5";
-    if (grp == "g6") return "Guitar-Bar-6";
-    return grp;
-}
-
-struct ParsedChord {
-    Chord chord;
-    int octave;
-};
-
-static std::vector<ParsedChord> parse_chord_string(const std::string& input, int startOctave,
-                                                    const std::string& defaultDict,
-                                                    const std::string& figurePrefix = "") {
-    std::vector<ParsedChord> result;
-    std::istringstream iss(input);
-    std::string token;
-    int octave = startOctave;
-
-    while (iss >> token) {
-        // Octave shifts
-        if (token == "O+" || token == "O-") {
-            octave += (token[1] == '+') ? 1 : -1;
-            continue;
-        }
-
-        // Split on '_'
-        std::vector<std::string> parts;
-        {
-            std::istringstream ts(token);
-            std::string part;
-            while (std::getline(ts, part, '_')) parts.push_back(part);
-        }
-
-        if (parts.empty()) continue;
-
-        std::string chordName = parts[0];
-        std::string dictName;
-        std::string durStr;
-
-        if (parts.size() == 3) {
-            dictName = map_chord_group(parts[1]);
-            durStr = parts[2];
-        } else if (parts.size() == 2) {
-            dictName = defaultDict;
-            durStr = parts[1];
-        } else {
-            dictName = defaultDict;
-            durStr = "w"; // default whole note
-        }
-
-        // Strip trailing 'O' from chord name
-        while (!chordName.empty() && chordName.back() == 'O')
-            chordName.pop_back();
-
-        // Parse root pitch (1 or 2 chars if second is #/b)
-        std::string rootName, chordType;
-        if (chordName.size() >= 2 && (chordName[1] == '#' || chordName[1] == 'b')) {
-            rootName = chordName.substr(0, 2);
-            chordType = chordName.substr(2);
-        } else {
-            rootName = chordName.substr(0, 1);
-            chordType = chordName.substr(1);
-        }
-
-        // Empty chord type = Major
-        if (chordType.empty()) chordType = "M";
-
-        float dur = parse_duration(durStr);
-
-        Chord chord = Chord::create(dictName, rootName, octave, chordType, dur);
-
-        // Set figure name hint if prefix specified
-        if (!figurePrefix.empty()) {
-            char durBuf[16];
-            snprintf(durBuf, sizeof(durBuf), "%g", dur);
-            chord.figureName = figurePrefix + durBuf;
-        }
-
-        result.push_back({std::move(chord), octave});
-    }
-
-    return result;
 }
 
 // ---------------------------------------------------------------------------

@@ -22,6 +22,10 @@
 #include "mforce/core/range_source.h"   // needed for RangeSource constructor
 #include "mforce/source/additive/formant.h" // needed for FormantSpectrum inline table
 #include "mforce/render/mixer.h"
+#include "mforce/render/wav_writer.h"
+#include "mforce/music/parse_util.h"
+#include "mforce/music/structure.h"
+#include "mforce/music/conductor.h"
 
 using namespace mforce;
 
@@ -1186,6 +1190,39 @@ static int g_waveZoom = 1;        // samples per pixel (1 = most zoomed in)
 static int g_waveScrollPos = 0;   // starting sample offset into available data
 static int g_waveColumns = 1;     // number of columns for waveform tiling
 
+// ===========================================================================
+// Transport state
+// ===========================================================================
+enum class PlayMode { Note, Passage, Chords, Drums };
+
+struct TransportState {
+    PlayMode mode = PlayMode::Note;
+    // Note mode
+    char noteStr[16] = "C4";
+    float velocity = 0.8f;
+    float duration = 2.0f;
+    // Passage mode
+    char passageStr[256] = "";
+    int octave = 4;
+    float bpm = 120.0f;
+    // Chords mode
+    char chordsStr[256] = "";
+    char defChordGrp[64] = "";
+    char figure[64] = "";
+    int inversion = 0;
+    int spread = 0;
+    float chordDelay = 0.0f;
+    // Drums mode
+    char pattern[64] = "";
+    int repeats = 2;
+    // Shared
+    bool noteMode = false;
+    // Status message (shown in transport panel)
+    char statusMsg[256] = "";
+    bool statusIsError = false;
+};
+static TransportState g_transport;
+
 static HWAVEOUT g_waveOut = nullptr;
 static WAVEHDR  g_waveHdrs[NUM_AUDIO_BUFS] = {};
 static int16_t  g_audioBufs[NUM_AUDIO_BUFS][AUDIO_CHUNK * 2] = {};
@@ -1194,6 +1231,50 @@ static ValueSource* g_streamSource = nullptr;
 static int g_streamRemaining = 0;
 static float g_streamVelocity = 0.5f;
 
+// Buffer playback: stream from a pre-rendered buffer (e.g. g_outputWaveform)
+static const float* g_bufferPlayback = nullptr;
+static int g_bufferPlaybackPos = 0;
+static int g_bufferPlaybackLen = 0;
+
+// Polyphonic voice pool: pre-rendered note buffers that mix together
+static constexpr int MAX_VOICES = 16;
+struct Voice {
+    std::vector<float> samples;
+    int pos = 0;
+    bool active = false;
+    int midiNote = 0;  // for keyboard highlight
+};
+static Voice g_voices[MAX_VOICES];
+
+static void voice_play(std::vector<float>&& buf, int midiNote = 0) {
+    // Find a free voice, or steal the oldest
+    int slot = -1;
+    for (int i = 0; i < MAX_VOICES; ++i) {
+        if (!g_voices[i].active) { slot = i; break; }
+    }
+    if (slot < 0) {
+        // Steal voice with most progress
+        int best = 0;
+        for (int i = 1; i < MAX_VOICES; ++i)
+            if (g_voices[i].pos > g_voices[best].pos) best = i;
+        slot = best;
+    }
+    g_voices[slot].samples = std::move(buf);
+    g_voices[slot].pos = 0;
+    g_voices[slot].active = true;
+    g_voices[slot].midiNote = midiNote;
+}
+
+static bool any_voice_active() {
+    for (int i = 0; i < MAX_VOICES; ++i)
+        if (g_voices[i].active) return true;
+    return false;
+}
+
+static bool is_playing() {
+    return g_streamSource != nullptr || g_bufferPlayback != nullptr || any_voice_active();
+}
+
 static void fill_audio_buffer(int bufIdx) {
     auto* out = g_audioBufs[bufIdx];
     auto* hdr = &g_waveHdrs[bufIdx];
@@ -1201,8 +1282,26 @@ static void fill_audio_buffer(int bufIdx) {
     for (int i = 0; i < AUDIO_CHUNK; ++i) {
         float s = 0.0f;
 
+        // Mix active voices
+        for (int v = 0; v < MAX_VOICES; ++v) {
+            auto& voice = g_voices[v];
+            if (voice.active) {
+                s += voice.samples[voice.pos++];
+                if (voice.pos >= (int)voice.samples.size())
+                    voice.active = false;
+            }
+        }
+
+        // Buffer playback (passage/chords)
+        if (g_bufferPlayback && g_bufferPlaybackPos < g_bufferPlaybackLen) {
+            s += g_bufferPlayback[g_bufferPlaybackPos++];
+            if (g_bufferPlaybackPos >= g_bufferPlaybackLen)
+                g_bufferPlayback = nullptr;
+        }
+
+        // Live DSP stream (continuous mode)
         if (g_streamSource && g_streamRemaining != 0) {
-            s = g_streamSource->next() * g_streamVelocity;
+            s += g_streamSource->next() * g_streamVelocity;
             if (g_streamRemaining > 0) {
                 g_streamRemaining--;
                 if (g_streamRemaining == 0)
@@ -1344,20 +1443,18 @@ static void render_waveforms(float noteNum, float velocity, float durationSecond
     g_waveZoom = std::max(1, samples / 800);
 }
 
-// Play a note: set frequency param, prepare the graph, start streaming
+// Play a note: render offline into a voice buffer for polyphonic mixing.
+// Also updates the waveform display with the most recent note.
 static void play_note(float noteNum, float velocity, float durationSeconds) {
     if (s_graphMode != GraphMode::PatchGraph) return;
 
     ValueSource* src = find_output_source();
     if (!src) return;
 
-    // Stop any current stream first
-    g_streamSource = nullptr;
-
-    // Offline render for waveform display
+    // Render for waveform display (shows last-played note)
     render_waveforms(noteNum, velocity, durationSeconds);
 
-    // Re-prepare for audio playback (render_waveforms consumed the graph state)
+    // Re-render into a voice buffer for audio playback
     float freq = note_to_freq(noteNum);
     for (auto& n : s_nodes) {
         if (n.typeName == NT_PARAMETER && n.paramName == "frequency") {
@@ -1369,9 +1466,11 @@ static void play_note(float noteNum, float velocity, float durationSeconds) {
     int samples = int(durationSeconds * float(AUDIO_SAMPLE_RATE));
     prepare_graph(samples);
 
-    g_streamVelocity = velocity;
-    g_streamRemaining = samples;
-    g_streamSource = src;
+    std::vector<float> buf(samples);
+    for (int i = 0; i < samples; ++i)
+        buf[i] = src->next() * velocity;
+
+    voice_play(std::move(buf), int(noteNum));
 }
 
 // Start continuous streaming — uses a long fixed duration for Envelope compat
@@ -1393,6 +1492,694 @@ static void play_continuous(float velocity) {
 
 static void stop_playback() {
     g_streamSource = nullptr;
+    g_bufferPlayback = nullptr;
+    g_bufferPlaybackPos = 0;
+    g_bufferPlaybackLen = 0;
+    for (int i = 0; i < MAX_VOICES; ++i)
+        g_voices[i].active = false;
+}
+
+// Start playing from the pre-rendered g_outputWaveform buffer
+static void play_buffer() {
+    stop_playback();
+    if (g_outputWaveform.empty()) return;
+    g_bufferPlayback = g_outputWaveform.data();
+    g_bufferPlaybackPos = 0;
+    g_bufferPlaybackLen = g_waveformSamples;
+}
+
+// ===========================================================================
+// Keyboard Panel
+// ===========================================================================
+
+struct KeyboardState {
+    int octave = 4;
+    float duration = 0.5f;
+    float velocity = 0.8f;
+    bool sustain = false;
+};
+static KeyboardState g_keyboard;
+
+// QWERTY-to-chromatic-offset mapping (from legacy LBKeyboard.cs)
+struct QwertyMapping { ImGuiKey key; int offset; const char* label; };
+static const QwertyMapping s_qwertyMap[] = {
+    { ImGuiKey_Q,            0, "Q" },
+    { ImGuiKey_2,            1, "2" },
+    { ImGuiKey_W,            2, "W" },
+    { ImGuiKey_3,            3, "3" },
+    { ImGuiKey_E,            4, "E" },
+    { ImGuiKey_R,            5, "R" },
+    { ImGuiKey_5,            6, "5" },
+    { ImGuiKey_T,            7, "T" },
+    { ImGuiKey_6,            8, "6" },
+    { ImGuiKey_Y,            9, "Y" },
+    { ImGuiKey_7,           10, "7" },
+    { ImGuiKey_U,           11, "U" },
+    { ImGuiKey_I,           12, "I" },
+    { ImGuiKey_9,           13, "9" },
+    { ImGuiKey_O,           14, "O" },
+    { ImGuiKey_0,           15, "0" },
+    { ImGuiKey_P,           16, "P" },
+    { ImGuiKey_LeftBracket, 17, "[" },
+    { ImGuiKey_Equal,       18, "=" },
+    { ImGuiKey_RightBracket,19, "]" },
+};
+static constexpr int QWERTY_MAP_COUNT = sizeof(s_qwertyMap) / sizeof(s_qwertyMap[0]);
+
+static const char* qwerty_label_for_offset(int offset) {
+    for (int i = 0; i < QWERTY_MAP_COUNT; ++i)
+        if (s_qwertyMap[i].offset == offset) return s_qwertyMap[i].label;
+    return "";
+}
+
+static void draw_keyboard_panel() {
+    ImGui::Begin("Keyboard", nullptr, ImGuiWindowFlags_NoCollapse);
+
+    // --- Header bar ---
+    ImGui::Text("Oct:");
+    ImGui::SameLine();
+    if (ImGui::SmallButton("<##oct")) g_keyboard.octave = std::max(0, g_keyboard.octave - 1);
+    ImGui::SameLine();
+    ImGui::Text("%d", g_keyboard.octave);
+    ImGui::SameLine();
+    if (ImGui::SmallButton(">##oct")) g_keyboard.octave = std::min(8, g_keyboard.octave + 1);
+
+    ImGui::SameLine();
+    ImGui::Spacing(); ImGui::SameLine();
+
+    ImGui::Text("Dur:");
+    ImGui::SameLine();
+    if (ImGui::SmallButton("<##dur")) g_keyboard.duration = std::max(0.05f, g_keyboard.duration * 0.5f);
+    ImGui::SameLine();
+    ImGui::Text("%.2fs", g_keyboard.duration);
+    ImGui::SameLine();
+    if (ImGui::SmallButton(">##dur")) g_keyboard.duration = std::min(8.0f, g_keyboard.duration * 2.0f);
+
+    ImGui::SameLine();
+    ImGui::Spacing(); ImGui::SameLine();
+
+    ImGui::Text("Vel:");
+    ImGui::SameLine();
+    ImGui::SetNextItemWidth(80.0f);
+    ImGui::SliderFloat("##vel", &g_keyboard.velocity, 0.0f, 1.0f, "%.2f");
+
+    ImGui::SameLine();
+    ImGui::Spacing(); ImGui::SameLine();
+
+    if (ImGui::Checkbox("Sustain", &g_keyboard.sustain)) {}
+
+    ImGui::SameLine();
+    ImGui::Spacing(); ImGui::SameLine();
+
+    // Wire to Transport's noteMode
+    ImGui::Checkbox("PC Keyboard##kb", &g_transport.noteMode);
+
+    // --- QWERTY input (gated by note mode and not typing in text field) ---
+    if (g_transport.noteMode && !ImGui::GetIO().WantTextInput) {
+        for (int i = 0; i < QWERTY_MAP_COUNT; ++i) {
+            if (ImGui::IsKeyPressed(s_qwertyMap[i].key, false)) {
+                int absNote = (g_keyboard.octave + 1) * 12 + s_qwertyMap[i].offset;
+                play_note(float(absNote), g_keyboard.velocity, g_keyboard.duration);
+            }
+        }
+        // Action keys
+        if (ImGui::IsKeyPressed(ImGuiKey_G, false))
+            g_keyboard.octave = std::max(0, g_keyboard.octave - 1);
+        if (ImGui::IsKeyPressed(ImGuiKey_H, false))
+            g_keyboard.octave = std::min(8, g_keyboard.octave + 1);
+        if (ImGui::IsKeyPressed(ImGuiKey_V, false))
+            g_keyboard.duration = std::max(0.05f, g_keyboard.duration * 0.5f);
+        if (ImGui::IsKeyPressed(ImGuiKey_B, false))
+            g_keyboard.duration = std::min(8.0f, g_keyboard.duration * 2.0f);
+    }
+
+    // --- Piano keyboard rendering via ImDrawList ---
+    const int NUM_OCTAVES = 2;
+    const int WHITE_KEYS_PER_OCT = 7;
+    const int TOTAL_WHITE = NUM_OCTAVES * WHITE_KEYS_PER_OCT;
+
+    float availW = ImGui::GetContentRegionAvail().x;
+    float availH = ImGui::GetContentRegionAvail().y;
+    float keyW = availW / float(TOTAL_WHITE);
+    float whiteH = std::max(40.0f, availH - 4.0f);
+    float blackH = whiteH * 0.6f;
+    float blackW = keyW * 0.65f;
+
+    ImVec2 origin = ImGui::GetCursorScreenPos();
+    ImDrawList* dl = ImGui::GetWindowDrawList();
+
+    // Check if a MIDI note is currently sounding in any voice
+    auto isNoteActive = [](int midi) {
+        for (int vi = 0; vi < MAX_VOICES; ++vi)
+            if (g_voices[vi].active && g_voices[vi].midiNote == midi) return true;
+        return false;
+    };
+
+    static const int whiteOffsets[7] = { 0, 2, 4, 5, 7, 9, 11 };
+    static const char* whiteNames[7] = { "C", "D", "E", "F", "G", "A", "B" };
+
+    struct BlackKeyInfo { int afterWhite; int chromaticOffset; };
+    static const BlackKeyInfo blackKeys[5] = {
+        {0, 1}, {1, 3}, {3, 6}, {4, 8}, {5, 10}
+    };
+
+    int baseNote = (g_keyboard.octave + 1) * 12;
+
+    // Draw white keys
+    for (int oct = 0; oct < NUM_OCTAVES; ++oct) {
+        for (int w = 0; w < WHITE_KEYS_PER_OCT; ++w) {
+            int idx = oct * WHITE_KEYS_PER_OCT + w;
+            float x0 = origin.x + idx * keyW;
+            float y0 = origin.y;
+            float x1 = x0 + keyW - 1.0f;
+            float y1 = y0 + whiteH;
+
+            int midiNote = baseNote + oct * 12 + whiteOffsets[w];
+            bool isActive = isNoteActive(midiNote);
+
+            ImU32 fillColor = isActive ? IM_COL32(140, 200, 255, 255) : IM_COL32(240, 240, 240, 255);
+            dl->AddRectFilled(ImVec2(x0, y0), ImVec2(x1, y1), fillColor);
+            dl->AddRect(ImVec2(x0, y0), ImVec2(x1, y1), IM_COL32(80, 80, 80, 255));
+
+            const char* name = whiteNames[w];
+            ImVec2 textSize = ImGui::CalcTextSize(name);
+            dl->AddText(ImVec2(x0 + (keyW - 1.0f - textSize.x) * 0.5f, y1 - textSize.y - 4.0f),
+                        IM_COL32(60, 60, 60, 255), name);
+
+            if (g_transport.noteMode) {
+                int chromOffset = oct * 12 + whiteOffsets[w];
+                if (chromOffset < 20) {
+                    const char* ql = qwerty_label_for_offset(chromOffset);
+                    if (ql[0]) {
+                        ImVec2 qlSize = ImGui::CalcTextSize(ql);
+                        dl->AddText(ImVec2(x0 + (keyW - 1.0f - qlSize.x) * 0.5f, y0 + 4.0f),
+                                    IM_COL32(0, 0, 0, 255), ql);
+                    }
+                }
+            }
+        }
+    }
+
+    // Draw black keys on top
+    for (int oct = 0; oct < NUM_OCTAVES; ++oct) {
+        for (int b = 0; b < 5; ++b) {
+            int whiteIdx = oct * WHITE_KEYS_PER_OCT + blackKeys[b].afterWhite;
+            float x0 = origin.x + (whiteIdx + 1) * keyW - blackW * 0.5f;
+            float y0 = origin.y;
+            float x1 = x0 + blackW;
+            float y1 = y0 + blackH;
+
+            int midiNote = baseNote + oct * 12 + blackKeys[b].chromaticOffset;
+            bool isActive = isNoteActive(midiNote);
+
+            ImU32 fillColor = isActive ? IM_COL32(100, 170, 240, 255) : IM_COL32(40, 40, 40, 255);
+            dl->AddRectFilled(ImVec2(x0, y0), ImVec2(x1, y1), fillColor);
+            dl->AddRect(ImVec2(x0, y0), ImVec2(x1, y1), IM_COL32(20, 20, 20, 255));
+
+            if (g_transport.noteMode) {
+                int chromOffset = oct * 12 + blackKeys[b].chromaticOffset;
+                if (chromOffset < 20) {
+                    const char* ql = qwerty_label_for_offset(chromOffset);
+                    if (ql[0]) {
+                        ImVec2 qlSize = ImGui::CalcTextSize(ql);
+                        dl->AddText(ImVec2(x0 + (blackW - qlSize.x) * 0.5f, y0 + 4.0f),
+                                    IM_COL32(200, 200, 100, 255), ql);
+                    }
+                }
+            }
+        }
+    }
+
+    // --- Click interaction: black keys first, then white ---
+    ImVec2 mousePos = ImGui::GetIO().MousePos;
+    bool clicked = ImGui::IsMouseClicked(0) && ImGui::IsWindowHovered();
+
+    if (clicked) {
+        int hitNote = -1;
+        float hitVelocity = g_keyboard.velocity;
+
+        for (int oct = 0; oct < NUM_OCTAVES && hitNote < 0; ++oct) {
+            for (int b = 0; b < 5; ++b) {
+                int whiteIdx = oct * WHITE_KEYS_PER_OCT + blackKeys[b].afterWhite;
+                float x0 = origin.x + (whiteIdx + 1) * keyW - blackW * 0.5f;
+                float y0 = origin.y;
+                float x1 = x0 + blackW;
+                float y1 = y0 + blackH;
+
+                if (mousePos.x >= x0 && mousePos.x <= x1 && mousePos.y >= y0 && mousePos.y <= y1) {
+                    hitNote = baseNote + oct * 12 + blackKeys[b].chromaticOffset;
+                    float t = (mousePos.y - y0) / (y1 - y0);
+                    hitVelocity = 0.125f + t * 0.875f;
+                    break;
+                }
+            }
+        }
+
+        if (hitNote < 0) {
+            for (int oct = 0; oct < NUM_OCTAVES; ++oct) {
+                for (int w = 0; w < WHITE_KEYS_PER_OCT; ++w) {
+                    int idx = oct * WHITE_KEYS_PER_OCT + w;
+                    float x0 = origin.x + idx * keyW;
+                    float y0 = origin.y;
+                    float x1 = x0 + keyW - 1.0f;
+                    float y1 = y0 + whiteH;
+
+                    if (mousePos.x >= x0 && mousePos.x <= x1 && mousePos.y >= y0 && mousePos.y <= y1) {
+                        hitNote = baseNote + oct * 12 + whiteOffsets[w];
+                        float t = (mousePos.y - y0) / (y1 - y0);
+                        hitVelocity = 0.125f + t * 0.875f;
+                        break;
+                    }
+                }
+                if (hitNote >= 0) break;
+            }
+        }
+
+        if (hitNote >= 0) {
+            play_note(float(hitNote), hitVelocity, g_keyboard.duration);
+        }
+    }
+
+    ImGui::Dummy(ImVec2(availW, whiteH));
+    ImGui::End();
+}
+
+// ===========================================================================
+// Transport: generate actions
+// ===========================================================================
+
+// Render a passage (sequence of notes) through the UI DSP graph into the
+// output waveform buffers.  Each note sets the frequency parameter, prepares
+// the graph for the note duration, renders, then concatenates.
+static void render_passage_waveforms(const std::vector<ParsedNote>& notes, float velocity) {
+    ValueSource* src = find_output_source();
+    if (!src || notes.empty()) return;
+
+    // Compute total samples
+    int totalSamples = 0;
+    for (const auto& n : notes)
+        totalSamples += int(n.durationSeconds * float(AUDIO_SAMPLE_RATE));
+
+    g_outputWaveform.resize(totalSamples);
+    g_waveformSamples = totalSamples;
+    for (auto& node : s_nodes) {
+        if (node.dspSource && !is_special_ui_type(node.typeName))
+            node.waveformData.resize(totalSamples);
+        else
+            node.waveformData.clear();
+    }
+
+    int offset = 0;
+    for (const auto& pn : notes) {
+        float freq = note_to_freq(pn.noteNumber);
+        for (auto& n : s_nodes) {
+            if (n.typeName == NT_PARAMETER && n.paramName == "frequency") {
+                if (auto* p = n.find_input("default"))
+                    p->constantSrc->set(freq);
+            }
+        }
+
+        int samples = int(pn.durationSeconds * float(AUDIO_SAMPLE_RATE));
+        prepare_graph(samples);
+
+        for (int i = 0; i < samples && (offset + i) < totalSamples; ++i) {
+            float s = src->next();
+            g_outputWaveform[offset + i] = s * velocity;
+            for (auto& node : s_nodes) {
+                if (!node.waveformData.empty())
+                    node.waveformData[offset + i] = node.dspSource->current();
+            }
+        }
+        offset += samples;
+    }
+
+    g_waveScrollPos = 0;
+    g_waveZoom = std::max(1, totalSamples / 800);
+}
+
+// Forward declaration (defined after transport_generate)
+static void transport_set_status(const char* msg, bool isError);
+
+// Render chords through the Conductor/ChordPerformer pipeline using the
+// current patch file loaded as a PitchedInstrument.
+static void render_chords_waveforms(const std::vector<ParsedChord>& chords, float bpm,
+                                     const std::string& figurePrefix, float spreadMs) {
+    if (chords.empty()) return;
+    if (s_currentFilePath.empty()) {
+        transport_set_status("No patch file loaded — save/load a patch first", true);
+        return;
+    }
+
+    try {
+        auto ip = load_instrument_patch(s_currentFilePath);
+        ip.instrument->volume = 1.0f;
+
+        Part part;
+        part.name = "chords";
+        for (const auto& pc : chords) {
+            part.add_chord(pc.chord);
+        }
+
+        Conductor conductor;
+        conductor.chordPerformer.defaultSpreadMs = spreadMs;
+        conductor.chordPerformer.register_josie_figures();
+        conductor.perform(part, bpm, *ip.instrument);
+
+        float totalSeconds = part.totalBeats * 60.0f / bpm + 1.0f;
+        int frames = int(totalSeconds * float(ip.sampleRate));
+        std::vector<float> mono(frames, 0.0f);
+        ip.instrument->render(mono.data(), frames);
+
+        // Peak-normalize to prevent distortion from overlapping notes
+        float peak = 0.0f;
+        for (int i = 0; i < frames; ++i) {
+            float a = std::fabs(mono[i]);
+            if (a > peak) peak = a;
+        }
+        if (peak > 1.0f) {
+            float scale = 0.95f / peak;
+            for (int i = 0; i < frames; ++i)
+                mono[i] *= scale;
+        }
+
+        // Copy into UI waveform buffers (resample if needed, but likely same rate)
+        int uiFrames = frames;
+        if (ip.sampleRate != AUDIO_SAMPLE_RATE) {
+            uiFrames = int(totalSeconds * float(AUDIO_SAMPLE_RATE));
+        }
+
+        g_outputWaveform.resize(uiFrames);
+        g_waveformSamples = uiFrames;
+        for (auto& node : s_nodes) node.waveformData.clear();
+
+        if (ip.sampleRate == AUDIO_SAMPLE_RATE) {
+            for (int i = 0; i < uiFrames; ++i)
+                g_outputWaveform[i] = (i < frames) ? mono[i] : 0.0f;
+        } else {
+            // Simple nearest-neighbor resampling
+            float ratio = float(ip.sampleRate) / float(AUDIO_SAMPLE_RATE);
+            for (int i = 0; i < uiFrames; ++i) {
+                int srcIdx = int(float(i) * ratio);
+                g_outputWaveform[i] = (srcIdx < frames) ? mono[srcIdx] : 0.0f;
+            }
+        }
+
+        g_waveScrollPos = 0;
+        g_waveZoom = std::max(1, uiFrames / 800);
+    } catch (const std::exception& e) {
+        fprintf(stderr, "Chords render error: %s\n", e.what());
+    }
+}
+
+static void transport_set_status(const char* msg, bool isError) {
+    snprintf(g_transport.statusMsg, sizeof(g_transport.statusMsg), "%s", msg);
+    g_transport.statusIsError = isError;
+}
+
+static void transport_generate() {
+    g_transport.statusMsg[0] = '\0';
+    g_transport.statusIsError = false;
+
+    switch (g_transport.mode) {
+        case PlayMode::Note: {
+            if (!find_output_source()) {
+                transport_set_status("No patch loaded — open a patch first", true);
+                break;
+            }
+            float noteNum = parse_note_input(g_transport.noteStr);
+            render_waveforms(noteNum, g_transport.velocity, g_transport.duration);
+            transport_set_status("Generated note", false);
+            break;
+        }
+        case PlayMode::Passage: {
+            if (!find_output_source()) {
+                transport_set_status("No patch loaded — open a patch first", true);
+                break;
+            }
+            try {
+                auto notes = parse_passage(g_transport.passageStr, g_transport.octave, g_transport.bpm);
+                if (notes.empty()) {
+                    transport_set_status("No notes parsed from passage string", true);
+                } else {
+                    render_passage_waveforms(notes, g_transport.velocity);
+                    char buf[128];
+                    snprintf(buf, sizeof(buf), "Generated %d notes", (int)notes.size());
+                    transport_set_status(buf, false);
+                }
+            } catch (const std::exception& e) {
+                transport_set_status(e.what(), true);
+            }
+            break;
+        }
+        case PlayMode::Chords: {
+            try {
+                std::string dictName(g_transport.defChordGrp);
+                if (dictName.empty()) dictName = "Default";
+                std::string fig(g_transport.figure);
+                auto chords = parse_chord_string(g_transport.chordsStr, g_transport.octave,
+                                                  dictName, fig);
+                if (chords.empty()) {
+                    transport_set_status("No chords parsed from string", true);
+                } else {
+                    float spreadMs = g_transport.chordDelay > 0.0f ? g_transport.chordDelay : 15.0f;
+                    render_chords_waveforms(chords, g_transport.bpm, fig, spreadMs);
+                    char buf[128];
+                    snprintf(buf, sizeof(buf), "Generated %d chords", (int)chords.size());
+                    transport_set_status(buf, false);
+                }
+            } catch (const std::exception& e) {
+                transport_set_status(e.what(), true);
+            }
+            break;
+        }
+        case PlayMode::Drums:
+            transport_set_status("Drums: not yet implemented", true);
+            break;
+    }
+}
+
+static void transport_play() {
+    if (s_graphMode != GraphMode::PatchGraph) return;
+
+    switch (g_transport.mode) {
+        case PlayMode::Note: {
+            float noteNum = parse_note_input(g_transport.noteStr);
+            play_note(noteNum, g_transport.velocity, g_transport.duration);
+            break;
+        }
+        case PlayMode::Passage: {
+            // Generate into buffer, then stream the pre-rendered result
+            auto notes = parse_passage(g_transport.passageStr, g_transport.octave, g_transport.bpm);
+            if (!notes.empty()) {
+                render_passage_waveforms(notes, g_transport.velocity);
+                play_buffer();
+            }
+            break;
+        }
+        case PlayMode::Chords:
+            // Generate into buffer, then stream the pre-rendered result
+            transport_generate();
+            play_buffer();
+            break;
+        case PlayMode::Drums:
+            fprintf(stderr, "Drums: not yet implemented\n");
+            break;
+    }
+}
+
+static std::string save_wav_dialog() {
+    char filename[MAX_PATH] = "output.wav";
+    OPENFILENAMEA ofn{};
+    ofn.lStructSize = sizeof(ofn);
+    ofn.lpstrFilter = "WAV Files\0*.wav\0All Files\0*.*\0";
+    ofn.lpstrFile = filename;
+    ofn.nMaxFile = MAX_PATH;
+    ofn.lpstrInitialDir = "renders";
+    ofn.Flags = OFN_OVERWRITEPROMPT | OFN_NOCHANGEDIR;
+    ofn.lpstrDefExt = "wav";
+    if (GetSaveFileNameA(&ofn))
+        return filename;
+    return "";
+}
+
+static void transport_save_wav() {
+    if (g_outputWaveform.empty()) {
+        transport_set_status("Nothing to save — generate first", true);
+        return;
+    }
+
+    std::string path = save_wav_dialog();
+    if (path.empty()) return;
+
+    // Convert mono to stereo
+    std::vector<float> stereo(g_outputWaveform.size() * 2);
+    for (size_t i = 0; i < g_outputWaveform.size(); ++i) {
+        stereo[i * 2]     = g_outputWaveform[i];
+        stereo[i * 2 + 1] = g_outputWaveform[i];
+    }
+
+    if (write_wav_16le_stereo(path, AUDIO_SAMPLE_RATE, stereo)) {
+        char buf[320];
+        snprintf(buf, sizeof(buf), "Saved: %s (%d frames)", path.c_str(), (int)g_outputWaveform.size());
+        transport_set_status(buf, false);
+    } else {
+        char buf[320];
+        snprintf(buf, sizeof(buf), "Failed to save: %s", path.c_str());
+        transport_set_status(buf, true);
+    }
+}
+
+// ===========================================================================
+// Transport panel UI
+// ===========================================================================
+
+// Helper: label on left, widget on right
+static void transport_label(const char* label, float labelW = 70.0f) {
+    ImGui::Text("%s", label);
+    ImGui::SameLine(labelW);
+}
+
+static void draw_transport_panel() {
+    ImGui::Begin("Transport");
+
+    float lw = 70.0f; // label width
+
+    // Mode selection via radio buttons
+    int mode = int(g_transport.mode);
+    ImGui::RadioButton("Note", &mode, 0); ImGui::SameLine();
+    ImGui::RadioButton("Passage", &mode, 1); ImGui::SameLine();
+    ImGui::RadioButton("Chords", &mode, 2); ImGui::SameLine();
+    ImGui::RadioButton("Drums", &mode, 3);
+    g_transport.mode = PlayMode(mode);
+
+    ImGui::Separator();
+
+    // Per-mode fields (labels to left of values)
+    switch (g_transport.mode) {
+        case PlayMode::Note:
+            transport_label("Note", lw);
+            ImGui::SetNextItemWidth(80);
+            ImGui::InputText("##note", g_transport.noteStr, sizeof(g_transport.noteStr));
+            ImGui::SameLine();
+            transport_label("Velocity", lw + 140);
+            ImGui::SetNextItemWidth(120);
+            ImGui::SliderFloat("##vel", &g_transport.velocity, 0.0f, 1.0f);
+            ImGui::SameLine();
+            transport_label("Duration", lw + 340);
+            ImGui::SetNextItemWidth(80);
+            ImGui::InputFloat("##dur", &g_transport.duration, 0.1f, 1.0f, "%.1f");
+            break;
+
+        case PlayMode::Passage:
+            transport_label("Passage", lw);
+            ImGui::SetNextItemWidth(-1);
+            ImGui::InputText("##passage", g_transport.passageStr, sizeof(g_transport.passageStr));
+            transport_label("Octave", lw);
+            ImGui::SetNextItemWidth(60);
+            ImGui::InputInt("##oct", &g_transport.octave);
+            ImGui::SameLine();
+            transport_label("BPM", lw + 140);
+            ImGui::SetNextItemWidth(80);
+            ImGui::InputFloat("##bpm", &g_transport.bpm, 1.0f, 10.0f, "%.0f");
+            ImGui::SameLine();
+            transport_label("Velocity", lw + 290);
+            ImGui::SetNextItemWidth(120);
+            ImGui::SliderFloat("##pvel", &g_transport.velocity, 0.0f, 1.0f);
+            break;
+
+        case PlayMode::Chords:
+            transport_label("Chords", lw);
+            ImGui::SetNextItemWidth(-1);
+            ImGui::InputText("##chords", g_transport.chordsStr, sizeof(g_transport.chordsStr));
+            transport_label("Group", lw);
+            ImGui::SetNextItemWidth(120);
+            ImGui::InputText("##grp", g_transport.defChordGrp, sizeof(g_transport.defChordGrp));
+            ImGui::SameLine();
+            transport_label("Figure", lw + 200);
+            ImGui::SetNextItemWidth(120);
+            ImGui::InputText("##fig", g_transport.figure, sizeof(g_transport.figure));
+            transport_label("Octave", lw);
+            ImGui::SetNextItemWidth(60);
+            ImGui::InputInt("##coct", &g_transport.octave);
+            ImGui::SameLine();
+            transport_label("BPM", lw + 140);
+            ImGui::SetNextItemWidth(80);
+            ImGui::InputFloat("##cbpm", &g_transport.bpm, 1.0f, 10.0f, "%.0f");
+            ImGui::SameLine();
+            transport_label("Inv", lw + 290);
+            ImGui::SetNextItemWidth(50);
+            ImGui::InputInt("##inv", &g_transport.inversion);
+            ImGui::SameLine();
+            transport_label("Spread", lw + 400);
+            ImGui::SetNextItemWidth(50);
+            ImGui::InputInt("##sprd", &g_transport.spread);
+            ImGui::SameLine();
+            transport_label("Delay", lw + 520);
+            ImGui::SetNextItemWidth(80);
+            ImGui::InputFloat("##cdly", &g_transport.chordDelay, 1.0f, 5.0f, "%.0f ms");
+            break;
+
+        case PlayMode::Drums:
+            transport_label("Pattern", lw);
+            ImGui::SetNextItemWidth(200);
+            ImGui::InputText("##pat", g_transport.pattern, sizeof(g_transport.pattern));
+            ImGui::SameLine();
+            transport_label("Repeats", lw + 280);
+            ImGui::SetNextItemWidth(60);
+            ImGui::InputInt("##rep", &g_transport.repeats);
+            transport_label("BPM", lw);
+            ImGui::SetNextItemWidth(80);
+            ImGui::InputFloat("##dbpm", &g_transport.bpm, 1.0f, 10.0f, "%.0f");
+            break;
+    }
+
+    ImGui::Separator();
+
+    // Action buttons
+    if (ImGui::Button("Generate")) {
+        transport_generate();
+    }
+    ImGui::SameLine();
+
+    bool isPlaying = is_playing();
+    if (!isPlaying) {
+        if (ImGui::Button("Play")) {
+            transport_play();
+        }
+    } else {
+        if (ImGui::Button("Stop")) {
+            stop_playback();
+        }
+    }
+    ImGui::SameLine();
+
+    {
+        bool noteMode = g_transport.noteMode;
+        if (noteMode) {
+            ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.3f, 0.6f, 0.3f, 1.0f));
+            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.4f, 0.7f, 0.4f, 1.0f));
+        }
+        if (ImGui::Button("PC Keyboard")) {
+            g_transport.noteMode = !g_transport.noteMode;
+        }
+        if (noteMode) {
+            ImGui::PopStyleColor(2);
+        }
+    }
+    ImGui::SameLine();
+
+    if (ImGui::Button("Save WAV")) {
+        transport_save_wav();
+    }
+
+    // Status message
+    if (g_transport.statusMsg[0]) {
+        ImGui::SameLine();
+        ImVec4 col = g_transport.statusIsError ? ImVec4(1,0.3f,0.3f,1) : ImVec4(0.5f,0.8f,0.5f,1);
+        ImGui::TextColored(col, "%s", g_transport.statusMsg);
+    }
+
+    ImGui::End();
 }
 
 // ===========================================================================
@@ -2011,15 +2798,15 @@ int main(int, char**) {
                 ImGui::EndMenu();
             }
 
-            // Play/Stop in menu bar
+            // Play/Stop in menu bar (wired through transport state)
             if (s_graphMode == GraphMode::PatchGraph) {
                 ImGui::Separator();
-                bool isPlaying = g_streamSource != nullptr;
+                bool isPlaying = is_playing();
                 if (!isPlaying) {
                     if (ImGui::MenuItem("Play", "Space"))
-                        play_note(60.0f, 0.8f, 2.0f);
+                        transport_play();
                     if (ImGui::MenuItem("Stream", "S"))
-                        play_continuous(0.5f);
+                        play_continuous(g_transport.velocity);
                 } else {
                     if (ImGui::MenuItem("Stop", "Space"))
                         stop_playback();
@@ -2046,15 +2833,27 @@ int main(int, char**) {
             ImGuiID dockRemaining;
             ImGui::DockBuilderSplitNode(dockspaceId, ImGuiDir_Right, 0.22f, &dockRight, &dockRemaining);
 
-            // Split remaining: bottom for waveforms (35%)
+            // Split remaining: bottom for waveforms + keyboard (28%)
             ImGuiID dockBottom;
+            ImGuiID dockCenterArea;
+            ImGui::DockBuilderSplitNode(dockRemaining, ImGuiDir_Down, 0.28f, &dockBottom, &dockCenterArea);
+
+            // Split center area: transport at top (25%)
+            ImGuiID dockTransport;
             ImGuiID dockCenter;
-            ImGui::DockBuilderSplitNode(dockRemaining, ImGuiDir_Down, 0.35f, &dockBottom, &dockCenter);
+            ImGui::DockBuilderSplitNode(dockCenterArea, ImGuiDir_Up, 0.25f, &dockTransport, &dockCenter);
+
+            // Split bottom: waveforms on left, keyboard on right
+            ImGuiID dockBottomLeft;
+            ImGuiID dockBottomRight;
+            ImGui::DockBuilderSplitNode(dockBottom, ImGuiDir_Right, 0.4f, &dockBottomRight, &dockBottomLeft);
 
             // Dock windows
+            ImGui::DockBuilderDockWindow("Transport", dockTransport);
             ImGui::DockBuilderDockWindow("Node Editor", dockCenter);
             ImGui::DockBuilderDockWindow("Properties", dockRight);
-            ImGui::DockBuilderDockWindow("Waveforms", dockBottom);
+            ImGui::DockBuilderDockWindow("Waveforms", dockBottomLeft);
+            ImGui::DockBuilderDockWindow("Keyboard", dockBottomRight);
 
             ImGui::DockBuilderFinish(dockspaceId);
         }
@@ -2065,16 +2864,16 @@ int main(int, char**) {
         if (ImGui::GetIO().KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_O))
             load_graph();
         if (ImGui::IsKeyPressed(ImGuiKey_Space) && !ImGui::GetIO().WantTextInput) {
-            if (g_streamSource != nullptr)
+            if (is_playing())
                 stop_playback();
             else
-                play_note(60.0f, 0.8f, 2.0f);
+                transport_play();
         }
         if (ImGui::IsKeyPressed(ImGuiKey_S) && !ImGui::GetIO().KeyCtrl && !ImGui::GetIO().WantTextInput) {
-            if (g_streamSource != nullptr)
+            if (is_playing())
                 stop_playback();
             else
-                play_continuous(0.5f);
+                play_continuous(g_transport.velocity);
         }
 
         ImGui::End(); // MForce master window
@@ -2220,6 +3019,11 @@ int main(int, char**) {
         ImGui::End(); // Node Editor
 
         // =================================================================
+        // Transport panel
+        // =================================================================
+        draw_transport_panel();
+
+        // =================================================================
         // Properties panel
         // =================================================================
         draw_properties_panel();
@@ -2228,6 +3032,11 @@ int main(int, char**) {
         // Waveform display window
         // =================================================================
         draw_waveform_window();
+
+        // =================================================================
+        // Keyboard panel
+        // =================================================================
+        draw_keyboard_panel();
 
         // Pump audio: refill any completed waveOut buffers
         pump_audio();
