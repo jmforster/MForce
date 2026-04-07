@@ -1,8 +1,10 @@
 #pragma once
+#include "mforce/core/dsp_value_source.h"
 #include "mforce/core/randomizer.h"
 #include <cmath>
 #include <algorithm>
 #include <vector>
+#include <memory>
 
 namespace mforce {
 
@@ -225,6 +227,114 @@ private:
   int sampleCount_{0};
   int cycleCount_{0};
   int tableLen_{0};
+};
+
+// ---------------------------------------------------------------------------
+// IEvolutionHolder — interface for graph nodes that hold a WaveEvolution.
+// WavetableSource dynamic_casts its "evolution" input to this.
+// ---------------------------------------------------------------------------
+struct IEvolutionHolder {
+  virtual ~IEvolutionHolder() = default;
+  virtual WaveEvolution* get_evolution() = 0;
+};
+
+// ---------------------------------------------------------------------------
+// PluckEvolutionSource — graph node holding a PluckEvolution.
+// Wire to WavetableSource's "evolution" input.
+// ---------------------------------------------------------------------------
+struct PluckEvolutionSource final : ValueSource, IEvolutionHolder {
+  explicit PluckEvolutionSource(uint32_t seed = 0xDEAD'BEEFu)
+  : evo_(0.0f, seed) {}
+
+  const char* type_name() const override { return "PluckEvolution"; }
+  SourceCategory category() const override { return SourceCategory::Generator; }
+
+  WaveEvolution* get_evolution() override { return &evo_; }
+
+  std::span<const ConfigDescriptor> config_descriptors() const override {
+    static constexpr ConfigDescriptor descs[] = {
+      {"muting", ConfigType::Float, 0.0f, 0.0f, 1.0f},
+    };
+    return descs;
+  }
+
+  void set_config(std::string_view name, float value) override {
+    if (name == "muting") { muting_ = value; evo_ = PluckEvolution(muting_, seed_); }
+  }
+  float get_config(std::string_view name) const override {
+    if (name == "muting") return muting_;
+    return 0.0f;
+  }
+
+  // Not an audio source — exists for graph wiring only
+  void prepare(int) override {}
+  float next() override { return 0.0f; }
+  float current() const override { return 0.0f; }
+
+private:
+  PluckEvolution evo_;
+  float muting_{0.0f};
+  uint32_t seed_{0xDEAD'BEEFu};
+};
+
+// ---------------------------------------------------------------------------
+// AveragingEvolutionSource — graph node holding an AveragingEvolution.
+// Wire to WavetableSource's "evolution" input.
+// ---------------------------------------------------------------------------
+struct AveragingEvolutionSource final : ValueSource, IEvolutionHolder {
+  explicit AveragingEvolutionSource(uint32_t seed = 0xCAFE'BABEu)
+  : evo_(4.0f, 1.0f, 0.999f, false, false, seed), seed_(seed) {}
+
+  const char* type_name() const override { return "AveragingEvolution"; }
+  SourceCategory category() const override { return SourceCategory::Generator; }
+
+  WaveEvolution* get_evolution() override { return &evo_; }
+
+  std::span<const ConfigDescriptor> config_descriptors() const override {
+    static constexpr ConfigDescriptor descs[] = {
+      {"sampleCount", ConfigType::Float, 4.0f, 1.0f, 48.0f},
+      {"speed",       ConfigType::Float, 1.0f, 0.1f, 20.0f},
+      {"decayFactor", ConfigType::Float, 0.999f, 0.9f, 1.0f},
+      {"leading",     ConfigType::Bool,  0.0f, 0.0f, 1.0f},
+      {"autoAdjust",  ConfigType::Bool,  0.0f, 0.0f, 1.0f},
+    };
+    return descs;
+  }
+
+  void set_config(std::string_view name, float value) override {
+    if (name == "sampleCount") { sampleCount_ = value; rebuild(); }
+    else if (name == "speed")       { speed_ = value; rebuild(); }
+    else if (name == "decayFactor") { decayFactor_ = value; rebuild(); }
+    else if (name == "leading")     { leading_ = (value != 0.0f); rebuild(); }
+    else if (name == "autoAdjust")  { autoAdjust_ = (value != 0.0f); rebuild(); }
+  }
+
+  float get_config(std::string_view name) const override {
+    if (name == "sampleCount") return sampleCount_;
+    if (name == "speed")       return speed_;
+    if (name == "decayFactor") return decayFactor_;
+    if (name == "leading")     return leading_ ? 1.0f : 0.0f;
+    if (name == "autoAdjust")  return autoAdjust_ ? 1.0f : 0.0f;
+    return 0.0f;
+  }
+
+  // Not an audio source — exists for graph wiring only
+  void prepare(int) override {}
+  float next() override { return 0.0f; }
+  float current() const override { return 0.0f; }
+
+private:
+  void rebuild() {
+    evo_ = AveragingEvolution(sampleCount_, speed_, decayFactor_, leading_, autoAdjust_, seed_);
+  }
+
+  AveragingEvolution evo_;
+  uint32_t seed_;
+  float sampleCount_{4.0f};
+  float speed_{1.0f};
+  float decayFactor_{0.999f};
+  bool  leading_{false};
+  bool  autoAdjust_{false};
 };
 
 } // namespace mforce

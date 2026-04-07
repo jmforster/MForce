@@ -117,6 +117,18 @@ static ImU32 node_title_color(const std::string& typeName) {
     return IM_COL32(128, 128, 128, 255);
 }
 
+// Create a pale/desaturated version of a color for node backgrounds
+static ImU32 node_bg_color(ImU32 titleColor) {
+    int r = (titleColor >>  0) & 0xFF;
+    int g = (titleColor >>  8) & 0xFF;
+    int b = (titleColor >> 16) & 0xFF;
+    // Blend 35% of title color with dark gray base (45,45,48)
+    r = 45 + (r - 45) * 35 / 100;
+    g = 45 + (g - 45) * 35 / 100;
+    b = 48 + (b - 48) * 35 / 100;
+    return IM_COL32(r, g, b, 255);
+}
+
 static constexpr int DSP_SAMPLE_RATE = 48000;
 
 // Row data for inline formant table (FormantSpectrum node)
@@ -159,7 +171,7 @@ struct GraphNode {
     GraphNode(const std::string& type, const std::string& name) : GraphNode(type) {
         if (typeName == NT_PARAMETER) {
             paramName = name;
-            label = name;
+            // label stays "Parameter" — paramName displays inside node body
             snprintf(paramNameBuf, sizeof(paramNameBuf), "%s", name.c_str());
         }
     }
@@ -1552,33 +1564,53 @@ static const char* qwerty_label_for_offset(int offset) {
     return "";
 }
 
+// Triangle-button spinner for int values (editable text between arrows)
+static bool spinner_int(const char* id, int* val, int step, int minVal, int maxVal, float fieldW = 40.0f) {
+    bool changed = false;
+    ImGui::PushID(id);
+    if (ImGui::ArrowButton("##dec", ImGuiDir_Left)) { *val = std::max(minVal, *val - step); changed = true; }
+    ImGui::SameLine(0, 2);
+    ImGui::SetNextItemWidth(fieldW);
+    if (ImGui::InputInt("##v", val, 0, 0)) { *val = std::clamp(*val, minVal, maxVal); changed = true; }
+    ImGui::SameLine(0, 2);
+    if (ImGui::ArrowButton("##inc", ImGuiDir_Right)) { *val = std::min(maxVal, *val + step); changed = true; }
+    ImGui::PopID();
+    return changed;
+}
+
+// Triangle-button spinner for float values (editable text between arrows)
+static bool spinner_float(const char* id, float* val, float step, float minVal, float maxVal, const char* fmt = "%.1f", float fieldW = 50.0f) {
+    bool changed = false;
+    ImGui::PushID(id);
+    if (ImGui::ArrowButton("##dec", ImGuiDir_Left)) { *val = std::max(minVal, *val - step); changed = true; }
+    ImGui::SameLine(0, 2);
+    ImGui::SetNextItemWidth(fieldW);
+    if (ImGui::InputFloat("##v", val, 0, 0, fmt)) { *val = std::clamp(*val, minVal, maxVal); changed = true; }
+    ImGui::SameLine(0, 2);
+    if (ImGui::ArrowButton("##inc", ImGuiDir_Right)) { *val = std::min(maxVal, *val + step); changed = true; }
+    ImGui::PopID();
+    return changed;
+}
+
 static void draw_keyboard_panel() {
     ImGui::Begin("Keyboard", nullptr, ImGuiWindowFlags_NoCollapse);
 
     // --- Header bar ---
-    ImGui::Text("Oct:");
+    ImGui::Text("Octave");
     ImGui::SameLine();
-    if (ImGui::SmallButton("<##oct")) g_keyboard.octave = std::max(0, g_keyboard.octave - 1);
-    ImGui::SameLine();
-    ImGui::Text("%d", g_keyboard.octave);
-    ImGui::SameLine();
-    if (ImGui::SmallButton(">##oct")) g_keyboard.octave = std::min(8, g_keyboard.octave + 1);
+    spinner_int("kb_oct", &g_keyboard.octave, 1, 0, 8);
 
     ImGui::SameLine();
     ImGui::Spacing(); ImGui::SameLine();
 
-    ImGui::Text("Dur:");
+    ImGui::Text("Duration");
     ImGui::SameLine();
-    if (ImGui::SmallButton("<##dur")) g_keyboard.duration = std::max(0.05f, g_keyboard.duration * 0.5f);
-    ImGui::SameLine();
-    ImGui::Text("%.2fs", g_keyboard.duration);
-    ImGui::SameLine();
-    if (ImGui::SmallButton(">##dur")) g_keyboard.duration = std::min(8.0f, g_keyboard.duration * 2.0f);
+    spinner_float("kb_dur", &g_keyboard.duration, 0.05f, 0.05f, 8.0f, "%.2f");
 
     ImGui::SameLine();
     ImGui::Spacing(); ImGui::SameLine();
 
-    ImGui::Text("Vel:");
+    ImGui::Text("Vel");
     ImGui::SameLine();
     ImGui::SetNextItemWidth(80.0f);
     ImGui::SliderFloat("##vel", &g_keyboard.velocity, 0.0f, 1.0f, "%.2f");
@@ -2033,26 +2065,30 @@ static void transport_save_wav() {
 // Transport panel UI
 // ===========================================================================
 
-// Helper: label on left, widget on right
-static void transport_label(const char* label, float labelW = 70.0f) {
+// Helper: label at start of line (absolute position)
+static void transport_label(const char* label, float labelW) {
     ImGui::Text("%s", label);
     ImGui::SameLine(labelW);
 }
+// Helper: inline label (relative, after SameLine)
+static void transport_label_inline(const char* label) {
+    ImGui::Text("%s", label);
+    ImGui::SameLine();
+}
 
 static void draw_transport_panel() {
-    ImGui::Begin("Transport");
+    ImGui::Begin("Transport", nullptr, ImGuiWindowFlags_NoCollapse);
 
     float lw = 70.0f; // label width
 
-    // Mode selection via radio buttons
-    int mode = int(g_transport.mode);
-    ImGui::RadioButton("Note", &mode, 0); ImGui::SameLine();
-    ImGui::RadioButton("Passage", &mode, 1); ImGui::SameLine();
-    ImGui::RadioButton("Chords", &mode, 2); ImGui::SameLine();
-    ImGui::RadioButton("Drums", &mode, 3);
-    g_transport.mode = PlayMode(mode);
-
-    ImGui::Separator();
+    // Mode selection via tab bar
+    if (ImGui::BeginTabBar("##transport_tabs")) {
+        if (ImGui::BeginTabItem("Note"))    { g_transport.mode = PlayMode::Note;    ImGui::EndTabItem(); }
+        if (ImGui::BeginTabItem("Passage")) { g_transport.mode = PlayMode::Passage; ImGui::EndTabItem(); }
+        if (ImGui::BeginTabItem("Chords"))  { g_transport.mode = PlayMode::Chords;  ImGui::EndTabItem(); }
+        if (ImGui::BeginTabItem("Drums"))   { g_transport.mode = PlayMode::Drums;   ImGui::EndTabItem(); }
+        ImGui::EndTabBar();
+    }
 
     // Per-mode fields (labels to left of values)
     switch (g_transport.mode) {
@@ -2061,13 +2097,12 @@ static void draw_transport_panel() {
             ImGui::SetNextItemWidth(80);
             ImGui::InputText("##note", g_transport.noteStr, sizeof(g_transport.noteStr));
             ImGui::SameLine();
-            transport_label("Velocity", lw + 140);
+            transport_label_inline("Velocity");
             ImGui::SetNextItemWidth(120);
             ImGui::SliderFloat("##vel", &g_transport.velocity, 0.0f, 1.0f);
             ImGui::SameLine();
-            transport_label("Duration", lw + 340);
-            ImGui::SetNextItemWidth(80);
-            ImGui::InputFloat("##dur", &g_transport.duration, 0.1f, 1.0f, "%.1f");
+            transport_label_inline("Duration");
+            spinner_float("dur", &g_transport.duration, 0.1f, 0.1f, 30.0f, "%.1f");
             break;
 
         case PlayMode::Passage:
@@ -2075,14 +2110,12 @@ static void draw_transport_panel() {
             ImGui::SetNextItemWidth(-1);
             ImGui::InputText("##passage", g_transport.passageStr, sizeof(g_transport.passageStr));
             transport_label("Octave", lw);
-            ImGui::SetNextItemWidth(60);
-            ImGui::InputInt("##oct", &g_transport.octave);
+            spinner_int("oct", &g_transport.octave, 1, 0, 8);
             ImGui::SameLine();
-            transport_label("BPM", lw + 140);
-            ImGui::SetNextItemWidth(80);
-            ImGui::InputFloat("##bpm", &g_transport.bpm, 1.0f, 10.0f, "%.0f");
+            transport_label_inline("BPM");
+            spinner_float("bpm", &g_transport.bpm, 5.0f, 20.0f, 300.0f, "%.0f");
             ImGui::SameLine();
-            transport_label("Velocity", lw + 290);
+            transport_label_inline("Velocity");
             ImGui::SetNextItemWidth(120);
             ImGui::SliderFloat("##pvel", &g_transport.velocity, 0.0f, 1.0f);
             break;
@@ -2095,28 +2128,23 @@ static void draw_transport_panel() {
             ImGui::SetNextItemWidth(120);
             ImGui::InputText("##grp", g_transport.defChordGrp, sizeof(g_transport.defChordGrp));
             ImGui::SameLine();
-            transport_label("Figure", lw + 200);
+            transport_label_inline("Figure");
             ImGui::SetNextItemWidth(120);
             ImGui::InputText("##fig", g_transport.figure, sizeof(g_transport.figure));
             transport_label("Octave", lw);
-            ImGui::SetNextItemWidth(60);
-            ImGui::InputInt("##coct", &g_transport.octave);
+            spinner_int("coct", &g_transport.octave, 1, 0, 8);
             ImGui::SameLine();
-            transport_label("BPM", lw + 140);
-            ImGui::SetNextItemWidth(80);
-            ImGui::InputFloat("##cbpm", &g_transport.bpm, 1.0f, 10.0f, "%.0f");
+            transport_label_inline("BPM");
+            spinner_float("cbpm", &g_transport.bpm, 5.0f, 20.0f, 300.0f, "%.0f");
             ImGui::SameLine();
-            transport_label("Inv", lw + 290);
-            ImGui::SetNextItemWidth(50);
-            ImGui::InputInt("##inv", &g_transport.inversion);
+            transport_label_inline("Inv");
+            spinner_int("inv", &g_transport.inversion, 1, 0, 4);
             ImGui::SameLine();
-            transport_label("Spread", lw + 400);
-            ImGui::SetNextItemWidth(50);
-            ImGui::InputInt("##sprd", &g_transport.spread);
+            transport_label_inline("Spread");
+            spinner_int("sprd", &g_transport.spread, 1, 0, 4);
             ImGui::SameLine();
-            transport_label("Delay", lw + 520);
-            ImGui::SetNextItemWidth(80);
-            ImGui::InputFloat("##cdly", &g_transport.chordDelay, 1.0f, 5.0f, "%.0f ms");
+            transport_label_inline("Delay");
+            spinner_float("cdly", &g_transport.chordDelay, 5.0f, 0.0f, 200.0f, "%.0f");
             break;
 
         case PlayMode::Drums:
@@ -2124,12 +2152,10 @@ static void draw_transport_panel() {
             ImGui::SetNextItemWidth(200);
             ImGui::InputText("##pat", g_transport.pattern, sizeof(g_transport.pattern));
             ImGui::SameLine();
-            transport_label("Repeats", lw + 280);
-            ImGui::SetNextItemWidth(60);
-            ImGui::InputInt("##rep", &g_transport.repeats);
+            transport_label_inline("Repeats");
+            spinner_int("rep", &g_transport.repeats, 1, 1, 32);
             transport_label("BPM", lw);
-            ImGui::SetNextItemWidth(80);
-            ImGui::InputFloat("##dbpm", &g_transport.bpm, 1.0f, 10.0f, "%.0f");
+            spinner_float("dbpm", &g_transport.bpm, 5.0f, 20.0f, 300.0f, "%.0f");
             break;
     }
 
@@ -2187,7 +2213,12 @@ static void draw_transport_panel() {
 // ===========================================================================
 
 static void draw_node(GraphNode& node) {
-    ImNodes::PushColorStyle(ImNodesCol_TitleBar, node_title_color(node.typeName));
+    ImU32 titleCol = node_title_color(node.typeName);
+    ImU32 bgCol = node_bg_color(titleCol);
+    ImNodes::PushColorStyle(ImNodesCol_TitleBar, titleCol);
+    ImNodes::PushColorStyle(ImNodesCol_NodeBackground, bgCol);
+    ImNodes::PushColorStyle(ImNodesCol_NodeBackgroundHovered, bgCol);
+    ImNodes::PushColorStyle(ImNodesCol_NodeBackgroundSelected, bgCol);
 
     ImNodes::BeginNode(node.id);
 
@@ -2206,8 +2237,16 @@ static void draw_node(GraphNode& node) {
 
     ImNodes::EndNodeTitleBar();
 
+    // Parameter node: show param name in body
+    if (node.typeName == NT_PARAMETER && !node.paramName.empty()) {
+        ImGui::TextColored(ImVec4(0.9f, 0.7f, 0.9f, 1.0f), "%s", node.paramName.c_str());
+    }
+
     // Input pins — compact: show name + read-only value, no editing widgets
     for (auto& pin : node.inputs) {
+        // Hide the "default" pin on Parameter nodes (it's internal plumbing)
+        if (node.typeName == NT_PARAMETER && pin.name == "default") continue;
+
         ImNodes::PushAttributeFlag(ImNodesAttributeFlags_EnableLinkDetachWithDragClick);
         ImNodes::BeginInputAttribute(pin.id);
 
@@ -2218,9 +2257,10 @@ static void draw_node(GraphNode& node) {
             // Input-only or channel pin: gray text
             ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "%s", pin.name.c_str());
         } else {
-            // Unconnected value pin: show name + current value as gray read-only text
-            ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), "%s  %.3f",
-                               pin.name.c_str(), pin.defaultValue);
+            // Unconnected value pin: show name + current value
+            ImGui::TextColored(ImVec4(0.85f, 0.85f, 0.85f, 1.0f), "%s", pin.name.c_str());
+            ImGui::SameLine();
+            ImGui::TextColored(ImVec4(0.55f, 0.75f, 0.95f, 1.0f), "%.3f", pin.defaultValue);
         }
 
         ImNodes::EndInputAttribute();
@@ -2238,7 +2278,10 @@ static void draw_node(GraphNode& node) {
     }
 
     ImNodes::EndNode();
-    ImNodes::PopColorStyle();
+    ImNodes::PopColorStyle(); // NodeBackgroundSelected
+    ImNodes::PopColorStyle(); // NodeBackgroundHovered
+    ImNodes::PopColorStyle(); // NodeBackground
+    ImNodes::PopColorStyle(); // TitleBar
 }
 
 // ===========================================================================
@@ -2271,6 +2314,8 @@ static void draw_properties_panel() {
     for (auto& pin : node->inputs) {
         if (pin.inputOnly) continue;
         if (pin.name.substr(0, 2) == "ch") continue;
+        // Hide "default" pin on Parameter nodes — it's internal
+        if (node->typeName == NT_PARAMETER && pin.name == "default") continue;
         hasParams = true;
 
         bool connected = is_pin_connected(pin.id);
@@ -2400,7 +2445,6 @@ static void draw_properties_panel() {
         snprintf(nameLabel, sizeof(nameLabel), "name##ppname%d", node->id);
         if (ImGui::InputText(nameLabel, node->paramNameBuf, sizeof(node->paramNameBuf))) {
             node->paramName = node->paramNameBuf;
-            node->label = node->paramName.empty() ? "Parameter" : node->paramName;
         }
         ImGui::PopItemWidth();
     }
@@ -2409,81 +2453,183 @@ static void draw_properties_panel() {
 }
 
 // ===========================================================================
-// Context menu
+// ===========================================================================
+// Context menus
 // ===========================================================================
 
 static bool s_wantCreateMenu = false;
+static bool s_wantNodeMenu = false;
 static ImVec2 s_createMenuPos;
+static int s_contextNodeId = -1;
 
-static const char* category_label(SourceCategory cat) {
-    switch (cat) {
-        case SourceCategory::Oscillator: return "Oscillators";
-        case SourceCategory::Generator:  return "Generators";
-        case SourceCategory::Modulator:  return "Modulators";
-        case SourceCategory::Envelope:   return "Envelopes";
-        case SourceCategory::Filter:     return "Filters";
-        case SourceCategory::Combiner:   return "Combiners";
-        case SourceCategory::Additive:   return "Additive";
-        case SourceCategory::Utility:    return "Utility";
+// Helper: add a menu item that creates a registered source node
+static void menu_source(const char* label, const char* typeName) {
+    if (ImGui::MenuItem(label)) {
+        s_nodes.emplace_back(std::string(typeName));
+        ImNodes::SetNodeScreenSpacePos(s_nodes.back().id, s_createMenuPos);
     }
-    return "Other";
+}
+
+// Helper: grayed-out placeholder for unimplemented types
+static void menu_placeholder(const char* label) {
+    ImGui::TextColored(ImVec4(0.4f, 0.4f, 0.4f, 1.0f), "%s", label);
 }
 
 static void show_create_menu() {
     if (!ImGui::BeginPopup("CreateNodeMenu")) return;
 
-    // Build menu from registry, grouped by category as nested submenus
-    auto types = SourceRegistry::instance().registered_types();
-    SourceCategory lastCat = (SourceCategory)-1;
-    bool submenuOpen = false;
+    // --- Top level quick access ---
+    menu_source("Sine", "SineSource");
+    menu_source("Var", "VarSource");
+    menu_source("Range", "RangeSource");
+    menu_source("Red Noise", "RedNoiseSource");
 
-    for (const auto& [name, cat] : types) {
-        if (cat != lastCat) {
-            if (submenuOpen) ImGui::EndMenu();
-            submenuOpen = ImGui::BeginMenu(category_label(cat));
-            lastCat = cat;
-        }
-        if (submenuOpen) {
-            std::string displayName = node_display_name(name);
-            if (ImGui::MenuItem(displayName.c_str())) {
-                s_nodes.emplace_back(name);
-                ImNodes::SetNodeScreenSpacePos(s_nodes.back().id, s_createMenuPos);
-            }
-        }
+    if (ImGui::MenuItem("Parameter")) {
+        s_nodes.emplace_back(std::string(NT_PARAMETER), "frequency");
+        ImNodes::SetNodeScreenSpacePos(s_nodes.back().id, s_createMenuPos);
     }
-    if (submenuOpen) ImGui::EndMenu();
 
     if (s_graphMode == GraphMode::PatchGraph) {
-        if (ImGui::BeginMenu("Instrument")) {
-            if (ImGui::MenuItem("Parameter")) {
-                s_nodes.emplace_back(std::string(NT_PARAMETER), "param");
+        bool hasOutput = false;
+        for (auto& n : s_nodes) if (n.typeName == NT_PATCH_OUTPUT) hasOutput = true;
+        if (!hasOutput) {
+            if (ImGui::MenuItem("Output")) {
+                s_nodes.emplace_back(std::string(NT_PATCH_OUTPUT));
                 ImNodes::SetNodeScreenSpacePos(s_nodes.back().id, s_createMenuPos);
             }
+        } else {
+            ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "Output (exists)");
+        }
+    }
 
-            bool hasOutput = false;
-            for (auto& n : s_nodes) if (n.typeName == NT_PATCH_OUTPUT) hasOutput = true;
-            if (!hasOutput) {
-                if (ImGui::MenuItem("Output")) {
-                    s_nodes.emplace_back(std::string(NT_PATCH_OUTPUT));
-                    ImNodes::SetNodeScreenSpacePos(s_nodes.back().id, s_createMenuPos);
-                }
-            } else {
-                ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "Output (exists)");
-            }
-            ImGui::EndMenu();
+    ImGui::Separator();
+
+    // --- Generators ---
+    if (ImGui::BeginMenu("Generators")) {
+        menu_source("Sine", "SineSource");
+        menu_source("Saw", "SawSource");
+        menu_source("Pulse", "PulseSource");
+        menu_source("Triangle", "TriangleSource");
+        ImGui::Separator();
+        menu_source("FM", "FMSource");
+        menu_source("Distorted", "DistortedSource");
+        menu_source("Hybrid KS", "HybridKSSource");
+        ImGui::Separator();
+        menu_source("Combined", "CombinedSource");
+        menu_source("Phased", "PhasedValueSource");
+        menu_source("Crossfade", "CrossfadeSource");
+        menu_source("Multi", "MultiSource");
+        menu_source("Repeating", "RepeatingSource");
+        ImGui::EndMenu();
+    }
+
+    // --- Wavetable ---
+    if (ImGui::BeginMenu("Wavetable")) {
+        menu_source("Wavetable", "WavetableSource");
+        ImGui::Separator();
+        menu_source("Pluck Evolution", "PluckEvolution");
+        menu_source("Averaging Evolution", "AveragingEvolution");
+        ImGui::EndMenu();
+    }
+
+    // --- Additive ---
+    if (ImGui::BeginMenu("Additive")) {
+        menu_source("Full", "AdditiveSource");
+        menu_source("Basic", "BasicAdditiveSource");
+        menu_source("Alternate", "AdditiveSource2");
+        ImGui::Separator();
+        menu_source("Full Partials", "FullPartials");
+        menu_source("Sequence Partials", "SequencePartials");
+        menu_source("Explicit Partials", "ExplicitPartials");
+        menu_source("Composite Partials", "CompositePartials");
+        ImGui::Separator();
+        menu_source("Formant", "Formant");
+        menu_source("Formant Sequence", "FormantSequence");
+        menu_source("Formant Spectrum", "FormantSpectrum");
+        menu_source("Band Spectrum", "BandSpectrum");
+        menu_source("Fixed Spectrum", "FixedSpectrum");
+        ImGui::EndMenu();
+    }
+
+    // --- Noise ---
+    if (ImGui::BeginMenu("Noise")) {
+        menu_source("White", "WhiteNoiseSource");
+        menu_source("Pink", "PinkNoiseSource");
+        menu_source("Red", "RedNoiseSource");
+        ImGui::Separator();
+        menu_source("Segment", "SegmentSource");
+        menu_source("Wander 1", "WanderNoiseSource");
+        menu_source("Wander 2", "WanderNoise2Source");
+        menu_source("Wander 3", "WanderNoise3Source");
+        ImGui::EndMenu();
+    }
+
+    // --- Envelopes ---
+    if (ImGui::BeginMenu("Envelopes")) {
+        menu_source("ADSR", "ADSREnvelope");
+        menu_source("ASR", "ASREnvelope");
+        menu_source("ADR", "ADREnvelope");
+        menu_source("AR", "AREnvelope");
+        menu_source("AS", "ASEnvelope");
+        menu_source("ADS", "ADSEnvelope");
+        ImGui::Separator();
+        menu_source("Envelope", "Envelope");
+        menu_source("Vibrato", "Vibrato");
+        ImGui::EndMenu();
+    }
+
+    // --- Filters ---
+    if (ImGui::BeginMenu("Filters")) {
+        menu_source("Delay", "DelayFilter");
+        menu_source("BW Bandpass", "BWBandpassFilter");
+        menu_source("BW Lowpass", "BWLowpassFilter");
+        menu_source("BW Highpass", "BWHighpassFilter");
+        ImGui::EndMenu();
+    }
+
+    ImGui::EndPopup();
+}
+
+// Node context menu (right-click on existing node)
+static void show_node_context_menu() {
+    if (!ImGui::BeginPopup("NodeContextMenu")) return;
+
+    GraphNode* node = nullptr;
+    for (auto& n : s_nodes) if (n.id == s_contextNodeId) { node = &n; break; }
+
+    if (!node) { ImGui::EndPopup(); return; }
+
+    if (ImGui::MenuItem("Duplicate")) {
+        // Create a copy of the node with same type and settings
+        if (node->typeName == NT_PARAMETER) {
+            s_nodes.emplace_back(node->typeName, node->paramName);
+        } else {
+            s_nodes.emplace_back(node->typeName);
         }
-    } else {
-        if (ImGui::BeginMenu("Output")) {
-            if (ImGui::MenuItem("Channel")) {
-                s_nodes.emplace_back(std::string(NT_SOUND_CHANNEL));
-                ImNodes::SetNodeScreenSpacePos(s_nodes.back().id, s_createMenuPos);
-            }
-            if (ImGui::MenuItem("Mixer")) {
-                s_nodes.emplace_back(std::string(NT_STEREO_MIXER));
-                ImNodes::SetNodeScreenSpacePos(s_nodes.back().id, s_createMenuPos);
-            }
-            ImGui::EndMenu();
+        auto& dup = s_nodes.back();
+
+        // Copy pin default values
+        for (int i = 0; i < (int)node->inputs.size() && i < (int)dup.inputs.size(); ++i) {
+            dup.inputs[i].defaultValue = node->inputs[i].defaultValue;
+            if (dup.inputs[i].constantSrc)
+                dup.inputs[i].constantSrc->set(node->inputs[i].defaultValue);
         }
+
+        // Copy config values
+        for (int i = 0; i < (int)node->configValues.size() && i < (int)dup.configValues.size(); ++i) {
+            dup.configValues[i].second = node->configValues[i].second;
+            if (dup.dspSource)
+                dup.dspSource->set_config(dup.configValues[i].first.name, dup.configValues[i].second);
+        }
+
+        // Offset position
+        ImVec2 pos = ImNodes::GetNodeScreenSpacePos(node->id);
+        ImNodes::SetNodeScreenSpacePos(dup.id, ImVec2(pos.x + 30, pos.y + 30));
+    }
+
+    if (ImGui::MenuItem("Delete")) {
+        delete_node(s_contextNodeId);
+        g_selectedNodeId = -1;
     }
 
     ImGui::EndPopup();
@@ -2570,23 +2716,26 @@ static void draw_waveform_window() {
     float waveAreaH = ImGui::GetContentRegionAvail().y;
 
     // Zoom/scroll controls at top
-    ImGui::Text("Zoom: %dx", g_waveZoom);
+    ImGui::Text("Zoom");
     ImGui::SameLine();
-    if (ImGui::SmallButton(" - ##zout")) g_waveZoom = std::min(4096, g_waveZoom * 2);
+    ImGui::PushID("wz");
+    if (ImGui::ArrowButton("##zo", ImGuiDir_Left)) g_waveZoom = std::min(4096, g_waveZoom * 2);
+    ImGui::SameLine(0, 2);
+    ImGui::Text("%dx", g_waveZoom);
+    ImGui::SameLine(0, 2);
+    if (ImGui::ArrowButton("##zi", ImGuiDir_Right)) g_waveZoom = std::max(1, g_waveZoom / 2);
+    ImGui::PopID();
     ImGui::SameLine();
-    if (ImGui::SmallButton(" + ##zin")) g_waveZoom = std::max(1, g_waveZoom / 2);
-    ImGui::SameLine();
-    if (ImGui::SmallButton("Fit##zfit")) {
+    if (ImGui::SmallButton("Fit")) {
         if (g_waveformSamples > 0)
             g_waveZoom = std::max(1, g_waveformSamples / (int)waveAreaW);
         g_waveScrollPos = 0;
     }
     ImGui::SameLine();
-    ImGui::Text("Cols:");
+    ImGui::Spacing(); ImGui::SameLine();
+    ImGui::Text("Columns");
     ImGui::SameLine();
-    if (ImGui::SmallButton(" - ##colm")) g_waveColumns = std::max(1, g_waveColumns - 1);
-    ImGui::SameLine();
-    if (ImGui::SmallButton(" + ##colp")) g_waveColumns = std::min(4, g_waveColumns + 1);
+    spinner_int("wcol", &g_waveColumns, 1, 1, 4);
 
     // Horizontal scrollbar
     int maxScroll = std::max(0, g_waveformSamples - (int)(waveAreaW) * g_waveZoom);
@@ -2697,8 +2846,12 @@ int main(int, char**) {
 
     ImGuiIO& io = ImGui::GetIO();
     io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
+    io.Fonts->AddFontFromFileTTF("engine/third_party/imgui/misc/fonts/Roboto-Medium.ttf", 15.0f);
 
     ImGui::StyleColorsDark();
+    ImGui::GetStyle().AntiAliasedLines = false;
+    ImGui::GetStyle().AntiAliasedLinesUseTex = false;
+    ImGui::GetStyle().WindowMenuButtonPosition = ImGuiDir_None;  // hide collapse triangles
 
     ImNodesStyle& style = ImNodes::GetStyle();
     style.NodeCornerRounding = 4.0f;
@@ -2882,7 +3035,7 @@ int main(int, char**) {
         // Node Editor window
         // =================================================================
         ImGui::Begin("Node Editor", nullptr,
-                     ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+                     ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoCollapse);
 
         ImNodes::BeginNodeEditor();
 
@@ -2941,13 +3094,28 @@ int main(int, char**) {
         // Right-click context menu
         if (editorHovered && ImGui::IsMouseClicked(ImGuiMouseButton_Right)) {
             s_createMenuPos = ImGui::GetMousePos();
-            s_wantCreateMenu = true;
+            // Check if right-click is on a node
+            int hoveredNode = -1;
+            for (auto& n : s_nodes) {
+                if (ImNodes::IsNodeHovered(&hoveredNode)) break;
+            }
+            if (hoveredNode >= 0) {
+                s_contextNodeId = hoveredNode;
+                s_wantNodeMenu = true;
+            } else {
+                s_wantCreateMenu = true;
+            }
         }
         if (s_wantCreateMenu) {
             ImGui::OpenPopup("CreateNodeMenu");
             s_wantCreateMenu = false;
         }
+        if (s_wantNodeMenu) {
+            ImGui::OpenPopup("NodeContextMenu");
+            s_wantNodeMenu = false;
+        }
         show_create_menu();
+        show_node_context_menu();
 
         // Fit/center helper lambda (used by F key and Fit button)
         auto fitAllNodes = [&]() {

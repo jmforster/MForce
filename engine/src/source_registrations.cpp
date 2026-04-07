@@ -7,6 +7,7 @@
 #include "mforce/source/pulse_source.h"
 #include "mforce/source/fm_source.h"
 #include "mforce/source/red_noise_source.h"
+#include "mforce/source/pink_noise_source.h"
 #include "mforce/source/white_noise_source.h"
 #include "mforce/source/wander_noise_source.h"
 #include "mforce/source/wavetable_source.h"
@@ -89,6 +90,12 @@ void register_all_sources() {
     reg.register_type("WhiteNoiseSource", SourceCategory::Generator,
         [](int, auto seed) {
             return std::make_shared<WhiteNoiseSource>(seed.value_or(0x12345678u));
+        });
+
+    reg.register_type("PinkNoiseSource", SourceCategory::Generator,
+        [](int, auto seed) {
+            return std::make_shared<PinkNoiseSource>(PinkNoiseSource::DEFAULT_ROWS,
+                seed.value_or(0xF10C'0001u));
         });
 
     reg.register_type("RedNoiseSource", SourceCategory::Generator,
@@ -221,6 +228,9 @@ void register_all_sources() {
     // Generators with structural config
     // -----------------------------------------------------------------------
 
+    reg.register_type("MultiSource", SourceCategory::Combiner,
+        [](int, auto) { return std::make_shared<MultiSource>(); });
+
     reg.register_type("SegmentSource", SourceCategory::Generator,
         [](int sr, auto seed) {
             return std::make_shared<SegmentSource>(
@@ -325,6 +335,9 @@ void register_all_sources() {
     reg.register_type("FormantSequence", SourceCategory::Additive,
         [](int, auto) { return std::make_shared<FormantSequence>(); });
 
+    reg.register_type("CompositePartials", SourceCategory::Additive,
+        [](int, auto) { return std::make_shared<CompositePartials>(); });
+
     // -----------------------------------------------------------------------
     // Partial specification types (new architecture — these are the renderers)
     // -----------------------------------------------------------------------
@@ -351,6 +364,16 @@ void register_all_sources() {
     reg.register_type("WavetableSource", SourceCategory::Oscillator,
         [](int sr, auto seed) {
             return std::make_shared<WavetableSource>(sr, seed.value_or(0xC0FFEEu));
+        });
+
+    reg.register_type("PluckEvolution", SourceCategory::Generator,
+        [](int, auto seed) {
+            return std::make_shared<PluckEvolutionSource>(seed.value_or(0xDEAD'BEEFu));
+        });
+
+    reg.register_type("AveragingEvolution", SourceCategory::Generator,
+        [](int, auto seed) {
+            return std::make_shared<AveragingEvolutionSource>(seed.value_or(0xCAFE'BABEu));
         });
 
     reg.register_type("HybridKSSource", SourceCategory::Oscillator,

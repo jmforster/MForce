@@ -20,6 +20,25 @@ struct MultiSource final : ValueSource {
   const char* type_name() const override { return "MultiSource"; }
   SourceCategory category() const override { return SourceCategory::Combiner; }
 
+  std::span<const InputDescriptor> input_descriptors() const override {
+    static constexpr InputDescriptor descs[] = {
+      {"source", true},  // multi-input: wire multiple sources
+    };
+    return descs;
+  }
+
+  void set_param(std::string_view name, std::shared_ptr<ValueSource> src) override {
+    if (name == "source") add(std::move(src));
+  }
+
+  void add_param(std::string_view name, std::shared_ptr<ValueSource> src) override {
+    if (name == "source") add(std::move(src));
+  }
+
+  void clear_param(std::string_view name) override {
+    if (name == "source") entries.clear();
+  }
+
   void add(std::shared_ptr<ValueSource> src, float weight = 1.0f, int delay = 0) {
     entries.push_back({std::move(src), weight, delay});
   }

@@ -609,4 +609,78 @@ private:
   std::vector<float> mult1Stat_, mult2Stat_, ampl1Stat_, ampl2Stat_;
 };
 
+// ---------------------------------------------------------------------------
+// CompositePartials — combines multiple IPartials into one.
+// Concatenates partial arrays from all children. Used to mix, e.g.,
+// SequencePartials + ExplicitPartials in a single AdditiveSource.
+// Ported from legacy CompositePartials.cs.
+// ---------------------------------------------------------------------------
+struct CompositePartials final : ValueSource, IPartials {
+
+  const char* type_name() const override { return "CompositePartials"; }
+  SourceCategory category() const override { return SourceCategory::Additive; }
+
+  std::span<const InputDescriptor> input_descriptors() const override {
+    static constexpr InputDescriptor descs[] = {
+      {"partials", true},  // multi-input: wire multiple Partials sources
+    };
+    return descs;
+  }
+
+  void set_param(std::string_view name, std::shared_ptr<ValueSource> src) override {
+    if (name == "partials") {
+      auto* p = dynamic_cast<IPartials*>(src.get());
+      if (p) sets_.push_back({std::move(src), p});
+    }
+  }
+
+  void add_param(std::string_view name, std::shared_ptr<ValueSource> src) override {
+    set_param(name, std::move(src));
+  }
+
+  void clear_param(std::string_view name) override {
+    if (name == "partials") sets_.clear();
+  }
+
+  // --- ValueSource interface (not an audio source itself) ---
+  void prepare(int frames) override { partials_prepare(frames); }
+  float next() override { partials_next(); return 0.0f; }
+  float current() const override { return 0.0f; }
+
+  // --- IPartials interface ---
+  void partials_prepare(int frames) override {
+    for (auto& e : sets_) e.ipartials->partials_prepare(frames);
+  }
+
+  void partials_next() override {
+    for (auto& e : sets_) e.ipartials->partials_next();
+  }
+
+  int partial_count() const override {
+    int total = 0;
+    for (auto& e : sets_) total += e.ipartials->partial_count();
+    return total;
+  }
+
+  float get_partial_value(float amplitude, float frequency, float phaseDiff,
+                          int index, IFormant* formant, float formantWeight) override {
+    int offset = 0;
+    for (auto& e : sets_) {
+      int count = e.ipartials->partial_count();
+      if (index < offset + count)
+        return e.ipartials->get_partial_value(amplitude, frequency, phaseDiff,
+                                               index - offset, formant, formantWeight);
+      offset += count;
+    }
+    return 0.0f;
+  }
+
+private:
+  struct Entry {
+    std::shared_ptr<ValueSource> source;  // prevents the shared_ptr from dying
+    IPartials* ipartials;                  // fast pointer to the IPartials interface
+  };
+  std::vector<Entry> sets_;
+};
+
 } // namespace mforce
