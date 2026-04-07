@@ -1640,7 +1640,7 @@ static void draw_keyboard_panel() {
     ImGui::SameLine();
     ImGui::Spacing(); ImGui::SameLine();
 
-    ImGui::Text("Vel");
+    ImGui::Text("Velocity");
     ImGui::SameLine();
     ImGui::SetNextItemWidth(80.0f);
     ImGui::SliderFloat("##vel", &g_keyboard.velocity, 0.0f, 1.0f, "%.2f");
@@ -2102,7 +2102,7 @@ static void transport_label(const char* label, float labelW) {
 }
 // Helper: inline label with generous gap before it
 static void transport_label_inline(const char* label) {
-    ImGui::SameLine(0, 36);
+    ImGui::SameLine(0, 30);
     ImGui::Text("%s", label);
     ImGui::SameLine();
 }
@@ -2161,7 +2161,7 @@ static void draw_transport_panel() {
             spinner_int("coct", &g_transport.octave, 1, 0, 8);
             transport_label_inline("BPM");
             spinner_float("cbpm", &g_transport.bpm, 5.0f, 20.0f, 300.0f, "%.0f");
-            transport_label_inline("Inv");
+            transport_label_inline("Inversion");
             spinner_int("inv", &g_transport.inversion, 1, 0, 4);
             transport_label_inline("Spread");
             spinner_int("sprd", &g_transport.spread, 1, 0, 4);
