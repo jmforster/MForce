@@ -95,24 +95,44 @@ static std::string node_display_name(const std::string& typeName) {
     return name;
 }
 
+// Check if a type name is a noise source
+static bool is_noise_type(const std::string& t) {
+    return t.find("Noise") != std::string::npos
+        || t == "SegmentSource";
+}
+
+// Check if a type name is a wavetable/evolution source
+static bool is_wavetable_type(const std::string& t) {
+    return t == "WavetableSource"
+        || t.find("Evolution") != std::string::npos;
+}
+
 static ImU32 node_title_color(const std::string& typeName) {
     if (typeName == NT_SOUND_CHANNEL || typeName == NT_STEREO_MIXER)
-        return IM_COL32(100, 100, 100, 255);
-    if (typeName == NT_PATCH_OUTPUT) return IM_COL32(60, 150, 150, 255);
-    if (typeName == NT_PARAMETER)    return IM_COL32(180, 100, 180, 255);
+        return IM_COL32(120, 130, 145, 255);    // Blue grey — Output
+    if (typeName == NT_PATCH_OUTPUT)
+        return IM_COL32(120, 130, 145, 255);    // Blue grey — Output
+    if (typeName == NT_PARAMETER)
+        return IM_COL32(190, 140, 170, 255);    // Pink — Parameter
 
     auto& reg = SourceRegistry::instance();
     if (!reg.has(typeName)) return IM_COL32(128, 128, 128, 255);
 
+    // Noise and Wavetable override category-based coloring
+    if (is_noise_type(typeName))
+        return IM_COL32(185, 95, 85, 255);      // Reddish orange — Noise
+    if (is_wavetable_type(typeName))
+        return IM_COL32(155, 150, 110, 255);    // Olive-y tan — Wavetable
+
     switch (reg.get_category(typeName)) {
-        case SourceCategory::Oscillator: return IM_COL32(70, 100, 180, 255);
-        case SourceCategory::Generator:  return IM_COL32(140, 80, 80, 255);
-        case SourceCategory::Envelope:   return IM_COL32(80, 140, 80, 255);
-        case SourceCategory::Modulator:  return IM_COL32(140, 120, 60, 255);
-        case SourceCategory::Filter:     return IM_COL32(80, 120, 160, 255);
-        case SourceCategory::Combiner:   return IM_COL32(120, 80, 140, 255);
-        case SourceCategory::Additive:   return IM_COL32(100, 140, 100, 255);
-        case SourceCategory::Utility:    return IM_COL32(140, 120, 60, 255);
+        case SourceCategory::Additive:  return IM_COL32(195, 145, 90, 255);  // Orange — Additive
+        case SourceCategory::Envelope:  return IM_COL32(200, 185, 110, 255); // Pale gold — Envelope
+        case SourceCategory::Oscillator:return IM_COL32(95, 165, 150, 255);  // Greenish teal — Generator
+        case SourceCategory::Generator: return IM_COL32(95, 165, 150, 255);  // Greenish teal — Generator
+        case SourceCategory::Modulator: return IM_COL32(95, 165, 150, 255);  // Greenish teal — Generator
+        case SourceCategory::Filter:    return IM_COL32(145, 130, 175, 255); // Dark lavender — Filter
+        case SourceCategory::Combiner:  return IM_COL32(95, 165, 150, 255);  // Greenish teal — Generator
+        case SourceCategory::Utility:   return IM_COL32(128, 128, 128, 255);
     }
     return IM_COL32(128, 128, 128, 255);
 }
@@ -943,7 +963,7 @@ static void save_patch_graph(const std::string& path) {
 
         json params = json::object();
         for (auto& pin : node.inputs) {
-            bool isChannelPin = (pin.name.substr(0, 2) == "ch");
+            bool isChannelPin = (pin.name.substr(0, 3) == "ch ");
             if (isChannelPin) continue;
 
             if (pin.multi) {
@@ -1075,7 +1095,7 @@ static void save_node_graph(const std::string& path) {
 
         json params = json::object();
         for (auto& pin : node.inputs) {
-            bool isChannelPin = (pin.name.substr(0, 2) == "ch");
+            bool isChannelPin = (pin.name.substr(0, 3) == "ch ");
 
             GraphNode* src = find_source_node(pin.id);
 
@@ -1564,13 +1584,18 @@ static const char* qwerty_label_for_offset(int offset) {
     return "";
 }
 
-// Triangle-button spinner for int values (editable text between arrows)
-static bool spinner_int(const char* id, int* val, int step, int minVal, int maxVal, float fieldW = 40.0f) {
+// Triangle-button spinner for int values (tight auto-width)
+static bool spinner_int(const char* id, int* val, int step, int minVal, int maxVal) {
     bool changed = false;
     ImGui::PushID(id);
     if (ImGui::ArrowButton("##dec", ImGuiDir_Left)) { *val = std::max(minVal, *val - step); changed = true; }
     ImGui::SameLine(0, 2);
-    ImGui::SetNextItemWidth(fieldW);
+    // Size to fit the widest possible value in the range
+    char maxBuf[32];
+    int wider = (std::abs(minVal) > std::abs(maxVal)) ? minVal : maxVal;
+    snprintf(maxBuf, sizeof(maxBuf), "%d", wider);
+    float w = ImGui::CalcTextSize(maxBuf).x + ImGui::GetStyle().FramePadding.x * 2 + 4;
+    ImGui::SetNextItemWidth(std::max(w, 20.0f));
     if (ImGui::InputInt("##v", val, 0, 0)) { *val = std::clamp(*val, minVal, maxVal); changed = true; }
     ImGui::SameLine(0, 2);
     if (ImGui::ArrowButton("##inc", ImGuiDir_Right)) { *val = std::min(maxVal, *val + step); changed = true; }
@@ -1578,13 +1603,18 @@ static bool spinner_int(const char* id, int* val, int step, int minVal, int maxV
     return changed;
 }
 
-// Triangle-button spinner for float values (editable text between arrows)
-static bool spinner_float(const char* id, float* val, float step, float minVal, float maxVal, const char* fmt = "%.1f", float fieldW = 50.0f) {
+// Triangle-button spinner for float values (tight auto-width)
+static bool spinner_float(const char* id, float* val, float step, float minVal, float maxVal, const char* fmt = "%.1f") {
     bool changed = false;
     ImGui::PushID(id);
     if (ImGui::ArrowButton("##dec", ImGuiDir_Left)) { *val = std::max(minVal, *val - step); changed = true; }
     ImGui::SameLine(0, 2);
-    ImGui::SetNextItemWidth(fieldW);
+    // Size to fit the widest plausible formatted value
+    char maxBuf[32];
+    float wider = (std::fabs(minVal) > std::fabs(maxVal)) ? minVal : maxVal;
+    snprintf(maxBuf, sizeof(maxBuf), fmt, wider);
+    float w = ImGui::CalcTextSize(maxBuf).x + ImGui::GetStyle().FramePadding.x * 2 + 4;
+    ImGui::SetNextItemWidth(std::max(w, 24.0f));
     if (ImGui::InputFloat("##v", val, 0, 0, fmt)) { *val = std::clamp(*val, minVal, maxVal); changed = true; }
     ImGui::SameLine(0, 2);
     if (ImGui::ArrowButton("##inc", ImGuiDir_Right)) { *val = std::min(maxVal, *val + step); changed = true; }
@@ -2070,8 +2100,9 @@ static void transport_label(const char* label, float labelW) {
     ImGui::Text("%s", label);
     ImGui::SameLine(labelW);
 }
-// Helper: inline label (relative, after SameLine)
+// Helper: inline label with generous gap before it
 static void transport_label_inline(const char* label) {
+    ImGui::SameLine(0, 36);
     ImGui::Text("%s", label);
     ImGui::SameLine();
 }
@@ -2090,71 +2121,61 @@ static void draw_transport_panel() {
         ImGui::EndTabBar();
     }
 
-    // Per-mode fields (labels to left of values)
+    // Per-mode fields
     switch (g_transport.mode) {
         case PlayMode::Note:
-            transport_label("Note", lw);
-            ImGui::SetNextItemWidth(80);
+            ImGui::Text("Note"); ImGui::SameLine();
+            ImGui::SetNextItemWidth(50);
             ImGui::InputText("##note", g_transport.noteStr, sizeof(g_transport.noteStr));
-            ImGui::SameLine();
             transport_label_inline("Velocity");
-            ImGui::SetNextItemWidth(120);
+            ImGui::SetNextItemWidth(100);
             ImGui::SliderFloat("##vel", &g_transport.velocity, 0.0f, 1.0f);
-            ImGui::SameLine();
             transport_label_inline("Duration");
             spinner_float("dur", &g_transport.duration, 0.1f, 0.1f, 30.0f, "%.1f");
             break;
 
         case PlayMode::Passage:
-            transport_label("Passage", lw);
+            ImGui::Text("Passage"); ImGui::SameLine();
             ImGui::SetNextItemWidth(-1);
             ImGui::InputText("##passage", g_transport.passageStr, sizeof(g_transport.passageStr));
-            transport_label("Octave", lw);
+            ImGui::Text("Octave"); ImGui::SameLine();
             spinner_int("oct", &g_transport.octave, 1, 0, 8);
-            ImGui::SameLine();
             transport_label_inline("BPM");
             spinner_float("bpm", &g_transport.bpm, 5.0f, 20.0f, 300.0f, "%.0f");
-            ImGui::SameLine();
             transport_label_inline("Velocity");
-            ImGui::SetNextItemWidth(120);
+            ImGui::SetNextItemWidth(100);
             ImGui::SliderFloat("##pvel", &g_transport.velocity, 0.0f, 1.0f);
             break;
 
         case PlayMode::Chords:
-            transport_label("Chords", lw);
+            ImGui::Text("Chords"); ImGui::SameLine();
             ImGui::SetNextItemWidth(-1);
             ImGui::InputText("##chords", g_transport.chordsStr, sizeof(g_transport.chordsStr));
-            transport_label("Group", lw);
-            ImGui::SetNextItemWidth(120);
+            ImGui::Text("Group"); ImGui::SameLine();
+            ImGui::SetNextItemWidth(100);
             ImGui::InputText("##grp", g_transport.defChordGrp, sizeof(g_transport.defChordGrp));
-            ImGui::SameLine();
             transport_label_inline("Figure");
-            ImGui::SetNextItemWidth(120);
+            ImGui::SetNextItemWidth(100);
             ImGui::InputText("##fig", g_transport.figure, sizeof(g_transport.figure));
-            transport_label("Octave", lw);
+            ImGui::Text("Octave"); ImGui::SameLine();
             spinner_int("coct", &g_transport.octave, 1, 0, 8);
-            ImGui::SameLine();
             transport_label_inline("BPM");
             spinner_float("cbpm", &g_transport.bpm, 5.0f, 20.0f, 300.0f, "%.0f");
-            ImGui::SameLine();
             transport_label_inline("Inv");
             spinner_int("inv", &g_transport.inversion, 1, 0, 4);
-            ImGui::SameLine();
             transport_label_inline("Spread");
             spinner_int("sprd", &g_transport.spread, 1, 0, 4);
-            ImGui::SameLine();
             transport_label_inline("Delay");
             spinner_float("cdly", &g_transport.chordDelay, 5.0f, 0.0f, 200.0f, "%.0f");
             break;
 
         case PlayMode::Drums:
-            transport_label("Pattern", lw);
-            ImGui::SetNextItemWidth(200);
+            ImGui::Text("Pattern"); ImGui::SameLine();
+            ImGui::SetNextItemWidth(160);
             ImGui::InputText("##pat", g_transport.pattern, sizeof(g_transport.pattern));
-            ImGui::SameLine();
             transport_label_inline("Repeats");
             spinner_int("rep", &g_transport.repeats, 1, 1, 32);
-            transport_label("BPM", lw);
+            transport_label_inline("BPM");
             spinner_float("dbpm", &g_transport.bpm, 5.0f, 20.0f, 300.0f, "%.0f");
             break;
     }
@@ -2253,7 +2274,7 @@ static void draw_node(GraphNode& node) {
         if (is_pin_connected(pin.id)) {
             // Connected: just show pin name in normal white (wire makes connection obvious)
             ImGui::TextUnformatted(pin.name.c_str());
-        } else if (pin.inputOnly || pin.name.substr(0, 2) == "ch") {
+        } else if (pin.inputOnly || pin.name.substr(0, 3) == "ch ") {
             // Input-only or channel pin: gray text
             ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "%s", pin.name.c_str());
         } else {
@@ -2313,7 +2334,7 @@ static void draw_properties_panel() {
     bool hasParams = false;
     for (auto& pin : node->inputs) {
         if (pin.inputOnly) continue;
-        if (pin.name.substr(0, 2) == "ch") continue;
+        if (pin.name.substr(0, 3) == "ch ") continue;  // skip "ch 1", "ch 2" mixer channels
         // Hide "default" pin on Parameter nodes — it's internal
         if (node->typeName == NT_PARAMETER && pin.name == "default") continue;
         hasParams = true;
@@ -2323,7 +2344,7 @@ static void draw_properties_panel() {
         ImGui::SameLine(labelW);
         if (connected) {
             GraphNode* srcNode = find_source_node(pin.id);
-            ImGui::TextColored(ImVec4(0.5f, 0.8f, 0.5f, 1), "-> %s", srcNode ? srcNode->label.c_str() : "?");
+            ImGui::TextColored(ImVec4(0.5f, 0.8f, 0.5f, 1), "<-- %s", srcNode ? srcNode->label.c_str() : "?");
         } else {
             ImGui::PushItemWidth(widgetW);
             char label[64];
@@ -2346,7 +2367,7 @@ static void draw_properties_panel() {
         ImGui::SameLine(labelW);
         if (connected) {
             GraphNode* srcNode = find_source_node(pin.id);
-            ImGui::TextColored(ImVec4(0.5f, 0.8f, 0.5f, 1), "-> %s", srcNode ? srcNode->label.c_str() : "?");
+            ImGui::TextColored(ImVec4(0.5f, 0.8f, 0.5f, 1), "<-- %s", srcNode ? srcNode->label.c_str() : "?");
         } else {
             ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1), "(not connected)");
         }
@@ -2467,7 +2488,20 @@ static void menu_source(const char* label, const char* typeName) {
     if (ImGui::MenuItem(label)) {
         s_nodes.emplace_back(std::string(typeName));
         ImNodes::SetNodeScreenSpacePos(s_nodes.back().id, s_createMenuPos);
+        update_node_dsp(s_nodes.back());
     }
+}
+
+// Helper: visible separator with vertical padding for submenus
+static void menu_sep() {
+    ImGui::Spacing();
+    ImVec2 pos = ImGui::GetCursorScreenPos();
+    float w = ImGui::GetContentRegionAvail().x;
+    ImGui::GetWindowDrawList()->AddLine(
+        ImVec2(pos.x, pos.y), ImVec2(pos.x + w, pos.y),
+        IM_COL32(140, 140, 140, 255), 1.5f);
+    ImGui::Dummy(ImVec2(0, 2));
+    ImGui::Spacing();
 }
 
 // Helper: grayed-out placeholder for unimplemented types
@@ -2510,11 +2544,11 @@ static void show_create_menu() {
         menu_source("Saw", "SawSource");
         menu_source("Pulse", "PulseSource");
         menu_source("Triangle", "TriangleSource");
-        ImGui::Separator();
+        menu_sep();
         menu_source("FM", "FMSource");
         menu_source("Distorted", "DistortedSource");
         menu_source("Hybrid KS", "HybridKSSource");
-        ImGui::Separator();
+        menu_sep();
         menu_source("Combined", "CombinedSource");
         menu_source("Phased", "PhasedValueSource");
         menu_source("Crossfade", "CrossfadeSource");
@@ -2526,7 +2560,8 @@ static void show_create_menu() {
     // --- Wavetable ---
     if (ImGui::BeginMenu("Wavetable")) {
         menu_source("Wavetable", "WavetableSource");
-        ImGui::Separator();
+        menu_sep();
+        menu_source("EKS Evolution", "EKSEvolution");
         menu_source("Pluck Evolution", "PluckEvolution");
         menu_source("Averaging Evolution", "AveragingEvolution");
         ImGui::EndMenu();
@@ -2537,12 +2572,12 @@ static void show_create_menu() {
         menu_source("Full", "AdditiveSource");
         menu_source("Basic", "BasicAdditiveSource");
         menu_source("Alternate", "AdditiveSource2");
-        ImGui::Separator();
+        menu_sep();
         menu_source("Full Partials", "FullPartials");
         menu_source("Sequence Partials", "SequencePartials");
         menu_source("Explicit Partials", "ExplicitPartials");
         menu_source("Composite Partials", "CompositePartials");
-        ImGui::Separator();
+        menu_sep();
         menu_source("Formant", "Formant");
         menu_source("Formant Sequence", "FormantSequence");
         menu_source("Formant Spectrum", "FormantSpectrum");
@@ -2556,7 +2591,14 @@ static void show_create_menu() {
         menu_source("White", "WhiteNoiseSource");
         menu_source("Pink", "PinkNoiseSource");
         menu_source("Red", "RedNoiseSource");
-        ImGui::Separator();
+        menu_source("Blue", "BlueNoiseSource");
+        menu_source("Violet", "VioletNoiseSource");
+        menu_sep();
+        menu_source("Velvet", "VelvetNoiseSource");
+        menu_source("Perlin", "PerlinNoiseSource");
+        menu_source("Crackle", "CrackleNoiseSource");
+        menu_source("Murmuration", "MurmurationNoiseSource");
+        menu_sep();
         menu_source("Segment", "SegmentSource");
         menu_source("Wander 1", "WanderNoiseSource");
         menu_source("Wander 2", "WanderNoise2Source");
@@ -2572,7 +2614,7 @@ static void show_create_menu() {
         menu_source("AR", "AREnvelope");
         menu_source("AS", "ASEnvelope");
         menu_source("ADS", "ADSEnvelope");
-        ImGui::Separator();
+        menu_sep();
         menu_source("Envelope", "Envelope");
         menu_source("Vibrato", "Vibrato");
         ImGui::EndMenu();

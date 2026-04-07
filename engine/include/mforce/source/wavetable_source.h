@@ -98,6 +98,10 @@ private:
   std::vector<float>              values_;
   int   tablePtr2_{-1};
   bool  interpolate_{false};
+  // Tuning allpass state
+  float tuningCoeff_{0.0f};
+  float tuningState_{0.0f};
+  float tuningPrevIn_{0.0f};
 };
 
 } // namespace mforce

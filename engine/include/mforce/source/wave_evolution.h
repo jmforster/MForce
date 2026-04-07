@@ -13,8 +13,11 @@ struct WaveEvolution {
   virtual ~WaveEvolution() = default;
 
   // Called once per note — adjust internal state based on frequency.
-  // Returns a frequency adjustment (currently unused in C++ WaveSource).
   virtual float adjust(float frequency) = 0;
+
+  // Called once after table fill — modify the initial excitation.
+  // Default: no-op. Override for pick-position, pick-direction, etc.
+  virtual void shape_excitation(std::vector<float>& /*values*/) {}
 
   // Called each sample — modify the wavetable in-place.
   virtual void evolve(std::vector<float>& values, int index) = 0;
@@ -230,6 +233,106 @@ private:
 };
 
 // ---------------------------------------------------------------------------
+// EKSEvolution — Extended Karplus-Strong (Jaffe & Smith 1983).
+// Adds pick position, pick direction, string stiffness, decay stretch,
+// and drum blend to the basic KS averaging loop.
+// ---------------------------------------------------------------------------
+struct EKSEvolution final : WaveEvolution {
+  // Configurable parameters
+  float pickPosition{0.0f};    // 0=bridge, 0.5=middle (removes even harmonics), 1=nut
+  float pickDirection{0.0f};   // 0=down, higher=more up-pick filtering
+  float stiffness{0.0f};      // string inharmonicity (allpass dispersion)
+  float decayStretch{0.5f};   // 0..1, 0.5=standard KS averaging
+  float drumBlend{1.0f};      // 1=string, 0.5=snare, 0=pure drum
+
+  explicit EKSEvolution(uint32_t seed = 0xEE45'0000u) : rng_(seed) {}
+
+  float adjust(float frequency) override {
+    freq_ = frequency;
+
+    // Stiffness allpass coefficient: higher frequency = more dispersion
+    if (stiffness > 0.0f) {
+      // Approximate: coefficient grows with harmonic number
+      // Use a simple model: C = stiffness * (freq/1000)^0.5
+      stiffnessCoeff_ = stiffness * std::sqrt(freq_ / 1000.0f);
+      stiffnessCoeff_ = std::clamp(stiffnessCoeff_, 0.0f, 0.9f);
+    } else {
+      stiffnessCoeff_ = 0.0f;
+    }
+    stiffnessState_ = 0.0f;
+
+    return 0.0f;  // tuning allpass handles pitch correction now
+  }
+
+  void shape_excitation(std::vector<float>& values) override {
+    int len = int(values.size());
+    if (len < 2) return;
+
+    // Pick-position comb filter: H(z) = 1 - z^(-floor(beta*N + 0.5))
+    // Removes harmonics at multiples of 1/beta
+    if (pickPosition > 0.001f && pickPosition < 0.999f) {
+      int delay = int(std::floor(pickPosition * float(len) + 0.5f));
+      if (delay >= 1 && delay < len) {
+        std::vector<float> filtered(len);
+        for (int i = 0; i < len; ++i) {
+          int di = i - delay;
+          if (di < 0) di += len;
+          filtered[i] = values[i] - values[di];
+        }
+        values = std::move(filtered);
+      }
+    }
+
+    // Pick-direction lowpass: H(z) = (1-p) / (1 - p*z^-1)
+    if (pickDirection > 0.001f) {
+      float p = std::clamp(pickDirection, 0.0f, 0.95f);
+      float g = 1.0f - p;
+      float prev = 0.0f;
+      for (int i = 0; i < len; ++i) {
+        float y = g * values[i] + p * prev;
+        prev = y;
+        values[i] = y;
+      }
+    }
+  }
+
+  void evolve(std::vector<float>& values, int index) override {
+    int len = int(values.size());
+    if (len < 2) return;
+
+    int next = (index + 1) % len;
+
+    // Weighted average (decay stretch): y = (1-S)*v[n] + S*v[n+1]
+    float avg = (1.0f - decayStretch) * values[index] + decayStretch * values[next];
+
+    // Drum blend: with probability (1-drumBlend)/2, flip sign
+    if (drumBlend < 1.0f) {
+      float flipProb = (1.0f - drumBlend) * 0.5f;
+      if (rng_.value() < flipProb) {
+        avg = -avg;
+      }
+    }
+
+    // String stiffness allpass: y[n] = C*x[n] + x[n-1] - C*y[n-1]
+    if (stiffnessCoeff_ > 0.0f) {
+      float y = stiffnessCoeff_ * avg + stiffnessPrevIn_ - stiffnessCoeff_ * stiffnessState_;
+      stiffnessPrevIn_ = avg;
+      stiffnessState_ = y;
+      avg = y;
+    }
+
+    values[index] = avg;
+  }
+
+private:
+  Randomizer rng_;
+  float freq_{440.0f};
+  float stiffnessCoeff_{0.0f};
+  float stiffnessState_{0.0f};
+  float stiffnessPrevIn_{0.0f};
+};
+
+// ---------------------------------------------------------------------------
 // IEvolutionHolder — interface for graph nodes that hold a WaveEvolution.
 // WavetableSource dynamic_casts its "evolution" input to this.
 // ---------------------------------------------------------------------------
@@ -335,6 +438,54 @@ private:
   float decayFactor_{0.999f};
   bool  leading_{false};
   bool  autoAdjust_{false};
+};
+
+// ---------------------------------------------------------------------------
+// EKSEvolutionSource — graph node holding an EKSEvolution.
+// ---------------------------------------------------------------------------
+struct EKSEvolutionSource final : ValueSource, IEvolutionHolder {
+  explicit EKSEvolutionSource(uint32_t seed = 0xEE45'0000u)
+  : evo_(seed) {}
+
+  const char* type_name() const override { return "EKSEvolution"; }
+  SourceCategory category() const override { return SourceCategory::Generator; }
+
+  WaveEvolution* get_evolution() override { return &evo_; }
+
+  std::span<const ConfigDescriptor> config_descriptors() const override {
+    static constexpr ConfigDescriptor descs[] = {
+      {"pickPosition",  ConfigType::Float, 0.0f, 0.0f, 1.0f},
+      {"pickDirection", ConfigType::Float, 0.0f, 0.0f, 0.95f},
+      {"stiffness",     ConfigType::Float, 0.0f, 0.0f, 0.1f},
+      {"decayStretch",  ConfigType::Float, 0.5f, 0.0f, 1.0f},
+      {"drumBlend",     ConfigType::Float, 1.0f, 0.0f, 1.0f},
+    };
+    return descs;
+  }
+
+  void set_config(std::string_view name, float value) override {
+    if (name == "pickPosition")  evo_.pickPosition = value;
+    else if (name == "pickDirection") evo_.pickDirection = value;
+    else if (name == "stiffness")     evo_.stiffness = value;
+    else if (name == "decayStretch")  evo_.decayStretch = value;
+    else if (name == "drumBlend")     evo_.drumBlend = value;
+  }
+
+  float get_config(std::string_view name) const override {
+    if (name == "pickPosition")  return evo_.pickPosition;
+    if (name == "pickDirection") return evo_.pickDirection;
+    if (name == "stiffness")     return evo_.stiffness;
+    if (name == "decayStretch")  return evo_.decayStretch;
+    if (name == "drumBlend")     return evo_.drumBlend;
+    return 0.0f;
+  }
+
+  void prepare(int) override {}
+  float next() override { return 0.0f; }
+  float current() const override { return 0.0f; }
+
+private:
+  EKSEvolution evo_;
 };
 
 } // namespace mforce

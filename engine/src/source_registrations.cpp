@@ -9,6 +9,7 @@
 #include "mforce/source/red_noise_source.h"
 #include "mforce/source/pink_noise_source.h"
 #include "mforce/source/white_noise_source.h"
+#include "mforce/source/noise_sources.h"
 #include "mforce/source/wander_noise_source.h"
 #include "mforce/source/wavetable_source.h"
 #include "mforce/source/hybrid_ks_source.h"
@@ -101,6 +102,36 @@ void register_all_sources() {
     reg.register_type("RedNoiseSource", SourceCategory::Generator,
         [](int sr, auto seed) {
             return std::make_shared<RedNoiseSource>(sr, seed.value_or(0xBADC0DEu));
+        });
+
+    reg.register_type("BlueNoiseSource", SourceCategory::Generator,
+        [](int, auto seed) {
+            return std::make_shared<BlueNoiseSource>(seed.value_or(0xB100'0001u));
+        });
+
+    reg.register_type("VioletNoiseSource", SourceCategory::Generator,
+        [](int, auto seed) {
+            return std::make_shared<VioletNoiseSource>(seed.value_or(0xF100'0001u));
+        });
+
+    reg.register_type("VelvetNoiseSource", SourceCategory::Generator,
+        [](int sr, auto seed) {
+            return std::make_shared<VelvetNoiseSource>(sr, seed.value_or(0xFE17'0001u));
+        });
+
+    reg.register_type("PerlinNoiseSource", SourceCategory::Generator,
+        [](int sr, auto seed) {
+            return std::make_shared<PerlinNoiseSource>(sr, seed.value_or(0xAE21'0001u));
+        });
+
+    reg.register_type("CrackleNoiseSource", SourceCategory::Generator,
+        [](int, auto seed) {
+            return std::make_shared<CrackleNoiseSource>(seed.value_or(0xC8AC'0001u));
+        });
+
+    reg.register_type("MurmurationNoiseSource", SourceCategory::Generator,
+        [](int sr, auto seed) {
+            return std::make_shared<MurmurationNoiseSource>(sr, seed.value_or(0xB18D'0001u));
         });
 
     reg.register_type("WanderNoiseSource", SourceCategory::Generator,
@@ -374,6 +405,11 @@ void register_all_sources() {
     reg.register_type("AveragingEvolution", SourceCategory::Generator,
         [](int, auto seed) {
             return std::make_shared<AveragingEvolutionSource>(seed.value_or(0xCAFE'BABEu));
+        });
+
+    reg.register_type("EKSEvolution", SourceCategory::Generator,
+        [](int, auto seed) {
+            return std::make_shared<EKSEvolutionSource>(seed.value_or(0xEE45'0000u));
         });
 
     reg.register_type("HybridKSSource", SourceCategory::Oscillator,

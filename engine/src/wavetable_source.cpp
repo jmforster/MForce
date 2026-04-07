@@ -38,12 +38,23 @@ float WavetableSource::compute_wave_value() {
 }
 
 float WavetableSource::compute_raw() {
-  // Legacy: on first sample, fill table and let evolution adjust
+  // On first sample, fill table and let evolution adjust
   if (ptr_ == 0) {
     fill_table();
     if (evolution_) {
       evolution_->adjust(currFreq_);
+      evolution_->shape_excitation(values_);
     }
+    // Tuning allpass: fractional delay for sub-sample pitch accuracy
+    float idealLen = float(sampleRate_) / currFreq_;
+    float frac = idealLen - float(int(values_.size()));
+    if (frac > 0.001f && frac < 0.999f) {
+      tuningCoeff_ = (1.0f - frac) / (1.0f + frac);
+    } else {
+      tuningCoeff_ = 0.0f;
+    }
+    tuningState_ = 0.0f;
+    tuningPrevIn_ = 0.0f;
     tablePtr2_ = -1;
   }
 
@@ -54,7 +65,17 @@ float WavetableSource::compute_raw() {
     evolution_->evolve(values_, tablePtr2_);
   }
 
-  return values_[tablePtr2_];
+  float out = values_[tablePtr2_];
+
+  // Tuning allpass: y[n] = C*x[n] + x[n-1] - C*y[n-1]
+  if (tuningCoeff_ != 0.0f) {
+    float y = tuningCoeff_ * out + tuningPrevIn_ - tuningCoeff_ * tuningState_;
+    tuningPrevIn_ = out;
+    tuningState_ = y;
+    out = y;
+  }
+
+  return out;
 }
 
 float WavetableSource::compute_interpolated() {
@@ -62,7 +83,17 @@ float WavetableSource::compute_interpolated() {
     fill_table();
     if (evolution_) {
       evolution_->adjust(currFreq_);
+      evolution_->shape_excitation(values_);
     }
+    float idealLen = float(sampleRate_) / currFreq_;
+    float frac = idealLen - float(int(values_.size()));
+    if (frac > 0.001f && frac < 0.999f) {
+      tuningCoeff_ = (1.0f - frac) / (1.0f + frac);
+    } else {
+      tuningCoeff_ = 0.0f;
+    }
+    tuningState_ = 0.0f;
+    tuningPrevIn_ = 0.0f;
   }
 
   int len = int(values_.size());
@@ -79,8 +110,18 @@ float WavetableSource::compute_interpolated() {
   }
 
   // Linear interpolation
-  float frac = tablePtr - std::floor(tablePtr);
-  return values_[samp1] + (values_[samp2] - values_[samp1]) * frac;
+  float frac2 = tablePtr - std::floor(tablePtr);
+  float out = values_[samp1] + (values_[samp2] - values_[samp1]) * frac2;
+
+  // Tuning allpass
+  if (tuningCoeff_ != 0.0f) {
+    float y = tuningCoeff_ * out + tuningPrevIn_ - tuningCoeff_ * tuningState_;
+    tuningPrevIn_ = out;
+    tuningState_ = y;
+    out = y;
+  }
+
+  return out;
 }
 
 } // namespace mforce
