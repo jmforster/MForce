@@ -484,18 +484,43 @@ static int run_josie(int argc, char** argv) {
 // Classical composition mode — algorithmic melody generation
 // ---------------------------------------------------------------------------
 static int run_compose(int argc, char** argv) {
+    // Usage: --compose <patch.json> <out_prefix> [count] [--template <template.json>]
     if (argc < 4) {
-        std::cerr << "Usage: mforce_cli --compose <patch.json> <out_prefix> [count]\n";
+        std::cerr << "Usage: mforce_cli --compose <patch.json> <out_prefix> [count] [--template <template.json>]\n";
         return 1;
     }
 
     std::string patchPath = argv[2];
     std::string outPrefix = argv[3];
-    int count = (argc > 4) ? std::stoi(argv[4]) : 3;
+    int count = 1;
+    std::string templatePath;
+
+    // Parse optional args
+    for (int a = 4; a < argc; ++a) {
+        std::string arg = argv[a];
+        if (arg == "--template" && a + 1 < argc) {
+            templatePath = argv[++a];
+        } else {
+            count = std::stoi(arg);
+        }
+    }
 
     if (!std::filesystem::exists(patchPath)) {
         std::cerr << "Patch file not found: " << patchPath << "\n";
         return 1;
+    }
+
+    // Load template from JSON if specified
+    PieceTemplate baseTmpl;
+    if (!templatePath.empty()) {
+        if (!std::filesystem::exists(templatePath)) {
+            std::cerr << "Template file not found: " << templatePath << "\n";
+            return 1;
+        }
+        std::ifstream tf(templatePath);
+        json tj = json::parse(tf);
+        from_json(tj, baseTmpl);
+        std::cout << "Loaded template: " << templatePath << "\n";
     }
 
     for (int i = 0; i < count; ++i) {
@@ -503,14 +528,21 @@ static int run_compose(int argc, char** argv) {
         ip.instrument->volume = 0.5f;
         ip.instrument->hiBoost = 0.3f;
 
-        // Build a PieceTemplate and compose
-        PieceTemplate tmpl;
-        tmpl.keyName = "C";
-        tmpl.scaleName = "Major";
-        tmpl.bpm = 100.0f;
-        tmpl.masterSeed = 0xC1A5'0000u + uint32_t(i) * 137;
-        tmpl.sections.push_back({"Main", 32.0f});
-        tmpl.parts.push_back({"melody", PartRole::Melody, patchPath});
+        // Use loaded template or build a default one
+        PieceTemplate tmpl = baseTmpl;
+        tmpl.masterSeed = baseTmpl.masterSeed
+            ? baseTmpl.masterSeed + uint32_t(i) * 137
+            : 0xC1A5'0000u + uint32_t(i) * 137;
+
+        // Ensure at least one section and one part if template didn't specify
+        if (tmpl.sections.empty())
+            tmpl.sections.push_back({"Main", 32.0f});
+        if (tmpl.parts.empty())
+            tmpl.parts.push_back({"melody", PartRole::Melody, patchPath});
+
+        // Ensure the first part has the instrument patch
+        if (tmpl.parts[0].instrumentPatch.empty())
+            tmpl.parts[0].instrumentPatch = patchPath;
 
         Piece piece;
         ClassicalComposer composer(tmpl.masterSeed);
@@ -522,7 +554,8 @@ static int run_compose(int argc, char** argv) {
         conductor.perform(piece);
 
         // Render
-        float totalBeats = piece.sections[0].beats;
+        float totalBeats = 0;
+        for (auto& sec : piece.sections) totalBeats += sec.beats;
         float bpm = piece.sections[0].tempo;
         float totalSeconds = totalBeats * 60.0f / bpm + 2.0f;
         int frames = int(totalSeconds * float(ip.sampleRate));

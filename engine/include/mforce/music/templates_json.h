@@ -33,8 +33,8 @@ inline void to_json(json& j, TransformOp t) {
         case TransformOp::None:             j = "none"; break;
         case TransformOp::Invert:           j = "invert"; break;
         case TransformOp::Reverse:          j = "reverse"; break;
-        case TransformOp::Augment:          j = "augment"; break;
-        case TransformOp::Diminute:         j = "diminute"; break;
+        case TransformOp::Stretch:          j = "stretch"; break;
+        case TransformOp::Compress:         j = "compress"; break;
         case TransformOp::VaryRhythm:       j = "vary_rhythm"; break;
         case TransformOp::VarySteps:        j = "vary_steps"; break;
         case TransformOp::NewSteps:         j = "new_steps"; break;
@@ -48,8 +48,8 @@ inline void from_json(const json& j, TransformOp& t) {
     if (str == "none")          t = TransformOp::None;
     else if (str == "invert")        t = TransformOp::Invert;
     else if (str == "reverse")       t = TransformOp::Reverse;
-    else if (str == "augment")       t = TransformOp::Augment;
-    else if (str == "diminute")      t = TransformOp::Diminute;
+    else if (str == "stretch")       t = TransformOp::Stretch;
+    else if (str == "compress")      t = TransformOp::Compress;
     else if (str == "vary_rhythm")   t = TransformOp::VaryRhythm;
     else if (str == "vary_steps")    t = TransformOp::VarySteps;
     else if (str == "new_steps")     t = TransformOp::NewSteps;

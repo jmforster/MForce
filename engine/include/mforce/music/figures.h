@@ -532,17 +532,17 @@ struct FigureBuilder {
     return fig;
   }
 
-  // Augment: double all durations
-  MelodicFigure augment(const MelodicFigure& source) {
+  // Stretch: multiply all durations by factor (default 2x)
+  MelodicFigure stretch(const MelodicFigure& source, float factor = 2.0f) {
     MelodicFigure fig = source;
-    for (auto& u : fig.units) u.duration *= 2.0f;
+    for (auto& u : fig.units) u.duration *= factor;
     return fig;
   }
 
-  // Diminute: halve all durations
-  MelodicFigure diminute(const MelodicFigure& source) {
+  // Compress: divide all durations by factor (default 2x)
+  MelodicFigure compress(const MelodicFigure& source, float factor = 2.0f) {
     MelodicFigure fig = source;
-    for (auto& u : fig.units) u.duration *= 0.5f;
+    for (auto& u : fig.units) u.duration /= factor;
     return fig;
   }
 

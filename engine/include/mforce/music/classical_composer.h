@@ -286,11 +286,11 @@ private:
       case TransformOp::Reverse:
         return fb.reverse(base);
 
-      case TransformOp::Augment:
-        return fb.augment(base);
+      case TransformOp::Stretch:
+        return fb.stretch(base, param > 0 ? float(param) : 2.0f);
 
-      case TransformOp::Diminute:
-        return fb.diminute(base);
+      case TransformOp::Compress:
+        return fb.compress(base, param > 0 ? float(param) : 2.0f);
 
       case TransformOp::VaryRhythm:
         return fb.vary_rhythm(base);
@@ -331,7 +331,7 @@ private:
         if (choice < 0.25f) return fb.invert(base);
         if (choice < 0.50f) return fb.vary_rhythm(base);
         if (choice < 0.75f) return fb.reverse(base);
-        return fb.augment(base);
+        return fb.stretch(base);
       }
 
       case TransformOp::None:

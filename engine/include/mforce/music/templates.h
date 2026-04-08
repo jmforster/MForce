@@ -36,8 +36,8 @@ enum class TransformOp {
     None,
     Invert,           // flip step directions
     Reverse,          // retrograde
-    Augment,          // double pulse durations
-    Diminute,         // halve pulse durations
+    Stretch,          // multiply durations by factor (default 2x)
+    Compress,         // divide durations by factor (default 2x)
     VaryRhythm,       // split/dot some pulses randomly
     VarySteps,        // randomly perturb some step values
     NewSteps,         // keep rhythm, generate new steps

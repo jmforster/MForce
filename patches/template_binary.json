@@ -1,0 +1,72 @@
+{
+  "keyName": "D",
+  "scaleName": "Minor",
+  "bpm": 110.0,
+  "masterSeed": 42,
+  "seeds": [
+    {
+      "name": "motif",
+      "figure": {
+        "units": [
+          {"duration": 1.0, "step": 0},
+          {"duration": 0.5, "step": 2},
+          {"duration": 0.5, "step": -1},
+          {"duration": 1.0, "step": -1}
+        ]
+      },
+      "userProvided": true
+    }
+  ],
+  "sections": [
+    {"name": "A", "beats": 16},
+    {"name": "B", "beats": 16}
+  ],
+  "parts": [
+    {
+      "name": "melody",
+      "role": "melody",
+      "passages": {
+        "A": {
+          "phrases": [
+            {
+              "name": "statement",
+              "figures": [
+                {"source": "reference", "seedName": "motif"},
+                {"source": "transform", "seedName": "motif", "transform": "vary_rhythm"},
+                {"source": "generate", "totalBeats": 2.0, "minNotes": 1, "maxNotes": 1}
+              ]
+            },
+            {
+              "name": "response",
+              "figures": [
+                {"source": "transform", "seedName": "motif", "transform": "invert"},
+                {"source": "generate", "totalBeats": 4.0, "stepwise": true, "targetNet": -2},
+                {"source": "generate", "totalBeats": 4.0, "minNotes": 1, "maxNotes": 1}
+              ]
+            }
+          ]
+        },
+        "B": {
+          "phrases": [
+            {
+              "name": "development",
+              "figures": [
+                {"source": "transform", "seedName": "motif", "transform": "compress"},
+                {"source": "transform", "seedName": "motif", "transform": "general"},
+                {"source": "generate", "totalBeats": 4.0, "skips": true}
+              ]
+            },
+            {
+              "name": "return",
+              "figures": [
+                {"source": "reference", "seedName": "motif"},
+                {"source": "generate", "totalBeats": 4.0, "stepwise": true, "targetNet": 0},
+                {"source": "generate", "totalBeats": 4.0, "minNotes": 1, "maxNotes": 1}
+              ]
+            }
+          ]
+        }
+      }
+    }
+  ]
+}
