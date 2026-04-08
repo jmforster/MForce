@@ -178,6 +178,40 @@ inline void from_json(const json& j, Chord& c) {
 }
 
 // ===========================================================================
+// ScaleChord / ChordProgression
+// ===========================================================================
+
+inline void to_json(json& j, const ScaleChord& sc) {
+  j = json{{"degree", sc.degree}};
+  if (sc.alteration != 0) j["alteration"] = sc.alteration;
+  j["quality"] = sc.quality ? (sc.quality->shortName.empty() ? "M" : sc.quality->shortName) : "M";
+}
+
+inline void from_json(const json& j, ScaleChord& sc) {
+  sc.degree = j.at("degree").get<int>();
+  sc.alteration = j.value("alteration", 0);
+  std::string q = j.value("quality", std::string("M"));
+  sc.quality = &ChordDef::get(q);
+}
+
+inline void to_json(json& j, const ChordProgression& cp) {
+  j = json{{"chords", json::array()}, {"pulses", cp.pulses.pulses}};
+  for (const auto& sc : cp.chords.chords)
+    j["chords"].push_back(sc);
+}
+
+inline void from_json(const json& j, ChordProgression& cp) {
+  cp.chords.chords.clear();
+  cp.pulses.pulses.clear();
+  for (const auto& cj : j.at("chords")) {
+    ScaleChord sc;
+    from_json(cj, sc);
+    cp.chords.chords.push_back(sc);
+  }
+  cp.pulses.pulses = j.at("pulses").get<std::vector<float>>();
+}
+
+// ===========================================================================
 // Figures
 // ===========================================================================
 
@@ -220,26 +254,26 @@ inline void from_json(const json& j, PitchSelection& ps) {
   if (j.contains("alterations")) ps.alterations = j.at("alterations").get<std::vector<float>>();
 }
 
-inline void to_json(json& j, const ChordFigure::Element& e) {
+inline void to_json(json& j, const ChordArticulation::Element& e) {
   j = json{{"selection", e.selection}, {"duration", e.duration}};
   if (e.direction != 0) j["direction"] = e.direction;
   if (e.delay != 0.0f) j["delay"] = e.delay;
 }
 
-inline void from_json(const json& j, ChordFigure::Element& e) {
+inline void from_json(const json& j, ChordArticulation::Element& e) {
   from_json(j.at("selection"), e.selection);
   e.duration = j.at("duration").get<float>();
   e.direction = j.value("direction", 0);
   e.delay = j.value("delay", 0.0f);
 }
 
-inline void to_json(json& j, const ChordFigure& cf) {
+inline void to_json(json& j, const ChordArticulation& cf) {
   j = json{{"elements", cf.elements}};
 }
 
-inline void from_json(const json& j, ChordFigure& cf) {
+inline void from_json(const json& j, ChordArticulation& cf) {
   for (auto& ej : j.at("elements")) {
-    ChordFigure::Element e;
+    ChordArticulation::Element e;
     from_json(ej, e);
     cf.elements.push_back(e);
   }

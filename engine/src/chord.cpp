@@ -201,4 +201,36 @@ Chord Chord::create(const std::string& dictName, const std::string& rootName,
   return c;
 }
 
+// ===== ScaleChord =====
+
+Chord ScaleChord::resolve(const Scale& scale, int octave, float duration,
+                           int inversion, int spread) const {
+  // Sum ascending steps for the degree to get semitone offset from root
+  int semitones = 0;
+  int scaleLen = scale.length();
+  int deg = degree;
+
+  // Handle degrees beyond one octave
+  int extraOctaves = 0;
+  while (deg >= scaleLen) { deg -= scaleLen; extraOctaves++; }
+  while (deg < 0) { deg += scaleLen; extraOctaves--; }
+
+  for (int i = 0; i < deg; ++i)
+    semitones += int(scale.ascending_step(i));
+
+  semitones += alteration;
+
+  // Root note number = scale root + semitones + octave adjustment
+  int rootNN = scale.offset() + semitones + (octave + extraOctaves) * 12;
+
+  Chord c;
+  c.root = Pitch::from_note_number(float(rootNN));
+  c.def = quality ? quality : &ChordDef::get("M");
+  c.inversion = inversion;
+  c.spread = spread;
+  c.dur = duration;
+  c.init_pitches();
+  return c;
+}
+
 } // namespace mforce

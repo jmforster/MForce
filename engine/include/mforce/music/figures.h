@@ -269,9 +269,9 @@ struct RhythmicFigure {
 };
 
 // ---------------------------------------------------------------------------
-// ChordFigure — instructions for playing a chord.
+// ChordArticulation — instructions for playing a chord.
 // ---------------------------------------------------------------------------
-struct ChordFigure {
+struct ChordArticulation {
   static constexpr int DIR_ASCENDING = 0;
   static constexpr int DIR_DESCENDING = 1;
   static constexpr int DIR_RANDOM = 2;
@@ -313,6 +313,38 @@ struct ChordFigure {
 };
 
 // ---------------------------------------------------------------------------
+// ChordProgression — harmonic content: ScaleChordSequence + PulseSequence.
+// Parallels MelodicFigure (which pairs StepSequence + PulseSequence).
+// Used as seed material for harmonic structure of a piece/section.
+// ---------------------------------------------------------------------------
+struct ChordProgression {
+  PulseSequence pulses;            // duration of each chord in beats
+  ScaleChordSequence chords;       // scale-relative chord identifiers
+
+  void add(const ScaleChord& sc, float beats) {
+    chords.add(sc);
+    pulses.add(beats);
+  }
+
+  void add(int degree, const std::string& quality, float beats) {
+    chords.add(degree, quality);
+    pulses.add(beats);
+  }
+
+  int count() const { return chords.count(); }
+  float total_duration() const { return pulses.total_length(); }
+
+  // Resolve all chords to concrete Chord objects in a given key
+  std::vector<Chord> resolve(const Scale& scale, int octave, int inversion = 0, int spread = 0) const {
+    std::vector<Chord> result;
+    for (int i = 0; i < chords.count(); ++i) {
+      result.push_back(chords.get(i).resolve(scale, octave, pulses.get(i), inversion, spread));
+    }
+    return result;
+  }
+};
+
+// ---------------------------------------------------------------------------
 // DrumFigure — instructions for playing drums.
 // ---------------------------------------------------------------------------
 struct DrumFigure {
@@ -335,15 +367,8 @@ struct DrumFigure {
 };
 
 // ---------------------------------------------------------------------------
-// FigureTemplate — length constraints for figure building.
-// ---------------------------------------------------------------------------
-struct FigureTemplate {
-  int minLength{2};
-  int maxLength{8};
-};
-
-// ---------------------------------------------------------------------------
 // FigureBuilder — builds MelodicFigures from constraints.
+// (FigureTemplate moved to templates.h)
 // ---------------------------------------------------------------------------
 struct FigureBuilder {
   Randomizer rng;

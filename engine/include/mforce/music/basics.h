@@ -228,4 +228,34 @@ struct ChordDictionary {
   static void init_all();
 };
 
+// ===== ScaleChord — a chord defined relative to a scale =====
+// degree 0=i, 1=ii, 2=iii, etc. Alteration: -1=flat, 0=natural, +1=sharp
+// e.g. bIII-M7 = degree 2, alteration -1, quality M7
+
+struct ScaleChord {
+  int degree{0};
+  int alteration{0};
+  const ChordDef* quality{nullptr};
+
+  // Resolve to a concrete Chord given a scale and octave
+  Chord resolve(const Scale& scale, int octave, float duration = 1.0f,
+                int inversion = 0, int spread = 0) const;
+};
+
+// ===== ScaleChordSequence — ordered collection of ScaleChords =====
+
+struct ScaleChordSequence {
+  std::vector<ScaleChord> chords;
+
+  void add(const ScaleChord& sc) { chords.push_back(sc); }
+  void add(int degree, int alteration, const ChordDef* quality) {
+    chords.push_back({degree, alteration, quality});
+  }
+  void add(int degree, const std::string& qualityName) {
+    chords.push_back({degree, 0, &ChordDef::get(qualityName)});
+  }
+  int count() const { return int(chords.size()); }
+  const ScaleChord& get(int i) const { return chords[i]; }
+};
+
 } // namespace mforce

@@ -6,6 +6,8 @@
 #include "mforce/music/classical_composer.h"
 #include "mforce/music/music_json.h"
 #include "mforce/music/parse_util.h"
+#include "mforce/music/templates.h"
+#include "mforce/music/templates_json.h"
 #include <iostream>
 #include <fstream>
 #include <vector>
