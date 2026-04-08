@@ -247,7 +247,7 @@ struct MelodicFigure {
   // Net pitch movement (sum of all steps)
   int net_step() const {
     int n = 0;
-    for (auto& u : units) n += u.step;
+    for (int i = 1; i < int(units.size()); ++i) n += units[i].step;
     return n;
   }
 };
@@ -546,12 +546,14 @@ struct FigureBuilder {
     return fig;
   }
 
-  // Vary steps: randomly perturb some step values
+  // Vary steps: randomly perturb some step values (guaranteed non-zero)
   MelodicFigure vary_steps(const MelodicFigure& source, int variations = 1) {
     MelodicFigure fig = source;
     for (int i = 0; i < variations && fig.note_count() > 1; ++i) {
-      int idx = rng.int_range(0, fig.note_count() - 2);
-      fig.units[idx].step += rng.int_range(-2, 2);
+      int idx = rng.int_range(1, fig.note_count() - 2);
+      int delta = rng.int_range(-2, 2);
+      if (delta == 0) delta = (rng.int_range(0, 1) == 0) ? -1 : 1;
+      fig.units[idx].step += delta;
     }
     return fig;
   }
