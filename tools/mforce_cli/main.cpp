@@ -503,18 +503,18 @@ static int run_compose(int argc, char** argv) {
         ip.instrument->volume = 0.5f;
         ip.instrument->hiBoost = 0.3f;
 
-        // Build a Piece with one empty melody Part
+        // Build a PieceTemplate and compose
+        PieceTemplate tmpl;
+        tmpl.keyName = "C";
+        tmpl.scaleName = "Major";
+        tmpl.bpm = 100.0f;
+        tmpl.masterSeed = 0xC1A5'0000u + uint32_t(i) * 137;
+        tmpl.sections.push_back({"Main", 32.0f});
+        tmpl.parts.push_back({"melody", PartRole::Melody, patchPath});
+
         Piece piece;
-        piece.key = Key::get("C Major");
-
-        Part melody;
-        melody.name = "melody";
-        melody.instrumentType = "melody";
-        piece.add_part(std::move(melody));
-
-        // Compose
-        ClassicalComposer composer(0xC1A5'0000u + uint32_t(i) * 137);
-        composer.compose(piece);
+        ClassicalComposer composer(tmpl.masterSeed);
+        composer.compose(piece, tmpl);
 
         // Perform via Conductor
         Conductor conductor;

@@ -515,6 +515,46 @@ struct FigureBuilder {
     }
     return fig;
   }
+
+  // Invert: flip all step directions
+  MelodicFigure invert(const MelodicFigure& source) {
+    MelodicFigure fig = source;
+    for (auto& u : fig.units) u.step = -u.step;
+    return fig;
+  }
+
+  // Reverse: retrograde (reverse order of units)
+  MelodicFigure reverse(const MelodicFigure& source) {
+    MelodicFigure fig = source;
+    std::reverse(fig.units.begin(), fig.units.end());
+    // Fix steps: reversed steps need sign flip to maintain musical sense
+    // (going up then down → going down then up)
+    return fig;
+  }
+
+  // Augment: double all durations
+  MelodicFigure augment(const MelodicFigure& source) {
+    MelodicFigure fig = source;
+    for (auto& u : fig.units) u.duration *= 2.0f;
+    return fig;
+  }
+
+  // Diminute: halve all durations
+  MelodicFigure diminute(const MelodicFigure& source) {
+    MelodicFigure fig = source;
+    for (auto& u : fig.units) u.duration *= 0.5f;
+    return fig;
+  }
+
+  // Vary steps: randomly perturb some step values
+  MelodicFigure vary_steps(const MelodicFigure& source, int variations = 1) {
+    MelodicFigure fig = source;
+    for (int i = 0; i < variations && fig.note_count() > 1; ++i) {
+      int idx = rng.int_range(0, fig.note_count() - 2);
+      fig.units[idx].step += rng.int_range(-2, 2);
+    }
+    return fig;
+  }
 };
 
 } // namespace mforce

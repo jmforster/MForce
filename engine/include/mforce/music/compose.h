@@ -1,5 +1,6 @@
 #pragma once
 #include "mforce/music/structure.h"
+#include "mforce/music/templates.h"
 #include <string>
 #include <vector>
 #include <memory>
@@ -8,17 +9,24 @@ namespace mforce {
 
 // ---------------------------------------------------------------------------
 // IComposer — interface for algorithmic composition.
+// Piece is always passed for full context. PieceTemplate is the recipe.
+// Narrower overloads compose only the specified scope.
 // ---------------------------------------------------------------------------
 struct IComposer {
   virtual ~IComposer() = default;
   virtual std::string name() const = 0;
 
-  // Compose at different scopes
-  virtual void compose(Piece& piece) = 0;
-  virtual void compose(Piece& piece, int partIndex) { (void)piece; (void)partIndex; }
-  virtual void compose(Piece& piece, int partIndex, int sectionIndex) {
-    (void)piece; (void)partIndex; (void)sectionIndex;
-  }
+  // Compose everything
+  virtual void compose(Piece& piece, const PieceTemplate& tmpl) = 0;
+
+  // Compose all sections for one part
+  virtual void compose(Piece& piece, const PieceTemplate& tmpl,
+                       const std::string& partName) = 0;
+
+  // Compose one passage (one part + one section)
+  virtual void compose(Piece& piece, const PieceTemplate& tmpl,
+                       const std::string& partName,
+                       const std::string& sectionName) = 0;
 };
 
 // ---------------------------------------------------------------------------
