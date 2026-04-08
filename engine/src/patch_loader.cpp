@@ -408,7 +408,11 @@ static GraphResult build_graph(
                 const auto& p = *pp;
                 wire_params_generic(*wt, p, valueNodes);
                 wt->set_interpolate(p.value("interpolate", false));
-                std::string evoType = p.value("evolution", std::string("none"));
+                // Legacy patches have evolution as a string ("pluck", "averaging", "target").
+                // New UI patches wire evolution as a ref (handled by wire_params_generic above).
+                std::string evoType = "none";
+                if (p.contains("evolution") && p.at("evolution").is_string())
+                    evoType = p.at("evolution").get<std::string>();
                 if (evoType == "pluck") {
                     wt->set_evolution(std::make_unique<PluckEvolution>(
                         p.value("muting", 0.0f), uint32_t(p.value("evolutionSeed", 42))));

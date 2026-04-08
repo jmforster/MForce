@@ -1,6 +1,7 @@
 #pragma once
 #include "mforce/music/basics.h"
 #include "mforce/music/structure.h"
+#include "mforce/music/figures.h"
 #include <string>
 #include <vector>
 #include <sstream>
@@ -298,6 +299,131 @@ inline std::vector<ParsedNote> parse_passage(const char* str, int octave, float 
         result.push_back({noteNumber, durationSeconds});
     }
 
+    return result;
+}
+
+// ---------------------------------------------------------------------------
+// Drum pattern parser.
+// Format: "KK1,3,3.5;SN2,4;HH1,1.5,2,2.5,3,3.5,4,4.5/4/2"
+//   Voices separated by ';'
+//   Each voice: 2-char drum ID + comma-separated beat positions
+//   /N = pattern length in beats
+//   /N = repeat count
+// Drum IDs: KK=kick(0), SN=snare(1), HH=hihat(2), HT=high tom(3),
+//   MT=mid tom(4), FT=floor tom(5), CR=crash(6), RD=ride(7),
+//   OH=open hihat(8), CB=cowbell(9), or 2-digit number (00-99)
+// ---------------------------------------------------------------------------
+inline int parse_drum_id(const std::string& id) {
+    if (id == "KK") return 0;
+    if (id == "SN") return 1;
+    if (id == "HH") return 2;
+    if (id == "HT") return 3;
+    if (id == "MT") return 4;
+    if (id == "FT") return 5;
+    if (id == "CR") return 6;
+    if (id == "RD") return 7;
+    if (id == "OH") return 8;
+    if (id == "CB") return 9;
+    // Try numeric
+    if (id.size() == 2 && std::isdigit((unsigned char)id[0]) && std::isdigit((unsigned char)id[1]))
+        return std::stoi(id);
+    throw std::runtime_error("Unknown drum ID: " + id);
+}
+
+struct ParsedDrumPattern {
+    DrumFigure figure;
+    int repeats{1};
+};
+
+// Parse a single drum token: "KK1,3;SN2,4/4/2"
+// Returns figure with hits at beat positions, totalTime, and repeats.
+struct DrumToken {
+    DrumFigure figure;
+    int repeats{1};
+};
+
+inline DrumToken parse_single_drum_token(const std::string& token, int tokenNum) {
+    DrumToken result;
+    std::string input = token;
+    float patternBeats = 4.0f;
+
+    // Require trailing /beats/repeats
+    size_t lastSlash = input.rfind('/');
+    if (lastSlash == std::string::npos || lastSlash == 0)
+        throw std::runtime_error("Drum token must end with /beats/repeats (token #" + std::to_string(tokenNum) + ")");
+    size_t secondSlash = input.rfind('/', lastSlash - 1);
+    if (secondSlash == std::string::npos || secondSlash == 0)
+        throw std::runtime_error("Drum token must end with /beats/repeats (token #" + std::to_string(tokenNum) + ")");
+
+    std::string beatsStr = input.substr(secondSlash + 1, lastSlash - secondSlash - 1);
+    std::string repStr = input.substr(lastSlash + 1);
+    if (beatsStr.empty() || repStr.empty())
+        throw std::runtime_error("Drum token: /beats/repeats values cannot be empty (token #" + std::to_string(tokenNum) + ")");
+    patternBeats = std::stof(beatsStr);
+    result.repeats = std::stoi(repStr);
+    input = input.substr(0, secondSlash);
+
+    // Split voices by ';'
+    std::istringstream voiceStream(input);
+    std::string voiceStr;
+    int voiceNum = 0;
+
+    while (std::getline(voiceStream, voiceStr, ';')) {
+        ++voiceNum;
+        if (voiceStr.size() < 3)
+            throw std::runtime_error("Drum voice too short: " + voiceStr + " (token #" + std::to_string(tokenNum) + ", voice #" + std::to_string(voiceNum) + ")");
+
+        std::string drumId = voiceStr.substr(0, 2);
+        int drumNum = parse_drum_id(drumId);
+
+        std::string beatsPart = voiceStr.substr(2);
+        std::istringstream beatStream(beatsPart);
+        std::string beatStr;
+
+        while (std::getline(beatStream, beatStr, ',')) {
+            if (beatStr.empty()) continue;
+            float beat = std::stof(beatStr);
+            result.figure.add(drumNum, beat, 1.0f);
+        }
+    }
+
+    result.figure.totalTime = patternBeats;
+    return result;
+}
+
+// Parse full drum pattern: space-separated tokens, each played sequentially.
+// "KK1,3;SN2,4/4/8 KK1,1.5,3.5;SN2,4/4/2"
+// First token plays 8 repeats, then second token plays 2 repeats.
+inline ParsedDrumPattern parse_drum_pattern(const char* str) {
+    if (!str || !str[0])
+        throw std::runtime_error("Empty drum pattern");
+
+    ParsedDrumPattern result;
+
+    std::istringstream iss(str);
+    std::string token;
+    int tokenNum = 0;
+    float beatOffset = 0.0f;
+
+    while (iss >> token) {
+        ++tokenNum;
+        auto dt = parse_single_drum_token(token, tokenNum);
+
+        float tokenTotalBeats = dt.figure.totalTime * float(dt.repeats);
+
+        // Add hits with beat offset for sequential playback
+        for (int rep = 0; rep < dt.repeats; ++rep) {
+            float repOffset = beatOffset + float(rep) * dt.figure.totalTime;
+            for (const auto& hit : dt.figure.hits) {
+                result.figure.add(hit.drumNumber, repOffset + hit.time, hit.velocity, hit.duration);
+            }
+        }
+
+        beatOffset += tokenTotalBeats;
+    }
+
+    result.figure.totalTime = beatOffset;
+    result.repeats = 1;  // repeats already expanded into the figure
     return result;
 }
 

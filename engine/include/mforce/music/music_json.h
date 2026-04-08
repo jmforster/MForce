@@ -450,4 +450,27 @@ inline void from_json(const json& j, Piece& p) {
   }
 }
 
+// DrumFigure
+inline void to_json(json& j, const DrumFigure::Hit& h) {
+  j = {{"drum", h.drumNumber}, {"time", h.time}, {"velocity", h.velocity}, {"duration", h.duration}};
+}
+inline void from_json(const json& j, DrumFigure::Hit& h) {
+  h.drumNumber = j.at("drum").get<int>();
+  h.time = j.at("time").get<float>();
+  h.velocity = j.at("velocity").get<float>();
+  h.duration = j.value("duration", 0.1f);
+}
+inline void to_json(json& j, const DrumFigure& df) {
+  j = {{"hits", df.hits}, {"totalTime", df.totalTime}};
+}
+inline void from_json(const json& j, DrumFigure& df) {
+  df.hits.clear();
+  for (auto& hj : j.at("hits")) {
+    DrumFigure::Hit h;
+    from_json(hj, h);
+    df.hits.push_back(h);
+  }
+  df.totalTime = j.at("totalTime").get<float>();
+}
+
 } // namespace mforce

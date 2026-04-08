@@ -21,6 +21,7 @@
 #include "mforce/core/var_source.h"     // needed for VarSource constructor
 #include "mforce/core/range_source.h"   // needed for RangeSource constructor
 #include "mforce/source/additive/formant.h" // needed for FormantSpectrum inline table
+#include "mforce/render/instrument.h"
 #include "mforce/render/mixer.h"
 #include "mforce/render/wav_writer.h"
 #include "mforce/music/parse_util.h"
@@ -34,6 +35,7 @@ using namespace mforce;
 #include <cstdint>
 #include <algorithm>
 #include <cstdio>
+#include <filesystem>
 #include <fstream>
 #include <functional>
 #include <unordered_map>
@@ -1245,7 +1247,8 @@ struct TransportState {
     int spread = 0;
     float chordDelay = 0.0f;
     // Drums mode
-    char pattern[64] = "";
+    char pattern[256] = "";
+    char drumMap[512] = "KK=patches/kick_drum.json;SN=patches/snare_drum.json";
     int repeats = 2;
     // Shared
     bool noteMode = false;
@@ -1953,6 +1956,112 @@ static void render_chords_waveforms(const std::vector<ParsedChord>& chords, floa
     }
 }
 
+// Parse drum map string: "KK=patches/kick.json;SN=patches/snare.json;..."
+// Returns map of drum number → patch file path.
+static std::unordered_map<int, std::string> parse_drum_map(const char* str) {
+    std::unordered_map<int, std::string> result;
+    if (!str || !str[0]) return result;
+
+    std::istringstream iss(str);
+    std::string entry;
+    while (std::getline(iss, entry, ';')) {
+        auto eq = entry.find('=');
+        if (eq == std::string::npos || eq < 2) continue;
+        std::string id = entry.substr(0, 2);
+        std::string path = entry.substr(eq + 1);
+        // Trim whitespace
+        while (!path.empty() && path.front() == ' ') path.erase(0, 1);
+        while (!path.empty() && path.back() == ' ') path.pop_back();
+        if (path.empty()) continue;
+        result[parse_drum_id(id)] = path;
+    }
+    return result;
+}
+
+// Render a drum pattern through DrumKit loaded from per-drum patches.
+static void render_drums_waveforms(const ParsedDrumPattern& pat, float bpm, const char* drumMapStr) {
+    if (pat.figure.hits.empty()) return;
+
+    auto drumPaths = parse_drum_map(drumMapStr);
+    if (drumPaths.empty()) {
+        transport_set_status("No drum patches specified — set Drums field (e.g. KK=patches/kick.json;SN=patches/snare.json)", true);
+        return;
+    }
+
+    try {
+        // Build DrumKit: load a patch per drum number
+        // Keep the InstrumentPatch objects alive so shared_ptrs don't die
+        std::vector<InstrumentPatch> loadedPatches;
+        int maxDrum = 0;
+        for (const auto& hit : pat.figure.hits)
+            maxDrum = std::max(maxDrum, hit.drumNumber);
+
+        DrumKit kit;
+        kit.sampleRate = AUDIO_SAMPLE_RATE;
+        kit.sources.resize(maxDrum + 1);
+
+        int loadedCount = 0;
+        for (const auto& [drumNum, path] : drumPaths) {
+            if (drumNum > maxDrum) continue;
+            if (!std::filesystem::exists(path)) {
+                char buf[320];
+                snprintf(buf, sizeof(buf), "Drum patch not found: %s", path.c_str());
+                transport_set_status(buf, true);
+                return;
+            }
+            loadedPatches.push_back(load_instrument_patch(path));
+            auto& ip = loadedPatches.back();
+            if (!ip.instrument->voicePool.empty()) {
+                kit.sources[drumNum].source = ip.instrument->voicePool[0].source;
+                loadedCount++;
+            }
+        }
+
+        if (loadedCount == 0) {
+            transport_set_status("No drum patches could be loaded", true);
+            return;
+        }
+
+        // Perform all hits
+        for (int rep = 0; rep < pat.repeats; ++rep) {
+            float repOffsetBeats = float(rep) * pat.figure.totalTime;
+            for (const auto& hit : pat.figure.hits) {
+                if (hit.drumNumber >= (int)kit.sources.size()) continue;
+                if (!kit.sources[hit.drumNumber].source) continue;
+                float startSec = (repOffsetBeats + hit.time) * 60.0f / bpm;
+                float durSec = (hit.duration > 0.0f ? hit.duration : 0.25f) * 60.0f / bpm;
+                if (durSec < 0.02f) durSec = 0.02f;
+                kit.play_hit(hit.drumNumber, hit.velocity, durSec, startSec);
+            }
+        }
+
+        float totalSeconds = pat.figure.totalTime * 60.0f / bpm * float(pat.repeats) + 1.0f;
+        int frames = int(totalSeconds * float(AUDIO_SAMPLE_RATE));
+        std::vector<float> mono(frames, 0.0f);
+        kit.render(mono.data(), frames);
+
+        // Peak-normalize
+        float peak = 0.0f;
+        for (int i = 0; i < frames; ++i) {
+            float a = std::fabs(mono[i]);
+            if (a > peak) peak = a;
+        }
+        if (peak > 1.0f) {
+            float scale = 0.95f / peak;
+            for (int i = 0; i < frames; ++i) mono[i] *= scale;
+        }
+
+        g_outputWaveform.assign(mono.begin(), mono.end());
+        g_waveformSamples = frames;
+        for (auto& node : s_nodes) node.waveformData.clear();
+
+        g_waveScrollPos = 0;
+        g_waveZoom = std::max(1, frames / 800);
+    } catch (const std::exception& e) {
+        transport_set_status(e.what(), true);
+    }
+}
+
 static void transport_set_status(const char* msg, bool isError) {
     snprintf(g_transport.statusMsg, sizeof(g_transport.statusMsg), "%s", msg);
     g_transport.statusIsError = isError;
@@ -2014,9 +2123,23 @@ static void transport_generate() {
             }
             break;
         }
-        case PlayMode::Drums:
-            transport_set_status("Drums: not yet implemented", true);
+        case PlayMode::Drums: {
+            try {
+                auto pat = parse_drum_pattern(g_transport.pattern);
+                if (pat.figure.hits.empty()) {
+                    transport_set_status("No hits parsed from drum pattern", true);
+                } else {
+                    render_drums_waveforms(pat, g_transport.bpm, g_transport.drumMap);
+                    char buf[128];
+                    snprintf(buf, sizeof(buf), "Generated %d hits x %d repeats",
+                             (int)pat.figure.hits.size(), pat.repeats);
+                    transport_set_status(buf, false);
+                }
+            } catch (const std::exception& e) {
+                transport_set_status(e.what(), true);
+            }
             break;
+        }
     }
 }
 
@@ -2044,7 +2167,8 @@ static void transport_play() {
             play_buffer();
             break;
         case PlayMode::Drums:
-            fprintf(stderr, "Drums: not yet implemented\n");
+            transport_generate();
+            play_buffer();
             break;
     }
 }
@@ -2171,11 +2295,12 @@ static void draw_transport_panel() {
 
         case PlayMode::Drums:
             ImGui::Text("Pattern"); ImGui::SameLine();
-            ImGui::SetNextItemWidth(160);
+            ImGui::SetNextItemWidth(-1);
             ImGui::InputText("##pat", g_transport.pattern, sizeof(g_transport.pattern));
-            transport_label_inline("Repeats");
-            spinner_int("rep", &g_transport.repeats, 1, 1, 32);
-            transport_label_inline("BPM");
+            ImGui::Text("Drums"); ImGui::SameLine();
+            ImGui::SetNextItemWidth(-1);
+            ImGui::InputText("##dmap", g_transport.drumMap, sizeof(g_transport.drumMap));
+            ImGui::Text("BPM"); ImGui::SameLine();
             spinner_float("dbpm", &g_transport.bpm, 5.0f, 20.0f, 300.0f, "%.0f");
             break;
     }
