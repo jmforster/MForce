@@ -1,0 +1,5 @@
+key:F scale:Major meter:3/4 bpm:120 start:2 pickup:1.00
+en en | q.u2 ed2 qn | qu2 qr ed2 eu2 | qu3 q.d1 ed1 | qn qd1 ed3 eu1 /
+qu1 qd2 en eu1 | qu1 qr ed2 eu2 | eu3 ed1 qd1 qu2 | qu1 qr ed7 en /
+hu7 ed2 ed2 | hu1 ed2 ed2 | qu3 qu1 qu1 | hd1 ed4 en /
+hu7 ed2 ed2 | hu1 ed2 ed2 | qu3 qd1 qd1 | hd1

@@ -1,0 +1,127 @@
+{
+  "keyName": "D",
+  "scaleName": "Major",
+  "bpm": 108.0,
+  "masterSeed": 0,
+  "seeds": [
+    {
+      "name": "ascending",
+      "constraints": {
+        "source": "generate",
+        "totalBeats": 4.0,
+        "minNotes": 3, "maxNotes": 6
+      }
+    },
+    {
+      "name": "descending",
+      "constraints": {
+        "source": "generate",
+        "totalBeats": 4.0,
+        "minNotes": 3, "maxNotes": 6
+      }
+    },
+    {
+      "name": "cadence",
+      "constraints": {
+        "source": "generate",
+        "totalBeats": 4.0,
+        "minNotes": 2, "maxNotes": 4
+      }
+    },
+    {
+      "name": "b_open",
+      "constraints": {
+        "source": "generate",
+        "totalBeats": 4.0,
+        "minNotes": 3, "maxNotes": 6
+      }
+    },
+    {
+      "name": "b_run",
+      "constraints": {
+        "source": "generate",
+        "totalBeats": 4.0,
+        "minNotes": 4, "maxNotes": 7
+      }
+    },
+    {
+      "name": "b_end",
+      "constraints": {
+        "source": "generate",
+        "totalBeats": 3.0,
+        "minNotes": 2, "maxNotes": 4
+      }
+    },
+    {
+      "name": "ascending_antic",
+      "constraints": {
+        "source": "generate",
+        "totalBeats": 5.0,
+        "minNotes": 3, "maxNotes": 6
+      }
+    }
+  ],
+  "sections": [
+    {"name": "Main", "beats": 64}
+  ],
+  "parts": [
+    {
+      "name": "melody",
+      "role": "melody",
+      "passages": {
+        "Main": {
+          "phrases": [
+            {
+              "name": "A",
+              "startingPitch": {"octave": 4, "pitch": "F#"},
+              "figures": [
+                {"source": "reference", "seedName": "ascending"},
+                {"source": "reference", "seedName": "descending"},
+                {"source": "reference", "seedName": "ascending"},
+                {"source": "reference", "seedName": "cadence"}
+              ],
+              "cadenceType": 2,
+              "cadenceTarget": 1
+            },
+            {
+              "name": "A_prime",
+              "startingPitch": {"octave": 4, "pitch": "F#"},
+              "figures": [
+                {"source": "reference", "seedName": "ascending"},
+                {"source": "reference", "seedName": "descending"},
+                {"source": "reference", "seedName": "ascending"},
+                {"source": "reference", "seedName": "cadence"}
+              ],
+              "cadenceType": 2,
+              "cadenceTarget": 0
+            },
+            {
+              "name": "B",
+              "startingPitch": {"octave": 4, "pitch": "E"},
+              "figures": [
+                {"source": "reference", "seedName": "b_open"},
+                {"source": "reference", "seedName": "b_run"},
+                {"source": "transform", "seedName": "b_run", "transform": "vary_steps", "transformParam": 1},
+                {"source": "reference", "seedName": "b_end"}
+              ],
+              "cadenceType": 2,
+              "cadenceTarget": 4
+            },
+            {
+              "name": "A_return",
+              "startingPitch": {"octave": 4, "pitch": "F#"},
+              "figures": [
+                {"source": "reference", "seedName": "ascending_antic"},
+                {"source": "reference", "seedName": "descending"},
+                {"source": "reference", "seedName": "ascending"},
+                {"source": "reference", "seedName": "cadence"}
+              ],
+              "cadenceType": 2,
+              "cadenceTarget": 0
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

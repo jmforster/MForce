@@ -1,0 +1,3 @@
+key:C scale:Major meter:2/4 bpm:120
+en eu1 eu1 eu1 | eu1 en en en | en ed1 eu4 ed2 | qd1 ed2 en /
+eu2 ed1 en en | en ed1 en en | ed1 en eu3 en | hd4

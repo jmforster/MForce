@@ -1,0 +1,9 @@
+key:E scale:Minor meter:6/8 bpm:120
+hn qn | qn qd1 qd2 | h.u5 | qn qu1 qu1 /
+hd1 qn | qn qu1 qd1 | h.u3 | hn qu1 /
+hd1 qd2 | qd2 qu1 qu1 | hd1 qd2 | qd2 qu1 qu1 /
+hu1 qd2 | qu1 qd1 qd1 | h.u1 | h.n /
+hu7 qn | qn qd1 qd2 | h.u2 | qn qu1 qu1 /
+hd1 qn | qn qd1 qd2 | h.u2 | hn qu1 /
+hd1 qd2 | qd2 qu1 qu1 | hd1 qd2 | qd2 qu1 qu1 /
+hu1 qd2 | qu1 qd1 qd1 | h.u1 | h.n

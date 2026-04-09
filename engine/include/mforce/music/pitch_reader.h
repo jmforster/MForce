@@ -56,6 +56,31 @@ struct PitchReader {
     }
   }
 
+  // Chromatic step: move by semitones without changing the diatonic degree.
+  // The scale-degree "cursor" stays put; only noteNumber moves.
+  void chromatic_step(int semitones) {
+    noteNumber += float(semitones);
+  }
+
+  // Snap back to the current scale degree (undo chromatic inflection)
+  void snap_to_degree() {
+    update_note_number();
+  }
+
+  // Check if there's a chromatic passing tone between current degree and next
+  bool has_passing_tone_up() const {
+    return scale.has_passing_tone(degree);
+  }
+
+  bool has_passing_tone_down() const {
+    int d = degree - 1;
+    if (d < 0) d += scale.length();
+    return scale.has_passing_tone(d);
+  }
+
+  int get_degree() const { return degree; }
+  int get_octave() const { return octave; }
+
   float get_note_number() const { return noteNumber; }
 
   Pitch get_pitch() const { return Pitch::from_note_number(noteNumber); }

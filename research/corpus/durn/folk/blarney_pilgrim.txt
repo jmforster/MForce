@@ -1,0 +1,9 @@
+key:D scale:Mixolydian meter:6/8 bpm:120
+qn qu1 qd1 | qn qu1 qu2 | hu1 qn | qn qu1 qu1 /
+qd1 qd1 qd1 | qu1 qd1 qd2 | qu2 qd2 qu3 | qd1 qd2 qd1 /
+qn qu1 qd1 | qn qu1 qu2 | hu1 qn | qn qu1 qu1 /
+qd1 qd1 qd1 | qu1 qd1 qd2 | qu2 qd2 qd1 | h.n /
+qu7 qu1 qd1 | qn qd2 qd2 | qu1 qd1 qu1 | qu1 qd2 qd2 /
+qu6 qu1 qd1 | qn qd2 qd2 | qu1 qd1 qu1 | qd1 qu1 qu1 /
+hu5 qd2 | qd1 qd2 qd2 | qu1 qd1 qu1 | qu1 qd2 qd2 /
+hu4 qd2 | qu1 qd1 qd2 | qu2 qd2 qd1 | h.n

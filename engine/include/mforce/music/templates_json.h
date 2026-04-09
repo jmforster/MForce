@@ -81,22 +81,6 @@ inline void from_json(const json& j, PartRole& r) {
 }
 
 // ===========================================================================
-// Seed
-// ===========================================================================
-
-inline void to_json(json& j, const Seed& s) {
-    j = json{{"name", s.name}, {"figure", s.figure}};
-    if (s.userProvided) j["userProvided"] = true;
-    if (s.generationSeed != 0) j["generationSeed"] = s.generationSeed;
-}
-inline void from_json(const json& j, Seed& s) {
-    s.name = j.at("name").get<std::string>();
-    from_json(j.at("figure"), s.figure);
-    s.userProvided = j.value("userProvided", false);
-    s.generationSeed = j.value("generationSeed", 0u);
-}
-
-// ===========================================================================
 // FigureTemplate
 // ===========================================================================
 
@@ -152,6 +136,31 @@ inline void from_json(const json& j, FigureTemplate& ft) {
 
     ft.seed = j.value("seed", 0u);
     ft.locked = j.value("locked", false);
+}
+
+// ===========================================================================
+// Seed
+// ===========================================================================
+
+inline void to_json(json& j, const Seed& s) {
+    j = json{{"name", s.name}};
+    if (!s.figure.units.empty()) j["figure"] = s.figure;
+    if (s.userProvided) j["userProvided"] = true;
+    if (s.generationSeed != 0) j["generationSeed"] = s.generationSeed;
+    if (s.constraints) j["constraints"] = *s.constraints;
+}
+inline void from_json(const json& j, Seed& s) {
+    s.name = j.at("name").get<std::string>();
+    if (j.contains("figure")) {
+        from_json(j.at("figure"), s.figure);
+    }
+    s.userProvided = j.value("userProvided", false);
+    s.generationSeed = j.value("generationSeed", 0u);
+    if (j.contains("constraints")) {
+        FigureTemplate ft;
+        from_json(j.at("constraints"), ft);
+        s.constraints = std::move(ft);
+    }
 }
 
 // ===========================================================================

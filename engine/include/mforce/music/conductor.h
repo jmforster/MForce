@@ -499,9 +499,11 @@ private:
           nextMarking++;
         }
 
-        float vel = dynamics.velocity_at(currentBeat);
-        notePerformer.perform_note(currentNN, vel, u.duration,
-                                   currentBeat, bpm, instrument);
+        if (!u.rest) {
+          float vel = dynamics.velocity_at(currentBeat);
+          notePerformer.perform_note(currentNN, vel, u.duration,
+                                     currentBeat, bpm, instrument);
+        }
         currentBeat += u.duration;
       }
     }

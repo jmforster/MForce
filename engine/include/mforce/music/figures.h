@@ -50,65 +50,231 @@ struct StepGenerator {
 
   explicit StepGenerator(uint32_t seed = 0x57E9'0000u) : rng(seed) {}
 
-  StepSequence random_sequence(int length, float skipProb = 0.3f) {
+  // Melody-aware random sequence with:
+  //  - Weighted interval distribution (steps dominant, skips rare, leaps rarer)
+  //  - Gap-fill: stepwise recovery after skips (85%)
+  //  - Range regression: pull toward center as we approach boundaries
+  //  - Post-skip reversal scaling with leap size
+  //  - Single climax: highest note blocked from reoccurrence
+  //  - No repeated notes in mid-stepwise context
+  //  - Consecutive same-direction leaps blocked (unless triadic)
+  //  - Second-order context: previous step influences current
+  StepSequence random_sequence(int length, float /*unused*/ = 0.3f) {
     StepSequence seq;
+
+    // State
+    int pos = 0;          // current position relative to start
+    int highPos = 0;      // highest position reached
+    int lowPos = 0;       // lowest position reached
+    int prevStep = 0;     // previous step (for second-order context)
+    bool prevWasSkip = false;  // was the last step a skip (|step| >= 2)?
+    int prevSkipDir = 0;  // direction of last skip
+    int dir = rng.decide(0.5f) ? 1 : -1;  // no neutral start
+    int dirCount = 0;
+    int stepCount = 0;    // consecutive stepwise moves
+
+    // Range limit: ~10 degrees from start in either direction
+    const int rangeLimit = 10;
+    // Climax target position: roughly 60-75% through the sequence
+    const int climaxZoneStart = length * 6 / 10;
+    const int climaxZoneEnd = length * 8 / 10;
+    bool climaxReached = false;
+
     for (int i = 0; i < length; ++i) {
-      int step;
-      if (rng.decide(skipProb)) {
-        step = rng.decide(0.5f) ? 2 : -2;
+      int step = 0;
+
+      // --- Gap-fill rule (highest priority after a skip) ---
+      if (prevWasSkip && rng.decide(0.85f)) {
+        // Step back toward the gap, opposite direction of the skip
+        step = (prevSkipDir > 0) ? -1 : 1;
+        dir = step;
+        prevWasSkip = false;
+        stepCount = 1;
       } else {
-        step = rng.decide(0.5f) ? 1 : -1;
+        prevWasSkip = false;
+
+        // --- Range regression: bias toward center near boundaries ---
+        float rangePressure = 0.0f;
+        if (std::abs(pos) > rangeLimit - 3) {
+          rangePressure = float(std::abs(pos) - (rangeLimit - 3)) * 0.25f;
+          if (pos > 0) rangePressure = -rangePressure;  // pull down
+        }
+
+        // --- Direction change probability ---
+        // Base: momentum reversal (longer runs more likely to reverse)
+        float reversalProb = dirCount * 0.12f + std::abs(rangePressure);
+        if (rng.decide(std::min(reversalProb, 0.9f))) {
+          dir = -dir;
+          dirCount = 0;
+        }
+
+        // If range pressure is strong, force direction
+        if (pos > rangeLimit) dir = -1;
+        if (pos < -rangeLimit) dir = 1;
+
+        // --- Choose interval size (weighted distribution) ---
+        // Temperley: ~55% step, ~20% skip(3rd), ~12% skip(4th), ~8% leap, ~5% unison
+        // But suppress unison in stepwise context
+        float unisonProb = (stepCount > 0) ? 0.0f : 0.05f;  // no repeated notes mid-stepwise
+        float stepProb = 0.58f + unisonProb * (-1.0f);  // rebalance
+        float v = rng.value();
+
+        if (v < unisonProb) {
+          step = 0;
+        } else if (v < unisonProb + stepProb) {
+          step = dir;  // step of 1
+        } else if (v < unisonProb + stepProb + 0.20f) {
+          step = 2 * dir;  // skip of 3rd
+        } else if (v < unisonProb + stepProb + 0.20f + 0.10f) {
+          step = 3 * dir;  // skip of 4th
+        } else {
+          step = rng.int_range(4, 6) * dir;  // leap of 5th-7th
+        }
+
+        int absStep = std::abs(step);
+
+        // --- Consecutive same-direction skip block ---
+        // If previous was a skip in the same direction, force stepwise (unless triadic)
+        if (absStep >= 2 && prevStep != 0 && std::abs(prevStep) >= 2) {
+          bool sameDir = (step > 0 && prevStep > 0) || (step < 0 && prevStep < 0);
+          if (sameDir) {
+            // Allow triadic outlines: prev=2,curr=2 (1-3-5) or prev=2,curr=3 (1-3-6)
+            bool triadic = (std::abs(prevStep) == 2 && absStep >= 2 && absStep <= 3);
+            if (!triadic || !rng.decide(0.3f)) {
+              // Force stepwise in opposite direction (gap-fill)
+              step = (prevStep > 0) ? -1 : 1;
+            }
+          }
+        }
+
+        // --- Post-skip reversal (scaled with leap size) ---
+        absStep = std::abs(step);
+        if (absStep >= 2) {
+          float revProb = std::min(0.5f + absStep * 0.1f, 0.95f);
+          prevWasSkip = true;
+          prevSkipDir = (step > 0) ? 1 : -1;
+
+          if (rng.decide(revProb)) {
+            dir = -prevSkipDir;
+          }
+          stepCount = 0;
+        } else if (step != 0) {
+          stepCount++;
+        }
+
+        // --- Climax enforcement ---
+        int newPos = pos + step;
+        if (climaxReached && newPos >= highPos) {
+          // Already used the highest note — don't go there again
+          // Pull back down
+          step = -1;
+          newPos = pos + step;
+        }
+        // Mark climax if we're in the zone and going higher
+        if (!climaxReached && newPos > highPos && i >= climaxZoneStart && i <= climaxZoneEnd) {
+          climaxReached = true;
+        }
       }
+
+      // --- Commit ---
       seq.add(step);
+      prevStep = step;
+      pos += step;
+      if (pos > highPos) highPos = pos;
+      if (pos < lowPos) lowPos = pos;
+      dirCount++;
     }
     return seq;
   }
 
+  // Target-directed sequence with gap-fill and melodic shaping.
+  // Guarantees landing on exact target at the end.
   StepSequence targeted_sequence(int length, int target) {
     StepSequence seq;
     int pos = 0;
     int dir = (target == 0) ? 1 : (target > 0 ? 1 : -1);
+    int prevStep = 0;
+    bool prevWasSkip = false;
+    int prevSkipDir = 0;
 
     for (int i = 0; i < length; ++i) {
       int remaining = length - i;
       int distance = target - pos;
 
       // Reverse if we've overshot
-      if ((target < 0 && pos < target) || (target > 0 && pos > target))
+      if ((distance > 0 && dir < 0) || (distance < 0 && dir > 0))
         dir = -dir;
 
       int step;
       if (i == length - 1) {
         // Last step: force exact landing
-        step = target - pos;
+        step = distance;
       } else if (std::abs(distance) > remaining) {
-        // Need to skip to get there
+        // Must skip to reach target in time
         step = (std::abs(distance) > (remaining - 1) * 2) ? 3 * dir : 2 * dir;
-      } else {
-        // Random walk with bias toward target
-        float regProb = (1.0f - float(std::abs(distance)) / float(remaining)) * 0.8f;
-        if (rng.decide(regProb)) {
-          step = -dir; // regress (creates melodic interest)
+      } else if (prevWasSkip && rng.decide(0.85f)) {
+        // Gap-fill: step back toward the gap
+        int fillDir = (prevSkipDir > 0) ? -1 : 1;
+        // But don't move away from target if we're already behind
+        if (std::abs(distance) >= remaining - 1) {
+          step = dir;  // can't afford to regress
         } else {
-          step = dir;
+          step = fillDir;
+        }
+        prevWasSkip = false;
+      } else {
+        prevWasSkip = false;
+
+        // Regression probability: higher when we have slack
+        float slack = 1.0f - float(std::abs(distance)) / float(remaining);
+        float regProb = slack * 0.6f;
+
+        if (rng.decide(regProb)) {
+          // Regress (creates interest) — usually stepwise
+          step = -dir;
+        } else {
+          // Advance toward target — choose interval size
+          float v = rng.value();
+          if (v < 0.60f) {
+            step = dir;          // step
+          } else if (v < 0.82f) {
+            step = 2 * dir;      // skip of 3rd
+          } else if (v < 0.93f) {
+            step = 3 * dir;      // skip of 4th
+          } else {
+            step = rng.int_range(4, 5) * dir;  // leap
+          }
+          // Don't overshoot
+          if (std::abs(pos + step - target) > std::abs(distance)) {
+            step = dir;  // fall back to stepwise
+          }
         }
       }
 
+      // Track skip state for gap-fill
+      if (std::abs(step) >= 2) {
+        prevWasSkip = true;
+        prevSkipDir = (step > 0) ? 1 : -1;
+      }
+
       seq.add(step);
+      prevStep = step;
       pos += step;
     }
     return seq;
   }
 
-  // Stepwise only (no skips), with direction changes
+  // Stepwise only (no skips), with direction changes.
+  // Anti-oscillation: won't produce -1/+1/-1/+1 patterns.
   StepSequence no_skip_sequence(int length) {
     StepSequence seq;
-    int dir = rng.decide(0.5f) ? 1 : -1;
+    int dir = rng.direction(0.5f, 0.5f);
+    if (dir == 0) dir = 1;
     int dirCount = 0;
     for (int i = 0; i < length; ++i) {
       if (i > 2 && rng.decide(dirCount * 0.15f)) {
-        // Prevent 2-note oscillation
-        if (i >= 3 && seq.get(i-3) != seq.get(i-1)) {
+        // Prevent repeated 2-note pattern like -1/1/-1/1
+        if (seq.get(i-3) != seq.get(i-1) || -dir != seq.get(i-2)) {
           dir = -dir;
           dirCount = 0;
         }
@@ -172,6 +338,7 @@ struct StepGenerator {
 struct FigureUnit {
   float duration;  // beats
   int step{0};     // scale-degree movement from previous note (0 for first)
+  bool rest{false}; // true = silence (advance time, don't sound)
   Articulation articulation{Articulation::Default};
   Ornament ornament{Ornament::None};
 };

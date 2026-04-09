@@ -1,0 +1,6 @@
+key:G scale:Major meter:4/4 bpm:120
+en ed1 qd1 eu2 ed2 eu1 ed2 | ed2 eu2 qu1 eu2 eu2 qd1 | ed1 ed1 qd1 eu2 ed2 eu1 ed2 | ed2 eu2 eu1 ed2 en eu2 qu3 /
+ed1 ed1 qd1 eu2 ed2 eu1 ed2 | ed2 eu2 qu1 eu2 eu2 qd1 | ed1 eu1 eu1 ed2 eu1 ed2 eu1 ed2 | eu1 ed2 eu1 ed2 en eu2 qu3 /
+ed1 eu1 qu1 eu2 ed2 eu1 ed3 | ed1 eu1 qu2 eu2 eu2 qd1 | ed1 ed1 qd1 eu2 ed2 eu1 ed3 | ed1 eu1 en ed2 ed2 eu2 qu3 /
+ed1 eu1 qu1 eu2 ed2 eu1 ed3 | ed1 eu1 qu2 eu2 eu2 qd1 | ed1 eu1 eu1 ed2 eu1 ed2 eu1 ed2 | eu1 ed1 ed2 ed2 ed2 eu2 qu3 /
+ed1 eu1

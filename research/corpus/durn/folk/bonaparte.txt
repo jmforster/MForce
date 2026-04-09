@@ -1,0 +1,5 @@
+key:A scale:Dorian meter:4/4 bpm:120
+en eu2 qu1 en eu1 ed1 ed1 | qd2 eu5 eu1 eu1 ed2 qu1 | eu1 eu2 eu1 ed1 ed2 ed1 ed1 eu1 | eu1 ed1 ed1 ed2 ed1 ed2 qu2 /
+eu3 ed1 qd1 en eu1 ed1 ed1 | qd2 eu5 eu1 eu1 ed2 qu1 | eu1 eu2 eu1 ed1 ed2 ed1 ed1 ed2 | ed1 ed2 qu3 qn qn /
+eu4 eu2 eu1 ed1 ed2 ed1 ed1 eu1 | eu1 eu2 eu1 ed1 ed2 ed2 qu1 | eu1 eu2 eu1 ed1 ed2 ed1 ed1 eu1 | eu1 ed1 ed1 ed2 ed1 ed2 qu2 /
+ed2 eu2 qu1 en eu1 ed1 ed1 | ed2 eu2 eu3 eu1 eu1 ed2 qu1 | eu1 eu2 eu1 ed1 ed2 ed1 ed1 ed2 | eu1 ed2 qu1 qn qn

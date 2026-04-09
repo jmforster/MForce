@@ -8,6 +8,7 @@
 #include "mforce/music/parse_util.h"
 #include "mforce/music/templates.h"
 #include "mforce/music/templates_json.h"
+#include "mforce/music/dun_parser.h"
 #include <iostream>
 #include <fstream>
 #include <vector>
@@ -724,6 +725,91 @@ static int run_patch(int argc, char** argv) {
     return 0;
 }
 
+// ---------------------------------------------------------------------------
+// DUN mode — render a .dun/.txt melody file
+// ---------------------------------------------------------------------------
+static int run_dun(int argc, char** argv) {
+    if (argc < 5) {
+        std::cerr << "Usage: mforce_cli --dun <melody.txt> <patch.json> <out.wav> [--octave N]\n";
+        return 1;
+    }
+
+    std::string dunPath   = argv[2];
+    std::string patchPath = argv[3];
+    std::string outPath   = argv[4];
+    int octave = 4;
+
+    for (int i = 5; i < argc; ++i) {
+        if (std::string(argv[i]) == "--octave" && i + 1 < argc)
+            octave = std::stoi(argv[++i]);
+    }
+
+    // Parse DUN file
+    auto dun = load_dun(dunPath);
+    std::cout << "Loaded DUN: " << dunPath
+              << " (" << dun.phrases.size() << " phrases, key "
+              << dun.header.keyName << " " << dun.header.scaleName << ")\n";
+
+    // Build Piece
+    Piece piece = dun_to_piece(dun, octave);
+
+    // Debug: dump first phrase's figures
+    if (!piece.parts.empty()) {
+        auto& pass = piece.parts[0].passages.begin()->second;
+        if (!pass.phrases.empty()) {
+            auto& ph = pass.phrases[0];
+            std::cout << "  Phrase 0 start: " << ph.startingPitch.to_string() << "\n";
+            for (int f = 0; f < ph.figure_count(); ++f) {
+                auto& fig = ph.figures[f];
+                std::cout << "  Fig " << f;
+                if (f > 0 && f-1 < int(ph.connectors.size()))
+                    std::cout << " [conn step=" << ph.connectors[f-1].stepValue << "]";
+                std::cout << ":";
+                for (auto& u : fig.units)
+                    std::cout << " {" << u.duration << "," << u.step
+                              << (u.rest ? ",R" : "") << "}";
+                std::cout << "\n";
+            }
+        }
+    }
+
+    // Load instrument
+    auto ip = load_instrument_patch(patchPath);
+    ip.instrument->volume = 0.5f;
+    ip.instrument->hiBoost = 0.3f;
+
+    // Perform
+    Conductor conductor;
+    conductor.instruments["melody"] = ip.instrument.get();
+    conductor.perform(piece);
+
+    // Render
+    float totalBeats = 0;
+    for (auto& sec : piece.sections) totalBeats += sec.beats;
+    float bpm = piece.sections[0].tempo;
+    float totalSeconds = totalBeats * 60.0f / bpm + 2.0f;
+    int frames = int(totalSeconds * float(ip.sampleRate));
+    std::vector<float> mono(frames, 0.0f);
+    ip.instrument->render(mono.data(), frames);
+
+    std::vector<float> stereo(frames * 2);
+    for (int j = 0; j < frames; ++j) {
+        stereo[j * 2]     = mono[j];
+        stereo[j * 2 + 1] = mono[j];
+    }
+
+    if (!write_wav_16le_stereo(outPath, ip.sampleRate, stereo)) {
+        std::cerr << "Failed to write: " << outPath << "\n";
+        return 1;
+    }
+
+    float peak = 0.0f;
+    for (auto s : stereo) { float a = std::fabs(s); if (a > peak) peak = a; }
+    std::cout << "Rendered: " << outPath
+              << " (" << totalBeats << " beats @ " << bpm << " bpm, peak=" << peak << ")\n";
+    return 0;
+}
+
 int main(int argc, char** argv)
 {
     try {
@@ -737,6 +823,8 @@ int main(int argc, char** argv)
             return run_compose(argc, argv);
         if (argc >= 2 && std::string(argv[1]) == "--play")
             return run_play(argc, argv);
+        if (argc >= 2 && std::string(argv[1]) == "--dun")
+            return run_dun(argc, argv);
 
         return run_patch(argc, argv);
     }

@@ -11,17 +11,6 @@
 namespace mforce {
 
 // ===========================================================================
-// Seeds — raw thematic material, stored at Piece level
-// ===========================================================================
-
-struct Seed {
-    std::string name;              // "main_theme", "hook", "bridge_motif"
-    MelodicFigure figure;          // the actual musical content
-    bool userProvided{false};      // true = user entered, don't regenerate
-    uint32_t generationSeed{0};    // for reproducibility if generated
-};
-
-// ===========================================================================
 // FigureTemplate — the atomic unit of the composition recipe
 // ===========================================================================
 
@@ -69,6 +58,18 @@ struct FigureTemplate {
     // --- State ---
     uint32_t seed{0};              // generation seed for reproducibility
     bool locked{false};            // user has accepted this result
+};
+
+// ===========================================================================
+// Seeds — raw thematic material, stored at Piece level
+// ===========================================================================
+
+struct Seed {
+    std::string name;              // "main_theme", "hook", "bridge_motif"
+    MelodicFigure figure;          // the actual musical content
+    bool userProvided{false};      // true = user entered, don't regenerate
+    uint32_t generationSeed{0};    // for reproducibility if generated
+    std::optional<FigureTemplate> constraints;  // generation constraints when !userProvided
 };
 
 // ===========================================================================
@@ -164,6 +165,7 @@ struct PieceTemplate {
     std::optional<ChordProgression> harmonySeeds;
 
     // Global
+    float defaultPulse{0.0f};        // 0 = composer picks once at realize time
     uint32_t masterSeed{0};
 
     // Helpers

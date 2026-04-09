@@ -85,6 +85,74 @@ struct Scale {
   float ascending_step(int i) const { return scaleDef->ascSteps[i]; }
   float descending_step(int i) const { return scaleDef->descSteps[i]; }
 
+  // Semitone distance between two adjacent scale degrees (ascending).
+  // degree is 0-based, wraps at scale length.
+  float semitones_between(int degree1, int degree2) const {
+    float semis = 0;
+    int len = length();
+    int d = degree1;
+    if (degree2 > degree1) {
+      for (int i = degree1; i < degree2; ++i)
+        semis += scaleDef->ascSteps[i % len];
+    } else {
+      for (int i = degree2; i < degree1; ++i)
+        semis += scaleDef->ascSteps[i % len];
+    }
+    return semis;
+  }
+
+  // Is there room for a chromatic passing tone between two adjacent degrees?
+  // True when the interval is a whole step (2 semitones) or larger.
+  bool has_passing_tone(int degree) const {
+    int d = ((degree % length()) + length()) % length();
+    return scaleDef->ascSteps[d] > 1.5f;  // > 1 semitone (use 1.5 for float safety)
+  }
+
+  // Get the chromatic passing tone offset (in semitones from degree's pitch).
+  // When ascending: returns +1 (sharp the source note, e.g. F→F#→G)
+  // When descending: returns the interval minus 1 from the upper note
+  //   (i.e., flat the target, e.g. G→Gb→F... or equivalently step-1 from above)
+  //
+  // For non-adjacent degrees (skip), returns the diatonic fill:
+  // the number of scale degrees down from degree2 to find the nearest passing tone.
+  // (Caller should use this with PitchReader to get the actual pitch.)
+  struct PassingTone {
+    bool exists;
+    bool chromatic;      // true = chromatic inflection, false = diatonic fill
+    int semitonesUp;     // semitones above degree1's pitch (ascending case)
+    int fillDegreesFromTarget;  // for diatonic fill: degrees below degree2
+  };
+
+  PassingTone get_passing_tone(int degree1, int degree2) const {
+    int stepDiff = degree2 - degree1;
+    int absStepDiff = stepDiff > 0 ? stepDiff : -stepDiff;
+
+    if (absStepDiff == 0) return {false, false, 0, 0};
+
+    if (absStepDiff > 1) {
+      // Non-adjacent: diatonic fill — closest scale tone to target
+      return {true, false, 0, stepDiff > 0 ? 1 : -1};
+    }
+
+    // Adjacent scale degrees — check semitone distance
+    int lo = ((degree1 < degree2 ? degree1 : degree2) % length() + length()) % length();
+    float semis = scaleDef->ascSteps[lo];
+
+    if (semis <= 1.5f) {
+      // Half step — no room for a passing tone
+      return {false, false, 0, 0};
+    }
+
+    // Whole step or larger — chromatic passing tone
+    if (stepDiff > 0) {
+      // Ascending: sharp the source (1 semitone above degree1)
+      return {true, true, 1, 0};
+    } else {
+      // Descending: flat the source (1 semitone below degree1)
+      return {true, true, -1, 0};
+    }
+  }
+
   static Scale get(const std::string& pitchName, const std::string& scaleType);
 };
 

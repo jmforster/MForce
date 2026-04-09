@@ -1,0 +1,5 @@
+key:D scale:Major meter:4/4 bpm:120
+qn ed2 eu2 qn eu3 ed2 | qd1 ed2 eu2 eu1 ed4 qn | qu3 ed2 eu2 qn eu1 eu2 | eu1 eu2 ed1 ed2 eu1 ed1 ed2 eu2 /
+qd3 ed2 eu2 qn eu3 ed2 | qd1 ed2 eu2 eu1 ed4 qn | ed1 eu1 eu1 eu1 eu1 ed2 eu2 eu1 | eu2 eu1 eu1 ed2 eu1 ed1 ed2 eu2 /
+ed3 ed4 eu2 ed2 qu4 eu3 ed2 | ed1 ed4 eu2 ed2 eu5 ed4 qn | eu3 ed4 eu2 ed2 qu4 eu1 eu2 | eu1 eu2 ed1 ed2 eu1 ed1 ed2 eu2 /
+ed3 ed4 eu2 ed2 qu4 eu3 ed2 | ed1 ed4 eu2 ed2 eu5 ed4 qn | ed1 eu1 eu1 eu1 eu1 ed2 eu2 eu1 | eu2 eu1 eu1 ed2 eu1 eu1 eu1 ed2

@@ -1,0 +1,5 @@
+key:F scale:Major meter:3/4 bpm:120
+en eu2 e.u2 su1 ed1 eu1 | ed1 eu1 qd1 qd4 | en eu2 e.u2 su1 ed1 eu1 | ed1 eu1 qd1 qd4 /
+en eu2 qu2 qu1 | ed1 eu1 qd1 qd4 | en en qu1 qn | e.u3 sd1 hd1 /
+ed2 eu2 qu2 qn | eu1 ed1 qd2 ed2 en | en eu2 qu2 qn | eu1 ed1 qd2 qd2 /
+en eu2 qu2 qd2 | eu5 ed2 qd1 ed2 eu2 | eu1 ed1 qd1 qd2 | eu3 en hd2
