@@ -273,4 +273,101 @@ inline MelodicFigure DefaultFigureStrategy::realize_figure(
   }
 }
 
+// ============================================================================
+// Out-of-line definition of DefaultPassageStrategy::realize_passage.
+//
+// Lives here — BELOW the Composer class — because the body calls
+// ctx.composer->realize_phrase(...) and Composer is forward-declared only in
+// default_strategies.h. Same pattern as DefaultFigureStrategy::realize_figure.
+// ============================================================================
+
+inline Passage DefaultPassageStrategy::realize_passage(
+    const PassageTemplate& passTmpl, StrategyContext& ctx) {
+  Passage passage;
+  PitchReader reader(ctx.scale);
+  reader.set_pitch(5, 0);
+
+  for (auto& phraseTmpl : passTmpl.phrases) {
+    if (phraseTmpl.locked) continue;
+
+    // Clone the context for the phrase level. We carry forward scale,
+    // piece, template_, composer, rng, params; we set startingPitch to
+    // the reader's reset position so DefaultPhraseStrategy can use it as
+    // the fallback when the phrase template has no startingPitch of its
+    // own. This preserves pre-refactor behavior where the original
+    // realize_phrase did `reader.set_pitch(5, 0); reader.get_pitch();`
+    // once at the start of each phrase.
+    StrategyContext phraseCtx = ctx;
+    reader.set_pitch(5, 0);
+    phraseCtx.startingPitch = reader.get_pitch();
+
+    Phrase phrase = ctx.composer->realize_phrase(phraseTmpl, phraseCtx);
+    passage.add_phrase(std::move(phrase));
+  }
+
+  return passage;
+}
+
+// ============================================================================
+// Out-of-line definition of DefaultPhraseStrategy::realize_phrase.
+//
+// Lives here — BELOW the Composer class — because the body calls
+// ctx.composer->realize_figure(...) and Composer is forward-declared only in
+// default_strategies.h. Same pattern as the other two out-of-line definitions.
+// ============================================================================
+
+inline Phrase DefaultPhraseStrategy::realize_phrase(
+    const PhraseTemplate& phraseTmpl, StrategyContext& ctx) {
+  Phrase phrase;
+
+  // Per-phrase starting pitch: if the template has one, use it; otherwise
+  // use ctx.startingPitch, which DefaultPassageStrategy set to the reader's
+  // reset position. Preserves pre-refactor behavior at
+  // classical_composer.h:185-190.
+  if (phraseTmpl.startingPitch) {
+    phrase.startingPitch = *phraseTmpl.startingPitch;
+  } else {
+    phrase.startingPitch = ctx.startingPitch;
+  }
+
+  const int numFigs = int(phraseTmpl.figures.size());
+  for (int i = 0; i < numFigs; ++i) {
+    // MelodicFunction-driven shape selection — same logic as
+    // classical_composer.h:197-202.
+    FigureTemplate figTmpl = phraseTmpl.figures[i];
+    if (phraseTmpl.function != MelodicFunction::Free
+        && figTmpl.source == FigureSource::Generate
+        && figTmpl.shape == FigureShape::Free) {
+      figTmpl.shape = DefaultFigureStrategy::choose_shape(
+          phraseTmpl.function, i, numFigs, ctx.rng->rng());
+    }
+
+    // Dispatch to the figure level through the Composer. The figure context
+    // clones the current (phrase) context; per-figure scale and startingPitch
+    // don't need to differ in this pre-refactor path.
+    StrategyContext figCtx = ctx;
+    MelodicFigure fig = ctx.composer->realize_figure(figTmpl, figCtx);
+
+    if (i == 0) {
+      phrase.add_figure(std::move(fig));
+    } else {
+      // Connector path — UNCHANGED from classical_composer.h:207-213.
+      // Default step(-1) when the template doesn't specify a connector.
+      FigureConnector conn = FigureConnector::step(-1);
+      if (i - 1 < (int)phraseTmpl.connectors.size()) {
+        conn = phraseTmpl.connectors[i - 1];
+      }
+      phrase.add_figure(std::move(fig), conn);
+    }
+  }
+
+  // Cadence adjustment — unchanged from classical_composer.h:217-222.
+  if (phraseTmpl.cadenceType > 0 && phraseTmpl.cadenceTarget >= 0
+      && !phrase.figures.empty()) {
+    apply_cadence(phrase, phraseTmpl, ctx.scale);
+  }
+
+  return phrase;
+}
+
 } // namespace mforce
