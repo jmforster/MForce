@@ -260,12 +260,12 @@ inline MelodicFigure DefaultFigureStrategy::realize_figure(
     case FigureSource::Literal: {
       // Convert the user-authored note list into a MelodicFigure. Each
       // LiteralNote becomes one FigureUnit whose `step` is the delta (in
-      // scale degrees) from the previous note (or from ctx.startingPitch
+      // scale degrees) from the previous note (or from ctx.cursor
       // for the first note). Duration passes through.
       MelodicFigure fig;
       if (figTmpl.literalNotes.empty()) return fig;
 
-      int prevDeg = DefaultPhraseStrategy::degree_in_scale(ctx.startingPitch, ctx.scale);
+      int prevDeg = DefaultPhraseStrategy::degree_in_scale(ctx.cursor, ctx.scale);
       for (auto& ln : figTmpl.literalNotes) {
         if (!ln.pitch) continue;  // skip notes with no pitch
         int d = DefaultPhraseStrategy::degree_in_scale(*ln.pitch, ctx.scale);
@@ -319,7 +319,7 @@ inline Passage DefaultPassageStrategy::realize_passage(
     if (phraseTmpl.locked) continue;
 
     // Clone the context for the phrase level. We carry forward scale,
-    // piece, template_, composer, rng, params; we set startingPitch to
+    // piece, template_, composer, rng, params; we set cursor to
     // the reader's reset position so DefaultPhraseStrategy can use it as
     // the fallback when the phrase template has no startingPitch of its
     // own. This preserves pre-refactor behavior where the original
@@ -327,7 +327,7 @@ inline Passage DefaultPassageStrategy::realize_passage(
     // once at the start of each phrase.
     StrategyContext phraseCtx = ctx;
     reader.set_pitch(5, 0);
-    phraseCtx.startingPitch = reader.get_pitch();
+    phraseCtx.cursor = reader.get_pitch();
 
     Phrase phrase = ctx.composer->realize_phrase(phraseTmpl, phraseCtx);
     passage.add_phrase(std::move(phrase));
@@ -349,13 +349,13 @@ inline Phrase DefaultPhraseStrategy::realize_phrase(
   Phrase phrase;
 
   // Per-phrase starting pitch: if the template has one, use it; otherwise
-  // use ctx.startingPitch, which DefaultPassageStrategy set to the reader's
+  // use ctx.cursor, which DefaultPassageStrategy set to the reader's
   // reset position. Preserves pre-refactor behavior at
   // classical_composer.h:185-190.
   if (phraseTmpl.startingPitch) {
     phrase.startingPitch = *phraseTmpl.startingPitch;
   } else {
-    phrase.startingPitch = ctx.startingPitch;
+    phrase.startingPitch = ctx.cursor;
   }
 
   const int numFigs = int(phraseTmpl.figures.size());

@@ -19,7 +19,8 @@ enum class StrategyLevel { Figure, Phrase, Passage, Piece };
 // singletons living in the registry; all per-call state lives here.
 struct StrategyContext {
   Scale scale;
-  Pitch startingPitch;                // initial pitch for the current unit of work
+  Pitch cursor;                       // current PitchReader-equivalent cursor: passage sets it,
+                                    // phrases may override, figures advance it via their step sequence.
   float totalBeats{0.0f};             // target length of current unit (0 = unconstrained)
   Piece* piece{nullptr};              // in-progress piece (for seed/phrase lookup)
   const PieceTemplate* template_{nullptr};
