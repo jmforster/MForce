@@ -2,6 +2,7 @@
 #include "mforce/music/strategy.h"
 #include "mforce/music/strategy_registry.h"
 #include "mforce/music/default_strategies.h"
+#include "mforce/music/shape_strategies.h"
 #include "mforce/music/structure.h"
 #include "mforce/music/templates.h"
 #include "mforce/music/pitch_reader.h"
@@ -35,6 +36,22 @@ struct Composer {
     registry_.register_strategy(std::make_unique<DefaultFigureStrategy>());
     registry_.register_strategy(std::make_unique<DefaultPhraseStrategy>());
     registry_.register_strategy(std::make_unique<DefaultPassageStrategy>());
+
+    // Shape strategies (Phase 2)
+    registry_.register_strategy(std::make_unique<ShapeScalarRunStrategy>());
+    registry_.register_strategy(std::make_unique<ShapeRepeatedNoteStrategy>());
+    registry_.register_strategy(std::make_unique<ShapeHeldNoteStrategy>());
+    registry_.register_strategy(std::make_unique<ShapeCadentialApproachStrategy>());
+    registry_.register_strategy(std::make_unique<ShapeTriadicOutlineStrategy>());
+    registry_.register_strategy(std::make_unique<ShapeNeighborToneStrategy>());
+    registry_.register_strategy(std::make_unique<ShapeLeapAndFillStrategy>());
+    registry_.register_strategy(std::make_unique<ShapeScalarReturnStrategy>());
+    registry_.register_strategy(std::make_unique<ShapeAnacrusisStrategy>());
+    registry_.register_strategy(std::make_unique<ShapeZigzagStrategy>());
+    registry_.register_strategy(std::make_unique<ShapeFanfareStrategy>());
+    registry_.register_strategy(std::make_unique<ShapeSighStrategy>());
+    registry_.register_strategy(std::make_unique<ShapeSuspensionStrategy>());
+    registry_.register_strategy(std::make_unique<ShapeCambiataStrategy>());
   }
 
   // --- Top-level composition ---
@@ -69,6 +86,13 @@ struct Composer {
   // --- Accessor for DefaultFigureStrategy::realize_figure ---
   const std::unordered_map<std::string, MelodicFigure>& realized_seeds() const {
     return realizedSeeds_;
+  }
+
+  // --- Public registry lookup for Phase 2 shape dispatch ---
+  // Named awkwardly to signal it exists specifically for the shape-dispatch
+  // path in DefaultFigureStrategy::realize_figure. May be renamed later.
+  Strategy* registry_get_for_phase2(const std::string& name) const {
+    return registry_.get(name);
   }
 
   // --- Public helper used by the IComposer-compatible ClassicalComposer
@@ -295,8 +319,38 @@ inline MelodicFigure DefaultFigureStrategy::realize_figure(
 
     case FigureSource::Generate:
     default:
-      if (figTmpl.shape != FigureShape::Free)
-        return generate_shaped_figure(figTmpl, figSeed);
+      if (figTmpl.shape != FigureShape::Free) {
+        const char* shapeName = nullptr;
+        switch (figTmpl.shape) {
+          case FigureShape::ScalarRun:         shapeName = "shape_scalar_run"; break;
+          case FigureShape::RepeatedNote:      shapeName = "shape_repeated_note"; break;
+          case FigureShape::HeldNote:          shapeName = "shape_held_note"; break;
+          case FigureShape::CadentialApproach: shapeName = "shape_cadential_approach"; break;
+          case FigureShape::TriadicOutline:    shapeName = "shape_triadic_outline"; break;
+          case FigureShape::NeighborTone:      shapeName = "shape_neighbor_tone"; break;
+          case FigureShape::LeapAndFill:       shapeName = "shape_leap_and_fill"; break;
+          case FigureShape::ScalarReturn:      shapeName = "shape_scalar_return"; break;
+          case FigureShape::Anacrusis:         shapeName = "shape_anacrusis"; break;
+          case FigureShape::Zigzag:            shapeName = "shape_zigzag"; break;
+          case FigureShape::Fanfare:           shapeName = "shape_fanfare"; break;
+          case FigureShape::Sigh:              shapeName = "shape_sigh"; break;
+          case FigureShape::Suspension:        shapeName = "shape_suspension"; break;
+          case FigureShape::Cambiata:          shapeName = "shape_cambiata"; break;
+          case FigureShape::Free:
+          default:                             shapeName = nullptr; break;
+        }
+        if (shapeName) {
+          Strategy* s = ctx.composer->registry_get_for_phase2(shapeName);
+          if (s) {
+            // Stamp figSeed into a local copy so the shape strategy uses the
+            // already-consumed draw rather than pulling a second one from ctx.rng.
+            FigureTemplate shapeArg = figTmpl;
+            shapeArg.seed = figSeed;
+            return s->realize_figure(shapeArg, ctx);
+          }
+        }
+        // Fallthrough if lookup failed — defensive fallback.
+      }
       return generate_figure(figTmpl, figSeed);
   }
 }

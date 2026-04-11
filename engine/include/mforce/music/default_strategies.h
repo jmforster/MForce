@@ -41,7 +41,6 @@ public:
   // directly, so preserving that call shape is required for bit-identical
   // output against the golden render.
   MelodicFigure generate_figure(const FigureTemplate& figTmpl, uint32_t seed);
-  MelodicFigure generate_shaped_figure(const FigureTemplate& ft, uint32_t seed);
   MelodicFigure apply_transform(const MelodicFigure& base, TransformOp op,
                                 int param, uint32_t seed);
 
@@ -102,68 +101,6 @@ inline MelodicFigure DefaultFigureStrategy::generate_figure(
     }
 
     return fb.build(ss, fb.defaultPulse);
-}
-
-inline MelodicFigure DefaultFigureStrategy::generate_shaped_figure(
-    const FigureTemplate& ft, uint32_t seed) {
-    FigureBuilder fb(seed);
-    fb.defaultPulse = (ft.defaultPulse > 0) ? ft.defaultPulse : 1.0f;
-    int dir = ft.shapeDirection;
-    int p1 = ft.shapeParam;
-    int p2 = ft.shapeParam2;
-    int count = (ft.maxNotes > ft.minNotes)
-        ? Randomizer(seed + 99).int_range(ft.minNotes, ft.maxNotes)
-        : (ft.minNotes > 0 ? ft.minNotes : 4);
-
-    switch (ft.shape) {
-      case FigureShape::ScalarRun:
-        return fb.scalar_run(dir, count > 0 ? count : 4, fb.defaultPulse);
-
-      case FigureShape::RepeatedNote:
-        return fb.repeated_note(count > 0 ? count : 3, fb.defaultPulse);
-
-      case FigureShape::HeldNote:
-        return fb.held_note(ft.totalBeats > 0 ? ft.totalBeats : fb.defaultPulse * 2);
-
-      case FigureShape::CadentialApproach:
-        return fb.cadential_approach(dir < 0, p1 > 0 ? p1 : 3,
-                                     fb.defaultPulse * 2, fb.defaultPulse);
-
-      case FigureShape::TriadicOutline:
-        return fb.triadic_outline(dir, p1 > 0, fb.defaultPulse);
-
-      case FigureShape::NeighborTone:
-        return fb.neighbor_tone(dir > 0, fb.defaultPulse);
-
-      case FigureShape::LeapAndFill:
-        return fb.leap_and_fill(p1 > 0 ? p1 : 4, dir > 0, p2, fb.defaultPulse);
-
-      case FigureShape::ScalarReturn:
-        return fb.scalar_return(dir, p1 > 0 ? p1 : 3, p2, fb.defaultPulse);
-
-      case FigureShape::Anacrusis:
-        return fb.anacrusis(count > 0 ? count : 2, dir,
-                            fb.defaultPulse * 0.5f, fb.defaultPulse);
-
-      case FigureShape::Zigzag:
-        return fb.zigzag(dir, p1 > 0 ? p1 : 3, 2, 1, fb.defaultPulse);
-
-      case FigureShape::Fanfare:
-        return fb.fanfare({4, 3}, p1 > 0 ? p1 : 1, fb.defaultPulse);
-
-      case FigureShape::Sigh:
-        return fb.sigh(fb.defaultPulse);
-
-      case FigureShape::Suspension:
-        return fb.suspension(fb.defaultPulse * 2, fb.defaultPulse);
-
-      case FigureShape::Cambiata:
-        return fb.cambiata(dir, fb.defaultPulse);
-
-      case FigureShape::Free:
-      default:
-        return generate_figure(ft, seed);
-    }
 }
 
 inline MelodicFigure DefaultFigureStrategy::apply_transform(
