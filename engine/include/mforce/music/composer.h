@@ -318,7 +318,8 @@ inline MelodicFigure DefaultFigureStrategy::realize_figure(
     }
 
     case FigureSource::Generate:
-    default:
+    default: {
+      MelodicFigure fig;
       if (figTmpl.shape != FigureShape::Free) {
         const char* shapeName = nullptr;
         switch (figTmpl.shape) {
@@ -346,12 +347,28 @@ inline MelodicFigure DefaultFigureStrategy::realize_figure(
             // already-consumed draw rather than pulling a second one from ctx.rng.
             FigureTemplate shapeArg = figTmpl;
             shapeArg.seed = figSeed;
-            return s->realize_figure(shapeArg, ctx);
+            fig = s->realize_figure(shapeArg, ctx);
           }
         }
-        // Fallthrough if lookup failed — defensive fallback.
       }
-      return generate_figure(figTmpl, figSeed);
+      if (fig.units.empty()) {
+        // Either shape was Free or the registry lookup failed — fall back.
+        fig = generate_figure(figTmpl, figSeed);
+      }
+
+      // Phase 2 composition quality: proportional scaling to enforce totalBeats.
+      // Applies only to Generate-path figures. Locked/Reference/Transform/Literal
+      // paths take durations verbatim from the user.
+      if (figTmpl.totalBeats > 0 && !fig.units.empty()) {
+        float actual = 0;
+        for (auto& u : fig.units) actual += u.duration;
+        if (actual > 0 && std::abs(actual - figTmpl.totalBeats) > 0.001f) {
+          float scale = figTmpl.totalBeats / actual;
+          for (auto& u : fig.units) u.duration *= scale;
+        }
+      }
+      return fig;
+    }
   }
 }
 

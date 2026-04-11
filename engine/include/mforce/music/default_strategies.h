@@ -273,7 +273,6 @@ public:
 private:
   static void apply_cadence(Phrase& phrase, const PhraseTemplate& tmpl,
                             const Scale& scale);
-  static void apply_cadence_rhythm(MelodicFigure& fig, int cadenceType);
 };
 
 // -- degree_in_scale: verbatim from classical_composer.h:167-175 -------------
@@ -315,49 +314,6 @@ inline void DefaultPhraseStrategy::apply_cadence(Phrase& phrase,
     auto& lastFig = phrase.figures.back();
     if (!lastFig.units.empty()) {
       lastFig.units.back().step += diff;
-    }
-}
-
-// -- apply_cadence_rhythm: verbatim from classical_composer.h:265-304 --------
-inline void DefaultPhraseStrategy::apply_cadence_rhythm(MelodicFigure& fig,
-                                                        int cadenceType) {
-    int n = fig.note_count();
-    if (n < 2) return;
-
-    // Don't reshape user-provided figures (they have intentional rhythm)
-    // We only reshape generated figures. Since we can't tell here, we use a
-    // heuristic: if all notes have the same duration, it's likely generated.
-    float firstDur = fig.units[0].duration;
-    bool uniform = true;
-    for (auto& u : fig.units) {
-      if (std::abs(u.duration - firstDur) > 0.01f) { uniform = false; break; }
-    }
-    if (!uniform) return;  // already has rhythm variation — don't touch
-
-    // Compute total beats to preserve
-    float totalBeats = 0;
-    for (auto& u : fig.units) totalBeats += u.duration;
-
-    if (cadenceType >= 2 && n >= 3) {
-      // Full cadence: penultimate note shorter, final note longer
-      // Pattern: ...normal | short | long
-      // E.g., 4 quarter notes (4 beats) → q q | e. | h  (1 + 1 + 0.5 + 1.5 = 4... no)
-      // Better: redistribute last 2 notes as dotted-quarter + eighth + half
-      // Actually simplest: shrink second-to-last, double the last
-      float lastTwo = fig.units[n-2].duration + fig.units[n-1].duration;
-      fig.units[n-2].duration = lastTwo * 0.25f;  // short pickup
-      fig.units[n-1].duration = lastTwo * 0.75f;  // long resolution
-    } else if (cadenceType >= 1 && n >= 2) {
-      // Half cadence: just lengthen the final note
-      float lastTwo = fig.units[n-2].duration + fig.units[n-1].duration;
-      fig.units[n-2].duration = lastTwo * 0.4f;
-      fig.units[n-1].duration = lastTwo * 0.6f;
-    } else {
-      // Phrase ending without explicit cadence: mild lengthening
-      fig.units[n-1].duration *= 1.5f;
-      // Steal time from earlier notes to keep total
-      float excess = fig.units[n-1].duration - firstDur * 1.5f;
-      // Actually just let it be slightly longer — total beats is approximate
     }
 }
 
