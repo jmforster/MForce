@@ -29,15 +29,15 @@ public:
 
   // realize_figure is DECLARED here, but DEFINED in composer.h below the
   // Composer class. Its body needs the full definition of Composer to call
-  // ctx.composer->realized_seeds(), and composer.h includes this header —
+  // ctx.composer->realized_motifs(), and composer.h includes this header —
   // breaking the cycle requires the out-of-line definition to live there.
   // Do NOT add an inline body for realize_figure in this file.
   MelodicFigure realize_figure(const FigureTemplate& figTmpl,
                                StrategyContext& ctx) override;
 
-  // PUBLIC so Composer::realize_seeds_ (Task 7) can call generate_figure
+  // PUBLIC so Composer::realize_motifs_ can call generate_figure
   // directly, bypassing realize_figure's switch. The pre-refactor
-  // ClassicalComposer::realize_seeds called the private generate_figure
+  // ClassicalComposer::realize_motifs called the private generate_figure
   // directly, so preserving that call shape is required for bit-identical
   // output against the golden render.
   MelodicFigure generate_figure(const FigureTemplate& figTmpl, uint32_t seed);

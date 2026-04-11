@@ -3,7 +3,7 @@
   "scaleName": "Major",
   "bpm": 100.0,
   "masterSeed": 314159,
-  "seeds": [
+  "motifs": [
     {
       "name": "motif_a",
       "constraints": {
@@ -31,7 +31,7 @@
               "startingPitch": {"octave": 4, "pitch": "G"},
               "function": "statement",
               "figures": [
-                {"source": "reference", "seedName": "motif_a"},
+                {"source": "reference", "motifName": "motif_a"},
                 {"source": "generate", "totalBeats": 4.0, "minNotes": 3, "maxNotes": 5},
                 {"source": "generate", "totalBeats": 4.0, "minNotes": 3, "maxNotes": 5, "shape": "scalar_run", "shapeDirection": 1},
                 {"source": "generate", "totalBeats": 4.0, "minNotes": 2, "maxNotes": 3}
@@ -45,7 +45,7 @@
               "function": "development",
               "figures": [
                 {"source": "generate", "totalBeats": 4.0, "minNotes": 4, "maxNotes": 6},
-                {"source": "transform", "seedName": "motif_a", "transform": "invert"},
+                {"source": "transform", "motifName": "motif_a", "transform": "invert"},
                 {"source": "generate", "totalBeats": 4.0, "minNotes": 4, "maxNotes": 6, "shape": "triadic_outline"},
                 {"source": "generate", "totalBeats": 4.0, "minNotes": 3, "maxNotes": 4}
               ],

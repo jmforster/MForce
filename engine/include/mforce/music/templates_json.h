@@ -164,7 +164,7 @@ inline void to_json(json& j, const FigureTemplate& ft) {
     }
 
     if (ft.source == FigureSource::Reference || ft.source == FigureSource::Transform) {
-        j["seedName"] = ft.seedName;
+        j["motifName"] = ft.motifName;
     }
     if (ft.source == FigureSource::Transform) {
         j["transform"] = ft.transform;
@@ -206,7 +206,7 @@ inline void from_json(const json& j, FigureTemplate& ft) {
     ft.preferSkips = j.value("skips", false);
     ft.targetNet = j.value("targetNet", 0);
 
-    ft.seedName = j.value("seedName", std::string(""));
+    ft.motifName = j.value("motifName", std::string(""));
     if (j.contains("transform")) from_json(j.at("transform"), ft.transform);
     ft.transformParam = j.value("transformParam", 0);
 
@@ -240,27 +240,27 @@ inline void from_json(const json& j, FigureTemplate& ft) {
 }
 
 // ===========================================================================
-// Seed
+// Motif
 // ===========================================================================
 
-inline void to_json(json& j, const Seed& s) {
-    j = json{{"name", s.name}};
-    if (!s.figure.units.empty()) j["figure"] = s.figure;
-    if (s.userProvided) j["userProvided"] = true;
-    if (s.generationSeed != 0) j["generationSeed"] = s.generationSeed;
-    if (s.constraints) j["constraints"] = *s.constraints;
+inline void to_json(json& j, const Motif& m) {
+    j = json{{"name", m.name}};
+    if (!m.figure.units.empty()) j["figure"] = m.figure;
+    if (m.userProvided) j["userProvided"] = true;
+    if (m.generationSeed != 0) j["generationSeed"] = m.generationSeed;
+    if (m.constraints) j["constraints"] = *m.constraints;
 }
-inline void from_json(const json& j, Seed& s) {
-    s.name = j.at("name").get<std::string>();
+inline void from_json(const json& j, Motif& m) {
+    m.name = j.at("name").get<std::string>();
     if (j.contains("figure")) {
-        from_json(j.at("figure"), s.figure);
+        from_json(j.at("figure"), m.figure);
     }
-    s.userProvided = j.value("userProvided", false);
-    s.generationSeed = j.value("generationSeed", 0u);
+    m.userProvided = j.value("userProvided", false);
+    m.generationSeed = j.value("generationSeed", 0u);
     if (j.contains("constraints")) {
         FigureTemplate ft;
         from_json(j.at("constraints"), ft);
-        s.constraints = std::move(ft);
+        m.constraints = std::move(ft);
     }
 }
 
@@ -389,7 +389,7 @@ inline void to_json(json& j, const PieceTemplate& pt) {
         {"sections", pt.sections},
         {"parts", pt.parts}
     };
-    if (!pt.seeds.empty()) j["seeds"] = pt.seeds;
+    if (!pt.motifs.empty()) j["motifs"] = pt.motifs;
     if (!pt.form.empty()) j["form"] = pt.form;
     if (pt.harmonySeeds) j["harmony"] = *pt.harmonySeeds;
     if (pt.masterSeed != 0) j["masterSeed"] = pt.masterSeed;
@@ -401,11 +401,11 @@ inline void from_json(const json& j, PieceTemplate& pt) {
     if (j.contains("meter")) from_json(j.at("meter"), pt.meter);
     pt.bpm = j.value("bpm", 120.0f);
 
-    if (j.contains("seeds")) {
-        pt.seeds.clear();
-        for (auto& sj : j.at("seeds")) {
-            Seed s; from_json(sj, s);
-            pt.seeds.push_back(std::move(s));
+    if (j.contains("motifs")) {
+        pt.motifs.clear();
+        for (auto& mj : j.at("motifs")) {
+            Motif m; from_json(mj, m);
+            pt.motifs.push_back(std::move(m));
         }
     }
 

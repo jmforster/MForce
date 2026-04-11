@@ -83,7 +83,7 @@ struct FigureTemplate {
     int targetNet{0};              // required net pitch movement (0 = free)
 
     // --- For Reference / Transform ---
-    std::string seedName;          // references a Seed by name
+    std::string motifName;          // references a Motif by name
     TransformOp transform{TransformOp::None};
     int transformParam{0};         // e.g. step offset for Replicate
 
@@ -109,10 +109,10 @@ struct FigureTemplate {
 };
 
 // ===========================================================================
-// Seeds — raw thematic material, stored at Piece level
+// Motifs — raw thematic material, stored at Piece level
 // ===========================================================================
 
-struct Seed {
+struct Motif {
     std::string name;              // "main_theme", "hook", "bridge_motif"
     MelodicFigure figure;          // the actual musical content
     bool userProvided{false};      // true = user entered, don't regenerate
@@ -194,8 +194,8 @@ struct PieceTemplate {
     Meter meter{Meter::M_4_4};
     float bpm{120.0f};
 
-    // Seed material
-    std::vector<Seed> seeds;
+    // Motif material
+    std::vector<Motif> motifs;
 
     // Section definitions (in order)
     struct SectionDef {
@@ -220,8 +220,8 @@ struct PieceTemplate {
     uint32_t masterSeed{0};
 
     // Helpers
-    const Seed* find_seed(const std::string& name) const {
-        for (auto& s : seeds) if (s.name == name) return &s;
+    const Motif* find_motif(const std::string& name) const {
+        for (auto& m : motifs) if (m.name == name) return &m;
         return nullptr;
     }
 };

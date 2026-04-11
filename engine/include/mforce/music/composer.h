@@ -84,8 +84,8 @@ struct Composer {
   }
 
   // --- Accessor for DefaultFigureStrategy::realize_figure ---
-  const std::unordered_map<std::string, MelodicFigure>& realized_seeds() const {
-    return realizedSeeds_;
+  const std::unordered_map<std::string, MelodicFigure>& realized_motifs() const {
+    return realizedMotifs_;
   }
 
   // --- Public registry lookup for Phase 2 shape dispatch ---
@@ -113,7 +113,7 @@ struct Composer {
 private:
   Randomizer rng_;
   StrategyRegistry registry_;
-  std::unordered_map<std::string, MelodicFigure> realizedSeeds_;
+  std::unordered_map<std::string, MelodicFigure> realizedMotifs_;
 
   // ---- Pre-refactor port: ClassicalComposer::setup_piece -----------------
   void setup_piece_(Piece& piece, const PieceTemplate& tmpl) {
@@ -139,15 +139,15 @@ private:
       piece.parts.push_back(std::move(p));
     }
 
-    // Realize seeds
-    realize_seeds_(piece, tmpl);
+    // Realize motifs
+    realize_motifs_(piece, tmpl);
   }
 
-  // ---- Pre-refactor port: ClassicalComposer::realize_seeds ---------------
-  void realize_seeds_(const Piece& /*piece*/, const PieceTemplate& tmpl) {
-    realizedSeeds_.clear();
+  // ---- Pre-refactor port: ClassicalComposer::realize_motifs ---------------
+  void realize_motifs_(const Piece& /*piece*/, const PieceTemplate& tmpl) {
+    realizedMotifs_.clear();
 
-    // Pick a shared pulse for all generated seeds (phrase-level coherence).
+    // Pick a shared pulse for all generated motifs (phrase-level coherence).
     // Use piece-level default if specified, otherwise randomize once.
     float sharedPulse = tmpl.defaultPulse;
     if (sharedPulse <= 0) {
@@ -156,16 +156,16 @@ private:
       sharedPulse = pulses[pulseRng.int_range(0, 6)];
     }
 
-    for (auto& seed : tmpl.seeds) {
-      if (seed.userProvided || !seed.figure.units.empty()) {
-        realizedSeeds_[seed.name] = seed.figure;
+    for (auto& motif : tmpl.motifs) {
+      if (motif.userProvided || !motif.figure.units.empty()) {
+        realizedMotifs_[motif.name] = motif.figure;
       } else {
-        uint32_t s = seed.generationSeed ? seed.generationSeed : rng_.rng();
-        FigureTemplate ft = seed.constraints.value_or(FigureTemplate{});
-        // Inherit shared pulse if the seed doesn't specify its own
+        uint32_t s = motif.generationSeed ? motif.generationSeed : rng_.rng();
+        FigureTemplate ft = motif.constraints.value_or(FigureTemplate{});
+        // Inherit shared pulse if the motif doesn't specify its own
         if (ft.defaultPulse <= 0) ft.defaultPulse = sharedPulse;
         DefaultFigureStrategy figStrat;
-        realizedSeeds_[seed.name] = figStrat.generate_figure(ft, s);
+        realizedMotifs_[motif.name] = figStrat.generate_figure(ft, s);
       }
     }
   }
@@ -266,7 +266,7 @@ private:
 // Out-of-line definition of DefaultFigureStrategy::realize_figure.
 //
 // Lives here — BELOW the Composer class — because the body needs the full
-// definition of Composer to call ctx.composer->realized_seeds(). In
+// definition of Composer to call ctx.composer->realized_motifs(). In
 // default_strategies.h, Composer is only forward-declared, so the body
 // can't be inline there.
 // ============================================================================
@@ -303,15 +303,15 @@ inline MelodicFigure DefaultFigureStrategy::realize_figure(
     }
 
     case FigureSource::Reference: {
-      auto it = ctx.composer->realized_seeds().find(figTmpl.seedName);
-      if (it != ctx.composer->realized_seeds().end()) return it->second;
-      // Seed not found — generate something
+      auto it = ctx.composer->realized_motifs().find(figTmpl.motifName);
+      if (it != ctx.composer->realized_motifs().end()) return it->second;
+      // Motif not found — generate something
       return generate_figure(figTmpl, figSeed);
     }
 
     case FigureSource::Transform: {
-      auto it = ctx.composer->realized_seeds().find(figTmpl.seedName);
-      MelodicFigure base = (it != ctx.composer->realized_seeds().end())
+      auto it = ctx.composer->realized_motifs().find(figTmpl.motifName);
+      MelodicFigure base = (it != ctx.composer->realized_motifs().end())
         ? it->second
         : generate_figure(figTmpl, figSeed);
       return apply_transform(base, figTmpl.transform, figTmpl.transformParam, figSeed);

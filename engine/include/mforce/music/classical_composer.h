@@ -11,7 +11,7 @@ namespace mforce {
 // Phase 1a: preserves the three-overload IComposer API the CLI uses at
 // tools/mforce_cli/main.cpp so no caller needs to change. All the
 // composition logic now lives in Composer + the three Default strategies.
-// Phase 3+ will add more strategies; Phase 5 will rename Seed to Motif.
+// Phase 3+ will add more strategies; Phase 5 renamed Seed to Motif.
 // ---------------------------------------------------------------------------
 struct ClassicalComposer : IComposer {
   Composer inner;
