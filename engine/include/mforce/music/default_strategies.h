@@ -280,4 +280,51 @@ inline FigureShape DefaultFigureStrategy::choose_shape(
     }
 }
 
+// ---------------------------------------------------------------------------
+// DefaultPassageStrategy
+//
+// Walks the phrase list of a PassageTemplate and realizes each phrase via
+// the Composer's phrase dispatcher. Mirrors pre-refactor
+// ClassicalComposer::realize_passage (classical_composer.h:143-159) with
+// the PitchReader still constructed locally — Phase 1a preserves the exact
+// fallback semantics: reset to (octave 5, degree 0) for every phrase that
+// doesn't provide its own startingPitch, because that's what the
+// pre-refactor realize_phrase did at classical_composer.h:188-190.
+// ---------------------------------------------------------------------------
+class DefaultPassageStrategy : public Strategy {
+public:
+  std::string name() const override { return "default_passage"; }
+  StrategyLevel level() const override { return StrategyLevel::Passage; }
+
+  Passage realize_passage(const PassageTemplate& passTmpl,
+                          StrategyContext& ctx) override;
+};
+
+inline Passage DefaultPassageStrategy::realize_passage(
+    const PassageTemplate& passTmpl, StrategyContext& ctx) {
+  Passage passage;
+  PitchReader reader(ctx.scale);
+  reader.set_pitch(5, 0);
+
+  for (auto& phraseTmpl : passTmpl.phrases) {
+    if (phraseTmpl.locked) continue;
+
+    // Clone the context for the phrase level. We carry forward scale,
+    // piece, template_, composer, rng, params; we set startingPitch to
+    // the reader's reset position so DefaultPhraseStrategy can use it as
+    // the fallback when the phrase template has no startingPitch of its
+    // own. This preserves pre-refactor behavior where the original
+    // realize_phrase did `reader.set_pitch(5, 0); reader.get_pitch();`
+    // once at the start of each phrase.
+    StrategyContext phraseCtx = ctx;
+    reader.set_pitch(5, 0);
+    phraseCtx.startingPitch = reader.get_pitch();
+
+    Phrase phrase = ctx.composer->realize_phrase(phraseTmpl, phraseCtx);
+    passage.add_phrase(std::move(phrase));
+  }
+
+  return passage;
+}
+
 } // namespace mforce
