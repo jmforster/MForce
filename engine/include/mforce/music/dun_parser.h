@@ -235,10 +235,11 @@ inline DunParseResult load_dun(const std::string& path) {
 // ---------------------------------------------------------------------------
 // Convert DunParseResult to a Piece
 //
-// Strategy: since the renderer currently skips unit[0].step, the first
-// token of each figure (which carries inter-figure movement in DUN) is
-// converted to a FigureConnector. The first token of each phrase is Xn
-// (no movement), so the startingPitch carries over from the previous phrase.
+// Strategy: the first token of each figure carries the inter-figure movement
+// (step) in DUN. For fi>0, that step is absorbed directly into the first
+// unit's step field (previously it was passed as a FigureConnector, which
+// is no longer used). The first token of phrase-figure 0 is Xn (no movement),
+// so the startingPitch carries over from the previous phrase.
 // ---------------------------------------------------------------------------
 inline Piece dun_to_piece(const DunParseResult& dun, int startOctaveOverride = -1) {
   Piece piece;
@@ -317,13 +318,14 @@ inline Piece dun_to_piece(const DunParseResult& dun, int startOctaveOverride = -
         fig.units.push_back(u);
         startIdx = 1;
       } else {
-        // Subsequent figure — first token's step becomes the connector
+        // Subsequent figure — first token's step is the inter-figure movement.
+        // Absorb it into the first unit's step field instead of a connector.
         connStep = figDun[0].rest ? 0 : figDun[0].step;
         if (!figDun[0].rest) reader.step(connStep);
 
         FigureUnit u;
         u.duration = figDun[0].duration;
-        u.step = 0;
+        u.step = connStep;  // absorbed: was formerly passed as FigureConnector
         u.rest = figDun[0].rest;
         u.accidental = figDun[0].accidental;
         fig.units.push_back(u);
@@ -342,10 +344,7 @@ inline Piece dun_to_piece(const DunParseResult& dun, int startOctaveOverride = -
         if (!figDun[ti].rest) reader.step(figDun[ti].step);
       }
 
-      if (fi == 0)
-        phrase.add_figure(std::move(fig));
-      else
-        phrase.add_figure(std::move(fig), FigureConnector::step(connStep));
+      phrase.add_figure(std::move(fig));  // single-arg: connector no longer used
     }
 
     passage.add_phrase(std::move(phrase));
