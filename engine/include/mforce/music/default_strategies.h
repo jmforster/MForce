@@ -327,4 +327,188 @@ inline Passage DefaultPassageStrategy::realize_passage(
   return passage;
 }
 
+// ---------------------------------------------------------------------------
+// DefaultPhraseStrategy
+//
+// Walks a PhraseTemplate, dispatches each figure via
+// ctx.composer->realize_figure(...), joins adjacent figures with
+// FigureConnectors (still live in Phase 1a — connector removal is Phase 1b),
+// and applies end-of-phrase cadence adjustment.
+//
+// Mirrors pre-refactor ClassicalComposer::realize_phrase
+// (classical_composer.h:181-224) with edits:
+//   - rng.rng() becomes ctx.rng->rng()
+//   - inlined realize_figure call becomes ctx.composer->realize_figure(...)
+//   - choose_shape resolves through DefaultFigureStrategy::choose_shape
+//
+// RNG call order MUST be preserved. The pre-refactor path called rng.rng()
+// inside the figure loop exactly once per figure that needed a shape
+// auto-selected (inside the if (function != Free && source == Generate &&
+// shape == Free) block). The new path does the same, via ctx.rng->rng(),
+// and ctx.rng points at Composer::rng_ (set up in Task 7), so the sequence
+// of rng() calls hits the same underlying generator in the same order.
+// ---------------------------------------------------------------------------
+class DefaultPhraseStrategy : public Strategy {
+public:
+  std::string name() const override { return "default_phrase"; }
+  StrategyLevel level() const override { return StrategyLevel::Phrase; }
+
+  Phrase realize_phrase(const PhraseTemplate& phraseTmpl,
+                        StrategyContext& ctx) override;
+
+private:
+  static int degree_in_scale(const Pitch& pitch, const Scale& scale);
+  static void apply_cadence(Phrase& phrase, const PhraseTemplate& tmpl,
+                            const Scale& scale);
+  static void apply_cadence_rhythm(MelodicFigure& fig, int cadenceType);
+};
+
+// -- degree_in_scale: verbatim from classical_composer.h:167-175 -------------
+inline int DefaultPhraseStrategy::degree_in_scale(const Pitch& pitch,
+                                                  const Scale& scale) {
+    float rel = std::fmod(float(pitch.pitchDef->offset - scale.offset()) + 12.0f, 12.0f);
+    float accum = 0;
+    for (int d = 0; d < scale.length(); ++d) {
+      if (std::abs(accum - rel) < 0.5f) return d;
+      accum += scale.ascending_step(d);
+    }
+    return 0; // fallback to root
+}
+
+// -- apply_cadence: verbatim from classical_composer.h:230-259 ---------------
+//
+// Keep connector-step summation EXACTLY as-is. The line that reads
+// phrase.connectors[f - 1] and adds conn.stepValue for Step-type connectors
+// into netSteps stays as-is in Phase 1a. It gets removed in Phase 1b.
+inline void DefaultPhraseStrategy::apply_cadence(Phrase& phrase,
+                                                 const PhraseTemplate& tmpl,
+                                                 const Scale& scale) {
+    int startDeg = degree_in_scale(phrase.startingPitch, scale);
+    int len = scale.length();
+
+    // Compute net step movement across the whole phrase
+    int netSteps = 0;
+    for (int f = 0; f < phrase.figure_count(); ++f) {
+      netSteps += phrase.figures[f].net_step();
+      if (f > 0 && f - 1 < int(phrase.connectors.size())) {
+        const auto& conn = phrase.connectors[f - 1];
+        if (conn.type == ConnectorType::Step) netSteps += conn.stepValue;
+      }
+    }
+
+    int landingDeg = ((startDeg + netSteps) % len + len) % len;
+    int target = tmpl.cadenceTarget % len;
+
+    if (landingDeg == target) return; // already correct
+
+    // Shortest adjustment in scale degrees
+    int diff = target - landingDeg;
+    if (diff > len / 2) diff -= len;
+    if (diff < -len / 2) diff += len;
+
+    // Adjust the last note of the last figure
+    auto& lastFig = phrase.figures.back();
+    if (!lastFig.units.empty()) {
+      lastFig.units.back().step += diff;
+    }
+}
+
+// -- apply_cadence_rhythm: verbatim from classical_composer.h:265-304 --------
+inline void DefaultPhraseStrategy::apply_cadence_rhythm(MelodicFigure& fig,
+                                                        int cadenceType) {
+    int n = fig.note_count();
+    if (n < 2) return;
+
+    // Don't reshape user-provided figures (they have intentional rhythm)
+    // We only reshape generated figures. Since we can't tell here, we use a
+    // heuristic: if all notes have the same duration, it's likely generated.
+    float firstDur = fig.units[0].duration;
+    bool uniform = true;
+    for (auto& u : fig.units) {
+      if (std::abs(u.duration - firstDur) > 0.01f) { uniform = false; break; }
+    }
+    if (!uniform) return;  // already has rhythm variation — don't touch
+
+    // Compute total beats to preserve
+    float totalBeats = 0;
+    for (auto& u : fig.units) totalBeats += u.duration;
+
+    if (cadenceType >= 2 && n >= 3) {
+      // Full cadence: penultimate note shorter, final note longer
+      // Pattern: ...normal | short | long
+      // E.g., 4 quarter notes (4 beats) → q q | e. | h  (1 + 1 + 0.5 + 1.5 = 4... no)
+      // Better: redistribute last 2 notes as dotted-quarter + eighth + half
+      // Actually simplest: shrink second-to-last, double the last
+      float lastTwo = fig.units[n-2].duration + fig.units[n-1].duration;
+      fig.units[n-2].duration = lastTwo * 0.25f;  // short pickup
+      fig.units[n-1].duration = lastTwo * 0.75f;  // long resolution
+    } else if (cadenceType >= 1 && n >= 2) {
+      // Half cadence: just lengthen the final note
+      float lastTwo = fig.units[n-2].duration + fig.units[n-1].duration;
+      fig.units[n-2].duration = lastTwo * 0.4f;
+      fig.units[n-1].duration = lastTwo * 0.6f;
+    } else {
+      // Phrase ending without explicit cadence: mild lengthening
+      fig.units[n-1].duration *= 1.5f;
+      // Steal time from earlier notes to keep total
+      float excess = fig.units[n-1].duration - firstDur * 1.5f;
+      // Actually just let it be slightly longer — total beats is approximate
+    }
+}
+
+// -- realize_phrase -----------------------------------------------------------
+inline Phrase DefaultPhraseStrategy::realize_phrase(
+    const PhraseTemplate& phraseTmpl, StrategyContext& ctx) {
+  Phrase phrase;
+
+  // Per-phrase starting pitch: if the template has one, use it; otherwise
+  // use ctx.startingPitch, which DefaultPassageStrategy set to the reader's
+  // reset position. Preserves pre-refactor behavior at
+  // classical_composer.h:185-190.
+  if (phraseTmpl.startingPitch) {
+    phrase.startingPitch = *phraseTmpl.startingPitch;
+  } else {
+    phrase.startingPitch = ctx.startingPitch;
+  }
+
+  const int numFigs = int(phraseTmpl.figures.size());
+  for (int i = 0; i < numFigs; ++i) {
+    // MelodicFunction-driven shape selection — same logic as
+    // classical_composer.h:197-202.
+    FigureTemplate figTmpl = phraseTmpl.figures[i];
+    if (phraseTmpl.function != MelodicFunction::Free
+        && figTmpl.source == FigureSource::Generate
+        && figTmpl.shape == FigureShape::Free) {
+      figTmpl.shape = DefaultFigureStrategy::choose_shape(
+          phraseTmpl.function, i, numFigs, ctx.rng->rng());
+    }
+
+    // Dispatch to the figure level through the Composer. The figure context
+    // clones the current (phrase) context; per-figure scale and startingPitch
+    // don't need to differ in this pre-refactor path.
+    StrategyContext figCtx = ctx;
+    MelodicFigure fig = ctx.composer->realize_figure(figTmpl, figCtx);
+
+    if (i == 0) {
+      phrase.add_figure(std::move(fig));
+    } else {
+      // Connector path — UNCHANGED from classical_composer.h:207-213.
+      // Default step(-1) when the template doesn't specify a connector.
+      FigureConnector conn = FigureConnector::step(-1);
+      if (i - 1 < (int)phraseTmpl.connectors.size()) {
+        conn = phraseTmpl.connectors[i - 1];
+      }
+      phrase.add_figure(std::move(fig), conn);
+    }
+  }
+
+  // Cadence adjustment — unchanged from classical_composer.h:217-222.
+  if (phraseTmpl.cadenceType > 0 && phraseTmpl.cadenceTarget >= 0
+      && !phrase.figures.empty()) {
+    apply_cadence(phrase, phraseTmpl, ctx.scale);
+  }
+
+  return phrase;
+}
+
 } // namespace mforce
