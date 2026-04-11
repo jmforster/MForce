@@ -269,8 +269,6 @@ public:
   Phrase realize_phrase(const PhraseTemplate& phraseTmpl,
                         StrategyContext& ctx) override;
   static int degree_in_scale(const Pitch& pitch, const Scale& scale);
-
-private:
   static void apply_cadence(Phrase& phrase, const PhraseTemplate& tmpl,
                             const Scale& scale);
 };

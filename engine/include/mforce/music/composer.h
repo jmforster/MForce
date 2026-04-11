@@ -3,10 +3,12 @@
 #include "mforce/music/strategy_registry.h"
 #include "mforce/music/default_strategies.h"
 #include "mforce/music/shape_strategies.h"
+#include "mforce/music/phrase_strategies.h"
 #include "mforce/music/structure.h"
 #include "mforce/music/templates.h"
 #include "mforce/music/pitch_reader.h"
 #include "mforce/core/randomizer.h"
+#include <iostream>
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -52,6 +54,10 @@ struct Composer {
     registry_.register_strategy(std::make_unique<ShapeSighStrategy>());
     registry_.register_strategy(std::make_unique<ShapeSuspensionStrategy>());
     registry_.register_strategy(std::make_unique<ShapeCambiataStrategy>());
+
+    // Phrase strategies (Phase 3)
+    registry_.register_strategy(std::make_unique<PeriodPhraseStrategy>());
+    registry_.register_strategy(std::make_unique<SentencePhraseStrategy>());
   }
 
   // --- Top-level composition ---
@@ -73,7 +79,12 @@ struct Composer {
 
   Phrase realize_phrase(const PhraseTemplate& phraseTmpl,
                         StrategyContext& ctx) {
-    Strategy* s = registry_.get("default_phrase");
+    std::string n = phraseTmpl.strategy.empty() ? std::string("default_phrase") : phraseTmpl.strategy;
+    Strategy* s = registry_.get(n);
+    if (!s) {
+      std::cerr << "Unknown phrase strategy '" << n << "', falling back to default_phrase\n";
+      s = registry_.get("default_phrase");
+    }
     return s->realize_phrase(phraseTmpl, ctx);
   }
 
