@@ -312,25 +312,47 @@ inline MelodicFigure DefaultFigureStrategy::realize_figure(
 inline Passage DefaultPassageStrategy::realize_passage(
     const PassageTemplate& passTmpl, StrategyContext& ctx) {
   Passage passage;
-  PitchReader reader(ctx.scale);
-  reader.set_pitch(5, 0);
+
+  // Initial cursor: the passage template's startingPitch (required field,
+  // validated by the JSON loader at parse time — guaranteed non-nullopt here).
+  if (!passTmpl.startingPitch) {
+    // Should not happen — loader refuses templates without startingPitch.
+    // If we're here, the template was constructed in-memory without going
+    // through the loader. Emit nothing and return — caller's mistake.
+    return passage;
+  }
+  ctx.cursor = *passTmpl.startingPitch;
 
   for (auto& phraseTmpl : passTmpl.phrases) {
     if (phraseTmpl.locked) continue;
 
-    // Clone the context for the phrase level. We carry forward scale,
-    // piece, template_, composer, rng, params; we set cursor to
-    // the reader's reset position so DefaultPhraseStrategy can use it as
-    // the fallback when the phrase template has no startingPitch of its
-    // own. This preserves pre-refactor behavior where the original
-    // realize_phrase did `reader.set_pitch(5, 0); reader.get_pitch();`
-    // once at the start of each phrase.
+    // Clone the context for the phrase level. If the phrase template has
+    // an explicit startingPitch, use it as an override (resets cursor).
+    // Otherwise the cursor is inherited from wherever the previous phrase
+    // left it.
     StrategyContext phraseCtx = ctx;
-    reader.set_pitch(5, 0);
-    phraseCtx.cursor = reader.get_pitch();
+    if (phraseTmpl.startingPitch) {
+      phraseCtx.cursor = *phraseTmpl.startingPitch;
+    }
+    // else: phraseCtx.cursor already holds the inherited value.
 
     Phrase phrase = ctx.composer->realize_phrase(phraseTmpl, phraseCtx);
     passage.add_phrase(std::move(phrase));
+
+    // Carry the cursor forward for the next phrase. Compute the phrase's
+    // net scale-degree movement by summing every unit's step across every
+    // figure in the phrase, then advance a local PitchReader from the
+    // phrase's starting cursor by that total.
+    PitchReader reader(ctx.scale);
+    reader.set_pitch(phraseCtx.cursor);
+    int totalDelta = 0;
+    for (auto& fig : phrase.figures) {
+      for (auto& u : fig.units) {
+        totalDelta += u.step;
+      }
+    }
+    reader.step(totalDelta);
+    ctx.cursor = reader.get_pitch();
   }
 
   return passage;
@@ -376,17 +398,10 @@ inline Phrase DefaultPhraseStrategy::realize_phrase(
     StrategyContext figCtx = ctx;
     MelodicFigure fig = ctx.composer->realize_figure(figTmpl, figCtx);
 
-    if (i == 0) {
-      phrase.add_figure(std::move(fig));
-    } else {
-      // Connector path — UNCHANGED from classical_composer.h:207-213.
-      // Default step(-1) when the template doesn't specify a connector.
-      FigureConnector conn = FigureConnector::step(-1);
-      if (i - 1 < (int)phraseTmpl.connectors.size()) {
-        conn = phraseTmpl.connectors[i - 1];
-      }
-      phrase.add_figure(std::move(fig), conn);
-    }
+    // No connectors. Every figure joins via its first unit's step, which
+    // bridges from wherever the previous figure left the cursor to this
+    // figure's effective starting pitch.
+    phrase.add_figure(std::move(fig));
   }
 
   // Cadence adjustment — unchanged from classical_composer.h:217-222.

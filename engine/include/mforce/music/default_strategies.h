@@ -367,10 +367,6 @@ inline void DefaultPhraseStrategy::apply_cadence(Phrase& phrase,
     int netSteps = 0;
     for (int f = 0; f < phrase.figure_count(); ++f) {
       netSteps += phrase.figures[f].net_step();
-      if (f > 0 && f - 1 < int(phrase.connectors.size())) {
-        const auto& conn = phrase.connectors[f - 1];
-        if (conn.type == ConnectorType::Step) netSteps += conn.stepValue;
-      }
     }
 
     int landingDeg = ((startDeg + netSteps) % len + len) % len;

@@ -412,10 +412,10 @@ struct MelodicFigure {
     return t;
   }
 
-  // Net pitch movement (sum of all steps)
+  // Net pitch movement (sum of all steps, including the first unit's step)
   int net_step() const {
     int n = 0;
-    for (int i = 1; i < int(units.size()); ++i) n += units[i].step;
+    for (int i = 0; i < int(units.size()); ++i) n += units[i].step;
     return n;
   }
 };

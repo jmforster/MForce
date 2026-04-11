@@ -492,33 +492,12 @@ private:
     for (int f = 0; f < phrase.figure_count(); ++f) {
       const auto& fig = phrase.figures[f];
 
-      // Apply connector before this figure (if not the first)
-      if (f > 0 && f - 1 < int(phrase.connectors.size())) {
-        const auto& conn = phrase.connectors[f - 1];
-        switch (conn.type) {
-          case ConnectorType::Step:
-            currentNN = step_note(currentNN, conn.stepValue, scale);
-            break;
-          case ConnectorType::Pitch:
-            currentNN = conn.pitch.note_number();
-            break;
-          case ConnectorType::EndPitch:
-            // EndPitch = "figure should END at this pitch"
-            // Set to end pitch, then walk back by figure's net to find start
-            currentNN = conn.pitch.note_number();
-            currentNN = step_note(currentNN, -fig.net_step(), scale);
-            break;
-          case ConnectorType::Elide:
-            break;
-        }
-      }
-
-      // Walk FigureUnits
+      // Walk FigureUnits. Every unit's step is applied, including the first
+      // (which bridges from the previous figure's ending pitch to this
+      // figure's starting pitch under the cursor model).
       for (int i = 0; i < fig.note_count(); ++i) {
         const auto& u = fig.units[i];
-        if (i > 0) {
-          currentNN = step_note(currentNN, u.step, scale);
-        }
+        currentNN = step_note(currentNN, u.step, scale);
 
         // Apply transient accidental for sounding pitch only
         float soundNN = currentNN + float(u.accidental);
