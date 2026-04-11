@@ -201,8 +201,12 @@ Expected: `renders/template_golden_phase1a.sha256` contains one line: `<64-hex-c
 
 - [ ] **Step 6: Commit the golden baseline**
 
+`.gitignore` excludes `renders/*.wav`, so the WAV must be force-added. The
+`.sha256` file is not ignored and stages normally.
+
 ```
-git add patches/template_golden_phase1a.json renders/template_golden_phase1a.wav renders/template_golden_phase1a.sha256
+git add patches/template_golden_phase1a.json renders/template_golden_phase1a.sha256
+git add -f renders/template_golden_phase1a.wav
 git commit -m "test: pin golden template+WAV for composer phase-1a refactor"
 ```
 
