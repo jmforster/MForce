@@ -1,0 +1,56 @@
+{
+  "graph": {
+    "nodes": [
+      {
+        "id": "ADSREnvelope1",
+        "params": {
+          "attack": 0.29999998211860657,
+          "decay": 0.20000000298023224,
+          "release": 0.20000000298023224,
+          "sustainLevel": 0.800000011920929
+        },
+        "type": "ADSREnvelope"
+      },
+      {
+        "id": "Triangle1",
+        "params": {
+          "amplitude": {
+            "ref": "ADSREnvelope1"
+          },
+          "bias": 0.5,
+          "frequency": 440.0,
+          "phase": 0.0
+        },
+        "type": "TriangleSource"
+      }
+    ],
+    "output": "Triangle1"
+  },
+  "instrument": {
+    "paramMap": {
+      "frequency": "Triangle1.frequency"
+    },
+    "polyphony": 4
+  },
+  "sampleRate": 48000,
+  "ui": {
+    "positions": {
+      "ADSREnvelope1": [
+        146.0,
+        262.0
+      ],
+      "Triangle1": [
+        403.0,
+        139.0
+      ],
+      "__output": [
+        710.0,
+        80.0
+      ],
+      "__param_frequency": [
+        50.0,
+        80.0
+      ]
+    }
+  }
+}
