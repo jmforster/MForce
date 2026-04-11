@@ -24,6 +24,7 @@
       "role": "melody",
       "passages": {
         "Main": {
+          "startingPitch": {"octave": 4, "pitch": "G"},
           "phrases": [
             {
               "name": "A1",

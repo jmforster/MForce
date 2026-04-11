@@ -147,6 +147,9 @@ struct PhraseTemplate {
 
 struct PassageTemplate {
     std::string name;
+    std::optional<Pitch> startingPitch;           // REQUIRED at JSON-load time;
+                                                  // optional storage because Pitch
+                                                  // has no default constructor.
     std::vector<PhraseTemplate> phrases;
 
     // Passage-level directives

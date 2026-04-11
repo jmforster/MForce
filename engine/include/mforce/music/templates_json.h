@@ -315,6 +315,7 @@ inline void from_json(const json& j, PhraseTemplate& pt) {
 inline void to_json(json& j, const PassageTemplate& pt) {
     j = json{{"phrases", pt.phrases}};
     if (!pt.name.empty()) j["name"] = pt.name;
+    if (pt.startingPitch) j["startingPitch"] = *pt.startingPitch;
     if (!pt.character.empty()) j["character"] = pt.character;
     if (!pt.fromKey.empty()) j["fromKey"] = pt.fromKey;
     if (!pt.toKey.empty()) j["toKey"] = pt.toKey;
@@ -323,6 +324,15 @@ inline void to_json(json& j, const PassageTemplate& pt) {
 }
 
 inline void from_json(const json& j, PassageTemplate& pt) {
+    if (!j.contains("startingPitch")) {
+        throw std::runtime_error(
+            "PassageTemplate '" + j.value("name", std::string("<unnamed>")) +
+            "' is missing required field 'startingPitch'");
+    }
+    Pitch p;
+    from_json(j.at("startingPitch"), p);
+    pt.startingPitch = p;
+
     pt.phrases.clear();
     for (auto& pj : j.at("phrases")) {
         PhraseTemplate ph; from_json(pj, ph);
