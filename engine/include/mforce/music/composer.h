@@ -24,7 +24,14 @@ namespace mforce {
 // template. Template-driven strategy selection arrives in Phase 3.
 // ---------------------------------------------------------------------------
 struct Composer {
-  explicit Composer(uint32_t seed = 0xC1A5'0001u) : rng_(seed) {
+  // Note on seed + 200: the pre-refactor ClassicalComposer had three
+  // Randomizer-like instance members seeded with (seed, seed+100, seed+200).
+  // The rng member — the one used for all per-figure/per-phrase random
+  // decisions — was seeded with seed+200. Refactor dropped the other two
+  // (dead code in practice), but rng_ must preserve the seed+200 offset
+  // or every RNG call consumes a different stream and the composer stops
+  // being bit-identical to the pre-refactor output.
+  explicit Composer(uint32_t seed = 0xC1A5'0001u) : rng_(seed + 200) {
     registry_.register_strategy(std::make_unique<DefaultFigureStrategy>());
     registry_.register_strategy(std::make_unique<DefaultPhraseStrategy>());
     registry_.register_strategy(std::make_unique<DefaultPassageStrategy>());
