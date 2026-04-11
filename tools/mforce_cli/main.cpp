@@ -133,7 +133,7 @@ static int run_chords(int argc, char** argv) {
 // Build a Phrase: starting pitch, fig repeated N times descending by step, then tail figure
 // ---------------------------------------------------------------------------
 static Phrase build_descending_phrase(Pitch startPitch, const MelodicFigure& repFig,
-                                     int reps, int stepDown,
+                                     int reps, int /*stepDown*/,
                                      const MelodicFigure& tailFig) {
     Phrase phrase;
     phrase.startingPitch = startPitch;
@@ -141,13 +141,13 @@ static Phrase build_descending_phrase(Pitch startPitch, const MelodicFigure& rep
     // First repetition
     phrase.add_figure(repFig);
 
-    // Subsequent repetitions with step-down connectors
+    // Subsequent repetitions
     for (int i = 1; i < reps; ++i) {
-        phrase.add_figure(repFig, FigureConnector::step(stepDown));
+        phrase.add_figure(repFig);
     }
 
-    // Tail figure continues from where we left off
-    phrase.add_figure(tailFig, FigureConnector::step(0));
+    // Tail figure
+    phrase.add_figure(tailFig);
 
     return phrase;
 }

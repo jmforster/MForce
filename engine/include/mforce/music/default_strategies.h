@@ -308,9 +308,8 @@ public:
 // DefaultPhraseStrategy
 //
 // Walks a PhraseTemplate, dispatches each figure via
-// ctx.composer->realize_figure(...), joins adjacent figures with
-// FigureConnectors (still live in Phase 1a — connector removal is Phase 1b),
-// and applies end-of-phrase cadence adjustment.
+// ctx.composer->realize_figure(...), and applies end-of-phrase cadence
+// adjustment.
 //
 // Mirrors pre-refactor ClassicalComposer::realize_phrase
 // (classical_composer.h:181-224) with edits:
@@ -353,10 +352,6 @@ inline int DefaultPhraseStrategy::degree_in_scale(const Pitch& pitch,
 }
 
 // -- apply_cadence: verbatim from classical_composer.h:230-259 ---------------
-//
-// Keep connector-step summation EXACTLY as-is. The line that reads
-// phrase.connectors[f - 1] and adds conn.stepValue for Step-type connectors
-// into netSteps stays as-is in Phase 1a. It gets removed in Phase 1b.
 inline void DefaultPhraseStrategy::apply_cadence(Phrase& phrase,
                                                  const PhraseTemplate& tmpl,
                                                  const Scale& scale) {

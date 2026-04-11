@@ -71,18 +71,6 @@ inline void from_json(const json& j, Dynamic& d) {
   d = map.at(j.get<std::string>());
 }
 
-inline void to_json(json& j, ConnectorType ct) {
-  static const char* names[] = {"Step","Pitch","EndPitch","Elide"};
-  j = names[int(ct)];
-}
-
-inline void from_json(const json& j, ConnectorType& ct) {
-  static const std::unordered_map<std::string, ConnectorType> map = {
-    {"Step",ConnectorType::Step},{"Pitch",ConnectorType::Pitch},
-    {"EndPitch",ConnectorType::EndPitch},{"Elide",ConnectorType::Elide}
-  };
-  ct = map.at(j.get<std::string>());
-}
 
 inline void to_json(json& j, PitchSelectionType ps) {
   static const char* names[] = {
@@ -283,18 +271,6 @@ inline void from_json(const json& j, ChordArticulation& cf) {
   }
 }
 
-inline void to_json(json& j, const FigureConnector& fc) {
-  j = json{{"type", fc.type}};
-  if (fc.type == ConnectorType::Step) j["step"] = fc.stepValue;
-  if (fc.type == ConnectorType::Pitch || fc.type == ConnectorType::EndPitch)
-    j["pitch"] = fc.pitch;
-}
-
-inline void from_json(const json& j, FigureConnector& fc) {
-  from_json(j.at("type"), fc.type);
-  if (j.contains("step")) fc.stepValue = j.at("step").get<int>();
-  if (j.contains("pitch")) from_json(j.at("pitch"), fc.pitch);
-}
 
 // ===========================================================================
 // Structure — Elements (variant)
@@ -384,7 +360,6 @@ inline void from_json(const json& j, DynamicMarking& dm) {
 
 inline void to_json(json& j, const Phrase& ph) {
   j = json{{"startingPitch", ph.startingPitch}, {"figures", ph.figures}};
-  if (!ph.connectors.empty()) j["connectors"] = ph.connectors;
 }
 
 inline void from_json(const json& j, Phrase& ph) {
@@ -393,13 +368,6 @@ inline void from_json(const json& j, Phrase& ph) {
     MelodicFigure f;
     from_json(fj, f);
     ph.figures.push_back(std::move(f));
-  }
-  if (j.contains("connectors")) {
-    for (auto& cj : j.at("connectors")) {
-      FigureConnector fc;
-      from_json(cj, fc);
-      ph.connectors.push_back(fc);
-    }
   }
 }
 

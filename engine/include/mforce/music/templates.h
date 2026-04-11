@@ -121,14 +121,13 @@ struct Seed {
 };
 
 // ===========================================================================
-// PhraseTemplate — sequence of FigureTemplates with connectors
+// PhraseTemplate — sequence of FigureTemplates
 // ===========================================================================
 
 struct PhraseTemplate {
     std::string name;                          // "antecedent", "bridge", etc.
     std::optional<Pitch> startingPitch;        // where to begin (may come from context)
     std::vector<FigureTemplate> figures;
-    std::vector<FigureConnector> connectors;   // connectors[i] connects figure[i] to figure[i+1]
 
     // Phrase-level constraints
     float totalBeats{0.0f};                    // 0 = sum of figures

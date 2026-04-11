@@ -272,7 +272,6 @@ inline void to_json(json& j, const PhraseTemplate& pt) {
     j = json{{"figures", pt.figures}};
     if (!pt.name.empty()) j["name"] = pt.name;
     if (pt.startingPitch) j["startingPitch"] = *pt.startingPitch;
-    if (!pt.connectors.empty()) j["connectors"] = pt.connectors;
     if (pt.totalBeats != 0.0f) j["totalBeats"] = pt.totalBeats;
     if (pt.cadenceType != 0) j["cadenceType"] = pt.cadenceType;
     if (pt.cadenceTarget != -1) j["cadenceTarget"] = pt.cadenceTarget;
@@ -293,13 +292,7 @@ inline void from_json(const json& j, PhraseTemplate& pt) {
         Pitch p; from_json(j.at("startingPitch"), p);
         pt.startingPitch = p;
     }
-    if (j.contains("connectors")) {
-        pt.connectors.clear();
-        for (auto& cj : j.at("connectors")) {
-            FigureConnector fc; from_json(cj, fc);
-            pt.connectors.push_back(fc);
-        }
-    }
+
     pt.totalBeats = j.value("totalBeats", 0.0f);
     pt.cadenceType = j.value("cadenceType", 0);
     pt.cadenceTarget = j.value("cadenceTarget", -1);

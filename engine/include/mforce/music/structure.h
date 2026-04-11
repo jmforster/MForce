@@ -71,19 +71,13 @@ struct Element {
 };
 
 // ===========================================================================
-// Phrase — a musical sentence. Collection of Figures with Connectors.
+// Phrase — a musical sentence. Collection of Figures.
 // ===========================================================================
 struct Phrase {
   Pitch startingPitch;
   std::vector<MelodicFigure> figures;
-  std::vector<FigureConnector> connectors;  // between adjacent figures
 
   void add_figure(MelodicFigure fig) {
-    figures.push_back(std::move(fig));
-  }
-
-  void add_figure(MelodicFigure fig, FigureConnector conn) {
-    connectors.push_back(std::move(conn));
     figures.push_back(std::move(fig));
   }
 

@@ -365,20 +365,6 @@ struct PitchSelection {
 };
 
 // ---------------------------------------------------------------------------
-// FigureConnector — how figures connect to each other.
-// ---------------------------------------------------------------------------
-enum class ConnectorType { Step, Pitch, EndPitch, Elide };
-
-struct FigureConnector {
-  ConnectorType type{ConnectorType::Step};
-  int stepValue{0};     // for Step type
-  Pitch pitch;          // for Pitch/EndPitch types
-
-  static FigureConnector step(int v) { return {ConnectorType::Step, v}; }
-  static FigureConnector elide() { return {ConnectorType::Elide}; }
-};
-
-// ---------------------------------------------------------------------------
 // MelodicFigure — a melodic pattern built from FigureUnits.
 // Constructed from StepSequence + PulseSequence (Composer's building blocks),
 // stored as vector<FigureUnit> (Conductor's consumable form).
