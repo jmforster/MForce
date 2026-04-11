@@ -265,6 +265,40 @@ inline void from_json(const json& j, Motif& m) {
 }
 
 // ===========================================================================
+// PeriodPhraseConfig
+// ===========================================================================
+
+inline void to_json(json& j, const PeriodPhraseConfig& c) {
+  j["basicIdea"] = c.basicIdea;
+  j["antecedentTail"] = c.antecedentTail;
+  j["consequentTail"] = c.consequentTail;
+  if (c.halfCadenceTarget != 4) j["halfCadenceTarget"] = c.halfCadenceTarget;
+}
+
+inline void from_json(const json& j, PeriodPhraseConfig& c) {
+  from_json(j.at("basicIdea"), c.basicIdea);
+  from_json(j.at("antecedentTail"), c.antecedentTail);
+  from_json(j.at("consequentTail"), c.consequentTail);
+  c.halfCadenceTarget = j.value("halfCadenceTarget", 4);
+}
+
+// ===========================================================================
+// SentencePhraseConfig
+// ===========================================================================
+
+inline void to_json(json& j, const SentencePhraseConfig& c) {
+  j["basicIdea"] = c.basicIdea;
+  j["continuation"] = c.continuation;
+  if (c.variationTransposition != 0) j["variationTransposition"] = c.variationTransposition;
+}
+
+inline void from_json(const json& j, SentencePhraseConfig& c) {
+  from_json(j.at("basicIdea"), c.basicIdea);
+  from_json(j.at("continuation"), c.continuation);
+  c.variationTransposition = j.value("variationTransposition", 0);
+}
+
+// ===========================================================================
 // PhraseTemplate
 // ===========================================================================
 
@@ -278,6 +312,9 @@ inline void to_json(json& j, const PhraseTemplate& pt) {
     if (pt.function != MelodicFunction::Free) j["function"] = pt.function;
     if (pt.seed != 0) j["seed"] = pt.seed;
     if (pt.locked) j["locked"] = true;
+    if (!pt.strategy.empty()) j["strategy"] = pt.strategy;
+    if (pt.periodConfig) j["periodConfig"] = *pt.periodConfig;
+    if (pt.sentenceConfig) j["sentenceConfig"] = *pt.sentenceConfig;
 }
 
 inline void from_json(const json& j, PhraseTemplate& pt) {
@@ -299,6 +336,17 @@ inline void from_json(const json& j, PhraseTemplate& pt) {
     if (j.contains("function")) from_json(j.at("function"), pt.function);
     pt.seed = j.value("seed", 0u);
     pt.locked = j.value("locked", false);
+    pt.strategy = j.value("strategy", std::string(""));
+    if (j.contains("periodConfig")) {
+        PeriodPhraseConfig c;
+        from_json(j.at("periodConfig"), c);
+        pt.periodConfig = c;
+    }
+    if (j.contains("sentenceConfig")) {
+        SentencePhraseConfig c;
+        from_json(j.at("sentenceConfig"), c);
+        pt.sentenceConfig = c;
+    }
 }
 
 // ===========================================================================

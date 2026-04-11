@@ -121,6 +121,27 @@ struct Motif {
 };
 
 // ===========================================================================
+// PeriodPhraseConfig — classical period (antecedent + consequent)
+// ===========================================================================
+
+struct PeriodPhraseConfig {
+  MelodicFigure basicIdea;           // opens both sub-phrases (parallel)
+  MelodicFigure antecedentTail;      // closes antecedent on halfCadenceTarget
+  MelodicFigure consequentTail;      // closes consequent on authentic cadence
+  int halfCadenceTarget{4};          // 0-indexed scale degree for half cadence
+};
+
+// ===========================================================================
+// SentencePhraseConfig — classical sentence (basic idea + repeat + continuation)
+// ===========================================================================
+
+struct SentencePhraseConfig {
+  MelodicFigure basicIdea;
+  int variationTransposition{0};     // scale-degree offset for the repetition
+  MelodicFigure continuation;
+};
+
+// ===========================================================================
 // PhraseTemplate — sequence of FigureTemplates
 // ===========================================================================
 
@@ -138,6 +159,14 @@ struct PhraseTemplate {
     // State
     uint32_t seed{0};
     bool locked{false};
+
+    // Strategy selection (Phase 3). Empty = default_phrase.
+    std::string strategy;
+
+    // Typed configs for specific phrase strategies. Only one is populated
+    // at a time (matching the selected strategy).
+    std::optional<PeriodPhraseConfig> periodConfig;
+    std::optional<SentencePhraseConfig> sentenceConfig;
 };
 
 // ===========================================================================
