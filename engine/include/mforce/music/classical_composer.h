@@ -189,8 +189,18 @@ private:
       phrase.startingPitch = reader.get_pitch();
     }
 
-    for (int i = 0; i < (int)phraseTmpl.figures.size(); ++i) {
-      MelodicFigure fig = realize_figure(phraseTmpl.figures[i], pieceTmpl, scale);
+    int numFigs = int(phraseTmpl.figures.size());
+    for (int i = 0; i < numFigs; ++i) {
+      // If phrase has a MelodicFunction and this figure's shape is Free,
+      // auto-select a shape based on function and position
+      FigureTemplate figTmpl = phraseTmpl.figures[i];
+      if (phraseTmpl.function != MelodicFunction::Free
+          && figTmpl.source == FigureSource::Generate
+          && figTmpl.shape == FigureShape::Free) {
+        figTmpl.shape = choose_shape(phraseTmpl.function, i, numFigs,
+                                      rng.rng());
+      }
+      MelodicFigure fig = realize_figure(figTmpl, pieceTmpl, scale);
 
       if (i == 0) {
         phrase.add_figure(std::move(fig));
@@ -324,6 +334,8 @@ private:
 
       case FigureSource::Generate:
       default:
+        if (figTmpl.shape != FigureShape::Free)
+          return generate_shaped_figure(figTmpl, figSeed);
         return generate_figure(figTmpl, figSeed);
     }
   }
@@ -378,6 +390,124 @@ private:
     }
 
     return fb.build(ss, fb.defaultPulse);
+  }
+
+  // =========================================================================
+  // Generate a figure from a named shape
+  // =========================================================================
+
+  MelodicFigure generate_shaped_figure(const FigureTemplate& ft, uint32_t seed) {
+    FigureBuilder fb(seed);
+    fb.defaultPulse = (ft.defaultPulse > 0) ? ft.defaultPulse : 1.0f;
+    int dir = ft.shapeDirection;
+    int p1 = ft.shapeParam;
+    int p2 = ft.shapeParam2;
+    int count = (ft.maxNotes > ft.minNotes)
+        ? Randomizer(seed + 99).int_range(ft.minNotes, ft.maxNotes)
+        : (ft.minNotes > 0 ? ft.minNotes : 4);
+
+    switch (ft.shape) {
+      case FigureShape::ScalarRun:
+        return fb.scalar_run(dir, count > 0 ? count : 4, fb.defaultPulse);
+
+      case FigureShape::RepeatedNote:
+        return fb.repeated_note(count > 0 ? count : 3, fb.defaultPulse);
+
+      case FigureShape::HeldNote:
+        return fb.held_note(ft.totalBeats > 0 ? ft.totalBeats : fb.defaultPulse * 2);
+
+      case FigureShape::CadentialApproach:
+        return fb.cadential_approach(dir < 0, p1 > 0 ? p1 : 3,
+                                     fb.defaultPulse * 2, fb.defaultPulse);
+
+      case FigureShape::TriadicOutline:
+        return fb.triadic_outline(dir, p1 > 0, fb.defaultPulse);
+
+      case FigureShape::NeighborTone:
+        return fb.neighbor_tone(dir > 0, fb.defaultPulse);
+
+      case FigureShape::LeapAndFill:
+        return fb.leap_and_fill(p1 > 0 ? p1 : 4, dir > 0, p2, fb.defaultPulse);
+
+      case FigureShape::ScalarReturn:
+        return fb.scalar_return(dir, p1 > 0 ? p1 : 3, p2, fb.defaultPulse);
+
+      case FigureShape::Anacrusis:
+        return fb.anacrusis(count > 0 ? count : 2, dir,
+                            fb.defaultPulse * 0.5f, fb.defaultPulse);
+
+      case FigureShape::Zigzag:
+        return fb.zigzag(dir, p1 > 0 ? p1 : 3, 2, 1, fb.defaultPulse);
+
+      case FigureShape::Fanfare:
+        return fb.fanfare({4, 3}, p1 > 0 ? p1 : 1, fb.defaultPulse);
+
+      case FigureShape::Sigh:
+        return fb.sigh(fb.defaultPulse);
+
+      case FigureShape::Suspension:
+        return fb.suspension(fb.defaultPulse * 2, fb.defaultPulse);
+
+      case FigureShape::Cambiata:
+        return fb.cambiata(dir, fb.defaultPulse);
+
+      case FigureShape::Free:
+      default:
+        return generate_figure(ft, seed);
+    }
+  }
+
+  // =========================================================================
+  // Choose a shape based on MelodicFunction (for auto-composition)
+  // =========================================================================
+
+  FigureShape choose_shape(MelodicFunction func, int posInPhrase,
+                            int totalFigures, uint32_t seed) {
+    Randomizer r(seed);
+    bool isLast = (posInPhrase == totalFigures - 1);
+    bool isFirst = (posInPhrase == 0);
+
+    switch (func) {
+      case MelodicFunction::Statement: {
+        // Opening motif: clear, memorable shapes
+        static const FigureShape opts[] = {
+          FigureShape::RepeatedNote, FigureShape::TriadicOutline,
+          FigureShape::ScalarRun, FigureShape::NeighborTone,
+          FigureShape::Fanfare
+        };
+        if (isLast) return FigureShape::HeldNote;
+        return opts[r.int_range(0, 4)];
+      }
+
+      case MelodicFunction::Development: {
+        // Extension/variation: more complex shapes
+        static const FigureShape opts[] = {
+          FigureShape::Zigzag, FigureShape::ScalarReturn,
+          FigureShape::LeapAndFill, FigureShape::Cambiata,
+          FigureShape::ScalarRun
+        };
+        if (isLast) return FigureShape::ScalarRun;
+        return opts[r.int_range(0, 4)];
+      }
+
+      case MelodicFunction::Transition: {
+        static const FigureShape opts[] = {
+          FigureShape::ScalarRun, FigureShape::LeapAndFill,
+          FigureShape::Zigzag, FigureShape::ScalarReturn
+        };
+        return opts[r.int_range(0, 3)];
+      }
+
+      case MelodicFunction::Cadential: {
+        if (isFirst || !isLast)
+          return FigureShape::CadentialApproach;
+        return FigureShape::HeldNote;
+      }
+
+      case MelodicFunction::Free:
+      default:
+        return FigureShape::Free;
+    }
   }
 
   // =========================================================================

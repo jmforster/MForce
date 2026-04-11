@@ -1,0 +1,103 @@
+{
+  "keyName": "C",
+  "scaleName": "Major",
+  "bpm": 80.0,
+  "masterSeed": 100,
+  "seeds": [
+    {
+      "name": "fig1",
+      "figure": {
+        "units": [
+          {"duration": 1.0, "step": 0},
+          {"duration": 1.0, "step": -1},
+          {"duration": 1.0, "step": -1},
+          {"duration": 1.0, "step": 1}
+        ]
+      },
+      "userProvided": true
+    },
+    {
+      "name": "fig2",
+      "figure": {
+        "units": [
+          {"duration": 1.0, "step": 0},
+          {"duration": 1.0, "step": 0},
+          {"duration": 2.0, "step": 0}
+        ]
+      },
+      "userProvided": true
+    },
+    {
+      "name": "fig4",
+      "figure": {
+        "units": [
+          {"duration": 1.0, "step": 0},
+          {"duration": 1.0, "step": 0},
+          {"duration": 1.0, "step": 0},
+          {"duration": 1.0, "step": 0}
+        ]
+      },
+      "userProvided": true
+    },
+    {
+      "name": "fig5",
+      "figure": {
+        "units": [
+          {"duration": 1.0, "step": 0},
+          {"duration": 1.0, "step": 0},
+          {"duration": 1.0, "step": 1},
+          {"duration": 1.0, "step": -1},
+          {"duration": 4.0, "step": -1}
+        ]
+      },
+      "userProvided": true
+    }
+  ],
+  "sections": [
+    {"name": "Main", "beats": 32}
+  ],
+  "parts": [
+    {
+      "name": "melody",
+      "role": "melody",
+      "passages": {
+        "Main": {
+          "phrases": [
+            {
+              "name": "phrase1",
+              "startingPitch": {"octave": 5, "pitch": "E"},
+              "figures": [
+                {"source": "reference", "seedName": "fig1"},
+                {"source": "reference", "seedName": "fig2"},
+                {"source": "reference", "seedName": "fig2"},
+                {"source": "transform", "seedName": "fig2", "transform": "vary_steps", "transformParam": 1}
+              ],
+              "connectors": [
+                {"type": "Step", "step": 1},
+                {"type": "Step", "step": -1},
+                {"type": "Step", "step": 1}
+              ],
+              "cadenceType": 2,
+              "cadenceTarget": 2
+            },
+            {
+              "name": "phrase2",
+              "startingPitch": {"octave": 5, "pitch": "E"},
+              "figures": [
+                {"source": "reference", "seedName": "fig1"},
+                {"source": "reference", "seedName": "fig4"},
+                {"source": "reference", "seedName": "fig5"}
+              ],
+              "connectors": [
+                {"type": "Step", "step": 1},
+                {"type": "Step", "step": -1}
+              ],
+              "cadenceType": 2,
+              "cadenceTarget": 0
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

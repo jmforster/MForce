@@ -1,0 +1,74 @@
+{
+  "keyName": "G",
+  "scaleName": "Major",
+  "bpm": 100.0,
+  "masterSeed": 0,
+  "seeds": [],
+  "sections": [
+    {"name": "Main", "beats": 64}
+  ],
+  "parts": [
+    {
+      "name": "melody",
+      "role": "melody",
+      "passages": {
+        "Main": {
+          "phrases": [
+            {
+              "name": "A1",
+              "startingPitch": {"octave": 4, "pitch": "G"},
+              "function": "statement",
+              "figures": [
+                {"source": "generate", "totalBeats": 4.0, "minNotes": 3, "maxNotes": 4},
+                {"source": "generate", "totalBeats": 4.0, "minNotes": 3, "maxNotes": 5},
+                {"source": "generate", "totalBeats": 4.0, "minNotes": 3, "maxNotes": 5},
+                {"source": "generate", "totalBeats": 4.0, "minNotes": 2, "maxNotes": 3}
+              ],
+              "cadenceType": 2,
+              "cadenceTarget": 4
+            },
+            {
+              "name": "A2",
+              "startingPitch": {"octave": 4, "pitch": "G"},
+              "function": "statement",
+              "figures": [
+                {"source": "generate", "totalBeats": 4.0, "minNotes": 3, "maxNotes": 4},
+                {"source": "generate", "totalBeats": 4.0, "minNotes": 3, "maxNotes": 5},
+                {"source": "generate", "totalBeats": 4.0, "minNotes": 3, "maxNotes": 5},
+                {"source": "generate", "totalBeats": 4.0, "minNotes": 2, "maxNotes": 3}
+              ],
+              "cadenceType": 2,
+              "cadenceTarget": 0
+            },
+            {
+              "name": "B",
+              "startingPitch": {"octave": 4, "pitch": "D"},
+              "function": "development",
+              "figures": [
+                {"source": "generate", "totalBeats": 4.0, "minNotes": 4, "maxNotes": 6},
+                {"source": "generate", "totalBeats": 4.0, "minNotes": 4, "maxNotes": 6},
+                {"source": "generate", "totalBeats": 4.0, "minNotes": 4, "maxNotes": 6},
+                {"source": "generate", "totalBeats": 4.0, "minNotes": 3, "maxNotes": 4}
+              ],
+              "cadenceType": 1,
+              "cadenceTarget": 4
+            },
+            {
+              "name": "A3",
+              "startingPitch": {"octave": 4, "pitch": "G"},
+              "function": "cadential",
+              "figures": [
+                {"source": "generate", "totalBeats": 4.0, "minNotes": 3, "maxNotes": 5},
+                {"source": "generate", "totalBeats": 4.0, "minNotes": 3, "maxNotes": 4},
+                {"source": "generate", "totalBeats": 4.0, "minNotes": 2, "maxNotes": 3},
+                {"source": "generate", "totalBeats": 4.0, "minNotes": 1, "maxNotes": 2}
+              ],
+              "cadenceType": 2,
+              "cadenceTarget": 0
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

@@ -14,6 +14,40 @@ namespace mforce {
 // FigureTemplate — the atomic unit of the composition recipe
 // ===========================================================================
 
+// ===========================================================================
+// MelodicFunction — what role a phrase plays in the musical structure
+// ===========================================================================
+
+enum class MelodicFunction {
+    Free,         // no constraint (current behavior)
+    Statement,    // establishing a motif: clear contour, moderate range
+    Development,  // extending/varying: sequences, wider range, fragmentation
+    Transition,   // moving between areas: less committed contour
+    Cadential,    // resolving: stepwise to target, longer notes, narrowing range
+};
+
+// ===========================================================================
+// FigureShape — named melodic contour types
+// ===========================================================================
+
+enum class FigureShape {
+    Free,              // composer uses random_sequence (legacy)
+    ScalarRun,         // consecutive steps in one direction
+    RepeatedNote,      // same pitch repeated N times
+    HeldNote,          // single long note
+    CadentialApproach, // stepwise approach to target + held arrival
+    TriadicOutline,    // chord-tone outline (root-3rd-5th)
+    NeighborTone,      // note, step away, return
+    LeapAndFill,       // large leap + stepwise fill back
+    ScalarReturn,      // out stepwise, return (arch)
+    Anacrusis,         // pickup notes to downbeat
+    Zigzag,            // step-up, skip-down alternation
+    Fanfare,           // leaps outlining 4th/5th/octave
+    Sigh,              // descending step pair
+    Suspension,        // held note resolving down
+    Cambiata,          // step, skip opposite, step
+};
+
 enum class FigureSource {
     Generate,    // composer creates from constraints
     Reference,   // use a seed figure directly
@@ -52,6 +86,12 @@ struct FigureTemplate {
     TransformOp transform{TransformOp::None};
     int transformParam{0};         // e.g. step offset for Replicate
 
+    // --- For shape-based generation ---
+    FigureShape shape{FigureShape::Free};
+    int shapeDirection{1};         // +1 = ascending, -1 = descending
+    int shapeParam{0};             // type-specific: leap size, extent, etc.
+    int shapeParam2{0};            // second parameter where needed
+
     // --- For Locked ---
     std::optional<MelodicFigure> lockedFigure;
 
@@ -86,6 +126,7 @@ struct PhraseTemplate {
     float totalBeats{0.0f};                    // 0 = sum of figures
     int cadenceType{0};                        // 0=none, 1=half, 2=full
     int cadenceTarget{-1};                     // target scale degree (-1 = composer decides)
+    MelodicFunction function{MelodicFunction::Free}; // drives shape selection for Free figures
 
     // State
     uint32_t seed{0};

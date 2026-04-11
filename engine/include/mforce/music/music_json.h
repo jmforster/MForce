@@ -218,6 +218,7 @@ inline void from_json(const json& j, ChordProgression& cp) {
 inline void to_json(json& j, const FigureUnit& u) {
   j = json{{"duration", u.duration}, {"step", u.step}};
   if (u.rest) j["rest"] = true;
+  if (u.accidental != 0) j["accidental"] = u.accidental;
   if (u.articulation != Articulation::Default) j["articulation"] = u.articulation;
   if (u.ornament != Ornament::None) j["ornament"] = u.ornament;
 }
@@ -226,6 +227,7 @@ inline void from_json(const json& j, FigureUnit& u) {
   u.duration = j.at("duration").get<float>();
   u.step = j.at("step").get<int>();
   u.rest = j.value("rest", false);
+  u.accidental = j.value("accidental", 0);
   u.articulation = Articulation::Default;
   u.ornament = Ornament::None;
   if (j.contains("articulation")) from_json(j.at("articulation"), u.articulation);

@@ -33,9 +33,10 @@ struct DunHeader {
 };
 
 struct DunToken {
-  float duration;   // in beats
-  int step;         // scale-degree movement (0 = none, +N = up, -N = down)
-  bool rest{false}; // true = silence for this duration
+  float duration;      // in beats
+  int step;            // movement in scale degrees (0 = none, +N = up, -N = down)
+  bool rest{false};    // true = silence for this duration
+  int accidental{0};   // +1 = sharp, -1 = flat (transient, doesn't affect cursor)
 };
 
 struct DunParseResult {
@@ -71,28 +72,32 @@ inline DunToken parse_token(const std::string& tok) {
   }
 
   // Direction + magnitude, or rest
+  // u/d = up/down by scale degrees, n = no movement, r = rest
+  // Optional +/- suffix = transient accidental (sharp/flat)
   if (pos >= int(tok.size()))
     throw std::runtime_error("Missing direction in DUN token: " + tok);
 
   int step = 0;
   bool isRest = false;
+  int accidental = 0;
   char dir = tok[pos++];
   switch (dir) {
     case 'r':
       isRest = true;
       break;
-    case 'n':
+    case 'N': case 'n':
       step = 0;
       break;
-    case 'u':
-    case 'd': {
+    case 'U': case 'u':
+    case 'D': case 'd': {
+      bool up = (dir == 'U' || dir == 'u');
       int mag = 0;
       while (pos < int(tok.size()) && tok[pos] >= '0' && tok[pos] <= '9') {
         mag = mag * 10 + (tok[pos] - '0');
         pos++;
       }
       if (mag == 0) mag = 1;
-      step = (dir == 'u') ? mag : -mag;
+      step = up ? mag : -mag;
       break;
     }
     default:
@@ -100,7 +105,13 @@ inline DunToken parse_token(const std::string& tok) {
                                "' in DUN token: " + tok);
   }
 
-  return {dur, step, isRest};
+  // Check for accidental suffix: + (sharp) or - (flat)
+  if (pos < int(tok.size())) {
+    if (tok[pos] == '+') { accidental = 1; pos++; }
+    else if (tok[pos] == '-') { accidental = -1; pos++; }
+  }
+
+  return {dur, step, isRest, accidental};
 }
 
 // ---------------------------------------------------------------------------
@@ -300,8 +311,9 @@ inline Piece dun_to_piece(const DunParseResult& dun, int startOctaveOverride = -
         }
         FigureUnit u;
         u.duration = figDun[0].duration;
-        u.step = 0;  // first note of first figure: no step (renderer ignores it)
+        u.step = 0;
         u.rest = figDun[0].rest;
+        u.accidental = figDun[0].accidental;
         fig.units.push_back(u);
         startIdx = 1;
       } else {
@@ -313,16 +325,19 @@ inline Piece dun_to_piece(const DunParseResult& dun, int startOctaveOverride = -
         u.duration = figDun[0].duration;
         u.step = 0;
         u.rest = figDun[0].rest;
+        u.accidental = figDun[0].accidental;
         fig.units.push_back(u);
         startIdx = 1;
       }
 
-      // Remaining tokens
+      // Remaining tokens — accidentals are transient, PitchReader always
+      // advances diatonically regardless of accidental
       for (int ti = startIdx; ti < int(figDun.size()); ++ti) {
         FigureUnit u;
         u.duration = figDun[ti].duration;
         u.step = figDun[ti].rest ? 0 : figDun[ti].step;
         u.rest = figDun[ti].rest;
+        u.accidental = figDun[ti].accidental;
         fig.units.push_back(u);
         if (!figDun[ti].rest) reader.step(figDun[ti].step);
       }

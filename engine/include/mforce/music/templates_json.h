@@ -81,6 +81,70 @@ inline void from_json(const json& j, PartRole& r) {
 }
 
 // ===========================================================================
+// MelodicFunction
+// ===========================================================================
+
+inline void to_json(json& j, MelodicFunction f) {
+    switch (f) {
+        case MelodicFunction::Free:        j = "free"; break;
+        case MelodicFunction::Statement:   j = "statement"; break;
+        case MelodicFunction::Development: j = "development"; break;
+        case MelodicFunction::Transition:  j = "transition"; break;
+        case MelodicFunction::Cadential:   j = "cadential"; break;
+    }
+}
+inline void from_json(const json& j, MelodicFunction& f) {
+    auto s = j.get<std::string>();
+    if (s == "statement")        f = MelodicFunction::Statement;
+    else if (s == "development") f = MelodicFunction::Development;
+    else if (s == "transition")  f = MelodicFunction::Transition;
+    else if (s == "cadential")   f = MelodicFunction::Cadential;
+    else f = MelodicFunction::Free;
+}
+
+// ===========================================================================
+// FigureShape
+// ===========================================================================
+
+inline void to_json(json& j, FigureShape s) {
+    switch (s) {
+        case FigureShape::Free:              j = "free"; break;
+        case FigureShape::ScalarRun:         j = "scalar_run"; break;
+        case FigureShape::RepeatedNote:      j = "repeated_note"; break;
+        case FigureShape::HeldNote:          j = "held_note"; break;
+        case FigureShape::CadentialApproach: j = "cadential_approach"; break;
+        case FigureShape::TriadicOutline:    j = "triadic_outline"; break;
+        case FigureShape::NeighborTone:      j = "neighbor_tone"; break;
+        case FigureShape::LeapAndFill:       j = "leap_and_fill"; break;
+        case FigureShape::ScalarReturn:      j = "scalar_return"; break;
+        case FigureShape::Anacrusis:         j = "anacrusis"; break;
+        case FigureShape::Zigzag:            j = "zigzag"; break;
+        case FigureShape::Fanfare:           j = "fanfare"; break;
+        case FigureShape::Sigh:              j = "sigh"; break;
+        case FigureShape::Suspension:        j = "suspension"; break;
+        case FigureShape::Cambiata:          j = "cambiata"; break;
+    }
+}
+inline void from_json(const json& j, FigureShape& s) {
+    auto str = j.get<std::string>();
+    if (str == "scalar_run")              s = FigureShape::ScalarRun;
+    else if (str == "repeated_note")      s = FigureShape::RepeatedNote;
+    else if (str == "held_note")          s = FigureShape::HeldNote;
+    else if (str == "cadential_approach") s = FigureShape::CadentialApproach;
+    else if (str == "triadic_outline")    s = FigureShape::TriadicOutline;
+    else if (str == "neighbor_tone")      s = FigureShape::NeighborTone;
+    else if (str == "leap_and_fill")      s = FigureShape::LeapAndFill;
+    else if (str == "scalar_return")      s = FigureShape::ScalarReturn;
+    else if (str == "anacrusis")          s = FigureShape::Anacrusis;
+    else if (str == "zigzag")             s = FigureShape::Zigzag;
+    else if (str == "fanfare")            s = FigureShape::Fanfare;
+    else if (str == "sigh")               s = FigureShape::Sigh;
+    else if (str == "suspension")         s = FigureShape::Suspension;
+    else if (str == "cambiata")           s = FigureShape::Cambiata;
+    else s = FigureShape::Free;
+}
+
+// ===========================================================================
 // FigureTemplate
 // ===========================================================================
 
@@ -109,6 +173,11 @@ inline void to_json(json& j, const FigureTemplate& ft) {
         j["lockedFigure"] = *ft.lockedFigure;
     }
 
+    if (ft.shape != FigureShape::Free) j["shape"] = ft.shape;
+    if (ft.shapeDirection != 1) j["shapeDirection"] = ft.shapeDirection;
+    if (ft.shapeParam != 0) j["shapeParam"] = ft.shapeParam;
+    if (ft.shapeParam2 != 0) j["shapeParam2"] = ft.shapeParam2;
+
     if (ft.seed != 0) j["seed"] = ft.seed;
     if (ft.locked) j["locked"] = true;
 }
@@ -127,6 +196,11 @@ inline void from_json(const json& j, FigureTemplate& ft) {
     ft.seedName = j.value("seedName", std::string(""));
     if (j.contains("transform")) from_json(j.at("transform"), ft.transform);
     ft.transformParam = j.value("transformParam", 0);
+
+    if (j.contains("shape")) from_json(j.at("shape"), ft.shape);
+    ft.shapeDirection = j.value("shapeDirection", 1);
+    ft.shapeParam = j.value("shapeParam", 0);
+    ft.shapeParam2 = j.value("shapeParam2", 0);
 
     if (j.contains("lockedFigure")) {
         MelodicFigure mf;
@@ -175,6 +249,7 @@ inline void to_json(json& j, const PhraseTemplate& pt) {
     if (pt.totalBeats != 0.0f) j["totalBeats"] = pt.totalBeats;
     if (pt.cadenceType != 0) j["cadenceType"] = pt.cadenceType;
     if (pt.cadenceTarget != -1) j["cadenceTarget"] = pt.cadenceTarget;
+    if (pt.function != MelodicFunction::Free) j["function"] = pt.function;
     if (pt.seed != 0) j["seed"] = pt.seed;
     if (pt.locked) j["locked"] = true;
 }
@@ -201,6 +276,7 @@ inline void from_json(const json& j, PhraseTemplate& pt) {
     pt.totalBeats = j.value("totalBeats", 0.0f);
     pt.cadenceType = j.value("cadenceType", 0);
     pt.cadenceTarget = j.value("cadenceTarget", -1);
+    if (j.contains("function")) from_json(j.at("function"), pt.function);
     pt.seed = j.value("seed", 0u);
     pt.locked = j.value("locked", false);
 }

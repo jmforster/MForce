@@ -1,50 +1,125 @@
 {
-  "sampleRate": 48000,
   "graph": {
     "nodes": [
       {
-        "id": "ampEnv",
-        "type": "Envelope",
-        "params": { "preset": "ar", "attack": 0.001, "attackMax": 0.0 }
-      },
-      {
-        "id": "pitchEnv",
-        "type": "Envelope",
-        "params": { "preset": "ar", "attack": 0.001, "attackMax": 0.0 }
-      },
-      {
-        "id": "pitchRange",
-        "type": "RangeSource",
-        "params": { "min": 1.0, "max": 4.0, "var": { "ref": "pitchEnv" } }
-      },
-      {
-        "id": "depthEnv",
-        "type": "Envelope",
-        "params": { "preset": "ar", "attack": 0.001, "attackMax": 0.0 }
-      },
-      {
-        "id": "depth",
-        "type": "RangeSource",
-        "params": { "min": 0.0, "max": 3.0, "var": { "ref": "depthEnv" } }
-      },
-      {
-        "id": "kick",
-        "type": "FMSource",
+        "id": "env1",
         "params": {
+          "attack": 0.0010000000474974513,
+          "decay": 0.10000000149011612,
+          "preset": "adsr",
+          "release": 0.0,
+          "sustainLevel": 0.0
+        },
+        "type": "Envelope"
+      },
+      {
+        "id": "env2",
+        "params": {
+          "attack": 0.0010000000474974513,
+          "decay": 0.10000000149011612,
+          "preset": "adsr",
+          "release": 0.0,
+          "sustainLevel": 0.699999988079071
+        },
+        "type": "Envelope"
+      },
+      {
+        "id": "Range1",
+        "params": {
+          "max": 2.0,
+          "min": 0.5,
+          "normalized": true,
+          "var": {
+            "ref": "env2"
+          }
+        },
+        "type": "RangeSource"
+      },
+      {
+        "id": "env3",
+        "params": {
+          "attack": 0.0010000000474974513,
+          "decay": 0.10000000149011612,
+          "preset": "adsr",
+          "release": 0.0,
+          "sustainLevel": 0.699999988079071
+        },
+        "type": "Envelope"
+      },
+      {
+        "id": "Range2",
+        "params": {
+          "max": 3.0,
+          "min": 0.0,
+          "normalized": true,
+          "var": {
+            "ref": "env3"
+          }
+        },
+        "type": "RangeSource"
+      },
+      {
+        "id": "FM1",
+        "params": {
+          "amplitude": {
+            "ref": "env1"
+          },
+          "carrierRatio": {
+            "ref": "Range1"
+          },
+          "depth": {
+            "ref": "Range2"
+          },
           "frequency": 55.0,
-          "amplitude": { "ref": "ampEnv" },
-          "carrierRatio": { "ref": "pitchRange" },
           "modRatio": 1.0,
-          "depth": { "ref": "depth" }
-        }
+          "phase": 0.0
+        },
+        "type": "FMSource"
       }
     ],
-    "output": "kick"
+    "output": "FM1"
   },
   "instrument": {
     "paramMap": {
-      "frequency": "kick.frequency"
+      "frequency": "FM1.frequency"
     },
     "polyphony": 2
+  },
+  "sampleRate": 48000,
+  "ui": {
+    "positions": {
+      "FM1": [
+        504.0,
+        47.0
+      ],
+      "Range1": [
+        474.0,
+        -141.0
+      ],
+      "Range2": [
+        34.0,
+        109.0
+      ],
+      "__output": [
+        843.0,
+        -10.0
+      ],
+      "__param_frequency": [
+        -31.0,
+        -38.0
+      ],
+      "env1": [
+        34.0,
+        -141.0
+      ],
+      "env2": [
+        252.0,
+        -143.0
+      ],
+      "env3": [
+        694.0,
+        -141.0
+      ]
+    }
   }
 }

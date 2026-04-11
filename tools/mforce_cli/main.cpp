@@ -756,20 +756,9 @@ static int run_dun(int argc, char** argv) {
     // Debug: dump first phrase's figures
     if (!piece.parts.empty()) {
         auto& pass = piece.parts[0].passages.begin()->second;
-        if (!pass.phrases.empty()) {
-            auto& ph = pass.phrases[0];
-            std::cout << "  Phrase 0 start: " << ph.startingPitch.to_string() << "\n";
-            for (int f = 0; f < ph.figure_count(); ++f) {
-                auto& fig = ph.figures[f];
-                std::cout << "  Fig " << f;
-                if (f > 0 && f-1 < int(ph.connectors.size()))
-                    std::cout << " [conn step=" << ph.connectors[f-1].stepValue << "]";
-                std::cout << ":";
-                for (auto& u : fig.units)
-                    std::cout << " {" << u.duration << "," << u.step
-                              << (u.rest ? ",R" : "") << "}";
-                std::cout << "\n";
-            }
+        for (int p = 0; p < int(pass.phrases.size()); ++p) {
+            auto& ph = pass.phrases[p];
+            std::cout << "  Phrase " << p << " start: " << ph.startingPitch.to_string() << "\n";
         }
     }
 
