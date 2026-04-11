@@ -53,6 +53,7 @@ enum class FigureSource {
     Reference,   // use a seed figure directly
     Transform,   // derive from a seed or previous figure
     Locked,      // fixed content, don't touch
+    Literal,     // user-authored note list (pitch + duration per note)
 };
 
 enum class TransformOp {
@@ -94,6 +95,13 @@ struct FigureTemplate {
 
     // --- For Locked ---
     std::optional<MelodicFigure> lockedFigure;
+
+    // --- For Literal ---
+    struct LiteralNote {
+      std::optional<Pitch> pitch;
+      float duration{1.0f};  // in beats
+    };
+    std::vector<LiteralNote> literalNotes;
 
     // --- State ---
     uint32_t seed{0};              // generation seed for reproducibility

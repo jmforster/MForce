@@ -17,14 +17,16 @@ inline void to_json(json& j, FigureSource s) {
         case FigureSource::Reference: j = "reference"; break;
         case FigureSource::Transform: j = "transform"; break;
         case FigureSource::Locked:    j = "locked";    break;
+        case FigureSource::Literal:   j = "literal";   break;
     }
 }
 inline void from_json(const json& j, FigureSource& s) {
     auto str = j.get<std::string>();
-    if (str == "generate")  s = FigureSource::Generate;
-    else if (str == "reference") s = FigureSource::Reference;
-    else if (str == "transform") s = FigureSource::Transform;
-    else if (str == "locked")    s = FigureSource::Locked;
+    if (str == "generate")        s = FigureSource::Generate;
+    else if (str == "reference")  s = FigureSource::Reference;
+    else if (str == "transform")  s = FigureSource::Transform;
+    else if (str == "locked")     s = FigureSource::Locked;
+    else if (str == "literal")    s = FigureSource::Literal;
     else s = FigureSource::Generate;
 }
 
@@ -173,6 +175,17 @@ inline void to_json(json& j, const FigureTemplate& ft) {
         j["lockedFigure"] = *ft.lockedFigure;
     }
 
+    if (!ft.literalNotes.empty()) {
+        json arr = json::array();
+        for (auto& ln : ft.literalNotes) {
+            json jn;
+            if (ln.pitch) jn["pitch"] = *ln.pitch;
+            jn["duration"] = ln.duration;
+            arr.push_back(std::move(jn));
+        }
+        j["literalNotes"] = std::move(arr);
+    }
+
     if (ft.shape != FigureShape::Free) j["shape"] = ft.shape;
     if (ft.shapeDirection != 1) j["shapeDirection"] = ft.shapeDirection;
     if (ft.shapeParam != 0) j["shapeParam"] = ft.shapeParam;
@@ -206,6 +219,20 @@ inline void from_json(const json& j, FigureTemplate& ft) {
         MelodicFigure mf;
         from_json(j.at("lockedFigure"), mf);
         ft.lockedFigure = std::move(mf);
+    }
+
+    if (j.contains("literalNotes")) {
+        ft.literalNotes.clear();
+        for (auto& jn : j.at("literalNotes")) {
+            FigureTemplate::LiteralNote ln;
+            if (jn.contains("pitch")) {
+                Pitch p;
+                from_json(jn.at("pitch"), p);
+                ln.pitch = p;
+            }
+            ln.duration = jn.value("duration", 1.0f);
+            ft.literalNotes.push_back(std::move(ln));
+        }
     }
 
     ft.seed = j.value("seed", 0u);

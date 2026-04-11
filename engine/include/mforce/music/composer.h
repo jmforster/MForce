@@ -257,6 +257,27 @@ inline MelodicFigure DefaultFigureStrategy::realize_figure(
       if (figTmpl.lockedFigure) return *figTmpl.lockedFigure;
       return FigureBuilder(ctx.rng->rng()).single_note(1.0f);  // fallback
 
+    case FigureSource::Literal: {
+      // Convert the user-authored note list into a MelodicFigure. Each
+      // LiteralNote becomes one FigureUnit whose `step` is the delta (in
+      // scale degrees) from the previous note (or from ctx.startingPitch
+      // for the first note). Duration passes through.
+      MelodicFigure fig;
+      if (figTmpl.literalNotes.empty()) return fig;
+
+      int prevDeg = DefaultPhraseStrategy::degree_in_scale(ctx.startingPitch, ctx.scale);
+      for (auto& ln : figTmpl.literalNotes) {
+        if (!ln.pitch) continue;  // skip notes with no pitch
+        int d = DefaultPhraseStrategy::degree_in_scale(*ln.pitch, ctx.scale);
+        FigureUnit u;
+        u.step = d - prevDeg;
+        u.duration = ln.duration;
+        fig.units.push_back(u);
+        prevDeg = d;
+      }
+      return fig;
+    }
+
     case FigureSource::Reference: {
       auto it = ctx.composer->realized_seeds().find(figTmpl.seedName);
       if (it != ctx.composer->realized_seeds().end()) return it->second;
