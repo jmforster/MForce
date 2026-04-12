@@ -120,8 +120,9 @@ inline MelodicFigure ShapeCadentialApproachStrategy::realize_figure(
   }
 
   // Generate approach rhythm
-  auto approachRhythm = generate_musical_rhythm(approachBeats, pulse, rng);
-  int approachCount = int(approachRhythm.size());
+  PulseGenerator pgen(seed + 50);
+  PulseSequence approachRhythm = pgen.generate(approachBeats, pulse);
+  int approachCount = approachRhythm.count();
 
   // Overshoot-then-recover: 30% of the time when there are enough approach notes
   bool overshoot = rng.decide(0.3f) && approachCount >= 3;
@@ -131,7 +132,7 @@ inline MelodicFigure ShapeCadentialApproachStrategy::realize_figure(
 
   for (int i = 0; i < approachCount; ++i) {
     FigureUnit u;
-    u.duration = approachRhythm[i];
+    u.duration = approachRhythm.get(i);
 
     if (i == 0) {
       u.step = 0;  // first note at cursor
@@ -352,16 +353,16 @@ inline MelodicFigure ShapeSkippingStrategy::realize_figure(
   float totalBeats = (ft.totalBeats > 0) ? ft.totalBeats : 4.0f;
   float pulse = (ft.defaultPulse > 0) ? ft.defaultPulse : 1.0f;
 
-  // Generate random musical rhythm
-  auto rhythm = generate_musical_rhythm(totalBeats, pulse, rng);
-  int noteCount = int(rhythm.size());
+  PulseGenerator pgen(seed + 50);
+  PulseSequence rhythm = pgen.generate(totalBeats, pulse);
+  int noteCount = rhythm.count();
   if (noteCount == 0) return MelodicFigure{};
 
   MelodicFigure fig;
   int totalSteps = noteCount - 1;
   for (int i = 0; i < noteCount; ++i) {
     FigureUnit u;
-    u.duration = rhythm[i];
+    u.duration = rhythm.get(i);
     if (i == 0) {
       u.step = 0;  // first note at cursor
     } else {
@@ -398,15 +399,16 @@ inline MelodicFigure ShapeSteppingStrategy::realize_figure(
   float totalBeats = (ft.totalBeats > 0) ? ft.totalBeats : 4.0f;
   float pulse = (ft.defaultPulse > 0) ? ft.defaultPulse : 1.0f;
 
-  auto rhythm = generate_musical_rhythm(totalBeats, pulse, rng);
-  int noteCount = int(rhythm.size());
+  PulseGenerator pgen(seed + 50);
+  PulseSequence rhythm = pgen.generate(totalBeats, pulse);
+  int noteCount = rhythm.count();
   if (noteCount == 0) return MelodicFigure{};
 
   MelodicFigure fig;
   int totalSteps = noteCount - 1;
   for (int i = 0; i < noteCount; ++i) {
     FigureUnit u;
-    u.duration = rhythm[i];
+    u.duration = rhythm.get(i);
     if (i == 0) {
       u.step = 0;
     } else {

@@ -379,6 +379,89 @@ struct StepGenerator {
 };
 
 // ---------------------------------------------------------------------------
+// PulseGenerator — generates random PulseSequences with standard musical
+// durations. Parallel to StepGenerator for the rhythm dimension.
+// ---------------------------------------------------------------------------
+struct PulseGenerator {
+  Randomizer rng;
+
+  explicit PulseGenerator(uint32_t seed = 0x5057'0000u) : rng(seed) {}
+
+  // Generate a PulseSequence of standard musical durations summing to
+  // totalBeats, biased toward defaultPulse but with variety.
+  // Includes both binary subdivisions and triplet groups.
+  PulseSequence generate(float totalBeats, float defaultPulse = 1.0f) {
+    PulseSequence ps;
+    float remaining = totalBeats;
+
+    // Binary durations (individual notes)
+    static const float BINARY[] = {0.25f, 0.5f, 0.75f, 1.0f, 1.5f, 2.0f, 3.0f, 4.0f};
+    // Triplet groups: each is {perNoteDuration, groupTotal}
+    // Triplet sixteenths: 3 x 1/6 = 0.5 beats
+    // Triplet eighths:    3 x 1/3 = 1.0 beat
+    // Triplet quarters:   3 x 2/3 = 2.0 beats
+    struct TripletGroup { float perNote; float total; };
+    static const TripletGroup TRIPLETS[] = {
+      {1.0f / 6.0f, 0.5f},
+      {1.0f / 3.0f, 1.0f},
+      {2.0f / 3.0f, 2.0f},
+    };
+
+    while (remaining > 0.001f) {
+      // Collect binary candidates
+      struct Candidate { float duration; int noteCount; bool isTriplet; float perNote; };
+      std::vector<Candidate> candidates;
+
+      for (float d : BINARY) {
+        if (d <= remaining + 0.001f)
+          candidates.push_back({d, 1, false, d});
+      }
+
+      // Collect triplet group candidates
+      for (const auto& tg : TRIPLETS) {
+        if (tg.total <= remaining + 0.001f)
+          candidates.push_back({tg.total, 3, true, tg.perNote});
+      }
+
+      if (candidates.empty()) break;
+
+      // Weight toward defaultPulse
+      std::vector<float> weights;
+      float weightSum = 0;
+      for (auto& c : candidates) {
+        // For triplets, compare the group total (not per-note) against defaultPulse
+        float compareVal = c.isTriplet ? c.duration : c.duration;
+        float w = 1.0f / (1.0f + std::abs(compareVal - defaultPulse) * 2.0f);
+        // Slight penalty for triplets to keep them occasional, not dominant
+        if (c.isTriplet) w *= 0.3f;
+        weights.push_back(w);
+        weightSum += w;
+      }
+
+      // Weighted random selection
+      float pick = rng.value() * weightSum;
+      float accum = 0;
+      int idx = 0;
+      for (int i = 0; i < int(weights.size()); ++i) {
+        accum += weights[i];
+        if (accum >= pick) { idx = i; break; }
+      }
+
+      auto& chosen = candidates[idx];
+      if (chosen.isTriplet) {
+        // Emit 3 notes
+        for (int t = 0; t < 3; ++t) ps.add(chosen.perNote);
+      } else {
+        ps.add(chosen.duration);
+      }
+      remaining -= chosen.duration;
+    }
+
+    return ps;
+  }
+};
+
+// ---------------------------------------------------------------------------
 // FigureUnit — a single element within a MelodicFigure.
 // Replaces parallel arrays of durations, steps, articulations, ornaments.
 // ---------------------------------------------------------------------------
