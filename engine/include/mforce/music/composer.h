@@ -478,6 +478,14 @@ inline Phrase DefaultPhraseStrategy::realize_phrase(
     phrase.startingPitch = ctx.cursor;
   }
 
+  // Intra-phrase running cursor. Starts at the phrase's starting pitch
+  // and advances through each figure's net_step() as figures realize.
+  // Each figure's figCtx.cursor is set from this running reader before
+  // dispatch, so Literal (and future Outline) figures see the correct
+  // cursor position at THEIR start, not the phrase's starting pitch.
+  PitchReader runningReader(ctx.scale);
+  runningReader.set_pitch(phrase.startingPitch);
+
   const int numFigs = int(phraseTmpl.figures.size());
   for (int i = 0; i < numFigs; ++i) {
     // MelodicFunction-driven shape selection — same logic as
@@ -494,7 +502,12 @@ inline Phrase DefaultPhraseStrategy::realize_phrase(
     // clones the current (phrase) context; per-figure scale and startingPitch
     // don't need to differ in this pre-refactor path.
     StrategyContext figCtx = ctx;
+    figCtx.cursor = runningReader.get_pitch();
     MelodicFigure fig = ctx.composer->realize_figure(figTmpl, figCtx);
+
+    // Advance running cursor by the figure's net scale-degree movement.
+    // Rest units contribute step=0 so they don't advance the cursor.
+    runningReader.step(fig.net_step());
 
     // No connectors. Every figure joins via its first unit's step, which
     // bridges from wherever the previous figure left the cursor to this
