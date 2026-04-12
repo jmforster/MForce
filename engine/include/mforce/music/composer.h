@@ -435,12 +435,13 @@ inline Passage DefaultPassageStrategy::realize_passage(
     // else: phraseCtx.cursor already holds the inherited value.
 
     Phrase phrase = ctx.composer->realize_phrase(phraseTmpl, phraseCtx);
-    passage.add_phrase(std::move(phrase));
 
     // Carry the cursor forward for the next phrase. Compute the phrase's
     // net scale-degree movement by summing every unit's step across every
     // figure in the phrase, then advance a local PitchReader from the
     // phrase's starting cursor by that total.
+    // IMPORTANT: compute totalDelta BEFORE std::move(phrase), as the move
+    // leaves phrase.figures in a valid-but-empty moved-from state.
     PitchReader reader(ctx.scale);
     reader.set_pitch(phraseCtx.cursor);
     int totalDelta = 0;
@@ -451,6 +452,8 @@ inline Passage DefaultPassageStrategy::realize_passage(
     }
     reader.step(totalDelta);
     ctx.cursor = reader.get_pitch();
+
+    passage.add_phrase(std::move(phrase));
   }
 
   return passage;
