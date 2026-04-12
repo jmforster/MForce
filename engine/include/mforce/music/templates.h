@@ -100,6 +100,7 @@ struct FigureTemplate {
     struct LiteralNote {
       std::optional<Pitch> pitch;
       float duration{1.0f};  // in beats
+      bool rest{false};      // true = silence; pitch is ignored when true
     };
     std::vector<LiteralNote> literalNotes;
 

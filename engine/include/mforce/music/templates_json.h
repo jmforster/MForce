@@ -179,7 +179,11 @@ inline void to_json(json& j, const FigureTemplate& ft) {
         json arr = json::array();
         for (auto& ln : ft.literalNotes) {
             json jn;
-            if (ln.pitch) jn["pitch"] = *ln.pitch;
+            if (ln.rest) {
+                jn["rest"] = true;
+            } else if (ln.pitch) {
+                jn["pitch"] = *ln.pitch;
+            }
             jn["duration"] = ln.duration;
             arr.push_back(std::move(jn));
         }
@@ -225,7 +229,8 @@ inline void from_json(const json& j, FigureTemplate& ft) {
         ft.literalNotes.clear();
         for (auto& jn : j.at("literalNotes")) {
             FigureTemplate::LiteralNote ln;
-            if (jn.contains("pitch")) {
+            ln.rest = jn.value("rest", false);
+            if (!ln.rest && jn.contains("pitch")) {
                 Pitch p;
                 from_json(jn.at("pitch"), p);
                 ln.pitch = p;

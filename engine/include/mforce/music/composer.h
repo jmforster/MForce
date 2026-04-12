@@ -312,13 +312,19 @@ inline MelodicFigure DefaultFigureStrategy::realize_figure(
 
       int prevDeg = absoluteDeg(ctx.cursor);
       for (auto& ln : figTmpl.literalNotes) {
-        if (!ln.pitch) continue;  // skip notes with no pitch
-        int d = absoluteDeg(*ln.pitch);
         FigureUnit u;
-        u.step = d - prevDeg;
         u.duration = ln.duration;
+        if (ln.rest) {
+          u.rest = true;
+          u.step = 0;
+          // prevDeg unchanged — rests don't advance the cursor
+        } else {
+          if (!ln.pitch) continue;  // defensive; malformed note
+          int d = absoluteDeg(*ln.pitch);
+          u.step = d - prevDeg;
+          prevDeg = d;
+        }
         fig.units.push_back(u);
-        prevDeg = d;
       }
       return fig;
     }
