@@ -9,6 +9,7 @@
 #include <cmath>
 #include <unordered_map>
 #include <stdexcept>
+#include <optional>
 
 namespace mforce {
 
@@ -75,6 +76,45 @@ inline float step_note(float noteNumber, int steps, const Scale& scale) {
         }
     }
     return nn;
+}
+
+// ---------------------------------------------------------------------------
+// Chord-tone stepping: move a note number through chord tones
+// ---------------------------------------------------------------------------
+inline float step_chord_tone(float noteNumber, int steps, const Chord& chord) {
+    if (steps == 0 || chord.pitches.empty()) return noteNumber;
+
+    // Build sorted list of chord tones across ±2 octaves
+    std::vector<float> tones;
+    for (int octShift = -2; octShift <= 2; ++octShift) {
+        for (const auto& p : chord.pitches) {
+            tones.push_back(p.note_number() + 12.0f * octShift);
+        }
+    }
+    std::sort(tones.begin(), tones.end());
+
+    // Find closest chord tone to current position
+    int closest = 0;
+    float minDist = 999.0f;
+    for (int i = 0; i < int(tones.size()); ++i) {
+        float d = std::abs(tones[i] - noteNumber);
+        if (d < minDist) { minDist = d; closest = i; }
+    }
+
+    // If first step wants to go up but we snapped below, adjust
+    if (steps > 0 && tones[closest] < noteNumber - 0.1f) {
+        for (int i = closest + 1; i < int(tones.size()); ++i) {
+            if (tones[i] >= noteNumber - 0.1f) { closest = i; break; }
+        }
+    } else if (steps < 0 && tones[closest] > noteNumber + 0.1f) {
+        for (int i = closest - 1; i >= 0; --i) {
+            if (tones[i] <= noteNumber + 0.1f) { closest = i; break; }
+        }
+    }
+
+    int target = closest + steps;
+    target = std::max(0, std::min(target, int(tones.size()) - 1));
+    return tones[target];
 }
 
 // ---------------------------------------------------------------------------
@@ -406,7 +446,8 @@ struct Conductor {
         // Compositional path: if the Part has a Passage for this Section
         auto it = part.passages.find(section.name);
         if (it != part.passages.end()) {
-          perform_passage(it->second, scale, beatOffset, bpm, inst);
+          perform_passage(it->second, scale, beatOffset, bpm, inst,
+                          section.chordProgression, section.scale);
         }
       }
 
@@ -458,7 +499,10 @@ private:
   // --- Compositional performance ---
 
   void perform_passage(const Passage& passage, const Scale& sectionScale,
-                       float beatOffset, float bpm, Instrument* inst) {
+                       float beatOffset, float bpm, Instrument* inst,
+                       const std::optional<ChordProgression>& chordProg = std::nullopt,
+                       const Scale& secScale = Scale::get("C", "Major"),
+                       int baseOctave = 4) {
     auto* pitched = dynamic_cast<PitchedInstrument*>(inst);
     if (!pitched) return;  // melodic passages only for pitched instruments
 
@@ -476,7 +520,8 @@ private:
     for (const auto& phrase : passage.phrases) {
       currentBeat = perform_phrase(phrase, scale, currentBeat, bpm,
                                    dynamics, passage.dynamicMarkings, nextMarking,
-                                   beatOffset, *pitched);
+                                   beatOffset, *pitched,
+                                   chordProg, secScale, baseOctave);
     }
   }
 
@@ -485,19 +530,42 @@ private:
                        DynamicState& dynamics,
                        const std::vector<DynamicMarking>& markings, int& nextMarking,
                        float passageBeatOffset,
-                       PitchedInstrument& instrument) {
+                       PitchedInstrument& instrument,
+                       const std::optional<ChordProgression>& chordProg = std::nullopt,
+                       const Scale& sectionScale = Scale::get("C", "Major"),
+                       int baseOctave = 4) {
     float currentBeat = startBeat;
     float currentNN = phrase.startingPitch.note_number();
 
     for (int f = 0; f < phrase.figure_count(); ++f) {
       const auto& fig = *phrase.figures[f];
+      bool isChordFig = (dynamic_cast<const ChordFigure*>(phrase.figures[f].get()) != nullptr);
 
       // Walk FigureUnits. Every unit's step is applied, including the first
       // (which bridges from the previous figure's ending pitch to this
       // figure's starting pitch under the cursor model).
       for (int i = 0; i < fig.note_count(); ++i) {
         const auto& u = fig.units[i];
-        currentNN = step_note(currentNN, u.step, scale);
+
+        // Step through chord tones (ChordFigure) or scale degrees (MelodicFigure)
+        if (isChordFig && chordProg) {
+          // Find active chord at this beat (section-relative)
+          float sectionBeat = currentBeat - passageBeatOffset;
+          float chordBeat = 0.0f;
+          int chordIdx = 0;
+          for (int ci = 0; ci < chordProg->count(); ++ci) {
+            if (chordBeat + chordProg->pulses.get(ci) > sectionBeat) {
+              chordIdx = ci;
+              break;
+            }
+            chordBeat += chordProg->pulses.get(ci);
+            chordIdx = ci;
+          }
+          auto resolved = chordProg->chords.get(chordIdx).resolve(sectionScale, baseOctave);
+          currentNN = step_chord_tone(currentNN, u.step, resolved);
+        } else {
+          currentNN = step_note(currentNN, u.step, scale);
+        }
 
         // Apply transient accidental for sounding pitch only
         float soundNN = currentNN + float(u.accidental);
