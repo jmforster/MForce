@@ -24,6 +24,26 @@ struct PulseSequence {
     for (float p : pulses) t += p;
     return t;
   }
+
+  // --- Transforms (all return new PulseSequence, source unchanged) ---
+
+  PulseSequence retrograded() const {
+    PulseSequence out;
+    out.pulses.assign(pulses.rbegin(), pulses.rend());
+    return out;
+  }
+
+  PulseSequence stretched(float factor) const {
+    PulseSequence out;
+    out.pulses.reserve(pulses.size());
+    for (float p : pulses) out.pulses.push_back(p * factor);
+    return out;
+  }
+
+  PulseSequence compressed(float factor) const {
+    if (factor <= 0) return *this;
+    return stretched(1.0f / factor);
+  }
 };
 
 // ---------------------------------------------------------------------------
@@ -40,6 +60,33 @@ struct StepSequence {
   int floor() const { int f = 0, c = 0; for (int s : steps) { c += s; f = std::min(f, c); } return f; }
   int range() const { return peak() - floor(); }
   int net() const { int c = 0; for (int s : steps) c += s; return c; }
+
+  // --- Transforms (all return new StepSequence, source unchanged) ---
+
+  StepSequence inverted() const {
+    StepSequence out;
+    out.steps.reserve(steps.size());
+    for (int s : steps) out.steps.push_back(-s);
+    return out;
+  }
+
+  StepSequence retrograded() const {
+    StepSequence out;
+    out.steps.assign(steps.rbegin(), steps.rend());
+    return out;
+  }
+
+  StepSequence expanded(float factor) const {
+    StepSequence out;
+    out.steps.reserve(steps.size());
+    for (int s : steps) out.steps.push_back(int(std::round(s * factor)));
+    return out;
+  }
+
+  StepSequence contracted(float factor) const {
+    if (factor <= 0) return *this;
+    return expanded(1.0f / factor);
+  }
 };
 
 // ---------------------------------------------------------------------------
