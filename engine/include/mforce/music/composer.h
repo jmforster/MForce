@@ -4,6 +4,7 @@
 #include "mforce/music/default_strategies.h"
 #include "mforce/music/shape_strategies.h"
 #include "mforce/music/phrase_strategies.h"
+#include "mforce/music/alternating_figure_strategy.h"
 #include "mforce/music/structure.h"
 #include "mforce/music/templates.h"
 #include "mforce/music/pitch_reader.h"
@@ -60,6 +61,9 @@ struct Composer {
     // Phrase strategies (Phase 3)
     registry_.register_strategy(std::make_unique<PeriodPhraseStrategy>());
     registry_.register_strategy(std::make_unique<SentencePhraseStrategy>());
+
+    // Passage strategies (Task 7)
+    registry_.register_strategy(std::make_unique<AlternatingFigureStrategy>());
   }
 
   // --- Top-level composition ---
@@ -800,6 +804,72 @@ inline Phrase DefaultPhraseStrategy::realize_phrase(
   }
 
   return phrase;
+}
+
+// ---------------------------------------------------------------------------
+// Out-of-line definition of AlternatingFigureStrategy::realize_passage.
+//
+// Placed here (after Composer is fully defined) to break the circular
+// dependency: AlternatingFigureStrategy calls ctx.composer->realize_figure,
+// but Composer is only forward-declared in strategy.h.
+// Same pattern as DefaultPassageStrategy/DefaultPhraseStrategy/DefaultFigureStrategy.
+// ---------------------------------------------------------------------------
+inline Passage AlternatingFigureStrategy::realize_passage(
+    const PassageTemplate& pt, StrategyContext& ctx) {
+
+  if (!ctx.chordProgression || ctx.chordProgression->count() == 0) {
+    throw std::runtime_error("AFS: no chord progression in context");
+  }
+  if (pt.phrases.empty() || pt.phrases[0].figures.size() < 2) {
+    throw std::runtime_error(
+        "AFS: need 1 phrase with at least 2 figure templates (A and B)");
+  }
+
+  const auto& chordProg = *ctx.chordProgression;
+  const auto& figTemplateA = pt.phrases[0].figures[0];  // chord-tone (even bars)
+  const auto& figTemplateB = pt.phrases[0].figures[1];  // scalar (odd bars)
+
+  Phrase phrase;
+  phrase.startingPitch = pt.phrases[0].startingPitch.value_or(ctx.cursor);
+
+  // PitchReader tracks the cursor across figures using scale-aware steps,
+  // matching the approach used by DefaultPhraseStrategy.
+  PitchReader runningReader(ctx.scale);
+  runningReader.set_pitch(phrase.startingPitch);
+
+  for (int ci = 0; ci < chordProg.count(); ++ci) {
+    bool isA = (ci % 2 == 0);
+    const auto& ft = isA ? figTemplateA : figTemplateB;
+
+    // Copy template and override beat duration from progression
+    FigureTemplate adjusted = ft;
+    adjusted.totalBeats = chordProg.pulses.get(ci);
+
+    // Dispatch through Composer for normal strategy/seed/motif resolution
+    StrategyContext figCtx = ctx;
+    figCtx.cursor = runningReader.get_pitch();
+    MelodicFigure rawFig = ctx.composer->realize_figure(adjusted, figCtx);
+
+    // Advance running cursor by the net scale-degree movement of the figure
+    runningReader.step(rawFig.net_step());
+
+    if (isA) {
+      // Wrap raw figure units into a ChordFigure (chord-tone stepping)
+      auto cf = std::make_unique<ChordFigure>();
+      cf->units = rawFig.units;
+      phrase.add_figure(std::move(cf));
+    } else {
+      // Keep as MelodicFigure (scale-step movement)
+      phrase.add_melodic_figure(std::move(rawFig));
+    }
+  }
+
+  // Update the passage-level cursor so the caller knows where we ended up
+  ctx.cursor = runningReader.get_pitch();
+
+  Passage passage;
+  passage.add_phrase(std::move(phrase));
+  return passage;
 }
 
 } // namespace mforce
