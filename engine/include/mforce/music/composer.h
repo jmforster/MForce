@@ -300,10 +300,20 @@ inline MelodicFigure DefaultFigureStrategy::realize_figure(
       MelodicFigure fig;
       if (figTmpl.literalNotes.empty()) return fig;
 
-      int prevDeg = DefaultPhraseStrategy::degree_in_scale(ctx.cursor, ctx.scale);
+      // Octave-adjusted scale-degree position: preserves direction across
+      // octave boundaries. C4 = 4*7+0 = 28, G3 = 3*7+4 = 25, so C4->G3
+      // yields step = -3 (down a fourth), which the conductor walks
+      // correctly. Without the octave multiplier, modular-only degree math
+      // would yield step = +4 and land at G4 instead of G3.
+      auto absoluteDeg = [&](const Pitch& p) {
+        int d = DefaultPhraseStrategy::degree_in_scale(p, ctx.scale);
+        return p.octave * ctx.scale.length() + d;
+      };
+
+      int prevDeg = absoluteDeg(ctx.cursor);
       for (auto& ln : figTmpl.literalNotes) {
         if (!ln.pitch) continue;  // skip notes with no pitch
-        int d = DefaultPhraseStrategy::degree_in_scale(*ln.pitch, ctx.scale);
+        int d = absoluteDeg(*ln.pitch);
         FigureUnit u;
         u.step = d - prevDeg;
         u.duration = ln.duration;
