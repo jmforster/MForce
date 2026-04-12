@@ -54,6 +54,8 @@ struct Composer {
     registry_.register_strategy(std::make_unique<ShapeSighStrategy>());
     registry_.register_strategy(std::make_unique<ShapeSuspensionStrategy>());
     registry_.register_strategy(std::make_unique<ShapeCambiataStrategy>());
+    registry_.register_strategy(std::make_unique<ShapeSkippingStrategy>());
+    registry_.register_strategy(std::make_unique<ShapeSteppingStrategy>());
 
     // Phrase strategies (Phase 3)
     registry_.register_strategy(std::make_unique<PeriodPhraseStrategy>());
@@ -364,6 +366,8 @@ inline MelodicFigure DefaultFigureStrategy::realize_figure(
           case FigureShape::Sigh:              shapeName = "shape_sigh"; break;
           case FigureShape::Suspension:        shapeName = "shape_suspension"; break;
           case FigureShape::Cambiata:          shapeName = "shape_cambiata"; break;
+          case FigureShape::Skipping:          shapeName = "shape_skipping"; break;
+          case FigureShape::Stepping:          shapeName = "shape_stepping"; break;
           case FigureShape::Free:
           default:                             shapeName = nullptr; break;
         }
@@ -386,7 +390,14 @@ inline MelodicFigure DefaultFigureStrategy::realize_figure(
       // Phase 2 composition quality: proportional scaling to enforce totalBeats.
       // Applies only to Generate-path figures. Locked/Reference/Transform/Literal
       // paths take durations verbatim from the user.
-      if (figTmpl.totalBeats > 0 && !fig.units.empty()) {
+      // Shapes that generate exact musical rhythms (Skipping, Stepping,
+      // CadentialApproach) already sum to totalBeats — skip scaling for them
+      // to preserve standard note durations.
+      const bool exactRhythmShape =
+          (figTmpl.shape == FigureShape::Skipping ||
+           figTmpl.shape == FigureShape::Stepping ||
+           figTmpl.shape == FigureShape::CadentialApproach);
+      if (!exactRhythmShape && figTmpl.totalBeats > 0 && !fig.units.empty()) {
         float actual = 0;
         for (auto& u : fig.units) actual += u.duration;
         if (actual > 0 && std::abs(actual - figTmpl.totalBeats) > 0.001f) {

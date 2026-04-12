@@ -46,6 +46,24 @@ enum class FigureShape {
     Sigh,              // descending step pair
     Suspension,        // held note resolving down
     Cambiata,          // step, skip opposite, step
+    Skipping,          // direction-contoured motion by thirds/fourths, musical rhythm
+    Stepping,          // direction-contoured stepwise motion, musical rhythm
+};
+
+// ===========================================================================
+// FigureDirection — contour shape used by Skipping/Stepping strategies
+// ===========================================================================
+
+enum class FigureDirection {
+    Ascending,              // overall upward motion
+    Descending,             // overall downward motion
+    TurnaroundAscending,    // start with 1 step down then go up
+    TurnaroundDescending,   // start with 1 step up then go down
+    AscendingArc,           // up then down (arch)
+    DescendingArc,          // down then up (inverse arch)
+    SineAscending,          // up, down past start, back up
+    SineDescending,         // down, up past start, back down
+    Random,                 // each step direction chosen randomly
 };
 
 enum class FigureSource {
@@ -92,6 +110,7 @@ struct FigureTemplate {
     int shapeDirection{1};         // +1 = ascending, -1 = descending
     int shapeParam{0};             // type-specific: leap size, extent, etc.
     int shapeParam2{0};            // second parameter where needed
+    FigureDirection direction{FigureDirection::Ascending};  // used by Skipping/Stepping strategies
 
     // --- For Locked ---
     std::optional<MelodicFigure> lockedFigure;

@@ -125,6 +125,8 @@ inline void to_json(json& j, FigureShape s) {
         case FigureShape::Sigh:              j = "sigh"; break;
         case FigureShape::Suspension:        j = "suspension"; break;
         case FigureShape::Cambiata:          j = "cambiata"; break;
+        case FigureShape::Skipping:          j = "skipping"; break;
+        case FigureShape::Stepping:          j = "stepping"; break;
     }
 }
 inline void from_json(const json& j, FigureShape& s) {
@@ -143,7 +145,40 @@ inline void from_json(const json& j, FigureShape& s) {
     else if (str == "sigh")               s = FigureShape::Sigh;
     else if (str == "suspension")         s = FigureShape::Suspension;
     else if (str == "cambiata")           s = FigureShape::Cambiata;
+    else if (str == "skipping")           s = FigureShape::Skipping;
+    else if (str == "stepping")           s = FigureShape::Stepping;
     else s = FigureShape::Free;
+}
+
+// ===========================================================================
+// FigureDirection
+// ===========================================================================
+
+inline void to_json(json& j, FigureDirection d) {
+    switch (d) {
+        case FigureDirection::Ascending:             j = "ascending"; break;
+        case FigureDirection::Descending:            j = "descending"; break;
+        case FigureDirection::TurnaroundAscending:   j = "turnaround_ascending"; break;
+        case FigureDirection::TurnaroundDescending:  j = "turnaround_descending"; break;
+        case FigureDirection::AscendingArc:          j = "ascending_arc"; break;
+        case FigureDirection::DescendingArc:         j = "descending_arc"; break;
+        case FigureDirection::SineAscending:         j = "sine_ascending"; break;
+        case FigureDirection::SineDescending:        j = "sine_descending"; break;
+        case FigureDirection::Random:                j = "random"; break;
+    }
+}
+inline void from_json(const json& j, FigureDirection& d) {
+    auto str = j.get<std::string>();
+    if (str == "ascending")                  d = FigureDirection::Ascending;
+    else if (str == "descending")            d = FigureDirection::Descending;
+    else if (str == "turnaround_ascending")  d = FigureDirection::TurnaroundAscending;
+    else if (str == "turnaround_descending") d = FigureDirection::TurnaroundDescending;
+    else if (str == "ascending_arc")         d = FigureDirection::AscendingArc;
+    else if (str == "descending_arc")        d = FigureDirection::DescendingArc;
+    else if (str == "sine_ascending")        d = FigureDirection::SineAscending;
+    else if (str == "sine_descending")       d = FigureDirection::SineDescending;
+    else if (str == "random")                d = FigureDirection::Random;
+    else d = FigureDirection::Ascending;
 }
 
 // ===========================================================================
@@ -194,6 +229,7 @@ inline void to_json(json& j, const FigureTemplate& ft) {
     if (ft.shapeDirection != 1) j["shapeDirection"] = ft.shapeDirection;
     if (ft.shapeParam != 0) j["shapeParam"] = ft.shapeParam;
     if (ft.shapeParam2 != 0) j["shapeParam2"] = ft.shapeParam2;
+    if (ft.direction != FigureDirection::Ascending) j["direction"] = ft.direction;
 
     if (ft.seed != 0) j["seed"] = ft.seed;
     if (ft.locked) j["locked"] = true;
@@ -218,6 +254,7 @@ inline void from_json(const json& j, FigureTemplate& ft) {
     ft.shapeDirection = j.value("shapeDirection", 1);
     ft.shapeParam = j.value("shapeParam", 0);
     ft.shapeParam2 = j.value("shapeParam2", 0);
+    if (j.contains("direction")) from_json(j.at("direction"), ft.direction);
 
     if (j.contains("lockedFigure")) {
         MelodicFigure mf;
