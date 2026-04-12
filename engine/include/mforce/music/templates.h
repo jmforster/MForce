@@ -124,6 +124,14 @@ struct FigureTemplate {
     };
     std::vector<LiteralNote> literalNotes;
 
+    // --- For motif atom references ---
+    std::string rhythmMotifName;            // name of a PulseSequence motif
+    std::string contourMotifName;           // name of a StepSequence motif
+    std::string rhythmTransform;            // transform to apply: "retrograde", "stretch", "compress"
+    float rhythmTransformParam{0};          // factor for stretch/compress
+    std::string contourTransform;           // transform to apply: "invert", "retrograde", "expand", "contract"
+    float contourTransformParam{0};         // factor for expand/contract
+
     // --- State ---
     uint32_t seed{0};              // generation seed for reproducibility
     bool locked{false};            // user has accepted this result

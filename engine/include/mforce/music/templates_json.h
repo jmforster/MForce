@@ -231,6 +231,13 @@ inline void to_json(json& j, const FigureTemplate& ft) {
     if (ft.shapeParam2 != 0) j["shapeParam2"] = ft.shapeParam2;
     if (ft.direction != FigureDirection::Ascending) j["direction"] = ft.direction;
 
+    if (!ft.rhythmMotifName.empty()) j["rhythmMotifName"] = ft.rhythmMotifName;
+    if (!ft.contourMotifName.empty()) j["contourMotifName"] = ft.contourMotifName;
+    if (!ft.rhythmTransform.empty()) j["rhythmTransform"] = ft.rhythmTransform;
+    if (ft.rhythmTransformParam != 0) j["rhythmTransformParam"] = ft.rhythmTransformParam;
+    if (!ft.contourTransform.empty()) j["contourTransform"] = ft.contourTransform;
+    if (ft.contourTransformParam != 0) j["contourTransformParam"] = ft.contourTransformParam;
+
     if (ft.seed != 0) j["seed"] = ft.seed;
     if (ft.locked) j["locked"] = true;
 }
@@ -276,6 +283,13 @@ inline void from_json(const json& j, FigureTemplate& ft) {
             ft.literalNotes.push_back(std::move(ln));
         }
     }
+
+    ft.rhythmMotifName = j.value("rhythmMotifName", std::string(""));
+    ft.contourMotifName = j.value("contourMotifName", std::string(""));
+    ft.rhythmTransform = j.value("rhythmTransform", std::string(""));
+    ft.rhythmTransformParam = j.value("rhythmTransformParam", 0.0f);
+    ft.contourTransform = j.value("contourTransform", std::string(""));
+    ft.contourTransformParam = j.value("contourTransformParam", 0.0f);
 
     ft.seed = j.value("seed", 0u);
     ft.locked = j.value("locked", false);
