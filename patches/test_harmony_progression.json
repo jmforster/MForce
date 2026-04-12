@@ -1,0 +1,63 @@
+{
+  "_comment": "Smoke test for HarmonyComposer wire-in: progressionName on SectionDef",
+  "keyName": "C",
+  "scaleName": "Major",
+  "bpm": 100.0,
+  "masterSeed": 42,
+  "sections": [
+    {"name": "Main", "beats": 16, "progressionName": "I-V7-V7-I"}
+  ],
+  "parts": [
+    {
+      "name": "melody",
+      "role": "melody",
+      "passages": {
+        "Main": {
+          "startingPitch": {"octave": 4, "pitch": "C"},
+          "phrases": [
+            {
+              "name": "Phrase1",
+              "startingPitch": {"octave": 4, "pitch": "C"},
+              "figures": [
+                {
+                  "source": "literal",
+                  "literalNotes": [
+                    {"pitch": {"octave": 4, "pitch": "C"}, "duration": 1.0},
+                    {"pitch": {"octave": 4, "pitch": "E"}, "duration": 1.0},
+                    {"pitch": {"octave": 4, "pitch": "G"}, "duration": 1.0},
+                    {"pitch": {"octave": 4, "pitch": "C"}, "duration": 1.0}
+                  ]
+                },
+                {
+                  "source": "literal",
+                  "literalNotes": [
+                    {"pitch": {"octave": 4, "pitch": "G"}, "duration": 1.0},
+                    {"pitch": {"octave": 4, "pitch": "B"}, "duration": 1.0},
+                    {"pitch": {"octave": 4, "pitch": "D"}, "duration": 1.0},
+                    {"pitch": {"octave": 4, "pitch": "G"}, "duration": 1.0}
+                  ]
+                },
+                {
+                  "source": "literal",
+                  "literalNotes": [
+                    {"pitch": {"octave": 4, "pitch": "G"}, "duration": 1.0},
+                    {"pitch": {"octave": 4, "pitch": "F"}, "duration": 1.0},
+                    {"pitch": {"octave": 4, "pitch": "D"}, "duration": 1.0},
+                    {"pitch": {"octave": 4, "pitch": "B"}, "duration": 1.0}
+                  ]
+                },
+                {
+                  "source": "literal",
+                  "literalNotes": [
+                    {"pitch": {"octave": 4, "pitch": "C"}, "duration": 2.0},
+                    {"rest": true, "duration": 2.0}
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

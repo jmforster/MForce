@@ -5,6 +5,7 @@
 #include "mforce/music/shape_strategies.h"
 #include "mforce/music/phrase_strategies.h"
 #include "mforce/music/alternating_figure_strategy.h"
+#include "mforce/music/harmony_composer.h"
 #include "mforce/music/structure.h"
 #include "mforce/music/templates.h"
 #include "mforce/music/pitch_reader.h"
@@ -96,7 +97,12 @@ struct Composer {
 
   Passage realize_passage(const PassageTemplate& passTmpl,
                           StrategyContext& ctx) {
-    Strategy* s = registry_.get("default_passage");
+    std::string n = passTmpl.strategy.empty() ? std::string("default_passage") : passTmpl.strategy;
+    Strategy* s = registry_.get(n);
+    if (!s) {
+      std::cerr << "Unknown passage strategy '" << n << "', falling back to default_passage\n";
+      s = registry_.get("default_passage");
+    }
     return s->realize_passage(passTmpl, ctx);
   }
 
@@ -157,6 +163,15 @@ private:
         ? piece.key.scale
         : Scale::get(tmpl.keyName, sd.scaleOverride);
       piece.add_section(Section(sd.name, sd.beats, tmpl.bpm, tmpl.meter, secScale));
+
+      // Wire harmony
+      Section& section = piece.sections.back();
+      if (sd.chordProgression) {
+        section.chordProgression = *sd.chordProgression;
+      } else if (!sd.progressionName.empty()) {
+        section.chordProgression = HarmonyComposer::build(sd.progressionName, sd.beats);
+      }
+      section.keyContexts = sd.keyContexts;
     }
 
     // Parts

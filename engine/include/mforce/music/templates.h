@@ -230,6 +230,9 @@ struct PassageTemplate {
     std::string fromKey;             // for modulatory passages
     std::string toKey;               // ending key (empty = same)
 
+    // Strategy selection. Empty = default_passage.
+    std::string strategy;
+
     // State
     uint32_t seed{0};
     bool locked{false};
@@ -276,6 +279,11 @@ struct PieceTemplate {
         std::string name;            // "verse", "chorus", "A", "B"
         float beats{32.0f};
         std::string scaleOverride;   // empty = use piece key
+
+        // Harmony
+        std::string progressionName;  // name for HarmonyComposer (empty = no progression)
+        std::optional<ChordProgression> chordProgression;  // inline progression (overrides progressionName)
+        std::vector<KeyContext> keyContexts;
     };
     std::vector<SectionDef> sections;
 

@@ -1,0 +1,34 @@
+{
+  "_comment": "Smoke test for passage-level strategy dispatch with alternating_figure",
+  "keyName": "C",
+  "scaleName": "Major",
+  "bpm": 100.0,
+  "masterSeed": 99,
+  "sections": [
+    {"name": "Main", "beats": 16, "progressionName": "I-IV-V-I"}
+  ],
+  "parts": [
+    {
+      "name": "melody",
+      "role": "melody",
+      "passages": {
+        "Main": {
+          "startingPitch": {"octave": 4, "pitch": "C"},
+          "strategy": "alternating_figure",
+          "phrases": [
+            {
+              "name": "Phrase1",
+              "startingPitch": {"octave": 4, "pitch": "C"},
+              "figures": [
+                {"source": "generate", "totalBeats": 4.0, "minNotes": 3, "maxNotes": 5},
+                {"source": "generate", "totalBeats": 4.0, "minNotes": 3, "maxNotes": 5},
+                {"source": "generate", "totalBeats": 4.0, "minNotes": 3, "maxNotes": 5},
+                {"source": "generate", "totalBeats": 4.0, "minNotes": 3, "maxNotes": 5}
+              ]
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

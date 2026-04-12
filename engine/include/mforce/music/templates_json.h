@@ -450,6 +450,7 @@ inline void to_json(json& j, const PassageTemplate& pt) {
     if (!pt.character.empty()) j["character"] = pt.character;
     if (!pt.fromKey.empty()) j["fromKey"] = pt.fromKey;
     if (!pt.toKey.empty()) j["toKey"] = pt.toKey;
+    if (!pt.strategy.empty()) j["strategy"] = pt.strategy;
     if (pt.seed != 0) j["seed"] = pt.seed;
     if (pt.locked) j["locked"] = true;
 }
@@ -473,6 +474,7 @@ inline void from_json(const json& j, PassageTemplate& pt) {
     pt.character = j.value("character", std::string(""));
     pt.fromKey = j.value("fromKey", std::string(""));
     pt.toKey = j.value("toKey", std::string(""));
+    pt.strategy = j.value("strategy", std::string(""));
     pt.seed = j.value("seed", 0u);
     pt.locked = j.value("locked", false);
 }
@@ -511,11 +513,59 @@ inline void from_json(const json& j, PartTemplate& pt) {
 inline void to_json(json& j, const PieceTemplate::SectionDef& sd) {
     j = json{{"name", sd.name}, {"beats", sd.beats}};
     if (!sd.scaleOverride.empty()) j["scaleOverride"] = sd.scaleOverride;
+    if (!sd.progressionName.empty()) j["progressionName"] = sd.progressionName;
+    if (sd.chordProgression) j["chordProgression"] = *sd.chordProgression;
+    if (!sd.keyContexts.empty()) {
+        json arr = json::array();
+        for (const auto& kc : sd.keyContexts) {
+            json jkc;
+            jkc["beat"] = kc.beat;
+            jkc["key"] = kc.key.to_string();
+            if (kc.scaleOverride) {
+                jkc["scaleOverride"] = *kc.scaleOverride;  // uses to_json(Scale)
+            }
+            arr.push_back(std::move(jkc));
+        }
+        j["keyContexts"] = std::move(arr);
+    }
 }
 inline void from_json(const json& j, PieceTemplate::SectionDef& sd) {
     sd.name = j.at("name").get<std::string>();
     sd.beats = j.at("beats").get<float>();
     sd.scaleOverride = j.value("scaleOverride", std::string(""));
+
+    // progressionName
+    if (j.contains("progressionName")) {
+        sd.progressionName = j["progressionName"].get<std::string>();
+    }
+
+    // Inline chord progression (overrides progressionName)
+    if (j.contains("chordProgression")) {
+        ChordProgression prog;
+        for (const auto& entry : j["chordProgression"]) {
+            int degree = entry["degree"].get<int>();
+            std::string quality = entry.value("quality", "Major");
+            float beats = entry["beats"].get<float>();
+            prog.add(degree, quality, beats);
+        }
+        sd.chordProgression = prog;
+    }
+
+    // Key contexts
+    if (j.contains("keyContexts")) {
+        for (const auto& kc : j["keyContexts"]) {
+            KeyContext ctx;
+            ctx.beat = kc["beat"].get<float>();
+            std::string keyName = kc["key"].get<std::string>();
+            ctx.key = Key::get(keyName);
+            if (kc.contains("scaleOverride")) {
+                Scale s;
+                from_json(kc.at("scaleOverride"), s);
+                ctx.scaleOverride = s;
+            }
+            sd.keyContexts.push_back(ctx);
+        }
+    }
 }
 
 inline void to_json(json& j, const PieceTemplate& pt) {
