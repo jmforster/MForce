@@ -30,16 +30,20 @@ shared independently.
 ```cpp
 struct Motif {
   std::string name;
-  enum class Type { Figure, Rhythm, Contour };
-  Type type{Type::Figure};
 
-  MelodicFigure figure;       // when type == Figure
-  PulseSequence rhythm;        // when type == Rhythm
-  StepSequence contour;        // when type == Contour
+  // Content — variant of atom types. Future types (ChordProgression,
+  // fragment, etc.) can be added to the variant without restructuring.
+  using Content = std::variant<MelodicFigure, PulseSequence, StepSequence>;
+  Content content;
 
   bool userProvided{false};
   uint32_t generationSeed{0};
   std::optional<FigureTemplate> constraints;
+
+  // Convenience type queries
+  bool is_figure() const { return std::holds_alternative<MelodicFigure>(content); }
+  bool is_rhythm() const { return std::holds_alternative<PulseSequence>(content); }
+  bool is_contour() const { return std::holds_alternative<StepSequence>(content); }
 };
 ```
 
@@ -48,10 +52,9 @@ motif used in only one passage is a piece-level raw material. A sequential
 pattern like `SS{-1, 1, 4}` might appear in both sections of a dance
 movement — piece scope captures that reuse naturally.
 
-Using separate fields rather than `std::variant` because `PulseSequence`
-and `StepSequence` are cheap empty vectors and it avoids visitor-pattern
-verbosity. Only the field matching `type` is meaningful; the others are
-default-constructed and ignored.
+Using `std::variant` for extensibility — future motif types
+(`ChordProgression`, harmonic fragments, etc.) can be added to the variant
+without restructuring the Motif struct or adding fields.
 
 ### 2. PulseGenerator — the missing rhythm generator
 
@@ -74,11 +77,31 @@ struct PulseGenerator {
 };
 ```
 
-Valid durations: `{0.25, 0.5, 0.75, 1.0, 1.5, 2.0, 3.0, 4.0}` (all
-binary subdivisions, multiples of 0.25 so sums are always exact). Weighted
-toward `defaultPulse` — if the pulse bias is `1.0` (quarter), quarters are
-most likely but eighths and halves also appear. Variable note count per
-generation.
+Valid durations include both binary subdivisions and triplet groups:
+
+**Binary durations** (individual notes):
+`{0.25, 0.5, 0.75, 1.0, 1.5, 2.0, 3.0, 4.0}` — all multiples of 0.25,
+so sums are always exact.
+
+**Triplet groups** (always emitted as 3 notes at once):
+- Triplet sixteenths: 3 × 1/6 ≈ 0.1667 = 0.5 beats total (fills an eighth)
+- Triplet eighths: 3 × 1/3 ≈ 0.3333 = 1.0 beat total (fills a quarter)
+- Triplet quarters: 3 × 2/3 ≈ 0.6667 = 2.0 beats total (fills a half)
+
+Triplet groups are atomic choices in the generator — when selected, all 3
+notes are emitted and the group's total duration is subtracted from the
+remaining beats. Individual triplet values never appear alone. This
+preserves metric coherence (no leftover 1/3-beat remainders that can't
+be filled with standard durations).
+
+Complex triplet scenarios (isolated triplets with ties to adjacent notes,
+e.g. a triplet eighth tied from a preceding quarter) are deferred — future
+work as a "tie" transform applied post-generation.
+
+Weighted toward `defaultPulse` — if the pulse bias is `1.0` (quarter),
+quarters and triplet-eighth-groups (which also fill a quarter) are most
+likely, but eighths, halves, and other values also appear. Variable note
+count per generation.
 
 Returns a `PulseSequence` (not `vector<float>` as the current utility
 does). The existing `generate_musical_rhythm` in `rhythm_util.h` can be
@@ -89,30 +112,44 @@ refactored into this class or replaced.
 Transforms partition naturally by atom type. Each atom exposes ONLY the
 transforms that make musical sense for it:
 
-**StepSequence transforms:**
+**StepSequence transforms** (4 operations):
 
-| Transform | What it does |
-|---|---|
-| `inverted()` | Flip all step signs (ascending ↔ descending) |
-| `retrograded()` | Reverse step order |
-| `expanded(float factor)` | Multiply all step magnitudes (widen intervals) |
-| `contracted(float factor)` | Divide all step magnitudes (narrow intervals) |
-| `varied(Randomizer&, int count)` | Randomly perturb some step values |
-| `truncated(int n)` | Take first N steps (fragmentation) |
+| Transform | What it does | Param | Element count | Duration |
+|---|---|---|---|---|
+| `inverted()` | Flip all step signs (ascending ↔ descending) | — | same | n/a |
+| `retrograded()` | Reverse step order | — | same | n/a |
+| `expanded(float factor)` | Multiply all step magnitudes (widen intervals) | factor | same | n/a |
+| `contracted(float factor)` | Divide all step magnitudes (narrow intervals) | factor | same | n/a |
 
 No `stretched()` or `compressed()` — those are duration concepts.
+No `varied()` or `truncated()` — deferred. Future "vary" work will have
+specific named operations (e.g. "perturb toward chord tones," "widen the
+peak interval") rather than a vague generic `vary`. Truncation is not a
+transform — figures are atoms; author short motifs instead.
 
-**PulseSequence transforms:**
+**PulseSequence transforms** (3 operations):
 
-| Transform | What it does |
-|---|---|
-| `retrograded()` | Reverse duration order |
-| `stretched(float factor)` | Multiply all durations (augmentation) |
-| `compressed(float factor)` | Divide all durations (diminution) |
-| `varied(Randomizer&)` | Split or dot random pulses (same logic as FigureBuilder::vary_rhythm but on the atom) |
-| `truncated(int n)` | Take first N durations (fragmentation — Beethoven 5's `DUN` from `dun dun dun DUN`) |
+| Transform | What it does | Param | Element count | Duration |
+|---|---|---|---|---|
+| `retrograded()` | Reverse duration order | — | same | same |
+| `stretched(float factor)` | Multiply all durations (augmentation) | factor | same | **increases** |
+| `compressed(float factor)` | Divide all durations (diminution) | factor | same | **decreases** |
 
 No `inverted()` — inverting a rhythm is not a musical concept.
+No `varied()` or `truncated()` — deferred. Future "vary" will include
+specific operations like "split a random note" or "dot a note and shorten
+its neighbor," each with clear names and semantics. Truncation is not a
+transform (see above).
+
+Note: `stretched()` and `compressed()` change the total duration of the
+PulseSequence. A rhythm motif that fills 4 beats becomes 8 beats after
+`stretched(2.0)`. This is musically correct (augmentation = "play the same
+rhythm at half speed") but the caller must account for the changed length.
+
+**All transforms preserve element count.** No transform adds or removes
+elements. The atom's number of entries is invariant. (Future "split" and
+"merge" operations may change element count but those are deferred and
+will have explicit, specific names — not a generic "vary".)
 
 **MelodicFigure transforms** stay on `FigureBuilder` as they are today.
 They become thin delegation wrappers:
@@ -239,7 +276,21 @@ references `fate_rhythm`.
 ### 7. Transform references on FigureTemplate
 
 When referencing a motif atom, the template can request a transform be
-applied before the strategy uses it:
+applied before the strategy uses it. New fields on `FigureTemplate`:
+
+```cpp
+struct FigureTemplate {
+  // ... existing fields ...
+  std::string rhythmMotifName;       // name of a PulseSequence motif
+  std::string contourMotifName;      // name of a StepSequence motif
+  std::string rhythmTransform;       // transform to apply to the rhythm motif
+  float rhythmTransformParam{0};     // parameter for the rhythm transform
+  std::string contourTransform;      // transform to apply to the contour motif
+  float contourTransformParam{0};    // parameter for the contour transform
+};
+```
+
+JSON example:
 
 ```json
 {
@@ -252,11 +303,34 @@ applied before the strategy uses it:
 }
 ```
 
-`contourTransform` applies `StepSequence::inverted()` to the named contour
-motif before the strategy sees it. `rhythmTransform` (if present) applies
-to the named rhythm motif. Only atom-appropriate transforms are valid —
-`contourTransform: "stretch"` is a load-time error because stretch is a
-rhythm transform, not a contour transform.
+**Resolution order** when the composer realizes a figure:
+
+1. Look up `rhythmMotifName` → get `PulseSequence` (or null if not set)
+2. If `rhythmTransform` is set → apply the named transform:
+   - `"retrograde"` → `ps.retrograded()`
+   - `"stretch"` → `ps.stretched(rhythmTransformParam)` (param is the factor)
+   - `"compress"` → `ps.compressed(rhythmTransformParam)`
+   - Any other value → load-time error
+3. Look up `contourMotifName` → get `StepSequence` (or null if not set)
+4. If `contourTransform` is set → apply the named transform:
+   - `"invert"` → `ss.inverted()`
+   - `"retrograde"` → `ss.retrograded()`
+   - `"expand"` → `ss.expanded(contourTransformParam)`
+   - `"contract"` → `ss.contracted(contourTransformParam)`
+   - Any other value → load-time error
+5. Pass the (optionally-transformed) atoms to the strategy
+6. Strategy generates whatever isn't provided, combines, returns MelodicFigure
+
+Invalid cross-type transforms are load-time errors with descriptive
+messages: `contourTransform: "stretch"` → error "stretch is a rhythm
+transform, not a contour transform"; `rhythmTransform: "invert"` → error
+"invert is a contour transform, not a rhythm transform."
+
+`contourTransform` and `rhythmTransform` fields are only meaningful when
+the corresponding `MotifName` field is also set. Setting a transform
+without a motif reference is a no-op (silently ignored — not an error,
+since the strategy may generate the atom internally and the transform
+wouldn't apply to generated content).
 
 This enables the K467 coherence pattern:
 
@@ -308,9 +382,10 @@ climax approaches, referenced from the same piece-level motif pool.
 ```json
 {
   "motifs": [
-    {"name": "fate", "type": "rhythm", "rhythm": [0.5, 0.5, 0.5, 2.0]}
+    {"name": "fate", "type": "rhythm", "rhythm": [0.5, 0.5, 0.5, 2.0]},
+    {"name": "tag", "type": "rhythm", "rhythm": [1.0, 4.0]}
   ],
-  "figures": [
+  "figures in exposition": [
     {"rhythmMotifName": "fate", "source": "generate", "strategy": "stepping",
      "direction": "descending", "targetNet": -3},
     {"rhythmMotifName": "fate", "source": "generate", "strategy": "stepping",
@@ -318,18 +393,21 @@ climax approaches, referenced from the same piece-level motif pool.
   ],
   "development cadence figures": [
     {"rhythmMotifName": "fate", "strategy": "cadential_approach", ...},
-    {"rhythmMotifName": "fate", "rhythmTransform": "truncate:1",
-     "strategy": "stepping", "direction": "descending", "targetNet": -1},
-    {"rhythmMotifName": "fate", "rhythmTransform": "truncate:1",
-     "strategy": "stepping", "direction": "ascending", "targetNet": 1}
+    {"rhythmMotifName": "fate", "strategy": "stepping",
+     "direction": "descending", "targetNet": -1},
+    {"rhythmMotifName": "fate", "strategy": "stepping",
+     "direction": "ascending", "targetNet": 1},
+    {"rhythmMotifName": "tag", "strategy": "cadential_approach",
+     "direction": "descending", "targetNet": -2}
   ]
 }
 ```
 
-One PulseSequence motif (`fate`) drives the entire movement. Contours are
-per-context (descending exposition, alternating cadence buildup).
-Fragmentation via `truncate:1` produces the `DUN ... DUN ... DUN` cadence
-compression. All from one 4-element rhythm motif.
+One PulseSequence motif (`fate`) drives the exposition and development.
+Contours are per-context (descending exposition, alternating cadence
+buildup). The cadence ending (`DAH DUMMMM`) is a SEPARATE motif (`tag`)
+— a short 2-note rhythm, not a fragment of the fate motif. Figures are
+atoms; if you need a shorter gesture, author a shorter motif.
 
 ## Scope
 
@@ -354,7 +432,14 @@ compression. All from one 4-element rhythm motif.
 - FigureConnector resurrection (separate spec, deferred)
 - Harmony-aware composition (future layer above strategies)
 - Per-passage or per-phrase motif pools (piece level is sufficient)
-- Triplet rhythms in PulseGenerator (binary subdivisions only for v1)
+- Complex triplet scenarios (isolated triplets tied to adjacent notes) —
+  deferred to a future "tie transform" pass
+- Generic "vary" transforms on atoms — deferred until specific named
+  variation operations are designed (e.g. "split a random pulse,"
+  "perturb steps toward chord tones," "widen the peak interval")
+- Truncate / tail / fragmentation transforms — figures are atoms; author
+  short motifs for short gestures rather than programmatically chopping
+  longer ones
 - TransformOp enum changes on FigureTemplate for the combined-figure path
   (existing transforms continue to work via `apply_transform`; atom
   transforms are accessed via the new `contourTransform`/`rhythmTransform`
