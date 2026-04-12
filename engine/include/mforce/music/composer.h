@@ -515,10 +515,17 @@ inline Phrase DefaultPhraseStrategy::realize_phrase(
     phrase.add_figure(std::move(fig));
   }
 
-  // Cadence adjustment — unchanged from classical_composer.h:217-222.
+  // Cadence adjustment — skip for Literal and Locked source on the last
+  // figure template. When the user provides exact notes (Literal) or an
+  // explicit locked figure, re-pitching the last unit would clobber
+  // the authored pitch. Reference and Transform continue to allow
+  // cadence adjustment — motif intent doesn't dictate the closing pitch.
   if (phraseTmpl.cadenceType > 0 && phraseTmpl.cadenceTarget >= 0
-      && !phrase.figures.empty()) {
-    apply_cadence(phrase, phraseTmpl, ctx.scale);
+      && !phrase.figures.empty() && !phraseTmpl.figures.empty()) {
+    const FigureSource lastSource = phraseTmpl.figures.back().source;
+    if (lastSource != FigureSource::Literal && lastSource != FigureSource::Locked) {
+      apply_cadence(phrase, phraseTmpl, ctx.scale);
+    }
   }
 
   return phrase;
