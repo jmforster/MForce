@@ -238,6 +238,8 @@ inline void to_json(json& j, const FigureTemplate& ft) {
     if (!ft.contourTransform.empty()) j["contourTransform"] = ft.contourTransform;
     if (ft.contourTransformParam != 0) j["contourTransformParam"] = ft.contourTransformParam;
 
+    if (ft.stepMode != StepMode::Scale) j["stepMode"] = "chordTone";
+
     if (ft.seed != 0) j["seed"] = ft.seed;
     if (ft.locked) j["locked"] = true;
 }
@@ -290,6 +292,12 @@ inline void from_json(const json& j, FigureTemplate& ft) {
     ft.rhythmTransformParam = j.value("rhythmTransformParam", 0.0f);
     ft.contourTransform = j.value("contourTransform", std::string(""));
     ft.contourTransformParam = j.value("contourTransformParam", 0.0f);
+
+    if (j.contains("stepMode")) {
+      auto sm = j["stepMode"].get<std::string>();
+      if (sm == "chordTone") ft.stepMode = StepMode::ChordTone;
+      else ft.stepMode = StepMode::Scale;
+    }
 
     ft.seed = j.value("seed", 0u);
     ft.locked = j.value("locked", false);

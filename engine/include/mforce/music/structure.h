@@ -100,6 +100,19 @@ struct Passage {
 };
 
 // ===========================================================================
+// KeyContext — a key/scale change at a beat offset within a Section
+// ===========================================================================
+struct KeyContext {
+  float beat{0.0f};
+  Key key;
+  std::optional<Scale> scaleOverride;
+
+  Scale effective_scale() const {
+    return scaleOverride.value_or(key.scale);
+  }
+};
+
+// ===========================================================================
 // Section — a time span with shared musical context.
 // Owns tempo, meter, scale. The "control track" of the DAW.
 // ===========================================================================
@@ -113,6 +126,18 @@ struct Section {
   Section() : scale(Scale::get("C", "Major")) {}
   Section(const std::string& n, float b, float bpm, Meter m, Scale s)
     : name(n), beats(b), meter(m), tempo(bpm), scale(s) {}
+
+  // Harmony context
+  std::vector<KeyContext> keyContexts;
+  std::optional<ChordProgression> chordProgression;
+
+  Scale active_scale_at(float beat) const {
+    Scale result = scale;
+    for (const auto& kc : keyContexts) {
+      if (kc.beat <= beat) result = kc.effective_scale();
+    }
+    return result;
+  }
 };
 
 // ===========================================================================

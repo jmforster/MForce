@@ -27,6 +27,11 @@ struct StrategyContext {
   Composer* composer{nullptr};        // for dispatching to sub-levels
   nlohmann::json params;              // strategy-specific params from the template
   Randomizer* rng{nullptr};           // shared RNG for this composition
+
+  // Harmony context
+  const ChordProgression* chordProgression{nullptr};
+  const std::vector<KeyContext>* keyContexts{nullptr};
+  float sectionBeatOffset{0.0f};
 };
 
 // Abstract base. Subclasses override exactly one of the realize_* methods,

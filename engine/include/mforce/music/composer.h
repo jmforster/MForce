@@ -297,6 +297,12 @@ private:
     auto passIt = partTmpl.passages.find(sectionName);
     Scale scale = piece.key.scale;
 
+    // Find the Section object for harmonic context.
+    const Section* section = nullptr;
+    for (const auto& s : piece.sections) {
+      if (s.name == sectionName) { section = &s; break; }
+    }
+
     Passage passage;
     if (passIt != partTmpl.passages.end()) {
       // Template-driven: dispatch through the registry.
@@ -306,6 +312,10 @@ private:
       ctx.template_ = &tmpl;
       ctx.composer = this;
       ctx.rng = &rng_;
+      if (section) {
+        ctx.chordProgression = section->chordProgression ? &*section->chordProgression : nullptr;
+        ctx.keyContexts = section->keyContexts.empty() ? nullptr : &section->keyContexts;
+      }
       passage = realize_passage(passIt->second, ctx);
     } else {
       // No template for this section — fallback.

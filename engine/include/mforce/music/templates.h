@@ -67,6 +67,8 @@ enum class FigureDirection {
     Random,                 // each step direction chosen randomly
 };
 
+enum class StepMode { Scale, ChordTone };
+
 enum class FigureSource {
     Generate,    // composer creates from constraints
     Reference,   // use a seed figure directly
@@ -131,6 +133,9 @@ struct FigureTemplate {
     float rhythmTransformParam{0};          // factor for stretch/compress
     std::string contourTransform;           // transform to apply: "invert", "retrograde", "expand", "contract"
     float contourTransformParam{0};         // factor for expand/contract
+
+    // --- Step interpretation ---
+    StepMode stepMode{StepMode::Scale};
 
     // --- State ---
     uint32_t seed{0};              // generation seed for reproducibility
