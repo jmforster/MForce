@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <cmath>
 #include <stdexcept>
+#include <memory>
 
 namespace mforce {
 
@@ -24,6 +25,26 @@ struct PulseSequence {
     for (float p : pulses) t += p;
     return t;
   }
+
+  // --- Transforms (all return new PulseSequence, source unchanged) ---
+
+  PulseSequence retrograded() const {
+    PulseSequence out;
+    out.pulses.assign(pulses.rbegin(), pulses.rend());
+    return out;
+  }
+
+  PulseSequence stretched(float factor) const {
+    PulseSequence out;
+    out.pulses.reserve(pulses.size());
+    for (float p : pulses) out.pulses.push_back(p * factor);
+    return out;
+  }
+
+  PulseSequence compressed(float factor) const {
+    if (factor <= 0) return *this;
+    return stretched(1.0f / factor);
+  }
 };
 
 // ---------------------------------------------------------------------------
@@ -40,6 +61,33 @@ struct StepSequence {
   int floor() const { int f = 0, c = 0; for (int s : steps) { c += s; f = std::min(f, c); } return f; }
   int range() const { return peak() - floor(); }
   int net() const { int c = 0; for (int s : steps) c += s; return c; }
+
+  // --- Transforms (all return new StepSequence, source unchanged) ---
+
+  StepSequence inverted() const {
+    StepSequence out;
+    out.steps.reserve(steps.size());
+    for (int s : steps) out.steps.push_back(-s);
+    return out;
+  }
+
+  StepSequence retrograded() const {
+    StepSequence out;
+    out.steps.assign(steps.rbegin(), steps.rend());
+    return out;
+  }
+
+  StepSequence expanded(float factor) const {
+    StepSequence out;
+    out.steps.reserve(steps.size());
+    for (int s : steps) out.steps.push_back(int(std::round(s * factor)));
+    return out;
+  }
+
+  StepSequence contracted(float factor) const {
+    if (factor <= 0) return *this;
+    return expanded(1.0f / factor);
+  }
 };
 
 // ---------------------------------------------------------------------------
@@ -332,13 +380,97 @@ struct StepGenerator {
 };
 
 // ---------------------------------------------------------------------------
+// PulseGenerator — generates random PulseSequences with standard musical
+// durations. Parallel to StepGenerator for the rhythm dimension.
+// ---------------------------------------------------------------------------
+struct PulseGenerator {
+  Randomizer rng;
+
+  explicit PulseGenerator(uint32_t seed = 0x5057'0000u) : rng(seed) {}
+
+  // Generate a PulseSequence of standard musical durations summing to
+  // totalBeats, biased toward defaultPulse but with variety.
+  // Includes both binary subdivisions and triplet groups.
+  PulseSequence generate(float totalBeats, float defaultPulse = 1.0f) {
+    PulseSequence ps;
+    float remaining = totalBeats;
+
+    // Binary durations (individual notes)
+    static const float BINARY[] = {0.25f, 0.5f, 0.75f, 1.0f, 1.5f, 2.0f, 3.0f, 4.0f};
+    // Triplet groups: each is {perNoteDuration, groupTotal}
+    // Triplet sixteenths: 3 x 1/6 = 0.5 beats
+    // Triplet eighths:    3 x 1/3 = 1.0 beat
+    // Triplet quarters:   3 x 2/3 = 2.0 beats
+    struct TripletGroup { float perNote; float total; };
+    static const TripletGroup TRIPLETS[] = {
+      {1.0f / 6.0f, 0.5f},
+      {1.0f / 3.0f, 1.0f},
+      {2.0f / 3.0f, 2.0f},
+    };
+
+    while (remaining > 0.001f) {
+      // Collect binary candidates
+      struct Candidate { float duration; int noteCount; bool isTriplet; float perNote; };
+      std::vector<Candidate> candidates;
+
+      for (float d : BINARY) {
+        if (d <= remaining + 0.001f)
+          candidates.push_back({d, 1, false, d});
+      }
+
+      // Collect triplet group candidates
+      for (const auto& tg : TRIPLETS) {
+        if (tg.total <= remaining + 0.001f)
+          candidates.push_back({tg.total, 3, true, tg.perNote});
+      }
+
+      if (candidates.empty()) break;
+
+      // Weight toward defaultPulse
+      std::vector<float> weights;
+      float weightSum = 0;
+      for (auto& c : candidates) {
+        // For triplets, compare the group total (not per-note) against defaultPulse
+        float compareVal = c.isTriplet ? c.duration : c.duration;
+        float w = 1.0f / (1.0f + std::abs(compareVal - defaultPulse) * 2.0f);
+        // Slight penalty for triplets to keep them occasional, not dominant
+        if (c.isTriplet) w *= 0.3f;
+        weights.push_back(w);
+        weightSum += w;
+      }
+
+      // Weighted random selection
+      float pick = rng.value() * weightSum;
+      float accum = 0;
+      int idx = 0;
+      for (int i = 0; i < int(weights.size()); ++i) {
+        accum += weights[i];
+        if (accum >= pick) { idx = i; break; }
+      }
+
+      auto& chosen = candidates[idx];
+      if (chosen.isTriplet) {
+        // Emit 3 notes
+        for (int t = 0; t < 3; ++t) ps.add(chosen.perNote);
+      } else {
+        ps.add(chosen.duration);
+      }
+      remaining -= chosen.duration;
+    }
+
+    return ps;
+  }
+};
+
+// ---------------------------------------------------------------------------
 // FigureUnit — a single element within a MelodicFigure.
 // Replaces parallel arrays of durations, steps, articulations, ornaments.
 // ---------------------------------------------------------------------------
 struct FigureUnit {
   float duration;  // beats
-  int step{0};     // scale-degree movement from previous note (0 for first)
+  int step{0};     // movement in scale degrees from previous note (0 for first)
   bool rest{false}; // true = silence (advance time, don't sound)
+  int accidental{0}; // +1=sharp, -1=flat (transient pitch shift, doesn't affect cursor)
   Articulation articulation{Articulation::Default};
   Ornament ornament{Ornament::None};
 };
@@ -364,17 +496,42 @@ struct PitchSelection {
 };
 
 // ---------------------------------------------------------------------------
-// FigureConnector — how figures connect to each other.
+// Figure — base class for melodic/chord patterns built from FigureUnits.
 // ---------------------------------------------------------------------------
-enum class ConnectorType { Step, Pitch, EndPitch, Elide };
+struct Figure {
+  std::vector<FigureUnit> units;
+  virtual ~Figure() = default;
 
-struct FigureConnector {
-  ConnectorType type{ConnectorType::Step};
-  int stepValue{0};     // for Step type
-  Pitch pitch;          // for Pitch/EndPitch types
+  int note_count() const { return int(units.size()); }
+  void set_articulation(int index, Articulation art) { units[index].articulation = art; }
+  void set_ornament(int index, Ornament orn) { units[index].ornament = orn; }
 
-  static FigureConnector step(int v) { return {ConnectorType::Step, v}; }
-  static FigureConnector elide() { return {ConnectorType::Elide}; }
+  float total_duration() const {
+    float t = 0;
+    for (auto& u : units) t += u.duration;
+    return t;
+  }
+
+  // Net pitch movement (sum of all steps, including the first unit's step)
+  int net_step() const {
+    int n = 0;
+    for (auto& u : units) n += u.step;
+    return n;
+  }
+
+  PulseSequence extract_pulses() const {
+    PulseSequence ps;
+    for (const auto& u : units) ps.add(u.duration);
+    return ps;
+  }
+
+  StepSequence extract_steps() const {
+    StepSequence ss;
+    for (const auto& u : units) ss.add(u.step);
+    return ss;
+  }
+
+  virtual std::unique_ptr<Figure> clone() const = 0;
 };
 
 // ---------------------------------------------------------------------------
@@ -382,10 +539,7 @@ struct FigureConnector {
 // Constructed from StepSequence + PulseSequence (Composer's building blocks),
 // stored as vector<FigureUnit> (Conductor's consumable form).
 // ---------------------------------------------------------------------------
-struct MelodicFigure {
-  std::vector<FigureUnit> units;
-
-  // Construct from Composer's building blocks
+struct MelodicFigure : Figure {
   MelodicFigure() = default;
 
   MelodicFigure(const PulseSequence& pulses, const StepSequence& steps) {
@@ -400,22 +554,62 @@ struct MelodicFigure {
     }
   }
 
-  int note_count() const { return int(units.size()); }
-
-  void set_articulation(int index, Articulation art) { units[index].articulation = art; }
-  void set_ornament(int index, Ornament orn) { units[index].ornament = orn; }
-
-  float total_duration() const {
-    float t = 0;
-    for (auto& u : units) t += u.duration;
-    return t;
+  // Zip atoms one-to-one: steps[i] -> units[i].step, pulses[i] -> units[i].duration.
+  // Length = min(pulses.count(), steps.count()).
+  static MelodicFigure from_atoms(const PulseSequence& pulses, const StepSequence& steps) {
+    MelodicFigure fig;
+    int n = std::min(pulses.count(), steps.count());
+    for (int i = 0; i < n; ++i) {
+      FigureUnit u;
+      u.duration = pulses.get(i);
+      u.step = steps.get(i);
+      fig.units.push_back(u);
+    }
+    return fig;
   }
 
-  // Net pitch movement (sum of all steps)
-  int net_step() const {
-    int n = 0;
-    for (int i = 1; i < int(units.size()); ++i) n += units[i].step;
-    return n;
+  std::unique_ptr<Figure> clone() const override {
+    auto c = std::make_unique<MelodicFigure>();
+    c->units = units;
+    return c;
+  }
+};
+
+// ---------------------------------------------------------------------------
+// ChordFigure — a chord-tone movement pattern built from FigureUnits.
+// Same structure as MelodicFigure but distinct type for chord parts.
+// ---------------------------------------------------------------------------
+struct ChordFigure : Figure {
+  ChordFigure() = default;
+
+  ChordFigure(const PulseSequence& pulses, const StepSequence& steps) {
+    if (steps.count() != pulses.count() - 1)
+      throw std::runtime_error("ChordFigure: step count must be pulse count - 1");
+
+    for (int i = 0; i < pulses.count(); ++i) {
+      FigureUnit u;
+      u.duration = pulses.get(i);
+      u.step = (i == 0) ? 0 : steps.get(i - 1);
+      units.push_back(u);
+    }
+  }
+
+  static ChordFigure from_atoms(const PulseSequence& pulses, const StepSequence& steps) {
+    ChordFigure fig;
+    int n = std::min(pulses.count(), steps.count());
+    for (int i = 0; i < n; ++i) {
+      FigureUnit u;
+      u.duration = pulses.get(i);
+      u.step = steps.get(i);
+      fig.units.push_back(u);
+    }
+    return fig;
+  }
+
+  std::unique_ptr<Figure> clone() const override {
+    auto c = std::make_unique<ChordFigure>();
+    c->units = units;
+    return c;
   }
 };
 
@@ -682,6 +876,238 @@ struct FigureBuilder {
     }
     return fig;
   }
+
+  // =========================================================================
+  // Shape-based figure builders
+  // Each returns a MelodicFigure with a specific melodic contour.
+  // =========================================================================
+
+  // ScalarRun: consecutive steps in one direction
+  //   direction: +1 = ascending, -1 = descending
+  //   count: number of notes (including starting note)
+  //   pulse: duration per note (0 = use defaultPulse)
+  MelodicFigure scalar_run(int direction, int count, float pulse = 0) {
+    if (pulse <= 0) pulse = defaultPulse;
+    if (count < 2) count = 2;
+    int dir = (direction >= 0) ? 1 : -1;
+    MelodicFigure fig;
+    fig.units.push_back({pulse, 0});  // first note
+    for (int i = 1; i < count; ++i)
+      fig.units.push_back({pulse, dir});
+    return fig;
+  }
+
+  // RepeatedNote: same pitch repeated N times
+  //   count: number of repetitions
+  //   pulse: duration per note
+  MelodicFigure repeated_note(int count, float pulse = 0) {
+    if (pulse <= 0) pulse = defaultPulse;
+    if (count < 1) count = 1;
+    MelodicFigure fig;
+    for (int i = 0; i < count; ++i)
+      fig.units.push_back({pulse, 0});
+    return fig;
+  }
+
+  // HeldNote: single note with specified duration
+  //   duration: in beats
+  MelodicFigure held_note(float duration) {
+    MelodicFigure fig;
+    fig.units.push_back({duration, 0});
+    return fig;
+  }
+
+  // CadentialApproach: stepwise approach to a target, ending with a held note
+  //   fromAbove: true = descend to target, false = ascend
+  //   approachSteps: how many stepwise notes before arrival (1-4)
+  //   arrivalDuration: how long the arrival note is held
+  //   approachPulse: duration of each approach note
+  MelodicFigure cadential_approach(bool fromAbove, int approachSteps,
+                                    float arrivalDuration = 0, float approachPulse = 0) {
+    if (approachPulse <= 0) approachPulse = defaultPulse;
+    if (arrivalDuration <= 0) arrivalDuration = defaultPulse * 2;
+    if (approachSteps < 1) approachSteps = 1;
+    int dir = fromAbove ? -1 : 1;
+    MelodicFigure fig;
+    fig.units.push_back({approachPulse, 0});  // first approach note
+    for (int i = 1; i < approachSteps; ++i)
+      fig.units.push_back({approachPulse, dir});
+    fig.units.push_back({arrivalDuration, dir});  // arrival
+    return fig;
+  }
+
+  // TriadicOutline: outlines a chord (root-3rd-5th or inversions)
+  //   direction: +1 = ascending, -1 = descending
+  //   includeOctave: if true, continues to the octave (root-3-5-8)
+  //   pulse: duration per note
+  MelodicFigure triadic_outline(int direction, bool includeOctave = false,
+                                 float pulse = 0) {
+    if (pulse <= 0) pulse = defaultPulse;
+    int dir = (direction >= 0) ? 1 : -1;
+    MelodicFigure fig;
+    fig.units.push_back({pulse, 0});         // root
+    fig.units.push_back({pulse, 2 * dir});   // 3rd (skip of a third)
+    fig.units.push_back({pulse, 2 * dir});   // 5th (another third)
+    if (includeOctave)
+      fig.units.push_back({pulse, 3 * dir}); // octave (a fourth from 5th)
+    return fig;
+  }
+
+  // NeighborTone: note, step to neighbor, return
+  //   upper: true = upper neighbor (+1 then -1), false = lower (-1 then +1)
+  //   pulse: duration per note
+  //   doublePulseMain: if true, first and last notes are longer
+  MelodicFigure neighbor_tone(bool upper, float pulse = 0, bool doublePulseMain = false) {
+    if (pulse <= 0) pulse = defaultPulse;
+    int dir = upper ? 1 : -1;
+    float mainPulse = doublePulseMain ? pulse * 2.0f : pulse;
+    MelodicFigure fig;
+    fig.units.push_back({mainPulse, 0});     // main note
+    fig.units.push_back({pulse, dir});        // neighbor
+    fig.units.push_back({mainPulse, -dir});   // return
+    return fig;
+  }
+
+  // LeapAndFill: large leap followed by stepwise return
+  //   leapSize: interval in scale degrees (3-7)
+  //   leapUp: true = leap up then fill down, false = opposite
+  //   fillSteps: how many stepwise notes to fill (0 = fill completely)
+  //   pulse: duration per note
+  MelodicFigure leap_and_fill(int leapSize, bool leapUp, int fillSteps = 0,
+                               float pulse = 0) {
+    if (pulse <= 0) pulse = defaultPulse;
+    if (leapSize < 2) leapSize = 2;
+    if (fillSteps <= 0) fillSteps = leapSize - 1;
+    int leapDir = leapUp ? 1 : -1;
+    int fillDir = -leapDir;
+    MelodicFigure fig;
+    fig.units.push_back({pulse, 0});                  // starting note
+    fig.units.push_back({pulse, leapSize * leapDir});  // the leap
+    for (int i = 0; i < fillSteps; ++i)
+      fig.units.push_back({pulse, fillDir});           // stepwise fill
+    return fig;
+  }
+
+  // ScalarReturn: go out stepwise, return (arch or inverted arch)
+  //   direction: +1 = rise then fall, -1 = fall then rise
+  //   extent: how many steps out before returning
+  //   returnExtent: how many steps back (0 = same as extent, full return)
+  //   pulse: duration per note
+  MelodicFigure scalar_return(int direction, int extent, int returnExtent = 0,
+                               float pulse = 0) {
+    if (pulse <= 0) pulse = defaultPulse;
+    if (extent < 1) extent = 1;
+    if (returnExtent <= 0) returnExtent = extent;
+    int dir = (direction >= 0) ? 1 : -1;
+    MelodicFigure fig;
+    fig.units.push_back({pulse, 0});  // starting note
+    // Outward
+    for (int i = 0; i < extent; ++i)
+      fig.units.push_back({pulse, dir});
+    // Return
+    for (int i = 0; i < returnExtent; ++i)
+      fig.units.push_back({pulse, -dir});
+    return fig;
+  }
+
+  // Anacrusis: short pickup notes (typically ascending) leading to a downbeat
+  //   count: number of pickup notes
+  //   direction: +1 = ascending pickups, -1 = descending
+  //   pickupPulse: duration of each pickup note
+  //   downbeatPulse: duration of the downbeat arrival
+  MelodicFigure anacrusis(int count, int direction = 1,
+                           float pickupPulse = 0, float downbeatPulse = 0) {
+    if (pickupPulse <= 0) pickupPulse = defaultPulse * 0.5f;
+    if (downbeatPulse <= 0) downbeatPulse = defaultPulse;
+    if (count < 1) count = 1;
+    int dir = (direction >= 0) ? 1 : -1;
+    MelodicFigure fig;
+    for (int i = 0; i < count; ++i)
+      fig.units.push_back({pickupPulse, (i == 0) ? 0 : dir});
+    fig.units.push_back({downbeatPulse, dir});  // downbeat arrival
+    return fig;
+  }
+
+  // Zigzag: ascending via step-up, skip-down (or reverse)
+  //   direction: +1 = net ascending, -1 = net descending
+  //   cycles: number of zigzag cycles
+  //   stepSize: size of the step (1)
+  //   skipSize: size of the skip back (1-3)
+  //   pulse: duration per note
+  MelodicFigure zigzag(int direction, int cycles, int stepSize = 2,
+                        int skipSize = 1, float pulse = 0) {
+    if (pulse <= 0) pulse = defaultPulse;
+    if (cycles < 1) cycles = 1;
+    int dir = (direction >= 0) ? 1 : -1;
+    MelodicFigure fig;
+    fig.units.push_back({pulse, 0});
+    for (int i = 0; i < cycles; ++i) {
+      fig.units.push_back({pulse, stepSize * dir});
+      fig.units.push_back({pulse, -skipSize * dir});
+    }
+    return fig;
+  }
+
+  // Fanfare: leaps outlining 4th/5th/octave, optionally with repeated notes
+  //   intervals: scale-degree leaps to make (e.g. {4, 3} for root→5th→octave)
+  //   repeatsPerNote: how many times to repeat each arrival (1 = no repeat)
+  //   pulse: duration per note
+  MelodicFigure fanfare(const std::vector<int>& intervals, int repeatsPerNote = 1,
+                          float pulse = 0) {
+    if (pulse <= 0) pulse = defaultPulse;
+    MelodicFigure fig;
+    fig.units.push_back({pulse, 0});  // starting note
+    if (repeatsPerNote > 1)
+      for (int r = 1; r < repeatsPerNote; ++r)
+        fig.units.push_back({pulse, 0});
+    for (int leap : intervals) {
+      fig.units.push_back({pulse, leap});
+      for (int r = 1; r < repeatsPerNote; ++r)
+        fig.units.push_back({pulse, 0});
+    }
+    return fig;
+  }
+
+  // Sigh: descending step pair (the "Seufzer")
+  //   chromatic: if true, sets accidental for half-step
+  //   pulse: duration per note (typically longer, expressive)
+  MelodicFigure sigh(float pulse = 0) {
+    if (pulse <= 0) pulse = defaultPulse;
+    MelodicFigure fig;
+    fig.units.push_back({pulse, 0});
+    fig.units.push_back({pulse, -1});
+    return fig;
+  }
+
+  // Suspension: held note resolving stepwise down
+  //   holdDuration: how long the suspension is held
+  //   resolutionPulse: duration of the resolution note
+  MelodicFigure suspension(float holdDuration = 0, float resolutionPulse = 0) {
+    if (holdDuration <= 0) holdDuration = defaultPulse * 2;
+    if (resolutionPulse <= 0) resolutionPulse = defaultPulse;
+    MelodicFigure fig;
+    fig.units.push_back({holdDuration, 0});     // held note
+    fig.units.push_back({resolutionPulse, -1}); // resolution down
+    return fig;
+  }
+
+  // Cambiata: step one way, skip opposite, step — 4-note contrapuntal figure
+  //   direction: +1 = step up first, -1 = step down first
+  //   pulse: duration per note
+  MelodicFigure cambiata(int direction = -1, float pulse = 0) {
+    if (pulse <= 0) pulse = defaultPulse;
+    int dir = (direction >= 0) ? 1 : -1;
+    MelodicFigure fig;
+    fig.units.push_back({pulse, 0});        // main note
+    fig.units.push_back({pulse, dir});       // step
+    fig.units.push_back({pulse, -2 * dir});  // skip opposite
+    fig.units.push_back({pulse, dir});       // step to resolution
+    return fig;
+  }
+
+  // =========================================================================
+  // Transforms (existing)
+  // =========================================================================
 
   // Invert: flip all step directions
   MelodicFigure invert(const MelodicFigure& source) {

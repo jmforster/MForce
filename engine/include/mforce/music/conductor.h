@@ -15,8 +15,37 @@ namespace mforce {
 // ---------------------------------------------------------------------------
 // Scale-degree stepping: move a note number up/down by scale degrees
 // ---------------------------------------------------------------------------
+// Snap a note number to the nearest pitch in the scale
+inline float snap_to_scale(float noteNumber, const Scale& scale) {
+    float rel = noteNumber - float(scale.offset());
+    float octaves = std::floor(rel / 12.0f);
+    float pos = rel - octaves * 12.0f;
+    if (pos < 0) { pos += 12.0f; octaves -= 1.0f; }
+
+    float bestPitch = 0;
+    float bestDist = 999.0f;
+    float accum = 0;
+    for (int d = 0; d < scale.length(); ++d) {
+        float dist = std::abs(accum - pos);
+        if (dist < bestDist) {
+            bestDist = dist;
+            bestPitch = float(scale.offset()) + octaves * 12.0f + accum;
+        }
+        accum += scale.ascending_step(d);
+    }
+    // Also check the octave above (degree 0 of next octave)
+    float dist = std::abs(accum - pos);
+    if (dist < bestDist) {
+        bestPitch = float(scale.offset()) + octaves * 12.0f + accum;
+    }
+    return bestPitch;
+}
+
 inline float step_note(float noteNumber, int steps, const Scale& scale) {
+    if (steps == 0) return noteNumber;
+
     float nn = noteNumber;
+
     if (steps > 0) {
         for (int i = 0; i < steps; ++i) {
             float rel = nn - float(scale.offset());
@@ -461,35 +490,17 @@ private:
     float currentNN = phrase.startingPitch.note_number();
 
     for (int f = 0; f < phrase.figure_count(); ++f) {
-      const auto& fig = phrase.figures[f];
+      const auto& fig = *phrase.figures[f];
 
-      // Apply connector before this figure (if not the first)
-      if (f > 0 && f - 1 < int(phrase.connectors.size())) {
-        const auto& conn = phrase.connectors[f - 1];
-        switch (conn.type) {
-          case ConnectorType::Step:
-            currentNN = step_note(currentNN, conn.stepValue, scale);
-            break;
-          case ConnectorType::Pitch:
-            currentNN = conn.pitch.note_number();
-            break;
-          case ConnectorType::EndPitch:
-            // EndPitch = "figure should END at this pitch"
-            // Set to end pitch, then walk back by figure's net to find start
-            currentNN = conn.pitch.note_number();
-            currentNN = step_note(currentNN, -fig.net_step(), scale);
-            break;
-          case ConnectorType::Elide:
-            break;
-        }
-      }
-
-      // Walk FigureUnits
+      // Walk FigureUnits. Every unit's step is applied, including the first
+      // (which bridges from the previous figure's ending pitch to this
+      // figure's starting pitch under the cursor model).
       for (int i = 0; i < fig.note_count(); ++i) {
         const auto& u = fig.units[i];
-        if (i > 0) {
-          currentNN = step_note(currentNN, u.step, scale);
-        }
+        currentNN = step_note(currentNN, u.step, scale);
+
+        // Apply transient accidental for sounding pitch only
+        float soundNN = currentNN + float(u.accidental);
 
         // Advance dynamic markings
         float passageBeat = currentBeat - passageBeatOffset;
@@ -501,7 +512,7 @@ private:
 
         if (!u.rest) {
           float vel = dynamics.velocity_at(currentBeat);
-          notePerformer.perform_note(currentNN, vel, u.duration,
+          notePerformer.perform_note(soundNN, vel, u.duration,
                                      currentBeat, bpm, instrument);
         }
         currentBeat += u.duration;

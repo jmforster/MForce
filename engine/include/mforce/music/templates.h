@@ -6,6 +6,7 @@
 #include <vector>
 #include <unordered_map>
 #include <optional>
+#include <variant>
 #include <cstdint>
 
 namespace mforce {
@@ -14,11 +15,66 @@ namespace mforce {
 // FigureTemplate — the atomic unit of the composition recipe
 // ===========================================================================
 
+// ===========================================================================
+// MelodicFunction — what role a phrase plays in the musical structure
+// ===========================================================================
+
+enum class MelodicFunction {
+    Free,         // no constraint (current behavior)
+    Statement,    // establishing a motif: clear contour, moderate range
+    Development,  // extending/varying: sequences, wider range, fragmentation
+    Transition,   // moving between areas: less committed contour
+    Cadential,    // resolving: stepwise to target, longer notes, narrowing range
+};
+
+// ===========================================================================
+// FigureShape — named melodic contour types
+// ===========================================================================
+
+enum class FigureShape {
+    Free,              // composer uses random_sequence (legacy)
+    ScalarRun,         // consecutive steps in one direction
+    RepeatedNote,      // same pitch repeated N times
+    HeldNote,          // single long note
+    CadentialApproach, // stepwise approach to target + held arrival
+    TriadicOutline,    // chord-tone outline (root-3rd-5th)
+    NeighborTone,      // note, step away, return
+    LeapAndFill,       // large leap + stepwise fill back
+    ScalarReturn,      // out stepwise, return (arch)
+    Anacrusis,         // pickup notes to downbeat
+    Zigzag,            // step-up, skip-down alternation
+    Fanfare,           // leaps outlining 4th/5th/octave
+    Sigh,              // descending step pair
+    Suspension,        // held note resolving down
+    Cambiata,          // step, skip opposite, step
+    Skipping,          // direction-contoured motion by thirds/fourths, musical rhythm
+    Stepping,          // direction-contoured stepwise motion, musical rhythm
+};
+
+// ===========================================================================
+// FigureDirection — contour shape used by Skipping/Stepping strategies
+// ===========================================================================
+
+enum class FigureDirection {
+    Ascending,              // overall upward motion
+    Descending,             // overall downward motion
+    TurnaroundAscending,    // start with 1 step down then go up
+    TurnaroundDescending,   // start with 1 step up then go down
+    AscendingArc,           // up then down (arch)
+    DescendingArc,          // down then up (inverse arch)
+    SineAscending,          // up, down past start, back up
+    SineDescending,         // down, up past start, back down
+    Random,                 // each step direction chosen randomly
+};
+
+enum class StepMode { Scale, ChordTone };
+
 enum class FigureSource {
     Generate,    // composer creates from constraints
     Reference,   // use a seed figure directly
     Transform,   // derive from a seed or previous figure
     Locked,      // fixed content, don't touch
+    Literal,     // user-authored note list (pitch + duration per note)
 };
 
 enum class TransformOp {
@@ -48,12 +104,38 @@ struct FigureTemplate {
     int targetNet{0};              // required net pitch movement (0 = free)
 
     // --- For Reference / Transform ---
-    std::string seedName;          // references a Seed by name
+    std::string motifName;          // references a Motif by name
     TransformOp transform{TransformOp::None};
     int transformParam{0};         // e.g. step offset for Replicate
 
+    // --- For shape-based generation ---
+    FigureShape shape{FigureShape::Free};
+    int shapeDirection{1};         // +1 = ascending, -1 = descending
+    int shapeParam{0};             // type-specific: leap size, extent, etc.
+    int shapeParam2{0};            // second parameter where needed
+    FigureDirection direction{FigureDirection::Ascending};  // used by Skipping/Stepping strategies
+
     // --- For Locked ---
     std::optional<MelodicFigure> lockedFigure;
+
+    // --- For Literal ---
+    struct LiteralNote {
+      std::optional<Pitch> pitch;
+      float duration{1.0f};  // in beats
+      bool rest{false};      // true = silence; pitch is ignored when true
+    };
+    std::vector<LiteralNote> literalNotes;
+
+    // --- For motif atom references ---
+    std::string rhythmMotifName;            // name of a PulseSequence motif
+    std::string contourMotifName;           // name of a StepSequence motif
+    std::string rhythmTransform;            // transform to apply: "retrograde", "stretch", "compress"
+    float rhythmTransformParam{0};          // factor for stretch/compress
+    std::string contourTransform;           // transform to apply: "invert", "retrograde", "expand", "contract"
+    float contourTransformParam{0};         // factor for expand/contract
+
+    // --- Step interpretation ---
+    StepMode stepMode{StepMode::Scale};
 
     // --- State ---
     uint32_t seed{0};              // generation seed for reproducibility
@@ -61,35 +143,75 @@ struct FigureTemplate {
 };
 
 // ===========================================================================
-// Seeds — raw thematic material, stored at Piece level
+// Motifs — raw thematic material, stored at Piece level
 // ===========================================================================
 
-struct Seed {
+struct Motif {
     std::string name;              // "main_theme", "hook", "bridge_motif"
-    MelodicFigure figure;          // the actual musical content
+
+    using Content = std::variant<MelodicFigure, PulseSequence, StepSequence>;
+    Content content;               // the actual musical content (figure, rhythm, or contour)
+
     bool userProvided{false};      // true = user entered, don't regenerate
     uint32_t generationSeed{0};    // for reproducibility if generated
     std::optional<FigureTemplate> constraints;  // generation constraints when !userProvided
+
+    bool is_figure()  const { return std::holds_alternative<MelodicFigure>(content); }
+    bool is_rhythm()  const { return std::holds_alternative<PulseSequence>(content); }
+    bool is_contour() const { return std::holds_alternative<StepSequence>(content); }
+
+    const MelodicFigure& figure()  const { return std::get<MelodicFigure>(content); }
+    const PulseSequence& rhythm()  const { return std::get<PulseSequence>(content); }
+    const StepSequence&  contour() const { return std::get<StepSequence>(content); }
 };
 
 // ===========================================================================
-// PhraseTemplate — sequence of FigureTemplates with connectors
+// PeriodPhraseConfig — classical period (antecedent + consequent)
+// ===========================================================================
+
+struct PeriodPhraseConfig {
+  MelodicFigure basicIdea;           // opens both sub-phrases (parallel)
+  MelodicFigure antecedentTail;      // closes antecedent on halfCadenceTarget
+  MelodicFigure consequentTail;      // closes consequent on authentic cadence
+  int halfCadenceTarget{4};          // 0-indexed scale degree for half cadence
+};
+
+// ===========================================================================
+// SentencePhraseConfig — classical sentence (basic idea + repeat + continuation)
+// ===========================================================================
+
+struct SentencePhraseConfig {
+  MelodicFigure basicIdea;
+  int variationTransposition{0};     // scale-degree offset for the repetition
+  MelodicFigure continuation;
+};
+
+// ===========================================================================
+// PhraseTemplate — sequence of FigureTemplates
 // ===========================================================================
 
 struct PhraseTemplate {
     std::string name;                          // "antecedent", "bridge", etc.
     std::optional<Pitch> startingPitch;        // where to begin (may come from context)
     std::vector<FigureTemplate> figures;
-    std::vector<FigureConnector> connectors;   // connectors[i] connects figure[i] to figure[i+1]
 
     // Phrase-level constraints
     float totalBeats{0.0f};                    // 0 = sum of figures
     int cadenceType{0};                        // 0=none, 1=half, 2=full
     int cadenceTarget{-1};                     // target scale degree (-1 = composer decides)
+    MelodicFunction function{MelodicFunction::Free}; // drives shape selection for Free figures
 
     // State
     uint32_t seed{0};
     bool locked{false};
+
+    // Strategy selection (Phase 3). Empty = default_phrase.
+    std::string strategy;
+
+    // Typed configs for specific phrase strategies. Only one is populated
+    // at a time (matching the selected strategy).
+    std::optional<PeriodPhraseConfig> periodConfig;
+    std::optional<SentencePhraseConfig> sentenceConfig;
 };
 
 // ===========================================================================
@@ -98,6 +220,9 @@ struct PhraseTemplate {
 
 struct PassageTemplate {
     std::string name;
+    std::optional<Pitch> startingPitch;           // REQUIRED at JSON-load time;
+                                                  // optional storage because Pitch
+                                                  // has no default constructor.
     std::vector<PhraseTemplate> phrases;
 
     // Passage-level directives
@@ -143,8 +268,8 @@ struct PieceTemplate {
     Meter meter{Meter::M_4_4};
     float bpm{120.0f};
 
-    // Seed material
-    std::vector<Seed> seeds;
+    // Motif material
+    std::vector<Motif> motifs;
 
     // Section definitions (in order)
     struct SectionDef {
@@ -169,8 +294,8 @@ struct PieceTemplate {
     uint32_t masterSeed{0};
 
     // Helpers
-    const Seed* find_seed(const std::string& name) const {
-        for (auto& s : seeds) if (s.name == name) return &s;
+    const Motif* find_motif(const std::string& name) const {
+        for (auto& m : motifs) if (m.name == name) return &m;
         return nullptr;
     }
 };

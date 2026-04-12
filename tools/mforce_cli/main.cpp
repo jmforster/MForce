@@ -133,21 +133,21 @@ static int run_chords(int argc, char** argv) {
 // Build a Phrase: starting pitch, fig repeated N times descending by step, then tail figure
 // ---------------------------------------------------------------------------
 static Phrase build_descending_phrase(Pitch startPitch, const MelodicFigure& repFig,
-                                     int reps, int stepDown,
+                                     int reps, int /*stepDown*/,
                                      const MelodicFigure& tailFig) {
     Phrase phrase;
     phrase.startingPitch = startPitch;
 
     // First repetition
-    phrase.add_figure(repFig);
+    phrase.add_melodic_figure(repFig);
 
-    // Subsequent repetitions with step-down connectors
+    // Subsequent repetitions
     for (int i = 1; i < reps; ++i) {
-        phrase.add_figure(repFig, FigureConnector::step(stepDown));
+        phrase.add_melodic_figure(repFig);
     }
 
-    // Tail figure continues from where we left off
-    phrase.add_figure(tailFig, FigureConnector::step(0));
+    // Tail figure
+    phrase.add_melodic_figure(tailFig);
 
     return phrase;
 }
@@ -268,7 +268,7 @@ static int run_melody(int argc, char** argv) {
         float totalBeats = 0;
         for (const auto& ph : passage.phrases)
             for (const auto& fig : ph.figures)
-                for (const auto& u : fig.units)
+                for (const auto& u : fig->units)
                     totalBeats += u.duration;
 
         // Build Piece
@@ -756,20 +756,9 @@ static int run_dun(int argc, char** argv) {
     // Debug: dump first phrase's figures
     if (!piece.parts.empty()) {
         auto& pass = piece.parts[0].passages.begin()->second;
-        if (!pass.phrases.empty()) {
-            auto& ph = pass.phrases[0];
-            std::cout << "  Phrase 0 start: " << ph.startingPitch.to_string() << "\n";
-            for (int f = 0; f < ph.figure_count(); ++f) {
-                auto& fig = ph.figures[f];
-                std::cout << "  Fig " << f;
-                if (f > 0 && f-1 < int(ph.connectors.size()))
-                    std::cout << " [conn step=" << ph.connectors[f-1].stepValue << "]";
-                std::cout << ":";
-                for (auto& u : fig.units)
-                    std::cout << " {" << u.duration << "," << u.step
-                              << (u.rest ? ",R" : "") << "}";
-                std::cout << "\n";
-            }
+        for (int p = 0; p < int(pass.phrases.size()); ++p) {
+            auto& ph = pass.phrases[p];
+            std::cout << "  Phrase " << p << " start: " << ph.startingPitch.to_string() << "\n";
         }
     }
 

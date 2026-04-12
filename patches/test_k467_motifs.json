@@ -1,0 +1,89 @@
+{
+  "_comment": "K467/i opening — atom motif coherence test. Bars 1+3 share arpeggio_rhythm, bars 2+4 share cadence_rhythm. Bar 3 contour is inversion of bar 1's.",
+  "keyName": "C",
+  "scaleName": "Major",
+  "bpm": 100.0,
+  "masterSeed": 467,
+  "motifs": [
+    {
+      "name": "arpeggio_rhythm",
+      "type": "rhythm",
+      "rhythm": [1.0, 1.0, 1.0, 1.0],
+      "userProvided": true
+    },
+    {
+      "name": "cadence_rhythm",
+      "type": "rhythm",
+      "rhythm": [1.5, 0.16666667, 0.16666667, 0.16666667, 1.0, 1.0],
+      "userProvided": true
+    },
+    {
+      "name": "arpeggio_contour",
+      "type": "contour",
+      "contour": [0, -3, 3, 2],
+      "userProvided": true
+    }
+  ],
+  "sections": [
+    {"name": "Main", "beats": 16}
+  ],
+  "parts": [
+    {
+      "name": "melody",
+      "role": "melody",
+      "passages": {
+        "Main": {
+          "startingPitch": {"octave": 4, "pitch": "C"},
+          "phrases": [
+            {
+              "name": "Phrase1",
+              "startingPitch": {"octave": 4, "pitch": "C"},
+              "cadenceType": 1,
+              "cadenceTarget": 6,
+              "figures": [
+                {
+                  "source": "generate",
+                  "shape": "skipping",
+                  "rhythmMotifName": "arpeggio_rhythm",
+                  "contourMotifName": "arpeggio_contour",
+                  "totalBeats": 4.0
+                },
+                {
+                  "source": "generate",
+                  "shape": "cadential_approach",
+                  "rhythmMotifName": "cadence_rhythm",
+                  "shapeDirection": -1,
+                  "shapeParam": 5,
+                  "totalBeats": 4.0
+                }
+              ]
+            },
+            {
+              "name": "Phrase2",
+              "cadenceType": 2,
+              "cadenceTarget": 2,
+              "figures": [
+                {
+                  "source": "generate",
+                  "shape": "skipping",
+                  "rhythmMotifName": "arpeggio_rhythm",
+                  "contourMotifName": "arpeggio_contour",
+                  "contourTransform": "invert",
+                  "totalBeats": 4.0
+                },
+                {
+                  "source": "generate",
+                  "shape": "cadential_approach",
+                  "rhythmMotifName": "cadence_rhythm",
+                  "shapeDirection": -1,
+                  "shapeParam": 3,
+                  "totalBeats": 4.0
+                }
+              ]
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

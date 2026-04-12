@@ -17,14 +17,16 @@ inline void to_json(json& j, FigureSource s) {
         case FigureSource::Reference: j = "reference"; break;
         case FigureSource::Transform: j = "transform"; break;
         case FigureSource::Locked:    j = "locked";    break;
+        case FigureSource::Literal:   j = "literal";   break;
     }
 }
 inline void from_json(const json& j, FigureSource& s) {
     auto str = j.get<std::string>();
-    if (str == "generate")  s = FigureSource::Generate;
-    else if (str == "reference") s = FigureSource::Reference;
-    else if (str == "transform") s = FigureSource::Transform;
-    else if (str == "locked")    s = FigureSource::Locked;
+    if (str == "generate")        s = FigureSource::Generate;
+    else if (str == "reference")  s = FigureSource::Reference;
+    else if (str == "transform")  s = FigureSource::Transform;
+    else if (str == "locked")     s = FigureSource::Locked;
+    else if (str == "literal")    s = FigureSource::Literal;
     else s = FigureSource::Generate;
 }
 
@@ -81,6 +83,105 @@ inline void from_json(const json& j, PartRole& r) {
 }
 
 // ===========================================================================
+// MelodicFunction
+// ===========================================================================
+
+inline void to_json(json& j, MelodicFunction f) {
+    switch (f) {
+        case MelodicFunction::Free:        j = "free"; break;
+        case MelodicFunction::Statement:   j = "statement"; break;
+        case MelodicFunction::Development: j = "development"; break;
+        case MelodicFunction::Transition:  j = "transition"; break;
+        case MelodicFunction::Cadential:   j = "cadential"; break;
+    }
+}
+inline void from_json(const json& j, MelodicFunction& f) {
+    auto s = j.get<std::string>();
+    if (s == "statement")        f = MelodicFunction::Statement;
+    else if (s == "development") f = MelodicFunction::Development;
+    else if (s == "transition")  f = MelodicFunction::Transition;
+    else if (s == "cadential")   f = MelodicFunction::Cadential;
+    else f = MelodicFunction::Free;
+}
+
+// ===========================================================================
+// FigureShape
+// ===========================================================================
+
+inline void to_json(json& j, FigureShape s) {
+    switch (s) {
+        case FigureShape::Free:              j = "free"; break;
+        case FigureShape::ScalarRun:         j = "scalar_run"; break;
+        case FigureShape::RepeatedNote:      j = "repeated_note"; break;
+        case FigureShape::HeldNote:          j = "held_note"; break;
+        case FigureShape::CadentialApproach: j = "cadential_approach"; break;
+        case FigureShape::TriadicOutline:    j = "triadic_outline"; break;
+        case FigureShape::NeighborTone:      j = "neighbor_tone"; break;
+        case FigureShape::LeapAndFill:       j = "leap_and_fill"; break;
+        case FigureShape::ScalarReturn:      j = "scalar_return"; break;
+        case FigureShape::Anacrusis:         j = "anacrusis"; break;
+        case FigureShape::Zigzag:            j = "zigzag"; break;
+        case FigureShape::Fanfare:           j = "fanfare"; break;
+        case FigureShape::Sigh:              j = "sigh"; break;
+        case FigureShape::Suspension:        j = "suspension"; break;
+        case FigureShape::Cambiata:          j = "cambiata"; break;
+        case FigureShape::Skipping:          j = "skipping"; break;
+        case FigureShape::Stepping:          j = "stepping"; break;
+    }
+}
+inline void from_json(const json& j, FigureShape& s) {
+    auto str = j.get<std::string>();
+    if (str == "scalar_run")              s = FigureShape::ScalarRun;
+    else if (str == "repeated_note")      s = FigureShape::RepeatedNote;
+    else if (str == "held_note")          s = FigureShape::HeldNote;
+    else if (str == "cadential_approach") s = FigureShape::CadentialApproach;
+    else if (str == "triadic_outline")    s = FigureShape::TriadicOutline;
+    else if (str == "neighbor_tone")      s = FigureShape::NeighborTone;
+    else if (str == "leap_and_fill")      s = FigureShape::LeapAndFill;
+    else if (str == "scalar_return")      s = FigureShape::ScalarReturn;
+    else if (str == "anacrusis")          s = FigureShape::Anacrusis;
+    else if (str == "zigzag")             s = FigureShape::Zigzag;
+    else if (str == "fanfare")            s = FigureShape::Fanfare;
+    else if (str == "sigh")               s = FigureShape::Sigh;
+    else if (str == "suspension")         s = FigureShape::Suspension;
+    else if (str == "cambiata")           s = FigureShape::Cambiata;
+    else if (str == "skipping")           s = FigureShape::Skipping;
+    else if (str == "stepping")           s = FigureShape::Stepping;
+    else s = FigureShape::Free;
+}
+
+// ===========================================================================
+// FigureDirection
+// ===========================================================================
+
+inline void to_json(json& j, FigureDirection d) {
+    switch (d) {
+        case FigureDirection::Ascending:             j = "ascending"; break;
+        case FigureDirection::Descending:            j = "descending"; break;
+        case FigureDirection::TurnaroundAscending:   j = "turnaround_ascending"; break;
+        case FigureDirection::TurnaroundDescending:  j = "turnaround_descending"; break;
+        case FigureDirection::AscendingArc:          j = "ascending_arc"; break;
+        case FigureDirection::DescendingArc:         j = "descending_arc"; break;
+        case FigureDirection::SineAscending:         j = "sine_ascending"; break;
+        case FigureDirection::SineDescending:        j = "sine_descending"; break;
+        case FigureDirection::Random:                j = "random"; break;
+    }
+}
+inline void from_json(const json& j, FigureDirection& d) {
+    auto str = j.get<std::string>();
+    if (str == "ascending")                  d = FigureDirection::Ascending;
+    else if (str == "descending")            d = FigureDirection::Descending;
+    else if (str == "turnaround_ascending")  d = FigureDirection::TurnaroundAscending;
+    else if (str == "turnaround_descending") d = FigureDirection::TurnaroundDescending;
+    else if (str == "ascending_arc")         d = FigureDirection::AscendingArc;
+    else if (str == "descending_arc")        d = FigureDirection::DescendingArc;
+    else if (str == "sine_ascending")        d = FigureDirection::SineAscending;
+    else if (str == "sine_descending")       d = FigureDirection::SineDescending;
+    else if (str == "random")                d = FigureDirection::Random;
+    else d = FigureDirection::Ascending;
+}
+
+// ===========================================================================
 // FigureTemplate
 // ===========================================================================
 
@@ -98,7 +199,7 @@ inline void to_json(json& j, const FigureTemplate& ft) {
     }
 
     if (ft.source == FigureSource::Reference || ft.source == FigureSource::Transform) {
-        j["seedName"] = ft.seedName;
+        j["motifName"] = ft.motifName;
     }
     if (ft.source == FigureSource::Transform) {
         j["transform"] = ft.transform;
@@ -108,6 +209,36 @@ inline void to_json(json& j, const FigureTemplate& ft) {
     if (ft.source == FigureSource::Locked && ft.lockedFigure) {
         j["lockedFigure"] = *ft.lockedFigure;
     }
+
+    if (!ft.literalNotes.empty()) {
+        json arr = json::array();
+        for (auto& ln : ft.literalNotes) {
+            json jn;
+            if (ln.rest) {
+                jn["rest"] = true;
+            } else if (ln.pitch) {
+                jn["pitch"] = *ln.pitch;
+            }
+            jn["duration"] = ln.duration;
+            arr.push_back(std::move(jn));
+        }
+        j["literalNotes"] = std::move(arr);
+    }
+
+    if (ft.shape != FigureShape::Free) j["shape"] = ft.shape;
+    if (ft.shapeDirection != 1) j["shapeDirection"] = ft.shapeDirection;
+    if (ft.shapeParam != 0) j["shapeParam"] = ft.shapeParam;
+    if (ft.shapeParam2 != 0) j["shapeParam2"] = ft.shapeParam2;
+    if (ft.direction != FigureDirection::Ascending) j["direction"] = ft.direction;
+
+    if (!ft.rhythmMotifName.empty()) j["rhythmMotifName"] = ft.rhythmMotifName;
+    if (!ft.contourMotifName.empty()) j["contourMotifName"] = ft.contourMotifName;
+    if (!ft.rhythmTransform.empty()) j["rhythmTransform"] = ft.rhythmTransform;
+    if (ft.rhythmTransformParam != 0) j["rhythmTransformParam"] = ft.rhythmTransformParam;
+    if (!ft.contourTransform.empty()) j["contourTransform"] = ft.contourTransform;
+    if (ft.contourTransformParam != 0) j["contourTransformParam"] = ft.contourTransformParam;
+
+    if (ft.stepMode != StepMode::Scale) j["stepMode"] = "chordTone";
 
     if (ft.seed != 0) j["seed"] = ft.seed;
     if (ft.locked) j["locked"] = true;
@@ -124,9 +255,15 @@ inline void from_json(const json& j, FigureTemplate& ft) {
     ft.preferSkips = j.value("skips", false);
     ft.targetNet = j.value("targetNet", 0);
 
-    ft.seedName = j.value("seedName", std::string(""));
+    ft.motifName = j.value("motifName", std::string(""));
     if (j.contains("transform")) from_json(j.at("transform"), ft.transform);
     ft.transformParam = j.value("transformParam", 0);
+
+    if (j.contains("shape")) from_json(j.at("shape"), ft.shape);
+    ft.shapeDirection = j.value("shapeDirection", 1);
+    ft.shapeParam = j.value("shapeParam", 0);
+    ft.shapeParam2 = j.value("shapeParam2", 0);
+    if (j.contains("direction")) from_json(j.at("direction"), ft.direction);
 
     if (j.contains("lockedFigure")) {
         MelodicFigure mf;
@@ -134,33 +271,121 @@ inline void from_json(const json& j, FigureTemplate& ft) {
         ft.lockedFigure = std::move(mf);
     }
 
+    if (j.contains("literalNotes")) {
+        ft.literalNotes.clear();
+        for (auto& jn : j.at("literalNotes")) {
+            FigureTemplate::LiteralNote ln;
+            ln.rest = jn.value("rest", false);
+            if (!ln.rest && jn.contains("pitch")) {
+                Pitch p;
+                from_json(jn.at("pitch"), p);
+                ln.pitch = p;
+            }
+            ln.duration = jn.value("duration", 1.0f);
+            ft.literalNotes.push_back(std::move(ln));
+        }
+    }
+
+    ft.rhythmMotifName = j.value("rhythmMotifName", std::string(""));
+    ft.contourMotifName = j.value("contourMotifName", std::string(""));
+    ft.rhythmTransform = j.value("rhythmTransform", std::string(""));
+    ft.rhythmTransformParam = j.value("rhythmTransformParam", 0.0f);
+    ft.contourTransform = j.value("contourTransform", std::string(""));
+    ft.contourTransformParam = j.value("contourTransformParam", 0.0f);
+
+    if (j.contains("stepMode")) {
+      auto sm = j["stepMode"].get<std::string>();
+      if (sm == "chordTone") ft.stepMode = StepMode::ChordTone;
+      else ft.stepMode = StepMode::Scale;
+    }
+
     ft.seed = j.value("seed", 0u);
     ft.locked = j.value("locked", false);
 }
 
 // ===========================================================================
-// Seed
+// Motif
 // ===========================================================================
 
-inline void to_json(json& j, const Seed& s) {
-    j = json{{"name", s.name}};
-    if (!s.figure.units.empty()) j["figure"] = s.figure;
-    if (s.userProvided) j["userProvided"] = true;
-    if (s.generationSeed != 0) j["generationSeed"] = s.generationSeed;
-    if (s.constraints) j["constraints"] = *s.constraints;
-}
-inline void from_json(const json& j, Seed& s) {
-    s.name = j.at("name").get<std::string>();
-    if (j.contains("figure")) {
-        from_json(j.at("figure"), s.figure);
+inline void to_json(json& j, const Motif& m) {
+    j["name"] = m.name;
+    if (m.is_figure()) {
+        j["type"] = "figure";
+        const auto& fig = m.figure();
+        if (!fig.units.empty()) j["figure"] = fig;
+    } else if (m.is_rhythm()) {
+        j["type"] = "rhythm";
+        j["rhythm"] = m.rhythm();
+    } else if (m.is_contour()) {
+        j["type"] = "contour";
+        j["contour"] = m.contour();
     }
-    s.userProvided = j.value("userProvided", false);
-    s.generationSeed = j.value("generationSeed", 0u);
+    if (m.userProvided) j["userProvided"] = true;
+    if (m.generationSeed != 0) j["generationSeed"] = m.generationSeed;
+    if (m.constraints) j["constraints"] = *m.constraints;
+}
+inline void from_json(const json& j, Motif& m) {
+    m.name = j.at("name").get<std::string>();
+    std::string type = j.value("type", std::string("figure"));
+    if (type == "rhythm") {
+        PulseSequence ps;
+        from_json(j.at("rhythm"), ps);
+        m.content = std::move(ps);
+    } else if (type == "contour") {
+        StepSequence ss;
+        from_json(j.at("contour"), ss);
+        m.content = std::move(ss);
+    } else {
+        // Default: figure (backward compatible)
+        if (j.contains("figure")) {
+            MelodicFigure fig;
+            from_json(j.at("figure"), fig);
+            m.content = std::move(fig);
+        } else {
+            m.content = MelodicFigure{};  // empty figure if no content
+        }
+    }
+    m.userProvided = j.value("userProvided", false);
+    m.generationSeed = j.value("generationSeed", 0u);
     if (j.contains("constraints")) {
         FigureTemplate ft;
         from_json(j.at("constraints"), ft);
-        s.constraints = std::move(ft);
+        m.constraints = std::move(ft);
     }
+}
+
+// ===========================================================================
+// PeriodPhraseConfig
+// ===========================================================================
+
+inline void to_json(json& j, const PeriodPhraseConfig& c) {
+  j["basicIdea"] = c.basicIdea;
+  j["antecedentTail"] = c.antecedentTail;
+  j["consequentTail"] = c.consequentTail;
+  if (c.halfCadenceTarget != 4) j["halfCadenceTarget"] = c.halfCadenceTarget;
+}
+
+inline void from_json(const json& j, PeriodPhraseConfig& c) {
+  from_json(j.at("basicIdea"), c.basicIdea);
+  from_json(j.at("antecedentTail"), c.antecedentTail);
+  from_json(j.at("consequentTail"), c.consequentTail);
+  c.halfCadenceTarget = j.value("halfCadenceTarget", 4);
+}
+
+// ===========================================================================
+// SentencePhraseConfig
+// ===========================================================================
+
+inline void to_json(json& j, const SentencePhraseConfig& c) {
+  j["basicIdea"] = c.basicIdea;
+  j["continuation"] = c.continuation;
+  if (c.variationTransposition != 0) j["variationTransposition"] = c.variationTransposition;
+}
+
+inline void from_json(const json& j, SentencePhraseConfig& c) {
+  from_json(j.at("basicIdea"), c.basicIdea);
+  from_json(j.at("continuation"), c.continuation);
+  c.variationTransposition = j.value("variationTransposition", 0);
 }
 
 // ===========================================================================
@@ -171,12 +396,15 @@ inline void to_json(json& j, const PhraseTemplate& pt) {
     j = json{{"figures", pt.figures}};
     if (!pt.name.empty()) j["name"] = pt.name;
     if (pt.startingPitch) j["startingPitch"] = *pt.startingPitch;
-    if (!pt.connectors.empty()) j["connectors"] = pt.connectors;
     if (pt.totalBeats != 0.0f) j["totalBeats"] = pt.totalBeats;
     if (pt.cadenceType != 0) j["cadenceType"] = pt.cadenceType;
     if (pt.cadenceTarget != -1) j["cadenceTarget"] = pt.cadenceTarget;
+    if (pt.function != MelodicFunction::Free) j["function"] = pt.function;
     if (pt.seed != 0) j["seed"] = pt.seed;
     if (pt.locked) j["locked"] = true;
+    if (!pt.strategy.empty()) j["strategy"] = pt.strategy;
+    if (pt.periodConfig) j["periodConfig"] = *pt.periodConfig;
+    if (pt.sentenceConfig) j["sentenceConfig"] = *pt.sentenceConfig;
 }
 
 inline void from_json(const json& j, PhraseTemplate& pt) {
@@ -191,18 +419,24 @@ inline void from_json(const json& j, PhraseTemplate& pt) {
         Pitch p; from_json(j.at("startingPitch"), p);
         pt.startingPitch = p;
     }
-    if (j.contains("connectors")) {
-        pt.connectors.clear();
-        for (auto& cj : j.at("connectors")) {
-            FigureConnector fc; from_json(cj, fc);
-            pt.connectors.push_back(fc);
-        }
-    }
+
     pt.totalBeats = j.value("totalBeats", 0.0f);
     pt.cadenceType = j.value("cadenceType", 0);
     pt.cadenceTarget = j.value("cadenceTarget", -1);
+    if (j.contains("function")) from_json(j.at("function"), pt.function);
     pt.seed = j.value("seed", 0u);
     pt.locked = j.value("locked", false);
+    pt.strategy = j.value("strategy", std::string(""));
+    if (j.contains("periodConfig")) {
+        PeriodPhraseConfig c;
+        from_json(j.at("periodConfig"), c);
+        pt.periodConfig = c;
+    }
+    if (j.contains("sentenceConfig")) {
+        SentencePhraseConfig c;
+        from_json(j.at("sentenceConfig"), c);
+        pt.sentenceConfig = c;
+    }
 }
 
 // ===========================================================================
@@ -212,6 +446,7 @@ inline void from_json(const json& j, PhraseTemplate& pt) {
 inline void to_json(json& j, const PassageTemplate& pt) {
     j = json{{"phrases", pt.phrases}};
     if (!pt.name.empty()) j["name"] = pt.name;
+    if (pt.startingPitch) j["startingPitch"] = *pt.startingPitch;
     if (!pt.character.empty()) j["character"] = pt.character;
     if (!pt.fromKey.empty()) j["fromKey"] = pt.fromKey;
     if (!pt.toKey.empty()) j["toKey"] = pt.toKey;
@@ -220,6 +455,15 @@ inline void to_json(json& j, const PassageTemplate& pt) {
 }
 
 inline void from_json(const json& j, PassageTemplate& pt) {
+    if (!j.contains("startingPitch")) {
+        throw std::runtime_error(
+            "PassageTemplate '" + j.value("name", std::string("<unnamed>")) +
+            "' is missing required field 'startingPitch'");
+    }
+    Pitch p;
+    from_json(j.at("startingPitch"), p);
+    pt.startingPitch = p;
+
     pt.phrases.clear();
     for (auto& pj : j.at("phrases")) {
         PhraseTemplate ph; from_json(pj, ph);
@@ -283,7 +527,7 @@ inline void to_json(json& j, const PieceTemplate& pt) {
         {"sections", pt.sections},
         {"parts", pt.parts}
     };
-    if (!pt.seeds.empty()) j["seeds"] = pt.seeds;
+    if (!pt.motifs.empty()) j["motifs"] = pt.motifs;
     if (!pt.form.empty()) j["form"] = pt.form;
     if (pt.harmonySeeds) j["harmony"] = *pt.harmonySeeds;
     if (pt.masterSeed != 0) j["masterSeed"] = pt.masterSeed;
@@ -295,11 +539,11 @@ inline void from_json(const json& j, PieceTemplate& pt) {
     if (j.contains("meter")) from_json(j.at("meter"), pt.meter);
     pt.bpm = j.value("bpm", 120.0f);
 
-    if (j.contains("seeds")) {
-        pt.seeds.clear();
-        for (auto& sj : j.at("seeds")) {
-            Seed s; from_json(sj, s);
-            pt.seeds.push_back(std::move(s));
+    if (j.contains("motifs")) {
+        pt.motifs.clear();
+        for (auto& mj : j.at("motifs")) {
+            Motif m; from_json(mj, m);
+            pt.motifs.push_back(std::move(m));
         }
     }
 

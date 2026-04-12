@@ -71,18 +71,6 @@ inline void from_json(const json& j, Dynamic& d) {
   d = map.at(j.get<std::string>());
 }
 
-inline void to_json(json& j, ConnectorType ct) {
-  static const char* names[] = {"Step","Pitch","EndPitch","Elide"};
-  j = names[int(ct)];
-}
-
-inline void from_json(const json& j, ConnectorType& ct) {
-  static const std::unordered_map<std::string, ConnectorType> map = {
-    {"Step",ConnectorType::Step},{"Pitch",ConnectorType::Pitch},
-    {"EndPitch",ConnectorType::EndPitch},{"Elide",ConnectorType::Elide}
-  };
-  ct = map.at(j.get<std::string>());
-}
 
 inline void to_json(json& j, PitchSelectionType ps) {
   static const char* names[] = {
@@ -218,6 +206,7 @@ inline void from_json(const json& j, ChordProgression& cp) {
 inline void to_json(json& j, const FigureUnit& u) {
   j = json{{"duration", u.duration}, {"step", u.step}};
   if (u.rest) j["rest"] = true;
+  if (u.accidental != 0) j["accidental"] = u.accidental;
   if (u.articulation != Articulation::Default) j["articulation"] = u.articulation;
   if (u.ornament != Ornament::None) j["ornament"] = u.ornament;
 }
@@ -226,10 +215,27 @@ inline void from_json(const json& j, FigureUnit& u) {
   u.duration = j.at("duration").get<float>();
   u.step = j.at("step").get<int>();
   u.rest = j.value("rest", false);
+  u.accidental = j.value("accidental", 0);
   u.articulation = Articulation::Default;
   u.ornament = Ornament::None;
   if (j.contains("articulation")) from_json(j.at("articulation"), u.articulation);
   if (j.contains("ornament")) from_json(j.at("ornament"), u.ornament);
+}
+
+inline void to_json(json& j, const PulseSequence& ps) {
+  j = ps.pulses;
+}
+inline void from_json(const json& j, PulseSequence& ps) {
+  ps.pulses.clear();
+  for (const auto& v : j) ps.pulses.push_back(v.get<float>());
+}
+
+inline void to_json(json& j, const StepSequence& ss) {
+  j = ss.steps;
+}
+inline void from_json(const json& j, StepSequence& ss) {
+  ss.steps.clear();
+  for (const auto& v : j) ss.steps.push_back(v.get<int>());
 }
 
 inline void to_json(json& j, const MelodicFigure& f) {
@@ -281,18 +287,6 @@ inline void from_json(const json& j, ChordArticulation& cf) {
   }
 }
 
-inline void to_json(json& j, const FigureConnector& fc) {
-  j = json{{"type", fc.type}};
-  if (fc.type == ConnectorType::Step) j["step"] = fc.stepValue;
-  if (fc.type == ConnectorType::Pitch || fc.type == ConnectorType::EndPitch)
-    j["pitch"] = fc.pitch;
-}
-
-inline void from_json(const json& j, FigureConnector& fc) {
-  from_json(j.at("type"), fc.type);
-  if (j.contains("step")) fc.stepValue = j.at("step").get<int>();
-  if (j.contains("pitch")) from_json(j.at("pitch"), fc.pitch);
-}
 
 // ===========================================================================
 // Structure — Elements (variant)
@@ -381,8 +375,14 @@ inline void from_json(const json& j, DynamicMarking& dm) {
 }
 
 inline void to_json(json& j, const Phrase& ph) {
-  j = json{{"startingPitch", ph.startingPitch}, {"figures", ph.figures}};
-  if (!ph.connectors.empty()) j["connectors"] = ph.connectors;
+  j["startingPitch"] = ph.startingPitch;
+  j["figures"] = json::array();
+  for (const auto& fig : ph.figures) {
+    // Serialize via the concrete units (all Figure subclasses share the same wire format)
+    json fj;
+    fj["units"] = fig->units;
+    j["figures"].push_back(fj);
+  }
 }
 
 inline void from_json(const json& j, Phrase& ph) {
@@ -390,14 +390,7 @@ inline void from_json(const json& j, Phrase& ph) {
   for (auto& fj : j.at("figures")) {
     MelodicFigure f;
     from_json(fj, f);
-    ph.figures.push_back(std::move(f));
-  }
-  if (j.contains("connectors")) {
-    for (auto& cj : j.at("connectors")) {
-      FigureConnector fc;
-      from_json(cj, fc);
-      ph.connectors.push_back(fc);
-    }
+    ph.add_melodic_figure(std::move(f));
   }
 }
 

@@ -5,6 +5,7 @@
 #include <variant>
 #include <string>
 #include <optional>
+#include <memory>
 #include <unordered_map>
 
 namespace mforce {
@@ -71,22 +72,30 @@ struct Element {
 };
 
 // ===========================================================================
-// Phrase — a musical sentence. Collection of Figures with Connectors.
+// Phrase — a musical sentence. Collection of Figures.
 // ===========================================================================
 struct Phrase {
   Pitch startingPitch;
-  std::vector<MelodicFigure> figures;
-  std::vector<FigureConnector> connectors;  // between adjacent figures
+  std::vector<std::unique_ptr<Figure>> figures;
 
-  void add_figure(MelodicFigure fig) {
-    figures.push_back(std::move(fig));
+  // Deep copy constructor (unique_ptr makes Phrase move-only otherwise)
+  Phrase() = default;
+  Phrase(Phrase&&) = default;
+  Phrase& operator=(Phrase&&) = default;
+  Phrase(const Phrase& other) : startingPitch(other.startingPitch) {
+    for (const auto& f : other.figures) figures.push_back(f->clone());
+  }
+  Phrase& operator=(const Phrase& other) {
+    if (this != &other) {
+      startingPitch = other.startingPitch;
+      figures.clear();
+      for (const auto& f : other.figures) figures.push_back(f->clone());
+    }
+    return *this;
   }
 
-  void add_figure(MelodicFigure fig, FigureConnector conn) {
-    connectors.push_back(std::move(conn));
-    figures.push_back(std::move(fig));
-  }
-
+  void add_figure(std::unique_ptr<Figure> fig) { figures.push_back(std::move(fig)); }
+  void add_melodic_figure(MelodicFigure fig) { figures.push_back(std::make_unique<MelodicFigure>(std::move(fig))); }
   int figure_count() const { return int(figures.size()); }
 };
 
@@ -106,6 +115,19 @@ struct Passage {
 };
 
 // ===========================================================================
+// KeyContext — a key/scale change at a beat offset within a Section
+// ===========================================================================
+struct KeyContext {
+  float beat{0.0f};
+  Key key;
+  std::optional<Scale> scaleOverride;
+
+  Scale effective_scale() const {
+    return scaleOverride.value_or(key.scale);
+  }
+};
+
+// ===========================================================================
 // Section — a time span with shared musical context.
 // Owns tempo, meter, scale. The "control track" of the DAW.
 // ===========================================================================
@@ -119,6 +141,18 @@ struct Section {
   Section() : scale(Scale::get("C", "Major")) {}
   Section(const std::string& n, float b, float bpm, Meter m, Scale s)
     : name(n), beats(b), meter(m), tempo(bpm), scale(s) {}
+
+  // Harmony context
+  std::vector<KeyContext> keyContexts;
+  std::optional<ChordProgression> chordProgression;
+
+  Scale active_scale_at(float beat) const {
+    Scale result = scale;
+    for (const auto& kc : keyContexts) {
+      if (kc.beat <= beat) result = kc.effective_scale();
+    }
+    return result;
+  }
 };
 
 // ===========================================================================
