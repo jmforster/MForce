@@ -1,0 +1,65 @@
+{
+  "_comment": "K467/i opening — harmony-first test. AFS alternates chord-tone arpeggiation (bars 1,3) with scalar cadential figures (bars 2,4) over I-V7-V7-I.",
+  "keyName": "C",
+  "scaleName": "Major",
+  "bpm": 100.0,
+  "masterSeed": 4670,
+  "motifs": [
+    {
+      "name": "arpeggio_rhythm",
+      "type": "rhythm",
+      "rhythm": [1.0, 1.0, 1.0, 1.0],
+      "userProvided": true
+    },
+    {
+      "name": "cadence_rhythm",
+      "type": "rhythm",
+      "rhythm": [1.5, 0.16666667, 0.16666667, 0.16666667, 1.0, 1.0],
+      "userProvided": true
+    }
+  ],
+  "sections": [
+    {
+      "name": "Opening",
+      "beats": 16,
+      "progressionName": "I-V7-V7-I"
+    }
+  ],
+  "parts": [
+    {
+      "name": "melody",
+      "role": "melody",
+      "passages": {
+        "Opening": {
+          "startingPitch": {"octave": 4, "pitch": "C"},
+          "strategy": "alternating_figure",
+          "phrases": [
+            {
+              "name": "Main",
+              "startingPitch": {"octave": 4, "pitch": "C"},
+              "figures": [
+                {
+                  "_comment": "A template: chord-tone arpeggiation",
+                  "source": "generate",
+                  "shape": "triadic_outline",
+                  "rhythmMotifName": "arpeggio_rhythm",
+                  "stepMode": "chordTone",
+                  "totalBeats": 4.0
+                },
+                {
+                  "_comment": "B template: scalar cadential approach",
+                  "source": "generate",
+                  "shape": "cadential_approach",
+                  "rhythmMotifName": "cadence_rhythm",
+                  "shapeDirection": -1,
+                  "shapeParam": 5,
+                  "totalBeats": 4.0
+                }
+              ]
+            }
+          ]
+        }
+      }
+    }
+  ]
+}
