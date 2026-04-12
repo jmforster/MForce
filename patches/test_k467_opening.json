@@ -1,0 +1,78 @@
+{
+  "keyName": "C",
+  "scaleName": "Major",
+  "bpm": 100.0,
+  "masterSeed": 467,
+  "sections": [
+    {"name": "Main", "beats": 16}
+  ],
+  "parts": [
+    {
+      "name": "melody",
+      "role": "melody",
+      "passages": {
+        "Main": {
+          "startingPitch": {"octave": 4, "pitch": "C"},
+          "phrases": [
+            {
+              "name": "Phrase1",
+              "startingPitch": {"octave": 4, "pitch": "C"},
+              "cadenceType": 1,
+              "cadenceTarget": 6,
+              "figures": [
+                {
+                  "source": "literal",
+                  "literalNotes": [
+                    {"pitch": {"octave": 4, "pitch": "C"}, "duration": 1.0},
+                    {"pitch": {"octave": 3, "pitch": "G"}, "duration": 1.0},
+                    {"pitch": {"octave": 4, "pitch": "C"}, "duration": 1.0},
+                    {"pitch": {"octave": 4, "pitch": "E"}, "duration": 1.0}
+                  ]
+                },
+                {
+                  "source": "literal",
+                  "literalNotes": [
+                    {"pitch": {"octave": 4, "pitch": "F"}, "duration": 1.5},
+                    {"pitch": {"octave": 4, "pitch": "E"}, "duration": 0.16666667},
+                    {"pitch": {"octave": 4, "pitch": "D"}, "duration": 0.16666667},
+                    {"pitch": {"octave": 4, "pitch": "C"}, "duration": 0.16666667},
+                    {"pitch": {"octave": 3, "pitch": "B"}, "duration": 1.0},
+                    {"rest": true, "duration": 0.75},
+                    {"pitch": {"octave": 3, "pitch": "G"}, "duration": 0.25}
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Phrase2",
+              "cadenceType": 2,
+              "cadenceTarget": 2,
+              "figures": [
+                {
+                  "source": "literal",
+                  "literalNotes": [
+                    {"pitch": {"octave": 3, "pitch": "B"}, "duration": 1.0},
+                    {"pitch": {"octave": 4, "pitch": "D"}, "duration": 1.0},
+                    {"pitch": {"octave": 4, "pitch": "F"}, "duration": 1.0},
+                    {"pitch": {"octave": 4, "pitch": "D"}, "duration": 1.0}
+                  ]
+                },
+                {
+                  "source": "literal",
+                  "literalNotes": [
+                    {"pitch": {"octave": 4, "pitch": "G"}, "duration": 1.5},
+                    {"pitch": {"octave": 4, "pitch": "A"}, "duration": 0.16666667},
+                    {"pitch": {"octave": 4, "pitch": "G"}, "duration": 0.16666667},
+                    {"pitch": {"octave": 4, "pitch": "F"}, "duration": 0.16666667},
+                    {"pitch": {"octave": 4, "pitch": "E"}, "duration": 1.0},
+                    {"rest": true, "duration": 1.0}
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      }
+    }
+  ]
+}
