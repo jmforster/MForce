@@ -451,6 +451,34 @@ struct MelodicFigure {
     for (int i = 0; i < int(units.size()); ++i) n += units[i].step;
     return n;
   }
+
+  // --- Atom extraction ---
+
+  PulseSequence extract_pulses() const {
+    PulseSequence ps;
+    for (const auto& u : units) ps.add(u.duration);
+    return ps;
+  }
+
+  StepSequence extract_steps() const {
+    StepSequence ss;
+    for (const auto& u : units) ss.add(u.step);
+    return ss;
+  }
+
+  // Zip atoms one-to-one: steps[i] -> units[i].step, pulses[i] -> units[i].duration.
+  // Length = min(pulses.count(), steps.count()).
+  static MelodicFigure from_atoms(const PulseSequence& pulses, const StepSequence& steps) {
+    MelodicFigure fig;
+    int n = std::min(pulses.count(), steps.count());
+    for (int i = 0; i < n; ++i) {
+      FigureUnit u;
+      u.duration = pulses.get(i);
+      u.step = steps.get(i);
+      fig.units.push_back(u);
+    }
+    return fig;
+  }
 };
 
 // ---------------------------------------------------------------------------
