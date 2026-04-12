@@ -6,6 +6,7 @@
 #include <vector>
 #include <unordered_map>
 #include <optional>
+#include <variant>
 #include <cstdint>
 
 namespace mforce {
@@ -134,10 +135,21 @@ struct FigureTemplate {
 
 struct Motif {
     std::string name;              // "main_theme", "hook", "bridge_motif"
-    MelodicFigure figure;          // the actual musical content
+
+    using Content = std::variant<MelodicFigure, PulseSequence, StepSequence>;
+    Content content;               // the actual musical content (figure, rhythm, or contour)
+
     bool userProvided{false};      // true = user entered, don't regenerate
     uint32_t generationSeed{0};    // for reproducibility if generated
     std::optional<FigureTemplate> constraints;  // generation constraints when !userProvided
+
+    bool is_figure()  const { return std::holds_alternative<MelodicFigure>(content); }
+    bool is_rhythm()  const { return std::holds_alternative<PulseSequence>(content); }
+    bool is_contour() const { return std::holds_alternative<StepSequence>(content); }
+
+    const MelodicFigure& figure()  const { return std::get<MelodicFigure>(content); }
+    const PulseSequence& rhythm()  const { return std::get<PulseSequence>(content); }
+    const StepSequence&  contour() const { return std::get<StepSequence>(content); }
 };
 
 // ===========================================================================

@@ -101,6 +101,16 @@ struct Composer {
     return realizedMotifs_;
   }
 
+  const PulseSequence* find_rhythm_motif(const std::string& name) const {
+    auto it = realizedRhythms_.find(name);
+    return it == realizedRhythms_.end() ? nullptr : &it->second;
+  }
+
+  const StepSequence* find_contour_motif(const std::string& name) const {
+    auto it = realizedContours_.find(name);
+    return it == realizedContours_.end() ? nullptr : &it->second;
+  }
+
   // --- Public registry lookup for Phase 2 shape dispatch ---
   // Named awkwardly to signal it exists specifically for the shape-dispatch
   // path in DefaultFigureStrategy::realize_figure. May be renamed later.
@@ -127,6 +137,8 @@ private:
   Randomizer rng_;
   StrategyRegistry registry_;
   std::unordered_map<std::string, MelodicFigure> realizedMotifs_;
+  std::unordered_map<std::string, PulseSequence> realizedRhythms_;
+  std::unordered_map<std::string, StepSequence> realizedContours_;
 
   // ---- Pre-refactor port: ClassicalComposer::setup_piece -----------------
   void setup_piece_(Piece& piece, const PieceTemplate& tmpl) {
@@ -159,6 +171,8 @@ private:
   // ---- Pre-refactor port: ClassicalComposer::realize_motifs ---------------
   void realize_motifs_(const Piece& /*piece*/, const PieceTemplate& tmpl) {
     realizedMotifs_.clear();
+    realizedRhythms_.clear();
+    realizedContours_.clear();
 
     // Pick a shared pulse for all generated motifs (phrase-level coherence).
     // Use piece-level default if specified, otherwise randomize once.
@@ -170,15 +184,42 @@ private:
     }
 
     for (auto& motif : tmpl.motifs) {
-      if (motif.userProvided || !motif.figure.units.empty()) {
-        realizedMotifs_[motif.name] = motif.figure;
+      if (motif.is_rhythm()) {
+        // PulseSequence motif
+        if (motif.userProvided || !motif.rhythm().pulses.empty()) {
+          realizedRhythms_[motif.name] = motif.rhythm();
+        } else {
+          uint32_t s = motif.generationSeed ? motif.generationSeed : rng_.rng();
+          float totalBeats = 4.0f;
+          if (motif.constraints && motif.constraints->totalBeats > 0)
+            totalBeats = motif.constraints->totalBeats;
+          PulseGenerator pgen(s);
+          realizedRhythms_[motif.name] = pgen.generate(totalBeats, sharedPulse);
+        }
+      } else if (motif.is_contour()) {
+        // StepSequence motif
+        if (motif.userProvided || !motif.contour().steps.empty()) {
+          realizedContours_[motif.name] = motif.contour();
+        } else {
+          uint32_t s = motif.generationSeed ? motif.generationSeed : rng_.rng();
+          int length = 4;
+          if (motif.constraints && motif.constraints->maxNotes > 0)
+            length = motif.constraints->maxNotes;
+          StepGenerator sgen(s);
+          realizedContours_[motif.name] = sgen.random_sequence(length);
+        }
       } else {
-        uint32_t s = motif.generationSeed ? motif.generationSeed : rng_.rng();
-        FigureTemplate ft = motif.constraints.value_or(FigureTemplate{});
-        // Inherit shared pulse if the motif doesn't specify its own
-        if (ft.defaultPulse <= 0) ft.defaultPulse = sharedPulse;
-        DefaultFigureStrategy figStrat;
-        realizedMotifs_[motif.name] = figStrat.generate_figure(ft, s);
+        // MelodicFigure motif (existing path, unchanged)
+        if (motif.userProvided || !motif.figure().units.empty()) {
+          realizedMotifs_[motif.name] = motif.figure();
+        } else {
+          uint32_t s = motif.generationSeed ? motif.generationSeed : rng_.rng();
+          FigureTemplate ft = motif.constraints.value_or(FigureTemplate{});
+          // Inherit shared pulse if the motif doesn't specify its own
+          if (ft.defaultPulse <= 0) ft.defaultPulse = sharedPulse;
+          DefaultFigureStrategy figStrat;
+          realizedMotifs_[motif.name] = figStrat.generate_figure(ft, s);
+        }
       }
     }
   }

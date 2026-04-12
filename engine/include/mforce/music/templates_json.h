@@ -286,16 +286,42 @@ inline void from_json(const json& j, FigureTemplate& ft) {
 // ===========================================================================
 
 inline void to_json(json& j, const Motif& m) {
-    j = json{{"name", m.name}};
-    if (!m.figure.units.empty()) j["figure"] = m.figure;
+    j["name"] = m.name;
+    if (m.is_figure()) {
+        j["type"] = "figure";
+        const auto& fig = m.figure();
+        if (!fig.units.empty()) j["figure"] = fig;
+    } else if (m.is_rhythm()) {
+        j["type"] = "rhythm";
+        j["rhythm"] = m.rhythm();
+    } else if (m.is_contour()) {
+        j["type"] = "contour";
+        j["contour"] = m.contour();
+    }
     if (m.userProvided) j["userProvided"] = true;
     if (m.generationSeed != 0) j["generationSeed"] = m.generationSeed;
     if (m.constraints) j["constraints"] = *m.constraints;
 }
 inline void from_json(const json& j, Motif& m) {
     m.name = j.at("name").get<std::string>();
-    if (j.contains("figure")) {
-        from_json(j.at("figure"), m.figure);
+    std::string type = j.value("type", std::string("figure"));
+    if (type == "rhythm") {
+        PulseSequence ps;
+        from_json(j.at("rhythm"), ps);
+        m.content = std::move(ps);
+    } else if (type == "contour") {
+        StepSequence ss;
+        from_json(j.at("contour"), ss);
+        m.content = std::move(ss);
+    } else {
+        // Default: figure (backward compatible)
+        if (j.contains("figure")) {
+            MelodicFigure fig;
+            from_json(j.at("figure"), fig);
+            m.content = std::move(fig);
+        } else {
+            m.content = MelodicFigure{};  // empty figure if no content
+        }
     }
     m.userProvided = j.value("userProvided", false);
     m.generationSeed = j.value("generationSeed", 0u);

@@ -222,6 +222,22 @@ inline void from_json(const json& j, FigureUnit& u) {
   if (j.contains("ornament")) from_json(j.at("ornament"), u.ornament);
 }
 
+inline void to_json(json& j, const PulseSequence& ps) {
+  j = ps.pulses;
+}
+inline void from_json(const json& j, PulseSequence& ps) {
+  ps.pulses.clear();
+  for (const auto& v : j) ps.pulses.push_back(v.get<float>());
+}
+
+inline void to_json(json& j, const StepSequence& ss) {
+  j = ss.steps;
+}
+inline void from_json(const json& j, StepSequence& ss) {
+  ss.steps.clear();
+  for (const auto& v : j) ss.steps.push_back(v.get<int>());
+}
+
 inline void to_json(json& j, const MelodicFigure& f) {
   j = json{{"units", f.units}};
 }
