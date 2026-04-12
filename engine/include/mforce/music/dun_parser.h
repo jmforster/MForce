@@ -344,7 +344,7 @@ inline Piece dun_to_piece(const DunParseResult& dun, int startOctaveOverride = -
         if (!figDun[ti].rest) reader.step(figDun[ti].step);
       }
 
-      phrase.add_figure(std::move(fig));  // single-arg: connector no longer used
+      phrase.add_melodic_figure(std::move(fig));  // single-arg: connector no longer used
     }
 
     passage.add_phrase(std::move(phrase));

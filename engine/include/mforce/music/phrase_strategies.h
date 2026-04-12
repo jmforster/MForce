@@ -55,10 +55,10 @@ inline Phrase PeriodPhraseStrategy::realize_phrase(
   }
 
   // Figure 0: basicIdea (antecedent opening)
-  phrase.add_figure(cfg.basicIdea);
+  phrase.add_melodic_figure(cfg.basicIdea);
 
   // Figure 1: antecedentTail
-  phrase.add_figure(cfg.antecedentTail);
+  phrase.add_melodic_figure(cfg.antecedentTail);
 
   // Half-cadence adjustment on the antecedent (figures 0 and 1)
   {
@@ -66,7 +66,7 @@ inline Phrase PeriodPhraseStrategy::realize_phrase(
     int len = ctx.scale.length();
     int netSteps = 0;
     for (int f = 0; f < 2; ++f) {
-      netSteps += phrase.figures[f].net_step();
+      netSteps += phrase.figures[f]->net_step();
     }
     int landingDeg = ((startDeg + netSteps) % len + len) % len;
     int target = cfg.halfCadenceTarget % len;
@@ -74,7 +74,7 @@ inline Phrase PeriodPhraseStrategy::realize_phrase(
       int diff = target - landingDeg;
       if (diff > len / 2) diff -= len;
       if (diff < -len / 2) diff += len;
-      auto& lastFig = phrase.figures.back();  // antecedentTail
+      auto& lastFig = *phrase.figures.back();  // antecedentTail
       if (!lastFig.units.empty()) {
         lastFig.units.back().step += diff;
       }
@@ -82,10 +82,10 @@ inline Phrase PeriodPhraseStrategy::realize_phrase(
   }
 
   // Figure 2: basicIdea (consequent opening, parallel)
-  phrase.add_figure(cfg.basicIdea);
+  phrase.add_melodic_figure(cfg.basicIdea);
 
   // Figure 3: consequentTail
-  phrase.add_figure(cfg.consequentTail);
+  phrase.add_melodic_figure(cfg.consequentTail);
 
   // Authentic cadence across the whole phrase
   if (phraseTmpl.cadenceType > 0 && phraseTmpl.cadenceTarget >= 0
@@ -113,17 +113,17 @@ inline Phrase SentencePhraseStrategy::realize_phrase(
   }
 
   // Figure 0: basicIdea
-  phrase.add_figure(cfg.basicIdea);
+  phrase.add_melodic_figure(cfg.basicIdea);
 
   // Figure 1: basicIdea transposed via first-unit step offset
   MelodicFigure repetition = cfg.basicIdea;
   if (!repetition.units.empty()) {
     repetition.units[0].step += cfg.variationTransposition;
   }
-  phrase.add_figure(std::move(repetition));
+  phrase.add_melodic_figure(std::move(repetition));
 
   // Figure 2: continuation
-  phrase.add_figure(cfg.continuation);
+  phrase.add_melodic_figure(cfg.continuation);
 
   if (phraseTmpl.cadenceType > 0 && phraseTmpl.cadenceTarget >= 0
       && !phrase.figures.empty()) {

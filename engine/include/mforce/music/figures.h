@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <cmath>
 #include <stdexcept>
+#include <memory>
 
 namespace mforce {
 
@@ -495,14 +496,50 @@ struct PitchSelection {
 };
 
 // ---------------------------------------------------------------------------
+// Figure — base class for melodic/chord patterns built from FigureUnits.
+// ---------------------------------------------------------------------------
+struct Figure {
+  std::vector<FigureUnit> units;
+  virtual ~Figure() = default;
+
+  int note_count() const { return int(units.size()); }
+  void set_articulation(int index, Articulation art) { units[index].articulation = art; }
+  void set_ornament(int index, Ornament orn) { units[index].ornament = orn; }
+
+  float total_duration() const {
+    float t = 0;
+    for (auto& u : units) t += u.duration;
+    return t;
+  }
+
+  // Net pitch movement (sum of all steps, including the first unit's step)
+  int net_step() const {
+    int n = 0;
+    for (auto& u : units) n += u.step;
+    return n;
+  }
+
+  PulseSequence extract_pulses() const {
+    PulseSequence ps;
+    for (const auto& u : units) ps.add(u.duration);
+    return ps;
+  }
+
+  StepSequence extract_steps() const {
+    StepSequence ss;
+    for (const auto& u : units) ss.add(u.step);
+    return ss;
+  }
+
+  virtual std::unique_ptr<Figure> clone() const = 0;
+};
+
+// ---------------------------------------------------------------------------
 // MelodicFigure — a melodic pattern built from FigureUnits.
 // Constructed from StepSequence + PulseSequence (Composer's building blocks),
 // stored as vector<FigureUnit> (Conductor's consumable form).
 // ---------------------------------------------------------------------------
-struct MelodicFigure {
-  std::vector<FigureUnit> units;
-
-  // Construct from Composer's building blocks
+struct MelodicFigure : Figure {
   MelodicFigure() = default;
 
   MelodicFigure(const PulseSequence& pulses, const StepSequence& steps) {
@@ -517,38 +554,6 @@ struct MelodicFigure {
     }
   }
 
-  int note_count() const { return int(units.size()); }
-
-  void set_articulation(int index, Articulation art) { units[index].articulation = art; }
-  void set_ornament(int index, Ornament orn) { units[index].ornament = orn; }
-
-  float total_duration() const {
-    float t = 0;
-    for (auto& u : units) t += u.duration;
-    return t;
-  }
-
-  // Net pitch movement (sum of all steps, including the first unit's step)
-  int net_step() const {
-    int n = 0;
-    for (int i = 0; i < int(units.size()); ++i) n += units[i].step;
-    return n;
-  }
-
-  // --- Atom extraction ---
-
-  PulseSequence extract_pulses() const {
-    PulseSequence ps;
-    for (const auto& u : units) ps.add(u.duration);
-    return ps;
-  }
-
-  StepSequence extract_steps() const {
-    StepSequence ss;
-    for (const auto& u : units) ss.add(u.step);
-    return ss;
-  }
-
   // Zip atoms one-to-one: steps[i] -> units[i].step, pulses[i] -> units[i].duration.
   // Length = min(pulses.count(), steps.count()).
   static MelodicFigure from_atoms(const PulseSequence& pulses, const StepSequence& steps) {
@@ -561,6 +566,50 @@ struct MelodicFigure {
       fig.units.push_back(u);
     }
     return fig;
+  }
+
+  std::unique_ptr<Figure> clone() const override {
+    auto c = std::make_unique<MelodicFigure>();
+    c->units = units;
+    return c;
+  }
+};
+
+// ---------------------------------------------------------------------------
+// ChordFigure — a chord-tone movement pattern built from FigureUnits.
+// Same structure as MelodicFigure but distinct type for chord parts.
+// ---------------------------------------------------------------------------
+struct ChordFigure : Figure {
+  ChordFigure() = default;
+
+  ChordFigure(const PulseSequence& pulses, const StepSequence& steps) {
+    if (steps.count() != pulses.count() - 1)
+      throw std::runtime_error("ChordFigure: step count must be pulse count - 1");
+
+    for (int i = 0; i < pulses.count(); ++i) {
+      FigureUnit u;
+      u.duration = pulses.get(i);
+      u.step = (i == 0) ? 0 : steps.get(i - 1);
+      units.push_back(u);
+    }
+  }
+
+  static ChordFigure from_atoms(const PulseSequence& pulses, const StepSequence& steps) {
+    ChordFigure fig;
+    int n = std::min(pulses.count(), steps.count());
+    for (int i = 0; i < n; ++i) {
+      FigureUnit u;
+      u.duration = pulses.get(i);
+      u.step = steps.get(i);
+      fig.units.push_back(u);
+    }
+    return fig;
+  }
+
+  std::unique_ptr<Figure> clone() const override {
+    auto c = std::make_unique<ChordFigure>();
+    c->units = units;
+    return c;
   }
 };
 

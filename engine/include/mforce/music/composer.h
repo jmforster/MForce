@@ -714,7 +714,7 @@ inline Passage DefaultPassageStrategy::realize_passage(
     reader.set_pitch(phraseCtx.cursor);
     int totalDelta = 0;
     for (auto& fig : phrase.figures) {
-      for (auto& u : fig.units) {
+      for (auto& u : fig->units) {
         totalDelta += u.step;
       }
     }
@@ -783,7 +783,7 @@ inline Phrase DefaultPhraseStrategy::realize_phrase(
     // No connectors. Every figure joins via its first unit's step, which
     // bridges from wherever the previous figure left the cursor to this
     // figure's effective starting pitch.
-    phrase.add_figure(std::move(fig));
+    phrase.add_melodic_figure(std::move(fig));
   }
 
   // Cadence adjustment — skip for Literal and Locked source on the last

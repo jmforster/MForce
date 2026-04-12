@@ -490,7 +490,7 @@ private:
     float currentNN = phrase.startingPitch.note_number();
 
     for (int f = 0; f < phrase.figure_count(); ++f) {
-      const auto& fig = phrase.figures[f];
+      const auto& fig = *phrase.figures[f];
 
       // Walk FigureUnits. Every unit's step is applied, including the first
       // (which bridges from the previous figure's ending pitch to this

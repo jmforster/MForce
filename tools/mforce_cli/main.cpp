@@ -139,15 +139,15 @@ static Phrase build_descending_phrase(Pitch startPitch, const MelodicFigure& rep
     phrase.startingPitch = startPitch;
 
     // First repetition
-    phrase.add_figure(repFig);
+    phrase.add_melodic_figure(repFig);
 
     // Subsequent repetitions
     for (int i = 1; i < reps; ++i) {
-        phrase.add_figure(repFig);
+        phrase.add_melodic_figure(repFig);
     }
 
     // Tail figure
-    phrase.add_figure(tailFig);
+    phrase.add_melodic_figure(tailFig);
 
     return phrase;
 }
@@ -268,7 +268,7 @@ static int run_melody(int argc, char** argv) {
         float totalBeats = 0;
         for (const auto& ph : passage.phrases)
             for (const auto& fig : ph.figures)
-                for (const auto& u : fig.units)
+                for (const auto& u : fig->units)
                     totalBeats += u.duration;
 
         // Build Piece

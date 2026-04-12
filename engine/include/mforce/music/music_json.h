@@ -375,7 +375,14 @@ inline void from_json(const json& j, DynamicMarking& dm) {
 }
 
 inline void to_json(json& j, const Phrase& ph) {
-  j = json{{"startingPitch", ph.startingPitch}, {"figures", ph.figures}};
+  j["startingPitch"] = ph.startingPitch;
+  j["figures"] = json::array();
+  for (const auto& fig : ph.figures) {
+    // Serialize via the concrete units (all Figure subclasses share the same wire format)
+    json fj;
+    fj["units"] = fig->units;
+    j["figures"].push_back(fj);
+  }
 }
 
 inline void from_json(const json& j, Phrase& ph) {
@@ -383,7 +390,7 @@ inline void from_json(const json& j, Phrase& ph) {
   for (auto& fj : j.at("figures")) {
     MelodicFigure f;
     from_json(fj, f);
-    ph.figures.push_back(std::move(f));
+    ph.add_melodic_figure(std::move(f));
   }
 }
 

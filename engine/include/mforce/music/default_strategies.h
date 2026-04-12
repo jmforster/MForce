@@ -295,7 +295,7 @@ inline void DefaultPhraseStrategy::apply_cadence(Phrase& phrase,
     // Compute net step movement across the whole phrase
     int netSteps = 0;
     for (int f = 0; f < phrase.figure_count(); ++f) {
-      netSteps += phrase.figures[f].net_step();
+      netSteps += phrase.figures[f]->net_step();
     }
 
     int landingDeg = ((startDeg + netSteps) % len + len) % len;
@@ -309,7 +309,7 @@ inline void DefaultPhraseStrategy::apply_cadence(Phrase& phrase,
     if (diff < -len / 2) diff += len;
 
     // Adjust the last note of the last figure
-    auto& lastFig = phrase.figures.back();
+    auto& lastFig = *phrase.figures.back();
     if (!lastFig.units.empty()) {
       lastFig.units.back().step += diff;
     }
