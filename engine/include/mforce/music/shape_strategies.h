@@ -85,80 +85,6 @@ public:
   MelodicFigure realize_figure(const FigureTemplate& ft, StrategyContext& ctx) override;
 };
 
-inline MelodicFigure ShapeCadentialApproachStrategy::realize_figure(
-    const FigureTemplate& ft, StrategyContext& ctx) {
-  uint32_t seed = ft.seed ? ft.seed : ctx.rng->rng();
-  Randomizer rng(seed);
-
-  float totalBeats = (ft.totalBeats > 0) ? ft.totalBeats : 4.0f;
-  float pulse = (ft.defaultPulse > 0) ? ft.defaultPulse : 1.0f;
-  int approachDir = (ft.shapeDirection < 0) ? -1 : 1;  // -1 = from above, +1 = from below
-  // targetSteps: net movement during the approach (negative = descend to target, positive = ascend)
-  int targetSteps = (ft.targetNet != 0) ? ft.targetNet :
-                    ((ft.shapeParam > 0) ? ft.shapeParam * (-approachDir) : -3 * approachDir);
-
-  // Reserve last portion for the arrival note (longer than approach notes).
-  // Clamp to a standard duration that still leaves room for at least one approach note.
-  float arrivalDuration = std::min(totalBeats * 0.4f, std::max(pulse * 2.0f, 1.0f));
-  static const float STD_DURS[] = {0.25f, 0.5f, 0.75f, 1.0f, 1.5f, 2.0f, 3.0f, 4.0f};
-  float bestArrival = 1.0f;
-  float bestDist = 999.0f;
-  for (float s : STD_DURS) {
-    if (s <= totalBeats - 0.25f && std::abs(s - arrivalDuration) < bestDist) {
-      bestDist = std::abs(s - arrivalDuration);
-      bestArrival = s;
-    }
-  }
-  arrivalDuration = bestArrival;
-
-  float approachBeats = totalBeats - arrivalDuration;
-  if (approachBeats < 0.25f) {
-    // No room for approach notes — emit just the arrival on the current pitch.
-    MelodicFigure fig;
-    fig.units.push_back({totalBeats, 0});
-    return fig;
-  }
-
-  // Generate approach rhythm
-  PulseGenerator pgen(seed + 50);
-  PulseSequence approachRhythm = pgen.generate(approachBeats, pulse);
-  int approachCount = approachRhythm.count();
-
-  // Overshoot-then-recover: 30% of the time when there are enough approach notes
-  bool overshoot = rng.decide(0.3f) && approachCount >= 3;
-
-  MelodicFigure fig;
-  int stepsRemaining = targetSteps;
-
-  for (int i = 0; i < approachCount; ++i) {
-    FigureUnit u;
-    u.duration = approachRhythm.get(i);
-
-    if (i == 0) {
-      u.step = 0;  // first note at cursor
-    } else if (overshoot && i == 1) {
-      // Overshoot: move briefly away from the target direction
-      u.step = -approachDir * (rng.decide(0.5f) ? 1 : 2);
-      stepsRemaining -= u.step;
-    } else {
-      // Normal approach: mostly stepwise, occasionally a skip
-      int stepSize = rng.decide(0.7f) ? 1 : 2;
-      u.step = (stepsRemaining > 0) ? stepSize : (stepsRemaining < 0) ? -stepSize : 0;
-      stepsRemaining -= u.step;
-    }
-
-    fig.units.push_back(u);
-  }
-
-  // Arrival note — lands on whatever remains of targetSteps
-  FigureUnit arrival;
-  arrival.duration = arrivalDuration;
-  arrival.step = stepsRemaining;
-  fig.units.push_back(arrival);
-
-  return fig;
-}
-
 // ====== ShapeTriadicOutlineStrategy =========================================
 class ShapeTriadicOutlineStrategy : public Strategy {
 public:
@@ -345,44 +271,6 @@ public:
   MelodicFigure realize_figure(const FigureTemplate& ft, StrategyContext& ctx) override;
 };
 
-inline MelodicFigure ShapeSkippingStrategy::realize_figure(
-    const FigureTemplate& ft, StrategyContext& ctx) {
-  uint32_t seed = ft.seed ? ft.seed : ctx.rng->rng();
-  Randomizer rng(seed);
-
-  float totalBeats = (ft.totalBeats > 0) ? ft.totalBeats : 4.0f;
-  float pulse = (ft.defaultPulse > 0) ? ft.defaultPulse : 1.0f;
-
-  PulseGenerator pgen(seed + 50);
-  PulseSequence rhythm = pgen.generate(totalBeats, pulse);
-  int noteCount = rhythm.count();
-  if (noteCount == 0) return MelodicFigure{};
-
-  MelodicFigure fig;
-  int totalSteps = noteCount - 1;
-  for (int i = 0; i < noteCount; ++i) {
-    FigureUnit u;
-    u.duration = rhythm.get(i);
-    if (i == 0) {
-      u.step = 0;  // first note at cursor
-    } else {
-      int sign = direction_sign(ft.direction, i - 1, totalSteps, rng);
-      int magnitude = rng.decide(0.5f) ? 2 : 3;  // thirds or fourths
-      u.step = sign * magnitude;
-    }
-    fig.units.push_back(u);
-  }
-
-  // Adjust last step to hit targetNet if specified
-  if (ft.targetNet != 0 && noteCount > 1) {
-    int currentNet = fig.net_step();
-    int diff = ft.targetNet - currentNet;
-    fig.units.back().step += diff;
-  }
-
-  return fig;
-}
-
 // ====== ShapeSteppingStrategy ===============================================
 class ShapeSteppingStrategy : public Strategy {
 public:
@@ -390,42 +278,5 @@ public:
   StrategyLevel level() const override { return StrategyLevel::Figure; }
   MelodicFigure realize_figure(const FigureTemplate& ft, StrategyContext& ctx) override;
 };
-
-inline MelodicFigure ShapeSteppingStrategy::realize_figure(
-    const FigureTemplate& ft, StrategyContext& ctx) {
-  uint32_t seed = ft.seed ? ft.seed : ctx.rng->rng();
-  Randomizer rng(seed);
-
-  float totalBeats = (ft.totalBeats > 0) ? ft.totalBeats : 4.0f;
-  float pulse = (ft.defaultPulse > 0) ? ft.defaultPulse : 1.0f;
-
-  PulseGenerator pgen(seed + 50);
-  PulseSequence rhythm = pgen.generate(totalBeats, pulse);
-  int noteCount = rhythm.count();
-  if (noteCount == 0) return MelodicFigure{};
-
-  MelodicFigure fig;
-  int totalSteps = noteCount - 1;
-  for (int i = 0; i < noteCount; ++i) {
-    FigureUnit u;
-    u.duration = rhythm.get(i);
-    if (i == 0) {
-      u.step = 0;
-    } else {
-      int sign = direction_sign(ft.direction, i - 1, totalSteps, rng);
-      u.step = sign * 1;  // always stepwise (seconds)
-    }
-    fig.units.push_back(u);
-  }
-
-  // Adjust last step to hit targetNet if specified
-  if (ft.targetNet != 0 && noteCount > 1) {
-    int currentNet = fig.net_step();
-    int diff = ft.targetNet - currentNet;
-    fig.units.back().step += diff;
-  }
-
-  return fig;
-}
 
 } // namespace mforce

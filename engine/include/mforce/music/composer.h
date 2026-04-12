@@ -317,6 +317,212 @@ private:
 };
 
 // ============================================================================
+// Out-of-line definitions for ShapeCadentialApproachStrategy,
+// ShapeSkippingStrategy, and ShapeSteppingStrategy.
+//
+// These bodies live here — BELOW the Composer class — because they call
+// ctx.composer->find_rhythm_motif() and ctx.composer->find_contour_motif(),
+// which require the full Composer definition. Placing them in
+// shape_strategies.h (where Composer is only forward-declared) would cause
+// incomplete-type errors. Same pattern as DefaultFigureStrategy::realize_figure.
+// ============================================================================
+
+namespace detail {
+
+inline PulseSequence resolve_rhythm(const FigureTemplate& ft, StrategyContext& ctx,
+                                     uint32_t seed, float totalBeats, float defaultPulse) {
+  if (!ft.rhythmMotifName.empty()) {
+    const PulseSequence* ps = ctx.composer->find_rhythm_motif(ft.rhythmMotifName);
+    if (ps) {
+      PulseSequence result = *ps;
+      if (ft.rhythmTransform == "retrograde") result = result.retrograded();
+      else if (ft.rhythmTransform == "stretch")
+        result = result.stretched(ft.rhythmTransformParam > 0 ? ft.rhythmTransformParam : 2.0f);
+      else if (ft.rhythmTransform == "compress")
+        result = result.compressed(ft.rhythmTransformParam > 0 ? ft.rhythmTransformParam : 2.0f);
+      return result;
+    }
+  }
+  PulseGenerator pgen(seed + 50);
+  return pgen.generate(totalBeats, defaultPulse);
+}
+
+inline StepSequence resolve_contour(const FigureTemplate& ft, StrategyContext& ctx,
+                                     uint32_t seed, int noteCount, FigureDirection dir) {
+  if (!ft.contourMotifName.empty()) {
+    const StepSequence* ss = ctx.composer->find_contour_motif(ft.contourMotifName);
+    if (ss) {
+      StepSequence result = *ss;
+      if (ft.contourTransform == "invert") result = result.inverted();
+      else if (ft.contourTransform == "retrograde") result = result.retrograded();
+      else if (ft.contourTransform == "expand")
+        result = result.expanded(ft.contourTransformParam > 0 ? ft.contourTransformParam : 2.0f);
+      else if (ft.contourTransform == "contract")
+        result = result.contracted(ft.contourTransformParam > 0 ? ft.contourTransformParam : 2.0f);
+      return result;
+    }
+  }
+  // No motif reference or not found — generate using direction
+  StepSequence ss;
+  Randomizer stepRng(seed);
+  int totalSteps = noteCount - 1;
+  for (int i = 0; i < noteCount; ++i) {
+    if (i == 0) {
+      ss.add(0);
+    } else {
+      int sign = direction_sign(dir, i - 1, totalSteps, stepRng);
+      ss.add(sign);  // magnitude 1 for stepping; caller can scale for skipping
+    }
+  }
+  return ss;
+}
+
+} // namespace detail
+
+inline MelodicFigure ShapeCadentialApproachStrategy::realize_figure(
+    const FigureTemplate& ft, StrategyContext& ctx) {
+  uint32_t seed = ft.seed ? ft.seed : ctx.rng->rng();
+  Randomizer rng(seed);
+
+  float totalBeats = (ft.totalBeats > 0) ? ft.totalBeats : 4.0f;
+  float pulse = (ft.defaultPulse > 0) ? ft.defaultPulse : 1.0f;
+  int approachDir = (ft.shapeDirection < 0) ? -1 : 1;
+  int targetSteps = (ft.targetNet != 0) ? ft.targetNet :
+                    ((ft.shapeParam > 0) ? ft.shapeParam * (-approachDir) : -3 * approachDir);
+
+  // Resolve rhythm (from motif or generated)
+  PulseSequence rhythm = detail::resolve_rhythm(ft, ctx, seed, totalBeats, pulse);
+
+  // Functional coupling: ensure last note is at least double the average
+  if (rhythm.count() >= 2) {
+    float avg = rhythm.total_length() / rhythm.count();
+    if (rhythm.pulses.back() < avg * 1.5f) {
+      float steal = avg;
+      rhythm.pulses.back() += steal;
+      int donors = rhythm.count() - 1;
+      if (donors > 0) {
+        float perDonor = steal / donors;
+        for (int i = 0; i < donors; ++i) {
+          rhythm.pulses[i] = std::max(0.125f, rhythm.pulses[i] - perDonor);
+        }
+      }
+    }
+  }
+
+  int noteCount = rhythm.count();
+  if (noteCount == 0) return MelodicFigure{};
+
+  // Generate approach contour
+  StepSequence contour;
+  int stepsRemaining = targetSteps;
+  bool overshoot = rng.decide(0.3f) && noteCount >= 3;
+
+  for (int i = 0; i < noteCount; ++i) {
+    if (i == 0) {
+      contour.add(0);
+    } else if (i == noteCount - 1) {
+      contour.add(stepsRemaining);  // arrival: whatever's left
+    } else if (overshoot && i == 1) {
+      int over = -approachDir * (rng.decide(0.5f) ? 1 : 2);
+      contour.add(over);
+      stepsRemaining -= over;
+    } else {
+      int stepSize = rng.decide(0.7f) ? 1 : 2;
+      int s = (stepsRemaining > 0) ? stepSize : (stepsRemaining < 0) ? -stepSize : 0;
+      contour.add(s);
+      stepsRemaining -= s;
+    }
+  }
+
+  // If a contour motif was provided, use it instead (override the generated one)
+  if (!ft.contourMotifName.empty()) {
+    const StepSequence* ss = ctx.composer->find_contour_motif(ft.contourMotifName);
+    if (ss) {
+      contour = *ss;
+      if (ft.contourTransform == "invert") contour = contour.inverted();
+      else if (ft.contourTransform == "retrograde") contour = contour.retrograded();
+      else if (ft.contourTransform == "expand")
+        contour = contour.expanded(ft.contourTransformParam > 0 ? ft.contourTransformParam : 2.0f);
+      else if (ft.contourTransform == "contract")
+        contour = contour.contracted(ft.contourTransformParam > 0 ? ft.contourTransformParam : 2.0f);
+      if (ft.targetNet != 0 && contour.count() > 1) {
+        int diff = ft.targetNet - contour.net();
+        contour.steps.back() += diff;
+      }
+    }
+  }
+
+  while (contour.count() < rhythm.count()) contour.add(0);
+  while (contour.count() > rhythm.count()) contour.steps.pop_back();
+
+  return MelodicFigure::from_atoms(rhythm, contour);
+}
+
+inline MelodicFigure ShapeSkippingStrategy::realize_figure(
+    const FigureTemplate& ft, StrategyContext& ctx) {
+  uint32_t seed = ft.seed ? ft.seed : ctx.rng->rng();
+  Randomizer rng(seed);
+  float totalBeats = (ft.totalBeats > 0) ? ft.totalBeats : 4.0f;
+  float pulse = (ft.defaultPulse > 0) ? ft.defaultPulse : 1.0f;
+
+  // Resolve rhythm (from motif or generated)
+  PulseSequence rhythm = detail::resolve_rhythm(ft, ctx, seed, totalBeats, pulse);
+  int noteCount = rhythm.count();
+  if (noteCount == 0) return MelodicFigure{};
+
+  // Resolve contour (from motif or generated)
+  StepSequence contour = detail::resolve_contour(ft, ctx, seed, noteCount, ft.direction);
+
+  // Scale contour magnitudes for skipping (thirds/fourths)
+  // If contour came from a motif, its magnitudes are already set — don't rescale.
+  if (ft.contourMotifName.empty()) {
+    Randomizer magRng(seed + 77);
+    for (int i = 0; i < contour.count(); ++i) {
+      if (contour.steps[i] != 0) {
+        int sign = (contour.steps[i] > 0) ? 1 : -1;
+        int mag = magRng.decide(0.5f) ? 2 : 3;
+        contour.steps[i] = sign * mag;
+      }
+    }
+  }
+
+  // Adjust for targetNet
+  if (ft.targetNet != 0 && contour.count() > 1) {
+    int diff = ft.targetNet - contour.net();
+    contour.steps.back() += diff;
+  }
+
+  // Pad/trim contour to match rhythm length
+  while (contour.count() < rhythm.count()) contour.add(0);
+  while (contour.count() > rhythm.count()) contour.steps.pop_back();
+
+  return MelodicFigure::from_atoms(rhythm, contour);
+}
+
+inline MelodicFigure ShapeSteppingStrategy::realize_figure(
+    const FigureTemplate& ft, StrategyContext& ctx) {
+  uint32_t seed = ft.seed ? ft.seed : ctx.rng->rng();
+  float totalBeats = (ft.totalBeats > 0) ? ft.totalBeats : 4.0f;
+  float pulse = (ft.defaultPulse > 0) ? ft.defaultPulse : 1.0f;
+
+  PulseSequence rhythm = detail::resolve_rhythm(ft, ctx, seed, totalBeats, pulse);
+  int noteCount = rhythm.count();
+  if (noteCount == 0) return MelodicFigure{};
+
+  StepSequence contour = detail::resolve_contour(ft, ctx, seed, noteCount, ft.direction);
+
+  if (ft.targetNet != 0 && contour.count() > 1) {
+    int diff = ft.targetNet - contour.net();
+    contour.steps.back() += diff;
+  }
+
+  while (contour.count() < rhythm.count()) contour.add(0);
+  while (contour.count() > rhythm.count()) contour.steps.pop_back();
+
+  return MelodicFigure::from_atoms(rhythm, contour);
+}
+
+// ============================================================================
 // Out-of-line definition of DefaultFigureStrategy::realize_figure.
 //
 // Lives here — BELOW the Composer class — because the body needs the full
