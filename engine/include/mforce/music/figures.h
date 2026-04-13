@@ -542,30 +542,16 @@ struct Figure {
 struct MelodicFigure : Figure {
   MelodicFigure() = default;
 
+  // N pulses, N steps — one-to-one. step[0] is the bridge from the previous
+  // figure's last note (cursor model). Length = min(pulses, steps).
   MelodicFigure(const PulseSequence& pulses, const StepSequence& steps) {
-    if (steps.count() != pulses.count() - 1)
-      throw std::runtime_error("MelodicFigure: step count must be pulse count - 1");
-
-    for (int i = 0; i < pulses.count(); ++i) {
-      FigureUnit u;
-      u.duration = pulses.get(i);
-      u.step = (i == 0) ? 0 : steps.get(i - 1);
-      units.push_back(u);
-    }
-  }
-
-  // Zip atoms one-to-one: steps[i] -> units[i].step, pulses[i] -> units[i].duration.
-  // Length = min(pulses.count(), steps.count()).
-  static MelodicFigure from_atoms(const PulseSequence& pulses, const StepSequence& steps) {
-    MelodicFigure fig;
     int n = std::min(pulses.count(), steps.count());
     for (int i = 0; i < n; ++i) {
       FigureUnit u;
       u.duration = pulses.get(i);
       u.step = steps.get(i);
-      fig.units.push_back(u);
+      units.push_back(u);
     }
-    return fig;
   }
 
   std::unique_ptr<Figure> clone() const override {
@@ -583,27 +569,13 @@ struct ChordFigure : Figure {
   ChordFigure() = default;
 
   ChordFigure(const PulseSequence& pulses, const StepSequence& steps) {
-    if (steps.count() != pulses.count() - 1)
-      throw std::runtime_error("ChordFigure: step count must be pulse count - 1");
-
-    for (int i = 0; i < pulses.count(); ++i) {
-      FigureUnit u;
-      u.duration = pulses.get(i);
-      u.step = (i == 0) ? 0 : steps.get(i - 1);
-      units.push_back(u);
-    }
-  }
-
-  static ChordFigure from_atoms(const PulseSequence& pulses, const StepSequence& steps) {
-    ChordFigure fig;
     int n = std::min(pulses.count(), steps.count());
     for (int i = 0; i < n; ++i) {
       FigureUnit u;
       u.duration = pulses.get(i);
       u.step = steps.get(i);
-      fig.units.push_back(u);
+      units.push_back(u);
     }
-    return fig;
   }
 
   std::unique_ptr<Figure> clone() const override {
@@ -756,7 +728,7 @@ struct FigureBuilder {
       pulses.add(dur);
     }
 
-    auto rawSteps = stepGen.random_sequence(noteCount - 1);
+    auto rawSteps = stepGen.random_sequence(noteCount);
 
     StepSequence steps;
     int pos = 0;
@@ -774,7 +746,7 @@ struct FigureBuilder {
   // Build from step sequence with uniform pulse
   MelodicFigure build(const StepSequence& ss, float pulse) {
     PulseSequence pulses;
-    for (int i = 0; i < ss.count() + 1; ++i)
+    for (int i = 0; i < ss.count(); ++i)
       pulses.add(pulse);
     return MelodicFigure(pulses, ss);
   }

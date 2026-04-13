@@ -68,12 +68,12 @@ inline MelodicFigure DefaultFigureStrategy::generate_figure(
 
       StepSequence ss;
       if (figTmpl.targetNet != 0) {
-        ss = sg.targeted_sequence(noteCount - 1, figTmpl.targetNet);
+        ss = sg.targeted_sequence(noteCount, figTmpl.targetNet);
       } else if (figTmpl.preferStepwise) {
-        ss = sg.no_skip_sequence(noteCount - 1);
+        ss = sg.no_skip_sequence(noteCount);
       } else {
         float skipProb = figTmpl.preferSkips ? 0.6f : 0.3f;
-        ss = sg.random_sequence(noteCount - 1, skipProb);
+        ss = sg.random_sequence(noteCount, skipProb);
       }
 
       // Clamp individual step magnitudes if maxStep is set
@@ -101,11 +101,11 @@ inline MelodicFigure DefaultFigureStrategy::generate_figure(
 
     StepSequence ss;
     if (figTmpl.targetNet != 0) {
-      ss = sg.targeted_sequence(noteCount - 1, figTmpl.targetNet);
+      ss = sg.targeted_sequence(noteCount, figTmpl.targetNet);
     } else if (figTmpl.preferStepwise) {
-      ss = sg.no_skip_sequence(noteCount - 1);
+      ss = sg.no_skip_sequence(noteCount);
     } else {
-      ss = sg.random_sequence(noteCount - 1);
+      ss = sg.random_sequence(noteCount);
     }
 
     if (figTmpl.maxStep > 0) {
