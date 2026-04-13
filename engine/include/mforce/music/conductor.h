@@ -158,15 +158,174 @@ struct DynamicState {
 // NotePerformer — plays individual notes. Beat→seconds + humanization.
 // ---------------------------------------------------------------------------
 struct NotePerformer {
-  float sloppiness{0.0f};
+  float humanize{0.0f};
   Randomizer rng{0xA07E'0000u};
 
-  void perform_note(float noteNumber, float velocity, float durationBeats,
-                    float startBeats, float bpm, PitchedInstrument& instrument) {
+  // Random timing offset (seconds). humanize is in milliseconds — max |offset|.
+  float jitter() { return humanize * 0.001f * rng.valuePN(); }
+
+  // Articulation parameter transforms — returns {adjustedDuration, adjustedVelocity}
+  static std::pair<float, float> apply_articulation(Articulation art,
+                                                     float durSeconds, float velocity) {
+    switch (art) {
+      case Articulation::Staccato:
+        return {durSeconds * 0.5f, velocity};
+      case Articulation::Marcato:
+        return {durSeconds, std::min(velocity * 1.3f, 1.0f)};
+      case Articulation::Sforzando:
+        return {durSeconds, std::min(velocity * 1.5f, 1.0f)};
+      case Articulation::Mute:
+        return {durSeconds * 0.7f, velocity * 0.6f};
+      default:
+        return {durSeconds, velocity};
+    }
+  }
+
+  // How long (in seconds) should each ornament sub-note be?
+  // Returns 0 if the note is too short to ornament.
+  static float ornament_subnote_duration(float parentDurBeats, float bpm) {
+    float beatSeconds = 60.0f / bpm;
+    if (parentDurBeats >= 1.0f)
+      return 0.25f * beatSeconds;        // quarter of a beat
+    else if (parentDurBeats >= 0.5f)
+      return 0.125f * beatSeconds;       // eighth of a beat
+    else
+      return 0.0f;                       // too short, skip ornament
+  }
+
+  // Trill sub-notes are half the duration of mordent/turn sub-notes, and
+  // can go one tier shorter (64th-note trills on a 16th-note parent).
+  static float trill_subnote_duration(float parentDurBeats, float bpm) {
+    float beatSeconds = 60.0f / bpm;
+    if (parentDurBeats >= 1.0f)
+      return 0.125f * beatSeconds;       // 32nd note (1/8 beat)
+    else if (parentDurBeats >= 0.5f)
+      return 0.0625f * beatSeconds;      // 64th note (1/16 beat)
+    else if (parentDurBeats >= 0.25f)
+      return 0.0625f * beatSeconds;      // 64th note on 16th-note parent
+    else
+      return 0.0f;                       // too short, skip trill
+  }
+
+  void perform_mordent(const Note& note, const Mordent& m,
+                       float startSeconds, float durSeconds, float subDur,
+                       PitchedInstrument& instrument) {
+    float neighborNN = note.noteNumber + float(m.direction * m.semitones);
+
+    Articulation neighborArt = m.articulations.size() > 0 ? m.articulations[0] : Articulation::Default;
+    Articulation returnArt   = m.articulations.size() > 1 ? m.articulations[1] : Articulation::Default;
+
+    // 1. Main note (short) — uses the Note's own articulation
+    auto [dur1, vel1] = apply_articulation(note.articulation, subDur, note.velocity);
+    instrument.play_note(note.noteNumber, vel1, dur1, startSeconds + jitter());
+
+    // 2. Neighbor note
+    auto [dur2, vel2] = apply_articulation(neighborArt, subDur, note.velocity);
+    instrument.play_note(neighborNN, vel2, dur2, startSeconds + subDur + jitter());
+
+    // 3. Main note (remainder)
+    float remainDur = durSeconds - 2.0f * subDur;
+    auto [dur3, vel3] = apply_articulation(returnArt, remainDur, note.velocity);
+    instrument.play_note(note.noteNumber, vel3, dur3, startSeconds + 2.0f * subDur + jitter());
+  }
+
+  void perform_turn(const Note& note, const Turn& t,
+                    float startSeconds, float durSeconds, float subDur,
+                    PitchedInstrument& instrument) {
+    float remainDur = durSeconds - 3.0f * subDur;
+
+    float aboveNN = note.noteNumber + float(t.semitonesAbove);
+    float belowNN = note.noteNumber - float(t.semitonesBelow);
+
+    struct SubNote { float nn; float dur; };
+    SubNote notes[4];
+    if (t.direction >= 0) {
+      notes[0] = {aboveNN, subDur};
+      notes[1] = {note.noteNumber, subDur};
+      notes[2] = {belowNN, subDur};
+      notes[3] = {note.noteNumber, remainDur};
+    } else {
+      notes[0] = {belowNN, subDur};
+      notes[1] = {note.noteNumber, subDur};
+      notes[2] = {aboveNN, subDur};
+      notes[3] = {note.noteNumber, remainDur};
+    }
+
+    float cursor = startSeconds;
+    for (int i = 0; i < 4; ++i) {
+      Articulation art;
+      if (i == 0) {
+        art = note.articulation;
+      } else if (i - 1 < int(t.articulations.size())) {
+        art = t.articulations[i - 1];
+      } else {
+        art = Articulation::Default;
+      }
+
+      auto [dur, vel] = apply_articulation(art, notes[i].dur, note.velocity);
+      instrument.play_note(notes[i].nn, vel, dur, cursor + jitter());
+      cursor += notes[i].dur;
+    }
+  }
+
+  void perform_trill(const Note& note, const Trill& t,
+                     float startSeconds, float durSeconds, float subDur,
+                     PitchedInstrument& instrument) {
+    float neighborNN = note.noteNumber + float(t.direction * t.semitones);
+    int count = std::max(2, int(durSeconds / subDur));
+    float actualSubDur = durSeconds / float(count);
+
+    for (int i = 0; i < count; ++i) {
+      bool isNeighbor = (i % 2 == 1);
+      float nn = isNeighbor ? neighborNN : note.noteNumber;
+
+      Articulation art;
+      if (isNeighbor && !t.articulations.empty()) {
+        int artIdx = (i / 2) % int(t.articulations.size());
+        art = t.articulations[artIdx];
+      } else if (!isNeighbor) {
+        art = note.articulation;
+      } else {
+        art = Articulation::Default;
+      }
+
+      auto [dur, vel] = apply_articulation(art, actualSubDur, note.velocity);
+      instrument.play_note(nn, vel, dur, startSeconds + float(i) * actualSubDur + jitter());
+    }
+  }
+
+  void perform_note(const Note& note, float startBeats, float bpm,
+                    PitchedInstrument& instrument) {
     float startSeconds = startBeats * 60.0f / bpm;
-    float durSeconds = durationBeats * 60.0f / bpm;
-    startSeconds += sloppiness * rng.valuePN() * 0.003f;
-    instrument.play_note(noteNumber, velocity, durSeconds, startSeconds);
+    float durSeconds = note.durationBeats * 60.0f / bpm;
+
+    auto play_plain = [&]() {
+      auto [dur, vel] = apply_articulation(note.articulation, durSeconds, note.velocity);
+      instrument.play_note(note.noteNumber, vel, dur, startSeconds + jitter());
+    };
+
+    if (has_ornament(note.ornament)) {
+      std::visit([&](auto&& orn) {
+        using T = std::decay_t<decltype(orn)>;
+        if constexpr (std::is_same_v<T, Mordent>) {
+          float subDur = ornament_subnote_duration(note.durationBeats, bpm);
+          if (subDur <= 0.0f) { play_plain(); return; }
+          perform_mordent(note, orn, startSeconds, durSeconds, subDur, instrument);
+        } else if constexpr (std::is_same_v<T, Trill>) {
+          float subDur = trill_subnote_duration(note.durationBeats, bpm);
+          if (subDur <= 0.0f) { play_plain(); return; }
+          perform_trill(note, orn, startSeconds, durSeconds, subDur, instrument);
+        } else if constexpr (std::is_same_v<T, Turn>) {
+          float subDur = ornament_subnote_duration(note.durationBeats, bpm);
+          if (subDur <= 0.0f) { play_plain(); return; }
+          perform_turn(note, orn, startSeconds, durSeconds, subDur, instrument);
+        } else if constexpr (std::is_same_v<T, std::monostate>) {
+          // no ornament — unreachable due to has_ornament guard
+        }
+      }, note.ornament);
+    } else {
+      play_plain();
+    }
   }
 };
 
@@ -174,14 +333,14 @@ struct NotePerformer {
 // DrumPerformer — plays drum hits. Beat→seconds + humanization.
 // ---------------------------------------------------------------------------
 struct DrumPerformer {
-  float sloppiness{0.0f};
+  float humanize{0.0f};
   Randomizer rng{0xD12A'0000u};
 
   void perform_hit(int drumNumber, float velocity, float durationBeats,
                    float startBeats, float bpm, DrumKit& kit) {
     float startSeconds = startBeats * 60.0f / bpm;
     float durSeconds = durationBeats * 60.0f / bpm;
-    startSeconds += sloppiness * rng.valuePN() * 0.003f;
+    startSeconds += humanize * 0.001f * rng.valuePN();
     kit.play_hit(drumNumber, velocity, durSeconds, startSeconds);
   }
 };
@@ -191,7 +350,7 @@ struct DrumPerformer {
 // ---------------------------------------------------------------------------
 struct ChordPerformer {
   float defaultSpreadMs{10.0f};
-  float sloppiness{0.0f};
+  float humanize{0.0f};
   Randomizer rng{0xCDAE'0000u};
 
   // Named figures (looked up by chord.figureName)
@@ -296,7 +455,7 @@ private:
       float noteStart = startSeconds + float(i) * spreadSeconds;
       float noteDur = durSeconds - float(i) * spreadSeconds;
       if (noteDur < 0.01f) noteDur = 0.01f;
-      noteStart += sloppiness * rng.valuePN() * 0.005f;
+      noteStart += humanize * 0.001f * rng.valuePN();
       instrument.play_note(chord.pitches[i].note_number(), velocity, noteDur, noteStart);
     }
   }
@@ -337,7 +496,7 @@ private:
         float noteDur = elemDurSeconds - elem.delay * float(j);
         if (noteDur < 0.01f) noteDur = 0.01f;
 
-        noteStart += sloppiness * rng.valuePN() * 0.003f;
+        noteStart += humanize * 0.001f * rng.valuePN();
 
         instrument.play_note(chord.pitches[idx].note_number(), velocity, noteDur, noteStart);
 
@@ -481,9 +640,7 @@ private:
       float absBeats = beatOffset + event.startBeats;
 
       if (event.is_note() && pitched) {
-        const auto& n = event.note();
-        notePerformer.perform_note(n.noteNumber, n.velocity, n.durationBeats,
-                                   absBeats, bpm, *pitched);
+        notePerformer.perform_note(event.note(), absBeats, bpm, *pitched);
       }
       else if (event.is_chord() && pitched) {
         chordPerformer.perform_chord(event.chord(), 1.0f, absBeats, bpm, *pitched);
@@ -580,8 +737,8 @@ private:
 
         if (!u.rest) {
           float vel = dynamics.velocity_at(currentBeat);
-          notePerformer.perform_note(soundNN, vel, u.duration,
-                                     currentBeat, bpm, instrument);
+          Note n{soundNN, vel, u.duration, u.articulation, u.ornament};
+          notePerformer.perform_note(n, currentBeat, bpm, instrument);
         }
         currentBeat += u.duration;
       }

@@ -39,22 +39,62 @@ inline void from_json(const json& j, Articulation& a) {
   a = map.at(j.get<std::string>());
 }
 
-inline void to_json(json& j, Ornament o) {
-  static const char* names[] = {
-    "None","MordentAbove","MordentBelow",
-    "TurnAB","TurnBA","TrillAbove","TrillBelow"
-  };
-  j = names[int(o)];
+// --- Ornament variant JSON ---
+
+inline void to_json(json& j, const Mordent& m) {
+  j = json{{"type", "Mordent"}, {"direction", m.direction}, {"semitones", m.semitones}};
+  if (!m.articulations.empty()) j["articulations"] = m.articulations;
+}
+
+inline void to_json(json& j, const Trill& t) {
+  j = json{{"type", "Trill"}, {"direction", t.direction}, {"semitones", t.semitones}};
+  if (!t.articulations.empty()) j["articulations"] = t.articulations;
+}
+
+inline void to_json(json& j, const Turn& t) {
+  j = json{{"type", "Turn"}, {"direction", t.direction},
+            {"semitonesAbove", t.semitonesAbove}, {"semitonesBelow", t.semitonesBelow}};
+  if (!t.articulations.empty()) j["articulations"] = t.articulations;
+}
+
+inline void to_json(json& j, const Ornament& o) {
+  std::visit([&j](auto&& v) {
+    using T = std::decay_t<decltype(v)>;
+    if constexpr (std::is_same_v<T, std::monostate>) {
+      j = nullptr;
+    } else {
+      to_json(j, v);
+    }
+  }, o);
 }
 
 inline void from_json(const json& j, Ornament& o) {
-  static const std::unordered_map<std::string, Ornament> map = {
-    {"None",Ornament::None},{"MordentAbove",Ornament::MordentAbove},
-    {"MordentBelow",Ornament::MordentBelow},{"TurnAB",Ornament::TurnAB},
-    {"TurnBA",Ornament::TurnBA},{"TrillAbove",Ornament::TrillAbove},
-    {"TrillBelow",Ornament::TrillBelow}
-  };
-  o = map.at(j.get<std::string>());
+  // Legacy format: bare string like "MordentAbove"
+  if (j.is_string()) {
+    static const std::unordered_map<std::string, Ornament> legacy = {
+      {"None", Ornament{}},
+      {"MordentAbove", Mordent{1, 2, {}}},  {"MordentBelow", Mordent{-1, 2, {}}},
+      {"TurnAB", Turn{1, 2, 2, {}}},        {"TurnBA", Turn{-1, 2, 2, {}}},
+      {"TrillAbove", Trill{1, 2, {}}},      {"TrillBelow", Trill{-1, 2, {}}},
+    };
+    o = legacy.at(j.get<std::string>());
+    return;
+  }
+
+  // New format: object with "type" field
+  std::string type = j.at("type").get<std::string>();
+  std::vector<Articulation> arts;
+  if (j.contains("articulations")) {
+    for (auto& a : j.at("articulations"))
+      arts.push_back(a.get<Articulation>());
+  }
+  int dir = j.value("direction", 1);
+
+  if (type == "Mordent")    o = Mordent{dir, j.value("semitones", 2), std::move(arts)};
+  else if (type == "Trill") o = Trill{dir, j.value("semitones", 2), std::move(arts)};
+  else if (type == "Turn")  o = Turn{dir, j.value("semitonesAbove", 2),
+                                          j.value("semitonesBelow", 2), std::move(arts)};
+  else                      o = Ornament{};
 }
 
 inline void to_json(json& j, Dynamic d) {
@@ -208,7 +248,7 @@ inline void to_json(json& j, const FigureUnit& u) {
   if (u.rest) j["rest"] = true;
   if (u.accidental != 0) j["accidental"] = u.accidental;
   if (u.articulation != Articulation::Default) j["articulation"] = u.articulation;
-  if (u.ornament != Ornament::None) j["ornament"] = u.ornament;
+  if (has_ornament(u.ornament)) j["ornament"] = u.ornament;
 }
 
 inline void from_json(const json& j, FigureUnit& u) {
@@ -217,7 +257,7 @@ inline void from_json(const json& j, FigureUnit& u) {
   u.rest = j.value("rest", false);
   u.accidental = j.value("accidental", 0);
   u.articulation = Articulation::Default;
-  u.ornament = Ornament::None;
+  u.ornament = Ornament{};
   if (j.contains("articulation")) from_json(j.at("articulation"), u.articulation);
   if (j.contains("ornament")) from_json(j.at("ornament"), u.ornament);
 }
@@ -296,7 +336,7 @@ inline void to_json(json& j, const Note& n) {
   j = json{{"noteNumber", n.noteNumber}, {"velocity", n.velocity},
             {"duration", n.durationBeats}};
   if (n.articulation != Articulation::Default) j["articulation"] = n.articulation;
-  if (n.ornament != Ornament::None) j["ornament"] = n.ornament;
+  if (has_ornament(n.ornament)) j["ornament"] = n.ornament;
 }
 
 inline void from_json(const json& j, Note& n) {
@@ -304,7 +344,7 @@ inline void from_json(const json& j, Note& n) {
   n.velocity = j.contains("velocity") ? j.at("velocity").get<float>() : 1.0f;
   n.durationBeats = j.at("duration").get<float>();
   n.articulation = Articulation::Default;
-  n.ornament = Ornament::None;
+  n.ornament = Ornament{};
   if (j.contains("articulation")) from_json(j.at("articulation"), n.articulation);
   if (j.contains("ornament")) from_json(j.at("ornament"), n.ornament);
 }

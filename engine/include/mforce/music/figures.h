@@ -472,7 +472,7 @@ struct FigureUnit {
   bool rest{false}; // true = silence (advance time, don't sound)
   int accidental{0}; // +1=sharp, -1=flat (transient pitch shift, doesn't affect cursor)
   Articulation articulation{Articulation::Default};
-  Ornament ornament{Ornament::None};
+  Ornament ornament;
 };
 
 // ---------------------------------------------------------------------------

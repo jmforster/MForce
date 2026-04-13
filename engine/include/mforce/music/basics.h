@@ -7,6 +7,7 @@
 #include <stdexcept>
 #include <algorithm>
 #include <optional>
+#include <variant>
 
 namespace mforce {
 
@@ -18,10 +19,32 @@ enum class Articulation {
   Harmonic, Mute, MuteHarmonic
 };
 
-enum class Ornament {
-  None, MordentAbove, MordentBelow,
-  TurnAB, TurnBA, TrillAbove, TrillBelow
+// ===== Ornaments (variant of value types) =====
+
+struct Mordent {
+  int direction{1};   // +1 = above, -1 = below
+  int semitones{2};   // interval in semitones (resolved from scale context)
+  std::vector<Articulation> articulations;  // per sub-note (e.g. [HammerOn, PullOff])
 };
+
+struct Trill {
+  int direction{1};   // +1 = above, -1 = below
+  int semitones{2};   // interval in semitones
+  std::vector<Articulation> articulations;
+};
+
+struct Turn {
+  int direction{1};        // +1 = above-first, -1 = below-first
+  int semitonesAbove{2};   // interval above the main note
+  int semitonesBelow{2};   // interval below the main note
+  std::vector<Articulation> articulations;
+};
+
+using Ornament = std::variant<std::monostate, Mordent, Trill, Turn>;
+
+inline bool has_ornament(const Ornament& o) {
+  return !std::holds_alternative<std::monostate>(o);
+}
 
 enum class KeyType { Major, Minor };
 
@@ -209,7 +232,7 @@ struct SimpleNote {
   Pitch pitch;
   float duration;  // beats
   Articulation articulation{Articulation::Default};
-  Ornament ornament{Ornament::None};
+  Ornament ornament;
 };
 
 // ===== Tone — render-ready note (output of Conductor) =====

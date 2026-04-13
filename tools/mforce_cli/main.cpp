@@ -462,7 +462,7 @@ static int run_josie(int argc, char** argv) {
     Conductor conductor;
     conductor.chordPerformer.register_josie_figures();
     conductor.chordPerformer.defaultSpreadMs = 12.0f;
-    conductor.chordPerformer.sloppiness = 0.3f;
+    conductor.chordPerformer.humanize = 0.3f;
     conductor.instruments["guitar"] = guitarPatch.instrument.get();
     conductor.instruments["bass"]   = bassPatch.instrument.get();
     conductor.instruments["kick"]   = kickPatch.instrument.get();
@@ -799,9 +799,128 @@ static int run_dun(int argc, char** argv) {
     return 0;
 }
 
+// ---------------------------------------------------------------------------
+// Smoke test for articulation realization and ornament expansion
+// ---------------------------------------------------------------------------
+static int test_ornaments(int /*argc*/, char** /*argv*/) {
+    Part part;
+    part.instrumentType = "pluck";
+    float bpm = 80.0f;
+
+    float beat = 0.0f;
+
+    // Descending C major scale from C5 to C4:
+    // C5(72), B4(71), A4(69), G4(67), F4(65), E4(64), D4(62), C4(60)
+    // Diatonic interval above each note in C major (semitones):
+    // C→D=2, B→C=1, A→B=2, G→A=2, F→G=2, E→F=1, D→E=2, C→D=2
+    // Diatonic interval below each note:
+    // C←B=1, B←A=2, A←G=2, G←F=2, F←E=1, E←D=2, D←C=2, C←B=1
+    float pitches[]    = {72, 71, 69, 67, 65, 64, 62, 60};
+    int semiAbove[]    = { 2,  1,  2,  2,  2,  1,  2,  2};
+    int semiBelow[]    = { 1,  2,  2,  2,  1,  2,  2,  1};
+    int nPitches = 8;
+
+    // 5 descents: whole, half, quarter, eighth, sixteenth
+    float durations[] = {4.0f, 2.0f, 1.0f, 0.5f, 0.25f};
+    float pauseBeats = 2.0f;
+
+    // Cycle through 4 ornament types on alternating notes
+    // positions 1, 3, 5, 7 get: mordent up, mordent down, trill up, turn
+    auto make_ornament = [&](int ornIdx, int noteIdx) -> Ornament {
+        switch (ornIdx % 4) {
+            case 0: return Mordent{1, semiAbove[noteIdx], {Articulation::HammerOn, Articulation::PullOff}};
+            case 1: return Mordent{-1, semiBelow[noteIdx], {Articulation::HammerOn, Articulation::PullOff}};
+            case 2: return Trill{1, semiAbove[noteIdx], {}};
+            case 3: return Turn{1, semiAbove[noteIdx], semiBelow[noteIdx], {}};
+            default: return Ornament{};
+        }
+    };
+
+    for (float dur : durations) {
+        int ornIdx = 0;
+        for (int i = 0; i < nPitches; ++i) {
+            if (i % 2 == 1) {
+                Note n{pitches[i], 1.0f, dur, Articulation::Default,
+                       make_ornament(ornIdx++, i)};
+                part.events.push_back({beat, n});
+            } else {
+                part.add_note(beat, pitches[i], 1.0f, dur);
+            }
+            beat += dur;
+        }
+        beat += pauseBeats;
+    }
+
+    part.totalBeats = beat;
+
+    // Render 3 versions with escalating humanization.
+    // humanize is in milliseconds (max |timing offset| per play_note call).
+    struct Pass { float humanize; const char* label; };
+    Pass passes[] = {
+        {10.0f, "h10"},
+        {30.0f, "h30"},
+        {50.0f, "h50"},
+    };
+
+    for (const auto& p : passes) {
+        auto ip = load_instrument_patch("patches/PluckU.json");
+        if (!ip.instrument) {
+            std::cerr << "ERROR: could not load PluckU.json\n";
+            return 1;
+        }
+
+        Conductor conductor;
+        conductor.instruments["pluck"] = ip.instrument.get();
+        conductor.notePerformer.humanize = p.humanize;
+        conductor.perform(part, bpm, *ip.instrument);
+
+        int noteCount = int(ip.instrument->renderedNotes.size());
+        std::cout << "[" << p.label << " humanize=" << p.humanize << "] "
+                  << "Rendered " << noteCount << " notes from 40 input events\n";
+        if (noteCount <= 40) {
+            std::cerr << "FAIL: expected more than 40 rendered notes, got " << noteCount << "\n";
+            return 1;
+        }
+
+        float totalSeconds = part.totalBeats * 60.0f / bpm + 2.0f;
+        int frames = int(totalSeconds * float(ip.sampleRate));
+        std::vector<float> mono(frames, 0.0f);
+        ip.instrument->render(mono.data(), frames);
+
+        float peak = 0.0f;
+        for (auto s : mono) {
+            float a = std::fabs(s);
+            if (a > peak) peak = a;
+        }
+
+        std::cout << "    Peak amplitude: " << peak << "\n";
+        if (peak < 0.01f) {
+            std::cerr << "FAIL: expected non-zero audio output\n";
+            return 1;
+        }
+
+        std::vector<float> stereo(frames * 2);
+        for (int i = 0; i < frames; ++i) {
+            stereo[i * 2]     = mono[i];
+            stereo[i * 2 + 1] = mono[i];
+        }
+        std::string outPath = std::string("renders/test_ornaments_") + p.label + ".wav";
+        if (!write_wav_16le_stereo(outPath, ip.sampleRate, stereo)) {
+            std::cerr << "FAIL: could not write " << outPath << "\n";
+            return 1;
+        }
+        std::cout << "    Wrote: " << outPath << "\n";
+    }
+
+    std::cout << "PASS\n";
+    return 0;
+}
+
 int main(int argc, char** argv)
 {
     try {
+        if (argc >= 2 && std::string(argv[1]) == "--test-ornaments")
+            return test_ornaments(argc, argv);
         if (argc >= 2 && std::string(argv[1]) == "--chords")
             return run_chords(argc, argv);
         if (argc >= 2 && std::string(argv[1]) == "--melody")
