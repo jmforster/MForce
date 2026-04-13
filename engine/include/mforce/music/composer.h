@@ -488,10 +488,11 @@ inline MelodicFigure ShapeCadentialApproachStrategy::realize_figure(
       targetSteps = ascending;
     }
 
-    // For imperfect cadences, adjust by +2 or +4 to land on 3rd or 5th
+    // For imperfect cadences, land on the 3rd of the target chord.
+    // Half cadence: 3rd of V = leading tone (max tension, demands resolution).
+    // Full cadence: 3rd of I = stable but not final (saves the PAC for later).
     if (!ft.perfect) {
-      int chordToneOffset = rng.decide(0.5f) ? 2 : 4;  // 3rd or 5th above root
-      targetSteps += chordToneOffset;
+      targetSteps += 2;  // 3rd is 2 scale degrees above root
     }
 
     targetDerived = true;

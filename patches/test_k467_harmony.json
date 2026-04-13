@@ -46,12 +46,12 @@
                   "totalBeats": 4.0
                 },
                 {
-                  "_comment": "B template: scalar approach to half cadence (V), perfect",
+                  "_comment": "B template: cadential approach, imperfect (land on 3rd of target chord)",
                   "source": "generate",
                   "shape": "cadential_approach",
                   "rhythmMotifName": "cadence_rhythm",
                   "figureCadenceType": 1,
-                  "perfect": true,
+                  "perfect": false,
                   "totalBeats": 4.0
                 }
               ]
