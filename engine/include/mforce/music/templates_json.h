@@ -238,6 +238,7 @@ inline void to_json(json& j, const FigureTemplate& ft) {
     if (!ft.contourTransform.empty()) j["contourTransform"] = ft.contourTransform;
     if (ft.contourTransformParam != 0) j["contourTransformParam"] = ft.contourTransformParam;
 
+    if (ft.maxStep != 0) j["maxStep"] = ft.maxStep;
     if (ft.stepMode != StepMode::Scale) j["stepMode"] = "chordTone";
 
     if (ft.figureCadenceType != 0) j["figureCadenceType"] = ft.figureCadenceType;
@@ -301,6 +302,8 @@ inline void from_json(const json& j, FigureTemplate& ft) {
       if (sm == "chordTone") ft.stepMode = StepMode::ChordTone;
       else ft.stepMode = StepMode::Scale;
     }
+
+    ft.maxStep = j.value("maxStep", 0);
 
     ft.figureCadenceType = j.value("figureCadenceType", 0);
     ft.perfect = j.value("perfect", true);

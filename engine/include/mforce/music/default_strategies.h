@@ -76,6 +76,14 @@ inline MelodicFigure DefaultFigureStrategy::generate_figure(
         ss = sg.random_sequence(noteCount - 1, skipProb);
       }
 
+      // Clamp individual step magnitudes if maxStep is set
+      if (figTmpl.maxStep > 0) {
+        for (int i = 0; i < ss.count(); ++i) {
+          if (ss.steps[i] > figTmpl.maxStep) ss.steps[i] = figTmpl.maxStep;
+          else if (ss.steps[i] < -figTmpl.maxStep) ss.steps[i] = -figTmpl.maxStep;
+        }
+      }
+
       MelodicFigure fig = fb.build(ss, fb.defaultPulse);
 
       // Apply random rhythm variation
@@ -98,6 +106,13 @@ inline MelodicFigure DefaultFigureStrategy::generate_figure(
       ss = sg.no_skip_sequence(noteCount - 1);
     } else {
       ss = sg.random_sequence(noteCount - 1);
+    }
+
+    if (figTmpl.maxStep > 0) {
+      for (int i = 0; i < ss.count(); ++i) {
+        if (ss.steps[i] > figTmpl.maxStep) ss.steps[i] = figTmpl.maxStep;
+        else if (ss.steps[i] < -figTmpl.maxStep) ss.steps[i] = -figTmpl.maxStep;
+      }
     }
 
     return fb.build(ss, fb.defaultPulse);

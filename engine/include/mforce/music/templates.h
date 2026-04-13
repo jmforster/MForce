@@ -134,6 +134,9 @@ struct FigureTemplate {
     std::string contourTransform;           // transform to apply: "invert", "retrograde", "expand", "contract"
     float contourTransformParam{0};         // factor for expand/contract
 
+    // --- Step constraints ---
+    int maxStep{0};                // max absolute step size per note (0 = unconstrained)
+
     // --- Step interpretation ---
     StepMode stepMode{StepMode::Scale};
 

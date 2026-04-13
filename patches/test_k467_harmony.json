@@ -39,11 +39,10 @@
               "startingPitch": {"octave": 4, "pitch": "C"},
               "figures": [
                 {
-                  "_comment": "A template: simple ascending steps — ChordFigure makes these chord-tone leaps",
+                  "_comment": "A template: random steps clamped to ±2, ChordFigure maps to chord tones",
                   "source": "generate",
-                  "shape": "stepping",
-                  "shapeDirection": 1,
                   "rhythmMotifName": "arpeggio_rhythm",
+                  "maxStep": 2,
                   "totalBeats": 4.0
                 },
                 {
