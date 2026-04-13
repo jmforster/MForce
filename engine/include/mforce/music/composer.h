@@ -394,14 +394,10 @@ inline StepSequence resolve_contour(const FigureTemplate& ft, StrategyContext& c
   // No motif reference or not found — generate using direction
   StepSequence ss;
   Randomizer stepRng(seed);
-  int totalSteps = noteCount - 1;
+  int totalSteps = noteCount;
   for (int i = 0; i < noteCount; ++i) {
-    if (i == 0) {
-      ss.add(0);
-    } else {
-      int sign = direction_sign(dir, i - 1, totalSteps, stepRng);
-      ss.add(sign);  // magnitude 1 for stepping; caller can scale for skipping
-    }
+    int sign = direction_sign(dir, i, totalSteps, stepRng);
+    ss.add(sign);  // magnitude 1 for stepping; caller can scale for skipping
   }
   return ss;
 }
@@ -508,23 +504,41 @@ inline MelodicFigure ShapeCadentialApproachStrategy::realize_figure(
                   ((ft.shapeParam > 0) ? -ft.shapeParam * approachDir : -3 * approachDir);
   }
 
-  // Generate approach contour: stepwise movement toward target
+  // Minimum approach distance: if the target is too close, go away first
+  // then come back. This creates the "arch" shape of a real cadential approach
+  // (e.g., Mozart K467 bar 4: can't go straight to target, so goes up then down).
+  //
+  // Two-phase contour: optional departure (opposite direction), then approach.
+  // Net movement is always targetSteps — the departure is round-trip overhead.
+  int minMotion = noteCount - 1;  // at most 1 note of arrival hold
+  if (minMotion < 3) minMotion = 3;
+  int absTarget = std::abs(targetSteps);
+  int departureCount = 0;
+  int departDir = 0;
+  if (absTarget < minMotion && noteCount >= 4) {
+    departureCount = (minMotion - absTarget + 1) / 2;  // how many notes going away
+    departDir = (targetSteps <= 0) ? 1 : -1;           // opposite to final target
+  }
+
+  // Generate two-phase contour
   StepSequence contour;
-  int stepsRemaining = targetSteps;
-  for (int i = 0; i < noteCount; ++i) {
-    if (i == 0) {
-      contour.add(0);  // first note: stay (starting pitch)
-    } else if (i == noteCount - 1) {
-      contour.add(stepsRemaining);  // arrival: whatever's left to reach target
+  // Phase 1: departure (go away from target)
+  for (int i = 0; i < departureCount; ++i) {
+    contour.add(departDir);
+  }
+  // Phase 2: approach toward target (net = targetSteps, undoing departure)
+  int approachTarget = targetSteps - departureCount * departDir;  // total steps for approach phase
+  int stepsRemaining = approachTarget;
+  int approachNotes = noteCount - departureCount;
+  for (int i = 0; i < approachNotes; ++i) {
+    if (i == approachNotes - 1) {
+      contour.add(stepsRemaining);  // arrival: whatever's left
+    } else if (stepsRemaining != 0) {
+      int s = (stepsRemaining > 0) ? 1 : -1;
+      contour.add(s);
+      stepsRemaining -= s;
     } else {
-      // Stepwise approach toward target
-      if (stepsRemaining != 0) {
-        int s = (stepsRemaining > 0) ? 1 : -1;
-        contour.add(s);
-        stepsRemaining -= s;
-      } else {
-        contour.add(0);  // already at target, hold
-      }
+      contour.add(0);
     }
   }
 
@@ -549,7 +563,7 @@ inline MelodicFigure ShapeCadentialApproachStrategy::realize_figure(
   while (contour.count() < rhythm.count()) contour.add(0);
   while (contour.count() > rhythm.count()) contour.steps.pop_back();
 
-  return MelodicFigure::from_atoms(rhythm, contour);
+  return MelodicFigure(rhythm, contour);
 }
 
 inline MelodicFigure ShapeSkippingStrategy::realize_figure(
@@ -590,7 +604,7 @@ inline MelodicFigure ShapeSkippingStrategy::realize_figure(
   while (contour.count() < rhythm.count()) contour.add(0);
   while (contour.count() > rhythm.count()) contour.steps.pop_back();
 
-  return MelodicFigure::from_atoms(rhythm, contour);
+  return MelodicFigure(rhythm, contour);
 }
 
 inline MelodicFigure ShapeSteppingStrategy::realize_figure(
@@ -613,7 +627,7 @@ inline MelodicFigure ShapeSteppingStrategy::realize_figure(
   while (contour.count() < rhythm.count()) contour.add(0);
   while (contour.count() > rhythm.count()) contour.steps.pop_back();
 
-  return MelodicFigure::from_atoms(rhythm, contour);
+  return MelodicFigure(rhythm, contour);
 }
 
 // ============================================================================
@@ -924,6 +938,13 @@ inline Passage AlternatingFigureStrategy::realize_passage(
     // Copy template and override beat duration from progression
     FigureTemplate adjusted = ft;
     adjusted.totalBeats = chordProg.pulses.get(ci);
+
+    // For B figures (scalar): alternate cadence types.
+    // First B (ci=1) = half cadence (→V), second B (ci=3) = full cadence (→I), etc.
+    if (!isA && adjusted.figureCadenceType > 0) {
+      int bIndex = ci / 2;  // 0-based index among B figures
+      adjusted.figureCadenceType = (bIndex % 2 == 0) ? 1 : 2;  // half, full, half, full...
+    }
 
     // Dispatch through Composer for normal strategy/seed/motif resolution
     StrategyContext figCtx = ctx;
