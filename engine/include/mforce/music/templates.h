@@ -137,6 +137,11 @@ struct FigureTemplate {
     // --- Step interpretation ---
     StepMode stepMode{StepMode::Scale};
 
+    // --- Cadential targeting (for cadential_approach shape) ---
+    // 0=none, 1=half (target V), 2=full (target I)
+    int figureCadenceType{0};
+    bool perfect{true};            // true=root, false=3rd or 5th of target chord
+
     // --- State ---
     uint32_t seed{0};              // generation seed for reproducibility
     bool locked{false};            // user has accepted this result

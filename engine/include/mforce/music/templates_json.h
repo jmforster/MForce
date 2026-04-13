@@ -240,6 +240,9 @@ inline void to_json(json& j, const FigureTemplate& ft) {
 
     if (ft.stepMode != StepMode::Scale) j["stepMode"] = "chordTone";
 
+    if (ft.figureCadenceType != 0) j["figureCadenceType"] = ft.figureCadenceType;
+    if (!ft.perfect) j["perfect"] = false;
+
     if (ft.seed != 0) j["seed"] = ft.seed;
     if (ft.locked) j["locked"] = true;
 }
@@ -298,6 +301,9 @@ inline void from_json(const json& j, FigureTemplate& ft) {
       if (sm == "chordTone") ft.stepMode = StepMode::ChordTone;
       else ft.stepMode = StepMode::Scale;
     }
+
+    ft.figureCadenceType = j.value("figureCadenceType", 0);
+    ft.perfect = j.value("perfect", true);
 
     ft.seed = j.value("seed", 0u);
     ft.locked = j.value("locked", false);

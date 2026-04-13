@@ -415,9 +415,6 @@ inline MelodicFigure ShapeCadentialApproachStrategy::realize_figure(
 
   float totalBeats = (ft.totalBeats > 0) ? ft.totalBeats : 4.0f;
   float pulse = (ft.defaultPulse > 0) ? ft.defaultPulse : 1.0f;
-  int approachDir = (ft.shapeDirection < 0) ? -1 : 1;
-  int targetSteps = (ft.targetNet != 0) ? ft.targetNet :
-                    ((ft.shapeParam > 0) ? ft.shapeParam * (-approachDir) : -3 * approachDir);
 
   // Resolve rhythm (from motif or generated)
   PulseSequence rhythm = detail::resolve_rhythm(ft, ctx, seed, totalBeats, pulse);
@@ -441,25 +438,93 @@ inline MelodicFigure ShapeCadentialApproachStrategy::realize_figure(
   int noteCount = rhythm.count();
   if (noteCount == 0) return MelodicFigure{};
 
-  // Generate approach contour
+  // --- Determine target pitch ---
+  // If figureCadenceType is set and we have harmony context, derive target from chords.
+  // 1 = half cadence (target V), 2 = full cadence (target I).
+  // perfect = true → root of target chord, false → 3rd or 5th.
+  // Fallback: use targetNet / shapeParam as before.
+
+  int targetSteps = 0;
+  bool targetDerived = false;
+
+  if (ft.figureCadenceType > 0) {
+    // Harmony-aware cadential targeting.
+    // half (1) = target V, so descend to scale degree 4 (G in C major)
+    // full (2) = target I, so descend to scale degree 0 (C)
+    //
+    // We express the target as a scale-degree offset from the tonic.
+    // half cadence: degree 4 is 4 steps above tonic, but we want to descend
+    //   to it — so net movement = -(scale_length - 4) = -3 in a 7-note scale.
+    // full cadence perfect: land on tonic = 0 net from tonic. From wherever
+    //   the cursor is, we want net = -cursor_degree (descend to root).
+    //
+    // Simple approach: half cadence = net -3 (descend C→G in major),
+    //   full cadence = net -7 (descend to tonic one octave down... too far).
+    //
+    // Actually: just use the interval. In a major scale, V is 4 degrees up
+    // from I. A half cadence typically descends to V, so from above:
+    // if we're roughly around the tonic register, we descend ~3 steps to V.
+    // A full cadence descends to I — if we're near V, that's ~4 steps down;
+    // if we're near the upper tonic, ~7 steps down.
+    //
+    // For now, keep it simple and direct:
+    int targetDegree = (ft.figureCadenceType == 1) ? 4 : 0;  // V or I
+
+    // Calculate how many scale steps from the cursor's approximate degree
+    // to the target degree. Prefer descending approach (more natural for cadences).
+    // We don't know the cursor's exact degree, but we can estimate.
+    PitchReader pr(ctx.scale);
+    pr.set_pitch(ctx.cursor);
+    int curDeg = pr.get_degree();
+
+    // How far down to the target degree (within one octave)?
+    int descending = curDeg - targetDegree;
+    if (descending <= 0) descending += ctx.scale.length();  // wrap: e.g., from deg 2 down to deg 4 = 5 steps in 7-note scale
+
+    // How far up?
+    int ascending = targetDegree - curDeg;
+    if (ascending <= 0) ascending += ctx.scale.length();
+
+    // Prefer descending for cadences unless ascending is much shorter
+    if (descending <= ascending + 2) {
+      targetSteps = -descending;
+    } else {
+      targetSteps = ascending;
+    }
+
+    // For imperfect cadences, adjust by +2 or +4 to land on 3rd or 5th
+    if (!ft.perfect) {
+      int chordToneOffset = rng.decide(0.5f) ? 2 : 4;  // 3rd or 5th above root
+      targetSteps += chordToneOffset;
+    }
+
+    targetDerived = true;
+  }
+
+  if (!targetDerived) {
+    // Legacy fallback: use targetNet or shapeParam
+    int approachDir = (ft.shapeDirection < 0) ? -1 : 1;
+    targetSteps = (ft.targetNet != 0) ? ft.targetNet :
+                  ((ft.shapeParam > 0) ? -ft.shapeParam * approachDir : -3 * approachDir);
+  }
+
+  // Generate approach contour: stepwise movement toward target
   StepSequence contour;
   int stepsRemaining = targetSteps;
-  bool overshoot = rng.decide(0.3f) && noteCount >= 3;
-
   for (int i = 0; i < noteCount; ++i) {
     if (i == 0) {
-      contour.add(0);
+      contour.add(0);  // first note: stay (starting pitch)
     } else if (i == noteCount - 1) {
-      contour.add(stepsRemaining);  // arrival: whatever's left
-    } else if (overshoot && i == 1) {
-      int over = -approachDir * (rng.decide(0.5f) ? 1 : 2);
-      contour.add(over);
-      stepsRemaining -= over;
+      contour.add(stepsRemaining);  // arrival: whatever's left to reach target
     } else {
-      int stepSize = rng.decide(0.7f) ? 1 : 2;
-      int s = (stepsRemaining > 0) ? stepSize : (stepsRemaining < 0) ? -stepSize : 0;
-      contour.add(s);
-      stepsRemaining -= s;
+      // Stepwise approach toward target
+      if (stepsRemaining != 0) {
+        int s = (stepsRemaining > 0) ? 1 : -1;
+        contour.add(s);
+        stepsRemaining -= s;
+      } else {
+        contour.add(0);  // already at target, hold
+      }
     }
   }
 
@@ -865,16 +930,33 @@ inline Passage AlternatingFigureStrategy::realize_passage(
     figCtx.cursor = runningReader.get_pitch();
     MelodicFigure rawFig = ctx.composer->realize_figure(adjusted, figCtx);
 
-    // Advance running cursor by the net scale-degree movement of the figure
-    runningReader.step(rawFig.net_step());
-
     if (isA) {
-      // Wrap raw figure units into a ChordFigure (chord-tone stepping)
+      // For ChordFigures, simulate chord-tone stepping to track the real cursor.
+      // The Conductor interprets these steps as chord tones, not scale degrees,
+      // so we must do the same here to keep the cursor accurate.
+      float curNN = runningReader.get_note_number();
+      auto resolved = chordProg.chords.get(ci).resolve(ctx.scale, runningReader.get_octave());
+      std::vector<float> tones;
+      for (int os = -2; os <= 2; ++os)
+        for (const auto& p : resolved.pitches)
+          tones.push_back(p.note_number() + 12.0f * os);
+      std::sort(tones.begin(), tones.end());
+      int closest = 0;
+      float minDist = 999.0f;
+      for (int ti = 0; ti < int(tones.size()); ++ti) {
+        float d = std::abs(tones[ti] - curNN);
+        if (d < minDist) { minDist = d; closest = ti; }
+      }
+      int target = std::max(0, std::min(closest + rawFig.net_step(), int(tones.size()) - 1));
+      runningReader.set_pitch(Pitch::from_note_number(tones[target]));
+
+      // Wrap as ChordFigure
       auto cf = std::make_unique<ChordFigure>();
       cf->units = rawFig.units;
       phrase.add_figure(std::move(cf));
     } else {
-      // Keep as MelodicFigure (scale-step movement)
+      // For MelodicFigures, advance by scale degrees as normal
+      runningReader.step(rawFig.net_step());
       phrase.add_melodic_figure(std::move(rawFig));
     }
   }

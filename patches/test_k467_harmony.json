@@ -39,20 +39,20 @@
               "startingPitch": {"octave": 4, "pitch": "C"},
               "figures": [
                 {
-                  "_comment": "A template: chord-tone arpeggiation",
+                  "_comment": "A template: simple ascending steps — ChordFigure makes these chord-tone leaps",
                   "source": "generate",
-                  "shape": "triadic_outline",
+                  "shape": "stepping",
+                  "shapeDirection": 1,
                   "rhythmMotifName": "arpeggio_rhythm",
-                  "stepMode": "chordTone",
                   "totalBeats": 4.0
                 },
                 {
-                  "_comment": "B template: scalar cadential approach",
+                  "_comment": "B template: scalar approach to half cadence (V), perfect",
                   "source": "generate",
                   "shape": "cadential_approach",
                   "rhythmMotifName": "cadence_rhythm",
-                  "shapeDirection": -1,
-                  "shapeParam": 5,
+                  "figureCadenceType": 1,
+                  "perfect": true,
                   "totalBeats": 4.0
                 }
               ]
