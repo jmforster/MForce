@@ -5,8 +5,8 @@
 namespace mforce {
 
 struct Locus {
-  Piece& piece;
-  PieceTemplate& pieceTemplate;
+  Piece* piece;
+  PieceTemplate* pieceTemplate;
   int sectionIdx;
   int partIdx;
   int passageIdx{-1};

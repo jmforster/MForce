@@ -6,6 +6,7 @@
 #include "mforce/music/pitch_reader.h"
 #include "mforce/music/default_strategies.h"
 #include "mforce/music/piece_utils.h"
+#include <cassert>
 #include <cmath>
 #include <iostream>
 
@@ -62,16 +63,14 @@ inline Phrase PeriodPhraseStrategy::realize_phrase(
     // recording (piece, pieceTemplate, sectionIdx, partIdx, passageIdx, phraseIdx)
     // for this selfcheck to work. For now, skip the selfcheck if that state
     // isn't available.
-    extern thread_local ::mforce::Locus* g_selfcheck_locus;  // defined nowhere by default
-    if (g_selfcheck_locus) {
-      auto viaQuery = ::mforce::piece_utils::pitch_before(*g_selfcheck_locus);
+    // g_selfcheck_locus is defined as inline thread_local in piece_utils.h.
+    if (::mforce::g_selfcheck_locus) {
+      auto viaQuery = ::mforce::piece_utils::pitch_before(*::mforce::g_selfcheck_locus);
       // Use a pitch-equality check that matches existing semantics.
       // If Pitch doesn't have operator==, compare octave + pitchDef->offset.
-      if (!(viaQuery.octave == ctx.cursor.octave &&
-            viaQuery.pitchDef == ctx.cursor.pitchDef)) {
-        std::fprintf(stderr, "LOCUS SELFCHECK MISMATCH at PeriodPhraseStrategy\n");
-        std::abort();
-      }
+      assert((viaQuery.octave == ctx.cursor.octave &&
+              viaQuery.pitchDef == ctx.cursor.pitchDef) &&
+             "LOCUS SELFCHECK MISMATCH at PeriodPhraseStrategy");
     }
 #endif
   }
