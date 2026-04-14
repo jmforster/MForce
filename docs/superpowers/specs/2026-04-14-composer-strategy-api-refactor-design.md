@@ -88,6 +88,7 @@ No shared abstract `Strategy` base with three `throw`ing virtual methods — tha
 ```cpp
 struct Locus {
   Piece& piece;               // authoritative structural + harmonic truth
+  PieceTemplate& pieceTemplate; // authoritative compositional DNA (motif pool, templates)
   int sectionIdx;
   int partIdx;
   int passageIdx{-1};         // -1 = n/a at this level
@@ -96,10 +97,11 @@ struct Locus {
 };
 ```
 
-A `Locus` names a coordinate in the structural hierarchy. Its only invariant is "where am I?"; it does not accrete. All derived information flows from `locus.piece` plus the index path. Queries such as:
+A `Locus` names a coordinate in the structural hierarchy and pairs it with the two canonical structures a strategy can need: the realized `Piece` and the driving `PieceTemplate`. Its only invariant is "where am I?"; it does not accrete other fields. All derived information flows from these two references plus the index path. Queries such as:
 
 - Current `Scale` and `KeyContext`: `locus.piece.sections[sectionIdx].keyContextAt(...)`
 - Current `ChordProgression`: `locus.piece.sections[sectionIdx].chordProgression`
+- Motif pool: `locus.pieceTemplate.motifs` — motifs live on `PieceTemplate` (both declarations and realized forms; matches the existing `lockedFigure` caching pattern on `FigureTemplate`).
 - Cursor / starting pitch for my position: `piece_utils::pitch_before(locus)` — computes from the last realized note preceding this `Locus`, or falls back to the passage's `startingPitch` if this is the first figure.
 - History preceding my position: `piece_utils::realized_before(locus)` — returns a view of all realized notes preceding this `Locus`. This is the leverage point for Workstream 2.
 
@@ -156,7 +158,7 @@ The `Composer` class loses its role as dispatch broker. Its remaining responsibi
 2. Owns the motif pool (until it moves to `Piece`; see Workstream 1).
 3. Handles phrase/passage/figure locking decisions (checks `locked` / `lockedFigure` on templates).
 
-It no longer holds a back-pointer that strategies reach through. `ctx.composer->find_rhythm_motif(...)` is replaced with `locus.piece.motifs.find_rhythm(...)` (or a free accessor if motifs remain on Composer for now).
+It no longer holds a back-pointer that strategies reach through. `ctx.composer->find_rhythm_motif(...)` is replaced with `locus.pieceTemplate.motifs.find_rhythm(...)`.
 
 ## Migration plan
 
@@ -192,12 +194,15 @@ Replace `realize_*(template, ctx)` with `realize(Locus, template)`. Delete `Stra
 
 Stages 1–6 are each independently revert-able. The refactor can stop after any stage if something unexpected surfaces.
 
+## Resolved during brainstorm
+
+- **Motif pool home.** `PieceTemplate`. Both declarations and realized forms live there, matching the existing `FigureTemplate::lockedFigure` caching pattern. Locus carries a `PieceTemplate&` alongside `Piece&` for access.
+- **Cursor query cost.** Accepted. `pitch_before(locus)` walking prior realized figures is O(n) per figure / O(n²) total; composition is not a hot loop and the simplicity is worth it.
+- **Locking + regen semantics.** Regenerating a locked phrase is a no-op — the request is silently ignored. The broader question of what happens to locked Phrase 3 when its predecessor Phrase 2 is regenerated with a new tail pitch is accepted as a known discontinuity for now; UX will settle it later. This refactor preserves current locking behavior.
+
 ## Open questions to settle during planning
 
-- **Cursor query cost.** `pitch_before(locus)` walks prior realized figures. For long pieces this is O(n) per figure, O(n²) total. Probably fine for composition (not a hot loop), but confirm during Stage 1.
-- **Locus as bundle vs. explicit args.** `Locus` is a small struct; if it starts accreting (e.g., "temporary override scale"), we've recreated the bag. The invariant that keeps it honest: *Locus names a coordinate, nothing else*. We enforce this in review, not in the type system.
-- **Motif pool home.** Currently on Composer, accessed via `ctx.composer->realized_motifs()`. Two options: (a) move motifs to `Piece` so `locus.piece.motifs` works; (b) make motifs another singleton like RNG. Workstream 1 will settle this; Stage 5 defers.
-- **Locking + regen semantics.** If the user regens Phrase 2 and its new tail doesn't match locked Phrase 3's starting pitch, what happens? Out of scope for this refactor (we preserve current locking behavior), but the query-based cursor model enables cleaner answers later than the threaded model did.
+- **Locus as bundle vs. explicit args.** `Locus` is a small struct; if it starts accreting (e.g., "temporary override scale"), we've recreated the bag. The invariant that keeps it honest: *Locus names a coordinate + pairs it with the two canonical structures (Piece, PieceTemplate), nothing else*. Enforce in review, not in the type system.
 
 ## What this enables
 
