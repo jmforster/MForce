@@ -1,0 +1,18 @@
+# Composer Strategy API Refactor — Baseline WAV Hashes
+# Recorded 2026-04-14, commit 8958444442f3d47f2e6203b13b107a0c4a01d3c9
+#
+# Render command form (--compose takes an instrument patch; templates are separate):
+#   mforce_cli.exe --compose patches/PluckU.json renders/<out> 1 --template patches/<template>.json
+#
+# NOTE: The plan doc shows "--compose patches/test_k467_v*.json renders/... 1" but the
+# current CLI's run_compose() always loads argv[2] as an instrument patch via
+# load_instrument_patch(), which rejects files without an "instrument" section.
+# The test_k467_v*.json files are PieceTemplates, not instrument patches.
+# The working invocation uses PluckU.json as the instrument patch and passes the
+# template via --template. This is consistent with "use the form main.cpp implements."
+
+k467_v1_1.wav            1e9754c9fe129d161ce6e2889333d773de4f39195caef71c5fc1de6d8b7f9354
+k467_v2_1.wav            9ae4904c4999cd8797054c8f48f384f046a30831d12ee07ca55a64e1e8e85c1b
+k467_v3_1.wav            418107958eae5c6e8bb9ffdc4202b7252c3e3bf97d544abfb55f054fa0649bec
+k467_v4_1.wav            59927f4b5756fb5dc07d381ed4f3793e27027b64d0ab021f4e5c977648c9f0ab
+k467_structural_1.wav    d7be258e0e6c5261708a434e476423a7bd05275752c495d9673a504d5b9c5ce2
