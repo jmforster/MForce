@@ -746,19 +746,31 @@ static int run_dun(int argc, char** argv) {
 
     // Parse DUN file
     auto dun = load_dun(dunPath);
+    int totalPhrases = 0;
+    for (auto& s : dun.sections) totalPhrases += int(s.phrases.size());
     std::cout << "Loaded DUN: " << dunPath
-              << " (" << dun.phrases.size() << " phrases, key "
+              << " (" << dun.sections.size() << " sections, "
+              << totalPhrases << " phrases, key "
               << dun.header.keyName << " " << dun.header.scaleName << ")\n";
 
     // Build Piece
     Piece piece = dun_to_piece(dun, octave);
 
-    // Debug: dump first phrase's figures
+    // Debug: dump sections & phrase starts, note any truncation
     if (!piece.parts.empty()) {
-        auto& pass = piece.parts[0].passages.begin()->second;
-        for (int p = 0; p < int(pass.phrases.size()); ++p) {
-            auto& ph = pass.phrases[p];
-            std::cout << "  Phrase " << p << " start: " << ph.startingPitch.to_string() << "\n";
+        for (int si = 0; si < int(piece.sections.size()); ++si) {
+            auto& sec = piece.sections[si];
+            std::cout << "  " << sec.name << ": " << sec.beats << " beats";
+            if (sec.truncateTailBeats > 0)
+                std::cout << " (truncate tail " << sec.truncateTailBeats << ")";
+            std::cout << "\n";
+            auto it = piece.parts[0].passages.find(sec.name);
+            if (it != piece.parts[0].passages.end()) {
+                for (int p = 0; p < int(it->second.phrases.size()); ++p) {
+                    std::cout << "    Phrase " << p << " start: "
+                              << it->second.phrases[p].startingPitch.to_string() << "\n";
+                }
+            }
         }
     }
 
@@ -772,19 +784,25 @@ static int run_dun(int argc, char** argv) {
     conductor.instruments["melody"] = ip.instrument.get();
     conductor.perform(piece);
 
-    // Render
+    // Render (honors section truncation)
     float totalBeats = 0;
-    for (auto& sec : piece.sections) totalBeats += sec.beats;
+    for (auto& sec : piece.sections) {
+        totalBeats += std::max(0.0f, sec.beats - sec.truncateTailBeats);
+    }
     float bpm = piece.sections[0].tempo;
     float totalSeconds = totalBeats * 60.0f / bpm + 2.0f;
     int frames = int(totalSeconds * float(ip.sampleRate));
     std::vector<float> mono(frames, 0.0f);
     ip.instrument->render(mono.data(), frames);
 
-    std::vector<float> stereo(frames * 2);
+    // Leading silence (pre-roll) so Windows audio output priming doesn't
+    // eat the first note. 1s is comfortable for most drivers.
+    const float prerollSeconds = 1.0f;
+    int prerollFrames = int(prerollSeconds * float(ip.sampleRate));
+    std::vector<float> stereo((frames + prerollFrames) * 2, 0.0f);
     for (int j = 0; j < frames; ++j) {
-        stereo[j * 2]     = mono[j];
-        stereo[j * 2 + 1] = mono[j];
+        stereo[(prerollFrames + j) * 2]     = mono[j];
+        stereo[(prerollFrames + j) * 2 + 1] = mono[j];
     }
 
     if (!write_wav_16le_stereo(outPath, ip.sampleRate, stereo)) {

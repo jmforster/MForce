@@ -1,0 +1,20 @@
+# K467/i opening — bars 1-27 in DURN
+# Two sections:
+#   Section 1: bars 1-12 — the solo-ish opening, ends on whole-note tonic (bar 12)
+#   Section 2: bars 13-27 — the full orchestral re-entry interrupting bar 12
+# Set `truncate:4` on Section 1 to elide bar 12 (rug-pull mode).
+# Leave it out to hear the composed passage intact.
+key:C scale:Major meter:4/4 bpm:100 start:0:4
+
+# Section 1 — bars 1-12
+qn qd3 qu3 qu2 | q.u1 3sd1 3sd1 3sd1 qd1 e.r sd2 | qu2 qu2 qu2 qd2 | q.u3 3su1 3sd1 3sd1 qd1 qr /
+hu2 et ed1+ eu1 ed2 | hu1 et ed1 eu1 ed2 | qd1 e.n sn qu1 e.n sn | eu1 ed1~ eu2 ed1 ed1 eu1 eu1 en+ /
+hu1 et ed1+ eu1 ed2 | hu1 et ed1 eu1 ed2 | qd1 e.n sn e.u1 sd1 e.u1 su1 | wd2
+truncate:4
+//
+
+# Section 2 — bars 13-27 (1st violin only)
+wu5 | qt qd2 qu1 qu1+ | wu1 | qt qd2 qu1 qu1 | wu1 | qt qd1+ qu1 qd1 | hd1 hu3- | qt qd2+ qu1 qd1 /
+q.d1 3su1 3sd1 3sd1 ed1 eu1 eu1 eu1 | q.u1 3su1 3sd1 3sd1 ed1 eu1 eu1 eu1 /
+q.u1 3su1 3sd1 3sd1 ed1 eu1 eu1 eu1 | q.u1 3su1 3sd1 3sd1 ed1 eu1 eu1 eu1 /
+q.u1 ed1 q.u1 ed1 | eu1 ed1 eu1 ed1 eu1 ed1 eu1 ed1 | eu1 er qr hr

@@ -593,6 +593,10 @@ struct Conductor {
       float bpm = section.tempo;
       const Scale& scale = section.scale;
 
+      // Effective playback length after truncation.
+      float effectiveBeats = section.beats - section.truncateTailBeats;
+      if (effectiveBeats < 0.0f) effectiveBeats = 0.0f;
+
       for (const auto& part : piece.parts) {
         Instrument* inst = lookup_instrument(part.instrumentType);
         if (!inst) continue;
@@ -606,11 +610,12 @@ struct Conductor {
         auto it = part.passages.find(section.name);
         if (it != part.passages.end()) {
           perform_passage(it->second, scale, beatOffset, bpm, inst,
-                          section.chordProgression, section.scale);
+                          section.chordProgression, section.scale,
+                          4, effectiveBeats);
         }
       }
 
-      beatOffset += section.beats;
+      beatOffset += effectiveBeats;
     }
   }
 
@@ -659,7 +664,8 @@ private:
                        float beatOffset, float bpm, Instrument* inst,
                        const std::optional<ChordProgression>& chordProg = std::nullopt,
                        const Scale& secScale = Scale::get("C", "Major"),
-                       int baseOctave = 4) {
+                       int baseOctave = 4,
+                       float maxSectionBeats = -1.0f) {
     auto* pitched = dynamic_cast<PitchedInstrument*>(inst);
     if (!pitched) return;  // melodic passages only for pitched instruments
 
@@ -675,10 +681,13 @@ private:
 
     float currentBeat = beatOffset;
     for (const auto& phrase : passage.phrases) {
+      // Stop if we've already reached the truncation point
+      if (maxSectionBeats >= 0.0f && currentBeat - beatOffset >= maxSectionBeats) break;
       currentBeat = perform_phrase(phrase, scale, currentBeat, bpm,
                                    dynamics, passage.dynamicMarkings, nextMarking,
                                    beatOffset, *pitched,
-                                   chordProg, secScale, baseOctave);
+                                   chordProg, secScale, baseOctave,
+                                   maxSectionBeats);
     }
   }
 
@@ -690,7 +699,8 @@ private:
                        PitchedInstrument& instrument,
                        const std::optional<ChordProgression>& chordProg = std::nullopt,
                        const Scale& sectionScale = Scale::get("C", "Major"),
-                       int baseOctave = 4) {
+                       int baseOctave = 4,
+                       float maxSectionBeats = -1.0f) {
     float currentBeat = startBeat;
     float currentNN = phrase.startingPitch.note_number();
 
@@ -703,6 +713,12 @@ private:
       // figure's starting pitch under the cursor model).
       for (int i = 0; i < fig.note_count(); ++i) {
         const auto& u = fig.units[i];
+
+        // Stop if this note starts past the section's truncation boundary
+        if (maxSectionBeats >= 0.0f &&
+            (currentBeat - passageBeatOffset) >= maxSectionBeats) {
+          return currentBeat;
+        }
 
         // Step through chord tones (ChordFigure) or scale degrees (MelodicFigure)
         if (isChordFig && chordProg) {

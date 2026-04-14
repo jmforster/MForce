@@ -41,10 +41,18 @@ struct DunToken {
   Ornament ornament{};  // monostate (None) by default
 };
 
+// A single section: phrases, each containing figures, each containing tokens.
+// Optional truncation of the last N beats (for "rug-pull" section endings).
+struct DunSection {
+  std::vector<std::vector<std::vector<DunToken>>> phrases;
+  float truncateTailBeats{0.0f};
+};
+
 struct DunParseResult {
   DunHeader header;
-  // Phrases, each containing figures, each containing tokens
-  std::vector<std::vector<std::vector<DunToken>>> phrases;
+  // One or more sections. DURN files without `//` section breaks
+  // produce a single section. `//` separates sections.
+  std::vector<DunSection> sections;
 };
 
 // ---------------------------------------------------------------------------
@@ -54,6 +62,14 @@ inline DunToken parse_token(const std::string& tok) {
   if (tok.empty()) throw std::runtime_error("Empty DUN token");
 
   int pos = 0;
+
+  // Optional triplet prefix: `3` means the following duration is a triplet
+  // (2/3 of its normal value). E.g., `3s` = triplet sixteenth.
+  bool triplet = false;
+  if (tok[pos] == '3') {
+    triplet = true;
+    pos++;
+  }
 
   // Duration base
   float dur;
@@ -72,6 +88,10 @@ inline DunToken parse_token(const std::string& tok) {
     dur *= 1.5f;
     pos++;
   }
+
+  // Apply triplet scaling (×2/3) after dotted, so `3e.` would be a
+  // dotted triplet eighth — rare, but consistent.
+  if (triplet) dur *= 2.0f / 3.0f;
 
   // Direction + magnitude, or rest
   // u/d = up/down by scale degrees, n = no movement, r = rest
@@ -216,25 +236,43 @@ inline DunParseResult parse_dun(const std::string& text) {
     }
   }
 
-  // Split into phrases (on /) and figures (on |)
+  // Split into sections (on //), phrases (on /), figures (on |)
+  DunSection currentSection;
   std::vector<std::vector<DunToken>> currentPhrase;
   std::vector<DunToken> currentFigure;
 
+  auto flushPhrase = [&]() {
+    if (!currentFigure.empty()) {
+      currentPhrase.push_back(std::move(currentFigure));
+      currentFigure.clear();
+    }
+    if (!currentPhrase.empty()) {
+      currentSection.phrases.push_back(std::move(currentPhrase));
+      currentPhrase.clear();
+    }
+  };
+
+  auto flushSection = [&]() {
+    flushPhrase();
+    if (!currentSection.phrases.empty() || currentSection.truncateTailBeats > 0) {
+      result.sections.push_back(std::move(currentSection));
+      currentSection = DunSection{};
+    }
+  };
+
   for (auto& tok : allTokens) {
-    if (tok == "/") {
-      if (!currentFigure.empty()) {
-        currentPhrase.push_back(std::move(currentFigure));
-        currentFigure.clear();
-      }
-      if (!currentPhrase.empty()) {
-        result.phrases.push_back(std::move(currentPhrase));
-        currentPhrase.clear();
-      }
+    if (tok == "//") {
+      flushSection();
+    } else if (tok == "/") {
+      flushPhrase();
     } else if (tok == "|") {
       if (!currentFigure.empty()) {
         currentPhrase.push_back(std::move(currentFigure));
         currentFigure.clear();
       }
+    } else if (tok.rfind("truncate:", 0) == 0) {
+      // truncate:N applies to the section currently being built
+      currentSection.truncateTailBeats = std::stof(tok.substr(9));
     } else {
       DunToken t = parse_token(tok);
       if (t.tied && !currentFigure.empty()) {
@@ -250,11 +288,7 @@ inline DunParseResult parse_dun(const std::string& text) {
     }
   }
 
-  // Flush remaining
-  if (!currentFigure.empty())
-    currentPhrase.push_back(std::move(currentFigure));
-  if (!currentPhrase.empty())
-    result.phrases.push_back(std::move(currentPhrase));
+  flushSection();
 
   return result;
 }
@@ -295,13 +329,6 @@ inline Piece dun_to_piece(const DunParseResult& dun, int startOctaveOverride = -
                           ? "Minor" : "Major";
   piece.key = Key::get(keyName + " " + scaleType);
 
-  // Section
-  float totalBeats = 0;
-  for (auto& phrase : dun.phrases)
-    for (auto& fig : phrase)
-      for (auto& tok : fig)
-        totalBeats += tok.duration;
-
   Meter meter = Meter::M_4_4;
   if (dun.header.meterNum == 3 && dun.header.meterDen == 4)
     meter = Meter::M_3_4;
@@ -314,9 +341,8 @@ inline Piece dun_to_piece(const DunParseResult& dun, int startOctaveOverride = -
 
   // Scale — use the key's scale (already resolved by Key::get)
   Scale scale = piece.key.scale;
-  piece.add_section(Section("Main", totalBeats, dun.header.bpm, meter, scale));
 
-  // Build phrases using a PitchReader to track current position
+  // Build one Section per DunSection, each with its own Passage.
   int oct = (startOctaveOverride >= 0) ? startOctaveOverride
           : (dun.header.startOctave >= 0) ? dun.header.startOctave : 4;
   PitchReader reader(scale);
@@ -326,9 +352,24 @@ inline Piece dun_to_piece(const DunParseResult& dun, int startOctaveOverride = -
   part.name = "melody";
   part.instrumentType = "melody";
 
-  Passage passage;
+  for (int secIdx = 0; secIdx < int(dun.sections.size()); ++secIdx) {
+    const auto& dunSec = dun.sections[secIdx];
 
-  for (auto& phraseDun : dun.phrases) {
+    // Compute section total beats by summing all token durations
+    float sectionBeats = 0;
+    for (auto& phrase : dunSec.phrases)
+      for (auto& fig : phrase)
+        for (auto& tok : fig)
+          sectionBeats += tok.duration;
+
+    std::string sectionName = "Section" + std::to_string(secIdx + 1);
+    Section section(sectionName, sectionBeats, dun.header.bpm, meter, scale);
+    section.truncateTailBeats = dunSec.truncateTailBeats;
+    piece.add_section(section);
+
+    Passage passage;
+
+    for (auto& phraseDun : dunSec.phrases) {
     Phrase phrase;
 
     // First token of phrase should be Xn (no movement) — use current pitch
@@ -392,7 +433,9 @@ inline Piece dun_to_piece(const DunParseResult& dun, int startOctaveOverride = -
     passage.add_phrase(std::move(phrase));
   }
 
-  part.passages["Main"] = std::move(passage);
+    part.passages[sectionName] = std::move(passage);
+  }
+
   piece.parts.push_back(std::move(part));
 
   return piece;

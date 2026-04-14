@@ -133,10 +133,16 @@ struct KeyContext {
 // ===========================================================================
 struct Section {
   std::string name;
-  float beats;          // length in beats
+  float beats;          // length in beats (composed length)
   Meter meter{Meter::M_4_4};
   float tempo{120.0f};  // bpm
   Scale scale;          // defaults from Piece key, overridden for modulations
+
+  // When > 0, omit this many beats from the END when performing.
+  // The composition is still the full `beats` long; only playback is
+  // truncated. Use this when a following section interrupts mid-bar
+  // (e.g. orchestral tutti crashing in on a held cadential note).
+  float truncateTailBeats{0.0f};
 
   Section() : scale(Scale::get("C", "Major")) {}
   Section(const std::string& n, float b, float bpm, Meter m, Scale s)
