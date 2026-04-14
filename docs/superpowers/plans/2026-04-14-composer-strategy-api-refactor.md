@@ -41,18 +41,21 @@
 
 ## Representative render set (used for golden verification at every stage)
 
-These are the renders that must produce byte-identical WAVs after each stage. The command patterns are below; exact outputs go under `renders/`.
+These are the renders that must produce byte-identical WAVs after each stage. The `--compose` CLI takes an instrument patch FIRST and the composition template via `--template`:
 
-| Patch | Render command | Output WAV |
-|-------|----------------|------------|
-| `patches/test_k467_v1.json` | `--compose patches/test_k467_v1.json renders/k467_v1 1` | `renders/k467_v1_1.wav` |
-| `patches/test_k467_v2.json` | `--compose patches/test_k467_v2.json renders/k467_v2 1` | `renders/k467_v2_1.wav` |
-| `patches/test_k467_v3.json` | `--compose patches/test_k467_v3.json renders/k467_v3 1` | `renders/k467_v3_1.wav` |
-| `patches/test_k467_v4.json` | `--compose patches/test_k467_v4.json renders/k467_v4 1` | `renders/k467_v4_1.wav` |
-| `patches/test_k467_structural.json` | `--compose patches/test_k467_structural.json renders/k467_structural 1` | `renders/k467_structural_1.wav` |
-| K467 bars 1–27 DURN | `--dun patches/k467_bars_1_to_27.dun <patch> renders/k467_bars_1_to_27.wav` | `renders/k467_bars_1_to_27.wav` |
+```
+mforce_cli.exe --compose <instrument.json> <out_prefix> 1 --template <template.json>
+```
 
-If any command's flag form differs from the pattern above on inspection of `tools/mforce_cli/main.cpp`, use the form that main.cpp implements — the mapping above is a starting point, not a spec.
+| Template | Command (relative to worktree root) | Output WAV |
+|----------|-------------------------------------|------------|
+| `test_k467_v1.json` | `--compose patches/PluckU.json renders/k467_v1 1 --template patches/test_k467_v1.json` | `renders/k467_v1_1.wav` |
+| `test_k467_v2.json` | `--compose patches/PluckU.json renders/k467_v2 1 --template patches/test_k467_v2.json` | `renders/k467_v2_1.wav` |
+| `test_k467_v3.json` | `--compose patches/PluckU.json renders/k467_v3 1 --template patches/test_k467_v3.json` | `renders/k467_v3_1.wav` |
+| `test_k467_v4.json` | `--compose patches/PluckU.json renders/k467_v4 1 --template patches/test_k467_v4.json` | `renders/k467_v4_1.wav` |
+| `test_k467_structural.json` | `--compose patches/PluckU.json renders/k467_structural 1 --template patches/test_k467_structural.json` | `renders/k467_structural_1.wav` |
+
+**Worktree state note.** The worktree was populated during Task 0 with copies of the needed instrument patch (`PluckU.json`), K467 templates (`test_k467_*.json`), and `engine/third_party/{glfw,imgui,imnodes}` from the main checkout — these files are untracked in both checkouts but are now present in the worktree. Subsequent tasks should find them in-place. If a rebuild or re-render fails because a file is missing, re-copy from `C:/@dev/repos/mforce/` (main checkout) into the worktree.
 
 ---
 
