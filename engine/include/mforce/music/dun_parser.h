@@ -37,6 +37,8 @@ struct DunToken {
   int step;            // movement in scale degrees (0 = none, +N = up, -N = down)
   bool rest{false};    // true = silence for this duration
   int accidental{0};   // +1 = sharp, -1 = flat (transient, doesn't affect cursor)
+  bool tied{false};    // true = this token is a tie, its duration should be merged into the previous token
+  Ornament ornament{};  // monostate (None) by default
 };
 
 struct DunParseResult {
@@ -80,12 +82,18 @@ inline DunToken parse_token(const std::string& tok) {
   int step = 0;
   bool isRest = false;
   int accidental = 0;
+  bool tied = false;
   char dir = tok[pos++];
   switch (dir) {
     case 'r':
       isRest = true;
       break;
     case 'N': case 'n':
+      step = 0;
+      break;
+    case 'T': case 't':
+      // Tie to previous note: duration will be merged by the parser
+      tied = true;
       step = 0;
       break;
     case 'U': case 'u':
@@ -111,7 +119,28 @@ inline DunToken parse_token(const std::string& tok) {
     else if (tok[pos] == '-') { accidental = -1; pos++; }
   }
 
-  return {dur, step, isRest, accidental};
+  // Check for ornament suffix (two chars, or ~ for trill):
+  //   ~ or tr = trill (above)
+  //   mu = mordent above,  md = mordent below
+  //   tu = turn above,     td = turn below
+  Ornament ornament{};
+  if (pos < int(tok.size())) {
+    if (tok[pos] == '~') {
+      ornament = Trill{1, 2, {}};
+      pos++;
+    } else if (pos + 1 < int(tok.size())) {
+      char a = tok[pos], b = tok[pos + 1];
+      if (a == 't' && b == 'r') { ornament = Trill{1, 2, {}}; pos += 2; }
+      else if (a == 'm' && b == 'u') { ornament = Mordent{1, 2, {}}; pos += 2; }
+      else if (a == 'm' && b == 'd') { ornament = Mordent{-1, 2, {}}; pos += 2; }
+      else if (a == 't' && b == 'u') { ornament = Turn{1, 2, 2, {}}; pos += 2; }
+      else if (a == 't' && b == 'd') { ornament = Turn{-1, 2, 2, {}}; pos += 2; }
+    }
+  }
+
+  DunToken t{dur, step, isRest, accidental, tied};
+  t.ornament = ornament;
+  return t;
 }
 
 // ---------------------------------------------------------------------------
@@ -207,7 +236,17 @@ inline DunParseResult parse_dun(const std::string& text) {
         currentFigure.clear();
       }
     } else {
-      currentFigure.push_back(parse_token(tok));
+      DunToken t = parse_token(tok);
+      if (t.tied && !currentFigure.empty()) {
+        // Merge tied duration into the previous token; don't emit a new one.
+        // If the tied token carries an ornament, transfer it to the merged note.
+        currentFigure.back().duration += t.duration;
+        if (has_ornament(t.ornament)) {
+          currentFigure.back().ornament = t.ornament;
+        }
+      } else {
+        currentFigure.push_back(t);
+      }
     }
   }
 
@@ -315,6 +354,7 @@ inline Piece dun_to_piece(const DunParseResult& dun, int startOctaveOverride = -
         u.step = 0;
         u.rest = figDun[0].rest;
         u.accidental = figDun[0].accidental;
+        u.ornament = figDun[0].ornament;
         fig.units.push_back(u);
         startIdx = 1;
       } else {
@@ -328,6 +368,7 @@ inline Piece dun_to_piece(const DunParseResult& dun, int startOctaveOverride = -
         u.step = connStep;  // absorbed: was formerly passed as FigureConnector
         u.rest = figDun[0].rest;
         u.accidental = figDun[0].accidental;
+        u.ornament = figDun[0].ornament;
         fig.units.push_back(u);
         startIdx = 1;
       }
@@ -340,6 +381,7 @@ inline Piece dun_to_piece(const DunParseResult& dun, int startOctaveOverride = -
         u.step = figDun[ti].rest ? 0 : figDun[ti].step;
         u.rest = figDun[ti].rest;
         u.accidental = figDun[ti].accidental;
+        u.ornament = figDun[ti].ornament;
         fig.units.push_back(u);
         if (!figDun[ti].rest) reader.step(figDun[ti].step);
       }
