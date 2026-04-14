@@ -203,6 +203,12 @@ struct PhraseTemplate {
     std::optional<Pitch> startingPitch;        // where to begin (may come from context)
     std::vector<FigureTemplate> figures;
 
+    // Optional per-adjacency connectors. If non-empty, size must equal
+    // figures.size(); connectors[0] is unused; connectors[i] for i>0
+    // describes the join between figures[i-1] and figures[i]. Empty vector
+    // means "no connectors anywhere" (pure append).
+    std::vector<std::optional<FigureConnector>> connectors;
+
     // Phrase-level constraints
     float totalBeats{0.0f};                    // 0 = sum of figures
     int cadenceType{0};                        // 0=none, 1=half, 2=full

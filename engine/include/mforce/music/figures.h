@@ -602,6 +602,21 @@ struct RhythmicFigure {
 };
 
 // ---------------------------------------------------------------------------
+// FigureConnector — optional per-adjacency join between two figures in a
+// phrase. Elides units from the end of the preceding figure and/or adjusts
+// the duration of its (new) last unit.
+//
+// Positive adjustCount: extend the last unit (e.g. soak up a phrase tail).
+// Negative adjustCount: shorten the last unit (e.g. make room for a
+// following pickup figure). Clamped at 0 to avoid negative durations.
+// ---------------------------------------------------------------------------
+struct FigureConnector {
+  int elideCount{0};     // notes removed from the END of the preceding figure
+  float adjustCount{0};  // beats added to (+) or removed from (-) the
+                         // preceding figure's last surviving unit
+};
+
+// ---------------------------------------------------------------------------
 // ChordArticulation — instructions for playing a chord.
 // ---------------------------------------------------------------------------
 struct ChordArticulation {

@@ -414,6 +414,23 @@ inline void to_json(json& j, const PhraseTemplate& pt) {
     if (!pt.strategy.empty()) j["strategy"] = pt.strategy;
     if (pt.periodConfig) j["periodConfig"] = *pt.periodConfig;
     if (pt.sentenceConfig) j["sentenceConfig"] = *pt.sentenceConfig;
+
+    // Connectors: only emit if any are present
+    bool anyConnectors = false;
+    for (const auto& c : pt.connectors) { if (c) { anyConnectors = true; break; } }
+    if (anyConnectors) {
+        json connArr = json::array();
+        for (const auto& c : pt.connectors) {
+            if (!c) { connArr.push_back(nullptr); }
+            else {
+                json cj = json::object();
+                if (c->elideCount != 0) cj["elide"] = c->elideCount;
+                if (c->adjustCount != 0) cj["adjust"] = c->adjustCount;
+                connArr.push_back(cj);
+            }
+        }
+        j["connectors"] = connArr;
+    }
 }
 
 inline void from_json(const json& j, PhraseTemplate& pt) {
@@ -445,6 +462,21 @@ inline void from_json(const json& j, PhraseTemplate& pt) {
         SentencePhraseConfig c;
         from_json(j.at("sentenceConfig"), c);
         pt.sentenceConfig = c;
+    }
+
+    // Connectors: optional parallel vector; when absent, leave empty.
+    if (j.contains("connectors")) {
+        pt.connectors.clear();
+        for (const auto& cj : j.at("connectors")) {
+            if (cj.is_null()) {
+                pt.connectors.push_back(std::nullopt);
+            } else {
+                FigureConnector fc;
+                fc.elideCount = cj.value("elide", 0);
+                fc.adjustCount = cj.value("adjust", 0.0f);
+                pt.connectors.push_back(fc);
+            }
+        }
     }
 }
 

@@ -65,11 +65,16 @@ construction. That example drove all of the brainstorming decisions.
 // engine/include/mforce/music/figures.h
 //
 // Resurrected from the pre-Phase-1b version, but simpler: only the
-// elide+extend mechanism, no ConnectorType enum, no default step(-1).
+// elide+adjust mechanism, no ConnectorType enum, no default step(-1).
 struct FigureConnector {
   int elideCount{0};     // notes removed from the END of the preceding figure
-  float extendCount{0};  // beats added to the last SURVIVING unit of the
-                         // preceding figure after elision
+  float adjustCount{0};  // beats added to (positive) or removed from
+                         // (negative) the last SURVIVING unit of the
+                         // preceding figure after elision. Positive is the
+                         // "My Life" case (extend to soak up tail). Negative
+                         // is the "K467 pickups" case (shorten to make room
+                         // for a following pickup figure). Must not reduce
+                         // the unit's duration below zero.
 };
 ```
 
@@ -128,17 +133,22 @@ When a connector is present at `connectors[i]`:
 
 1. **Elision**: the last `elideCount` units of `phrase.figures[i-1]` are
    removed. The figure's unit vector is truncated from the end.
-2. **Extension**: if `extendCount > 0` and the (now-shorter) figure still
-   has at least one unit, its last unit's `duration` is increased by
-   `extendCount` beats.
+2. **Adjustment**: if `adjustCount != 0` and the (now-shorter) figure still
+   has at least one unit, its last unit's `duration` is modified by
+   `adjustCount` beats. Positive values extend the duration (the "My Life"
+   case — the surface figure absorbs the tail before the next tag). Negative
+   values shorten it (the "K467 pickups" case — the cadence figure ends
+   early so a following pickup figure can play in the freed time). If
+   `abs(adjustCount)` would push the unit's duration to zero or below, the
+   adjustment is clamped (or an error is raised — TBD at implementation).
 3. **Cursor flow**: the next figure's first-unit step still applies to
    the cursor *as it stands after the elision*. Elision removes some
    units' step contributions, so the cursor is at a different position
    than it would have been without elision. The next figure's first
    unit plays at `(post-elision cursor) + next_fig.units[0].step`.
 
-Importantly, extension does NOT affect the cursor — it only changes
-duration. The cursor after extension equals the cursor after elision.
+Importantly, adjustment does NOT affect the cursor — it only changes
+duration. The cursor after adjustment equals the cursor after elision.
 
 ### The Billy Joel "My Life" example in FigureConnector terms
 
@@ -151,18 +161,34 @@ Phrase 1: `[fig1, tag1]`, connectors `[_, std::nullopt]` — pure append.
 The last unit of `fig1` plays normally, then `tag1` plays starting at
 `cursor + tag1.units[0].step = cursor - 1`.
 
-Phrase 2: `[fig1, tag2]`, connectors `[_, {elideCount: 1, extendCount: 0}]`.
+Phrase 2: `[fig1, tag2]`, connectors `[_, {elideCount: 1, adjustCount: 0}]`.
 The last unit of `fig1` (a quarter note) is removed. The figure now ends
 with the previous eighth note, cursor is one scale-degree-step back from
 where it would have been. Then `tag2` plays starting at
 `(post-elision cursor) + tag2.units[0].step = cursor + 2`.
 
-Phrase 3: `[fig1, tag3]`, connectors `[_, {elideCount: 2, extendCount: 1.0}]`.
+Phrase 3: `[fig1, tag3]`, connectors `[_, {elideCount: 2, adjustCount: 1.0}]`.
 The last two units of `fig1` are removed (an eighth + a quarter, total 1.5
 beats of duration). The now-last unit (an eighth) has its duration extended
 by 1 beat, becoming a dotted quarter (0.5 + 1.0 = 1.5 beats). Cursor is two
 scale-degree-steps back. Then `tag3` plays starting at
 `(post-elision cursor) + tag3.units[0].step = cursor + 2`.
+
+### The K467 bar 8 → bar 9 example (negative adjust case)
+
+Given (simplified):
+- `cadence_fig` = the bar 7-8 cadential approach, ending with a half note on G
+- `pickup_fig` = three eighths + sixteenth (`eu1 eu1 eui en+`) that lead back to bar 9's chord figure
+- `chord_fig_9` = bar 9's arpeggio (matches bar 5)
+
+Phrase: `[..., cadence_fig, pickup_fig, chord_fig_9, ...]`
+Connectors: `[..., nullopt, {elideCount: 0, adjustCount: -1.5}, nullopt, ...]`
+
+The connector before `pickup_fig` shortens `cadence_fig`'s last note (the
+half on G) from 2 beats to 0.5 beats (an eighth), freeing 1.5 beats for
+`pickup_fig`. Cursor stays on G (no elision means no step contributions
+removed). `pickup_fig` then plays in that freed 1.5 beats and leads up to
+`chord_fig_9`.
 
 This matches the brainstorming walk-through of the Billy Joel chorus as
 transcribed by Matt. `elideCount` counts units; the beat totals that result
@@ -176,7 +202,8 @@ depend on the specific durations of the units being elided and extended.
   "figures": [ ... ],
   "connectors": [
     null,
-    {"elide": 1, "extend": 0}
+    {"elide": 1, "adjust": 0},
+    {"elide": 0, "adjust": -1.5}
   ]
 }
 ```
@@ -184,7 +211,9 @@ depend on the specific durations of the units being elided and extended.
 `connectors[0]` is serialized as `null` (the unused slot). When the field
 is absent from JSON entirely, the loader initializes `connectors` as a
 vector of `std::nullopt` with the same length as `figures`. When both
-`elide` and `extend` are zero, they may be omitted from the JSON object.
+`elide` and `adjust` are zero, they may be omitted from the JSON object.
+A negative `adjust` value shortens the preceding figure's last unit (e.g.
+to make room for a following pickup figure).
 
 ## Part 2 — OutlineFigureStrategy
 
@@ -437,12 +466,12 @@ lint pass if mismatches become a source of bugs.
 //
 // P1, P2, P3 are PhraseTemplates, each containing:
 //   figures = [fig1, tag_i]
-//   connectors = [nullopt, conn_i]    // nullopt or { elideCount, extendCount }
+//   connectors = [nullopt, conn_i]    // nullopt or { elideCount, adjustCount }
 //
 // Where:
 //   fig1 is generated by OutlineFigureStrategy with ss1 and the 3-note surface
 //   tag1, tag2, tag3 are the three distinct cadential-approach figures
-//   conn1 = nullopt (pure append), conn2 = {elide:1, extend:0}, conn3 = {elide:2, extend:1.0}
+//   conn1 = nullopt (pure append), conn2 = {elide:1, adjust:0}, conn3 = {elide:2, adjust:1.0}
 //   P1 uses tag1+conn1, P2 uses tag2+conn2, P3 uses tag3+conn3
 //
 // At realize-passage time:
@@ -615,12 +644,12 @@ if (j.contains("outlineConfig")) {
 ```cpp
 inline void to_json(json& j, const FigureConnector& fc) {
   if (fc.elideCount != 0) j["elide"] = fc.elideCount;
-  if (fc.extendCount != 0) j["extend"] = fc.extendCount;
+  if (fc.adjustCount != 0) j["adjust"] = fc.adjustCount;
 }
 
 inline void from_json(const json& j, FigureConnector& fc) {
   fc.elideCount = j.value("elide", 0);
-  fc.extendCount = j.value("extend", 0.0f);
+  fc.adjustCount = j.value("adjust", 0.0f);
 }
 ```
 
@@ -719,8 +748,10 @@ for (int i = 0; i < numFigs; ++i) {
       int elide = std::min(conn.elideCount, int(prevFig.units.size()));
       prevFig.units.resize(prevFig.units.size() - elide);
     }
-    if (conn.extendCount > 0 && !prevFig.units.empty()) {
-      prevFig.units.back().duration += conn.extendCount;
+    if (conn.adjustCount != 0 && !prevFig.units.empty()) {
+      float newDur = prevFig.units.back().duration + conn.adjustCount;
+      if (newDur < 0.0f) newDur = 0.0f;  // clamp rather than error for now
+      prevFig.units.back().duration = newDur;
     }
   }
 
@@ -841,13 +872,13 @@ new config fields, parallel vectors) don't leak into the default path.
 
 | File | Change |
 |---|---|
-| `engine/include/mforce/music/figures.h` | Re-add `struct FigureConnector` (simpler than pre-Phase-1b: only `elideCount` + `extendCount`). |
+| `engine/include/mforce/music/figures.h` | Re-add `struct FigureConnector` (simpler than pre-Phase-1b: only `elideCount` + `adjustCount`). |
 | `engine/include/mforce/music/templates.h` | Add `OutlineFigureConfig`, `OutlinePassageConfig`. Add `FigureTemplate::strategy`, `FigureTemplate::outlineConfig`, `PassageTemplate::strategy`, `PassageTemplate::outlineConfig`, `PhraseTemplate::connectors`. |
 | `engine/include/mforce/music/templates_json.h` | JSON round-trip for all the new fields/types above. Fix `PhraseTemplate::from_json` to make `figures` optional. |
 | `engine/include/mforce/music/music_json.h` | Re-add `to_json` / `from_json` for `FigureConnector`. |
 | `engine/include/mforce/music/outline_strategies.h` | NEW. `OutlineFigureStrategy` and `OutlinePassageStrategy` class declarations + inline definitions. |
 | `engine/include/mforce/music/composer.h` | Include `outline_strategies.h`. Register both new strategies. Update `realize_figure` and `realize_passage` dispatchers to consult the new `strategy` fields. |
-| `engine/include/mforce/music/default_strategies.h` | Update `DefaultPhraseStrategy::realize_phrase` to apply connectors (elide + extend on the previous figure). |
+| `engine/include/mforce/music/default_strategies.h` | Update `DefaultPhraseStrategy::realize_phrase` to apply connectors (elide + adjust on the previous figure). |
 | `patches/test_outline_my_life.json` | NEW. Smoke test template. Not pinned as golden. |
 
 No changes to `conductor.h`, `dun_parser.h`, `strategy.h`, `strategy_registry.h`,

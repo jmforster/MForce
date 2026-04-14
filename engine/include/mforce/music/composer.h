@@ -858,6 +858,33 @@ inline Phrase DefaultPhraseStrategy::realize_phrase(
 
   const int numFigs = int(phraseTmpl.figures.size());
   for (int i = 0; i < numFigs; ++i) {
+    // Apply optional connector JOINING figures[i-1] → figures[i] before
+    // generating this figure. Mutates the previously-added figure in
+    // phrase.figures (elides trailing units and/or adjusts last unit's
+    // duration). Does NOT modify the cursor for adjustment (adjustment is
+    // a duration-only change). Elision does affect the cursor since it
+    // removes step contributions — we rewind the runningReader accordingly.
+    if (i > 0 && i < int(phraseTmpl.connectors.size())
+        && phraseTmpl.connectors[i] && !phrase.figures.empty()) {
+      const auto& conn = *phraseTmpl.connectors[i];
+      auto& prevFig = *phrase.figures.back();
+      if (conn.elideCount > 0 && !prevFig.units.empty()) {
+        int elide = std::min(conn.elideCount, int(prevFig.units.size()));
+        // Rewind cursor to reflect elided step contributions
+        int netElidedSteps = 0;
+        for (int e = 0; e < elide; ++e) {
+          netElidedSteps += prevFig.units[prevFig.units.size() - 1 - e].step;
+        }
+        runningReader.step(-netElidedSteps);
+        prevFig.units.resize(prevFig.units.size() - elide);
+      }
+      if (conn.adjustCount != 0 && !prevFig.units.empty()) {
+        float newDur = prevFig.units.back().duration + conn.adjustCount;
+        if (newDur < 0.0f) newDur = 0.0f;  // clamp rather than error
+        prevFig.units.back().duration = newDur;
+      }
+    }
+
     // MelodicFunction-driven shape selection — same logic as
     // classical_composer.h:197-202.
     FigureTemplate figTmpl = phraseTmpl.figures[i];
@@ -879,9 +906,9 @@ inline Phrase DefaultPhraseStrategy::realize_phrase(
     // Rest units contribute step=0 so they don't advance the cursor.
     runningReader.step(fig.net_step());
 
-    // No connectors. Every figure joins via its first unit's step, which
-    // bridges from wherever the previous figure left the cursor to this
-    // figure's effective starting pitch.
+    // Every figure joins via its first unit's step, which bridges from
+    // wherever the previous figure left the cursor to this figure's
+    // effective starting pitch.
     phrase.add_melodic_figure(std::move(fig));
   }
 
