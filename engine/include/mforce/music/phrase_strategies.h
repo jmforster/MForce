@@ -5,6 +5,7 @@
 #include "mforce/music/figures.h"
 #include "mforce/music/pitch_reader.h"
 #include "mforce/music/default_strategies.h"
+#include "mforce/music/piece_utils.h"
 #include <cmath>
 #include <iostream>
 
@@ -51,7 +52,28 @@ inline Phrase PeriodPhraseStrategy::realize_phrase(
   if (phraseTmpl.startingPitch) {
     phrase.startingPitch = *phraseTmpl.startingPitch;
   } else {
+    // Stage 6 will replace phrase.startingPitch = ctx.cursor; with
+    // phrase.startingPitch = piece_utils::pitch_before(locus);
+    // See docs/superpowers/plans/2026-04-14-composer-strategy-api-refactor.md
     phrase.startingPitch = ctx.cursor;
+#ifdef MFORCE_LOCUS_SELFCHECK
+    // Construct a Locus that matches the caller's current position.
+    // The caller context — Composer::compose() — must set thread-local state
+    // recording (piece, pieceTemplate, sectionIdx, partIdx, passageIdx, phraseIdx)
+    // for this selfcheck to work. For now, skip the selfcheck if that state
+    // isn't available.
+    extern thread_local ::mforce::Locus* g_selfcheck_locus;  // defined nowhere by default
+    if (g_selfcheck_locus) {
+      auto viaQuery = ::mforce::piece_utils::pitch_before(*g_selfcheck_locus);
+      // Use a pitch-equality check that matches existing semantics.
+      // If Pitch doesn't have operator==, compare octave + pitchDef->offset.
+      if (!(viaQuery.octave == ctx.cursor.octave &&
+            viaQuery.pitchDef == ctx.cursor.pitchDef)) {
+        std::fprintf(stderr, "LOCUS SELFCHECK MISMATCH at PeriodPhraseStrategy\n");
+        std::abort();
+      }
+    }
+#endif
   }
 
   // Figure 0: basicIdea (antecedent opening)
