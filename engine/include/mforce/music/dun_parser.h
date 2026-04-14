@@ -275,12 +275,21 @@ inline DunParseResult parse_dun(const std::string& text) {
       currentSection.truncateTailBeats = std::stof(tok.substr(9));
     } else {
       DunToken t = parse_token(tok);
-      if (t.tied && !currentFigure.empty()) {
-        // Merge tied duration into the previous token; don't emit a new one.
-        // If the tied token carries an ornament, transfer it to the merged note.
-        currentFigure.back().duration += t.duration;
-        if (has_ornament(t.ornament)) {
-          currentFigure.back().ornament = t.ornament;
+      if (t.tied) {
+        // Merge tied duration into the previous token (same figure,
+        // or cross-bar into the last figure's last token).
+        if (!currentFigure.empty()) {
+          currentFigure.back().duration += t.duration;
+          if (has_ornament(t.ornament))
+            currentFigure.back().ornament = t.ornament;
+        } else if (!currentPhrase.empty() && !currentPhrase.back().empty()) {
+          // Cross-bar tie: extend the last unit of the previous figure.
+          currentPhrase.back().back().duration += t.duration;
+          if (has_ornament(t.ornament))
+            currentPhrase.back().back().ornament = t.ornament;
+        } else {
+          // Nothing to tie to — treat as normal note
+          currentFigure.push_back(t);
         }
       } else {
         currentFigure.push_back(t);
