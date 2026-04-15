@@ -293,8 +293,6 @@ private:
 
     StrategyContext ctx;
     ctx.scale = scale;
-    ctx.piece = const_cast<Piece*>(&piece);
-    ctx.template_ = &tmpl;
     ctx.composer = this;
     ctx.rng = &rng_;
     ::mforce::rng::Scope rngScope(rng_);
@@ -329,13 +327,10 @@ private:
       // Template-driven: dispatch through the registry.
       StrategyContext ctx;
       ctx.scale = scale;
-      ctx.piece = &piece;
-      ctx.template_ = &tmpl;
       ctx.composer = this;
       ctx.rng = &rng_;
       if (section) {
         ctx.chordProgression = section->chordProgression ? &*section->chordProgression : nullptr;
-        ctx.keyContexts = section->keyContexts.empty() ? nullptr : &section->keyContexts;
       }
       ::mforce::rng::Scope rngScope(rng_);
       passage = realize_passage(passIt->second, ctx);

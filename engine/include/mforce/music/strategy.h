@@ -4,13 +4,11 @@
 #include "mforce/music/structure.h"
 #include "mforce/music/templates.h"
 #include "mforce/core/randomizer.h"
-#include <nlohmann/json.hpp>
 #include <string>
 #include <stdexcept>
 
 namespace mforce {
 
-struct PieceTemplate;     // fwd
 struct Composer;          // fwd
 
 enum class StrategyLevel { Figure, Phrase, Passage, Piece };
@@ -21,17 +19,11 @@ struct StrategyContext {
   Scale scale;
   Pitch cursor;                       // current PitchReader-equivalent cursor: passage sets it,
                                     // phrases may override, figures advance it via their step sequence.
-  float totalBeats{0.0f};             // target length of current unit (0 = unconstrained)
-  Piece* piece{nullptr};              // in-progress piece (for seed/phrase lookup)
-  const PieceTemplate* template_{nullptr};
   Composer* composer{nullptr};        // for dispatching to sub-levels
-  nlohmann::json params;              // strategy-specific params from the template
-  Randomizer* rng{nullptr};           // shared RNG for this composition
+  Randomizer* rng{nullptr};           // shared RNG for this composition (migrating to mforce::rng singleton)
 
   // Harmony context
   const ChordProgression* chordProgression{nullptr};
-  const std::vector<KeyContext>* keyContexts{nullptr};
-  float sectionBeatOffset{0.0f};
 };
 
 // Abstract base. Subclasses override exactly one of the realize_* methods,
