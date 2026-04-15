@@ -1,5 +1,7 @@
 # Period Forms and K467 Bars 1–12 — Design
 
+> **SUPERSEDED** by `2026-04-15-composer-composition-model-design.md` (same day). That umbrella spec incorporates and extends the material in this doc with the plan/compose two-phase interface, placement-neutral motifs, multi-figure cadential tails, and the FigureConnector rework. Retained as historical record of the intermediate thinking.
+
 ## Context
 
 With the composer strategy API refactor landed (2026-04-14) and Spec A (`2026-04-15-motif-pool-and-history-queries-design.md`) upgrading the motif pool to first-class role-tagged entries with provenance, the composer is ready to gain its first **phrase-aware** compositional strategy. The next leverage point is a Strategy that can compose the opening 12 bars of Mozart's K467 Piano Concerto Andante — a **double period**, where period 1 is a 4-bar `modified` parallel period (HC → IAC) and period 2 is an 8-bar `parallel` period (HC → PAC).

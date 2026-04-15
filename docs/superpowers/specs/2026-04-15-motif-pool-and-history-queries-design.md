@@ -1,5 +1,7 @@
 # Motif Pool Upgrade and History Queries — Design
 
+> **SUPERSEDED** by `2026-04-15-composer-composition-model-design.md` (same day). That umbrella spec incorporates and extends the material in this doc with the plan/compose two-phase interface, placement-neutral motifs, and the FigureConnector rework that followed this spec in the brainstorm. Retained as historical record of the intermediate thinking.
+
 ## Context
 
 The composer strategy API refactor (landed 2026-04-14) left one open debt item: the motif pool lives on `Composer` (`realizedMotifs_` + `realizedRhythms_` + `realizedContours_`) and is reached from strategies via a `Composer*` carried on `Locus`. The plan always was to move the pool onto `PieceTemplate` so templates are the canonical source of compositional DNA. This spec settles that relocation and, at the same time, expands what each `Motif` can carry so downstream strategies can pick motifs intelligently rather than by name alone.
