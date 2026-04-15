@@ -9,6 +9,7 @@
 #include "mforce/music/structure.h"
 #include "mforce/music/templates.h"
 #include "mforce/music/pitch_reader.h"
+#include "mforce/music/rng.h"
 #include "mforce/core/randomizer.h"
 #include <iostream>
 #include <memory>
@@ -296,6 +297,7 @@ private:
     ctx.template_ = &tmpl;
     ctx.composer = this;
     ctx.rng = &rng_;
+    ::mforce::rng::Scope rngScope(rng_);
     return this->realize_passage(passTmpl, ctx);
   }
 
@@ -335,6 +337,7 @@ private:
         ctx.chordProgression = section->chordProgression ? &*section->chordProgression : nullptr;
         ctx.keyContexts = section->keyContexts.empty() ? nullptr : &section->keyContexts;
       }
+      ::mforce::rng::Scope rngScope(rng_);
       passage = realize_passage(passIt->second, ctx);
     } else {
       // No template for this section — fallback.
@@ -406,7 +409,7 @@ inline StepSequence resolve_contour(const FigureTemplate& ft, StrategyContext& c
 
 inline MelodicFigure ShapeCadentialApproachStrategy::realize_figure(
     const FigureTemplate& ft, StrategyContext& ctx) {
-  uint32_t seed = ft.seed ? ft.seed : ctx.rng->rng();
+  uint32_t seed = ft.seed ? ft.seed : ::mforce::rng::next();
   Randomizer rng(seed);
 
   float totalBeats = (ft.totalBeats > 0) ? ft.totalBeats : 4.0f;
@@ -569,7 +572,7 @@ inline MelodicFigure ShapeCadentialApproachStrategy::realize_figure(
 
 inline MelodicFigure ShapeSkippingStrategy::realize_figure(
     const FigureTemplate& ft, StrategyContext& ctx) {
-  uint32_t seed = ft.seed ? ft.seed : ctx.rng->rng();
+  uint32_t seed = ft.seed ? ft.seed : ::mforce::rng::next();
   Randomizer rng(seed);
   float totalBeats = (ft.totalBeats > 0) ? ft.totalBeats : 4.0f;
   float pulse = (ft.defaultPulse > 0) ? ft.defaultPulse : 1.0f;
@@ -610,7 +613,7 @@ inline MelodicFigure ShapeSkippingStrategy::realize_figure(
 
 inline MelodicFigure ShapeSteppingStrategy::realize_figure(
     const FigureTemplate& ft, StrategyContext& ctx) {
-  uint32_t seed = ft.seed ? ft.seed : ctx.rng->rng();
+  uint32_t seed = ft.seed ? ft.seed : ::mforce::rng::next();
   float totalBeats = (ft.totalBeats > 0) ? ft.totalBeats : 4.0f;
   float pulse = (ft.defaultPulse > 0) ? ft.defaultPulse : 1.0f;
 
@@ -643,12 +646,12 @@ inline MelodicFigure ShapeSteppingStrategy::realize_figure(
 inline MelodicFigure DefaultFigureStrategy::realize_figure(
     const FigureTemplate& figTmpl, StrategyContext& ctx) {
   // Use the figure's seed for reproducibility
-  uint32_t figSeed = figTmpl.seed ? figTmpl.seed : ctx.rng->rng();
+  uint32_t figSeed = figTmpl.seed ? figTmpl.seed : ::mforce::rng::next();
 
   switch (figTmpl.source) {
     case FigureSource::Locked:
       if (figTmpl.lockedFigure) return *figTmpl.lockedFigure;
-      return FigureBuilder(ctx.rng->rng()).single_note(1.0f);  // fallback
+      return FigureBuilder(::mforce::rng::next()).single_note(1.0f);  // fallback
 
     case FigureSource::Literal: {
       // Convert the user-authored note list into a MelodicFigure. Each
@@ -892,7 +895,7 @@ inline Phrase DefaultPhraseStrategy::realize_phrase(
         && figTmpl.source == FigureSource::Generate
         && figTmpl.shape == FigureShape::Free) {
       figTmpl.shape = DefaultFigureStrategy::choose_shape(
-          phraseTmpl.function, i, numFigs, ctx.rng->rng());
+          phraseTmpl.function, i, numFigs, ::mforce::rng::next());
     }
 
     // Dispatch to the figure level through the Composer. The figure context

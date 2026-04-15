@@ -3,6 +3,7 @@
 #include "mforce/music/figures.h"
 #include "mforce/music/templates.h"
 #include "mforce/music/rhythm_util.h"
+#include "mforce/music/rng.h"
 #include "mforce/core/randomizer.h"
 #include <algorithm>
 #include <cmath>
@@ -32,7 +33,7 @@ public:
 
 inline MelodicFigure ShapeScalarRunStrategy::realize_figure(
     const FigureTemplate& ft, StrategyContext& ctx) {
-  uint32_t seed = ft.seed ? ft.seed : ctx.rng->rng();
+  uint32_t seed = ft.seed ? ft.seed : ::mforce::rng::next();
   FigureBuilder fb(seed);
   fb.defaultPulse = (ft.defaultPulse > 0) ? ft.defaultPulse : 1.0f;
   int dir = ft.shapeDirection;
@@ -52,7 +53,7 @@ public:
 
 inline MelodicFigure ShapeRepeatedNoteStrategy::realize_figure(
     const FigureTemplate& ft, StrategyContext& ctx) {
-  uint32_t seed = ft.seed ? ft.seed : ctx.rng->rng();
+  uint32_t seed = ft.seed ? ft.seed : ::mforce::rng::next();
   FigureBuilder fb(seed);
   fb.defaultPulse = (ft.defaultPulse > 0) ? ft.defaultPulse : 1.0f;
   int count = (ft.maxNotes > ft.minNotes)
@@ -71,7 +72,7 @@ public:
 
 inline MelodicFigure ShapeHeldNoteStrategy::realize_figure(
     const FigureTemplate& ft, StrategyContext& ctx) {
-  uint32_t seed = ft.seed ? ft.seed : ctx.rng->rng();
+  uint32_t seed = ft.seed ? ft.seed : ::mforce::rng::next();
   FigureBuilder fb(seed);
   fb.defaultPulse = (ft.defaultPulse > 0) ? ft.defaultPulse : 1.0f;
   return fb.held_note(ft.totalBeats > 0 ? ft.totalBeats : fb.defaultPulse * 2);
@@ -95,7 +96,7 @@ public:
 
 inline MelodicFigure ShapeTriadicOutlineStrategy::realize_figure(
     const FigureTemplate& ft, StrategyContext& ctx) {
-  uint32_t seed = ft.seed ? ft.seed : ctx.rng->rng();
+  uint32_t seed = ft.seed ? ft.seed : ::mforce::rng::next();
   FigureBuilder fb(seed);
   fb.defaultPulse = (ft.defaultPulse > 0) ? ft.defaultPulse : 1.0f;
   int dir = ft.shapeDirection;
@@ -113,7 +114,7 @@ public:
 
 inline MelodicFigure ShapeNeighborToneStrategy::realize_figure(
     const FigureTemplate& ft, StrategyContext& ctx) {
-  uint32_t seed = ft.seed ? ft.seed : ctx.rng->rng();
+  uint32_t seed = ft.seed ? ft.seed : ::mforce::rng::next();
   FigureBuilder fb(seed);
   fb.defaultPulse = (ft.defaultPulse > 0) ? ft.defaultPulse : 1.0f;
   int dir = ft.shapeDirection;
@@ -130,7 +131,7 @@ public:
 
 inline MelodicFigure ShapeLeapAndFillStrategy::realize_figure(
     const FigureTemplate& ft, StrategyContext& ctx) {
-  uint32_t seed = ft.seed ? ft.seed : ctx.rng->rng();
+  uint32_t seed = ft.seed ? ft.seed : ::mforce::rng::next();
   FigureBuilder fb(seed);
   fb.defaultPulse = (ft.defaultPulse > 0) ? ft.defaultPulse : 1.0f;
   int dir = ft.shapeDirection;
@@ -149,7 +150,7 @@ public:
 
 inline MelodicFigure ShapeScalarReturnStrategy::realize_figure(
     const FigureTemplate& ft, StrategyContext& ctx) {
-  uint32_t seed = ft.seed ? ft.seed : ctx.rng->rng();
+  uint32_t seed = ft.seed ? ft.seed : ::mforce::rng::next();
   FigureBuilder fb(seed);
   fb.defaultPulse = (ft.defaultPulse > 0) ? ft.defaultPulse : 1.0f;
   int dir = ft.shapeDirection;
@@ -168,7 +169,7 @@ public:
 
 inline MelodicFigure ShapeAnacrusisStrategy::realize_figure(
     const FigureTemplate& ft, StrategyContext& ctx) {
-  uint32_t seed = ft.seed ? ft.seed : ctx.rng->rng();
+  uint32_t seed = ft.seed ? ft.seed : ::mforce::rng::next();
   FigureBuilder fb(seed);
   fb.defaultPulse = (ft.defaultPulse > 0) ? ft.defaultPulse : 1.0f;
   int dir = ft.shapeDirection;
@@ -189,7 +190,7 @@ public:
 
 inline MelodicFigure ShapeZigzagStrategy::realize_figure(
     const FigureTemplate& ft, StrategyContext& ctx) {
-  uint32_t seed = ft.seed ? ft.seed : ctx.rng->rng();
+  uint32_t seed = ft.seed ? ft.seed : ::mforce::rng::next();
   FigureBuilder fb(seed);
   fb.defaultPulse = (ft.defaultPulse > 0) ? ft.defaultPulse : 1.0f;
   int dir = ft.shapeDirection;
@@ -207,7 +208,7 @@ public:
 
 inline MelodicFigure ShapeFanfareStrategy::realize_figure(
     const FigureTemplate& ft, StrategyContext& ctx) {
-  uint32_t seed = ft.seed ? ft.seed : ctx.rng->rng();
+  uint32_t seed = ft.seed ? ft.seed : ::mforce::rng::next();
   FigureBuilder fb(seed);
   fb.defaultPulse = (ft.defaultPulse > 0) ? ft.defaultPulse : 1.0f;
   int p1 = ft.shapeParam;
@@ -224,7 +225,7 @@ public:
 
 inline MelodicFigure ShapeSighStrategy::realize_figure(
     const FigureTemplate& ft, StrategyContext& ctx) {
-  uint32_t seed = ft.seed ? ft.seed : ctx.rng->rng();
+  uint32_t seed = ft.seed ? ft.seed : ::mforce::rng::next();
   FigureBuilder fb(seed);
   fb.defaultPulse = (ft.defaultPulse > 0) ? ft.defaultPulse : 1.0f;
   return fb.sigh(fb.defaultPulse);
@@ -240,7 +241,7 @@ public:
 
 inline MelodicFigure ShapeSuspensionStrategy::realize_figure(
     const FigureTemplate& ft, StrategyContext& ctx) {
-  uint32_t seed = ft.seed ? ft.seed : ctx.rng->rng();
+  uint32_t seed = ft.seed ? ft.seed : ::mforce::rng::next();
   FigureBuilder fb(seed);
   fb.defaultPulse = (ft.defaultPulse > 0) ? ft.defaultPulse : 1.0f;
   return fb.suspension(fb.defaultPulse * 2, fb.defaultPulse);
@@ -256,7 +257,7 @@ public:
 
 inline MelodicFigure ShapeCambiataStrategy::realize_figure(
     const FigureTemplate& ft, StrategyContext& ctx) {
-  uint32_t seed = ft.seed ? ft.seed : ctx.rng->rng();
+  uint32_t seed = ft.seed ? ft.seed : ::mforce::rng::next();
   FigureBuilder fb(seed);
   fb.defaultPulse = (ft.defaultPulse > 0) ? ft.defaultPulse : 1.0f;
   int dir = ft.shapeDirection;
