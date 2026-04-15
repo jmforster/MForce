@@ -2691,6 +2691,12 @@ static void show_create_menu() {
         menu_source("Markov ODE", "MarkovOdeSource");
         menu_source("Mass-Spring", "MassSpringSource");
         menu_source("Self-Rewriting AST", "SelfRewritingASTSource");
+        menu_sep();
+        menu_source("SAT/DPLL", "SatDpllSource");
+        menu_source("Micro-NN", "MicroNNSource");
+        menu_source("Self-Avoiding Walk", "SelfAvoidingWalkSource");
+        menu_source("Homotopy", "HomotopySource");
+        menu_source("LDPC Decoder", "LDPCSource");
         ImGui::EndMenu();
     }
 

@@ -1,0 +1,22 @@
+{
+  "sampleRate": 48000,
+  "graph": {
+    "nodes": [
+      { "id": "env", "type": "Envelope",
+        "params": { "preset": "ar", "attack": 0.0, "attackMax": 0.01 } },
+      { "id": "saw", "type": "SelfAvoidingWalkSource",
+        "params": {
+          "amplitude":     { "ref": "env" },
+          "rate":          2000.0,
+          "directionBias": 0.0,
+          "clickAmount":   0.5,
+          "ditherAmount":  0.05,
+          "smoothness":    0.1
+        }}
+    ],
+    "output": "saw"
+  },
+  "instrument": { "paramMap": { "frequency": "saw.rate" }, "polyphony": 1 },
+  "seconds": 6.0,
+  "score": [ { "note": 60, "velocity": 0.8, "time": 0.0, "duration": 6.0 } ]
+}

@@ -1,0 +1,25 @@
+{
+  "sampleRate": 48000,
+  "graph": {
+    "nodes": [
+      { "id": "env", "type": "Envelope",
+        "params": { "preset": "ar", "attack": 0.0, "attackMax": 0.01 } },
+      { "id": "nn", "type": "MicroNNSource",
+        "params": {
+          "amplitude":    { "ref": "env" },
+          "rate":         48000.0,
+          "learningRate": 0.02,
+          "fInput":       0.5,
+          "fTarget0":     2.0,
+          "fTarget1":     3.0,
+          "fTarget2":     5.0,
+          "noiseAmount":  0.05,
+          "smoothness":   0.3
+        }}
+    ],
+    "output": "nn"
+  },
+  "instrument": { "paramMap": { "frequency": "nn.rate" }, "polyphony": 1 },
+  "seconds": 6.0,
+  "score": [ { "note": 60, "velocity": 0.8, "time": 0.0, "duration": 6.0 } ]
+}

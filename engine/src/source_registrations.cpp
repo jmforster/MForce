@@ -17,6 +17,11 @@
 #include "mforce/source/markov_ode_source.h"
 #include "mforce/source/mass_spring_source.h"
 #include "mforce/source/self_rewriting_ast_source.h"
+#include "mforce/source/sat_dpll_source.h"
+#include "mforce/source/micro_nn_source.h"
+#include "mforce/source/self_avoiding_walk_source.h"
+#include "mforce/source/homotopy_source.h"
+#include "mforce/source/ldpc_source.h"
 #include "mforce/source/wavetable_source.h"
 #include "mforce/source/hybrid_ks_source.h"
 #include "mforce/source/combined_source.h"
@@ -91,6 +96,31 @@ void register_all_sources() {
     reg.register_type("SelfRewritingASTSource", SourceCategory::Oscillator,
         [](int sr, auto seed) {
             return std::make_shared<SelfRewritingASTSource>(sr, seed.value_or(0xA571'0001u));
+        });
+
+    reg.register_type("SatDpllSource", SourceCategory::Oscillator,
+        [](int sr, auto seed) {
+            return std::make_shared<SatDpllSource>(sr, seed.value_or(0x5A7D'0001u));
+        });
+
+    reg.register_type("MicroNNSource", SourceCategory::Oscillator,
+        [](int sr, auto seed) {
+            return std::make_shared<MicroNNSource>(sr, seed.value_or(0x11E0'0001u));
+        });
+
+    reg.register_type("SelfAvoidingWalkSource", SourceCategory::Oscillator,
+        [](int sr, auto seed) {
+            return std::make_shared<SelfAvoidingWalkSource>(sr, seed.value_or(0x5A01'0001u));
+        });
+
+    reg.register_type("HomotopySource", SourceCategory::Oscillator,
+        [](int sr, auto seed) {
+            return std::make_shared<HomotopySource>(sr, seed.value_or(0xB007'0001u));
+        });
+
+    reg.register_type("LDPCSource", SourceCategory::Oscillator,
+        [](int sr, auto seed) {
+            return std::make_shared<LDPCSource>(sr, seed.value_or(0x1DBC'0001u));
         });
 
     // -----------------------------------------------------------------------

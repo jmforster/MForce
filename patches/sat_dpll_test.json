@@ -1,0 +1,21 @@
+{
+  "sampleRate": 48000,
+  "graph": {
+    "nodes": [
+      { "id": "env", "type": "Envelope",
+        "params": { "preset": "ar", "attack": 0.0, "attackMax": 0.01 } },
+      { "id": "sat", "type": "SatDpllSource",
+        "params": {
+          "amplitude":     { "ref": "env" },
+          "rate":          4000.0,
+          "clauseDensity": 3.5,
+          "clickAmount":   0.3,
+          "smoothness":    0.2
+        }}
+    ],
+    "output": "sat"
+  },
+  "instrument": { "paramMap": { "frequency": "sat.rate" }, "polyphony": 1 },
+  "seconds": 6.0,
+  "score": [ { "note": 60, "velocity": 0.8, "time": 0.0, "duration": 6.0 } ]
+}

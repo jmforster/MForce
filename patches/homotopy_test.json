@@ -1,0 +1,22 @@
+{
+  "sampleRate": 48000,
+  "graph": {
+    "nodes": [
+      { "id": "env", "type": "Envelope",
+        "params": { "preset": "ar", "attack": 0.0, "attackMax": 0.01 } },
+      { "id": "ht", "type": "HomotopySource",
+        "params": {
+          "amplitude":  { "ref": "env" },
+          "rate":       48000.0,
+          "stepSize":   0.0005,
+          "rTarget":    2.5,
+          "sTarget":    0.7,
+          "smoothness": 0.2
+        }}
+    ],
+    "output": "ht"
+  },
+  "instrument": { "paramMap": { "frequency": "ht.rate" }, "polyphony": 1 },
+  "seconds": 6.0,
+  "score": [ { "note": 60, "velocity": 0.8, "time": 0.0, "duration": 6.0 } ]
+}
