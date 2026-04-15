@@ -3,15 +3,6 @@
 #include "mforce/music/structure.h"
 #include "mforce/music/pitch_reader.h"
 #include <algorithm>
-#include <cassert>
-
-namespace mforce {
-
-// Thread-local selfcheck locus. Defined as inline thread_local (C++17) so a
-// -DMFORCE_LOCUS_SELFCHECK build links without a separate TU definition.
-inline thread_local Locus* g_selfcheck_locus = nullptr;
-
-} // namespace mforce
 
 namespace mforce::piece_utils {
 
