@@ -14,6 +14,9 @@
 #include "mforce/source/sort_oscillator.h"
 #include "mforce/source/gray_scott_source.h"
 #include "mforce/source/fitzhugh_nagumo_source.h"
+#include "mforce/source/markov_ode_source.h"
+#include "mforce/source/mass_spring_source.h"
+#include "mforce/source/self_rewriting_ast_source.h"
 #include "mforce/source/wavetable_source.h"
 #include "mforce/source/hybrid_ks_source.h"
 #include "mforce/source/combined_source.h"
@@ -73,6 +76,21 @@ void register_all_sources() {
     reg.register_type("FitzhughNagumoSource", SourceCategory::Oscillator,
         [](int sr, auto seed) {
             return std::make_shared<FitzhughNagumoSource>(sr, seed.value_or(0xF417'0001u));
+        });
+
+    reg.register_type("MarkovOdeSource", SourceCategory::Oscillator,
+        [](int sr, auto seed) {
+            return std::make_shared<MarkovOdeSource>(sr, seed.value_or(0x0DE1'2001u));
+        });
+
+    reg.register_type("MassSpringSource", SourceCategory::Oscillator,
+        [](int sr, auto seed) {
+            return std::make_shared<MassSpringSource>(sr, seed.value_or(0x5291'0001u));
+        });
+
+    reg.register_type("SelfRewritingASTSource", SourceCategory::Oscillator,
+        [](int sr, auto seed) {
+            return std::make_shared<SelfRewritingASTSource>(sr, seed.value_or(0xA571'0001u));
         });
 
     // -----------------------------------------------------------------------

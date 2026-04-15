@@ -127,8 +127,11 @@ static void render_note(PitchedInstrument::VoiceGraph& vg, float noteNum, float 
     float freq = note_to_freq(noteNum);
     int samples = int(dur * SAMPLE_RATE);
 
-    if (vg.params.count("frequency"))
-        vg.params["frequency"]->set(freq);
+    auto it = vg.params.find("frequency");
+    if (it != vg.params.end()) {
+        it->second.originalCS->set(freq);
+        it->second.consumer->set_param(it->second.paramName, it->second.originalCS);
+    }
 
     vg.source->prepare(samples);
 

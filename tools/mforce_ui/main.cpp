@@ -2687,6 +2687,10 @@ static void show_create_menu() {
         menu_source("Sort Oscillator", "SortOscillator");
         menu_source("Gray-Scott", "GrayScottSource");
         menu_source("FitzHugh-Nagumo", "FitzhughNagumoSource");
+        menu_sep();
+        menu_source("Markov ODE", "MarkovOdeSource");
+        menu_source("Mass-Spring", "MassSpringSource");
+        menu_source("Self-Rewriting AST", "SelfRewritingASTSource");
         ImGui::EndMenu();
     }
 

@@ -1,0 +1,30 @@
+{
+  "sampleRate": 48000,
+  "graph": {
+    "nodes": [
+      { "id": "env", "type": "Envelope",
+        "params": { "preset": "ar", "attack": 0.0, "attackMax": 0.01 } },
+      { "id": "scaledAmp", "type": "RangeSource",
+        "params": { "min": 0.0, "max": 30.0, "var": { "ref": "env" } } },
+      { "id": "ms", "type": "MassSpringSource",
+        "params": {
+          "amplitude":      { "ref": "scaledAmp" },
+          "rate":           48000.0,
+          "dt":             0.001,
+          "stiffness":      200.0,
+          "damping":        0.02,
+          "kExternal":      0.05,
+          "breakThreshold": 0.5,
+          "reformRadius":   0.3,
+          "pluckAmount":    0.15,
+          "smoothness":     0.1
+        }}
+    ],
+    "output": "ms"
+  },
+  "instrument": { "paramMap": { "frequency": "ms.rate" }, "polyphony": 2 },
+  "seconds": 6.0,
+  "score": [
+    { "note": 60, "velocity": 0.8, "time": 0.0, "duration": 6.0 }
+  ]
+}

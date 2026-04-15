@@ -1,0 +1,22 @@
+{
+  "sampleRate": 48000,
+  "graph": {
+    "nodes": [
+      { "id": "env", "type": "Envelope",
+        "params": { "preset": "ar", "attack": 0.05, "attackMax": 0.1 } },
+      { "id": "ast", "type": "SelfRewritingASTSource",
+        "params": {
+          "amplitude":    { "ref": "env" },
+          "freqScale":    1382.30,
+          "rewriteRate":  3.0,
+          "smoothness":   0.2
+        }}
+    ],
+    "output": "ast"
+  },
+  "instrument": { "paramMap": { "frequency": "ast.freqScale" }, "polyphony": 2 },
+  "seconds": 10.0,
+  "score": [
+    { "note": 60, "velocity": 0.8, "time": 0.0, "duration": 10.0 }
+  ]
+}
