@@ -6,13 +6,10 @@
 #include "mforce/music/pitch_reader.h"
 #include "mforce/music/default_strategies.h"
 #include "mforce/music/piece_utils.h"
-#include <cassert>
 #include <cmath>
 #include <iostream>
 
 namespace mforce {
-
-struct Composer;  // forward declaration
 
 // ---------------------------------------------------------------------------
 // PeriodPhraseStrategy — classical period (antecedent + consequent)
@@ -20,8 +17,7 @@ struct Composer;  // forward declaration
 class PeriodPhraseStrategy : public PhraseStrategy {
 public:
   std::string name() const override { return "period_phrase"; }
-  Phrase realize_phrase(const PhraseTemplate& phraseTmpl,
-                        StrategyContext& ctx) override;
+  Phrase realize_phrase(Locus locus, const PhraseTemplate& phraseTmpl) override;
 };
 
 // ---------------------------------------------------------------------------
@@ -30,8 +26,7 @@ public:
 class SentencePhraseStrategy : public PhraseStrategy {
 public:
   std::string name() const override { return "sentence_phrase"; }
-  Phrase realize_phrase(const PhraseTemplate& phraseTmpl,
-                        StrategyContext& ctx) override;
+  Phrase realize_phrase(Locus locus, const PhraseTemplate& phraseTmpl) override;
 };
 
 // ============================================================================
@@ -39,7 +34,7 @@ public:
 // ============================================================================
 
 inline Phrase PeriodPhraseStrategy::realize_phrase(
-    const PhraseTemplate& phraseTmpl, StrategyContext& ctx) {
+    Locus locus, const PhraseTemplate& phraseTmpl) {
   Phrase phrase;
 
   if (!phraseTmpl.periodConfig) {
@@ -48,41 +43,21 @@ inline Phrase PeriodPhraseStrategy::realize_phrase(
   }
   const PeriodPhraseConfig& cfg = *phraseTmpl.periodConfig;
 
+  const Scale& scale = locus.piece->sections[locus.sectionIdx].scale;
+
   if (phraseTmpl.startingPitch) {
     phrase.startingPitch = *phraseTmpl.startingPitch;
   } else {
-    // Stage 6 will replace phrase.startingPitch = ctx.cursor; with
-    // phrase.startingPitch = piece_utils::pitch_before(locus);
-    // See docs/superpowers/plans/2026-04-14-composer-strategy-api-refactor.md
-    phrase.startingPitch = ctx.cursor;
-#ifdef MFORCE_LOCUS_SELFCHECK
-    // Construct a Locus that matches the caller's current position.
-    // The caller context — Composer::compose() — must set thread-local state
-    // recording (piece, pieceTemplate, sectionIdx, partIdx, passageIdx, phraseIdx)
-    // for this selfcheck to work. For now, skip the selfcheck if that state
-    // isn't available.
-    // g_selfcheck_locus is defined as inline thread_local in piece_utils.h.
-    if (::mforce::g_selfcheck_locus) {
-      auto viaQuery = ::mforce::piece_utils::pitch_before(*::mforce::g_selfcheck_locus);
-      // Use a pitch-equality check that matches existing semantics.
-      // If Pitch doesn't have operator==, compare octave + pitchDef->offset.
-      assert((viaQuery.octave == ctx.cursor.octave &&
-              viaQuery.pitchDef == ctx.cursor.pitchDef) &&
-             "LOCUS SELFCHECK MISMATCH at PeriodPhraseStrategy");
-    }
-#endif
+    phrase.startingPitch = ::mforce::piece_utils::pitch_before(locus);
   }
 
-  // Figure 0: basicIdea (antecedent opening)
   phrase.add_melodic_figure(cfg.basicIdea);
-
-  // Figure 1: antecedentTail
   phrase.add_melodic_figure(cfg.antecedentTail);
 
   // Half-cadence adjustment on the antecedent (figures 0 and 1)
   {
-    int startDeg = DefaultPhraseStrategy::degree_in_scale(phrase.startingPitch, ctx.scale);
-    int len = ctx.scale.length();
+    int startDeg = DefaultPhraseStrategy::degree_in_scale(phrase.startingPitch, scale);
+    int len = scale.length();
     int netSteps = 0;
     for (int f = 0; f < 2; ++f) {
       netSteps += phrase.figures[f]->net_step();
@@ -93,30 +68,26 @@ inline Phrase PeriodPhraseStrategy::realize_phrase(
       int diff = target - landingDeg;
       if (diff > len / 2) diff -= len;
       if (diff < -len / 2) diff += len;
-      auto& lastFig = *phrase.figures.back();  // antecedentTail
+      auto& lastFig = *phrase.figures.back();
       if (!lastFig.units.empty()) {
         lastFig.units.back().step += diff;
       }
     }
   }
 
-  // Figure 2: basicIdea (consequent opening, parallel)
   phrase.add_melodic_figure(cfg.basicIdea);
-
-  // Figure 3: consequentTail
   phrase.add_melodic_figure(cfg.consequentTail);
 
-  // Authentic cadence across the whole phrase
   if (phraseTmpl.cadenceType > 0 && phraseTmpl.cadenceTarget >= 0
       && !phrase.figures.empty()) {
-    DefaultPhraseStrategy::apply_cadence(phrase, phraseTmpl, ctx.scale);
+    DefaultPhraseStrategy::apply_cadence(phrase, phraseTmpl, scale);
   }
 
   return phrase;
 }
 
 inline Phrase SentencePhraseStrategy::realize_phrase(
-    const PhraseTemplate& phraseTmpl, StrategyContext& ctx) {
+    Locus locus, const PhraseTemplate& phraseTmpl) {
   Phrase phrase;
 
   if (!phraseTmpl.sentenceConfig) {
@@ -125,28 +96,27 @@ inline Phrase SentencePhraseStrategy::realize_phrase(
   }
   const SentencePhraseConfig& cfg = *phraseTmpl.sentenceConfig;
 
+  const Scale& scale = locus.piece->sections[locus.sectionIdx].scale;
+
   if (phraseTmpl.startingPitch) {
     phrase.startingPitch = *phraseTmpl.startingPitch;
   } else {
-    phrase.startingPitch = ctx.cursor;
+    phrase.startingPitch = ::mforce::piece_utils::pitch_before(locus);
   }
 
-  // Figure 0: basicIdea
   phrase.add_melodic_figure(cfg.basicIdea);
 
-  // Figure 1: basicIdea transposed via first-unit step offset
   MelodicFigure repetition = cfg.basicIdea;
   if (!repetition.units.empty()) {
     repetition.units[0].step += cfg.variationTransposition;
   }
   phrase.add_melodic_figure(std::move(repetition));
 
-  // Figure 2: continuation
   phrase.add_melodic_figure(cfg.continuation);
 
   if (phraseTmpl.cadenceType > 0 && phraseTmpl.cadenceTarget >= 0
       && !phrase.figures.empty()) {
-    DefaultPhraseStrategy::apply_cadence(phrase, phraseTmpl, ctx.scale);
+    DefaultPhraseStrategy::apply_cadence(phrase, phraseTmpl, scale);
   }
 
   return phrase;

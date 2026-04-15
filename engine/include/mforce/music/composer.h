@@ -80,32 +80,29 @@ struct Composer {
   }
 
   // --- Dispatchers called from strategies ---
-  MelodicFigure realize_figure(const FigureTemplate& figTmpl,
-                               StrategyContext& ctx) {
+  MelodicFigure realize_figure(Locus locus, const FigureTemplate& figTmpl) {
     FigureStrategy* s = StrategyRegistry::instance().resolve_figure("default_figure");
-    return s->realize_figure(figTmpl, ctx);
+    return s->realize_figure(locus, figTmpl);
   }
 
-  Phrase realize_phrase(const PhraseTemplate& phraseTmpl,
-                        StrategyContext& ctx) {
+  Phrase realize_phrase(Locus locus, const PhraseTemplate& phraseTmpl) {
     std::string n = phraseTmpl.strategy.empty() ? std::string("default_phrase") : phraseTmpl.strategy;
     PhraseStrategy* s = StrategyRegistry::instance().resolve_phrase(n);
     if (!s) {
       std::cerr << "Unknown phrase strategy '" << n << "', falling back to default_phrase\n";
       s = StrategyRegistry::instance().resolve_phrase("default_phrase");
     }
-    return s->realize_phrase(phraseTmpl, ctx);
+    return s->realize_phrase(locus, phraseTmpl);
   }
 
-  Passage realize_passage(const PassageTemplate& passTmpl,
-                          StrategyContext& ctx) {
+  Passage realize_passage(Locus locus, const PassageTemplate& passTmpl) {
     std::string n = passTmpl.strategy.empty() ? std::string("default_passage") : passTmpl.strategy;
     PassageStrategy* s = StrategyRegistry::instance().resolve_passage(n);
     if (!s) {
       std::cerr << "Unknown passage strategy '" << n << "', falling back to default_passage\n";
       s = StrategyRegistry::instance().resolve_passage("default_passage");
     }
-    return s->realize_passage(passTmpl, ctx);
+    return s->realize_passage(locus, passTmpl);
   }
 
   // --- Accessor for DefaultFigureStrategy::realize_figure ---
@@ -291,12 +288,9 @@ private:
     PassageTemplate passTmpl;
     passTmpl.phrases = {ante, cons};
 
-    StrategyContext ctx;
-    ctx.scale = scale;
-    ctx.composer = this;
-    ctx.rng = &rng_;
     ::mforce::rng::Scope rngScope(rng_);
-    return this->realize_passage(passTmpl, ctx);
+    Locus locus{&piece, &tmpl, this, 0, 0};
+    return this->realize_passage(locus, passTmpl);
   }
 
   // ---- Per-passage dispatcher: port of
@@ -324,16 +318,19 @@ private:
 
     Passage passage;
     if (passIt != partTmpl.passages.end()) {
-      // Template-driven: dispatch through the registry.
-      StrategyContext ctx;
-      ctx.scale = scale;
-      ctx.composer = this;
-      ctx.rng = &rng_;
-      if (section) {
-        ctx.chordProgression = section->chordProgression ? &*section->chordProgression : nullptr;
+      // Template-driven: dispatch through the registry. Build a Locus that
+      // names this passage's position.
+      int sectionIdx = -1;
+      for (int i = 0; i < (int)piece.sections.size(); ++i) {
+        if (piece.sections[i].name == sectionName) { sectionIdx = i; break; }
       }
+      int partIdx = -1;
+      for (int i = 0; i < (int)piece.parts.size(); ++i) {
+        if (piece.parts[i].name == partTmpl.name) { partIdx = i; break; }
+      }
+      Locus locus{&piece, &tmpl, this, sectionIdx, partIdx};
       ::mforce::rng::Scope rngScope(rng_);
-      passage = realize_passage(passIt->second, ctx);
+      passage = realize_passage(locus, passIt->second);
     } else {
       // No template for this section — fallback.
       passage = generate_default_passage_(piece, tmpl, scale);
@@ -356,10 +353,10 @@ private:
 
 namespace detail {
 
-inline PulseSequence resolve_rhythm(const FigureTemplate& ft, StrategyContext& ctx,
+inline PulseSequence resolve_rhythm(const FigureTemplate& ft, Locus locus,
                                      uint32_t seed, float totalBeats, float defaultPulse) {
   if (!ft.rhythmMotifName.empty()) {
-    const PulseSequence* ps = ctx.composer->find_rhythm_motif(ft.rhythmMotifName);
+    const PulseSequence* ps = locus.composer->find_rhythm_motif(ft.rhythmMotifName);
     if (ps) {
       PulseSequence result = *ps;
       if (ft.rhythmTransform == "retrograde") result = result.retrograded();
@@ -374,10 +371,10 @@ inline PulseSequence resolve_rhythm(const FigureTemplate& ft, StrategyContext& c
   return pgen.generate(totalBeats, defaultPulse);
 }
 
-inline StepSequence resolve_contour(const FigureTemplate& ft, StrategyContext& ctx,
+inline StepSequence resolve_contour(const FigureTemplate& ft, Locus locus,
                                      uint32_t seed, int noteCount, FigureDirection dir) {
   if (!ft.contourMotifName.empty()) {
-    const StepSequence* ss = ctx.composer->find_contour_motif(ft.contourMotifName);
+    const StepSequence* ss = locus.composer->find_contour_motif(ft.contourMotifName);
     if (ss) {
       StepSequence result = *ss;
       if (ft.contourTransform == "invert") result = result.inverted();
@@ -403,15 +400,17 @@ inline StepSequence resolve_contour(const FigureTemplate& ft, StrategyContext& c
 } // namespace detail
 
 inline MelodicFigure ShapeCadentialApproachStrategy::realize_figure(
-    const FigureTemplate& ft, StrategyContext& ctx) {
+    Locus locus, const FigureTemplate& ft) {
   uint32_t seed = ft.seed ? ft.seed : ::mforce::rng::next();
   Randomizer rng(seed);
+
+  const Scale& scale = locus.piece->sections[locus.sectionIdx].scale;
+  const Pitch cursor = ::mforce::piece_utils::pitch_before(locus);
 
   float totalBeats = (ft.totalBeats > 0) ? ft.totalBeats : 4.0f;
   float pulse = (ft.defaultPulse > 0) ? ft.defaultPulse : 1.0f;
 
-  // Resolve rhythm (from motif or generated)
-  PulseSequence rhythm = detail::resolve_rhythm(ft, ctx, seed, totalBeats, pulse);
+  PulseSequence rhythm = detail::resolve_rhythm(ft, locus, seed, totalBeats, pulse);
 
   // Functional coupling: ensure last note is at least double the average
   if (rhythm.count() >= 2) {
@@ -467,17 +466,15 @@ inline MelodicFigure ShapeCadentialApproachStrategy::realize_figure(
     // Calculate how many scale steps from the cursor's approximate degree
     // to the target degree. Prefer descending approach (more natural for cadences).
     // We don't know the cursor's exact degree, but we can estimate.
-    PitchReader pr(ctx.scale);
-    pr.set_pitch(ctx.cursor);
+    PitchReader pr(scale);
+    pr.set_pitch(cursor);
     int curDeg = pr.get_degree();
 
-    // How far down to the target degree (within one octave)?
     int descending = curDeg - targetDegree;
-    if (descending <= 0) descending += ctx.scale.length();  // wrap: e.g., from deg 2 down to deg 4 = 5 steps in 7-note scale
+    if (descending <= 0) descending += scale.length();
 
-    // How far up?
     int ascending = targetDegree - curDeg;
-    if (ascending <= 0) ascending += ctx.scale.length();
+    if (ascending <= 0) ascending += scale.length();
 
     // Prefer descending for cadences unless ascending is much shorter
     if (descending <= ascending + 2) {
@@ -543,7 +540,7 @@ inline MelodicFigure ShapeCadentialApproachStrategy::realize_figure(
 
   // If a contour motif was provided, use it instead (override the generated one)
   if (!ft.contourMotifName.empty()) {
-    const StepSequence* ss = ctx.composer->find_contour_motif(ft.contourMotifName);
+    const StepSequence* ss = locus.composer->find_contour_motif(ft.contourMotifName);
     if (ss) {
       contour = *ss;
       if (ft.contourTransform == "invert") contour = contour.inverted();
@@ -566,19 +563,17 @@ inline MelodicFigure ShapeCadentialApproachStrategy::realize_figure(
 }
 
 inline MelodicFigure ShapeSkippingStrategy::realize_figure(
-    const FigureTemplate& ft, StrategyContext& ctx) {
+    Locus locus, const FigureTemplate& ft) {
   uint32_t seed = ft.seed ? ft.seed : ::mforce::rng::next();
   Randomizer rng(seed);
   float totalBeats = (ft.totalBeats > 0) ? ft.totalBeats : 4.0f;
   float pulse = (ft.defaultPulse > 0) ? ft.defaultPulse : 1.0f;
 
-  // Resolve rhythm (from motif or generated)
-  PulseSequence rhythm = detail::resolve_rhythm(ft, ctx, seed, totalBeats, pulse);
+  PulseSequence rhythm = detail::resolve_rhythm(ft, locus, seed, totalBeats, pulse);
   int noteCount = rhythm.count();
   if (noteCount == 0) return MelodicFigure{};
 
-  // Resolve contour (from motif or generated)
-  StepSequence contour = detail::resolve_contour(ft, ctx, seed, noteCount, ft.direction);
+  StepSequence contour = detail::resolve_contour(ft, locus, seed, noteCount, ft.direction);
 
   // Scale contour magnitudes for skipping (thirds/fourths)
   // If contour came from a motif, its magnitudes are already set — don't rescale.
@@ -607,16 +602,16 @@ inline MelodicFigure ShapeSkippingStrategy::realize_figure(
 }
 
 inline MelodicFigure ShapeSteppingStrategy::realize_figure(
-    const FigureTemplate& ft, StrategyContext& ctx) {
+    Locus locus, const FigureTemplate& ft) {
   uint32_t seed = ft.seed ? ft.seed : ::mforce::rng::next();
   float totalBeats = (ft.totalBeats > 0) ? ft.totalBeats : 4.0f;
   float pulse = (ft.defaultPulse > 0) ? ft.defaultPulse : 1.0f;
 
-  PulseSequence rhythm = detail::resolve_rhythm(ft, ctx, seed, totalBeats, pulse);
+  PulseSequence rhythm = detail::resolve_rhythm(ft, locus, seed, totalBeats, pulse);
   int noteCount = rhythm.count();
   if (noteCount == 0) return MelodicFigure{};
 
-  StepSequence contour = detail::resolve_contour(ft, ctx, seed, noteCount, ft.direction);
+  StepSequence contour = detail::resolve_contour(ft, locus, seed, noteCount, ft.direction);
 
   if (ft.targetNet != 0 && contour.count() > 1) {
     int diff = ft.targetNet - contour.net();
@@ -639,7 +634,8 @@ inline MelodicFigure ShapeSteppingStrategy::realize_figure(
 // ============================================================================
 
 inline MelodicFigure DefaultFigureStrategy::realize_figure(
-    const FigureTemplate& figTmpl, StrategyContext& ctx) {
+    Locus locus, const FigureTemplate& figTmpl) {
+  const Scale& scale = locus.piece->sections[locus.sectionIdx].scale;
   // Use the figure's seed for reproducibility
   uint32_t figSeed = figTmpl.seed ? figTmpl.seed : ::mforce::rng::next();
 
@@ -651,31 +647,26 @@ inline MelodicFigure DefaultFigureStrategy::realize_figure(
     case FigureSource::Literal: {
       // Convert the user-authored note list into a MelodicFigure. Each
       // LiteralNote becomes one FigureUnit whose `step` is the delta (in
-      // scale degrees) from the previous note (or from ctx.cursor
+      // scale degrees) from the previous note (or from the prior cursor
       // for the first note). Duration passes through.
       MelodicFigure fig;
       if (figTmpl.literalNotes.empty()) return fig;
 
-      // Octave-adjusted scale-degree position: preserves direction across
-      // octave boundaries. C4 = 4*7+0 = 28, G3 = 3*7+4 = 25, so C4->G3
-      // yields step = -3 (down a fourth), which the conductor walks
-      // correctly. Without the octave multiplier, modular-only degree math
-      // would yield step = +4 and land at G4 instead of G3.
       auto absoluteDeg = [&](const Pitch& p) {
-        int d = DefaultPhraseStrategy::degree_in_scale(p, ctx.scale);
-        return p.octave * ctx.scale.length() + d;
+        int d = DefaultPhraseStrategy::degree_in_scale(p, scale);
+        return p.octave * scale.length() + d;
       };
 
-      int prevDeg = absoluteDeg(ctx.cursor);
+      const Pitch cursorPitch = ::mforce::piece_utils::pitch_before(locus);
+      int prevDeg = absoluteDeg(cursorPitch);
       for (auto& ln : figTmpl.literalNotes) {
         FigureUnit u;
         u.duration = ln.duration;
         if (ln.rest) {
           u.rest = true;
           u.step = 0;
-          // prevDeg unchanged — rests don't advance the cursor
         } else {
-          if (!ln.pitch) continue;  // defensive; malformed note
+          if (!ln.pitch) continue;
           int d = absoluteDeg(*ln.pitch);
           u.step = d - prevDeg;
           prevDeg = d;
@@ -686,15 +677,14 @@ inline MelodicFigure DefaultFigureStrategy::realize_figure(
     }
 
     case FigureSource::Reference: {
-      auto it = ctx.composer->realized_motifs().find(figTmpl.motifName);
-      if (it != ctx.composer->realized_motifs().end()) return it->second;
-      // Motif not found — generate something
+      auto it = locus.composer->realized_motifs().find(figTmpl.motifName);
+      if (it != locus.composer->realized_motifs().end()) return it->second;
       return generate_figure(figTmpl, figSeed);
     }
 
     case FigureSource::Transform: {
-      auto it = ctx.composer->realized_motifs().find(figTmpl.motifName);
-      MelodicFigure base = (it != ctx.composer->realized_motifs().end())
+      auto it = locus.composer->realized_motifs().find(figTmpl.motifName);
+      MelodicFigure base = (it != locus.composer->realized_motifs().end())
         ? it->second
         : generate_figure(figTmpl, figSeed);
       return apply_transform(base, figTmpl.transform, figTmpl.transformParam, figSeed);
@@ -726,13 +716,11 @@ inline MelodicFigure DefaultFigureStrategy::realize_figure(
           default:                             shapeName = nullptr; break;
         }
         if (shapeName) {
-          FigureStrategy* s = ctx.composer->registry_get_for_phase2(shapeName);
+          FigureStrategy* s = StrategyRegistry::instance().resolve_figure(shapeName);
           if (s) {
-            // Stamp figSeed into a local copy so the shape strategy uses the
-            // already-consumed draw rather than pulling a second one from ctx.rng.
             FigureTemplate shapeArg = figTmpl;
             shapeArg.seed = figSeed;
-            fig = s->realize_figure(shapeArg, ctx);
+            fig = s->realize_figure(locus, shapeArg);
           }
         }
       }
@@ -773,59 +761,52 @@ inline MelodicFigure DefaultFigureStrategy::realize_figure(
 // ============================================================================
 
 inline Passage DefaultPassageStrategy::realize_passage(
-    const PassageTemplate& passTmpl, StrategyContext& ctx) {
+    Locus locus, const PassageTemplate& passTmpl) {
   Passage passage;
 
-  // Initial cursor: the passage template's startingPitch (required field,
-  // validated by the JSON loader at parse time — guaranteed non-nullopt here).
   if (!passTmpl.startingPitch) {
     // Should not happen — loader refuses templates without startingPitch.
-    // If we're here, the template was constructed in-memory without going
-    // through the loader. Emit nothing and return — caller's mistake.
     return passage;
   }
-  ctx.cursor = *passTmpl.startingPitch;
 
-  for (auto& phraseTmpl : passTmpl.phrases) {
+  for (int i = 0; i < (int)passTmpl.phrases.size(); ++i) {
+    const auto& phraseTmpl = passTmpl.phrases[i];
     if (phraseTmpl.locked) continue;
 
-    // Clone the context for the phrase level. If the phrase template has
-    // an explicit startingPitch, use it as an override (resets cursor).
-    // Otherwise the cursor is inherited from wherever the previous phrase
-    // left it.
-    StrategyContext phraseCtx = ctx;
-    if (phraseTmpl.startingPitch) {
-      phraseCtx.cursor = *phraseTmpl.startingPitch;
-    }
-    // else: phraseCtx.cursor already holds the inherited value.
-
-    Phrase phrase;
-    {
-      std::string pn = phraseTmpl.strategy.empty() ? std::string("default_phrase") : phraseTmpl.strategy;
-      PhraseStrategy* ps = StrategyRegistry::instance().resolve_phrase(pn);
-      if (!ps) {
-        std::cerr << "Unknown phrase strategy '" << pn << "', falling back to default_phrase\n";
-        ps = StrategyRegistry::instance().resolve_phrase("default_phrase");
+    // Build a phrase-level Locus for the child. Note that piece_utils::
+    // pitch_before(locus.with_phrase(i)) walks the realized phrases so far,
+    // but at this point `passage` is local — it hasn't been inserted into
+    // piece.parts[partIdx].passages yet, so pitch_before sees an empty
+    // passage and falls back to the template's startingPitch. This is
+    // correct for the first phrase. For subsequent phrases, pitch_before
+    // can't see our local passage — we must pass the cursor via the phrase
+    // template's startingPitch, computed from the passage so far.
+    PhraseTemplate localTmpl = phraseTmpl;
+    if (!localTmpl.startingPitch) {
+      // Compute cursor from the phrases realized so far in our local passage.
+      Pitch cursor = *passTmpl.startingPitch;
+      const Scale& scale = locus.piece->sections[locus.sectionIdx].scale;
+      PitchReader reader(scale);
+      reader.set_pitch(cursor);
+      for (auto& ph : passage.phrases) {
+        for (auto& fig : ph.figures) {
+          for (auto& u : fig->units) {
+            reader.step(u.step);
+          }
+        }
       }
-      phrase = ps->realize_phrase(phraseTmpl, phraseCtx);
+      localTmpl.startingPitch = reader.get_pitch();
     }
 
-    // Carry the cursor forward for the next phrase. Compute the phrase's
-    // net scale-degree movement by summing every unit's step across every
-    // figure in the phrase, then advance a local PitchReader from the
-    // phrase's starting cursor by that total.
-    // IMPORTANT: compute totalDelta BEFORE std::move(phrase), as the move
-    // leaves phrase.figures in a valid-but-empty moved-from state.
-    PitchReader reader(ctx.scale);
-    reader.set_pitch(phraseCtx.cursor);
-    int totalDelta = 0;
-    for (auto& fig : phrase.figures) {
-      for (auto& u : fig->units) {
-        totalDelta += u.step;
-      }
+    Locus phraseLocus = locus.with_phrase(i);
+
+    std::string pn = phraseTmpl.strategy.empty() ? std::string("default_phrase") : phraseTmpl.strategy;
+    PhraseStrategy* ps = StrategyRegistry::instance().resolve_phrase(pn);
+    if (!ps) {
+      std::cerr << "Unknown phrase strategy '" << pn << "', falling back to default_phrase\n";
+      ps = StrategyRegistry::instance().resolve_phrase("default_phrase");
     }
-    reader.step(totalDelta);
-    ctx.cursor = reader.get_pitch();
+    Phrase phrase = ps->realize_phrase(phraseLocus, localTmpl);
 
     passage.add_phrase(std::move(phrase));
   }
@@ -842,25 +823,23 @@ inline Passage DefaultPassageStrategy::realize_passage(
 // ============================================================================
 
 inline Phrase DefaultPhraseStrategy::realize_phrase(
-    const PhraseTemplate& phraseTmpl, StrategyContext& ctx) {
+    Locus locus, const PhraseTemplate& phraseTmpl) {
   Phrase phrase;
 
-  // Per-phrase starting pitch: if the template has one, use it; otherwise
-  // use ctx.cursor, which DefaultPassageStrategy set to the reader's
-  // reset position. Preserves pre-refactor behavior at
-  // classical_composer.h:185-190.
+  const Scale& scale = locus.piece->sections[locus.sectionIdx].scale;
+
   if (phraseTmpl.startingPitch) {
     phrase.startingPitch = *phraseTmpl.startingPitch;
   } else {
-    phrase.startingPitch = ctx.cursor;
+    phrase.startingPitch = ::mforce::piece_utils::pitch_before(locus);
   }
 
   // Intra-phrase running cursor. Starts at the phrase's starting pitch
   // and advances through each figure's net_step() as figures realize.
-  // Each figure's figCtx.cursor is set from this running reader before
-  // dispatch, so Literal (and future Outline) figures see the correct
-  // cursor position at THEIR start, not the phrase's starting pitch.
-  PitchReader runningReader(ctx.scale);
+  // Figure strategies will construct their own cursor via pitch_before(),
+  // but since the phrase isn't published yet we pass a synthetic figure
+  // template startingPitch for Literal path consumers.
+  PitchReader runningReader(scale);
   runningReader.set_pitch(phrase.startingPitch);
 
   const int numFigs = int(phraseTmpl.figures.size());
@@ -902,13 +881,48 @@ inline Phrase DefaultPhraseStrategy::realize_phrase(
           phraseTmpl.function, i, numFigs, ::mforce::rng::next());
     }
 
-    // Dispatch to the figure level through the Composer. The figure context
-    // clones the current (phrase) context; per-figure scale and startingPitch
-    // don't need to differ in this pre-refactor path.
-    StrategyContext figCtx = ctx;
-    figCtx.cursor = runningReader.get_pitch();
+    // Dispatch to the figure level. DefaultFigureStrategy's Literal path
+    // reads the cursor via pitch_before(locus), which walks the phrase/
+    // passage structure so far. Since the phrase we're building hasn't been
+    // inserted into the piece yet, pitch_before sees an empty passage and
+    // falls back to the passage template startingPitch — NOT the right
+    // answer for figures mid-phrase. Work around by stamping the cursor
+    // into the figure template via a synthetic startingPitch-bearing
+    // FigureTemplate is not supported; instead, we rely on the fact that
+    // the pre-refactor behavior used ctx.cursor advanced by prior figure
+    // net_steps to drive the Literal path's absoluteDeg(cursor). The
+    // runningReader here tracks that, and for the Literal path we need to
+    // provide it. Simplest fix: inline the Literal path's cursor-relative
+    // computation directly here for Literal figures; or extend pitch_before
+    // to accept an override. For Task 6 minimum viable: if the figure is
+    // Literal, copy its pitches through a small helper that honors the
+    // runningReader. For non-Literal figures, the cursor isn't read.
+    Locus figLocus = locus.with_figure(i);
     FigureStrategy* fs = StrategyRegistry::instance().resolve_figure("default_figure");
-    MelodicFigure fig = fs->realize_figure(figTmpl, figCtx);
+    MelodicFigure fig;
+    if (figTmpl.source == FigureSource::Literal) {
+      // Inline cursor-aware Literal realization using the runningReader.
+      const Pitch cursorPitch = runningReader.get_pitch();
+      auto absoluteDeg = [&](const Pitch& p) {
+        int d = DefaultPhraseStrategy::degree_in_scale(p, scale);
+        return p.octave * scale.length() + d;
+      };
+      int prevDeg = absoluteDeg(cursorPitch);
+      for (auto& ln : figTmpl.literalNotes) {
+        FigureUnit u;
+        u.duration = ln.duration;
+        if (ln.rest) { u.rest = true; u.step = 0; }
+        else {
+          if (!ln.pitch) continue;
+          int d = absoluteDeg(*ln.pitch);
+          u.step = d - prevDeg;
+          prevDeg = d;
+        }
+        fig.units.push_back(u);
+      }
+    } else {
+      fig = fs->realize_figure(figLocus, figTmpl);
+    }
 
     // Advance running cursor by the figure's net scale-degree movement.
     // Rest units contribute step=0 so they don't advance the cursor.
@@ -929,7 +943,7 @@ inline Phrase DefaultPhraseStrategy::realize_phrase(
       && !phrase.figures.empty() && !phraseTmpl.figures.empty()) {
     const FigureSource lastSource = phraseTmpl.figures.back().source;
     if (lastSource != FigureSource::Literal && lastSource != FigureSource::Locked) {
-      apply_cadence(phrase, phraseTmpl, ctx.scale);
+      apply_cadence(phrase, phraseTmpl, scale);
     }
   }
 
@@ -945,55 +959,51 @@ inline Phrase DefaultPhraseStrategy::realize_phrase(
 // Same pattern as DefaultPassageStrategy/DefaultPhraseStrategy/DefaultFigureStrategy.
 // ---------------------------------------------------------------------------
 inline Passage AlternatingFigureStrategy::realize_passage(
-    const PassageTemplate& pt, StrategyContext& ctx) {
+    Locus locus, const PassageTemplate& pt) {
 
-  if (!ctx.chordProgression || ctx.chordProgression->count() == 0) {
-    throw std::runtime_error("AFS: no chord progression in context");
+  const Scale& scale = locus.piece->sections[locus.sectionIdx].scale;
+  const auto& sectionChordProg = locus.piece->sections[locus.sectionIdx].chordProgression;
+  if (!sectionChordProg || sectionChordProg->count() == 0) {
+    throw std::runtime_error("AFS: no chord progression on section");
   }
   if (pt.phrases.empty() || pt.phrases[0].figures.size() < 2) {
     throw std::runtime_error(
         "AFS: need 1 phrase with at least 2 figure templates (A and B)");
   }
 
-  const auto& chordProg = *ctx.chordProgression;
-  const auto& figTemplateA = pt.phrases[0].figures[0];  // chord-tone (even bars)
-  const auto& figTemplateB = pt.phrases[0].figures[1];  // scalar (odd bars)
+  const auto& chordProg = *sectionChordProg;
+  const auto& figTemplateA = pt.phrases[0].figures[0];
+  const auto& figTemplateB = pt.phrases[0].figures[1];
 
   Phrase phrase;
-  phrase.startingPitch = pt.phrases[0].startingPitch.value_or(ctx.cursor);
+  if (pt.phrases[0].startingPitch) {
+    phrase.startingPitch = *pt.phrases[0].startingPitch;
+  } else {
+    phrase.startingPitch = ::mforce::piece_utils::pitch_before(locus.with_phrase(0));
+  }
 
-  // PitchReader tracks the cursor across figures using scale-aware steps,
-  // matching the approach used by DefaultPhraseStrategy.
-  PitchReader runningReader(ctx.scale);
+  PitchReader runningReader(scale);
   runningReader.set_pitch(phrase.startingPitch);
+
+  FigureStrategy* fs = StrategyRegistry::instance().resolve_figure("default_figure");
 
   for (int ci = 0; ci < chordProg.count(); ++ci) {
     bool isA = (ci % 2 == 0);
     const auto& ft = isA ? figTemplateA : figTemplateB;
 
-    // Copy template and override beat duration from progression
     FigureTemplate adjusted = ft;
     adjusted.totalBeats = chordProg.pulses.get(ci);
 
-    // For B figures (scalar): alternate cadence types.
-    // First B (ci=1) = half cadence (→V), second B (ci=3) = full cadence (→I), etc.
     if (!isA && adjusted.figureCadenceType > 0) {
-      int bIndex = ci / 2;  // 0-based index among B figures
-      adjusted.figureCadenceType = (bIndex % 2 == 0) ? 1 : 2;  // half, full, half, full...
+      int bIndex = ci / 2;
+      adjusted.figureCadenceType = (bIndex % 2 == 0) ? 1 : 2;
     }
 
-    // Dispatch through Composer for normal strategy/seed/motif resolution
-    StrategyContext figCtx = ctx;
-    figCtx.cursor = runningReader.get_pitch();
-    FigureStrategy* fs = StrategyRegistry::instance().resolve_figure("default_figure");
-    MelodicFigure rawFig = fs->realize_figure(adjusted, figCtx);
+    MelodicFigure rawFig = fs->realize_figure(locus.with_phrase(0).with_figure(ci), adjusted);
 
     if (isA) {
-      // For ChordFigures, simulate chord-tone stepping to track the real cursor.
-      // The Conductor interprets these steps as chord tones, not scale degrees,
-      // so we must do the same here to keep the cursor accurate.
       float curNN = runningReader.get_note_number();
-      auto resolved = chordProg.chords.get(ci).resolve(ctx.scale, runningReader.get_octave());
+      auto resolved = chordProg.chords.get(ci).resolve(scale, runningReader.get_octave());
       std::vector<float> tones;
       for (int os = -2; os <= 2; ++os)
         for (const auto& p : resolved.pitches)
@@ -1008,19 +1018,14 @@ inline Passage AlternatingFigureStrategy::realize_passage(
       int target = std::max(0, std::min(closest + rawFig.net_step(), int(tones.size()) - 1));
       runningReader.set_pitch(Pitch::from_note_number(tones[target]));
 
-      // Wrap as ChordFigure
       auto cf = std::make_unique<ChordFigure>();
       cf->units = rawFig.units;
       phrase.add_figure(std::move(cf));
     } else {
-      // For MelodicFigures, advance by scale degrees as normal
       runningReader.step(rawFig.net_step());
       phrase.add_melodic_figure(std::move(rawFig));
     }
   }
-
-  // Update the passage-level cursor so the caller knows where we ended up
-  ctx.cursor = runningReader.get_pitch();
 
   Passage passage;
   passage.add_phrase(std::move(phrase));

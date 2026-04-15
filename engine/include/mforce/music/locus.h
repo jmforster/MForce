@@ -4,9 +4,14 @@
 
 namespace mforce {
 
+struct Composer;  // fwd — Locus holds a Composer* for motif-pool access during
+                  // the refactor. Once the motif pool moves to PieceTemplate
+                  // (cleanup task), this field goes away.
+
 struct Locus {
-  Piece* piece;
-  PieceTemplate* pieceTemplate;
+  const Piece* piece;
+  const PieceTemplate* pieceTemplate;
+  Composer* composer;           // TEMP: motif pool is still on Composer
   int sectionIdx;
   int partIdx;
   int passageIdx{-1};

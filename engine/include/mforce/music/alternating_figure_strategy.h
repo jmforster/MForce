@@ -11,7 +11,7 @@ namespace mforce {
 // ---------------------------------------------------------------------------
 // AlternatingFigureStrategy (AFS) — Passage-level strategy.
 //
-// Reads the Section's ChordProgression from StrategyContext, takes two figure
+// Reads the Section's ChordProgression from the Locus, takes two figure
 // templates from the first PhraseTemplate of the PassageTemplate:
 //   figures[0] = A template (chord-tone, even bars / ci == 0, 2, 4, ...)
 //   figures[1] = B template (scalar, odd bars / ci == 1, 3, 5, ...)
@@ -28,8 +28,7 @@ class AlternatingFigureStrategy : public PassageStrategy {
 public:
   std::string name() const override { return "alternating_figure"; }
 
-  Passage realize_passage(const PassageTemplate& passTmpl,
-                          StrategyContext& ctx) override;
+  Passage realize_passage(Locus locus, const PassageTemplate& passTmpl) override;
 };
 
 } // namespace mforce

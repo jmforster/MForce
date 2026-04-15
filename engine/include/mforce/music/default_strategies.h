@@ -11,8 +11,8 @@
 
 namespace mforce {
 
-// Forward — Composer is defined in composer.h and used via ctx.composer.
-struct Composer;
+// Locus is defined in locus.h (included via strategy.h).
+// Composer is referenced only via Locus::composer — no forward decl needed here.
 
 // ---------------------------------------------------------------------------
 // DefaultFigureStrategy
@@ -31,8 +31,7 @@ public:
   // ctx.composer->realized_motifs(), and composer.h includes this header —
   // breaking the cycle requires the out-of-line definition to live there.
   // Do NOT add an inline body for realize_figure in this file.
-  MelodicFigure realize_figure(const FigureTemplate& figTmpl,
-                               StrategyContext& ctx) override;
+  MelodicFigure realize_figure(Locus locus, const FigureTemplate& figTmpl) override;
 
   // PUBLIC so Composer::realize_motifs_ can call generate_figure
   // directly, bypassing realize_figure's switch. The pre-refactor
@@ -250,8 +249,7 @@ class DefaultPassageStrategy : public PassageStrategy {
 public:
   std::string name() const override { return "default_passage"; }
 
-  Passage realize_passage(const PassageTemplate& passTmpl,
-                          StrategyContext& ctx) override;
+  Passage realize_passage(Locus locus, const PassageTemplate& passTmpl) override;
 };
 
 // ---------------------------------------------------------------------------
@@ -278,8 +276,7 @@ class DefaultPhraseStrategy : public PhraseStrategy {
 public:
   std::string name() const override { return "default_phrase"; }
 
-  Phrase realize_phrase(const PhraseTemplate& phraseTmpl,
-                        StrategyContext& ctx) override;
+  Phrase realize_phrase(Locus locus, const PhraseTemplate& phraseTmpl) override;
   static int degree_in_scale(const Pitch& pitch, const Scale& scale);
   static void apply_cadence(Phrase& phrase, const PhraseTemplate& tmpl,
                             const Scale& scale);
