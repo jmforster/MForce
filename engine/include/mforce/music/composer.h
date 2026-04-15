@@ -38,34 +38,35 @@ struct Composer {
   // or every RNG call consumes a different stream and the composer stops
   // being bit-identical to the pre-refactor output.
   explicit Composer(uint32_t seed = 0xC1A5'0001u) : rng_(seed + 200) {
-    registry_.register_figure (std::make_unique<DefaultFigureStrategy>());
-    registry_.register_phrase (std::make_unique<DefaultPhraseStrategy>());
-    registry_.register_passage(std::make_unique<DefaultPassageStrategy>());
+    auto& reg = StrategyRegistry::instance();
+    reg.register_figure (std::make_unique<DefaultFigureStrategy>());
+    reg.register_phrase (std::make_unique<DefaultPhraseStrategy>());
+    reg.register_passage(std::make_unique<DefaultPassageStrategy>());
 
     // Shape strategies (Phase 2) — all Figure-level
-    registry_.register_figure(std::make_unique<ShapeScalarRunStrategy>());
-    registry_.register_figure(std::make_unique<ShapeRepeatedNoteStrategy>());
-    registry_.register_figure(std::make_unique<ShapeHeldNoteStrategy>());
-    registry_.register_figure(std::make_unique<ShapeCadentialApproachStrategy>());
-    registry_.register_figure(std::make_unique<ShapeTriadicOutlineStrategy>());
-    registry_.register_figure(std::make_unique<ShapeNeighborToneStrategy>());
-    registry_.register_figure(std::make_unique<ShapeLeapAndFillStrategy>());
-    registry_.register_figure(std::make_unique<ShapeScalarReturnStrategy>());
-    registry_.register_figure(std::make_unique<ShapeAnacrusisStrategy>());
-    registry_.register_figure(std::make_unique<ShapeZigzagStrategy>());
-    registry_.register_figure(std::make_unique<ShapeFanfareStrategy>());
-    registry_.register_figure(std::make_unique<ShapeSighStrategy>());
-    registry_.register_figure(std::make_unique<ShapeSuspensionStrategy>());
-    registry_.register_figure(std::make_unique<ShapeCambiataStrategy>());
-    registry_.register_figure(std::make_unique<ShapeSkippingStrategy>());
-    registry_.register_figure(std::make_unique<ShapeSteppingStrategy>());
+    reg.register_figure(std::make_unique<ShapeScalarRunStrategy>());
+    reg.register_figure(std::make_unique<ShapeRepeatedNoteStrategy>());
+    reg.register_figure(std::make_unique<ShapeHeldNoteStrategy>());
+    reg.register_figure(std::make_unique<ShapeCadentialApproachStrategy>());
+    reg.register_figure(std::make_unique<ShapeTriadicOutlineStrategy>());
+    reg.register_figure(std::make_unique<ShapeNeighborToneStrategy>());
+    reg.register_figure(std::make_unique<ShapeLeapAndFillStrategy>());
+    reg.register_figure(std::make_unique<ShapeScalarReturnStrategy>());
+    reg.register_figure(std::make_unique<ShapeAnacrusisStrategy>());
+    reg.register_figure(std::make_unique<ShapeZigzagStrategy>());
+    reg.register_figure(std::make_unique<ShapeFanfareStrategy>());
+    reg.register_figure(std::make_unique<ShapeSighStrategy>());
+    reg.register_figure(std::make_unique<ShapeSuspensionStrategy>());
+    reg.register_figure(std::make_unique<ShapeCambiataStrategy>());
+    reg.register_figure(std::make_unique<ShapeSkippingStrategy>());
+    reg.register_figure(std::make_unique<ShapeSteppingStrategy>());
 
     // Phrase strategies (Phase 3)
-    registry_.register_phrase(std::make_unique<PeriodPhraseStrategy>());
-    registry_.register_phrase(std::make_unique<SentencePhraseStrategy>());
+    reg.register_phrase(std::make_unique<PeriodPhraseStrategy>());
+    reg.register_phrase(std::make_unique<SentencePhraseStrategy>());
 
     // Passage strategies (Task 7)
-    registry_.register_passage(std::make_unique<AlternatingFigureStrategy>());
+    reg.register_passage(std::make_unique<AlternatingFigureStrategy>());
   }
 
   // --- Top-level composition ---
@@ -81,17 +82,17 @@ struct Composer {
   // --- Dispatchers called from strategies ---
   MelodicFigure realize_figure(const FigureTemplate& figTmpl,
                                StrategyContext& ctx) {
-    FigureStrategy* s = registry_.resolve_figure("default_figure");
+    FigureStrategy* s = StrategyRegistry::instance().resolve_figure("default_figure");
     return s->realize_figure(figTmpl, ctx);
   }
 
   Phrase realize_phrase(const PhraseTemplate& phraseTmpl,
                         StrategyContext& ctx) {
     std::string n = phraseTmpl.strategy.empty() ? std::string("default_phrase") : phraseTmpl.strategy;
-    PhraseStrategy* s = registry_.resolve_phrase(n);
+    PhraseStrategy* s = StrategyRegistry::instance().resolve_phrase(n);
     if (!s) {
       std::cerr << "Unknown phrase strategy '" << n << "', falling back to default_phrase\n";
-      s = registry_.resolve_phrase("default_phrase");
+      s = StrategyRegistry::instance().resolve_phrase("default_phrase");
     }
     return s->realize_phrase(phraseTmpl, ctx);
   }
@@ -99,10 +100,10 @@ struct Composer {
   Passage realize_passage(const PassageTemplate& passTmpl,
                           StrategyContext& ctx) {
     std::string n = passTmpl.strategy.empty() ? std::string("default_passage") : passTmpl.strategy;
-    PassageStrategy* s = registry_.resolve_passage(n);
+    PassageStrategy* s = StrategyRegistry::instance().resolve_passage(n);
     if (!s) {
       std::cerr << "Unknown passage strategy '" << n << "', falling back to default_passage\n";
-      s = registry_.resolve_passage("default_passage");
+      s = StrategyRegistry::instance().resolve_passage("default_passage");
     }
     return s->realize_passage(passTmpl, ctx);
   }
@@ -126,7 +127,7 @@ struct Composer {
   // Named awkwardly to signal it exists specifically for the shape-dispatch
   // path in DefaultFigureStrategy::realize_figure. May be renamed later.
   FigureStrategy* registry_get_for_phase2(const std::string& name) const {
-    return registry_.resolve_figure(name);
+    return StrategyRegistry::instance().resolve_figure(name);
   }
 
   // --- Public helper used by the IComposer-compatible ClassicalComposer
@@ -146,7 +147,6 @@ struct Composer {
 
 private:
   Randomizer rng_;
-  StrategyRegistry registry_;
   std::unordered_map<std::string, MelodicFigure> realizedMotifs_;
   std::unordered_map<std::string, PulseSequence> realizedRhythms_;
   std::unordered_map<std::string, StepSequence> realizedContours_;
@@ -799,7 +799,16 @@ inline Passage DefaultPassageStrategy::realize_passage(
     }
     // else: phraseCtx.cursor already holds the inherited value.
 
-    Phrase phrase = ctx.composer->realize_phrase(phraseTmpl, phraseCtx);
+    Phrase phrase;
+    {
+      std::string pn = phraseTmpl.strategy.empty() ? std::string("default_phrase") : phraseTmpl.strategy;
+      PhraseStrategy* ps = StrategyRegistry::instance().resolve_phrase(pn);
+      if (!ps) {
+        std::cerr << "Unknown phrase strategy '" << pn << "', falling back to default_phrase\n";
+        ps = StrategyRegistry::instance().resolve_phrase("default_phrase");
+      }
+      phrase = ps->realize_phrase(phraseTmpl, phraseCtx);
+    }
 
     // Carry the cursor forward for the next phrase. Compute the phrase's
     // net scale-degree movement by summing every unit's step across every
@@ -898,7 +907,8 @@ inline Phrase DefaultPhraseStrategy::realize_phrase(
     // don't need to differ in this pre-refactor path.
     StrategyContext figCtx = ctx;
     figCtx.cursor = runningReader.get_pitch();
-    MelodicFigure fig = ctx.composer->realize_figure(figTmpl, figCtx);
+    FigureStrategy* fs = StrategyRegistry::instance().resolve_figure("default_figure");
+    MelodicFigure fig = fs->realize_figure(figTmpl, figCtx);
 
     // Advance running cursor by the figure's net scale-degree movement.
     // Rest units contribute step=0 so they don't advance the cursor.
@@ -975,7 +985,8 @@ inline Passage AlternatingFigureStrategy::realize_passage(
     // Dispatch through Composer for normal strategy/seed/motif resolution
     StrategyContext figCtx = ctx;
     figCtx.cursor = runningReader.get_pitch();
-    MelodicFigure rawFig = ctx.composer->realize_figure(adjusted, figCtx);
+    FigureStrategy* fs = StrategyRegistry::instance().resolve_figure("default_figure");
+    MelodicFigure rawFig = fs->realize_figure(adjusted, figCtx);
 
     if (isA) {
       // For ChordFigures, simulate chord-tone stepping to track the real cursor.

@@ -8,6 +8,11 @@ namespace mforce {
 
 class StrategyRegistry {
 public:
+  static StrategyRegistry& instance() {
+    static StrategyRegistry inst;
+    return inst;
+  }
+
   void register_figure (std::unique_ptr<FigureStrategy> s)  { figures_[s->name()]  = std::move(s); }
   void register_phrase (std::unique_ptr<PhraseStrategy> s)  { phrases_[s->name()]  = std::move(s); }
   void register_passage(std::unique_ptr<PassageStrategy> s) { passages_[s->name()] = std::move(s); }
