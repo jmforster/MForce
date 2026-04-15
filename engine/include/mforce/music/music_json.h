@@ -16,45 +16,88 @@ using json = nlohmann::json;
 // Enum helpers
 // ===========================================================================
 
-inline void to_json(json& j, Articulation a) {
-  static const char* names[] = {
-    "Default","Bow","Marcato","Sforzando","Staccato","Pizzicato",
-    "Pick","Pluck","Strum","Snap","HammerOn","PullOff",
-    "Harmonic","Mute","MuteHarmonic"
-  };
-  j = names[int(a)];
+inline void to_json(json& j, const Articulation& a) {
+  std::visit([&j](const auto& v) {
+    using T = std::decay_t<decltype(v)>;
+    if constexpr      (std::is_same_v<T, articulations::Default>)      j = json{{"type", "Default"}};
+    else if constexpr (std::is_same_v<T, articulations::Bow>)          j = json{{"type", "Bow"}};
+    else if constexpr (std::is_same_v<T, articulations::Marcato>)      j = json{{"type", "Marcato"}};
+    else if constexpr (std::is_same_v<T, articulations::Sforzando>)    j = json{{"type", "Sforzando"}};
+    else if constexpr (std::is_same_v<T, articulations::Staccato>)     j = json{{"type", "Staccato"}};
+    else if constexpr (std::is_same_v<T, articulations::Pizzicato>)    j = json{{"type", "Pizzicato"}};
+    else if constexpr (std::is_same_v<T, articulations::Pick>)         j = json{{"type", "Pick"}};
+    else if constexpr (std::is_same_v<T, articulations::Pluck>)        j = json{{"type", "Pluck"}};
+    else if constexpr (std::is_same_v<T, articulations::Strum>)        j = json{{"type", "Strum"}};
+    else if constexpr (std::is_same_v<T, articulations::Snap>)         j = json{{"type", "Snap"}};
+    else if constexpr (std::is_same_v<T, articulations::HammerOn>)     j = json{{"type", "HammerOn"}};
+    else if constexpr (std::is_same_v<T, articulations::PullOff>)      j = json{{"type", "PullOff"}};
+    else if constexpr (std::is_same_v<T, articulations::Harmonic>)     j = json{{"type", "Harmonic"}};
+    else if constexpr (std::is_same_v<T, articulations::Mute>)         j = json{{"type", "Mute"}};
+    else if constexpr (std::is_same_v<T, articulations::MuteHarmonic>) j = json{{"type", "MuteHarmonic"}};
+    else if constexpr (std::is_same_v<T, articulations::Bend>) {
+      j = json{{"type", "Bend"}, {"direction", v.direction}, {"semitones", v.semitones}};
+    }
+    else if constexpr (std::is_same_v<T, articulations::Slide>) {
+      j = json{{"type", "Slide"}, {"speed", v.speed}};
+    }
+  }, a);
 }
 
 inline void from_json(const json& j, Articulation& a) {
-  static const std::unordered_map<std::string, Articulation> map = {
-    {"Default",Articulation::Default},{"Bow",Articulation::Bow},
-    {"Marcato",Articulation::Marcato},{"Sforzando",Articulation::Sforzando},
-    {"Staccato",Articulation::Staccato},{"Pizzicato",Articulation::Pizzicato},
-    {"Pick",Articulation::Pick},{"Pluck",Articulation::Pluck},
-    {"Strum",Articulation::Strum},{"Snap",Articulation::Snap},
-    {"HammerOn",Articulation::HammerOn},{"PullOff",Articulation::PullOff},
-    {"Harmonic",Articulation::Harmonic},{"Mute",Articulation::Mute},
-    {"MuteHarmonic",Articulation::MuteHarmonic}
-  };
-  a = map.at(j.get<std::string>());
+  std::string type = j.at("type").get<std::string>();
+  if      (type == "Default")      a = articulations::Default{};
+  else if (type == "Bow")          a = articulations::Bow{};
+  else if (type == "Marcato")      a = articulations::Marcato{};
+  else if (type == "Sforzando")    a = articulations::Sforzando{};
+  else if (type == "Staccato")     a = articulations::Staccato{};
+  else if (type == "Pizzicato")    a = articulations::Pizzicato{};
+  else if (type == "Pick")         a = articulations::Pick{};
+  else if (type == "Pluck")        a = articulations::Pluck{};
+  else if (type == "Strum")        a = articulations::Strum{};
+  else if (type == "Snap")         a = articulations::Snap{};
+  else if (type == "HammerOn")     a = articulations::HammerOn{};
+  else if (type == "PullOff")      a = articulations::PullOff{};
+  else if (type == "Harmonic")     a = articulations::Harmonic{};
+  else if (type == "Mute")         a = articulations::Mute{};
+  else if (type == "MuteHarmonic") a = articulations::MuteHarmonic{};
+  else if (type == "Bend")         a = articulations::Bend{j.value("direction", -1),
+                                                          j.value("semitones", 2)};
+  else if (type == "Slide")        a = articulations::Slide{j.value("speed", 0.1f)};
+  else                              a = articulations::Default{};
+}
+
+// Helper: variant-of-empty-types confuses nlohmann's adl_serializer,
+// so serialize vector<Articulation> explicitly.
+inline json articulations_to_json(const std::vector<Articulation>& arts) {
+  json out = json::array();
+  for (const auto& a : arts) {
+    json aj;
+    to_json(aj, a);
+    out.push_back(std::move(aj));
+  }
+  return out;
 }
 
 // --- Ornament variant JSON ---
 
 inline void to_json(json& j, const Mordent& m) {
   j = json{{"type", "Mordent"}, {"direction", m.direction}, {"semitones", m.semitones}};
-  if (!m.articulations.empty()) j["articulations"] = m.articulations;
+  if (!m.articulations.empty()) j["articulations"] = articulations_to_json(m.articulations);
 }
 
 inline void to_json(json& j, const Trill& t) {
   j = json{{"type", "Trill"}, {"direction", t.direction}, {"semitones", t.semitones}};
-  if (!t.articulations.empty()) j["articulations"] = t.articulations;
+  if (!t.articulations.empty()) j["articulations"] = articulations_to_json(t.articulations);
 }
 
 inline void to_json(json& j, const Turn& t) {
   j = json{{"type", "Turn"}, {"direction", t.direction},
             {"semitonesAbove", t.semitonesAbove}, {"semitonesBelow", t.semitonesBelow}};
-  if (!t.articulations.empty()) j["articulations"] = t.articulations;
+  if (!t.articulations.empty()) j["articulations"] = articulations_to_json(t.articulations);
+}
+
+inline void to_json(json& j, const BendMordent& bm) {
+  j = json{{"type", "BendMordent"}, {"direction", bm.direction}, {"semitones", bm.semitones}};
 }
 
 inline void to_json(json& j, const Ornament& o) {
@@ -85,16 +128,20 @@ inline void from_json(const json& j, Ornament& o) {
   std::string type = j.at("type").get<std::string>();
   std::vector<Articulation> arts;
   if (j.contains("articulations")) {
-    for (auto& a : j.at("articulations"))
-      arts.push_back(a.get<Articulation>());
+    for (auto& a : j.at("articulations")) {
+      Articulation art;
+      from_json(a, art);
+      arts.push_back(std::move(art));
+    }
   }
   int dir = j.value("direction", 1);
 
-  if (type == "Mordent")    o = Mordent{dir, j.value("semitones", 2), std::move(arts)};
-  else if (type == "Trill") o = Trill{dir, j.value("semitones", 2), std::move(arts)};
-  else if (type == "Turn")  o = Turn{dir, j.value("semitonesAbove", 2),
-                                          j.value("semitonesBelow", 2), std::move(arts)};
-  else                      o = Ornament{};
+  if (type == "Mordent")          o = Mordent{dir, j.value("semitones", 2), std::move(arts)};
+  else if (type == "Trill")       o = Trill{dir, j.value("semitones", 2), std::move(arts)};
+  else if (type == "Turn")        o = Turn{dir, j.value("semitonesAbove", 2),
+                                                j.value("semitonesBelow", 2), std::move(arts)};
+  else if (type == "BendMordent") o = BendMordent{dir, j.value("semitones", 2)};
+  else                            o = Ornament{};
 }
 
 inline void to_json(json& j, Dynamic d) {
@@ -247,7 +294,11 @@ inline void to_json(json& j, const FigureUnit& u) {
   j = json{{"duration", u.duration}, {"step", u.step}};
   if (u.rest) j["rest"] = true;
   if (u.accidental != 0) j["accidental"] = u.accidental;
-  if (u.articulation != Articulation::Default) j["articulation"] = u.articulation;
+  if (!is_default(u.articulation)) {
+    json aj;
+    to_json(aj, u.articulation);
+    j["articulation"] = aj;
+  }
   if (has_ornament(u.ornament)) j["ornament"] = u.ornament;
 }
 
@@ -256,7 +307,7 @@ inline void from_json(const json& j, FigureUnit& u) {
   u.step = j.at("step").get<int>();
   u.rest = j.value("rest", false);
   u.accidental = j.value("accidental", 0);
-  u.articulation = Articulation::Default;
+  u.articulation = articulations::Default{};
   u.ornament = Ornament{};
   if (j.contains("articulation")) from_json(j.at("articulation"), u.articulation);
   if (j.contains("ornament")) from_json(j.at("ornament"), u.ornament);
@@ -335,7 +386,11 @@ inline void from_json(const json& j, ChordArticulation& cf) {
 inline void to_json(json& j, const Note& n) {
   j = json{{"noteNumber", n.noteNumber}, {"velocity", n.velocity},
             {"duration", n.durationBeats}};
-  if (n.articulation != Articulation::Default) j["articulation"] = n.articulation;
+  if (!is_default(n.articulation)) {
+    json aj;
+    to_json(aj, n.articulation);
+    j["articulation"] = aj;
+  }
   if (has_ornament(n.ornament)) j["ornament"] = n.ornament;
 }
 
@@ -343,7 +398,7 @@ inline void from_json(const json& j, Note& n) {
   n.noteNumber = j.at("noteNumber").get<float>();
   n.velocity = j.contains("velocity") ? j.at("velocity").get<float>() : 1.0f;
   n.durationBeats = j.at("duration").get<float>();
-  n.articulation = Articulation::Default;
+  n.articulation = articulations::Default{};
   n.ornament = Ornament{};
   if (j.contains("articulation")) from_json(j.at("articulation"), n.articulation);
   if (j.contains("ornament")) from_json(j.at("ornament"), n.ornament);

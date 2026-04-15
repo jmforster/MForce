@@ -3,6 +3,8 @@
 #include "mforce/music/basics.h"
 #include "mforce/music/figures.h"
 #include "mforce/render/instrument.h"
+#include "mforce/music/pitch_bend.h"
+#include "mforce/music/pitch_curve.h"
 #include "mforce/core/randomizer.h"
 #include <vector>
 #include <algorithm>
@@ -165,20 +167,21 @@ struct NotePerformer {
   float jitter() { return humanize * 0.001f * rng.valuePN(); }
 
   // Articulation parameter transforms — returns {adjustedDuration, adjustedVelocity}
-  static std::pair<float, float> apply_articulation(Articulation art,
+  static std::pair<float, float> apply_articulation(const Articulation& art,
                                                      float durSeconds, float velocity) {
-    switch (art) {
-      case Articulation::Staccato:
+    return std::visit([&](const auto& v) -> std::pair<float, float> {
+      using T = std::decay_t<decltype(v)>;
+      if constexpr (std::is_same_v<T, articulations::Staccato>)
         return {durSeconds * 0.5f, velocity};
-      case Articulation::Marcato:
+      else if constexpr (std::is_same_v<T, articulations::Marcato>)
         return {durSeconds, std::min(velocity * 1.3f, 1.0f)};
-      case Articulation::Sforzando:
+      else if constexpr (std::is_same_v<T, articulations::Sforzando>)
         return {durSeconds, std::min(velocity * 1.5f, 1.0f)};
-      case Articulation::Mute:
+      else if constexpr (std::is_same_v<T, articulations::Mute>)
         return {durSeconds * 0.7f, velocity * 0.6f};
-      default:
+      else
         return {durSeconds, velocity};
-    }
+    }, art);
   }
 
   // How long (in seconds) should each ornament sub-note be?
@@ -212,8 +215,8 @@ struct NotePerformer {
                        PitchedInstrument& instrument) {
     float neighborNN = note.noteNumber + float(m.direction * m.semitones);
 
-    Articulation neighborArt = m.articulations.size() > 0 ? m.articulations[0] : Articulation::Default;
-    Articulation returnArt   = m.articulations.size() > 1 ? m.articulations[1] : Articulation::Default;
+    Articulation neighborArt = m.articulations.size() > 0 ? m.articulations[0] : Articulation{articulations::Default{}};
+    Articulation returnArt   = m.articulations.size() > 1 ? m.articulations[1] : Articulation{articulations::Default{}};
 
     // 1. Main note (short) — uses the Note's own articulation
     auto [dur1, vel1] = apply_articulation(note.articulation, subDur, note.velocity);
@@ -259,7 +262,7 @@ struct NotePerformer {
       } else if (i - 1 < int(t.articulations.size())) {
         art = t.articulations[i - 1];
       } else {
-        art = Articulation::Default;
+        art = articulations::Default{};
       }
 
       auto [dur, vel] = apply_articulation(art, notes[i].dur, note.velocity);
@@ -286,7 +289,7 @@ struct NotePerformer {
       } else if (!isNeighbor) {
         art = note.articulation;
       } else {
-        art = Articulation::Default;
+        art = articulations::Default{};
       }
 
       auto [dur, vel] = apply_articulation(art, actualSubDur, note.velocity);
@@ -294,14 +297,57 @@ struct NotePerformer {
     }
   }
 
+  // Slide-run accumulator. Typically holds 0 or 1 note; grows only while a
+  // run of Slide-articulated notes is being bundled.
+  struct QueuedNote { Note note; float startBeats; };
+  std::vector<QueuedNote> noteBuf;
+
   void perform_note(const Note& note, float startBeats, float bpm,
                     PitchedInstrument& instrument) {
+    const bool isSlide = std::holds_alternative<articulations::Slide>(note.articulation);
+
+    if (isSlide) {
+      if (noteBuf.empty())
+        throw std::runtime_error("Slide on first note — nothing to slide from");
+      noteBuf.push_back({note, startBeats});
+      return;
+    }
+
+    // Non-slide arriving: prior buffer (if any) is a complete unit.
+    if (!noteBuf.empty()) play_buffered(bpm, instrument);
+    noteBuf.push_back({note, startBeats});  // new anchor of a possible future run
+  }
+
+  // Conductor calls this after iterating a part's notes to drain the buffer.
+  void conclude(float bpm, PitchedInstrument& instrument) {
+    if (!noteBuf.empty()) play_buffered(bpm, instrument);
+  }
+
+private:
+  // Emit whatever is currently in noteBuf, then clear.
+  void play_buffered(float bpm, PitchedInstrument& instrument) {
+    if (noteBuf.size() == 1)
+      play_single(noteBuf.front().note, noteBuf.front().startBeats, bpm, instrument);
+    else
+      play_run(noteBuf, bpm, instrument);
+    noteBuf.clear();
+  }
+
+  // One note, no slide bundling. Existing articulation/ornament/bend realization.
+  void play_single(const Note& note, float startBeats, float bpm,
+                   PitchedInstrument& instrument) {
     float startSeconds = startBeats * 60.0f / bpm;
     float durSeconds = note.durationBeats * 60.0f / bpm;
 
     auto play_plain = [&]() {
       auto [dur, vel] = apply_articulation(note.articulation, durSeconds, note.velocity);
-      instrument.play_note(note.noteNumber, vel, dur, startSeconds + jitter());
+      // Stateful articulations (Bend) compile to a PitchCurve here.
+      if (auto bend = std::get_if<articulations::Bend>(&note.articulation)) {
+        PitchCurve curve = compile_bend(*bend);
+        instrument.play_note(note.noteNumber, vel, dur, startSeconds + jitter(), &curve);
+      } else {
+        instrument.play_note(note.noteNumber, vel, dur, startSeconds + jitter());
+      }
     };
 
     if (has_ornament(note.ornament)) {
@@ -319,6 +365,11 @@ struct NotePerformer {
           float subDur = ornament_subnote_duration(note.durationBeats, bpm);
           if (subDur <= 0.0f) { play_plain(); return; }
           perform_turn(note, orn, startSeconds, durSeconds, subDur, instrument);
+        } else if constexpr (std::is_same_v<T, BendMordent>) {
+          // Continuous-pitch realization — one note, PitchCurve handles the excursion.
+          auto [dur, vel] = apply_articulation(note.articulation, durSeconds, note.velocity);
+          PitchCurve curve = compile_bend_mordent(orn);
+          instrument.play_note(note.noteNumber, vel, dur, startSeconds + jitter(), &curve);
         } else if constexpr (std::is_same_v<T, std::monostate>) {
           // no ornament — unreachable due to has_ornament guard
         }
@@ -326,6 +377,40 @@ struct NotePerformer {
     } else {
       play_plain();
     }
+  }
+
+  // Bundle: anchor + 1+ slide notes realized as a single legato play_note
+  // with a multi-segment PitchCurve spanning the whole run.
+  void play_run(const std::vector<QueuedNote>& buf, float bpm,
+                PitchedInstrument& instrument) {
+    // Build SlideRunNote inputs; first is the anchor (no slide).
+    std::vector<SlideRunNote> run;
+    run.reserve(buf.size());
+    for (size_t i = 0; i < buf.size(); ++i) {
+      const auto& qn = buf[i];
+      SlideRunNote sn;
+      sn.noteNumber    = qn.note.noteNumber;
+      sn.durationBeats = qn.note.durationBeats;
+      if (i == 0) {
+        sn.slideSpeed = 0.0f;
+      } else {
+        auto* sl = std::get_if<articulations::Slide>(&qn.note.articulation);
+        sn.slideSpeed = sl ? sl->speed : 0.1f;  // fallback, shouldn't happen
+      }
+      run.push_back(sn);
+    }
+
+    float totalBeats = 0.0f;
+    for (const auto& n : run) totalBeats += n.durationBeats;
+
+    const auto& anchor = buf.front();
+    float startSeconds = anchor.startBeats * 60.0f / bpm;
+    float totalSeconds = totalBeats * 60.0f / bpm;
+    float velocity = anchor.note.velocity;  // run uses anchor's velocity
+
+    PitchCurve curve = combine(run);
+    instrument.play_note(anchor.note.noteNumber, velocity, totalSeconds,
+                          startSeconds + jitter(), &curve);
   }
 };
 
@@ -656,6 +741,9 @@ private:
                                   absBeats, bpm, *drums);
       }
     }
+
+    // Drain any pending slide-run buffer.
+    if (pitched) notePerformer.conclude(bpm, *pitched);
   }
 
   // --- Compositional performance ---
@@ -689,6 +777,9 @@ private:
                                    chordProg, secScale, baseOctave,
                                    maxSectionBeats);
     }
+
+    // Drain any pending slide-run buffer at passage end.
+    notePerformer.conclude(bpm, *pitched);
   }
 
   float perform_phrase(const Phrase& phrase, const Scale& scale,

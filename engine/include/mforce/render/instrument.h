@@ -2,6 +2,8 @@
 #include "mforce/render/mixer.h"
 #include "mforce/core/dsp_value_source.h"
 #include "mforce/core/equal_temperament.h"
+#include "mforce/music/pitch_bend.h"
+#include "mforce/music/pitch_curve.h"
 #include <memory>
 #include <vector>
 #include <string>
@@ -59,24 +61,51 @@ protected:
 // ---------------------------------------------------------------------------
 struct PitchedInstrument final : Instrument {
 
+  // A paramMap slot resolved to the graph node that consumes the value
+  // (consumer + paramName) plus the ConstantSource that normally supplies
+  // the nominal value. play_note can swap the consumer's param edge between
+  // originalCS (for constant pitch) and a time-varying source (for bends),
+  // per the "parameters are pluggable ValueSource edges" architecture.
+  struct ParamSlot {
+    std::shared_ptr<ValueSource>    consumer;
+    std::string                      paramName;
+    std::shared_ptr<ConstantSource>  originalCS;
+  };
+
   struct VoiceGraph {
     std::shared_ptr<ValueSource> source;
-    std::unordered_map<std::string, std::shared_ptr<ConstantSource>> params;
+    std::unordered_map<std::string, ParamSlot> params;
   };
 
   float hiBoost{0.0f};
   std::vector<VoiceGraph> voicePool;
   int nextVoice{0};
 
-  void play_note(float noteNumber, float velocity, float duration, float startTime) {
+  void play_note(float noteNumber, float velocity, float duration, float startTime,
+                 const PitchCurve* curve = nullptr) {
     auto& vg = voicePool[nextVoice % voicePool.size()];
     nextVoice++;
 
     float freq = note_to_freq(noteNumber);
     int durSamples = int(duration * float(sampleRate));
 
-    if (vg.params.count("frequency"))
-      vg.params["frequency"]->set(freq);
+    auto it = vg.params.find("frequency");
+    if (it != vg.params.end()) {
+      auto& slot = it->second;
+      if (curve) {
+        // Build an Envelope from the curve, wrap in a PitchBendSource that
+        // emits baseHz * 2^(semi/12), and plug it into the consumer's param
+        // edge — replacing the nominal ConstantSource for this note.
+        auto env = compile_pitch_curve(*curve, sampleRate);
+        auto pbs = std::make_shared<PitchBendSource>(freq, std::move(env));
+        slot.consumer->set_param(slot.paramName, pbs);
+      } else {
+        // Plain note: set the nominal value and restore the edge to the
+        // original ConstantSource (idempotent if already restored).
+        slot.originalCS->set(freq);
+        slot.consumer->set_param(slot.paramName, slot.originalCS);
+      }
+    }
 
     // Frequency-dependent brightness compensation
     float boost = hiBoost > 0.0f

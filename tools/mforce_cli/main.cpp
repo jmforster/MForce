@@ -846,8 +846,8 @@ static int test_ornaments(int /*argc*/, char** /*argv*/) {
     // positions 1, 3, 5, 7 get: mordent up, mordent down, trill up, turn
     auto make_ornament = [&](int ornIdx, int noteIdx) -> Ornament {
         switch (ornIdx % 4) {
-            case 0: return Mordent{1, semiAbove[noteIdx], {Articulation::HammerOn, Articulation::PullOff}};
-            case 1: return Mordent{-1, semiBelow[noteIdx], {Articulation::HammerOn, Articulation::PullOff}};
+            case 0: return Mordent{1, semiAbove[noteIdx], {articulations::HammerOn{}, articulations::PullOff{}}};
+            case 1: return Mordent{-1, semiBelow[noteIdx], {articulations::HammerOn{}, articulations::PullOff{}}};
             case 2: return Trill{1, semiAbove[noteIdx], {}};
             case 3: return Turn{1, semiAbove[noteIdx], semiBelow[noteIdx], {}};
             default: return Ornament{};
@@ -858,7 +858,7 @@ static int test_ornaments(int /*argc*/, char** /*argv*/) {
         int ornIdx = 0;
         for (int i = 0; i < nPitches; ++i) {
             if (i % 2 == 1) {
-                Note n{pitches[i], 1.0f, dur, Articulation::Default,
+                Note n{pitches[i], 1.0f, dur, articulations::Default{},
                        make_ornament(ornIdx++, i)};
                 part.events.push_back({beat, n});
             } else {

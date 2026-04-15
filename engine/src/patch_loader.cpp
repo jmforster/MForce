@@ -6,6 +6,11 @@
 #include "mforce/core/var_source.h"
 #include "mforce/core/envelope.h"
 #include "mforce/render/instrument.h"
+#include "mforce/music/basics.h"
+#include "mforce/music/conductor.h"
+#include "mforce/music/music_json.h"
+#include "mforce/music/pitch_bend.h"
+#include "mforce/music/pitch_curve.h"
 // Types still needed for special-case construction
 #include "mforce/source/additive/full_additive_source.h"
 #include "mforce/source/additive/partials.h"
@@ -492,13 +497,13 @@ static GraphResult build_graph(
 // Resolve paramMap: "frequency" → "rn1.frequency" → shared_ptr<ConstantSource>
 // ---------------------------------------------------------------------------
 
-static std::unordered_map<std::string, std::shared_ptr<ConstantSource>>
+static std::unordered_map<std::string, PitchedInstrument::ParamSlot>
 resolve_param_map(
     const json& paramMapJson,
     const GraphResult& g,
     const std::unordered_map<std::string, json>& /*nodeMap*/)
 {
-    std::unordered_map<std::string, std::shared_ptr<ConstantSource>> result;
+    std::unordered_map<std::string, PitchedInstrument::ParamSlot> result;
 
     for (auto& [name, targetJson] : paramMapJson.items()) {
         std::string target = targetJson.get<std::string>();
@@ -528,7 +533,7 @@ resolve_param_map(
         if (!cs)
             throw std::runtime_error("paramMap: '" + target + "' is not a ConstantSource (it's wired to a ref)");
 
-        result[name] = cs;
+        result[name] = {nodeIt->second, paramName, cs};
     }
 
     return result;
@@ -595,15 +600,30 @@ Patch load_patch_file(const std::string& path)
             inst->voicePool.push_back(std::move(vg));
         }
 
-        // Schedule notes from score section
+        // Schedule notes from score section. Route through NotePerformer so
+        // slide-run bundling works. BPM=60 makes beats == seconds, matching
+        // the score section's "time"/"duration" fields directly.
         if (root.contains("score")) {
+            NotePerformer performer;
+            const float bpm = 60.0f;
             for (const auto& noteJson : root["score"]) {
                 float note     = noteJson.at("note").get<float>();
                 float velocity = noteJson.value("velocity", 0.8f);
                 float duration = noteJson.at("duration").get<float>();
                 float start    = noteJson.value("time", 0.0f);
-                inst->play_note(note, velocity, duration, start);
+
+                Articulation art = articulations::Default{};
+                if (noteJson.contains("articulation"))
+                    from_json(noteJson.at("articulation"), art);
+
+                Ornament orn{};
+                if (noteJson.contains("ornament"))
+                    from_json(noteJson.at("ornament"), orn);
+
+                Note n{note, velocity, duration, art, orn};
+                performer.perform_note(n, start, bpm, *inst);
             }
+            performer.conclude(bpm, *inst);
         }
 
         // Compute total duration from score

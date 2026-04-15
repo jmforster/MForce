@@ -471,7 +471,7 @@ struct FigureUnit {
   int step{0};     // movement in scale degrees from previous note (0 for first)
   bool rest{false}; // true = silence (advance time, don't sound)
   int accidental{0}; // +1=sharp, -1=flat (transient pitch shift, doesn't affect cursor)
-  Articulation articulation{Articulation::Default};
+  Articulation articulation{articulations::Default{}};
   Ornament ornament;
 };
 

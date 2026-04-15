@@ -41,7 +41,7 @@ struct Note {
   float noteNumber;
   float velocity{1.0f};
   float durationBeats;
-  Articulation articulation{Articulation::Default};
+  Articulation articulation{articulations::Default{}};
   Ornament ornament;
 };
 
@@ -189,13 +189,13 @@ struct Part {
   }
 
   void add_note(float startBeat, float noteNumber, float velocity, float durationBeats,
-                Articulation art = Articulation::Default, Ornament orn = Ornament{}) {
+                Articulation art = articulations::Default{}, Ornament orn = Ornament{}) {
     events.push_back({startBeat, Note{noteNumber, velocity, durationBeats, art, orn}});
     totalBeats = std::max(totalBeats, startBeat + durationBeats);
   }
 
   void add_note(float noteNumber, float velocity, float durationBeats,
-                Articulation art = Articulation::Default) {
+                Articulation art = articulations::Default{}) {
     add_note(totalBeats, noteNumber, velocity, durationBeats, art);
   }
 

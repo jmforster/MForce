@@ -11,13 +11,54 @@
 
 namespace mforce {
 
-// ===== Enums =====
+// ===== Articulation (variant of value types — parallels Ornament) =====
 
-enum class Articulation {
-  Default, Bow, Marcato, Sforzando, Staccato, Pizzicato,
-  Pick, Pluck, Strum, Snap, HammerOn, PullOff,
-  Harmonic, Mute, MuteHarmonic
-};
+namespace articulations {
+  // Pointwise — no payload
+  struct Default {};
+  struct Bow {};
+  struct Marcato {};
+  struct Sforzando {};
+  struct Staccato {};
+  struct Pizzicato {};
+  struct Pick {};
+  struct Pluck {};
+  struct Strum {};
+  struct Snap {};
+  struct HammerOn {};
+  struct PullOff {};
+  struct Harmonic {};
+  struct Mute {};
+  struct MuteHarmonic {};
+
+  // Stateful — Score-level intent. Performer compiles direction+semitones
+  // into a PitchCurve with its own timing choices.
+  struct Bend {
+    int direction{-1};  // -1 = start below (bend up to nominal), +1 = start above (release to nominal)
+    int semitones{2};   // distance from nominal at attack
+  };
+
+  // Slide — "arrive at this note by sliding from the previous". Structural:
+  // Performer bundles contiguous slide-marked notes with their anchor into
+  // a single legato play_note call carrying a multi-segment PitchCurve.
+  // speed = fraction of this note's duration spent sliding (0..1); the rest
+  // holds at target pitch.
+  struct Slide {
+    float speed{0.1f};
+  };
+}
+
+using Articulation = std::variant<
+  articulations::Default, articulations::Bow, articulations::Marcato,
+  articulations::Sforzando, articulations::Staccato, articulations::Pizzicato,
+  articulations::Pick, articulations::Pluck, articulations::Strum, articulations::Snap,
+  articulations::HammerOn, articulations::PullOff,
+  articulations::Harmonic, articulations::Mute, articulations::MuteHarmonic,
+  articulations::Bend, articulations::Slide>;
+
+inline bool is_default(const Articulation& a) {
+  return std::holds_alternative<articulations::Default>(a);
+}
 
 // ===== Ornaments (variant of value types) =====
 
@@ -40,7 +81,15 @@ struct Turn {
   std::vector<Articulation> articulations;
 };
 
-using Ornament = std::variant<std::monostate, Mordent, Trill, Turn>;
+// BendMordent — like Mordent, but realized as a continuous pitch bend within
+// a single note (rises or falls to auxiliary semitone, returns to nominal)
+// rather than multiple play_note calls. Performer chooses timing.
+struct BendMordent {
+  int direction{1};   // +1 = up then return, -1 = down then return
+  int semitones{2};   // distance of excursion in semitones
+};
+
+using Ornament = std::variant<std::monostate, Mordent, Trill, Turn, BendMordent>;
 
 inline bool has_ornament(const Ornament& o) {
   return !std::holds_alternative<std::monostate>(o);
@@ -231,7 +280,7 @@ struct Meter {
 struct SimpleNote {
   Pitch pitch;
   float duration;  // beats
-  Articulation articulation{Articulation::Default};
+  Articulation articulation{articulations::Default{}};
   Ornament ornament;
 };
 
@@ -241,9 +290,9 @@ struct Tone {
   float noteNumber;
   float velocity;
   float duration;  // seconds
-  Articulation articulation{Articulation::Default};
+  Articulation articulation{articulations::Default{}};
 
-  Tone(float nn, float vel, float dur, Articulation art = Articulation::Default)
+  Tone(float nn, float vel, float dur, Articulation art = articulations::Default{})
     : noteNumber(nn), velocity(vel), duration(dur), articulation(art) {}
 };
 

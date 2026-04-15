@@ -1,0 +1,33 @@
+{
+  "sampleRate": 48000,
+  "graph": {
+    "nodes": [
+      { "id": "ampEnv", "type": "Envelope",
+        "params": { "preset": "ar", "attack": 0.02, "attackMax": 0.05 } },
+      { "id": "saw", "type": "SawSource",
+        "params": { "frequency": 440.0, "amplitude": { "ref": "ampEnv" } } }
+    ],
+    "output": "saw"
+  },
+  "instrument": {
+    "paramMap": { "frequency": "saw.frequency" },
+    "polyphony": 4
+  },
+  "score": [
+    { "note": 60, "velocity": 0.7, "time": 0.0, "duration": 1.5 },
+
+    { "note": 60, "velocity": 0.7, "time": 2.0, "duration": 1.0 },
+    { "note": 64, "velocity": 0.7, "time": 3.0, "duration": 1.5,
+      "articulation": { "type": "Slide", "speed": 0.5 } },
+
+    { "note": 60, "velocity": 0.7, "time": 5.5, "duration": 1.0 },
+    { "note": 64, "velocity": 0.7, "time": 6.5, "duration": 1.0,
+      "articulation": { "type": "Slide", "speed": 0.3 } },
+    { "note": 67, "velocity": 0.7, "time": 7.5, "duration": 1.5,
+      "articulation": { "type": "Slide", "speed": 0.4 } },
+
+    { "note": 72, "velocity": 0.7, "time": 10.0, "duration": 0.8 },
+    { "note": 69, "velocity": 0.7, "time": 10.8, "duration": 1.2,
+      "articulation": { "type": "Slide", "speed": 0.6 } }
+  ]
+}

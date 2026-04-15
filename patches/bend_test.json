@@ -1,0 +1,26 @@
+{
+  "sampleRate": 48000,
+  "graph": {
+    "nodes": [
+      { "id": "ampEnv", "type": "Envelope", "params": { "preset": "ar", "attack": 0.02, "attackMax": 0.05 } },
+      { "id": "saw",    "type": "SawSource", "params": { "frequency": 440.0, "amplitude": { "ref": "ampEnv" } } }
+    ],
+    "output": "saw"
+  },
+  "instrument": {
+    "paramMap": { "frequency": "saw.frequency" },
+    "polyphony": 4
+  },
+  "score": [
+    { "note": 60, "velocity": 0.7, "time": 0.0, "duration": 1.5 },
+    { "note": 60, "velocity": 0.7, "time": 1.8, "duration": 1.5,
+      "articulation": { "type": "Bend", "direction": -1, "semitones": 2 } },
+
+    { "note": 64, "velocity": 0.7, "time": 3.6, "duration": 1.5 },
+    { "note": 64, "velocity": 0.7, "time": 5.4, "duration": 1.5,
+      "articulation": { "type": "Bend", "direction": -1, "semitones": 3 } },
+
+    { "note": 67, "velocity": 0.7, "time": 7.2, "duration": 1.5,
+      "articulation": { "type": "Bend", "direction": 1, "semitones": 2 } }
+  ]
+}
