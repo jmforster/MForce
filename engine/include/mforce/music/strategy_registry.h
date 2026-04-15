@@ -3,33 +3,23 @@
 #include <memory>
 #include <string>
 #include <unordered_map>
-#include <vector>
 
 namespace mforce {
 
 class StrategyRegistry {
 public:
-  void register_strategy(std::unique_ptr<Strategy> s) {
-    const std::string n = s->name();
-    strategies_[n] = std::move(s);
-  }
+  void register_figure (std::unique_ptr<FigureStrategy> s)  { figures_[s->name()]  = std::move(s); }
+  void register_phrase (std::unique_ptr<PhraseStrategy> s)  { phrases_[s->name()]  = std::move(s); }
+  void register_passage(std::unique_ptr<PassageStrategy> s) { passages_[s->name()] = std::move(s); }
 
-  Strategy* get(const std::string& name) const {
-    auto it = strategies_.find(name);
-    return it == strategies_.end() ? nullptr : it->second.get();
-  }
-
-  std::vector<Strategy*> list_for_level(StrategyLevel lvl) const {
-    std::vector<Strategy*> out;
-    out.reserve(strategies_.size());
-    for (auto& kv : strategies_) {
-      if (kv.second->level() == lvl) out.push_back(kv.second.get());
-    }
-    return out;
-  }
+  FigureStrategy*  resolve_figure (const std::string& n) const { auto it = figures_.find(n);  return it == figures_.end()  ? nullptr : it->second.get(); }
+  PhraseStrategy*  resolve_phrase (const std::string& n) const { auto it = phrases_.find(n);  return it == phrases_.end()  ? nullptr : it->second.get(); }
+  PassageStrategy* resolve_passage(const std::string& n) const { auto it = passages_.find(n); return it == passages_.end() ? nullptr : it->second.get(); }
 
 private:
-  std::unordered_map<std::string, std::unique_ptr<Strategy>> strategies_;
+  std::unordered_map<std::string, std::unique_ptr<FigureStrategy>>  figures_;
+  std::unordered_map<std::string, std::unique_ptr<PhraseStrategy>>  phrases_;
+  std::unordered_map<std::string, std::unique_ptr<PassageStrategy>> passages_;
 };
 
 } // namespace mforce

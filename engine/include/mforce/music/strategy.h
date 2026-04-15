@@ -5,13 +5,10 @@
 #include "mforce/music/templates.h"
 #include "mforce/core/randomizer.h"
 #include <string>
-#include <stdexcept>
 
 namespace mforce {
 
 struct Composer;          // fwd
-
-enum class StrategyLevel { Figure, Phrase, Passage, Piece };
 
 // Shared data bundle passed to every strategy call. Strategies are stateless
 // singletons living in the registry; all per-call state lives here.
@@ -26,24 +23,29 @@ struct StrategyContext {
   const ChordProgression* chordProgression{nullptr};
 };
 
-// Abstract base. Subclasses override exactly one of the realize_* methods,
-// matching their level(). Calling a level that isn't overridden throws —
-// that's a programming error (you asked a Figure strategy to realize a Phrase).
-class Strategy {
-public:
-  virtual ~Strategy() = default;
-  virtual std::string name() const = 0;
-  virtual StrategyLevel level() const = 0;
+// Three typed peer bases. A strategy implements exactly one level.
+// Registration and dispatch happen per-level via typed entries in
+// StrategyRegistry.
 
-  virtual MelodicFigure realize_figure(const FigureTemplate&, StrategyContext&) {
-    throw std::logic_error("realize_figure not implemented for strategy: " + name());
-  }
-  virtual Phrase realize_phrase(const PhraseTemplate&, StrategyContext&) {
-    throw std::logic_error("realize_phrase not implemented for strategy: " + name());
-  }
-  virtual Passage realize_passage(const PassageTemplate&, StrategyContext&) {
-    throw std::logic_error("realize_passage not implemented for strategy: " + name());
-  }
+class FigureStrategy {
+public:
+  virtual ~FigureStrategy() = default;
+  virtual std::string name() const = 0;
+  virtual MelodicFigure realize_figure(const FigureTemplate&, StrategyContext&) = 0;
+};
+
+class PhraseStrategy {
+public:
+  virtual ~PhraseStrategy() = default;
+  virtual std::string name() const = 0;
+  virtual Phrase realize_phrase(const PhraseTemplate&, StrategyContext&) = 0;
+};
+
+class PassageStrategy {
+public:
+  virtual ~PassageStrategy() = default;
+  virtual std::string name() const = 0;
+  virtual Passage realize_passage(const PassageTemplate&, StrategyContext&) = 0;
 };
 
 } // namespace mforce

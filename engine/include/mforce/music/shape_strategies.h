@@ -24,10 +24,9 @@ namespace mforce {
 // ---------------------------------------------------------------------------
 
 // ====== ShapeScalarRunStrategy ==============================================
-class ShapeScalarRunStrategy : public Strategy {
+class ShapeScalarRunStrategy : public FigureStrategy {
 public:
   std::string name() const override { return "shape_scalar_run"; }
-  StrategyLevel level() const override { return StrategyLevel::Figure; }
   MelodicFigure realize_figure(const FigureTemplate& ft, StrategyContext& ctx) override;
 };
 
@@ -44,10 +43,9 @@ inline MelodicFigure ShapeScalarRunStrategy::realize_figure(
 }
 
 // ====== ShapeRepeatedNoteStrategy ===========================================
-class ShapeRepeatedNoteStrategy : public Strategy {
+class ShapeRepeatedNoteStrategy : public FigureStrategy {
 public:
   std::string name() const override { return "shape_repeated_note"; }
-  StrategyLevel level() const override { return StrategyLevel::Figure; }
   MelodicFigure realize_figure(const FigureTemplate& ft, StrategyContext& ctx) override;
 };
 
@@ -63,10 +61,9 @@ inline MelodicFigure ShapeRepeatedNoteStrategy::realize_figure(
 }
 
 // ====== ShapeHeldNoteStrategy ===============================================
-class ShapeHeldNoteStrategy : public Strategy {
+class ShapeHeldNoteStrategy : public FigureStrategy {
 public:
   std::string name() const override { return "shape_held_note"; }
-  StrategyLevel level() const override { return StrategyLevel::Figure; }
   MelodicFigure realize_figure(const FigureTemplate& ft, StrategyContext& ctx) override;
 };
 
@@ -79,18 +76,16 @@ inline MelodicFigure ShapeHeldNoteStrategy::realize_figure(
 }
 
 // ====== ShapeCadentialApproachStrategy ======================================
-class ShapeCadentialApproachStrategy : public Strategy {
+class ShapeCadentialApproachStrategy : public FigureStrategy {
 public:
   std::string name() const override { return "shape_cadential_approach"; }
-  StrategyLevel level() const override { return StrategyLevel::Figure; }
   MelodicFigure realize_figure(const FigureTemplate& ft, StrategyContext& ctx) override;
 };
 
 // ====== ShapeTriadicOutlineStrategy =========================================
-class ShapeTriadicOutlineStrategy : public Strategy {
+class ShapeTriadicOutlineStrategy : public FigureStrategy {
 public:
   std::string name() const override { return "shape_triadic_outline"; }
-  StrategyLevel level() const override { return StrategyLevel::Figure; }
   MelodicFigure realize_figure(const FigureTemplate& ft, StrategyContext& ctx) override;
 };
 
@@ -105,10 +100,9 @@ inline MelodicFigure ShapeTriadicOutlineStrategy::realize_figure(
 }
 
 // ====== ShapeNeighborToneStrategy ===========================================
-class ShapeNeighborToneStrategy : public Strategy {
+class ShapeNeighborToneStrategy : public FigureStrategy {
 public:
   std::string name() const override { return "shape_neighbor_tone"; }
-  StrategyLevel level() const override { return StrategyLevel::Figure; }
   MelodicFigure realize_figure(const FigureTemplate& ft, StrategyContext& ctx) override;
 };
 
@@ -122,10 +116,9 @@ inline MelodicFigure ShapeNeighborToneStrategy::realize_figure(
 }
 
 // ====== ShapeLeapAndFillStrategy ============================================
-class ShapeLeapAndFillStrategy : public Strategy {
+class ShapeLeapAndFillStrategy : public FigureStrategy {
 public:
   std::string name() const override { return "shape_leap_and_fill"; }
-  StrategyLevel level() const override { return StrategyLevel::Figure; }
   MelodicFigure realize_figure(const FigureTemplate& ft, StrategyContext& ctx) override;
 };
 
@@ -141,10 +134,9 @@ inline MelodicFigure ShapeLeapAndFillStrategy::realize_figure(
 }
 
 // ====== ShapeScalarReturnStrategy ===========================================
-class ShapeScalarReturnStrategy : public Strategy {
+class ShapeScalarReturnStrategy : public FigureStrategy {
 public:
   std::string name() const override { return "shape_scalar_return"; }
-  StrategyLevel level() const override { return StrategyLevel::Figure; }
   MelodicFigure realize_figure(const FigureTemplate& ft, StrategyContext& ctx) override;
 };
 
@@ -160,10 +152,9 @@ inline MelodicFigure ShapeScalarReturnStrategy::realize_figure(
 }
 
 // ====== ShapeAnacrusisStrategy ==============================================
-class ShapeAnacrusisStrategy : public Strategy {
+class ShapeAnacrusisStrategy : public FigureStrategy {
 public:
   std::string name() const override { return "shape_anacrusis"; }
-  StrategyLevel level() const override { return StrategyLevel::Figure; }
   MelodicFigure realize_figure(const FigureTemplate& ft, StrategyContext& ctx) override;
 };
 
@@ -181,10 +172,9 @@ inline MelodicFigure ShapeAnacrusisStrategy::realize_figure(
 }
 
 // ====== ShapeZigzagStrategy =================================================
-class ShapeZigzagStrategy : public Strategy {
+class ShapeZigzagStrategy : public FigureStrategy {
 public:
   std::string name() const override { return "shape_zigzag"; }
-  StrategyLevel level() const override { return StrategyLevel::Figure; }
   MelodicFigure realize_figure(const FigureTemplate& ft, StrategyContext& ctx) override;
 };
 
@@ -199,10 +189,9 @@ inline MelodicFigure ShapeZigzagStrategy::realize_figure(
 }
 
 // ====== ShapeFanfareStrategy ================================================
-class ShapeFanfareStrategy : public Strategy {
+class ShapeFanfareStrategy : public FigureStrategy {
 public:
   std::string name() const override { return "shape_fanfare"; }
-  StrategyLevel level() const override { return StrategyLevel::Figure; }
   MelodicFigure realize_figure(const FigureTemplate& ft, StrategyContext& ctx) override;
 };
 
@@ -216,10 +205,9 @@ inline MelodicFigure ShapeFanfareStrategy::realize_figure(
 }
 
 // ====== ShapeSighStrategy ===================================================
-class ShapeSighStrategy : public Strategy {
+class ShapeSighStrategy : public FigureStrategy {
 public:
   std::string name() const override { return "shape_sigh"; }
-  StrategyLevel level() const override { return StrategyLevel::Figure; }
   MelodicFigure realize_figure(const FigureTemplate& ft, StrategyContext& ctx) override;
 };
 
@@ -232,10 +220,9 @@ inline MelodicFigure ShapeSighStrategy::realize_figure(
 }
 
 // ====== ShapeSuspensionStrategy =============================================
-class ShapeSuspensionStrategy : public Strategy {
+class ShapeSuspensionStrategy : public FigureStrategy {
 public:
   std::string name() const override { return "shape_suspension"; }
-  StrategyLevel level() const override { return StrategyLevel::Figure; }
   MelodicFigure realize_figure(const FigureTemplate& ft, StrategyContext& ctx) override;
 };
 
@@ -248,10 +235,9 @@ inline MelodicFigure ShapeSuspensionStrategy::realize_figure(
 }
 
 // ====== ShapeCambiataStrategy ===============================================
-class ShapeCambiataStrategy : public Strategy {
+class ShapeCambiataStrategy : public FigureStrategy {
 public:
   std::string name() const override { return "shape_cambiata"; }
-  StrategyLevel level() const override { return StrategyLevel::Figure; }
   MelodicFigure realize_figure(const FigureTemplate& ft, StrategyContext& ctx) override;
 };
 
@@ -265,18 +251,16 @@ inline MelodicFigure ShapeCambiataStrategy::realize_figure(
 }
 
 // ====== ShapeSkippingStrategy ===============================================
-class ShapeSkippingStrategy : public Strategy {
+class ShapeSkippingStrategy : public FigureStrategy {
 public:
   std::string name() const override { return "shape_skipping"; }
-  StrategyLevel level() const override { return StrategyLevel::Figure; }
   MelodicFigure realize_figure(const FigureTemplate& ft, StrategyContext& ctx) override;
 };
 
 // ====== ShapeSteppingStrategy ===============================================
-class ShapeSteppingStrategy : public Strategy {
+class ShapeSteppingStrategy : public FigureStrategy {
 public:
   std::string name() const override { return "shape_stepping"; }
-  StrategyLevel level() const override { return StrategyLevel::Figure; }
   MelodicFigure realize_figure(const FigureTemplate& ft, StrategyContext& ctx) override;
 };
 

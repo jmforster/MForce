@@ -24,10 +24,9 @@ namespace mforce {
 // NOTE: realize_passage body is defined out-of-line in composer.h, after
 // Composer is fully defined (same pattern as DefaultPassageStrategy).
 // ---------------------------------------------------------------------------
-class AlternatingFigureStrategy : public Strategy {
+class AlternatingFigureStrategy : public PassageStrategy {
 public:
   std::string name() const override { return "alternating_figure"; }
-  StrategyLevel level() const override { return StrategyLevel::Passage; }
 
   Passage realize_passage(const PassageTemplate& passTmpl,
                           StrategyContext& ctx) override;

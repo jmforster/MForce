@@ -38,34 +38,34 @@ struct Composer {
   // or every RNG call consumes a different stream and the composer stops
   // being bit-identical to the pre-refactor output.
   explicit Composer(uint32_t seed = 0xC1A5'0001u) : rng_(seed + 200) {
-    registry_.register_strategy(std::make_unique<DefaultFigureStrategy>());
-    registry_.register_strategy(std::make_unique<DefaultPhraseStrategy>());
-    registry_.register_strategy(std::make_unique<DefaultPassageStrategy>());
+    registry_.register_figure (std::make_unique<DefaultFigureStrategy>());
+    registry_.register_phrase (std::make_unique<DefaultPhraseStrategy>());
+    registry_.register_passage(std::make_unique<DefaultPassageStrategy>());
 
-    // Shape strategies (Phase 2)
-    registry_.register_strategy(std::make_unique<ShapeScalarRunStrategy>());
-    registry_.register_strategy(std::make_unique<ShapeRepeatedNoteStrategy>());
-    registry_.register_strategy(std::make_unique<ShapeHeldNoteStrategy>());
-    registry_.register_strategy(std::make_unique<ShapeCadentialApproachStrategy>());
-    registry_.register_strategy(std::make_unique<ShapeTriadicOutlineStrategy>());
-    registry_.register_strategy(std::make_unique<ShapeNeighborToneStrategy>());
-    registry_.register_strategy(std::make_unique<ShapeLeapAndFillStrategy>());
-    registry_.register_strategy(std::make_unique<ShapeScalarReturnStrategy>());
-    registry_.register_strategy(std::make_unique<ShapeAnacrusisStrategy>());
-    registry_.register_strategy(std::make_unique<ShapeZigzagStrategy>());
-    registry_.register_strategy(std::make_unique<ShapeFanfareStrategy>());
-    registry_.register_strategy(std::make_unique<ShapeSighStrategy>());
-    registry_.register_strategy(std::make_unique<ShapeSuspensionStrategy>());
-    registry_.register_strategy(std::make_unique<ShapeCambiataStrategy>());
-    registry_.register_strategy(std::make_unique<ShapeSkippingStrategy>());
-    registry_.register_strategy(std::make_unique<ShapeSteppingStrategy>());
+    // Shape strategies (Phase 2) — all Figure-level
+    registry_.register_figure(std::make_unique<ShapeScalarRunStrategy>());
+    registry_.register_figure(std::make_unique<ShapeRepeatedNoteStrategy>());
+    registry_.register_figure(std::make_unique<ShapeHeldNoteStrategy>());
+    registry_.register_figure(std::make_unique<ShapeCadentialApproachStrategy>());
+    registry_.register_figure(std::make_unique<ShapeTriadicOutlineStrategy>());
+    registry_.register_figure(std::make_unique<ShapeNeighborToneStrategy>());
+    registry_.register_figure(std::make_unique<ShapeLeapAndFillStrategy>());
+    registry_.register_figure(std::make_unique<ShapeScalarReturnStrategy>());
+    registry_.register_figure(std::make_unique<ShapeAnacrusisStrategy>());
+    registry_.register_figure(std::make_unique<ShapeZigzagStrategy>());
+    registry_.register_figure(std::make_unique<ShapeFanfareStrategy>());
+    registry_.register_figure(std::make_unique<ShapeSighStrategy>());
+    registry_.register_figure(std::make_unique<ShapeSuspensionStrategy>());
+    registry_.register_figure(std::make_unique<ShapeCambiataStrategy>());
+    registry_.register_figure(std::make_unique<ShapeSkippingStrategy>());
+    registry_.register_figure(std::make_unique<ShapeSteppingStrategy>());
 
     // Phrase strategies (Phase 3)
-    registry_.register_strategy(std::make_unique<PeriodPhraseStrategy>());
-    registry_.register_strategy(std::make_unique<SentencePhraseStrategy>());
+    registry_.register_phrase(std::make_unique<PeriodPhraseStrategy>());
+    registry_.register_phrase(std::make_unique<SentencePhraseStrategy>());
 
     // Passage strategies (Task 7)
-    registry_.register_strategy(std::make_unique<AlternatingFigureStrategy>());
+    registry_.register_passage(std::make_unique<AlternatingFigureStrategy>());
   }
 
   // --- Top-level composition ---
@@ -81,17 +81,17 @@ struct Composer {
   // --- Dispatchers called from strategies ---
   MelodicFigure realize_figure(const FigureTemplate& figTmpl,
                                StrategyContext& ctx) {
-    Strategy* s = registry_.get("default_figure");
+    FigureStrategy* s = registry_.resolve_figure("default_figure");
     return s->realize_figure(figTmpl, ctx);
   }
 
   Phrase realize_phrase(const PhraseTemplate& phraseTmpl,
                         StrategyContext& ctx) {
     std::string n = phraseTmpl.strategy.empty() ? std::string("default_phrase") : phraseTmpl.strategy;
-    Strategy* s = registry_.get(n);
+    PhraseStrategy* s = registry_.resolve_phrase(n);
     if (!s) {
       std::cerr << "Unknown phrase strategy '" << n << "', falling back to default_phrase\n";
-      s = registry_.get("default_phrase");
+      s = registry_.resolve_phrase("default_phrase");
     }
     return s->realize_phrase(phraseTmpl, ctx);
   }
@@ -99,10 +99,10 @@ struct Composer {
   Passage realize_passage(const PassageTemplate& passTmpl,
                           StrategyContext& ctx) {
     std::string n = passTmpl.strategy.empty() ? std::string("default_passage") : passTmpl.strategy;
-    Strategy* s = registry_.get(n);
+    PassageStrategy* s = registry_.resolve_passage(n);
     if (!s) {
       std::cerr << "Unknown passage strategy '" << n << "', falling back to default_passage\n";
-      s = registry_.get("default_passage");
+      s = registry_.resolve_passage("default_passage");
     }
     return s->realize_passage(passTmpl, ctx);
   }
@@ -125,8 +125,8 @@ struct Composer {
   // --- Public registry lookup for Phase 2 shape dispatch ---
   // Named awkwardly to signal it exists specifically for the shape-dispatch
   // path in DefaultFigureStrategy::realize_figure. May be renamed later.
-  Strategy* registry_get_for_phase2(const std::string& name) const {
-    return registry_.get(name);
+  FigureStrategy* registry_get_for_phase2(const std::string& name) const {
+    return registry_.resolve_figure(name);
   }
 
   // --- Public helper used by the IComposer-compatible ClassicalComposer
@@ -726,7 +726,7 @@ inline MelodicFigure DefaultFigureStrategy::realize_figure(
           default:                             shapeName = nullptr; break;
         }
         if (shapeName) {
-          Strategy* s = ctx.composer->registry_get_for_phase2(shapeName);
+          FigureStrategy* s = ctx.composer->registry_get_for_phase2(shapeName);
           if (s) {
             // Stamp figSeed into a local copy so the shape strategy uses the
             // already-consumed draw rather than pulling a second one from ctx.rng.

@@ -22,10 +22,9 @@ struct Composer;
 // code paths, so that a FigureTemplate routed through Composer::realize_figure
 // produces byte-identical output compared to pre-refactor ClassicalComposer.
 // ---------------------------------------------------------------------------
-class DefaultFigureStrategy : public Strategy {
+class DefaultFigureStrategy : public FigureStrategy {
 public:
   std::string name() const override { return "default_figure"; }
-  StrategyLevel level() const override { return StrategyLevel::Figure; }
 
   // realize_figure is DECLARED here, but DEFINED in composer.h below the
   // Composer class. Its body needs the full definition of Composer to call
@@ -247,10 +246,9 @@ inline FigureShape DefaultFigureStrategy::choose_shape(
 // because the body calls ctx.composer->realize_phrase(...) and Composer is
 // only forward-declared in this file. Same pattern as DefaultFigureStrategy.
 // ---------------------------------------------------------------------------
-class DefaultPassageStrategy : public Strategy {
+class DefaultPassageStrategy : public PassageStrategy {
 public:
   std::string name() const override { return "default_passage"; }
-  StrategyLevel level() const override { return StrategyLevel::Passage; }
 
   Passage realize_passage(const PassageTemplate& passTmpl,
                           StrategyContext& ctx) override;
@@ -276,10 +274,9 @@ public:
 // and ctx.rng points at Composer::rng_ (set up in Task 7), so the sequence
 // of rng() calls hits the same underlying generator in the same order.
 // ---------------------------------------------------------------------------
-class DefaultPhraseStrategy : public Strategy {
+class DefaultPhraseStrategy : public PhraseStrategy {
 public:
   std::string name() const override { return "default_phrase"; }
-  StrategyLevel level() const override { return StrategyLevel::Phrase; }
 
   Phrase realize_phrase(const PhraseTemplate& phraseTmpl,
                         StrategyContext& ctx) override;

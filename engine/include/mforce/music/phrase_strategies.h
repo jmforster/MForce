@@ -17,10 +17,9 @@ struct Composer;  // forward declaration
 // ---------------------------------------------------------------------------
 // PeriodPhraseStrategy — classical period (antecedent + consequent)
 // ---------------------------------------------------------------------------
-class PeriodPhraseStrategy : public Strategy {
+class PeriodPhraseStrategy : public PhraseStrategy {
 public:
   std::string name() const override { return "period_phrase"; }
-  StrategyLevel level() const override { return StrategyLevel::Phrase; }
   Phrase realize_phrase(const PhraseTemplate& phraseTmpl,
                         StrategyContext& ctx) override;
 };
@@ -28,10 +27,9 @@ public:
 // ---------------------------------------------------------------------------
 // SentencePhraseStrategy — classical sentence (basic idea + repeat + continuation)
 // ---------------------------------------------------------------------------
-class SentencePhraseStrategy : public Strategy {
+class SentencePhraseStrategy : public PhraseStrategy {
 public:
   std::string name() const override { return "sentence_phrase"; }
-  StrategyLevel level() const override { return StrategyLevel::Phrase; }
   Phrase realize_phrase(const PhraseTemplate& phraseTmpl,
                         StrategyContext& ctx) override;
 };
