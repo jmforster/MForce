@@ -11,6 +11,9 @@
 #include "mforce/source/white_noise_source.h"
 #include "mforce/source/noise_sources.h"
 #include "mforce/source/wander_noise_source.h"
+#include "mforce/source/sort_oscillator.h"
+#include "mforce/source/gray_scott_source.h"
+#include "mforce/source/fitzhugh_nagumo_source.h"
 #include "mforce/source/wavetable_source.h"
 #include "mforce/source/hybrid_ks_source.h"
 #include "mforce/source/combined_source.h"
@@ -56,6 +59,21 @@ void register_all_sources() {
 
     reg.register_type("FMSource", SourceCategory::Oscillator,
         [](int sr, auto) { return std::make_shared<FMSource>(sr); });
+
+    reg.register_type("SortOscillator", SourceCategory::Oscillator,
+        [](int sr, auto seed) {
+            return std::make_shared<SortOscillator>(sr, seed.value_or(0x5041'7201u));
+        });
+
+    reg.register_type("GrayScottSource", SourceCategory::Oscillator,
+        [](int sr, auto seed) {
+            return std::make_shared<GrayScottSource>(sr, seed.value_or(0x6783'0001u));
+        });
+
+    reg.register_type("FitzhughNagumoSource", SourceCategory::Oscillator,
+        [](int sr, auto seed) {
+            return std::make_shared<FitzhughNagumoSource>(sr, seed.value_or(0xF417'0001u));
+        });
 
     // -----------------------------------------------------------------------
     // Additive — BasicAdditiveSource (simple), AdditiveSource (full via Partials)

@@ -2682,6 +2682,14 @@ static void show_create_menu() {
         ImGui::EndMenu();
     }
 
+    // --- Exotic ---
+    if (ImGui::BeginMenu("Exotic")) {
+        menu_source("Sort Oscillator", "SortOscillator");
+        menu_source("Gray-Scott", "GrayScottSource");
+        menu_source("FitzHugh-Nagumo", "FitzhughNagumoSource");
+        ImGui::EndMenu();
+    }
+
     // --- Wavetable ---
     if (ImGui::BeginMenu("Wavetable")) {
         menu_source("Wavetable", "WavetableSource");
