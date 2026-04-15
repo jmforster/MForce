@@ -398,6 +398,47 @@ The `{motif_rhythm: "A_rhythm_tail", steps: [1, -1]}` shape is a FigureTemplate 
 
 Render target: produces a WAV recognizable as K467's opening. Not required to be bit-identical to the DURN version — motifs are simplifications of Mozart's actual figures. A new golden hash pins this render in a follow-up addendum to `2026-04-14-baseline-hashes.txt`.
 
+### Harmony resolution — `ChordProgressionBuilder`
+
+The chord progression for a Section lives on `Section::chordProgression` (existing `std::optional<ChordProgression>`). Not duplicated onto `PassageTemplate`. The question is **who writes it**, and when. Two modes coexist:
+
+**Simple mode (melody-only, derivable harmony).** The Section's PassageStrategy (for the one Part, during its `plan_*` phase) derives and writes the progression itself from key + phrase-boundary cadence types. `PeriodPassageStrategy` will do this for K467 bars 1–12: the progression is trivially determinable from "C major + HC on bar 2 + IAC on bar 4 + HC on bar 8 + PAC on bar 12" as `I – V | I – V7 – I | I – V7 – I – V | I – V7 – I – V7 – I` (or similar; exact shape is a strategy decision).
+
+**Complex mode (multi-Part, non-derivable, or user-specified harmony).** Before dispatching any PassageStrategy for the Section, Composer invokes a `ChordProgressionBuilder::build(name, beats)` lookup (for a named progression authored in JSON via `sectionTemplate.progressionName`) OR — eventually — a context-aware `ChordProgressionStrategy`. Resulting progression is stored on `Section::chordProgression`. PassageStrategies for every Part then consume the fixed progression as-is.
+
+**Composer's pre-dispatch harmony-resolution logic:**
+
+```
+For each Section:
+  if Section.chordProgression is already populated:
+    # Authored inline in JSON, or filled by a prior run — use as-is.
+    pass
+  elif sectionTemplate.progressionName is non-empty:
+    Section.chordProgression = ChordProgressionBuilder::build(progressionName, beats)
+  else:
+    # Simple mode: leave empty. PassageStrategy.plan_* may fill it.
+    # WARN at runtime if the Section has > 1 Part (ambiguous — only one
+    # Part will end up writing, and the race is undefined).
+    pass
+```
+
+**Rename: `HarmonyComposer` → `ChordProgressionBuilder`.** Current name is over-promoted (`Composer` already means the orchestrator class) and "Harmony" is ambiguous (contrapuntal coincidence, voicing, inversions — none of which this type handles). The renamed type is more honest: it builds chord progressions from named recipes. Same API, just the name change:
+
+```cpp
+struct ChordProgressionBuilder {
+  static ChordProgression build(const std::string& progressionName, float totalBeats);
+  static std::vector<std::string> available();
+  // Private: named-lambda map, same 5 entries as today
+  // (I-V7-V7-I / I-IV-V-I / I-V-vi-IV / ii-V-I / I).
+};
+```
+
+File: `engine/include/mforce/music/chord_progression_builder.h`. Single call-site change in `composer.h`.
+
+**Throwaway status — explicit.** `ChordProgressionBuilder` retains the throwaway-grade character flagged in the original `HarmonyComposer` comment: hard-coded named lambdas, no context awareness (doesn't know the Piece key, doesn't consult prior Sections, doesn't plan modulations). It solves exactly one problem: "stop making every patch hand-author a 4-chord array in JSON." That problem will keep getting solved, but the implementation is deliberately a placeholder.
+
+**What's next (explicit, not this spec).** After this spec's work lands and K467 bars 1–12 renders, the **next piece of design work is upgrading `ChordProgressionBuilder` into a pluggable `ChordProgressionStrategy`** — a proper strategy that takes a Section template as seed, can consult prior Sections' keys and cadence targets, and can plan modulations. That strategy will inherit the plan/compose two-phase interface from this spec. The current named-builder map becomes the default implementation (one strategy among several), and richer strategies (classical modulation planner, jazz reharmonization, etc.) plug in as peers. WAGNI for now — we don't have a concrete case that needs it beyond K467, and K467 itself is too simple to motivate it. But it's the next natural step and should not surprise anyone when it lands.
+
 ## Migration plan
 
 Staged, each golden-hash verified against `2026-04-14-baseline-hashes.txt`.
@@ -415,6 +456,8 @@ Staged, each golden-hash verified against `2026-04-14-baseline-hashes.txt`.
 **Stage 5 — `Motif` metadata expansion.** Add `roles`, `origin`, `derivedFrom`, `transform`, `transformParam`. JSON round-trip, defaults. Verify.
 
 **Stage 6 — History query helpers.** `reader_before`, `range_in_*_before` in `piece_utils`. Additive, no consumer. Verify.
+
+**Stage 6b — Rename `HarmonyComposer` → `ChordProgressionBuilder`.** Move file (`harmony_composer.h` → `chord_progression_builder.h`), rename type, update the one call site in `composer.h::setup_piece_`, update any includes. Purely mechanical; no behavioral change. Verify goldens match.
 
 **Stage 7 — Plan/compose strategy split.** Add default `plan_*` methods (no-op returning seed) to `FigureStrategy` / `PhraseStrategy` / `PassageStrategy`. Rename `realize_*` → `compose_*` across all existing strategies and Composer's dispatchers. Composer's entry path now calls `plan_*` then `compose_*`. Verify (all existing strategies have no-op plan, so behavior unchanged).
 
@@ -447,6 +490,7 @@ Stages 7 and 9–12 are the substantive content; 0–6 are infrastructure prereq
 - **Role set**: `{Thematic, Cadential, PostCadential, Discursive, Climactic, Connective, Ornamental}`, multi-tag, empty default.
 - **Derivation model**: `derivedFrom` stores immediate parent; root ancestor is a walk.
 - **`PeriodPhraseStrategy` stays** as backward-compat; new work targets `PeriodPassageStrategy`.
+- **Harmony resolution: simple mode (PassageStrategy.plan fills Section.chordProgression) or complex mode (Composer pre-dispatches `ChordProgressionBuilder::build` when `progressionName` is set).** Renamed from `HarmonyComposer`. Throwaway-grade retained; context-aware `ChordProgressionStrategy` is the explicit next spec after this one.
 
 ## Open questions parked
 
