@@ -278,6 +278,13 @@ public:
 
   Phrase compose_phrase(Locus locus, const PhraseTemplate& phraseTmpl) override;
   static int degree_in_scale(const Pitch& pitch, const Scale& scale);
+  // Adjusts ONLY the last figure of the phrase to land on cadenceTarget.
+  // When a phrase's cadential tail spans multiple figures (e.g., K467 bars
+  // 7-8 where bar 7's two figures approach and bar 8 arrives), the earlier
+  // figures shape the approach trajectory but are NOT target-adjusted —
+  // only the final arrival figure is. This matches classical cadence
+  // structure: the "tail" is a sequence of figures (author's choice of how
+  // many), and only the arrival needs target-landing logic.
   static void apply_cadence(Phrase& phrase, const PhraseTemplate& tmpl,
                             const Scale& scale);
 };
