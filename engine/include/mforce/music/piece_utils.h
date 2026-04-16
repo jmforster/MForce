@@ -87,4 +87,138 @@ inline Pitch pitch_before(const Locus& locus) {
   return Pitch{};
 }
 
+// Convenience: a PitchReader seeded to pitch_before(locus), with the current
+// section's scale. Strategies that need to walk forward from the prior cursor
+// use this instead of constructing a PitchReader manually.
+inline PitchReader reader_before(const Locus& locus) {
+  const Scale& scale = locus.piece->sections[locus.sectionIdx].scale;
+  PitchReader pr(scale);
+  pr.set_pitch(pitch_before(locus));
+  return pr;
+}
+
+// Pitch-range query. "Before" semantics: considers realized content up to
+// (but not including) this Locus position, within the named scope.
+//
+// If no realized content precedes this Locus within the scope, `empty` is
+// true and lowest/highest are default-constructed — callers must check
+// `empty` before using the pitches.
+struct PitchRange {
+  Pitch lowest;
+  Pitch highest;
+  bool empty{true};
+};
+
+namespace detail {
+// Advance a PitchReader across one figure's units, updating range. Walks
+// using step semantics (matching DefaultPassageStrategy's cursor walk).
+inline void update_range_from_figure(const Figure& fig, PitchReader& pr,
+                                      PitchRange& r) {
+  for (const auto& unit : fig.units) {
+    pr.step(unit.step);
+    if (unit.rest) continue;
+    Pitch p = pr.get_pitch();
+    float nn = p.note_number();
+    if (r.empty) {
+      r.lowest = p; r.highest = p; r.empty = false;
+    } else {
+      if (nn < r.lowest.note_number())  r.lowest  = p;
+      if (nn > r.highest.note_number()) r.highest = p;
+    }
+  }
+}
+} // namespace detail
+
+// Lowest / highest pitches realized within the CURRENT phrase, from figure 0
+// up to (but not including) locus.figureIdx. If locus.figureIdx <= 0 or the
+// current phrase has no realized content yet, returns empty=true.
+inline PitchRange range_in_phrase_before(const Locus& locus) {
+  PitchRange r;
+  const Passage* pass = passage_at(locus);
+  if (!pass) return r;
+  if (locus.phraseIdx < 0 || locus.phraseIdx >= (int)pass->phrases.size()) return r;
+
+  const Phrase& ph = pass->phrases[locus.phraseIdx];
+  const Scale& scale = locus.piece->sections[locus.sectionIdx].scale;
+  PitchReader pr(scale);
+  pr.set_pitch(ph.startingPitch);
+
+  int endFig = locus.figureIdx < 0 ? (int)ph.figures.size() : locus.figureIdx;
+  for (int fi = 0; fi < endFig; ++fi) {
+    detail::update_range_from_figure(*ph.figures[fi], pr, r);
+  }
+  return r;
+}
+
+// Lowest / highest pitches realized across the CURRENT passage up to (but
+// not including) this Locus position. All phrases 0..phraseIdx-1 walked
+// completely, plus phrase phraseIdx up to figure figureIdx.
+inline PitchRange range_in_passage_before(const Locus& locus) {
+  PitchRange r;
+  const Passage* pass = passage_at(locus);
+  if (!pass) return r;
+
+  const auto& sectionName = locus.piece->sections[locus.sectionIdx].name;
+  const auto& partTmpl = locus.pieceTemplate->parts[locus.partIdx];
+  auto tmplIt = partTmpl.passages.find(sectionName);
+  if (tmplIt == partTmpl.passages.end()) return r;
+  const PassageTemplate& passTmpl = tmplIt->second;
+
+  const Scale& scale = locus.piece->sections[locus.sectionIdx].scale;
+  PitchReader pr(scale);
+  Pitch seed = passTmpl.startingPitch ? *passTmpl.startingPitch
+               : (pass->phrases.empty() ? Pitch{} : pass->phrases[0].startingPitch);
+  pr.set_pitch(seed);
+
+  int endPhrase = locus.phraseIdx < 0 ? (int)pass->phrases.size() : locus.phraseIdx;
+  for (int pi = 0; pi < endPhrase; ++pi) {
+    for (const auto& fig : pass->phrases[pi].figures) {
+      detail::update_range_from_figure(*fig, pr, r);
+    }
+  }
+  if (locus.phraseIdx >= 0 && locus.phraseIdx < (int)pass->phrases.size() && locus.figureIdx > 0) {
+    const Phrase& ph = pass->phrases[locus.phraseIdx];
+    int endFig = std::min(locus.figureIdx, (int)ph.figures.size());
+    for (int fi = 0; fi < endFig; ++fi) {
+      detail::update_range_from_figure(*ph.figures[fi], pr, r);
+    }
+  }
+  return r;
+}
+
+// Lowest / highest pitches realized within this Part across the whole Piece
+// up to (but not including) this Locus position. Walks every prior section's
+// passage for this Part fully, plus the current passage partially via
+// range_in_passage_before.
+inline PitchRange range_in_piece_before(const Locus& locus) {
+  PitchRange r;
+  if (locus.partIdx < 0 || locus.partIdx >= (int)locus.piece->parts.size()) return r;
+  const Part& part = locus.piece->parts[locus.partIdx];
+
+  for (int si = 0; si < locus.sectionIdx; ++si) {
+    const auto& secName = locus.piece->sections[si].name;
+    auto it = part.passages.find(secName);
+    if (it == part.passages.end()) continue;
+    const Scale& scale = locus.piece->sections[si].scale;
+    PitchReader pr(scale);
+    if (!it->second.phrases.empty()) pr.set_pitch(it->second.phrases[0].startingPitch);
+    for (const auto& ph : it->second.phrases) {
+      for (const auto& fig : ph.figures) {
+        detail::update_range_from_figure(*fig, pr, r);
+      }
+    }
+  }
+
+  // Merge in current-passage partial.
+  PitchRange partial = range_in_passage_before(locus);
+  if (!partial.empty) {
+    if (r.empty) { r = partial; }
+    else {
+      if (partial.lowest.note_number()  < r.lowest.note_number())  r.lowest  = partial.lowest;
+      if (partial.highest.note_number() > r.highest.note_number()) r.highest = partial.highest;
+    }
+  }
+  return r;
+}
+
 } // namespace mforce::piece_utils
