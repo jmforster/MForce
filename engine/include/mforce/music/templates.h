@@ -285,8 +285,16 @@ struct PieceTemplate {
     Meter meter{Meter::M_4_4};
     float bpm{120.0f};
 
-    // Motif material
+    // Motif material — declarations.
     std::vector<Motif> motifs;
+
+    // Motif material — realized content, populated by mforce::realize_motifs
+    // during Composer::setup_piece_. Keyed by motif name. Strategies read
+    // these during the compose phase; during plan phase (Plan B) strategies
+    // may add to them via add_motif.
+    std::unordered_map<std::string, MelodicFigure> realizedMotifs;
+    std::unordered_map<std::string, PulseSequence> realizedRhythms;
+    std::unordered_map<std::string, StepSequence>  realizedContours;
 
     // Section definitions (in order)
     struct SectionDef {
@@ -315,10 +323,24 @@ struct PieceTemplate {
     float defaultPulse{0.0f};        // 0 = composer picks once at realize time
     uint32_t masterSeed{0};
 
-    // Helpers
+    // Helpers — declaration lookup.
     const Motif* find_motif(const std::string& name) const {
         for (auto& m : motifs) if (m.name == name) return &m;
         return nullptr;
+    }
+
+    // Helpers — realized-content lookup. Names match Composer's legacy
+    // accessors so migration is a textual substitution.
+    const std::unordered_map<std::string, MelodicFigure>& realized_motifs() const {
+        return realizedMotifs;
+    }
+    const PulseSequence* find_rhythm_motif(const std::string& name) const {
+        auto it = realizedRhythms.find(name);
+        return it == realizedRhythms.end() ? nullptr : &it->second;
+    }
+    const StepSequence* find_contour_motif(const std::string& name) const {
+        auto it = realizedContours.find(name);
+        return it == realizedContours.end() ? nullptr : &it->second;
     }
 };
 

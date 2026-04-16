@@ -19,6 +19,67 @@
 namespace mforce {
 
 // ---------------------------------------------------------------------------
+// realize_motifs — free function
+//
+// Walks a PieceTemplate's Motif declarations and populates its realizedMotifs
+// / realizedRhythms / realizedContours maps. Called by Composer::setup_piece_
+// after template load. Non-const PieceTemplate& because it writes into the
+// realized maps. Takes a Randomizer& for generation-seed fallback draws.
+//
+// Lifted verbatim from the pre-refactor ClassicalComposer::realize_motifs and
+// its port to Composer::realize_motifs_. No behavioral change.
+// ---------------------------------------------------------------------------
+inline void realize_motifs(PieceTemplate& tmpl, Randomizer& rng) {
+  tmpl.realizedMotifs.clear();
+  tmpl.realizedRhythms.clear();
+  tmpl.realizedContours.clear();
+
+  // Pick a shared pulse for all generated motifs (phrase-level coherence).
+  float sharedPulse = tmpl.defaultPulse;
+  if (sharedPulse <= 0) {
+    Randomizer pulseRng(rng.rng());
+    static const float pulses[] = {0.5f, 0.5f, 1.0f, 1.0f, 1.0f, 1.5f, 2.0f};
+    sharedPulse = pulses[pulseRng.int_range(0, 6)];
+  }
+
+  for (auto& motif : tmpl.motifs) {
+    if (motif.is_rhythm()) {
+      if (motif.userProvided || !motif.rhythm().pulses.empty()) {
+        tmpl.realizedRhythms[motif.name] = motif.rhythm();
+      } else {
+        uint32_t s = motif.generationSeed ? motif.generationSeed : rng.rng();
+        float totalBeats = 4.0f;
+        if (motif.constraints && motif.constraints->totalBeats > 0)
+          totalBeats = motif.constraints->totalBeats;
+        PulseGenerator pgen(s);
+        tmpl.realizedRhythms[motif.name] = pgen.generate(totalBeats, sharedPulse);
+      }
+    } else if (motif.is_contour()) {
+      if (motif.userProvided || !motif.contour().steps.empty()) {
+        tmpl.realizedContours[motif.name] = motif.contour();
+      } else {
+        uint32_t s = motif.generationSeed ? motif.generationSeed : rng.rng();
+        int length = 4;
+        if (motif.constraints && motif.constraints->maxNotes > 0)
+          length = motif.constraints->maxNotes;
+        StepGenerator sgen(s);
+        tmpl.realizedContours[motif.name] = sgen.random_sequence(length);
+      }
+    } else {
+      if (motif.userProvided || !motif.figure().units.empty()) {
+        tmpl.realizedMotifs[motif.name] = motif.figure();
+      } else {
+        uint32_t s = motif.generationSeed ? motif.generationSeed : rng.rng();
+        FigureTemplate ft = motif.constraints.value_or(FigureTemplate{});
+        if (ft.defaultPulse <= 0) ft.defaultPulse = sharedPulse;
+        DefaultFigureStrategy figStrat;
+        tmpl.realizedMotifs[motif.name] = figStrat.generate_figure(ft, s);
+      }
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Composer
 //
 // Owns the StrategyRegistry, the master RNG, and the realized-seed pool.
@@ -185,60 +246,25 @@ private:
     realize_motifs_(piece, tmpl);
   }
 
-  // ---- Pre-refactor port: ClassicalComposer::realize_motifs ---------------
+  // ---- Thin wrapper around the free realize_motifs function. -------------
+  //
+  // Transition mode: the free function writes into PieceTemplate's realized
+  // maps; we mirror those into Composer's member maps so existing callers
+  // (`composer->realized_motifs()` etc.) keep working until Task 2 migrates
+  // them to read directly from PieceTemplate. Task 3 deletes these members
+  // + the mirror.
+  //
+  // const_cast is transitional: setup_piece_ / compose() currently take
+  // `const PieceTemplate&`; the free function mutates the realized maps.
+  // When compose() signature changes to take non-const PieceTemplate& (Plan
+  // B's plan() phase requires it), the const_cast goes away.
   void realize_motifs_(const Piece& /*piece*/, const PieceTemplate& tmpl) {
-    realizedMotifs_.clear();
-    realizedRhythms_.clear();
-    realizedContours_.clear();
-
-    // Pick a shared pulse for all generated motifs (phrase-level coherence).
-    // Use piece-level default if specified, otherwise randomize once.
-    float sharedPulse = tmpl.defaultPulse;
-    if (sharedPulse <= 0) {
-      Randomizer pulseRng(rng_.rng());
-      static const float pulses[] = {0.5f, 0.5f, 1.0f, 1.0f, 1.0f, 1.5f, 2.0f};
-      sharedPulse = pulses[pulseRng.int_range(0, 6)];
-    }
-
-    for (auto& motif : tmpl.motifs) {
-      if (motif.is_rhythm()) {
-        // PulseSequence motif
-        if (motif.userProvided || !motif.rhythm().pulses.empty()) {
-          realizedRhythms_[motif.name] = motif.rhythm();
-        } else {
-          uint32_t s = motif.generationSeed ? motif.generationSeed : rng_.rng();
-          float totalBeats = 4.0f;
-          if (motif.constraints && motif.constraints->totalBeats > 0)
-            totalBeats = motif.constraints->totalBeats;
-          PulseGenerator pgen(s);
-          realizedRhythms_[motif.name] = pgen.generate(totalBeats, sharedPulse);
-        }
-      } else if (motif.is_contour()) {
-        // StepSequence motif
-        if (motif.userProvided || !motif.contour().steps.empty()) {
-          realizedContours_[motif.name] = motif.contour();
-        } else {
-          uint32_t s = motif.generationSeed ? motif.generationSeed : rng_.rng();
-          int length = 4;
-          if (motif.constraints && motif.constraints->maxNotes > 0)
-            length = motif.constraints->maxNotes;
-          StepGenerator sgen(s);
-          realizedContours_[motif.name] = sgen.random_sequence(length);
-        }
-      } else {
-        // MelodicFigure motif (existing path, unchanged)
-        if (motif.userProvided || !motif.figure().units.empty()) {
-          realizedMotifs_[motif.name] = motif.figure();
-        } else {
-          uint32_t s = motif.generationSeed ? motif.generationSeed : rng_.rng();
-          FigureTemplate ft = motif.constraints.value_or(FigureTemplate{});
-          // Inherit shared pulse if the motif doesn't specify its own
-          if (ft.defaultPulse <= 0) ft.defaultPulse = sharedPulse;
-          DefaultFigureStrategy figStrat;
-          realizedMotifs_[motif.name] = figStrat.generate_figure(ft, s);
-        }
-      }
-    }
+    PieceTemplate& tmplMut = const_cast<PieceTemplate&>(tmpl);
+    ::mforce::realize_motifs(tmplMut, rng_);
+    // Mirror for backward compat — callers still read Composer's maps.
+    realizedMotifs_   = tmplMut.realizedMotifs;
+    realizedRhythms_  = tmplMut.realizedRhythms;
+    realizedContours_ = tmplMut.realizedContours;
   }
 
   // ---- Pre-refactor port: ClassicalComposer::generate_default_passage -----
