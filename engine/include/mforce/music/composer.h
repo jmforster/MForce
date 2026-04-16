@@ -925,6 +925,15 @@ inline Phrase DefaultPhraseStrategy::realize_phrase(
       fig = fs->realize_figure(figLocus, figTmpl);
     }
 
+    // Apply FigureConnector.leadStep to the new figure's first unit.
+    // Default leadStep=0 makes this a no-op; non-zero adds to the authored
+    // first-step so the figure is placed at prior-cursor + leadStep.
+    // Existing templates author leadStep=0, so goldens are unaffected.
+    if (i > 0 && i < int(phraseTmpl.connectors.size())
+        && phraseTmpl.connectors[i] && !fig.units.empty()) {
+      fig.units[0].step += phraseTmpl.connectors[i]->leadStep;
+    }
+
     // Advance running cursor by the figure's net scale-degree movement.
     // Rest units contribute step=0 so they don't advance the cursor.
     runningReader.step(fig.net_step());

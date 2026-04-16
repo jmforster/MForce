@@ -614,6 +614,11 @@ struct FigureConnector {
   int elideCount{0};     // notes removed from the END of the preceding figure
   float adjustCount{0};  // beats added to (+) or removed from (-) the
                          // preceding figure's last surviving unit
+  int leadStep{0};       // step to place the following figure's first note
+                         // from the (post-elide/adjust) cursor. Applied
+                         // additively to the figure's authored first-unit
+                         // step at realization time. Default 0 matches
+                         // legacy behavior (no placement offset).
 };
 
 // ---------------------------------------------------------------------------

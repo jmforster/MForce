@@ -426,6 +426,7 @@ inline void to_json(json& j, const PhraseTemplate& pt) {
                 json cj = json::object();
                 if (c->elideCount != 0) cj["elide"] = c->elideCount;
                 if (c->adjustCount != 0) cj["adjust"] = c->adjustCount;
+                if (c->leadStep != 0) cj["leadStep"] = c->leadStep;
                 connArr.push_back(cj);
             }
         }
@@ -465,15 +466,22 @@ inline void from_json(const json& j, PhraseTemplate& pt) {
     }
 
     // Connectors: optional parallel vector; when absent, leave empty.
+    // Accepts null (default connector), an integer (bare leadStep shorthand),
+    // or a full object with elide/adjust/leadStep fields.
     if (j.contains("connectors")) {
         pt.connectors.clear();
         for (const auto& cj : j.at("connectors")) {
             if (cj.is_null()) {
                 pt.connectors.push_back(std::nullopt);
+            } else if (cj.is_number_integer()) {
+                FigureConnector fc;
+                fc.leadStep = cj.get<int>();
+                pt.connectors.push_back(fc);
             } else {
                 FigureConnector fc;
                 fc.elideCount = cj.value("elide", 0);
                 fc.adjustCount = cj.value("adjust", 0.0f);
+                fc.leadStep = cj.value("leadStep", 0);
                 pt.connectors.push_back(fc);
             }
         }
