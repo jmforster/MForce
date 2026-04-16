@@ -56,4 +56,4 @@ k467_structural_1.wav    4fd9cfee693fbcef6ca6756b49e6289e3518c446217743b384d6533
 # isn't right).
 # -----------------------------------------------------------------------------
 
-k467_period_1.wav        5a52eee3b1c7b3df234c1ecb4858862d4d92fb84fc8b5dcdc07430d9ef27c376
+k467_period_1.wav        833275035254234e9f016532df82023a2908c92bbb0ef96d3a8d07441a35f145

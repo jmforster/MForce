@@ -124,20 +124,46 @@ inline PassageTemplate PeriodPassageStrategy::plan_passage(
 inline Passage PeriodPassageStrategy::compose_passage(
     Locus locus, const PassageTemplate& pt) {
   Passage passage;
+
+  if (!pt.startingPitch) return passage;
+
+  const Scale& scale = locus.piece->sections[locus.sectionIdx].scale;
+  PitchReader runningReader(scale);
+  runningReader.set_pitch(*pt.startingPitch);
+
   for (int i = 0; i < (int)pt.phrases.size(); ++i) {
     const PhraseTemplate& phraseTmpl = pt.phrases[i];
     if (phraseTmpl.locked) continue;
 
-    std::string pn = phraseTmpl.strategy.empty()
+    // Compute this phrase's startingPitch from the local running cursor.
+    // Same pattern as DefaultPassageStrategy: the passage being built is
+    // local and not yet in piece.parts[], so pitch_before(locus) can't
+    // see prior phrases. We track the cursor locally instead.
+    PhraseTemplate localTmpl = phraseTmpl;
+    if (!localTmpl.startingPitch) {
+      localTmpl.startingPitch = runningReader.get_pitch();
+    } else {
+      runningReader.set_pitch(*localTmpl.startingPitch);
+    }
+
+    std::string pn = localTmpl.strategy.empty()
                      ? std::string("default_phrase")
-                     : phraseTmpl.strategy;
+                     : localTmpl.strategy;
     PhraseStrategy* ps = StrategyRegistry::instance().resolve_phrase(pn);
     if (!ps) {
       std::cerr << "Unknown phrase strategy '" << pn
                 << "', falling back to default_phrase\n";
       ps = StrategyRegistry::instance().resolve_phrase("default_phrase");
     }
-    Phrase phrase = ps->compose_phrase(locus.with_phrase(i), phraseTmpl);
+    Phrase phrase = ps->compose_phrase(locus.with_phrase(i), localTmpl);
+
+    // Advance running cursor through all realized figures in this phrase.
+    for (const auto& fig : phrase.figures) {
+      for (const auto& u : fig->units) {
+        runningReader.step(u.step);
+      }
+    }
+
     passage.add_phrase(std::move(phrase));
   }
   return passage;
