@@ -260,6 +260,38 @@ struct PhraseTemplate {
 };
 
 // ===========================================================================
+// PeriodVariant — how a period's consequent relates to its antecedent.
+// ===========================================================================
+
+enum class PeriodVariant {
+    Parallel,     // consequent motifs = antecedent motifs (verbatim)
+    Modified,     // consequent motifs derived via transform from antecedent
+    Contrasting,  // consequent motifs independent
+};
+
+// ===========================================================================
+// PeriodSpec — one period inside a PassageTemplate.periods[] list.
+// ===========================================================================
+
+struct PeriodSpec {
+    PeriodVariant variant{PeriodVariant::Parallel};
+    float bars{4.0f};
+
+    PhraseTemplate antecedent;   // cadenceType typically 1 (HC)
+    PhraseTemplate consequent;   // cadenceType typically 2 (IAC or PAC)
+
+    // For Modified variant: how the consequent's basicIdea is derived from
+    // the antecedent's. Ignored for Parallel and Contrasting.
+    std::optional<TransformOp> consequentTransform;
+    int consequentTransformParam{0};
+
+    // Optional motif-pool name for a leading connective figure that bridges
+    // from the prior period's final cadence into this period's antecedent.
+    // First PeriodSpec in a list typically has no leadingConnective.
+    std::optional<std::string> leadingConnective;
+};
+
+// ===========================================================================
 // PassageTemplate — what a Part plays during a Section
 // ===========================================================================
 
@@ -281,6 +313,10 @@ struct PassageTemplate {
     // State
     uint32_t seed{0};
     bool locked{false};
+
+    // Period scaffolding (optional). Consumed by period-aware strategies
+    // (PeriodPassageStrategy). Other passage strategies ignore this field.
+    std::vector<PeriodSpec> periods;
 };
 
 // ===========================================================================

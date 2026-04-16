@@ -557,6 +557,95 @@ inline void from_json(const json& j, PhraseTemplate& pt) {
 }
 
 // ===========================================================================
+// PeriodVariant / PeriodSpec
+// ===========================================================================
+
+inline void to_json(json& j, PeriodVariant v) {
+    switch (v) {
+        case PeriodVariant::Parallel:    j = "Parallel"; break;
+        case PeriodVariant::Modified:    j = "Modified"; break;
+        case PeriodVariant::Contrasting: j = "Contrasting"; break;
+    }
+}
+inline void from_json(const json& j, PeriodVariant& v) {
+    auto s = j.get<std::string>();
+    if (s == "Parallel")         v = PeriodVariant::Parallel;
+    else if (s == "Modified")    v = PeriodVariant::Modified;
+    else if (s == "Contrasting") v = PeriodVariant::Contrasting;
+    else throw std::runtime_error("Unknown PeriodVariant: " + s);
+}
+
+inline void to_json(json& j, const PeriodSpec& ps) {
+    j = json::object();
+    j["variant"] = ps.variant;
+    j["bars"] = ps.bars;
+    j["antecedent"] = ps.antecedent;
+    j["consequent"] = ps.consequent;
+    if (ps.consequentTransform) j["consequentTransform"] = *ps.consequentTransform;
+    if (ps.consequentTransformParam != 0) j["consequentTransformParam"] = ps.consequentTransformParam;
+    if (ps.leadingConnective) j["leadingConnective"] = *ps.leadingConnective;
+}
+inline void from_json(const json& j, PeriodSpec& ps) {
+    ps = PeriodSpec{};
+    ps.variant = j.value("variant", PeriodVariant::Parallel);
+    ps.bars = j.value("bars", 4.0f);
+    // The antecedent/consequent PhraseTemplates inside a PeriodSpec don't
+    // require their own startingPitch in JSON — placement comes from the
+    // enclosing PassageTemplate's startingPitch + period flow. So we do
+    // not use from_json(PhraseTemplate) directly (which enforces startingPitch);
+    // instead we read each phrase's fields manually here.
+    auto loadPhrase = [](const json& pj) {
+        PhraseTemplate ph;
+        if (pj.contains("figures")) {
+            for (auto& fj : pj.at("figures")) {
+                FigureTemplate ft; from_json(fj, ft);
+                ph.figures.push_back(std::move(ft));
+            }
+        }
+        ph.name = pj.value("name", std::string(""));
+        if (pj.contains("startingPitch")) {
+            Pitch p; from_json(pj.at("startingPitch"), p);
+            ph.startingPitch = p;
+        }
+        ph.totalBeats = pj.value("totalBeats", 0.0f);
+        ph.cadenceType = pj.value("cadenceType", 0);
+        ph.cadenceTarget = pj.value("cadenceTarget", -1);
+        if (pj.contains("function")) from_json(pj.at("function"), ph.function);
+        ph.seed = pj.value("seed", 0u);
+        ph.locked = pj.value("locked", false);
+        ph.strategy = pj.value("strategy", std::string(""));
+        if (pj.contains("connectors")) {
+            ph.connectors.clear();
+            for (const auto& cj : pj.at("connectors")) {
+                if (cj.is_null()) {
+                    ph.connectors.push_back(std::nullopt);
+                } else if (cj.is_number_integer()) {
+                    FigureConnector fc;
+                    fc.leadStep = cj.get<int>();
+                    ph.connectors.push_back(fc);
+                } else {
+                    FigureConnector fc;
+                    fc.elideCount = cj.value("elide", 0);
+                    fc.adjustCount = cj.value("adjust", 0.0f);
+                    fc.leadStep = cj.value("leadStep", 0);
+                    ph.connectors.push_back(fc);
+                }
+            }
+        }
+        return ph;
+    };
+    ps.antecedent = loadPhrase(j.at("antecedent"));
+    ps.consequent = loadPhrase(j.at("consequent"));
+    if (j.contains("consequentTransform") && !j.at("consequentTransform").is_null()) {
+        ps.consequentTransform = j.at("consequentTransform").get<TransformOp>();
+    }
+    ps.consequentTransformParam = j.value("consequentTransformParam", 0);
+    if (j.contains("leadingConnective") && !j.at("leadingConnective").is_null()) {
+        ps.leadingConnective = j.at("leadingConnective").get<std::string>();
+    }
+}
+
+// ===========================================================================
 // PassageTemplate
 // ===========================================================================
 
@@ -570,6 +659,7 @@ inline void to_json(json& j, const PassageTemplate& pt) {
     if (!pt.strategy.empty()) j["strategy"] = pt.strategy;
     if (pt.seed != 0) j["seed"] = pt.seed;
     if (pt.locked) j["locked"] = true;
+    if (!pt.periods.empty()) j["periods"] = pt.periods;
 }
 
 inline void from_json(const json& j, PassageTemplate& pt) {
@@ -582,10 +672,13 @@ inline void from_json(const json& j, PassageTemplate& pt) {
     from_json(j.at("startingPitch"), p);
     pt.startingPitch = p;
 
+    // phrases[] may be empty when periods[] drives the passage.
     pt.phrases.clear();
-    for (auto& pj : j.at("phrases")) {
-        PhraseTemplate ph; from_json(pj, ph);
-        pt.phrases.push_back(std::move(ph));
+    if (j.contains("phrases") && j.at("phrases").is_array()) {
+        for (auto& pj : j.at("phrases")) {
+            PhraseTemplate ph; from_json(pj, ph);
+            pt.phrases.push_back(std::move(ph));
+        }
     }
     pt.name = j.value("name", std::string(""));
     pt.character = j.value("character", std::string(""));
@@ -594,6 +687,15 @@ inline void from_json(const json& j, PassageTemplate& pt) {
     pt.strategy = j.value("strategy", std::string(""));
     pt.seed = j.value("seed", 0u);
     pt.locked = j.value("locked", false);
+
+    // Optional period scaffolding.
+    if (j.contains("periods") && j.at("periods").is_array()) {
+        pt.periods.clear();
+        for (const auto& pj : j.at("periods")) {
+            PeriodSpec ps; from_json(pj, ps);
+            pt.periods.push_back(std::move(ps));
+        }
+    }
 }
 
 // ===========================================================================
