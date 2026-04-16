@@ -65,11 +65,8 @@ inline PassageTemplate PeriodPassageStrategy::plan_passage(
 
     // Resolve variant into two concrete PhraseTemplates.
     if (p.variant == PeriodVariant::Parallel) {
-      // Consequent starts as a copy of antecedent (same motifs, same
-      // connectors), with cadence fields replaced by the consequent's
-      // authored values. If the authored consequent has explicit figures
-      // (e.g., a PAC tail that differs from the antecedent's HC tail),
-      // those take precedence.
+      // Consequent starts as a copy of antecedent; cadence fields and
+      // explicit consequent figures (if any) override.
       PhraseTemplate ante = p.antecedent;
       PhraseTemplate consq = p.antecedent;
       consq.cadenceType   = p.consequent.cadenceType;
@@ -80,9 +77,42 @@ inline PassageTemplate PeriodPassageStrategy::plan_passage(
       }
       seed.phrases.push_back(std::move(ante));
       seed.phrases.push_back(std::move(consq));
-    } else {
-      // Modified and Contrasting not yet implemented (Task 10).
-      // Fall back to passing antecedent + consequent through verbatim.
+    }
+    else if (p.variant == PeriodVariant::Modified) {
+      // Consequent figure references derive from antecedent's via the
+      // period's consequentTransform. For each Reference-source figure
+      // in the consequent, swap motifName for an auto-derived motif
+      // synthesized via pieceTemplate->add_derived_motif. For non-
+      // Reference figures (Literal, Locked, Generate), pass through.
+      PhraseTemplate ante = p.antecedent;
+      PhraseTemplate consq = p.antecedent;  // start from antecedent
+
+      if (p.consequentTransform) {
+        for (auto& ft : consq.figures) {
+          if (ft.source == FigureSource::Reference && !ft.motifName.empty()) {
+            std::string derivedName = locus.pieceTemplate->add_derived_motif(
+                ft.motifName,
+                *p.consequentTransform,
+                p.consequentTransformParam);
+            ft.motifName = derivedName;
+          }
+        }
+      }
+
+      consq.cadenceType   = p.consequent.cadenceType;
+      consq.cadenceTarget = p.consequent.cadenceTarget;
+      // If the authored consequent has explicit figures, those override
+      // (even in Modified — user's direct expression wins).
+      if (!p.consequent.figures.empty()) {
+        consq.figures = p.consequent.figures;
+        consq.connectors = p.consequent.connectors;
+      }
+      seed.phrases.push_back(std::move(ante));
+      seed.phrases.push_back(std::move(consq));
+    }
+    else { // PeriodVariant::Contrasting
+      // Consequent uses its own authored figures entirely. Antecedent and
+      // consequent are independent.
       seed.phrases.push_back(p.antecedent);
       seed.phrases.push_back(p.consequent);
     }

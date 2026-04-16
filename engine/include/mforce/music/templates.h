@@ -508,9 +508,40 @@ inline std::string PieceTemplate::add_derived_motif(
             derived.content = fb.reverse(std::get<MelodicFigure>(parent->content));
             break;
         }
+        case TransformOp::VarySteps: {
+            if (!std::holds_alternative<MelodicFigure>(parent->content))
+                throw std::runtime_error("VarySteps requires MelodicFigure parent");
+            FigureBuilder fb(parent->generationSeed + 2);
+            MelodicFigure copy = std::get<MelodicFigure>(parent->content);
+            int variations = transformParam > 0 ? transformParam : 1;
+            derived.content = fb.vary_steps(copy, variations);
+            break;
+        }
+        case TransformOp::VaryRhythm: {
+            if (!std::holds_alternative<MelodicFigure>(parent->content))
+                throw std::runtime_error("VaryRhythm requires MelodicFigure parent");
+            FigureBuilder fb(parent->generationSeed + 3);
+            derived.content = fb.vary_rhythm(std::get<MelodicFigure>(parent->content));
+            break;
+        }
+        case TransformOp::RhythmTail: {
+            // Derive a PulseSequence from a MelodicFigure's rhythm, skipping
+            // the first `transformParam` pulses.
+            if (!std::holds_alternative<MelodicFigure>(parent->content))
+                throw std::runtime_error("RhythmTail requires MelodicFigure parent");
+            const MelodicFigure& mf = std::get<MelodicFigure>(parent->content);
+            PulseSequence ps;
+            int skip = transformParam > 0 ? transformParam : 0;
+            for (int i = skip; i < (int)mf.units.size(); ++i) {
+                ps.pulses.push_back(mf.units[i].duration);
+            }
+            derived.content = std::move(ps);
+            break;
+        }
         default:
             throw std::runtime_error(
-                "add_derived_motif: TransformOp not yet supported (Task 10 extends)");
+                "add_derived_motif: TransformOp not supported: "
+                "add a case in the switch if you need it");
     }
 
     add_motif(std::move(derived));
