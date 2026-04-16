@@ -937,10 +937,12 @@ inline Phrase DefaultPhraseStrategy::compose_phrase(
     }
 
     // Apply FigureConnector.leadStep to the new figure's first unit.
-    // Default leadStep=0 makes this a no-op; non-zero adds to the authored
-    // first-step so the figure is placed at prior-cursor + leadStep.
-    // Existing templates author leadStep=0, so goldens are unaffected.
-    if (i > 0 && i < int(phraseTmpl.connectors.size())
+    // Applies for ALL figures including i=0 — connectors[0].leadStep places
+    // the first figure relative to the phrase's startingPitch. For
+    // placement-neutral motifs (first step = 0), this is the sole placement
+    // mechanism. The elide/adjust block above keeps its i>0 guard because
+    // those operate on the PREVIOUS figure (which doesn't exist for i=0).
+    if (i < int(phraseTmpl.connectors.size())
         && phraseTmpl.connectors[i] && !fig.units.empty()) {
       fig.units[0].step += phraseTmpl.connectors[i]->leadStep;
     }

@@ -289,6 +289,7 @@ inline void to_json(json& j, const FigureTemplate& ft) {
 
     if (ft.seed != 0) j["seed"] = ft.seed;
     if (ft.locked) j["locked"] = true;
+    if (ft.role) j["role"] = *ft.role;
 }
 
 inline void from_json(const json& j, FigureTemplate& ft) {
@@ -353,6 +354,10 @@ inline void from_json(const json& j, FigureTemplate& ft) {
 
     ft.seed = j.value("seed", 0u);
     ft.locked = j.value("locked", false);
+
+    if (j.contains("role") && !j.at("role").is_null()) {
+        ft.role = j.at("role").get<MotifRole>();
+    }
 }
 
 // ===========================================================================

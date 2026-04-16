@@ -98,6 +98,25 @@ enum class TransformOp {
                       // K467's A_rhythm_tail.
 };
 
+// Declared here (above FigureTemplate) because FigureTemplate::role
+// is std::optional<MotifRole>. Motif (further down) also uses these.
+enum class MotifRole {
+    Thematic,      // main memorable melodic idea
+    Cadential,     // approach to a cadence
+    PostCadential, // post-cadence tag / codetta-like extension
+    Discursive,    // continuation / development material
+    Climactic,     // arrival / high-point material
+    Connective,    // bridge / pickup / link between larger units
+    Ornamental,    // decorative filigree (spelled-out trill, turn-figure)
+};
+
+enum class MotifOrigin {
+    User,        // authored by hand in UI / JSON
+    Generated,   // produced by a procedural generator
+    Derived,     // created via transform of another motif
+    Extracted,   // pulled from a model / corpus (future-proofing)
+};
+
 struct FigureTemplate {
     FigureSource source{FigureSource::Generate};
 
@@ -121,6 +140,13 @@ struct FigureTemplate {
     int shapeParam{0};             // type-specific: leap size, extent, etc.
     int shapeParam2{0};            // second parameter where needed
     FigureDirection direction{FigureDirection::Ascending};  // used by Skipping/Stepping strategies
+
+    // --- Role in this specific use (distinct from Motif.roles "toolbox capabilities").
+    // If set, strategies that care about per-figure semantic role (e.g.
+    // apply_cadence skipping Connective figures) read this field directly.
+    // If unset AND source=Reference AND motifName is set, plan-phase
+    // propagation may copy the Motif's role (if unambiguous).
+    std::optional<MotifRole> role;
 
     // --- For Locked ---
     std::optional<MelodicFigure> lockedFigure;
@@ -161,22 +187,8 @@ struct FigureTemplate {
 // Motifs — raw thematic material, stored at Piece level
 // ===========================================================================
 
-enum class MotifRole {
-    Thematic,      // main memorable melodic idea
-    Cadential,     // approach to a cadence
-    PostCadential, // post-cadence tag / codetta-like extension
-    Discursive,    // continuation / development material
-    Climactic,     // arrival / high-point material
-    Connective,    // bridge / pickup / link between larger units
-    Ornamental,    // decorative filigree (spelled-out trill, turn-figure)
-};
-
-enum class MotifOrigin {
-    User,        // authored by hand in UI / JSON
-    Generated,   // produced by a procedural generator
-    Derived,     // created via transform of another motif
-    Extracted,   // pulled from a model / corpus (future-proofing)
-};
+// MotifRole / MotifOrigin declarations moved above FigureTemplate so
+// FigureTemplate::role (std::optional<MotifRole>) compiles.
 
 struct Motif {
     std::string name;              // "main_theme", "hook", "bridge_motif"

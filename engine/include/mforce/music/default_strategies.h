@@ -301,34 +301,52 @@ inline int DefaultPhraseStrategy::degree_in_scale(const Pitch& pitch,
     return 0; // fallback to root
 }
 
-// -- apply_cadence: verbatim from classical_composer.h:230-259 ---------------
+// -- apply_cadence: role-aware. Skips trailing Connective / PostCadential
+//    figures when locating the "cadence target" figure, because those are
+//    pickups/extensions that don't belong to the phrase's cadential landing.
+//    Net step calc and adjustment both use the effective phrase (up to and
+//    including the last non-skipped figure).
 inline void DefaultPhraseStrategy::apply_cadence(Phrase& phrase,
                                                  const PhraseTemplate& tmpl,
                                                  const Scale& scale) {
+    // Walk backwards through tmpl.figures to find the last non-Connective,
+    // non-PostCadential figure. That figure's phrase.figures index is where
+    // the cadence target applies.
+    int lastIdx = phrase.figure_count() - 1;
+    while (lastIdx >= 0) {
+      // Get the template's role for this figure position (if available).
+      std::optional<MotifRole> role;
+      if (lastIdx < (int)tmpl.figures.size()) {
+        role = tmpl.figures[lastIdx].role;
+      }
+      if (role && (*role == MotifRole::Connective || *role == MotifRole::PostCadential)) {
+        --lastIdx;
+        continue;
+      }
+      break;
+    }
+    if (lastIdx < 0) return;  // entire phrase is Connective/PostCadential — no-op
+
     int startDeg = degree_in_scale(phrase.startingPitch, scale);
     int len = scale.length();
 
-    // Compute net step movement across the whole phrase
     int netSteps = 0;
-    for (int f = 0; f < phrase.figure_count(); ++f) {
+    for (int f = 0; f <= lastIdx; ++f) {
       netSteps += phrase.figures[f]->net_step();
     }
 
-    int landingDeg = ((startDeg + netSteps) % len + len) % len;
+    int landingDeg = ((netSteps + startDeg) % len + len) % len;
     int target = tmpl.cadenceTarget % len;
 
     if (landingDeg == target) return; // already correct
 
-    // Shortest adjustment in scale degrees
     int diff = target - landingDeg;
     if (diff > len / 2) diff -= len;
     if (diff < -len / 2) diff += len;
 
-    // Adjust the last note of the last figure
-    auto& lastFig = *phrase.figures.back();
-    if (!lastFig.units.empty()) {
-      lastFig.units.back().step += diff;
-    }
+    auto& targetFig = *phrase.figures[lastIdx];
+    if (targetFig.units.empty()) return;
+    targetFig.units.back().step += diff;
 }
 
 // -- compose_phrase: DECLARED here, DEFINED in composer.h below Composer -----
