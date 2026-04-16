@@ -12,16 +12,29 @@
 namespace mforce {
 
 // ---------------------------------------------------------------------------
-// HarmonyComposer — builds ChordProgressions for Sections.
-// Throwaway-grade: hard-coded named progressions, easy to replace.
+// ChordProgressionBuilder — named-progression lookup and scaling.
+//
+// Throwaway-grade: hard-coded named lambdas, no context awareness (doesn't
+// know the Piece key, doesn't consult prior Sections, doesn't plan
+// modulations). Solves exactly one problem: "stop making every patch
+// hand-author a 4-chord array in JSON."
+//
+// When/if we want pluggable context-aware progression generation, promote
+// to a ChordProgressionStrategy with plan_* / compose_* pattern. For now,
+// this is sufficient for melody-only openings like K467 bars 1-12.
+//
+// Renamed from HarmonyComposer (2026-04-15): original name over-promoted
+// ("Composer" already means the orchestrator class) and "Harmony" is
+// ambiguous (contrapuntal coincidence, voicing, inversions — none of
+// which this type handles).
 // ---------------------------------------------------------------------------
-struct HarmonyComposer {
+struct ChordProgressionBuilder {
 
   // Build a named progression scaled to fit the given number of beats.
   static ChordProgression build(const std::string& progressionName, float totalBeats) {
     auto it = progressions().find(progressionName);
     if (it == progressions().end()) {
-      throw std::runtime_error("HarmonyComposer: unknown progression '" + progressionName + "'");
+      throw std::runtime_error("ChordProgressionBuilder: unknown progression '" + progressionName + "'");
     }
     return it->second(totalBeats);
   }

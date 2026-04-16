@@ -5,7 +5,7 @@
 #include "mforce/music/shape_strategies.h"
 #include "mforce/music/phrase_strategies.h"
 #include "mforce/music/alternating_figure_strategy.h"
-#include "mforce/music/harmony_composer.h"
+#include "mforce/music/chord_progression_builder.h"
 #include "mforce/music/structure.h"
 #include "mforce/music/templates.h"
 #include "mforce/music/pitch_reader.h"
@@ -214,7 +214,7 @@ private:
       if (sd.chordProgression) {
         section.chordProgression = *sd.chordProgression;
       } else if (!sd.progressionName.empty()) {
-        section.chordProgression = HarmonyComposer::build(sd.progressionName, sd.beats);
+        section.chordProgression = ChordProgressionBuilder::build(sd.progressionName, sd.beats);
       }
       section.keyContexts = sd.keyContexts;
     }

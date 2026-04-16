@@ -332,7 +332,7 @@ struct PieceTemplate {
         std::string scaleOverride;   // empty = use piece key
 
         // Harmony
-        std::string progressionName;  // name for HarmonyComposer (empty = no progression)
+        std::string progressionName;  // name for ChordProgressionBuilder (empty = no progression)
         std::optional<ChordProgression> chordProgression;  // inline progression (overrides progressionName)
         std::vector<KeyContext> keyContexts;
     };
