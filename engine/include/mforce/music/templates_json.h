@@ -43,6 +43,7 @@ inline void to_json(json& j, TransformOp t) {
         case TransformOp::NewRhythm:        j = "new_rhythm"; break;
         case TransformOp::Replicate:        j = "replicate"; break;
         case TransformOp::TransformGeneral: j = "general"; break;
+        case TransformOp::RhythmTail:       j = "rhythm_tail"; break;
     }
 }
 inline void from_json(const json& j, TransformOp& t) {
@@ -58,7 +59,49 @@ inline void from_json(const json& j, TransformOp& t) {
     else if (str == "new_rhythm")    t = TransformOp::NewRhythm;
     else if (str == "replicate")     t = TransformOp::Replicate;
     else if (str == "general")       t = TransformOp::TransformGeneral;
+    else if (str == "rhythm_tail")   t = TransformOp::RhythmTail;
     else t = TransformOp::None;
+}
+
+// MotifRole and MotifOrigin enum JSON helpers (2026-04-15 umbrella spec).
+inline void to_json(json& j, MotifRole r) {
+    switch (r) {
+        case MotifRole::Thematic:      j = "Thematic"; break;
+        case MotifRole::Cadential:     j = "Cadential"; break;
+        case MotifRole::PostCadential: j = "PostCadential"; break;
+        case MotifRole::Discursive:    j = "Discursive"; break;
+        case MotifRole::Climactic:     j = "Climactic"; break;
+        case MotifRole::Connective:    j = "Connective"; break;
+        case MotifRole::Ornamental:    j = "Ornamental"; break;
+    }
+}
+inline void from_json(const json& j, MotifRole& r) {
+    auto s = j.get<std::string>();
+    if (s == "Thematic")           r = MotifRole::Thematic;
+    else if (s == "Cadential")     r = MotifRole::Cadential;
+    else if (s == "PostCadential") r = MotifRole::PostCadential;
+    else if (s == "Discursive")    r = MotifRole::Discursive;
+    else if (s == "Climactic")     r = MotifRole::Climactic;
+    else if (s == "Connective")    r = MotifRole::Connective;
+    else if (s == "Ornamental")    r = MotifRole::Ornamental;
+    else throw std::runtime_error("Unknown MotifRole: " + s);
+}
+
+inline void to_json(json& j, MotifOrigin o) {
+    switch (o) {
+        case MotifOrigin::User:      j = "User"; break;
+        case MotifOrigin::Generated: j = "Generated"; break;
+        case MotifOrigin::Derived:   j = "Derived"; break;
+        case MotifOrigin::Extracted: j = "Extracted"; break;
+    }
+}
+inline void from_json(const json& j, MotifOrigin& o) {
+    auto s = j.get<std::string>();
+    if (s == "User")           o = MotifOrigin::User;
+    else if (s == "Generated") o = MotifOrigin::Generated;
+    else if (s == "Derived")   o = MotifOrigin::Derived;
+    else if (s == "Extracted") o = MotifOrigin::Extracted;
+    else throw std::runtime_error("Unknown MotifOrigin: " + s);
 }
 
 inline void to_json(json& j, PartRole r) {
@@ -332,6 +375,16 @@ inline void to_json(json& j, const Motif& m) {
     if (m.userProvided) j["userProvided"] = true;
     if (m.generationSeed != 0) j["generationSeed"] = m.generationSeed;
     if (m.constraints) j["constraints"] = *m.constraints;
+
+    // New metadata — emit only when non-default for terse JSON.
+    if (!m.roles.empty()) {
+        j["roles"] = json::array();
+        for (auto r : m.roles) j["roles"].push_back(r);
+    }
+    if (m.origin != MotifOrigin::User) j["origin"] = m.origin;
+    if (m.derivedFrom) j["derivedFrom"] = *m.derivedFrom;
+    if (m.transform) j["transform"] = *m.transform;
+    if (m.transformParam != 0) j["transformParam"] = m.transformParam;
 }
 inline void from_json(const json& j, Motif& m) {
     m.name = j.at("name").get<std::string>();
@@ -361,6 +414,21 @@ inline void from_json(const json& j, Motif& m) {
         from_json(j.at("constraints"), ft);
         m.constraints = std::move(ft);
     }
+
+    // New metadata (2026-04-15). Defaults: empty roles, User origin, no derivation.
+    if (j.contains("roles") && j.at("roles").is_array()) {
+        for (const auto& r : j.at("roles")) {
+            m.roles.insert(r.get<MotifRole>());
+        }
+    }
+    m.origin = j.value("origin", MotifOrigin::User);
+    if (j.contains("derivedFrom") && !j.at("derivedFrom").is_null()) {
+        m.derivedFrom = j.at("derivedFrom").get<std::string>();
+    }
+    if (j.contains("transform") && !j.at("transform").is_null()) {
+        m.transform = j.at("transform").get<TransformOp>();
+    }
+    m.transformParam = j.value("transformParam", 0);
 }
 
 // ===========================================================================

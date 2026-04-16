@@ -7,6 +7,7 @@
 #include <unordered_map>
 #include <optional>
 #include <variant>
+#include <set>
 #include <cstdint>
 
 namespace mforce {
@@ -89,6 +90,10 @@ enum class TransformOp {
     NewRhythm,        // keep steps, generate new rhythm
     Replicate,        // repeat N times with step offset between
     TransformGeneral, // do *something* — composer decides the operation
+    RhythmTail,       // derive a PulseSequence from a MelodicFigure by
+                      // taking the rhythm tail (skip first N pulses).
+                      // param = N. Plan B uses this for figures like
+                      // K467's A_rhythm_tail.
 };
 
 struct FigureTemplate {
@@ -154,6 +159,23 @@ struct FigureTemplate {
 // Motifs — raw thematic material, stored at Piece level
 // ===========================================================================
 
+enum class MotifRole {
+    Thematic,      // main memorable melodic idea
+    Cadential,     // approach to a cadence
+    PostCadential, // post-cadence tag / codetta-like extension
+    Discursive,    // continuation / development material
+    Climactic,     // arrival / high-point material
+    Connective,    // bridge / pickup / link between larger units
+    Ornamental,    // decorative filigree (spelled-out trill, turn-figure)
+};
+
+enum class MotifOrigin {
+    User,        // authored by hand in UI / JSON
+    Generated,   // produced by a procedural generator
+    Derived,     // created via transform of another motif
+    Extracted,   // pulled from a model / corpus (future-proofing)
+};
+
 struct Motif {
     std::string name;              // "main_theme", "hook", "bridge_motif"
 
@@ -163,6 +185,13 @@ struct Motif {
     bool userProvided{false};      // true = user entered, don't regenerate
     uint32_t generationSeed{0};    // for reproducibility if generated
     std::optional<FigureTemplate> constraints;  // generation constraints when !userProvided
+
+    // --- New metadata (2026-04-15 umbrella spec) ---
+    std::set<MotifRole> roles;                     // multi-tag; empty default
+    MotifOrigin origin{MotifOrigin::User};
+    std::optional<std::string> derivedFrom;        // parent motif name (walk for root)
+    std::optional<TransformOp> transform;          // how derivation was done
+    int transformParam{0};                         // transform-specific
 
     bool is_figure()  const { return std::holds_alternative<MelodicFigure>(content); }
     bool is_rhythm()  const { return std::holds_alternative<PulseSequence>(content); }
