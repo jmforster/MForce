@@ -8,6 +8,8 @@
 #include <optional>
 #include <variant>
 #include <set>
+#include <algorithm>
+#include <stdexcept>
 #include <cstdint>
 
 namespace mforce {
@@ -371,6 +373,112 @@ struct PieceTemplate {
         auto it = realizedContours.find(name);
         return it == realizedContours.end() ? nullptr : &it->second;
     }
+
+    // --- Write API — called from plan_* phase. Idempotent by name. ---
+    //
+    // Adds a motif declaration + immediately realizes its content into the
+    // appropriate realized map, so the pool stays consistent from the
+    // strategy's point of view.
+    void add_motif(Motif motif) {
+        auto it = std::find_if(motifs.begin(), motifs.end(),
+            [&](const Motif& m){ return m.name == motif.name; });
+        const std::string& name = motif.name;
+        if (std::holds_alternative<MelodicFigure>(motif.content)) {
+            realizedMotifs[name] = std::get<MelodicFigure>(motif.content);
+        } else if (std::holds_alternative<PulseSequence>(motif.content)) {
+            realizedRhythms[name] = std::get<PulseSequence>(motif.content);
+        } else if (std::holds_alternative<StepSequence>(motif.content)) {
+            realizedContours[name] = std::get<StepSequence>(motif.content);
+        }
+        if (it != motifs.end()) *it = std::move(motif);
+        else motifs.push_back(std::move(motif));
+    }
+
+    // --- Derive a motif from an existing parent via TransformOp. ---
+    //
+    // Idempotent: if a motif with (derivedFrom==parent, transform==t,
+    // transformParam==param) already exists, returns its name without
+    // creating a duplicate. Otherwise synthesizes content from the parent,
+    // names the new motif (auto-generated as parent+"'" or explicitly
+    // provided), stores it via add_motif, returns the chosen name.
+    //
+    // This skeletal version (Plan B Task 7) handles Invert + Reverse; Task 10
+    // extends coverage to RhythmTail / VarySteps / VaryRhythm. Other
+    // TransformOps throw runtime_error.
+    std::string add_derived_motif(
+            const std::string& parentName,
+            TransformOp transform,
+            int transformParam = 0,
+            std::optional<std::string> explicitName = std::nullopt);
 };
+
+// --- PieceTemplate::add_derived_motif implementation ---
+inline std::string PieceTemplate::add_derived_motif(
+        const std::string& parentName,
+        TransformOp transform,
+        int transformParam,
+        std::optional<std::string> explicitName) {
+    // Idempotency check: existing derived motif with matching (parent, transform, param)?
+    for (const auto& m : motifs) {
+        if (m.origin == MotifOrigin::Derived
+            && m.derivedFrom && *m.derivedFrom == parentName
+            && m.transform && *m.transform == transform
+            && m.transformParam == transformParam) {
+            return m.name;
+        }
+    }
+
+    // Find parent declaration.
+    const Motif* parent = nullptr;
+    for (const auto& m : motifs) {
+        if (m.name == parentName) { parent = &m; break; }
+    }
+    if (!parent) {
+        throw std::runtime_error("add_derived_motif: parent not in pool: " + parentName);
+    }
+
+    // Choose child name.
+    std::string chosenName;
+    if (explicitName) chosenName = *explicitName;
+    else {
+        chosenName = parentName + "'";
+        while (std::any_of(motifs.begin(), motifs.end(),
+                [&](const Motif& m){ return m.name == chosenName; })) {
+            chosenName += "'";
+        }
+    }
+
+    // Synthesize content per transform. Task 7's skeletal coverage: Invert,
+    // Reverse only. Other transforms throw; Task 10 extends.
+    Motif derived;
+    derived.name = chosenName;
+    derived.origin = MotifOrigin::Derived;
+    derived.derivedFrom = parentName;
+    derived.transform = transform;
+    derived.transformParam = transformParam;
+
+    switch (transform) {
+        case TransformOp::Invert: {
+            if (!std::holds_alternative<MelodicFigure>(parent->content))
+                throw std::runtime_error("Invert requires MelodicFigure parent");
+            FigureBuilder fb(parent->generationSeed + 1);
+            derived.content = fb.invert(std::get<MelodicFigure>(parent->content));
+            break;
+        }
+        case TransformOp::Reverse: {
+            if (!std::holds_alternative<MelodicFigure>(parent->content))
+                throw std::runtime_error("Reverse requires MelodicFigure parent");
+            FigureBuilder fb(parent->generationSeed + 1);
+            derived.content = fb.reverse(std::get<MelodicFigure>(parent->content));
+            break;
+        }
+        default:
+            throw std::runtime_error(
+                "add_derived_motif: TransformOp not yet supported (Task 10 extends)");
+    }
+
+    add_motif(std::move(derived));
+    return chosenName;
+}
 
 } // namespace mforce

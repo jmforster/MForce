@@ -21,14 +21,14 @@ namespace mforce {
 // Phrase.  A-figures are wrapped as ChordFigure (for chord-tone stepping);
 // B-figures remain MelodicFigure (for scale-step movement).
 //
-// NOTE: realize_passage body is defined out-of-line in composer.h, after
+// NOTE: compose_passage body is defined out-of-line in composer.h, after
 // Composer is fully defined (same pattern as DefaultPassageStrategy).
 // ---------------------------------------------------------------------------
 class AlternatingFigureStrategy : public PassageStrategy {
 public:
   std::string name() const override { return "alternating_figure"; }
 
-  Passage realize_passage(Locus locus, const PassageTemplate& passTmpl) override;
+  Passage compose_passage(Locus locus, const PassageTemplate& passTmpl) override;
 };
 
 } // namespace mforce

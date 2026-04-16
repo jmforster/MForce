@@ -141,29 +141,38 @@ struct Composer {
   }
 
   // --- Dispatchers called from strategies ---
-  MelodicFigure realize_figure(Locus locus, const FigureTemplate& figTmpl) {
+  MelodicFigure compose_figure(Locus locus, const FigureTemplate& figTmpl) {
     FigureStrategy* s = StrategyRegistry::instance().resolve_figure("default_figure");
-    return s->realize_figure(locus, figTmpl);
+    return s->compose_figure(locus, figTmpl);
   }
 
-  Phrase realize_phrase(Locus locus, const PhraseTemplate& phraseTmpl) {
+  Phrase compose_phrase(Locus locus, const PhraseTemplate& phraseTmpl) {
     std::string n = phraseTmpl.strategy.empty() ? std::string("default_phrase") : phraseTmpl.strategy;
     PhraseStrategy* s = StrategyRegistry::instance().resolve_phrase(n);
     if (!s) {
       std::cerr << "Unknown phrase strategy '" << n << "', falling back to default_phrase\n";
       s = StrategyRegistry::instance().resolve_phrase("default_phrase");
     }
-    return s->realize_phrase(locus, phraseTmpl);
+    return s->compose_phrase(locus, phraseTmpl);
   }
 
-  Passage realize_passage(Locus locus, const PassageTemplate& passTmpl) {
+  Passage compose_passage(Locus locus, const PassageTemplate& passTmpl) {
     std::string n = passTmpl.strategy.empty() ? std::string("default_passage") : passTmpl.strategy;
     PassageStrategy* s = StrategyRegistry::instance().resolve_passage(n);
     if (!s) {
       std::cerr << "Unknown passage strategy '" << n << "', falling back to default_passage\n";
       s = StrategyRegistry::instance().resolve_passage("default_passage");
     }
-    return s->realize_passage(locus, passTmpl);
+    // Plan phase — strategy refines the template (may mutate motif pool).
+    PassageTemplate planned = s->plan_passage(locus, passTmpl);
+    // Persist planned template to PieceTemplate for regeneration / lock semantics.
+    if (locus.sectionIdx >= 0 && locus.sectionIdx < (int)locus.piece->sections.size()
+        && locus.partIdx >= 0 && locus.partIdx < (int)locus.pieceTemplate->parts.size()) {
+      const auto& sectionName = locus.piece->sections[locus.sectionIdx].name;
+      locus.pieceTemplate->parts[locus.partIdx].passages[sectionName] = planned;
+    }
+    // Compose phase — self-contained realization from the planned template.
+    return s->compose_passage(locus, planned);
   }
 
   // Motif accessors moved to PieceTemplate (Task 1). Callers reach them
@@ -172,7 +181,7 @@ struct Composer {
 
   // --- Public registry lookup for Phase 2 shape dispatch ---
   // Named awkwardly to signal it exists specifically for the shape-dispatch
-  // path in DefaultFigureStrategy::realize_figure. May be renamed later.
+  // path in DefaultFigureStrategy::compose_figure. May be renamed later.
   FigureStrategy* registry_get_for_phase2(const std::string& name) const {
     return StrategyRegistry::instance().resolve_figure(name);
   }
@@ -291,7 +300,7 @@ private:
 
     ::mforce::rng::Scope rngScope(rng_);
     Locus locus{&piece, const_cast<PieceTemplate*>(&tmpl), 0, 0};
-    return this->realize_passage(locus, passTmpl);
+    return this->compose_passage(locus, passTmpl);
   }
 
   // ---- Per-passage dispatcher: port of
@@ -331,7 +340,7 @@ private:
       }
       Locus locus{&piece, const_cast<PieceTemplate*>(&tmpl), sectionIdx, partIdx};
       ::mforce::rng::Scope rngScope(rng_);
-      passage = realize_passage(locus, passIt->second);
+      passage = compose_passage(locus, passIt->second);
     } else {
       // No template for this section — fallback.
       passage = generate_default_passage_(piece, tmpl, scale);
@@ -349,7 +358,7 @@ private:
 // ctx.composer->find_rhythm_motif() and ctx.composer->find_contour_motif(),
 // which require the full Composer definition. Placing them in
 // shape_strategies.h (where Composer is only forward-declared) would cause
-// incomplete-type errors. Same pattern as DefaultFigureStrategy::realize_figure.
+// incomplete-type errors. Same pattern as DefaultFigureStrategy::compose_figure.
 // ============================================================================
 
 namespace detail {
@@ -400,7 +409,7 @@ inline StepSequence resolve_contour(const FigureTemplate& ft, Locus locus,
 
 } // namespace detail
 
-inline MelodicFigure ShapeCadentialApproachStrategy::realize_figure(
+inline MelodicFigure ShapeCadentialApproachStrategy::compose_figure(
     Locus locus, const FigureTemplate& ft) {
   uint32_t seed = ft.seed ? ft.seed : ::mforce::rng::next();
   Randomizer rng(seed);
@@ -563,7 +572,7 @@ inline MelodicFigure ShapeCadentialApproachStrategy::realize_figure(
   return MelodicFigure(rhythm, contour);
 }
 
-inline MelodicFigure ShapeSkippingStrategy::realize_figure(
+inline MelodicFigure ShapeSkippingStrategy::compose_figure(
     Locus locus, const FigureTemplate& ft) {
   uint32_t seed = ft.seed ? ft.seed : ::mforce::rng::next();
   Randomizer rng(seed);
@@ -602,7 +611,7 @@ inline MelodicFigure ShapeSkippingStrategy::realize_figure(
   return MelodicFigure(rhythm, contour);
 }
 
-inline MelodicFigure ShapeSteppingStrategy::realize_figure(
+inline MelodicFigure ShapeSteppingStrategy::compose_figure(
     Locus locus, const FigureTemplate& ft) {
   uint32_t seed = ft.seed ? ft.seed : ::mforce::rng::next();
   float totalBeats = (ft.totalBeats > 0) ? ft.totalBeats : 4.0f;
@@ -626,7 +635,7 @@ inline MelodicFigure ShapeSteppingStrategy::realize_figure(
 }
 
 // ============================================================================
-// Out-of-line definition of DefaultFigureStrategy::realize_figure.
+// Out-of-line definition of DefaultFigureStrategy::compose_figure.
 //
 // Lives here — BELOW the Composer class — because the body needs the full
 // definition of Composer to call ctx.composer->realized_motifs(). In
@@ -634,7 +643,7 @@ inline MelodicFigure ShapeSteppingStrategy::realize_figure(
 // can't be inline there.
 // ============================================================================
 
-inline MelodicFigure DefaultFigureStrategy::realize_figure(
+inline MelodicFigure DefaultFigureStrategy::compose_figure(
     Locus locus, const FigureTemplate& figTmpl) {
   const Scale& scale = locus.piece->sections[locus.sectionIdx].scale;
   // Use the figure's seed for reproducibility
@@ -721,7 +730,7 @@ inline MelodicFigure DefaultFigureStrategy::realize_figure(
           if (s) {
             FigureTemplate shapeArg = figTmpl;
             shapeArg.seed = figSeed;
-            fig = s->realize_figure(locus, shapeArg);
+            fig = s->compose_figure(locus, shapeArg);
           }
         }
       }
@@ -754,14 +763,14 @@ inline MelodicFigure DefaultFigureStrategy::realize_figure(
 }
 
 // ============================================================================
-// Out-of-line definition of DefaultPassageStrategy::realize_passage.
+// Out-of-line definition of DefaultPassageStrategy::compose_passage.
 //
 // Lives here — BELOW the Composer class — because the body calls
-// ctx.composer->realize_phrase(...) and Composer is forward-declared only in
-// default_strategies.h. Same pattern as DefaultFigureStrategy::realize_figure.
+// ctx.composer->compose_phrase(...) and Composer is forward-declared only in
+// default_strategies.h. Same pattern as DefaultFigureStrategy::compose_figure.
 // ============================================================================
 
-inline Passage DefaultPassageStrategy::realize_passage(
+inline Passage DefaultPassageStrategy::compose_passage(
     Locus locus, const PassageTemplate& passTmpl) {
   Passage passage;
 
@@ -807,7 +816,7 @@ inline Passage DefaultPassageStrategy::realize_passage(
       std::cerr << "Unknown phrase strategy '" << pn << "', falling back to default_phrase\n";
       ps = StrategyRegistry::instance().resolve_phrase("default_phrase");
     }
-    Phrase phrase = ps->realize_phrase(phraseLocus, localTmpl);
+    Phrase phrase = ps->compose_phrase(phraseLocus, localTmpl);
 
     passage.add_phrase(std::move(phrase));
   }
@@ -816,14 +825,14 @@ inline Passage DefaultPassageStrategy::realize_passage(
 }
 
 // ============================================================================
-// Out-of-line definition of DefaultPhraseStrategy::realize_phrase.
+// Out-of-line definition of DefaultPhraseStrategy::compose_phrase.
 //
 // Lives here — BELOW the Composer class — because the body calls
-// ctx.composer->realize_figure(...) and Composer is forward-declared only in
+// ctx.composer->compose_figure(...) and Composer is forward-declared only in
 // default_strategies.h. Same pattern as the other two out-of-line definitions.
 // ============================================================================
 
-inline Phrase DefaultPhraseStrategy::realize_phrase(
+inline Phrase DefaultPhraseStrategy::compose_phrase(
     Locus locus, const PhraseTemplate& phraseTmpl) {
   Phrase phrase;
 
@@ -922,7 +931,7 @@ inline Phrase DefaultPhraseStrategy::realize_phrase(
         fig.units.push_back(u);
       }
     } else {
-      fig = fs->realize_figure(figLocus, figTmpl);
+      fig = fs->compose_figure(figLocus, figTmpl);
     }
 
     // Apply FigureConnector.leadStep to the new figure's first unit.
@@ -961,14 +970,14 @@ inline Phrase DefaultPhraseStrategy::realize_phrase(
 }
 
 // ---------------------------------------------------------------------------
-// Out-of-line definition of AlternatingFigureStrategy::realize_passage.
+// Out-of-line definition of AlternatingFigureStrategy::compose_passage.
 //
 // Placed here (after Composer is fully defined) to break the circular
-// dependency: AlternatingFigureStrategy calls ctx.composer->realize_figure,
+// dependency: AlternatingFigureStrategy calls ctx.composer->compose_figure,
 // but Composer is only forward-declared in strategy.h.
 // Same pattern as DefaultPassageStrategy/DefaultPhraseStrategy/DefaultFigureStrategy.
 // ---------------------------------------------------------------------------
-inline Passage AlternatingFigureStrategy::realize_passage(
+inline Passage AlternatingFigureStrategy::compose_passage(
     Locus locus, const PassageTemplate& pt) {
 
   const Scale& scale = locus.piece->sections[locus.sectionIdx].scale;
@@ -1009,7 +1018,7 @@ inline Passage AlternatingFigureStrategy::realize_passage(
       adjusted.figureCadenceType = (bIndex % 2 == 0) ? 1 : 2;
     }
 
-    MelodicFigure rawFig = fs->realize_figure(locus.with_phrase(0).with_figure(ci), adjusted);
+    MelodicFigure rawFig = fs->compose_figure(locus.with_phrase(0).with_figure(ci), adjusted);
 
     if (isA) {
       float curNN = runningReader.get_note_number();

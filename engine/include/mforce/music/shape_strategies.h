@@ -13,7 +13,7 @@ namespace mforce {
 // ---------------------------------------------------------------------------
 // Shape strategies — one FigureStrategy subclass per named figure shape.
 //
-// Each class's realize_figure emits the MelodicFigure the corresponding
+// Each class's compose_figure emits the MelodicFigure the corresponding
 // FigureBuilder method would produce. Bodies mirror the current
 // DefaultFigureStrategy::generate_shaped_figure switch cases verbatim,
 // with the per-case local variable setup (seed, fb, dir, p1, p2, count)
@@ -27,10 +27,10 @@ namespace mforce {
 class ShapeScalarRunStrategy : public FigureStrategy {
 public:
   std::string name() const override { return "shape_scalar_run"; }
-  MelodicFigure realize_figure(Locus, const FigureTemplate& ft) override;
+  MelodicFigure compose_figure(Locus, const FigureTemplate& ft) override;
 };
 
-inline MelodicFigure ShapeScalarRunStrategy::realize_figure(
+inline MelodicFigure ShapeScalarRunStrategy::compose_figure(
     Locus, const FigureTemplate& ft) {
   uint32_t seed = ft.seed ? ft.seed : ::mforce::rng::next();
   FigureBuilder fb(seed);
@@ -46,10 +46,10 @@ inline MelodicFigure ShapeScalarRunStrategy::realize_figure(
 class ShapeRepeatedNoteStrategy : public FigureStrategy {
 public:
   std::string name() const override { return "shape_repeated_note"; }
-  MelodicFigure realize_figure(Locus, const FigureTemplate& ft) override;
+  MelodicFigure compose_figure(Locus, const FigureTemplate& ft) override;
 };
 
-inline MelodicFigure ShapeRepeatedNoteStrategy::realize_figure(
+inline MelodicFigure ShapeRepeatedNoteStrategy::compose_figure(
     Locus, const FigureTemplate& ft) {
   uint32_t seed = ft.seed ? ft.seed : ::mforce::rng::next();
   FigureBuilder fb(seed);
@@ -64,10 +64,10 @@ inline MelodicFigure ShapeRepeatedNoteStrategy::realize_figure(
 class ShapeHeldNoteStrategy : public FigureStrategy {
 public:
   std::string name() const override { return "shape_held_note"; }
-  MelodicFigure realize_figure(Locus, const FigureTemplate& ft) override;
+  MelodicFigure compose_figure(Locus, const FigureTemplate& ft) override;
 };
 
-inline MelodicFigure ShapeHeldNoteStrategy::realize_figure(
+inline MelodicFigure ShapeHeldNoteStrategy::compose_figure(
     Locus, const FigureTemplate& ft) {
   uint32_t seed = ft.seed ? ft.seed : ::mforce::rng::next();
   FigureBuilder fb(seed);
@@ -79,17 +79,17 @@ inline MelodicFigure ShapeHeldNoteStrategy::realize_figure(
 class ShapeCadentialApproachStrategy : public FigureStrategy {
 public:
   std::string name() const override { return "shape_cadential_approach"; }
-  MelodicFigure realize_figure(Locus, const FigureTemplate& ft) override;
+  MelodicFigure compose_figure(Locus, const FigureTemplate& ft) override;
 };
 
 // ====== ShapeTriadicOutlineStrategy =========================================
 class ShapeTriadicOutlineStrategy : public FigureStrategy {
 public:
   std::string name() const override { return "shape_triadic_outline"; }
-  MelodicFigure realize_figure(Locus, const FigureTemplate& ft) override;
+  MelodicFigure compose_figure(Locus, const FigureTemplate& ft) override;
 };
 
-inline MelodicFigure ShapeTriadicOutlineStrategy::realize_figure(
+inline MelodicFigure ShapeTriadicOutlineStrategy::compose_figure(
     Locus, const FigureTemplate& ft) {
   uint32_t seed = ft.seed ? ft.seed : ::mforce::rng::next();
   FigureBuilder fb(seed);
@@ -103,10 +103,10 @@ inline MelodicFigure ShapeTriadicOutlineStrategy::realize_figure(
 class ShapeNeighborToneStrategy : public FigureStrategy {
 public:
   std::string name() const override { return "shape_neighbor_tone"; }
-  MelodicFigure realize_figure(Locus, const FigureTemplate& ft) override;
+  MelodicFigure compose_figure(Locus, const FigureTemplate& ft) override;
 };
 
-inline MelodicFigure ShapeNeighborToneStrategy::realize_figure(
+inline MelodicFigure ShapeNeighborToneStrategy::compose_figure(
     Locus, const FigureTemplate& ft) {
   uint32_t seed = ft.seed ? ft.seed : ::mforce::rng::next();
   FigureBuilder fb(seed);
@@ -119,10 +119,10 @@ inline MelodicFigure ShapeNeighborToneStrategy::realize_figure(
 class ShapeLeapAndFillStrategy : public FigureStrategy {
 public:
   std::string name() const override { return "shape_leap_and_fill"; }
-  MelodicFigure realize_figure(Locus, const FigureTemplate& ft) override;
+  MelodicFigure compose_figure(Locus, const FigureTemplate& ft) override;
 };
 
-inline MelodicFigure ShapeLeapAndFillStrategy::realize_figure(
+inline MelodicFigure ShapeLeapAndFillStrategy::compose_figure(
     Locus, const FigureTemplate& ft) {
   uint32_t seed = ft.seed ? ft.seed : ::mforce::rng::next();
   FigureBuilder fb(seed);
@@ -137,10 +137,10 @@ inline MelodicFigure ShapeLeapAndFillStrategy::realize_figure(
 class ShapeScalarReturnStrategy : public FigureStrategy {
 public:
   std::string name() const override { return "shape_scalar_return"; }
-  MelodicFigure realize_figure(Locus, const FigureTemplate& ft) override;
+  MelodicFigure compose_figure(Locus, const FigureTemplate& ft) override;
 };
 
-inline MelodicFigure ShapeScalarReturnStrategy::realize_figure(
+inline MelodicFigure ShapeScalarReturnStrategy::compose_figure(
     Locus, const FigureTemplate& ft) {
   uint32_t seed = ft.seed ? ft.seed : ::mforce::rng::next();
   FigureBuilder fb(seed);
@@ -155,10 +155,10 @@ inline MelodicFigure ShapeScalarReturnStrategy::realize_figure(
 class ShapeAnacrusisStrategy : public FigureStrategy {
 public:
   std::string name() const override { return "shape_anacrusis"; }
-  MelodicFigure realize_figure(Locus, const FigureTemplate& ft) override;
+  MelodicFigure compose_figure(Locus, const FigureTemplate& ft) override;
 };
 
-inline MelodicFigure ShapeAnacrusisStrategy::realize_figure(
+inline MelodicFigure ShapeAnacrusisStrategy::compose_figure(
     Locus, const FigureTemplate& ft) {
   uint32_t seed = ft.seed ? ft.seed : ::mforce::rng::next();
   FigureBuilder fb(seed);
@@ -175,10 +175,10 @@ inline MelodicFigure ShapeAnacrusisStrategy::realize_figure(
 class ShapeZigzagStrategy : public FigureStrategy {
 public:
   std::string name() const override { return "shape_zigzag"; }
-  MelodicFigure realize_figure(Locus, const FigureTemplate& ft) override;
+  MelodicFigure compose_figure(Locus, const FigureTemplate& ft) override;
 };
 
-inline MelodicFigure ShapeZigzagStrategy::realize_figure(
+inline MelodicFigure ShapeZigzagStrategy::compose_figure(
     Locus, const FigureTemplate& ft) {
   uint32_t seed = ft.seed ? ft.seed : ::mforce::rng::next();
   FigureBuilder fb(seed);
@@ -192,10 +192,10 @@ inline MelodicFigure ShapeZigzagStrategy::realize_figure(
 class ShapeFanfareStrategy : public FigureStrategy {
 public:
   std::string name() const override { return "shape_fanfare"; }
-  MelodicFigure realize_figure(Locus, const FigureTemplate& ft) override;
+  MelodicFigure compose_figure(Locus, const FigureTemplate& ft) override;
 };
 
-inline MelodicFigure ShapeFanfareStrategy::realize_figure(
+inline MelodicFigure ShapeFanfareStrategy::compose_figure(
     Locus, const FigureTemplate& ft) {
   uint32_t seed = ft.seed ? ft.seed : ::mforce::rng::next();
   FigureBuilder fb(seed);
@@ -208,10 +208,10 @@ inline MelodicFigure ShapeFanfareStrategy::realize_figure(
 class ShapeSighStrategy : public FigureStrategy {
 public:
   std::string name() const override { return "shape_sigh"; }
-  MelodicFigure realize_figure(Locus, const FigureTemplate& ft) override;
+  MelodicFigure compose_figure(Locus, const FigureTemplate& ft) override;
 };
 
-inline MelodicFigure ShapeSighStrategy::realize_figure(
+inline MelodicFigure ShapeSighStrategy::compose_figure(
     Locus, const FigureTemplate& ft) {
   uint32_t seed = ft.seed ? ft.seed : ::mforce::rng::next();
   FigureBuilder fb(seed);
@@ -223,10 +223,10 @@ inline MelodicFigure ShapeSighStrategy::realize_figure(
 class ShapeSuspensionStrategy : public FigureStrategy {
 public:
   std::string name() const override { return "shape_suspension"; }
-  MelodicFigure realize_figure(Locus, const FigureTemplate& ft) override;
+  MelodicFigure compose_figure(Locus, const FigureTemplate& ft) override;
 };
 
-inline MelodicFigure ShapeSuspensionStrategy::realize_figure(
+inline MelodicFigure ShapeSuspensionStrategy::compose_figure(
     Locus, const FigureTemplate& ft) {
   uint32_t seed = ft.seed ? ft.seed : ::mforce::rng::next();
   FigureBuilder fb(seed);
@@ -238,10 +238,10 @@ inline MelodicFigure ShapeSuspensionStrategy::realize_figure(
 class ShapeCambiataStrategy : public FigureStrategy {
 public:
   std::string name() const override { return "shape_cambiata"; }
-  MelodicFigure realize_figure(Locus, const FigureTemplate& ft) override;
+  MelodicFigure compose_figure(Locus, const FigureTemplate& ft) override;
 };
 
-inline MelodicFigure ShapeCambiataStrategy::realize_figure(
+inline MelodicFigure ShapeCambiataStrategy::compose_figure(
     Locus, const FigureTemplate& ft) {
   uint32_t seed = ft.seed ? ft.seed : ::mforce::rng::next();
   FigureBuilder fb(seed);
@@ -254,14 +254,14 @@ inline MelodicFigure ShapeCambiataStrategy::realize_figure(
 class ShapeSkippingStrategy : public FigureStrategy {
 public:
   std::string name() const override { return "shape_skipping"; }
-  MelodicFigure realize_figure(Locus, const FigureTemplate& ft) override;
+  MelodicFigure compose_figure(Locus, const FigureTemplate& ft) override;
 };
 
 // ====== ShapeSteppingStrategy ===============================================
 class ShapeSteppingStrategy : public FigureStrategy {
 public:
   std::string name() const override { return "shape_stepping"; }
-  MelodicFigure realize_figure(Locus, const FigureTemplate& ft) override;
+  MelodicFigure compose_figure(Locus, const FigureTemplate& ft) override;
 };
 
 } // namespace mforce

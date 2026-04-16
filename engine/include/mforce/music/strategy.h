@@ -9,31 +9,46 @@
 namespace mforce {
 
 // Three typed peer bases. A strategy implements exactly one level.
-// Registration and dispatch happen per-level via typed entries in
-// StrategyRegistry. The Locus passed in names the strategy's position
-// in the piece and carries refs to Piece + PieceTemplate (+ Composer
-// for motif-pool access; that last field goes away once motifs move
-// to PieceTemplate).
+// Two-phase interface: plan_* transforms a seed template into a
+// self-contained template (may mutate pieceTemplate's motif pool);
+// compose_* realizes a self-contained template to concrete content
+// (read-only on pool by contract).
+//
+// Default plan_* returns seed unchanged. Strategies with planning work
+// (synthesizing motifs, resolving variants, filling unspecified fields)
+// override it.
 
 class FigureStrategy {
 public:
   virtual ~FigureStrategy() = default;
   virtual std::string name() const = 0;
-  virtual MelodicFigure realize_figure(Locus, const FigureTemplate&) = 0;
+
+  virtual FigureTemplate plan_figure(Locus /*locus*/, FigureTemplate seed) {
+    return seed;
+  }
+  virtual MelodicFigure compose_figure(Locus, const FigureTemplate&) = 0;
 };
 
 class PhraseStrategy {
 public:
   virtual ~PhraseStrategy() = default;
   virtual std::string name() const = 0;
-  virtual Phrase realize_phrase(Locus, const PhraseTemplate&) = 0;
+
+  virtual PhraseTemplate plan_phrase(Locus /*locus*/, PhraseTemplate seed) {
+    return seed;
+  }
+  virtual Phrase compose_phrase(Locus, const PhraseTemplate&) = 0;
 };
 
 class PassageStrategy {
 public:
   virtual ~PassageStrategy() = default;
   virtual std::string name() const = 0;
-  virtual Passage realize_passage(Locus, const PassageTemplate&) = 0;
+
+  virtual PassageTemplate plan_passage(Locus /*locus*/, PassageTemplate seed) {
+    return seed;
+  }
+  virtual Passage compose_passage(Locus, const PassageTemplate&) = 0;
 };
 
 } // namespace mforce

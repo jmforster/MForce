@@ -17,7 +17,7 @@ namespace mforce {
 class PeriodPhraseStrategy : public PhraseStrategy {
 public:
   std::string name() const override { return "period_phrase"; }
-  Phrase realize_phrase(Locus locus, const PhraseTemplate& phraseTmpl) override;
+  Phrase compose_phrase(Locus locus, const PhraseTemplate& phraseTmpl) override;
 };
 
 // ---------------------------------------------------------------------------
@@ -26,14 +26,14 @@ public:
 class SentencePhraseStrategy : public PhraseStrategy {
 public:
   std::string name() const override { return "sentence_phrase"; }
-  Phrase realize_phrase(Locus locus, const PhraseTemplate& phraseTmpl) override;
+  Phrase compose_phrase(Locus locus, const PhraseTemplate& phraseTmpl) override;
 };
 
 // ============================================================================
 // Inline definitions
 // ============================================================================
 
-inline Phrase PeriodPhraseStrategy::realize_phrase(
+inline Phrase PeriodPhraseStrategy::compose_phrase(
     Locus locus, const PhraseTemplate& phraseTmpl) {
   Phrase phrase;
 
@@ -86,7 +86,7 @@ inline Phrase PeriodPhraseStrategy::realize_phrase(
   return phrase;
 }
 
-inline Phrase SentencePhraseStrategy::realize_phrase(
+inline Phrase SentencePhraseStrategy::compose_phrase(
     Locus locus, const PhraseTemplate& phraseTmpl) {
   Phrase phrase;
 

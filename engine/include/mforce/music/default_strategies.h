@@ -17,24 +17,24 @@ namespace mforce {
 // ---------------------------------------------------------------------------
 // DefaultFigureStrategy
 //
-// Wraps the pre-refactor ClassicalComposer::realize_figure /
+// Wraps the pre-refactor ClassicalComposer::compose_figure /
 // generate_figure / generate_shaped_figure / choose_shape / apply_transform
-// code paths, so that a FigureTemplate routed through Composer::realize_figure
+// code paths, so that a FigureTemplate routed through Composer::compose_figure
 // produces byte-identical output compared to pre-refactor ClassicalComposer.
 // ---------------------------------------------------------------------------
 class DefaultFigureStrategy : public FigureStrategy {
 public:
   std::string name() const override { return "default_figure"; }
 
-  // realize_figure is DECLARED here, but DEFINED in composer.h below the
+  // compose_figure is DECLARED here, but DEFINED in composer.h below the
   // Composer class. Its body needs the full definition of Composer to call
   // ctx.composer->realized_motifs(), and composer.h includes this header —
   // breaking the cycle requires the out-of-line definition to live there.
-  // Do NOT add an inline body for realize_figure in this file.
-  MelodicFigure realize_figure(Locus locus, const FigureTemplate& figTmpl) override;
+  // Do NOT add an inline body for compose_figure in this file.
+  MelodicFigure compose_figure(Locus locus, const FigureTemplate& figTmpl) override;
 
   // PUBLIC so Composer::realize_motifs_ can call generate_figure
-  // directly, bypassing realize_figure's switch. The pre-refactor
+  // directly, bypassing compose_figure's switch. The pre-refactor
   // ClassicalComposer::realize_motifs called the private generate_figure
   // directly, so preserving that call shape is required for bit-identical
   // output against the golden render.
@@ -235,34 +235,34 @@ inline FigureShape DefaultFigureStrategy::choose_shape(
 //
 // Walks the phrase list of a PassageTemplate and realizes each phrase via
 // the Composer's phrase dispatcher. Mirrors pre-refactor
-// ClassicalComposer::realize_passage (classical_composer.h:143-159) with
+// ClassicalComposer::compose_passage (classical_composer.h:143-159) with
 // the PitchReader still constructed locally — Phase 1a preserves the exact
 // fallback semantics: reset to (octave 5, degree 0) for every phrase that
 // doesn't provide its own startingPitch, because that's what the
-// pre-refactor realize_phrase did at classical_composer.h:188-190.
+// pre-refactor compose_phrase did at classical_composer.h:188-190.
 //
 // Body is DECLARED here but DEFINED in composer.h below the Composer class,
-// because the body calls ctx.composer->realize_phrase(...) and Composer is
+// because the body calls ctx.composer->compose_phrase(...) and Composer is
 // only forward-declared in this file. Same pattern as DefaultFigureStrategy.
 // ---------------------------------------------------------------------------
 class DefaultPassageStrategy : public PassageStrategy {
 public:
   std::string name() const override { return "default_passage"; }
 
-  Passage realize_passage(Locus locus, const PassageTemplate& passTmpl) override;
+  Passage compose_passage(Locus locus, const PassageTemplate& passTmpl) override;
 };
 
 // ---------------------------------------------------------------------------
 // DefaultPhraseStrategy
 //
 // Walks a PhraseTemplate, dispatches each figure via
-// ctx.composer->realize_figure(...), and applies end-of-phrase cadence
+// ctx.composer->compose_figure(...), and applies end-of-phrase cadence
 // adjustment.
 //
-// Mirrors pre-refactor ClassicalComposer::realize_phrase
+// Mirrors pre-refactor ClassicalComposer::compose_phrase
 // (classical_composer.h:181-224) with edits:
 //   - rng.rng() becomes ctx.rng->rng()
-//   - inlined realize_figure call becomes ctx.composer->realize_figure(...)
+//   - inlined compose_figure call becomes ctx.composer->compose_figure(...)
 //   - choose_shape resolves through DefaultFigureStrategy::choose_shape
 //
 // RNG call order MUST be preserved. The pre-refactor path called rng.rng()
@@ -276,7 +276,7 @@ class DefaultPhraseStrategy : public PhraseStrategy {
 public:
   std::string name() const override { return "default_phrase"; }
 
-  Phrase realize_phrase(Locus locus, const PhraseTemplate& phraseTmpl) override;
+  Phrase compose_phrase(Locus locus, const PhraseTemplate& phraseTmpl) override;
   static int degree_in_scale(const Pitch& pitch, const Scale& scale);
   static void apply_cadence(Phrase& phrase, const PhraseTemplate& tmpl,
                             const Scale& scale);
@@ -324,8 +324,8 @@ inline void DefaultPhraseStrategy::apply_cadence(Phrase& phrase,
     }
 }
 
-// -- realize_phrase: DECLARED here, DEFINED in composer.h below Composer -----
-// Body calls ctx.composer->realize_figure(...); Composer is forward-declared
+// -- compose_phrase: DECLARED here, DEFINED in composer.h below Composer -----
+// Body calls ctx.composer->compose_figure(...); Composer is forward-declared
 // only in this file, so the definition must live after the full Composer class.
 
 } // namespace mforce
