@@ -42,3 +42,18 @@ k467_v2_1.wav            191dd46c2509c980f36b50bcf84e57047fdf5f29cd63d538c2db760
 k467_v3_1.wav            0d8049e6c189c578de4a91e3890fe76bb11feb5a986cc21a6c87764d1a932d73
 k467_v4_1.wav            2fefac34567ca5e69e4b287d70ea1d98d72cb916d431ca764dee72aa4801f2a0
 k467_structural_1.wav    4fd9cfee693fbcef6ca6756b49e6289e3518c446217743b384d653304e065774
+
+# -----------------------------------------------------------------------------
+# NEW GOLDEN 2026-04-15 — Plan B Task 12
+#
+# First algorithmic composition via PeriodPassageStrategy. Template:
+# patches/test_k467_period.json (motif pool + period-structured passage).
+# 12 bars total: period 1 (Modified, 4 bars, HC->IAC) + period 2 (Parallel,
+# 8 bars, HC->PAC). Motifs are simplifications (not bit-identical to
+# Mozart's actual figures); the test is that the pipeline runs end-to-end
+# and produces a plausible K467-like opening. User validation pending
+# (listen to the render and iterate on motif content if the character
+# isn't right).
+# -----------------------------------------------------------------------------
+
+k467_period_1.wav        5a52eee3b1c7b3df234c1ecb4858862d4d92fb84fc8b5dcdc07430d9ef27c376

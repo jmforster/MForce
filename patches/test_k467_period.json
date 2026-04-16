@@ -1,0 +1,93 @@
+{
+  "_comment": "K467/i opening — first algorithmic composition via PeriodPassageStrategy. Proves the period-aware pipeline end-to-end (motif pool + period scaffolding + plan/compose). Not bit-identical to Mozart; motifs are simplifications. Plan B Task 12 golden.",
+  "keyName": "C",
+  "scaleName": "Major",
+  "bpm": 100.0,
+  "masterSeed": 467,
+  "motifs": [
+    {
+      "name": "Fig1",
+      "type": "figure",
+      "userProvided": true,
+      "roles": ["Thematic"],
+      "figure": {
+        "units": [
+          {"duration": 1.0, "step": 0},
+          {"duration": 1.0, "step": -4},
+          {"duration": 1.0, "step": 4},
+          {"duration": 1.0, "step": 2}
+        ]
+      }
+    },
+    {
+      "name": "Fig2",
+      "type": "figure",
+      "userProvided": true,
+      "roles": ["Cadential"],
+      "figure": {
+        "units": [
+          {"duration": 1.5, "step": 0},
+          {"duration": 0.16666667, "step": -1},
+          {"duration": 0.16666667, "step": -1},
+          {"duration": 0.16666667, "step": -1},
+          {"duration": 1.0, "step": -1},
+          {"duration": 1.0, "step": 0}
+        ]
+      }
+    }
+  ],
+  "sections": [
+    {"name": "Main", "beats": 48}
+  ],
+  "parts": [
+    {
+      "name": "melody",
+      "role": "melody",
+      "passages": {
+        "Main": {
+          "startingPitch": {"octave": 4, "pitch": "C"},
+          "strategy": "period_passage",
+          "periods": [
+            {
+              "variant": "Modified",
+              "bars": 4,
+              "antecedent": {
+                "figures": [
+                  {"source": "reference", "motifName": "Fig1"},
+                  {"source": "reference", "motifName": "Fig2"}
+                ],
+                "cadenceType": 1,
+                "cadenceTarget": 4
+              },
+              "consequent": {
+                "figures": [],
+                "cadenceType": 2,
+                "cadenceTarget": 2
+              },
+              "consequentTransform": "invert"
+            },
+            {
+              "variant": "Parallel",
+              "bars": 8,
+              "antecedent": {
+                "figures": [
+                  {"source": "reference", "motifName": "Fig1"},
+                  {"source": "reference", "motifName": "Fig2"},
+                  {"source": "reference", "motifName": "Fig1"},
+                  {"source": "reference", "motifName": "Fig2"}
+                ],
+                "cadenceType": 1,
+                "cadenceTarget": 4
+              },
+              "consequent": {
+                "figures": [],
+                "cadenceType": 2,
+                "cadenceTarget": 0
+              }
+            }
+          ]
+        }
+      }
+    }
+  ]
+}
