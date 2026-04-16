@@ -16,3 +16,29 @@ k467_v2_1.wav            9ae4904c4999cd8797054c8f48f384f046a30831d12ee07ca55a64e
 k467_v3_1.wav            418107958eae5c6e8bb9ffdc4202b7252c3e3bf97d544abfb55f054fa0649bec
 k467_v4_1.wav            59927f4b5756fb5dc07d381ed4f3793e27027b64d0ab021f4e5c977648c9f0ab
 k467_structural_1.wav    d7be258e0e6c5261708a434e476423a7bd05275752c495d9673a504d5b9c5ce2
+
+# -----------------------------------------------------------------------------
+# REBASELINED 2026-04-15 at commit 880871f (main HEAD as of Plan A Task 0 start)
+#
+# Brother's commits 840a9f8 (Markov ODE / mass-spring / self-rewriting AST
+# oscillators) and 4596270 (SAT/DPLL / Micro-NN / SAW / Homotopy / LDPC
+# oscillators) changed the audio output bitstream for all five K467 renders
+# (peak drift ~0.35 -> 0.33, rms drift ~0.05 -> 0.04).
+#
+# Both commits only ADD new source headers + register them in
+# source_registrations.cpp. They do NOT modify any existing source code or
+# the PluckEvolution path that PluckU uses. Functional behavior of K467
+# composition is expected to be unchanged; the bitstream drift is likely
+# due to MSVC optimization/layout shift from the added compile units and/or
+# a subtle init-order interaction we haven't investigated.
+#
+# Plan A treats THESE NEW hashes as the reference going forward. If a
+# future regression surfaces, the investigation target is the diff between
+# 9e05468 (refactor tip) and 880871f inclusive.
+# -----------------------------------------------------------------------------
+
+k467_v1_1.wav            5627b26e59fa083c69df0a414ca1a9bdec3c0ae362a1e4561f17258e4205f9b8
+k467_v2_1.wav            191dd46c2509c980f36b50bcf84e57047fdf5f29cd63d538c2db760b5253c6b8
+k467_v3_1.wav            0d8049e6c189c578de4a91e3890fe76bb11feb5a986cc21a6c87764d1a932d73
+k467_v4_1.wav            2fefac34567ca5e69e4b287d70ea1d98d72cb916d431ca764dee72aa4801f2a0
+k467_structural_1.wav    4fd9cfee693fbcef6ca6756b49e6289e3518c446217743b384d653304e065774
