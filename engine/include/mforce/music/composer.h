@@ -166,20 +166,9 @@ struct Composer {
     return s->realize_passage(locus, passTmpl);
   }
 
-  // --- Accessor for DefaultFigureStrategy::realize_figure ---
-  const std::unordered_map<std::string, MelodicFigure>& realized_motifs() const {
-    return realizedMotifs_;
-  }
-
-  const PulseSequence* find_rhythm_motif(const std::string& name) const {
-    auto it = realizedRhythms_.find(name);
-    return it == realizedRhythms_.end() ? nullptr : &it->second;
-  }
-
-  const StepSequence* find_contour_motif(const std::string& name) const {
-    auto it = realizedContours_.find(name);
-    return it == realizedContours_.end() ? nullptr : &it->second;
-  }
+  // Motif accessors moved to PieceTemplate (Task 1). Callers reach them
+  // via locus.pieceTemplate->realized_motifs() / find_rhythm_motif() /
+  // find_contour_motif().
 
   // --- Public registry lookup for Phase 2 shape dispatch ---
   // Named awkwardly to signal it exists specifically for the shape-dispatch
@@ -205,9 +194,6 @@ struct Composer {
 
 private:
   Randomizer rng_;
-  std::unordered_map<std::string, MelodicFigure> realizedMotifs_;
-  std::unordered_map<std::string, PulseSequence> realizedRhythms_;
-  std::unordered_map<std::string, StepSequence> realizedContours_;
 
   // ---- Pre-refactor port: ClassicalComposer::setup_piece -----------------
   void setup_piece_(Piece& piece, const PieceTemplate& tmpl) {
@@ -248,23 +234,12 @@ private:
 
   // ---- Thin wrapper around the free realize_motifs function. -------------
   //
-  // Transition mode: the free function writes into PieceTemplate's realized
-  // maps; we mirror those into Composer's member maps so existing callers
-  // (`composer->realized_motifs()` etc.) keep working until Task 2 migrates
-  // them to read directly from PieceTemplate. Task 3 deletes these members
-  // + the mirror.
-  //
   // const_cast is transitional: setup_piece_ / compose() currently take
   // `const PieceTemplate&`; the free function mutates the realized maps.
-  // When compose() signature changes to take non-const PieceTemplate& (Plan
-  // B's plan() phase requires it), the const_cast goes away.
+  // When compose() signature changes to take non-const (Plan B's plan_*
+  // requires it), this const_cast goes away.
   void realize_motifs_(const Piece& /*piece*/, const PieceTemplate& tmpl) {
-    PieceTemplate& tmplMut = const_cast<PieceTemplate&>(tmpl);
-    ::mforce::realize_motifs(tmplMut, rng_);
-    // Mirror for backward compat — callers still read Composer's maps.
-    realizedMotifs_   = tmplMut.realizedMotifs;
-    realizedRhythms_  = tmplMut.realizedRhythms;
-    realizedContours_ = tmplMut.realizedContours;
+    ::mforce::realize_motifs(const_cast<PieceTemplate&>(tmpl), rng_);
   }
 
   // ---- Pre-refactor port: ClassicalComposer::generate_default_passage -----
@@ -315,7 +290,7 @@ private:
     passTmpl.phrases = {ante, cons};
 
     ::mforce::rng::Scope rngScope(rng_);
-    Locus locus{&piece, &tmpl, this, 0, 0};
+    Locus locus{&piece, const_cast<PieceTemplate*>(&tmpl), 0, 0};
     return this->realize_passage(locus, passTmpl);
   }
 
@@ -354,7 +329,7 @@ private:
       for (int i = 0; i < (int)piece.parts.size(); ++i) {
         if (piece.parts[i].name == partTmpl.name) { partIdx = i; break; }
       }
-      Locus locus{&piece, &tmpl, this, sectionIdx, partIdx};
+      Locus locus{&piece, const_cast<PieceTemplate*>(&tmpl), sectionIdx, partIdx};
       ::mforce::rng::Scope rngScope(rng_);
       passage = realize_passage(locus, passIt->second);
     } else {

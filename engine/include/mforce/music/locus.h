@@ -4,14 +4,15 @@
 
 namespace mforce {
 
-struct Composer;  // fwd — Locus holds a Composer* for motif-pool access during
-                  // the refactor. Once the motif pool moves to PieceTemplate
-                  // (cleanup task), this field goes away.
-
+// Locus — a structural coordinate. Carries references to the Piece being
+// built and the PieceTemplate driving the build, plus the index path to
+// the current (Section, Part, Passage, Phrase, Figure) position.
+//
+// pieceTemplate is non-const: the plan phase (Plan B) may mutate the
+// motif pool. Compose phase is read-only by contract, not by type.
 struct Locus {
   const Piece* piece;
-  const PieceTemplate* pieceTemplate;
-  Composer* composer;           // TEMP: motif pool is still on Composer
+  PieceTemplate* pieceTemplate;
   int sectionIdx;
   int partIdx;
   int passageIdx{-1};
