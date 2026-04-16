@@ -382,7 +382,7 @@ namespace detail {
 inline PulseSequence resolve_rhythm(const FigureTemplate& ft, Locus locus,
                                      uint32_t seed, float totalBeats, float defaultPulse) {
   if (!ft.rhythmMotifName.empty()) {
-    const PulseSequence* ps = locus.composer->find_rhythm_motif(ft.rhythmMotifName);
+    const PulseSequence* ps = locus.pieceTemplate->find_rhythm_motif(ft.rhythmMotifName);
     if (ps) {
       PulseSequence result = *ps;
       if (ft.rhythmTransform == "retrograde") result = result.retrograded();
@@ -400,7 +400,7 @@ inline PulseSequence resolve_rhythm(const FigureTemplate& ft, Locus locus,
 inline StepSequence resolve_contour(const FigureTemplate& ft, Locus locus,
                                      uint32_t seed, int noteCount, FigureDirection dir) {
   if (!ft.contourMotifName.empty()) {
-    const StepSequence* ss = locus.composer->find_contour_motif(ft.contourMotifName);
+    const StepSequence* ss = locus.pieceTemplate->find_contour_motif(ft.contourMotifName);
     if (ss) {
       StepSequence result = *ss;
       if (ft.contourTransform == "invert") result = result.inverted();
@@ -566,7 +566,7 @@ inline MelodicFigure ShapeCadentialApproachStrategy::realize_figure(
 
   // If a contour motif was provided, use it instead (override the generated one)
   if (!ft.contourMotifName.empty()) {
-    const StepSequence* ss = locus.composer->find_contour_motif(ft.contourMotifName);
+    const StepSequence* ss = locus.pieceTemplate->find_contour_motif(ft.contourMotifName);
     if (ss) {
       contour = *ss;
       if (ft.contourTransform == "invert") contour = contour.inverted();
@@ -703,14 +703,14 @@ inline MelodicFigure DefaultFigureStrategy::realize_figure(
     }
 
     case FigureSource::Reference: {
-      auto it = locus.composer->realized_motifs().find(figTmpl.motifName);
-      if (it != locus.composer->realized_motifs().end()) return it->second;
+      auto it = locus.pieceTemplate->realized_motifs().find(figTmpl.motifName);
+      if (it != locus.pieceTemplate->realized_motifs().end()) return it->second;
       return generate_figure(figTmpl, figSeed);
     }
 
     case FigureSource::Transform: {
-      auto it = locus.composer->realized_motifs().find(figTmpl.motifName);
-      MelodicFigure base = (it != locus.composer->realized_motifs().end())
+      auto it = locus.pieceTemplate->realized_motifs().find(figTmpl.motifName);
+      MelodicFigure base = (it != locus.pieceTemplate->realized_motifs().end())
         ? it->second
         : generate_figure(figTmpl, figSeed);
       return apply_transform(base, figTmpl.transform, figTmpl.transformParam, figSeed);
