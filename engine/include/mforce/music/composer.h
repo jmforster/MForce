@@ -5,6 +5,7 @@
 #include "mforce/music/shape_strategies.h"
 #include "mforce/music/phrase_strategies.h"
 #include "mforce/music/alternating_figure_strategy.h"
+#include "mforce/music/period_passage_strategy.h"
 #include "mforce/music/chord_progression_builder.h"
 #include "mforce/music/structure.h"
 #include "mforce/music/templates.h"
@@ -126,8 +127,9 @@ struct Composer {
     reg.register_phrase(std::make_unique<PeriodPhraseStrategy>());
     reg.register_phrase(std::make_unique<SentencePhraseStrategy>());
 
-    // Passage strategies (Task 7)
+    // Passage strategies
     reg.register_passage(std::make_unique<AlternatingFigureStrategy>());
+    reg.register_passage(std::make_unique<PeriodPassageStrategy>());
   }
 
   // --- Top-level composition ---

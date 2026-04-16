@@ -1,0 +1,116 @@
+#pragma once
+#include "mforce/music/strategy.h"
+#include "mforce/music/strategy_registry.h"
+#include "mforce/music/templates.h"
+#include "mforce/music/structure.h"
+#include "mforce/music/figures.h"
+#include "mforce/music/piece_utils.h"
+#include "mforce/music/default_strategies.h"
+#include <iostream>
+
+namespace mforce {
+
+// ---------------------------------------------------------------------------
+// PeriodPassageStrategy — Option α (variant logic inlined).
+//
+// plan_passage: reads seed.periods[], resolves each period's variant into
+// concrete PhraseTemplates for antecedent + consequent, flattens into
+// seed.phrases[] in order. May mutate pieceTemplate's motif pool via
+// add_derived_motif for Modified-variant consequents (Task 10 completes
+// Modified + Contrasting; this task covers Parallel only).
+//
+// compose_passage: dispatches each flattened phrase via the registered
+// PhraseStrategy (default_phrase fallback), concatenates into a Passage.
+//
+// Registered under name "period_passage".
+// ---------------------------------------------------------------------------
+class PeriodPassageStrategy : public PassageStrategy {
+public:
+  std::string name() const override { return "period_passage"; }
+
+  PassageTemplate plan_passage(Locus locus, PassageTemplate seed) override;
+  Passage         compose_passage(Locus locus, const PassageTemplate& pt) override;
+};
+
+// --- Out-of-line definitions -------------------------------------------------
+
+inline PassageTemplate PeriodPassageStrategy::plan_passage(
+    Locus locus, PassageTemplate seed) {
+
+  // If the seed has no periods[], there's nothing to plan — just return
+  // the seed unchanged. Author probably intends to drive via seed.phrases[]
+  // with a different strategy; but if they pointed at period_passage
+  // without periods, we pass through rather than throwing.
+  if (seed.periods.empty()) return seed;
+
+  // Reset phrases[]; we'll populate from periods[]. If the user supplied
+  // pre-resolved phrases alongside periods, we overwrite — periods win.
+  seed.phrases.clear();
+
+  for (int pi = 0; pi < (int)seed.periods.size(); ++pi) {
+    PeriodSpec& p = seed.periods[pi];
+
+    // Optional leading connective phrase (between periods, not before period 0).
+    if (pi > 0 && p.leadingConnective) {
+      PhraseTemplate connPhrase;
+      connPhrase.name = "connective_" + std::to_string(pi);
+      FigureTemplate ft;
+      ft.source = FigureSource::Reference;
+      ft.motifName = *p.leadingConnective;
+      connPhrase.figures.push_back(ft);
+      FigureConnector fc;  // default: all zeros
+      connPhrase.connectors.push_back(fc);
+      seed.phrases.push_back(std::move(connPhrase));
+    }
+
+    // Resolve variant into two concrete PhraseTemplates.
+    if (p.variant == PeriodVariant::Parallel) {
+      // Consequent starts as a copy of antecedent (same motifs, same
+      // connectors), with cadence fields replaced by the consequent's
+      // authored values. If the authored consequent has explicit figures
+      // (e.g., a PAC tail that differs from the antecedent's HC tail),
+      // those take precedence.
+      PhraseTemplate ante = p.antecedent;
+      PhraseTemplate consq = p.antecedent;
+      consq.cadenceType   = p.consequent.cadenceType;
+      consq.cadenceTarget = p.consequent.cadenceTarget;
+      if (!p.consequent.figures.empty()) {
+        consq.figures = p.consequent.figures;
+        consq.connectors = p.consequent.connectors;
+      }
+      seed.phrases.push_back(std::move(ante));
+      seed.phrases.push_back(std::move(consq));
+    } else {
+      // Modified and Contrasting not yet implemented (Task 10).
+      // Fall back to passing antecedent + consequent through verbatim.
+      seed.phrases.push_back(p.antecedent);
+      seed.phrases.push_back(p.consequent);
+    }
+  }
+
+  return seed;
+}
+
+inline Passage PeriodPassageStrategy::compose_passage(
+    Locus locus, const PassageTemplate& pt) {
+  Passage passage;
+  for (int i = 0; i < (int)pt.phrases.size(); ++i) {
+    const PhraseTemplate& phraseTmpl = pt.phrases[i];
+    if (phraseTmpl.locked) continue;
+
+    std::string pn = phraseTmpl.strategy.empty()
+                     ? std::string("default_phrase")
+                     : phraseTmpl.strategy;
+    PhraseStrategy* ps = StrategyRegistry::instance().resolve_phrase(pn);
+    if (!ps) {
+      std::cerr << "Unknown phrase strategy '" << pn
+                << "', falling back to default_phrase\n";
+      ps = StrategyRegistry::instance().resolve_phrase("default_phrase");
+    }
+    Phrase phrase = ps->compose_phrase(locus.with_phrase(i), phraseTmpl);
+    passage.add_phrase(std::move(phrase));
+  }
+  return passage;
+}
+
+} // namespace mforce
