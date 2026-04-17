@@ -1,8 +1,6 @@
 #pragma once
 #include "mforce/music/templates.h"
 #include "mforce/music/music_json.h"
-#include "mforce/music/style_table.h"
-#include "mforce/music/chord_walker.h"
 #include <nlohmann/json.hpp>
 
 namespace mforce {
