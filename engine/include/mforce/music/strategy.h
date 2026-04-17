@@ -40,10 +40,13 @@ public:
   virtual Phrase compose_phrase(Locus, const PhraseTemplate&) = 0;
 };
 
+enum class StrategyScope { Melody, MelodyAndHarmony };
+
 class PassageStrategy {
 public:
   virtual ~PassageStrategy() = default;
   virtual std::string name() const = 0;
+  virtual StrategyScope scope() const { return StrategyScope::Melody; }
 
   virtual PassageTemplate plan_passage(Locus /*locus*/, PassageTemplate seed) {
     return seed;

@@ -10,6 +10,8 @@ namespace mforce {
 //
 // pieceTemplate is non-const: the plan phase (Plan B) may mutate the
 // motif pool. Compose phase is read-only by contract, not by type.
+struct HarmonyTimeline;
+
 struct Locus {
   const Piece* piece;
   PieceTemplate* pieceTemplate;
@@ -18,6 +20,7 @@ struct Locus {
   int passageIdx{-1};
   int phraseIdx{-1};
   int figureIdx{-1};
+  const HarmonyTimeline* harmony{nullptr};
 
   Locus with_passage(int p) const { Locus l = *this; l.passageIdx = p; l.phraseIdx = -1; l.figureIdx = -1; return l; }
   Locus with_phrase (int p) const { Locus l = *this; l.phraseIdx  = p; l.figureIdx = -1; return l; }
