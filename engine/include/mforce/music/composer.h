@@ -7,6 +7,8 @@
 #include "mforce/music/alternating_figure_strategy.h"
 #include "mforce/music/period_passage_strategy.h"
 #include "mforce/music/chord_progression_builder.h"
+#include "mforce/music/chord_walker.h"
+#include "mforce/music/harmony_timeline.h"
 #include "mforce/music/structure.h"
 #include "mforce/music/templates.h"
 #include "mforce/music/pitch_reader.h"
@@ -228,6 +230,12 @@ private:
         section.chordProgression = ChordProgressionBuilder::build(sd.progressionName, sd.beats);
       }
       section.keyContexts = sd.keyContexts;
+
+      // Populate HarmonyTimeline from whatever source provided the progression.
+      if (section.chordProgression) {
+        section.harmonyTimeline.set_segment(
+            0.0f, sd.beats, *section.chordProgression, "authored");
+      }
     }
 
     // Parts
@@ -341,6 +349,30 @@ private:
         if (piece.parts[i].name == partTmpl.name) { partIdx = i; break; }
       }
       Locus locus{&piece, const_cast<PieceTemplate*>(&tmpl), sectionIdx, partIdx};
+      if (section) {
+        locus.harmony = &section->harmonyTimeline;
+      }
+
+      // If strategy is Melody-only and no harmony exists yet, generate via ChordWalker.
+      const PieceTemplate::SectionDef* sd = nullptr;
+      for (const auto& s : tmpl.sections) {
+        if (s.name == sectionName) { sd = &s; break; }
+      }
+      PassageStrategy* strat = StrategyRegistry::instance().resolve_passage(
+          passIt->second.strategy.empty() ? "default_passage" : passIt->second.strategy);
+      if (strat && strat->scope() == StrategyScope::Melody
+          && section && section->harmonyTimeline.empty()
+          && sd && !sd->styleName.empty()) {
+        auto style = StyleTable::load_by_name(sd->styleName);
+        WalkConstraint wc;
+        wc.startChord = ScaleChord{0, 0, &ChordDef::get("Major")};
+        wc.totalBeats = sd->beats;
+        auto prog = ChordWalker::walk(style, wc, tmpl.masterSeed + sectionIdx * 1000);
+        const_cast<Section*>(section)->harmonyTimeline.set_segment(
+            0.0f, sd->beats, prog, "chord_walker");
+        const_cast<Section*>(section)->chordProgression = prog;
+      }
+
       ::mforce::rng::Scope rngScope(rng_);
       passage = compose_passage(locus, passIt->second);
     } else {

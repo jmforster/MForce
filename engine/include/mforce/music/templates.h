@@ -385,6 +385,7 @@ struct PieceTemplate {
         std::string progressionName;  // name for ChordProgressionBuilder (empty = no progression)
         std::optional<ChordProgression> chordProgression;  // inline progression (overrides progressionName)
         std::vector<KeyContext> keyContexts;
+        std::string styleName;  // style table name for ChordWalker (empty = use progressionName or inline)
     };
     std::vector<SectionDef> sections;
 

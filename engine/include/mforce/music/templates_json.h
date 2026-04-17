@@ -1,6 +1,8 @@
 #pragma once
 #include "mforce/music/templates.h"
 #include "mforce/music/music_json.h"
+#include "mforce/music/style_table.h"
+#include "mforce/music/chord_walker.h"
 #include <nlohmann/json.hpp>
 
 namespace mforce {
@@ -789,6 +791,10 @@ inline void from_json(const json& j, PieceTemplate::SectionDef& sd) {
             }
             sd.keyContexts.push_back(ctx);
         }
+    }
+
+    if (j.contains("styleName")) {
+        sd.styleName = j["styleName"].get<std::string>();
     }
 }
 
