@@ -138,10 +138,12 @@ struct Composer {
   void compose(Piece& piece, const PieceTemplate& tmpl) {
     setup_piece_(piece, tmpl);
     for (const auto& partTmpl : tmpl.parts) {
+      if (partTmpl.role == PartRole::Harmony) continue;
       for (auto& sec : piece.sections) {
         compose_passage_(piece, tmpl, partTmpl, sec.name);
       }
     }
+    realize_chord_parts_(piece, tmpl);
   }
 
   // --- Dispatchers called from strategies ---
@@ -259,6 +261,55 @@ private:
   // requires it), this const_cast goes away.
   void realize_motifs_(const Piece& /*piece*/, const PieceTemplate& tmpl) {
     ::mforce::realize_motifs(const_cast<PieceTemplate&>(tmpl), rng_);
+  }
+
+  void realize_chord_parts_(Piece& piece, const PieceTemplate& tmpl) {
+    for (int pi = 0; pi < (int)tmpl.parts.size(); ++pi) {
+      const auto& partTmpl = tmpl.parts[pi];
+      if (partTmpl.role != PartRole::Harmony) continue;
+
+      Part* part = nullptr;
+      for (auto& p : piece.parts) {
+        if (p.name == partTmpl.name) { part = &p; break; }
+      }
+      if (!part) continue;
+
+      float beatOffset = 0.0f;
+      for (int si = 0; si < (int)piece.sections.size(); ++si) {
+        const auto& sec = piece.sections[si];
+        if (sec.harmonyTimeline.empty()) { beatOffset += sec.beats; continue; }
+
+        auto passIt = partTmpl.passages.find(sec.name);
+        ChordAccompanimentConfig cfg;
+        if (passIt != partTmpl.passages.end() && passIt->second.chordConfig) {
+          cfg = *passIt->second.chordConfig;
+        }
+
+        float beatsPerBar = float(sec.meter.beats_per_bar());
+        int totalBars = int(sec.beats / beatsPerBar);
+
+        for (int bar = 0; bar < totalBars; ++bar) {
+          float barStart = beatOffset + bar * beatsPerBar;
+          const auto& pattern = cfg.pattern_for_bar(bar + 1);
+
+          float pos = barStart;
+          for (float dur : pattern) {
+            if (dur < 0) {
+              pos += (-dur);
+              continue;
+            }
+            const ScaleChord* sc = sec.harmonyTimeline.chord_at(pos - beatOffset);
+            if (sc) {
+              Chord chord = sc->resolve(sec.scale, cfg.octave, dur,
+                                        cfg.inversion, cfg.spread);
+              part->add_chord(pos, chord);
+            }
+            pos += dur;
+          }
+        }
+        beatOffset += sec.beats;
+      }
+    }
   }
 
   // ---- Pre-refactor port: ClassicalComposer::generate_default_passage -----

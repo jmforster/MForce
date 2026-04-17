@@ -551,7 +551,9 @@ static int run_compose(int argc, char** argv) {
 
         // Perform via Conductor
         Conductor conductor;
-        conductor.instruments["melody"] = ip.instrument.get();
+        for (const auto& part : piece.parts) {
+          conductor.instruments[part.instrumentType] = ip.instrument.get();
+        }
         conductor.perform(piece);
 
         // Render
@@ -605,6 +607,11 @@ static int run_compose(int argc, char** argv) {
             }
             std::cout << "\n";
           }
+        }
+        for (const auto& part : piece.parts) {
+          std::cout << "  Part '" << part.name << "': "
+                    << part.events.size() << " events, "
+                    << part.passages.size() << " passages\n";
         }
     }
 

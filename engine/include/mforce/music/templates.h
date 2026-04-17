@@ -304,20 +304,44 @@ struct PeriodSpec {
 };
 
 // ===========================================================================
+// ChordAccompanimentConfig — rhythm pattern for chord parts.
+// Durations per bar; negative values = rest of that duration.
+// ===========================================================================
+
+struct ChordAccompanimentConfig {
+    std::vector<float> defaultPattern{2.0f, 2.0f};
+    struct BarOverride {
+        std::vector<int> bars;
+        std::vector<float> pattern;
+    };
+    std::vector<BarOverride> overrides;
+    int octave{3};
+    int inversion{0};
+    int spread{0};
+
+    const std::vector<float>& pattern_for_bar(int bar1) const {
+        for (const auto& ov : overrides) {
+            for (int b : ov.bars) {
+                if (b == bar1) return ov.pattern;
+            }
+        }
+        return defaultPattern;
+    }
+};
+
+// ===========================================================================
 // PassageTemplate — what a Part plays during a Section
 // ===========================================================================
 
 struct PassageTemplate {
     std::string name;
-    std::optional<Pitch> startingPitch;           // REQUIRED at JSON-load time;
-                                                  // optional storage because Pitch
-                                                  // has no default constructor.
+    std::optional<Pitch> startingPitch;
     std::vector<PhraseTemplate> phrases;
 
     // Passage-level directives
-    std::string character;           // freeform: "energetic", "lyrical", "transitional"
-    std::string fromKey;             // for modulatory passages
-    std::string toKey;               // ending key (empty = same)
+    std::string character;
+    std::string fromKey;
+    std::string toKey;
 
     // Strategy selection. Empty = default_passage.
     std::string strategy;
@@ -329,6 +353,10 @@ struct PassageTemplate {
     // Period scaffolding (optional). Consumed by period-aware strategies
     // (PeriodPassageStrategy). Other passage strategies ignore this field.
     std::vector<PeriodSpec> periods;
+
+    // Chord accompaniment config (optional). Used by Composer for
+    // Harmony-role parts.
+    std::optional<ChordAccompanimentConfig> chordConfig;
 };
 
 // ===========================================================================

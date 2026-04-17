@@ -667,15 +667,30 @@ inline void to_json(json& j, const PassageTemplate& pt) {
     if (!pt.periods.empty()) j["periods"] = pt.periods;
 }
 
-inline void from_json(const json& j, PassageTemplate& pt) {
-    if (!j.contains("startingPitch")) {
-        throw std::runtime_error(
-            "PassageTemplate '" + j.value("name", std::string("<unnamed>")) +
-            "' is missing required field 'startingPitch'");
+inline void from_json(const json& j, ChordAccompanimentConfig& cc) {
+    if (j.contains("defaultPattern")) {
+        cc.defaultPattern.clear();
+        for (auto& v : j["defaultPattern"]) cc.defaultPattern.push_back(v.get<float>());
     }
-    Pitch p;
-    from_json(j.at("startingPitch"), p);
-    pt.startingPitch = p;
+    if (j.contains("overrides")) {
+        for (auto& ov : j["overrides"]) {
+            ChordAccompanimentConfig::BarOverride bo;
+            for (auto& b : ov["bars"]) bo.bars.push_back(b.get<int>());
+            for (auto& v : ov["pattern"]) bo.pattern.push_back(v.get<float>());
+            cc.overrides.push_back(std::move(bo));
+        }
+    }
+    cc.octave = j.value("octave", 3);
+    cc.inversion = j.value("inversion", 0);
+    cc.spread = j.value("spread", 0);
+}
+
+inline void from_json(const json& j, PassageTemplate& pt) {
+    if (j.contains("startingPitch")) {
+        Pitch p;
+        from_json(j.at("startingPitch"), p);
+        pt.startingPitch = p;
+    }
 
     // phrases[] may be empty when periods[] drives the passage.
     pt.phrases.clear();
@@ -700,6 +715,13 @@ inline void from_json(const json& j, PassageTemplate& pt) {
             PeriodSpec ps; from_json(pj, ps);
             pt.periods.push_back(std::move(ps));
         }
+    }
+
+    // Optional chord accompaniment config.
+    if (j.contains("chordConfig")) {
+        ChordAccompanimentConfig cc;
+        from_json(j["chordConfig"], cc);
+        pt.chordConfig = cc;
     }
 }
 

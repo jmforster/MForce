@@ -282,6 +282,21 @@
           ]
         }
       }
+    },
+    {
+      "name": "chords",
+      "role": "harmony",
+      "passages": {
+        "Main": {
+          "chordConfig": {
+            "defaultPattern": [2.0, 2.0],
+            "overrides": [
+              {"bars": [5, 6, 9, 10], "pattern": [-0.5, 0.5, 0.5, 0.5, 2.0]}
+            ],
+            "octave": 3
+          }
+        }
+      }
     }
   ]
 }
