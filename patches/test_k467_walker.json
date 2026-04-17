@@ -1,0 +1,287 @@
+{
+  "_comment": "K467/i bars 1-12 via PeriodPassageStrategy. Exact recreation from DURN-derived motifs (step 1 of the test-then-abstract approach).",
+  "keyName": "C",
+  "scaleName": "Major",
+  "bpm": 100.0,
+  "masterSeed": 467,
+  "motifs": [
+    {
+      "_comment": "Bar 1: C G C E triadic outline — qn qd3 qu3 qu2",
+      "name": "Fig1",
+      "type": "figure",
+      "userProvided": true,
+      "roles": ["Thematic"],
+      "figure": {
+        "units": [
+          {"duration": 1.0, "step": 0},
+          {"duration": 1.0, "step": -3},
+          {"duration": 1.0, "step": 3},
+          {"duration": 1.0, "step": 2}
+        ]
+      }
+    },
+    {
+      "_comment": "Bar 2: dotted-quarter scalar descent w/triplets + rest + pickup — q.u1 3sd1 3sd1 3sd1 qd1 e.r sd2",
+      "name": "Fig2",
+      "type": "figure",
+      "userProvided": true,
+      "roles": ["Cadential"],
+      "figure": {
+        "units": [
+          {"duration": 1.5, "step": 0},
+          {"duration": 0.16667, "step": -1},
+          {"duration": 0.16667, "step": -1},
+          {"duration": 0.16667, "step": -1},
+          {"duration": 1.0, "step": -1},
+          {"duration": 0.75, "step": 0, "rest": true},
+          {"duration": 0.25, "step": -2}
+        ]
+      }
+    },
+    {
+      "_comment": "Bar 3: ascending steps — qu2 qu2 qu2 qd2 (modified from Fig1)",
+      "name": "Fig3",
+      "type": "figure",
+      "userProvided": true,
+      "roles": ["Thematic"],
+      "origin": "Derived",
+      "derivedFrom": "Fig1",
+      "figure": {
+        "units": [
+          {"duration": 1.0, "step": 0},
+          {"duration": 1.0, "step": 2},
+          {"duration": 1.0, "step": 2},
+          {"duration": 1.0, "step": -2}
+        ]
+      }
+    },
+    {
+      "_comment": "Bar 4: like Fig2 but ascending start — q.u3 3su1 3sd1 3sd1 qd1 qr",
+      "name": "Fig4",
+      "type": "figure",
+      "userProvided": true,
+      "roles": ["Cadential"],
+      "origin": "Derived",
+      "derivedFrom": "Fig2",
+      "figure": {
+        "units": [
+          {"duration": 1.5, "step": 0},
+          {"duration": 0.16667, "step": 1},
+          {"duration": 0.16667, "step": -1},
+          {"duration": 0.16667, "step": -1},
+          {"duration": 1.0, "step": -1},
+          {"duration": 1.0, "step": 0, "rest": true}
+        ]
+      }
+    },
+    {
+      "_comment": "Bars 5/6: long note + scalar flourish — hu2 et ed1(+) eu1 ed2. Bar 5 has F# (accidental +1 on 2nd sounding note).",
+      "name": "Fig5",
+      "type": "figure",
+      "userProvided": true,
+      "roles": ["Thematic"],
+      "figure": {
+        "units": [
+          {"duration": 2.5, "step": 0},
+          {"duration": 0.5, "step": -1, "accidental": 1},
+          {"duration": 0.5, "step": 1},
+          {"duration": 0.5, "step": -2}
+        ]
+      }
+    },
+    {
+      "_comment": "Bar 5 variant without accidental (bar 6 uses natural) — hu1 et ed1 eu1 ed2",
+      "name": "Fig5_nat",
+      "type": "figure",
+      "userProvided": true,
+      "roles": ["Thematic"],
+      "origin": "Derived",
+      "derivedFrom": "Fig5",
+      "figure": {
+        "units": [
+          {"duration": 2.5, "step": 0},
+          {"duration": 0.5, "step": -1},
+          {"duration": 0.5, "step": 1},
+          {"duration": 0.5, "step": -2}
+        ]
+      }
+    },
+    {
+      "_comment": "Bar 7 half-bar: 3 repeated notes — qd1 e.n sn (placement-neutral; leadStep positions it)",
+      "name": "A_core",
+      "type": "figure",
+      "userProvided": true,
+      "roles": ["Cadential"],
+      "figure": {
+        "units": [
+          {"duration": 1.0, "step": 0},
+          {"duration": 0.75, "step": 0},
+          {"duration": 0.25, "step": 0}
+        ]
+      }
+    },
+    {
+      "_comment": "Bar 8 beats 1-2.5: HC arrival gesture (5 eighth notes) circling G with trill on 2nd note — eu1 ed1~ eu2 ed1 ed1",
+      "name": "G_arrival",
+      "type": "figure",
+      "userProvided": true,
+      "roles": ["Cadential"],
+      "figure": {
+        "units": [
+          {"duration": 0.5, "step": 0},
+          {"duration": 0.5, "step": -1},
+          {"duration": 0.5, "step": 2},
+          {"duration": 0.5, "step": -1},
+          {"duration": 0.5, "step": -1}
+        ]
+      }
+    },
+    {
+      "_comment": "Bar 8 beats 2.5-4: connective ascent pickup to bar 9 — eu1 eu1 en+ (last note F# via accidental)",
+      "name": "C_connective",
+      "type": "figure",
+      "userProvided": true,
+      "roles": ["Connective"],
+      "figure": {
+        "units": [
+          {"duration": 0.5, "step": 0},
+          {"duration": 0.5, "step": 1},
+          {"duration": 0.5, "step": 0, "accidental": 1}
+        ]
+      }
+    },
+    {
+      "_comment": "Bar 11 fig D: A_core rhythm tail (dotted-eighth+sixteenth) w/ steps u1 d1 — e.u1 sd1",
+      "name": "D",
+      "type": "figure",
+      "userProvided": true,
+      "roles": ["Cadential"],
+      "origin": "Derived",
+      "derivedFrom": "A_core",
+      "transform": "rhythm_tail",
+      "transformParam": 1,
+      "figure": {
+        "units": [
+          {"duration": 0.75, "step": 0},
+          {"duration": 0.25, "step": -1}
+        ]
+      }
+    },
+    {
+      "_comment": "Bar 11 fig E: same rhythm as D, steps u1 u1 — e.u1 su1",
+      "name": "E",
+      "type": "figure",
+      "userProvided": true,
+      "roles": ["Cadential"],
+      "origin": "Derived",
+      "derivedFrom": "A_core",
+      "transform": "rhythm_tail",
+      "transformParam": 1,
+      "figure": {
+        "units": [
+          {"duration": 0.75, "step": 0},
+          {"duration": 0.25, "step": 1}
+        ]
+      }
+    },
+    {
+      "_comment": "Bar 12: whole-note tonic arrival — wd2",
+      "name": "F_tonic",
+      "type": "figure",
+      "userProvided": true,
+      "roles": ["Cadential", "PostCadential"],
+      "figure": {
+        "units": [
+          {"duration": 4.0, "step": 0}
+        ]
+      }
+    }
+  ],
+  "sections": [
+    {"name": "Main", "beats": 48, "styleName": "classical_mozart"}
+  ],
+  "parts": [
+    {
+      "name": "melody",
+      "role": "melody",
+      "passages": {
+        "Main": {
+          "startingPitch": {"octave": 4, "pitch": "C"},
+          "strategy": "period_passage",
+          "periods": [
+            {
+              "_comment": "Period 1: Modified, 4 bars. Bars 1-2 antecedent (HC at G), bars 3-4 consequent (IAC at 3rd). Consequent uses explicit figures since modification isn't a simple TransformOp.",
+              "variant": "Modified",
+              "bars": 4,
+              "antecedent": {
+                "_comment": "cadenceTarget=-1 disables apply_cadence; Fig2 already encodes the authentic HC landing.",
+                "figures": [
+                  {"source": "reference", "motifName": "Fig1"},
+                  {"source": "reference", "motifName": "Fig2"}
+                ],
+                "connectors": [null, {"leadStep": 1}],
+                "cadenceType": 1,
+                "cadenceTarget": -1
+              },
+              "consequent": {
+                "figures": [
+                  {"source": "reference", "motifName": "Fig3"},
+                  {"source": "reference", "motifName": "Fig4"}
+                ],
+                "connectors": [{"leadStep": 2}, {"leadStep": 3}],
+                "cadenceType": 2,
+                "cadenceTarget": -1
+              }
+            },
+            {
+              "_comment": "Period 2: Parallel body, different cadential tail. 8 bars. Antecedent: Fig5+Fig5_nat+A+A+C (HC). Consequent: Fig5+Fig5_nat+A+D+E+F_tonic (PAC).",
+              "variant": "Parallel",
+              "bars": 8,
+              "antecedent": {
+                "_comment": "Bar 8 split: G_arrival (Cadential) + C_connective (Connective). apply_cadence skips Connective, finds G_arrival, adjusts its FIRST unit so the downbeat lands on target (G, degree 4).",
+                "figures": [
+                  {"source": "reference", "motifName": "Fig5"},
+                  {"source": "reference", "motifName": "Fig5_nat"},
+                  {"source": "reference", "motifName": "A_core"},
+                  {"source": "reference", "motifName": "A_core"},
+                  {"source": "reference", "motifName": "G_arrival", "role": "Cadential"},
+                  {"source": "reference", "motifName": "C_connective", "role": "Connective"}
+                ],
+                "connectors": [
+                  {"leadStep": 2},
+                  {"leadStep": 1},
+                  {"leadStep": -1},
+                  {"leadStep": 1},
+                  {"leadStep": 1},
+                  {"leadStep": 1}
+                ],
+                "cadenceType": 1,
+                "cadenceTarget": 1
+              },
+              "consequent": {
+                "figures": [
+                  {"source": "reference", "motifName": "Fig5"},
+                  {"source": "reference", "motifName": "Fig5_nat"},
+                  {"source": "reference", "motifName": "A_core"},
+                  {"source": "reference", "motifName": "D"},
+                  {"source": "reference", "motifName": "E"},
+                  {"source": "reference", "motifName": "F_tonic"}
+                ],
+                "connectors": [
+                  {"leadStep": 1},
+                  {"leadStep": 1},
+                  {"leadStep": -1},
+                  {"leadStep": 1},
+                  {"leadStep": 1},
+                  {"leadStep": -2}
+                ],
+                "cadenceType": 2,
+                "cadenceTarget": -1
+              }
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

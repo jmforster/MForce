@@ -594,6 +594,18 @@ static int run_compose(int argc, char** argv) {
         std::ofstream jf(jsonPath);
         jf << pieceJson.dump(2);
         std::cout << "  Saved: " << jsonPath << "\n";
+
+        // Print harmony timeline if populated
+        for (const auto& sec : piece.sections) {
+          if (!sec.harmonyTimeline.empty()) {
+            std::cout << "  Harmony for '" << sec.name << "':";
+            for (const auto& seg : sec.harmonyTimeline.segments) {
+              std::cout << " [" << seg.startBeat << "-" << seg.endBeat << ": "
+                        << seg.progression.count() << " chords]";
+            }
+            std::cout << "\n";
+          }
+        }
     }
 
     return 0;
