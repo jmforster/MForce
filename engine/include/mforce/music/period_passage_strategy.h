@@ -6,6 +6,7 @@
 #include "mforce/music/figures.h"
 #include "mforce/music/piece_utils.h"
 #include "mforce/music/default_strategies.h"
+#include "mforce/music/chord_walker.h"
 #include <iostream>
 
 namespace mforce {
@@ -27,9 +28,19 @@ namespace mforce {
 class PeriodPassageStrategy : public PassageStrategy {
 public:
   std::string name() const override { return "period_passage"; }
+  StrategyScope scope() const override { return StrategyScope::MelodyAndHarmony; }
 
   PassageTemplate plan_passage(Locus locus, PassageTemplate seed) override;
   Passage         compose_passage(Locus locus, const PassageTemplate& pt) override;
+
+private:
+  static ScaleChord cadence_chord(int cadenceType, int /*targetDegree*/) {
+    if (cadenceType == 1) {
+      return ScaleChord{4, 0, &ChordDef::get("Major")};   // V (HC)
+    } else {
+      return ScaleChord{0, 0, &ChordDef::get("Major")};   // I (PAC/IAC)
+    }
+  }
 };
 
 // --- Out-of-line definitions -------------------------------------------------
@@ -127,9 +138,62 @@ inline Passage PeriodPassageStrategy::compose_passage(
 
   if (!pt.startingPitch) return passage;
 
-  const Scale& scale = locus.piece->sections[locus.sectionIdx].scale;
+  const auto& sec = locus.piece->sections[locus.sectionIdx];
+  const Scale& scale = sec.scale;
   PitchReader runningReader(scale);
   runningReader.set_pitch(*pt.startingPitch);
+
+  // --- Harmony authoring ---
+  const PieceTemplate::SectionDef* sd = nullptr;
+  for (const auto& s : locus.pieceTemplate->sections) {
+    if (s.name == sec.name) { sd = &s; break; }
+  }
+
+  if (sd && !sd->styleName.empty() && sec.harmonyTimeline.empty()
+      && !pt.periods.empty()) {
+    auto style = StyleTable::load_by_name(sd->styleName);
+    float beatOffset = 0.0f;
+
+    for (int pi = 0; pi < (int)pt.periods.size(); ++pi) {
+      const PeriodSpec& period = pt.periods[pi];
+      float barsPerPhrase = period.bars / 2.0f;
+      float beatsPerBar = float(sec.meter.beats_per_bar());
+      float anteBeats = barsPerPhrase * beatsPerBar;
+      float consBeats = barsPerPhrase * beatsPerBar;
+
+      // Antecedent: I -> cadence target
+      {
+        WalkConstraint wc;
+        wc.startChord = ScaleChord{0, 0, &ChordDef::get("Major")};
+        if (period.antecedent.cadenceTarget >= 0) {
+          wc.endChord = cadence_chord(period.antecedent.cadenceType,
+                                       period.antecedent.cadenceTarget);
+        }
+        wc.totalBeats = anteBeats;
+        auto prog = ChordWalker::walk(style, wc,
+            locus.pieceTemplate->masterSeed + pi * 100);
+        const_cast<Section&>(sec).harmonyTimeline.set_segment(
+            beatOffset, beatOffset + anteBeats, prog, "period_passage");
+        beatOffset += anteBeats;
+      }
+
+      // Consequent: I -> cadence target
+      {
+        WalkConstraint wc;
+        wc.startChord = ScaleChord{0, 0, &ChordDef::get("Major")};
+        if (period.consequent.cadenceTarget >= 0) {
+          wc.endChord = cadence_chord(period.consequent.cadenceType,
+                                       period.consequent.cadenceTarget);
+        }
+        wc.totalBeats = consBeats;
+        auto prog = ChordWalker::walk(style, wc,
+            locus.pieceTemplate->masterSeed + pi * 100 + 50);
+        const_cast<Section&>(sec).harmonyTimeline.set_segment(
+            beatOffset, beatOffset + consBeats, prog, "period_passage");
+        beatOffset += consBeats;
+      }
+    }
+  }
 
   for (int i = 0; i < (int)pt.phrases.size(); ++i) {
     const PhraseTemplate& phraseTmpl = pt.phrases[i];
