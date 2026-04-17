@@ -1,6 +1,7 @@
 #pragma once
 #include "mforce/music/basics.h"
 #include "mforce/music/figures.h"
+#include "mforce/music/harmony_timeline.h"
 #include <vector>
 #include <variant>
 #include <string>
@@ -151,6 +152,7 @@ struct Section {
   // Harmony context
   std::vector<KeyContext> keyContexts;
   std::optional<ChordProgression> chordProgression;
+  HarmonyTimeline harmonyTimeline;
 
   Scale active_scale_at(float beat) const {
     Scale result = scale;
