@@ -1,0 +1,23 @@
+{
+  "name": "classical_mozart",
+  "description": "Common-practice diatonic transitions, Mozart-era. Strong tonic-dominant polarity. Secondary dominants rare in opening periods.",
+  "preferredChordBeats": 4.0,
+  "transitions": {
+    "I":    [["IV", 3], ["V", 5], ["vi", 2], ["ii", 2], ["iii", 1], ["V7", 3]],
+    "ii":   [["V", 5], ["V7", 4], ["viio", 1]],
+    "iii":  [["vi", 3], ["IV", 2]],
+    "IV":   [["V", 5], ["V7", 4], ["I", 2], ["ii", 1]],
+    "V":    [["I", 6], ["vi", 2]],
+    "V7":   [["I", 7], ["vi", 2]],
+    "vi":   [["ii", 3], ["IV", 3], ["V", 2], ["V7", 1]],
+    "viio": [["I", 5], ["vi", 2]]
+  },
+  "overrides": {
+    "I,vi":  [["ii", 5], ["IV", 2], ["V", 1]],
+    "V,vi":  [["IV", 5], ["ii", 2], ["I", 1]],
+    "IV,V":  [["I", 7], ["vi", 2]],
+    "IV,V7": [["I", 7], ["vi", 2]],
+    "ii,V":  [["I", 6], ["vi", 2]],
+    "ii,V7": [["I", 7], ["vi", 1]]
+  }
+}
