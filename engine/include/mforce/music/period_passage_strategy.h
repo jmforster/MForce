@@ -211,7 +211,7 @@ inline Passage PeriodPassageStrategy::compose_passage(
   }
 
   // --- Phase 2: Generate harmony from composed melody ---
-  const PieceTemplate::SectionDef* sd = nullptr;
+  const PieceTemplate::SectionTemplate* sd = nullptr;
   for (const auto& s : locus.pieceTemplate->sections) {
     if (s.name == sec.name) { sd = &s; break; }
   }

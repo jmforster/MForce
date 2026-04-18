@@ -8,7 +8,7 @@
 
 namespace mforce {
 
-// Three typed peer bases. A strategy implements exactly one level.
+// Four typed peer bases. A strategy implements exactly one level.
 // Two-phase interface: plan_* transforms a seed template into a
 // self-contained template (may mutate pieceTemplate's motif pool);
 // compose_* realizes a self-contained template to concrete content
@@ -17,6 +17,17 @@ namespace mforce {
 // Default plan_* returns seed unchanged. Strategies with planning work
 // (synthesizing motifs, resolving variants, filling unspecified fields)
 // override it.
+
+class SectionStrategy {
+public:
+  virtual ~SectionStrategy() = default;
+  virtual std::string name() const = 0;
+
+  virtual PieceTemplate::SectionTemplate plan_section(Locus locus,
+      PieceTemplate::SectionTemplate seed) {
+    return seed;
+  }
+};
 
 class FigureStrategy {
 public:

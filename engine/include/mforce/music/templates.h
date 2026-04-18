@@ -404,7 +404,7 @@ struct PieceTemplate {
     std::unordered_map<std::string, StepSequence>  realizedContours;
 
     // Section definitions (in order)
-    struct SectionDef {
+    struct SectionTemplate {
         std::string name;            // "verse", "chorus", "A", "B"
         float beats{32.0f};
         std::string scaleOverride;   // empty = use piece key
@@ -415,7 +415,7 @@ struct PieceTemplate {
         std::vector<KeyContext> keyContexts;
         std::string styleName;  // style table name for ChordWalker (empty = use progressionName or inline)
     };
-    std::vector<SectionDef> sections;
+    std::vector<SectionTemplate> sections;
 
     // Form shorthand (optional): "AABA", "verse chorus verse chorus bridge chorus"
     // Composer can expand this into sections if sections vector is empty

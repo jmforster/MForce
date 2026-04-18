@@ -756,7 +756,7 @@ inline void from_json(const json& j, PartTemplate& pt) {
 // PieceTemplate
 // ===========================================================================
 
-inline void to_json(json& j, const PieceTemplate::SectionDef& sd) {
+inline void to_json(json& j, const PieceTemplate::SectionTemplate& sd) {
     j = json{{"name", sd.name}, {"beats", sd.beats}};
     if (!sd.scaleOverride.empty()) j["scaleOverride"] = sd.scaleOverride;
     if (!sd.progressionName.empty()) j["progressionName"] = sd.progressionName;
@@ -775,7 +775,7 @@ inline void to_json(json& j, const PieceTemplate::SectionDef& sd) {
         j["keyContexts"] = std::move(arr);
     }
 }
-inline void from_json(const json& j, PieceTemplate::SectionDef& sd) {
+inline void from_json(const json& j, PieceTemplate::SectionTemplate& sd) {
     sd.name = j.at("name").get<std::string>();
     sd.beats = j.at("beats").get<float>();
     sd.scaleOverride = j.value("scaleOverride", std::string(""));
@@ -850,7 +850,7 @@ inline void from_json(const json& j, PieceTemplate& pt) {
     pt.sections.clear();
     if (j.contains("sections")) {
         for (auto& sj : j.at("sections")) {
-            PieceTemplate::SectionDef sd; from_json(sj, sd);
+            PieceTemplate::SectionTemplate sd; from_json(sj, sd);
             pt.sections.push_back(std::move(sd));
         }
     }

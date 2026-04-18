@@ -405,7 +405,7 @@ private:
       }
 
       // If strategy is Melody-only and no harmony exists yet, generate via ChordWalker.
-      const PieceTemplate::SectionDef* sd = nullptr;
+      const PieceTemplate::SectionTemplate* sd = nullptr;
       for (const auto& s : tmpl.sections) {
         if (s.name == sectionName) { sd = &s; break; }
       }
