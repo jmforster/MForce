@@ -3,7 +3,7 @@
   "keyName": "C",
   "scaleName": "Major",
   "bpm": 100.0,
-  "masterSeed": 467,
+  "masterSeed": 4672,
   "motifs": [],
   "sections": [
     {"name": "Main", "beats": 48, "styleName": "classical_mozart"}
