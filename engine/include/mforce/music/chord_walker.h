@@ -92,6 +92,102 @@ struct ChordWalker {
     return prog;
   }
 
+  // Harmonize a melody: at each attack beat, pick the best chord from the
+  // style table that (a) contains the melody note and (b) transitions well
+  // from the previous chord. Cadence constraints override at cadenceBeat.
+  static ChordProgression harmonize(const StyleTable& style,
+                                     const WalkConstraint& constraint,
+                                     const std::vector<float>& attackBeats,
+                                     uint32_t seed) {
+    Randomizer rng(seed);
+    ChordProgression prog;
+    if (attackBeats.empty()) return prog;
+
+    ScaleChord current = constraint.startChord;
+    std::string currentLabel = ChordLabel::to_string(current);
+
+    // Collect all unique chords in the style table for fallback search
+    std::vector<std::pair<std::string, ScaleChord>> allChords;
+    for (const auto& [label, transitions] : style.transitions) {
+      allChords.push_back({label, ChordLabel::parse(label)});
+    }
+
+    int prevMelDeg = -2; // sentinel: no previous
+
+    for (int i = 0; i < (int)attackBeats.size(); ++i) {
+      float beat = attackBeats[i];
+      float dur = (i + 1 < (int)attackBeats.size())
+                  ? attackBeats[i + 1] - beat
+                  : constraint.totalBeats - beat;
+
+      int melDeg = melody_degree_at(constraint.melodyProfile, beat);
+
+      // Sustained note rule: if same melody note as previous chord attack,
+      // the note is still ringing — repeat the previous chord.
+      if (melDeg >= 0 && melDeg == prevMelDeg) {
+        prog.add(current, dur);
+        continue;
+      }
+      prevMelDeg = melDeg;
+
+      if (melDeg < 0) {
+        // Rest or no melody — stay on current chord
+        prog.add(current, dur);
+        continue;
+      }
+
+      // Step 1: filter transitions from current chord to those containing melody note
+      const auto* transitions = style.lookup(currentLabel, {});
+      ScaleChord best = current;
+      bool found = false;
+
+      if (transitions && !transitions->empty()) {
+        std::vector<const StyleTable::Transition*> compatible;
+        for (const auto& t : *transitions) {
+          if (is_chord_tone(melDeg, t.target)) {
+            compatible.push_back(&t);
+          }
+        }
+        if (!compatible.empty()) {
+          // Weighted pick from compatible transitions
+          float total = 0;
+          for (auto* t : compatible) total += t->weight;
+          float roll = rng.value() * total;
+          float accum = 0;
+          for (auto* t : compatible) {
+            accum += t->weight;
+            if (roll <= accum) { best = t->target; found = true; break; }
+          }
+          if (!found) { best = compatible.back()->target; found = true; }
+        }
+      }
+
+      // Step 2: if no compatible transition, search all chords in table
+      if (!found) {
+        std::vector<std::pair<std::string, ScaleChord>> compatible;
+        for (const auto& [label, sc] : allChords) {
+          if (is_chord_tone(melDeg, sc)) {
+            compatible.push_back({label, sc});
+          }
+        }
+        if (!compatible.empty()) {
+          int idx = rng.int_range(0, (int)compatible.size() - 1);
+          best = compatible[idx].second;
+          found = true;
+        }
+      }
+
+      // Step 3: if still nothing, stay on current
+      if (!found) best = current;
+
+      prog.add(best, dur);
+      current = best;
+      currentLabel = ChordLabel::to_string(current);
+    }
+
+    return prog;
+  }
+
 private:
   static float pick_duration(const StyleTable& style,
                              const WalkConstraint& constraint,
@@ -135,11 +231,9 @@ private:
     if (d == (r + 2) % 7) return true;          // 3rd
     if (d == (r + 4) % 7) return true;          // 5th
     // Check for 7th chord qualities
-    if (chord.quality) {
-      const auto& qn = chord.quality->name;
-      if (qn == "7" || qn == "Major7" || qn == "Minor7") {
-        if (d == (r + 6) % 7) return true;      // 7th
-      }
+    if (chord.quality && chord.quality->intervals.size() > 3) {
+      // Any chord with more than 3 intervals has a 7th (or extension)
+      if (d == (r + 6) % 7) return true;
     }
     return false;
   }

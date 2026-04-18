@@ -259,6 +259,14 @@ inline Passage PeriodPassageStrategy::compose_passage(
       float anteBeats = barsPerPhrase * beatsPerBar;
       float consBeats = barsPerPhrase * beatsPerBar;
 
+      // Build attack beats at half-note intervals (2 beats)
+      auto make_attacks = [](float totalBeats) {
+        std::vector<float> attacks;
+        for (float b = 0; b < totalBeats - 0.01f; b += 2.0f)
+          attacks.push_back(b);
+        return attacks;
+      };
+
       // Antecedent: I -> cadence target
       ScaleChord anteEnd{0, 0, &ChordDef::get("Major")};
       {
@@ -273,7 +281,8 @@ inline Passage PeriodPassageStrategy::compose_passage(
         wc.melodyProfile = build_melody_profile(
             passage, scale, beatOffset, beatOffset + anteBeats);
         wc.totalBeats = anteBeats;
-        auto prog = ChordWalker::walk(style, wc,
+        auto attacks = make_attacks(anteBeats);
+        auto prog = ChordWalker::harmonize(style, wc, attacks,
             locus.pieceTemplate->masterSeed + pi * 100);
         const_cast<Section&>(sec).harmonyTimeline.set_segment(
             beatOffset, beatOffset + anteBeats, prog, "period_passage");
@@ -292,7 +301,8 @@ inline Passage PeriodPassageStrategy::compose_passage(
         wc.melodyProfile = build_melody_profile(
             passage, scale, beatOffset, beatOffset + consBeats);
         wc.totalBeats = consBeats;
-        auto prog = ChordWalker::walk(style, wc,
+        auto attacks = make_attacks(consBeats);
+        auto prog = ChordWalker::harmonize(style, wc, attacks,
             locus.pieceTemplate->masterSeed + pi * 100 + 50);
         const_cast<Section&>(sec).harmonyTimeline.set_segment(
             beatOffset, beatOffset + consBeats, prog, "period_passage");

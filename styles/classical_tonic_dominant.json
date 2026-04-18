@@ -1,10 +1,10 @@
 {
   "name": "classical_tonic_dominant",
   "description": "Pure tonic-dominant polarity. For opening periods and simple classical passages.",
-  "preferredChordBeats": 4.0,
+  "preferredChordBeats": 2.0,
   "transitions": {
-    "I":  [["V", 5], ["V7", 3]],
-    "V":  [["I", 7]],
-    "V7": [["I", 8]]
+    "I":  [["I", 4], ["V", 5], ["V7", 3]],
+    "V":  [["V", 3], ["I", 7]],
+    "V7": [["V7", 2], ["I", 8]]
   }
 }
