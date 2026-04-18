@@ -136,49 +136,51 @@ struct ChordWalker {
         continue;
       }
 
-      // Step 1: filter transitions from current chord to those containing melody note
-      const auto* transitions = style.lookup(currentLabel, {});
+      // Step 1: if current chord contains the melody note, staying is always
+      // an option (implicit self-transition — no need to author it in the table).
+      // Also check explicit transitions for alternatives.
       ScaleChord best = current;
-      bool found = false;
+      bool stayWorks = is_chord_tone(melDeg, current);
+      float stayWeight = stayWorks ? 4.0f : 0.0f;
 
-      if (transitions && !transitions->empty()) {
-        std::vector<const StyleTable::Transition*> compatible;
+      const auto* transitions = style.lookup(currentLabel, {});
+      std::vector<const StyleTable::Transition*> compatible;
+      if (transitions) {
         for (const auto& t : *transitions) {
           if (is_chord_tone(melDeg, t.target)) {
             compatible.push_back(&t);
           }
         }
-        if (!compatible.empty()) {
-          // Weighted pick from compatible transitions
-          float total = 0;
-          for (auto* t : compatible) total += t->weight;
-          float roll = rng.value() * total;
-          float accum = 0;
+      }
+
+      if (stayWorks || !compatible.empty()) {
+        float total = stayWeight;
+        for (auto* t : compatible) total += t->weight;
+        float roll = rng.value() * total;
+
+        if (roll < stayWeight) {
+          best = current;  // stay
+        } else {
+          float accum = stayWeight;
           for (auto* t : compatible) {
             accum += t->weight;
-            if (roll <= accum) { best = t->target; found = true; break; }
+            if (roll <= accum) { best = t->target; break; }
           }
-          if (!found) { best = compatible.back()->target; found = true; }
         }
       }
-
-      // Step 2: if no compatible transition, search all chords in table
-      if (!found) {
-        std::vector<std::pair<std::string, ScaleChord>> compatible;
+      // Step 2: if neither stay nor any transition works, search all chords
+      else {
+        std::vector<std::pair<std::string, ScaleChord>> allCompatible;
         for (const auto& [label, sc] : allChords) {
           if (is_chord_tone(melDeg, sc)) {
-            compatible.push_back({label, sc});
+            allCompatible.push_back({label, sc});
           }
         }
-        if (!compatible.empty()) {
-          int idx = rng.int_range(0, (int)compatible.size() - 1);
-          best = compatible[idx].second;
-          found = true;
+        if (!allCompatible.empty()) {
+          int idx = rng.int_range(0, (int)allCompatible.size() - 1);
+          best = allCompatible[idx].second;
         }
       }
-
-      // Step 3: if still nothing, stay on current
-      if (!found) best = current;
 
       prog.add(best, dur);
       current = best;

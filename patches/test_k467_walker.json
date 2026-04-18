@@ -6,17 +6,21 @@
   "masterSeed": 467,
   "motifs": [
     {
-      "_comment": "Bar 1: C G C E triadic outline — qn qd3 qu3 qu2",
+      "_comment": "Bar 1: C G C E triadic outline — en er ed3 er eu3 er eu2 er",
       "name": "Fig1",
       "type": "figure",
       "userProvided": true,
       "roles": ["Thematic"],
       "figure": {
         "units": [
-          {"duration": 1.0, "step": 0},
-          {"duration": 1.0, "step": -3},
-          {"duration": 1.0, "step": 3},
-          {"duration": 1.0, "step": 2}
+          {"duration": 0.5, "step": 0},
+          {"duration": 0.5, "step": 0, "rest": true},
+          {"duration": 0.5, "step": -3},
+          {"duration": 0.5, "step": 0, "rest": true},
+          {"duration": 0.5, "step": 3},
+          {"duration": 0.5, "step": 0, "rest": true},
+          {"duration": 0.5, "step": 2},
+          {"duration": 0.5, "step": 0, "rest": true}
         ]
       }
     },
@@ -59,10 +63,14 @@
       "derivedFrom": "Fig1",
       "figure": {
         "units": [
-          {"duration": 1.0, "step": 0},
-          {"duration": 1.0, "step": 2},
-          {"duration": 1.0, "step": 2},
-          {"duration": 1.0, "step": -2}
+          {"duration": 0.5, "step": 0},
+          {"duration": 0.5, "step": 0, "rest": true},
+          {"duration": 0.5, "step": 2},
+          {"duration": 0.5, "step": 0, "rest": true},
+          {"duration": 0.5, "step": 2},
+          {"duration": 0.5, "step": 0, "rest": true},
+          {"duration": 0.5, "step": -2},
+          {"duration": 0.5, "step": 0, "rest": true}
         ]
       }
     },
@@ -151,7 +159,7 @@
       "figure": {
         "units": [
           {"duration": 0.5, "step": 0},
-          {"duration": 0.5, "step": -1},
+          {"duration": 0.5, "step": -1, "ornament": {"type": "Mordent", "direction": -1}},
           {"duration": 0.5, "step": 2},
           {"duration": 0.5, "step": -1},
           {"duration": 0.5, "step": -1}
@@ -184,7 +192,7 @@
       "transformParam": 1,
       "figure": {
         "units": [
-          {"duration": 0.75, "step": 0},
+          {"duration": 0.75, "step": 0, "ornament": {"type": "Trill", "direction": 1}},
           {"duration": 0.25, "step": -1}
         ]
       }
@@ -228,7 +236,7 @@
       "role": "melody",
       "passages": {
         "Main": {
-          "startingPitch": {"octave": 4, "pitch": "C"},
+          "startingPitch": {"octave": 5, "pitch": "C"},
           "strategy": "period_passage",
           "periods": [
             {
