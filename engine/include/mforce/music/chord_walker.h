@@ -120,6 +120,13 @@ struct ChordWalker {
                   ? attackBeats[i + 1] - beat
                   : constraint.totalBeats - beat;
 
+      // First beat: honor startChord (don't let melody override it)
+      if (i == 0) {
+        prog.add(current, dur);
+        prevMelDeg = melody_degree_at(constraint.melodyProfile, beat);
+        continue;
+      }
+
       // Cadence override: force endChord at cadenceBeat
       if (constraint.cadenceBeat && constraint.endChord
           && beat >= *constraint.cadenceBeat - 0.01f) {

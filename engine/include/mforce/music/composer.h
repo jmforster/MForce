@@ -969,7 +969,15 @@ inline Phrase DefaultPhraseStrategy::compose_phrase(
     // MelodicFunction-driven shape selection — same logic as
     // classical_composer.h:197-202.
     FigureTemplate figTmpl = phraseTmpl.figures[i];
-    if (phraseTmpl.function != MelodicFunction::Free
+
+    // Force HeldNote for the last generated figure of a PAC phrase so the
+    // tonic arrival is sustained (not a brief passing note). Revisit: see
+    // project_pac_held_note.md for discussion of better approaches.
+    if (i == numFigs - 1 && phraseTmpl.cadenceType == 2
+        && figTmpl.source == FigureSource::Generate) {
+      figTmpl.shape = FigureShape::HeldNote;
+    }
+    else if (phraseTmpl.function != MelodicFunction::Free
         && figTmpl.source == FigureSource::Generate
         && figTmpl.shape == FigureShape::Free) {
       figTmpl.shape = DefaultFigureStrategy::choose_shape(
@@ -1017,6 +1025,13 @@ inline Phrase DefaultPhraseStrategy::compose_phrase(
       }
     } else {
       fig = fs->compose_figure(figLocus, figTmpl);
+    }
+
+    // Anchor first figure to starting pitch: generated figures may have
+    // a nonzero first step, but the first note of a phrase should start
+    // at the phrase's startingPitch (or leadStep offset from it).
+    if (i == 0 && !fig.units.empty() && figTmpl.source == FigureSource::Generate) {
+      fig.units[0].step = 0;
     }
 
     // Apply FigureConnector.leadStep to the new figure's first unit.
