@@ -178,7 +178,39 @@ inline Passage PeriodPassageStrategy::compose_passage(
   PitchReader runningReader(scale);
   runningReader.set_pitch(*pt.startingPitch);
 
-  // --- Harmony authoring ---
+  // --- Phase 1: Compose melody ---
+  for (int i = 0; i < (int)pt.phrases.size(); ++i) {
+    const PhraseTemplate& phraseTmpl = pt.phrases[i];
+    if (phraseTmpl.locked) continue;
+
+    PhraseTemplate localTmpl = phraseTmpl;
+    if (!localTmpl.startingPitch) {
+      localTmpl.startingPitch = runningReader.get_pitch();
+    } else {
+      runningReader.set_pitch(*localTmpl.startingPitch);
+    }
+
+    std::string pn = localTmpl.strategy.empty()
+                     ? std::string("default_phrase")
+                     : localTmpl.strategy;
+    PhraseStrategy* ps = StrategyRegistry::instance().resolve_phrase(pn);
+    if (!ps) {
+      std::cerr << "Unknown phrase strategy '" << pn
+                << "', falling back to default_phrase\n";
+      ps = StrategyRegistry::instance().resolve_phrase("default_phrase");
+    }
+    Phrase phrase = ps->compose_phrase(locus.with_phrase(i), localTmpl);
+
+    for (const auto& fig : phrase.figures) {
+      for (const auto& u : fig->units) {
+        runningReader.step(u.step);
+      }
+    }
+
+    passage.add_phrase(std::move(phrase));
+  }
+
+  // --- Phase 2: Generate harmony from composed melody ---
   const PieceTemplate::SectionDef* sd = nullptr;
   for (const auto& s : locus.pieceTemplate->sections) {
     if (s.name == sec.name) { sd = &s; break; }
@@ -215,10 +247,10 @@ inline Passage PeriodPassageStrategy::compose_passage(
         beatOffset += anteBeats;
       }
 
-      // Consequent: starts on antecedent's cadence chord, ends on own target
+      // Consequent: starts on antecedent's cadence chord
       {
         WalkConstraint wc;
-        wc.startChord = anteEnd;  // pick up from where antecedent landed
+        wc.startChord = anteEnd;
         if (period.consequent.cadenceType > 0) {
           wc.endChord = cadence_chord(period.consequent.cadenceType,
                                        period.consequent.cadenceTarget);
@@ -234,41 +266,6 @@ inline Passage PeriodPassageStrategy::compose_passage(
     }
   }
 
-  for (int i = 0; i < (int)pt.phrases.size(); ++i) {
-    const PhraseTemplate& phraseTmpl = pt.phrases[i];
-    if (phraseTmpl.locked) continue;
-
-    // Compute this phrase's startingPitch from the local running cursor.
-    // Same pattern as DefaultPassageStrategy: the passage being built is
-    // local and not yet in piece.parts[], so pitch_before(locus) can't
-    // see prior phrases. We track the cursor locally instead.
-    PhraseTemplate localTmpl = phraseTmpl;
-    if (!localTmpl.startingPitch) {
-      localTmpl.startingPitch = runningReader.get_pitch();
-    } else {
-      runningReader.set_pitch(*localTmpl.startingPitch);
-    }
-
-    std::string pn = localTmpl.strategy.empty()
-                     ? std::string("default_phrase")
-                     : localTmpl.strategy;
-    PhraseStrategy* ps = StrategyRegistry::instance().resolve_phrase(pn);
-    if (!ps) {
-      std::cerr << "Unknown phrase strategy '" << pn
-                << "', falling back to default_phrase\n";
-      ps = StrategyRegistry::instance().resolve_phrase("default_phrase");
-    }
-    Phrase phrase = ps->compose_phrase(locus.with_phrase(i), localTmpl);
-
-    // Advance running cursor through all realized figures in this phrase.
-    for (const auto& fig : phrase.figures) {
-      for (const auto& u : fig->units) {
-        runningReader.step(u.step);
-      }
-    }
-
-    passage.add_phrase(std::move(phrase));
-  }
   return passage;
 }
 

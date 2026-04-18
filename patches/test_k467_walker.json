@@ -198,7 +198,7 @@
     }
   ],
   "sections": [
-    {"name": "Main", "beats": 48, "styleName": "classical_mozart"}
+    {"name": "Main", "beats": 48, "styleName": "classical_tonic_dominant"}
   ],
   "parts": [
     {
