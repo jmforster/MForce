@@ -18,6 +18,7 @@ struct WalkConstraint {
   float totalBeats{16.0f};
   float minChordBeats{2.0f};
   float maxChordBeats{8.0f};
+  std::optional<float> cadenceBeat;  // endChord starts here (relative to walk start)
 };
 
 // ---------------------------------------------------------------------------
@@ -31,7 +32,14 @@ struct ChordWalker {
     Randomizer rng(seed);
     ChordProgression prog;
 
-    float remaining = constraint.totalBeats;
+    // If cadenceBeat is set, split: walk approach chords up to cadenceBeat,
+    // then place endChord from cadenceBeat to totalBeats.
+    float walkBeats = constraint.totalBeats;
+    if (constraint.cadenceBeat && constraint.endChord) {
+      walkBeats = *constraint.cadenceBeat;
+    }
+
+    float remaining = walkBeats;
     ScaleChord current = constraint.startChord;
     std::string currentLabel = ChordLabel::to_string(current);
     std::vector<std::string> history;
@@ -39,11 +47,14 @@ struct ChordWalker {
     while (remaining > 0.01f) {
       float chordBeats = pick_duration(style, constraint, remaining, rng);
 
-      float afterThis = remaining - chordBeats;
-      if (constraint.endChord && afterThis < constraint.minChordBeats) {
-        prog.add(constraint.endChord.value(), remaining);
-        remaining = 0;
-        break;
+      // If no cadenceBeat, use old "last chord = endChord" logic
+      if (!constraint.cadenceBeat && constraint.endChord) {
+        float afterThis = remaining - chordBeats;
+        if (afterThis < constraint.minChordBeats) {
+          prog.add(constraint.endChord.value(), remaining);
+          remaining = 0;
+          break;
+        }
       }
 
       prog.add(current, chordBeats);
@@ -54,6 +65,14 @@ struct ChordWalker {
 
       current = pick_next(style, currentLabel, history, constraint, remaining, rng);
       currentLabel = ChordLabel::to_string(current);
+    }
+
+    // Place endChord from cadenceBeat to totalBeats
+    if (constraint.cadenceBeat && constraint.endChord) {
+      float cadenceDur = constraint.totalBeats - *constraint.cadenceBeat;
+      if (cadenceDur > 0.01f) {
+        prog.add(*constraint.endChord, cadenceDur);
+      }
     }
 
     return prog;

@@ -34,6 +34,41 @@ public:
   Passage         compose_passage(Locus locus, const PassageTemplate& pt) override;
 
 private:
+  // Compute the beat offset (relative to phrase start) where the cadence
+  // figure begins. Walks figures, summing durations from realized motifs,
+  // stopping at the last non-Connective/non-PostCadential figure.
+  static float compute_cadence_beat(const PhraseTemplate& phrase,
+                                     const PieceTemplate& tmpl) {
+    // Find the index of the cadence figure (last non-Connective/PostCadential)
+    int lastIdx = (int)phrase.figures.size() - 1;
+    while (lastIdx >= 0) {
+      const auto& ft = phrase.figures[lastIdx];
+      if (ft.role && (*ft.role == MotifRole::Connective || *ft.role == MotifRole::PostCadential)) {
+        --lastIdx;
+        continue;
+      }
+      break;
+    }
+    if (lastIdx < 0) return 0.0f;
+
+    // Sum durations of all figures BEFORE the cadence figure
+    float beat = 0.0f;
+    for (int i = 0; i < lastIdx; ++i) {
+      const auto& ft = phrase.figures[i];
+      if (ft.source == FigureSource::Reference && !ft.motifName.empty()) {
+        auto it = tmpl.realizedMotifs.find(ft.motifName);
+        if (it != tmpl.realizedMotifs.end()) {
+          beat += it->second.total_duration();
+          continue;
+        }
+      }
+      // Fallback: use totalBeats from template if available
+      if (ft.totalBeats > 0) beat += ft.totalBeats;
+      else beat += 4.0f; // last resort
+    }
+    return beat;
+  }
+
   static ScaleChord cadence_chord(int cadenceType, int /*targetDegree*/) {
     if (cadenceType == 1) {
       return ScaleChord{4, 0, &ChordDef::get("Major")};   // V (HC)
@@ -162,12 +197,15 @@ inline Passage PeriodPassageStrategy::compose_passage(
       float consBeats = barsPerPhrase * beatsPerBar;
 
       // Antecedent: I -> cadence target
+      ScaleChord anteEnd{0, 0, &ChordDef::get("Major")};
       {
         WalkConstraint wc;
         wc.startChord = ScaleChord{0, 0, &ChordDef::get("Major")};
-        if (period.antecedent.cadenceTarget >= 0) {
-          wc.endChord = cadence_chord(period.antecedent.cadenceType,
-                                       period.antecedent.cadenceTarget);
+        if (period.antecedent.cadenceType > 0) {
+          anteEnd = cadence_chord(period.antecedent.cadenceType,
+                                  period.antecedent.cadenceTarget);
+          wc.endChord = anteEnd;
+          wc.cadenceBeat = compute_cadence_beat(period.antecedent, *locus.pieceTemplate);
         }
         wc.totalBeats = anteBeats;
         auto prog = ChordWalker::walk(style, wc,
@@ -177,13 +215,14 @@ inline Passage PeriodPassageStrategy::compose_passage(
         beatOffset += anteBeats;
       }
 
-      // Consequent: I -> cadence target
+      // Consequent: starts on antecedent's cadence chord, ends on own target
       {
         WalkConstraint wc;
-        wc.startChord = ScaleChord{0, 0, &ChordDef::get("Major")};
-        if (period.consequent.cadenceTarget >= 0) {
+        wc.startChord = anteEnd;  // pick up from where antecedent landed
+        if (period.consequent.cadenceType > 0) {
           wc.endChord = cadence_chord(period.consequent.cadenceType,
                                        period.consequent.cadenceTarget);
+          wc.cadenceBeat = compute_cadence_beat(period.consequent, *locus.pieceTemplate);
         }
         wc.totalBeats = consBeats;
         auto prog = ChordWalker::walk(style, wc,
