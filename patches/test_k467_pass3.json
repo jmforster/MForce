@@ -1,0 +1,85 @@
+{
+  "_comment": "Fully generative classical double period. No motifs, no explicit figures, minimal structure.",
+  "keyName": "C",
+  "scaleName": "Major",
+  "bpm": 100.0,
+  "masterSeed": 467,
+  "motifs": [],
+  "sections": [
+    {"name": "Main", "beats": 48, "styleName": "classical_mozart"}
+  ],
+  "parts": [
+    {
+      "name": "melody",
+      "role": "melody",
+      "passages": {
+        "Main": {
+          "startingPitch": {"octave": 5, "pitch": "C"},
+          "strategy": "period_passage",
+          "periods": [
+            {
+              "variant": "Modified",
+              "bars": 4,
+              "antecedent": {
+                "figures": [
+                  {"source": "generate", "totalBeats": 4, "function": "Statement"},
+                  {"source": "generate", "totalBeats": 4, "function": "Cadential"}
+                ],
+                "connectors": [null, null],
+                "cadenceType": 1,
+                "cadenceTarget": 4
+              },
+              "consequent": {
+                "figures": [
+                  {"source": "generate", "totalBeats": 4, "function": "Statement"},
+                  {"source": "generate", "totalBeats": 4, "function": "Cadential"}
+                ],
+                "connectors": [null, null],
+                "cadenceType": 2,
+                "cadenceTarget": 0
+              }
+            },
+            {
+              "variant": "Parallel",
+              "bars": 8,
+              "antecedent": {
+                "figures": [
+                  {"source": "generate", "totalBeats": 4, "function": "Statement"},
+                  {"source": "generate", "totalBeats": 4, "function": "Development"},
+                  {"source": "generate", "totalBeats": 4, "function": "Cadential"},
+                  {"source": "generate", "totalBeats": 4, "function": "Cadential"}
+                ],
+                "connectors": [null, null, null, null],
+                "cadenceType": 1,
+                "cadenceTarget": 4
+              },
+              "consequent": {
+                "figures": [
+                  {"source": "generate", "totalBeats": 4, "function": "Statement"},
+                  {"source": "generate", "totalBeats": 4, "function": "Development"},
+                  {"source": "generate", "totalBeats": 4, "function": "Cadential"},
+                  {"source": "generate", "totalBeats": 4, "function": "Cadential"}
+                ],
+                "connectors": [null, null, null, null],
+                "cadenceType": 2,
+                "cadenceTarget": 0
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "chords",
+      "role": "harmony",
+      "passages": {
+        "Main": {
+          "chordConfig": {
+            "defaultPattern": [2.0, 2.0],
+            "octave": 4
+          }
+        }
+      }
+    }
+  ]
+}

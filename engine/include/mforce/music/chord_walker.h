@@ -120,6 +120,16 @@ struct ChordWalker {
                   ? attackBeats[i + 1] - beat
                   : constraint.totalBeats - beat;
 
+      // Cadence override: force endChord at cadenceBeat
+      if (constraint.cadenceBeat && constraint.endChord
+          && beat >= *constraint.cadenceBeat - 0.01f) {
+        prog.add(*constraint.endChord, dur);
+        current = *constraint.endChord;
+        currentLabel = ChordLabel::to_string(current);
+        prevMelDeg = -2;
+        continue;
+      }
+
       int melDeg = melody_degree_at(constraint.melodyProfile, beat);
 
       // Sustained note rule: if same melody note as previous chord attack,
