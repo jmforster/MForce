@@ -69,6 +69,37 @@ private:
     return beat;
   }
 
+  // Build a melody profile from composed phrases for a given beat range.
+  // Walks the passage's phrases, tracking pitch via scale degree.
+  static std::vector<MelodySpan> build_melody_profile(
+      const Passage& passage, const Scale& scale,
+      float startBeat, float endBeat) {
+    std::vector<MelodySpan> profile;
+    float beat = 0.0f;
+
+    for (int pi = 0; pi < passage.phrase_count(); ++pi) {
+      const Phrase& phrase = passage.phrases[pi];
+      // Compute starting degree from phrase's startingPitch
+      int degree = DefaultPhraseStrategy::degree_in_scale(
+          phrase.startingPitch, scale);
+
+      for (const auto& fig : phrase.figures) {
+        for (const auto& u : fig->units) {
+          // Apply step FIRST — the unit sounds at degree+step, not degree
+          int len = scale.length();
+          degree = ((degree + u.step) % len + len) % len;
+          if (beat + u.duration > startBeat && beat < endBeat) {
+            float spanStart = std::max(beat, startBeat) - startBeat;
+            float spanEnd = std::min(beat + u.duration, endBeat) - startBeat;
+            profile.push_back({spanStart, spanEnd - spanStart, degree, u.rest});
+          }
+          beat += u.duration;
+        }
+      }
+    }
+    return profile;
+  }
+
   static ScaleChord cadence_chord(int cadenceType, int /*targetDegree*/) {
     if (cadenceType == 1) {
       return ScaleChord{4, 0, &ChordDef::get("Major")};   // V (HC)
@@ -239,6 +270,8 @@ inline Passage PeriodPassageStrategy::compose_passage(
           wc.endChord = anteEnd;
           wc.cadenceBeat = compute_cadence_beat(period.antecedent, *locus.pieceTemplate);
         }
+        wc.melodyProfile = build_melody_profile(
+            passage, scale, beatOffset, beatOffset + anteBeats);
         wc.totalBeats = anteBeats;
         auto prog = ChordWalker::walk(style, wc,
             locus.pieceTemplate->masterSeed + pi * 100);
@@ -256,6 +289,8 @@ inline Passage PeriodPassageStrategy::compose_passage(
                                        period.consequent.cadenceTarget);
           wc.cadenceBeat = compute_cadence_beat(period.consequent, *locus.pieceTemplate);
         }
+        wc.melodyProfile = build_melody_profile(
+            passage, scale, beatOffset, beatOffset + consBeats);
         wc.totalBeats = consBeats;
         auto prog = ChordWalker::walk(style, wc,
             locus.pieceTemplate->masterSeed + pi * 100 + 50);

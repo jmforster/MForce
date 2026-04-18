@@ -10,6 +10,16 @@
 namespace mforce {
 
 // ---------------------------------------------------------------------------
+// MelodySpan — a melody note sounding over a time span (for chord selection).
+// ---------------------------------------------------------------------------
+struct MelodySpan {
+  float beat;       // relative to walk start
+  float duration;
+  int scaleDegree;  // 0-indexed (C=0 in C major)
+  bool rest{false};
+};
+
+// ---------------------------------------------------------------------------
 // WalkConstraint — what the caller (Composer or strategy) provides.
 // ---------------------------------------------------------------------------
 struct WalkConstraint {
@@ -19,6 +29,7 @@ struct WalkConstraint {
   float minChordBeats{2.0f};
   float maxChordBeats{8.0f};
   std::optional<float> cadenceBeat;  // endChord starts here (relative to walk start)
+  std::vector<MelodySpan> melodyProfile;
 };
 
 // ---------------------------------------------------------------------------
@@ -40,7 +51,8 @@ struct ChordWalker {
     }
 
     float remaining = walkBeats;
-    ScaleChord current = constraint.startChord;
+    float currentBeat = 0.0f;
+    ScaleChord current = melody_aware_start(constraint);
     std::string currentLabel = ChordLabel::to_string(current);
     std::vector<std::string> history;
 
@@ -58,12 +70,14 @@ struct ChordWalker {
       }
 
       prog.add(current, chordBeats);
+      currentBeat += chordBeats;
       remaining -= chordBeats;
       history.push_back(currentLabel);
 
       if (remaining < 0.01f) break;
 
-      current = pick_next(style, currentLabel, history, constraint, remaining, rng);
+      current = pick_next(style, currentLabel, history, constraint,
+                          remaining, currentBeat, rng);
       currentLabel = ChordLabel::to_string(current);
     }
 
@@ -102,17 +116,64 @@ private:
     return dur;
   }
 
+  // If melody profile is available, pick the startChord that contains the
+  // melody note at beat 0. Falls back to constraint.startChord if no match.
+  static ScaleChord melody_aware_start(const WalkConstraint& constraint) {
+    if (constraint.melodyProfile.empty()) return constraint.startChord;
+    // The start chord is already set by the caller — don't override it.
+    // Melody awareness applies to subsequent chord picks.
+    return constraint.startChord;
+  }
+
+  // Check if a scale degree is a chord tone of a ScaleChord.
+  // Diatonic triads: root, root+2, root+4 (mod 7).
+  // 7th chords add root+6 (mod 7).
+  static bool is_chord_tone(int scaleDegree, const ScaleChord& chord) {
+    int r = chord.degree % 7;
+    int d = scaleDegree % 7;
+    if (d == r) return true;                    // root
+    if (d == (r + 2) % 7) return true;          // 3rd
+    if (d == (r + 4) % 7) return true;          // 5th
+    // Check for 7th chord qualities
+    if (chord.quality) {
+      const auto& qn = chord.quality->name;
+      if (qn == "7" || qn == "Major7" || qn == "Minor7") {
+        if (d == (r + 6) % 7) return true;      // 7th
+      }
+    }
+    return false;
+  }
+
+  // Find the melody scale degree sounding at a given beat.
+  // Returns -1 if no melody note or rest.
+  static int melody_degree_at(const std::vector<MelodySpan>& profile, float beat) {
+    constexpr float eps = 0.01f;
+    // Search backward — if beat falls on a boundary between spans,
+    // prefer the later span (the new note, not the ending one).
+    for (int i = (int)profile.size() - 1; i >= 0; --i) {
+      const auto& span = profile[i];
+      if (beat >= span.beat - eps && beat < span.beat + span.duration + eps) {
+        return span.rest ? -1 : span.scaleDegree;
+      }
+    }
+    return -1;
+  }
+
   static ScaleChord pick_next(const StyleTable& style,
                               const std::string& currentLabel,
                               const std::vector<std::string>& history,
                               const WalkConstraint& constraint,
                               float remaining,
+                              float currentBeat,
                               Randomizer& rng) {
     const auto* transitions = style.lookup(currentLabel, history);
 
     if (!transitions || transitions->empty()) {
       return ScaleChord{0, 0, &ChordDef::get("Major")};
     }
+
+    // Check melody note at current beat
+    int melDeg = melody_degree_at(constraint.melodyProfile, currentBeat);
 
     std::vector<float> weights;
     weights.reserve(transitions->size());
@@ -122,6 +183,15 @@ private:
 
     for (const auto& t : *transitions) {
       float w = t.weight;
+
+      // Melody-aware: strongly prefer chords containing the melody note
+      if (melDeg >= 0) {
+        if (is_chord_tone(melDeg, t.target)) {
+          w *= 10.0f;  // strong preference
+        } else {
+          w *= 0.1f;   // heavy penalty
+        }
+      }
 
       if (approaching && constraint.endChord) {
         if (can_reach_target(style, ChordLabel::to_string(t.target),
