@@ -130,11 +130,15 @@ inline PassageTemplate PeriodPassageStrategy::plan_passage(
   for (int pi = 0; pi < (int)seed.periods.size(); ++pi) {
     PeriodSpec& p = seed.periods[pi];
     auto autoGenFigures = [&](PhraseTemplate& phrase, const std::string& suffix) {
-      MelodicFunction func = phrase.function;
       int numFigs = (int)phrase.figures.size();
       for (int fi = 0; fi < numFigs; ++fi) {
         auto& ft = phrase.figures[fi];
         if (ft.source != FigureSource::Generate) continue;
+
+        // Per-figure function takes precedence; fall back to phrase function.
+        MelodicFunction func = (ft.function != MelodicFunction::Free)
+                              ? ft.function
+                              : phrase.function;
 
         uint32_t figSeed = ::mforce::rng::next();
         FigureTemplate genTmpl = ft;
@@ -144,8 +148,12 @@ inline PassageTemplate PeriodPassageStrategy::plan_passage(
           genTmpl.shape = DefaultFigureStrategy::choose_shape(func, fi, numFigs, figSeed);
         }
 
+        // Dispatch through the figure strategy so shapes actually run through
+        // the shape registry (compose_figure handles Generate-source by
+        // resolving ft.shape → ShapeXxxStrategy). generate_figure alone
+        // ignores shape and produces random-step output only.
         DefaultFigureStrategy figStrat;
-        MelodicFigure fig = figStrat.generate_figure(genTmpl, figSeed);
+        MelodicFigure fig = figStrat.compose_figure(locus, genTmpl);
 
         std::string motifName = "auto_p" + std::to_string(pi) + suffix + std::to_string(fi);
         Motif m;
@@ -160,7 +168,13 @@ inline PassageTemplate PeriodPassageStrategy::plan_passage(
     };
 
     autoGenFigures(p.antecedent, "_f");
-    autoGenFigures(p.consequent, "_c");
+    // For Parallel/Modified, the consequent inherits/transforms from the
+    // antecedent via variant resolution below — don't auto-gen independent
+    // motifs that would break parallelism. For Contrasting, Generate figures
+    // are resolved at compose time by the figure strategy.
+    if (p.variant == PeriodVariant::Contrasting) {
+      autoGenFigures(p.consequent, "_c");
+    }
   }
 
   for (int pi = 0; pi < (int)seed.periods.size(); ++pi) {
@@ -182,14 +196,22 @@ inline PassageTemplate PeriodPassageStrategy::plan_passage(
     // Resolve variant into two concrete PhraseTemplates.
     if (p.variant == PeriodVariant::Parallel) {
       // Consequent starts as a copy of antecedent; cadence fields and
-      // explicit consequent figures (if any) override.
+      // per-figure explicit consequent overrides apply.
       PhraseTemplate ante = p.antecedent;
       PhraseTemplate consq = p.antecedent;
       consq.cadenceType   = p.consequent.cadenceType;
       consq.cadenceTarget = p.consequent.cadenceTarget;
-      if (!p.consequent.figures.empty()) {
-        consq.figures = p.consequent.figures;
-        consq.connectors = p.consequent.connectors;
+      // Per-figure override: a Generate-source figure at index i means
+      // "inherit from antecedent"; any other source (Reference/Literal/Locked)
+      // is treated as a user-authored override for that slot (typical use:
+      // cadence-tail override).
+      for (size_t i = 0; i < p.consequent.figures.size() && i < consq.figures.size(); ++i) {
+        if (p.consequent.figures[i].source != FigureSource::Generate) {
+          consq.figures[i] = p.consequent.figures[i];
+          if (i < p.consequent.connectors.size() && i < consq.connectors.size()) {
+            consq.connectors[i] = p.consequent.connectors[i];
+          }
+        }
       }
       seed.phrases.push_back(std::move(ante));
       seed.phrases.push_back(std::move(consq));
@@ -198,8 +220,7 @@ inline PassageTemplate PeriodPassageStrategy::plan_passage(
       // Consequent figure references derive from antecedent's via the
       // period's consequentTransform. For each Reference-source figure
       // in the consequent, swap motifName for an auto-derived motif
-      // synthesized via pieceTemplate->add_derived_motif. For non-
-      // Reference figures (Literal, Locked, Generate), pass through.
+      // synthesized via pieceTemplate->add_derived_motif.
       PhraseTemplate ante = p.antecedent;
       PhraseTemplate consq = p.antecedent;  // start from antecedent
 
@@ -217,11 +238,15 @@ inline PassageTemplate PeriodPassageStrategy::plan_passage(
 
       consq.cadenceType   = p.consequent.cadenceType;
       consq.cadenceTarget = p.consequent.cadenceTarget;
-      // If the authored consequent has explicit figures, those override
-      // (even in Modified — user's direct expression wins).
-      if (!p.consequent.figures.empty()) {
-        consq.figures = p.consequent.figures;
-        consq.connectors = p.consequent.connectors;
+      // Per-figure override (same rule as Parallel): Generate means inherit;
+      // any other source replaces for that slot.
+      for (size_t i = 0; i < p.consequent.figures.size() && i < consq.figures.size(); ++i) {
+        if (p.consequent.figures[i].source != FigureSource::Generate) {
+          consq.figures[i] = p.consequent.figures[i];
+          if (i < p.consequent.connectors.size() && i < consq.connectors.size()) {
+            consq.connectors[i] = p.consequent.connectors[i];
+          }
+        }
       }
       seed.phrases.push_back(std::move(ante));
       seed.phrases.push_back(std::move(consq));
@@ -248,16 +273,45 @@ inline Passage PeriodPassageStrategy::compose_passage(
   PitchReader runningReader(scale);
   runningReader.set_pitch(*pt.startingPitch);
 
+  // Build a role map: mark which flat phrase indices are the antecedent or
+  // consequent of a Parallel/Modified period so we can force the consequent
+  // to start at the same pitch as its antecedent (required for audible
+  // parallelism — matching step sequences with different start pitches
+  // still sound like different melodies).
+  enum class PhraseRole : uint8_t { Normal, Ante, Consq };
+  std::vector<PhraseRole> roles(pt.phrases.size(), PhraseRole::Normal);
+  {
+    int flat = 0;
+    for (int pi = 0; pi < (int)pt.periods.size(); ++pi) {
+      const PeriodSpec& p = pt.periods[pi];
+      if (pi > 0 && p.leadingConnective) ++flat;  // connective phrase
+      bool paired = (p.variant == PeriodVariant::Parallel ||
+                     p.variant == PeriodVariant::Modified);
+      if (flat < (int)roles.size() && paired) roles[flat] = PhraseRole::Ante;
+      ++flat;
+      if (flat < (int)roles.size() && paired) roles[flat] = PhraseRole::Consq;
+      ++flat;
+    }
+  }
+
   // --- Phase 1: Compose melody ---
+  Pitch anteStartPitch;  // captured before composing an Ante, used by paired Consq
   for (int i = 0; i < (int)pt.phrases.size(); ++i) {
     const PhraseTemplate& phraseTmpl = pt.phrases[i];
     if (phraseTmpl.locked) continue;
 
     PhraseTemplate localTmpl = phraseTmpl;
-    if (!localTmpl.startingPitch) {
+    if (roles[i] == PhraseRole::Consq) {
+      // Force consequent to start at antecedent's pitch for audible parallelism.
+      localTmpl.startingPitch = anteStartPitch;
+      runningReader.set_pitch(anteStartPitch);
+    } else if (!localTmpl.startingPitch) {
       localTmpl.startingPitch = runningReader.get_pitch();
     } else {
       runningReader.set_pitch(*localTmpl.startingPitch);
+    }
+    if (roles[i] == PhraseRole::Ante) {
+      anteStartPitch = *localTmpl.startingPitch;
     }
 
     std::string pn = localTmpl.strategy.empty()

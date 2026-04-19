@@ -140,10 +140,13 @@ inline void to_json(json& j, MelodicFunction f) {
 }
 inline void from_json(const json& j, MelodicFunction& f) {
     auto s = j.get<std::string>();
-    if (s == "statement")        f = MelodicFunction::Statement;
-    else if (s == "development") f = MelodicFunction::Development;
-    else if (s == "transition")  f = MelodicFunction::Transition;
-    else if (s == "cadential")   f = MelodicFunction::Cadential;
+    std::string lower;
+    lower.reserve(s.size());
+    for (char c : s) lower.push_back((char)std::tolower((unsigned char)c));
+    if (lower == "statement")        f = MelodicFunction::Statement;
+    else if (lower == "development") f = MelodicFunction::Development;
+    else if (lower == "transition")  f = MelodicFunction::Transition;
+    else if (lower == "cadential")   f = MelodicFunction::Cadential;
     else f = MelodicFunction::Free;
 }
 
@@ -290,6 +293,7 @@ inline void to_json(json& j, const FigureTemplate& ft) {
     if (ft.seed != 0) j["seed"] = ft.seed;
     if (ft.locked) j["locked"] = true;
     if (ft.role) j["role"] = *ft.role;
+    if (ft.function != MelodicFunction::Free) j["function"] = ft.function;
 }
 
 inline void from_json(const json& j, FigureTemplate& ft) {
@@ -358,6 +362,8 @@ inline void from_json(const json& j, FigureTemplate& ft) {
     if (j.contains("role") && !j.at("role").is_null()) {
         ft.role = j.at("role").get<MotifRole>();
     }
+
+    if (j.contains("function")) from_json(j.at("function"), ft.function);
 }
 
 // ===========================================================================

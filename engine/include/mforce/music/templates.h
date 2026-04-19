@@ -148,6 +148,11 @@ struct FigureTemplate {
     // propagation may copy the Motif's role (if unambiguous).
     std::optional<MotifRole> role;
 
+    // --- Per-figure melodic function (drives shape selection for Free figures).
+    // If Free (default), falls back to the enclosing phrase's function when
+    // shape selection runs. Non-Free overrides the phrase function.
+    MelodicFunction function{MelodicFunction::Free};
+
     // --- For Locked ---
     std::optional<MelodicFigure> lockedFigure;
 
