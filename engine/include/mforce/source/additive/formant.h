@@ -168,6 +168,20 @@ struct FixedSpectrum final : ValueSource, IFormant {
     float frac = freq - float(idx);
     return gainValues[idx] + (gainValues[idx + 1] - gainValues[idx]) * frac;
   }
+
+  std::span<const ArrayDescriptor> array_descriptors() const override {
+    static constexpr ArrayDescriptor descs[] = {
+      {"gains", nullptr, 0.0f, 0.0f, 1.0f},
+    };
+    return descs;
+  }
+  void set_array(std::string_view name, std::vector<float> v) override {
+    if (name == "gains") gainValues = std::move(v);
+  }
+  std::vector<float> get_array(std::string_view name) const override {
+    if (name == "gains") return gainValues;
+    return {};
+  }
 };
 
 // ---------------------------------------------------------------------------
@@ -238,6 +252,20 @@ struct BandSpectrum final : ValueSource, IFormant {
 
     float frac = pos - float(idx);
     return gainValues[idx] + (gainValues[idx + 1] - gainValues[idx]) * frac;
+  }
+
+  std::span<const ArrayDescriptor> array_descriptors() const override {
+    static constexpr ArrayDescriptor descs[] = {
+      {"gains", nullptr, 0.0f, 0.0f, 1.0f},
+    };
+    return descs;
+  }
+  void set_array(std::string_view name, std::vector<float> v) override {
+    if (name == "gains") gainValues = std::move(v);
+  }
+  std::vector<float> get_array(std::string_view name) const override {
+    if (name == "gains") return gainValues;
+    return {};
   }
 
 private:

@@ -1,0 +1,105 @@
+{
+  "graph": {
+    "nodes": [
+      {
+        "id": "ADSREnvelope1",
+        "params": {
+          "attack": 0.07999999821186066,
+          "decay": 0.05000000074505806,
+          "release": 0.20000000298023224,
+          "sustainLevel": 0.8999999761581421
+        },
+        "type": "ADSREnvelope"
+      },
+      {
+        "id": "Range1",
+        "params": {
+          "max": 0.03999999910593033,
+          "min": 0.0,
+          "normalized": true,
+          "var": {
+            "ref": "ADSREnvelope1"
+          }
+        },
+        "type": "RangeSource"
+      },
+      {
+        "id": "ReedEvolution1",
+        "params": {
+          "breath": {
+            "ref": "Range1"
+          },
+          "reedStiffness": 2.0,
+          "tubeLoss": 0.014999999664723873
+        },
+        "type": "ReedEvolution"
+      },
+      {
+        "id": "ADSREnvelope2",
+        "params": {
+          "attack": 0.20000000298023224,
+          "decay": 0.10000000149011612,
+          "release": 0.0,
+          "sustainLevel": 0.699999988079071
+        },
+        "type": "ADSREnvelope"
+      },
+      {
+        "id": "Wavetable1",
+        "params": {
+          "amplitude": {
+            "ref": "ADSREnvelope2"
+          },
+          "evolution": {
+            "ref": "ReedEvolution1"
+          },
+          "frequency": 261.6300048828125,
+          "interpolate": false,
+          "phase": 0.0,
+          "speedFactor": 1.0
+        },
+        "type": "WavetableSource"
+      }
+    ],
+    "output": "Wavetable1"
+  },
+  "instrument": {
+    "paramMap": {
+      "frequency": "Wavetable1.frequency"
+    },
+    "polyphony": 1
+  },
+  "sampleRate": 48000,
+  "ui": {
+    "positions": {
+      "ADSREnvelope1": [
+        -39.0,
+        -305.0
+      ],
+      "ADSREnvelope2": [
+        478.0,
+        -39.0
+      ],
+      "Range1": [
+        181.0,
+        -305.0
+      ],
+      "ReedEvolution1": [
+        401.0,
+        -305.0
+      ],
+      "Wavetable1": [
+        621.0,
+        -305.0
+      ],
+      "__output": [
+        -39.0,
+        -55.0
+      ],
+      "__param_frequency": [
+        181.0,
+        -55.0
+      ]
+    }
+  }
+}

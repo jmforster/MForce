@@ -112,12 +112,37 @@ static void wire_params_generic(
     const std::unordered_map<std::string, std::shared_ptr<ValueSource>>& valueNodes)
 {
     for (const auto& desc : src.input_descriptors()) {
-        if (params.contains(desc.name))
-            src.set_param(desc.name, resolve_param(params.at(desc.name), valueNodes));
+        if (!params.contains(desc.name)) continue;
+        const auto& v = params.at(desc.name);
+        if (desc.multi && v.is_array()) {
+            // Multi-input pin with array-of-refs JSON. Iterate and add each.
+            src.clear_param(desc.name);
+            for (const auto& item : v)
+                src.add_param(desc.name, resolve_param(item, valueNodes));
+        } else {
+            src.set_param(desc.name, resolve_param(v, valueNodes));
+        }
     }
     for (const auto& desc : src.param_descriptors()) {
         if (params.contains(desc.name))
             src.set_param(desc.name, resolve_param(params.at(desc.name), valueNodes));
+    }
+    // Scalar configs (int/float/bool) — apply if present in JSON.
+    for (const auto& desc : src.config_descriptors()) {
+        if (!params.contains(desc.name)) continue;
+        const auto& v = params.at(desc.name);
+        float fv = 0.0f;
+        if      (v.is_boolean()) fv = v.get<bool>() ? 1.0f : 0.0f;
+        else if (v.is_number())  fv = v.get<float>();
+        else continue;
+        src.set_config(desc.name, fv);
+    }
+    // User-editable float arrays — ExplicitPartials multipliers, spectrum gains, etc.
+    for (const auto& desc : src.array_descriptors()) {
+        if (!params.contains(desc.name)) continue;
+        const auto& v = params.at(desc.name);
+        if (!v.is_array()) continue;
+        src.set_array(desc.name, v.get<std::vector<float>>());
     }
 }
 

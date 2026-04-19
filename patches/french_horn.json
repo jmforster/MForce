@@ -1,0 +1,59 @@
+{
+  "sampleRate": 48000,
+  "seconds": 3,
+  "graph": {
+    "nodes": [
+      { "id": "ampEnv", "type": "ADSREnvelope", "params": {
+          "attack": 0.4, "decay": 0.1, "sustainLevel": 0.8, "release": 0.1
+      } },
+      { "id": "roEnv", "type": "ADSREnvelope", "params": {
+          "attack": 0.4, "decay": 0.1, "sustainLevel": 0.8, "release": 0.1
+      } },
+      { "id": "blendEnv", "type": "ASEnvelope", "params": {
+          "attack": 0.4, "sustainLevel": 1.0
+      } },
+
+      { "id": "fhPartials", "type": "ExplicitPartials", "params": {
+          "evolve": false,
+          "rolloff1": 8.0,
+          "rolloff2": 0.0,
+          "roEnv": { "ref": "roEnv" },
+          "mult1": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+          "mult2": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+          "ampl1": [1.00, 0.75, 0.60, 0.45, 0.70, 0.35, 0.22, 0.15, 0.10, 0.25, 0.08, 0.05],
+          "ampl2": [1.00, 0.75, 0.60, 0.45, 0.70, 0.35, 0.22, 0.15, 0.10, 0.25, 0.08, 0.05]
+      } },
+
+      { "id": "f_oo1",   "type": "Formant", "params": { "frequency": 300,  "gain": 1.0, "width": 150, "power": 2.0 } },
+      { "id": "f_oo2",   "type": "Formant", "params": { "frequency": 870,  "gain": 0.6, "width": 200, "power": 2.0 } },
+      { "id": "spec_oo", "type": "FormantSpectrum", "params": {
+          "formants": [ { "ref": "f_oo1" }, { "ref": "f_oo2" } ]
+      } },
+
+      { "id": "f_a1",    "type": "Formant", "params": { "frequency": 660,  "gain": 1.0, "width": 200, "power": 2.0 } },
+      { "id": "f_a2",    "type": "Formant", "params": { "frequency": 1720, "gain": 0.7, "width": 300, "power": 2.0 } },
+      { "id": "spec_a",  "type": "FormantSpectrum", "params": {
+          "formants": [ { "ref": "f_a1" }, { "ref": "f_a2" } ]
+      } },
+
+      { "id": "fseq", "type": "FormantSequence", "params": {
+          "formants": [ { "ref": "spec_oo" }, { "ref": "spec_a" } ],
+          "blend": { "ref": "blendEnv" }
+      } },
+
+      { "id": "horn", "type": "AdditiveSource", "params": {
+          "frequency": 174.6,
+          "amplitude": { "ref": "ampEnv" },
+          "partials":  { "ref": "fhPartials" },
+          "formant":   { "ref": "fseq" },
+          "formantWeight": 0.8,
+          "phase": 0.0
+      } }
+    ],
+    "output": "horn"
+  },
+  "instrument": {
+    "paramMap": { "frequency": "horn.frequency" },
+    "polyphony": 4
+  }
+}

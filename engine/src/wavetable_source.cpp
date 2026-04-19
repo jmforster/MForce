@@ -14,6 +14,8 @@ void WavetableSource::prepare(int frames) {
   WaveSource::prepare(frames);
   speedFactor_->prepare(frames);
   inputSource_->prepare(frames);
+  if (evolutionSrc_) evolutionSrc_->prepare(frames);
+  if (evolution_) evolution_->set_sample_rate(sampleRate_);
 }
 
 void WavetableSource::fill_table() {

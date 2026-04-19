@@ -1,0 +1,35 @@
+{
+  "sampleRate": 48000,
+  "seconds": 3,
+  "graph": {
+    "nodes": [
+      { "id": "breathEnv", "type": "ADSREnvelope", "params": {
+          "attack": 0.15, "decay": 0.1, "sustainLevel": 0.8, "release": 0.3
+      } },
+      { "id": "breathAmount", "type": "RangeSource", "params": {
+          "min": 0.0, "max": 0.12,
+          "var": { "ref": "breathEnv" }
+      } },
+
+      { "id": "blownTube", "type": "BlownTubeEvolution", "params": {
+          "breath":   { "ref": "breathAmount" },
+          "tubeLoss": 0.02,
+          "jetGain":  0.0
+      } },
+
+      { "id": "tube", "type": "WavetableSource", "params": {
+          "frequency": 440.0,
+          "amplitude": 0.8,
+          "evolution": { "ref": "blownTube" }
+      } }
+    ],
+    "output": "tube"
+  },
+  "instrument": {
+    "paramMap": { "frequency": "tube.frequency" },
+    "polyphony": 1
+  },
+  "score": [
+    { "note": 69, "velocity": 0.8, "time": 0.0, "duration": 2.5 }
+  ]
+}

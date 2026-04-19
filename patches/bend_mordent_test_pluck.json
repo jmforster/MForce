@@ -1,0 +1,38 @@
+{
+  "sampleRate": 48000,
+  "graph": {
+    "nodes": [
+      { "id": "env1", "type": "Envelope",
+        "params": { "preset": "adsr", "attack": 0.0, "decay": 0.0, "sustainLevel": 1.0, "release": 0.1 } },
+      { "id": "WhiteNoise1", "type": "WhiteNoiseSource" },
+      { "id": "PluckEvolution1", "type": "PluckEvolution",
+        "params": { "muting": 0.0 } },
+      { "id": "Wavetable1", "type": "WavetableSource",
+        "params": {
+          "amplitude":   { "ref": "env1" },
+          "evolution":   { "ref": "PluckEvolution1" },
+          "frequency":   440.0,
+          "inputSource": { "ref": "WhiteNoise1" },
+          "interpolate": false,
+          "phase":       0.0,
+          "speedFactor": 1.0
+        } }
+    ],
+    "output": "Wavetable1"
+  },
+  "instrument": {
+    "paramMap": { "frequency": "Wavetable1.frequency" },
+    "polyphony": 4
+  },
+  "score": [
+    { "note": 60, "velocity": 0.7, "time": 0.0, "duration": 2.0 },
+    { "note": 60, "velocity": 0.7, "time": 2.3, "duration": 2.0,
+      "ornament": { "type": "BendMordent", "direction": 1, "semitones": 2 } },
+
+    { "note": 64, "velocity": 0.7, "time": 4.6, "duration": 2.0,
+      "ornament": { "type": "BendMordent", "direction": -1, "semitones": 2 } },
+
+    { "note": 67, "velocity": 0.7, "time": 7.0, "duration": 2.0,
+      "ornament": { "type": "BendMordent", "direction": 1, "semitones": 3 } }
+  ]
+}

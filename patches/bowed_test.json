@@ -1,0 +1,37 @@
+{
+  "sampleRate": 48000,
+  "seconds": 4,
+  "graph": {
+    "nodes": [
+      { "id": "bowEnv", "type": "ADSREnvelope", "params": {
+          "attack": 0.25, "decay": 0.1, "sustainLevel": 0.9, "release": 0.4
+      } },
+      { "id": "bowPressure", "type": "RangeSource", "params": {
+          "min": 0.0, "max": 0.45,
+          "var": { "ref": "bowEnv" }
+      } },
+
+      { "id": "bowedString", "type": "BowedStringEvolution", "params": {
+          "bow":          { "ref": "bowPressure" },
+          "frictionGain": 2.5,
+          "tubeLoss":     0.002,
+          "bowSpeed":     0.35,
+          "bowPosition":  0.14
+      } },
+
+      { "id": "string", "type": "WavetableSource", "params": {
+          "frequency": 220.0,
+          "amplitude": 0.5,
+          "evolution": { "ref": "bowedString" }
+      } }
+    ],
+    "output": "string"
+  },
+  "instrument": {
+    "paramMap": { "frequency": "string.frequency" },
+    "polyphony": 1
+  },
+  "score": [
+    { "note": 57, "velocity": 0.8, "time": 0.0, "duration": 3.5 }
+  ]
+}

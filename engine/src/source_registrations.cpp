@@ -478,6 +478,26 @@ void register_all_sources() {
             return std::make_shared<EKSEvolutionSource>(seed.value_or(0xEE45'0000u));
         });
 
+    reg.register_type("BlownTubeEvolution", SourceCategory::Generator,
+        [](int, auto seed) {
+            return std::make_shared<BlownTubeEvolutionSource>(seed.value_or(0xF10E'B10Du));
+        });
+
+    reg.register_type("ReedEvolution", SourceCategory::Generator,
+        [](int, auto seed) {
+            return std::make_shared<ReedEvolutionSource>(seed.value_or(0xBEED'BEEDu));
+        });
+
+    reg.register_type("BowedStringEvolution", SourceCategory::Generator,
+        [](int, auto seed) {
+            return std::make_shared<BowedStringEvolutionSource>(seed.value_or(0xB0ED'0000u));
+        });
+
+    reg.register_type("BrassEvolution", SourceCategory::Generator,
+        [](int, auto seed) {
+            return std::make_shared<BrassEvolutionSource>(seed.value_or(0xB8A5'5000u));
+        });
+
     reg.register_type("HybridKSSource", SourceCategory::Oscillator,
         [](int sr, auto seed) {
             return std::make_shared<HybridKSSource>(sr, seed.value_or(0xBEEF'C0DEu));

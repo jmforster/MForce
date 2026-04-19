@@ -1,0 +1,41 @@
+{
+  "sampleRate": 48000,
+  "seconds": 3,
+  "graph": {
+    "nodes": [
+      { "id": "breathEnv", "type": "ADSREnvelope", "params": {
+          "attack": 0.1, "decay": 0.1, "sustainLevel": 0.9, "release": 0.2
+      } },
+      { "id": "breathAmount", "type": "RangeSource", "params": {
+          "min": 0.0, "max": 0.35,
+          "var": { "ref": "breathEnv" }
+      } },
+
+      { "id": "brassDrive", "type": "RangeSource", "params": {
+          "min": 0.3, "max": 2.2,
+          "var": { "ref": "breathEnv" }
+      } },
+
+      { "id": "lips", "type": "BrassEvolution", "params": {
+          "breath":       { "ref": "breathAmount" },
+          "brassiness":   { "ref": "brassDrive" },
+          "tubeLoss":   0.006,
+          "lipTension": 0.92
+      } },
+
+      { "id": "tube", "type": "WavetableSource", "params": {
+          "frequency": 349.23,
+          "amplitude": 0.8,
+          "evolution": { "ref": "lips" }
+      } }
+    ],
+    "output": "tube"
+  },
+  "instrument": {
+    "paramMap": { "frequency": "tube.frequency" },
+    "polyphony": 1
+  },
+  "score": [
+    { "note": 65, "velocity": 0.8, "time": 0.0, "duration": 2.5 }
+  ]
+}

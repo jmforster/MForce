@@ -528,6 +528,7 @@ struct ExplicitPartials final : Partials {
   std::span<const ConfigDescriptor> config_descriptors() const override {
     static constexpr ConfigDescriptor descs[] = {
       {"maxPartials", ConfigType::Int,   16.0f, 1.0f, 200.0f},
+      {"evolve",      ConfigType::Bool,  1.0f,  0.0f, 1.0f},
       {"unitPO1",     ConfigType::Float, 0.0f,  0.0f, 1.0f},
       {"unitPO2",     ConfigType::Float, 0.0f,  0.0f, 1.0f},
       {"rolloff1",    ConfigType::Float, 1.0f,  0.0f, 10.0f},
@@ -540,6 +541,16 @@ struct ExplicitPartials final : Partials {
 
   void set_config(std::string_view name, float value) override {
     if (name == "maxPartials") { maxPartials_ = std::max(1, int(value)); init_arrays_defaults(); return; }
+    if (name == "evolve") {
+      evolve_ = (value != 0.0f);
+      // When turning evolve off, mirror _1 → _2 so rendering stops drifting.
+      if (!evolve_) {
+        mult2Stat_ = mult1Stat_;
+        ampl2Stat_ = ampl1Stat_;
+        init_arrays();
+      }
+      return;
+    }
     if (name == "unitPO1")     { unitPO1_ = value; return; }
     if (name == "unitPO2")     { unitPO2_ = value; return; }
     Partials::set_config(name, value);
@@ -547,6 +558,7 @@ struct ExplicitPartials final : Partials {
 
   float get_config(std::string_view name) const override {
     if (name == "maxPartials") return float(maxPartials_);
+    if (name == "evolve")      return evolve_ ? 1.0f : 0.0f;
     if (name == "unitPO1")     return unitPO1_;
     if (name == "unitPO2")     return unitPO2_;
     return Partials::get_config(name);
@@ -567,6 +579,37 @@ struct ExplicitPartials final : Partials {
              float unitPO1, float unitPO2) {
     unitPO1_ = unitPO1; unitPO2_ = unitPO2;
     set_arrays(std::move(m1), std::move(m2), std::move(a1), std::move(a2));
+  }
+
+  // Four parallel arrays grouped as "partials" — UI table keeps them equal
+  // length. Column order pairs start/end per partial: Mult1, Ampl1, Mult2, Ampl2.
+  // When evolve=false, _2 columns are kept mirrored from _1 (UI disables them).
+  std::span<const ArrayDescriptor> array_descriptors() const override {
+    static constexpr ArrayDescriptor descs[] = {
+      {"mult1", "partials", 1.0f, 0.0f, 200.0f},
+      {"ampl1", "partials", 1.0f, 0.0f, 10.0f},
+      {"mult2", "partials", 1.0f, 0.0f, 200.0f},
+      {"ampl2", "partials", 1.0f, 0.0f, 10.0f},
+    };
+    return descs;
+  }
+  void set_array(std::string_view name, std::vector<float> v) override {
+    if      (name == "mult1") { mult1Stat_ = std::move(v); if (!evolve_) mult2Stat_ = mult1Stat_; }
+    else if (name == "mult2") { mult2Stat_ = std::move(v); }
+    else if (name == "ampl1") { ampl1Stat_ = std::move(v); if (!evolve_) ampl2Stat_ = ampl1Stat_; }
+    else if (name == "ampl2") { ampl2Stat_ = std::move(v); }
+    else return;
+    maxPartials_ = int(mult1Stat_.size());
+    init_arrays();
+  }
+  std::vector<float> get_array(std::string_view name) const override {
+    // Fall back to the working arrays (init_arrays_defaults populates mult1_
+    // etc., not the Stat_ copies) so the UI sees current effective values.
+    if (name == "mult1") return mult1Stat_.empty() ? mult1_ : mult1Stat_;
+    if (name == "mult2") return mult2Stat_.empty() ? mult2_ : mult2Stat_;
+    if (name == "ampl1") return ampl1Stat_.empty() ? ampl1_ : ampl1Stat_;
+    if (name == "ampl2") return ampl2Stat_.empty() ? ampl2_ : ampl2Stat_;
+    return {};
   }
 
 protected:
@@ -604,6 +647,7 @@ private:
   }
 
   int maxPartials_{16};
+  bool evolve_{true};
   float unitPO1_{0.0f}, unitPO2_{0.0f};
   // Static copies for re-init after expansion
   std::vector<float> mult1Stat_, mult2Stat_, ampl1Stat_, ampl2Stat_;

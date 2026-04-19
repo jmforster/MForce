@@ -1,0 +1,36 @@
+{
+  "sampleRate": 48000,
+  "seconds": 3,
+  "graph": {
+    "nodes": [
+      { "id": "breathEnv", "type": "ADSREnvelope", "params": {
+          "attack": 0.08, "decay": 0.05, "sustainLevel": 0.9, "release": 0.2
+      } },
+      { "id": "breathAmount", "type": "RangeSource", "params": {
+          "min": 0.0, "max": 0.3,
+          "var": { "ref": "breathEnv" }
+      } },
+
+      { "id": "reed", "type": "ReedEvolution", "params": {
+          "breath":        { "ref": "breathAmount" },
+          "reedStiffness": 1.8,
+          "tubeLoss":      0.01,
+          "loopFilter":    0.35
+      } },
+
+      { "id": "tube", "type": "WavetableSource", "params": {
+          "frequency": 261.63,
+          "amplitude": 0.7,
+          "evolution": { "ref": "reed" }
+      } }
+    ],
+    "output": "tube"
+  },
+  "instrument": {
+    "paramMap": { "frequency": "tube.frequency" },
+    "polyphony": 1
+  },
+  "score": [
+    { "note": 60, "velocity": 0.8, "time": 0.0, "duration": 2.5 }
+  ]
+}

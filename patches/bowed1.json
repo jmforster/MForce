@@ -1,0 +1,125 @@
+{
+  "graph": {
+    "nodes": [
+      {
+        "id": "ADSREnvelope1",
+        "params": {
+          "attack": 0.25,
+          "decay": 0.10000000149011612,
+          "release": 0.4000000059604645,
+          "sustainLevel": 0.8999999761581421
+        },
+        "type": "ADSREnvelope"
+      },
+      {
+        "id": "Range1",
+        "params": {
+          "max": 0.800000011920929,
+          "min": 0.0,
+          "normalized": true,
+          "var": {
+            "ref": "ADSREnvelope1"
+          }
+        },
+        "type": "RangeSource"
+      },
+      {
+        "id": "ADSREnvelope2",
+        "params": {
+          "attack": 0.20000000298023224,
+          "decay": 0.10000000149011612,
+          "release": 0.0,
+          "sustainLevel": 0.699999988079071
+        },
+        "type": "ADSREnvelope"
+      },
+      {
+        "id": "Range2",
+        "params": {
+          "max": 1.0,
+          "min": 2.5,
+          "normalized": true,
+          "var": {
+            "ref": "ADSREnvelope2"
+          }
+        },
+        "type": "RangeSource"
+      },
+      {
+        "id": "BowedStringEvolution1",
+        "params": {
+          "bow": {
+            "ref": "Range1"
+          },
+          "bowPosition": 0.14000000059604645,
+          "bowSpeed": 0.4000000059604645,
+          "frictionGain": {
+            "ref": "Range2"
+          },
+          "tubeLoss": 0.001500000013038516
+        },
+        "type": "BowedStringEvolution"
+      },
+      {
+        "id": "Wavetable1",
+        "params": {
+          "amplitude": {
+            "ref": "ADSREnvelope2"
+          },
+          "evolution": {
+            "ref": "BowedStringEvolution1"
+          },
+          "frequency": 220.0,
+          "interpolate": false,
+          "phase": 0.0,
+          "speedFactor": 1.0
+        },
+        "type": "WavetableSource"
+      }
+    ],
+    "output": "Wavetable1"
+  },
+  "instrument": {
+    "paramMap": {
+      "frequency": "Wavetable1.frequency"
+    },
+    "polyphony": 1
+  },
+  "sampleRate": 48000,
+  "ui": {
+    "positions": {
+      "ADSREnvelope1": [
+        -33.4915771484375,
+        -403.9757995605469
+      ],
+      "ADSREnvelope2": [
+        462.5084228515625,
+        -181.97579956054688
+      ],
+      "BowedStringEvolution1": [
+        406.5084228515625,
+        -403.9757995605469
+      ],
+      "Range1": [
+        186.5084228515625,
+        -403.9757995605469
+      ],
+      "Range2": [
+        289.5084228515625,
+        -315.9757995605469
+      ],
+      "Wavetable1": [
+        626.5084228515625,
+        -403.9757995605469
+      ],
+      "__output": [
+        -33.4915771484375,
+        -153.97579956054688
+      ],
+      "__param_frequency": [
+        186.5084228515625,
+        -153.97579956054688
+      ]
+    }
+  }
+}

@@ -2,6 +2,7 @@
 #include <memory>
 #include <span>
 #include <string_view>
+#include <vector>
 
 namespace mforce {
 
@@ -42,6 +43,18 @@ struct ConfigDescriptor {
   float max_value;   // for Float/Int; ignored for Bool
 };
 
+// Array-of-floats params. The UI groups arrays sharing a non-null groupName
+// into a single parallel-columns table (e.g. ExplicitPartials has four arrays
+// — mult1/mult2/ampl1/ampl2 — all grouped as "partials" and kept equal length).
+// Standalone arrays (groupName == nullptr) render as a single editable list.
+struct ArrayDescriptor {
+  const char* name;
+  const char* groupName;      // nullptr = standalone; non-null = table group key
+  float default_value;        // value for newly appended rows
+  float min_value;
+  float max_value;
+};
+
 // ---------------------------------------------------------------------------
 // Base interface for all DSP value sources
 // ---------------------------------------------------------------------------
@@ -70,6 +83,13 @@ struct ValueSource {
   virtual std::span<const ConfigDescriptor> config_descriptors() const { return {}; }
   virtual void set_config(std::string_view /*name*/, float /*value*/) {}
   virtual float get_config(std::string_view /*name*/) const { return 0.0f; }
+
+  // Array params — user-editable float vectors (e.g. ExplicitPartials multipliers,
+  // FixedSpectrum/BandSpectrum gains). Grouped arrays (shared groupName) must be
+  // kept equal length by the node's set_array() implementation.
+  virtual std::span<const ArrayDescriptor> array_descriptors() const { return {}; }
+  virtual void set_array(std::string_view /*name*/, std::vector<float> /*values*/) {}
+  virtual std::vector<float> get_array(std::string_view /*name*/) const { return {}; }
 };
 
 struct ConstantSource final : ValueSource {

@@ -1,0 +1,83 @@
+{
+  "graph": {
+    "nodes": [
+      {
+        "id": "env1",
+        "params": {
+          "attack": 0.0,
+          "decay": 0.0,
+          "preset": "adsr",
+          "release": 0.10000000149011612,
+          "sustainLevel": 1.0
+        },
+        "type": "Envelope"
+      },
+      {
+        "id": "WhiteNoise1",
+        "type": "WhiteNoiseSource"
+      },
+      {
+        "id": "PluckEvolution1",
+        "params": {
+          "muting": 0.0
+        },
+        "type": "PluckEvolution"
+      },
+      {
+        "id": "Wavetable1",
+        "params": {
+          "amplitude": {
+            "ref": "env1"
+          },
+          "evolution": {
+            "ref": "PluckEvolution1"
+          },
+          "frequency": 440.0,
+          "inputSource": {
+            "ref": "WhiteNoise1"
+          },
+          "interpolate": false,
+          "phase": 0.0,
+          "speedFactor": 1.0
+        },
+        "type": "WavetableSource"
+      }
+    ],
+    "output": "Wavetable1"
+  },
+  "instrument": {
+    "paramMap": {
+      "frequency": "Wavetable1.frequency"
+    },
+    "polyphony": 4
+  },
+  "sampleRate": 48000,
+  "ui": {
+    "positions": {
+      "PluckEvolution1": [
+        218.0,
+        118.0
+      ],
+      "Wavetable1": [
+        574.0,
+        77.0
+      ],
+      "WhiteNoise1": [
+        93.0,
+        12.0
+      ],
+      "__output": [
+        838.0,
+        95.0
+      ],
+      "__param_frequency": [
+        141.0,
+        195.0
+      ],
+      "env1": [
+        328.0,
+        281.0
+      ]
+    }
+  }
+}

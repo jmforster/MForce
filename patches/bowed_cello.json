@@ -1,0 +1,106 @@
+{
+  "graph": {
+    "nodes": [
+      {
+        "id": "ADSREnvelope1",
+        "params": {
+          "attack": 0.30000001192092896,
+          "decay": 0.10000000149011612,
+          "release": 0.5,
+          "sustainLevel": 0.8500000238418579
+        },
+        "type": "ADSREnvelope"
+      },
+      {
+        "id": "Range1",
+        "params": {
+          "max": 0.4000000059604645,
+          "min": 0.0,
+          "normalized": true,
+          "var": {
+            "ref": "ADSREnvelope1"
+          }
+        },
+        "type": "RangeSource"
+      },
+      {
+        "id": "BowedStringEvolution1",
+        "params": {
+          "bow": {
+            "ref": "Range1"
+          },
+          "bowSpeed": 0.25,
+          "frictionGain": 4.0,
+          "tubeLoss": 0.019999999552965164
+        },
+        "type": "BowedStringEvolution"
+      },
+      {
+        "id": "ADSREnvelope2",
+        "params": {
+          "attack": 0.20000000298023224,
+          "decay": 0.10000000149011612,
+          "release": 0.0,
+          "sustainLevel": 0.699999988079071
+        },
+        "type": "ADSREnvelope"
+      },
+      {
+        "id": "Wavetable1",
+        "params": {
+          "amplitude": {
+            "ref": "ADSREnvelope2"
+          },
+          "evolution": {
+            "ref": "BowedStringEvolution1"
+          },
+          "frequency": 220.0,
+          "interpolate": false,
+          "phase": 0.0,
+          "speedFactor": 1.0
+        },
+        "type": "WavetableSource"
+      }
+    ],
+    "output": "Wavetable1"
+  },
+  "instrument": {
+    "paramMap": {
+      "frequency": "Wavetable1.frequency"
+    },
+    "polyphony": 1
+  },
+  "sampleRate": 48000,
+  "ui": {
+    "positions": {
+      "ADSREnvelope1": [
+        -112.0,
+        -469.0
+      ],
+      "ADSREnvelope2": [
+        443.0,
+        -219.0
+      ],
+      "BowedStringEvolution1": [
+        328.0,
+        -469.0
+      ],
+      "Range1": [
+        108.0,
+        -469.0
+      ],
+      "Wavetable1": [
+        548.0,
+        -469.0
+      ],
+      "__output": [
+        -112.0,
+        -219.0
+      ],
+      "__param_frequency": [
+        108.0,
+        -219.0
+      ]
+    }
+  }
+}

@@ -21,6 +21,10 @@ struct WaveEvolution {
 
   // Called each sample — modify the wavetable in-place.
   virtual void evolve(std::vector<float>& values, int index) = 0;
+
+  // Provided by host before first adjust(). Models that need sampleRate
+  // (biquad tuning, internal delay-line sizing) override this.
+  virtual void set_sample_rate(int /*sr*/) {}
 };
 
 // ---------------------------------------------------------------------------
@@ -333,6 +337,274 @@ private:
 };
 
 // ---------------------------------------------------------------------------
+// BlownTubeEvolution — continuous-excitation resonator (flute / blown-pipe).
+// Ring buffer = tube of length Fs/freq. Each sample:
+//   1. loop filter (2-sample average * (1 - tubeLoss)) to simulate tube losses
+//   2. optional tanh(jetGain * x) for edge-tone nonlinearity
+//   3. inject breath * noise into the cell
+// The noise and tone share the same resonant path — coupling is the mechanism,
+// not a parallel mix.
+// ---------------------------------------------------------------------------
+struct BlownTubeEvolution final : WaveEvolution {
+  explicit BlownTubeEvolution(uint32_t seed = 0xF10E'B10Du) : rng_(seed) {}
+
+  float tubeLoss{0.02f};       // per-sample loop loss (0 = lossless, higher = duller/shorter)
+  float jetGain{0.0f};         // 0 = linear, >0 = tanh drive strength
+  ValueSource* breath{nullptr}; // excitation amplitude, read once per sample
+
+  float adjust(float /*frequency*/) override { return 0.0f; }
+
+  void shape_excitation(std::vector<float>& values) override {
+    // Start silent — continuous breath drives the resonance.
+    std::fill(values.begin(), values.end(), 0.0f);
+  }
+
+  void evolve(std::vector<float>& values, int index) override {
+    int len = int(values.size());
+    int next = (index + 1) % len;
+
+    float loopOut = (values[index] + values[next]) * 0.5f * (1.0f - tubeLoss);
+
+    if (jetGain > 0.0f) {
+      loopOut = std::tanh(jetGain * loopOut);
+    }
+
+    float b = breath ? breath->next() : 0.0f;
+    float noise = rng_.valuePN();
+    values[index] = loopOut + b * noise;
+  }
+
+private:
+  Randomizer rng_;
+};
+
+// ---------------------------------------------------------------------------
+// ReedEvolution — reed-valve resonator (clarinet / sax).
+// Same ring-buffer-as-tube structure as BlownTubeEvolution. reedStiffness
+// drives a tanh shaper on the bore signal → odd/asymmetric harmonics; breath
+// is injected via a zero-mean noise term that seeds and sustains oscillation.
+// ---------------------------------------------------------------------------
+struct ReedEvolution final : WaveEvolution {
+  explicit ReedEvolution(uint32_t seed = 0xBEED'BEEDu) : rng_(seed) {}
+
+  float tubeLoss{0.02f};             // per-sample loop loss
+  float loopFilter{0.5f};            // one-pole loop lowpass coefficient (0..1; higher = brighter)
+  ValueSource* reedStiffness{nullptr}; // tanh drive on bore signal (0 = linear tube)
+  ValueSource* breath{nullptr};
+
+  float adjust(float /*frequency*/) override {
+    lpState_ = 0.0f;
+    return 0.0f;
+  }
+
+  void shape_excitation(std::vector<float>& values) override {
+    std::fill(values.begin(), values.end(), 0.0f);
+  }
+
+  void evolve(std::vector<float>& values, int index) override {
+    int len = int(values.size());
+    int next = (index + 1) % len;
+
+    float avg = (values[index] + values[next]) * 0.5f;
+
+    // One-pole lowpass on the loop; kills the square-wave buzz that tanh alone produces.
+    lpState_ = loopFilter * avg + (1.0f - loopFilter) * lpState_;
+    float loopOut = lpState_ * (1.0f - tubeLoss);
+
+    float drive = reedStiffness ? reedStiffness->next() : 0.0f;
+    if (drive > 0.0f) loopOut = std::tanh(drive * loopOut);
+
+    float b = breath ? breath->next() : 0.0f;
+    float noise = rng_.valuePN();
+    values[index] = loopOut + b * noise;
+  }
+
+private:
+  Randomizer rng_;
+  float lpState_{0.0f};
+};
+
+// ---------------------------------------------------------------------------
+// BowedStringEvolution — stick-slip friction model for bowed strings.
+// The bow applies a friction force that depends on relative velocity between
+// bow and string. At low relative velocity (stick phase), friction is high
+// and drives the string. At high relative velocity (slip), friction drops.
+// This produces the characteristic Helmholtz-motion sawtooth of bowed strings.
+// ---------------------------------------------------------------------------
+struct BowedStringEvolution final : WaveEvolution {
+  explicit BowedStringEvolution(uint32_t /*seed*/ = 0xB0ED'0000u) {}
+
+  // Dual-waveguide bowed string (Smith/Serafin).
+  //   bridgeLine: carries signal through the round trip bow→bridge→bow
+  //   neckLine:   carries signal through the round trip bow→nut→bow
+  // Each buffer is 2×(one-way length) so the ring delay equals the full round
+  // trip; rigid-end reflection is modelled by sign-inversion on read. The two
+  // lines cross-couple at the bow junction (pass-through + bow impulse), which
+  // is what ties the combined oscillation to the fundamental period
+  // 2(Lb+Ln) = sampleRate / frequency.
+  float tubeLoss{0.005f};              // per-sample loop loss on each line
+  float bowSpeed{0.3f};                // bow velocity scale
+  float bowPosition{0.14f};            // bow along string (0=bridge, 0.5=middle)
+  ValueSource* frictionGain{nullptr};  // slope of Friedlander bow table
+  ValueSource* bow{nullptr};           // bow pressure envelope (0..1)
+
+  void set_sample_rate(int sr) override { sampleRate_ = sr; }
+
+  float adjust(float frequency) override {
+    int totalLen = int(std::lround(float(sampleRate_) / std::max(20.0f, frequency)));
+    if (totalLen < 4) totalLen = 4;
+    int halfLen = std::max(2, totalLen / 2);
+    int Lb = std::max(1, int(std::round(bowPosition * float(halfLen))));
+    if (Lb >= halfLen) Lb = halfLen - 1;
+    int Ln = halfLen - Lb;
+    // Round-trip ring: size = 2 * one-way length.
+    bridgeLine_.assign(2 * Lb, 0.0f);
+    neckLine_.assign(2 * Ln, 0.0f);
+    bPtr_ = 0;
+    nPtr_ = 0;
+    return 0.0f;
+  }
+
+  void shape_excitation(std::vector<float>& values) override {
+    std::fill(values.begin(), values.end(), 0.0f);
+  }
+
+  void evolve(std::vector<float>& values, int index) override {
+    if (bridgeLine_.empty() || neckLine_.empty()) {
+      values[index] = 0.0f;
+      return;
+    }
+
+    // Incoming waves arriving at bow; sign-inverted for rigid-end reflection.
+    float bridgeIn = -bridgeLine_[bPtr_];
+    float neckIn   = -neckLine_[nPtr_];
+
+    float vString = bridgeIn + neckIn;
+
+    float pressure = bow ? bow->next() : 0.0f;
+    float gain = frictionGain ? frictionGain->next() : 4.0f;
+
+    float vBow = bowSpeed * pressure;
+    float vRel = vBow - vString;
+
+    // Friedlander friction table.
+    float bt = std::abs(gain * vRel) + 0.75f;
+    float fricCoef = std::pow(bt, -4.0f);
+    if (fricCoef > 0.98f) fricCoef = 0.98f;
+    else if (fricCoef < 0.0f) fricCoef = 0.0f;
+
+    float bowImpulse = fricCoef * vRel * pressure;
+
+    // Scattering at bow: wave from neck side passes through to bridge side (and
+    // vice versa), each receives the bow kick. Cross-coupling couples the two
+    // lines so they resonate as one string at the fundamental.
+    float outBridge = (neckIn   + bowImpulse) * (1.0f - tubeLoss);
+    float outNeck   = (bridgeIn + bowImpulse) * (1.0f - tubeLoss);
+
+    bridgeLine_[bPtr_] = outBridge;
+    neckLine_[nPtr_]   = outNeck;
+
+    bPtr_ = (bPtr_ + 1) % int(bridgeLine_.size());
+    nPtr_ = (nPtr_ + 1) % int(neckLine_.size());
+
+    values[index] = vString;
+  }
+
+private:
+  int sampleRate_{48000};
+  std::vector<float> bridgeLine_;
+  std::vector<float> neckLine_;
+  int bPtr_{0};
+  int nPtr_{0};
+};
+
+// ---------------------------------------------------------------------------
+// BrassEvolution — lip-reed model for brass instruments (trumpet, trombone).
+// The player's lips act as a pressure-controlled valve with inertia: bore
+// pressure feeds back through a one-pole filter (modeling lip mass), creating
+// a phase delay that enables self-oscillation at the tube resonance.
+// Optional tanh nonlinearity models wave steepening in the bore — the source
+// of the characteristic "brassy" bite at loud dynamics.
+// ---------------------------------------------------------------------------
+struct BrassEvolution final : WaveEvolution {
+  explicit BrassEvolution(uint32_t seed = 0xB8A5'5000u) : rng_(seed) {}
+
+  float tubeLoss{0.01f};             // per-sample loop loss
+  float lipTension{0.92f};           // in-loop one-pole lowpass (0..0.99, high = dark)
+  float lipFreqRatio{1.2f};          // out-of-loop biquad resonance, as multiple of played freq
+  float lipQ{3.0f};                  // biquad Q (higher = sharper resonance peak)
+  ValueSource* brassiness{nullptr};  // tanh drive → wave-steepening harmonics
+  ValueSource* breath{nullptr};
+
+  void set_sample_rate(int sr) override { sampleRate_ = sr; }
+
+  float adjust(float frequency) override {
+    lipState_ = 0.0f;
+    // Compute RBJ resonant lowpass coefficients for the out-of-loop biquad.
+    // Out-of-loop means no feedback through it → no pitch detune.
+    x1_ = x2_ = y1_ = y2_ = 0.0f;
+    float cutoff = std::max(20.0f, frequency * lipFreqRatio);
+    float omega = 2.0f * 3.1415926536f * cutoff / float(sampleRate_);
+    if (omega > 3.0f) omega = 3.0f;
+    float q = std::max(0.5f, lipQ);
+    float alpha = std::sin(omega) / (2.0f * q);
+    float cosOm = std::cos(omega);
+    float a0 = 1.0f + alpha;
+    float c = 1.0f - cosOm;
+    // Peak-normalize to unity so the biquad is a timbre shaper, not a gain stage.
+    float scale = 1.0f / (a0 * std::max(1.0f, q));
+    b0_ = 0.5f * c * scale;
+    b1_ = c * scale;
+    b2_ = 0.5f * c * scale;
+    a1_ = -2.0f * cosOm / a0;
+    a2_ = (1.0f - alpha) / a0;
+    return 0.0f;
+  }
+
+  void shape_excitation(std::vector<float>& values) override {
+    std::fill(values.begin(), values.end(), 0.0f);
+    // rawLoop_ mirrors values' size; holds the unfiltered loop state so the biquad
+    // sees it as input but never feeds back into the loop itself.
+    rawLoop_.assign(values.size(), 0.0f);
+  }
+
+  void evolve(std::vector<float>& values, int index) override {
+    int len = int(rawLoop_.size());
+    if (len == 0) { values[index] = 0.0f; return; }
+    int next = (index + 1) % len;
+
+    // Loop runs on internal rawLoop_; output buffer `values` is the biquad-filtered view.
+    float avg = (rawLoop_[index] + rawLoop_[next]) * 0.5f;
+    lipState_ = (1.0f - lipTension) * avg + lipTension * lipState_;
+    float loopOut = lipState_ * (1.0f - tubeLoss);
+
+    float drive = brassiness ? brassiness->next() : 0.0f;
+    if (drive > 0.0f) loopOut = std::tanh(drive * loopOut);
+
+    float b = breath ? breath->next() : 0.0f;
+    float noise = rng_.valuePN();
+    rawLoop_[index] = loopOut + b * noise;
+
+    // Out-of-loop biquad for timbral shaping — colors the output without altering
+    // the feedback loop, so pitch stays locked to sampleRate / tableLength.
+    float x = rawLoop_[index];
+    float y = b0_*x + b1_*x1_ + b2_*x2_ - a1_*y1_ - a2_*y2_;
+    x2_ = x1_; x1_ = x;
+    y2_ = y1_; y1_ = y;
+    values[index] = y;
+  }
+
+private:
+  Randomizer rng_;
+  int sampleRate_{48000};
+  float lipState_{0.0f};
+  // Out-of-loop biquad state
+  float b0_{0.0f}, b1_{0.0f}, b2_{0.0f}, a1_{0.0f}, a2_{0.0f};
+  float x1_{0.0f}, x2_{0.0f}, y1_{0.0f}, y2_{0.0f};
+  std::vector<float> rawLoop_;
+};
+
+// ---------------------------------------------------------------------------
 // IEvolutionHolder — interface for graph nodes that hold a WaveEvolution.
 // WavetableSource dynamic_casts its "evolution" input to this.
 // ---------------------------------------------------------------------------
@@ -486,6 +758,309 @@ struct EKSEvolutionSource final : ValueSource, IEvolutionHolder {
 
 private:
   EKSEvolution evo_;
+};
+
+// ---------------------------------------------------------------------------
+// BlownTubeEvolutionSource — graph node holding a BlownTubeEvolution.
+// Wire to WavetableSource's "evolution" input. Wire a ValueSource (typically
+// an envelope times a noise/constant) to the "breath" input — this drives
+// continuous excitation, replacing the one-shot pluck of PluckEvolution.
+// ---------------------------------------------------------------------------
+struct BlownTubeEvolutionSource final : ValueSource, IEvolutionHolder {
+  explicit BlownTubeEvolutionSource(uint32_t seed = 0xF10E'B10Du) : evo_(seed) {}
+
+  const char* type_name() const override { return "BlownTubeEvolution"; }
+  SourceCategory category() const override { return SourceCategory::Generator; }
+
+  WaveEvolution* get_evolution() override { return &evo_; }
+
+  std::span<const InputDescriptor> input_descriptors() const override {
+    static constexpr InputDescriptor descs[] = {
+      {"breath"},
+    };
+    return descs;
+  }
+
+  void set_param(std::string_view name, std::shared_ptr<ValueSource> src) override {
+    if (name == "breath") {
+      breathSrc_ = std::move(src);
+      evo_.breath = breathSrc_.get();
+    }
+  }
+
+  std::shared_ptr<ValueSource> get_param(std::string_view name) const override {
+    if (name == "breath") return breathSrc_;
+    return {};
+  }
+
+  std::span<const ConfigDescriptor> config_descriptors() const override {
+    static constexpr ConfigDescriptor descs[] = {
+      {"tubeLoss", ConfigType::Float, 0.02f, 0.0f, 0.5f},
+      {"jetGain",  ConfigType::Float, 0.0f,  0.0f, 10.0f},
+    };
+    return descs;
+  }
+
+  void set_config(std::string_view name, float value) override {
+    if (name == "tubeLoss") evo_.tubeLoss = value;
+    else if (name == "jetGain") evo_.jetGain = value;
+  }
+
+  float get_config(std::string_view name) const override {
+    if (name == "tubeLoss") return evo_.tubeLoss;
+    if (name == "jetGain")  return evo_.jetGain;
+    return 0.0f;
+  }
+
+  void prepare(int frames) override {
+    if (breathSrc_) breathSrc_->prepare(frames);
+  }
+  float next() override { return 0.0f; }
+  float current() const override { return 0.0f; }
+
+private:
+  BlownTubeEvolution evo_;
+  std::shared_ptr<ValueSource> breathSrc_;
+};
+
+// ---------------------------------------------------------------------------
+// ReedEvolutionSource — graph node holding a ReedEvolution.
+// ---------------------------------------------------------------------------
+struct ReedEvolutionSource final : ValueSource, IEvolutionHolder {
+  explicit ReedEvolutionSource(uint32_t seed = 0xBEED'BEEDu)
+  : evo_(seed)
+  , reedStiffnessSrc_(std::make_shared<ConstantSource>(1.5f)) {
+    evo_.reedStiffness = reedStiffnessSrc_.get();
+  }
+
+  const char* type_name() const override { return "ReedEvolution"; }
+  SourceCategory category() const override { return SourceCategory::Generator; }
+
+  WaveEvolution* get_evolution() override { return &evo_; }
+
+  std::span<const ParamDescriptor> param_descriptors() const override {
+    static constexpr ParamDescriptor descs[] = {
+      {"reedStiffness", 1.5f, 0.0f, 8.0f},
+    };
+    return descs;
+  }
+
+  std::span<const InputDescriptor> input_descriptors() const override {
+    static constexpr InputDescriptor descs[] = {
+      {"breath"},
+    };
+    return descs;
+  }
+
+  void set_param(std::string_view name, std::shared_ptr<ValueSource> src) override {
+    if (name == "breath") {
+      breathSrc_ = std::move(src);
+      evo_.breath = breathSrc_.get();
+    } else if (name == "reedStiffness") {
+      reedStiffnessSrc_ = std::move(src);
+      evo_.reedStiffness = reedStiffnessSrc_.get();
+    }
+  }
+
+  std::shared_ptr<ValueSource> get_param(std::string_view name) const override {
+    if (name == "breath") return breathSrc_;
+    if (name == "reedStiffness") return reedStiffnessSrc_;
+    return {};
+  }
+
+  std::span<const ConfigDescriptor> config_descriptors() const override {
+    static constexpr ConfigDescriptor descs[] = {
+      {"tubeLoss",   ConfigType::Float, 0.02f, 0.0f, 0.5f},
+      {"loopFilter", ConfigType::Float, 0.5f,  0.05f, 1.0f},
+    };
+    return descs;
+  }
+
+  void set_config(std::string_view name, float value) override {
+    if (name == "tubeLoss")        evo_.tubeLoss = value;
+    else if (name == "loopFilter") evo_.loopFilter = value;
+  }
+
+  float get_config(std::string_view name) const override {
+    if (name == "tubeLoss")   return evo_.tubeLoss;
+    if (name == "loopFilter") return evo_.loopFilter;
+    return 0.0f;
+  }
+
+  void prepare(int frames) override {
+    if (breathSrc_) breathSrc_->prepare(frames);
+    if (reedStiffnessSrc_) reedStiffnessSrc_->prepare(frames);
+  }
+  float next() override { return 0.0f; }
+  float current() const override { return 0.0f; }
+
+private:
+  ReedEvolution evo_;
+  std::shared_ptr<ValueSource> breathSrc_;
+  std::shared_ptr<ValueSource> reedStiffnessSrc_;
+};
+
+// ---------------------------------------------------------------------------
+// BowedStringEvolutionSource — graph node holding a BowedStringEvolution.
+// ---------------------------------------------------------------------------
+struct BowedStringEvolutionSource final : ValueSource, IEvolutionHolder {
+  explicit BowedStringEvolutionSource(uint32_t seed = 0xB0ED'0000u)
+  : evo_(seed)
+  , frictionGainSrc_(std::make_shared<ConstantSource>(4.0f)) {
+    evo_.frictionGain = frictionGainSrc_.get();
+  }
+
+  const char* type_name() const override { return "BowedStringEvolution"; }
+  SourceCategory category() const override { return SourceCategory::Generator; }
+
+  WaveEvolution* get_evolution() override { return &evo_; }
+
+  std::span<const ParamDescriptor> param_descriptors() const override {
+    static constexpr ParamDescriptor descs[] = {
+      {"frictionGain", 4.0f, 0.0f, 20.0f},
+    };
+    return descs;
+  }
+
+  std::span<const InputDescriptor> input_descriptors() const override {
+    static constexpr InputDescriptor descs[] = {
+      {"bow"},
+    };
+    return descs;
+  }
+
+  void set_param(std::string_view name, std::shared_ptr<ValueSource> src) override {
+    if (name == "bow") {
+      bowSrc_ = std::move(src);
+      evo_.bow = bowSrc_.get();
+    } else if (name == "frictionGain") {
+      frictionGainSrc_ = std::move(src);
+      evo_.frictionGain = frictionGainSrc_.get();
+    }
+  }
+
+  std::shared_ptr<ValueSource> get_param(std::string_view name) const override {
+    if (name == "bow") return bowSrc_;
+    if (name == "frictionGain") return frictionGainSrc_;
+    return {};
+  }
+
+  std::span<const ConfigDescriptor> config_descriptors() const override {
+    static constexpr ConfigDescriptor descs[] = {
+      {"tubeLoss",    ConfigType::Float, 0.005f, 0.0f,  0.5f},
+      {"bowSpeed",    ConfigType::Float, 0.3f,   0.01f, 1.0f},
+      {"bowPosition", ConfigType::Float, 0.14f,  0.02f, 0.5f},
+    };
+    return descs;
+  }
+
+  void set_config(std::string_view name, float value) override {
+    if (name == "tubeLoss")         evo_.tubeLoss = value;
+    else if (name == "bowSpeed")    evo_.bowSpeed = value;
+    else if (name == "bowPosition") evo_.bowPosition = value;
+  }
+
+  float get_config(std::string_view name) const override {
+    if (name == "tubeLoss")    return evo_.tubeLoss;
+    if (name == "bowSpeed")    return evo_.bowSpeed;
+    if (name == "bowPosition") return evo_.bowPosition;
+    return 0.0f;
+  }
+
+  void prepare(int frames) override {
+    if (bowSrc_) bowSrc_->prepare(frames);
+    if (frictionGainSrc_) frictionGainSrc_->prepare(frames);
+  }
+  float next() override { return 0.0f; }
+  float current() const override { return 0.0f; }
+
+private:
+  BowedStringEvolution evo_;
+  std::shared_ptr<ValueSource> bowSrc_;
+  std::shared_ptr<ValueSource> frictionGainSrc_;
+};
+
+// ---------------------------------------------------------------------------
+// BrassEvolutionSource — graph node holding a BrassEvolution.
+// ---------------------------------------------------------------------------
+struct BrassEvolutionSource final : ValueSource, IEvolutionHolder {
+  explicit BrassEvolutionSource(uint32_t seed = 0xB8A5'5000u)
+  : evo_(seed)
+  , brassinessSrc_(std::make_shared<ConstantSource>(1.5f)) {
+    evo_.brassiness = brassinessSrc_.get();
+  }
+
+  const char* type_name() const override { return "BrassEvolution"; }
+  SourceCategory category() const override { return SourceCategory::Generator; }
+
+  WaveEvolution* get_evolution() override { return &evo_; }
+
+  std::span<const ParamDescriptor> param_descriptors() const override {
+    static constexpr ParamDescriptor descs[] = {
+      {"brassiness", 1.5f, 0.0f, 10.0f},
+    };
+    return descs;
+  }
+
+  std::span<const InputDescriptor> input_descriptors() const override {
+    static constexpr InputDescriptor descs[] = {
+      {"breath"},
+    };
+    return descs;
+  }
+
+  void set_param(std::string_view name, std::shared_ptr<ValueSource> src) override {
+    if (name == "breath") {
+      breathSrc_ = std::move(src);
+      evo_.breath = breathSrc_.get();
+    } else if (name == "brassiness") {
+      brassinessSrc_ = std::move(src);
+      evo_.brassiness = brassinessSrc_.get();
+    }
+  }
+
+  std::shared_ptr<ValueSource> get_param(std::string_view name) const override {
+    if (name == "breath") return breathSrc_;
+    if (name == "brassiness") return brassinessSrc_;
+    return {};
+  }
+
+  std::span<const ConfigDescriptor> config_descriptors() const override {
+    static constexpr ConfigDescriptor descs[] = {
+      {"tubeLoss",     ConfigType::Float, 0.01f, 0.0f,  0.5f},
+      {"lipTension",   ConfigType::Float, 0.92f, 0.0f,  0.99f},
+      {"lipFreqRatio", ConfigType::Float, 1.2f,  0.5f,  4.0f},
+      {"lipQ",         ConfigType::Float, 3.0f,  0.5f,  15.0f},
+    };
+    return descs;
+  }
+
+  void set_config(std::string_view name, float value) override {
+    if (name == "tubeLoss")          evo_.tubeLoss = value;
+    else if (name == "lipTension")   evo_.lipTension = value;
+    else if (name == "lipFreqRatio") evo_.lipFreqRatio = value;
+    else if (name == "lipQ")         evo_.lipQ = value;
+  }
+
+  float get_config(std::string_view name) const override {
+    if (name == "tubeLoss")     return evo_.tubeLoss;
+    if (name == "lipTension")   return evo_.lipTension;
+    if (name == "lipFreqRatio") return evo_.lipFreqRatio;
+    if (name == "lipQ")         return evo_.lipQ;
+    return 0.0f;
+  }
+
+  void prepare(int frames) override {
+    if (breathSrc_) breathSrc_->prepare(frames);
+    if (brassinessSrc_) brassinessSrc_->prepare(frames);
+  }
+  float next() override { return 0.0f; }
+  float current() const override { return 0.0f; }
+
+private:
+  BrassEvolution evo_;
+  std::shared_ptr<ValueSource> breathSrc_;
+  std::shared_ptr<ValueSource> brassinessSrc_;
 };
 
 } // namespace mforce

@@ -171,6 +171,11 @@ struct GraphNode {
     // Config values (non-connectable params like holdCycles, absolute, etc.)
     std::vector<std::pair<ConfigDescriptor, float>> configValues;
 
+    // Array values (user-editable vectors — gains, partial multipliers, etc.)
+    // Preserves descriptor order; inspector groups consecutive entries with
+    // the same groupName into a parallel-columns table.
+    std::vector<std::pair<ArrayDescriptor, std::vector<float>>> arrayValues;
+
     // Inline table data (FormantSpectrum)
     std::vector<FormantRow> formantRows;
 
@@ -188,6 +193,7 @@ struct GraphNode {
         build_pins();
         create_dsp();
         init_config();
+        init_arrays();
     }
 
     GraphNode(const std::string& type, const std::string& name) : GraphNode(type) {
@@ -283,6 +289,27 @@ struct GraphNode {
         configValues.clear();
         for (const auto& desc : descs)
             configValues.push_back({desc, desc.default_value});
+    }
+
+    // Populate editable array cache from the live DSP object. Called once on
+    // construction; UI edits push back via dspSource->set_array(...).
+    void init_arrays() {
+        if (!dspSource) return;
+        auto descs = dspSource->array_descriptors();
+        arrayValues.clear();
+        for (const auto& desc : descs)
+            arrayValues.push_back({desc, dspSource->get_array(desc.name)});
+    }
+
+    // Push a single array's UI state back to the DSP object.
+    void push_array(const char* name) {
+        if (!dspSource) return;
+        for (auto& [d, v] : arrayValues) {
+            if (std::string_view(d.name) == name) {
+                dspSource->set_array(name, v);
+                return;
+            }
+        }
     }
 
     // Rebuild FormantSpectrum DSP from inline table rows
@@ -1029,6 +1056,13 @@ static void save_patch_graph(const std::string& path) {
                 jnode["params"][desc.name] = val;
         }
 
+        // Array values (ExplicitPartials mult/ampl, Fixed/BandSpectrum gains, …)
+        for (auto& [desc, vec] : node.arrayValues) {
+            if (vec.empty()) continue;
+            if (!jnode.contains("params")) jnode["params"] = json::object();
+            jnode["params"][desc.name] = vec;
+        }
+
         nodes.push_back(jnode);
     }
 
@@ -1043,6 +1077,18 @@ static void save_patch_graph(const std::string& path) {
         if (!paramMap.empty())
             root["instrument"]["paramMap"] = paramMap;
     }
+
+    // Default score + duration so the CLI can render this patch standalone.
+    // Conservative defaults; user can edit JSON to customize.
+    root["seconds"] = 3.0f;
+    root["score"] = json::array({
+        json{
+            {"note",     60},
+            {"velocity", 0.8f},
+            {"time",     0.0f},
+            {"duration", 2.0f}
+        }
+    });
 
     // Save UI layout
     json positions = json::object();
@@ -1159,6 +1205,13 @@ static void save_node_graph(const std::string& path) {
                 jnode["params"][desc.name] = int(val);
             else
                 jnode["params"][desc.name] = val;
+        }
+
+        // Array values (ExplicitPartials mult/ampl, Fixed/BandSpectrum gains, …)
+        for (auto& [desc, vec] : node.arrayValues) {
+            if (vec.empty()) continue;
+            if (!jnode.contains("params")) jnode["params"] = json::object();
+            jnode["params"][desc.name] = vec;
         }
 
         nodes.push_back(jnode);
@@ -2527,8 +2580,164 @@ static void draw_properties_panel() {
                 }
             }
             ImGui::PopItemWidth();
-            if (changed && node->dspSource)
+            if (changed && node->dspSource) {
                 node->dspSource->set_config(desc.name, val);
+                // set_config may have mutated internal arrays (e.g. ExplicitPartials
+                // mirrors _1 → _2 when evolve flips off). Re-pull cached values.
+                for (auto& [d, v] : node->arrayValues)
+                    v = node->dspSource->get_array(d.name);
+            }
+        }
+    }
+
+    // Array values — grouped into parallel-columns tables by groupName.
+    if (!node->arrayValues.empty()) {
+        ImGui::Spacing(); ImGui::Separator(); ImGui::Spacing();
+
+        size_t i = 0;
+        while (i < node->arrayValues.size()) {
+            const auto& firstDesc = node->arrayValues[i].first;
+            const bool grouped = (firstDesc.groupName != nullptr);
+
+            // Find end of this group (consecutive entries with same groupName).
+            size_t groupEnd = i + 1;
+            if (grouped) {
+                while (groupEnd < node->arrayValues.size() &&
+                       node->arrayValues[groupEnd].first.groupName != nullptr &&
+                       std::string_view(node->arrayValues[groupEnd].first.groupName) ==
+                           firstDesc.groupName)
+                    ++groupEnd;
+            }
+
+            ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1), "%s",
+                               grouped ? firstDesc.groupName : firstDesc.name);
+
+            // ExplicitPartials: _2 columns mirror _1 and are disabled when the
+            // Settings-panel "evolve" checkbox is off. Just read the state here.
+            bool evolveOff = false;
+            if (grouped && node->typeName == "ExplicitPartials" &&
+                firstDesc.groupName && std::string_view(firstDesc.groupName) == "partials")
+            {
+                for (auto& [cdesc, cval] : node->configValues) {
+                    if (std::string_view(cdesc.name) == "evolve") {
+                        evolveOff = (cval == 0.0f);
+                        break;
+                    }
+                }
+            }
+
+            if (!grouped) {
+                // Standalone array — vertical list with per-row delete + append.
+                auto& vec = node->arrayValues[i].second;
+                const ArrayDescriptor d = firstDesc;
+                int removeIdx = -1;
+                bool changed = false;
+                ImGui::PushID((int)i);
+                for (size_t r = 0; r < vec.size(); ++r) {
+                    ImGui::PushID((int)r);
+                    ImGui::Text("[%zu]", r);
+                    ImGui::SameLine(labelW);
+                    ImGui::PushItemWidth(widgetW);
+                    if (ImGui::InputFloat("##v", &vec[r], 0.0f, 0.0f, "%.4f")) {
+                        vec[r] = std::clamp(vec[r], d.min_value, d.max_value);
+                        changed = true;
+                    }
+                    ImGui::PopItemWidth();
+                    ImGui::SameLine();
+                    if (ImGui::SmallButton(" x ")) removeIdx = (int)r;
+                    ImGui::PopID();
+                }
+                if (removeIdx >= 0) {
+                    vec.erase(vec.begin() + removeIdx);
+                    changed = true;
+                }
+                if (ImGui::SmallButton(" + Add row ")) {
+                    vec.push_back(d.default_value);
+                    changed = true;
+                }
+                ImGui::PopID();
+                if (changed) node->push_array(d.name);
+            } else {
+                // Grouped: render all columns in a table with a single row
+                // count shared across columns (invariant-preserving).
+                const size_t cols = groupEnd - i;
+                size_t rows = 0;
+                for (size_t c = i; c < groupEnd; ++c)
+                    rows = std::max(rows, node->arrayValues[c].second.size());
+                // Ensure all columns share the same length.
+                for (size_t c = i; c < groupEnd; ++c) {
+                    auto& v = node->arrayValues[c].second;
+                    if (v.size() < rows)
+                        v.resize(rows, node->arrayValues[c].first.default_value);
+                }
+
+                // Per-column width: divide available space across columns,
+                // leaving room for the row-index prefix and delete button.
+                const float rowPrefix = 28.0f;       // "NN " label
+                const float delBtnW   = 22.0f;       // "x" SmallButton
+                const float gutter    = 4.0f;
+                const float avail = ImGui::GetContentRegionAvail().x - rowPrefix - delBtnW
+                                    - gutter * float(cols);
+                const float colW = std::max(40.0f, avail / float(cols));
+
+                ImGui::PushID((int)i);
+                // Column header
+                ImGui::Text("  #");
+                for (size_t c = i; c < groupEnd; ++c) {
+                    ImGui::SameLine(rowPrefix + (float(c - i)) * (colW + gutter));
+                    ImGui::Text("%s", node->arrayValues[c].first.name);
+                }
+
+                int removeIdx = -1;
+                bool changedAny = false;
+                for (size_t r = 0; r < rows; ++r) {
+                    ImGui::PushID((int)r);
+                    ImGui::Text("%2zu", r);
+                    for (size_t c = i; c < groupEnd; ++c) {
+                        ImGui::SameLine(rowPrefix + (float(c - i)) * (colW + gutter));
+                        ImGui::PushItemWidth(colW);
+                        char id[16]; snprintf(id, sizeof(id), "##c%zu", c);
+                        const auto& d = node->arrayValues[c].first;
+                        auto& v = node->arrayValues[c].second[r];
+                        // Disable mult2/ampl2 when ExplicitPartials has evolve=false.
+                        const bool disableThisCol = evolveOff &&
+                            (std::string_view(d.name) == "mult2" ||
+                             std::string_view(d.name) == "ampl2");
+                        if (disableThisCol) ImGui::BeginDisabled();
+                        if (ImGui::InputFloat(id, &v, 0.0f, 0.0f, "%.4f")) {
+                            v = std::clamp(v, d.min_value, d.max_value);
+                            changedAny = true;
+                        }
+                        if (disableThisCol) ImGui::EndDisabled();
+                        ImGui::PopItemWidth();
+                    }
+                    ImGui::SameLine(rowPrefix + float(cols) * (colW + gutter));
+                    if (ImGui::SmallButton(" x ")) removeIdx = (int)r;
+                    ImGui::PopID();
+                }
+
+                if (removeIdx >= 0) {
+                    for (size_t c = i; c < groupEnd; ++c)
+                        node->arrayValues[c].second.erase(
+                            node->arrayValues[c].second.begin() + removeIdx);
+                    changedAny = true;
+                }
+                if (ImGui::SmallButton(" + Add row ")) {
+                    for (size_t c = i; c < groupEnd; ++c)
+                        node->arrayValues[c].second.push_back(
+                            node->arrayValues[c].first.default_value);
+                    changedAny = true;
+                }
+                ImGui::PopID();
+
+                if (changedAny) {
+                    // Push every column in the group (lengths must stay synced).
+                    for (size_t c = i; c < groupEnd; ++c)
+                        node->push_array(node->arrayValues[c].first.name);
+                }
+            }
+
+            i = groupEnd;
         }
     }
 
@@ -2707,6 +2916,15 @@ static void show_create_menu() {
         menu_source("EKS Evolution", "EKSEvolution");
         menu_source("Pluck Evolution", "PluckEvolution");
         menu_source("Averaging Evolution", "AveragingEvolution");
+        ImGui::EndMenu();
+    }
+
+    // --- Physical (continuous-excitation WaveEvolutions) ---
+    if (ImGui::BeginMenu("Physical")) {
+        menu_source("Blown Tube (flute)", "BlownTubeEvolution");
+        menu_source("Reed (clarinet)", "ReedEvolution");
+        menu_source("Bowed String", "BowedStringEvolution");
+        menu_source("Brass (lip-reed)", "BrassEvolution");
         ImGui::EndMenu();
     }
 

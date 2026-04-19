@@ -1,0 +1,124 @@
+{
+  "graph": {
+    "nodes": [
+      {
+        "id": "ADSREnvelope1",
+        "params": {
+          "attack": 0.019999999552965164,
+          "decay": 0.05000000074505806,
+          "release": 0.20000000298023224,
+          "sustainLevel": 0.10000000149011612
+        },
+        "type": "ADSREnvelope"
+      },
+      {
+        "id": "Range1",
+        "params": {
+          "max": 0.30000001192092896,
+          "min": 0.0,
+          "normalized": true,
+          "var": {
+            "ref": "ADSREnvelope1"
+          }
+        },
+        "type": "RangeSource"
+      },
+      {
+        "id": "ADSREnvelope2",
+        "params": {
+          "attack": 0.20000000298023224,
+          "decay": 0.10000000149011612,
+          "release": 0.0,
+          "sustainLevel": 0.699999988079071
+        },
+        "type": "ADSREnvelope"
+      },
+      {
+        "id": "Range2",
+        "params": {
+          "max": 4.0,
+          "min": 0.20000000298023224,
+          "normalized": true,
+          "var": {
+            "ref": "ADSREnvelope2"
+          }
+        },
+        "type": "RangeSource"
+      },
+      {
+        "id": "ReedEvolution1",
+        "params": {
+          "breath": {
+            "ref": "Range1"
+          },
+          "loopFilter": 0.3499999940395355,
+          "reedStiffness": {
+            "ref": "Range2"
+          },
+          "tubeLoss": 0.03999999538064003
+        },
+        "type": "ReedEvolution"
+      },
+      {
+        "id": "Wavetable1",
+        "params": {
+          "amplitude": {
+            "ref": "ADSREnvelope2"
+          },
+          "evolution": {
+            "ref": "ReedEvolution1"
+          },
+          "frequency": 261.6300048828125,
+          "interpolate": false,
+          "phase": 0.0,
+          "speedFactor": 1.0
+        },
+        "type": "WavetableSource"
+      }
+    ],
+    "output": "Wavetable1"
+  },
+  "instrument": {
+    "paramMap": {
+      "frequency": "Wavetable1.frequency"
+    },
+    "polyphony": 1
+  },
+  "sampleRate": 48000,
+  "ui": {
+    "positions": {
+      "ADSREnvelope1": [
+        32.0,
+        -141.0
+      ],
+      "ADSREnvelope2": [
+        578.0,
+        102.0
+      ],
+      "Range1": [
+        254.0,
+        -141.0
+      ],
+      "Range2": [
+        125.0,
+        -45.0
+      ],
+      "ReedEvolution1": [
+        474.0,
+        -141.0
+      ],
+      "Wavetable1": [
+        694.0,
+        -141.0
+      ],
+      "__output": [
+        34.0,
+        109.0
+      ],
+      "__param_frequency": [
+        254.0,
+        109.0
+      ]
+    }
+  }
+}
