@@ -74,6 +74,7 @@
       "role": "harmony",
       "passages": {
         "Main": {
+          "voicingSelector": "smooth",
           "chordConfig": {
             "defaultPattern": [2.0, 2.0],
             "octave": 4

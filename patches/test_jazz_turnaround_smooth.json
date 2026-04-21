@@ -1,0 +1,46 @@
+{
+  "_comment": "Jazz turnaround A/B test (B = smooth voice-leading). Dm7-G7-Cmaj7-A7 x 4, C major, 16 bars.",
+  "keyName": "C",
+  "scaleName": "Major",
+  "bpm": 110.0,
+  "masterSeed": 424242,
+  "sections": [
+    {
+      "name": "Main",
+      "beats": 64,
+      "chordProgression": [
+        {"degree": 1, "quality": "m7",    "beats": 4},
+        {"degree": 4, "quality": "7",     "beats": 4},
+        {"degree": 0, "quality": "M7",    "beats": 4},
+        {"degree": 5, "quality": "7",     "beats": 4},
+        {"degree": 1, "quality": "m7",    "beats": 4},
+        {"degree": 4, "quality": "7",     "beats": 4},
+        {"degree": 0, "quality": "M7",    "beats": 4},
+        {"degree": 5, "quality": "7",     "beats": 4},
+        {"degree": 1, "quality": "m7",    "beats": 4},
+        {"degree": 4, "quality": "7",     "beats": 4},
+        {"degree": 0, "quality": "M7",    "beats": 4},
+        {"degree": 5, "quality": "7",     "beats": 4},
+        {"degree": 1, "quality": "m7",    "beats": 4},
+        {"degree": 4, "quality": "7",     "beats": 4},
+        {"degree": 0, "quality": "M7",    "beats": 4},
+        {"degree": 0, "quality": "M7",    "beats": 4}
+      ]
+    }
+  ],
+  "parts": [
+    {
+      "name": "chords",
+      "role": "harmony",
+      "passages": {
+        "Main": {
+          "voicingSelector": "smooth",
+          "chordConfig": {
+            "defaultPattern": [4.0],
+            "octave": 4
+          }
+        }
+      }
+    }
+  ]
+}
