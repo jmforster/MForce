@@ -1,6 +1,7 @@
 """Feature extraction functions. See check.py for orchestration."""
 
 import numpy as np
+import librosa
 
 CLIP_THRESHOLD = 0.999
 SILENT_THRESHOLD = 1e-4
@@ -47,4 +48,31 @@ def compute_health(y: np.ndarray) -> dict:
         silent_end_frac=silent_end_frac,
         silent_middle_frac=silent_middle_frac,
         silent_total_frac=silent_total_frac,
+    )
+
+
+def compute_spectral(y: np.ndarray, sr: int) -> dict:
+    """Spectral descriptors, means (and std where useful) over frames."""
+    if len(y) == 0 or float(np.abs(y).max()) == 0.0:
+        # Silent signal — spectral features are undefined; return zeros.
+        return dict(
+            centroid_mean=0.0, centroid_std=0.0,
+            rolloff_mean=0.0, bandwidth_mean=0.0,
+            flatness_mean=0.0, zcr_mean=0.0,
+        )
+
+    # librosa defaults: n_fft=2048, hop_length=512. Fine for 48k.
+    cent = librosa.feature.spectral_centroid(y=y, sr=sr)[0]
+    roll = librosa.feature.spectral_rolloff(y=y, sr=sr, roll_percent=0.85)[0]
+    bw = librosa.feature.spectral_bandwidth(y=y, sr=sr)[0]
+    flat = librosa.feature.spectral_flatness(y=y)[0]
+    zcr = librosa.feature.zero_crossing_rate(y)[0]
+
+    return dict(
+        centroid_mean=float(np.mean(cent)),
+        centroid_std=float(np.std(cent)),
+        rolloff_mean=float(np.mean(roll)),
+        bandwidth_mean=float(np.mean(bw)),
+        flatness_mean=float(np.mean(flat)),
+        zcr_mean=float(np.mean(zcr)),
     )

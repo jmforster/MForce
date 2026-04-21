@@ -14,7 +14,7 @@ if _THIS_DIR not in sys.path:
 import numpy as np
 import soundfile as sf
 
-from features import compute_health
+from features import compute_health, compute_spectral
 from health import classify
 
 SCHEMA_VERSION = 1
@@ -57,7 +57,8 @@ def sidecar_path(wav_path: str) -> str:
 def format_one_line(status, features, sidecar):
     peak = features.get('peak', 0.0)
     rms = features.get('rms', 0.0)
-    return f"{status} | peak={peak:.3f} rms={rms:.4f} | features: {sidecar}"
+    cent = features.get('centroid_mean', 0.0)
+    return f"{status} | peak={peak:.3f} rms={rms:.4f} centroid={cent:.0f}Hz | features: {sidecar}"
 
 
 def status_to_exit(status: str) -> int:
@@ -82,6 +83,7 @@ def main():
     duration_s = len(mono) / float(sr) if sr > 0 else 0.0
 
     features = compute_health(mono)
+    features.update(compute_spectral(mono, sr))
 
     status, reasons = classify(features, stereo_imbalance=imbalance)
 
