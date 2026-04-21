@@ -96,7 +96,7 @@ class SmoothVoicingSelector : public VoicingSelector {
       ctMin = std::min(ctMin, c.common); ctMax = std::max(ctMax, c.common);
     }
 
-    float p = std::clamp(req.priority, 0.0f, 1.0f);
+    float p = std::clamp(req.profile.priority, 0.0f, 1.0f);
     constexpr float kTiebreakVL = 0.01f;  // always give VL a sliver of weight so ties
                                           // resolve toward smoother voicings
     float bestScore = std::numeric_limits<float>::infinity();

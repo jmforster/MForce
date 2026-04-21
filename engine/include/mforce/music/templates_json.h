@@ -682,7 +682,19 @@ inline void to_json(json& j, const PassageTemplate& pt) {
         j["rhythmPattern"] = jrp;
     }
     if (!pt.voicingSelector.empty()) j["voicingSelector"] = pt.voicingSelector;
-    if (pt.voicingPriority != 0.0f) j["voicingPriority"] = pt.voicingPriority;
+    {
+      const auto& vp = pt.voicingProfile;
+      bool anySet = vp.priority != 0.0f
+                  || !vp.allowedInversions.empty()
+                  || !vp.allowedSpreads.empty();
+      if (anySet) {
+        json vpj = json::object();
+        if (vp.priority != 0.0f) vpj["priority"] = vp.priority;
+        if (!vp.allowedInversions.empty()) vpj["allowedInversions"] = vp.allowedInversions;
+        if (!vp.allowedSpreads.empty()) vpj["allowedSpreads"] = vp.allowedSpreads;
+        j["voicingProfile"] = std::move(vpj);
+      }
+    }
     if (!pt.voicingDictionary.empty()) j["voicingDictionary"] = pt.voicingDictionary;
 }
 
@@ -755,7 +767,33 @@ inline void from_json(const json& j, PassageTemplate& pt) {
     }
 
     pt.voicingSelector = j.value("voicingSelector", std::string(""));
-    pt.voicingPriority = j.value("voicingPriority", 0.0f);
+
+    // VoicingProfile: prefer nested object; fall back to lifting flat
+    // voicingPriority / allowedInversions / allowedSpreads for back-compat.
+    pt.voicingProfile = VoicingProfile{};
+    if (j.contains("voicingProfile")) {
+        const auto& vpj = j.at("voicingProfile");
+        pt.voicingProfile.priority = vpj.value("priority", 0.0f);
+        if (vpj.contains("allowedInversions")) {
+            pt.voicingProfile.allowedInversions =
+                vpj.at("allowedInversions").get<std::vector<int>>();
+        }
+        if (vpj.contains("allowedSpreads")) {
+            pt.voicingProfile.allowedSpreads =
+                vpj.at("allowedSpreads").get<std::vector<int>>();
+        }
+    } else {
+        pt.voicingProfile.priority = j.value("voicingPriority", 0.0f);
+        if (j.contains("allowedInversions")) {
+            pt.voicingProfile.allowedInversions =
+                j.at("allowedInversions").get<std::vector<int>>();
+        }
+        if (j.contains("allowedSpreads")) {
+            pt.voicingProfile.allowedSpreads =
+                j.at("allowedSpreads").get<std::vector<int>>();
+        }
+    }
+
     pt.voicingDictionary = j.value("voicingDictionary", std::string(""));
 }
 
