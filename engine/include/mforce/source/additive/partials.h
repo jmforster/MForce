@@ -132,6 +132,8 @@ struct Partials : ValueSource, IPartials {
   // --- IPartials interface ---
 
   void partials_prepare(const RenderContext& ctx, int frames) override {
+    rate_ = float(ctx.sampleRate);
+
     if (arrayUpdateReq_) {
       update_arrays();
     }
@@ -204,7 +206,7 @@ struct Partials : ValueSource, IPartials {
 
     // Advance partial position (legacy Partials.cs lines 197-200)
     partialPos_[index] = std::fmod(
-        partialPos_[index] + pfreq / RATE + phaseDiff + (ppo - partialLPO_[index]),
+        partialPos_[index] + pfreq / rate_ + phaseDiff + (ppo - partialLPO_[index]),
         1.0f);
     if (partialPos_[index] < 0.0f) partialPos_[index] += 1.0f;
     partialLPO_[index] = ppo;
@@ -333,8 +335,11 @@ protected:
 
   bool arrayUpdateReq_{true};
 
+  // Sample rate captured from ctx at partials_prepare(); drives partial phase
+  // advance in get_partial_value(). Previously a hardcoded 48000 constexpr.
+  float rate_{48000.0f};
+
   static constexpr float CUTOFF = 16000.0f;
-  static constexpr float RATE   = 48000.0f;  // TODO: make configurable via sample rate
 };
 
 // ---------------------------------------------------------------------------
