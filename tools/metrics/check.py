@@ -14,7 +14,7 @@ if _THIS_DIR not in sys.path:
 import numpy as np
 import soundfile as sf
 
-from features import compute_health, compute_spectral
+from features import compute_health, compute_spectral, compute_pitch, compute_mfcc, compute_envelope
 from health import classify
 
 SCHEMA_VERSION = 1
@@ -58,7 +58,8 @@ def format_one_line(status, features, sidecar):
     peak = features.get('peak', 0.0)
     rms = features.get('rms', 0.0)
     cent = features.get('centroid_mean', 0.0)
-    return f"{status} | peak={peak:.3f} rms={rms:.4f} centroid={cent:.0f}Hz | features: {sidecar}"
+    f0 = features.get('f0_mean_hz', 0.0)
+    return f"{status} | peak={peak:.3f} rms={rms:.4f} centroid={cent:.0f}Hz f0={f0:.1f}Hz | features: {sidecar}"
 
 
 def status_to_exit(status: str) -> int:
@@ -84,6 +85,9 @@ def main():
 
     features = compute_health(mono)
     features.update(compute_spectral(mono, sr))
+    features.update(compute_pitch(mono, sr))
+    features.update(compute_mfcc(mono, sr))
+    features.update(compute_envelope(mono, sr))
 
     status, reasons = classify(features, stereo_imbalance=imbalance)
 
