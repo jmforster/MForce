@@ -11,6 +11,8 @@
 #include "mforce/music/harmony_timeline.h"
 #include "mforce/music/voicing_selector.h"
 #include "mforce/music/smooth_voicing_selector.h"
+#include "mforce/music/voicing_profile_selector.h"
+#include "mforce/music/static_voicing_profile_selector.h"
 #include "mforce/music/structure.h"
 #include "mforce/music/templates.h"
 #include "mforce/music/pitch_reader.h"
@@ -137,6 +139,13 @@ struct Composer {
     // Voicing selectors (Phase 4)
     VoicingSelectorRegistry::instance()
         .register_selector(std::make_unique<SmoothVoicingSelector>());
+
+    // Voicing profile selectors (Phase 5)
+    VoicingProfileSelectorRegistry::instance()
+        .register_factory("static", []() {
+          return std::unique_ptr<VoicingProfileSelector>(
+              new StaticVoicingProfileSelector());
+        });
 
     // Passage strategies
     reg.register_passage(std::make_unique<AlternatingFigureStrategy>());
@@ -452,10 +461,38 @@ private:
           }
         }
 
+        // VoicingProfileSelector: produces a VoicingProfile per chord.
+        // Empty name = "static" (baseline profile unchanged every chord).
+        // Only built when a VoicingSelector is in play.
+        std::unique_ptr<VoicingProfileSelector> profileSelector;
+        if (selector && passIt != partTmpl.passages.end()) {
+          std::string selName = passIt->second.voicingProfileSelector.empty()
+                              ? std::string("static")
+                              : passIt->second.voicingProfileSelector;
+          profileSelector = VoicingProfileSelectorRegistry::instance()
+                                .create(selName);
+          if (!profileSelector) {
+            std::cerr << "Unknown voicingProfileSelector '" << selName
+                      << "', falling back to static\n";
+            profileSelector = VoicingProfileSelectorRegistry::instance()
+                                  .create("static");
+          }
+          if (auto* sw = dynamic_cast<StaticVoicingProfileSelector*>(
+                             profileSelector.get())) {
+            sw->configure(passIt->second.voicingProfile);
+          }
+          profileSelector->configure_from_json(
+              passIt->second.voicingProfileSelectorConfig);
+          uint32_t seed = tmpl.masterSeed ^ 0x566F6953u
+                        ^ (uint32_t(si) * 100u + uint32_t(pi));
+          profileSelector->reset(seed);
+        }
+
         float beatsPerBar = float(sec.meter.beats_per_bar());
         int totalBars = int(sec.beats / beatsPerBar);
 
         const Chord* prevChord = nullptr;
+        int chordIdx = 0;
 
         for (int bar = 0; bar < totalBars; ++bar) {
           float barStart = beatOffset + bar * beatsPerBar;
@@ -471,9 +508,15 @@ private:
             if (sc) {
               Chord chord;
               if (selector) {
+                float beatInBar = pos - barStart;
+                float beatInPassage = pos - beatOffset;
+                VoicingProfile profile = profileSelector
+                    ? profileSelector->profile_for_chord(
+                          chordIdx, beatInBar, beatInPassage)
+                    : passIt->second.voicingProfile;
                 VoicingRequest req{*sc, &sec.scale, cfg.octave, dur,
                                    prevChord, std::nullopt,
-                                   passIt->second.voicingProfile,
+                                   profile,
                                    passIt->second.voicingDictionary};
                 chord = selector->select(req);
               } else {
@@ -483,6 +526,7 @@ private:
               RealizationRequest realReq{chord, pos, dur, bar + 1, nullptr};
               blockStrat->realize(realReq, part->elementSequence);
               prevChord = &part->elementSequence.elements.back().chord();
+              ++chordIdx;
             }
             pos += dur;
           }

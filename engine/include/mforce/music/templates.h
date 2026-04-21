@@ -2,11 +2,9 @@
 #include "mforce/music/basics.h"
 #include "mforce/music/figures.h"
 #include "mforce/music/structure.h"
-<<<<<<< HEAD
 #include "mforce/music/realization_strategy.h"
-=======
 #include "mforce/music/voicing_profile.h"
->>>>>>> 0fb630c (feat(voicing): VoicingProfile bundle with JSON back-compat)
+#include <nlohmann/json.hpp>
 #include <string>
 #include <vector>
 #include <unordered_map>
@@ -370,6 +368,16 @@ struct PassageTemplate {
     // profile is used for every chord. When one is configured, this serves
     // as the baseline the profile selector modulates.
     VoicingProfile voicingProfile;
+
+    // Name of a registered VoicingProfileSelector that emits a
+    // VoicingProfile per chord. Empty = "static" (uses voicingProfile
+    // unchanged for every chord).
+    std::string voicingProfileSelector;
+
+    // Selector-specific config (e.g. RandomVoicingProfileSelector ranges,
+    // ScriptedVoicingProfileSelector sequence). Opaque to the template
+    // layer; each selector parses its own shape.
+    nlohmann::json voicingProfileSelectorConfig;
 
     // ChordDictionary name used by the VoicingSelector for candidate voicings.
     // Empty = "Canonic" (smallest-interval close voicings). Names like "Piano",
