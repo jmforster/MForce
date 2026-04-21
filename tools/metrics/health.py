@@ -5,7 +5,8 @@ FAIL_SILENT_MIDDLE = 0.95
 FAIL_CLIP_FRAC = 0.01        # > 1% of samples clipped → FAIL
 WARN_PEAK_HEADROOM = 0.99    # peak ≥ this → WARN
 WARN_DC_OFFSET = 0.02
-WARN_SILENT_EDGE = 0.20      # leading/trailing silent region exceeds 20% → WARN
+WARN_SILENT_START = 0.50     # leading silent region exceeds 50% → WARN (very slow attack)
+# Trailing silence is not warned — instrument patches naturally decay to zero.
 WARN_CHANNEL_IMBALANCE = 0.10  # |L_rms - R_rms| / max(L_rms, R_rms) > this → WARN
 
 
@@ -37,11 +38,8 @@ def classify(features: dict, stereo_imbalance: float = 0.0) -> tuple[str, list[s
     if abs(features.get('dc_offset', 0.0)) > WARN_DC_OFFSET:
         reasons.append('dc_offset_high')
         warn = True
-    if features.get('silent_start_frac', 0.0) > WARN_SILENT_EDGE:
+    if features.get('silent_start_frac', 0.0) > WARN_SILENT_START:
         reasons.append('silent_start')
-        warn = True
-    if features.get('silent_end_frac', 0.0) > WARN_SILENT_EDGE:
-        reasons.append('silent_end')
         warn = True
     if stereo_imbalance > WARN_CHANNEL_IMBALANCE:
         reasons.append('channel_imbalance')
