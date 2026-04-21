@@ -367,6 +367,18 @@ struct PassageTemplate {
     // (use ChordAccompanimentConfig.inversion/spread uniformly per chord).
     // Consumed by Composer::realize_chord_parts_ for Harmony-role parts.
     std::string voicingSelector;
+
+    // Priority knob for voicing-selector scoring, [0, 1].
+    //   0.0 = pure voice-leading distance (minimize total semitone motion)
+    //   1.0 = pure common-tone preference (maximize voices that don't move)
+    //   0.5 = balanced (50/50 weighted composite)
+    // Default 0.0 preserves the pre-knob behavior of SmoothVoicingSelector.
+    float voicingPriority{0.0f};
+
+    // ChordDictionary name used by the VoicingSelector for candidate voicings.
+    // Empty = "Canonic" (smallest-interval close voicings). Names like "Piano",
+    // "Guitar-Bar-6", etc. pull wider/idiomatic voicings from the registry.
+    std::string voicingDictionary;
 };
 
 // ===========================================================================

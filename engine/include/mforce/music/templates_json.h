@@ -672,6 +672,8 @@ inline void to_json(json& j, const PassageTemplate& pt) {
     if (pt.locked) j["locked"] = true;
     if (!pt.periods.empty()) j["periods"] = pt.periods;
     if (!pt.voicingSelector.empty()) j["voicingSelector"] = pt.voicingSelector;
+    if (pt.voicingPriority != 0.0f) j["voicingPriority"] = pt.voicingPriority;
+    if (!pt.voicingDictionary.empty()) j["voicingDictionary"] = pt.voicingDictionary;
 }
 
 inline void from_json(const json& j, ChordAccompanimentConfig& cc) {
@@ -732,6 +734,8 @@ inline void from_json(const json& j, PassageTemplate& pt) {
     }
 
     pt.voicingSelector = j.value("voicingSelector", std::string(""));
+    pt.voicingPriority = j.value("voicingPriority", 0.0f);
+    pt.voicingDictionary = j.value("voicingDictionary", std::string(""));
 }
 
 // ===========================================================================
