@@ -16,10 +16,10 @@ struct VarSource final : ValueSource {
   : val_(std::move(val)), var_(std::move(var)),
     varPct_(std::move(varPct)), absolute_(absolute) {}
 
-  void prepare(int frames) override {
-    val_->prepare(frames);
-    var_->prepare(frames);
-    varPct_->prepare(frames);
+  void prepare(const RenderContext& ctx, int frames) override {
+    val_->prepare(ctx, frames);
+    var_->prepare(ctx, frames);
+    varPct_->prepare(ctx, frames);
   }
 
   float next() override {

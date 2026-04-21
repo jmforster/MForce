@@ -43,10 +43,10 @@ struct MultiSource final : ValueSource {
     entries.push_back({std::move(src), weight, delay});
   }
 
-  void prepare(int frames) override {
+  void prepare(const RenderContext& ctx, int frames) override {
     ptr_ = -1;
     for (auto& e : entries)
-      e.source->prepare(frames + e.delaySamples);
+      e.source->prepare(ctx, frames + e.delaySamples);
   }
 
   float next() override {

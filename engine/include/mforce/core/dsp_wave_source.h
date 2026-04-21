@@ -17,11 +17,11 @@ struct WaveSource : ValueSource {
   void set_frequency(std::shared_ptr<ValueSource> s) { frequency_ = std::move(s); }
   void set_phase(std::shared_ptr<ValueSource> s) { phase_ = std::move(s); }
 
-  void prepare(int frames) override {
-    ValueSource::prepare(frames);
-    amplitude_->prepare(frames);
-    frequency_->prepare(frames);
-    phase_->prepare(frames);
+  void prepare(const RenderContext& ctx, int frames) override {
+    ValueSource::prepare(ctx, frames);
+    amplitude_->prepare(ctx, frames);
+    frequency_->prepare(ctx, frames);
+    phase_->prepare(ctx, frames);
 
     // Mirror legacy: ptr starts at -1, Next() increments to 0 on first sample.
     ptr_ = -1;

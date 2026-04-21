@@ -79,7 +79,7 @@ struct Envelope : ValueSource {
 
   void add_stage(Stage s) { stages_.push_back(s); }
 
-  void prepare(int frames) override {
+  void prepare(const RenderContext& ctx, int frames) override {
     totalFrames_ = frames;
     float duration = float(frames) / float(sampleRate_);
 

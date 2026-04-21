@@ -105,15 +105,15 @@ struct GrayScottSource final : ValueSource {
     return 0.0f;
   }
 
-  void prepare(int frames) override {
-    if (amplitude_)  amplitude_->prepare(frames);
-    if (rate_)       rate_->prepare(frames);
-    if (feed_)       feed_->prepare(frames);
-    if (kill_)       kill_->prepare(frames);
-    if (diffusionU_) diffusionU_->prepare(frames);
-    if (diffusionV_) diffusionV_->prepare(frames);
-    if (probe_)      probe_->prepare(frames);
-    if (smoothness_) smoothness_->prepare(frames);
+  void prepare(const RenderContext& ctx, int frames) override {
+    if (amplitude_)  amplitude_->prepare(ctx, frames);
+    if (rate_)       rate_->prepare(ctx, frames);
+    if (feed_)       feed_->prepare(ctx, frames);
+    if (kill_)       kill_->prepare(ctx, frames);
+    if (diffusionU_) diffusionU_->prepare(ctx, frames);
+    if (diffusionV_) diffusionV_->prepare(ctx, frames);
+    if (probe_)      probe_->prepare(ctx, frames);
+    if (smoothness_) smoothness_->prepare(ctx, frames);
   }
 
   float next() override {

@@ -153,9 +153,9 @@ struct BWLowpassFilter final : ValueSource {
       sections_.emplace_back(float(i + 1), float(sectionCount * 2), float(sampleRate));
   }
 
-  void prepare(int frames) override {
-    if (source_) source_->prepare(frames);
-    if (cutoffFreq_) cutoffFreq_->prepare(frames);
+  void prepare(const RenderContext& ctx, int frames) override {
+    if (source_) source_->prepare(ctx, frames);
+    if (cutoffFreq_) cutoffFreq_->prepare(ctx, frames);
   }
 
   float next() override {
@@ -224,9 +224,9 @@ struct BWHighpassFilter final : ValueSource {
       sections_.emplace_back(float(i + 1), float(sectionCount * 2), float(sampleRate));
   }
 
-  void prepare(int frames) override {
-    if (source_) source_->prepare(frames);
-    if (cutoffFreq_) cutoffFreq_->prepare(frames);
+  void prepare(const RenderContext& ctx, int frames) override {
+    if (source_) source_->prepare(ctx, frames);
+    if (cutoffFreq_) cutoffFreq_->prepare(ctx, frames);
   }
 
   float next() override {
@@ -302,10 +302,10 @@ struct BWBandpassFilter final : ValueSource {
     }
   }
 
-  void prepare(int frames) override {
-    if (source_) source_->prepare(frames);
-    if (lowCutoff_) lowCutoff_->prepare(frames);
-    if (highCutoff_) highCutoff_->prepare(frames);
+  void prepare(const RenderContext& ctx, int frames) override {
+    if (source_) source_->prepare(ctx, frames);
+    if (lowCutoff_) lowCutoff_->prepare(ctx, frames);
+    if (highCutoff_) highCutoff_->prepare(ctx, frames);
   }
 
   float next() override {
@@ -385,11 +385,11 @@ struct DelayFilter final : ValueSource {
   explicit DelayFilter(int sampleRate)
   : sampleRate_(sampleRate), buffer_(sampleRate, 0.0f) {}  // 1 second max delay
 
-  void prepare(int frames) override {
-    if (source_) source_->prepare(frames);
-    if (delayTime_) delayTime_->prepare(frames);
-    if (delayLevel_) delayLevel_->prepare(frames);
-    if (feedback_) feedback_->prepare(frames);
+  void prepare(const RenderContext& ctx, int frames) override {
+    if (source_) source_->prepare(ctx, frames);
+    if (delayTime_) delayTime_->prepare(ctx, frames);
+    if (delayLevel_) delayLevel_->prepare(ctx, frames);
+    if (feedback_) feedback_->prepare(ctx, frames);
     std::fill(buffer_.begin(), buffer_.end(), 0.0f);
     ptr_ = -1;
   }

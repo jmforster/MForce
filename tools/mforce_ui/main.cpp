@@ -661,10 +661,80 @@ static void load_graph() {
     // Map nodeId → output pin ID
     std::unordered_map<std::string, int> outputPinMap;
 
+    // Pre-scan: count ref occurrences across the whole graph so we can
+    // detect Formant nodes whose sole referrer is a FormantSpectrum.
+    std::unordered_map<std::string, int> refCounts;
+    std::function<void(const json&)> countRefs = [&](const json& val) {
+        if (val.is_object()) {
+            if (val.contains("ref") && val["ref"].is_string()) {
+                refCounts[val["ref"].get<std::string>()]++;
+                return;
+            }
+            for (auto it = val.begin(); it != val.end(); ++it) countRefs(it.value());
+        } else if (val.is_array()) {
+            for (const auto& item : val) countRefs(item);
+        }
+    };
+    for (const auto& jnode : nodes) {
+        if (jnode.contains("params")) countRefs(jnode["params"]);
+    }
+
+    // Locate FormantSpectrum nodes whose params.formants is a ref-array of
+    // bare-constant, single-use Formant nodes. Those formants get consumed
+    // into the spectrum's inline row table (and skipped as graph nodes).
+    std::unordered_map<std::string, std::vector<FormantRow>> specRows;
+    std::unordered_map<std::string, bool> ownedFormants;
+    auto find_json_node = [&](const std::string& id) -> const json* {
+        for (const auto& jn : nodes)
+            if (jn.contains("id") && jn["id"].get<std::string>() == id) return &jn;
+        return nullptr;
+    };
+    for (const auto& jnode : nodes) {
+        if (!jnode.contains("type") || jnode["type"].get<std::string>() != "FormantSpectrum") continue;
+        if (!jnode.contains("params") || !jnode["params"].contains("formants")) continue;
+        const auto& arr = jnode["params"]["formants"];
+        if (!arr.is_array() || arr.empty()) continue;
+        if (!arr[0].is_object() || !arr[0].contains("ref")) continue;  // legacy inline form, skip
+
+        std::vector<FormantRow> rows;
+        std::vector<std::string> ids;
+        bool canConsume = true;
+        for (const auto& item : arr) {
+            if (!item.is_object() || !item.contains("ref")) { canConsume = false; break; }
+            std::string fid = item["ref"].get<std::string>();
+            if (refCounts[fid] != 1) { canConsume = false; break; }
+            const json* fnode = find_json_node(fid);
+            if (!fnode || !fnode->contains("type") ||
+                (*fnode)["type"].get<std::string>() != "Formant" ||
+                !fnode->contains("params")) { canConsume = false; break; }
+            const auto& fp = (*fnode)["params"];
+            if (!fp.contains("frequency") || !fp["frequency"].is_number() ||
+                !fp.contains("gain")      || !fp["gain"].is_number() ||
+                !fp.contains("width")     || !fp["width"].is_number() ||
+                !fp.contains("power")     || !fp["power"].is_number()) {
+                canConsume = false; break;
+            }
+            FormantRow row;
+            row.frequency = fp["frequency"].get<float>();
+            row.gain      = fp["gain"].get<float>();
+            row.width     = fp["width"].get<float>();
+            row.power     = fp["power"].get<float>();
+            rows.push_back(row);
+            ids.push_back(fid);
+        }
+        if (canConsume) {
+            specRows[jnode["id"].get<std::string>()] = std::move(rows);
+            for (auto& fid : ids) ownedFormants[fid] = true;
+        }
+    }
+
     // First pass: create all nodes
     for (const auto& jnode : nodes) {
         std::string id = jnode["id"].get<std::string>();
         std::string type = jnode["type"].get<std::string>();
+
+        // Skip Formants owned by a FormantSpectrum — they'll live inside its row table.
+        if (ownedFormants.count(id)) continue;
 
         s_nodes.emplace_back(type);
         GraphNode& gn = s_nodes.back();
@@ -693,8 +763,15 @@ static void load_graph() {
                 // refs handled in second pass
             }
 
-            // Restore inline formant table
-            if (params.contains("formants") && params["formants"].is_array()) {
+            // Restore formant table. New canonical form: params.formants is a
+            // ref-array of owned Formant nodes, pulled into rows via the
+            // pre-scan. Legacy form: inline struct array.
+            if (auto sit = specRows.find(id); sit != specRows.end()) {
+                gn.formantRows = sit->second;
+                gn.rebuild_formant_spectrum();
+            } else if (params.contains("formants") && params["formants"].is_array() &&
+                       !params["formants"].empty() && params["formants"][0].is_object() &&
+                       !params["formants"][0].contains("ref")) {
                 gn.formantRows.clear();
                 for (const auto& fj : params["formants"]) {
                     FormantRow row;
@@ -1032,17 +1109,27 @@ static void save_patch_graph(const std::string& path) {
             jnode["params"]["preset"] = "adsr";
         }
 
-        // Inline formant table
-        if (!node.formantRows.empty()) {
+        // FormantSpectrum: synthesize a bare Formant graph node per row and
+        // emit params.formants as a ref-array. On-disk format matches
+        // hand-written patches; the synthesized nodes are hidden from the UI.
+        if (node.typeName == "FormantSpectrum" && !node.formantRows.empty()) {
             if (!jnode.contains("params")) jnode["params"] = json::object();
-            json formants = json::array();
-            for (auto& row : node.formantRows) {
-                formants.push_back({
+            json refs = json::array();
+            const std::string& specId = nodeIds[node.id];
+            for (size_t i = 0; i < node.formantRows.size(); ++i) {
+                const auto& row = node.formantRows[i];
+                std::string fid = specId + "__f" + std::to_string(i);
+                json fnode;
+                fnode["id"] = fid;
+                fnode["type"] = "Formant";
+                fnode["params"] = {
                     {"frequency", row.frequency}, {"gain", row.gain},
-                    {"width", row.width}, {"power", row.power}
-                });
+                    {"width", row.width}, {"power", row.power},
+                };
+                nodes.push_back(fnode);
+                refs.push_back(json{{"ref", fid}});
             }
-            jnode["params"]["formants"] = formants;
+            jnode["params"]["formants"] = refs;
         }
 
         // Config values
@@ -1185,16 +1272,24 @@ static void save_node_graph(const std::string& path) {
             jnode["params"]["preset"] = "adsr";
         }
 
-        if (!node.formantRows.empty()) {
+        if (node.typeName == "FormantSpectrum" && !node.formantRows.empty()) {
             if (!jnode.contains("params")) jnode["params"] = json::object();
-            json formants = json::array();
-            for (auto& row : node.formantRows) {
-                formants.push_back({
+            json refs = json::array();
+            const std::string& specId = nodeIds[node.id];
+            for (size_t i = 0; i < node.formantRows.size(); ++i) {
+                const auto& row = node.formantRows[i];
+                std::string fid = specId + "__f" + std::to_string(i);
+                json fnode;
+                fnode["id"] = fid;
+                fnode["type"] = "Formant";
+                fnode["params"] = {
                     {"frequency", row.frequency}, {"gain", row.gain},
-                    {"width", row.width}, {"power", row.power}
-                });
+                    {"width", row.width}, {"power", row.power},
+                };
+                nodes.push_back(fnode);
+                refs.push_back(json{{"ref", fid}});
             }
-            jnode["params"]["formants"] = formants;
+            jnode["params"]["formants"] = refs;
         }
 
         for (auto& [desc, val] : node.configValues) {
@@ -1482,8 +1577,9 @@ static ValueSource* find_output_source() {
 // Prepare the whole DSP graph for a given duration
 static void prepare_graph(int samples) {
     // Prepare all nodes' DSP sources (order doesn't matter for prepare)
+    RenderContext ctx{DSP_SAMPLE_RATE};
     for (auto& n : s_nodes) {
-        if (n.dspSource) n.dspSource->prepare(samples);
+        if (n.dspSource) n.dspSource->prepare(ctx, samples);
     }
 }
 
@@ -1966,7 +2062,8 @@ static void render_chords_waveforms(const std::vector<ParsedChord>& chords, floa
         float totalSeconds = part.totalBeats * 60.0f / bpm + 1.0f;
         int frames = int(totalSeconds * float(ip.sampleRate));
         std::vector<float> mono(frames, 0.0f);
-        ip.instrument->render(mono.data(), frames);
+        RenderContext _ctx{ip.sampleRate};
+        ip.instrument->render(_ctx, mono.data(), frames);
 
         // Peak-normalize to prevent distortion from overlapping notes
         float peak = 0.0f;
@@ -2091,7 +2188,8 @@ static void render_drums_waveforms(const ParsedDrumPattern& pat, float bpm, cons
         float totalSeconds = pat.figure.totalTime * 60.0f / bpm * float(pat.repeats) + 1.0f;
         int frames = int(totalSeconds * float(AUDIO_SAMPLE_RATE));
         std::vector<float> mono(frames, 0.0f);
-        kit.render(mono.data(), frames);
+        RenderContext _ctx{AUDIO_SAMPLE_RATE};
+        kit.render(_ctx, mono.data(), frames);
 
         // Peak-normalize
         float peak = 0.0f;

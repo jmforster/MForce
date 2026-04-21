@@ -72,14 +72,14 @@ struct Vibrato final : ValueSource {
     return nullptr;
   }
 
-  void prepare(int frames) override {
+  void prepare(const RenderContext& ctx, int frames) override {
     float duration = float(frames) / float(sampleRate_);
     enabled_ = duration > threshold_;
 
-    if (frequency_) frequency_->prepare(frames);
+    if (frequency_) frequency_->prepare(ctx, frames);
 
     if (enabled_) {
-      lfo_->prepare(frames);
+      lfo_->prepare(ctx, frames);
     }
   }
 

@@ -96,11 +96,11 @@ struct SelfRewritingASTSource final : ValueSource {
     return 0.0f;
   }
 
-  void prepare(int frames) override {
-    if (amplitude_)   amplitude_->prepare(frames);
-    if (freqScale_)   freqScale_->prepare(frames);
-    if (rewriteRate_) rewriteRate_->prepare(frames);
-    if (smoothness_)  smoothness_->prepare(frames);
+  void prepare(const RenderContext& ctx, int frames) override {
+    if (amplitude_)   amplitude_->prepare(ctx, frames);
+    if (freqScale_)   freqScale_->prepare(ctx, frames);
+    if (rewriteRate_) rewriteRate_->prepare(ctx, frames);
+    if (smoothness_)  smoothness_->prepare(ctx, frames);
   }
 
   float next() override {

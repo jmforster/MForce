@@ -73,15 +73,15 @@ struct BasicAdditiveSource final : WaveSource {
     return WaveSource::get_param(name);
   }
 
-  void prepare(int frames) override {
-    WaveSource::prepare(frames);
-    evenWeight_->prepare(frames);
-    oddWeight_->prepare(frames);
-    rolloff_->prepare(frames);
-    freqVarPct_->prepare(frames);
-    freqVarSpeed_->prepare(frames);
-    amplVarPct_->prepare(frames);
-    amplVarSpeed_->prepare(frames);
+  void prepare(const RenderContext& ctx, int frames) override {
+    WaveSource::prepare(ctx, frames);
+    evenWeight_->prepare(ctx, frames);
+    oddWeight_->prepare(ctx, frames);
+    rolloff_->prepare(ctx, frames);
+    freqVarPct_->prepare(ctx, frames);
+    freqVarSpeed_->prepare(ctx, frames);
+    amplVarPct_->prepare(ctx, frames);
+    amplVarSpeed_->prepare(ctx, frames);
 
     // Reset arrays — will be initialized on first sample
     partialCount_ = 0;

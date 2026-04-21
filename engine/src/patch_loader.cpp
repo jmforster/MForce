@@ -48,8 +48,8 @@ static std::string slurp(const std::string& path)
 struct WaveSourceMono final : MonoSource {
     std::shared_ptr<WaveSource> src;
     explicit WaveSourceMono(std::shared_ptr<WaveSource> s) : src(std::move(s)) {}
-    void render(float* out, int frames) override {
-        src->prepare(frames);
+    void render(const RenderContext& ctx, float* out, int frames) override {
+        src->prepare(ctx, frames);
         for (int i = 0; i < frames; ++i) out[i] = src->next();
     }
 };
@@ -57,8 +57,8 @@ struct WaveSourceMono final : MonoSource {
 struct ValueSourceMono final : MonoSource {
     std::shared_ptr<ValueSource> src;
     explicit ValueSourceMono(std::shared_ptr<ValueSource> s) : src(std::move(s)) {}
-    void render(float* out, int frames) override {
-        src->prepare(frames);
+    void render(const RenderContext& ctx, float* out, int frames) override {
+        src->prepare(ctx, frames);
         for (int i = 0; i < frames; ++i) out[i] = src->next();
     }
 };

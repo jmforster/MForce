@@ -114,17 +114,17 @@ struct MicroNNSource final : ValueSource {
     return 0.0f;
   }
 
-  void prepare(int frames) override {
-    if (amplitude_)    amplitude_->prepare(frames);
-    if (rate_)         rate_->prepare(frames);
-    if (dt_)           dt_->prepare(frames);
-    if (learningRate_) learningRate_->prepare(frames);
-    if (fInput_)       fInput_->prepare(frames);
-    if (fTarget0_)     fTarget0_->prepare(frames);
-    if (fTarget1_)     fTarget1_->prepare(frames);
-    if (fTarget2_)     fTarget2_->prepare(frames);
-    if (noiseAmount_)  noiseAmount_->prepare(frames);
-    if (smoothness_)   smoothness_->prepare(frames);
+  void prepare(const RenderContext& ctx, int frames) override {
+    if (amplitude_)    amplitude_->prepare(ctx, frames);
+    if (rate_)         rate_->prepare(ctx, frames);
+    if (dt_)           dt_->prepare(ctx, frames);
+    if (learningRate_) learningRate_->prepare(ctx, frames);
+    if (fInput_)       fInput_->prepare(ctx, frames);
+    if (fTarget0_)     fTarget0_->prepare(ctx, frames);
+    if (fTarget1_)     fTarget1_->prepare(ctx, frames);
+    if (fTarget2_)     fTarget2_->prepare(ctx, frames);
+    if (noiseAmount_)  noiseAmount_->prepare(ctx, frames);
+    if (smoothness_)   smoothness_->prepare(ctx, frames);
   }
 
   float next() override {

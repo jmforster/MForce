@@ -642,7 +642,7 @@ struct PluckEvolutionSource final : ValueSource, IEvolutionHolder {
   }
 
   // Not an audio source — exists for graph wiring only
-  void prepare(int) override {}
+  void prepare(const RenderContext&, int) override {}
   float next() override { return 0.0f; }
   float current() const override { return 0.0f; }
 
@@ -694,7 +694,7 @@ struct AveragingEvolutionSource final : ValueSource, IEvolutionHolder {
   }
 
   // Not an audio source — exists for graph wiring only
-  void prepare(int) override {}
+  void prepare(const RenderContext&, int) override {}
   float next() override { return 0.0f; }
   float current() const override { return 0.0f; }
 
@@ -752,7 +752,7 @@ struct EKSEvolutionSource final : ValueSource, IEvolutionHolder {
     return 0.0f;
   }
 
-  void prepare(int) override {}
+  void prepare(const RenderContext&, int) override {}
   float next() override { return 0.0f; }
   float current() const override { return 0.0f; }
 
@@ -812,8 +812,8 @@ struct BlownTubeEvolutionSource final : ValueSource, IEvolutionHolder {
     return 0.0f;
   }
 
-  void prepare(int frames) override {
-    if (breathSrc_) breathSrc_->prepare(frames);
+  void prepare(const RenderContext& ctx, int frames) override {
+    if (breathSrc_) breathSrc_->prepare(ctx, frames);
   }
   float next() override { return 0.0f; }
   float current() const override { return 0.0f; }
@@ -887,9 +887,9 @@ struct ReedEvolutionSource final : ValueSource, IEvolutionHolder {
     return 0.0f;
   }
 
-  void prepare(int frames) override {
-    if (breathSrc_) breathSrc_->prepare(frames);
-    if (reedStiffnessSrc_) reedStiffnessSrc_->prepare(frames);
+  void prepare(const RenderContext& ctx, int frames) override {
+    if (breathSrc_) breathSrc_->prepare(ctx, frames);
+    if (reedStiffnessSrc_) reedStiffnessSrc_->prepare(ctx, frames);
   }
   float next() override { return 0.0f; }
   float current() const override { return 0.0f; }
@@ -967,9 +967,9 @@ struct BowedStringEvolutionSource final : ValueSource, IEvolutionHolder {
     return 0.0f;
   }
 
-  void prepare(int frames) override {
-    if (bowSrc_) bowSrc_->prepare(frames);
-    if (frictionGainSrc_) frictionGainSrc_->prepare(frames);
+  void prepare(const RenderContext& ctx, int frames) override {
+    if (bowSrc_) bowSrc_->prepare(ctx, frames);
+    if (frictionGainSrc_) frictionGainSrc_->prepare(ctx, frames);
   }
   float next() override { return 0.0f; }
   float current() const override { return 0.0f; }
@@ -1050,9 +1050,9 @@ struct BrassEvolutionSource final : ValueSource, IEvolutionHolder {
     return 0.0f;
   }
 
-  void prepare(int frames) override {
-    if (breathSrc_) breathSrc_->prepare(frames);
-    if (brassinessSrc_) brassinessSrc_->prepare(frames);
+  void prepare(const RenderContext& ctx, int frames) override {
+    if (breathSrc_) breathSrc_->prepare(ctx, frames);
+    if (brassinessSrc_) brassinessSrc_->prepare(ctx, frames);
   }
   float next() override { return 0.0f; }
   float current() const override { return 0.0f; }

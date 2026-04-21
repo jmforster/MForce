@@ -11,9 +11,9 @@ HybridKSSource::HybridKSSource(int sampleRate, uint32_t seed)
 , inputSource_(std::make_shared<WhiteNoiseSource>(seed))
 , rng_(seed) {}
 
-void HybridKSSource::prepare(int frames) {
-  WaveSource::prepare(frames);
-  if (inputSource_) inputSource_->prepare(frames);
+void HybridKSSource::prepare(const RenderContext& ctx, int frames) {
+  WaveSource::prepare(ctx, frames);
+  if (inputSource_) inputSource_->prepare(ctx, frames);
 
   table_.clear();
   tablePtr_ = -1;

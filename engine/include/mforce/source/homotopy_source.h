@@ -89,14 +89,14 @@ struct HomotopySource final : ValueSource {
     return 0.0f;
   }
 
-  void prepare(int frames) override {
-    if (amplitude_)  amplitude_->prepare(frames);
-    if (rate_)       rate_->prepare(frames);
-    if (stepSize_)   stepSize_->prepare(frames);
-    if (rTarget_)    rTarget_->prepare(frames);
-    if (sTarget_)    sTarget_->prepare(frames);
-    if (newtonTol_)  newtonTol_->prepare(frames);
-    if (smoothness_) smoothness_->prepare(frames);
+  void prepare(const RenderContext& ctx, int frames) override {
+    if (amplitude_)  amplitude_->prepare(ctx, frames);
+    if (rate_)       rate_->prepare(ctx, frames);
+    if (stepSize_)   stepSize_->prepare(ctx, frames);
+    if (rTarget_)    rTarget_->prepare(ctx, frames);
+    if (sTarget_)    sTarget_->prepare(ctx, frames);
+    if (newtonTol_)  newtonTol_->prepare(ctx, frames);
+    if (smoothness_) smoothness_->prepare(ctx, frames);
   }
 
   float next() override {

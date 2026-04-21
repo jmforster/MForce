@@ -85,16 +85,16 @@ void AdditiveSource2::assign_ampl_envelope(
   }
 }
 
-void AdditiveSource2::prepare(int frames) {
-  WaveSource::prepare(frames);
-  phaseOffset_->prepare(frames);
-  freqVarDepth_->prepare(frames);
-  freqVarSpeed_->prepare(frames);
-  amplVarDepth_->prepare(frames);
-  amplVarSpeed_->prepare(frames);
+void AdditiveSource2::prepare(const RenderContext& ctx, int frames) {
+  WaveSource::prepare(ctx, frames);
+  phaseOffset_->prepare(ctx, frames);
+  freqVarDepth_->prepare(ctx, frames);
+  freqVarSpeed_->prepare(ctx, frames);
+  amplVarDepth_->prepare(ctx, frames);
+  amplVarSpeed_->prepare(ctx, frames);
 
-  for (auto& e : freqEnvs_) e->prepare(frames);
-  for (auto& e : amplEnvs_) e->prepare(frames);
+  for (auto& e : freqEnvs_) e->prepare(ctx, frames);
+  for (auto& e : amplEnvs_) e->prepare(ctx, frames);
 
   int n = int(endIdx_.size());
   partialCount_ = std::min(n, int(12000.0f / std::max(currFreq_, 1.0f)));

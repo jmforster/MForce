@@ -127,17 +127,17 @@ struct MassSpringSource final : ValueSource {
     return 0.0f;
   }
 
-  void prepare(int frames) override {
-    if (amplitude_)      amplitude_->prepare(frames);
-    if (rate_)           rate_->prepare(frames);
-    if (dt_)             dt_->prepare(frames);
-    if (stiffness_)      stiffness_->prepare(frames);
-    if (damping_)        damping_->prepare(frames);
-    if (kExternal_)      kExternal_->prepare(frames);
-    if (breakThreshold_) breakThreshold_->prepare(frames);
-    if (reformRadius_)   reformRadius_->prepare(frames);
-    if (pluckAmount_)    pluckAmount_->prepare(frames);
-    if (smoothness_)     smoothness_->prepare(frames);
+  void prepare(const RenderContext& ctx, int frames) override {
+    if (amplitude_)      amplitude_->prepare(ctx, frames);
+    if (rate_)           rate_->prepare(ctx, frames);
+    if (dt_)             dt_->prepare(ctx, frames);
+    if (stiffness_)      stiffness_->prepare(ctx, frames);
+    if (damping_)        damping_->prepare(ctx, frames);
+    if (kExternal_)      kExternal_->prepare(ctx, frames);
+    if (breakThreshold_) breakThreshold_->prepare(ctx, frames);
+    if (reformRadius_)   reformRadius_->prepare(ctx, frames);
+    if (pluckAmount_)    pluckAmount_->prepare(ctx, frames);
+    if (smoothness_)     smoothness_->prepare(ctx, frames);
   }
 
   float next() override {

@@ -103,12 +103,12 @@ struct LDPCSource final : ValueSource {
     return 0.0f;
   }
 
-  void prepare(int frames) override {
-    if (amplitude_)  amplitude_->prepare(frames);
-    if (rate_)       rate_->prepare(frames);
-    if (snr_)        snr_->prepare(frames);
-    if (maxIter_)    maxIter_->prepare(frames);
-    if (smoothness_) smoothness_->prepare(frames);
+  void prepare(const RenderContext& ctx, int frames) override {
+    if (amplitude_)  amplitude_->prepare(ctx, frames);
+    if (rate_)       rate_->prepare(ctx, frames);
+    if (snr_)        snr_->prepare(ctx, frames);
+    if (maxIter_)    maxIter_->prepare(ctx, frames);
+    if (smoothness_) smoothness_->prepare(ctx, frames);
   }
 
   float next() override {

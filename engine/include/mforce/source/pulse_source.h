@@ -43,10 +43,10 @@ struct PulseSource final : WaveSource {
     return WaveSource::get_param(name);
   }
 
-  void prepare(int frames) override {
-    WaveSource::prepare(frames);
-    dutyCycle_->prepare(frames);
-    bend_->prepare(frames);
+  void prepare(const RenderContext& ctx, int frames) override {
+    WaveSource::prepare(ctx, frames);
+    dutyCycle_->prepare(ctx, frames);
+    bend_->prepare(ctx, frames);
   }
 
 protected:

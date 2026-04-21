@@ -7,7 +7,7 @@ namespace mforce {
 
 struct MonoSource {
   virtual ~MonoSource() = default;
-  virtual void render(float* out, int frames) = 0;
+  virtual void render(const RenderContext& ctx, float* out, int frames) = 0;
 };
 
 struct Channel {
@@ -22,7 +22,7 @@ struct StereoMixer {
   std::shared_ptr<ValueSource> gainR;
 
   StereoMixer();
-  void render(float* outLR, int frames);
+  void render(const RenderContext& ctx, float* outLR, int frames);
 };
 
 } // namespace mforce

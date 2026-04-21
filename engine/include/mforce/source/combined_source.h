@@ -66,11 +66,11 @@ struct CombinedSource final : ValueSource {
     return 0.0f;
   }
 
-  void prepare(int frames) override {
+  void prepare(const RenderContext& ctx, int frames) override {
     totalFrames_ = frames;
     ptr_ = -1;
-    source1_->prepare(frames);
-    source2_->prepare(frames);
+    source1_->prepare(ctx, frames);
+    source2_->prepare(ctx, frames);
   }
 
   float next() override {
@@ -170,7 +170,7 @@ struct CrossfadeSource final : ValueSource {
     return 0.0f;
   }
 
-  void prepare(int frames) override {
+  void prepare(const RenderContext& ctx, int frames) override {
     totalFrames_ = frames;
     ptr_ = -1;
 
@@ -181,9 +181,9 @@ struct CrossfadeSource final : ValueSource {
     s1End_ = s1Count + overlapCount_;
     s2Start_ = s1Count - overlapCount_;
 
-    if (amplitude_) amplitude_->prepare(frames);
-    source1_->prepare(s1Count + overlapCount_);
-    source2_->prepare(s2Count + overlapCount_);
+    if (amplitude_) amplitude_->prepare(ctx, frames);
+    source1_->prepare(ctx, s1Count + overlapCount_);
+    source2_->prepare(ctx, s2Count + overlapCount_);
   }
 
   float next() override {
@@ -270,12 +270,12 @@ struct DistortedSource final : ValueSource {
     return nullptr;
   }
 
-  void prepare(int frames) override {
-    if (source_) source_->prepare(frames);
-    if (amplitude_) amplitude_->prepare(frames);
-    if (density_) density_->prepare(frames);
-    if (gain_) gain_->prepare(frames);
-    if (shift_) shift_->prepare(frames);
+  void prepare(const RenderContext& ctx, int frames) override {
+    if (source_) source_->prepare(ctx, frames);
+    if (amplitude_) amplitude_->prepare(ctx, frames);
+    if (density_) density_->prepare(ctx, frames);
+    if (gain_) gain_->prepare(ctx, frames);
+    if (shift_) shift_->prepare(ctx, frames);
   }
 
   float next() override {
@@ -326,7 +326,7 @@ struct StaticVarSource final : ValueSource {
   const char* type_name() const override { return "StaticVarSource"; }
   SourceCategory category() const override { return SourceCategory::Utility; }
 
-  void prepare(int /*frames*/) override {
+  void prepare(const RenderContext& /*ctx*/, int /*frames*/) override {
     float r = rng_.valuePN() * varPct;
     if (bias != 0.0f) r = r * (1.0f - std::fabs(bias)) + bias * varPct;
     cur_ = baseValue * (1.0f + r);
@@ -350,7 +350,7 @@ struct StaticRangeSource final : ValueSource {
   const char* type_name() const override { return "StaticRangeSource"; }
   SourceCategory category() const override { return SourceCategory::Utility; }
 
-  void prepare(int /*frames*/) override {
+  void prepare(const RenderContext& /*ctx*/, int /*frames*/) override {
     cur_ = rng_.range(min, max, bias);
   }
 

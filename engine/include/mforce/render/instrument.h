@@ -27,7 +27,7 @@ struct Instrument : MonoSource {
   float volume{1.0f};
   std::vector<RenderedNote> renderedNotes;
 
-  void render(float* out, int frames) override {
+  void render(const RenderContext& /*ctx*/, float* out, int frames) override {
     std::fill(out, out + frames, 0.0f);
 
     for (auto& rn : renderedNotes) {
@@ -113,7 +113,8 @@ struct PitchedInstrument final : Instrument {
         : 0.0f;
     float gain = velocity * (1.0f + boost);
 
-    vg.source->prepare(durSamples);
+    RenderContext ctx{ sampleRate };
+    vg.source->prepare(ctx, durSamples);
 
     std::vector<float> buf(durSamples);
     for (int i = 0; i < durSamples; ++i)
@@ -142,7 +143,8 @@ struct DrumKit final : Instrument {
     auto& ds = sources[drumNumber];
     int durSamples = int(duration * float(sampleRate));
 
-    ds.source->prepare(durSamples);
+    RenderContext ctx{ sampleRate };
+    ds.source->prepare(ctx, durSamples);
 
     std::vector<float> buf(durSamples);
     for (int i = 0; i < durSamples; ++i)

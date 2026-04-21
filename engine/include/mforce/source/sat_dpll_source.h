@@ -102,12 +102,12 @@ struct SatDpllSource final : ValueSource {
     return 0.0f;
   }
 
-  void prepare(int frames) override {
-    if (amplitude_)     amplitude_->prepare(frames);
-    if (rate_)          rate_->prepare(frames);
-    if (clauseDensity_) clauseDensity_->prepare(frames);
-    if (clickAmount_)   clickAmount_->prepare(frames);
-    if (smoothness_)    smoothness_->prepare(frames);
+  void prepare(const RenderContext& ctx, int frames) override {
+    if (amplitude_)     amplitude_->prepare(ctx, frames);
+    if (rate_)          rate_->prepare(ctx, frames);
+    if (clauseDensity_) clauseDensity_->prepare(ctx, frames);
+    if (clickAmount_)   clickAmount_->prepare(ctx, frames);
+    if (smoothness_)    smoothness_->prepare(ctx, frames);
   }
 
   float next() override {

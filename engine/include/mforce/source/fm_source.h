@@ -56,11 +56,11 @@ struct FMSource final : WaveSource {
     return WaveSource::get_param(name);
   }
 
-  void prepare(int frames) override {
-    WaveSource::prepare(frames);
-    carrierRatio_->prepare(frames);
-    modRatio_->prepare(frames);
-    depth_->prepare(frames);
+  void prepare(const RenderContext& ctx, int frames) override {
+    WaveSource::prepare(ctx, frames);
+    carrierRatio_->prepare(ctx, frames);
+    modRatio_->prepare(ctx, frames);
+    depth_->prepare(ctx, frames);
 
     carrierPhase_ = 0.0f;
     modPhase_ = 0.0f;

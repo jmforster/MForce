@@ -15,7 +15,7 @@ struct WhiteNoiseSource final : ValueSource {
   const char* type_name() const override { return "WhiteNoiseSource"; }
   SourceCategory category() const override { return SourceCategory::Generator; }
 
-  void prepare(int /*frames*/) override {}
+  void prepare(const RenderContext& /*ctx*/, int /*frames*/) override {}
 
   float next() override {
     cur_ = rng_.valuePN();  // [-1, 1]

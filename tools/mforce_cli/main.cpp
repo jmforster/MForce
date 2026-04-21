@@ -92,7 +92,7 @@ static int run_chords(int argc, char** argv) {
     float totalSeconds = part.totalBeats * 60.0f / bpm + 1.0f; // +1s tail
     int frames = int(totalSeconds * float(ip.sampleRate));
     std::vector<float> mono(frames, 0.0f);
-    ip.instrument->render(mono.data(), frames);
+    { RenderContext _ctx{ip.sampleRate}; ip.instrument->render(_ctx, mono.data(), frames); };
 
     // Convert mono to stereo
     std::vector<float> stereo(frames * 2);
@@ -172,7 +172,7 @@ static bool render_piece_to_wav(Piece& piece, const std::string& instrumentType,
     float totalSeconds = totalBeats * 60.0f / bpm + 2.0f;
     int frames = int(totalSeconds * float(sampleRate));
     std::vector<float> mono(frames, 0.0f);
-    instrument.render(mono.data(), frames);
+    { RenderContext _ctx{sampleRate}; instrument.render(_ctx, mono.data(), frames); };
 
     instrument.renderedNotes.clear();
 
@@ -310,7 +310,7 @@ static void render_and_write(const std::vector<Instrument*>& instruments,
 
     for (auto* inst : instruments) {
         std::fill(buf.begin(), buf.end(), 0.0f);
-        inst->render(buf.data(), frames);
+        { RenderContext _ctx{sampleRate}; inst->render(_ctx, buf.data(), frames); };
         for (int i = 0; i < frames; ++i)
             mix[i] += buf[i];
     }
@@ -563,7 +563,7 @@ static int run_compose(int argc, char** argv) {
         float totalSeconds = totalBeats * 60.0f / bpm + 2.0f;
         int frames = int(totalSeconds * float(ip.sampleRate));
         std::vector<float> mono(frames, 0.0f);
-        ip.instrument->render(mono.data(), frames);
+        { RenderContext _ctx{ip.sampleRate}; ip.instrument->render(_ctx, mono.data(), frames); };
 
         std::vector<float> stereo(frames * 2);
         for (int j = 0; j < frames; ++j) {
@@ -667,7 +667,7 @@ static int run_play(int argc, char** argv) {
     float totalSeconds = totalBeats * 60.0f / bpm + 2.0f;
     int frames = int(totalSeconds * float(ip.sampleRate));
     std::vector<float> mono(frames, 0.0f);
-    ip.instrument->render(mono.data(), frames);
+    { RenderContext _ctx{ip.sampleRate}; ip.instrument->render(_ctx, mono.data(), frames); };
 
     std::vector<float> stereo(frames * 2);
     for (int i = 0; i < frames; ++i) {
@@ -716,7 +716,7 @@ static int run_patch(int argc, char** argv) {
     Patch p = load_patch_file(patchPath);
 
     std::vector<float> out((size_t)p.frames * 2);
-    p.mixer->render(out.data(), p.frames);
+    { RenderContext _ctx{p.sampleRate}; p.mixer->render(_ctx, out.data(), p.frames); };
 
     if (!write_wav_16le_stereo(outPath, p.sampleRate, out)) {
         std::cerr << "Failed to write wav: " << outPath << "\n";
@@ -812,7 +812,7 @@ static int run_dun(int argc, char** argv) {
     float totalSeconds = totalBeats * 60.0f / bpm + 2.0f;
     int frames = int(totalSeconds * float(ip.sampleRate));
     std::vector<float> mono(frames, 0.0f);
-    ip.instrument->render(mono.data(), frames);
+    { RenderContext _ctx{ip.sampleRate}; ip.instrument->render(_ctx, mono.data(), frames); };
 
     // Leading silence (pre-roll) so Windows audio output priming doesn't
     // eat the first note. 1s is comfortable for most drivers.
@@ -922,7 +922,7 @@ static int test_ornaments(int /*argc*/, char** /*argv*/) {
         float totalSeconds = part.totalBeats * 60.0f / bpm + 2.0f;
         int frames = int(totalSeconds * float(ip.sampleRate));
         std::vector<float> mono(frames, 0.0f);
-        ip.instrument->render(mono.data(), frames);
+        { RenderContext _ctx{ip.sampleRate}; ip.instrument->render(_ctx, mono.data(), frames); };
 
         float peak = 0.0f;
         for (auto s : mono) {

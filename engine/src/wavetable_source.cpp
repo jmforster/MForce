@@ -10,11 +10,11 @@ WavetableSource::WavetableSource(int sampleRate, uint32_t inputSeed)
 , inputSource_(std::make_shared<WhiteNoiseSource>(inputSeed))
 , speedFactor_(std::make_shared<ConstantSource>(1.0f)) {}
 
-void WavetableSource::prepare(int frames) {
-  WaveSource::prepare(frames);
-  speedFactor_->prepare(frames);
-  inputSource_->prepare(frames);
-  if (evolutionSrc_) evolutionSrc_->prepare(frames);
+void WavetableSource::prepare(const RenderContext& ctx, int frames) {
+  WaveSource::prepare(ctx, frames);
+  speedFactor_->prepare(ctx, frames);
+  inputSource_->prepare(ctx, frames);
+  if (evolutionSrc_) evolutionSrc_->prepare(ctx, frames);
   if (evolution_) evolution_->set_sample_rate(sampleRate_);
 }
 

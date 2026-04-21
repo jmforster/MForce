@@ -3,6 +3,7 @@
 #include <span>
 #include <string_view>
 #include <vector>
+#include "mforce/core/render_context.h"
 
 namespace mforce {
 
@@ -61,7 +62,7 @@ struct ArrayDescriptor {
 
 struct ValueSource {
   virtual ~ValueSource() = default;
-  virtual void prepare(int /*frames*/) {}
+  virtual void prepare(const RenderContext& /*ctx*/, int /*frames*/) {}
   virtual float next() = 0;
   virtual float current() const = 0;
 
@@ -114,7 +115,7 @@ struct RefSource final : ValueSource {
 
   explicit RefSource(std::shared_ptr<ValueSource> src) : source(std::move(src)) {}
 
-  void prepare(int /*frames*/) override {} // primary consumer prepares the real source
+  void prepare(const RenderContext& /*ctx*/, int /*frames*/) override {} // primary consumer prepares the real source
   float next() override { return source ? source->current() : 0.0f; }
   float current() const override { return source ? source->current() : 0.0f; }
 

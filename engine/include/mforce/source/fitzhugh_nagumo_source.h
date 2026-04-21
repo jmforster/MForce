@@ -116,17 +116,17 @@ struct FitzhughNagumoSource final : ValueSource {
     return 0.0f;
   }
 
-  void prepare(int frames) override {
-    if (amplitude_)  amplitude_->prepare(frames);
-    if (rate_)       rate_->prepare(frames);
-    if (a_)          a_->prepare(frames);
-    if (b_)          b_->prepare(frames);
-    if (eps_)        eps_->prepare(frames);
-    if (diffusion_)  diffusion_->prepare(frames);
-    if (I_)          I_->prepare(frames);
-    if (detune_)     detune_->prepare(frames);
-    if (probe_)      probe_->prepare(frames);
-    if (smoothness_) smoothness_->prepare(frames);
+  void prepare(const RenderContext& ctx, int frames) override {
+    if (amplitude_)  amplitude_->prepare(ctx, frames);
+    if (rate_)       rate_->prepare(ctx, frames);
+    if (a_)          a_->prepare(ctx, frames);
+    if (b_)          b_->prepare(ctx, frames);
+    if (eps_)        eps_->prepare(ctx, frames);
+    if (diffusion_)  diffusion_->prepare(ctx, frames);
+    if (I_)          I_->prepare(ctx, frames);
+    if (detune_)     detune_->prepare(ctx, frames);
+    if (probe_)      probe_->prepare(ctx, frames);
+    if (smoothness_) smoothness_->prepare(ctx, frames);
   }
 
   float next() override {

@@ -20,8 +20,8 @@ struct BlueNoiseSource final : ValueSource {
   const char* type_name() const override { return "BlueNoiseSource"; }
   SourceCategory category() const override { return SourceCategory::Generator; }
 
-  void prepare(int frames) override {
-    pink_.prepare(frames);
+  void prepare(const RenderContext& ctx, int frames) override {
+    pink_.prepare(ctx, frames);
     prev_ = 0.0f;
   }
 
@@ -52,7 +52,7 @@ struct VioletNoiseSource final : ValueSource {
   const char* type_name() const override { return "VioletNoiseSource"; }
   SourceCategory category() const override { return SourceCategory::Generator; }
 
-  void prepare(int frames) override { prev_ = 0.0f; }
+  void prepare(const RenderContext& ctx, int frames) override { prev_ = 0.0f; }
 
   float next() override {
     float w = rng_.valuePN();
@@ -102,10 +102,10 @@ struct VelvetNoiseSource final : ValueSource {
     return nullptr;
   }
 
-  void prepare(int frames) override {
+  void prepare(const RenderContext& ctx, int frames) override {
     counter_ = 0;
-    density_->prepare(frames);
-    amplitude_->prepare(frames);
+    density_->prepare(ctx, frames);
+    amplitude_->prepare(ctx, frames);
     recompute_gap();
   }
 
@@ -183,12 +183,12 @@ struct PerlinNoiseSource final : ValueSource {
     return nullptr;
   }
 
-  void prepare(int frames) override {
+  void prepare(const RenderContext& ctx, int frames) override {
     pos_ = 0.0;
-    speed_->prepare(frames);
-    octaves_->prepare(frames);
-    persistence_->prepare(frames);
-    lacunarity_->prepare(frames);
+    speed_->prepare(ctx, frames);
+    octaves_->prepare(ctx, frames);
+    persistence_->prepare(ctx, frames);
+    lacunarity_->prepare(ctx, frames);
   }
 
   float next() override {
@@ -274,10 +274,10 @@ struct CrackleNoiseSource final : ValueSource {
     return nullptr;
   }
 
-  void prepare(int frames) override {
+  void prepare(const RenderContext& ctx, int frames) override {
     y1_ = rng_.value() * 0.1f;
     y2_ = rng_.value() * 0.1f;
-    chaos_->prepare(frames);
+    chaos_->prepare(ctx, frames);
   }
 
   float next() override {
@@ -358,13 +358,13 @@ struct MurmurationNoiseSource final : ValueSource {
     return nullptr;
   }
 
-  void prepare(int frames) override {
-    count_->prepare(frames);
-    cohesion_->prepare(frames);
-    alignment_->prepare(frames);
-    separation_->prepare(frames);
-    chaos_->prepare(frames);
-    speed_->prepare(frames);
+  void prepare(const RenderContext& ctx, int frames) override {
+    count_->prepare(ctx, frames);
+    cohesion_->prepare(ctx, frames);
+    alignment_->prepare(ctx, frames);
+    separation_->prepare(ctx, frames);
+    chaos_->prepare(ctx, frames);
+    speed_->prepare(ctx, frames);
 
     // Initialize birds with scattered frequencies around center
     for (int i = 0; i < MAX_BIRDS; ++i) {

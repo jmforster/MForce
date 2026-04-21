@@ -31,7 +31,7 @@ struct ExpandRule {
 // ---------------------------------------------------------------------------
 struct IPartials {
   virtual ~IPartials() = default;
-  virtual void partials_prepare(int frames) = 0;
+  virtual void partials_prepare(const RenderContext& ctx, int frames) = 0;
   virtual void partials_next() = 0;
   virtual int partial_count() const = 0;
   virtual float get_partial_value(float amplitude, float frequency, float phaseDiff,
@@ -58,7 +58,7 @@ struct Partials : ValueSource, IPartials {
   // --- ValueSource interface ---
   // Partials is a ValueSource for graph wiring, but doesn't produce audio.
   // Prepare/next delegate to partials_prepare/partials_next.
-  void prepare(int frames) override { partials_prepare(frames); }
+  void prepare(const RenderContext& ctx, int frames) override { partials_prepare(ctx, frames); }
   float next() override { partials_next(); return 0.0f; }
   float current() const override { return 0.0f; }
 
@@ -131,16 +131,16 @@ struct Partials : ValueSource, IPartials {
 
   // --- IPartials interface ---
 
-  void partials_prepare(int frames) override {
+  void partials_prepare(const RenderContext& ctx, int frames) override {
     if (arrayUpdateReq_) {
       update_arrays();
     }
 
-    multEnv_->prepare(frames);
-    amplEnv_->prepare(frames);
-    poEnv_->prepare(frames);
-    roEnv_->prepare(frames);
-    dtEnv_->prepare(frames);
+    multEnv_->prepare(ctx, frames);
+    amplEnv_->prepare(ctx, frames);
+    poEnv_->prepare(ctx, frames);
+    roEnv_->prepare(ctx, frames);
+    dtEnv_->prepare(ctx, frames);
 
     // Expand partials if rule is set
     if (hasExpand_) {
@@ -687,13 +687,13 @@ struct CompositePartials final : ValueSource, IPartials {
   }
 
   // --- ValueSource interface (not an audio source itself) ---
-  void prepare(int frames) override { partials_prepare(frames); }
+  void prepare(const RenderContext& ctx, int frames) override { partials_prepare(ctx, frames); }
   float next() override { partials_next(); return 0.0f; }
   float current() const override { return 0.0f; }
 
   // --- IPartials interface ---
-  void partials_prepare(int frames) override {
-    for (auto& e : sets_) e.ipartials->partials_prepare(frames);
+  void partials_prepare(const RenderContext& ctx, int frames) override {
+    for (auto& e : sets_) e.ipartials->partials_prepare(ctx, frames);
   }
 
   void partials_next() override {

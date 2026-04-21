@@ -7,12 +7,12 @@ namespace mforce {
 FullAdditiveSource::FullAdditiveSource(int sampleRate, uint32_t /*seed*/)
 : WaveSource(sampleRate) {}
 
-void FullAdditiveSource::prepare(int frames) {
-  WaveSource::prepare(frames);
+void FullAdditiveSource::prepare(const RenderContext& ctx, int frames) {
+  WaveSource::prepare(ctx, frames);
 
-  if (partials_) partials_->partials_prepare(frames);
-  if (formant_) formant_->fmt_prepare(frames);
-  if (formantWeight_) formantWeight_->prepare(frames);
+  if (partials_) partials_->partials_prepare(ctx, frames);
+  if (formant_) formant_->fmt_prepare(ctx, frames);
+  if (formantWeight_) formantWeight_->prepare(ctx, frames);
 }
 
 float FullAdditiveSource::compute_wave_value() {

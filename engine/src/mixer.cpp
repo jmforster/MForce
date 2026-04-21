@@ -8,20 +8,20 @@ StereoMixer::StereoMixer()
 : gainL(std::make_shared<ConstantSource>(1.0f))
 , gainR(std::make_shared<ConstantSource>(1.0f)) {}
 
-void StereoMixer::render(float* outLR, int frames) {
+void StereoMixer::render(const RenderContext& ctx, float* outLR, int frames) {
   std::fill(outLR, outLR + frames*2, 0.0f);
 
-  gainL->prepare(frames);
-  gainR->prepare(frames);
+  gainL->prepare(ctx, frames);
+  gainR->prepare(ctx, frames);
 
   std::vector<float> mono(frames);
 
   for (auto& ch : channels) {
-    ch.volume->prepare(frames);
-    ch.pan->prepare(frames);
+    ch.volume->prepare(ctx, frames);
+    ch.pan->prepare(ctx, frames);
 
     std::fill(mono.begin(), mono.end(), 0.0f);
-    ch.source->render(mono.data(), frames);
+    ch.source->render(ctx, mono.data(), frames);
 
     for (int i = 0; i < frames; ++i) {
       float gl = gainL->next();

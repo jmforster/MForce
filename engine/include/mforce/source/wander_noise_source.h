@@ -56,11 +56,11 @@ struct WanderNoiseSource final : ValueSource {
     return nullptr;
   }
 
-  void prepare(int frames) override {
-    if (amplitude_)  amplitude_->prepare(frames);
-    if (speed_)      speed_->prepare(frames);
-    if (deltaSpeed_) deltaSpeed_->prepare(frames);
-    if (slopeLimit_) slopeLimit_->prepare(frames);
+  void prepare(const RenderContext& ctx, int frames) override {
+    if (amplitude_)  amplitude_->prepare(ctx, frames);
+    if (speed_)      speed_->prepare(ctx, frames);
+    if (deltaSpeed_) deltaSpeed_->prepare(ctx, frames);
+    if (slopeLimit_) slopeLimit_->prepare(ctx, frames);
   }
 
   float next() override {
@@ -177,13 +177,13 @@ struct WanderNoise2Source final : ValueSource {
     return nullptr;
   }
 
-  void prepare(int frames) override {
-    if (amplitude_)   amplitude_->prepare(frames);
-    if (minSpeed_)    minSpeed_->prepare(frames);
-    if (maxSpeed_)    maxSpeed_->prepare(frames);
-    if (reverseProb_) reverseProb_->prepare(frames);
-    if (retraceProb_) retraceProb_->prepare(frames);
-    if (retracePct_)  retracePct_->prepare(frames);
+  void prepare(const RenderContext& ctx, int frames) override {
+    if (amplitude_)   amplitude_->prepare(ctx, frames);
+    if (minSpeed_)    minSpeed_->prepare(ctx, frames);
+    if (maxSpeed_)    maxSpeed_->prepare(ctx, frames);
+    if (reverseProb_) reverseProb_->prepare(ctx, frames);
+    if (retraceProb_) retraceProb_->prepare(ctx, frames);
+    if (retracePct_)  retracePct_->prepare(ctx, frames);
   }
 
   float next() override {
@@ -287,11 +287,11 @@ struct WanderNoise3Source final : ValueSource {
     return nullptr;
   }
 
-  void prepare(int frames) override {
-    if (amplitude_)  amplitude_->prepare(frames);
-    if (speed_)      speed_->prepare(frames);
-    if (deltaSpeed_) deltaSpeed_->prepare(frames);
-    if (slopeLimit_) slopeLimit_->prepare(frames);
+  void prepare(const RenderContext& ctx, int frames) override {
+    if (amplitude_)  amplitude_->prepare(ctx, frames);
+    if (speed_)      speed_->prepare(ctx, frames);
+    if (deltaSpeed_) deltaSpeed_->prepare(ctx, frames);
+    if (slopeLimit_) slopeLimit_->prepare(ctx, frames);
 
     value_ = 0.0f;
     slope_ = 0.0f;

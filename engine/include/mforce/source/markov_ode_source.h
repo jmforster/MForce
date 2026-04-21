@@ -141,22 +141,22 @@ struct MarkovOdeSource final : ValueSource {
     return 0.0f;
   }
 
-  void prepare(int frames) override {
-    if (amplitude_)  amplitude_->prepare(frames);
-    if (rate_)       rate_->prepare(frames);
-    if (dt_)         dt_->prepare(frames);
-    if (switchProb_) switchProb_->prepare(frames);
-    if (mu_)         mu_->prepare(frames);
-    if (aR_)         aR_->prepare(frames);
-    if (bR_)         bR_->prepare(frames);
-    if (cR_)         cR_->prepare(frames);
-    if (alpha_)      alpha_->prepare(frames);
-    if (beta_)       beta_->prepare(frames);
-    if (delta_)      delta_->prepare(frames);
-    if (sigma_)      sigma_->prepare(frames);
-    if (rho_)        rho_->prepare(frames);
-    if (betaL_)      betaL_->prepare(frames);
-    if (smoothness_) smoothness_->prepare(frames);
+  void prepare(const RenderContext& ctx, int frames) override {
+    if (amplitude_)  amplitude_->prepare(ctx, frames);
+    if (rate_)       rate_->prepare(ctx, frames);
+    if (dt_)         dt_->prepare(ctx, frames);
+    if (switchProb_) switchProb_->prepare(ctx, frames);
+    if (mu_)         mu_->prepare(ctx, frames);
+    if (aR_)         aR_->prepare(ctx, frames);
+    if (bR_)         bR_->prepare(ctx, frames);
+    if (cR_)         cR_->prepare(ctx, frames);
+    if (alpha_)      alpha_->prepare(ctx, frames);
+    if (beta_)       beta_->prepare(ctx, frames);
+    if (delta_)      delta_->prepare(ctx, frames);
+    if (sigma_)      sigma_->prepare(ctx, frames);
+    if (rho_)        rho_->prepare(ctx, frames);
+    if (betaL_)      betaL_->prepare(ctx, frames);
+    if (smoothness_) smoothness_->prepare(ctx, frames);
   }
 
   float next() override {

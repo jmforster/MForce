@@ -97,12 +97,12 @@ struct SortOscillator final : ValueSource {
   }
 
   // -------------------------------------------------------------------------
-  void prepare(int frames) override {
-    if (amplitude_)  amplitude_->prepare(frames);
-    if (rate_)       rate_->prepare(frames);
-    if (perturb_)    perturb_->prepare(frames);
-    if (spread_)     spread_->prepare(frames);
-    if (smoothness_) smoothness_->prepare(frames);
+  void prepare(const RenderContext& ctx, int frames) override {
+    if (amplitude_)  amplitude_->prepare(ctx, frames);
+    if (rate_)       rate_->prepare(ctx, frames);
+    if (perturb_)    perturb_->prepare(ctx, frames);
+    if (spread_)     spread_->prepare(ctx, frames);
+    if (smoothness_) smoothness_->prepare(ctx, frames);
   }
 
   float next() override {

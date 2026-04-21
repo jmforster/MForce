@@ -35,9 +35,9 @@ struct TriangleSource final : WaveSource {
     return WaveSource::get_param(name);
   }
 
-  void prepare(int frames) override {
-    WaveSource::prepare(frames);
-    bias_->prepare(frames);
+  void prepare(const RenderContext& ctx, int frames) override {
+    WaveSource::prepare(ctx, frames);
+    bias_->prepare(ctx, frames);
   }
 
 protected:

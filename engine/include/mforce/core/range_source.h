@@ -20,10 +20,10 @@ struct RangeSource final : ValueSource {
   : min_(std::move(min)), max_(std::move(max)),
     var_(std::move(var)), varNormalized_(varNormalized) {}
 
-  void prepare(int frames) override {
-    min_->prepare(frames);
-    max_->prepare(frames);
-    var_->prepare(frames);
+  void prepare(const RenderContext& ctx, int frames) override {
+    min_->prepare(ctx, frames);
+    max_->prepare(ctx, frames);
+    var_->prepare(ctx, frames);
   }
 
   float next() override {

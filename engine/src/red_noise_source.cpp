@@ -17,14 +17,14 @@ RedNoiseSource::RedNoiseSource(int sampleRate, uint32_t seed)
   // Phase is meaningless; legacy passes phase=0 via base(ampl,freq,0).
 }
 
-void RedNoiseSource::prepare(int frames) {
-  WaveSource::prepare(frames);
-  density_->prepare(frames);
-  smoothness_->prepare(frames);
-  rampVariation_->prepare(frames);
-  boost_->prepare(frames);
-  continuity_->prepare(frames);
-  zeroCrossTendency_->prepare(frames);
+void RedNoiseSource::prepare(const RenderContext& ctx, int frames) {
+  WaveSource::prepare(ctx, frames);
+  density_->prepare(ctx, frames);
+  smoothness_->prepare(ctx, frames);
+  rampVariation_->prepare(ctx, frames);
+  boost_->prepare(ctx, frames);
+  continuity_->prepare(ctx, frames);
+  zeroCrossTendency_->prepare(ctx, frames);
 }
 
 float RedNoiseSource::compute_wave_value() {

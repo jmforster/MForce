@@ -98,13 +98,13 @@ struct SegmentSource final : ValueSource {
     widthIsSecs_ = !values_.empty() && values_[0] < 1.0f;
   }
 
-  void prepare(int frames) override {
-    if (amplitude_) amplitude_->prepare(frames);
-    if (smoothness_) smoothness_->prepare(frames);
-    if (widthVarPct_) widthVarPct_->prepare(frames);
-    if (valVarPct_) valVarPct_->prepare(frames);
-    if (gap_) gap_->prepare(frames);
-    if (gapVarPct_) gapVarPct_->prepare(frames);
+  void prepare(const RenderContext& ctx, int frames) override {
+    if (amplitude_) amplitude_->prepare(ctx, frames);
+    if (smoothness_) smoothness_->prepare(ctx, frames);
+    if (widthVarPct_) widthVarPct_->prepare(ctx, frames);
+    if (valVarPct_) valVarPct_->prepare(ctx, frames);
+    if (gap_) gap_->prepare(ctx, frames);
+    if (gapVarPct_) gapVarPct_->prepare(ctx, frames);
     done_ = false;
     update_segments();
   }

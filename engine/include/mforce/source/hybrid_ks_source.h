@@ -81,7 +81,7 @@ struct HybridKSSource final : WaveSource {
     return 0.0f;
   }
 
-  void prepare(int frames) override;
+  void prepare(const RenderContext& ctx, int frames) override;
 
 protected:
   float compute_wave_value() override;

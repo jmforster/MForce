@@ -18,7 +18,7 @@ struct PitchBendSource : ValueSource {
   PitchBendSource(float hz, std::shared_ptr<Envelope> e)
     : baseHz(hz), env(std::move(e)) {}
 
-  void prepare(int frames) override { if (env) env->prepare(frames); }
+  void prepare(const RenderContext& ctx, int frames) override { if (env) env->prepare(ctx, frames); }
 
   float next() override {
     float semi = env ? env->next() : 0.0f;

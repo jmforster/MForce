@@ -13,7 +13,7 @@ namespace mforce {
 // ---------------------------------------------------------------------------
 struct IFormant {
   virtual ~IFormant() = default;
-  virtual void fmt_prepare(int frames) = 0;
+  virtual void fmt_prepare(const RenderContext& ctx, int frames) = 0;
   virtual void fmt_next() = 0;
   virtual bool contains(float freq) const = 0;
   virtual float get_gain(float freq) const = 0;
@@ -67,15 +67,15 @@ struct Formant final : ValueSource, IFormant {
     return nullptr;
   }
 
-  void prepare(int frames) override { fmt_prepare(frames); }
+  void prepare(const RenderContext& ctx, int frames) override { fmt_prepare(ctx, frames); }
   float next() override { fmt_next(); return 0.0f; }
   float current() const override { return 0.0f; }
 
-  void fmt_prepare(int frames) override {
-    frequency_->prepare(frames);
-    gain_->prepare(frames);
-    width_->prepare(frames);
-    power_->prepare(frames);
+  void fmt_prepare(const RenderContext& ctx, int frames) override {
+    frequency_->prepare(ctx, frames);
+    gain_->prepare(ctx, frames);
+    width_->prepare(ctx, frames);
+    power_->prepare(ctx, frames);
   }
 
   void fmt_next() override {
@@ -115,12 +115,12 @@ struct FormantSpectrum : ValueSource, IFormant {
   const char* type_name() const override { return "FormantSpectrum"; }
   SourceCategory category() const override { return SourceCategory::Additive; }
 
-  void prepare(int frames) override { fmt_prepare(frames); }
+  void prepare(const RenderContext& ctx, int frames) override { fmt_prepare(ctx, frames); }
   float next() override { fmt_next(); return 0.0f; }
   float current() const override { return 0.0f; }
 
-  void fmt_prepare(int frames) override {
-    for (auto& f : formants) f->fmt_prepare(frames);
+  void fmt_prepare(const RenderContext& ctx, int frames) override {
+    for (auto& f : formants) f->fmt_prepare(ctx, frames);
   }
 
   void fmt_next() override {
@@ -153,11 +153,11 @@ struct FixedSpectrum final : ValueSource, IFormant {
   const char* type_name() const override { return "FixedSpectrum"; }
   SourceCategory category() const override { return SourceCategory::Additive; }
 
-  void prepare(int /*frames*/) override {}
+  void prepare(const RenderContext& /*ctx*/, int /*frames*/) override {}
   float next() override { return 0.0f; }
   float current() const override { return 0.0f; }
 
-  void fmt_prepare(int /*frames*/) override {}
+  void fmt_prepare(const RenderContext& /*ctx*/, int /*frames*/) override {}
   void fmt_next() override {}
 
   bool contains(float /*freq*/) const override { return true; }
@@ -221,13 +221,13 @@ struct BandSpectrum final : ValueSource, IFormant {
     return nullptr;
   }
 
-  void prepare(int frames) override { fmt_prepare(frames); }
+  void prepare(const RenderContext& ctx, int frames) override { fmt_prepare(ctx, frames); }
   float next() override { fmt_next(); return 0.0f; }
   float current() const override { return 0.0f; }
 
-  void fmt_prepare(int frames) override {
-    startFreq_->prepare(frames);
-    freqIncrement_->prepare(frames);
+  void fmt_prepare(const RenderContext& ctx, int frames) override {
+    startFreq_->prepare(ctx, frames);
+    freqIncrement_->prepare(ctx, frames);
   }
 
   void fmt_next() override {
@@ -329,13 +329,13 @@ struct FormantSequence final : ValueSource, IFormant {
     return nullptr;
   }
 
-  void prepare(int frames) override { fmt_prepare(frames); }
+  void prepare(const RenderContext& ctx, int frames) override { fmt_prepare(ctx, frames); }
   float next() override { fmt_next(); return 0.0f; }
   float current() const override { return 0.0f; }
 
-  void fmt_prepare(int frames) override {
-    blend_->prepare(frames);
-    for (auto& f : formants) f->fmt_prepare(frames);
+  void fmt_prepare(const RenderContext& ctx, int frames) override {
+    blend_->prepare(ctx, frames);
+    for (auto& f : formants) f->fmt_prepare(ctx, frames);
   }
 
   void fmt_next() override {

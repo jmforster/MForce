@@ -59,12 +59,12 @@ struct PhasedValueSource final : ValueSource {
 
   void add_stage(Stage s) { stages_.push_back(std::move(s)); }
 
-  void prepare(int frames) override {
+  void prepare(const RenderContext& ctx, int frames) override {
     totalFrames_ = frames;
     ptr_ = -1;
     overlapSamples_ = int(overlapSeconds * float(sampleRate));
 
-    if (amplitude_) amplitude_->prepare(frames);
+    if (amplitude_) amplitude_->prepare(ctx, frames);
 
     // Calculate per-stage sample counts
     int expandIdx = -1;
@@ -98,7 +98,7 @@ struct PhasedValueSource final : ValueSource {
     // Prepare each stage source with its count + overlap
     for (int i = 0; i < int(stages_.size()); ++i) {
       int extra = overlapSamples_ / (i == 0 || i == int(stages_.size()) - 1 ? 2 : 1);
-      stages_[i].source->prepare(stageCounts_[i] + extra);
+      stages_[i].source->prepare(ctx, stageCounts_[i] + extra);
     }
 
     // Precompute cumulative boundaries (excluding overlap)

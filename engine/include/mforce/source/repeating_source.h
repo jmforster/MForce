@@ -71,7 +71,9 @@ struct RepeatingSource final : ValueSource {
     return 0.0f;
   }
 
-  void prepare(int frames) override {
+  void prepare(const RenderContext& ctx, int frames) override {
+    (void)frames;
+    ctx_ = ctx;
     prepare_repetition();
   }
 
@@ -107,13 +109,14 @@ private:
     if (currGap_ < 0.0f) currGap_ = 0.0f;
 
     int samples = int(std::round(d * float(sampleRate)));
-    if (source_) source_->prepare(samples);
+    if (source_) source_->prepare(ctx_, samples);
     srcRemaining_ = samples;
     gapCount_ = 0;
   }
 
   std::shared_ptr<ValueSource> source_;
   Randomizer rng_;
+  RenderContext ctx_{48000};  // captured at prepare() for use by prepare_repetition() during playback
   float currGap_{0.0f};
   int srcRemaining_{0};
   int gapCount_{0};
