@@ -10,6 +10,27 @@
    needs per-subclass analysis to decide what scales with SR vs. what
    stays constant. BowedString and Brass now read SR via on_prepare(ctx).
 
+4. Partials _1/_2/_Env UI grouping (2026-04-20): rolloff1/rolloff2/roEnv
+   and the three other triplets (mult, ampl, po, dt) in Partials are a
+   two-endpoint blend: output = lerp(x1, x2, env→[0,1]). Matt got bitten
+   by wiring an envelope to roEnv with rolloff1=rolloff2=1.0 and seeing
+   no effect. The node inspector shows them as three independent rows
+   with no hint of the relationship. Group the triplet visually (e.g.
+   "Rolloff: 8.0 → 0.5 [env]") so the semantic is obvious.
+
+5. Pin type hints + silent-cast-fail (2026-04-20): ValueSource pins are
+   typed by name only, so any source connects to any pin. For structural
+   requirements (formant→IFormant, partials→IPartials, used by
+   FormantSequence.spectra and CompositePartials.partials), the target's
+   set_param does dynamic_pointer_cast and silently no-ops on failure —
+   the UI shows a wire but the DSP has no connection. Two fixes:
+   (a) Pin descriptors gain an optional hint (expected range or tag
+       like "blend-0-1", "frequency-hz"); inspector shows it; advisory
+       only (a SineSource modulator on multEnv should still work).
+   (b) Structural mismatches (formant/partials pins) should be hard —
+       either reject the link at UI connect-time using the interface
+       info, or loud error on set_param failure. No more lying wires.
+
 Example: ascending or descending repeated figures
   - generate a 4-note (3 step) figure
   - repeat this figure on ascending or descending stepwise or skipwise starting notes
