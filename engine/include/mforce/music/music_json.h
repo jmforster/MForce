@@ -353,26 +353,26 @@ inline void from_json(const json& j, PitchSelection& ps) {
   if (j.contains("alterations")) ps.alterations = j.at("alterations").get<std::vector<float>>();
 }
 
-inline void to_json(json& j, const ChordArticulation::Element& e) {
+inline void to_json(json& j, const ChordRealization::Element& e) {
   j = json{{"selection", e.selection}, {"duration", e.duration}};
   if (e.direction != 0) j["direction"] = e.direction;
   if (e.delay != 0.0f) j["delay"] = e.delay;
 }
 
-inline void from_json(const json& j, ChordArticulation::Element& e) {
+inline void from_json(const json& j, ChordRealization::Element& e) {
   from_json(j.at("selection"), e.selection);
   e.duration = j.at("duration").get<float>();
   e.direction = j.value("direction", 0);
   e.delay = j.value("delay", 0.0f);
 }
 
-inline void to_json(json& j, const ChordArticulation& cf) {
+inline void to_json(json& j, const ChordRealization& cf) {
   j = json{{"elements", cf.elements}};
 }
 
-inline void from_json(const json& j, ChordArticulation& cf) {
+inline void from_json(const json& j, ChordRealization& cf) {
   for (auto& ej : j.at("elements")) {
-    ChordArticulation::Element e;
+    ChordRealization::Element e;
     from_json(ej, e);
     cf.elements.push_back(e);
   }

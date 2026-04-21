@@ -439,17 +439,17 @@ struct ChordPerformer {
   Randomizer rng{0xCDAE'0000u};
 
   // Named figures (looked up by chord.figureName)
-  std::unordered_map<std::string, ChordArticulation> namedFigures;
+  std::unordered_map<std::string, ChordRealization> namedFigures;
   // Duration-keyed figures (fallback when no figureName)
-  std::unordered_map<std::string, ChordArticulation> figures;
-  ChordArticulation* defaultFigure{nullptr};
+  std::unordered_map<std::string, ChordRealization> figures;
+  ChordRealization* defaultFigure{nullptr};
 
   void perform_chord(const Chord& chord, float velocity, float startBeats, float bpm,
                      PitchedInstrument& instrument) {
     float startSeconds = startBeats * 60.0f / bpm;
     float chordDurSeconds = chord.dur * 60.0f / bpm;
 
-    ChordArticulation* fig = select_figure(chord);
+    ChordRealization* fig = select_figure(chord);
 
     if (fig) {
       perform_with_figure(chord, velocity, *fig, startSeconds, chordDurSeconds, bpm, instrument);
@@ -463,56 +463,56 @@ struct ChordPerformer {
     using PS = PitchSelectionType;
 
     // Josie12, Josie8, Josie4 — identical pattern: bass, strum up, high pick, strum, descend
-    ChordArticulation josie8;
+    ChordRealization josie8;
     josie8.add(PS::Low, 1.00f);
-    josie8.add(PS::AllExLow, 0.77f, ChordArticulation::DIR_ASCENDING, 0.01f);
-    josie8.add(PS::High2, 0.24f, ChordArticulation::DIR_DESCENDING, 0.01f);
-    josie8.add(PS::AllExLow, 0.48f, ChordArticulation::DIR_ASCENDING, 0.01f);
-    josie8.add(PS::HighHalf, 1.02f, ChordArticulation::DIR_DESCENDING, 0.01f);
-    josie8.add(PS::HighHalf, 0.49f, ChordArticulation::DIR_DESCENDING, 0.0f);
+    josie8.add(PS::AllExLow, 0.77f, ChordRealization::DIR_ASCENDING, 0.01f);
+    josie8.add(PS::High2, 0.24f, ChordRealization::DIR_DESCENDING, 0.01f);
+    josie8.add(PS::AllExLow, 0.48f, ChordRealization::DIR_ASCENDING, 0.01f);
+    josie8.add(PS::HighHalf, 1.02f, ChordRealization::DIR_DESCENDING, 0.01f);
+    josie8.add(PS::HighHalf, 0.49f, ChordRealization::DIR_DESCENDING, 0.0f);
     namedFigures["Josie12"] = josie8;
     namedFigures["Josie8"]  = josie8;
     namedFigures["Josie4"]  = josie8;
 
     // Josie3 — strum all, then pick individual strings
-    ChordArticulation josie3;
-    josie3.add(PS::All, 1.50f, ChordArticulation::DIR_ASCENDING, 0.03f);
+    ChordRealization josie3;
+    josie3.add(PS::All, 1.50f, ChordRealization::DIR_ASCENDING, 0.03f);
     josie3.add(PS::All, std::vector<int>{3}, 0.50f);  // single pitch index 3
     josie3.add(PS::All, std::vector<int>{4}, 0.50f);  // single pitch index 4
     josie3.add(PS::High, 0.50f);
     namedFigures["Josie3"] = josie3;
 
     // Josie2.5 — strum, then pick
-    ChordArticulation josie25;
-    josie25.add(PS::All, 1.50f, ChordArticulation::DIR_ASCENDING, 0.03f);
+    ChordRealization josie25;
+    josie25.add(PS::All, 1.50f, ChordRealization::DIR_ASCENDING, 0.03f);
     josie25.add(PS::All, std::vector<int>{1}, 0.50f);
     josie25.add(PS::All, std::vector<int>{2}, 0.50f);
     namedFigures["Josie2.5"] = josie25;
 
     // Josie2 — single strum
-    ChordArticulation josie2;
-    josie2.add(PS::All, 2.00f, ChordArticulation::DIR_ASCENDING, 0.03f);
+    ChordRealization josie2;
+    josie2.add(PS::All, 2.00f, ChordRealization::DIR_ASCENDING, 0.03f);
     namedFigures["Josie2"] = josie2;
 
     // Josie1.5 — strum + bass
-    ChordArticulation josie15;
-    josie15.add(PS::All, 1.00f, ChordArticulation::DIR_ASCENDING, 0.01f);
+    ChordRealization josie15;
+    josie15.add(PS::All, 1.00f, ChordRealization::DIR_ASCENDING, 0.01f);
     josie15.add(PS::Low, 0.50f);
     namedFigures["Josie1.5"] = josie15;
 
     // Josie1 — single strum (longer)
-    ChordArticulation josie1;
-    josie1.add(PS::All, 2.00f, ChordArticulation::DIR_ASCENDING, 0.01f);
+    ChordRealization josie1;
+    josie1.add(PS::All, 2.00f, ChordRealization::DIR_ASCENDING, 0.01f);
     namedFigures["Josie1"] = josie1;
 
     // Josie0.5 — quick low+high
-    ChordArticulation josie05;
-    josie05.add(PS::LowHigh, 0.50f, ChordArticulation::DIR_DESCENDING, 0.01f);
+    ChordRealization josie05;
+    josie05.add(PS::LowHigh, 0.50f, ChordRealization::DIR_DESCENDING, 0.01f);
     namedFigures["Josie0.5"] = josie05;
   }
 
 private:
-  ChordArticulation* select_figure(const Chord& chord) {
+  ChordRealization* select_figure(const Chord& chord) {
     // 1. Check chord's explicit figure name
     if (chord.figureName) {
       auto it = namedFigures.find(*chord.figureName);
@@ -545,7 +545,7 @@ private:
     }
   }
 
-  void perform_with_figure(const Chord& chord, float velocity, const ChordArticulation& fig,
+  void perform_with_figure(const Chord& chord, float velocity, const ChordRealization& fig,
                            float startSeconds, float chordDurSeconds, float bpm,
                            PitchedInstrument& instrument) {
     int pitchCount = chord.pitch_count();
@@ -566,9 +566,9 @@ private:
         idx = std::clamp(idx, 0, pitchCount - 1);
       }
 
-      if (elem.direction == ChordArticulation::DIR_DESCENDING)
+      if (elem.direction == ChordRealization::DIR_DESCENDING)
         std::reverse(indices.begin(), indices.end());
-      else if (elem.direction == ChordArticulation::DIR_RANDOM) {
+      else if (elem.direction == ChordRealization::DIR_RANDOM) {
         for (int i = int(indices.size()) - 1; i > 0; --i) {
           int j = int(rng.value() * float(i + 1));
           std::swap(indices[i], indices[j]);
@@ -733,7 +733,7 @@ private:
         notePerformer.perform_note(event.note(), absBeats, bpm, *pitched);
       }
       else if (event.is_chord() && pitched) {
-        chordPerformer.perform_chord(event.chord(), 1.0f, absBeats, bpm, *pitched);
+        chordPerformer.perform_chord(event.chord(), 0.4f, absBeats, bpm, *pitched);
       }
       else if (event.is_hit() && drums) {
         const auto& h = event.hit();
