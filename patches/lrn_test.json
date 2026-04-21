@@ -1,0 +1,19 @@
+{
+  "sampleRate": 48000,
+  "seconds": 2,
+  "graph": {
+    "nodes": [
+      { "id": "lrn1", "type": "LayeredRedNoiseSource",
+        "params": { "count": 3,
+                    "frequency": [0.5, 2.0, 8.0],
+                    "amplitude": [0.3, 0.3, 0.3] } },
+      { "id": "ch1", "type": "SoundChannel",
+        "inputs": { "source": "lrn1" },
+        "params": { "volume": 1.0, "pan": 0.0 } },
+      { "id": "mix", "type": "StereoMixer",
+        "inputs": { "channels": ["ch1"] },
+        "params": { "gainL": 1.0, "gainR": 1.0 } }
+    ],
+    "output": "mix"
+  }
+}

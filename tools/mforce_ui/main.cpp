@@ -3083,6 +3083,7 @@ static void show_create_menu() {
         menu_source("White", "WhiteNoiseSource");
         menu_source("Pink", "PinkNoiseSource");
         menu_source("Red", "RedNoiseSource");
+        menu_source("Layered Red", "LayeredRedNoiseSource");
         menu_source("Blue", "BlueNoiseSource");
         menu_source("Violet", "VioletNoiseSource");
         menu_sep();

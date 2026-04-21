@@ -7,6 +7,7 @@
 #include "mforce/source/pulse_source.h"
 #include "mforce/source/fm_source.h"
 #include "mforce/source/red_noise_source.h"
+#include "mforce/source/layered_red_noise_source.h"
 #include "mforce/source/pink_noise_source.h"
 #include "mforce/source/white_noise_source.h"
 #include "mforce/source/noise_sources.h"
@@ -169,6 +170,11 @@ void register_all_sources() {
     reg.register_type("RedNoiseSource", SourceCategory::Generator,
         [](int sr, auto seed) {
             return std::make_shared<RedNoiseSource>(sr, seed.value_or(0xBADC0DEu));
+        });
+
+    reg.register_type("LayeredRedNoiseSource", SourceCategory::Generator,
+        [](int sr, auto seed) {
+            return std::make_shared<LayeredRedNoiseSource>(sr, seed.value_or(0x1A4E4EDDu));
         });
 
     reg.register_type("BlueNoiseSource", SourceCategory::Generator,
