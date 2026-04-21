@@ -3,6 +3,7 @@
 #include "mforce/music/basics.h"
 #include <algorithm>
 #include <cmath>
+#include <iostream>
 #include <limits>
 #include <vector>
 
@@ -65,12 +66,27 @@ class SmoothVoicingSelector : public VoicingSelector {
     //   inversion ∈ [0, N-1]   — list rotation (bass = Kth chord tone)
     //   spread    ∈ [0, N-1]   — voicing-gap walk rule
     //   rootOctave search ∈ [req.rootOctave - 1, +1]
-    // Total candidates per chord = N × N × 3.
+    // Allow-lists on the profile filter (inversion, spread) before scoring.
     const int kOctRange = 1;
     cands.reserve(n * n * (2 * kOctRange + 1));
 
+    const auto& inversionAllow = req.profile.allowedInversions;
+    const auto& spreadAllow    = req.profile.allowedSpreads;
+    auto invAllowed = [&](int v) {
+      return inversionAllow.empty() ||
+             std::find(inversionAllow.begin(), inversionAllow.end(), v)
+               != inversionAllow.end();
+    };
+    auto sprAllowed = [&](int v) {
+      return spreadAllow.empty() ||
+             std::find(spreadAllow.begin(), spreadAllow.end(), v)
+               != spreadAllow.end();
+    };
+
     for (int inv = 0; inv < n; ++inv) {
+      if (!invAllowed(inv)) continue;
       for (int spr = 0; spr < n; ++spr) {
+        if (!sprAllowed(spr)) continue;
         for (int dOct = -kOctRange; dOct <= kOctRange; ++dOct) {
           Chord c = sc.resolve(*req.scale, req.rootOctave + dOct,
                                req.durationBeats, inv, spr);
@@ -84,6 +100,19 @@ class SmoothVoicingSelector : public VoicingSelector {
           cands.push_back(std::move(cand));
         }
       }
+    }
+
+    // Pathological config: allow-lists eliminated every candidate.
+    // Fall back to a guaranteed-valid (inv=0, spread=0, rootOctave=req.rootOctave).
+    if (cands.empty()) {
+      static bool warned = false;
+      if (!warned) {
+        std::cerr << "SmoothVoicingSelector: allow-lists eliminated all "
+                     "candidates; using inv=0 spread=0 fallback\n";
+        warned = true;
+      }
+      return sc.resolve(*req.scale, req.rootOctave,
+                        req.durationBeats, 0, 0);
     }
 
     // Min-max normalize each metric across the candidate pool.
