@@ -3008,11 +3008,17 @@ static void show_create_menu() {
         menu_source("Distorted", "DistortedSource");
         menu_source("Hybrid KS", "HybridKSSource");
         menu_sep();
-        menu_source("Combined", "CombinedSource");
         menu_source("Phased", "PhasedValueSource");
+        menu_source("Repeating", "RepeatingSource");
+        ImGui::EndMenu();
+    }
+
+    // --- Combiner ---
+    if (ImGui::BeginMenu("Combiner")) {
+        menu_source("Combined", "CombinedSource");
         menu_source("Crossfade", "CrossfadeSource");
         menu_source("Multi", "MultiSource");
-        menu_source("Repeating", "RepeatingSource");
+        menu_source("Multiplex", "MultiplexSource");
         ImGui::EndMenu();
     }
 
