@@ -14,6 +14,7 @@
 #include "mforce/music/voicing_profile_selector.h"
 #include "mforce/music/static_voicing_profile_selector.h"
 #include "mforce/music/random_voicing_profile_selector.h"
+#include "mforce/music/drift_voicing_profile_selector.h"
 #include "mforce/music/structure.h"
 #include "mforce/music/templates.h"
 #include "mforce/music/pitch_reader.h"
@@ -151,6 +152,11 @@ struct Composer {
         .register_factory("random", []() {
           return std::unique_ptr<VoicingProfileSelector>(
               new RandomVoicingProfileSelector());
+        });
+    VoicingProfileSelectorRegistry::instance()
+        .register_factory("drift", []() {
+          return std::unique_ptr<VoicingProfileSelector>(
+              new DriftVoicingProfileSelector());
         });
 
     // Passage strategies

@@ -1,0 +1,64 @@
+{
+  "_comment": "Jazz turnaround w/ DriftVoicingProfileSelector. Priority gaussian-drifts within [0.2, 0.8]; profile rotations at 20% per chord.",
+  "keyName": "C",
+  "scaleName": "Major",
+  "bpm": 110.0,
+  "masterSeed": 424242,
+  "sections": [
+    {
+      "name": "Main",
+      "beats": 64,
+      "chordProgression": [
+        {"degree": 0, "quality": "M7", "beats": 4},
+        {"degree": 1, "quality": "m7", "beats": 4},
+        {"degree": 2, "quality": "m7", "beats": 4},
+        {"degree": 3, "quality": "M7", "beats": 4},
+        {"degree": 1, "quality": "m7", "beats": 4},
+        {"degree": 4, "quality": "7",  "beats": 4},
+        {"degree": 0, "quality": "M7", "beats": 4},
+        {"degree": 5, "quality": "7",  "beats": 4},
+        {"degree": 0, "quality": "M7", "beats": 4},
+        {"degree": 1, "quality": "m7", "beats": 4},
+        {"degree": 2, "quality": "m7", "beats": 4},
+        {"degree": 3, "quality": "M7", "beats": 4},
+        {"degree": 1, "quality": "m7", "beats": 4},
+        {"degree": 4, "quality": "7",  "beats": 4},
+        {"degree": 0, "quality": "M7", "beats": 4},
+        {"degree": 0, "quality": "M7", "beats": 4}
+      ]
+    }
+  ],
+  "parts": [
+    {
+      "name": "chords",
+      "role": "harmony",
+      "passages": {
+        "Main": {
+          "voicingSelector": "smooth",
+          "voicingDictionary": "Piano",
+          "voicingProfileSelector": "drift",
+          "voicingProfileSelectorConfig": {
+            "priorityMin": 0.2,
+            "priorityMax": 0.8,
+            "priorityStepMax": 0.15,
+            "profileTransitionProb": 0.2,
+            "inversionProfiles": [
+              [0, 1],
+              [0, 1, 2],
+              [1, 2, 3]
+            ],
+            "spreadProfiles": [
+              [0],
+              [0, 1],
+              [1, 2]
+            ]
+          },
+          "chordConfig": {
+            "defaultPattern": [4.0],
+            "octave": 4
+          }
+        }
+      }
+    }
+  ]
+}
