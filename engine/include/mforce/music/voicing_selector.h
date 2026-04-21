@@ -1,5 +1,6 @@
 #pragma once
 #include "mforce/music/basics.h"
+#include "mforce/music/voicing_profile.h"
 #include <memory>
 #include <optional>
 #include <string>
@@ -18,7 +19,7 @@ struct VoicingRequest {
   float durationBeats{1.0f};          // passes through to Chord.dur
   const Chord* previous{nullptr};     // prior chord on this Part (for voice-leading)
   std::optional<Pitch> melodyPitch;   // optional top-voice hint (future: melody-aware)
-  float priority{0.0f};               // [0,1]: 0=pure VL distance, 1=pure common tones
+  VoicingProfile profile;             // priority + allow-lists for this chord
   std::string dictionaryName;         // ChordDictionary name; empty = Canonic
 };
 

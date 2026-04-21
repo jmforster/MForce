@@ -325,7 +325,7 @@ private:
               if (selector) {
                 VoicingRequest req{*sc, &sec.scale, cfg.octave, dur,
                                    prevChord, std::nullopt,
-                                   passIt->second.voicingPriority,
+                                   passIt->second.voicingProfile,
                                    passIt->second.voicingDictionary};
                 chord = selector->select(req);
               } else {
