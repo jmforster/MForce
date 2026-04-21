@@ -681,6 +681,7 @@ inline void to_json(json& j, const PassageTemplate& pt) {
         }
         j["rhythmPattern"] = jrp;
     }
+    if (!pt.voicingSelector.empty()) j["voicingSelector"] = pt.voicingSelector;
 }
 
 inline void from_json(const json& j, ChordAccompanimentConfig& cc) {
@@ -750,6 +751,8 @@ inline void from_json(const json& j, PassageTemplate& pt) {
         }
         pt.rhythmPattern = rp;
     }
+
+    pt.voicingSelector = j.value("voicingSelector", std::string(""));
 }
 
 // ===========================================================================

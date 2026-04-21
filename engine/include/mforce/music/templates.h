@@ -355,6 +355,11 @@ struct PassageTemplate {
     // strategy.
     std::string realizationStrategy;
     std::optional<RhythmPattern> rhythmPattern;
+
+    // Name of a registered VoicingSelector. Empty = legacy behavior
+    // (use ChordAccompanimentConfig.inversion/spread uniformly per chord).
+    // Consumed by Composer::realize_chord_parts_ for Harmony-role parts.
+    std::string voicingSelector;
 };
 
 // ===========================================================================
