@@ -9,6 +9,7 @@
 #include "mforce/music/chord_progression_builder.h"
 #include "mforce/music/chord_walker.h"
 #include "mforce/music/harmony_timeline.h"
+#include "mforce/music/voicing_selector.h"
 #include "mforce/music/structure.h"
 #include "mforce/music/templates.h"
 #include "mforce/music/pitch_reader.h"
