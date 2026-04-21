@@ -51,6 +51,20 @@ struct MultiplexSource final : ValueSource {
         return 0.0f;
     }
 
+    // UI wiring path: when the user connects a source to the "source" pin,
+    // store it so next() can fall back to passing it through solo. The CLI
+    // loader's set_template path is the one that produces real N-instance
+    // fan-out; without that, we pass the wired source through as a solo
+    // preview so the UI isn't silent.
+    void set_param(std::string_view name, std::shared_ptr<ValueSource> src) override {
+        if (name == "source") uiSource_ = std::move(src);
+    }
+
+    std::shared_ptr<ValueSource> get_param(std::string_view name) const override {
+        if (name == "source") return uiSource_;
+        return nullptr;
+    }
+
     // Loader hook. The builder closure captures everything needed (subtree
     // JSON, base seed, sample rate) to produce a freshly built root source
     // for a given instance index with the correct seed perturbation.
@@ -66,16 +80,27 @@ struct MultiplexSource final : ValueSource {
 
     void prepare(const RenderContext& ctx, int frames) override {
         if (templateDirty_) rebuild_();
-        for (auto& inst : instances_)
-            if (inst) inst->prepare(ctx, frames);
+        if (!instances_.empty()) {
+            for (auto& inst : instances_)
+                if (inst) inst->prepare(ctx, frames);
+        } else if (uiSource_) {
+            // UI solo-preview fallback
+            uiSource_->prepare(ctx, frames);
+        }
     }
 
     float next() override {
-        float sum = 0.0f;
-        int n = int(instances_.size());
-        for (auto& inst : instances_)
-            if (inst) sum += inst->next();
-        cur_ = (n > 0) ? sum / float(n) : 0.0f;
+        if (!instances_.empty()) {
+            float sum = 0.0f;
+            int n = int(instances_.size());
+            for (auto& inst : instances_)
+                if (inst) sum += inst->next();
+            cur_ = (n > 0) ? sum / float(n) : 0.0f;
+        } else if (uiSource_) {
+            cur_ = uiSource_->next();  // solo passthrough (UI preview)
+        } else {
+            cur_ = 0.0f;
+        }
         return cur_;
     }
 
@@ -97,6 +122,7 @@ private:
     std::string templateJson_;
     InstanceBuilder builder_;
     std::vector<std::shared_ptr<ValueSource>> instances_;
+    std::shared_ptr<ValueSource> uiSource_;  // UI-wired source for solo preview
     bool templateDirty_{true};
     float cur_{0.0f};
 };
