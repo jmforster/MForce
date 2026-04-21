@@ -60,22 +60,30 @@ class SmoothVoicingSelector : public VoicingSelector {
       float melody;
     };
     std::vector<Candidate> cands;
-    cands.reserve(2 * n - 1);
 
-    // Enumerate inversions from -(n-1) through +(n-1). Positive = move
-    // lowest K pitches up an octave (classical "Kth inversion"). Negative
-    // = move highest |K| pitches down an octave (puts a higher-degree
-    // voice in the bass at lower register — e.g., canonical 3rd inversion
-    // of Em7 with D in the bass via -1).
-    for (int inv = -(n - 1); inv < n; ++inv) {
-      Chord c = sc.resolve(*req.scale, req.rootOctave,
-                           req.durationBeats, inv, 0);
-      Candidate cand;
-      cand.chord = std::move(c);
-      cand.vl = voice_leading_distance(*req.previous, cand.chord);
-      cand.common = common_tones(*req.previous, cand.chord);
-      cand.melody = req.melodyPitch ? melody_penalty(cand.chord, *req.melodyPitch) : 0.0f;
-      cands.push_back(std::move(cand));
+    // Rule-native search space:
+    //   inversion ∈ [0, N-1]   — list rotation (bass = Kth chord tone)
+    //   spread    ∈ [0, N-1]   — voicing-gap walk rule
+    //   rootOctave search ∈ [req.rootOctave - 1, +1]
+    // Total candidates per chord = N × N × 3.
+    const int kOctRange = 1;
+    cands.reserve(n * n * (2 * kOctRange + 1));
+
+    for (int inv = 0; inv < n; ++inv) {
+      for (int spr = 0; spr < n; ++spr) {
+        for (int dOct = -kOctRange; dOct <= kOctRange; ++dOct) {
+          Chord c = sc.resolve(*req.scale, req.rootOctave + dOct,
+                               req.durationBeats, inv, spr);
+          Candidate cand;
+          cand.chord = std::move(c);
+          cand.vl = voice_leading_distance(*req.previous, cand.chord);
+          cand.common = common_tones(*req.previous, cand.chord);
+          cand.melody = req.melodyPitch
+                      ? melody_penalty(cand.chord, *req.melodyPitch)
+                      : 0.0f;
+          cands.push_back(std::move(cand));
+        }
+      }
     }
 
     // Min-max normalize each metric across the candidate pool.

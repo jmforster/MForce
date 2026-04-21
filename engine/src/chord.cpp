@@ -1,5 +1,9 @@
 #include "mforce/music/basics.h"
+#include <algorithm>
+#include <cmath>
+#include <set>
 #include <stdexcept>
+#include <vector>
 
 namespace mforce {
 
@@ -157,50 +161,63 @@ const ChordDictionary& ChordDictionary::canonic() {
 
 void Chord::init_pitches() {
   pitches.clear();
+  if (!def) return;
   float rootNN = root.note_number();
 
-  // Implicit root: every chord includes the root unless omitRoot is set.
-  // Dictionary authors may specify "1" explicitly in the intervals list
-  // (canonic dicts do, instrument dicts like Piano/Guitar typically don't);
-  // either way the root appears exactly once.
-  if (!def->omitRoot) {
-    pitches.push_back(Pitch::from_note_number(rootNN));
-  }
+  // Step 1: collect semitone offsets for each chord tone (root implicit,
+  // dedup'd against explicit "1"/unison).
+  std::vector<float> tones;
+  if (!def->omitRoot) tones.push_back(0.0f);
   for (auto& intName : def->intervals) {
     float semis = Interval::get(intName).semitones;
     if (semis < 0.01f) continue;  // skip explicit unison — root already added
-    pitches.push_back(Pitch::from_note_number(rootNN + semis));
+    tones.push_back(semis);
+  }
+  std::sort(tones.begin(), tones.end());
+  const int N = (int)tones.size();
+  if (N == 0) return;
+
+  // Step 2: walk the linear chord-tone cycle under rule-native inversion
+  // and spread semantics.
+  //   inversion (0..N-1, clamped): bass = tones[inversion] — list rotation
+  //   spread (>= 0): each successive voice steps forward (spread + 1)
+  //     positions in the cycle; if that position's pitch class is already
+  //     voiced, keep advancing until a new pitch class appears.
+  auto posToSemis = [&](int p) {
+    return tones[p % N] + float(p / N) * 12.0f;
+  };
+  auto pcAtPos = [&](int p) {
+    return ((int)std::round(posToSemis(p))) % 12;
+  };
+
+  int bass = inversion;
+  if (bass < 0) bass = 0;          // negative inversion deprecated
+  if (bass >= N) bass = N - 1;
+
+  std::vector<int> positions;
+  positions.reserve(N);
+  std::set<int> voicedPCs;
+
+  positions.push_back(bass);
+  voicedPCs.insert(pcAtPos(bass));
+
+  while ((int)positions.size() < N) {
+    int p = positions.back() + (spread + 1);
+    while (voicedPCs.count(pcAtPos(p))) ++p;
+    positions.push_back(p);
+    voicedPCs.insert(pcAtPos(p));
   }
 
-  // Apply inversion: positive = move lowest N up an octave (classical
-  // upward inversion). Negative = move highest |N| down an octave
-  // (classical downward/drop inversion — puts a higher-degree voice in the
-  // bass without transposing the whole chord up).
-  if (inversion > 0) {
-    for (int i = 0; i < inversion && i < int(pitches.size()); ++i) {
-      float nn = pitches[i].note_number() + 12.0f;
-      pitches[i] = Pitch::from_note_number(nn);
-    }
-  } else if (inversion < 0) {
-    int dropN = -inversion;
-    int total = int(pitches.size());
-    for (int i = std::max(0, total - dropN); i < total; ++i) {
-      float nn = pitches[i].note_number() - 12.0f;
-      pitches[i] = Pitch::from_note_number(nn);
-    }
+  // Step 3: emit pitches
+  for (int p : positions) {
+    pitches.push_back(Pitch::from_note_number(rootNN + posToSemis(p)));
   }
 
-  // Apply spread
-  if (spread > 0) {
-    for (int i = 1; i < int(pitches.size()); ++i) {
-      float nn = pitches[i].note_number() + float(i / 2) * 12.0f * float(spread);
-      pitches[i] = Pitch::from_note_number(nn);
-    }
-  }
-
-  // Sort by pitch
+  // Sort by pitch for consistent downstream representation.
   std::sort(pitches.begin(), pitches.end(),
-            [](const Pitch& a, const Pitch& b) { return a.note_number() < b.note_number(); });
+            [](const Pitch& a, const Pitch& b) {
+              return a.note_number() < b.note_number();
+            });
 }
 
 Chord Chord::create(const std::string& rootName, int octave,
