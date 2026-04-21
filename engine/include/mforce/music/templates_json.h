@@ -685,6 +685,12 @@ inline void to_json(json& j, const PassageTemplate& pt) {
         j["voicingProfile"] = std::move(vpj);
       }
     }
+    if (!pt.voicingProfileSelector.empty())
+        j["voicingProfileSelector"] = pt.voicingProfileSelector;
+    if (!pt.voicingProfileSelectorConfig.is_null()
+        && !pt.voicingProfileSelectorConfig.empty()) {
+        j["voicingProfileSelectorConfig"] = pt.voicingProfileSelectorConfig;
+    }
     if (!pt.voicingDictionary.empty()) j["voicingDictionary"] = pt.voicingDictionary;
 }
 
@@ -772,6 +778,11 @@ inline void from_json(const json& j, PassageTemplate& pt) {
                 j.at("allowedSpreads").get<std::vector<int>>();
         }
     }
+
+    pt.voicingProfileSelector = j.value("voicingProfileSelector", std::string(""));
+    pt.voicingProfileSelectorConfig = j.contains("voicingProfileSelectorConfig")
+        ? j.at("voicingProfileSelectorConfig")
+        : json::object();
 
     pt.voicingDictionary = j.value("voicingDictionary", std::string(""));
 }
