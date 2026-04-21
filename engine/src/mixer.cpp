@@ -1,4 +1,5 @@
 #include "mforce/render/mixer.h"
+#include "mforce/render/limiter.h"
 #include <cmath>
 #include <algorithm>
 
@@ -40,6 +41,9 @@ void StereoMixer::render(const RenderContext& ctx, float* outLR, int frames) {
       outLR[i*2 + 1] += s * aR * gr;
     }
   }
+  // Peak guard: bound mix output to ±0.999.
+  for (int i = 0; i < frames * 2; ++i)
+    outLR[i] = soft_clip(outLR[i]);
 }
 
 } // namespace mforce

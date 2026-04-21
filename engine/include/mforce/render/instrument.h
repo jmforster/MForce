@@ -1,5 +1,6 @@
 #pragma once
 #include "mforce/render/mixer.h"
+#include "mforce/render/limiter.h"
 #include "mforce/core/dsp_value_source.h"
 #include "mforce/core/equal_temperament.h"
 #include "mforce/music/pitch_bend.h"
@@ -44,6 +45,9 @@ struct Instrument : MonoSource {
       for (int i = 0; i < frames; ++i)
         out[i] *= volume;
     }
+    // Peak guard: bound output to ±0.999 with a smooth knee above 0.95.
+    for (int i = 0; i < frames; ++i)
+      out[i] = soft_clip(out[i]);
   }
 
 protected:
