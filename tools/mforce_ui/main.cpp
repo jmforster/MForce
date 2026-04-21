@@ -399,6 +399,10 @@ struct Link {
 static std::vector<GraphNode> s_nodes;
 static std::vector<Link> s_links;
 static std::string s_currentFilePath;
+// True when the UI graph has been edited since last save/load. Playback paths
+// sync to a temp file before loading the instrument so MultiplexSource (and
+// anything else that bakes state at patch-load time) picks up current edits.
+static bool s_graphDirty = false;
 
 static Pin* find_pin(int pinId) {
     for (auto& node : s_nodes) {
@@ -544,6 +548,7 @@ static GraphNode* find_selected_node() {
 }
 
 static void delete_node(int nodeId) {
+    s_graphDirty = true;
     if (g_selectedNodeId == nodeId) g_selectedNodeId = -1;
     for (auto& node : s_nodes) {
         if (node.id != nodeId) continue;
@@ -566,6 +571,7 @@ static void delete_node(int nodeId) {
 }
 
 static void delete_link(int linkId) {
+    s_graphDirty = true;
     s_links.erase(
         std::remove_if(s_links.begin(), s_links.end(),
             [linkId](const Link& l) { return l.id == linkId; }),
@@ -643,6 +649,7 @@ static void load_graph() {
     if (!f) return;
     json root = json::parse(f);
     s_currentFilePath = path;
+    s_graphDirty = false;
 
     s_nodes.clear();
     s_links.clear();
@@ -1337,6 +1344,22 @@ static void save_to_path(const std::string& path) {
     else
         save_node_graph(path);
     s_currentFilePath = path;
+    s_graphDirty = false;
+}
+
+// Returns the path to a patch file reflecting current UI state — either
+// s_currentFilePath (if no edits pending) or a temp file we sync-write to.
+// Playback paths should use this instead of s_currentFilePath directly so
+// MultiplexSource and other load-time-baked constructs see current edits.
+static std::string get_playback_patch_path() {
+    if (!s_graphDirty) return s_currentFilePath;
+    // Write current state to temp, but DON'T update s_currentFilePath —
+    // the user's saved file stays untouched until they explicitly Save.
+    std::string tmp = (std::filesystem::temp_directory_path() / "mforce_playback.json").string();
+    if (s_graphMode == GraphMode::PatchGraph) save_patch_graph(tmp);
+    else save_node_graph(tmp);
+    s_graphDirty = false;
+    return tmp;
 }
 
 static void save_graph_as() {
@@ -2045,7 +2068,7 @@ static void render_chords_waveforms(const std::vector<ParsedChord>& chords, floa
     }
 
     try {
-        auto ip = load_instrument_patch(s_currentFilePath);
+        auto ip = load_instrument_patch(get_playback_patch_path());
         ip.instrument->volume = 1.0f;
 
         Part part;
@@ -2630,6 +2653,7 @@ static void draw_properties_panel() {
             if (ImGui::InputFloat(label, &pin.defaultValue, step, step * 10.0f, "%.4f")) {
                 if (pin.constantSrc) pin.constantSrc->set(pin.defaultValue);
                 update_node_dsp(*node);
+                s_graphDirty = true;
             }
             ImGui::PopItemWidth();
         }
@@ -2684,6 +2708,7 @@ static void draw_properties_panel() {
                 // mirrors _1 → _2 when evolve flips off). Re-pull cached values.
                 for (auto& [d, v] : node->arrayValues)
                     v = node->dspSource->get_array(d.name);
+                s_graphDirty = true;
             }
         }
     }
@@ -2754,7 +2779,7 @@ static void draw_properties_panel() {
                     changed = true;
                 }
                 ImGui::PopID();
-                if (changed) node->push_array(d.name);
+                if (changed) { node->push_array(d.name); s_graphDirty = true; }
             } else {
                 // Grouped: render all columns in a table with a single row
                 // count shared across columns (invariant-preserving).
@@ -2832,6 +2857,7 @@ static void draw_properties_panel() {
                     // Push every column in the group (lengths must stay synced).
                     for (size_t c = i; c < groupEnd; ++c)
                         node->push_array(node->arrayValues[c].first.name);
+                    s_graphDirty = true;
                 }
             }
 
@@ -2877,7 +2903,7 @@ static void draw_properties_panel() {
             node->formantRows.push_back({1000.0f, 1.0f, 500.0f, 2.0f});
             changed = true;
         }
-        if (changed) node->rebuild_formant_spectrum();
+        if (changed) { node->rebuild_formant_spectrum(); s_graphDirty = true; }
     }
 
     // PatchOutput: polyphony
@@ -2921,6 +2947,7 @@ static void menu_source(const char* label, const char* typeName) {
         s_nodes.emplace_back(std::string(typeName));
         ImNodes::SetNodeScreenSpacePos(s_nodes.back().id, s_createMenuPos);
         update_node_dsp(s_nodes.back());
+        s_graphDirty = true;
     }
 }
 
@@ -3101,6 +3128,7 @@ static void show_node_context_menu() {
     if (!node) { ImGui::EndPopup(); return; }
 
     if (ImGui::MenuItem("Duplicate")) {
+        s_graphDirty = true;
         // Create a copy of the node with same type and settings
         if (node->typeName == NT_PARAMETER) {
             s_nodes.emplace_back(node->typeName, node->paramName);
@@ -3577,6 +3605,7 @@ int main(int, char**) {
 
                 s_links.emplace_back(outPin, inPin);
                 update_all_dsp();
+                s_graphDirty = true;
             }
         }
 
@@ -3589,6 +3618,7 @@ int main(int, char**) {
                         [destroyedLinkId](const Link& l) { return l.id == destroyedLinkId; }),
                     s_links.end());
                 update_all_dsp();
+                s_graphDirty = true;
             }
         }
 
