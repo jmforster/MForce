@@ -10,6 +10,7 @@
 #include "mforce/music/chord_walker.h"
 #include "mforce/music/harmony_timeline.h"
 #include "mforce/music/voicing_selector.h"
+#include "mforce/music/smooth_voicing_selector.h"
 #include "mforce/music/structure.h"
 #include "mforce/music/templates.h"
 #include "mforce/music/pitch_reader.h"
@@ -129,6 +130,10 @@ struct Composer {
     // Phrase strategies (Phase 3)
     reg.register_phrase(std::make_unique<PeriodPhraseStrategy>());
     reg.register_phrase(std::make_unique<SentencePhraseStrategy>());
+
+    // Voicing selectors (Phase 4)
+    VoicingSelectorRegistry::instance()
+        .register_selector(std::make_unique<SmoothVoicingSelector>());
 
     // Passage strategies
     reg.register_passage(std::make_unique<AlternatingFigureStrategy>());
@@ -286,8 +291,23 @@ private:
           cfg = *passIt->second.chordConfig;
         }
 
+        // Optional VoicingSelector (empty selectorName = legacy path).
+        VoicingSelector* selector = nullptr;
+        if (passIt != partTmpl.passages.end()
+            && !passIt->second.voicingSelector.empty()) {
+          selector = VoicingSelectorRegistry::instance()
+                         .resolve(passIt->second.voicingSelector);
+          if (!selector) {
+            std::cerr << "Unknown voicingSelector '"
+                      << passIt->second.voicingSelector
+                      << "', falling back to legacy inversion/spread path\n";
+          }
+        }
+
         float beatsPerBar = float(sec.meter.beats_per_bar());
         int totalBars = int(sec.beats / beatsPerBar);
+
+        const Chord* prevChord = nullptr;
 
         for (int bar = 0; bar < totalBars; ++bar) {
           float barStart = beatOffset + bar * beatsPerBar;
@@ -301,9 +321,17 @@ private:
             }
             const ScaleChord* sc = sec.harmonyTimeline.chord_at(pos - beatOffset);
             if (sc) {
-              Chord chord = sc->resolve(sec.scale, cfg.octave, dur,
-                                        cfg.inversion, cfg.spread);
+              Chord chord;
+              if (selector) {
+                VoicingRequest req{*sc, &sec.scale, cfg.octave, dur,
+                                   prevChord, std::nullopt};
+                chord = selector->select(req);
+              } else {
+                chord = sc->resolve(sec.scale, cfg.octave, dur,
+                                    cfg.inversion, cfg.spread);
+              }
               part->add_chord(pos, chord);
+              prevChord = &part->events.back().chord();
             }
             pos += dur;
           }

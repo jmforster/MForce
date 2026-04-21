@@ -362,6 +362,11 @@ struct PassageTemplate {
     // Chord accompaniment config (optional). Used by Composer for
     // Harmony-role parts.
     std::optional<ChordAccompanimentConfig> chordConfig;
+
+    // Name of a registered VoicingSelector. Empty = legacy behavior
+    // (use ChordAccompanimentConfig.inversion/spread uniformly per chord).
+    // Consumed by Composer::realize_chord_parts_ for Harmony-role parts.
+    std::string voicingSelector;
 };
 
 // ===========================================================================

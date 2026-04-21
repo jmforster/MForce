@@ -671,6 +671,7 @@ inline void to_json(json& j, const PassageTemplate& pt) {
     if (pt.seed != 0) j["seed"] = pt.seed;
     if (pt.locked) j["locked"] = true;
     if (!pt.periods.empty()) j["periods"] = pt.periods;
+    if (!pt.voicingSelector.empty()) j["voicingSelector"] = pt.voicingSelector;
 }
 
 inline void from_json(const json& j, ChordAccompanimentConfig& cc) {
@@ -729,6 +730,8 @@ inline void from_json(const json& j, PassageTemplate& pt) {
         from_json(j["chordConfig"], cc);
         pt.chordConfig = cc;
     }
+
+    pt.voicingSelector = j.value("voicingSelector", std::string(""));
 }
 
 // ===========================================================================
