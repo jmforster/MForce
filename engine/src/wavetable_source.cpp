@@ -15,7 +15,7 @@ void WavetableSource::prepare(const RenderContext& ctx, int frames) {
   speedFactor_->prepare(ctx, frames);
   inputSource_->prepare(ctx, frames);
   if (evolutionSrc_) evolutionSrc_->prepare(ctx, frames);
-  if (evolution_) evolution_->set_sample_rate(sampleRate_);
+  if (evolution_) evolution_->on_prepare(ctx);
 }
 
 void WavetableSource::fill_table() {

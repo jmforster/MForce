@@ -22,9 +22,12 @@ struct WaveEvolution {
   // Called each sample — modify the wavetable in-place.
   virtual void evolve(std::vector<float>& values, int index) = 0;
 
-  // Provided by host before first adjust(). Models that need sampleRate
-  // (biquad tuning, internal delay-line sizing) override this.
-  virtual void set_sample_rate(int /*sr*/) {}
+  // Called by the holder during prepare(). SR-sensitive subclasses override
+  // to capture ctx.sampleRate for use by adjust()/evolve(). Was previously
+  // set_sample_rate(int), called once from WavetableSource::prepare; now
+  // receives the full RenderContext so future fields (block size, etc.)
+  // propagate without another API change.
+  virtual void on_prepare(const RenderContext& /*ctx*/) {}
 };
 
 // ---------------------------------------------------------------------------
@@ -448,7 +451,7 @@ struct BowedStringEvolution final : WaveEvolution {
   ValueSource* frictionGain{nullptr};  // slope of Friedlander bow table
   ValueSource* bow{nullptr};           // bow pressure envelope (0..1)
 
-  void set_sample_rate(int sr) override { sampleRate_ = sr; }
+  void on_prepare(const RenderContext& ctx) override { sampleRate_ = ctx.sampleRate; }
 
   float adjust(float frequency) override {
     int totalLen = int(std::lround(float(sampleRate_) / std::max(20.0f, frequency)));
@@ -536,7 +539,7 @@ struct BrassEvolution final : WaveEvolution {
   ValueSource* brassiness{nullptr};  // tanh drive → wave-steepening harmonics
   ValueSource* breath{nullptr};
 
-  void set_sample_rate(int sr) override { sampleRate_ = sr; }
+  void on_prepare(const RenderContext& ctx) override { sampleRate_ = ctx.sampleRate; }
 
   float adjust(float frequency) override {
     lipState_ = 0.0f;

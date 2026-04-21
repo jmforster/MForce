@@ -1,0 +1,19 @@
+﻿Notes not for Claude yet
+
+1. Notion of a library of "cliches" as an alternative to full generation?
+2. Return to OutlineFigureStrategy
+3. WaveEvolution sample-rate audit (2026-04-20): PluckEvolution,
+   AveragingEvolution, EKSEvolution, BlownTubeEvolution, ReedEvolution
+   all cache freq-dependent state in adjust() without consulting sample
+   rate. At non-48k, behavior is subtly wrong (sample counts and timing
+   thresholds were tuned for 48k). Not a blocker for current patches;
+   needs per-subclass analysis to decide what scales with SR vs. what
+   stays constant. BowedString and Brass now read SR via on_prepare(ctx).
+
+Example: ascending or descending repeated figures
+  - generate a 4-note (3 step) figure
+  - repeat this figure on ascending or descending stepwise or skipwise starting notes
+
+The ChordDefs in the Default group are the dense set of intervals defining the chord quality.
+These are sort of "special" / canonical.. should they be their own thing?
+
