@@ -723,7 +723,7 @@ struct EKSEvolutionSource final : ValueSource, IEvolutionHolder {
   : evo_(seed) {}
 
   const char* type_name() const override { return "EKSEvolution"; }
-  SourceCategory category() const override { return SourceCategory::Generator; }
+  SourceCategory category() const override { return SourceCategory::Combiner; }
 
   WaveEvolution* get_evolution() override { return &evo_; }
 
@@ -773,7 +773,7 @@ struct BlownTubeEvolutionSource final : ValueSource, IEvolutionHolder {
   explicit BlownTubeEvolutionSource(uint32_t seed = 0xF10E'B10Du) : evo_(seed) {}
 
   const char* type_name() const override { return "BlownTubeEvolution"; }
-  SourceCategory category() const override { return SourceCategory::Generator; }
+  SourceCategory category() const override { return SourceCategory::Combiner; }
 
   WaveEvolution* get_evolution() override { return &evo_; }
 
@@ -837,7 +837,7 @@ struct ReedEvolutionSource final : ValueSource, IEvolutionHolder {
   }
 
   const char* type_name() const override { return "ReedEvolution"; }
-  SourceCategory category() const override { return SourceCategory::Generator; }
+  SourceCategory category() const override { return SourceCategory::Combiner; }
 
   WaveEvolution* get_evolution() override { return &evo_; }
 
@@ -914,7 +914,7 @@ struct BowedStringEvolutionSource final : ValueSource, IEvolutionHolder {
   }
 
   const char* type_name() const override { return "BowedStringEvolution"; }
-  SourceCategory category() const override { return SourceCategory::Generator; }
+  SourceCategory category() const override { return SourceCategory::Combiner; }
 
   WaveEvolution* get_evolution() override { return &evo_; }
 
@@ -994,7 +994,7 @@ struct BrassEvolutionSource final : ValueSource, IEvolutionHolder {
   }
 
   const char* type_name() const override { return "BrassEvolution"; }
-  SourceCategory category() const override { return SourceCategory::Generator; }
+  SourceCategory category() const override { return SourceCategory::Combiner; }
 
   WaveEvolution* get_evolution() override { return &evo_; }
 
