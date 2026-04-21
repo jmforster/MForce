@@ -4,6 +4,8 @@
 #include <functional>
 #include <memory>
 #include <string>
+#include <unordered_map>
+#include <utility>
 #include <vector>
 
 namespace mforce {
@@ -16,8 +18,18 @@ namespace mforce {
 //
 // Live-edit rebuild (UI path): external code updates templateJson_ to the
 // current UI serialization and sets templateDirty_; next prepare() rebuilds.
+//
+// ParamMap fan-out (play_note path): PitchedInstrument's paramMap binds to a
+// top-level node whose counterpart exists in each clone. set_clone_param()
+// stores a pending value + applies it immediately to any live clone, so
+// frequency (etc.) updates propagate into all N instances.
 struct MultiplexSource final : ValueSource {
-    using InstanceBuilder = std::function<std::shared_ptr<ValueSource>(int instanceIdx)>;
+    // Builder returns {root source, valueNodes map by id}. The map gives
+    // external code (paramMap fan-out) the handle to reach into each
+    // clone's internals.
+    using ValueNodeMap = std::unordered_map<std::string, std::shared_ptr<ValueSource>>;
+    using InstanceBuilder = std::function<
+        std::pair<std::shared_ptr<ValueSource>, ValueNodeMap>(int instanceIdx)>;
 
     const char* type_name() const override { return "MultiplexSource"; }
     SourceCategory category() const override { return SourceCategory::Combiner; }
@@ -67,7 +79,7 @@ struct MultiplexSource final : ValueSource {
 
     // Loader hook. The builder closure captures everything needed (subtree
     // JSON, base seed, sample rate) to produce a freshly built root source
-    // for a given instance index with the correct seed perturbation.
+    // plus valueNodes map for a given instance index.
     void set_template(std::string json, uint32_t baseSeed, InstanceBuilder builder) {
         templateJson_ = std::move(json);
         baseSeed_ = baseSeed;
@@ -77,6 +89,18 @@ struct MultiplexSource final : ValueSource {
 
     // External dirty signal (UI sets this after editing template nodes).
     void mark_dirty() { templateDirty_ = true; }
+
+    // ParamMap fan-out: set a param on a node (by id) across every clone.
+    // Stores as pending so it applies to future rebuilds too. Called by
+    // PitchedInstrument::play_note after setting the top-level paramMap
+    // ConstantSource, so clones pick up the same note frequency.
+    void set_clone_param(const std::string& nodeId,
+                         const std::string& paramName,
+                         float value) {
+        pendingCloneParams_[nodeId + "." + paramName] =
+            std::make_tuple(nodeId, paramName, value);
+        apply_clone_param_to_all_(nodeId, paramName, value);
+    }
 
     void prepare(const RenderContext& ctx, int frames) override {
         if (templateDirty_) rebuild_();
@@ -109,12 +133,37 @@ struct MultiplexSource final : ValueSource {
 private:
     void rebuild_() {
         instances_.clear();
+        instanceValueNodes_.clear();
         if (!builder_) { templateDirty_ = false; return; }
         instances_.reserve(count_);
+        instanceValueNodes_.reserve(count_);
         for (int i = 0; i < count_; ++i) {
-            instances_.push_back(builder_(i));
+            auto pair = builder_(i);
+            instances_.push_back(std::move(pair.first));
+            instanceValueNodes_.push_back(std::move(pair.second));
+        }
+        // Replay any pending paramMap fan-outs onto the freshly built clones.
+        for (auto& [_, entry] : pendingCloneParams_) {
+            const auto& [nodeId, paramName, value] = entry;
+            apply_clone_param_to_all_(nodeId, paramName, value);
         }
         templateDirty_ = false;
+    }
+
+    // For each live clone, find the node with the given id and set the named
+    // param's ConstantSource to `value`. Silently no-ops when the node or
+    // param isn't found (e.g. paramMap points to something outside the
+    // template subgraph).
+    void apply_clone_param_to_all_(const std::string& nodeId,
+                                   const std::string& paramName,
+                                   float value) {
+        for (auto& instMap : instanceValueNodes_) {
+            auto it = instMap.find(nodeId);
+            if (it == instMap.end()) continue;
+            auto cur = it->second->get_param(paramName);
+            auto cs = std::dynamic_pointer_cast<ConstantSource>(cur);
+            if (cs) cs->set(value);
+        }
     }
 
     int count_{10};
@@ -122,6 +171,13 @@ private:
     std::string templateJson_;
     InstanceBuilder builder_;
     std::vector<std::shared_ptr<ValueSource>> instances_;
+    std::vector<ValueNodeMap> instanceValueNodes_;
+    // Pending paramMap fan-outs: keyed by "nodeId.paramName" so a repeated
+    // set overwrites. Value is {nodeId, paramName, value} for replay on
+    // rebuild (rebuilds discard live clones so pending needs to survive).
+    std::unordered_map<std::string,
+                       std::tuple<std::string, std::string, float>>
+        pendingCloneParams_;
     std::shared_ptr<ValueSource> uiSource_;  // UI-wired source for solo preview
     bool templateDirty_{true};
     float cur_{0.0f};

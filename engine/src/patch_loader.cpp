@@ -171,7 +171,11 @@ static void add_formant(
 static json extract_subgraph_json(
     const std::unordered_map<std::string, json>& nodeMap,
     const std::string& rootId);
-static std::shared_ptr<ValueSource> build_subgraph_with_seed_perturbation(
+// Returns {root source, valueNodes by id} so callers (Multiplex's paramMap
+// fan-out) can reach into the built clone's internals by node id.
+static std::pair<std::shared_ptr<ValueSource>,
+                 std::unordered_map<std::string, std::shared_ptr<ValueSource>>>
+build_subgraph_with_seed_perturbation(
     const std::string& subtreeJsonStr,
     uint32_t seedPerturbation,
     int sampleRate);
@@ -626,8 +630,12 @@ static json extract_subgraph_json(
 
 // Build a fresh root source from a subtree JSON string, XOR'ing every
 // node's seed param by seedPerturbation so N instances diverge
-// deterministically from a shared base seed.
-static std::shared_ptr<ValueSource> build_subgraph_with_seed_perturbation(
+// deterministically from a shared base seed. Returns {root, valueNodes}
+// so external paramMap fan-out code can reach into the clone's nodes
+// by id.
+static std::pair<std::shared_ptr<ValueSource>,
+                 std::unordered_map<std::string, std::shared_ptr<ValueSource>>>
+build_subgraph_with_seed_perturbation(
     const std::string& subtreeJsonStr,
     uint32_t seedPerturbation,
     int sampleRate)
@@ -658,7 +666,7 @@ static std::shared_ptr<ValueSource> build_subgraph_with_seed_perturbation(
     auto it = g.valueNodes.find(outputId);
     if (it == g.valueNodes.end())
         throw std::runtime_error("build_subgraph: output '" + outputId + "' not found");
-    return it->second;
+    return {it->second, std::move(g.valueNodes)};
 }
 
 
@@ -702,7 +710,7 @@ resolve_param_map(
         if (!cs)
             throw std::runtime_error("paramMap: '" + target + "' is not a ConstantSource (it's wired to a ref)");
 
-        result[name] = {nodeIt->second, paramName, cs};
+        result[name] = {nodeIt->second, paramName, cs, nodeId};
     }
 
     return result;
@@ -761,6 +769,10 @@ Patch load_patch_file(const std::string& path)
             if (srcIt == g.valueNodes.end())
                 throw std::runtime_error("instrument: output node '" + outputId + "' not found");
             vg.source = srcIt->second;
+
+            // If the voice's output is a MultiplexSource, capture it so play_note
+            // can fan paramMap changes into each clone.
+            vg.topMultiplex = std::dynamic_pointer_cast<MultiplexSource>(vg.source);
 
             // Resolve param map for this voice
             if (instJson.contains("paramMap"))
@@ -925,6 +937,8 @@ InstrumentPatch load_instrument_patch(const std::string& path)
         if (srcIt == g.valueNodes.end())
             throw std::runtime_error("instrument: output node '" + outputId + "' not found");
         vg.source = srcIt->second;
+
+        vg.topMultiplex = std::dynamic_pointer_cast<MultiplexSource>(vg.source);
 
         if (instJson.contains("paramMap"))
             vg.params = resolve_param_map(instJson["paramMap"], g, nodeMap);

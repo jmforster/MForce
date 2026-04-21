@@ -5,6 +5,7 @@
 #include "mforce/core/equal_temperament.h"
 #include "mforce/music/pitch_bend.h"
 #include "mforce/music/pitch_curve.h"
+#include "mforce/source/multiplex_source.h"
 #include <memory>
 #include <vector>
 #include <string>
@@ -74,11 +75,19 @@ struct PitchedInstrument final : Instrument {
     std::shared_ptr<ValueSource>    consumer;
     std::string                      paramName;
     std::shared_ptr<ConstantSource>  originalCS;
+    // Node id the paramMap targets (e.g. "Var1" for "Var1.val"). Used by
+    // play_note to fan values into Multiplex clones' matching nodes when
+    // the voice's output is a MultiplexSource.
+    std::string                      targetNodeId;
   };
 
   struct VoiceGraph {
     std::shared_ptr<ValueSource> source;
     std::unordered_map<std::string, ParamSlot> params;
+    // If this voice's output IS a MultiplexSource, fan paramMap changes
+    // into its clones. Captured at voice-pool build time by casting
+    // `source`. Null for non-Multiplex voices — fan-out is a no-op.
+    std::shared_ptr<MultiplexSource> topMultiplex;
   };
 
   float hiBoost{0.0f};
@@ -108,6 +117,11 @@ struct PitchedInstrument final : Instrument {
         // original ConstantSource (idempotent if already restored).
         slot.originalCS->set(freq);
         slot.consumer->set_param(slot.paramName, slot.originalCS);
+        // Fan out to Multiplex clones so each internal copy retunes too.
+        // No-op when the voice's output isn't a Multiplex.
+        if (vg.topMultiplex && !slot.targetNodeId.empty()) {
+          vg.topMultiplex->set_clone_param(slot.targetNodeId, slot.paramName, freq);
+        }
       }
     }
 
