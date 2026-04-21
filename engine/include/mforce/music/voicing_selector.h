@@ -18,6 +18,8 @@ struct VoicingRequest {
   float durationBeats{1.0f};          // passes through to Chord.dur
   const Chord* previous{nullptr};     // prior chord on this Part (for voice-leading)
   std::optional<Pitch> melodyPitch;   // optional top-voice hint (future: melody-aware)
+  float priority{0.0f};               // [0,1]: 0=pure VL distance, 1=pure common tones
+  std::string dictionaryName;         // ChordDictionary name; empty = Canonic
 };
 
 // ---------------------------------------------------------------------------

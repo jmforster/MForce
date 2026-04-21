@@ -150,15 +150,35 @@ void Chord::init_pitches() {
   pitches.clear();
   float rootNN = root.note_number();
 
+  // Implicit root: every chord includes the root unless omitRoot is set.
+  // Dictionary authors may specify "1" explicitly in the intervals list
+  // (canonic dicts do, instrument dicts like Piano/Guitar typically don't);
+  // either way the root appears exactly once.
+  if (!def->omitRoot) {
+    pitches.push_back(Pitch::from_note_number(rootNN));
+  }
   for (auto& intName : def->intervals) {
     float semis = Interval::get(intName).semitones;
+    if (semis < 0.01f) continue;  // skip explicit unison — root already added
     pitches.push_back(Pitch::from_note_number(rootNN + semis));
   }
 
-  // Apply inversion: move lowest N pitches up an octave
-  for (int i = 0; i < inversion && i < int(pitches.size()); ++i) {
-    float nn = pitches[i].note_number() + 12.0f;
-    pitches[i] = Pitch::from_note_number(nn);
+  // Apply inversion: positive = move lowest N up an octave (classical
+  // upward inversion). Negative = move highest |N| down an octave
+  // (classical downward/drop inversion — puts a higher-degree voice in the
+  // bass without transposing the whole chord up).
+  if (inversion > 0) {
+    for (int i = 0; i < inversion && i < int(pitches.size()); ++i) {
+      float nn = pitches[i].note_number() + 12.0f;
+      pitches[i] = Pitch::from_note_number(nn);
+    }
+  } else if (inversion < 0) {
+    int dropN = -inversion;
+    int total = int(pitches.size());
+    for (int i = std::max(0, total - dropN); i < total; ++i) {
+      float nn = pitches[i].note_number() - 12.0f;
+      pitches[i] = Pitch::from_note_number(nn);
+    }
   }
 
   // Apply spread

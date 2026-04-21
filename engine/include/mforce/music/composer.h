@@ -472,7 +472,9 @@ private:
               Chord chord;
               if (selector) {
                 VoicingRequest req{*sc, &sec.scale, cfg.octave, dur,
-                                   prevChord, std::nullopt};
+                                   prevChord, std::nullopt,
+                                   passIt->second.voicingPriority,
+                                   passIt->second.voicingDictionary};
                 chord = selector->select(req);
               } else {
                 chord = sc->resolve(sec.scale, cfg.octave, dur,
