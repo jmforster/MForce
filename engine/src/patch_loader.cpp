@@ -21,13 +21,16 @@
 #include "mforce/source/segment_source.h"
 #include "mforce/source/phased_value_source.h"
 #include "mforce/source/wave_evolution.h"
+#include "mforce/source/multiplex_source.h"
 #include "mforce/filter/filters.h"
 #include "mforce/filter/vibrato.h"
 #include <nlohmann/json.hpp>
 #include <fstream>
+#include <functional>
 #include <sstream>
 #include <stdexcept>
 #include <unordered_map>
+#include <unordered_set>
 
 using json = nlohmann::json;
 
@@ -162,6 +165,16 @@ static void add_formant(
     auto fmt = std::dynamic_pointer_cast<IFormant>(src);
     if (fmt) g.formantNodes[id] = fmt;
 }
+
+// Forward declarations for subgraph extraction / rebuild helpers (defined
+// after build_graph since build_subgraph_with_seed_perturbation calls it).
+static json extract_subgraph_json(
+    const std::unordered_map<std::string, json>& nodeMap,
+    const std::string& rootId);
+static std::shared_ptr<ValueSource> build_subgraph_with_seed_perturbation(
+    const std::string& subtreeJsonStr,
+    uint32_t seedPerturbation,
+    int sampleRate);
 
 static GraphResult build_graph(
     const std::unordered_map<std::string, json>& nodeMap,
@@ -493,6 +506,49 @@ static GraphResult build_graph(
             valueNodes[id] = hks;
             add_mono(g, id, hks);
         }
+        // ---- MultiplexSource: fan template subgraph into N instances ----
+        else if (type == "MultiplexSource") {
+            auto mux = std::make_shared<MultiplexSource>();
+            if (pp) {
+                // Apply "count" config via generic path.
+                wire_params_generic(*mux, *pp, valueNodes);
+
+                // Resolve the "source" input to its template root node id.
+                if (pp->contains("source") && (*pp)["source"].is_object()
+                    && (*pp)["source"].contains("ref")) {
+                    std::string tmplRootId = (*pp)["source"]["ref"].get<std::string>();
+
+                    // Extract + serialize the template subtree.
+                    json subtree = extract_subgraph_json(nodeMap, tmplRootId);
+                    std::string subtreeStr = subtree.dump();
+
+                    // Capture base seed from the root node's params (0 if none).
+                    uint32_t baseSeed = 0;
+                    if (nodeMap.count(tmplRootId)) {
+                        const auto& rootNode = nodeMap.at(tmplRootId);
+                        if (rootNode.contains("params")
+                            && rootNode["params"].contains("seed")
+                            && rootNode["params"]["seed"].is_number()) {
+                            baseSeed = uint32_t(rootNode["params"]["seed"].get<int64_t>());
+                        }
+                    }
+
+                    // Closure captures subtree + seed by value, outlives loader stack.
+                    int sr = sampleRate;
+                    MultiplexSource::InstanceBuilder builder =
+                        [subtreeStr, baseSeed, sr](int instanceIdx) {
+                            uint32_t perturbation =
+                                baseSeed ^ (uint32_t(instanceIdx) * 0x9E3779B9u);
+                            return build_subgraph_with_seed_perturbation(
+                                subtreeStr, perturbation, sr);
+                        };
+
+                    mux->set_template(subtreeStr, baseSeed, std::move(builder));
+                }
+            }
+            valueNodes[id] = mux;
+            add_mono(g, id, mux);
+        }
         // =================================================================
         // Generic path: registry create + set_param + optional configurator
         // =================================================================
@@ -515,6 +571,94 @@ static GraphResult build_graph(
     } // end for each node
 
     return g;
+}
+
+
+// ---------------------------------------------------------------------------
+// Subgraph extraction + rebuild with seed perturbation.
+// Used by MultiplexSource to fan out one template into N independent
+// instances without a clone() interface on every node.
+// ---------------------------------------------------------------------------
+
+// Walk the node map starting from rootId; collect all transitively-
+// referenced node ids in dependency order. Returns a self-contained subtree:
+//   { "nodes": [...], "output": "<rootId>" }
+// where "nodes" is ordered so every ref appears before its referent
+// (matches build_graph's expectation).
+static json extract_subgraph_json(
+    const std::unordered_map<std::string, json>& nodeMap,
+    const std::string& rootId)
+{
+    std::unordered_set<std::string> visited;
+    std::vector<std::string> order;
+
+    std::function<void(const std::string&)> walk = [&](const std::string& id) {
+        if (visited.count(id)) return;
+        if (!nodeMap.count(id)) return;
+        visited.insert(id);
+        const auto& node = nodeMap.at(id);
+        if (node.contains("params")) {
+            std::function<void(const json&)> scanRefs = [&](const json& v) {
+                if (v.is_object()) {
+                    if (v.size() == 1 && v.contains("ref") && v["ref"].is_string())
+                        walk(v["ref"].get<std::string>());
+                    else
+                        for (auto it = v.begin(); it != v.end(); ++it) scanRefs(it.value());
+                } else if (v.is_array()) {
+                    for (const auto& item : v) scanRefs(item);
+                }
+            };
+            scanRefs(node["params"]);
+        }
+        order.push_back(id);
+    };
+
+    walk(rootId);
+
+    json nodes = json::array();
+    for (const auto& id : order) nodes.push_back(nodeMap.at(id));
+
+    json subtree;
+    subtree["nodes"] = nodes;
+    subtree["output"] = rootId;
+    return subtree;
+}
+
+// Build a fresh root source from a subtree JSON string, XOR'ing every
+// node's seed param by seedPerturbation so N instances diverge
+// deterministically from a shared base seed.
+static std::shared_ptr<ValueSource> build_subgraph_with_seed_perturbation(
+    const std::string& subtreeJsonStr,
+    uint32_t seedPerturbation,
+    int sampleRate)
+{
+    json subtree = json::parse(subtreeJsonStr);
+
+    std::unordered_map<std::string, json> nodeMap;
+    std::vector<std::string> nodeOrder;
+    for (auto& jnode : subtree["nodes"]) {
+        json perturbed = jnode;
+        if (!perturbed.contains("params")) perturbed["params"] = json::object();
+        auto& params = perturbed["params"];
+        if (params.contains("seed") && params["seed"].is_number()) {
+            uint32_t s = uint32_t(params["seed"].get<int64_t>());
+            params["seed"] = int64_t(s ^ seedPerturbation);
+        } else {
+            // Inject a perturbed seed so factory default is overridden.
+            params["seed"] = int64_t(seedPerturbation);
+        }
+        std::string id = perturbed["id"].get<std::string>();
+        nodeMap[id] = perturbed;
+        nodeOrder.push_back(id);
+    }
+
+    auto g = build_graph(nodeMap, nodeOrder, sampleRate);
+
+    std::string outputId = subtree["output"].get<std::string>();
+    auto it = g.valueNodes.find(outputId);
+    if (it == g.valueNodes.end())
+        throw std::runtime_error("build_subgraph: output '" + outputId + "' not found");
+    return it->second;
 }
 
 

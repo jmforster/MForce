@@ -1,0 +1,22 @@
+{
+  "sampleRate": 48000,
+  "seconds": 2,
+  "graph": {
+    "nodes": [
+      { "id": "env1", "type": "Envelope",
+        "params": { "preset": "adsr", "attack": 0.01, "decay": 0.01,
+                    "sustainLevel": 1.0, "release": 0.05 } },
+      { "id": "wn1", "type": "WhiteNoiseSource",
+        "params": { "amplitude": { "ref": "env1" }, "seed": 0 } },
+      { "id": "mux1", "type": "MultiplexSource",
+        "params": { "count": 2, "source": { "ref": "wn1" } } },
+      { "id": "ch1", "type": "SoundChannel",
+        "inputs": { "source": "mux1" },
+        "params": { "volume": 1.0, "pan": 0.0 } },
+      { "id": "mix", "type": "StereoMixer",
+        "inputs": { "channels": ["ch1"] },
+        "params": { "gainL": 1.0, "gainR": 1.0 } }
+    ],
+    "output": "mix"
+  }
+}

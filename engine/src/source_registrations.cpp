@@ -25,6 +25,7 @@
 #include "mforce/source/wavetable_source.h"
 #include "mforce/source/hybrid_ks_source.h"
 #include "mforce/source/combined_source.h"
+#include "mforce/source/multiplex_source.h"
 #include "mforce/source/segment_source.h"
 #include "mforce/source/repeating_source.h"
 #include "mforce/source/phased_value_source.h"
@@ -327,6 +328,9 @@ void register_all_sources() {
 
     reg.register_type("MultiSource", SourceCategory::Combiner,
         [](int, auto) { return std::make_shared<MultiSource>(); });
+
+    reg.register_type("MultiplexSource", SourceCategory::Combiner,
+        [](int, auto) { return std::make_shared<MultiplexSource>(); });
 
     reg.register_type("SegmentSource", SourceCategory::Generator,
         [](int sr, auto seed) {
