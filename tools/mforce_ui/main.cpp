@@ -420,6 +420,47 @@ static GraphNode* find_node_for_pin(int pinId) {
     return nullptr;
 }
 
+// Structural pin compatibility. Returns a user-readable error message if the
+// source's type can't satisfy the target pin's interface requirement, or
+// nullptr if the link is fine. Keeps "lying wires" out of the UI: before
+// this check, the loader silently dropped mismatched refs (non-IFormant
+// wired to FormantSpectrum.formants, non-IPartials wired to partials pins,
+// etc.) and the UI showed the link anyway.
+static const char* pin_type_compat_error(const std::string& targetType,
+                                         const std::string& targetPin,
+                                         const std::string& sourceType) {
+    auto is_iformant = [](const std::string& t) {
+        return t == "Formant" || t == "FormantSpectrum" ||
+               t == "FixedSpectrum" || t == "BandSpectrum" ||
+               t == "FormantSequence";
+    };
+    auto is_ipartials = [](const std::string& t) {
+        return t == "FullPartials" || t == "SequencePartials" ||
+               t == "ExplicitPartials" || t == "CompositePartials";
+    };
+
+    // IFormant-requiring pins
+    bool needsFormant =
+        (targetType == "FormantSpectrum" && targetPin == "formants") ||
+        (targetType == "FormantSequence" && targetPin == "spectra") ||
+        ((targetType == "AdditiveSource"   || targetType == "AdditiveSource2" ||
+          targetType == "BasicAdditiveSource") && targetPin == "formant");
+    if (needsFormant && !is_iformant(sourceType)) {
+        return "Pin needs a Formant-type source (Formant, FormantSpectrum, FixedSpectrum, BandSpectrum, or FormantSequence)";
+    }
+
+    // IPartials-requiring pins
+    bool needsPartials =
+        (targetType == "CompositePartials" && targetPin == "partials") ||
+        ((targetType == "AdditiveSource"   || targetType == "AdditiveSource2" ||
+          targetType == "BasicAdditiveSource") && targetPin == "partials");
+    if (needsPartials && !is_ipartials(sourceType)) {
+        return "Pin needs a Partials-type source (FullPartials, SequencePartials, ExplicitPartials, or CompositePartials)";
+    }
+
+    return nullptr;
+}
+
 // Rewire DSP after a link is created or destroyed
 static void dsp_rewire_link(int outputPinId, int inputPinId, bool connect) {
     GraphNode* srcNode = find_node_for_pin(outputPinId);
@@ -3754,17 +3795,37 @@ int main(int argc, char** argv) {
                 int outPin = (startPin->kind == PinKind::Output) ? startAttr : endAttr;
                 int inPin  = (startPin->kind == PinKind::Input)  ? startAttr : endAttr;
 
-                Pin* inPinObj = find_pin(inPin);
-                if (!inPinObj || !inPinObj->multi) {
-                    s_links.erase(
-                        std::remove_if(s_links.begin(), s_links.end(),
-                            [inPin](const Link& l) { return l.endPinId == inPin || l.startPinId == inPin; }),
-                        s_links.end());
+                // Reject structurally incompatible links. Target pins that
+                // expect IFormant / IPartials can't accept arbitrary sources
+                // — before this check the loader silently dropped mismatched
+                // set_param calls, leaving a "lying wire" in the UI with no
+                // corresponding DSP connection.
+                GraphNode* outNode = find_node_for_pin(outPin);
+                GraphNode* inNode  = find_node_for_pin(inPin);
+                Pin* inPinDesc     = find_pin(inPin);
+                bool accept = true;
+                if (outNode && inNode && inPinDesc) {
+                    const char* err = pin_type_compat_error(
+                        inNode->typeName, inPinDesc->name, outNode->typeName);
+                    if (err) {
+                        transport_set_status(err, true);
+                        accept = false;
+                    }
                 }
 
-                s_links.emplace_back(outPin, inPin);
-                update_all_dsp();
-                s_graphDirty = true;
+                if (accept) {
+                    Pin* inPinObj = find_pin(inPin);
+                    if (!inPinObj || !inPinObj->multi) {
+                        s_links.erase(
+                            std::remove_if(s_links.begin(), s_links.end(),
+                                [inPin](const Link& l) { return l.endPinId == inPin || l.startPinId == inPin; }),
+                            s_links.end());
+                    }
+
+                    s_links.emplace_back(outPin, inPin);
+                    update_all_dsp();
+                    s_graphDirty = true;
+                }
             }
         }
 
