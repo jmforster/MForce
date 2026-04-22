@@ -686,12 +686,14 @@ struct Conductor {
         Instrument* inst = lookup_instrument(part.instrumentType);
         if (!inst) continue;
 
-        // Event-list path: if the Part has direct events, play them
+        // Authoritative path: Composer-populated ElementSequence wins.
         if (!part.elementSequence.empty()) {
           perform_events(part, bpm, beatOffset, inst);
+          continue;
         }
 
-        // Compositional path: if the Part has a Passage for this Section
+        // Migration scaffolding ONLY: walk the passage tree for Parts whose
+        // realize step hasn't been written yet. Removed at Stage 8.
         auto it = part.passages.find(section.name);
         if (it != part.passages.end()) {
           perform_passage(it->second, scale, beatOffset, bpm, inst,
