@@ -639,10 +639,9 @@ static std::string open_file_dialog() {
 
 static bool s_needsLayout = false;
 
-static void load_graph() {
+static void load_graph_from_path(const std::string& path) {
     using json = nlohmann::json;
 
-    std::string path = open_file_dialog();
     if (path.empty()) return;
 
     std::ifstream f(path);
@@ -931,6 +930,13 @@ static void load_graph() {
 
     // Wire all DSP connections (including RefSource for shared sources)
     update_all_dsp();
+}
+
+// Dialog-driven wrapper for load_graph_from_path.
+static void load_graph() {
+    std::string path = open_file_dialog();
+    if (path.empty()) return;
+    load_graph_from_path(path);
 }
 
 // ===========================================================================
@@ -1609,6 +1615,39 @@ static void prepare_graph(int samples) {
 }
 
 // Offline render: populate per-node waveformData and g_outputWaveform for display
+// Overwrite g_outputWaveform with authoritative audio produced via
+// load_instrument_patch — the same path CLI `mforce_cli` uses, so
+// MultiplexSource fan-out (and any other load-time constructs) apply.
+// Called after render_waveforms during Generate so per-node displays still
+// use the UI DSP tree for per-node waveforms, but the main g_outputWaveform
+// and Play path reflect what the patch will really sound like.
+static void render_output_authoritative(float noteNum, float velocity,
+                                        float durationSeconds) {
+    std::string path = get_playback_patch_path();
+    if (path.empty()) return;
+
+    try {
+        auto ip = load_instrument_patch(path);
+        auto* pitched = dynamic_cast<PitchedInstrument*>(ip.instrument.get());
+        if (!pitched) return;
+
+        ip.instrument->volume = 1.0f;
+        pitched->play_note(noteNum, velocity, durationSeconds, 0.0f);
+
+        int frames = int((durationSeconds + 0.5f) * float(ip.sampleRate));
+        g_outputWaveform.assign(frames, 0.0f);
+        g_waveformSamples = frames;
+        RenderContext ctx{ip.sampleRate};
+        ip.instrument->render(ctx, g_outputWaveform.data(), frames);
+
+        // Reset waveform view to show the full authoritative buffer.
+        g_waveScrollPos = 0;
+        g_waveZoom = std::max(1, frames / 800);
+    } catch (const std::exception& e) {
+        std::fprintf(stderr, "render_output_authoritative failed: %s\n", e.what());
+    }
+}
+
 static void render_waveforms(float noteNum, float velocity, float durationSeconds) {
     ValueSource* src = find_output_source();
     if (!src) return;
@@ -2265,7 +2304,13 @@ static void transport_generate() {
                 break;
             }
             float noteNum = parse_note_input(g_transport.noteStr);
+            // Per-node waveforms from UI DSP tree (fast, for inspector views).
             render_waveforms(noteNum, g_transport.velocity, g_transport.duration);
+            // Authoritative audio into g_outputWaveform (slow for fat Multiplex;
+            // UI blocks here until done — that's the visible feedback that
+            // generation is running. Play then just streams the buffer.)
+            render_output_authoritative(noteNum, g_transport.velocity,
+                                        g_transport.duration);
             transport_set_status("Generated note", false);
             break;
         }
@@ -2335,8 +2380,12 @@ static void transport_play() {
 
     switch (g_transport.mode) {
         case PlayMode::Note: {
-            float noteNum = parse_note_input(g_transport.noteStr);
-            play_note(noteNum, g_transport.velocity, g_transport.duration);
+            // Stream the pre-rendered buffer produced during Generate. If the
+            // user hasn't Generated yet (or changed the note since last Gen),
+            // generate now so Play reflects current settings.
+            if (g_outputWaveform.empty() || g_waveformSamples == 0)
+                transport_generate();
+            play_buffer();
             break;
         }
         case PlayMode::Passage: {
@@ -3376,7 +3425,7 @@ static void draw_waveform_window() {
 // Main
 // ===========================================================================
 
-int main(int, char**) {
+int main(int argc, char** argv) {
     if (!glfwInit()) return 1;
 
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
@@ -3420,8 +3469,21 @@ int main(int, char**) {
     // Initialize the source registry before creating any nodes
     register_all_sources();
 
-    // Start with a Patch Graph
+    // Start with a Patch Graph — then, if a patch path was passed on the
+    // command line, load it so the user can launch the UI with a patch in
+    // one step (e.g. `mforce_ui.exe patches/MPXTest3.json`).
     new_graph(GraphMode::PatchGraph);
+    if (argc >= 2) {
+        std::string patchArg = argv[1];
+        if (std::filesystem::exists(patchArg)) {
+            try { load_graph_from_path(patchArg); }
+            catch (const std::exception& e) {
+                std::fprintf(stderr, "Failed to load '%s': %s\n", patchArg.c_str(), e.what());
+            }
+        } else {
+            std::fprintf(stderr, "Patch file not found: %s\n", patchArg.c_str());
+        }
+    }
     bool s_firstFrame = true;
     bool s_dockLayoutInitialized = false;
 
