@@ -8,6 +8,8 @@
 
 **Architecture:** 12 sequential stages, each one commit (or small commit cluster), each ending with a build + render + golden hash check. Stages chain autonomously on green; stop on red.
 
+**Key staging principle:** The Conductor dispatch becomes elementSequence-driven at **Stage 2** (early), with the legacy tree-walk path retained ONLY as a fallback for Parts whose elementSequence is still empty during the migration. Subsequent stages (5, 6, 7) populate elementSequence for one Part type at a time; as each type lands, dispatch automatically routes it through `perform_events`, skipping the fallback. Stage 8 deletes the now-unreachable fallback. The "Conductor reads only elementSequence" principle is true in dispatch logic from Stage 2 onward; the tree-walk fallback is migration scaffolding, not part of the architecture.
+
 **Tech Stack:** C++17, CMake, Visual Studio (Windows). Bash shell. nlohmann/json. Existing `mforce_cli --compose` mode for renders.
 
 ---
@@ -47,8 +49,8 @@ Compare to baseline-recorded hash. Mismatch on a "✓ bit-identical" stage = STO
 - `patches/test_k467_harmony.json` — exercises HarmonyComposer + AFS + MelodicFigure + ChordFigure paths.
 - `patches/test_k467_period.json` — period-form passage strategy.
 - `patches/test_k467_structural.json` — broader structural coverage.
-- `patches/test_jazz_turnaround_*.json` (7 patches) — pinned at Stage 2 when chord-walker lands.
-- Sound-tier spot-check (one per family) at Stage 7: `patches/fhn_pure_tone.json`, `patches/Additive1.json`, `patches/sweep/<one>.json`.
+- `patches/test_jazz_turnaround_*.json` (7 patches) — pinned at Stage 3 when chord-walker lands.
+- Sound-tier spot-check (one per family) at Stage 8: `patches/fhn_pure_tone.json`, `patches/Additive1.json`, `patches/sweep/<one>.json`.
 
 **Commit message style:** `<verb>(<scope>): <subject>` matching existing repo convention (e.g. `refactor(structure): introduce ElementSequence type`). Each commit ends with the standard Co-Authored-By footer.
 
@@ -64,19 +66,20 @@ Compare to baseline-recorded hash. Mismatch on a "✓ bit-identical" stage = STO
 ## File Structure
 
 **New files (created during plan):**
-- `engine/include/mforce/music/realization_strategy.h` — interface, registry, RealizationRequest, BlockRealizationStrategy, RhythmPatternRealizationStrategy (Stage 3)
+- `engine/include/mforce/music/realization_strategy.h` — interface, registry, RealizationRequest, BlockRealizationStrategy, RhythmPatternRealizationStrategy (Stage 4)
+- `engine/include/mforce/music/dynamic_state.h` — DynamicState moved from conductor.h so Composer-realize can also use it (Stage 5)
+- `engine/include/mforce/music/pitch_walker.h` — `step_note` / `step_chord_tone` moved from conductor.h to be reused in Composer-realize (Stage 5)
 - (No new test files — the project relies on golden renders rather than unit tests; existing test patches are the fixtures.)
 
 **Files modified:**
 - `engine/include/mforce/music/structure.h` — Element, Part, introduce ElementSequence (Stages 1, 9)
-- `engine/include/mforce/music/composer.h` — `realize_chord_parts_`, new realize sub-step (Stages 4–6, 9)
-- `engine/include/mforce/music/conductor.h` — narrow scope (Stages 7, 8)
-- `engine/include/mforce/music/templates.h` — PassageTemplate fields, dissolve ChordAccompanimentConfig (Stages 3, 11)
-- `engine/include/mforce/music/templates_json.h` — JSON read/write for new fields, remove old (Stages 3, 11)
-- `engine/include/mforce/music/composer.h` (composer constructor/registration) — register RealizationStrategy implementations (Stage 3)
-- `tools/mforce_cli/main.cpp` — possibly minor signature touch-ups if Conductor signature changes (low likelihood; Stages 7, 8)
+- `engine/include/mforce/music/composer.h` — `realize_chord_parts_`, new realize sub-step (Stages 5–7, 9)
+- `engine/include/mforce/music/conductor.h` — exclusive dispatch (Stage 2), narrow scope (Stage 8)
+- `engine/include/mforce/music/templates.h` — PassageTemplate fields, dissolve ChordAccompanimentConfig (Stages 4, 11)
+- `engine/include/mforce/music/templates_json.h` — JSON read/write for new fields, remove old (Stages 4, 11)
+- `tools/mforce_cli/main.cpp` — possibly minor signature touch-ups if Conductor signature changes (low likelihood; Stage 8)
 - `patches/test_k467_walker.json` — chordConfig migration (Stage 10)
-- chord-walker headers — land via merge (Stage 2): `voicing_profile.h`, `voicing_profile_selector.h`, `voicing_selector.h`, `smooth_voicing_selector.h`, `static_voicing_profile_selector.h`, `random_voicing_profile_selector.h`, `drift_voicing_profile_selector.h`, `scripted_voicing_profile_selector.h`, `engine/src/chord.cpp`, plus 7 `patches/test_jazz_turnaround_*.json`
+- chord-walker headers — land via merge (Stage 3): `voicing_profile.h`, `voicing_profile_selector.h`, `voicing_selector.h`, `smooth_voicing_selector.h`, `static_voicing_profile_selector.h`, `random_voicing_profile_selector.h`, `drift_voicing_profile_selector.h`, `scripted_voicing_profile_selector.h`, `engine/src/chord.cpp`, plus 7 `patches/test_jazz_turnaround_*.json`
 
 ---
 
@@ -288,7 +291,91 @@ git commit -m "refactor(structure): introduce ElementSequence; rename Part.event
 
 ---
 
-## Stage 2 — Merge chord-walker into main
+## Stage 2 — Make Conductor dispatch elementSequence-only (with tree-walk fallback)
+
+**Files:**
+- Modify: `engine/include/mforce/music/conductor.h:685-701` (the `for (const auto& part : piece.parts)` dispatch in `perform(Piece&)`)
+
+**Bit-identical:** ✓ (no Part currently has both `elementSequence` and `passages` populated; the change is invisible today but enforces the architectural rule going forward)
+
+**Rationale:** Today the dispatch is *additive* — both `perform_events(elementSequence)` AND `perform_passage(tree)` run for the same Part. That's a latent bug that current code happens not to trigger. The refactor's substantive stages (5, 6, 7) populate `elementSequence` for Part types one at a time; we need the dispatch to be *exclusive* (elementSequence wins; passage walk is fallback) so that as soon as a Part type's realize lands, Conductor automatically picks the new path.
+
+### 2a — Refactor dispatch
+
+- [ ] **2.1** In `conductor.h`, locate the `perform(const Piece&)` body (around line 674-705). The current dispatch loop:
+
+```cpp
+for (const auto& part : piece.parts) {
+    Instrument* inst = lookup_instrument(part.instrumentType);
+    if (!inst) continue;
+
+    // Event-list path: if the Part has direct events, play them
+    if (!part.elementSequence.empty()) {     // post-Stage-1 name
+        perform_events(part, bpm, beatOffset, inst);
+    }
+
+    // Compositional path: if the Part has a Passage for this Section
+    auto it = part.passages.find(section.name);
+    if (it != part.passages.end()) {
+        perform_passage(it->second, scale, beatOffset, bpm, inst,
+                        section.chordProgression, section.scale,
+                        4, effectiveBeats);
+    }
+}
+```
+
+Change to exclusive dispatch:
+
+```cpp
+for (const auto& part : piece.parts) {
+    Instrument* inst = lookup_instrument(part.instrumentType);
+    if (!inst) continue;
+
+    // Authoritative path: Composer-populated ElementSequence.
+    if (!part.elementSequence.empty()) {
+        perform_events(part, bpm, beatOffset, inst);
+        continue;  // ← key change: exclusive
+    }
+
+    // Fallback during migration ONLY: walk the passage tree.
+    // Removed at Stage 8 once every Part type has its realize step.
+    auto it = part.passages.find(section.name);
+    if (it != part.passages.end()) {
+        perform_passage(it->second, scale, beatOffset, bpm, inst,
+                        section.chordProgression, section.scale,
+                        4, effectiveBeats);
+    }
+}
+```
+
+The added `continue` is the entire behavior change. Add a comment block above the loop noting the fallback is migration scaffolding scheduled for deletion at Stage 8.
+
+### 2b — Verify bit-identical
+
+- [ ] **2.2** Build:
+
+```bash
+cmake --build build --config Release --target mforce_cli
+```
+
+Expected: clean build.
+
+- [ ] **2.3** Render all 4 K467 goldens + sha256sum + compare to baseline. Expected: all bit-identical.
+
+  (Today no Part has BOTH paths populated. Audit assumption: chord parts use `add_chord` → events only, no passage. Algorithmic melody parts use AFS/period strategies → passage only, no events. If any patch breaks, we've found a Part with both populated; surface to user.)
+
+- [ ] **2.4** STOP on any mismatch.
+
+- [ ] **2.5** Commit:
+
+```bash
+git add engine/include/mforce/music/conductor.h
+git commit -m "refactor(conductor): exclusive dispatch — elementSequence wins, tree-walk is migration fallback"
+```
+
+---
+
+## Stage 3 — Merge chord-walker into main
 
 **Files:** Many — see chord-walker branch tip. The merge brings:
 - New: `engine/include/mforce/music/voicing_profile.h`, `voicing_profile_selector.h`, `voicing_selector.h`, `smooth_voicing_selector.h`, `static_voicing_profile_selector.h`, `random_voicing_profile_selector.h`, `drift_voicing_profile_selector.h`, `scripted_voicing_profile_selector.h`
@@ -297,17 +384,17 @@ git commit -m "refactor(structure): introduce ElementSequence; rename Part.event
 
 **Bit-identical:** ✓ for K467 (chord-walker work doesn't touch its path); jazz turnaround demos are NEW goldens pinned this stage.
 
-### 2a — Merge
+### 3a — Merge
 
-- [ ] **2.1** Verify chord-walker branch has all stage 0 stage 1 changes from main applied first. If main has diverged from chord-walker since last update:
+- [ ] **3.1** Verify chord-walker branch has all stages 0-2 changes from main applied first. If main has diverged from chord-walker since last update:
 
 ```bash
-git -C . log --oneline main ^chord-walker | head
+git log --oneline main ^chord-walker | head
 ```
 
-Expected: list of main commits NOT yet on chord-walker. If non-empty, the merge will need conflict resolution.
+Expected: list of main commits NOT yet on chord-walker. Stages 0-2 will be in this list. Merging will need to incorporate them.
 
-- [ ] **2.2** Create merge branch (preserves main + chord-walker history independently):
+- [ ] **3.2** Create merge branch (preserves main + chord-walker history independently):
 
 ```bash
 git checkout -b merge-chord-walker
@@ -315,17 +402,17 @@ git merge chord-walker
 ```
 
 Expected outcomes:
-- (a) Clean merge → proceed to 2.4.
-- (b) Conflicts → likely in `templates.h` (Stage 1 also touched it indirectly via Part) or in places main has changed since chord-walker branched. Resolve by hand. Ask user before any non-mechanical resolution decision.
+- (a) Clean merge → proceed to 3.4.
+- (b) Conflicts → likely in `templates.h` (PassageTemplate gained `voicingSelector` on chord-walker; main may have touched the same area) and possibly `structure.h` (Stage 1 renamed `Part.events`). Resolve by hand. Ask user before any non-mechanical resolution decision.
 
-- [ ] **2.3** If conflicts resolved:
+- [ ] **3.3** If conflicts resolved:
 
 ```bash
 git add <resolved files>
 git commit
 ```
 
-- [ ] **2.4** Build:
+- [ ] **3.4** Build:
 
 ```bash
 cmake --build build --config Release --target mforce_cli
@@ -333,33 +420,33 @@ cmake --build build --config Release --target mforce_cli
 
 Expected: clean build. Errors are likely compile-time signature mismatches between chord-walker's voicing types and main's post-Stage-1 ElementSequence. Fix or surface to user.
 
-### 2b — Re-verify K467 bit-identical after merge
+### 3b — Re-verify K467 bit-identical after merge
 
-- [ ] **2.5** Render K467 goldens and confirm hashes still match baseline:
+- [ ] **3.5** Render K467 goldens and confirm hashes still match baseline:
 
 ```bash
 for p in walker harmony period structural; do
-    build/tools/mforce_cli/Release/mforce_cli.exe --compose patches/test_k467_${p}.json renders/stage2_k467_${p} 1
+    build/tools/mforce_cli/Release/mforce_cli.exe --compose patches/test_k467_${p}.json renders/stage3_k467_${p} 1
 done
-sha256sum renders/stage2_k467_*.wav
+sha256sum renders/stage3_k467_*.wav
 ```
 
 Expected: all match baseline. (chord-walker introduced VoicingSelector but didn't wire it into `realize_chord_parts_`; K467 still goes through `sc->resolve(...)`.)
 
-### 2c — Pin jazz turnaround goldens
+### 3c — Pin jazz turnaround goldens
 
-- [ ] **2.6** Render each jazz turnaround patch and add hash to baseline file:
+- [ ] **3.6** Render each jazz turnaround patch and add hash to baseline file:
 
 ```bash
 for p in flat p0 p05 p1 random drift scripted; do
-    build/tools/mforce_cli/Release/mforce_cli.exe --compose patches/test_jazz_turnaround_${p}.json renders/stage2_jazz_${p} 1
+    build/tools/mforce_cli/Release/mforce_cli.exe --compose patches/test_jazz_turnaround_${p}.json renders/stage3_jazz_${p} 1
 done
-sha256sum renders/stage2_jazz_*.wav >> docs/superpowers/baselines/2026-04-22-composer-owns-events-baselines.txt
+sha256sum renders/stage3_jazz_*.wav >> docs/superpowers/baselines/2026-04-22-composer-owns-events-baselines.txt
 ```
 
 Expected: 7 (or however many demo patches landed) NEW hashes appended to baseline.
 
-- [ ] **2.7** Fast-forward main to merge branch:
+- [ ] **3.7** Fast-forward main to merge branch:
 
 ```bash
 git checkout main
@@ -368,7 +455,7 @@ git merge --ff-only merge-chord-walker
 
 If not fast-forwardable (some commit landed on main during the merge), surface to user.
 
-- [ ] **2.8** Commit the baseline update:
+- [ ] **3.8** Commit the baseline update:
 
 ```bash
 git add docs/superpowers/baselines/2026-04-22-composer-owns-events-baselines.txt
@@ -377,7 +464,7 @@ git commit -m "chore(baselines): pin jazz turnaround goldens after chord-walker 
 
 ---
 
-## Stage 3 — `RealizationStrategy` interface + registry
+## Stage 4 — `RealizationStrategy` interface + registry
 
 **Files:**
 - Create: `engine/include/mforce/music/realization_strategy.h`
@@ -387,9 +474,9 @@ git commit -m "chore(baselines): pin jazz turnaround goldens after chord-walker 
 
 **Bit-identical:** ✓ (interface exists but is not yet wired into compose path)
 
-### 3a — Define interface
+### 4a — Define interface
 
-- [ ] **3.1** Create `engine/include/mforce/music/realization_strategy.h`:
+- [ ] **4.1** Create `engine/include/mforce/music/realization_strategy.h`:
 
 ```cpp
 #pragma once
@@ -432,7 +519,7 @@ struct RealizationRequest {
     float durationBeats;
     int barIndex;                              // 1-based bar within the section
     const RhythmPattern* rhythmPattern;        // optional; nullptr if N/A
-    // Future fields (meter, dynamics-at-beat, scale, etc.) added as needed.
+    // Future fields (meter, dynamics-at-beat, etc.) added as needed.
 };
 
 // ---------------------------------------------------------------------------
@@ -467,30 +554,29 @@ private:
 };
 
 // ---------------------------------------------------------------------------
-// BlockRealizationStrategy — emits all chord pitches simultaneously at
-// startBeat for durationBeats. The "do nothing fancy" default.
+// BlockRealizationStrategy — emits the chord as a single Chord-event at
+// startBeat for durationBeats. (Stage 4 starts as Chord-event for back-compat
+// with ChordPerformer; Stage 9 will rewrite to emit per-tone Notes.)
 // ---------------------------------------------------------------------------
 class BlockRealizationStrategy : public RealizationStrategy {
 public:
     std::string name() const override { return "block"; }
     void realize(const RealizationRequest& req, ElementSequence& out) override {
-        Element e{req.startBeat, req.chord};   // until stage 9, emit Chord-event
-        // Note: req.chord.dur should already equal req.durationBeats. Trust it.
+        Element e{req.startBeat, req.chord};
         out.add(e);
     }
 };
 
 // ---------------------------------------------------------------------------
 // RhythmPatternRealizationStrategy — for each entry in the rhythm pattern,
-// emits all chord pitches at the corresponding beat with the entry's
-// duration (negative entries become Rests).
+// emits the chord at the corresponding beat with the entry's duration
+// (negative entries become Rests).
 // ---------------------------------------------------------------------------
 class RhythmPatternRealizationStrategy : public RealizationStrategy {
 public:
     std::string name() const override { return "rhythm_pattern"; }
     void realize(const RealizationRequest& req, ElementSequence& out) override {
         if (!req.rhythmPattern) {
-            // Fallback: behave like Block.
             out.add({req.startBeat, req.chord});
             return;
         }
@@ -513,9 +599,9 @@ public:
 } // namespace mforce
 ```
 
-### 3b — Register the two defaults at Composer construction
+### 4b — Register the two defaults at Composer construction
 
-- [ ] **3.2** In `composer.h`, find the Composer constructor (around line 90-130 where strategies are registered). Add an include for `realization_strategy.h` and register:
+- [ ] **4.2** In `composer.h`, find the Composer constructor (around line 90-130 where strategies are registered). Add an include for `realization_strategy.h` and register:
 
 ```cpp
 // At top with other includes:
@@ -527,14 +613,14 @@ realRegistry.register_strategy(std::make_unique<BlockRealizationStrategy>());
 realRegistry.register_strategy(std::make_unique<RhythmPatternRealizationStrategy>());
 ```
 
-### 3c — Add `realizationStrategy` field to PassageTemplate
+### 4c — Add `realizationStrategy` field to PassageTemplate
 
-- [ ] **3.3** In `templates.h`, in `PassageTemplate` (around line 336-365):
+- [ ] **4.3** In `templates.h`, in `PassageTemplate` (around line 336-365):
 
 ```cpp
 struct PassageTemplate {
     // ... existing fields ...
-    std::string voicingSelector;       // already added by chord-walker (Stage 2)
+    std::string voicingSelector;       // already added by chord-walker (Stage 3)
     std::string realizationStrategy;   // NEW — empty defaults to "block"
     std::optional<RhythmPattern> rhythmPattern;  // NEW — config for rhythm_pattern strategy
 };
@@ -542,9 +628,9 @@ struct PassageTemplate {
 
 Add `#include "mforce/music/realization_strategy.h"` if needed.
 
-### 3d — JSON read/write
+### 4d — JSON read/write
 
-- [ ] **3.4** In `templates_json.h`, find the `PassageTemplate` from_json (around the line where `voicingSelector` is read; chord-walker added it at Stage 2). Add:
+- [ ] **4.4** In `templates_json.h`, find the `PassageTemplate` from_json (around the line where `voicingSelector` is read; chord-walker added it at Stage 3). Add:
 
 ```cpp
 if (j.contains("realizationStrategy"))
@@ -590,7 +676,7 @@ if (pt.rhythmPattern) {
 }
 ```
 
-- [ ] **3.5** Build:
+- [ ] **4.5** Build:
 
 ```bash
 cmake --build build --config Release --target mforce_cli
@@ -598,25 +684,25 @@ cmake --build build --config Release --target mforce_cli
 
 Expected: clean build.
 
-### 3e — Verify bit-identical
+### 4e — Verify bit-identical
 
-- [ ] **3.6** Render all 11 goldens (4 K467 + 7 jazz turnaround) and compare hashes:
+- [ ] **4.6** Render all 11 goldens (4 K467 + 7 jazz turnaround) and compare hashes:
 
 ```bash
 for p in walker harmony period structural; do
-    build/tools/mforce_cli/Release/mforce_cli.exe --compose patches/test_k467_${p}.json renders/stage3_k467_${p} 1
+    build/tools/mforce_cli/Release/mforce_cli.exe --compose patches/test_k467_${p}.json renders/stage4_k467_${p} 1
 done
 for p in flat p0 p05 p1 random drift scripted; do
-    build/tools/mforce_cli/Release/mforce_cli.exe --compose patches/test_jazz_turnaround_${p}.json renders/stage3_jazz_${p} 1
+    build/tools/mforce_cli/Release/mforce_cli.exe --compose patches/test_jazz_turnaround_${p}.json renders/stage4_jazz_${p} 1
 done
-sha256sum renders/stage3_k467_*.wav renders/stage3_jazz_*.wav
+sha256sum renders/stage4_k467_*.wav renders/stage4_jazz_*.wav
 ```
 
 Expected: all 11 match the corresponding entries in `docs/superpowers/baselines/2026-04-22-composer-owns-events-baselines.txt`.
 
-- [ ] **3.7** STOP on any mismatch.
+- [ ] **4.7** STOP on any mismatch.
 
-- [ ] **3.8** Commit:
+- [ ] **4.8** Commit:
 
 ```bash
 git add engine/include/mforce/music/realization_strategy.h engine/include/mforce/music/composer.h engine/include/mforce/music/templates.h engine/include/mforce/music/templates_json.h
@@ -625,17 +711,21 @@ git commit -m "feat(realization): RealizationStrategy interface + Block/RhythmPa
 
 ---
 
-## Stage 4 — Composer realize-to-events: `MelodicFigure`
+## Stage 5 — Realize melody Parts (MelodicFigure)
 
 **Files:**
+- Create: `engine/include/mforce/music/dynamic_state.h` (extracted from conductor.h)
+- Create: `engine/include/mforce/music/pitch_walker.h` (extracted from conductor.h)
+- Modify: `engine/include/mforce/music/conductor.h` (replace inline DynamicState + step_note with includes)
 - Modify: `engine/include/mforce/music/composer.h` (add realize sub-step at end of compose())
-- Possibly: `engine/include/mforce/music/conductor.h` (move `step_note` helper to a shared header or duplicate)
 
-**Bit-identical:** ✓ (Conductor still authoritative; new emit runs in parallel and is ignored)
+**Bit-identical:** ✓
 
-### 4a — Decide DynamicState location
+**What this stage does:** Composer's `compose()` gains a final sub-step that walks each melody Part's Passage tree and emits realized Notes into `Part.elementSequence`. Stage 2's exclusive dispatch then automatically routes those Parts through `perform_events`, skipping the tree-walk fallback. The bit-identity check at the end verifies that the realize step produced the same Notes as the tree-walk would have.
 
-- [ ] **4.1** Read `conductor.h:125-160` (DynamicState struct + `velocity_at`). Move to `engine/include/mforce/music/dynamic_state.h` (new file) so both Composer and Conductor can include it. Update Conductor's include accordingly. No behavior change.
+### 5a — Extract DynamicState to its own header
+
+- [ ] **5.1** Read `conductor.h:125-160` (DynamicState struct + `velocity_at`). Create `engine/include/mforce/music/dynamic_state.h`:
 
 ```cpp
 // engine/include/mforce/music/dynamic_state.h
@@ -644,59 +734,72 @@ git commit -m "feat(realization): RealizationStrategy interface + Block/RhythmPa
 #include "mforce/music/rng.h"
 
 namespace mforce {
-// ... full DynamicState struct moved verbatim from conductor.h ...
-}
+
+// (Move the full DynamicState struct verbatim from conductor.h here,
+//  preserving constructors, members, methods.)
+
+} // namespace mforce
 ```
 
 In `conductor.h`, replace the inline struct with `#include "mforce/music/dynamic_state.h"`.
 
-- [ ] **4.2** Build to verify the move is clean:
+### 5b — Extract pitch-walker helpers to their own header
 
-```bash
-cmake --build build --config Release --target mforce_cli
-```
-
-### 4b — Add `step_note` to a shared location
-
-- [ ] **4.3** `Conductor::step_note` is currently a method on Conductor (or a free function in `conductor.h`). Identify its definition (grep: `step_note`). Move to `engine/include/mforce/music/pitch_walker.h` (new):
+- [ ] **5.2** Locate `step_note` and `step_chord_tone` in `conductor.h` (grep for them). They're currently methods or free functions in conductor's namespace. Move to `engine/include/mforce/music/pitch_walker.h`:
 
 ```cpp
 // engine/include/mforce/music/pitch_walker.h
 #pragma once
 #include "mforce/music/basics.h"
+#include "mforce/music/structure.h"
+#include <vector>
 
 namespace mforce {
 
 // Step `currentNN` by `step` scale degrees in the given Scale.
 inline float step_note(float currentNN, int step, const Scale& scale) {
-    // ... copy current implementation verbatim ...
+    // (move current implementation verbatim)
 }
 
-// Step `currentNN` to nearest chord-tone, then `step` chord-tones.
+// Step `currentNN` to nearest chord-tone, then `step` chord-tones within
+// the resolved chord's pitch list.
 inline float step_chord_tone(float currentNN, int step,
                              const std::vector<Pitch>& chordTones) {
-    // ... copy current implementation verbatim ...
+    // (move current implementation verbatim)
 }
 
 } // namespace mforce
 ```
 
-Replace Conductor's local implementations with includes + calls. Build clean. (No behavior change.)
+In `conductor.h`, replace the inline definitions with `#include "mforce/music/pitch_walker.h"` and use the free functions.
 
-### 4c — Add realize sub-step skeleton
+- [ ] **5.3** Build to verify the moves are clean:
 
-- [ ] **4.4** In `composer.h`, after the existing `compose()` body completes (after `realize_chord_parts_(piece, tmpl);` at line 146), add a new call:
+```bash
+cmake --build build --config Release --target mforce_cli
+```
+
+Expected: clean build, no behavior change.
+
+### 5c — Render once to confirm extractions are still bit-identical
+
+- [ ] **5.4** Render all 11 goldens + sha256sum + compare. Expected: all bit-identical (we just moved code, didn't change it).
+
+  STOP on any mismatch.
+
+### 5d — Add realize sub-step skeleton to Composer
+
+- [ ] **5.5** In `composer.h`, after the existing `compose()` body completes (after `realize_chord_parts_(piece, tmpl);` at line 146), add a new call:
 
 ```cpp
 realize_event_sequences_(piece, tmpl);
 ```
 
-- [ ] **4.5** Define `realize_event_sequences_` as a private method on Composer:
+- [ ] **5.6** Define `realize_event_sequences_` and helpers as private methods on Composer. **Stage 5 implements the MelodicFigure path only** — Stages 6 and 7 will extend this same method to handle ChordFigure and Chord-events.
 
 ```cpp
 void realize_event_sequences_(Piece& piece, const PieceTemplate& tmpl) {
     for (auto& part : piece.parts) {
-        // For each Section, look up the Part's Passage in this Section
         for (const auto& sec : piece.sections) {
             auto it = part.passages.find(sec.name);
             if (it == part.passages.end()) continue;
@@ -718,13 +821,14 @@ float section_start_beat_(const Piece& piece, const std::string& sectionName) co
 
 void realize_passage_to_events_(Part& part, const Passage& passage,
                                 const Section& section, float passageStartBeat) {
-    // Stage 4 implements MelodicFigure path only.
-    // Stages 5 and 6 add ChordFigure and Chord-event paths.
-    // For now: skip ChordFigure-only passages (handled at Stage 5).
+    // Stage 5: MelodicFigure only. Stages 6 and 7 add ChordFigure and chord-events.
 
     DynamicState dyn(passage.dynamicMarkings);
     float currentNN = -1.0f;
     bool haveStartingPitch = false;
+    float currentBeat = passageStartBeat;
+    const float effectiveBeats = section.beats - section.truncateTailBeats;
+    const float passageEndBeat = passageStartBeat + std::max(0.0f, effectiveBeats);
 
     for (const auto& phrase : passage.phrases) {
         if (!haveStartingPitch) {
@@ -733,87 +837,86 @@ void realize_passage_to_events_(Part& part, const Passage& passage,
         }
         for (const auto& figPtr : phrase.figures) {
             auto* mel = dynamic_cast<const MelodicFigure*>(figPtr.get());
-            if (!mel) continue;  // chord figure → handled at Stage 5
+            if (!mel) continue;  // chord figure: handled at Stage 6
             for (const auto& unit : mel->units) {
+                if (currentBeat >= passageEndBeat) return;  // truncation
                 currentNN = step_note(currentNN, unit.step, section.scale);
                 float soundNN = currentNN + float(unit.accidental);
-                float vel = dyn.velocity_at(/* current passage-relative beat */);
-                // TODO at 4.6: track passage-relative beat
+                float vel = dyn.velocity_at(currentBeat - passageStartBeat);
                 Note n;
                 n.noteNumber = soundNN;
                 n.velocity = vel;
                 n.durationBeats = unit.duration;
-                part.elementSequence.add({/*startBeats=*/0.0f, n});
-                // TODO at 4.6: actual startBeats
+                part.elementSequence.add({currentBeat, n});
+                currentBeat += unit.duration;
             }
         }
     }
 }
 ```
 
-- [ ] **4.6** Replace the TODO placeholders with proper beat tracking. Track `currentBeat` (initially `passageStartBeat`), advance by `unit.duration` after each Note, pass to `dyn.velocity_at(currentBeat - passageStartBeat)`.
+**Important**: cross-check exact behavior of `Conductor::perform_phrase` (`conductor.h:785-860+`) — articulation/ornament transfer, accidental handling, beat tracking. The realize step must produce the same Notes (same pitch, velocity, duration, articulation) Conductor would have produced, OR bit-identity fails at 5.7.
 
-The full body should mirror `Conductor::perform_phrase` (`conductor.h:785-860+`) — same step-walking, same accidental handling, same dynamics lookup, same cross-passage truncation logic (`Section::truncateTailBeats`), but emitting Notes into `part.elementSequence` rather than playing through an instrument.
+If Conductor's `perform_phrase` does anything that doesn't fit cleanly in "emit a Note" (e.g. starts a long-running ornament expansion that consumes multiple figure-units), surface to user — that may need to stay in the perform tier and be re-thought.
 
-**Important**: `Conductor::perform_phrase` ALSO walks ChordFigure units (the `dynamic_cast<ChordFigure>` discriminator). For Stage 4, only handle MelodicFigure; Stage 5 adds ChordFigure.
+### 5e — Verify bit-identical
 
-### 4d — Verify bit-identical
-
-- [ ] **4.7** Build:
+- [ ] **5.7** Build:
 
 ```bash
 cmake --build build --config Release --target mforce_cli
 ```
 
-Expected: clean build.
+- [ ] **5.8** Render all 11 goldens + sha256sum + compare.
 
-- [ ] **4.8** Render all 11 goldens. Compare hashes:
+  Expected: all bit-identical. Now that melody Parts have non-empty elementSequence, Stage 2's exclusive dispatch routes them through `perform_events` (NotePerformer reads the realized Notes) instead of `perform_passage` (which would have walked the tree and computed pitches inline).
 
-```bash
-# (same render commands as 3.6)
-sha256sum renders/stage4_k467_*.wav renders/stage4_jazz_*.wav
-```
+  Most likely failure modes:
+  - Notes don't match what tree-walk would have produced (different pitches due to a step_note difference, different velocities due to DynamicState lookup at different beats, etc.).
+  - Articulation/ornament fields on Note aren't being populated by the realize step.
+  - The `Section::truncateTailBeats` boundary is hit at a different beat than tree-walk hit it.
 
-Expected: all match baseline. (Conductor still walks the tree; the new realize step populates `elementSequence` but Conductor doesn't read it yet.)
+  STOP on any mismatch. Diagnose with `cmp -l`, then look for the divergence in Note construction.
 
-- [ ] **4.9** STOP on any mismatch.
-
-- [ ] **4.10** Commit:
+- [ ] **5.9** Commit:
 
 ```bash
-git add engine/include/mforce/music/composer.h engine/include/mforce/music/dynamic_state.h engine/include/mforce/music/pitch_walker.h engine/include/mforce/music/conductor.h
+git add engine/include/mforce/music/dynamic_state.h engine/include/mforce/music/pitch_walker.h engine/include/mforce/music/conductor.h engine/include/mforce/music/composer.h
 git commit -m "feat(composer): realize MelodicFigure into Part.elementSequence"
 ```
 
 ---
 
-## Stage 5 — Composer realize-to-events: `ChordFigure`
+## Stage 6 — Realize chord-figure Parts (ChordFigure)
 
 **Files:**
-- Modify: `engine/include/mforce/music/composer.h` (extend `realize_passage_to_events_`)
+- Modify: `engine/include/mforce/music/composer.h` (extend `realize_passage_to_events_` to handle ChordFigure)
 
 **Bit-identical:** ✓
 
-### 5a — Add ChordFigure branch
+**What this stage does:** Extends Stage 5's realize sub-step to also walk ChordFigure units and emit Notes via `step_chord_tone` against the active chord. Same atomic-swap mechanic via Stage 2's exclusive dispatch.
 
-- [ ] **5.1** In `realize_passage_to_events_`, replace the `if (!mel) continue;` skip with a discrimination:
+### 6a — Add ChordFigure branch
+
+- [ ] **6.1** In `realize_passage_to_events_`, where Stage 5 added `if (!mel) continue;`, replace with discrimination plus a chord-tone branch:
 
 ```cpp
-const auto* mel  = dynamic_cast<const MelodicFigure*>(figPtr.get());
-const auto* chf  = dynamic_cast<const ChordFigure*>(figPtr.get());
+const auto* mel = dynamic_cast<const MelodicFigure*>(figPtr.get());
+const auto* chf = dynamic_cast<const ChordFigure*>(figPtr.get());
 if (!mel && !chf) continue;
-```
 
-For the ChordFigure branch, replicate `Conductor::perform_phrase`'s chord-tone path (`conductor.h:814-829`):
-
-```cpp
-if (chf) {
+if (mel) {
+    // (existing Stage 5 melodic-step body)
+    for (const auto& unit : mel->units) {
+        // ... step_note path ...
+    }
+} else {
+    // ChordFigure: walk chord tones from active chord at this beat.
     for (const auto& unit : chf->units) {
-        // Find active chord at currentBeat (section-relative)
-        float sectionBeat = currentBeat - passageStartBeat;
+        if (currentBeat >= passageEndBeat) return;  // truncation
+        const float sectionBeat = currentBeat - passageStartBeat;
         Chord active = find_active_chord_(section, sectionBeat);
-        auto resolvedTones = resolve_chord_tones_(active, section.scale);
-        currentNN = step_chord_tone(currentNN, unit.step, resolvedTones);
+        currentNN = step_chord_tone(currentNN, unit.step, active.pitches);
         float soundNN = currentNN + float(unit.accidental);
         float vel = dyn.velocity_at(sectionBeat);
         Note n;
@@ -826,7 +929,7 @@ if (chf) {
 }
 ```
 
-- [ ] **5.2** Add `find_active_chord_(section, sectionBeat)` helper (mirrors `conductor.h:817-827`):
+- [ ] **6.2** Add `find_active_chord_(section, sectionBeat)` helper (mirrors `conductor.h:817-827`):
 
 ```cpp
 Chord find_active_chord_(const Section& sec, float sectionBeat) const {
@@ -844,22 +947,17 @@ Chord find_active_chord_(const Section& sec, float sectionBeat) const {
     }
     return prog.chords.get(chordIdx).resolve(sec.scale, /*octave=*/4);
 }
-
-std::vector<Pitch> resolve_chord_tones_(const Chord& chord, const Scale& scale) const {
-    // Likely already a helper; reuse if so. Otherwise:
-    return chord.pitches;  // assuming chord is already resolved
-}
 ```
 
-(Cross-check the exact octave handling in conductor.h:828: `chordProg->chords.get(chordIdx).resolve(sectionScale, baseOctave);`. Use the same `baseOctave` value Conductor passes — likely a parameter to `perform_phrase`. Trace from `perform_passage` how it's set.)
+(Cross-check the exact octave handling in `conductor.h:828`: `chordProg->chords.get(chordIdx).resolve(sectionScale, baseOctave);`. Use the same `baseOctave` value Conductor passes — likely a parameter to `perform_phrase`. Trace from `perform_passage` how it's set; the dispatch in `perform()` passes literal `4`.)
 
-### 5b — Verify bit-identical
+### 6b — Verify bit-identical
 
-- [ ] **5.3** Build + render all 11 goldens + sha256sum + compare.
+- [ ] **6.3** Build + render all 11 goldens + sha256sum + compare. Expected: bit-identical (chord-figure Parts now go through realize → perform_events; melody Parts continue to work via Stage 5 changes).
 
-- [ ] **5.4** STOP on any mismatch.
+- [ ] **6.4** STOP on any mismatch.
 
-- [ ] **5.5** Commit:
+- [ ] **6.5** Commit:
 
 ```bash
 git add engine/include/mforce/music/composer.h
@@ -868,113 +966,76 @@ git commit -m "feat(composer): realize ChordFigure into Part.elementSequence"
 
 ---
 
-## Stage 6 — Composer realize-to-events: Chord events (via VoicingSelector + RealizationStrategy)
+## Stage 7 — Realize chord-event Parts (replace `add_chord` path)
 
 **Files:**
-- Modify: `engine/include/mforce/music/composer.h` (Chord-events realize branch in `realize_passage_to_events_`; possibly refactor `realize_chord_parts_` to call the new path)
+- Modify: `engine/include/mforce/music/composer.h`:
+  - `realize_chord_parts_` (line 266-313) — STOP populating elementSequence with `Chord` events via `add_chord`; instead route through VoicingSelector + RealizationStrategy and emit via the new realize step
 
-**Bit-identical:** ✓ (Chord events still emit to Conductor's ChordPerformer too — duplicate path; switch is at Stage 7)
+**Bit-identical:** ✓
 
-### 6a — Chord-event realize branch
+**What this stage does:** Today `realize_chord_parts_` calls `add_chord(pos, chord)` which puts `Chord`-typed Elements into `elementSequence`; Conductor's ChordPerformer then expands them at perform time. After this stage, `realize_chord_parts_` instead calls VoicingSelector to pick a voicing AND RealizationStrategy to emit pre-expanded content (Chord events still, until Stage 9 swaps to per-tone Notes). Conductor's path is unchanged — it still reads `elementSequence` via `perform_events` and uses ChordPerformer to play `Chord` Elements.
 
-- [ ] **6.1** Currently `realize_chord_parts_` (composer.h:266-313) emits `Chord` Elements into `part.events` (now `part.elementSequence`) via `add_chord(pos, chord)`. Each Chord Element will get expanded into per-tone Notes by Conductor's ChordPerformer at perform time.
+This is the trickiest bit-identical check because we're replacing the populator without changing the consumer (Conductor still uses ChordPerformer via perform_events for Chord-typed Elements). Bit-identity holds IF the Realize step + BlockRealizationStrategy emit identically to what `add_chord(pos, chord)` did.
 
-  We need to replace that with: same iteration, but use VoicingSelector to pick a voicing AND RealizationStrategy to emit per-tone Notes (or per-chord Chord events for now — see 6.2).
+### 7a — Replace `add_chord` calls in `realize_chord_parts_`
 
-- [ ] **6.2** Add a method `realize_chord_events_for_part_(part, section, passage)` that runs after the existing `realize_chord_parts_` builds the chord progression. For each chord:
+- [ ] **7.1** Read `composer.h:266-313` (`realize_chord_parts_`). Locate the existing iteration that calls `sc->resolve(...)` and `part->add_chord(pos, chord)` (around line 303-305).
+
+- [ ] **7.2** Rewrite the per-chord emit. For each `(ScaleChord, beat, duration, cfg)` iteration:
 
 ```cpp
-// Pseudo:
-const PassageTemplate* pt = lookup_passage_template_(part, section);
-const std::string selectorName = pt ? pt->voicingSelector : "";
-const std::string strategyName = pt ? pt->realizationStrategy : "";
+// Before (composer.h:303-305 area):
+Chord chord = sc->resolve(sec.scale, cfg.octave, dur, cfg.inversion, cfg.spread);
+part->add_chord(pos, chord);
 
-VoicingSelector* selector = VoicingSelectorRegistry::instance().resolve(selectorName);
-RealizationStrategy* strategy = RealizationStrategyRegistry::instance().resolve(
-    strategyName.empty() ? "block" : strategyName);
+// After:
+Chord voiced = resolve_voicing_(sc, &sec.scale, cfg, /*previous=*/lastChord, dur, passTmpl);
+RealizationRequest realReq{
+    /*chord=*/voiced,
+    /*startBeat=*/pos,
+    /*durationBeats=*/dur,
+    /*barIndex=*/compute_bar_index_(pos, sec.meter),
+    /*rhythmPattern=*/(passTmpl && passTmpl->rhythmPattern) ? &*passTmpl->rhythmPattern : nullptr
+};
+RealizationStrategy* strat = pick_realization_strategy_(passTmpl);
+strat->realize(realReq, part->elementSequence);
+lastChord = voiced;
+```
 
-const Chord* prev = nullptr;
-for (each ChordProgression entry at beat) {
-    Chord voiced;
-    if (selector) {
-        VoicingRequest req{
-            /*scaleChord=*/sc, /*scale=*/&section.scale,
-            /*rootOctave=*/cfg.octave, /*durationBeats=*/dur,
-            /*previous=*/prev, /*melodyPitch=*/std::nullopt
-        };
-        voiced = selector->select(req);
-    } else {
-        voiced = sc.resolve(section.scale, cfg.octave, dur, cfg.inversion, cfg.spread);
+Plus helpers:
+
+```cpp
+Chord resolve_voicing_(const ScaleChord* sc, const Scale* scale,
+                       const ChordAccompanimentConfig& cfg,
+                       const Chord* previous, float dur,
+                       const PassageTemplate* passTmpl) {
+    if (passTmpl && !passTmpl->voicingSelector.empty()) {
+        VoicingSelector* selector = VoicingSelectorRegistry::instance()
+            .resolve(passTmpl->voicingSelector);
+        if (selector) {
+            VoicingRequest req{*sc, scale, cfg.octave, dur, previous, std::nullopt};
+            return selector->select(req);
+        }
     }
+    return sc->resolve(*scale, cfg.octave, dur, cfg.inversion, cfg.spread);
+}
 
-    RealizationRequest realReq{
-        /*chord=*/voiced, /*startBeat=*/pos, /*durationBeats=*/dur,
-        /*barIndex=*/computed_bar(pos, section.meter),
-        /*rhythmPattern=*/(pt && pt->rhythmPattern) ? &*pt->rhythmPattern : nullptr
-    };
-    strategy->realize(realReq, part.elementSequence);
-    prev = &voiced;  // hold last reference; lifetime managed locally
+RealizationStrategy* pick_realization_strategy_(const PassageTemplate* passTmpl) {
+    auto& reg = RealizationStrategyRegistry::instance();
+    std::string name = (passTmpl && !passTmpl->realizationStrategy.empty())
+        ? passTmpl->realizationStrategy : "block";
+    RealizationStrategy* strat = reg.resolve(name);
+    return strat ? strat : reg.resolve("block");
+}
+
+int compute_bar_index_(float beatInSection, Meter meter) {
+    float beatsPerBar = beats_per_bar(meter);
+    return int(beatInSection / beatsPerBar) + 1;
 }
 ```
 
-Notes:
-- For Stage 6, **keep the existing `add_chord(pos, chord)` calls** in `realize_chord_parts_` so Conductor's ChordPerformer can still handle them. The new code adds in parallel, populating elementSequence with per-tone Notes (or with Chord-events depending on strategy implementation).
-- Wait — there's a problem: BlockRealizationStrategy emits a `Chord`-typed Element (the simplest case). RhythmPatternRealizationStrategy ALSO emits Chord-typed Elements (one per pattern entry). At Stage 6 these go into `part.elementSequence` ALONGSIDE the existing `add_chord` calls — meaning the chord part will have DUPLICATED chord events. That's fine because Conductor ignores `elementSequence` for tree-walked Parts and only the existing `add_chord` calls reach Conductor's perform path.
-- **Confirm at execution time**: trace the flow. If `add_chord` calls populate elementSequence AND the new realize pass also populates it AND Conductor reads from elementSequence ANYWHERE… then we'd double-emit. Verify by reading Conductor's path before stage 7. If risk found, surface to user.
-
-- [ ] **6.3** Wire the chord-walker default fallback per spec section 4 ("Voicing-selector wiring at stage 6 default"): if Part has any of `voicingSelector` / `voicingProfile` / `realizationStrategy` set OR `rhythmPattern`, use the new selector path. Otherwise fall back to legacy `sc.resolve(...)`.
-
-### 6b — Verify bit-identical
-
-- [ ] **6.4** Build + render all 11 goldens + sha256sum + compare.
-
-  Expected: bit-identical. K467 patches don't have `voicingSelector` / `realizationStrategy` set, so they use the legacy path; jazz turnaround patches use VoicingSelector but their PassageTemplate doesn't currently reference RealizationStrategy, so they default to "block" which emits a single Chord-event per call (matching pre-Stage 6 behavior).
-
-  If any hash differs, the most likely cause is that `BlockRealizationStrategy` (which emits a Chord-event into elementSequence) differs from the existing `add_chord` (which appends a Chord-event with the same data). The two should be byte-identical in WAV terms; if not, investigate.
-
-- [ ] **6.5** STOP on any mismatch.
-
-- [ ] **6.6** Commit:
-
-```bash
-git add engine/include/mforce/music/composer.h
-git commit -m "feat(composer): realize Chord events via VoicingSelector + RealizationStrategy"
-```
-
----
-
-## Stage 7 — Switch Conductor to read `elementSequence`
-
-**Files:**
-- Modify: `engine/include/mforce/music/conductor.h` (`perform(Part&)` and `perform(Piece&)` paths)
-
-**Bit-identical:** ✓ (the moment of truth)
-
-### 7a — Reroute the dispatch
-
-- [ ] **7.1** Read `conductor.h:691-697` (the dispatch in `Conductor::perform_part` or its caller). Currently:
-
-```cpp
-if (!part.elementSequence.empty()) {
-    perform_events(part, bpm, beatOffset, inst);
-} else {
-    perform_passage(it->second, scale, beatOffset, bpm, inst, ...);
-}
-```
-
-(The actual current code is `if (!part.events.empty())` → after Stage 1 this should already be `if (!part.elementSequence.empty())`. Verify.)
-
-- [ ] **7.2** Change the dispatch so EVERY Part with non-empty elementSequence routes through `perform_events`:
-
-```cpp
-// After Stage 7:
-if (!part.elementSequence.empty()) {
-    perform_events(part, bpm, beatOffset, inst);
-}
-// No else branch — if elementSequence is empty, nothing to do.
-```
-
-(Composer is now responsible for populating elementSequence for ALL Parts. Direct-build patches already do so. Algorithmic Parts started populating at Stages 4-6.)
+(Verify `beats_per_bar(meter)` exists; otherwise inline the standard bars-per-meter lookup.)
 
 ### 7b — Verify bit-identical
 
@@ -984,209 +1045,212 @@ if (!part.elementSequence.empty()) {
 cmake --build build --config Release --target mforce_cli
 ```
 
-Expected: clean build (perform_passage is now unreferenced internally — but won't be deleted until Stage 8).
-
 - [ ] **7.4** Render all 11 goldens + sha256sum + compare.
 
-  Expected: ALL bit-identical to baseline. This is the moment of truth. If the realize step in Stages 4-6 was faithful to what Conductor did, the audio matches.
+  Expected: all bit-identical. Reasoning:
+  - K467 patches don't currently set `voicingSelector`, `realizationStrategy`, or `rhythmPattern` → use the `sc->resolve(...)` fallback in `resolve_voicing_` AND default to `BlockRealizationStrategy` → emits a single `Chord` Element with the same data `add_chord` would have. ChordPerformer plays it identically. Bit-identical.
+  - **But**: `test_k467_walker.json` DOES use `chordConfig` (has rhythm pattern). Today `realize_chord_parts_` reads `cfg.defaultPattern` from `ChordAccompanimentConfig` and emits one `Chord` event per pattern entry. After this stage, `chordConfig` still exists as a field (we haven't touched it yet), but the new code reads `passTmpl->rhythmPattern` (the new field added at Stage 4), which is empty for unmigrated patches. So `RhythmPatternRealizationStrategy` won't trigger; the `Block` default emits a single Chord per call.
+  - That means the `chordConfig`-driven rhythm pattern emit (one Chord per pattern entry) is currently produced via `realize_chord_parts_`'s pattern-loop logic. Read `realize_chord_parts_` carefully to see exactly how it handles `cfg.defaultPattern`. If it emits multiple `add_chord` calls per chord (one per pattern entry), our new code needs to preserve THAT loop and emit one RealizationRequest per pattern entry — OR funnel the rhythm pattern through the strategy via `RealizationRequest.rhythmPattern`.
 
-  Most likely failure modes:
-  - Velocity curve drift (DynamicState lookup not at exactly the same beat)
-  - Cross-passage / cross-section continuity (currentNN reset between passages)
-  - Chord-event expansion timing (Chord vs per-tone Notes for the same wall-clock duration)
-  - Articulation/ornament markings on Notes not transferred during realize
-  - `Section::truncateTailBeats` not honored in realize step
+  **At execution time, before 7.4**: trace `realize_chord_parts_`'s current pattern handling. If it loops and add_chords multiple times per chord, the new code needs the same loop (one RealizationRequest per emit, not one per chord). Adjust.
 
-- [ ] **7.5** If a hash mismatches:
-  - Render the offending patch with `wav_check` to confirm it's not a cosmic-bit-flip:
-    ```bash
-    build/tools/wav_check.exe renders/baseline_X_1.wav
-    build/tools/wav_check.exe renders/stage7_X_1.wav
-    ```
-  - Compare first divergent sample: `cmp -l baseline.wav stage7.wav | head -1`
-  - Compare the dumped JSON (Composer-stage representation):
-    ```bash
-    diff renders/baseline_X_1.json renders/stage7_X_1.json
-    ```
-  - Surface to user with the diff. DO NOT proceed.
+- [ ] **7.5** STOP on any mismatch. Most likely cause: rhythm pattern loop semantics drift between old and new code. Fix and re-verify.
 
-- [ ] **7.6** Commit (if green):
+- [ ] **7.6** Commit:
 
 ```bash
-git add engine/include/mforce/music/conductor.h
-git commit -m "feat(conductor): switch to ElementSequence-driven perform"
+git add engine/include/mforce/music/composer.h
+git commit -m "feat(composer): replace add_chord with VoicingSelector + RealizationStrategy"
 ```
 
 ---
 
-## Stage 8 — Delete unused Conductor code
+## Stage 8 — Delete tree-walk path entirely
 
 **Files:**
-- Modify: `engine/include/mforce/music/conductor.h` (delete `perform_passage`, `perform_phrase`, `step_note`/`step_chord_tone` helpers, `ChordPerformer`, `register_josie_figures`)
-- Possibly: rename `ChordArticulation` → `ChordRealization` (decide based on consumer count)
+- Modify: `engine/include/mforce/music/conductor.h`:
+  - Delete the tree-walk fallback branch in `perform()` dispatch
+  - Delete `Conductor::perform_passage` (line 751-end-of-method)
+  - Delete `Conductor::perform_phrase` (line 785-end-of-method)
+  - Delete `ChordPerformer` struct entirely (line 436 — end of struct)
+  - Delete `Conductor::register_josie_figures` (around line 462)
+  - Delete the `dynamic_cast<const ChordFigure*>` discriminator (lives inside `perform_phrase`, dies with it)
+- Modify: `engine/include/mforce/music/figures.h` (decide on `ChordArticulation`)
 
-**Bit-identical:** ✓ (the deleted code is unused after Stage 7)
+**Bit-identical:** ✓ (the deleted code is unused after Stages 5-7)
 
-### 8a — Identify dead code
+### 8a — Confirm dead code
 
-- [ ] **8.1** Confirm no external callers of the targets:
+- [ ] **8.1** Confirm no remaining callers of the deletion targets:
 
 ```bash
 grep -nrE "perform_passage|perform_phrase" engine tools | grep -v "third_party"
 grep -nrE "ChordPerformer\b|register_josie_figures" engine tools | grep -v "third_party"
 ```
 
-Expected: zero hits outside of `conductor.h` itself (and possibly some tests, which would also be deleted/migrated).
+Expected: zero hits outside of `conductor.h` itself. If any external caller exists, surface to user before deleting.
 
-If any external caller exists, surface to user before deleting.
+### 8b — Delete fallback branch + tree-walk methods + ChordPerformer
 
-### 8b — Delete
+- [ ] **8.2** In `conductor.h`'s `perform(const Piece&)` dispatch (the loop modified at Stage 2), delete the tree-walk fallback:
 
-- [ ] **8.2** Delete from `conductor.h`:
-  - `Conductor::perform_passage` (line 751-end-of-method)
-  - `Conductor::perform_phrase` (line 785-end-of-method)
-  - The `step_note` / `step_chord_tone` calls inside perform_phrase already moved to `pitch_walker.h` at Stage 4. The originals (if still here) go.
-  - `ChordPerformer` struct entirely (line 436 - end of struct, around line 660s)
-  - `Conductor::register_josie_figures` (around line 462)
-  - The `dynamic_cast<const ChordFigure*>` discriminator (becomes dead with perform_phrase)
+```cpp
+// Before (Stage 2 + 5-7 state):
+for (const auto& part : piece.parts) {
+    Instrument* inst = lookup_instrument(part.instrumentType);
+    if (!inst) continue;
 
-### 8c — Decide on ChordArticulation
+    if (!part.elementSequence.empty()) {
+        perform_events(part, bpm, beatOffset, inst);
+        continue;
+    }
 
-- [ ] **8.3** After 8.2's deletions, grep for remaining `ChordArticulation` consumers:
+    // Fallback during migration ONLY: walk the passage tree.
+    auto it = part.passages.find(section.name);
+    if (it != part.passages.end()) {
+        perform_passage(it->second, scale, beatOffset, bpm, inst, ...);
+    }
+}
+
+// After Stage 8:
+for (const auto& part : piece.parts) {
+    Instrument* inst = lookup_instrument(part.instrumentType);
+    if (!inst) continue;
+    if (!part.elementSequence.empty()) {
+        perform_events(part, bpm, beatOffset, inst);
+    }
+}
+```
+
+- [ ] **8.3** Delete the methods/structs/functions listed above:
+  - `perform_passage` (line 751-end)
+  - `perform_phrase` (line 785-end)
+  - `ChordPerformer` struct (line 436-end-of-struct)
+  - `register_josie_figures` (line 462)
+  - Any `dynamic_cast<const ChordFigure*>` references that die with `perform_phrase`
+
+### 8c — Decide on `ChordArticulation`
+
+- [ ] **8.4** After 8.3's deletions, grep for remaining `ChordArticulation` consumers:
 
 ```bash
 grep -nrE "ChordArticulation" engine tools | grep -v "third_party"
 ```
 
-- If zero hits: delete the type from `figures.h` (it's at line 627).
+- If zero hits: delete the `ChordArticulation` struct from `figures.h:627`.
 - If one or more hits: rename to `ChordRealization` (mechanical: rename the struct, all members, and all usages). Build clean. Commit separately:
 
 ```bash
 git commit -m "refactor(figures): rename ChordArticulation -> ChordRealization"
 ```
 
-If deleted, no separate commit; rolls into 8.4.
-
 ### 8d — Verify
 
-- [ ] **8.4** Build:
+- [ ] **8.5** Build:
 
 ```bash
 cmake --build build --config Release --target mforce_cli
 ```
 
-Expected: clean build (deletions left no callers).
+Expected: clean build. Composer's tree (`Part.passages`) is now never read by Conductor; it's purely Composer-internal scratch.
 
-- [ ] **8.5** Render all 11 goldens + sha256sum + compare. Expected: bit-identical.
+- [ ] **8.6** Render all 11 goldens + sha256sum + compare. Expected: bit-identical.
 
-- [ ] **8.6** Commit:
+- [ ] **8.7** Spot-check one Sound-tier patch (e.g. `fhn_pure_tone`):
+
+```bash
+build/tools/mforce_cli/Release/mforce_cli.exe --patch patches/fhn_pure_tone.json renders/stage8_sound_fhn 1
+sha256sum renders/stage8_sound_fhn_1.wav
+```
+
+Compare to baseline. Expected: bit-identical (Sound tier untouched).
+
+- [ ] **8.8** Commit:
 
 ```bash
 git add engine/include/mforce/music/conductor.h engine/include/mforce/music/figures.h
-git commit -m "refactor(conductor): delete tree-walk perform path and ChordPerformer"
+git commit -m "refactor(conductor): delete tree-walk path, ChordPerformer, Josie library"
 ```
 
 ---
 
-## Stage 9 — Drop `Chord` from `Element` variant
+## Stage 9 — Drop `Chord` from `Element` variant; emit Notes from realize
 
 **Files:**
 - Modify: `engine/include/mforce/music/structure.h` (Element variant)
-- Modify: `engine/include/mforce/music/composer.h` (chord-events realize: emit Notes not Chord, via VoicingSelector + RealizationStrategy)
-- Modify: `engine/include/mforce/music/realization_strategy.h` (BlockRealizationStrategy emits per-tone Notes)
-- Modify: any direct-build callers using `Part::add_chord(...)` — replace with helper
+- Modify: `engine/include/mforce/music/realization_strategy.h` (Block + RhythmPattern emit per-tone Notes)
+- Modify: `engine/include/mforce/music/composer.h` (any `Part::add_chord` callers post-Stage-7 — should be none)
 
 **Bit-identical:** ✓
 
-### 9a — Refactor BlockRealizationStrategy to emit Notes
+**What this stage does:** Today `BlockRealizationStrategy` and `RhythmPatternRealizationStrategy` both emit `Chord`-typed Elements into elementSequence; Conductor's `perform_events` sees these and... wait — ChordPerformer was deleted at Stage 8. So who's playing the Chord Elements after Stage 8?
 
-- [ ] **9.1** In `realization_strategy.h`, rewrite `BlockRealizationStrategy::realize` to expand the chord into per-tone Notes:
+The answer: by Stage 8, Conductor's `perform_events` must already be expanding Chord Elements to per-tone Notes inline (since ChordPerformer is gone). EITHER:
+- (a) `perform_events` was already doing per-tone playback for Chord Elements all along (some inline expansion separate from ChordPerformer). Verify by reading `perform_events` (`conductor.h:725+`).
+- (b) Stage 8 must have included a substep where `perform_events` learns to expand Chord Elements to Notes itself OR where the realize strategies are switched to emit Notes directly. The plan as written defers this to Stage 9. Need to fix the plan if (a) is false.
+
+**Pre-execution check at Stage 8**: read `Conductor::perform_events` carefully. If it routes `Chord` Elements to ChordPerformer (which is being deleted at Stage 8), the deletion is incomplete — Stage 8 must ALSO refactor `perform_events` to either drop the Chord-Element handling (if it's about to disappear at Stage 9) OR inline-expand the chord to per-tone notes.
+
+The cleanest reordering: do the Stage 9 work AS PART of Stage 8. Specifically:
+- **Stage 8** deletes ChordPerformer
+- **Stage 8** changes BlockRealizationStrategy and RhythmPatternRealizationStrategy to emit per-tone Notes (not Chord Elements) — what Stage 9 was doing
+- **Stage 8** drops Chord from Element variant — what Stage 9 was doing
+- **Stage 9** then becomes empty; can be removed
+
+If you (executor) discover at Stage 8 that ChordPerformer is the sole consumer of Chord Elements in `perform_events`, surface to user with the merge proposal.
+
+### 9a — If Stage 9 still has work after the Stage 8 reordering
+
+- [ ] **9.1** Refactor `BlockRealizationStrategy::realize` to emit per-tone Notes:
 
 ```cpp
 void realize(const RealizationRequest& req, ElementSequence& out) override {
     for (const auto& pitch : req.chord.pitches) {
         Note n;
         n.noteNumber = pitch.note_number();
-        n.velocity = 1.0f;     // velocity will come from a future pass; default for now
+        n.velocity = 1.0f;
         n.durationBeats = req.durationBeats;
         out.add({req.startBeat, n});
     }
 }
 ```
 
-Same change for `RhythmPatternRealizationStrategy`: where it emits `out.add({beat, c})` (a Chord), replace with a loop emitting per-tone Notes for each pattern entry.
+Same change for `RhythmPatternRealizationStrategy`: where it emits `out.add({beat, c})` (a Chord), replace with a per-pitch loop.
 
-### 9b — Migrate direct-build add_chord callers
-
-- [ ] **9.2** Grep for all callers of `Part::add_chord(...)`:
+- [ ] **9.2** Migrate any direct-build `Part::add_chord(...)` callers (grep first):
 
 ```bash
 grep -nrE "\.add_chord\(" engine tools | grep -v "third_party"
 ```
 
-For each caller:
-- Identify the chord (already-resolved) and beat.
-- Replace with: construct a temporary `BlockRealizationStrategy`, call `realize` on it with a `RealizationRequest`, emit Notes into `part.elementSequence`.
-- Preferably wrap this in a Composer helper:
+For each remaining caller, construct a `BlockRealizationStrategy` ad-hoc (or call a Composer helper `emit_chord_as_notes(part, beat, chord)`) and emit Notes instead.
 
-```cpp
-// In Composer (or as a free function in composer.h):
-inline void emit_chord_as_notes(Part& part, float startBeat, const Chord& chord) {
-    BlockRealizationStrategy strat;
-    RealizationRequest req{chord, startBeat, chord.dur, /*barIndex=*/1, /*rhythmPattern=*/nullptr};
-    strat.realize(req, part.elementSequence);
-}
-```
-
-Direct-build callers then call `emit_chord_as_notes(part, beat, chord)` instead of `part.add_chord(beat, chord)`.
-
-### 9c — Drop Chord from variant
-
-- [ ] **9.3** In `structure.h`:
+- [ ] **9.3** Drop `Chord` from `Element` variant in `structure.h`:
 
 ```cpp
 // Before:
-struct Element {
-    float startBeats{0.0f};
-    std::variant<Note, Chord, Hit, Rest> content;
-    // ... is_chord, chord() ...
-};
-
+std::variant<Note, Chord, Hit, Rest> content;
 // After:
-struct Element {
-    float startBeats{0.0f};
-    std::variant<Note, Hit, Rest> content;
-    // is_chord and chord() accessors deleted
-};
+std::variant<Note, Hit, Rest> content;
 ```
 
-Also drop the `is_chord` / `chord()` accessors. Drop `Part::add_chord(...)` (decide: delete entirely or keep as a thin wrapper that calls `emit_chord_as_notes`). Remove `Chord` includes if no other usage.
+Drop the `is_chord` / `chord()` accessors. Drop or refactor `Part::add_chord(...)`. Drop the `e.is_chord()` branch in `ElementSequence::add`'s totalBeats calculation.
 
-In `ElementSequence::add`, drop the `e.is_chord()` branch in the totalBeats calculation.
+### 9b — Verify
 
-### 9d — Verify
+- [ ] **9.4** Build + render all 11 goldens + sha256sum + compare.
 
-- [ ] **9.4** Build:
+  Expected: ALL bit-identical. The audio doesn't care whether the WAV came from "Chord Element expanded to N notes by ChordPerformer at perform time" vs "N Notes emitted at compose time"; same notes at same beats with same velocities → same audio.
 
-```bash
-cmake --build build --config Release --target mforce_cli
-```
+  If a hash differs, most likely the velocity defaults differ. Check that `BlockRealizationStrategy` per-tone emit uses the same velocity ChordPerformer was using.
 
-Expected: clean build. Likely 1-3 caller fixes needed if a `add_chord` call was missed.
+- [ ] **9.5** STOP on any mismatch.
 
-- [ ] **9.5** Render all 11 goldens + sha256sum + compare.
-
-  Expected: ALL bit-identical. The audio doesn't care whether the WAV came from "chord-event expanded to N notes at perform time" vs "N notes at compose time"; the same notes should sound at the same beats with the same velocities.
-
-  If a hash differs, most likely the velocity defaults differ. Check that `emit_chord_as_notes` and the realize-step Note construction use the same velocity (1.0f or DynamicState lookup).
-
-- [ ] **9.6** STOP on any mismatch.
-
-- [ ] **9.7** Commit:
+- [ ] **9.6** Commit:
 
 ```bash
 git add engine/include/mforce/music/structure.h engine/include/mforce/music/realization_strategy.h engine/include/mforce/music/composer.h
-git commit -m "refactor(element): drop Chord from variant; expand to per-tone Notes at compose"
+git commit -m "refactor(element): drop Chord from variant; realize emits per-tone Notes"
 ```
 
 ---
@@ -1234,24 +1298,18 @@ Translate verbatim — `defaultPattern` lifts as-is; the (probably default-zero)
 ```bash
 build/tools/mforce_cli/Release/mforce_cli.exe --compose patches/test_k467_walker.json renders/stage10_k467_walker 1
 sha256sum renders/stage10_k467_walker_1.wav
-diff <(echo "$BASELINE_HASH") <(sha256sum renders/stage10_k467_walker_1.wav | awk '{print $1}')
 ```
 
-  Expected: bit-identical. If not, listen to both renders, decide whether the migration was faithful or whether an inversion shifted, etc. If decided to accept new render, update the baseline file and pin a new golden:
-
-```bash
-sha256sum renders/stage10_k467_walker_1.wav > docs/superpowers/baselines/2026-04-22-composer-owns-events-baselines.txt.tmp
-# Manually edit baseline file to update only the walker hash
-```
+Compare to the baseline-pinned hash. Expected: bit-identical. If not, listen to both renders, decide whether the migration was faithful or whether an inversion shifted, etc. If decided to accept new render, update the baseline file and pin a new golden.
 
 - [ ] **10.4** Render all other 10 goldens + sha256sum + compare. Expected: bit-identical to baseline (untouched patches).
 
-- [ ] **10.5** Identify and remove the legacy `sc->resolve(...)` fallback path introduced at Stage 6: now that `test_k467_walker` migrates, ALL chord parts route through VoicingSelector + RealizationStrategy. Remove the fallback in composer.h. Re-render and re-verify.
+- [ ] **10.5** With the migration done, the legacy `sc->resolve(...)` fallback path in `resolve_voicing_` (Stage 7) is now reached only by patches with no voicingSelector/realizationStrategy. K467's other patches (harmony/period/structural) still use it; jazz turnaround patches use VoicingSelector. Leave the fallback in place — it's still serving real patches. (This contradicts the Stage 7 spec note about removing the fallback at Stage 10; **the spec note was wrong** — the fallback stays because not all patches opt in.)
 
 - [ ] **10.6** Commit:
 
 ```bash
-git add patches/test_k467_walker.json engine/include/mforce/music/composer.h
+git add patches/test_k467_walker.json
 git commit -m "feat(k467): migrate walker patch from chordConfig to selector+strategy"
 ```
 
@@ -1264,7 +1322,7 @@ If golden was re-pinned, add baselines file and amend message.
 **Files:**
 - Modify: `engine/include/mforce/music/templates.h` (delete struct)
 - Modify: `engine/include/mforce/music/templates_json.h` (delete from_json + any callers)
-- Modify: any consumer that still references it
+- Modify: `engine/include/mforce/music/composer.h` (the `realize_chord_parts_` body uses `cfg` from ChordAccompanimentConfig; refactor to read directly from PassageTemplate's `voicingSelector` / `rhythmPattern` fields)
 
 **Bit-identical:** ✓
 
@@ -1276,26 +1334,35 @@ If golden was re-pinned, add baselines file and amend message.
 grep -nrE "ChordAccompanimentConfig\b|chordConfig" engine tools patches | grep -v "third_party" | grep -v "\.json"
 ```
 
-Expected: zero hits in code (only patches, which were migrated at Stage 10). If any remain, surface to user.
+Expected: hits in `composer.h` (`realize_chord_parts_` reads `passTmpl->chordConfig`) and `templates.h`/`templates_json.h`. No other code paths.
 
-(Patches with `chordConfig` other than test_k467_walker would have been audited at Stage 10. If new ones exist, migrate them now.)
+If any patch besides `test_k467_walker.json` (which migrated at Stage 10) still has `chordConfig` blocks, audit and migrate them now.
 
-### 11b — Delete
+### 11b — Refactor `realize_chord_parts_` to drop `cfg` dependency
 
-- [ ] **11.2** In `templates.h`, delete the `ChordAccompanimentConfig` struct (around line 311-330) and its `BarOverride` nested type.
+- [ ] **11.2** In `composer.h`, find every `cfg.octave`, `cfg.inversion`, `cfg.spread`, `cfg.defaultPattern`, `cfg.overrides` reference. Replace each:
+- `cfg.octave` → read from PassageTemplate's `rootOctave` (add this field if it doesn't exist; per Stage 10 migration JSON it was implied to be on PassageTemplate)
+- `cfg.inversion`, `cfg.spread` → already absorbed into VoicingProfile (chord-walker work). The fallback path's `sc->resolve(...)` call must still pass numeric inversion/spread; default to 0/0 if nothing else specified.
+- `cfg.defaultPattern`, `cfg.overrides` → already absorbed into `passTmpl->rhythmPattern`. The new realize path consumes via `RealizationRequest`.
 
-- [ ] **11.3** In `PassageTemplate`, delete the `std::optional<ChordAccompanimentConfig> chordConfig` field.
+If `rootOctave` doesn't exist on PassageTemplate, add it (with JSON read at templates_json.h matching the Stage 10 migration).
 
-- [ ] **11.4** In `templates_json.h`, delete the `from_json(const json&, ChordAccompanimentConfig&)` function and the corresponding `if (j.contains("chordConfig"))` block in PassageTemplate's from_json.
+### 11c — Delete the struct
 
-### 11c — Verify
+- [ ] **11.3** In `templates.h`, delete the `ChordAccompanimentConfig` struct (around line 311-330) and its `BarOverride` nested type.
 
-- [ ] **11.5** Build + render all 11 goldens + sha256sum + compare. Expected: bit-identical.
+- [ ] **11.4** In `PassageTemplate`, delete the `std::optional<ChordAccompanimentConfig> chordConfig` field.
 
-- [ ] **11.6** Commit:
+- [ ] **11.5** In `templates_json.h`, delete the `from_json(const json&, ChordAccompanimentConfig&)` function and the corresponding `if (j.contains("chordConfig"))` block in PassageTemplate's from_json.
+
+### 11d — Verify
+
+- [ ] **11.6** Build + render all 11 goldens + sha256sum + compare. Expected: bit-identical.
+
+- [ ] **11.7** Commit:
 
 ```bash
-git add engine/include/mforce/music/templates.h engine/include/mforce/music/templates_json.h
+git add engine/include/mforce/music/templates.h engine/include/mforce/music/templates_json.h engine/include/mforce/music/composer.h
 git commit -m "refactor(templates): delete ChordAccompanimentConfig (subsumed by RhythmPattern + VoicingProfile)"
 ```
 
@@ -1340,7 +1407,7 @@ git commit -m "docs(structure): mark Phrase/Passage/Figure as Composer-internal"
 
 - [ ] **Final-1** Render every patch in `patches/` (golden + non-golden) and compare to baselines where applicable. Surface anything unexpected.
 
-- [ ] **Final-2** Run any non-K467 sound-tier patches sampled in Stage 0 (`fhn_pure_tone`, `Additive1`, etc.) to confirm Sound tier is untouched.
+- [ ] **Final-2** Run the non-K467 sound-tier patches sampled in Stage 0 (`fhn_pure_tone`, `Additive1`, etc.) to confirm Sound tier is untouched.
 
 - [ ] **Final-3** Update memory:
   - Add a new project memory entry: "Composer owns the ElementSequence" — refactor landed; Conductor narrowed; ChordAccompanimentConfig dissolved; voicing-selector merged.
@@ -1352,22 +1419,28 @@ git commit -m "docs(structure): mark Phrase/Passage/Figure as Composer-internal"
 
 ## Self-review notes
 
-This plan covers all 12 stages from the spec. Spot-checks against the spec:
+This plan covers all 12 stages from the spec, with the corrected staging:
+- **Stage 2 added** (exclusive dispatch) — necessary because the original additive dispatch made the "in parallel" framing of Stages 4-6 incoherent. Each substantive stage is now an atomic per-Part-type swap from tree-walk-fallback to events-driven.
+- **Stage 5 (was 4)**: realize MelodicFigure → atomic swap via dispatch.
+- **Stage 6 (was 5)**: realize ChordFigure → atomic swap via dispatch.
+- **Stage 7 (was 6)**: realize chord-events by replacing add_chord — now it's a swap, not a parallel population.
+- **Stage 8 (was 7+8)**: delete the now-unreachable tree-walk fallback path AND the now-dead Conductor methods (perform_passage, perform_phrase, ChordPerformer).
+- **Stage 9** flagged: Stage 8 may need to absorb Stage 9's per-tone-Notes refactor if `perform_events`'s Chord-handling depends on ChordPerformer. Surface to user at execution time.
 
+Spot-checks against the spec:
 - Section 1 (Data model changes) → Stages 1, 9.
-- Section 2 (Composer pipeline) → Stages 4, 5, 6 (the realize sub-steps).
-- Section 3 (chord-walker merge) → Stage 2.
-- Section 4 (RealizationStrategy registry) → Stage 3.
-- Section 5 (realize-to-events) → Stages 4, 5, 6.
-- Section 6 (Conductor switch-and-narrow) → Stages 7, 8.
-- Section 7 (Drop Chord from Element variant) → Stage 9.
+- Section 2 (Composer pipeline) → Stages 5, 6, 7.
+- Section 3 (chord-walker merge) → Stage 3.
+- Section 4 (RealizationStrategy registry) → Stage 4.
+- Section 5 (realize-to-events) → Stages 5, 6, 7.
+- Section 6 (Conductor switch-and-narrow) → Stages 2 (dispatch swap), 8 (deletion).
+- Section 7 (Drop Chord from Element variant) → Stage 9 (possibly absorbed into 8).
 - Section 8 (Patch migration) → Stage 10.
 - Section 9 (Final cleanup) → Stages 11, 12.
-- Migration plan table → reproduced in Stage 0 conventions.
-- Resolved-during-design discussion → reflected as concrete instructions in stages.
-- Open questions to settle at planning time → handled inline in respective stages (DynamicState location at 4.1, add_chord post-stage-9 at 9.2, fallback removal at 10.5, ChordArticulation rename-vs-delete at 8.3).
+- Migration plan table → reproduced in stage flow.
 
 Open at execution time (cannot be answered without touching the code):
 - Exact line numbers for every "modify X.h:N-M" reference. The plan uses spec-time line numbers; verify with `grep` at execution time as files evolve through the chain.
 - DrumPerformer fate (deferred per spec; revisit after Stage 8).
-- Whether `StepMode::ChordTone` field (orphaned) gets a consumer in the realize step at Stages 4-5 or stays orphaned. Deferred decision; if it stays orphaned, delete in Stage 11 cleanup.
+- Whether `StepMode::ChordTone` field (orphaned) gets a consumer in the realize step at Stages 5-6 or stays orphaned. Deferred decision; if it stays orphaned, delete in Stage 11 cleanup.
+- Whether Stage 8 must absorb Stage 9's per-tone-Notes refactor. Determined by reading Conductor::perform_events carefully at Stage 8 execution.
