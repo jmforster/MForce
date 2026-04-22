@@ -1437,11 +1437,13 @@ struct TransportState {
 };
 static TransportState g_transport;
 
-// Generate-button 2-frame pending state. Click sets this; the main loop
-// runs transport_generate AFTER the ImGui frame has been swapped so the
-// user sees the "Generating..." button state before the blocking render
-// freezes the UI. Cleared when generation finishes.
-static bool s_generatePending = false;
+// Generate-button state machine. 3 phases so the "Generating..." label and
+// the waveform clear are both visible BEFORE the blocking render runs:
+//   0 = idle
+//   1 = click captured, transition to 2 at next frame start
+//   2 = draw "Generating..." + cleared waveform this frame; block after swap
+// After generation: back to 0.
+static int s_genState = 0;
 
 static HWAVEOUT g_waveOut = nullptr;
 static WAVEHDR  g_waveHdrs[NUM_AUDIO_BUFS] = {};
@@ -2587,10 +2589,11 @@ static void draw_transport_panel() {
     ImGui::Separator();
 
     // Action buttons. Generate is synchronous and can block for seconds on
-    // fat patches (Multiplex:50 etc.). Use a 2-frame pending state so the
-    // user sees the button change to "Generating..." before the freeze.
-    if (s_generatePending) {
-        ImVec4 col(0.7f, 0.45f, 0.15f, 1.0f);
+    // fat patches (Multiplex:50 etc.). 3-phase state so the user sees the
+    // button flip to "Generating..." (and the waveform clear) BEFORE the
+    // blocking render starts.
+    if (s_genState >= 1) {
+        ImVec4 col(0.75f, 0.35f, 0.10f, 1.0f);
         ImGui::PushStyleColor(ImGuiCol_Button, col);
         ImGui::PushStyleColor(ImGuiCol_ButtonHovered, col);
         ImGui::PushStyleColor(ImGuiCol_ButtonActive, col);
@@ -2598,7 +2601,7 @@ static void draw_transport_panel() {
         ImGui::PopStyleColor(3);
     } else {
         if (ImGui::Button("Generate")) {
-            s_generatePending = true;
+            s_genState = 1;
         }
     }
     ImGui::SameLine();
@@ -3554,6 +3557,16 @@ int main(int argc, char** argv) {
     while (!glfwWindowShouldClose(window)) {
         glfwPollEvents();
 
+        // Generate pending → draw "Generating..." with cleared waveform this
+        // frame; the blocking render then runs after glfwSwapBuffers so the
+        // user sees the state change before the UI freezes.
+        if (s_genState == 1) {
+            s_genState = 2;
+            g_outputWaveform.clear();
+            g_waveformSamples = 0;
+            for (auto& n : s_nodes) n.waveformData.clear();
+        }
+
         ImGui_ImplOpenGL3_NewFrame();
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
@@ -3896,12 +3909,12 @@ int main(int argc, char** argv) {
 
         glfwSwapBuffers(window);
 
-        // Generate-pending: the previous frame drew the "Generating..." state
-        // of the button. Now run the blocking generation. UI freezes until
-        // it completes, then the next frame redraws the normal button state.
-        if (s_generatePending) {
+        // Generate state machine: this frame drew "Generating..." with the
+        // waveform cleared. Now run the blocking generation. UI freezes
+        // until it completes; the frozen screen still shows "Generating...".
+        if (s_genState == 2) {
             transport_generate();
-            s_generatePending = false;
+            s_genState = 0;
         }
     }
 
