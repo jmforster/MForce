@@ -8,6 +8,7 @@
 #include <optional>
 #include <memory>
 #include <unordered_map>
+#include <algorithm>
 
 namespace mforce {
 
@@ -70,6 +71,40 @@ struct Element {
   const Chord& chord() const { return std::get<Chord>(content); }
   const Hit&   hit()   const { return std::get<Hit>(content); }
   const Rest&  rest()  const { return std::get<Rest>(content); }
+};
+
+// ===========================================================================
+// ElementSequence — the realized events for a Part. Composer's authoritative
+// output for that Part; Conductor consumes from here.
+// ===========================================================================
+struct ElementSequence {
+  std::vector<Element> elements;
+  float totalBeats{0.0f};
+
+  void add(const Element& e) {
+    elements.push_back(e);
+    float endBeat = e.startBeats;
+    if      (e.is_note())  endBeat += e.note().durationBeats;
+    else if (e.is_hit())   endBeat += e.hit().durationBeats;
+    else if (e.is_rest())  endBeat += e.rest().durationBeats;
+    else if (e.is_chord()) endBeat += e.chord().dur;  // remove with stage 9
+    if (endBeat > totalBeats) totalBeats = endBeat;
+  }
+
+  void sort_by_beat() {
+    std::stable_sort(elements.begin(), elements.end(),
+      [](const Element& a, const Element& b) {
+        return a.startBeats < b.startBeats;
+      });
+  }
+
+  int  size()  const { return int(elements.size()); }
+  bool empty() const { return elements.empty(); }
+
+  auto begin()       { return elements.begin(); }
+  auto end()         { return elements.end();   }
+  auto begin() const { return elements.begin(); }
+  auto end()   const { return elements.end();   }
 };
 
 // ===========================================================================
@@ -172,43 +207,42 @@ struct Part {
   std::string name;
   std::string instrumentType;  // key into Conductor's instrument registry
 
-  // Compositional content: keyed by section name
+  // Compositional content (Composer-internal scratch): keyed by section name
   std::unordered_map<std::string, Passage> passages;
 
-  // Realized events (built directly for simple cases)
-  std::vector<Element> events;
-  float totalBeats{0.0f};
+  // Authoritative realized events. Populated by Composer (via realize step) or
+  // by direct-build helpers below.
+  ElementSequence elementSequence;
+
+  // Backwards-compat read accessor (was a field; now read from elementSequence)
+  float totalBeats() const { return elementSequence.totalBeats; }
 
   // --- Direct event building (for testing, simple progressions) ---
 
   void add_chord(float startBeat, const Chord& chord) {
-    events.push_back({startBeat, chord});
-    totalBeats = std::max(totalBeats, startBeat + chord.dur);
+    elementSequence.add({startBeat, chord});
   }
 
   void add_chord(const Chord& chord) {
-    add_chord(totalBeats, chord);
+    add_chord(elementSequence.totalBeats, chord);
   }
 
   void add_note(float startBeat, float noteNumber, float velocity, float durationBeats,
                 Articulation art = articulations::Default{}, Ornament orn = Ornament{}) {
-    events.push_back({startBeat, Note{noteNumber, velocity, durationBeats, art, orn}});
-    totalBeats = std::max(totalBeats, startBeat + durationBeats);
+    elementSequence.add({startBeat, Note{noteNumber, velocity, durationBeats, art, orn}});
   }
 
   void add_note(float noteNumber, float velocity, float durationBeats,
                 Articulation art = articulations::Default{}) {
-    add_note(totalBeats, noteNumber, velocity, durationBeats, art);
+    add_note(elementSequence.totalBeats, noteNumber, velocity, durationBeats, art);
   }
 
   void add_hit(float startBeat, int drumNumber, float velocity, float durationBeats = 0.1f) {
-    events.push_back({startBeat, Hit{drumNumber, velocity, durationBeats}});
-    totalBeats = std::max(totalBeats, startBeat + durationBeats);
+    elementSequence.add({startBeat, Hit{drumNumber, velocity, durationBeats}});
   }
 
   void add_rest(float durationBeats) {
-    events.push_back({totalBeats, Rest{durationBeats}});
-    totalBeats += durationBeats;
+    elementSequence.add({elementSequence.totalBeats, Rest{durationBeats}});
   }
 };
 

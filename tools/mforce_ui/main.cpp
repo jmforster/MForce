@@ -2219,7 +2219,7 @@ static void render_chords_waveforms(const std::vector<ParsedChord>& chords, floa
         conductor.chordPerformer.register_josie_figures();
         conductor.perform(part, bpm, *ip.instrument);
 
-        float totalSeconds = part.totalBeats * 60.0f / bpm + 1.0f;
+        float totalSeconds = part.totalBeats() * 60.0f / bpm + 1.0f;
         int frames = int(totalSeconds * float(ip.sampleRate));
         std::vector<float> mono(frames, 0.0f);
         RenderContext _ctx{ip.sampleRate};

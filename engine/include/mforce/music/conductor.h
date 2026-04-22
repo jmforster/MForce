@@ -687,7 +687,7 @@ struct Conductor {
         if (!inst) continue;
 
         // Event-list path: if the Part has direct events, play them
-        if (!part.events.empty()) {
+        if (!part.elementSequence.empty()) {
           perform_events(part, bpm, beatOffset, inst);
         }
 
@@ -726,7 +726,7 @@ private:
     auto* pitched = dynamic_cast<PitchedInstrument*>(inst);
     auto* drums = dynamic_cast<DrumKit*>(inst);
 
-    for (const auto& event : part.events) {
+    for (const auto& event : part.elementSequence) {
       float absBeats = beatOffset + event.startBeats;
 
       if (event.is_note() && pitched) {

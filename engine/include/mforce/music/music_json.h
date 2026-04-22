@@ -531,9 +531,9 @@ inline void from_json(const json& j, Section& s) {
 inline void to_json(json& j, const Part& p) {
   j = json{{"name", p.name}};
   if (!p.instrumentType.empty()) j["instrumentType"] = p.instrumentType;
-  if (!p.events.empty()) j["events"] = p.events;
+  if (!p.elementSequence.empty()) j["events"] = p.elementSequence.elements;
   if (!p.passages.empty()) j["passages"] = p.passages;
-  if (p.totalBeats > 0) j["totalBeats"] = p.totalBeats;
+  if (p.totalBeats() > 0) j["totalBeats"] = p.totalBeats();
 }
 
 inline void from_json(const json& j, Part& p) {
@@ -543,7 +543,7 @@ inline void from_json(const json& j, Part& p) {
     for (auto& ej : j.at("events")) {
       Element e;
       from_json(ej, e);
-      p.events.push_back(std::move(e));
+      p.elementSequence.add(e);
     }
   }
   if (j.contains("passages")) {
@@ -553,7 +553,12 @@ inline void from_json(const json& j, Part& p) {
       p.passages[key] = std::move(pass);
     }
   }
-  p.totalBeats = j.contains("totalBeats") ? j.at("totalBeats").get<float>() : 0.0f;
+  // totalBeats is now derived from elementSequence; only override if explicitly set
+  // and elementSequence didn't compute a larger value.
+  if (j.contains("totalBeats")) {
+    float tb = j.at("totalBeats").get<float>();
+    if (tb > p.elementSequence.totalBeats) p.elementSequence.totalBeats = tb;
+  }
 }
 
 inline void to_json(json& j, const Piece& p) {
