@@ -13,6 +13,8 @@
 #include "mforce/music/templates.h"
 #include "mforce/music/pitch_reader.h"
 #include "mforce/music/realization_strategy.h"
+#include "mforce/music/dynamic_state.h"
+#include "mforce/music/pitch_walker.h"
 #include "mforce/music/rng.h"
 #include "mforce/core/randomizer.h"
 #include <iostream>
@@ -150,6 +152,7 @@ struct Composer {
       }
     }
     realize_chord_parts_(piece, tmpl);
+    realize_event_sequences_(piece, tmpl);
   }
 
   // --- Dispatchers called from strategies ---
@@ -267,6 +270,130 @@ private:
   // requires it), this const_cast goes away.
   void realize_motifs_(const Piece& /*piece*/, const PieceTemplate& tmpl) {
     ::mforce::realize_motifs(const_cast<PieceTemplate&>(tmpl), rng_);
+  }
+
+  // -------------------------------------------------------------------------
+  // realize_event_sequences_ — Stage 5 entry point.
+  //
+  // For each Part, walks its Passage tree (per Section) and emits realized
+  // Notes into Part.elementSequence. Stage 2's exclusive Conductor dispatch
+  // picks elementSequence over the tree-walk fallback once it's non-empty.
+  //
+  // Stage 5 handles passages composed entirely of MelodicFigure. Passages
+  // containing any ChordFigure are skipped (Conductor's tree-walk fallback
+  // handles them). Stage 6 will extend coverage to ChordFigure; Stage 7 to
+  // chord events.
+  // -------------------------------------------------------------------------
+  static float section_start_beat_(const Piece& piece, const std::string& sectionName) {
+    float beat = 0.0f;
+    for (const auto& s : piece.sections) {
+      if (s.name == sectionName) return beat;
+      beat += s.beats;
+    }
+    return 0.0f;
+  }
+
+  static bool passage_has_chord_figure_(const Passage& passage) {
+    for (const auto& phrase : passage.phrases) {
+      for (const auto& figPtr : phrase.figures) {
+        if (dynamic_cast<const ChordFigure*>(figPtr.get())) return true;
+      }
+    }
+    return false;
+  }
+
+  void realize_event_sequences_(Piece& piece, const PieceTemplate& /*tmpl*/) {
+    for (auto& part : piece.parts) {
+      // Skip Parts that already have events (chord parts via add_chord, or
+      // direct-build patches).
+      if (!part.elementSequence.empty()) continue;
+
+      for (const auto& sec : piece.sections) {
+        auto it = part.passages.find(sec.name);
+        if (it == part.passages.end()) continue;
+        const Passage& passage = it->second;
+
+        // Stage 5 limit: skip passages with any ChordFigure.
+        if (passage_has_chord_figure_(passage)) continue;
+
+        float passageStartBeat = section_start_beat_(piece, sec.name);
+        float effectiveBeats = sec.beats - sec.truncateTailBeats;
+        if (effectiveBeats < 0.0f) effectiveBeats = 0.0f;
+
+        realize_passage_to_events_(part, passage, sec, passageStartBeat,
+                                    effectiveBeats);
+      }
+    }
+  }
+
+  void realize_passage_to_events_(Part& part, const Passage& passage,
+                                  const Section& section,
+                                  float passageStartBeat,
+                                  float maxSectionBeats) {
+    const Scale& scale = passage.scaleOverride.value_or(section.scale);
+
+    DynamicState dynamics;
+    int nextMarking = 0;
+    if (!passage.dynamicMarkings.empty() && passage.dynamicMarkings[0].beat <= 0.0f) {
+      dynamics = DynamicState(passage.dynamicMarkings[0].level);
+      nextMarking = 1;
+    }
+
+    float currentBeat = passageStartBeat;
+    for (const auto& phrase : passage.phrases) {
+      if (currentBeat - passageStartBeat >= maxSectionBeats) break;
+      currentBeat = realize_phrase_to_events_(part, phrase, scale, currentBeat,
+                                              dynamics, passage.dynamicMarkings, nextMarking,
+                                              passageStartBeat, section,
+                                              maxSectionBeats);
+    }
+  }
+
+  float realize_phrase_to_events_(Part& part, const Phrase& phrase,
+                                  const Scale& scale,
+                                  float startBeat,
+                                  DynamicState& dynamics,
+                                  const std::vector<DynamicMarking>& markings,
+                                  int& nextMarking,
+                                  float passageBeatOffset,
+                                  const Section& /*section*/,
+                                  float maxSectionBeats) {
+    float currentBeat = startBeat;
+    float currentNN = phrase.startingPitch.note_number();
+
+    for (int f = 0; f < phrase.figure_count(); ++f) {
+      const auto& fig = *phrase.figures[f];
+      // Stage 5: only MelodicFigure (Stage 6 adds ChordFigure).
+      // passage_has_chord_figure_ already guarantees no ChordFigure here.
+
+      for (int i = 0; i < fig.note_count(); ++i) {
+        const auto& u = fig.units[i];
+
+        if (maxSectionBeats >= 0.0f &&
+            (currentBeat - passageBeatOffset) >= maxSectionBeats) {
+          return currentBeat;
+        }
+
+        currentNN = step_note(currentNN, u.step, scale);
+        float soundNN = currentNN + float(u.accidental);
+
+        float passageBeat = currentBeat - passageBeatOffset;
+        while (nextMarking < int(markings.size()) &&
+               markings[nextMarking].beat <= passageBeat) {
+          dynamics.set_marking(markings[nextMarking], passageBeatOffset);
+          nextMarking++;
+        }
+
+        if (!u.rest) {
+          float vel = dynamics.velocity_at(currentBeat);
+          Note n{soundNN, vel, u.duration, u.articulation, u.ornament};
+          part.elementSequence.add({currentBeat, n});
+        }
+        currentBeat += u.duration;
+      }
+    }
+
+    return currentBeat;
   }
 
   void realize_chord_parts_(Piece& piece, const PieceTemplate& tmpl) {

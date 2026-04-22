@@ -2,6 +2,8 @@
 #include "mforce/music/structure.h"
 #include "mforce/music/basics.h"
 #include "mforce/music/figures.h"
+#include "mforce/music/pitch_walker.h"
+#include "mforce/music/dynamic_state.h"
 #include "mforce/render/instrument.h"
 #include "mforce/music/pitch_bend.h"
 #include "mforce/music/pitch_curve.h"
@@ -14,147 +16,6 @@
 #include <optional>
 
 namespace mforce {
-
-// ---------------------------------------------------------------------------
-// Scale-degree stepping: move a note number up/down by scale degrees
-// ---------------------------------------------------------------------------
-// Snap a note number to the nearest pitch in the scale
-inline float snap_to_scale(float noteNumber, const Scale& scale) {
-    float rel = noteNumber - float(scale.offset());
-    float octaves = std::floor(rel / 12.0f);
-    float pos = rel - octaves * 12.0f;
-    if (pos < 0) { pos += 12.0f; octaves -= 1.0f; }
-
-    float bestPitch = 0;
-    float bestDist = 999.0f;
-    float accum = 0;
-    for (int d = 0; d < scale.length(); ++d) {
-        float dist = std::abs(accum - pos);
-        if (dist < bestDist) {
-            bestDist = dist;
-            bestPitch = float(scale.offset()) + octaves * 12.0f + accum;
-        }
-        accum += scale.ascending_step(d);
-    }
-    // Also check the octave above (degree 0 of next octave)
-    float dist = std::abs(accum - pos);
-    if (dist < bestDist) {
-        bestPitch = float(scale.offset()) + octaves * 12.0f + accum;
-    }
-    return bestPitch;
-}
-
-inline float step_note(float noteNumber, int steps, const Scale& scale) {
-    if (steps == 0) return noteNumber;
-
-    float nn = noteNumber;
-
-    if (steps > 0) {
-        for (int i = 0; i < steps; ++i) {
-            float rel = nn - float(scale.offset());
-            while (rel < 0) rel += 12.0f;
-            float pos = std::fmod(rel, 12.0f);
-            float accum = 0;
-            int deg = 0;
-            for (int d = 0; d < scale.length(); ++d) {
-                if (std::abs(accum - pos) < 0.5f) { deg = d; break; }
-                accum += scale.ascending_step(d);
-            }
-            nn += scale.ascending_step(deg % scale.length());
-        }
-    } else {
-        for (int i = 0; i < -steps; ++i) {
-            float rel = nn - float(scale.offset());
-            while (rel < 0) rel += 12.0f;
-            float pos = std::fmod(rel, 12.0f);
-            float accum = 0;
-            int deg = 0;
-            for (int d = 0; d < scale.length(); ++d) {
-                if (std::abs(accum - pos) < 0.5f) { deg = d; break; }
-                accum += scale.ascending_step(d);
-            }
-            int prevDeg = (deg - 1 + scale.length()) % scale.length();
-            nn -= scale.ascending_step(prevDeg);
-        }
-    }
-    return nn;
-}
-
-// ---------------------------------------------------------------------------
-// Chord-tone stepping: move a note number through chord tones
-// ---------------------------------------------------------------------------
-inline float step_chord_tone(float noteNumber, int steps, const Chord& chord) {
-    if (steps == 0 || chord.pitches.empty()) return noteNumber;
-
-    // Build sorted list of chord tones across ±2 octaves
-    std::vector<float> tones;
-    for (int octShift = -2; octShift <= 2; ++octShift) {
-        for (const auto& p : chord.pitches) {
-            tones.push_back(p.note_number() + 12.0f * octShift);
-        }
-    }
-    std::sort(tones.begin(), tones.end());
-
-    // Find closest chord tone to current position
-    int closest = 0;
-    float minDist = 999.0f;
-    for (int i = 0; i < int(tones.size()); ++i) {
-        float d = std::abs(tones[i] - noteNumber);
-        if (d < minDist) { minDist = d; closest = i; }
-    }
-
-    // If first step wants to go up but we snapped below, adjust
-    if (steps > 0 && tones[closest] < noteNumber - 0.1f) {
-        for (int i = closest + 1; i < int(tones.size()); ++i) {
-            if (tones[i] >= noteNumber - 0.1f) { closest = i; break; }
-        }
-    } else if (steps < 0 && tones[closest] > noteNumber + 0.1f) {
-        for (int i = closest - 1; i >= 0; --i) {
-            if (tones[i] <= noteNumber + 0.1f) { closest = i; break; }
-        }
-    }
-
-    int target = closest + steps;
-    target = std::max(0, std::min(target, int(tones.size()) - 1));
-    return tones[target];
-}
-
-// ---------------------------------------------------------------------------
-// DynamicState — tracks current velocity from dynamic markings
-// ---------------------------------------------------------------------------
-struct DynamicState {
-  float currentVelocity;
-  float targetVelocity;
-  float rampStartBeat;
-  float rampEndBeat;
-
-  explicit DynamicState(Dynamic d = Dynamic::mf)
-    : currentVelocity(dynamic_to_velocity(d))
-    , targetVelocity(currentVelocity)
-    , rampStartBeat(0), rampEndBeat(0) {}
-
-  void set_marking(const DynamicMarking& m, float passageBeatOffset) {
-    float markBeat = passageBeatOffset + m.beat;
-    if (m.rampBeats <= 0) {
-      currentVelocity = dynamic_to_velocity(m.level);
-      targetVelocity = currentVelocity;
-    } else {
-      rampStartBeat = markBeat;
-      rampEndBeat = markBeat + m.rampBeats;
-      targetVelocity = dynamic_to_velocity(m.level);
-    }
-  }
-
-  float velocity_at(float beat) {
-    if (beat >= rampEndBeat || rampEndBeat <= rampStartBeat) {
-      currentVelocity = targetVelocity;
-      return currentVelocity;
-    }
-    if (beat <= rampStartBeat) return currentVelocity;
-    float t = (beat - rampStartBeat) / (rampEndBeat - rampStartBeat);
-    return currentVelocity + t * (targetVelocity - currentVelocity);
-  }
-};
 
 // ---------------------------------------------------------------------------
 // NotePerformer — plays individual notes. Beat→seconds + humanization.
