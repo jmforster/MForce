@@ -54,7 +54,7 @@ Concrete consequences:
 ## Non-goals
 
 - **DrumPerformer migration.** Likely follows ChordPerformer out (drums could be expanded to per-`Hit` events at compose time and DrumPerformer becomes a route-to-instrument shim) but the call is explicitly deferred. Decide after the chord-side refactor lands.
-- **Conductor → Performer rename.** Cosmetic. "Conductor" oversells the narrowed scope but the rename can be a post-refactor cleanup commit, not part of the 12-step chain.
+- **Conductor → Performer rename.** Conductor stays named Conductor. The narrowed scope is real but a rename adds churn for no functional gain.
 - **Score export.** Now possible because the score exists as data. Future feature, not part of this refactor.
 - **`StepMode::ChordTone` decision** (orphaned field). Decide at plan time when the realize step is being written; the field may finally get a consumer or get deleted. Does not block the refactor.
 - **Phrase tree elimination / direct-emit refactor.** Strategies continue to build the tree as scratch; realization walks it. A future cleanup pass can dismantle the tree-emitting strategies in favor of direct-emit. Not in this refactor.
@@ -317,7 +317,7 @@ Goldens to enforce:
 - **Compose-tier output = all musical Events.** Performer expands Articulation/Ornament/Tempo/Dynamic markings (which DO appear in elementSequence, on Notes or as standalone events) and applies attack-time deviations (swing, humanization). Markings as data → score is printable.
 - **`ChordRealization` rename absorbed into stage 8** (not given its own stage).
 - **DrumPerformer fate deferred.** Likely follows ChordPerformer out post-refactor. Decide after stage 8.
-- **Conductor → Performer rename deferred.** Cosmetic; post-refactor cleanup commit.
+- **Conductor name stays.** Narrowed scope is real but a rename adds churn for no functional gain.
 
 ## Open questions to settle at planning time
 
@@ -336,7 +336,7 @@ Goldens to enforce:
 - **Genre-specific RealizationStrategies.** `"alberti"`, `"strum_down"`, `"jazz_comp"`, `"basso_continuo"` plug in via the registry; PassageTemplate selects per Section.
 - **Cross-Part voicing coordination.** `VoicingRequest.melodyPitch` (currently stubbed) gets a real consumer once melody Part is fully realized at compose time before chord Parts run their realize.
 - **Direct-emit refactor (A2).** With realize-to-events working, the strategies can later be refactored to emit directly into ElementSequence without an intermediate tree. Future cleanup, not blocking.
-- **Conductor → Performer rename + signature tightening.** Post-refactor cosmetics that close the loop.
+- **Conductor signature tightening.** Post-refactor: drop `Piece&` for a narrower input if no tree reads survive.
 - **DrumPerformer migration.** Same pattern as ChordPerformer, applied post-refactor.
 - **Voicing-selector open items** (upward drift, cadential role, boring-repeat) become tractable as in-Composer fixes rather than cross-tier negotiations.
 - **AI / agentic composition.** Models that emit ElementSequences directly bypass the tree entirely; the contract is well-defined.
