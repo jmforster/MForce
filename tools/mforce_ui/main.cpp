@@ -1352,9 +1352,11 @@ static void save_to_path(const std::string& path) {
 // Playback paths should use this instead of s_currentFilePath directly so
 // MultiplexSource and other load-time-baked constructs see current edits.
 static std::string get_playback_patch_path() {
-    if (!s_graphDirty) return s_currentFilePath;
-    // Write current state to temp, but DON'T update s_currentFilePath —
-    // the user's saved file stays untouched until they explicitly Save.
+    // Use the saved file if one exists and the graph hasn't been edited.
+    if (!s_graphDirty && !s_currentFilePath.empty()) return s_currentFilePath;
+    // Otherwise (edited since last save, or never saved) write current state
+    // to a temp file and return that path. User's explicit save file is
+    // untouched until they explicitly Save.
     std::string tmp = (std::filesystem::temp_directory_path() / "mforce_playback.json").string();
     if (s_graphMode == GraphMode::PatchGraph) save_patch_graph(tmp);
     else save_node_graph(tmp);
@@ -1652,32 +1654,43 @@ static void render_waveforms(float noteNum, float velocity, float durationSecond
 
 // Play a note: render offline into a voice buffer for polyphonic mixing.
 // Also updates the waveform display with the most recent note.
+//
+// Audio path routes through load_instrument_patch(temp) so the CLI loader's
+// voice-pool + paramMap machinery (including MultiplexSource fan-out into
+// internal clones) applies to live-keyboard playback. The UI's in-memory
+// DSP tree is used only for the waveform display — that path shows the
+// UI's solo-preview state without the fan-out, which is fine for a visual.
 static void play_note(float noteNum, float velocity, float durationSeconds) {
     if (s_graphMode != GraphMode::PatchGraph) return;
 
-    ValueSource* src = find_output_source();
-    if (!src) return;
-
-    // Render for waveform display (shows last-played note)
+    // Render for waveform display (shows last-played note via UI DSP tree).
     render_waveforms(noteNum, velocity, durationSeconds);
 
-    // Re-render into a voice buffer for audio playback
-    float freq = note_to_freq(noteNum);
-    for (auto& n : s_nodes) {
-        if (n.typeName == NT_PARAMETER && n.paramName == "frequency") {
-            if (auto* p = n.find_input("default"))
-                p->constantSrc->set(freq);
-        }
+    // Audio path: load a fresh instrument from the current UI state (synced
+    // to a temp file if dirty) and play_note on it, so Multiplex clones
+    // retune correctly via paramMap fan-out.
+    std::string path = get_playback_patch_path();
+    if (path.empty()) return;
+
+    try {
+        auto ip = load_instrument_patch(path);
+        auto* pitched = dynamic_cast<PitchedInstrument*>(ip.instrument.get());
+        if (!pitched) return;  // non-pitched instruments not supported here
+
+        ip.instrument->volume = 1.0f;
+        pitched->play_note(noteNum, velocity, durationSeconds, 0.0f);
+
+        // +0.5s tail so a patch's own release/decay has room past the note's
+        // nominal duration. Matches the feel of a sustained keyboard press.
+        int frames = int((durationSeconds + 0.5f) * float(ip.sampleRate));
+        std::vector<float> mono(frames, 0.0f);
+        RenderContext ctx{ip.sampleRate};
+        ip.instrument->render(ctx, mono.data(), frames);
+
+        voice_play(std::move(mono), int(noteNum));
+    } catch (const std::exception& e) {
+        std::fprintf(stderr, "play_note failed: %s\n", e.what());
     }
-
-    int samples = int(durationSeconds * float(AUDIO_SAMPLE_RATE));
-    prepare_graph(samples);
-
-    std::vector<float> buf(samples);
-    for (int i = 0; i < samples; ++i)
-        buf[i] = src->next() * velocity;
-
-    voice_play(std::move(buf), int(noteNum));
 }
 
 // Start continuous streaming — uses a long fixed duration for Envelope compat
