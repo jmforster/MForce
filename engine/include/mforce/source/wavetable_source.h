@@ -102,6 +102,14 @@ private:
   float tuningCoeff_{0.0f};
   float tuningState_{0.0f};
   float tuningPrevIn_{0.0f};
+  // Pitch-bend support: readout is a fractional head that advances by
+  // currFreq_/baseFreq_ per sample. baseFreq_ is captured at sample 0 and
+  // locked for the note — it defines the ring buffer length and evolution
+  // timebase. The loop itself (values_ contents + evolution + tuning allpass)
+  // runs at base pitch; the bend is a resample on read. Adequate for
+  // musical bends (≤ few semitones); breaks down for extreme excursions.
+  float baseFreq_{0.0f};
+  float readPos_{-1.0f};
 };
 
 } // namespace mforce

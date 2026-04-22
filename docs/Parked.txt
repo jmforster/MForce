@@ -18,6 +18,18 @@
    with no hint of the relationship. Group the triplet visually (e.g.
    "Rolloff: 8.0 → 0.5 [env]") so the semantic is obvious.
 
+6. KS pluck pitch-bend, Approach B — variable-length loop with fractional
+   delay (2026-04-22): Approach A (resample-on-read) landed; bend is now
+   audible on WavetableSource with `interpolate: false` for bends up to a
+   few semitones. Larger bends sound like a sample pitch-shift because the
+   ring buffer length, PluckEvolution feedback, and tuning allpass coeff
+   are all locked to baseFreq_ at note start. A physically correct fix
+   would: (a) size storage for the lowest expected freq, (b) treat active
+   loop length as SR/currFreq_ per-sample (float), (c) add a Lagrange or
+   Thiran fractional delay so the feedback loop itself retunes. Touches
+   every WaveEvolution; risk of breaking existing pluck/bowed/reed patches.
+   Revisit only if large bends on plucks become musically important.
+
 5. Pin type hints + silent-cast-fail (2026-04-20): ValueSource pins are
    typed by name only, so any source connects to any pin. For structural
    requirements (formant→IFormant, partials→IPartials, used by

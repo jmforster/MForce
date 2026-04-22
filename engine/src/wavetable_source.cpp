@@ -42,6 +42,7 @@ float WavetableSource::compute_wave_value() {
 float WavetableSource::compute_raw() {
   // On first sample, fill table and let evolution adjust
   if (ptr_ == 0) {
+    baseFreq_ = currFreq_;
     fill_table();
     if (evolution_) {
       evolution_->adjust(currFreq_);
@@ -58,6 +59,7 @@ float WavetableSource::compute_raw() {
     tuningState_ = 0.0f;
     tuningPrevIn_ = 0.0f;
     tablePtr2_ = -1;
+    readPos_ = -1.0f;  // advances to 0.0 on first step below
   }
 
   int len = int(values_.size());
@@ -67,7 +69,21 @@ float WavetableSource::compute_raw() {
     evolution_->evolve(values_, tablePtr2_);
   }
 
-  float out = values_[tablePtr2_];
+  // Fractional read head — advance by currFreq_/baseFreq_ so pitch bends on
+  // `frequency` bend the output. The loop itself runs at base pitch (above);
+  // this is a resample on read. rateScale==1 (no bend) lands on integer
+  // positions, so linear-interp collapses to values_[idx] and output matches
+  // legacy behavior exactly.
+  float rateScale = (baseFreq_ > 0.0f) ? currFreq_ / baseFreq_ : 1.0f;
+  readPos_ += rateScale;
+  while (readPos_ >= float(len)) readPos_ -= float(len);
+  while (readPos_ < 0.0f) readPos_ += float(len);
+  int idx = int(std::floor(readPos_));
+  if (idx < 0) idx = 0;
+  if (idx >= len) idx = len - 1;
+  int idx2 = (idx + 1) % len;
+  float fpos = readPos_ - float(idx);
+  float out = values_[idx] + (values_[idx2] - values_[idx]) * fpos;
 
   // Tuning allpass: y[n] = C*x[n] + x[n-1] - C*y[n-1]
   if (tuningCoeff_ != 0.0f) {
