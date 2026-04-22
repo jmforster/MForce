@@ -1437,6 +1437,12 @@ struct TransportState {
 };
 static TransportState g_transport;
 
+// Generate-button 2-frame pending state. Click sets this; the main loop
+// runs transport_generate AFTER the ImGui frame has been swapped so the
+// user sees the "Generating..." button state before the blocking render
+// freezes the UI. Cleared when generation finishes.
+static bool s_generatePending = false;
+
 static HWAVEOUT g_waveOut = nullptr;
 static WAVEHDR  g_waveHdrs[NUM_AUDIO_BUFS] = {};
 static int16_t  g_audioBufs[NUM_AUDIO_BUFS][AUDIO_CHUNK * 2] = {};
@@ -1615,6 +1621,42 @@ static void prepare_graph(int samples) {
 }
 
 // Offline render: populate per-node waveformData and g_outputWaveform for display
+// Overwrite g_outputWaveform with authoritative audio for a passage (note
+// sequence) via load_instrument_patch + PitchedInstrument. Per-node
+// waveform data still comes from render_passage_waveforms' UI DSP pass.
+static void render_passage_output_authoritative(
+    const std::vector<ParsedNote>& notes, float velocity)
+{
+    if (notes.empty()) return;
+    std::string path = get_playback_patch_path();
+    if (path.empty()) return;
+
+    try {
+        auto ip = load_instrument_patch(path);
+        auto* pitched = dynamic_cast<PitchedInstrument*>(ip.instrument.get());
+        if (!pitched) return;
+
+        ip.instrument->volume = 1.0f;
+        float timeCursor = 0.0f;
+        for (const auto& pn : notes) {
+            pitched->play_note(pn.noteNumber, velocity, pn.durationSeconds, timeCursor);
+            timeCursor += pn.durationSeconds;
+        }
+
+        float totalSeconds = timeCursor + 0.5f;
+        int frames = int(totalSeconds * float(ip.sampleRate));
+        g_outputWaveform.assign(frames, 0.0f);
+        g_waveformSamples = frames;
+        RenderContext ctx{ip.sampleRate};
+        ip.instrument->render(ctx, g_outputWaveform.data(), frames);
+
+        g_waveScrollPos = 0;
+        g_waveZoom = std::max(1, frames / 800);
+    } catch (const std::exception& e) {
+        std::fprintf(stderr, "render_passage_output_authoritative failed: %s\n", e.what());
+    }
+}
+
 // Overwrite g_outputWaveform with authoritative audio produced via
 // load_instrument_patch — the same path CLI `mforce_cli` uses, so
 // MultiplexSource fan-out (and any other load-time constructs) apply.
@@ -2325,6 +2367,7 @@ static void transport_generate() {
                     transport_set_status("No notes parsed from passage string", true);
                 } else {
                     render_passage_waveforms(notes, g_transport.velocity);
+                    render_passage_output_authoritative(notes, g_transport.velocity);
                     char buf[128];
                     snprintf(buf, sizeof(buf), "Generated %d notes", (int)notes.size());
                     transport_set_status(buf, false);
@@ -2543,9 +2586,20 @@ static void draw_transport_panel() {
 
     ImGui::Separator();
 
-    // Action buttons
-    if (ImGui::Button("Generate")) {
-        transport_generate();
+    // Action buttons. Generate is synchronous and can block for seconds on
+    // fat patches (Multiplex:50 etc.). Use a 2-frame pending state so the
+    // user sees the button change to "Generating..." before the freeze.
+    if (s_generatePending) {
+        ImVec4 col(0.7f, 0.45f, 0.15f, 1.0f);
+        ImGui::PushStyleColor(ImGuiCol_Button, col);
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, col);
+        ImGui::PushStyleColor(ImGuiCol_ButtonActive, col);
+        ImGui::Button("Generating...");
+        ImGui::PopStyleColor(3);
+    } else {
+        if (ImGui::Button("Generate")) {
+            s_generatePending = true;
+        }
     }
     ImGui::SameLine();
 
@@ -3471,17 +3525,27 @@ int main(int argc, char** argv) {
 
     // Start with a Patch Graph — then, if a patch path was passed on the
     // command line, load it so the user can launch the UI with a patch in
-    // one step (e.g. `mforce_ui.exe patches/MPXTest3.json`).
+    // one step (e.g. `mforce_ui.exe patches/MPXTest3.json`). Status shows
+    // in the transport panel whether the load succeeded or failed.
     new_graph(GraphMode::PatchGraph);
     if (argc >= 2) {
         std::string patchArg = argv[1];
-        if (std::filesystem::exists(patchArg)) {
-            try { load_graph_from_path(patchArg); }
-            catch (const std::exception& e) {
-                std::fprintf(stderr, "Failed to load '%s': %s\n", patchArg.c_str(), e.what());
-            }
+        if (!std::filesystem::exists(patchArg)) {
+            char buf[512];
+            snprintf(buf, sizeof(buf), "Patch not found: %s", patchArg.c_str());
+            transport_set_status(buf, true);
         } else {
-            std::fprintf(stderr, "Patch file not found: %s\n", patchArg.c_str());
+            try {
+                load_graph_from_path(patchArg);
+                char buf[512];
+                snprintf(buf, sizeof(buf), "Loaded: %s", patchArg.c_str());
+                transport_set_status(buf, false);
+            } catch (const std::exception& e) {
+                char buf[512];
+                snprintf(buf, sizeof(buf), "Failed to load %s: %s",
+                         patchArg.c_str(), e.what());
+                transport_set_status(buf, true);
+            }
         }
     }
     bool s_firstFrame = true;
@@ -3831,6 +3895,14 @@ int main(int argc, char** argv) {
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
         glfwSwapBuffers(window);
+
+        // Generate-pending: the previous frame drew the "Generating..." state
+        // of the button. Now run the blocking generation. UI freezes until
+        // it completes, then the next frame redraws the normal button state.
+        if (s_generatePending) {
+            transport_generate();
+            s_generatePending = false;
+        }
     }
 
     shutdown_audio();
