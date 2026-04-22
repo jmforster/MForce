@@ -51,8 +51,15 @@ struct CombinedSource final : ValueSource {
   }
 
   std::span<const ConfigDescriptor> config_descriptors() const override {
+    // Display labels for the operation dropdown. Index must match CombineOp:
+    // 0=Add (averaged mix), 1=Multiply, 2=Fade (crossfade), 3=Sum (raw add).
+    // "Add" is shown as "Mix" since it's actually (v1+v2)/2 — averaging, not
+    // summation. "Sum" is the raw-addition variant.
+    static constexpr const char* kOpLabels[] = {
+      "Mix", "Multiply", "Fade", "Sum", nullptr
+    };
     static constexpr ConfigDescriptor descs[] = {
-      {"operation", ConfigType::Int,   0.0f, 0.0f, 3.0f},  // 0=Add, 1=Multiply, 2=Fade, 3=Sum
+      {"operation", ConfigType::Int,   0.0f,  0.0f,  3.0f, kOpLabels},
       {"gainAdj",   ConfigType::Float, 0.0f, -1.0f, 10.0f},
     };
     return descs;

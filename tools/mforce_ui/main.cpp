@@ -2833,139 +2833,53 @@ static void draw_properties_panel() {
         }
     }
 
-    // Config values. Configs whose names are "X1"/"X2" pairs get rendered
-    // on a single row as "X: [v1] → [v2]" — makes the two-endpoint blend
-    // relationship visible (Partials.rolloff1/rolloff2 blended by roEnv,
-    // etc.). If the endpoints match AND the logically-matching env pin is
-    // wired, a warning is shown — that's the trap: env does nothing when
-    // endpoints are equal.
+    // Config values. Int configs that are logically enums (e.g.
+    // CombinedSource.operation) render as a dropdown using labels
+    // declared on the ConfigDescriptor.
     if (!node->configValues.empty()) {
         if (hasParams) { ImGui::Spacing(); ImGui::Separator(); ImGui::Spacing(); }
         ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1), "Settings");
 
-        // Pre-scan for X1/X2 pairs (same prefix, same type).
-        std::unordered_map<size_t, size_t> pairOf;
-        std::unordered_set<size_t> pairedIdx;
-        for (size_t a = 0; a < node->configValues.size(); ++a) {
-            const auto& da = node->configValues[a].first;
-            std::string na = da.name;
-            if (na.size() < 2 || na.back() != '1') continue;
-            std::string base = na.substr(0, na.size() - 1);
-            for (size_t b = 0; b < node->configValues.size(); ++b) {
-                if (a == b) continue;
-                const auto& db = node->configValues[b].first;
-                if (db.type != da.type) continue;
-                if (std::string(db.name) == base + "2") {
-                    pairOf[a] = b;
-                    pairedIdx.insert(a);
-                    pairedIdx.insert(b);
-                    break;
-                }
-            }
-        }
-
-        auto env_pin_for_prefix = [](const std::string& p) -> const char* {
-            if (p == "rolloff")     return "roEnv";
-            if (p == "detune")      return "dtEnv";
-            if (p == "unitPO")      return "poEnv";
-            if (p == "evenWeight" || p == "oddWeight" ||
-                p == "minMult"    || p == "incr")    return "multEnv";
-            if (p == "ampl")        return "amplEnv";
-            return nullptr;
-        };
-
-        auto render_numeric_widget = [&](const ConfigDescriptor& desc, float& val,
-                                         const char* label, float widthHint) {
+        for (auto& [desc, val] : node->configValues) {
+            ImGui::Text("%s", desc.name);
+            ImGui::SameLine(labelW);
+            ImGui::PushItemWidth(widgetW);
+            char cfgLabel[64];
+            snprintf(cfgLabel, sizeof(cfgLabel), "##pcfg_%s_%d", desc.name, node->id);
             bool changed = false;
-            ImGui::PushItemWidth(widthHint);
-            if (desc.type == ConfigType::Int) {
+            if (desc.type == ConfigType::Bool) {
+                bool b = (val != 0.0f);
+                if (ImGui::Checkbox(cfgLabel, &b)) { val = b ? 1.0f : 0.0f; changed = true; }
+            } else if (desc.type == ConfigType::Int && desc.enum_labels) {
+                // Count labels (null-terminated).
+                int count = 0;
+                while (desc.enum_labels[count]) ++count;
+                int iv = std::clamp(int(val), 0, count - 1);
+                if (ImGui::Combo(cfgLabel, &iv, desc.enum_labels, count)) {
+                    val = float(iv); changed = true;
+                }
+            } else if (desc.type == ConfigType::Int) {
                 int iv = int(val);
-                if (ImGui::InputInt(label, &iv, 1, 10)) {
+                if (ImGui::InputInt(cfgLabel, &iv, 1, 10)) {
                     iv = std::clamp(iv, int(desc.min_value), int(desc.max_value));
                     val = float(iv); changed = true;
                 }
             } else {
                 float step = std::max(0.001f, (desc.max_value - desc.min_value) * 0.01f);
-                if (ImGui::InputFloat(label, &val, step, step * 10.0f, "%.4f")) {
+                if (ImGui::InputFloat(cfgLabel, &val, step, step * 10.0f, "%.4f")) {
                     val = std::clamp(val, desc.min_value, desc.max_value);
                     changed = true;
                 }
             }
             ImGui::PopItemWidth();
-            return changed;
-        };
-
-        auto apply_config_change = [&](const char* name, float val) {
-            if (!node->dspSource) return;
-            node->dspSource->set_config(name, val);
-            // set_config may have mutated internal arrays (e.g. ExplicitPartials
-            // mirrors _1 → _2 when evolve flips off). Re-pull cached values.
-            for (auto& [d, v] : node->arrayValues)
-                v = node->dspSource->get_array(d.name);
-            s_graphDirty = true;
-        };
-
-        for (size_t i = 0; i < node->configValues.size(); ++i) {
-            auto pairIt = pairOf.find(i);
-            if (pairIt != pairOf.end()) {
-                // Render as a paired X1 → X2 row.
-                size_t j = pairIt->second;
-                auto& [d1, v1] = node->configValues[i];
-                auto& [d2, v2] = node->configValues[j];
-                std::string base(d1.name);
-                base.pop_back();
-
-                ImGui::Text("%s", base.c_str());
-                ImGui::SameLine(labelW);
-                float halfW = widgetW * 0.45f;
-                char lbl1[64], lbl2[64];
-                snprintf(lbl1, sizeof(lbl1), "##cfg1_%s_%d", d1.name, node->id);
-                snprintf(lbl2, sizeof(lbl2), "##cfg2_%s_%d", d2.name, node->id);
-                bool c1 = render_numeric_widget(d1, v1, lbl1, halfW);
-                ImGui::SameLine();
-                ImGui::TextUnformatted("→");
-                ImGui::SameLine();
-                bool c2 = render_numeric_widget(d2, v2, lbl2, halfW);
-
-                // Equal-endpoints warning: only surface if the matching env
-                // pin is wired, since without an env the pair is a single
-                // constant and equal endpoints are fine.
-                if (std::abs(v1 - v2) < 1e-6f) {
-                    const char* envPin = env_pin_for_prefix(base);
-                    if (envPin) {
-                        Pin* p = node->find_input(envPin);
-                        if (p && is_pin_connected(p->id)) {
-                            ImGui::SameLine();
-                            ImGui::TextColored(ImVec4(0.95f, 0.65f, 0.2f, 1),
-                                "[equal, %s has no effect]", envPin);
-                        }
-                    }
-                }
-
-                if (c1) apply_config_change(d1.name, v1);
-                if (c2) apply_config_change(d2.name, v2);
-                // Mark j as consumed so the main loop skips it.
-                pairedIdx.insert(j);
-                continue;
+            if (changed && node->dspSource) {
+                node->dspSource->set_config(desc.name, val);
+                // set_config may have mutated internal arrays (e.g. ExplicitPartials
+                // mirrors _1 → _2 when evolve flips off). Re-pull cached values.
+                for (auto& [d, v] : node->arrayValues)
+                    v = node->dspSource->get_array(d.name);
+                s_graphDirty = true;
             }
-
-            if (pairedIdx.count(i)) continue;  // already drawn as pair's "2" side
-
-            auto& [desc, val] = node->configValues[i];
-            ImGui::Text("%s", desc.name);
-            ImGui::SameLine(labelW);
-            char cfgLabel[64];
-            snprintf(cfgLabel, sizeof(cfgLabel), "##pcfg_%s_%d", desc.name, node->id);
-            bool changed = false;
-            if (desc.type == ConfigType::Bool) {
-                ImGui::PushItemWidth(widgetW);
-                bool b = (val != 0.0f);
-                if (ImGui::Checkbox(cfgLabel, &b)) { val = b ? 1.0f : 0.0f; changed = true; }
-                ImGui::PopItemWidth();
-            } else {
-                changed = render_numeric_widget(desc, val, cfgLabel, widgetW);
-            }
-            if (changed) apply_config_change(desc.name, val);
         }
     }
 

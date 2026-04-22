@@ -42,6 +42,10 @@ struct ConfigDescriptor {
   float default_value;
   float min_value;
   float max_value;   // for Float/Int; ignored for Bool
+  // Optional: null-terminated array of display labels for Int configs that
+  // represent an enum. When set, the UI renders a dropdown instead of a
+  // numeric input. The stored value remains the integer index.
+  const char* const* enum_labels = nullptr;
 };
 
 // Array-of-floats params. The UI groups arrays sharing a non-null groupName
