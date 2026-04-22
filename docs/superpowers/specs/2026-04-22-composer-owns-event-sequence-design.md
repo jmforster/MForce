@@ -305,6 +305,20 @@ Goldens to enforce:
 - Jazz turnaround demos (7 patches: `test_jazz_turnaround_*`) — baseline pinned at stage 2 (when chord-walker lands), bit-identical from stage 3 onward.
 - Other existing renders (fhn, sweep, additive, etc.) — Sound-tier, presumably untouched. Spot-check one per family at stage 7.
 
+## Revised during execution (2026-04-22)
+
+The chord-walker merge (originally Stage 3) was attempted and reverted. K467 walker and period audio diverged from baseline — not from the voicing-selector work itself, but from three composer-quality fixes that landed alongside voicing on chord-walker (`6b62604 fix(composer): period parallelism + shape-aware figure generation`, `803571e feat(composer): auto-generate motifs in PPS plan phase`, `e7e3947 fix(composer): anchor first note + PAC HeldNote`). These were never bit-identity-tested against `test_k467_walker.json` / `test_k467_period.json`; their melody changes are unintended for this refactor's scope.
+
+**Decision: chord-walker integration deferred.** The refactor proceeds without VoicingSelector / VoicingProfile / SmoothVoicingSelector. Composer-side voicing remains the legacy `sc->resolve(scale, octave, dur, inv, spread)` path. chord-walker stays a separate workstream, integrated later when its piggybacked composer fixes get their own assessment against K467 baselines.
+
+Consequences for the rest of the refactor:
+- **Stage 4 (RealizationStrategy registry)** lands as planned, but without the "parallel to VoicingSelector" framing — RealizationStrategy is the only Compose-tier registry added by this refactor.
+- **Stage 7 (chord-event realize)** uses the legacy `sc->resolve(...)` path inside the realize step, replacing only the rhythmic-emit half (was `add_chord(pos, chord)`, becomes RealizationStrategy invocation).
+- **Stage 10 (K467 walker migration)** migrates only the rhythm pattern from `chordConfig` to `realizationStrategy: "rhythm_pattern" + rhythmPattern: {...}`. The voicing hints (`octave`, `inversion`, `spread`) stay on `chordConfig`.
+- **Stage 11 (delete `ChordAccompanimentConfig`)** is partially reduced: the rhythm-pattern half dissolves into RhythmPattern, but the voicing-hint half (octave/inversion/spread) stays. Decide at Stage 11 execution time whether to slim the struct down or lift its remaining fields directly onto PassageTemplate.
+- **Goldens enforced**: K467 walker / harmony / period only. Jazz turnaround pinning (originally Stage 3) is gone.
+- **Voicing-selector open items** stay deferred to chord-walker's own future integration.
+
 ## Resolved during design discussion
 
 - **Whole bullet, not chord-only.** The tier slush applies equally to melody-side pitch resolution (`step_note` in Conductor) and chord-side handling (`step_chord_tone`, `ChordPerformer`). Fixing only the chord flavor would leave the same architectural smell on the melody side.

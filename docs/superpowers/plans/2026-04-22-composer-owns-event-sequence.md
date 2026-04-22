@@ -375,92 +375,22 @@ git commit -m "refactor(conductor): exclusive dispatch — elementSequence wins,
 
 ---
 
-## Stage 3 — Merge chord-walker into main
+## Stage 3 — Merge chord-walker into main — **DEFERRED**
 
-**Files:** Many — see chord-walker branch tip. The merge brings:
-- New: `engine/include/mforce/music/voicing_profile.h`, `voicing_profile_selector.h`, `voicing_selector.h`, `smooth_voicing_selector.h`, `static_voicing_profile_selector.h`, `random_voicing_profile_selector.h`, `drift_voicing_profile_selector.h`, `scripted_voicing_profile_selector.h`
-- Modified: `engine/src/chord.cpp` (rule-native `init_pitches`), `engine/include/mforce/music/templates.h` (PassageTemplate gains `voicingSelector` field), `engine/include/mforce/music/templates_json.h` (read it)
-- New patches: `patches/test_jazz_turnaround_flat.json`, `_p0.json`, `_p05.json`, `_p1.json`, `_random.json`, `_drift.json`, `_scripted.json` (and possibly `_smooth.json`, `_rock.json`)
+**Status:** Attempted on 2026-04-22, reverted. K467 walker and period audio diverged from baseline because chord-walker carried three composer-quality fixes (`6b62604 fix(composer): period parallelism + shape-aware figure generation`, `803571e feat(composer): auto-generate motifs in PPS plan phase`, `e7e3947 fix(composer): anchor first note + PAC HeldNote`) that were never bit-identity-tested against the K467 patches on main.
 
-**Bit-identical:** ✓ for K467 (chord-walker work doesn't touch its path); jazz turnaround demos are NEW goldens pinned this stage.
+**Decision:** chord-walker integration deferred to a separate workstream. This refactor proceeds without VoicingSelector / VoicingProfile / SmoothVoicingSelector.
 
-### 3a — Merge
+Subsequent stages adapt:
+- Stage 4 lands RealizationStrategy registry as the only Compose-tier registry added.
+- Stage 7 chord-event realize uses the legacy `sc->resolve(...)` voicing path inside the RealizationStrategy invocation.
+- Stage 10 migrates only the rhythm pattern from K467 walker's `chordConfig`; voicing hints stay.
+- Stage 11 partially dissolves `ChordAccompanimentConfig` (rhythm half only); voicing-hint fields stay.
+- No jazz turnaround goldens to pin (chord-walker patches not in main).
 
-- [ ] **3.1** Verify chord-walker branch has all stages 0-2 changes from main applied first. If main has diverged from chord-walker since last update:
+**Skip Stage 3 entirely.** Resume execution at Stage 4.
 
-```bash
-git log --oneline main ^chord-walker | head
-```
-
-Expected: list of main commits NOT yet on chord-walker. Stages 0-2 will be in this list. Merging will need to incorporate them.
-
-- [ ] **3.2** Create merge branch (preserves main + chord-walker history independently):
-
-```bash
-git checkout -b merge-chord-walker
-git merge chord-walker
-```
-
-Expected outcomes:
-- (a) Clean merge → proceed to 3.4.
-- (b) Conflicts → likely in `templates.h` (PassageTemplate gained `voicingSelector` on chord-walker; main may have touched the same area) and possibly `structure.h` (Stage 1 renamed `Part.events`). Resolve by hand. Ask user before any non-mechanical resolution decision.
-
-- [ ] **3.3** If conflicts resolved:
-
-```bash
-git add <resolved files>
-git commit
-```
-
-- [ ] **3.4** Build:
-
-```bash
-cmake --build build --config Release --target mforce_cli
-```
-
-Expected: clean build. Errors are likely compile-time signature mismatches between chord-walker's voicing types and main's post-Stage-1 ElementSequence. Fix or surface to user.
-
-### 3b — Re-verify K467 bit-identical after merge
-
-- [ ] **3.5** Render K467 goldens and confirm hashes still match baseline:
-
-```bash
-for p in walker harmony period structural; do
-    build/tools/mforce_cli/Release/mforce_cli.exe --compose patches/test_k467_${p}.json renders/stage3_k467_${p} 1
-done
-sha256sum renders/stage3_k467_*.wav
-```
-
-Expected: all match baseline. (chord-walker introduced VoicingSelector but didn't wire it into `realize_chord_parts_`; K467 still goes through `sc->resolve(...)`.)
-
-### 3c — Pin jazz turnaround goldens
-
-- [ ] **3.6** Render each jazz turnaround patch and add hash to baseline file:
-
-```bash
-for p in flat p0 p05 p1 random drift scripted; do
-    build/tools/mforce_cli/Release/mforce_cli.exe --compose patches/test_jazz_turnaround_${p}.json renders/stage3_jazz_${p} 1
-done
-sha256sum renders/stage3_jazz_*.wav >> docs/superpowers/baselines/2026-04-22-composer-owns-events-baselines.txt
-```
-
-Expected: 7 (or however many demo patches landed) NEW hashes appended to baseline.
-
-- [ ] **3.7** Fast-forward main to merge branch:
-
-```bash
-git checkout main
-git merge --ff-only merge-chord-walker
-```
-
-If not fast-forwardable (some commit landed on main during the merge), surface to user.
-
-- [ ] **3.8** Commit the baseline update:
-
-```bash
-git add docs/superpowers/baselines/2026-04-22-composer-owns-events-baselines.txt
-git commit -m "chore(baselines): pin jazz turnaround goldens after chord-walker merge"
-```
+_(All Stage 3 substeps removed; merge attempted then reverted, integration deferred. See header above.)_
 
 ---
 
