@@ -665,6 +665,22 @@ inline void to_json(json& j, const PassageTemplate& pt) {
     if (pt.seed != 0) j["seed"] = pt.seed;
     if (pt.locked) j["locked"] = true;
     if (!pt.periods.empty()) j["periods"] = pt.periods;
+    if (!pt.realizationStrategy.empty()) j["realizationStrategy"] = pt.realizationStrategy;
+    if (pt.rhythmPattern) {
+        json jrp;
+        jrp["defaultPattern"] = pt.rhythmPattern->defaultPattern;
+        if (!pt.rhythmPattern->overrides.empty()) {
+            json jOvs = json::array();
+            for (const auto& ov : pt.rhythmPattern->overrides) {
+                json jOv;
+                jOv["bars"] = ov.bars;
+                jOv["pattern"] = ov.pattern;
+                jOvs.push_back(std::move(jOv));
+            }
+            jrp["overrides"] = jOvs;
+        }
+        j["rhythmPattern"] = jrp;
+    }
 }
 
 inline void from_json(const json& j, ChordAccompanimentConfig& cc) {
@@ -722,6 +738,27 @@ inline void from_json(const json& j, PassageTemplate& pt) {
         ChordAccompanimentConfig cc;
         from_json(j["chordConfig"], cc);
         pt.chordConfig = cc;
+    }
+
+    // Optional realization strategy + rhythm pattern (Stage 4+).
+    if (j.contains("realizationStrategy"))
+        pt.realizationStrategy = j["realizationStrategy"].get<std::string>();
+    if (j.contains("rhythmPattern")) {
+        RhythmPattern rp;
+        const auto& jrp = j["rhythmPattern"];
+        if (jrp.contains("defaultPattern")) {
+            rp.defaultPattern.clear();
+            for (auto& v : jrp["defaultPattern"]) rp.defaultPattern.push_back(v.get<float>());
+        }
+        if (jrp.contains("overrides")) {
+            for (auto& ov : jrp["overrides"]) {
+                RhythmPattern::BarOverride bo;
+                for (auto& b : ov["bars"]) bo.bars.push_back(b.get<int>());
+                for (auto& v : ov["pattern"]) bo.pattern.push_back(v.get<float>());
+                rp.overrides.push_back(std::move(bo));
+            }
+        }
+        pt.rhythmPattern = rp;
     }
 }
 

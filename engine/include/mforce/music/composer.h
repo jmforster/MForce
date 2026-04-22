@@ -12,6 +12,7 @@
 #include "mforce/music/structure.h"
 #include "mforce/music/templates.h"
 #include "mforce/music/pitch_reader.h"
+#include "mforce/music/realization_strategy.h"
 #include "mforce/music/rng.h"
 #include "mforce/core/randomizer.h"
 #include <iostream>
@@ -132,6 +133,11 @@ struct Composer {
     // Passage strategies
     reg.register_passage(std::make_unique<AlternatingFigureStrategy>());
     reg.register_passage(std::make_unique<PeriodPassageStrategy>());
+
+    // Realization strategies (Compose-tier chord-event expansion)
+    auto& realReg = RealizationStrategyRegistry::instance();
+    realReg.register_strategy(std::make_unique<BlockRealizationStrategy>());
+    realReg.register_strategy(std::make_unique<RhythmPatternRealizationStrategy>());
   }
 
   // --- Top-level composition ---

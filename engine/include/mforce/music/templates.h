@@ -2,6 +2,7 @@
 #include "mforce/music/basics.h"
 #include "mforce/music/figures.h"
 #include "mforce/music/structure.h"
+#include "mforce/music/realization_strategy.h"
 #include <string>
 #include <vector>
 #include <unordered_map>
@@ -355,8 +356,15 @@ struct PassageTemplate {
     std::vector<PeriodSpec> periods;
 
     // Chord accompaniment config (optional). Used by Composer for
-    // Harmony-role parts.
+    // Harmony-role parts. Rhythm-pattern half is migrating to rhythmPattern
+    // (below); voicing-hint half (octave/inversion/spread) stays here.
     std::optional<ChordAccompanimentConfig> chordConfig;
+
+    // Realization-tier configuration (Stage 4+). Empty realizationStrategy
+    // defaults to "block". rhythmPattern is consumed by the "rhythm_pattern"
+    // strategy.
+    std::string realizationStrategy;
+    std::optional<RhythmPattern> rhythmPattern;
 };
 
 // ===========================================================================
