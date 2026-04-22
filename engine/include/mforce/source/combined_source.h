@@ -6,9 +6,12 @@
 
 namespace mforce {
 
-// Ported from C# CombinedSource — combines two sources via Add, Multiply, or Fade.
+// Ported from C# CombinedSource — combines two sources via Add, Multiply,
+// Fade, or Sum. Add averages (v1+v2)/2 to preserve headroom; Sum is a
+// no-halving variant that's correct when callers want raw addition
+// (e.g. modulator layering where amplitudes are chosen to stay bounded).
 // Fade: linear crossfade from source1 to source2 over the prepare'd duration.
-enum class CombineOp { Add, Multiply, Fade };
+enum class CombineOp { Add, Multiply, Fade, Sum };
 
 struct CombinedSource final : ValueSource {
   CombineOp op{CombineOp::Add};
@@ -49,7 +52,7 @@ struct CombinedSource final : ValueSource {
 
   std::span<const ConfigDescriptor> config_descriptors() const override {
     static constexpr ConfigDescriptor descs[] = {
-      {"operation", ConfigType::Int,   0.0f, 0.0f, 2.0f},  // 0=Add, 1=Multiply, 2=Fade
+      {"operation", ConfigType::Int,   0.0f, 0.0f, 3.0f},  // 0=Add, 1=Multiply, 2=Fade, 3=Sum
       {"gainAdj",   ConfigType::Float, 0.0f, -1.0f, 10.0f},
     };
     return descs;
@@ -85,6 +88,8 @@ struct CombinedSource final : ValueSource {
       cur_ = (v1 + v2 * (1.0f + gainAdj)) * 0.5f;
     } else if (op == CombineOp::Multiply) {
       cur_ = v1 * v2 * (1.0f + gainAdj);
+    } else if (op == CombineOp::Sum) {
+      cur_ = v1 + v2 * (1.0f + gainAdj);
     } else { // Fade
       float t = (totalFrames_ > 0) ? float(ptr_) / float(totalFrames_) : 0.0f;
       cur_ = v1 * (1.0f - t) + v2 * (1.0f + gainAdj) * t;
