@@ -22,11 +22,11 @@ struct PulseSource final : WaveSource {
 
   std::span<const ParamDescriptor> param_descriptors() const override {
     static constexpr ParamDescriptor descs[] = {
-      {"frequency",  440.0f, 0.01f, 20000.0f},
-      {"amplitude",  1.0f,   0.0f,  10.0f},
-      {"phase",      0.0f,  -1.0f,  1.0f},
-      {"dutyCycle",  0.5f,   0.01f, 0.99f},
-      {"bend",       0.0f,  -1.0f,  1.0f},
+      {"frequency",  440.0f, 0.01f, 20000.0f, "hz"},
+      {"amplitude",  1.0f,   0.0f,  10.0f,    "0-1"},
+      {"phase",      0.0f,  -1.0f,  1.0f,     "cycles"},
+      {"dutyCycle",  0.5f,   0.01f, 0.99f,    "0-1"},
+      {"bend",       0.0f,  -1.0f,  1.0f,     "±1"},
     };
     return descs;
   }

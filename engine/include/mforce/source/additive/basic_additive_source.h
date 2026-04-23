@@ -37,16 +37,16 @@ struct BasicAdditiveSource final : WaveSource {
 
   std::span<const ParamDescriptor> param_descriptors() const override {
     static constexpr ParamDescriptor descs[] = {
-      {"frequency",    440.0f, 0.01f, 20000.0f},
-      {"amplitude",    1.0f,   0.0f,  10.0f},
-      {"phase",        0.0f,  -1.0f,  1.0f},
-      {"evenWeight",   1.0f,   0.0f,  10.0f},
-      {"oddWeight",    1.0f,   0.0f,  10.0f},
-      {"rolloff",      1.0f,   0.0f,  10.0f},
-      {"freqVarPct",   0.0f,   0.0f,  1.0f},
-      {"freqVarSpeed", 0.0f,   0.0f,  100.0f},
-      {"amplVarPct",   0.0f,   0.0f,  1.0f},
-      {"amplVarSpeed", 0.0f,   0.0f,  100.0f},
+      {"frequency",    440.0f, 0.01f, 20000.0f, "hz"},
+      {"amplitude",    1.0f,   0.0f,  10.0f,    "0-1"},
+      {"phase",        0.0f,  -1.0f,  1.0f,     "cycles"},
+      {"evenWeight",   1.0f,   0.0f,  10.0f,    "gain"},
+      {"oddWeight",    1.0f,   0.0f,  10.0f,    "gain"},
+      {"rolloff",      1.0f,   0.0f,  10.0f,    "exp"},
+      {"freqVarPct",   0.0f,   0.0f,  1.0f,     "0-1"},
+      {"freqVarSpeed", 0.0f,   0.0f,  100.0f,   "hz"},
+      {"amplVarPct",   0.0f,   0.0f,  1.0f,     "0-1"},
+      {"amplVarSpeed", 0.0f,   0.0f,  100.0f,   "hz"},
     };
     return descs;
   }

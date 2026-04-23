@@ -779,7 +779,7 @@ struct BlownTubeEvolutionSource final : ValueSource, IEvolutionHolder {
 
   std::span<const InputDescriptor> input_descriptors() const override {
     static constexpr InputDescriptor descs[] = {
-      {"breath"},
+      {"breath", false, "0-1"},
     };
     return descs;
   }
@@ -843,14 +843,14 @@ struct ReedEvolutionSource final : ValueSource, IEvolutionHolder {
 
   std::span<const ParamDescriptor> param_descriptors() const override {
     static constexpr ParamDescriptor descs[] = {
-      {"reedStiffness", 1.5f, 0.0f, 8.0f},
+      {"reedStiffness", 1.5f, 0.0f, 8.0f, "exp"},
     };
     return descs;
   }
 
   std::span<const InputDescriptor> input_descriptors() const override {
     static constexpr InputDescriptor descs[] = {
-      {"breath"},
+      {"breath", false, "0-1"},
     };
     return descs;
   }
@@ -920,14 +920,14 @@ struct BowedStringEvolutionSource final : ValueSource, IEvolutionHolder {
 
   std::span<const ParamDescriptor> param_descriptors() const override {
     static constexpr ParamDescriptor descs[] = {
-      {"frictionGain", 4.0f, 0.0f, 20.0f},
+      {"frictionGain", 4.0f, 0.0f, 20.0f, "gain"},
     };
     return descs;
   }
 
   std::span<const InputDescriptor> input_descriptors() const override {
     static constexpr InputDescriptor descs[] = {
-      {"bow"},
+      {"bow", false, "0-1"},
     };
     return descs;
   }
@@ -1000,14 +1000,14 @@ struct BrassEvolutionSource final : ValueSource, IEvolutionHolder {
 
   std::span<const ParamDescriptor> param_descriptors() const override {
     static constexpr ParamDescriptor descs[] = {
-      {"brassiness", 1.5f, 0.0f, 10.0f},
+      {"brassiness", 1.5f, 0.0f, 10.0f, "exp"},
     };
     return descs;
   }
 
   std::span<const InputDescriptor> input_descriptors() const override {
     static constexpr InputDescriptor descs[] = {
-      {"breath"},
+      {"breath", false, "0-1"},
     };
     return descs;
   }

@@ -124,7 +124,7 @@ struct BWLowpassFilter final : ValueSource {
 
   std::span<const ParamDescriptor> param_descriptors() const override {
     static constexpr ParamDescriptor descs[] = {
-      {"cutoffFreq", 1000.0f, 1.0f,   24000.0f},
+      {"cutoffFreq", 1000.0f, 1.0f,   24000.0f, "hz"},
     };
     return descs;
   }
@@ -195,7 +195,7 @@ struct BWHighpassFilter final : ValueSource {
 
   std::span<const ParamDescriptor> param_descriptors() const override {
     static constexpr ParamDescriptor descs[] = {
-      {"cutoffFreq", 1000.0f, 1.0f,   24000.0f},
+      {"cutoffFreq", 1000.0f, 1.0f,   24000.0f, "hz"},
     };
     return descs;
   }
@@ -268,8 +268,8 @@ struct BWBandpassFilter final : ValueSource {
 
   std::span<const ParamDescriptor> param_descriptors() const override {
     static constexpr ParamDescriptor descs[] = {
-      {"lowCutoff",  100.0f, 1.0f,    24000.0f},
-      {"highCutoff", 5000.0f, 1.0f,   24000.0f},
+      {"lowCutoff",  100.0f, 1.0f,    24000.0f, "hz"},
+      {"highCutoff", 5000.0f, 1.0f,   24000.0f, "hz"},
     };
     return descs;
   }
@@ -353,9 +353,9 @@ struct DelayFilter final : ValueSource {
 
   std::span<const ParamDescriptor> param_descriptors() const override {
     static constexpr ParamDescriptor descs[] = {
-      {"delayTime",  0.01f, 0.001f,    1.0f},
-      {"delayLevel", 0.5f,  0.0f,      1.0f},
-      {"feedback",   0.3f,  0.0f,      1.0f},
+      {"delayTime",  0.01f, 0.001f,    1.0f, "sec"},
+      {"delayLevel", 0.5f,  0.0f,      1.0f, "0-1"},
+      {"feedback",   0.3f,  0.0f,      1.0f, "0-1"},
     };
     return descs;
   }

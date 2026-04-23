@@ -40,12 +40,12 @@ struct SegmentSource final : ValueSource {
 
   std::span<const ParamDescriptor> param_descriptors() const override {
     static constexpr ParamDescriptor descs[] = {
-      {"amplitude",   1.0f, 0.0f, 10.0f},
-      {"smoothness",  0.5f, 0.0f, 1.0f},
-      {"widthVarPct", 0.0f, 0.0f, 1.0f},
-      {"valVarPct",   0.0f, 0.0f, 1.0f},
-      {"gap",         0.0f, 0.0f, 10.0f},
-      {"gapVarPct",   0.0f, 0.0f, 1.0f},
+      {"amplitude",   1.0f, 0.0f, 10.0f, "0-1"},
+      {"smoothness",  0.5f, 0.0f, 1.0f,  "0-1"},
+      {"widthVarPct", 0.0f, 0.0f, 1.0f,  "0-1"},
+      {"valVarPct",   0.0f, 0.0f, 1.0f,  "0-1"},
+      {"gap",         0.0f, 0.0f, 10.0f, "sec"},
+      {"gapVarPct",   0.0f, 0.0f, 1.0f,  "0-1"},
     };
     return descs;
   }

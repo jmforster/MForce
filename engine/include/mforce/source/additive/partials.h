@@ -66,12 +66,15 @@ struct Partials : ValueSource, IPartials {
   SourceCategory category() const override { return SourceCategory::Additive; }
 
   std::span<const ParamDescriptor> param_descriptors() const override {
+    // All five "Env" params are unipolar 0-1 blend factors driving a lerp
+    // between _1 and _2 endpoints (e.g. roEnv blends rolloff1 → rolloff2).
+    // Wire an Envelope or RangeSource; a bipolar oscillator won't blend right.
     static constexpr ParamDescriptor descs[] = {
-      {"multEnv", 0.0f, 0.0f, 1.0f},
-      {"amplEnv", 0.0f, 0.0f, 1.0f},
-      {"poEnv",   0.0f, 0.0f, 1.0f},
-      {"roEnv",   0.0f, 0.0f, 1.0f},
-      {"dtEnv",   0.0f, 0.0f, 1.0f},
+      {"multEnv", 0.0f, 0.0f, 1.0f, "0-1"},
+      {"amplEnv", 0.0f, 0.0f, 1.0f, "0-1"},
+      {"poEnv",   0.0f, 0.0f, 1.0f, "0-1"},
+      {"roEnv",   0.0f, 0.0f, 1.0f, "0-1"},
+      {"dtEnv",   0.0f, 0.0f, 1.0f, "0-1"},
     };
     return descs;
   }

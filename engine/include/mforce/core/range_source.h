@@ -54,7 +54,7 @@ struct RangeSource final : ValueSource {
     static constexpr ParamDescriptor descs[] = {
       {"min", 0.0f, -10000.0f, 10000.0f},
       {"max", 1.0f, -10000.0f, 10000.0f},
-      {"var", 0.0f, -10000.0f, 10000.0f},
+      {"var", 0.0f, -10000.0f, 10000.0f, "0-1"},
     };
     return descs;
   }

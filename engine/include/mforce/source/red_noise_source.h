@@ -28,15 +28,15 @@ struct RedNoiseSource final : WaveSource {
 
   std::span<const ParamDescriptor> param_descriptors() const override {
     static constexpr ParamDescriptor descs[] = {
-      {"frequency",          440.0f,  0.01f, 20000.0f},
-      {"amplitude",          1.0f,    0.0f,  10.0f},
-      {"phase",              0.0f,   -1.0f,  1.0f},
-      {"density",            0.5f,    0.0f,  1.0f},
-      {"smoothness",         0.5f,    0.0f,  1.0f},
-      {"rampVariation",      0.0f,    0.0f,  1.0f},
-      {"boost",              0.0f,    0.0f,  1.0f},
-      {"continuity",         0.0f,    0.0f,  1.0f},
-      {"zeroCrossTendency",  0.0f,    0.0f,  1.0f},
+      {"frequency",          440.0f,  0.01f, 20000.0f, "hz"},
+      {"amplitude",          1.0f,    0.0f,  10.0f,    "0-1"},
+      {"phase",              0.0f,   -1.0f,  1.0f,     "cycles"},
+      {"density",            0.5f,    0.0f,  1.0f,     "0-1"},
+      {"smoothness",         0.5f,    0.0f,  1.0f,     "0-1"},
+      {"rampVariation",      0.0f,    0.0f,  1.0f,     "0-1"},
+      {"boost",              0.0f,    0.0f,  1.0f,     "0-1"},
+      {"continuity",         0.0f,    0.0f,  1.0f,     "0-1"},
+      {"zeroCrossTendency",  0.0f,    0.0f,  1.0f,     "0-1"},
     };
     return descs;
   }

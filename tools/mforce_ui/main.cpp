@@ -66,10 +66,13 @@ struct Pin {
     float defaultValue{0.0f};
     bool inputOnly{false};  // true for input_descriptors pins (no editable value)
     bool multi{false};      // true = accepts multiple connections
+    std::string hint;       // optional advisory tag (e.g. "hz", "0-1"); empty = none
     std::shared_ptr<ConstantSource> constantSrc;  // holds editable value for unconnected pins
 
-    Pin(const std::string& n, PinKind k, float def = 0.0f, bool inOnly = false, bool isMulti = false)
+    Pin(const std::string& n, PinKind k, float def = 0.0f, bool inOnly = false, bool isMulti = false,
+        const char* hintStr = nullptr)
         : id(next_id()), name(n), kind(k), defaultValue(def), inputOnly(inOnly), multi(isMulti)
+        , hint(hintStr ? hintStr : "")
         , constantSrc(std::make_shared<ConstantSource>(def)) {}
 };
 
@@ -368,9 +371,9 @@ struct GraphNode {
 
         auto tmp = reg.create(typeName, DSP_SAMPLE_RATE);
         for (const auto& desc : tmp->input_descriptors())
-            inputs.emplace_back(desc.name, PinKind::Input, 0.0f, true, desc.multi);
+            inputs.emplace_back(desc.name, PinKind::Input, 0.0f, true, desc.multi, desc.hint);
         for (const auto& desc : tmp->param_descriptors())
-            inputs.emplace_back(desc.name, PinKind::Input, desc.default_value);
+            inputs.emplace_back(desc.name, PinKind::Input, desc.default_value, false, false, desc.hint);
         outputs.emplace_back("out", PinKind::Output);
     }
 
@@ -2800,6 +2803,10 @@ static void draw_properties_panel() {
 
         bool connected = is_pin_connected(pin.id);
         ImGui::Text("%s", pin.name.c_str());
+        if (!pin.hint.empty()) {
+            ImGui::SameLine(0.0f, 6.0f);
+            ImGui::TextColored(ImVec4(0.55f, 0.55f, 0.55f, 1), "(%s)", pin.hint.c_str());
+        }
         ImGui::SameLine(labelW);
         if (connected) {
             GraphNode* srcNode = find_source_node(pin.id);
@@ -2824,6 +2831,10 @@ static void draw_properties_panel() {
         if (!pin.inputOnly) continue;
         bool connected = is_pin_connected(pin.id);
         ImGui::Text("%s", pin.name.c_str());
+        if (!pin.hint.empty()) {
+            ImGui::SameLine(0.0f, 6.0f);
+            ImGui::TextColored(ImVec4(0.55f, 0.55f, 0.55f, 1), "(%s)", pin.hint.c_str());
+        }
         ImGui::SameLine(labelW);
         if (connected) {
             GraphNode* srcNode = find_source_node(pin.id);

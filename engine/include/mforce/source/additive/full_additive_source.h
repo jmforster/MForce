@@ -26,10 +26,10 @@ struct FullAdditiveSource final : WaveSource {
 
   std::span<const ParamDescriptor> param_descriptors() const override {
     static constexpr ParamDescriptor descs[] = {
-      {"frequency",     440.0f, 0.01f, 20000.0f},
-      {"amplitude",     1.0f,   0.0f,  10.0f},
-      {"phase",         0.0f,  -1.0f,  1.0f},
-      {"formantWeight", 0.0f,   0.0f,  1.0f},
+      {"frequency",     440.0f, 0.01f, 20000.0f, "hz"},
+      {"amplitude",     1.0f,   0.0f,  10.0f,    "0-1"},
+      {"phase",         0.0f,  -1.0f,  1.0f,     "cycles"},
+      {"formantWeight", 0.0f,   0.0f,  1.0f,     "0-1"},
     };
     return descs;
   }

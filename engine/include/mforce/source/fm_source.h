@@ -32,12 +32,12 @@ struct FMSource final : WaveSource {
 
   std::span<const ParamDescriptor> param_descriptors() const override {
     static constexpr ParamDescriptor descs[] = {
-      {"frequency",     440.0f, 0.01f, 20000.0f},
-      {"amplitude",     1.0f,   0.0f,  10.0f},
-      {"phase",         0.0f,  -1.0f,  1.0f},
-      {"carrierRatio",  1.0f,   0.01f, 32.0f},
-      {"modRatio",      1.0f,   0.01f, 32.0f},
-      {"depth",         1.0f,   0.0f,  100.0f},
+      {"frequency",     440.0f, 0.01f, 20000.0f, "hz"},
+      {"amplitude",     1.0f,   0.0f,  10.0f,    "0-1"},
+      {"phase",         0.0f,  -1.0f,  1.0f,     "cycles"},
+      {"carrierRatio",  1.0f,   0.01f, 32.0f,    "ratio"},
+      {"modRatio",      1.0f,   0.01f, 32.0f,    "ratio"},
+      {"depth",         1.0f,   0.0f,  100.0f,   "index"},
     };
     return descs;
   }

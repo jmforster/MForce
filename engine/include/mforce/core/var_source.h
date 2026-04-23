@@ -50,8 +50,8 @@ struct VarSource final : ValueSource {
   std::span<const ParamDescriptor> param_descriptors() const override {
     static constexpr ParamDescriptor descs[] = {
       {"val",    1.0f,  -10000.0f, 10000.0f},
-      {"var",    0.0f,  -10000.0f, 10000.0f},
-      {"varPct", 0.0f,  0.0f,      1.0f},
+      {"var",    0.0f,  -10000.0f, 10000.0f, "±1"},
+      {"varPct", 0.0f,  0.0f,      1.0f,    "0-1"},
     };
     return descs;
   }

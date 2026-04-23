@@ -27,11 +27,18 @@ struct ParamDescriptor {
   float default_value;
   float min_value;
   float max_value;
+  // Optional UI advisory tag. Short, shown dim next to the pin name in the
+  // inspector (e.g. "hz", "0-1", "semi", "cycles"). Advisory only — no
+  // enforcement at connect-time. Leave null when the param's name already
+  // tells you the expected range.
+  const char* hint = nullptr;
 };
 
 struct InputDescriptor {
   const char* name;
   bool multi{false};  // true = accepts multiple connections (e.g. spectra, stages)
+  // Optional UI advisory tag — same semantics as ParamDescriptor::hint.
+  const char* hint = nullptr;
 };
 
 enum class ConfigType { Float, Int, Bool };

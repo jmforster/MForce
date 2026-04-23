@@ -43,7 +43,7 @@ struct PhasedValueSource final : ValueSource {
 
   std::span<const ParamDescriptor> param_descriptors() const override {
     static constexpr ParamDescriptor descs[] = {
-      {"amplitude", 1.0f, 0.0f, 10.0f},
+      {"amplitude", 1.0f, 0.0f, 10.0f, "0-1"},
     };
     return descs;
   }

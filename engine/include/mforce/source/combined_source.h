@@ -134,7 +134,7 @@ struct CrossfadeSource final : ValueSource {
 
   std::span<const ParamDescriptor> param_descriptors() const override {
     static constexpr ParamDescriptor descs[] = {
-      {"amplitude", 1.0f,  0.0f,     10.0f},
+      {"amplitude", 1.0f,  0.0f,     10.0f, "0-1"},
     };
     return descs;
   }
@@ -250,10 +250,10 @@ struct DistortedSource final : ValueSource {
 
   std::span<const ParamDescriptor> param_descriptors() const override {
     static constexpr ParamDescriptor descs[] = {
-      {"amplitude", 1.0f,  0.0f,     10.0f},
-      {"density",   1.0f,  0.0f,     1.0f},
-      {"gain",      1.0f,  0.0f,     100.0f},
-      {"shift",     0.0f, -1.0f,     1.0f},
+      {"amplitude", 1.0f,  0.0f,     10.0f,  "0-1"},
+      {"density",   1.0f,  0.0f,     1.0f,   "0-1"},
+      {"gain",      1.0f,  0.0f,     100.0f, "gain"},
+      {"shift",     0.0f, -1.0f,     1.0f,   "±1"},
     };
     return descs;
   }

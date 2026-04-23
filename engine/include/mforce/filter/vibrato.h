@@ -58,7 +58,7 @@ struct Vibrato final : ValueSource {
 
   std::span<const ParamDescriptor> param_descriptors() const override {
     static constexpr ParamDescriptor descs[] = {
-      {"frequency", 440.0f, 0.01f, 20000.0f},
+      {"frequency", 440.0f, 0.01f, 20000.0f, "hz"},
     };
     return descs;
   }

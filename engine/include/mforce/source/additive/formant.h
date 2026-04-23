@@ -44,10 +44,10 @@ struct Formant final : ValueSource, IFormant {
 
   std::span<const ParamDescriptor> param_descriptors() const override {
     static constexpr ParamDescriptor descs[] = {
-      {"frequency", 1000.0f, 1.0f,    20000.0f},
-      {"gain",      1.0f,    0.0f,    10.0f},
-      {"width",     500.0f,  1.0f,    10000.0f},
-      {"power",     2.0f,    0.01f,   10.0f},
+      {"frequency", 1000.0f, 1.0f,    20000.0f, "hz"},
+      {"gain",      1.0f,    0.0f,    10.0f,    "0-1"},
+      {"width",     500.0f,  1.0f,    10000.0f, "hz"},
+      {"power",     2.0f,    0.01f,   10.0f,    "exp"},
     };
     return descs;
   }
