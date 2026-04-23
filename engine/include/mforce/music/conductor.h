@@ -586,7 +586,7 @@ private:
         notePerformer.perform_note(event.note(), absBeats, bpm, *pitched);
       }
       else if (event.is_chord() && pitched) {
-        chordPerformer.perform_chord(event.chord(), 0.4f, absBeats, bpm, *pitched);
+        chordPerformer.perform_chord(event.chord(), 1.0f, absBeats, bpm, *pitched);
       }
       else if (event.is_hit() && drums) {
         const auto& h = event.hit();
