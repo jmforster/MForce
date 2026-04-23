@@ -403,6 +403,9 @@ private:
   }
 
   void realize_chord_parts_(Piece& piece, const PieceTemplate& tmpl) {
+    auto& realReg = RealizationStrategyRegistry::instance();
+    RealizationStrategy* blockStrat = realReg.resolve("block");
+
     for (int pi = 0; pi < (int)tmpl.parts.size(); ++pi) {
       const auto& partTmpl = tmpl.parts[pi];
       if (partTmpl.role != PartRole::Harmony) continue;
@@ -441,7 +444,13 @@ private:
             if (sc) {
               Chord chord = sc->resolve(sec.scale, cfg.octave, dur,
                                         cfg.inversion, cfg.spread);
-              part->add_chord(pos, chord);
+              // Stage 7: route through RealizationStrategy. Block emits one
+              // Chord-event per call → bit-identical with the previous
+              // add_chord(pos, chord) path. Strategy selection by passage
+              // (with rhythm_pattern, etc.) lands at Stage 10 when patches
+              // opt in via PassageTemplate.realizationStrategy.
+              RealizationRequest req{chord, pos, dur, bar + 1, nullptr};
+              blockStrat->realize(req, part->elementSequence);
             }
             pos += dur;
           }
