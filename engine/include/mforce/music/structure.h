@@ -108,8 +108,19 @@ struct ElementSequence {
 };
 
 // ===========================================================================
-// Phrase — a musical sentence. Collection of Figures.
+// Phrase / Passage — Composer-internal scratch space.
+//
+// Built by strategies during compose(); walked by realize_event_sequences_
+// to populate Part.elementSequence. NOT consumed by Conductor or any
+// downstream code — the authoritative score is Part.elementSequence.
+//
+// These types are kept in structure.h for now (rather than moved to a
+// composer_internal.h) because strategy headers and the DUN parser still
+// reference them by inclusion. If the dependency graph ever cleans up,
+// they should move.
 // ===========================================================================
+
+// Phrase — a musical sentence. Collection of Figures.
 struct Phrase {
   Pitch startingPitch;
   std::vector<std::unique_ptr<Figure>> figures;
