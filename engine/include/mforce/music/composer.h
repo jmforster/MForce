@@ -293,15 +293,6 @@ private:
     return 0.0f;
   }
 
-  static bool passage_has_chord_figure_(const Passage& passage) {
-    for (const auto& phrase : passage.phrases) {
-      for (const auto& figPtr : phrase.figures) {
-        if (dynamic_cast<const ChordFigure*>(figPtr.get())) return true;
-      }
-    }
-    return false;
-  }
-
   void realize_event_sequences_(Piece& piece, const PieceTemplate& /*tmpl*/) {
     for (auto& part : piece.parts) {
       // Skip Parts that already have events (chord parts via add_chord, or
@@ -312,9 +303,6 @@ private:
         auto it = part.passages.find(sec.name);
         if (it == part.passages.end()) continue;
         const Passage& passage = it->second;
-
-        // Stage 5 limit: skip passages with any ChordFigure.
-        if (passage_has_chord_figure_(passage)) continue;
 
         float passageStartBeat = section_start_beat_(piece, sec.name);
         float effectiveBeats = sec.beats - sec.truncateTailBeats;
@@ -356,15 +344,15 @@ private:
                                   const std::vector<DynamicMarking>& markings,
                                   int& nextMarking,
                                   float passageBeatOffset,
-                                  const Section& /*section*/,
+                                  const Section& section,
                                   float maxSectionBeats) {
     float currentBeat = startBeat;
     float currentNN = phrase.startingPitch.note_number();
+    constexpr int kBaseOctave = 4;  // matches Conductor::perform()'s baseOctave
 
     for (int f = 0; f < phrase.figure_count(); ++f) {
       const auto& fig = *phrase.figures[f];
-      // Stage 5: only MelodicFigure (Stage 6 adds ChordFigure).
-      // passage_has_chord_figure_ already guarantees no ChordFigure here.
+      bool isChordFig = (dynamic_cast<const ChordFigure*>(phrase.figures[f].get()) != nullptr);
 
       for (int i = 0; i < fig.note_count(); ++i) {
         const auto& u = fig.units[i];
@@ -374,7 +362,25 @@ private:
           return currentBeat;
         }
 
-        currentNN = step_note(currentNN, u.step, scale);
+        if (isChordFig && section.chordProgression) {
+          // Find active chord at this beat (section-relative).
+          const auto& prog = *section.chordProgression;
+          float sectionBeat = currentBeat - passageBeatOffset;
+          float chordBeat = 0.0f;
+          int chordIdx = 0;
+          for (int ci = 0; ci < prog.count(); ++ci) {
+            if (chordBeat + prog.pulses.get(ci) > sectionBeat) {
+              chordIdx = ci;
+              break;
+            }
+            chordBeat += prog.pulses.get(ci);
+            chordIdx = ci;
+          }
+          auto resolved = prog.chords.get(chordIdx).resolve(section.scale, kBaseOctave);
+          currentNN = step_chord_tone(currentNN, u.step, resolved);
+        } else {
+          currentNN = step_note(currentNN, u.step, scale);
+        }
         float soundNN = currentNN + float(u.accidental);
 
         float passageBeat = currentBeat - passageBeatOffset;
