@@ -422,17 +422,24 @@ private:
         if (sec.harmonyTimeline.empty()) { beatOffset += sec.beats; continue; }
 
         auto passIt = partTmpl.passages.find(sec.name);
+        const PassageTemplate* passTmpl = (passIt != partTmpl.passages.end())
+            ? &passIt->second : nullptr;
         ChordAccompanimentConfig cfg;
-        if (passIt != partTmpl.passages.end() && passIt->second.chordConfig) {
-          cfg = *passIt->second.chordConfig;
-        }
+        if (passTmpl && passTmpl->chordConfig) cfg = *passTmpl->chordConfig;
+
+        // Rhythm-pattern source: prefer PassageTemplate.rhythmPattern (Stage 10
+        // migration target); fall back to ChordAccompanimentConfig.defaultPattern
+        // / overrides for unmigrated patches.
+        const RhythmPattern* rp = (passTmpl && passTmpl->rhythmPattern)
+            ? &*passTmpl->rhythmPattern : nullptr;
 
         float beatsPerBar = float(sec.meter.beats_per_bar());
         int totalBars = int(sec.beats / beatsPerBar);
 
         for (int bar = 0; bar < totalBars; ++bar) {
           float barStart = beatOffset + bar * beatsPerBar;
-          const auto& pattern = cfg.pattern_for_bar(bar + 1);
+          const auto& pattern = rp ? rp->pattern_for_bar(bar + 1)
+                                    : cfg.pattern_for_bar(bar + 1);
 
           float pos = barStart;
           for (float dur : pattern) {
@@ -444,11 +451,6 @@ private:
             if (sc) {
               Chord chord = sc->resolve(sec.scale, cfg.octave, dur,
                                         cfg.inversion, cfg.spread);
-              // Stage 7: route through RealizationStrategy. Block emits one
-              // Chord-event per call → bit-identical with the previous
-              // add_chord(pos, chord) path. Strategy selection by passage
-              // (with rhythm_pattern, etc.) lands at Stage 10 when patches
-              // opt in via PassageTemplate.realizationStrategy.
               RealizationRequest req{chord, pos, dur, bar + 1, nullptr};
               blockStrat->realize(req, part->elementSequence);
             }
