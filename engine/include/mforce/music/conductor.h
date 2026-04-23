@@ -547,19 +547,9 @@ struct Conductor {
         Instrument* inst = lookup_instrument(part.instrumentType);
         if (!inst) continue;
 
-        // Authoritative path: Composer-populated ElementSequence wins.
+        // Composer fully populates Part.elementSequence; that's all we read.
         if (!part.elementSequence.empty()) {
           perform_events(part, bpm, beatOffset, inst);
-          continue;
-        }
-
-        // Migration scaffolding ONLY: walk the passage tree for Parts whose
-        // realize step hasn't been written yet. Removed at Stage 8.
-        auto it = part.passages.find(section.name);
-        if (it != part.passages.end()) {
-          perform_passage(it->second, scale, beatOffset, bpm, inst,
-                          section.chordProgression, section.scale,
-                          4, effectiveBeats);
         }
       }
 
@@ -609,113 +599,8 @@ private:
     if (pitched) notePerformer.conclude(bpm, *pitched);
   }
 
-  // --- Compositional performance ---
-
-  void perform_passage(const Passage& passage, const Scale& sectionScale,
-                       float beatOffset, float bpm, Instrument* inst,
-                       const std::optional<ChordProgression>& chordProg = std::nullopt,
-                       const Scale& secScale = Scale::get("C", "Major"),
-                       int baseOctave = 4,
-                       float maxSectionBeats = -1.0f) {
-    auto* pitched = dynamic_cast<PitchedInstrument*>(inst);
-    if (!pitched) return;  // melodic passages only for pitched instruments
-
-    const Scale& scale = passage.scaleOverride.value_or(sectionScale);
-
-    // Set up dynamic tracking — first marking at beat 0 sets initial level, else mf
-    DynamicState dynamics;
-    int nextMarking = 0;
-    if (!passage.dynamicMarkings.empty() && passage.dynamicMarkings[0].beat <= 0.0f) {
-      dynamics = DynamicState(passage.dynamicMarkings[0].level);
-      nextMarking = 1;
-    }
-
-    float currentBeat = beatOffset;
-    for (const auto& phrase : passage.phrases) {
-      // Stop if we've already reached the truncation point
-      if (maxSectionBeats >= 0.0f && currentBeat - beatOffset >= maxSectionBeats) break;
-      currentBeat = perform_phrase(phrase, scale, currentBeat, bpm,
-                                   dynamics, passage.dynamicMarkings, nextMarking,
-                                   beatOffset, *pitched,
-                                   chordProg, secScale, baseOctave,
-                                   maxSectionBeats);
-    }
-
-    // Drain any pending slide-run buffer at passage end.
-    notePerformer.conclude(bpm, *pitched);
-  }
-
-  float perform_phrase(const Phrase& phrase, const Scale& scale,
-                       float startBeat, float bpm,
-                       DynamicState& dynamics,
-                       const std::vector<DynamicMarking>& markings, int& nextMarking,
-                       float passageBeatOffset,
-                       PitchedInstrument& instrument,
-                       const std::optional<ChordProgression>& chordProg = std::nullopt,
-                       const Scale& sectionScale = Scale::get("C", "Major"),
-                       int baseOctave = 4,
-                       float maxSectionBeats = -1.0f) {
-    float currentBeat = startBeat;
-    float currentNN = phrase.startingPitch.note_number();
-
-    for (int f = 0; f < phrase.figure_count(); ++f) {
-      const auto& fig = *phrase.figures[f];
-      bool isChordFig = (dynamic_cast<const ChordFigure*>(phrase.figures[f].get()) != nullptr);
-
-      // Walk FigureUnits. Every unit's step is applied, including the first
-      // (which bridges from the previous figure's ending pitch to this
-      // figure's starting pitch under the cursor model).
-      for (int i = 0; i < fig.note_count(); ++i) {
-        const auto& u = fig.units[i];
-
-        // Stop if this note starts past the section's truncation boundary
-        if (maxSectionBeats >= 0.0f &&
-            (currentBeat - passageBeatOffset) >= maxSectionBeats) {
-          return currentBeat;
-        }
-
-        // Step through chord tones (ChordFigure) or scale degrees (MelodicFigure)
-        if (isChordFig && chordProg) {
-          // Find active chord at this beat (section-relative)
-          float sectionBeat = currentBeat - passageBeatOffset;
-          float chordBeat = 0.0f;
-          int chordIdx = 0;
-          for (int ci = 0; ci < chordProg->count(); ++ci) {
-            if (chordBeat + chordProg->pulses.get(ci) > sectionBeat) {
-              chordIdx = ci;
-              break;
-            }
-            chordBeat += chordProg->pulses.get(ci);
-            chordIdx = ci;
-          }
-          auto resolved = chordProg->chords.get(chordIdx).resolve(sectionScale, baseOctave);
-          currentNN = step_chord_tone(currentNN, u.step, resolved);
-        } else {
-          currentNN = step_note(currentNN, u.step, scale);
-        }
-
-        // Apply transient accidental for sounding pitch only
-        float soundNN = currentNN + float(u.accidental);
-
-        // Advance dynamic markings
-        float passageBeat = currentBeat - passageBeatOffset;
-        while (nextMarking < int(markings.size()) &&
-               markings[nextMarking].beat <= passageBeat) {
-          dynamics.set_marking(markings[nextMarking], passageBeatOffset);
-          nextMarking++;
-        }
-
-        if (!u.rest) {
-          float vel = dynamics.velocity_at(currentBeat);
-          Note n{soundNN, vel, u.duration, u.articulation, u.ornament};
-          notePerformer.perform_note(n, currentBeat, bpm, instrument);
-        }
-        currentBeat += u.duration;
-      }
-    }
-
-    return currentBeat;
-  }
+  // perform_passage / perform_phrase removed: tree-walk path retired at Stage 8.
+  // Pitch resolution and figure-walking now live in Composer's realize step.
 };
 
 } // namespace mforce
