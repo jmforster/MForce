@@ -89,7 +89,7 @@ static int run_chords(int argc, char** argv) {
     conductor.perform(part, bpm, *ip.instrument);
 
     // Render
-    float totalSeconds = part.totalBeats * 60.0f / bpm + 1.0f; // +1s tail
+    float totalSeconds = part.totalBeats() * 60.0f / bpm + 1.0f; // +1s tail
     int frames = int(totalSeconds * float(ip.sampleRate));
     std::vector<float> mono(frames, 0.0f);
     { RenderContext _ctx{ip.sampleRate}; ip.instrument->render(_ctx, mono.data(), frames); };
@@ -121,7 +121,7 @@ static int run_chords(int argc, char** argv) {
     std::cout << "Wrote: " << outPath
               << " (" << frames << " frames @ " << ip.sampleRate << " Hz)\n";
     std::cout << "  " << chordTokens.size() << " chords, "
-              << part.totalBeats << " beats @ " << bpm << " bpm\n";
+              << part.totalBeats() << " beats @ " << bpm << " bpm\n";
     std::cerr << "  peak=" << peak
               << " rms=" << rms
               << " nonzero=" << nonzero << "/" << stereo.size() << "\n";
@@ -610,7 +610,7 @@ static int run_compose(int argc, char** argv) {
         }
         for (const auto& part : piece.parts) {
           std::cout << "  Part '" << part.name << "': "
-                    << part.events.size() << " events, "
+                    << part.elementSequence.size() << " events, "
                     << part.passages.size() << " passages\n";
         }
     }
@@ -879,7 +879,7 @@ static int test_ornaments(int /*argc*/, char** /*argv*/) {
             if (i % 2 == 1) {
                 Note n{pitches[i], 1.0f, dur, articulations::Default{},
                        make_ornament(ornIdx++, i)};
-                part.events.push_back({beat, n});
+                part.elementSequence.add({beat, n});
             } else {
                 part.add_note(beat, pitches[i], 1.0f, dur);
             }
@@ -888,7 +888,7 @@ static int test_ornaments(int /*argc*/, char** /*argv*/) {
         beat += pauseBeats;
     }
 
-    part.totalBeats = beat;
+    part.elementSequence.totalBeats = beat;
 
     // Render 3 versions with escalating humanization.
     // humanize is in milliseconds (max |timing offset| per play_note call).
@@ -919,7 +919,7 @@ static int test_ornaments(int /*argc*/, char** /*argv*/) {
             return 1;
         }
 
-        float totalSeconds = part.totalBeats * 60.0f / bpm + 2.0f;
+        float totalSeconds = part.totalBeats() * 60.0f / bpm + 2.0f;
         int frames = int(totalSeconds * float(ip.sampleRate));
         std::vector<float> mono(frames, 0.0f);
         { RenderContext _ctx{ip.sampleRate}; ip.instrument->render(_ctx, mono.data(), frames); };
