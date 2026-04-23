@@ -9,6 +9,13 @@
 #include "mforce/music/chord_progression_builder.h"
 #include "mforce/music/chord_walker.h"
 #include "mforce/music/harmony_timeline.h"
+#include "mforce/music/voicing_selector.h"
+#include "mforce/music/smooth_voicing_selector.h"
+#include "mforce/music/voicing_profile_selector.h"
+#include "mforce/music/static_voicing_profile_selector.h"
+#include "mforce/music/random_voicing_profile_selector.h"
+#include "mforce/music/drift_voicing_profile_selector.h"
+#include "mforce/music/scripted_voicing_profile_selector.h"
 #include "mforce/music/structure.h"
 #include "mforce/music/templates.h"
 #include "mforce/music/pitch_reader.h"
@@ -131,6 +138,32 @@ struct Composer {
     // Phrase strategies (Phase 3)
     reg.register_phrase(std::make_unique<PeriodPhraseStrategy>());
     reg.register_phrase(std::make_unique<SentencePhraseStrategy>());
+
+    // Voicing selectors (Phase 4)
+    VoicingSelectorRegistry::instance()
+        .register_selector(std::make_unique<SmoothVoicingSelector>());
+
+    // Voicing profile selectors (Phase 5)
+    VoicingProfileSelectorRegistry::instance()
+        .register_factory("static", []() {
+          return std::unique_ptr<VoicingProfileSelector>(
+              new StaticVoicingProfileSelector());
+        });
+    VoicingProfileSelectorRegistry::instance()
+        .register_factory("random", []() {
+          return std::unique_ptr<VoicingProfileSelector>(
+              new RandomVoicingProfileSelector());
+        });
+    VoicingProfileSelectorRegistry::instance()
+        .register_factory("drift", []() {
+          return std::unique_ptr<VoicingProfileSelector>(
+              new DriftVoicingProfileSelector());
+        });
+    VoicingProfileSelectorRegistry::instance()
+        .register_factory("scripted", []() {
+          return std::unique_ptr<VoicingProfileSelector>(
+              new ScriptedVoicingProfileSelector());
+        });
 
     // Passage strategies
     reg.register_passage(std::make_unique<AlternatingFigureStrategy>());
@@ -433,8 +466,51 @@ private:
             ? &*passTmpl->rhythmPattern : nullptr;
         if (!rp) { beatOffset += sec.beats; continue; }
 
+        // Optional VoicingSelector (empty selectorName = legacy path).
+        VoicingSelector* selector = nullptr;
+        if (passIt != partTmpl.passages.end()
+            && !passIt->second.voicingSelector.empty()) {
+          selector = VoicingSelectorRegistry::instance()
+                         .resolve(passIt->second.voicingSelector);
+          if (!selector) {
+            std::cerr << "Unknown voicingSelector '"
+                      << passIt->second.voicingSelector
+                      << "', falling back to legacy inversion/spread path\n";
+          }
+        }
+
+        // VoicingProfileSelector: produces a VoicingProfile per chord.
+        // Empty name = "static" (baseline profile unchanged every chord).
+        // Only built when a VoicingSelector is in play.
+        std::unique_ptr<VoicingProfileSelector> profileSelector;
+        if (selector && passIt != partTmpl.passages.end()) {
+          std::string selName = passIt->second.voicingProfileSelector.empty()
+                              ? std::string("static")
+                              : passIt->second.voicingProfileSelector;
+          profileSelector = VoicingProfileSelectorRegistry::instance()
+                                .create(selName);
+          if (!profileSelector) {
+            std::cerr << "Unknown voicingProfileSelector '" << selName
+                      << "', falling back to static\n";
+            profileSelector = VoicingProfileSelectorRegistry::instance()
+                                  .create("static");
+          }
+          if (auto* sw = dynamic_cast<StaticVoicingProfileSelector*>(
+                             profileSelector.get())) {
+            sw->configure(passIt->second.voicingProfile);
+          }
+          profileSelector->configure_from_json(
+              passIt->second.voicingProfileSelectorConfig);
+          uint32_t seed = tmpl.masterSeed ^ 0x566F6953u
+                        ^ (uint32_t(si) * 100u + uint32_t(pi));
+          profileSelector->reset(seed);
+        }
+
         float beatsPerBar = float(sec.meter.beats_per_bar());
         int totalBars = int(sec.beats / beatsPerBar);
+
+        const Chord* prevChord = nullptr;
+        int chordIdx = 0;
 
         for (int bar = 0; bar < totalBars; ++bar) {
           float barStart = beatOffset + bar * beatsPerBar;
@@ -448,10 +524,27 @@ private:
             }
             const ScaleChord* sc = sec.harmonyTimeline.chord_at(pos - beatOffset);
             if (sc) {
-              Chord chord = sc->resolve(sec.scale, cfg.octave, dur,
-                                        cfg.inversion, cfg.spread);
-              RealizationRequest req{chord, pos, dur, bar + 1, nullptr};
-              blockStrat->realize(req, part->elementSequence);
+              Chord chord;
+              if (selector) {
+                float beatInBar = pos - barStart;
+                float beatInPassage = pos - beatOffset;
+                VoicingProfile profile = profileSelector
+                    ? profileSelector->profile_for_chord(
+                          chordIdx, beatInBar, beatInPassage)
+                    : passIt->second.voicingProfile;
+                VoicingRequest req{*sc, &sec.scale, cfg.octave, dur,
+                                   prevChord, std::nullopt,
+                                   profile,
+                                   passIt->second.voicingDictionary};
+                chord = selector->select(req);
+              } else {
+                chord = sc->resolve(sec.scale, cfg.octave, dur,
+                                    cfg.inversion, cfg.spread);
+              }
+              RealizationRequest realReq{chord, pos, dur, bar + 1, nullptr};
+              blockStrat->realize(realReq, part->elementSequence);
+              prevChord = &part->elementSequence.elements.back().chord();
+              ++chordIdx;
             }
             pos += dur;
           }

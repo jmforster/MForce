@@ -124,6 +124,45 @@ inline PassageTemplate PeriodPassageStrategy::plan_passage(
   // pre-resolved phrases alongside periods, we overwrite — periods win.
   seed.phrases.clear();
 
+  // Auto-generate motifs for Generate-source figures in antecedents.
+  // This converts them to Reference-source so the Parallel/Modified
+  // variant logic can reuse/transform them in the consequent.
+  for (int pi = 0; pi < (int)seed.periods.size(); ++pi) {
+    PeriodSpec& p = seed.periods[pi];
+    auto autoGenFigures = [&](PhraseTemplate& phrase, const std::string& suffix) {
+      MelodicFunction func = phrase.function;
+      int numFigs = (int)phrase.figures.size();
+      for (int fi = 0; fi < numFigs; ++fi) {
+        auto& ft = phrase.figures[fi];
+        if (ft.source != FigureSource::Generate) continue;
+
+        uint32_t figSeed = ::mforce::rng::next();
+        FigureTemplate genTmpl = ft;
+        genTmpl.seed = figSeed;
+
+        if (genTmpl.shape == FigureShape::Free && func != MelodicFunction::Free) {
+          genTmpl.shape = DefaultFigureStrategy::choose_shape(func, fi, numFigs, figSeed);
+        }
+
+        DefaultFigureStrategy figStrat;
+        MelodicFigure fig = figStrat.generate_figure(genTmpl, figSeed);
+
+        std::string motifName = "auto_p" + std::to_string(pi) + suffix + std::to_string(fi);
+        Motif m;
+        m.name = motifName;
+        m.userProvided = false;
+        m.content = fig;
+        locus.pieceTemplate->add_motif(std::move(m));
+
+        ft.source = FigureSource::Reference;
+        ft.motifName = motifName;
+      }
+    };
+
+    autoGenFigures(p.antecedent, "_f");
+    autoGenFigures(p.consequent, "_c");
+  }
+
   for (int pi = 0; pi < (int)seed.periods.size(); ++pi) {
     PeriodSpec& p = seed.periods[pi];
 

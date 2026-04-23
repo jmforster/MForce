@@ -1,5 +1,9 @@
 #include "mforce/music/basics.h"
+#include <algorithm>
+#include <cmath>
+#include <set>
 #include <stdexcept>
+#include <vector>
 
 namespace mforce {
 
@@ -63,17 +67,21 @@ void ChordDictionary::init_all() {
   if (s_dictsInit) return;
   s_dictsInit = true;
 
-  // Default dictionary — compact voicings (same as ChordDef::all but in dict form)
-  ChordDictionary defCD;
-  defCD.shortName = "Default";
-  defCD.name = "Default Chord Definitions";
+  // Canonic dictionary — smallest-interval close-voicings for every quality.
+  // Serves as the voice-leading reference form and the fallback source of
+  // truth for chord qualities missing from instrument-specific dictionaries.
+  // Registered under both "Canonic" (canonical name) and "Default" (legacy
+  // back-compat alias).
+  ChordDictionary canonic;
+  canonic.shortName = "Canonic";
+  canonic.name = "Canonical Chord Voicings";
   for (auto& cd : s_chordDefs) {
     std::string key = cd.shortName.empty() ? "M" : cd.shortName;
-    defCD.chords[key] = cd;
+    canonic.chords[key] = cd;
   }
-  // Also register Major as "M"
-  defCD.chords["M"] = ChordDef::get("");
-  s_dicts["Default"] = std::move(defCD);
+  canonic.chords["M"] = ChordDef::get("");
+  s_dicts["Canonic"] = canonic;
+  s_dicts["Default"] = std::move(canonic);
 
   // Guitar 6-string bar chords
   ChordDictionary g6;
@@ -144,34 +152,72 @@ const ChordDictionary& ChordDictionary::get(const std::string& name) {
   return it->second;
 }
 
+const ChordDictionary& ChordDictionary::canonic() {
+  init_all();
+  return s_dicts.at("Canonic");
+}
+
 // ===== Chord =====
 
 void Chord::init_pitches() {
   pitches.clear();
+  if (!def) return;
   float rootNN = root.note_number();
 
+  // Step 1: collect semitone offsets for each chord tone (root implicit,
+  // dedup'd against explicit "1"/unison).
+  std::vector<float> tones;
+  if (!def->omitRoot) tones.push_back(0.0f);
   for (auto& intName : def->intervals) {
     float semis = Interval::get(intName).semitones;
-    pitches.push_back(Pitch::from_note_number(rootNN + semis));
+    if (semis < 0.01f) continue;  // skip explicit unison — root already added
+    tones.push_back(semis);
+  }
+  std::sort(tones.begin(), tones.end());
+  const int N = (int)tones.size();
+  if (N == 0) return;
+
+  // Step 2: walk the linear chord-tone cycle under rule-native inversion
+  // and spread semantics.
+  //   inversion (0..N-1, clamped): bass = tones[inversion] — list rotation
+  //   spread (>= 0): each successive voice steps forward (spread + 1)
+  //     positions in the cycle; if that position's pitch class is already
+  //     voiced, keep advancing until a new pitch class appears.
+  auto posToSemis = [&](int p) {
+    return tones[p % N] + float(p / N) * 12.0f;
+  };
+  auto pcAtPos = [&](int p) {
+    return ((int)std::round(posToSemis(p))) % 12;
+  };
+
+  int bass = inversion;
+  if (bass < 0) bass = 0;          // negative inversion deprecated
+  if (bass >= N) bass = N - 1;
+
+  std::vector<int> positions;
+  positions.reserve(N);
+  std::set<int> voicedPCs;
+
+  positions.push_back(bass);
+  voicedPCs.insert(pcAtPos(bass));
+
+  while ((int)positions.size() < N) {
+    int p = positions.back() + (spread + 1);
+    while (voicedPCs.count(pcAtPos(p))) ++p;
+    positions.push_back(p);
+    voicedPCs.insert(pcAtPos(p));
   }
 
-  // Apply inversion: move lowest N pitches up an octave
-  for (int i = 0; i < inversion && i < int(pitches.size()); ++i) {
-    float nn = pitches[i].note_number() + 12.0f;
-    pitches[i] = Pitch::from_note_number(nn);
+  // Step 3: emit pitches
+  for (int p : positions) {
+    pitches.push_back(Pitch::from_note_number(rootNN + posToSemis(p)));
   }
 
-  // Apply spread
-  if (spread > 0) {
-    for (int i = 1; i < int(pitches.size()); ++i) {
-      float nn = pitches[i].note_number() + float(i / 2) * 12.0f * float(spread);
-      pitches[i] = Pitch::from_note_number(nn);
-    }
-  }
-
-  // Sort by pitch
+  // Sort by pitch for consistent downstream representation.
   std::sort(pitches.begin(), pitches.end(),
-            [](const Pitch& a, const Pitch& b) { return a.note_number() < b.note_number(); });
+            [](const Pitch& a, const Pitch& b) {
+              return a.note_number() < b.note_number();
+            });
 }
 
 Chord Chord::create(const std::string& rootName, int octave,

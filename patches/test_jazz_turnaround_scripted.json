@@ -1,0 +1,56 @@
+{
+  "_comment": "Jazz turnaround w/ ScriptedVoicingProfileSelector. 4-chord authored cycle: tight, open-low, tight, open-high — repeats 4x across the 16 chords.",
+  "keyName": "C",
+  "scaleName": "Major",
+  "bpm": 110.0,
+  "masterSeed": 424242,
+  "sections": [
+    {
+      "name": "Main",
+      "beats": 64,
+      "chordProgression": [
+        {"degree": 0, "quality": "M7", "beats": 4},
+        {"degree": 1, "quality": "m7", "beats": 4},
+        {"degree": 2, "quality": "m7", "beats": 4},
+        {"degree": 3, "quality": "M7", "beats": 4},
+        {"degree": 1, "quality": "m7", "beats": 4},
+        {"degree": 4, "quality": "7",  "beats": 4},
+        {"degree": 0, "quality": "M7", "beats": 4},
+        {"degree": 5, "quality": "7",  "beats": 4},
+        {"degree": 0, "quality": "M7", "beats": 4},
+        {"degree": 1, "quality": "m7", "beats": 4},
+        {"degree": 2, "quality": "m7", "beats": 4},
+        {"degree": 3, "quality": "M7", "beats": 4},
+        {"degree": 1, "quality": "m7", "beats": 4},
+        {"degree": 4, "quality": "7",  "beats": 4},
+        {"degree": 0, "quality": "M7", "beats": 4},
+        {"degree": 0, "quality": "M7", "beats": 4}
+      ]
+    }
+  ],
+  "parts": [
+    {
+      "name": "chords",
+      "role": "harmony",
+      "passages": {
+        "Main": {
+          "voicingSelector": "smooth",
+          "voicingDictionary": "Piano",
+          "voicingProfileSelector": "scripted",
+          "voicingProfileSelectorConfig": {
+            "sequence": [
+              { "priority": 0.0, "allowedInversions": [0, 1], "allowedSpreads": [0] },
+              { "priority": 0.5, "allowedInversions": [0, 1, 2], "allowedSpreads": [0, 1] },
+              { "priority": 0.8, "allowedInversions": [0, 1, 2, 3], "allowedSpreads": [1, 2] },
+              { "priority": 0.3, "allowedInversions": [1, 2], "allowedSpreads": [0] }
+            ]
+          },
+          "chordConfig": {
+            "defaultPattern": [4.0],
+            "octave": 4
+          }
+        }
+      }
+    }
+  ]
+}

@@ -622,9 +622,9 @@ struct FigureConnector {
 };
 
 // ---------------------------------------------------------------------------
-// ChordArticulation — instructions for playing a chord.
+// ChordRealization — instructions for playing a chord.
 // ---------------------------------------------------------------------------
-struct ChordArticulation {
+struct ChordRealization {
   static constexpr int DIR_ASCENDING = 0;
   static constexpr int DIR_DESCENDING = 1;
   static constexpr int DIR_RANDOM = 2;

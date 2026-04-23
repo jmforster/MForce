@@ -366,6 +366,11 @@ struct ChordDictionary {
 
   static const ChordDictionary& get(const std::string& name);
   static void init_all();
+
+  // The distinguished "canonical" dictionary: smallest-interval close-voicings
+  // for every chord quality. Used as the voice-leading reference form and as
+  // the default fallback when a specific dictionary doesn't contain a quality.
+  static const ChordDictionary& canonic();
 };
 
 // ===== ScaleChord — a chord defined relative to a scale =====

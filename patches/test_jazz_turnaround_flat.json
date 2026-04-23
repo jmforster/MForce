@@ -1,0 +1,45 @@
+{
+  "_comment": "Stepwise ascending (Cmaj7-Dm7-Em7-Fmaj7) + turnaround (Dm7-G7-Cmaj7-A7) x 2, 16 bars. Flat (no voicing selector).",
+  "keyName": "C",
+  "scaleName": "Major",
+  "bpm": 110.0,
+  "masterSeed": 424242,
+  "sections": [
+    {
+      "name": "Main",
+      "beats": 64,
+      "chordProgression": [
+        {"degree": 0, "quality": "M7", "beats": 4},
+        {"degree": 1, "quality": "m7", "beats": 4},
+        {"degree": 2, "quality": "m7", "beats": 4},
+        {"degree": 3, "quality": "M7", "beats": 4},
+        {"degree": 1, "quality": "m7", "beats": 4},
+        {"degree": 4, "quality": "7",  "beats": 4},
+        {"degree": 0, "quality": "M7", "beats": 4},
+        {"degree": 5, "quality": "7",  "beats": 4},
+        {"degree": 0, "quality": "M7", "beats": 4},
+        {"degree": 1, "quality": "m7", "beats": 4},
+        {"degree": 2, "quality": "m7", "beats": 4},
+        {"degree": 3, "quality": "M7", "beats": 4},
+        {"degree": 1, "quality": "m7", "beats": 4},
+        {"degree": 4, "quality": "7",  "beats": 4},
+        {"degree": 0, "quality": "M7", "beats": 4},
+        {"degree": 0, "quality": "M7", "beats": 4}
+      ]
+    }
+  ],
+  "parts": [
+    {
+      "name": "chords",
+      "role": "harmony",
+      "passages": {
+        "Main": {
+          "chordConfig": {
+            "defaultPattern": [4.0],
+            "octave": 4
+          }
+        }
+      }
+    }
+  ]
+}
