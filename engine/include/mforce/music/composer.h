@@ -427,19 +427,18 @@ private:
         ChordAccompanimentConfig cfg;
         if (passTmpl && passTmpl->chordConfig) cfg = *passTmpl->chordConfig;
 
-        // Rhythm-pattern source: prefer PassageTemplate.rhythmPattern (Stage 10
-        // migration target); fall back to ChordAccompanimentConfig.defaultPattern
-        // / overrides for unmigrated patches.
+        // Rhythm-pattern source. Without one, no chord events are emitted
+        // (cfg-driven default-pattern fallback was removed at Stage 11).
         const RhythmPattern* rp = (passTmpl && passTmpl->rhythmPattern)
             ? &*passTmpl->rhythmPattern : nullptr;
+        if (!rp) { beatOffset += sec.beats; continue; }
 
         float beatsPerBar = float(sec.meter.beats_per_bar());
         int totalBars = int(sec.beats / beatsPerBar);
 
         for (int bar = 0; bar < totalBars; ++bar) {
           float barStart = beatOffset + bar * beatsPerBar;
-          const auto& pattern = rp ? rp->pattern_for_bar(bar + 1)
-                                    : cfg.pattern_for_bar(bar + 1);
+          const auto& pattern = rp->pattern_for_bar(bar + 1);
 
           float pos = barStart;
           for (float dur : pattern) {

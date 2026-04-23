@@ -309,25 +309,15 @@ struct PeriodSpec {
 // Durations per bar; negative values = rest of that duration.
 // ===========================================================================
 
+// Voicing-hint carrier on PassageTemplate. Rhythm-pattern half (defaultPattern,
+// overrides, pattern_for_bar) was lifted out at Stage 11; the new home is
+// PassageTemplate.rhythmPattern (consumed by RhythmPatternRealizationStrategy).
+// The remaining octave/inversion/spread will move into VoicingProfile when
+// chord-walker integrates.
 struct ChordAccompanimentConfig {
-    std::vector<float> defaultPattern{2.0f, 2.0f};
-    struct BarOverride {
-        std::vector<int> bars;
-        std::vector<float> pattern;
-    };
-    std::vector<BarOverride> overrides;
     int octave{3};
     int inversion{0};
     int spread{0};
-
-    const std::vector<float>& pattern_for_bar(int bar1) const {
-        for (const auto& ov : overrides) {
-            for (int b : ov.bars) {
-                if (b == bar1) return ov.pattern;
-            }
-        }
-        return defaultPattern;
-    }
 };
 
 // ===========================================================================

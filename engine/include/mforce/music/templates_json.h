@@ -684,21 +684,11 @@ inline void to_json(json& j, const PassageTemplate& pt) {
 }
 
 inline void from_json(const json& j, ChordAccompanimentConfig& cc) {
-    if (j.contains("defaultPattern")) {
-        cc.defaultPattern.clear();
-        for (auto& v : j["defaultPattern"]) cc.defaultPattern.push_back(v.get<float>());
-    }
-    if (j.contains("overrides")) {
-        for (auto& ov : j["overrides"]) {
-            ChordAccompanimentConfig::BarOverride bo;
-            for (auto& b : ov["bars"]) bo.bars.push_back(b.get<int>());
-            for (auto& v : ov["pattern"]) bo.pattern.push_back(v.get<float>());
-            cc.overrides.push_back(std::move(bo));
-        }
-    }
     cc.octave = j.value("octave", 3);
     cc.inversion = j.value("inversion", 0);
     cc.spread = j.value("spread", 0);
+    // defaultPattern / overrides removed at Stage 11; if present in legacy
+    // patches they're silently ignored. Migrate to PassageTemplate.rhythmPattern.
 }
 
 inline void from_json(const json& j, PassageTemplate& pt) {
