@@ -1,11 +1,39 @@
 #pragma once
 #include "mforce/music/templates.h"
 #include "mforce/music/music_json.h"
+#include "mforce/music/figure_constraints.h"
 #include <nlohmann/json.hpp>
 
 namespace mforce {
 
 using json = nlohmann::json;
+
+// ===========================================================================
+// Constraints (RFB figure constraints) — figure_constraints.h
+// ===========================================================================
+
+inline void to_json(json& j, const Constraints& c) {
+    j = json::object();
+    if (c.count)        j["count"]        = *c.count;
+    if (c.length)       j["length"]       = *c.length;
+    if (c.net)          j["net"]          = *c.net;
+    if (c.ceiling)      j["ceiling"]      = *c.ceiling;
+    if (c.floor)        j["floor"]        = *c.floor;
+    if (c.defaultPulse) j["defaultPulse"] = *c.defaultPulse;
+    if (c.minPulse)     j["minPulse"]     = *c.minPulse;
+    if (c.maxPulse)     j["maxPulse"]     = *c.maxPulse;
+}
+
+inline void from_json(const json& j, Constraints& c) {
+    if (j.contains("count"))        c.count        = j.at("count").get<int>();
+    if (j.contains("length"))       c.length       = j.at("length").get<float>();
+    if (j.contains("net"))          c.net          = j.at("net").get<int>();
+    if (j.contains("ceiling"))      c.ceiling      = j.at("ceiling").get<int>();
+    if (j.contains("floor"))        c.floor        = j.at("floor").get<int>();
+    if (j.contains("defaultPulse")) c.defaultPulse = j.at("defaultPulse").get<float>();
+    if (j.contains("minPulse"))     c.minPulse     = j.at("minPulse").get<float>();
+    if (j.contains("maxPulse"))     c.maxPulse     = j.at("maxPulse").get<float>();
+}
 
 // ===========================================================================
 // Enum serialization
