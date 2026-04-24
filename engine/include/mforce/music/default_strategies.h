@@ -2,6 +2,8 @@
 #include "mforce/music/strategy.h"
 #include "mforce/music/strategy_registry.h"
 #include "mforce/music/figures.h"
+#include "mforce/music/figure_transforms.h"
+#include "mforce/music/random_figure_builder.h"
 #include "mforce/music/structure.h"
 #include "mforce/music/templates.h"
 #include "mforce/music/pitch_reader.h"
@@ -55,124 +57,111 @@ public:
 inline MelodicFigure DefaultFigureStrategy::generate_figure(
     const FigureTemplate& figTmpl, uint32_t seed) {
     StepGenerator sg(seed);
-    FigureBuilder fb(seed + 1);
 
-    fb.defaultPulse = (figTmpl.defaultPulse > 0) ? figTmpl.defaultPulse : 1.0f;
+    float defaultPulse = (figTmpl.defaultPulse > 0) ? figTmpl.defaultPulse : 1.0f;
 
-    if (figTmpl.totalBeats > 0) {
-      // Build from total length
-      int noteCount = int(figTmpl.totalBeats / fb.defaultPulse);
-      noteCount = std::clamp(noteCount, figTmpl.minNotes, figTmpl.maxNotes);
-
-      StepSequence ss;
+    auto generate_steps = [&](int noteCount) -> StepSequence {
       if (figTmpl.targetNet != 0) {
-        ss = sg.targeted_sequence(noteCount, figTmpl.targetNet);
+        return sg.targeted_sequence(noteCount, figTmpl.targetNet);
       } else if (figTmpl.preferStepwise) {
-        ss = sg.no_skip_sequence(noteCount);
+        return sg.no_skip_sequence(noteCount);
       } else {
         float skipProb = figTmpl.preferSkips ? 0.6f : 0.3f;
-        ss = sg.random_sequence(noteCount, skipProb);
+        return sg.random_sequence(noteCount, skipProb);
       }
+    };
 
-      // Clamp individual step magnitudes if maxStep is set
+    auto clamp_steps = [&](StepSequence& ss) {
       if (figTmpl.maxStep > 0) {
         for (int i = 0; i < ss.count(); ++i) {
           if (ss.steps[i] > figTmpl.maxStep) ss.steps[i] = figTmpl.maxStep;
           else if (ss.steps[i] < -figTmpl.maxStep) ss.steps[i] = -figTmpl.maxStep;
         }
       }
+    };
 
-      MelodicFigure fig = fb.build(ss, fb.defaultPulse);
+    if (figTmpl.totalBeats > 0) {
+      int noteCount = int(figTmpl.totalBeats / defaultPulse);
+      noteCount = std::clamp(noteCount, figTmpl.minNotes, figTmpl.maxNotes);
 
-      // Apply random rhythm variation
+      StepSequence ss = generate_steps(noteCount);
+      clamp_steps(ss);
+
+      MelodicFigure fig = MelodicFigure::from_steps(ss, defaultPulse);
+      if (!fig.units.empty()) fig.units[0].step = 0;
+
       Randomizer varyRng(seed + 2);
       if (varyRng.decide(0.4f)) {
-        fig = fb.vary_rhythm(fig);
+        fig = figure_transforms::vary_rhythm(fig, varyRng);
       }
-
       return fig;
     }
 
-    // No total beats specified — use note count range
     Randomizer countRng(seed + 3);
     int noteCount = countRng.int_range(figTmpl.minNotes, figTmpl.maxNotes);
 
-    StepSequence ss;
-    if (figTmpl.targetNet != 0) {
-      ss = sg.targeted_sequence(noteCount, figTmpl.targetNet);
-    } else if (figTmpl.preferStepwise) {
-      ss = sg.no_skip_sequence(noteCount);
-    } else {
-      ss = sg.random_sequence(noteCount);
-    }
+    StepSequence ss = generate_steps(noteCount);
+    clamp_steps(ss);
 
-    if (figTmpl.maxStep > 0) {
-      for (int i = 0; i < ss.count(); ++i) {
-        if (ss.steps[i] > figTmpl.maxStep) ss.steps[i] = figTmpl.maxStep;
-        else if (ss.steps[i] < -figTmpl.maxStep) ss.steps[i] = -figTmpl.maxStep;
-      }
-    }
-
-    return fb.build(ss, fb.defaultPulse);
+    MelodicFigure fig = MelodicFigure::from_steps(ss, defaultPulse);
+    if (!fig.units.empty()) fig.units[0].step = 0;
+    return fig;
 }
 
 inline MelodicFigure DefaultFigureStrategy::apply_transform(
     const MelodicFigure& base, TransformOp op, int param, uint32_t seed) {
-    FigureBuilder fb(seed);
+    Randomizer rng(seed);
 
     switch (op) {
       case TransformOp::Invert:
-        return fb.invert(base);
+        return figure_transforms::invert(base);
 
       case TransformOp::Reverse:
-        return fb.reverse(base);
+        return figure_transforms::retrograde_steps(base);
 
       case TransformOp::Stretch:
-        return fb.stretch(base, param > 0 ? float(param) : 2.0f);
+        return figure_transforms::stretch(base, param > 0 ? float(param) : 2.0f);
 
       case TransformOp::Compress:
-        return fb.compress(base, param > 0 ? float(param) : 2.0f);
+        return figure_transforms::compress(base, param > 0 ? float(param) : 2.0f);
 
       case TransformOp::VaryRhythm:
-        return fb.vary_rhythm(base);
+        return figure_transforms::vary_rhythm(base, rng);
 
-      case TransformOp::VarySteps: {
-        MelodicFigure copy = base;
-        return fb.vary_steps(copy, std::max(1, param));
-      }
+      case TransformOp::VarySteps:
+        return figure_transforms::vary_steps(base, rng, std::max(1, param));
 
       case TransformOp::NewSteps: {
-        // Keep rhythm, generate new steps
+        // Keep rhythm length, generate new steps, apply uniform pulse.
         StepGenerator sg(seed);
-        StepSequence newSS = sg.random_sequence(base.note_count() - 1);
-        return fb.build(newSS, base.units[0].duration);
+        StepSequence raw = sg.random_sequence(base.note_count() - 1);
+        StepSequence newSS; newSS.add(0);
+        for (int i = 0; i < raw.count(); ++i) newSS.add(raw.get(i));
+        float pulse = base.units.empty() ? 1.0f : base.units[0].duration;
+        return MelodicFigure::from_steps(newSS, pulse);
       }
 
       case TransformOp::NewRhythm: {
-        // Keep steps, generate new rhythm — rebuild with random pulses
+        // Keep steps, perturb per-unit pulse durations (legacy behavior).
         MelodicFigure fig = base;
-        Randomizer rr(seed);
         for (auto& u : fig.units) {
-          u.duration *= (rr.decide(0.5f) ? 0.5f : 1.0f) * (rr.decide(0.3f) ? 1.5f : 1.0f);
+          u.duration *= (rng.decide(0.5f) ? 0.5f : 1.0f) * (rng.decide(0.3f) ? 1.5f : 1.0f);
         }
         return fig;
       }
 
       case TransformOp::Replicate: {
         int count = (param > 0) ? param : 2;
-        Randomizer rr(seed);
-        int step = rr.select_int({-2, -1, 1, 2});
-        return fb.replicate(base, count, step);
+        int step = rng.select_int({-2, -1, 1, 2});
+        return figure_transforms::replicate(base, count, step, false);
       }
 
       case TransformOp::TransformGeneral: {
-        // Composer picks a random transform
-        Randomizer rr(seed);
-        float choice = rr.value();
-        if (choice < 0.25f) return fb.invert(base);
-        if (choice < 0.50f) return fb.vary_rhythm(base);
-        if (choice < 0.75f) return fb.reverse(base);
-        return fb.stretch(base);
+        float choice = rng.value();
+        if (choice < 0.25f) return figure_transforms::invert(base);
+        if (choice < 0.50f) return figure_transforms::vary_rhythm(base, rng);
+        if (choice < 0.75f) return figure_transforms::retrograde_steps(base);
+        return figure_transforms::stretch(base, 2.0f);
       }
 
       case TransformOp::None:
