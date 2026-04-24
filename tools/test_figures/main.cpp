@@ -3,6 +3,7 @@
 #include "mforce/music/figure_transforms.h"
 #include "mforce/music/structure.h"
 #include "mforce/music/templates.h"
+#include "mforce/core/randomizer.h"
 
 #include <cmath>
 #include <cstdlib>
@@ -320,6 +321,87 @@ int test_add_turn_up() {
     return 0;
 }
 
+// --- randomized transforms (seeded) ---
+
+float total_duration(const MelodicFigure& f) {
+    float t = 0; for (auto& u : f.units) t += u.duration; return t;
+}
+
+int test_vary_rhythm_preserves_length() {
+    MelodicFigure f;
+    f.units.push_back({2.0f, 0});
+    f.units.push_back({2.0f, +1});
+    f.units.push_back({2.0f, -1});
+    Randomizer rng(0x1234u);
+    auto out = figure_transforms::vary_rhythm(f, rng);
+    EXPECT_NEAR(total_duration(out), total_duration(f), 1e-4f, "total duration preserved");
+    return 0;
+}
+
+int test_vary_steps_changes_interior() {
+    MelodicFigure f;
+    f.units.push_back({1.0f, 0});
+    f.units.push_back({1.0f, +1});
+    f.units.push_back({1.0f, -1});
+    f.units.push_back({1.0f, +1});
+    f.units.push_back({1.0f, 0});
+    Randomizer rng(0x5678u);
+    auto out = figure_transforms::vary_steps(f, rng, /*variations=*/1);
+    EXPECT_EQ(out.units.size(), f.units.size(), "size preserved");
+    EXPECT_EQ(out.units.front().step, f.units.front().step, "first step untouched");
+    EXPECT_EQ(out.units.back().step,  f.units.back().step,  "last step untouched");
+    bool anyDiff = false;
+    for (int i = 1; i + 1 < (int)f.units.size(); ++i)
+        if (out.units[i].step != f.units[i].step) { anyDiff = true; break; }
+    if (!anyDiff) { std::cerr << "  FAIL: no interior step changed\n"; return 1; }
+    return 0;
+}
+
+int test_vary_composite() {
+    MelodicFigure f;
+    f.units.push_back({1.0f, 0});
+    f.units.push_back({1.0f, +1});
+    f.units.push_back({1.0f, -1});
+    f.units.push_back({1.0f, 0});
+    Randomizer rng(0xABCDu);
+    auto out = figure_transforms::vary(f, rng, /*amount=*/1.0f);
+    EXPECT_NEAR(total_duration(out), total_duration(f), 1e-4f, "total duration preserved");
+    return 0;
+}
+
+int test_complexify_grows_unit_count() {
+    MelodicFigure f;
+    f.units.push_back({1.0f, 0});
+    f.units.push_back({1.0f, +1});
+    f.units.push_back({1.0f, -1});
+    f.units.push_back({1.0f, 0});
+    Randomizer rng(0xDEADu);
+    auto out = figure_transforms::complexify(f, rng, /*amount=*/1.0f);
+    if ((int)out.units.size() < (int)f.units.size() + 1) {
+        std::cerr << "  FAIL: complexify did not grow units (size=" << out.units.size() << ")\n";
+        return 1;
+    }
+    EXPECT_NEAR(total_duration(out), total_duration(f), 1e-3f, "total duration preserved");
+    return 0;
+}
+
+int test_embellish_marks_articulation() {
+    MelodicFigure f;
+    f.units.push_back({1.0f, 0});
+    f.units.push_back({1.0f, +1});
+    f.units.push_back({1.0f, -1});
+    f.units.push_back({1.0f, 0});
+    Randomizer rng(0xBEEFu);
+    auto out = figure_transforms::embellish(f, rng, /*count=*/2);
+    EXPECT_EQ(out.units.size(), f.units.size(), "size preserved");
+    int marcatoCount = 0;
+    for (auto& u : out.units) {
+        if (std::holds_alternative<articulations::Marcato>(u.articulation)) ++marcatoCount;
+    }
+    EXPECT_EQ(marcatoCount, 2, "expected 2 marcato marks");
+    return 0;
+}
+
 int run_unit_tests() {
     RUN_TEST(test_invert);
     RUN_TEST(test_retrograde_steps);
@@ -338,6 +420,11 @@ int run_unit_tests() {
     RUN_TEST(test_split);
     RUN_TEST(test_add_neighbor_up);
     RUN_TEST(test_add_turn_up);
+    RUN_TEST(test_vary_rhythm_preserves_length);
+    RUN_TEST(test_vary_steps_changes_interior);
+    RUN_TEST(test_vary_composite);
+    RUN_TEST(test_complexify_grows_unit_count);
+    RUN_TEST(test_embellish_marks_articulation);
     return 0;
 }
 
