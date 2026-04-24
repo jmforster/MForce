@@ -1,0 +1,340 @@
+{
+  "key": "C Major",
+  "parts": [
+    {
+      "events": [
+        {
+          "beat": 0.0,
+          "data": {
+            "duration": 1.0,
+            "noteNumber": 48.0,
+            "velocity": 0.625
+          },
+          "type": "note"
+        },
+        {
+          "beat": 1.0,
+          "data": {
+            "duration": 1.0,
+            "noteNumber": 52.0,
+            "velocity": 0.625
+          },
+          "type": "note"
+        },
+        {
+          "beat": 2.0,
+          "data": {
+            "duration": 1.0,
+            "noteNumber": 50.0,
+            "velocity": 0.625
+          },
+          "type": "note"
+        },
+        {
+          "beat": 3.0,
+          "data": {
+            "duration": 1.0,
+            "noteNumber": 52.0,
+            "velocity": 0.625
+          },
+          "type": "note"
+        },
+        {
+          "beat": 5.0,
+          "data": {
+            "duration": 1.0,
+            "noteNumber": 48.0,
+            "velocity": 0.625
+          },
+          "type": "note"
+        },
+        {
+          "beat": 6.0,
+          "data": {
+            "duration": 1.0,
+            "noteNumber": 45.0,
+            "velocity": 0.625
+          },
+          "type": "note"
+        },
+        {
+          "beat": 7.0,
+          "data": {
+            "duration": 1.0,
+            "noteNumber": 47.0,
+            "velocity": 0.625
+          },
+          "type": "note"
+        },
+        {
+          "beat": 8.0,
+          "data": {
+            "duration": 1.0,
+            "noteNumber": 45.0,
+            "velocity": 0.625
+          },
+          "type": "note"
+        },
+        {
+          "beat": 10.0,
+          "data": {
+            "duration": 1.0,
+            "noteNumber": 48.0,
+            "velocity": 0.625
+          },
+          "type": "note"
+        },
+        {
+          "beat": 11.0,
+          "data": {
+            "duration": 1.0,
+            "noteNumber": 47.0,
+            "velocity": 0.625
+          },
+          "type": "note"
+        },
+        {
+          "beat": 12.0,
+          "data": {
+            "duration": 1.0,
+            "noteNumber": 48.0,
+            "velocity": 0.625
+          },
+          "type": "note"
+        },
+        {
+          "beat": 13.0,
+          "data": {
+            "duration": 1.0,
+            "noteNumber": 45.0,
+            "velocity": 0.625
+          },
+          "type": "note"
+        },
+        {
+          "beat": 15.0,
+          "data": {
+            "duration": 1.0,
+            "noteNumber": 48.0,
+            "velocity": 0.625
+          },
+          "type": "note"
+        },
+        {
+          "beat": 16.0,
+          "data": {
+            "duration": 1.0,
+            "noteNumber": 50.0,
+            "velocity": 0.625
+          },
+          "type": "note"
+        },
+        {
+          "beat": 17.0,
+          "data": {
+            "duration": 1.0,
+            "noteNumber": 48.0,
+            "velocity": 0.625
+          },
+          "type": "note"
+        },
+        {
+          "beat": 18.0,
+          "data": {
+            "duration": 1.0,
+            "noteNumber": 52.0,
+            "velocity": 0.625
+          },
+          "type": "note"
+        }
+      ],
+      "instrumentType": "melody",
+      "name": "melody",
+      "passages": {
+        "Main": {
+          "phrases": [
+            {
+              "figures": [
+                {
+                  "units": [
+                    {
+                      "duration": 1.0,
+                      "step": 0
+                    },
+                    {
+                      "duration": 1.0,
+                      "step": 2
+                    },
+                    {
+                      "duration": 1.0,
+                      "step": -1
+                    },
+                    {
+                      "duration": 1.0,
+                      "step": 1
+                    }
+                  ]
+                }
+              ],
+              "startingPitch": {
+                "octave": 4,
+                "pitch": "C"
+              }
+            },
+            {
+              "figures": [
+                {
+                  "units": [
+                    {
+                      "duration": 1.0,
+                      "rest": true,
+                      "step": 0
+                    }
+                  ]
+                }
+              ],
+              "startingPitch": {
+                "octave": 4,
+                "pitch": "E"
+              }
+            },
+            {
+              "figures": [
+                {
+                  "units": [
+                    {
+                      "duration": 1.0,
+                      "step": 0
+                    },
+                    {
+                      "duration": 1.0,
+                      "step": -2
+                    },
+                    {
+                      "duration": 1.0,
+                      "step": 1
+                    },
+                    {
+                      "duration": 1.0,
+                      "step": -1
+                    }
+                  ]
+                }
+              ],
+              "startingPitch": {
+                "octave": 4,
+                "pitch": "C"
+              }
+            },
+            {
+              "figures": [
+                {
+                  "units": [
+                    {
+                      "duration": 1.0,
+                      "rest": true,
+                      "step": 0
+                    }
+                  ]
+                }
+              ],
+              "startingPitch": {
+                "octave": 4,
+                "pitch": "C"
+              }
+            },
+            {
+              "figures": [
+                {
+                  "units": [
+                    {
+                      "duration": 1.0,
+                      "step": 0
+                    },
+                    {
+                      "duration": 1.0,
+                      "step": -1
+                    },
+                    {
+                      "duration": 1.0,
+                      "step": 1
+                    },
+                    {
+                      "duration": 1.0,
+                      "step": -2
+                    }
+                  ]
+                }
+              ],
+              "startingPitch": {
+                "octave": 4,
+                "pitch": "C"
+              }
+            },
+            {
+              "figures": [
+                {
+                  "units": [
+                    {
+                      "duration": 1.0,
+                      "rest": true,
+                      "step": 0
+                    }
+                  ]
+                }
+              ],
+              "startingPitch": {
+                "octave": 3,
+                "pitch": "A"
+              }
+            },
+            {
+              "figures": [
+                {
+                  "units": [
+                    {
+                      "duration": 1.0,
+                      "step": 0
+                    },
+                    {
+                      "duration": 1.0,
+                      "step": 1
+                    },
+                    {
+                      "duration": 1.0,
+                      "step": -1
+                    },
+                    {
+                      "duration": 1.0,
+                      "step": 2
+                    }
+                  ]
+                }
+              ],
+              "startingPitch": {
+                "octave": 4,
+                "pitch": "C"
+              }
+            }
+          ]
+        }
+      },
+      "totalBeats": 19.0
+    }
+  ],
+  "sections": [
+    {
+      "beats": 32.0,
+      "meter": {
+        "denominator": 4,
+        "numerator": 4
+      },
+      "name": "Main",
+      "scale": {
+        "pitch": "C",
+        "scale": "Major"
+      },
+      "tempo": 100.0
+    }
+  ]
+}
