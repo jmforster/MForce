@@ -47,6 +47,87 @@ int g_failed = 0;
 } while (0)
 
 // ----------------------------------------------------------------------------
+// Integration helper: run `figure` through the Composer via
+// WrapperPhraseStrategy and return the realized MelodicFigure. On any
+// structural mismatch returns {false, {}} so the caller can emit its own
+// diagnostic.
+// ----------------------------------------------------------------------------
+struct ComposeResult {
+    bool ok;
+    MelodicFigure fig;
+};
+
+ComposeResult compose_locked(const MelodicFigure& figure) {
+    PieceTemplate tmpl;
+    tmpl.keyName = "C";
+    tmpl.scaleName = "Major";
+    tmpl.bpm = 100.0f;
+    tmpl.masterSeed = 0xABCDu;
+
+    PieceTemplate::SectionTemplate sec;
+    sec.name = "Main";
+    sec.beats = 32.0f;
+    tmpl.sections.push_back(sec);
+
+    PartTemplate part;
+    part.name = "melody";
+    part.role = PartRole::Melody;
+
+    PassageTemplate passage;
+    passage.name = "Main";
+    passage.startingPitch = Pitch::from_name("C", 4);
+
+    PhraseTemplate phrase;
+    phrase.name = "wrap";
+    phrase.strategy = "wrapper_phrase";
+    phrase.startingPitch = Pitch::from_name("C", 4);
+
+    FigureTemplate ft;
+    ft.source = FigureSource::Locked;
+    ft.lockedFigure = figure;
+    phrase.figures.push_back(ft);
+
+    passage.phrases.push_back(phrase);
+    part.passages["Main"] = passage;
+    tmpl.parts.push_back(part);
+
+    Piece piece;
+    ClassicalComposer composer(tmpl.masterSeed);
+    composer.compose(piece, tmpl);
+
+    if (piece.parts.size() != 1) return {false, {}};
+    auto it = piece.parts[0].passages.find("Main");
+    if (it == piece.parts[0].passages.end()) return {false, {}};
+    if (it->second.phrases.size() != 1) return {false, {}};
+    const Phrase& ph = it->second.phrases[0];
+    if (ph.figures.size() != 1) return {false, {}};
+    const MelodicFigure* fig = dynamic_cast<const MelodicFigure*>(ph.figures[0].get());
+    if (!fig) return {false, {}};
+    return {true, *fig};
+}
+
+int expect_figures_equal(const MelodicFigure& a, const MelodicFigure& b, const char* tag) {
+    if (a.units.size() != b.units.size()) {
+        std::cerr << "  FAIL: " << tag << " unit count " << a.units.size()
+                  << " vs " << b.units.size() << "\n";
+        return 1;
+    }
+    for (size_t i = 0; i < a.units.size(); ++i) {
+        if (a.units[i].step != b.units[i].step) {
+            std::cerr << "  FAIL: " << tag << " step[" << i << "] " << a.units[i].step
+                      << " vs " << b.units[i].step << "\n";
+            return 1;
+        }
+        if (std::fabs(a.units[i].duration - b.units[i].duration) > 1e-5f) {
+            std::cerr << "  FAIL: " << tag << " dur[" << i << "] " << a.units[i].duration
+                      << " vs " << b.units[i].duration << "\n";
+            return 1;
+        }
+    }
+    return 0;
+}
+
+// ----------------------------------------------------------------------------
 // Smoke test (preserved from step 1) — round-trips a locked figure through
 // the WrapperPhraseStrategy-driven Composer pipeline and verifies the realized
 // figure matches the input unit-for-unit.
@@ -428,8 +509,82 @@ int run_unit_tests() {
     return 0;
 }
 
+// ----------------------------------------------------------------------------
+// Integration tests — each deterministic transform round-trips through the
+// Composer via WrapperPhraseStrategy and must match the transform's direct
+// output unit-for-unit.
+// ----------------------------------------------------------------------------
+
+int integ_invert() {
+    MelodicFigure expected = figure_transforms::invert(fig4());
+    auto r = compose_locked(expected);
+    if (!r.ok) { std::cerr << "  FAIL: compose failed\n"; return 1; }
+    return expect_figures_equal(r.fig, expected, "invert");
+}
+
+int integ_retrograde() {
+    MelodicFigure expected = figure_transforms::retrograde_steps(fig4());
+    auto r = compose_locked(expected);
+    if (!r.ok) { std::cerr << "  FAIL: compose failed\n"; return 1; }
+    return expect_figures_equal(r.fig, expected, "retrograde");
+}
+
+int integ_combine() {
+    MelodicFigure a; a.units.push_back({1.0f, 0}); a.units.push_back({1.0f, +1});
+    MelodicFigure b; b.units.push_back({1.0f, 0}); b.units.push_back({1.0f, -1});
+    FigureConnector fc; fc.leadStep = +2;
+    MelodicFigure expected = figure_transforms::combine(a, b, fc);
+    auto r = compose_locked(expected);
+    if (!r.ok) { std::cerr << "  FAIL: compose failed\n"; return 1; }
+    return expect_figures_equal(r.fig, expected, "combine");
+}
+
+int integ_replicate() {
+    MelodicFigure expected = figure_transforms::replicate(
+        fig4(), std::vector<int>{+2, -2});
+    auto r = compose_locked(expected);
+    if (!r.ok) { std::cerr << "  FAIL: compose failed\n"; return 1; }
+    return expect_figures_equal(r.fig, expected, "replicate");
+}
+
+int integ_split() {
+    MelodicFigure expected = figure_transforms::split(fig4(), /*splitAt=*/1, /*repeats=*/2);
+    auto r = compose_locked(expected);
+    if (!r.ok) { std::cerr << "  FAIL: compose failed\n"; return 1; }
+    return expect_figures_equal(r.fig, expected, "split");
+}
+
+int integ_add_neighbor() {
+    MelodicFigure expected = figure_transforms::add_neighbor(fig4(), /*addAt=*/1);
+    auto r = compose_locked(expected);
+    if (!r.ok) { std::cerr << "  FAIL: compose failed\n"; return 1; }
+    return expect_figures_equal(r.fig, expected, "add_neighbor");
+}
+
+int integ_add_turn() {
+    MelodicFigure expected = figure_transforms::add_turn(fig4(), /*addAt=*/1);
+    auto r = compose_locked(expected);
+    if (!r.ok) { std::cerr << "  FAIL: compose failed\n"; return 1; }
+    return expect_figures_equal(r.fig, expected, "add_turn");
+}
+
+int integ_stretch() {
+    MelodicFigure expected = figure_transforms::stretch(fig4(), 2.0f);
+    auto r = compose_locked(expected);
+    if (!r.ok) { std::cerr << "  FAIL: compose failed\n"; return 1; }
+    return expect_figures_equal(r.fig, expected, "stretch");
+}
+
 int run_integration_tests() {
     RUN_TEST(test_smoke_round_trip);
+    RUN_TEST(integ_invert);
+    RUN_TEST(integ_retrograde);
+    RUN_TEST(integ_combine);
+    RUN_TEST(integ_replicate);
+    RUN_TEST(integ_split);
+    RUN_TEST(integ_add_neighbor);
+    RUN_TEST(integ_add_turn);
+    RUN_TEST(integ_stretch);
     return 0;
 }
 
