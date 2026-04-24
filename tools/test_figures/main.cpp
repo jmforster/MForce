@@ -113,8 +113,98 @@ int test_smoke_round_trip() {
     return 0;
 }
 
+// ----------------------------------------------------------------------------
+// figure_transforms::* — elementary transform unit tests.
+// ----------------------------------------------------------------------------
+
+MelodicFigure fig4() {
+    MelodicFigure f;
+    f.units.push_back({1.0f,  0});
+    f.units.push_back({1.0f, +1});
+    f.units.push_back({1.0f, +1});
+    f.units.push_back({1.0f, -2});
+    return f;
+}
+
+int test_invert() {
+    auto out = figure_transforms::invert(fig4());
+    EXPECT_EQ(out.units.size(), 4u, "size");
+    EXPECT_EQ(out.units[0].step,  0, "step 0");
+    EXPECT_EQ(out.units[1].step, -1, "step 1");
+    EXPECT_EQ(out.units[2].step, -1, "step 2");
+    EXPECT_EQ(out.units[3].step, +2, "step 3");
+    return 0;
+}
+
+int test_retrograde_steps() {
+    // Doc example: [0, +1, +1, -2] -> [0, +2, -1, -1]
+    auto out = figure_transforms::retrograde_steps(fig4());
+    EXPECT_EQ(out.units.size(), 4u, "size");
+    EXPECT_EQ(out.units[0].step,  0, "step 0");
+    EXPECT_EQ(out.units[1].step, +2, "step 1");
+    EXPECT_EQ(out.units[2].step, -1, "step 2");
+    EXPECT_EQ(out.units[3].step, -1, "step 3");
+    return 0;
+}
+
+int test_prune_end() {
+    auto out = figure_transforms::prune(fig4(), 2);
+    EXPECT_EQ(out.units.size(), 2u, "size");
+    EXPECT_EQ(out.units[0].step, 0,  "step 0");
+    EXPECT_EQ(out.units[1].step, +1, "step 1");
+    return 0;
+}
+
+int test_prune_start() {
+    auto out = figure_transforms::prune(fig4(), 2, /*from_start=*/true);
+    EXPECT_EQ(out.units.size(), 2u, "size");
+    EXPECT_EQ(out.units[0].step, 0,  "step 0 forced to 0");
+    EXPECT_EQ(out.units[1].step, -2, "step 1 preserved");
+    return 0;
+}
+
+int test_set_last_pulse() {
+    MelodicFigure f; f.units.push_back({1.0f, 0}); f.units.push_back({2.0f, +1});
+    auto out = figure_transforms::set_last_pulse(f, 0.5f);
+    EXPECT_EQ(out.units.size(), 2u, "size");
+    EXPECT_NEAR(out.units[0].duration, 1.0f, 1e-5f, "dur 0");
+    EXPECT_NEAR(out.units[1].duration, 0.5f, 1e-5f, "dur 1");
+    return 0;
+}
+
+int test_adjust_last_pulse() {
+    MelodicFigure f; f.units.push_back({1.0f, 0}); f.units.push_back({2.0f, +1});
+    auto out = figure_transforms::adjust_last_pulse(f, -0.5f);
+    EXPECT_NEAR(out.units[1].duration, 1.5f, 1e-5f, "dur 1 adjusted");
+    auto clamped = figure_transforms::adjust_last_pulse(f, -10.0f);
+    EXPECT_NEAR(clamped.units[1].duration, 0.0f, 1e-5f, "clamped at 0");
+    return 0;
+}
+
+int test_stretch() {
+    auto out = figure_transforms::stretch(fig4(), 2.0f);
+    EXPECT_EQ(out.units.size(), 4u, "size");
+    for (size_t i = 0; i < out.units.size(); ++i)
+        EXPECT_NEAR(out.units[i].duration, 2.0f, 1e-5f, "stretched dur");
+    return 0;
+}
+
+int test_compress() {
+    auto out = figure_transforms::compress(fig4(), 4.0f);
+    for (size_t i = 0; i < out.units.size(); ++i)
+        EXPECT_NEAR(out.units[i].duration, 0.25f, 1e-5f, "compressed dur");
+    return 0;
+}
+
 int run_unit_tests() {
-    // Populated by subsequent tasks.
+    RUN_TEST(test_invert);
+    RUN_TEST(test_retrograde_steps);
+    RUN_TEST(test_prune_end);
+    RUN_TEST(test_prune_start);
+    RUN_TEST(test_set_last_pulse);
+    RUN_TEST(test_adjust_last_pulse);
+    RUN_TEST(test_stretch);
+    RUN_TEST(test_compress);
     return 0;
 }
 
