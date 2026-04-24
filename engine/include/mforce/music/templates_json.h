@@ -499,6 +499,38 @@ inline void from_json(const json& j, SentencePhraseConfig& c) {
 }
 
 // ===========================================================================
+// TwoFigurePhraseConfig
+// ===========================================================================
+
+inline void to_json(json& j, const TwoFigurePhraseConfig& c) {
+    switch (c.method) {
+        case TwoFigurePhraseConfig::Method::ByCount:   j["method"] = "by_count";   break;
+        case TwoFigurePhraseConfig::Method::ByLength:  j["method"] = "by_length";  break;
+        case TwoFigurePhraseConfig::Method::Singleton: j["method"] = "singleton";  break;
+    }
+    if (c.count != 4)     j["count"]  = c.count;
+    if (c.length != 4.0f) j["length"] = c.length;
+    j["constraints"] = c.constraints;
+    if (c.seed != 0) j["seed"] = c.seed;
+    j["transform"] = c.transform;
+    if (c.transformParam != 0) j["transformParam"] = c.transformParam;
+}
+
+inline void from_json(const json& j, TwoFigurePhraseConfig& c) {
+    auto methodStr = j.value("method", std::string("by_count"));
+    if      (methodStr == "by_count")   c.method = TwoFigurePhraseConfig::Method::ByCount;
+    else if (methodStr == "by_length")  c.method = TwoFigurePhraseConfig::Method::ByLength;
+    else if (methodStr == "singleton")  c.method = TwoFigurePhraseConfig::Method::Singleton;
+    else                                c.method = TwoFigurePhraseConfig::Method::ByCount;
+    c.count  = j.value("count", 4);
+    c.length = j.value("length", 4.0f);
+    if (j.contains("constraints")) from_json(j.at("constraints"), c.constraints);
+    c.seed = j.value("seed", 0u);
+    if (j.contains("transform")) c.transform = j.at("transform").get<TransformOp>();
+    c.transformParam = j.value("transformParam", 0);
+}
+
+// ===========================================================================
 // PhraseTemplate
 // ===========================================================================
 
@@ -515,6 +547,7 @@ inline void to_json(json& j, const PhraseTemplate& pt) {
     if (!pt.strategy.empty()) j["strategy"] = pt.strategy;
     if (pt.periodConfig) j["periodConfig"] = *pt.periodConfig;
     if (pt.sentenceConfig) j["sentenceConfig"] = *pt.sentenceConfig;
+    if (pt.twoFigureConfig) j["twoFigureConfig"] = *pt.twoFigureConfig;
 
     // Connectors: only emit if any are present
     bool anyConnectors = false;
@@ -564,6 +597,11 @@ inline void from_json(const json& j, PhraseTemplate& pt) {
         SentencePhraseConfig c;
         from_json(j.at("sentenceConfig"), c);
         pt.sentenceConfig = c;
+    }
+    if (j.contains("twoFigureConfig")) {
+        TwoFigurePhraseConfig c;
+        from_json(j.at("twoFigureConfig"), c);
+        pt.twoFigureConfig = c;
     }
 
     // Connectors: optional parallel vector; when absent, leave empty.
