@@ -2,6 +2,7 @@
 #include "mforce/music/strategy.h"
 #include "mforce/music/strategy_registry.h"
 #include "mforce/music/default_strategies.h"
+#include "mforce/music/random_figure_builder.h"
 #include "mforce/music/shape_strategies.h"
 #include "mforce/music/phrase_strategies.h"
 #include "mforce/music/alternating_figure_strategy.h"
@@ -979,7 +980,11 @@ inline MelodicFigure DefaultFigureStrategy::compose_figure(
   switch (figTmpl.source) {
     case FigureSource::Locked:
       if (figTmpl.lockedFigure) return *figTmpl.lockedFigure;
-      return FigureBuilder(::mforce::rng::next()).single_note(1.0f);  // fallback
+      {
+        RandomFigureBuilder rfb(::mforce::rng::next());
+        Constraints fc; fc.length = 1.0f;
+        return rfb.build_singleton(fc);  // fallback
+      }
 
     case FigureSource::Literal: {
       // Convert the user-authored note list into a MelodicFigure. Each
