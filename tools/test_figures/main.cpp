@@ -1,30 +1,62 @@
 #include "mforce/music/basics.h"
 #include "mforce/music/classical_composer.h"
+#include "mforce/music/figure_transforms.h"
 #include "mforce/music/structure.h"
 #include "mforce/music/templates.h"
 
 #include <cmath>
 #include <cstdlib>
+#include <cstring>
 #include <iostream>
+#include <string>
 
 using namespace mforce;
 
+// ============================================================================
+// Minimal test harness.
+// ============================================================================
 namespace {
 
-// Build a deterministic base figure: steps [0, +1, -1, 0], uniform 1-beat pulse.
-// Net step = 0, so the figure is contour-neutral — ideal for a round-trip test.
-MelodicFigure make_smoke_figure() {
-    MelodicFigure fig;
-    fig.units.push_back({1.0f,  0});
-    fig.units.push_back({1.0f, +1});
-    fig.units.push_back({1.0f, -1});
-    fig.units.push_back({1.0f,  0});
-    return fig;
-}
+int g_passed = 0;
+int g_failed = 0;
 
-// Assemble a minimal PieceTemplate: one section, one part, one passage,
-// one phrase driven by WrapperPhraseStrategy with a single locked figure.
-PieceTemplate make_smoke_template(const MelodicFigure& fig) {
+#define EXPECT_EQ(actual, expected, msg) do {                                \
+    if (!((actual) == (expected))) {                                          \
+        std::cerr << "  FAIL(" << __LINE__ << "): " << (msg)                  \
+                  << " — expected " << (expected)                             \
+                  << " got " << (actual) << "\n";                             \
+        return 1;                                                             \
+    }                                                                         \
+} while (0)
+
+#define EXPECT_NEAR(actual, expected, tol, msg) do {                         \
+    if (std::fabs(double(actual) - double(expected)) > double(tol)) {         \
+        std::cerr << "  FAIL(" << __LINE__ << "): " << (msg)                  \
+                  << " — expected " << (expected)                             \
+                  << " got " << (actual) << "\n";                             \
+        return 1;                                                             \
+    }                                                                         \
+} while (0)
+
+#define RUN_TEST(fn) do {                                                    \
+    std::cerr << "[TEST] " #fn " ...";                                        \
+    int rc = fn();                                                            \
+    if (rc == 0) { std::cerr << " PASS\n"; ++g_passed; }                      \
+    else         { std::cerr << " FAIL\n"; ++g_failed; }                      \
+} while (0)
+
+// ----------------------------------------------------------------------------
+// Smoke test (preserved from step 1) — round-trips a locked figure through
+// the WrapperPhraseStrategy-driven Composer pipeline and verifies the realized
+// figure matches the input unit-for-unit.
+// ----------------------------------------------------------------------------
+int test_smoke_round_trip() {
+    MelodicFigure expected;
+    expected.units.push_back({1.0f,  0});
+    expected.units.push_back({1.0f, +1});
+    expected.units.push_back({1.0f, -1});
+    expected.units.push_back({1.0f,  0});
+
     PieceTemplate tmpl;
     tmpl.keyName = "C";
     tmpl.scaleName = "Major";
@@ -39,7 +71,6 @@ PieceTemplate make_smoke_template(const MelodicFigure& fig) {
     PartTemplate part;
     part.name = "melody";
     part.role = PartRole::Melody;
-    part.instrumentPatch = "";
 
     PassageTemplate passage;
     passage.name = "Main";
@@ -52,65 +83,61 @@ PieceTemplate make_smoke_template(const MelodicFigure& fig) {
 
     FigureTemplate ft;
     ft.source = FigureSource::Locked;
-    ft.lockedFigure = fig;
+    ft.lockedFigure = expected;
     phrase.figures.push_back(ft);
 
     passage.phrases.push_back(phrase);
     part.passages["Main"] = passage;
     tmpl.parts.push_back(part);
 
-    return tmpl;
+    Piece piece;
+    ClassicalComposer composer(tmpl.masterSeed);
+    composer.compose(piece, tmpl);
+
+    EXPECT_EQ(piece.parts.size(), 1u, "piece.parts.size");
+    auto passageIt = piece.parts[0].passages.find("Main");
+    if (passageIt == piece.parts[0].passages.end()) {
+        std::cerr << "  FAIL: passages[Main] missing\n"; return 1;
+    }
+    const Passage& p = passageIt->second;
+    EXPECT_EQ(p.phrases.size(), 1u, "phrases.size");
+    const Phrase& ph = p.phrases[0];
+    EXPECT_EQ(ph.figures.size(), 1u, "figures.size");
+    const MelodicFigure* fig = dynamic_cast<const MelodicFigure*>(ph.figures[0].get());
+    if (!fig) { std::cerr << "  FAIL: not MelodicFigure\n"; return 1; }
+    EXPECT_EQ(fig->units.size(), expected.units.size(), "units.size");
+    for (size_t i = 0; i < expected.units.size(); ++i) {
+        EXPECT_EQ(fig->units[i].step, expected.units[i].step, "step");
+        EXPECT_NEAR(fig->units[i].duration, expected.units[i].duration, 1e-5f, "dur");
+    }
+    return 0;
 }
 
-int fail(const char* msg) {
-    std::cerr << "FAIL: " << msg << "\n";
+int run_unit_tests() {
+    // Populated by subsequent tasks.
+    return 0;
+}
+
+int run_integration_tests() {
+    RUN_TEST(test_smoke_round_trip);
+    return 0;
+}
+
+int run_render(int argc, char** argv) {
+    // Populated by Task 8.
+    (void)argc; (void)argv;
+    std::cerr << "test_figures --render: not yet implemented\n";
     return 1;
 }
 
 } // namespace
 
-int main(int, char**) {
-    const MelodicFigure expected = make_smoke_figure();
-    const PieceTemplate tmpl = make_smoke_template(expected);
-
-    Piece piece;
-    ClassicalComposer composer(tmpl.masterSeed);
-    composer.compose(piece, tmpl);
-
-    if (piece.parts.size() != 1) return fail("piece.parts.size() != 1");
-    const auto& part = piece.parts[0];
-
-    auto passageIt = part.passages.find("Main");
-    if (passageIt == part.passages.end()) return fail("passages[\"Main\"] missing");
-    const Passage& passage = passageIt->second;
-
-    if (passage.phrases.size() != 1) return fail("passage.phrases.size() != 1");
-    const Phrase& phrase = passage.phrases[0];
-
-    if (phrase.figures.size() != 1) return fail("phrase.figures.size() != 1");
-    const Figure* figBase = phrase.figures[0].get();
-    const MelodicFigure* fig = dynamic_cast<const MelodicFigure*>(figBase);
-    if (!fig) return fail("phrase.figures[0] is not a MelodicFigure");
-
-    if (fig->units.size() != expected.units.size())
-        return fail("unit count mismatch");
-
-    for (size_t i = 0; i < expected.units.size(); ++i) {
-        if (fig->units[i].step != expected.units[i].step) {
-            std::cerr << "  step mismatch at i=" << i
-                      << " expected=" << expected.units[i].step
-                      << " got=" << fig->units[i].step << "\n";
-            return fail("step mismatch");
-        }
-        if (std::fabs(fig->units[i].duration - expected.units[i].duration) > 1e-5f) {
-            std::cerr << "  duration mismatch at i=" << i
-                      << " expected=" << expected.units[i].duration
-                      << " got=" << fig->units[i].duration << "\n";
-            return fail("duration mismatch");
-        }
+int main(int argc, char** argv) {
+    if (argc >= 2 && std::string(argv[1]) == "--render") {
+        return run_render(argc, argv);
     }
-
-    std::cout << "OK: WrapperPhraseStrategy round-trip (" << fig->units.size()
-              << " units)\n";
-    return 0;
+    run_unit_tests();
+    run_integration_tests();
+    std::cerr << "\n" << g_passed << " passed, " << g_failed << " failed\n";
+    return g_failed > 0 ? 1 : 0;
 }
