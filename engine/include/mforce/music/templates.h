@@ -85,23 +85,8 @@ enum class FigureSource {
     Literal,     // user-authored note list (pitch + duration per note)
 };
 
-enum class TransformOp {
-    None,
-    Invert,           // flip step directions
-    Reverse,          // retrograde
-    Stretch,          // multiply durations by factor (default 2x)
-    Compress,         // divide durations by factor (default 2x)
-    VaryRhythm,       // split/dot some pulses randomly
-    VarySteps,        // randomly perturb some step values
-    NewSteps,         // keep rhythm, generate new steps
-    NewRhythm,        // keep steps, generate new rhythm
-    Replicate,        // repeat N times with step offset between
-    TransformGeneral, // do *something* — composer decides the operation
-    RhythmTail,       // derive a PulseSequence from a MelodicFigure by
-                      // taking the rhythm tail (skip first N pulses).
-                      // param = N. Plan B uses this for figures like
-                      // K467's A_rhythm_tail.
-};
+// TransformOp lives in mforce/music/figure_transforms.h (moved there with
+// figure_transforms::apply). Included transitively via figure_transforms.h.
 
 // Declared here (above FigureTemplate) because FigureTemplate::role
 // is std::optional<MotifRole>. Motif (further down) also uses these.

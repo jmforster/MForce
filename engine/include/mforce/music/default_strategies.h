@@ -110,64 +110,7 @@ inline MelodicFigure DefaultFigureStrategy::generate_figure(
 
 inline MelodicFigure DefaultFigureStrategy::apply_transform(
     const MelodicFigure& base, TransformOp op, int param, uint32_t seed) {
-    Randomizer rng(seed);
-
-    switch (op) {
-      case TransformOp::Invert:
-        return figure_transforms::invert(base);
-
-      case TransformOp::Reverse:
-        return figure_transforms::retrograde_steps(base);
-
-      case TransformOp::Stretch:
-        return figure_transforms::stretch(base, param > 0 ? float(param) : 2.0f);
-
-      case TransformOp::Compress:
-        return figure_transforms::compress(base, param > 0 ? float(param) : 2.0f);
-
-      case TransformOp::VaryRhythm:
-        return figure_transforms::vary_rhythm(base, rng);
-
-      case TransformOp::VarySteps:
-        return figure_transforms::vary_steps(base, rng, std::max(1, param));
-
-      case TransformOp::NewSteps: {
-        // Keep rhythm length, generate new steps, apply uniform pulse.
-        StepGenerator sg(seed);
-        StepSequence raw = sg.random_sequence(base.note_count() - 1);
-        StepSequence newSS; newSS.add(0);
-        for (int i = 0; i < raw.count(); ++i) newSS.add(raw.get(i));
-        float pulse = base.units.empty() ? 1.0f : base.units[0].duration;
-        return MelodicFigure::from_steps(newSS, pulse);
-      }
-
-      case TransformOp::NewRhythm: {
-        // Keep steps, perturb per-unit pulse durations (legacy behavior).
-        MelodicFigure fig = base;
-        for (auto& u : fig.units) {
-          u.duration *= (rng.decide(0.5f) ? 0.5f : 1.0f) * (rng.decide(0.3f) ? 1.5f : 1.0f);
-        }
-        return fig;
-      }
-
-      case TransformOp::Replicate: {
-        int count = (param > 0) ? param : 2;
-        int step = rng.select_int({-2, -1, 1, 2});
-        return figure_transforms::replicate(base, count, step, false);
-      }
-
-      case TransformOp::TransformGeneral: {
-        float choice = rng.value();
-        if (choice < 0.25f) return figure_transforms::invert(base);
-        if (choice < 0.50f) return figure_transforms::vary_rhythm(base, rng);
-        if (choice < 0.75f) return figure_transforms::retrograde_steps(base);
-        return figure_transforms::stretch(base, 2.0f);
-      }
-
-      case TransformOp::None:
-      default:
-        return base;
-    }
+    return figure_transforms::apply(base, op, param, seed);
 }
 
 inline FigureShape DefaultFigureStrategy::choose_shape(

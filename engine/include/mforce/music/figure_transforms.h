@@ -5,6 +5,28 @@
 #include <stdexcept>
 #include <vector>
 
+namespace mforce {
+
+enum class TransformOp {
+    None,
+    Invert,           // flip step directions
+    Reverse,          // retrograde
+    Stretch,          // multiply durations by factor (default 2x)
+    Compress,         // divide durations by factor (default 2x)
+    VaryRhythm,       // split/dot some pulses randomly
+    VarySteps,        // randomly perturb some step values
+    NewSteps,         // keep rhythm, generate new steps
+    NewRhythm,        // keep steps, generate new rhythm
+    Replicate,        // repeat N times with step offset between
+    TransformGeneral, // do *something* — composer decides the operation
+    RhythmTail,       // derive a PulseSequence from a MelodicFigure by
+                      // taking the rhythm tail (skip first N pulses).
+                      // param = N. Plan B uses this for figures like
+                      // K467's A_rhythm_tail.
+};
+
+} // namespace mforce
+
 namespace mforce::figure_transforms {
 
 // Deterministic transforms are pure. Randomized transforms take
@@ -356,6 +378,75 @@ inline MelodicFigure embellish(const MelodicFigure& fig, Randomizer& rng,
     out.units[idx[k]].articulation = articulations::Marcato{};
   }
   return out;
+}
+
+// ---------------------------------------------------------------------------
+// apply(base, op, param, seed) — TransformOp dispatch.
+// Shared by DefaultFigureStrategy::apply_transform and TwoFigurePhraseStrategy.
+// Behavior must stay bit-identical to the pre-refactor body — any change here
+// changes Composer output for every FigureTemplate with source=Transform.
+// ---------------------------------------------------------------------------
+inline MelodicFigure apply(const MelodicFigure& base, TransformOp op,
+                           int param, uint32_t seed) {
+  Randomizer rng(seed);
+
+  switch (op) {
+    case TransformOp::Invert:
+      return invert(base);
+
+    case TransformOp::Reverse:
+      return retrograde_steps(base);
+
+    case TransformOp::Stretch:
+      return stretch(base, param > 0 ? float(param) : 2.0f);
+
+    case TransformOp::Compress:
+      return compress(base, param > 0 ? float(param) : 2.0f);
+
+    case TransformOp::VaryRhythm:
+      return vary_rhythm(base, rng);
+
+    case TransformOp::VarySteps:
+      return vary_steps(base, rng, std::max(1, param));
+
+    case TransformOp::NewSteps: {
+      StepGenerator sg(seed);
+      StepSequence raw = sg.random_sequence(base.note_count() - 1);
+      StepSequence newSS; newSS.add(0);
+      for (int i = 0; i < raw.count(); ++i) newSS.add(raw.get(i));
+      float pulse = base.units.empty() ? 1.0f : base.units[0].duration;
+      return MelodicFigure::from_steps(newSS, pulse);
+    }
+
+    case TransformOp::NewRhythm: {
+      MelodicFigure fig = base;
+      for (auto& u : fig.units) {
+        u.duration *= (rng.decide(0.5f) ? 0.5f : 1.0f) * (rng.decide(0.3f) ? 1.5f : 1.0f);
+      }
+      return fig;
+    }
+
+    case TransformOp::Replicate: {
+      int count = (param > 0) ? param : 2;
+      int step = rng.select_int({-2, -1, 1, 2});
+      return replicate(base, count, step, false);
+    }
+
+    case TransformOp::TransformGeneral: {
+      float choice = rng.value();
+      if (choice < 0.25f) return invert(base);
+      if (choice < 0.50f) return vary_rhythm(base, rng);
+      if (choice < 0.75f) return retrograde_steps(base);
+      return stretch(base, 2.0f);
+    }
+
+    case TransformOp::RhythmTail:
+      return base;
+
+    case TransformOp::None:
+    default:
+      return base;
+  }
 }
 
 } // namespace mforce::figure_transforms
