@@ -2,6 +2,7 @@
 #include "mforce/music/basics.h"
 #include "mforce/music/figures.h"
 #include "mforce/music/figure_transforms.h"
+#include "mforce/music/figure_constraints.h"
 #include "mforce/music/structure.h"
 #include "mforce/music/realization_strategy.h"
 #include "mforce/music/voicing_profile.h"
@@ -242,6 +243,26 @@ struct SentencePhraseConfig {
 };
 
 // ===========================================================================
+// TwoFigurePhraseConfig — base + transform phrase (step 3, ComposerRefactor3)
+// ===========================================================================
+
+struct TwoFigurePhraseConfig {
+    enum class Method { ByCount, ByLength, Singleton };
+    Method method{Method::ByCount};
+    int   count{4};        // used when method == ByCount
+    float length{4.0f};    // used when method == ByLength
+
+    Constraints constraints;
+
+    // 0 means "use phraseTmpl.seed, else a deterministic default"
+    uint32_t seed{0};
+
+    // How figure 2 is derived from figure 1.
+    TransformOp transform{TransformOp::Invert};
+    int transformParam{0};
+};
+
+// ===========================================================================
 // PhraseTemplate — sequence of FigureTemplates
 // ===========================================================================
 
@@ -273,6 +294,7 @@ struct PhraseTemplate {
     // at a time (matching the selected strategy).
     std::optional<PeriodPhraseConfig> periodConfig;
     std::optional<SentencePhraseConfig> sentenceConfig;
+    std::optional<TwoFigurePhraseConfig> twoFigureConfig;
 };
 
 // ===========================================================================
