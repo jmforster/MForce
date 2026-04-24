@@ -2,6 +2,197 @@
   "key": "C Major",
   "parts": [
     {
+      "events": [
+        {
+          "beat": 0.0,
+          "data": {
+            "duration": 1.0,
+            "noteNumber": 48.0,
+            "velocity": 0.625
+          },
+          "type": "note"
+        },
+        {
+          "beat": 1.0,
+          "data": {
+            "duration": 1.0,
+            "noteNumber": 52.0,
+            "velocity": 0.625
+          },
+          "type": "note"
+        },
+        {
+          "beat": 2.0,
+          "data": {
+            "duration": 1.0,
+            "noteNumber": 60.0,
+            "velocity": 0.625
+          },
+          "type": "note"
+        },
+        {
+          "beat": 3.0,
+          "data": {
+            "duration": 1.0,
+            "noteNumber": 55.0,
+            "velocity": 0.625
+          },
+          "type": "note"
+        },
+        {
+          "beat": 4.0,
+          "data": {
+            "duration": 1.5,
+            "noteNumber": 57.0,
+            "velocity": 0.625
+          },
+          "type": "note"
+        },
+        {
+          "beat": 5.5,
+          "data": {
+            "duration": 0.1666666716337204,
+            "noteNumber": 59.0,
+            "velocity": 0.625
+          },
+          "type": "note"
+        },
+        {
+          "beat": 5.666666507720947,
+          "data": {
+            "duration": 0.1666666716337204,
+            "noteNumber": 57.0,
+            "velocity": 0.625
+          },
+          "type": "note"
+        },
+        {
+          "beat": 5.8333330154418945,
+          "data": {
+            "duration": 0.1666666716337204,
+            "noteNumber": 55.0,
+            "velocity": 0.625
+          },
+          "type": "note"
+        },
+        {
+          "beat": 5.999999523162842,
+          "data": {
+            "duration": 1.0,
+            "noteNumber": 53.0,
+            "velocity": 0.625
+          },
+          "type": "note"
+        },
+        {
+          "beat": 6.999999523162842,
+          "data": {
+            "duration": 1.0,
+            "noteNumber": 53.0,
+            "velocity": 0.625
+          },
+          "type": "note"
+        },
+        {
+          "beat": 7.999999523162842,
+          "data": {
+            "duration": 0.5,
+            "noteNumber": 53.0,
+            "velocity": 0.625
+          },
+          "type": "note"
+        },
+        {
+          "beat": 8.5,
+          "data": {
+            "duration": 0.5,
+            "noteNumber": 53.0,
+            "velocity": 0.625
+          },
+          "type": "note"
+        },
+        {
+          "beat": 9.0,
+          "data": {
+            "duration": 1.0,
+            "noteNumber": 47.0,
+            "velocity": 0.625
+          },
+          "type": "note"
+        },
+        {
+          "beat": 10.0,
+          "data": {
+            "duration": 1.0,
+            "noteNumber": 50.0,
+            "velocity": 0.625
+          },
+          "type": "note"
+        },
+        {
+          "beat": 11.0,
+          "data": {
+            "duration": 1.0,
+            "noteNumber": 43.0,
+            "velocity": 0.625
+          },
+          "type": "note"
+        },
+        {
+          "beat": 12.0,
+          "data": {
+            "duration": 1.5,
+            "noteNumber": 41.0,
+            "velocity": 0.625
+          },
+          "type": "note"
+        },
+        {
+          "beat": 13.5,
+          "data": {
+            "duration": 0.1666666716337204,
+            "noteNumber": 40.0,
+            "velocity": 0.625
+          },
+          "type": "note"
+        },
+        {
+          "beat": 13.666666984558105,
+          "data": {
+            "duration": 0.1666666716337204,
+            "noteNumber": 38.0,
+            "velocity": 0.625
+          },
+          "type": "note"
+        },
+        {
+          "beat": 13.833333969116211,
+          "data": {
+            "duration": 0.1666666716337204,
+            "noteNumber": 36.0,
+            "velocity": 0.625
+          },
+          "type": "note"
+        },
+        {
+          "beat": 14.000000953674316,
+          "data": {
+            "duration": 1.0,
+            "noteNumber": 35.0,
+            "velocity": 0.625
+          },
+          "type": "note"
+        },
+        {
+          "beat": 15.000000953674316,
+          "data": {
+            "duration": 1.0,
+            "noteNumber": 35.0,
+            "velocity": 0.625
+          },
+          "type": "note"
+        }
+      ],
       "instrumentType": "melody",
       "name": "melody",
       "passages": {
@@ -21,11 +212,11 @@
                     },
                     {
                       "duration": 1.0,
-                      "step": 1
+                      "step": 2
                     },
                     {
                       "duration": 1.0,
-                      "step": 1
+                      "step": -1
                     }
                   ]
                 },
@@ -33,11 +224,11 @@
                   "units": [
                     {
                       "duration": 1.5,
-                      "step": 0
+                      "step": 1
                     },
                     {
                       "duration": 0.1666666716337204,
-                      "step": -1
+                      "step": 1
                     },
                     {
                       "duration": 0.1666666716337204,
@@ -49,7 +240,7 @@
                     },
                     {
                       "duration": 1.0,
-                      "step": 0
+                      "step": -1
                     },
                     {
                       "duration": 1.0,
@@ -60,12 +251,16 @@
                 {
                   "units": [
                     {
-                      "duration": 1.0,
+                      "duration": 0.5,
+                      "step": 0
+                    },
+                    {
+                      "duration": 0.5,
                       "step": 0
                     },
                     {
                       "duration": 1.0,
-                      "step": 1
+                      "step": -2
                     },
                     {
                       "duration": 1.0,
@@ -73,7 +268,7 @@
                     },
                     {
                       "duration": 1.0,
-                      "step": 1
+                      "step": -2
                     }
                   ]
                 },
@@ -81,23 +276,23 @@
                   "units": [
                     {
                       "duration": 1.5,
-                      "step": 0
+                      "step": -1
                     },
                     {
                       "duration": 0.1666666716337204,
-                      "step": 1
+                      "step": -1
                     },
                     {
                       "duration": 0.1666666716337204,
-                      "step": 0
+                      "step": -1
                     },
                     {
                       "duration": 0.1666666716337204,
-                      "step": 0
+                      "step": -1
                     },
                     {
                       "duration": 1.0,
-                      "step": 0
+                      "step": -1
                     },
                     {
                       "duration": 1.0,
@@ -113,7 +308,8 @@
             }
           ]
         }
-      }
+      },
+      "totalBeats": 16.0
     }
   ],
   "sections": [
