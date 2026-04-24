@@ -122,4 +122,120 @@ inline MelodicFigure replicate(const MelodicFigure& fig,
   return out;
 }
 
+// replicate_and_prune(fig, connectorSteps, pruneAt1, pruneAt2):
+// Replicate per connectorSteps (total copies = 1 + size), then prune
+// the last unit from the copy at 1-indexed position pruneAt1 and,
+// if pruneAt2 != 0, also from pruneAt2. Value 0 = no prune at that slot.
+// Use case: acceleration toward a climax.
+inline MelodicFigure replicate_and_prune(
+    const MelodicFigure& fig,
+    const std::vector<int>& connectorSteps,
+    int pruneAt1,
+    int pruneAt2 = 0) {
+  const int copies = 1 + int(connectorSteps.size());
+  const int unitsPerCopy = int(fig.units.size());
+  auto validate = [&](int idx) {
+    if (idx < 0 || idx > copies)
+      throw std::invalid_argument("replicate_and_prune: prune index out of range");
+    if (idx > 0 && unitsPerCopy < 2)
+      throw std::invalid_argument("replicate_and_prune: copy would be emptied by prune");
+  };
+  validate(pruneAt1);
+  validate(pruneAt2);
+
+  MelodicFigure out;
+  auto appendCopy = [&](const MelodicFigure& src, int leadStep) {
+    MelodicFigure piece = src;
+    if (!piece.units.empty()) piece.units[0].step = leadStep;
+    for (const auto& u : piece.units) out.units.push_back(u);
+  };
+  appendCopy(fig, 0);
+  if (pruneAt1 == 1 || pruneAt2 == 1) out.units.pop_back();
+  for (int i = 0; i < int(connectorSteps.size()); ++i) {
+    int copyIdx = i + 2;
+    appendCopy(fig, connectorSteps[i]);
+    if (pruneAt1 == copyIdx || pruneAt2 == copyIdx) out.units.pop_back();
+  }
+  return out;
+}
+
+// split(fig, splitAt, repeats): replace unit at splitAt with `repeats`
+// sub-units each of duration original.duration/repeats. First sub-unit
+// inherits step; the rest have step=0. Length preserved; unit count
+// grows by repeats-1.
+inline MelodicFigure split(const MelodicFigure& fig, int splitAt,
+                           int repeats) {
+  if (repeats < 2 || splitAt < 0 || splitAt >= int(fig.units.size()))
+    throw std::invalid_argument("split: invalid args");
+  MelodicFigure out;
+  out.units.reserve(fig.units.size() + repeats - 1);
+  for (int i = 0; i < int(fig.units.size()); ++i) {
+    if (i != splitAt) {
+      out.units.push_back(fig.units[i]);
+    } else {
+      const auto& src = fig.units[i];
+      float sub = src.duration / float(repeats);
+      out.units.push_back({sub, src.step});      // first inherits step
+      for (int k = 1; k < repeats; ++k)
+        out.units.push_back({sub, 0});            // rest step=0
+    }
+  }
+  return out;
+}
+
+// add_neighbor(fig, addAt, down): replace unit at addAt with a 3-unit
+// neighbor motion of equal total duration:
+//   sub-unit 0: duration/2, original step   (arrives at same pitch)
+//   sub-unit 1: duration/4, step=down?-1:+1 (neighbor)
+//   sub-unit 2: duration/4, step=down?+1:-1 (return)
+// Length preserved; unit count grows by 2.
+inline MelodicFigure add_neighbor(const MelodicFigure& fig, int addAt,
+                                  bool down = false) {
+  if (addAt < 0 || addAt >= int(fig.units.size()))
+    throw std::invalid_argument("add_neighbor: addAt out of range");
+  MelodicFigure out;
+  out.units.reserve(fig.units.size() + 2);
+  for (int i = 0; i < int(fig.units.size()); ++i) {
+    if (i != addAt) {
+      out.units.push_back(fig.units[i]);
+    } else {
+      const auto& src = fig.units[i];
+      float halfDur = src.duration * 0.5f;
+      float quarterDur = src.duration * 0.25f;
+      int neighborStep = down ? -1 : +1;
+      out.units.push_back({halfDur,    src.step});
+      out.units.push_back({quarterDur, neighborStep});
+      out.units.push_back({quarterDur, -neighborStep});
+    }
+  }
+  return out;
+}
+
+// add_turn(fig, addAt, down): replace unit at addAt with a 4-unit turn
+// motion of equal total duration. Round-1: upper/lower neighbor pair
+// around the original pitch. down=false → upper-first (+1,-2,+1,0),
+// down=true → lower-first (-1,+2,-1,0). Each sub-unit is duration/4.
+// Length preserved; unit count grows by 3.
+inline MelodicFigure add_turn(const MelodicFigure& fig, int addAt,
+                              bool down = false) {
+  if (addAt < 0 || addAt >= int(fig.units.size()))
+    throw std::invalid_argument("add_turn: addAt out of range");
+  MelodicFigure out;
+  out.units.reserve(fig.units.size() + 3);
+  for (int i = 0; i < int(fig.units.size()); ++i) {
+    if (i != addAt) {
+      out.units.push_back(fig.units[i]);
+    } else {
+      const auto& src = fig.units[i];
+      float q = src.duration * 0.25f;
+      int first = down ? -1 : +1;
+      out.units.push_back({q, src.step});       // arrive at main pitch
+      out.units.push_back({q, first});          // upper (or lower) neighbor
+      out.units.push_back({q, -2 * first});     // cross to other neighbor
+      out.units.push_back({q, first});          // return to main
+    }
+  }
+  return out;
+}
+
 } // namespace mforce::figure_transforms
