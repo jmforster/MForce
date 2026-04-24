@@ -591,6 +591,16 @@ struct MelodicFigure : Figure {
     c->units = units;
     return c;
   }
+
+  // Build a MelodicFigure from a StepSequence with uniform pulse duration.
+  // Replaces FigureBuilder::build(StepSequence, pulse). The first unit's
+  // step is honored from ss[0] — caller is responsible for the step[0]=0
+  // convention (the bible rule) if needed.
+  static MelodicFigure from_steps(const StepSequence& ss, float pulse) {
+    PulseSequence ps;
+    for (int i = 0; i < ss.count(); ++i) ps.add(pulse);
+    return MelodicFigure(ps, ss);
+  }
 };
 
 // ---------------------------------------------------------------------------
