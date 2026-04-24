@@ -196,6 +196,85 @@ int test_compress() {
     return 0;
 }
 
+// --- combine / replicate family ---
+
+int test_combine_basic() {
+    MelodicFigure a; a.units.push_back({1.0f, 0}); a.units.push_back({1.0f, +1});
+    MelodicFigure b; b.units.push_back({1.0f, 0}); b.units.push_back({1.0f, -1});
+    FigureConnector fc; fc.leadStep = +2;
+    auto out = figure_transforms::combine(a, b, fc);
+    EXPECT_EQ(out.units.size(), 4u, "size");
+    EXPECT_EQ(out.units[0].step,  0, "a[0]");
+    EXPECT_EQ(out.units[1].step, +1, "a[1]");
+    EXPECT_EQ(out.units[2].step, +2, "b[0] leadStep applied");
+    EXPECT_EQ(out.units[3].step, -1, "b[1] preserved");
+    return 0;
+}
+
+int test_combine_with_elide_and_adjust() {
+    MelodicFigure a;
+    a.units.push_back({1.0f, 0});
+    a.units.push_back({1.0f, +1});
+    a.units.push_back({1.0f, +1});  // will be elided
+    MelodicFigure b;
+    b.units.push_back({1.0f, 0});
+    b.units.push_back({1.0f, -1});
+    FigureConnector fc;
+    fc.elideCount = 1;
+    fc.adjustCount = 0.5f;
+    fc.leadStep = +2;
+    auto out = figure_transforms::combine(a, b, fc);
+    EXPECT_EQ(out.units.size(), 4u, "size after elide");
+    EXPECT_NEAR(out.units[1].duration, 1.5f, 1e-5f, "adjusted last of a");
+    EXPECT_EQ(out.units[2].step, +2, "leadStep");
+    return 0;
+}
+
+int test_combine_sugar() {
+    MelodicFigure a; a.units.push_back({1.0f, 0}); a.units.push_back({1.0f, +1});
+    MelodicFigure b; b.units.push_back({1.0f, 0}); b.units.push_back({1.0f, -1});
+    auto out = figure_transforms::combine(a, b, /*leadStep=*/-3, /*elide=*/true);
+    EXPECT_EQ(out.units.size(), 3u, "1 (a-1) + 2 (b)");
+    EXPECT_EQ(out.units[1].step, -3, "b[0] leadStep = -3");
+    EXPECT_EQ(out.units[2].step, -1, "b[1] preserved");
+    return 0;
+}
+
+int test_replicate_repeats() {
+    MelodicFigure f;
+    f.units.push_back({1.0f, 0});
+    f.units.push_back({1.0f, +1});
+    f.units.push_back({1.0f, -1});
+    auto out = figure_transforms::replicate(f, /*repeats=*/3, /*leadStep=*/+2, /*elide=*/false);
+    EXPECT_EQ(out.units.size(), 9u, "3 x 3 units");
+    EXPECT_EQ(out.units[3].step, +2, "copy 2 starts at leadStep");
+    EXPECT_EQ(out.units[6].step, +2, "copy 3 starts at leadStep");
+    return 0;
+}
+
+int test_replicate_connectors() {
+    MelodicFigure f;
+    f.units.push_back({1.0f, 0});
+    f.units.push_back({1.0f, +1});
+    f.units.push_back({1.0f, -1});
+    auto out = figure_transforms::replicate(f, std::vector<int>{+2, -2});
+    EXPECT_EQ(out.units.size(), 9u, "1 + 2 connector copies");
+    EXPECT_EQ(out.units[3].step, +2, "first connector");
+    EXPECT_EQ(out.units[6].step, -2, "second connector");
+    return 0;
+}
+
+int test_replicate_and_prune() {
+    MelodicFigure f;
+    f.units.push_back({1.0f, 0});
+    f.units.push_back({1.0f, +1});
+    f.units.push_back({1.0f, -1});
+    auto out = figure_transforms::replicate_and_prune(
+        f, std::vector<int>{+2, -2}, /*pruneAt1=*/2);
+    EXPECT_EQ(out.units.size(), 8u, "9 minus 1 pruned");
+    return 0;
+}
+
 int run_unit_tests() {
     RUN_TEST(test_invert);
     RUN_TEST(test_retrograde_steps);
@@ -205,6 +284,12 @@ int run_unit_tests() {
     RUN_TEST(test_adjust_last_pulse);
     RUN_TEST(test_stretch);
     RUN_TEST(test_compress);
+    RUN_TEST(test_combine_basic);
+    RUN_TEST(test_combine_with_elide_and_adjust);
+    RUN_TEST(test_combine_sugar);
+    RUN_TEST(test_replicate_repeats);
+    RUN_TEST(test_replicate_connectors);
+    RUN_TEST(test_replicate_and_prune);
     return 0;
 }
 
