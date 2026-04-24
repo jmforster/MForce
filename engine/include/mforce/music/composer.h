@@ -118,21 +118,11 @@ struct Composer {
     reg.register_phrase (std::make_unique<DefaultPhraseStrategy>());
     reg.register_passage(std::make_unique<DefaultPassageStrategy>());
 
-    // Shape strategies (Phase 2) — all Figure-level
-    reg.register_figure(std::make_unique<ShapeScalarRunStrategy>());
-    reg.register_figure(std::make_unique<ShapeRepeatedNoteStrategy>());
-    reg.register_figure(std::make_unique<ShapeHeldNoteStrategy>());
+    // Shape strategies — only those with non-trivial logic survive; the
+    // 13 thin FigureBuilder wrappers were dropped in the FigureBuilder
+    // redesign. FigureShape dispatch in compose_figure falls through to
+    // generate_figure for those shapes.
     reg.register_figure(std::make_unique<ShapeCadentialApproachStrategy>());
-    reg.register_figure(std::make_unique<ShapeTriadicOutlineStrategy>());
-    reg.register_figure(std::make_unique<ShapeNeighborToneStrategy>());
-    reg.register_figure(std::make_unique<ShapeLeapAndFillStrategy>());
-    reg.register_figure(std::make_unique<ShapeScalarReturnStrategy>());
-    reg.register_figure(std::make_unique<ShapeAnacrusisStrategy>());
-    reg.register_figure(std::make_unique<ShapeZigzagStrategy>());
-    reg.register_figure(std::make_unique<ShapeFanfareStrategy>());
-    reg.register_figure(std::make_unique<ShapeSighStrategy>());
-    reg.register_figure(std::make_unique<ShapeSuspensionStrategy>());
-    reg.register_figure(std::make_unique<ShapeCambiataStrategy>());
     reg.register_figure(std::make_unique<ShapeSkippingStrategy>());
     reg.register_figure(std::make_unique<ShapeSteppingStrategy>());
 
@@ -1038,23 +1028,15 @@ inline MelodicFigure DefaultFigureStrategy::compose_figure(
       if (figTmpl.shape != FigureShape::Free) {
         const char* shapeName = nullptr;
         switch (figTmpl.shape) {
-          case FigureShape::ScalarRun:         shapeName = "shape_scalar_run"; break;
-          case FigureShape::RepeatedNote:      shapeName = "shape_repeated_note"; break;
-          case FigureShape::HeldNote:          shapeName = "shape_held_note"; break;
+          // Only shapes with real strategy logic dispatch here. Others
+          // (ScalarRun, RepeatedNote, HeldNote, TriadicOutline, NeighborTone,
+          // LeapAndFill, ScalarReturn, Anacrusis, Zigzag, Fanfare, Sigh,
+          // Suspension, Cambiata) fall through to generate_figure — their
+          // shape intent is available via shape_figures:: at call sites
+          // that want it.
           case FigureShape::CadentialApproach: shapeName = "shape_cadential_approach"; break;
-          case FigureShape::TriadicOutline:    shapeName = "shape_triadic_outline"; break;
-          case FigureShape::NeighborTone:      shapeName = "shape_neighbor_tone"; break;
-          case FigureShape::LeapAndFill:       shapeName = "shape_leap_and_fill"; break;
-          case FigureShape::ScalarReturn:      shapeName = "shape_scalar_return"; break;
-          case FigureShape::Anacrusis:         shapeName = "shape_anacrusis"; break;
-          case FigureShape::Zigzag:            shapeName = "shape_zigzag"; break;
-          case FigureShape::Fanfare:           shapeName = "shape_fanfare"; break;
-          case FigureShape::Sigh:              shapeName = "shape_sigh"; break;
-          case FigureShape::Suspension:        shapeName = "shape_suspension"; break;
-          case FigureShape::Cambiata:          shapeName = "shape_cambiata"; break;
           case FigureShape::Skipping:          shapeName = "shape_skipping"; break;
           case FigureShape::Stepping:          shapeName = "shape_stepping"; break;
-          case FigureShape::Free:
           default:                             shapeName = nullptr; break;
         }
         if (shapeName) {
