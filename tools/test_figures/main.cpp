@@ -3,8 +3,11 @@
 #include "mforce/music/figure_transforms.h"
 #include "mforce/music/structure.h"
 #include "mforce/music/templates.h"
+#include "mforce/music/templates_json.h"
 #include "mforce/music/conductor.h"
 #include "mforce/music/music_json.h"
+#include "mforce/music/random_figure_builder.h"
+#include "mforce/music/two_figure_phrase_strategy.h"
 #include "mforce/core/randomizer.h"
 #include "mforce/render/patch_loader.h"
 #include "mforce/render/wav_writer.h"
@@ -658,6 +661,133 @@ int integ_pitch_realization() {
     return 0;
 }
 
+// ----------------------------------------------------------------------------
+// TwoFigurePhraseStrategy integration tests
+// ----------------------------------------------------------------------------
+
+struct TwoFigureResult {
+    bool ok;
+    MelodicFigure fig1;
+    MelodicFigure fig2;
+};
+
+TwoFigureResult compose_two_figure(const TwoFigurePhraseConfig& cfg) {
+    PieceTemplate tmpl;
+    tmpl.keyName = "C";
+    tmpl.scaleName = "Major";
+    tmpl.bpm = 100.0f;
+    tmpl.masterSeed = 0xABCDu;
+
+    PieceTemplate::SectionTemplate sec;
+    sec.name = "Main";
+    sec.beats = 32.0f;
+    tmpl.sections.push_back(sec);
+
+    PartTemplate part;
+    part.name = "melody";
+    part.role = PartRole::Melody;
+
+    PassageTemplate passage;
+    passage.name = "Main";
+    passage.startingPitch = Pitch::from_name("C", 4);
+
+    PhraseTemplate phrase;
+    phrase.name = "tf";
+    phrase.strategy = "two_figure_phrase";
+    phrase.startingPitch = Pitch::from_name("C", 4);
+    phrase.twoFigureConfig = cfg;
+
+    passage.phrases.push_back(phrase);
+    part.passages["Main"] = passage;
+    tmpl.parts.push_back(part);
+
+    Piece piece;
+    ClassicalComposer composer(tmpl.masterSeed);
+    composer.compose(piece, tmpl);
+
+    if (piece.parts.size() != 1) return {false, {}, {}};
+    auto it = piece.parts[0].passages.find("Main");
+    if (it == piece.parts[0].passages.end()) return {false, {}, {}};
+    if (it->second.phrases.size() != 1) return {false, {}, {}};
+    const Phrase& ph = it->second.phrases[0];
+    if (ph.figures.size() != 2) return {false, {}, {}};
+    const MelodicFigure* f1 = dynamic_cast<const MelodicFigure*>(ph.figures[0].get());
+    const MelodicFigure* f2 = dynamic_cast<const MelodicFigure*>(ph.figures[1].get());
+    if (!f1 || !f2) return {false, {}, {}};
+    return {true, *f1, *f2};
+}
+
+int integ_two_figure_count_invert() {
+    TwoFigurePhraseConfig cfg;
+    cfg.method = TwoFigurePhraseConfig::Method::ByCount;
+    cfg.count = 4;
+    cfg.seed = 0x2F1Cu;
+    cfg.transform = TransformOp::Invert;
+    auto r = compose_two_figure(cfg);
+    if (!r.ok) { std::cerr << "  FAIL: compose failed\n"; return 1; }
+    // RFB's shape selection (arc/run/zigzag/...) may produce slightly fewer
+    // units than `count` depending on which shape is chosen; only assert
+    // a non-empty figure and that invert preserves the unit count.
+    if (r.fig1.units.empty()) { std::cerr << "  FAIL: fig1 empty\n"; return 1; }
+    EXPECT_EQ(r.fig2.units.size(), r.fig1.units.size(), "fig2 unit count");
+    for (size_t i = 0; i < r.fig1.units.size(); ++i) {
+        EXPECT_EQ(r.fig2.units[i].step, -r.fig1.units[i].step,
+                  "fig2 step = -fig1 step");
+    }
+    return 0;
+}
+
+int integ_two_figure_length_retrograde() {
+    TwoFigurePhraseConfig cfg;
+    cfg.method = TwoFigurePhraseConfig::Method::ByLength;
+    cfg.length = 4.0f;
+    cfg.seed = 0x2F1Du;
+    cfg.transform = TransformOp::Reverse;
+    auto r = compose_two_figure(cfg);
+    if (!r.ok) { std::cerr << "  FAIL: compose failed\n"; return 1; }
+    MelodicFigure expected = figure_transforms::apply(
+        r.fig1, TransformOp::Reverse, 0, cfg.seed + 1);
+    return expect_figures_equal(r.fig2, expected, "two_figure length+retrograde");
+}
+
+int integ_two_figure_singleton_stretch() {
+    TwoFigurePhraseConfig cfg;
+    cfg.method = TwoFigurePhraseConfig::Method::Singleton;
+    cfg.seed = 0x2F1Eu;
+    cfg.transform = TransformOp::Stretch;
+    cfg.transformParam = 2;
+    auto r = compose_two_figure(cfg);
+    if (!r.ok) { std::cerr << "  FAIL: compose failed\n"; return 1; }
+    EXPECT_EQ(r.fig1.units.size(), 1u, "singleton has 1 unit");
+    EXPECT_EQ(r.fig2.units.size(), 1u, "stretched singleton has 1 unit");
+    EXPECT_NEAR(r.fig2.units[0].duration, r.fig1.units[0].duration * 2.0f,
+                1e-5f, "stretch factor 2");
+    return 0;
+}
+
+int integ_two_figure_json_round_trip() {
+    TwoFigurePhraseConfig cfg;
+    cfg.method = TwoFigurePhraseConfig::Method::ByCount;
+    cfg.count = 3;
+    cfg.seed = 0x2F1Fu;
+    cfg.transform = TransformOp::Invert;
+    cfg.constraints.net = 0;
+
+    auto r1 = compose_two_figure(cfg);
+    if (!r1.ok) { std::cerr << "  FAIL: in-code compose\n"; return 1; }
+
+    nlohmann::json j = cfg;
+    TwoFigurePhraseConfig cfg2;
+    from_json(j, cfg2);
+
+    auto r2 = compose_two_figure(cfg2);
+    if (!r2.ok) { std::cerr << "  FAIL: json-round-trip compose\n"; return 1; }
+
+    int rc = expect_figures_equal(r1.fig1, r2.fig1, "fig1 after round-trip");
+    if (rc) return rc;
+    return expect_figures_equal(r1.fig2, r2.fig2, "fig2 after round-trip");
+}
+
 int run_integration_tests() {
     RUN_TEST(test_smoke_round_trip);
     RUN_TEST(integ_invert);
@@ -669,6 +799,10 @@ int run_integration_tests() {
     RUN_TEST(integ_add_turn);
     RUN_TEST(integ_stretch);
     RUN_TEST(integ_pitch_realization);
+    RUN_TEST(integ_two_figure_count_invert);
+    RUN_TEST(integ_two_figure_length_retrograde);
+    RUN_TEST(integ_two_figure_singleton_stretch);
+    RUN_TEST(integ_two_figure_json_round_trip);
     return 0;
 }
 
