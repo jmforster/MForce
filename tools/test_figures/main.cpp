@@ -3,13 +3,20 @@
 #include "mforce/music/figure_transforms.h"
 #include "mforce/music/structure.h"
 #include "mforce/music/templates.h"
+#include "mforce/music/conductor.h"
+#include "mforce/music/music_json.h"
 #include "mforce/core/randomizer.h"
+#include "mforce/render/patch_loader.h"
+#include "mforce/render/wav_writer.h"
 
 #include <cmath>
 #include <cstdlib>
 #include <cstring>
+#include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <string>
+#include <nlohmann/json.hpp>
 
 using namespace mforce;
 
@@ -666,10 +673,129 @@ int run_integration_tests() {
 }
 
 int run_render(int argc, char** argv) {
-    // Populated by Task 8.
-    (void)argc; (void)argv;
-    std::cerr << "test_figures --render: not yet implemented\n";
-    return 1;
+    if (argc < 4) {
+        std::cerr << "Usage: test_figures --render <patch.json> <out_dir> [seed]\n"
+                  << "  Produces fig.wav + fig.json demonstrating invert /\n"
+                  << "  retrograde / retrograde-invert of a hand-authored base.\n";
+        return 1;
+    }
+    std::string patchPath = argv[2];
+    std::string outDir    = argv[3];
+    uint32_t    seed      = (argc > 4) ? uint32_t(std::stoul(argv[4])) : 0xF16EF16Eu;
+
+    if (!std::filesystem::exists(patchPath)) {
+        std::cerr << "Patch not found: " << patchPath << "\n"; return 1;
+    }
+    std::filesystem::create_directories(outDir);
+
+    // Base figure: steps [0, +2, -1, +1], 1-beat pulses. Hand-authored so the
+    // listening comparison isn't influenced by RFB choices.
+    MelodicFigure base;
+    base.units.push_back({1.0f,  0});
+    base.units.push_back({1.0f, +2});
+    base.units.push_back({1.0f, -1});
+    base.units.push_back({1.0f, +1});
+
+    MelodicFigure inv = figure_transforms::invert(base);
+    MelodicFigure ret = figure_transforms::retrograde_steps(base);
+    MelodicFigure ri  = figure_transforms::retrograde_steps(inv);
+
+    auto make_phrase = [](const char* name, const MelodicFigure& fig) {
+        PhraseTemplate ph;
+        ph.name = name;
+        ph.strategy = "wrapper_phrase";
+        ph.startingPitch = Pitch::from_name("C", 4);
+        FigureTemplate ft;
+        ft.source = FigureSource::Locked;
+        ft.lockedFigure = fig;
+        ph.figures.push_back(ft);
+        return ph;
+    };
+
+    auto make_rest_phrase = [](float beats, int idx) {
+        PhraseTemplate ph;
+        ph.name = "rest_" + std::to_string(idx);
+        FigureTemplate ft;
+        ft.source = FigureSource::Literal;
+        FigureTemplate::LiteralNote ln; ln.rest = true; ln.duration = beats;
+        ft.literalNotes.push_back(ln);
+        ph.figures.push_back(ft);
+        return ph;
+    };
+
+    PieceTemplate tmpl;
+    tmpl.keyName = "C";
+    tmpl.scaleName = "Major";
+    tmpl.bpm = 100.0f;
+    tmpl.masterSeed = seed;
+
+    PieceTemplate::SectionTemplate sec;
+    sec.name = "Main";
+    sec.beats = 32.0f;  // generous: 4 phrases x 4 beats + rests + tail
+    tmpl.sections.push_back(sec);
+
+    PartTemplate part;
+    part.name = "melody";
+    part.role = PartRole::Melody;
+    part.instrumentPatch = patchPath;
+
+    PassageTemplate passage;
+    passage.name = "Main";
+    passage.startingPitch = Pitch::from_name("C", 4);
+    passage.phrases.push_back(make_phrase("base",   base));
+    passage.phrases.push_back(make_rest_phrase(1.0f, 0));
+    passage.phrases.push_back(make_phrase("invert", inv));
+    passage.phrases.push_back(make_rest_phrase(1.0f, 1));
+    passage.phrases.push_back(make_phrase("retrograde", ret));
+    passage.phrases.push_back(make_rest_phrase(1.0f, 2));
+    passage.phrases.push_back(make_phrase("retro_invert", ri));
+
+    part.passages["Main"] = passage;
+    tmpl.parts.push_back(part);
+
+    Piece piece;
+    ClassicalComposer composer(tmpl.masterSeed);
+    composer.compose(piece, tmpl);
+
+    auto ip = load_instrument_patch(patchPath);
+    ip.instrument->volume = 0.5f;
+    ip.instrument->hiBoost = 0.3f;
+
+    Conductor conductor;
+    for (const auto& p : piece.parts) {
+        conductor.instruments[p.instrumentType] = ip.instrument.get();
+    }
+    conductor.perform(piece);
+
+    float totalBeats = 0.0f;
+    for (auto& s : piece.sections) totalBeats += s.beats;
+    float bpm = piece.sections[0].tempo;
+    float totalSeconds = totalBeats * 60.0f / bpm + 2.0f;
+    int frames = int(totalSeconds * float(ip.sampleRate));
+    std::vector<float> mono(frames, 0.0f);
+    { RenderContext ctx{ip.sampleRate}; ip.instrument->render(ctx, mono.data(), frames); }
+    std::vector<float> stereo(frames * 2);
+    for (int j = 0; j < frames; ++j) { stereo[j*2] = mono[j]; stereo[j*2+1] = mono[j]; }
+
+    std::string wavPath  = outDir + "/fig.wav";
+    std::string jsonPath = outDir + "/fig.json";
+    if (!write_wav_16le_stereo(wavPath, ip.sampleRate, stereo)) {
+        std::cerr << "Failed to write " << wavPath << "\n"; return 1;
+    }
+    {
+        nlohmann::json pj = piece;
+        std::ofstream jf(jsonPath);
+        jf << pj.dump(2);
+    }
+
+    float peak = 0.0f; double rms = 0.0;
+    for (auto s : stereo) { float a = std::fabs(s); if (a > peak) peak = a; rms += double(s)*s; }
+    rms = std::sqrt(rms / stereo.size());
+    std::cout << "render: base=" << base.units.size() << "u  inv=" << inv.units.size()
+              << "u  retro=" << ret.units.size() << "u  ri=" << ri.units.size()
+              << "u  peak=" << peak << "  rms=" << rms << "\n"
+              << "  " << wavPath << "\n  " << jsonPath << "\n";
+    return 0;
 }
 
 } // namespace
