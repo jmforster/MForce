@@ -275,6 +275,51 @@ int test_replicate_and_prune() {
     return 0;
 }
 
+// --- decorators: split, add_neighbor, add_turn ---
+
+int test_split() {
+    MelodicFigure f;
+    f.units.push_back({1.0f, 0});
+    f.units.push_back({2.0f, +1});
+    f.units.push_back({1.0f, -1});
+    auto out = figure_transforms::split(f, /*splitAt=*/1, /*repeats=*/2);
+    EXPECT_EQ(out.units.size(), 4u, "one extra unit");
+    EXPECT_NEAR(out.units[1].duration, 1.0f, 1e-5f, "half dur 1a");
+    EXPECT_EQ(out.units[1].step, +1, "first sub inherits step");
+    EXPECT_NEAR(out.units[2].duration, 1.0f, 1e-5f, "half dur 1b");
+    EXPECT_EQ(out.units[2].step, 0, "subsequent sub has step 0");
+    return 0;
+}
+
+int test_add_neighbor_up() {
+    MelodicFigure f;
+    f.units.push_back({1.0f, 0});
+    f.units.push_back({1.0f, +1});
+    auto out = figure_transforms::add_neighbor(f, /*addAt=*/1, /*down=*/false);
+    EXPECT_EQ(out.units.size(), 4u, "+2 units at addAt");
+    EXPECT_NEAR(out.units[1].duration, 0.5f,  1e-5f, "half dur");
+    EXPECT_EQ(out.units[1].step, +1, "main");
+    EXPECT_NEAR(out.units[2].duration, 0.25f, 1e-5f, "quarter dur");
+    EXPECT_EQ(out.units[2].step, +1, "upper neighbor");
+    EXPECT_EQ(out.units[3].step, -1, "return");
+    return 0;
+}
+
+int test_add_turn_up() {
+    MelodicFigure f;
+    f.units.push_back({1.0f, 0});
+    f.units.push_back({1.0f, +1});
+    auto out = figure_transforms::add_turn(f, /*addAt=*/1, /*down=*/false);
+    EXPECT_EQ(out.units.size(), 5u, "+3 units at addAt");
+    EXPECT_EQ(out.units[1].step, +1, "main inherits step");
+    EXPECT_EQ(out.units[2].step, +1, "upper neighbor");
+    EXPECT_EQ(out.units[3].step, -2, "cross to lower");
+    EXPECT_EQ(out.units[4].step, +1, "return to main");
+    for (int i = 1; i <= 4; ++i)
+        EXPECT_NEAR(out.units[i].duration, 0.25f, 1e-5f, "quarter dur");
+    return 0;
+}
+
 int run_unit_tests() {
     RUN_TEST(test_invert);
     RUN_TEST(test_retrograde_steps);
@@ -290,6 +335,9 @@ int run_unit_tests() {
     RUN_TEST(test_replicate_repeats);
     RUN_TEST(test_replicate_connectors);
     RUN_TEST(test_replicate_and_prune);
+    RUN_TEST(test_split);
+    RUN_TEST(test_add_neighbor_up);
+    RUN_TEST(test_add_turn_up);
     return 0;
 }
 
