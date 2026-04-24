@@ -11,7 +11,7 @@
 namespace mforce {
 
 // ---------------------------------------------------------------------------
-// PulseSequence — sequence of durations in beats.
+// PulseSequence ??? sequence of durations in beats.
 // ---------------------------------------------------------------------------
 struct PulseSequence {
   std::vector<float> pulses;  // durations in beats
@@ -48,7 +48,7 @@ struct PulseSequence {
 };
 
 // ---------------------------------------------------------------------------
-// StepSequence — sequence of melodic scale-degree steps.
+// StepSequence ??? sequence of melodic scale-degree steps.
 // ---------------------------------------------------------------------------
 struct StepSequence {
   std::vector<int> steps;
@@ -91,7 +91,7 @@ struct StepSequence {
 };
 
 // ---------------------------------------------------------------------------
-// StepGenerator — generates random StepSequences.
+// StepGenerator ??? generates random StepSequences.
 // ---------------------------------------------------------------------------
 struct StepGenerator {
   Randomizer rng;
@@ -213,7 +213,7 @@ struct StepGenerator {
         // --- Climax enforcement ---
         int newPos = pos + step;
         if (climaxReached && newPos >= highPos) {
-          // Already used the highest note — don't go there again
+          // Already used the highest note ??? don't go there again
           // Pull back down
           step = -1;
           newPos = pos + step;
@@ -278,10 +278,10 @@ struct StepGenerator {
         float regProb = slack * 0.6f;
 
         if (rng.decide(regProb)) {
-          // Regress (creates interest) — usually stepwise
+          // Regress (creates interest) ??? usually stepwise
           step = -dir;
         } else {
-          // Advance toward target — choose interval size
+          // Advance toward target ??? choose interval size
           float v = rng.value();
           if (v < 0.60f) {
             step = dir;          // step
@@ -380,7 +380,7 @@ struct StepGenerator {
 };
 
 // ---------------------------------------------------------------------------
-// PulseGenerator — generates random PulseSequences with standard musical
+// PulseGenerator ??? generates random PulseSequences with standard musical
 // durations. Parallel to StepGenerator for the rhythm dimension.
 // ---------------------------------------------------------------------------
 struct PulseGenerator {
@@ -464,7 +464,7 @@ struct PulseGenerator {
   // Generate a PulseSequence of exactly `count` durations, drawn from the
   // same binary alphabet as generate(), weighted toward defaultPulse.
   // Use case: RandomFigureBuilder::build_by_count when no total-beats
-  // constraint is set. Triplets are omitted here — they require a
+  // constraint is set. Triplets are omitted here ??? they require a
   // different unit-count accounting and can be added later if needed.
   PulseSequence generate_count(int count, float defaultPulse = 1.0f) {
     PulseSequence ps;
@@ -495,7 +495,7 @@ struct PulseGenerator {
 };
 
 // ---------------------------------------------------------------------------
-// FigureUnit — a single element within a MelodicFigure.
+// FigureUnit ??? a single element within a MelodicFigure.
 // Replaces parallel arrays of durations, steps, articulations, ornaments.
 // ---------------------------------------------------------------------------
 struct FigureUnit {
@@ -508,7 +508,7 @@ struct FigureUnit {
 };
 
 // ---------------------------------------------------------------------------
-// PitchSelectionType — how to select notes from a chord.
+// PitchSelectionType ??? how to select notes from a chord.
 // ---------------------------------------------------------------------------
 enum class PitchSelectionType {
   Single, Multiple, SingleAlt, MultipleAlt,
@@ -519,7 +519,7 @@ enum class PitchSelectionType {
 };
 
 // ---------------------------------------------------------------------------
-// PitchSelection — selection criteria for chord pitches.
+// PitchSelection ??? selection criteria for chord pitches.
 // ---------------------------------------------------------------------------
 struct PitchSelection {
   PitchSelectionType type{PitchSelectionType::All};
@@ -528,7 +528,7 @@ struct PitchSelection {
 };
 
 // ---------------------------------------------------------------------------
-// Figure — base class for melodic/chord patterns built from FigureUnits.
+// Figure ??? base class for melodic/chord patterns built from FigureUnits.
 // ---------------------------------------------------------------------------
 struct Figure {
   std::vector<FigureUnit> units;
@@ -567,14 +567,14 @@ struct Figure {
 };
 
 // ---------------------------------------------------------------------------
-// MelodicFigure — a melodic pattern built from FigureUnits.
+// MelodicFigure ??? a melodic pattern built from FigureUnits.
 // Constructed from StepSequence + PulseSequence (Composer's building blocks),
 // stored as vector<FigureUnit> (Conductor's consumable form).
 // ---------------------------------------------------------------------------
 struct MelodicFigure : Figure {
   MelodicFigure() = default;
 
-  // N pulses, N steps — one-to-one. step[0] is the bridge from the previous
+  // N pulses, N steps ??? one-to-one. step[0] is the bridge from the previous
   // figure's last note (cursor model). Length = min(pulses, steps).
   MelodicFigure(const PulseSequence& pulses, const StepSequence& steps) {
     int n = std::min(pulses.count(), steps.count());
@@ -594,7 +594,7 @@ struct MelodicFigure : Figure {
 
   // Build a MelodicFigure from a StepSequence with uniform pulse duration.
   // Replaces FigureBuilder::build(StepSequence, pulse). The first unit's
-  // step is honored from ss[0] — caller is responsible for the step[0]=0
+  // step is honored from ss[0] ??? caller is responsible for the step[0]=0
   // convention (the bible rule) if needed.
   static MelodicFigure from_steps(const StepSequence& ss, float pulse) {
     PulseSequence ps;
@@ -604,7 +604,7 @@ struct MelodicFigure : Figure {
 };
 
 // ---------------------------------------------------------------------------
-// ChordFigure — a chord-tone movement pattern built from FigureUnits.
+// ChordFigure ??? a chord-tone movement pattern built from FigureUnits.
 // Same structure as MelodicFigure but distinct type for chord parts.
 // ---------------------------------------------------------------------------
 struct ChordFigure : Figure {
@@ -628,7 +628,7 @@ struct ChordFigure : Figure {
 };
 
 // ---------------------------------------------------------------------------
-// RhythmicFigure — a rhythmic pattern: durations + velocities.
+// RhythmicFigure ??? a rhythmic pattern: durations + velocities.
 // ---------------------------------------------------------------------------
 struct RhythmicFigure {
   std::vector<float> durations;
@@ -644,7 +644,7 @@ struct RhythmicFigure {
 };
 
 // ---------------------------------------------------------------------------
-// FigureConnector — optional per-adjacency join between two figures in a
+// FigureConnector ??? optional per-adjacency join between two figures in a
 // phrase. Elides units from the end of the preceding figure and/or adjusts
 // the duration of its (new) last unit.
 //
@@ -664,7 +664,7 @@ struct FigureConnector {
 };
 
 // ---------------------------------------------------------------------------
-// ChordRealization — instructions for playing a chord.
+// ChordRealization ??? instructions for playing a chord.
 // ---------------------------------------------------------------------------
 struct ChordRealization {
   static constexpr int DIR_ASCENDING = 0;
@@ -708,7 +708,7 @@ struct ChordRealization {
 };
 
 // ---------------------------------------------------------------------------
-// ChordProgression — harmonic content: ScaleChordSequence + PulseSequence.
+// ChordProgression ??? harmonic content: ScaleChordSequence + PulseSequence.
 // Parallels MelodicFigure (which pairs StepSequence + PulseSequence).
 // Used as seed material for harmonic structure of a piece/section.
 // ---------------------------------------------------------------------------
@@ -740,7 +740,7 @@ struct ChordProgression {
 };
 
 // ---------------------------------------------------------------------------
-// DrumFigure — instructions for playing drums.
+// DrumFigure ??? instructions for playing drums.
 // ---------------------------------------------------------------------------
 struct DrumFigure {
   struct Hit {
@@ -759,431 +759,6 @@ struct DrumFigure {
   }
 
   int count() const { return int(hits.size()); }
-};
-
-// ---------------------------------------------------------------------------
-// FigureBuilder — builds MelodicFigures from constraints.
-// (FigureTemplate moved to templates.h)
-// ---------------------------------------------------------------------------
-struct FigureBuilder {
-  Randomizer rng;
-  StepGenerator stepGen;
-
-  float defaultPulse{1.0f};
-  float minPulse{0.5f};
-  float maxPulse{2.0f};
-
-  int maxPeak{4};
-  int maxFloor{-4};
-  int maxRange{8};
-  int targetNet{0};  // constrained net pitch movement (0 = unconstrained)
-
-  explicit FigureBuilder(uint32_t seed = 0xF1B0'0001u)
-  : rng(seed), stepGen(seed + 1) {}
-
-  // Build from note count with random pulses and steps
-  MelodicFigure build(int noteCount) {
-    PulseSequence pulses;
-    for (int i = 0; i < noteCount; ++i) {
-      float dur = rng.range(minPulse, maxPulse);
-      dur = std::round(dur / minPulse) * minPulse;
-      pulses.add(dur);
-    }
-
-    auto rawSteps = stepGen.random_sequence(noteCount);
-
-    StepSequence steps;
-    int pos = 0;
-    for (int i = 0; i < rawSteps.count(); ++i) {
-      int s = rawSteps.get(i);
-      if (pos + s > maxPeak) s = -std::abs(s);
-      if (pos + s < maxFloor) s = std::abs(s);
-      pos += s;
-      steps.add(s);
-    }
-
-    return MelodicFigure(pulses, steps);
-  }
-
-  // Build from step sequence with uniform pulse
-  MelodicFigure build(const StepSequence& ss, float pulse) {
-    PulseSequence pulses;
-    for (int i = 0; i < ss.count(); ++i)
-      pulses.add(pulse);
-    return MelodicFigure(pulses, ss);
-  }
-
-  // Build from duration (total beats) with stepwise steps and optional variation
-  MelodicFigure build_from_length(float lengthBeats, bool doVary = false) {
-    int count = int(lengthBeats / defaultPulse);
-    if (count < 2) count = 2;
-
-    StepSequence steps = stepGen.no_skip_sequence(count - 1);
-
-    PulseSequence pulses;
-    for (int i = 0; i < count; ++i)
-      pulses.add(defaultPulse);
-
-    MelodicFigure fig(pulses, steps);
-    if (doVary) fig = vary_rhythm(fig);
-    return fig;
-  }
-
-  // Single-note figure (cadential note, held tone)
-  MelodicFigure single_note(float durationBeats) {
-    PulseSequence ps;
-    ps.add(durationBeats);
-    StepSequence ss;
-    return MelodicFigure(ps, ss);
-  }
-
-  // Rhythmic variation: split or dot pulses
-  MelodicFigure vary_rhythm(const MelodicFigure& source) {
-    MelodicFigure fig = source;
-
-    for (int x = 0; x < fig.note_count() - 1; ++x) {
-      if (rng.decide(0.2f)) {
-        // Split pulse into 2
-        float dur = fig.units[x].duration;
-        if (dur < minPulse * 2) continue;
-
-        float dur1, dur2;
-        if (dur < 1.0f || rng.decide(0.5f)) {
-          dur1 = dur * 0.5f;
-          dur2 = dur * 0.5f;
-        } else {
-          dur1 = dur * 0.75f;
-          dur2 = dur * 0.25f;
-        }
-
-        fig.units[x].duration = dur1;
-        FigureUnit newUnit;
-        newUnit.duration = dur2;
-        newUnit.step = 0;
-        fig.units.insert(fig.units.begin() + x + 1, newUnit);
-        break;
-      } else if (x < fig.note_count() - 1 && rng.decide(0.3f)) {
-        // Dot current, shorten next
-        float dur = fig.units[x].duration;
-        fig.units[x].duration = dur * 1.5f;
-        fig.units[x + 1].duration = dur * 0.5f;
-        break;
-      }
-    }
-
-    return fig;
-  }
-
-  // Replicate: repeat a figure N times with a step offset between copies
-  MelodicFigure replicate(const MelodicFigure& source, int count, int stepBetween) {
-    PulseSequence pulses;
-    StepSequence steps;
-
-    for (int rep = 0; rep < count; ++rep) {
-      for (int i = 0; i < source.note_count(); ++i) {
-        pulses.add(source.units[i].duration);
-
-        if (rep == 0 && i == 0) continue; // first note has no step
-
-        if (i == 0) {
-          // Connecting step between repetitions: offset minus net of source
-          int net = 0;
-          for (auto& u : source.units) net += u.step;
-          steps.add(stepBetween - net);
-        } else {
-          steps.add(source.units[i].step);
-        }
-      }
-    }
-
-    return MelodicFigure(pulses, steps);
-  }
-
-  // Vary a figure's durations slightly (simple version)
-  MelodicFigure vary(const MelodicFigure& source, float amount = 0.3f) {
-    MelodicFigure fig = source;
-    for (auto& u : fig.units) {
-      if (rng.decide(amount)) {
-        u.duration *= rng.range(0.75f, 1.25f);
-        u.duration = std::max(minPulse, std::min(maxPulse, u.duration));
-      }
-    }
-    return fig;
-  }
-
-  // =========================================================================
-  // Shape-based figure builders
-  // Each returns a MelodicFigure with a specific melodic contour.
-  // =========================================================================
-
-  // ScalarRun: consecutive steps in one direction
-  //   direction: +1 = ascending, -1 = descending
-  //   count: number of notes (including starting note)
-  //   pulse: duration per note (0 = use defaultPulse)
-  MelodicFigure scalar_run(int direction, int count, float pulse = 0) {
-    if (pulse <= 0) pulse = defaultPulse;
-    if (count < 2) count = 2;
-    int dir = (direction >= 0) ? 1 : -1;
-    MelodicFigure fig;
-    fig.units.push_back({pulse, 0});  // first note
-    for (int i = 1; i < count; ++i)
-      fig.units.push_back({pulse, dir});
-    return fig;
-  }
-
-  // RepeatedNote: same pitch repeated N times
-  //   count: number of repetitions
-  //   pulse: duration per note
-  MelodicFigure repeated_note(int count, float pulse = 0) {
-    if (pulse <= 0) pulse = defaultPulse;
-    if (count < 1) count = 1;
-    MelodicFigure fig;
-    for (int i = 0; i < count; ++i)
-      fig.units.push_back({pulse, 0});
-    return fig;
-  }
-
-  // HeldNote: single note with specified duration
-  //   duration: in beats
-  MelodicFigure held_note(float duration) {
-    MelodicFigure fig;
-    fig.units.push_back({duration, 0});
-    return fig;
-  }
-
-  // CadentialApproach: stepwise approach to a target, ending with a held note
-  //   fromAbove: true = descend to target, false = ascend
-  //   approachSteps: how many stepwise notes before arrival (1-4)
-  //   arrivalDuration: how long the arrival note is held
-  //   approachPulse: duration of each approach note
-  MelodicFigure cadential_approach(bool fromAbove, int approachSteps,
-                                    float arrivalDuration = 0, float approachPulse = 0) {
-    if (approachPulse <= 0) approachPulse = defaultPulse;
-    if (arrivalDuration <= 0) arrivalDuration = defaultPulse * 2;
-    if (approachSteps < 1) approachSteps = 1;
-    int dir = fromAbove ? -1 : 1;
-    MelodicFigure fig;
-    fig.units.push_back({approachPulse, 0});  // first approach note
-    for (int i = 1; i < approachSteps; ++i)
-      fig.units.push_back({approachPulse, dir});
-    fig.units.push_back({arrivalDuration, dir});  // arrival
-    return fig;
-  }
-
-  // TriadicOutline: outlines a chord (root-3rd-5th or inversions)
-  //   direction: +1 = ascending, -1 = descending
-  //   includeOctave: if true, continues to the octave (root-3-5-8)
-  //   pulse: duration per note
-  MelodicFigure triadic_outline(int direction, bool includeOctave = false,
-                                 float pulse = 0) {
-    if (pulse <= 0) pulse = defaultPulse;
-    int dir = (direction >= 0) ? 1 : -1;
-    MelodicFigure fig;
-    fig.units.push_back({pulse, 0});         // root
-    fig.units.push_back({pulse, 2 * dir});   // 3rd (skip of a third)
-    fig.units.push_back({pulse, 2 * dir});   // 5th (another third)
-    if (includeOctave)
-      fig.units.push_back({pulse, 3 * dir}); // octave (a fourth from 5th)
-    return fig;
-  }
-
-  // NeighborTone: note, step to neighbor, return
-  //   upper: true = upper neighbor (+1 then -1), false = lower (-1 then +1)
-  //   pulse: duration per note
-  //   doublePulseMain: if true, first and last notes are longer
-  MelodicFigure neighbor_tone(bool upper, float pulse = 0, bool doublePulseMain = false) {
-    if (pulse <= 0) pulse = defaultPulse;
-    int dir = upper ? 1 : -1;
-    float mainPulse = doublePulseMain ? pulse * 2.0f : pulse;
-    MelodicFigure fig;
-    fig.units.push_back({mainPulse, 0});     // main note
-    fig.units.push_back({pulse, dir});        // neighbor
-    fig.units.push_back({mainPulse, -dir});   // return
-    return fig;
-  }
-
-  // LeapAndFill: large leap followed by stepwise return
-  //   leapSize: interval in scale degrees (3-7)
-  //   leapUp: true = leap up then fill down, false = opposite
-  //   fillSteps: how many stepwise notes to fill (0 = fill completely)
-  //   pulse: duration per note
-  MelodicFigure leap_and_fill(int leapSize, bool leapUp, int fillSteps = 0,
-                               float pulse = 0) {
-    if (pulse <= 0) pulse = defaultPulse;
-    if (leapSize < 2) leapSize = 2;
-    if (fillSteps <= 0) fillSteps = leapSize - 1;
-    int leapDir = leapUp ? 1 : -1;
-    int fillDir = -leapDir;
-    MelodicFigure fig;
-    fig.units.push_back({pulse, 0});                  // starting note
-    fig.units.push_back({pulse, leapSize * leapDir});  // the leap
-    for (int i = 0; i < fillSteps; ++i)
-      fig.units.push_back({pulse, fillDir});           // stepwise fill
-    return fig;
-  }
-
-  // ScalarReturn: go out stepwise, return (arch or inverted arch)
-  //   direction: +1 = rise then fall, -1 = fall then rise
-  //   extent: how many steps out before returning
-  //   returnExtent: how many steps back (0 = same as extent, full return)
-  //   pulse: duration per note
-  MelodicFigure scalar_return(int direction, int extent, int returnExtent = 0,
-                               float pulse = 0) {
-    if (pulse <= 0) pulse = defaultPulse;
-    if (extent < 1) extent = 1;
-    if (returnExtent <= 0) returnExtent = extent;
-    int dir = (direction >= 0) ? 1 : -1;
-    MelodicFigure fig;
-    fig.units.push_back({pulse, 0});  // starting note
-    // Outward
-    for (int i = 0; i < extent; ++i)
-      fig.units.push_back({pulse, dir});
-    // Return
-    for (int i = 0; i < returnExtent; ++i)
-      fig.units.push_back({pulse, -dir});
-    return fig;
-  }
-
-  // Anacrusis: short pickup notes (typically ascending) leading to a downbeat
-  //   count: number of pickup notes
-  //   direction: +1 = ascending pickups, -1 = descending
-  //   pickupPulse: duration of each pickup note
-  //   downbeatPulse: duration of the downbeat arrival
-  MelodicFigure anacrusis(int count, int direction = 1,
-                           float pickupPulse = 0, float downbeatPulse = 0) {
-    if (pickupPulse <= 0) pickupPulse = defaultPulse * 0.5f;
-    if (downbeatPulse <= 0) downbeatPulse = defaultPulse;
-    if (count < 1) count = 1;
-    int dir = (direction >= 0) ? 1 : -1;
-    MelodicFigure fig;
-    for (int i = 0; i < count; ++i)
-      fig.units.push_back({pickupPulse, (i == 0) ? 0 : dir});
-    fig.units.push_back({downbeatPulse, dir});  // downbeat arrival
-    return fig;
-  }
-
-  // Zigzag: ascending via step-up, skip-down (or reverse)
-  //   direction: +1 = net ascending, -1 = net descending
-  //   cycles: number of zigzag cycles
-  //   stepSize: size of the step (1)
-  //   skipSize: size of the skip back (1-3)
-  //   pulse: duration per note
-  MelodicFigure zigzag(int direction, int cycles, int stepSize = 2,
-                        int skipSize = 1, float pulse = 0) {
-    if (pulse <= 0) pulse = defaultPulse;
-    if (cycles < 1) cycles = 1;
-    int dir = (direction >= 0) ? 1 : -1;
-    MelodicFigure fig;
-    fig.units.push_back({pulse, 0});
-    for (int i = 0; i < cycles; ++i) {
-      fig.units.push_back({pulse, stepSize * dir});
-      fig.units.push_back({pulse, -skipSize * dir});
-    }
-    return fig;
-  }
-
-  // Fanfare: leaps outlining 4th/5th/octave, optionally with repeated notes
-  //   intervals: scale-degree leaps to make (e.g. {4, 3} for root→5th→octave)
-  //   repeatsPerNote: how many times to repeat each arrival (1 = no repeat)
-  //   pulse: duration per note
-  MelodicFigure fanfare(const std::vector<int>& intervals, int repeatsPerNote = 1,
-                          float pulse = 0) {
-    if (pulse <= 0) pulse = defaultPulse;
-    MelodicFigure fig;
-    fig.units.push_back({pulse, 0});  // starting note
-    if (repeatsPerNote > 1)
-      for (int r = 1; r < repeatsPerNote; ++r)
-        fig.units.push_back({pulse, 0});
-    for (int leap : intervals) {
-      fig.units.push_back({pulse, leap});
-      for (int r = 1; r < repeatsPerNote; ++r)
-        fig.units.push_back({pulse, 0});
-    }
-    return fig;
-  }
-
-  // Sigh: descending step pair (the "Seufzer")
-  //   chromatic: if true, sets accidental for half-step
-  //   pulse: duration per note (typically longer, expressive)
-  MelodicFigure sigh(float pulse = 0) {
-    if (pulse <= 0) pulse = defaultPulse;
-    MelodicFigure fig;
-    fig.units.push_back({pulse, 0});
-    fig.units.push_back({pulse, -1});
-    return fig;
-  }
-
-  // Suspension: held note resolving stepwise down
-  //   holdDuration: how long the suspension is held
-  //   resolutionPulse: duration of the resolution note
-  MelodicFigure suspension(float holdDuration = 0, float resolutionPulse = 0) {
-    if (holdDuration <= 0) holdDuration = defaultPulse * 2;
-    if (resolutionPulse <= 0) resolutionPulse = defaultPulse;
-    MelodicFigure fig;
-    fig.units.push_back({holdDuration, 0});     // held note
-    fig.units.push_back({resolutionPulse, -1}); // resolution down
-    return fig;
-  }
-
-  // Cambiata: step one way, skip opposite, step — 4-note contrapuntal figure
-  //   direction: +1 = step up first, -1 = step down first
-  //   pulse: duration per note
-  MelodicFigure cambiata(int direction = -1, float pulse = 0) {
-    if (pulse <= 0) pulse = defaultPulse;
-    int dir = (direction >= 0) ? 1 : -1;
-    MelodicFigure fig;
-    fig.units.push_back({pulse, 0});        // main note
-    fig.units.push_back({pulse, dir});       // step
-    fig.units.push_back({pulse, -2 * dir});  // skip opposite
-    fig.units.push_back({pulse, dir});       // step to resolution
-    return fig;
-  }
-
-  // =========================================================================
-  // Transforms (existing)
-  // =========================================================================
-
-  // Invert: flip all step directions
-  MelodicFigure invert(const MelodicFigure& source) {
-    MelodicFigure fig = source;
-    for (auto& u : fig.units) u.step = -u.step;
-    return fig;
-  }
-
-  // Reverse: retrograde (reverse order of units)
-  MelodicFigure reverse(const MelodicFigure& source) {
-    MelodicFigure fig = source;
-    std::reverse(fig.units.begin(), fig.units.end());
-    // Fix steps: reversed steps need sign flip to maintain musical sense
-    // (going up then down → going down then up)
-    return fig;
-  }
-
-  // Stretch: multiply all durations by factor (default 2x)
-  MelodicFigure stretch(const MelodicFigure& source, float factor = 2.0f) {
-    MelodicFigure fig = source;
-    for (auto& u : fig.units) u.duration *= factor;
-    return fig;
-  }
-
-  // Compress: divide all durations by factor (default 2x)
-  MelodicFigure compress(const MelodicFigure& source, float factor = 2.0f) {
-    MelodicFigure fig = source;
-    for (auto& u : fig.units) u.duration /= factor;
-    return fig;
-  }
-
-  // Vary steps: randomly perturb some step values (guaranteed non-zero)
-  MelodicFigure vary_steps(const MelodicFigure& source, int variations = 1) {
-    MelodicFigure fig = source;
-    for (int i = 0; i < variations && fig.note_count() > 1; ++i) {
-      int idx = rng.int_range(1, fig.note_count() - 2);
-      int delta = rng.int_range(-2, 2);
-      if (delta == 0) delta = (rng.int_range(0, 1) == 0) ? -1 : 1;
-      fig.units[idx].step += delta;
-    }
-    return fig;
-  }
 };
 
 } // namespace mforce
