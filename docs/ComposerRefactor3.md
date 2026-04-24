@@ -86,6 +86,13 @@ We very lightly tested the FigureBuilder work via a bespoke test harness (new pa
    - wire in the new RandomFigureBuilder and FigureTransforms
    - produces a 2-figure Phrase
    - test a few Phrases
+   DONE 2026-04-24: landed as additive sibling two_figure_phrase strategy
+   (interpretation B — leaves existing default_phrase untouched). Uses RFB +
+   figure_transforms::apply directly; TwoFigurePhraseConfig carries the
+   base-build method + Constraints + transform op. JSON round-trip + four
+   integration tests in test_figures. Rename-to-default deferred to step 6.
+   (spec: docs/superpowers/specs/2026-04-24-two-figure-phrase-strategy-design.md)
+   (plan: docs/superpowers/plans/2026-04-24-two-figure-phrase-strategy.md)
 
 4. Brainstorm what "middle tiers" as a whole - namely, Phrase and Passage strategies and related classes - should actually look like
   - Currently there are a bunch of "shape" PhraseStrategies that should go away
