@@ -1,6 +1,7 @@
 #pragma once
 #include "mforce/music/basics.h"
 #include "mforce/music/figures.h"
+#include "mforce/music/figure_transforms.h"
 #include "mforce/music/structure.h"
 #include "mforce/music/realization_strategy.h"
 #include "mforce/music/voicing_profile.h"
@@ -564,31 +565,29 @@ inline std::string PieceTemplate::add_derived_motif(
         case TransformOp::Invert: {
             if (!std::holds_alternative<MelodicFigure>(parent->content))
                 throw std::runtime_error("Invert requires MelodicFigure parent");
-            FigureBuilder fb(parent->generationSeed + 1);
-            derived.content = fb.invert(std::get<MelodicFigure>(parent->content));
+            derived.content = figure_transforms::invert(std::get<MelodicFigure>(parent->content));
             break;
         }
         case TransformOp::Reverse: {
             if (!std::holds_alternative<MelodicFigure>(parent->content))
                 throw std::runtime_error("Reverse requires MelodicFigure parent");
-            FigureBuilder fb(parent->generationSeed + 1);
-            derived.content = fb.reverse(std::get<MelodicFigure>(parent->content));
+            derived.content = figure_transforms::retrograde_steps(std::get<MelodicFigure>(parent->content));
             break;
         }
         case TransformOp::VarySteps: {
             if (!std::holds_alternative<MelodicFigure>(parent->content))
                 throw std::runtime_error("VarySteps requires MelodicFigure parent");
-            FigureBuilder fb(parent->generationSeed + 2);
+            Randomizer rng(parent->generationSeed + 2);
             MelodicFigure copy = std::get<MelodicFigure>(parent->content);
             int variations = transformParam > 0 ? transformParam : 1;
-            derived.content = fb.vary_steps(copy, variations);
+            derived.content = figure_transforms::vary_steps(copy, rng, variations);
             break;
         }
         case TransformOp::VaryRhythm: {
             if (!std::holds_alternative<MelodicFigure>(parent->content))
                 throw std::runtime_error("VaryRhythm requires MelodicFigure parent");
-            FigureBuilder fb(parent->generationSeed + 3);
-            derived.content = fb.vary_rhythm(std::get<MelodicFigure>(parent->content));
+            Randomizer rng(parent->generationSeed + 3);
+            derived.content = figure_transforms::vary_rhythm(std::get<MelodicFigure>(parent->content), rng);
             break;
         }
         case TransformOp::RhythmTail: {

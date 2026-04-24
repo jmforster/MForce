@@ -51,6 +51,21 @@ inline MelodicFigure adjust_last_pulse(const MelodicFigure& fig,
   return out;
 }
 
+// stretch(fig, factor): scale all durations by factor. factor>1 lengthens.
+inline MelodicFigure stretch(const MelodicFigure& fig, float factor) {
+  MelodicFigure out = fig;
+  for (auto& u : out.units) u.duration *= factor;
+  return out;
+}
+
+// compress(fig, factor): scale all durations by 1/factor. factor>1 shortens.
+inline MelodicFigure compress(const MelodicFigure& fig, float factor) {
+  if (factor <= 0.0f) throw std::invalid_argument("compress: factor must be > 0");
+  MelodicFigure out = fig;
+  for (auto& u : out.units) u.duration /= factor;
+  return out;
+}
+
 // invert(fig): negate all steps. units[0].step=0 is preserved.
 inline MelodicFigure invert(const MelodicFigure& fig) {
   MelodicFigure out = fig;
