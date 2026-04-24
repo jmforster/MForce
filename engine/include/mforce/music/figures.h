@@ -460,6 +460,38 @@ struct PulseGenerator {
 
     return ps;
   }
+
+  // Generate a PulseSequence of exactly `count` durations, drawn from the
+  // same binary alphabet as generate(), weighted toward defaultPulse.
+  // Use case: RandomFigureBuilder::build_by_count when no total-beats
+  // constraint is set. Triplets are omitted here — they require a
+  // different unit-count accounting and can be added later if needed.
+  PulseSequence generate_count(int count, float defaultPulse = 1.0f) {
+    PulseSequence ps;
+    if (count <= 0) return ps;
+
+    static const float BINARY[] = {0.25f, 0.5f, 0.75f, 1.0f, 1.5f, 2.0f, 3.0f, 4.0f};
+    std::vector<float> weights;
+    float weightSum = 0;
+    for (float d : BINARY) {
+      float w = 1.0f / (1.0f + std::abs(d - defaultPulse) * 2.0f);
+      weights.push_back(w);
+      weightSum += w;
+    }
+
+    for (int i = 0; i < count; ++i) {
+      float pick = rng.value() * weightSum;
+      float accum = 0;
+      int idx = 0;
+      for (int j = 0; j < int(weights.size()); ++j) {
+        accum += weights[j];
+        if (accum >= pick) { idx = j; break; }
+      }
+      ps.add(BINARY[idx]);
+    }
+
+    return ps;
+  }
 };
 
 // ---------------------------------------------------------------------------
