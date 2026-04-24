@@ -5,6 +5,7 @@
 #include "mforce/music/random_figure_builder.h"
 #include "mforce/music/shape_strategies.h"
 #include "mforce/music/phrase_strategies.h"
+#include "mforce/music/wrapper_phrase_strategy.h"
 #include "mforce/music/alternating_figure_strategy.h"
 #include "mforce/music/period_passage_strategy.h"
 #include "mforce/music/chord_progression_builder.h"
@@ -129,6 +130,7 @@ struct Composer {
     // Phrase strategies (Phase 3)
     reg.register_phrase(std::make_unique<PeriodPhraseStrategy>());
     reg.register_phrase(std::make_unique<SentencePhraseStrategy>());
+    reg.register_phrase(std::make_unique<WrapperPhraseStrategy>());
 
     // Voicing selectors (Phase 4)
     VoicingSelectorRegistry::instance()
