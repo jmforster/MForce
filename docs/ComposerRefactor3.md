@@ -76,6 +76,12 @@ We very lightly tested the FigureBuilder work via a bespoke test harness (new pa
 
   For transforms uses assert() in a tools/test_figures/ binary and upgrade later if needed.
 
+  DONE 2026-04-24: test_figures binary now covers figure_transforms (unit +
+  integration) and the fig/invert/retrograde/retro-invert listening exercise
+  via `test_figures --render`. --test-rfb / --test-replicate retired.
+  (spec: docs/superpowers/specs/2026-04-24-figure-testing-harness-design.md)
+  (plan: docs/superpowers/plans/2026-04-24-figure-testing-harness.md)
+
 3. Rewrite DefaultPhraseStrategy
    - wire in the new RandomFigureBuilder and FigureTransforms
    - produces a 2-figure Phrase
