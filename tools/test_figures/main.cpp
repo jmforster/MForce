@@ -575,6 +575,82 @@ int integ_stretch() {
     return expect_figures_equal(r.fig, expected, "stretch");
 }
 
+// ----------------------------------------------------------------------------
+// Pitch-realization test — asserts that after compose(), Part::elementSequence
+// contains Notes with the expected noteNumbers for base figure [0, +1, -1, 0]
+// starting at C4 in C major.
+//
+// Codebase convention: Pitch::note_number() = octave * 12 + semitone_offset,
+// so C4 = 48, D4 = 50, C4 = 48, C4 = 48 (one octave lower than MIDI scientific
+// pitch notation).
+// ----------------------------------------------------------------------------
+int integ_pitch_realization() {
+    MelodicFigure base;
+    base.units.push_back({1.0f,  0});
+    base.units.push_back({1.0f, +1});
+    base.units.push_back({1.0f, -1});
+    base.units.push_back({1.0f,  0});
+
+    PieceTemplate tmpl;
+    tmpl.keyName = "C";
+    tmpl.scaleName = "Major";
+    tmpl.bpm = 100.0f;
+    tmpl.masterSeed = 0xABCDu;
+
+    PieceTemplate::SectionTemplate sec;
+    sec.name = "Main";
+    sec.beats = 8.0f;
+    tmpl.sections.push_back(sec);
+
+    PartTemplate part;
+    part.name = "melody";
+    part.role = PartRole::Melody;
+
+    PassageTemplate passage;
+    passage.name = "Main";
+    passage.startingPitch = Pitch::from_name("C", 4);
+
+    PhraseTemplate phrase;
+    phrase.name = "wrap";
+    phrase.strategy = "wrapper_phrase";
+    phrase.startingPitch = Pitch::from_name("C", 4);
+
+    FigureTemplate ft;
+    ft.source = FigureSource::Locked;
+    ft.lockedFigure = base;
+    phrase.figures.push_back(ft);
+
+    passage.phrases.push_back(phrase);
+    part.passages["Main"] = passage;
+    tmpl.parts.push_back(part);
+
+    Piece piece;
+    ClassicalComposer composer(tmpl.masterSeed);
+    composer.compose(piece, tmpl);
+
+    const auto& es = piece.parts[0].elementSequence;
+    const int expected[] = {48, 50, 48, 48};
+    int noteCount = 0;
+    for (size_t i = 0; i < es.elements.size(); ++i) {
+        const Element& e = es.elements[i];
+        if (std::holds_alternative<Note>(e.content)) {
+            const Note& n = std::get<Note>(e.content);
+            if (noteCount >= 4) {
+                std::cerr << "  FAIL: more than 4 notes\n"; return 1;
+            }
+            int midi = int(std::round(n.noteNumber));
+            if (midi != expected[noteCount]) {
+                std::cerr << "  FAIL: note " << noteCount << " MIDI " << midi
+                          << " expected " << expected[noteCount] << "\n";
+                return 1;
+            }
+            ++noteCount;
+        }
+    }
+    EXPECT_EQ(noteCount, 4, "4 notes realized");
+    return 0;
+}
+
 int run_integration_tests() {
     RUN_TEST(test_smoke_round_trip);
     RUN_TEST(integ_invert);
@@ -585,6 +661,7 @@ int run_integration_tests() {
     RUN_TEST(integ_add_neighbor);
     RUN_TEST(integ_add_turn);
     RUN_TEST(integ_stretch);
+    RUN_TEST(integ_pitch_realization);
     return 0;
 }
 
