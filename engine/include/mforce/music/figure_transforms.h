@@ -238,4 +238,109 @@ inline MelodicFigure add_turn(const MelodicFigure& fig, int addAt,
   return out;
 }
 
+// --- Randomized (Randomizer& passed in) ---
+
+// vary_rhythm(fig, rng): probability-weighted pulse split or dot.
+// Legacy behavior from FigureBuilder::vary_rhythm.
+inline MelodicFigure vary_rhythm(const MelodicFigure& fig, Randomizer& rng) {
+  MelodicFigure out = fig;
+  for (int x = 0; x < out.note_count() - 1; ++x) {
+    if (rng.decide(0.2f)) {
+      float dur = out.units[x].duration;
+      if (dur < 0.5f * 2.0f) continue;            // min-pulse gate
+      float dur1, dur2;
+      if (dur < 1.0f || rng.decide(0.5f)) {
+        dur1 = dur * 0.5f; dur2 = dur * 0.5f;     // even split
+      } else {
+        dur1 = dur * 0.75f; dur2 = dur * 0.25f;   // dotted split
+      }
+      out.units[x].duration = dur1;
+      FigureUnit newUnit{dur2, 0};
+      out.units.insert(out.units.begin() + x + 1, newUnit);
+      break;
+    } else if (x < out.note_count() - 1 && rng.decide(0.3f)) {
+      float dur = out.units[x].duration;
+      out.units[x].duration = dur * 1.5f;
+      out.units[x + 1].duration = dur * 0.5f;
+      break;
+    }
+  }
+  return out;
+}
+
+// vary_steps(fig, rng, variations): perturb `variations` interior steps.
+// Each perturbation picks an interior index and adds a random int in
+// [-2,+2] (guaranteed non-zero). Legacy from FigureBuilder::vary_steps.
+inline MelodicFigure vary_steps(const MelodicFigure& fig, Randomizer& rng,
+                                int variations = 1) {
+  MelodicFigure out = fig;
+  for (int i = 0; i < variations && out.note_count() > 1; ++i) {
+    int idx = rng.int_range(1, out.note_count() - 2);
+    int delta = rng.int_range(-2, 2);
+    if (delta == 0) delta = (rng.int_range(0, 1) == 0) ? -1 : 1;
+    out.units[idx].step += delta;
+  }
+  return out;
+}
+
+// vary(fig, rng, amount): consolidated jitter. Applies a rhythm
+// perturbation and a step perturbation, both scaled by `amount` in
+// [0,1]. Round-1 implementation: probability of applying each sub-
+// perturbation = amount; if applied, uses vary_rhythm / vary_steps
+// atoms internally. Conservative by default.
+inline MelodicFigure vary(const MelodicFigure& fig, Randomizer& rng,
+                          float amount) {
+  MelodicFigure out = fig;
+  if (rng.decide(amount)) out = vary_rhythm(out, rng);
+  if (rng.decide(amount)) out = vary_steps(out, rng, 1);
+  return out;
+}
+
+// complexify(fig, rng, amount): length preserved; target unit count ~=
+// (1+amount)*original. Round-1 implementation: repeatedly apply one of
+// {split, add_neighbor, add_turn} at a random position until target
+// reached or max iterations. amount=0 -> no-op; amount=1 -> doubled.
+inline MelodicFigure complexify(const MelodicFigure& fig, Randomizer& rng,
+                                float amount) {
+  MelodicFigure out = fig;
+  const int targetCount = int(std::round(float(fig.note_count()) * (1.0f + amount)));
+  int safety = 0;
+  const int maxIter = targetCount * 3 + 4;
+  while (out.note_count() < targetCount && safety++ < maxIter) {
+    int addAt = rng.int_range(0, out.note_count() - 1);
+    float pick = rng.value();
+    try {
+      if      (pick < 0.4f) out = split(out, addAt, 2);
+      else if (pick < 0.8f) out = add_neighbor(out, addAt, rng.decide(0.5f));
+      else                  out = add_turn    (out, addAt, rng.decide(0.5f));
+    } catch (const std::invalid_argument&) {
+      continue; // addAt was invalid for that transform; try again
+    }
+  }
+  return out;
+}
+
+// embellish(fig, rng, count): mark `count` randomly-chosen units with an
+// accent-style articulation. Unit count and length unchanged. Round-1
+// placeholder — uses Marcato (closest classical accent marking in this
+// codebase's articulations set). Later rounds will populate with varied
+// Ornament types.
+inline MelodicFigure embellish(const MelodicFigure& fig, Randomizer& rng,
+                               int count) {
+  MelodicFigure out = fig;
+  const int n = out.note_count();
+  if (n == 0 || count <= 0) return out;
+  count = std::min(count, n);
+  std::vector<int> idx(n);
+  for (int i = 0; i < n; ++i) idx[i] = i;
+  for (int i = n - 1; i > 0; --i) {
+    int j = rng.int_range(0, i);
+    std::swap(idx[i], idx[j]);
+  }
+  for (int k = 0; k < count; ++k) {
+    out.units[idx[k]].articulation = articulations::Marcato{};
+  }
+  return out;
+}
+
 } // namespace mforce::figure_transforms
