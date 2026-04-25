@@ -1252,25 +1252,25 @@ inline Phrase DefaultPhraseStrategy::compose_phrase(
       fig = fs->compose_figure(figLocus, figTmpl);
     }
 
-    // Apply FigureConnector.leadStep to the new figure's first unit.
-    // Applies for ALL figures including i=0 — connectors[0].leadStep places
-    // the first figure relative to the phrase's startingPitch. For
-    // placement-neutral motifs (first step = 0), this is the sole placement
-    // mechanism. The elide/adjust block above keeps its i>0 guard because
-    // those operate on the PREVIOUS figure (which doesn't exist for i=0).
-    if (i < int(phraseTmpl.connectors.size())
-        && phraseTmpl.connectors[i] && !fig.units.empty()) {
-      fig.units[0].step += phraseTmpl.connectors[i]->leadStep;
+    // Pull this figure's connector from the template (if any). Default-
+    // constructed FCs have leadStep=0/elide=0/adjust=0. Push to
+    // phrase.connectors alongside the figure to keep the
+    // figures.size() == connectors.size() invariant. The cursor advance
+    // from leadStep is applied at realize time (see
+    // realize_phrase_to_events_), NOT here. Figures are not mutated.
+    FigureConnector fc{};
+    if (i < int(phraseTmpl.connectors.size()) && phraseTmpl.connectors[i]) {
+      fc = *phraseTmpl.connectors[i];
     }
 
-    // Advance running cursor by the figure's net scale-degree movement.
-    // Rest units contribute step=0 so they don't advance the cursor.
+    // Advance running cursor by the FC's leadStep (used by the Literal-
+    // figure path's pitch_before queries) and then by the figure's net
+    // step. Under the new model, fig.units[0].step is 0 by convention, so
+    // fig.net_step() no longer absorbs leadStep — we add it explicitly.
+    runningReader.step(fc.leadStep);
     runningReader.step(fig.net_step());
 
-    // Every figure joins via its first unit's step, which bridges from
-    // wherever the previous figure left the cursor to this figure's
-    // effective starting pitch.
-    phrase.add_melodic_figure(std::move(fig));
+    phrase.add_melodic_figure_with_connector(std::move(fig), fc);
   }
 
   // Cadence adjustment — skip for Literal and Locked source on the last
