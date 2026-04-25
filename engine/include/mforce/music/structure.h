@@ -125,16 +125,25 @@ struct Phrase {
   Pitch startingPitch;
   std::vector<std::unique_ptr<Figure>> figures;
 
+  // Dense parallel vector — connectors.size() == figures.size() after compose.
+  // connectors[0] is a dummy with leadStep=0 by convention; figure 0 is
+  // positioned by phrase.startingPitch directly. connectors[i>0].leadStep is
+  // the inter-figure cursor advance (applied at realize time, not by
+  // mutating the figure).
+  std::vector<FigureConnector> connectors;
+
   // Deep copy constructor (unique_ptr makes Phrase move-only otherwise)
   Phrase() = default;
   Phrase(Phrase&&) = default;
   Phrase& operator=(Phrase&&) = default;
-  Phrase(const Phrase& other) : startingPitch(other.startingPitch) {
+  Phrase(const Phrase& other)
+      : startingPitch(other.startingPitch), connectors(other.connectors) {
     for (const auto& f : other.figures) figures.push_back(f->clone());
   }
   Phrase& operator=(const Phrase& other) {
     if (this != &other) {
       startingPitch = other.startingPitch;
+      connectors = other.connectors;
       figures.clear();
       for (const auto& f : other.figures) figures.push_back(f->clone());
     }
@@ -143,6 +152,12 @@ struct Phrase {
 
   void add_figure(std::unique_ptr<Figure> fig) { figures.push_back(std::move(fig)); }
   void add_melodic_figure(MelodicFigure fig) { figures.push_back(std::make_unique<MelodicFigure>(std::move(fig))); }
+  // Convenience: append a (figure, connector) pair atomically. Use this in
+  // strategies that produce both, to keep figures.size() == connectors.size().
+  void add_melodic_figure_with_connector(MelodicFigure fig, FigureConnector fc) {
+    figures.push_back(std::make_unique<MelodicFigure>(std::move(fig)));
+    connectors.push_back(fc);
+  }
   int figure_count() const { return int(figures.size()); }
 };
 
