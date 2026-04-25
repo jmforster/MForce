@@ -11,6 +11,7 @@
 #include <mmsystem.h>
 #include <commdlg.h>
 #include <nlohmann/json.hpp>
+#include <complex>
 #include "mforce/render/patch_loader.h"
 #include "mforce/core/equal_temperament.h"
 #include "mforce/core/source_registry.h"
@@ -1459,6 +1460,15 @@ struct WavePopout {
 };
 static std::vector<WavePopout> g_wavePopouts;
 
+// Spectrum view of the output buffer — recomputed after each render.
+// Magnitudes are stored in dB (20*log10(|X[k]|/refRMS)); g_outputSpectrumN is
+// the number of magnitude bins (= FFT size / 2). Empty when no render yet.
+static std::vector<float> g_outputSpectrumDb;
+static int                g_outputSpectrumN  = 0;
+static int                g_outputSpectrumSR = 48000;
+// Forward decl — defined alongside draw_spectrum_window below.
+static void compute_output_spectrum();
+
 // ===========================================================================
 // Transport state
 // ===========================================================================
@@ -1710,6 +1720,7 @@ static void render_passage_output_authoritative(
 
         g_waveScrollPos = 0;
         g_waveZoom = std::max(1, frames / 800);
+        compute_output_spectrum();
     } catch (const std::exception& e) {
         std::fprintf(stderr, "render_passage_output_authoritative failed: %s\n", e.what());
     }
@@ -1743,6 +1754,7 @@ static void render_output_authoritative(float noteNum, float velocity,
         // Reset waveform view to show the full authoritative buffer.
         g_waveScrollPos = 0;
         g_waveZoom = std::max(1, frames / 800);
+        compute_output_spectrum();
     } catch (const std::exception& e) {
         std::fprintf(stderr, "render_output_authoritative failed: %s\n", e.what());
     }
@@ -1789,6 +1801,9 @@ static void render_waveforms(float noteNum, float velocity, float durationSecond
     // Reset zoom to fit entire waveform, reset scroll
     g_waveScrollPos = 0;
     g_waveZoom = std::max(1, samples / 800);
+
+    // Refresh the output spectrum from the freshly-rendered g_outputWaveform.
+    compute_output_spectrum();
 }
 
 // Play a note: render offline into a voice buffer for polyphonic mixing.
@@ -3434,6 +3449,227 @@ static bool draw_waveform(const char* label, const float* buf, int sampleCount,
 }
 
 // ===========================================================================
+// FFT (radix-2 Cooley-Tukey, in-place complex) + spectrum compute
+// ===========================================================================
+
+static void fft_inplace(std::vector<std::complex<float>>& x) {
+    int n = (int)x.size();
+    // Bit-reversal permutation
+    for (int i = 1, j = 0; i < n; ++i) {
+        int bit = n >> 1;
+        for (; j & bit; bit >>= 1) j ^= bit;
+        j ^= bit;
+        if (i < j) std::swap(x[i], x[j]);
+    }
+    // Cooley-Tukey
+    for (int len = 2; len <= n; len <<= 1) {
+        float ang = -2.0f * 3.14159265358979f / float(len);
+        std::complex<float> wlen(std::cos(ang), std::sin(ang));
+        for (int i = 0; i < n; i += len) {
+            std::complex<float> w(1.0f, 0.0f);
+            for (int j = 0; j < len / 2; ++j) {
+                std::complex<float> u = x[i + j];
+                std::complex<float> v = x[i + j + len / 2] * w;
+                x[i + j] = u + v;
+                x[i + j + len / 2] = u - v;
+                w *= wlen;
+            }
+        }
+    }
+}
+
+// Compute the output spectrum: pull a sustain-region slice from g_outputWaveform,
+// apply a Hann window, FFT, convert to dB. Stash into g_outputSpectrumDb.
+static void compute_output_spectrum() {
+    g_outputSpectrumDb.clear();
+    g_outputSpectrumN = 0;
+    if (g_outputWaveform.empty() || g_waveformSamples < 256) return;
+
+    // Window size: largest power of 2 ≤ min(8192, samples). 8192 @ 48k = 170 ms,
+    // ~5.9 Hz bin width — fine for formant peaks while keeping FFT cheap (<1 ms).
+    int N = 8192;
+    while (N > g_waveformSamples) N >>= 1;
+    if (N < 256) return;
+
+    // Pull from the middle of the buffer (avoid attack/release edges).
+    int mid    = g_waveformSamples / 2;
+    int offset = std::max(0, mid - N / 2);
+    if (offset + N > g_waveformSamples) offset = g_waveformSamples - N;
+
+    std::vector<std::complex<float>> buf(N);
+    const float twoPi = 6.28318530718f;
+    for (int i = 0; i < N; ++i) {
+        // Hann window: 0.5 * (1 - cos(2π i / (N - 1)))
+        float w = 0.5f * (1.0f - std::cos(twoPi * float(i) / float(N - 1)));
+        buf[i] = std::complex<float>(g_outputWaveform[offset + i] * w, 0.0f);
+    }
+
+    fft_inplace(buf);
+
+    // Magnitude in dB. Scale so the peak of a full-amplitude sine reads ~0 dB.
+    // For a Hann-windowed sine: peak |X[k]| = N/4 (window coherent gain = 0.5).
+    // So divide by N/4, then 20*log10. Floor at -120 dB.
+    int Nover2 = N / 2;
+    g_outputSpectrumDb.resize(Nover2);
+    const float scale = 4.0f / float(N);
+    const float floorDb = -120.0f;
+    for (int k = 0; k < Nover2; ++k) {
+        float mag = std::abs(buf[k]) * scale;
+        g_outputSpectrumDb[k] = (mag > 1e-6f) ? 20.0f * std::log10(mag) : floorDb;
+    }
+    g_outputSpectrumN  = Nover2;
+    g_outputSpectrumSR = 48000;  // matches the offline-render SR convention
+}
+
+// ===========================================================================
+// Spectrum window (sibling tab to Waveforms / Keyboard)
+// ===========================================================================
+
+static void draw_spectrum_window() {
+    ImGui::Begin("Spectrum", nullptr, ImGuiWindowFlags_NoCollapse);
+
+    float w = ImGui::GetContentRegionAvail().x;
+    float h = ImGui::GetContentRegionAvail().y;
+    if (w < 60.0f || h < 60.0f) { ImGui::End(); return; }
+
+    ImDrawList* dl = ImGui::GetWindowDrawList();
+    ImVec2 p0 = ImGui::GetCursorScreenPos();
+    ImVec2 p1 = ImVec2(p0.x + w, p0.y + h);
+
+    // Background
+    dl->AddRectFilled(p0, p1, IM_COL32(20, 20, 25, 255));
+
+    // Plot area: leave margins for axis labels (y on left, x along bottom).
+    const float marginL = 36.0f;
+    const float marginB = 18.0f;
+    float plotX0 = p0.x + marginL;
+    float plotX1 = p1.x - 4.0f;
+    float plotY0 = p0.y + 4.0f;
+    float plotY1 = p1.y - marginB;
+
+    // Empty state
+    if (g_outputSpectrumN <= 0) {
+        dl->AddText(ImVec2(plotX0 + 8, plotY0 + 8),
+                    IM_COL32(140, 140, 140, 255),
+                    "No render yet — hit Generate.");
+        dl->AddRect(ImVec2(plotX0, plotY0), ImVec2(plotX1, plotY1), IM_COL32(80, 80, 80, 255));
+        ImGui::Dummy(ImVec2(w, h));
+        ImGui::End();
+        return;
+    }
+
+    // Axes
+    const float fMin  = 20.0f;
+    const float fMax  = float(g_outputSpectrumSR) * 0.5f;  // Nyquist
+    const float dbMin = -100.0f;
+    const float dbMax = 6.0f;
+    const float logFmin = std::log10(fMin);
+    const float logFmax = std::log10(fMax);
+
+    auto freq_to_x = [&](float f) {
+        float t = (std::log10(std::max(f, fMin)) - logFmin) / (logFmax - logFmin);
+        return plotX0 + t * (plotX1 - plotX0);
+    };
+    auto db_to_y = [&](float db) {
+        float t = (db - dbMin) / (dbMax - dbMin);
+        return plotY1 - t * (plotY1 - plotY0);
+    };
+    auto x_to_freq = [&](float x) {
+        float t = (x - plotX0) / (plotX1 - plotX0);
+        return std::pow(10.0f, logFmin + t * (logFmax - logFmin));
+    };
+
+    // Grid: vertical lines at decade and 2/5 of each decade (1, 2, 5, 10, 20, ...).
+    const ImU32 gridCol  = IM_COL32(50, 50, 55, 255);
+    const ImU32 majorCol = IM_COL32(70, 70, 80, 255);
+    const ImU32 lblCol   = IM_COL32(120, 120, 120, 255);
+    static const float decMul[] = {1.0f, 2.0f, 5.0f};
+    for (int dec = 1; dec <= 5; ++dec) {
+        float base = std::pow(10.0f, float(dec));
+        for (float m : decMul) {
+            float f = base * m;
+            if (f < fMin || f > fMax) continue;
+            float x = freq_to_x(f);
+            dl->AddLine(ImVec2(x, plotY0), ImVec2(x, plotY1),
+                        (m == 1.0f) ? majorCol : gridCol);
+            if (m == 1.0f || m == 2.0f) {
+                char lbl[16];
+                if (f >= 1000.0f) snprintf(lbl, sizeof(lbl), "%gk", f / 1000.0f);
+                else              snprintf(lbl, sizeof(lbl), "%g", f);
+                dl->AddText(ImVec2(x + 2, plotY1 + 2), lblCol, lbl);
+            }
+        }
+    }
+    // Grid: horizontal dB lines every 12 dB.
+    for (int db = int(dbMax); db >= int(dbMin); db -= 12) {
+        float y = db_to_y(float(db));
+        dl->AddLine(ImVec2(plotX0, y), ImVec2(plotX1, y),
+                    (db == 0) ? majorCol : gridCol);
+        char lbl[16]; snprintf(lbl, sizeof(lbl), "%d", db);
+        dl->AddText(ImVec2(p0.x + 2, y - 6), lblCol, lbl);
+    }
+
+    // Plot the spectrum line. Per-pixel max-bin reduction to avoid undersampling
+    // gaps when bin spacing in log-x is sub-pixel.
+    const ImU32 lineCol = IM_COL32(80, 220, 80, 255);
+    int prevBin = 1;
+    float prevX = freq_to_x(float(g_outputSpectrumSR) * float(prevBin) / float(g_outputSpectrumN * 2));
+    float prevDbMax = g_outputSpectrumDb[prevBin];
+    float prevY = db_to_y(std::clamp(prevDbMax, dbMin, dbMax));
+
+    for (float px = plotX0 + 1.0f; px <= plotX1; px += 1.0f) {
+        float fHere = x_to_freq(px);
+        int binHere = std::clamp(
+            int(std::round(fHere * float(g_outputSpectrumN * 2) / float(g_outputSpectrumSR))),
+            1, g_outputSpectrumN - 1);
+        float dbHere = dbMin;
+        for (int b = std::min(prevBin + 1, binHere); b <= binHere; ++b)
+            dbHere = std::max(dbHere, g_outputSpectrumDb[b]);
+        float y = db_to_y(std::clamp(dbHere, dbMin, dbMax));
+        dl->AddLine(ImVec2(prevX, prevY), ImVec2(px, y), lineCol, 1.5f);
+        prevX = px; prevY = y; prevBin = binHere;
+    }
+
+    // Border
+    dl->AddRect(ImVec2(plotX0, plotY0), ImVec2(plotX1, plotY1), IM_COL32(80, 80, 80, 255));
+
+    // Hover crosshair + readout
+    if (ImGui::IsWindowHovered()) {
+        ImVec2 m = ImGui::GetMousePos();
+        if (m.x >= plotX0 && m.x <= plotX1 && m.y >= plotY0 && m.y <= plotY1) {
+            float fAt  = x_to_freq(m.x);
+            int   bin  = std::clamp(
+                int(std::round(fAt * float(g_outputSpectrumN * 2) / float(g_outputSpectrumSR))),
+                1, g_outputSpectrumN - 1);
+            float dbAt = g_outputSpectrumDb[bin];
+
+            const ImU32 crossCol = IM_COL32(180, 180, 180, 140);
+            dl->AddLine(ImVec2(m.x, plotY0), ImVec2(m.x, plotY1), crossCol);
+            float yDb = db_to_y(std::clamp(dbAt, dbMin, dbMax));
+            dl->AddLine(ImVec2(plotX0, yDb), ImVec2(plotX1, yDb), crossCol);
+
+            char lbl[64];
+            if (fAt >= 1000.0f) snprintf(lbl, sizeof(lbl), "%.2f kHz   %.1f dB", fAt / 1000.0f, dbAt);
+            else                snprintf(lbl, sizeof(lbl), "%.1f Hz   %.1f dB", fAt, dbAt);
+
+            // Place the label so it stays in-bounds.
+            float lblX = m.x + 8.0f;
+            float lblY = m.y - 16.0f;
+            ImVec2 sz = ImGui::CalcTextSize(lbl);
+            if (lblX + sz.x > plotX1 - 4.0f) lblX = m.x - 8.0f - sz.x;
+            if (lblY < plotY0 + 2.0f)        lblY = m.y + 8.0f;
+            dl->AddRectFilled(ImVec2(lblX - 3, lblY - 1),
+                              ImVec2(lblX + sz.x + 3, lblY + sz.y + 1),
+                              IM_COL32(0, 0, 0, 200));
+            dl->AddText(ImVec2(lblX, lblY), IM_COL32(255, 255, 200, 255), lbl);
+        }
+    }
+
+    ImGui::Dummy(ImVec2(w, h));
+    ImGui::End();
+}
+
+// ===========================================================================
 // Waveform window (dockable)
 // ===========================================================================
 
@@ -3943,6 +4179,7 @@ int main(int argc, char** argv) {
             ImGui::DockBuilderDockWindow("Node Editor", dockCenter);
             ImGui::DockBuilderDockWindow("Properties", dockRight);
             ImGui::DockBuilderDockWindow("Waveforms", dockBottom);  // docked first → selected tab
+            ImGui::DockBuilderDockWindow("Spectrum",  dockBottom);
             ImGui::DockBuilderDockWindow("Keyboard",  dockBottom);
 
             ImGui::DockBuilderFinish(dockspaceId);
@@ -4161,6 +4398,11 @@ int main(int argc, char** argv) {
         // =================================================================
         draw_waveform_window();
         draw_wave_popouts();
+
+        // =================================================================
+        // Spectrum window (sibling tab)
+        // =================================================================
+        draw_spectrum_window();
 
         // =================================================================
         // Keyboard panel
