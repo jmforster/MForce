@@ -108,9 +108,14 @@ inline Phrase ElaboratedPhraseStrategy::compose_phrase(
         MelodicFigure E_i;
         if (generate) {
             // RFB.build_by_length throws if constraints.length is set; pass
-            // a copy without that field. The anchor.duration drives length.
+            // a copy without that field. defaultPulse must be set for
+            // resolve_count_ to compute count = length/defaultPulse and
+            // produce a figure whose total duration matches anchor.duration.
+            // Fall back to anchor.duration / 4 if author didn't supply one
+            // (gives a 4-unit figure of the right total duration).
             Constraints gc = cfg.generateConstraints;
             gc.length.reset();
+            if (!gc.defaultPulse) gc.defaultPulse = anchor.duration / 4.0f;
             E_i = rfb.build_by_length(anchor.duration, gc);
             // RFB output convention: units[0].step is 0. Defensive: ensure it.
             if (!E_i.units.empty()) E_i.units[0].step = 0;

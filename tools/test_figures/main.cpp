@@ -8,6 +8,7 @@
 #include "mforce/music/music_json.h"
 #include "mforce/music/random_figure_builder.h"
 #include "mforce/music/two_figure_phrase_strategy.h"
+#include "mforce/music/elaborated_phrase_strategy.h"
 #include "mforce/core/randomizer.h"
 #include "mforce/render/patch_loader.h"
 #include "mforce/render/wav_writer.h"
@@ -788,6 +789,161 @@ int integ_two_figure_json_round_trip() {
     return expect_figures_equal(r1.fig2, r2.fig2, "fig2 after round-trip");
 }
 
+// ----------------------------------------------------------------------------
+// ElaboratedPhraseStrategy integration tests
+// ----------------------------------------------------------------------------
+
+struct ElaboratedResult {
+    bool ok;
+    std::vector<MelodicFigure> figures;
+    std::vector<FigureConnector> connectors;
+};
+
+ElaboratedResult compose_elaborated(const ElaboratedPhraseConfig& cfg) {
+    PieceTemplate tmpl;
+    tmpl.keyName = "C";
+    tmpl.scaleName = "Major";
+    tmpl.bpm = 100.0f;
+    tmpl.masterSeed = 0xABCDu;
+
+    PieceTemplate::SectionTemplate sec;
+    sec.name = "Main";
+    sec.beats = 32.0f;
+    tmpl.sections.push_back(sec);
+
+    PartTemplate part;
+    part.name = "melody";
+    part.role = PartRole::Melody;
+
+    PassageTemplate passage;
+    passage.name = "Main";
+    passage.startingPitch = Pitch::from_name("C", 4);
+
+    PhraseTemplate phrase;
+    phrase.name = "ep";
+    phrase.strategy = "elaborated_phrase";
+    phrase.startingPitch = Pitch::from_name("C", 4);
+    phrase.elaboratedConfig = cfg;
+
+    passage.phrases.push_back(phrase);
+    part.passages["Main"] = passage;
+    tmpl.parts.push_back(part);
+
+    Piece piece;
+    ClassicalComposer composer(tmpl.masterSeed);
+    composer.compose(piece, tmpl);
+
+    if (piece.parts.size() != 1) return {false, {}, {}};
+    auto it = piece.parts[0].passages.find("Main");
+    if (it == piece.parts[0].passages.end()) return {false, {}, {}};
+    if (it->second.phrases.size() != 1) return {false, {}, {}};
+    const Phrase& ph = it->second.phrases[0];
+
+    std::vector<MelodicFigure> figs;
+    for (const auto& fp : ph.figures) {
+        const MelodicFigure* mf = dynamic_cast<const MelodicFigure*>(fp.get());
+        if (!mf) return {false, {}, {}};
+        figs.push_back(*mf);
+    }
+    return {true, std::move(figs), ph.connectors};
+}
+
+int integ_elab_all_leave() {
+    ElaboratedPhraseConfig cfg;
+    // Provide a literal skeleton so behavior is fully deterministic.
+    cfg.skeleton = MelodicFigure{};
+    cfg.skeleton->units = {
+        {2.0f, 0}, {2.0f, +1}, {2.0f, +1}, {2.0f, -1}
+    };
+    cfg.choiceMode = ElaboratedPhraseConfig::ChoiceMode::AllLeave;
+
+    auto r = compose_elaborated(cfg);
+    if (!r.ok) { std::cerr << "  FAIL: compose failed\n"; return 1; }
+    EXPECT_EQ(r.figures.size(), 4u, "4 figures");
+    EXPECT_EQ(r.connectors.size(), 4u, "4 connectors");
+
+    // All Leave -> all single-unit figures with step=0.
+    for (size_t i = 0; i < 4; ++i) {
+        EXPECT_EQ(r.figures[i].units.size(), 1u, "leave = 1 unit");
+        EXPECT_EQ(r.figures[i].units[0].step, 0, "leave step is 0");
+        EXPECT_NEAR(r.figures[i].units[0].duration, 2.0f, 1e-5f, "leave duration matches anchor");
+    }
+
+    // FC[0] dummy = 0; FC[i>0].leadStep = skel.step[i] - prev_net_step.
+    // Leave figures have net_step = 0, so FC[i>0].leadStep = skel.step[i].
+    EXPECT_EQ(r.connectors[0].leadStep, 0, "FC[0] dummy");
+    EXPECT_EQ(r.connectors[1].leadStep, +1, "FC[1] = skel step (leave net=0)");
+    EXPECT_EQ(r.connectors[2].leadStep, +1, "FC[2] = skel step");
+    EXPECT_EQ(r.connectors[3].leadStep, -1, "FC[3] = skel step");
+    return 0;
+}
+
+int integ_elab_all_generate() {
+    ElaboratedPhraseConfig cfg;
+    cfg.skeleton = MelodicFigure{};
+    cfg.skeleton->units = {
+        {2.0f, 0}, {2.0f, +1}, {2.0f, -1}
+    };
+    cfg.choiceMode = ElaboratedPhraseConfig::ChoiceMode::AllGenerate;
+    cfg.seed = 0xE1AB0001u;
+
+    auto r = compose_elaborated(cfg);
+    if (!r.ok) { std::cerr << "  FAIL: compose failed\n"; return 1; }
+    EXPECT_EQ(r.figures.size(), 3u, "3 figures");
+    EXPECT_EQ(r.connectors.size(), 3u, "3 connectors");
+
+    // Each generated figure should be non-empty with units[0].step = 0 (RFB
+    // convention). Phase 1 does not constrain RFB-generated figures to exact
+    // anchor duration — the leadStep bridging math accounts for any drift.
+    for (size_t i = 0; i < 3; ++i) {
+        const auto& fig = r.figures[i];
+        if (fig.units.empty()) { std::cerr << "  FAIL: generated fig " << i << " empty\n"; return 1; }
+        EXPECT_EQ(fig.units[0].step, 0, "generated fig units[0].step is 0");
+    }
+
+    // FC[0] dummy.
+    EXPECT_EQ(r.connectors[0].leadStep, 0, "FC[0] dummy");
+
+    // FC[i>0].leadStep = skel.step[i] - prev_net_step. Verify the math holds
+    // by recomputing from observed figure net_steps.
+    int prev_net = 0;
+    for (const auto& u : r.figures[0].units) prev_net += u.step;
+    EXPECT_EQ(r.connectors[1].leadStep, 1 - prev_net, "FC[1] math");
+
+    int prev_net_2 = 0;
+    for (const auto& u : r.figures[1].units) prev_net_2 += u.step;
+    EXPECT_EQ(r.connectors[2].leadStep, -1 - prev_net_2, "FC[2] math");
+    return 0;
+}
+
+int integ_elab_json_round_trip() {
+    ElaboratedPhraseConfig cfg;
+    cfg.skeleton = MelodicFigure{};
+    cfg.skeleton->units = {
+        {2.0f, 0}, {2.0f, +1}, {2.0f, -1}
+    };
+    cfg.choiceMode = ElaboratedPhraseConfig::ChoiceMode::AllLeave;
+    cfg.seed = 0xE1AB1234u;
+
+    auto r1 = compose_elaborated(cfg);
+    if (!r1.ok) { std::cerr << "  FAIL: in-code compose\n"; return 1; }
+
+    nlohmann::json j = cfg;
+    ElaboratedPhraseConfig cfg2;
+    from_json(j, cfg2);
+
+    auto r2 = compose_elaborated(cfg2);
+    if (!r2.ok) { std::cerr << "  FAIL: post-roundtrip compose\n"; return 1; }
+
+    EXPECT_EQ(r1.figures.size(), r2.figures.size(), "fig count match");
+    EXPECT_EQ(r1.connectors.size(), r2.connectors.size(), "conn count match");
+    for (size_t i = 0; i < r1.figures.size(); ++i) {
+        EXPECT_EQ(r1.connectors[i].leadStep, r2.connectors[i].leadStep, "FC leadStep match");
+        if (expect_figures_equal(r1.figures[i], r2.figures[i], "json roundtrip figure") != 0) return 1;
+    }
+    return 0;
+}
+
 int run_integration_tests() {
     RUN_TEST(test_smoke_round_trip);
     RUN_TEST(integ_invert);
@@ -803,6 +959,9 @@ int run_integration_tests() {
     RUN_TEST(integ_two_figure_length_retrograde);
     RUN_TEST(integ_two_figure_singleton_stretch);
     RUN_TEST(integ_two_figure_json_round_trip);
+    RUN_TEST(integ_elab_all_leave);
+    RUN_TEST(integ_elab_all_generate);
+    RUN_TEST(integ_elab_json_round_trip);
     return 0;
 }
 
