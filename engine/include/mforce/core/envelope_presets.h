@@ -55,6 +55,7 @@ struct ASEnvelope final : Envelope {
     static constexpr ConfigDescriptor descs[] = {
       {"attack",       ConfigType::Float, 0.2f, 0.0f, 1.0f},
       {"sustainLevel", ConfigType::Float, 1.0f, 0.0f, 1.0f},
+      {"reverse",      ConfigType::Bool,  0.0f, 0.0f, 1.0f},
     };
     return descs;
   }
@@ -62,23 +63,32 @@ struct ASEnvelope final : Envelope {
   void set_config(std::string_view name, float value) override {
     if (name == "attack")       { attack_ = value; rebuild(); return; }
     if (name == "sustainLevel") { sustainLevel_ = value; rebuild(); return; }
+    if (name == "reverse")      { reverse_ = (value != 0.0f); rebuild(); return; }
   }
 
   float get_config(std::string_view name) const override {
     if (name == "attack")       return attack_;
     if (name == "sustainLevel") return sustainLevel_;
+    if (name == "reverse")      return reverse_ ? 1.0f : 0.0f;
     return 0.0f;
   }
 
 private:
   void rebuild() {
+    // Normal : 0 → sustainLevel → sustainLevel (rise, then hold)
+    // Reverse: sustainLevel → 0 → 0           (fall from peak, then hold at 0)
+    // The reverse shape replaces the usual "Range[min=1,max=0] around an
+    // ASEnvelope" pattern for "peak at attack, zero at sustain" curves.
+    const float startV = reverse_ ? sustainLevel_ : 0.0f;
+    const float endV   = reverse_ ? 0.0f          : sustainLevel_;
     Envelope env(sr_);
-    env.add_stage({{0.0f, sustainLevel_, RampType::Linear, 0.0f}, attack_, 0.05f, 1.0f});
-    env.add_stage({{sustainLevel_, sustainLevel_, RampType::Linear, 0.0f}, 0.0f, 0.0f, 0.0f});
+    env.add_stage({{startV, endV, RampType::Linear, 0.0f}, attack_, 0.05f, 1.0f});
+    env.add_stage({{endV, endV, RampType::Linear, 0.0f}, 0.0f, 0.0f, 0.0f});
     *static_cast<Envelope*>(this) = std::move(env);
   }
   int sr_;
   float attack_{0.2f}, sustainLevel_{1.0f};
+  bool  reverse_{false};
 };
 
 // Attack → Sustain (expand) → Release. 0→level→level→0.
