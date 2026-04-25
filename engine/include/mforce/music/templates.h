@@ -248,6 +248,34 @@ struct TwoFigurePhraseConfig {
 };
 
 // ===========================================================================
+// ElaboratedPhraseConfig — RFB-built (or literal) skeleton + per-anchor
+// random Leave/Generate elaboration. First concrete middle-tier strategy.
+// ===========================================================================
+
+struct ElaboratedPhraseConfig {
+    // Optional literal skeleton. If absent, strategy builds via RFB.
+    std::optional<MelodicFigure> skeleton;
+
+    // RFB build spec (used when skeleton is absent).
+    enum class Method { ByCount, ByLength, Singleton };
+    Method buildMethod{Method::ByCount};
+    int   buildCount{4};       // ByCount
+    float buildLength{4.0f};   // ByLength
+    Constraints buildConstraints;
+
+    // Per-anchor choice mode. Random is the production default; AllLeave /
+    // AllGenerate exist for testability and direct authoring.
+    enum class ChoiceMode { Random, AllLeave, AllGenerate };
+    ChoiceMode choiceMode{ChoiceMode::Random};
+
+    // Constraints for RFB-generated elaboration figures (Generate path).
+    Constraints generateConstraints;
+
+    // 0 means "use phraseTmpl.seed, else a deterministic default".
+    uint32_t seed{0};
+};
+
+// ===========================================================================
 // PhraseTemplate — sequence of FigureTemplates
 // ===========================================================================
 
@@ -280,6 +308,7 @@ struct PhraseTemplate {
     std::optional<PeriodPhraseConfig> periodConfig;
     std::optional<SentencePhraseConfig> sentenceConfig;
     std::optional<TwoFigurePhraseConfig> twoFigureConfig;
+    std::optional<ElaboratedPhraseConfig> elaboratedConfig;
 };
 
 // ===========================================================================
