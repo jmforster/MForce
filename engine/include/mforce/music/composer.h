@@ -382,6 +382,15 @@ private:
       const auto& fig = *phrase.figures[f];
       bool isChordFig = (dynamic_cast<const ChordFigure*>(phrase.figures[f].get()) != nullptr);
 
+      // Advance cursor by FC.leadStep before walking the figure's units.
+      // FC[0].leadStep is 0 by convention (figure 0 positioned by
+      // phrase.startingPitch); FC[f>0].leadStep is the real inter-figure
+      // cursor advance. Defensive size check tolerates Phrases composed
+      // before the connectors field was wired (older test fixtures).
+      if (f < int(phrase.connectors.size())) {
+        currentNN = step_note(currentNN, phrase.connectors[f].leadStep, scale);
+      }
+
       for (int i = 0; i < fig.note_count(); ++i) {
         const auto& u = fig.units[i];
 
