@@ -531,6 +531,69 @@ inline void from_json(const json& j, TwoFigurePhraseConfig& c) {
 }
 
 // ===========================================================================
+// ElaboratedPhraseConfig
+// ===========================================================================
+
+inline void to_json(json& j, ElaboratedPhraseConfig::Method m) {
+    switch (m) {
+        case ElaboratedPhraseConfig::Method::ByCount:   j = "by_count";   break;
+        case ElaboratedPhraseConfig::Method::ByLength:  j = "by_length";  break;
+        case ElaboratedPhraseConfig::Method::Singleton: j = "singleton";  break;
+    }
+}
+
+inline void from_json(const json& j, ElaboratedPhraseConfig::Method& m) {
+    const std::string s = j.get<std::string>();
+    if      (s == "by_count")  m = ElaboratedPhraseConfig::Method::ByCount;
+    else if (s == "by_length") m = ElaboratedPhraseConfig::Method::ByLength;
+    else if (s == "singleton") m = ElaboratedPhraseConfig::Method::Singleton;
+    else throw std::runtime_error("Unknown ElaboratedPhraseConfig::Method: " + s);
+}
+
+inline void to_json(json& j, ElaboratedPhraseConfig::ChoiceMode m) {
+    switch (m) {
+        case ElaboratedPhraseConfig::ChoiceMode::Random:      j = "random";       break;
+        case ElaboratedPhraseConfig::ChoiceMode::AllLeave:    j = "all_leave";    break;
+        case ElaboratedPhraseConfig::ChoiceMode::AllGenerate: j = "all_generate"; break;
+    }
+}
+
+inline void from_json(const json& j, ElaboratedPhraseConfig::ChoiceMode& m) {
+    const std::string s = j.get<std::string>();
+    if      (s == "random")       m = ElaboratedPhraseConfig::ChoiceMode::Random;
+    else if (s == "all_leave")    m = ElaboratedPhraseConfig::ChoiceMode::AllLeave;
+    else if (s == "all_generate") m = ElaboratedPhraseConfig::ChoiceMode::AllGenerate;
+    else throw std::runtime_error("Unknown ElaboratedPhraseConfig::ChoiceMode: " + s);
+}
+
+inline void to_json(json& j, const ElaboratedPhraseConfig& c) {
+    j = json::object();
+    if (c.skeleton) j["skeleton"] = *c.skeleton;
+    j["buildMethod"]      = c.buildMethod;
+    if (c.buildCount != 4)     j["buildCount"]  = c.buildCount;
+    if (c.buildLength != 4.0f) j["buildLength"] = c.buildLength;
+    j["buildConstraints"] = c.buildConstraints;
+    j["choiceMode"]       = c.choiceMode;
+    j["generateConstraints"] = c.generateConstraints;
+    if (c.seed != 0) j["seed"] = c.seed;
+}
+
+inline void from_json(const json& j, ElaboratedPhraseConfig& c) {
+    if (j.contains("skeleton")) {
+        MelodicFigure mf;
+        from_json(j.at("skeleton"), mf);
+        c.skeleton = std::move(mf);
+    }
+    if (j.contains("buildMethod"))         c.buildMethod = j.at("buildMethod").get<ElaboratedPhraseConfig::Method>();
+    c.buildCount  = j.value("buildCount", 4);
+    c.buildLength = j.value("buildLength", 4.0f);
+    if (j.contains("buildConstraints"))    from_json(j.at("buildConstraints"), c.buildConstraints);
+    if (j.contains("choiceMode"))          c.choiceMode = j.at("choiceMode").get<ElaboratedPhraseConfig::ChoiceMode>();
+    if (j.contains("generateConstraints")) from_json(j.at("generateConstraints"), c.generateConstraints);
+    c.seed = j.value("seed", 0u);
+}
+
+// ===========================================================================
 // PhraseTemplate
 // ===========================================================================
 
@@ -548,6 +611,7 @@ inline void to_json(json& j, const PhraseTemplate& pt) {
     if (pt.periodConfig) j["periodConfig"] = *pt.periodConfig;
     if (pt.sentenceConfig) j["sentenceConfig"] = *pt.sentenceConfig;
     if (pt.twoFigureConfig) j["twoFigureConfig"] = *pt.twoFigureConfig;
+    if (pt.elaboratedConfig) j["elaboratedConfig"] = *pt.elaboratedConfig;
 
     // Connectors: only emit if any are present
     bool anyConnectors = false;
@@ -602,6 +666,11 @@ inline void from_json(const json& j, PhraseTemplate& pt) {
         TwoFigurePhraseConfig c;
         from_json(j.at("twoFigureConfig"), c);
         pt.twoFigureConfig = c;
+    }
+    if (j.contains("elaboratedConfig")) {
+        ElaboratedPhraseConfig c;
+        from_json(j.at("elaboratedConfig"), c);
+        pt.elaboratedConfig = c;
     }
 
     // Connectors: optional parallel vector; when absent, leave empty.
