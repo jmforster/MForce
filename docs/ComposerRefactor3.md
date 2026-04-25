@@ -97,6 +97,25 @@ We very lightly tested the FigureBuilder work via a bespoke test harness (new pa
 4. Brainstorm what "middle tiers" as a whole - namely, Phrase and Passage strategies and related classes - should actually look like
   - Currently there are a bunch of "shape" PhraseStrategies that should go away
   - Input into brainstorming is the universe of strategies we can imagine, informed by music theory and literature research
+   DONE 2026-04-24: ElaboratedPhraseStrategy Phase 1 — first concrete
+   middle-tier strategy emerging from this brainstorm. Recursive
+   elaboration / Auskomponierung framing: skeleton (RFB-built or literal)
+   + per-anchor random Leave/Generate; FC.leadStep math FC[0]=0 /
+   FC[i>0] = skel.step[i] - E_{i-1}.net_step bridges the cursor across
+   figure boundaries.
+   Foundation refactor came with it: Phrase gained parallel
+   std::vector<FigureConnector> connectors; figures are no longer
+   mutated to absorb leadStep; realize_phrase_to_events_ /
+   apply_cadence / pitch_before / range queries / Default- and
+   PeriodPassageStrategy cursor accumulators / build_melody_profile all
+   updated to read FC.leadStep from phrase.connectors at walk time.
+   K467 walker / harmony / period goldens all bit-identical to
+   pre-refactor branch tip (walker also matches the 2026-04-22 pinned
+   baseline; harmony's pinned baseline is pre-existing stale on this
+   branch independent of this work).
+   3 integration tests in test_figures.
+   (spec: docs/superpowers/specs/2026-04-24-elaborated-phrase-strategy-design.md)
+   (plan: docs/superpowers/plans/2026-04-24-elaborated-phrase-strategy.md)
 
 5. Redesign of the "middle tiers" - if Shapes go away so does FigureSource.shape, do we even need FigureSource, etc.
 
