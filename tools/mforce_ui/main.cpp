@@ -3215,24 +3215,6 @@ static void show_create_menu() {
         ImGui::EndMenu();
     }
 
-    // --- Exotic ---
-    if (ImGui::BeginMenu("Exotic")) {
-        menu_source("Sort Oscillator", "SortOscillator");
-        menu_source("Gray-Scott", "GrayScottSource");
-        menu_source("FitzHugh-Nagumo", "FitzhughNagumoSource");
-        menu_sep();
-        menu_source("Markov ODE", "MarkovOdeSource");
-        menu_source("Mass-Spring", "MassSpringSource");
-        menu_source("Self-Rewriting AST", "SelfRewritingASTSource");
-        menu_sep();
-        menu_source("SAT/DPLL", "SatDpllSource");
-        menu_source("Micro-NN", "MicroNNSource");
-        menu_source("Self-Avoiding Walk", "SelfAvoidingWalkSource");
-        menu_source("Homotopy", "HomotopySource");
-        menu_source("LDPC Decoder", "LDPCSource");
-        ImGui::EndMenu();
-    }
-
     // --- Wavetable ---
     if (ImGui::BeginMenu("Wavetable")) {
         menu_source("Wavetable", "WavetableSource");
@@ -3245,7 +3227,6 @@ static void show_create_menu() {
 
     // --- Physical (continuous-excitation WaveEvolutions) ---
     if (ImGui::BeginMenu("Physical")) {
-        menu_source("Blown Tube (flute)", "BlownTubeEvolution");
         menu_source("Reed (clarinet)", "ReedEvolution");
         menu_source("Bowed String", "BowedStringEvolution");
         menu_source("Brass (lip-reed)", "BrassEvolution");

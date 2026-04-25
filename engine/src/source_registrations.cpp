@@ -12,17 +12,6 @@
 #include "mforce/source/white_noise_source.h"
 #include "mforce/source/noise_sources.h"
 #include "mforce/source/wander_noise_source.h"
-#include "mforce/source/sort_oscillator.h"
-#include "mforce/source/gray_scott_source.h"
-#include "mforce/source/fitzhugh_nagumo_source.h"
-#include "mforce/source/markov_ode_source.h"
-#include "mforce/source/mass_spring_source.h"
-#include "mforce/source/self_rewriting_ast_source.h"
-#include "mforce/source/sat_dpll_source.h"
-#include "mforce/source/micro_nn_source.h"
-#include "mforce/source/self_avoiding_walk_source.h"
-#include "mforce/source/homotopy_source.h"
-#include "mforce/source/ldpc_source.h"
 #include "mforce/source/wavetable_source.h"
 #include "mforce/source/hybrid_ks_source.h"
 #include "mforce/source/combined_source.h"
@@ -69,61 +58,6 @@ void register_all_sources() {
 
     reg.register_type("FMSource", SourceCategory::Oscillator,
         [](int sr, auto) { return std::make_shared<FMSource>(sr); });
-
-    reg.register_type("SortOscillator", SourceCategory::Oscillator,
-        [](int sr, auto seed) {
-            return std::make_shared<SortOscillator>(sr, seed.value_or(0x5041'7201u));
-        });
-
-    reg.register_type("GrayScottSource", SourceCategory::Oscillator,
-        [](int sr, auto seed) {
-            return std::make_shared<GrayScottSource>(sr, seed.value_or(0x6783'0001u));
-        });
-
-    reg.register_type("FitzhughNagumoSource", SourceCategory::Oscillator,
-        [](int sr, auto seed) {
-            return std::make_shared<FitzhughNagumoSource>(sr, seed.value_or(0xF417'0001u));
-        });
-
-    reg.register_type("MarkovOdeSource", SourceCategory::Oscillator,
-        [](int sr, auto seed) {
-            return std::make_shared<MarkovOdeSource>(sr, seed.value_or(0x0DE1'2001u));
-        });
-
-    reg.register_type("MassSpringSource", SourceCategory::Oscillator,
-        [](int sr, auto seed) {
-            return std::make_shared<MassSpringSource>(sr, seed.value_or(0x5291'0001u));
-        });
-
-    reg.register_type("SelfRewritingASTSource", SourceCategory::Oscillator,
-        [](int sr, auto seed) {
-            return std::make_shared<SelfRewritingASTSource>(sr, seed.value_or(0xA571'0001u));
-        });
-
-    reg.register_type("SatDpllSource", SourceCategory::Oscillator,
-        [](int sr, auto seed) {
-            return std::make_shared<SatDpllSource>(sr, seed.value_or(0x5A7D'0001u));
-        });
-
-    reg.register_type("MicroNNSource", SourceCategory::Oscillator,
-        [](int sr, auto seed) {
-            return std::make_shared<MicroNNSource>(sr, seed.value_or(0x11E0'0001u));
-        });
-
-    reg.register_type("SelfAvoidingWalkSource", SourceCategory::Oscillator,
-        [](int sr, auto seed) {
-            return std::make_shared<SelfAvoidingWalkSource>(sr, seed.value_or(0x5A01'0001u));
-        });
-
-    reg.register_type("HomotopySource", SourceCategory::Oscillator,
-        [](int sr, auto seed) {
-            return std::make_shared<HomotopySource>(sr, seed.value_or(0xB007'0001u));
-        });
-
-    reg.register_type("LDPCSource", SourceCategory::Oscillator,
-        [](int sr, auto seed) {
-            return std::make_shared<LDPCSource>(sr, seed.value_or(0x1DBC'0001u));
-        });
 
     // -----------------------------------------------------------------------
     // Additive — BasicAdditiveSource (simple), AdditiveSource (full via Partials)
@@ -486,11 +420,6 @@ void register_all_sources() {
     reg.register_type("EKSEvolution", SourceCategory::Combiner,
         [](int, auto seed) {
             return std::make_shared<EKSEvolutionSource>(seed.value_or(0xEE45'0000u));
-        });
-
-    reg.register_type("BlownTubeEvolution", SourceCategory::Combiner,
-        [](int, auto seed) {
-            return std::make_shared<BlownTubeEvolutionSource>(seed.value_or(0xF10E'B10Du));
         });
 
     reg.register_type("ReedEvolution", SourceCategory::Combiner,

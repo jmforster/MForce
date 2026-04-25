@@ -340,50 +340,8 @@ private:
 };
 
 // ---------------------------------------------------------------------------
-// BlownTubeEvolution — continuous-excitation resonator (flute / blown-pipe).
-// Ring buffer = tube of length Fs/freq. Each sample:
-//   1. loop filter (2-sample average * (1 - tubeLoss)) to simulate tube losses
-//   2. optional tanh(jetGain * x) for edge-tone nonlinearity
-//   3. inject breath * noise into the cell
-// The noise and tone share the same resonant path — coupling is the mechanism,
-// not a parallel mix.
-// ---------------------------------------------------------------------------
-struct BlownTubeEvolution final : WaveEvolution {
-  explicit BlownTubeEvolution(uint32_t seed = 0xF10E'B10Du) : rng_(seed) {}
-
-  float tubeLoss{0.02f};       // per-sample loop loss (0 = lossless, higher = duller/shorter)
-  float jetGain{0.0f};         // 0 = linear, >0 = tanh drive strength
-  ValueSource* breath{nullptr}; // excitation amplitude, read once per sample
-
-  float adjust(float /*frequency*/) override { return 0.0f; }
-
-  void shape_excitation(std::vector<float>& values) override {
-    // Start silent — continuous breath drives the resonance.
-    std::fill(values.begin(), values.end(), 0.0f);
-  }
-
-  void evolve(std::vector<float>& values, int index) override {
-    int len = int(values.size());
-    int next = (index + 1) % len;
-
-    float loopOut = (values[index] + values[next]) * 0.5f * (1.0f - tubeLoss);
-
-    if (jetGain > 0.0f) {
-      loopOut = std::tanh(jetGain * loopOut);
-    }
-
-    float b = breath ? breath->next() : 0.0f;
-    float noise = rng_.valuePN();
-    values[index] = loopOut + b * noise;
-  }
-
-private:
-  Randomizer rng_;
-};
-
-// ---------------------------------------------------------------------------
 // ReedEvolution — reed-valve resonator (clarinet / sax).
-// Same ring-buffer-as-tube structure as BlownTubeEvolution. reedStiffness
+// Ring-buffer-as-tube structure with reed nonlinearity. reedStiffness
 // drives a tanh shaper on the bore signal → odd/asymmetric harmonics; breath
 // is injected via a zero-mean noise term that seeds and sustains oscillation.
 // ---------------------------------------------------------------------------
@@ -761,69 +719,6 @@ struct EKSEvolutionSource final : ValueSource, IEvolutionHolder {
 
 private:
   EKSEvolution evo_;
-};
-
-// ---------------------------------------------------------------------------
-// BlownTubeEvolutionSource — graph node holding a BlownTubeEvolution.
-// Wire to WavetableSource's "evolution" input. Wire a ValueSource (typically
-// an envelope times a noise/constant) to the "breath" input — this drives
-// continuous excitation, replacing the one-shot pluck of PluckEvolution.
-// ---------------------------------------------------------------------------
-struct BlownTubeEvolutionSource final : ValueSource, IEvolutionHolder {
-  explicit BlownTubeEvolutionSource(uint32_t seed = 0xF10E'B10Du) : evo_(seed) {}
-
-  const char* type_name() const override { return "BlownTubeEvolution"; }
-  SourceCategory category() const override { return SourceCategory::Combiner; }
-
-  WaveEvolution* get_evolution() override { return &evo_; }
-
-  std::span<const InputDescriptor> input_descriptors() const override {
-    static constexpr InputDescriptor descs[] = {
-      {"breath", false, "0-1"},
-    };
-    return descs;
-  }
-
-  void set_param(std::string_view name, std::shared_ptr<ValueSource> src) override {
-    if (name == "breath") {
-      breathSrc_ = std::move(src);
-      evo_.breath = breathSrc_.get();
-    }
-  }
-
-  std::shared_ptr<ValueSource> get_param(std::string_view name) const override {
-    if (name == "breath") return breathSrc_;
-    return {};
-  }
-
-  std::span<const ConfigDescriptor> config_descriptors() const override {
-    static constexpr ConfigDescriptor descs[] = {
-      {"tubeLoss", ConfigType::Float, 0.02f, 0.0f, 0.5f},
-      {"jetGain",  ConfigType::Float, 0.0f,  0.0f, 10.0f},
-    };
-    return descs;
-  }
-
-  void set_config(std::string_view name, float value) override {
-    if (name == "tubeLoss") evo_.tubeLoss = value;
-    else if (name == "jetGain") evo_.jetGain = value;
-  }
-
-  float get_config(std::string_view name) const override {
-    if (name == "tubeLoss") return evo_.tubeLoss;
-    if (name == "jetGain")  return evo_.jetGain;
-    return 0.0f;
-  }
-
-  void prepare(const RenderContext& ctx, int frames) override {
-    if (breathSrc_) breathSrc_->prepare(ctx, frames);
-  }
-  float next() override { return 0.0f; }
-  float current() const override { return 0.0f; }
-
-private:
-  BlownTubeEvolution evo_;
-  std::shared_ptr<ValueSource> breathSrc_;
 };
 
 // ---------------------------------------------------------------------------
