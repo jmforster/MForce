@@ -82,11 +82,18 @@ private:
       // Compute starting degree from phrase's startingPitch
       int degree = DefaultPhraseStrategy::degree_in_scale(
           phrase.startingPitch, scale);
+      const int len = scale.length();
 
-      for (const auto& fig : phrase.figures) {
+      for (int fi = 0; fi < (int)phrase.figures.size(); ++fi) {
+        const auto& fig = phrase.figures[fi];
+        // FC.leadStep advances the cursor before walking this figure's
+        // units (post-foundation-refactor: leadStep is no longer baked into
+        // figure data; it lives on phrase.connectors[fi]).
+        if (fi < (int)phrase.connectors.size()) {
+          degree = ((degree + phrase.connectors[fi].leadStep) % len + len) % len;
+        }
         for (const auto& u : fig->units) {
           // Apply step FIRST — the unit sounds at degree+step, not degree
-          int len = scale.length();
           degree = ((degree + u.step) % len + len) % len;
           if (beat + u.duration > startBeat && beat < endBeat) {
             float spanStart = std::max(beat, startBeat) - startBeat;
@@ -271,8 +278,11 @@ inline Passage PeriodPassageStrategy::compose_passage(
     }
     Phrase phrase = ps->compose_phrase(locus.with_phrase(i), localTmpl);
 
-    for (const auto& fig : phrase.figures) {
-      for (const auto& u : fig->units) {
+    for (int fi = 0; fi < (int)phrase.figures.size(); ++fi) {
+      if (fi < (int)phrase.connectors.size()) {
+        runningReader.step(phrase.connectors[fi].leadStep);
+      }
+      for (const auto& u : phrase.figures[fi]->units) {
         runningReader.step(u.step);
       }
     }

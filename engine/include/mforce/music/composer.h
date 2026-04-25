@@ -382,15 +382,6 @@ private:
       const auto& fig = *phrase.figures[f];
       bool isChordFig = (dynamic_cast<const ChordFigure*>(phrase.figures[f].get()) != nullptr);
 
-      // Advance cursor by FC.leadStep before walking the figure's units.
-      // FC[0].leadStep is 0 by convention (figure 0 positioned by
-      // phrase.startingPitch); FC[f>0].leadStep is the real inter-figure
-      // cursor advance. Defensive size check tolerates Phrases composed
-      // before the connectors field was wired (older test fixtures).
-      if (f < int(phrase.connectors.size())) {
-        currentNN = step_note(currentNN, phrase.connectors[f].leadStep, scale);
-      }
-
       for (int i = 0; i < fig.note_count(); ++i) {
         const auto& u = fig.units[i];
 
@@ -414,9 +405,17 @@ private:
             chordIdx = ci;
           }
           auto resolved = prog.chords.get(chordIdx).resolve(section.scale, kBaseOctave);
-          currentNN = step_chord_tone(currentNN, u.step, resolved);
+          // For unit 0 of the figure, fold FC.leadStep into the chord-tone
+          // walk: a single step_chord_tone(currentNN, leadStep + u.step, ...)
+          // call snaps once and walks once. Splitting into two calls would
+          // double-snap and drift. step_chord_tone is NOT linear over walks.
+          int stepFromLead = (i == 0 && f < int(phrase.connectors.size()))
+              ? phrase.connectors[f].leadStep : 0;
+          currentNN = step_chord_tone(currentNN, stepFromLead + u.step, resolved);
         } else {
-          currentNN = step_note(currentNN, u.step, scale);
+          int stepFromLead = (i == 0 && f < int(phrase.connectors.size()))
+              ? phrase.connectors[f].leadStep : 0;
+          currentNN = step_note(currentNN, stepFromLead + u.step, scale);
         }
         float soundNN = currentNN + float(u.accidental);
 
@@ -1126,8 +1125,9 @@ inline Passage DefaultPassageStrategy::compose_passage(
       PitchReader reader(scale);
       reader.set_pitch(cursor);
       for (auto& ph : passage.phrases) {
-        for (auto& fig : ph.figures) {
-          for (auto& u : fig->units) {
+        for (int fi = 0; fi < (int)ph.figures.size(); ++fi) {
+          if (fi < (int)ph.connectors.size()) reader.step(ph.connectors[fi].leadStep);
+          for (auto& u : ph.figures[fi]->units) {
             reader.step(u.step);
           }
         }

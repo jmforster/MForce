@@ -61,11 +61,15 @@ inline Pitch pitch_before(const Locus& locus) {
     pr.set_pitch(seed);
 
     // Step through all prior phrases continuously — no reset between phrases.
+    // Each figure boundary advances the cursor by its FC.leadStep before
+    // walking that figure's units (post-foundation-refactor: leadStep no
+    // longer baked into figure data).
     int endPhrase = locus.phraseIdx < 0 ? (int)pass->phrases.size() : locus.phraseIdx;
     for (int pi = 0; pi < endPhrase; ++pi) {
       const Phrase& ph = pass->phrases[pi];
-      for (const auto& fig : ph.figures) {
-        for (const auto& unit : fig->units) {
+      for (int fi = 0; fi < (int)ph.figures.size(); ++fi) {
+        if (fi < (int)ph.connectors.size()) pr.step(ph.connectors[fi].leadStep);
+        for (const auto& unit : ph.figures[fi]->units) {
           pr.step(unit.step);
         }
       }
@@ -75,6 +79,7 @@ inline Pitch pitch_before(const Locus& locus) {
       const Phrase& ph = pass->phrases[locus.phraseIdx];
       int endFig = std::min(locus.figureIdx, (int)ph.figures.size());
       for (int fi = 0; fi < endFig; ++fi) {
+        if (fi < (int)ph.connectors.size()) pr.step(ph.connectors[fi].leadStep);
         for (const auto& unit : ph.figures[fi]->units) {
           pr.step(unit.step);
         }
@@ -145,6 +150,7 @@ inline PitchRange range_in_phrase_before(const Locus& locus) {
 
   int endFig = locus.figureIdx < 0 ? (int)ph.figures.size() : locus.figureIdx;
   for (int fi = 0; fi < endFig; ++fi) {
+    if (fi < (int)ph.connectors.size()) pr.step(ph.connectors[fi].leadStep);
     detail::update_range_from_figure(*ph.figures[fi], pr, r);
   }
   return r;
@@ -172,14 +178,17 @@ inline PitchRange range_in_passage_before(const Locus& locus) {
 
   int endPhrase = locus.phraseIdx < 0 ? (int)pass->phrases.size() : locus.phraseIdx;
   for (int pi = 0; pi < endPhrase; ++pi) {
-    for (const auto& fig : pass->phrases[pi].figures) {
-      detail::update_range_from_figure(*fig, pr, r);
+    const Phrase& ph = pass->phrases[pi];
+    for (int fi = 0; fi < (int)ph.figures.size(); ++fi) {
+      if (fi < (int)ph.connectors.size()) pr.step(ph.connectors[fi].leadStep);
+      detail::update_range_from_figure(*ph.figures[fi], pr, r);
     }
   }
   if (locus.phraseIdx >= 0 && locus.phraseIdx < (int)pass->phrases.size() && locus.figureIdx > 0) {
     const Phrase& ph = pass->phrases[locus.phraseIdx];
     int endFig = std::min(locus.figureIdx, (int)ph.figures.size());
     for (int fi = 0; fi < endFig; ++fi) {
+      if (fi < (int)ph.connectors.size()) pr.step(ph.connectors[fi].leadStep);
       detail::update_range_from_figure(*ph.figures[fi], pr, r);
     }
   }
@@ -203,8 +212,9 @@ inline PitchRange range_in_piece_before(const Locus& locus) {
     PitchReader pr(scale);
     if (!it->second.phrases.empty()) pr.set_pitch(it->second.phrases[0].startingPitch);
     for (const auto& ph : it->second.phrases) {
-      for (const auto& fig : ph.figures) {
-        detail::update_range_from_figure(*fig, pr, r);
+      for (int fi = 0; fi < (int)ph.figures.size(); ++fi) {
+        if (fi < (int)ph.connectors.size()) pr.step(ph.connectors[fi].leadStep);
+        detail::update_range_from_figure(*ph.figures[fi], pr, r);
       }
     }
   }

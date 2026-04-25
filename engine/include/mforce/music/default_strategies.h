@@ -264,6 +264,11 @@ inline void DefaultPhraseStrategy::apply_cadence(Phrase& phrase,
 
     int netSteps = 0;
     for (int f = 0; f <= lastIdx; ++f) {
+      // FC.leadStep is no longer baked into figure data (post-foundation-
+      // refactor); include it explicitly here.
+      if (f < int(phrase.connectors.size())) {
+        netSteps += phrase.connectors[f].leadStep;
+      }
       netSteps += phrase.figures[f]->net_step();
     }
 
