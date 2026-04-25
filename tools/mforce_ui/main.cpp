@@ -1446,6 +1446,18 @@ static int g_waveformSamples = 0;            // number of samples in waveform bu
 static int g_waveZoom = 1;        // samples per pixel (1 = most zoomed in)
 static int g_waveScrollPos = 0;   // starting sample offset into available data
 static int g_waveColumns = 1;     // number of columns for waveform tiling
+static bool g_showEnvelopes = true;  // header toggle — hide envelope-category strips
+
+// Pop-out waveform: one independent ImGui window per entry, each with its own
+// zoom/scroll. nodeId == -1 means the main Output buffer; otherwise a GraphNode id.
+struct WavePopout {
+    int         nodeId;   // -1 for Output, else GraphNode::id
+    std::string label;    // cached for window title; buffer re-resolved each frame
+    bool        open{true};
+    int         zoom{1};
+    int         scroll{0};
+};
+static std::vector<WavePopout> g_wavePopouts;
 
 // ===========================================================================
 // Transport state
@@ -1991,7 +2003,7 @@ static void draw_keyboard_panel() {
     }
 
     // --- Piano keyboard rendering via ImDrawList ---
-    const int NUM_OCTAVES = 2;
+    const int NUM_OCTAVES = 4;
     const int WHITE_KEYS_PER_OCT = 7;
     const int TOTAL_WHITE = NUM_OCTAVES * WHITE_KEYS_PER_OCT;
 
@@ -3358,9 +3370,14 @@ static void show_node_context_menu() {
 
 static constexpr float WAVE_MARGIN_W = 45.0f;  // left margin for peak values
 
-static void draw_waveform(const char* label, const float* buf, int sampleCount,
+// Returns true if the pop-out button was clicked this frame. Zoom/scroll are
+// passed in so popouts can maintain independent view state from the main panel.
+static bool draw_waveform(const char* label, const float* buf, int sampleCount,
                           ImU32 waveColor,
-                          float x, float y, float width, float height) {
+                          float x, float y, float width, float height,
+                          int zoom, int scrollPos,
+                          bool showPopoutBtn = true,
+                          int popoutBtnId = 0) {
     ImDrawList* dl = ImGui::GetWindowDrawList();
 
     // Background (full area including margin)
@@ -3397,11 +3414,11 @@ static void draw_waveform(const char* label, const float* buf, int sampleCount,
         // Draw waveform (normalized)
         int pixelCount = (int)drawW;
         for (int px = 0; px < pixelCount; ++px) {
-            int sampleStart = g_waveScrollPos + px * g_waveZoom;
+            int sampleStart = scrollPos + px * zoom;
             if (sampleStart >= sampleCount) break;
 
             float minVal = 1.0f, maxVal = -1.0f;
-            int sampleEnd = std::min(sampleStart + g_waveZoom, sampleCount);
+            int sampleEnd = std::min(sampleStart + zoom, sampleCount);
             for (int s = sampleStart; s < sampleEnd; ++s) {
                 float v = buf[s] * scale;
                 minVal = std::min(minVal, v);
@@ -3419,6 +3436,20 @@ static void draw_waveform(const char* label, const float* buf, int sampleCount,
     dl->AddRect(ImVec2(x, y), ImVec2(x + width, y + height), IM_COL32(80, 80, 80, 255));
     // Margin separator
     dl->AddLine(ImVec2(drawX, y), ImVec2(drawX, y + height), IM_COL32(60, 60, 60, 255));
+
+    // Pop-out button in top-right corner (drawn last so it's on top).
+    bool popped = false;
+    if (showPopoutBtn) {
+        ImVec2 savedCursor = ImGui::GetCursorScreenPos();
+        ImGui::SetCursorScreenPos(ImVec2(x + width - 20, y + 2));
+        ImGui::PushID("wpop");
+        ImGui::PushID(popoutBtnId);
+        popped = ImGui::ArrowButton("##pop", ImGuiDir_Up);
+        ImGui::PopID();
+        ImGui::PopID();
+        ImGui::SetCursorScreenPos(savedCursor);
+    }
+    return popped;
 }
 
 // ===========================================================================
@@ -3436,11 +3467,11 @@ static void draw_waveform_window() {
     ImGui::Text("Zoom");
     ImGui::SameLine();
     ImGui::PushID("wz");
-    if (ImGui::ArrowButton("##zo", ImGuiDir_Left)) g_waveZoom = std::min(4096, g_waveZoom * 2);
+    if (ImGui::ArrowButton("##zdec", ImGuiDir_Left)) g_waveZoom = std::max(1, g_waveZoom / 2);
     ImGui::SameLine(0, 2);
     ImGui::Text("%dx", g_waveZoom);
     ImGui::SameLine(0, 2);
-    if (ImGui::ArrowButton("##zi", ImGuiDir_Right)) g_waveZoom = std::max(1, g_waveZoom / 2);
+    if (ImGui::ArrowButton("##zinc", ImGuiDir_Right)) g_waveZoom = std::min(4096, g_waveZoom * 2);
     ImGui::PopID();
     ImGui::SameLine();
     if (ImGui::SmallButton("Fit")) {
@@ -3453,6 +3484,9 @@ static void draw_waveform_window() {
     ImGui::Text("Columns");
     ImGui::SameLine();
     spinner_int("wcol", &g_waveColumns, 1, 1, 4);
+    ImGui::SameLine();
+    ImGui::Spacing(); ImGui::SameLine();
+    ImGui::Checkbox("Envelopes", &g_showEnvelopes);
 
     // Horizontal scrollbar
     int maxScroll = std::max(0, g_waveformSamples - (int)(waveAreaW) * g_waveZoom);
@@ -3466,41 +3500,39 @@ static void draw_waveform_window() {
         ImGui::PopItemWidth();
     }
 
-    // Calculate strip heights from remaining space
-    int dspNodeCount = 0;
-    for (auto& n : s_nodes)
-        if (!n.waveformData.empty()) dspNodeCount++;
-
-    float remainH = ImGui::GetContentRegionAvail().y;
-    int totalStrips = 1 + dspNodeCount;  // output + per-node
-    int totalRows = (totalStrips + g_waveColumns - 1) / g_waveColumns;
-    float stripH = std::max(25.0f, (remainH - totalRows * 2.0f) / float(totalRows));
-
-    // Scrollable waveform area
-    ImGui::BeginChild("WaveScroll", ImVec2(0, 0), false);
-
-    ImVec2 cursor = ImGui::GetCursorScreenPos();
-    float yOff = 0.0f;
-
-    // Collect all strips: output first, then per-node
-    struct WaveStrip { const char* label; const float* buf; int count; ImU32 color; };
+    // Collect all strips: output first, then per-node (envelope strips filtered
+    // out when g_showEnvelopes is off, giving the remaining waveforms more room).
+    struct WaveStrip { std::string label; const float* buf; int count; ImU32 color; int nodeId; };
     std::vector<WaveStrip> strips;
     static const ImU32 audioColor = IM_COL32(80, 220, 80, 255);     // bright green
     static const ImU32 envelopeColor = IM_COL32(220, 220, 60, 255); // yellow
 
-    strips.push_back({"Output",
+    strips.push_back({std::string("Output"),
                       g_outputWaveform.empty() ? nullptr : g_outputWaveform.data(),
-                      g_waveformSamples, audioColor});
+                      g_waveformSamples, audioColor, -1});
 
     auto& reg = SourceRegistry::instance();
     for (auto& n : s_nodes) {
         if (n.waveformData.empty()) continue;
         SourceCategory cat = reg.has(n.typeName) ? reg.get_category(n.typeName) : SourceCategory::Utility;
-        ImU32 col = (cat == SourceCategory::Envelope) ? envelopeColor : audioColor;
-        strips.push_back({n.label.c_str(),
-                          n.waveformData.data(), (int)n.waveformData.size(),
-                          col});
+        bool isEnvelope = (cat == SourceCategory::Envelope);
+        if (isEnvelope && !g_showEnvelopes) continue;
+        ImU32 col = isEnvelope ? envelopeColor : audioColor;
+        strips.push_back({n.label, n.waveformData.data(), (int)n.waveformData.size(), col, n.id});
     }
+
+    // Calculate strip heights from remaining space (post-filter).
+    float remainH = ImGui::GetContentRegionAvail().y;
+    int totalStrips = (int)strips.size();
+    int totalRows = std::max(1, (totalStrips + g_waveColumns - 1) / g_waveColumns);
+    float stripH = std::max(25.0f, (remainH - totalRows * 2.0f) / float(totalRows));
+
+    // Scrollable waveform area. NoScrollWithMouse so ImGui doesn't consume
+    // wheel/trackpad events before our custom scroll handler can read them.
+    ImGui::BeginChild("WaveScroll", ImVec2(0, 0), false, ImGuiWindowFlags_NoScrollWithMouse);
+
+    ImVec2 cursor = ImGui::GetCursorScreenPos();
+    float yOff = 0.0f;
 
     // Layout strips in g_waveColumns columns
     int N = g_waveColumns;
@@ -3512,32 +3544,184 @@ static void draw_waveform_window() {
         int row = i / N;
         float xPos = cursor.x + col * (colW + gap);
         float yPos = cursor.y + row * (stripH + 2.0f);
-        draw_waveform(strips[i].label, strips[i].buf, strips[i].count,
-                      strips[i].color, xPos, yPos, colW, stripH);
+        bool popped = draw_waveform(strips[i].label.c_str(), strips[i].buf, strips[i].count,
+                                    strips[i].color, xPos, yPos, colW, stripH,
+                                    g_waveZoom, g_waveScrollPos,
+                                    /*showPopoutBtn*/ true, /*popoutBtnId*/ i);
+        if (popped) {
+            WavePopout wp;
+            wp.nodeId = strips[i].nodeId;
+            wp.label  = strips[i].label;
+            wp.zoom   = g_waveZoom;
+            wp.scroll = g_waveScrollPos;
+            g_wavePopouts.push_back(std::move(wp));
+        }
     }
 
     int actualRows = ((int)strips.size() + N - 1) / N;
     yOff = actualRows * (stripH + 2.0f);
     ImGui::Dummy(ImVec2(waveAreaW, yOff));
 
-    // Mouse wheel zoom
+    // Wheel: scroll horizontally (natural for horizontal data).
+    // Ctrl+wheel: zoom (standard convention).
     if (ImGui::IsWindowHovered()) {
         float wheel = ImGui::GetIO().MouseWheel;
-        if (wheel > 0.0f && g_waveZoom > 1)
-            g_waveZoom = std::max(1, g_waveZoom / 2);
-        else if (wheel < 0.0f && g_waveZoom < 4096)
-            g_waveZoom = std::min(4096, g_waveZoom * 2);
+        if (wheel != 0.0f) {
+            if (ImGui::GetIO().KeyCtrl) {
+                if (wheel > 0.0f && g_waveZoom > 1)
+                    g_waveZoom = std::max(1, g_waveZoom / 2);
+                else if (wheel < 0.0f && g_waveZoom < 4096)
+                    g_waveZoom = std::min(4096, g_waveZoom * 2);
+            } else {
+                // Step = ~10% of visible range per notch; reverse direction so
+                // wheel-up moves the view "up the timeline" (left) — matches DAW convention.
+                int step = std::max(1, int(float(waveAreaW) * g_waveZoom * 0.1f));
+                g_waveScrollPos -= (int)(wheel) * step;
+                g_waveScrollPos = std::clamp(g_waveScrollPos, 0, std::max(1, maxScroll));
+            }
+        }
     }
 
-    // Click-drag scroll
+    // Click-drag scroll (unchanged)
     if (ImGui::IsWindowHovered() && ImGui::IsMouseDragging(ImGuiMouseButton_Left)) {
         float dx = ImGui::GetIO().MouseDelta.x;
         g_waveScrollPos -= (int)(dx * g_waveZoom);
         g_waveScrollPos = std::clamp(g_waveScrollPos, 0, std::max(1, maxScroll));
     }
 
+    // Keyboard shortcuts — active when the waveform window is focused or
+    // hovered. No mouse/trackpad required.
+    //   Left/Right        : scroll by 10% of visible range
+    //   Shift+Left/Right  : scroll by full visible range (page)
+    //   Home / End        : jump to start/end
+    //   + / =             : zoom in
+    //   -                 : zoom out
+    //   0                 : fit (same as Fit button)
+    if (ImGui::IsWindowFocused() || ImGui::IsWindowHovered()) {
+        int pageSamples = std::max(1, int(float(waveAreaW) * g_waveZoom));
+        int step = std::max(1, pageSamples / 10);
+        bool shift = ImGui::GetIO().KeyShift;
+        int moveBy = shift ? pageSamples : step;
+
+        if (ImGui::IsKeyPressed(ImGuiKey_LeftArrow, true))  g_waveScrollPos -= moveBy;
+        if (ImGui::IsKeyPressed(ImGuiKey_RightArrow, true)) g_waveScrollPos += moveBy;
+        if (ImGui::IsKeyPressed(ImGuiKey_Home, false))      g_waveScrollPos = 0;
+        if (ImGui::IsKeyPressed(ImGuiKey_End, false))       g_waveScrollPos = maxScroll;
+        if (ImGui::IsKeyPressed(ImGuiKey_Equal, true) ||
+            ImGui::IsKeyPressed(ImGuiKey_KeypadAdd, true)) {
+            if (g_waveZoom > 1) g_waveZoom = std::max(1, g_waveZoom / 2);
+        }
+        if (ImGui::IsKeyPressed(ImGuiKey_Minus, true) ||
+            ImGui::IsKeyPressed(ImGuiKey_KeypadSubtract, true)) {
+            if (g_waveZoom < 4096) g_waveZoom = std::min(4096, g_waveZoom * 2);
+        }
+        if (ImGui::IsKeyPressed(ImGuiKey_0, false)) {
+            if (g_waveformSamples > 0)
+                g_waveZoom = std::max(1, g_waveformSamples / (int)waveAreaW);
+            g_waveScrollPos = 0;
+        }
+
+        g_waveScrollPos = std::clamp(g_waveScrollPos, 0, std::max(1, maxScroll));
+    }
+
     ImGui::EndChild();
     ImGui::End(); // Waveforms
+}
+
+// Draw each pop-out waveform as an independent ImGui window with its own
+// zoom/scroll controls. Buffers are re-resolved from s_nodes each frame so
+// popouts track live waveform updates after re-render.
+static void draw_wave_popouts() {
+    static const ImU32 audioColor = IM_COL32(80, 220, 80, 255);
+    static const ImU32 envelopeColor = IM_COL32(220, 220, 60, 255);
+    auto& reg = SourceRegistry::instance();
+
+    for (size_t i = 0; i < g_wavePopouts.size(); ) {
+        WavePopout& p = g_wavePopouts[i];
+        if (!p.open) { g_wavePopouts.erase(g_wavePopouts.begin() + i); continue; }
+
+        // Resolve current buffer + color.
+        const float* buf = nullptr;
+        int count = 0;
+        ImU32 color = audioColor;
+        if (p.nodeId == -1) {
+            buf = g_outputWaveform.empty() ? nullptr : g_outputWaveform.data();
+            count = g_waveformSamples;
+        } else {
+            for (auto& n : s_nodes) {
+                if (n.id != p.nodeId) continue;
+                if (!n.waveformData.empty()) {
+                    buf = n.waveformData.data();
+                    count = (int)n.waveformData.size();
+                    SourceCategory cat = reg.has(n.typeName) ? reg.get_category(n.typeName) : SourceCategory::Utility;
+                    if (cat == SourceCategory::Envelope) color = envelopeColor;
+                }
+                break;
+            }
+        }
+
+        // Unique window id that survives label changes (###-suffix is the id).
+        char title[128];
+        snprintf(title, sizeof(title), "Waveform — %s###wavepop_%d_%d",
+                 p.label.c_str(), p.nodeId, (int)i);
+
+        ImGui::SetNextWindowSize(ImVec2(720, 260), ImGuiCond_FirstUseEver);
+        if (ImGui::Begin(title, &p.open, ImGuiWindowFlags_None)) {
+            ImGui::Text("Zoom");
+            ImGui::SameLine();
+            ImGui::PushID("pz");
+            if (ImGui::ArrowButton("##zdec", ImGuiDir_Left))  p.zoom = std::max(1, p.zoom / 2);
+            ImGui::SameLine(0, 2);
+            ImGui::Text("%dx", p.zoom);
+            ImGui::SameLine(0, 2);
+            if (ImGui::ArrowButton("##zinc", ImGuiDir_Right)) p.zoom = std::min(4096, p.zoom * 2);
+            ImGui::PopID();
+            ImGui::SameLine();
+            float innerW = ImGui::GetContentRegionAvail().x;
+            if (ImGui::SmallButton("Fit")) {
+                if (count > 0 && innerW > 0) p.zoom = std::max(1, count / (int)innerW);
+                p.scroll = 0;
+            }
+
+            // Horizontal scroll
+            float waveW = ImGui::GetContentRegionAvail().x;
+            int maxScroll = std::max(0, count - (int)waveW * p.zoom);
+            p.scroll = std::clamp(p.scroll, 0, std::max(1, maxScroll));
+            if (maxScroll > 0) {
+                ImGui::PushItemWidth(waveW);
+                int sv = p.scroll;
+                if (ImGui::SliderInt("##pop_hscroll", &sv, 0, maxScroll, "")) p.scroll = sv;
+                ImGui::PopItemWidth();
+            }
+
+            float h = ImGui::GetContentRegionAvail().y;
+            ImVec2 pos = ImGui::GetCursorScreenPos();
+            draw_waveform(p.label.c_str(), buf, count, color,
+                          pos.x, pos.y, waveW, h,
+                          p.zoom, p.scroll,
+                          /*showPopoutBtn*/ false);
+            ImGui::Dummy(ImVec2(waveW, h));
+
+            // Wheel: scroll. Ctrl+wheel: zoom.
+            if (ImGui::IsWindowHovered()) {
+                float wheel = ImGui::GetIO().MouseWheel;
+                if (wheel != 0.0f) {
+                    if (ImGui::GetIO().KeyCtrl) {
+                        if (wheel > 0.0f && p.zoom > 1)
+                            p.zoom = std::max(1, p.zoom / 2);
+                        else if (wheel < 0.0f && p.zoom < 4096)
+                            p.zoom = std::min(4096, p.zoom * 2);
+                    } else {
+                        int step = std::max(1, int(waveW * p.zoom * 0.1f));
+                        p.scroll -= (int)(wheel) * step;
+                        p.scroll = std::clamp(p.scroll, 0, std::max(1, maxScroll));
+                    }
+                }
+            }
+        }
+        ImGui::End();
+        ++i;
+    }
 }
 
 // ===========================================================================
@@ -3554,6 +3738,23 @@ int main(int argc, char** argv) {
     GLFWwindow* window = glfwCreateWindow(1400, 900, "MForce - Patch Editor", nullptr, nullptr);
     if (!window) { glfwTerminate(); return 1; }
 
+    // Anchor to primary monitor's work area so the window can't land
+    // off-screen on multi-monitor setups where (0,0) might not be visible.
+    {
+        GLFWmonitor* mon = glfwGetPrimaryMonitor();
+        int mx = 0, my = 0, mw = 0, mh = 0;
+        if (mon) glfwGetMonitorWorkarea(mon, &mx, &my, &mw, &mh);
+        glfwSetWindowPos(window, mx + 100, my + 60);
+    }
+
+    // Explicit close callback: Windows taskbar "Close window" / hover-X
+    // sends WM_CLOSE, which should set the close flag via GLFW's default.
+    // Installing our own to be explicit in case the default path was being
+    // skipped on this system.
+    glfwSetWindowCloseCallback(window, [](GLFWwindow* w) {
+        glfwSetWindowShouldClose(w, GLFW_TRUE);
+    });
+
     glfwMakeContextCurrent(window);
     glfwSwapInterval(1);
 
@@ -3563,6 +3764,12 @@ int main(int argc, char** argv) {
 
     ImGuiIO& io = ImGui::GetIO();
     io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
+    // ImGuiConfigFlags_ViewportsEnable was causing the main window to lose
+    // its native title bar on this setup, locking Matt into whatever
+    // position/size state it happened to be in. Trade-off: pop-out waveform
+    // windows stay contained within the main window, they don't become
+    // free-floating OS windows.
+    // io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
     io.Fonts->AddFontFromFileTTF("engine/third_party/imgui/misc/fonts/Roboto-Medium.ttf", 15.0f);
 
     ImGui::StyleColorsDark();
@@ -3576,6 +3783,10 @@ int main(int argc, char** argv) {
     style.PinCircleRadius = 4.0f;
     style.LinkThickness = 2.5f;
     style.Flags |= ImNodesStyleFlags_GridLines;
+
+    // Canvas pan with Alt + left-drag (default is middle-mouse-drag, which
+    // is awkward without a three-button mouse).
+    ImNodes::GetIO().EmulateThreeButtonMouse.Modifier = &ImGui::GetIO().KeyAlt;
 
     ImGui_ImplGlfw_InitForOpenGL(window, true);
     ImGui_ImplOpenGL3_Init("#version 330");
@@ -3746,17 +3957,12 @@ int main(int argc, char** argv) {
             ImGuiID dockCenter;
             ImGui::DockBuilderSplitNode(dockCenterArea, ImGuiDir_Up, 0.25f, &dockTransport, &dockCenter);
 
-            // Split bottom: waveforms on left, keyboard on right
-            ImGuiID dockBottomLeft;
-            ImGuiID dockBottomRight;
-            ImGui::DockBuilderSplitNode(dockBottom, ImGuiDir_Right, 0.4f, &dockBottomRight, &dockBottomLeft);
-
-            // Dock windows
+            // Bottom area holds Waveforms + Keyboard as tabs (Waveforms selected first).
             ImGui::DockBuilderDockWindow("Transport", dockTransport);
             ImGui::DockBuilderDockWindow("Node Editor", dockCenter);
             ImGui::DockBuilderDockWindow("Properties", dockRight);
-            ImGui::DockBuilderDockWindow("Waveforms", dockBottomLeft);
-            ImGui::DockBuilderDockWindow("Keyboard", dockBottomRight);
+            ImGui::DockBuilderDockWindow("Waveforms", dockBottom);  // docked first → selected tab
+            ImGui::DockBuilderDockWindow("Keyboard",  dockBottom);
 
             ImGui::DockBuilderFinish(dockspaceId);
         }
@@ -3912,9 +4118,10 @@ int main(int argc, char** argv) {
             fitAllNodes();
         }
 
-        // Arrow key panning (when not editing text)
+        // Arrow key panning (when not editing text). Speed is per-frame, so
+        // at 60fps base=5 is ~300 px/sec, Shift=20 is ~1200 px/sec.
         if (!ImGui::GetIO().WantTextInput) {
-            float panSpeed = ImGui::GetIO().KeyShift ? 200.0f : 50.0f;
+            float panSpeed = ImGui::GetIO().KeyShift ? 20.0f : 5.0f;
             auto p = ImNodes::EditorContextGetPanning();
             if (ImGui::IsKeyDown(ImGuiKey_LeftArrow))  ImNodes::EditorContextResetPanning(ImVec2(p.x + panSpeed, p.y));
             if (ImGui::IsKeyDown(ImGuiKey_RightArrow)) ImNodes::EditorContextResetPanning(ImVec2(p.x - panSpeed, p.y));
@@ -3972,6 +4179,7 @@ int main(int argc, char** argv) {
         // Waveform display window
         // =================================================================
         draw_waveform_window();
+        draw_wave_popouts();
 
         // =================================================================
         // Keyboard panel
@@ -3988,6 +4196,8 @@ int main(int argc, char** argv) {
         glClearColor(0.1f, 0.1f, 0.12f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+
+        // (Viewports disabled; no platform-window render pass.)
 
         glfwSwapBuffers(window);
 
