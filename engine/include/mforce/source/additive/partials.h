@@ -242,7 +242,12 @@ struct Partials : ValueSource, IPartials {
   // SequencePartials) populate these via init_arrays(). ExplicitPartials
   // overrides to prefer its user-edited Stat_ copies. Used by the UI's
   // partials strip view to render the bar chart.
+  //
+  // Triggers an array rebuild if a config change marked them dirty — without
+  // this, configs set after construction (e.g. evenWeight2=0 from JSON load)
+  // wouldn't take effect until the first render call partials_prepare().
   std::vector<float> get_array(std::string_view name) const override {
+    if (arrayUpdateReq_) const_cast<Partials*>(this)->update_arrays();
     if (name == "mult1") return mult1_;
     if (name == "mult2") return mult2_;
     if (name == "ampl1") return ampl1_;
