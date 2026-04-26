@@ -624,6 +624,11 @@ static void delete_link(int linkId) {
     update_all_dsp();
 }
 
+// Set true when nodes need an automatic grid layout (boot/New default,
+// or a loaded patch with no saved positions). Cleared by load when
+// positions ARE present, so reload preserves user-placed positions.
+static bool s_needsLayout = false;
+
 static void new_graph(GraphMode mode) {
     s_currentFilePath.clear();
     s_nodes.clear();
@@ -631,6 +636,9 @@ static void new_graph(GraphMode mode) {
     s_graphMode = mode;
     s_nextId = 1;
     g_selectedNodeId = -1;
+    // Default boot/New nodes need a grid layout — load_graph_from_path
+    // will reset this to false if the loaded patch has saved positions.
+    s_needsLayout = true;
 
     if (mode == GraphMode::PatchGraph) {
         s_nodes.emplace_back(std::string(NT_PARAMETER), "frequency");
@@ -681,8 +689,6 @@ static std::string open_file_dialog() {
 // ===========================================================================
 
 // json_type_to_node removed — typeName strings are used directly
-
-static bool s_needsLayout = false;
 
 static void load_graph_from_path(const std::string& path) {
     using json = nlohmann::json;
@@ -4044,7 +4050,8 @@ int main(int argc, char** argv) {
             }
         }
     }
-    s_needsLayout = true;  // initial empty graph needs a layout pass
+    // (s_needsLayout is set by new_graph for the boot default; load clears it
+    // when restoring saved positions.)
     bool s_dockLayoutInitialized = false;
 
     while (!glfwWindowShouldClose(window)) {
