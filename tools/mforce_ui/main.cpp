@@ -969,6 +969,9 @@ static void load_graph_from_path(const std::string& path) {
                 ImNodes::SetNodeGridSpacePos(node.id, ImVec2(x, y));
             }
         }
+        // Positions restored — suppress the first-frame grid auto-layout that
+        // would otherwise scatter the just-loaded nodes.
+        s_needsLayout = false;
     } else {
         s_needsLayout = true;
     }
@@ -3611,7 +3614,7 @@ static void draw_spectrum_window() {
 
     // Plot the spectrum line. Per-pixel max-bin reduction to avoid undersampling
     // gaps when bin spacing in log-x is sub-pixel.
-    const ImU32 lineCol = IM_COL32(80, 220, 80, 255);
+    const ImU32 lineCol = IM_COL32(60, 200, 200, 255);  // teal — distinct from waveform green
     int prevBin = 1;
     float prevX = freq_to_x(float(g_outputSpectrumSR) * float(prevBin) / float(g_outputSpectrumN * 2));
     float prevDbMax = g_outputSpectrumDb[prevBin];
@@ -4041,7 +4044,7 @@ int main(int argc, char** argv) {
             }
         }
     }
-    bool s_firstFrame = true;
+    s_needsLayout = true;  // initial empty graph needs a layout pass
     bool s_dockLayoutInitialized = false;
 
     while (!glfwWindowShouldClose(window)) {
@@ -4061,15 +4064,17 @@ int main(int argc, char** argv) {
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
 
-        // Layout nodes (first frame or after load)
-        if (s_firstFrame || s_needsLayout) {
+        // Layout nodes — only when no saved positions were restored.
+        // Triggered by: boot with no patch loaded, New menu action, or a
+        // patch with no `ui.positions` block. Saved patches with positions
+        // bypass this so reload preserves where you placed things.
+        if (s_needsLayout) {
             float x = 50, y = 80;
             for (int i = 0; i < (int)s_nodes.size(); ++i) {
                 ImNodes::SetNodeScreenSpacePos(s_nodes[i].id, ImVec2(x, y));
                 x += 220;
                 if (x > 900) { x = 50; y += 250; }
             }
-            s_firstFrame = false;
             s_needsLayout = false;
         }
 
@@ -4105,11 +4110,11 @@ int main(int argc, char** argv) {
                 if (ImGui::BeginMenu("New")) {
                     if (ImGui::MenuItem("Patch Graph")) {
                         new_graph(GraphMode::PatchGraph);
-                        s_firstFrame = true;
+                        s_needsLayout = true;
                     }
                     if (ImGui::MenuItem("Node Graph")) {
                         new_graph(GraphMode::NodeGraph);
-                        s_firstFrame = true;
+                        s_needsLayout = true;
                     }
                     ImGui::EndMenu();
                 }
