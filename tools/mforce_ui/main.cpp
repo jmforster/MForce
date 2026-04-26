@@ -3725,6 +3725,22 @@ static bool draw_partials_strip(GraphNode* node, ImU32 color,
     auto mult2 = ipt->get_array("mult2");
     auto ampl2 = ipt->get_array("ampl2");
 
+    // Apply rolloff to the displayed amplitudes — same math the synth applies
+    // at render time: ampl *= 1 / pmult^rolloff.  rolloff1 → _1 column,
+    // rolloff2 → _2 column.  Without this, weight-only bars look misleading
+    // (all 1.0) when rolloff is what's actually shaping the spectrum.
+    float ro1 = ipt->get_config("rolloff1");
+    float ro2 = ipt->get_config("rolloff2");
+    auto apply_rolloff = [](std::vector<float>& a, const std::vector<float>& m, float ro) {
+        if (ro == 0.0f) return;
+        for (size_t i = 0; i < a.size(); ++i) {
+            float pm = (i < m.size()) ? m[i] : 1.0f;
+            if (pm > 0.0f) a[i] *= 1.0f / std::pow(pm, ro);
+        }
+    };
+    apply_rolloff(ampl1, mult1, ro1);
+    apply_rolloff(ampl2, mult2, ro2);
+
     if (mult1.empty() || ampl1.empty()) {
         dl->AddText(ImVec2(plotX0 + 4, plotY0 + 4), IM_COL32(140, 140, 140, 255),
                     "(empty)");
