@@ -4022,8 +4022,8 @@ static void draw_waveform_window() {
     std::vector<WaveStrip> strips;
     static const ImU32 audioColor    = IM_COL32(80, 220, 80, 255);   // bright green
     static const ImU32 envelopeColor = IM_COL32(220, 220, 60, 255);  // yellow
-    static const ImU32 partialsColor = IM_COL32(220, 140, 200, 255); // pink — distinct
-    static const ImU32 formantColor  = IM_COL32(200, 160, 80, 255);  // amber — distinct
+    static const ImU32 partialsColor = IM_COL32(60, 200, 200, 255);  // teal — matches spectrum
+    static const ImU32 formantColor  = IM_COL32(60, 200, 200, 255);  // teal — matches spectrum
 
     auto is_partials = [](const std::string& t) {
         return t == "FullPartials" || t == "SequencePartials" || t == "ExplicitPartials";

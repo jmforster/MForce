@@ -238,6 +238,18 @@ struct Partials : ValueSource, IPartials {
     return std::sin(partialPos_[index] * TAU) * pampl;
   }
 
+  // Read-only access to the live partial arrays. Subclasses (FullPartials,
+  // SequencePartials) populate these via init_arrays(). ExplicitPartials
+  // overrides to prefer its user-edited Stat_ copies. Used by the UI's
+  // partials strip view to render the bar chart.
+  std::vector<float> get_array(std::string_view name) const override {
+    if (name == "mult1") return mult1_;
+    if (name == "mult2") return mult2_;
+    if (name == "ampl1") return ampl1_;
+    if (name == "ampl2") return ampl2_;
+    return {};
+  }
+
 protected:
   // Subclass populates mult1_, mult2_, ampl1_, ampl2_, po1_, po2_
   virtual void init_arrays() {}
