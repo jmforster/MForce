@@ -22,6 +22,7 @@
 #include "mforce/core/var_source.h"     // needed for VarSource constructor
 #include "mforce/core/range_source.h"   // needed for RangeSource constructor
 #include "mforce/source/additive/formant.h" // needed for FormantSpectrum inline table
+#include "mforce/source/additive/partials.h" // for Partials live array access in strip draw
 #include "mforce/render/instrument.h"
 #include "mforce/render/mixer.h"
 #include "mforce/render/wav_writer.h"
@@ -3678,6 +3679,285 @@ static void draw_spectrum_window() {
     ImGui::End();
 }
 
+// Helper: small pop-out button shared by all strip kinds.
+static bool draw_strip_popout_button(float x, float y, float width, int popoutBtnId) {
+    ImVec2 saved = ImGui::GetCursorScreenPos();
+    ImGui::SetCursorScreenPos(ImVec2(x + width - 20, y + 2));
+    ImGui::PushID("wpop");
+    ImGui::PushID(popoutBtnId);
+    bool clicked = ImGui::ArrowButton("##pop", ImGuiDir_Up);
+    ImGui::PopID();
+    ImGui::PopID();
+    ImGui::SetCursorScreenPos(saved);
+    return clicked;
+}
+
+// Draw a Partials node as a bar chart: x = partial number, y = amplitude.
+// Reads live mult1/ampl1 (and mult2/ampl2 for evolving partials) via the
+// node's array_descriptors() interface — what the additive synth actually uses.
+static bool draw_partials_strip(GraphNode* node, ImU32 color,
+                                float x, float y, float width, float height,
+                                bool showPopoutBtn, int popoutBtnId) {
+    ImDrawList* dl = ImGui::GetWindowDrawList();
+
+    dl->AddRectFilled(ImVec2(x, y), ImVec2(x + width, y + height), IM_COL32(20, 20, 25, 255));
+
+    const float marginL = WAVE_MARGIN_W;
+    float plotX0 = x + marginL;
+    float plotX1 = x + width - 4.0f;
+    float plotY0 = y + 14.0f;          // leave room for label up top
+    float plotY1 = y + height - 14.0f; // leave room for partial-# axis at bottom
+
+    dl->AddText(ImVec2(x + 2, y + 2), IM_COL32(150, 150, 150, 255), node->label.c_str());
+
+    auto* ipt = node->dspSource ? dynamic_cast<Partials*>(node->dspSource.get()) : nullptr;
+    if (!ipt) {
+        dl->AddText(ImVec2(plotX0 + 4, plotY0 + 4), IM_COL32(140, 140, 140, 255),
+                    "(node not initialized)");
+        dl->AddRect(ImVec2(x, y), ImVec2(x + width, y + height), IM_COL32(80, 80, 80, 255));
+        bool popped = false;
+        if (showPopoutBtn) popped = draw_strip_popout_button(x, y, width, popoutBtnId);
+        return popped;
+    }
+
+    auto mult1 = ipt->get_array("mult1");
+    auto ampl1 = ipt->get_array("ampl1");
+    auto mult2 = ipt->get_array("mult2");
+    auto ampl2 = ipt->get_array("ampl2");
+
+    if (mult1.empty() || ampl1.empty()) {
+        dl->AddText(ImVec2(plotX0 + 4, plotY0 + 4), IM_COL32(140, 140, 140, 255),
+                    "(empty)");
+        dl->AddRect(ImVec2(x, y), ImVec2(x + width, y + height), IM_COL32(80, 80, 80, 255));
+        bool popped = false;
+        if (showPopoutBtn) popped = draw_strip_popout_button(x, y, width, popoutBtnId);
+        return popped;
+    }
+
+    int N = std::min(int(mult1.size()), int(ampl1.size()));
+    bool hasEvo = !mult2.empty() && !ampl2.empty()
+               && mult2.size() == size_t(N) && ampl2.size() == size_t(N);
+
+    // Y range: max amplitude across both arrays (so 1.0 isn't always the cap).
+    float aMax = 0.0f;
+    for (int i = 0; i < N; ++i) aMax = std::max(aMax, std::abs(ampl1[i]));
+    if (hasEvo) for (int i = 0; i < N; ++i) aMax = std::max(aMax, std::abs(ampl2[i]));
+    if (aMax < 1e-4f) aMax = 1.0f;
+
+    auto idx_to_x = [&](float i) {
+        // Place partial 1 at left edge of plot, partial N at right.
+        float t = (N <= 1) ? 0.5f : (i - 1.0f) / float(N - 1);
+        return plotX0 + t * (plotX1 - plotX0);
+    };
+    auto ampl_to_y = [&](float a) {
+        float t = std::clamp(a / aMax, 0.0f, 1.0f);
+        return plotY1 - t * (plotY1 - plotY0);
+    };
+
+    // Baseline
+    dl->AddLine(ImVec2(plotX0, plotY1), ImVec2(plotX1, plotY1), IM_COL32(80, 80, 80, 255));
+
+    // Bar width — make _1/_2 sit side-by-side when evolution is on.
+    float pitch = (N <= 1) ? (plotX1 - plotX0) * 0.5f : (plotX1 - plotX0) / float(N);
+    float fullW = std::max(2.0f, pitch * 0.7f);
+    float barW  = hasEvo ? fullW * 0.5f : fullW;
+
+    ImU32 col1 = color;
+    ImU32 col2 = IM_COL32_BLACK;
+    {
+        // Faded version of the same hue for the _2 column.
+        int r = (color >>  0) & 0xFF;
+        int g = (color >>  8) & 0xFF;
+        int b = (color >> 16) & 0xFF;
+        col2 = IM_COL32(r * 6 / 10, g * 6 / 10, b * 6 / 10, 255);
+    }
+
+    for (int i = 0; i < N; ++i) {
+        float bx  = idx_to_x(float(i + 1));
+        float by1 = ampl_to_y(ampl1[i]);
+        if (hasEvo) {
+            float bx1 = bx - barW;
+            dl->AddRectFilled(ImVec2(bx1, by1), ImVec2(bx1 + barW, plotY1), col1);
+            float by2 = ampl_to_y(ampl2[i]);
+            dl->AddRectFilled(ImVec2(bx, by2), ImVec2(bx + barW, plotY1), col2);
+        } else {
+            dl->AddRectFilled(ImVec2(bx - barW * 0.5f, by1),
+                              ImVec2(bx + barW * 0.5f, plotY1), col1);
+        }
+    }
+
+    // X-axis ticks: every Nth label depending on N
+    int step = (N <= 16) ? 1 : (N <= 40) ? 4 : (N <= 100) ? 10 : 20;
+    for (int i = 1; i <= N; i += step) {
+        float xt = idx_to_x(float(i));
+        dl->AddLine(ImVec2(xt, plotY1), ImVec2(xt, plotY1 + 3), IM_COL32(100, 100, 100, 255));
+        char lbl[8]; snprintf(lbl, sizeof(lbl), "%d", i);
+        dl->AddText(ImVec2(xt - 3, plotY1 + 4), IM_COL32(120, 120, 120, 255), lbl);
+    }
+
+    // Y label
+    char ylbl[16]; snprintf(ylbl, sizeof(ylbl), "%.2f", aMax);
+    dl->AddText(ImVec2(x + 2, plotY0 - 2), IM_COL32(100, 100, 100, 255), ylbl);
+
+    dl->AddRect(ImVec2(x, y), ImVec2(x + width, y + height), IM_COL32(80, 80, 80, 255));
+
+    // Hover readout
+    if (ImGui::IsWindowHovered()) {
+        ImVec2 m = ImGui::GetMousePos();
+        if (m.x >= plotX0 && m.x <= plotX1 && m.y >= plotY0 && m.y <= plotY1) {
+            float t = (m.x - plotX0) / (plotX1 - plotX0);
+            int i = std::clamp(int(std::round(t * float(N - 1))) + 1, 1, N);
+            char lbl[96];
+            if (hasEvo) snprintf(lbl, sizeof(lbl),
+                                 "p%d  m1=%.2f a1=%.3f  m2=%.2f a2=%.3f",
+                                 i, mult1[i-1], ampl1[i-1], mult2[i-1], ampl2[i-1]);
+            else        snprintf(lbl, sizeof(lbl),
+                                 "p%d  mult=%.2f  ampl=%.3f",
+                                 i, mult1[i-1], ampl1[i-1]);
+            ImVec2 sz = ImGui::CalcTextSize(lbl);
+            float lblX = std::min(m.x + 8.0f, plotX1 - sz.x - 4.0f);
+            float lblY = std::max(m.y - 16.0f, plotY0 + 2.0f);
+            dl->AddRectFilled(ImVec2(lblX - 3, lblY - 1),
+                              ImVec2(lblX + sz.x + 3, lblY + sz.y + 1),
+                              IM_COL32(0, 0, 0, 200));
+            dl->AddText(ImVec2(lblX, lblY), IM_COL32(255, 255, 200, 255), lbl);
+        }
+    }
+
+    bool popped = false;
+    if (showPopoutBtn) popped = draw_strip_popout_button(x, y, width, popoutBtnId);
+    return popped;
+}
+
+// Draw a Formant / FormantSpectrum / FormantSequence as a gain-vs-frequency curve.
+// Samples get_gain(f) at log-spaced frequencies across 20 Hz → ~Nyquist.
+// fmt_prepare/fmt_next must have been called for the formant to have valid
+// internal state — for a static node this happens at load time.
+static bool draw_formant_strip(GraphNode* node, ImU32 color,
+                               float x, float y, float width, float height,
+                               bool showPopoutBtn, int popoutBtnId) {
+    ImDrawList* dl = ImGui::GetWindowDrawList();
+
+    dl->AddRectFilled(ImVec2(x, y), ImVec2(x + width, y + height), IM_COL32(20, 20, 25, 255));
+
+    const float marginL = WAVE_MARGIN_W;
+    float plotX0 = x + marginL;
+    float plotX1 = x + width - 4.0f;
+    float plotY0 = y + 14.0f;
+    float plotY1 = y + height - 14.0f;
+
+    dl->AddText(ImVec2(x + 2, y + 2), IM_COL32(150, 150, 150, 255), node->label.c_str());
+
+    auto* ifp = node->dspSource ? dynamic_cast<IFormant*>(node->dspSource.get()) : nullptr;
+    if (!ifp) {
+        dl->AddText(ImVec2(plotX0 + 4, plotY0 + 4), IM_COL32(140, 140, 140, 255),
+                    "(node not initialized)");
+        dl->AddRect(ImVec2(x, y), ImVec2(x + width, y + height), IM_COL32(80, 80, 80, 255));
+        bool popped = false;
+        if (showPopoutBtn) popped = draw_strip_popout_button(x, y, width, popoutBtnId);
+        return popped;
+    }
+
+    // Make sure cached params are populated for static formants.
+    ifp->fmt_next();
+
+    const float fMin = 20.0f;
+    const float fMax = 20000.0f;
+    const float logFmin = std::log10(fMin);
+    const float logFmax = std::log10(fMax);
+
+    // Sample first to find max gain for autoscaling.
+    int samples = std::max(64, int(plotX1 - plotX0));
+    std::vector<float> gains(samples);
+    float gMax = 0.0f;
+    for (int i = 0; i < samples; ++i) {
+        float t = float(i) / float(samples - 1);
+        float f = std::pow(10.0f, logFmin + t * (logFmax - logFmin));
+        float g = ifp->contains(f) ? ifp->get_gain(f) : 0.0f;
+        gains[i] = g;
+        gMax = std::max(gMax, g);
+    }
+    if (gMax < 1e-4f) gMax = 1.0f;
+
+    auto freq_to_x = [&](float f) {
+        float t = (std::log10(std::max(f, fMin)) - logFmin) / (logFmax - logFmin);
+        return plotX0 + t * (plotX1 - plotX0);
+    };
+    auto gain_to_y = [&](float g) {
+        float t = std::clamp(g / gMax, 0.0f, 1.0f);
+        return plotY1 - t * (plotY1 - plotY0);
+    };
+    auto x_to_freq = [&](float xx) {
+        float t = (xx - plotX0) / (plotX1 - plotX0);
+        return std::pow(10.0f, logFmin + t * (logFmax - logFmin));
+    };
+
+    // Octave grid + labels
+    static const float decMul[] = {1.0f, 2.0f, 5.0f};
+    for (int dec = 1; dec <= 5; ++dec) {
+        float base = std::pow(10.0f, float(dec));
+        for (float m : decMul) {
+            float f = base * m;
+            if (f < fMin || f > fMax) continue;
+            float xx = freq_to_x(f);
+            dl->AddLine(ImVec2(xx, plotY0), ImVec2(xx, plotY1),
+                        (m == 1.0f) ? IM_COL32(70, 70, 80, 255) : IM_COL32(50, 50, 55, 255));
+            if (m == 1.0f) {
+                char lbl[16];
+                if (f >= 1000.0f) snprintf(lbl, sizeof(lbl), "%gk", f / 1000.0f);
+                else              snprintf(lbl, sizeof(lbl), "%g", f);
+                dl->AddText(ImVec2(xx + 2, plotY1 + 2), IM_COL32(120, 120, 120, 255), lbl);
+            }
+        }
+    }
+    // Baseline
+    dl->AddLine(ImVec2(plotX0, plotY1), ImVec2(plotX1, plotY1), IM_COL32(80, 80, 80, 255));
+
+    // Filled curve under the line (helps formant peaks read clearly)
+    ImU32 fillCol = (color & 0x00FFFFFF) | (40u << 24);
+    for (int i = 1; i < samples; ++i) {
+        float x0 = plotX0 + float(i - 1);
+        float x1 = plotX0 + float(i);
+        float y0 = gain_to_y(gains[i - 1]);
+        float y1 = gain_to_y(gains[i]);
+        ImVec2 p0(x0, y0), p1(x1, y1), p2(x1, plotY1), p3(x0, plotY1);
+        dl->AddQuadFilled(p0, p1, p2, p3, fillCol);
+        dl->AddLine(p0, p1, color, 1.5f);
+    }
+
+    // Y label (peak gain)
+    char ylbl[16]; snprintf(ylbl, sizeof(ylbl), "%.2f", gMax);
+    dl->AddText(ImVec2(x + 2, plotY0 - 2), IM_COL32(100, 100, 100, 255), ylbl);
+
+    dl->AddRect(ImVec2(x, y), ImVec2(x + width, y + height), IM_COL32(80, 80, 80, 255));
+
+    // Hover readout
+    if (ImGui::IsWindowHovered()) {
+        ImVec2 m = ImGui::GetMousePos();
+        if (m.x >= plotX0 && m.x <= plotX1 && m.y >= plotY0 && m.y <= plotY1) {
+            float fAt = x_to_freq(m.x);
+            int idx = std::clamp(int(((m.x - plotX0) / (plotX1 - plotX0)) * float(samples - 1)),
+                                 0, samples - 1);
+            float gAt = gains[idx];
+            dl->AddLine(ImVec2(m.x, plotY0), ImVec2(m.x, plotY1), IM_COL32(180, 180, 180, 140));
+            char lbl[64];
+            if (fAt >= 1000.0f) snprintf(lbl, sizeof(lbl), "%.2f kHz   gain %.3f", fAt / 1000.0f, gAt);
+            else                snprintf(lbl, sizeof(lbl), "%.1f Hz   gain %.3f",  fAt, gAt);
+            ImVec2 sz = ImGui::CalcTextSize(lbl);
+            float lblX = std::min(m.x + 8.0f, plotX1 - sz.x - 4.0f);
+            float lblY = std::max(m.y - 16.0f, plotY0 + 2.0f);
+            dl->AddRectFilled(ImVec2(lblX - 3, lblY - 1),
+                              ImVec2(lblX + sz.x + 3, lblY + sz.y + 1),
+                              IM_COL32(0, 0, 0, 200));
+            dl->AddText(ImVec2(lblX, lblY), IM_COL32(255, 255, 200, 255), lbl);
+        }
+    }
+
+    bool popped = false;
+    if (showPopoutBtn) popped = draw_strip_popout_button(x, y, width, popoutBtnId);
+    return popped;
+}
+
 // ===========================================================================
 // Waveform window (dockable)
 // ===========================================================================
@@ -3726,25 +4006,53 @@ static void draw_waveform_window() {
         ImGui::PopItemWidth();
     }
 
-    // Collect all strips: output first, then per-node (envelope strips filtered
-    // out when g_showEnvelopes is off, giving the remaining waveforms more room).
-    struct WaveStrip { std::string label; const float* buf; int count; ImU32 color; int nodeId; };
+    // Collect all strips: output first, then per-node. Most strips are
+    // time-domain waveforms; Partials and Formant nodes get specialized
+    // visualizations (partial bars / formant gain curve) since their
+    // waveformData has no useful audio-domain content.
+    enum class StripKind { Wave, Partials, Formant };
+    struct WaveStrip {
+        std::string label;
+        const float* buf;     // for Wave kind only
+        int count;            // for Wave kind only
+        ImU32 color;
+        int nodeId;
+        StripKind kind{StripKind::Wave};
+    };
     std::vector<WaveStrip> strips;
-    static const ImU32 audioColor = IM_COL32(80, 220, 80, 255);     // bright green
-    static const ImU32 envelopeColor = IM_COL32(220, 220, 60, 255); // yellow
+    static const ImU32 audioColor    = IM_COL32(80, 220, 80, 255);   // bright green
+    static const ImU32 envelopeColor = IM_COL32(220, 220, 60, 255);  // yellow
+    static const ImU32 partialsColor = IM_COL32(220, 140, 200, 255); // pink — distinct
+    static const ImU32 formantColor  = IM_COL32(200, 160, 80, 255);  // amber — distinct
+
+    auto is_partials = [](const std::string& t) {
+        return t == "FullPartials" || t == "SequencePartials" || t == "ExplicitPartials";
+    };
+    auto is_formant = [](const std::string& t) {
+        return t == "Formant" || t == "FormantSpectrum"
+            || t == "FormantSequence" || t == "BandSpectrum";
+    };
 
     strips.push_back({std::string("Output"),
                       g_outputWaveform.empty() ? nullptr : g_outputWaveform.data(),
-                      g_waveformSamples, audioColor, -1});
+                      g_waveformSamples, audioColor, -1, StripKind::Wave});
 
     auto& reg = SourceRegistry::instance();
     for (auto& n : s_nodes) {
-        if (n.waveformData.empty()) continue;
         SourceCategory cat = reg.has(n.typeName) ? reg.get_category(n.typeName) : SourceCategory::Utility;
         bool isEnvelope = (cat == SourceCategory::Envelope);
         if (isEnvelope && !g_showEnvelopes) continue;
-        ImU32 col = isEnvelope ? envelopeColor : audioColor;
-        strips.push_back({n.label, n.waveformData.data(), (int)n.waveformData.size(), col, n.id});
+
+        if (is_partials(n.typeName)) {
+            strips.push_back({n.label, nullptr, 0, partialsColor, n.id, StripKind::Partials});
+        } else if (is_formant(n.typeName)) {
+            strips.push_back({n.label, nullptr, 0, formantColor,  n.id, StripKind::Formant});
+        } else {
+            if (n.waveformData.empty()) continue;
+            ImU32 col = isEnvelope ? envelopeColor : audioColor;
+            strips.push_back({n.label, n.waveformData.data(), (int)n.waveformData.size(),
+                              col, n.id, StripKind::Wave});
+        }
     }
 
     // Calculate strip heights from remaining space (post-filter).
@@ -3770,10 +4078,28 @@ static void draw_waveform_window() {
         int row = i / N;
         float xPos = cursor.x + col * (colW + gap);
         float yPos = cursor.y + row * (stripH + 2.0f);
-        bool popped = draw_waveform(strips[i].label.c_str(), strips[i].buf, strips[i].count,
-                                    strips[i].color, xPos, yPos, colW, stripH,
-                                    g_waveZoom, g_waveScrollPos,
-                                    /*showPopoutBtn*/ true, /*popoutBtnId*/ i);
+        bool popped = false;
+        if (strips[i].kind == StripKind::Wave) {
+            popped = draw_waveform(strips[i].label.c_str(), strips[i].buf, strips[i].count,
+                                   strips[i].color, xPos, yPos, colW, stripH,
+                                   g_waveZoom, g_waveScrollPos,
+                                   /*showPopoutBtn*/ true, /*popoutBtnId*/ i);
+        } else if (strips[i].kind == StripKind::Partials || strips[i].kind == StripKind::Formant) {
+            // Find the node by id (linear search; node count is small).
+            GraphNode* node = nullptr;
+            for (auto& n : s_nodes) if (n.id == strips[i].nodeId) { node = &n; break; }
+            if (node) {
+                // Pop-out for these kinds isn't wired through draw_wave_popouts
+                // (which assumes a time-domain buffer); disable the button
+                // until Partials/Formant popouts are implemented.
+                if (strips[i].kind == StripKind::Partials)
+                    popped = draw_partials_strip(node, strips[i].color,
+                                                 xPos, yPos, colW, stripH, false, i);
+                else
+                    popped = draw_formant_strip(node, strips[i].color,
+                                                xPos, yPos, colW, stripH, false, i);
+            }
+        }
         if (popped) {
             WavePopout wp;
             wp.nodeId = strips[i].nodeId;
