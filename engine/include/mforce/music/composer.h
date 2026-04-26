@@ -2,8 +2,12 @@
 #include "mforce/music/strategy.h"
 #include "mforce/music/strategy_registry.h"
 #include "mforce/music/default_strategies.h"
+#include "mforce/music/random_figure_builder.h"
 #include "mforce/music/shape_strategies.h"
 #include "mforce/music/phrase_strategies.h"
+#include "mforce/music/wrapper_phrase_strategy.h"
+#include "mforce/music/two_figure_phrase_strategy.h"
+#include "mforce/music/elaborated_phrase_strategy.h"
 #include "mforce/music/alternating_figure_strategy.h"
 #include "mforce/music/period_passage_strategy.h"
 #include "mforce/music/chord_progression_builder.h"
@@ -117,27 +121,20 @@ struct Composer {
     reg.register_phrase (std::make_unique<DefaultPhraseStrategy>());
     reg.register_passage(std::make_unique<DefaultPassageStrategy>());
 
-    // Shape strategies (Phase 2) — all Figure-level
-    reg.register_figure(std::make_unique<ShapeScalarRunStrategy>());
-    reg.register_figure(std::make_unique<ShapeRepeatedNoteStrategy>());
-    reg.register_figure(std::make_unique<ShapeHeldNoteStrategy>());
+    // Shape strategies — only those with non-trivial logic survive; the
+    // 13 thin FigureBuilder wrappers were dropped in the FigureBuilder
+    // redesign. FigureShape dispatch in compose_figure falls through to
+    // generate_figure for those shapes.
     reg.register_figure(std::make_unique<ShapeCadentialApproachStrategy>());
-    reg.register_figure(std::make_unique<ShapeTriadicOutlineStrategy>());
-    reg.register_figure(std::make_unique<ShapeNeighborToneStrategy>());
-    reg.register_figure(std::make_unique<ShapeLeapAndFillStrategy>());
-    reg.register_figure(std::make_unique<ShapeScalarReturnStrategy>());
-    reg.register_figure(std::make_unique<ShapeAnacrusisStrategy>());
-    reg.register_figure(std::make_unique<ShapeZigzagStrategy>());
-    reg.register_figure(std::make_unique<ShapeFanfareStrategy>());
-    reg.register_figure(std::make_unique<ShapeSighStrategy>());
-    reg.register_figure(std::make_unique<ShapeSuspensionStrategy>());
-    reg.register_figure(std::make_unique<ShapeCambiataStrategy>());
     reg.register_figure(std::make_unique<ShapeSkippingStrategy>());
     reg.register_figure(std::make_unique<ShapeSteppingStrategy>());
 
     // Phrase strategies (Phase 3)
     reg.register_phrase(std::make_unique<PeriodPhraseStrategy>());
     reg.register_phrase(std::make_unique<SentencePhraseStrategy>());
+    reg.register_phrase(std::make_unique<WrapperPhraseStrategy>());
+    reg.register_phrase(std::make_unique<TwoFigurePhraseStrategy>());
+    reg.register_phrase(std::make_unique<ElaboratedPhraseStrategy>());
 
     // Voicing selectors (Phase 4)
     VoicingSelectorRegistry::instance()
@@ -410,9 +407,17 @@ private:
             chordIdx = ci;
           }
           auto resolved = prog.chords.get(chordIdx).resolve(section.scale, kBaseOctave);
-          currentNN = step_chord_tone(currentNN, u.step, resolved);
+          // For unit 0 of the figure, fold FC.leadStep into the chord-tone
+          // walk: a single step_chord_tone(currentNN, leadStep + u.step, ...)
+          // call snaps once and walks once. Splitting into two calls would
+          // double-snap and drift. step_chord_tone is NOT linear over walks.
+          int stepFromLead = (i == 0 && f < int(phrase.connectors.size()))
+              ? phrase.connectors[f].leadStep : 0;
+          currentNN = step_chord_tone(currentNN, stepFromLead + u.step, resolved);
         } else {
-          currentNN = step_note(currentNN, u.step, scale);
+          int stepFromLead = (i == 0 && f < int(phrase.connectors.size()))
+              ? phrase.connectors[f].leadStep : 0;
+          currentNN = step_note(currentNN, stepFromLead + u.step, scale);
         }
         float soundNN = currentNN + float(u.accidental);
 
@@ -979,7 +984,11 @@ inline MelodicFigure DefaultFigureStrategy::compose_figure(
   switch (figTmpl.source) {
     case FigureSource::Locked:
       if (figTmpl.lockedFigure) return *figTmpl.lockedFigure;
-      return FigureBuilder(::mforce::rng::next()).single_note(1.0f);  // fallback
+      {
+        RandomFigureBuilder rfb(::mforce::rng::next());
+        Constraints fc; fc.length = 1.0f;
+        return rfb.build_singleton(fc);  // fallback
+      }
 
     case FigureSource::Literal: {
       // Convert the user-authored note list into a MelodicFigure. Each
@@ -1033,23 +1042,15 @@ inline MelodicFigure DefaultFigureStrategy::compose_figure(
       if (figTmpl.shape != FigureShape::Free) {
         const char* shapeName = nullptr;
         switch (figTmpl.shape) {
-          case FigureShape::ScalarRun:         shapeName = "shape_scalar_run"; break;
-          case FigureShape::RepeatedNote:      shapeName = "shape_repeated_note"; break;
-          case FigureShape::HeldNote:          shapeName = "shape_held_note"; break;
+          // Only shapes with real strategy logic dispatch here. Others
+          // (ScalarRun, RepeatedNote, HeldNote, TriadicOutline, NeighborTone,
+          // LeapAndFill, ScalarReturn, Anacrusis, Zigzag, Fanfare, Sigh,
+          // Suspension, Cambiata) fall through to generate_figure — their
+          // shape intent is available via shape_figures:: at call sites
+          // that want it.
           case FigureShape::CadentialApproach: shapeName = "shape_cadential_approach"; break;
-          case FigureShape::TriadicOutline:    shapeName = "shape_triadic_outline"; break;
-          case FigureShape::NeighborTone:      shapeName = "shape_neighbor_tone"; break;
-          case FigureShape::LeapAndFill:       shapeName = "shape_leap_and_fill"; break;
-          case FigureShape::ScalarReturn:      shapeName = "shape_scalar_return"; break;
-          case FigureShape::Anacrusis:         shapeName = "shape_anacrusis"; break;
-          case FigureShape::Zigzag:            shapeName = "shape_zigzag"; break;
-          case FigureShape::Fanfare:           shapeName = "shape_fanfare"; break;
-          case FigureShape::Sigh:              shapeName = "shape_sigh"; break;
-          case FigureShape::Suspension:        shapeName = "shape_suspension"; break;
-          case FigureShape::Cambiata:          shapeName = "shape_cambiata"; break;
           case FigureShape::Skipping:          shapeName = "shape_skipping"; break;
           case FigureShape::Stepping:          shapeName = "shape_stepping"; break;
-          case FigureShape::Free:
           default:                             shapeName = nullptr; break;
         }
         if (shapeName) {
@@ -1126,8 +1127,9 @@ inline Passage DefaultPassageStrategy::compose_passage(
       PitchReader reader(scale);
       reader.set_pitch(cursor);
       for (auto& ph : passage.phrases) {
-        for (auto& fig : ph.figures) {
-          for (auto& u : fig->units) {
+        for (int fi = 0; fi < (int)ph.figures.size(); ++fi) {
+          if (fi < (int)ph.connectors.size()) reader.step(ph.connectors[fi].leadStep);
+          for (auto& u : ph.figures[fi]->units) {
             reader.step(u.step);
           }
         }
@@ -1261,25 +1263,25 @@ inline Phrase DefaultPhraseStrategy::compose_phrase(
       fig = fs->compose_figure(figLocus, figTmpl);
     }
 
-    // Apply FigureConnector.leadStep to the new figure's first unit.
-    // Applies for ALL figures including i=0 — connectors[0].leadStep places
-    // the first figure relative to the phrase's startingPitch. For
-    // placement-neutral motifs (first step = 0), this is the sole placement
-    // mechanism. The elide/adjust block above keeps its i>0 guard because
-    // those operate on the PREVIOUS figure (which doesn't exist for i=0).
-    if (i < int(phraseTmpl.connectors.size())
-        && phraseTmpl.connectors[i] && !fig.units.empty()) {
-      fig.units[0].step += phraseTmpl.connectors[i]->leadStep;
+    // Pull this figure's connector from the template (if any). Default-
+    // constructed FCs have leadStep=0/elide=0/adjust=0. Push to
+    // phrase.connectors alongside the figure to keep the
+    // figures.size() == connectors.size() invariant. The cursor advance
+    // from leadStep is applied at realize time (see
+    // realize_phrase_to_events_), NOT here. Figures are not mutated.
+    FigureConnector fc{};
+    if (i < int(phraseTmpl.connectors.size()) && phraseTmpl.connectors[i]) {
+      fc = *phraseTmpl.connectors[i];
     }
 
-    // Advance running cursor by the figure's net scale-degree movement.
-    // Rest units contribute step=0 so they don't advance the cursor.
+    // Advance running cursor by the FC's leadStep (used by the Literal-
+    // figure path's pitch_before queries) and then by the figure's net
+    // step. Under the new model, fig.units[0].step is 0 by convention, so
+    // fig.net_step() no longer absorbs leadStep — we add it explicitly.
+    runningReader.step(fc.leadStep);
     runningReader.step(fig.net_step());
 
-    // Every figure joins via its first unit's step, which bridges from
-    // wherever the previous figure left the cursor to this figure's
-    // effective starting pitch.
-    phrase.add_melodic_figure(std::move(fig));
+    phrase.add_melodic_figure_with_connector(std::move(fig), fc);
   }
 
   // Cadence adjustment — skip for Literal and Locked source on the last

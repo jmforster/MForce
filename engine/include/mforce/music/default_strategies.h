@@ -2,6 +2,8 @@
 #include "mforce/music/strategy.h"
 #include "mforce/music/strategy_registry.h"
 #include "mforce/music/figures.h"
+#include "mforce/music/figure_transforms.h"
+#include "mforce/music/random_figure_builder.h"
 #include "mforce/music/structure.h"
 #include "mforce/music/templates.h"
 #include "mforce/music/pitch_reader.h"
@@ -55,130 +57,60 @@ public:
 inline MelodicFigure DefaultFigureStrategy::generate_figure(
     const FigureTemplate& figTmpl, uint32_t seed) {
     StepGenerator sg(seed);
-    FigureBuilder fb(seed + 1);
 
-    fb.defaultPulse = (figTmpl.defaultPulse > 0) ? figTmpl.defaultPulse : 1.0f;
+    float defaultPulse = (figTmpl.defaultPulse > 0) ? figTmpl.defaultPulse : 1.0f;
 
-    if (figTmpl.totalBeats > 0) {
-      // Build from total length
-      int noteCount = int(figTmpl.totalBeats / fb.defaultPulse);
-      noteCount = std::clamp(noteCount, figTmpl.minNotes, figTmpl.maxNotes);
-
-      StepSequence ss;
+    auto generate_steps = [&](int noteCount) -> StepSequence {
       if (figTmpl.targetNet != 0) {
-        ss = sg.targeted_sequence(noteCount, figTmpl.targetNet);
+        return sg.targeted_sequence(noteCount, figTmpl.targetNet);
       } else if (figTmpl.preferStepwise) {
-        ss = sg.no_skip_sequence(noteCount);
+        return sg.no_skip_sequence(noteCount);
       } else {
         float skipProb = figTmpl.preferSkips ? 0.6f : 0.3f;
-        ss = sg.random_sequence(noteCount, skipProb);
+        return sg.random_sequence(noteCount, skipProb);
       }
+    };
 
-      // Clamp individual step magnitudes if maxStep is set
+    auto clamp_steps = [&](StepSequence& ss) {
       if (figTmpl.maxStep > 0) {
         for (int i = 0; i < ss.count(); ++i) {
           if (ss.steps[i] > figTmpl.maxStep) ss.steps[i] = figTmpl.maxStep;
           else if (ss.steps[i] < -figTmpl.maxStep) ss.steps[i] = -figTmpl.maxStep;
         }
       }
+    };
 
-      MelodicFigure fig = fb.build(ss, fb.defaultPulse);
+    if (figTmpl.totalBeats > 0) {
+      int noteCount = int(figTmpl.totalBeats / defaultPulse);
+      noteCount = std::clamp(noteCount, figTmpl.minNotes, figTmpl.maxNotes);
 
-      // Apply random rhythm variation
+      StepSequence ss = generate_steps(noteCount);
+      clamp_steps(ss);
+
+      MelodicFigure fig = MelodicFigure::from_steps(ss, defaultPulse);
+      if (!fig.units.empty()) fig.units[0].step = 0;
+
       Randomizer varyRng(seed + 2);
       if (varyRng.decide(0.4f)) {
-        fig = fb.vary_rhythm(fig);
+        fig = figure_transforms::vary_rhythm(fig, varyRng);
       }
-
       return fig;
     }
 
-    // No total beats specified — use note count range
     Randomizer countRng(seed + 3);
     int noteCount = countRng.int_range(figTmpl.minNotes, figTmpl.maxNotes);
 
-    StepSequence ss;
-    if (figTmpl.targetNet != 0) {
-      ss = sg.targeted_sequence(noteCount, figTmpl.targetNet);
-    } else if (figTmpl.preferStepwise) {
-      ss = sg.no_skip_sequence(noteCount);
-    } else {
-      ss = sg.random_sequence(noteCount);
-    }
+    StepSequence ss = generate_steps(noteCount);
+    clamp_steps(ss);
 
-    if (figTmpl.maxStep > 0) {
-      for (int i = 0; i < ss.count(); ++i) {
-        if (ss.steps[i] > figTmpl.maxStep) ss.steps[i] = figTmpl.maxStep;
-        else if (ss.steps[i] < -figTmpl.maxStep) ss.steps[i] = -figTmpl.maxStep;
-      }
-    }
-
-    return fb.build(ss, fb.defaultPulse);
+    MelodicFigure fig = MelodicFigure::from_steps(ss, defaultPulse);
+    if (!fig.units.empty()) fig.units[0].step = 0;
+    return fig;
 }
 
 inline MelodicFigure DefaultFigureStrategy::apply_transform(
     const MelodicFigure& base, TransformOp op, int param, uint32_t seed) {
-    FigureBuilder fb(seed);
-
-    switch (op) {
-      case TransformOp::Invert:
-        return fb.invert(base);
-
-      case TransformOp::Reverse:
-        return fb.reverse(base);
-
-      case TransformOp::Stretch:
-        return fb.stretch(base, param > 0 ? float(param) : 2.0f);
-
-      case TransformOp::Compress:
-        return fb.compress(base, param > 0 ? float(param) : 2.0f);
-
-      case TransformOp::VaryRhythm:
-        return fb.vary_rhythm(base);
-
-      case TransformOp::VarySteps: {
-        MelodicFigure copy = base;
-        return fb.vary_steps(copy, std::max(1, param));
-      }
-
-      case TransformOp::NewSteps: {
-        // Keep rhythm, generate new steps
-        StepGenerator sg(seed);
-        StepSequence newSS = sg.random_sequence(base.note_count() - 1);
-        return fb.build(newSS, base.units[0].duration);
-      }
-
-      case TransformOp::NewRhythm: {
-        // Keep steps, generate new rhythm — rebuild with random pulses
-        MelodicFigure fig = base;
-        Randomizer rr(seed);
-        for (auto& u : fig.units) {
-          u.duration *= (rr.decide(0.5f) ? 0.5f : 1.0f) * (rr.decide(0.3f) ? 1.5f : 1.0f);
-        }
-        return fig;
-      }
-
-      case TransformOp::Replicate: {
-        int count = (param > 0) ? param : 2;
-        Randomizer rr(seed);
-        int step = rr.select_int({-2, -1, 1, 2});
-        return fb.replicate(base, count, step);
-      }
-
-      case TransformOp::TransformGeneral: {
-        // Composer picks a random transform
-        Randomizer rr(seed);
-        float choice = rr.value();
-        if (choice < 0.25f) return fb.invert(base);
-        if (choice < 0.50f) return fb.vary_rhythm(base);
-        if (choice < 0.75f) return fb.reverse(base);
-        return fb.stretch(base);
-      }
-
-      case TransformOp::None:
-      default:
-        return base;
-    }
+    return figure_transforms::apply(base, op, param, seed);
 }
 
 inline FigureShape DefaultFigureStrategy::choose_shape(
@@ -332,6 +264,11 @@ inline void DefaultPhraseStrategy::apply_cadence(Phrase& phrase,
 
     int netSteps = 0;
     for (int f = 0; f <= lastIdx; ++f) {
+      // FC.leadStep is no longer baked into figure data (post-foundation-
+      // refactor); include it explicitly here.
+      if (f < int(phrase.connectors.size())) {
+        netSteps += phrase.connectors[f].leadStep;
+      }
       netSteps += phrase.figures[f]->net_step();
     }
 

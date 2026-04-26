@@ -1,11 +1,39 @@
 #pragma once
 #include "mforce/music/templates.h"
 #include "mforce/music/music_json.h"
+#include "mforce/music/figure_constraints.h"
 #include <nlohmann/json.hpp>
 
 namespace mforce {
 
 using json = nlohmann::json;
+
+// ===========================================================================
+// Constraints (RFB figure constraints) — figure_constraints.h
+// ===========================================================================
+
+inline void to_json(json& j, const Constraints& c) {
+    j = json::object();
+    if (c.count)        j["count"]        = *c.count;
+    if (c.length)       j["length"]       = *c.length;
+    if (c.net)          j["net"]          = *c.net;
+    if (c.ceiling)      j["ceiling"]      = *c.ceiling;
+    if (c.floor)        j["floor"]        = *c.floor;
+    if (c.defaultPulse) j["defaultPulse"] = *c.defaultPulse;
+    if (c.minPulse)     j["minPulse"]     = *c.minPulse;
+    if (c.maxPulse)     j["maxPulse"]     = *c.maxPulse;
+}
+
+inline void from_json(const json& j, Constraints& c) {
+    if (j.contains("count"))        c.count        = j.at("count").get<int>();
+    if (j.contains("length"))       c.length       = j.at("length").get<float>();
+    if (j.contains("net"))          c.net          = j.at("net").get<int>();
+    if (j.contains("ceiling"))      c.ceiling      = j.at("ceiling").get<int>();
+    if (j.contains("floor"))        c.floor        = j.at("floor").get<int>();
+    if (j.contains("defaultPulse")) c.defaultPulse = j.at("defaultPulse").get<float>();
+    if (j.contains("minPulse"))     c.minPulse     = j.at("minPulse").get<float>();
+    if (j.contains("maxPulse"))     c.maxPulse     = j.at("maxPulse").get<float>();
+}
 
 // ===========================================================================
 // Enum serialization
@@ -471,6 +499,101 @@ inline void from_json(const json& j, SentencePhraseConfig& c) {
 }
 
 // ===========================================================================
+// TwoFigurePhraseConfig
+// ===========================================================================
+
+inline void to_json(json& j, const TwoFigurePhraseConfig& c) {
+    switch (c.method) {
+        case TwoFigurePhraseConfig::Method::ByCount:   j["method"] = "by_count";   break;
+        case TwoFigurePhraseConfig::Method::ByLength:  j["method"] = "by_length";  break;
+        case TwoFigurePhraseConfig::Method::Singleton: j["method"] = "singleton";  break;
+    }
+    if (c.count != 4)     j["count"]  = c.count;
+    if (c.length != 4.0f) j["length"] = c.length;
+    j["constraints"] = c.constraints;
+    if (c.seed != 0) j["seed"] = c.seed;
+    j["transform"] = c.transform;
+    if (c.transformParam != 0) j["transformParam"] = c.transformParam;
+}
+
+inline void from_json(const json& j, TwoFigurePhraseConfig& c) {
+    auto methodStr = j.value("method", std::string("by_count"));
+    if      (methodStr == "by_count")   c.method = TwoFigurePhraseConfig::Method::ByCount;
+    else if (methodStr == "by_length")  c.method = TwoFigurePhraseConfig::Method::ByLength;
+    else if (methodStr == "singleton")  c.method = TwoFigurePhraseConfig::Method::Singleton;
+    else                                c.method = TwoFigurePhraseConfig::Method::ByCount;
+    c.count  = j.value("count", 4);
+    c.length = j.value("length", 4.0f);
+    if (j.contains("constraints")) from_json(j.at("constraints"), c.constraints);
+    c.seed = j.value("seed", 0u);
+    if (j.contains("transform")) c.transform = j.at("transform").get<TransformOp>();
+    c.transformParam = j.value("transformParam", 0);
+}
+
+// ===========================================================================
+// ElaboratedPhraseConfig
+// ===========================================================================
+
+inline void to_json(json& j, ElaboratedPhraseConfig::Method m) {
+    switch (m) {
+        case ElaboratedPhraseConfig::Method::ByCount:   j = "by_count";   break;
+        case ElaboratedPhraseConfig::Method::ByLength:  j = "by_length";  break;
+        case ElaboratedPhraseConfig::Method::Singleton: j = "singleton";  break;
+    }
+}
+
+inline void from_json(const json& j, ElaboratedPhraseConfig::Method& m) {
+    const std::string s = j.get<std::string>();
+    if      (s == "by_count")  m = ElaboratedPhraseConfig::Method::ByCount;
+    else if (s == "by_length") m = ElaboratedPhraseConfig::Method::ByLength;
+    else if (s == "singleton") m = ElaboratedPhraseConfig::Method::Singleton;
+    else throw std::runtime_error("Unknown ElaboratedPhraseConfig::Method: " + s);
+}
+
+inline void to_json(json& j, ElaboratedPhraseConfig::ChoiceMode m) {
+    switch (m) {
+        case ElaboratedPhraseConfig::ChoiceMode::Random:      j = "random";       break;
+        case ElaboratedPhraseConfig::ChoiceMode::AllLeave:    j = "all_leave";    break;
+        case ElaboratedPhraseConfig::ChoiceMode::AllGenerate: j = "all_generate"; break;
+    }
+}
+
+inline void from_json(const json& j, ElaboratedPhraseConfig::ChoiceMode& m) {
+    const std::string s = j.get<std::string>();
+    if      (s == "random")       m = ElaboratedPhraseConfig::ChoiceMode::Random;
+    else if (s == "all_leave")    m = ElaboratedPhraseConfig::ChoiceMode::AllLeave;
+    else if (s == "all_generate") m = ElaboratedPhraseConfig::ChoiceMode::AllGenerate;
+    else throw std::runtime_error("Unknown ElaboratedPhraseConfig::ChoiceMode: " + s);
+}
+
+inline void to_json(json& j, const ElaboratedPhraseConfig& c) {
+    j = json::object();
+    if (c.skeleton) j["skeleton"] = *c.skeleton;
+    j["buildMethod"]      = c.buildMethod;
+    if (c.buildCount != 4)     j["buildCount"]  = c.buildCount;
+    if (c.buildLength != 4.0f) j["buildLength"] = c.buildLength;
+    j["buildConstraints"] = c.buildConstraints;
+    j["choiceMode"]       = c.choiceMode;
+    j["generateConstraints"] = c.generateConstraints;
+    if (c.seed != 0) j["seed"] = c.seed;
+}
+
+inline void from_json(const json& j, ElaboratedPhraseConfig& c) {
+    if (j.contains("skeleton")) {
+        MelodicFigure mf;
+        from_json(j.at("skeleton"), mf);
+        c.skeleton = std::move(mf);
+    }
+    if (j.contains("buildMethod"))         c.buildMethod = j.at("buildMethod").get<ElaboratedPhraseConfig::Method>();
+    c.buildCount  = j.value("buildCount", 4);
+    c.buildLength = j.value("buildLength", 4.0f);
+    if (j.contains("buildConstraints"))    from_json(j.at("buildConstraints"), c.buildConstraints);
+    if (j.contains("choiceMode"))          c.choiceMode = j.at("choiceMode").get<ElaboratedPhraseConfig::ChoiceMode>();
+    if (j.contains("generateConstraints")) from_json(j.at("generateConstraints"), c.generateConstraints);
+    c.seed = j.value("seed", 0u);
+}
+
+// ===========================================================================
 // PhraseTemplate
 // ===========================================================================
 
@@ -487,6 +610,8 @@ inline void to_json(json& j, const PhraseTemplate& pt) {
     if (!pt.strategy.empty()) j["strategy"] = pt.strategy;
     if (pt.periodConfig) j["periodConfig"] = *pt.periodConfig;
     if (pt.sentenceConfig) j["sentenceConfig"] = *pt.sentenceConfig;
+    if (pt.twoFigureConfig) j["twoFigureConfig"] = *pt.twoFigureConfig;
+    if (pt.elaboratedConfig) j["elaboratedConfig"] = *pt.elaboratedConfig;
 
     // Connectors: only emit if any are present
     bool anyConnectors = false;
@@ -536,6 +661,16 @@ inline void from_json(const json& j, PhraseTemplate& pt) {
         SentencePhraseConfig c;
         from_json(j.at("sentenceConfig"), c);
         pt.sentenceConfig = c;
+    }
+    if (j.contains("twoFigureConfig")) {
+        TwoFigurePhraseConfig c;
+        from_json(j.at("twoFigureConfig"), c);
+        pt.twoFigureConfig = c;
+    }
+    if (j.contains("elaboratedConfig")) {
+        ElaboratedPhraseConfig c;
+        from_json(j.at("elaboratedConfig"), c);
+        pt.elaboratedConfig = c;
     }
 
     // Connectors: optional parallel vector; when absent, leave empty.

@@ -1,6 +1,8 @@
 #pragma once
 #include "mforce/music/basics.h"
 #include "mforce/music/figures.h"
+#include "mforce/music/figure_transforms.h"
+#include "mforce/music/figure_constraints.h"
 #include "mforce/music/structure.h"
 #include "mforce/music/realization_strategy.h"
 #include "mforce/music/voicing_profile.h"
@@ -83,23 +85,8 @@ enum class FigureSource {
     Literal,     // user-authored note list (pitch + duration per note)
 };
 
-enum class TransformOp {
-    None,
-    Invert,           // flip step directions
-    Reverse,          // retrograde
-    Stretch,          // multiply durations by factor (default 2x)
-    Compress,         // divide durations by factor (default 2x)
-    VaryRhythm,       // split/dot some pulses randomly
-    VarySteps,        // randomly perturb some step values
-    NewSteps,         // keep rhythm, generate new steps
-    NewRhythm,        // keep steps, generate new rhythm
-    Replicate,        // repeat N times with step offset between
-    TransformGeneral, // do *something* — composer decides the operation
-    RhythmTail,       // derive a PulseSequence from a MelodicFigure by
-                      // taking the rhythm tail (skip first N pulses).
-                      // param = N. Plan B uses this for figures like
-                      // K467's A_rhythm_tail.
-};
+// TransformOp lives in mforce/music/figure_transforms.h (moved there with
+// figure_transforms::apply). Included transitively via figure_transforms.h.
 
 // Declared here (above FigureTemplate) because FigureTemplate::role
 // is std::optional<MotifRole>. Motif (further down) also uses these.
@@ -241,6 +228,54 @@ struct SentencePhraseConfig {
 };
 
 // ===========================================================================
+// TwoFigurePhraseConfig — base + transform phrase (step 3, ComposerRefactor3)
+// ===========================================================================
+
+struct TwoFigurePhraseConfig {
+    enum class Method { ByCount, ByLength, Singleton };
+    Method method{Method::ByCount};
+    int   count{4};        // used when method == ByCount
+    float length{4.0f};    // used when method == ByLength
+
+    Constraints constraints;
+
+    // 0 means "use phraseTmpl.seed, else a deterministic default"
+    uint32_t seed{0};
+
+    // How figure 2 is derived from figure 1.
+    TransformOp transform{TransformOp::Invert};
+    int transformParam{0};
+};
+
+// ===========================================================================
+// ElaboratedPhraseConfig — RFB-built (or literal) skeleton + per-anchor
+// random Leave/Generate elaboration. First concrete middle-tier strategy.
+// ===========================================================================
+
+struct ElaboratedPhraseConfig {
+    // Optional literal skeleton. If absent, strategy builds via RFB.
+    std::optional<MelodicFigure> skeleton;
+
+    // RFB build spec (used when skeleton is absent).
+    enum class Method { ByCount, ByLength, Singleton };
+    Method buildMethod{Method::ByCount};
+    int   buildCount{4};       // ByCount
+    float buildLength{4.0f};   // ByLength
+    Constraints buildConstraints;
+
+    // Per-anchor choice mode. Random is the production default; AllLeave /
+    // AllGenerate exist for testability and direct authoring.
+    enum class ChoiceMode { Random, AllLeave, AllGenerate };
+    ChoiceMode choiceMode{ChoiceMode::Random};
+
+    // Constraints for RFB-generated elaboration figures (Generate path).
+    Constraints generateConstraints;
+
+    // 0 means "use phraseTmpl.seed, else a deterministic default".
+    uint32_t seed{0};
+};
+
+// ===========================================================================
 // PhraseTemplate — sequence of FigureTemplates
 // ===========================================================================
 
@@ -272,6 +307,8 @@ struct PhraseTemplate {
     // at a time (matching the selected strategy).
     std::optional<PeriodPhraseConfig> periodConfig;
     std::optional<SentencePhraseConfig> sentenceConfig;
+    std::optional<TwoFigurePhraseConfig> twoFigureConfig;
+    std::optional<ElaboratedPhraseConfig> elaboratedConfig;
 };
 
 // ===========================================================================
@@ -564,31 +601,29 @@ inline std::string PieceTemplate::add_derived_motif(
         case TransformOp::Invert: {
             if (!std::holds_alternative<MelodicFigure>(parent->content))
                 throw std::runtime_error("Invert requires MelodicFigure parent");
-            FigureBuilder fb(parent->generationSeed + 1);
-            derived.content = fb.invert(std::get<MelodicFigure>(parent->content));
+            derived.content = figure_transforms::invert(std::get<MelodicFigure>(parent->content));
             break;
         }
         case TransformOp::Reverse: {
             if (!std::holds_alternative<MelodicFigure>(parent->content))
                 throw std::runtime_error("Reverse requires MelodicFigure parent");
-            FigureBuilder fb(parent->generationSeed + 1);
-            derived.content = fb.reverse(std::get<MelodicFigure>(parent->content));
+            derived.content = figure_transforms::retrograde_steps(std::get<MelodicFigure>(parent->content));
             break;
         }
         case TransformOp::VarySteps: {
             if (!std::holds_alternative<MelodicFigure>(parent->content))
                 throw std::runtime_error("VarySteps requires MelodicFigure parent");
-            FigureBuilder fb(parent->generationSeed + 2);
+            Randomizer rng(parent->generationSeed + 2);
             MelodicFigure copy = std::get<MelodicFigure>(parent->content);
             int variations = transformParam > 0 ? transformParam : 1;
-            derived.content = fb.vary_steps(copy, variations);
+            derived.content = figure_transforms::vary_steps(copy, rng, variations);
             break;
         }
         case TransformOp::VaryRhythm: {
             if (!std::holds_alternative<MelodicFigure>(parent->content))
                 throw std::runtime_error("VaryRhythm requires MelodicFigure parent");
-            FigureBuilder fb(parent->generationSeed + 3);
-            derived.content = fb.vary_rhythm(std::get<MelodicFigure>(parent->content));
+            Randomizer rng(parent->generationSeed + 3);
+            derived.content = figure_transforms::vary_rhythm(std::get<MelodicFigure>(parent->content), rng);
             break;
         }
         case TransformOp::RhythmTail: {

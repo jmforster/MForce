@@ -481,6 +481,7 @@ static int run_josie(int argc, char** argv) {
     return 0;
 }
 
+
 // ---------------------------------------------------------------------------
 // Classical composition mode — algorithmic melody generation
 // ---------------------------------------------------------------------------
