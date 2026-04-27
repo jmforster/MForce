@@ -1,0 +1,72 @@
+{
+  "_comment": "Audition patch for ElaboratedPhraseStrategy Phase 1. The strategy builds (or accepts) a skeleton MelodicFigure, walks each anchor, and per anchor randomly picks Leave (single-note figure at anchor pitch) or Generate (RFB-built figure of matching duration). Output Phrase has N figures + N FCs with leadStep math FC[0]=0; FC[i>0] = skel.step[i] - prev_net_step. Render: build/tools/mforce_cli/Debug/mforce_cli.exe --compose patches/PluckU.json renders/elaborated 1 --template patches/test_elaborated.json",
+  "keyName": "C",
+  "scaleName": "Major",
+  "bpm": 100.0,
+  "masterSeed": 57885,
+
+  "sections": [
+    {
+      "name": "Main",
+      "beats": 16
+    }
+  ],
+
+  "parts": [
+    {
+      "name": "melody",
+      "role": "melody",
+      "passages": {
+        "Main": {
+          "_comment": "Two phrases. Each is 8 beats. Phrase 1 uses a literal skeleton so you can predict the structural backbone; phrase 2 lets RFB build the skeleton.",
+          "startingPitch": {"octave": 4, "pitch": "C"},
+          "phrases": [
+            {
+              "_comment": "Phrase 1: literal C-D-E-D skeleton as halves (4 anchors, 8 beats, ascending then back). Random Leave/Generate per anchor. Seeded.",
+              "name": "literal_skel",
+              "strategy": "elaborated_phrase",
+              "startingPitch": {"octave": 4, "pitch": "C"},
+              "figures": [],
+              "elaboratedConfig": {
+                "skeleton": {
+                  "units": [
+                    {"duration": 2.0, "step": 0},
+                    {"duration": 2.0, "step": 1},
+                    {"duration": 2.0, "step": 1},
+                    {"duration": 2.0, "step": -1}
+                  ]
+                },
+                "choiceMode": "random",
+                "generateConstraints": {
+                  "minPulse": 0.25,
+                  "maxPulse": 1.0
+                },
+                "seed": 11111
+              }
+            },
+            {
+              "_comment": "Phrase 2: RFB-built skeleton. defaultPulse 2.0 + buildCount 4 = 8-beat skeleton with 4 anchors of 2 beats each. RFB picks the pitch contour. Random elaboration on top.",
+              "name": "rfb_skel",
+              "strategy": "elaborated_phrase",
+              "startingPitch": {"octave": 4, "pitch": "C"},
+              "figures": [],
+              "elaboratedConfig": {
+                "buildMethod": "by_count",
+                "buildCount": 4,
+                "buildConstraints": {
+                  "defaultPulse": 2.0
+                },
+                "choiceMode": "random",
+                "generateConstraints": {
+                  "minPulse": 0.25,
+                  "maxPulse": 1.0
+                },
+                "seed": 22222
+              }
+            }
+          ]
+        }
+      }
+    }
+  ]
+}
