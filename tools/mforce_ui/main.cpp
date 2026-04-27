@@ -1464,6 +1464,29 @@ static void save_to_path(const std::string& path) {
     recents_push(path);  // saved patches are equally worth remembering
 }
 
+// Type predicates shared by render-time snapshot capture and the strip
+// dispatch in draw_waveform_window.
+static bool is_partials_type(const std::string& t) {
+    return t == "FullPartials" || t == "SequencePartials" || t == "ExplicitPartials";
+}
+static bool is_formant_type(const std::string& t) {
+    return t == "Formant" || t == "FormantSpectrum"
+        || t == "FormantSequence" || t == "BandSpectrum";
+}
+
+// Per-render snapshot of envelope-driven inputs feeding evolving (Partials/
+// Formant) nodes. Indexed by node id, then by input pin name (e.g. "multEnv",
+// "amplEnv", "frequency"). Each timeline holds EVO_SNAP_COUNT samples evenly
+// spaced across the rendered note duration. Empty until first render.
+static constexpr int EVO_SNAP_COUNT = 100;
+static std::unordered_map<int, std::unordered_map<std::string, std::vector<float>>>
+    g_evoSnapshots;
+
+// Scrubber position (0..1) — at 0, strip shows static endpoints only; at >0,
+// strip overlays a third bar/curve at the snapshot value for the corresponding
+// time fraction along the rendered note.
+static float g_scrubberPos = 0.0f;
+
 // Returns the path to a patch file reflecting current UI state — either
 // s_currentFilePath (if no edits pending) or a temp file we sync-write to.
 // Playback paths should use this instead of s_currentFilePath directly so
@@ -1852,6 +1875,25 @@ static void render_waveforms(float noteNum, float velocity, float durationSecond
     g_outputWaveform.resize(samples);
     g_waveformSamples = samples;
 
+    // Snapshot capture setup: for every Partials/Formant node, record which
+    // input pins are connected to live ValueSources so we can sample their
+    // current() values at EVO_SNAP_COUNT evenly-spaced time points during
+    // the render loop. This populates g_evoSnapshots used by the scrubber.
+    g_evoSnapshots.clear();
+    struct EvoCap { int nodeId; std::string pin; ValueSource* vs; std::vector<float>* vec; };
+    std::vector<EvoCap> evoCaptures;
+    int snapStride = std::max(1, samples / EVO_SNAP_COUNT);
+    for (auto& n : s_nodes) {
+        if (!is_partials_type(n.typeName) && !is_formant_type(n.typeName)) continue;
+        auto& byPin = g_evoSnapshots[n.id];
+        for (auto& pin : n.inputs) {
+            GraphNode* sn = find_source_node(pin.id);
+            if (!sn || !sn->dspSource) continue;
+            byPin[pin.name].assign(EVO_SNAP_COUNT, 0.0f);
+            evoCaptures.push_back({n.id, pin.name, sn->dspSource.get(), &byPin[pin.name]});
+        }
+    }
+
     // Render the full note offline
     for (int i = 0; i < samples; ++i) {
         float s = src->next();
@@ -1861,6 +1903,14 @@ static void render_waveforms(float noteNum, float velocity, float durationSecond
         for (auto& n : s_nodes) {
             if (!n.waveformData.empty())
                 n.waveformData[i] = n.dspSource->current();
+        }
+
+        // Snapshot evolving inputs at stride boundaries.
+        if (i % snapStride == 0) {
+            int idx = i / snapStride;
+            if (idx < EVO_SNAP_COUNT) {
+                for (auto& c : evoCaptures) (*c.vec)[idx] = c.vs->current();
+            }
         }
     }
 
@@ -3858,6 +3908,52 @@ static bool draw_partials_strip(GraphNode* node, ImU32 color,
         }
     }
 
+    // Scrubber overlay: when g_scrubberPos > 0 and we have envelope snapshots
+    // for this node, render a third bar set at the lerped state at that
+    // time fraction. Uses the same render-time math the synth applies.
+    if (g_scrubberPos > 0.0f) {
+        auto sIt = g_evoSnapshots.find(node->id);
+        if (sIt != g_evoSnapshots.end() && hasEvo) {
+            auto get_env = [&](const char* name) -> float {
+                auto it = sIt->second.find(name);
+                if (it == sIt->second.end() || it->second.empty()) return 0.0f;
+                int idx = std::clamp(int(g_scrubberPos * float(int(it->second.size()) - 1)),
+                                     0, int(it->second.size()) - 1);
+                return it->second[idx];
+            };
+            float multE = std::clamp(get_env("multEnv"), 0.0f, 1.0f);
+            float amplE = std::clamp(get_env("amplEnv"), 0.0f, 1.0f);
+            float roE   = std::clamp(get_env("roEnv"),   0.0f, 1.0f);
+            float ro_t  = ro1 + (ro2 - ro1) * roE;
+
+            const ImU32 scrubCol = IM_COL32(255, 180, 60, 230);  // amber overlay
+
+            // We need the ORIGINAL ampl (pre-rolloff) to recompose from
+            // weights — but we only have post-rolloff arrays here. The cheap
+            // workaround: undo rolloff with the per-column rolloff exponent
+            // (which we know was applied above), then apply the lerped
+            // rolloff with the lerped multiplier.
+            for (int i = 0; i < N; ++i) {
+                float pmult1 = mult1[i] > 0.0f ? mult1[i] : 1.0f;
+                float pmult2 = mult2[i] > 0.0f ? mult2[i] : 1.0f;
+                // Recover pre-rolloff weights.
+                float w1 = ampl1[i] * std::pow(pmult1, ro1);
+                float w2 = ampl2[i] * std::pow(pmult2, ro2);
+                float wt = w1 + (w2 - w1) * amplE;
+                float pmult_t = pmult1 + (pmult2 - pmult1) * multE;
+                float roll_t = (ro_t == 0.0f || pmult_t <= 0.0f)
+                             ? 1.0f : 1.0f / std::pow(pmult_t, ro_t);
+                float a = wt * roll_t;
+                float bx = idx_to_x(float(i + 1));
+                float by = ampl_to_y(a);
+                // Centered narrow bar over both _1 and _2 columns.
+                float scrubW = std::max(1.0f, barW * 0.4f);
+                dl->AddRectFilled(ImVec2(bx - scrubW * 0.5f, by),
+                                  ImVec2(bx + scrubW * 0.5f, plotY1), scrubCol);
+            }
+        }
+    }
+
     // X-axis ticks: every Nth label depending on N
     int step = (N <= 16) ? 1 : (N <= 40) ? 4 : (N <= 100) ? 10 : 20;
     for (int i = 1; i <= N; i += step) {
@@ -4065,6 +4161,12 @@ static void draw_waveform_window() {
     ImGui::SameLine();
     ImGui::Spacing(); ImGui::SameLine();
     ImGui::Checkbox("Envelopes", &g_showEnvelopes);
+    ImGui::SameLine();
+    ImGui::Spacing(); ImGui::SameLine();
+    ImGui::Text("Scrub");
+    ImGui::SameLine();
+    ImGui::SetNextItemWidth(140.0f);
+    ImGui::SliderFloat("##scrub", &g_scrubberPos, 0.0f, 1.0f, "%.2f");
 
     // Horizontal scrollbar
     int maxScroll = std::max(0, g_waveformSamples - (int)(waveAreaW) * g_waveZoom);
@@ -4097,14 +4199,6 @@ static void draw_waveform_window() {
     static const ImU32 partialsColor = IM_COL32(60, 200, 200, 255);  // teal — matches spectrum
     static const ImU32 formantColor  = IM_COL32(60, 200, 200, 255);  // teal — matches spectrum
 
-    auto is_partials = [](const std::string& t) {
-        return t == "FullPartials" || t == "SequencePartials" || t == "ExplicitPartials";
-    };
-    auto is_formant = [](const std::string& t) {
-        return t == "Formant" || t == "FormantSpectrum"
-            || t == "FormantSequence" || t == "BandSpectrum";
-    };
-
     strips.push_back({std::string("Output"),
                       g_outputWaveform.empty() ? nullptr : g_outputWaveform.data(),
                       g_waveformSamples, audioColor, -1, StripKind::Wave});
@@ -4115,9 +4209,9 @@ static void draw_waveform_window() {
         bool isEnvelope = (cat == SourceCategory::Envelope);
         if (isEnvelope && !g_showEnvelopes) continue;
 
-        if (is_partials(n.typeName)) {
+        if (is_partials_type(n.typeName)) {
             strips.push_back({n.label, nullptr, 0, partialsColor, n.id, StripKind::Partials});
-        } else if (is_formant(n.typeName)) {
+        } else if (is_formant_type(n.typeName)) {
             strips.push_back({n.label, nullptr, 0, formantColor,  n.id, StripKind::Formant});
         } else {
             if (n.waveformData.empty()) continue;
