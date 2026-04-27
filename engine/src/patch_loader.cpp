@@ -70,9 +70,17 @@ struct ValueSourceMono final : MonoSource {
 // Param resolution: number -> ConstantSource, {"ref":"id"} -> lookup
 // ---------------------------------------------------------------------------
 
+// Resolve a JSON ref/number into a ValueSource. When `usage` is non-null,
+// each resolved ref increments usage[refId]; on the SECOND+ resolve of the
+// same source, the returned shared_ptr wraps the source in a RefSource so
+// only the first consumer's next() advances the underlying state. Without
+// this, a single envelope wired to N consumer pins would be advanced N times
+// per audio sample, exhausting its timeline at 1/N of the note duration.
+// Mirrors the auto-wrap logic in mforce_ui/main.cpp::update_all_dsp().
 static std::shared_ptr<ValueSource> resolve_param(
     const json& val,
-    const std::unordered_map<std::string, std::shared_ptr<ValueSource>>& valueNodes)
+    const std::unordered_map<std::string, std::shared_ptr<ValueSource>>& valueNodes,
+    std::unordered_map<std::string, int>* usage = nullptr)
 {
     if (val.is_number())
         return std::make_shared<ConstantSource>(val.get<float>());
@@ -82,6 +90,11 @@ static std::shared_ptr<ValueSource> resolve_param(
         auto it = valueNodes.find(refId);
         if (it == valueNodes.end())
             throw std::runtime_error("Unresolved node ref: " + refId);
+        if (usage) {
+            int& count = (*usage)[refId];
+            count++;
+            if (count > 1) return std::make_shared<RefSource>(it->second);
+        }
         return it->second;
     }
 
@@ -90,11 +103,12 @@ static std::shared_ptr<ValueSource> resolve_param(
 
 static std::shared_ptr<ValueSource> resolve_param_or(
     const json& params, const char* key, float defaultVal,
-    const std::unordered_map<std::string, std::shared_ptr<ValueSource>>& valueNodes)
+    const std::unordered_map<std::string, std::shared_ptr<ValueSource>>& valueNodes,
+    std::unordered_map<std::string, int>* usage = nullptr)
 {
     if (!params.contains(key))
         return std::make_shared<ConstantSource>(defaultVal);
-    return resolve_param(params.at(key), valueNodes);
+    return resolve_param(params.at(key), valueNodes, usage);
 }
 
 // ---------------------------------------------------------------------------
@@ -112,7 +126,8 @@ struct GraphResult {
 static void wire_params_generic(
     ValueSource& src,
     const json& params,
-    const std::unordered_map<std::string, std::shared_ptr<ValueSource>>& valueNodes)
+    const std::unordered_map<std::string, std::shared_ptr<ValueSource>>& valueNodes,
+    std::unordered_map<std::string, int>* usage = nullptr)
 {
     for (const auto& desc : src.input_descriptors()) {
         if (!params.contains(desc.name)) continue;
@@ -121,14 +136,14 @@ static void wire_params_generic(
             // Multi-input pin with array-of-refs JSON. Iterate and add each.
             src.clear_param(desc.name);
             for (const auto& item : v)
-                src.add_param(desc.name, resolve_param(item, valueNodes));
+                src.add_param(desc.name, resolve_param(item, valueNodes, usage));
         } else {
-            src.set_param(desc.name, resolve_param(v, valueNodes));
+            src.set_param(desc.name, resolve_param(v, valueNodes, usage));
         }
     }
     for (const auto& desc : src.param_descriptors()) {
         if (params.contains(desc.name))
-            src.set_param(desc.name, resolve_param(params.at(desc.name), valueNodes));
+            src.set_param(desc.name, resolve_param(params.at(desc.name), valueNodes, usage));
     }
     // Scalar configs (int/float/bool) — apply if present in JSON.
     for (const auto& desc : src.config_descriptors()) {
@@ -195,9 +210,15 @@ static GraphResult build_graph(
 
     auto& reg = SourceRegistry::instance();
 
+    // Tracks how many times each value source has been wired as a consumer
+    // input. The 2nd+ time, resolve_param wraps in RefSource so only one
+    // consumer drives next() — fixes the "envelope shared across multiple
+    // pins exhausts in 1/N duration" bug.
+    std::unordered_map<std::string, int> usage;
+
     // Resolve function for configurators
     ResolveParamFn resolveFn = [&](const json& val) {
-        return resolve_param(val, valueNodes);
+        return resolve_param(val, valueNodes, &usage);
     };
 
     for (const auto& id : nodeOrder) {
@@ -219,9 +240,9 @@ static GraphResult build_graph(
             const auto& p = *pp;
             bool absolute = p.value("absolute", true);
             auto src = std::make_shared<VarSource>(
-                resolve_param_or(p, "val",    0.0f, valueNodes),
-                resolve_param_or(p, "var",    0.0f, valueNodes),
-                resolve_param_or(p, "varPct", 0.0f, valueNodes), absolute);
+                resolve_param_or(p, "val",    0.0f, valueNodes, &usage),
+                resolve_param_or(p, "var",    0.0f, valueNodes, &usage),
+                resolve_param_or(p, "varPct", 0.0f, valueNodes, &usage), absolute);
             valueNodes[id] = src;
         }
         else if (type == "RangeSource") {
@@ -229,9 +250,9 @@ static GraphResult build_graph(
             const auto& p = *pp;
             bool normalized = p.value("normalized", false);
             auto src = std::make_shared<RangeSource>(
-                resolve_param_or(p, "min", 0.0f, valueNodes),
-                resolve_param_or(p, "max", 1.0f, valueNodes),
-                resolve_param_or(p, "var", 0.0f, valueNodes), normalized);
+                resolve_param_or(p, "min", 0.0f, valueNodes, &usage),
+                resolve_param_or(p, "max", 1.0f, valueNodes, &usage),
+                resolve_param_or(p, "var", 0.0f, valueNodes, &usage), normalized);
             valueNodes[id] = src;
         }
         else if (type == "Envelope") {
@@ -260,7 +281,7 @@ static GraphResult build_graph(
             }
             auto src = std::make_shared<SegmentSource>(
                 std::move(values), sampleRate, oneShot, seed.value_or(0x5E6A'0000u));
-            if (pp) wire_params_generic(*src, *pp, valueNodes);
+            if (pp) wire_params_generic(*src, *pp, valueNodes, &usage);
             valueNodes[id] = src;
             add_mono(g, id, src);
         }
@@ -272,7 +293,7 @@ static GraphResult build_graph(
                 p.value("attack", 0.3f), p.value("threshold", 0.0f),
                 p.value("speedVar", 0.0f), p.value("depthVar", 0.0f),
                 seed.value_or(0xF1B0'0000u));
-            wire_params_generic(*vib, p, valueNodes);
+            wire_params_generic(*vib, p, valueNodes, &usage);
             valueNodes[id] = vib;
         }
         else if (type == "BWLowpassFilter" || type == "BWHighpassFilter" || type == "BWBandpassFilter") {
@@ -285,10 +306,10 @@ static GraphResult build_graph(
             else
                 src = std::make_shared<BWBandpassFilter>(sampleRate, sections);
             if (pp) {
-                wire_params_generic(*src, *pp, valueNodes);
+                wire_params_generic(*src, *pp, valueNodes, &usage);
                 // JSON uses "cutoff" alias for single-band filters
                 if (pp->contains("cutoff"))
-                    src->set_param("cutoffFreq", resolve_param(pp->at("cutoff"), valueNodes));
+                    src->set_param("cutoffFreq", resolve_param(pp->at("cutoff"), valueNodes, &usage));
             }
             valueNodes[id] = src;
             add_mono(g, id, src);
@@ -323,7 +344,7 @@ static GraphResult build_graph(
                         fseq->formants.push_back(it->second);
                     }
                 }
-                wire_params_generic(*fseq, *pp, valueNodes);
+                wire_params_generic(*fseq, *pp, valueNodes, &usage);
             }
             formantNodes[id] = fseq; valueNodes[id] = fseq;
         }
@@ -333,7 +354,7 @@ static GraphResult build_graph(
             if (pp) {
                 const auto& p = *pp;
                 // Wire frequency/amplitude/phase generically
-                wire_params_generic(*fas, p, valueNodes);
+                wire_params_generic(*fas, p, valueNodes, &usage);
 
                 // Create the appropriate Partials subclass based on mode
                 std::string mode = p.value("mode", std::string("full"));
@@ -369,11 +390,11 @@ static GraphResult build_graph(
                 partials->set_dt(p.value("detune1",  0.0f), p.value("detune2",  0.0f));
 
                 // Wire envelope params to the partials object
-                if (p.contains("multEnv")) partials->set_param("multEnv", resolve_param(p.at("multEnv"), valueNodes));
-                if (p.contains("amplEnv")) partials->set_param("amplEnv", resolve_param(p.at("amplEnv"), valueNodes));
-                if (p.contains("poEnv"))   partials->set_param("poEnv",   resolve_param(p.at("poEnv"),   valueNodes));
-                if (p.contains("roEnv"))   partials->set_param("roEnv",   resolve_param(p.at("roEnv"),   valueNodes));
-                if (p.contains("dtEnv"))   partials->set_param("dtEnv",   resolve_param(p.at("dtEnv"),   valueNodes));
+                if (p.contains("multEnv")) partials->set_param("multEnv", resolve_param(p.at("multEnv"), valueNodes, &usage));
+                if (p.contains("amplEnv")) partials->set_param("amplEnv", resolve_param(p.at("amplEnv"), valueNodes, &usage));
+                if (p.contains("poEnv"))   partials->set_param("poEnv",   resolve_param(p.at("poEnv"),   valueNodes, &usage));
+                if (p.contains("roEnv"))   partials->set_param("roEnv",   resolve_param(p.at("roEnv"),   valueNodes, &usage));
+                if (p.contains("dtEnv"))   partials->set_param("dtEnv",   resolve_param(p.at("dtEnv"),   valueNodes, &usage));
 
                 // Expand rule
                 if (p.contains("expandRule")) {
@@ -396,7 +417,7 @@ static GraphResult build_graph(
                     std::string fid = p["formant"].at("ref").get<std::string>();
                     auto fit = formantNodes.find(fid);
                     if (fit == formantNodes.end()) throw std::runtime_error("Unresolved formant spectrum ref: " + fid);
-                    fas->set_formant(fit->second, resolve_param_or(p, "formantWeight", 0.0f, valueNodes));
+                    fas->set_formant(fit->second, resolve_param_or(p, "formantWeight", 0.0f, valueNodes, &usage));
                 }
 
                 // Store partials in valueNodes so it can be referenced
@@ -410,7 +431,7 @@ static GraphResult build_graph(
             auto as2 = std::make_shared<AdditiveSource2>(sampleRate, seed.value_or(0xADD3'0000u));
             if (pp) {
                 const auto& p = *pp;
-                wire_params_generic(*as2, p, valueNodes);
+                wire_params_generic(*as2, p, valueNodes, &usage);
                 std::string pMode = p.value("partialMode", std::string("default"));
                 if (pMode == "default") {
                     as2->set_default_partials(p.value("partialCount", 500));
@@ -434,7 +455,7 @@ static GraphResult build_graph(
                 for (const char* key : {"amplEnvelopes", "freqEnvelopes"}) {
                     if (p.contains(key)) {
                         for (const auto& ae : p[key]) {
-                            auto env = resolve_param(ae.at("envelope"), valueNodes);
+                            auto env = resolve_param(ae.at("envelope"), valueNodes, &usage);
                             auto filt = parse_filter(ae.value("filter", std::string("all")));
                             int from = ae.value("from", 1), to = ae.value("to", 500);
                             if (std::string(key) == "amplEnvelopes")
@@ -453,7 +474,7 @@ static GraphResult build_graph(
             auto wt = std::make_shared<WavetableSource>(sampleRate, seed.value_or(0xC0FFEEu));
             if (pp) {
                 const auto& p = *pp;
-                wire_params_generic(*wt, p, valueNodes);
+                wire_params_generic(*wt, p, valueNodes, &usage);
                 wt->set_interpolate(p.value("interpolate", false));
                 // Legacy patches have evolution as a string ("pluck", "averaging", "target").
                 // New UI patches wire evolution as a ref (handled by wire_params_generic above).
@@ -500,7 +521,7 @@ static GraphResult build_graph(
             auto hks = std::make_shared<HybridKSSource>(sampleRate, seed.value_or(0xBEEF'C0DEu));
             if (pp) {
                 const auto& p = *pp;
-                wire_params_generic(*hks, p, valueNodes);
+                wire_params_generic(*hks, p, valueNodes, &usage);
                 hks->set_hold_cycles(p.value("holdCycles", 5));
                 hks->set_morph_duration(p.value("morphDuration", 0.5f));
                 hks->set_num_partials(p.value("numPartials", 30));
@@ -515,7 +536,7 @@ static GraphResult build_graph(
             auto mux = std::make_shared<MultiplexSource>();
             if (pp) {
                 // Apply "count" config via generic path.
-                wire_params_generic(*mux, *pp, valueNodes);
+                wire_params_generic(*mux, *pp, valueNodes, &usage);
 
                 // Resolve the "source" input to its template root node id.
                 if (pp->contains("source") && (*pp)["source"].is_object()
@@ -559,7 +580,7 @@ static GraphResult build_graph(
         else if (reg.has(type)) {
             auto src = reg.create(type, sampleRate, seed);
             if (pp) {
-                wire_params_generic(*src, *pp, valueNodes);
+                wire_params_generic(*src, *pp, valueNodes, &usage);
                 auto* configurator = reg.get_configurator(type);
                 if (configurator) (*configurator)(*src, *pp, resolveFn);
             }
