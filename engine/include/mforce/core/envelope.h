@@ -119,12 +119,21 @@ struct Envelope : ValueSource {
   }
 
   float next() override {
+    // Pre-prepare safety: stageCounts_ is sized in prepare(); without it,
+    // stageCounts_[currStage_] indexes a null buffer. Reachable when UI
+    // display paths (e.g. draw_formant_strip) cascade next() through a
+    // ValueSource chain that includes an unprepared Envelope.
+    if (stageCounts_.empty()) { cur_ = 0.0f; return cur_; }
+
     ++ptr_;
 
     // Advance stage if needed
     while (ptr_ >= stageEnd_ && currStage_ < int(stages_.size()) - 1) {
       stageStart_ = stageEnd_;
       ++currStage_;
+      if (currStage_ >= int(stageCounts_.size())) {
+        cur_ = 0.0f; return cur_;
+      }
       stageEnd_ += stageCounts_[currStage_];
     }
 
