@@ -983,6 +983,15 @@ static void load_graph_from_path(const std::string& path) {
         s_needsLayout = true;
     }
 
+    // Restore editor pan (so the saved view-of-the-graph reappears).
+    if (root.contains("ui") && root["ui"].contains("panning") &&
+        root["ui"]["panning"].is_array() && root["ui"]["panning"].size() == 2)
+    {
+        float px = root["ui"]["panning"][0].get<float>();
+        float py = root["ui"]["panning"][1].get<float>();
+        ImNodes::EditorContextResetPanning(ImVec2(px, py));
+    }
+
     // Wire all DSP connections (including RefSource for shared sources)
     update_all_dsp();
 }
@@ -1301,6 +1310,10 @@ static void save_patch_graph(const std::string& path) {
         positions["__param_" + pn->paramName] = {pos.x, pos.y};
     }
     root["ui"]["positions"] = positions;
+    {
+        ImVec2 pan = ImNodes::EditorContextGetPanning();
+        root["ui"]["panning"] = {pan.x, pan.y};
+    }
 
     std::ofstream f(path);
     f << root.dump(2);
@@ -1431,6 +1444,10 @@ static void save_node_graph(const std::string& path) {
         positions[nodeIds[nodePtr->id]] = {pos.x, pos.y};
     }
     root["ui"]["positions"] = positions;
+    {
+        ImVec2 pan = ImNodes::EditorContextGetPanning();
+        root["ui"]["panning"] = {pan.x, pan.y};
+    }
 
     std::ofstream f(path);
     f << root.dump(2);
