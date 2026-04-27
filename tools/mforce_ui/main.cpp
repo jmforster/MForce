@@ -988,10 +988,48 @@ static void load_graph_from_path(const std::string& path) {
 }
 
 // Dialog-driven wrapper for load_graph_from_path.
+// Recent-files list: most-recent-first, capped, persisted to mforce_recents.json
+// in the current working directory (same neighborhood as imgui.ini).
+static constexpr int RECENTS_MAX = 12;
+static std::vector<std::string> g_recentFiles;
+static const char* RECENTS_PATH = "mforce_recents.json";
+
+static void recents_save() {
+    nlohmann::json j = nlohmann::json::array();
+    for (const auto& p : g_recentFiles) j.push_back(p);
+    std::ofstream f(RECENTS_PATH);
+    if (f) f << j.dump(2);
+}
+
+static void recents_load() {
+    g_recentFiles.clear();
+    std::ifstream f(RECENTS_PATH);
+    if (!f) return;
+    try {
+        nlohmann::json j; f >> j;
+        if (!j.is_array()) return;
+        for (const auto& v : j) {
+            if (v.is_string()) g_recentFiles.push_back(v.get<std::string>());
+        }
+        if ((int)g_recentFiles.size() > RECENTS_MAX) g_recentFiles.resize(RECENTS_MAX);
+    } catch (...) {}
+}
+
+static void recents_push(const std::string& path) {
+    if (path.empty()) return;
+    // Move-to-front: dedupe by exact-path equality.
+    auto it = std::find(g_recentFiles.begin(), g_recentFiles.end(), path);
+    if (it != g_recentFiles.end()) g_recentFiles.erase(it);
+    g_recentFiles.insert(g_recentFiles.begin(), path);
+    if ((int)g_recentFiles.size() > RECENTS_MAX) g_recentFiles.resize(RECENTS_MAX);
+    recents_save();
+}
+
 static void load_graph() {
     std::string path = open_file_dialog();
     if (path.empty()) return;
     load_graph_from_path(path);
+    recents_push(path);
 }
 
 // ===========================================================================
@@ -1406,6 +1444,7 @@ static void save_to_path(const std::string& path) {
         save_node_graph(path);
     s_currentFilePath = path;
     s_graphDirty = false;
+    recents_push(path);  // saved patches are equally worth remembering
 }
 
 // Returns the path to a patch file reflecting current UI state — either
@@ -4367,6 +4406,9 @@ int main(int argc, char** argv) {
     // Initialize the source registry before creating any nodes
     register_all_sources();
 
+    // Load the recent-files list before any patch-load path runs.
+    recents_load();
+
     // Start with a Patch Graph — then, if a patch path was passed on the
     // command line, load it so the user can launch the UI with a patch in
     // one step (e.g. `mforce_ui.exe patches/MPXTest3.json`). Status shows
@@ -4381,6 +4423,7 @@ int main(int argc, char** argv) {
         } else {
             try {
                 load_graph_from_path(patchArg);
+                recents_push(patchArg);
                 char buf[512];
                 snprintf(buf, sizeof(buf), "Loaded: %s", patchArg.c_str());
                 transport_set_status(buf, false);
@@ -4469,6 +4512,47 @@ int main(int argc, char** argv) {
                 }
                 if (ImGui::MenuItem("Open", "Ctrl+O")) {
                     load_graph();
+                }
+                if (ImGui::BeginMenu("Open Recent", !g_recentFiles.empty())) {
+                    std::string toLoad;  // defer to avoid mutating list mid-iter
+                    for (const auto& path : g_recentFiles) {
+                        // Show just the filename; full path as tooltip on hover.
+                        const char* slash = strrchr(path.c_str(), '/');
+                        const char* bs    = strrchr(path.c_str(), '\\');
+                        const char* fname = (bs && (!slash || bs > slash)) ? bs + 1
+                                          : slash ? slash + 1 : path.c_str();
+                        if (ImGui::MenuItem(fname)) toLoad = path;
+                        if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", path.c_str());
+                    }
+                    ImGui::Separator();
+                    if (ImGui::MenuItem("Clear")) {
+                        g_recentFiles.clear();
+                        recents_save();
+                    }
+                    ImGui::EndMenu();
+                    if (!toLoad.empty()) {
+                        if (std::filesystem::exists(toLoad)) {
+                            try {
+                                load_graph_from_path(toLoad);
+                                recents_push(toLoad);
+                            } catch (const std::exception& e) {
+                                char buf[512];
+                                snprintf(buf, sizeof(buf),
+                                         "Failed to load %s: %s", toLoad.c_str(), e.what());
+                                transport_set_status(buf, true);
+                            }
+                        } else {
+                            // File no longer exists — remove from recents.
+                            auto it = std::find(g_recentFiles.begin(), g_recentFiles.end(), toLoad);
+                            if (it != g_recentFiles.end()) {
+                                g_recentFiles.erase(it);
+                                recents_save();
+                            }
+                            char buf[512];
+                            snprintf(buf, sizeof(buf), "File not found: %s", toLoad.c_str());
+                            transport_set_status(buf, true);
+                        }
+                    }
                 }
                 if (ImGui::MenuItem("Save", "Ctrl+S")) {
                     save_graph();
