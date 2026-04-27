@@ -10,6 +10,9 @@
 #include <windows.h>
 #include <mmsystem.h>
 #include <commdlg.h>
+#include <DbgHelp.h>
+#pragma comment(lib, "DbgHelp.lib")
+#include <typeinfo>
 #include <nlohmann/json.hpp>
 #include <complex>
 #include "mforce/render/patch_loader.h"
@@ -4466,7 +4469,116 @@ static void draw_wave_popouts() {
 // Main
 // ===========================================================================
 
+// ---------------------------------------------------------------------------
+// Crash logging — Windows GUI subsystem swallows stdout/stderr, so without
+// these hooks a crash leaves no trace. We write to mforce_ui_crash.log in
+// cwd: timestamp + exception code/address + symbolic stack trace.
+// ---------------------------------------------------------------------------
+
+static const char* CRASH_LOG_PATH = "mforce_ui_crash.log";
+
+static void crash_log_timestamp(FILE* f) {
+    time_t t = time(nullptr);
+    struct tm tmv; localtime_s(&tmv, &t);
+    char ts[32];
+    strftime(ts, sizeof(ts), "%Y-%m-%d %H:%M:%S", &tmv);
+    fprintf(f, "[%s] ", ts);
+}
+
+static void crash_log_stack(FILE* f) {
+    void* frames[40];
+    USHORT count = CaptureStackBackTrace(0, 40, frames, NULL);
+
+    HANDLE proc = GetCurrentProcess();
+    static bool symInited = false;
+    if (!symInited) {
+        SymSetOptions(SYMOPT_LOAD_LINES | SYMOPT_DEFERRED_LOADS | SYMOPT_UNDNAME);
+        SymInitialize(proc, NULL, TRUE);
+        symInited = true;
+    }
+
+    char symBuf[sizeof(SYMBOL_INFO) + 256] = {0};
+    SYMBOL_INFO* sym = reinterpret_cast<SYMBOL_INFO*>(symBuf);
+    sym->SizeOfStruct = sizeof(SYMBOL_INFO);
+    sym->MaxNameLen = 255;
+
+    IMAGEHLP_LINE64 line; line.SizeOfStruct = sizeof(IMAGEHLP_LINE64);
+    DWORD lineDisp = 0;
+
+    for (USHORT i = 0; i < count; ++i) {
+        DWORD64 addr = reinterpret_cast<DWORD64>(frames[i]);
+        DWORD64 disp = 0;
+        const char* name = "???";
+        if (SymFromAddr(proc, addr, &disp, sym)) name = sym->Name;
+        if (SymGetLineFromAddr64(proc, addr, &lineDisp, &line)) {
+            fprintf(f, "  #%-2d %s + 0x%llx  (%s:%lu)\n",
+                    i, name, (unsigned long long)disp, line.FileName, line.LineNumber);
+        } else {
+            fprintf(f, "  #%-2d %s + 0x%llx  (0x%p)\n",
+                    i, name, (unsigned long long)disp, frames[i]);
+        }
+    }
+}
+
+static void crash_log_write(const char* header) {
+    FILE* f = fopen(CRASH_LOG_PATH, "a");
+    if (!f) return;
+    fprintf(f, "\n========================================\n");
+    crash_log_timestamp(f);
+    fprintf(f, "%s\n", header);
+    crash_log_stack(f);
+    fclose(f);
+}
+
+static LONG WINAPI seh_crash_filter(EXCEPTION_POINTERS* info) {
+    FILE* f = fopen(CRASH_LOG_PATH, "a");
+    if (!f) return EXCEPTION_EXECUTE_HANDLER;
+
+    fprintf(f, "\n========================================\n");
+    crash_log_timestamp(f);
+    fprintf(f, "SEH crash\n");
+    fprintf(f, "  exception code:    0x%08lx\n", info->ExceptionRecord->ExceptionCode);
+    fprintf(f, "  exception address: 0x%p\n",    info->ExceptionRecord->ExceptionAddress);
+    if (info->ExceptionRecord->ExceptionCode == EXCEPTION_ACCESS_VIOLATION &&
+        info->ExceptionRecord->NumberParameters >= 2)
+    {
+        ULONG_PTR rw   = info->ExceptionRecord->ExceptionInformation[0];
+        ULONG_PTR addr = info->ExceptionRecord->ExceptionInformation[1];
+        fprintf(f, "  access violation:  %s 0x%llx\n",
+                rw == 0 ? "read of"  : rw == 1 ? "write to" :
+                rw == 8 ? "exec at" : "?",
+                (unsigned long long)addr);
+    }
+
+    // Symbolic faulting frame
+    HANDLE proc = GetCurrentProcess();
+    static bool symInited = false;
+    if (!symInited) {
+        SymSetOptions(SYMOPT_LOAD_LINES | SYMOPT_DEFERRED_LOADS | SYMOPT_UNDNAME);
+        SymInitialize(proc, NULL, TRUE);
+        symInited = true;
+    }
+    char symBuf[sizeof(SYMBOL_INFO) + 256] = {0};
+    SYMBOL_INFO* sym = reinterpret_cast<SYMBOL_INFO*>(symBuf);
+    sym->SizeOfStruct = sizeof(SYMBOL_INFO);
+    sym->MaxNameLen = 255;
+    DWORD64 disp = 0;
+    if (SymFromAddr(proc, reinterpret_cast<DWORD64>(info->ExceptionRecord->ExceptionAddress),
+                    &disp, sym))
+    {
+        fprintf(f, "  faulting symbol:   %s + 0x%llx\n", sym->Name, (unsigned long long)disp);
+    }
+
+    fprintf(f, "Stack:\n");
+    crash_log_stack(f);
+    fclose(f);
+
+    return EXCEPTION_EXECUTE_HANDLER;
+}
+
 int main(int argc, char** argv) {
+    SetUnhandledExceptionFilter(seh_crash_filter);
+    try {
     if (!glfwInit()) return 1;
 
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
@@ -5016,4 +5128,13 @@ int main(int argc, char** argv) {
     glfwTerminate();
 
     return 0;
+    } catch (const std::exception& e) {
+        char buf[1024];
+        snprintf(buf, sizeof(buf), "C++ exception: %s (%s)", typeid(e).name(), e.what());
+        crash_log_write(buf);
+        return 1;
+    } catch (...) {
+        crash_log_write("Unknown C++ exception (non-std::exception)");
+        return 1;
+    }
 }
