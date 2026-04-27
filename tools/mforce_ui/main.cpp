@@ -1010,6 +1010,21 @@ static void recents_save() {
     if (f) f << j.dump(2);
 }
 
+// Normalize path so different-looking strings for the same file dedupe
+// correctly. Uses weakly_canonical (works for non-existent paths too) and
+// forward-slash separators for stable cross-format matching.
+static std::string normalize_path(const std::string& p) {
+    if (p.empty()) return p;
+    try {
+        std::filesystem::path fp = std::filesystem::weakly_canonical(p);
+        std::string s = fp.string();
+        for (char& c : s) if (c == '\\') c = '/';
+        return s;
+    } catch (...) {
+        return p;
+    }
+}
+
 static void recents_load() {
     g_recentFiles.clear();
     std::ifstream f(RECENTS_PATH);
@@ -1018,15 +1033,20 @@ static void recents_load() {
         nlohmann::json j; f >> j;
         if (!j.is_array()) return;
         for (const auto& v : j) {
-            if (v.is_string()) g_recentFiles.push_back(v.get<std::string>());
+            if (!v.is_string()) continue;
+            std::string p = normalize_path(v.get<std::string>());
+            // Dedupe loaded list (legacy entries may collide post-normalize).
+            if (std::find(g_recentFiles.begin(), g_recentFiles.end(), p) == g_recentFiles.end())
+                g_recentFiles.push_back(std::move(p));
         }
         if ((int)g_recentFiles.size() > RECENTS_MAX) g_recentFiles.resize(RECENTS_MAX);
     } catch (...) {}
 }
 
-static void recents_push(const std::string& path) {
-    if (path.empty()) return;
-    // Move-to-front: dedupe by exact-path equality.
+static void recents_push(const std::string& rawPath) {
+    if (rawPath.empty()) return;
+    std::string path = normalize_path(rawPath);
+    // Move-to-front: dedupe by normalized-path equality.
     auto it = std::find(g_recentFiles.begin(), g_recentFiles.end(), path);
     if (it != g_recentFiles.end()) g_recentFiles.erase(it);
     g_recentFiles.insert(g_recentFiles.begin(), path);
@@ -4632,7 +4652,12 @@ int main(int argc, char** argv) {
                         const char* bs    = strrchr(path.c_str(), '\\');
                         const char* fname = (bs && (!slash || bs > slash)) ? bs + 1
                                           : slash ? slash + 1 : path.c_str();
-                        if (ImGui::MenuItem(fname)) toLoad = path;
+                        // ImGui uses the label as the widget ID, so two recents
+                        // with the same basename would collide. Append the full
+                        // path after "##" — ImGui treats it as part of the ID
+                        // but doesn't display it.
+                        std::string label = std::string(fname) + "##" + path;
+                        if (ImGui::MenuItem(label.c_str())) toLoad = path;
                         if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", path.c_str());
                     }
                     ImGui::Separator();
