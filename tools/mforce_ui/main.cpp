@@ -411,6 +411,11 @@ static std::string s_currentFilePath;
 // sync to a temp file before loading the instrument so MultiplexSource (and
 // anything else that bakes state at patch-load time) picks up current edits.
 static bool s_graphDirty = false;
+// Save-prompt machinery: the close callback sets s_closeRequested; the main
+// loop checks it each frame, runs the dirty-check, and either pops the modal
+// (s_showCloseConfirm) or lets the close proceed.
+static bool s_closeRequested = false;
+static bool s_showCloseConfirm = false;
 
 static Pin* find_pin(int pinId) {
     for (auto& node : s_nodes) {
@@ -4691,12 +4696,13 @@ int main(int argc, char** argv) {
         glfwSetWindowPos(window, mx + 100, my + 60);
     }
 
-    // Explicit close callback: Windows taskbar "Close window" / hover-X
-    // sends WM_CLOSE, which should set the close flag via GLFW's default.
-    // Installing our own to be explicit in case the default path was being
-    // skipped on this system.
+    // Defer the actual close so the main loop can run a dirty check and
+    // pop a save-prompt modal when there are unsaved edits. Cancel the
+    // GLFW close flag here; main loop sets it (or doesn't) after the user
+    // answers the prompt.
     glfwSetWindowCloseCallback(window, [](GLFWwindow* w) {
-        glfwSetWindowShouldClose(w, GLFW_TRUE);
+        s_closeRequested = true;
+        glfwSetWindowShouldClose(w, GLFW_FALSE);
     });
 
     glfwMakeContextCurrent(window);
@@ -4778,6 +4784,20 @@ int main(int argc, char** argv) {
 
     while (!glfwWindowShouldClose(window)) {
         glfwPollEvents();
+
+        // Close-with-unsaved-changes handling: if a close was requested,
+        // either bail (clean state), open the prompt (dirty state), or do
+        // nothing (prompt already up — wait for user to answer).
+        if (s_closeRequested && !s_showCloseConfirm) {
+            if (s_graphDirty) {
+                s_showCloseConfirm = true;
+                s_closeRequested = false;  // promoted into modal state
+            } else {
+                glfwSetWindowShouldClose(window, GLFW_TRUE);
+                s_closeRequested = false;
+                continue;  // skip the rest of this frame; loop check exits
+            }
+        }
 
         // Generate pending → draw "Generating..." with cleared waveform this
         // frame; the blocking render then runs after glfwSwapBuffers so the
@@ -4904,7 +4924,8 @@ int main(int argc, char** argv) {
                 }
                 ImGui::Separator();
                 if (ImGui::MenuItem("Quit")) {
-                    glfwSetWindowShouldClose(window, GLFW_TRUE);
+                    // Route through the dirty-check path (same as the OS X / hover-X).
+                    s_closeRequested = true;
                 }
                 ImGui::EndMenu();
             }
@@ -5191,6 +5212,48 @@ int main(int argc, char** argv) {
 
         // Pump audio: refill any completed waveOut buffers
         pump_audio();
+
+        // Save-prompt modal: shown when a close was requested with unsaved
+        // edits. User picks Save / Don't Save / Cancel.
+        if (s_showCloseConfirm) {
+            ImGui::OpenPopup("Save changes?##closeConfirm");
+        }
+        if (ImGui::BeginPopupModal("Save changes?##closeConfirm", nullptr,
+                                   ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove))
+        {
+            const char* fname = "(unsaved patch)";
+            if (!s_currentFilePath.empty()) {
+                const char* slash = strrchr(s_currentFilePath.c_str(), '/');
+                const char* bs    = strrchr(s_currentFilePath.c_str(), '\\');
+                fname = (bs && (!slash || bs > slash)) ? bs + 1
+                      : slash ? slash + 1 : s_currentFilePath.c_str();
+            }
+            ImGui::Text("Save changes to %s?", fname);
+            ImGui::Spacing();
+            if (ImGui::Button("Save", ImVec2(100, 0))) {
+                save_graph();
+                // If save was cancelled in the file dialog (currentFilePath
+                // still empty for new graphs), abort the close so the user
+                // doesn't lose work.
+                if (!s_graphDirty) {
+                    glfwSetWindowShouldClose(window, GLFW_TRUE);
+                }
+                s_showCloseConfirm = false;
+                ImGui::CloseCurrentPopup();
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("Don't Save", ImVec2(100, 0))) {
+                glfwSetWindowShouldClose(window, GLFW_TRUE);
+                s_showCloseConfirm = false;
+                ImGui::CloseCurrentPopup();
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("Cancel", ImVec2(100, 0))) {
+                s_showCloseConfirm = false;
+                ImGui::CloseCurrentPopup();
+            }
+            ImGui::EndPopup();
+        }
 
         ImGui::Render();
         int displayW, displayH;
