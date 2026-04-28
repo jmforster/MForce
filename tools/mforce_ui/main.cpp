@@ -4049,25 +4049,94 @@ static bool draw_formant_strip(GraphNode* node, ImU32 color,
         return popped;
     }
 
-    // Make sure cached params are populated for static formants.
-    ifp->fmt_next();
-
     const float fMin = 20.0f;
     const float fMax = 20000.0f;
     const float logFmin = std::log10(fMin);
     const float logFmax = std::log10(fMax);
-
-    // Sample first to find max gain for autoscaling.
     int samples = std::max(64, int(plotX1 - plotX0));
-    std::vector<float> gains(samples);
-    float gMax = 0.0f;
-    for (int i = 0; i < samples; ++i) {
-        float t = float(i) / float(samples - 1);
-        float f = std::pow(10.0f, logFmin + t * (logFmax - logFmin));
-        float g = ifp->contains(f) ? ifp->get_gain(f) : 0.0f;
-        gains[i] = g;
-        gMax = std::max(gMax, g);
+
+    // Snapshot-driven path: if this is a single Formant node and we have
+    // captured envelope timelines, render up to three overlaid curves —
+    // start (snapshot[0]), end (snapshot[N-1]), and (if scrubber is active)
+    // a scrub overlay at the scrubbed time. For static-input Formants,
+    // start and end coincide, so the overlay looks identical to the
+    // single-curve path.
+    Formant* fp = dynamic_cast<Formant*>(node->dspSource.get());
+    auto sIt = g_evoSnapshots.find(node->id);
+    bool haveSnaps = false;
+    int snapN = 0;
+    if (fp && sIt != g_evoSnapshots.end()) {
+        for (auto& [_, vec] : sIt->second)
+            if ((int)vec.size() > snapN) snapN = (int)vec.size();
+        haveSnaps = (snapN > 1);
     }
+
+    // Mirror Formant::get_gain math so we can compute gain from arbitrary
+    // (cf, gn, wd, pw) tuples — without poking at the live formant's cache.
+    auto formant_gain_at = [](float f, float cf, float gn, float wd, float pw) {
+        float lo = cf - wd * 0.5f;
+        float hi = cf + wd * 0.5f;
+        if (f <= lo || f >= hi) return 0.0f;
+        if (f < cf) return std::pow((f - lo) / std::max(cf - lo, 1e-6f), pw) * gn;
+        return std::pow((hi - f) / std::max(hi - cf, 1e-6f), pw) * gn;
+    };
+
+    // Read pin value at snapshot index. Fall back to the formant's input
+    // ValueSource current() — handles unsnapshotted (constant) pins.
+    auto get_at = [&](const std::string& pin,
+                      std::shared_ptr<ValueSource> fallback, int idx) {
+        if (haveSnaps) {
+            auto pIt = sIt->second.find(pin);
+            if (pIt != sIt->second.end() && !pIt->second.empty()) {
+                int i = std::clamp(idx, 0, int(pIt->second.size()) - 1);
+                return pIt->second[i];
+            }
+        }
+        return fallback ? fallback->current() : 0.0f;
+    };
+
+    auto sample_curve = [&](int snapIdx, std::vector<float>& out) {
+        float cf = get_at("frequency", fp ? fp->get_frequency() : nullptr, snapIdx);
+        float gn = get_at("gain",      fp ? fp->get_gain()      : nullptr, snapIdx);
+        float wd = get_at("width",     fp ? fp->get_width()     : nullptr, snapIdx);
+        float pw = get_at("power",     fp ? fp->get_power()     : nullptr, snapIdx);
+        out.resize(samples);
+        for (int i = 0; i < samples; ++i) {
+            float t = float(i) / float(samples - 1);
+            float f = std::pow(10.0f, logFmin + t * (logFmax - logFmin));
+            out[i] = formant_gain_at(f, cf, gn, wd, pw);
+        }
+    };
+
+    // gains = the curve used for hover readout. Fall back path populates it
+    // from ifp->get_gain (works for FormantSpectrum/FormantSequence which
+    // we don't snapshot-overlay).
+    std::vector<float> gains(samples);
+    std::vector<float> startCurve, endCurve, scrubCurve;
+    int scrubIdx = haveSnaps
+        ? std::clamp(int(g_scrubberPos * float(snapN - 1)), 0, snapN - 1)
+        : 0;
+
+    if (haveSnaps && fp) {
+        sample_curve(0,         startCurve);
+        sample_curve(snapN - 1, endCurve);
+        if (g_scrubberPos > 0.0f) sample_curve(scrubIdx, scrubCurve);
+        // Hover reads scrub curve when active, else end (most informative).
+        gains = scrubCurve.empty() ? endCurve : scrubCurve;
+    } else {
+        // Fallback: single curve from cached formant state.
+        ifp->fmt_next();
+        for (int i = 0; i < samples; ++i) {
+            float t = float(i) / float(samples - 1);
+            float f = std::pow(10.0f, logFmin + t * (logFmax - logFmin));
+            gains[i] = ifp->contains(f) ? ifp->get_gain(f) : 0.0f;
+        }
+    }
+
+    float gMax = 0.0f;
+    for (float v : gains)      gMax = std::max(gMax, v);
+    for (float v : startCurve) gMax = std::max(gMax, v);
+    for (float v : endCurve)   gMax = std::max(gMax, v);
     if (gMax < 1e-4f) gMax = 1.0f;
 
     auto freq_to_x = [&](float f) {
@@ -4104,16 +4173,41 @@ static bool draw_formant_strip(GraphNode* node, ImU32 color,
     // Baseline
     dl->AddLine(ImVec2(plotX0, plotY1), ImVec2(plotX1, plotY1), IM_COL32(80, 80, 80, 255));
 
-    // Filled curve under the line (helps formant peaks read clearly)
-    ImU32 fillCol = (color & 0x00FFFFFF) | (40u << 24);
-    for (int i = 1; i < samples; ++i) {
-        float x0 = plotX0 + float(i - 1);
-        float x1 = plotX0 + float(i);
-        float y0 = gain_to_y(gains[i - 1]);
-        float y1 = gain_to_y(gains[i]);
-        ImVec2 p0(x0, y0), p1(x1, y1), p2(x1, plotY1), p3(x0, plotY1);
-        dl->AddQuadFilled(p0, p1, p2, p3, fillCol);
-        dl->AddLine(p0, p1, color, 1.5f);
+    // Curve drawing helper. When `fillCol` != 0 the area below the line is
+    // filled — used for the start/end "envelope of motion" curves; the scrub
+    // overlay is drawn line-only so it stays crisp on top.
+    auto draw_curve = [&](const std::vector<float>& c, ImU32 lineCol, ImU32 fillCol_, float thickness) {
+        if (c.empty()) return;
+        for (size_t i = 1; i < c.size(); ++i) {
+            float x0 = plotX0 + float(i - 1);
+            float x1 = plotX0 + float(i);
+            float y0 = gain_to_y(c[i - 1]);
+            float y1 = gain_to_y(c[i]);
+            if (fillCol_ != 0u) {
+                ImVec2 p0(x0, y0), p1(x1, y1), p2(x1, plotY1), p3(x0, plotY1);
+                dl->AddQuadFilled(p0, p1, p2, p3, fillCol_);
+            }
+            dl->AddLine(ImVec2(x0, y0), ImVec2(x1, y1), lineCol, thickness);
+        }
+    };
+
+    if (haveSnaps && fp) {
+        // Match Partials: light teal = start (snapshot[0]), dark teal = end
+        // (snapshot[N-1]); for static-input Formants these coincide.
+        ImU32 lightFill = IM_COL32(60, 200, 200, 36);
+        ImU32 lightLine = IM_COL32(120, 220, 220, 220);
+        ImU32 darkFill  = IM_COL32(60, 200, 200, 56);
+        ImU32 darkLine  = IM_COL32(60, 160, 160, 230);
+        draw_curve(startCurve, lightLine, lightFill, 1.3f);
+        draw_curve(endCurve,   darkLine,  darkFill,  1.3f);
+        if (!scrubCurve.empty()) {
+            ImU32 scrubLine = IM_COL32(255, 180, 60, 240);  // amber overlay
+            draw_curve(scrubCurve, scrubLine, 0u, 2.0f);
+        }
+    } else {
+        // Fallback single-curve render (FormantSpectrum etc., or pre-render).
+        ImU32 fillCol = (color & 0x00FFFFFF) | (40u << 24);
+        draw_curve(gains, color, fillCol, 1.5f);
     }
 
     // Y label (peak gain)
