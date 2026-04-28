@@ -413,9 +413,11 @@ static std::string s_currentFilePath;
 static bool s_graphDirty = false;
 // Save-prompt machinery: the close callback sets s_closeRequested; the main
 // loop checks it each frame, runs the dirty-check, and either pops the modal
-// (s_showCloseConfirm) or lets the close proceed.
+// (s_showCloseConfirm) or lets the close proceed. s_closeApproved short-
+// circuits the dirty check after the user picks Save / Don't Save.
 static bool s_closeRequested = false;
 static bool s_showCloseConfirm = false;
+static bool s_closeApproved = false;
 
 static Pin* find_pin(int pinId) {
     for (auto& node : s_nodes) {
@@ -4782,21 +4784,22 @@ int main(int argc, char** argv) {
     // when restoring saved positions.)
     bool s_dockLayoutInitialized = false;
 
-    while (!glfwWindowShouldClose(window)) {
+    while (true) {
         glfwPollEvents();
 
-        // Close-with-unsaved-changes handling: if a close was requested,
-        // either bail (clean state), open the prompt (dirty state), or do
-        // nothing (prompt already up — wait for user to answer).
-        if (s_closeRequested && !s_showCloseConfirm) {
-            if (s_graphDirty) {
-                s_showCloseConfirm = true;
-                s_closeRequested = false;  // promoted into modal state
-            } else {
-                glfwSetWindowShouldClose(window, GLFW_TRUE);
-                s_closeRequested = false;
-                continue;  // skip the rest of this frame; loop check exits
+        // Close handling — independent of GLFW's close-callback ordering.
+        // If anything has flagged a close intent (window X via GLFW's
+        // built-in shouldClose, taskbar X via our callback, or File→Quit
+        // via s_closeRequested), check dirty state. Dirty + no modal up:
+        // cancel the close, show the prompt. Clean + no modal up: bail.
+        bool wantClose = glfwWindowShouldClose(window) || s_closeRequested;
+        if (wantClose && !s_showCloseConfirm) {
+            if (s_closeApproved || !s_graphDirty) {
+                break;  // clean / user already approved — exit
             }
+            glfwSetWindowShouldClose(window, GLFW_FALSE);
+            s_closeRequested = false;
+            s_showCloseConfirm = true;
         }
 
         // Generate pending → draw "Generating..." with cleared waveform this
@@ -5232,17 +5235,19 @@ int main(int argc, char** argv) {
             ImGui::Spacing();
             if (ImGui::Button("Save", ImVec2(100, 0))) {
                 save_graph();
-                // If save was cancelled in the file dialog (currentFilePath
-                // still empty for new graphs), abort the close so the user
-                // doesn't lose work.
+                // save_graph clears s_graphDirty on success. If the user
+                // cancelled the file dialog (still dirty), keep the modal
+                // open so they can choose again.
                 if (!s_graphDirty) {
+                    s_closeApproved = true;
                     glfwSetWindowShouldClose(window, GLFW_TRUE);
+                    s_showCloseConfirm = false;
+                    ImGui::CloseCurrentPopup();
                 }
-                s_showCloseConfirm = false;
-                ImGui::CloseCurrentPopup();
             }
             ImGui::SameLine();
             if (ImGui::Button("Don't Save", ImVec2(100, 0))) {
+                s_closeApproved = true;
                 glfwSetWindowShouldClose(window, GLFW_TRUE);
                 s_showCloseConfirm = false;
                 ImGui::CloseCurrentPopup();
