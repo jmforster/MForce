@@ -3341,16 +3341,31 @@ static void draw_properties_panel() {
 
             if (ImGui::BeginTable("stages", 9,
                     ImGuiTableFlags_SizingFixedFit | ImGuiTableFlags_BordersInnerV)) {
-                ImGui::TableSetupColumn("pct");
-                ImGui::TableSetupColumn("start");
-                ImGui::TableSetupColumn("end");
-                ImGui::TableSetupColumn("type");
-                ImGui::TableSetupColumn("pow");
-                ImGui::TableSetupColumn("hold");
-                ImGui::TableSetupColumn("minS");
-                ImGui::TableSetupColumn("maxS");
+                ImGui::TableSetupColumn("Pct");
+                ImGui::TableSetupColumn("Start");
+                ImGui::TableSetupColumn("End");
+                ImGui::TableSetupColumn("Curve");
+                ImGui::TableSetupColumn("Power");
+                ImGui::TableSetupColumn("Hold");
+                ImGui::TableSetupColumn("Min Secs");
+                ImGui::TableSetupColumn("Max Secs");
                 ImGui::TableSetupColumn("");
-                ImGui::TableHeadersRow();
+
+                // Centered header row (replaces TableHeadersRow's left-aligned labels)
+                {
+                    static const char* hdrs[] = {
+                        "Pct", "Start", "End", "Curve", "Power", "Hold", "Min Secs", "Max Secs", ""
+                    };
+                    ImGui::TableNextRow(ImGuiTableRowFlags_Headers);
+                    for (int c = 0; c < 9; ++c) {
+                        ImGui::TableSetColumnIndex(c);
+                        float colW = ImGui::GetContentRegionAvail().x;
+                        float txtW = ImGui::CalcTextSize(hdrs[c]).x;
+                        float pad  = (colW - txtW) * 0.5f;
+                        if (pad > 0.0f) ImGui::SetCursorPosX(ImGui::GetCursorPosX() + pad);
+                        ImGui::TableHeader(hdrs[c]);
+                    }
+                }
 
                 for (int i = 0; i < env->stage_count(); ++i) {
                     auto& s = env->stage(i);

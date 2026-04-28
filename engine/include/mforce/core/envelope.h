@@ -94,7 +94,7 @@ struct Envelope : ValueSource {
     s.ramp.endVal   = 0.0f;
     s.percent = 0.2f;
     s.minSec  = 0.0f;
-    s.maxSec  = 99.0f;
+    s.maxSec  = 0.0f;  // 0 = unbounded (engine sentinel)
     stages_.push_back(s);
   }
 
