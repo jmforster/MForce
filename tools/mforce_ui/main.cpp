@@ -853,6 +853,33 @@ static void load_graph_from_path(const std::string& path) {
                 gn.rebuild_formant_spectrum();
             }
 
+            // Restore Envelope stages. For NT_ENVELOPE nodes saved with
+            // params.stages, replace the live Envelope's stage list. (Legacy
+            // preset-based Envelope JSON keeps loading via the patch loader's
+            // make_ar / make_adsr fallback — the inspector will then show the
+            // resulting 2- or 4-stage shape.)
+            if (gn.typeName == NT_ENVELOPE && params.contains("stages")) {
+                if (auto* env = dynamic_cast<Envelope*>(gn.dspSource.get())) {
+                    *env = Envelope(DSP_SAMPLE_RATE);
+                    for (const auto& sj : params["stages"]) {
+                        Envelope::Stage s;
+                        s.ramp.startVal = sj.value("startVal", 0.0f);
+                        s.ramp.endVal   = sj.value("endVal",   0.0f);
+                        s.ramp.power    = sj.value("power",    0.0f);
+                        s.ramp.holdPct  = sj.value("holdPct",  0.0f);
+                        std::string t   = sj.value("type", std::string("Linear"));
+                        s.ramp.type = (t == "Expo")        ? RampType::Expo
+                                    : (t == "InverseExpo") ? RampType::InverseExpo
+                                    : (t == "Sine")        ? RampType::Sine
+                                                            : RampType::Linear;
+                        s.percent = sj.value("percent", 0.0f);
+                        s.minSec  = sj.value("minSec",  0.0f);
+                        s.maxSec  = sj.value("maxSec",  0.0f);
+                        env->add_stage(s);
+                    }
+                }
+            }
+
             // Restore config values
             for (auto& [desc, val] : gn.configValues) {
                 if (!params.contains(desc.name)) continue;
