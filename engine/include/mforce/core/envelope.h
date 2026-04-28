@@ -79,6 +79,29 @@ struct Envelope : ValueSource {
 
   void add_stage(Stage s) { stages_.push_back(s); }
 
+  int stage_count() const { return int(stages_.size()); }
+  Stage&       stage(int i)       { return stages_[i]; }
+  const Stage& stage(int i) const { return stages_[i]; }
+
+  // Append a stage with sensible defaults. startVal continues the prior
+  // stage's endVal (or 0 if empty).
+  void add_stage_default() {
+    Stage s;
+    s.ramp.type     = RampType::Linear;
+    s.ramp.power    = 0.0f;
+    s.ramp.holdPct  = 0.0f;
+    s.ramp.startVal = stages_.empty() ? 0.0f : stages_.back().ramp.endVal;
+    s.ramp.endVal   = 0.0f;
+    s.percent = 0.2f;
+    s.minSec  = 0.0f;
+    s.maxSec  = 99.0f;
+    stages_.push_back(s);
+  }
+
+  void remove_stage(int i) {
+    if (i >= 0 && i < int(stages_.size())) stages_.erase(stages_.begin() + i);
+  }
+
   void prepare(const RenderContext& ctx, int frames) override {
     totalFrames_ = frames;
     float duration = float(frames) / float(sampleRate_);
