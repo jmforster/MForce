@@ -225,7 +225,8 @@ struct GraphNode {
         }
 
         if (typeName == NT_ENVELOPE) {
-            dspSource = std::make_shared<ADSREnvelope>(DSP_SAMPLE_RATE);
+            dspSource = std::make_shared<Envelope>(Envelope::make_adsr(DSP_SAMPLE_RATE,
+                0.05f, 0.1f, 0.7f, 0.2f));
             return;
         }
 
