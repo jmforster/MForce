@@ -1249,10 +1249,30 @@ static void save_patch_graph(const std::string& path) {
         }
         if (!params.empty()) jnode["params"] = params;
 
-        // Envelope: add preset
+        // Envelope: emit multi-stage form
         if (node.typeName == NT_ENVELOPE) {
-            if (!jnode.contains("params")) jnode["params"] = json::object();
-            jnode["params"]["preset"] = "adsr";
+            if (auto* env = dynamic_cast<Envelope*>(node.dspSource.get())) {
+                if (!jnode.contains("params")) jnode["params"] = json::object();
+                json stages = json::array();
+                for (int i = 0; i < env->stage_count(); ++i) {
+                    const auto& s = env->stage(i);
+                    const char* t = (s.ramp.type == RampType::Expo)        ? "Expo"
+                                  : (s.ramp.type == RampType::InverseExpo) ? "InverseExpo"
+                                  : (s.ramp.type == RampType::Sine)        ? "Sine"
+                                                                            : "Linear";
+                    stages.push_back({
+                        {"percent",  s.percent},
+                        {"startVal", s.ramp.startVal},
+                        {"endVal",   s.ramp.endVal},
+                        {"type",     t},
+                        {"power",    s.ramp.power},
+                        {"holdPct",  s.ramp.holdPct},
+                        {"minSec",   s.minSec},
+                        {"maxSec",   s.maxSec},
+                    });
+                }
+                jnode["params"]["stages"] = stages;
+            }
         }
 
         // FormantSpectrum: synthesize a bare Formant graph node per row and
@@ -1418,8 +1438,28 @@ static void save_node_graph(const std::string& path) {
         if (!params.empty()) jnode["params"] = params;
 
         if (node.typeName == NT_ENVELOPE) {
-            if (!jnode.contains("params")) jnode["params"] = json::object();
-            jnode["params"]["preset"] = "adsr";
+            if (auto* env = dynamic_cast<Envelope*>(node.dspSource.get())) {
+                if (!jnode.contains("params")) jnode["params"] = json::object();
+                json stages = json::array();
+                for (int i = 0; i < env->stage_count(); ++i) {
+                    const auto& s = env->stage(i);
+                    const char* t = (s.ramp.type == RampType::Expo)        ? "Expo"
+                                  : (s.ramp.type == RampType::InverseExpo) ? "InverseExpo"
+                                  : (s.ramp.type == RampType::Sine)        ? "Sine"
+                                                                            : "Linear";
+                    stages.push_back({
+                        {"percent",  s.percent},
+                        {"startVal", s.ramp.startVal},
+                        {"endVal",   s.ramp.endVal},
+                        {"type",     t},
+                        {"power",    s.ramp.power},
+                        {"holdPct",  s.ramp.holdPct},
+                        {"minSec",   s.minSec},
+                        {"maxSec",   s.maxSec},
+                    });
+                }
+                jnode["params"]["stages"] = stages;
+            }
         }
 
         if (node.typeName == "FormantSpectrum" && !node.formantRows.empty()) {
