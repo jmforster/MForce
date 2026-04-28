@@ -1,0 +1,204 @@
+{
+  "graph": {
+    "nodes": [
+      {
+        "id": "Sine1",
+        "params": {
+          "amplitude": 1.0,
+          "frequency": 440.0,
+          "phase": 0.0
+        },
+        "type": "SineSource"
+      },
+      {
+        "id": "env1",
+        "params": {
+          "stages": [
+            {"percent": 0.3, "startVal": 0.0, "endVal": 1.0, "type": "Linear", "power": 0.0, "holdPct": 0.0, "minSec": 0.05, "maxSec": 1.0},
+            {"percent": 0.1, "startVal": 1.0, "endVal": 0.6, "type": "Linear", "power": 0.0, "holdPct": 0.0, "minSec": 0.025, "maxSec": 0.5},
+            {"percent": 0.0, "startVal": 0.6, "endVal": 0.6, "type": "Linear", "power": 0.0, "holdPct": 0.0, "minSec": 0.0, "maxSec": 0.0},
+            {"percent": 0.0, "startVal": 0.6, "endVal": 0.0, "type": "Sine",   "power": 0.0, "holdPct": 0.0, "minSec": 0.0, "maxSec": 0.0}
+          ]
+        },
+        "type": "Envelope"
+      },
+      {
+        "id": "FormantSpectrum1__f0",
+        "params": {
+          "frequency": 110.0,
+          "gain": 0.699999988079071,
+          "power": 1.0,
+          "width": 400.0
+        },
+        "type": "Formant"
+      },
+      {
+        "id": "FormantSpectrum1__f1",
+        "params": {
+          "frequency": 222.0,
+          "gain": 1.0,
+          "power": 2.0,
+          "width": 900.0
+        },
+        "type": "Formant"
+      },
+      {
+        "id": "FormantSpectrum1__f2",
+        "params": {
+          "frequency": 300.0,
+          "gain": 0.6000000238418579,
+          "power": 1.0,
+          "width": 1200.0
+        },
+        "type": "Formant"
+      },
+      {
+        "id": "FormantSpectrum1__f3",
+        "params": {
+          "frequency": 450.0,
+          "gain": 0.6499999761581421,
+          "power": 1.5,
+          "width": 1000.0
+        },
+        "type": "Formant"
+      },
+      {
+        "id": "FormantSpectrum1",
+        "params": {
+          "formants": [
+            {
+              "ref": "FormantSpectrum1__f0"
+            },
+            {
+              "ref": "FormantSpectrum1__f1"
+            },
+            {
+              "ref": "FormantSpectrum1__f2"
+            },
+            {
+              "ref": "FormantSpectrum1__f3"
+            }
+          ]
+        },
+        "type": "FormantSpectrum"
+      },
+      {
+        "id": "ASEnvelope1",
+        "params": {
+          "attack": 0.4000000059604645,
+          "reverse": false,
+          "sustainLevel": 1.0
+        },
+        "type": "ASEnvelope"
+      },
+      {
+        "id": "FullPartials1",
+        "params": {
+          "amplEnv": {
+            "ref": "ASEnvelope1"
+          },
+          "detune1": 0.10000000149011612,
+          "detune2": 0.0020000000949949026,
+          "dtEnv": {
+            "ref": "ASEnvelope1"
+          },
+          "evenWeight1": 1.0,
+          "evenWeight2": 0.0,
+          "maxPartials": 55,
+          "minMult": 1,
+          "multEnv": {
+            "ref": "ASEnvelope1"
+          },
+          "oddWeight1": 1.0,
+          "oddWeight2": 1.0,
+          "poEnv": 0.0,
+          "roEnv": {
+            "ref": "ASEnvelope1"
+          },
+          "rolloff1": 1.0,
+          "rolloff2": 0.800000011920929,
+          "unitPO1": 0.0,
+          "unitPO2": 0.0
+        },
+        "type": "FullPartials"
+      },
+      {
+        "id": "Additive1",
+        "params": {
+          "amplitude": {
+            "ref": "env1"
+          },
+          "formant": {
+            "ref": "FormantSpectrum1"
+          },
+          "formantWeight": {
+            "ref": "ASEnvelope1"
+          },
+          "frequency": 110.0,
+          "partials": {
+            "ref": "FullPartials1"
+          },
+          "phase": 0.0
+        },
+        "type": "AdditiveSource"
+      }
+    ],
+    "output": "Additive1"
+  },
+  "instrument": {
+    "paramMap": {
+      "frequency": "Additive1.frequency"
+    },
+    "polyphony": 4
+  },
+  "sampleRate": 48000,
+  "score": [
+    {
+      "duration": 2.0,
+      "note": 60,
+      "time": 0.0,
+      "velocity": 0.800000011920929
+    }
+  ],
+  "seconds": 3.0,
+  "ui": {
+    "panning": [
+      -64.0,
+      -60.74945068359375
+    ],
+    "positions": {
+      "ASEnvelope1": [
+        197.88241577148438,
+        169.4989013671875
+      ],
+      "Additive1": [
+        781.0,
+        319.0
+      ],
+      "FormantSpectrum1": [
+        706.8824462890625,
+        81.4989013671875
+      ],
+      "FullPartials1": [
+        473.0,
+        69.0
+      ],
+      "Sine1": [
+        -15.0,
+        198.0
+      ],
+      "__output": [
+        1107.0,
+        287.0
+      ],
+      "__param_frequency": [
+        279.0,
+        389.74945068359375
+      ],
+      "env1": [
+        570.8824462890625,
+        502.4989013671875
+      ]
+    }
+  }
+}

@@ -258,19 +258,41 @@ static GraphResult build_graph(
         else if (type == "Envelope") {
             if (!pp) throw std::runtime_error("Envelope requires params");
             const auto& p = *pp;
-            std::string preset = p.value("preset", std::string("ar"));
-            std::shared_ptr<Envelope> env;
-            if (preset == "ar") {
-                env = std::make_shared<Envelope>(Envelope::make_ar(sampleRate,
-                    p.value("attack", 0.2f), p.value("attackMin", 0.0f), p.value("attackMax", 1.0f)));
-            } else if (preset == "adsr") {
-                env = std::make_shared<Envelope>(Envelope::make_adsr(sampleRate,
-                    p.value("attack", 0.2f), p.value("decay", 0.1f),
-                    p.value("sustainLevel", 0.7f), p.value("release", 0.0f)));
+
+            if (p.contains("stages")) {
+                auto env = std::make_shared<Envelope>(sampleRate);
+                for (const auto& sj : p["stages"]) {
+                    Envelope::Stage s;
+                    s.ramp.startVal = sj.value("startVal", 0.0f);
+                    s.ramp.endVal   = sj.value("endVal",   0.0f);
+                    s.ramp.power    = sj.value("power",    0.0f);
+                    s.ramp.holdPct  = sj.value("holdPct",  0.0f);
+                    std::string t   = sj.value("type", std::string("Linear"));
+                    s.ramp.type = (t == "Expo")        ? RampType::Expo
+                                : (t == "InverseExpo") ? RampType::InverseExpo
+                                : (t == "Sine")        ? RampType::Sine
+                                                       : RampType::Linear;
+                    s.percent = sj.value("percent", 0.0f);
+                    s.minSec  = sj.value("minSec",  0.0f);
+                    s.maxSec  = sj.value("maxSec",  0.0f);
+                    env->add_stage(s);
+                }
+                valueNodes[id] = env;
             } else {
-                throw std::runtime_error("Unknown envelope preset: " + preset);
+                std::string preset = p.value("preset", std::string("ar"));
+                std::shared_ptr<Envelope> env;
+                if (preset == "ar") {
+                    env = std::make_shared<Envelope>(Envelope::make_ar(sampleRate,
+                        p.value("attack", 0.2f), p.value("attackMin", 0.0f), p.value("attackMax", 1.0f)));
+                } else if (preset == "adsr") {
+                    env = std::make_shared<Envelope>(Envelope::make_adsr(sampleRate,
+                        p.value("attack", 0.2f), p.value("decay", 0.1f),
+                        p.value("sustainLevel", 0.7f), p.value("release", 0.0f)));
+                } else {
+                    throw std::runtime_error("Unknown envelope preset: " + preset);
+                }
+                valueNodes[id] = env;
             }
-            valueNodes[id] = env;
         }
         else if (type == "SegmentSource") {
             std::vector<float> values;
