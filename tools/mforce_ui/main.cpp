@@ -3261,6 +3261,85 @@ static void draw_properties_panel() {
         if (changed) { node->rebuild_formant_spectrum(); s_graphDirty = true; }
     }
 
+    // Inline stage table (bare Envelope)
+    if (node->typeName == NT_ENVELOPE) {
+        auto* env = dynamic_cast<Envelope*>(node->dspSource.get());
+        if (env) {
+            ImGui::Spacing(); ImGui::Separator(); ImGui::Spacing();
+            ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1), "Stages");
+
+            const char* typeNames[] = { "Linear", "Expo", "InverseExpo", "Sine" };
+            bool changed = false;
+            int  removeIdx = -1;
+
+            if (ImGui::BeginTable("stages", 9,
+                    ImGuiTableFlags_SizingFixedFit | ImGuiTableFlags_BordersInnerV)) {
+                ImGui::TableSetupColumn("pct");
+                ImGui::TableSetupColumn("start");
+                ImGui::TableSetupColumn("end");
+                ImGui::TableSetupColumn("type");
+                ImGui::TableSetupColumn("pow");
+                ImGui::TableSetupColumn("hold");
+                ImGui::TableSetupColumn("minS");
+                ImGui::TableSetupColumn("maxS");
+                ImGui::TableSetupColumn("");
+                ImGui::TableHeadersRow();
+
+                for (int i = 0; i < env->stage_count(); ++i) {
+                    auto& s = env->stage(i);
+                    ImGui::TableNextRow();
+                    ImGui::PushID(i);
+
+                    ImGui::TableNextColumn(); ImGui::PushItemWidth(60);
+                    changed |= ImGui::DragFloat("##pct", &s.percent,        0.005f, 0.0f, 1.0f, "%.3f");
+                    ImGui::PopItemWidth();
+
+                    ImGui::TableNextColumn(); ImGui::PushItemWidth(60);
+                    changed |= ImGui::DragFloat("##start", &s.ramp.startVal, 0.01f, -10.0f, 10.0f, "%.3f");
+                    ImGui::PopItemWidth();
+
+                    ImGui::TableNextColumn(); ImGui::PushItemWidth(60);
+                    changed |= ImGui::DragFloat("##end",   &s.ramp.endVal,   0.01f, -10.0f, 10.0f, "%.3f");
+                    ImGui::PopItemWidth();
+
+                    ImGui::TableNextColumn(); ImGui::PushItemWidth(90);
+                    int curType = int(s.ramp.type);
+                    if (ImGui::Combo("##type", &curType, typeNames, IM_ARRAYSIZE(typeNames))) {
+                        s.ramp.type = RampType(curType); changed = true;
+                    }
+                    ImGui::PopItemWidth();
+
+                    ImGui::TableNextColumn(); ImGui::PushItemWidth(60);
+                    changed |= ImGui::DragFloat("##pow", &s.ramp.power,   0.05f, 0.0f, 10.0f, "%.2f");
+                    ImGui::PopItemWidth();
+
+                    ImGui::TableNextColumn(); ImGui::PushItemWidth(60);
+                    changed |= ImGui::DragFloat("##hold", &s.ramp.holdPct, 0.005f, 0.0f, 1.0f, "%.3f");
+                    ImGui::PopItemWidth();
+
+                    ImGui::TableNextColumn(); ImGui::PushItemWidth(60);
+                    changed |= ImGui::DragFloat("##min", &s.minSec, 0.005f, 0.0f, 99.0f, "%.3f");
+                    ImGui::PopItemWidth();
+
+                    ImGui::TableNextColumn(); ImGui::PushItemWidth(60);
+                    changed |= ImGui::DragFloat("##max", &s.maxSec, 0.05f,  0.0f, 99.0f, "%.2f");
+                    ImGui::PopItemWidth();
+
+                    ImGui::TableNextColumn();
+                    if (ImGui::SmallButton(" x ")) removeIdx = i;
+
+                    ImGui::PopID();
+                }
+                ImGui::EndTable();
+            }
+
+            if (removeIdx >= 0) { env->remove_stage(removeIdx); changed = true; }
+            if (ImGui::SmallButton(" + Add Stage ")) { env->add_stage_default(); changed = true; }
+
+            if (changed) s_graphDirty = true;
+        }
+    }
+
     // PatchOutput: polyphony
     if (node->typeName == NT_PATCH_OUTPUT) {
         ImGui::Spacing(); ImGui::Separator(); ImGui::Spacing();
