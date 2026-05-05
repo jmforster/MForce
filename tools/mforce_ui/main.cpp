@@ -3339,6 +3339,7 @@ static void draw_properties_panel() {
             bool changed = false;
             int  removeIdx = -1;
 
+            ImGui::BeginGroup();
             if (ImGui::BeginTable("stages", 9,
                     ImGuiTableFlags_SizingFixedFit | ImGuiTableFlags_BordersInnerV)) {
                 ImGui::TableSetupColumn("Pct");
@@ -3417,6 +3418,70 @@ static void draw_properties_panel() {
 
             if (removeIdx >= 0) { env->remove_stage(removeIdx); changed = true; }
             if (ImGui::SmallButton(" + Add Stage ")) { env->add_stage_default(); changed = true; }
+            ImGui::EndGroup();
+            ImVec2 leftSize = ImGui::GetItemRectSize();
+
+            // Curve preview to the right of the table
+            ImGui::SameLine();
+
+            const int N = 256;
+            float plotVals[N];
+            int nStages = env->stage_count();
+            if (nStages > 0) {
+                // Engine semantics: only the LAST stage with percent==0 expands;
+                // earlier percent==0 stages get zero width.
+                std::vector<float> widths(nStages, 0.0f);
+                int expandIdx = -1;
+                float sumPct = 0.0f;
+                for (int i = 0; i < nStages; ++i) {
+                    float pct = env->stage(i).percent;
+                    if (pct == 0.0f) {
+                        expandIdx = i;
+                    } else {
+                        widths[i] = pct;
+                        sumPct += pct;
+                    }
+                }
+                if (expandIdx >= 0)
+                    widths[expandIdx] = std::max(0.0f, 1.0f - sumPct);
+
+                for (int k = 0; k < N; ++k) {
+                    float t = float(k) / float(N - 1);
+                    float acc = 0.0f;
+                    int  si  = -1;
+                    float pos = 0.0f;
+                    for (int i = 0; i < nStages; ++i) {
+                        if (widths[i] <= 0.0f) continue;
+                        if (t <= acc + widths[i]) {
+                            si  = i;
+                            pos = (t - acc) / widths[i];
+                            break;
+                        }
+                        acc += widths[i];
+                    }
+                    if (si < 0) {
+                        // Past last stage with width — engine outputs 0
+                        plotVals[k] = 0.0f;
+                    } else {
+                        plotVals[k] = env->stage(si).ramp.value(std::clamp(pos, 0.0f, 1.0f));
+                    }
+                }
+            } else {
+                for (int k = 0; k < N; ++k) plotVals[k] = 0.0f;
+            }
+
+            float vmin = plotVals[0], vmax = plotVals[0];
+            for (int k = 1; k < N; ++k) {
+                vmin = std::min(vmin, plotVals[k]);
+                vmax = std::max(vmax, plotVals[k]);
+            }
+            if (vmax - vmin < 0.001f) vmax = vmin + 1.0f;
+            float vpad = (vmax - vmin) * 0.05f;
+
+            float plotW = ImGui::GetContentRegionAvail().x;
+            if (plotW < 80.0f) plotW = 200.0f;
+            ImGui::PlotLines("##envprev", plotVals, N, 0, nullptr,
+                             vmin - vpad, vmax + vpad, ImVec2(plotW, leftSize.y));
 
             if (changed) s_graphDirty = true;
         }
@@ -4878,6 +4943,9 @@ int main(int argc, char** argv) {
 
     ImGuiIO& io = ImGui::GetIO();
     io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
+    // Single-click on a Drag widget enters text-input if the mouse doesn't
+    // move past a small threshold; click+drag still scrubs as before.
+    io.ConfigDragClickToInputText = true;
     // ImGuiConfigFlags_ViewportsEnable was causing the main window to lose
     // its native title bar on this setup, locking Matt into whatever
     // position/size state it happened to be in. Trade-off: pop-out waveform
