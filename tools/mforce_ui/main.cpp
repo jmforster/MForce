@@ -3008,6 +3008,12 @@ static void draw_node(GraphNode& node) {
     ImNodes::PopColorStyle(); // TitleBar
 }
 
+// Forward decl — used by the FormantSpectrum inline preview in the
+// properties panel; defined later in the file with the other strip draws.
+static bool draw_formant_strip(GraphNode* node, ImU32 color,
+                               float x, float y, float width, float height,
+                               bool showPopoutBtn, int popoutBtnId);
+
 // ===========================================================================
 // Properties panel — full editing UI for selected node
 // ===========================================================================
@@ -3292,40 +3298,83 @@ static void draw_properties_panel() {
         ImGui::Spacing(); ImGui::Separator(); ImGui::Spacing();
         ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1), "Formants");
 
-        // Column headers
-        ImGui::Text("  Freq       Gain       Width      Power");
-
         bool changed = false;
-        int removeIdx = -1;
-        for (int i = 0; i < (int)node->formantRows.size(); ++i) {
-            auto& row = node->formantRows[i];
-            ImGui::PushID(i);
+        int  removeIdx = -1;
 
-            ImGui::PushItemWidth(70);
-            changed |= ImGui::DragFloat("##freq", &row.frequency, 10.0f, 1.0f, 20000.0f, "%.0f");
-            ImGui::SameLine();
-            changed |= ImGui::DragFloat("##gain", &row.gain, 0.01f, 0.0f, 10.0f, "%.2f");
-            ImGui::SameLine();
-            changed |= ImGui::DragFloat("##wid", &row.width, 10.0f, 1.0f, 10000.0f, "%.0f");
-            ImGui::SameLine();
-            changed |= ImGui::DragFloat("##pow", &row.power, 0.05f, 0.01f, 10.0f, "%.2f");
-            ImGui::PopItemWidth();
+        ImGui::BeginGroup();
+        if (ImGui::BeginTable("formants", 5,
+                ImGuiTableFlags_SizingFixedFit | ImGuiTableFlags_BordersInnerV)) {
+            ImGui::TableSetupColumn("Frequency");
+            ImGui::TableSetupColumn("Gain");
+            ImGui::TableSetupColumn("Width");
+            ImGui::TableSetupColumn("Power");
+            ImGui::TableSetupColumn("");
 
-            ImGui::SameLine();
-            if (ImGui::SmallButton(" x ")) removeIdx = i;
+            // Centered header row
+            {
+                static const char* hdrs[] = { "Frequency", "Gain", "Width", "Power", "" };
+                ImGui::TableNextRow(ImGuiTableRowFlags_Headers);
+                for (int c = 0; c < 5; ++c) {
+                    ImGui::TableSetColumnIndex(c);
+                    float colW = ImGui::GetContentRegionAvail().x;
+                    float txtW = ImGui::CalcTextSize(hdrs[c]).x;
+                    float pad  = (colW - txtW) * 0.5f;
+                    if (pad > 0.0f) ImGui::SetCursorPosX(ImGui::GetCursorPosX() + pad);
+                    ImGui::TableHeader(hdrs[c]);
+                }
+            }
 
-            ImGui::PopID();
+            for (int i = 0; i < (int)node->formantRows.size(); ++i) {
+                auto& row = node->formantRows[i];
+                ImGui::TableNextRow();
+                ImGui::PushID(i);
+
+                ImGui::TableNextColumn(); ImGui::PushItemWidth(70);
+                changed |= ImGui::DragFloat("##freq", &row.frequency, 10.0f, 1.0f, 20000.0f, "%.0f");
+                ImGui::PopItemWidth();
+
+                ImGui::TableNextColumn(); ImGui::PushItemWidth(60);
+                changed |= ImGui::DragFloat("##gain", &row.gain, 0.01f, 0.0f, 10.0f, "%.2f");
+                ImGui::PopItemWidth();
+
+                ImGui::TableNextColumn(); ImGui::PushItemWidth(70);
+                changed |= ImGui::DragFloat("##wid", &row.width, 10.0f, 1.0f, 10000.0f, "%.0f");
+                ImGui::PopItemWidth();
+
+                ImGui::TableNextColumn(); ImGui::PushItemWidth(60);
+                changed |= ImGui::DragFloat("##pow", &row.power, 0.05f, 0.01f, 10.0f, "%.2f");
+                ImGui::PopItemWidth();
+
+                ImGui::TableNextColumn();
+                if (ImGui::SmallButton(" x ")) removeIdx = i;
+
+                ImGui::PopID();
+            }
+            ImGui::EndTable();
         }
 
         if (removeIdx >= 0 && node->formantRows.size() > 1) {
             node->formantRows.erase(node->formantRows.begin() + removeIdx);
             changed = true;
         }
-        if (ImGui::SmallButton(" + Add formant ")) {
+        if (ImGui::SmallButton(" + Add Formant ")) {
             node->formantRows.push_back({1000.0f, 1.0f, 500.0f, 2.0f});
             changed = true;
         }
+        ImGui::EndGroup();
+        ImVec2 leftSize = ImGui::GetItemRectSize();
+
         if (changed) { node->rebuild_formant_spectrum(); s_graphDirty = true; }
+
+        // Gain-vs-frequency preview to the right (reuses the existing strip draw)
+        ImGui::SameLine();
+        ImVec2 stripPos = ImGui::GetCursorScreenPos();
+        float plotW = ImGui::GetContentRegionAvail().x;
+        if (plotW < 80.0f) plotW = 200.0f;
+        draw_formant_strip(node, IM_COL32(120, 200, 220, 255),
+                           stripPos.x, stripPos.y, plotW, leftSize.y,
+                           false, 0);
+        ImGui::Dummy(ImVec2(plotW, leftSize.y));
     }
 
     // Inline stage table (bare Envelope)
