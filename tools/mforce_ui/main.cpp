@@ -3039,7 +3039,7 @@ static void draw_properties_panel() {
     float labelW = 120.0f;
     // Cap widget width so spinners/combos don't stretch absurdly when the
     // properties panel is docked as a full-width tab.
-    float widgetW = std::min(240.0f, ImGui::GetContentRegionAvail().x - labelW);
+    float widgetW = std::min(120.0f, ImGui::GetContentRegionAvail().x - labelW);
 
     // Parameter pins (connectable + editable value)
     bool hasParams = false;
