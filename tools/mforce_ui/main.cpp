@@ -1875,6 +1875,13 @@ static void prepare_graph(int samples) {
     }
 }
 
+// Forward decl — defined further down with the other transport helpers.
+// Used by the *_authoritative render paths so silent failures (load throws,
+// non-pitched instrument, missing patch path) surface to the UI status line
+// instead of stderr (where they're easy to miss; bug 2026-04-28 Multiplex
+// "ignored" — Generate fell back to render_waveforms' single-voice buffer).
+static void transport_set_status(const char* msg, bool isError);
+
 // Offline render: populate per-node waveformData and g_outputWaveform for display
 // Overwrite g_outputWaveform with authoritative audio for a passage (note
 // sequence) via load_instrument_patch + PitchedInstrument. Per-node
@@ -1884,12 +1891,20 @@ static void render_passage_output_authoritative(
 {
     if (notes.empty()) return;
     std::string path = get_playback_patch_path();
-    if (path.empty()) return;
+    if (path.empty()) {
+        transport_set_status("Authoritative passage render: no patch path "
+                             "(get_playback_patch_path empty)", true);
+        return;
+    }
 
     try {
         auto ip = load_instrument_patch(path);
         auto* pitched = dynamic_cast<PitchedInstrument*>(ip.instrument.get());
-        if (!pitched) return;
+        if (!pitched) {
+            transport_set_status("Authoritative passage render: loaded patch is not "
+                                 "a PitchedInstrument", true);
+            return;
+        }
 
         ip.instrument->volume = 1.0f;
         float timeCursor = 0.0f;
@@ -1909,6 +1924,10 @@ static void render_passage_output_authoritative(
         g_waveZoom = std::max(1, frames / 800);
         compute_output_spectrum();
     } catch (const std::exception& e) {
+        char buf[256];
+        snprintf(buf, sizeof(buf),
+                 "Authoritative passage render failed: %s", e.what());
+        transport_set_status(buf, true);
         std::fprintf(stderr, "render_passage_output_authoritative failed: %s\n", e.what());
     }
 }
@@ -1922,12 +1941,20 @@ static void render_passage_output_authoritative(
 static void render_output_authoritative(float noteNum, float velocity,
                                         float durationSeconds) {
     std::string path = get_playback_patch_path();
-    if (path.empty()) return;
+    if (path.empty()) {
+        transport_set_status("Authoritative render: no patch path "
+                             "(get_playback_patch_path empty)", true);
+        return;
+    }
 
     try {
         auto ip = load_instrument_patch(path);
         auto* pitched = dynamic_cast<PitchedInstrument*>(ip.instrument.get());
-        if (!pitched) return;
+        if (!pitched) {
+            transport_set_status("Authoritative render: loaded patch is not "
+                                 "a PitchedInstrument", true);
+            return;
+        }
 
         ip.instrument->volume = 1.0f;
         pitched->play_note(noteNum, velocity, durationSeconds, 0.0f);
@@ -1943,6 +1970,10 @@ static void render_output_authoritative(float noteNum, float velocity,
         g_waveZoom = std::max(1, frames / 800);
         compute_output_spectrum();
     } catch (const std::exception& e) {
+        char buf[256];
+        snprintf(buf, sizeof(buf),
+                 "Authoritative render failed: %s", e.what());
+        transport_set_status(buf, true);
         std::fprintf(stderr, "render_output_authoritative failed: %s\n", e.what());
     }
 }
@@ -2434,9 +2465,6 @@ static void render_passage_waveforms(const std::vector<ParsedNote>& notes, float
     g_waveScrollPos = 0;
     g_waveZoom = std::max(1, totalSamples / 800);
 }
-
-// Forward declaration (defined after transport_generate)
-static void transport_set_status(const char* msg, bool isError);
 
 // Render chords through the Conductor/ChordPerformer pipeline using the
 // current patch file loaded as a PitchedInstrument.
