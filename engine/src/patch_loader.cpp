@@ -277,6 +277,13 @@ static GraphResult build_graph(
                     s.maxSec  = sj.value("maxSec",  0.0f);
                     env->add_stage(s);
                 }
+                // Pick up multiplex-injected seed and any accuracy configs.
+                if (p.contains("seed") && p["seed"].is_number())
+                    env->set_seed(uint32_t(p["seed"].get<int64_t>()));
+                if (p.contains("stage_accuracy") && p["stage_accuracy"].is_number())
+                    env->stage_accuracy = std::clamp(p["stage_accuracy"].get<float>(), 0.0f, 1.0f);
+                if (p.contains("ramp_accuracy") && p["ramp_accuracy"].is_number())
+                    env->ramp_accuracy = std::clamp(p["ramp_accuracy"].get<float>(), 0.0f, 1.0f);
                 valueNodes[id] = env;
             } else {
                 std::string preset = p.value("preset", std::string("ar"));

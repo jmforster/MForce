@@ -1,6 +1,8 @@
 #pragma once
 #include "mforce/core/dsp_value_source.h"
 #include <cmath>
+#include <cstdint>
+#include <random>
 #include <vector>
 #include <algorithm>
 
@@ -77,6 +79,37 @@ struct Envelope : ValueSource {
   const char* type_name() const override { return "Envelope"; }
   SourceCategory category() const override { return SourceCategory::Envelope; }
 
+  // Per-instance decorrelation knobs (multiplex / sound-design). Defaults
+  // reproduce pre-2026-05-06 behavior.
+  // stage_accuracy: 1.0 = exact stage durations; <1.0 = each non-expand
+  //   stage's duration is scaled by a random factor in [stage_accuracy, 1].
+  // ramp_accuracy:  1.0 = unmodulated; <1.0 = output multiplied by
+  //   1 + (1 - ramp_accuracy) * lfo, lfo in [-1, 1].
+  float stage_accuracy{1.0f};
+  float ramp_accuracy{1.0f};
+
+  void set_seed(uint32_t s) { seed_ = s; }
+  uint32_t get_seed() const { return seed_; }
+
+  std::span<const ConfigDescriptor> config_descriptors() const override {
+    static constexpr ConfigDescriptor descs[] = {
+      {"stage_accuracy", ConfigType::Float, 1.0f, 0.0f, 1.0f},
+      {"ramp_accuracy",  ConfigType::Float, 1.0f, 0.0f, 1.0f},
+    };
+    return descs;
+  }
+
+  void set_config(std::string_view name, float value) override {
+    if (name == "stage_accuracy") { stage_accuracy = std::clamp(value, 0.0f, 1.0f); return; }
+    if (name == "ramp_accuracy")  { ramp_accuracy  = std::clamp(value, 0.0f, 1.0f); return; }
+  }
+
+  float get_config(std::string_view name) const override {
+    if (name == "stage_accuracy") return stage_accuracy;
+    if (name == "ramp_accuracy")  return ramp_accuracy;
+    return 0.0f;
+  }
+
   void add_stage(Stage s) { stages_.push_back(s); }
 
   int stage_count() const { return int(stages_.size()); }
@@ -106,6 +139,15 @@ struct Envelope : ValueSource {
     totalFrames_ = frames;
     float duration = float(frames) / float(sampleRate_);
 
+    // Reseed both RNGs from seed_ each prepare so renders are deterministic
+    // for a given (seed, frames) pair. Multiplex perturbs seed_ per instance.
+    rng_.seed(seed_);
+    lfo_rng_.seed(seed_ ^ 0xDEADBEEFu);
+    lfo_pos_ = 1;
+    lfo_period_frames_ = 0;
+    lfo_from_ = 0.0f;
+    lfo_to_   = 0.0f;
+
     stageCounts_.resize(stages_.size(), 0);
 
     int expandIdx = -1;
@@ -119,6 +161,12 @@ struct Envelope : ValueSource {
       }
 
       float stgDur = duration * stages_[i].percent;
+      // Apply stage_accuracy: multiply by a random factor in [stage_accuracy, 1]
+      // so multiplex clones get jittered ramp lengths. No-op when == 1.
+      if (stage_accuracy < 1.0f) {
+        std::uniform_real_distribution<float> dist(stage_accuracy, 1.0f);
+        stgDur *= dist(rng_);
+      }
       stgDur = std::clamp(stgDur, stages_[i].minSec, stages_[i].maxSec > 0 ? stages_[i].maxSec : stgDur);
       stageCounts_[i] = int(std::lround(stgDur * sampleRate_));
 
@@ -169,6 +217,11 @@ struct Envelope : ValueSource {
     int count = stageCounts_[currStage_];
     float pos = (count > 0) ? float(ptr_ - stageStart_) / float(count) : 1.0f;
     cur_ = stages_[currStage_].ramp.value(pos);
+
+    // ramp_accuracy: multiply by 1 + (1 - ramp_accuracy) * lfo, lfo in [-1,1].
+    if (ramp_accuracy < 1.0f) {
+      cur_ *= 1.0f + (1.0f - ramp_accuracy) * lfo_next_();
+    }
     return cur_;
   }
 
@@ -199,6 +252,27 @@ struct Envelope : ValueSource {
   }
 
 private:
+  // Smoothed-random LFO for ramp_accuracy. Cosine interpolation between
+  // random ±1 targets; per-segment period jitters ±50% around base = N/10.
+  void start_lfo_segment_() {
+    lfo_from_ = lfo_to_;
+    std::uniform_real_distribution<float> targetDist(-1.0f, 1.0f);
+    lfo_to_ = targetDist(lfo_rng_);
+    int basePeriod = std::max(1, totalFrames_ / 10);
+    std::uniform_real_distribution<float> jitter(0.5f, 1.5f);
+    lfo_period_frames_ = std::max(1, int(basePeriod * jitter(lfo_rng_)));
+    lfo_pos_ = 0;
+  }
+
+  float lfo_next_() {
+    if (lfo_pos_ >= lfo_period_frames_) start_lfo_segment_();
+    float t = float(lfo_pos_) / float(lfo_period_frames_);
+    constexpr float PI = 3.14159265358979323846f;
+    float smooth = (1.0f - std::cos(t * PI)) * 0.5f;
+    ++lfo_pos_;
+    return lfo_from_ + (lfo_to_ - lfo_from_) * smooth;
+  }
+
   int sampleRate_;
   int totalFrames_{0};
   int ptr_{-1};
@@ -208,6 +282,15 @@ private:
   float cur_{0.0f};
   std::vector<Stage> stages_;
   std::vector<int>   stageCounts_;
+
+  // Per-instance decorrelation state
+  uint32_t seed_{0};
+  std::mt19937 rng_;       // for stage_accuracy duration jitter
+  std::mt19937 lfo_rng_;   // for ramp_accuracy LFO
+  int   lfo_pos_{0};
+  int   lfo_period_frames_{0};
+  float lfo_from_{0.0f};
+  float lfo_to_{0.0f};
 };
 
 } // namespace mforce

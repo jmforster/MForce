@@ -1,0 +1,416 @@
+{
+  "graph": {
+    "nodes": [
+      {
+        "id": "env1",
+        "params": {
+          "stage_accuracy": 0.5,
+          "ramp_accuracy": 0.9,
+          "stages": [
+            {
+              "endVal": 3.0,
+              "holdPct": 0.0,
+              "maxSec": 1.0,
+              "minSec": 0.05000000074505806,
+              "percent": 0.05000000074505806,
+              "power": 0.0,
+              "startVal": 0.0,
+              "type": "Linear"
+            },
+            {
+              "endVal": 2.5999999046325684,
+              "holdPct": 0.0,
+              "maxSec": 0.5,
+              "minSec": 0.02500000037252903,
+              "percent": 0.10000000149011612,
+              "power": 0.0,
+              "startVal": 3.0,
+              "type": "Linear"
+            },
+            {
+              "endVal": 2.5999999046325684,
+              "holdPct": 0.0,
+              "maxSec": 0.0,
+              "minSec": 0.0,
+              "percent": 0.0,
+              "power": 0.0,
+              "startVal": 2.5999999046325684,
+              "type": "Linear"
+            },
+            {
+              "endVal": 0.0,
+              "holdPct": 0.0,
+              "maxSec": 0.0,
+              "minSec": 0.0,
+              "percent": 0.20000000298023224,
+              "power": 0.0,
+              "startVal": 2.5999999046325684,
+              "type": "Sine"
+            }
+          ]
+        },
+        "type": "Envelope"
+      },
+      {
+        "id": "ASEnvelope1",
+        "params": {
+          "attack": 0.03999999910593033,
+          "reverse": false,
+          "sustainLevel": 1.0
+        },
+        "type": "ASEnvelope"
+      },
+      {
+        "id": "RedNoise1",
+        "params": {
+          "amplitude": 1.0,
+          "boost": 0.0,
+          "continuity": 0.0,
+          "density": 0.5,
+          "frequency": 5.5,
+          "phase": 0.0,
+          "rampVariation": 0.0,
+          "smoothness": 0.5,
+          "zeroCrossTendency": 0.0
+        },
+        "type": "RedNoiseSource"
+      },
+      {
+        "id": "FullPartials1",
+        "params": {
+          "amplEnv": {
+            "ref": "ASEnvelope1"
+          },
+          "detune1": 0.10000000149011612,
+          "detune2": 0.0020000000949949026,
+          "dtEnv": {
+            "ref": "ASEnvelope1"
+          },
+          "evenWeight1": 0.0,
+          "evenWeight2": 1.0,
+          "maxPartials": 55,
+          "minMult": 1,
+          "multEnv": 0.0,
+          "oddWeight1": 1.0,
+          "oddWeight2": 1.0,
+          "poEnv": {
+            "ref": "RedNoise1"
+          },
+          "roEnv": {
+            "ref": "ASEnvelope1"
+          },
+          "rolloff1": 1.2000000476837158,
+          "rolloff2": 0.5,
+          "unitPO1": 0.0,
+          "unitPO2": 0.14000000059604645
+        },
+        "type": "FullPartials"
+      },
+      {
+        "id": "ASEnvelope2",
+        "params": {
+          "attack": 0.20000000298023224,
+          "reverse": false,
+          "sustainLevel": 1.0
+        },
+        "type": "ASEnvelope"
+      },
+      {
+        "id": "Range1",
+        "params": {
+          "max": 1500.0,
+          "min": 200.0,
+          "normalized": true,
+          "var": {
+            "ref": "ASEnvelope2"
+          }
+        },
+        "type": "RangeSource"
+      },
+      {
+        "id": "Formant1",
+        "params": {
+          "frequency": 550.0,
+          "gain": 1.0,
+          "power": 2.0,
+          "width": {
+            "ref": "Range1"
+          }
+        },
+        "type": "Formant"
+      },
+      {
+        "id": "FormantSpectrum1__f0",
+        "params": {
+          "frequency": 220.0,
+          "gain": 0.699999988079071,
+          "power": 1.0,
+          "width": 700.0
+        },
+        "type": "Formant"
+      },
+      {
+        "id": "FormantSpectrum1__f1",
+        "params": {
+          "frequency": 810.0,
+          "gain": 0.6000000238418579,
+          "power": 1.0,
+          "width": 1200.0
+        },
+        "type": "Formant"
+      },
+      {
+        "id": "FormantSpectrum1__f2",
+        "params": {
+          "frequency": 2100.0,
+          "gain": 0.6499999761581421,
+          "power": 1.5,
+          "width": 1000.0
+        },
+        "type": "Formant"
+      },
+      {
+        "id": "FormantSpectrum1__f3",
+        "params": {
+          "frequency": 3300.0,
+          "gain": 1.0,
+          "power": 2.0,
+          "width": 500.0
+        },
+        "type": "Formant"
+      },
+      {
+        "id": "FormantSpectrum1__f4",
+        "params": {
+          "frequency": 5000.0,
+          "gain": 1.0,
+          "power": 2.0,
+          "width": 500.0
+        },
+        "type": "Formant"
+      },
+      {
+        "id": "FormantSpectrum1",
+        "params": {
+          "formants": [
+            {
+              "ref": "FormantSpectrum1__f0"
+            },
+            {
+              "ref": "FormantSpectrum1__f1"
+            },
+            {
+              "ref": "FormantSpectrum1__f2"
+            },
+            {
+              "ref": "FormantSpectrum1__f3"
+            },
+            {
+              "ref": "FormantSpectrum1__f4"
+            }
+          ]
+        },
+        "type": "FormantSpectrum"
+      },
+      {
+        "id": "FormantSpectrum2__f0",
+        "params": {
+          "frequency": 40.0,
+          "gain": 0.699999988079071,
+          "power": 1.0,
+          "width": 400.0
+        },
+        "type": "Formant"
+      },
+      {
+        "id": "FormantSpectrum2__f1",
+        "params": {
+          "frequency": 850.0,
+          "gain": 1.0,
+          "power": 2.0,
+          "width": 900.0
+        },
+        "type": "Formant"
+      },
+      {
+        "id": "FormantSpectrum2__f2",
+        "params": {
+          "frequency": 555.0,
+          "gain": 0.6000000238418579,
+          "power": 1.0,
+          "width": 1200.0
+        },
+        "type": "Formant"
+      },
+      {
+        "id": "FormantSpectrum2__f3",
+        "params": {
+          "frequency": 7777.0,
+          "gain": 0.6499999761581421,
+          "power": 1.5,
+          "width": 1000.0
+        },
+        "type": "Formant"
+      },
+      {
+        "id": "FormantSpectrum2",
+        "params": {
+          "formants": [
+            {
+              "ref": "FormantSpectrum2__f0"
+            },
+            {
+              "ref": "FormantSpectrum2__f1"
+            },
+            {
+              "ref": "FormantSpectrum2__f2"
+            },
+            {
+              "ref": "FormantSpectrum2__f3"
+            }
+          ]
+        },
+        "type": "FormantSpectrum"
+      },
+      {
+        "id": "ASEnvelope3",
+        "params": {
+          "attack": 0.20000000298023224,
+          "reverse": true,
+          "sustainLevel": 1.0
+        },
+        "type": "ASEnvelope"
+      },
+      {
+        "id": "FormantSequence1",
+        "params": {
+          "blend": {
+            "ref": "ASEnvelope3"
+          },
+          "spectra": [
+            {
+              "ref": "FormantSpectrum1"
+            },
+            {
+              "ref": "FormantSpectrum2"
+            }
+          ]
+        },
+        "type": "FormantSequence"
+      },
+      {
+        "id": "Additive1",
+        "params": {
+          "amplitude": {
+            "ref": "env1"
+          },
+          "formant": {
+            "ref": "FormantSequence1"
+          },
+          "formantWeight": 0.9200000166893005,
+          "frequency": 110.0,
+          "partials": {
+            "ref": "FullPartials1"
+          },
+          "phase": 0.0
+        },
+        "type": "AdditiveSource"
+      },
+      {
+        "id": "Multiplex1",
+        "params": {
+          "count": 50,
+          "source": {
+            "ref": "Additive1"
+          }
+        },
+        "type": "MultiplexSource"
+      }
+    ],
+    "output": "Multiplex1"
+  },
+  "instrument": {
+    "paramMap": {
+      "frequency": "Additive1.frequency"
+    },
+    "polyphony": 4
+  },
+  "sampleRate": 48000,
+  "score": [
+    {
+      "duration": 2.0,
+      "note": 60,
+      "time": 0.0,
+      "velocity": 0.800000011920929
+    }
+  ],
+  "seconds": 3.0,
+  "ui": {
+    "panning": [
+      -36.0,
+      -17.74945068359375
+    ],
+    "positions": {
+      "ASEnvelope1": [
+        196.88241577148438,
+        166.4989013671875
+      ],
+      "ASEnvelope2": [
+        151.0,
+        46.74945068359375
+      ],
+      "ASEnvelope3": [
+        823.0,
+        216.74945068359375
+      ],
+      "Additive1": [
+        781.0,
+        319.0
+      ],
+      "Formant1": [
+        748.0,
+        54.74945068359375
+      ],
+      "FormantSequence1": [
+        1120.0,
+        198.74945068359375
+      ],
+      "FormantSpectrum1": [
+        1001.0,
+        96.74945068359375
+      ],
+      "FormantSpectrum2": [
+        962.0,
+        162.74945068359375
+      ],
+      "FullPartials1": [
+        481.0,
+        256.0
+      ],
+      "Multiplex1": [
+        1174.0,
+        54.74945068359375
+      ],
+      "Range1": [
+        470.0,
+        61.74945068359375
+      ],
+      "RedNoise1": [
+        80.0,
+        225.74945068359375
+      ],
+      "__output": [
+        1107.0,
+        287.0
+      ],
+      "__param_frequency": [
+        279.0,
+        389.74945068359375
+      ],
+      "env1": [
+        570.8824462890625,
+        505.4989013671875
+      ]
+    }
+  }
+}

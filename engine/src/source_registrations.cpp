@@ -179,27 +179,53 @@ void register_all_sources() {
     // -----------------------------------------------------------------------
 
     reg.register_type("Envelope", SourceCategory::Envelope,
-        [](int sr, auto) {
-            return std::make_shared<Envelope>(Envelope::make_ar(sr, 0.2f));
+        [](int sr, auto seed) {
+            auto e = std::make_shared<Envelope>(Envelope::make_ar(sr, 0.2f));
+            if (seed) e->set_seed(*seed);
+            return e;
         });
 
     reg.register_type("AREnvelope", SourceCategory::Envelope,
-        [](int sr, auto) { return std::make_shared<AREnvelope>(sr); });
+        [](int sr, auto seed) {
+            auto e = std::make_shared<AREnvelope>(sr);
+            if (seed) e->set_seed(*seed);
+            return e;
+        });
 
     reg.register_type("ASEnvelope", SourceCategory::Envelope,
-        [](int sr, auto) { return std::make_shared<ASEnvelope>(sr); });
+        [](int sr, auto seed) {
+            auto e = std::make_shared<ASEnvelope>(sr);
+            if (seed) e->set_seed(*seed);
+            return e;
+        });
 
     reg.register_type("ASREnvelope", SourceCategory::Envelope,
-        [](int sr, auto) { return std::make_shared<ASREnvelope>(sr); });
+        [](int sr, auto seed) {
+            auto e = std::make_shared<ASREnvelope>(sr);
+            if (seed) e->set_seed(*seed);
+            return e;
+        });
 
     reg.register_type("ADSEnvelope", SourceCategory::Envelope,
-        [](int sr, auto) { return std::make_shared<ADSEnvelope>(sr); });
+        [](int sr, auto seed) {
+            auto e = std::make_shared<ADSEnvelope>(sr);
+            if (seed) e->set_seed(*seed);
+            return e;
+        });
 
     reg.register_type("ADREnvelope", SourceCategory::Envelope,
-        [](int sr, auto) { return std::make_shared<ADREnvelope>(sr); });
+        [](int sr, auto seed) {
+            auto e = std::make_shared<ADREnvelope>(sr);
+            if (seed) e->set_seed(*seed);
+            return e;
+        });
 
     reg.register_type("ADSREnvelope", SourceCategory::Envelope,
-        [](int sr, auto) { return std::make_shared<ADSREnvelope>(sr); });
+        [](int sr, auto seed) {
+            auto e = std::make_shared<ADSREnvelope>(sr);
+            if (seed) e->set_seed(*seed);
+            return e;
+        });
 
     // -----------------------------------------------------------------------
     // Combiners
