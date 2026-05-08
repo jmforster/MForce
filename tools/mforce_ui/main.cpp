@@ -3757,6 +3757,9 @@ static void show_create_menu() {
     // --- Filters ---
     if (ImGui::BeginMenu("Filters")) {
         menu_source("Delay", "DelayFilter");
+        menu_source("Reverb", "Reverb");
+        menu_source("Limiter", "Limiter");
+        menu_sep();
         menu_source("BW Bandpass", "BWBandpassFilter");
         menu_source("BW Lowpass", "BWLowpassFilter");
         menu_source("BW Highpass", "BWHighpassFilter");

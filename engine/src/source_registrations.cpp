@@ -31,6 +31,8 @@
 #include "mforce/core/envelope_presets.h"
 #include "mforce/core/multi_source.h"
 #include "mforce/filter/filters.h"
+#include "mforce/filter/limiter.h"
+#include "mforce/filter/reverb.h"
 #include "mforce/filter/vibrato.h"
 
 #include <cmath>
@@ -363,6 +365,12 @@ void register_all_sources() {
 
     reg.register_type("DelayFilter", SourceCategory::Filter,
         [](int sr, auto) { return std::make_shared<DelayFilter>(sr); });
+
+    reg.register_type("Reverb", SourceCategory::Filter,
+        [](int sr, auto) { return std::make_shared<Reverb>(sr); });
+
+    reg.register_type("Limiter", SourceCategory::Filter,
+        [](int sr, auto) { return std::make_shared<Limiter>(sr); });
 
     reg.register_type("Vibrato", SourceCategory::Modulator,
         [](int sr, auto seed) {
