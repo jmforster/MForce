@@ -94,6 +94,51 @@ struct PitchedInstrument final : Instrument {
   std::vector<VoiceGraph> voicePool;
   int nextVoice{0};
 
+  // Streaming-mode handoff: same set-frequency + prepare logic as play_note,
+  // but returns the prepared voice source instead of rendering immediately.
+  // Caller is responsible for calling next() durSamples times (e.g. from the
+  // audio thread). Used by mforce_ui's live keyboard path.
+  struct StreamingVoice {
+    std::shared_ptr<ValueSource> source;
+    int   durSamples{0};
+    float gain{1.0f};
+  };
+
+  StreamingVoice prepare_voice(float noteNumber, float velocity, float duration,
+                               const PitchCurve* curve = nullptr) {
+    auto& vg = voicePool[nextVoice % voicePool.size()];
+    nextVoice++;
+
+    float freq = note_to_freq(noteNumber);
+    int durSamples = int(duration * float(sampleRate));
+
+    auto it = vg.params.find("frequency");
+    if (it != vg.params.end()) {
+      auto& slot = it->second;
+      if (curve) {
+        auto env = compile_pitch_curve(*curve, sampleRate);
+        auto pbs = std::make_shared<PitchBendSource>(freq, std::move(env));
+        slot.consumer->set_param(slot.paramName, pbs);
+      } else {
+        slot.originalCS->set(freq);
+        slot.consumer->set_param(slot.paramName, slot.originalCS);
+        if (vg.topMultiplex && !slot.targetNodeId.empty()) {
+          vg.topMultiplex->set_clone_param(slot.targetNodeId, slot.paramName, freq);
+        }
+      }
+    }
+
+    float boost = hiBoost > 0.0f
+        ? (std::log10(std::max(freq, 100.0f)) - 2.0f) * hiBoost
+        : 0.0f;
+    float gain = velocity * (1.0f + boost);
+
+    RenderContext ctx{ sampleRate };
+    vg.source->prepare(ctx, durSamples);
+
+    return { vg.source, durSamples, gain };
+  }
+
   void play_note(float noteNumber, float velocity, float duration, float startTime,
                  const PitchCurve* curve = nullptr) {
     auto& vg = voicePool[nextVoice % voicePool.size()];

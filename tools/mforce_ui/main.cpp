@@ -28,6 +28,7 @@
 #include "mforce/source/additive/partials.h" // for Partials live array access in strip draw
 #include "mforce/render/instrument.h"
 #include "mforce/render/mixer.h"
+#include "mforce/render/limiter.h"  // soft_clip for the live polyphonic mix
 #include "mforce/render/wav_writer.h"
 #include "mforce/music/parse_util.h"
 #include "mforce/music/structure.h"
@@ -1714,30 +1715,38 @@ static int g_bufferPlaybackLen = 0;
 // Polyphonic voice pool: pre-rendered note buffers that mix together
 static constexpr int MAX_VOICES = 16;
 struct Voice {
-    std::vector<float> samples;
-    int pos = 0;
-    bool active = false;
-    int midiNote = 0;  // for keyboard highlight
+    // Streaming voice: DSP graph is pulled per-sample in fill_audio_buffer
+    // rather than pre-rendered into a buffer. patch keeps the instrument
+    // (and thus the whole DSP graph) alive while source is in use.
+    std::shared_ptr<InstrumentPatch> patch;
+    std::shared_ptr<ValueSource>     source;
+    int   samplesRemaining = 0;
+    float gain = 1.0f;
+    bool  active = false;
+    int   midiNote = 0;  // for keyboard highlight
 };
 static Voice g_voices[MAX_VOICES];
 
-static void voice_play(std::vector<float>&& buf, int midiNote = 0) {
-    // Find a free voice, or steal the oldest
+static void voice_schedule(std::shared_ptr<InstrumentPatch> patch,
+                           std::shared_ptr<ValueSource> source,
+                           int totalSamples, float gain, int midiNote) {
+    // Find a free voice, or steal the one closest to done
     int slot = -1;
     for (int i = 0; i < MAX_VOICES; ++i) {
         if (!g_voices[i].active) { slot = i; break; }
     }
     if (slot < 0) {
-        // Steal voice with most progress
         int best = 0;
         for (int i = 1; i < MAX_VOICES; ++i)
-            if (g_voices[i].pos > g_voices[best].pos) best = i;
+            if (g_voices[i].samplesRemaining < g_voices[best].samplesRemaining) best = i;
         slot = best;
     }
-    g_voices[slot].samples = std::move(buf);
-    g_voices[slot].pos = 0;
-    g_voices[slot].active = true;
+    g_voices[slot].patch = std::move(patch);
+    g_voices[slot].source = std::move(source);
+    g_voices[slot].samplesRemaining = totalSamples;
+    g_voices[slot].gain = gain;
     g_voices[slot].midiNote = midiNote;
+    g_voices[slot].active = true;
 }
 
 static bool any_voice_active() {
@@ -1757,13 +1766,16 @@ static void fill_audio_buffer(int bufIdx) {
     for (int i = 0; i < AUDIO_CHUNK; ++i) {
         float s = 0.0f;
 
-        // Mix active voices
+        // Mix active streaming voices (live DSP pull, one next() per voice per sample)
         for (int v = 0; v < MAX_VOICES; ++v) {
             auto& voice = g_voices[v];
-            if (voice.active) {
-                s += voice.samples[voice.pos++];
-                if (voice.pos >= (int)voice.samples.size())
-                    voice.active = false;
+            if (!voice.active) continue;
+            s += voice.source->next() * voice.gain;
+            voice.samplesRemaining--;
+            if (voice.samplesRemaining <= 0) {
+                voice.active = false;
+                voice.source.reset();
+                voice.patch.reset();
             }
         }
 
@@ -1784,7 +1796,10 @@ static void fill_audio_buffer(int bufIdx) {
             }
         }
 
-        s = std::clamp(s, -1.0f, 1.0f);
+        // Soft-clip the mix so a polyphonic stack of loud voices doesn't
+        // hard-distort into int16 saturation — matches the engine's render-path
+        // peak guard rather than the prior hard std::clamp.
+        s = soft_clip(s);
 
         int16_t v = int16_t(s < 0 ? s * 32768.0f : s * 32767.0f);
         out[i * 2]     = v;
@@ -2062,8 +2077,9 @@ static void render_waveforms(float noteNum, float velocity, float durationSecond
 static void play_note(float noteNum, float velocity, float durationSeconds) {
     if (s_graphMode != GraphMode::PatchGraph) return;
 
-    // Render for waveform display (shows last-played note via UI DSP tree).
-    render_waveforms(noteNum, velocity, durationSeconds);
+    // (Waveform-display render intentionally skipped here — live keyboard
+    // mode prioritizes audio responsiveness over visual feedback. Use the
+    // Render button / offline render path when you want to see the waveform.)
 
     // Audio path: load a fresh instrument from the current UI state (synced
     // to a temp file if dirty) and play_note on it, so Multiplex clones
@@ -2072,21 +2088,23 @@ static void play_note(float noteNum, float velocity, float durationSeconds) {
     if (path.empty()) return;
 
     try {
-        auto ip = load_instrument_patch(path);
-        auto* pitched = dynamic_cast<PitchedInstrument*>(ip.instrument.get());
-        if (!pitched) return;  // non-pitched instruments not supported here
+        // Wrap the loaded patch in a shared_ptr so a Voice slot can keep the
+        // whole DSP graph alive for the lifetime of the note. (InstrumentPatch
+        // owns the unique_ptr<PitchedInstrument>, so the shared wrapper keeps
+        // both the instrument and the voicePool source graphs from being
+        // destroyed mid-play.)
+        auto ip = std::make_shared<InstrumentPatch>(load_instrument_patch(path));
+        auto* pitched = ip->instrument.get();
+        if (!pitched) return;
+        ip->instrument->volume = 1.0f;
 
-        ip.instrument->volume = 1.0f;
-        pitched->play_note(noteNum, velocity, durationSeconds, 0.0f);
+        // Prepare the voice (set frequency, prep the source) but DON'T render —
+        // streaming voice mixer will pull samples on demand in fill_audio_buffer.
+        auto sv = pitched->prepare_voice(noteNum, velocity, durationSeconds);
 
-        // +0.5s tail so a patch's own release/decay has room past the note's
-        // nominal duration. Matches the feel of a sustained keyboard press.
-        int frames = int((durationSeconds + 0.5f) * float(ip.sampleRate));
-        std::vector<float> mono(frames, 0.0f);
-        RenderContext ctx{ip.sampleRate};
-        ip.instrument->render(ctx, mono.data(), frames);
-
-        voice_play(std::move(mono), int(noteNum));
+        // +0.5s tail past the nominal note duration for envelope/decay room.
+        int tailSamples = int(0.5f * float(ip->sampleRate));
+        voice_schedule(ip, sv.source, sv.durSamples + tailSamples, sv.gain, int(noteNum));
     } catch (const std::exception& e) {
         std::fprintf(stderr, "play_note failed: %s\n", e.what());
     }
@@ -2215,14 +2233,14 @@ static void draw_keyboard_panel() {
     // --- Header bar ---
     ImGui::Text("Octave");
     ImGui::SameLine();
-    spinner_int("kb_oct", &g_keyboard.octave, 1, 0, 8);
+    spinner_int("kb_oct", &g_keyboard.octave, 1, 0, 20);
 
     ImGui::SameLine();
     ImGui::Spacing(); ImGui::SameLine();
 
     ImGui::Text("Duration");
     ImGui::SameLine();
-    spinner_float("kb_dur", &g_keyboard.duration, 0.05f, 0.05f, 8.0f, "%.2f");
+    spinner_float("kb_dur", &g_keyboard.duration, 0.05f, 0.05f, 30.0f, "%.2f");
 
     ImGui::SameLine();
     ImGui::Spacing(); ImGui::SameLine();
@@ -2255,11 +2273,11 @@ static void draw_keyboard_panel() {
         if (ImGui::IsKeyPressed(ImGuiKey_G, false))
             g_keyboard.octave = std::max(0, g_keyboard.octave - 1);
         if (ImGui::IsKeyPressed(ImGuiKey_H, false))
-            g_keyboard.octave = std::min(8, g_keyboard.octave + 1);
+            g_keyboard.octave = std::min(20, g_keyboard.octave + 1);
         if (ImGui::IsKeyPressed(ImGuiKey_V, false))
             g_keyboard.duration = std::max(0.05f, g_keyboard.duration * 0.5f);
         if (ImGui::IsKeyPressed(ImGuiKey_B, false))
-            g_keyboard.duration = std::min(8.0f, g_keyboard.duration * 2.0f);
+            g_keyboard.duration = std::min(30.0f, g_keyboard.duration * 2.0f);
     }
 
     // --- Piano keyboard rendering via ImDrawList ---
