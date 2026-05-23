@@ -30,9 +30,9 @@ target_compile_definitions(mforce_ui PRIVATE IMGUI_DEFINE_MATH_OPERATORS)
 target_link_libraries(mforce_ui PRIVATE
   mforce_engine
   glfw
+  rtaudio
   opengl32
   comdlg32
-  winmm
 )
 
 if (MSVC)

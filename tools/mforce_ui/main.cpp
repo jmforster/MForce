@@ -15,6 +15,9 @@
 #include <typeinfo>
 #include <nlohmann/json.hpp>
 #include <complex>
+#include <mutex>
+#include <atomic>
+#include "RtAudio.h"
 #include "mforce/render/patch_loader.h"
 #include "mforce/core/equal_temperament.h"
 #include "mforce/core/source_registry.h"
@@ -1623,8 +1626,10 @@ static void save_graph() {
 // ===========================================================================
 
 static constexpr int AUDIO_SAMPLE_RATE = 48000;
-static constexpr int AUDIO_CHUNK = 1024;
-static constexpr int NUM_AUDIO_BUFS = 4;
+// RtAudio buffer size — smaller = lower latency but more callback overhead.
+// 512 @ 48k = ~10.7ms. Matches typical WASAPI shared-mode period, giving
+// the audio callback enough cushion for occasional jitter without underrun.
+static constexpr unsigned int AUDIO_BUF_FRAMES = 512;
 
 // ===========================================================================
 // Offline waveform display buffers
@@ -1699,9 +1704,20 @@ static TransportState g_transport;
 // After generation: back to 0.
 static int s_genState = 0;
 
-static HWAVEOUT g_waveOut = nullptr;
-static WAVEHDR  g_waveHdrs[NUM_AUDIO_BUFS] = {};
-static int16_t  g_audioBufs[NUM_AUDIO_BUFS][AUDIO_CHUNK * 2] = {};
+// RtAudio: callback-based audio I/O. The audio thread is created and managed
+// by RtAudio itself; our callback (audio_callback) is invoked on it whenever
+// the device needs more samples. UI-thread mutation of g_voices / g_streamSource
+// / g_bufferPlayback must be serialized with the callback's reads via g_audioMutex.
+static std::unique_ptr<RtAudio> g_audio;
+static std::mutex g_audioMutex;
+
+// Diagnostic peak meters — sampled per-buffer by the audio callback, displayed
+// by the UI. Pre-clip = peak the mixer produced BEFORE soft_clip; post-clip =
+// what actually went out. If pre > 1 but post ≈ 1, soft_clip is shaping. If
+// pre is small but distortion is audible, the distortion isn't amplitude-based.
+static std::atomic<float> g_audioPeakPre{0.0f};
+static std::atomic<float> g_audioPeakPost{0.0f};
+static std::atomic<int>   g_audioActiveVoices{0};
 
 static ValueSource* g_streamSource = nullptr;
 static int g_streamRemaining = 0;
@@ -1730,6 +1746,7 @@ static Voice g_voices[MAX_VOICES];
 static void voice_schedule(std::shared_ptr<InstrumentPatch> patch,
                            std::shared_ptr<ValueSource> source,
                            int totalSamples, float gain, int midiNote) {
+    std::lock_guard<std::mutex> lock(g_audioMutex);
     // Find a free voice, or steal the one closest to done
     int slot = -1;
     for (int i = 0; i < MAX_VOICES; ++i) {
@@ -1759,25 +1776,60 @@ static bool is_playing() {
     return g_streamSource != nullptr || g_bufferPlayback != nullptr || any_voice_active();
 }
 
-static void fill_audio_buffer(int bufIdx) {
-    auto* out = g_audioBufs[bufIdx];
-    auto* hdr = &g_waveHdrs[bufIdx];
+// RtAudio callback — runs on RtAudio's audio thread, not the UI thread.
+// Mixes all active streaming voices + buffer playback + live stream into
+// interleaved stereo float32. The g_audioMutex guards the shared playback
+// state against UI-thread mutation.
+static int audio_callback(void* outputBuffer, void* /*inputBuffer*/,
+                          unsigned int nFrames, double /*streamTime*/,
+                          RtAudioStreamStatus /*status*/, void* /*userData*/) {
+    float* out = static_cast<float*>(outputBuffer);
+    std::lock_guard<std::mutex> lock(g_audioMutex);
 
-    for (int i = 0; i < AUDIO_CHUNK; ++i) {
-        float s = 0.0f;
+    // Peak-safe polyphony scaling: divide each voice by N (active count) so
+    // the worst-case sum (all voices peaking in phase) is bounded by a single
+    // voice's peak. sqrt(N) preserves RMS but can let two pure sines sum to
+    // 1.41× single peak, which then hits soft_clip's knee as audible distortion
+    // — what Matt heard. 1/N trades some perceived chord loudness for
+    // guaranteed-clean polyphony. soft_clip stays only as a fallback for the
+    // stream/buffer paths which aren't part of voiceScale's accounting.
+    int activeCount = 0;
+    for (int v = 0; v < MAX_VOICES; ++v)
+        if (g_voices[v].active) ++activeCount;
+    float voiceScaleTarget = activeCount > 0 ? 1.0f / float(activeCount) : 1.0f;
+    g_audioActiveVoices.store(activeCount, std::memory_order_relaxed);
+
+    // Smoothed voiceScale: persists across callbacks. A one-pole LPF eases the
+    // jump when activeCount changes (from N to N+1 on note attack, or N to N-1
+    // on note end). Without smoothing, both transitions are audible clicks.
+    // SCALE_ALPHA = 1 - exp(-1/TC); TC=480 samples ≈ 10ms at 48k.
+    static float g_voiceScale = 1.0f;
+    constexpr float SCALE_ALPHA = 0.00208f;
+
+    float localPeakPre = 0.0f, localPeakPost = 0.0f;
+
+    for (unsigned int i = 0; i < nFrames; ++i) {
+        // Slide voiceScale toward target each sample
+        g_voiceScale += SCALE_ALPHA * (voiceScaleTarget - g_voiceScale);
+
+        float voiceSum = 0.0f;
 
         // Mix active streaming voices (live DSP pull, one next() per voice per sample)
         for (int v = 0; v < MAX_VOICES; ++v) {
             auto& voice = g_voices[v];
             if (!voice.active) continue;
-            s += voice.source->next() * voice.gain;
+            voiceSum += voice.source->next() * voice.gain;
             voice.samplesRemaining--;
             if (voice.samplesRemaining <= 0) {
                 voice.active = false;
-                voice.source.reset();
-                voice.patch.reset();
+                // Do NOT reset() the source/patch shared_ptrs here — dropping
+                // the last ref would destruct the whole DSP graph on the audio
+                // thread, hitting the Windows heap lock and causing glitches.
+                // voice_gc() on the UI thread does the actual destruction.
             }
         }
+
+        float s = voiceSum * g_voiceScale;
 
         // Buffer playback (passage/chords)
         if (g_bufferPlayback && g_bufferPlaybackPos < g_bufferPlaybackLen) {
@@ -1796,69 +1848,121 @@ static void fill_audio_buffer(int bufIdx) {
             }
         }
 
+        // Diagnostic: pre-clip peak (raw mixer output)
+        float absS = std::fabs(s);
+        if (absS > localPeakPre) localPeakPre = absS;
+
         // Soft-clip the mix so a polyphonic stack of loud voices doesn't
-        // hard-distort into int16 saturation — matches the engine's render-path
-        // peak guard rather than the prior hard std::clamp.
+        // hard-distort — matches the engine's render-path peak guard.
         s = soft_clip(s);
 
-        int16_t v = int16_t(s < 0 ? s * 32768.0f : s * 32767.0f);
-        out[i * 2]     = v;
-        out[i * 2 + 1] = v;
+        // Diagnostic: post-clip peak (what actually goes to the device)
+        absS = std::fabs(s);
+        if (absS > localPeakPost) localPeakPost = absS;
+
+        out[i * 2]     = s;  // L
+        out[i * 2 + 1] = s;  // R (mono → stereo)
     }
 
-    hdr->lpData = reinterpret_cast<LPSTR>(out);
-    hdr->dwBufferLength = AUDIO_CHUNK * 2 * sizeof(int16_t);
-    hdr->dwFlags = 0;
+    // Decay-blend with stored peaks so the UI sees a slowly-fading reading
+    // (~170ms half-life) instead of jittery per-buffer values.
+    constexpr float DECAY = 0.92f;
+    float prevPre = g_audioPeakPre.load(std::memory_order_relaxed);
+    g_audioPeakPre.store(std::max(localPeakPre,  prevPre  * DECAY), std::memory_order_relaxed);
+    float prevPost = g_audioPeakPost.load(std::memory_order_relaxed);
+    g_audioPeakPost.store(std::max(localPeakPost, prevPost * DECAY), std::memory_order_relaxed);
 
-    waveOutPrepareHeader(g_waveOut, hdr, sizeof(WAVEHDR));
-    waveOutWrite(g_waveOut, hdr, sizeof(WAVEHDR));
+    return 0;  // 0 = continue stream
 }
 
-// Called each frame from the main loop — refill any completed buffers
-static void pump_audio() {
-    if (!g_waveOut) return;
-
-    for (int i = 0; i < NUM_AUDIO_BUFS; ++i) {
-        if (g_waveHdrs[i].dwFlags & WHDR_DONE) {
-            waveOutUnprepareHeader(g_waveOut, &g_waveHdrs[i], sizeof(WAVEHDR));
-            fill_audio_buffer(i);
-        }
-    }
+// MessageBox helper for audio init failures — fprintf(stderr) is invisible
+// in a WIN32_EXECUTABLE build, so route startup-fatal audio errors through
+// a modal popup the user will actually see.
+static void audio_init_error(const char* msg) {
+    MessageBoxA(nullptr, msg, "MForce audio init failed",
+                MB_OK | MB_ICONERROR);
 }
 
 static bool init_audio() {
-    WAVEFORMATEX fmt = {};
-    fmt.wFormatTag = WAVE_FORMAT_PCM;
-    fmt.nChannels = 2;
-    fmt.nSamplesPerSec = AUDIO_SAMPLE_RATE;
-    fmt.wBitsPerSample = 16;
-    fmt.nBlockAlign = fmt.nChannels * fmt.wBitsPerSample / 8;
-    fmt.nAvgBytesPerSec = fmt.nSamplesPerSec * fmt.nBlockAlign;
+    try {
+        g_audio = std::make_unique<RtAudio>();
+    } catch (const std::exception& e) {
+        char buf[512];
+        std::snprintf(buf, sizeof(buf), "RtAudio constructor threw: %s", e.what());
+        audio_init_error(buf);
+        return false;
+    } catch (...) {
+        audio_init_error("RtAudio constructor threw (unknown exception)");
+        return false;
+    }
 
-    // No callback — we poll from the main loop
-    MMRESULT res = waveOutOpen(&g_waveOut, WAVE_MAPPER, &fmt, 0, 0, CALLBACK_NULL);
-    if (res != MMSYSERR_NOERROR) return false;
+    if (g_audio->getDeviceCount() < 1) {
+        audio_init_error("No audio output devices found.");
+        g_audio.reset();
+        return false;
+    }
 
-    // Prime all buffers
-    for (int i = 0; i < NUM_AUDIO_BUFS; ++i) {
-        g_waveHdrs[i] = {};
-        fill_audio_buffer(i);
+    RtAudio::StreamParameters params;
+    params.deviceId    = g_audio->getDefaultOutputDevice();
+    params.nChannels   = 2;
+    params.firstChannel = 0;
+
+    unsigned int bufFrames = AUDIO_BUF_FRAMES;
+    RtAudioErrorType err = g_audio->openStream(
+        &params, nullptr,
+        RTAUDIO_FLOAT32, AUDIO_SAMPLE_RATE, &bufFrames,
+        &audio_callback, nullptr);
+    if (err != RTAUDIO_NO_ERROR) {
+        char buf[512];
+        std::snprintf(buf, sizeof(buf),
+            "RtAudio openStream failed (error %d).\n%s",
+            int(err), g_audio->getErrorText().c_str());
+        audio_init_error(buf);
+        g_audio.reset();
+        return false;
+    }
+
+    err = g_audio->startStream();
+    if (err != RTAUDIO_NO_ERROR) {
+        char buf[512];
+        std::snprintf(buf, sizeof(buf),
+            "RtAudio startStream failed (error %d).\n%s",
+            int(err), g_audio->getErrorText().c_str());
+        audio_init_error(buf);
+        g_audio->closeStream();
+        g_audio.reset();
+        return false;
     }
 
     return true;
 }
 
 static void shutdown_audio() {
-    g_streamSource = nullptr;
-    if (g_waveOut) {
-        waveOutReset(g_waveOut);
-        for (int i = 0; i < NUM_AUDIO_BUFS; ++i) {
-            if (g_waveHdrs[i].dwFlags & WHDR_PREPARED)
-                waveOutUnprepareHeader(g_waveOut, &g_waveHdrs[i], sizeof(WAVEHDR));
-        }
-        waveOutClose(g_waveOut);
-        g_waveOut = nullptr;
+    if (g_audio) {
+        if (g_audio->isStreamRunning()) g_audio->stopStream();
+        if (g_audio->isStreamOpen())    g_audio->closeStream();
+        g_audio.reset();
     }
+}
+
+// Called once per UI frame. Picks up shared_ptrs that the audio callback
+// marked dead (active=false but source still set) and releases them on the
+// UI thread. The std::move inside the lock is cheap (pointer swap); the
+// actual destruction happens after the lock is released, so no heap-lock
+// stall blocks the audio callback.
+static void voice_gc() {
+    std::vector<std::shared_ptr<ValueSource>>     dyingSources;
+    std::vector<std::shared_ptr<InstrumentPatch>> dyingPatches;
+    {
+        std::lock_guard<std::mutex> lock(g_audioMutex);
+        for (auto& v : g_voices) {
+            if (!v.active && (v.source || v.patch)) {
+                if (v.source) dyingSources.push_back(std::move(v.source));
+                if (v.patch)  dyingPatches.push_back(std::move(v.patch));
+            }
+        }
+    }
+    // Destructors fire here, off the audio thread.
 }
 
 // Find the DSP source connected to the Output node
@@ -2106,7 +2210,9 @@ static void play_note(float noteNum, float velocity, float durationSeconds) {
         int tailSamples = int(0.5f * float(ip->sampleRate));
         voice_schedule(ip, sv.source, sv.durSamples + tailSamples, sv.gain, int(noteNum));
     } catch (const std::exception& e) {
-        std::fprintf(stderr, "play_note failed: %s\n", e.what());
+        char buf[256];
+        std::snprintf(buf, sizeof(buf), "play_note failed: %s", e.what());
+        transport_set_status(buf, true);
     }
 }
 
@@ -2117,17 +2223,17 @@ static void play_continuous(float velocity) {
     ValueSource* src = find_output_source();
     if (!src) return;
 
-    g_streamSource = nullptr;
-
     int samples = AUDIO_SAMPLE_RATE * 30;
     prepare_graph(samples);
 
+    std::lock_guard<std::mutex> lock(g_audioMutex);
     g_streamVelocity = velocity;
     g_streamRemaining = -1;
     g_streamSource = src;
 }
 
 static void stop_playback() {
+    std::lock_guard<std::mutex> lock(g_audioMutex);
     g_streamSource = nullptr;
     g_bufferPlayback = nullptr;
     g_bufferPlaybackPos = 0;
@@ -2140,6 +2246,7 @@ static void stop_playback() {
 static void play_buffer() {
     stop_playback();
     if (g_outputWaveform.empty()) return;
+    std::lock_guard<std::mutex> lock(g_audioMutex);
     g_bufferPlayback = g_outputWaveform.data();
     g_bufferPlaybackPos = 0;
     g_bufferPlaybackLen = g_waveformSamples;
@@ -2260,6 +2367,25 @@ static void draw_keyboard_panel() {
 
     // Wire to Transport's noteMode
     ImGui::Checkbox("PC Keyboard##kb", &g_transport.noteMode);
+
+    // --- Audio peak meter (diagnostic, fresh line so it's always visible) ---
+    // pre = raw mixer output before soft_clip; post = what hit the device.
+    // Color: green ≤ 0.7, yellow ≤ 0.95, red > 0.95 (soft_clip range).
+    {
+        float pre  = g_audioPeakPre.load(std::memory_order_relaxed);
+        float post = g_audioPeakPost.load(std::memory_order_relaxed);
+        int   nV   = g_audioActiveVoices.load(std::memory_order_relaxed);
+        auto peakColor = [](float v) {
+            if (v > 0.95f) return ImVec4(1.0f, 0.3f, 0.3f, 1.0f); // red
+            if (v > 0.70f) return ImVec4(1.0f, 0.9f, 0.3f, 1.0f); // yellow
+            return ImVec4(0.4f, 1.0f, 0.4f, 1.0f);                // green
+        };
+        ImGui::Text("AUDIO:  voices=%d", nV);
+        ImGui::SameLine();
+        ImGui::TextColored(peakColor(pre),  "   pre=%.2f",  pre);
+        ImGui::SameLine();
+        ImGui::TextColored(peakColor(post), "   post=%.2f", post);
+    }
 
     // --- QWERTY input (gated by note mode and not typing in text field) ---
     if (g_transport.noteMode && !ImGui::GetIO().WantTextInput) {
@@ -5543,8 +5669,11 @@ int main(int argc, char** argv) {
         // =================================================================
         draw_keyboard_panel();
 
-        // Pump audio: refill any completed waveOut buffers
-        pump_audio();
+        // RtAudio runs the audio callback on its own thread — no main-loop
+        // pumping needed. (Used to call pump_audio() here under waveOut.)
+        // But: collect any voices the callback finished, releasing their
+        // DSP-graph shared_ptrs on the UI thread instead of the audio thread.
+        voice_gc();
 
         // Save-prompt modal: shown when a close was requested with unsaved
         // edits. User picks Save / Don't Save / Cancel.

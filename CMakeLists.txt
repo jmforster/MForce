@@ -23,6 +23,17 @@ set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
 set(GLFW_INSTALL OFF CACHE BOOL "" FORCE)
 add_subdirectory(engine/third_party/glfw)
 
+# RtAudio — callback-based audio I/O for live keyboard play in mforce_ui.
+# Static lib, WASAPI on Windows (default), no tests, no python bindings.
+# RTAUDIO_STATIC_MSVCRT OFF so it uses /MD like our other libs (avoids
+# MT/MD mismatch linker warnings).
+set(RTAUDIO_BUILD_STATIC_LIBS ON  CACHE BOOL "" FORCE)
+set(RTAUDIO_BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
+set(RTAUDIO_BUILD_TESTING     OFF CACHE BOOL "" FORCE)
+set(RTAUDIO_BUILD_PYTHON      OFF CACHE BOOL "" FORCE)
+set(RTAUDIO_STATIC_MSVCRT     OFF CACHE BOOL "" FORCE)
+add_subdirectory(engine/third_party/rtaudio)
+
 add_subdirectory(engine)
 add_subdirectory(tools/mforce_cli)
 add_subdirectory(tools/mforce_keys)
