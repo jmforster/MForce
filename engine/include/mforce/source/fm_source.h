@@ -66,6 +66,22 @@ struct FMSource final : WaveSource {
     modPhase_ = 0.0f;
   }
 
+  std::span<const ConfigDescriptor> config_descriptors() const override {
+    static constexpr ConfigDescriptor descs[] = {
+      {"unbounded_pos", ConfigType::Bool, 0.0f, 0.0f, 1.0f},
+    };
+    return descs;
+  }
+
+  void set_config(std::string_view name, float value) override {
+    if (name == "unbounded_pos") { unboundedPos_ = (value != 0.0f); return; }
+  }
+
+  float get_config(std::string_view name) const override {
+    if (name == "unbounded_pos") return unboundedPos_ ? 1.0f : 0.0f;
+    return 0.0f;
+  }
+
 protected:
   float compute_wave_value() override {
     carrierRatio_->next();
@@ -77,19 +93,29 @@ protected:
     const float mRatio   = modRatio_->current();
     const float d        = depth_->current();
 
-    constexpr float TAU = 2.0f * 3.14159265358979323846f;
+    constexpr double TAU_D = 2.0 * 3.14159265358979323846;
 
-    // Modulator
+    // Modulator (double-precision sin matches legacy System.Math.Sin behavior;
+    // phase accumulator is float to match legacy precision-wall behavior — the
+    // float-mantissa exhaustion at ~8s is part of the spacy character)
     float modFreq = baseFreq * mRatio;
-    float modVal  = std::sin(modPhase_ * TAU);
+    float modVal  = float(std::sin(double(modPhase_) * TAU_D));
     modPhase_ += modFreq / float(sampleRate_);
-    modPhase_ -= std::floor(modPhase_);
+    if (unboundedPos_) {
+      if (modPhase_ > 1.0f) modPhase_ -= 1.0f;  // legacy: single-step, no neg wrap, accumulates
+    } else {
+      modPhase_ -= std::floor(modPhase_);
+    }
 
     // Carrier with frequency modulation
     float carrierFreq = baseFreq * cRatio * (1.0f + modVal * d);
-    float val = std::sin(carrierPhase_ * TAU);
+    float val = float(std::sin(double(carrierPhase_) * TAU_D));
     carrierPhase_ += carrierFreq / float(sampleRate_);
-    carrierPhase_ -= std::floor(carrierPhase_);
+    if (unboundedPos_) {
+      if (carrierPhase_ > 1.0f) carrierPhase_ -= 1.0f;
+    } else {
+      carrierPhase_ -= std::floor(carrierPhase_);
+    }
 
     return val;
   }
@@ -100,6 +126,7 @@ private:
   std::shared_ptr<ValueSource> depth_;
   float carrierPhase_{0.0f};
   float modPhase_{0.0f};
+  bool  unboundedPos_{false};
 };
 
 } // namespace mforce
