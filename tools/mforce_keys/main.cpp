@@ -133,7 +133,8 @@ static void render_note(PitchedInstrument::VoiceGraph& vg, float noteNum, float 
         it->second.consumer->set_param(it->second.paramName, it->second.originalCS);
     }
 
-    vg.source->prepare(samples);
+    RenderContext _ctx{SAMPLE_RATE};
+    vg.source->prepare(_ctx, samples);
 
     int wp = g_writePos;
     for (int i = 0; i < samples; ++i) {
