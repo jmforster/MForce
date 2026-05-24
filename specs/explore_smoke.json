@@ -1,0 +1,19 @@
+{
+  "basePatch": "patches/fm_spacy_n177.json",
+  "duration": 3.0,
+  "axes": [
+    {
+      "param":  "fm.frequency",
+      "short":  "f",
+      "min":    1000,
+      "max":    100000,
+      "steps":  3,
+      "scale":  "log"
+    },
+    {
+      "param":  "depthEnv.stages.0.startVal",
+      "short":  "d",
+      "values": [1.0, 5.0, 10.0]
+    }
+  ]
+}

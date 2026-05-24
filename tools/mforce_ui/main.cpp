@@ -32,6 +32,7 @@
 #include "mforce/render/instrument.h"
 #include "mforce/render/mixer.h"
 #include "mforce/render/limiter.h"  // soft_clip for the live polyphonic mix
+#include "mforce/util/fft.h"        // shared FFT (also used by mforce_cli --explore)
 #include "mforce/render/wav_writer.h"
 #include "mforce/music/parse_util.h"
 #include "mforce/music/structure.h"
@@ -2623,6 +2624,11 @@ static void render_chords_waveforms(const std::vector<ParsedChord>& chords, floa
     try {
         auto ip = load_instrument_patch(get_playback_patch_path());
         ip.instrument->volume = 1.0f;
+        // Disable the engine's per-sample soft_clip so we can see the *real*
+        // un-clipped peak below. Otherwise the peak-normalize is a no-op —
+        // soft_clip caps every sample at ~0.999 before we can measure it,
+        // and the original signal's harmonic distortion is already baked in.
+        ip.instrument->peakGuard = false;
 
         Part part;
         part.name = "chords";
@@ -2641,13 +2647,16 @@ static void render_chords_waveforms(const std::vector<ParsedChord>& chords, floa
         RenderContext _ctx{ip.sampleRate};
         ip.instrument->render(_ctx, mono.data(), frames);
 
-        // Peak-normalize to prevent distortion from overlapping notes
+        // Peak-normalize to prevent distortion from overlapping notes.
+        // With peakGuard disabled above, mono contains the un-clipped sum, so
+        // a chord that sums to peak 4.0 gets a real 0.2375× scale instead of
+        // being silently soft-clipped at 0.999 and then "normalized" by 1.0×.
         float peak = 0.0f;
         for (int i = 0; i < frames; ++i) {
             float a = std::fabs(mono[i]);
             if (a > peak) peak = a;
         }
-        if (peak > 1.0f) {
+        if (peak > 0.95f) {
             float scale = 0.95f / peak;
             for (int i = 0; i < frames; ++i)
                 mono[i] *= scale;
@@ -4051,31 +4060,7 @@ static bool draw_waveform(const char* label, const float* buf, int sampleCount,
 // FFT (radix-2 Cooley-Tukey, in-place complex) + spectrum compute
 // ===========================================================================
 
-static void fft_inplace(std::vector<std::complex<float>>& x) {
-    int n = (int)x.size();
-    // Bit-reversal permutation
-    for (int i = 1, j = 0; i < n; ++i) {
-        int bit = n >> 1;
-        for (; j & bit; bit >>= 1) j ^= bit;
-        j ^= bit;
-        if (i < j) std::swap(x[i], x[j]);
-    }
-    // Cooley-Tukey
-    for (int len = 2; len <= n; len <<= 1) {
-        float ang = -2.0f * 3.14159265358979f / float(len);
-        std::complex<float> wlen(std::cos(ang), std::sin(ang));
-        for (int i = 0; i < n; i += len) {
-            std::complex<float> w(1.0f, 0.0f);
-            for (int j = 0; j < len / 2; ++j) {
-                std::complex<float> u = x[i + j];
-                std::complex<float> v = x[i + j + len / 2] * w;
-                x[i + j] = u + v;
-                x[i + j + len / 2] = u - v;
-                w *= wlen;
-            }
-        }
-    }
-}
+// fft_inplace lives in mforce/util/fft.h — shared with mforce_cli --explore.
 
 // Compute the output spectrum: pull a sustain-region slice from g_outputWaveform,
 // apply a Hann window, FFT, convert to dB. Stash into g_outputSpectrumDb.

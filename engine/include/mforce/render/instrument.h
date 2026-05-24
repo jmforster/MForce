@@ -27,6 +27,11 @@ struct Instrument : MonoSource {
 
   int sampleRate{48000};
   float volume{1.0f};
+  // When true (default), render() applies soft_clip per sample as a peak
+  // guard. Set false when the caller will peak-normalize the raw sum itself
+  // (e.g. the UI's chord render, which needs to see the un-clipped peak so
+  // its scale-to-0.95 normalization can do real work).
+  bool peakGuard{true};
   std::vector<RenderedNote> renderedNotes;
 
   void render(const RenderContext& /*ctx*/, float* out, int frames) override {
@@ -46,9 +51,11 @@ struct Instrument : MonoSource {
       for (int i = 0; i < frames; ++i)
         out[i] *= volume;
     }
-    // Peak guard: bound output to ±0.999 with a smooth knee above 0.95.
-    for (int i = 0; i < frames; ++i)
-      out[i] = soft_clip(out[i]);
+    if (peakGuard) {
+      // Peak guard: bound output to ±0.999 with a smooth knee above 0.95.
+      for (int i = 0; i < frames; ++i)
+        out[i] = soft_clip(out[i]);
+    }
   }
 
 protected:

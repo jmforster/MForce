@@ -1,5 +1,6 @@
 #include "mforce/render/patch_loader.h"
 #include "mforce/render/wav_writer.h"
+#include "explore.h"
 #include "mforce/music/basics.h"
 #include "mforce/music/structure.h"
 #include "mforce/music/conductor.h"
@@ -971,6 +972,8 @@ int main(int argc, char** argv)
             return run_play(argc, argv);
         if (argc >= 2 && std::string(argv[1]) == "--dun")
             return run_dun(argc, argv);
+        if (argc >= 2 && std::string(argv[1]) == "--explore")
+            return run_explore(argc, argv);
 
         return run_patch(argc, argv);
     }
