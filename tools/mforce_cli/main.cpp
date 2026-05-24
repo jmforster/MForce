@@ -974,6 +974,8 @@ int main(int argc, char** argv)
             return run_dun(argc, argv);
         if (argc >= 2 && std::string(argv[1]) == "--explore")
             return run_explore(argc, argv);
+        if (argc >= 2 && std::string(argv[1]) == "--explore-filter")
+            return run_explore_filter(argc, argv);
 
         return run_patch(argc, argv);
     }

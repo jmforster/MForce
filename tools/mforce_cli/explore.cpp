@@ -36,6 +36,7 @@
 #include <string>
 #include <cmath>
 #include <algorithm>
+#include <unordered_map>
 
 namespace mforce {
 
@@ -378,6 +379,168 @@ int run_explore(int argc, char** argv) {
               << failed << " failed) to " << outDir.string()
               << "\nManifest: " << manifestPath.string() << "\n";
     return failed == 0 ? 0 : 2;
+}
+
+// ===========================================================================
+// --explore-filter — query/rank a manifest from --explore
+// ===========================================================================
+
+namespace {
+
+// Map UI-friendly stat name → the JSON key under "stats" in a manifest entry.
+// Also used to know what flags --<name>-min / --<name>-max should parse into.
+static const std::vector<std::pair<std::string, std::string>> kStatNames = {
+    {"peak",     "peak"},
+    {"rms",      "rms"},
+    {"zcr",      "zeroCrossingRate"},
+    {"centroid", "spectralCentroid"},
+    {"flatness", "spectralFlatness"},
+};
+
+static const std::string* stat_json_key(const std::string& shortName) {
+    for (const auto& kv : kStatNames) if (kv.first == shortName) return &kv.second;
+    return nullptr;
+}
+
+struct StatBound { float min{-1e30f}, max{1e30f}; bool active{false}; };
+
+} // anonymous namespace
+
+int run_explore_filter(int argc, char** argv) {
+    if (argc < 3) {
+        std::cerr <<
+            "Usage: mforce_cli --explore-filter <manifest.json> [filters] [--sort F] [--limit N] [--json]\n"
+            "  Filters: --<stat>-min V / --<stat>-max V  where <stat> in {peak,rms,zcr,centroid,flatness}\n"
+            "  --sort F     sort descending by stat F (same names as filters)\n"
+            "  --limit N    cap output at N variants (after sort)\n"
+            "  --json       emit JSON array instead of text table\n"
+            "  Example: mforce_cli --explore-filter renders/explore/<run>/manifest.json \\\n"
+            "             --centroid-min 5000 --flatness-min 0.1 --sort rms --limit 20\n";
+        return 1;
+    }
+    std::string manifestPath = argv[2];
+
+    // Parse filter / sort / limit flags
+    std::unordered_map<std::string, StatBound> bounds;  // shortName → bound
+    for (const auto& kv : kStatNames) bounds[kv.first] = {};
+    std::string sortField;
+    int  limit  = 0;
+    bool asJson = false;
+
+    auto parse_stat_flag = [&](const std::string& flag, float val) -> bool {
+        // flag form: --<name>-min  or  --<name>-max
+        if (flag.size() < 7 || flag.substr(0, 2) != "--") return false;
+        std::string body = flag.substr(2);  // <name>-min/max
+        auto dash = body.rfind('-');
+        if (dash == std::string::npos) return false;
+        std::string name   = body.substr(0, dash);
+        std::string suffix = body.substr(dash + 1);
+        auto it = bounds.find(name);
+        if (it == bounds.end()) return false;
+        if      (suffix == "min") { it->second.min = val; it->second.active = true; }
+        else if (suffix == "max") { it->second.max = val; it->second.active = true; }
+        else return false;
+        return true;
+    };
+
+    for (int i = 3; i < argc; ++i) {
+        std::string a = argv[i];
+        if (a == "--sort"  && i + 1 < argc) { sortField = argv[++i]; continue; }
+        if (a == "--limit" && i + 1 < argc) { limit     = std::atoi(argv[++i]); continue; }
+        if (a == "--json")                   { asJson    = true; continue; }
+        if (i + 1 < argc && parse_stat_flag(a, std::stof(argv[i + 1]))) { ++i; continue; }
+        std::cerr << "Unknown flag: " << a << "\n";
+        return 1;
+    }
+
+    if (!sortField.empty() && !stat_json_key(sortField)) {
+        std::cerr << "Unknown sort field '" << sortField << "'. "
+                  << "Use one of: peak rms zcr centroid flatness\n";
+        return 1;
+    }
+
+    // Load manifest
+    json manifest;
+    {
+        std::ifstream f(manifestPath);
+        if (!f) { std::cerr << "Cannot open manifest: " << manifestPath << "\n"; return 1; }
+        f >> manifest;
+    }
+    if (!manifest.contains("variants") || !manifest["variants"].is_array()) {
+        std::cerr << "Manifest has no 'variants' array\n";
+        return 1;
+    }
+
+    // Resolve manifest dir for printing relative WAV paths
+    std::filesystem::path runDir = std::filesystem::path(manifestPath).parent_path();
+
+    // Filter
+    std::vector<json> matches;
+    for (const auto& v : manifest["variants"]) {
+        if (!v.contains("stats")) continue;
+        const auto& s = v["stats"];
+        bool keep = true;
+        for (const auto& kv : kStatNames) {
+            const StatBound& b = bounds[kv.first];
+            if (!b.active) continue;
+            if (!s.contains(kv.second)) continue;
+            float val = s[kv.second].get<float>();
+            if (val < b.min || val > b.max) { keep = false; break; }
+        }
+        if (keep) matches.push_back(v);
+    }
+
+    // Sort (descending by chosen stat)
+    if (!sortField.empty()) {
+        const std::string* key = stat_json_key(sortField);
+        std::sort(matches.begin(), matches.end(),
+            [&](const json& a, const json& b) {
+                float va = a.value("stats", json::object()).value(*key, 0.0f);
+                float vb = b.value("stats", json::object()).value(*key, 0.0f);
+                return va > vb;
+            });
+    }
+
+    if (limit > 0 && int(matches.size()) > limit) matches.resize(limit);
+
+    // Emit
+    if (asJson) {
+        json out = json::array();
+        for (auto& v : matches) out.push_back(v);
+        std::cout << out.dump(2) << "\n";
+        return 0;
+    }
+
+    // Text table
+    std::cout << "Matched " << matches.size() << " of "
+              << manifest["variants"].size() << " variants in "
+              << manifestPath << "\n\n";
+    if (matches.empty()) return 0;
+
+    std::cout << std::left
+              << std::setw(28) << "id"
+              << std::right
+              << std::setw(8)  << "peak"
+              << std::setw(8)  << "rms"
+              << std::setw(10) << "zcr"
+              << std::setw(11) << "centroid"
+              << std::setw(11) << "flatness"
+              << "   wav\n";
+    std::cout << std::string(28 + 8 + 8 + 10 + 11 + 11 + 3, '-') << "wav\n";
+    for (const auto& v : matches) {
+        const auto& s = v["stats"];
+        std::cout << std::left
+                  << std::setw(28) << v.value("id", std::string{})
+                  << std::right << std::fixed
+                  << std::setw(8) << std::setprecision(3) << s.value("peak",             0.0f)
+                  << std::setw(8) << std::setprecision(3) << s.value("rms",              0.0f)
+                  << std::setw(10) << std::setprecision(1) << s.value("zeroCrossingRate", 0.0f)
+                  << std::setw(11) << std::setprecision(1) << s.value("spectralCentroid", 0.0f)
+                  << std::setw(11) << std::setprecision(4) << s.value("spectralFlatness", 0.0f)
+                  << "   " << (runDir / v.value("wav", std::string{})).string()
+                  << "\n";
+    }
+    return 0;
 }
 
 } // namespace mforce

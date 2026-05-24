@@ -13,4 +13,18 @@ namespace mforce {
 // See docs (or the spec parser below) for the spec JSON shape.
 int run_explore(int argc, char** argv);
 
+// mforce_cli --explore-filter <manifest.json> [filters] [--sort <field>] [--limit N] [--json]
+//
+// Filters and ranks variants from an --explore manifest.json. Each filter
+// flag takes a stat name and a min/max bound:
+//   --peak-min/--peak-max
+//   --rms-min/--rms-max
+//   --zcr-min/--zcr-max
+//   --centroid-min/--centroid-max
+//   --flatness-min/--flatness-max
+//
+// Sorts by --sort <field> descending (peak, rms, zcr, centroid, flatness).
+// --limit N caps output. --json emits a JSON array instead of a text table.
+int run_explore_filter(int argc, char** argv);
+
 } // namespace mforce
