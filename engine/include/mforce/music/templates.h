@@ -360,6 +360,23 @@ struct ChordAccompanimentConfig {
 };
 
 // ===========================================================================
+// LibraryPassageConfig — config for LibraryPassageStrategy.
+// Picks (or accepts by name) a Pattern from the loaded PatternLibrary set
+// and deploys it.
+// ===========================================================================
+
+struct LibraryPassageConfig {
+    // Either a specific pattern name, or empty to pick by length.
+    std::string patternName;
+
+    // Length budget used by the picker when patternName is empty.
+    int barsHint{0};
+
+    // Seed for slot motif generation. 0 = derive from masterSeed + locus.
+    uint32_t seed{0};
+};
+
+// ===========================================================================
 // PassageTemplate — what a Part plays during a Section
 // ===========================================================================
 
@@ -420,6 +437,9 @@ struct PassageTemplate {
     // Empty = "Canonic" (smallest-interval close voicings). Names like "Piano",
     // "Guitar-Bar-6", etc. pull wider/idiomatic voicings from the registry.
     std::string voicingDictionary;
+
+    // Library-passage config (optional). Consumed by LibraryPassageStrategy.
+    std::optional<LibraryPassageConfig> libraryConfig;
 };
 
 // ===========================================================================

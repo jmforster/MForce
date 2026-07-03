@@ -837,6 +837,13 @@ inline void to_json(json& j, const PassageTemplate& pt) {
         j["voicingProfileSelectorConfig"] = pt.voicingProfileSelectorConfig;
     }
     if (!pt.voicingDictionary.empty()) j["voicingDictionary"] = pt.voicingDictionary;
+    if (pt.libraryConfig) {
+        json jlc = json::object();
+        if (!pt.libraryConfig->patternName.empty()) jlc["patternName"] = pt.libraryConfig->patternName;
+        if (pt.libraryConfig->barsHint != 0) jlc["barsHint"] = pt.libraryConfig->barsHint;
+        if (pt.libraryConfig->seed != 0) jlc["seed"] = pt.libraryConfig->seed;
+        j["libraryConfig"] = jlc;
+    }
 }
 
 inline void from_json(const json& j, ChordAccompanimentConfig& cc) {
@@ -941,6 +948,15 @@ inline void from_json(const json& j, PassageTemplate& pt) {
         : json::object();
 
     pt.voicingDictionary = j.value("voicingDictionary", std::string(""));
+
+    if (j.contains("libraryConfig")) {
+        const auto& jlc = j.at("libraryConfig");
+        LibraryPassageConfig lc;
+        lc.patternName = jlc.value("patternName", std::string(""));
+        lc.barsHint    = jlc.value("barsHint", 0);
+        lc.seed        = jlc.value("seed", 0u);
+        pt.libraryConfig = lc;
+    }
 }
 
 // ===========================================================================
