@@ -173,6 +173,44 @@ inline PassageTemplate PeriodPassageStrategy::plan_passage(
   for (int pi = 0; pi < (int)seed.periods.size(); ++pi) {
     PeriodSpec& p = seed.periods[pi];
 
+    // --- Random harmonic skeleton (audition issue #1) ---
+    // When cadences are unspecified, randomly choose the period's harmonic
+    // frame as start/end scale-degrees of the two phrases [s1,e1,s2,e2], then
+    // map them onto each phrase's startingPitch (degree->pitch) and
+    // cadenceTarget. Harmony is generated FROM the mono melody, so these
+    // boundary pitches are the audible harmonic movement.
+    if (seed.startingPitch && p.antecedent.cadenceType == 0
+        && p.consequent.cadenceType == 0) {
+      static const int PROGRESSIONS[][4] = {
+        {0, 4, 4, 0},  // I-V-V-I
+        {0, 0, 4, 0},  // I-I-V-I
+        {0, 0, 0, 0},  // I-I-I-I
+        {0, 3, 4, 0},  // I-IV-V-I
+        {0, 3, 0, 0},  // I-IV-I-I
+        {0, 5, 4, 0},  // I-vi-V-I
+        {0, 3, 5, 0},  // I-IV-vi-I
+      };
+      const int N = int(sizeof(PROGRESSIONS) / sizeof(PROGRESSIONS[0]));
+      Randomizer progRng(locus.pieceTemplate->masterSeed + uint32_t(pi) * 31u + 9001u);
+      const int* prog = PROGRESSIONS[progRng.int_range(0, N - 1)];
+
+      const Scale& scale = locus.piece->sections[locus.sectionIdx].scale;
+      auto degree_pitch = [&](int deg) {
+        PitchReader pr(scale);
+        pr.set_pitch(*seed.startingPitch);
+        pr.step(deg);
+        return pr.get_pitch();
+      };
+      auto ctype = [](int endDeg) { return endDeg == 4 ? 1 : 2; };  // V->half, else authentic
+
+      p.antecedent.startingPitch = degree_pitch(prog[0]);
+      p.antecedent.cadenceType   = ctype(prog[1]);
+      p.antecedent.cadenceTarget = prog[1];
+      p.consequent.startingPitch = degree_pitch(prog[2]);
+      p.consequent.cadenceType   = ctype(prog[3]);
+      p.consequent.cadenceTarget = prog[3];
+    }
+
     // Optional leading connective phrase (between periods, not before period 0).
     if (pi > 0 && p.leadingConnective) {
       PhraseTemplate connPhrase;
@@ -194,6 +232,7 @@ inline PassageTemplate PeriodPassageStrategy::plan_passage(
       PhraseTemplate consq = p.antecedent;
       consq.cadenceType   = p.consequent.cadenceType;
       consq.cadenceTarget = p.consequent.cadenceTarget;
+      if (p.consequent.startingPitch) consq.startingPitch = p.consequent.startingPitch;
       if (!p.consequent.figures.empty()) {
         consq.figures = p.consequent.figures;
         consq.connectors = p.consequent.connectors;
@@ -224,6 +263,7 @@ inline PassageTemplate PeriodPassageStrategy::plan_passage(
 
       consq.cadenceType   = p.consequent.cadenceType;
       consq.cadenceTarget = p.consequent.cadenceTarget;
+      if (p.consequent.startingPitch) consq.startingPitch = p.consequent.startingPitch;
       // If the authored consequent has explicit figures, those override
       // (even in Modified — user's direct expression wins).
       if (!p.consequent.figures.empty()) {

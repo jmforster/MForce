@@ -1,0 +1,34 @@
+{
+  "_comment": "Generative classical period. Antecedent has two generated figures (Markov pool via generate_figure). Cadences are LEFT UNSPECIFIED, so PeriodPassageStrategy randomly picks the harmonic skeleton (start/end scale-degrees of both phrases) from its progression table.",
+  "keyName": "C",
+  "scaleName": "Major",
+  "bpm": 96.0,
+  "masterSeed": 7,
+  "sections": [{"name": "Main", "beats": 16}],
+  "parts": [
+    {
+      "name": "melody",
+      "role": "melody",
+      "passages": {
+        "Main": {
+          "startingPitch": {"octave": 4, "pitch": "C"},
+          "strategy": "period_passage",
+          "periods": [
+            {
+              "variant": "Parallel",
+              "bars": 4,
+              "antecedent": {
+                "figures": [
+                  {"source": "generate", "totalBeats": 4.0, "minNotes": 3, "maxNotes": 8},
+                  {"source": "generate", "totalBeats": 4.0, "minNotes": 3, "maxNotes": 8}
+                ],
+                "connectors": [null, {"leadStep": 1}]
+              },
+              "consequent": {}
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

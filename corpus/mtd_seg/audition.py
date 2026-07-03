@@ -35,11 +35,12 @@ TICKS_PER_QUARTER   = 480
 MAJOR_SEMITONES = [0, 2, 4, 5, 7, 9, 11]
 
 
-def load_pool():
-    if not POOL_PATH.exists():
-        print(f"missing pool: {POOL_PATH} (run build_pools.py first)", file=sys.stderr)
+def load_pool(path=POOL_PATH):
+    path = pathlib.Path(path)
+    if not path.exists():
+        print(f"missing pool: {path} (run build_pools.py / markov_generate.py first)", file=sys.stderr)
         sys.exit(1)
-    return json.loads(POOL_PATH.read_text(encoding="utf-8"))
+    return json.loads(path.read_text(encoding="utf-8"))
 
 
 def find_entries(pool, args):
@@ -121,9 +122,11 @@ def main():
     ap.add_argument("--anchor", type=int, default=DEFAULT_ANCHOR_MIDI,
                     help="anchor MIDI pitch (default 60 = C4)")
     ap.add_argument("--bpm", type=int, default=DEFAULT_BPM)
+    ap.add_argument("--pool", default=str(POOL_PATH),
+                    help="pool JSON to read (default pools/paired.json)")
     args = ap.parse_args()
 
-    pool = load_pool()
+    pool = load_pool(args.pool)
     candidates = find_entries(pool, args)
     if not candidates:
         print("no matching pool entries", file=sys.stderr)

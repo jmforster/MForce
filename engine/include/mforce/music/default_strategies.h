@@ -4,12 +4,16 @@
 #include "mforce/music/figures.h"
 #include "mforce/music/figure_transforms.h"
 #include "mforce/music/random_figure_builder.h"
+#include "mforce/music/pool_figure_builder.h"
 #include "mforce/music/structure.h"
 #include "mforce/music/templates.h"
 #include "mforce/music/pitch_reader.h"
 #include "mforce/core/randomizer.h"
 #include <algorithm>
 #include <cmath>
+#include <cstdlib>
+#include <fstream>
+#include <memory>
 
 namespace mforce {
 
@@ -24,9 +28,31 @@ namespace mforce {
 // code paths, so that a FigureTemplate routed through Composer::compose_figure
 // produces byte-identical output compared to pre-refactor ClassicalComposer.
 // ---------------------------------------------------------------------------
+// Cached Markov atom pool, loaded once from lib/figures/markov_pool.json.
+// Returns nullptr if the file is absent/unparseable, so callers fall back to
+// procedural generation rather than failing.
+inline PoolFigureBuilder* markov_pool_singleton() {
+  static std::unique_ptr<PoolFigureBuilder> inst = []() -> std::unique_ptr<PoolFigureBuilder> {
+    std::ifstream f("lib/figures/markov_pool.json");
+    if (!f) return nullptr;
+    try {
+      nlohmann::json j; f >> j;
+      return std::make_unique<PoolFigureBuilder>(j, 0u);
+    } catch (...) {
+      return nullptr;
+    }
+  }();
+  return inst.get();
+}
+
 class DefaultFigureStrategy : public FigureStrategy {
 public:
   std::string name() const override { return "default_figure"; }
+
+  // Markov atom pool is the default source for generated figures; on a pool
+  // no-match it falls back to procedural generation. Set false (or the env var
+  // MFORCE_FIGURE_RANDOM) to force the procedural path always.
+  inline static bool usePool = true;
 
   // compose_figure is DECLARED here, but DEFINED in composer.h below the
   // Composer class. Its body needs the full definition of Composer to call
@@ -56,6 +82,25 @@ public:
 
 inline MelodicFigure DefaultFigureStrategy::generate_figure(
     const FigureTemplate& figTmpl, uint32_t seed) {
+    // Pool-first: draw an idiomatic Markov atom matching the template's beat/note
+    // budget. On no-match (or pool unavailable, or override), fall through to the
+    // procedural generator below. Contour is left unspecified for now.
+    if (usePool && std::getenv("MFORCE_FIGURE_RANDOM") == nullptr) {
+        if (PoolFigureBuilder* pool = markov_pool_singleton()) {
+            Constraints pc;
+            if (figTmpl.totalBeats > 0) {
+                pc.length = figTmpl.totalBeats;
+            } else {
+                int lo = figTmpl.minNotes, hi = figTmpl.maxNotes;
+                if (hi < lo) hi = lo;
+                Randomizer pcRng(seed + 7);
+                pc.count = pcRng.int_range(lo, hi);
+            }
+            try { return pool->build(pc, seed); }
+            catch (const std::runtime_error&) { /* no pool match — procedural fallback */ }
+        }
+    }
+
     StepGenerator sg(seed);
 
     float defaultPulse = (figTmpl.defaultPulse > 0) ? figTmpl.defaultPulse : 1.0f;
@@ -91,7 +136,7 @@ inline MelodicFigure DefaultFigureStrategy::generate_figure(
       if (!fig.units.empty()) fig.units[0].step = 0;
 
       Randomizer varyRng(seed + 2);
-      if (varyRng.decide(0.4f)) {
+      if (varyRng.decide(1.0f)) {  // TEMP: 1.0f forces vary_rhythm always (was 0.4f) — calibration test
         fig = figure_transforms::vary_rhythm(fig, varyRng);
       }
       return fig;
@@ -210,6 +255,12 @@ public:
 
   Phrase compose_phrase(Locus locus, const PhraseTemplate& phraseTmpl) override;
   static int degree_in_scale(const Pitch& pitch, const Scale& scale);
+
+  // Cadential approach helpers (apply_cadence v2). Pure; unit-tested in test_figures.
+  static int nearest_degree_index(int fromIdx, int targetDeg, int len);
+  static std::vector<int> build_approach_steps(int headEndDeg, int targetDeg,
+                                               int tailCount, int len);
+  static std::vector<float> settle_tail(const std::vector<float>& tailDurs, float finalMin);
   // Adjusts ONLY the last figure of the phrase to land on cadenceTarget.
   // When a phrase's cadential tail spans multiple figures (e.g., K467 bars
   // 7-8 where bar 7's two figures approach and bar 8 arrives), the earlier
@@ -238,6 +289,61 @@ inline int DefaultPhraseStrategy::degree_in_scale(const Pitch& pitch,
 //    pickups/extensions that don't belong to the phrase's cadential landing.
 //    Net step calc and adjustment both use the effective phrase (up to and
 //    including the last non-skipped figure).
+inline int DefaultPhraseStrategy::nearest_degree_index(int fromIdx, int targetDeg, int len) {
+    int base = fromIdx - (((fromIdx % len) + len) % len);  // octave floor at/below fromIdx
+    int best = base + targetDeg;
+    for (int cand : {base + targetDeg - len, base + targetDeg, base + targetDeg + len}) {
+        if (std::abs(cand - fromIdx) < std::abs(best - fromIdx)) best = cand;
+    }
+    return best;
+}
+
+inline std::vector<int> DefaultPhraseStrategy::build_approach_steps(
+    int headEndDeg, int targetDeg, int tailCount, int len) {
+    std::vector<int> steps(std::max(0, tailCount), 0);
+    if (tailCount <= 0) return steps;
+
+    int targetAbs = nearest_degree_index(headEndDeg, targetDeg, len);
+    int delta = targetAbs - headEndDeg;
+
+    if (delta == 0) {                       // on target: lower-neighbor escape -> resolve
+        if (tailCount >= 2) {
+            steps[tailCount - 2] = -1;       // down to leading-tone/neighbor
+            steps[tailCount - 1] = +1;       // resolve up to target
+        }                                    // tailCount==1: hold (step 0)
+        return steps;
+    }
+
+    int dir  = (delta > 0) ? +1 : -1;
+    int dist = std::abs(delta);
+    if (dist <= tailCount) {                 // stepwise: single steps packed at the end
+        for (int i = 0; i < dist; ++i) steps[tailCount - dist + i] = dir;
+    } else {                                 // far: leap on first note, then step in
+        int stepPortion = tailCount - 1;
+        steps[0] = delta - dir * stepPortion;
+        for (int i = 1; i < tailCount; ++i) steps[i] = dir;
+    }
+    return steps;
+}
+
+inline std::vector<float> DefaultPhraseStrategy::settle_tail(
+    const std::vector<float>& tailDurs, float finalMin) {
+    int n = int(tailDurs.size());
+    if (n <= 1) return tailDurs;
+    float total = 0; for (float d : tailDurs) total += d;
+
+    int A = n;
+    for (; A > 1; --A) {
+        float lead = 0; for (int i = 0; i < A - 1; ++i) lead += tailDurs[i];
+        if (total - lead >= finalMin) break;   // final note long enough with A notes
+    }
+    std::vector<float> out;
+    float lead = 0;
+    for (int i = 0; i < A - 1; ++i) { out.push_back(tailDurs[i]); lead += tailDurs[i]; }
+    out.push_back(total - lead);                // final absorbs the elided remainder
+    return out;
+}
+
 inline void DefaultPhraseStrategy::apply_cadence(Phrase& phrase,
                                                  const PhraseTemplate& tmpl,
                                                  const Scale& scale) {
@@ -259,31 +365,39 @@ inline void DefaultPhraseStrategy::apply_cadence(Phrase& phrase,
     }
     if (lastIdx < 0) return;  // entire phrase is Connective/PostCadential — no-op
 
-    int startDeg = degree_in_scale(phrase.startingPitch, scale);
     int len = scale.length();
+    int target = ((tmpl.cadenceTarget % len) + len) % len;
 
-    int netSteps = 0;
-    for (int f = 0; f <= lastIdx; ++f) {
-      // FC.leadStep is no longer baked into figure data (post-foundation-
-      // refactor); include it explicitly here.
-      if (f < int(phrase.connectors.size())) {
-        netSteps += phrase.connectors[f].leadStep;
-      }
-      netSteps += phrase.figures[f]->net_step();
+    // Degree at the END of the preserved head: start + all prior figures + this
+    // figure's connector + this figure's head steps.
+    int headEndDeg = degree_in_scale(phrase.startingPitch, scale);
+    for (int f = 0; f < lastIdx; ++f) {
+        if (f < int(phrase.connectors.size())) headEndDeg += phrase.connectors[f].leadStep;
+        headEndDeg += phrase.figures[f]->net_step();
     }
+    if (lastIdx < int(phrase.connectors.size())) headEndDeg += phrase.connectors[lastIdx].leadStep;
 
-    int landingDeg = ((netSteps + startDeg) % len + len) % len;
-    int target = tmpl.cadenceTarget % len;
+    auto& cf = *phrase.figures[lastIdx];
+    int N = cf.note_count();
+    if (N <= 0) return;
+    int head = std::max(0, N - 3);
+    for (int i = 0; i < head; ++i) headEndDeg += cf.units[i].step;
 
-    if (landingDeg == target) return; // already correct
+    // Original tail durations (total preserved so the figure keeps its beat budget).
+    std::vector<float> tailDurs;
+    for (int i = head; i < N; ++i) tailDurs.push_back(cf.units[i].duration);
 
-    int diff = target - landingDeg;
-    if (diff > len / 2) diff -= len;
-    if (diff < -len / 2) diff += len;
+    std::vector<float> newDurs = settle_tail(tailDurs, 1.0f);   // finalMin = 1.0 beat
+    int A = int(newDurs.size());
+    std::vector<int> appSteps = build_approach_steps(headEndDeg, target, A, len);
 
-    auto& targetFig = *phrase.figures[lastIdx];
-    if (targetFig.units.empty()) return;
-    targetFig.units.back().step += diff;
+    cf.units.resize(head);                       // keep the head, drop the old tail
+    for (int i = 0; i < A; ++i) {
+        FigureUnit u;
+        u.duration = newDurs[i];
+        u.step = appSteps[i];
+        cf.units.push_back(u);
+    }
 }
 
 // -- compose_phrase: DECLARED here, DEFINED in composer.h below Composer -----

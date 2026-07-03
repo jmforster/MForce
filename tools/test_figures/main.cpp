@@ -7,6 +7,7 @@
 #include "mforce/music/conductor.h"
 #include "mforce/music/music_json.h"
 #include "mforce/music/random_figure_builder.h"
+#include "mforce/music/pool_figure_builder.h"
 #include "mforce/music/two_figure_phrase_strategy.h"
 #include "mforce/music/elaborated_phrase_strategy.h"
 #include "mforce/core/randomizer.h"
@@ -494,7 +495,113 @@ int test_embellish_marks_articulation() {
     return 0;
 }
 
+static int test_contour_roundtrip() {
+    using mforce::Contour;
+    EXPECT_EQ(std::string(mforce::to_string(Contour::Arch)), std::string("Arch"), "to_string Arch");
+    EXPECT_EQ(int(mforce::contour_from_string("Valley")), int(Contour::Valley), "from_string Valley");
+    EXPECT_EQ(int(mforce::contour_from_string("Up")),     int(Contour::Up),     "from_string Up");
+    mforce::Constraints c;
+    c.contour = Contour::Level;
+    EXPECT_EQ(bool(c.contour), true, "contour field settable");
+    return 0;
+}
+
+static int test_pool_select() {
+    using namespace mforce;
+    nlohmann::json pool = nlohmann::json::parse(R"json(
+    {
+      "version":1,"source":"fixture","leapCapDegrees":7,
+      "atoms":[
+        {"units":[{"duration":0.5,"step":0},{"duration":0.5,"step":1},{"duration":0.5,"step":1}],
+         "noteCount":3,"totalBeats":1.5,"contour":"Up","count":100},
+        {"units":[{"duration":0.5,"step":0},{"duration":0.5,"step":1},{"duration":0.5,"step":4}],
+         "noteCount":3,"totalBeats":1.5,"contour":"Up","count":1},
+        {"units":[{"duration":0.5,"step":0},{"duration":0.5,"step":-1},{"duration":0.5,"step":-1}],
+         "noteCount":3,"totalBeats":1.5,"contour":"Down","count":50}
+      ]
+    })json");
+    PoolFigureBuilder b(pool, 12345u);
+
+    // (a) contour filter: Down never returns an ascending atom.
+    for (int i = 0; i < 50; ++i) {
+        Constraints c; c.contour = Contour::Down;
+        MelodicFigure f = b.build(c);
+        EXPECT_EQ(f.net_step() < 0, true, "Down request returns descending atom");
+    }
+    // (b) weighting: among Up, count=100 (net +2) dominates count=1 (net +5).
+    int heavy = 0, light = 0;
+    for (int i = 0; i < 2000; ++i) {
+        Constraints c; c.contour = Contour::Up;
+        MelodicFigure f = b.build(c);
+        if (f.net_step() == 2) ++heavy; else if (f.net_step() == 5) ++light;
+    }
+    EXPECT_EQ(heavy > light * 5, true, "heavy-count atom dominates light");
+    // (c) over-constrained request throws.
+    bool threw = false;
+    try { Constraints c; c.count = 2; c.contour = Contour::Arch; b.build(c); }
+    catch (const std::runtime_error&) { threw = true; }
+    EXPECT_EQ(threw, true, "over-constrained request throws");
+    return 0;
+}
+
+static int test_build_approach_steps() {
+    using D = mforce::DefaultPhraseStrategy;
+    auto land = [](int start, const std::vector<int>& s){ int p=start; for(int x:s)p+=x; return p; };
+
+    EXPECT_EQ(D::nearest_degree_index(10, 0, 7), 7,  "nearest tonic to 10 is 7");
+    EXPECT_EQ(D::nearest_degree_index(10, 4, 7), 11, "nearest V to 10 is 11");
+
+    auto a = D::build_approach_steps(2, 0, 3, 7);   // close descent mi->do
+    EXPECT_EQ(int(a.size()), 3, "tailCount honored");
+    EXPECT_EQ(land(2, a), 0, "lands on tonic");
+    EXPECT_EQ(2 + a[0] + a[1], 1, "penultimate is degree 1 (re/2)");
+
+    auto b = D::build_approach_steps(-2, 0, 3, 7);  // ascend from below
+    EXPECT_EQ(land(-2, b), 0, "ascends to tonic");
+    EXPECT_EQ(-2 + b[0] + b[1], -1, "penultimate is degree -1 (ti/7)");
+
+    auto c1 = D::build_approach_steps(5, 0, 3, 7);  // nearest tonic is 7 (la-ti-do ascent)
+    EXPECT_EQ(land(5, c1), 7, "lands on nearest tonic (7)");
+    auto c = D::build_approach_steps(3, 0, 2, 7);   // 2-note tail, dist 3 > tail -> leap then step
+    EXPECT_EQ(land(3, c), 0, "far: lands on tonic");
+    EXPECT_EQ(c[0], -2, "far: first move is a leap");
+    EXPECT_EQ(c[1], -1, "far: final move is a step");
+
+    auto e = D::build_approach_steps(0, 0, 3, 7);   // on target: neighbor escape
+    EXPECT_EQ(land(0, e), 0, "on-target lands on target");
+    EXPECT_EQ(e[1], -1, "on-target penult steps to LT");
+    EXPECT_EQ(e[2], 1,  "on-target resolves up");
+    return 0;
+}
+
+static int test_settle_tail() {
+    using D = mforce::DefaultPhraseStrategy;
+    auto sum = [](const std::vector<float>& v){ float t=0; for(float x:v)t+=x; return t; };
+
+    auto a = D::settle_tail({0.5f, 0.5f, 1.0f}, 1.0f);
+    EXPECT_EQ(int(a.size()), 3, "no elision when final long enough");
+    EXPECT_NEAR(a.back(), 1.0f, 1e-4, "final unchanged");
+
+    auto b = D::settle_tail({0.25f,0.25f,0.25f,0.25f}, 1.0f);
+    EXPECT_EQ(int(b.size()), 1, "fully collapsed");
+    EXPECT_NEAR(b.back(), 1.0f, 1e-4, "final absorbs all");
+
+    auto c = D::settle_tail({0.5f,0.25f,0.25f}, 0.5f);
+    EXPECT_EQ(int(c.size()), 2, "elide one");
+    EXPECT_NEAR(c[0], 0.5f, 1e-4, "lead kept");
+    EXPECT_NEAR(c[1], 0.5f, 1e-4, "final absorbs the rest");
+
+    EXPECT_NEAR(sum(a), 2.0f, 1e-4, "sum a");
+    EXPECT_NEAR(sum(b), 1.0f, 1e-4, "sum b");
+    EXPECT_NEAR(sum(c), 1.0f, 1e-4, "sum c");
+    return 0;
+}
+
 int run_unit_tests() {
+    RUN_TEST(test_contour_roundtrip);
+    RUN_TEST(test_pool_select);
+    RUN_TEST(test_build_approach_steps);
+    RUN_TEST(test_settle_tail);
     RUN_TEST(test_invert);
     RUN_TEST(test_retrograde_steps);
     RUN_TEST(test_prune_end);
