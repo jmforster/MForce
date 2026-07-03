@@ -61,3 +61,20 @@ renders/*.wav
 # Claude Code tool-local
 ############################
 .claude/
+
+############################
+# Data / samples / renders (regenerable, not versioned)
+############################
+renders/
+corpus/
+research/inst_samples/
+research/ml_ears/patches/
+__pycache__/
+
+############################
+# Session scratch
+############################
+.superpowers/
+Pre_crash.txt
+/*.PNG
+/*.png
