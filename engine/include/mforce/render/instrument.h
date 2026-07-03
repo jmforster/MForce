@@ -90,7 +90,11 @@ struct PitchedInstrument final : Instrument {
 
   struct VoiceGraph {
     std::shared_ptr<ValueSource> source;
-    std::unordered_map<std::string, ParamSlot> params;
+    // One logical paramMap name (e.g. "frequency") can target multiple graph
+    // edges (e.g. dual-stack instruments where both fmBody.frequency AND
+    // fmTine.frequency must be retuned per note). Vector size 1 is the
+    // common case; vector empty means no mapping for that name.
+    std::unordered_map<std::string, std::vector<ParamSlot>> params;
     // If this voice's output IS a MultiplexSource, fan paramMap changes
     // into its clones. Captured at voice-pool build time by casting
     // `source`. Null for non-Multiplex voices — fan-out is a no-op.
@@ -121,16 +125,17 @@ struct PitchedInstrument final : Instrument {
 
     auto it = vg.params.find("frequency");
     if (it != vg.params.end()) {
-      auto& slot = it->second;
-      if (curve) {
-        auto env = compile_pitch_curve(*curve, sampleRate);
-        auto pbs = std::make_shared<PitchBendSource>(freq, std::move(env));
-        slot.consumer->set_param(slot.paramName, pbs);
-      } else {
-        slot.originalCS->set(freq);
-        slot.consumer->set_param(slot.paramName, slot.originalCS);
-        if (vg.topMultiplex && !slot.targetNodeId.empty()) {
-          vg.topMultiplex->set_clone_param(slot.targetNodeId, slot.paramName, freq);
+      for (auto& slot : it->second) {
+        if (curve) {
+          auto env = compile_pitch_curve(*curve, sampleRate);
+          auto pbs = std::make_shared<PitchBendSource>(freq, std::move(env));
+          slot.consumer->set_param(slot.paramName, pbs);
+        } else {
+          slot.originalCS->set(freq);
+          slot.consumer->set_param(slot.paramName, slot.originalCS);
+          if (vg.topMultiplex && !slot.targetNodeId.empty()) {
+            vg.topMultiplex->set_clone_param(slot.targetNodeId, slot.paramName, freq);
+          }
         }
       }
     }
@@ -156,23 +161,24 @@ struct PitchedInstrument final : Instrument {
 
     auto it = vg.params.find("frequency");
     if (it != vg.params.end()) {
-      auto& slot = it->second;
-      if (curve) {
-        // Build an Envelope from the curve, wrap in a PitchBendSource that
-        // emits baseHz * 2^(semi/12), and plug it into the consumer's param
-        // edge — replacing the nominal ConstantSource for this note.
-        auto env = compile_pitch_curve(*curve, sampleRate);
-        auto pbs = std::make_shared<PitchBendSource>(freq, std::move(env));
-        slot.consumer->set_param(slot.paramName, pbs);
-      } else {
-        // Plain note: set the nominal value and restore the edge to the
-        // original ConstantSource (idempotent if already restored).
-        slot.originalCS->set(freq);
-        slot.consumer->set_param(slot.paramName, slot.originalCS);
-        // Fan out to Multiplex clones so each internal copy retunes too.
-        // No-op when the voice's output isn't a Multiplex.
-        if (vg.topMultiplex && !slot.targetNodeId.empty()) {
-          vg.topMultiplex->set_clone_param(slot.targetNodeId, slot.paramName, freq);
+      for (auto& slot : it->second) {
+        if (curve) {
+          // Build an Envelope from the curve, wrap in a PitchBendSource that
+          // emits baseHz * 2^(semi/12), and plug it into the consumer's param
+          // edge — replacing the nominal ConstantSource for this note.
+          auto env = compile_pitch_curve(*curve, sampleRate);
+          auto pbs = std::make_shared<PitchBendSource>(freq, std::move(env));
+          slot.consumer->set_param(slot.paramName, pbs);
+        } else {
+          // Plain note: set the nominal value and restore the edge to the
+          // original ConstantSource (idempotent if already restored).
+          slot.originalCS->set(freq);
+          slot.consumer->set_param(slot.paramName, slot.originalCS);
+          // Fan out to Multiplex clones so each internal copy retunes too.
+          // No-op when the voice's output isn't a Multiplex.
+          if (vg.topMultiplex && !slot.targetNodeId.empty()) {
+            vg.topMultiplex->set_clone_param(slot.targetNodeId, slot.paramName, freq);
+          }
         }
       }
     }

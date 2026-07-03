@@ -24,6 +24,137 @@ struct ExpandRule {
   float po1{0.0f}, po2{0.0f};            // phase offset for sub-partials
 };
 
+// ExpandRuleNode — graph-node wrapper around ExpandRule. Lets patches
+// declare an ExpandRule as a top-level node and reference it from a
+// Partials host via { "ref": "..." }. Mirrors the role of Formant —
+// a parametric building block consumed by a host node, with no audio
+// output of its own. The host snapshots fields at load/prepare time
+// via to_struct().
+struct ExpandRuleNode final : ValueSource {
+  ExpandRuleNode()
+  : spacing1_(std::make_shared<ConstantSource>(0.5f))
+  , spacing2_(std::make_shared<ConstantSource>(0.5f))
+  , dt1_(std::make_shared<ConstantSource>(0.01f))
+  , dt2_(std::make_shared<ConstantSource>(0.01f))
+  , loPct1_(std::make_shared<ConstantSource>(0.1f))
+  , loPct2_(std::make_shared<ConstantSource>(0.1f))
+  , power1_(std::make_shared<ConstantSource>(1.0f))
+  , power2_(std::make_shared<ConstantSource>(1.0f))
+  , po1_(std::make_shared<ConstantSource>(0.0f))
+  , po2_(std::make_shared<ConstantSource>(0.0f)) {}
+
+  int count{2};
+  int recurse{0};
+
+  // Field accessors for set_param / get_param wiring.
+  void set_spacing1(std::shared_ptr<ValueSource> s) { spacing1_ = std::move(s); }
+  void set_spacing2(std::shared_ptr<ValueSource> s) { spacing2_ = std::move(s); }
+  void set_dt1(std::shared_ptr<ValueSource> s)      { dt1_      = std::move(s); }
+  void set_dt2(std::shared_ptr<ValueSource> s)      { dt2_      = std::move(s); }
+  void set_loPct1(std::shared_ptr<ValueSource> s)   { loPct1_   = std::move(s); }
+  void set_loPct2(std::shared_ptr<ValueSource> s)   { loPct2_   = std::move(s); }
+  void set_power1(std::shared_ptr<ValueSource> s)   { power1_   = std::move(s); }
+  void set_power2(std::shared_ptr<ValueSource> s)   { power2_   = std::move(s); }
+  void set_po1(std::shared_ptr<ValueSource> s)      { po1_      = std::move(s); }
+  void set_po2(std::shared_ptr<ValueSource> s)      { po2_      = std::move(s); }
+
+  // Snapshot to a plain ExpandRule for consumption by Partials. Reads the
+  // current() of each field — at load time these are ConstantSource values,
+  // at prepare time they could be the current value of a wired envelope.
+  ExpandRule to_struct() const {
+    ExpandRule r;
+    r.count = count;
+    r.recurse = recurse;
+    r.spacing1 = spacing1_->current();
+    r.spacing2 = spacing2_->current();
+    r.dt1 = dt1_->current();
+    r.dt2 = dt2_->current();
+    r.loPct1 = loPct1_->current();
+    r.loPct2 = loPct2_->current();
+    r.power1 = power1_->current();
+    r.power2 = power2_->current();
+    r.po1 = po1_->current();
+    r.po2 = po2_->current();
+    return r;
+  }
+
+  const char* type_name() const override { return "ExpandRule"; }
+  SourceCategory category() const override { return SourceCategory::Additive; }
+
+  std::span<const ParamDescriptor> param_descriptors() const override {
+    static constexpr ParamDescriptor descs[] = {
+      {"spacing1", 0.5f,  0.0f, 24.0f, "semis"},
+      {"spacing2", 0.5f,  0.0f, 24.0f, "semis"},
+      {"dt1",      0.01f, 0.0f, 1.0f,  "0-1"},
+      {"dt2",      0.01f, 0.0f, 1.0f,  "0-1"},
+      {"loPct1",   0.1f,  0.0f, 1.0f,  "0-1"},
+      {"loPct2",   0.1f,  0.0f, 1.0f,  "0-1"},
+      {"power1",   1.0f,  0.0f, 10.0f, ""},
+      {"power2",   1.0f,  0.0f, 10.0f, ""},
+      {"po1",      0.0f,  0.0f, 1.0f,  "cycles"},
+      {"po2",      0.0f,  0.0f, 1.0f,  "cycles"},
+    };
+    return descs;
+  }
+
+  void set_param(std::string_view name, std::shared_ptr<ValueSource> src) override {
+    if (name == "spacing1") { set_spacing1(std::move(src)); return; }
+    if (name == "spacing2") { set_spacing2(std::move(src)); return; }
+    if (name == "dt1")      { set_dt1(std::move(src));      return; }
+    if (name == "dt2")      { set_dt2(std::move(src));      return; }
+    if (name == "loPct1")   { set_loPct1(std::move(src));   return; }
+    if (name == "loPct2")   { set_loPct2(std::move(src));   return; }
+    if (name == "power1")   { set_power1(std::move(src));   return; }
+    if (name == "power2")   { set_power2(std::move(src));   return; }
+    if (name == "po1")      { set_po1(std::move(src));      return; }
+    if (name == "po2")      { set_po2(std::move(src));      return; }
+  }
+
+  std::shared_ptr<ValueSource> get_param(std::string_view name) const override {
+    if (name == "spacing1") return spacing1_;
+    if (name == "spacing2") return spacing2_;
+    if (name == "dt1")      return dt1_;
+    if (name == "dt2")      return dt2_;
+    if (name == "loPct1")   return loPct1_;
+    if (name == "loPct2")   return loPct2_;
+    if (name == "power1")   return power1_;
+    if (name == "power2")   return power2_;
+    if (name == "po1")      return po1_;
+    if (name == "po2")      return po2_;
+    return nullptr;
+  }
+
+  std::span<const ConfigDescriptor> config_descriptors() const override {
+    static constexpr ConfigDescriptor descs[] = {
+      {"count",   ConfigType::Int, 2.0f, 0.0f, 16.0f},
+      {"recurse", ConfigType::Int, 0.0f, 0.0f, 4.0f},
+    };
+    return descs;
+  }
+
+  void set_config(std::string_view name, float value) override {
+    if (name == "count")   { count = int(value);   return; }
+    if (name == "recurse") { recurse = int(value); return; }
+  }
+
+  float get_config(std::string_view name) const override {
+    if (name == "count")   return float(count);
+    if (name == "recurse") return float(recurse);
+    return 0.0f;
+  }
+
+  void prepare(const RenderContext& /*ctx*/, int /*frames*/) override {}
+  float next() override { return 0.0f; }
+  float current() const override { return 0.0f; }
+
+private:
+  std::shared_ptr<ValueSource> spacing1_, spacing2_;
+  std::shared_ptr<ValueSource> dt1_, dt2_;
+  std::shared_ptr<ValueSource> loPct1_, loPct2_;
+  std::shared_ptr<ValueSource> power1_, power2_;
+  std::shared_ptr<ValueSource> po1_, po2_;
+};
+
 // ---------------------------------------------------------------------------
 // IPartials — interface for partial rendering engines.
 // Uses partials_prepare / partials_next to avoid collision with
@@ -53,7 +184,8 @@ struct Partials : ValueSource, IPartials {
   , amplEnv_(std::make_shared<ConstantSource>(0.0f))
   , poEnv_(std::make_shared<ConstantSource>(0.0f))
   , roEnv_(std::make_shared<ConstantSource>(0.0f))
-  , dtEnv_(std::make_shared<ConstantSource>(0.0f)) {}
+  , dtEnv_(std::make_shared<ConstantSource>(0.0f))
+  , bwEnv_(std::make_shared<ConstantSource>(0.0f)) {}
 
   // --- ValueSource interface ---
   // Partials is a ValueSource for graph wiring, but doesn't produce audio.
@@ -75,6 +207,7 @@ struct Partials : ValueSource, IPartials {
       {"poEnv",   0.0f, 0.0f, 1.0f, "0-1"},
       {"roEnv",   0.0f, 0.0f, 1.0f, "0-1"},
       {"dtEnv",   0.0f, 0.0f, 1.0f, "0-1"},
+      {"bwEnv",   0.0f, 0.0f, 1.0f, "0-1"},  // blends bandwidth1 → bandwidth2
     };
     return descs;
   }
@@ -85,6 +218,9 @@ struct Partials : ValueSource, IPartials {
       {"rolloff2", ConfigType::Float, 1.0f, 0.0f, 10.0f},
       {"detune1",  ConfigType::Float, 0.0f, 0.0f, 1.0f},
       {"detune2",  ConfigType::Float, 0.0f, 0.0f, 1.0f},
+      {"bandwidth1",  ConfigType::Float, 0.0f, 0.0f, 1.0f},
+      {"bandwidth2",  ConfigType::Float, 0.0f, 0.0f, 1.0f},
+      {"bandwidthHz", ConfigType::Float, 30.0f, 1.0f, 2000.0f},
     };
     return descs;
   }
@@ -95,6 +231,7 @@ struct Partials : ValueSource, IPartials {
     if (name == "poEnv")   { poEnv_ = std::move(src); return; }
     if (name == "roEnv")   { roEnv_ = std::move(src); return; }
     if (name == "dtEnv")   { dtEnv_ = std::move(src); return; }
+    if (name == "bwEnv")   { bwEnv_ = std::move(src); return; }
   }
 
   std::shared_ptr<ValueSource> get_param(std::string_view name) const override {
@@ -103,21 +240,28 @@ struct Partials : ValueSource, IPartials {
     if (name == "poEnv")   return poEnv_;
     if (name == "roEnv")   return roEnv_;
     if (name == "dtEnv")   return dtEnv_;
+    if (name == "bwEnv")   return bwEnv_;
     return nullptr;
   }
 
   void set_config(std::string_view name, float value) override {
-    if (name == "rolloff1") { ro1_ = value; return; }
-    if (name == "rolloff2") { ro2_ = value; return; }
-    if (name == "detune1")  { dt1_ = value; return; }
-    if (name == "detune2")  { dt2_ = value; return; }
+    if (name == "rolloff1")   { ro1_ = value; return; }
+    if (name == "rolloff2")   { ro2_ = value; return; }
+    if (name == "detune1")    { dt1_ = value; return; }
+    if (name == "detune2")    { dt2_ = value; return; }
+    if (name == "bandwidth1")  { bw1_ = value; return; }
+    if (name == "bandwidth2")  { bw2_ = value; return; }
+    if (name == "bandwidthHz") { bwHz_ = (value < 1.0f ? 1.0f : value); return; }
   }
 
   float get_config(std::string_view name) const override {
-    if (name == "rolloff1") return ro1_;
-    if (name == "rolloff2") return ro2_;
-    if (name == "detune1")  return dt1_;
-    if (name == "detune2")  return dt2_;
+    if (name == "rolloff1")   return ro1_;
+    if (name == "rolloff2")   return ro2_;
+    if (name == "detune1")    return dt1_;
+    if (name == "detune2")    return dt2_;
+    if (name == "bandwidth1")  return bw1_;
+    if (name == "bandwidth2")  return bw2_;
+    if (name == "bandwidthHz") return bwHz_;
     return 0.0f;
   }
 
@@ -146,6 +290,7 @@ struct Partials : ValueSource, IPartials {
     poEnv_->prepare(ctx, frames);
     roEnv_->prepare(ctx, frames);
     dtEnv_->prepare(ctx, frames);
+    bwEnv_->prepare(ctx, frames);
 
     // Expand partials if rule is set
     if (hasExpand_) {
@@ -167,6 +312,19 @@ struct Partials : ValueSource, IPartials {
     partialPO_.assign(n, 0.0f);
     partialLPO_.assign(n, 0.0f);
 
+    // Per-partial bandwidth-noise state. Each partial gets an INDEPENDENT
+    // smoothed random walk (decorrelated start phase + targets) so the bands
+    // fill in rather than wobbling in unison. Segment length = rate/bandwidthHz.
+    bwLen_ = std::max(1, int(rate_ / (bwHz_ < 1.0f ? 1.0f : bwHz_)));
+    bwCur_.assign(n, 0.0f);
+    bwTarget_.assign(n, 0.0f);
+    bwPos_.assign(n, 0);
+    for (int i = 0; i < n; ++i) {
+      bwCur_[i]    = rng_.valuePN();
+      bwTarget_[i] = rng_.valuePN();
+      bwPos_[i]    = int(rng_.range(0.0f, float(bwLen_)));  // stagger phase
+    }
+
     init_detune_values();
   }
 
@@ -176,6 +334,7 @@ struct Partials : ValueSource, IPartials {
     poEnv_->next();
     roEnv_->next();
     dtEnv_->next();
+    bwEnv_->next();
   }
 
   int partial_count() const override {
@@ -218,14 +377,16 @@ struct Partials : ValueSource, IPartials {
     float ro = ro1_ + (ro2_ - ro1_) * roE;
     float rolloff = (ro == 0.0f) ? 1.0f : (1.0f / std::pow(pmult, ro));
 
-    // Formant factor
+    // Formant factor — additive-boost semantic (replaces legacy crossfade).
+    // Out-of-band partials pass through at unity; in-band partials are boosted
+    // by fmtWt * the formant's gain-at-frequency. fmtWt is a "resonance amount"
+    // knob (0 = flat, higher = stronger peaks), not an exclusivity crossfade —
+    // so mid fmtWt values stay musical instead of just attenuating everything.
+    // get_gain returns 0 at the band edges, so edge partials pass at factor 1.0
+    // (no boost, no cut) — continuous with the out-of-band region.
     float fmtFactor = 1.0f;
-    if (formant && fmtWt > 0.0f) {
-      if (formant->contains(pfreq)) {
-        fmtFactor = 1.0f - fmtWt + fmtWt * formant->get_gain(pfreq);
-      } else {
-        fmtFactor = 1.0f - fmtWt;
-      }
+    if (formant && fmtWt > 0.0f && formant->contains(pfreq)) {
+      fmtFactor = 1.0f + fmtWt * formant->get_gain(pfreq);
     }
 
     // Fade out partials near cutoff (within 1000 Hz) — legacy line 216
@@ -234,6 +395,27 @@ struct Partials : ValueSource, IPartials {
     float pampl = amplitude *
         (ampl1_[index] + (ampl2_[index] - ampl1_[index]) * amplE) *
         rolloff * fmtFactor * fade;
+
+    // Bandwidth enhancement (Loris / SMS): trade part of this partial's
+    // sinusoidal energy for a noise band by amplitude-modulating it with an
+    // independent per-partial smoothed noise. Energy-preserving mix:
+    //   amp *= sqrt(1-bw) + sqrt(bw)*noise   (bw=0 → pure sine; bw=1 → full band)
+    // bandwidthHz sets how fast the noise wiggles ≈ the band width. bwEnv lets
+    // bandwidth ramp (e.g. high at the attack, settling — a coupled noisy attack).
+    float bw = bw1_ + (bw2_ - bw1_) * bwEnv_->current();
+    if (bw > 0.0f) {
+      if (bw > 1.0f) bw = 1.0f;
+      if (bwPos_[index] >= bwLen_) {
+        bwCur_[index]    = bwTarget_[index];
+        bwTarget_[index] = rng_.valuePN();
+        bwPos_[index]    = 0;
+      }
+      float u = float(bwPos_[index]) / float(bwLen_);
+      float s = u * u * (3.0f - 2.0f * u);  // smoothstep → low-pass noise
+      float noise = bwCur_[index] + (bwTarget_[index] - bwCur_[index]) * s;
+      ++bwPos_[index];
+      pampl *= std::sqrt(1.0f - bw) + std::sqrt(bw) * noise;
+    }
 
     return std::sin(partialPos_[index] * TAU) * pampl;
   }
@@ -337,16 +519,24 @@ protected:
   std::shared_ptr<ValueSource> poEnv_;
   std::shared_ptr<ValueSource> roEnv_;
   std::shared_ptr<ValueSource> dtEnv_;
+  std::shared_ptr<ValueSource> bwEnv_;
 
   // Global rolloff/detune ranges
   float ro1_{1.0f}, ro2_{1.0f};
   float dt1_{0.0f}, dt2_{0.0f};
+
+  // Bandwidth enhancement: bw1_→bw2_ mix amount (blended by bwEnv_), bwHz_ band
+  // width. Default 0 → feature inert (no change to existing patches).
+  float bw1_{0.0f}, bw2_{0.0f}, bwHz_{30.0f};
+  int   bwLen_{1600};
 
   // Per-partial static arrays (set by init_arrays in subclass)
   std::vector<float> mult1_, mult2_, ampl1_, ampl2_, po1_, po2_;
 
   // Per-partial runtime state
   std::vector<float> partialPos_, partialPO_, partialLPO_, dtVals_;
+  std::vector<float> bwCur_, bwTarget_;   // per-partial bandwidth-noise walk
+  std::vector<int>   bwPos_;
 
   // Expand rule
   ExpandRule expandRule_;
@@ -385,6 +575,9 @@ struct FullPartials final : Partials {
       {"rolloff2",     ConfigType::Float, 1.0f,  0.0f, 10.0f},
       {"detune1",      ConfigType::Float, 0.0f,  0.0f, 1.0f},
       {"detune2",      ConfigType::Float, 0.0f,  0.0f, 1.0f},
+      {"bandwidth1",   ConfigType::Float, 0.0f,  0.0f, 1.0f},
+      {"bandwidth2",   ConfigType::Float, 0.0f,  0.0f, 1.0f},
+      {"bandwidthHz",  ConfigType::Float, 30.0f, 1.0f, 2000.0f},
     };
     return descs;
   }
@@ -483,6 +676,9 @@ struct SequencePartials final : Partials {
       {"rolloff2",    ConfigType::Float, 1.0f,  0.0f, 10.0f},
       {"detune1",     ConfigType::Float, 0.0f,  0.0f, 1.0f},
       {"detune2",     ConfigType::Float, 0.0f,  0.0f, 1.0f},
+      {"bandwidth1",  ConfigType::Float, 0.0f,  0.0f, 1.0f},
+      {"bandwidth2",  ConfigType::Float, 0.0f,  0.0f, 1.0f},
+      {"bandwidthHz", ConfigType::Float, 30.0f, 1.0f, 2000.0f},
     };
     return descs;
   }
@@ -560,6 +756,9 @@ struct ExplicitPartials final : Partials {
       {"rolloff2",    ConfigType::Float, 1.0f,  0.0f, 10.0f},
       {"detune1",     ConfigType::Float, 0.0f,  0.0f, 1.0f},
       {"detune2",     ConfigType::Float, 0.0f,  0.0f, 1.0f},
+      {"bandwidth1",  ConfigType::Float, 0.0f,  0.0f, 1.0f},
+      {"bandwidth2",  ConfigType::Float, 0.0f,  0.0f, 1.0f},
+      {"bandwidthHz", ConfigType::Float, 30.0f, 1.0f, 2000.0f},
     };
     return descs;
   }

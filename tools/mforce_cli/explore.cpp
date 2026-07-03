@@ -19,10 +19,21 @@
 // "scale": "log" makes the sweep geometric (each step multiplies by the
 // same ratio); default "linear" makes it arithmetic. "values" overrides
 // min/max/steps with an explicit list.
+//
+// Two basePatch styles are supported:
+// - Render-style (no "instrument" section, output is a StereoMixer):
+//   rendered offline via load_patch_file + mixer->render. "duration" in the
+//   spec overrides the patch's top-level "seconds".
+// - Instrument-style ("instrument" section present, output is a ValueSource):
+//   rendered via load_instrument_patch + PitchedInstrument::prepare_voice +
+//   per-sample pull. Saved variants are immediately loadable in mforce_ui.
+//   Spec fields: "noteNumber" (default 60), "duration" (seconds, default 3.0).
 
 #include "explore.h"
 #include "mforce/render/patch_loader.h"
 #include "mforce/render/wav_writer.h"
+#include "mforce/render/instrument.h"
+#include "mforce/render/limiter.h"
 #include "mforce/util/signal_stats.h"
 #include <nlohmann/json.hpp>
 #include <filesystem>
@@ -245,6 +256,26 @@ int run_explore(int argc, char** argv) {
     for (const auto& jaxis : spec.at("axes")) axes.push_back(parse_axis(jaxis));
     if (axes.empty()) { std::cerr << "spec has no axes\n"; return 1; }
 
+    // Detect basePatch style for render dispatch + UI playability warning.
+    bool basePatchIsInstrument = false;
+    {
+        std::ifstream bf(basePatchPath);
+        json basePatchPeek; if (bf) bf >> basePatchPeek;
+        basePatchIsInstrument = basePatchPeek.contains("instrument");
+        if (!basePatchIsInstrument) {
+            std::cerr <<
+                "NOTE: basePatch has no 'instrument' section. Saved variants "
+                "will render to wav,\n"
+                "  but won't be openable as instruments in mforce_ui. To make "
+                "them playable,\n"
+                "  use an instrument-style basePatch (output is a ValueSource, "
+                "has 'instrument' section).\n";
+        }
+    }
+    // Instrument-mode render params (used only when basePatchIsInstrument).
+    float instrNoteNumber = spec.value("noteNumber", 60.0f);
+    float instrDuration   = spec.value("duration",   3.0f);
+
     // ---- Load base patch ----
     json basePatch;
     {
@@ -308,21 +339,46 @@ int run_explore(int argc, char** argv) {
                 pf << variant.dump(2);
             }
 
-            // Render
+            // Render — dispatch on basePatch style.
             SignalStats stats;
             int frames = 0;
             int sr     = 48000;
             try {
-                Patch p = load_patch_file(patchPath.string());
-                sr     = p.sampleRate;
-                frames = p.frames;
-                std::vector<float> out((size_t)frames * 2);
-                { RenderContext ctx{sr}; p.mixer->render(ctx, out.data(), frames); }
-
-                // Stats on left channel only (mono content)
-                std::vector<float> mono(frames);
-                for (int i = 0; i < frames; ++i) mono[i] = out[i * 2];
-                stats = compute_all_stats(mono.data(), frames, sr);
+                std::vector<float> out;  // interleaved L/R for wav write
+                if (basePatchIsInstrument) {
+                    // Instrument-style render: load patch, grab voicePool[0],
+                    // prepare with note duration, pull samples by hand.
+                    auto ip = load_instrument_patch(patchPath.string());
+                    auto* pitched = dynamic_cast<PitchedInstrument*>(ip.instrument.get());
+                    if (!pitched) throw std::runtime_error("not a PitchedInstrument");
+                    sr = ip.sampleRate;
+                    auto sv = pitched->prepare_voice(instrNoteNumber, 1.0f, instrDuration);
+                    frames = sv.durSamples;
+                    std::vector<float> mono(size_t(frames), 0.0f);
+                    // soft_clip after gain matches mforce_ui's live audio path —
+                    // dual-stack / N-stack instruments that sum past ±1.0 get
+                    // gracefully shaped instead of hard-clipped at the wav writer.
+                    for (int i = 0; i < frames; ++i)
+                        mono[size_t(i)] = soft_clip(sv.source->next() * sv.gain);
+                    // Mirror mono to stereo for the wav writer
+                    out.resize(size_t(frames) * 2);
+                    for (int i = 0; i < frames; ++i) {
+                        out[size_t(i) * 2]     = mono[size_t(i)];
+                        out[size_t(i) * 2 + 1] = mono[size_t(i)];
+                    }
+                    stats = compute_all_stats(mono.data(), frames, sr);
+                } else {
+                    // Render-style: existing path via StereoMixer.
+                    Patch p = load_patch_file(patchPath.string());
+                    sr     = p.sampleRate;
+                    frames = p.frames;
+                    out.resize(size_t(frames) * 2);
+                    { RenderContext ctx{sr}; p.mixer->render(ctx, out.data(), frames); }
+                    std::vector<float> mono(size_t(frames), 0.0f);
+                    for (int i = 0; i < frames; ++i)
+                        mono[size_t(i)] = out[size_t(i * 2)];
+                    stats = compute_all_stats(mono.data(), frames, sr);
+                }
 
                 if (!write_wav_16le_stereo(wavPath.string(), sr, out)) {
                     std::cerr << "wav write failed: " << wavPath.string() << "\n";

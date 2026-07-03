@@ -1,6 +1,7 @@
 {
-  "basePatch": "patches/fm_spacy_n177.json",
-  "duration": 3.0,
+  "basePatch":  "patches/inst_spacy.json",
+  "noteNumber": 60,
+  "duration":   3.0,
   "axes": [
     {
       "param":  "fm.frequency",

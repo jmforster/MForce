@@ -295,7 +295,27 @@ void register_all_sources() {
     // -----------------------------------------------------------------------
 
     reg.register_type("MultiSource", SourceCategory::Combiner,
-        [](int, auto) { return std::make_shared<MultiSource>(); });
+        [](int, auto) { return std::make_shared<MultiSource>(); },
+        // Configurator: per-source weights. Array items can be either a
+        // plain ref ({"ref":"id"}) → weight 1.0, OR an object with both ref
+        // and weight ({"ref":"id", "weight": 0.5}). The generic wire_params
+        // pass has already added entries via add_param at weight 1.0; this
+        // configurator overrides weights in-place where specified.
+        [](ValueSource& src, const nlohmann::json& p, const ResolveParamFn&) {
+            auto& ms = static_cast<MultiSource&>(src);
+            if (!p.contains("source") || !p["source"].is_array()) return;
+            const auto& arr = p["source"];
+            // Iterate entries in parallel with ms.entries (same order — the
+            // wire_params pass added them in JSON order).
+            int n = std::min(int(arr.size()), int(ms.entries.size()));
+            for (int i = 0; i < n; ++i) {
+                const auto& item = arr[i];
+                if (item.is_object() && item.contains("weight"))
+                    ms.entries[i].weight = item["weight"].get<float>();
+                if (item.is_object() && item.contains("delay"))
+                    ms.entries[i].delaySamples = item["delay"].get<int>();
+            }
+        });
 
     reg.register_type("MultiplexSource", SourceCategory::Combiner,
         [](int, auto) { return std::make_shared<MultiplexSource>(); });
@@ -374,18 +394,16 @@ void register_all_sources() {
 
     reg.register_type("Vibrato", SourceCategory::Modulator,
         [](int sr, auto seed) {
-            // All params are construction-time; factory uses defaults
+            // Defaults; configs (speed/depth/attack/...) are set after creation
+            // via set_config (UI) or the patch_loader special case (JSON).
             return std::make_shared<Vibrato>(
-                sr, 5.0f, 0.02f, 0.3f, 0.0f, 0.0f, 0.0f,
+                sr, 5.0f, 0.02f, 0.3f, 0.0f, 0.0f, 0.0f, 1.0f,
                 seed.value_or(0xF1B0'0000u));
         });
 
     // -----------------------------------------------------------------------
     // Complex additive types — AdditiveSource (thin) + Partials (rendering)
     // -----------------------------------------------------------------------
-
-    // "FullAdditiveSource" — backward compat alias, handled in patch_loader
-    // (special-case block creates AdditiveSource + Partials)
 
     reg.register_type("AdditiveSource2", SourceCategory::Additive,
         [](int sr, auto seed) {
@@ -409,6 +427,11 @@ void register_all_sources() {
 
     reg.register_type("FormantSequence", SourceCategory::Additive,
         [](int, auto) { return std::make_shared<FormantSequence>(); });
+
+    // ExpandRule node — parametric block consumed by Partials hosts via
+    // a "expandRule": {"ref": "..."} field. Mirrors the Formant pattern.
+    reg.register_type("ExpandRule", SourceCategory::Additive,
+        [](int, auto) { return std::make_shared<ExpandRuleNode>(); });
 
     reg.register_type("CompositePartials", SourceCategory::Additive,
         [](int, auto) { return std::make_shared<CompositePartials>(); });
@@ -470,6 +493,20 @@ void register_all_sources() {
         [](int, auto seed) {
             return std::make_shared<BrassEvolutionSource>(seed.value_or(0xB8A5'5000u));
         });
+
+    // Algorithmic evolutions (abstract transforms, not physical models).
+    reg.register_type("ReactionDiffusionEvolution", SourceCategory::Combiner,
+        [](int, auto) { return std::make_shared<ReactionDiffusionEvolutionSource>(); });
+    reg.register_type("SortErosionEvolution", SourceCategory::Combiner,
+        [](int, auto) { return std::make_shared<SortErosionEvolutionSource>(); });
+    reg.register_type("CellularAutomatonEvolution", SourceCategory::Combiner,
+        [](int, auto) { return std::make_shared<CellularAutomatonEvolutionSource>(); });
+    reg.register_type("HistogramEqualizeEvolution", SourceCategory::Combiner,
+        [](int, auto) { return std::make_shared<HistogramEqualizeEvolutionSource>(); });
+    reg.register_type("BezierPullEvolution", SourceCategory::Combiner,
+        [](int, auto) { return std::make_shared<BezierPullEvolutionSource>(); });
+    reg.register_type("BitRotateEvolution", SourceCategory::Combiner,
+        [](int, auto) { return std::make_shared<BitRotateEvolutionSource>(); });
 
     reg.register_type("HybridKSSource", SourceCategory::Oscillator,
         [](int sr, auto seed) {

@@ -85,6 +85,23 @@ struct SegmentSource final : ValueSource {
     return 0.0f;
   }
 
+  // values[] is the [width0, val0, width1, val1, ...] segment table. The
+  // patch loader's generic set_array path uses this to wire arbitrary
+  // shapes from JSON. widthIsSecs_ is re-derived from values[0] each time.
+  std::span<const ArrayDescriptor> array_descriptors() const override {
+    static constexpr ArrayDescriptor descs[] = {
+      {"values", nullptr, 0.0f, -10.0f, 10.0f},
+    };
+    return descs;
+  }
+
+  void set_array(std::string_view name, std::vector<float> v) override {
+    if (name == "values") {
+      values_ = std::move(v);
+      widthIsSecs_ = !values_.empty() && values_[0] < 1.0f;
+    }
+  }
+
   SegmentSource(std::vector<float> values, int sr, bool os = false,
                 uint32_t seed = 0x5E6A'0000u)
   : values_(std::move(values)), sampleRate(sr), oneShot(os), rng_(seed),

@@ -32,6 +32,7 @@
 #include "mforce/render/instrument.h"
 #include "mforce/render/mixer.h"
 #include "mforce/render/limiter.h"  // soft_clip for the live polyphonic mix
+#include "mforce/render/wav_reader.h"  // audition: load WAVs from --explore sweep folders
 #include "mforce/util/fft.h"        // shared FFT (also used by mforce_cli --explore)
 #include "mforce/render/wav_writer.h"
 #include "mforce/music/parse_util.h"
@@ -975,25 +976,43 @@ static void load_graph_from_path(const std::string& path) {
         if (outIt != outputPinMap.end())
             s_links.emplace_back(outIt->second, outNode.inputs[0].id);
 
-        // Create Parameter nodes from paramMap
+        // Create Parameter nodes from paramMap.
+        // paramMap value can be either a single string ("fmBody.frequency")
+        // or an array of strings (for dual/N-stack instruments where one
+        // logical name retunes multiple graph edges). One Parameter node is
+        // created per name and wired to ALL listed targets.
         if (root["instrument"].contains("paramMap")) {
-            for (auto& [paramName, targetStr] : root["instrument"]["paramMap"].items()) {
-                std::string target = targetStr.get<std::string>();
+            for (auto& [paramName, targetJson] : root["instrument"]["paramMap"].items()) {
+                std::vector<std::string> targets;
+                if (targetJson.is_string()) {
+                    targets.push_back(targetJson.get<std::string>());
+                } else if (targetJson.is_array()) {
+                    for (const auto& t : targetJson)
+                        if (t.is_string()) targets.push_back(t.get<std::string>());
+                }
+                if (targets.empty()) continue;
 
                 s_nodes.emplace_back(std::string(NT_PARAMETER), paramName);
                 GraphNode& pn = s_nodes.back();
 
-                // Find the target input pin and get its current default value
-                auto inIt = inputPinMap.find(target);
-                if (inIt != inputPinMap.end()) {
-                    Pin* targetPin = find_pin(inIt->second);
-                    if (targetPin) {
-                        pn.inputs[0].defaultValue = targetPin->defaultValue;
-                        if (pn.inputs[0].constantSrc)
-                            pn.inputs[0].constantSrc->set(targetPin->defaultValue);
+                // Use the first target's default as the Parameter node's default
+                // (all targets should share the same nominal value — e.g. base freq).
+                bool defaultSet = false;
+                for (const std::string& target : targets) {
+                    auto inIt = inputPinMap.find(target);
+                    if (inIt == inputPinMap.end()) continue;
+
+                    if (!defaultSet) {
+                        Pin* targetPin = find_pin(inIt->second);
+                        if (targetPin) {
+                            pn.inputs[0].defaultValue = targetPin->defaultValue;
+                            if (pn.inputs[0].constantSrc)
+                                pn.inputs[0].constantSrc->set(targetPin->defaultValue);
+                        }
+                        defaultSet = true;
                     }
 
-                    // Wire parameter output to target input
+                    // Wire this Parameter node's output to the target input pin
                     s_links.emplace_back(pn.outputs[0].id, inIt->second);
                 }
             }
@@ -1105,6 +1124,34 @@ static void load_graph() {
 }
 
 // ===========================================================================
+// Persisted UI settings (audition curated-folder path, etc.)
+// Tiny JSON next to the exe; read at startup, written when changed.
+// ===========================================================================
+
+struct UiSettings {
+    std::string curatedFolder = "patches/curated";
+};
+static UiSettings g_settings;
+static const char* SETTINGS_PATH = "mforce_ui_settings.json";
+
+static void settings_load() {
+    std::ifstream f(SETTINGS_PATH);
+    if (!f) return;
+    try {
+        nlohmann::json j; f >> j;
+        if (j.contains("curatedFolder") && j["curatedFolder"].is_string())
+            g_settings.curatedFolder = j["curatedFolder"].get<std::string>();
+    } catch (...) {}
+}
+
+static void settings_save() {
+    nlohmann::json j;
+    j["curatedFolder"] = g_settings.curatedFolder;
+    std::ofstream f(SETTINGS_PATH);
+    if (f) f << j.dump(2);
+}
+
+// ===========================================================================
 // JSON export
 // ===========================================================================
 
@@ -1210,26 +1257,32 @@ static void save_patch_graph(const std::string& path) {
         if (src) outputId = nodeIds[src->id];
     }
 
-    // Build paramMap: trace each Parameter node's output to find target
+    // Build paramMap: trace each Parameter node's outgoing links to find
+    // targets. A Parameter node connected to N inputs emits N targets;
+    // serialized as a string when N==1 and as an array when N>1 (matches
+    // the engine's multi-target paramMap form for dual/N-stack instruments).
     json paramMap = json::object();
     for (auto* pn : paramNodes) {
         if (pn->outputs.empty() || pn->paramName.empty()) continue;
         int outPinId = pn->outputs[0].id;
-        // Find what this output connects to
+        std::vector<std::string> targets;
         for (auto& link : s_links) {
             int targetPinId = -1;
             if (link.startPinId == outPinId) targetPinId = link.endPinId;
             if (link.endPinId == outPinId) targetPinId = link.startPinId;
             if (targetPinId < 0) continue;
-
-            // Find the target node and pin name
             for (auto& node : s_nodes) {
                 for (auto& pin : node.inputs) {
                     if (pin.id == targetPinId && nodeIds.count(node.id)) {
-                        paramMap[pn->paramName] = nodeIds[node.id] + "." + pin.name;
+                        targets.push_back(nodeIds[node.id] + "." + pin.name);
                     }
                 }
             }
+        }
+        if (targets.size() == 1) {
+            paramMap[pn->paramName] = targets[0];
+        } else if (targets.size() > 1) {
+            paramMap[pn->paramName] = targets;
         }
     }
 
@@ -1787,32 +1840,21 @@ static int audio_callback(void* outputBuffer, void* /*inputBuffer*/,
     float* out = static_cast<float*>(outputBuffer);
     std::lock_guard<std::mutex> lock(g_audioMutex);
 
-    // Peak-safe polyphony scaling: divide each voice by N (active count) so
-    // the worst-case sum (all voices peaking in phase) is bounded by a single
-    // voice's peak. sqrt(N) preserves RMS but can let two pure sines sum to
-    // 1.41× single peak, which then hits soft_clip's knee as audible distortion
-    // — what Matt heard. 1/N trades some perceived chord loudness for
-    // guaranteed-clean polyphony. soft_clip stays only as a fallback for the
-    // stream/buffer paths which aren't part of voiceScale's accounting.
+    // No polyphony scaling: each voice contributes at its full voice.gain.
+    // Earlier attempts at 1/sqrt(N) and 1/N both had artifacts — sqrt(N) let
+    // two in-phase sines distort, 1/N gave a clean baseline but pumped
+    // audibly on note-end as the scale ramped 1/N → 1/(N-1). User-driven
+    // levels turn out to be the cleanest option: voices add raw, soft_clip
+    // is the only safety net. Dense loud chords will saturate — the user
+    // sets velocity/voice count accordingly.
     int activeCount = 0;
     for (int v = 0; v < MAX_VOICES; ++v)
         if (g_voices[v].active) ++activeCount;
-    float voiceScaleTarget = activeCount > 0 ? 1.0f / float(activeCount) : 1.0f;
     g_audioActiveVoices.store(activeCount, std::memory_order_relaxed);
-
-    // Smoothed voiceScale: persists across callbacks. A one-pole LPF eases the
-    // jump when activeCount changes (from N to N+1 on note attack, or N to N-1
-    // on note end). Without smoothing, both transitions are audible clicks.
-    // SCALE_ALPHA = 1 - exp(-1/TC); TC=480 samples ≈ 10ms at 48k.
-    static float g_voiceScale = 1.0f;
-    constexpr float SCALE_ALPHA = 0.00208f;
 
     float localPeakPre = 0.0f, localPeakPost = 0.0f;
 
     for (unsigned int i = 0; i < nFrames; ++i) {
-        // Slide voiceScale toward target each sample
-        g_voiceScale += SCALE_ALPHA * (voiceScaleTarget - g_voiceScale);
-
         float voiceSum = 0.0f;
 
         // Mix active streaming voices (live DSP pull, one next() per voice per sample)
@@ -1830,7 +1872,7 @@ static int audio_callback(void* outputBuffer, void* /*inputBuffer*/,
             }
         }
 
-        float s = voiceSum * g_voiceScale;
+        float s = voiceSum;
 
         // Buffer playback (passage/chords)
         if (g_bufferPlayback && g_bufferPlaybackPos < g_bufferPlaybackLen) {
@@ -2333,6 +2375,337 @@ static bool spinner_float(const char* id, float* val, float step, float minVal, 
     if (ImGui::ArrowButton("##inc", ImGuiDir_Right)) { *val = std::min(maxVal, *val + step); changed = true; }
     ImGui::PopID();
     return changed;
+}
+
+// ===========================================================================
+// Audition: walk through WAVs in a --explore sweep folder, save the patch
+// behind any interesting one to the user's curated folder.
+// ===========================================================================
+
+struct AuditionState {
+    std::string folder;                          // current sweep folder
+    std::vector<std::string> wavFiles;           // basenames, sorted
+    int  currentIdx     = -1;                    // -1 = nothing loaded
+    bool autoAdvance    = true;
+    bool playing        = false;                 // user wants playback active
+    bool open           = false;                 // window visible
+
+    // Save modal
+    bool showSaveModal       = false;
+    bool wasPlayingBeforeSave= false;  // restore audio on modal close
+    bool overwriteExisting   = false;  // checkbox in the modal
+    char saveName[128]       = {};
+    char saveStatus[256]     = {};
+
+    // Loaded sample buffer (left channel of the stereo WAV, mono content)
+    std::vector<float> currentBuffer;
+    int                currentSampleRate = 48000;
+};
+static AuditionState g_audition;
+
+static void audition_load_folder(const std::string& folder) {
+    g_audition.folder = folder;
+    g_audition.wavFiles.clear();
+    g_audition.currentIdx = -1;
+    g_audition.playing    = false;
+    if (folder.empty() || !std::filesystem::exists(folder)) return;
+    for (const auto& entry : std::filesystem::directory_iterator(folder)) {
+        if (!entry.is_regular_file()) continue;
+        auto p = entry.path();
+        std::string ext = p.extension().string();
+        for (auto& c : ext) c = (char)std::tolower(c);
+        if (ext == ".wav") g_audition.wavFiles.push_back(p.filename().string());
+    }
+    std::sort(g_audition.wavFiles.begin(), g_audition.wavFiles.end());
+}
+
+// Pick a folder via the file dialog: user selects ANY file in the target
+// folder, we use its parent directory. Avoids writing a separate Win32
+// folder picker.
+static std::string pick_folder_via_file_dialog() {
+    std::string anyFile = open_file_dialog();
+    if (anyFile.empty()) return "";
+    return std::filesystem::path(anyFile).parent_path().string();
+}
+
+static void audition_load_at(int idx) {
+    if (idx < 0 || idx >= (int)g_audition.wavFiles.size()) return;
+    g_audition.currentIdx = idx;
+
+    std::filesystem::path p =
+        std::filesystem::path(g_audition.folder) / g_audition.wavFiles[idx];
+    std::vector<float> interleaved;
+    int sr = 48000;
+    if (!read_wav_16le_stereo(p.string(), interleaved, sr)) {
+        char buf[300];
+        snprintf(buf, sizeof(buf), "Audition: could not read %s", p.string().c_str());
+        transport_set_status(buf, true);
+        return;
+    }
+    g_audition.currentSampleRate = sr;
+    // Convert interleaved L/R to mono (take L; --explore writes L=R)
+    int frames = int(interleaved.size() / 2);
+    g_audition.currentBuffer.resize(size_t(frames));
+    for (int i = 0; i < frames; ++i)
+        g_audition.currentBuffer[size_t(i)] = interleaved[size_t(i) * 2];
+
+    // Hand off to the existing buffer-playback path (mono, in-place).
+    {
+        std::lock_guard<std::mutex> lock(g_audioMutex);
+        g_bufferPlayback   = g_audition.currentBuffer.data();
+        g_bufferPlaybackPos= 0;
+        g_bufferPlaybackLen= int(g_audition.currentBuffer.size());
+    }
+    g_audition.playing = true;
+}
+
+static void audition_stop() {
+    std::lock_guard<std::mutex> lock(g_audioMutex);
+    g_bufferPlayback = nullptr;
+    g_bufferPlaybackPos = 0;
+    g_bufferPlaybackLen = 0;
+    g_audition.playing = false;
+}
+
+static void audition_play_current() {
+    if (g_audition.currentIdx < 0 && !g_audition.wavFiles.empty()) {
+        audition_load_at(0);
+    } else if (g_audition.currentIdx >= 0) {
+        audition_load_at(g_audition.currentIdx);  // restart from beginning
+    }
+}
+
+static void audition_next() {
+    if (g_audition.wavFiles.empty()) return;
+    int next = g_audition.currentIdx + 1;
+    if (next >= (int)g_audition.wavFiles.size()) {
+        audition_stop();
+        return;
+    }
+    audition_load_at(next);
+}
+
+static void audition_prev() {
+    if (g_audition.wavFiles.empty()) return;
+    int prev = std::max(0, g_audition.currentIdx - 1);
+    audition_load_at(prev);
+}
+
+// Called once per UI frame: if user asked for playback, the buffer was
+// finished by the audio callback (g_bufferPlayback set to null), and
+// autoAdvance is on, queue the next file.
+static void audition_tick() {
+    if (!g_audition.playing) return;
+    bool bufferActive = false;
+    {
+        std::lock_guard<std::mutex> lock(g_audioMutex);
+        bufferActive = (g_bufferPlayback != nullptr);
+    }
+    if (bufferActive) return;
+    // Buffer finished
+    if (g_audition.autoAdvance) {
+        audition_next();
+    } else {
+        g_audition.playing = false;
+    }
+}
+
+// Copy the .patch.json corresponding to the current WAV into the curated
+// folder under a user-supplied name. The curated folder is created if it
+// doesn't exist. If `overwrite` is false, a name collision is an error;
+// if true, the existing file is replaced.
+static bool audition_save_current_patch(const std::string& userName,
+                                        bool overwrite,
+                                        std::string& errOut) {
+    if (g_audition.currentIdx < 0) {
+        errOut = "No variant selected.";
+        return false;
+    }
+    std::string wav = g_audition.wavFiles[g_audition.currentIdx];
+    // <basename>.wav -> <basename>.patch.json
+    std::string base = wav.substr(0, wav.size() - 4);
+    std::filesystem::path src =
+        std::filesystem::path(g_audition.folder) / (base + ".patch.json");
+    if (!std::filesystem::exists(src)) {
+        errOut = "Source patch not found: " + src.string();
+        return false;
+    }
+    std::filesystem::path dstDir = g_settings.curatedFolder;
+    std::error_code ec;
+    std::filesystem::create_directories(dstDir, ec);
+    // Sanitize user-supplied name: strip extension, disallow path separators.
+    std::string name = userName;
+    for (char& c : name) if (c == '/' || c == '\\') c = '_';
+    if (name.empty()) { errOut = "Name is empty."; return false; }
+    // Add .json if user didn't include an extension.
+    if (name.size() < 5 || name.substr(name.size() - 5) != ".json")
+        name += ".json";
+    std::filesystem::path dst = dstDir / name;
+    if (std::filesystem::exists(dst) && !overwrite) {
+        errOut = "A patch with that name already exists. "
+                 "Tick 'Overwrite' to replace it.";
+        return false;
+    }
+    auto opts = overwrite
+        ? std::filesystem::copy_options::overwrite_existing
+        : std::filesystem::copy_options::none;
+    std::filesystem::copy_file(src, dst, opts, ec);
+    if (ec) {
+        errOut = "Copy failed: " + ec.message();
+        return false;
+    }
+    errOut = "Saved to " + dst.string();
+    return true;
+}
+
+static void draw_audition_window() {
+    // If window was just closed (X clicked: ImGui flipped open to false on
+    // the prior frame), kill audio. Otherwise the WAVs keep playing in the
+    // background with no UI to control them.
+    static bool prevOpen = false;
+    if (prevOpen && !g_audition.open) audition_stop();
+    prevOpen = g_audition.open;
+
+    if (!g_audition.open) return;
+
+    ImGui::SetNextWindowSize(ImVec2(560, 420), ImGuiCond_FirstUseEver);
+    if (!ImGui::Begin("Audition", &g_audition.open, ImGuiWindowFlags_NoCollapse)) {
+        ImGui::End();
+        return;
+    }
+
+    // --- Folder + browse ---
+    ImGui::Text("Sweep folder:");
+    ImGui::SameLine();
+    if (ImGui::Button("Browse##audition_browse")) {
+        std::string f = pick_folder_via_file_dialog();
+        if (!f.empty()) audition_load_folder(f);
+    }
+    ImGui::TextWrapped("%s", g_audition.folder.empty() ? "(none)" : g_audition.folder.c_str());
+
+    // --- Curated folder (persistent) ---
+    ImGui::Separator();
+    ImGui::Text("Curated folder (Save target):");
+    ImGui::SameLine();
+    if (ImGui::Button("Browse##curated_browse")) {
+        std::string f = pick_folder_via_file_dialog();
+        if (!f.empty()) {
+            g_settings.curatedFolder = f;
+            settings_save();
+        }
+    }
+    ImGui::TextWrapped("%s", g_settings.curatedFolder.c_str());
+
+    ImGui::Separator();
+
+    // --- Now playing ---
+    if (g_audition.wavFiles.empty()) {
+        ImGui::TextDisabled("(no .wav files in the selected folder)");
+    } else {
+        int n = (int)g_audition.wavFiles.size();
+        ImGui::Text("Variant %d of %d:  %s",
+                    g_audition.currentIdx + 1, n,
+                    g_audition.currentIdx >= 0
+                        ? g_audition.wavFiles[g_audition.currentIdx].c_str()
+                        : "(none)");
+    }
+
+    // --- Transport ---
+    bool canTransport = !g_audition.wavFiles.empty();
+    ImGui::BeginDisabled(!canTransport);
+    if (ImGui::Button("Prev"))   audition_prev();
+    ImGui::SameLine();
+    if (g_audition.playing) {
+        if (ImGui::Button("Stop"))   audition_stop();
+    } else {
+        if (ImGui::Button("Play"))   audition_play_current();
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Repeat")) audition_load_at(g_audition.currentIdx);
+    ImGui::SameLine();
+    if (ImGui::Button("Next"))   audition_next();
+    ImGui::SameLine();
+    ImGui::Checkbox("Auto-advance", &g_audition.autoAdvance);
+    ImGui::SameLine();
+    if (ImGui::Button("Save...")) {
+        // Pause audio while the modal is up so you can focus on naming;
+        // resume on Save success or Cancel.
+        g_audition.wasPlayingBeforeSave = g_audition.playing;
+        if (g_audition.playing) audition_stop();
+
+        g_audition.showSaveModal     = true;
+        g_audition.overwriteExisting = false;
+        g_audition.saveStatus[0]     = '\0';
+        // Pre-fill name with the variant id
+        if (g_audition.currentIdx >= 0) {
+            const auto& wav = g_audition.wavFiles[g_audition.currentIdx];
+            std::string base = wav.substr(0, wav.size() - 4);
+            snprintf(g_audition.saveName, sizeof(g_audition.saveName),
+                     "%s", base.c_str());
+        }
+    }
+    ImGui::EndDisabled();
+
+    // --- File list ---
+    ImGui::Separator();
+    if (ImGui::BeginChild("##audition_list", ImVec2(0, 0), true)) {
+        for (int i = 0; i < (int)g_audition.wavFiles.size(); ++i) {
+            bool selected = (i == g_audition.currentIdx);
+            if (ImGui::Selectable(g_audition.wavFiles[i].c_str(), selected)) {
+                audition_load_at(i);
+            }
+        }
+    }
+    ImGui::EndChild();
+
+    ImGui::End();
+
+    // --- Save modal ---
+    if (g_audition.showSaveModal) {
+        ImGui::OpenPopup("Save curated patch");
+        g_audition.showSaveModal = false;
+    }
+    if (ImGui::BeginPopupModal("Save curated patch", nullptr,
+                               ImGuiWindowFlags_AlwaysAutoResize)) {
+        ImGui::Text("Save the .patch.json behind this variant.");
+        ImGui::Text("Target folder: %s", g_settings.curatedFolder.c_str());
+        ImGui::Spacing();
+        ImGui::Text("Name:");
+        ImGui::SameLine();
+        ImGui::SetNextItemWidth(320.0f);
+        ImGui::InputText("##save_name", g_audition.saveName,
+                         sizeof(g_audition.saveName));
+        ImGui::Checkbox("Overwrite if exists", &g_audition.overwriteExisting);
+        if (g_audition.saveStatus[0]) {
+            ImGui::TextWrapped("%s", g_audition.saveStatus);
+        }
+        ImGui::Spacing();
+        if (ImGui::Button("Save")) {
+            std::string err;
+            if (audition_save_current_patch(g_audition.saveName,
+                                            g_audition.overwriteExisting, err)) {
+                snprintf(g_audition.saveStatus, sizeof(g_audition.saveStatus),
+                         "%s", err.c_str());
+                ImGui::CloseCurrentPopup();
+                if (g_audition.wasPlayingBeforeSave)
+                    audition_load_at(g_audition.currentIdx);
+                g_audition.wasPlayingBeforeSave = false;
+            } else {
+                snprintf(g_audition.saveStatus, sizeof(g_audition.saveStatus),
+                         "%s", err.c_str());
+                // Stay in modal — collision / empty name etc. — keep paused.
+            }
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Cancel")) {
+            g_audition.saveStatus[0] = '\0';
+            ImGui::CloseCurrentPopup();
+            if (g_audition.wasPlayingBeforeSave)
+                audition_load_at(g_audition.currentIdx);
+            g_audition.wasPlayingBeforeSave = false;
+        }
+        ImGui::EndPopup();
+    }
 }
 
 static void draw_keyboard_panel() {
@@ -3853,6 +4226,17 @@ static void show_create_menu() {
         ImGui::EndMenu();
     }
 
+    // --- Algorithmic (abstract WaveEvolutions, not physical models) ---
+    if (ImGui::BeginMenu("Algorithmic")) {
+        menu_source("Reaction-Diffusion (Gray-Scott)", "ReactionDiffusionEvolution");
+        menu_source("Sort Erosion (->saw)", "SortErosionEvolution");
+        menu_source("Cellular Automaton (Wolfram)", "CellularAutomatonEvolution");
+        menu_source("Histogram Equalize", "HistogramEqualizeEvolution");
+        menu_source("Bezier Pull (->curve)", "BezierPullEvolution");
+        menu_source("Bit Rotate (glitch)", "BitRotateEvolution");
+        ImGui::EndMenu();
+    }
+
     // --- Additive ---
     if (ImGui::BeginMenu("Additive")) {
         menu_source("Full", "AdditiveSource");
@@ -3869,6 +4253,8 @@ static void show_create_menu() {
         menu_source("Formant Spectrum", "FormantSpectrum");
         menu_source("Band Spectrum", "BandSpectrum");
         menu_source("Fixed Spectrum", "FixedSpectrum");
+        menu_sep();
+        menu_source("Expand Rule", "ExpandRule");
         ImGui::EndMenu();
     }
 
@@ -5195,6 +5581,9 @@ int main(int argc, char** argv) {
     // Load the recent-files list before any patch-load path runs.
     recents_load();
 
+    // Load persistent UI settings (curated-patches folder, etc.).
+    settings_load();
+
     // Start with a Patch Graph — then, if a patch path was passed on the
     // command line, load it so the user can launch the UI with a patch in
     // one step (e.g. `mforce_ui.exe patches/MPXTest3.json`). Status shows
@@ -5370,6 +5759,14 @@ int main(int argc, char** argv) {
                 if (ImGui::MenuItem("Quit")) {
                     // Route through the dirty-check path (same as the OS X / hover-X).
                     s_closeRequested = true;
+                }
+                ImGui::EndMenu();
+            }
+
+            // Audition menu: open the audition window (or focus it if open)
+            if (ImGui::BeginMenu("Audition")) {
+                if (ImGui::MenuItem("Sweep folder...")) {
+                    g_audition.open = true;
                 }
                 ImGui::EndMenu();
             }
@@ -5653,6 +6050,12 @@ int main(int argc, char** argv) {
         // Keyboard panel
         // =================================================================
         draw_keyboard_panel();
+
+        // =================================================================
+        // Audition window (sweep folder walker)
+        // =================================================================
+        draw_audition_window();
+        audition_tick();
 
         // RtAudio runs the audio callback on its own thread — no main-loop
         // pumping needed. (Used to call pump_audio() here under waveOut.)

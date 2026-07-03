@@ -162,6 +162,36 @@ static void wire_params_generic(
         if (!v.is_array()) continue;
         src.set_array(desc.name, v.get<std::vector<float>>());
     }
+    // ExpandRule (PartialGroups) — a struct, not a pin/config/array, so it isn't
+    // covered by the loops above. Consumed only by Partials hosts. Two JSON forms:
+    //   "expandRule": { "count": 4, "spacing1": 0.3, ... }   (inline)
+    //   "expandRule": { "ref": "<ExpandRule node id>" }        (shared node)
+    if (params.contains("expandRule")) {
+        if (auto* host = dynamic_cast<Partials*>(&src)) {
+            const auto& er = params.at("expandRule");
+            if (er.contains("ref")) {
+                auto it = valueNodes.find(er.at("ref").get<std::string>());
+                if (it != valueNodes.end())
+                    if (auto* node = dynamic_cast<ExpandRuleNode*>(it->second.get()))
+                        host->set_expand_rule(node->to_struct());
+            } else {
+                ExpandRule rule;
+                rule.count    = er.value("count", 2);
+                rule.recurse  = er.value("recurse", 0);
+                rule.spacing1 = er.value("spacing1", 0.5f);
+                rule.spacing2 = er.value("spacing2", 0.5f);
+                rule.dt1      = er.value("dt1", 0.01f);
+                rule.dt2      = er.value("dt2", 0.01f);
+                rule.loPct1   = er.value("loPct1", 0.1f);
+                rule.loPct2   = er.value("loPct2", 0.1f);
+                rule.power1   = er.value("power1", 1.0f);
+                rule.power2   = er.value("power2", 1.0f);
+                rule.po1      = er.value("po1", 0.0f);
+                rule.po2      = er.value("po2", 0.0f);
+                host->set_expand_rule(rule);
+            }
+        }
+    }
 }
 
 // Register MonoSource wrapper (WaveSource → WaveSourceMono, else ValueSourceMono).
@@ -321,6 +351,7 @@ static GraphResult build_graph(
                 p.value("speed", 5.0f), p.value("depth", 0.02f),
                 p.value("attack", 0.3f), p.value("threshold", 0.0f),
                 p.value("speedVar", 0.0f), p.value("depthVar", 0.0f),
+                p.value("zeroCrossTendency", 1.0f),
                 seed.value_or(0xF1B0'0000u));
             wire_params_generic(*vib, p, valueNodes, &usage);
             valueNodes[id] = vib;
@@ -376,84 +407,6 @@ static GraphResult build_graph(
                 wire_params_generic(*fseq, *pp, valueNodes, &usage);
             }
             formantNodes[id] = fseq; valueNodes[id] = fseq;
-        }
-        // ---- FullAdditiveSource / AdditiveSource (thin source + Partials) ----
-        else if (type == "FullAdditiveSource") {
-            auto fas = std::make_shared<FullAdditiveSource>(sampleRate, seed.value_or(0xADD2'0000u));
-            if (pp) {
-                const auto& p = *pp;
-                // Wire frequency/amplitude/phase generically
-                wire_params_generic(*fas, p, valueNodes, &usage);
-
-                // Create the appropriate Partials subclass based on mode
-                std::string mode = p.value("mode", std::string("full"));
-                std::shared_ptr<Partials> partials;
-
-                if (mode == "full") {
-                    auto fp = std::make_shared<FullPartials>(seed.value_or(0xADD2'0000u));
-                    fp->setup(p.value("maxPartials", 30), p.value("minMult", 1),
-                        p.value("evenWeight1", 1.0f), p.value("evenWeight2", 1.0f),
-                        p.value("oddWeight1",  1.0f), p.value("oddWeight2",  1.0f),
-                        p.value("unitPO1", 0.0f), p.value("unitPO2", 0.0f));
-                    partials = fp;
-                } else if (mode == "sequence") {
-                    auto sp = std::make_shared<SequencePartials>(seed.value_or(0xADD2'0000u));
-                    sp->setup(p.value("maxPartials", 30),
-                        p.value("minMult1", 1.0f), p.value("minMult2", 1.0f),
-                        p.value("incr1", 1.0f), p.value("incr2", 1.0f),
-                        p.value("unitPO1", 0.0f), p.value("unitPO2", 0.0f));
-                    partials = sp;
-                } else if (mode == "explicit") {
-                    auto ep = std::make_shared<ExplicitPartials>(seed.value_or(0xADD2'0000u));
-                    ep->setup(
-                        p.at("mult1").get<std::vector<float>>(), p.at("mult2").get<std::vector<float>>(),
-                        p.at("ampl1").get<std::vector<float>>(), p.at("ampl2").get<std::vector<float>>(),
-                        p.value("unitPO1", 0.0f), p.value("unitPO2", 0.0f));
-                    partials = ep;
-                } else {
-                    throw std::runtime_error("Unknown FullAdditiveSource mode: " + mode);
-                }
-
-                // Configure partials: rolloff, detune, envelopes
-                partials->set_ro(p.value("rolloff1", 1.0f), p.value("rolloff2", 1.0f));
-                partials->set_dt(p.value("detune1",  0.0f), p.value("detune2",  0.0f));
-
-                // Wire envelope params to the partials object
-                if (p.contains("multEnv")) partials->set_param("multEnv", resolve_param(p.at("multEnv"), valueNodes, &usage));
-                if (p.contains("amplEnv")) partials->set_param("amplEnv", resolve_param(p.at("amplEnv"), valueNodes, &usage));
-                if (p.contains("poEnv"))   partials->set_param("poEnv",   resolve_param(p.at("poEnv"),   valueNodes, &usage));
-                if (p.contains("roEnv"))   partials->set_param("roEnv",   resolve_param(p.at("roEnv"),   valueNodes, &usage));
-                if (p.contains("dtEnv"))   partials->set_param("dtEnv",   resolve_param(p.at("dtEnv"),   valueNodes, &usage));
-
-                // Expand rule
-                if (p.contains("expandRule")) {
-                    const auto& er = p["expandRule"];
-                    ExpandRule rule;
-                    rule.count = er.value("count", 2); rule.recurse = er.value("recurse", 0);
-                    rule.spacing1 = er.value("spacing1", 0.5f); rule.spacing2 = er.value("spacing2", 0.5f);
-                    rule.dt1 = er.value("dt1", 0.01f); rule.dt2 = er.value("dt2", 0.01f);
-                    rule.loPct1 = er.value("loPct1", 0.1f); rule.loPct2 = er.value("loPct2", 0.1f);
-                    rule.power1 = er.value("power1", 1.0f); rule.power2 = er.value("power2", 1.0f);
-                    rule.po1 = er.value("po1", 0.0f); rule.po2 = er.value("po2", 0.0f);
-                    partials->set_expand_rule(rule);
-                }
-
-                // Wire partials into the thin source
-                fas->set_partials(partials);
-
-                // Formant
-                if (p.contains("formant")) {
-                    std::string fid = p["formant"].at("ref").get<std::string>();
-                    auto fit = formantNodes.find(fid);
-                    if (fit == formantNodes.end()) throw std::runtime_error("Unresolved formant spectrum ref: " + fid);
-                    fas->set_formant(fit->second, resolve_param_or(p, "formantWeight", 0.0f, valueNodes, &usage));
-                }
-
-                // Store partials in valueNodes so it can be referenced
-                valueNodes[id + "_partials"] = partials;
-            }
-            valueNodes[id] = fas;
-            add_mono(g, id, fas);
         }
         // ---- AdditiveSource2 (partial modes + per-partial envelopes) ----
         else if (type == "AdditiveSource2") {
@@ -721,21 +674,22 @@ build_subgraph_with_seed_perturbation(
 
 
 // ---------------------------------------------------------------------------
-// Resolve paramMap: "frequency" → "rn1.frequency" → shared_ptr<ConstantSource>
+// Resolve paramMap: "frequency" → target(s).
+// Target can be a single string ("fmBody.frequency") or an array of strings
+// (["fmBody.frequency", "fmTine.frequency"]) for dual/N-stack instruments
+// where one logical name retunes several graph edges. Returns one entry per
+// name with a vector of ParamSlots — size 1 in the common case.
 // ---------------------------------------------------------------------------
 
-static std::unordered_map<std::string, PitchedInstrument::ParamSlot>
+static std::unordered_map<std::string, std::vector<PitchedInstrument::ParamSlot>>
 resolve_param_map(
     const json& paramMapJson,
     const GraphResult& g,
     const std::unordered_map<std::string, json>& /*nodeMap*/)
 {
-    std::unordered_map<std::string, PitchedInstrument::ParamSlot> result;
+    std::unordered_map<std::string, std::vector<PitchedInstrument::ParamSlot>> result;
 
-    for (auto& [name, targetJson] : paramMapJson.items()) {
-        std::string target = targetJson.get<std::string>();
-
-        // Parse "nodeId.paramName" or just "nodeId" (defaults to param "value")
+    auto resolve_one_target = [&](const std::string& name, const std::string& target) {
         std::string nodeId, paramName;
         auto dot = target.find('.');
         if (dot != std::string::npos) {
@@ -745,22 +699,30 @@ resolve_param_map(
             nodeId = target;
             paramName = "frequency";  // default for backward compat
         }
-
-        // Find the ValueSource wired as that param on that node.
         auto nodeIt = g.valueNodes.find(nodeId);
         if (nodeIt == g.valueNodes.end())
             throw std::runtime_error("paramMap: unknown node '" + nodeId + "'");
-
-        // Generic: use get_param() — works for any self-describing type
         auto paramSrc = nodeIt->second->get_param(paramName);
         if (!paramSrc)
             throw std::runtime_error("paramMap: cannot resolve '" + target + "'");
-
         auto cs = std::dynamic_pointer_cast<ConstantSource>(paramSrc);
         if (!cs)
             throw std::runtime_error("paramMap: '" + target + "' is not a ConstantSource (it's wired to a ref)");
+        result[name].push_back({nodeIt->second, paramName, cs, nodeId});
+    };
 
-        result[name] = {nodeIt->second, paramName, cs, nodeId};
+    for (auto& [name, targetJson] : paramMapJson.items()) {
+        if (targetJson.is_string()) {
+            resolve_one_target(name, targetJson.get<std::string>());
+        } else if (targetJson.is_array()) {
+            for (const auto& t : targetJson) {
+                if (!t.is_string())
+                    throw std::runtime_error("paramMap: '" + name + "' array must be strings");
+                resolve_one_target(name, t.get<std::string>());
+            }
+        } else {
+            throw std::runtime_error("paramMap: '" + name + "' must be a string or array of strings");
+        }
     }
 
     return result;

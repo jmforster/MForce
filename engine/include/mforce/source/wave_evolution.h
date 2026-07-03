@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <vector>
 #include <memory>
+#include <cstdint>
 
 namespace mforce {
 
@@ -959,6 +960,550 @@ private:
   BrassEvolution evo_;
   std::shared_ptr<ValueSource> breathSrc_;
   std::shared_ptr<ValueSource> brassinessSrc_;
+};
+
+// ===========================================================================
+// Algorithmic evolutions — abstract transforms (not physical models).
+// All update one sample per evolve() call at the given index.
+// ===========================================================================
+
+// ---------------------------------------------------------------------------
+// ReactionDiffusionEvolution — Gray-Scott reaction-diffusion 1D.
+// Two coupled chemicals u, v diffuse along the table and react. Tuning
+// (feed, kill, Du, Dv) selects regimes: spots, stripes, mitosis, U-skate,
+// chaos. v is read out as the audio sample (scaled to -1..1).
+//
+// Implementation: a snapshot of (u, v) is taken at each cycle boundary
+// (index==0). Within a cycle, each evolve(N) reads the snapshot's neighbours
+// and writes the new (u[N], v[N]); the snapshot is refreshed next cycle.
+// This decouples per-sample updates from the diffusion stencil so the
+// dynamics behave like proper synchronous RD rather than a propagating wave.
+// ---------------------------------------------------------------------------
+struct ReactionDiffusionEvolution final : WaveEvolution {
+  float feed{0.0367f};       // canonical "mitosis": 0.0367 / 0.0649
+  float kill{0.0649f};
+  float diffU{0.16f};
+  float diffV{0.08f};
+  float dt{1.0f};            // integration step
+  int   subSteps{1};         // RD iterations per audio sample (>=1)
+
+  float adjust(float /*frequency*/) override { return 0.0f; }
+
+  void shape_excitation(std::vector<float>& values) override {
+    const int len = int(values.size());
+    u_.assign(len, 1.0f);
+    v_.assign(len, 0.0f);
+    uPrev_.assign(len, 1.0f);
+    vPrev_.assign(len, 0.0f);
+    // Seed v with a small perturbation derived from the initial excitation.
+    // Anything non-zero in v will get the reaction going.
+    for (int i = 0; i < len; ++i) {
+      v_[i]     = 0.25f * std::abs(values[i]);
+      vPrev_[i] = v_[i];
+    }
+  }
+
+  void evolve(std::vector<float>& values, int index) override {
+    const int len = int(values.size());
+    if (len < 3) { values[index] = 0.0f; return; }
+
+    // Refresh snapshot at the start of each cycle.
+    if (index == 0) {
+      uPrev_ = u_;
+      vPrev_ = v_;
+    }
+
+    const int im = (index - 1 + len) % len;
+    const int ip = (index + 1) % len;
+
+    float u = u_[index];
+    float v = v_[index];
+    for (int s = 0; s < subSteps; ++s) {
+      const float lapU = uPrev_[im] - 2.0f * u + uPrev_[ip];
+      const float lapV = vPrev_[im] - 2.0f * v + vPrev_[ip];
+      const float uvv  = u * v * v;
+      u += dt * (diffU * lapU - uvv + feed * (1.0f - u));
+      v += dt * (diffV * lapV + uvv - (feed + kill) * v);
+    }
+    u = std::clamp(u, 0.0f, 1.0f);
+    v = std::clamp(v, 0.0f, 1.0f);
+    u_[index] = u;
+    v_[index] = v;
+
+    // Centre v around zero so the wavetable swings ±. v sits in 0..1 but
+    // tends to fill a sub-range, so use 2v-1 as a starting point and let
+    // any drift produce DC the source can high-pass downstream.
+    values[index] = 2.0f * v - 1.0f;
+  }
+
+private:
+  std::vector<float> u_;
+  std::vector<float> v_;
+  std::vector<float> uPrev_;
+  std::vector<float> vPrev_;
+};
+
+struct ReactionDiffusionEvolutionSource final : ValueSource, IEvolutionHolder {
+  explicit ReactionDiffusionEvolutionSource(uint32_t /*seed*/ = 0u) {}
+
+  const char* type_name() const override { return "ReactionDiffusionEvolution"; }
+  SourceCategory category() const override { return SourceCategory::Combiner; }
+
+  WaveEvolution* get_evolution() override { return &evo_; }
+
+  std::span<const ConfigDescriptor> config_descriptors() const override {
+    static constexpr ConfigDescriptor descs[] = {
+      {"feed",     ConfigType::Float, 0.0367f, 0.0f,  0.1f},
+      {"kill",     ConfigType::Float, 0.0649f, 0.0f,  0.1f},
+      {"diffU",    ConfigType::Float, 0.16f,   0.0f,  1.0f},
+      {"diffV",    ConfigType::Float, 0.08f,   0.0f,  1.0f},
+      {"dt",       ConfigType::Float, 1.0f,    0.05f, 2.0f},
+      {"subSteps", ConfigType::Int,   1.0f,    1.0f,  8.0f},
+    };
+    return descs;
+  }
+
+  void set_config(std::string_view name, float value) override {
+    if (name == "feed")          evo_.feed = value;
+    else if (name == "kill")     evo_.kill = value;
+    else if (name == "diffU")    evo_.diffU = value;
+    else if (name == "diffV")    evo_.diffV = value;
+    else if (name == "dt")       evo_.dt = value;
+    else if (name == "subSteps") evo_.subSteps = std::max(1, int(value));
+  }
+
+  float get_config(std::string_view name) const override {
+    if (name == "feed")     return evo_.feed;
+    if (name == "kill")     return evo_.kill;
+    if (name == "diffU")    return evo_.diffU;
+    if (name == "diffV")    return evo_.diffV;
+    if (name == "dt")       return evo_.dt;
+    if (name == "subSteps") return float(evo_.subSteps);
+    return 0.0f;
+  }
+
+  void prepare(const RenderContext&, int) override {}
+  float next() override { return 0.0f; }
+  float current() const override { return 0.0f; }
+
+private:
+  ReactionDiffusionEvolution evo_;
+};
+
+// ---------------------------------------------------------------------------
+// SortErosionEvolution — distributed bubble-sort toward a sorted (saw) shape.
+// Each evolve(N) does `swapsPerSample` adjacent compare-swap steps starting
+// at a rotating pointer. Eventually the table converges to a monotonic ramp.
+// `descending` flips the sort direction.
+// ---------------------------------------------------------------------------
+struct SortErosionEvolution final : WaveEvolution {
+  int  swapsPerSample{4};
+  bool descending{false};
+
+  float adjust(float /*frequency*/) override {
+    pos_ = 0;
+    return 0.0f;
+  }
+
+  void evolve(std::vector<float>& values, int index) override {
+    const int len = int(values.size());
+    if (len < 2) return;
+    for (int s = 0; s < swapsPerSample; ++s) {
+      const int a = pos_;
+      const int b = (pos_ + 1) % len;
+      const bool out_of_order =
+        descending ? (values[a] < values[b]) : (values[a] > values[b]);
+      if (out_of_order) std::swap(values[a], values[b]);
+      pos_ = (pos_ + 1) % len;
+    }
+    (void)index;
+  }
+
+private:
+  int pos_{0};
+};
+
+struct SortErosionEvolutionSource final : ValueSource, IEvolutionHolder {
+  explicit SortErosionEvolutionSource(uint32_t /*seed*/ = 0u) {}
+
+  const char* type_name() const override { return "SortErosionEvolution"; }
+  SourceCategory category() const override { return SourceCategory::Combiner; }
+
+  WaveEvolution* get_evolution() override { return &evo_; }
+
+  std::span<const ConfigDescriptor> config_descriptors() const override {
+    static constexpr ConfigDescriptor descs[] = {
+      {"swapsPerSample", ConfigType::Int,  4.0f, 1.0f, 32.0f},
+      {"descending",     ConfigType::Bool, 0.0f, 0.0f, 1.0f},
+    };
+    return descs;
+  }
+
+  void set_config(std::string_view name, float value) override {
+    if (name == "swapsPerSample") evo_.swapsPerSample = std::max(1, int(value));
+    else if (name == "descending") evo_.descending = (value != 0.0f);
+  }
+
+  float get_config(std::string_view name) const override {
+    if (name == "swapsPerSample") return float(evo_.swapsPerSample);
+    if (name == "descending")     return evo_.descending ? 1.0f : 0.0f;
+    return 0.0f;
+  }
+
+  void prepare(const RenderContext&, int) override {}
+  float next() override { return 0.0f; }
+  float current() const override { return 0.0f; }
+
+private:
+  SortErosionEvolution evo_;
+};
+
+// ---------------------------------------------------------------------------
+// CellularAutomatonEvolution — binary 1D Wolfram CA on the wavetable.
+// The wavetable is threshold-quantized to bits each cycle, and a Wolfram
+// rule (0..255) is applied to each cell from its three-cell neighbourhood.
+// Bits flip back to ± waveform via `levelHi` / `levelLo`. Famous rules:
+// 30 (chaotic), 90 (Sierpinski), 110 (edge-of-chaos), 184 (traffic).
+// ---------------------------------------------------------------------------
+struct CellularAutomatonEvolution final : WaveEvolution {
+  int   rule{110};
+  float threshold{0.0f};   // discretization threshold (sample > threshold → 1)
+  float levelHi{0.8f};
+  float levelLo{-0.8f};
+  int   stepEvery{8};      // do one CA step every Nth sample (slow tempo)
+
+  float adjust(float /*frequency*/) override {
+    sampleCtr_ = 0;
+    return 0.0f;
+  }
+
+  void shape_excitation(std::vector<float>& values) override {
+    const int len = int(values.size());
+    state_.assign(len, 0);
+    snapshot_.assign(len, 0);
+    for (int i = 0; i < len; ++i) state_[i] = (values[i] > threshold) ? 1 : 0;
+  }
+
+  void evolve(std::vector<float>& values, int index) override {
+    const int len = int(values.size());
+    if (len < 3) return;
+
+    if (state_.size() != size_t(len)) {
+      state_.assign(len, 0);
+      snapshot_.assign(len, 0);
+      for (int i = 0; i < len; ++i) state_[i] = (values[i] > threshold) ? 1 : 0;
+    }
+
+    // Snapshot at cycle boundary so neighbours are read from the
+    // previous cycle's complete state, not from cells already mutated
+    // earlier in this cycle. Without this, asynchronous-CA dynamics
+    // collapse to uniform output very fast.
+    if (index == 0) snapshot_ = state_;
+
+    // Tempo control: only do CA work every Nth sample.
+    sampleCtr_++;
+    if (sampleCtr_ >= stepEvery) {
+      sampleCtr_ = 0;
+      const int im = (index - 1 + len) % len;
+      const int ip = (index + 1) % len;
+      const uint8_t pat = uint8_t((snapshot_[im] << 2) | (snapshot_[index] << 1) | snapshot_[ip]);
+      state_[index] = uint8_t((rule >> pat) & 1u);
+    }
+    values[index] = state_[index] ? levelHi : levelLo;
+  }
+
+private:
+  std::vector<uint8_t> state_;
+  std::vector<uint8_t> snapshot_;
+  int sampleCtr_{0};
+};
+
+struct CellularAutomatonEvolutionSource final : ValueSource, IEvolutionHolder {
+  explicit CellularAutomatonEvolutionSource(uint32_t /*seed*/ = 0u) {}
+
+  const char* type_name() const override { return "CellularAutomatonEvolution"; }
+  SourceCategory category() const override { return SourceCategory::Combiner; }
+
+  WaveEvolution* get_evolution() override { return &evo_; }
+
+  std::span<const ConfigDescriptor> config_descriptors() const override {
+    static constexpr ConfigDescriptor descs[] = {
+      {"rule",       ConfigType::Int,   110.0f, 0.0f,  255.0f},
+      {"threshold",  ConfigType::Float, 0.0f,  -1.0f,  1.0f},
+      {"levelHi",    ConfigType::Float, 0.8f,   0.0f,  1.0f},
+      {"levelLo",    ConfigType::Float,-0.8f,  -1.0f,  0.0f},
+      {"stepEvery",  ConfigType::Int,   8.0f,   1.0f,  256.0f},
+    };
+    return descs;
+  }
+
+  void set_config(std::string_view name, float value) override {
+    if (name == "rule")            evo_.rule = std::clamp(int(value), 0, 255);
+    else if (name == "threshold")  evo_.threshold = value;
+    else if (name == "levelHi")    evo_.levelHi = value;
+    else if (name == "levelLo")    evo_.levelLo = value;
+    else if (name == "stepEvery")  evo_.stepEvery = std::max(1, int(value));
+  }
+
+  float get_config(std::string_view name) const override {
+    if (name == "rule")       return float(evo_.rule);
+    if (name == "threshold")  return evo_.threshold;
+    if (name == "levelHi")    return evo_.levelHi;
+    if (name == "levelLo")    return evo_.levelLo;
+    if (name == "stepEvery")  return float(evo_.stepEvery);
+    return 0.0f;
+  }
+
+  void prepare(const RenderContext&, int) override {}
+  float next() override { return 0.0f; }
+  float current() const override { return 0.0f; }
+
+private:
+  CellularAutomatonEvolution evo_;
+};
+
+// ---------------------------------------------------------------------------
+// HistogramEqualizeEvolution — gradually pull the wavetable toward a
+// uniform amplitude distribution via histogram equalization. Each cycle,
+// a histogram + CDF are rebuilt over the current table. Each sample is
+// then nudged toward CDF(sample)*2-1 by `rate`. Convergence: sine → tri-ish,
+// noise → roughly uniformly distributed waveform.
+// ---------------------------------------------------------------------------
+struct HistogramEqualizeEvolution final : WaveEvolution {
+  int   bins{64};
+  float rate{0.00005f};
+
+  float adjust(float /*frequency*/) override {
+    cdf_.assign(std::max(2, bins), 0.0f);
+    return 0.0f;
+  }
+
+  void evolve(std::vector<float>& values, int index) override {
+    const int len = int(values.size());
+    if (len < 2 || bins < 2) return;
+
+    // Rebuild CDF at the start of each cycle.
+    if (index == 0) rebuild_cdf(values);
+
+    // Map current sample value to a bin and look up its CDF target.
+    const int b = sample_to_bin(values[index]);
+    const float target = cdf_[b] * 2.0f - 1.0f;
+    values[index] += rate * (target - values[index]);
+  }
+
+private:
+  int sample_to_bin(float v) const {
+    const float t = (std::clamp(v, -1.0f, 1.0f) + 1.0f) * 0.5f; // 0..1
+    int b = int(t * float(bins));
+    if (b >= bins) b = bins - 1;
+    return b;
+  }
+
+  void rebuild_cdf(const std::vector<float>& values) {
+    if (int(cdf_.size()) != bins) cdf_.assign(bins, 0.0f);
+    std::vector<int> counts(bins, 0);
+    for (float v : values) counts[sample_to_bin(v)]++;
+    const float invN = 1.0f / float(values.size());
+    float running = 0.0f;
+    for (int i = 0; i < bins; ++i) {
+      running += float(counts[i]) * invN;
+      cdf_[i] = running;
+    }
+  }
+
+  std::vector<float> cdf_;
+};
+
+struct HistogramEqualizeEvolutionSource final : ValueSource, IEvolutionHolder {
+  explicit HistogramEqualizeEvolutionSource(uint32_t /*seed*/ = 0u) {}
+
+  const char* type_name() const override { return "HistogramEqualizeEvolution"; }
+  SourceCategory category() const override { return SourceCategory::Combiner; }
+
+  WaveEvolution* get_evolution() override { return &evo_; }
+
+  std::span<const ConfigDescriptor> config_descriptors() const override {
+    static constexpr ConfigDescriptor descs[] = {
+      {"bins", ConfigType::Int,   64.0f,    4.0f,   256.0f},
+      {"rate", ConfigType::Float, 0.00005f, 0.0f,   0.1f},
+    };
+    return descs;
+  }
+
+  void set_config(std::string_view name, float value) override {
+    if (name == "bins")      evo_.bins = std::clamp(int(value), 4, 256);
+    else if (name == "rate") evo_.rate = value;
+  }
+
+  float get_config(std::string_view name) const override {
+    if (name == "bins") return float(evo_.bins);
+    if (name == "rate") return evo_.rate;
+    return 0.0f;
+  }
+
+  void prepare(const RenderContext&, int) override {}
+  float next() override { return 0.0f; }
+  float current() const override { return 0.0f; }
+
+private:
+  HistogramEqualizeEvolution evo_;
+};
+
+// ---------------------------------------------------------------------------
+// BezierPullEvolution — pull each sample toward a cubic Bezier curve
+// defined by four control values p0..p3 over t in [0,1]. The Bezier is
+// resampled to the table length once per note, then each sample drifts
+// toward its target by `rate`. Endpoint: the table becomes the Bezier shape.
+// ---------------------------------------------------------------------------
+struct BezierPullEvolution final : WaveEvolution {
+  float p0{-1.0f};
+  float p1{ 0.5f};
+  float p2{-0.5f};
+  float p3{ 1.0f};
+  float rate{0.00005f};
+
+  float adjust(float /*frequency*/) override {
+    needsRebuild_ = true;
+    return 0.0f;
+  }
+
+  void shape_excitation(std::vector<float>& values) override {
+    rebuild_target(int(values.size()));
+  }
+
+  void evolve(std::vector<float>& values, int index) override {
+    const int len = int(values.size());
+    if (len < 2) return;
+    if (needsRebuild_ || int(target_.size()) != len) rebuild_target(len);
+    values[index] += rate * (target_[index] - values[index]);
+  }
+
+private:
+  void rebuild_target(int len) {
+    target_.resize(len);
+    for (int i = 0; i < len; ++i) {
+      const float t = float(i) / float(len);
+      const float u = 1.0f - t;
+      target_[i] = u*u*u*p0 + 3.0f*u*u*t*p1 + 3.0f*u*t*t*p2 + t*t*t*p3;
+    }
+    needsRebuild_ = false;
+  }
+
+  std::vector<float> target_;
+  bool needsRebuild_{true};
+};
+
+struct BezierPullEvolutionSource final : ValueSource, IEvolutionHolder {
+  explicit BezierPullEvolutionSource(uint32_t /*seed*/ = 0u) {}
+
+  const char* type_name() const override { return "BezierPullEvolution"; }
+  SourceCategory category() const override { return SourceCategory::Combiner; }
+
+  WaveEvolution* get_evolution() override { return &evo_; }
+
+  std::span<const ConfigDescriptor> config_descriptors() const override {
+    static constexpr ConfigDescriptor descs[] = {
+      {"p0",   ConfigType::Float, -1.0f,    -2.0f, 2.0f},
+      {"p1",   ConfigType::Float,  0.5f,    -2.0f, 2.0f},
+      {"p2",   ConfigType::Float, -0.5f,    -2.0f, 2.0f},
+      {"p3",   ConfigType::Float,  1.0f,    -2.0f, 2.0f},
+      {"rate", ConfigType::Float,  0.00005f, 0.0f, 0.1f},
+    };
+    return descs;
+  }
+
+  void set_config(std::string_view name, float value) override {
+    if (name == "p0") evo_.p0 = value;
+    else if (name == "p1") evo_.p1 = value;
+    else if (name == "p2") evo_.p2 = value;
+    else if (name == "p3") evo_.p3 = value;
+    else if (name == "rate") evo_.rate = value;
+  }
+
+  float get_config(std::string_view name) const override {
+    if (name == "p0") return evo_.p0;
+    if (name == "p1") return evo_.p1;
+    if (name == "p2") return evo_.p2;
+    if (name == "p3") return evo_.p3;
+    if (name == "rate") return evo_.rate;
+    return 0.0f;
+  }
+
+  void prepare(const RenderContext&, int) override {}
+  float next() override { return 0.0f; }
+  float current() const override { return 0.0f; }
+
+private:
+  BezierPullEvolution evo_;
+};
+
+// ---------------------------------------------------------------------------
+// BitRotateEvolution — bit-level glitch transform. Each sample is mapped
+// to a 32-bit unsigned int via fixed-point, its bits rotated by `shiftBits`,
+// then mapped back. `stepEvery` controls how often a sample is rotated (so
+// only a fraction of the table mutates per cycle). Endpoint: pseudo-random
+// scramble of the original — aliasing-laden, hard-edged.
+// ---------------------------------------------------------------------------
+struct BitRotateEvolution final : WaveEvolution {
+  int shiftBits{3};
+  int stepEvery{4};
+
+  float adjust(float /*frequency*/) override {
+    ctr_ = 0;
+    return 0.0f;
+  }
+
+  void evolve(std::vector<float>& values, int index) override {
+    ctr_++;
+    if (ctr_ < stepEvery) return;
+    ctr_ = 0;
+
+    const int k = ((shiftBits % 32) + 32) % 32;
+    if (k == 0) return;
+
+    const float v = std::clamp(values[index], -1.0f, 1.0f);
+    const uint32_t u = uint32_t((double(v) + 1.0) * 0.5 * 4294967295.0);
+    const uint32_t rot = (u >> k) | (u << (32 - k));
+    values[index] = float(double(rot) / 4294967295.0 * 2.0 - 1.0);
+  }
+
+private:
+  int ctr_{0};
+};
+
+struct BitRotateEvolutionSource final : ValueSource, IEvolutionHolder {
+  explicit BitRotateEvolutionSource(uint32_t /*seed*/ = 0u) {}
+
+  const char* type_name() const override { return "BitRotateEvolution"; }
+  SourceCategory category() const override { return SourceCategory::Combiner; }
+
+  WaveEvolution* get_evolution() override { return &evo_; }
+
+  std::span<const ConfigDescriptor> config_descriptors() const override {
+    static constexpr ConfigDescriptor descs[] = {
+      {"shiftBits", ConfigType::Int, 3.0f, 0.0f, 31.0f},
+      {"stepEvery", ConfigType::Int, 4.0f, 1.0f, 256.0f},
+    };
+    return descs;
+  }
+
+  void set_config(std::string_view name, float value) override {
+    if (name == "shiftBits")      evo_.shiftBits = std::clamp(int(value), 0, 31);
+    else if (name == "stepEvery") evo_.stepEvery = std::max(1, int(value));
+  }
+
+  float get_config(std::string_view name) const override {
+    if (name == "shiftBits") return float(evo_.shiftBits);
+    if (name == "stepEvery") return float(evo_.stepEvery);
+    return 0.0f;
+  }
+
+  void prepare(const RenderContext&, int) override {}
+  float next() override { return 0.0f; }
+  float current() const override { return 0.0f; }
+
+private:
+  BitRotateEvolution evo_;
 };
 
 } // namespace mforce
