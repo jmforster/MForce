@@ -10,18 +10,13 @@ Priority order. Tags per WORKFLOW.md. (G1)-(G4) = GOALS.md Dipsy goals.
    fluctuation rate/depth/cross-harmonic correlation from the Iowa viola set;
    map measurements onto motionDepth/motionHz/motionCoherence/shimmer*;
    produce an "iowa_grounded" patch vs the hand-tuned v4 winner. Queue A/B.
-2b. **[metric] (G1a) Calibrated motion mapping v2** — run-1 verification
-   found the naive mapping overshoots: subtract the vibrato baseline in
-   variance space (control already shows 5.5c resid / 38% amp from FM→AM
-   through formant slopes), walk-RMS factor 0.74 not 0.55, rate centroid
-   ≈ 0.5× segment rate. One cycle; superseded eventually by item 3.
 
 3. **[metric] (G1a) CMA-ES optimizer core** — the ears project, staged:
    (a) spec ✓ run2; (b) scorer CLI ✓ run3 (refmetrics.py + iowa_reference.py +
    score_candidate.py; stage-a check passes); (c) optimizer loop ✓ run3
    (cmaes.py self-tested + optimize.py, 27-dim warm-started encoder, 100-eval
    smoke 1.28→0.945, every term improved); (d) **viola validation run** — the
-   600-eval run whose best-of-run WAV goes to REVIEW. **Preliminary result
+   600-eval run whose best-of-run WAV goes to REVIEW. NOTE (run 4): Matt's freq-curve verdict adds curve knots as search dims (+4-6) once default curves are picked from the v6 audition. **Preliminary result
    queued** run3: smoke best (104 evals) re-rendered on the full ladder →
    REVIEW A/B (renders/cmaes_smoke/opt_best_104ev vs v5_04). **Blocker:** eval
    render-bound ~9-16s (96 partials × ~12s ≈ real-time); 600 evals ≈ 1.5-2.7h

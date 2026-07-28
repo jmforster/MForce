@@ -81,11 +81,34 @@ struct PitchedInstrument final : Instrument {
   struct ParamSlot {
     std::shared_ptr<ValueSource>    consumer;
     std::string                      paramName;
-    std::shared_ptr<ConstantSource>  originalCS;
+    std::shared_ptr<ConstantSource>  originalCS;   // null for config slots
     // Node id the paramMap targets (e.g. "Var1" for "Var1.val"). Used by
     // play_note to fan values into Multiplex clones' matching nodes when
     // the voice's output is a MultiplexSource.
     std::string                      targetNodeId;
+    // Config-target slot: the mapped value is delivered via
+    // consumer->set_config(paramName, v) instead of a ConstantSource edge.
+    bool                             isConfig{false};
+    // Optional frequency→value transfer curve — the C++ port of legacy
+    // ParameterMapping's Function. Breakpoints (hz, value); evaluated with
+    // linear interpolation in log-frequency, clamped at the end values.
+    // Empty curve = identity (slot receives the frequency itself).
+    std::vector<std::pair<float, float>> curve;
+
+    float map(float freq) const {
+      if (curve.empty()) return freq;
+      if (freq <= curve.front().first) return curve.front().second;
+      if (freq >= curve.back().first)  return curve.back().second;
+      for (size_t i = 1; i < curve.size(); ++i) {
+        if (freq <= curve[i].first) {
+          float lf = std::log(freq / curve[i - 1].first) /
+                     std::log(curve[i].first / curve[i - 1].first);
+          return curve[i - 1].second +
+                 (curve[i].second - curve[i - 1].second) * lf;
+        }
+      }
+      return curve.back().second;
+    }
   };
 
   struct VoiceGraph {
@@ -126,15 +149,20 @@ struct PitchedInstrument final : Instrument {
     auto it = vg.params.find("frequency");
     if (it != vg.params.end()) {
       for (auto& slot : it->second) {
-        if (curve) {
+        if (slot.isConfig) {
+          // Frequency-driven config (e.g. residue curves): mapped scalar via
+          // set_config, applied before prepare so per-note state rebuilds.
+          slot.consumer->set_config(slot.paramName, slot.map(freq));
+        } else if (curve && slot.curve.empty()) {
           auto env = compile_pitch_curve(*curve, sampleRate);
           auto pbs = std::make_shared<PitchBendSource>(freq, std::move(env));
           slot.consumer->set_param(slot.paramName, pbs);
         } else {
-          slot.originalCS->set(freq);
+          float v = slot.map(freq);
+          slot.originalCS->set(v);
           slot.consumer->set_param(slot.paramName, slot.originalCS);
           if (vg.topMultiplex && !slot.targetNodeId.empty()) {
-            vg.topMultiplex->set_clone_param(slot.targetNodeId, slot.paramName, freq);
+            vg.topMultiplex->set_clone_param(slot.targetNodeId, slot.paramName, v);
           }
         }
       }
@@ -162,22 +190,30 @@ struct PitchedInstrument final : Instrument {
     auto it = vg.params.find("frequency");
     if (it != vg.params.end()) {
       for (auto& slot : it->second) {
-        if (curve) {
+        if (slot.isConfig) {
+          // Frequency-driven config (e.g. residue curves): mapped scalar via
+          // set_config, applied before prepare so per-note state rebuilds.
+          slot.consumer->set_config(slot.paramName, slot.map(freq));
+        } else if (curve && slot.curve.empty()) {
           // Build an Envelope from the curve, wrap in a PitchBendSource that
           // emits baseHz * 2^(semi/12), and plug it into the consumer's param
           // edge — replacing the nominal ConstantSource for this note.
+          // Curved slots are excluded: they carry a mapped scalar, not the
+          // frequency itself, so pitch bend doesn't apply.
           auto env = compile_pitch_curve(*curve, sampleRate);
           auto pbs = std::make_shared<PitchBendSource>(freq, std::move(env));
           slot.consumer->set_param(slot.paramName, pbs);
         } else {
-          // Plain note: set the nominal value and restore the edge to the
-          // original ConstantSource (idempotent if already restored).
-          slot.originalCS->set(freq);
+          // Plain note: set the nominal (or curve-mapped) value and restore
+          // the edge to the original ConstantSource (idempotent if already
+          // restored).
+          float v = slot.map(freq);
+          slot.originalCS->set(v);
           slot.consumer->set_param(slot.paramName, slot.originalCS);
           // Fan out to Multiplex clones so each internal copy retunes too.
           // No-op when the voice's output isn't a Multiplex.
           if (vg.topMultiplex && !slot.targetNodeId.empty()) {
-            vg.topMultiplex->set_clone_param(slot.targetNodeId, slot.paramName, freq);
+            vg.topMultiplex->set_clone_param(slot.targetNodeId, slot.paramName, v);
           }
         }
       }

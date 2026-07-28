@@ -689,7 +689,8 @@ resolve_param_map(
 {
     std::unordered_map<std::string, std::vector<PitchedInstrument::ParamSlot>> result;
 
-    auto resolve_one_target = [&](const std::string& name, const std::string& target) {
+    auto resolve_one_target = [&](const std::string& name, const std::string& target,
+                                  std::vector<std::pair<float, float>> curve = {}) {
         std::string nodeId, paramName;
         auto dot = target.find('.');
         if (dot != std::string::npos) {
@@ -703,25 +704,54 @@ resolve_param_map(
         if (nodeIt == g.valueNodes.end())
             throw std::runtime_error("paramMap: unknown node '" + nodeId + "'");
         auto paramSrc = nodeIt->second->get_param(paramName);
-        if (!paramSrc)
-            throw std::runtime_error("paramMap: cannot resolve '" + target + "'");
-        auto cs = std::dynamic_pointer_cast<ConstantSource>(paramSrc);
-        if (!cs)
-            throw std::runtime_error("paramMap: '" + target + "' is not a ConstantSource (it's wired to a ref)");
-        result[name].push_back({nodeIt->second, paramName, cs, nodeId});
+        if (paramSrc) {
+            auto cs = std::dynamic_pointer_cast<ConstantSource>(paramSrc);
+            if (!cs)
+                throw std::runtime_error("paramMap: '" + target + "' is not a ConstantSource (it's wired to a ref)");
+            PitchedInstrument::ParamSlot slot{nodeIt->second, paramName, cs, nodeId};
+            slot.curve = std::move(curve);
+            result[name].push_back(std::move(slot));
+            return;
+        }
+        // Not a pluggable param — maybe a scalar config (motion-layer knobs,
+        // Envelope sustainLevel, ...). Config slots deliver the curve-mapped
+        // value via set_config at note-on.
+        for (const auto& desc : nodeIt->second->config_descriptors()) {
+            if (paramName == desc.name) {
+                PitchedInstrument::ParamSlot slot{nodeIt->second, paramName, nullptr, nodeId};
+                slot.isConfig = true;
+                slot.curve = std::move(curve);
+                result[name].push_back(std::move(slot));
+                return;
+            }
+        }
+        throw std::runtime_error("paramMap: cannot resolve '" + target + "' (neither param nor config)");
+    };
+
+    // Object entry: { "target": "node.paramOrConfig", "curve": [[hz, value], ...] }
+    // — the ParameterMapping "Function" port: frequency → curve(frequency)
+    // (log-hz linear-value interpolation, clamped at the end breakpoints).
+    auto resolve_entry = [&](const std::string& name, const json& t) {
+        if (t.is_string()) { resolve_one_target(name, t.get<std::string>()); return; }
+        if (t.is_object() && t.contains("target")) {
+            std::vector<std::pair<float, float>> curve;
+            if (t.contains("curve")) {
+                for (const auto& bp : t.at("curve"))
+                    curve.emplace_back(bp.at(0).get<float>(), bp.at(1).get<float>());
+                if (curve.size() < 2)
+                    throw std::runtime_error("paramMap: curve needs >= 2 breakpoints");
+            }
+            resolve_one_target(name, t.at("target").get<std::string>(), std::move(curve));
+            return;
+        }
+        throw std::runtime_error("paramMap: '" + name + "' entries must be strings or {target, curve} objects");
     };
 
     for (auto& [name, targetJson] : paramMapJson.items()) {
-        if (targetJson.is_string()) {
-            resolve_one_target(name, targetJson.get<std::string>());
-        } else if (targetJson.is_array()) {
-            for (const auto& t : targetJson) {
-                if (!t.is_string())
-                    throw std::runtime_error("paramMap: '" + name + "' array must be strings");
-                resolve_one_target(name, t.get<std::string>());
-            }
+        if (targetJson.is_array()) {
+            for (const auto& t : targetJson) resolve_entry(name, t);
         } else {
-            throw std::runtime_error("paramMap: '" + name + "' must be a string or array of strings");
+            resolve_entry(name, targetJson);
         }
     }
 

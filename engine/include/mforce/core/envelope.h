@@ -95,6 +95,7 @@ struct Envelope : ValueSource {
     static constexpr ConfigDescriptor descs[] = {
       {"stage_accuracy", ConfigType::Float, 1.0f, 0.0f, 1.0f},
       {"ramp_accuracy",  ConfigType::Float, 1.0f, 0.0f, 1.0f},
+      {"sustainLevel",   ConfigType::Float, 0.7f, 0.0f, 1.0f},
     };
     return descs;
   }
@@ -102,11 +103,24 @@ struct Envelope : ValueSource {
   void set_config(std::string_view name, float value) override {
     if (name == "stage_accuracy") { stage_accuracy = std::clamp(value, 0.0f, 1.0f); return; }
     if (name == "ramp_accuracy")  { ramp_accuracy  = std::clamp(value, 0.0f, 1.0f); return; }
+    // Live sustain rewrite — adsr-preset envelopes only (stage layout known:
+    // decay endVal, expand start/end, release startVal all carry the sustain
+    // value). Lets paramMap drive sustainLevel per note (frequency curves).
+    if (name == "sustainLevel" && adsrLayout_ && stages_.size() == 4) {
+      float v = std::clamp(value, 0.0f, 1.0f);
+      stages_[1].ramp.endVal   = v;
+      stages_[2].ramp.startVal = v;
+      stages_[2].ramp.endVal   = v;
+      stages_[3].ramp.startVal = v;
+      return;
+    }
   }
 
   float get_config(std::string_view name) const override {
     if (name == "stage_accuracy") return stage_accuracy;
     if (name == "ramp_accuracy")  return ramp_accuracy;
+    if (name == "sustainLevel")
+      return (adsrLayout_ && stages_.size() == 4) ? stages_[2].ramp.startVal : 0.0f;
     return 0.0f;
   }
 
@@ -248,6 +262,7 @@ struct Envelope : ValueSource {
     env.add_stage({{1.0f, sustainLevel, RampType::Linear, 0.0f}, decayPct, decayMin, decayMax});
     env.add_stage({{sustainLevel, sustainLevel, RampType::Linear, 0.0f}, 0.0f, 0.0f, 0.0f}); // expand
     env.add_stage({{sustainLevel, 0.0f, RampType::Sine, 0.0f}, releasePct, releaseMin, releaseMax});
+    env.adsrLayout_ = true;  // enables live sustainLevel rewrites via set_config
     return env;
   }
 
@@ -281,6 +296,9 @@ private:
   int stageEnd_{0};
   float cur_{0.0f};
   std::vector<Stage> stages_;
+  // True when stages were built by make_adsr — the fixed 4-stage layout that
+  // sustainLevel set_config knows how to rewrite.
+  bool adsrLayout_{false};
   std::vector<int>   stageCounts_;
 
   // Per-instance decorrelation state

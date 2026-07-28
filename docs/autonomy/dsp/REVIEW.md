@@ -2,52 +2,37 @@
 
 ## Awaiting Matt
 
-### NEW (run 3). CMA-ES optimizer — first result vs hand-tuning [listen]
-Renders: renders/cmaes_smoke/ — `opt_best_104ev.wav` vs `v5_04_cal_sustain.wav`
-(same 11-note ladder, direct A/B). The optimizer warm-started at v5_04 and ran
-104 evals of the Iowa-viola scorer; measured distance 1.28→0.945 (biggest gain
-on the inter-harmonic broadband term). It's a SMALL, early move (not converged),
-so expect a subtle difference, not a transformation.
-What it changed: formantWeight 1.0→0.84, low-body formant boosted / high cut
-(band scalers 1.45/1.26/0.96/0.81), spectral reshape (harm ~3 and ~16 up),
-onset tilt/spread up — and **vibrato cut hard (depth 0.025→0.010, speed 5.5→
-4.4)** because the Iowa refs barely vibrate.
-Verdict decides: (1) is the metric pointing the right way — does opt_best sound
-closer to a real viola, or just different? (2) whether to invest in the full
-600-eval run (needs the render-speed fix first: eval is ~real-time render-bound,
-600 evals ≈ 2 h — BACKLOG #3d/#8); (3) whether to **re-pin vibrato** to your
-taste before optimizing (the scorer will always minimise it toward the dry Iowa
-samples). Background: reports/2026-07-28-dipsy-run3.md.
+### 1. v6 frequency-curve ladder [listen] — NEW (run 4)
+renders/fable1_v6/. Your v4 verdicts implemented via the new paramMap
+curve mechanism (any param/config can now follow a frequency→value curve,
+evaluated per note):
+- v6_01/02/03 — full calibrated recipe, cluster residue curved lo/mid/hi
+  per your guesses (8-15% @ 50 Hz → 25-40% @ 400 Hz). Which curve, or
+  where between?
+- v6_04 — bandwidth floor curved (1.5% @ 50 Hz → 8% @ 400 Hz), isolated:
+  does the low-frequency "rumble" die while texture survives up high?
+Verdict decides: default residue/floor curves, and whether curve knots
+join the CMA-ES search space (your note that curves complicate it is
+handled in the spec update — knots become dims, +4-6 dims).
 
-### 0. v5 Iowa-grounded A/B [listen] — updated run 2
-Renders: renders/fable1_v5/. Question: does measurement beat hand-tuning?
-- v5_01_iowa_sustain vs v3_05_sustain_stack — sustain character only
-- v5_02_iowa_full and v5_03_iowa_shim60 vs v4_04_full_res — full recipe;
-  v5_03 backs shimmer 0.9→0.6 in case the measured value pumps
-- run 2 adds **v5_04_cal_sustain / v5_05_cal_full** — calibrated variants
-  (verified 6.4c vs 7.3c Iowa target). Primary listen: v5_05 vs v5_02 vs
-  v4_04.
-Verdict decides: whether derive_motion.py's numbers become the default
-sustain recipe and whether the calibration cycle (item 2b) is worth a run
-before CMA-ES subsumes it. Background: reports/2026-07-27-dipsy-run1.md
-
-### 1. v4 residue ladder [listen]
-Renders: renders/fable1_v4/ (5 WAVs). Background: docs/Fable1_results.md.
-- v4_01 vs v4_02: cluster residue 10% vs 25% — which level, or between?
-- v4_03: bandwidth floor 0.06 in isolation — does permanent slight
-  noisiness read as bow/string texture or as hiss?
-- v4_04 vs v4_05: full recipe, residue moderate vs high — does the attack→
-  sustain transition blur the way you wanted?
-Verdict decides: the default viola attack/sustain recipe going forward, and
-whether residue amounts become CMA-ES search dimensions or fixed constants.
-
-### 2. UI fix confirmation [look]
-Load patches/fable1_v4/v4_04_full_res.json in the rebuilt mforce_ui:
-inspector should show maxPartials 96 and keyboard playback should match the
-CLI render's timbre. Verdict decides: whether the UI load path has more
-lurking gaps (if it still sounds wrong, that's a new bug to chase).
+### 2. CMA-ES stage-d best-of-run [listen] — pending completion
+600-eval viola optimization relaunched this morning (the overnight launch
+died before writing state). Best-of-run WAV vs v5_04_cal_sustain A/B will
+land here when it finishes (~2 h, checkpointed/resumable).
 
 ## Resolved
 
-(v3 verdicts folded 2026-07-27: cluster_tight_low wins; sustain_stack
-"rich, stringy"; attack_stack good but transition too abrupt → v4)
+2026-07-28 (Matt):
+- v5 grounded A/B: "no worse, maybe better, at the limit of my ability to
+  tell" → measured/calibrated values ADOPTED as default sustain recipe;
+  backlog 2b closed.
+- v4 residue ladder: 25% too much at low frequencies only → the
+  frequency-dependence principle (logged to memory), v6 curve ladder above.
+- v4_03 bw floor: reads as low-freq "rumble," curve it before abandoning
+  → v6_04.
+- v4_04/05: attack→sustain transition now smooth.
+- UI fix: confirmed good.
+- Stage-d render time: "accept long render."
+
+2026-07-27: v3 verdicts (cluster_tight_low wins; sustain stack rich/stringy;
+attack too distinct → v4 residue).
