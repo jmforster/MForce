@@ -9,6 +9,11 @@ should validate — deep context lives in the composition thread.
 3. **[metric] (G1) Corpus survey + acquisition** — beyond MTD: Essen
    folksong, ABC/folk collections, kern scores (KernScores/humdrum), jazz
    lead sheets; licensing + format notes; ingest pipeline for 1-2 best.
+   SURVEY DONE (run 3, corpus_survey.md): recommend ingest order (3a)
+   Nottingham-Jukedeck (GPLv3, MIDI ready — fastest), (3b, review) Essen
+   license call, (3c) Essen ingest (6k monophonic folk, kern parser).
+   KernScores-classical deprioritized (idiom overlaps MTD). Remaining =
+   3a ingest (next cycle), 3b Matt license call (REVIEW), 3c Essen ingest.
 4. **[metric] (G1) FigureGenerator plugin structure + method bake-off** —
    formalize the generator interface; implement n-gram (existing Markov),
    higher-order/backoff variants, and a small neural next-note model

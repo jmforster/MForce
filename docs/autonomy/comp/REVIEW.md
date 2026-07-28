@@ -37,6 +37,15 @@ range guard's default cap (19) feel right or too tight. This is the Phase-2
 sampled independent of fig A — the standing TODO) as the next combination
 front.
 
+### 4. Essen Folksong license call [read]
+corpus_survey.md recommends Essen (6,255 monophonic folk melodies, kern
+format) as the big stylistic expansion beyond MTD-classical. Its Humdrum
+distribution is marked "protected by copyright, distributed by license
+only." Verdict decides backlog 3c: does a derived *statistical model*
+(Markov/n-gram transition counts — not redistributing the scores) clear
+their terms for our internal use? Yes → ingest Essen. No/unsure → skip it,
+Nottingham-Jukedeck (GPLv3, backlog 3a) still proceeds regardless.
+
 ## Resolved
 
 (empty)
