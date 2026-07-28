@@ -155,6 +155,28 @@ private:
   std::shared_ptr<ValueSource> po1_, po2_;
 };
 
+// Motion-layer config descriptor entries shared by Partials and its
+// subclasses. Subclasses override config_descriptors() wholesale (each list
+// re-declares the base entries — established pattern), so the motion block
+// is spliced into every list via this macro to keep them in sync.
+#define MFORCE_PARTIALS_MOTION_CONFIG_DESCS \
+      {"motionDepth1",     ConfigType::Float, 0.0f,  0.0f,  400.0f}, \
+      {"motionDepth2",     ConfigType::Float, 0.0f,  0.0f,  400.0f}, \
+      {"motionHz",         ConfigType::Float, 4.0f,  0.01f, 200.0f}, \
+      {"motionCoherence",  ConfigType::Float, 1.0f,  0.0f,  1.0f},   \
+      {"motionEvolve",     ConfigType::Float, 0.0f,  0.0f,  1.0f},   \
+      {"motionScale",      ConfigType::Float, 0.0f, -2.0f,  2.0f},   \
+      {"shimmerDepth1",    ConfigType::Float, 0.0f,  0.0f,  1.0f},   \
+      {"shimmerDepth2",    ConfigType::Float, 0.0f,  0.0f,  1.0f},   \
+      {"shimmerHz",        ConfigType::Float, 3.0f,  0.01f, 200.0f}, \
+      {"shimmerCoherence", ConfigType::Float, 0.0f,  0.0f,  1.0f},   \
+      {"shimmerEvolve",    ConfigType::Float, 0.0f,  0.0f,  1.0f},   \
+      {"tradeDepth",       ConfigType::Float, 0.0f,  0.0f,  1.0f},   \
+      {"tradeHz",          ConfigType::Float, 2.0f,  0.01f, 50.0f},  \
+      {"onsetSpread",      ConfigType::Float, 0.0f,  0.0f,  2.0f},   \
+      {"onsetTilt",        ConfigType::Float, 0.0f, -1.0f,  1.0f},   \
+      {"onsetFade",        ConfigType::Float, 0.03f, 0.001f, 1.0f},
+
 // ---------------------------------------------------------------------------
 // IPartials — interface for partial rendering engines.
 // Uses partials_prepare / partials_next to avoid collision with
@@ -185,7 +207,9 @@ struct Partials : ValueSource, IPartials {
   , poEnv_(std::make_shared<ConstantSource>(0.0f))
   , roEnv_(std::make_shared<ConstantSource>(0.0f))
   , dtEnv_(std::make_shared<ConstantSource>(0.0f))
-  , bwEnv_(std::make_shared<ConstantSource>(0.0f)) {}
+  , bwEnv_(std::make_shared<ConstantSource>(0.0f))
+  , motionEnv_(std::make_shared<ConstantSource>(0.0f))
+  , shimmerEnv_(std::make_shared<ConstantSource>(0.0f)) {}
 
   // --- ValueSource interface ---
   // Partials is a ValueSource for graph wiring, but doesn't produce audio.
@@ -208,6 +232,8 @@ struct Partials : ValueSource, IPartials {
       {"roEnv",   0.0f, 0.0f, 1.0f, "0-1"},
       {"dtEnv",   0.0f, 0.0f, 1.0f, "0-1"},
       {"bwEnv",   0.0f, 0.0f, 1.0f, "0-1"},  // blends bandwidth1 → bandwidth2
+      {"motionEnv",  0.0f, 0.0f, 1.0f, "0-1"},  // blends motionDepth1 → motionDepth2
+      {"shimmerEnv", 0.0f, 0.0f, 1.0f, "0-1"},  // blends shimmerDepth1 → shimmerDepth2
     };
     return descs;
   }
@@ -221,6 +247,7 @@ struct Partials : ValueSource, IPartials {
       {"bandwidth1",  ConfigType::Float, 0.0f, 0.0f, 1.0f},
       {"bandwidth2",  ConfigType::Float, 0.0f, 0.0f, 1.0f},
       {"bandwidthHz", ConfigType::Float, 30.0f, 1.0f, 2000.0f},
+      MFORCE_PARTIALS_MOTION_CONFIG_DESCS
     };
     return descs;
   }
@@ -232,6 +259,8 @@ struct Partials : ValueSource, IPartials {
     if (name == "roEnv")   { roEnv_ = std::move(src); return; }
     if (name == "dtEnv")   { dtEnv_ = std::move(src); return; }
     if (name == "bwEnv")   { bwEnv_ = std::move(src); return; }
+    if (name == "motionEnv")  { motionEnv_ = std::move(src); return; }
+    if (name == "shimmerEnv") { shimmerEnv_ = std::move(src); return; }
   }
 
   std::shared_ptr<ValueSource> get_param(std::string_view name) const override {
@@ -241,6 +270,8 @@ struct Partials : ValueSource, IPartials {
     if (name == "roEnv")   return roEnv_;
     if (name == "dtEnv")   return dtEnv_;
     if (name == "bwEnv")   return bwEnv_;
+    if (name == "motionEnv")  return motionEnv_;
+    if (name == "shimmerEnv") return shimmerEnv_;
     return nullptr;
   }
 
@@ -252,6 +283,22 @@ struct Partials : ValueSource, IPartials {
     if (name == "bandwidth1")  { bw1_ = value; return; }
     if (name == "bandwidth2")  { bw2_ = value; return; }
     if (name == "bandwidthHz") { bwHz_ = (value < 1.0f ? 1.0f : value); return; }
+    if (name == "motionDepth1")     { moDepth1_ = value; return; }
+    if (name == "motionDepth2")     { moDepth2_ = value; return; }
+    if (name == "motionHz")         { moHz_ = value; return; }
+    if (name == "motionCoherence")  { moCoherence_ = value; return; }
+    if (name == "motionEvolve")     { moEvolve_ = value; return; }
+    if (name == "motionScale")      { moScale_ = value; return; }
+    if (name == "shimmerDepth1")    { shDepth1_ = value; return; }
+    if (name == "shimmerDepth2")    { shDepth2_ = value; return; }
+    if (name == "shimmerHz")        { shHz_ = value; return; }
+    if (name == "shimmerCoherence") { shCoherence_ = value; return; }
+    if (name == "shimmerEvolve")    { shEvolve_ = value; return; }
+    if (name == "tradeDepth")       { trDepth_ = value; return; }
+    if (name == "tradeHz")          { trHz_ = value; return; }
+    if (name == "onsetSpread")      { onsetSpread_ = value; return; }
+    if (name == "onsetTilt")        { onsetTilt_ = value; return; }
+    if (name == "onsetFade")        { onsetFade_ = value; return; }
   }
 
   float get_config(std::string_view name) const override {
@@ -262,6 +309,22 @@ struct Partials : ValueSource, IPartials {
     if (name == "bandwidth1")  return bw1_;
     if (name == "bandwidth2")  return bw2_;
     if (name == "bandwidthHz") return bwHz_;
+    if (name == "motionDepth1")     return moDepth1_;
+    if (name == "motionDepth2")     return moDepth2_;
+    if (name == "motionHz")         return moHz_;
+    if (name == "motionCoherence")  return moCoherence_;
+    if (name == "motionEvolve")     return moEvolve_;
+    if (name == "motionScale")      return moScale_;
+    if (name == "shimmerDepth1")    return shDepth1_;
+    if (name == "shimmerDepth2")    return shDepth2_;
+    if (name == "shimmerHz")        return shHz_;
+    if (name == "shimmerCoherence") return shCoherence_;
+    if (name == "shimmerEvolve")    return shEvolve_;
+    if (name == "tradeDepth")       return trDepth_;
+    if (name == "tradeHz")          return trHz_;
+    if (name == "onsetSpread")      return onsetSpread_;
+    if (name == "onsetTilt")        return onsetTilt_;
+    if (name == "onsetFade")        return onsetFade_;
     return 0.0f;
   }
 
@@ -291,6 +354,8 @@ struct Partials : ValueSource, IPartials {
     roEnv_->prepare(ctx, frames);
     dtEnv_->prepare(ctx, frames);
     bwEnv_->prepare(ctx, frames);
+    motionEnv_->prepare(ctx, frames);
+    shimmerEnv_->prepare(ctx, frames);
 
     // Expand partials if rule is set
     if (hasExpand_) {
@@ -325,6 +390,48 @@ struct Partials : ValueSource, IPartials {
       bwPos_[i]    = int(rng_.range(0.0f, float(bwLen_)));  // stagger phase
     }
 
+    // Motion / shimmer / trade / onset state. All per-note (prepare fires at
+    // every note-on) and inert unless configured. Allocation happens here,
+    // never in the per-sample path.
+    sampleIdx_ = 0;
+    motionActive_ = (moDepth1_ != 0.0f || moDepth2_ != 0.0f);
+    if (motionActive_) {
+      moLen_ = std::max(1, int(rate_ / std::max(0.01f, moHz_)));
+      walk_init(moShared_, moLen_, moEvolve_);
+      moWalks_.assign(n, MotionWalk{});
+      for (auto& w : moWalks_) walk_init(w, moLen_, moEvolve_);
+      moVals_.assign(n, 0.0f);
+    }
+    shimmerActive_ = (shDepth1_ != 0.0f || shDepth2_ != 0.0f);
+    if (shimmerActive_) {
+      shLen_ = std::max(1, int(rate_ / std::max(0.01f, shHz_)));
+      walk_init(shShared_, shLen_, shEvolve_);
+      shWalks_.assign(n, MotionWalk{});
+      for (auto& w : shWalks_) walk_init(w, shLen_, shEvolve_);
+      shVals_.assign(n, 0.0f);
+    }
+    tradeActive_ = (trDepth_ != 0.0f);
+    if (tradeActive_) {
+      trLen_ = std::max(1, int(rate_ / std::max(0.01f, trHz_)));
+      trWalks_.assign((n + 1) / 2, MotionWalk{});
+      for (auto& w : trWalks_) walk_init(w, trLen_, 0.0f);
+      trVals_.assign((n + 1) / 2, 0.0f);
+    }
+    onsetActive_ = (onsetSpread_ > 0.0f);
+    if (onsetActive_) {
+      // Per-partial onset delay: tilt orders delays by partial height
+      // (+1 low-first / high partials bloom later, -1 reverse, 0 random).
+      onsetDelay_.resize(n);
+      float at = std::fabs(onsetTilt_);
+      for (int i = 0; i < n; ++i) {
+        float u = rng_.value();
+        float r = (n > 1) ? float(i) / float(n - 1) : 0.0f;
+        float ordered = (onsetTilt_ >= 0.0f) ? r : 1.0f - r;
+        onsetDelay_[i] = ((1.0f - at) * u + at * ordered) * onsetSpread_ * rate_;
+      }
+      onsetFadeSamples_ = std::max(1.0f, onsetFade_ * rate_);
+    }
+
     init_detune_values();
   }
 
@@ -335,6 +442,30 @@ struct Partials : ValueSource, IPartials {
     roEnv_->next();
     dtEnv_->next();
     bwEnv_->next();
+    motionEnv_->next();
+    shimmerEnv_->next();
+
+    ++sampleIdx_;
+    if (motionActive_) {
+      float shared = walk_advance(moShared_, moLen_, moEvolve_);
+      float coh = moCoherence_;
+      for (size_t i = 0; i < moWalks_.size(); ++i) {
+        float ind = walk_advance(moWalks_[i], moLen_, moEvolve_);
+        moVals_[i] = coh * shared + (1.0f - coh) * ind;
+      }
+    }
+    if (shimmerActive_) {
+      float shared = walk_advance(shShared_, shLen_, shEvolve_);
+      float coh = shCoherence_;
+      for (size_t i = 0; i < shWalks_.size(); ++i) {
+        float ind = walk_advance(shWalks_[i], shLen_, shEvolve_);
+        shVals_[i] = coh * shared + (1.0f - coh) * ind;
+      }
+    }
+    if (tradeActive_) {
+      for (size_t i = 0; i < trWalks_.size(); ++i)
+        trVals_[i] = walk_advance(trWalks_[i], trLen_, 0.0f);
+    }
   }
 
   int partial_count() const override {
@@ -360,6 +491,18 @@ struct Partials : ValueSource, IPartials {
     // Frequency = multiplier * base freq * (1 + detune)
     float dt = (dt1_ + (dt2_ - dt1_) * dtE) * dtVals_[index];
     float pfreq = pmult * frequency * (1.0f + dt);
+
+    // Frequency motion: cents offset from the coherence-mixed random walk.
+    // Coherent component moves all partials by the same cents (proportional
+    // Hz — fuses like vibrato); independent component broadens lines.
+    if (motionActive_) {
+      float md = moDepth1_ + (moDepth2_ - moDepth1_) * motionEnv_->current();
+      if (md != 0.0f) {
+        float cents = md * moVals_[index];
+        if (moScale_ != 0.0f) cents *= std::pow(pmult, moScale_);
+        pfreq *= std::exp2(cents * (1.0f / 1200.0f));
+      }
+    }
 
     // Past cutoff -> NaN signal to caller
     if (pfreq > CUTOFF) return std::numeric_limits<float>::quiet_NaN();
@@ -415,6 +558,29 @@ struct Partials : ValueSource, IPartials {
       float noise = bwCur_[index] + (bwTarget_[index] - bwCur_[index]) * s;
       ++bwPos_[index];
       pampl *= std::sqrt(1.0f - bw) + std::sqrt(bw) * noise;
+    }
+
+    // Amplitude shimmer: slow per-partial gain wander (coherence-mixed walk).
+    if (shimmerActive_) {
+      float sd = shDepth1_ + (shDepth2_ - shDepth1_) * shimmerEnv_->current();
+      float g = 1.0f + sd * shVals_[index];
+      pampl *= (g < 0.0f ? 0.0f : g);
+    }
+
+    // Energy trading: adjacent pairs share one walk with opposite signs, so
+    // energy sloshes between neighbors while the pair sum stays ~constant.
+    if (tradeActive_) {
+      float g = 1.0f + ((index & 1) ? -trDepth_ : trDepth_) * trVals_[index >> 1];
+      pampl *= (g < 0.0f ? 0.0f : g);
+    }
+
+    // Onset dispersion: partial stays silent until its per-note delay, then
+    // fades in. Phase keeps advancing while gated, so partials "enter" as
+    // already-running oscillators rather than all striking at t=0.
+    if (onsetActive_) {
+      float t = (float(sampleIdx_) - onsetDelay_[index]) / onsetFadeSamples_;
+      if (t <= 0.0f) pampl = 0.0f;
+      else if (t < 1.0f) pampl *= t * t * (3.0f - 2.0f * t);
     }
 
     return std::sin(partialPos_[index] * TAU) * pampl;
@@ -511,6 +677,43 @@ protected:
     po1_   = std::move(p1); po2_   = std::move(p2);
   }
 
+  // Smoothed random walk with meta-randomized segments — the primitive under
+  // the motion/shimmer/trade layers. evolve > 0 makes each new segment
+  // re-roll its own length and excursion, so the movement is non-stationary
+  // ("the character of the movement itself changes over time").
+  struct MotionWalk {
+    float cur{0.0f}, target{0.0f};
+    int pos{0}, len{1};
+  };
+
+  int walk_seg_len(int baseLen, float evolve) {
+    float f = (evolve <= 0.0f) ? 1.0f
+                               : std::pow(1.0f + 3.0f * evolve, rng_.valuePN());
+    int len = int(float(baseLen) * f);
+    return len < 1 ? 1 : len;
+  }
+
+  void walk_init(MotionWalk& w, int baseLen, float evolve) {
+    w.cur = rng_.valuePN();
+    w.target = rng_.valuePN();
+    w.len = walk_seg_len(baseLen, evolve);
+    w.pos = int(rng_.range(0.0f, float(w.len)));  // stagger segment phase
+  }
+
+  float walk_advance(MotionWalk& w, int baseLen, float evolve) {
+    if (w.pos >= w.len) {
+      w.cur = w.target;
+      float amp = 1.0f + 0.7f * evolve * rng_.valuePN();
+      w.target = rng_.valuePN() * amp;
+      w.len = walk_seg_len(baseLen, evolve);
+      w.pos = 0;
+    }
+    float u = float(w.pos) / float(w.len);
+    float s = u * u * (3.0f - 2.0f * u);  // smoothstep → low-pass movement
+    ++w.pos;
+    return w.cur + (w.target - w.cur) * s;
+  }
+
   Randomizer rng_;
 
   // Envelopes
@@ -520,6 +723,8 @@ protected:
   std::shared_ptr<ValueSource> roEnv_;
   std::shared_ptr<ValueSource> dtEnv_;
   std::shared_ptr<ValueSource> bwEnv_;
+  std::shared_ptr<ValueSource> motionEnv_;
+  std::shared_ptr<ValueSource> shimmerEnv_;
 
   // Global rolloff/detune ranges
   float ro1_{1.0f}, ro2_{1.0f};
@@ -529,6 +734,25 @@ protected:
   // width. Default 0 → feature inert (no change to existing patches).
   float bw1_{0.0f}, bw2_{0.0f}, bwHz_{30.0f};
   int   bwLen_{1600};
+
+  // Motion layer configs (all default-inert; see partial-motion design spec)
+  float moDepth1_{0.0f}, moDepth2_{0.0f}, moHz_{4.0f};
+  float moCoherence_{1.0f}, moEvolve_{0.0f}, moScale_{0.0f};
+  float shDepth1_{0.0f}, shDepth2_{0.0f}, shHz_{3.0f};
+  float shCoherence_{0.0f}, shEvolve_{0.0f};
+  float trDepth_{0.0f}, trHz_{2.0f};
+  float onsetSpread_{0.0f}, onsetTilt_{0.0f}, onsetFade_{0.03f};
+
+  // Motion layer runtime state (allocated in partials_prepare)
+  bool motionActive_{false}, shimmerActive_{false};
+  bool tradeActive_{false}, onsetActive_{false};
+  int moLen_{1}, shLen_{1}, trLen_{1};
+  MotionWalk moShared_, shShared_;
+  std::vector<MotionWalk> moWalks_, shWalks_, trWalks_;
+  std::vector<float> moVals_, shVals_, trVals_;
+  std::vector<float> onsetDelay_;
+  float onsetFadeSamples_{1.0f};
+  int sampleIdx_{0};
 
   // Per-partial static arrays (set by init_arrays in subclass)
   std::vector<float> mult1_, mult2_, ampl1_, ampl2_, po1_, po2_;
@@ -578,6 +802,7 @@ struct FullPartials final : Partials {
       {"bandwidth1",   ConfigType::Float, 0.0f,  0.0f, 1.0f},
       {"bandwidth2",   ConfigType::Float, 0.0f,  0.0f, 1.0f},
       {"bandwidthHz",  ConfigType::Float, 30.0f, 1.0f, 2000.0f},
+      MFORCE_PARTIALS_MOTION_CONFIG_DESCS
     };
     return descs;
   }
@@ -679,6 +904,7 @@ struct SequencePartials final : Partials {
       {"bandwidth1",  ConfigType::Float, 0.0f,  0.0f, 1.0f},
       {"bandwidth2",  ConfigType::Float, 0.0f,  0.0f, 1.0f},
       {"bandwidthHz", ConfigType::Float, 30.0f, 1.0f, 2000.0f},
+      MFORCE_PARTIALS_MOTION_CONFIG_DESCS
     };
     return descs;
   }
@@ -759,6 +985,7 @@ struct ExplicitPartials final : Partials {
       {"bandwidth1",  ConfigType::Float, 0.0f,  0.0f, 1.0f},
       {"bandwidth2",  ConfigType::Float, 0.0f,  0.0f, 1.0f},
       {"bandwidthHz", ConfigType::Float, 30.0f, 1.0f, 2000.0f},
+      MFORCE_PARTIALS_MOTION_CONFIG_DESCS
     };
     return descs;
   }

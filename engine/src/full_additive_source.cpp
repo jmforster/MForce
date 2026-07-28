@@ -40,8 +40,11 @@ float FullAdditiveSource::compute_wave_value() {
         formant_.get(), fmtWt);
 
     if (std::isnan(v)) {
-      // Past cutoff — remaining partials assumed in ascending order
-      break;
+      // Past cutoff — gate this partial only. With frequency motion active,
+      // a jittering partial near CUTOFF must not kill everything above it
+      // (the old `break` assumed static ascending frequencies and produced
+      // audible chatter at high depth + high notes).
+      continue;
     }
     val += v;
   }
