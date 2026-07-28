@@ -5,10 +5,10 @@ combination (pattern x transform x placement), materializes the concrete figures
 emits an engine template JSON (verified motif/connector format), and renders to WAV
 via mforce_cli --compose. No C++ changes; the chooser lives here.
 """
-import argparse, json, pathlib, random, subprocess
+import argparse, json, pathlib, random, subprocess, sys
 
 REPO  = pathlib.Path(__file__).resolve().parent.parent.parent
-CLI   = REPO / "build/tools/mforce_cli/Debug/mforce_cli.exe"
+CLI   = REPO / "build/tools/mforce_cli/Release/mforce_cli.exe"
 PATCH = REPO / "patches/Additive1.json"
 MAJOR = [0, 2, 4, 5, 7, 9, 11]
 
@@ -43,6 +43,11 @@ def retrograde(fig):
 # Task 2: combination chooser
 # --------------------------------------------------------------------------- #
 PATTERNS = ["AB", "AAB", "AAAB", "ABAB", "AABB", "AAA'B", "ABA'B"]
+
+# Deliberate norm-breakers (WORKFLOW outlier directive): over-long repeats and
+# lopsided structures. Used only with --pattern-set outlier (guard off by default),
+# to hear where "too much repetition" / runaway range crosses into non-musical.
+OUTLIER_PATTERNS = ["AAAAAB", "AAAAAAB", "ABABABAB", "AAAAABB", "AAA'A'B"]
 
 
 def _tokens(pattern):
@@ -130,6 +135,12 @@ def predict_relative_semitones(motifs, refs, connectors):
     return [s - semis[0] for s in semis]
 
 
+def predicted_range(motifs, refs, connectors):
+    """Semitone span of the phrase's predicted contour (max-min), engine-free."""
+    semis = predict_relative_semitones(motifs, refs, connectors)
+    return max(semis) - min(semis)
+
+
 def render_template(template, out_prefix):
     tpath = REPO / (out_prefix + "_tmpl.json")    # the input template we author
     tpath.parent.mkdir(parents=True, exist_ok=True)
@@ -157,26 +168,56 @@ def main():
     ap.add_argument("--n", type=int, default=8)
     ap.add_argument("--seed", type=int, default=1234)
     ap.add_argument("--bpm", type=float, default=84.0)
+    ap.add_argument("--range-cap", type=int, default=19,
+                    help="semitone span cap (corpus range_p90); reject-sample past it. "
+                         "0 disables the guard (raw combinations, incl. runaways).")
+    ap.add_argument("--max-tries", type=int, default=24,
+                    help="rejection-sampling attempts per phrase before keeping the "
+                         "narrowest-range candidate.")
+    ap.add_argument("--pattern-set", choices=["normal", "outlier"], default="normal",
+                    help="'outlier' uses over-long/lopsided patterns and defaults the "
+                         "range guard off (norm-breaking audition set).")
     args = ap.parse_args()
+
+    patterns = OUTLIER_PATTERNS if args.pattern_set == "outlier" else PATTERNS
+    if args.pattern_set == "outlier" and "--range-cap" not in sys.argv:
+        args.range_cap = 0                            # let outliers run wild by default
+    subdir = "outliers" if args.pattern_set == "outlier" else "."
 
     rng = random.Random(args.seed)
     model = MarkovModel.load()
-    outdir = REPO / "renders/markov_phrases"
+    outdir = (REPO / "renders/markov_phrases" / subdir).resolve()
     outdir.mkdir(parents=True, exist_ok=True)
 
-    for i in range(args.n):
+    def roll():
         figA = _sample_figure(model, rng)
         figB = _sample_figure(model, rng)            # independent (contrast = TODO)
-        pattern   = rng.choice(PATTERNS)
+        pattern   = rng.choice(patterns)
         transform = rng.choice(["invert", "retrograde"])
         placement = rng.choice(["same", "climb", "sequence"])
         motifs, refs, conns = build_combination(figA, figB, pattern, transform, placement)
+        return motifs, refs, conns, pattern, transform, placement
+
+    for i in range(args.n):
+        best, tries = None, 0
+        while True:
+            tries += 1
+            cand = roll()
+            span = predicted_range(cand[0], cand[1], cand[2])
+            if best is None or span < best[0]:
+                best = (span, cand)
+            if args.range_cap <= 0 or span <= args.range_cap or tries >= args.max_tries:
+                break
+        span, (motifs, refs, conns, pattern, transform, placement) = best
         seed_i = args.seed * 1000 + i
         t = make_template(motifs, refs, conns, bpm=args.bpm, seed=seed_i)
-        prefix = f"renders/markov_phrases/p{i:02d}_{pattern.replace(chr(39),'x')}"
+        sub = f"{subdir}/" if subdir != "." else ""
+        prefix = f"renders/markov_phrases/{sub}p{i:02d}_{pattern.replace(chr(39),'x')}"
         notes = render_template(t, prefix)
+        flag = "" if span <= args.range_cap or args.range_cap <= 0 else "  OVER-CAP"
         print(f"p{i:02d}: {pattern:6} t={transform:9} place={placement:8} "
-              f"{len(refs)} figs, {len(notes)} notes -> {prefix}_1.wav")
+              f"{len(refs)} figs, {len(notes)} notes, range={span:2d} "
+              f"(tries={tries}){flag} -> {prefix}_1.wav")
 
 
 if __name__ == "__main__":
