@@ -63,7 +63,10 @@ def motion_stats(x, sr, f0_nom):
         if a.mean() < 1e-7:
             break
         dphi = np.angle(env[1:] / env[:-1])
-        c = 1200.0 * np.log2(1.0 + (dphi * sr_env / (2 * np.pi)) / (k * f0))
+        # clip the ratio > 0 so a rare ~pi phase jump (noisy harmonic) can't
+        # make log2 NaN; such samples are dominated out by the median anyway.
+        ratio = np.maximum(1.0 + (dphi * sr_env / (2 * np.pi)) / (k * f0), 1e-3)
+        c = 1200.0 * np.log2(ratio)
         cents.append(c - c.mean())
         amps.append(a[1:] / a.mean())
     cents, amps = np.array(cents), np.array(amps)

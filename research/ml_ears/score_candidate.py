@@ -32,11 +32,12 @@ REF_PATH = os.path.join(HERE, "out", "iowa_reference.json")
 SCRATCH = os.path.join(HERE, "out", "scratch")
 os.makedirs(SCRATCH, exist_ok=True)
 
-# 4-note scoring ladder (matches iowa_reference SCORE_NOTES pitches).
-NOTE_MIDIS = [48, 55, 62, 69]     # C3 G3 D4 A4
-NOTE_GAP, NOTE_DUR = 3.0, 2.6     # note start spacing / duration (sustain fits)
-SUS_START, SUS_LEN = 0.6, 1.5     # sustain window inside each note
-ATTACK_LEN = 0.6                  # onset window inside each note
+# Scoring notes span low/mid/high registers (3 strings); a subset of the
+# iowa_reference SCORE_NOTES to keep the render-bound eval affordable (~9s).
+NOTE_MIDIS = [48, 62, 69]         # C3 D4 A4
+NOTE_GAP, NOTE_DUR = 2.5, 2.2     # note start spacing / duration (sustain fits)
+SUS_START, SUS_LEN = 0.55, 1.4    # sustain window inside each note
+ATTACK_LEN = 0.55                 # onset window inside each note
 WEIGHTS = (0.35, 0.25, 0.20, 0.20)
 
 # Per-metric normalisers for term2 (cents / Hz / correlation ranges).

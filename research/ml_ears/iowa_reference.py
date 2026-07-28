@@ -23,8 +23,8 @@ OUT = os.path.join(HERE, "out", "iowa_reference.json")
 # Open-string scoring notes -> the Iowa file that plays them on that string.
 SCORE_NOTES = [("C3", "sulC"), ("G3", "sulG"), ("D4", "sulD"), ("A4", "sulA")]
 
-SUS_START, SUS_LEN = 0.6, 1.5      # sustain window (match render scorer)
-ATTACK_LEN = 0.6                    # onset window for attack_stats
+SUS_START, SUS_LEN = 0.55, 1.4     # sustain window (must match score_candidate)
+ATTACK_LEN = 0.55                  # onset window for attack_stats
 
 
 def find_file(string, note):

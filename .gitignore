@@ -69,6 +69,8 @@ renders/
 corpus/
 research/inst_samples/
 research/ml_ears/patches/
+research/ml_ears/cmaes_runs/
+research/ml_ears/*.log
 __pycache__/
 
 ############################
