@@ -6,10 +6,16 @@ should validate — deep context lives in the composition thread.
 1. **[metric] Corpus-statistics scoring harness** — score generated output
    against MTD statistics (interval/contour/repetitiveness/cadence). The
    comp "ears": gates everything below.
-2. **[metric] (G1) Corpus survey + acquisition** — beyond MTD: Essen
+2. **[metric] (G1) Execute the banked Phase-2 plan** — combination phrase
+   from Markov atoms. Full implementation plan already exists:
+   docs/superpowers/plans/2026-06-22-phase2-combination-phrase.md (found
+   in comp-thread history during run-2 validation). Note: its "ask before
+   committing" step is superseded by WORKFLOW default-proceed. Score output
+   with item-1 harness.
+3. **[metric] (G1) Corpus survey + acquisition** — beyond MTD: Essen
    folksong, ABC/folk collections, kern scores (KernScores/humdrum), jazz
    lead sheets; licensing + format notes; ingest pipeline for 1-2 best.
-3. **[metric] (G1) FigureGenerator plugin structure + method bake-off** —
+4. **[metric] (G1) FigureGenerator plugin structure + method bake-off** —
    formalize the generator interface; implement n-gram (existing Markov),
    higher-order/backoff variants, and a small neural next-note model
    (LLM-like prediction per Matt); compare on harness (item 1) per corpus.

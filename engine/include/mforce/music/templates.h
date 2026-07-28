@@ -282,6 +282,9 @@ struct ElaboratedPhraseConfig {
 struct PhraseTemplate {
     std::string name;                          // "antecedent", "bridge", etc.
     std::optional<Pitch> startingPitch;        // where to begin (may come from context)
+    bool parallel{false};                      // restart at the passage's startingPitch
+                                               // (parallel period) instead of continuing
+                                               // from the running pitch
     std::vector<FigureTemplate> figures;
 
     // Optional per-adjacency connectors. If non-empty, size must equal

@@ -1,19 +1,21 @@
 # Status — open this file first
 
-Updated: 2026-07-27, end of run 1 (Dipsy, 2 cycles)
+Updated: 2026-07-27, end of run 2 (both lanes; Wolfie's first shift)
 
-| Lane | Dev | Last run | Backlog top | Awaiting your review |
+| Lane | Dev | Run 2 | Backlog top | Awaiting your review |
 |---|---|---|---|---|
-| dsp | Dipsy | run 1 done — fable1 committed; Iowa motion params measured, v5 rendered | calibrated mapping v2 → CMA-ES spec | **3 items** — v5 grounded A/B [listen] (NEW), v4 residue ladder [listen], UI fix check [look] |
-| comp | Wolfie | not yet run | corpus-stats scoring harness | none yet |
+| comp | Wolfie | 3/3 fronts: scoring harness built+validated; parallel-period fix landed (`"parallel": true`); banked Phase-2 plan rediscovered & promoted | execute Phase-2 plan (combination phrases) | **2 items** — parallel A/B [listen], scorer sanity [read] |
+| dsp | Dipsy | 2/3 fronts: calibrated motion v2 (6.4c vs 7.3c target); CMA-ES spec written | **carried over:** expansion sweep; then CMA-ES stage a | **3 items** — v5 grounded A/B incl. calibrated [listen], v4 residue ladder [listen], UI fix check [look] |
 
-Run-1 highlight: real viola line-broadening measured at ~7 cents,
-**incoherent** (coherence 0.00) — your 18-cent-incoherent audition pick was
-directionally exact. Full report: dsp/reports/2026-07-27-dipsy-run1.md
+Reports: dsp/reports/2026-07-27-dipsy-run2.md ·
+comp/reports/2026-07-27-wolfie-run2.md
 
-Your inputs, whenever convenient:
-- Review verdicts → single unstructured message is fine
-- GOALS.md → decomposed 2026-07-27; add more anytime
-- Trigger next run: "go" (or ask for the scheduled daily task)
+Run-2 highlights: comp lane now has metric "ears" (score_generated.py —
+corpus anchors 0.86-0.90, generated pieces below, ordering sane); period
+parallelism is structural, not accidental; motion calibration converged to
+within 13% of Iowa ground truth in 2 iterations.
+
+Next "go": Dipsy expansion sweep + CMA-ES stage a; Wolfie Phase-2 plan
+execution. Review verdicts fold in whenever you send them.
 
 How this works: [WORKFLOW.md](WORKFLOW.md)

@@ -1122,6 +1122,14 @@ inline Passage DefaultPassageStrategy::compose_passage(
     // can't see our local passage — we must pass the cursor via the phrase
     // template's startingPitch, computed from the passage so far.
     PhraseTemplate localTmpl = phraseTmpl;
+    if (!localTmpl.startingPitch && localTmpl.parallel) {
+      // Parallel phrase: restart where the passage started (i.e. where the
+      // first phrase began) instead of continuing from the running pitch.
+      // Structural fix for period parallelism — previously a parallel
+      // consequent depended on the running pitch happening to land back on
+      // the antecedent's opening pitch.
+      localTmpl.startingPitch = passTmpl.startingPitch;
+    }
     if (!localTmpl.startingPitch) {
       // Compute cursor from the phrases realized so far in our local passage.
       Pitch cursor = *passTmpl.startingPitch;

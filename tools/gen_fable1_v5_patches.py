@@ -67,6 +67,35 @@ def c(p):
     burst_res(p, 0.05)
 
 
+def cal_sustain(p, shimmer_depth=0.9):
+    """Calibration v2 (run-2): variance-subtract the vibrato baseline
+    (control already contributes 5.55c resid / 38% amp via FM->AM through
+    formant slopes), walk-RMS factor 0.60 measured on our own render, rate
+    centroid factor ~0.47. Targets stay the Iowa medians (7.3c total @
+    8.3Hz; 50% amp). Derivation in reports/2026-07-27 + run-2 report."""
+    node(p, "vla_partials")["params"].update({
+        "motionDepth1": 8.0, "motionDepth2": 8.0, "motionHz": 18.0,
+        "motionCoherence": 0.0, "motionEvolve": 0.3,
+        "shimmerDepth1": shimmer_depth, "shimmerDepth2": shimmer_depth,
+        "shimmerHz": 1.4, "shimmerCoherence": 0.5, "shimmerEvolve": 0.3,
+        "tradeDepth": 0.0,
+    })
+
+
+@variant("v5_04_cal_sustain")
+def d(p):
+    """Calibrated sustain only."""
+    cal_sustain(p)
+
+
+@variant("v5_05_cal_full")
+def e(p):
+    """Calibrated sustain + v4_04 attack recipe."""
+    cal_sustain(p)
+    cluster_res(p, 0.15)
+    burst_res(p, 0.05)
+
+
 def main():
     for name, fn in sorted(VARIANTS.items()):
         p = load_base96()

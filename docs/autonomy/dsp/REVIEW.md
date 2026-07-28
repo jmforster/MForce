@@ -2,11 +2,14 @@
 
 ## Awaiting Matt
 
-### 0. v5 Iowa-grounded A/B [listen] — NEW (run 1)
+### 0. v5 Iowa-grounded A/B [listen] — updated run 2
 Renders: renders/fable1_v5/. Question: does measurement beat hand-tuning?
 - v5_01_iowa_sustain vs v3_05_sustain_stack — sustain character only
 - v5_02_iowa_full and v5_03_iowa_shim60 vs v4_04_full_res — full recipe;
   v5_03 backs shimmer 0.9→0.6 in case the measured value pumps
+- run 2 adds **v5_04_cal_sustain / v5_05_cal_full** — calibrated variants
+  (verified 6.4c vs 7.3c Iowa target). Primary listen: v5_05 vs v5_02 vs
+  v4_04.
 Verdict decides: whether derive_motion.py's numbers become the default
 sustain recipe and whether the calibration cycle (item 2b) is worth a run
 before CMA-ES subsumes it. Background: reports/2026-07-27-dipsy-run1.md
