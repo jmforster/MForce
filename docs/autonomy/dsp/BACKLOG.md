@@ -24,6 +24,14 @@ Priority order. Tags per WORKFLOW.md. (G1)-(G4) = GOALS.md Dipsy goals.
    sessions via --resume; (ii) maxPartials 48 during search + re-score at 96;
    (iii) render-speed (item 8) first. GATED on Matt's A/B read (metric pointing
    right? re-pin vibrato?) before committing the full run.
+3b. **[build] UI support for paramMap curves** — UI load silently drops
+   object-form paramMap entries ({target, curve}), so keyboard playback
+   ignores curves AND load-then-save strips them from the patch (verified
+   2026-07-28). Minimum: preserve object entries through load/save
+   round-trip + apply curves in the UI's voice path. Later: a curve editor
+   on Parameter node links. Until landed: don't re-save v6+ patches from
+   the UI.
+
 4. **[metric] (G1b) Novelty metric** — timbre-feature embedding (MFCC stats,
    spectral flux/centroid trajectories) + distance-from-library scoring;
    wire into --explore-filter so novelty sweeps self-rank. Gate for G2/G3
