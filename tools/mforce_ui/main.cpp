@@ -894,6 +894,27 @@ static void load_graph_from_path(const std::string& path) {
                 else if (jval.is_number()) val = jval.get<float>();
             }
             gn.apply_config();
+
+            // Restore user-editable arrays (ExplicitPartials mult/ampl,
+            // spectrum gains, …). Must run AFTER apply_config: configs not
+            // present in the JSON get pushed at their descriptor defaults
+            // (e.g. maxPartials=16), which rebuilds the DSP arrays — the
+            // JSON arrays then overwrite that. Previously arrays were never
+            // restored at all, so any ExplicitPartials patch loaded into the
+            // UI silently played 16 default harmonics.
+            for (auto& [desc, vec] : gn.arrayValues) {
+                if (!params.contains(desc.name)) continue;
+                const auto& jv = params[desc.name];
+                if (!jv.is_array()) continue;
+                vec = jv.get<std::vector<float>>();
+                gn.dspSource->set_array(desc.name, vec);
+            }
+            // Arrays can change derived configs (set_array updates
+            // maxPartials from array length) — sync the UI table back from
+            // the DSP object so the inspector shows live values, not stale
+            // descriptor defaults.
+            for (auto& [desc, val] : gn.configValues)
+                val = gn.dspSource->get_config(desc.name);
         }
 
         // Mixer: add extra channel inputs if needed
