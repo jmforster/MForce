@@ -2,6 +2,15 @@
 
 ## Awaiting Matt
 
+### 0. v5 Iowa-grounded A/B [listen] — NEW (run 1)
+Renders: renders/fable1_v5/. Question: does measurement beat hand-tuning?
+- v5_01_iowa_sustain vs v3_05_sustain_stack — sustain character only
+- v5_02_iowa_full and v5_03_iowa_shim60 vs v4_04_full_res — full recipe;
+  v5_03 backs shimmer 0.9→0.6 in case the measured value pumps
+Verdict decides: whether derive_motion.py's numbers become the default
+sustain recipe and whether the calibration cycle (item 2b) is worth a run
+before CMA-ES subsumes it. Background: reports/2026-07-27-dipsy-run1.md
+
 ### 1. v4 residue ladder [listen]
 Renders: renders/fable1_v4/ (5 WAVs). Background: docs/Fable1_results.md.
 - v4_01 vs v4_02: cluster residue 10% vs 25% — which level, or between?

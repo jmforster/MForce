@@ -10,6 +10,12 @@ Priority order. Tags per WORKFLOW.md. (G1)-(G4) = GOALS.md Dipsy goals.
    fluctuation rate/depth/cross-harmonic correlation from the Iowa viola set;
    map measurements onto motionDepth/motionHz/motionCoherence/shimmer*;
    produce an "iowa_grounded" patch vs the hand-tuned v4 winner. Queue A/B.
+2b. **[metric] (G1a) Calibrated motion mapping v2** — run-1 verification
+   found the naive mapping overshoots: subtract the vibrato baseline in
+   variance space (control already shows 5.5c resid / 38% amp from FM→AM
+   through formant slopes), walk-RMS factor 0.74 not 0.55, rate centroid
+   ≈ 0.5× segment rate. One cycle; superseded eventually by item 3.
+
 3. **[metric] (G1a) CMA-ES optimizer core** — the ears project, staged:
    (a) spec (param vector over formant gains/motion/residue configs, scorer
    from ml_ears metrics, eval budget); (b) scorer CLI (render→score one
