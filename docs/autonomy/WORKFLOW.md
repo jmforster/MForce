@@ -46,13 +46,17 @@ re-prioritizing is the session's job, not Matt's.
 
 ## Lane selection
 
-"go" alone = the run works the lane with the OLDEST last-run date
-(STATUS.md tracks this), so lanes alternate by default and neither
-starves. "go dsp" / "go comp" overrides. A run may switch lanes mid-
-session when its current lane becomes fully review-gated. A fresh session
-has everything it needs from the repo + memory; for comp, the composition
-chat thread's transcript is additionally searchable when deep context
-helps.
+Bare "go" = BOTH lanes in one run, sequentially — least-recently-run lane
+first. Per lane, the run targets **3 fronts progressed**: each front ends
+as a completed cycle OR a documented blocker/failure (2-attempt rule) OR a
+review-gate handoff. Then the next lane; after both, stop for review.
+"go dsp" / "go comp" restricts the run to one lane (same 3-front target).
+Context budget remains a fallback stop, not the default pace — if the
+session genuinely can't finish both lanes, it stops at a clean boundary
+and STATUS.md says which fronts remain.
+A fresh session has everything it needs from the repo + memory; for comp,
+the composition chat thread's transcript is additionally searchable when
+deep context helps.
 
 ## Lane personas
 
