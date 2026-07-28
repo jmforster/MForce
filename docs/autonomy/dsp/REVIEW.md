@@ -15,10 +15,20 @@ Verdict decides: default residue/floor curves, and whether curve knots
 join the CMA-ES search space (your note that curves complicate it is
 handled in the spec update — knots become dims, +4-6 dims).
 
-### 2. CMA-ES stage-d best-of-run [listen] — pending completion
-600-eval viola optimization relaunched this morning (the overnight launch
-died before writing state). Best-of-run WAV vs v5_04_cal_sustain A/B will
-land here when it finishes (~2 h, checkpointed/resumable).
+### 2. CMA-ES stage-d best-of-run [listen] — READY
+611 evals complete: score 0.514 vs 0.945 (100-eval smoke) vs ~1.28
+(warm start). Every scorer term improved; motion distance halved.
+- renders/fable1_v6/v6_05_cmaes_best.wav — best patch on the C2..E6
+  ladder, A/B against v5_04_cal_sustain.wav (hand-calibrated) and the
+  v6_01..03 curve ladder
+- renders/fable1_v6/v6_05_cmaes_best_4note.wav — the optimizer's own
+  4-note render (C3/G3/D4/A4, matches the Iowa reference set)
+Patch: patches/fable1_v6/v6_05_cmaes_best.json (also
+research/ml_ears/cmaes_runs/viola1/best_patch.json + resumable state).
+Verdict decides: (a) does metric-optimized beat hand-tuned to your ear —
+the entire ml-ears bet; (b) if close-but-off, WHICH term sounds wrong
+(that retunes scorer weights); (c) whether stage e (second instrument)
+proceeds.
 
 ## Resolved
 
