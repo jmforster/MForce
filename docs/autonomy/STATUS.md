@@ -1,6 +1,6 @@
 # Status — open this file first
 
-Updated: 2026-07-28 — dsp run 3 (Dipsy) + comp run 3 (Wolfie)
+Updated: 2026-07-28 — dsp run 4 (Dipsy, interactive) · comp run 3 (Wolfie)
 
 | Lane | Dev | Latest run | Backlog top | Awaiting your review |
 |---|---|---|---|---|
