@@ -6,12 +6,6 @@ should validate — deep context lives in the composition thread.
 1. **[metric] Corpus-statistics scoring harness** — score generated output
    against MTD statistics (interval/contour/repetitiveness/cadence). The
    comp "ears": gates everything below.
-2. **[metric] (G1) Execute the banked Phase-2 plan** — combination phrase
-   from Markov atoms. Full implementation plan already exists:
-   docs/superpowers/plans/2026-06-22-phase2-combination-phrase.md (found
-   in comp-thread history during run-2 validation). Note: its "ask before
-   committing" step is superseded by WORKFLOW default-proceed. Score output
-   with item-1 harness.
 3. **[metric] (G1) Corpus survey + acquisition** — beyond MTD: Essen
    folksong, ABC/folk collections, kern scores (KernScores/humdrum), jazz
    lead sheets; licensing + format notes; ingest pipeline for 1-2 best.
@@ -31,6 +25,21 @@ should validate — deep context lives in the composition thread.
    boring-repeat, StagedVoicingProfileSelector.
 8. **[build] Revisit PAC held-note workaround.**
 
+9. **[metric] Scorer calibration — repetition ceiling + range weight** —
+   run-3 outliers exposed that score_generated.py's repetitiveness screen
+   is a one-sided floor (`rep ≥ p10`): a figure repeated 6× (rep 22–25)
+   scores 0.74–0.84, as high as good phrases. Add an upper bound (corpus rep
+   is a distribution) and reconsider the 1/5 range weight (a 4-octave span
+   barely dents composite). Also fix the `--csv` arg-parse quirk (treats the
+   csv path as an input melody). Feeds REVIEW item 2.
+
 ## Done
 
-(none under this workflow yet)
+- **[metric] (G1) Phase-2 combination phrase — scored + guarded**
+  (run 3, 2026-07-28). markov_phrase.py rendered + scored through the
+  item-1 harness: long combos mean 0.705 (top AAA'B 0.83–0.865, corpus-
+  anchor territory), bare AB weakest. Added range-runaway guard
+  (eliminated 19% out-of-corpus-range rate, composite-neutral) and an
+  outlier mode. Audition + scorer-calibration queued for review. See
+  reports/2026-07-28-wolfie-run3.md.
+- **[metric] Corpus-statistics scoring harness** (run 2). The comp "ears."
