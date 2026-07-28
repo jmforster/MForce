@@ -13,11 +13,16 @@ corpus/mtd_seg/score_generated.py composite scores: corpus anchors
 0.86-0.90, k467-harmony 0.77, tiny phrase test 0.72. When you next listen
 to generated pieces, note whether the composite ordering roughly tracks
 your gut ranking — that calibrates the filter thresholds.
-UPDATE (run 3): the Phase-2 outliers (below) exposed a known hole — the
-repetitiveness screen is a one-sided floor, so a figure repeated 6× scores
-0.74-0.84, as high as the good phrases. Backlog #9 fixes it (rep ceiling +
-range weight). Your listen on item 3 will tell us whether the FIXED
-composite ordering tracks your ear; verdict here decides the v2 thresholds.
+UPDATE (run 3): the Phase-2 outliers (below) prompted me to check whether
+the repetitiveness screen was too lax. Measured the corpus first — and it
+is genuinely very repetitive (coverage rep_LxCount/n_notes: p90=0.86,
+p95=0.92, max=0.97). So the over-repetitive outliers scoring 0.74-0.84 is
+mostly *faithful* to corpus stats, not a bug — a naive rep ceiling would
+wrongly punish corpus-like themes. The actual gap is that first-order
+distributions can't see whole-phrase monotony (backlog #9 reframed to a
+higher-order self-similarity screen). Net: composite thresholds look sound;
+what your listen on item 3 calibrates is whether the *ordering* tracks your
+ear and where the plausibility cutoff sits.
 
 ### 3. Phase-2 combination phrases — do they sound musical? [listen]
 renders/markov_phrases/ = 16 guarded 2-figure combinations (Markov atoms x

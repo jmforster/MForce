@@ -25,13 +25,19 @@ should validate — deep context lives in the composition thread.
    boring-repeat, StagedVoicingProfileSelector.
 8. **[build] Revisit PAC held-note workaround.**
 
-9. **[metric] Scorer calibration — repetition ceiling + range weight** —
-   run-3 outliers exposed that score_generated.py's repetitiveness screen
-   is a one-sided floor (`rep ≥ p10`): a figure repeated 6× (rep 22–25)
-   scores 0.74–0.84, as high as good phrases. Add an upper bound (corpus rep
-   is a distribution) and reconsider the 1/5 range weight (a 4-octave span
-   barely dents composite). Also fix the `--csv` arg-parse quirk (treats the
-   csv path as an input melody). Feeds REVIEW item 2.
+9. **[metric] Scorer — higher-order monotony screen** — run-3 first
+   thought a rep *ceiling* was needed (outliers scoring 0.74–0.84), but
+   measuring the corpus killed that: corpus repetition-coverage
+   (rep_LxCount/n_notes) runs p50=0.59, **p90=0.86, p95=0.92, max=0.97**,
+   and rep_LxCount p95=21/max=44 — the corpus is genuinely that repetitive,
+   so a naive ceiling would penalize corpus-faithful themes. The real gap is
+   that first-order interval/contour/rep distributions can't see *monotony*
+   (a whole phrase that is one figure hammered N×): p04 (fig ×6) is only
+   corpus-p90 on coverage, so it "looks" plausible per stats. Needs a
+   higher-order feature — motif/variation diversity, or an autocorrelation/
+   self-similarity screen — not a threshold tweak. Separately: fix the
+   `--csv` arg-parse quirk (treats the csv path as an input melody; harmless
+   stderr warning). Feeds REVIEW item 2.
 
 ## Done
 
