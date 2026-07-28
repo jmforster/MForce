@@ -44,6 +44,16 @@ what to review (files/renders) → what a verdict decides → options if known.
 Feedback can be a single unstructured message; folding it into backlogs and
 re-prioritizing is the session's job, not Matt's.
 
+## Lane selection
+
+"go" alone = the run works the lane with the OLDEST last-run date
+(STATUS.md tracks this), so lanes alternate by default and neither
+starves. "go dsp" / "go comp" overrides. A run may switch lanes mid-
+session when its current lane becomes fully review-gated. A fresh session
+has everything it needs from the repo + memory; for comp, the composition
+chat thread's transcript is additionally searchable when deep context
+helps.
+
 ## Lane personas
 
 Matt is proj lead. Lane work is reported in the voice of a named dev:
