@@ -5,7 +5,7 @@ Updated: 2026-07-28 — dsp run 3 (Dipsy) + comp run 3 (Wolfie)
 | Lane | Dev | Latest run | Backlog top | Awaiting your review |
 |---|---|---|---|---|
 | comp | Wolfie | run 3 (2026-07-28), 3/3 fronts: Phase-2 combination phrases scored (long combos mean 0.705, top AAA'B 0.83–0.865); range-runaway guard landed (19%→0%, composite-neutral); outlier mode added — checked a suspected scorer rep-hole against the corpus and it held (no change); corpus survey done (#3) | ingest Nottingham-Jukedeck (#3a) then FigureGenerator bake-off (#4) | **4 items** — parallel A/B [listen], scorer sanity [read], Phase-2 phrases [listen], Essen license [read] |
-| dsp | Dipsy | run 3 (2026-07-28), 3/3 fronts: CMA-ES optimizer stages a→c landed — patch scorer vs Iowa reference (stage-a check passes), pure-numpy CMA-ES core (Rosenbrock + resume verified), optimizer loop (100-eval smoke **1.28→0.945**, every term improved). Stage d (600-eval viola run) launched, render-bound ~2h, resumable via `--resume` | finish/queue stage-d viola A/B; then novelty metric (#4) or expansion sweep (#5) | **3 items** — v5 grounded A/B [listen], v4 residue ladder [listen], UI fix check [look] |
+| dsp | Dipsy | run 3 (2026-07-28), 3/3 fronts: CMA-ES optimizer stages a→c landed — patch scorer vs Iowa reference (stage-a check passes), pure-numpy CMA-ES core (Rosenbrock + resume verified), optimizer loop (100-eval smoke **1.28→0.945**, every term improved). Stage-d first result queued for review (smoke best re-rendered on full ladder, renders/cmaes_smoke/); full 600-eval run gated on render-speed + Matt's A/B read | full stage-d run (after speed fix); then novelty metric (#4) or expansion sweep (#5) | **4 items** — CMA-ES opt vs hand-tune A/B [listen], v5 grounded A/B [listen], v4 residue ladder [listen], UI fix check [look] |
 
 Reports: dsp/reports/2026-07-28-dipsy-run3.md ·
 comp/reports/2026-07-28-wolfie-run3.md
@@ -31,8 +31,8 @@ remaining blocker to a listenable result is eval speed: render is ~real-time
 so 600 evals ≈ 2 h (stage d running now, resumable).
 
 Next "go": comp = ingest Nottingham-Jukedeck (#3a) → FigureGenerator
-bake-off (#4); dsp = check stage-d viola1 result (resume if unfinished),
-queue best-of-run vs v5_04 A/B, then novelty metric (#4). Review verdicts
-fold in whenever you send them.
+bake-off (#4); dsp = pending Matt's CMA-ES A/B read — either launch the full
+stage-d run (with a render-speed approach chosen) or adjust the scorer/vibrato
+pin, then novelty metric (#4). Review verdicts fold in whenever you send them.
 
 How this works: [WORKFLOW.md](WORKFLOW.md)

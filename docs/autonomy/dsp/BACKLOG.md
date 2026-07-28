@@ -20,12 +20,15 @@ Priority order. Tags per WORKFLOW.md. (G1)-(G4) = GOALS.md Dipsy goals.
    (a) spec ✓ run2; (b) scorer CLI ✓ run3 (refmetrics.py + iowa_reference.py +
    score_candidate.py; stage-a check passes); (c) optimizer loop ✓ run3
    (cmaes.py self-tested + optimize.py, 27-dim warm-started encoder, 100-eval
-   smoke decreases 1.28→~1.0); (d) **viola validation run** — the 600-eval run
-   whose best-of-run WAV goes to REVIEW. **Blocker noted:** eval is render-
-   bound at ~9-16s (96 partials × ~12s audio ≈ real-time); 600 evals ≈ 1.5-2.7h.
-   Options for (d): (i) accept the long background run; (ii) cut maxPartials to
-   48 during search + final re-score at 96; (iii) render-speed work (item 8)
-   first. Next dsp cycle picks one and launches (d).
+   smoke 1.28→0.945, every term improved); (d) **viola validation run** — the
+   600-eval run whose best-of-run WAV goes to REVIEW. **Preliminary result
+   queued** run3: smoke best (104 evals) re-rendered on the full ladder →
+   REVIEW A/B (renders/cmaes_smoke/opt_best_104ev vs v5_04). **Blocker:** eval
+   render-bound ~9-16s (96 partials × ~12s ≈ real-time); 600 evals ≈ 1.5-2.7h
+   and a bg run dies at session end. Options: (i) long run split across
+   sessions via --resume; (ii) maxPartials 48 during search + re-score at 96;
+   (iii) render-speed (item 8) first. GATED on Matt's A/B read (metric pointing
+   right? re-pin vibrato?) before committing the full run.
 4. **[metric] (G1b) Novelty metric** — timbre-feature embedding (MFCC stats,
    spectral flux/centroid trajectories) + distance-from-library scoring;
    wire into --explore-filter so novelty sweeps self-rank. Gate for G2/G3

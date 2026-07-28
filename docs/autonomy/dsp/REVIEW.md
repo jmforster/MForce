@@ -2,6 +2,23 @@
 
 ## Awaiting Matt
 
+### NEW (run 3). CMA-ES optimizer — first result vs hand-tuning [listen]
+Renders: renders/cmaes_smoke/ — `opt_best_104ev.wav` vs `v5_04_cal_sustain.wav`
+(same 11-note ladder, direct A/B). The optimizer warm-started at v5_04 and ran
+104 evals of the Iowa-viola scorer; measured distance 1.28→0.945 (biggest gain
+on the inter-harmonic broadband term). It's a SMALL, early move (not converged),
+so expect a subtle difference, not a transformation.
+What it changed: formantWeight 1.0→0.84, low-body formant boosted / high cut
+(band scalers 1.45/1.26/0.96/0.81), spectral reshape (harm ~3 and ~16 up),
+onset tilt/spread up — and **vibrato cut hard (depth 0.025→0.010, speed 5.5→
+4.4)** because the Iowa refs barely vibrate.
+Verdict decides: (1) is the metric pointing the right way — does opt_best sound
+closer to a real viola, or just different? (2) whether to invest in the full
+600-eval run (needs the render-speed fix first: eval is ~real-time render-bound,
+600 evals ≈ 2 h — BACKLOG #3d/#8); (3) whether to **re-pin vibrato** to your
+taste before optimizing (the scorer will always minimise it toward the dry Iowa
+samples). Background: reports/2026-07-28-dipsy-run3.md.
+
 ### 0. v5 Iowa-grounded A/B [listen] — updated run 2
 Renders: renders/fable1_v5/. Question: does measurement beat hand-tuning?
 - v5_01_iowa_sustain vs v3_05_sustain_stack — sustain character only
