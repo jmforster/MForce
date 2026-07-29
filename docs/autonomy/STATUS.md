@@ -1,27 +1,31 @@
 # Status — open this file first
 
-Updated: 2026-07-29 — dsp run 5 (Dipsy, autonomous) · comp run 3 (Wolfie)
+Updated: 2026-07-29 — dsp run 5 (Dipsy, autonomous) · comp run 4 (Wolfie, autonomous)
 
 | Lane | Dev | Latest run | Backlog top | Awaiting your review |
 |---|---|---|---|---|
-| comp | Wolfie | run 3 (2026-07-28), 3/3 fronts: Phase-2 combination phrases scored (long combos mean 0.705, top AAA'B 0.83–0.865); range-runaway guard landed (19%→0%, composite-neutral); outlier mode added — checked a suspected scorer rep-hole against the corpus and it held (no change); corpus survey done (#3) | ingest Nottingham-Jukedeck (#3a) then FigureGenerator bake-off (#4) | **4 items** — parallel A/B [listen], scorer sanity [read], Phase-2 phrases [listen], Essen license [read] |
+| comp | Wolfie | run 4 (2026-07-29), 3/3 fronts: FigureGenerator interface + n-gram bake-off landed (#4) — figuregen.py/bake_off.py/test_figuregen.py; NGramModel proven == shipped Markov at order-2; 6 methods scored (2-seed stable). Order-2 backoff = validated sweet spot, add-k smoothing a decisive negative, composite saturates across orders (evidence for #9). #3a Nottingham ingest handed off as download-gated (bake-off is corpus-ready via `--tokens`) | #4c neural next-note model (LLM-like), then #9 self-similarity screen | **5 items** — parallel A/B [listen], scorer sanity [read], Phase-2 phrases [listen], Essen license [read], Nottingham fetch unblock [read] |
 | dsp | Dipsy | run 5 (2026-07-29), 3/3 fronts, all landed+committed: (1) UI paramMap-curve preservation fixed — load→save round-trip + keyboard playback now honor curves (item 3b), verified via new headless `--roundtrip` mode on all 4 v6 patches; v6+ safe to re-save from UI. (2) Novelty metric shipped (item 4) — research/novelty/, 36-dim MFCC+spectral embedding, distance-from-library scoring, selftest PASS + real-render ordering validated, `manifest` subcommand wires it into explore. (3) Recursive expansion sweep (item 5) — 18 regimes incl. 6 rule-breakers, novelty-ranked, survivors queued for listen | item 6 (FormantSequence deep-dive, now novelty-gatable) → item 7 (oversampled FM) / item 8 (additive perf) | **5 items** — expand-sweep survivors [listen], CMA-ES stage-d A/B [listen], v6 curve ladder [listen], + prior |
 
 Reports: dsp/reports/2026-07-29-dipsy-run5.md ·
-comp/reports/2026-07-28-wolfie-run3.md
+comp/reports/2026-07-29-wolfie-run4.md
 
-Run-3 highlights (comp): banked Phase-2 combination-phrase renderer taken
-from "committed but never scored" to scored + guarded + audition-queued.
-Combination structure does real plausibility work (long combos reach
-corpus-anchor territory; bare AB pairs are the weak tail). New range guard
-kills the out-of-corpus-range failure mode for free. A suspected scorer
-rep-hole (outliers scoring high) was checked against the corpus and did NOT
-hold — corpus repetition genuinely reaches coverage 0.86–0.97, so the
-composite is faithful on first-order stats; no scorer change made. The
-remaining gap is a higher-order monotony screen (#9, optional hardening).
+Run-4 highlights (comp): formalized the FigureGenerator plugin interface and
+stood up the method bake-off (#4) — the head-to-head that G1's "other methods
+besides Markov" needs. Generic NGramModel is proven byte-for-byte equal to the
+shipped Markov at order-2, so the baseline row is honest. Six methods scored on
+the corpus ears, two seeds agreeing: uniform floor (range ~97, the pure random
+walk), unigram/ngram1/ngram2/ngram3 all corpus-plausible (composite 0.79–0.82),
+add-k smoothing a decisive negative (range 14→38 as it re-injects the rare
+big-leap tail). Two takeaways worth keeping: context earns its keep through
+*range control*, not interval fit; and the composite *saturates* across orders,
+which is the first hard evidence that #9 (a higher-order self-similarity screen)
+is the real next discriminator. bake_off.py is corpus-parametric (`--tokens`),
+so it's ready for the folk corpora the moment their token files exist.
 
-Corpus survey landed (corpus_survey.md): ingest Nottingham-Jukedeck first
-(GPLv3, MIDI-ready), Essen second pending a license call.
+#3a Nottingham ingest is download-gated: fetching the GPLv3 repo is a network
+download an unattended run can't authorize — queued in REVIEW as a one-line
+operational unblock. Nothing else is blocked on it.
 
 Run-5 highlights (dsp): cleared the three top non-gated items. The v6 curve
 patches are no longer a UI trap — load/save/playback all preserve curves now
@@ -32,8 +36,10 @@ ExpandRule regimes ranked by timbral distance, with two rule-breakers
 "accidental discovery" bets for your ears. recurse 2-4 stays parked behind the
 additive-performance work (item 8).
 
-Next "go": comp = ingest Nottingham-Jukedeck (#3a) → FigureGenerator
-bake-off (#4); dsp = item 6 (FormantSequence deep-dive, now novelty-gatable),
+Next "go": comp = #4c neural next-note model (LLM-like predictor, numpy present)
+as the next bake-off entrant → #9 higher-order self-similarity screen (now
+motivated by concrete saturation evidence); #3a stays gated on the fetch
+unblock; dsp = item 6 (FormantSequence deep-dive, now novelty-gatable),
 then item 7 (oversampled FM) or item 8 (additive perf — also the gate for
 recurse 2-4 expansion). Three dsp listen items now waiting (expand-sweep
 survivors, CMA-ES stage-d, v6 curve ladder). Verdicts fold in whenever you

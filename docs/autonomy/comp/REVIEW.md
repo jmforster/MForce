@@ -46,6 +46,16 @@ only." Verdict decides backlog 3c: does a derived *statistical model*
 their terms for our internal use? Yes → ingest Essen. No/unsure → skip it,
 Nottingham-Jukedeck (GPLv3, backlog 3a) still proceeds regardless.
 
+### 5. Nottingham-Jukedeck fetch — operational unblock [read]
+Backlog #3a (ingest Nottingham-Jukedeck, GPLv3) needs the repo fetched from
+GitHub — a network download an unattended run can't authorize under the safety
+rules. NOT a taste call: it's a one-time go-ahead. Verdict decides: either
+(a) you clone https://github.com/jukedeck/nottingham-dataset into corpus/ (it's
+gitignored) and a future run runs the melody-track extractor → markov_tokens,
+or (b) you greenlight a supervised run to do the download. Either way the
+bake-off (bake_off.py --tokens) then runs on the folk corpus with no code
+change. Nothing else is blocked on this — MTD work proceeds regardless.
+
 ## Resolved
 
 (empty)

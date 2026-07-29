@@ -13,11 +13,21 @@ should validate — deep context lives in the composition thread.
    Nottingham-Jukedeck (GPLv3, MIDI ready — fastest), (3b, review) Essen
    license call, (3c) Essen ingest (6k monophonic folk, kern parser).
    KernScores-classical deprioritized (idiom overlaps MTD). Remaining =
-   3a ingest (next cycle), 3b Matt license call (REVIEW), 3c Essen ingest.
+   **3a DOWNLOAD-GATED** (run 4: fetching the Nottingham-Jukedeck repo is a
+   network download; unattended runs can't get the required go-ahead — queued
+   in REVIEW as an operational unblock. bake_off.py is corpus-parametric via
+   `--tokens`, so the token file drops straight in once fetched),
+   3b Matt license call (REVIEW), 3c Essen ingest.
 4. **[metric] (G1) FigureGenerator plugin structure + method bake-off** —
-   formalize the generator interface; implement n-gram (existing Markov),
-   higher-order/backoff variants, and a small neural next-note model
-   (LLM-like prediction per Matt); compare on harness (item 1) per corpus.
+   INTERFACE + N-GRAM BAKE-OFF DONE (run 4, figuregen.py / bake_off.py /
+   test_figuregen.py). FigureGenerator ABC; generic NGramModel (order-N
+   backoff + add-k) proven == shipped Markov at order-2; roster uniform/
+   unigram/ngram1/ngram2_backoff/ngram3_backoff/ngram2_addk scored on the
+   harness (2-seed stable). Findings: context earns range control not interval
+   fit; order-2 backoff is the validated sweet spot; add-k smoothing is a
+   decisive negative; composite saturates across orders (evidence for #9).
+   Remaining = **4c** small neural next-note model (numpy present; the LLM-like
+   predictor per Matt) as the next bake-off entrant. Per corpus once 3a lands.
 4. **[build] (G2) PassageStrategy expansion** — new strategy types:
    connective/transitional passages, pedal-point pre-cadence buildup,
    discursive wandering, circle-of-fifths trips. Known principles + invented
@@ -46,6 +56,13 @@ should validate — deep context lives in the composition thread.
 
 ## Done
 
+- **[metric] (G1) FigureGenerator interface + n-gram method bake-off**
+  (run 4, 2026-07-29). figuregen.py (FigureGenerator ABC + generic NGramModel,
+  proven == shipped Markov at order-2) + bake_off.py (engine-free realize +
+  score, pooled JSD + composite vs corpus ceiling, corpus-parametric via
+  `--tokens`) + test_figuregen.py. Order-2 backoff validated as the sweet spot;
+  add-k smoothing a decisive negative; composite saturates across orders.
+  Remaining #4 work = 4c neural next-note. See reports/2026-07-29-wolfie-run4.md.
 - **[metric] (G1) Phase-2 combination phrase — scored + guarded**
   (run 3, 2026-07-28). markov_phrase.py rendered + scored through the
   item-1 harness: long combos mean 0.705 (top AAA'B 0.83–0.865, corpus-
