@@ -30,6 +30,19 @@ the entire ml-ears bet; (b) if close-but-off, WHICH term sounds wrong
 (that retunes scorer weights); (c) whether stage e (second instrument)
 proceeds.
 
+### 3. Recursive partial-expansion survivors [listen] — NEW (run 5)
+renders/expand_sweep/. 18 ExpandRule regimes on one FullPartials base
+(220 Hz, 4 s), novelty-ranked (higher = timbrally farther from the
+conventional library + the un-expanded control). The metric says which
+regimes transform most; your ear decides which are actually worth keeping.
+Suggested listens (top novelty + the high-ranking rule-breakers):
+- flat_taper (84), converge_spacing (69), semitone_r1 (66) — top movers
+- golden_spacing (54, φ/φ² semitone spacing) + noninteger_pi (45, π-semitone
+  spacing) — rule-breakers that ranked high; the accidental-discovery bets
+- control_noexpand (0) — the plain base, for reference
+Verdict decides: which regimes graduate to named patches / a v-series, and
+whether recurse 2-4 is worth the perf work (item 8) to explore next.
+
 ## Resolved
 
 2026-07-28 (Matt):
