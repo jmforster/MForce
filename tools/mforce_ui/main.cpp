@@ -413,6 +413,18 @@ struct Link {
 // ===========================================================================
 static std::vector<GraphNode> s_nodes;
 static std::vector<Link> s_links;
+// Set by the --roundtrip headless path so load/save skip ImNodes node-position
+// calls (those need a live editor/frame the headless path doesn't set up).
+static bool s_headless = false;
+// paramMap entries as loaded from JSON, captured verbatim. The UI node graph
+// models a paramMap target only when it resolves to an input pin, so it cannot
+// represent curve entries ({target, curve}) or targets that are configs (e.g.
+// Envelope.sustainLevel — a config, not a param pin). To avoid silently
+// stripping those on load→save, save_patch carries forward the original entry
+// verbatim for any Parameter name whose loaded entry carried a curve. Full
+// visual editing of curves is deferred (see dsp BACKLOG 3b "Later"). Reset on
+// new/clear/load.
+static nlohmann::json s_loadedParamMap = nlohmann::json::object();
 static std::string s_currentFilePath;
 // True when the UI graph has been edited since last save/load. Playback paths
 // sync to a temp file before loading the instrument so MultiplexSource (and
@@ -651,6 +663,7 @@ static void new_graph(GraphMode mode) {
     s_currentFilePath.clear();
     s_nodes.clear();
     s_links.clear();
+    s_loadedParamMap = nlohmann::json::object();
     s_graphMode = mode;
     s_nextId = 1;
     g_selectedNodeId = -1;
@@ -721,6 +734,7 @@ static void load_graph_from_path(const std::string& path) {
 
     s_nodes.clear();
     s_links.clear();
+    s_loadedParamMap = nlohmann::json::object();
     s_nextId = 1;
 
     bool hasInstrument = root.contains("instrument");
@@ -1003,13 +1017,24 @@ static void load_graph_from_path(const std::string& path) {
         // logical name retunes multiple graph edges). One Parameter node is
         // created per name and wired to ALL listed targets.
         if (root["instrument"].contains("paramMap")) {
+            // Stash the paramMap verbatim so save_patch can carry forward curve
+            // entries the node graph can't model (see s_loadedParamMap).
+            s_loadedParamMap = root["instrument"]["paramMap"];
             for (auto& [paramName, targetJson] : root["instrument"]["paramMap"].items()) {
+                // A target is either a bare string ("node.param") or the
+                // ParameterMapping object form { "target": "node.param",
+                // "curve": [[hz,val],...] }. Both contribute a target name; the
+                // curve itself is preserved via s_loadedParamMap, not the graph.
                 std::vector<std::string> targets;
-                if (targetJson.is_string()) {
-                    targets.push_back(targetJson.get<std::string>());
-                } else if (targetJson.is_array()) {
-                    for (const auto& t : targetJson)
-                        if (t.is_string()) targets.push_back(t.get<std::string>());
+                auto add_target = [&](const nlohmann::json& t) {
+                    if (t.is_string()) targets.push_back(t.get<std::string>());
+                    else if (t.is_object() && t.contains("target") && t["target"].is_string())
+                        targets.push_back(t["target"].get<std::string>());
+                };
+                if (targetJson.is_array()) {
+                    for (const auto& t : targetJson) add_target(t);
+                } else {
+                    add_target(targetJson);
                 }
                 if (targets.empty()) continue;
 
@@ -1053,7 +1078,7 @@ static void load_graph_from_path(const std::string& path) {
             else
                 key = node.label;  // label was set to the JSON id
 
-            if (positions.contains(key)) {
+            if (positions.contains(key) && !s_headless) {
                 float x = positions[key][0].get<float>();
                 float y = positions[key][1].get<float>();
                 ImNodes::SetNodeGridSpacePos(node.id, ImVec2(x, y));
@@ -1278,6 +1303,38 @@ static void save_patch_graph(const std::string& path) {
         if (src) outputId = nodeIds[src->id];
     }
 
+    // Old-JSON-id → new-serialized-id map. Save renames every node to a
+    // type-prefixed id (fmBody→FM1), so any preserved paramMap entry — which
+    // still references the original loaded names — must be remapped or it will
+    // fail to resolve ("unknown node 'vib'") on the next load/render.
+    std::unordered_map<std::string, std::string> oldToNew;
+    for (auto& node : s_nodes) {
+        auto it = nodeIds.find(node.id);
+        if (it != nodeIds.end() && !node.label.empty())
+            oldToNew[node.label] = it->second;
+    }
+    auto remap_target = [&](const std::string& tgt) -> std::string {
+        auto dot = tgt.find('.');
+        if (dot == std::string::npos) return tgt;
+        auto it = oldToNew.find(tgt.substr(0, dot));
+        return it == oldToNew.end() ? tgt : it->second + tgt.substr(dot);
+    };
+    std::function<json(const json&)> remap_entry = [&](const json& e) -> json {
+        if (e.is_string()) return remap_target(e.get<std::string>());
+        if (e.is_object()) {
+            json o = e;
+            if (o.contains("target") && o["target"].is_string())
+                o["target"] = remap_target(o["target"].get<std::string>());
+            return o;
+        }
+        if (e.is_array()) {
+            json a = json::array();
+            for (const auto& t : e) a.push_back(remap_entry(t));
+            return a;
+        }
+        return e;
+    };
+
     // Build paramMap: trace each Parameter node's outgoing links to find
     // targets. A Parameter node connected to N inputs emits N targets;
     // serialized as a string when N==1 and as an array when N>1 (matches
@@ -1300,7 +1357,22 @@ static void save_patch_graph(const std::string& path) {
                 }
             }
         }
-        if (targets.size() == 1) {
+        // Carry forward the original entry verbatim when it carried a curve:
+        // the node graph can't model curve targets (or config targets), so the
+        // link-derived form above would silently strip them. Only override for
+        // Parameter names that still exist in the graph (a deleted Parameter
+        // node drops out of paramNodes, so its stashed entry is not re-emitted).
+        auto entry_has_curve = [](const json& e) {
+            if (e.is_object()) return e.contains("curve");
+            if (e.is_array())
+                for (const auto& t : e)
+                    if (t.is_object() && t.contains("curve")) return true;
+            return false;
+        };
+        if (s_loadedParamMap.contains(pn->paramName) &&
+            entry_has_curve(s_loadedParamMap[pn->paramName])) {
+            paramMap[pn->paramName] = remap_entry(s_loadedParamMap[pn->paramName]);
+        } else if (targets.size() == 1) {
             paramMap[pn->paramName] = targets[0];
         } else if (targets.size() > 1) {
             paramMap[pn->paramName] = targets;
@@ -1449,25 +1521,25 @@ static void save_patch_graph(const std::string& path) {
         }
     });
 
-    // Save UI layout
-    json positions = json::object();
-    for (auto* nodePtr : sorted) {
-        if (nodePtr->typeName == NT_PATCH_OUTPUT || nodePtr->typeName == NT_PARAMETER)
-            continue;
-        ImVec2 pos = ImNodes::GetNodeGridSpacePos(nodePtr->id);
-        positions[nodeIds[nodePtr->id]] = {pos.x, pos.y};
-    }
-    if (outputNode) {
-        ImVec2 pos = ImNodes::GetNodeGridSpacePos(outputNode->id);
-        positions["__output"] = {pos.x, pos.y};
-    }
-    for (auto* pn : paramNodes) {
-        if (pn->paramName.empty()) continue;
-        ImVec2 pos = ImNodes::GetNodeGridSpacePos(pn->id);
-        positions["__param_" + pn->paramName] = {pos.x, pos.y};
-    }
-    root["ui"]["positions"] = positions;
-    {
+    // Save UI layout (skip under headless round-trip — no live editor).
+    if (!s_headless) {
+        json positions = json::object();
+        for (auto* nodePtr : sorted) {
+            if (nodePtr->typeName == NT_PATCH_OUTPUT || nodePtr->typeName == NT_PARAMETER)
+                continue;
+            ImVec2 pos = ImNodes::GetNodeGridSpacePos(nodePtr->id);
+            positions[nodeIds[nodePtr->id]] = {pos.x, pos.y};
+        }
+        if (outputNode) {
+            ImVec2 pos = ImNodes::GetNodeGridSpacePos(outputNode->id);
+            positions["__output"] = {pos.x, pos.y};
+        }
+        for (auto* pn : paramNodes) {
+            if (pn->paramName.empty()) continue;
+            ImVec2 pos = ImNodes::GetNodeGridSpacePos(pn->id);
+            positions["__param_" + pn->paramName] = {pos.x, pos.y};
+        }
+        root["ui"]["positions"] = positions;
         ImVec2 pan = ImNodes::EditorContextGetPanning();
         root["ui"]["panning"] = {pan.x, pan.y};
     }
@@ -5524,6 +5596,28 @@ static LONG WINAPI seh_crash_filter(EXCEPTION_POINTERS* info) {
 
 int main(int argc, char** argv) {
     SetUnhandledExceptionFilter(seh_crash_filter);
+
+    // Headless round-trip: load a patch and immediately re-save it, no GL
+    // window. Exists to verify JSON preservation across the UI's load→save
+    // path (dsp BACKLOG 3b — paramMap curve entries must survive). ImGui/ImNodes
+    // contexts are created because load/save read/write node positions; no
+    // frame or renderer is needed for that.
+    if (argc >= 4 && std::string(argv[1]) == "--roundtrip") {
+        s_headless = true;
+        ImGui::CreateContext();
+        ImNodes::CreateContext();
+        register_all_sources();
+        try {
+            load_graph_from_path(argv[2]);
+            save_patch_graph(argv[3]);
+        } catch (const std::exception& e) {
+            fprintf(stderr, "roundtrip failed: %s\n", e.what());
+            return 1;
+        }
+        printf("roundtrip ok: %s -> %s\n", argv[2], argv[3]);
+        return 0;
+    }
+
     try {
     if (!glfwInit()) return 1;
 
