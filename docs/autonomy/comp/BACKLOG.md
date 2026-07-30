@@ -9,7 +9,7 @@ should validate — deep context lives in the composition thread.
 3. **[metric] (G1) Corpus survey + acquisition** — beyond MTD: Essen
    folksong, ABC/folk collections, kern scores (KernScores/humdrum), jazz
    lead sheets; licensing + format notes; ingest pipeline for 1-2 best.
-   SURVEY DONE (run 3, corpus_survey.md): recommend ingest order (3a)
+   3a DONE run 5 (nottingham_tokenize.py, 1024 tunes, bake-off run). SURVEY DONE (run 3, corpus_survey.md): recommend ingest order (3a)
    Nottingham-Jukedeck (GPLv3, MIDI ready — fastest), (3b, review) Essen
    license call, (3c) Essen ingest (6k monophonic folk, kern parser).
    KernScores-classical deprioritized (idiom overlaps MTD). Remaining =

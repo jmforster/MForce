@@ -102,6 +102,14 @@ def features(mel):
     n_int = sum(ih.values()) or 1
     rep = repetitiveness(pulses(mel))
     pitches = [p for _, p, _ in mel]
+    # Monotony screens (#9): first-order distributions can't see a phrase
+    # that hammers one note/figure. zero_rate = repeated-note interval
+    # fraction; max_run = longest same-pitch run as a fraction of length.
+    zero_rate = ih.get(0, 0) / n_int
+    max_run = run = 1
+    for a, b in zip(pitches, pitches[1:]):
+        run = run + 1 if b == a else 1
+        max_run = max(max_run, run)
     return {
         "n_notes": len(mel),
         "int_hist": ih,
@@ -109,6 +117,8 @@ def features(mel):
         "rep_LxCount": rep["LxCount"],
         "big_leap": sum(c for iv, c in ih.items() if abs(iv) > 7) / n_int,
         "range": (max(pitches) - min(pitches)) if pitches else 0,
+        "zero_rate": zero_rate,
+        "max_run_frac": max_run / max(1, len(mel)),
     }
 
 
@@ -121,7 +131,7 @@ def corpus_stats():
                          for k, v in d["ctr_hist"].items()}
         return d
     ih, ch = Counter(), Counter()
-    reps, leaps, ranges = [], [], []
+    reps, leaps, ranges, zeros, runs = [], [], [], [], []
     n = 0
     for f in sorted(MIDI_DIR.glob("*_score.mid")):
         if n >= CORPUS_LIMIT:
@@ -138,10 +148,14 @@ def corpus_stats():
         reps.append(ft["rep_LxCount"])
         leaps.append(ft["big_leap"])
         ranges.append(ft["range"])
+        zeros.append(ft["zero_rate"])
+        runs.append(ft["max_run_frac"])
         n += 1
     reps.sort()
     leaps.sort()
     ranges.sort()
+    zeros.sort()
+    runs.sort()
     stats = {
         "n_themes": n,
         "int_hist": dict(ih),
@@ -151,6 +165,8 @@ def corpus_stats():
         "big_leap_p90": leaps[9 * len(leaps) // 10],
         "range_p10": ranges[len(ranges) // 10],
         "range_p90": ranges[9 * len(ranges) // 10],
+        "zero_rate_p95": zeros[95 * len(zeros) // 100],
+        "max_run_frac_p95": runs[95 * len(runs) // 100],
     }
     CACHE.write_text(json.dumps(stats))
     print(f"[corpus] built stats over {n} themes -> {CACHE}", file=sys.stderr)
@@ -174,9 +190,16 @@ def score(mel, cs):
         1.0 if ft["big_leap"] <= cs["big_leap_p90"] else
         max(0.0, 1.0 - (ft["big_leap"] - cs["big_leap_p90"]) * 4),  # leaps
         1.0 if cs["range_p10"] <= ft["range"] <= cs["range_p90"] else 0.5,
+        # Monotony screens (#9): penalize past corpus p95, floor at 0.
+        1.0 if ft["zero_rate"] <= cs["zero_rate_p95"] else
+        max(0.0, 1.0 - (ft["zero_rate"] - cs["zero_rate_p95"]) * 3),
+        1.0 if ft["max_run_frac"] <= cs["max_run_frac_p95"] else
+        max(0.0, 1.0 - (ft["max_run_frac"] - cs["max_run_frac_p95"]) * 3),
     ]
     return {
         "n_notes": ft["n_notes"],
+        "zero_rate": round(ft["zero_rate"], 3),
+        "max_run_frac": round(ft["max_run_frac"], 3),
         "int_jsd": round(int_jsd, 3),
         "ctr_jsd": round(ctr_jsd, 3),
         "rep_LxCount": ft["rep_LxCount"],
@@ -196,7 +219,7 @@ def main():
         sys.exit(1)
     cs = corpus_stats()
     cols = ["file", "n_notes", "int_jsd", "ctr_jsd", "rep_LxCount",
-            "big_leap", "range", "composite"]
+            "big_leap", "range", "zero_rate", "max_run_frac", "composite"]
     rows = []
     print(f"[corpus] {cs['n_themes']} themes; rep_p10={cs['rep_p10']} "
           f"leap_p90={cs['big_leap_p90']:.3f} "

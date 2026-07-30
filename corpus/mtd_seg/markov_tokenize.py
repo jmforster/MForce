@@ -88,12 +88,18 @@ def tokenize_theme(midi_path):
         return [], [], f"too few notes ({len(notes)})"
     if not is_monophonic(notes):
         return [], [], "polyphonic (shared onsets)"
+    return tokenize_notes(notes, mid["keysig"], mid["ticks_per_quarter"])
 
-    sf, mi = mid["keysig"]
+
+def tokenize_notes(notes, keysig, div):
+    """Corpus-agnostic core of tokenize_theme: notes=[(onset, pitch, dur)]
+    (monophonic, tick units), keysig=(sf, mi), div=ticks per quarter.
+    Returns (streams, pulse0_list, skip_reason). Extracted so non-MTD
+    corpora (Nottingham etc.) can tokenize pre-isolated melody tracks."""
+    sf, mi = keysig
     tonic_pc = TONIC_PC_MAJOR.get(sf, 0)
     if mi == 1:
         tonic_pc = (tonic_pc - 3) % 12
-    div = mid["ticks_per_quarter"]
 
     # Per-note: absolute scale step (or None if >=2 semitones off scale) + snapped pulse.
     steps = []
