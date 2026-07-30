@@ -1,0 +1,19 @@
+{
+  "name": "viola",
+  "source": "Iowa MIS viola arco ff",
+  "sample_dir": "research/inst_samples/viola",
+  "sample_glob": "*.aif",
+  "score_notes": [
+    {"note": "C3", "string": "sulC", "midi": 48, "f0": 130.813},
+    {"note": "G3", "string": "sulG", "midi": 55, "f0": 195.998},
+    {"note": "D4", "string": "sulD", "midi": 62, "f0": 293.665},
+    {"note": "A4", "string": "sulA", "midi": 69, "f0": 440.0}
+  ],
+  "eval_note_midis": [48, 62, 69],
+  "motion_samples": ["sulC.C3", "sulC.G3", "sulG.G3", "sulG.D4",
+                     "sulD.D4", "sulD.A4", "sulA.A4", "sulA.E5"],
+  "template": "patches/fable1_v5/v5_04_cal_sustain.json",
+  "reference_path": "research/ml_ears/out/iowa_reference.json",
+  "reference_build": {"sus_start": 0.55, "sus_len": 1.4, "attack_len": 0.55},
+  "run_root": "research/ml_ears/cmaes_runs"
+}
