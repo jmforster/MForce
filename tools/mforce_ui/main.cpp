@@ -2916,6 +2916,24 @@ static std::vector<std::string> param_node_link_targets(const std::string& param
     return targets;
 }
 
+// True when the stash already holds a curve entry for target ("label.name")
+// under paramName. Used to annotate the Add-curve dropdown — targets are
+// never hidden, but ones that already carry a curve get flagged so adding a
+// duplicate is a deliberate act, not an accident.
+static bool curve_exists_for(const std::string& paramName, const std::string& target) {
+    auto it = s_loadedParamMap.find(paramName);
+    if (it == s_loadedParamMap.end()) return false;
+    auto matches = [&](const nlohmann::json& o) {
+        return o.is_object() && o.contains("curve") &&
+               o.value("target", std::string()) == target;
+    };
+    if (matches(*it)) return true;
+    if (it->is_array())
+        for (const auto& sub : *it)
+            if (matches(sub)) return true;
+    return false;
+}
+
 // Append a new {target, curve} entry under paramName in the stash.
 static void curves_add_entry(const std::string& paramName, const std::string& target,
                              float currentValue) {
@@ -3170,9 +3188,12 @@ static void draw_curves_window() {
     ImGui::SetNextItemWidth(140.0f);
     if (ImGui::BeginCombo("Param / config", opts[selTarget].name.c_str())) {
         for (int i = 0; i < (int)opts.size(); ++i) {
-            char lbl[128];
-            snprintf(lbl, sizeof(lbl), "%s%s##%d", opts[i].name.c_str(),
-                     opts[i].isConfig ? "  (config)" : "", i);
+            const bool hasCurve = curve_exists_for(
+                paramNames[selParam], tn->label + "." + opts[i].name);
+            char lbl[160];
+            snprintf(lbl, sizeof(lbl), "%s%s%s##%d", opts[i].name.c_str(),
+                     opts[i].isConfig ? "  (config)" : "",
+                     hasCurve ? "  (has curve)" : "", i);
             if (ImGui::Selectable(lbl, i == selTarget)) selTarget = i;
         }
         ImGui::EndCombo();
@@ -6012,6 +6033,39 @@ int main(int argc, char** argv) {
     // path (dsp BACKLOG 3b — paramMap curve entries must survive). ImGui/ImNodes
     // contexts are created because load/save read/write node positions; no
     // frame or renderer is needed for that.
+    // TEMP DEBUG: dump the curve-target options the Curves window would list
+    // for every node in a patch. Mirrors draw_curves_window's opts collection.
+    if (argc >= 3 && std::string(argv[1]) == "--dump-curve-opts") {
+        s_headless = true;
+        ImGui::CreateContext();
+        ImNodes::CreateContext();
+        register_all_sources();
+        try {
+            load_graph_from_path(argv[2]);
+        } catch (const std::exception& e) {
+            fprintf(stderr, "load failed: %s\n", e.what());
+            return 1;
+        }
+        for (auto& n : s_nodes) {
+            if (is_special_ui_type(n.typeName) || n.label.empty()) continue;
+            printf("node '%s' (%s): dsp=%s configValues=%zu\n",
+                   n.label.c_str(), n.typeName.c_str(),
+                   n.dspSource ? n.dspSource->type_name() : "NULL",
+                   n.configValues.size());
+            for (auto& pin : n.inputs) {
+                if (pin.inputOnly || pin.kind != PinKind::Input) continue;
+                if (pin.name.substr(0, 3) == "ch ") continue;
+                if (is_pin_connected(pin.id)) { printf("    [pin skipped: connected] %s\n", pin.name.c_str()); continue; }
+                printf("    pin  %s = %g%s\n", pin.name.c_str(), pin.defaultValue,
+                       curve_exists_for("frequency", n.label + "." + pin.name) ? "  (has curve)" : "");
+            }
+            for (auto& [desc, val] : n.configValues)
+                printf("    cfg  %s = %g%s\n", desc.name, val,
+                       curve_exists_for("frequency", n.label + "." + desc.name) ? "  (has curve)" : "");
+        }
+        return 0;
+    }
+
     if (argc >= 4 && std::string(argv[1]) == "--roundtrip") {
         s_headless = true;
         ImGui::CreateContext();
