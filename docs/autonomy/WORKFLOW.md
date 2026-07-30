@@ -95,6 +95,9 @@ the lane, not the session.
 - Runs are sequential, never parallel, in the shared working copy.
 - Verify branch/tree state live before any commit (two threads share the
   copy). Commits allowed in autonomous runs; keep them scoped per item.
+  While subagents are active in the tree, `git add -u` is FORBIDDEN —
+  stage explicit paths only (2026-07-29: a blanket -u swept an agent's
+  half-finished file into an unrelated commit).
 - Renders/artifacts land under renders/ in the main repo.
 - Any "steering" aka ideas on approach or steps toward goal Matt happens
   to include in GOALS.md should be taken as suggestions, not instructions.
