@@ -129,6 +129,18 @@ Only viola samples exist locally. Pick the next Iowa MIS instrument
 research/inst_samples/<name>/ (same as you did Nottingham). The optimizer
 is now config-driven — a config file + your samples is all stage e needs.
 
+### 8. Oversampled FM — alias A/B [listen] — NEW (run 8), optional
+renders/fm_oversample/. The oversampling win is already metric-proven
+(24.5/34.7/39.6 dB suppression at M=2/4/8), so this is confirm-by-ear, not a
+blind taste call:
+- fm_alias_os01.wav (no oversampling — the harsh, aliased original) vs
+  fm_alias_os08.wav (8x, clean). Same heavily-aliasing FM tone (3 kHz carrier,
+  index 12, non-integer ratio).
+Verdict decides: whether `oversample` should default to >1 for bright/high-
+index FM patches (currently default 1 to keep the spacy family byte-identical),
+and whether the "modulate everything" oversampled-FM sweep (item 7 stage 2) is
+worth running next.
+
 ## Resolved
 
 2026-07-28 (Matt):

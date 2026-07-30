@@ -51,16 +51,30 @@ Priority order. Tags per WORKFLOW.md. (G1)-(G4) = GOALS.md Dipsy goals.
    recurse 2-4 after additive perf.
 6. DONE run 6 — see reports/2026-07-29-dipsy-run6.md. **(was: [metric] (G2) FormantSequence deep-dive)** — modulated/sequenced formant
    motion as a first-class timbre animator; sweep + novelty-filter.
-7. **[build→metric] (G3) Oversampled FM render path** — render FM/PM patches
-   at 4-8x SR with decimation; measure alias-product suppression on the
-   spacy-FM family; then "modulate everything" matrix sweeps through the
-   novelty filter.
-8. **[metric] (G4) Additive performance** — profile partial loop; vectorize
-   (SIMD) get_partial_value hot path; investigate iFFT overlap-add additive
-   synthesis (classic route to 1000s of partials cheap). Target: measured
-   samples/sec, no audible diff (null test vs reference render).
-9. **[build] Convert 6 algev patches to instrument-style** — audition-path
-   mismatch cleanup; scripts exist.
+7. **[build→metric] (G3) Oversampled FM render path** — ✓ CORE DONE run8
+   (2026-07-30). FMSource `oversample` config (Int 1..16, default 1);
+   carrier+mod sin() at M·SR + 8th-order Butterworth decimation (BWLPSection).
+   M=1 byte-identical (spacy family safe). Measured suppression M=2/4/8 =
+   24.5/34.7/39.6 dB (research/fm_alias/measure.py; M=8 kills 99% of in-band
+   alias residual). Spec: specs/2026-07-30-oversampled-fm-design.md.
+   **REOPEN (stage 2, [review:listen]):** the "modulate everything" FM matrix
+   sweep through the novelty filter — taste-gated, not done blind. Also a small
+   A/B (M=1 vs M=8 alias tone) is queued in REVIEW for the default decision.
+8. **[metric] (G4) Additive performance** — ✓ STAGE 1 DONE run8 (2026-07-30):
+   CLI render timer (run_patch stderr) + tools/prof_additive.py sweep. Baseline
+   ~65-90 ns/sample/partial (marginal 64 ns), linear, ~325 partials/core RT
+   @48kHz single-thread; hot path = per-partial std::sin + fmod in
+   Partials::get_partial_value. Note: instrument+score patches pre-render at
+   load, so run_patch's timer measures MIXING not synthesis (25x artifact
+   resolved) — stage-2 profiling must time the pre-render.
+   **STAGE 2 (open):** (a) SIMD/vectorize the get_partial_value partial loop
+   (batch the sin — a table or poly approx would break bit-exactness → null
+   test + Matt's ear); (b) investigate iFFT overlap-add additive (1000s of
+   partials cheap; NOT bit-identical → review:listen); (c) add a timer at the
+   instrument pre-render. >1 session; stage it.
+9. **[build] Convert 6 algev patches to instrument-style** — ✓ DONE run8
+   (2026-07-30). instrument+score added + output rerouted to bare source;
+   all 6 render with sound via the shared instrument path.
 10. **[review:listen] Vowel/formant re-tune after formantWeight refactor** —
     prep render set + gain sweep, queue for ears.
 
