@@ -199,16 +199,29 @@ def main():
         return motifs, refs, conns, pattern, transform, placement
 
     for i in range(args.n):
-        best, tries = None, 0
+        # Accept the FIRST candidate under the cap. The previous
+        # keep-the-narrowest fallback was a bias machine: minimizing span
+        # concentrated selection pressure on the final figure, pushing its
+        # zero-step rate from the raw 0.16 to 0.38 (4x corpus) — Matt heard
+        # it as "second figure is all one note". If a candidate is over cap,
+        # retry it once with placement="same" (kills the climb-induced span)
+        # before rolling fresh; on exhaustion keep the LAST candidate
+        # (unbiased draw), flagged OVER-CAP.
+        cand, span, tries = None, 0, 0
         while True:
             tries += 1
             cand = roll()
             span = predicted_range(cand[0], cand[1], cand[2])
-            if best is None or span < best[0]:
-                best = (span, cand)
+            if args.range_cap > 0 and span > args.range_cap and cand[5] != "same":
+                motifs2, refs2, conns2 = build_combination(
+                    cand[0]["A"], cand[0]["B"], cand[3], cand[4], "same")
+                span2 = predicted_range(motifs2, refs2, conns2)
+                if span2 <= args.range_cap:
+                    cand = (motifs2, refs2, conns2, cand[3], cand[4], "same")
+                    span = span2
             if args.range_cap <= 0 or span <= args.range_cap or tries >= args.max_tries:
                 break
-        span, (motifs, refs, conns, pattern, transform, placement) = best
+        motifs, refs, conns, pattern, transform, placement = cand
         seed_i = args.seed * 1000 + i
         t = make_template(motifs, refs, conns, bpm=args.bpm, seed=seed_i)
         sub = f"{subdir}/" if subdir != "." else ""
