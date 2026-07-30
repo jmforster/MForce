@@ -1,11 +1,11 @@
 # Status — open this file first
 
-Updated: 2026-07-30 — comp run 8 (Wolfie, scheduled) · dsp run 8 (Dipsy, scheduled)
+Updated: 2026-07-30 — dsp run 9 (Dipsy, interactive) · comp run 8 (Wolfie, scheduled)
 
 | Lane | Dev | Latest run | Backlog top | Awaiting your review |
 |---|---|---|---|---|
 | comp | Wolfie | run 8 (2026-07-30, scheduled): 4 fronts. Contrast-aware fig B (#2) — B sampled in relation to A (closure + rhythm kinship + monotony veto); range 12.6→9.1, zero 0.278→0.251, composite a wash by design → audition. Neural next-note (#3, G1) — numpy Bengio LM, val_ppl 28.5, soft-imported into bake-off; competitive-not-superior vs n-grams on MTD+Nottingham. #9 v2 self-similarity screen + --csv fix (#5). figure_transforms.py library (Matt's fragment). Essen #4 found data-gated. | wire transforms into phrase-builder (#10), then passage-strategy expansion (#6) | **2 listen + 1 unblock** — repeat-contour/varytail phrases (#2), contrast-B A/B (NEW), Essen fetch (OP-1) |
-| dsp | Dipsy | run 8 (2026-07-30, scheduled): 3 fronts. Item 7 oversampled FM LANDED — `oversample` config, sin() at M·SR + Butterworth decimation, measured 24.5/34.7/39.6 dB alias suppression @M=2/4/8, M=1 byte-identical (spacy safe). Item 8 additive-perf profiling stage 1 (CLI timer + sweep tool; baseline 64 ns/sample/partial, ~325 partials/core RT; resolved a 25x measurement artifact). Item 9 algev→instrument conversion done. | item 7 stage-2 (modulate-everything sweep) / item 8 stage-2 (SIMD·iFFT) — both staged | **5 listen items** — formantseq, expand-sweep, CMA-ES stage-d, v6 curve ladder, FM alias A/B (NEW) |
+| dsp | Dipsy | run 9 (2026-07-30, interactive): 6 verdict threads folded; expand round 3 + formantseq w5/w9 + FM alias v2 rendered to spec; curve-dropdown = stale binary (restart UI); clarinet attack ANALYZED — breath is a register-flat hiss bed, breathiness = exposure time, per-partial AM ruled out; new noise-bed feature proposed, awaiting your read | noise-bed feature (gated on your read) -> clarinet CMA-ES; true-ramp driver fix | **5 items** — expand r3 [listen], formantseq r2 [listen], FM alias v2 [listen], clarinet report + feature decision [read], dropdown recheck [1 min] |
 
 Reports: comp/reports/2026-07-30-wolfie-run8.md ·
 dsp/reports/2026-07-30-dipsy-run8.md
