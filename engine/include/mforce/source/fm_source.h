@@ -1,7 +1,9 @@
 #pragma once
 #include "mforce/core/dsp_wave_source.h"
+#include "mforce/filter/filters.h"
 #include <cmath>
 #include <memory>
+#include <vector>
 
 namespace mforce {
 
@@ -64,21 +66,42 @@ struct FMSource final : WaveSource {
 
     carrierPhase_ = 0.0f;
     modPhase_ = 0.0f;
+
+    // Build the decimation lowpass for oversampled rendering. Runs at the
+    // oversampled rate (M*SR); fixed cutoff at 0.45*SR (just under the base
+    // Nyquist) removes folded content before decimate-by-M. Built here (per
+    // note), never in the hot loop. M==1 uses no filter (identity path).
+    decimSections_.clear();
+    if (oversample_ > 1) {
+      const float subRate = float(sampleRate_) * float(oversample_);
+      const float cutoff  = 0.45f * float(sampleRate_);
+      const int   nSec    = 4;  // 8th-order Butterworth, ~48 dB/oct
+      for (int i = 0; i < nSec; ++i)
+        decimSections_.emplace_back(float(i + 1), float(nSec * 2), subRate);
+      for (auto& s : decimSections_) s.update(cutoff);
+    }
   }
 
   std::span<const ConfigDescriptor> config_descriptors() const override {
     static constexpr ConfigDescriptor descs[] = {
       {"unbounded_pos", ConfigType::Bool, 0.0f, 0.0f, 1.0f},
+      {"oversample",    ConfigType::Int,  1.0f, 1.0f, 16.0f},
     };
     return descs;
   }
 
   void set_config(std::string_view name, float value) override {
     if (name == "unbounded_pos") { unboundedPos_ = (value != 0.0f); return; }
+    if (name == "oversample") {
+      int m = int(value + 0.5f);
+      oversample_ = m < 1 ? 1 : (m > 16 ? 16 : m);
+      return;
+    }
   }
 
   float get_config(std::string_view name) const override {
     if (name == "unbounded_pos") return unboundedPos_ ? 1.0f : 0.0f;
+    if (name == "oversample")    return float(oversample_);
     return 0.0f;
   }
 
@@ -95,26 +118,40 @@ protected:
 
     constexpr double TAU_D = 2.0 * 3.14159265358979323846;
 
-    // Modulator (double-precision sin matches legacy System.Math.Sin behavior;
-    // phase accumulator is float to match legacy precision-wall behavior — the
-    // float-mantissa exhaustion at ~8s is part of the spacy character)
-    float modFreq = baseFreq * mRatio;
-    float modVal  = float(std::sin(double(modPhase_) * TAU_D));
-    modPhase_ += modFreq / float(sampleRate_);
-    if (unboundedPos_) {
-      if (modPhase_ > 1.0f) modPhase_ -= 1.0f;  // legacy: single-step, no neg wrap, accumulates
-    } else {
-      modPhase_ -= std::floor(modPhase_);
-    }
+    const float modFreq = baseFreq * mRatio;
+    const int   M       = oversample_;
+    const float subRate = float(sampleRate_) * float(M);
 
-    // Carrier with frequency modulation
-    float carrierFreq = baseFreq * cRatio * (1.0f + modVal * d);
-    float val = float(std::sin(double(carrierPhase_) * TAU_D));
-    carrierPhase_ += carrierFreq / float(sampleRate_);
-    if (unboundedPos_) {
-      if (carrierPhase_ > 1.0f) carrierPhase_ -= 1.0f;
-    } else {
-      carrierPhase_ -= std::floor(carrierPhase_);
+    // Oversample the sin() nonlinearity: run carrier+modulator at M*SR, filter,
+    // keep the last of each group of M (decimate). M==1 is the original
+    // single-step path with no filter (byte-identical to prior behavior — the
+    // spacy-FM family depends on it).
+    float val = 0.0f;
+    for (int i = 0; i < M; ++i) {
+      // Modulator (double-precision sin matches legacy System.Math.Sin;
+      // float phase accumulator preserves the legacy precision-wall behavior —
+      // the float-mantissa exhaustion at ~8s is part of the spacy character)
+      float modVal = float(std::sin(double(modPhase_) * TAU_D));
+      modPhase_ += modFreq / subRate;
+      if (unboundedPos_) {
+        if (modPhase_ > 1.0f) modPhase_ -= 1.0f;  // legacy: single-step, no neg wrap, accumulates
+      } else {
+        modPhase_ -= std::floor(modPhase_);
+      }
+
+      // Carrier with frequency modulation
+      float carrierFreq = baseFreq * cRatio * (1.0f + modVal * d);
+      float s = float(std::sin(double(carrierPhase_) * TAU_D));
+      carrierPhase_ += carrierFreq / subRate;
+      if (unboundedPos_) {
+        if (carrierPhase_ > 1.0f) carrierPhase_ -= 1.0f;
+      } else {
+        carrierPhase_ -= std::floor(carrierPhase_);
+      }
+
+      if (M > 1)
+        for (auto& sec : decimSections_) s = sec.process(s);
+      val = s;  // decimate: keep the last filtered sub-sample
     }
 
     return val;
@@ -127,6 +164,8 @@ private:
   float carrierPhase_{0.0f};
   float modPhase_{0.0f};
   bool  unboundedPos_{false};
+  int   oversample_{1};
+  std::vector<BWLPSection> decimSections_;  // built in prepare() when oversample_>1
 };
 
 } // namespace mforce
