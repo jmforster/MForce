@@ -185,9 +185,15 @@ class UniformGenerator(FigureGenerator):
 # --------------------------------------------------------------------------- #
 # Registry
 # --------------------------------------------------------------------------- #
-def build_methods(streams, meta):
-    """Instantiate the bake-off roster. Order = report order."""
-    return [
+def build_methods(streams, meta, neural=True):
+    """Instantiate the bake-off roster. Order = report order.
+
+    The neural next-note entrant (backlog #3) is soft-imported so this module
+    stays numpy-free for the count-based path; if numpy / neural_nextnote is
+    unavailable it is simply skipped. Training happens here (deterministic,
+    fixed internal seed) so a bake-off run trains it on whatever `streams` were
+    loaded (MTD or Nottingham via --tokens)."""
+    methods = [
         UniformGenerator(meta),
         NGramGenerator("unigram",        NGramModel(streams, order=0)),
         NGramGenerator("ngram1",         NGramModel(streams, order=1)),
@@ -195,3 +201,10 @@ def build_methods(streams, meta):
         NGramGenerator("ngram3_backoff", NGramModel(streams, order=3)),
         NGramGenerator("ngram2_addk",    NGramModel(streams, order=2, add_k=0.1)),
     ]
+    if neural:
+        try:
+            from neural_nextnote import make_neural_generator
+            methods.append(make_neural_generator(streams, meta))
+        except ImportError:
+            pass
+    return methods
