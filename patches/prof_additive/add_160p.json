@@ -1,0 +1,66 @@
+{
+ "sampleRate": 48000,
+ "seconds": 2.0,
+ "graph": {
+  "nodes": [
+   {
+    "id": "ampEnv",
+    "type": "Envelope",
+    "params": {
+     "preset": "adsr",
+     "attack": 0.05,
+     "decay": 0.1,
+     "sustainLevel": 1.0,
+     "release": 0.2
+    }
+   },
+   {
+    "id": "parts",
+    "type": "FullPartials",
+    "params": {
+     "maxPartials": 160
+    }
+   },
+   {
+    "id": "add",
+    "type": "AdditiveSource",
+    "params": {
+     "seed": 1,
+     "frequency": 110.0,
+     "amplitude": {
+      "ref": "ampEnv"
+     },
+     "partials": {
+      "ref": "parts"
+     },
+     "formantWeight": 0.0
+    }
+   },
+   {
+    "id": "ch1",
+    "type": "SoundChannel",
+    "inputs": {
+     "source": "add"
+    },
+    "params": {
+     "volume": 0.5,
+     "pan": 0.0
+    }
+   },
+   {
+    "id": "mix",
+    "type": "StereoMixer",
+    "inputs": {
+     "channels": [
+      "ch1"
+     ]
+    },
+    "params": {
+     "gainL": 1.0,
+     "gainR": 1.0
+    }
+   }
+  ],
+  "output": "mix"
+ }
+}

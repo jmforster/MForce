@@ -18,6 +18,7 @@
 #include <algorithm>
 #include <string>
 #include <sstream>
+#include <chrono>
 
 using namespace mforce;
 
@@ -718,7 +719,14 @@ static int run_patch(int argc, char** argv) {
     Patch p = load_patch_file(patchPath);
 
     std::vector<float> out((size_t)p.frames * 2);
+    auto _t0 = std::chrono::steady_clock::now();
     { RenderContext _ctx{p.sampleRate}; p.mixer->render(_ctx, out.data(), p.frames); };
+    auto _t1 = std::chrono::steady_clock::now();
+    double _ms = std::chrono::duration<double, std::milli>(_t1 - _t0).count();
+    double _audioMs = 1000.0 * double(p.frames) / double(p.sampleRate);
+    double _sps = _ms > 0.0 ? double(p.frames) / (_ms / 1000.0) : 0.0;
+    std::cerr << "  render=" << _ms << "ms for " << p.frames << " frames ("
+              << (_sps / 1e6) << " Msamp/s, " << (_audioMs / _ms) << "x realtime)\n";
 
     if (!write_wav_16le_stereo(outPath, p.sampleRate, out)) {
         std::cerr << "Failed to write wav: " << outPath << "\n";
