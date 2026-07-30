@@ -1,11 +1,11 @@
 # Status — open this file first
 
-Updated: 2026-07-29 — comp run 5 (Wolfie, interactive) · dsp run 5 (Dipsy, autonomous)
+Updated: 2026-07-29 — dsp run 6 (Dipsy, interactive) · comp run 5 (Wolfie, interactive)
 
 | Lane | Dev | Latest run | Backlog top | Awaiting your review |
 |---|---|---|---|---|
 | comp | Wolfie | run 5 (2026-07-29, interactive): Matt's 5 verdicts folded; monotone-B root-caused + fixed (selection bias, 0.38→0.19) and phrases regenerated; Nottingham ingested (1024 tunes) + folk bake-off (ranking corpus-stable); #9 v1 monotony screens landed (offenders 0.63-0.78, anchors 0.93) | contrast-aware fig B (#2), then neural next-note (#3) | **1 item** — regenerated phrases re-listen |
-| dsp | Dipsy | run 5 (2026-07-29), 3/3 fronts, all landed+committed: (1) UI paramMap-curve preservation fixed — load→save round-trip + keyboard playback now honor curves (item 3b), verified via new headless `--roundtrip` mode on all 4 v6 patches; v6+ safe to re-save from UI. (2) Novelty metric shipped (item 4) — research/novelty/, 36-dim MFCC+spectral embedding, distance-from-library scoring, selftest PASS + real-render ordering validated, `manifest` subcommand wires it into explore. (3) Recursive expansion sweep (item 5) — 18 regimes incl. 6 rule-breakers, novelty-ranked, survivors queued for listen | item 6 (FormantSequence deep-dive, now novelty-gatable) → item 7 (oversampled FM) / item 8 (additive perf) | **5 items** — expand-sweep survivors [listen], CMA-ES stage-d A/B [listen], v6 curve ladder [listen], + prior |
+| dsp | Dipsy | run 6 (2026-07-29, interactive): FormantSequence sweep landed (item 6) — 15 regimes x drivers incl. audio-rate blend rule-breakers, novelty-ranked; detour caught 3 inert renders (formant bands narrower than harmonic spacing — sweep-design lesson logged) | item 7 (oversampled FM) / item 8 (additive perf) — carried | **4 listen items** — formantseq survivors (NEW), expand-sweep survivors, CMA-ES stage-d A/B, v6 curve ladder |
 
 Reports: dsp/reports/2026-07-29-dipsy-run5.md ·
 comp/reports/2026-07-29-wolfie-run4.md
