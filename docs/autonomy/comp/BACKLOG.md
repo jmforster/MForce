@@ -1,73 +1,38 @@
 # Composition lane — backlog (Wolfie)
 
-Priority order. (G1)-(G2) = GOALS.md Wolfie goals. Wolfie's first run
-should validate — deep context lives in the composition thread.
+Priority order. (G1)-(G2) = GOALS.md Wolfie goals.
 
-1. **[metric] Corpus-statistics scoring harness** — score generated output
-   against MTD statistics (interval/contour/repetitiveness/cadence). The
-   comp "ears": gates everything below.
-3. **[metric] (G1) Corpus survey + acquisition** — beyond MTD: Essen
-   folksong, ABC/folk collections, kern scores (KernScores/humdrum), jazz
-   lead sheets; licensing + format notes; ingest pipeline for 1-2 best.
-   3a DONE run 5 (nottingham_tokenize.py, 1024 tunes, bake-off run). SURVEY DONE (run 3, corpus_survey.md): recommend ingest order (3a)
-   Nottingham-Jukedeck (GPLv3, MIDI ready — fastest), (3b, review) Essen
-   license call, (3c) Essen ingest (6k monophonic folk, kern parser).
-   KernScores-classical deprioritized (idiom overlaps MTD). Remaining =
-   **3a DOWNLOAD-GATED** (run 4: fetching the Nottingham-Jukedeck repo is a
-   network download; unattended runs can't get the required go-ahead — queued
-   in REVIEW as an operational unblock. bake_off.py is corpus-parametric via
-   `--tokens`, so the token file drops straight in once fetched),
-   3b Matt license call (REVIEW), 3c Essen ingest.
-4. **[metric] (G1) FigureGenerator plugin structure + method bake-off** —
-   INTERFACE + N-GRAM BAKE-OFF DONE (run 4, figuregen.py / bake_off.py /
-   test_figuregen.py). FigureGenerator ABC; generic NGramModel (order-N
-   backoff + add-k) proven == shipped Markov at order-2; roster uniform/
-   unigram/ngram1/ngram2_backoff/ngram3_backoff/ngram2_addk scored on the
-   harness (2-seed stable). Findings: context earns range control not interval
-   fit; order-2 backoff is the validated sweet spot; add-k smoothing is a
-   decisive negative; composite saturates across orders (evidence for #9).
-   Remaining = **4c** small neural next-note model (numpy present; the LLM-like
-   predictor per Matt) as the next bake-off entrant. Per corpus once 3a lands.
-4. **[build] (G2) PassageStrategy expansion** — new strategy types:
-   connective/transitional passages, pedal-point pre-cadence buildup,
-   discursive wandering, circle-of-fifths trips. Known principles + invented
-   ones; each renders a demo passage for the review queue.
-5. **[build] Per-phrase startingPitch in JSON** — period-parallelism
-   structural fix.
-6. **[build] Phrase-aware cadence placement** — replace strict A/B
-   alternation (AFS impedance finding).
-7. **[build] Voicing open items** — upward tendency, cadential chord role,
+2. **[metric] (G1) Contrast-aware fig B** — promoted by Matt's Phase-2
+   verdict: fig B currently sampled independent of fig A; sample it in
+   relation (register continuation, rhythmic kinship, complementary
+   contour). Gate through the scorer incl. monotony screens; re-audition
+   against the regenerated independent-B set.
+3. **[metric] (G1) 4c neural next-note model** — small numpy next-note
+   predictor (the LLM-like method per GOALS) as the next bake-off entrant;
+   run on both MTD and Nottingham tokens.
+4. **[metric] (G1) Essen ingest (3c)** — license cleared by Matt 2026-07-29.
+   Kern parser -> tokenize_notes -> essen_tokens.json; re-run bake-off.
+   Also: Nottingham-anchored scorer baseline (corpus_stats per corpus).
+5. **[metric] #9 v2 — figure-level self-similarity** — v1 screens (zero
+   rate, same-note runs) landed run 5; v2 = motif-level "one figure
+   hammered Nx" detection (autocorrelation / variation diversity).
+   Also fix score_generated --csv arg-parse quirk.
+6. **[build] (G2) PassageStrategy expansion** — connective/transitional,
+   pedal-point buildup, discursive wandering, circle-of-fifths trips;
+   demo passage per strategy to REVIEW.
+7. **[build] Phrase-aware cadence placement** (AFS impedance finding).
+8. **[build] Voicing open items** — upward tendency, cadential chord role,
    boring-repeat, StagedVoicingProfileSelector.
-8. **[build] Revisit PAC held-note workaround.**
-
-9. **[metric] Scorer — higher-order monotony screen** — run-3 first
-   thought a rep *ceiling* was needed (outliers scoring 0.74–0.84), but
-   measuring the corpus killed that: corpus repetition-coverage
-   (rep_LxCount/n_notes) runs p50=0.59, **p90=0.86, p95=0.92, max=0.97**,
-   and rep_LxCount p95=21/max=44 — the corpus is genuinely that repetitive,
-   so a naive ceiling would penalize corpus-faithful themes. The real gap is
-   that first-order interval/contour/rep distributions can't see *monotony*
-   (a whole phrase that is one figure hammered N×): p04 (fig ×6) is only
-   corpus-p90 on coverage, so it "looks" plausible per stats. Needs a
-   higher-order feature — motif/variation diversity, or an autocorrelation/
-   self-similarity screen — not a threshold tweak. Separately: fix the
-   `--csv` arg-parse quirk (treats the csv path as an input melody; harmless
-   stderr warning). Feeds REVIEW item 2.
+9. **[build] Revisit PAC held-note workaround.**
 
 ## Done
 
-- **[metric] (G1) FigureGenerator interface + n-gram method bake-off**
-  (run 4, 2026-07-29). figuregen.py (FigureGenerator ABC + generic NGramModel,
-  proven == shipped Markov at order-2) + bake_off.py (engine-free realize +
-  score, pooled JSD + composite vs corpus ceiling, corpus-parametric via
-  `--tokens`) + test_figuregen.py. Order-2 backoff validated as the sweet spot;
-  add-k smoothing a decisive negative; composite saturates across orders.
-  Remaining #4 work = 4c neural next-note. See reports/2026-07-29-wolfie-run4.md.
-- **[metric] (G1) Phase-2 combination phrase — scored + guarded**
-  (run 3, 2026-07-28). markov_phrase.py rendered + scored through the
-  item-1 harness: long combos mean 0.705 (top AAA'B 0.83–0.865, corpus-
-  anchor territory), bare AB weakest. Added range-runaway guard
-  (eliminated 19% out-of-corpus-range rate, composite-neutral) and an
-  outlier mode. Audition + scorer-calibration queued for review. See
-  reports/2026-07-28-wolfie-run3.md.
-- **[metric] Corpus-statistics scoring harness** (run 2). The comp "ears."
+- Run 5 (2026-07-29): monotone-B selection bias fixed (0.38->0.19);
+  Nottingham ingested (1024 tunes) + folk bake-off (method ranking
+  corpus-stable); #9 v1 monotony screens in scorer. Norm-breakers dropped
+  per Matt.
+- Run 4: FigureGenerator interface + n-gram bake-off (order-2 backoff =
+  sweet spot; add-k negative; composite saturates -> #9).
+- Run 3: Phase-2 combination phrases scored + guarded; corpus survey.
+- Run 2: scoring harness (the comp "ears"); parallel-period flag
+  ("parallel": true — per-phrase startingPitch mechanism menu complete).

@@ -1,10 +1,10 @@
 # Status — open this file first
 
-Updated: 2026-07-29 — dsp run 5 (Dipsy, autonomous) · comp run 4 (Wolfie, autonomous)
+Updated: 2026-07-29 — comp run 5 (Wolfie, interactive) · dsp run 5 (Dipsy, autonomous)
 
 | Lane | Dev | Latest run | Backlog top | Awaiting your review |
 |---|---|---|---|---|
-| comp | Wolfie | run 4 (2026-07-29), 3/3 fronts: FigureGenerator interface + n-gram bake-off landed (#4) — figuregen.py/bake_off.py/test_figuregen.py; NGramModel proven == shipped Markov at order-2; 6 methods scored (2-seed stable). Order-2 backoff = validated sweet spot, add-k smoothing a decisive negative, composite saturates across orders (evidence for #9). #3a Nottingham ingest handed off as download-gated (bake-off is corpus-ready via `--tokens`) | #4c neural next-note model (LLM-like), then #9 self-similarity screen | **5 items** — parallel A/B [listen], scorer sanity [read], Phase-2 phrases [listen], Essen license [read], Nottingham fetch unblock [read] |
+| comp | Wolfie | run 5 (2026-07-29, interactive): Matt's 5 verdicts folded; monotone-B root-caused + fixed (selection bias, 0.38→0.19) and phrases regenerated; Nottingham ingested (1024 tunes) + folk bake-off (ranking corpus-stable); #9 v1 monotony screens landed (offenders 0.63-0.78, anchors 0.93) | contrast-aware fig B (#2), then neural next-note (#3) | **1 item** — regenerated phrases re-listen |
 | dsp | Dipsy | run 5 (2026-07-29), 3/3 fronts, all landed+committed: (1) UI paramMap-curve preservation fixed — load→save round-trip + keyboard playback now honor curves (item 3b), verified via new headless `--roundtrip` mode on all 4 v6 patches; v6+ safe to re-save from UI. (2) Novelty metric shipped (item 4) — research/novelty/, 36-dim MFCC+spectral embedding, distance-from-library scoring, selftest PASS + real-render ordering validated, `manifest` subcommand wires it into explore. (3) Recursive expansion sweep (item 5) — 18 regimes incl. 6 rule-breakers, novelty-ranked, survivors queued for listen | item 6 (FormantSequence deep-dive, now novelty-gatable) → item 7 (oversampled FM) / item 8 (additive perf) | **5 items** — expand-sweep survivors [listen], CMA-ES stage-d A/B [listen], v6 curve ladder [listen], + prior |
 
 Reports: dsp/reports/2026-07-29-dipsy-run5.md ·
