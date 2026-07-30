@@ -1,0 +1,281 @@
+{
+ "sampleRate": 48000,
+ "seconds": 4,
+ "graph": {
+  "nodes": [
+   {
+    "id": "osc",
+    "type": "SineSource",
+    "params": {
+     "frequency": 30.0,
+     "amplitude": 1.0
+    }
+   },
+   {
+    "id": "drv",
+    "type": "RangeSource",
+    "params": {
+     "min": 0.0,
+     "max": 1.0,
+     "normalized": false,
+     "var": {
+      "ref": "osc"
+     }
+    }
+   },
+   {
+    "id": "ampEnv",
+    "type": "Envelope",
+    "params": {
+     "preset": "adsr",
+     "attack": 0.1,
+     "decay": 0.1,
+     "sustainLevel": 0.7,
+     "release": 0.0
+    }
+   },
+   {
+    "id": "s0f0",
+    "type": "Formant",
+    "params": {
+     "frequency": 400,
+     "gain": 1.0,
+     "width": 60,
+     "power": 2.5
+    }
+   },
+   {
+    "id": "s0f1",
+    "type": "Formant",
+    "params": {
+     "frequency": 900,
+     "gain": 1.0,
+     "width": 60,
+     "power": 2.5
+    }
+   },
+   {
+    "id": "s0f2",
+    "type": "Formant",
+    "params": {
+     "frequency": 1400,
+     "gain": 1.0,
+     "width": 60,
+     "power": 2.5
+    }
+   },
+   {
+    "id": "s0f3",
+    "type": "Formant",
+    "params": {
+     "frequency": 1900,
+     "gain": 1.0,
+     "width": 60,
+     "power": 2.5
+    }
+   },
+   {
+    "id": "s0f4",
+    "type": "Formant",
+    "params": {
+     "frequency": 2400,
+     "gain": 1.0,
+     "width": 60,
+     "power": 2.5
+    }
+   },
+   {
+    "id": "s0f5",
+    "type": "Formant",
+    "params": {
+     "frequency": 2900,
+     "gain": 1.0,
+     "width": 60,
+     "power": 2.5
+    }
+   },
+   {
+    "id": "spec0",
+    "type": "FormantSpectrum",
+    "params": {
+     "formants": [
+      {
+       "ref": "s0f0"
+      },
+      {
+       "ref": "s0f1"
+      },
+      {
+       "ref": "s0f2"
+      },
+      {
+       "ref": "s0f3"
+      },
+      {
+       "ref": "s0f4"
+      },
+      {
+       "ref": "s0f5"
+      }
+     ]
+    }
+   },
+   {
+    "id": "s1f0",
+    "type": "Formant",
+    "params": {
+     "frequency": 650,
+     "gain": 1.0,
+     "width": 60,
+     "power": 2.5
+    }
+   },
+   {
+    "id": "s1f1",
+    "type": "Formant",
+    "params": {
+     "frequency": 1150,
+     "gain": 1.0,
+     "width": 60,
+     "power": 2.5
+    }
+   },
+   {
+    "id": "s1f2",
+    "type": "Formant",
+    "params": {
+     "frequency": 1650,
+     "gain": 1.0,
+     "width": 60,
+     "power": 2.5
+    }
+   },
+   {
+    "id": "s1f3",
+    "type": "Formant",
+    "params": {
+     "frequency": 2150,
+     "gain": 1.0,
+     "width": 60,
+     "power": 2.5
+    }
+   },
+   {
+    "id": "s1f4",
+    "type": "Formant",
+    "params": {
+     "frequency": 2650,
+     "gain": 1.0,
+     "width": 60,
+     "power": 2.5
+    }
+   },
+   {
+    "id": "s1f5",
+    "type": "Formant",
+    "params": {
+     "frequency": 3150,
+     "gain": 1.0,
+     "width": 60,
+     "power": 2.5
+    }
+   },
+   {
+    "id": "spec1",
+    "type": "FormantSpectrum",
+    "params": {
+     "formants": [
+      {
+       "ref": "s1f0"
+      },
+      {
+       "ref": "s1f1"
+      },
+      {
+       "ref": "s1f2"
+      },
+      {
+       "ref": "s1f3"
+      },
+      {
+       "ref": "s1f4"
+      },
+      {
+       "ref": "s1f5"
+      }
+     ]
+    }
+   },
+   {
+    "id": "fseq",
+    "type": "FormantSequence",
+    "params": {
+     "spectra": [
+      {
+       "ref": "spec0"
+      },
+      {
+       "ref": "spec1"
+      }
+     ],
+     "blend": {
+      "ref": "drv"
+     }
+    }
+   },
+   {
+    "id": "fp",
+    "type": "FullPartials",
+    "params": {
+     "maxPartials": 40,
+     "minMult": 1,
+     "rolloff1": 1.0,
+     "rolloff2": 1.0
+    }
+   },
+   {
+    "id": "src",
+    "type": "AdditiveSource",
+    "params": {
+     "seed": 42,
+     "frequency": 220.0,
+     "amplitude": {
+      "ref": "ampEnv"
+     },
+     "formant": {
+      "ref": "fseq"
+     },
+     "formantWeight": 9.0,
+     "partials": {
+      "ref": "fp"
+     }
+    }
+   },
+   {
+    "id": "ch1",
+    "type": "SoundChannel",
+    "inputs": {
+     "source": "src"
+    },
+    "params": {
+     "volume": 0.7,
+     "pan": 0.0
+    }
+   },
+   {
+    "id": "mix",
+    "type": "StereoMixer",
+    "inputs": {
+     "channels": [
+      "ch1"
+     ]
+    },
+    "params": {
+     "gainL": 1.0,
+     "gainR": 1.0
+    }
+   }
+  ],
+  "output": "mix"
+ }
+}

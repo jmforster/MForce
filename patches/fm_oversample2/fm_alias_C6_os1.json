@@ -1,0 +1,79 @@
+{
+  "sampleRate": 48000,
+  "seconds": 2,
+  "graph": {
+    "nodes": [
+      {
+        "id": "vibOsc",
+        "type": "SineSource",
+        "params": {
+          "frequency": 5.0,
+          "amplitude": 1.0
+        }
+      },
+      {
+        "id": "vibFreq",
+        "type": "RangeSource",
+        "params": {
+          "min": 1015.105,
+          "max": 1077.895,
+          "normalized": false,
+          "var": {
+            "ref": "vibOsc"
+          }
+        }
+      },
+      {
+        "id": "ampEnv",
+        "type": "Envelope",
+        "params": {
+          "preset": "ar",
+          "attack": 0.01,
+          "attackMin": 0.0,
+          "attackMax": 1.0
+        }
+      },
+      {
+        "id": "fm",
+        "type": "FMSource",
+        "params": {
+          "frequency": {
+            "ref": "vibFreq"
+          },
+          "amplitude": {
+            "ref": "ampEnv"
+          },
+          "carrierRatio": 1.0,
+          "modRatio": 2.7,
+          "depth": 12.0,
+          "oversample": 1
+        }
+      },
+      {
+        "id": "ch1",
+        "type": "SoundChannel",
+        "inputs": {
+          "source": "fm"
+        },
+        "params": {
+          "volume": 0.8,
+          "pan": 0.0
+        }
+      },
+      {
+        "id": "mix",
+        "type": "StereoMixer",
+        "inputs": {
+          "channels": [
+            "ch1"
+          ]
+        },
+        "params": {
+          "gainL": 1.0,
+          "gainR": 1.0
+        }
+      }
+    ],
+    "output": "mix"
+  }
+}
