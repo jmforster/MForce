@@ -97,6 +97,34 @@ def jsd(h1, h2):
     return (d1 + d2) / 2
 
 
+def self_similarity(mel):
+    """Motif-level repetition screen (monotony v2). The first-order screens
+    (zero_rate, max_run) only see a single hammered *note*; they miss a whole
+    3-6 note figure repeated many times when the individual pitches vary.
+
+    Build the pitch-interval sequence (consecutive semitone deltas). A figure
+    of F notes repeated back-to-back makes the interval sequence periodic with
+    period F, so we scan motif lengths L=2..6 and, for each, find the single
+    L-gram of intervals covering the largest fraction of the sequence:
+
+        cov(L) = min(1, (count of most common L-gram) * L / len(intervals))
+
+    Only grams that actually recur (count >= 2) count as repetition. selfsim is
+    the max coverage over L, in 0..1; higher = more hammered/monotonous.
+    """
+    ivs = [b[1] - a[1] for a, b in zip(mel, mel[1:])]
+    best = 0.0
+    for L in range(2, 7):
+        if len(ivs) - L + 1 < 2:   # need at least two L-grams to call recurrence
+            break
+        grams = Counter(tuple(ivs[i:i + L]) for i in range(len(ivs) - L + 1))
+        top = grams.most_common(1)[0][1]
+        if top < 2:
+            continue
+        best = max(best, min(1.0, top * L / len(ivs)))
+    return best
+
+
 def features(mel):
     ih = interval_hist(mel)
     n_int = sum(ih.values()) or 1
@@ -119,6 +147,7 @@ def features(mel):
         "range": (max(pitches) - min(pitches)) if pitches else 0,
         "zero_rate": zero_rate,
         "max_run_frac": max_run / max(1, len(mel)),
+        "selfsim": self_similarity(mel),
     }
 
 
@@ -126,12 +155,15 @@ def features(mel):
 def corpus_stats():
     if CACHE.exists():
         d = json.loads(CACHE.read_text())
-        d["int_hist"] = {int(k): v for k, v in d["int_hist"].items()}
-        d["ctr_hist"] = {tuple(map(int, k.split(","))): v
-                         for k, v in d["ctr_hist"].items()}
-        return d
+        # Cache auto-upgrade: a missing stat means an older cache predating that
+        # screen; fall through to rebuild rather than serve a stale baseline.
+        if "selfsim_p95" in d:
+            d["int_hist"] = {int(k): v for k, v in d["int_hist"].items()}
+            d["ctr_hist"] = {tuple(map(int, k.split(","))): v
+                             for k, v in d["ctr_hist"].items()}
+            return d
     ih, ch = Counter(), Counter()
-    reps, leaps, ranges, zeros, runs = [], [], [], [], []
+    reps, leaps, ranges, zeros, runs, sims = [], [], [], [], [], []
     n = 0
     for f in sorted(MIDI_DIR.glob("*_score.mid")):
         if n >= CORPUS_LIMIT:
@@ -150,12 +182,14 @@ def corpus_stats():
         ranges.append(ft["range"])
         zeros.append(ft["zero_rate"])
         runs.append(ft["max_run_frac"])
+        sims.append(ft["selfsim"])
         n += 1
     reps.sort()
     leaps.sort()
     ranges.sort()
     zeros.sort()
     runs.sort()
+    sims.sort()
     stats = {
         "n_themes": n,
         "int_hist": dict(ih),
@@ -167,6 +201,7 @@ def corpus_stats():
         "range_p90": ranges[9 * len(ranges) // 10],
         "zero_rate_p95": zeros[95 * len(zeros) // 100],
         "max_run_frac_p95": runs[95 * len(runs) // 100],
+        "selfsim_p95": sims[95 * len(sims) // 100],
     }
     CACHE.write_text(json.dumps(stats))
     print(f"[corpus] built stats over {n} themes -> {CACHE}", file=sys.stderr)
@@ -195,11 +230,15 @@ def score(mel, cs):
         max(0.0, 1.0 - (ft["zero_rate"] - cs["zero_rate_p95"]) * 3),
         1.0 if ft["max_run_frac"] <= cs["max_run_frac_p95"] else
         max(0.0, 1.0 - (ft["max_run_frac"] - cs["max_run_frac_p95"]) * 3),
+        # Motif-level monotony (v2): penalize self-similarity past corpus p95.
+        1.0 if ft["selfsim"] <= cs["selfsim_p95"] else
+        max(0.0, 1.0 - (ft["selfsim"] - cs["selfsim_p95"]) * 3),
     ]
     return {
         "n_notes": ft["n_notes"],
         "zero_rate": round(ft["zero_rate"], 3),
         "max_run_frac": round(ft["max_run_frac"], 3),
+        "selfsim": round(ft["selfsim"], 3),
         "int_jsd": round(int_jsd, 3),
         "ctr_jsd": round(ctr_jsd, 3),
         "rep_LxCount": ft["rep_LxCount"],
@@ -210,16 +249,27 @@ def score(mel, cs):
 
 
 def main():
-    paths = [a for a in sys.argv[1:] if not a.startswith("--")]
-    csv_out = None
-    if "--csv" in sys.argv:
-        csv_out = sys.argv[sys.argv.index("--csv") + 1]
+    # Hand-rolled parse (no argparse dep): --csv consumes the *next* token as
+    # its output filename so it isn't mistaken for an input melody path.
+    args = sys.argv[1:]
+    paths, csv_out, i = [], None, 0
+    while i < len(args):
+        a = args[i]
+        if a == "--csv":
+            if i + 1 < len(args):
+                csv_out = args[i + 1]
+                i += 2
+                continue
+        elif not a.startswith("--"):
+            paths.append(a)
+        i += 1
     if not paths:
         print("usage: score_generated.py <piece.json|x.mid>... [--csv out]")
         sys.exit(1)
     cs = corpus_stats()
     cols = ["file", "n_notes", "int_jsd", "ctr_jsd", "rep_LxCount",
-            "big_leap", "range", "zero_rate", "max_run_frac", "composite"]
+            "big_leap", "range", "zero_rate", "max_run_frac", "selfsim",
+            "composite"]
     rows = []
     print(f"[corpus] {cs['n_themes']} themes; rep_p10={cs['rep_p10']} "
           f"leap_p90={cs['big_leap_p90']:.3f} "
