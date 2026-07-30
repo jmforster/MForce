@@ -49,7 +49,7 @@ Priority order. Tags per WORKFLOW.md. (G1)-(G4) = GOALS.md Dipsy goals.
    **recurse limited to 1** here — recurse 2-4 = base·(count·2+1)^(3..5) =
    thousands of partials, render-bound until item 8 lands. REOPEN at
    recurse 2-4 after additive perf.
-6. **[metric] (G2) FormantSequence deep-dive** — modulated/sequenced formant
+6. DONE run 6 — see reports/2026-07-29-dipsy-run6.md. **(was: [metric] (G2) FormantSequence deep-dive)** — modulated/sequenced formant
    motion as a first-class timbre animator; sweep + novelty-filter.
 7. **[build→metric] (G3) Oversampled FM render path** — render FM/PM patches
    at 4-8x SR with decimation; measure alias-product suppression on the

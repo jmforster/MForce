@@ -1,0 +1,253 @@
+{
+ "sampleRate": 48000,
+ "seconds": 4,
+ "graph": {
+  "nodes": [
+   {
+    "id": "osc",
+    "type": "SineSource",
+    "params": {
+     "frequency": 4.0,
+     "amplitude": 1.0
+    }
+   },
+   {
+    "id": "drv",
+    "type": "RangeSource",
+    "params": {
+     "min": 0.0,
+     "max": 1.0,
+     "normalized": false,
+     "var": {
+      "ref": "osc"
+     }
+    }
+   },
+   {
+    "id": "ampEnv",
+    "type": "Envelope",
+    "params": {
+     "preset": "adsr",
+     "attack": 0.1,
+     "decay": 0.1,
+     "sustainLevel": 0.7,
+     "release": 0.0
+    }
+   },
+   {
+    "id": "s0f0",
+    "type": "Formant",
+    "params": {
+     "frequency": 730,
+     "gain": 1.0,
+     "width": 90,
+     "power": 2.0
+    }
+   },
+   {
+    "id": "s0f1",
+    "type": "Formant",
+    "params": {
+     "frequency": 1090,
+     "gain": 0.7,
+     "width": 110,
+     "power": 2.0
+    }
+   },
+   {
+    "id": "s0f2",
+    "type": "Formant",
+    "params": {
+     "frequency": 2440,
+     "gain": 0.35,
+     "width": 140,
+     "power": 2.0
+    }
+   },
+   {
+    "id": "spec0",
+    "type": "FormantSpectrum",
+    "params": {
+     "formants": [
+      {
+       "ref": "s0f0"
+      },
+      {
+       "ref": "s0f1"
+      },
+      {
+       "ref": "s0f2"
+      }
+     ]
+    }
+   },
+   {
+    "id": "s1f0",
+    "type": "Formant",
+    "params": {
+     "frequency": 270,
+     "gain": 1.0,
+     "width": 70,
+     "power": 2.0
+    }
+   },
+   {
+    "id": "s1f1",
+    "type": "Formant",
+    "params": {
+     "frequency": 2290,
+     "gain": 0.6,
+     "width": 120,
+     "power": 2.0
+    }
+   },
+   {
+    "id": "s1f2",
+    "type": "Formant",
+    "params": {
+     "frequency": 3010,
+     "gain": 0.3,
+     "width": 150,
+     "power": 2.0
+    }
+   },
+   {
+    "id": "spec1",
+    "type": "FormantSpectrum",
+    "params": {
+     "formants": [
+      {
+       "ref": "s1f0"
+      },
+      {
+       "ref": "s1f1"
+      },
+      {
+       "ref": "s1f2"
+      }
+     ]
+    }
+   },
+   {
+    "id": "s2f0",
+    "type": "Formant",
+    "params": {
+     "frequency": 300,
+     "gain": 1.0,
+     "width": 70,
+     "power": 2.0
+    }
+   },
+   {
+    "id": "s2f1",
+    "type": "Formant",
+    "params": {
+     "frequency": 870,
+     "gain": 0.6,
+     "width": 100,
+     "power": 2.0
+    }
+   },
+   {
+    "id": "s2f2",
+    "type": "Formant",
+    "params": {
+     "frequency": 2240,
+     "gain": 0.25,
+     "width": 140,
+     "power": 2.0
+    }
+   },
+   {
+    "id": "spec2",
+    "type": "FormantSpectrum",
+    "params": {
+     "formants": [
+      {
+       "ref": "s2f0"
+      },
+      {
+       "ref": "s2f1"
+      },
+      {
+       "ref": "s2f2"
+      }
+     ]
+    }
+   },
+   {
+    "id": "fseq",
+    "type": "FormantSequence",
+    "params": {
+     "spectra": [
+      {
+       "ref": "spec0"
+      },
+      {
+       "ref": "spec1"
+      },
+      {
+       "ref": "spec2"
+      }
+     ],
+     "blend": {
+      "ref": "drv"
+     }
+    }
+   },
+   {
+    "id": "fp",
+    "type": "FullPartials",
+    "params": {
+     "maxPartials": 40,
+     "minMult": 1,
+     "rolloff1": 1.0,
+     "rolloff2": 1.0
+    }
+   },
+   {
+    "id": "src",
+    "type": "AdditiveSource",
+    "params": {
+     "seed": 42,
+     "frequency": 220.0,
+     "amplitude": {
+      "ref": "ampEnv"
+     },
+     "formant": {
+      "ref": "fseq"
+     },
+     "formantWeight": 2.0,
+     "partials": {
+      "ref": "fp"
+     }
+    }
+   },
+   {
+    "id": "ch1",
+    "type": "SoundChannel",
+    "inputs": {
+     "source": "src"
+    },
+    "params": {
+     "volume": 0.7,
+     "pan": 0.0
+    }
+   },
+   {
+    "id": "mix",
+    "type": "StereoMixer",
+    "inputs": {
+     "channels": [
+      "ch1"
+     ]
+    },
+    "params": {
+     "gainL": 1.0,
+     "gainR": 1.0
+    }
+   }
+  ],
+  "output": "mix"
+ }
+}
