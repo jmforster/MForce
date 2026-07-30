@@ -41,3 +41,8 @@ items 5-6; FM/PM revival = item 7; performance = item 8. Wolfie goals 1-2 →
 comp/BACKLOG.md items 2-4 (corpus survey, generator bake-off incl. neural
 next-note, passage-strategy expansion). Originals kept above for reference —
 strike them when satisfied with the decomposition.
+
+2026-07-30 (Wolfie): Matt's run-7 REVIEW fragments decomposed → comp/BACKLOG.md:
+"New passage strategies" reinforces existing #6 (PassageStrategy expansion);
+"Figure transform operations" → new #10 (transform library landed run 8, wiring
+into the phrase-builder queued).
