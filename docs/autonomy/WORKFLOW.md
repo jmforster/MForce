@@ -8,7 +8,12 @@ and `GOALS.md` (Matt's raw ambitions — input to decomposition).
 ## The cycle (unit of work)
 
 1. Read `STATUS.md`, lane backlogs, and any new content in `GOALS.md` or
-   `REVIEW.md` feedback.
+   `REVIEW.md` feedback. MANDATORY MECHANICAL STEP: run
+   `grep -n "MATT" docs/autonomy/*/REVIEW.md docs/autonomy/GOALS.md`
+   as a LIVE file read at every run start — never trust cached/ambient
+   file snapshots for Matt's feedback (2026-07-29: a run started on a
+   stale snapshot and missed four saved verdicts). Unprocessed MATT
+   entries outrank the backlog.
 2. If `GOALS.md` has undecomposed goals: decompose into backlog items first.
 3. Pick the top item NOT gated on review. Spec briefly (inline for small,
    docs/superpowers/specs/ for engine-level), implement, verify, render any
