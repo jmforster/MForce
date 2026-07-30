@@ -187,6 +187,76 @@ def build_contour_combination(figA, figB, pattern, transform, contour,
 
 
 # --------------------------------------------------------------------------- #
+# Phase 2 v3: contrast-aware fig B (backlog #2, Matt's Phase-2 verdict)
+# --------------------------------------------------------------------------- #
+# fig B was previously sampled independent of fig A (main(): "contrast = TODO").
+# Real antecedent/consequent writing relates B to A: B balances A's contour
+# (a rising A answered by a falling B), shares A's rhythmic character (sibling
+# rhythm), and avoids collapsing to a monotone. We keep the joint Markov model
+# faithful — B is still a genuine chain draw — and add SELECTION pressure: draw
+# N candidate B's (same note-count as A for rhythmic kinship), keep the best on
+# a contrast objective. This isolates the B-sampling change for a clean A/B vs
+# the independent-B baseline (same figA, same pattern/transform/placement).
+from collections import Counter as _Counter
+
+
+def _pulse_profile(fig):
+    return [round(u["duration"], 3) for u in fig["units"]]
+
+
+def _zero_rate_fig(fig):
+    """Repeated-note fraction within a figure (skip the anchor step0=0)."""
+    steps = [u["step"] for u in fig["units"][1:]]
+    return (sum(1 for s in steps if s == 0) / len(steps)) if steps else 0.0
+
+
+def _rhythm_kinship(figA, cand):
+    """0..1 duration-profile similarity (multiset overlap), full credit only at
+    equal length — a rhythmic sibling shares A's note-count and durations."""
+    pa, pc = _pulse_profile(figA), _pulse_profile(cand)
+    base = 1.0 if len(pa) == len(pc) else 0.4
+    inter = sum((_Counter(pa) & _Counter(pc)).values())
+    return base * (inter / max(len(pa), len(pc), 1))
+
+
+def _closure(figA, cand, span_steps=6):
+    """Reward a consequent that brings the line back home: small combined net
+    scale-step. This subsumes contour-complement (a rising A, net +3, is best
+    answered by a falling B, net -3, summing to ~0) AND controls the two-figure
+    range — the first contrast draft complemented direction without magnitude
+    control and let climb-placement runaways reach 31 semitones."""
+    return 1.0 - min(1.0, abs(net_step(figA) + net_step(cand)) / span_steps)
+
+
+def contrast_fit(figA, cand):
+    """Weighted contrast objective: antecedent/consequent closure (0.45),
+    rhythmic kinship (0.35), non-monotone B (0.20 with a hard veto). The veto
+    zeroes the monotony term for a B whose repeated-note rate >= 0.5 — closure
+    alone will otherwise reward a near-static B (netA+netB ~ 0 achieved by a B
+    that barely moves), which the first pass produced (p02 range collapsed to 1,
+    p13 zero_rate 0.6)."""
+    zero = _zero_rate_fig(cand)
+    mono = 0.0 if zero >= 0.5 else (1.0 - zero)
+    return (0.45 * _closure(figA, cand)
+            + 0.35 * _rhythm_kinship(figA, cand)
+            + 0.20 * mono)
+
+
+def sample_contrast_figB(figA, model, rng, n_cand=32):
+    """Best-of-N chain draw for B, biased to relate to A. B inherits A's
+    note-count (rhythmic-sibling bias); selection picks complementary contour +
+    kindred rhythm + motion. Returns (figB, fit)."""
+    k = len(figA["units"])
+    best, best_fit = None, -1.0
+    for _ in range(n_cand):
+        cand = _sample_figure(model, rng, kmin=k, kmax=k)
+        f = contrast_fit(figA, cand)
+        if f > best_fit:
+            best, best_fit = cand, f
+    return best, best_fit
+
+
+# --------------------------------------------------------------------------- #
 # Task 3: template emitter
 # --------------------------------------------------------------------------- #
 def make_template(motifs, refs, connectors, *, key="C", scale="Major",
@@ -455,7 +525,7 @@ def main_v2():
     cs = sg.corpus_stats()
     cols = ["file", "family", "pattern", "contour", "transform", "n_notes",
             "int_jsd", "ctr_jsd", "rep_LxCount", "big_leap", "range",
-            "zero_rate", "max_run_frac", "composite"]
+            "zero_rate", "max_run_frac", "selfsim", "composite"]
     rows, by_family = [], {}
     for name, family, pattern, contour, transform, span, seq_ok, prefix in meta:
         r = sg.score(sg.load_melody(REPO / (prefix + "_1.json")), cs)
@@ -477,9 +547,88 @@ def main_v2():
                               if low else "none"))
 
 
+# --------------------------------------------------------------------------- #
+# Phase 2 v3 driver (--contrast): paired A/B, independent-B vs contrast-B.
+# Same figA + pattern/transform/placement per pair; only B-sampling differs.
+# -> renders/markov_contrast/{independent,contrast}/ + scores.csv (arm column)
+# --------------------------------------------------------------------------- #
+# Patterns that actually USE B (contrast only matters where B appears).
+CONTRAST_PATTERNS = ["AB", "AAB", "ABAB", "AABB", "ABA'B", "AAB", "ABAB"]
+
+
+def main_contrast():
+    from markov_model import MarkovModel
+    import score_generated as sg
+    import csv as _csv
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--n", type=int, default=len(CONTRAST_PATTERNS))
+    ap.add_argument("--seed", type=int, default=1234)
+    ap.add_argument("--bpm", type=float, default=84.0)
+    ap.add_argument("--n-cand", type=int, default=32,
+                    help="candidate B draws per contrast selection")
+    args = ap.parse_args()
+
+    rng = random.Random(args.seed)
+    model = MarkovModel.load()
+    cs = sg.corpus_stats()
+    for arm in ("independent", "contrast"):
+        (REPO / "renders/markov_contrast" / arm).mkdir(parents=True, exist_ok=True)
+
+    cols = ["pair", "arm", "pattern", "fit", "n_notes", "int_jsd", "ctr_jsd",
+            "rep_LxCount", "big_leap", "range", "zero_rate", "max_run_frac",
+            "selfsim", "composite"]
+    rows = []
+    print(f"{'pair':5} {'pattern':7} {'arm':11} {'fit':5} {'range':5} "
+          f"{'zero':5} {'comp':5}")
+    for i in range(args.n):
+        pattern   = CONTRAST_PATTERNS[i % len(CONTRAST_PATTERNS)]
+        # Roll the shared parts ONCE so the arms differ only in B.
+        figA      = _sample_figure(model, rng)
+        transform = rng.choice(["invert", "retrograde"])
+        placement = rng.choice(["same", "climb", "sequence"])
+        figB_indep = _sample_figure(model, rng)
+        figB_ctr, fit = sample_contrast_figB(figA, model, rng, n_cand=args.n_cand)
+
+        for arm, figB, fitv in (("independent", figB_indep, float("nan")),
+                                ("contrast",    figB_ctr,   fit)):
+            motifs, refs, conns = build_combination(
+                figA, figB, pattern, transform, placement)
+            seed_i = args.seed * 1000 + i
+            t = make_template(motifs, refs, conns, bpm=args.bpm, seed=seed_i)
+            prefix = (f"renders/markov_contrast/{arm}/"
+                      f"p{i:02d}_{pattern.replace(chr(39), 'x')}")
+            notes = render_template(t, prefix)
+            span = predicted_range(motifs, refs, conns)
+            r = sg.score(sg.load_melody(REPO / (prefix + "_1.json")), cs)
+            r.update(pair=f"p{i:02d}", arm=arm, pattern=pattern,
+                     fit=("" if fitv != fitv else round(fitv, 3)))
+            rows.append(r)
+            print(f"p{i:02d}   {pattern:7} {arm:11} "
+                  f"{('' if fitv != fitv else f'{fitv:.2f}'):>5} {span:5d} "
+                  f"{r['zero_rate']:5} {r['composite']:5}")
+
+    csv_path = REPO / "renders/markov_contrast/scores.csv"
+    with open(csv_path, "w", newline="") as f:
+        w = _csv.DictWriter(f, fieldnames=cols)
+        w.writeheader()
+        w.writerows(rows)
+
+    def _agg(arm, key):
+        vals = [r[key] for r in rows if r["arm"] == arm]
+        return sum(vals) / len(vals) if vals else 0.0
+    print(f"\n=== arm comparison (n={args.n} pairs) -> {csv_path} ===")
+    for key in ("composite", "zero_rate", "range", "big_leap"):
+        ind, ctr = _agg("independent", key), _agg("contrast", key)
+        print(f"{key:12} independent={ind:.3f}  contrast={ctr:.3f}  "
+              f"delta={ctr - ind:+.3f}")
+
+
 if __name__ == "__main__":
     if "--v2" in sys.argv:
         sys.argv.remove("--v2")
         main_v2()
+    elif "--contrast" in sys.argv:
+        sys.argv.remove("--contrast")
+        main_contrast()
     else:
         main()
