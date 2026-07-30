@@ -115,6 +115,20 @@ renders/expand_sweep2/ (14, all-unique). Built on your categorization:
 Verdict decides: category winners -> named patches; whether breathing
 joins the Leslie family; next sweep axes.
 
+### 6. UI curve editor [look] — NEW (run 7)
+Rebuilt mforce_ui: Curves tab next to Properties. Test: open
+patches/fable1_v6/v6_01_res_curve_lo.json -> edit 400Hz value to 0.4 ->
+play low/high keys (immediate) -> add point 1200Hz/0.1 -> add a new curve
+(vla_partials.bandwidth1) -> save/reload persists. Folder picker is now a
+real Select Folder dialog. If generate ever errors after velocity changes,
+the message now names the real cause — report the exact text.
+
+### 7. Second CMA-ES instrument — download unblock [read]
+Only viola samples exist locally. Pick the next Iowa MIS instrument
+(flute / cello / trumpet / clarinet...) and download its ff samples into
+research/inst_samples/<name>/ (same as you did Nottingham). The optimizer
+is now config-driven — a config file + your samples is all stage e needs.
+
 ## Resolved
 
 2026-07-28 (Matt):

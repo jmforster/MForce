@@ -33,6 +33,12 @@ them.
 
 New passage strategies,
 Figure transform operations, 
+### 2. Repeat-contour + vary_tail phrases [listen] — NEW (run 7)
+renders/markov_phrases2/ (24 WAVs; filenames encode family: _lit/_varytail,
+stepup/zigzag/etc; scores.csv). Combined family scored highest (0.86 mean).
+Verdict decides: contour/transform defaults for the combination layer, and
+whether contrast-aware fig B builds on top of this (next front).
+
 ## Resolved
 
 2026-07-29 (Matt, run-5 folding):
