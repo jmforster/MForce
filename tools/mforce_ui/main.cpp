@@ -10,6 +10,8 @@
 #include <windows.h>
 #include <mmsystem.h>
 #include <commdlg.h>
+#include <shobjidl.h>   // IFileOpenDialog (FOS_PICKFOLDERS) — real folder picker
+#pragma comment(lib, "ole32.lib")
 #include <DbgHelp.h>
 #pragma comment(lib, "DbgHelp.lib")
 #include <typeinfo>
@@ -1746,10 +1748,16 @@ static std::string get_playback_patch_path() {
     // Otherwise (edited since last save, or never saved) write current state
     // to a temp file and return that path. User's explicit save file is
     // untouched until they explicitly Save.
+    //
+    // NOTE: s_graphDirty is deliberately NOT cleared here. It used to be, as a
+    // "temp file is up to date" optimization, but that conflated two meanings:
+    // clearing it made later playback/generate calls fall back to the on-disk
+    // s_currentFilePath (silently discarding all edits since the last Save),
+    // and it suppressed the unsaved-changes prompt on close. Re-serializing on
+    // every playback call is a few ms of JSON write — correctness wins.
     std::string tmp = (std::filesystem::temp_directory_path() / "mforce_playback.json").string();
     if (s_graphMode == GraphMode::PatchGraph) save_patch_graph(tmp);
     else save_node_graph(tmp);
-    s_graphDirty = false;
     return tmp;
 }
 
@@ -2141,15 +2149,15 @@ static void transport_set_status(const char* msg, bool isError);
 // Overwrite g_outputWaveform with authoritative audio for a passage (note
 // sequence) via load_instrument_patch + PitchedInstrument. Per-node
 // waveform data still comes from render_passage_waveforms' UI DSP pass.
-static void render_passage_output_authoritative(
+static bool render_passage_output_authoritative(
     const std::vector<ParsedNote>& notes, float velocity)
 {
-    if (notes.empty()) return;
+    if (notes.empty()) return false;
     std::string path = get_playback_patch_path();
     if (path.empty()) {
         transport_set_status("Authoritative passage render: no patch path "
                              "(get_playback_patch_path empty)", true);
-        return;
+        return false;
     }
 
     try {
@@ -2158,7 +2166,7 @@ static void render_passage_output_authoritative(
         if (!pitched) {
             transport_set_status("Authoritative passage render: loaded patch is not "
                                  "a PitchedInstrument", true);
-            return;
+            return false;
         }
 
         ip.instrument->volume = 1.0f;
@@ -2178,12 +2186,14 @@ static void render_passage_output_authoritative(
         g_waveScrollPos = 0;
         g_waveZoom = std::max(1, frames / 800);
         compute_output_spectrum();
+        return true;
     } catch (const std::exception& e) {
         char buf[256];
         snprintf(buf, sizeof(buf),
                  "Authoritative passage render failed: %s", e.what());
         transport_set_status(buf, true);
         std::fprintf(stderr, "render_passage_output_authoritative failed: %s\n", e.what());
+        return false;
     }
 }
 
@@ -2193,13 +2203,13 @@ static void render_passage_output_authoritative(
 // Called after render_waveforms during Generate so per-node displays still
 // use the UI DSP tree for per-node waveforms, but the main g_outputWaveform
 // and Play path reflect what the patch will really sound like.
-static void render_output_authoritative(float noteNum, float velocity,
+static bool render_output_authoritative(float noteNum, float velocity,
                                         float durationSeconds) {
     std::string path = get_playback_patch_path();
     if (path.empty()) {
         transport_set_status("Authoritative render: no patch path "
                              "(get_playback_patch_path empty)", true);
-        return;
+        return false;
     }
 
     try {
@@ -2208,7 +2218,7 @@ static void render_output_authoritative(float noteNum, float velocity,
         if (!pitched) {
             transport_set_status("Authoritative render: loaded patch is not "
                                  "a PitchedInstrument", true);
-            return;
+            return false;
         }
 
         ip.instrument->volume = 1.0f;
@@ -2224,12 +2234,14 @@ static void render_output_authoritative(float noteNum, float velocity,
         g_waveScrollPos = 0;
         g_waveZoom = std::max(1, frames / 800);
         compute_output_spectrum();
+        return true;
     } catch (const std::exception& e) {
         char buf[256];
         snprintf(buf, sizeof(buf),
                  "Authoritative render failed: %s", e.what());
         transport_set_status(buf, true);
         std::fprintf(stderr, "render_output_authoritative failed: %s\n", e.what());
+        return false;
     }
 }
 
@@ -2512,13 +2524,43 @@ static void audition_load_folder(const std::string& folder) {
     std::sort(g_audition.wavFiles.begin(), g_audition.wavFiles.end());
 }
 
-// Pick a folder via the file dialog: user selects ANY file in the target
-// folder, we use its parent directory. Avoids writing a separate Win32
-// folder picker.
-static std::string pick_folder_via_file_dialog() {
-    std::string anyFile = open_file_dialog();
-    if (anyFile.empty()) return "";
-    return std::filesystem::path(anyFile).parent_path().string();
+// Real folder picker: IFileOpenDialog with FOS_PICKFOLDERS. Replaces the old
+// "pick any file in the target folder, use its parent" workaround.
+static std::string pick_folder_dialog() {
+    std::string result;
+    HRESULT hrInit = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
+    // S_OK and S_FALSE (already initialized) both require CoUninitialize;
+    // RPC_E_CHANGED_MODE (FAILED) must not call it.
+    bool needUninit = SUCCEEDED(hrInit);
+    IFileOpenDialog* dlg = nullptr;
+    if (SUCCEEDED(CoCreateInstance(CLSID_FileOpenDialog, nullptr, CLSCTX_INPROC_SERVER,
+                                   IID_PPV_ARGS(&dlg)))) {
+        FILEOPENDIALOGOPTIONS opts = 0;
+        dlg->GetOptions(&opts);
+        dlg->SetOptions(opts | FOS_PICKFOLDERS | FOS_FORCEFILESYSTEM);
+        if (SUCCEEDED(dlg->Show(nullptr))) {   // fails with cancel HRESULT if dismissed
+            IShellItem* item = nullptr;
+            if (SUCCEEDED(dlg->GetResult(&item))) {
+                PWSTR wpath = nullptr;
+                if (SUCCEEDED(item->GetDisplayName(SIGDN_FILESYSPATH, &wpath))) {
+                    // Convert to the ANSI code page — the rest of the app's
+                    // file paths (GetOpenFileNameA, std::filesystem from
+                    // narrow strings) use ACP, not UTF-8.
+                    int len = WideCharToMultiByte(CP_ACP, 0, wpath, -1, nullptr, 0, nullptr, nullptr);
+                    if (len > 1) {
+                        std::string buf(size_t(len - 1), '\0');
+                        WideCharToMultiByte(CP_ACP, 0, wpath, -1, buf.data(), len, nullptr, nullptr);
+                        result = std::move(buf);
+                    }
+                    CoTaskMemFree(wpath);
+                }
+                item->Release();
+            }
+        }
+        dlg->Release();
+    }
+    if (needUninit) CoUninitialize();
+    return result;
 }
 
 static void audition_load_at(int idx) {
@@ -2671,7 +2713,7 @@ static void draw_audition_window() {
     ImGui::Text("Sweep folder:");
     ImGui::SameLine();
     if (ImGui::Button("Browse##audition_browse")) {
-        std::string f = pick_folder_via_file_dialog();
+        std::string f = pick_folder_dialog();
         if (!f.empty()) audition_load_folder(f);
     }
     ImGui::TextWrapped("%s", g_audition.folder.empty() ? "(none)" : g_audition.folder.c_str());
@@ -2681,7 +2723,7 @@ static void draw_audition_window() {
     ImGui::Text("Curated folder (Save target):");
     ImGui::SameLine();
     if (ImGui::Button("Browse##curated_browse")) {
-        std::string f = pick_folder_via_file_dialog();
+        std::string f = pick_folder_dialog();
         if (!f.empty()) {
             g_settings.curatedFolder = f;
             settings_save();
@@ -2799,6 +2841,353 @@ static void draw_audition_window() {
         }
         ImGui::EndPopup();
     }
+}
+
+// ===========================================================================
+// Curves window — visual editor for paramMap frequency→value curves.
+//
+// Curve-bearing paramMap entries ({"target": "node.paramOrConfig", "curve":
+// [[hz, value], ...]}) live verbatim in s_loadedParamMap (the UI node graph
+// cannot model them — see the stash comment near its declaration). This
+// window edits that stash directly. Because save_patch_graph carries the
+// stash forward (with node-id remapping) and get_playback_patch_path
+// re-serializes the patch through save_patch_graph whenever the graph is
+// dirty, every edit here is immediately audible on keyboard playback and
+// lands in the file on Save. All edits set s_graphDirty.
+//
+// Engine semantics (ParamSlot::map in engine/include/mforce/render/
+// instrument.h): breakpoints are ascending (hz, value) pairs, >= 2 of them;
+// evaluation is linear in log-frequency, clamped past the ends; curves are
+// evaluated per note-on from the note frequency, so only entries under the
+// "frequency" paramMap name have any effect at present.
+// ===========================================================================
+
+// Mirror of ParamSlot::map for the plot preview.
+static float curve_eval(const nlohmann::json& curve, float freq) {
+    size_t n = curve.size();
+    if (n == 0) return freq;
+    auto hz  = [&](size_t i) { return curve[i][0].get<float>(); };
+    auto val = [&](size_t i) { return curve[i][1].get<float>(); };
+    if (freq <= hz(0))     return val(0);
+    if (freq >= hz(n - 1)) return val(n - 1);
+    for (size_t i = 1; i < n; ++i) {
+        if (freq <= hz(i)) {
+            float lf = std::log(freq / hz(i - 1)) / std::log(hz(i) / hz(i - 1));
+            return val(i - 1) + (val(i) - val(i - 1)) * lf;
+        }
+    }
+    return val(n - 1);
+}
+
+// Keep breakpoints ascending in hz (engine's map() assumes it). Stable sort
+// so equal-hz rows keep their relative order while the user is mid-edit.
+static void curve_sort(nlohmann::json& curve) {
+    std::stable_sort(curve.begin(), curve.end(),
+        [](const nlohmann::json& a, const nlohmann::json& b) {
+            return a[0].get<float>() < b[0].get<float>();
+        });
+}
+
+// Link-derived targets for a Parameter node, in stash form ("label.pinName" —
+// original loaded node ids; save_patch_graph remaps them to serialized ids).
+// Used when a curve is added under a param whose stash entry doesn't exist
+// yet: the carry-forward in save_patch_graph replaces the WHOLE entry with
+// the stash, so the stash must also contain the plain link targets or they
+// would be silently dropped from the saved paramMap.
+static std::vector<std::string> param_node_link_targets(const std::string& paramName) {
+    std::vector<std::string> targets;
+    for (auto& pn : s_nodes) {
+        if (pn.typeName != NT_PARAMETER || pn.paramName != paramName) continue;
+        if (pn.outputs.empty()) break;
+        int outPinId = pn.outputs[0].id;
+        for (auto& link : s_links) {
+            int targetPinId = -1;
+            if (link.startPinId == outPinId) targetPinId = link.endPinId;
+            if (link.endPinId == outPinId) targetPinId = link.startPinId;
+            if (targetPinId < 0) continue;
+            for (auto& node : s_nodes) {
+                for (auto& pin : node.inputs)
+                    if (pin.id == targetPinId && !node.label.empty())
+                        targets.push_back(node.label + "." + pin.name);
+            }
+        }
+        break;
+    }
+    return targets;
+}
+
+// Append a new {target, curve} entry under paramName in the stash.
+static void curves_add_entry(const std::string& paramName, const std::string& target,
+                             float currentValue) {
+    using json = nlohmann::json;
+    json curveObj = {
+        {"target", target},
+        {"curve", json::array({ json::array({ 50.0f, currentValue}),
+                                json::array({400.0f, currentValue}) })},
+    };
+    if (!s_loadedParamMap.contains(paramName)) {
+        json entry = json::array();
+        for (const auto& t : param_node_link_targets(paramName))
+            entry.push_back(t);
+        s_loadedParamMap[paramName] = std::move(entry);
+    }
+    json& e = s_loadedParamMap[paramName];
+    if (e.is_array()) {
+        e.push_back(std::move(curveObj));
+    } else {
+        json arr = json::array();
+        arr.push_back(e);
+        arr.push_back(std::move(curveObj));
+        s_loadedParamMap[paramName] = std::move(arr);
+    }
+    s_graphDirty = true;
+}
+
+// Draw the editor for one curve-bearing entry. Returns true if the user asked
+// to delete the whole curve entry.
+static bool draw_one_curve(const std::string& paramName, nlohmann::json& obj) {
+    using json = nlohmann::json;
+    std::string target = obj.value("target", std::string("?"));
+    json& curve = obj["curve"];
+
+    bool deleteMe = false;
+    char header[256];
+    snprintf(header, sizeof(header), "%s -> %s", paramName.c_str(), target.c_str());
+    if (!ImGui::CollapsingHeader(header, ImGuiTreeNodeFlags_DefaultOpen))
+        return false;
+
+    // --- Breakpoint table ---
+    bool changed = false;
+    bool needSort = false;
+    int removeIdx = -1;
+    const bool canRemove = curve.size() > 2;  // engine requires >= 2 breakpoints
+    if (ImGui::BeginTable("##bp", 3, ImGuiTableFlags_SizingFixedFit)) {
+        ImGui::TableSetupColumn("Freq (Hz)", ImGuiTableColumnFlags_WidthFixed, 90.0f);
+        ImGui::TableSetupColumn("Value", ImGuiTableColumnFlags_WidthFixed, 90.0f);
+        ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed, 30.0f);
+        ImGui::TableHeadersRow();
+        for (int r = 0; r < (int)curve.size(); ++r) {
+            ImGui::PushID(r);
+            ImGui::TableNextRow();
+            ImGui::TableSetColumnIndex(0);
+            ImGui::SetNextItemWidth(-1);
+            float hz = curve[r][0].get<float>();
+            if (ImGui::InputFloat("##hz", &hz, 0.0f, 0.0f, "%.1f")) {
+                curve[r][0] = std::max(1.0f, hz);  // log-x needs > 0
+                changed = true;
+            }
+            // Re-sort only when the edit is committed, so rows don't jump
+            // around under the cursor mid-typing.
+            if (ImGui::IsItemDeactivatedAfterEdit()) needSort = true;
+            ImGui::TableSetColumnIndex(1);
+            ImGui::SetNextItemWidth(-1);
+            float v = curve[r][1].get<float>();
+            if (ImGui::InputFloat("##val", &v, 0.0f, 0.0f, "%.4f")) {
+                curve[r][1] = v;
+                changed = true;
+            }
+            ImGui::TableSetColumnIndex(2);
+            ImGui::BeginDisabled(!canRemove);
+            if (ImGui::SmallButton(" x ")) removeIdx = r;
+            ImGui::EndDisabled();
+            ImGui::PopID();
+        }
+        ImGui::EndTable();
+    }
+    if (removeIdx >= 0) {
+        curve.erase(curve.begin() + removeIdx);
+        changed = true;
+    }
+    if (ImGui::SmallButton(" + Add point ")) {
+        // Extend past the current top breakpoint (keeps ascending order).
+        size_t n = curve.size();
+        float lastHz  = n ? curve[n - 1][0].get<float>() : 50.0f;
+        float lastVal = n ? curve[n - 1][1].get<float>() : 0.0f;
+        curve.push_back(json::array({lastHz * 2.0f, lastVal}));
+        changed = true;
+    }
+    ImGui::SameLine();
+    if (ImGui::SmallButton(" Delete curve ")) deleteMe = true;
+
+    if (needSort) curve_sort(curve);
+    if (changed || needSort) s_graphDirty = true;
+
+    // --- Plot: interpolated curve, log-x from first to last breakpoint ---
+    if (curve.size() >= 2) {
+        // Plot against a sorted copy so an out-of-order row mid-edit doesn't
+        // feed the engine-mirror evaluator garbage.
+        json sorted = curve;
+        curve_sort(sorted);
+        float lo = sorted.front()[0].get<float>();
+        float hi = sorted.back()[0].get<float>();
+        if (lo > 0.0f && hi > lo) {
+            constexpr int N = 128;
+            float samples[N];
+            for (int i = 0; i < N; ++i) {
+                float f = lo * std::pow(hi / lo, float(i) / float(N - 1));
+                samples[i] = curve_eval(sorted, f);
+            }
+            char overlay[64];
+            snprintf(overlay, sizeof(overlay), "%.0f Hz .. %.0f Hz (log)", lo, hi);
+            ImGui::PlotLines("##plot", samples, N, 0, overlay, FLT_MAX, FLT_MAX,
+                             ImVec2(ImGui::GetContentRegionAvail().x, 70.0f));
+        }
+    }
+    ImGui::Spacing();
+    return deleteMe;
+}
+
+static void draw_curves_window() {
+    ImGui::Begin("Curves", nullptr, ImGuiWindowFlags_NoCollapse);
+
+    if (s_graphMode != GraphMode::PatchGraph) {
+        ImGui::TextDisabled("Curves apply to instrument patches only\n(no instrument block in this graph).");
+        ImGui::End();
+        return;
+    }
+
+    // Collect Parameter-node names — curve entries only survive save for
+    // names that still have a Parameter node (see save_patch_graph).
+    std::vector<std::string> paramNames;
+    for (auto& n : s_nodes)
+        if (n.typeName == NT_PARAMETER && !n.paramName.empty())
+            paramNames.push_back(n.paramName);
+
+    // --- Existing curve entries ---
+    // Structural deletes are deferred to after iteration.
+    struct DeleteReq { std::string param; int subIdx; };  // subIdx -1 = entry itself is the object
+    std::vector<DeleteReq> deletes;
+    bool anyCurve = false;
+    for (auto& [pname, entry] : s_loadedParamMap.items()) {
+        ImGui::PushID(pname.c_str());
+        if (entry.is_object() && entry.contains("curve")) {
+            anyCurve = true;
+            if (draw_one_curve(pname, entry)) deletes.push_back({pname, -1});
+        } else if (entry.is_array()) {
+            for (int i = 0; i < (int)entry.size(); ++i) {
+                if (!entry[i].is_object() || !entry[i].contains("curve")) continue;
+                anyCurve = true;
+                ImGui::PushID(i);
+                if (draw_one_curve(pname, entry[i])) deletes.push_back({pname, i});
+                ImGui::PopID();
+            }
+        }
+        ImGui::PopID();
+    }
+    if (!anyCurve)
+        ImGui::TextDisabled("No curves in this patch.");
+
+    for (const auto& d : deletes) {
+        nlohmann::json& entry = s_loadedParamMap[d.param];
+        if (d.subIdx < 0) {
+            // Entry was a bare {target, curve} object: fall back to the
+            // Parameter node's link-derived targets (what save would emit
+            // for a curveless entry), or drop the key if there are none.
+            auto targets = param_node_link_targets(d.param);
+            if (targets.empty()) {
+                s_loadedParamMap.erase(d.param);
+            } else if (targets.size() == 1) {
+                s_loadedParamMap[d.param] = targets[0];
+            } else {
+                nlohmann::json arr = nlohmann::json::array();
+                for (const auto& t : targets) arr.push_back(t);
+                s_loadedParamMap[d.param] = std::move(arr);
+            }
+        } else if (entry.is_array() && d.subIdx < (int)entry.size()) {
+            entry.erase(entry.begin() + d.subIdx);
+            if (entry.size() == 1 && entry[0].is_string())
+                s_loadedParamMap[d.param] = entry[0];
+        }
+        s_graphDirty = true;
+    }
+
+    // --- Add a new curve ---
+    ImGui::Separator();
+    ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1), "Add curve");
+
+    if (paramNames.empty()) {
+        ImGui::TextDisabled("No Parameter nodes in this patch — curves need a\nparamMap parameter (e.g. frequency) to hang off.");
+        ImGui::End();
+        return;
+    }
+
+    static int selParam = 0, selNode = 0, selTarget = 0;
+
+    // Parameter combo (which paramMap name the curve is evaluated under).
+    // Only "frequency" is evaluated at note-on today; still list all names.
+    selParam = std::clamp(selParam, 0, (int)paramNames.size() - 1);
+    ImGui::SetNextItemWidth(140.0f);
+    if (ImGui::BeginCombo("Parameter", paramNames[selParam].c_str())) {
+        for (int i = 0; i < (int)paramNames.size(); ++i)
+            if (ImGui::Selectable(paramNames[i].c_str(), i == selParam)) selParam = i;
+        ImGui::EndCombo();
+    }
+
+    // Target node combo (any non-special node in the graph).
+    std::vector<GraphNode*> targetNodes;
+    for (auto& n : s_nodes)
+        if (!is_special_ui_type(n.typeName) && !n.label.empty())
+            targetNodes.push_back(&n);
+    if (targetNodes.empty()) {
+        ImGui::TextDisabled("No target nodes in graph.");
+        ImGui::End();
+        return;
+    }
+    selNode = std::clamp(selNode, 0, (int)targetNodes.size() - 1);
+    ImGui::SetNextItemWidth(140.0f);
+    if (ImGui::BeginCombo("Node", targetNodes[selNode]->label.c_str())) {
+        for (int i = 0; i < (int)targetNodes.size(); ++i) {
+            ImGui::PushID(i);
+            if (ImGui::Selectable(targetNodes[i]->label.c_str(), i == selNode)) {
+                if (i != selNode) selTarget = 0;
+                selNode = i;
+            }
+            ImGui::PopID();
+        }
+        ImGui::EndCombo();
+    }
+
+    // Param/config combo for the chosen node. Eligible targets are pins the
+    // loader can resolve to a ConstantSource (value pins that are not wired
+    // to a source) plus all scalar configs (delivered via set_config).
+    GraphNode* tn = targetNodes[selNode];
+    struct TargetOpt { std::string name; float current; bool isConfig; };
+    std::vector<TargetOpt> opts;
+    for (auto& pin : tn->inputs) {
+        if (pin.inputOnly || pin.kind != PinKind::Input) continue;
+        if (pin.name.substr(0, 3) == "ch ") continue;
+        if (is_pin_connected(pin.id)) continue;  // loader rejects ref-wired targets
+        opts.push_back({pin.name, pin.defaultValue, false});
+    }
+    for (auto& [desc, val] : tn->configValues)
+        opts.push_back({desc.name, val, true});
+    if (opts.empty()) {
+        ImGui::TextDisabled("Selected node has no curve-able params/configs.");
+        ImGui::End();
+        return;
+    }
+    selTarget = std::clamp(selTarget, 0, (int)opts.size() - 1);
+    ImGui::SetNextItemWidth(140.0f);
+    if (ImGui::BeginCombo("Param / config", opts[selTarget].name.c_str())) {
+        for (int i = 0; i < (int)opts.size(); ++i) {
+            char lbl[128];
+            snprintf(lbl, sizeof(lbl), "%s%s##%d", opts[i].name.c_str(),
+                     opts[i].isConfig ? "  (config)" : "", i);
+            if (ImGui::Selectable(lbl, i == selTarget)) selTarget = i;
+        }
+        ImGui::EndCombo();
+    }
+
+    if (ImGui::Button("Add##addcurve")) {
+        std::string target = tn->label + "." + opts[selTarget].name;
+        curves_add_entry(paramNames[selParam], target, opts[selTarget].current);
+    }
+    if (paramNames[selParam] != "frequency") {
+        ImGui::TextColored(ImVec4(0.9f, 0.75f, 0.3f, 1),
+            "Note: only 'frequency' curves are evaluated at note-on today.");
+    }
+
+    ImGui::End();
 }
 
 static void draw_keyboard_panel() {
@@ -3269,42 +3658,63 @@ static void transport_set_status(const char* msg, bool isError) {
     g_transport.statusIsError = isError;
 }
 
+// Shared precondition for Note/Passage generate. The old check was just
+// find_output_source() != nullptr with a blanket "No patch loaded" message —
+// misleading (and blocking) whenever a patch WAS loaded but the UI node graph
+// couldn't model the output link. The authoritative render path goes through
+// the CLI patch loader (via get_playback_patch_path) and does not need the UI
+// graph at all, so only refuse when there is genuinely nothing to render, and
+// say precisely what is wrong otherwise.
+static bool transport_can_generate(ValueSource* uiSrc) {
+    if (uiSrc) return true;
+    if (!s_currentFilePath.empty()) return true;  // authoritative path can still render
+    bool hasOutputNode = false;
+    for (auto& n : s_nodes)
+        if (n.typeName == NT_PATCH_OUTPUT) hasOutputNode = true;
+    transport_set_status(hasOutputNode
+        ? "Output node has no source connected — wire a node into Output"
+        : "No patch loaded — open a patch first", true);
+    return false;
+}
+
 static void transport_generate() {
     g_transport.statusMsg[0] = '\0';
     g_transport.statusIsError = false;
 
     switch (g_transport.mode) {
         case PlayMode::Note: {
-            if (!find_output_source()) {
-                transport_set_status("No patch loaded — open a patch first", true);
-                break;
-            }
+            ValueSource* uiSrc = find_output_source();
+            if (!transport_can_generate(uiSrc)) break;
             float noteNum = parse_note_input(g_transport.noteStr);
             // Per-node waveforms from UI DSP tree (fast, for inspector views).
-            render_waveforms(noteNum, g_transport.velocity, g_transport.duration);
+            // Skipped when the UI graph has no modeled output link — the
+            // authoritative render below is what actually matters.
+            if (uiSrc)
+                render_waveforms(noteNum, g_transport.velocity, g_transport.duration);
             // Authoritative audio into g_outputWaveform (slow for fat Multiplex;
             // UI blocks here until done — that's the visible feedback that
             // generation is running. Play then just streams the buffer.)
-            render_output_authoritative(noteNum, g_transport.velocity,
-                                        g_transport.duration);
-            transport_set_status("Generated note", false);
+            // On failure it sets its own status message — don't overwrite it.
+            if (render_output_authoritative(noteNum, g_transport.velocity,
+                                            g_transport.duration))
+                transport_set_status("Generated note", false);
             break;
         }
         case PlayMode::Passage: {
-            if (!find_output_source()) {
-                transport_set_status("No patch loaded — open a patch first", true);
-                break;
-            }
+            ValueSource* uiSrc = find_output_source();
+            if (!transport_can_generate(uiSrc)) break;
             try {
                 auto notes = parse_passage(g_transport.passageStr, g_transport.octave, g_transport.bpm);
                 if (notes.empty()) {
                     transport_set_status("No notes parsed from passage string", true);
                 } else {
-                    render_passage_waveforms(notes, g_transport.velocity);
-                    render_passage_output_authoritative(notes, g_transport.velocity);
-                    char buf[128];
-                    snprintf(buf, sizeof(buf), "Generated %d notes", (int)notes.size());
-                    transport_set_status(buf, false);
+                    if (uiSrc)
+                        render_passage_waveforms(notes, g_transport.velocity);
+                    if (render_passage_output_authoritative(notes, g_transport.velocity)) {
+                        char buf[128];
+                        snprintf(buf, sizeof(buf), "Generated %d notes", (int)notes.size());
+                        transport_set_status(buf, false);
+                    }
                 }
             } catch (const std::exception& e) {
                 transport_set_status(e.what(), true);
@@ -5934,7 +6344,8 @@ int main(int argc, char** argv) {
             // Bottom area holds Waveforms + Keyboard as tabs (Waveforms selected first).
             ImGui::DockBuilderDockWindow("Transport", dockTransport);
             ImGui::DockBuilderDockWindow("Node Editor", dockCenter);
-            ImGui::DockBuilderDockWindow("Properties", dockRight);
+            ImGui::DockBuilderDockWindow("Properties", dockRight);  // docked first → selected tab
+            ImGui::DockBuilderDockWindow("Curves", dockRight);
             ImGui::DockBuilderDockWindow("Waveforms", dockBottom);  // docked first → selected tab
             ImGui::DockBuilderDockWindow("Spectrum",  dockBottom);
             ImGui::DockBuilderDockWindow("Keyboard",  dockBottom);
@@ -6149,6 +6560,11 @@ int main(int argc, char** argv) {
         // Properties panel
         // =================================================================
         draw_properties_panel();
+
+        // =================================================================
+        // Curves window (paramMap frequency→value curve editor)
+        // =================================================================
+        draw_curves_window();
 
         // =================================================================
         // Waveform display window
