@@ -82,6 +82,111 @@ def build_combination(figA, figB, pattern, transform, placement):
 
 
 # --------------------------------------------------------------------------- #
+# Phase 2 v2: repeat contours + vary_tail (Matt's spec 2026-07-29)
+# --------------------------------------------------------------------------- #
+# Named repeat-contour patterns: scale-step offset of each successive
+# A-family occurrence relative to the FIRST A (anchor 0). Applied via the
+# leadStep connector: lead = offset - cursor gives "first-A pitch + offset".
+# "literal" ([0,0,0]) stays available — identical A within a varied pattern
+# is explicitly allowed. Occurrences past the list clamp to the last entry.
+CONTOURS = {
+    "literal":      [0, 0, 0, 0],
+    "step_up":      [0, 1, 2, 3],
+    "step_down":    [0, -1, -2, -3],
+    "up_then_down": [0, 1, -1, 0],
+    "leap_up":      [0, 3, 3, 3],
+    "down_step":    [0, -2, -2, -2],
+    "zigzag":       [0, 2, -1, 1],
+}
+
+
+def _tokens_v2(pattern, transform):
+    """Like _tokens, but with vary_tail each prime is an INDEPENDENT variant:
+    "AA'A''B" -> ["A","V1","V2","B"]. Other transforms keep the single P."""
+    out = []
+    for ch in pattern:
+        if ch == "'":
+            prev = out[-1]
+            if transform == "vary_tail":
+                out[-1] = "V1" if prev == "A" else "V" + str(int(prev[1:]) + 1)
+            else:
+                out[-1] = "P"
+        else:
+            out.append(ch)
+    return out
+
+
+def vary_tail(fig, model, rng, max_tries=20):
+    """A' that KEEPS the head (first ceil(n/2) units, durations + steps) and
+    resamples the tail from the Markov chain, conditioned on the head.
+
+    Conditioning reconstructs the exact token history gen_model would have:
+    BOS token (-999 step sentinel, note-0 duration) then the head's
+    (step, duration) tokens — so order-2 backoff sees real context.
+    Retries until the tail STEP sequence differs from the original (up to
+    max_tries); returns (variant, n_diff_tail_steps)."""
+    units = fig["units"]
+    n = len(units)
+    h = -(-n // 2)                                   # ceil(n/2)
+    bos_step = model.bos_tokens[0][0]                # -999 sentinel (uniform)
+    history = [(bos_step, float(units[0]["duration"]))]
+    history += [(int(units[i]["step"]), float(units[i]["duration"]))
+                for i in range(1, h)]
+    old_tail = [int(units[i]["step"]) for i in range(h, n)]
+    tail = []
+    for _ in range(max_tries):
+        hist = list(history)
+        tail = []
+        for _ in range(n - h):
+            t = model.next_token(hist, rng)
+            tail.append(t)
+            hist.append(t)
+        if [t[0] for t in tail] != old_tail:
+            break
+    n_diff = sum(1 for t, o in zip(tail, old_tail) if t[0] != o)
+    variant = {"units": [dict(units[i]) for i in range(h)] +
+                        [{"duration": float(t[1]), "step": int(t[0])}
+                         for t in tail]}
+    return variant, n_diff
+
+
+def build_contour_combination(figA, figB, pattern, transform, contour,
+                              model=None, rng=None):
+    """Generalized build_combination: every A-family occurrence (A, P, V*)
+    is anchored at first-A-pitch + CONTOURS[contour][j] scale steps (j =
+    occurrence index); B continues from the cursor (lead 0).
+
+    Returns (motifs, refs, connectors, anchors, tail_diffs) where anchors is
+    the per-figure anchor degree (for verification) and tail_diffs maps
+    variant name -> count of tail steps that differ from A."""
+    refs = _tokens_v2(pattern, transform)
+    motifs = {"A": figA, "B": figB}
+    tail_diffs = {}
+    for r in refs:
+        if r == "P" and r not in motifs:
+            motifs["P"] = invert(figA) if transform == "invert" else retrograde(figA)
+        elif r.startswith("V") and r not in motifs:
+            motifs[r], tail_diffs[r] = vary_tail(figA, model, rng)
+    offsets = CONTOURS[contour]
+    connectors, anchors = [None], [0]
+    cursor = net_step(motifs[refs[0]])               # first figure anchors at 0
+    a_seen = 1
+    for i in range(1, len(refs)):
+        r = refs[i]
+        if r != "B":                                 # A-family: place on contour
+            off = offsets[min(a_seen, len(offsets) - 1)]
+            a_seen += 1
+            lead = off - cursor
+        else:                                        # B: continue from cursor
+            lead = 0
+        connectors.append(lead)
+        anchor = cursor + lead
+        anchors.append(anchor)
+        cursor = anchor + net_step(motifs[r])
+    return motifs, refs, connectors, anchors, tail_diffs
+
+
+# --------------------------------------------------------------------------- #
 # Task 3: template emitter
 # --------------------------------------------------------------------------- #
 def make_template(motifs, refs, connectors, *, key="C", scale="Major",
@@ -233,5 +338,148 @@ def main():
               f"(tries={tries}){flag} -> {prefix}_1.wav")
 
 
+# --------------------------------------------------------------------------- #
+# Phase 2 v2 batch driver (--v2): 3 families x 8 phrases -> renders/markov_phrases2
+# --------------------------------------------------------------------------- #
+V2_SPECS = [
+    # family 1: transposed LITERAL repeats (A repeats verbatim, start pitch moves)
+    ("transposed", "AAB",     "step_up",      None),
+    ("transposed", "AAB",     "step_down",    None),
+    ("transposed", "AAAB",    "step_up",      None),
+    ("transposed", "AAAB",    "up_then_down", None),
+    ("transposed", "AAB",     "leap_up",      None),
+    ("transposed", "AAB",     "down_step",    None),
+    ("transposed", "AAAB",    "zigzag",       None),
+    ("transposed", "ABAB",    "step_up",      None),
+    # family 2: SAME-pitch modified repeats (vary_tail, literal contour) —
+    # Matt's G-F#-G-... shape: head kept, tail resampled per repeat
+    ("varytail",   "AA'B",    "literal",      "vary_tail"),
+    ("varytail",   "AA'B",    "literal",      "vary_tail"),
+    ("varytail",   "AA'B",    "literal",      "vary_tail"),
+    ("varytail",   "AA'A''B", "literal",      "vary_tail"),
+    ("varytail",   "AA'A''B", "literal",      "vary_tail"),
+    ("varytail",   "AA'A''B", "literal",      "vary_tail"),
+    ("varytail",   "ABA'B",   "literal",      "vary_tail"),
+    ("varytail",   "ABA'B",   "literal",      "vary_tail"),
+    # family 3: COMBINED (moved start pitch AND modified tail)
+    ("combined",   "AA'B",    "step_up",      "vary_tail"),
+    ("combined",   "AA'B",    "step_down",    "vary_tail"),
+    ("combined",   "AA'A''B", "step_up",      "vary_tail"),
+    ("combined",   "AA'A''B", "up_then_down", "vary_tail"),
+    ("combined",   "ABA'B",   "step_up",      "vary_tail"),
+    ("combined",   "AA'B",    "leap_up",      "vary_tail"),
+    ("combined",   "AA'A''B", "zigzag",       "vary_tail"),
+    ("combined",   "AA'B",    "down_step",    "vary_tail"),
+]
+
+
+def main_v2():
+    from markov_model import MarkovModel
+    import score_generated as sg
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--seed", type=int, default=1234)
+    ap.add_argument("--bpm", type=float, default=84.0)
+    ap.add_argument("--range-cap", type=int, default=19)
+    ap.add_argument("--max-tries", type=int, default=24)
+    args = ap.parse_args()
+
+    rng = random.Random(args.seed)
+    model = MarkovModel.load()
+    (REPO / "renders/markov_phrases2").mkdir(parents=True, exist_ok=True)
+
+    ver_rows, meta = [], []
+    for i, (family, pattern, contour, transform) in enumerate(V2_SPECS):
+        # vary_tail needs a tail of >=2 units to be worth resampling -> kmin=4
+        kmin = 4 if transform == "vary_tail" else 3
+        # Accept-first-under-cap; over-cap candidates are rerolled (fresh
+        # figures — spec is fixed per slot, so no contour fallback that would
+        # make the filename lie); on exhaustion keep the LAST draw, flagged.
+        tries = 0
+        while True:
+            tries += 1
+            figA = _sample_figure(model, rng, kmin=kmin)
+            figB = _sample_figure(model, rng, kmin=kmin)
+            motifs, refs, conns, anchors, tdiffs = build_contour_combination(
+                figA, figB, pattern, transform, contour, model, rng)
+            span = predicted_range(motifs, refs, conns)
+            if args.range_cap <= 0 or span <= args.range_cap \
+                    or tries >= args.max_tries:
+                break
+        seed_i = args.seed * 1000 + i
+        t = make_template(motifs, refs, conns, bpm=args.bpm, seed=seed_i)
+        name = (f"p{i:02d}_{pattern.replace(chr(39), 'x')}_"
+                f"{contour.replace('_', '')}_"
+                f"{'varytail' if transform == 'vary_tail' else 'lit'}")
+        prefix = f"renders/markov_phrases2/{name}"
+        notes = render_template(t, prefix)
+
+        # verification: engine-free prediction vs rendered piece JSON
+        pred = predict_relative_semitones(motifs, refs, conns)
+        rel = [n - notes[0] for n in notes]
+        seq_ok = (pred == rel)
+        starts, s = [], 0
+        for r in refs:
+            starts.append(s)
+            s += len(motifs[r]["units"])
+        occ = 0
+        for j, r in enumerate(refs):
+            if r == "B":
+                continue
+            offs = CONTOURS[contour]
+            intended = offs[min(occ, len(offs) - 1)]
+            exp_semi = degree_to_semitone(anchors[j])
+            got_semi = notes[starts[j]] - notes[0]
+            ver_rows.append([name, r, occ, intended, anchors[j],
+                             exp_semi, got_semi, exp_semi == got_semi])
+            occ += 1
+        flag = "" if (args.range_cap <= 0 or span <= args.range_cap) \
+            else "  OVER-CAP"
+        diffs = ("  tail_diffs=" + ",".join(f"{k}:{v}" for k, v
+                 in sorted(tdiffs.items()))) if tdiffs else ""
+        print(f"{name}: {len(notes)} notes range={span:2d} tries={tries} "
+              f"seq_verify={'OK' if seq_ok else 'FAIL'}{diffs}{flag}")
+        meta.append((name, family, pattern, contour,
+                     "vary_tail" if transform else "none", span, seq_ok, prefix))
+
+    print("\n=== repeat-onset verification (A-family figures) ===")
+    print(f"{'phrase':34} {'ref':3} {'occ':3} {'offset':6} {'anchor':6} "
+          f"{'exp_st':6} {'got_st':6} ok")
+    for r in ver_rows:
+        print(f"{r[0]:34} {r[1]:3} {r[2]:3d} {r[3]:+6d} {r[4]:+6d} "
+              f"{r[5]:+6d} {r[6]:+6d} {'OK' if r[7] else 'FAIL'}")
+    n_bad = sum(1 for r in ver_rows if not r[7])
+    print(f"onset checks: {len(ver_rows) - n_bad}/{len(ver_rows)} OK")
+
+    # scoring -> scores.csv
+    import csv as _csv
+    cs = sg.corpus_stats()
+    cols = ["file", "family", "pattern", "contour", "transform", "n_notes",
+            "int_jsd", "ctr_jsd", "rep_LxCount", "big_leap", "range",
+            "zero_rate", "max_run_frac", "composite"]
+    rows, by_family = [], {}
+    for name, family, pattern, contour, transform, span, seq_ok, prefix in meta:
+        r = sg.score(sg.load_melody(REPO / (prefix + "_1.json")), cs)
+        r.update(file=name + "_1.json", family=family, pattern=pattern,
+                 contour=contour, transform=transform)
+        rows.append(r)
+        by_family.setdefault(family, []).append(r["composite"])
+    csv_path = REPO / "renders/markov_phrases2/scores.csv"
+    with open(csv_path, "w", newline="") as f:
+        w = _csv.DictWriter(f, fieldnames=cols)
+        w.writeheader()
+        w.writerows(rows)
+    print(f"\n=== composite by family (n={len(rows)}) -> {csv_path} ===")
+    for fam, vals in by_family.items():
+        print(f"{fam:11} mean={sum(vals)/len(vals):.3f} "
+              f"min={min(vals):.3f} max={max(vals):.3f}")
+    low = [(r['file'], r['composite']) for r in rows if r['composite'] < 0.6]
+    print("flagged <0.6: " + (", ".join(f"{f} ({c})" for f, c in low)
+                              if low else "none"))
+
+
 if __name__ == "__main__":
-    main()
+    if "--v2" in sys.argv:
+        sys.argv.remove("--v2")
+        main_v2()
+    else:
+        main()

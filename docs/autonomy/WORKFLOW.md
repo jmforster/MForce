@@ -26,6 +26,16 @@ Invariant: never stop mid-cycle. Every stopping point is a verified,
 reported, resumable state in repo files. Items too big for one cycle get
 split into staged sub-items, each independently landable.
 
+## Volume expectation (Matt, 2026-07-29)
+
+Scheduled runs must deliver VOLUME: hours of work, many deliverables,
+multiple fronts — not one item. Backlog items are largely independent:
+tackle them, don't re-file them. Adding an item to the backlog instead of
+doing it needs a reason (review-gated, genuinely blocked, or >1 session
+of work — then stage it and DO the first stage). When context limits a
+single session, fan out well-specified independent fronts to subagents
+(disjoint files, at most one C++ builder at a time) rather than deferring.
+
 ## Stop conditions
 
 - **Input-gated**: all remaining high-priority items need Matt's review or a

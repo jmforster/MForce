@@ -101,6 +101,20 @@ Verdict decides: which morph families graduate to named patches; whether
 audio-rate blend deserves its own deep-dive; whether FormantSequence
 motion joins the viola recipe (slow body-resonance drift).
 
+### 5. Expand-sweep round 2 [listen] — NEW (run 7)
+renders/expand_sweep2/ (14, all-unique). Built on your categorization:
+- Leslie family refined: leslie_micro_r2 / leslie_wide8 /
+  leslie_swirl_combo (microcluster+swirl hybrid) — low novelty score is
+  expected (familiar = musical); judge by ear
+- Recursion depth 2: semitone_r2 + micro_r2 + fifth_r2 + phase_swirl_r2
+  (semitone_r2 is the novelty top at 86)
+- Swept spacing per your note: attack_wide2narrow / attack_narrow2wide
+  (novelty 86!) / sweep_slow_ramp / breathe_lfo_05 / breathe_lfo_3
+  (cyclic wide-narrow "breathing") / fifth_leslie_morph (chord<->Leslie
+  LFO morph) / *pi_swept (pi collapsing to 0.1)
+Verdict decides: category winners -> named patches; whether breathing
+joins the Leslie family; next sweep axes.
+
 ## Resolved
 
 2026-07-28 (Matt):
