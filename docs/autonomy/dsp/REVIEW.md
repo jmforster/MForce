@@ -2,9 +2,28 @@
 
 ## Awaiting Matt
 
-(run 9 in progress — new items land here as its agents finish: expand
-round 3, formantseq round 2 @ higher weights, FM alias v2 C4-C8,
-clarinet attack report, curve-dropdown fix check)
+### 1. Expand round 3 [listen] (run 9)
+renders/expand_sweep3/ (9). Your requested variants: fifth_r2_p10 (10
+base partials), swirl_r1/swirl_r2, wide2narrow_002/005/008 (20/50/80 ms
+attacks), morph_quick (chord collapses to Leslie in ~0.2 s, then holds),
+morph_audio_30 + morph_audio_110 (audio-rate morphing — 30 Hz is the
+batch novelty leader at 83.6). Verdict decides: keepers -> named patches.
+
+### 2. FormantSequence round 2 [listen] (run 9)
+renders/formantseq_sweep2/ (12). Your weight diagnosis was right: w5/w9
+now put the active formant 16-20 dB above the valley (round 1's fmtWt 2
+was <=3x on partials the rest of the spectrum buried). Same 5 regimes at
+_w5 and _w9 + vowel_glide_flat (flatter source) + control_static_w5.
+Verdict decides: usable weight range; which morphs graduate.
+
+### 3. FM alias A/B v2 [listen] (run 9)
+renders/fm_oversample2/ — your spec: 5 Hz freq LFO, notes C4-C8, os1 vs
+os8 pairs. Measured audibility gradient: stripped-alias energy is -16.8
+dB of signal at C4 rising to 0 dB at C8 (at the top the aliasing is as
+loud as the tone). Verdict decides: oversample default policy for
+bright/high FM.
+
+(still in flight: clarinet attack report [read], curve-dropdown fix)
 
 ## Resolved
 
