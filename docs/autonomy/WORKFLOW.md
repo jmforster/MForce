@@ -52,6 +52,14 @@ single session, fan out well-specified independent fronts to subagents
 - `[review:listen|look|read]` — needs Matt. Do the preparable part, queue
   the decision in REVIEW.md, move on. NEVER iterate blind on taste.
 
+## Review-file hygiene
+
+When a MATT comment is folded (acted on), REMOVE the raw comment from
+"Awaiting" in the same run: move a compact summary + the verbatim text
+(if it has reference value) to "Resolved" with the fold date. "Awaiting"
+must contain ONLY items still needing Matt's input — a stale processed
+comment sitting in the queue cost a confused review pass on 2026-07-30.
+
 ## Review protocol (Matt's side)
 
 Open `STATUS.md`. Each lane's `REVIEW.md` lists items as:

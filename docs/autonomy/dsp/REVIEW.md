@@ -2,158 +2,85 @@
 
 ## Awaiting Matt
 
-### 1. v6 frequency-curve ladder [listen] — NEW (run 4)
-renders/fable1_v6/. Your v4 verdicts implemented via the new paramMap
-curve mechanism (any param/config can now follow a frequency→value curve,
-evaluated per note):
-- v6_01/02/03 — full calibrated recipe, cluster residue curved lo/mid/hi
-  per your guesses (8-15% @ 50 Hz → 25-40% @ 400 Hz). Which curve, or
-  where between?
-- v6_04 — bandwidth floor curved (1.5% @ 50 Hz → 8% @ 400 Hz), isolated:
-  does the low-frequency "rumble" die while texture survives up high?
-Verdict decides: default residue/floor curves, and whether curve knots
-join the CMA-ES search space (your note that curves complicate it is
-handled in the spec update — knots become dims, +4-6 dims).
+### 1. v6 residue/floor curve defaults [listen — now UI-explorable]
+renders/fable1_v6/ v6_01/02/03 (residue curves lo/mid/hi) + v6_04 (bw
+floor curve). Since run 7 you can also open these in the rebuilt UI's
+Curves tab and drag values while playing. Verdict decides: default curves
+for the viola recipe (or just tune them yourself in the editor and say
+"use what's in my saved patch").
 
-MATT: I need to be able to experiment with patches in the UI instead of just
-guessing at what the curves should be. Go ahead and implement full support
-("curve editor") in UI so that I can do this. While you're at it, a couple of
-other UI changes/fixes:
-1 - in the audition sweep folder picker, set to all file types instead of JSON.
-(do we have to use the "pick any file to pick the folder" trick (as you called it)?)
-2 - if you change Velocity, then try to generate, you get the "no patch loaded" error
+### 2. FormantSequence sweep survivors [listen] (run 6)
+renders/formantseq_sweep/ (15, all-unique). Suggested: audio_rate_30 +
+narrow_audio_50 (audio-rate spectral-envelope modulation — the unexplored
+bets), deep_weight_10, vowel_glide_ramp / vowel5_red_walk (musical end),
+control_static (reference). Verdict decides: which morph families
+graduate to named patches; whether audio-rate blend gets a deep-dive;
+whether slow formant drift joins the viola recipe.
 
-### 2. CMA-ES stage-d best-of-run [listen] — READY
-611 evals complete: score 0.514 vs 0.945 (100-eval smoke) vs ~1.28
-(warm start). Every scorer term improved; motion distance halved.
-- renders/fable1_v6/v6_05_cmaes_best.wav — best patch on the C2..E6
-  ladder, A/B against v5_04_cal_sustain.wav (hand-calibrated) and the
-  v6_01..03 curve ladder
-- renders/fable1_v6/v6_05_cmaes_best_4note.wav — the optimizer's own
-  4-note render (C3/G3/D4/A4, matches the Iowa reference set)
-Patch: patches/fable1_v6/v6_05_cmaes_best.json (also
-research/ml_ears/cmaes_runs/viola1/best_patch.json + resumable state).
-Verdict decides: (a) does metric-optimized beat hand-tuned to your ear —
-the entire ml-ears bet; (b) if close-but-off, WHICH term sounds wrong
-(that retunes scorer weights); (c) whether stage e (second instrument)
-proceeds.
-
-MATT: I thought I gave feedback on this already, that the cmaes_best WAV was
-at least "no worse" than the compared one. Let me know if I'm missing something.
-
-### 3. Recursive partial-expansion survivors [listen] — NEW (run 5)
-renders/expand_sweep/. 18 ExpandRule regimes on one FullPartials base
-(220 Hz, 4 s), novelty-ranked (higher = timbrally farther from the
-conventional library + the un-expanded control). The metric says which
-regimes transform most; your ear decides which are actually worth keeping.
-Suggested listens (top novelty + the high-ranking rule-breakers):
-- flat_taper (84), converge_spacing (69), semitone_r1 (66) — top movers
-- golden_spacing (54, φ/φ² semitone spacing) + noninteger_pi (45, π-semitone
-  spacing) — rule-breakers that ranked high; the accidental-discovery bets
-- control_noexpand (0) — the plain base, for reference
-Verdict decides: which regimes graduate to named patches / a v-series, and
-whether recurse 2-4 is worth the perf work (item 8) to explore next.
-
-MATT: These are pretty promising, let's keep experimenting. Some sound like chords
-with a big stack of tones (for obvious reasons). noninteger-pi sounds like an
-old time movie diminished chord flourish (as villain ties heroine to RR tracks)
-(again, obvious reason). Others sound like effects on single notes. Others are
-more like sound effects. Here's that categorization, ranked best>worst in each
-category, with descriptions:
-Musical:
-microcluster-0/1 - a bit like a Leslie effect, with 0 being subtler than 1
-wide-microcount - even more like a Leslie
-diverge-spacing - less pleasant but a similar sound to the above
-phase-swirl-r1 - slightly "metallic" chorusy effect
-steep-taper - quite similar to phase-swirl but a little less interesting
-
-Re: your last note, none of these use recursion? Your runs have been very brief,
-so I don't think performance is an issue for these batch renders.
-
-Give me another batch based on feedback above, using recursion in a few, and 
-enveloping vs. sweeping the spacing, etc. on a few (ie, an attack that starts wide
-and becomes narrow).
-
-And, since as I said your runs are really brief, once these done, proceed to 
-FormantSequence experiments.
-
-Chordy:
-fifth-spread-r1 - fifthy, organy, quite nice
-fifth-spread-r0 - very similar, not quite as "full sounding"
-non-integer-pi - diminished chord, ear doesn't distinguish the wider spread of 3.14
-Sound effects:
-converge-spacing - hard to describe, spacy, ominous
-extreme-detune - like a slowed down bell attack
-flat-taper - halfway between a musical effect and a videogame laser sound
-golden-spacing - halfway between dissonance and noise
-inverted-taper - another lasery sound effect
-
-
-### 4. FormantSequence sweep survivors [listen] — NEW (run 6)
-renders/formantseq_sweep/ (15 WAVs, all-unique verified). Suggested:
-- audio_rate_30 + narrow_audio_50 — audio-rate spectral-envelope
-  modulation, the unexplored-territory bets (novelty top)
-- deep_weight_10 — absurd resonance depth on a 1 Hz vowel morph
-- vowel_glide_ramp / vowel5_red_walk — the "musical" end: vocal glides
-  and RedNoise-wandering vowels
-- control_static — reference
-Verdict decides: which morph families graduate to named patches; whether
-audio-rate blend deserves its own deep-dive; whether FormantSequence
-motion joins the viola recipe (slow body-resonance drift).
-
-### 5. Expand-sweep round 2 [listen] — NEW (run 7)
-renders/expand_sweep2/ (14, all-unique). Built on your categorization:
+### 3. Expand-sweep round 2 [listen] (run 7, built on your round-1 notes)
+renders/expand_sweep2/ (14, all-unique).
 - Leslie family refined: leslie_micro_r2 / leslie_wide8 /
-  leslie_swirl_combo (microcluster+swirl hybrid) — low novelty score is
-  expected (familiar = musical); judge by ear
-- Recursion depth 2: semitone_r2 + micro_r2 + fifth_r2 + phase_swirl_r2
-  (semitone_r2 is the novelty top at 86)
+  leslie_swirl_combo (low novelty score expected — familiar = musical)
+- Recursion depth 2: semitone_r2 (novelty top, 86) + micro_r2 + fifth_r2
+  + phase_swirl_r2
 - Swept spacing per your note: attack_wide2narrow / attack_narrow2wide
-  (novelty 86!) / sweep_slow_ramp / breathe_lfo_05 / breathe_lfo_3
-  (cyclic wide-narrow "breathing") / fifth_leslie_morph (chord<->Leslie
-  LFO morph) / *pi_swept (pi collapsing to 0.1)
+  (86) / sweep_slow_ramp / breathe_lfo_05 / breathe_lfo_3 (cyclic
+  breathing) / fifth_leslie_morph (chord<->Leslie LFO morph) / *pi_swept
 Verdict decides: category winners -> named patches; whether breathing
 joins the Leslie family; next sweep axes.
 
-### 6. UI curve editor [look] — NEW (run 7)
-Rebuilt mforce_ui: Curves tab next to Properties. Test: open
-patches/fable1_v6/v6_01_res_curve_lo.json -> edit 400Hz value to 0.4 ->
-play low/high keys (immediate) -> add point 1200Hz/0.1 -> add a new curve
-(vla_partials.bandwidth1) -> save/reload persists. Folder picker is now a
-real Select Folder dialog. If generate ever errors after velocity changes,
-the message now names the real cause — report the exact text.
+### 4. UI curve editor + fixes [look] (run 7)
+Rebuilt mforce_ui: Curves tab next to Properties (breakpoint table +
+plot, add/delete points and curves, edits audible immediately). Real
+Select Folder dialog replaces the pick-a-file trick. Velocity repro
+didn't reproduce, but two adjacent defects with that symptom fixed
+(stale-playback dirty flag; misleading generate gate). If generate still
+errors after velocity changes, the message now names the actual cause —
+report the exact text.
 
-### 7. Second CMA-ES instrument — download unblock [read]
+### 5. Second CMA-ES instrument — download unblock [read]
 Only viola samples exist locally. Pick the next Iowa MIS instrument
 (flute / cello / trumpet / clarinet...) and download its ff samples into
-research/inst_samples/<name>/ (same as you did Nottingham). The optimizer
-is now config-driven — a config file + your samples is all stage e needs.
+research/inst_samples/<name>/. The optimizer is config-driven now — a
+config + your samples is all stage e needs.
 
-### 8. Oversampled FM — alias A/B [listen] — NEW (run 8), optional
-renders/fm_oversample/. The oversampling win is already metric-proven
-(24.5/34.7/39.6 dB suppression at M=2/4/8), so this is confirm-by-ear, not a
-blind taste call:
-- fm_alias_os01.wav (no oversampling — the harsh, aliased original) vs
-  fm_alias_os08.wav (8x, clean). Same heavily-aliasing FM tone (3 kHz carrier,
-  index 12, non-integer ratio).
-Verdict decides: whether `oversample` should default to >1 for bright/high-
-index FM patches (currently default 1 to keep the spacy family byte-identical),
-and whether the "modulate everything" oversampled-FM sweep (item 7 stage 2) is
-worth running next.
+### 6. Oversampled FM alias A/B [listen] (run 8), optional
+renders/fm_oversample/: fm_alias_os01.wav (aliased original) vs
+fm_alias_os08.wav (8x oversampled, 39.6 dB suppression, metric-proven).
+Verdict decides: whether oversample defaults >1 for bright/high-index FM,
+and whether the oversampled "modulate everything" sweep runs next.
 
 ## Resolved
 
-2026-07-28 (Matt):
-- v5 grounded A/B: "no worse, maybe better, at the limit of my ability to
-  tell" → measured/calibrated values ADOPTED as default sustain recipe;
-  backlog 2b closed.
-- v4 residue ladder: 25% too much at low frequencies only → the
-  frequency-dependence principle (logged to memory), v6 curve ladder above.
-- v4_03 bw floor: reads as low-freq "rumble," curve it before abandoning
-  → v6_04.
-- v4_04/05: attack→sustain transition now smooth.
-- UI fix: confirmed good.
-- Stage-d render time: "accept long render."
+2026-07-29 (Matt, folded in run 7 — raw comments preserved below):
+- Curve editor + UI fixes: requested -> LANDED run 7 (item 4 above is the
+  acceptance check).
+- CMA-ES stage-d A/B: "at least no worse" -> optimized >= hand-tuned
+  accepted; stage e proceeding (config mechanism landed run 7; samples
+  download-gated, item 5 above).
+- Expand-sweep round 1 categorization -> acted on in run 7 (item 3
+  above IS the requested next batch: recursion, swept/enveloped spacing).
+  Full verbatim notes, kept for reference:
+  > Musical: microcluster-0/1 (Leslie, 0 subtler), wide-microcount (more
+  > Leslie), diverge-spacing (less pleasant, similar), phase-swirl-r1
+  > (slightly metallic chorus), steep-taper (like phase-swirl, less
+  > interesting).
+  > Chordy: fifth-spread-r1 (fifthy, organy, quite nice), fifth-spread-r0
+  > (similar, less full), non-integer-pi (diminished chord; ear doesn't
+  > distinguish the 3.14 spread — old-time-movie villain flourish).
+  > Sound effects: converge-spacing (spacy, ominous), extreme-detune
+  > (slowed-down bell attack), flat-taper (musical effect / videogame
+  > laser), golden-spacing (between dissonance and noise), inverted-taper
+  > (another laser).
+  > "Keep experimenting; none of these use recursion? runs are brief so
+  > perf isn't an issue; next batch: recursion in a few, enveloped/swept
+  > spacing (attack wide->narrow); then FormantSequence experiments."
 
-2026-07-27: v3 verdicts (cluster_tight_low wins; sustain stack rich/stringy;
-attack too distinct → v4 residue).
+2026-07-28 (Matt): v5 grounded A/B "no worse, maybe better" -> measured
+values adopted as default sustain; v4 residue 25% too much at low freq
+only -> frequency-dependence principle (memory) + v6 curves; bw floor =
+low-freq rumble -> curve it; attack->sustain transition smooth; UI
+array-restore fix confirmed; "accept long render" for stage d.
+
+2026-07-27 (Matt): v3 — cluster_tight_low wins; sustain stack rich,
+stringy; attack too distinct -> v4 residue direction.
