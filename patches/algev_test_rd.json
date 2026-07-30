@@ -1,0 +1,61 @@
+{
+  "sampleRate": 48000,
+  "seconds": 4,
+  "graph": {
+    "nodes": [
+      {
+        "id": "env",
+        "type": "Envelope",
+        "params": {
+          "preset": "ar",
+          "attack": 0.0,
+          "attackMax": 0.0,
+          "release": 3.5,
+          "releaseMax": 3.5
+        }
+      },
+      {
+        "id": "rd",
+        "type": "ReactionDiffusionEvolution",
+        "params": {
+          "feed": 0.0367,
+          "kill": 0.0649,
+          "diffU": 0.16,
+          "diffV": 0.08,
+          "dt": 1.0,
+          "subSteps": 1
+        }
+      },
+      {
+        "id": "src",
+        "type": "WavetableSource",
+        "params": {
+          "seed": 12345,
+          "frequency": 220.0,
+          "amplitude": {
+            "ref": "env"
+          },
+          "evolution": {
+            "ref": "rd"
+          },
+          "evolutionSeed": 42
+        }
+      }
+    ],
+    "output": "src"
+  },
+  "instrument": {
+    "paramMap": {
+      "frequency": "src.frequency"
+    },
+    "polyphony": 1
+  },
+  "score": [
+    {
+      "time": 0.0,
+      "note": 60,
+      "velocity": 0.8,
+      "duration": 3.5
+    }
+  ]
+}

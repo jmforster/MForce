@@ -1,0 +1,60 @@
+{
+  "sampleRate": 48000,
+  "seconds": 4,
+  "graph": {
+    "nodes": [
+      {
+        "id": "env",
+        "type": "Envelope",
+        "params": {
+          "preset": "ar",
+          "attack": 0.0,
+          "attackMax": 0.0,
+          "release": 3.5,
+          "releaseMax": 3.5
+        }
+      },
+      {
+        "id": "bz",
+        "type": "BezierPullEvolution",
+        "params": {
+          "p0": -1.0,
+          "p1": 0.8,
+          "p2": -0.8,
+          "p3": 1.0,
+          "rate": 5e-05
+        }
+      },
+      {
+        "id": "src",
+        "type": "WavetableSource",
+        "params": {
+          "seed": 12345,
+          "frequency": 220.0,
+          "amplitude": {
+            "ref": "env"
+          },
+          "evolution": {
+            "ref": "bz"
+          },
+          "evolutionSeed": 42
+        }
+      }
+    ],
+    "output": "src"
+  },
+  "instrument": {
+    "paramMap": {
+      "frequency": "src.frequency"
+    },
+    "polyphony": 1
+  },
+  "score": [
+    {
+      "time": 0.0,
+      "note": 60,
+      "velocity": 0.8,
+      "duration": 3.5
+    }
+  ]
+}
