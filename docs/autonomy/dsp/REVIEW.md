@@ -23,7 +23,30 @@ dB of signal at C4 rising to 0 dB at C8 (at the top the aliasing is as
 loud as the tone). Verdict decides: oversample default policy for
 bright/high FM.
 
-(still in flight: clarinet attack report [read], curve-dropdown fix)
+### 4. Clarinet attack report — and a proposed new engine feature [read]
+research/ml_ears/out/clarinet_attack_report.md (+4 plots). Your
+inverse-frequency law measured exact: rise t50 = 29.3*f0^-0.84 (350-480ms
+at E3/G3 -> 60-110ms above 1kHz). The surprise: breath LEVEL is
+register-flat and equals the sustain noise floor — breathiness is
+EXPOSURE TIME (noise precedes tone by 30-290ms, longer at low f0).
+Noise = band-passed hiss, centroid ~2.9kHz, genuinely between-line.
+Per-partial AM bandwidth is RULED OUT as the breath (multiplicative with
+partial amplitude -> cannot precede the tone).
+DECISION NEEDED: the report proposes a new feature — a formant-shaped,
+constant-level noise bed gated at note-on with the TONE delayed behind it
+(0.15/0.10/0.04s by register), coupled via shared formant + shared gate +
+tone-referenced level. This is deliberately NOT the rejected independent
+parallel noise layer — the coupling is structural — but it's close enough
+to that dead end that I want your read before building it. Verdict
+decides: build the noise-bed feature (then clarinet CMA-ES with it), or
+attempt CMA-ES first with existing features to see how far it gets.
+
+### 5. Curve-dropdown: stale binary, not a bug [look, 1 min]
+Your exe predated the curve-editor commit. Restart mforce_ui, load
+v6_04_bwfloor_curve.json, Add curve -> vla_partials: bandwidth1 is
+mid-list (scroll; "(has curve)" annotation added). Delete
+mforce_ui_running_backup2.exe from build/tools/mforce_ui/Release/ after
+closing the old instance.
 
 ## Resolved
 
