@@ -91,13 +91,17 @@ def pedal_part(motif_name, reps, octave, pitch):
 
 
 def template_range(t):
-    """Predicted semitone span of a template's melody line, engine-free
-    (same cursor math the engine runs — verified in run 3)."""
+    """Widest predicted semitone span of any melody phrase in the template,
+    engine-free (same cursor math the engine runs — verified in run 3).
+    Per phrase, because each phrase re-anchors at its own startingPitch."""
     motifs = {m["name"]: m["figure"] for m in t["motifs"]}
-    ph = t["parts"][0]["passages"]["Main"]["phrases"][0]
-    refs = [f["motifName"] for f in ph["figures"]]
-    semis = predict_relative_semitones(motifs, refs, ph["connectors"])
-    return max(semis) - min(semis)
+    worst = 0
+    for passage in t["parts"][0]["passages"].values():
+        for ph in passage["phrases"]:
+            refs = [f["motifName"] for f in ph["figures"]]
+            semis = predict_relative_semitones(motifs, refs, ph["connectors"])
+            worst = max(worst, max(semis) - min(semis))
+    return worst
 
 
 def anchor_connectors(figs, anchors):
@@ -280,6 +284,69 @@ STRATEGIES = {
 
 
 # --------------------------------------------------------------------------- #
+# suite — the four strategies chained as one piece
+# --------------------------------------------------------------------------- #
+SUITE_ORDER = ["wandering", "connective", "pedal_buildup", "fifths_sequence"]
+
+
+def suite(model, rng, bpm=92.0, seed=1, order=None):
+    """One template, one section per strategy, played in sequence.
+
+    Passage strategies are only worth having if they COMBINE, so this renders
+    the four back to back: discursive opening -> bridge that lands on a target
+    -> pedal buildup -> fifths walk out. Each strategy's own template is built
+    first and its melody phrase is lifted into a section here; motif names are
+    prefixed per section so the four namespaces can't collide.
+    """
+    order = order or SUITE_ORDER
+    motifs, sections, passages, extra = {}, [], {}, []
+    for idx, name in enumerate(order):
+        t, _meta = STRATEGIES[name](model, rng, bpm=bpm, seed=seed + idx)
+        sec = f"S{idx}_{name}"
+        pre = f"s{idx}_"
+        for m in t["motifs"]:
+            motifs[pre + m["name"]] = m["figure"]
+        mel_phr = t["parts"][0]["passages"]["Main"]["phrases"][0]
+        beats = sum(sum(u["duration"] for u in motifs[pre + f["motifName"]]["units"])
+                    for f in mel_phr["figures"])
+        sections.append({"name": sec, "beats": beats})
+        passages[sec] = {
+            "startingPitch": {"octave": 4, "pitch": "C"},
+            "phrases": [{"name": f"P{idx}",
+                         "startingPitch": {"octave": 4, "pitch": "C"},
+                         "figures": [{"source": "reference",
+                                      "motifName": pre + f["motifName"]}
+                                     for f in mel_phr["figures"]],
+                         "connectors": mel_phr["connectors"]}]}
+        # Carry the pedal part through, but only under its own section.
+        for part in t["parts"][1:]:
+            pphr = part["passages"]["Main"]["phrases"][0]
+            extra.append((sec, part, pre, pphr))
+
+    parts = [{"name": "melody", "role": "melody", "passages": passages}]
+    if extra:
+        ped_passages = {}
+        for sec, part, pre, pphr in extra:
+            ped_passages[sec] = {
+                "startingPitch": part["passages"]["Main"]["startingPitch"],
+                "phrases": [{"name": "PED",
+                             "startingPitch": pphr["startingPitch"],
+                             "figures": [{"source": "reference",
+                                          "motifName": pre + f["motifName"]}
+                                         for f in pphr["figures"]],
+                             "connectors": pphr["connectors"]}]}
+        parts.append({"name": "pedal", "role": "bass", "passages": ped_passages})
+
+    t = {"keyName": "C", "scaleName": "Major", "bpm": bpm, "masterSeed": seed,
+         "motifs": [{"name": n, "figure": f, "userProvided": True}
+                    for n, f in motifs.items()],
+         "sections": sections, "parts": parts}
+    return t, {"strategy": "suite", "n_entries": len(order),
+               "order": "-".join(order),
+               "beats": round(sum(s["beats"] for s in sections), 2)}
+
+
+# --------------------------------------------------------------------------- #
 # driver
 # --------------------------------------------------------------------------- #
 def main():
@@ -300,13 +367,15 @@ def main():
            else mm.ROOT / f"{args.corpus.split('_')[0]}_tokens.json")
     model = MarkovModel.load(tok)
     cs = sg.corpus_stats(args.corpus)
-    names = [args.only] if args.only else list(STRATEGIES)
+    all_names = list(STRATEGIES) + ["suite"]
+    names = [args.only] if args.only else all_names
+    fns = dict(STRATEGIES, suite=suite)
     outdir = REPO / OUTROOT
     outdir.mkdir(parents=True, exist_ok=True)
 
     rows = []
     for name in names:
-        fn = STRATEGIES[name]
+        fn = fns[name]
         for k in range(args.takes):
             # Deterministic per (strategy, take): name hash via zlib, since
             # builtin hash() is salted per process.
