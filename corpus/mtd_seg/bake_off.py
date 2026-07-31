@@ -84,19 +84,36 @@ def eval_method(gen, k, length, cs, rng):
     }
 
 
-def corpus_reference(k, cs, rng):
-    """Score k real MTD themes through the same aggregation — the ceiling row."""
-    files = sorted(MIDI_DIR.glob("*_score.mid"))
-    rng.shuffle(files)
+def reference_melodies(corpus, rng):
+    """Real melodies from `corpus`, in shuffled order — the ceiling row's feed.
+
+    Non-MTD corpora come through corpus_baseline's windowed feeds so the
+    reference melodies are the same length scale as the generated ones (see
+    the windowing note in corpus_baseline.py).
+    """
+    if corpus == "mtd":
+        files = sorted(MIDI_DIR.glob("*_score.mid"))
+        rng.shuffle(files)
+        for f in files:
+            try:
+                yield melody_from_midi(f)
+            except Exception:  # noqa: BLE001
+                continue
+        return
+    import corpus_baseline as cb  # local: keeps the MTD path dependency-free
+    cfg = cb.PER_CORPUS[corpus]
+    mels = list(cb.windowed(cb.FEEDS[corpus](), cfg["window"]))
+    rng.shuffle(mels)
+    yield from mels
+
+
+def corpus_reference(k, cs, rng, corpus="mtd"):
+    """Score k real corpus melodies through the same aggregation — the ceiling."""
     pooled_int, pooled_ctr = Counter(), Counter()
     comps, leaps, ranges = [], [], []
-    for f in files:
+    for mel in reference_melodies(corpus, rng):
         if len(comps) >= k:
             break
-        try:
-            mel = melody_from_midi(f)
-        except Exception:  # noqa: BLE001
-            continue
         if len(mel) < 8:
             continue
         pooled_int.update(interval_hist(mel))
@@ -128,21 +145,35 @@ def main():
                     help="notes per generated melody")
     ap.add_argument("--seed", type=int, default=1234)
     ap.add_argument("--tokens", default=None,
-                    help="path to a markov_tokens.json (default: MTD). Point at "
-                         "another corpus's token file to run the same bake-off there.")
+                    help="path to a markov_tokens.json (default: the --corpus "
+                         "token file). Point at another corpus's token file to "
+                         "train on one corpus and score against another.")
+    ap.add_argument("--corpus", default="mtd",
+                    choices=["mtd", "nottingham", "essen",
+                             "essen_europa", "essen_asia"],
+                    help="scoring ANCHOR: whose baseline stats + ceiling row. "
+                         "Also selects the default training tokens, so "
+                         "`--corpus essen` = Essen-trained, Essen-anchored. "
+                         "Build anchors with corpus_baseline.py.")
     ap.add_argument("--csv", default=None)
     args = ap.parse_args()
 
-    streams, meta = load_corpus(args.tokens) if args.tokens else load_corpus()
-    cs = corpus_stats()
+    tokens = args.tokens
+    if tokens is None and args.corpus != "mtd":
+        # essen_europa / essen_asia are anchor subsets of one token file.
+        tokens = str(HERE / f"{args.corpus.split('_')[0]}_tokens.json")
+    streams, meta = load_corpus(tokens) if tokens else load_corpus()
+    cs = corpus_stats(args.corpus)
     methods = build_methods(streams, meta)
 
     print(f"[bake-off] {len(methods)} methods x {args.k} melodies x {args.length} "
-          f"notes, seed={args.seed}; corpus={cs['n_themes']} themes", file=sys.stderr)
+          f"notes, seed={args.seed}; anchor={args.corpus} "
+          f"({cs['n_themes']} segments)", file=sys.stderr)
 
     rows = []
     # corpus ceiling first (its own rng so method seeds are stable if --k changes)
-    rows.append(corpus_reference(args.k, cs, random.Random(args.seed ^ 0x9E3779B9)))
+    rows.append(corpus_reference(args.k, cs, random.Random(args.seed ^ 0x9E3779B9),
+                                 args.corpus))
     for gen in methods:
         rows.append(eval_method(gen, args.k, args.length, cs,
                                 random.Random(args.seed)))

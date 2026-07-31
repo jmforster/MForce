@@ -152,26 +152,28 @@ def features(mel):
 
 
 # ---------------------------------------------------------------- corpus
-def corpus_stats():
-    if CACHE.exists():
-        d = json.loads(CACHE.read_text())
-        # Cache auto-upgrade: a missing stat means an older cache predating that
-        # screen; fall through to rebuild rather than serve a stale baseline.
-        if "selfsim_p95" in d:
-            d["int_hist"] = {int(k): v for k, v in d["int_hist"].items()}
-            d["ctr_hist"] = {tuple(map(int, k.split(","))): v
-                             for k, v in d["ctr_hist"].items()}
-            return d
+def mtd_melodies():
+    """Baseline melodies for the MTD anchor (the v1 default)."""
+    for f in sorted(MIDI_DIR.glob("*_score.mid")):
+        try:
+            yield melody_from_midi(f)
+        except Exception:  # noqa: BLE001 — malformed midi, skip
+            continue
+
+
+def stats_from_melodies(melodies, limit=CORPUS_LIMIT):
+    """Aggregate baseline stats over an iterable of melodies.
+
+    Shared by every corpus anchor (see corpus_baseline.py) so a Nottingham- or
+    Essen-anchored baseline is computed with byte-identical feature code — the
+    only thing that changes is which melodies go in.
+    """
     ih, ch = Counter(), Counter()
     reps, leaps, ranges, zeros, runs, sims = [], [], [], [], [], []
     n = 0
-    for f in sorted(MIDI_DIR.glob("*_score.mid")):
-        if n >= CORPUS_LIMIT:
+    for mel in melodies:
+        if n >= limit:
             break
-        try:
-            mel = melody_from_midi(f)
-        except Exception:  # noqa: BLE001 — malformed midi, skip
-            continue
         if len(mel) < 8:
             continue
         ft = features(mel)
@@ -203,12 +205,40 @@ def corpus_stats():
         "max_run_frac_p95": runs[95 * len(runs) // 100],
         "selfsim_p95": sims[95 * len(sims) // 100],
     }
-    CACHE.write_text(json.dumps(stats))
-    print(f"[corpus] built stats over {n} themes -> {CACHE}", file=sys.stderr)
-    stats["int_hist"] = {int(k): v for k, v in stats["int_hist"].items()}
-    stats["ctr_hist"] = {tuple(map(int, k.split(","))): v
-                         for k, v in stats["ctr_hist"].items()}
     return stats
+
+
+def decode_hists(d):
+    """JSON-round-tripped hist keys back to int / (int,int) tuples."""
+    d["int_hist"] = {int(k): v for k, v in d["int_hist"].items()}
+    d["ctr_hist"] = {tuple(map(int, k.split(","))): v
+                     for k, v in d["ctr_hist"].items()}
+    return d
+
+
+def cache_path(corpus="mtd"):
+    """MTD keeps the original filename (v1 caches stay valid); other anchors
+    get corpus_stats_<name>.json, built by corpus_baseline.py."""
+    return CACHE if corpus == "mtd" else HERE / f"corpus_stats_{corpus}.json"
+
+
+def corpus_stats(corpus="mtd"):
+    path = cache_path(corpus)
+    if path.exists():
+        d = json.loads(path.read_text())
+        # Cache auto-upgrade: a missing stat means an older cache predating that
+        # screen; fall through to rebuild rather than serve a stale baseline.
+        if "selfsim_p95" in d:
+            return decode_hists(d)
+    if corpus != "mtd":
+        raise SystemExit(
+            f"no baseline for corpus '{corpus}' at {path.name} — build it with:"
+            f"\n  python corpus/mtd_seg/corpus_baseline.py {corpus}")
+    stats = stats_from_melodies(mtd_melodies())
+    path.write_text(json.dumps(stats))
+    print(f"[corpus] built stats over {stats['n_themes']} themes -> {path}",
+          file=sys.stderr)
+    return decode_hists(stats)
 
 
 # ---------------------------------------------------------------- scoring
@@ -252,7 +282,7 @@ def main():
     # Hand-rolled parse (no argparse dep): --csv consumes the *next* token as
     # its output filename so it isn't mistaken for an input melody path.
     args = sys.argv[1:]
-    paths, csv_out, i = [], None, 0
+    paths, csv_out, corpus, i = [], None, "mtd", 0
     while i < len(args):
         a = args[i]
         if a == "--csv":
@@ -260,18 +290,24 @@ def main():
                 csv_out = args[i + 1]
                 i += 2
                 continue
+        elif a == "--corpus":
+            if i + 1 < len(args):
+                corpus = args[i + 1]
+                i += 2
+                continue
         elif not a.startswith("--"):
             paths.append(a)
         i += 1
     if not paths:
-        print("usage: score_generated.py <piece.json|x.mid>... [--csv out]")
+        print("usage: score_generated.py <piece.json|x.mid>... "
+              "[--csv out] [--corpus mtd|nottingham|essen]")
         sys.exit(1)
-    cs = corpus_stats()
+    cs = corpus_stats(corpus)
     cols = ["file", "n_notes", "int_jsd", "ctr_jsd", "rep_LxCount",
             "big_leap", "range", "zero_rate", "max_run_frac", "selfsim",
             "composite"]
     rows = []
-    print(f"[corpus] {cs['n_themes']} themes; rep_p10={cs['rep_p10']} "
+    print(f"[corpus:{corpus}] {cs['n_themes']} themes; rep_p10={cs['rep_p10']} "
           f"leap_p90={cs['big_leap_p90']:.3f} "
           f"range=[{cs['range_p10']},{cs['range_p90']}]", file=sys.stderr)
     print("  ".join(f"{c:>11s}" for c in cols))
