@@ -2,51 +2,26 @@
 
 ## Awaiting Matt
 
-### 1. Expand round 3 [listen] (run 9)
-renders/expand_sweep3/ (9). Your requested variants: fifth_r2_p10 (10
-base partials), swirl_r1/swirl_r2, wide2narrow_002/005/008 (20/50/80 ms
-attacks), morph_quick (chord collapses to Leslie in ~0.2 s, then holds),
-morph_audio_30 + morph_audio_110 (audio-rate morphing — 30 Hz is the
-batch novelty leader at 83.6). Verdict decides: keepers -> named patches.
+(run 11 in progress: formantFloor + NoiseBed + os16 engine features ->
+vowel baselines, FM os16 A/B, clarinet CMA-ES. New items land on
+completion.)
 
-### 2. FormantSequence round 2 [listen] (run 9)
-renders/formantseq_sweep2/ (12). Your weight diagnosis was right: w5/w9
-now put the active formant 16-20 dB above the valley (round 1's fmtWt 2
-was <=3x on partials the rest of the spectrum buried). Same 5 regimes at
-_w5 and _w9 + vowel_glide_flat (flatter source) + control_static_w5.
-Verdict decides: usable weight range; which morphs graduate.
+## Resolved
 
-### 3. FM alias A/B v2 [listen] (run 9)
-renders/fm_oversample2/ — your spec: 5 Hz freq LFO, notes C4-C8, os1 vs
-os8 pairs. Measured audibility gradient: stripped-alias energy is -16.8
-dB of signal at C4 rising to 0 dB at C8 (at the top the aliasing is as
-loud as the tone). Verdict decides: oversample default policy for
-bright/high FM.
-
-### 4. Clarinet attack report — and a proposed new engine feature [read]
-research/ml_ears/out/clarinet_attack_report.md (+4 plots). Your
-inverse-frequency law measured exact: rise t50 = 29.3*f0^-0.84 (350-480ms
-at E3/G3 -> 60-110ms above 1kHz). The surprise: breath LEVEL is
-register-flat and equals the sustain noise floor — breathiness is
-EXPOSURE TIME (noise precedes tone by 30-290ms, longer at low f0).
-Noise = band-passed hiss, centroid ~2.9kHz, genuinely between-line.
-Per-partial AM bandwidth is RULED OUT as the breath (multiplicative with
-partial amplitude -> cannot precede the tone).
-DECISION NEEDED: the report proposes a new feature — a formant-shaped,
-constant-level noise bed gated at note-on with the TONE delayed behind it
-(0.15/0.10/0.04s by register), coupled via shared formant + shared gate +
-tone-referenced level. This is deliberately NOT the rejected independent
-parallel noise layer — the coupling is structural — but it's close enough
-to that dead end that I want your read before building it. Verdict
-decides: build the noise-bed feature (then clarinet CMA-ES with it), or
-attempt CMA-ES first with existing features to see how far it gets.
-
-### 5. Curve-dropdown: stale binary, not a bug [look, 1 min]
-Your exe predated the curve-editor commit. Restart mforce_ui, load
-v6_04_bwfloor_curve.json, Add curve -> vla_partials: bandwidth1 is
-mid-list (scroll; "(has curve)" annotation added). Delete
-mforce_ui_running_backup2.exe from build/tools/mforce_ui/Release/ after
-closing the old instance.
+2026-07-30 pm (Matt, folded in run 11):
+- Expand round 3: "Nice sounds" — front PARKED at your request until
+  tomorrow (backlog holds next steps).
+- FormantSeq r2: still buzzy-sawtooth, no vowel character; your
+  "weight near 1" read points at the real mechanism — additive-boost
+  can't CUT between formants. Run 11 adds formantFloor (out-of-band
+  suppression); vowel BASELINE set (OO-EE, O-OO-EE, AH-O-OO, LIAR +
+  invented) at low AND high f (your LIAR-at-high-f birdy note) replaces
+  further novelty rounds until the baseline sounds like vowels.
+- FM alias v2: C8 pair decisive; C7 os8 still audible -> os16 being
+  added and rendered for C7/C8.
+- Clarinet noise-bed: APPROVED ("we'll be in familiar territory without
+  the new feature") -> implementing, then clarinet CMA-ES.
+- Dropdown recheck: good; closed.
 
 ## Resolved
 
