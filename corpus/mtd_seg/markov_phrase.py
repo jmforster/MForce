@@ -823,12 +823,31 @@ def main_v3():
     ap.add_argument("--max-tries", type=int, default=24)
     ap.add_argument("--skip-before", action="store_true",
                     help="skip the baseline (before) batch")
+    ap.add_argument("--corpus", default="mtd",
+                    help="corpus flavor: which token file trains the model AND "
+                         "which baseline scores it (mtd | nottingham | essen | "
+                         "essen_europa | essen_asia). Non-mtd writes to "
+                         "renders/corpus_flavors/<corpus>/.")
+    ap.add_argument("--outdir", default=None,
+                    help="override the render directory (repo-relative)")
     args = ap.parse_args()
 
     rng = random.Random(args.seed)
-    model = MarkovModel.load()
-    cs = sg.corpus_stats()
-    outdir = REPO / "renders/markov_phrases3"
+    # Corpus flavor: subsets (essen_europa/_asia) share one token file — the
+    # SUBSET only re-anchors the scorer, the model still trains on all of Essen.
+    import markov_model as mm
+    tok_name = args.corpus.split("_")[0]
+    tokens = (mm.TOKENS if tok_name == "mtd"
+              else mm.ROOT / f"{tok_name}_tokens.json")
+    model = MarkovModel.load(tokens)
+    cs = sg.corpus_stats(args.corpus)
+    if args.outdir:
+        rel = args.outdir
+    elif args.corpus == "mtd":
+        rel = "renders/markov_phrases3"
+    else:
+        rel = f"renders/corpus_flavors/{args.corpus}"
+    outdir = REPO / rel
     (outdir / "before").mkdir(parents=True, exist_ok=True)
 
     # ---------------- BEFORE batch: pre-verdict behavior --------------------
@@ -852,18 +871,23 @@ def main_v3():
                     break
             t = make_template(motifs, refs, conns, bpm=args.bpm,
                               seed=args.seed * 1000 + i)
-            prefix = f"renders/markov_phrases3/before/b{i:02d}"
+            prefix = f"{rel}/before/b{i:02d}"
             render_template(t, prefix)
             counts = [len(motifs[r]["units"]) for r in refs]
             before_rows.append(_phrase_stats(
                 REPO / (prefix + "_1.json"), counts))
 
     # ---------------- AFTER batch: verdicts 1-5 -----------------------------
+    # Structure rolls come from their OWN stream so they don't depend on how
+    # many draws figure sampling consumed. Same --seed across --corpus values
+    # therefore yields the SAME pattern/contour/transform sequence with
+    # different corpus content — a controlled corpus-flavor A/B.
+    srng = random.Random(args.seed ^ 0x5EED)
     after_rows, meta = [], []
     for i in range(args.n):
-        pattern = rng.choice(V3_PATTERNS)
-        transform = (rng.choice(V3_TRANSFORMS) if "'" in pattern else "none")
-        contour = rng.choice(list(CONTOURS))
+        pattern = srng.choice(V3_PATTERNS)
+        transform = (srng.choice(V3_TRANSFORMS) if "'" in pattern else "none")
+        contour = srng.choice(list(CONTOURS))
         use_ctr = (i % 2 == 1)                       # half contrast-B
         tries = 0
         while True:
@@ -887,7 +911,7 @@ def main_v3():
         name = (f"p{i:02d}_{pattern.replace(chr(39), 'x')}_"
                 f"{contour.replace('_', '')}_{tlabel}_"
                 f"{'ctrB' if use_ctr else 'indB'}")
-        prefix = f"renders/markov_phrases3/{name}"
+        prefix = f"{rel}/{name}"
         render_template(t, prefix)
         counts = [len(f["units"]) for _, f in motif_list]
         st = _phrase_stats(REPO / (prefix + "_1.json"), counts)
