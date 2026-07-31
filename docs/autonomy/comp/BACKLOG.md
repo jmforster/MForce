@@ -2,18 +2,22 @@
 
 Priority order. (G1)-(G2) = GOALS.md Wolfie goals.
 
-4. **[metric] (G1) Essen ingest (3c)** — DATA-GATED (run 8): the Essen folksong
-   collection is NOT on disk (corpus/kern = 10 classical polyphonic pieces only,
-   not Essen). Needs a network fetch an unattended run can't authorize — unblock
-   queued in REVIEW. Kern parser deferred with it (low value against 10 classical
-   soprano lines). When data lands: kern parser -> tokenize_notes ->
-   essen_tokens.json; re-run bake-off. Also still open: Nottingham-anchored scorer
-   baseline (corpus_stats per corpus) — bake-off Nottingham numbers are still
-   MTD-anchored.
-6. **[build] (G2) PassageStrategy expansion** — connective/transitional,
-   pedal-point buildup, discursive wandering, circle-of-fifths trips;
-   demo passage per strategy to REVIEW. (Matt re-raised in run-7 REVIEW:
-   "New passage strategies".)
+6. **[build] (G2) PassageStrategy expansion** — Python prototype LANDED run 12
+   (passage_strategies.py: pedal_buildup / wandering / connective /
+   fifths_sequence + suite; 15 renders, listen item queued). Remaining = the
+   C++ port, spec'd in 4 stages at
+   docs/superpowers/specs/2026-07-31-passage-strategy-expansion-design.md:
+   (1) anchor plumbing + PedalBuildup/Sequence strategies, (2) connective
+   (needs prior-passage context via Locus), (3) key-aware realization —
+   keyContexts are inert today, which BLOCKS real modulating
+   circle-of-fifths, (4) wandering. Stage 1 was not started in run 12 because
+   the dsp lane held the build dir; it needs a free tree or its own build dir.
+11. **[metric] Representation ceiling for non-diatonic corpora** — run 12
+    found that (scale-step, pulse) tokens realized in C major erase
+    pentatonicism: training on Essen scores no better than training on MTD
+    against the essen_asia anchor (int_jsd .087 vs .081). If corpus-specific
+    modal/pentatonic flavor is wanted, the token alphabet (or realization)
+    has to carry it. Design question, not yet a task.
 10. **[build] Wire figure transforms into the phrase-builder** — the transform
     library landed run 8 (figure_transforms.py); next is USING it in
     markov_phrase so repeated A-family occurrences can be transposed AND
@@ -26,6 +30,13 @@ Priority order. (G1)-(G2) = GOALS.md Wolfie goals.
 
 ## Done
 
+- Run 12 (2026-07-31): #4 CLOSED — per-corpus scorer anchors
+  (corpus_baseline.py; mtd/nottingham/essen/essen_europa/essen_asia), two
+  measurement artifacts fixed (whole-tune length confound; Essen alphabetical
+  sampling anchoring "folk" on 2,246 Chinese tunes — mtd-vs-essen JSD
+  .128 -> .036). Bake-off re-run under proper anchors: run-10 ranking holds.
+  Corpus-flavored phrase batches (markov_phrase --corpus, 36 WAVs, controlled
+  structural A/B). #6 prototype + spec (above).
 - Run 8 (2026-07-30): #2 contrast-aware fig B (closure objective + monotony
   veto; range 12.6->9.1, zero 0.278->0.251, composite wash by design ->
   audition queued); #3 neural next-note model (numpy Bengio LM, val_ppl 28.5,
