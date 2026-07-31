@@ -87,15 +87,22 @@ Priority order. Tags per WORKFLOW.md. (G1)-(G4) = GOALS.md Dipsy goals.
    ab_render_time.py, ablate_additive.py.
    Now: marginal 47.6 ns/sample/partial, ~437 partials/core RT (on a box with
    mforce_ui holding a core — better when quiet).
-   **STAGE 2d (open, >1 session, wants a spec):** explicit SIMD/SoA of the
-   partial loop. Ablation says the memory-bound floor for the current layout
-   is 3.3 ns/sample/partial vs 57.3 now — 17x headroom — and that the gap is
-   NOT explainable by arithmetic count, so the win is in restructuring (SoA
-   batches of 4-8, multiple partial sums to break the serial accumulate),
-   not more scalar work. ANTI-RESULT, don't retry: a branchless degree-13
-   full-period sin polynomial (no quadrant folding) is a WASH on controlled
-   A/B — MSVC already compiles the folded selects branchlessly — and is less
-   accurate (-123.4 vs -133.3 dB). Rejected run 12.
+   **STAGE 2d (open, >1 session):** explicit SIMD of the partial loop. Spec:
+   specs/2026-07-31-additive-simd-soa-design.md. Ablation says the
+   memory-bound floor for the current layout is 3.3 ns/sample/partial vs
+   57.3 now — 17x headroom — and that the gap is NOT explainable by
+   arithmetic count. TWO ANTI-RESULTS, don't retry either (run 12, both on
+   controlled A/B):
+   (i) branchless degree-13 full-period sin polynomial, no quadrant folding —
+   a WASH (MSVC already compiles the folded selects branchlessly) and less
+   accurate (-123.4 vs -133.3 dB);
+   (ii) 4x unroll with 4 independent accumulators — consistently SLOWER
+   (0.88/0.94/0.93x on the 32/96/200p ladder). The compiler was already
+   scheduling across iterations; the unroll only cost register pressure.
+   Consequence: the cheap explanations are closed off. Anything that moves
+   this number has to be real vector arithmetic or nothing — so phase 1 is an
+   isolated SIMD prototype on synthetic arrays with a 2x abort criterion,
+   BEFORE touching Partials. Weigh against 2e before committing.
    **STAGE 2e (open):** iFFT overlap-add additive (1000s of partials cheap;
    structurally different synthesis, NOT bit-identical → review:listen).
 9. **[build] Convert 6 algev patches to instrument-style** — ✓ DONE run8

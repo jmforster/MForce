@@ -69,8 +69,12 @@ carrier. At a low carrier with a huge index the oversample ladder does NOT
 converge (M=1/2/4/8 → 0/-0.0/-2.4/-2.3 dB) — there it changes the sound rather
 than cleaning it. The default rule should key on carrier frequency and
 deviation, not index.
-Anti-result recorded: a branchless full-period sin polynomial is a wash and
-less accurate — don't retry.
+Two anti-results recorded rather than left as folklore: a branchless
+full-period sin polynomial is a wash and less accurate, and a 4x unrolled loop
+with split accumulators is *slower* (0.88-0.94x). Between them they rule out
+branch misprediction, the accumulator chain, and ILP starvation — so stage 2d
+needs real SIMD or nothing, and its spec now opens with an isolated prototype
+and a 2x abort criterion instead of a refactor.
 Tree note: three tracked files were already modified at session start (a UI
 re-save of v6_01, and the ml_ears config generalization); left untouched per
 the guard, flagged in the report — HEAD currently can't run the clarinet
