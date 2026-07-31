@@ -57,26 +57,60 @@ Priority order. Tags per WORKFLOW.md. (G1)-(G4) = GOALS.md Dipsy goals.
    M=1 byte-identical (spacy family safe). Measured suppression M=2/4/8 =
    24.5/34.7/39.6 dB (research/fm_alias/measure.py; M=8 kills 99% of in-band
    alias residual). Spec: specs/2026-07-30-oversampled-fm-design.md.
-   **REOPEN (stage 2, [review:listen]):** the "modulate everything" FM matrix
-   sweep through the novelty filter — taste-gated, not done blind. Also a small
-   A/B (M=1 vs M=8 alias tone) is queued in REVIEW for the default decision.
+   **STAGE 2 ✓ DONE run12 (2026-07-31):** 24-patch "modulate everything"
+   matrix (tools/gen_fm_matrix.py → patches/fm_matrix/), 9 rule-breakers;
+   both ratios / phase / frequency / amplitude modulated at sub-audio AND
+   audio rate, FM driving FM's depth, modRatio swept through zero. Wiring
+   verified by measurement (spectral centroid sd 99..2719 Hz across the
+   batch), novelty-ranked, survivors → REVIEW 4.
+   Also research/fm_alias/measure_patch.py — alias measurement for ANY FM
+   patch. It found the oversample-default question has a wrong premise: the
+   ladder converges at high CARRIER (M=1/2/4/8 → 0/2.7/5.7/12.5 dB) but does
+   NOT converge at high INDEX on a low carrier (0/-0.0/-2.4/-2.3 dB). REVIEW 3.
+   **Open:** whichever patch family the audition verdict picks out.
 8. **[metric] (G4) Additive performance** — ✓ STAGE 1 DONE run8 (2026-07-30):
-   CLI render timer (run_patch stderr) + tools/prof_additive.py sweep. Baseline
-   ~65-90 ns/sample/partial (marginal 64 ns), linear, ~325 partials/core RT
-   @48kHz single-thread; hot path = per-partial std::sin + fmod in
-   Partials::get_partial_value. Note: instrument+score patches pre-render at
-   load, so run_patch's timer measures MIXING not synthesis (25x artifact
-   resolved) — stage-2 profiling must time the pre-render.
-   **STAGE 2 (open):** (a) SIMD/vectorize the get_partial_value partial loop
-   (batch the sin — a table or poly approx would break bit-exactness → null
-   test + Matt's ear); (b) investigate iFFT overlap-add additive (1000s of
-   partials cheap; NOT bit-identical → review:listen); (c) add a timer at the
-   instrument pre-render. >1 session; stage it.
+   CLI render timer + tools/prof_additive.py sweep.
+   **✓ STAGE 2a+2b DONE run12 (2026-07-31)** — 1.2-1.6x wall clock, commit
+   aafbe9b, spec specs/2026-07-31-additive-hot-loop-design.md.
+   2a (bit-exact, 14/14 byte-identical null test): IPartials::sum_partials
+   batches the loop behind ONE virtual call per sample (accumulator threaded
+   so nested sets keep the addition order); per-sample scalar cache kills 8
+   virtual current() calls PER PARTIAL; per-partial pmult/rolloff/motion-scale
+   cache keyed on (multE,roE); fmod→truncf.
+   2b (fast sin): sinf measured at ~40% of the remaining loop, replaced by a
+   folded degree-9 minimax polynomial in turns (core/fast_math.h). Worst
+   deviation 1 LSB @16-bit, residual RMS -125..-140 dBFS; MORE accurate in
+   float32 than the std::sin(x*TAU) it replaces. No toggle.
+   2c (timer) ✓: mforce_cli prints load= and total=. viola_default is
+   load=2288ms vs render=16.6ms — profile instrument patches by load=.
+   Gates: tools/null_test_additive.py, residual_test_additive.py,
+   ab_render_time.py, ablate_additive.py.
+   Now: marginal 47.6 ns/sample/partial, ~437 partials/core RT (on a box with
+   mforce_ui holding a core — better when quiet).
+   **STAGE 2d (open, >1 session, wants a spec):** explicit SIMD/SoA of the
+   partial loop. Ablation says the memory-bound floor for the current layout
+   is 3.3 ns/sample/partial vs 57.3 now — 17x headroom — and that the gap is
+   NOT explainable by arithmetic count, so the win is in restructuring (SoA
+   batches of 4-8, multiple partial sums to break the serial accumulate),
+   not more scalar work. ANTI-RESULT, don't retry: a branchless degree-13
+   full-period sin polynomial (no quadrant folding) is a WASH on controlled
+   A/B — MSVC already compiles the folded selects branchlessly — and is less
+   accurate (-123.4 vs -133.3 dB). Rejected run 12.
+   **STAGE 2e (open):** iFFT overlap-add additive (1000s of partials cheap;
+   structurally different synthesis, NOT bit-identical → review:listen).
 9. **[build] Convert 6 algev patches to instrument-style** — ✓ DONE run8
    (2026-07-30). instrument+score added + output rerouted to bare source;
    all 6 render with sound via the shared instrument path.
 10. **[review:listen] Vowel/formant re-tune after formantWeight refactor** —
-    prep render set + gain sweep, queue for ears.
+    prep render set + gain sweep, queue for ears. (Largely overtaken by the
+    run-11 vowel BASELINE set, REVIEW 1.)
+11. **[build] Commit research/ml_ears/score_candidate.py + iowa_reference.py**
+    — the config-driven instrument generalization is working-copy-only, but
+    run 11 committed optimize.py and configs/clarinet_bb.json which DEPEND on
+    `score_candidate.load_config`. HEAD alone cannot run the clarinet CMA-ES
+    pipeline. Left untouched in run 12 per the tree guard (files modified at
+    session start, not this run's work). One-line commit once Matt confirms
+    nothing else is in flight on them.
 
 ## Done
 

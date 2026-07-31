@@ -1,14 +1,14 @@
 # Status — open this file first
 
-Updated: 2026-07-31 — comp run 12 (Wolfie, scheduled) · dsp run 11 (Dipsy, interactive)
+Updated: 2026-07-31 — comp run 12 (Wolfie, scheduled) · dsp run 12 (Dipsy, scheduled)
 
 | Lane | Dev | Latest run | Backlog top | Awaiting your review |
 |---|---|---|---|---|
 | comp | Wolfie | run 12 (2026-07-31, scheduled): per-corpus scorer anchors (#4 CLOSED — two measurement artifacts fixed, incl. Essen anchored on 2,246 Chinese tunes by alphabetical order); corpus-flavored phrase batches (controlled A/B, 36 WAVs); passage strategies #6 prototyped + rendered (15 WAVs) + C++ port spec'd in 4 stages | #6 C++ stage 1 (needs a tree without a live dsp build); #7 phrase-aware cadence | **4 items** — phrase v3 A/B, passage strategies, corpus flavor A/B [listen] · Essen note [read] |
-| dsp | Dipsy | run 11 (2026-07-30 pm, interactive): formantFloor + NoiseBed landed (verified vs clarinet measurements); vowel baselines w/ GLIDING formants (crossfade provably can't do high-f vowels); clarinet CMA-ES smoke 1.132->0.787, noise-lead law preserved; os16 question answered by measurement (C7 converged at os8). Expand-3 parked per Matt | resume clarinet to 600 evals; expand-3 next steps (parked til tomorrow) | **3 items** — vowel baselines [listen], clarinet first pass [listen], os16 answer [read] |
+| dsp | Dipsy | run 12 (2026-07-31, scheduled): additive hot loop **1.2-1.6x** (batched per-sample sum + hoisted scalars, bit-exact 14/14; fast sin, 1 LSB worst deviation); `load=` timer proves instrument patches are LOAD-bound not render-bound (viola 2288ms vs 16.6ms); 24-patch FM "modulate everything" matrix; oversample-default premise corrected by measurement | stage 2d SIMD/SoA (needs a spec, 17x headroom measured); clarinet 600-eval (gated) | **5 items** — vowel baselines [listen], clarinet first pass [listen], FM oversample default [read], FM matrix [listen], perf residual [listen, non-blocking] |
 
 Reports: comp/reports/2026-07-31-wolfie-run12.md ·
-dsp/reports/2026-07-30-dipsy-run8.md
+dsp/reports/2026-07-31-dipsy-run12.md
 
 Run-12 highlights (comp): three fronts, all metric/build, no blind taste
 iteration. (1) Per-corpus scorer anchors close backlog #4 — and finding them
@@ -47,27 +47,42 @@ families (markov_phrases2/) — mapped explicitly in REVIEW, awaiting ears.
 
 (Essen's data gate closed in run 10; #4 itself closed in run 12.)
 
-Run-8 highlights (dsp): three fronts, all build/metric, no blind taste. (1)
-Oversampled FM (item 7, G3) — a first, decisive dent in the FM-aliasing goal:
-`oversample` config runs the sin() nonlinearity at M·SR then Butterworth-
-decimates, measuring 24.5/34.7/39.6 dB alias suppression at M=2/4/8 (M=8 removes
-99% of the in-band alias residual). Default 1 keeps the spacy-FM family byte-
-identical. (2) Additive-perf profiling (item 8 stage 1, G4) — landed a CLI
-render timer and a partial-count sweep tool; steady-state cost is ~64 ns per
-sample per partial, linear, ~325 partials/core real-time single-thread. A 25x
-"fast path" lead was chased down to a measurement artifact (instrument patches
-pre-render at load, so the timer caught mixing not synthesis) — no phantom win;
-stage 2 (SIMD / iFFT-OLA) is genuine work, staged. (3) 6 algev patches converted
-to instrument-style, resolving the audition-path mismatch. Tree note: the comp
-scheduled run shared the working copy this session — all commits scoped, no -u.
+Run-12 highlights (dsp): three fronts, all build/metric, no blind taste.
+(1) **Additive hot loop, 1.2-1.6x** (item 8 stage 2, G4). The bit-exact half —
+batching the partial loop behind one virtual call per sample, hoisting the
+eight envelope reads that were being fetched once PER PARTIAL (768 virtual
+calls per sample at 96 partials), caching pow-derived rolloff, fmod→truncf —
+passes a 14-patch byte-identical null test. Then sinf was *measured* at ~40%
+of what remained and replaced with a minimax polynomial in turns whose worst
+deviation across all 14 patches is 1 LSB at 16 bit. Marginal cost
+90.6→51.4 ns/sample/partial; ~437 partials/core real-time. Also closed the
+run-8 loose end: `load=` timing proves instrument+score patches pre-render at
+load, so viola_default is 2288ms load vs 16.6ms "render" — 0.94x realtime end
+to end, not 150x.
+(2) **FM "modulate everything"** (item 7 stage 2, G3) — 24 patches driving the
+params a fixed-architecture FM synth can't reach (both ratios at audio rate,
+phase-as-PM, FM driving FM's depth, modRatio swept through zero), 9 deliberate
+rule-breakers. Wiring verified by measurement, not assumed. Novelty-ranked →
+REVIEW.
+(3) A **premise correction**: every alias number so far was taken at a high
+carrier. At a low carrier with a huge index the oversample ladder does NOT
+converge (M=1/2/4/8 → 0/-0.0/-2.4/-2.3 dB) — there it changes the sound rather
+than cleaning it. The default rule should key on carrier frequency and
+deviation, not index.
+Anti-result recorded: a branchless full-period sin polynomial is a wash and
+less accurate — don't retry.
+Tree note: three tracked files were already modified at session start (a UI
+re-save of v6_01, and the ml_ears config generalization); left untouched per
+the guard, flagged in the report — HEAD currently can't run the clarinet
+CMA-ES pipeline without them.
 
 Next "go": comp = #6 C++ stage 1 (anchor plumbing + PedalBuildup/Sequence
 PassageStrategy classes, per the run-12 spec) → stage 3 key-aware realization
 if you want modulation → #7 phrase-aware cadence. Four comp review items
-waiting (three listen, one read). dsp = item 7
-stage 2 (oversampled "modulate everything" FM sweep → novelty filter, review-
-gated) and item 8 stage 2 (SIMD the partial loop / iFFT overlap-add). Five dsp
-listen items waiting incl. the new FM alias A/B. Verdicts fold in whenever you
-send them.
+waiting (three listen, one read). dsp = item 8 stage 2d (explicit SIMD/SoA of
+the partial loop — ablation measured a 3.3 ns memory floor against 57.3 ns
+now, so there is 17x of headroom and it needs its own spec) → stage 2e
+iFFT-OLA. Clarinet 600-eval stays gated on your ears. Five dsp review items
+waiting. Verdicts fold in whenever you send them.
 
 How this works: [WORKFLOW.md](WORKFLOW.md)
