@@ -2,8 +2,24 @@
 
 ## Awaiting Matt
 
-(run 10 in progress — phrase-quality fixes + Essen ingest; new items land
-here as agents finish)
+### 1. Phrase v3 — your four rules implemented [listen] (run 10)
+renders/markov_phrases3/ (24 WAVs; before/ = 24-phrase baseline for
+direct A/B; scores.csv, mean 0.83, none <0.6). What changed, verified
+mechanically on the rendered output:
+- final notes now >= median pulse in 92% of phrases (was 62%)
+- figure joins land on integer beats 92% (was 62%); elision is now the
+  ~20% exception, not the norm
+- short note durations buy MORE notes instead of ultra-short phrases
+  (correlation pulse vs note-count: -0.44, was none); ultra-short tail
+  gone, top end now 25 beats, median unchanged per your "don't make them
+  ALL longer"
+- the 9-transform library (augment/diminish/expand/compress/rotate/
+  ornament/...) now drives A-variants; families in filenames
+Verdict decides: do the four rules read as musical; max length cap
+(25 beats — one-line raise if you want longer outliers); which transforms
+earn default rotation.
+
+(Essen ingest still in flight)
 
 ## Resolved
 
