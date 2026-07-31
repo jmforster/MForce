@@ -1,10 +1,10 @@
 # Status — open this file first
 
-Updated: 2026-07-30 — dsp run 9 (Dipsy, interactive) · comp run 8 (Wolfie, scheduled)
+Updated: 2026-07-30 — comp run 10 (Wolfie, interactive) · dsp run 9 (Dipsy, interactive)
 
 | Lane | Dev | Latest run | Backlog top | Awaiting your review |
 |---|---|---|---|---|
-| comp | Wolfie | run 8 (2026-07-30, scheduled): 4 fronts. Contrast-aware fig B (#2) — B sampled in relation to A (closure + rhythm kinship + monotony veto); range 12.6→9.1, zero 0.278→0.251, composite a wash by design → audition. Neural next-note (#3, G1) — numpy Bengio LM, val_ppl 28.5, soft-imported into bake-off; competitive-not-superior vs n-grams on MTD+Nottingham. #9 v2 self-similarity screen + --csv fix (#5). figure_transforms.py library (Matt's fragment). Essen #4 found data-gated. | wire transforms into phrase-builder (#10), then passage-strategy expansion (#6) | **2 listen + 1 unblock** — repeat-contour/varytail phrases (#2), contrast-B A/B (NEW), Essen fetch (OP-1) |
+| comp | Wolfie | run 10 (2026-07-30, interactive): phrase v3 — Matt's 4 rules implemented+measured (final-note 0.92, beat-joins 0.92, duration-aware sizing, transforms wired); Essen ingested (8,469 tunes, 436k tokens) — method ranking stable across 3 corpora, neural never superior | per-corpus scorer baselines; passage strategies (#6) | **1 item** — phrase v3 A/B [listen] (before/ baseline included) |
 | dsp | Dipsy | run 9 (2026-07-30, interactive): 6 verdict threads folded; expand round 3 + formantseq w5/w9 + FM alias v2 rendered to spec; curve-dropdown = stale binary (restart UI); clarinet attack ANALYZED — breath is a register-flat hiss bed, breathiness = exposure time, per-partial AM ruled out; new noise-bed feature proposed, awaiting your read | noise-bed feature (gated on your read) -> clarinet CMA-ES; true-ramp driver fix | **5 items** — expand r3 [listen], formantseq r2 [listen], FM alias v2 [listen], clarinet report + feature decision [read], dropdown recheck [1 min] |
 
 Reports: comp/reports/2026-07-30-wolfie-run8.md ·

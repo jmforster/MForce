@@ -19,7 +19,11 @@ Verdict decides: do the four rules read as musical; max length cap
 (25 beats — one-line raise if you want longer outliers); which transforms
 earn default rotation.
 
-(Essen ingest still in flight)
+### 2. Essen bake-off note [read, optional]
+8,469 tunes ingested; ranking stable across 3 corpora. Only decision
+embedded: within the top cluster (ngram2/3/neural, ~0.02 apart, order
+flips by corpus) there is NO winner to pick — order-2 backoff stays the
+workhorse by parsimony unless you object.
 
 ## Resolved
 
