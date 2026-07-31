@@ -1,0 +1,98 @@
+{
+ "sampleRate": 48000,
+ "seconds": 6,
+ "graph": {
+  "nodes": [
+   {
+    "id": "ampEnv",
+    "type": "Envelope",
+    "params": {
+     "stages": [
+      {
+       "startVal": 1.0,
+       "endVal": 0.0,
+       "type": "Expo",
+       "power": 1.2,
+       "percent": 0.0
+      }
+     ]
+    }
+   },
+   {
+    "id": "am",
+    "type": "SineSource",
+    "params": {
+     "frequency": 137.0,
+     "amplitude": 1.0
+    }
+   },
+   {
+    "id": "ag",
+    "type": "RangeSource",
+    "params": {
+     "min": 0.0,
+     "max": 1.0,
+     "var": {
+      "ref": "am"
+     },
+     "normalized": false
+    }
+   },
+   {
+    "id": "depthEnv",
+    "type": "Envelope",
+    "params": {
+     "stages": [
+      {
+       "startVal": 5.0,
+       "endVal": 2.0,
+       "type": "Expo",
+       "power": 2.0,
+       "percent": 0.0
+      }
+     ]
+    }
+   },
+   {
+    "id": "fm",
+    "type": "FMSource",
+    "params": {
+     "amplitude": {
+      "ref": "ag"
+     },
+     "carrierRatio": 1.0,
+     "modRatio": 2.0,
+     "depth": {
+      "ref": "depthEnv"
+     },
+     "frequency": 220.0
+    }
+   },
+   {
+    "id": "ch1",
+    "type": "SoundChannel",
+    "inputs": {
+     "source": "fm"
+    },
+    "params": {
+     "volume": 0.7,
+     "pan": 0.0
+    }
+   },
+   {
+    "id": "mix",
+    "type": "StereoMixer",
+    "inputs": {
+     "channels": [
+      "ch1"
+     ]
+    },
+    "params": {
+     "gainL": 1.0,
+     "gainR": 1.0
+    }
+   }
+  ],
+  "output": "mix"
+ }
+}
