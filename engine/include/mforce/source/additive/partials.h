@@ -188,7 +188,8 @@ struct IPartials {
   virtual void partials_next() = 0;
   virtual int partial_count() const = 0;
   virtual float get_partial_value(float amplitude, float frequency, float phaseDiff,
-                                  int index, IFormant* formant, float formantWeight) = 0;
+                                  int index, IFormant* formant, float formantWeight,
+                                  float formantFloor) = 0;
 };
 
 // ---------------------------------------------------------------------------
@@ -474,7 +475,8 @@ struct Partials : ValueSource, IPartials {
 
   // Port of legacy Partials.cs GetPartialValue — the authoritative per-partial math
   float get_partial_value(float amplitude, float frequency, float phaseDiff,
-                          int index, IFormant* formant, float fmtWt) override
+                          int index, IFormant* formant, float fmtWt,
+                          float fmtFloor) override
   {
     float multE = multEnv_->current();
     float amplE = amplEnv_->current();
@@ -520,16 +522,23 @@ struct Partials : ValueSource, IPartials {
     float ro = ro1_ + (ro2_ - ro1_) * roE;
     float rolloff = (ro == 0.0f) ? 1.0f : (1.0f / std::pow(pmult, ro));
 
-    // Formant factor — additive-boost semantic (replaces legacy crossfade).
-    // Out-of-band partials pass through at unity; in-band partials are boosted
-    // by fmtWt * the formant's gain-at-frequency. fmtWt is a "resonance amount"
-    // knob (0 = flat, higher = stronger peaks), not an exclusivity crossfade —
-    // so mid fmtWt values stay musical instead of just attenuating everything.
-    // get_gain returns 0 at the band edges, so edge partials pass at factor 1.0
-    // (no boost, no cut) — continuous with the out-of-band region.
+    // Formant factor — additive-boost with out-of-band floor.
+    //   in-band:      factor = fmtFloor + fmtWt * gain-at-frequency
+    //   out-of-band:  factor = fmtFloor
+    // fmtWt is the "resonance amount" knob (0 = flat, higher = stronger
+    // peaks). fmtFloor is the inter-formant suppression: at 1.0 (default)
+    // this reproduces the pure additive-boost semantic exactly — out-of-band
+    // partials pass at unity and band edges (gain -> 0) are continuous at
+    // 1.0. Lowering fmtFloor CUTS the inter-formant regions (0.05-0.15 with
+    // fmtWt ~1 drops them 16-26 dB while formant peaks stay near/above
+    // unity) — the missing half of vowel character; boost-only formants
+    // read as a buzzy sawtooth. Continuity at the band edges holds for any
+    // fmtFloor since gain -> 0 there.
     float fmtFactor = 1.0f;
-    if (formant && fmtWt > 0.0f && formant->contains(pfreq)) {
-      fmtFactor = 1.0f + fmtWt * formant->get_gain(pfreq);
+    if (formant) {
+      fmtFactor = formant->contains(pfreq)
+          ? fmtFloor + fmtWt * formant->get_gain(pfreq)
+          : fmtFloor;
     }
 
     // Fade out partials near cutoff (within 1000 Hz) — legacy line 216
@@ -1158,13 +1167,15 @@ struct CompositePartials final : ValueSource, IPartials {
   }
 
   float get_partial_value(float amplitude, float frequency, float phaseDiff,
-                          int index, IFormant* formant, float formantWeight) override {
+                          int index, IFormant* formant, float formantWeight,
+                          float formantFloor) override {
     int offset = 0;
     for (auto& e : sets_) {
       int count = e.ipartials->partial_count();
       if (index < offset + count)
         return e.ipartials->get_partial_value(amplitude, frequency, phaseDiff,
-                                               index - offset, formant, formantWeight);
+                                               index - offset, formant, formantWeight,
+                                               formantFloor);
       offset += count;
     }
     return 0.0f;

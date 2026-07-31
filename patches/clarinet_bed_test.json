@@ -1,0 +1,50 @@
+{
+ "sampleRate": 48000,
+ "seconds": 3,
+ "graph": {
+  "nodes": [
+   {
+    "id": "fp",
+    "type": "FullPartials",
+    "params": {
+     "maxPartials": 30,
+     "minMult": 1,
+     "rolloff1": 1.0,
+     "rolloff2": 1.0,
+     "evenWeight1": 0.35,
+     "evenWeight2": 0.35,
+     "oddWeight1": 1.0,
+     "oddWeight2": 1.0
+    }
+   },
+   {
+    "id": "src",
+    "type": "AdditiveSource",
+    "params": {
+     "seed": 42,
+     "frequency": 130.81,
+     "amplitude": 1.0,
+     "noiseBedLevel": 0.016,
+     "noiseBedFreq": 2900,
+     "noiseBedWidth": 1500,
+     "noiseBedDelay": 0.15,
+     "noiseBedFade": 0.05,
+     "partials": { "ref": "fp" }
+    }
+   },
+   {
+    "id": "ch1",
+    "type": "SoundChannel",
+    "inputs": { "source": "src" },
+    "params": { "volume": 0.7, "pan": 0.0 }
+   },
+   {
+    "id": "mix",
+    "type": "StereoMixer",
+    "inputs": { "channels": [ "ch1" ] },
+    "params": { "gainL": 1.0, "gainR": 1.0 }
+   }
+  ],
+  "output": "mix"
+ }
+}
