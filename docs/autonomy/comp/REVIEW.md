@@ -2,38 +2,26 @@
 
 ## Awaiting Matt
 
-### 2. Repeat-contour + vary_tail phrases [listen] — (run 7; answers your spec)
-renders/markov_phrases2/ (24 WAVs; filenames encode family: _lit/_varytail,
-stepup/zigzag/etc; scores.csv). This is the direct answer to your non-literal
-repeat spec — the three families map to your three cases:
-  1. repeat on different pitches  -> `transposed` family (stepup/down/leap/zigzag
-     contours anchor each A occurrence at a new pitch)
-  2. same pitch but modified      -> `varytail` family (G-F#-G / G-F#-G-A-D shape:
-     head kept, tail resampled per repeat)
-  3. both                          -> `combined` family (moved AND modified)
-Combined scored highest (0.86 mean). Verdict decides: contour/transform defaults
-for the combination layer.
-
-### 3. Contrast-aware fig B — independent vs contrast A/B [listen] — NEW (run 8)
-renders/markov_contrast/independent/ vs renders/markov_contrast/contrast/
-(14 paired phrases, same figA + pattern per pair; only how fig B is sampled
-differs) + scores.csv. Different axis from #2: this is about how the *second*
-figure relates to the *first* (antecedent/consequent), not repeats of A.
-Contrast-B answers a rising A with a falling B, shares A's rhythm, avoids
-monotone. Metric: range 12.6->9.1 semitones (runaways gone), zero_rate
-0.278->0.251; composite is a wash because it can't measure A/B balance — that's
-the question for your ears. Verdict decides: whether contrast-B becomes the
-combination-layer default, and whether the closure/kinship weighting reads as
-musical or too "tidy".
-
-### OP-1. Essen folksong data fetch [unblock] — NEW (run 8)
-Backlog #4 (Essen ingest) is blocked purely on data: corpus/kern holds only 10
-classical pieces, not the Essen folksong collection. Same fetch-authorization
-gate Nottingham had. If you drop the Essen **kern (or clone the repo) into a
-corpus/ subdir, the parser + tokenize + bake-off run are unattended-doable next
-session. One line here unblocks it.
+(run 10 in progress — phrase-quality fixes + Essen ingest; new items land
+here as agents finish)
 
 ## Resolved
+
+2026-07-30 (Matt, folded in run 10):
+- Repeat/varytail phrases: "some progress, a few close to coherent;
+  varytail is a BIG improvement in musicality." Complaints -> run-10
+  fixes: phrase-length clamp too short (raise the TOP of the range, keep
+  short end); short note durations should mean MORE notes, not
+  ultra-short phrases (duration-aware sizing).
+- Contrast-B A/B: contrast wins by a little; independent stays as an
+  occasional option. Two rule gaps flagged and under mechanical
+  investigation in run 10: (a) no final-note lengthening rule in this
+  path (phrases ending in a flurry / long-then-short — "very unlikely in
+  real music"); (b) figure joins never land on downbeats (everything
+  reads as elision; alignment should be the default, elision occasional).
+- Essen: cloned by Matt to corpus/essen-folksong-collection -> ingest
+  running (run 10).
+
 
 2026-07-30 (Matt verdict on old item #1, folded run 8):
 - "Repeated figures repeat literally on the same tone; want repeat on different
