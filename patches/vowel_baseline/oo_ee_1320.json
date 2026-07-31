@@ -1,0 +1,372 @@
+{
+ "sampleRate": 48000,
+ "seconds": 4,
+ "graph": {
+  "nodes": [
+   {
+    "id": "ampEnv",
+    "type": "Envelope",
+    "params": {
+     "preset": "adsr",
+     "attack": 0.05,
+     "decay": 0.05,
+     "sustainLevel": 0.8,
+     "release": 0.1
+    }
+   },
+   {
+    "id": "f0freq",
+    "type": "Envelope",
+    "params": {
+     "stages": [
+      {
+       "startVal": 300,
+       "endVal": 300,
+       "type": "Linear",
+       "percent": 0.175
+      },
+      {
+       "startVal": 300,
+       "endVal": 270,
+       "type": "Linear",
+       "percent": 0.7
+      },
+      {
+       "startVal": 270,
+       "endVal": 270,
+       "type": "Linear",
+       "percent": 0.0
+      }
+     ]
+    }
+   },
+   {
+    "id": "f0gain",
+    "type": "Envelope",
+    "params": {
+     "stages": [
+      {
+       "startVal": 1.0,
+       "endVal": 1.0,
+       "type": "Linear",
+       "percent": 0.175
+      },
+      {
+       "startVal": 1.0,
+       "endVal": 1.0,
+       "type": "Linear",
+       "percent": 0.7
+      },
+      {
+       "startVal": 1.0,
+       "endVal": 1.0,
+       "type": "Linear",
+       "percent": 0.0
+      }
+     ]
+    }
+   },
+   {
+    "id": "f0width",
+    "type": "Envelope",
+    "params": {
+     "stages": [
+      {
+       "startVal": 70,
+       "endVal": 70,
+       "type": "Linear",
+       "percent": 0.175
+      },
+      {
+       "startVal": 70,
+       "endVal": 70,
+       "type": "Linear",
+       "percent": 0.7
+      },
+      {
+       "startVal": 70,
+       "endVal": 70,
+       "type": "Linear",
+       "percent": 0.0
+      }
+     ]
+    }
+   },
+   {
+    "id": "fm0",
+    "type": "Formant",
+    "params": {
+     "frequency": {
+      "ref": "f0freq"
+     },
+     "gain": {
+      "ref": "f0gain"
+     },
+     "width": {
+      "ref": "f0width"
+     },
+     "power": 2.0
+    }
+   },
+   {
+    "id": "f1freq",
+    "type": "Envelope",
+    "params": {
+     "stages": [
+      {
+       "startVal": 870,
+       "endVal": 870,
+       "type": "Linear",
+       "percent": 0.175
+      },
+      {
+       "startVal": 870,
+       "endVal": 2290,
+       "type": "Linear",
+       "percent": 0.7
+      },
+      {
+       "startVal": 2290,
+       "endVal": 2290,
+       "type": "Linear",
+       "percent": 0.0
+      }
+     ]
+    }
+   },
+   {
+    "id": "f1gain",
+    "type": "Envelope",
+    "params": {
+     "stages": [
+      {
+       "startVal": 0.6,
+       "endVal": 0.6,
+       "type": "Linear",
+       "percent": 0.175
+      },
+      {
+       "startVal": 0.6,
+       "endVal": 0.6,
+       "type": "Linear",
+       "percent": 0.7
+      },
+      {
+       "startVal": 0.6,
+       "endVal": 0.6,
+       "type": "Linear",
+       "percent": 0.0
+      }
+     ]
+    }
+   },
+   {
+    "id": "f1width",
+    "type": "Envelope",
+    "params": {
+     "stages": [
+      {
+       "startVal": 100,
+       "endVal": 100,
+       "type": "Linear",
+       "percent": 0.175
+      },
+      {
+       "startVal": 100,
+       "endVal": 120,
+       "type": "Linear",
+       "percent": 0.7
+      },
+      {
+       "startVal": 120,
+       "endVal": 120,
+       "type": "Linear",
+       "percent": 0.0
+      }
+     ]
+    }
+   },
+   {
+    "id": "fm1",
+    "type": "Formant",
+    "params": {
+     "frequency": {
+      "ref": "f1freq"
+     },
+     "gain": {
+      "ref": "f1gain"
+     },
+     "width": {
+      "ref": "f1width"
+     },
+     "power": 2.0
+    }
+   },
+   {
+    "id": "f2freq",
+    "type": "Envelope",
+    "params": {
+     "stages": [
+      {
+       "startVal": 2240,
+       "endVal": 2240,
+       "type": "Linear",
+       "percent": 0.175
+      },
+      {
+       "startVal": 2240,
+       "endVal": 3010,
+       "type": "Linear",
+       "percent": 0.7
+      },
+      {
+       "startVal": 3010,
+       "endVal": 3010,
+       "type": "Linear",
+       "percent": 0.0
+      }
+     ]
+    }
+   },
+   {
+    "id": "f2gain",
+    "type": "Envelope",
+    "params": {
+     "stages": [
+      {
+       "startVal": 0.25,
+       "endVal": 0.25,
+       "type": "Linear",
+       "percent": 0.175
+      },
+      {
+       "startVal": 0.25,
+       "endVal": 0.3,
+       "type": "Linear",
+       "percent": 0.7
+      },
+      {
+       "startVal": 0.3,
+       "endVal": 0.3,
+       "type": "Linear",
+       "percent": 0.0
+      }
+     ]
+    }
+   },
+   {
+    "id": "f2width",
+    "type": "Envelope",
+    "params": {
+     "stages": [
+      {
+       "startVal": 140,
+       "endVal": 140,
+       "type": "Linear",
+       "percent": 0.175
+      },
+      {
+       "startVal": 140,
+       "endVal": 150,
+       "type": "Linear",
+       "percent": 0.7
+      },
+      {
+       "startVal": 150,
+       "endVal": 150,
+       "type": "Linear",
+       "percent": 0.0
+      }
+     ]
+    }
+   },
+   {
+    "id": "fm2",
+    "type": "Formant",
+    "params": {
+     "frequency": {
+      "ref": "f2freq"
+     },
+     "gain": {
+      "ref": "f2gain"
+     },
+     "width": {
+      "ref": "f2width"
+     },
+     "power": 2.0
+    }
+   },
+   {
+    "id": "spec",
+    "type": "FormantSpectrum",
+    "params": {
+     "formants": [
+      {
+       "ref": "fm0"
+      },
+      {
+       "ref": "fm1"
+      },
+      {
+       "ref": "fm2"
+      }
+     ]
+    }
+   },
+   {
+    "id": "fp",
+    "type": "FullPartials",
+    "params": {
+     "maxPartials": 40,
+     "minMult": 1,
+     "rolloff1": 1.0,
+     "rolloff2": 1.0
+    }
+   },
+   {
+    "id": "src",
+    "type": "AdditiveSource",
+    "params": {
+     "seed": 42,
+     "frequency": 1320.0,
+     "amplitude": {
+      "ref": "ampEnv"
+     },
+     "formant": {
+      "ref": "spec"
+     },
+     "formantWeight": 1.0,
+     "formantFloor": 0.08,
+     "partials": {
+      "ref": "fp"
+     }
+    }
+   },
+   {
+    "id": "ch1",
+    "type": "SoundChannel",
+    "inputs": {
+     "source": "src"
+    },
+    "params": {
+     "volume": 0.7,
+     "pan": 0.0
+    }
+   },
+   {
+    "id": "mix",
+    "type": "StereoMixer",
+    "inputs": {
+     "channels": [
+      "ch1"
+     ]
+    },
+    "params": {
+     "gainL": 1.0,
+     "gainR": 1.0
+    }
+   }
+  ],
+  "output": "mix"
+ }
+}

@@ -98,7 +98,11 @@ def analyze(path, f0_nom, decim=32):
             break
         dphi = np.angle(env[1:] / env[:-1])
         dev_hz = dphi * sr_env / (2 * np.pi)
-        c = 1200.0 * np.log2(1.0 + dev_hz / (k * f0))
+        # clip the ratio > 0 so a rare ~pi phase jump (weak harmonic, e.g.
+        # clarinet evens) can't make log2 NaN — same guard as
+        # refmetrics.motion_stats; medians dominate such samples out.
+        ratio = np.maximum(1.0 + dev_hz / (k * f0), 1e-3)
+        c = 1200.0 * np.log2(ratio)
         cents.append(c - c.mean())
         amps.append(a[1:] / a.mean())
     cents = np.array(cents)

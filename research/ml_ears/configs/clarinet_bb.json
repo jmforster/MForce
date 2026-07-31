@@ -13,7 +13,8 @@
   "eval_note_midis": [52, 62, 65],
   "motion_samples": ["ff.E3", "ff.F3", "ff.G3", "ff.Bb3",
                      "ff.C4", "ff.D4", "ff.F4", "ff.A4"],
-  "template": "patches/fable1_v5/v5_04_cal_sustain.json",
+  "encoder": "clarinet",
+  "template": "patches/clarinet_c1/template.json",
   "reference_path": "research/ml_ears/out/clarinet_reference.json",
   "reference_build": {"sus_start": 0.9, "sus_len": 1.4, "attack_len": 0.7},
   "run_root": "research/ml_ears/cmaes_runs"
