@@ -1,11 +1,11 @@
 # Status — open this file first
 
-Updated: 2026-07-30 — comp run 10 (Wolfie, interactive) · dsp run 9 (Dipsy, interactive)
+Updated: 2026-07-30 pm — dsp run 11 (Dipsy, interactive) · comp run 10 (Wolfie, interactive)
 
 | Lane | Dev | Latest run | Backlog top | Awaiting your review |
 |---|---|---|---|---|
 | comp | Wolfie | run 10 (2026-07-30, interactive): phrase v3 — Matt's 4 rules implemented+measured (final-note 0.92, beat-joins 0.92, duration-aware sizing, transforms wired); Essen ingested (8,469 tunes, 436k tokens) — method ranking stable across 3 corpora, neural never superior | per-corpus scorer baselines; passage strategies (#6) | **1 item** — phrase v3 A/B [listen] (before/ baseline included) |
-| dsp | Dipsy | run 9 (2026-07-30, interactive): 6 verdict threads folded; expand round 3 + formantseq w5/w9 + FM alias v2 rendered to spec; curve-dropdown = stale binary (restart UI); clarinet attack ANALYZED — breath is a register-flat hiss bed, breathiness = exposure time, per-partial AM ruled out; new noise-bed feature proposed, awaiting your read | noise-bed feature (gated on your read) -> clarinet CMA-ES; true-ramp driver fix | **5 items** — expand r3 [listen], formantseq r2 [listen], FM alias v2 [listen], clarinet report + feature decision [read], dropdown recheck [1 min] |
+| dsp | Dipsy | run 11 (2026-07-30 pm, interactive): formantFloor + NoiseBed landed (verified vs clarinet measurements); vowel baselines w/ GLIDING formants (crossfade provably can't do high-f vowels); clarinet CMA-ES smoke 1.132->0.787, noise-lead law preserved; os16 question answered by measurement (C7 converged at os8). Expand-3 parked per Matt | resume clarinet to 600 evals; expand-3 next steps (parked til tomorrow) | **3 items** — vowel baselines [listen], clarinet first pass [listen], os16 answer [read] |
 
 Reports: comp/reports/2026-07-30-wolfie-run8.md ·
 dsp/reports/2026-07-30-dipsy-run8.md

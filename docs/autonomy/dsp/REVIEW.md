@@ -2,9 +2,31 @@
 
 ## Awaiting Matt
 
-(run 11 in progress: formantFloor + NoiseBed + os16 engine features ->
-vowel baselines, FM os16 A/B, clarinet CMA-ES. New items land on
-completion.)
+### 1. Vowel baselines [listen] (run 11)
+renders/vowel_baseline/ — your requested sequences (OO-EE, O-OO-EE,
+AH-O-OO, LIAR + EE-AH-OO, OO-AH-EE) at 220 AND 1320 Hz, LIAR also at
+2640. Two mechanisms inside: at 220 Hz, formantFloor suppression
+(-11..-17dB valleys) should finally give vowel character; at high f0
+the character is GLIDING formants sweeping across harmonics (crossfade
+provably can't do it — see report). liar_1320 is the birdy bet;
+liar_2640 came out sparser (two isolated blooms). ah_o_oo_1320 is a
+documented geometric fail. Verdict decides: does 220Hz finally read as
+vowels; does the glide chirp match your remembered LIAR effect; default
+floor value.
+
+### 2. Clarinet first pass [listen] (run 11)
+renders/cmaes_clarinet/best_smoke.wav — E3..E5 ladder, 156-eval smoke
+(1.132->0.787), noise-bed breath model active with the measured
+register law preserved by the optimizer. KNOWN LIMIT: the scorer can't
+verify the breath-lead (below its threshold) — your ears are the only
+test of whether the breathy attack finally reads. Verdict decides:
+continue to 600 evals as-is, or fix the attack term first.
+
+### 3. FM os16 answer [read, no render]
+C7 is CONVERGED at os8 (os16 spectrally identical within 0.02dB) — the
+residual aliasing you heard at C7-os8 cannot be removed by more
+oversampling. os16 only helps where os8 hasn't converged. Default
+policy question stands: oversample 4-8 for bright/high-index FM?
 
 ## Resolved
 
