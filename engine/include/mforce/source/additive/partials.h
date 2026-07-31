@@ -1,5 +1,6 @@
 #pragma once
 #include "mforce/core/dsp_value_source.h"
+#include "mforce/core/fast_math.h"
 #include "mforce/source/additive/formant.h"
 #include "mforce/core/randomizer.h"
 #include <vector>
@@ -190,6 +191,32 @@ struct IPartials {
   virtual float get_partial_value(float amplitude, float frequency, float phaseDiff,
                                   int index, IFormant* formant, float formantWeight,
                                   float formantFloor) = 0;
+
+  // Batched entry point: add every partial's contribution for one sample to
+  // `acc` and return it. One virtual call per sample instead of one per
+  // partial — that is what lets the per-partial body inline and hoist its
+  // per-sample invariants.
+  //
+  // The accumulator is threaded in/out rather than each implementer returning
+  // a subtotal, so a nested set (MultiPartials) sums in exactly the same order
+  // as one flat loop over all partials. Float addition is not associative:
+  // subtotalling would change the last bits of the output.
+  //
+  // The default body is the exact loop FullAdditiveSource used to run
+  // (NaN = past cutoff, gate that partial only), so an implementer that
+  // doesn't override keeps identical behaviour.
+  virtual float sum_partials(float acc, float amplitude, float frequency,
+                             float phaseDiff, IFormant* formant,
+                             float formantWeight, float formantFloor) {
+    const int n = partial_count();
+    for (int i = 0; i < n; ++i) {
+      float v = get_partial_value(amplitude, frequency, phaseDiff, i,
+                                  formant, formantWeight, formantFloor);
+      if (std::isnan(v)) continue;
+      acc += v;
+    }
+    return acc;
+  }
 };
 
 // ---------------------------------------------------------------------------
@@ -378,6 +405,14 @@ struct Partials : ValueSource, IPartials {
     partialPO_.assign(n, 0.0f);
     partialLPO_.assign(n, 0.0f);
 
+    // Per-partial caches (see ensure_partial_cache). Sized here — the render
+    // loop never allocates. Invalidated so the first sample rebuilds them
+    // against this note's array contents.
+    pmultCache_.assign(n, 0.0f);
+    rolloffCache_.assign(n, 1.0f);
+    moScaleCache_.assign(n, 1.0f);
+    partialCacheValid_ = false;
+
     // Per-partial bandwidth-noise state. Each partial gets an INDEPENDENT
     // smoothed random walk (decorrelated start phase + targets) so the bands
     // fill in rather than wobbling in unison. Segment length = rate/bandwidthHz.
@@ -434,6 +469,10 @@ struct Partials : ValueSource, IPartials {
     }
 
     init_detune_values();
+
+    // Seed the per-sample scalars so a get_partial_value() before the first
+    // partials_next() (e.g. a UI probe) never reads stale values.
+    refresh_sample_scalars();
   }
 
   void partials_next() override {
@@ -445,6 +484,8 @@ struct Partials : ValueSource, IPartials {
     bwEnv_->next();
     motionEnv_->next();
     shimmerEnv_->next();
+
+    refresh_sample_scalars();
 
     ++sampleIdx_;
     if (motionActive_) {
@@ -473,35 +514,61 @@ struct Partials : ValueSource, IPartials {
     return int(mult1_.size());
   }
 
-  // Port of legacy Partials.cs GetPartialValue — the authoritative per-partial math
+  // Port of legacy Partials.cs GetPartialValue — the authoritative per-partial
+  // math. Kept as the IPartials entry point for single-partial callers; the
+  // render path goes through sum_partials() below, which hoists everything
+  // that is invariant across partials out of the loop.
   float get_partial_value(float amplitude, float frequency, float phaseDiff,
                           int index, IFormant* formant, float fmtWt,
                           float fmtFloor) override
   {
-    float multE = multEnv_->current();
-    float amplE = amplEnv_->current();
-    float poE   = poEnv_->current();
-    float roE   = roEnv_->current();
-    float dtE   = dtEnv_->current();
+    ensure_partial_cache();
+    return partial_value_impl(amplitude, frequency, phaseDiff, index,
+                              formant, fmtWt, fmtFloor);
+  }
 
-    // Multiplier (can evolve between mult1 and mult2)
-    float pmult = mult1_[index] + (mult2_[index] - mult1_[index]) * multE;
+  // Batched per-sample sum. Same math, same accumulation order as the loop
+  // FullAdditiveSource used to run — renders are byte-identical.
+  float sum_partials(float acc, float amplitude, float frequency,
+                     float phaseDiff, IFormant* formant, float fmtWt,
+                     float fmtFloor) override
+  {
+    ensure_partial_cache();
+    const int n = int(mult1_.size());
+    for (int i = 0; i < n; ++i) {
+      float v = partial_value_impl(amplitude, frequency, phaseDiff, i,
+                                   formant, fmtWt, fmtFloor);
+      if (std::isnan(v)) continue;   // past cutoff — gate this partial only
+      acc += v;
+    }
+    return acc;
+  }
+
+private:
+  // The per-partial body. Reads the per-sample scalars cached by
+  // refresh_sample_scalars() and the per-partial values cached by
+  // ensure_partial_cache() instead of re-deriving them N times per sample.
+  inline float partial_value_impl(float amplitude, float frequency, float phaseDiff,
+                                  int index, IFormant* formant, float fmtWt,
+                                  float fmtFloor)
+  {
+    // Multiplier (can evolve between mult1 and mult2) — cached on multE.
+    float pmult = pmultCache_[index];
 
     // Phase offset (can evolve)
-    float ppo = po1_[index] + (po2_[index] - po1_[index]) * poE;
+    float ppo = po1_[index] + (po2_[index] - po1_[index]) * sPoE_;
 
     // Frequency = multiplier * base freq * (1 + detune)
-    float dt = (dt1_ + (dt2_ - dt1_) * dtE) * dtVals_[index];
+    float dt = sDt_ * dtVals_[index];
     float pfreq = pmult * frequency * (1.0f + dt);
 
     // Frequency motion: cents offset from the coherence-mixed random walk.
     // Coherent component moves all partials by the same cents (proportional
     // Hz — fuses like vibrato); independent component broadens lines.
     if (motionActive_) {
-      float md = moDepth1_ + (moDepth2_ - moDepth1_) * motionEnv_->current();
-      if (md != 0.0f) {
-        float cents = md * moVals_[index];
-        if (moScale_ != 0.0f) cents *= std::pow(pmult, moScale_);
+      if (sMd_ != 0.0f) {
+        float cents = sMd_ * moVals_[index];
+        if (moScale_ != 0.0f) cents *= moScaleCache_[index];
         pfreq *= std::exp2(cents * (1.0f / 1200.0f));
       }
     }
@@ -509,18 +576,21 @@ struct Partials : ValueSource, IPartials {
     // Past cutoff -> NaN signal to caller
     if (pfreq > CUTOFF) return std::numeric_limits<float>::quiet_NaN();
 
-    constexpr float TAU = 2.0f * 3.14159265358979323846f;
-
-    // Advance partial position (legacy Partials.cs lines 197-200)
-    partialPos_[index] = std::fmod(
-        partialPos_[index] + pfreq / rate_ + phaseDiff + (ppo - partialLPO_[index]),
-        1.0f);
-    if (partialPos_[index] < 0.0f) partialPos_[index] += 1.0f;
+    // Advance partial position (legacy Partials.cs lines 197-200).
+    // fmod(x, 1) == x - trunc(x) exactly for the |x| < 2 range this sees
+    // (pfreq/rate <= 1/3, phaseDiff and the po delta are small), and truncf
+    // is a single instruction where fmodf is a libm call.
+    {
+      float x = partialPos_[index] + pfreq / rate_ + phaseDiff
+              + (ppo - partialLPO_[index]);
+      x = x - std::truncf(x);
+      if (x < 0.0f) x += 1.0f;
+      partialPos_[index] = x;
+    }
     partialLPO_[index] = ppo;
 
-    // Amplitude with rolloff (legacy lines 206-216)
-    float ro = ro1_ + (ro2_ - ro1_) * roE;
-    float rolloff = (ro == 0.0f) ? 1.0f : (1.0f / std::pow(pmult, ro));
+    // Amplitude with rolloff (legacy lines 206-216) — cached on (multE, roE).
+    float rolloff = rolloffCache_[index];
 
     // Formant factor — additive-boost with out-of-band floor.
     //   in-band:      factor = fmtFloor + fmtWt * gain-at-frequency
@@ -545,7 +615,7 @@ struct Partials : ValueSource, IPartials {
     float fade = (pfreq < CUTOFF - 1000.0f) ? 1.0f : (CUTOFF - pfreq) / 1000.0f;
 
     float pampl = amplitude *
-        (ampl1_[index] + (ampl2_[index] - ampl1_[index]) * amplE) *
+        (ampl1_[index] + (ampl2_[index] - ampl1_[index]) * sAmplE_) *
         rolloff * fmtFactor * fade;
 
     // Bandwidth enhancement (Loris / SMS): trade part of this partial's
@@ -554,9 +624,7 @@ struct Partials : ValueSource, IPartials {
     //   amp *= sqrt(1-bw) + sqrt(bw)*noise   (bw=0 → pure sine; bw=1 → full band)
     // bandwidthHz sets how fast the noise wiggles ≈ the band width. bwEnv lets
     // bandwidth ramp (e.g. high at the attack, settling — a coupled noisy attack).
-    float bw = bw1_ + (bw2_ - bw1_) * bwEnv_->current();
-    if (bw > 0.0f) {
-      if (bw > 1.0f) bw = 1.0f;
+    if (sBwActive_) {
       if (bwPos_[index] >= bwLen_) {
         bwCur_[index]    = bwTarget_[index];
         bwTarget_[index] = rng_.valuePN();
@@ -566,13 +634,12 @@ struct Partials : ValueSource, IPartials {
       float s = u * u * (3.0f - 2.0f * u);  // smoothstep → low-pass noise
       float noise = bwCur_[index] + (bwTarget_[index] - bwCur_[index]) * s;
       ++bwPos_[index];
-      pampl *= std::sqrt(1.0f - bw) + std::sqrt(bw) * noise;
+      pampl *= sBwDry_ + sBwWet_ * noise;   // sqrt(1-bw), sqrt(bw): per-sample
     }
 
     // Amplitude shimmer: slow per-partial gain wander (coherence-mixed walk).
     if (shimmerActive_) {
-      float sd = shDepth1_ + (shDepth2_ - shDepth1_) * shimmerEnv_->current();
-      float g = 1.0f + sd * shVals_[index];
+      float g = 1.0f + sSd_ * shVals_[index];
       pampl *= (g < 0.0f ? 0.0f : g);
     }
 
@@ -592,9 +659,60 @@ struct Partials : ValueSource, IPartials {
       else if (t < 1.0f) pampl *= t * t * (3.0f - 2.0f * t);
     }
 
-    return std::sin(partialPos_[index] * TAU) * pampl;
+    // fast_sin_turns takes the phase directly in turns — no TAU multiply, no
+    // libm range reduction. See fast_math.h for the accuracy bound.
+    return fast_sin_turns(partialPos_[index]) * pampl;
   }
 
+  // --- per-sample scalar cache -------------------------------------------
+  // Every value here is identical for all partials of a sample; reading them
+  // once per sample instead of once per partial removes N virtual calls.
+  // Expressions and operand order match the originals exactly, so the values
+  // are bit-identical to what the inline versions produced.
+  void refresh_sample_scalars() {
+    sMultE_ = multEnv_->current();
+    sAmplE_ = amplEnv_->current();
+    sPoE_   = poEnv_->current();
+    sRoE_   = roEnv_->current();
+    sDtE_   = dtEnv_->current();
+
+    sDt_ = dt1_ + (dt2_ - dt1_) * sDtE_;
+    sMd_ = moDepth1_ + (moDepth2_ - moDepth1_) * motionEnv_->current();
+    sSd_ = shDepth1_ + (shDepth2_ - shDepth1_) * shimmerEnv_->current();
+
+    float bw = bw1_ + (bw2_ - bw1_) * bwEnv_->current();
+    sBwActive_ = (bw > 0.0f);
+    if (sBwActive_) {
+      if (bw > 1.0f) bw = 1.0f;
+      sBwDry_ = std::sqrt(1.0f - bw);
+      sBwWet_ = std::sqrt(bw);
+    }
+  }
+
+  // --- per-partial cache --------------------------------------------------
+  // pmult, rolloff and the motion frequency-scale factor depend only on the
+  // scalars multE and roE. Rebuild the arrays when either changes (exact float
+  // compare); otherwise reuse. pow() is deterministic, so a reused value is
+  // bit-identical to a recomputed one. Constant multEnv/roEnv — every patch in
+  // the repo today — means one rebuild per note and none per sample.
+  void ensure_partial_cache() {
+    if (partialCacheValid_ && sMultE_ == cachedMultE_ && sRoE_ == cachedRoE_)
+      return;
+    const int n = int(mult1_.size());
+    const float ro = ro1_ + (ro2_ - ro1_) * sRoE_;
+    const bool scale = (moScale_ != 0.0f);
+    for (int i = 0; i < n; ++i) {
+      float pmult = mult1_[i] + (mult2_[i] - mult1_[i]) * sMultE_;
+      pmultCache_[i]   = pmult;
+      rolloffCache_[i] = (ro == 0.0f) ? 1.0f : (1.0f / std::pow(pmult, ro));
+      if (scale) moScaleCache_[i] = std::pow(pmult, moScale_);
+    }
+    cachedMultE_ = sMultE_;
+    cachedRoE_   = sRoE_;
+    partialCacheValid_ = true;
+  }
+
+public:
   // Read-only access to the live partial arrays. Subclasses (FullPartials,
   // SequencePartials) populate these via init_arrays(). ExplicitPartials
   // overrides to prefer its user-edited Stat_ copies. Used by the UI's
@@ -770,6 +888,18 @@ protected:
   std::vector<float> partialPos_, partialPO_, partialLPO_, dtVals_;
   std::vector<float> bwCur_, bwTarget_;   // per-partial bandwidth-noise walk
   std::vector<int>   bwPos_;
+
+  // Per-sample scalars, refreshed once per partials_next() (see
+  // refresh_sample_scalars) instead of once per partial.
+  float sMultE_{0.0f}, sAmplE_{0.0f}, sPoE_{0.0f}, sRoE_{0.0f}, sDtE_{0.0f};
+  float sDt_{0.0f}, sMd_{0.0f}, sSd_{0.0f};
+  bool  sBwActive_{false};
+  float sBwDry_{1.0f}, sBwWet_{0.0f};
+
+  // Per-partial caches keyed on (multE, roE) — see ensure_partial_cache.
+  std::vector<float> pmultCache_, rolloffCache_, moScaleCache_;
+  float cachedMultE_{0.0f}, cachedRoE_{0.0f};
+  bool  partialCacheValid_{false};
 
   // Expand rule
   ExpandRule expandRule_;
@@ -1179,6 +1309,20 @@ struct CompositePartials final : ValueSource, IPartials {
       offset += count;
     }
     return 0.0f;
+  }
+
+  // Walk each set once instead of re-scanning the set list per partial index
+  // (the get_partial_value path above is O(sets) per partial). Order matches:
+  // sets in declaration order, partials in index order within each set — and
+  // threading `acc` through keeps the addition order identical to one flat
+  // loop over the concatenated index space.
+  float sum_partials(float acc, float amplitude, float frequency,
+                     float phaseDiff, IFormant* formant, float fmtWt,
+                     float fmtFloor) override {
+    for (auto& e : sets_)
+      acc = e.ipartials->sum_partials(acc, amplitude, frequency, phaseDiff,
+                                      formant, fmtWt, fmtFloor);
+    return acc;
   }
 
 private:

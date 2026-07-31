@@ -60,23 +60,13 @@ float FullAdditiveSource::compute_wave_value() {
   }
 
   float phaseDiff = currPhase_ - lastPhase_;
-  int n = partials_->partial_count();
-  float val = 0.0f;
 
-  for (int i = 0; i < n; ++i) {
-    float v = partials_->get_partial_value(
-        currAmpl_, currFreq_, phaseDiff, i,
-        formant_.get(), fmtWt, fmtFloor);
-
-    if (std::isnan(v)) {
-      // Past cutoff — gate this partial only. With frequency motion active,
-      // a jittering partial near CUTOFF must not kill everything above it
-      // (the old `break` assumed static ascending frequencies and produced
-      // audible chatter at high depth + high notes).
-      continue;
-    }
-    val += v;
-  }
+  // One virtual call per sample; the per-partial loop lives inside Partials so
+  // it can inline and hoist. Partials past CUTOFF are gated individually
+  // there (a jittering partial near cutoff must not kill everything above it —
+  // the old `break` assumed static ascending frequencies and chattered).
+  float val = partials_->sum_partials(0.0f, currAmpl_, currFreq_, phaseDiff,
+                                      formant_.get(), fmtWt, fmtFloor);
 
   // NoiseBed tone delay: gate the PARTIAL SUM (not the noise) until the
   // delay elapses, then smoothstep-fade over noiseBedFade. Partial phases

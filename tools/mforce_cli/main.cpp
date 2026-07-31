@@ -716,7 +716,14 @@ static int run_patch(int argc, char** argv) {
         return 1;
     }
 
+    // Timed separately from the render below: instrument+score patches
+    // PRE-RENDER their voices during load, so for those the synthesis cost
+    // lands here and the render timer only sees mixing. Stage-1 profiling
+    // (run 8) chased a phantom 25x speedup for exactly this reason.
+    auto _l0 = std::chrono::steady_clock::now();
     Patch p = load_patch_file(patchPath);
+    auto _l1 = std::chrono::steady_clock::now();
+    double _loadMs = std::chrono::duration<double, std::milli>(_l1 - _l0).count();
 
     std::vector<float> out((size_t)p.frames * 2);
     auto _t0 = std::chrono::steady_clock::now();
@@ -725,8 +732,11 @@ static int run_patch(int argc, char** argv) {
     double _ms = std::chrono::duration<double, std::milli>(_t1 - _t0).count();
     double _audioMs = 1000.0 * double(p.frames) / double(p.sampleRate);
     double _sps = _ms > 0.0 ? double(p.frames) / (_ms / 1000.0) : 0.0;
+    std::cerr << "  load=" << _loadMs << "ms\n";
     std::cerr << "  render=" << _ms << "ms for " << p.frames << " frames ("
               << (_sps / 1e6) << " Msamp/s, " << (_audioMs / _ms) << "x realtime)\n";
+    std::cerr << "  total=" << (_loadMs + _ms) << "ms ("
+              << (_audioMs / (_loadMs + _ms)) << "x realtime end-to-end)\n";
 
     if (!write_wav_16le_stereo(outPath, p.sampleRate, out)) {
         std::cerr << "Failed to write wav: " << outPath << "\n";
