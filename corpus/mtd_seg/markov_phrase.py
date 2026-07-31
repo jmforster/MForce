@@ -623,8 +623,318 @@ def main_contrast():
               f"delta={ctr - ind:+.3f}")
 
 
+# --------------------------------------------------------------------------- #
+# Phase 2 v4 (--v3 flag): Matt's 2026-07-30 verdicts -> renders/markov_phrases3
+#   1. wider length variation upward (kmax 5->9, figure beats band, +2 longer
+#      patterns) while keeping the short end
+#   2. duration-aware sizing: short mean pulse => more notes (target-beats band
+#      per figure drives k)
+#   3. final-note treatment: last note >= phrase median pulse with p=0.85
+#      (extend, never delete); confirmed NO such rule existed in this path
+#   4. beat-grid joins: figure starts quantized to integer beats by padding
+#      (EXTENDING) the previous figure's final note; elision (~20%) keeps the
+#      raw concatenation. Confirmed joins previously landed wherever durations
+#      summed. Done in the Python layer via per-occurrence materialized
+#      figures (engine connector stays bare leadStep).
+#   5. figure_transforms.py wired in: primes draw from the full transform
+#      library, labeled in filenames.
+# --------------------------------------------------------------------------- #
+import math as _math
+import statistics as _stats
+
+V3_TRANSFORMS = ["invert", "retrograde", "expand_intervals",
+                 "compress_intervals", "rotate", "ornament", "augment",
+                 "vary_tail"]
+# widen upward: base patterns + two longer ones (short end preserved)
+V3_PATTERNS = PATTERNS + ["AA'BAB", "AABA'B"]
+
+
+def total_beats(fig):
+    return sum(u["duration"] for u in fig["units"])
+
+
+def _copy_fig(fig):
+    return {"units": [dict(u) for u in fig["units"]]}
+
+
+def _sample_figure_sized(model, rng, kmin=3, kmax=9,
+                         beats_lo=1.5, beats_hi=4.0, tries=6):
+    """Duration-aware figure sampling (verdicts 1+2). Draw with a wide k range;
+    if total beats falls outside [beats_lo, beats_hi], resample with k chosen
+    from the figure's own mean pulse to hit a target inside the band — so a
+    short-pulse draw gets MORE notes instead of yielding an ultra-short figure.
+    Keeps the closest candidate if the band is never hit."""
+    best, best_err = None, None
+    fig = _sample_figure(model, rng, kmin, kmax)
+    for _ in range(tries):
+        tb = total_beats(fig)
+        if beats_lo <= tb <= beats_hi:
+            return fig
+        err = (beats_lo - tb) if tb < beats_lo else (tb - beats_hi)
+        if best is None or err < best_err:
+            best, best_err = fig, err
+        mean_pulse = tb / max(1, len(fig["units"]))
+        target = rng.uniform(beats_lo, beats_hi)
+        k = max(3, min(12, int(round(target / max(mean_pulse, 1e-6)))))
+        fig = _sample_figure(model, rng, kmin=k, kmax=k)
+    tb = total_beats(fig)
+    if beats_lo <= tb <= beats_hi:
+        return fig
+    err = (beats_lo - tb) if tb < beats_lo else (tb - beats_hi)
+    return fig if err < best_err else best
+
+
+def _apply_v3_transform(name, fig, model, rng):
+    """Dispatch into figure_transforms.py (verdict 5)."""
+    import figure_transforms as ftl
+    if name == "vary_tail":
+        variant, _ = vary_tail(fig, model, rng)
+        return variant
+    if name == "ornament":
+        return ftl.ornament(fig, rng)
+    if name in ("expand_intervals", "compress_intervals"):
+        return getattr(ftl, name)(fig, 2.0)
+    if name == "rotate":
+        return ftl.rotate(fig, 1)
+    if name == "augment":
+        return ftl.augment(fig, 2.0)
+    return getattr(ftl, name)(fig)     # invert / retrograde
+
+
+def build_phrase_v3(figA, figB, pattern, transform, contour, model, rng,
+                    elide_prob=0.2, final_ext_prob=0.85, grid=1.0):
+    """Materialize per-occurrence figures with contour leadSteps, then apply
+    join quantization (verdict 4) and final-note treatment (verdict 3).
+
+    Returns (motif_list, refs, connectors, info): motif_list is an ordered
+    [(name, fig)] with unique per-occurrence names (padding differs per
+    occurrence, so motifs can't be shared by reference); info carries join
+    kinds + final-extension flag for reporting."""
+    refs = _tokens_v2(pattern, transform)
+    motifs = {"A": figA, "B": figB}
+    for r in refs:
+        if r not in motifs:
+            if r.startswith("V"):
+                motifs[r], _ = vary_tail(figA, model, rng)
+            else:                                    # "P"
+                motifs[r] = _apply_v3_transform(transform, figA, model, rng)
+
+    # contour leadSteps (same math as build_contour_combination)
+    offsets = CONTOURS[contour]
+    occ_figs = [_copy_fig(motifs[refs[0]])]
+    connectors = [None]
+    cursor = net_step(motifs[refs[0]])
+    a_seen = 1
+    for i in range(1, len(refs)):
+        r = refs[i]
+        if r != "B":
+            off = offsets[min(a_seen, len(offsets) - 1)]
+            a_seen += 1
+            lead = off - cursor
+        else:
+            lead = 0
+        connectors.append(lead)
+        cursor = cursor + lead + net_step(motifs[r])
+        occ_figs.append(_copy_fig(motifs[r]))
+
+    # verdict 4: quantize figure STARTS to the beat grid by extending the
+    # previous figure's final note; elide_prob keeps raw concatenation.
+    joins = []
+    t = total_beats(occ_figs[0])
+    for i in range(1, len(occ_figs)):
+        off_grid = abs(t / grid - round(t / grid)) > 1e-3
+        if off_grid and rng.random() >= elide_prob:
+            pad = round(_math.ceil(t / grid - 1e-6) * grid - t, 6)
+            last = occ_figs[i - 1]["units"][-1]
+            last["duration"] = round(last["duration"] + pad, 6)
+            t = round(t + pad, 6)
+            joins.append("pad")
+        else:
+            joins.append("elide" if off_grid else "grid")
+        t = round(t + total_beats(occ_figs[i]), 6)
+
+    # verdict 3: final note >= phrase median pulse, p=final_ext_prob
+    durs = [u["duration"] for f in occ_figs for u in f["units"]]
+    med = _stats.median(durs)
+    last = occ_figs[-1]["units"][-1]
+    final_ext = False
+    if last["duration"] < med and rng.random() < final_ext_prob:
+        last["duration"] = float(round(med, 6))
+        final_ext = True
+
+    motif_list = [(f"F{i}", occ_figs[i]) for i in range(len(occ_figs))]
+    info = {"joins": joins, "final_ext": final_ext, "median_pulse": med}
+    return motif_list, refs, connectors, info
+
+
+def _phrase_stats(piece_json_path, fig_note_counts):
+    """Mechanical verification stats parsed from a rendered piece JSON."""
+    ev = json.loads(pathlib.Path(piece_json_path).read_text(encoding="utf-8"))
+    notes = [e for e in ev["parts"][0]["events"] if e.get("type") == "note"]
+    beats = [float(e["beat"]) for e in notes]
+    durs = [float(e["data"]["duration"]) for e in notes]
+    tot = beats[-1] + durs[-1]
+    med = _stats.median(durs)
+    starts, s = [], 0
+    for c in fig_note_counts:
+        starts.append(s)
+        s += c
+    join_beats = [beats[i] for i in starts[1:]]
+    on_grid = sum(1 for b in join_beats if abs(b - round(b)) < 1e-3)
+    return {"total_beats": tot, "n_notes": len(notes),
+            "mean_pulse": sum(durs) / len(durs),
+            "final_ratio": durs[-1] / med if med > 0 else 0.0,
+            "n_joins": len(join_beats), "joins_on_grid": on_grid}
+
+
+def _print_stats_table(label, rows):
+    tots = sorted(r["total_beats"] for r in rows)
+    fr = [r["final_ratio"] for r in rows]
+    nj = sum(r["n_joins"] for r in rows)
+    ng = sum(r["joins_on_grid"] for r in rows)
+    short = [r for r in rows if r["mean_pulse"] <= 0.375]
+    lng = [r for r in rows if r["mean_pulse"] > 0.375]
+
+    def mean(xs, k):
+        return sum(x[k] for x in xs) / len(xs) if xs else float("nan")
+    print(f"--- {label} (n={len(rows)}) ---")
+    print(f"  phrase total beats     min={tots[0]:.2f} "
+          f"median={tots[len(tots)//2]:.2f} max={tots[-1]:.2f}")
+    print(f"  short-pulse (<=0.375)  n={len(short)} "
+          f"mean_notes={mean(short,'n_notes'):.1f} "
+          f"mean_beats={mean(short,'total_beats'):.2f}")
+    print(f"  long-pulse  (>0.375)   n={len(lng)} "
+          f"mean_notes={mean(lng,'n_notes'):.1f} "
+          f"mean_beats={mean(lng,'total_beats'):.2f}")
+    print(f"  final-note ratio >=1   {sum(1 for x in fr if x >= 1-1e-9)}"
+          f"/{len(fr)}  (median ratio {sorted(fr)[len(fr)//2]:.2f})")
+    print(f"  joins on integer beat  {ng}/{nj} ({ng/max(1,nj):.2f})")
+
+
+def main_v3():
+    from markov_model import MarkovModel
+    import score_generated as sg
+    import csv as _csv
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--n", type=int, default=24)
+    ap.add_argument("--seed", type=int, default=1234)
+    ap.add_argument("--bpm", type=float, default=84.0)
+    ap.add_argument("--range-cap", type=int, default=19)
+    ap.add_argument("--max-tries", type=int, default=24)
+    ap.add_argument("--skip-before", action="store_true",
+                    help="skip the baseline (before) batch")
+    args = ap.parse_args()
+
+    rng = random.Random(args.seed)
+    model = MarkovModel.load()
+    cs = sg.corpus_stats()
+    outdir = REPO / "renders/markov_phrases3"
+    (outdir / "before").mkdir(parents=True, exist_ok=True)
+
+    # ---------------- BEFORE batch: pre-verdict behavior --------------------
+    before_rows = []
+    if not args.skip_before:
+        brng = random.Random(args.seed + 77)
+        for i in range(args.n):
+            pattern = brng.choice(PATTERNS)
+            transform = brng.choice(["invert", "retrograde", "vary_tail"])
+            contour = brng.choice(list(CONTOURS))
+            kmin = 4 if transform == "vary_tail" else 3
+            tries = 0
+            while True:
+                tries += 1
+                figA = _sample_figure(model, brng, kmin=kmin)   # kmax=5 (old)
+                figB = _sample_figure(model, brng, kmin=kmin)
+                motifs, refs, conns, _anch, _td = build_contour_combination(
+                    figA, figB, pattern, transform, contour, model, brng)
+                span = predicted_range(motifs, refs, conns)
+                if span <= args.range_cap or tries >= args.max_tries:
+                    break
+            t = make_template(motifs, refs, conns, bpm=args.bpm,
+                              seed=args.seed * 1000 + i)
+            prefix = f"renders/markov_phrases3/before/b{i:02d}"
+            render_template(t, prefix)
+            counts = [len(motifs[r]["units"]) for r in refs]
+            before_rows.append(_phrase_stats(
+                REPO / (prefix + "_1.json"), counts))
+
+    # ---------------- AFTER batch: verdicts 1-5 -----------------------------
+    after_rows, meta = [], []
+    for i in range(args.n):
+        pattern = rng.choice(V3_PATTERNS)
+        transform = (rng.choice(V3_TRANSFORMS) if "'" in pattern else "none")
+        contour = rng.choice(list(CONTOURS))
+        use_ctr = (i % 2 == 1)                       # half contrast-B
+        tries = 0
+        while True:
+            tries += 1
+            kmin = 4 if transform == "vary_tail" else 3
+            figA = _sample_figure_sized(model, rng, kmin=kmin)
+            if use_ctr:
+                figB, _fit = sample_contrast_figB(figA, model, rng)
+            else:
+                figB = _sample_figure_sized(model, rng)
+            motif_list, refs, conns, info = build_phrase_v3(
+                figA, figB, pattern, transform, contour, model, rng)
+            mdict = dict(motif_list)
+            names = [n for n, _ in motif_list]
+            span = predicted_range(mdict, names, conns)
+            if span <= args.range_cap or tries >= args.max_tries:
+                break
+        t = make_template(mdict, names, conns, bpm=args.bpm,
+                          seed=args.seed * 1000 + 500 + i)
+        tlabel = transform.replace("_", "") if transform != "none" else "plain"
+        name = (f"p{i:02d}_{pattern.replace(chr(39), 'x')}_"
+                f"{contour.replace('_', '')}_{tlabel}_"
+                f"{'ctrB' if use_ctr else 'indB'}")
+        prefix = f"renders/markov_phrases3/{name}"
+        render_template(t, prefix)
+        counts = [len(f["units"]) for _, f in motif_list]
+        st = _phrase_stats(REPO / (prefix + "_1.json"), counts)
+        after_rows.append(st)
+        jsum = ",".join(info["joins"])
+        print(f"{name}: {st['n_notes']} notes {st['total_beats']:.2f} beats "
+              f"range={span} tries={tries} joins=[{jsum}] "
+              f"final_ext={info['final_ext']}")
+        meta.append((name, pattern, contour, transform,
+                     "ctrB" if use_ctr else "indB", span, prefix))
+
+    # ---------------- verification table ------------------------------------
+    print("\n=== before/after verification ===")
+    if before_rows:
+        _print_stats_table("BEFORE (kmax=5, no sizing/final/join rules)",
+                           before_rows)
+    _print_stats_table("AFTER (verdicts 1-5)", after_rows)
+
+    # ---------------- scoring -> scores.csv ---------------------------------
+    cols = ["file", "pattern", "contour", "transform", "b_arm", "n_notes",
+            "int_jsd", "ctr_jsd", "rep_LxCount", "big_leap", "range",
+            "zero_rate", "max_run_frac", "selfsim", "composite"]
+    rows = []
+    for name, pattern, contour, transform, b_arm, span, prefix in meta:
+        r = sg.score(sg.load_melody(REPO / (prefix + "_1.json")), cs)
+        r.update(file=name + "_1.json", pattern=pattern, contour=contour,
+                 transform=transform, b_arm=b_arm)
+        rows.append(r)
+    csv_path = outdir / "scores.csv"
+    with open(csv_path, "w", newline="") as f:
+        w = _csv.DictWriter(f, fieldnames=cols)
+        w.writeheader()
+        w.writerows(rows)
+    comps = [r["composite"] for r in rows]
+    print(f"\n=== scores (n={len(rows)}) -> {csv_path} ===")
+    print(f"composite mean={sum(comps)/len(comps):.3f} "
+          f"min={min(comps):.3f} max={max(comps):.3f}")
+    low = [(r['file'], r['composite']) for r in rows if r['composite'] < 0.6]
+    print("flagged <0.6: " + (", ".join(f"{f} ({c})" for f, c in low)
+                              if low else "none"))
+
+
 if __name__ == "__main__":
-    if "--v2" in sys.argv:
+    if "--v3" in sys.argv:
+        sys.argv.remove("--v3")
+        main_v3()
+    elif "--v2" in sys.argv:
         sys.argv.remove("--v2")
         main_v2()
     elif "--contrast" in sys.argv:
