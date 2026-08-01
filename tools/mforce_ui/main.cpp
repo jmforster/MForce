@@ -198,6 +198,14 @@ struct GraphNode {
     // PatchOutput-specific
     int polyphony{4};
 
+    // Verbatim "seed" param from the loaded JSON. The UI does not model seeds
+    // as pins/configs, but the engine loader uses them for reproducible
+    // randomness ("seeds stored in JSON" rule) — carry the value through
+    // save_patch_graph / save_node_graph so Save and the playback temp JSON
+    // don't silently drop it (dropping it changes the loader's RNG stream).
+    // -1 = no seed present in the source JSON.
+    long long jsonSeed{-1};
+
     // Offline-rendered waveform samples for display
     std::vector<float> waveformData;
 
@@ -427,6 +435,19 @@ static bool s_headless = false;
 // visual editing of curves is deferred (see dsp BACKLOG 3b "Later"). Reset on
 // new/clear/load.
 static nlohmann::json s_loadedParamMap = nlohmann::json::object();
+
+// Verbatim "score" array and "seconds" value from the loaded patch JSON.
+// save_patch_graph used to overwrite these with a hardcoded default note
+// (60 / 0.8 / 2.0s), so Save (and the playback temp JSON) silently destroyed
+// the patch's score — and a CLI render of the saved file played a different
+// note than the original. Carried through verbatim instead; the default is
+// only emitted when the loaded patch had no score at all.
+static nlohmann::json s_loadedScore   = nlohmann::json();
+static nlohmann::json s_loadedSeconds = nlohmann::json();
+
+// Defined after g_transport/g_keyboard (declaration-order constraint) —
+// seeds the transport and keyboard defaults from a loaded patch's score.
+static void apply_score_defaults(const nlohmann::json& score);
 static std::string s_currentFilePath;
 // True when the UI graph has been edited since last save/load. Playback paths
 // sync to a temp file before loading the instrument so MultiplexSource (and
@@ -666,6 +687,8 @@ static void new_graph(GraphMode mode) {
     s_nodes.clear();
     s_links.clear();
     s_loadedParamMap = nlohmann::json::object();
+    s_loadedScore    = nlohmann::json();
+    s_loadedSeconds  = nlohmann::json();
     s_graphMode = mode;
     s_nextId = 1;
     g_selectedNodeId = -1;
@@ -737,10 +760,22 @@ static void load_graph_from_path(const std::string& path) {
     s_nodes.clear();
     s_links.clear();
     s_loadedParamMap = nlohmann::json::object();
+    s_loadedScore    = nlohmann::json();
+    s_loadedSeconds  = nlohmann::json();
     s_nextId = 1;
 
     bool hasInstrument = root.contains("instrument");
     s_graphMode = hasInstrument ? GraphMode::PatchGraph : GraphMode::NodeGraph;
+
+    // Preserve the patch's score/seconds verbatim for save, and seed the
+    // transport + keyboard defaults from the score so UI playback (Generate,
+    // keyboard) matches what `mforce_cli <patch> out.wav` renders. Percent-
+    // based envelopes make note DURATION part of the sound, so playing the
+    // transport's old hardcoded 2.0s/C4 against a 3.0s/A2 score was audibly
+    // a different patch.
+    if (root.contains("score")) s_loadedScore = root["score"];
+    if (root.contains("seconds")) s_loadedSeconds = root["seconds"];
+    apply_score_defaults(s_loadedScore);
 
     const auto& nodes = root["graph"]["nodes"];
     std::string outputId = root["graph"]["output"].get<std::string>();
@@ -844,6 +879,12 @@ static void load_graph_from_path(const std::string& path) {
         // Set default values from params
         if (jnode.contains("params")) {
             const auto& params = jnode["params"];
+
+            // Seed is engine-side state, not a UI pin/config — stash it
+            // verbatim so save paths re-emit it (see GraphNode::jsonSeed).
+            if (params.contains("seed") && params["seed"].is_number())
+                gn.jsonSeed = params["seed"].get<long long>();
+
             for (auto& pin : gn.inputs) {
                 if (!params.contains(pin.name)) continue;
                 const auto& val = params[pin.name];
@@ -875,11 +916,36 @@ static void load_graph_from_path(const std::string& path) {
                 gn.rebuild_formant_spectrum();
             }
 
+            // Restore preset-form Envelopes (params.preset + attack/decay/…).
+            // Previously the preset params were IGNORED — the node kept its
+            // constructor default make_adsr(0.05, 0.1, 0.7, 0.2) and only
+            // sustainLevel was restored via config — so Save / the playback
+            // temp JSON silently replaced e.g. adsr(0.03, 0.05, 0.9, 0.0)
+            // with the default shape. Release=0 is especially destructive:
+            // the last 0%-stage is the Envelope's expand stage, so an adsr
+            // with release 0 is really "slow release fills the sustain
+            // region" — swapping in release 0.2 changes the entire decay.
+            if (gn.typeName == NT_ENVELOPE && !params.contains("stages") &&
+                params.contains("preset")) {
+                if (auto* env = dynamic_cast<Envelope*>(gn.dspSource.get())) {
+                    std::string preset = params["preset"].get<std::string>();
+                    if (preset == "adsr") {
+                        *env = Envelope::make_adsr(DSP_SAMPLE_RATE,
+                            params.value("attack", 0.2f),
+                            params.value("decay", 0.1f),
+                            params.value("sustainLevel", 0.7f),
+                            params.value("release", 0.0f));
+                    } else if (preset == "ar") {
+                        *env = Envelope::make_ar(DSP_SAMPLE_RATE,
+                            params.value("attack", 0.2f),
+                            params.value("attackMin", 0.0f),
+                            params.value("attackMax", 1.0f));
+                    }
+                }
+            }
+
             // Restore Envelope stages. For NT_ENVELOPE nodes saved with
-            // params.stages, replace the live Envelope's stage list. (Legacy
-            // preset-based Envelope JSON keeps loading via the patch loader's
-            // make_ar / make_adsr fallback — the inspector will then show the
-            // resulting 2- or 4-stage shape.)
+            // params.stages, replace the live Envelope's stage list.
             if (gn.typeName == NT_ENVELOPE && params.contains("stages")) {
                 if (auto* env = dynamic_cast<Envelope*>(gn.dspSource.get())) {
                     *env = Envelope(DSP_SAMPLE_RATE);
@@ -1496,6 +1562,13 @@ static void save_patch_graph(const std::string& path) {
             jnode["params"][desc.name] = vec;
         }
 
+        // Re-emit the loaded seed so the engine loader's RNG stream is
+        // reproducible across UI save / playback-temp-JSON round trips.
+        if (node.jsonSeed >= 0) {
+            if (!jnode.contains("params")) jnode["params"] = json::object();
+            jnode["params"]["seed"] = node.jsonSeed;
+        }
+
         nodes.push_back(jnode);
     }
 
@@ -1511,17 +1584,27 @@ static void save_patch_graph(const std::string& path) {
             root["instrument"]["paramMap"] = paramMap;
     }
 
-    // Default score + duration so the CLI can render this patch standalone.
-    // Conservative defaults; user can edit JSON to customize.
-    root["seconds"] = 3.0f;
-    root["score"] = json::array({
-        json{
-            {"note",     60},
-            {"velocity", 0.8f},
-            {"time",     0.0f},
-            {"duration", 2.0f}
-        }
-    });
+    // Score: preserve the loaded patch's score/seconds verbatim. Only fall
+    // back to the default note when the loaded patch had none (new graphs) —
+    // the old unconditional default silently destroyed hand-authored scores
+    // on Save and made CLI renders of UI-saved patches play the wrong note.
+    if (s_loadedScore.is_array() && !s_loadedScore.empty()) {
+        root["score"] = s_loadedScore;
+        if (s_loadedSeconds.is_number())
+            root["seconds"] = s_loadedSeconds;
+        else
+            root["seconds"] = 3.0f;
+    } else {
+        root["seconds"] = 3.0f;
+        root["score"] = json::array({
+            json{
+                {"note",     60},
+                {"velocity", 0.8f},
+                {"time",     0.0f},
+                {"duration", 2.0f}
+            }
+        });
+    }
 
     // Save UI layout (skip under headless round-trip — no live editor).
     if (!s_headless) {
@@ -1677,6 +1760,12 @@ static void save_node_graph(const std::string& path) {
             if (vec.empty()) continue;
             if (!jnode.contains("params")) jnode["params"] = json::object();
             jnode["params"][desc.name] = vec;
+        }
+
+        // Re-emit the loaded seed (see save_patch_graph).
+        if (node.jsonSeed >= 0) {
+            if (!jnode.contains("params")) jnode["params"] = json::object();
+            jnode["params"]["seed"] = node.jsonSeed;
         }
 
         nodes.push_back(jnode);
@@ -2411,6 +2500,32 @@ struct KeyboardState {
     bool sustain = false;
 };
 static KeyboardState g_keyboard;
+
+// Seed transport + keyboard playback defaults from a loaded patch's score so
+// UI playback matches the CLI render of the same file. The patch's note
+// duration is part of the sound for percent-based envelopes (a compressed
+// note re-paces the whole envelope word), so defaults must come from the
+// score, not hardcoded constants. Values remain fully user-editable after
+// load; a patch without a score leaves the previous defaults untouched.
+static void apply_score_defaults(const nlohmann::json& score) {
+    if (!score.is_array() || score.empty()) return;
+    const auto& n0 = score[0];
+    if (!n0.is_object()) return;
+
+    float note = n0.value("note", 60.0f);
+    float vel  = n0.value("velocity", 0.8f);
+    float dur  = n0.value("duration", 2.0f);
+
+    snprintf(g_transport.noteStr, sizeof(g_transport.noteStr), "%g", note);
+    g_transport.velocity = vel;
+    g_transport.duration = dur;
+
+    g_keyboard.velocity = vel;
+    g_keyboard.duration = std::clamp(dur, 0.05f, 30.0f);
+    // Keyboard base octave so the score's note is reachable on the home row:
+    // absNote = (octave + 1) * 12 + offset, offset in [0, 19].
+    g_keyboard.octave = std::clamp(int(note) / 12 - 1, 0, 20);
+}
 
 // QWERTY-to-chromatic-offset mapping (from legacy LBKeyboard.cs)
 struct QwertyMapping { ImGuiKey key; int offset; const char* label; };
@@ -6079,6 +6194,83 @@ int main(int argc, char** argv) {
             return 1;
         }
         printf("roundtrip ok: %s -> %s\n", argv[2], argv[3]);
+        return 0;
+    }
+
+    // Headless playback dump: write the exact audio the UI's playback paths
+    // would produce for a patch, for numeric comparison against the CLI
+    // render of the same file (UI-vs-CLI sound-mismatch debugging).
+    //   --dump-playback <patch.json> <out.wav> [--note N] [--vel V] [--dur D] [--keyboard]
+    // Default note/vel/dur are the transport values after load — i.e. the
+    // patch's score (apply_score_defaults). Without --keyboard this runs the
+    // Generate path (render_output_authoritative + the audio callback's
+    // soft_clip); with --keyboard it runs the live-keyboard streaming path
+    // (prepare_voice + per-sample pull at voice gain + soft_clip).
+    if (argc >= 4 && std::string(argv[1]) == "--dump-playback") {
+        s_headless = true;
+        ImGui::CreateContext();
+        ImNodes::CreateContext();
+        register_all_sources();
+        try {
+            load_graph_from_path(argv[2]);
+
+            bool keyboardPath = false;
+            float noteNum = parse_note_input(g_transport.noteStr);
+            float vel = g_transport.velocity;
+            float dur = g_transport.duration;
+            for (int i = 4; i < argc; ++i) {
+                std::string a = argv[i];
+                if (a == "--keyboard") keyboardPath = true;
+                else if (a == "--note" && i + 1 < argc) noteNum = std::stof(argv[++i]);
+                else if (a == "--vel"  && i + 1 < argc) vel = std::stof(argv[++i]);
+                else if (a == "--dur"  && i + 1 < argc) dur = std::stof(argv[++i]);
+            }
+
+            std::vector<float> mono;
+            if (keyboardPath) {
+                // Live-keyboard path: streaming voice, no Instrument::render
+                // (so no instrument-level volume/peak-guard); the audio
+                // callback applies gain per sample and one soft_clip.
+                auto ip = load_instrument_patch(get_playback_patch_path());
+                auto* pitched = ip.instrument.get();
+                if (!pitched) throw std::runtime_error("not a PitchedInstrument");
+                ip.instrument->volume = 1.0f;
+                auto sv = pitched->prepare_voice(noteNum, vel, dur);
+                int tailSamples = int(0.5f * float(ip.sampleRate));
+                int total = sv.durSamples + tailSamples;
+                mono.resize(total);
+                for (int i = 0; i < total; ++i)
+                    mono[i] = soft_clip(sv.source->next() * sv.gain);
+            } else {
+                // Generate path: authoritative offline render into
+                // g_outputWaveform, then the buffer-playback soft_clip the
+                // audio callback would apply when streaming it.
+                if (!render_output_authoritative(noteNum, vel, dur))
+                    throw std::runtime_error(g_transport.statusMsg);
+                mono.assign(g_outputWaveform.begin(), g_outputWaveform.end());
+                for (auto& s : mono) s = soft_clip(s);
+            }
+
+            // Mono → both channels at unity, exactly like the audio callback.
+            std::vector<float> stereo(mono.size() * 2);
+            for (size_t i = 0; i < mono.size(); ++i) {
+                stereo[i * 2]     = mono[i];
+                stereo[i * 2 + 1] = mono[i];
+            }
+            if (!write_wav_16le_stereo(argv[3], AUDIO_SAMPLE_RATE, stereo))
+                throw std::runtime_error(std::string("wav write failed: ") + argv[3]);
+
+            float peak = 0.0f; double rms = 0.0;
+            for (float s : mono) { peak = std::max(peak, std::fabs(s)); rms += double(s) * s; }
+            rms = std::sqrt(rms / std::max<size_t>(1, mono.size()));
+            printf("dump-playback ok: %s -> %s\n", argv[2], argv[3]);
+            printf("  path=%s note=%g vel=%g dur=%g frames=%zu peak=%g rms=%g\n",
+                   keyboardPath ? "keyboard" : "generate",
+                   noteNum, vel, dur, mono.size(), peak, rms);
+        } catch (const std::exception& e) {
+            fprintf(stderr, "dump-playback failed: %s\n", e.what());
+            return 1;
+        }
         return 0;
     }
 
