@@ -26,15 +26,22 @@ os.makedirs(OUT, exist_ok=True)
 SECONDS = 3.0
 
 # (freq, gain, width) x5 per phone; power 2.0 everywhere.
+# WIDTH SEMANTICS (bug fixed 2026-07-31): engine width = FULL band footprint
+# (center +/- width/2), legacy default 500 — NOT the literature's -3dB
+# resonance bandwidth (40-160 Hz). Literature widths admit only 1-2 harmonics
+# per formant at speech f0 -> isolated partials -> Matt heard a chime.
+# Engine-appropriate widths below span many harmonics each; overlapping bands
+# sum into a continuous voiced envelope (crossfade skirts come from the
+# power-2 taper across the wide band).
 PHONES = {
-    "L":  [(360, 0.70, 60), (1300, 0.25, 90), (2700, 0.12, 120),
-           (3300, 0.05, 140), (3700, 0.02, 160)],
-    "AH": [(650, 1.00, 80), (1080, 0.50, 90), (2650, 0.35, 120),
-           (2900, 0.40, 130), (3250, 0.10, 140)],
-    "EE": [(290, 1.00, 40), (1870, 0.18, 90), (2800, 0.12, 100),
-           (3250, 0.10, 120), (3540, 0.03, 120)],
-    "ER": [(490, 1.00, 60), (1350, 0.35, 90), (1690, 0.30, 100),
-           (3300, 0.06, 140), (3600, 0.03, 160)],
+    "L":  [(360, 0.70, 420), (1300, 0.25, 600), (2700, 0.12, 800),
+           (3300, 0.05, 900), (3700, 0.02, 1000)],
+    "AH": [(650, 1.00, 500), (1080, 0.50, 600), (2650, 0.35, 800),
+           (2900, 0.40, 900), (3250, 0.10, 1000)],
+    "EE": [(290, 1.00, 350), (1870, 0.18, 650), (2800, 0.12, 800),
+           (3250, 0.10, 900), (3540, 0.03, 1000)],
+    "ER": [(490, 1.00, 450), (1350, 0.35, 600), (1690, 0.30, 650),
+           (3300, 0.06, 900), (3600, 0.03, 1000)],
 }
 SEQ = ["L", "AH", "EE", "ER"]
 
