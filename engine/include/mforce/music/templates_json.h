@@ -847,6 +847,21 @@ inline void to_json(json& j, const PassageTemplate& pt) {
         if (pt.libraryConfig->seed != 0) jlc["seed"] = pt.libraryConfig->seed;
         j["libraryConfig"] = jlc;
     }
+    if (pt.pedalBuildupConfig) {
+        const auto& c = *pt.pedalBuildupConfig;
+        j["pedalBuildupConfig"] = json{
+            {"levels", c.levels}, {"climbStep", c.climbStep},
+            {"cellBeats", c.cellBeats}, {"holdBeats", c.holdBeats},
+            {"rangeCap", c.rangeCap}, {"maxTries", c.maxTries},
+            {"seed", c.seed}};
+    }
+    if (pt.sequenceConfig) {
+        const auto& c = *pt.sequenceConfig;
+        j["sequenceConfig"] = json{
+            {"entries", c.entries}, {"stepA", c.stepA}, {"stepB", c.stepB},
+            {"cellBeats", c.cellBeats}, {"rangeCap", c.rangeCap},
+            {"maxTries", c.maxTries}, {"seed", c.seed}};
+    }
 }
 
 inline void from_json(const json& j, ChordAccompanimentConfig& cc) {
@@ -959,6 +974,32 @@ inline void from_json(const json& j, PassageTemplate& pt) {
         lc.barsHint    = jlc.value("barsHint", 0);
         lc.seed        = jlc.value("seed", 0u);
         pt.libraryConfig = lc;
+    }
+
+    if (j.contains("pedalBuildupConfig")) {
+        const auto& jc = j.at("pedalBuildupConfig");
+        PedalBuildupConfig c;
+        c.levels    = jc.value("levels", c.levels);
+        c.climbStep = jc.value("climbStep", c.climbStep);
+        c.cellBeats = jc.value("cellBeats", c.cellBeats);
+        c.holdBeats = jc.value("holdBeats", c.holdBeats);
+        c.rangeCap  = jc.value("rangeCap", c.rangeCap);
+        c.maxTries  = jc.value("maxTries", c.maxTries);
+        c.seed      = jc.value("seed", c.seed);
+        pt.pedalBuildupConfig = c;
+    }
+
+    if (j.contains("sequenceConfig")) {
+        const auto& jc = j.at("sequenceConfig");
+        SequencePassageConfig c;
+        c.entries   = jc.value("entries", c.entries);
+        c.stepA     = jc.value("stepA", c.stepA);
+        c.stepB     = jc.value("stepB", c.stepB);
+        c.cellBeats = jc.value("cellBeats", c.cellBeats);
+        c.rangeCap  = jc.value("rangeCap", c.rangeCap);
+        c.maxTries  = jc.value("maxTries", c.maxTries);
+        c.seed      = jc.value("seed", c.seed);
+        pt.sequenceConfig = c;
     }
 }
 

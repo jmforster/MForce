@@ -9,6 +9,7 @@
 #include "mforce/music/two_figure_phrase_strategy.h"
 #include "mforce/music/elaborated_phrase_strategy.h"
 #include "mforce/music/library_passage_strategy.h"
+#include "mforce/music/passage_strategies.h"
 #include "mforce/music/alternating_figure_strategy.h"
 #include "mforce/music/period_passage_strategy.h"
 #include "mforce/music/chord_progression_builder.h"
@@ -167,6 +168,8 @@ struct Composer {
     reg.register_passage(std::make_unique<AlternatingFigureStrategy>());
     reg.register_passage(std::make_unique<PeriodPassageStrategy>());
     reg.register_passage(std::make_unique<LibraryPassageStrategy>());
+    reg.register_passage(std::make_unique<PedalBuildupStrategy>());
+    reg.register_passage(std::make_unique<SequencePassageStrategy>());
 
     // Realization strategies (Compose-tier chord-event expansion)
     auto& realReg = RealizationStrategyRegistry::instance();

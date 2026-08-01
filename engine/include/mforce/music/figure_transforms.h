@@ -111,6 +111,23 @@ inline MelodicFigure retrograde_steps(const MelodicFigure& fig) {
   return out;
 }
 
+// rotate(fig, k): cyclic permutation of the (duration, step) pairs by k
+// positions, then re-anchor so units[0].step == 0. The same set of
+// note-to-note moves is heard starting from a different point in the cycle,
+// so the material is recognizably the same but the contour is not identical
+// — which is what makes it usable as a non-literal restatement. Mirrors
+// figure_transforms.rotate in the Python prototype library.
+inline MelodicFigure rotate(const MelodicFigure& fig, int k = 1) {
+  MelodicFigure out;
+  const int n = int(fig.units.size());
+  if (n == 0) return out;
+  k = ((k % n) + n) % n;
+  out.units.reserve(n);
+  for (int i = 0; i < n; ++i) out.units.push_back(fig.units[(k + i) % n]);
+  out.units[0].step = 0;
+  return out;
+}
+
 // combine(a, b, fc): canonical join with a FigureConnector.
 // Composes: prune(elideCount) -> adjust_last_pulse(adjustCount) ->
 // set b.units[0].step = leadStep -> concatenate.

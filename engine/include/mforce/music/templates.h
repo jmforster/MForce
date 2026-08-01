@@ -380,6 +380,42 @@ struct LibraryPassageConfig {
 };
 
 // ===========================================================================
+// Anchor-driven passage configs (backlog #6 stage 1).
+//
+// Both strategies below author their passage as "entry i starts on
+// scale-degree anchors[i]" and derive FC.leadStep mechanically; see
+// passage_strategies.h. Shared fields have the same meaning in both.
+// ===========================================================================
+
+// Config for PedalBuildupStrategy ("pedal_buildup"). The melody half of a
+// pedal-point buildup: levels of EQUAL span with DOUBLING density, climbing
+// `climbStep` scale-degrees per level, arrival note held. The pedal itself
+// stays a template-authored part (a passage strategy cannot add parts).
+struct PedalBuildupConfig {
+    int levels{0};            // 0 = pick 3 or 4 at random
+    int climbStep{2};         // degrees climbed per level (2 = a third)
+    float cellBeats{3.0f};    // target length of the level-0 cell
+    float holdBeats{2.0f};    // minimum duration of the arrival note
+    int rangeCap{19};         // semitone span guard (corpus range_p90); 0 = off
+    int maxTries{8};          // resamples allowed while over rangeCap
+    uint32_t seed{0};         // 0 = derive from masterSeed + locus
+};
+
+// Config for SequencePassageStrategy ("sequence_passage"). One cell restated
+// on anchors that alternate stepA / stepB. The circle-of-fifths default
+// (-4 / +3) walks I-IV-vii-iii-vi-ii-V-I in diatonic space; other pairs give
+// other sequences (e.g. -1/0 = a descending stepwise sequence).
+struct SequencePassageConfig {
+    int entries{8};           // number of cell entries
+    int stepA{-4};            // anchor delta applied on odd entries (down a 5th)
+    int stepB{3};             // ...and on even entries (up a 4th)
+    float cellBeats{1.5f};    // target length of the cell
+    int rangeCap{19};
+    int maxTries{8};
+    uint32_t seed{0};
+};
+
+// ===========================================================================
 // PassageTemplate — what a Part plays during a Section
 // ===========================================================================
 
@@ -443,6 +479,11 @@ struct PassageTemplate {
 
     // Library-passage config (optional). Consumed by LibraryPassageStrategy.
     std::optional<LibraryPassageConfig> libraryConfig;
+
+    // Anchor-driven passage configs (optional). Each is consumed by the
+    // matching strategy; absent means "use that strategy's defaults".
+    std::optional<PedalBuildupConfig> pedalBuildupConfig;
+    std::optional<SequencePassageConfig> sequenceConfig;
 };
 
 // ===========================================================================
