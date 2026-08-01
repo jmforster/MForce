@@ -1,6 +1,5 @@
 {
  "sampleRate": 48000,
- "seconds": 3.0,
  "graph": {
   "nodes": [
    {
@@ -401,32 +400,22 @@
       "ref": "fp"
      }
     }
-   },
-   {
-    "id": "ch1",
-    "type": "SoundChannel",
-    "inputs": {
-     "source": "src"
-    },
-    "params": {
-     "volume": 0.8,
-     "pan": 0.0
-    }
-   },
-   {
-    "id": "mix",
-    "type": "StereoMixer",
-    "inputs": {
-     "channels": [
-      "ch1"
-     ]
-    },
-    "params": {
-     "gainL": 1.0,
-     "gainR": 1.0
-    }
    }
   ],
-  "output": "mix"
- }
+  "output": "src"
+ },
+ "instrument": {
+  "paramMap": {
+   "frequency": "src.frequency"
+  },
+  "polyphony": 1
+ },
+ "score": [
+  {
+   "note": 45,
+   "velocity": 0.85,
+   "time": 0.0,
+   "duration": 3.0
+  }
+ ]
 }

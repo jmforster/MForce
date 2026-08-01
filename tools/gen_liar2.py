@@ -94,13 +94,17 @@ def make_patch(f0, floor=0.0, wscale=1.0):
                     "formant": {"ref": "fseq"},
                     "formantWeight": 1.0, "formantFloor": floor,
                     "partials": {"ref": "fp"}}},
-        {"id": "ch1", "type": "SoundChannel", "inputs": {"source": "src"},
-         "params": {"volume": 0.8, "pan": 0.0}},
-        {"id": "mix", "type": "StereoMixer", "inputs": {"channels": ["ch1"]},
-         "params": {"gainL": 1.0, "gainR": 1.0}},
     ]
-    return {"sampleRate": 48000, "seconds": SECONDS,
-            "graph": {"nodes": nodes, "output": "mix"}}
+    # Instrument-style (UI keyboard/Generate + CLI render both work): output
+    # is the source node; blend/amp envelope percents scale to note length.
+    import math
+    midi = int(round(69 + 12 * math.log2(f0 / 440.0)))
+    return {"sampleRate": 48000,
+            "graph": {"nodes": nodes, "output": "src"},
+            "instrument": {"paramMap": {"frequency": "src.frequency"},
+                           "polyphony": 1},
+            "score": [{"note": midi, "velocity": 0.85, "time": 0.0,
+                       "duration": SECONDS}]}
 
 
 def main():
