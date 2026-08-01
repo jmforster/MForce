@@ -1,11 +1,11 @@
 # Status — open this file first
 
-Updated: 2026-07-31 — comp run 12 (Wolfie, scheduled) · dsp run 12 (Dipsy, scheduled)
+Updated: 2026-07-31 pm — dsp run 13 (Dipsy, interactive) · comp run 12 (Wolfie, scheduled)
 
 | Lane | Dev | Latest run | Backlog top | Awaiting your review |
 |---|---|---|---|---|
 | comp | Wolfie | run 12 (2026-07-31, scheduled): per-corpus scorer anchors (#4 CLOSED — two measurement artifacts fixed, incl. Essen anchored on 2,246 Chinese tunes by alphabetical order); corpus-flavored phrase batches (controlled A/B, 36 WAVs); passage strategies #6 prototyped + rendered (15 WAVs) + C++ port spec'd in 4 stages | #6 C++ stage 1 (needs a tree without a live dsp build); #7 phrase-aware cadence | **4 items** — phrase v3 A/B, passage strategies, corpus flavor A/B [listen] · Essen note [read] |
-| dsp | Dipsy | run 12 (2026-07-31, scheduled): additive hot loop **1.2-1.6x** (batched per-sample sum + hoisted scalars, bit-exact 14/14; fast sin, 1 LSB worst deviation); `load=` timer proves instrument patches are LOAD-bound not render-bound (viola 2288ms vs 16.6ms); 24-patch FM "modulate everything" matrix; oversample-default premise corrected by measurement | stage 2d SIMD/SoA (needs a spec, 17x headroom measured); clarinet 600-eval (gated) | **5 items** — vowel baselines [listen], clarinet first pass [listen], FM oversample default [read], FM matrix [listen], perf residual [listen, non-blocking] |
+| dsp | Dipsy | run 13 (2026-07-31, interactive): verdicts folded — liar2 'excellent'; width-multiplier ladder (x3-x14, 10 renders); vowelseq2 set on validated architecture (10); clarinet bed hand-aligned to measurement after optimizer drift diagnosis (3 variants; bed dims to freeze in long run) | clarinet 600-eval w/ frozen bed (gated on c2 pick); SIMD stage 2d | **5 items** — width ladder, vowelseq2, clarinet c2 [listen] · FM oversample [read] · FM matrix [parked] |
 
 Reports: comp/reports/2026-07-31-wolfie-run12.md ·
 dsp/reports/2026-07-31-dipsy-run12.md
