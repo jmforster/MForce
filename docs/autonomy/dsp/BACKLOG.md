@@ -38,10 +38,16 @@ Priority order. Tags per WORKFLOW.md. (G1)-(G4) = GOALS.md Dipsy goals.
    links — until then, editing a curve-bearing Parameter node's wiring in the
    UI is not reflected (verbatim entry wins).
 
-3c. **[build] UI engine-stamp guard** — stale mforce_ui binaries have now
-   caused two phantom-bug reports (curve dropdown, formantFloor missing).
-   Show build timestamp + last engine commit in the UI title bar, and warn
-   at startup when the exe predates the newest engine header mtime.
+3c. **[build] UI engine-stamp guard** — ✓ DONE run14 (2026-08-01), commit
+   cc4185d. Title bar carries `[build MM-DD HH:MM @sha]` always, plus
+   `*** STALE - REBUILD ***` and a dismissable red banner naming the offending
+   file when the exe is older than the newest engine .h/.hpp/.cpp. Commit read
+   from .git/HEAD, repo root found by walking up from the exe — no build-system
+   change, no git binary, so the check cannot itself go stale. New headless
+   `mforce_ui.exe --stamp` (exit 1 when stale) makes it verifiable without the
+   GUI; both directions tested. Also fixed: printf from --stamp/--roundtrip was
+   invisible from a console (WIN32 subsystem app), now attaches the parent
+   console unless stdout is already redirected.
 3d. **[read] Pan-law question for Matt** — CLI WAVs are -3dB vs UI (equal-
    power center pan in StereoMixer vs unity mono). Option: mono patches
    write x1.0 to both channels so WAV loudness == UI loudness.

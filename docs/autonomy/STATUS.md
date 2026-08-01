@@ -5,7 +5,7 @@ Updated: 2026-08-01 — dsp run 14 (Dipsy, scheduled) · comp run 12 (Wolfie, sc
 | Lane | Dev | Latest run | Backlog top | Awaiting your review |
 |---|---|---|---|---|
 | comp | Wolfie | run 12 (2026-07-31, scheduled): per-corpus scorer anchors (#4 CLOSED — two measurement artifacts fixed, incl. Essen anchored on 2,246 Chinese tunes by alphabetical order); corpus-flavored phrase batches (controlled A/B, 36 WAVs); passage strategies #6 prototyped + rendered (15 WAVs) + C++ port spec'd in 4 stages | #6 C++ stage 1 (needs a tree without a live dsp build); #7 phrase-aware cadence | **4 items** — phrase v3 A/B, passage strategies, corpus flavor A/B [listen] · Essen note [read] |
-| dsp | Dipsy | run 14 (2026-08-01, scheduled): **additive got 1.6x on everything and 1.7x again on motion patches** — two libm calls found sitting in the per-partial per-sample body (truncf, exp2). CMA-ES eval patch 16.1s → 8.9s. SIMD prototype passed its gate 18-19x but the sizing measurement restaged the whole stage | SIMD stage 2d-1 (restaged); per-partial rng streams (gated on REVIEW 0b); clarinet 600-eval (gated on c2 pick) | **7 items** — exp2 A/B [listen] · rng fragility [read] · width ladder, vowelseq2, clarinet c2 [listen] · FM oversample [read] · FM matrix [parked] |
+| dsp | Dipsy | run 14 (2026-08-01, scheduled): **additive got 1.6x on everything and 1.7x again on motion patches** — two libm calls found sitting in the per-partial per-sample body (truncf, exp2). CMA-ES eval patch 16.1s → 8.9s. SIMD prototype passed its gate 18-19x but the sizing measurement restaged the whole stage. UI stale-binary guard landed (3c) | SIMD stage 2d-1 (restaged); per-partial rng streams (gated on REVIEW 0b); clarinet 600-eval (gated on c2 pick) | **7 items** — exp2 A/B [listen] · rng fragility [read] · width ladder, vowelseq2, clarinet c2 [listen] · FM oversample [read] · FM matrix [parked] |
 
 Reports: comp/reports/2026-07-31-wolfie-run12.md ·
 dsp/reports/2026-08-01-dipsy-run14.md
@@ -40,6 +40,11 @@ Two anti-results recorded rather than left as folklore: the reciprocal-instead
 and a bit-exact fast path for `Formant::get_gain`'s `pow` buys exactly nothing
 (the `contains()` gate keeps it cold). That is four dead theories on this loop
 against three live wins.
+(4) **Backlog 3c closed** — the UI now shows `[build MM-DD HH:MM @sha]` in the
+title bar and shouts `*** STALE - REBUILD ***` with a red banner when the exe
+predates the newest engine source. Both phantom bug reports so far were stale
+binaries; this makes that visible instead of silent. New `mforce_ui --stamp`
+verifies it headlessly (exit 1 when stale), tested in both directions.
 Tree guard honoured: the four files modified at session start were left
 untouched; backlog item 11 still stands.
 
