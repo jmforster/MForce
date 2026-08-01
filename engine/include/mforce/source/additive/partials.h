@@ -578,12 +578,29 @@ private:
 
     // Advance partial position (legacy Partials.cs lines 197-200).
     // fmod(x, 1) == x - trunc(x) exactly for the |x| < 2 range this sees
-    // (pfreq/rate <= 1/3, phaseDiff and the po delta are small), and truncf
-    // is a single instruction where fmodf is a libm call.
+    // (pfreq/rate <= 1/3, phaseDiff and the po delta are small).
+    //
+    // truncf was expected to be a single instruction; it is not. Under the
+    // engine's Release flags (/O2, SSE2 baseline, no /arch) MSVC emits a CRT
+    // CALL for std::truncf — roundss is SSE4.1 and therefore off the table —
+    // so this cost a function call per partial per sample. The int round-trip
+    // is one cvttss2si + one cvtsi2ss and is BIT-IDENTICAL to truncf for every
+    // |x| < 2^31, which this is by many orders of magnitude (pfreq is capped
+    // at CUTOFF just above, so pfreq/rate <= 1/3).
+    // Measured in isolation on synthetic arrays, 1.4-1.5x on the whole loop
+    // body: research/additive_perf/simd_proto.cpp, rung "sc+cast".
     {
+      // ANTI-RESULT (run 14, don't retry): replacing this divide with a
+      // multiply by a cached 1/rate_ is a WASH-TO-SLOWER in the engine —
+      // marginal 25.0 -> 29.6 ns/sample/partial on the 32/200 ladder, 0.89x
+      // at 200 partials — even though the same substitution measured 1.10x in
+      // the isolated prototype. The divide is not on the critical path here;
+      // the cached reciprocal costs a load the immediate didn't. It also
+      // costs bit-exactness (1/48000 is not representable), so it was
+      // rejected on both counts.
       float x = partialPos_[index] + pfreq / rate_ + phaseDiff
               + (ppo - partialLPO_[index]);
-      x = x - std::truncf(x);
+      x = x - float(int(x));
       if (x < 0.0f) x += 1.0f;
       partialPos_[index] = x;
     }
