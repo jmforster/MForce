@@ -34,6 +34,14 @@ Priority order. Tags per WORKFLOW.md. (G1)-(G4) = GOALS.md Dipsy goals.
    links — until then, editing a curve-bearing Parameter node's wiring in the
    UI is not reflected (verbatim entry wins).
 
+3c. **[build] UI engine-stamp guard** — stale mforce_ui binaries have now
+   caused two phantom-bug reports (curve dropdown, formantFloor missing).
+   Show build timestamp + last engine commit in the UI title bar, and warn
+   at startup when the exe predates the newest engine header mtime.
+3d. **[read] Pan-law question for Matt** — CLI WAVs are -3dB vs UI (equal-
+   power center pan in StereoMixer vs unity mono). Option: mono patches
+   write x1.0 to both channels so WAV loudness == UI loudness.
+
 4. **[metric] (G1b) Novelty metric** — ✓ DONE run5 (2026-07-29).
    research/novelty/: embedding.py (36-dim MFCC + spectral-feature vector,
    numpy/scipy only) + novelty.py (build/score/manifest/selftest). Distance-
