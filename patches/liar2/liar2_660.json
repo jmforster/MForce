@@ -377,7 +377,7 @@
     "id": "fp",
     "type": "FullPartials",
     "params": {
-     "maxPartials": 60,
+     "maxPartials": 160,
      "minMult": 1,
      "rolloff1": 0.0,
      "rolloff2": 0.0

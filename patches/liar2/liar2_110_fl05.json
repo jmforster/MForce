@@ -388,7 +388,7 @@
     "type": "AdditiveSource",
     "params": {
      "seed": 42,
-     "frequency": 220.0,
+     "frequency": 110.0,
      "amplitude": {
       "ref": "ampEnv"
      },
@@ -396,7 +396,7 @@
       "ref": "fseq"
      },
      "formantWeight": 1.0,
-     "formantFloor": 0.0,
+     "formantFloor": 0.05,
      "partials": {
       "ref": "fp"
      }

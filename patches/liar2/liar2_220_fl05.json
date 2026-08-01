@@ -396,7 +396,7 @@
       "ref": "fseq"
      },
      "formantWeight": 1.0,
-     "formantFloor": 0.0,
+     "formantFloor": 0.05,
      "partials": {
       "ref": "fp"
      }

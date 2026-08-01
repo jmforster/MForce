@@ -62,7 +62,7 @@ def blend_env_node():
     return {"id": "blendEnv", "type": "Envelope", "params": {"stages": stages}}
 
 
-def make_patch(f0):
+def make_patch(f0, floor=0.0):
     nodes = [blend_env_node(),
              {"id": "ampEnv", "type": "Envelope",
               "params": {"preset": "adsr", "attack": 0.03, "decay": 0.05,
@@ -86,13 +86,13 @@ def make_patch(f0):
          "params": {"spectra": spec_refs, "blend": {"ref": "blendEnv"}}},
         # The legacy buzz: full partials, NO rolloff (flat harmonics).
         {"id": "fp", "type": "FullPartials",
-         "params": {"maxPartials": 60, "minMult": 1,
+         "params": {"maxPartials": 160, "minMult": 1,
                     "rolloff1": 0.0, "rolloff2": 0.0}},
         {"id": "src", "type": "AdditiveSource",
          "params": {"seed": 42, "frequency": float(f0),
                     "amplitude": {"ref": "ampEnv"},
                     "formant": {"ref": "fseq"},
-                    "formantWeight": 1.0, "formantFloor": 0.0,
+                    "formantWeight": 1.0, "formantFloor": floor,
                     "partials": {"ref": "fp"}}},
         {"id": "ch1", "type": "SoundChannel", "inputs": {"source": "src"},
          "params": {"volume": 0.8, "pan": 0.0}},
@@ -108,6 +108,12 @@ def main():
         path = os.path.join(OUT, f"liar2_{f0}.json")
         with open(path, "w") as f:
             json.dump(make_patch(f0), f, indent=1)
+        print("wrote", path)
+    # Floor A/B (physical valleys are -20..-30 dB, not -inf): 0.05 variants
+    for f0 in (110, 220):
+        path = os.path.join(OUT, f"liar2_{f0}_fl05.json")
+        with open(path, "w") as f:
+            json.dump(make_patch(f0, floor=0.05), f, indent=1)
         print("wrote", path)
 
 
