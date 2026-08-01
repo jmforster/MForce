@@ -18,12 +18,16 @@ Priority order. Tags per WORKFLOW.md. (G1)-(G4) = GOALS.md Dipsy goals.
    smoke 1.28→0.945, every term improved); (d) **viola validation run** — the
    600-eval run whose best-of-run WAV goes to REVIEW. NOTE (run 4): Matt's freq-curve verdict adds curve knots as search dims (+4-6) once default curves are picked from the v6 audition. **Preliminary result
    queued** run3: smoke best (104 evals) re-rendered on the full ladder →
-   REVIEW A/B (renders/cmaes_smoke/opt_best_104ev vs v5_04). **Blocker:** eval
-   render-bound ~9-16s (96 partials × ~12s ≈ real-time); 600 evals ≈ 1.5-2.7h
-   and a bg run dies at session end. Options: (i) long run split across
-   sessions via --resume; (ii) maxPartials 48 during search + re-score at 96;
-   (iii) render-speed (item 8) first. GATED on Matt's A/B read (metric pointing
-   right? re-pin vibrato?) before committing the full run.
+   REVIEW A/B (renders/cmaes_smoke/opt_best_104ev vs v5_04). **Blocker EASED
+   run14:** option (iii) happened — v6_cmaes_best renders 16.1s → 8.9s (1.81x)
+   from the truncf + fast_exp2 commits, so 600 evals is now ≈50 min rather
+   than 1.5-2.7h. Options (i) --resume and (ii) maxPartials 48 remain
+   available if that is still too long. **NEW blocker surfaced run14:** the
+   cutoff-gate/shared-rng fragility (REVIEW 0b) makes the objective
+   DISCONTINUOUS — a last-bit parameter change can re-roll the bandwidth noise
+   the candidate is scored on. Worth settling before spending 50 min of
+   search. Still GATED on Matt's A/B read (metric pointing right? re-pin
+   vibrato?) before committing the full run.
 3b. **[build] UI support for paramMap curves** — ✓ DONE run5 (2026-07-29).
    Minimum landed: load stashes the paramMap verbatim, save carries forward
    curve-bearing entries remapping node ids through the rename map, so
@@ -95,18 +99,41 @@ Priority order. Tags per WORKFLOW.md. (G1)-(G4) = GOALS.md Dipsy goals.
    ab_render_time.py, ablate_additive.py.
    Now: marginal 47.6 ns/sample/partial, ~437 partials/core RT (on a box with
    mforce_ui holding a core — better when quiet).
+   **✓ STAGE 2d PHASE 1 DONE run14 (2026-08-01)** — isolated AVX2 prototype
+   (research/additive_perf/simd_proto.cpp) beats scalar **18.4-19.1x** on
+   synthetic arrays, vs a 2x abort criterion. Stage greenlit but RESTAGED,
+   because tools/ablate_layers.py (new) showed a layer-free vector path
+   reaches only ~51% of viola_default's loop: the flagship patches run
+   motion+shimmer+onset+bandwidth together, and bandwidth's SHARED-rng walk
+   re-rolls (not perturbs) the noise if vectorized. New sub-stages 2d-1..2d-4
+   in the spec. **2d-3 (per-partial rng streams) is gated on REVIEW 0b** and
+   is arguably a prerequisite for the rest.
+   **✓ ALSO run14 — two libm calls in the hot body, both landed:**
+   `truncf` was a CRT call under SSE2-baseline flags → int round-trip, 1.6x,
+   BIT-EXACT 14/14 (commit e31d936, marginal 41.7→26.1 ns/sample/partial);
+   `std::exp2` in the motion path was 65.6% of viola_default's entire loop →
+   core/fast_math.h fast_exp2 (0.88 float32 eps), 1.7x on motion-bearing
+   patches, v6_cmaes_best 16.1s→8.9s (commit 8396d3a). Residual 1 LSB on
+   13/15; the exception is REVIEW 0a.
    **STAGE 2d (open, >1 session):** explicit SIMD of the partial loop. Spec:
    specs/2026-07-31-additive-simd-soa-design.md. Ablation says the
    memory-bound floor for the current layout is 3.3 ns/sample/partial vs
-   57.3 now — 17x headroom — and that the gap is NOT explainable by
-   arithmetic count. TWO ANTI-RESULTS, don't retry either (run 12, both on
-   controlled A/B):
+   26.1 now (was 57.3 before run 14) — and that the gap is NOT explainable by
+   arithmetic count. FOUR ANTI-RESULTS, don't retry any (all on controlled
+   A/B; (iii)-(iv) from run 14):
    (i) branchless degree-13 full-period sin polynomial, no quadrant folding —
    a WASH (MSVC already compiles the folded selects branchlessly) and less
    accurate (-123.4 vs -133.3 dB);
    (ii) 4x unroll with 4 independent accumulators — consistently SLOWER
    (0.88/0.94/0.93x on the 32/96/200p ladder). The compiler was already
    scheduling across iterations; the unroll only cost register pressure.
+   (iii) `pfreq / rate_` → multiply by a cached reciprocal: 1.10x in the
+   isolated prototype but 0.89x IN THE ENGINE (25.0→29.6 ns/sample/partial at
+   200 partials), and not bit-exact. Rejected on both counts; noted inline.
+   (iv) bit-exact `t*t` fast path for `Formant::get_gain`'s `std::pow` (all
+   579 formant instances use power 2): 1.00-1.01x, i.e. nothing. The
+   `contains()` gate means only in-band partials reach it. Noted at the call
+   site in formant.h.
    Consequence: the cheap explanations are closed off. Anything that moves
    this number has to be real vector arithmetic or nothing — so phase 1 is an
    isolated SIMD prototype on synthetic arrays with a 2x abort criterion,

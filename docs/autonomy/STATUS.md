@@ -1,14 +1,47 @@
 # Status — open this file first
 
-Updated: 2026-07-31 pm — dsp run 13 (Dipsy, interactive) · comp run 12 (Wolfie, scheduled)
+Updated: 2026-08-01 — dsp run 14 (Dipsy, scheduled) · comp run 12 (Wolfie, scheduled)
 
 | Lane | Dev | Latest run | Backlog top | Awaiting your review |
 |---|---|---|---|---|
 | comp | Wolfie | run 12 (2026-07-31, scheduled): per-corpus scorer anchors (#4 CLOSED — two measurement artifacts fixed, incl. Essen anchored on 2,246 Chinese tunes by alphabetical order); corpus-flavored phrase batches (controlled A/B, 36 WAVs); passage strategies #6 prototyped + rendered (15 WAVs) + C++ port spec'd in 4 stages | #6 C++ stage 1 (needs a tree without a live dsp build); #7 phrase-aware cadence | **4 items** — phrase v3 A/B, passage strategies, corpus flavor A/B [listen] · Essen note [read] |
-| dsp | Dipsy | run 13 (2026-07-31, interactive): verdicts folded — liar2 'excellent'; width-multiplier ladder (x3-x14, 10 renders); vowelseq2 set on validated architecture (10); clarinet bed hand-aligned to measurement after optimizer drift diagnosis (3 variants; bed dims to freeze in long run) | clarinet 600-eval w/ frozen bed (gated on c2 pick); SIMD stage 2d | **5 items** — width ladder, vowelseq2, clarinet c2 [listen] · FM oversample [read] · FM matrix [parked] |
+| dsp | Dipsy | run 14 (2026-08-01, scheduled): **additive got 1.6x on everything and 1.7x again on motion patches** — two libm calls found sitting in the per-partial per-sample body (truncf, exp2). CMA-ES eval patch 16.1s → 8.9s. SIMD prototype passed its gate 18-19x but the sizing measurement restaged the whole stage | SIMD stage 2d-1 (restaged); per-partial rng streams (gated on REVIEW 0b); clarinet 600-eval (gated on c2 pick) | **7 items** — exp2 A/B [listen] · rng fragility [read] · width ladder, vowelseq2, clarinet c2 [listen] · FM oversample [read] · FM matrix [parked] |
 
 Reports: comp/reports/2026-07-31-wolfie-run12.md ·
-dsp/reports/2026-07-31-dipsy-run12.md
+dsp/reports/2026-08-01-dipsy-run14.md
+
+Run-14 highlights (dsp): three fronts, all build/metric, no blind taste
+iteration. Both wins are the same bug class.
+(1) **`std::truncf` was a CRT call.** A comment in the hot body asserted it was
+a single instruction; `roundss` is SSE4.1 and the engine builds SSE2-baseline,
+so MSVC emitted a function call — once per partial per sample. The int
+round-trip is bit-identical for every |x| < 2^31 and worth **1.6x**
+(41.7 → 26.1 ns/sample/partial). Null test 14/14 byte-identical.
+(2) **`std::exp2` in the motion path was 65.6% of viola_default's entire
+loop** — found by a new tool (`tools/ablate_layers.py`) that profiles layers on
+a REAL patch instead of on the layer-free profiling patches. `fast_exp2`
+(0.88 float32 eps, at the rounding limit of the type) gives **1.7x on every
+motion-bearing patch**; `v6_cmaes_best` 16.1s → 8.9s, which is the item-3d
+blocker by name — 600 evals is now ~50 min, not 1.5-2.7h.
+(3) The SIMD prototype **passed its abort criterion 18-19x**, but the same
+sizing measurement says a layer-free vector path only reaches ~51% of the
+flagship patch, because those patches all run the bandwidth layer and its
+shared-rng walk re-rolls rather than perturbs the noise when reordered. Stage
+2d restaged into 2d-1..2d-4 rather than built on a wrong premise.
+**One thing genuinely needs you:** the exp2 change re-rolled the bandwidth
+noise on ONE patch (`v6_cmaes_best`), and bisecting it exposed a pre-existing
+fragility — the cutoff gate sits before the bandwidth block, so any 1-ulp
+`pfreq` change can flip a partial and desync its noise for the rest of the
+render. That also makes **the CMA-ES objective discontinuous**, which matters
+for the 600-eval run regardless of run 14. A/B rendered, both questions in
+REVIEW (0a listen, 0b read).
+Two anti-results recorded rather than left as folklore: the reciprocal-instead
+-of-divide substitution measures 1.10x in isolation and 0.89x in the engine,
+and a bit-exact fast path for `Formant::get_gain`'s `pow` buys exactly nothing
+(the `contains()` gate keeps it cold). That is four dead theories on this loop
+against three live wins.
+Tree guard honoured: the four files modified at session start were left
+untouched; backlog item 11 still stands.
 
 Run-12 highlights (comp): three fronts, all metric/build, no blind taste
 iteration. (1) Per-corpus scorer anchors close backlog #4 — and finding them
@@ -83,10 +116,11 @@ CMA-ES pipeline without them.
 Next "go": comp = #6 C++ stage 1 (anchor plumbing + PedalBuildup/Sequence
 PassageStrategy classes, per the run-12 spec) → stage 3 key-aware realization
 if you want modulation → #7 phrase-aware cadence. Four comp review items
-waiting (three listen, one read). dsp = item 8 stage 2d (explicit SIMD/SoA of
-the partial loop — ablation measured a 3.3 ns memory floor against 57.3 ns
-now, so there is 17x of headroom and it needs its own spec) → stage 2e
-iFFT-OLA. Clarinet 600-eval stays gated on your ears. Five dsp review items
-waiting. Verdicts fold in whenever you send them.
+waiting (three listen, one read). dsp = stage 2d-1 (vector path for the
+layer-free configuration, needs an AVX2-availability decision) — but if the
+REVIEW 0b answer is "yes, per-partial rng streams", do that FIRST: it fixes
+the fragility, unblocks vectorizing the bandwidth layer, and makes the CMA-ES
+objective continuous, all at once. Clarinet 600-eval stays gated on your ears.
+Seven dsp review items waiting. Verdicts fold in whenever you send them.
 
 How this works: [WORKFLOW.md](WORKFLOW.md)

@@ -2,6 +2,39 @@
 
 ## Awaiting Matt
 
+### 0a. fast_exp2 A/B — one patch's noise got re-rolled [listen] (run 14)
+`renders/exp2_ab/` — A = `_A_stdexp2`, B = `_B_fastexp2`, for
+`v6_cmaes_best` and `viola_default`.
+
+The perf change (1.7x on every motion-bearing patch; the CMA-ES eval
+patch is 16.1s → 8.9s) is byte-clean on 13 of 15 test patches and 1 LSB
+on the rest. `v6_cmaes_best` is the exception — its bandwidth noise is a
+*different roll*, not a degraded one (bisected: bandwidth off → 1 LSB).
+`viola_default` is included as the 1-LSB control; it should sound
+identical, and if it doesn't, that's the more interesting finding.
+
+Verdict decides: does B sound equivalent to A? If yes, done — this is
+just a re-seed. If no, the fallback is to keep `std::exp2` when the
+bandwidth layer is active and take the 1.7x only on the rest.
+
+### 0b. The fragility behind it [read] (run 14)
+The cutoff gate (`pfreq > CUTOFF → return`) sits BEFORE the bandwidth
+block, so a partial that flips across 16 kHz skips its shared-rng draw
+and re-rolls its noise from there on. Any last-bit change to `pfreq`
+can trigger it — mine just happened to.
+
+Two consequences worth your call:
+1. **It makes the CMA-ES objective discontinuous** — a last-bit
+   parameter change can re-roll the noise the candidate is scored on.
+   That is a real problem for the 600-eval run, independent of anything
+   in run 14.
+2. It blocks vectorizing the bandwidth layer (SIMD stage 2d-3).
+
+Proposed fix: give each partial its own rng stream seeded per partial,
+so its noise is independent of draw order. Fixes all three at once, but
+changes every bandwidth-bearing patch's noise ONCE — hence a read, not
+a silent change. Seeds stay in JSON either way.
+
 ### 1. liar2 width-multiplier ladder [listen] (run 13)
 renders/liar2/ liar2_110_x3/x5/x7/x10/x14 + same at 220 (literature
 widths x multiplier; x7 = the shipped "excellent" scale). Verdict: the

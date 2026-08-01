@@ -1,6 +1,62 @@
 # Additive partial loop — SoA / SIMD restructuring (item 8 stage 2d) — design
 
 Date: 2026-07-31 · Dipsy · G4 (additive performance)
+Updated: 2026-08-01 (run 14) — phase 1 executed; see the verdict below before
+reading the rest, because it restages everything after it.
+
+## RUN-14 VERDICT — phase 1 passed, and the stage is restaged
+
+**The prototype passed the abort criterion by a wide margin.**
+`research/additive_perf/simd_proto.cpp`, AVX2 at 8 lanes vs a faithful scalar
+control over synthetic arrays: **18.4-19.1x** at N = 32/96/200/512, agreeing to
+2.1e-6 relative. The criterion was 2x. So vectorization is real here and the
+"something is serializing" reading was right.
+
+**But the sizing measurement changed what should be built.** A new tool,
+`tools/ablate_layers.py`, profiles the optional layers on a REAL patch rather
+than on the layer-free `prof_*` patches this spec's ablation used. On
+`viola_default` it found that a layer-free vector fast path reaches only ~26%
+of the loop cost (51% after run 14's `fast_exp2` landed) — because the
+flagship patches (`viola_default`, the v6 CMA-ES target) run motion + shimmer +
+onset + bandwidth *together*.
+
+That matters most for `bandwidth`: its per-partial walk draws from a **shared**
+rng, so vectorizing it does not perturb the noise, it **re-rolls** it. Phase 3
+below already guessed this ("if it resists vectorization, specialize it out");
+the measurement says specializing it out is not a footnote, it is most of the
+value on the patches that matter.
+
+Run 14 also demonstrated, unintentionally, how sharp that edge is: a 1-ulp
+change to `pfreq` from `fast_exp2` flipped a partial across the cutoff gate,
+which skips its rng draw, which re-rolled its noise for the rest of the render
+(-11.7 dBFS residual on `v6_cmaes_best`). **Fixing that fragility is arguably a
+prerequisite for this stage**, not just for reproducibility — a vector path
+will hit it constantly. Queued for Matt as a read.
+
+### Restaged
+
+- **2d-1** — vector path for the layer-free configuration. Independently
+  landable, covers the `prof_*` and vowel-class patches, ~51% of
+  `viola_default`. Needs a runtime AVX2 check (`__cpuid`) or a build-flag
+  decision, since the engine is SSE2-baseline today.
+- **2d-2** — vectorize motion (needs a vector `fast_exp2` — trivial now that
+  the scalar one exists and is a polynomial + exponent construction), shimmer,
+  trade, onset. All are per-partial array reads and blends.
+- **2d-3** — the bandwidth question, which is a **design** decision and not a
+  vectorization one: should each partial own its rng stream (seeded per
+  partial) so its noise is independent of draw order? That would make the
+  layer vectorizable AND fix the cutoff-gate fragility AND make the CMA-ES
+  objective continuous — but it changes every bandwidth-bearing patch's noise
+  once, so it needs a listen gate.
+- **2d-4** — formant, if the vowel families ever become perf-critical. Note
+  run 14 measured `Formant::get_gain` as NOT hot (1.00-1.01x for a bit-exact
+  fast path), so this is low priority.
+
+Two scalar findings from the same prototype landed already and moved the
+baseline this stage is measured against — `truncf` (1.6x, bit-exact, commit
+`e31d936`) and `std::exp2` (1.7x on motion patches, commit `8396d3a`). The
+success criterion below (<20 ns/sample/partial) should be re-read against the
+new baseline of 26.1, not the 57.3 it was written against.
 
 Stage 2a-2c landed in run 12 (commit `aafbe9b`) and took the loop from
 90.6 to 51.4 ns per sample per partial. This spec covers the next stage, which
