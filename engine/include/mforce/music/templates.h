@@ -415,6 +415,22 @@ struct SequencePassageConfig {
     uint32_t seed{0};
 };
 
+// Config for ConnectivePassageStrategy ("connective_passage"). A bridge: the
+// PREVIOUS passage's tail becomes the link cell, sequenced toward a target
+// degree that the final note is guaranteed to land on.
+struct ConnectivePassageConfig {
+    int entries{3};           // sequenced restatements of the link cell
+    int targetDegree{-2};     // degree the FINAL note lands on, rel. to the
+                              // passage's startingPitch
+    int tailUnits{3};         // units harvested from the prior passage's end
+    float finalAugment{1.5f}; // the last entry broadens as it arrives
+    float cellBeats{2.0f};    // fallback cell length when there is no prior
+                              // passage to harvest (e.g. first section)
+    int rangeCap{19};
+    int maxTries{8};
+    uint32_t seed{0};
+};
+
 // ===========================================================================
 // PassageTemplate — what a Part plays during a Section
 // ===========================================================================
@@ -484,6 +500,7 @@ struct PassageTemplate {
     // matching strategy; absent means "use that strategy's defaults".
     std::optional<PedalBuildupConfig> pedalBuildupConfig;
     std::optional<SequencePassageConfig> sequenceConfig;
+    std::optional<ConnectivePassageConfig> connectiveConfig;
 };
 
 // ===========================================================================

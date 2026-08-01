@@ -144,6 +144,41 @@ inline void put_motif(Locus& locus, const std::string& name,
   locus.pieceTemplate->add_motif(std::move(m));
 }
 
+// prior_passage_tail(locus, units) — the last `units` FigureUnits of the
+// previous section's passage for THIS part, or nullopt if there is no prior
+// passage to harvest.
+//
+// Spec asked whether Locus needs a new "what came before" carrier. It does
+// not: Composer::compose walks `for each part { for each section in order }`
+// and assigns part->passages[sectionName] after composing, so by the time
+// section i composes, sections 0..i-1 are already realized on the same Part
+// and reachable through the Piece pointer Locus already holds.
+inline std::optional<MelodicFigure> prior_passage_tail(const Locus& locus,
+                                                       int units) {
+  if (locus.sectionIdx <= 0 || locus.partIdx < 0) return std::nullopt;
+  const auto& parts = locus.piece->parts;
+  if (locus.partIdx >= int(parts.size())) return std::nullopt;
+  const std::string& prevSection = locus.piece->sections[locus.sectionIdx - 1].name;
+  auto it = parts[locus.partIdx].passages.find(prevSection);
+  if (it == parts[locus.partIdx].passages.end()) return std::nullopt;
+
+  const Passage& prev = it->second;
+  for (int pi = prev.phrase_count() - 1; pi >= 0; --pi) {
+    const Phrase& ph = prev.phrases[pi];
+    for (int fi = int(ph.figures.size()) - 1; fi >= 0; --fi) {
+      const Figure* f = ph.figures[fi].get();
+      if (!f || f->units.empty()) continue;
+      const int n = int(f->units.size());
+      const int take = std::min(std::max(1, units), n);
+      MelodicFigure tail;
+      tail.units.assign(f->units.end() - take, f->units.end());
+      tail.units[0].step = 0;             // a cell always starts anchored
+      return tail;
+    }
+  }
+  return std::nullopt;
+}
+
 // Assemble one PhraseTemplate out of motif names + anchors, then compose it
 // via default_phrase. Both strategies end this way.
 inline Phrase compose_anchored_phrase(
@@ -394,6 +429,124 @@ inline Passage SequencePassageStrategy::compose_passage(
 
   passage.add_phrase(passage_anchors::compose_anchored_phrase(
       locus, "sequence", refs, bestConns, pt.startingPitch));
+  return passage;
+}
+
+// ===========================================================================
+// ConnectivePassageStrategy — "connective_passage"  (stage 2)
+// ===========================================================================
+//
+// The bridge between two thematic passages. Musically it is not new material:
+// it takes the TAIL of what just finished, sequences it toward a destination,
+// and broadens on arrival. The prototype's measurable claim was that it lands
+// exactly on the requested degree (3/3 takes), and that is preserved here by
+// backing the last anchor off by the cell's own net motion:
+//     anchors.back() = targetDegree - net_step(finalCell)
+// so anchors.back() + net_step(finalCell) == targetDegree by construction.
+//
+// This is the stage that needed "what came before". prior_passage_tail()
+// above answers it without extending Locus.
+class ConnectivePassageStrategy : public PassageStrategy {
+public:
+  std::string name() const override { return "connective_passage"; }
+  StrategyScope scope() const override { return StrategyScope::Melody; }
+
+  Passage compose_passage(Locus locus, const PassageTemplate& pt) override;
+};
+
+inline Passage ConnectivePassageStrategy::compose_passage(
+    Locus locus, const PassageTemplate& pt) {
+  Passage passage;
+  const ConnectivePassageConfig cfg =
+      pt.connectiveConfig ? *pt.connectiveConfig : ConnectivePassageConfig{};
+
+  const Scale& scale = locus.piece->sections[locus.sectionIdx].scale;
+  Pitch start = pt.startingPitch ? *pt.startingPitch
+                                 : Pitch::from_note_number(60.0f);
+  uint32_t seed = passage_anchors::resolve_seed(locus, cfg.seed, 0x434F'4E4Eu);
+
+  const int n = std::max(2, cfg.entries);
+
+  // Anchors interpolate linearly from the passage start toward the target,
+  // with the final entry backed off by its own net motion.
+  auto anchors_for = [&](const MelodicFigure& finalCell) {
+    std::vector<int> a;
+    a.reserve(n);
+    for (int j = 0; j < n; ++j)
+      a.push_back(int(std::lround(double(cfg.targetDegree) * j / (n - 1))));
+    a.back() = cfg.targetDegree - finalCell.net_step();
+    return a;
+  };
+
+  MelodicFigure bestCell;
+  std::vector<int> bestAnchors;
+  std::vector<std::optional<FigureConnector>> bestConns;
+  int bestSpan = 0;
+  bool harvested = false;
+
+  const int maxTries = std::max(1, cfg.maxTries);
+  for (int t = 0; t < maxTries; ++t) {
+    Randomizer rng(seed + uint32_t(t) * 5387u);
+    MelodicFigure cell;
+    if (auto tail = passage_anchors::prior_passage_tail(locus, cfg.tailUnits)) {
+      cell = *tail;
+      harvested = true;
+    } else {
+      // No prior passage (first section, or the part has nothing before it).
+      // Fall back to a sampled cell so the strategy still produces a bridge
+      // rather than silence — reported, not silently substituted.
+      try {
+        cell = passage_anchors::sample_cell(rng, cfg.cellBeats,
+                                            {0.5f, 0.75f, 1.0f});
+      } catch (const std::exception& e) {
+        std::cerr << "ConnectivePassageStrategy: fallback cell failed: "
+                  << e.what() << "\n";
+        continue;
+      }
+    }
+    if (cell.units.empty()) continue;
+
+    MelodicFigure finalCell =
+        figure_transforms::stretch(cell, std::max(0.01f, cfg.finalAugment));
+    auto anchors = anchors_for(finalCell);
+
+    std::vector<const MelodicFigure*> ptrs;
+    ptrs.reserve(n);
+    for (int j = 0; j < n - 1; ++j) ptrs.push_back(&cell);
+    ptrs.push_back(&finalCell);
+    auto conns = passage_anchors::connectors_for(ptrs, anchors);
+    int span = passage_anchors::predicted_span(scale, start, ptrs, conns);
+
+    if (bestCell.units.empty() || span < bestSpan) {
+      bestCell = cell; bestAnchors = anchors; bestConns = conns; bestSpan = span;
+    }
+    // A harvested tail is FIXED — resampling cannot change it, so one pass is
+    // all there is. Only the fallback path benefits from retries.
+    if (harvested || cfg.rangeCap <= 0 || bestSpan <= cfg.rangeCap) break;
+  }
+  if (bestCell.units.empty()) {
+    std::cerr << "ConnectivePassageStrategy: no cell; empty passage\n";
+    return passage;
+  }
+
+  MelodicFigure finalCell =
+      figure_transforms::stretch(bestCell, std::max(0.01f, cfg.finalAugment));
+  const std::string base = "connect_" + std::to_string(locus.sectionIdx);
+  passage_anchors::put_motif(locus, base + "_cell", bestCell, seed);
+  passage_anchors::put_motif(locus, base + "_end", finalCell, seed);
+  std::vector<std::string> refs(n - 1, base + "_cell");
+  refs.push_back(base + "_end");
+
+  const int landed = bestAnchors.back() + finalCell.net_step();
+  std::cerr << "connective_passage: entries=" << n
+            << " source=" << (harvested ? "prior-tail" : "sampled-fallback")
+            << " cell_units=" << bestCell.units.size()
+            << " target=" << cfg.targetDegree
+            << " landed=" << landed
+            << " pred_range=" << bestSpan << "\n";
+
+  passage.add_phrase(passage_anchors::compose_anchored_phrase(
+      locus, "connective", refs, bestConns, pt.startingPitch));
   return passage;
 }
 

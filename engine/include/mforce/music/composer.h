@@ -170,6 +170,7 @@ struct Composer {
     reg.register_passage(std::make_unique<LibraryPassageStrategy>());
     reg.register_passage(std::make_unique<PedalBuildupStrategy>());
     reg.register_passage(std::make_unique<SequencePassageStrategy>());
+    reg.register_passage(std::make_unique<ConnectivePassageStrategy>());
 
     // Realization strategies (Compose-tier chord-event expansion)
     auto& realReg = RealizationStrategyRegistry::instance();

@@ -83,8 +83,77 @@ def sequence_passage(seed, bpm, *, entries=8, step_a=-4, step_b=3, cell=1.5):
     return base_template(parts, beats=48, bpm=bpm, seed=seed)
 
 
+def connective(seed, bpm, *, entries=3, target=-2, tail=3, lead="sequence"):
+    """Two sections: a thematic passage, then the bridge that harvests ITS
+    tail. A one-section connective would have nothing to connect from, which
+    is exactly the case the strategy reports as `source=sampled-fallback`."""
+    lead_cfg = {"entries": 6, "stepA": -4, "stepB": 3, "cellBeats": 1.5,
+                "rangeCap": 19, "maxTries": 8, "seed": seed}
+    conn_cfg = {"entries": entries, "targetDegree": target, "tailUnits": tail,
+                "finalAugment": 1.5, "cellBeats": 2.0, "rangeCap": 19,
+                "maxTries": 8, "seed": seed + 1}
+    part = {"name": "melody", "role": "melody", "passages": {
+        "Main": {"startingPitch": {"octave": 4, "pitch": "C"},
+                 "strategy": "sequence_passage", "sequenceConfig": lead_cfg,
+                 "phrases": []},
+        "Bridge": {"startingPitch": {"octave": 4, "pitch": "C"},
+                   "strategy": "connective_passage",
+                   "connectiveConfig": conn_cfg, "phrases": []}}}
+    t = base_template([part], beats=32, bpm=bpm, seed=seed)
+    t["sections"] = [{"name": "Main", "beats": 32},
+                     {"name": "Bridge", "beats": 24}]
+    return t
+
+
+def suite(seed, bpm):
+    """All three stage-1/2 strategies chained as one piece — passage
+    strategies are only worth having if they COMBINE. The connective sits
+    between the sequence and the buildup so it has a real tail to harvest."""
+    part = {"name": "melody", "role": "melody", "passages": {
+        "S0_sequence": {"startingPitch": {"octave": 4, "pitch": "C"},
+                        "strategy": "sequence_passage",
+                        "sequenceConfig": {"entries": 8, "stepA": -4,
+                                           "stepB": 3, "cellBeats": 1.5,
+                                           "rangeCap": 19, "maxTries": 8,
+                                           "seed": seed},
+                        "phrases": []},
+        "S1_bridge": {"startingPitch": {"octave": 4, "pitch": "C"},
+                      "strategy": "connective_passage",
+                      "connectiveConfig": {"entries": 3, "targetDegree": 2,
+                                           "tailUnits": 3, "finalAugment": 1.5,
+                                           "cellBeats": 2.0, "rangeCap": 19,
+                                           "maxTries": 8, "seed": seed + 1},
+                      "phrases": []},
+        "S2_buildup": {"startingPitch": {"octave": 4, "pitch": "C"},
+                       "strategy": "pedal_buildup",
+                       "pedalBuildupConfig": {"levels": 3, "climbStep": 2,
+                                              "cellBeats": 3.0,
+                                              "holdBeats": 2.0,
+                                              "rangeCap": 19, "maxTries": 8,
+                                              "seed": seed + 2},
+                       "phrases": []}}}
+    ped = {"name": "pedal", "role": "melody", "passages": {
+        "S2_buildup": {"startingPitch": {"octave": 3, "pitch": "G"},
+                       "phrases": [{"name": "PED",
+                                    "startingPitch": {"octave": 3,
+                                                      "pitch": "G"},
+                                    "figures": [{"source": "reference",
+                                                 "motifName": "PED"}
+                                                for _ in range(6)],
+                                    "connectors": [None] * 6}]}}}
+    t = base_template([part, ped], beats=32, bpm=bpm, seed=seed,
+                      motifs=[("PED", {"units": [{"duration": 4.0,
+                                                  "step": 0}]})])
+    t["sections"] = [{"name": "S0_sequence", "beats": 24},
+                     {"name": "S1_bridge", "beats": 16},
+                     {"name": "S2_buildup", "beats": 24}]
+    return t
+
+
 STRATEGIES = {"pedal_buildup": pedal_buildup,
-              "sequence_passage": sequence_passage}
+              "sequence_passage": sequence_passage,
+              "connective": connective,
+              "suite": lambda seed, bpm: suite(seed, bpm)}
 
 # A few deliberate outliers alongside the norm-respecting takes, per the
 # autonomy ground rule: shapes no textbook would ask for, in case one is
@@ -108,9 +177,10 @@ def render(template, out_prefix):
         raise RuntimeError(f"{out_prefix}: CLI failed\n{p.stdout}\n{p.stderr}")
     # The strategies log their own shape claim to stderr; keep it, it IS the
     # verification (anchor roots, level count, predicted range).
-    claim = [ln for ln in (p.stdout + p.stderr).splitlines()
-             if ln.startswith(("pedal_buildup:", "sequence_passage:"))]
-    return claim[0] if claim else ""
+    claim = [ln.split(": ", 1)[1] for ln in (p.stdout + p.stderr).splitlines()
+             if ln.startswith(("pedal_buildup:", "sequence_passage:",
+                               "connective_passage:"))]
+    return " | ".join(claim)
 
 
 def melody_durations(out_prefix):
@@ -158,8 +228,7 @@ def main():
         durs = melody_durations(prefix)
         r = sg.score(mel, cs)
         r.update(file=label, strategy=name,
-                 accel=round(accel_ratio(durs), 2),
-                 claim=claim.split(": ", 1)[1] if ": " in claim else "")
+                 accel=round(accel_ratio(durs), 2), claim=claim)
         rows.append(r)
         print(f"{label}: {r['n_notes']} notes range={r['range']} "
               f"rep={r['rep_LxCount']} selfsim={r['selfsim']} "

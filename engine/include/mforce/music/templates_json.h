@@ -862,6 +862,14 @@ inline void to_json(json& j, const PassageTemplate& pt) {
             {"cellBeats", c.cellBeats}, {"rangeCap", c.rangeCap},
             {"maxTries", c.maxTries}, {"seed", c.seed}};
     }
+    if (pt.connectiveConfig) {
+        const auto& c = *pt.connectiveConfig;
+        j["connectiveConfig"] = json{
+            {"entries", c.entries}, {"targetDegree", c.targetDegree},
+            {"tailUnits", c.tailUnits}, {"finalAugment", c.finalAugment},
+            {"cellBeats", c.cellBeats}, {"rangeCap", c.rangeCap},
+            {"maxTries", c.maxTries}, {"seed", c.seed}};
+    }
 }
 
 inline void from_json(const json& j, ChordAccompanimentConfig& cc) {
@@ -1000,6 +1008,20 @@ inline void from_json(const json& j, PassageTemplate& pt) {
         c.maxTries  = jc.value("maxTries", c.maxTries);
         c.seed      = jc.value("seed", c.seed);
         pt.sequenceConfig = c;
+    }
+
+    if (j.contains("connectiveConfig")) {
+        const auto& jc = j.at("connectiveConfig");
+        ConnectivePassageConfig c;
+        c.entries      = jc.value("entries", c.entries);
+        c.targetDegree = jc.value("targetDegree", c.targetDegree);
+        c.tailUnits    = jc.value("tailUnits", c.tailUnits);
+        c.finalAugment = jc.value("finalAugment", c.finalAugment);
+        c.cellBeats    = jc.value("cellBeats", c.cellBeats);
+        c.rangeCap     = jc.value("rangeCap", c.rangeCap);
+        c.maxTries     = jc.value("maxTries", c.maxTries);
+        c.seed         = jc.value("seed", c.seed);
+        pt.connectiveConfig = c;
     }
 }
 
