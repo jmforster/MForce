@@ -38,6 +38,13 @@ Priority order. Tags per WORKFLOW.md. (G1)-(G4) = GOALS.md Dipsy goals.
    links — until then, editing a curve-bearing Parameter node's wiring in the
    UI is not reflected (verbatim entry wins).
 
+3b2. **[metric] Shimmer gain floor** — Matt-approved (2026-08-01): the
+   shimmer walk at optimizer-chosen depth visits near-silence mid-note
+   (measured 14.6dB dip-and-reswell on v6_cmaes_best final note). Add a
+   floor config (gain never below ~0.3-0.5), render a small ladder on
+   the cmaes-best patch, queue A/B. Statistics note: keep total variance
+   near the Iowa 50% target if possible (floor redistributes, not
+   removes).
 3c. **[build] UI engine-stamp guard** — ✓ DONE run14 (2026-08-01), commit
    cc4185d. Title bar carries `[build MM-DD HH:MM @sha]` always, plus
    `*** STALE - REBUILD ***` and a dismissable red banner naming the offending
