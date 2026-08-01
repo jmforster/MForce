@@ -2,65 +2,42 @@
 
 ## Awaiting Matt
 
-### 1. Vowel baselines [listen] (run 11)
-renders/vowel_baseline/ — your requested sequences (OO-EE, O-OO-EE,
-AH-O-OO, LIAR + EE-AH-OO, OO-AH-EE) at 220 AND 1320 Hz, LIAR also at
-2640. Two mechanisms inside: at 220 Hz, formantFloor suppression
-(-11..-17dB valleys) should finally give vowel character; at high f0
-the character is GLIDING formants sweeping across harmonics (crossfade
-provably can't do it — see report). liar_1320 is the birdy bet;
-liar_2640 came out sparser (two isolated blooms). ah_o_oo_1320 is a
-documented geometric fail. Verdict decides: does 220Hz finally read as
-vowels; does the glide chirp match your remembered LIAR effect; default
-floor value.
+### 1. liar2 width-multiplier ladder [listen] (run 13)
+renders/liar2/ liar2_110_x3/x5/x7/x10/x14 + same at 220 (literature
+widths x multiplier; x7 = the shipped "excellent" scale). Verdict: the
+optimal multiplier, or several worth keeping as styles.
 
-### 2. Clarinet first pass [listen] (run 11)
-renders/cmaes_clarinet/best_smoke.wav — E3..E5 ladder, 156-eval smoke
-(1.132->0.787), noise-bed breath model active with the measured
-register law preserved by the optimizer. KNOWN LIMIT: the scorer can't
-verify the breath-lead (below its threshold) — your ears are the only
-test of whether the breathy attack finally reads. Verdict decides:
-continue to 600 evals as-is, or fix the attack term first.
+### 2. Vowel sequences on the validated architecture [listen] (run 13)
+renders/vowelseq2/ — OO-EE, O-OO-EE, AH-O-OO, EE-AH-OO, OO-AH-EE at
+110/220, liar2 recipe (crossfade, 5-formant, x7, floor 0), playable
+instrument-style patches (word scales with note length; try chords —
+your liar2 chord observation).
 
-### 3. FM oversample default [read, no render] (updated run 12)
-Run 11: C7 is CONVERGED at os8 (os16 spectrally identical within
-0.02dB) — the residual aliasing you heard at C7-os8 cannot be removed
-by more oversampling. Run 12 adds the missing half: every alias number
-so far was taken at a HIGH CARRIER, and the policy question
-("oversample 4-8 for bright/high-index FM?") conflates high frequency
-with high index. Measured at a LOW carrier with a huge index
-(depth 60, 220 Hz, ±31.8 kHz deviation): M=1/2/4/8 give
-0 / -0.0 / -2.4 / -2.3 dB — the ladder does NOT converge, M=16 is not
-a limit. Oversampling there doesn't clean the sound, it changes it.
-Verdict decides: adopt a carrier-frequency-and-deviation rule (my
-read) rather than an index rule, and what the default M should be for
-the high-carrier case where it demonstrably works.
+### 3. Clarinet breath v2 [listen] (run 13)
+renders/clarinet_c2/ — your 3 complaints mapped exactly to params the
+optimizer drifted from the measurement; c2a_cal = bed hand-set to the
+clarinet_bed values you preferred (2900Hz/0.016/0.15s), c2b_pink =
+tilted down-spectrum (2300Hz, wider — the white-vs-pink axis), c2c_quiet
+= cal at level 0.011. Verdict decides: which bed goes into the 600-eval
+run — where bed dims will be FROZEN at your pick (the optimizer
+demonstrably wanders off-measurement on them; scorer can't see the bed).
 
-### 4. FM "modulate everything" matrix [listen] (run 12)
-renders/fm_matrix/ — 24 patches modulating FMSource params no
-fixed-architecture FM synth can reach (both ratios, phase, frequency,
-amplitude), 9 deliberate rule-breakers. All render; modulation wiring
-verified by measurement, not assumed. Start with the novelty-ranked
-top: t2_11_all_noise_wander, t2_13_ratio_counter_sweep,
-t3_19_fm_drives_fm_depth, t2_12_both_ratios_audiorate,
-t2_14_dense_oversampled8, t3_15_ultrasonic_carrier. Reference point is
-t1_00_control_classic (textbook FM, constant ratios, index envelope).
-Also in there: t3_20 vs t3_21 are an index-60 aliased/oversampled-16
-A/B, and coarse spectral metrics could NOT tell them apart — your ears
-are the tiebreak. Verdict decides: which topologies are worth a real
-patch family (the way expand round 2 got one), and whether audio-rate
-ratio modulation is musical or only a sound-effect generator.
+### 4. FM oversample default [read] — unchanged, awaiting your read
+(carrier-frequency-and-deviation rule proposal; see run-12 note.)
 
-### 5. Additive is 1.2-1.6x faster — nothing to listen to, but you may want to [listen] (run 12)
-The hot-loop work is bit-exact except the sin polynomial, whose worst
-deviation across 14 patches is 1 LSB at 16 bit (residual RMS -125 to
--140 dBFS). I am claiming inaudible on measurement, not on ears.
-renders/nulltest/base/ vs renders/nulltest/new/ are the same 14 patches
-before and after if you want to confirm. Verdict decides: nothing
-blocking — say so only if you hear a difference, which would mean the
-measurement is wrong somewhere.
+### 5. FM matrix [listen] — parked at your request until re-listen.
 
 ## Resolved
+
+2026-07-31 (Matt, folded in run 13):
+- liar2: upgraded to "excellent" post UI fixes; chords sharpen the word;
+  0.5s durations intelligible at high pitch. Width multiplier ladder +
+  vowelseq regen delivered (items 1-2 above).
+- Clarinet: tone "really nice"; breath fails as separate/loud/too-high/
+  too-early — all four = optimizer drift vs measurement; c2 variants
+  above; bed dims to be frozen in the long run.
+- nulltest: "no audible differences" — perf work cleared for keeps.
+- FM matrix: crazy results, re-listen later (parked).
 
 2026-07-30 pm (Matt, folded in run 11):
 - Expand round 3: "Nice sounds" — front PARKED at your request until
