@@ -100,14 +100,81 @@ CONTOURS = {
 }
 
 
+# --------------------------------------------------------------------------- #
+# Backlog #10: the transform library drives A-family variants.
+# --------------------------------------------------------------------------- #
+# figure_transforms.py landed in run 8 as a standalone library with nine
+# operations; until now the phrase builder could only reach two of them
+# (invert / retrograde, hard-coded) plus vary_tail. Everything below routes
+# A-family primes through the library instead, so a repeat can be transposed
+# (contour) AND transform-varied at full generality.
+import figure_transforms as ftl                                   # noqa: E402
+
+# Ops that produce a DIFFERENT result on each successive occurrence — either
+# because they are stochastic, or because the occurrence index feeds the
+# parameter. Each prime therefore gets its own variant motif (V1, V2, ...).
+# Value = f(figA, occurrence, model, rng) -> fig.
+#
+# augment/diminish take the occurrence into the factor so A'' is twice as
+# augmented as A' (a real intensification, not the same op twice); rotate
+# advances the rotation; expand/compress_intervals widen progressively.
+INDEPENDENT_OPS = {
+    "vary_tail":         lambda f, occ, m, r: vary_tail(f, m, r)[0],
+    "rotate":            lambda f, occ, m, r: ftl.rotate(f, occ),
+    "ornament":          lambda f, occ, m, r: ftl.ornament(f, r),
+    "augment":           lambda f, occ, m, r: ftl.augment(f, 1.5 ** occ),
+    "diminish":          lambda f, occ, m, r: ftl.diminish(f, 1.5 ** occ),
+    "expand_intervals":  lambda f, occ, m, r: ftl.expand_intervals(f, 1.0 + occ),
+    "compress_intervals":lambda f, occ, m, r: ftl.compress_intervals(f, 1.0 + occ),
+}
+
+# Ops that are involutions (applying twice returns the original), so every
+# prime shares ONE variant motif "P" — the historical behaviour.
+INVOLUTION_OPS = {"invert", "retrograde"}
+
+# "mixed" draws a different independent op per occurrence, which is what a
+# composer varying a motif across a phrase actually does — not the same
+# operation applied N times.
+MIXED_MENU = ["rotate", "ornament", "vary_tail", "expand_intervals",
+              "augment", "diminish"]
+
+
+def make_variant(figA, transform, occ, model, rng, seen=()):
+    """The A-family variant for occurrence `occ` (1-based: A' is occ 1).
+    Returns (fig, op_label) so the caller can report what was actually used.
+
+    `seen` is the figures already emitted for this phrase (A itself plus any
+    earlier variants). Occurrence-parameterized ops are not guaranteed to
+    differ: compress_intervals saturates once every step is at the
+    minimum magnitude of 1, so factors 2 and 3 return the SAME figure on a
+    stepwise cell. When that happens the variant is rotated (and, failing
+    that, ornamented) so "each repeat varies differently" is a property the
+    builder enforces rather than one it hopes for. The label records the
+    fallback, e.g. "compress_intervals+rot"."""
+    op = transform
+    if transform == "mixed":
+        op = rng.choice(MIXED_MENU)
+    fn = INDEPENDENT_OPS.get(op)
+    if fn is None:
+        raise KeyError(f"make_variant: no independent op named {op!r}")
+    fig = fn(figA, occ, model, rng)
+    if any(fig == s for s in seen):
+        fig, op = ftl.rotate(fig, occ), op + "+rot"
+    if any(fig == s for s in seen):
+        fig, op = ftl.ornament(fig, rng), op.split("+")[0] + "+orn"
+    return fig, op
+
+
 def _tokens_v2(pattern, transform):
-    """Like _tokens, but with vary_tail each prime is an INDEPENDENT variant:
-    "AA'A''B" -> ["A","V1","V2","B"]. Other transforms keep the single P."""
+    """Like _tokens, but transforms whose repeats differ per occurrence give
+    each prime an INDEPENDENT variant: "AA'A''B" -> ["A","V1","V2","B"].
+    Involutions (invert/retrograde) keep the single shared "P"."""
+    independent = (transform in INDEPENDENT_OPS or transform == "mixed")
     out = []
     for ch in pattern:
         if ch == "'":
             prev = out[-1]
-            if transform == "vary_tail":
+            if independent:
                 out[-1] = "V1" if prev == "A" else "V" + str(int(prev[1:]) + 1)
             else:
                 out[-1] = "P"
@@ -156,17 +223,22 @@ def build_contour_combination(figA, figB, pattern, transform, contour,
     is anchored at first-A-pitch + CONTOURS[contour][j] scale steps (j =
     occurrence index); B continues from the cursor (lead 0).
 
-    Returns (motifs, refs, connectors, anchors, tail_diffs) where anchors is
-    the per-figure anchor degree (for verification) and tail_diffs maps
-    variant name -> count of tail steps that differ from A."""
+    Returns (motifs, refs, connectors, anchors, variant_ops) where anchors is
+    the per-figure anchor degree (for verification) and variant_ops maps
+    variant name -> the library op that produced it (backlog #10; previously
+    this reported vary_tail's tail-step diff count, which only existed for
+    the one op the builder could reach)."""
     refs = _tokens_v2(pattern, transform)
     motifs = {"A": figA, "B": figB}
-    tail_diffs = {}
+    variant_ops = {}
     for r in refs:
         if r == "P" and r not in motifs:
             motifs["P"] = invert(figA) if transform == "invert" else retrograde(figA)
         elif r.startswith("V") and r not in motifs:
-            motifs[r], tail_diffs[r] = vary_tail(figA, model, rng)
+            occ = int(r[1:])
+            motifs[r], variant_ops[r] = make_variant(
+                figA, transform, occ, model, rng,
+                seen=[figA] + [motifs[k] for k in motifs if k.startswith("V")])
     offsets = CONTOURS[contour]
     connectors, anchors = [None], [0]
     cursor = net_step(motifs[refs[0]])               # first figure anchors at 0
@@ -183,7 +255,7 @@ def build_contour_combination(figA, figB, pattern, transform, contour,
         anchor = cursor + lead
         anchors.append(anchor)
         cursor = anchor + net_step(motifs[r])
-    return motifs, refs, connectors, anchors, tail_diffs
+    return motifs, refs, connectors, anchors, variant_ops
 
 
 # --------------------------------------------------------------------------- #
@@ -459,8 +531,9 @@ def main_v2():
 
     ver_rows, meta = [], []
     for i, (family, pattern, contour, transform) in enumerate(V2_SPECS):
-        # vary_tail needs a tail of >=2 units to be worth resampling -> kmin=4
-        kmin = 4 if transform == "vary_tail" else 3
+        # An independent-variant op needs enough units to be worth varying
+        # (vary_tail wants a tail of >=2) -> kmin=4
+        kmin = 4 if (transform in INDEPENDENT_OPS or transform == "mixed") else 3
         # Accept-first-under-cap; over-cap candidates are rerolled (fresh
         # figures — spec is fixed per slot, so no contour fallback that would
         # make the filename lie); on exhaustion keep the LAST draw, flagged.
@@ -469,7 +542,7 @@ def main_v2():
             tries += 1
             figA = _sample_figure(model, rng, kmin=kmin)
             figB = _sample_figure(model, rng, kmin=kmin)
-            motifs, refs, conns, anchors, tdiffs = build_contour_combination(
+            motifs, refs, conns, anchors, vops = build_contour_combination(
                 figA, figB, pattern, transform, contour, model, rng)
             span = predicted_range(motifs, refs, conns)
             if args.range_cap <= 0 or span <= args.range_cap \
@@ -479,7 +552,7 @@ def main_v2():
         t = make_template(motifs, refs, conns, bpm=args.bpm, seed=seed_i)
         name = (f"p{i:02d}_{pattern.replace(chr(39), 'x')}_"
                 f"{contour.replace('_', '')}_"
-                f"{'varytail' if transform == 'vary_tail' else 'lit'}")
+                f"{transform.replace('_', '') if transform else 'lit'}")
         prefix = f"renders/markov_phrases2/{name}"
         notes = render_template(t, prefix)
 
@@ -504,12 +577,12 @@ def main_v2():
             occ += 1
         flag = "" if (args.range_cap <= 0 or span <= args.range_cap) \
             else "  OVER-CAP"
-        diffs = ("  tail_diffs=" + ",".join(f"{k}:{v}" for k, v
-                 in sorted(tdiffs.items()))) if tdiffs else ""
+        ops = ("  ops=" + ",".join(f"{k}:{v}" for k, v
+               in sorted(vops.items()))) if vops else ""
         print(f"{name}: {len(notes)} notes range={span:2d} tries={tries} "
-              f"seq_verify={'OK' if seq_ok else 'FAIL'}{diffs}{flag}")
+              f"seq_verify={'OK' if seq_ok else 'FAIL'}{ops}{flag}")
         meta.append((name, family, pattern, contour,
-                     "vary_tail" if transform else "none", span, seq_ok, prefix))
+                     transform or "none", span, seq_ok, prefix))
 
     print("\n=== repeat-onset verification (A-family figures) ===")
     print(f"{'phrase':34} {'ref':3} {'occ':3} {'offset':6} {'anchor':6} "
@@ -644,9 +717,12 @@ import statistics as _stats
 
 V3_TRANSFORMS = ["invert", "retrograde", "expand_intervals",
                  "compress_intervals", "rotate", "ornament", "augment",
-                 "vary_tail"]
-# widen upward: base patterns + two longer ones (short end preserved)
-V3_PATTERNS = PATTERNS + ["AA'BAB", "AABA'B"]
+                 "diminish", "vary_tail", "mixed"]
+# widen upward: base patterns + two longer ones (short end preserved).
+# The two MULTI-prime patterns exist so the per-occurrence variant path
+# (backlog #10) is actually exercised — with only single-prime patterns in the
+# pool, V2 never appears and "each repeat varies differently" is untested.
+V3_PATTERNS = PATTERNS + ["AA'BAB", "AABA'B", "AA'A''B", "AA'BA''B"]
 
 
 def total_beats(fig):
@@ -712,12 +788,20 @@ def build_phrase_v3(figA, figB, pattern, transform, contour, model, rng,
     kinds + final-extension flag for reporting."""
     refs = _tokens_v2(pattern, transform)
     motifs = {"A": figA, "B": figB}
+    ops = {}
     for r in refs:
         if r not in motifs:
             if r.startswith("V"):
-                motifs[r], _ = vary_tail(figA, model, rng)
-            else:                                    # "P"
+                # Per-occurrence independent variant (backlog #10). Before
+                # this, EVERY V token was vary_tail regardless of the chosen
+                # transform — so "AA'A''B" with transform=rotate rendered two
+                # resampled tails and no rotation at all.
+                motifs[r], ops[r] = make_variant(
+                    figA, transform, int(r[1:]), model, rng,
+                    seen=[figA] + [motifs[k] for k in motifs if k.startswith("V")])
+            else:                                    # "P" — involution
                 motifs[r] = _apply_v3_transform(transform, figA, model, rng)
+                ops[r] = transform
 
     # contour leadSteps (same math as build_contour_combination)
     offsets = CONTOURS[contour]
@@ -763,7 +847,8 @@ def build_phrase_v3(figA, figB, pattern, transform, contour, model, rng,
         final_ext = True
 
     motif_list = [(f"F{i}", occ_figs[i]) for i in range(len(occ_figs))]
-    info = {"joins": joins, "final_ext": final_ext, "median_pulse": med}
+    info = {"joins": joins, "final_ext": final_ext, "median_pulse": med,
+            "ops": ops}
     return motif_list, refs, connectors, info
 
 
@@ -830,6 +915,11 @@ def main_v3():
                          "renders/corpus_flavors/<corpus>/.")
     ap.add_argument("--outdir", default=None,
                     help="override the render directory (repo-relative)")
+    ap.add_argument("--transform", default=None, choices=V3_TRANSFORMS,
+                    help="pin the A-family transform for every prime-bearing "
+                         "pattern instead of rolling it — the controlled A/B "
+                         "for backlog #10. 'mixed' draws a DIFFERENT op per "
+                         "occurrence.")
     args = ap.parse_args()
 
     rng = random.Random(args.seed)
@@ -887,17 +977,27 @@ def main_v3():
     for i in range(args.n):
         pattern = srng.choice(V3_PATTERNS)
         transform = (srng.choice(V3_TRANSFORMS) if "'" in pattern else "none")
+        if args.transform and "'" in pattern:
+            transform = args.transform            # pin for a controlled A/B
         contour = srng.choice(list(CONTOURS))
         use_ctr = (i % 2 == 1)                       # half contrast-B
+        # Figure CONTENT gets its own per-index stream so two runs that differ
+        # only in --transform draw the same figA/figB at every index. Without
+        # this the arms diverge after the first phrase whose variant ops
+        # consume a different number of rng calls, and the A/B stops being
+        # like-for-like (measured: the no-prime p02 came out 20 notes in one
+        # arm and 16 in the other, from an identical spec).
+        frng = random.Random((args.seed ^ 0xF16E) + i * 7919)
         tries = 0
         while True:
             tries += 1
-            kmin = 4 if transform == "vary_tail" else 3
-            figA = _sample_figure_sized(model, rng, kmin=kmin)
+            kmin = 4 if (transform in INDEPENDENT_OPS
+                         or transform == "mixed") else 3
+            figA = _sample_figure_sized(model, frng, kmin=kmin)
             if use_ctr:
-                figB, _fit = sample_contrast_figB(figA, model, rng)
+                figB, _fit = sample_contrast_figB(figA, model, frng)
             else:
-                figB = _sample_figure_sized(model, rng)
+                figB = _sample_figure_sized(model, frng)
             motif_list, refs, conns, info = build_phrase_v3(
                 figA, figB, pattern, transform, contour, model, rng)
             mdict = dict(motif_list)
@@ -917,9 +1017,11 @@ def main_v3():
         st = _phrase_stats(REPO / (prefix + "_1.json"), counts)
         after_rows.append(st)
         jsum = ",".join(info["joins"])
+        osum = ("  ops=" + ",".join(f"{k}:{v}" for k, v
+                in sorted(info["ops"].items()))) if info["ops"] else ""
         print(f"{name}: {st['n_notes']} notes {st['total_beats']:.2f} beats "
               f"range={span} tries={tries} joins=[{jsum}] "
-              f"final_ext={info['final_ext']}")
+              f"final_ext={info['final_ext']}{osum}")
         meta.append((name, pattern, contour, transform,
                      "ctrB" if use_ctr else "indB", span, prefix))
 
