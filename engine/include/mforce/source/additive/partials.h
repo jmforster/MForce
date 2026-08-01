@@ -569,7 +569,11 @@ private:
       if (sMd_ != 0.0f) {
         float cents = sMd_ * moVals_[index];
         if (moScale_ != 0.0f) cents *= moScaleCache_[index];
-        pfreq *= std::exp2(cents * (1.0f / 1200.0f));
+        // fast_exp2, not std::exp2: this is a CRT call executed once per
+        // partial per sample, and it measured at 65.6% of viola_default's
+        // entire loop cost (tools/ablate_layers.py). The replacement is
+        // accurate to 0.88 float32 eps — see core/fast_math.h.
+        pfreq *= fast_exp2(cents * (1.0f / 1200.0f));
       }
     }
 
