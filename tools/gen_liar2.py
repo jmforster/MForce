@@ -62,7 +62,7 @@ def blend_env_node():
     return {"id": "blendEnv", "type": "Envelope", "params": {"stages": stages}}
 
 
-def make_patch(f0, floor=0.0):
+def make_patch(f0, floor=0.0, wscale=1.0):
     nodes = [blend_env_node(),
              {"id": "ampEnv", "type": "Envelope",
               "params": {"preset": "adsr", "attack": 0.03, "decay": 0.05,
@@ -74,7 +74,7 @@ def make_patch(f0, floor=0.0):
             fid = f"{phone}_f{i}"
             nodes.append({"id": fid, "type": "Formant",
                           "params": {"frequency": fr, "gain": g,
-                                     "width": w, "power": 2.0}})
+                                     "width": w * wscale, "power": 2.0}})
             fids.append({"ref": fid})
         sid = f"spec_{phone}"
         nodes.append({"id": sid, "type": "FormantSpectrum",
@@ -109,12 +109,17 @@ def main():
         with open(path, "w") as f:
             json.dump(make_patch(f0), f, indent=1)
         print("wrote", path)
-    # Floor A/B (physical valleys are -20..-30 dB, not -inf): 0.05 variants
+    # Width-vs-floor ladder (Matt 2026-07-31: floor and wide bands are
+    # substitutes for filling valleys — with a floor, bands can narrow).
+    # med = half-width bands + small floor; narrow = 0.3x + floor 0.05.
     for f0 in (110, 220):
-        path = os.path.join(OUT, f"liar2_{f0}_fl05.json")
-        with open(path, "w") as f:
-            json.dump(make_patch(f0, floor=0.05), f, indent=1)
-        print("wrote", path)
+        for tag, fl, ws in (("fl05", 0.05, 1.0),
+                            ("med_fl03", 0.03, 0.5),
+                            ("narrow_fl05", 0.05, 0.3)):
+            path = os.path.join(OUT, f"liar2_{f0}_{tag}.json")
+            with open(path, "w") as f:
+                json.dump(make_patch(f0, floor=fl, wscale=ws), f, indent=1)
+            print("wrote", path)
 
 
 if __name__ == "__main__":
