@@ -90,6 +90,16 @@ struct Formant final : ValueSource, IFormant {
 
   bool contains(float freq) const override { return freq > loFreq_ && freq < hiFreq_; }
 
+  // ANTI-RESULT (run 14, don't retry): these std::pow calls look like the same
+  // hot-loop CRT-call bug that truncf and exp2 turned out to be — get_gain runs
+  // per in-band partial per sample, times the formants in the spectrum, and
+  // every formant in the repo's vowel families (579 of 579) uses power 2, so a
+  // bit-exact t*t fast path was written and measured. It buys NOTHING: 1.01x on
+  // liar_220 and 1.00x on oo_ee_110 (72 partials at f0 110/220, the worst case
+  // in the library), 0.89-1.09x noise across the ab_render_time set. Reverted.
+  // The reason is the contains() gate one line up: only partials INSIDE a
+  // formant band ever reach this, and that is a small minority of them. The
+  // pow is real but it is not hot.
   float get_gain(float freq) const override {
     if (freq <= loFreq_ || freq >= hiFreq_) return 0.0f;
     if (freq < currFreq_)
