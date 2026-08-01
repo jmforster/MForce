@@ -573,7 +573,12 @@ private:
         // partial per sample, and it measured at 65.6% of viola_default's
         // entire loop cost (tools/ablate_layers.py). The replacement is
         // accurate to 0.88 float32 eps — see core/fast_math.h.
-        pfreq *= fast_exp2(cents * (1.0f / 1200.0f));
+        // std::exp2, not fast_exp2: the last-bit difference flips borderline
+        // cutoff comparisons, which re-deals the shared rng stream and
+        // audibly re-rolls high-note bandwidth patches (run-14 A/B, Matt
+        // verdict: revert). Reinstate only after per-partial rng streams
+        // make noise order-independent.
+        pfreq *= std::exp2(cents * (1.0f / 1200.0f));
       }
     }
 
