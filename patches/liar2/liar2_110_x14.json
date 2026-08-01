@@ -63,7 +63,7 @@
     "params": {
      "frequency": 360,
      "gain": 0.7,
-     "width": 420.0,
+     "width": 840.0,
      "power": 2.0
     }
    },
@@ -73,7 +73,7 @@
     "params": {
      "frequency": 1300,
      "gain": 0.25,
-     "width": 630.0,
+     "width": 1260.0,
      "power": 2.0
     }
    },
@@ -83,7 +83,7 @@
     "params": {
      "frequency": 2700,
      "gain": 0.12,
-     "width": 840.0,
+     "width": 1680.0,
      "power": 2.0
     }
    },
@@ -93,7 +93,7 @@
     "params": {
      "frequency": 3300,
      "gain": 0.05,
-     "width": 980.0,
+     "width": 1960.0,
      "power": 2.0
     }
    },
@@ -103,7 +103,7 @@
     "params": {
      "frequency": 3700,
      "gain": 0.02,
-     "width": 1120.0,
+     "width": 2240.0,
      "power": 2.0
     }
    },
@@ -136,7 +136,7 @@
     "params": {
      "frequency": 650,
      "gain": 1.0,
-     "width": 560.0,
+     "width": 1120.0,
      "power": 2.0
     }
    },
@@ -146,7 +146,7 @@
     "params": {
      "frequency": 1080,
      "gain": 0.5,
-     "width": 630.0,
+     "width": 1260.0,
      "power": 2.0
     }
    },
@@ -156,7 +156,7 @@
     "params": {
      "frequency": 2650,
      "gain": 0.35,
-     "width": 840.0,
+     "width": 1680.0,
      "power": 2.0
     }
    },
@@ -166,7 +166,7 @@
     "params": {
      "frequency": 2900,
      "gain": 0.4,
-     "width": 910.0,
+     "width": 1820.0,
      "power": 2.0
     }
    },
@@ -176,7 +176,7 @@
     "params": {
      "frequency": 3250,
      "gain": 0.1,
-     "width": 980.0,
+     "width": 1960.0,
      "power": 2.0
     }
    },
@@ -209,7 +209,7 @@
     "params": {
      "frequency": 290,
      "gain": 1.0,
-     "width": 350.0,
+     "width": 700.0,
      "power": 2.0
     }
    },
@@ -219,7 +219,7 @@
     "params": {
      "frequency": 1870,
      "gain": 0.18,
-     "width": 630.0,
+     "width": 1260.0,
      "power": 2.0
     }
    },
@@ -229,7 +229,7 @@
     "params": {
      "frequency": 2800,
      "gain": 0.12,
-     "width": 770.0,
+     "width": 1540.0,
      "power": 2.0
     }
    },
@@ -239,7 +239,7 @@
     "params": {
      "frequency": 3250,
      "gain": 0.1,
-     "width": 910.0,
+     "width": 1820.0,
      "power": 2.0
     }
    },
@@ -249,7 +249,7 @@
     "params": {
      "frequency": 3540,
      "gain": 0.03,
-     "width": 980.0,
+     "width": 1960.0,
      "power": 2.0
     }
    },
@@ -282,7 +282,7 @@
     "params": {
      "frequency": 490,
      "gain": 1.0,
-     "width": 455.0,
+     "width": 910.0,
      "power": 2.0
     }
    },
@@ -292,7 +292,7 @@
     "params": {
      "frequency": 1350,
      "gain": 0.35,
-     "width": 630.0,
+     "width": 1260.0,
      "power": 2.0
     }
    },
@@ -302,7 +302,7 @@
     "params": {
      "frequency": 1690,
      "gain": 0.3,
-     "width": 665.0,
+     "width": 1330.0,
      "power": 2.0
     }
    },
@@ -312,7 +312,7 @@
     "params": {
      "frequency": 3300,
      "gain": 0.06,
-     "width": 910.0,
+     "width": 1820.0,
      "power": 2.0
     }
    },
@@ -322,7 +322,7 @@
     "params": {
      "frequency": 3600,
      "gain": 0.03,
-     "width": 1015.0,
+     "width": 2030.0,
      "power": 2.0
     }
    },
@@ -387,7 +387,7 @@
     "type": "AdditiveSource",
     "params": {
      "seed": 42,
-     "frequency": 660.0,
+     "frequency": 110.0,
      "amplitude": {
       "ref": "ampEnv"
      },
@@ -412,7 +412,7 @@
  },
  "score": [
   {
-   "note": 76,
+   "note": 45,
    "velocity": 0.85,
    "time": 0.0,
    "duration": 3.0

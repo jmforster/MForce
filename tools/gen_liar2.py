@@ -33,15 +33,19 @@ SECONDS = 3.0
 # Engine-appropriate widths below span many harmonics each; overlapping bands
 # sum into a continuous voiced envelope (crossfade skirts come from the
 # power-2 taper across the wide band).
+# Literature (-3dB-style) widths; engine width = WIDTH_MULT x these.
+# Shipped "excellent" liar2 widths were ~x7 of literature (Matt 2026-07-31:
+# pin down the multiplier — see the x3..x14 ladder in main()).
+WIDTH_MULT = 7.0
 PHONES = {
-    "L":  [(360, 0.70, 420), (1300, 0.25, 600), (2700, 0.12, 800),
-           (3300, 0.05, 900), (3700, 0.02, 1000)],
-    "AH": [(650, 1.00, 500), (1080, 0.50, 600), (2650, 0.35, 800),
-           (2900, 0.40, 900), (3250, 0.10, 1000)],
-    "EE": [(290, 1.00, 350), (1870, 0.18, 650), (2800, 0.12, 800),
-           (3250, 0.10, 900), (3540, 0.03, 1000)],
-    "ER": [(490, 1.00, 450), (1350, 0.35, 600), (1690, 0.30, 650),
-           (3300, 0.06, 900), (3600, 0.03, 1000)],
+    "L":  [(360, 0.70, 60), (1300, 0.25, 90), (2700, 0.12, 120),
+           (3300, 0.05, 140), (3700, 0.02, 160)],
+    "AH": [(650, 1.00, 80), (1080, 0.50, 90), (2650, 0.35, 120),
+           (2900, 0.40, 130), (3250, 0.10, 140)],
+    "EE": [(290, 1.00, 50), (1870, 0.18, 90), (2800, 0.12, 110),
+           (3250, 0.10, 130), (3540, 0.03, 140)],
+    "ER": [(490, 1.00, 65), (1350, 0.35, 90), (1690, 0.30, 95),
+           (3300, 0.06, 130), (3600, 0.03, 145)],
 }
 SEQ = ["L", "AH", "EE", "ER"]
 
@@ -62,7 +66,9 @@ def blend_env_node():
     return {"id": "blendEnv", "type": "Envelope", "params": {"stages": stages}}
 
 
-def make_patch(f0, floor=0.0, wscale=1.0):
+def make_patch(f0, floor=0.0, wscale=None):
+    if wscale is None:
+        wscale = WIDTH_MULT
     nodes = [blend_env_node(),
              {"id": "ampEnv", "type": "Envelope",
               "params": {"preset": "adsr", "attack": 0.03, "decay": 0.05,
@@ -113,16 +119,12 @@ def main():
         with open(path, "w") as f:
             json.dump(make_patch(f0), f, indent=1)
         print("wrote", path)
-    # Width-vs-floor ladder (Matt 2026-07-31: floor and wide bands are
-    # substitutes for filling valleys — with a floor, bands can narrow).
-    # med = half-width bands + small floor; narrow = 0.3x + floor 0.05.
+    # Width-multiplier ladder (Matt: pin down the optimal skirt multiplier).
     for f0 in (110, 220):
-        for tag, fl, ws in (("fl05", 0.05, 1.0),
-                            ("med_fl03", 0.03, 0.5),
-                            ("narrow_fl05", 0.05, 0.3)):
-            path = os.path.join(OUT, f"liar2_{f0}_{tag}.json")
+        for mult in (3, 5, 7, 10, 14):
+            path = os.path.join(OUT, f"liar2_{f0}_x{mult}.json")
             with open(path, "w") as f:
-                json.dump(make_patch(f0, floor=fl, wscale=ws), f, indent=1)
+                json.dump(make_patch(f0, wscale=float(mult)), f, indent=1)
             print("wrote", path)
 
 
