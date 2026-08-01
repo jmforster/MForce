@@ -75,7 +75,14 @@ float FullAdditiveSource::compute_wave_value() {
   if (bedDelaySamples_ > 0.0f) {
     float t = (float(ptr_) - bedDelaySamples_) / bedFadeSamples_;
     if (t <= 0.0f)      val = 0.0f;
-    else if (t < 1.0f)  val *= t * t * (3.0f - 2.0f * t);
+    else if (t < 1.0f) {
+      float s = t * t * (3.0f - 2.0f * t);
+      // fadePow shapes PERCEIVED attack: smoothstep rises fast early, so
+      // even long fades sound quick. pow > 1 keeps the tone low longer
+      // (time-to-audible scales with the exponent), same total fade length.
+      if (noiseBedFadePow_ != 1.0f) s = std::pow(s, noiseBedFadePow_);
+      val *= s;
+    }
   }
 
   // Legacy normalization

@@ -77,6 +77,7 @@ struct FullAdditiveSource final : WaveSource {
       {"noiseBedFreq",  ConfigType::Float, 2900.0f, 20.0f,  16000.0f}, // bandpass center Hz
       {"noiseBedWidth", ConfigType::Float, 1500.0f, 10.0f,  12000.0f}, // bandpass width Hz (Q = freq/width)
       {"noiseBedDelay", ConfigType::Float, 0.0f,    0.0f,   2.0f},     // TONE delay sec (noise runs from t=0)
+      {"noiseBedFadePow", ConfigType::Float, 1.0f, 0.25f, 8.0f},
       {"noiseBedFade",  ConfigType::Float, 0.05f,   0.001f, 2.0f},     // tone fade-in sec after the delay
     };
     return descs;
@@ -87,6 +88,7 @@ struct FullAdditiveSource final : WaveSource {
     if (name == "noiseBedFreq")  { noiseBedFreq_  = value; return; }
     if (name == "noiseBedWidth") { noiseBedWidth_ = value; return; }
     if (name == "noiseBedDelay") { noiseBedDelay_ = value; return; }
+    if (name == "noiseBedFadePow") { noiseBedFadePow_ = value; return; }
     if (name == "noiseBedFade")  { noiseBedFade_  = value; return; }
   }
 
@@ -96,6 +98,7 @@ struct FullAdditiveSource final : WaveSource {
     if (name == "noiseBedWidth") return noiseBedWidth_;
     if (name == "noiseBedDelay") return noiseBedDelay_;
     if (name == "noiseBedFade")  return noiseBedFade_;
+    if (name == "noiseBedFadePow") return noiseBedFadePow_;
     return 0.0f;
   }
 
@@ -133,6 +136,7 @@ private:
   float noiseBedWidth_{1500.0f};
   float noiseBedDelay_{0.0f};
   float noiseBedFade_{0.05f};
+  float noiseBedFadePow_{1.0f};
 
   Randomizer noiseRng_;  // seeded from the AdditiveSource seed (reproducible)
 
