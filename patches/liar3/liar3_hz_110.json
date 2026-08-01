@@ -1,0 +1,243 @@
+{
+ "sampleRate": 48000,
+ "seconds": 3.0,
+ "graph": {
+  "nodes": [
+   {
+    "id": "ampEnv",
+    "type": "Envelope",
+    "params": {
+     "stages": [
+      {
+       "startVal": 0.0,
+       "endVal": 1.0,
+       "type": "Linear",
+       "percent": 0.027
+      },
+      {
+       "startVal": 1.0,
+       "endVal": 0.8,
+       "type": "Linear",
+       "percent": 0.2
+      },
+      {
+       "startVal": 0.8,
+       "endVal": 0.4,
+       "type": "Linear",
+       "percent": 0.0
+      },
+      {
+       "startVal": 0.4,
+       "endVal": 0.0,
+       "type": "Sine",
+       "percent": 0.1
+      }
+     ]
+    }
+   },
+   {
+    "id": "F1_freq",
+    "type": "Envelope",
+    "params": {
+     "stages": [
+      {
+       "startVal": 70,
+       "endVal": 570,
+       "type": "Linear",
+       "percent": 0.15
+      },
+      {
+       "startVal": 570,
+       "endVal": 270,
+       "type": "Linear",
+       "percent": 0.3
+      },
+      {
+       "startVal": 270,
+       "endVal": 490,
+       "type": "Linear",
+       "percent": 0.3
+      },
+      {
+       "startVal": 490,
+       "endVal": 480,
+       "type": "Linear",
+       "percent": 0.0
+      }
+     ]
+    }
+   },
+   {
+    "id": "F1",
+    "type": "Formant",
+    "params": {
+     "frequency": {
+      "ref": "F1_freq"
+     },
+     "gain": 1.0,
+     "width": 8,
+     "power": 1.0
+    }
+   },
+   {
+    "id": "F2_freq",
+    "type": "Envelope",
+    "params": {
+     "stages": [
+      {
+       "startVal": 1500,
+       "endVal": 840,
+       "type": "Linear",
+       "percent": 0.1
+      },
+      {
+       "startVal": 840,
+       "endVal": 2290,
+       "type": "Linear",
+       "percent": 0.3
+      },
+      {
+       "startVal": 2290,
+       "endVal": 1350,
+       "type": "Linear",
+       "percent": 0.3
+      },
+      {
+       "startVal": 1350,
+       "endVal": 1330,
+       "type": "Linear",
+       "percent": 0.0
+      }
+     ]
+    }
+   },
+   {
+    "id": "F2",
+    "type": "Formant",
+    "params": {
+     "frequency": {
+      "ref": "F2_freq"
+     },
+     "gain": 0.5,
+     "width": 5,
+     "power": 1.0
+    }
+   },
+   {
+    "id": "F3_freq",
+    "type": "Envelope",
+    "params": {
+     "stages": [
+      {
+       "startVal": 1700,
+       "endVal": 2410,
+       "type": "Linear",
+       "percent": 0.1
+      },
+      {
+       "startVal": 2410,
+       "endVal": 3010,
+       "type": "Linear",
+       "percent": 0.4
+      },
+      {
+       "startVal": 3010,
+       "endVal": 1690,
+       "type": "Linear",
+       "percent": 0.4
+      },
+      {
+       "startVal": 1690,
+       "endVal": 1670,
+       "type": "Linear",
+       "percent": 0.0
+      }
+     ]
+    }
+   },
+   {
+    "id": "F3",
+    "type": "Formant",
+    "params": {
+     "frequency": {
+      "ref": "F3_freq"
+     },
+     "gain": 0.2,
+     "width": 3,
+     "power": 1.0
+    }
+   },
+   {
+    "id": "spec",
+    "type": "FormantSpectrum",
+    "params": {
+     "formants": [
+      {
+       "ref": "F1"
+      },
+      {
+       "ref": "F2"
+      },
+      {
+       "ref": "F3"
+      }
+     ]
+    }
+   },
+   {
+    "id": "fp",
+    "type": "FullPartials",
+    "params": {
+     "maxPartials": 160,
+     "minMult": 1,
+     "rolloff1": 1.0,
+     "rolloff2": 1.0
+    }
+   },
+   {
+    "id": "src",
+    "type": "AdditiveSource",
+    "params": {
+     "seed": 42,
+     "frequency": 110.0,
+     "amplitude": {
+      "ref": "ampEnv"
+     },
+     "formant": {
+      "ref": "spec"
+     },
+     "formantWeight": 1.0,
+     "formantFloor": 0.0,
+     "partials": {
+      "ref": "fp"
+     }
+    }
+   },
+   {
+    "id": "ch1",
+    "type": "SoundChannel",
+    "inputs": {
+     "source": "src"
+    },
+    "params": {
+     "volume": 0.8,
+     "pan": 0.0
+    }
+   },
+   {
+    "id": "mix",
+    "type": "StereoMixer",
+    "inputs": {
+     "channels": [
+      "ch1"
+     ]
+    },
+    "params": {
+     "gainL": 1.0,
+     "gainR": 1.0
+    }
+   }
+  ],
+  "output": "mix"
+ }
+}
