@@ -2,16 +2,19 @@
 
 Priority order. (G1)-(G2) = GOALS.md Wolfie goals.
 
-6. **[build] (G2) PassageStrategy expansion** — Python prototype LANDED run 12
-   (passage_strategies.py: pedal_buildup / wandering / connective /
-   fifths_sequence + suite; 15 renders, listen item queued). Remaining = the
-   C++ implementation (new dev, not legacy port), spec'd in 4 stages at
-   docs/superpowers/specs/2026-07-31-passage-strategy-expansion-design.md:
-   (1) anchor plumbing + PedalBuildup/Sequence strategies, (2) connective
-   (needs prior-passage context via Locus), (3) key-aware realization —
-   keyContexts are inert today, which BLOCKS real modulating
-   circle-of-fifths, (4) wandering. Stage 1 was not started in run 12 because
-   the dsp lane held the build dir; it needs a free tree or its own build dir.
+6. **[build] (G2) PassageStrategy expansion** — ALL FOUR C++ STAGES LANDED.
+   Stages 1-2 committed by the 2026-08-01 run; stages 3-4 adopted, verified
+   and committed in run 13 (key-aware realization + WanderingPassageStrategy,
+   plus a retry fix for a silent-render bug the 24-entry outlier exposed).
+   keyContexts are LIVE — modulation verified C/G/D 3/3 distinct, and
+   `modulating_fifths` renders a real circle-of-fifths trip with each key's
+   accidentals. Python prototype now carries 9 strategies.
+   Remaining under this item: Matt's two modulation ideas that stage 3
+   unblocked but that nobody has built — Bruckner pedal-through-keys, and the
+   modulating wandering passage (sweet major theme -> sudden dim7 -> minor
+   keys). NOTE for both: stage 3 snaps the cursor's PITCH into the new scale,
+   it does NOT move it to the new tonic, so adding keyContexts alone will not
+   modulate audibly; the entry must be offset by the key distance.
 12. **[build] Scorer is blind to the final note** — run 13 changed every
     phrase ending in a 24-phrase batch (final ratio 1.00 -> 2.50, ends-on-beat
     4/24 -> 24/24) and `scores.csv` came out BYTE-IDENTICAL. The composite has

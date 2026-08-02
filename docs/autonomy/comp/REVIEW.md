@@ -52,7 +52,28 @@ the "8x" you reacted to was a measurement artifact, not audio: the old
 accel_ratio compared level 0's mean *including* its long final note against
 the last level's mean *excluding* its held note, reporting 8x for a real 4x.
 
-### 3. Scorer is blind to the final note [read] (run 13)
+### 3. Modulation is live — first real one [listen] (run 13)
+`renders/passage_strategies2/modulating_fifths_*` (3 takes). #6 stage 3 landed
+this run, so the fifths trip actually modulates now:
+
+    entry 0 key C -> C-E-E-C     entry 2 key D -> D-F#-F#-D
+    entry 1 key G -> G-B-B-G     entry 3 key A -> A-C#-C#-A
+
+The F# and C# are the new keys' signatures — pitches this template could not
+produce yesterday. This is what "Sequence sounds a lot like Connective due to
+key center limitation" was waiting on.
+
+One semantic to be aware of before you spec the Bruckner pedal or the
+modulating wandering passage: stage 3 snaps the cursor's PITCH into the new
+scale, it does NOT move it to the new tonic. Anchoring each entry at degree 0
+renders C and G *identically* (both scales contain C and E). A real sequence
+has to offset each entry by the key distance — so neither of those two ideas
+will modulate audibly just by adding keyContexts.
+Verdict decides: does the modulation read as going somewhere, and do you want
+the pitch-preserving reading (same melody re-harmonized) available as a
+separate option alongside the transposing one.
+
+### 4. Scorer is blind to the final note [read] (run 13)
 `scores.csv` for the two arms of item 1 is **byte-identical** — mean, min and
 max composite unchanged to three decimals across a change you could hear
 immediately. The composite cannot see phrase endings at all, which is why

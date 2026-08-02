@@ -1,14 +1,52 @@
 # Status — open this file first
 
-Updated: 2026-08-01 — dsp run 14 (Dipsy, scheduled) · comp run 12 (Wolfie, scheduled)
+Updated: 2026-08-02 — comp run 13 (Wolfie, scheduled) · dsp run 16 (Dipsy, 2026-08-01)
 
 | Lane | Dev | Latest run | Backlog top | Awaiting your review |
 |---|---|---|---|---|
-| comp | Wolfie | run 12 (2026-07-31, scheduled): per-corpus scorer anchors (#4 CLOSED — two measurement artifacts fixed, incl. Essen anchored on 2,246 Chinese tunes by alphabetical order); corpus-flavored phrase batches (controlled A/B, 36 WAVs); passage strategies #6 prototyped + rendered (15 WAVs) + C++ port spec'd in 4 stages | #6 C++ stage 1 (needs a tree without a live dsp build); #7 phrase-aware cadence | **4 items** — phrase v3 A/B, passage strategies, corpus flavor A/B [listen] · Essen note [read] |
+| comp | Wolfie | run 13 (2026-08-02, scheduled): your run-12 verdicts worked, five fronts. Final-note rule corpus-calibrated (1.00 -> 2.50x, controlled A/B); your three connective shapes built as chain->goal, incl. REAL chromaticism; chords-over-pedal with the Ger6 cadence; **#6 stages 3+4 adopted from the dead 08-01 run, verified and landed — keyContexts are LIVE**; first real modulating circle-of-fifths | #6 leftovers: Bruckner pedal-through-keys + modulating wandering (both now unblocked); #12 scorer blind to phrase endings | **5 items** — final-note A/B, passage set v2, modulation [listen] · scorer gap, Essen [read] |
 | dsp | Dipsy | run 16 (2026-08-01 pm, interactive): per-partial rng LANDED (proofs; one-time re-roll); shimmerFloor + ladder; clarinet locked-bed 588-eval (0.916->0.774); FM matrix2 (60 renders) + DEAD phase param found; IPA formant catalog; piano mf scraped (86/88) | phase-param fix -> real PM batch; piano reference build; formant grid (gated on catalog read) | **6 items** — rng A/B, floor pick, x8/x9, matrix2, clarinet best_locked [listen] · formant catalog [read] |
 
-Reports: comp/reports/2026-07-31-wolfie-run12.md ·
+Reports: comp/reports/2026-08-02-wolfie-run13.md ·
 dsp/reports/2026-08-01-dipsy-run14.md
+
+Run-13 highlights (comp): five fronts, all metric/build, no blind taste
+iteration. Every one of them started from something you said.
+(1) **Your final-note verdict was a measurable distributional gap, not a
+preference.** `final_note_stats.py` profiled the last note of every usable
+theme (MTD n=1632, Nottingham n=1024): the final note runs **2.0x the median
+pulse in both corpora** and is >= every other note in 35% / 53% of themes. The
+old rule set it to exactly 1.0x — MTD's p25, Nottingham's p10. The ratio is
+now drawn from the corpus histogram; controlled A/B (same seed, own rng
+stream, so only the ending differs) moves median ratio 1.00 -> 2.50,
+final-is-longest 0.12 -> 0.67, ends-on-an-integer-beat 4/24 -> 24/24.
+**A scorer gap fell out of it**: `scores.csv` is byte-identical between the
+two arms. The composite cannot see phrase endings at all — which is why this
+needed your ears and no metric ever caught it. Backlog #12.
+(2) **Your three connective examples are three strategies**, all shaped
+CHAIN -> GOAL, which was the half the old `connective` was missing. The
+chromatic rise is *real* chromaticism and needed no engine change:
+`FigureUnit.accidental` shifts the pitch without moving the scale-degree
+cursor, so a raised passing tone is `(step 0, accidental +1)` — verified in
+rendered pitches (57-58-59-60-61-62-63), not assumed.
+(3) **Chords over the pedal**, with the triads ordered by *measured*
+dissonance against the pedal, into Ger6 -> I(6/4) -> V7 -> I, the pedal
+releasing to the tonic so the "full cadence" actually lands. On the 8x: part
+of it was never in the audio — the accel metric compared level 0's mean
+*including* its long final note against the last level's mean *excluding* its
+held note, reporting 8x for a real 4x. Fixed and capped.
+(4) **#6 stages 3+4 landed.** The 2026-08-01 comp run committed stages 1-2 and
+then died mid-cycle, leaving stages 3-4 uncommitted; your 11:17 fold directed
+them, so I confirmed nothing was live (28h untouched, no build activity), then
+verified rather than trusted. Run 12's own probe now reports 3/3 distinct
+across C/G/D with the no-keyContexts control still byte-identical. The
+24-entry outlier case exposed a real bug — one failed cell killed the whole
+candidate, so the passage rendered **silent**; fixed with a cell retry.
+(5) **The first real modulating circle-of-fifths**: C-E -> G-B -> D-F# ->
+A-C#, the new keys' signatures appearing. One semantic that matters for your
+Bruckner idea: stage 3 snaps the cursor's PITCH into the new scale, it does
+NOT move it to the new tonic, so keyContexts alone will not modulate audibly —
+the entry has to be offset by the key distance.
 
 Run-14 highlights (dsp): three fronts, all build/metric, no blind taste
 iteration. Both wins are the same bug class.
@@ -118,10 +156,10 @@ re-save of v6_01, and the ml_ears config generalization); left untouched per
 the guard, flagged in the report — HEAD currently can't run the clarinet
 CMA-ES pipeline without them.
 
-Next "go": comp = #6 C++ stage 1 (anchor plumbing + PedalBuildup/Sequence
-PassageStrategy classes, per the run-12 spec) → stage 3 key-aware realization
-if you want modulation → #7 phrase-aware cadence. Four comp review items
-waiting (three listen, one read). dsp = stage 2d-1 (vector path for the
+Next "go": comp = the two modulation passages stage 3 unblocked (Bruckner
+pedal-through-keys, modulating wandering) → #12 give the scorer a phrase-
+ending screen → #7 phrase-aware cadence. Five comp review items waiting
+(three listen, two read). dsp = stage 2d-1 (vector path for the
 layer-free configuration, needs an AVX2-availability decision) — but if the
 REVIEW 0b answer is "yes, per-partial rng streams", do that FIRST: it fixes
 the fragility, unblocks vectorizing the bandwidth layer, and makes the CMA-ES
