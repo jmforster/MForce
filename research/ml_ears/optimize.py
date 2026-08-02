@@ -219,6 +219,9 @@ def get_encoder(cfg):
     if cfg.get("encoder") == "clarinet":
         import encoder_clarinet as enc
         return enc.DIM, enc.warm_start, enc.encode
+    if cfg.get("encoder") == "clarinet_locked":
+        import encoder_clarinet_locked as enc
+        return enc.DIM, enc.warm_start, enc.encode
     return DIM, warm_start, encode
 
 

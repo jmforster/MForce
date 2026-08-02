@@ -1,0 +1,21 @@
+{
+  "name": "clarinet_locked",
+  "source": "Iowa MIS Bb clarinet ff (sounding pitch) — Matt's locked noise bed",
+  "sample_dir": "research/inst_samples/clarinet_Bb",
+  "sample_glob": "*.aif",
+  "score_notes": [
+    {"note": "E3", "string": "ff", "midi": 52, "f0": 164.814},
+    {"note": "G3", "string": "ff", "midi": 55, "f0": 195.998},
+    {"note": "D4", "string": "ff", "midi": 62, "f0": 293.665},
+    {"note": "F4", "string": "ff", "midi": 65, "f0": 349.228},
+    {"note": "D5", "string": "ff", "midi": 74, "f0": 587.33}
+  ],
+  "eval_note_midis": [52, 62, 65],
+  "motion_samples": ["ff.E3", "ff.F3", "ff.G3", "ff.Bb3",
+                     "ff.C4", "ff.D4", "ff.F4", "ff.A4"],
+  "encoder": "clarinet_locked",
+  "template": "patches/clarinet_c1/template.json",
+  "reference_path": "research/ml_ears/out/clarinet_reference.json",
+  "reference_build": {"sus_start": 0.9, "sus_len": 1.4, "attack_len": 0.7},
+  "run_root": "research/ml_ears/cmaes_runs"
+}
