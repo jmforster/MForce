@@ -156,6 +156,13 @@ re-save of v6_01, and the ml_ears config generalization); left untouched per
 the guard, flagged in the report — HEAD currently can't run the clarinet
 CMA-ES pipeline without them.
 
+**For Dipsy:** the UI stale-guard (dsp 3c) gives a FALSE STALE. It compares
+the exe against every file under `engine/`, but `mforce_ui` doesn't include
+the music headers — so after a comp-only engine edit MSBuild rightly skips the
+relink, the exe keeps its mtime, and `--stamp` reports stale and exits 1 until
+something forces a relink (a re-configure doesn't clear it). It should key off
+the target's real dependency set or the linked-in commit, not file mtimes.
+
 Next "go": comp = the two modulation passages stage 3 unblocked (Bruckner
 pedal-through-keys, modulating wandering) → #12 give the scorer a phrase-
 ending screen → #7 phrase-aware cadence. Five comp review items waiting
