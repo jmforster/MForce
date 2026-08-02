@@ -7,7 +7,7 @@ passages, multi-part textures and per-phrase anchoring, so the *musical design*
 can be prototyped, rendered and measured here first, exactly the way
 markov_phrase prototyped the phrase layer before any C++ landed.
 
-Four strategies, each a function returning (template, meta):
+Seven strategies, each a function returning (template, meta):
 
   pedal_buildup    held bass pedal under a melody that climbs in register and
                    accelerates rhythmically (each phrase diminished relative to
@@ -22,6 +22,26 @@ Four strategies, each a function returning (template, meta):
                    successive roots a fifth apart (-4 scale steps), lifted an
                    octave-safe fourth (+3) on alternate entries, so the passage
                    walks I-IV-vii-iii-vi-ii-V-I in diatonic space.
+
+Matt's run-12 verdict added the missing half of the connective idea: a chain of
+repeated figures is common, but "typically there is a TRANSFORMATION at the
+end, prior to the arrival at the next passage". His three examples are three
+strategies, all built as CHAIN -> GOAL:
+
+  chain_chromatic_peak      cell x5-7 ascending, then a CHROMATIC rise to a
+                            held peak, then a scalar descent to a tonic cadence
+  chain_tonic_fanfare       cell x4-6 descending, landing exactly on the tonic,
+                            which is then repeated as a rhythmic fanfare
+                            (q e. s q q h q)
+  chain_arpeggio_fallback   cell x2-3 ascending, an arpeggio in thirds falling
+                            back ALMOST to the start (nets +1 per cycle), 3
+                            cycles, then a climactic rising cadence
+
+Chromaticism does NOT need a chromatic scale: FigureUnit.accidental is applied
+by the engine as a transient shift that leaves the scale-degree cursor alone
+(composer.h: soundNN = currentNN + accidental), so a raised passing tone is
+(step 0, accidental +1). Verified on rendered output, not assumed — the rise
+sounds 57-58-59-60-61-62-63.
 
 Engine limitation found while building this (probed, not assumed): section
 `keyContexts` are parsed and stored (PieceTemplate::SectionTemplate ->
@@ -275,11 +295,221 @@ def fifths_sequence(model, rng, bpm=92.0, seed=1, n_entries=None):
                "anchor_span": max(anchors) - min(anchors)}
 
 
+# --------------------------------------------------------------------------- #
+# strategy 5 — repeated-chain connective (Matt's run-12 shapes)
+# --------------------------------------------------------------------------- #
+# Matt on the run-12 connective render: "Long chains of repeated figures moving
+# up or down the scale are very common in connective passages, but typically
+# there is a TRANSFORMATION at the end, prior to the arrival at the next
+# passage." The v1 `connective` above sequences a cell 3x and stops — it has
+# the chain and no goal. The three shapes below are his three examples, and
+# they share one skeleton:
+#
+#     CHAIN (cell x N, stepwise up or down)  ->  GOAL (the transformation)
+#
+# The goal is what makes it read as arriving somewhere rather than just
+# stopping, so it is a first-class part of the strategy, not an ending.
+MAJOR_ASC = [2, 2, 1, 2, 2, 2, 1]   # semitones between adjacent degrees (major)
+
+
+def _chromatic_units(start_degree, semis, dur):
+    """Units rising `semis` SEMITONES chromatically from a note sitting on
+    absolute scale degree `start_degree`.
+
+    Chromatic motion is expressible without a chromatic scale: FigureUnit has
+    an `accidental` field that the engine applies as a transient shift
+    (composer.h: soundNN = currentNN + accidental) WITHOUT moving the
+    scale-degree cursor. So the raised fourth between two whole-tone degrees is
+    (step 0, accidental +1) — the cursor stays on the lower degree and the next
+    (step +1) still lands correctly. Where the diatonic gap is already a
+    semitone (mi-fa, ti-do) no accidental is inserted, or it would duplicate
+    the next degree.
+
+    Returns units WITHOUT a leading anchor note (caller supplies it)."""
+    # Sounding semitone offset of each degree above the start.
+    deg_semis, acc = [0], 0
+    for i in range(8):
+        acc += MAJOR_ASC[(start_degree + i) % 7]
+        deg_semis.append(acc)
+    units, cur_deg_idx = [], 0
+    for off in range(1, semis + 1):
+        if off in deg_semis:                      # the offset IS a scale degree
+            d = deg_semis.index(off)
+            units.append({"duration": dur, "step": d - cur_deg_idx})
+            cur_deg_idx = d
+        else:                                     # one semitone above a degree
+            d = max(i for i, s in enumerate(deg_semis) if s < off)
+            units.append({"duration": dur, "step": d - cur_deg_idx,
+                          "accidental": 1})
+            cur_deg_idx = d
+    return units
+
+
+def _chain(cell, n, direction):
+    """Anchors for a cell repeated n times moving one scale step per entry."""
+    return [direction * j for j in range(n)]
+
+
+def _sample_chain_cell(model, rng, k, lo, hi, tries=12):
+    """A cell for a repeated chain, rejecting monotone draws.
+
+    A chain restates its cell N times, so a cell whose steps are all 0 renders
+    as one pitch hammered 20+ times — caught in the first render here, not a
+    hypothetical. The chain amplifies whatever the cell is, which makes the
+    usual "occasionally monotone is fine" tolerance wrong at this layer."""
+    best = None
+    for _ in range(tries):
+        cell = _sample_figure_sized(model, rng, kmin=k, kmax=k,
+                                    beats_lo=lo, beats_hi=hi)
+        moving = sum(1 for u in cell["units"][1:] if u["step"] != 0)
+        if best is None or moving > best[0]:
+            best = (moving, cell)
+        if moving >= max(2, (k - 1) // 2):
+            return cell
+    return best[1]
+
+
+def chain_chromatic_peak(model, rng, bpm=92.0, seed=1):
+    """Matt shape 1: "4-note figure repeats 7 times, ascending, then a
+    chromatic rise reaches a peak and pauses, then descends to a cadence"."""
+    n_rep = rng.choice([5, 6, 7])
+    cell = _sample_chain_cell(model, rng, 4, 1.0, 2.0)
+    motifs = {"CH": cell}
+    refs = ["CH"] * n_rep
+    anchors = _chain(cell, n_rep, +1)
+
+    # GOAL part 1: the chromatic rush to the peak, starting where the chain
+    # left the cursor and ending on a held note (the "pause").
+    top = anchors[-1] + net_step(cell)
+    semis = rng.choice([4, 5, 6])
+    rise = ([{"duration": 0.25, "step": 0}]
+            + _chromatic_units(top, semis, 0.25))
+    rise[-1]["duration"] = rng.choice([2.0, 3.0])          # peak, held
+    motifs["RISE"] = {"units": rise}
+    refs.append("RISE")
+    anchors.append(top)
+
+    # GOAL part 2: the descent to a cadence. Diatonic, accelerating into the
+    # arrival, landing on the tonic (degree 0 mod 7) with a long final note.
+    # Land on a tonic at least a fifth below the peak: the nearest tonic below
+    # can be one step away (measured: peak degree 8 -> land 7), which renders
+    # as a two-note "descent" and does not read as one at all.
+    peak_deg = top + sum(u["step"] for u in rise)
+    land = peak_deg - ((peak_deg - 0) % 7)                 # tonic at/below peak
+    while peak_deg - land < 4:
+        land -= 7
+    n_down = peak_deg - land
+    desc = [{"duration": 0.5, "step": 0}]
+    desc += [{"duration": 0.5, "step": -1} for _ in range(n_down)]
+    desc[-1]["duration"] = 4.0                             # cadence, held
+    motifs["CAD"] = {"units": desc}
+    refs.append("CAD")
+    anchors.append(peak_deg)
+
+    figs = [motifs[r] for r in refs]
+    conns = anchor_connectors(figs, anchors)
+    t = template(motifs, [phrase("P", refs, conns)],
+                 beats=sum(total_beats(f) for f in figs), bpm=bpm, seed=seed)
+    n_acc = sum(1 for u in rise if u.get("accidental"))
+    return t, {"strategy": "chain_chromatic_peak", "n_entries": len(refs),
+               "chain_reps": n_rep, "rise_semis": semis,
+               "accidentals": n_acc, "peak_degree": peak_deg,
+               "landed_degree": land, "landed_tonic": land % 7 == 0}
+
+
+def chain_tonic_fanfare(model, rng, bpm=92.0, seed=1):
+    """Matt shape 2: "4-note figure repeats 6 times, descending to the tonic,
+    and upon arrival at the tonic it is repeated in a rhythmic fanfare eg
+    Cq Ce. Cs Cq Cq Ch Cq"."""
+    n_rep = rng.choice([4, 5, 6])
+    cell = _sample_chain_cell(model, rng, 4, 1.0, 2.0)
+    motifs = {"CH": cell}
+    refs = ["CH"] * n_rep
+    anchors = _chain(cell, n_rep, -1)
+
+    # The chain must LAND on the tonic, so the last entry is back-anchored by
+    # its own net motion (same trick as `connective`): the arrival is the
+    # point, and "descending to the tonic" has to be true, not approximate.
+    tonic = anchors[-1] + net_step(cell)
+    tonic -= tonic % 7                       # nearest tonic at/below
+    anchors[-1] = tonic - net_step(cell)
+
+    # GOAL: Matt's fanfare rhythm, all on the arrived tonic (step 0 throughout
+    # — accidental-free, one repeated pitch). q e. s q q h q.
+    fan = [1.0, 0.75, 0.25, 1.0, 1.0, 2.0, 1.0]
+    motifs["FAN"] = {"units": [{"duration": d, "step": 0} for d in fan]}
+    refs.append("FAN")
+    anchors.append(tonic)
+
+    figs = [motifs[r] for r in refs]
+    conns = anchor_connectors(figs, anchors)
+    t = template(motifs, [phrase("P", refs, conns)],
+                 beats=sum(total_beats(f) for f in figs), bpm=bpm, seed=seed)
+    return t, {"strategy": "chain_tonic_fanfare", "n_entries": len(refs),
+               "chain_reps": n_rep, "arrival_degree": tonic,
+               "landed_tonic": tonic % 7 == 0,
+               "fanfare_beats": sum(fan)}
+
+
+def chain_arpeggio_fallback(model, rng, bpm=92.0, seed=1):
+    """Matt shape 3: "6-note figure repeats 3 times, ascending, then an
+    arpeggio falls back almost but not quite to the start and the figure
+    ascends again .. this happens 3x followed by a climactic cadence"."""
+    n_cyc = 3
+    reps = rng.choice([2, 3])
+    cell = _sample_chain_cell(model, rng, 6, 1.5, 3.0)
+    motifs, refs, anchors = {"CY": cell}, [], []
+    cursor = 0
+    for c in range(n_cyc):
+        for _ in range(reps):
+            refs.append("CY")
+            anchors.append(cursor)
+            cursor += 1                       # ascend one step per restatement
+        if c == n_cyc - 1:
+            break
+        # The arpeggio falls in THIRDS back to one degree above where the
+        # cycle began — "almost but not quite", so each cycle nets +1 and the
+        # passage keeps climbing across the three.
+        start_of_cycle = anchors[-reps]
+        fall_to = start_of_cycle + 1
+        top = cursor - 1 + net_step(cell)
+        n_thirds = max(1, (top - fall_to) // 2)
+        arp = [{"duration": 0.375, "step": 0}]
+        arp += [{"duration": 0.375, "step": -2} for _ in range(n_thirds)]
+        name = f"ARP{c}"
+        motifs[name] = {"units": arp}
+        refs.append(name)
+        anchors.append(top)
+        cursor = top + net_step(motifs[name])
+
+    # GOAL: the climactic cadence — a rising scalar approach to a held note an
+    # octave (7 degrees) above where the whole passage started.
+    goal = 7
+    approach = [{"duration": 0.25, "step": 0}]
+    approach += [{"duration": 0.25, "step": 1} for _ in range(4)]
+    approach[-1]["duration"] = 4.0
+    motifs["CLIMAX"] = {"units": approach}
+    refs.append("CLIMAX")
+    anchors.append(goal - 4)
+
+    figs = [motifs[r] for r in refs]
+    conns = anchor_connectors(figs, anchors)
+    t = template(motifs, [phrase("P", refs, conns)],
+                 beats=sum(total_beats(f) for f in figs), bpm=bpm, seed=seed)
+    return t, {"strategy": "chain_arpeggio_fallback", "n_entries": len(refs),
+               "cycles": n_cyc, "reps_per_cycle": reps,
+               "climax_degree": goal,
+               "anchor_span": max(anchors) - min(anchors)}
+
+
 STRATEGIES = {
     "pedal_buildup": pedal_buildup,
     "wandering": wandering,
     "connective": connective,
     "fifths_sequence": fifths_sequence,
+    "chain_chromatic_peak": chain_chromatic_peak,
+    "chain_tonic_fanfare": chain_tonic_fanfare,
+    "chain_arpeggio_fallback": chain_arpeggio_fallback,
 }
 
 
@@ -287,6 +517,11 @@ STRATEGIES = {
 # suite — the four strategies chained as one piece
 # --------------------------------------------------------------------------- #
 SUITE_ORDER = ["wandering", "connective", "pedal_buildup", "fifths_sequence"]
+
+# A second running order built around the chain shapes, so the "chain -> goal"
+# passages can be heard doing the job they exist for: leading INTO something.
+CHAIN_SUITE_ORDER = ["wandering", "chain_chromatic_peak", "pedal_buildup",
+                     "chain_arpeggio_fallback", "chain_tonic_fanfare"]
 
 
 def suite(model, rng, bpm=92.0, seed=1, order=None):
@@ -360,17 +595,23 @@ def main():
                     help="semitone span guard (corpus range_p90); a passage "
                          "over it is resampled, best-of kept")
     ap.add_argument("--max-tries", type=int, default=8)
+    ap.add_argument("--outroot", default=OUTROOT,
+                    help="render dir (repo-relative); a new set goes in its "
+                         "own dir so it can be A/B'd against the last one")
     args = ap.parse_args()
+    outroot = args.outroot
 
     import markov_model as mm
     tok = (mm.TOKENS if args.corpus == "mtd"
            else mm.ROOT / f"{args.corpus.split('_')[0]}_tokens.json")
     model = MarkovModel.load(tok)
     cs = sg.corpus_stats(args.corpus)
-    all_names = list(STRATEGIES) + ["suite"]
+    all_names = list(STRATEGIES) + ["suite", "chain_suite"]
     names = [args.only] if args.only else all_names
-    fns = dict(STRATEGIES, suite=suite)
-    outdir = REPO / OUTROOT
+    fns = dict(STRATEGIES, suite=suite,
+               chain_suite=lambda m, r, **kw: suite(
+                   m, r, order=CHAIN_SUITE_ORDER, **kw))
+    outdir = REPO / outroot
     outdir.mkdir(parents=True, exist_ok=True)
 
     rows = []
@@ -394,7 +635,7 @@ def main():
             t, meta, span, tries = best
             meta["pred_range"] = span
             meta["tries"] = tries
-            prefix = f"{OUTROOT}/{name}_{k}"
+            prefix = f"{outroot}/{name}_{k}"
             render_template(t, prefix)
             mel = sg.load_melody(REPO / (prefix + "_1.json"))
             r = sg.score(mel, cs)
