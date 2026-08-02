@@ -2,42 +2,49 @@
 
 ## Awaiting Matt
 
-### 0b. Per-partial rng streams — the reproducibility fix [read, decision]
-The re-roll fragility is NOT a perf byproduct — it's latent engine design
-(shared rng + order-dependent draws + the >16kHz early-return skipping
-draws). The exp2 revert restored the old stream, but ANY future last-bit
-frequency change re-rolls high-note bandwidth patches again, and the
-CMA-ES objective stays discontinuous. Proposed: per-partial seeded
-streams (noise independent of draw order). One-time re-roll of every
-bandwidth patch's noise on landing — recommend doing it BEFORE the
-clarinet 600-eval run so the objective is continuous. Your call.
+### 1. rng re-roll acceptance [listen] (run 16)
+renders/rng_ab/ — A_shared vs B_perpartial for v6_cmaes_best +
+viola_default. One-time permanent re-roll (deltas to +-4dB/note; the new
+realizations are the forever ones). Not approval of a mechanism — just:
+do the B realizations sound fine?
 
-### 1. liar2 width-multiplier ladder [listen] (run 13)
-renders/liar2/ liar2_110_x3/x5/x7/x10/x14 + same at 220 (literature
-widths x multiplier; x7 = the shipped "excellent" scale). Verdict: the
-optimal multiplier, or several worth keeping as styles.
+### 2. Shimmer gain floor [listen] (run 16)
+renders/shimmer_floor/ — v6_cmaes_best at floor 0 / 0.3 / 0.5 (final-note
+dip -12.6 / -8.6 / -4.4 dB, same location). Verdict: default floor.
 
-### 2. Vowel sequences on the validated architecture [listen] (run 13)
-renders/vowelseq2/ — OO-EE, O-OO-EE, AH-O-OO, EE-AH-OO, OO-AH-EE at
-110/220, liar2 recipe (crossfade, 5-formant, x7, floor 0), playable
-instrument-style patches (word scales with note length; try chords —
-your liar2 chord observation).
+### 3. liar2 x8/x9 fills [listen] (run 16)
+renders/liar2/ liar2_110_x8/x9 + 220 — completes your 3..14 bracket
+around x7.
 
-### 3. Clarinet breath v2 [listen] (run 13)
-renders/clarinet_c2/ — your 3 complaints mapped exactly to params the
-optimizer drifted from the measurement; c2a_cal = bed hand-set to the
-clarinet_bed values you preferred (2900Hz/0.016/0.15s), c2b_pink =
-tilted down-spectrum (2300Hz, wider — the white-vs-pink axis), c2c_quiet
-= cal at level 0.011. Verdict decides: which bed goes into the 600-eval
-run — where bed dims will be FROZEN at your pick (the optimizer
-demonstrably wanders off-measurement on them; scorer can't see the bed).
+### 4. FM matrix2 [listen] (run 16)
+renders/fm_matrix2/{modulated,ramped}/ — your 11 Y picks at lo/med/hi +
+effect-ramp attacks 0.1/0.2/0.5s. NOTE: t1_07 'PM' was an illusion — the
+FMSource phase param is dead (bug, fix backlogged); what you liked was
+plain FM + that envelope. Verdict: keepers -> named patch families.
 
-### 4. FM oversample default [read] — unchanged, awaiting your read
-(carrier-frequency-and-deviation rule proposal; see run-12 note.)
+### 5. Clarinet best_locked [listen] (run 16)
+renders/cmaes_clarinet/best_locked.wav — 588-eval run with YOUR bed
+frozen verbatim; optimizer improved tone terms (motion halved, broadband
+0.95->0.71) around it. vs the c2c_quiet you hand-tuned. Verdict: is this
+the clarinet keeper; resume to 600+?
 
-### 5. FM matrix [listen] — parked at your request until re-listen.
+### 6. Formant catalog [read] (run 16)
+docs/research/formants/CATALOG.md — your UC xls = the Csound Appendix D
+singing table verbatim (a/e/i/o/u = Italian close-mid set); Hillenbrand
+(M/W/C speech, F0-F4) + P&B + IPA F1/F2 downloaded; F5 exists in NO
+measured speech corpus (structural) -> Speech grid extrapolates top
+formants. Assembly plan at the end awaits your go.
+
+(also: piano_mf downloaded, 86/88 keys — A0/Bb0 missing at mf on the
+server; MANIFEST.md has options. No action needed yet.)
 
 ## Resolved
+
+2026-08-01 pm (Matt, folded in run 16): rng streams GO ("go ahead");
+liar2 x7 ~optimal (+x8/x9 for rigor); vowelseq "near on the money" ->
+IPA catalog research; clarinet bed LOCKED to hand-tune, register-law
+revoked (memory amended); FM oversample convention agreed; FM matrix Y/N
+table -> matrix2 batch; piano = next instrument (mf first).
 
 2026-08-01 (Matt, folded in run 15):
 - exp2 A/B: fluctuation traced to shimmer walk (always in the patch;
