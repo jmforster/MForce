@@ -48,6 +48,12 @@ a separate, larger change.
 
 ## Proposed C++ work, staged
 
+TERMINOLOGY (Matt, 2026-08-02): this is NEW DEVELOPMENT, not a port —
+none of these strategies existed in legacy C#. "Stage N" below means
+moving the run-12 Python template prototypes into first-class C++
+PassageStrategy classes. The word "port" is reserved in this repo for
+legacy C# migration and doesn't apply here.
+
 **Stage 1 — anchor plumbing + two strategies (no key work).**
 New `passage_strategies.h` with `PedalBuildupStrategy` and
 `SequencePassageStrategy` (the fifths walk generalized to any anchor step
@@ -79,7 +85,7 @@ instead of the section scale, then verify with the same three-section probe:
 identical motif under C/G/D must produce F, F♯, F♯/C♯ respectively. Only
 then is a modulating circle-of-fifths trip authorable.
 
-**Stage 4 — wandering.** Cheapest to port (no shared state, no key work),
+**Stage 4 — wandering.** Cheapest to implement (no shared state, no key work),
 listed last only because it is the least structurally interesting.
 
 ## Open questions for Matt

@@ -5,7 +5,7 @@ Priority order. (G1)-(G2) = GOALS.md Wolfie goals.
 6. **[build] (G2) PassageStrategy expansion** — Python prototype LANDED run 12
    (passage_strategies.py: pedal_buildup / wandering / connective /
    fifths_sequence + suite; 15 renders, listen item queued). Remaining = the
-   C++ port, spec'd in 4 stages at
+   C++ implementation (new dev, not legacy port), spec'd in 4 stages at
    docs/superpowers/specs/2026-07-31-passage-strategy-expansion-design.md:
    (1) anchor plumbing + PedalBuildup/Sequence strategies, (2) connective
    (needs prior-passage context via Locus), (3) key-aware realization —
