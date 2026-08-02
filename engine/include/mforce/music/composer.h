@@ -171,6 +171,7 @@ struct Composer {
     reg.register_passage(std::make_unique<PedalBuildupStrategy>());
     reg.register_passage(std::make_unique<SequencePassageStrategy>());
     reg.register_passage(std::make_unique<ConnectivePassageStrategy>());
+    reg.register_passage(std::make_unique<WanderingPassageStrategy>());
 
     // Realization strategies (Compose-tier chord-event expansion)
     auto& realReg = RealizationStrategyRegistry::instance();
@@ -354,7 +355,12 @@ private:
                                   const Section& section,
                                   float passageStartBeat,
                                   float maxSectionBeats) {
+    // A passage-level scaleOverride pins the whole passage; without one the
+    // realize step reads the section's key timeline per note (see
+    // realize_phrase_to_events_). Scale is two pointers, so the per-note
+    // lookup costs nothing worth optimizing.
     const Scale& scale = passage.scaleOverride.value_or(section.scale);
+    const bool keyAware = !passage.scaleOverride && !section.keyContexts.empty();
 
     DynamicState dynamics;
     int nextMarking = 0;
@@ -369,22 +375,34 @@ private:
       currentBeat = realize_phrase_to_events_(part, phrase, scale, currentBeat,
                                               dynamics, passage.dynamicMarkings, nextMarking,
                                               passageStartBeat, section,
-                                              maxSectionBeats);
+                                              maxSectionBeats, keyAware);
     }
   }
 
   float realize_phrase_to_events_(Part& part, const Phrase& phrase,
-                                  const Scale& scale,
+                                  const Scale& baseScale,
                                   float startBeat,
                                   DynamicState& dynamics,
                                   const std::vector<DynamicMarking>& markings,
                                   int& nextMarking,
                                   float passageBeatOffset,
                                   const Section& section,
-                                  float maxSectionBeats) {
+                                  float maxSectionBeats,
+                                  bool keyAware = false) {
     float currentBeat = startBeat;
     float currentNN = phrase.startingPitch.note_number();
     constexpr int kBaseOctave = 4;  // matches Conductor::perform()'s baseOctave
+
+    // Key-aware realization (#6 stage 3). Section::keyContexts were parsed and
+    // stored but had ZERO readers, so a modulating passage rendered the same
+    // notes in every key. `scale` now tracks the section's key timeline; when
+    // it changes, the running cursor is SNAPPED into the new scale before the
+    // step is applied — otherwise a step of 0 across the boundary would carry
+    // the old key's pitch (an F held through a change into G major).
+    // keyAware is false whenever the passage pins a scaleOverride or the
+    // section has no keyContexts, which makes this a strict no-op for every
+    // existing patch.
+    Scale scale = baseScale;
 
     for (int f = 0; f < phrase.figure_count(); ++f) {
       const auto& fig = *phrase.figures[f];
@@ -396,6 +414,15 @@ private:
         if (maxSectionBeats >= 0.0f &&
             (currentBeat - passageBeatOffset) >= maxSectionBeats) {
           return currentBeat;
+        }
+
+        if (keyAware) {
+          Scale active = section.active_scale_at(currentBeat - passageBeatOffset);
+          if (active.pitchDef != scale.pitchDef
+              || active.scaleDef != scale.scaleDef) {
+            currentNN = snap_to_scale(currentNN, active);
+            scale = active;
+          }
         }
 
         if (isChordFig && section.chordProgression) {

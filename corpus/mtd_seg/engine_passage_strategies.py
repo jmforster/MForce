@@ -150,9 +150,18 @@ def suite(seed, bpm):
     return t
 
 
+def wandering(seed, bpm, *, entries=0, pull_threshold=5, cell=2.0):
+    cfg = {"entries": entries, "pullThreshold": pull_threshold,
+           "pullAmount": 2, "cellBeats": cell, "rangeCap": 19,
+           "maxTries": 8, "seed": seed}
+    parts = [melody_part("wandering_passage", "wanderingConfig", cfg)]
+    return base_template(parts, beats=48, bpm=bpm, seed=seed)
+
+
 STRATEGIES = {"pedal_buildup": pedal_buildup,
               "sequence_passage": sequence_passage,
               "connective": connective,
+              "wandering": wandering,
               "suite": lambda seed, bpm: suite(seed, bpm)}
 
 # A few deliberate outliers alongside the norm-respecting takes, per the
@@ -163,6 +172,8 @@ OUTLIERS = [
     ("sequence_17x",         "sequence_passage", {"entries": 17}),
     ("sequence_thirds_up",   "sequence_passage", {"step_a": 2, "step_b": 2}),
     ("sequence_static",      "sequence_passage", {"step_a": 0, "step_b": 0}),
+    ("wandering_24x",        "wandering",        {"entries": 24}),
+    ("wandering_nopull",     "wandering",        {"pull_threshold": 99}),
 ]
 
 
@@ -179,7 +190,7 @@ def render(template, out_prefix):
     # verification (anchor roots, level count, predicted range).
     claim = [ln.split(": ", 1)[1] for ln in (p.stdout + p.stderr).splitlines()
              if ln.startswith(("pedal_buildup:", "sequence_passage:",
-                               "connective_passage:"))]
+                               "connective_passage:", "wandering_passage:"))]
     return " | ".join(claim)
 
 

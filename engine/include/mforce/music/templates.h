@@ -431,6 +431,20 @@ struct ConnectivePassageConfig {
     uint32_t seed{0};
 };
 
+// Config for WanderingPassageStrategy ("wandering_passage"). The discursive
+// passage: distinct figures, cursor-continuous, no motif returns. It sits
+// DELIBERATELY at the bottom of the repetition screen — that is the shape,
+// not a defect, and it is reported rather than tuned away.
+struct WanderingPassageConfig {
+    int entries{0};           // 0 = pick 5..7 at random
+    int pullThreshold{5};     // cursor drift past +-this nudges the next entry
+    int pullAmount{2};        // ...by this many degrees, back toward centre
+    float cellBeats{2.0f};
+    int rangeCap{19};
+    int maxTries{8};
+    uint32_t seed{0};
+};
+
 // ===========================================================================
 // PassageTemplate — what a Part plays during a Section
 // ===========================================================================
@@ -501,6 +515,7 @@ struct PassageTemplate {
     std::optional<PedalBuildupConfig> pedalBuildupConfig;
     std::optional<SequencePassageConfig> sequenceConfig;
     std::optional<ConnectivePassageConfig> connectiveConfig;
+    std::optional<WanderingPassageConfig> wanderingConfig;
 };
 
 // ===========================================================================
