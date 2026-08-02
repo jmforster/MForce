@@ -51,3 +51,12 @@ the (common-mode) rolloff.
 
 Tooling: tools/gen_fm_oversample_test.py (patches), research/fm_alias/measure.py
 (metric, numpy/scipy).
+
+## Convention (Matt-approved 2026-08-01)
+
+Engine default stays oversample=1 forever (byte-stability). Authoring
+rule keys on CARRIER FREQUENCY and DEVIATION (index x mod freq), not
+index: high-carrier patches use os4-8 (converges, cleans); low-carrier /
+huge-deviation patches stay os1 — there oversampling changes character
+rather than removing aliasing (measured run 12), so >1 is a flavor
+choice, not a fix.
