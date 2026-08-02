@@ -87,17 +87,24 @@ def phrase(name, refs, connectors, octave=4, pitch="C"):
 
 
 def template(motifs, phrases, *, beats, bpm, seed, key="C", scale="Major",
-             extra_parts=()):
-    """motifs: {name: figure}; phrases: list of phrase() dicts (one passage)."""
+             extra_parts=(), key_contexts=None):
+    """motifs: {name: figure}; phrases: list of phrase() dicts (one passage).
+
+    key_contexts: optional [(beat, "G Major"), ...] driving MODULATION. Inert
+    before #6 stage 3 (Section::active_scale_at had zero callers); live now."""
     parts = [{"name": "melody", "role": "melody",
               "passages": {"Main": {
                   "startingPitch": {"octave": 4, "pitch": "C"},
                   "phrases": phrases}}}]
     parts.extend(extra_parts)
+    section = {"name": "Main", "beats": beats}
+    if key_contexts:
+        section["keyContexts"] = [{"beat": float(b), "key": k}
+                                  for b, k in key_contexts]
     return {"keyName": key, "scaleName": scale, "bpm": bpm, "masterSeed": seed,
             "motifs": [{"name": n, "figure": f, "userProvided": True}
                        for n, f in motifs.items()],
-            "sections": [{"name": "Main", "beats": beats}],
+            "sections": [section],
             "parts": parts}
 
 
@@ -666,9 +673,55 @@ def pedal_chords(model, rng, bpm=92.0, seed=1):
                "pedal_degree": pedal_deg, "beats": total}
 
 
+# --------------------------------------------------------------------------- #
+# strategy 7 — REAL modulating circle of fifths (unblocked by #6 stage 3)
+# --------------------------------------------------------------------------- #
+# Matt, run 12: "Sequence: sounds a lot like Connective due to key center
+# limitation noted." The limitation was that section keyContexts had no reader,
+# so the fifths "trip" was a diatonic walk that never left C. Stage 3 landed in
+# run 13, so the trip can now actually modulate: the cell restates at the SAME
+# scale degrees while the key underneath it moves by fifths, which is what
+# makes a sequence a modulating sequence rather than a transposition.
+FIFTHS_UP = ["C", "G", "D", "A", "E", "B"]
+FIFTHS_DOWN = ["C", "F", "B Flat", "E Flat", "A Flat"]
+
+
+def modulating_fifths(model, rng, bpm=92.0, seed=1, direction=None):
+    """One cell restated once per key while the KEY walks the circle of
+    fifths. Each restatement re-enters on the same degree, so the transposition
+    is done by the key change, not by the anchors."""
+    up = rng.choice([True, False]) if direction is None else direction
+    ring = FIFTHS_UP if up else FIFTHS_DOWN
+    n = rng.choice([4, 5])
+    keys = ring[:n]
+    cell = _sample_chain_cell(model, rng, 4, 2.0, 4.0)
+    motifs = {"S": cell}
+    refs = ["S"] * n
+    per = total_beats(cell)
+    # Stage 3 snaps the cursor's PITCH into the new scale, it does not move it
+    # to the new tonic — so anchoring every entry at degree 0 renders C and G
+    # identically (measured: C-E-E-C in both). To make it a real SEQUENCE the
+    # entry has to follow the key, so each restatement is offset by a fifth in
+    # the new scale's degree space, alternating direction to stay in register.
+    anchors, a = [0], 0
+    for j in range(1, n):
+        a += 4 if (j % 2) else -3            # up a 5th / down a 4th
+        anchors.append(a)
+    figs = [cell] * n
+    conns = anchor_connectors(figs, anchors)
+    kctx = [(i * per, f"{keys[i]} Major") for i in range(n)]
+    t = template(motifs, [phrase("P", refs, conns)], beats=per * n, bpm=bpm,
+                 seed=seed, key_contexts=kctx)
+    return t, {"strategy": "modulating_fifths", "n_entries": n,
+               "keys": "-".join(keys),
+               "direction": "up" if up else "down",
+               "beats_per_key": per}
+
+
 STRATEGIES = {
     "pedal_buildup": pedal_buildup,
     "pedal_chords": pedal_chords,
+    "modulating_fifths": modulating_fifths,
     "wandering": wandering,
     "connective": connective,
     "fifths_sequence": fifths_sequence,
