@@ -1,0 +1,126 @@
+{
+ "sampleRate": 48000,
+ "seconds": 6,
+ "graph": {
+  "nodes": [
+   {
+    "id": "rampEnv",
+    "type": "Envelope",
+    "params": {
+     "stages": [
+      {
+       "startVal": 1.0,
+       "endVal": 0.0,
+       "type": "Linear",
+       "power": 0.0,
+       "percent": 0.03333333333333333,
+       "minSec": 0.2,
+       "maxSec": 0.2
+      },
+      {
+       "startVal": 0.0,
+       "endVal": 0.0,
+       "type": "Linear",
+       "power": 0.0,
+       "percent": 0.0
+      }
+     ]
+    }
+   },
+   {
+    "id": "ampEnv",
+    "type": "Envelope",
+    "params": {
+     "stages": [
+      {
+       "startVal": 1.0,
+       "endVal": 0.0,
+       "type": "Expo",
+       "power": 1.2,
+       "percent": 0.0
+      }
+     ]
+    }
+   },
+   {
+    "id": "fast",
+    "type": "SineSource",
+    "params": {
+     "frequency": 1700.0,
+     "amplitude": {
+      "ref": "rampEnv"
+     }
+    }
+   },
+   {
+    "id": "mr",
+    "type": "RangeSource",
+    "params": {
+     "min": 0.5,
+     "max": 4.0,
+     "var": {
+      "ref": "fast"
+     },
+     "normalized": false
+    }
+   },
+   {
+    "id": "depthEnv",
+    "type": "Envelope",
+    "params": {
+     "stages": [
+      {
+       "startVal": 5.0,
+       "endVal": 2.0,
+       "type": "Expo",
+       "power": 2.0,
+       "percent": 0.0
+      }
+     ]
+    }
+   },
+   {
+    "id": "fm",
+    "type": "FMSource",
+    "params": {
+     "carrierRatio": 1.0,
+     "modRatio": {
+      "ref": "mr"
+     },
+     "depth": {
+      "ref": "depthEnv"
+     },
+     "frequency": 220.0,
+     "amplitude": {
+      "ref": "ampEnv"
+     }
+    }
+   },
+   {
+    "id": "ch1",
+    "type": "SoundChannel",
+    "inputs": {
+     "source": "fm"
+    },
+    "params": {
+     "volume": 0.7,
+     "pan": 0.0
+    }
+   },
+   {
+    "id": "mix",
+    "type": "StereoMixer",
+    "inputs": {
+     "channels": [
+      "ch1"
+     ]
+    },
+    "params": {
+     "gainL": 1.0,
+     "gainR": 1.0
+    }
+   }
+  ],
+  "output": "mix"
+ }
+}

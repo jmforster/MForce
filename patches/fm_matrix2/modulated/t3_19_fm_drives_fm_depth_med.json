@@ -1,0 +1,86 @@
+{
+ "sampleRate": 48000,
+ "seconds": 6,
+ "graph": {
+  "nodes": [
+   {
+    "id": "ampEnv",
+    "type": "Envelope",
+    "params": {
+     "stages": [
+      {
+       "startVal": 1.0,
+       "endVal": 0.0,
+       "type": "Expo",
+       "power": 1.2,
+       "percent": 0.0
+      }
+     ]
+    }
+   },
+   {
+    "id": "fmMod",
+    "type": "FMSource",
+    "params": {
+     "frequency": 3.0,
+     "amplitude": 1.0,
+     "carrierRatio": 1.0,
+     "modRatio": 2.5,
+     "depth": 4.0
+    }
+   },
+   {
+    "id": "dp",
+    "type": "RangeSource",
+    "params": {
+     "min": 0.0,
+     "max": 16.0,
+     "var": {
+      "ref": "fmMod"
+     },
+     "normalized": false
+    }
+   },
+   {
+    "id": "fm",
+    "type": "FMSource",
+    "params": {
+     "carrierRatio": 1.0,
+     "modRatio": 1.5,
+     "depth": {
+      "ref": "dp"
+     },
+     "frequency": 220.0,
+     "amplitude": {
+      "ref": "ampEnv"
+     }
+    }
+   },
+   {
+    "id": "ch1",
+    "type": "SoundChannel",
+    "inputs": {
+     "source": "fm"
+    },
+    "params": {
+     "volume": 0.7,
+     "pan": 0.0
+    }
+   },
+   {
+    "id": "mix",
+    "type": "StereoMixer",
+    "inputs": {
+     "channels": [
+      "ch1"
+     ]
+    },
+    "params": {
+     "gainL": 1.0,
+     "gainR": 1.0
+    }
+   }
+  ],
+  "output": "mix"
+ }
+}
