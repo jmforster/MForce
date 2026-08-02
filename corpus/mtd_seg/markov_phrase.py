@@ -777,8 +777,32 @@ def _apply_v3_transform(name, fig, model, rng):
     return getattr(ftl, name)(fig)     # invert / retrograde
 
 
+_FINAL_PROFILE = None
+
+
+def _final_profile(corpus="mtd"):
+    """Empirical final-note ratio profile from final_note_stats.py. Falls back
+    to the MTD profile for corpora with no measurement of their own (Essen),
+    and to None (rule disabled) if the profile was never generated."""
+    global _FINAL_PROFILE
+    if _FINAL_PROFILE is None:
+        p = pathlib.Path(__file__).resolve().parent / "final_note_profile.json"
+        try:
+            _FINAL_PROFILE = json.loads(p.read_text(encoding="utf-8"))
+        except OSError:
+            _FINAL_PROFILE = {}
+    return _FINAL_PROFILE.get(corpus) or _FINAL_PROFILE.get("mtd")
+
+
+def _snap_dur(beats):
+    """Snap to the tokenizer's duration grid so extensions stay notatable."""
+    from markov_tokenize import snap_pulse
+    return snap_pulse(beats)
+
+
 def build_phrase_v3(figA, figB, pattern, transform, contour, model, rng,
-                    elide_prob=0.2, final_ext_prob=0.85, grid=1.0):
+                    elide_prob=0.2, final_ext_prob=0.85, grid=1.0,
+                    corpus="mtd", final_rng=None, final_rule="longest"):
     """Materialize per-occurrence figures with contour leadSteps, then apply
     join quantization (verdict 4) and final-note treatment (verdict 3).
 
@@ -837,17 +861,74 @@ def build_phrase_v3(figA, figB, pattern, transform, contour, model, rng,
             joins.append("elide" if off_grid else "grid")
         t = round(t + total_beats(occ_figs[i]), 6)
 
-    # verdict 3: final note >= phrase median pulse, p=final_ext_prob
+    # verdict 3 v2 — Matt (run 12): "still need more weighting of final note
+    # being longer/longest duration". v1 set the final note to the phrase
+    # MEDIAN pulse, i.e. a ratio of exactly 1.0. final_note_stats.py measured
+    # what real themes do (n=1632 MTD / 1024 Nottingham, same pulse convention
+    # as the tokenizer): median ratio 2.0 in BOTH corpora, and the final note
+    # is >= every other note in 35%/53% of themes. A ratio of 1.0 is MTD's p25
+    # and Nottingham's p10 — the rule was landing at the short end of real
+    # practice. So the ratio is now DRAWN from the corpus distribution rather
+    # than fixed, snapped to the duration grid, and only ever EXTENDS.
+    # Then the phrase end is grid-completed to an integer beat (same reasoning
+    # as verdict 4's joins: a phrase stops at a barline, not mid-beat).
     durs = [u["duration"] for f in occ_figs for u in f["units"]]
-    med = _stats.median(durs)
+    rest = durs[:-1] or durs                 # corpus convention: exclude final
+    med = _stats.median(rest)
     last = occ_figs[-1]["units"][-1]
     final_ext = False
-    if last["duration"] < med and rng.random() < final_ext_prob:
-        last["duration"] = float(round(med, 6))
-        final_ext = True
+    # Own rng stream: the ratio draw must not shift the main stream, or the
+    # A/B against markov_phrases3 (same seed, old rule) stops being
+    # like-for-like — every phrase after the first would differ in structure
+    # as well as in its ending.
+    frng = final_rng if final_rng is not None else rng
+    if final_rule == "old":
+        # v1 arm, kept renderable so the change can be A/B'd against a batch
+        # that is otherwise bit-identical (same figures, joins, transforms).
+        if last["duration"] < med and frng.random() < final_ext_prob:
+            last["duration"] = float(round(med, 6))
+            final_ext = True
+    else:
+        if final_rule == "corpus":
+            prof = _final_profile(corpus)
+            if prof and prof.get("hist") and frng.random() < final_ext_prob:
+                keys, wts = zip(*prof["hist"].items())
+                ratio = float(frng.choices(keys, weights=wts, k=1)[0])
+                target = _snap_dur(med * ratio)
+                if target > last["duration"] + 1e-9:
+                    last["duration"] = float(round(target, 6))
+                    final_ext = True
+        else:
+            # verdict 3 v3 — Matt (markov_phrases3/run 15): "These are good.
+            # Still need more weighting of final note being longer/longEST
+            # duration." The corpus draw put the final at the corpus median
+            # (~2x pulse) but rarely made it the phrase MAXIMUM. New weighting:
+            #   p=0.6  final becomes the LONGEST note of the phrase
+            #          (max of all other durations * U[1.1, 1.6])
+            #   p=0.3  final at least 1.5x the median pulse
+            #   p=0.1  left as drawn (variety)
+            # Extensions are ceiled onto the 0.25-beat pulse grid, and the
+            # final note is only ever EXTENDED, never shortened.
+            roll = frng.random()
+            target = None
+            if roll < 0.6:
+                target = max(rest) * frng.uniform(1.1, 1.6)
+            elif roll < 0.9:
+                target = 1.5 * med
+            if target is not None:
+                snapped = _math.ceil(target / 0.25 - 1e-9) * 0.25
+                if snapped > last["duration"] + 1e-9:
+                    last["duration"] = float(round(snapped, 6))
+                    final_ext = True
+        total = round(sum(total_beats(f) for f in occ_figs), 6)
+        if abs(total / grid - round(total / grid)) > 1e-3:
+            pad = _math.ceil(total / grid - 1e-6) * grid - total
+            last["duration"] = float(round(last["duration"] + pad, 6))
+            final_ext = True
 
     motif_list = [(f"F{i}", occ_figs[i]) for i in range(len(occ_figs))]
     info = {"joins": joins, "final_ext": final_ext, "median_pulse": med,
+            "final_ratio": last["duration"] / med if med > 0 else 0.0,
             "ops": ops}
     return motif_list, refs, connectors, info
 
@@ -859,7 +940,10 @@ def _phrase_stats(piece_json_path, fig_note_counts):
     beats = [float(e["beat"]) for e in notes]
     durs = [float(e["data"]["duration"]) for e in notes]
     tot = beats[-1] + durs[-1]
-    med = _stats.median(durs)
+    # Corpus convention (final_note_stats.py): median/max exclude the final
+    # note, so the generated ratios are directly comparable to the corpus ones.
+    rest = durs[:-1] or durs
+    med = _stats.median(rest)
     starts, s = [], 0
     for c in fig_note_counts:
         starts.append(s)
@@ -869,6 +953,8 @@ def _phrase_stats(piece_json_path, fig_note_counts):
     return {"total_beats": tot, "n_notes": len(notes),
             "mean_pulse": sum(durs) / len(durs),
             "final_ratio": durs[-1] / med if med > 0 else 0.0,
+            "final_ge_max": 1 if durs[-1] >= max(rest) - 1e-9 else 0,
+            "end_on_beat": 1 if abs(tot - round(tot)) < 1e-3 else 0,
             "n_joins": len(join_beats), "joins_on_grid": on_grid}
 
 
@@ -891,8 +977,25 @@ def _print_stats_table(label, rows):
     print(f"  long-pulse  (>0.375)   n={len(lng)} "
           f"mean_notes={mean(lng,'n_notes'):.1f} "
           f"mean_beats={mean(lng,'total_beats'):.2f}")
+    fs = sorted(fr)
+    print(f"  final/median ratio     min={fs[0]:.2f} "
+          f"median={fs[len(fs)//2]:.2f} max={fs[-1]:.2f}")
     print(f"  final-note ratio >=1   {sum(1 for x in fr if x >= 1-1e-9)}"
-          f"/{len(fr)}  (median ratio {sorted(fr)[len(fr)//2]:.2f})")
+          f"/{len(fr)}")
+    print(f"  final-note ratio >=1.5 {sum(1 for x in fr if x >= 1.5-1e-9)}"
+          f"/{len(fr)} ({sum(1 for x in fr if x >= 1.5-1e-9)/len(fr):.2f})")
+    # Corpus targets from final_note_stats.py (MTD n=1632 / Nottingham n=1024):
+    # median ratio 2.00 / 2.00, ratio>=2 in 0.51 / 0.85, final>=max in
+    # 0.35 / 0.53. Printed alongside so the comparison is on-screen.
+    print(f"  final-note ratio >=2   {sum(1 for x in fr if x >= 2-1e-9)}"
+          f"/{len(fr)} ({sum(1 for x in fr if x >= 2-1e-9)/len(fr):.2f}) "
+          f"[corpus mtd 0.51 / nott 0.85]")
+    print(f"  final note is longest  "
+          f"{sum(r['final_ge_max'] for r in rows)}/{len(rows)} "
+          f"({sum(r['final_ge_max'] for r in rows)/len(rows):.2f}) "
+          f"[corpus mtd 0.35 / nott 0.53]")
+    print(f"  phrase ends on a beat  "
+          f"{sum(r['end_on_beat'] for r in rows)}/{len(rows)}")
     print(f"  joins on integer beat  {ng}/{nj} ({ng/max(1,nj):.2f})")
 
 
@@ -915,6 +1018,15 @@ def main_v3():
                          "renders/corpus_flavors/<corpus>/.")
     ap.add_argument("--outdir", default=None,
                     help="override the render directory (repo-relative)")
+    ap.add_argument("--final-rule", default="longest",
+                    choices=["longest", "corpus", "old"], dest="final_rule",
+                    help="final-note treatment: 'longest' (v3, default) makes "
+                         "the final note the phrase maximum with p=0.6, "
+                         ">=1.5x median with p=0.3, as-drawn p=0.1; 'corpus' "
+                         "draws the ratio from final_note_profile.json; 'old' "
+                         "is the v1 rule (extend to the median pulse). All "
+                         "grid-complete except 'old'. The draws use their own "
+                         "rng stream, so arms differ ONLY in the final note.")
     ap.add_argument("--transform", default=None, choices=V3_TRANSFORMS,
                     help="pin the A-family transform for every prime-bearing "
                          "pattern instead of rolling it — the controlled A/B "
@@ -999,7 +1111,9 @@ def main_v3():
             else:
                 figB = _sample_figure_sized(model, frng)
             motif_list, refs, conns, info = build_phrase_v3(
-                figA, figB, pattern, transform, contour, model, rng)
+                figA, figB, pattern, transform, contour, model, rng,
+                corpus=args.corpus, final_rule=args.final_rule,
+                final_rng=random.Random((args.seed ^ 0xF1A1) + i * 104729))
             mdict = dict(motif_list)
             names = [n for n, _ in motif_list]
             span = predicted_range(mdict, names, conns)
