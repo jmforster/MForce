@@ -141,8 +141,18 @@ def anchor_connectors(figs, anchors):
 def pedal_buildup(model, rng, bpm=92.0, seed=1):
     """Dominant pedal in the bass; melody climbs a third per phrase and
     accelerates (phrase j is diminished by 2^(j/2)), ending long."""
+    # Matt on the run-12 renders: "These are crazy! 8x acceleration is a bit
+    # too much!" — 4 levels put the top level at 2^3 = 8x the opening note
+    # values. Capping the LEVEL COUNT fixes that but also guts the passage
+    # (measured: 9 notes, selfsim 1.0, composite 0.31), and the complaint was
+    # about the acceleration, not the length. So the level count stays and the
+    # DENSITY ratio saturates at 4x instead — later levels add duration at the
+    # top speed rather than doubling again.
     n_lv = rng.choice([3, 4])
-    base = _sample_figure_sized(model, rng, beats_lo=2.0, beats_hi=4.0)
+    # Same amplification problem as the chains: this cell is restated up to 7
+    # times, so a monotone draw renders as one pitch throughout (measured:
+    # selfsim 1.0, composite 0.57).
+    base = _sample_chain_cell(model, rng, None, 2.0, 4.0)
     motifs, refs, anchors = {}, [], []
     # A buildup holds TIME constant and doubles DENSITY: level j runs the cell
     # at half the note values of level j-1, repeated twice as often, so every
@@ -150,7 +160,7 @@ def pedal_buildup(model, rng, bpm=92.0, seed=1):
     # equal span is what makes it read as a buildup rather than a rittardando
     # in reverse.)
     for j in range(n_lv):
-        fig = base if j == 0 else ft.diminish(base, 2.0 ** j)
+        fig = base if j == 0 else ft.diminish(base, 2.0 ** min(j, 2))
         name = f"M{j}"
         motifs[name] = fig
         # Strict restatement makes the interval sequence exactly periodic —
@@ -188,7 +198,12 @@ def pedal_buildup(model, rng, bpm=92.0, seed=1):
         us = us[:-1] if (drop_last and len(us) > 1) else us
         return sum(u["duration"] for u in us) / len(us)
 
-    p_first = drive_pulse(refs[0], False)
+    # Symmetric on both ends. Dropping the held note on the LAST entry only
+    # (while keeping level 0's long final note in its mean) reported 8x for a
+    # 4x diminution — measured: M0 [0.5, 0.5, 2.0] vs M2 [0.125, 0.125, 0.5],
+    # which is exactly 4x. The acceleration number Matt reacted to was partly
+    # this artifact.
+    p_first = drive_pulse(refs[0], True)
     p_last = drive_pulse(refs[-1], True)
     return t, {"strategy": "pedal_buildup", "n_entries": len(refs),
                "n_levels": n_lv,
@@ -359,8 +374,9 @@ def _sample_chain_cell(model, rng, k, lo, hi, tries=12):
     usual "occasionally monotone is fine" tolerance wrong at this layer."""
     best = None
     for _ in range(tries):
-        cell = _sample_figure_sized(model, rng, kmin=k, kmax=k,
-                                    beats_lo=lo, beats_hi=hi)
+        kw = {} if k is None else {"kmin": k, "kmax": k}
+        cell = _sample_figure_sized(model, rng, beats_lo=lo, beats_hi=hi, **kw)
+        k = k or len(cell["units"])
         moving = sum(1 for u in cell["units"][1:] if u["step"] != 0)
         if best is None or moving > best[0]:
             best = (moving, cell)
@@ -502,8 +518,157 @@ def chain_arpeggio_fallback(model, rng, bpm=92.0, seed=1):
                "anchor_span": max(anchors) - min(anchors)}
 
 
+# --------------------------------------------------------------------------- #
+# strategy 6 — pedal point with rising harmonic tension (Matt's run-12 note)
+# --------------------------------------------------------------------------- #
+# Matt on the run-12 pedal renders: "8x acceleration is a bit too much!
+# Acceleration is one strategy for injecting drama, but only one. The most
+# common pedal point is CHORDS moving over the pedal tone, increasing tension
+# via increasing dissonance (ie chords that do not contain the pedal tone),
+# leading to a climactic cadence, say a french or german 6th to a tonic (still
+# over the pedal so first inversion), followed by V(7) to a full cadence — this
+# is practically a cliche in the Classical and Romantic literature."
+#
+# No chord plumbing is needed to do this: a chord is three held VOICES, and
+# extra melodic parts already work (that is what pedal_part is). Accidentals
+# make the augmented sixth reachable, exactly as they did the chromatic rise.
+MAJOR_SEMIS = [0, 2, 4, 5, 7, 9, 11]
+DISSONANT_ICS = {1, 2, 6, 10, 11}
+
+
+def _deg_semis(deg):
+    return 12 * (deg // 7) + MAJOR_SEMIS[deg % 7]
+
+
+def _triad(root_deg):
+    """Diatonic triad on a scale degree, as scale degrees."""
+    return [root_deg, root_deg + 2, root_deg + 4]
+
+
+def _tension(chord_degs, pedal_deg):
+    """Dissonance of a chord against the pedal, measured not asserted.
+
+    +2 if the chord does NOT contain the pedal pitch class (Matt's own
+    criterion), +1 for every chord tone whose interval class against the pedal
+    is a second, seventh or tritone."""
+    ped = _deg_semis(pedal_deg) % 12
+    pcs = [_deg_semis(d) % 12 for d in chord_degs]
+    score = 0 if ped in pcs else 2
+    for pc in pcs:
+        if min((pc - ped) % 12, (ped - pc) % 12) in DISSONANT_ICS:
+            score += 1
+    return score
+
+
+def pedal_chords(model, rng, bpm=92.0, seed=1):
+    """Dominant pedal; diatonic triads above it ORDERED by measured dissonance
+    against the pedal, then a German-sixth cadence — Ger6 -> I(6/4, still over
+    the pedal) -> V7 -> I."""
+    pedal_deg = 4                                  # dominant pedal (G in C)
+    bars = rng.choice([4, 5, 6])
+    # Rank the diatonic triads by tension against the pedal and walk UP that
+    # ranking, so "increasing dissonance" is a property of the render rather
+    # than of the docstring. Always open on the tonic.
+    cands = sorted(((_tension(_triad(d), pedal_deg), d) for d in range(7)),
+                   key=lambda x: (x[0], x[1]))
+    ordered = [0] + [d for _t, d in cands if d != 0]
+    chosen = ordered[:bars]
+    chosen.sort(key=lambda d: _tension(_triad(d), pedal_deg))
+    tension_curve = [_tension(_triad(d), pedal_deg) for d in chosen]
+
+    # (degree, accidental) per voice per chord. Voices 0/1/2 = the triad from
+    # the bottom; the pedal sits underneath in its own part.
+    chords = [[(d, 0) for d in _triad(r)] for r in chosen]
+    labels = [DEGREE_NAMES[r % 7] for r in chosen]
+
+    # Cadence, hand-voiced. German 6th in C = Ab-C-Eb-F#: flat-6, tonic,
+    # flat-3, sharp-4 — all reachable as (degree, accidental) pairs. It
+    # resolves to the tonic in 6/4 (the pedal is still the bass, so the tonic
+    # triad above a G bass IS second inversion), then V7, then I.
+    cad = [
+        ([(5, -1), (2 + 7, -1), (3 + 7, +1)], "Ger6"),   # Ab  Eb  F#
+        ([(0, 0), (2 + 7, 0), (4 + 7, 0)], "I(6/4)"),    # C   E   G
+        ([(6, 0), (1 + 7, 0), (3 + 7, 0)], "V7"),        # B   D   F
+        ([(0, 0), (2 + 7, 0), (4 + 7, 0)], "I"),         # C   E   G
+    ]
+    chords += [c for c, _l in cad]
+    labels += [l for _c, l in cad]
+    tension_curve += [_tension([d for d, _a in c], pedal_deg)
+                      for c, _l in cad]
+
+    beats_per = 4.0
+    cad_beats = [4.0, 4.0, 4.0, 6.0]                 # the arrival broadens
+    durs = [beats_per] * len(chosen) + cad_beats
+    total = sum(durs)
+
+    # One melodic part per voice: units carry the degree DELTA from the voice's
+    # previous note (the engine's cursor convention) plus any accidental.
+    extra = []
+    for v in range(3):
+        # NOT role "harmony": that role produced ZERO events (the composer
+        # realizes harmony parts from a chord progression, not from phrases).
+        # Verified by inspecting the piece JSON, which is also why the voices
+        # are countermelody parts carrying explicit held notes.
+        # Each voice must ENTER on its own chord tone. A figure's first unit is
+        # step 0 by convention, so with a shared startingPitch all three voices
+        # rendered the same line in unison (verified in the piece JSON) — the
+        # entry pitch is what separates them.
+        vpitch = ["C", "D", "E", "F", "G", "A", "B"][chords[0][v][0] % 7]
+        voct = 4 + chords[0][v][0] // 7
+        extra.append({"name": f"voice{v}", "role": "countermelody",
+                      "passages": {"Main": {
+                          "startingPitch": {"octave": voct, "pitch": vpitch},
+                          "phrases": [phrase(f"V{v}", [f"VC{v}"], [None],
+                                             octave=voct, pitch=vpitch)]}}})
+
+    # The pedal itself: held whole notes on the dominant under everything —
+    # but it RELEASES to the tonic for the final chord. Matt asked for "V(7)
+    # to a full cadence", and a full cadence needs the root in the bass; held
+    # to the end the pedal leaves the last tonic in 6/4, which is an arrival
+    # that never actually lands.
+    held = total - cad_beats[-1]
+    reps = max(1, int(round(held / 4.0)))
+    motifs = {"PED": {"units": [{"duration": 4.0, "step": 0}]},
+              "PEDRES": {"units": [{"duration": cad_beats[-1], "step": 0}]}}
+    for v in range(3):
+        units, prev = [], None
+        for ci, ch in enumerate(chords):
+            deg, acc = ch[v]
+            u = {"duration": durs[ci], "step": 0 if prev is None else deg - prev}
+            if acc:
+                u["accidental"] = acc
+            units.append(u)
+            prev = deg
+        motifs[f"VC{v}"] = {"units": units}
+
+    # Matt's variant b: "same as above but with a melodic figure over the
+    # chords". The melody is the top line, restating a cell once per chord.
+    cell = _sample_chain_cell(model, rng, 4, 2.0, 4.0)
+    mel_refs = ["MEL"] * len(chords)
+    motifs["MEL"] = cell
+    mel_anchors = [7 + (ch[2][0] - chords[0][2][0]) for ch in chords]
+    mel_figs = [cell] * len(chords)
+    mel_conns = anchor_connectors(mel_figs, mel_anchors)
+
+    bass = {"name": "pedal", "role": "bass",
+            "passages": {"Main": {
+                "startingPitch": {"octave": 3, "pitch": "G"},
+                "phrases": [phrase("PED", ["PED"] * reps + ["PEDRES"],
+                                   [None] + [0] * (reps - 1) + [-4],
+                                   octave=3, pitch="G")]}}}
+    t = template(motifs, [phrase("P", mel_refs, mel_conns)],
+                 beats=total, bpm=bpm, seed=seed,
+                 extra_parts=tuple(extra) + (bass,))
+    return t, {"strategy": "pedal_chords", "n_entries": len(chords),
+               "progression": "-".join(labels),
+               "tension_curve": "-".join(str(x) for x in tension_curve),
+               "tension_rises": tension_curve[-4] >= tension_curve[0],
+               "pedal_degree": pedal_deg, "beats": total}
+
+
 STRATEGIES = {
     "pedal_buildup": pedal_buildup,
+    "pedal_chords": pedal_chords,
     "wandering": wandering,
     "connective": connective,
     "fifths_sequence": fifths_sequence,
