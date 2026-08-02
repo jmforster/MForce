@@ -2,63 +2,31 @@
 
 ## Awaiting Matt
 
-### 1. Phrase v3 — your four rules implemented [listen] (run 10)
-renders/markov_phrases3/ (24 WAVs; before/ = 24-phrase baseline for
-direct A/B; scores.csv, mean 0.83, none <0.6). What changed, verified
-mechanically on the rendered output:
-- final notes now >= median pulse in 92% of phrases (was 62%)
-- figure joins land on integer beats 92% (was 62%); elision is now the
-  ~20% exception, not the norm
-- short note durations buy MORE notes instead of ultra-short phrases
-  (correlation pulse vs note-count: -0.44, was none); ultra-short tail
-  gone, top end now 25 beats, median unchanged per your "don't make them
-  ALL longer"
-- the 9-transform library (augment/diminish/expand/compress/rotate/
-  ornament/...) now drives A-variants; families in filenames
-Verdict decides: do the four rules read as musical; max length cap
-(25 beats — one-line raise if you want longer outliers); which transforms
-earn default rotation.
+(run in progress: stage 3 key-aware realization + stage 4 wandering [C++],
+final-note weighting v2, then the passage set v2 built on your musical
+specs. New items land as fronts complete.)
 
-### 2. Passage strategies — first four [listen] (run 12)
-renders/passage_strategies/ (15 WAVs + scores.csv). Four strategies from
-your #6 list, prototyped as engine templates:
-- `pedal_buildup_*` — dominant pedal in the bass; melody in levels of
-  equal span with doubling density (4-8x acceleration), climbing a third
-  per level, held arrival
-- `wandering_*` — 5-7 distinct figures, no returns, register pull at
-  ±5 degrees (the discursive passage; least repetitive by design)
-- `connective_*` — the antecedent's tail sequenced 3x, landing on a
-  specified target degree (verified: lands exactly, 3/3)
-- `fifths_sequence_*` — diatonic I-IV-vii-iii-vi-ii-V-I walk
-- `suite_*` — all four chained as one 37-49 beat piece (start here)
-Verdict decides: do they read as their labels; which are worth the C++
-port first (spec has 4 stages); pedal on the dominant vs tonic vs
-soprano; does "wandering" want to stay non-returning.
-Note: a REAL modulating circle-of-fifths is blocked — section keyContexts
-are inert in melody realization (probed: same notes in C/G/D). That's
-stage 3 of the port, listed only so you know why the trip is diatonic.
+## Resolved
 
-### 3. Corpus flavor A/B [listen] (run 12)
-renders/corpus_flavors/{mtd,nottingham,essen}/ — 12 phrases each, SAME
-structural rolls across the three (pattern/contour/transform identical
-per index), only the figure content's training corpus differs. So
-mtd/p00 vs nottingham/p00 vs essen/p00 is a like-for-like comparison.
-Metrics say the flavor barely survives generation (every batch scores
-closest to a European-folk anchor regardless of training corpus); the
-one visible difference is density — MTD 15.2 notes/phrase vs folk ~18.
-Verdict decides: is there an audible flavor difference worth keeping a
-per-corpus generator for, or is one corpus enough.
-
-### 4. Essen bake-off note [read, optional]
-8,469 tunes ingested; ranking stable across 3 corpora — and now re-run
-under per-corpus anchors (run 12), where it still holds. Only decision
-embedded: within the top cluster (ngram2/3/neural, ~0.02 apart, order
-flips by corpus) there is NO winner to pick — order-2 backoff stays the
-workhorse by parsimony unless you object.
-Correction from run 10: the "Essen int_jsd floor is elevated" caveat was
-an artifact of alphabetical file order (Essen's asia/ directory sorts
-before europa/, so the sample was 2,246 Chinese tunes). Fixed; floor
-0.089 -> 0.016.
+2026-08-02 (Matt, folded):
+- Phrase v3: good; final note needs MORE weight toward longest ->
+  strengthening now.
+- Passage strategies: "most musical/plausible output yet." Verbatim
+  musical specs preserved for the v2 set:
+  > CONNECTIVE end-transformations before arrival: (a) 4-note fig x7
+  > ascending -> chromatic rise to peak, pause, descend to cadence;
+  > (b) 4-note fig x6 descending to tonic -> rhythmic fanfare on arrival
+  > (Cq Ce. Cs Cq Cq Ch Cq); (c) 6-note fig x3 ascending -> arpeggio
+  > falls back almost to start, x3 cycles -> climactic cadence.
+  > PEDAL: 8x accel too much. The cliche: chords over pedal with
+  > INCREASING DISSONANCE (chords excluding the pedal tone) -> Fr/Ger 6th
+  > over pedal -> V(7) -> full cadence; variant with melodic figure over
+  > the chords; Bruckner extreme = modulating over the pedal (needs key
+  > fix). WANDERING: wants modulation (sweet major theme -> sudden dim7
+  > -> minor keys...) — gated on stage 3. SEQUENCE: sounds like
+  > connective until key fix. SUITE: "exciting taste of things to come."
+  Directive: stages 3+4 (new dev, not port), then v2 set from the specs.
+- Corpus flavor: no action. Essen: order-2 backoff stays (no objection).
 
 ## Resolved
 
