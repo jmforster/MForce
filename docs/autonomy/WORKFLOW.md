@@ -107,6 +107,10 @@ the lane, not the session.
   stage explicit paths only (2026-07-29: a blanket -u swept an agent's
   half-finished file into an unrelated commit).
 - Renders/artifacts land under renders/ in the main repo.
+- Any engine (engine/) edit rebuilds BOTH mforce_cli AND mforce_ui in the
+  same cycle — a cli-only rebuild leaves Matt's UI on a different engine
+  (2026-08-01: stale-banner fired because a revert rebuilt cli only).
+  `mforce_ui.exe --stamp` must exit 0 before the cycle closes.
 - Any "steering" aka ideas on approach or steps toward goal Matt happens
   to include in GOALS.md should be taken as suggestions, not instructions.
   Especially in dsp lane we are treading a lot of already-trodden ground,
