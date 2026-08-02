@@ -172,6 +172,7 @@ private:
       {"shimmerHz",        ConfigType::Float, 3.0f,  0.01f, 200.0f}, \
       {"shimmerCoherence", ConfigType::Float, 0.0f,  0.0f,  1.0f},   \
       {"shimmerEvolve",    ConfigType::Float, 0.0f,  0.0f,  1.0f},   \
+      {"shimmerFloor",     ConfigType::Float, 0.0f,  0.0f,  1.0f},   \
       {"tradeDepth",       ConfigType::Float, 0.0f,  0.0f,  1.0f},   \
       {"tradeHz",          ConfigType::Float, 2.0f,  0.01f, 50.0f},  \
       {"onsetSpread",      ConfigType::Float, 0.0f,  0.0f,  2.0f},   \
@@ -219,6 +220,26 @@ struct IPartials {
   }
 };
 
+// Rng stream layer ids (see stream_seed in core/randomizer.h). Every random
+// consumer in Partials draws from its own seeded stream — per (note, partial)
+// for the layers with per-partial state, per note for the single-stream
+// layers — so no draw depends on how many draws any other consumer made.
+// Previously one shared rng_ served all layers in (sample, partial) draw
+// order; a partial flickering across the 16 kHz cutoff (early return before
+// its bandwidth draw) then shifted every downstream draw and re-rolled all
+// noise in the render (measured ±3 dB note-contour changes).
+enum PartialsRngLayer : uint32_t {
+  kRngBandwidth     = 1,  // per-partial
+  kRngMotionShared  = 2,  // single
+  kRngMotionInd     = 3,  // per-partial
+  kRngShimmerShared = 4,  // single
+  kRngShimmerInd    = 5,  // per-partial
+  kRngTrade         = 6,  // single (draw order over pair-walks is stable)
+  kRngOnset         = 7,  // single (prepare-time only)
+  kRngDetune        = 8,  // single (prepare-time only)
+  kRngExpand        = 9,  // single (prepare-time only)
+};
+
 // ---------------------------------------------------------------------------
 // Partials — abstract base class implementing the per-partial rendering
 // engine. Ported faithfully from legacy Partials.cs GetPartialValue().
@@ -229,7 +250,7 @@ struct IPartials {
 // ---------------------------------------------------------------------------
 struct Partials : ValueSource, IPartials {
   Partials(uint32_t seed = 0xADD2'0000u)
-  : rng_(seed)
+  : baseSeed_(seed)
   , multEnv_(std::make_shared<ConstantSource>(0.0f))
   , amplEnv_(std::make_shared<ConstantSource>(0.0f))
   , poEnv_(std::make_shared<ConstantSource>(0.0f))
@@ -322,6 +343,7 @@ struct Partials : ValueSource, IPartials {
     if (name == "shimmerHz")        { shHz_ = value; return; }
     if (name == "shimmerCoherence") { shCoherence_ = value; return; }
     if (name == "shimmerEvolve")    { shEvolve_ = value; return; }
+    if (name == "shimmerFloor")     { shFloor_ = value; return; }
     if (name == "tradeDepth")       { trDepth_ = value; return; }
     if (name == "tradeHz")          { trHz_ = value; return; }
     if (name == "onsetSpread")      { onsetSpread_ = value; return; }
@@ -348,6 +370,7 @@ struct Partials : ValueSource, IPartials {
     if (name == "shimmerHz")        return shHz_;
     if (name == "shimmerCoherence") return shCoherence_;
     if (name == "shimmerEvolve")    return shEvolve_;
+    if (name == "shimmerFloor")     return shFloor_;
     if (name == "tradeDepth")       return trDepth_;
     if (name == "tradeHz")          return trHz_;
     if (name == "onsetSpread")      return onsetSpread_;
@@ -371,6 +394,15 @@ struct Partials : ValueSource, IPartials {
 
   void partials_prepare(const RenderContext& ctx, int frames) override {
     rate_ = float(ctx.sampleRate);
+
+    // Per-note stream base: baseSeed_ hashed with a note counter. Every rng
+    // stream below reseeds from this, so a note's randomness depends only on
+    // (baseSeed, note ordinal, partial, layer) — never on how many draws any
+    // earlier code path happened to make. The note counter preserves the old
+    // per-note variety (the shared stream used to just continue across
+    // note-ons); without it every note would replay identical noise.
+    noteBase_ = uint32_t(splitmix64((uint64_t(baseSeed_) << 32) ^ uint64_t(noteSeq_)));
+    ++noteSeq_;
 
     if (arrayUpdateReq_) {
       update_arrays();
@@ -396,6 +428,7 @@ struct Partials : ValueSource, IPartials {
         ampl1_ = origAmpl1_; ampl2_ = origAmpl2_;
         po1_ = origPo1_; po2_ = origPo2_;
       }
+      expandRng_ = Randomizer(stream_seed(noteBase_, 0, kRngExpand));
       for (int r = 0; r <= expandRule_.recurse; ++r)
         apply_expand_rule();
     }
@@ -420,10 +453,12 @@ struct Partials : ValueSource, IPartials {
     bwCur_.assign(n, 0.0f);
     bwTarget_.assign(n, 0.0f);
     bwPos_.assign(n, 0);
+    if (int(bwRng_.size()) != n) bwRng_.resize(n, Randomizer(0u));
     for (int i = 0; i < n; ++i) {
-      bwCur_[i]    = rng_.valuePN();
-      bwTarget_[i] = rng_.valuePN();
-      bwPos_[i]    = int(rng_.range(0.0f, float(bwLen_)));  // stagger phase
+      bwRng_[i]    = Randomizer(stream_seed(noteBase_, uint32_t(i), kRngBandwidth));
+      bwCur_[i]    = bwRng_[i].valuePN();
+      bwTarget_[i] = bwRng_[i].valuePN();
+      bwPos_[i]    = int(bwRng_[i].range(0.0f, float(bwLen_)));  // stagger phase
     }
 
     // Motion / shimmer / trade / onset state. All per-note (prepare fires at
@@ -433,34 +468,46 @@ struct Partials : ValueSource, IPartials {
     motionActive_ = (moDepth1_ != 0.0f || moDepth2_ != 0.0f);
     if (motionActive_) {
       moLen_ = std::max(1, int(rate_ / std::max(0.01f, moHz_)));
-      walk_init(moShared_, moLen_, moEvolve_);
+      moSharedRng_ = Randomizer(stream_seed(noteBase_, 0, kRngMotionShared));
+      walk_init(moShared_, moLen_, moEvolve_, moSharedRng_);
       moWalks_.assign(n, MotionWalk{});
-      for (auto& w : moWalks_) walk_init(w, moLen_, moEvolve_);
+      if (int(moRng_.size()) != n) moRng_.resize(n, Randomizer(0u));
+      for (int i = 0; i < n; ++i) {
+        moRng_[i] = Randomizer(stream_seed(noteBase_, uint32_t(i), kRngMotionInd));
+        walk_init(moWalks_[i], moLen_, moEvolve_, moRng_[i]);
+      }
       moVals_.assign(n, 0.0f);
     }
     shimmerActive_ = (shDepth1_ != 0.0f || shDepth2_ != 0.0f);
     if (shimmerActive_) {
       shLen_ = std::max(1, int(rate_ / std::max(0.01f, shHz_)));
-      walk_init(shShared_, shLen_, shEvolve_);
+      shSharedRng_ = Randomizer(stream_seed(noteBase_, 0, kRngShimmerShared));
+      walk_init(shShared_, shLen_, shEvolve_, shSharedRng_);
       shWalks_.assign(n, MotionWalk{});
-      for (auto& w : shWalks_) walk_init(w, shLen_, shEvolve_);
+      if (int(shRng_.size()) != n) shRng_.resize(n, Randomizer(0u));
+      for (int i = 0; i < n; ++i) {
+        shRng_[i] = Randomizer(stream_seed(noteBase_, uint32_t(i), kRngShimmerInd));
+        walk_init(shWalks_[i], shLen_, shEvolve_, shRng_[i]);
+      }
       shVals_.assign(n, 0.0f);
     }
     tradeActive_ = (trDepth_ != 0.0f);
     if (tradeActive_) {
       trLen_ = std::max(1, int(rate_ / std::max(0.01f, trHz_)));
+      trRng_ = Randomizer(stream_seed(noteBase_, 0, kRngTrade));
       trWalks_.assign((n + 1) / 2, MotionWalk{});
-      for (auto& w : trWalks_) walk_init(w, trLen_, 0.0f);
+      for (auto& w : trWalks_) walk_init(w, trLen_, 0.0f, trRng_);
       trVals_.assign((n + 1) / 2, 0.0f);
     }
     onsetActive_ = (onsetSpread_ > 0.0f);
     if (onsetActive_) {
       // Per-partial onset delay: tilt orders delays by partial height
       // (+1 low-first / high partials bloom later, -1 reverse, 0 random).
+      Randomizer onsetRng(stream_seed(noteBase_, 0, kRngOnset));
       onsetDelay_.resize(n);
       float at = std::fabs(onsetTilt_);
       for (int i = 0; i < n; ++i) {
-        float u = rng_.value();
+        float u = onsetRng.value();
         float r = (n > 1) ? float(i) / float(n - 1) : 0.0f;
         float ordered = (onsetTilt_ >= 0.0f) ? r : 1.0f - r;
         onsetDelay_[i] = ((1.0f - at) * u + at * ordered) * onsetSpread_ * rate_;
@@ -489,24 +536,24 @@ struct Partials : ValueSource, IPartials {
 
     ++sampleIdx_;
     if (motionActive_) {
-      float shared = walk_advance(moShared_, moLen_, moEvolve_);
+      float shared = walk_advance(moShared_, moLen_, moEvolve_, moSharedRng_);
       float coh = moCoherence_;
       for (size_t i = 0; i < moWalks_.size(); ++i) {
-        float ind = walk_advance(moWalks_[i], moLen_, moEvolve_);
+        float ind = walk_advance(moWalks_[i], moLen_, moEvolve_, moRng_[i]);
         moVals_[i] = coh * shared + (1.0f - coh) * ind;
       }
     }
     if (shimmerActive_) {
-      float shared = walk_advance(shShared_, shLen_, shEvolve_);
+      float shared = walk_advance(shShared_, shLen_, shEvolve_, shSharedRng_);
       float coh = shCoherence_;
       for (size_t i = 0; i < shWalks_.size(); ++i) {
-        float ind = walk_advance(shWalks_[i], shLen_, shEvolve_);
+        float ind = walk_advance(shWalks_[i], shLen_, shEvolve_, shRng_[i]);
         shVals_[i] = coh * shared + (1.0f - coh) * ind;
       }
     }
     if (tradeActive_) {
       for (size_t i = 0; i < trWalks_.size(); ++i)
-        trVals_[i] = walk_advance(trWalks_[i], trLen_, 0.0f);
+        trVals_[i] = walk_advance(trWalks_[i], trLen_, 0.0f, trRng_);
     }
   }
 
@@ -574,10 +621,11 @@ private:
         // entire loop cost (tools/ablate_layers.py). The replacement is
         // accurate to 0.88 float32 eps — see core/fast_math.h.
         // std::exp2, not fast_exp2: the last-bit difference flips borderline
-        // cutoff comparisons, which re-deals the shared rng stream and
-        // audibly re-rolls high-note bandwidth patches (run-14 A/B, Matt
-        // verdict: revert). Reinstate only after per-partial rng streams
-        // make noise order-independent.
+        // cutoff comparisons, which used to re-deal the shared rng stream and
+        // audibly re-roll high-note bandwidth patches (run-14 A/B, Matt
+        // verdict: revert). Per-partial rng streams have since made noise
+        // order-independent, so a cutoff flip now only gates that one partial
+        // — fast_exp2 is reinstatable, but the swap is its own A/B decision.
         pfreq *= std::exp2(cents * (1.0f / 1200.0f));
       }
     }
@@ -653,7 +701,7 @@ private:
     if (sBwActive_) {
       if (bwPos_[index] >= bwLen_) {
         bwCur_[index]    = bwTarget_[index];
-        bwTarget_[index] = rng_.valuePN();
+        bwTarget_[index] = bwRng_[index].valuePN();  // per-partial stream
         bwPos_[index]    = 0;
       }
       float u = float(bwPos_[index]) / float(bwLen_);
@@ -664,9 +712,12 @@ private:
     }
 
     // Amplitude shimmer: slow per-partial gain wander (coherence-mixed walk).
+    // shimmerFloor clamps the gain from below so high depths can't visit
+    // near-silence (measured 14.6 dB mid-note dips at depth ~1.09); the
+    // default 0 reproduces the old max(0, g) exactly.
     if (shimmerActive_) {
       float g = 1.0f + sSd_ * shVals_[index];
-      pampl *= (g < 0.0f ? 0.0f : g);
+      pampl *= (g < shFloor_ ? shFloor_ : g);
     }
 
     // Energy trading: adjacent pairs share one walk with opposite signs, so
@@ -766,11 +817,12 @@ protected:
   }
 
   void init_detune_values() {
+    Randomizer dtRng(stream_seed(noteBase_, 0, kRngDetune));
     int n = int(mult1_.size());
     dtVals_.resize(n);
     for (int i = 0; i < n; ++i) {
       // Legacy: sign < 0 -> range(-0.5, 0), else -> range(0, 1)
-      dtVals_[i] = (rng_.sign() < 0) ? rng_.range(-0.5f, 0.0f) : rng_.range(0.0f, 1.0f);
+      dtVals_[i] = (dtRng.sign() < 0) ? dtRng.range(-0.5f, 0.0f) : dtRng.range(0.0f, 1.0f);
     }
   }
 
@@ -790,8 +842,8 @@ protected:
         float semis1 = float(er.count - j) * er.spacing1;
         float semis2 = float(er.count - j) * er.spacing2;
 
-        m1[idx] = mult1_[i] / std::pow(2.0f, semis1 / 12.0f) * (1.0f + rng_.valuePN() * er.dt1);
-        m2[idx] = mult2_[i] / std::pow(2.0f, semis2 / 12.0f) * (1.0f + rng_.valuePN() * er.dt2);
+        m1[idx] = mult1_[i] / std::pow(2.0f, semis1 / 12.0f) * (1.0f + expandRng_.valuePN() * er.dt1);
+        m2[idx] = mult2_[i] / std::pow(2.0f, semis2 / 12.0f) * (1.0f + expandRng_.valuePN() * er.dt2);
 
         float t = float(j) / float(er.count);
         a1[idx] = ampl1_[i] * er.loPct1 + ampl1_[i] * (1.0f - er.loPct1) * std::pow(t, er.power1);
@@ -839,26 +891,26 @@ protected:
     int pos{0}, len{1};
   };
 
-  int walk_seg_len(int baseLen, float evolve) {
+  int walk_seg_len(int baseLen, float evolve, Randomizer& rng) {
     float f = (evolve <= 0.0f) ? 1.0f
-                               : std::pow(1.0f + 3.0f * evolve, rng_.valuePN());
+                               : std::pow(1.0f + 3.0f * evolve, rng.valuePN());
     int len = int(float(baseLen) * f);
     return len < 1 ? 1 : len;
   }
 
-  void walk_init(MotionWalk& w, int baseLen, float evolve) {
-    w.cur = rng_.valuePN();
-    w.target = rng_.valuePN();
-    w.len = walk_seg_len(baseLen, evolve);
-    w.pos = int(rng_.range(0.0f, float(w.len)));  // stagger segment phase
+  void walk_init(MotionWalk& w, int baseLen, float evolve, Randomizer& rng) {
+    w.cur = rng.valuePN();
+    w.target = rng.valuePN();
+    w.len = walk_seg_len(baseLen, evolve, rng);
+    w.pos = int(rng.range(0.0f, float(w.len)));  // stagger segment phase
   }
 
-  float walk_advance(MotionWalk& w, int baseLen, float evolve) {
+  float walk_advance(MotionWalk& w, int baseLen, float evolve, Randomizer& rng) {
     if (w.pos >= w.len) {
       w.cur = w.target;
-      float amp = 1.0f + 0.7f * evolve * rng_.valuePN();
-      w.target = rng_.valuePN() * amp;
-      w.len = walk_seg_len(baseLen, evolve);
+      float amp = 1.0f + 0.7f * evolve * rng.valuePN();
+      w.target = rng.valuePN() * amp;
+      w.len = walk_seg_len(baseLen, evolve, rng);
       w.pos = 0;
     }
     float u = float(w.pos) / float(w.len);
@@ -867,7 +919,15 @@ protected:
     return w.cur + (w.target - w.cur) * s;
   }
 
-  Randomizer rng_;
+  // Rng streams — one per (partial, layer) for the layers with per-partial
+  // state, one per layer otherwise. All reseeded per note in partials_prepare
+  // from stream_seed(noteBase_, index, layerId); nothing in the render path
+  // shares a stream. baseSeed_ comes from the node's JSON "seed".
+  uint32_t baseSeed_;
+  uint32_t noteSeq_{0};   // note-on ordinal, hashed into noteBase_
+  uint32_t noteBase_{0};
+  Randomizer moSharedRng_{0u}, shSharedRng_{0u}, trRng_{0u}, expandRng_{0u};
+  std::vector<Randomizer> bwRng_, moRng_, shRng_;  // per-partial streams
 
   // Envelopes
   std::shared_ptr<ValueSource> multEnv_;
@@ -892,7 +952,7 @@ protected:
   float moDepth1_{0.0f}, moDepth2_{0.0f}, moHz_{4.0f};
   float moCoherence_{1.0f}, moEvolve_{0.0f}, moScale_{0.0f};
   float shDepth1_{0.0f}, shDepth2_{0.0f}, shHz_{3.0f};
-  float shCoherence_{0.0f}, shEvolve_{0.0f};
+  float shCoherence_{0.0f}, shEvolve_{0.0f}, shFloor_{0.0f};
   float trDepth_{0.0f}, trHz_{2.0f};
   float onsetSpread_{0.0f}, onsetTilt_{0.0f}, onsetFade_{0.03f};
 

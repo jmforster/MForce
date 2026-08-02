@@ -1,10 +1,33 @@
 #pragma once
 #include <random>
 #include <cmath>
+#include <cstdint>
 #include <algorithm>
 #include <vector>
 
 namespace mforce {
+
+// ---------------------------------------------------------------------------
+// splitmix64 finalizer — bit-mixing step used to derive independent rng
+// stream seeds. Full-avalanche: every input bit affects every output bit.
+// ---------------------------------------------------------------------------
+inline uint64_t splitmix64(uint64_t z) {
+  z += 0x9E3779B97F4A7C15ull;
+  z = (z ^ (z >> 30)) * 0xBF58476D1CE4E5B9ull;
+  z = (z ^ (z >> 27)) * 0x94D049BB133111EBull;
+  return z ^ (z >> 31);
+}
+
+// Seed for stream (baseSeed, index, layerId) — e.g. one rng stream per
+// (partial, noise-layer) pair in Partials, so no consumer's draws depend on
+// how many draws other consumers made (evaluation-order independence).
+// Two chained splitmix64 rounds; the 64-bit result is folded to the 32 bits
+// mt19937 seeding consumes.
+inline uint32_t stream_seed(uint32_t baseSeed, uint32_t index, uint32_t layerId) {
+  uint64_t z = splitmix64((uint64_t(baseSeed) << 32) | uint64_t(layerId));
+  z = splitmix64(z ^ uint64_t(index));
+  return uint32_t(z >> 32) ^ uint32_t(z);
+}
 
 struct Randomizer {
   explicit Randomizer(uint32_t seed = 0x12345678u) : rng(seed), uni01(0.0f, 1.0f) {}
