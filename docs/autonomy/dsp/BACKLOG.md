@@ -55,6 +55,13 @@ Priority order. Tags per WORKFLOW.md. (G1)-(G4) = GOALS.md Dipsy goals.
    GUI; both directions tested. Also fixed: printf from --stamp/--roundtrip was
    invisible from a console (WIN32 subsystem app), now attaches the parent
    console unless stdout is already redirected.
+3c2. **[build] FMSource phase param is dead** — found by the matrix2
+   batch: compute_wave_value uses its own carrierPhase_/modPhase_ and
+   never reads the inherited phase_, so 'phase' modulation (t1_06, t1_07
+   'PM' topologies) does nothing — those renders were plain FM,
+   byte-identical across phase variants. Fix = apply phase_ to the
+   carrier accumulator (true PM), THEN re-render the t1_06/t1_07
+   topologies as actually designed and A/B.
 3d. **[read] Pan-law question for Matt** — CLI WAVs are -3dB vs UI (equal-
    power center pan in StereoMixer vs unity mono). Option: mono patches
    write x1.0 to both channels so WAV loudness == UI loudness.
