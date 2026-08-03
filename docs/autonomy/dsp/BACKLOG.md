@@ -62,6 +62,17 @@ Priority order. Tags per WORKFLOW.md. (G1)-(G4) = GOALS.md Dipsy goals.
    byte-identical across phase variants. Fix = apply phase_ to the
    carrier accumulator (true PM), THEN re-render the t1_06/t1_07
    topologies as actually designed and A/B.
+3e. **[build] Piano engine features (from measurement)** — (a)
+   `inharmonicity` config on Partials: mults stretched by
+   sqrt(1+B*n^2) at note-on; per-note B via the existing paramMap
+   frequency-curve mechanism (B spans 225x across the keyboard,
+   measured laws in out/piano_analysis_report.md). (b) per-partial
+   decay: `decayRate`+`decayExp` configs (rate_i = rate*pmult^exp),
+   prepare-cached per-sample gain. Then piano encoder (~14-18 dims,
+   B+decay laws LOCKED from measurement per the clarinet-bed pattern;
+   knock = graph-level noise burst, no engine feature) + first CMA-ES
+   smoke. Prereq: iowa_reference onset-alignment (sample lead-ins vary
+   0.04-0.54s).
 3d. **[read] Pan-law question for Matt** — CLI WAVs are -3dB vs UI (equal-
    power center pan in StereoMixer vs unity mono). Option: mono patches
    write x1.0 to both channels so WAV loudness == UI loudness.

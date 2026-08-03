@@ -5,7 +5,7 @@ Updated: 2026-08-02 — comp run 13 (Wolfie, scheduled) · dsp run 16 (Dipsy, 20
 | Lane | Dev | Latest run | Backlog top | Awaiting your review |
 |---|---|---|---|---|
 | comp | Wolfie | run 14 (2026-08-02, interactive): final-note v2 (longest 96%); stages 3+4 VERIFIED (modulation real: F/F#/C# literal test); passage set v2 from Matt's specs — 58/58 checks, suite_v2 68.75 beats, modulating wander/fifths with proven accidentals | chord emission from template layer; stages 1-2 C++ strategies; scorer passage-mode | **3 items** — passage set v2 [listen], final-note A/B [listen], stage-3 acceptance [read] |
-| dsp | Dipsy | run 16 (2026-08-01 pm, interactive): per-partial rng LANDED (proofs; one-time re-roll); shimmerFloor + ladder; clarinet locked-bed 588-eval (0.916->0.774); FM matrix2 (60 renders) + DEAD phase param found; IPA formant catalog; piano mf scraped (86/88) | phase-param fix -> real PM batch; piano reference build; formant grid (gated on catalog read) | **6 items** — rng A/B, floor pick, x8/x9, matrix2, clarinet best_locked [listen] · formant catalog [read] |
+| dsp | Dipsy | run 17 (2026-08-02 pm, interactive): 6 verdicts folded (clarinet KEEPER -> clarinet_default; x8 width default; floor 0.8 measured-safe); vowel grid BUILT (56/56 verified, soprano problem documented); piano measured (inharmonicity V-curve, double decay, knock) + 2 engine features proposed | piano features (gated on read) -> piano encoder; F1-retuning question | **3 items** — vowel grid [listen/look], piano report + feature approval [read], shimmer answer [read] |
 
 Reports: comp/reports/2026-08-02-wolfie-run13.md ·
 dsp/reports/2026-08-01-dipsy-run14.md

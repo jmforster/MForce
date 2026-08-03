@@ -2,43 +2,34 @@
 
 ## Awaiting Matt
 
-### 1. rng re-roll acceptance [listen] (run 16)
-renders/rng_ab/ — A_shared vs B_perpartial for v6_cmaes_best +
-viola_default. One-time permanent re-roll (deltas to +-4dB/note; the new
-realizations are the forever ones). Not approval of a mechanism — just:
-do the B realizations sound fine?
+### 1. Vowel grid [listen/look] (run 17)
+patches/vowel_grid/ + renders/vowel_grid/ — your Speech_M/W/C x 12 +
+Sing_Bass..Soprano x 5 folder, 56/56 verified (rendered envelope ==
+patch spec exactly). README lists 11 physics-limited entries incl. the
+soprano problem (F1 < f0: real sopranos retune F1 to the note — a
+future feature if wanted). Verdict: spot-check by ear; is F1-retuning
+worth building; naming scheme OK?
 
-### 2. Shimmer gain floor [listen] (run 16)
-renders/shimmer_floor/ — v6_cmaes_best at floor 0 / 0.3 / 0.5 (final-note
-dip -12.6 / -8.6 / -4.4 dB, same location). Verdict: default floor.
+### 2. Piano analysis report [read] (run 17)
+research/ml_ears/out/piano_analysis_report.md — measured: inharmonicity
+V-curve (C6's 12th partial +422 cents sharp!), universal double decay,
+hammer knock = real broadband transient. TWO new engine features
+proposed (per-note inharmonicity config riding the freq-curve mechanism;
+per-partial decay rates) with B+decay LOCKED from measurement per your
+clarinet-bed pattern. Verdict: approve the two features -> piano encoder
++ first optimization.
 
-### 3. liar2 x8/x9 fills [listen] (run 16)
-renders/liar2/ liar2_110_x8/x9 + 220 — completes your 3..14 bracket
-around x7.
-
-### 4. FM matrix2 [listen] (run 16)
-renders/fm_matrix2/{modulated,ramped}/ — your 11 Y picks at lo/med/hi +
-effect-ramp attacks 0.1/0.2/0.5s. NOTE: t1_07 'PM' was an illusion — the
-FMSource phase param is dead (bug, fix backlogged); what you liked was
-plain FM + that envelope. Verdict: keepers -> named patch families.
-
-### 5. Clarinet best_locked [listen] (run 16)
-renders/cmaes_clarinet/best_locked.wav — 588-eval run with YOUR bed
-frozen verbatim; optimizer improved tone terms (motion halved, broadband
-0.95->0.71) around it. vs the c2c_quiet you hand-tuned. Verdict: is this
-the clarinet keeper; resume to 600+?
-
-### 6. Formant catalog [read] (run 16)
-docs/research/formants/CATALOG.md — your UC xls = the Csound Appendix D
-singing table verbatim (a/e/i/o/u = Italian close-mid set); Hillenbrand
-(M/W/C speech, F0-F4) + P&B + IPA F1/F2 downloaded; F5 exists in NO
-measured speech corpus (structural) -> Speech grid extrapolates top
-formants. Assembly plan at the end awaits your go.
-
-(also: piano_mf downloaded, 86/88 keys — A0/Bb0 missing at mf on the
-server; MANIFEST.md has options. No action needed yet.)
+### 3. Shimmer floor answer [read, closed unless you object]
+Floor 0.8 keeps 83% of measured fluctuation (0.326->0.270) — the floor
+trims the deep dives, not the shimmer. Adopted in viola_default +
+cmaes-best. Depth compensation impossible (at cap).
 
 ## Resolved
+
+2026-08-02 pm (Matt, folded in run 17): rng A/B fine; floor 0.8 (his
+hand-tune, measured safe); x8 = width default; FM held; clarinet
+best_locked = KEEPER (clarinet_default.json); formant assembly plan GO
+(grid built); piano next steps = analysis executed.
 
 2026-08-01 pm (Matt, folded in run 16): rng streams GO ("go ahead");
 liar2 x7 ~optimal (+x8/x9 for rigor); vowelseq "near on the money" ->
