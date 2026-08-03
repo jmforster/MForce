@@ -1,0 +1,1962 @@
+[
+ {
+  "file": "Speech_M_AE.json",
+  "group": "Speech_M",
+  "vowel": "ae",
+  "f0_nominal": 131.3,
+  "midi": 48,
+  "f0_rendered": 130.81,
+  "formants": [
+   {
+    "freq": 591.0,
+    "gain": 1.0,
+    "engine_width": 400.0
+   },
+   {
+    "freq": 1930.0,
+    "gain": 0.3062,
+    "engine_width": 560.0
+   },
+   {
+    "freq": 2595.0,
+    "gain": 0.2277,
+    "engine_width": 880.0
+   },
+   {
+    "freq": 3642.0,
+    "gain": 0.1623,
+    "engine_width": 2000.0
+   },
+   {
+    "freq": 3750.0,
+    "gain": 0.1576,
+    "engine_width": 1600.0
+   }
+  ]
+ },
+ {
+  "file": "Speech_M_AH.json",
+  "group": "Speech_M",
+  "vowel": "ah",
+  "f0_nominal": 131.3,
+  "midi": 48,
+  "f0_rendered": 130.81,
+  "formants": [
+   {
+    "freq": 756.0,
+    "gain": 1.0,
+    "engine_width": 400.0
+   },
+   {
+    "freq": 1309.0,
+    "gain": 0.5775,
+    "engine_width": 560.0
+   },
+   {
+    "freq": 2535.0,
+    "gain": 0.2982,
+    "engine_width": 880.0
+   },
+   {
+    "freq": 3684.0,
+    "gain": 0.2052,
+    "engine_width": 2000.0
+   },
+   {
+    "freq": 3750.0,
+    "gain": 0.2016,
+    "engine_width": 1600.0
+   }
+  ]
+ },
+ {
+  "file": "Speech_M_AW.json",
+  "group": "Speech_M",
+  "vowel": "aw",
+  "f0_nominal": 131.3,
+  "midi": 48,
+  "f0_rendered": 130.81,
+  "formants": [
+   {
+    "freq": 656.0,
+    "gain": 1.0,
+    "engine_width": 400.0
+   },
+   {
+    "freq": 1023.0,
+    "gain": 0.6413,
+    "engine_width": 560.0
+   },
+   {
+    "freq": 2521.0,
+    "gain": 0.2602,
+    "engine_width": 880.0
+   },
+   {
+    "freq": 3520.0,
+    "gain": 0.1864,
+    "engine_width": 2000.0
+   },
+   {
+    "freq": 3750.0,
+    "gain": 0.1749,
+    "engine_width": 1600.0
+   }
+  ]
+ },
+ {
+  "file": "Speech_M_EH.json",
+  "group": "Speech_M",
+  "vowel": "eh",
+  "f0_nominal": 131.3,
+  "midi": 48,
+  "f0_rendered": 130.81,
+  "formants": [
+   {
+    "freq": 588.0,
+    "gain": 1.0,
+    "engine_width": 400.0
+   },
+   {
+    "freq": 1803.0,
+    "gain": 0.3261,
+    "engine_width": 560.0
+   },
+   {
+    "freq": 2604.0,
+    "gain": 0.2258,
+    "engine_width": 880.0
+   },
+   {
+    "freq": 3699.0,
+    "gain": 0.159,
+    "engine_width": 2000.0
+   },
+   {
+    "freq": 3750.0,
+    "gain": 0.1568,
+    "engine_width": 1600.0
+   }
+  ]
+ },
+ {
+  "file": "Speech_M_EI.json",
+  "group": "Speech_M",
+  "vowel": "ei",
+  "f0_nominal": 131.3,
+  "midi": 48,
+  "f0_rendered": 130.81,
+  "formants": [
+   {
+    "freq": 476.0,
+    "gain": 1.0,
+    "engine_width": 400.0
+   },
+   {
+    "freq": 2090.0,
+    "gain": 0.2278,
+    "engine_width": 560.0
+   },
+   {
+    "freq": 2692.0,
+    "gain": 0.1768,
+    "engine_width": 880.0
+   },
+   {
+    "freq": 3649.0,
+    "gain": 0.1304,
+    "engine_width": 2000.0
+   },
+   {
+    "freq": 3750.0,
+    "gain": 0.1269,
+    "engine_width": 1600.0
+   }
+  ]
+ },
+ {
+  "file": "Speech_M_ER.json",
+  "group": "Speech_M",
+  "vowel": "er",
+  "f0_nominal": 131.3,
+  "midi": 48,
+  "f0_rendered": 130.81,
+  "formants": [
+   {
+    "freq": 475.0,
+    "gain": 1.0,
+    "engine_width": 400.0
+   },
+   {
+    "freq": 1379.0,
+    "gain": 0.3445,
+    "engine_width": 560.0
+   },
+   {
+    "freq": 1711.0,
+    "gain": 0.2776,
+    "engine_width": 880.0
+   },
+   {
+    "freq": 3335.0,
+    "gain": 0.1424,
+    "engine_width": 2000.0
+   },
+   {
+    "freq": 3750.0,
+    "gain": 0.1267,
+    "engine_width": 1600.0
+   }
+  ]
+ },
+ {
+  "file": "Speech_M_IH.json",
+  "group": "Speech_M",
+  "vowel": "ih",
+  "f0_nominal": 131.3,
+  "midi": 48,
+  "f0_rendered": 130.81,
+  "formants": [
+   {
+    "freq": 429.0,
+    "gain": 1.0,
+    "engine_width": 400.0
+   },
+   {
+    "freq": 2034.0,
+    "gain": 0.2109,
+    "engine_width": 560.0
+   },
+   {
+    "freq": 2687.0,
+    "gain": 0.1597,
+    "engine_width": 880.0
+   },
+   {
+    "freq": 3628.0,
+    "gain": 0.1182,
+    "engine_width": 2000.0
+   },
+   {
+    "freq": 3750.0,
+    "gain": 0.1144,
+    "engine_width": 1600.0
+   }
+  ]
+ },
+ {
+  "file": "Speech_M_IY.json",
+  "group": "Speech_M",
+  "vowel": "iy",
+  "f0_nominal": 131.3,
+  "midi": 48,
+  "f0_rendered": 130.81,
+  "formants": [
+   {
+    "freq": 343.0,
+    "gain": 1.0,
+    "engine_width": 400.0
+   },
+   {
+    "freq": 2323.0,
+    "gain": 0.1477,
+    "engine_width": 560.0
+   },
+   {
+    "freq": 3001.0,
+    "gain": 0.1143,
+    "engine_width": 880.0
+   },
+   {
+    "freq": 3658.0,
+    "gain": 0.0938,
+    "engine_width": 2000.0
+   },
+   {
+    "freq": 3750.0,
+    "gain": 0.0915,
+    "engine_width": 1600.0
+   }
+  ]
+ },
+ {
+  "file": "Speech_M_OA.json",
+  "group": "Speech_M",
+  "vowel": "oa",
+  "f0_nominal": 131.3,
+  "midi": 48,
+  "f0_rendered": 130.81,
+  "formants": [
+   {
+    "freq": 498.0,
+    "gain": 1.0,
+    "engine_width": 400.0
+   },
+   {
+    "freq": 910.0,
+    "gain": 0.5473,
+    "engine_width": 560.0
+   },
+   {
+    "freq": 2459.0,
+    "gain": 0.2025,
+    "engine_width": 880.0
+   },
+   {
+    "freq": 3384.0,
+    "gain": 0.1472,
+    "engine_width": 2000.0
+   },
+   {
+    "freq": 3750.0,
+    "gain": 0.1328,
+    "engine_width": 1600.0
+   }
+  ]
+ },
+ {
+  "file": "Speech_M_OO.json",
+  "group": "Speech_M",
+  "vowel": "oo",
+  "f0_nominal": 131.3,
+  "midi": 48,
+  "f0_rendered": 130.81,
+  "formants": [
+   {
+    "freq": 469.0,
+    "gain": 1.0,
+    "engine_width": 400.0
+   },
+   {
+    "freq": 1123.0,
+    "gain": 0.4176,
+    "engine_width": 560.0
+   },
+   {
+    "freq": 2435.0,
+    "gain": 0.1926,
+    "engine_width": 880.0
+   },
+   {
+    "freq": 3401.0,
+    "gain": 0.1379,
+    "engine_width": 2000.0
+   },
+   {
+    "freq": 3750.0,
+    "gain": 0.1251,
+    "engine_width": 1600.0
+   }
+  ]
+ },
+ {
+  "file": "Speech_M_UH.json",
+  "group": "Speech_M",
+  "vowel": "uh",
+  "f0_nominal": 131.3,
+  "midi": 48,
+  "f0_rendered": 130.81,
+  "formants": [
+   {
+    "freq": 621.0,
+    "gain": 1.0,
+    "engine_width": 400.0
+   },
+   {
+    "freq": 1181.0,
+    "gain": 0.5258,
+    "engine_width": 560.0
+   },
+   {
+    "freq": 2548.0,
+    "gain": 0.2437,
+    "engine_width": 880.0
+   },
+   {
+    "freq": 3564.0,
+    "gain": 0.1742,
+    "engine_width": 2000.0
+   },
+   {
+    "freq": 3750.0,
+    "gain": 0.1656,
+    "engine_width": 1600.0
+   }
+  ]
+ },
+ {
+  "file": "Speech_M_UW.json",
+  "group": "Speech_M",
+  "vowel": "uw",
+  "f0_nominal": 131.3,
+  "midi": 48,
+  "f0_rendered": 130.81,
+  "formants": [
+   {
+    "freq": 380.0,
+    "gain": 1.0,
+    "engine_width": 400.0
+   },
+   {
+    "freq": 992.0,
+    "gain": 0.3831,
+    "engine_width": 560.0
+   },
+   {
+    "freq": 2355.0,
+    "gain": 0.1614,
+    "engine_width": 880.0
+   },
+   {
+    "freq": 3378.0,
+    "gain": 0.1125,
+    "engine_width": 2000.0
+   },
+   {
+    "freq": 3750.0,
+    "gain": 0.1013,
+    "engine_width": 1600.0
+   }
+  ]
+ },
+ {
+  "file": "Speech_W_AE.json",
+  "group": "Speech_W",
+  "vowel": "ae",
+  "f0_nominal": 220.4,
+  "midi": 57,
+  "f0_rendered": 220.0,
+  "formants": [
+   {
+    "freq": 676.0,
+    "gain": 1.0,
+    "engine_width": 400.0
+   },
+   {
+    "freq": 2335.0,
+    "gain": 0.2895,
+    "engine_width": 560.0
+   },
+   {
+    "freq": 2973.0,
+    "gain": 0.2274,
+    "engine_width": 880.0
+   },
+   {
+    "freq": 4315.0,
+    "gain": 0.1567,
+    "engine_width": 2000.0
+   },
+   {
+    "freq": 4267.4,
+    "gain": 0.1584,
+    "engine_width": 1600.0
+   }
+  ]
+ },
+ {
+  "file": "Speech_W_AH.json",
+  "group": "Speech_W",
+  "vowel": "ah",
+  "f0_nominal": 220.4,
+  "midi": 57,
+  "f0_rendered": 220.0,
+  "formants": [
+   {
+    "freq": 921.0,
+    "gain": 1.0,
+    "engine_width": 400.0
+   },
+   {
+    "freq": 1526.0,
+    "gain": 0.6035,
+    "engine_width": 560.0
+   },
+   {
+    "freq": 2832.0,
+    "gain": 0.3252,
+    "engine_width": 880.0
+   },
+   {
+    "freq": 4291.0,
+    "gain": 0.2146,
+    "engine_width": 2000.0
+   },
+   {
+    "freq": 4267.4,
+    "gain": 0.2158,
+    "engine_width": 1600.0
+   }
+  ]
+ },
+ {
+  "file": "Speech_W_AW.json",
+  "group": "Speech_W",
+  "vowel": "aw",
+  "f0_nominal": 220.4,
+  "midi": 57,
+  "f0_rendered": 220.0,
+  "formants": [
+   {
+    "freq": 804.0,
+    "gain": 1.0,
+    "engine_width": 400.0
+   },
+   {
+    "freq": 1188.0,
+    "gain": 0.6768,
+    "engine_width": 560.0
+   },
+   {
+    "freq": 2824.0,
+    "gain": 0.2847,
+    "engine_width": 880.0
+   },
+   {
+    "freq": 3946.0,
+    "gain": 0.2038,
+    "engine_width": 2000.0
+   },
+   {
+    "freq": 4267.4,
+    "gain": 0.1884,
+    "engine_width": 1600.0
+   }
+  ]
+ },
+ {
+  "file": "Speech_W_EH.json",
+  "group": "Speech_W",
+  "vowel": "eh",
+  "f0_nominal": 220.4,
+  "midi": 57,
+  "f0_rendered": 220.0,
+  "formants": [
+   {
+    "freq": 727.0,
+    "gain": 1.0,
+    "engine_width": 400.0
+   },
+   {
+    "freq": 2063.0,
+    "gain": 0.3524,
+    "engine_width": 560.0
+   },
+   {
+    "freq": 2953.0,
+    "gain": 0.2462,
+    "engine_width": 880.0
+   },
+   {
+    "freq": 4312.0,
+    "gain": 0.1686,
+    "engine_width": 2000.0
+   },
+   {
+    "freq": 4267.4,
+    "gain": 0.1704,
+    "engine_width": 1600.0
+   }
+  ]
+ },
+ {
+  "file": "Speech_W_EI.json",
+  "group": "Speech_W",
+  "vowel": "ei",
+  "f0_nominal": 220.4,
+  "midi": 57,
+  "f0_rendered": 220.0,
+  "formants": [
+   {
+    "freq": 535.0,
+    "gain": 1.0,
+    "engine_width": 400.0
+   },
+   {
+    "freq": 2526.0,
+    "gain": 0.2118,
+    "engine_width": 560.0
+   },
+   {
+    "freq": 3050.0,
+    "gain": 0.1754,
+    "engine_width": 880.0
+   },
+   {
+    "freq": 4308.0,
+    "gain": 0.1242,
+    "engine_width": 2000.0
+   },
+   {
+    "freq": 4267.4,
+    "gain": 0.1254,
+    "engine_width": 1600.0
+   }
+  ]
+ },
+ {
+  "file": "Speech_W_ER.json",
+  "group": "Speech_W",
+  "vowel": "er",
+  "f0_nominal": 220.4,
+  "midi": 57,
+  "f0_rendered": 220.0,
+  "formants": [
+   {
+    "freq": 524.0,
+    "gain": 1.0,
+    "engine_width": 400.0
+   },
+   {
+    "freq": 1588.0,
+    "gain": 0.33,
+    "engine_width": 560.0
+   },
+   {
+    "freq": 1930.0,
+    "gain": 0.2715,
+    "engine_width": 880.0
+   },
+   {
+    "freq": 3914.0,
+    "gain": 0.1339,
+    "engine_width": 2000.0
+   },
+   {
+    "freq": 4267.4,
+    "gain": 0.1228,
+    "engine_width": 1600.0
+   }
+  ]
+ },
+ {
+  "file": "Speech_W_IH.json",
+  "group": "Speech_W",
+  "vowel": "ih",
+  "f0_nominal": 220.4,
+  "midi": 57,
+  "f0_rendered": 220.0,
+  "formants": [
+   {
+    "freq": 484.0,
+    "gain": 1.0,
+    "engine_width": 400.0
+   },
+   {
+    "freq": 2369.0,
+    "gain": 0.2043,
+    "engine_width": 560.0
+   },
+   {
+    "freq": 3057.0,
+    "gain": 0.1583,
+    "engine_width": 880.0
+   },
+   {
+    "freq": 4333.0,
+    "gain": 0.1117,
+    "engine_width": 2000.0
+   },
+   {
+    "freq": 4267.4,
+    "gain": 0.1134,
+    "engine_width": 1600.0
+   }
+  ]
+ },
+ {
+  "file": "Speech_W_IY.json",
+  "group": "Speech_W",
+  "vowel": "iy",
+  "f0_nominal": 220.4,
+  "midi": 57,
+  "f0_rendered": 220.0,
+  "formants": [
+   {
+    "freq": 437.0,
+    "gain": 1.0,
+    "engine_width": 400.0
+   },
+   {
+    "freq": 2761.0,
+    "gain": 0.1583,
+    "engine_width": 560.0
+   },
+   {
+    "freq": 3373.0,
+    "gain": 0.1296,
+    "engine_width": 880.0
+   },
+   {
+    "freq": 4353.0,
+    "gain": 0.1004,
+    "engine_width": 2000.0
+   },
+   {
+    "freq": 4267.4,
+    "gain": 0.1024,
+    "engine_width": 1600.0
+   }
+  ]
+ },
+ {
+  "file": "Speech_W_OA.json",
+  "group": "Speech_W",
+  "vowel": "oa",
+  "f0_nominal": 220.4,
+  "midi": 57,
+  "f0_rendered": 220.0,
+  "formants": [
+   {
+    "freq": 555.0,
+    "gain": 1.0,
+    "engine_width": 400.0
+   },
+   {
+    "freq": 1036.0,
+    "gain": 0.5357,
+    "engine_width": 560.0
+   },
+   {
+    "freq": 2828.0,
+    "gain": 0.1963,
+    "engine_width": 880.0
+   },
+   {
+    "freq": 3928.0,
+    "gain": 0.1413,
+    "engine_width": 2000.0
+   },
+   {
+    "freq": 4267.4,
+    "gain": 0.1301,
+    "engine_width": 1600.0
+   }
+  ]
+ },
+ {
+  "file": "Speech_W_OO.json",
+  "group": "Speech_W",
+  "vowel": "oo",
+  "f0_nominal": 220.4,
+  "midi": 57,
+  "f0_rendered": 220.0,
+  "formants": [
+   {
+    "freq": 519.0,
+    "gain": 1.0,
+    "engine_width": 400.0
+   },
+   {
+    "freq": 1229.0,
+    "gain": 0.4223,
+    "engine_width": 560.0
+   },
+   {
+    "freq": 2829.0,
+    "gain": 0.1835,
+    "engine_width": 880.0
+   },
+   {
+    "freq": 4061.0,
+    "gain": 0.1278,
+    "engine_width": 2000.0
+   },
+   {
+    "freq": 4267.4,
+    "gain": 0.1216,
+    "engine_width": 1600.0
+   }
+  ]
+ },
+ {
+  "file": "Speech_W_UH.json",
+  "group": "Speech_W",
+  "vowel": "uh",
+  "f0_nominal": 220.4,
+  "midi": 57,
+  "f0_rendered": 220.0,
+  "formants": [
+   {
+    "freq": 760.0,
+    "gain": 1.0,
+    "engine_width": 400.0
+   },
+   {
+    "freq": 1416.0,
+    "gain": 0.5367,
+    "engine_width": 560.0
+   },
+   {
+    "freq": 2901.0,
+    "gain": 0.262,
+    "engine_width": 880.0
+   },
+   {
+    "freq": 4133.0,
+    "gain": 0.1839,
+    "engine_width": 2000.0
+   },
+   {
+    "freq": 4267.4,
+    "gain": 0.1781,
+    "engine_width": 1600.0
+   }
+  ]
+ },
+ {
+  "file": "Speech_W_UW.json",
+  "group": "Speech_W",
+  "vowel": "uw",
+  "f0_nominal": 220.4,
+  "midi": 57,
+  "f0_rendered": 220.0,
+  "formants": [
+   {
+    "freq": 460.0,
+    "gain": 1.0,
+    "engine_width": 400.0
+   },
+   {
+    "freq": 1106.0,
+    "gain": 0.4159,
+    "engine_width": 560.0
+   },
+   {
+    "freq": 2735.0,
+    "gain": 0.1682,
+    "engine_width": 880.0
+   },
+   {
+    "freq": 4116.0,
+    "gain": 0.1118,
+    "engine_width": 2000.0
+   },
+   {
+    "freq": 4267.4,
+    "gain": 0.1078,
+    "engine_width": 1600.0
+   }
+  ]
+ },
+ {
+  "file": "Speech_C_AE.json",
+  "group": "Speech_C",
+  "vowel": "ae",
+  "f0_nominal": 237.2,
+  "midi": 58,
+  "f0_rendered": 233.08,
+  "formants": [
+   {
+    "freq": 721.0,
+    "gain": 1.0,
+    "engine_width": 400.0
+   },
+   {
+    "freq": 2502.0,
+    "gain": 0.2882,
+    "engine_width": 560.0
+   },
+   {
+    "freq": 3308.5,
+    "gain": 0.2179,
+    "engine_width": 880.0
+   },
+   {
+    "freq": 4428.6,
+    "gain": 0.1628,
+    "engine_width": 2000.0
+   },
+   {
+    "freq": 4649.4,
+    "gain": 0.1551,
+    "engine_width": 1600.0
+   }
+  ]
+ },
+ {
+  "file": "Speech_C_AH.json",
+  "group": "Speech_C",
+  "vowel": "ah",
+  "f0_nominal": 237.2,
+  "midi": 58,
+  "f0_rendered": 233.08,
+  "formants": [
+   {
+    "freq": 999.0,
+    "gain": 1.0,
+    "engine_width": 400.0
+   },
+   {
+    "freq": 1695.0,
+    "gain": 0.5894,
+    "engine_width": 560.0
+   },
+   {
+    "freq": 2948.5,
+    "gain": 0.3388,
+    "engine_width": 880.0
+   },
+   {
+    "freq": 4278.7,
+    "gain": 0.2335,
+    "engine_width": 2000.0
+   },
+   {
+    "freq": 4649.4,
+    "gain": 0.2149,
+    "engine_width": 1600.0
+   }
+  ]
+ },
+ {
+  "file": "Speech_C_AW.json",
+  "group": "Speech_C",
+  "vowel": "aw",
+  "f0_nominal": 237.2,
+  "midi": 58,
+  "f0_rendered": 233.08,
+  "formants": [
+   {
+    "freq": 845.5,
+    "gain": 1.0,
+    "engine_width": 400.0
+   },
+   {
+    "freq": 1314.5,
+    "gain": 0.6432,
+    "engine_width": 560.0
+   },
+   {
+    "freq": 2966.5,
+    "gain": 0.285,
+    "engine_width": 880.0
+   },
+   {
+    "freq": 4017.6,
+    "gain": 0.2105,
+    "engine_width": 2000.0
+   },
+   {
+    "freq": 4649.4,
+    "gain": 0.1818,
+    "engine_width": 1600.0
+   }
+  ]
+ },
+ {
+  "file": "Speech_C_EH.json",
+  "group": "Speech_C",
+  "vowel": "eh",
+  "f0_nominal": 237.2,
+  "midi": 58,
+  "f0_rendered": 233.08,
+  "formants": [
+   {
+    "freq": 742.5,
+    "gain": 1.0,
+    "engine_width": 400.0
+   },
+   {
+    "freq": 2290.0,
+    "gain": 0.3242,
+    "engine_width": 560.0
+   },
+   {
+    "freq": 3311.5,
+    "gain": 0.2242,
+    "engine_width": 880.0
+   },
+   {
+    "freq": 4651.1,
+    "gain": 0.1596,
+    "engine_width": 2000.0
+   },
+   {
+    "freq": 4649.4,
+    "gain": 0.1597,
+    "engine_width": 1600.0
+   }
+  ]
+ },
+ {
+  "file": "Speech_C_EI.json",
+  "group": "Speech_C",
+  "vowel": "ei",
+  "f0_nominal": 237.2,
+  "midi": 58,
+  "f0_rendered": 233.08,
+  "formants": [
+   {
+    "freq": 565.0,
+    "gain": 1.0,
+    "engine_width": 400.0
+   },
+   {
+    "freq": 2657.5,
+    "gain": 0.2126,
+    "engine_width": 560.0
+   },
+   {
+    "freq": 3331.0,
+    "gain": 0.1696,
+    "engine_width": 880.0
+   },
+   {
+    "freq": 4419.6,
+    "gain": 0.1278,
+    "engine_width": 2000.0
+   },
+   {
+    "freq": 4649.4,
+    "gain": 0.1215,
+    "engine_width": 1600.0
+   }
+  ]
+ },
+ {
+  "file": "Speech_C_ER.json",
+  "group": "Speech_C",
+  "vowel": "er",
+  "f0_nominal": 237.2,
+  "midi": 58,
+  "f0_rendered": 233.08,
+  "formants": [
+   {
+    "freq": 590.5,
+    "gain": 1.0,
+    "engine_width": 400.0
+   },
+   {
+    "freq": 1723.0,
+    "gain": 0.3427,
+    "engine_width": 560.0
+   },
+   {
+    "freq": 2171.0,
+    "gain": 0.272,
+    "engine_width": 880.0
+   },
+   {
+    "freq": 3793.8,
+    "gain": 0.1556,
+    "engine_width": 2000.0
+   },
+   {
+    "freq": 4649.4,
+    "gain": 0.127,
+    "engine_width": 1600.0
+   }
+  ]
+ },
+ {
+  "file": "Speech_C_IH.json",
+  "group": "Speech_C",
+  "vowel": "ih",
+  "f0_nominal": 237.2,
+  "midi": 58,
+  "f0_rendered": 233.08,
+  "formants": [
+   {
+    "freq": 512.0,
+    "gain": 1.0,
+    "engine_width": 400.0
+   },
+   {
+    "freq": 2569.0,
+    "gain": 0.1993,
+    "engine_width": 560.0
+   },
+   {
+    "freq": 3424.0,
+    "gain": 0.1495,
+    "engine_width": 880.0
+   },
+   {
+    "freq": 4568.8,
+    "gain": 0.1121,
+    "engine_width": 2000.0
+   },
+   {
+    "freq": 4649.4,
+    "gain": 0.1101,
+    "engine_width": 1600.0
+   }
+  ]
+ },
+ {
+  "file": "Speech_C_IY.json",
+  "group": "Speech_C",
+  "vowel": "iy",
+  "f0_nominal": 237.2,
+  "midi": 58,
+  "f0_rendered": 233.08,
+  "formants": [
+   {
+    "freq": 454.0,
+    "gain": 1.0,
+    "engine_width": 400.0
+   },
+   {
+    "freq": 3093.5,
+    "gain": 0.1468,
+    "engine_width": 560.0
+   },
+   {
+    "freq": 3710.0,
+    "gain": 0.1224,
+    "engine_width": 880.0
+   },
+   {
+    "freq": 4572.4,
+    "gain": 0.0993,
+    "engine_width": 2000.0
+   },
+   {
+    "freq": 4649.4,
+    "gain": 0.0976,
+    "engine_width": 1600.0
+   }
+  ]
+ },
+ {
+  "file": "Speech_C_OA.json",
+  "group": "Speech_C",
+  "vowel": "oa",
+  "f0_nominal": 237.2,
+  "midi": 58,
+  "f0_rendered": 233.08,
+  "formants": [
+   {
+    "freq": 597.5,
+    "gain": 1.0,
+    "engine_width": 400.0
+   },
+   {
+    "freq": 1140.5,
+    "gain": 0.5239,
+    "engine_width": 560.0
+   },
+   {
+    "freq": 3020.5,
+    "gain": 0.1978,
+    "engine_width": 880.0
+   },
+   {
+    "freq": 4186.6,
+    "gain": 0.1427,
+    "engine_width": 2000.0
+   },
+   {
+    "freq": 4649.4,
+    "gain": 0.1285,
+    "engine_width": 1600.0
+   }
+  ]
+ },
+ {
+  "file": "Speech_C_OO.json",
+  "group": "Speech_C",
+  "vowel": "oo",
+  "f0_nominal": 237.2,
+  "midi": 58,
+  "f0_rendered": 233.08,
+  "formants": [
+   {
+    "freq": 571.0,
+    "gain": 1.0,
+    "engine_width": 400.0
+   },
+   {
+    "freq": 1517.0,
+    "gain": 0.3764,
+    "engine_width": 560.0
+   },
+   {
+    "freq": 3092.5,
+    "gain": 0.1846,
+    "engine_width": 880.0
+   },
+   {
+    "freq": 4304.6,
+    "gain": 0.1326,
+    "engine_width": 2000.0
+   },
+   {
+    "freq": 4649.4,
+    "gain": 0.1228,
+    "engine_width": 1600.0
+   }
+  ]
+ },
+ {
+  "file": "Speech_C_UH.json",
+  "group": "Speech_C",
+  "vowel": "uh",
+  "f0_nominal": 237.2,
+  "midi": 58,
+  "f0_rendered": 233.08,
+  "formants": [
+   {
+    "freq": 743.0,
+    "gain": 1.0,
+    "engine_width": 400.0
+   },
+   {
+    "freq": 1548.5,
+    "gain": 0.4798,
+    "engine_width": 560.0
+   },
+   {
+    "freq": 3138.5,
+    "gain": 0.2367,
+    "engine_width": 880.0
+   },
+   {
+    "freq": 4301.1,
+    "gain": 0.1727,
+    "engine_width": 2000.0
+   },
+   {
+    "freq": 4649.4,
+    "gain": 0.1598,
+    "engine_width": 1600.0
+   }
+  ]
+ },
+ {
+  "file": "Speech_C_UW.json",
+  "group": "Speech_C",
+  "vowel": "uw",
+  "f0_nominal": 237.2,
+  "midi": 58,
+  "f0_rendered": 233.08,
+  "formants": [
+   {
+    "freq": 492.5,
+    "gain": 1.0,
+    "engine_width": 400.0
+   },
+   {
+    "freq": 1418.5,
+    "gain": 0.3472,
+    "engine_width": 560.0
+   },
+   {
+    "freq": 3000.0,
+    "gain": 0.1642,
+    "engine_width": 880.0
+   },
+   {
+    "freq": 4268.1,
+    "gain": 0.1154,
+    "engine_width": 2000.0
+   },
+   {
+    "freq": 4649.4,
+    "gain": 0.1059,
+    "engine_width": 1600.0
+   }
+  ]
+ },
+ {
+  "file": "Sing_Bass_A.json",
+  "group": "Sing_Bass",
+  "vowel": "a",
+  "f0_nominal": 110.0,
+  "midi": 45,
+  "f0_rendered": 110.0,
+  "formants": [
+   {
+    "freq": 600.0,
+    "gain": 1.0,
+    "engine_width": 480.0
+   },
+   {
+    "freq": 1040.0,
+    "gain": 0.4467,
+    "engine_width": 560.0
+   },
+   {
+    "freq": 2250.0,
+    "gain": 0.3548,
+    "engine_width": 880.0
+   },
+   {
+    "freq": 2450.0,
+    "gain": 0.3548,
+    "engine_width": 960.0
+   },
+   {
+    "freq": 2750.0,
+    "gain": 0.1,
+    "engine_width": 1040.0
+   }
+  ]
+ },
+ {
+  "file": "Sing_Bass_E.json",
+  "group": "Sing_Bass",
+  "vowel": "e",
+  "f0_nominal": 110.0,
+  "midi": 45,
+  "f0_rendered": 110.0,
+  "formants": [
+   {
+    "freq": 400.0,
+    "gain": 1.0,
+    "engine_width": 320.0
+   },
+   {
+    "freq": 1620.0,
+    "gain": 0.2512,
+    "engine_width": 640.0
+   },
+   {
+    "freq": 2400.0,
+    "gain": 0.3548,
+    "engine_width": 800.0
+   },
+   {
+    "freq": 2800.0,
+    "gain": 0.2512,
+    "engine_width": 960.0
+   },
+   {
+    "freq": 3100.0,
+    "gain": 0.1259,
+    "engine_width": 960.0
+   }
+  ]
+ },
+ {
+  "file": "Sing_Bass_I.json",
+  "group": "Sing_Bass",
+  "vowel": "i",
+  "f0_nominal": 110.0,
+  "midi": 45,
+  "f0_rendered": 110.0,
+  "formants": [
+   {
+    "freq": 250.0,
+    "gain": 1.0,
+    "engine_width": 480.0
+   },
+   {
+    "freq": 1750.0,
+    "gain": 0.0316,
+    "engine_width": 720.0
+   },
+   {
+    "freq": 2600.0,
+    "gain": 0.1585,
+    "engine_width": 800.0
+   },
+   {
+    "freq": 3050.0,
+    "gain": 0.0794,
+    "engine_width": 960.0
+   },
+   {
+    "freq": 3340.0,
+    "gain": 0.0398,
+    "engine_width": 960.0
+   }
+  ]
+ },
+ {
+  "file": "Sing_Bass_O.json",
+  "group": "Sing_Bass",
+  "vowel": "o",
+  "f0_nominal": 110.0,
+  "midi": 45,
+  "f0_rendered": 110.0,
+  "formants": [
+   {
+    "freq": 400.0,
+    "gain": 1.0,
+    "engine_width": 320.0
+   },
+   {
+    "freq": 750.0,
+    "gain": 0.2818,
+    "engine_width": 640.0
+   },
+   {
+    "freq": 2400.0,
+    "gain": 0.0891,
+    "engine_width": 800.0
+   },
+   {
+    "freq": 2600.0,
+    "gain": 0.1,
+    "engine_width": 960.0
+   },
+   {
+    "freq": 2900.0,
+    "gain": 0.01,
+    "engine_width": 960.0
+   }
+  ]
+ },
+ {
+  "file": "Sing_Bass_U.json",
+  "group": "Sing_Bass",
+  "vowel": "u",
+  "f0_nominal": 110.0,
+  "midi": 45,
+  "f0_rendered": 110.0,
+  "formants": [
+   {
+    "freq": 350.0,
+    "gain": 1.0,
+    "engine_width": 320.0
+   },
+   {
+    "freq": 600.0,
+    "gain": 0.1,
+    "engine_width": 640.0
+   },
+   {
+    "freq": 2400.0,
+    "gain": 0.0251,
+    "engine_width": 800.0
+   },
+   {
+    "freq": 2675.0,
+    "gain": 0.0398,
+    "engine_width": 960.0
+   },
+   {
+    "freq": 2950.0,
+    "gain": 0.0158,
+    "engine_width": 960.0
+   }
+  ]
+ },
+ {
+  "file": "Sing_Tenor_A.json",
+  "group": "Sing_Tenor",
+  "vowel": "a",
+  "f0_nominal": 165.0,
+  "midi": 52,
+  "f0_rendered": 164.81,
+  "formants": [
+   {
+    "freq": 650.0,
+    "gain": 1.0,
+    "engine_width": 640.0
+   },
+   {
+    "freq": 1080.0,
+    "gain": 0.5012,
+    "engine_width": 720.0
+   },
+   {
+    "freq": 2650.0,
+    "gain": 0.4467,
+    "engine_width": 960.0
+   },
+   {
+    "freq": 2900.0,
+    "gain": 0.3981,
+    "engine_width": 1040.0
+   },
+   {
+    "freq": 3250.0,
+    "gain": 0.0794,
+    "engine_width": 1120.0
+   }
+  ]
+ },
+ {
+  "file": "Sing_Tenor_E.json",
+  "group": "Sing_Tenor",
+  "vowel": "e",
+  "f0_nominal": 165.0,
+  "midi": 52,
+  "f0_rendered": 164.81,
+  "formants": [
+   {
+    "freq": 400.0,
+    "gain": 1.0,
+    "engine_width": 560.0
+   },
+   {
+    "freq": 1700.0,
+    "gain": 0.1995,
+    "engine_width": 640.0
+   },
+   {
+    "freq": 2600.0,
+    "gain": 0.2512,
+    "engine_width": 800.0
+   },
+   {
+    "freq": 3200.0,
+    "gain": 0.1995,
+    "engine_width": 960.0
+   },
+   {
+    "freq": 3580.0,
+    "gain": 0.1,
+    "engine_width": 960.0
+   }
+  ]
+ },
+ {
+  "file": "Sing_Tenor_I.json",
+  "group": "Sing_Tenor",
+  "vowel": "i",
+  "f0_nominal": 165.0,
+  "midi": 52,
+  "f0_rendered": 164.81,
+  "formants": [
+   {
+    "freq": 290.0,
+    "gain": 1.0,
+    "engine_width": 320.0
+   },
+   {
+    "freq": 1870.0,
+    "gain": 0.1778,
+    "engine_width": 720.0
+   },
+   {
+    "freq": 2800.0,
+    "gain": 0.1259,
+    "engine_width": 800.0
+   },
+   {
+    "freq": 3250.0,
+    "gain": 0.1,
+    "engine_width": 960.0
+   },
+   {
+    "freq": 3540.0,
+    "gain": 0.0316,
+    "engine_width": 960.0
+   }
+  ]
+ },
+ {
+  "file": "Sing_Tenor_O.json",
+  "group": "Sing_Tenor",
+  "vowel": "o",
+  "f0_nominal": 165.0,
+  "midi": 52,
+  "f0_rendered": 164.81,
+  "formants": [
+   {
+    "freq": 400.0,
+    "gain": 1.0,
+    "engine_width": 320.0
+   },
+   {
+    "freq": 800.0,
+    "gain": 0.3162,
+    "engine_width": 640.0
+   },
+   {
+    "freq": 2600.0,
+    "gain": 0.2512,
+    "engine_width": 800.0
+   },
+   {
+    "freq": 2800.0,
+    "gain": 0.2512,
+    "engine_width": 960.0
+   },
+   {
+    "freq": 3000.0,
+    "gain": 0.0501,
+    "engine_width": 960.0
+   }
+  ]
+ },
+ {
+  "file": "Sing_Tenor_U.json",
+  "group": "Sing_Tenor",
+  "vowel": "u",
+  "f0_nominal": 165.0,
+  "midi": 52,
+  "f0_rendered": 164.81,
+  "formants": [
+   {
+    "freq": 350.0,
+    "gain": 1.0,
+    "engine_width": 320.0
+   },
+   {
+    "freq": 600.0,
+    "gain": 0.1,
+    "engine_width": 480.0
+   },
+   {
+    "freq": 2700.0,
+    "gain": 0.1413,
+    "engine_width": 800.0
+   },
+   {
+    "freq": 2900.0,
+    "gain": 0.1995,
+    "engine_width": 960.0
+   },
+   {
+    "freq": 3300.0,
+    "gain": 0.0501,
+    "engine_width": 960.0
+   }
+  ]
+ },
+ {
+  "file": "Sing_Alto_A.json",
+  "group": "Sing_Alto",
+  "vowel": "a",
+  "f0_nominal": 220.0,
+  "midi": 57,
+  "f0_rendered": 220.0,
+  "formants": [
+   {
+    "freq": 800.0,
+    "gain": 1.0,
+    "engine_width": 640.0
+   },
+   {
+    "freq": 1150.0,
+    "gain": 0.631,
+    "engine_width": 720.0
+   },
+   {
+    "freq": 2800.0,
+    "gain": 0.1,
+    "engine_width": 960.0
+   },
+   {
+    "freq": 3500.0,
+    "gain": 0.0158,
+    "engine_width": 1040.0
+   },
+   {
+    "freq": 4950.0,
+    "gain": 0.001,
+    "engine_width": 1120.0
+   }
+  ]
+ },
+ {
+  "file": "Sing_Alto_E.json",
+  "group": "Sing_Alto",
+  "vowel": "e",
+  "f0_nominal": 220.0,
+  "midi": 57,
+  "f0_rendered": 220.0,
+  "formants": [
+   {
+    "freq": 400.0,
+    "gain": 1.0,
+    "engine_width": 480.0
+   },
+   {
+    "freq": 1600.0,
+    "gain": 0.0631,
+    "engine_width": 640.0
+   },
+   {
+    "freq": 2700.0,
+    "gain": 0.0316,
+    "engine_width": 960.0
+   },
+   {
+    "freq": 3300.0,
+    "gain": 0.0178,
+    "engine_width": 1200.0
+   },
+   {
+    "freq": 4950.0,
+    "gain": 0.001,
+    "engine_width": 1600.0
+   }
+  ]
+ },
+ {
+  "file": "Sing_Alto_I.json",
+  "group": "Sing_Alto",
+  "vowel": "i",
+  "f0_nominal": 220.0,
+  "midi": 57,
+  "f0_rendered": 220.0,
+  "formants": [
+   {
+    "freq": 350.0,
+    "gain": 1.0,
+    "engine_width": 400.0
+   },
+   {
+    "freq": 1700.0,
+    "gain": 0.1,
+    "engine_width": 800.0
+   },
+   {
+    "freq": 2700.0,
+    "gain": 0.0316,
+    "engine_width": 960.0
+   },
+   {
+    "freq": 3700.0,
+    "gain": 0.0158,
+    "engine_width": 1200.0
+   },
+   {
+    "freq": 4950.0,
+    "gain": 0.001,
+    "engine_width": 1600.0
+   }
+  ]
+ },
+ {
+  "file": "Sing_Alto_O.json",
+  "group": "Sing_Alto",
+  "vowel": "o",
+  "f0_nominal": 220.0,
+  "midi": 57,
+  "f0_rendered": 220.0,
+  "formants": [
+   {
+    "freq": 450.0,
+    "gain": 1.0,
+    "engine_width": 560.0
+   },
+   {
+    "freq": 800.0,
+    "gain": 0.3548,
+    "engine_width": 640.0
+   },
+   {
+    "freq": 2830.0,
+    "gain": 0.1585,
+    "engine_width": 800.0
+   },
+   {
+    "freq": 3500.0,
+    "gain": 0.0398,
+    "engine_width": 1040.0
+   },
+   {
+    "freq": 4950.0,
+    "gain": 0.0018,
+    "engine_width": 1080.0
+   }
+  ]
+ },
+ {
+  "file": "Sing_Alto_U.json",
+  "group": "Sing_Alto",
+  "vowel": "u",
+  "f0_nominal": 220.0,
+  "midi": 57,
+  "f0_rendered": 220.0,
+  "formants": [
+   {
+    "freq": 325.0,
+    "gain": 1.0,
+    "engine_width": 400.0
+   },
+   {
+    "freq": 700.0,
+    "gain": 0.2512,
+    "engine_width": 480.0
+   },
+   {
+    "freq": 2530.0,
+    "gain": 0.0316,
+    "engine_width": 1360.0
+   },
+   {
+    "freq": 3500.0,
+    "gain": 0.01,
+    "engine_width": 1440.0
+   },
+   {
+    "freq": 4950.0,
+    "gain": 0.0006,
+    "engine_width": 1600.0
+   }
+  ]
+ },
+ {
+  "file": "Sing_Soprano_A.json",
+  "group": "Sing_Soprano",
+  "vowel": "a",
+  "f0_nominal": 440.0,
+  "midi": 69,
+  "f0_rendered": 440.0,
+  "formants": [
+   {
+    "freq": 800.0,
+    "gain": 1.0,
+    "engine_width": 640.0
+   },
+   {
+    "freq": 1150.0,
+    "gain": 0.5012,
+    "engine_width": 720.0
+   },
+   {
+    "freq": 2900.0,
+    "gain": 0.0251,
+    "engine_width": 960.0
+   },
+   {
+    "freq": 3900.0,
+    "gain": 0.1,
+    "engine_width": 1040.0
+   },
+   {
+    "freq": 4950.0,
+    "gain": 0.0032,
+    "engine_width": 1120.0
+   }
+  ]
+ },
+ {
+  "file": "Sing_Soprano_E.json",
+  "group": "Sing_Soprano",
+  "vowel": "e",
+  "f0_nominal": 440.0,
+  "midi": 69,
+  "f0_rendered": 440.0,
+  "formants": [
+   {
+    "freq": 350.0,
+    "gain": 1.0,
+    "engine_width": 480.0
+   },
+   {
+    "freq": 2000.0,
+    "gain": 0.1,
+    "engine_width": 800.0
+   },
+   {
+    "freq": 2800.0,
+    "gain": 0.1778,
+    "engine_width": 960.0
+   },
+   {
+    "freq": 3600.0,
+    "gain": 0.01,
+    "engine_width": 1200.0
+   },
+   {
+    "freq": 4950.0,
+    "gain": 0.0016,
+    "engine_width": 1600.0
+   }
+  ]
+ },
+ {
+  "file": "Sing_Soprano_I.json",
+  "group": "Sing_Soprano",
+  "vowel": "i",
+  "f0_nominal": 440.0,
+  "midi": 69,
+  "f0_rendered": 440.0,
+  "formants": [
+   {
+    "freq": 270.0,
+    "gain": 1.0,
+    "engine_width": 480.0
+   },
+   {
+    "freq": 2140.0,
+    "gain": 0.2512,
+    "engine_width": 720.0
+   },
+   {
+    "freq": 2950.0,
+    "gain": 0.0501,
+    "engine_width": 800.0
+   },
+   {
+    "freq": 3900.0,
+    "gain": 0.0501,
+    "engine_width": 960.0
+   },
+   {
+    "freq": 4950.0,
+    "gain": 0.0063,
+    "engine_width": 960.0
+   }
+  ]
+ },
+ {
+  "file": "Sing_Soprano_O.json",
+  "group": "Sing_Soprano",
+  "vowel": "o",
+  "f0_nominal": 440.0,
+  "midi": 69,
+  "f0_rendered": 440.0,
+  "formants": [
+   {
+    "freq": 450.0,
+    "gain": 1.0,
+    "engine_width": 560.0
+   },
+   {
+    "freq": 800.0,
+    "gain": 0.2818,
+    "engine_width": 640.0
+   },
+   {
+    "freq": 2830.0,
+    "gain": 0.0794,
+    "engine_width": 800.0
+   },
+   {
+    "freq": 3800.0,
+    "gain": 0.0794,
+    "engine_width": 1040.0
+   },
+   {
+    "freq": 4950.0,
+    "gain": 0.0032,
+    "engine_width": 1080.0
+   }
+  ]
+ },
+ {
+  "file": "Sing_Soprano_U.json",
+  "group": "Sing_Soprano",
+  "vowel": "u",
+  "f0_nominal": 440.0,
+  "midi": 69,
+  "f0_rendered": 440.0,
+  "formants": [
+   {
+    "freq": 325.0,
+    "gain": 1.0,
+    "engine_width": 400.0
+   },
+   {
+    "freq": 700.0,
+    "gain": 0.1585,
+    "engine_width": 480.0
+   },
+   {
+    "freq": 2700.0,
+    "gain": 0.0178,
+    "engine_width": 1360.0
+   },
+   {
+    "freq": 3800.0,
+    "gain": 0.01,
+    "engine_width": 1440.0
+   },
+   {
+    "freq": 4950.0,
+    "gain": 0.001,
+    "engine_width": 1600.0
+   }
+  ]
+ }
+]
