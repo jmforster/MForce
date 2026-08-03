@@ -53,6 +53,7 @@ using namespace mforce;
 #include <functional>
 #include <unordered_map>
 #include <unordered_set>
+#include "build_stamp.h"
 
 // ===========================================================================
 // ID generation
@@ -6140,131 +6141,10 @@ static LONG WINAPI seh_crash_filter(EXCEPTION_POINTERS* info) {
     return EXCEPTION_EXECUTE_HANDLER;
 }
 
-// =========================================================================
-// Engine-stamp guard (dsp backlog 3c).
-//
-// A stale mforce_ui binary has now produced two phantom bug reports — a curve
-// dropdown that was "missing" and a formantFloor that was "not there" — both
-// of which were simply an exe built before the engine change. Nothing in the
-// UI made that visible, so the only symptom was a feature failing to exist.
-//
-// This compares the running exe's own timestamp against the newest engine
-// source file and says so in the title bar, plus a dismissable banner on the
-// first frames. No build-system changes and no git binary: the repo root is
-// found by walking up from the exe, and the commit is read straight out of
-// .git/HEAD, so this cannot itself go stale.
-// =========================================================================
+// Engine-stamp guard (dsp backlog 3c) — detection lives in build_stamp.h so
+// that tools/stamp_test can exercise it headlessly while a running mforce_ui
+// holds this exe locked. Only the banner belongs here; it needs ImGui.
 namespace stamp {
-
-static std::string s_exeTime;      // "MM-DD HH:MM" of the running binary
-static std::string s_commit;       // short hash at .git/HEAD, or empty
-static std::string s_newestFile;   // engine file newer than the exe, if any
-static bool        s_stale = false;
-static bool        s_dismissed = false;
-
-static std::string fmt_time(const FILETIME& ft) {
-    SYSTEMTIME st, lt;
-    FileTimeToSystemTime(&ft, &st);
-    SystemTimeToTzSpecificLocalTime(nullptr, &st, &lt);
-    char buf[32];
-    snprintf(buf, sizeof(buf), "%02d-%02d %02d:%02d",
-             lt.wMonth, lt.wDay, lt.wHour, lt.wMinute);
-    return buf;
-}
-
-static bool file_time(const std::string& path, FILETIME& out) {
-    WIN32_FILE_ATTRIBUTE_DATA fad;
-    if (!GetFileAttributesExA(path.c_str(), GetFileExInfoStandard, &fad)) return false;
-    out = fad.ftLastWriteTime;
-    return true;
-}
-
-// Newest LastWriteTime under `dir`, recursively, restricted to source files.
-static void newest_under(const std::string& dir, FILETIME& best, std::string& bestName) {
-    WIN32_FIND_DATAA fd;
-    HANDLE h = FindFirstFileA((dir + "\\*").c_str(), &fd);
-    if (h == INVALID_HANDLE_VALUE) return;
-    do {
-        if (fd.cFileName[0] == '.') continue;
-        std::string full = dir + "\\" + fd.cFileName;
-        if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
-            // third_party is vendored and does not move with engine work.
-            if (_stricmp(fd.cFileName, "third_party") == 0) continue;
-            newest_under(full, best, bestName);
-        } else {
-            const char* dot = strrchr(fd.cFileName, '.');
-            if (!dot) continue;
-            if (_stricmp(dot, ".h") && _stricmp(dot, ".hpp") && _stricmp(dot, ".cpp"))
-                continue;
-            if (CompareFileTime(&fd.ftLastWriteTime, &best) > 0) {
-                best = fd.ftLastWriteTime;
-                bestName = fd.cFileName;
-            }
-        }
-    } while (FindNextFileA(h, &fd));
-    FindClose(h);
-}
-
-static void init() {
-    char exePath[MAX_PATH] = {0};
-    if (!GetModuleFileNameA(nullptr, exePath, MAX_PATH)) return;
-
-    FILETIME exeFt{};
-    if (!file_time(exePath, exeFt)) return;
-    s_exeTime = fmt_time(exeFt);
-
-    // Walk up from the exe looking for the repo root (the dir holding engine/).
-    std::string root = exePath;
-    for (int up = 0; up < 8; ++up) {
-        size_t slash = root.find_last_of("\\/");
-        if (slash == std::string::npos) return;
-        root.resize(slash);
-        DWORD a = GetFileAttributesA((root + "\\engine\\include\\mforce").c_str());
-        if (a != INVALID_FILE_ATTRIBUTES && (a & FILE_ATTRIBUTE_DIRECTORY)) break;
-        if (up == 7) return;
-    }
-
-    // Commit at .git/HEAD — follow the ref one hop if it is symbolic.
-    auto slurp = [](const std::string& p) {
-        std::string out;
-        FILE* f = fopen(p.c_str(), "rb");
-        if (!f) return out;
-        char buf[256];
-        size_t n = fread(buf, 1, sizeof(buf) - 1, f);
-        fclose(f);
-        buf[n] = 0;
-        out = buf;
-        while (!out.empty() && (out.back() == '\n' || out.back() == '\r')) out.pop_back();
-        return out;
-    };
-    std::string head = slurp(root + "\\.git\\HEAD");
-    if (head.rfind("ref: ", 0) == 0) {
-        std::string ref = head.substr(5);
-        for (auto& c : ref) if (c == '/') c = '\\';
-        head = slurp(root + "\\.git\\" + ref);
-    }
-    if (head.size() >= 7) s_commit = head.substr(0, 7);
-
-    FILETIME newest{};
-    std::string newestName;
-    newest_under(root + "\\engine\\include", newest, newestName);
-    newest_under(root + "\\engine\\src", newest, newestName);
-    if (newestName.empty()) return;
-
-    if (CompareFileTime(&newest, &exeFt) > 0) {
-        s_stale = true;
-        s_newestFile = newestName + " (" + fmt_time(newest) + ")";
-    }
-}
-
-// Appended to whatever the title bar already says.
-static std::string title_suffix() {
-    std::string s = "  [build " + s_exeTime;
-    if (!s_commit.empty()) s += " @" + s_commit;
-    s += "]";
-    if (s_stale) s += "  *** STALE — REBUILD ***";
-    return s;
-}
 
 static void draw_banner() {
     if (!s_stale || s_dismissed) return;
@@ -6348,15 +6228,7 @@ int main(int argc, char** argv) {
     // Headless readout of the engine-stamp guard (dsp backlog 3c), so the
     // staleness logic is verifiable without launching the GUI.
     if (argc >= 2 && std::string(argv[1]) == "--stamp") {
-        printf("exe built : %s\n", stamp::s_exeTime.c_str());
-        printf("commit    : %s\n",
-               stamp::s_commit.empty() ? "(not found)" : stamp::s_commit.c_str());
-        printf("stale     : %s\n", stamp::s_stale ? "YES" : "no");
-        if (stamp::s_stale)
-            printf("newer file: %s\n", stamp::s_newestFile.c_str());
-        printf("title     : MForce - Patch Graph (unsaved)%s\n",
-               stamp::title_suffix().c_str());
-        return stamp::s_stale ? 1 : 0;
+        return stamp::print_report();
     }
 
     if (argc >= 4 && std::string(argv[1]) == "--roundtrip") {
