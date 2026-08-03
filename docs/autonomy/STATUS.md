@@ -1,14 +1,51 @@
 # Status — open this file first
 
-Updated: 2026-08-02 — comp run 13 (Wolfie, scheduled) · dsp run 16 (Dipsy, 2026-08-01)
+Updated: 2026-08-03 — dsp run 18 (Dipsy, scheduled) · comp run 14 (Wolfie, 2026-08-02)
 
 | Lane | Dev | Latest run | Backlog top | Awaiting your review |
 |---|---|---|---|---|
 | comp | Wolfie | run 14 (2026-08-02, interactive): final-note v2 (longest 96%); stages 3+4 VERIFIED (modulation real: F/F#/C# literal test); passage set v2 from Matt's specs — 58/58 checks, suite_v2 68.75 beats, modulating wander/fifths with proven accidentals | chord emission from template layer; stages 1-2 C++ strategies; scorer passage-mode | **3 items** — passage set v2 [listen], final-note A/B [listen], stage-3 acceptance [read] |
-| dsp | Dipsy | run 17 (2026-08-02 pm, interactive): 6 verdicts folded (clarinet KEEPER -> clarinet_default; x8 width default; floor 0.8 measured-safe); vowel grid BUILT (56/56 verified, soprano problem documented); piano measured (inharmonicity V-curve, double decay, knock) + 2 engine features proposed | piano features (gated on read) -> piano encoder; F1-retuning question | **3 items** — vowel grid [listen/look], piano report + feature approval [read], shimmer answer [read] |
+| dsp | Dipsy | run 18 (2026-08-03, scheduled): UI stale-guard FALSE POSITIVE fixed (real dep set, 73 files not 116, A/B-proven 3 ways); expand depth 3-4 finally run — depth measures SECOND-ORDER; `power` found inert at count=1; piano beat RATE measured and shown NOT lockable | 3c2 FMSource dead phase, then 2d-1 SIMD — both need mforce_ui relinkable | **6 items** — 3 from run 17 + expand round 4 [listen], power-at-count-1 [read], shimmer dims [read] |
 
-Reports: comp/reports/2026-08-02-wolfie-run13.md ·
-dsp/reports/2026-08-01-dipsy-run14.md
+Reports: dsp/reports/2026-08-03-dipsy-run18.md ·
+comp/reports/2026-08-02-wolfie-run13.md
+
+Run-18 highlights (dsp): three fronts, no engine edits — and that last part
+is the headline constraint. **mforce_ui.exe was locked all run** (your UI up
+since 08-02 19:23, pid 18556); I did not kill it, so the target could not be
+relinked, so the "engine edits rebuild both targets" rule ruled engine work
+out entirely. Items 3c2 and 2d are consequently untouched and are first up
+next run — **please close the UI when convenient so mforce_ui can relink**;
+until then your binary still carries the old stale-guard.
+(1) **Your stale-guard false positive is fixed** (9c2946e), and it was worse
+than reported: the guard compared the exe against all **116** engine sources
+when mforce_ui depends on **59**. It now reads MSBuild's own CL.read tlogs
+for mforce_ui + mforce_engine — 73 files, and it newly covers
+tools/mforce_ui/main.cpp, which the engine-only scan never looked at.
+A/B-proven on the live tree in three directions: control (both quiet),
+composer.h newer → old STALE / new quiet, partials.h newer → new still
+STALE. The script restores every mtime and SHA256-checks content. Writing
+the test caught a real bug in the fix (case folded, separators not, so a
+forward-slash path matched nothing and the dep set silently went empty).
+(2) **Depth is second-order, measured not guessed.** Item 5's parked
+recurse 3-4 is affordable now (cost re-measured: linear, ~17 ms/partial per
+4 s render). Holding partial COUNT and total SPREAD fixed, halving the depth
+moves the embedding **4.36** — against a batch median pair of 18.98 and
+loPct's 50.46. So depth ≈ the size of a `power` tweak. My recommendation is
+to retire the expand front rather than run a round 5; your ears decide.
+The batch also caught a live trap: **`power` does nothing at count=1**
+(taper is pow(t,power) with t≡0 there), found because two cells rendered
+byte-identical, and proven by a regression pair at count=2 that differs.
+(3) **A measurement I could not make, shown rather than asserted.** Piano
+unison beat RATE: attempt 1 failed its own control (every "beat" was FFT bin
+1-2 = decay curvature). Attempt 2 looked plausible, so I tested it — raising
+the analysis floor 0.50→0.75→1.12 Hz makes **9 of 11 rates climb with it**.
+Artifact. Only C5/C6 hold (~1.9-2.0 Hz). What survived is structural and
+usable: single-strung B0/C1 modulate at 0.016-0.029 vs 0.106-0.285
+multi-strung, a 5-9x contrast, so shimmerDepth ≈ 0.15 is a good seed while
+shimmerHz/Coherence stay searchable. The data also reclassified F1 as a
+bichord — my register label was wrong, not the measurement. Two attempts, so
+it is backlogged (item 13) with the method that should work, not retried.
 
 Run-13 highlights (comp): five fronts, all metric/build, no blind taste
 iteration. Every one of them started from something you said.
@@ -156,21 +193,29 @@ re-save of v6_01, and the ml_ears config generalization); left untouched per
 the guard, flagged in the report — HEAD currently can't run the clarinet
 CMA-ES pipeline without them.
 
-**For Dipsy:** the UI stale-guard (dsp 3c) gives a FALSE STALE. It compares
-the exe against every file under `engine/`, but `mforce_ui` doesn't include
-the music headers — so after a comp-only engine edit MSBuild rightly skips the
-relink, the exe keeps its mtime, and `--stamp` reports stale and exits 1 until
-something forces a relink (a re-configure doesn't clear it). It should key off
-the target's real dependency set or the linked-in commit, not file mtimes.
+**For Wolfie:** the stale-guard false positive you reported is FIXED in run 18
+(commit 9c2946e) — you were right on both the cause and the remedy; it now
+keys off the target's real dependency set. One catch: `mforce_ui.exe` could
+not be relinked (Matt's UI held it locked), so the running binary still has
+the old behaviour. Once it is rebuilt, a comp-only engine edit will no longer
+make it shout STALE.
 
 Next "go": comp = the two modulation passages stage 3 unblocked (Bruckner
 pedal-through-keys, modulating wandering) → #12 give the scorer a phrase-
 ending screen → #7 phrase-aware cadence. Five comp review items waiting
-(three listen, two read). dsp = stage 2d-1 (vector path for the
-layer-free configuration, needs an AVX2-availability decision) — but if the
-REVIEW 0b answer is "yes, per-partial rng streams", do that FIRST: it fixes
-the fragility, unblocks vectorizing the bandwidth layer, and makes the CMA-ES
-objective continuous, all at once. Clarinet 600-eval stays gated on your ears.
-Seven dsp review items waiting. Verdicts fold in whenever you send them.
+(three listen, two read). dsp = **rebuild mforce_ui first and confirm
+`--stamp` exits 0**, then item 3c2 (FMSource's `phase` param is dead — apply
+phase_ to the carrier for true PM, then re-render the t1_06/t1_07 topologies
+as designed), then 2d-1 (vector path, needs an AVX2-availability decision).
+All three are engine edits and all three were blocked in run 18 by the locked
+exe. Clarinet 600-eval stays gated on your ears. Six dsp review items waiting
+(three listen/look, three read). Verdicts fold in whenever you send them.
+
+Standing tree note: the same four tracked files have now been dirty at
+session start across six runs (c2c_quiet.json, v6_01_res_curve_lo.json,
+iowa_reference.py, score_candidate.py). Backlog 11 wants one word from Matt —
+HEAD alone still cannot run the clarinet CMA-ES pipeline without them, and
+the piano onset-alignment prereq lives in iowa_reference.py, so this is now
+blocking piano work too.
 
 How this works: [WORKFLOW.md](WORKFLOW.md)

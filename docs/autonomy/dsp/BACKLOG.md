@@ -46,7 +46,19 @@ Priority order. Tags per WORKFLOW.md. (G1)-(G4) = GOALS.md Dipsy goals.
    near the Iowa 50% target if possible (floor redistributes, not
    removes).
 3c. **[build] UI engine-stamp guard** — ✓ DONE run14 (2026-08-01), commit
-   cc4185d. Title bar carries `[build MM-DD HH:MM @sha]` always, plus
+   cc4185d. **FALSE-POSITIVE FIXED run18 (2026-08-03), commit 9c2946e:** it
+   compared the exe against all 116 engine sources, but mforce_ui depends on
+   59, so a comp-lane edit to composer.h/passage_strategies.h shouted STALE
+   with no rebuild able to clear it (Wolfie, 12d405e). Dependency set now
+   comes from MSBuild's own CL.read tlogs for mforce_ui + mforce_engine
+   (73 files, and it now covers tools/mforce_ui/main.cpp, which the
+   engine-only scan never checked); falls back to the coarse scan when no
+   tlogs exist, and --stamp names the mode. Detection extracted to
+   tools/mforce_ui/build_stamp.h so a locked (running) exe can still be
+   checked; new tools/stamp_test includes it directly + ab_stale_guard.ps1
+   A/Bs old vs new on the live tree, 3 directions, restoring every mtime it
+   touches. **mforce_ui.exe NOT YET RELINKED** — Matt's UI held it locked all
+   of run 18; compiles clean, needs a rebuild when the UI is next closed. Title bar carries `[build MM-DD HH:MM @sha]` always, plus
    `*** STALE - REBUILD ***` and a dismissable red banner naming the offending
    file when the exe is older than the newest engine .h/.hpp/.cpp. Commit read
    from .git/HEAD, repo root found by walking up from the exe — no build-system
@@ -89,9 +101,48 @@ Priority order. Tags per WORKFLOW.md. (G1)-(G4) = GOALS.md Dipsy goals.
    done run5 (2026-07-29): 18 regimes (incl. 6 rule-breakers) generated
    (tools/gen_expand_sweep.py), rendered, novelty-ranked
    (tools/_run_expand_sweep.py); survivors queued for listen (REVIEW).
-   **recurse limited to 1** here — recurse 2-4 = base·(count·2+1)^(3..5) =
-   thousands of partials, render-bound until item 8 lands. REOPEN at
-   recurse 2-4 after additive perf.
+   Rounds 2-3 followed Matt's verdicts (gen_expand_sweep2/3.py).
+   **✓ REOPEN DONE run18 (2026-08-03)** — depth 3-4 finally affordable
+   (cost re-measured: LINEAR at ~17 ms/partial for a 4 s render, 6 cells
+   216→5000 partials, which also confirms the base·(2c+1)^(r+1) formula).
+   18 patches (tools/gen_expand_sweep4.py), 16 rendered in 285 s,
+   novelty-ranked + a purpose-built depth-control comparison
+   (tools/_run_expand_sweep4.py). **Answer: depth is second-order.**
+   Holding partial count AND total spread fixed, halving depth moves the
+   embedding 4.36, vs a batch median pair of 18.98 and loPct's 50.46 — i.e.
+   about the size of a `power` tweak. Recurse 3-4 is available and cheap
+   now, but it is not where the sound is; the levers are loPct/spacing/
+   rule-breakers. AWAITING Matt's listen (REVIEW 4) to close the item —
+   if he agrees, this front retires rather than getting a round 5.
+
+12. **[build/review] `power` inert at count=1 in apply_expand_rule** — found
+   run18: side-partial amplitude is `ampl*loPct + ampl*(1-loPct)*pow(t,power)`
+   with `t = j/count` (left) / `(count-1-j)/count` (right), so at count=1
+   t≡0, `pow(0,p)=0`, and power does nothing — every side partial lands on
+   the loPct floor. Surfaced because peaked_deep rendered BYTE-IDENTICAL to
+   micro_r3; proven live by the regression pair taper_flat_c2/taper_steep_c2
+   (identical but for power, at count=2, and they differ: distinct sha256,
+   distance 4.96). Not a coding bug — a defensible reading — but a trap that
+   silently cost round 4 a cell. Options in REVIEW 5: leave it documented, or
+   renormalise t (e.g. `(j+1)/(count+1)`) so count=1 is non-degenerate, which
+   changes every existing expand patch. GATED on Matt; engine edit.
+
+13. **[metric] Piano unison beat RATE — attempt 3, different method** —
+   run18 attempts 1 and 2 both failed to resolve the rate (2-attempt rule
+   → backlogged, not retried inline). Attempt 1: 3 s window, every partial
+   "beat" at FFT bins 1-2 (decay curvature). Attempt 2: 8 s window +
+   4-cycle floor + high-passed residual — depth control passes cleanly but
+   a built-in floor-sensitivity check shows 9 of 11 rates CLIMB when the
+   floor is raised 0.50→0.75→1.12 Hz, so the rate is a window artifact.
+   Only C5/C6 hold (~1.9-2.0 Hz). Envelope-domain inference is the wrong
+   tool. NEXT METHOD: resolve the unison strings as SEPARATE spectral lines
+   — they are split by the beat frequency (0.6-2 Hz), which a ≥2 s coherent
+   FFT resolves directly in the bass/mid — and read the split, don't infer
+   it. What DID survive run18 and is usable now: single-strung B0/C1
+   modulate at 0.016-0.029 vs 0.106-0.285 multi-strung (5-9x), so
+   shimmerDepth ≈ 0.15 is a defensible SEED. shimmerHz/shimmerCoherence
+   stay searchable in the piano encoder unless Matt redirects (REVIEW 6).
+   research/ml_ears/piano_beating.py, out/piano_beating.json + .png.
 6. DONE run 6 — see reports/2026-07-29-dipsy-run6.md. **(was: [metric] (G2) FormantSequence deep-dive)** — modulated/sequenced formant
    motion as a first-class timbre animator; sweep + novelty-filter.
 7. **[build→metric] (G3) Oversampled FM render path** — ✓ CORE DONE run8

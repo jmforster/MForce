@@ -2,6 +2,42 @@
 
 ## Awaiting Matt
 
+### 4. Expand round 4 — deep recursion [listen] (run 18)
+renders/expand_sweep4/ (18 cells, recurse 3-4, first time past depth 2).
+Novelty top: flat_deep, supersonic_r4, inflate_r3, semitone_r3, pi_r4.
+Rule-breakers: pi_r4 (irrational spacing, never repeats), supersonic_r4
+(most of the cloud above Nyquist by construction), phase_scram_r4,
+absurd_6250. NOTE: flat_deep and supersonic_r4 render at peak 0.99 —
+they are at the ceiling, so judge tone not level.
+Verdict decides: (a) any keepers; (b) whether depth is worth more rounds
+— my measurement says NO, it is second-order (holding partial count and
+spread fixed, halving depth moves the embedding 4.36 vs a batch median
+pair of 18.98; loPct moves it 50.46). If you agree, item 5 closes and
+the expand front retires to "available, not a research direction".
+
+### 5. `power` is inert at count=1 [read] (run 18)
+apply_expand_rule tapers side partials by pow(t, power), t = j/count. At
+count=1, t is always 0 and pow(0,p)=0, so power does nothing and every
+side partial sits on the loPct floor. Found because peaked_deep rendered
+BYTE-IDENTICAL to micro_r3. Proven live by taper_flat_c2/taper_steep_c2
+(identical but for power, at count=2, and they differ).
+Verdict decides: leave it (defensible — one side partial IS at the end of
+the taper, and it is documented now), or renormalise t so count=1 is not
+degenerate (e.g. t=(j+1)/(count+1)). The second changes how every existing
+expand patch sounds. Engine work either way — backlog 12.
+
+### 6. Piano shimmer dims — NOT lockable [read] (run 18)
+research/ml_ears/piano_beating.py + out/piano_beating.json. I could not
+measure unison beat RATE reliably: raising the analysis floor 0.50 ->
+0.75 -> 1.12 Hz makes 9 of 11 rates climb with it (artifact); only C5/C6
+hold, at ~1.9-2.0 Hz. What IS solid: single-strung B0/C1 modulate at
+0.016-0.029 vs 0.106-0.285 multi-strung — a real 5-9x depth contrast,
+magnitude order 0.1-0.2.
+Verdict decides: I plan to leave shimmerHz + shimmerCoherence SEARCHABLE
+in the piano encoder and seed shimmerDepth near 0.15 rather than lock it.
+Say if you'd rather I spend a third attempt on the direct spectral-split
+method (backlog 13) before the encoder instead.
+
 ### 1. Vowel grid [listen/look] (run 17)
 patches/vowel_grid/ + renders/vowel_grid/ — your Speech_M/W/C x 12 +
 Sing_Bass..Soprano x 5 folder, 56/56 verified (rendered envelope ==
