@@ -36,7 +36,7 @@ SECONDS = 3.0
 # Literature (-3dB-style) widths; engine width = WIDTH_MULT x these.
 # Shipped "excellent" liar2 widths were ~x7 of literature (Matt 2026-07-31:
 # pin down the multiplier — see the x3..x14 ladder in main()).
-WIDTH_MULT = 7.0
+WIDTH_MULT = 8.0  # Matt 2026-08-02: x8 "a little more clear than 7" — new default
 PHONES = {
     "L":  [(360, 0.70, 60), (1300, 0.25, 90), (2700, 0.12, 120),
            (3300, 0.05, 140), (3700, 0.02, 160)],

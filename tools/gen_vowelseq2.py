@@ -15,7 +15,7 @@ OUT = os.path.join(REPO, "patches", "vowelseq2")
 os.makedirs(OUT, exist_ok=True)
 
 SECONDS = 3.0
-WIDTH_MULT = 7.0
+WIDTH_MULT = 8.0  # Matt 2026-08-02: x8 "a little more clear than 7" — new default
 
 # 5-formant (freq, gain, litWidth) male-voice tables, same family as liar2.
 VOWELS = {
