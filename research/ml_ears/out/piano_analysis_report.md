@@ -251,7 +251,13 @@ wrong hammer spectrum. Lowest score note: C1.
 
 ## Open items / limitations
 
-- Unison-string beating rates unmeasured (needed to lock shimmer dims).
+- ~~Unison-string beating rates unmeasured (needed to lock shimmer dims).~~
+  **Addressed 2026-08-03 — see `piano_beating_report.md`.** Result: the beat RATE
+  is NOT measurable from the partial envelopes (9 of 11 rates track the analysis
+  floor; only C5/C6 hold, ~1.9-2.0 Hz), so `shimmerHz` and `shimmerCoherence` stay
+  searchable. The beat DEPTH is real — single-strung B0/C1 at 0.016-0.029 vs
+  0.106-0.285 multi-strung — so `shimmerDepth` seeds at ≈0.15. Next method
+  (dsp backlog 13): resolve the unison strings as separate spectral lines.
 - C8 tuning anomaly (-84c) unexplained; C7/C8 B from 2 partials each.
 - C5 prompt-decay outlier vs C4/G4 not chased.
 - Longitudinal-mode / duplex partials visible as off-model peaks in the treble were
