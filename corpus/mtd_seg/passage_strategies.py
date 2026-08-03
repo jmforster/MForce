@@ -99,8 +99,14 @@ def template(motifs, phrases, *, beats, bpm, seed, key="C", scale="Major",
     parts.extend(extra_parts)
     section = {"name": "Main", "beats": beats}
     if key_contexts:
-        section["keyContexts"] = [{"beat": float(b), "key": k}
-                                  for b, k in key_contexts]
+        kcs = []
+        for kc in key_contexts:
+            if isinstance(kc, dict):          # full form, may carry a
+                kcs.append(dict(kc))          # scaleOverride (harmonic minor)
+            else:
+                b, k = kc
+                kcs.append({"beat": float(b), "key": k})
+        section["keyContexts"] = kcs
     return {"keyName": key, "scaleName": scale, "bpm": bpm, "masterSeed": seed,
             "motifs": [{"name": n, "figure": f, "userProvided": True}
                        for n, f in motifs.items()],
@@ -480,7 +486,18 @@ def chain_arpeggio_fallback(model, rng, bpm=92.0, seed=1):
     ascends again .. this happens 3x followed by a climactic cadence"."""
     n_cyc = 3
     reps = rng.choice([2, 3])
+    # The cell must NET-ASCEND (>= 2 degrees): with a flat or falling cell the
+    # cycle tops out at/below the fall target, the arpeggio degenerates and
+    # lands ON the cycle start instead of just above it — caught mechanically
+    # in run 13 (starts=[48,48] landings=[48,48], "almost but not quite"
+    # violated), not by ear.
     cell = _sample_chain_cell(model, rng, 6, 1.5, 3.0)
+    for _ in range(12):
+        if net_step(cell) >= 2:
+            break
+        cand = _sample_chain_cell(model, rng, 6, 1.5, 3.0)
+        if net_step(cand) > net_step(cell):
+            cell = cand
     motifs, refs, anchors = {"CY": cell}, [], []
     cursor = 0
     for c in range(n_cyc):
@@ -567,12 +584,16 @@ def _tension(chord_degs, pedal_deg):
     return score
 
 
-def pedal_chords(model, rng, bpm=92.0, seed=1):
+def pedal_chords(model, rng, bpm=92.0, seed=1, melody=True, bars=None):
     """Dominant pedal; diatonic triads above it ORDERED by measured dissonance
     against the pedal, then a German-sixth cadence — Ger6 -> I(6/4, still over
-    the pedal) -> V7 -> I."""
+    the pedal) -> V7 -> I.
+
+    melody=True is Matt's variant b (a melodic figure over the chords);
+    melody=False is variant a (chords only — the melody part carries the TOP
+    chord voice so the exported piece still has a parts[0] line to score)."""
     pedal_deg = 4                                  # dominant pedal (G in C)
-    bars = rng.choice([4, 5, 6])
+    bars = bars or rng.choice([4, 5, 6])
     # Rank the diatonic triads by tension against the pedal and walk UP that
     # ranking, so "increasing dissonance" is a property of the render rather
     # than of the docstring. Always open on the tonic.
@@ -611,7 +632,8 @@ def pedal_chords(model, rng, bpm=92.0, seed=1):
     # One melodic part per voice: units carry the degree DELTA from the voice's
     # previous note (the engine's cursor convention) plus any accidental.
     extra = []
-    for v in range(3):
+    n_voice_parts = 3 if melody else 2       # chords-only: VC2 IS the melody
+    for v in range(n_voice_parts):
         # NOT role "harmony": that role produced ZERO events (the composer
         # realizes harmony parts from a chord progression, not from phrases).
         # Verified by inspecting the piece JSON, which is also why the voices
@@ -648,14 +670,22 @@ def pedal_chords(model, rng, bpm=92.0, seed=1):
             prev = deg
         motifs[f"VC{v}"] = {"units": units}
 
-    # Matt's variant b: "same as above but with a melodic figure over the
-    # chords". The melody is the top line, restating a cell once per chord.
-    cell = _sample_chain_cell(model, rng, 4, 2.0, 4.0)
-    mel_refs = ["MEL"] * len(chords)
-    motifs["MEL"] = cell
-    mel_anchors = [7 + (ch[2][0] - chords[0][2][0]) for ch in chords]
-    mel_figs = [cell] * len(chords)
-    mel_conns = anchor_connectors(mel_figs, mel_anchors)
+    if melody:
+        # Matt's variant b: "same as above but with a melodic figure over the
+        # chords". The melody is the top line, restating a cell once per chord.
+        cell = _sample_chain_cell(model, rng, 4, 2.0, 4.0)
+        mel_refs = ["MEL"] * len(chords)
+        motifs["MEL"] = cell
+        mel_anchors = [7 + (ch[2][0] - chords[0][2][0]) for ch in chords]
+        mel_figs = [cell] * len(chords)
+        mel_conns = anchor_connectors(mel_figs, mel_anchors)
+        mel_phrase = phrase("P", mel_refs, mel_conns)
+    else:
+        # Variant a: the top chord voice moves into the melody slot, so the
+        # texture is exactly pedal + three chord voices and nothing above.
+        vpitch = ["C", "D", "E", "F", "G", "A", "B"][chords[0][2][0] % 7]
+        voct = 4 + chords[0][2][0] // 7
+        mel_phrase = phrase("P", ["VC2"], [None], octave=voct, pitch=vpitch)
 
     bass = {"name": "pedal", "role": "bass",
             "passages": {"Main": {
@@ -663,10 +693,11 @@ def pedal_chords(model, rng, bpm=92.0, seed=1):
                 "phrases": [phrase("PED", ["PED"] * reps + ["PEDRES"],
                                    [None] + [0] * (reps - 1) + [-4],
                                    octave=3, pitch="G")]}}}
-    t = template(motifs, [phrase("P", mel_refs, mel_conns)],
+    t = template(motifs, [mel_phrase],
                  beats=total, bpm=bpm, seed=seed,
                  extra_parts=tuple(extra) + (bass,))
-    return t, {"strategy": "pedal_chords", "n_entries": len(chords),
+    return t, {"strategy": "pedal_chords" if melody else "pedal_chords_only",
+               "n_entries": len(chords),
                "progression": "-".join(labels),
                "tension_curve": "-".join(str(x) for x in tension_curve),
                "tension_rises": tension_curve[-4] >= tension_curve[0],
@@ -718,11 +749,238 @@ def modulating_fifths(model, rng, bpm=92.0, seed=1, direction=None):
                "beats_per_key": per}
 
 
+# --------------------------------------------------------------------------- #
+# strategy 8 — modulating wandering (Matt's run-12 cliche, unblocked by stage 3)
+# --------------------------------------------------------------------------- #
+# Matt: "sweet major theme -> sudden diminished/minor turn -> wander minor and
+# major keys -> return". The v1 `wandering` wandered in REGISTER only; this one
+# wanders in KEY as well, via section keyContexts. The minor stops use
+# HARMONIC minor (KeyContext.scaleOverride) — natural minor of the relative
+# key is pc-identical to the major it left, so the turn would be inaudible
+# and unverifiable; the raised 7th is both the cliche sound and the
+# mechanical evidence that the key actually moved.
+# Exact Python replica of the engine's key-aware walk (pitch_walker.h
+# snap_to_scale/step_note + composer.h's realize loop: snap on scale change at
+# note start, then step_note(currentNN, leadStep+step)). Needed so the
+# generator can GUARANTEE the altered-key spans actually sound an accidental —
+# a wander line that never touches the one altered degree renders a
+# "modulation" that is mechanically indistinguishable from staying home
+# (caught on suite_v2's first render, S0 A-minor span: 6 notes, 0 accidentals).
+ASC_STEPS = {"Major": [2, 2, 1, 2, 2, 2, 1],
+             "Minor": [2, 1, 2, 2, 1, 2, 2],
+             "Harmonic Minor": [2, 1, 2, 2, 1, 3, 1]}
+PC_OF = {"C": 0, "D": 2, "E": 4, "F": 5, "G": 7, "A": 9, "B": 11}
+
+
+def _scale_of(kc):
+    ovr = kc.get("scaleOverride")
+    if ovr:
+        return PC_OF[ovr["pitch"]], ASC_STEPS[ovr["scale"]]
+    words = kc["key"].split()
+    pc = PC_OF[words[0]]
+    for w in words[1:-1]:
+        pc += 1 if w == "Sharp" else -1
+    return pc % 12, ASC_STEPS[words[-1]]
+
+
+def _deg_pos(nn, root, asc):
+    rel = nn - root
+    while rel < 0:
+        rel += 12
+    pos = rel % 12
+    accum, deg = 0.0, 0
+    for d in range(len(asc)):
+        if abs(accum - pos) < 0.5:
+            deg = d
+            break
+        accum += asc[d]
+    return deg
+
+
+def _step_note(nn, steps, root, asc):
+    if steps > 0:
+        for _ in range(steps):
+            nn += asc[_deg_pos(nn, root, asc) % len(asc)]
+    else:
+        for _ in range(-steps):
+            deg = _deg_pos(nn, root, asc)
+            nn -= asc[(deg - 1 + len(asc)) % len(asc)]
+    return nn
+
+
+def _snap(nn, root, asc):
+    rel = nn - root
+    octaves = rel // 12
+    pos = rel - octaves * 12
+    best, bestd, accum = 0, 999.0, 0.0
+    for _d in range(len(asc) + 1):
+        dist = abs(accum - pos)
+        if dist < bestd:
+            bestd, best = dist, root + octaves * 12 + accum
+        if _d < len(asc):
+            accum += asc[_d]
+    return best
+
+
+def predict_modulating_notes(figs, conns, kctx, start_nn=48):
+    """(beat, nn) per note, exactly as the engine will render them."""
+    nn, beat, out = start_nn, 0.0, []
+    root, asc = _scale_of(kctx[0])
+    for fi, fig in enumerate(figs):
+        for ui, u in enumerate(fig["units"]):
+            r2, a2 = root, asc
+            for kc in kctx:
+                if kc["beat"] <= beat + 1e-6:
+                    r2, a2 = _scale_of(kc)
+            if (r2, a2) != (root, asc):
+                nn = _snap(nn, r2, a2)
+                root, asc = r2, a2
+            lead = conns[fi] if (ui == 0 and conns[fi] is not None) else 0
+            nn = _step_note(nn, lead + u["step"], root, asc)
+            out.append((beat, int(nn)))
+            beat += u["duration"]
+    return out
+
+
+def _altered_span_coverage(figs, conns, kctx, beats_total):
+    """(covered, total) over keyContext spans whose scale differs from the
+    home major scale: covered = spans with >=1 predicted note outside it."""
+    home = set()
+    root, asc = _scale_of(kctx[0])
+    acc = 0
+    for s in asc:
+        home.add((root + acc) % 12)
+        acc += s
+    notes = predict_modulating_notes(figs, conns, kctx)
+    covered = total = 0
+    for i, kc in enumerate(kctx):
+        r, a = _scale_of(kc)
+        pcs, accum = set(), 0
+        for s in a:
+            pcs.add((r + accum) % 12)
+            accum += s
+        if pcs == home:
+            continue
+        total += 1
+        end = kctx[i + 1]["beat"] if i + 1 < len(kctx) else beats_total
+        span = [n for b, n in notes if kc["beat"] - 1e-6 <= b < end - 1e-6]
+        if any(n % 12 not in home for n in span):
+            covered += 1
+    return covered, total
+
+
+KEY_PLAN_MILD = [                                  # 2 key moves
+    ("C Major", None),
+    ("A Minor", {"pitch": "A", "scale": "Harmonic Minor"}),
+    ("C Major", None),
+]
+KEY_PLAN_ADV = [                                   # 5 key moves, minor turns
+    ("C Major", None),
+    ("A Minor", {"pitch": "A", "scale": "Harmonic Minor"}),
+    ("F Major", None),
+    ("D Minor", {"pitch": "D", "scale": "Harmonic Minor"}),
+    ("G Major", None),
+    ("C Major", None),
+]
+
+
+def wandering_modulating(model, rng, bpm=92.0, seed=1, adventurous=False):
+    """Theme (one figure, stated twice) in the home key, then wandering figures
+    with the KEY moving under them, then the theme again at home — the return
+    is a restatement, not just a key signature."""
+    plan = KEY_PLAN_ADV if adventurous else KEY_PLAN_MILD
+    # Figures per key stop: theme x2 in the first stop, wander figures in the
+    # middle stops, theme restatement in the last.
+    figs_per_stop = [2] + [2 if not adventurous else 1] * (len(plan) - 2) + [1]
+
+    # Accidental guard: resample until every altered span provably sounds a
+    # note outside C major (predicted with the engine's own snap/walk math) —
+    # otherwise the "modulation" can render pc-identical to staying home.
+    # Best-coverage kept: with 4 short altered spans (adv) full coverage is a
+    # low-probability joint event, so exhausting the tries must still return
+    # the candidate with the MOST audible key changes, not the last draw.
+    best, best_cov, tot = None, -1, 0
+    for _guard in range(60):
+        built = _build_wandering_modulating(model, rng, plan, figs_per_stop)
+        figs, conns, kctx, _m, _r, _a = built
+        cov, tot = _altered_span_coverage(figs, conns, kctx,
+                                          sum(total_beats(f) for f in figs))
+        if cov > best_cov:
+            best, best_cov = built, cov
+        if cov == tot:
+            break
+    figs, conns, kctx, motifs, refs, anchors = best
+
+    beats = sum(total_beats(f) for f in figs)
+    t = template(motifs, [phrase("P", refs, conns)], beats=beats, bpm=bpm,
+                 seed=seed, key_contexts=kctx)
+    return t, {"strategy": ("wandering_mod_adv" if adventurous
+                            else "wandering_mod_mild"),
+               "n_entries": len(refs), "key_moves": len(plan) - 1,
+               "keys": "-".join(k for k, _o in plan),
+               "guard_tries": _guard + 1,
+               "altered_span_coverage": f"{best_cov}/{tot}",
+               "anchor_span": max(anchors) - min(anchors), "beats": beats}
+
+
+def _build_wandering_modulating(model, rng, plan, figs_per_stop):
+    theme = _sample_chain_cell(model, rng, None, 2.0, 3.5)
+    motifs, refs, anchors = {"T": theme}, [], []
+    cursor, w = 0, 0
+    stop_starts_figidx = []
+    for si, n_figs in enumerate(figs_per_stop):
+        stop_starts_figidx.append(len(refs))
+        for j in range(n_figs):
+            first_stop, last_stop = si == 0, si == len(figs_per_stop) - 1
+            if first_stop or last_stop:
+                name, fig = "T", theme            # the theme frames the walk
+            else:
+                fig = _sample_figure_sized(model, rng, beats_lo=1.5,
+                                           beats_hi=3.0)
+                name = f"W{w}"
+                motifs[name] = fig
+                w += 1
+            if not refs:
+                anchors.append(0)
+            elif last_stop:
+                anchors.append(0)                 # the return comes HOME
+            else:
+                pull = (-2 if cursor > 5 else
+                        (2 if cursor < -5 else rng.choice([-1, 0, 1])))
+                anchors.append(cursor + pull)
+            cursor = anchors[-1] + net_step(fig)
+            refs.append(name)
+
+    figs = [motifs[r] for r in refs]
+    conns = anchor_connectors(figs, anchors)
+    # Key contexts at the stop boundaries, in beats.
+    fig_starts, b = [], 0.0
+    for f in figs:
+        fig_starts.append(b)
+        b += total_beats(f)
+    kctx = []
+    for si, (key, ovr) in enumerate(plan):
+        kc = {"beat": fig_starts[stop_starts_figidx[si]], "key": key}
+        if ovr:
+            kc["scaleOverride"] = ovr
+        kctx.append(kc)
+    return figs, conns, kctx, motifs, refs, anchors
+
+
 STRATEGIES = {
     "pedal_buildup": pedal_buildup,
     "pedal_chords": pedal_chords,
+    "pedal_chords_only":
+        lambda m, r, **kw: pedal_chords(m, r, melody=False, **kw),
     "modulating_fifths": modulating_fifths,
+    "modulating_fifths_up":
+        lambda m, r, **kw: modulating_fifths(m, r, direction=True, **kw),
+    "modulating_fifths_down":
+        lambda m, r, **kw: modulating_fifths(m, r, direction=False, **kw),
     "wandering": wandering,
+    "wandering_mod_mild": wandering_modulating,
+    "wandering_mod_adv":
+        lambda m, r, **kw: wandering_modulating(m, r, adventurous=True, **kw),
     "connective": connective,
     "fifths_sequence": fifths_sequence,
     "chain_chromatic_peak": chain_chromatic_peak,
@@ -800,6 +1058,63 @@ def suite(model, rng, bpm=92.0, seed=1, order=None):
 
 
 # --------------------------------------------------------------------------- #
+# suite v2 — the run-13 shapes chained: modulating wander -> chromatic-peak
+# chain -> pedal chords with melody (which ends in the full cadence, so it is
+# the closer). Unlike suite(), this lifts EVERYTHING a sub-template built —
+# every part (chord voices, pedal) and the section's keyContexts (their beats
+# are section-relative, verified in composer.h: active_scale_at is called with
+# currentBeat - passageBeatOffset) — so strategies with texture and key motion
+# survive the chaining intact.
+# --------------------------------------------------------------------------- #
+SUITE_V2_ORDER = [
+    ("wandering_mod_mild", "wandering_modulating", {}),
+    ("chain_chromatic_peak", "chain_chromatic_peak", {}),
+    ("pedal_chords", "pedal_chords", {"bars": 4}),   # 4 bars keeps the total
+]                                                    # inside the 45-70 aim
+
+
+def suite_v2(model, rng, bpm=92.0, seed=1):
+    fns = {"wandering_modulating": wandering_modulating,
+           "chain_chromatic_peak": chain_chromatic_peak,
+           "pedal_chords": pedal_chords}
+    motifs, sections, parts, metas = {}, [], {}, []
+    for idx, (label, fname, kw) in enumerate(SUITE_V2_ORDER):
+        t, meta = fns[fname](model, rng, bpm=bpm, seed=seed + idx, **kw)
+        metas.append(meta)
+        pre = f"s{idx}_"
+        sec_src = t["sections"][0]
+        sec_name = f"S{idx}_{label}"
+        sec = {"name": sec_name, "beats": sec_src["beats"]}
+        if "keyContexts" in sec_src:
+            sec["keyContexts"] = sec_src["keyContexts"]
+        sections.append(sec)
+        for m in t["motifs"]:
+            motifs[pre + m["name"]] = m["figure"]
+        for part in t["parts"]:
+            pd = parts.setdefault(part["name"],
+                                  {"name": part["name"], "role": part["role"],
+                                   "passages": {}})
+            src = part["passages"]["Main"]
+            pd["passages"][sec_name] = {
+                "startingPitch": src["startingPitch"],
+                "phrases": [dict(ph, figures=[{"source": "reference",
+                                               "motifName": pre + f["motifName"]}
+                                              for f in ph["figures"]])
+                            for ph in src["phrases"]]}
+
+    ordered = ([parts["melody"]]
+               + [p for n, p in parts.items() if n != "melody"])
+    t = {"keyName": "C", "scaleName": "Major", "bpm": bpm, "masterSeed": seed,
+         "motifs": [{"name": n, "figure": f} for n, f in motifs.items()],
+         "sections": sections, "parts": ordered}
+    for m in t["motifs"]:
+        m["userProvided"] = True
+    return t, {"strategy": "suite_v2", "n_entries": len(SUITE_V2_ORDER),
+               "order": "-".join(l for l, _f, _k in SUITE_V2_ORDER),
+               "beats": round(sum(s["beats"] for s in sections), 2)}
+
+
+# --------------------------------------------------------------------------- #
 # driver
 # --------------------------------------------------------------------------- #
 def main():
@@ -816,6 +1131,9 @@ def main():
     ap.add_argument("--outroot", default=OUTROOT,
                     help="render dir (repo-relative); a new set goes in its "
                          "own dir so it can be A/B'd against the last one")
+    ap.add_argument("--set", dest="which_set", default=None,
+                    help="'v2' = the run-13 Matt-spec set with per-strategy "
+                         "take counts (~15 renders)")
     args = ap.parse_args()
     outroot = args.outroot
 
@@ -824,46 +1142,62 @@ def main():
            else mm.ROOT / f"{args.corpus.split('_')[0]}_tokens.json")
     model = MarkovModel.load(tok)
     cs = sg.corpus_stats(args.corpus)
-    all_names = list(STRATEGIES) + ["suite", "chain_suite"]
-    names = [args.only] if args.only else all_names
+    all_names = list(STRATEGIES) + ["suite", "chain_suite", "suite_v2"]
     fns = dict(STRATEGIES, suite=suite,
                chain_suite=lambda m, r, **kw: suite(
-                   m, r, order=CHAIN_SUITE_ORDER, **kw))
+                   m, r, order=CHAIN_SUITE_ORDER, **kw),
+               suite_v2=suite_v2)
+
+    # The v2 set: every shape Matt spec'd after auditioning run 12, with take
+    # counts weighted toward the three chain->goal transformations.
+    V2_SET = [("chain_chromatic_peak", 2), ("chain_tonic_fanfare", 2),
+              ("chain_arpeggio_fallback", 2), ("pedal_buildup", 1),
+              ("pedal_chords", 1), ("pedal_chords_only", 1),
+              ("wandering_mod_mild", 1), ("wandering_mod_adv", 2),
+              ("modulating_fifths_up", 1), ("modulating_fifths_down", 1),
+              ("suite_v2", 1)]
+    if args.which_set == "v2":
+        names = [n for n, _t in V2_SET]
+        jobs = [(n, k) for n, takes in V2_SET for k in range(takes)]
+    else:
+        names = [args.only] if args.only else all_names
+        jobs = [(n, k) for n in names for k in range(args.takes)]
+
     outdir = REPO / outroot
     outdir.mkdir(parents=True, exist_ok=True)
 
     rows = []
-    for name in names:
+    for name, k in jobs:
         fn = fns[name]
-        for k in range(args.takes):
-            # Deterministic per (strategy, take): name hash via zlib, since
-            # builtin hash() is salted per process.
-            import zlib
-            rng = random.Random(args.seed + 1000 * k
-                                + zlib.crc32(name.encode()) % 997)
-            best = None
-            for tries in range(1, args.max_tries + 1):
-                t, meta = fn(model, rng, bpm=args.bpm,
-                             seed=args.seed + 1000 * k)
-                span = template_range(t)
-                if best is None or span < best[2]:
-                    best = (t, meta, span, tries)
-                if span <= args.range_cap:
-                    break
-            t, meta, span, tries = best
-            meta["pred_range"] = span
-            meta["tries"] = tries
-            prefix = f"{outroot}/{name}_{k}"
-            render_template(t, prefix)
-            mel = sg.load_melody(REPO / (prefix + "_1.json"))
-            r = sg.score(mel, cs)
-            r.update(file=f"{name}_{k}", **meta)
-            rows.append(r)
-            print(f"{name}_{k}: {r['n_notes']} notes range={r['range']} "
-                  f"rep={r['rep_LxCount']} selfsim={r['selfsim']} "
-                  f"composite={r['composite']}  "
-                  + " ".join(f"{key}={val}" for key, val in meta.items()
-                             if key != "strategy"))
+        # Deterministic per (strategy, take): name hash via zlib, since
+        # builtin hash() is salted per process.
+        import zlib
+        rng = random.Random(args.seed + 1000 * k
+                            + zlib.crc32(name.encode()) % 997)
+        best = None
+        for tries in range(1, args.max_tries + 1):
+            t, meta = fn(model, rng, bpm=args.bpm,
+                         seed=args.seed + 1000 * k)
+            span = template_range(t)
+            if best is None or span < best[2]:
+                best = (t, meta, span, tries)
+            if span <= args.range_cap:
+                break
+        t, meta, span, tries = best
+        meta["strategy"] = name          # registered name, so up/down and
+        meta["pred_range"] = span        # only-variants group separately
+        meta["tries"] = tries
+        prefix = f"{outroot}/{name}_{k}"
+        render_template(t, prefix)
+        mel = sg.load_melody(REPO / (prefix + "_1.json"))
+        r = sg.score(mel, cs)
+        r.update(file=f"{name}_{k}", **meta)
+        rows.append(r)
+        print(f"{name}_{k}: {r['n_notes']} notes range={r['range']} "
+              f"rep={r['rep_LxCount']} selfsim={r['selfsim']} "
+              f"composite={r['composite']}  "
+              + " ".join(f"{key}={val}" for key, val in meta.items()
+                         if key != "strategy"))
 
     cols = ["file", "strategy", "n_entries", "n_notes", "range", "int_jsd",
             "ctr_jsd", "rep_LxCount", "zero_rate", "max_run_frac", "selfsim",
