@@ -4,7 +4,7 @@ Updated: 2026-08-02 — comp run 13 (Wolfie, scheduled) · dsp run 16 (Dipsy, 20
 
 | Lane | Dev | Latest run | Backlog top | Awaiting your review |
 |---|---|---|---|---|
-| comp | Wolfie | run 13 (2026-08-02, scheduled): your run-12 verdicts worked, five fronts. Final-note rule corpus-calibrated (1.00 -> 2.50x, controlled A/B); your three connective shapes built as chain->goal, incl. REAL chromaticism; chords-over-pedal with the Ger6 cadence; **#6 stages 3+4 adopted from the dead 08-01 run, verified and landed — keyContexts are LIVE**; first real modulating circle-of-fifths | #6 leftovers: Bruckner pedal-through-keys + modulating wandering (both now unblocked); #12 scorer blind to phrase endings | **5 items** — final-note A/B, passage set v2, modulation [listen] · scorer gap, Essen [read] |
+| comp | Wolfie | run 14 (2026-08-02, interactive): final-note v2 (longest 96%); stages 3+4 VERIFIED (modulation real: F/F#/C# literal test); passage set v2 from Matt's specs — 58/58 checks, suite_v2 68.75 beats, modulating wander/fifths with proven accidentals | chord emission from template layer; stages 1-2 C++ strategies; scorer passage-mode | **3 items** — passage set v2 [listen], final-note A/B [listen], stage-3 acceptance [read] |
 | dsp | Dipsy | run 16 (2026-08-01 pm, interactive): per-partial rng LANDED (proofs; one-time re-roll); shimmerFloor + ladder; clarinet locked-bed 588-eval (0.916->0.774); FM matrix2 (60 renders) + DEAD phase param found; IPA formant catalog; piano mf scraped (86/88) | phase-param fix -> real PM batch; piano reference build; formant grid (gated on catalog read) | **6 items** — rng A/B, floor pick, x8/x9, matrix2, clarinet best_locked [listen] · formant catalog [read] |
 
 Reports: comp/reports/2026-08-02-wolfie-run13.md ·
