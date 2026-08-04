@@ -19,10 +19,10 @@
     }
    },
    {
-    "id": "vn",
-    "type": "VelvetNoiseSource",
+    "id": "lfo",
+    "type": "SineSource",
     "params": {
-     "density": 20.0,
+     "frequency": 1.7,
      "amplitude": 1.0
     }
    },
@@ -30,10 +30,10 @@
     "id": "ph",
     "type": "RangeSource",
     "params": {
-     "min": -0.5,
-     "max": 0.5,
+     "min": -1.0,
+     "max": 1.0,
      "var": {
-      "ref": "vn"
+      "ref": "lfo"
      },
      "normalized": false
     }
@@ -44,8 +44,8 @@
     "params": {
      "stages": [
       {
-       "startVal": 5.0,
-       "endVal": 3.0,
+       "startVal": 6.0,
+       "endVal": 2.0,
        "type": "Expo",
        "power": 2.0,
        "percent": 0.0
@@ -59,9 +59,6 @@
     "params": {
      "carrierRatio": 1.0,
      "modRatio": 2.0,
-     "phase": {
-      "ref": "ph"
-     },
      "depth": {
       "ref": "depthEnv"
      },

@@ -116,6 +116,14 @@ protected:
     const float mRatio   = modRatio_->current();
     const float d        = depth_->current();
 
+    // Carrier phase offset — this is what makes `phase` true PM rather than a
+    // dead param. Matches the base-class contract: WaveSource::next() keeps
+    // currPos_ = phase_current + sum(incr), i.e. phase is an OFFSET, not an
+    // integrated delta. Offset only; never added into carrierPhase_, which
+    // would integrate the modulator twice and turn PM back into FM. Constant
+    // 0.0f (the default) is exact, so unwired patches stay bit-identical.
+    const float phOffset = currPhase_;
+
     constexpr double TAU_D = 2.0 * 3.14159265358979323846;
 
     const float modFreq = baseFreq * mRatio;
@@ -141,7 +149,7 @@ protected:
 
       // Carrier with frequency modulation
       float carrierFreq = baseFreq * cRatio * (1.0f + modVal * d);
-      float s = float(std::sin(double(carrierPhase_) * TAU_D));
+      float s = float(std::sin((double(carrierPhase_) + double(phOffset)) * TAU_D));
       carrierPhase_ += carrierFreq / subRate;
       if (unboundedPos_) {
         if (carrierPhase_ > 1.0f) carrierPhase_ -= 1.0f;
