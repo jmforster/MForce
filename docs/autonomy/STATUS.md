@@ -1,14 +1,66 @@
 # Status — open this file first
 
-Updated: 2026-08-04 — dsp run 19 (Dipsy, scheduled) · comp run 14 (Wolfie, 2026-08-02)
+Updated: 2026-08-04 — dsp run 19 (Dipsy, scheduled) · comp run 15 (Wolfie, scheduled)
 
 | Lane | Dev | Latest run | Backlog top | Awaiting your review |
 |---|---|---|---|---|
-| comp | Wolfie | run 14 (2026-08-02, interactive): final-note v2 (longest 96%); stages 3+4 VERIFIED (modulation real: F/F#/C# literal test); passage set v2 from Matt's specs — 58/58 checks, suite_v2 68.75 beats, modulating wander/fifths with proven accidentals | chord emission from template layer; stages 1-2 C++ strategies; scorer passage-mode | **3 items** — passage set v2 [listen], final-note A/B [listen], stage-3 acceptance [read] |
+| comp | Wolfie | run 15 (2026-08-04, scheduled): passage-level **chord emission** landed — and found the harmony path **DEAD at HEAD** (all 9 voicing test patches rendered peak=0); new `--lint-template` swept 236 templates; **Bruckner pedal-through-keys** landed, closing backlog #6 | #12 (blocked — its implementation is uncommitted in the tree, needs one word); scorer passage-mode; #7 phrase-aware cadence | **8 items** — 4 carried + Bruckner [listen], hand-vs-engine chords [listen], 9 revived voicing patches [listen], #12 orphan [one word] |
 | dsp | Dipsy | run 19 (2026-08-04, scheduled): mforce_ui relink blocker GONE (3c closed); FMSource `phase` was DEAD, now true PM (3c2 closed); new patch linter found **59 silently-ignored params**, 7 live ones fixed; noise family given `amplitude`, adsr preset given its jitter ranges; **6 of 7 unrenderable patches revived** | 2d-1 SIMD (needs an AVX2 decision), then backlog 14 (52 remaining lint findings) | **10 items** — 6 carried + FM "PM" re-verdict [listen], wander re-verdict [listen], engine gaps [read], CombineTest ordinal [one word] |
 
 Reports: dsp/reports/2026-08-04-dipsy-run19.md ·
-comp/reports/2026-08-02-wolfie-run13.md
+comp/reports/2026-08-04-wolfie-run15.md
+
+Run-15 highlights (comp): four fronts, all build/metric, no blind taste
+iteration. The through-line is **capabilities that existed but could not be
+reached from a template**.
+(0) **Tree guard, and it matters this time.** Two comp-lane files were dirty
+at session start — `score_generated.py` (+181) and `corpus_baseline.py` (+12),
+stamped 08-03 07:10, no report, no commit. They are a complete-looking
+implementation of **backlog #12** (the phrase-ending screen you needed) left
+by a run that died mid-cycle, the same way stages 3+4 were orphaned on 08-01.
+Untouched, unrun, uncommitted per the guard. **One word adopts or discards
+them** (REVIEW 5); until then #12 is blocked and the composite still cannot
+see endings.
+(1) **A passage can now carry its own chords** — and finding out why it
+couldn't turned up something worse: **the harmony path was dead at HEAD**. All
+nine `test_jazz_turnaround_*` patches, the entire voicing-selector A/B set,
+rendered `peak=0` with **0 chord events** while the section timeline held all
+16 chords. Nothing in the repo had ever been migrated to the `rhythmPattern`
+that Stage 11 made mandatory. One idea fixed both: an authored progression
+already carries durations, so it emits chords by itself and a rhythmPattern
+merely RE-articulates it. All 9 revived (peak 0.68-0.91, selectors live).
+`alteration` is now authorable, which is what makes bVI7 — a German sixth —
+expressible at all. Pattern mode and melody-only templates byte-identical.
+(2) **The prototype uses it, as a controlled A/B**: `pedal_chords_voiced` /
+`_smooth` are the same music as `pedal_chords` with only the plumbing changed
+— proven, not asserted (old-vs-new templates identical across 3 takes; melody,
+progression and tension curve identical in the rendered pairs). Measured
+payoff: `smooth` inverts to minimize motion (E3m/i2 G3M/i1 A3m/i1 C3M/i2)
+where the hand-voiced path can only ever emit what the author already fixed.
+(3) **`mforce_cli --lint-template`** — the comp analogue of the dsp patch
+linter, built because the round-trip bug in front 1 is a class, not an
+incident. 236 templates → 26 hard findings after classification, 12 of them
+type-defaults. Real: `chordConfig` was parseable but NOT serializable (a
+template through the engine lost its chord octave); 9 dead `defaultPattern`
+keys removed (render byte-identical after — the proof they were dead);
+`sections[].keyName` does nothing in a run-13 probe. **The tool cried wolf
+twice before it was trustworthy** — an all-null connectors list was 50 of the
+first 77 findings — and one apparent bug is an anti-result: flat
+`voicingPriority` is renamed on output, not lost.
+(4) **The Bruckner pedal lands, closing backlog #6.** Your "modulating over
+the pedal" needed TWO key fixes, not the one stage 3 delivered: chord
+realization ignored key contexts entirely, and then — found by rendering, not
+by reading — the **pedal itself drifted 43-43-42-41**, because key-awareness
+applied to it too and G is not in G-flat major. A pedal that moves is not a
+pedal. `PassageTemplate.scaleOverride` now lets a part refuse to modulate.
+The passage re-lights I-vi-IV-V in each key of a chromatic-third ring over a
+stationary G, closing Ger6 → I(6/4) → V7 → I at home.
+**A finding for your ears elsewhere**: with the voicing patches alive again,
+the priority ladder collapses — `p05` and `p1` are byte-identical renders,
+`p0` differs (REVIEW 8, backlog #14).
+Also corrected: backlog **#10 was already done** — markov_phrase has been
+routing A-family primes through the transform library, with a fallback that
+enforces each repeat actually differing. Stale entry, not new work.
 
 Run-19 highlights (dsp): four fronts, all build/metric, no blind taste
 iteration. The through-line is **things that were silently doing nothing**, and
@@ -271,10 +323,11 @@ not be relinked (Matt's UI held it locked), so the running binary still has
 the old behaviour. Once it is rebuilt, a comp-only engine edit will no longer
 make it shout STALE.
 
-Next "go": comp = the two modulation passages stage 3 unblocked (Bruckner
-pedal-through-keys, modulating wandering) → #12 give the scorer a phrase-
-ending screen → #7 phrase-aware cadence. Five comp review items waiting
-(three listen, two read). dsp = **rebuild mforce_ui first and confirm
+Next "go": comp = #12 (one word from you unblocks it — the code is written and
+sitting in the tree) → scorer passage-mode (phrase screens mis-score passages
+by design: a Bruckner take with 16 notes over 50 beats scores 0.719 for
+reasons unrelated to whether it works) → #7 phrase-aware cadence. Eight comp
+review items waiting (five listen, two read, one word). dsp = **rebuild mforce_ui first and confirm
 `--stamp` exits 0**, then item 3c2 (FMSource's `phase` param is dead — apply
 phase_ to the carrier for true PM, then re-render the t1_06/t1_07 topologies
 as designed), then 2d-1 (vector path, needs an AVX2-availability decision).
@@ -287,6 +340,8 @@ session start across six runs (c2c_quiet.json, v6_01_res_curve_lo.json,
 iowa_reference.py, score_candidate.py). Backlog 11 wants one word from Matt —
 HEAD alone still cannot run the clarinet CMA-ES pipeline without them, and
 the piano onset-alignment prereq lives in iowa_reference.py, so this is now
-blocking piano work too.
+blocking piano work too. As of run 15 there are **six**: the two comp scorer
+files from the 08-03 orphan run join the list (REVIEW 5 — that one is a
+separate decision, adopt or discard).
 
 How this works: [WORKFLOW.md](WORKFLOW.md)

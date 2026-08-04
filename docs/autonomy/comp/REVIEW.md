@@ -2,6 +2,74 @@
 
 ## Awaiting Matt
 
+### 5. The #12 implementation is sitting uncommitted [one word] (run 15)
+`corpus/mtd_seg/score_generated.py` (+181 lines) and `corpus_baseline.py`
+(+12) were modified 2026-08-03 07:10 by a scheduled run that died before
+committing or reporting. They implement backlog #12 — the phrase-ending
+closure screen you needed after the final-note verdict. Per the tree guard I
+did not touch, run, or commit them.
+
+Reading the diff (not running it), it looks complete and self-justifying: a
+`closure` screen using final-note duration ratio against the corpus band plus
+where the final onset sits on the beat grid, a batch-level `closure_batch`
+reported separately (the run-13 defect — every phrase ending at exactly 1.0 —
+is invisible per-melody because 1.0 is MTD's p25, and only shows up in the
+batch distribution), and a `LONGEST_TOL` of 0.98 argued from a measured
+plateau (0.115 exact vs 0.351 at any tolerance from 1% to 10%).
+
+Verdict decides: adopt (I verify and commit it next run) or discard (I
+reimplement from scratch). Until then #12 is blocked and the composite still
+cannot see endings.
+
+### 6. Bruckner — modulating over a stationary pedal [listen] (run 15)
+`renders/passage_bruckner/` — 4 renders, two chromatic-third rings.
+Your run-12 spec, finally buildable. The same I-vi-IV-V re-lit in each key
+while the pedal does not move, then Ger6 → I(6/4) → V7 → I back home:
+
+    take 0   C  →  E flat  →  G flat  →  C     (G = 5th, 3rd, alien, 5th)
+    take 1   C  →  A flat  →  E       →  C     (G = 5th, 7th, #4, 5th)
+
+The ring is picked so the held G *changes meaning without moving*, which is
+the reason to hold it. Two engine gaps had to close first: chord realization
+ignored key contexts entirely (stage 3 only covered melody), and the pedal
+itself was key-aware, so it drifted 43-43-42-41 — G is not in G-flat major.
+
+Verdict decides: (a) does the harmonic motion read as *going somewhere* over a
+static bass, or as unrelated chords; (b) is 8 beats per key station right, or
+too fast to register; (c) is G-flat (where the pedal is alien to every chord)
+a peak or just wrong.
+
+### 7. Chords by hand vs chords by engine [listen] (run 15)
+`renders/passage_chords_ab/` — `ab_hand_N` / `ab_voiced_N` / `ab_smooth_N`,
+3 takes. Controlled: identical melody, identical progression, identical
+tension curve, identical pedal. The ONLY difference is who spells the chords.
+
+- `hand` — what `pedal_chords` has always done: 3 countermelody parts,
+  every note fixed by the generator.
+- `voiced` — one harmony part carrying its own progression; engine default
+  voicing (root position throughout).
+- `smooth` — same, with the `smooth` voicing selector, which inverts to
+  minimize motion (E3m/i2, G3M/i1, A3m/i1, C3M/i2).
+
+Verdict decides: whether the voiced path replaces the hand-voiced one in
+`pedal_chords` (and by extension whether new strategies should author chords
+as chords), and whether `smooth` or plain root position suits this texture.
+Note the Ger6 differs slightly between arms: hand spells Ab-Eb-F# (no third),
+the named bVI7 gives Ab-C-Eb-Gb.
+
+### 8. Nine voicing test patches were silent; now they aren't [listen + read]
+`patches/test_jazz_turnaround_*.json` (9) rendered `peak=0 rms=0` at HEAD —
+the whole voicing-selector A/B set from the chord-walker work has been dead
+since the Stage-11 rhythm-pattern migration, which no template ever completed.
+They now render (16 chords, peak 0.68-0.91), so the A/B you never got to hear
+is available: `flat` / `smooth` / `drift` / `random` / `scripted` / `rock` and
+the priority ladder `p0` / `p05` / `p1`.
+
+**One read**: the priority ladder collapses — `p05` and `p1` are
+BYTE-IDENTICAL renders while `p0` differs. Priority separates zero from
+nonzero and nothing in between. Backlog #14; not touched blind because it is
+voicing-profile semantics, and what "priority 0.5" should mean is your call.
+
 ### 1. Final-note weighting — A/B [listen] (run 13)
 `renders/markov_phrases4/` vs `renders/markov_phrases4/before/` — 24 phrases
 each, SAME seed, and the final-note draws run on their own rng stream, so

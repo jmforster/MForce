@@ -2,7 +2,28 @@
 
 Priority order. (G1)-(G2) = GOALS.md Wolfie goals.
 
-6. **[build] (G2) PassageStrategy expansion** — ALL FOUR C++ STAGES LANDED.
+13. **[build] Section-level key is not authorable** — `sections[].keyName` is
+    silently ignored (SectionTemplate has no such field); the run-13 probe
+    templates set it on three sections and got nothing. Found by
+    `--lint-template` in run 15. The working mechanism is `keyContexts`, which
+    is beat-indexed and more general — so the question is whether a plain
+    "this section is in G" shorthand should desugar to a single keyContext at
+    beat 0, or whether the key should be rejected loudly instead of ignored.
+14. **[build] Voicing priority ladder collapses** — with the nine
+    `test_jazz_turnaround_*` patches rendering again (run 15 front 1),
+    `_p05` and `_p1` are BYTE-IDENTICAL renders while `_p0` differs. Priority
+    distinguishes 0 from nonzero and nothing in between. Belongs with #8; not
+    touched blind because it is voicing-profile semantics.
+6. **[build] (G2) PassageStrategy expansion** — CLOSED in run 15. All four
+   C++ stages landed earlier; the two remaining Matt ideas are now built.
+   The modulating wandering passage landed in run 14; the **Bruckner
+   pedal-through-keys** landed in run 15 (`pedal_modulating`,
+   `pedal_mod_minor3rds`) and needed two engine fixes to be possible at all:
+   chord realization was not key-aware (stage 3 only covered melody), and a
+   pedal had no way to opt OUT of key-awareness, so its held note was being
+   snapped into each new scale. Both fixed. Anything further under this
+   heading is new work, not leftovers.
+   Old text kept below for the record:
    Stages 1-2 committed by the 2026-08-01 run; stages 3-4 adopted, verified
    and committed in run 13 (key-aware realization + WanderingPassageStrategy,
    plus a retry fix for a silent-render bug the 24-entry outlier exposed).
@@ -15,7 +36,19 @@ Priority order. (G1)-(G2) = GOALS.md Wolfie goals.
    keys). NOTE for both: stage 3 snaps the cursor's PITCH into the new scale,
    it does NOT move it to the new tonic, so adding keyContexts alone will not
    modulate audibly; the entry must be offset by the key distance.
-12. **[build] Scorer is blind to the final note** — run 13 changed every
+15. **[build] Scorer passage-mode** — the phrase-oriented screens mis-score
+    passages by design. A Bruckner take with 16 notes spread over 50 beats
+    scores 0.719 for reasons unrelated to whether it works; the repetition
+    screen punishes a sequence for being a sequence. Needs a passage-mode
+    that scores shape (does the tension curve rise, does the cadence land)
+    rather than first-order note plausibility. TOP of the list after #12.
+12. **[build] Scorer is blind to the final note** — BLOCKED at run 15 by the
+    tree guard: an uncommitted implementation of exactly this is sitting in
+    the working copy (`score_generated.py` +181, `corpus_baseline.py` +12,
+    stamped 2026-08-03 07:10, no report, no commit — a run that died
+    mid-cycle). Not touched, not run, not committed. Needs one word from Matt
+    to adopt or discard; see REVIEW 5. Original text:
+    run 13 changed every
     phrase ending in a 24-phrase batch (final ratio 1.00 -> 2.50, ends-on-beat
     4/24 -> 24/24) and `scores.csv` came out BYTE-IDENTICAL. The composite has
     no phrase-ending term at all, so no metric could ever have caught the
@@ -28,11 +61,12 @@ Priority order. (G1)-(G2) = GOALS.md Wolfie goals.
     against the essen_asia anchor (int_jsd .087 vs .081). If corpus-specific
     modal/pentatonic flavor is wanted, the token alphabet (or realization)
     has to carry it. Design question, not yet a task.
-10. **[build] Wire figure transforms into the phrase-builder** — the transform
-    library landed run 8 (figure_transforms.py); next is USING it in
-    markov_phrase so repeated A-family occurrences can be transposed AND
-    transform-varied (invert/rotate/ornament/expand), not just contour-anchored
-    + vary_tail. Serves Matt's spec-1/2/3 repeat variety at full generality.
+10. **DONE (found already implemented, run 15)** — Wire figure transforms into
+    the phrase-builder. `markov_phrase.py` routes A-family primes through
+    `figure_transforms` (INDEPENDENT_OPS / INVOLUTION_OPS / a "mixed" menu
+    that draws a different op per occurrence), and enforces that each repeat
+    actually differs via a rotate-then-ornament fallback when an
+    occurrence-parameterized op saturates. The backlog entry was stale.
 7. **[build] Phrase-aware cadence placement** (AFS impedance finding).
 8. **[build] Voicing open items** — upward tendency, cadential chord role,
    boring-repeat, StagedVoicingProfileSelector.
@@ -40,6 +74,18 @@ Priority order. (G1)-(G2) = GOALS.md Wolfie goals.
 
 ## Done
 
+- Run 15 (2026-08-04): four fronts. Passage-level chord emission
+  (`PassageTemplate.chordProgression` + span/pattern modes + one shared
+  progression parser that accepts both authoring forms and carries
+  `alteration`) — which also revived the harmony path, DEAD at HEAD: all nine
+  `test_jazz_turnaround_*` rendered peak=0 with 0 chord events. Prototype A/B
+  (`pedal_chords_voiced` / `_smooth`, controlled at fixed seed).
+  `mforce_cli --lint-template`: 236 templates swept, `chordConfig` found
+  parseable-but-not-serializable, 9 dead `defaultPattern` keys removed.
+  Bruckner pedal-through-keys (`pedal_modulating`) closing #6, needing
+  key-aware chord realization + `PassageTemplate.scaleOverride` so a pedal can
+  refuse to modulate. Renders: passage_chords/, passage_chords_ab/,
+  passage_bruckner/.
 - Run 13 (2026-08-02): Matt's run-12 verdicts, three fronts.
   Final-note rule corpus-calibrated (final_note_stats.py profiles MTD n=1632 /
   Nottingham n=1024: median ratio 2.0 in both; the old rule sat at 1.0 = MTD
