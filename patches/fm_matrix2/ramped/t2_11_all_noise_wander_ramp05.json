@@ -66,10 +66,10 @@
     "id": "n3",
     "type": "WanderNoiseSource",
     "params": {
-     "frequency": 7.0,
      "amplitude": {
       "ref": "rampEnv"
-     }
+     },
+     "speed": 7.0
     }
    },
    {

@@ -38,8 +38,8 @@
     "id": "n3",
     "type": "WanderNoiseSource",
     "params": {
-     "frequency": 7.0,
-     "amplitude": 1.0
+     "amplitude": 1.0,
+     "speed": 7.0
     }
    },
    {

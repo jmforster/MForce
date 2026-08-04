@@ -1,5 +1,6 @@
 #include "mforce/render/patch_loader.h"
 #include "mforce/render/wav_writer.h"
+#include "mforce/core/source_registry.h"
 #include "explore.h"
 #include "mforce/music/basics.h"
 #include "mforce/music/structure.h"
@@ -973,9 +974,44 @@ static int test_ornaments(int /*argc*/, char** /*argv*/) {
     return 0;
 }
 
+// Emit every registered source type's accepted JSON keys as JSON, so external
+// tools (tools/lint_patches.py) can check patches against the engine's own
+// truth instead of a hand-maintained list that silently drifts.
+static int run_dump_descriptors(int argc, char** argv)
+{
+    (void)argc; (void)argv;
+    register_all_sources();
+    auto& reg = SourceRegistry::instance();
+
+    nlohmann::json out = nlohmann::json::object();
+    for (const auto& [name, cat] : reg.registered_types()) {
+        // Instantiating is the only way to reach the virtual descriptor sets;
+        // a default-constructed instance is thrown away immediately.
+        std::shared_ptr<ValueSource> s;
+        try { s = reg.create(name, 48000); }
+        catch (const std::exception&) { continue; }
+        if (!s) continue;
+
+        nlohmann::json e = nlohmann::json::object();
+        e["category"] = int(cat);
+        for (const char* key : {"inputs", "params", "configs", "arrays"})
+            e[key] = nlohmann::json::array();
+        for (const auto& d : s->input_descriptors())  e["inputs"].push_back(d.name);
+        for (const auto& d : s->param_descriptors())  e["params"].push_back(d.name);
+        for (const auto& d : s->config_descriptors()) e["configs"].push_back(d.name);
+        for (const auto& d : s->array_descriptors())  e["arrays"].push_back(d.name);
+        out[name] = std::move(e);
+    }
+
+    std::cout << out.dump(1) << "\n";
+    return 0;
+}
+
 int main(int argc, char** argv)
 {
     try {
+        if (argc >= 2 && std::string(argv[1]) == "--dump-descriptors")
+            return run_dump_descriptors(argc, argv);
         if (argc >= 2 && std::string(argv[1]) == "--test-ornaments")
             return test_ornaments(argc, argv);
         if (argc >= 2 && std::string(argv[1]) == "--chords")
