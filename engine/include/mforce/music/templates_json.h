@@ -839,6 +839,7 @@ inline void to_json(json& j, const PassageTemplate& pt) {
     if (!pt.character.empty()) j["character"] = pt.character;
     if (!pt.fromKey.empty()) j["fromKey"] = pt.fromKey;
     if (!pt.toKey.empty()) j["toKey"] = pt.toKey;
+    if (!pt.scaleOverride.empty()) j["scaleOverride"] = pt.scaleOverride;
     if (!pt.strategy.empty()) j["strategy"] = pt.strategy;
     if (pt.seed != 0) j["seed"] = pt.seed;
     if (pt.locked) j["locked"] = true;
@@ -957,6 +958,7 @@ inline void from_json(const json& j, PassageTemplate& pt) {
     pt.fromKey = j.value("fromKey", std::string(""));
     pt.toKey = j.value("toKey", std::string(""));
     pt.strategy = j.value("strategy", std::string(""));
+    pt.scaleOverride = j.value("scaleOverride", std::string(""));
     pt.seed = j.value("seed", 0u);
     pt.locked = j.value("locked", false);
 

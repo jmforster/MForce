@@ -801,6 +801,105 @@ def modulating_fifths(model, rng, bpm=92.0, seed=1, direction=None):
 
 
 # --------------------------------------------------------------------------- #
+# strategy 8 — Bruckner: the harmony MODULATES over a stationary pedal
+# --------------------------------------------------------------------------- #
+# Matt, run 12: "Bruckner extreme = modulating over the pedal (needs key fix)."
+# It needed two fixes, not one. Stage 3 (run 13) made MELODY key-aware; chord
+# realization still resolved every ScaleChord against the section scale, so a
+# progression under keyContexts stayed put. Comp run 15 made chords key-aware
+# too, and gave a passage its own progression — with both, one authored
+# progression walks through keys while the pedal does not move.
+#
+# The key plan is chromatic-third related, which is the Bruckner sound and also
+# the point of a pedal: G is the 5th of C, the 3rd of Eb, the b7 of A — the
+# SAME held note is consonant, then differently consonant, then dissonant,
+# without the bass moving at all. Gb is the outlier: G belongs to no Gb triad,
+# which is the maximum-tension station.
+BRUCKNER_RINGS = {
+    # (key, how the held G sits in it)
+    "thirds_down": ["C", "A Flat", "E", "C"],       # G = 5th, 7th, #4(!), 5th
+    "thirds_up":   ["C", "E", "A Flat", "C"],
+    "minor3rds":   ["C", "E Flat", "G Flat", "C"],  # G = 5th, 3rd, alien, 5th
+}
+
+
+def pedal_modulating(model, rng, bpm=92.0, seed=1, ring=None, selector="smooth"):
+    """Chords modulating over a stationary dominant pedal, closing with the
+    Ger6 cadence back in the home key — Matt's Bruckner extreme.
+
+    Each key station gets the same local progression (I - vi - IV - V), so what
+    changes between stations is the KEY, not the chord plan: the ear hears the
+    same shape re-lit three times while the bass refuses to move. The cadence
+    then arrives back in C with the pedal releasing to the tonic, so the
+    passage lands rather than just stopping."""
+    name = ring or rng.choice(list(BRUCKNER_RINGS))
+    keys = BRUCKNER_RINGS[name]
+    station = [(0, "Major"), (5, "m"), (3, "Major"), (4, "7")]   # I vi IV V7
+    per_chord = 2.0
+    per_station = per_chord * len(station)
+
+    prog, labels = [], []
+    for ki, k in enumerate(keys):
+        for deg, qual in station:
+            prog.append({"degree": deg, "quality": qual, "beats": per_chord})
+            labels.append(f"{k}:{DEGREE_NAMES[deg]}")
+    # Cadence in the home key: Ger6 -> I(6/4 over the pedal) -> V7 -> I.
+    cad = [({"degree": 5, "alteration": -1, "quality": "7"}, "Ger6"),
+           ({"degree": 0, "quality": "Major"}, "I(6/4)"),
+           ({"degree": 4, "quality": "7"}, "V7"),
+           ({"degree": 0, "quality": "Major"}, "I")]
+    cad_beats = [4.0, 4.0, 4.0, 6.0]
+    for (c, lab), b in zip(cad, cad_beats):
+        prog.append(dict(c, beats=b))
+        labels.append(lab)
+    total = per_station * len(keys) + sum(cad_beats)
+
+    # The key stations cover the modulating span only; the cadence stays home,
+    # which is why the last context is C at the start of the cadence.
+    kctx = [(i * per_station, f"{keys[i]} Major") for i in range(len(keys))]
+    kctx.append((per_station * len(keys), "C Major"))
+
+    # Melody: one cell per key station, re-entering at the same degree so the
+    # KEY does the transposing (the modulating_fifths lesson, applied here).
+    cell = _sample_chain_cell(model, rng, 4, per_station * 0.5, per_station)
+    n_mel = len(keys)
+    motifs = {"MEL": cell,
+              "PED": {"units": [{"duration": per_station, "step": 0}]},
+              "PEDRES": {"units": [{"duration": sum(cad_beats), "step": 0}]}}
+    mel_refs = ["MEL"] * n_mel
+    mel_anchors = [0] * n_mel
+    mel_conns = anchor_connectors([cell] * n_mel, mel_anchors)
+
+    chords = {"name": "chords", "role": "harmony",
+              "passages": {"Main": {"chordConfig": {"octave": 4},
+                                    "voicingSelector": selector,
+                                    "chordProgression": prog}}}
+    # The pedal holds the dominant through every key, then releases a fifth to
+    # the tonic for the final chord — same reasoning as pedal_chords: held to
+    # the end, the arrival is a 6/4 that never lands.
+    # scaleOverride pins the pedal to the home scale, which is also how it
+    # opts OUT of the section's key contexts. Without it the pedal is
+    # key-aware like every other part and its held G gets snapped into each
+    # new scale — measured before the fix: 43-43-42-41 instead of a held 43.
+    # A pedal that moves is not a pedal.
+    bass = {"name": "pedal", "role": "bass",
+            "passages": {"Main": {
+                "startingPitch": {"octave": 3, "pitch": "G"},
+                "scaleOverride": "Major",
+                "phrases": [phrase("PED", ["PED"] * len(keys) + ["PEDRES"],
+                                   [None] + [0] * (len(keys) - 1) + [-4],
+                                   octave=3, pitch="G")]}}}
+
+    t = template(motifs, [phrase("P", mel_refs, mel_conns)],
+                 beats=total, bpm=bpm, seed=seed,
+                 extra_parts=(chords, bass), key_contexts=kctx)
+    return t, {"strategy": "pedal_modulating", "ring": name,
+               "keys": "-".join(keys), "n_entries": len(prog),
+               "progression": "-".join(labels),
+               "beats_per_station": per_station, "beats": total}
+
+
+# --------------------------------------------------------------------------- #
 # strategy 8 — modulating wandering (Matt's run-12 cliche, unblocked by stage 3)
 # --------------------------------------------------------------------------- #
 # Matt: "sweet major theme -> sudden diminished/minor turn -> wander minor and
@@ -1031,6 +1130,9 @@ STRATEGIES = {
         lambda m, r, **kw: pedal_chords(m, r, voiced=True, selector="smooth",
                                         **kw),
     "modulating_fifths": modulating_fifths,
+    "pedal_modulating": pedal_modulating,
+    "pedal_mod_minor3rds":
+        lambda m, r, **kw: pedal_modulating(m, r, ring="minor3rds", **kw),
     "modulating_fifths_up":
         lambda m, r, **kw: modulating_fifths(m, r, direction=True, **kw),
     "modulating_fifths_down":

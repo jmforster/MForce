@@ -569,6 +569,12 @@ private:
         auto emit_chord = [&](const ScaleChord& sc, float pos, float dur) {
           float beatInPassage = pos - beatOffset;
           int bar = int(beatInPassage / beatsPerBar);
+          // Chords follow the section's key contexts, the way melody
+          // realization has since #6 stage 3. Without them active_scale_at
+          // returns the section scale, so this is a strict no-op for every
+          // template that does not modulate — and with them, one authored
+          // progression walks through keys (Matt's Bruckner pedal).
+          Scale activeScale = sec.active_scale_at(beatInPassage);
           Chord chord;
           if (selector) {
             float beatInBar = beatInPassage - bar * beatsPerBar;
@@ -576,13 +582,13 @@ private:
                 ? profileSelector->profile_for_chord(
                       chordIdx, beatInBar, beatInPassage)
                 : passIt->second.voicingProfile;
-            VoicingRequest req{sc, &sec.scale, cfg.octave, dur,
+            VoicingRequest req{sc, &activeScale, cfg.octave, dur,
                                prevChord, std::nullopt,
                                profile,
                                passIt->second.voicingDictionary};
             chord = selector->select(req);
           } else {
-            chord = sc.resolve(sec.scale, cfg.octave, dur,
+            chord = sc.resolve(activeScale, cfg.octave, dur,
                                cfg.inversion, cfg.spread);
           }
           RealizationRequest realReq{chord, pos, dur, bar + 1, nullptr};
@@ -741,6 +747,13 @@ private:
 
       ::mforce::rng::Scope rngScope(rng_);
       passage = compose_passage(locus, passIt->second);
+      // Pin this passage's scale if the template asks for it. Doubles as the
+      // "this part does not follow the section's key contexts" switch, which
+      // is what a pedal needs.
+      if (!passIt->second.scaleOverride.empty()) {
+        passage.scaleOverride = Scale::get(tmpl.keyName,
+                                           passIt->second.scaleOverride);
+      }
     } else {
       // No template for this section — fallback.
       passage = generate_default_passage_(piece, tmpl, scale);

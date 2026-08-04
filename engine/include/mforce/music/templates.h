@@ -459,6 +459,14 @@ struct PassageTemplate {
     std::string fromKey;
     std::string toKey;
 
+    // Scale name (e.g. "Major", "Harmonic Minor") pinning THIS passage's
+    // scale, resolved against the piece key. Also the opt-out from section
+    // key contexts: Passage::scaleOverride already turned key-awareness off
+    // at realize time, but nothing could set it from a template — so a pedal
+    // part in a modulating section had no way to refuse to modulate, and its
+    // held note got snapped into each new scale.
+    std::string scaleOverride;
+
     // Strategy selection. Empty = default_passage.
     std::string strategy;
 
