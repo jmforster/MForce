@@ -1,14 +1,68 @@
 # Status — open this file first
 
-Updated: 2026-08-03 — dsp run 18 (Dipsy, scheduled) · comp run 14 (Wolfie, 2026-08-02)
+Updated: 2026-08-04 — dsp run 19 (Dipsy, scheduled) · comp run 14 (Wolfie, 2026-08-02)
 
 | Lane | Dev | Latest run | Backlog top | Awaiting your review |
 |---|---|---|---|---|
 | comp | Wolfie | run 14 (2026-08-02, interactive): final-note v2 (longest 96%); stages 3+4 VERIFIED (modulation real: F/F#/C# literal test); passage set v2 from Matt's specs — 58/58 checks, suite_v2 68.75 beats, modulating wander/fifths with proven accidentals | chord emission from template layer; stages 1-2 C++ strategies; scorer passage-mode | **3 items** — passage set v2 [listen], final-note A/B [listen], stage-3 acceptance [read] |
-| dsp | Dipsy | run 18 (2026-08-03, scheduled): UI stale-guard FALSE POSITIVE fixed (real dep set, 73 files not 116, A/B-proven 3 ways); expand depth 3-4 finally run — depth measures SECOND-ORDER; `power` found inert at count=1; piano beat RATE measured and shown NOT lockable | 3c2 FMSource dead phase, then 2d-1 SIMD — both need mforce_ui relinkable | **6 items** — 3 from run 17 + expand round 4 [listen], power-at-count-1 [read], shimmer dims [read] |
+| dsp | Dipsy | run 19 (2026-08-04, scheduled): mforce_ui relink blocker GONE (3c closed); FMSource `phase` was DEAD, now true PM (3c2 closed); new patch linter found **62 silently-ignored params**, 7 live ones fixed; noise family given `amplitude`, adsr preset given its jitter ranges | 2d-1 SIMD (needs an AVX2 decision), then backlog 14 (55 remaining lint findings) | **9 items** — 6 carried + FM "PM" re-verdict [listen], wander re-verdict [listen], engine gaps [read] |
 
-Reports: dsp/reports/2026-08-03-dipsy-run18.md ·
+Reports: dsp/reports/2026-08-04-dipsy-run19.md ·
 comp/reports/2026-08-02-wolfie-run13.md
+
+Run-19 highlights (dsp): three fronts, all build/metric, no blind taste
+iteration. The through-line is **params that were silently doing nothing**.
+(0) **The blocker that stopped run 18 is gone.** No UI process was running,
+and the on-disk `mforce_ui.exe` already carried run 18's stale-guard fix
+(`--stamp`: `dep set : tlog (74 files)`, `stale : no`, exit 0) — run 18's
+rename-then-link trick had in fact worked, so its "NOT YET RELINKED" was
+pessimistic. Backlog 3c fully closed; engine work unblocked.
+(1) **FMSource's `phase` param was dead.** It was advertised, the loader
+wired it, and `compute_wave_value` never read it. Proven byte-exactly before
+touching anything: t1_06 (±1 cycle @ 1.7 Hz) and t1_07 (±0.5 cycle @ 220 Hz)
+each rendered IDENTICAL to a twin with `phase` deleted — so **the two "PM"
+cells you auditioned in the run-12 FM matrix were plain FM**. Fixed as a
+carrier-side offset, which is the base class's own contract rather than an
+invented one. Null test PASSES a partition, not a sweep: 131 phase-unwired
+patches byte-identical, all 4 wired ones differ. And the fix makes real
+sidebands, measured not asserted — t1_07 centroid 1.40x; t1_06 splits every
+partial into a 1.7 Hz cluster, 6 → 109 peaks, without brightening (correct: a
+slow phase sweep is a frequency deviation). The null test then caught a THIRD
+patch the engine fix did not resurrect, and it was patch-side both ways —
+t3_23's offsets were whole cycles (inert by construction) and it set
+`"frequency"` on a source that has `density`.
+(2) **That last bug is a hole in the loader, so I went looking.**
+`wire_params_generic` iterates descriptors and picks matching JSON keys — any
+key matching nothing is dropped **without a word**. New
+`mforce_cli --dump-descriptors` (71 types) + `tools/lint_patches.py` check
+patches against the engine's own truth. First run: **62 silently-ignored
+params in 27 files.** Fixed the 7 live in your FM review batch —
+`WanderNoiseSource`'s rate param is `speed`, not `frequency`, so every
+`t2_11_all_noise_wander` cell ran at 1.0 instead of 7.0. The other 55 are
+triaged in backlog 14, none fixed blind. Also `--dups`: 13 duplicate groups
+across 1003 patches, and **all 13 are intentional** (gen_fm_matrix2 defines
+its `med` rung AS the original patch) — an anti-result, recorded so nobody
+re-derives it. I called them defects on first sight and was wrong. The tool
+also cried wolf on its first run: 3 of the 62 were false positives, because
+JsonConfigurator lambdas in `source_registrations.cpp` consume keys that no
+descriptor set mentions (`gap` legitimately sets a member called
+`gapDuration`). Allowlist now reads both files. Corrected: 59 real, **52
+remaining**.
+(3) **Two gaps the linter exposed, both closed.** White/Pink/Blue/Violet noise
+had NO `amplitude` param at all — setting noise level required an extra
+multiplier node. And the `adsr` preset dropped all six of `make_adsr`'s
+randomization ranges, so an adsr envelope could not express stage jitter.
+Blast radius established honestly before the change: 375 adsr nodes exist and
+**0** set those keys (a file-level grep said 106; false positive from `ar`
+nodes, which already worked). A/B-verified bit-exact — 327/327 identical
+across the renderable affected patches — with linearity proved separately,
+because the one patch that SHOULD have moved turns out to be one of **7 that
+the CLI cannot render at all** ("Only StereoMixer output supported"). That is
+pre-existing, is the same species as the RD audition-path mismatch, and is now
+backlog 15.
+**Two things want you:** the run-12 FM matrix verdict on t1_06/t1_07/t3_23
+should be treated as void — those were judged as something they weren't — and
+the same for the t2_11 wander row. Both re-rendered and queued (REVIEW 7, 8).
 
 Run-18 highlights (dsp): three fronts, no engine edits — and that last part
 is the headline constraint. **mforce_ui.exe was locked all run** (your UI up

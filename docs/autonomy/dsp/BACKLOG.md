@@ -57,8 +57,13 @@ Priority order. Tags per WORKFLOW.md. (G1)-(G4) = GOALS.md Dipsy goals.
    tools/mforce_ui/build_stamp.h so a locked (running) exe can still be
    checked; new tools/stamp_test includes it directly + ab_stale_guard.ps1
    A/Bs old vs new on the live tree, 3 directions, restoring every mtime it
-   touches. **mforce_ui.exe NOT YET RELINKED** — Matt's UI held it locked all
-   of run 18; compiles clean, needs a rebuild when the UI is next closed. Title bar carries `[build MM-DD HH:MM @sha]` always, plus
+   touches. **✓ FULLY CLOSED run19 (2026-08-04)** — run 18's "NOT YET RELINKED"
+   was pessimistic. No UI process was running at run-19 start and the on-disk
+   exe already carried the fix (`--stamp`: `dep set : tlog (74 files)`,
+   `stale : no`, exit 0), so the rename-then-link trick had worked; the
+   `mforce_ui_running_backup2.exe` in the build dir is its residue. Both
+   targets relinked and `--stamp` re-verified at every cycle close this run.
+   Title bar carries `[build MM-DD HH:MM @sha]` always, plus
    `*** STALE - REBUILD ***` and a dismissable red banner naming the offending
    file when the exe is older than the newest engine .h/.hpp/.cpp. Commit read
    from .git/HEAD, repo root found by walking up from the exe — no build-system
@@ -67,13 +72,52 @@ Priority order. Tags per WORKFLOW.md. (G1)-(G4) = GOALS.md Dipsy goals.
    GUI; both directions tested. Also fixed: printf from --stamp/--roundtrip was
    invisible from a console (WIN32 subsystem app), now attaches the parent
    console unless stdout is already redirected.
-3c2. **[build] FMSource phase param is dead** — found by the matrix2
-   batch: compute_wave_value uses its own carrierPhase_/modPhase_ and
-   never reads the inherited phase_, so 'phase' modulation (t1_06, t1_07
-   'PM' topologies) does nothing — those renders were plain FM,
-   byte-identical across phase variants. Fix = apply phase_ to the
-   carrier accumulator (true PM), THEN re-render the t1_06/t1_07
-   topologies as actually designed and A/B.
+3c2. **[build] FMSource phase param is dead** — ✓ DONE run19 (2026-08-04),
+   commit fbbcb44. Inertness proven byte-exactly first: t1_06 and t1_07 each
+   rendered IDENTICAL to a twin with `phase` deleted. Fixed by applying phase_
+   as a carrier-side OFFSET (matches the base-class contract — currPos_
+   telescopes to phase_current + sum(incr), so phase is an offset, not an
+   integrated delta; never fed back into carrierPhase_, which would integrate
+   the modulator twice). tools/null_test_fm.py PASS: 131 phase-unwired patches
+   byte-identical (double(x)+0.0 is exact), all 4 wired ones differ. New
+   research/fm_alias/measure_pm.py shows real sidebands, not just a different
+   file: t1_07 centroid 1.40x / bw 1.19x; t1_06's slow sweep is a frequency
+   deviation so it smears each partial into a 1.7 Hz cluster, 6 -> 109 peaks.
+   Spec: specs/2026-08-04-fmsource-phase-pm-design.md.
+   Also fixed t3_23_phase_velvet_jumps, which the null test caught as STILL
+   DEAD — patch-side, not engine: RangeSource(-1,1,normalized=false) is the
+   identity and VelvetNoiseSource emits {-1,0,+1}, so every offset was an
+   INTEGER number of cycles. Now density=20 with +-0.5 cycle jumps.
+   **REVIEW 7:** the run-12 audition verdict on t1_06/t1_07/t3_23 needs
+   re-taking — those three were judged as something they were not.
+
+14. **[build] 52 remaining silently-ignored params** (from run19's linter,
+   `python tools/lint_patches.py`). First run said 62; 3 were FALSE POSITIVES
+   (`RepeatingSource` `gap`, `PhasedValueSource` `overlap` — correct JSON
+   consumed by JsonConfigurator lambdas in source_registrations.cpp, which the
+   first SPECIAL_KEYS extraction never scanned), and 7 were the wander cells
+   fixed in run19. None of the 52 fixed blind. Triage:
+   (a) `AdditiveSource` fed rolloff/evenWeight/oddWeight/freqVar*/amplVar* in
+   add_square_test + add_string_test — pre-migration debt (those belong on
+   Partials), which contradicts the 2026-05-30 "no remaining debt" note;
+   (b) `AdditiveSource2` fed amplEnvelopes/startPartials/endAmplitudes/... in
+   5 as2_*_test patches — same species;
+   (c) `Envelope` fed `releaseMax` in 6 algev_test_* — preset is `ar`, whose
+   release stage always expands to fill the note, so release/releaseMax are
+   both meaningless there. Either drop the keys or give `ar` a real release;
+   Decide per group whether the patch or the engine is wrong; (a)/(b) are
+   probably just stale test patches that should be regenerated or deleted.
+
+15. **[build] 7 patches the CLI cannot render at all** — found run19 while
+   A/B-ing: CombineTest, ks_morph_{flute,horn,saw}_test,
+   mux_{noise,rednoise,sine}_test all fail with
+   `ERROR: Only StereoMixer output supported`. Same species as the run-8
+   algev conversion (item 9) — the output node is a bare source rather than a
+   StereoMixer, so they are unreachable from the CLI and cannot appear in any
+   null test or sweep. Fix = reroute output through SoundChannel+StereoMixer
+   as item 9 did, OR teach the CLI to wrap a bare mono output. The second is
+   probably right — it removes a whole class of "patch renders in the UI but
+   not the CLI" mismatch (cf. project_rd_audition_path_mismatch).
 3e. **[build] Piano engine features (from measurement)** — (a)
    `inharmonicity` config on Partials: mults stretched by
    sqrt(1+B*n^2) at note-on; per-note B via the existing paramMap

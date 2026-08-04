@@ -2,6 +2,43 @@
 
 ## Awaiting Matt
 
+### 7. FM "PM" cells were never PM — re-take the verdict [listen] (run 19)
+renders/fm_phase/ (t1_06_ctrl vs t1_06_after, t1_07_ctrl vs t1_07_after,
+t3_23_patchfixed) + the re-rendered patches themselves.
+FMSource's `phase` param was inert: t1_06 and t1_07 rendered BYTE-IDENTICAL
+to twins with `phase` deleted, so the two "PM" topologies you auditioned in
+the run-12 matrix batch were plain FM. t3_23 was doubly dead (its offsets
+were whole cycles). All three are fixed and re-rendered.
+Verdict decides: (a) whatever you said about t1_06/t1_07/t3_23 in the FM
+matrix audition should be treated as void — do these three now earn a place
+in the keeper set? (b) t1_06 is the interesting one to my eye: a slow +-1
+cycle sweep is a frequency deviation, so it splits every partial into a
+1.7 Hz sideband cluster (6 -> 109 peaks) WITHOUT brightening. That is a
+texture the FM matrix had no other way to reach.
+
+### 8. Seven wander cells were running at the wrong rate [listen] (run 19)
+renders/wander_fix/ — *_before vs *_after for the 7 t2_11_all_noise_wander
+cells (fm_matrix + fm_matrix2 modulated/ramped).
+`WanderNoiseSource`'s rate param is `speed`; the generator wrote `frequency`,
+which the loader silently dropped, so n3 ran at the default 1.0 instead of
+7.0 in every cell of that row.
+Verdict decides: same as 7 — the row's audition verdict was taken on a
+patch that wasn't doing what the label said. Worth re-ranking?
+
+### 9. Two engine gaps closed — sanity check [read] (run 19)
+(a) White/Pink/Blue/VioletNoiseSource had NO `amplitude` param at all (the
+comment claimed "no modulatable params — spectral shape is fixed", which
+conflates shape with level). Setting noise level needed an extra multiplier
+node. All four now take `amplitude`, default 1.0.
+(b) The `adsr` Envelope preset dropped all six of make_adsr's randomization
+ranges (attackMin/Max, decayMin/Max, releaseMin/Max) — so an adsr envelope
+could not express stage jitter. Now passed through. 375 adsr nodes exist and
+0 set those keys, so nothing existing changes.
+Verdict decides: object if either is wrong-headed. Otherwise no action —
+both are additive and A/B-verified bit-exact (327/327 identical across the
+renderable affected patches), with linearity proved separately by
+tools/test_noise_amplitude.py.
+
 ### 4. Expand round 4 — deep recursion [listen] (run 18)
 renders/expand_sweep4/ (18 cells, recurse 3-4, first time past depth 2).
 Novelty top: flat_deep, supersonic_r4, inflate_r3, semitone_r3, pi_r4.
