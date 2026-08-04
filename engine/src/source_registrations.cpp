@@ -1,4 +1,6 @@
 #include "mforce/core/source_registry.h"
+#include <stdexcept>
+#include <string>
 
 // All source types
 #include "mforce/source/sine_source.h"
@@ -243,10 +245,30 @@ void register_all_sources() {
         // Configurator: operation enum, gainAdj
         [](ValueSource& src, const nlohmann::json& p, const ResolveParamFn&) {
             auto& cs = static_cast<CombinedSource&>(src);
-            std::string opStr = p.value("operation", std::string("add"));
-            if (opStr == "multiply") cs.op = CombineOp::Multiply;
-            else if (opStr == "fade") cs.op = CombineOp::Fade;
-            else cs.op = CombineOp::Add;
+            // Legacy patches write `operation` as a NUMBER (a C# enum ordinal);
+            // current ones write a string. Accept both, but do NOT quietly fall
+            // back to Add on an out-of-range ordinal — CombineTest.json says 3,
+            // which no current CombineOp value matches, and silently rendering
+            // it as Add is exactly the failure mode this loader is full of.
+            // Say so instead.
+            if (p.contains("operation") && p.at("operation").is_number()) {
+                int op = p.at("operation").get<int>();
+                switch (op) {
+                    case 0: cs.op = CombineOp::Add;      break;
+                    case 1: cs.op = CombineOp::Multiply; break;
+                    case 2: cs.op = CombineOp::Fade;     break;
+                    default:
+                        throw std::runtime_error(
+                            "CombinedSource 'operation': ordinal " + std::to_string(op) +
+                            " has no equivalent (0=add, 1=multiply, 2=fade). This is a "
+                            "legacy enum value; give it as a string instead.");
+                }
+            } else {
+                std::string opStr = p.value("operation", std::string("add"));
+                if (opStr == "multiply") cs.op = CombineOp::Multiply;
+                else if (opStr == "fade") cs.op = CombineOp::Fade;
+                else cs.op = CombineOp::Add;
+            }
             cs.gainAdj = p.value("gainAdj", 0.0f);
         });
 

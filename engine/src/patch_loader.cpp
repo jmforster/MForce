@@ -129,9 +129,19 @@ static void wire_params_generic(
     const std::unordered_map<std::string, std::shared_ptr<ValueSource>>& valueNodes,
     std::unordered_map<std::string, int>* usage = nullptr)
 {
+    // A STRING in a pin/param slot is always a legacy enum form consumed by a
+    // hand-written branch further down (e.g. WavetableSource's
+    // "evolution": "target", which is ALSO an input descriptor for the newer
+    // ref-wired form). resolve_param can never handle a string, so throwing
+    // here just kills the patch before its own special case runs — that is why
+    // the three ks_morph_*_test patches were unrenderable. Skip strings; keep
+    // throwing on other junk so genuine mistakes stay loud.
+    auto skip_unresolvable = [](const json& v) { return v.is_string(); };
+
     for (const auto& desc : src.input_descriptors()) {
         if (!params.contains(desc.name)) continue;
         const auto& v = params.at(desc.name);
+        if (skip_unresolvable(v)) continue;
         if (desc.multi && v.is_array()) {
             // Multi-input pin with array-of-refs JSON. Iterate and add each.
             src.clear_param(desc.name);
@@ -142,8 +152,9 @@ static void wire_params_generic(
         }
     }
     for (const auto& desc : src.param_descriptors()) {
-        if (params.contains(desc.name))
-            src.set_param(desc.name, resolve_param(params.at(desc.name), valueNodes, usage));
+        if (!params.contains(desc.name)) continue;
+        if (skip_unresolvable(params.at(desc.name))) continue;
+        src.set_param(desc.name, resolve_param(params.at(desc.name), valueNodes, usage));
     }
     // Scalar configs (int/float/bool) — apply if present in JSON.
     for (const auto& desc : src.config_descriptors()) {
@@ -902,10 +913,30 @@ Patch load_patch_file(const std::string& path)
     if (outIt == nodeMap.end())
         throw std::runtime_error("graph.output not found");
 
-    if (outIt->second.at("type").get<std::string>() != "StereoMixer")
-        throw std::runtime_error("Only StereoMixer output supported");
-
     auto mixer = std::make_unique<StereoMixer>();
+
+    // A bare mono source as graph.output used to be a hard error, which made
+    // seven patches unrenderable from the CLI while working fine in the UI
+    // (CombineTest, ks_morph_*, mux_*). The instrument path above already
+    // auto-wraps a bare output in a unity channel; this does the same for the
+    // standard path so the two agree. Unity volume + centre pan matches the
+    // instrument path exactly rather than inventing a second convention —
+    // note that centre pan is equal-power, so this inherits the -3dB
+    // CLI-vs-UI level difference that is backlog item 3d.
+    if (outIt->second.at("type").get<std::string>() != "StereoMixer") {
+        auto monoIt = monoNodes.find(outputId);
+        if (monoIt == monoNodes.end())
+            throw std::runtime_error(
+                "graph.output must be a StereoMixer or a mono-renderable source: " + outputId);
+
+        Channel ch;
+        ch.volume = std::make_shared<ConstantSource>(1.0f);
+        ch.pan    = std::make_shared<ConstantSource>(0.0f);
+        ch.source = std::move(monoIt->second);
+        mixer->channels.push_back(std::move(ch));
+        patch.mixer = std::move(mixer);
+        return patch;
+    }
 
     if (outIt->second.contains("params")) {
         const auto& params = outIt->second["params"];
