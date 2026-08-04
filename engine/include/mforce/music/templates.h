@@ -475,6 +475,14 @@ struct PassageTemplate {
     // (below); voicing-hint half (octave/inversion/spread) stays here.
     std::optional<ChordAccompanimentConfig> chordConfig;
 
+    // Passage-local harmony (optional). When present, a Harmony-role part
+    // realizes THIS progression for this section instead of the section's
+    // harmonyTimeline — so two passages inside one section can carry
+    // different chords, and a passage can author an altered chord (e.g.
+    // bVI7 = a German sixth) without touching section harmony. The section
+    // timeline is left alone: melody chord-tone lookups still read it.
+    std::optional<ChordProgression> chordProgression;
+
     // Realization-tier configuration (Stage 4+). Empty realizationStrategy
     // defaults to "block". rhythmPattern is consumed by the "rhythm_pattern"
     // strategy.

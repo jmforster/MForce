@@ -1,0 +1,82 @@
+{
+ "_comment": "Precedence probe: the section says one long I chord; part 'chords' overrides it with its own passage progression, part 'secchords' has no passage progression and must still get the SECTION chord.",
+ "keyName": "C",
+ "scaleName": "Major",
+ "bpm": 92.0,
+ "masterSeed": 15002,
+ "sections": [
+  {
+   "name": "Main",
+   "beats": 30.0,
+   "chordProgression": [
+    {
+     "degree": 0,
+     "quality": "Major",
+     "beats": 30.0
+    }
+   ]
+  }
+ ],
+ "parts": [
+  {
+   "name": "chords",
+   "role": "harmony",
+   "passages": {
+    "Main": {
+     "chordConfig": {
+      "octave": 4
+     },
+     "chordProgression": [
+      {
+       "degree": 0,
+       "quality": "Major",
+       "beats": 4
+      },
+      {
+       "degree": 3,
+       "quality": "Major",
+       "beats": 4
+      },
+      {
+       "degree": 1,
+       "quality": "m",
+       "beats": 4
+      },
+      {
+       "degree": 5,
+       "alteration": -1,
+       "quality": "7",
+       "beats": 4
+      },
+      {
+       "degree": 0,
+       "quality": "Major",
+       "beats": 4
+      },
+      {
+       "degree": 4,
+       "quality": "7",
+       "beats": 4
+      },
+      {
+       "degree": 0,
+       "quality": "Major",
+       "beats": 6
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "secchords",
+   "role": "harmony",
+   "passages": {
+    "Main": {
+     "chordConfig": {
+      "octave": 5
+     }
+    }
+   }
+  }
+ ]
+}

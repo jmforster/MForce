@@ -9,6 +9,38 @@ namespace mforce {
 using json = nlohmann::json;
 
 // ===========================================================================
+// ChordProgression — shared by SectionTemplate and PassageTemplate
+// ===========================================================================
+
+// Two authoring forms are accepted, deliberately:
+//
+//   flat       [{"degree": 5, "alteration": -1, "quality": "7", "beats": 4}]
+//   canonical  {"chords": [{"degree": 5, ...}], "pulses": [4.0]}
+//
+// The flat form is what a human (or a generator) writes; the canonical form is
+// what to_json(ChordProgression) emits, so accepting it makes a template
+// round-trip. It did not before: to_json(SectionTemplate) wrote canonical and
+// from_json only read flat, so writing a template back out made it unreadable.
+//
+// `alteration` shifts the chord ROOT chromatically (-1 = flat), which is what
+// makes bVI7 — a German sixth, spelled Ab-C-Eb-Gb in C — authorable at all.
+inline ChordProgression parse_chord_progression(const json& j) {
+    ChordProgression prog;
+    if (j.is_object() && j.contains("chords")) {
+        from_json(j, prog);              // canonical form (music_json.h)
+        return prog;
+    }
+    for (const auto& entry : j) {
+        ScaleChord sc;
+        sc.degree = entry.at("degree").get<int>();
+        sc.alteration = entry.value("alteration", 0);
+        sc.quality = &ChordDef::get(entry.value("quality", std::string("Major")));
+        prog.add(sc, entry.at("beats").get<float>());
+    }
+    return prog;
+}
+
+// ===========================================================================
 // Constraints (RFB figure constraints) — figure_constraints.h
 // ===========================================================================
 
@@ -803,6 +835,7 @@ inline void to_json(json& j, const PassageTemplate& pt) {
     if (pt.seed != 0) j["seed"] = pt.seed;
     if (pt.locked) j["locked"] = true;
     if (!pt.periods.empty()) j["periods"] = pt.periods;
+    if (pt.chordProgression) j["chordProgression"] = *pt.chordProgression;
     if (!pt.realizationStrategy.empty()) j["realizationStrategy"] = pt.realizationStrategy;
     if (pt.rhythmPattern) {
         json jrp;
@@ -925,6 +958,12 @@ inline void from_json(const json& j, PassageTemplate& pt) {
         ChordAccompanimentConfig cc;
         from_json(j["chordConfig"], cc);
         pt.chordConfig = cc;
+    }
+
+    // Optional passage-local harmony. Overrides the section timeline for
+    // this part in this section.
+    if (j.contains("chordProgression")) {
+        pt.chordProgression = parse_chord_progression(j["chordProgression"]);
     }
 
     // Optional realization strategy + rhythm pattern (Stage 4+).
@@ -1108,14 +1147,7 @@ inline void from_json(const json& j, PieceTemplate::SectionTemplate& sd) {
 
     // Inline chord progression (overrides progressionName)
     if (j.contains("chordProgression")) {
-        ChordProgression prog;
-        for (const auto& entry : j["chordProgression"]) {
-            int degree = entry["degree"].get<int>();
-            std::string quality = entry.value("quality", "Major");
-            float beats = entry["beats"].get<float>();
-            prog.add(degree, quality, beats);
-        }
-        sd.chordProgression = prog;
+        sd.chordProgression = parse_chord_progression(j["chordProgression"]);
     }
 
     // Key contexts

@@ -490,7 +490,6 @@ private:
       float beatOffset = 0.0f;
       for (int si = 0; si < (int)piece.sections.size(); ++si) {
         const auto& sec = piece.sections[si];
-        if (sec.harmonyTimeline.empty()) { beatOffset += sec.beats; continue; }
 
         auto passIt = partTmpl.passages.find(sec.name);
         const PassageTemplate* passTmpl = (passIt != partTmpl.passages.end())
@@ -498,11 +497,26 @@ private:
         ChordAccompanimentConfig cfg;
         if (passTmpl && passTmpl->chordConfig) cfg = *passTmpl->chordConfig;
 
-        // Rhythm-pattern source. Without one, no chord events are emitted
-        // (cfg-driven default-pattern fallback was removed at Stage 11).
+        // Harmony source: a passage-local progression wins over the section
+        // timeline, so two passages in one section can carry different
+        // chords. The section's own timeline is left untouched — melody
+        // chord-tone lookups still read it.
+        HarmonyTimeline localTimeline;
+        const HarmonyTimeline* timeline = &sec.harmonyTimeline;
+        if (passTmpl && passTmpl->chordProgression) {
+          localTimeline.set_segment(0.0f, sec.beats,
+                                    *passTmpl->chordProgression, "passage");
+          timeline = &localTimeline;
+        }
+        if (timeline->empty()) { beatOffset += sec.beats; continue; }
+
+        // Rhythm-pattern source. Present = "pattern" mode: the bar pattern
+        // strikes and each strike samples the timeline. Absent = "span" mode:
+        // one event per authored chord, at the duration the progression
+        // already gives it. Span is the default because a progression carries
+        // its own durations; a rhythmPattern RE-articulates them.
         const RhythmPattern* rp = (passTmpl && passTmpl->rhythmPattern)
             ? &*passTmpl->rhythmPattern : nullptr;
-        if (!rp) { beatOffset += sec.beats; continue; }
 
         // Optional VoicingSelector (empty selectorName = legacy path).
         VoicingSelector* selector = nullptr;
@@ -550,41 +564,62 @@ private:
         const Chord* prevChord = nullptr;
         int chordIdx = 0;
 
-        for (int bar = 0; bar < totalBars; ++bar) {
-          float barStart = beatOffset + bar * beatsPerBar;
-          const auto& pattern = rp->pattern_for_bar(bar + 1);
+        // One voicing + realization path, shared by both emission modes, so
+        // span mode is not a second-class citizen of the voicing tier.
+        auto emit_chord = [&](const ScaleChord& sc, float pos, float dur) {
+          float beatInPassage = pos - beatOffset;
+          int bar = int(beatInPassage / beatsPerBar);
+          Chord chord;
+          if (selector) {
+            float beatInBar = beatInPassage - bar * beatsPerBar;
+            VoicingProfile profile = profileSelector
+                ? profileSelector->profile_for_chord(
+                      chordIdx, beatInBar, beatInPassage)
+                : passIt->second.voicingProfile;
+            VoicingRequest req{sc, &sec.scale, cfg.octave, dur,
+                               prevChord, std::nullopt,
+                               profile,
+                               passIt->second.voicingDictionary};
+            chord = selector->select(req);
+          } else {
+            chord = sc.resolve(sec.scale, cfg.octave, dur,
+                               cfg.inversion, cfg.spread);
+          }
+          RealizationRequest realReq{chord, pos, dur, bar + 1, nullptr};
+          blockStrat->realize(realReq, part->elementSequence);
+          prevChord = &part->elementSequence.elements.back().chord();
+          ++chordIdx;
+        };
 
-          float pos = barStart;
-          for (float dur : pattern) {
-            if (dur < 0) {
-              pos += (-dur);
-              continue;
-            }
-            const ScaleChord* sc = sec.harmonyTimeline.chord_at(pos - beatOffset);
-            if (sc) {
-              Chord chord;
-              if (selector) {
-                float beatInBar = pos - barStart;
-                float beatInPassage = pos - beatOffset;
-                VoicingProfile profile = profileSelector
-                    ? profileSelector->profile_for_chord(
-                          chordIdx, beatInBar, beatInPassage)
-                    : passIt->second.voicingProfile;
-                VoicingRequest req{*sc, &sec.scale, cfg.octave, dur,
-                                   prevChord, std::nullopt,
-                                   profile,
-                                   passIt->second.voicingDictionary};
-                chord = selector->select(req);
-              } else {
-                chord = sc->resolve(sec.scale, cfg.octave, dur,
-                                    cfg.inversion, cfg.spread);
+        if (rp) {
+          for (int bar = 0; bar < totalBars; ++bar) {
+            float barStart = beatOffset + bar * beatsPerBar;
+            const auto& pattern = rp->pattern_for_bar(bar + 1);
+
+            float pos = barStart;
+            for (float dur : pattern) {
+              if (dur < 0) {
+                pos += (-dur);
+                continue;
               }
-              RealizationRequest realReq{chord, pos, dur, bar + 1, nullptr};
-              blockStrat->realize(realReq, part->elementSequence);
-              prevChord = &part->elementSequence.elements.back().chord();
-              ++chordIdx;
+              const ScaleChord* sc = timeline->chord_at(pos - beatOffset);
+              if (sc) emit_chord(*sc, pos, dur);
+              pos += dur;
             }
-            pos += dur;
+          }
+        } else {
+          // Span mode: walk the timeline's own chord boundaries. Chords are
+          // emitted as authored, including any that overrun the section —
+          // clipping an authored cadence chord would be a silent edit.
+          for (const auto& seg : timeline->segments) {
+            float b = seg.startBeat;
+            for (int ci = 0; ci < seg.progression.count(); ++ci) {
+              float dur = seg.progression.pulses.get(ci);
+              if (dur > 0.0f) {
+                emit_chord(seg.progression.chords.get(ci), beatOffset + b, dur);
+              }
+              b += dur;
+            }
           }
         }
         beatOffset += sec.beats;
