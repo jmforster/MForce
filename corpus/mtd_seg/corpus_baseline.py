@@ -133,6 +133,15 @@ def build(corpus, limit=None, window=None):
     stats = sg.stats_from_melodies(windowed(FEEDS[corpus](), window),
                                    limit=limit)
     stats["window"] = window
+    # Closure anchors (#12) must come from WHOLE tunes: a window's last note
+    # is a chopping artifact, not a phrase ending. So recompute those keys
+    # from the unwindowed feed and overwrite the segment-derived ones.
+    # (Measured gap recorded below after the first build.)
+    if window:
+        whole = sg.stats_from_melodies(FEEDS[corpus](), limit=limit)
+        for k in sg.CLOSURE_KEYS:
+            stats[k] = whole[k]
+        stats["closure_n"] = whole["n_themes"]
     out = sg.cache_path(corpus)
     out.write_text(json.dumps(stats))
     print(f"[{corpus}] {stats['n_themes']} segments (window={window}) "
@@ -145,6 +154,9 @@ ROWS = [
     ("big_leap_p90", "{:.3f}"), ("range_p10", "{}"), ("range_p90", "{}"),
     ("zero_rate_p95", "{:.3f}"), ("max_run_frac_p95", "{:.3f}"),
     ("selfsim_p95", "{:.3f}"),
+    ("final_ratio_p25", "{:.2f}"), ("final_ratio_p50", "{:.2f}"),
+    ("final_ratio_p95", "{:.2f}"), ("p_final_longest", "{:.3f}"),
+    ("p_final_onset_int", "{:.3f}"),
 ]
 
 
