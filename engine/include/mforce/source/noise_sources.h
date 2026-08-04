@@ -11,23 +11,40 @@ namespace mforce {
 // ---------------------------------------------------------------------------
 // BlueNoiseSource — +3dB/octave (spectral inverse of pink).
 // Differentiated pink noise: output = current_pink - previous_pink.
-// No modulatable params — spectral shape is fixed by definition.
+// Spectral SHAPE is fixed by definition; only level is modulatable.
 // ---------------------------------------------------------------------------
 struct BlueNoiseSource final : ValueSource {
   explicit BlueNoiseSource(uint32_t seed = 0xB100'0001u)
-  : pink_(PinkNoiseSource::DEFAULT_ROWS, seed) {}
+  : pink_(PinkNoiseSource::DEFAULT_ROWS, seed)
+  , amplitude_(std::make_shared<ConstantSource>(1.0f)) {}
 
   const char* type_name() const override { return "BlueNoiseSource"; }
   SourceCategory category() const override { return SourceCategory::Generator; }
 
+  std::span<const ParamDescriptor> param_descriptors() const override {
+    static constexpr ParamDescriptor descs[] = {
+      {"amplitude", 1.0f, 0.0f, 10.0f},
+    };
+    return descs;
+  }
+
+  void set_param(std::string_view name, std::shared_ptr<ValueSource> src) override {
+    if (name == "amplitude") amplitude_ = std::move(src);
+  }
+  std::shared_ptr<ValueSource> get_param(std::string_view name) const override {
+    if (name == "amplitude") return amplitude_;
+    return nullptr;
+  }
+
   void prepare(const RenderContext& ctx, int frames) override {
     pink_.prepare(ctx, frames);
+    amplitude_->prepare(ctx, frames);
     prev_ = 0.0f;
   }
 
   float next() override {
     float p = pink_.next();
-    cur_ = p - prev_;
+    cur_ = (p - prev_) * amplitude_->next();
     prev_ = p;
     return cur_;
   }
@@ -36,6 +53,7 @@ struct BlueNoiseSource final : ValueSource {
 
 private:
   PinkNoiseSource pink_;
+  std::shared_ptr<ValueSource> amplitude_;
   float prev_{0.0f};
   float cur_{0.0f};
 };
@@ -43,22 +61,40 @@ private:
 // ---------------------------------------------------------------------------
 // VioletNoiseSource — +6dB/octave (spectral inverse of brown/red).
 // Differentiated white noise: output = current_white - previous_white.
-// No modulatable params — spectral shape is fixed by definition.
+// Spectral SHAPE is fixed by definition; only level is modulatable.
 // ---------------------------------------------------------------------------
 struct VioletNoiseSource final : ValueSource {
   explicit VioletNoiseSource(uint32_t seed = 0xF100'0001u)
-  : rng_(seed) {}
+  : rng_(seed), amplitude_(std::make_shared<ConstantSource>(1.0f)) {}
 
   const char* type_name() const override { return "VioletNoiseSource"; }
   SourceCategory category() const override { return SourceCategory::Generator; }
 
-  void prepare(const RenderContext& ctx, int frames) override { prev_ = 0.0f; }
+  std::span<const ParamDescriptor> param_descriptors() const override {
+    static constexpr ParamDescriptor descs[] = {
+      {"amplitude", 1.0f, 0.0f, 10.0f},
+    };
+    return descs;
+  }
+
+  void set_param(std::string_view name, std::shared_ptr<ValueSource> src) override {
+    if (name == "amplitude") amplitude_ = std::move(src);
+  }
+  std::shared_ptr<ValueSource> get_param(std::string_view name) const override {
+    if (name == "amplitude") return amplitude_;
+    return nullptr;
+  }
+
+  void prepare(const RenderContext& ctx, int frames) override {
+    prev_ = 0.0f;
+    amplitude_->prepare(ctx, frames);
+  }
 
   float next() override {
     float w = rng_.valuePN();
     cur_ = w - prev_;
     prev_ = w;
-    cur_ *= 0.5f;
+    cur_ *= 0.5f * amplitude_->next();
     return cur_;
   }
 
@@ -66,6 +102,7 @@ struct VioletNoiseSource final : ValueSource {
 
 private:
   Randomizer rng_;
+  std::shared_ptr<ValueSource> amplitude_;
   float prev_{0.0f};
   float cur_{0.0f};
 };

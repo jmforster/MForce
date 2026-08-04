@@ -322,9 +322,17 @@ static GraphResult build_graph(
                     env = std::make_shared<Envelope>(Envelope::make_ar(sampleRate,
                         p.value("attack", 0.2f), p.value("attackMin", 0.0f), p.value("attackMax", 1.0f)));
                 } else if (preset == "adsr") {
+                    // make_adsr takes six randomization-range args that this
+                    // loader used to drop on the floor, so an adsr preset could
+                    // not express stage jitter at all (found 2026-08-04 by
+                    // tools/lint_patches.py). Defaults below are make_adsr's
+                    // own, so patches that omit the keys are unchanged.
                     env = std::make_shared<Envelope>(Envelope::make_adsr(sampleRate,
                         p.value("attack", 0.2f), p.value("decay", 0.1f),
-                        p.value("sustainLevel", 0.7f), p.value("release", 0.0f)));
+                        p.value("sustainLevel", 0.7f), p.value("release", 0.0f),
+                        p.value("attackMin",  0.05f),  p.value("attackMax",  1.0f),
+                        p.value("decayMin",   0.025f), p.value("decayMax",   0.5f),
+                        p.value("releaseMin", 0.0f),   p.value("releaseMax", 0.0f)));
                 } else {
                     throw std::runtime_error("Unknown envelope preset: " + preset);
                 }

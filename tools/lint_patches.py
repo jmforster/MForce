@@ -29,9 +29,20 @@ import sys
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 CLI = os.path.join(ROOT, "build", "tools", "mforce_cli", "Release", "mforce_cli.exe")
 
-# Keys consumed by hand-written branches in patch_loader.cpp. Extracted from the
-# p.value(...) / p.contains(...) call sites; global rather than per-type so a
-# stale entry can only hide a warning, never invent one.
+# Keys consumed by hand-written code rather than by a descriptor loop. TWO
+# sources, and missing either one makes this tool cry wolf:
+#   1. patch_loader.cpp        -- per-type branches in build_graph
+#   2. source_registrations.cpp -- JsonConfigurator lambdas, which run for every
+#      registered type and are NOT visible in any descriptor set. Skipping this
+#      file cost two false positives on first run (RepeatingSource "gap" and
+#      PhasedValueSource "overlap" are both correct JSON consumed by their
+#      configurators; note "gap" sets a member called gapDuration, so the JSON
+#      key and the config descriptor name legitimately differ).
+# Re-extract with:
+#   grep -oE '\b(p|params)\.(value|contains)\("[a-zA-Z_]+"' \
+#     engine/src/patch_loader.cpp engine/src/source_registrations.cpp
+# Global rather than per-type so a stale entry can only hide a warning, never
+# invent one.
 SPECIAL_KEYS = {
     # universal / structural
     "seed", "preset", "source", "expandRule",
@@ -49,6 +60,9 @@ SPECIAL_KEYS = {
     "formants", "gains", "numPartials", "absolute", "normalized",
     # filters / misc
     "cutoff", "sections", "threshold", "depthVar", "speedVar",
+    # JsonConfigurator lambdas in source_registrations.cpp
+    "baseValue", "bias", "durVarPct", "duration", "gainAdj", "gap",
+    "gapVarPct", "max", "min", "operation", "overlap", "ratio", "varPct",
 }
 
 

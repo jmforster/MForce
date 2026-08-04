@@ -20,7 +20,7 @@ struct PinkNoiseSource final : ValueSource {
   static constexpr int RANDOM_SHIFT   = 32 - RANDOM_BITS;
 
   explicit PinkNoiseSource(int numRows = DEFAULT_ROWS, uint32_t seed = 0xF10C'0001u)
-  : rng_(seed), rows_(numRows, 0) {
+  : rng_(seed), rows_(numRows, 0), amplitude_(std::make_shared<ConstantSource>(1.0f)) {
     int pMax = (numRows + 1) * (1 << (RANDOM_BITS - 1));
     indexMask_ = (1 << numRows) - 1;
     scaleFactor_ = 1.0 / double(pMax);
@@ -29,11 +29,29 @@ struct PinkNoiseSource final : ValueSource {
   const char* type_name() const override { return "PinkNoiseSource"; }
   SourceCategory category() const override { return SourceCategory::Generator; }
 
+  // See WhiteNoiseSource — `amplitude` was missing until 2026-08-04. Default
+  // 1.0 keeps patches that do not set it bit-identical.
+  std::span<const ParamDescriptor> param_descriptors() const override {
+    static constexpr ParamDescriptor descs[] = {
+      {"amplitude", 1.0f, 0.0f, 10.0f},
+    };
+    return descs;
+  }
+
+  void set_param(std::string_view name, std::shared_ptr<ValueSource> src) override {
+    if (name == "amplitude") amplitude_ = std::move(src);
+  }
+  std::shared_ptr<ValueSource> get_param(std::string_view name) const override {
+    if (name == "amplitude") return amplitude_;
+    return nullptr;
+  }
+
   void prepare(const RenderContext& ctx, int frames) override {
     // Reset state for a fresh render
     index_ = 0;
     runningSum_ = 0;
     for (auto& r : rows_) r = 0;
+    amplitude_->prepare(ctx, frames);
   }
 
   float next() override {
@@ -59,7 +77,7 @@ struct PinkNoiseSource final : ValueSource {
     int extra = int(rng_.rng()) >> RANDOM_SHIFT;
     int sum = runningSum_ + extra;
 
-    cur_ = float(scaleFactor_ * double(sum));
+    cur_ = float(scaleFactor_ * double(sum)) * amplitude_->next();
     return cur_;
   }
 
@@ -68,6 +86,7 @@ struct PinkNoiseSource final : ValueSource {
 private:
   Randomizer rng_;
   std::vector<int> rows_;
+  std::shared_ptr<ValueSource> amplitude_;
   int index_{0};
   int indexMask_{0};
   int runningSum_{0};
