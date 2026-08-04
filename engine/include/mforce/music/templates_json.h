@@ -40,6 +40,14 @@ inline ChordProgression parse_chord_progression(const json& j) {
     return prog;
 }
 
+// Defined here (not next to its from_json further down) because
+// to_json(PassageTemplate) needs it and that comes first.
+inline void to_json(json& j, const ChordAccompanimentConfig& cc) {
+    j = json{{"octave", cc.octave}};
+    if (cc.inversion != 0) j["inversion"] = cc.inversion;
+    if (cc.spread != 0) j["spread"] = cc.spread;
+}
+
 // ===========================================================================
 // Constraints (RFB figure constraints) — figure_constraints.h
 // ===========================================================================
@@ -835,6 +843,14 @@ inline void to_json(json& j, const PassageTemplate& pt) {
     if (pt.seed != 0) j["seed"] = pt.seed;
     if (pt.locked) j["locked"] = true;
     if (!pt.periods.empty()) j["periods"] = pt.periods;
+    // chordConfig was parseable but not serializable, so a template that went
+    // through the engine came back out with its chord octave/inversion/spread
+    // silently reset (found by --lint-template).
+    if (pt.chordConfig) {
+        json cj;
+        to_json(cj, *pt.chordConfig);
+        j["chordConfig"] = std::move(cj);
+    }
     if (pt.chordProgression) j["chordProgression"] = *pt.chordProgression;
     if (!pt.realizationStrategy.empty()) j["realizationStrategy"] = pt.realizationStrategy;
     if (pt.rhythmPattern) {

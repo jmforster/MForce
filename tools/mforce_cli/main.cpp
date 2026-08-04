@@ -1007,11 +1007,156 @@ static int run_dump_descriptors(int argc, char** argv)
     return 0;
 }
 
+// ---------------------------------------------------------------------------
+// --lint-template: what does the template loader silently DROP?
+//
+// The comp analogue of tools/lint_patches.py. A piece template is parsed into
+// a PieceTemplate and written straight back out; anything the author wrote
+// that does not survive the round trip was ignored without a word. That class
+// of bug is invisible by construction — the piece still renders, just not the
+// piece that was authored. (Found this way: the section-level chordProgression
+// could not be re-read after being written, and the flat authoring form
+// dropped `alteration` entirely.)
+//
+// Reports four kinds of finding, separated because they need different
+// responses — the dsp linter's first run cried wolf on 3 of 62 and the fix was
+// classification, not a shorter list:
+//   DROPPED   key absent from the re-serialized form, authored value is NOT a
+//             default. Always suspicious.
+//   DEFAULTED key absent, but the authored value equals the type's default
+//             (0 / "" / false / empty). to_json omits those by design, so this
+//             is usually noise — it only matters if the parser also ignored it.
+//   FORM      key survives but changed shape (e.g. flat progression list in,
+//             canonical {chords,pulses} out). Round-trips only if the parser
+//             accepts both.
+//   CHANGED   scalar present in both with a different value.
+// ---------------------------------------------------------------------------
+static bool lint_is_defaultish(const nlohmann::json& v)
+{
+    if (v.is_null()) return true;
+    if (v.is_boolean()) return !v.get<bool>();
+    if (v.is_number()) return std::abs(v.get<double>()) < 1e-9;
+    if (v.is_string()) return v.get<std::string>().empty();
+    // A container of nothing but defaults is itself a default — an all-null
+    // connectors list is exactly what to_json declines to write, and calling
+    // that a DROP buried 50 non-findings in the first sweep.
+    if (v.is_array() || v.is_object()) {
+        for (const auto& e : v) if (!lint_is_defaultish(e)) return false;
+        return true;
+    }
+    return false;
+}
+
+struct LintFindings {
+    std::vector<std::string> dropped, defaulted, form, changed;
+    size_t count() const {
+        return dropped.size() + defaulted.size() + form.size() + changed.size();
+    }
+};
+
+static void lint_json_diff(const nlohmann::json& in, const nlohmann::json& out,
+                           const std::string& path, LintFindings& f)
+{
+    if (in.is_object() || in.is_array()) {
+        if (in.type() != out.type()) {
+            f.form.push_back(path + ": " + std::string(in.type_name()) + " -> "
+                             + std::string(out.type_name()));
+            return;
+        }
+    }
+    if (in.is_object()) {
+        for (auto it = in.begin(); it != in.end(); ++it) {
+            if (!it.key().empty() && it.key()[0] == '_') continue;  // _comment
+            std::string sub = path.empty() ? it.key() : path + "." + it.key();
+            if (!out.contains(it.key())) {
+                // Carry the authored value: half these findings are a field
+                // sitting at ITS type's default (shapeDirection 1,
+                // cadenceTarget -1), which to_json omits on purpose and no
+                // generic differ can know. Showing the value makes that
+                // triage-able instead of guesswork.
+                std::string v = it.value().dump();
+                if (v.size() > 60) v = v.substr(0, 57) + "...";
+                (lint_is_defaultish(it.value()) ? f.defaulted : f.dropped)
+                    .push_back(sub + " = " + v);
+                continue;
+            }
+            lint_json_diff(it.value(), out[it.key()], sub, f);
+        }
+        return;
+    }
+    if (in.is_array()) {
+        if (out.size() < in.size()) {
+            f.dropped.push_back(path + "[" + std::to_string(out.size()) + ".."
+                                + std::to_string(in.size() - 1) + "]");
+        }
+        for (size_t i = 0; i < in.size() && i < out.size(); ++i) {
+            lint_json_diff(in[i], out[i], path + "[" + std::to_string(i) + "]", f);
+        }
+        return;
+    }
+    if (in.is_number() && out.is_number()) {
+        if (std::abs(in.get<double>() - out.get<double>()) > 1e-6)
+            f.changed.push_back(path + ": " + in.dump() + " -> " + out.dump());
+        return;
+    }
+    if (in != out) f.changed.push_back(path + ": " + in.dump() + " -> " + out.dump());
+}
+
+static int run_lint_template(int argc, char** argv)
+{
+    bool quiet = false;                       // --hard: hide DEFAULTED noise
+    int files = 0, bad = 0;
+    int nDrop = 0, nDef = 0, nForm = 0, nChg = 0;
+    for (int a = 2; a < argc; ++a) {
+        if (std::string(argv[a]) == "--hard") { quiet = true; continue; }
+        std::string p = argv[a];
+        std::ifstream f(p);
+        if (!f) { std::cerr << "cannot open " << p << "\n"; return 1; }
+        nlohmann::json in;
+        try { in = nlohmann::json::parse(f); }
+        catch (const std::exception& e) {
+            std::cout << p << "\n  PARSE-ERROR " << e.what() << "\n";
+            ++files; ++bad; continue;
+        }
+
+        PieceTemplate t;
+        nlohmann::json out;
+        try {
+            from_json(in, t);
+            to_json(out, t);
+        } catch (const std::exception& e) {
+            std::cout << p << "\n  LOAD-ERROR " << e.what() << "\n";
+            ++files; ++bad; continue;
+        }
+
+        LintFindings lf;
+        lint_json_diff(in, out, "", lf);
+        ++files;
+        nDrop += int(lf.dropped.size());   nDef  += int(lf.defaulted.size());
+        nForm += int(lf.form.size());      nChg  += int(lf.changed.size());
+        size_t shown = quiet ? lf.count() - lf.defaulted.size() : lf.count();
+        if (shown == 0) continue;
+        ++bad;
+        std::cout << p << "\n";
+        for (const auto& d : lf.dropped)   std::cout << "  DROPPED   " << d << "\n";
+        for (const auto& d : lf.form)      std::cout << "  FORM      " << d << "\n";
+        for (const auto& d : lf.changed)   std::cout << "  CHANGED   " << d << "\n";
+        if (!quiet)
+            for (const auto& d : lf.defaulted) std::cout << "  DEFAULTED " << d << "\n";
+    }
+    std::cout << "\n" << files << " templates, " << bad << " with findings: "
+              << nDrop << " dropped, " << nForm << " form, " << nChg
+              << " changed, " << nDef << " defaulted\n";
+    return 0;
+}
+
 int main(int argc, char** argv)
 {
     try {
         if (argc >= 2 && std::string(argv[1]) == "--dump-descriptors")
             return run_dump_descriptors(argc, argv);
+        if (argc >= 3 && std::string(argv[1]) == "--lint-template")
+            return run_lint_template(argc, argv);
         if (argc >= 2 && std::string(argv[1]) == "--test-ornaments")
             return test_ornaments(argc, argv);
         if (argc >= 2 && std::string(argv[1]) == "--chords")
