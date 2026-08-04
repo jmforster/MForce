@@ -108,16 +108,28 @@ Priority order. Tags per WORKFLOW.md. (G1)-(G4) = GOALS.md Dipsy goals.
    Decide per group whether the patch or the engine is wrong; (a)/(b) are
    probably just stale test patches that should be regenerated or deleted.
 
-15. **[build] 7 patches the CLI cannot render at all** — found run19 while
-   A/B-ing: CombineTest, ks_morph_{flute,horn,saw}_test,
-   mux_{noise,rednoise,sine}_test all fail with
-   `ERROR: Only StereoMixer output supported`. Same species as the run-8
-   algev conversion (item 9) — the output node is a bare source rather than a
-   StereoMixer, so they are unreachable from the CLI and cannot appear in any
-   null test or sweep. Fix = reroute output through SoundChannel+StereoMixer
-   as item 9 did, OR teach the CLI to wrap a bare mono output. The second is
-   probably right — it removes a whole class of "patch renders in the UI but
-   not the CLI" mismatch (cf. project_rd_audition_path_mismatch).
+15. **[build] 7 patches the CLI cannot render at all** — ✓ 6 of 7 DONE run19
+   (2026-08-04), commit 6fc128b. Found while A/B-ing front 3. They were
+   THREE distinct bugs, not one:
+   (1) a bare mono source as `graph.output` was a hard error, though the
+   instrument path already auto-wraps one — standard path now matches it
+   (unity volume, centre pan, so it inherits the -3dB equal-power pan of
+   item 3d). Fixes mux_{noise,rednoise,sine}_test;
+   (2) `wire_params_generic` threw on any STRING in a pin/param slot, but a
+   string there is always a legacy enum consumed by a hand-written branch
+   further down — WavetableSource's `"evolution": "target"` is ALSO an input
+   descriptor for the ref-wired form, so the generic loop killed the patch
+   before its own special case ran. Strings skipped; other junk still throws.
+   Fixes ks_morph_{flute,horn,saw}_test;
+   (3) CombinedSource read `operation` as a string only, so legacy ordinals
+   died on a raw json type_error. Both forms now accepted.
+   **STILL OPEN — CombineTest.json**: it says `"operation": 3`, and no current
+   CombineOp matches (0=add, 1=multiply, 2=fade). Deliberately NOT defaulted
+   to Add — silent fallback is the exact failure mode this run kept finding.
+   It now fails with a named, actionable error. **Needs one word from Matt**,
+   who wrote the C#: what was ordinal 3? (REVIEW 10.)
+   Regression-gated: 73/73 byte-identical vs the stored A/B arm, with exactly
+   the 6 revived patches present only in the new arm.
 3e. **[build] Piano engine features (from measurement)** — (a)
    `inharmonicity` config on Partials: mults stretched by
    sqrt(1+B*n^2) at note-on; per-note B via the existing paramMap

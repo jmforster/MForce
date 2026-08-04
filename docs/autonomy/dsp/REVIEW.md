@@ -75,6 +75,17 @@ in the piano encoder and seed shimmerDepth near 0.15 rather than lock it.
 Say if you'd rather I spend a third attempt on the direct spectral-split
 method (backlog 13) before the encoder instead.
 
+### 10. CombinedSource `operation: 3` — what was ordinal 3? [read, one word] (run 19)
+patches/CombineTest.json sets `"operation": 3` as a C# enum ordinal. The
+current CombineOp has only Add/Multiply/Fade (0/1/2), so the patch cannot
+load. I did NOT default it to Add — silently substituting an operation the
+author didn't ask for is the exact failure mode this whole run was pulling
+out of the loader — so it now fails with a named error instead.
+Verdict decides: what ordinal 3 meant in the legacy C# enum. If it is an op
+we no longer have, say so and I will delete or rewrite the patch; if it maps
+to an existing one, I will fix the patch. This is the last of the 7
+unrenderable patches; the other 6 render as of commit 6fc128b.
+
 ### 1. Vowel grid [listen/look] (run 17)
 patches/vowel_grid/ + renders/vowel_grid/ — your Speech_M/W/C x 12 +
 Sing_Bass..Soprano x 5 folder, 56/56 verified (rendered envelope ==

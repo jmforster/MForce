@@ -5,13 +5,15 @@ Updated: 2026-08-04 — dsp run 19 (Dipsy, scheduled) · comp run 14 (Wolfie, 20
 | Lane | Dev | Latest run | Backlog top | Awaiting your review |
 |---|---|---|---|---|
 | comp | Wolfie | run 14 (2026-08-02, interactive): final-note v2 (longest 96%); stages 3+4 VERIFIED (modulation real: F/F#/C# literal test); passage set v2 from Matt's specs — 58/58 checks, suite_v2 68.75 beats, modulating wander/fifths with proven accidentals | chord emission from template layer; stages 1-2 C++ strategies; scorer passage-mode | **3 items** — passage set v2 [listen], final-note A/B [listen], stage-3 acceptance [read] |
-| dsp | Dipsy | run 19 (2026-08-04, scheduled): mforce_ui relink blocker GONE (3c closed); FMSource `phase` was DEAD, now true PM (3c2 closed); new patch linter found **62 silently-ignored params**, 7 live ones fixed; noise family given `amplitude`, adsr preset given its jitter ranges | 2d-1 SIMD (needs an AVX2 decision), then backlog 14 (55 remaining lint findings) | **9 items** — 6 carried + FM "PM" re-verdict [listen], wander re-verdict [listen], engine gaps [read] |
+| dsp | Dipsy | run 19 (2026-08-04, scheduled): mforce_ui relink blocker GONE (3c closed); FMSource `phase` was DEAD, now true PM (3c2 closed); new patch linter found **59 silently-ignored params**, 7 live ones fixed; noise family given `amplitude`, adsr preset given its jitter ranges; **6 of 7 unrenderable patches revived** | 2d-1 SIMD (needs an AVX2 decision), then backlog 14 (52 remaining lint findings) | **10 items** — 6 carried + FM "PM" re-verdict [listen], wander re-verdict [listen], engine gaps [read], CombineTest ordinal [one word] |
 
 Reports: dsp/reports/2026-08-04-dipsy-run19.md ·
 comp/reports/2026-08-02-wolfie-run13.md
 
-Run-19 highlights (dsp): three fronts, all build/metric, no blind taste
-iteration. The through-line is **params that were silently doing nothing**.
+Run-19 highlights (dsp): four fronts, all build/metric, no blind taste
+iteration. The through-line is **things that were silently doing nothing**, and
+each front was found by the previous one's tooling rather than picked off the
+backlog.
 (0) **The blocker that stopped run 18 is gone.** No UI process was running,
 and the on-disk `mforce_ui.exe` already carried run 18's stale-guard fix
 (`--stamp`: `dep set : tlog (74 files)`, `stale : no`, exit 0) — run 18's
@@ -60,9 +62,24 @@ because the one patch that SHOULD have moved turns out to be one of **7 that
 the CLI cannot render at all** ("Only StereoMixer output supported"). That is
 pre-existing, is the same species as the RD audition-path mismatch, and is now
 backlog 15.
-**Two things want you:** the run-12 FM matrix verdict on t1_06/t1_07/t3_23
+(4) **Seven patches the CLI could not render at all**, found while A/B-ing
+front 3 — the same UI/CLI mismatch class as the run-8 algev conversion. Three
+distinct bugs, not one: a bare mono `graph.output` was a hard error though the
+instrument path already auto-wraps one; `wire_params_generic` threw on any
+STRING in a param slot, though a string there is always a legacy enum a
+later branch handles (`WavetableSource`'s `"evolution": "target"` is ALSO an
+input descriptor, so the generic loop killed the patch before its own special
+case ran); and `CombinedSource` read `operation` as a string only. **6 of 7
+revived**, 73/73 byte-identical regression check.
+
+**Three things want you:** the run-12 FM matrix verdict on t1_06/t1_07/t3_23
 should be treated as void — those were judged as something they weren't — and
-the same for the t2_11 wander row. Both re-rendered and queued (REVIEW 7, 8).
+the same for the t2_11 wander row (REVIEW 7, 8). And **one word**: CombineTest
+sets `"operation": 3` as a legacy C# enum ordinal, which no current CombineOp
+matches. I refused to default it to Add, because silently substituting an
+operation nobody asked for is the exact bug class this whole run was pulling
+out of the loader — so it fails with a named error instead. What was ordinal 3?
+(REVIEW 10.)
 
 Run-18 highlights (dsp): three fronts, no engine edits — and that last part
 is the headline constraint. **mforce_ui.exe was locked all run** (your UI up
