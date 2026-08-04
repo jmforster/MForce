@@ -584,14 +584,46 @@ def _tension(chord_degs, pedal_deg):
     return score
 
 
-def pedal_chords(model, rng, bpm=92.0, seed=1, melody=True, bars=None):
+# Diatonic triad qualities of the major scale, by degree. Used only by the
+# voiced path, which names a chord instead of spelling it.
+TRIAD_QUALITY = ["Major", "m", "m", "Major", "Major", "m", "dim"]
+
+
+def _pedal_progression(chosen, durs, cad_beats):
+    """The same chord plan the hand-voiced path spells note by note, expressed
+    as a progression the ENGINE voices (comp run 15).
+
+    The German sixth is `bVI7` — degree 5, alteration -1, quality "7" — which
+    resolves to Ab-C-Eb-Gb in C, enharmonically the Ger6. That chord was not
+    authorable before this run: the flat progression form dropped
+    `alteration`. Note it is a FULLER Ger6 than the hand-voiced one, which
+    spells Ab-Eb-F# (root, fifth, augmented sixth, no third)."""
+    prog = [{"degree": d, "quality": TRIAD_QUALITY[d % 7], "beats": durs[i]}
+            for i, d in enumerate(chosen)]
+    prog += [
+        {"degree": 5, "alteration": -1, "quality": "7", "beats": cad_beats[0]},
+        {"degree": 0, "quality": "Major", "beats": cad_beats[1]},
+        {"degree": 4, "quality": "7", "beats": cad_beats[2]},
+        {"degree": 0, "quality": "Major", "beats": cad_beats[3]},
+    ]
+    return prog
+
+
+def pedal_chords(model, rng, bpm=92.0, seed=1, melody=True, bars=None,
+                 voiced=False, selector=""):
     """Dominant pedal; diatonic triads above it ORDERED by measured dissonance
     against the pedal, then a German-sixth cadence — Ger6 -> I(6/4, still over
     the pedal) -> V7 -> I.
 
     melody=True is Matt's variant b (a melodic figure over the chords);
     melody=False is variant a (chords only — the melody part carries the TOP
-    chord voice so the exported piece still has a parts[0] line to score)."""
+    chord voice so the exported piece still has a parts[0] line to score).
+
+    voiced=True routes the chords through the engine's harmony tier instead of
+    spelling them as countermelody voices — the capability comp run 15 added
+    (PassageTemplate.chordProgression). Everything upstream of part
+    construction is shared, and no rng draw differs, so voiced/unvoiced at the
+    same seed is a controlled A/B of the two ways to get the same chords."""
     pedal_deg = 4                                  # dominant pedal (G in C)
     bars = bars or rng.choice([4, 5, 6])
     # Rank the diatonic triads by tension against the pedal and walk UP that
@@ -629,10 +661,27 @@ def pedal_chords(model, rng, bpm=92.0, seed=1, melody=True, bars=None):
     durs = [beats_per] * len(chosen) + cad_beats
     total = sum(durs)
 
+    if voiced:
+        # The chords as CHORDS: one harmony part carrying its own progression.
+        # The voicing tier (selector / dictionary / inversion choice) does the
+        # spelling, which the hand-voiced path bypasses entirely by pre-voicing
+        # every note. Requires melody=True — with no VC2 motif there would be
+        # nothing to put in the melody slot.
+        melody = True
+        hpass = {"chordConfig": {"octave": 4},
+                 "chordProgression": _pedal_progression(chosen, durs, cad_beats)}
+        # Without a selector the engine emits root-position triads (the legacy
+        # inversion/spread path). A selector makes it choose voicings — which
+        # is the half of the harmony tier the hand-voiced path can never reach.
+        if selector:
+            hpass["voicingSelector"] = selector
+        extra = [{"name": "chords", "role": "harmony", "passages": {"Main": hpass}}]
+        n_voice_parts = 0
+    else:
+        extra = []
+        n_voice_parts = 3 if melody else 2   # chords-only: VC2 IS the melody
     # One melodic part per voice: units carry the degree DELTA from the voice's
     # previous note (the engine's cursor convention) plus any accidental.
-    extra = []
-    n_voice_parts = 3 if melody else 2       # chords-only: VC2 IS the melody
     for v in range(n_voice_parts):
         # NOT role "harmony": that role produced ZERO events (the composer
         # realizes harmony parts from a chord progression, not from phrases).
@@ -696,7 +745,9 @@ def pedal_chords(model, rng, bpm=92.0, seed=1, melody=True, bars=None):
     t = template(motifs, [mel_phrase],
                  beats=total, bpm=bpm, seed=seed,
                  extra_parts=tuple(extra) + (bass,))
-    return t, {"strategy": "pedal_chords" if melody else "pedal_chords_only",
+    return t, {"strategy": ("pedal_chords_voiced" if voiced else
+                            "pedal_chords" if melody else "pedal_chords_only"),
+               "chord_source": "harmony_part" if voiced else "countermelody",
                "n_entries": len(chords),
                "progression": "-".join(labels),
                "tension_curve": "-".join(str(x) for x in tension_curve),
@@ -972,6 +1023,13 @@ STRATEGIES = {
     "pedal_chords": pedal_chords,
     "pedal_chords_only":
         lambda m, r, **kw: pedal_chords(m, r, melody=False, **kw),
+    # Same chords, same seed, same everything — spelled by the engine's
+    # voicing tier instead of by hand (comp run 15). A/B against pedal_chords.
+    "pedal_chords_voiced":
+        lambda m, r, **kw: pedal_chords(m, r, voiced=True, **kw),
+    "pedal_chords_smooth":
+        lambda m, r, **kw: pedal_chords(m, r, voiced=True, selector="smooth",
+                                        **kw),
     "modulating_fifths": modulating_fifths,
     "modulating_fifths_up":
         lambda m, r, **kw: modulating_fifths(m, r, direction=True, **kw),
