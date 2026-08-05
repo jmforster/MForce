@@ -2,6 +2,29 @@
 
 ## Awaiting Matt
 
+### 17. The four UI requests — built [try] (run 22)
+All in the new build (title bar 08-05 12:06 @7648c61): Edit menu with
+Cut/Copy/Paste + ctrl-x/c/v (multi-select, links inside the selection
+rewire on paste); Edit > Convert to Patch/Node graph (same-session
+round trip restores instrument+curves verbatim; cold conversion uses the
+frequency heuristic + default score); Output category (Output patch-mode,
+Channel/Mixer node-mode, gated with reasons); File > Audition... window —
+Source pane (folder + controls + WAVs), Target pane (folder + patch list,
+refreshes after Save, click + Delete + Enter deletes the file).
+Headless checks green (--roundtrip 8/8, --convert-roundtrip
+byte-identical). Hands-on list: box-select copy/paste, conversion node
+placement, Audition pane sizing + delete flow, and NOTE Delete/Backspace
+node-delete now requires editor focus (was global).
+
+### 18. F1-retuned sopranos — re-rendered [listen] (run 22)
+renders/vowel_grid/ — the 11 flagged WAVs replaced in place per your
+"Let's do (a)". The true trio (Soprano E/I/U at A4) gained h1
++8.2/+21.4/+14.9 dB (matching the predicted skirt deficit to 0.01 dB);
+the other 8 carry the curve but are no-ops at their scored note
+(merged-formant class, retune only matters if played higher).
+Tradeoff to listen for: power returns, vowel identity blurs toward
+F2-only cues — the physiologically accurate soprano situation.
+
 ### 16. Piano diagnosis — the chuff was a bug, plus your FM accident measured [read] (run 22)
 Full numbers in research/ml_ears/piano_diagnosis.py output; the short form:
 
@@ -45,74 +68,6 @@ OPTIONS (pick a bundle; no code written yet):
 My recommendation: 1+2+3 next run (all calibration, no new features),
 4 as the follow-up feature, 6 as a parallel exploration when you want it.
 
-### 15. Slew click ladder — the brightness dial you asked for [listen] (run 21)
-`renders/slew_clicks/` — the follow-up to REVIEW 14. `SlewLimiterSource` now
-exists and sits between the velvet phase source and FMSource, so each click's
-one-sample phase step becomes a glide. Six files: `slewclick_ctrl_none`
-(unchanged PoC) then `slewclick_f20000 / f05000 / f01000 / f00200 / f00050`,
-falling fallRate = longer glide.
-
-What the dial actually does, so you know what to listen FOR: the impulse
-jumps phase 0.5 cycles and slides back over `0.5/fallRate` seconds, and a
-linear phase glide is a constant frequency offset — so during the slide the
-carrier is detuned by `fallRate/2` Hz. Low fallRate = a long, gentle, small
-bend; high = a short, violent one. It trades duration against deviation
-rather than simply dulling the click.
-
-Measured over the 0.25 s attack window: centroid 7116 Hz (control) → 6404 →
-4745 → 3667 → 3237 Hz at fallRate 50, i.e. 0.455x, with the >8 kHz share
-going 37.9% → 13.6%. Monotonic, all six distinct. `f20000` is deliberately
-the degenerate end (0.025 ms glide ≈ 1 sample) and should be
-indistinguishable from the control — if you CAN hear a difference there,
-something is wrong and I want to know.
-
-Verdict decides: which rung (if any) is the usable noisy-attack character;
-whether to wire fallRate to an envelope so the chirp character evolves across
-the attack (zero engine work — it is already a ValueSource); or whether the
-whole click direction is a dead end and item 3g retires.
-
-MATT: Dead end, please revert all code specific to this feature.
-
-### 13. Piano — first optimized render [listen] (run 20)
-`renders/cmaes_piano/` — `piano_smoke_baseline_C2C4C6.wav` (encoder center,
-pre-optimization) vs `piano_smoke_best_C2C4C6.wav` (108-eval smoke best,
-1.521 -> 0.900, every term improved), plus `piano_smoke_best_twohand.wav`
-(10s C-major, LH octaves + RH arpeggio, polyphony 8). Both engine features
-are live and measurement-locked: partials sit within 0.1 cents of the
-sqrt(1+B n^2) stretch at the measured B(f0), high partials decay faster per
-the measured law, knock band CONVERGED to 2484-8189 Hz vs the measured
-2.5-8 kHz without being told. `inharm_decay_test.wav` = the bare
-verification render (C2/C4/C6, no optimization).
-Verdict decides: does the smoke best read as piano-ward; full 600-eval run
-worth it; what is most wrong to your ear (attack / decay / knock / body).
-
-MATT: Very far from a piano sound. Attack is relatively slow with a "chuff" vs.
-being instant and percussive. The sustain phase is string-y (not necessarily a
-bad thing) and has a progression from brighter to darker.
-
-One challenge is the very different sound of low piano notes vs. mid vs. high.
-Interesting, one of your fm WAVs (fm_matrix2/t1_04_cratio_audiorate_lo) sounds
-pretty close to a first or second octave piano note. Not sure if/how that accident
-can be leveraged.
-
-### 14. Click PoCs — the t3_23 answer [listen] (run 20)
-`renders/fm_clicks/` — your click question answered: t3_23 wires velvet
-noise into FM phase, so each impulse sign-flips the carrier for EXACTLY one
-sample. Rate is constant (velvet density; measured 5-193/s tracking the
-dial) — it READ as modulation-linked because click loudness = 2|sin theta|,
-so impulses near carrier zero-crossings vanish and FM sweeps where the
-nulls fall. Density and jump size are both ValueSources = envelope-able
-with ZERO engine work. PoCs: `poc1_attack_amp400` (crackle fades over
-0.2s), `poc2_attack_dens2000to20` (crackle THINS AND fades),
-`poc3_bell_attack600` (bell, 0.15s click burst). Note these clicks are
-phase perturbations INSIDE the carrier — coupled to the tonal path by
-construction, not a parallel noise sum.
-Verdict decides: is this the noisy-attack direction worth pursuing; if the
-single-sample clicks are too harsh, a SlewLimiterSource (backlog 3g) turns
-steps into tunable-brightness chirps on the same dial.
-
-MATT: Dead end, please revert all code specific to this feature.
-
 ### 11. Answer: what the power renorm would do (item 5 follow-up) [read] (run 20)
 Your read is right — with the current formula, power is N/A at count=1 by
 construction: the single side partial sits at position t=0 on the taper, and
@@ -127,52 +82,18 @@ recommendation is LEAVE IT: the degenerate case is now documented in the
 code and in this queue, and we skip a sound-changing edit to a retiring
 front. Say the word if you want the renorm anyway.
 
-### 12. F1-retuning — the possible feature, explained (item 1 follow-up) [read] (run 20)
-The physics: a formant only speaks through the harmonics inside it. The 11
-flagged grid entries are notes where f0 exceeds the vowel's F1 (e.g. soprano
-A5 = 880 Hz vs /u/ F1 ~370 Hz) — NO harmonic falls inside the first formant
-band, so the vowel's main resonance boosts nothing and the note comes out
-thin with the wrong color. Real sopranos jaw-open to RAISE F1 until it
-tracks the sung pitch (F1 ~= f0): h1 lands back in the resonance, power
-returns, vowel identity blurs (why opera text is hard to catch up high).
-The feature = per-note F1 floor: effective F1 = max(patch F1, f0).
-Two implementations:
-(a) NO ENGINE WORK, single-vowel patches: the paramMap frequency-curve
-    mechanism already sets configs per-note — a curve on the F1 Formant
-    node's frequency ([[low, F1], [F1, F1], [1100, 1100]]) IS max(F1, f0)
-    as piecewise-linear. Could ship the 11 flagged patches today.
-(b) ENGINE CONFIG, for FormantSequences/grids: a `tuneF1ToF0` flag on
-    Formant (applied at prepare, where f0 is known) — one flag instead of
-    authoring a curve per formant node per vowel spectrum. Worth it only if
-    the sung-vowel direction gets real use.
-Verdict decides: ship (a) for the 11 flagged patches now, build (b), or
-leave documented.
-
-MATT: Let's do (a).
-
-MATT (new request - UI changes/enhancements):
-
-1. Ability to copy and paste nodes - add Edit top level menu with Cut/Copy/Paste and
-   support standard shortcut keys ctrl-x / ctrl-c / ctrl-v
-
-2. Ability to convert graphs from node > instrument and vice versa:
-   - add "Convert to <type> graph" to new Edit menu, where <type> is the "other"
-     type (if node graph loaded <type> = "Patch", else type = "Node")
-
-3. Unless I'm missing something UI does not have ability to add Output, Channel,
-   or Mixer nodes. Add all 3 under a new top level "Output" category, last in list.
-
-4. Been using Audition a lot, obviously, let's give it an upgrade:
-   - Change navigation to File > Audition...
-   - Selecting that brings up independent window with left and right panes
-   - Left pane top contains sweep (renamed "Source") folder selector and control buttons
-   - Left pane remainder contains file list (WAVs)
-   - Right pane top contains curated (renamed "Target") folder selector
-   - Right pane remainder contains file list (JSON patches)
-   - Controls work as now, with addition of right pane file list refreshes after Save
-   - Only action in right pane is if user clicks a filename and hits Delete, deletes file
-
 ## Resolved
+
+2026-08-05 (Matt, folded in run 22): clicks/slew "dead end, revert all
+code" -> REVERTED (d256536+50da8af; CombinedSource op-parse fix kept;
+3g retired). Piano smoke "very far from a piano; chuff; string-y;
+brighter->darker" + the t1_04 FM-accident observation -> measurement-only
+diagnosis (item 16): chuff root-caused to adsr fraction+50ms-clamp
+semantics (a BUG - optimizer scored 2.2s notes vs auditioned 3.5s),
+double decay structurally absent, register curve miscalibrated 3x both
+directions, t1_04 virtues measured (2.6ms attack, 112-line forest,
+highs-die-first). F1-retuning "let's do (a)" -> shipped (item 18). Four
+UI requests -> built (item 17).
 
 2026-08-04 pm (Matt, folded in run 20): FM PM "2-level FM, fine" but t3_23
 clicks -> investigated (item 14: velvet-phase mechanism, controllable,

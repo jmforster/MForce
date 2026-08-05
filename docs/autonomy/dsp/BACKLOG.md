@@ -130,6 +130,15 @@ Priority order. Tags per WORKFLOW.md. (G1)-(G4) = GOALS.md Dipsy goals.
    who wrote the C#: what was ordinal 3? (REVIEW 10.)
    Regression-gated: 73/73 byte-identical vs the stored A/B arm, with exactly
    the 6 revived patches present only in the new arm.
+3e-NEXT2. **[build] Piano recovery bundle — GATED on Matt's option pick
+   (REVIEW 16)** — recommended: (1) absolute-seconds attack semantics for
+   this path, (2) knock recalibration from measurement, (3) decay register
+   curve rebuilt from per-note fits; then re-smoke. Follow-up feature
+   candidate: (4) second decay stage (prompt/aftersound). Parallel
+   exploration: (6) FM-for-bass via t1_04 pitch-mapping study. Full
+   600-eval run explicitly NOT recommended until 1-3 land.
+3g. **RETIRED-REVERTED run 22** — SlewLimiterSource + click family removed
+   per Matt ("dead end"); CombinedSource op-parse fix survives.
 3e-NEXT. **[metric] Piano: full run + scorer debt** — smoke landed run 20
    (1.521 -> 0.900). GATED on Matt's A/B (REVIEW 13): full 600-eval run.
    Scorer debt found by the smoke:
