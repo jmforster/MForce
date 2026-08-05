@@ -1,0 +1,136 @@
+{
+ "sampleRate": 48000,
+ "seconds": 4,
+ "graph": {
+  "nodes": [
+   {
+    "id": "clickEnv",
+    "type": "Envelope",
+    "params": {
+     "stages": [
+      {
+       "startVal": 1.0,
+       "endVal": 0.0,
+       "type": "Expo",
+       "power": 2.0,
+       "percent": 0.05
+      },
+      {
+       "startVal": 0.0,
+       "endVal": 0.0,
+       "type": "Linear",
+       "percent": 0.0
+      }
+     ]
+    }
+   },
+   {
+    "id": "vn",
+    "type": "VelvetNoiseSource",
+    "params": {
+     "density": 400.0,
+     "amplitude": {
+      "ref": "clickEnv"
+     }
+    }
+   },
+   {
+    "id": "ph",
+    "type": "RangeSource",
+    "params": {
+     "min": -0.5,
+     "max": 0.5,
+     "var": {
+      "ref": "vn"
+     },
+     "normalized": false
+    }
+   },
+   {
+    "id": "slew",
+    "type": "SlewLimiterSource",
+    "params": {
+     "source": {
+      "ref": "ph"
+     },
+     "mode": 2,
+     "rate": 1000000.0,
+     "fallRate": 5000.0
+    }
+   },
+   {
+    "id": "depthEnv",
+    "type": "Envelope",
+    "params": {
+     "stages": [
+      {
+       "startVal": 4.0,
+       "endVal": 2.0,
+       "type": "Expo",
+       "power": 2.0,
+       "percent": 0.0
+      }
+     ]
+    }
+   },
+   {
+    "id": "ampEnv",
+    "type": "Envelope",
+    "params": {
+     "stages": [
+      {
+       "startVal": 1.0,
+       "endVal": 0.0,
+       "type": "Expo",
+       "power": 1.2,
+       "percent": 0.0
+      }
+     ]
+    }
+   },
+   {
+    "id": "fm",
+    "type": "FMSource",
+    "params": {
+     "carrierRatio": 1.0,
+     "modRatio": 2.0,
+     "depth": {
+      "ref": "depthEnv"
+     },
+     "phase": {
+      "ref": "slew"
+     },
+     "frequency": 220.0,
+     "amplitude": {
+      "ref": "ampEnv"
+     }
+    }
+   },
+   {
+    "id": "ch1",
+    "type": "SoundChannel",
+    "inputs": {
+     "source": "fm"
+    },
+    "params": {
+     "volume": 0.7,
+     "pan": 0.0
+    }
+   },
+   {
+    "id": "mix",
+    "type": "StereoMixer",
+    "inputs": {
+     "channels": [
+      "ch1"
+     ]
+    },
+    "params": {
+     "gainL": 1.0,
+     "gainR": 1.0
+    }
+   }
+  ],
+  "output": "mix"
+ }
+}
