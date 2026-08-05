@@ -55,7 +55,15 @@ CORPUS_LIMIT = 1200   # themes; plenty for stable histograms
 # ---------------------------------------------------------------- melodies
 def melody_from_piece_json(path):
     p = json.loads(Path(path).read_text())
-    ev = [e for e in p["parts"][0]["events"] if e.get("type") == "note"]
+    # First part that actually HAS note events, not literally parts[0]: a
+    # piece can carry a part with no `events` key at all (a chord-only or
+    # empty part), and indexing blind threw KeyError mid-batch.
+    ev = []
+    for part in p.get("parts", []):
+        ev = [e for e in (part.get("events") or [])
+              if e.get("type") == "note"]
+        if ev:
+            break
     return [(e["beat"], int(round(e["data"]["noteNumber"])),
              e["data"]["duration"]) for e in ev]
 
@@ -422,6 +430,11 @@ def score(mel, cs):
         clo,
     ]
     return {
+        # An EMPTY or near-empty piece still produces a number — the existing
+        # wandering_24x render has 0 notes and scores 0.407, which reads like a
+        # mediocre melody rather than like nothing at all. Callers that batch
+        # over renders should check this flag before believing the composite.
+        "scorable": 0 if ft["n_notes"] < 4 else 1,
         "n_notes": ft["n_notes"],
         "final_ratio": round(ft["final_ratio"], 3),
         "final_longest": ft["final_longest"],

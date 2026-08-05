@@ -24,6 +24,7 @@ HERE = pathlib.Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 
 import score_generated as sg                                       # noqa: E402
+import score_passage as spg                                        # noqa: E402
 
 REPO = HERE.parent.parent
 CLI = REPO / "build/tools/mforce_cli/Release/mforce_cli.exe"
@@ -196,7 +197,14 @@ def render(template, out_prefix):
 
 def melody_durations(out_prefix):
     ev = json.loads((REPO / (out_prefix + "_1.json")).read_text(encoding="utf-8"))
-    return [float(e["data"].get("duration", 0.0)) for e in ev["parts"][0]["events"]]
+    # First part carrying events. A part can have NO events key at all — the
+    # existing wandering_24x render is exactly that, an empty piece — and
+    # indexing parts[0]["events"] blind killed the whole batch on it.
+    for part in ev.get("parts", []):
+        evs = part.get("events")
+        if evs:
+            return [float(e["data"].get("duration", 0.0)) for e in evs]
+    return []
 
 
 def accel_ratio(durs):
@@ -218,6 +226,11 @@ def main():
     ap.add_argument("--bpm", type=float, default=92.0)
     ap.add_argument("--corpus", default="mtd")
     ap.add_argument("--no-outliers", action="store_true")
+    ap.add_argument("--rescore", action="store_true",
+                    help="skip rendering; re-score the *_1.json already in "
+                         "the output dir. Use when the CLI is unavailable "
+                         "(another lane rebuilding it) or when only the "
+                         "scoring changed.")
     args = ap.parse_args()
 
     cs = sg.corpus_stats(args.corpus)
@@ -234,20 +247,41 @@ def main():
     rows = []
     for label, name, kw, seed in jobs:
         prefix = f"{OUTROOT}/{label}"
-        claim = render(STRATEGIES[name](seed, args.bpm, **kw), prefix)
+        if args.rescore:
+            if not (REPO / (prefix + "_1.json")).exists():
+                print(f"{label}: no existing render, skipped")
+                continue
+            claim = "(rescored)"
+        else:
+            claim = render(STRATEGIES[name](seed, args.bpm, **kw), prefix)
         mel = sg.load_melody(REPO / (prefix + "_1.json"))
         durs = melody_durations(prefix)
         r = sg.score(mel, cs)
         r.update(file=label, strategy=name,
                  accel=round(accel_ratio(durs), 2), claim=claim)
+        # Passage-mode shape score alongside the phrase composite (#15). The
+        # phrase composite stays in the table because it still screens the
+        # note-level material; it just cannot see whether a PASSAGE works.
+        if not r.get("scorable", 1):
+            print(f"{label}: EMPTY RENDER (0 usable notes) — composite "
+                  f"{r['composite']} is meaningless here")
+        ps = spg.passage_score(spg.load_piece(REPO / (prefix + "_1.json")))
+        if ps:
+            r.update(passage=ps["passage"], tension=ps["tension"],
+                     arrival=ps["arrival"], coherence=ps["coherence"],
+                     peak_pos=ps["peak_pos"], tonic_arrival=ps["tonic_arrival"])
         rows.append(r)
         print(f"{label}: {r['n_notes']} notes range={r['range']} "
               f"rep={r['rep_LxCount']} selfsim={r['selfsim']} "
-              f"composite={r['composite']} accel={r['accel']}  [{r['claim']}]")
+              f"composite={r['composite']} accel={r['accel']} "
+              f"passage={r.get('passage')} "
+              f"(t={r.get('tension')} a={r.get('arrival')} "
+              f"c={r.get('coherence')})  [{r['claim']}]")
 
     cols = ["file", "strategy", "n_notes", "range", "int_jsd", "ctr_jsd",
             "rep_LxCount", "zero_rate", "max_run_frac", "selfsim", "big_leap",
-            "composite", "accel", "claim"]
+            "scorable", "composite", "passage", "tension", "arrival", "coherence",
+            "peak_pos", "tonic_arrival", "accel", "claim"]
     csv_path = REPO / OUTROOT / "scores.csv"
     with open(csv_path, "w", newline="") as f:
         w = csv.DictWriter(f, fieldnames=cols, extrasaction="ignore")
