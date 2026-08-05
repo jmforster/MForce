@@ -1,0 +1,31 @@
+{
+ "sampleRate": 48000,
+ "seconds": 1.0,
+ "graph": {
+  "nodes": [
+   {
+    "id": "pulse",
+    "type": "PulseSource",
+    "params": {
+     "frequency": 5.0,
+     "amplitude": 1.0,
+     "phase": 0.0,
+     "dutyCycle": 0.5
+    }
+   },
+   {
+    "id": "slew",
+    "type": "SlewLimiterSource",
+    "params": {
+     "source": {
+      "ref": "pulse"
+     },
+     "mode": 0,
+     "rate": 200.0,
+     "fallRate": 0.0
+    }
+   }
+  ],
+  "output": "slew"
+ }
+}

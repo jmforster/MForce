@@ -21,6 +21,7 @@
 #include "mforce/source/segment_source.h"
 #include "mforce/source/repeating_source.h"
 #include "mforce/source/phased_value_source.h"
+#include "mforce/source/slew_limiter_source.h"
 #include "mforce/source/additive/basic_additive_source.h"
 #include "mforce/source/additive/additive_source2.h"
 #include "mforce/source/additive/full_additive_source.h"
@@ -247,27 +248,33 @@ void register_all_sources() {
             auto& cs = static_cast<CombinedSource&>(src);
             // Legacy patches write `operation` as a NUMBER (a C# enum ordinal);
             // current ones write a string. Accept both, but do NOT quietly fall
-            // back to Add on an out-of-range ordinal — CombineTest.json says 3,
-            // which no current CombineOp value matches, and silently rendering
-            // it as Add is exactly the failure mode this loader is full of.
-            // Say so instead.
+            // back to Add on anything unrecognised — silently rendering an
+            // operation nobody asked for is exactly the failure mode this
+            // loader is full of. Say so instead. Ordinals must stay in step
+            // with CombineOp and the kOpLabels dropdown in combined_source.h.
             if (p.contains("operation") && p.at("operation").is_number()) {
                 int op = p.at("operation").get<int>();
                 switch (op) {
                     case 0: cs.op = CombineOp::Add;      break;
                     case 1: cs.op = CombineOp::Multiply; break;
                     case 2: cs.op = CombineOp::Fade;     break;
+                    case 3: cs.op = CombineOp::Sum;      break;
                     default:
                         throw std::runtime_error(
                             "CombinedSource 'operation': ordinal " + std::to_string(op) +
-                            " has no equivalent (0=add, 1=multiply, 2=fade). This is a "
-                            "legacy enum value; give it as a string instead.");
+                            " has no equivalent (0=add, 1=multiply, 2=fade, 3=sum). "
+                            "Give it as a string instead.");
                 }
             } else {
                 std::string opStr = p.value("operation", std::string("add"));
-                if (opStr == "multiply") cs.op = CombineOp::Multiply;
-                else if (opStr == "fade") cs.op = CombineOp::Fade;
-                else cs.op = CombineOp::Add;
+                if      (opStr == "add" || opStr == "mix") cs.op = CombineOp::Add;
+                else if (opStr == "multiply")              cs.op = CombineOp::Multiply;
+                else if (opStr == "fade")                  cs.op = CombineOp::Fade;
+                else if (opStr == "sum")                   cs.op = CombineOp::Sum;
+                else
+                    throw std::runtime_error(
+                        "CombinedSource 'operation': unknown value \"" + opStr +
+                        "\" (expected add|mix|multiply|fade|sum).");
             }
             cs.gainAdj = p.value("gainAdj", 0.0f);
         });
@@ -413,6 +420,9 @@ void register_all_sources() {
 
     reg.register_type("Limiter", SourceCategory::Filter,
         [](int sr, auto) { return std::make_shared<Limiter>(sr); });
+
+    reg.register_type("SlewLimiterSource", SourceCategory::Filter,
+        [](int, auto) { return std::make_shared<SlewLimiterSource>(); });
 
     reg.register_type("Vibrato", SourceCategory::Modulator,
         [](int sr, auto seed) {
