@@ -446,6 +446,26 @@ static nlohmann::json s_loadedParamMap = nlohmann::json::object();
 static nlohmann::json s_loadedScore   = nlohmann::json();
 static nlohmann::json s_loadedSeconds = nlohmann::json();
 
+// Convert-graph stash (Edit > Convert to <type> graph). Converting a Patch
+// graph to a Node graph strips the instrument-level data the node graph
+// cannot model (paramMap incl. curve entries, score, seconds, polyphony);
+// it is parked here so converting back within the session restores the
+// originals verbatim. Cleared on New and on any file load — the stash
+// belongs to the graph it was stripped from, not to the session at large.
+static nlohmann::json s_convParamMap  = nlohmann::json::object();
+static nlohmann::json s_convScore     = nlohmann::json();
+static nlohmann::json s_convSeconds   = nlohmann::json();
+static int  s_convPolyphony  = 1;
+static bool s_convStashValid = false;
+
+static void conv_stash_clear() {
+    s_convParamMap  = nlohmann::json::object();
+    s_convScore     = nlohmann::json();
+    s_convSeconds   = nlohmann::json();
+    s_convPolyphony = 1;
+    s_convStashValid = false;
+}
+
 // Defined after g_transport/g_keyboard (declaration-order constraint) —
 // seeds the transport and keyboard defaults from a loaded patch's score.
 static void apply_score_defaults(const nlohmann::json& score);
@@ -690,6 +710,7 @@ static void new_graph(GraphMode mode) {
     s_loadedParamMap = nlohmann::json::object();
     s_loadedScore    = nlohmann::json();
     s_loadedSeconds  = nlohmann::json();
+    conv_stash_clear();
     s_graphMode = mode;
     s_nextId = 1;
     g_selectedNodeId = -1;
@@ -747,6 +768,52 @@ static std::string open_file_dialog() {
 
 // json_type_to_node removed — typeName strings are used directly
 
+// Envelope stage-list (de)serialization — the params.stages form shared by
+// save_patch_graph, save_node_graph, load_graph_from_path, and the node
+// clipboard. Factored so all four stay byte-identical.
+static nlohmann::json envelope_stages_to_json(const Envelope& env) {
+    nlohmann::json stages = nlohmann::json::array();
+    for (int i = 0; i < env.stage_count(); ++i) {
+        const auto& s = env.stage(i);
+        const char* t = (s.ramp.type == RampType::Expo)        ? "Expo"
+                      : (s.ramp.type == RampType::InverseExpo) ? "InverseExpo"
+                      : (s.ramp.type == RampType::Sine)        ? "Sine"
+                                                                : "Linear";
+        stages.push_back({
+            {"percent",  s.percent},
+            {"startVal", s.ramp.startVal},
+            {"endVal",   s.ramp.endVal},
+            {"type",     t},
+            {"power",    s.ramp.power},
+            {"holdPct",  s.ramp.holdPct},
+            {"minSec",   s.minSec},
+            {"maxSec",   s.maxSec},
+        });
+    }
+    return stages;
+}
+
+// Replaces env's stage list with the one described by `stages`.
+static void envelope_stages_from_json(Envelope& env, const nlohmann::json& stages) {
+    env = Envelope(DSP_SAMPLE_RATE);
+    for (const auto& sj : stages) {
+        Envelope::Stage s;
+        s.ramp.startVal = sj.value("startVal", 0.0f);
+        s.ramp.endVal   = sj.value("endVal",   0.0f);
+        s.ramp.power    = sj.value("power",    0.0f);
+        s.ramp.holdPct  = sj.value("holdPct",  0.0f);
+        std::string t   = sj.value("type", std::string("Linear"));
+        s.ramp.type = (t == "Expo")        ? RampType::Expo
+                    : (t == "InverseExpo") ? RampType::InverseExpo
+                    : (t == "Sine")        ? RampType::Sine
+                                            : RampType::Linear;
+        s.percent = sj.value("percent", 0.0f);
+        s.minSec  = sj.value("minSec",  0.0f);
+        s.maxSec  = sj.value("maxSec",  0.0f);
+        env.add_stage(s);
+    }
+}
+
 static void load_graph_from_path(const std::string& path) {
     using json = nlohmann::json;
 
@@ -763,6 +830,7 @@ static void load_graph_from_path(const std::string& path) {
     s_loadedParamMap = nlohmann::json::object();
     s_loadedScore    = nlohmann::json();
     s_loadedSeconds  = nlohmann::json();
+    conv_stash_clear();
     s_nextId = 1;
 
     bool hasInstrument = root.contains("instrument");
@@ -948,25 +1016,8 @@ static void load_graph_from_path(const std::string& path) {
             // Restore Envelope stages. For NT_ENVELOPE nodes saved with
             // params.stages, replace the live Envelope's stage list.
             if (gn.typeName == NT_ENVELOPE && params.contains("stages")) {
-                if (auto* env = dynamic_cast<Envelope*>(gn.dspSource.get())) {
-                    *env = Envelope(DSP_SAMPLE_RATE);
-                    for (const auto& sj : params["stages"]) {
-                        Envelope::Stage s;
-                        s.ramp.startVal = sj.value("startVal", 0.0f);
-                        s.ramp.endVal   = sj.value("endVal",   0.0f);
-                        s.ramp.power    = sj.value("power",    0.0f);
-                        s.ramp.holdPct  = sj.value("holdPct",  0.0f);
-                        std::string t   = sj.value("type", std::string("Linear"));
-                        s.ramp.type = (t == "Expo")        ? RampType::Expo
-                                    : (t == "InverseExpo") ? RampType::InverseExpo
-                                    : (t == "Sine")        ? RampType::Sine
-                                                            : RampType::Linear;
-                        s.percent = sj.value("percent", 0.0f);
-                        s.minSec  = sj.value("minSec",  0.0f);
-                        s.maxSec  = sj.value("maxSec",  0.0f);
-                        env->add_stage(s);
-                    }
-                }
+                if (auto* env = dynamic_cast<Envelope*>(gn.dspSource.get()))
+                    envelope_stages_from_json(*env, params["stages"]);
             }
 
             // Restore config values
@@ -1500,25 +1551,7 @@ static void save_patch_graph(const std::string& path) {
         if (node.typeName == NT_ENVELOPE) {
             if (auto* env = dynamic_cast<Envelope*>(node.dspSource.get())) {
                 if (!jnode.contains("params")) jnode["params"] = json::object();
-                json stages = json::array();
-                for (int i = 0; i < env->stage_count(); ++i) {
-                    const auto& s = env->stage(i);
-                    const char* t = (s.ramp.type == RampType::Expo)        ? "Expo"
-                                  : (s.ramp.type == RampType::InverseExpo) ? "InverseExpo"
-                                  : (s.ramp.type == RampType::Sine)        ? "Sine"
-                                                                            : "Linear";
-                    stages.push_back({
-                        {"percent",  s.percent},
-                        {"startVal", s.ramp.startVal},
-                        {"endVal",   s.ramp.endVal},
-                        {"type",     t},
-                        {"power",    s.ramp.power},
-                        {"holdPct",  s.ramp.holdPct},
-                        {"minSec",   s.minSec},
-                        {"maxSec",   s.maxSec},
-                    });
-                }
-                jnode["params"]["stages"] = stages;
+                jnode["params"]["stages"] = envelope_stages_to_json(*env);
             }
         }
 
@@ -1704,25 +1737,7 @@ static void save_node_graph(const std::string& path) {
         if (node.typeName == NT_ENVELOPE) {
             if (auto* env = dynamic_cast<Envelope*>(node.dspSource.get())) {
                 if (!jnode.contains("params")) jnode["params"] = json::object();
-                json stages = json::array();
-                for (int i = 0; i < env->stage_count(); ++i) {
-                    const auto& s = env->stage(i);
-                    const char* t = (s.ramp.type == RampType::Expo)        ? "Expo"
-                                  : (s.ramp.type == RampType::InverseExpo) ? "InverseExpo"
-                                  : (s.ramp.type == RampType::Sine)        ? "Sine"
-                                                                            : "Linear";
-                    stages.push_back({
-                        {"percent",  s.percent},
-                        {"startVal", s.ramp.startVal},
-                        {"endVal",   s.ramp.endVal},
-                        {"type",     t},
-                        {"power",    s.ramp.power},
-                        {"holdPct",  s.ramp.holdPct},
-                        {"minSec",   s.minSec},
-                        {"maxSec",   s.maxSec},
-                    });
-                }
-                jnode["params"]["stages"] = stages;
+                jnode["params"]["stages"] = envelope_stages_to_json(*env);
             }
         }
 
@@ -2618,11 +2633,42 @@ struct AuditionState {
     char saveName[128]       = {};
     char saveStatus[256]     = {};
 
+    // Target pane: JSON patches in the curated folder. Selection is by
+    // basename so it survives list refreshes (save/delete re-scan).
+    std::vector<std::string> jsonFiles;          // basenames, sorted
+    int  jsonSelectedIdx = -1;                   // -1 = nothing selected
+    bool showDeleteModal = false;                // Delete pressed on a selection
+
     // Loaded sample buffer (left channel of the stereo WAV, mono content)
     std::vector<float> currentBuffer;
     int                currentSampleRate = 48000;
 };
 static AuditionState g_audition;
+
+// Re-scan the Target (curated) folder's .json patches. Called on window
+// open, Target folder change, after a successful Save, and after Delete.
+static void audition_refresh_target_list() {
+    std::string keep = (g_audition.jsonSelectedIdx >= 0 &&
+                        g_audition.jsonSelectedIdx < (int)g_audition.jsonFiles.size())
+        ? g_audition.jsonFiles[g_audition.jsonSelectedIdx] : std::string();
+    g_audition.jsonFiles.clear();
+    g_audition.jsonSelectedIdx = -1;
+    const std::string& folder = g_settings.curatedFolder;
+    if (folder.empty() || !std::filesystem::exists(folder)) return;
+    for (const auto& entry : std::filesystem::directory_iterator(folder)) {
+        if (!entry.is_regular_file()) continue;
+        auto p = entry.path();
+        std::string ext = p.extension().string();
+        for (auto& c : ext) c = (char)std::tolower(c);
+        if (ext == ".json") g_audition.jsonFiles.push_back(p.filename().string());
+    }
+    std::sort(g_audition.jsonFiles.begin(), g_audition.jsonFiles.end());
+    if (!keep.empty()) {
+        auto it = std::find(g_audition.jsonFiles.begin(), g_audition.jsonFiles.end(), keep);
+        if (it != g_audition.jsonFiles.end())
+            g_audition.jsonSelectedIdx = (int)(it - g_audition.jsonFiles.begin());
+    }
+}
 
 static void audition_load_folder(const std::string& folder) {
     g_audition.folder = folder;
@@ -2812,104 +2858,188 @@ static bool audition_save_current_patch(const std::string& userName,
 static void draw_audition_window() {
     // If window was just closed (X clicked: ImGui flipped open to false on
     // the prior frame), kill audio. Otherwise the WAVs keep playing in the
-    // background with no UI to control them.
+    // background with no UI to control them. On open, re-scan the Target
+    // folder so the patch list is current.
     static bool prevOpen = false;
     if (prevOpen && !g_audition.open) audition_stop();
+    if (!prevOpen && g_audition.open) audition_refresh_target_list();
     prevOpen = g_audition.open;
 
     if (!g_audition.open) return;
 
-    ImGui::SetNextWindowSize(ImVec2(560, 420), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(780, 480), ImGuiCond_FirstUseEver);
     if (!ImGui::Begin("Audition", &g_audition.open, ImGuiWindowFlags_NoCollapse)) {
         ImGui::End();
         return;
     }
 
-    // --- Folder + browse ---
-    ImGui::Text("Sweep folder:");
-    ImGui::SameLine();
-    if (ImGui::Button("Browse##audition_browse")) {
-        std::string f = pick_folder_dialog();
-        if (!f.empty()) audition_load_folder(f);
-    }
-    ImGui::TextWrapped("%s", g_audition.folder.empty() ? "(none)" : g_audition.folder.c_str());
+    float paneW = ImGui::GetContentRegionAvail().x * 0.5f
+                - ImGui::GetStyle().ItemSpacing.x * 0.5f;
 
-    // --- Curated folder (persistent) ---
-    ImGui::Separator();
-    ImGui::Text("Curated folder (Save target):");
-    ImGui::SameLine();
-    if (ImGui::Button("Browse##curated_browse")) {
-        std::string f = pick_folder_dialog();
-        if (!f.empty()) {
-            g_settings.curatedFolder = f;
-            settings_save();
+    // ---------------------------------------------------------------------
+    // Left pane: Source (sweep) folder, transport controls, WAV list
+    // ---------------------------------------------------------------------
+    if (ImGui::BeginChild("##audition_left", ImVec2(paneW, 0), true)) {
+        ImGui::Text("Source folder:");
+        ImGui::SameLine();
+        if (ImGui::Button("Browse##audition_browse")) {
+            std::string f = pick_folder_dialog();
+            if (!f.empty()) audition_load_folder(f);
         }
-    }
-    ImGui::TextWrapped("%s", g_settings.curatedFolder.c_str());
+        ImGui::TextWrapped("%s", g_audition.folder.empty() ? "(none)" : g_audition.folder.c_str());
 
-    ImGui::Separator();
-
-    // --- Now playing ---
-    if (g_audition.wavFiles.empty()) {
-        ImGui::TextDisabled("(no .wav files in the selected folder)");
-    } else {
-        int n = (int)g_audition.wavFiles.size();
-        ImGui::Text("Variant %d of %d:  %s",
-                    g_audition.currentIdx + 1, n,
-                    g_audition.currentIdx >= 0
-                        ? g_audition.wavFiles[g_audition.currentIdx].c_str()
-                        : "(none)");
-    }
-
-    // --- Transport ---
-    bool canTransport = !g_audition.wavFiles.empty();
-    ImGui::BeginDisabled(!canTransport);
-    if (ImGui::Button("Prev"))   audition_prev();
-    ImGui::SameLine();
-    if (g_audition.playing) {
-        if (ImGui::Button("Stop"))   audition_stop();
-    } else {
-        if (ImGui::Button("Play"))   audition_play_current();
-    }
-    ImGui::SameLine();
-    if (ImGui::Button("Repeat")) audition_load_at(g_audition.currentIdx);
-    ImGui::SameLine();
-    if (ImGui::Button("Next"))   audition_next();
-    ImGui::SameLine();
-    ImGui::Checkbox("Auto-advance", &g_audition.autoAdvance);
-    ImGui::SameLine();
-    if (ImGui::Button("Save...")) {
-        // Pause audio while the modal is up so you can focus on naming;
-        // resume on Save success or Cancel.
-        g_audition.wasPlayingBeforeSave = g_audition.playing;
-        if (g_audition.playing) audition_stop();
-
-        g_audition.showSaveModal     = true;
-        g_audition.overwriteExisting = false;
-        g_audition.saveStatus[0]     = '\0';
-        // Pre-fill name with the variant id
-        if (g_audition.currentIdx >= 0) {
-            const auto& wav = g_audition.wavFiles[g_audition.currentIdx];
-            std::string base = wav.substr(0, wav.size() - 4);
-            snprintf(g_audition.saveName, sizeof(g_audition.saveName),
-                     "%s", base.c_str());
+        // --- Now playing ---
+        if (g_audition.wavFiles.empty()) {
+            ImGui::TextDisabled("(no .wav files in the selected folder)");
+        } else {
+            int n = (int)g_audition.wavFiles.size();
+            ImGui::Text("Variant %d of %d:  %s",
+                        g_audition.currentIdx + 1, n,
+                        g_audition.currentIdx >= 0
+                            ? g_audition.wavFiles[g_audition.currentIdx].c_str()
+                            : "(none)");
         }
-    }
-    ImGui::EndDisabled();
 
-    // --- File list ---
-    ImGui::Separator();
-    if (ImGui::BeginChild("##audition_list", ImVec2(0, 0), true)) {
-        for (int i = 0; i < (int)g_audition.wavFiles.size(); ++i) {
-            bool selected = (i == g_audition.currentIdx);
-            if (ImGui::Selectable(g_audition.wavFiles[i].c_str(), selected)) {
-                audition_load_at(i);
+        // --- Transport ---
+        bool canTransport = !g_audition.wavFiles.empty();
+        ImGui::BeginDisabled(!canTransport);
+        if (ImGui::Button("Prev"))   audition_prev();
+        ImGui::SameLine();
+        if (g_audition.playing) {
+            if (ImGui::Button("Stop"))   audition_stop();
+        } else {
+            if (ImGui::Button("Play"))   audition_play_current();
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Repeat")) audition_load_at(g_audition.currentIdx);
+        ImGui::SameLine();
+        if (ImGui::Button("Next"))   audition_next();
+        ImGui::SameLine();
+        ImGui::Checkbox("Auto-advance", &g_audition.autoAdvance);
+        ImGui::SameLine();
+        if (ImGui::Button("Save...")) {
+            // Pause audio while the modal is up so you can focus on naming;
+            // resume on Save success or Cancel.
+            g_audition.wasPlayingBeforeSave = g_audition.playing;
+            if (g_audition.playing) audition_stop();
+
+            g_audition.showSaveModal     = true;
+            g_audition.overwriteExisting = false;
+            g_audition.saveStatus[0]     = '\0';
+            // Pre-fill name with the variant id
+            if (g_audition.currentIdx >= 0) {
+                const auto& wav = g_audition.wavFiles[g_audition.currentIdx];
+                std::string base = wav.substr(0, wav.size() - 4);
+                snprintf(g_audition.saveName, sizeof(g_audition.saveName),
+                         "%s", base.c_str());
             }
         }
+        ImGui::EndDisabled();
+
+        // --- WAV file list ---
+        ImGui::Separator();
+        if (ImGui::BeginChild("##audition_list", ImVec2(0, 0), true)) {
+            for (int i = 0; i < (int)g_audition.wavFiles.size(); ++i) {
+                bool selected = (i == g_audition.currentIdx);
+                if (ImGui::Selectable(g_audition.wavFiles[i].c_str(), selected)) {
+                    audition_load_at(i);
+                }
+            }
+        }
+        ImGui::EndChild();
+    }
+    ImGui::EndChild();
+
+    ImGui::SameLine();
+
+    // ---------------------------------------------------------------------
+    // Right pane: Target (curated) folder, saved-patch list. Only action:
+    // click a filename, hit Delete → confirm modal → file removed.
+    // ---------------------------------------------------------------------
+    bool wantDelete = false;
+    if (ImGui::BeginChild("##audition_right", ImVec2(0, 0), true)) {
+        ImGui::Text("Target folder:");
+        ImGui::SameLine();
+        if (ImGui::Button("Browse##curated_browse")) {
+            std::string f = pick_folder_dialog();
+            if (!f.empty()) {
+                g_settings.curatedFolder = f;
+                settings_save();
+                audition_refresh_target_list();
+            }
+        }
+        ImGui::TextWrapped("%s", g_settings.curatedFolder.c_str());
+
+        // --- Patch file list ---
+        ImGui::Separator();
+        if (ImGui::BeginChild("##audition_jsonlist", ImVec2(0, 0), true)) {
+            if (g_audition.jsonFiles.empty())
+                ImGui::TextDisabled("(no .json patches in the target folder)");
+            for (int i = 0; i < (int)g_audition.jsonFiles.size(); ++i) {
+                bool selected = (i == g_audition.jsonSelectedIdx);
+                if (ImGui::Selectable(g_audition.jsonFiles[i].c_str(), selected))
+                    g_audition.jsonSelectedIdx = i;
+            }
+            // Delete key acts on the selection — gated on THIS list having
+            // focus, so it can't collide with the node editor's Delete.
+            if (ImGui::IsWindowFocused() && !ImGui::GetIO().WantTextInput &&
+                g_audition.jsonSelectedIdx >= 0 &&
+                ImGui::IsKeyPressed(ImGuiKey_Delete))
+                wantDelete = true;
+        }
+        ImGui::EndChild();
     }
     ImGui::EndChild();
 
     ImGui::End();
+
+    if (wantDelete) g_audition.showDeleteModal = true;
+
+    // --- Delete-confirm modal (one keypress: Delete → Enter) ---
+    if (g_audition.showDeleteModal) {
+        ImGui::OpenPopup("Delete curated patch");
+        g_audition.showDeleteModal = false;
+    }
+    if (ImGui::BeginPopupModal("Delete curated patch", nullptr,
+                               ImGuiWindowFlags_AlwaysAutoResize)) {
+        bool haveSel = g_audition.jsonSelectedIdx >= 0 &&
+                       g_audition.jsonSelectedIdx < (int)g_audition.jsonFiles.size();
+        if (!haveSel) {
+            ImGui::CloseCurrentPopup();
+        } else {
+            // Copy the name — the refresh below invalidates the list entry.
+            std::string name = g_audition.jsonFiles[g_audition.jsonSelectedIdx];
+            ImGui::Text("Delete %s from the Target folder?", name.c_str());
+            ImGui::TextDisabled("Enter to delete, Esc to cancel.");
+            ImGui::Spacing();
+            bool doDelete = ImGui::Button("Delete", ImVec2(100, 0)) ||
+                            ImGui::IsKeyPressed(ImGuiKey_Enter) ||
+                            ImGui::IsKeyPressed(ImGuiKey_KeypadEnter);
+            ImGui::SameLine();
+            bool doCancel = ImGui::Button("Cancel", ImVec2(100, 0)) ||
+                            ImGui::IsKeyPressed(ImGuiKey_Escape);
+            if (doDelete) {
+                std::filesystem::path p =
+                    std::filesystem::path(g_settings.curatedFolder) / name;
+                std::error_code ec;
+                std::filesystem::remove(p, ec);
+                char buf[300];
+                if (ec) {
+                    snprintf(buf, sizeof(buf), "Delete failed: %s", ec.message().c_str());
+                    transport_set_status(buf, true);
+                } else {
+                    snprintf(buf, sizeof(buf), "Deleted %s", p.string().c_str());
+                    transport_set_status(buf, false);
+                }
+                g_audition.jsonSelectedIdx = -1;
+                audition_refresh_target_list();
+                ImGui::CloseCurrentPopup();
+            } else if (doCancel) {
+                ImGui::CloseCurrentPopup();
+            }
+        }
+        ImGui::EndPopup();
+    }
 
     // --- Save modal ---
     if (g_audition.showSaveModal) {
@@ -2937,6 +3067,7 @@ static void draw_audition_window() {
                                             g_audition.overwriteExisting, err)) {
                 snprintf(g_audition.saveStatus, sizeof(g_audition.saveStatus),
                          "%s", err.c_str());
+                audition_refresh_target_list();   // new patch shows up immediately
                 ImGui::CloseCurrentPopup();
                 if (g_audition.wasPlayingBeforeSave)
                     audition_load_at(g_audition.currentIdx);
@@ -4758,6 +4889,523 @@ static void draw_properties_panel() {
 }
 
 // ===========================================================================
+// Node clipboard — Edit > Cut/Copy/Paste, Ctrl+X/C/V.
+//
+// Copy serializes the imnodes selection into an in-memory JSON clipboard:
+// per-node state (pin defaults, configs, arrays, formant rows, Envelope
+// stages via the shared envelope_stages_* helpers, seed, polyphony,
+// paramName) plus the links whose BOTH endpoints are inside the selection.
+// Paste instantiates fresh nodes (fresh ids) from that state, rewires the
+// intra-selection links by pin name, and offsets positions a little further
+// on each successive paste. Cut = Copy + delete. The clipboard is process-
+// local only — no OS clipboard involvement.
+// ===========================================================================
+
+static nlohmann::json s_clipboard;   // {"nodes": [...], "links": [...]}
+static int s_clipPasteCount = 0;     // consecutive pastes fan out diagonally
+
+static GraphNode* find_node_by_id(int nodeId) {
+    for (auto& n : s_nodes) if (n.id == nodeId) return &n;
+    return nullptr;
+}
+
+// Per-node UI state → clipboard JSON. Covers the same fields the save paths
+// emit (and load restores); refs/links are handled separately by the caller.
+static nlohmann::json clip_node_state(const GraphNode& node) {
+    using json = nlohmann::json;
+    json j;
+    j["type"] = node.typeName;
+    if (node.typeName == NT_PARAMETER)    j["paramName"] = node.paramName;
+    if (node.typeName == NT_PATCH_OUTPUT) j["polyphony"] = node.polyphony;
+    if (node.jsonSeed >= 0)               j["seed"]      = node.jsonSeed;
+
+    // Editable pin defaults. Mixer "ch N" pins carry no value — only their
+    // count matters (paste re-adds them via add_channel_input).
+    json pins = json::object();
+    int chPins = 0;
+    for (const auto& p : node.inputs) {
+        if (p.name.substr(0, 3) == "ch ") { chPins++; continue; }
+        if (!p.inputOnly) pins[p.name] = p.defaultValue;
+    }
+    if (!pins.empty()) j["pins"]   = pins;
+    if (chPins > 0)    j["chPins"] = chPins;
+
+    if (!node.configValues.empty()) {
+        json cfg = json::object();
+        for (const auto& [desc, val] : node.configValues) cfg[desc.name] = val;
+        j["configs"] = cfg;
+    }
+    for (const auto& [desc, vec] : node.arrayValues)
+        if (!vec.empty()) j["arrays"][desc.name] = vec;
+
+    if (!node.formantRows.empty()) {
+        json rows = json::array();
+        for (const auto& r : node.formantRows)
+            rows.push_back({r.frequency, r.gain, r.width, r.power});
+        j["formants"] = rows;
+    }
+
+    if (node.typeName == NT_ENVELOPE) {
+        if (const auto* env = dynamic_cast<const Envelope*>(node.dspSource.get()))
+            j["stages"] = envelope_stages_to_json(*env);
+    }
+    return j;
+}
+
+// Instantiate a fresh node from clipboard state. Returns its id (state is
+// applied in the same order the load path uses: pins → configs+apply →
+// arrays → config re-sync from the DSP object).
+static int clip_instantiate(const nlohmann::json& j) {
+    std::string type = j["type"].get<std::string>();
+    if (type == NT_PARAMETER)
+        s_nodes.emplace_back(type, j.value("paramName", std::string("param")));
+    else
+        s_nodes.emplace_back(type);
+    GraphNode& gn = s_nodes.back();
+
+    if (j.contains("polyphony")) gn.polyphony = j["polyphony"].get<int>();
+    if (j.contains("seed"))      gn.jsonSeed  = j["seed"].get<long long>();
+
+    for (int c = 1; c < j.value("chPins", 1); ++c)
+        gn.add_channel_input();
+
+    if (j.contains("pins")) {
+        for (auto& [name, val] : j["pins"].items()) {
+            if (Pin* p = gn.find_input(name)) {
+                p->defaultValue = val.get<float>();
+                if (p->constantSrc) p->constantSrc->set(p->defaultValue);
+            }
+        }
+    }
+
+    if (j.contains("configs")) {
+        for (auto& [desc, val] : gn.configValues) {
+            if (j["configs"].contains(desc.name))
+                val = j["configs"][desc.name].get<float>();
+        }
+        gn.apply_config();
+    }
+
+    if (j.contains("arrays") && gn.dspSource) {
+        for (auto& [desc, vec] : gn.arrayValues) {
+            if (!j["arrays"].contains(desc.name)) continue;
+            vec = j["arrays"][desc.name].get<std::vector<float>>();
+            gn.dspSource->set_array(desc.name, vec);
+        }
+        // set_array can update derived configs (maxPartials from length) —
+        // sync the UI table back from the DSP object, mirroring load.
+        for (auto& [desc, val] : gn.configValues)
+            val = gn.dspSource->get_config(desc.name);
+    }
+
+    if (j.contains("formants")) {
+        gn.formantRows.clear();
+        for (const auto& r : j["formants"]) {
+            FormantRow row;
+            row.frequency = r[0].get<float>();
+            row.gain      = r[1].get<float>();
+            row.width     = r[2].get<float>();
+            row.power     = r[3].get<float>();
+            gn.formantRows.push_back(row);
+        }
+        gn.rebuild_formant_spectrum();
+    }
+
+    if (j.contains("stages")) {
+        if (auto* env = dynamic_cast<Envelope*>(gn.dspSource.get()))
+            envelope_stages_from_json(*env, j["stages"]);
+    }
+
+    return gn.id;
+}
+
+static bool clipboard_has_content() {
+    return s_clipboard.is_object() && s_clipboard.contains("nodes") &&
+           !s_clipboard["nodes"].empty();
+}
+
+static void clipboard_copy() {
+    using json = nlohmann::json;
+    int n = ImNodes::NumSelectedNodes();
+    if (n <= 0) return;
+    std::vector<int> sel((size_t)n);
+    ImNodes::GetSelectedNodes(sel.data());
+
+    json nodes = json::array();
+    std::unordered_map<int, int> idToIdx;   // node id → clipboard index
+    for (int id : sel) {
+        GraphNode* node = find_node_by_id(id);
+        if (!node) continue;
+        json j = clip_node_state(*node);
+        ImVec2 pos = ImNodes::GetNodeGridSpacePos(id);
+        j["pos"] = {pos.x, pos.y};
+        idToIdx[id] = (int)nodes.size();
+        nodes.push_back(std::move(j));
+    }
+    if (nodes.empty()) return;
+
+    // Links fully inside the selection, recorded by clipboard index + pin name.
+    json links = json::array();
+    for (const auto& link : s_links) {
+        Pin* a = find_pin(link.startPinId);
+        Pin* b = find_pin(link.endPinId);
+        if (!a || !b || a->kind == b->kind) continue;
+        int outPinId = (a->kind == PinKind::Output) ? link.startPinId : link.endPinId;
+        int inPinId  = (a->kind == PinKind::Input)  ? link.startPinId : link.endPinId;
+        GraphNode* outNode = find_node_for_pin(outPinId);
+        GraphNode* inNode  = find_node_for_pin(inPinId);
+        if (!outNode || !inNode) continue;
+        auto oIt = idToIdx.find(outNode->id);
+        auto iIt = idToIdx.find(inNode->id);
+        if (oIt == idToIdx.end() || iIt == idToIdx.end()) continue;
+        Pin* outPin = find_pin(outPinId);
+        Pin* inPin  = find_pin(inPinId);
+        links.push_back({
+            {"from",    oIt->second},
+            {"fromPin", outPin->name},
+            {"to",      iIt->second},
+            {"toPin",   inPin->name},
+        });
+    }
+
+    s_clipboard = json{{"nodes", std::move(nodes)}, {"links", std::move(links)}};
+    s_clipPasteCount = 0;
+
+    char buf[64];
+    snprintf(buf, sizeof(buf), "Copied %d node(s)", (int)s_clipboard["nodes"].size());
+    transport_set_status(buf, false);
+}
+
+static void clipboard_paste() {
+    if (!clipboard_has_content()) return;
+    s_clipPasteCount++;
+    float off = 40.0f * (float)s_clipPasteCount;
+
+    bool hasOutput = false, hasMixer = false;
+    for (auto& n : s_nodes) {
+        if (n.typeName == NT_PATCH_OUTPUT) hasOutput = true;
+        if (n.typeName == NT_STEREO_MIXER) hasMixer  = true;
+    }
+
+    const auto& jnodes = s_clipboard["nodes"];
+    std::vector<int> newIds(jnodes.size(), -1);   // -1 = skipped
+    int pasted = 0, skipped = 0;
+    for (size_t i = 0; i < jnodes.size(); ++i) {
+        const auto& jn = jnodes[i];
+        std::string type = jn["type"].get<std::string>();
+        // Structural singletons / mode fits: at most one Output (patch mode
+        // only), Channel/Mixer are node-graph-only, one Mixer per graph.
+        bool skip =
+            (type == NT_PATCH_OUTPUT &&
+             (s_graphMode != GraphMode::PatchGraph || hasOutput)) ||
+            ((type == NT_SOUND_CHANNEL || type == NT_STEREO_MIXER) &&
+             s_graphMode == GraphMode::PatchGraph) ||
+            (type == NT_STEREO_MIXER && hasMixer) ||
+            (!is_special_ui_type(type) && type != NT_ENVELOPE &&
+             !SourceRegistry::instance().has(type));
+        if (skip) { skipped++; continue; }
+
+        int id = clip_instantiate(jn);
+        if (type == NT_PATCH_OUTPUT) hasOutput = true;
+        if (type == NT_STEREO_MIXER) hasMixer  = true;
+
+        ImVec2 pos(200.0f, 200.0f);
+        if (jn.contains("pos"))
+            pos = ImVec2(jn["pos"][0].get<float>(), jn["pos"][1].get<float>());
+        if (!s_headless)
+            ImNodes::SetNodeGridSpacePos(id, ImVec2(pos.x + off, pos.y + off));
+
+        newIds[i] = id;
+        pasted++;
+    }
+
+    // Rewire intra-selection links by pin name.
+    for (const auto& jl : s_clipboard["links"]) {
+        int fi = jl["from"].get<int>();
+        int ti = jl["to"].get<int>();
+        if (fi < 0 || fi >= (int)newIds.size() || newIds[(size_t)fi] < 0) continue;
+        if (ti < 0 || ti >= (int)newIds.size() || newIds[(size_t)ti] < 0) continue;
+        GraphNode* fromNode = find_node_by_id(newIds[(size_t)fi]);
+        GraphNode* toNode   = find_node_by_id(newIds[(size_t)ti]);
+        if (!fromNode || !toNode) continue;
+        std::string fromPin = jl["fromPin"].get<std::string>();
+        std::string toPin   = jl["toPin"].get<std::string>();
+        int outPinId = -1, inPinId = -1;
+        for (auto& p : fromNode->outputs) if (p.name == fromPin) outPinId = p.id;
+        for (auto& p : toNode->inputs)    if (p.name == toPin)   inPinId  = p.id;
+        if (outPinId >= 0 && inPinId >= 0)
+            s_links.emplace_back(outPinId, inPinId);
+    }
+
+    update_all_dsp();
+    s_graphDirty = true;
+
+    char buf[96];
+    if (skipped > 0)
+        snprintf(buf, sizeof(buf), "Pasted %d node(s), %d skipped (mode/singleton)", pasted, skipped);
+    else
+        snprintf(buf, sizeof(buf), "Pasted %d node(s)", pasted);
+    transport_set_status(buf, skipped > 0);
+}
+
+static void clipboard_cut() {
+    int n = ImNodes::NumSelectedNodes();
+    if (n <= 0) return;
+    clipboard_copy();
+    std::vector<int> sel((size_t)n);
+    ImNodes::GetSelectedNodes(sel.data());
+    for (int id : sel) delete_node(id);
+    ImNodes::ClearNodeSelection();
+    ImNodes::ClearLinkSelection();
+    update_all_dsp();
+}
+
+// ===========================================================================
+// Graph conversion — Edit > Convert to <type> graph.
+//
+// Patch → Node: strip the instrument-level constructs (Output + Parameter
+// nodes, paramMap/score/seconds/polyphony — parked in the conv stash, see
+// its declaration) and terminate the graph with a Channel → Mixer pair fed
+// by whatever fed the Output node.
+//
+// Node → Patch: drop Channel/Mixer, terminate with an Output node instead.
+// If a conv stash exists (same-session round trip), the instrument data is
+// restored verbatim — including paramMap curve entries, which flow back
+// into s_loadedParamMap so save_patch_graph's carry-forward keeps working.
+// Otherwise an instrument block is synthesized with the same heuristic as
+// tools/add_instrument_block.py: first node owning an unconnected numeric
+// `frequency` param drives the note pitch, polyphony 1; save_patch_graph
+// supplies the default score when none is stashed.
+// ===========================================================================
+
+// Resolve a paramMap target ("label.pinName") against live node labels.
+// Returns the input-pin id, or -1. Labels are the loaded JSON ids for nodes
+// that came from a file, so stash-restored targets resolve exactly.
+static int find_input_pin_by_target(const std::string& target) {
+    auto dot = target.find('.');
+    if (dot == std::string::npos) return -1;
+    std::string label = target.substr(0, dot);
+    std::string pinName = target.substr(dot + 1);
+    for (auto& n : s_nodes) {
+        if (n.label != label) continue;
+        for (auto& p : n.inputs)
+            if (p.name == pinName) return p.id;
+    }
+    return -1;
+}
+
+// Create Parameter nodes for every name in map, wired to all resolvable
+// targets — the same shape load_graph_from_path builds from a file's
+// paramMap. anchor positions the created nodes in a column.
+static void create_param_nodes_from_map(const nlohmann::json& map, ImVec2 anchor) {
+    int created = 0;
+    for (auto& [paramName, targetJson] : map.items()) {
+        std::vector<std::string> targets;
+        auto add_target = [&](const nlohmann::json& t) {
+            if (t.is_string()) targets.push_back(t.get<std::string>());
+            else if (t.is_object() && t.contains("target") && t["target"].is_string())
+                targets.push_back(t["target"].get<std::string>());
+        };
+        if (targetJson.is_array()) {
+            for (const auto& t : targetJson) add_target(t);
+        } else {
+            add_target(targetJson);
+        }
+        if (targets.empty()) continue;
+
+        s_nodes.emplace_back(std::string(NT_PARAMETER), paramName);
+        int pnId     = s_nodes.back().id;
+        int pnOutPin = s_nodes.back().outputs[0].id;
+        int pnDefPin = s_nodes.back().inputs[0].id;
+        if (!s_headless)
+            ImNodes::SetNodeGridSpacePos(pnId, ImVec2(anchor.x, anchor.y + 130.0f * (float)created));
+        created++;
+
+        bool defaultSet = false;
+        for (const std::string& target : targets) {
+            int pinId = find_input_pin_by_target(target);
+            if (pinId < 0) continue;   // config / curve-only target — carried via s_loadedParamMap
+            if (!defaultSet) {
+                Pin* targetPin = find_pin(pinId);
+                Pin* defPin    = find_pin(pnDefPin);
+                if (targetPin && defPin) {
+                    defPin->defaultValue = targetPin->defaultValue;
+                    if (defPin->constantSrc) defPin->constantSrc->set(targetPin->defaultValue);
+                }
+                defaultSet = true;
+            }
+            s_links.emplace_back(pnOutPin, pinId);
+        }
+    }
+}
+
+static void convert_patch_to_node_graph() {
+    // Stash the instrument-level data for a verbatim same-session round trip.
+    GraphNode* outNode = nullptr;
+    for (auto& n : s_nodes) if (n.typeName == NT_PATCH_OUTPUT) { outNode = &n; break; }
+    s_convParamMap   = s_loadedParamMap;
+    s_convScore      = s_loadedScore;
+    s_convSeconds    = s_loadedSeconds;
+    s_convPolyphony  = outNode ? outNode->polyphony : 1;
+    s_convStashValid = true;
+    s_loadedParamMap = nlohmann::json::object();
+    s_loadedScore    = nlohmann::json();
+    s_loadedSeconds  = nlohmann::json();
+
+    // Whatever fed Output.source now feeds the Channel. Capture the pin id
+    // BEFORE any emplace_back — node creation can reallocate s_nodes.
+    int srcOutPin = -1;
+    ImVec2 anchor(600.0f, 200.0f);
+    if (outNode) {
+        if (GraphNode* src = find_source_node(outNode->inputs[0].id))
+            if (!src->outputs.empty()) srcOutPin = src->outputs[0].id;
+        if (!s_headless) anchor = ImNodes::GetNodeGridSpacePos(outNode->id);
+    }
+
+    // Drop Output + Parameter nodes (delete_node also prunes their links).
+    std::vector<int> doomed;
+    for (auto& n : s_nodes)
+        if (n.typeName == NT_PATCH_OUTPUT || n.typeName == NT_PARAMETER)
+            doomed.push_back(n.id);
+    for (int id : doomed) delete_node(id);
+
+    // Terminate with Channel → Mixer (the node-graph output convention).
+    s_nodes.emplace_back(std::string(NT_SOUND_CHANNEL));
+    int chId     = s_nodes.back().id;
+    int chSrcPin = s_nodes.back().find_input("source")->id;
+    int chOutPin = s_nodes.back().outputs[0].id;
+    s_nodes.emplace_back(std::string(NT_STEREO_MIXER));
+    int mixId    = s_nodes.back().id;
+    int mixCh1Pin = s_nodes.back().find_input("ch 1")->id;
+    if (!s_headless) {
+        ImNodes::SetNodeGridSpacePos(chId,  anchor);
+        ImNodes::SetNodeGridSpacePos(mixId, ImVec2(anchor.x + 220.0f, anchor.y));
+    }
+    if (srcOutPin >= 0) s_links.emplace_back(srcOutPin, chSrcPin);
+    s_links.emplace_back(chOutPin, mixCh1Pin);
+
+    s_graphMode  = GraphMode::NodeGraph;
+    s_graphDirty = true;
+    update_all_dsp();
+    transport_set_status("Converted to Node graph (instrument data stashed for convert-back)", false);
+}
+
+static void convert_node_to_patch_graph() {
+    // Main source: whatever feeds the first Channel's source pin; else the
+    // Mixer's ch 1; else the topologically-last node with an output.
+    GraphNode* channel = nullptr;
+    GraphNode* mixer   = nullptr;
+    for (auto& n : s_nodes) {
+        if (!channel && n.typeName == NT_SOUND_CHANNEL) channel = &n;
+        if (!mixer   && n.typeName == NT_STEREO_MIXER)  mixer   = &n;
+    }
+    int srcOutPin = -1;
+    ImVec2 anchor(600.0f, 200.0f);
+    if (channel) {
+        if (Pin* sp = channel->find_input("source"))
+            if (GraphNode* src = find_source_node(sp->id))
+                if (!src->outputs.empty()) srcOutPin = src->outputs[0].id;
+    }
+    if (srcOutPin < 0 && mixer) {
+        if (Pin* cp = mixer->find_input("ch 1"))
+            if (GraphNode* src = find_source_node(cp->id))
+                if (!src->outputs.empty()) srcOutPin = src->outputs[0].id;
+    }
+    if (srcOutPin < 0) {
+        auto sorted = topo_sort();
+        for (auto it = sorted.rbegin(); it != sorted.rend(); ++it) {
+            GraphNode* n = *it;
+            if (n->typeName == NT_SOUND_CHANNEL || n->typeName == NT_STEREO_MIXER ||
+                n->typeName == NT_PARAMETER || n->typeName == NT_PATCH_OUTPUT)
+                continue;
+            if (!n->outputs.empty()) { srcOutPin = n->outputs[0].id; break; }
+        }
+    }
+    if (!s_headless) {
+        if (mixer)        anchor = ImNodes::GetNodeGridSpacePos(mixer->id);
+        else if (channel) anchor = ImNodes::GetNodeGridSpacePos(channel->id);
+        else if (GraphNode* srcNode = srcOutPin >= 0 ? find_node_for_pin(srcOutPin) : nullptr)
+        {
+            ImVec2 p = ImNodes::GetNodeGridSpacePos(srcNode->id);
+            anchor = ImVec2(p.x + 240.0f, p.y);
+        }
+    }
+
+    // Drop Channel/Mixer nodes.
+    std::vector<int> doomed;
+    for (auto& n : s_nodes)
+        if (n.typeName == NT_SOUND_CHANNEL || n.typeName == NT_STEREO_MIXER)
+            doomed.push_back(n.id);
+    for (int id : doomed) delete_node(id);
+
+    // Terminate with an Output node.
+    s_nodes.emplace_back(std::string(NT_PATCH_OUTPUT));
+    int outId     = s_nodes.back().id;
+    int outSrcPin = s_nodes.back().inputs[0].id;
+    s_nodes.back().polyphony = s_convStashValid ? s_convPolyphony : 1;
+    if (!s_headless) ImNodes::SetNodeGridSpacePos(outId, anchor);
+    if (srcOutPin >= 0) s_links.emplace_back(srcOutPin, outSrcPin);
+
+    bool restored = false;
+    if (s_convStashValid) {
+        // Same-session round trip: restore the stripped instrument data
+        // verbatim. Curve/config-only paramMap entries flow back through
+        // s_loadedParamMap, so save_patch_graph's carry-forward re-emits
+        // them exactly as loaded.
+        s_loadedParamMap = s_convParamMap;
+        s_loadedScore    = s_convScore;
+        s_loadedSeconds  = s_convSeconds;
+        create_param_nodes_from_map(s_loadedParamMap,
+                                    ImVec2(anchor.x - 260.0f, anchor.y));
+        conv_stash_clear();
+        restored = true;
+    } else {
+        // Synthesize: first node owning an unconnected numeric `frequency`
+        // param drives the pitch (add_instrument_block.py heuristic).
+        // Capture ids first — emplace_back below may reallocate s_nodes.
+        int freqPinId = -1, freqNodeId = -1;
+        float freqDefault = 440.0f;
+        for (auto& n : s_nodes) {
+            if (is_special_ui_type(n.typeName)) continue;
+            for (auto& p : n.inputs) {
+                if (p.name != "frequency" || p.inputOnly) continue;
+                if (is_pin_connected(p.id)) continue;
+                freqPinId   = p.id;
+                freqNodeId  = n.id;
+                freqDefault = p.defaultValue;
+                break;
+            }
+            if (freqPinId >= 0) break;
+        }
+        if (freqPinId >= 0) {
+            s_nodes.emplace_back(std::string(NT_PARAMETER), "frequency");
+            int pnId     = s_nodes.back().id;
+            int pnOutPin = s_nodes.back().outputs[0].id;
+            Pin& defPin  = s_nodes.back().inputs[0];
+            defPin.defaultValue = freqDefault;
+            if (defPin.constantSrc) defPin.constantSrc->set(freqDefault);
+            if (!s_headless) {
+                ImVec2 p = ImNodes::GetNodeGridSpacePos(freqNodeId);
+                ImNodes::SetNodeGridSpacePos(pnId, ImVec2(p.x - 240.0f, p.y));
+            }
+            s_links.emplace_back(pnOutPin, freqPinId);
+        }
+    }
+
+    s_graphMode  = GraphMode::PatchGraph;
+    s_graphDirty = true;
+    update_all_dsp();
+    transport_set_status(restored
+        ? "Converted to Patch graph (stashed instrument data restored)"
+        : "Converted to Patch graph (instrument block synthesized)", false);
+}
+
+static void convert_graph_mode() {
+    if (s_graphMode == GraphMode::PatchGraph) convert_patch_to_node_graph();
+    else                                      convert_node_to_patch_graph();
+}
+
+// ===========================================================================
 // ===========================================================================
 // Context menus
 // ===========================================================================
@@ -4942,6 +5590,48 @@ static void show_create_menu() {
         menu_source("BW Bandpass", "BWBandpassFilter");
         menu_source("BW Lowpass", "BWLowpassFilter");
         menu_source("BW Highpass", "BWHighpassFilter");
+        ImGui::EndMenu();
+    }
+
+    // --- Output (special UI sink types, gated by graph mode) ---
+    // Output terminates a Patch graph (one per graph); Channel/Mixer
+    // terminate a Node graph (the engine's render path expects
+    // graph.output = StereoMixer there, so one Mixer per graph).
+    if (ImGui::BeginMenu("Output")) {
+        bool hasOutput = false, hasMixer = false;
+        for (auto& n : s_nodes) {
+            if (n.typeName == NT_PATCH_OUTPUT) hasOutput = true;
+            if (n.typeName == NT_STEREO_MIXER) hasMixer  = true;
+        }
+        if (s_graphMode == GraphMode::PatchGraph) {
+            if (!hasOutput) {
+                if (ImGui::MenuItem("Output")) {
+                    s_nodes.emplace_back(std::string(NT_PATCH_OUTPUT));
+                    ImNodes::SetNodeScreenSpacePos(s_nodes.back().id, s_createMenuPos);
+                    s_graphDirty = true;
+                }
+            } else {
+                menu_placeholder("Output (exists)");
+            }
+            menu_placeholder("Channel (node graph only)");
+            menu_placeholder("Mixer (node graph only)");
+        } else {
+            menu_placeholder("Output (patch graph only)");
+            if (ImGui::MenuItem("Channel")) {
+                s_nodes.emplace_back(std::string(NT_SOUND_CHANNEL));
+                ImNodes::SetNodeScreenSpacePos(s_nodes.back().id, s_createMenuPos);
+                s_graphDirty = true;
+            }
+            if (!hasMixer) {
+                if (ImGui::MenuItem("Mixer")) {
+                    s_nodes.emplace_back(std::string(NT_STEREO_MIXER));
+                    ImNodes::SetNodeScreenSpacePos(s_nodes.back().id, s_createMenuPos);
+                    s_graphDirty = true;
+                }
+            } else {
+                menu_placeholder("Mixer (exists)");
+            }
+        }
         ImGui::EndMenu();
     }
 
@@ -6247,6 +6937,32 @@ int main(int argc, char** argv) {
         return 0;
     }
 
+    // Headless conversion round-trip: exercises the Edit-menu conversion.
+    // Patch input → convert Patch→Node→Patch (stash-restore path); node
+    // input → convert Node→Patch once (instrument-synthesis heuristic).
+    // Either way the result is saved as a patch for inspection.
+    if (argc >= 4 && std::string(argv[1]) == "--convert-roundtrip") {
+        s_headless = true;
+        ImGui::CreateContext();
+        ImNodes::CreateContext();
+        register_all_sources();
+        try {
+            load_graph_from_path(argv[2]);
+            if (s_graphMode == GraphMode::PatchGraph) {
+                convert_patch_to_node_graph();
+                convert_node_to_patch_graph();
+            } else {
+                convert_node_to_patch_graph();
+            }
+            save_patch_graph(argv[3]);
+        } catch (const std::exception& e) {
+            fprintf(stderr, "convert-roundtrip failed: %s\n", e.what());
+            return 1;
+        }
+        printf("convert-roundtrip ok: %s -> %s\n", argv[2], argv[3]);
+        return 0;
+    }
+
     // Headless playback dump: write the exact audio the UI's playback paths
     // would produce for a patch, for numeric comparison against the CLI
     // render of the same file (UI-vs-CLI sound-mismatch debugging).
@@ -6580,6 +7296,11 @@ int main(int argc, char** argv) {
                     save_graph_as();
                 }
                 ImGui::Separator();
+                if (ImGui::MenuItem("Audition...")) {
+                    g_audition.open = true;
+                    audition_refresh_target_list();
+                }
+                ImGui::Separator();
                 if (ImGui::MenuItem("Quit")) {
                     // Route through the dirty-check path (same as the OS X / hover-X).
                     s_closeRequested = true;
@@ -6587,11 +7308,25 @@ int main(int argc, char** argv) {
                 ImGui::EndMenu();
             }
 
-            // Audition menu: open the audition window (or focus it if open)
-            if (ImGui::BeginMenu("Audition")) {
-                if (ImGui::MenuItem("Sweep folder...")) {
-                    g_audition.open = true;
-                }
+            // Edit menu: node clipboard + graph-mode conversion. The menu
+            // items act on the imnodes selection (which persists across
+            // frames), so they work regardless of which window has focus —
+            // the Ctrl-key shortcuts live in the Node Editor block and are
+            // gated on its focus instead.
+            if (ImGui::BeginMenu("Edit")) {
+                int numSel = ImNodes::NumSelectedNodes();
+                if (ImGui::MenuItem("Cut", "Ctrl+X", false, numSel > 0))
+                    clipboard_cut();
+                if (ImGui::MenuItem("Copy", "Ctrl+C", false, numSel > 0))
+                    clipboard_copy();
+                if (ImGui::MenuItem("Paste", "Ctrl+V", false, clipboard_has_content()))
+                    clipboard_paste();
+                ImGui::Separator();
+                // Label flips to the "other" type of the loaded graph.
+                const char* convLabel = (s_graphMode == GraphMode::NodeGraph)
+                    ? "Convert to Patch graph" : "Convert to Node graph";
+                if (ImGui::MenuItem(convLabel))
+                    convert_graph_mode();
                 ImGui::EndMenu();
             }
 
@@ -6677,6 +7412,11 @@ int main(int argc, char** argv) {
         // =================================================================
         ImGui::Begin("Node Editor", nullptr,
                      ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoCollapse);
+
+        // Focus gate for the editor's destructive/clipboard shortcuts —
+        // without it, Delete (and Ctrl+X/C/V) fired here would also act on
+        // the node selection while e.g. the Audition window has focus.
+        bool editorFocused = ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows);
 
         ImNodes::BeginNodeEditor();
 
@@ -6814,7 +7554,14 @@ int main(int argc, char** argv) {
             if (ImGui::IsKeyDown(ImGuiKey_DownArrow))  ImNodes::EditorContextResetPanning(ImVec2(p.x, p.y - panSpeed));
         }
 
-        if (!ImGui::GetIO().WantTextInput &&
+        // Clipboard shortcuts — editor focus + no active text input.
+        if (editorFocused && !ImGui::GetIO().WantTextInput && ImGui::GetIO().KeyCtrl) {
+            if (ImGui::IsKeyPressed(ImGuiKey_X)) clipboard_cut();
+            if (ImGui::IsKeyPressed(ImGuiKey_C)) clipboard_copy();
+            if (ImGui::IsKeyPressed(ImGuiKey_V)) clipboard_paste();
+        }
+
+        if (editorFocused && !ImGui::GetIO().WantTextInput &&
             (ImGui::IsKeyPressed(ImGuiKey_Delete) || ImGui::IsKeyPressed(ImGuiKey_Backspace))) {
             int numLinks = ImNodes::NumSelectedLinks();
             int numNodes = ImNodes::NumSelectedNodes();
