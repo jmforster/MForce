@@ -2,6 +2,32 @@
 
 ## Awaiting Matt
 
+### 15. Slew click ladder — the brightness dial you asked for [listen] (run 21)
+`renders/slew_clicks/` — the follow-up to REVIEW 14. `SlewLimiterSource` now
+exists and sits between the velvet phase source and FMSource, so each click's
+one-sample phase step becomes a glide. Six files: `slewclick_ctrl_none`
+(unchanged PoC) then `slewclick_f20000 / f05000 / f01000 / f00200 / f00050`,
+falling fallRate = longer glide.
+
+What the dial actually does, so you know what to listen FOR: the impulse
+jumps phase 0.5 cycles and slides back over `0.5/fallRate` seconds, and a
+linear phase glide is a constant frequency offset — so during the slide the
+carrier is detuned by `fallRate/2` Hz. Low fallRate = a long, gentle, small
+bend; high = a short, violent one. It trades duration against deviation
+rather than simply dulling the click.
+
+Measured over the 0.25 s attack window: centroid 7116 Hz (control) → 6404 →
+4745 → 3667 → 3237 Hz at fallRate 50, i.e. 0.455x, with the >8 kHz share
+going 37.9% → 13.6%. Monotonic, all six distinct. `f20000` is deliberately
+the degenerate end (0.025 ms glide ≈ 1 sample) and should be
+indistinguishable from the control — if you CAN hear a difference there,
+something is wrong and I want to know.
+
+Verdict decides: which rung (if any) is the usable noisy-attack character;
+whether to wire fallRate to an envelope so the chirp character evolves across
+the attack (zero engine work — it is already a ValueSource); or whether the
+whole click direction is a dead end and item 3g retires.
+
 ### 13. Piano — first optimized render [listen] (run 20)
 `renders/cmaes_piano/` — `piano_smoke_baseline_C2C4C6.wav` (encoder center,
 pre-optimization) vs `piano_smoke_best_C2C4C6.wav` (108-eval smoke best,

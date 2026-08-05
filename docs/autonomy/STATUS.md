@@ -1,14 +1,69 @@
 # Status — open this file first
 
-Updated: 2026-08-04 — dsp run 19 (Dipsy, scheduled) · comp run 15 (Wolfie, scheduled)
+Updated: 2026-08-05 — dsp run 21 (Dipsy, scheduled) · comp run 16 (Wolfie, interactive)
 
 | Lane | Dev | Latest run | Backlog top | Awaiting your review |
 |---|---|---|---|---|
 | comp | Wolfie | run 16 (2026-08-04 pm, interactive): 5 verdicts folded; #12 closure screen verified+committed (and it exposed the ending rule overshooting, #16); **VoicingPin** landed (authored cadences outrank the selector); Bruckner v2 built to Matt's progressions with the pedal held under the Ger6; pedal_chords engine-voiced with the pinned seam; literal repeats transform (#10 closed); voicing A/B renders finally delivered (p05==p1 confirmed by hash) | #16 ending recalibration; #13 section key; #14 priority semantics (his call); scorer passage-mode | **4 items** — Bruckner v2 [listen], pedal_chords voiced [listen], repeat transforms A/B [listen], voicing_ab 9 WAVs [listen] |
-| dsp | Dipsy | run 20 (2026-08-04 pm, interactive): 9 verdicts folded; PIANO FIRST PASS — per-partial decay + inharmonicity engine configs (bit-exact at defaults, stretch verified to 0.1 cents), config-driven reference pipeline adopted from the dead run + onset alignment, 18-dim encoder, 108-eval smoke 1.521 -> 0.900 with knock band converging to the measured 2.5-8 kHz; t3_23 clicks EXPLAINED (velvet-phase, controllable 5-193/s) + 3 noisy-attack PoCs; expand front retired; CombineTest fixed | full piano run (gated on A/B); scorer debt 3e-NEXT; sum-op lint 3f | **4 items** — piano A/B [listen], click PoCs [listen], power-renorm answer [read], F1-retuning answer [read] |
+| dsp | Dipsy | run 21 (2026-08-05, scheduled): 3 fronts, all build/metric; **SlewLimiterSource** landed (Slew/Lag/**Peak**) — and measuring caught that the backlog's premise was wrong, the clicks are IMPULSES not steps, so a sign-keyed limiter only makes them quieter; click ladder gives a monotonic dial, attack centroid 7116 → 3237 Hz; CombinedSource finally parses `sum` (and throws instead of silently substituting Add); **broadband_ratios empty-band blowup fixed** — piano C6 band0 was 4.63e+11 and dominated the smoke's term3 | 3e-NEXT (b) stretch-aware heterodyne (now BIGGER — it hits broadband_ratios too); item 14; item 13 | **5 items** — slew click ladder [listen] NEW, piano A/B [listen], click PoCs [listen], power-renorm answer [read], F1-retuning answer [read] |
+| dsp (prev) | Dipsy | run 20 (2026-08-04 pm, interactive): 9 verdicts folded; PIANO FIRST PASS — per-partial decay + inharmonicity engine configs (bit-exact at defaults, stretch verified to 0.1 cents), config-driven reference pipeline adopted from the dead run + onset alignment, 18-dim encoder, 108-eval smoke 1.521 -> 0.900 with knock band converging to the measured 2.5-8 kHz; t3_23 clicks EXPLAINED (velvet-phase, controllable 5-193/s) + 3 noisy-attack PoCs; expand front retired; CombineTest fixed | full piano run (gated on A/B); scorer debt 3e-NEXT; sum-op lint 3f | **4 items** — piano A/B [listen], click PoCs [listen], power-renorm answer [read], F1-retuning answer [read] |
 
-Reports: dsp/reports/2026-08-04-dipsy-run19.md ·
+Reports: dsp/reports/2026-08-05-dipsy-run21.md ·
 comp/reports/2026-08-04-wolfie-run15.md
+
+Run-21 highlights (dsp): three fronts, all build/metric, no blind taste
+iteration. The through-line is **premises that were wrong, caught by
+measuring instead of asserting**.
+(0) **Two scheduled runs overlapped in this working copy.**
+`corpus/mtd_seg/markov_phrase.py` was clean at my session start and turned up
+modified mid-run, written 9 seconds before I looked — a comp run had started
+on top of mine, and it went on to interleave two commits (e43e47a, faa7b07)
+between my three. My builds were already done and verified by then, so I
+committed with explicit paths only and did no further build work (fronts 2
+and 3 are render-only and Python-only). Nothing was corrupted. But **the
+start-of-session commit-age guard cannot see a run that starts AFTER mine**,
+so this can recur; worth a look at the two schedules.
+Also: `mforce_ui.exe` was locked by three of your UI processes, so I used run
+18's rename-then-link approach — the running exe is now
+`mforce_ui_locked_20260805.exe`, your open windows are unaffected, and they
+pick up the new build on restart. `--stamp` exit 0, 75-file tlog dep set.
+(1) **SlewLimiterSource exists, and the item that asked for it was wrong.**
+The backlog said clicks are STEPS that a rate limiter would stretch into
+ramps. They are one-sample IMPULSES — 0, ±0.5, 0 — and a sign-keyed limiter
+turns that into a one-sample impulse of height `rate*dt`, i.e. it makes the
+click quieter and no longer. Rendering the obvious ladder would have measured
+a level drop and nothing else. Shown, not argued: in `step_slew_impulse`,
+Slew mode holds a POSITIVE impulse for 10.00 ms and a negative one for
+0.02 ms — one sample. So the node ships with a third, magnitude-keyed **Peak**
+mode that is symmetric, which also makes it a general envelope follower.
+All timing gated: Slew rise within 0.5-1.9% of S/rate at 0.002%
+nonlinearity (a straight ramp); Lag tau within **0.05%** of 1/rate at 33%
+nonlinearity (correctly NOT straight); fallRate asymmetry 10.05x vs 10x.
+(2) **The click dial is real and it is not a lowpass.** Attack centroid
+7116 (control) → 6404 → 4745 → 3667 → **3237** Hz as fallRate falls
+20000 → 50, >8 kHz share 37.9% → 13.6%, monotonic, 6/6 distinct by sha256.
+Worth knowing before you listen: the glide is `0.5/fallRate` seconds and a
+linear phase glide IS a constant frequency offset, so fallRate trades chirp
+LENGTH against a `fallRate/2` Hz deviation. `f20000` is the deliberate
+degenerate end (0.025 ms ≈ one sample) and should be indistinguishable from
+the control — if it isn't, tell me. (REVIEW 15.)
+(3) **The piano smoke's term3 was measuring a noise floor.** `BANDS[0]` is
+(160, 700) Hz, so an eval note above 700 Hz left it with no harmonic line and
+the ratio became `between_e / 1e-12`. Not hypothetical — it was sitting in
+the stored reference: **C6 band0 = 4.63e+11** against O(1) or smaller for
+every other note, and C6 (1046.5 Hz) was the only eval note above 700, so
+that single cell dominated term3 in the 1.521 → 0.900 smoke. Empty bands now
+return NaN and are averaged out as missing. Regenerating the reference
+changes C6 band0 to nan and leaves **every other value identical to the
+digit**.
+**One thing that enlarges the next item**: piano band2 ratios run 120 (C3),
+260 (C5), 2056 (G4), and the line mask sits at `k*f0` like the heterodyne
+does. Partials stretched by `sqrt(1+B n^2)` fall off the mask and get counted
+as inter-harmonic energy — so 3e-NEXT (b) is not just a motion/harm_env fix,
+it distorts the broadband term too.
+Also corrected: backlog 11 has **shrunk**. `score_candidate.py` and
+`iowa_reference.py` were committed by run 20, so HEAD can run the clarinet
+pipeline on its own; only the two patch files are still standing dirty.
 
 Run-15 highlights (comp): four fronts, all build/metric, no blind taste
 iteration. The through-line is **capabilities that existed but could not be
@@ -332,16 +387,25 @@ review items waiting (five listen, two read, one word). dsp = **rebuild mforce_u
 phase_ to the carrier for true PM, then re-render the t1_06/t1_07 topologies
 as designed), then 2d-1 (vector path, needs an AVX2-availability decision).
 All three are engine edits and all three were blocked in run 18 by the locked
-exe. Clarinet 600-eval stays gated on your ears. Six dsp review items waiting
-(three listen/look, three read). Verdicts fold in whenever you send them.
+exe. Clarinet 600-eval stays gated on your ears. Verdicts fold in whenever
+you send them.
+**Superseded by run 21** — items 3c2, 3f and 3g are all DONE. dsp next =
+**3e-NEXT (b) stretch-aware heterodyne** (top non-gated item, and run 21
+widened it: the k*f0 line mask distorts `broadband_ratios` as well as
+harmonic_env/motion), then item 14 (52 silently-ignored params), then item 13
+(piano beat rate, attempt 3 — resolve the unison strings as separate spectral
+lines rather than inferring the rate from the envelope). Piano full run and
+clarinet 600-eval both stay gated on your ears. **Five dsp review items
+waiting** (three listen, two read).
 
-Standing tree note: the same four tracked files have now been dirty at
-session start across six runs (c2c_quiet.json, v6_01_res_curve_lo.json,
-iowa_reference.py, score_candidate.py). Backlog 11 wants one word from Matt —
-HEAD alone still cannot run the clarinet CMA-ES pipeline without them, and
-the piano onset-alignment prereq lives in iowa_reference.py, so this is now
-blocking piano work too. As of run 15 there are **six**: the two comp scorer
-files from the 08-03 orphan run join the list (REVIEW 5 — that one is a
-separate decision, adopt or discard).
+Standing tree note (updated run 21): **down to two**, and no longer blocking
+anything. `iowa_reference.py` and `score_candidate.py` were committed by run
+20, so HEAD can run the clarinet CMA-ES pipeline and the piano
+onset-alignment prereq on its own. What is still dirty at every session start
+is `patches/clarinet_c2/c2c_quiet.json` and
+`patches/fable1_v6/v6_01_res_curve_lo.json` — a clarinet variant and a UI
+re-save, seven runs running. Backlog 11 wants one word: commit or revert.
+(The two comp scorer files from the 08-03 orphan run are a separate decision,
+REVIEW 5 — adopt or discard.)
 
 How this works: [WORKFLOW.md](WORKFLOW.md)

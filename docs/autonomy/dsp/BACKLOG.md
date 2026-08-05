@@ -132,19 +132,59 @@ Priority order. Tags per WORKFLOW.md. (G1)-(G4) = GOALS.md Dipsy goals.
    the 6 revived patches present only in the new arm.
 3e-NEXT. **[metric] Piano: full run + scorer debt** — smoke landed run 20
    (1.521 -> 0.900). GATED on Matt's A/B (REVIEW 13): full 600-eval run.
-   Scorer debt found by the smoke: (a) broadband_ratios blows up when an
-   eval band contains no harmonics (guard needed before any eval note
-   above ~700 Hz); (b) harmonic_env/motion heterodyne at k*f0, not the
-   B-stretched positions — symmetric on ref and candidate but noisier
-   terms for piano; stretch-aware heterodyne fixes it. Velocity layers
-   (mf-only today) stay Later.
+   Scorer debt found by the smoke:
+   (a) ✓ **DONE run21** (2026-08-05), commit 85a4015. broadband_ratios blew
+   up when a band held no harmonic: `between_e / 1e-12`, a noise floor
+   inflated by 12 decades. Live in the stored reference — piano C6 band0 was
+   **4.63e+11** vs O(1) elsewhere, and C6 (1046.5 Hz) was the only eval note
+   above BANDS[0]'s 700 Hz top, so the smoke's term3 was dominated by that
+   one cell. Empty bands now return NaN, score_candidate nanmeans over them.
+   Regenerating out/piano_reference.json changes C6 band0 to nan and leaves
+   every other value identical to the digit.
+   research/ml_ears/test_broadband_guard.py keeps the pre-fix formula inline
+   so the blowup is shown, not asserted (1.325e13 at f0=880), and checks
+   populated bands come back bit-identical.
+   (b) **OPEN, and BIGGER than first written**: harmonic_env/motion
+   heterodyne at k*f0, not the B-stretched positions. Run 21 found this also
+   hits `broadband_ratios` — its line mask is at k*f0 too, so partials
+   stretched by sqrt(1+B n^2) fall OFF the mask and get counted as
+   inter-harmonic energy. That is the likely explanation for piano band2
+   ratios of 120 (C3), 260 (C5), 2056 (G4). Stretch-aware heterodyne + a
+   stretch-aware line mask. Top non-gated item.
+   Velocity layers (mf-only today) stay Later.
 3f. **[build] CombinedSource JSON op string "sum" silently falls back to
-   Add** — only add/multiply/fade are parsed; found by the piano template
-   build. Fix parse + add to the template linter.
-3g. **[build] SlewLimiterSource** — one-pole smoother ValueSource
-   (rate units/s) turning phase STEPS into fast ramps: clicks become
-   tunable-brightness chirps on the fm_clicks dial. Small; sketch in the
-   run-20 click report.
+   Add** — ✓ DONE run21 (2026-08-05), commit b08d795. CombineOp gained Sum in
+   run 20 but the loader never learned it: the string parser knew only
+   add/multiply/fade and fell back to Add on anything else, and the ordinal
+   switch threw on 3. Now add/mix/multiply/fade/sum parse, ordinal 3 maps to
+   Sum, and anything unrecognised throws a NAMED error rather than quietly
+   becoming Add (the rule run 19 set). Verified: "sum" and ordinal 3 render
+   byte-identical (C45E9F8E) and differ from Add (BF396D58); "bogus" and
+   ordinal 9 exit 1 with their error text. No existing patch affected — the
+   only `operation` values in the repo are multiply (2), add (2), 0 (1).
+   The separate linter check was dropped as redundant: the engine now fails
+   loudly, which is strictly better than a static warning.
+3g. **[build] SlewLimiterSource** — ✓ DONE run21 (2026-08-05), commits
+   b08d795 (engine) + 5592354 (ladder). Spec:
+   specs/2026-08-05-slew-limiter-design.md. Category Filter, modes
+   Slew / Lag / **Peak**, `rate` + `fallRate` as ValueSources, UI menu entry
+   under Filters.
+   **The item's premise was wrong and measuring caught it**: the clicks are
+   one-sample IMPULSES (0, ±0.5, 0), not steps, so a sign-keyed rate limiter
+   just attenuates them to height rate*dt and they stay one sample wide.
+   Proven in step_slew_impulse — Slew holds a POSITIVE impulse 10.00 ms and a
+   negative one 0.02 ms (one sample). Peak mode is magnitude-keyed (attack
+   while |in|>|held|, else decay toward zero at fallRate) and symmetric.
+   tools/verify_slew.py vs patches/slew_test/ ALL PASS: Slew rise within
+   0.5-1.9% of S/rate at 0.002% nonlinearity (a straight ramp); Lag tau
+   within 0.05% at 33% nonlinearity (correctly not straight); fallRate
+   asymmetry 10.05x vs 10x; Peak 10.00 ms glides both polarities.
+   Ladder (patches/slew_clicks/, renders/slew_clicks/) → **REVIEW 15**:
+   attack centroid 7116 → 3237 Hz (0.455x) as fallRate falls 20000 → 50,
+   >8 kHz share 37.9% → 13.6%, monotonic, 6/6 distinct by sha256.
+   Note the dial is NOT a lowpass: the glide is 0.5/fallRate s and a linear
+   phase glide is a constant frequency offset, so fallRate trades chirp
+   LENGTH against a fallRate/2 Hz deviation.
 3e. **DONE run 20** (was: [build] Piano engine features (from measurement)) — (a)
    `inharmonicity` config on Partials: mults stretched by
    sqrt(1+B*n^2) at note-on; per-note B via the existing paramMap
@@ -299,13 +339,14 @@ Priority order. Tags per WORKFLOW.md. (G1)-(G4) = GOALS.md Dipsy goals.
 10. **[review:listen] Vowel/formant re-tune after formantWeight refactor** —
     prep render set + gain sweep, queue for ears. (Largely overtaken by the
     run-11 vowel BASELINE set, REVIEW 1.)
-11. **[build] Commit research/ml_ears/score_candidate.py + iowa_reference.py**
-    — the config-driven instrument generalization is working-copy-only, but
-    run 11 committed optimize.py and configs/clarinet_bb.json which DEPEND on
-    `score_candidate.load_config`. HEAD alone cannot run the clarinet CMA-ES
-    pipeline. Left untouched in run 12 per the tree guard (files modified at
-    session start, not this run's work). One-line commit once Matt confirms
-    nothing else is in flight on them.
+11. **[build] Two standing dirty patch files** — ✓ **SHRUNK run21**: the
+    Python half of this item is GONE. `score_candidate.py` and
+    `iowa_reference.py` were committed by run 20 (72defb9), so HEAD can now
+    run the clarinet CMA-ES pipeline on its own. What remains is only
+    `patches/clarinet_c2/c2c_quiet.json` and
+    `patches/fable1_v6/v6_01_res_curve_lo.json`, dirty at session start for
+    seven runs now (a UI re-save of v6_01 and a clarinet variant). Left
+    untouched again per the tree guard. One word from Matt: commit or revert.
 
 ## Done
 
