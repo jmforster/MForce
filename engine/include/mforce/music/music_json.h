@@ -236,6 +236,13 @@ inline void to_json(json& j, const Chord& c) {
   if (c.inversion != 0) j["inversion"] = c.inversion;
   if (c.spread != 0) j["spread"] = c.spread;
   if (c.figureName) j["figureName"] = *c.figureName;
+  // Explicit voicing. root/type/inversion/spread cannot reconstruct every
+  // chord the composer can now emit (a VoicingPin's topTone DOUBLES a chord
+  // tone above the top voice), so the actual pitches are part of the record —
+  // they are what sounded, and what a voice-motion check reads.
+  json jp = json::array();
+  for (const auto& p : c.pitches) jp.push_back(int(std::lround(p.note_number())));
+  j["pitches"] = std::move(jp);
 }
 
 inline void from_json(const json& j, Chord& c) {
@@ -250,6 +257,13 @@ inline void from_json(const json& j, Chord& c) {
 
   if (j.contains("figureName"))
     c.figureName = j.at("figureName").get<std::string>();
+
+  // Explicit pitches (when present) are authoritative — see to_json above.
+  if (j.contains("pitches")) {
+    c.pitches.clear();
+    for (const auto& nn : j.at("pitches"))
+      c.pitches.push_back(Pitch::from_note_number(nn.get<float>()));
+  }
 }
 
 // ===========================================================================
@@ -260,6 +274,13 @@ inline void to_json(json& j, const ScaleChord& sc) {
   j = json{{"degree", sc.degree}};
   if (sc.alteration != 0) j["alteration"] = sc.alteration;
   j["quality"] = sc.quality ? (sc.quality->shortName.empty() ? "M" : sc.quality->shortName) : "M";
+  if (sc.pin) {
+    json jp = json{{"inversion", sc.pin->inversion}};
+    if (sc.pin->spread != 0) jp["spread"] = sc.pin->spread;
+    if (sc.pin->octave) jp["octave"] = *sc.pin->octave;
+    if (sc.pin->topTone >= 0) jp["topTone"] = sc.pin->topTone;
+    j["pin"] = std::move(jp);
+  }
 }
 
 inline void from_json(const json& j, ScaleChord& sc) {
@@ -267,6 +288,17 @@ inline void from_json(const json& j, ScaleChord& sc) {
   sc.alteration = j.value("alteration", 0);
   std::string q = j.value("quality", std::string("M"));
   sc.quality = &ChordDef::get(q);
+  if (j.contains("pin")) {
+    const auto& jp = j["pin"];
+    VoicingPin pin;
+    pin.inversion = jp.value("inversion", 0);
+    pin.spread = jp.value("spread", 0);
+    if (jp.contains("octave")) pin.octave = jp["octave"].get<int>();
+    pin.topTone = jp.value("topTone", -1);
+    sc.pin = pin;
+  } else {
+    sc.pin.reset();
+  }
 }
 
 inline void to_json(json& j, const ChordProgression& cp) {

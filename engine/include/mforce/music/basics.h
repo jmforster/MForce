@@ -373,6 +373,26 @@ struct ChordDictionary {
   static const ChordDictionary& canonic();
 };
 
+// ===== VoicingPin — per-chord authored voicing override =====
+// A progression entry may PIN how its chord is voiced, outranking whatever a
+// VoicingSelector would pick for it. This is the cadential-chord-role idea
+// delivered narrowly: for some chords the voicing is part of the chord's
+// IDENTITY (a German sixth keeps its root in the bass, a cadential 6/4 puts
+// the 5th in the bass and doubles it on top), not a preference for a
+// motion-minimizer to trade away.
+
+struct VoicingPin {
+  int inversion{0};           // bass = Kth chord tone (list rotation)
+  int spread{0};              // voicing-gap walk rule (0 = close position)
+  std::optional<int> octave;  // root octave; unset = the passage's chordConfig
+  int topTone{-1};            // chord-tone index forced on TOP: if the pinned
+                              // voicing does not already end on that tone, it
+                              // is doubled in the first octave above the top
+                              // voice. -1 = leave the top alone. The classic
+                              // cadential 6/4 doubles its bass: topTone ==
+                              // inversion.
+};
+
 // ===== ScaleChord — a chord defined relative to a scale =====
 // degree 0=i, 1=ii, 2=iii, etc. Alteration: -1=flat, 0=natural, +1=sharp
 // e.g. bIII-M7 = degree 2, alteration -1, quality M7
@@ -381,6 +401,11 @@ struct ScaleChord {
   int degree{0};
   int alteration{0};
   const ChordDef* quality{nullptr};
+
+  // Optional authored voicing (see VoicingPin). Carried with the chord so it
+  // survives the trip through a HarmonyTimeline and reaches the composer's
+  // emission path in both span and pattern modes.
+  std::optional<VoicingPin> pin;
 
   // Resolve to a concrete Chord given a scale and octave
   Chord resolve(const Scale& scale, int octave, float duration = 1.0f,

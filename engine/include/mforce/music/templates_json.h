@@ -35,6 +35,19 @@ inline ChordProgression parse_chord_progression(const json& j) {
         sc.degree = entry.at("degree").get<int>();
         sc.alteration = entry.value("alteration", 0);
         sc.quality = &ChordDef::get(entry.value("quality", std::string("Major")));
+        // Optional per-chord voicing pin (see VoicingPin in basics.h):
+        //   {"pin": {"inversion": 2, "topTone": 2}}
+        // pins the cadential 6/4 — bass = 5th, 5th doubled on top — no matter
+        // what a VoicingSelector would prefer.
+        if (entry.contains("pin")) {
+            const auto& jp = entry["pin"];
+            VoicingPin pin;
+            pin.inversion = jp.value("inversion", 0);
+            pin.spread = jp.value("spread", 0);
+            if (jp.contains("octave")) pin.octave = jp["octave"].get<int>();
+            pin.topTone = jp.value("topTone", -1);
+            sc.pin = pin;
+        }
         prog.add(sc, entry.at("beats").get<float>());
     }
     return prog;

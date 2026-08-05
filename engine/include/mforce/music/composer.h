@@ -30,6 +30,7 @@
 #include "mforce/music/pitch_walker.h"
 #include "mforce/music/rng.h"
 #include "mforce/core/randomizer.h"
+#include <cmath>
 #include <iostream>
 #include <memory>
 #include <string>
@@ -576,7 +577,34 @@ private:
           // progression walks through keys (Matt's Bruckner pedal).
           Scale activeScale = sec.active_scale_at(beatInPassage);
           Chord chord;
-          if (selector) {
+          if (sc.pin) {
+            // An authored VoicingPin outranks any selector: this chord's
+            // voicing is part of its identity (cadential role), not a
+            // preference for the motion-minimizer to trade away. The pinned
+            // chord still becomes prevChord below, so the NEXT chord's
+            // selector smooths away from the pinned voicing.
+            const VoicingPin& pin = *sc.pin;
+            int oct = pin.octave ? *pin.octave : cfg.octave;
+            chord = sc.resolve(activeScale, oct, dur, pin.inversion,
+                               pin.spread);
+            if (pin.topTone >= 0 && !chord.pitches.empty()) {
+              // Force the requested chord tone on top, doubling it in the
+              // first octave above the current top voice if the pinned
+              // voicing does not already end on it. Doubling is the point —
+              // a close triad can never end on its bass tone otherwise.
+              Chord ref = sc.resolve(activeScale, oct, dur, pin.topTone, 0);
+              if (!ref.pitches.empty()) {
+                float want = ref.pitches.front().note_number();
+                float top = chord.pitches.back().note_number();
+                int pcDiff = ((int(std::lround(top - want)) % 12) + 12) % 12;
+                if (pcDiff != 0) {
+                  float nn = want;
+                  while (nn < top + 1.0f) nn += 12.0f;
+                  chord.pitches.push_back(Pitch::from_note_number(nn));
+                }
+              }
+            }
+          } else if (selector) {
             float beatInBar = beatInPassage - bar * beatsPerBar;
             VoicingProfile profile = profileSelector
                 ? profileSelector->profile_for_chord(
