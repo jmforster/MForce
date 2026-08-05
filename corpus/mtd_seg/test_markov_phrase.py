@@ -117,6 +117,59 @@ def test_v3_patterns_exercise_multi_prime():
     assert any(p.count("'") >= 2 for p in V3_PATTERNS)
 
 
+# --------------------------------------------------------------------------- #
+# backlog #10 full generality — literal repeats may be transform-varied
+# --------------------------------------------------------------------------- #
+def test_repeat_xform_varies_literal_repeats_only():
+    # prob=1.0: every literal repeat of an already-heard family gets exactly
+    # one transform; the FIRST occurrence of each family is never touched.
+    rng = random.Random(5)
+    ml, refs, _conns, info = build_phrase_v3(
+        LONG, LONG, "AABB", "none", "literal", None, rng,
+        repeat_xform_prob=1.0, xform_rng=random.Random(9))
+    assert refs == ["A", "A", "B", "B"]
+    idxs = sorted(ro["idx"] for ro in info["repeat_ops"])
+    assert idxs == [1, 3], info["repeat_ops"]        # never idx 0 or 2
+    figs = [f for _n, f in ml]
+    # first occurrences are verbatim (final-note rule may extend the LAST
+    # figure's last duration, so compare fig0/fig2 steps + fig0 durations)
+    assert [u["step"] for u in figs[0]["units"]] == \
+        [u["step"] for u in LONG["units"]]
+    for ro in info["repeat_ops"]:
+        assert ro["op"] and "+" not in ro["op"]      # ONE op, never stacked
+    # anchoring invariant survives every variant
+    for f in figs:
+        assert f["units"][0]["step"] == 0
+
+
+def test_repeat_xform_off_is_baseline():
+    # prob=0 (or no xform_rng) must reproduce the historical path exactly.
+    ml1, _r1, c1, i1 = build_phrase_v3(
+        LONG, LONG, "AABB", "none", "literal", None, random.Random(5),
+        repeat_xform_prob=0.0, xform_rng=random.Random(9))
+    ml2, _r2, c2, i2 = build_phrase_v3(
+        LONG, LONG, "AABB", "none", "literal", None, random.Random(5))
+    assert ml1 == ml2 and c1 == c2
+    assert i1["repeat_ops"] == [] and i2["repeat_ops"] == []
+
+
+def test_repeat_xform_range_guard_falls_back():
+    # A cap the untransformed phrase meets but any expansion would break:
+    # transforms must be reverted rather than emitting out-of-range.
+    from markov_phrase import predicted_range
+    ml0, _r, c0, _i = build_phrase_v3(
+        LONG, LONG, "AABB", "none", "literal", None, random.Random(5))
+    md0 = dict(ml0)
+    base_span = predicted_range(md0, [n for n, _f in ml0], c0)
+    ml, _refs, conns, info = build_phrase_v3(
+        LONG, LONG, "AABB", "none", "literal", None, random.Random(5),
+        repeat_xform_prob=1.0, xform_rng=random.Random(9),
+        range_cap=base_span)
+    md = dict(ml)
+    span = predicted_range(md, [n for n, _f in ml], conns)
+    assert span <= base_span, (span, base_span)      # never out-of-range
+
+
 if __name__ == "__main__":
     test_net_step(); test_invert(); test_retrograde()
     test_pattern_set_nonempty(); test_aaab_same_note(); test_prime_pattern_uses_transform()
@@ -126,4 +179,7 @@ if __name__ == "__main__":
     test_make_variant_preserves_anchor_invariant()
     test_build_phrase_v3_reports_distinct_ops()
     test_v3_patterns_exercise_multi_prime()
+    test_repeat_xform_varies_literal_repeats_only()
+    test_repeat_xform_off_is_baseline()
+    test_repeat_xform_range_guard_falls_back()
     print("OK")

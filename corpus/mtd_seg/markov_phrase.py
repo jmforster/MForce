@@ -777,6 +777,58 @@ def _apply_v3_transform(name, fig, model, rng):
     return getattr(ftl, name)(fig)     # invert / retrograde
 
 
+# --------------------------------------------------------------------------- #
+# Backlog #10, full generality (Matt's repeat-variety spec): LITERAL repeats.
+# --------------------------------------------------------------------------- #
+# Prime tokens (A') already route through figure_transforms, but a literal
+# repeat — the second A in AAB / AABB / ABAB, a repeated B — could only be
+# varied by transposition (contour anchoring). Now a later occurrence of an
+# already-heard family may OCCASIONALLY be transform-varied instead of
+# repeating verbatim. Kin-recognizability rules: exactly ONE transform per
+# occurrence (never stacked), the first occurrence of a family is never
+# touched, and the mix ratio is conservative (most repeats stay literal).
+# vary_tail is deliberately absent — it is already reachable via primes; this
+# menu is the variation literal repeats never had. augment/diminish are also
+# out: reshaping an occurrence's total length mid-pattern breaks the repeat
+# scheme's rhythmic footprint, the property that makes a repeat read as one.
+REPEAT_XFORM_MENU = ["invert", "retrograde", "rotate", "ornament",
+                     "expand_intervals", "compress_intervals"]
+
+
+def _repeat_xform(fig, rng):
+    """Draw ONE library transform for a literal-repeat occurrence.
+    Returns (varied_fig, op_name), or (None, None) when no eligible op exists
+    or the drawn op is an identity on this figure (compress_intervals on a
+    stepwise cell, retrograde on a palindrome) — an unrecognizable 'variation'
+    is not emitted, the occurrence stays a verbatim repeat."""
+    n = len(fig["units"])
+    moves = any(u["step"] != 0 for u in fig["units"])
+    menu = []
+    for op in REPEAT_XFORM_MENU:
+        if not moves and op in ("invert", "retrograde",
+                                "expand_intervals", "compress_intervals"):
+            continue                          # identity on a static figure
+        if op == "rotate" and n < 3:
+            continue                          # 2-note rotation is a swap
+        if op in ("ornament", "retrograde") and n < 2:
+            continue
+        menu.append(op)
+    if not menu:
+        return None, None
+    op = rng.choice(menu)
+    if op == "ornament":
+        out = ftl.ornament(fig, rng)
+    elif op == "rotate":
+        out = ftl.rotate(fig, 1)
+    elif op in ("expand_intervals", "compress_intervals"):
+        out = getattr(ftl, op)(fig, 2.0)
+    else:                                     # invert / retrograde
+        out = getattr(ftl, op)(fig)
+    if out == fig:
+        return None, None
+    return out, op
+
+
 _FINAL_PROFILE = None
 
 
@@ -802,14 +854,25 @@ def _snap_dur(beats):
 
 def build_phrase_v3(figA, figB, pattern, transform, contour, model, rng,
                     elide_prob=0.2, final_ext_prob=0.85, grid=1.0,
-                    corpus="mtd", final_rng=None, final_rule="longest"):
+                    corpus="mtd", final_rng=None, final_rule="longest",
+                    repeat_xform_prob=0.0, xform_rng=None, range_cap=None):
     """Materialize per-occurrence figures with contour leadSteps, then apply
     join quantization (verdict 4) and final-note treatment (verdict 3).
+
+    repeat_xform_prob (backlog #10 full generality): probability that a
+    LITERAL repeat of an already-heard family (the 2nd A in AAB/AABB/ABAB, a
+    repeated B) is transform-varied via _repeat_xform instead of repeating
+    verbatim. 0.0 = off (historical behavior). Decisions draw ONLY from
+    xform_rng — a dedicated stream, so enabling/disabling the mechanism never
+    shifts the joins/variants stream and a same-seed A/B stays like-for-like.
+    range_cap: if set, a transform that pushes the phrase's predicted span
+    over the cap is reverted (last-applied first) — a transform never causes
+    an out-of-range phrase; the untransformed path is the fallback.
 
     Returns (motif_list, refs, connectors, info): motif_list is an ordered
     [(name, fig)] with unique per-occurrence names (padding differs per
     occurrence, so motifs can't be shared by reference); info carries join
-    kinds + final-extension flag for reporting."""
+    kinds + final-extension flag + applied repeat transforms for reporting."""
     refs = _tokens_v2(pattern, transform)
     motifs = {"A": figA, "B": figB}
     ops = {}
@@ -827,23 +890,69 @@ def build_phrase_v3(figA, figB, pattern, transform, contour, model, rng,
                 motifs[r] = _apply_v3_transform(transform, figA, model, rng)
                 ops[r] = transform
 
-    # contour leadSteps (same math as build_contour_combination)
+    # contour leadSteps (same math as build_contour_combination) — computed
+    # from the PER-OCCURRENCE figures, so a varied occurrence still lands on
+    # its contour anchor (leadStep places the START; only the cursor after it
+    # sees the variant's net step).
     offsets = CONTOURS[contour]
-    occ_figs = [_copy_fig(motifs[refs[0]])]
-    connectors = [None]
-    cursor = net_step(motifs[refs[0]])
-    a_seen = 1
-    for i in range(1, len(refs)):
-        r = refs[i]
-        if r != "B":
-            off = offsets[min(a_seen, len(offsets) - 1)]
-            a_seen += 1
-            lead = off - cursor
-        else:
-            lead = 0
-        connectors.append(lead)
-        cursor = cursor + lead + net_step(motifs[r])
-        occ_figs.append(_copy_fig(motifs[r]))
+
+    def _materialize(seq):
+        occ = [_copy_fig(seq[0])]
+        conns = [None]
+        cursor = net_step(seq[0])
+        a_seen = 1
+        for i in range(1, len(refs)):
+            r = refs[i]
+            if r != "B":
+                off = offsets[min(a_seen, len(offsets) - 1)]
+                a_seen += 1
+                lead = off - cursor
+            else:
+                lead = 0
+            conns.append(lead)
+            cursor = cursor + lead + net_step(seq[i])
+            occ.append(_copy_fig(seq[i]))
+        return occ, conns
+
+    def _span(occ, conns):
+        md = {f"F{i}": f for i, f in enumerate(occ)}
+        return predicted_range(md, list(md), conns)
+
+    base_seq = [_copy_fig(motifs[r]) for r in refs]
+    occ_figs, connectors = _materialize(base_seq)
+
+    # Literal-repeat transform pass (backlog #10 full generality). Per
+    # occurrence: only tokens that ARE literal repeats ("A"/"B" of a family
+    # already heard; primes P/V* were varied above), one op, dedicated rng.
+    # Gated on the UNTRANSFORMED phrase being under the range cap: an over-cap
+    # draw is left untouched so the caller's reject-loop sees the identical
+    # span (and consumes the identical number of tries) whether the mechanism
+    # is on or off — a transform must never rescue a draw the baseline arm
+    # would have rerolled, or same-seed pairs stop being like-for-like.
+    repeat_ops = []
+    if xform_rng is not None and repeat_xform_prob > 0 \
+            and not (range_cap and _span(occ_figs, connectors) > range_cap):
+        seen_fams = set()
+        for idx, r in enumerate(refs):
+            fam = "B" if r == "B" else "A"
+            if r in ("A", "B") and fam in seen_fams \
+                    and xform_rng.random() < repeat_xform_prob:
+                varied, op = _repeat_xform(motifs[r], xform_rng)
+                if varied is not None:
+                    base_seq[idx] = varied
+                    repeat_ops.append({"idx": idx, "ref": r, "op": op})
+            seen_fams.add(fam)
+        if repeat_ops:
+            occ_figs, connectors = _materialize(base_seq)
+            # Range guard: never emit out-of-range BECAUSE of a transform.
+            # Revert last-applied first until back under cap (fully reverted
+            # == the untransformed phrase, already verified under cap).
+            while repeat_ops and range_cap \
+                    and _span(occ_figs, connectors) > range_cap:
+                dropped = repeat_ops.pop()
+                base_seq[dropped["idx"]] = \
+                    _copy_fig(motifs[refs[dropped["idx"]]])
+                occ_figs, connectors = _materialize(base_seq)
 
     # verdict 4: quantize figure STARTS to the beat grid by extending the
     # previous figure's final note; elide_prob keeps raw concatenation.
@@ -929,7 +1038,7 @@ def build_phrase_v3(figA, figB, pattern, transform, contour, model, rng,
     motif_list = [(f"F{i}", occ_figs[i]) for i in range(len(occ_figs))]
     info = {"joins": joins, "final_ext": final_ext, "median_pulse": med,
             "final_ratio": last["duration"] / med if med > 0 else 0.0,
-            "ops": ops}
+            "ops": ops, "repeat_ops": repeat_ops}
     return motif_list, refs, connectors, info
 
 
@@ -1032,6 +1141,14 @@ def main_v3():
                          "pattern instead of rolling it — the controlled A/B "
                          "for backlog #10. 'mixed' draws a DIFFERENT op per "
                          "occurrence.")
+    ap.add_argument("--repeat-xform-prob", type=float, default=0.3,
+                    dest="repeat_xform_prob",
+                    help="probability a LITERAL repeat of an already-heard "
+                         "family (2nd A in AAB/AABB/ABAB, repeated B) is "
+                         "transform-varied (one op from REPEAT_XFORM_MENU) "
+                         "instead of repeating verbatim. Conservative default "
+                         "0.3 — an occasional alternative to transposition, "
+                         "not a replacement. 0 disables (the A/B baseline).")
     args = ap.parse_args()
 
     rng = random.Random(args.seed)
@@ -1085,7 +1202,7 @@ def main_v3():
     # therefore yields the SAME pattern/contour/transform sequence with
     # different corpus content — a controlled corpus-flavor A/B.
     srng = random.Random(args.seed ^ 0x5EED)
-    after_rows, meta = [], []
+    after_rows, meta, manifest = [], [], []
     for i in range(args.n):
         pattern = srng.choice(V3_PATTERNS)
         transform = (srng.choice(V3_TRANSFORMS) if "'" in pattern else "none")
@@ -1100,6 +1217,17 @@ def main_v3():
         # like-for-like (measured: the no-prime p02 came out 20 notes in one
         # arm and 16 in the other, from an identical spec).
         frng = random.Random((args.seed ^ 0xF16E) + i * 7919)
+        # Build draws (joins + prime variants) also get a per-index stream.
+        # They used to come from the shared `rng`: a repeat transform that
+        # changes an occurrence's durations changes how many elide rolls that
+        # phrase consumes, so with a shared stream EVERY later phrase would
+        # diverge between the transforms-on and transforms-off arms — the
+        # same defect the frng comment above documents for figure content.
+        brng = random.Random((args.seed ^ 0xB01D) + i * 15485863)
+        # Repeat-transform decisions draw ONLY from this dedicated stream
+        # (backlog #10): prob=0 consumes nothing, and either way the joins /
+        # variants / final-note streams are untouched.
+        xrng = random.Random((args.seed ^ 0x0F0F) + i * 60013)
         tries = 0
         while True:
             tries += 1
@@ -1111,9 +1239,11 @@ def main_v3():
             else:
                 figB = _sample_figure_sized(model, frng)
             motif_list, refs, conns, info = build_phrase_v3(
-                figA, figB, pattern, transform, contour, model, rng,
+                figA, figB, pattern, transform, contour, model, brng,
                 corpus=args.corpus, final_rule=args.final_rule,
-                final_rng=random.Random((args.seed ^ 0xF1A1) + i * 104729))
+                final_rng=random.Random((args.seed ^ 0xF1A1) + i * 104729),
+                repeat_xform_prob=args.repeat_xform_prob, xform_rng=xrng,
+                range_cap=args.range_cap)
             mdict = dict(motif_list)
             names = [n for n, _ in motif_list]
             span = predicted_range(mdict, names, conns)
@@ -1133,11 +1263,18 @@ def main_v3():
         jsum = ",".join(info["joins"])
         osum = ("  ops=" + ",".join(f"{k}:{v}" for k, v
                 in sorted(info["ops"].items()))) if info["ops"] else ""
+        rxs = ";".join(f"{ro['ref']}@{ro['idx']}:{ro['op']}"
+                       for ro in info["repeat_ops"])
+        rsum = f"  repeat_xform=[{rxs}]" if rxs else ""
         print(f"{name}: {st['n_notes']} notes {st['total_beats']:.2f} beats "
               f"range={span} tries={tries} joins=[{jsum}] "
-              f"final_ext={info['final_ext']}{osum}")
+              f"final_ext={info['final_ext']}{osum}{rsum}")
         meta.append((name, pattern, contour, transform,
-                     "ctrB" if use_ctr else "indB", span, prefix))
+                     "ctrB" if use_ctr else "indB", span, prefix, rxs))
+        manifest.append({"file": name + "_1.json", "pattern": pattern,
+                         "contour": contour, "prime_transform": transform,
+                         "prime_ops": info["ops"],
+                         "repeat_xforms": info["repeat_ops"]})
 
     # ---------------- verification table ------------------------------------
     print("\n=== before/after verification ===")
@@ -1146,19 +1283,34 @@ def main_v3():
                            before_rows)
     _print_stats_table("AFTER (verdicts 1-5)", after_rows)
 
+    # ---------------- transform manifest ------------------------------------
+    # Sidecar so an audition/report can see WHICH occurrence got WHICH
+    # transform without replaying the rng (backlog #10 A/B bookkeeping).
+    n_rx = sum(1 for m in manifest if m["repeat_xforms"])
+    mpath = outdir / "transforms_manifest.json"
+    mpath.write_text(json.dumps(
+        {"repeat_xform_prob": args.repeat_xform_prob, "seed": args.seed,
+         "n_phrases": len(manifest), "n_with_repeat_xform": n_rx,
+         "phrases": manifest}, indent=2), encoding="utf-8")
+    print(f"\nrepeat transforms applied in {n_rx}/{len(manifest)} phrases "
+          f"(prob={args.repeat_xform_prob}) -> {mpath}")
+
     # ---------------- scoring -> scores.csv ---------------------------------
-    cols = ["file", "pattern", "contour", "transform", "b_arm", "n_notes",
-            "int_jsd", "ctr_jsd", "rep_LxCount", "big_leap", "range",
-            "zero_rate", "max_run_frac", "selfsim", "composite"]
+    cols = ["file", "pattern", "contour", "transform", "b_arm",
+            "repeat_xforms", "n_notes", "int_jsd", "ctr_jsd", "rep_LxCount",
+            "big_leap", "range", "zero_rate", "max_run_frac", "selfsim",
+            "final_ratio", "closure", "composite"]
     rows = []
-    for name, pattern, contour, transform, b_arm, span, prefix in meta:
+    for name, pattern, contour, transform, b_arm, span, prefix, rxs in meta:
         r = sg.score(sg.load_melody(REPO / (prefix + "_1.json")), cs)
         r.update(file=name + "_1.json", pattern=pattern, contour=contour,
-                 transform=transform, b_arm=b_arm)
+                 transform=transform, b_arm=b_arm, repeat_xforms=rxs)
         rows.append(r)
     csv_path = outdir / "scores.csv"
     with open(csv_path, "w", newline="") as f:
-        w = _csv.DictWriter(f, fieldnames=cols)
+        # score() grew closure fields (#12); ignore any future extras rather
+        # than crashing the whole batch at the very last step.
+        w = _csv.DictWriter(f, fieldnames=cols, extrasaction="ignore")
         w.writeheader()
         w.writerows(rows)
     comps = [r["composite"] for r in rows]
