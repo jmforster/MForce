@@ -222,16 +222,19 @@ def get_encoder(cfg):
     if cfg.get("encoder") == "clarinet_locked":
         import encoder_clarinet_locked as enc
         return enc.DIM, enc.warm_start, enc.encode
+    if cfg.get("encoder") == "piano":
+        import encoder_piano as enc
+        return enc.DIM, enc.warm_start, enc.encode
     return DIM, warm_start, encode
 
 
-def make_objective(template, ref, note_midis, enc=None, idx=[0]):
+def make_objective(template, ref, note_midis, enc=None, windows=None, idx=[0]):
     enc = enc or encode
     def objective(z):
         idx[0] += 1
         try:
             patch = sc.set_score(enc(z, template), note_midis)
-            s = sc.score(sc.measure(patch, f"opt{idx[0] % 8}", note_midis), ref)
+            s = sc.score(sc.measure(patch, f"opt{idx[0] % 8}", note_midis, windows), ref)
             return s["total"], s
         except Exception as e:  # noqa: BLE001 — bad param combo -> penalty
             return 100.0, {"error": str(e)[:120]}
@@ -259,7 +262,7 @@ def main():
         es.set_state(pickle.load(open(ckpt, "rb")))
         print(f"resumed at gen {es.gen}")
 
-    objective = make_objective(template, ref, note_midis, enc_fn)
+    objective = make_objective(template, ref, note_midis, enc_fn, sc.cfg_windows(cfg))
     best_f, best_s, best_z = np.inf, None, None
     bestmeta = os.path.join(rundir, "best_meta.json")
     if resume and os.path.exists(bestmeta):     # carry best across resumes

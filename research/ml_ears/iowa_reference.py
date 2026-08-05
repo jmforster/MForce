@@ -1,37 +1,35 @@
-"""Precompute the Iowa viola reference target for the CMA-ES scorer (stage a).
+"""Precompute an instrument reference target for the CMA-ES scorer (stage a).
 
-Writes out/iowa_reference.json holding, for the 4 open-string scoring notes
-(C3/G3/D4/A4), the per-note harmonic envelope, broadband ratios, and attack
-stats; plus motion medians pooled over derive_motion's wider sample set.
+Driven by an instrument config (configs/<name>.json, default viola): writes
+<reference_path> holding, for the open-string scoring notes, the per-note
+harmonic envelope, broadband ratios, and attack stats; plus motion medians
+pooled over the config's wider motion_samples set.
 
-Run once (samples don't change); score_candidate.py loads the JSON so no eval
-re-analyses the .aif files. Regenerate if the metric extractors change.
+Run once per instrument (samples don't change); score_candidate.py loads the
+JSON so no eval re-analyses the .aif files. Regenerate if the metric
+extractors change.
+
+Usage: python iowa_reference.py [--config viola]
 """
 import json
 import os
+import sys
 
 import numpy as np
 import soundfile as sf
 
 import derive_motion as dm
 import refmetrics as rm
+import score_candidate as sc
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-SAMPLE_DIR = os.path.join(HERE, "..", "inst_samples", "viola")
-OUT = os.path.join(HERE, "out", "iowa_reference.json")
-
-# Open-string scoring notes -> the Iowa file that plays them on that string.
-SCORE_NOTES = [("C3", "sulC"), ("G3", "sulG"), ("D4", "sulD"), ("A4", "sulA")]
-
-SUS_START, SUS_LEN = 0.55, 1.4     # sustain window (must match score_candidate)
-ATTACK_LEN = 0.55                  # onset window for attack_stats
 
 
-def find_file(string, note):
-    for f in os.listdir(SAMPLE_DIR):
-        if f".{string}." in f and f".{note}." in f and f.endswith(".aif"):
-            return os.path.join(SAMPLE_DIR, f)
-    raise FileNotFoundError(f"{string} {note}")
+def find_file(sample_dir, string, note, ext=".aif"):
+    for f in os.listdir(sample_dir):
+        if f".{string}." in f and f".{note}." in f and f.endswith(ext):
+            return os.path.join(sample_dir, f)
+    raise FileNotFoundError(f"{string} {note} in {sample_dir}")
 
 
 def load_mono(path):
@@ -41,15 +39,43 @@ def load_mono(path):
     return x.astype(np.float64), sr
 
 
+def onset_index(x, sr, frac=0.02, win_s=0.005):
+    """Sample index of note onset: first crossing of `frac` of the peak of a
+    `win_s` RMS envelope. Piano sample lead-in varies 0.04-0.54 s, so configs
+    with reference_build.onset_relative=true get their analysis windows sliced
+    relative to this instead of the file start."""
+    win = max(1, int(win_s * sr))
+    env = np.sqrt(np.convolve(x * x, np.ones(win) / win, "same"))
+    return int(np.argmax(env >= frac * env.max()))
+
+
 def main():
+    name = (sys.argv[sys.argv.index("--config") + 1]
+            if "--config" in sys.argv else "viola")
+    cfg = sc.load_config(name)
+    sample_dir = cfg["sample_dir"]
+    ext = cfg.get("sample_glob", "*.aif").lstrip("*")
+    rb = cfg["reference_build"]
+    sus_start, sus_len = rb["sus_start"], rb["sus_len"]
+    attack_len = rb["attack_len"]
+    onset_rel = bool(rb.get("onset_relative", False))
+    out = cfg["reference_path"]
+
     notes = {}
-    for note, string in SCORE_NOTES:
-        x, sr = load_mono(find_file(string, note))
-        midi = rm.note_to_midi(note)
-        f0 = rm.midi_to_freq(midi)
-        n0 = int(SUS_START * sr)
-        sus = x[n0: n0 + int(SUS_LEN * sr)]
-        atk = x[: int(ATTACK_LEN * sr)]
+    for sn in cfg["score_notes"]:
+        note, string = sn["note"], sn["string"]
+        x, sr = load_mono(find_file(sample_dir, string, note, ext))
+        if onset_rel:
+            n_on = onset_index(x, sr)
+            print(f"{note:3s} onset at {n_on / sr:.3f}s", end="  ")
+            x = x[n_on:]
+        midi = sn.get("midi", rm.note_to_midi(note))
+        # exact equal-tempered f0 from midi (config f0 is documentation /
+        # fallback only — the rounded value must not shift analysis bins)
+        f0 = rm.midi_to_freq(midi) if midi is not None else sn["f0"]
+        n0 = int(sus_start * sr)
+        sus = x[n0: n0 + int(sus_len * sr)]
+        atk = x[: int(attack_len * sr)]
         notes[note] = {
             "midi": midi,
             "f0": round(f0, 3),
@@ -62,23 +88,35 @@ def main():
         print(f"{note:3s} f0={f0:6.1f}  broadband={notes[note]['broadband']}  "
               f"resid={m['resid_cents_rms']:.2f}c amp={100*m['amp_frac_rms']:.0f}%")
 
-    # Motion medians pooled over derive_motion's broader 8-sample set (more
-    # robust than 4 notes; motion is roughly note-invariant).
+    # Motion medians pooled over the config's broader sample set (more robust
+    # than the score notes alone; motion is roughly note-invariant).
+    # motion_window (optional, reference_build): [start, len] seconds replacing
+    # derive_motion's defaults — decaying instruments need an earlier/shorter
+    # window than a bowed sustain.
+    mw = rb.get("motion_window")
     rows = []
-    for tag in dm.SAMPLES:
-        f0_nom = dm.note_to_freq(tag.split(".")[1])
+    for tag in cfg.get("motion_samples", []):
+        string, note = tag.split(".")
+        f0_nom = dm.note_to_freq(note)
         try:
-            rows.append(dm.analyze(dm.find_file(tag), f0_nom))
+            path = find_file(sample_dir, string, note, ext)
+            off = 0.0
+            if onset_rel:
+                xm, srm = load_mono(path)
+                off = onset_index(xm, srm) / srm
+            rows.append(dm.analyze(path, f0_nom, offset=off,
+                                   start=mw[0] if mw else None,
+                                   length=mw[1] if mw else None))
         except Exception as e:  # noqa: BLE001
             print(f"  motion {tag}: FAILED ({e})")
     motion_med = {k: float(np.median([r[k] for r in rows])) for k in rm.MOTION_KEYS}
 
     ref = {"notes": notes, "motion_medians": motion_med,
-           "source": "Iowa MIS viola arco ff", "sus_start": SUS_START,
-           "sus_len": SUS_LEN}
-    json.dump(ref, open(OUT, "w"), indent=2)
+           "source": cfg.get("source", cfg["name"]), "sus_start": sus_start,
+           "sus_len": sus_len}
+    json.dump(ref, open(out, "w"), indent=2)
     print("\nmotion medians:", {k: round(v, 3) for k, v in motion_med.items()})
-    print("wrote", OUT)
+    print("wrote", out)
 
 
 if __name__ == "__main__":

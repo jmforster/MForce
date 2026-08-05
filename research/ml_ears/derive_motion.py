@@ -80,12 +80,14 @@ def rate_centroid(trace, sr_env):
     return float((f[band] * p[band]).sum() / p[band].sum())
 
 
-def analyze(path, f0_nom, decim=32):
+def analyze(path, f0_nom, decim=32, offset=0.0, start=None, length=None):
+    """offset: seconds to skip before the window (onset alignment for samples
+    with variable lead-in). start/length: override SUS_START/SUS_LEN."""
     x, sr = sf.read(path)
     if x.ndim > 1:
         x = x.mean(axis=1)
-    n0 = int(SUS_START * sr)
-    x = x[n0: n0 + int(SUS_LEN * sr)].astype(np.float64)
+    n0 = int((offset + (SUS_START if start is None else start)) * sr)
+    x = x[n0: n0 + int((SUS_LEN if length is None else length) * sr)].astype(np.float64)
     f0 = refine_f0(x, sr, f0_nom)
 
     sr_env = sr / decim

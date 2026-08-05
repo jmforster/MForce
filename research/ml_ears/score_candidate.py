@@ -11,6 +11,8 @@ weight tuning stays a Matt's-ears decision, not a hidden constant.
 
 Usage:
   python score_candidate.py <patch.json>            # score one patch
+  python score_candidate.py <patch.json> --config viola   # instrument config
+      (configs/<name>.json: sample set, notes, template, reference, run root)
   python score_candidate.py <patch.json> --control  # also score a motion-
       zeroed control and assert term2(patch) < term2(control)  [stage-a check]
 """
@@ -30,6 +32,7 @@ REPO = os.path.abspath(os.path.join(HERE, "..", ".."))
 CLI = os.path.join(REPO, "build", "tools", "mforce_cli", "Release", "mforce_cli.exe")
 REF_PATH = os.path.join(HERE, "out", "iowa_reference.json")
 SCRATCH = os.path.join(HERE, "out", "scratch")
+CONFIG_DIR = os.path.join(HERE, "configs")
 os.makedirs(SCRATCH, exist_ok=True)
 
 # Scoring notes span low/mid/high registers (3 strings); a subset of the
@@ -44,6 +47,23 @@ WEIGHTS = (0.35, 0.25, 0.20, 0.20)
 MOTION_SCALE = {"resid_cents_rms": 7.3, "resid_rate_hz": 8.3,
                 "resid_coherence": 0.5, "amp_frac_rms": 0.5,
                 "amp_rate_hz": 1.4, "amp_coherence": 0.5}
+
+
+def load_config(name="viola"):
+    """Load an instrument config (configs/<name>.json or explicit path).
+
+    Fields: name, source, sample_dir, sample_glob, score_notes (note/string/
+    midi/f0 for the reference build), eval_note_midis (the render-scored
+    subset), motion_samples, template, reference_path, reference_build
+    (sus_start/sus_len/attack_len), run_root. All paths are stored relative to
+    the repo root and resolved to absolute here.
+    """
+    path = name if os.path.isfile(name) else os.path.join(CONFIG_DIR, name + ".json")
+    cfg = json.load(open(path))
+    for k in ("sample_dir", "template", "reference_path", "run_root"):
+        if cfg.get(k):
+            cfg[k] = os.path.normpath(os.path.join(REPO, cfg[k]))
+    return cfg
 
 
 def set_score(patch, midis):
@@ -67,15 +87,18 @@ def render(patch, tag):
     return x.astype(np.float64), sr
 
 
-def measure(patch, tag):
+def measure(patch, tag, note_midis=None, windows=None):
+    """windows: (sus_start, sus_len, attack_len) — must match the windows the
+    reference was built with (config reference_build); default = viola's."""
+    sus_start, sus_len, attack_len = windows or (SUS_START, SUS_LEN, ATTACK_LEN)
     x, sr = render(patch, tag)
     per_note = {}
-    for i, midi in enumerate(NOTE_MIDIS):
+    for i, midi in enumerate(note_midis if note_midis is not None else NOTE_MIDIS):
         t0 = i * NOTE_GAP
         f0 = rm.midi_to_freq(midi)
-        s0 = int((t0 + SUS_START) * sr)
-        sus = x[s0: s0 + int(SUS_LEN * sr)]
-        atk = x[int(t0 * sr): int((t0 + ATTACK_LEN) * sr)]
+        s0 = int((t0 + sus_start) * sr)
+        sus = x[s0: s0 + int(sus_len * sr)]
+        atk = x[int(t0 * sr): int((t0 + attack_len) * sr)]
         m = rm.motion_stats(sus, sr, f0)
         per_note[midi] = {
             "harm_env_db": rm.harmonic_env(sus, sr, f0),
@@ -131,9 +154,17 @@ def score(per_note, ref):
             "motion_terms": {k: float(v) for k, v in motion_terms.items()}}
 
 
-def score_patch(patch_path, ref, tag="p"):
+def cfg_windows(cfg):
+    """(sus_start, sus_len, attack_len) from a config's reference_build."""
+    rb = cfg.get("reference_build") or {}
+    return (rb.get("sus_start", SUS_START), rb.get("sus_len", SUS_LEN),
+            rb.get("attack_len", ATTACK_LEN))
+
+
+def score_patch(patch_path, ref, tag="p", note_midis=None, windows=None):
+    midis = note_midis if note_midis is not None else NOTE_MIDIS
     patch = json.load(open(patch_path))
-    return score(measure(set_score(patch, NOTE_MIDIS), tag), ref)
+    return score(measure(set_score(patch, midis), tag, midis, windows), ref)
 
 
 def zero_motion(patch):
@@ -163,13 +194,19 @@ def main():
         print(__doc__)
         sys.exit(1)
     patch_path = sys.argv[1]
-    ref = json.load(open(REF_PATH))
-    s = score_patch(patch_path, ref, tag="main")
+    if "--config" in sys.argv:
+        cfg = load_config(sys.argv[sys.argv.index("--config") + 1])
+        ref_path, midis = cfg["reference_path"], cfg["eval_note_midis"]
+        windows = cfg_windows(cfg)
+    else:
+        ref_path, midis, windows = REF_PATH, NOTE_MIDIS, None
+    ref = json.load(open(ref_path))
+    s = score_patch(patch_path, ref, tag="main", note_midis=midis, windows=windows)
     report(os.path.basename(patch_path), s)
 
     if "--control" in sys.argv:
         ctrl = zero_motion(json.load(open(patch_path)))
-        cs = score(measure(set_score(ctrl, NOTE_MIDIS), "ctrl"), ref)
+        cs = score(measure(set_score(ctrl, midis), "ctrl", midis, windows), ref)
         report("motion-zeroed control", cs)
         ok = s["term2_motion"] < cs["term2_motion"]
         print(f"\n[stage-a check] term2(patch)={s['term2_motion']:.4f} "
