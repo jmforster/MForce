@@ -130,7 +130,22 @@ Priority order. Tags per WORKFLOW.md. (G1)-(G4) = GOALS.md Dipsy goals.
    who wrote the C#: what was ordinal 3? (REVIEW 10.)
    Regression-gated: 73/73 byte-identical vs the stored A/B arm, with exactly
    the 6 revived patches present only in the new arm.
-3e. **[build] Piano engine features (from measurement)** — (a)
+3e-NEXT. **[metric] Piano: full run + scorer debt** — smoke landed run 20
+   (1.521 -> 0.900). GATED on Matt's A/B (REVIEW 13): full 600-eval run.
+   Scorer debt found by the smoke: (a) broadband_ratios blows up when an
+   eval band contains no harmonics (guard needed before any eval note
+   above ~700 Hz); (b) harmonic_env/motion heterodyne at k*f0, not the
+   B-stretched positions — symmetric on ref and candidate but noisier
+   terms for piano; stretch-aware heterodyne fixes it. Velocity layers
+   (mf-only today) stay Later.
+3f. **[build] CombinedSource JSON op string "sum" silently falls back to
+   Add** — only add/multiply/fade are parsed; found by the piano template
+   build. Fix parse + add to the template linter.
+3g. **[build] SlewLimiterSource** — one-pole smoother ValueSource
+   (rate units/s) turning phase STEPS into fast ramps: clicks become
+   tunable-brightness chirps on the fm_clicks dial. Small; sketch in the
+   run-20 click report.
+3e. **DONE run 20** (was: [build] Piano engine features (from measurement)) — (a)
    `inharmonicity` config on Partials: mults stretched by
    sqrt(1+B*n^2) at note-on; per-note B via the existing paramMap
    frequency-curve mechanism (B spans 225x across the keyboard,

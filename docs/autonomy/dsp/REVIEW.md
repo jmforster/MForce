@@ -2,6 +2,70 @@
 
 ## Awaiting Matt
 
+### 13. Piano — first optimized render [listen] (run 20)
+`renders/cmaes_piano/` — `piano_smoke_baseline_C2C4C6.wav` (encoder center,
+pre-optimization) vs `piano_smoke_best_C2C4C6.wav` (108-eval smoke best,
+1.521 -> 0.900, every term improved), plus `piano_smoke_best_twohand.wav`
+(10s C-major, LH octaves + RH arpeggio, polyphony 8). Both engine features
+are live and measurement-locked: partials sit within 0.1 cents of the
+sqrt(1+B n^2) stretch at the measured B(f0), high partials decay faster per
+the measured law, knock band CONVERGED to 2484-8189 Hz vs the measured
+2.5-8 kHz without being told. `inharm_decay_test.wav` = the bare
+verification render (C2/C4/C6, no optimization).
+Verdict decides: does the smoke best read as piano-ward; full 600-eval run
+worth it; what is most wrong to your ear (attack / decay / knock / body).
+
+### 14. Click PoCs — the t3_23 answer [listen] (run 20)
+`renders/fm_clicks/` — your click question answered: t3_23 wires velvet
+noise into FM phase, so each impulse sign-flips the carrier for EXACTLY one
+sample. Rate is constant (velvet density; measured 5-193/s tracking the
+dial) — it READ as modulation-linked because click loudness = 2|sin theta|,
+so impulses near carrier zero-crossings vanish and FM sweeps where the
+nulls fall. Density and jump size are both ValueSources = envelope-able
+with ZERO engine work. PoCs: `poc1_attack_amp400` (crackle fades over
+0.2s), `poc2_attack_dens2000to20` (crackle THINS AND fades),
+`poc3_bell_attack600` (bell, 0.15s click burst). Note these clicks are
+phase perturbations INSIDE the carrier — coupled to the tonal path by
+construction, not a parallel noise sum.
+Verdict decides: is this the noisy-attack direction worth pursuing; if the
+single-sample clicks are too harsh, a SlewLimiterSource (backlog 15) turns
+steps into tunable-brightness chirps on the same dial.
+
+### 11. Answer: what the power renorm would do (item 5 follow-up) [read] (run 20)
+Your read is right — with the current formula, power is N/A at count=1 by
+construction: the single side partial sits at position t=0 on the taper, and
+pow(0, power) = 0 puts it at the loPct floor no matter what power says.
+The renorm (t=(j+1)/(count+1)) would move every side partial's sampling
+point inward: at count=1 the lone partial reads t=0.5, so its level becomes
+power-DEPENDENT — power 1 puts it halfway between floor and full, power 2 a
+quarter of the way up, power 0.5 about 71%. Cost: at count>=2 every position
+shifts slightly too, so EVERY existing expand patch changes sound a little.
+Given your item-4 verdict (depth second-order, expand front retiring), my
+recommendation is LEAVE IT: the degenerate case is now documented in the
+code and in this queue, and we skip a sound-changing edit to a retiring
+front. Say the word if you want the renorm anyway.
+
+### 12. F1-retuning — the possible feature, explained (item 1 follow-up) [read] (run 20)
+The physics: a formant only speaks through the harmonics inside it. The 11
+flagged grid entries are notes where f0 exceeds the vowel's F1 (e.g. soprano
+A5 = 880 Hz vs /u/ F1 ~370 Hz) — NO harmonic falls inside the first formant
+band, so the vowel's main resonance boosts nothing and the note comes out
+thin with the wrong color. Real sopranos jaw-open to RAISE F1 until it
+tracks the sung pitch (F1 ~= f0): h1 lands back in the resonance, power
+returns, vowel identity blurs (why opera text is hard to catch up high).
+The feature = per-note F1 floor: effective F1 = max(patch F1, f0).
+Two implementations:
+(a) NO ENGINE WORK, single-vowel patches: the paramMap frequency-curve
+    mechanism already sets configs per-note — a curve on the F1 Formant
+    node's frequency ([[low, F1], [F1, F1], [1100, 1100]]) IS max(F1, f0)
+    as piecewise-linear. Could ship the 11 flagged patches today.
+(b) ENGINE CONFIG, for FormantSequences/grids: a `tuneF1ToF0` flag on
+    Formant (applied at prepare, where f0 is known) — one flag instead of
+    authoring a curve per formant node per vowel spectrum. Worth it only if
+    the sung-vowel direction gets real use.
+Verdict decides: ship (a) for the 11 flagged patches now, build (b), or
+leave documented.
+
 ### 7. FM "PM" cells were never PM — re-take the verdict [listen] (run 19)
 renders/fm_phase/ (t1_06_ctrl vs t1_06_after, t1_07_ctrl vs t1_07_after,
 t3_23_patchfixed) + the re-rendered patches themselves.
@@ -16,99 +80,24 @@ cycle sweep is a frequency deviation, so it splits every partial into a
 1.7 Hz sideband cluster (6 -> 109 peaks) WITHOUT brightening. That is a
 texture the FM matrix had no other way to reach.
 
-### 8. Seven wander cells were running at the wrong rate [listen] (run 19)
-renders/wander_fix/ — *_before vs *_after for the 7 t2_11_all_noise_wander
-cells (fm_matrix + fm_matrix2 modulated/ramped).
-`WanderNoiseSource`'s rate param is `speed`; the generator wrote `frequency`,
-which the loader silently dropped, so n3 ran at the default 1.0 instead of
-7.0 in every cell of that row.
-Verdict decides: same as 7 — the row's audition verdict was taken on a
-patch that wasn't doing what the label said. Worth re-ranking?
-
-### 9. Two engine gaps closed — sanity check [read] (run 19)
-(a) White/Pink/Blue/VioletNoiseSource had NO `amplitude` param at all (the
-comment claimed "no modulatable params — spectral shape is fixed", which
-conflates shape with level). Setting noise level needed an extra multiplier
-node. All four now take `amplitude`, default 1.0.
-(b) The `adsr` Envelope preset dropped all six of make_adsr's randomization
-ranges (attackMin/Max, decayMin/Max, releaseMin/Max) — so an adsr envelope
-could not express stage jitter. Now passed through. 375 adsr nodes exist and
-0 set those keys, so nothing existing changes.
-Verdict decides: object if either is wrong-headed. Otherwise no action —
-both are additive and A/B-verified bit-exact (327/327 identical across the
-renderable affected patches), with linearity proved separately by
-tools/test_noise_amplitude.py.
-
-### 4. Expand round 4 — deep recursion [listen] (run 18)
-renders/expand_sweep4/ (18 cells, recurse 3-4, first time past depth 2).
-Novelty top: flat_deep, supersonic_r4, inflate_r3, semitone_r3, pi_r4.
-Rule-breakers: pi_r4 (irrational spacing, never repeats), supersonic_r4
-(most of the cloud above Nyquist by construction), phase_scram_r4,
-absurd_6250. NOTE: flat_deep and supersonic_r4 render at peak 0.99 —
-they are at the ceiling, so judge tone not level.
-Verdict decides: (a) any keepers; (b) whether depth is worth more rounds
-— my measurement says NO, it is second-order (holding partial count and
-spread fixed, halving depth moves the embedding 4.36 vs a batch median
-pair of 18.98; loPct moves it 50.46). If you agree, item 5 closes and
-the expand front retires to "available, not a research direction".
-
-### 5. `power` is inert at count=1 [read] (run 18)
-apply_expand_rule tapers side partials by pow(t, power), t = j/count. At
-count=1, t is always 0 and pow(0,p)=0, so power does nothing and every
-side partial sits on the loPct floor. Found because peaked_deep rendered
-BYTE-IDENTICAL to micro_r3. Proven live by taper_flat_c2/taper_steep_c2
-(identical but for power, at count=2, and they differ).
-Verdict decides: leave it (defensible — one side partial IS at the end of
-the taper, and it is documented now), or renormalise t so count=1 is not
-degenerate (e.g. t=(j+1)/(count+1)). The second changes how every existing
-expand patch sounds. Engine work either way — backlog 12.
-
-### 6. Piano shimmer dims — NOT lockable [read] (run 18)
-research/ml_ears/piano_beating.py + out/piano_beating.json. I could not
-measure unison beat RATE reliably: raising the analysis floor 0.50 ->
-0.75 -> 1.12 Hz makes 9 of 11 rates climb with it (artifact); only C5/C6
-hold, at ~1.9-2.0 Hz. What IS solid: single-strung B0/C1 modulate at
-0.016-0.029 vs 0.106-0.285 multi-strung — a real 5-9x depth contrast,
-magnitude order 0.1-0.2.
-Verdict decides: I plan to leave shimmerHz + shimmerCoherence SEARCHABLE
-in the piano encoder and seed shimmerDepth near 0.15 rather than lock it.
-Say if you'd rather I spend a third attempt on the direct spectral-split
-method (backlog 13) before the encoder instead.
-
-### 10. CombinedSource `operation: 3` — what was ordinal 3? [read, one word] (run 19)
-patches/CombineTest.json sets `"operation": 3` as a C# enum ordinal. The
-current CombineOp has only Add/Multiply/Fade (0/1/2), so the patch cannot
-load. I did NOT default it to Add — silently substituting an operation the
-author didn't ask for is the exact failure mode this whole run was pulling
-out of the loader — so it now fails with a named error instead.
-Verdict decides: what ordinal 3 meant in the legacy C# enum. If it is an op
-we no longer have, say so and I will delete or rewrite the patch; if it maps
-to an existing one, I will fix the patch. This is the last of the 7
-unrenderable patches; the other 6 render as of commit 6fc128b.
-
-### 1. Vowel grid [listen/look] (run 17)
-patches/vowel_grid/ + renders/vowel_grid/ — your Speech_M/W/C x 12 +
-Sing_Bass..Soprano x 5 folder, 56/56 verified (rendered envelope ==
-patch spec exactly). README lists 11 physics-limited entries incl. the
-soprano problem (F1 < f0: real sopranos retune F1 to the note — a
-future feature if wanted). Verdict: spot-check by ear; is F1-retuning
-worth building; naming scheme OK?
-
-### 2. Piano analysis report [read] (run 17)
-research/ml_ears/out/piano_analysis_report.md — measured: inharmonicity
-V-curve (C6's 12th partial +422 cents sharp!), universal double decay,
-hammer knock = real broadband transient. TWO new engine features
-proposed (per-note inharmonicity config riding the freq-curve mechanism;
-per-partial decay rates) with B+decay LOCKED from measurement per your
-clarinet-bed pattern. Verdict: approve the two features -> piano encoder
-+ first optimization.
-
-### 3. Shimmer floor answer [read, closed unless you object]
-Floor 0.8 keeps 83% of measured fluctuation (0.326->0.270) — the floor
-trims the deep dives, not the shimmer. Adopted in viola_default +
-cmaes-best. Depth compensation impossible (at cap).
+MATT: Sounds fine, PM being roughly equivalent to FM, doing both just sounds
+like 2-level FM. But... a potentially interesting find. t3_23_patchfixed.WAV
+has some clicks whose speed of recurrence seems to vary roughly with the
+modulation. Can you try to determine where these are coming from? You can guess
+my reason... if the density of the clicks can be controlled, it could be
+enveloped as yet another stab at the "noisy attack" grail.
 
 ## Resolved
+
+2026-08-04 pm (Matt, folded in run 20): FM PM "2-level FM, fine" but t3_23
+clicks -> investigated (item 14: velvet-phase mechanism, controllable,
+PoCs). Wander cells: niche, no action. Engine gaps (noise amplitude, adsr
+jitter): no objection. Expand depth: agreed second-order -> front RETIRED;
+power-at-count-1 question answered in item 11 (recommend leave-it).
+Piano shimmer plan (searchable dims, depth seeded 0.15): proceeded, no
+objection raised. CombineTest op 3 -> Add per Matt (renders, peak 0.55).
+Vowel grid naming fine; F1-retuning explained in item 12. Piano first pass
+APPROVED -> executed (item 13). Shimmer floor: closed, no objection.
 
 2026-08-02 pm (Matt, folded in run 17): rng A/B fine; floor 0.8 (his
 hand-tune, measured safe); x8 = width default; FM held; clarinet
