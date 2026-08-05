@@ -156,10 +156,22 @@ private:
   std::shared_ptr<ValueSource> po1_, po2_;
 };
 
-// Motion-layer config descriptor entries shared by Partials and its
-// subclasses. Subclasses override config_descriptors() wholesale (each list
-// re-declares the base entries — established pattern), so the motion block
-// is spliced into every list via this macro to keep them in sync.
+// Shared config descriptor entries (motion layer + per-partial decay +
+// inharmonicity) for Partials and its subclasses. Subclasses override
+// config_descriptors() wholesale (each list re-declares the base entries —
+// established pattern), so this block is spliced into every list via this
+// macro to keep them in sync.
+//
+// decayRate/decayExp — per-partial exponential decay law (piano):
+//   rate_i = decayRate * pmult_i^decayExp   [dB/s]
+// i.e. decayRate is the decay rate in dB PER SECOND of a partial at
+// pmult == 1 (the fundamental), and decayExp tilts the law across the
+// spectrum (measured piano within-note exponent ~0.6: high partials die
+// faster). Default 0 = feature off (no per-sample multiply).
+//
+// inharmonicity — stiff-string stretch coefficient B: at prepare/note-on the
+// effective multiplier becomes m*sqrt(1 + B*m^2). Per-note B arrives via a
+// paramMap frequency->curve config entry. Default 0 = off (bit-exact).
 #define MFORCE_PARTIALS_MOTION_CONFIG_DESCS \
       {"motionDepth1",     ConfigType::Float, 0.0f,  0.0f,  400.0f}, \
       {"motionDepth2",     ConfigType::Float, 0.0f,  0.0f,  400.0f}, \
@@ -177,7 +189,10 @@ private:
       {"tradeHz",          ConfigType::Float, 2.0f,  0.01f, 50.0f},  \
       {"onsetSpread",      ConfigType::Float, 0.0f,  0.0f,  2.0f},   \
       {"onsetTilt",        ConfigType::Float, 0.0f, -1.0f,  1.0f},   \
-      {"onsetFade",        ConfigType::Float, 0.03f, 0.001f, 1.0f},
+      {"onsetFade",        ConfigType::Float, 0.03f, 0.001f, 1.0f},  \
+      {"decayRate",        ConfigType::Float, 0.0f,  0.0f,  400.0f}, \
+      {"decayExp",         ConfigType::Float, 0.0f, -2.0f,  4.0f},   \
+      {"inharmonicity",    ConfigType::Float, 0.0f,  0.0f,  0.1f},
 
 // ---------------------------------------------------------------------------
 // IPartials — interface for partial rendering engines.
@@ -349,6 +364,9 @@ struct Partials : ValueSource, IPartials {
     if (name == "onsetSpread")      { onsetSpread_ = value; return; }
     if (name == "onsetTilt")        { onsetTilt_ = value; return; }
     if (name == "onsetFade")        { onsetFade_ = value; return; }
+    if (name == "decayRate")        { decayRate_ = value; return; }
+    if (name == "decayExp")         { decayExp_ = value; return; }
+    if (name == "inharmonicity")    { inharmB_ = value; return; }
   }
 
   float get_config(std::string_view name) const override {
@@ -376,6 +394,9 @@ struct Partials : ValueSource, IPartials {
     if (name == "onsetSpread")      return onsetSpread_;
     if (name == "onsetTilt")        return onsetTilt_;
     if (name == "onsetFade")        return onsetFade_;
+    if (name == "decayRate")        return decayRate_;
+    if (name == "decayExp")         return decayExp_;
+    if (name == "inharmonicity")    return inharmB_;
     return 0.0f;
   }
 
@@ -445,6 +466,16 @@ struct Partials : ValueSource, IPartials {
     rolloffCache_.assign(n, 1.0f);
     moScaleCache_.assign(n, 1.0f);
     partialCacheValid_ = false;
+
+    // Per-partial decay: running gain state, reset to unity at note-on.
+    // decayGain_ (the per-sample factor) is filled by ensure_partial_cache
+    // alongside pmultCache_ — it depends on the effective (possibly
+    // inharmonicity-stretched) multiplier. Sized here; render never allocates.
+    decayActive_ = (decayRate_ != 0.0f);
+    if (decayActive_) {
+      decayGain_.assign(n, 1.0f);
+      decayState_.assign(n, 1.0f);
+    }
 
     // Per-partial bandwidth-noise state. Each partial gets an INDEPENDENT
     // smoothed random walk (decorrelated start phase + targets) so the bands
@@ -554,6 +585,14 @@ struct Partials : ValueSource, IPartials {
     if (tradeActive_) {
       for (size_t i = 0; i < trWalks_.size(); ++i)
         trVals_[i] = walk_advance(trWalks_[i], trLen_, 0.0f, trRng_);
+    }
+    if (decayActive_) {
+      // Advance each partial's running decay gain by its per-sample factor.
+      // ensure_partial_cache first: decayGain_ is derived there from the
+      // effective multiplier (cheap no-op once the cache is valid).
+      ensure_partial_cache();
+      const size_t n = decayState_.size();
+      for (size_t i = 0; i < n; ++i) decayState_[i] *= decayGain_[i];
     }
   }
 
@@ -692,6 +731,10 @@ private:
         (ampl1_[index] + (ampl2_[index] - ampl1_[index]) * sAmplE_) *
         rolloff * fmtFactor * fade;
 
+    // Per-partial exponential decay (piano): one multiply by the running
+    // gain advanced in partials_next(). Inert at decayRate == 0.
+    if (decayActive_) pampl *= decayState_[index];
+
     // Bandwidth enhancement (Loris / SMS): trade part of this partial's
     // sinusoidal energy for a noise band by amplitude-modulating it with an
     // independent per-partial smoothed noise. Energy-preserving mix:
@@ -778,11 +821,25 @@ private:
     const int n = int(mult1_.size());
     const float ro = ro1_ + (ro2_ - ro1_) * sRoE_;
     const bool scale = (moScale_ != 0.0f);
+    const bool inharm = (inharmB_ != 0.0f);
     for (int i = 0; i < n; ++i) {
       float pmult = mult1_[i] + (mult2_[i] - mult1_[i]) * sMultE_;
+      // Stiff-string stretch: m -> m*sqrt(1 + B*m^2). Applied to the
+      // effective multiplier so frequency, rolloff and the decay law all see
+      // the stretched partial. Branch keeps B == 0 bit-exact.
+      if (inharm) pmult *= std::sqrt(1.0f + inharmB_ * pmult * pmult);
       pmultCache_[i]   = pmult;
       rolloffCache_[i] = (ro == 0.0f) ? 1.0f : (1.0f / std::pow(pmult, ro));
       if (scale) moScaleCache_[i] = std::pow(pmult, moScale_);
+      if (decayActive_) {
+        // rate_i = decayRate * pmult^decayExp dB/s -> per-sample amplitude
+        // factor 10^(-rate_i / (20*sr)). Double intermediates: the factor is
+        // within ~1e-7 of 1, where float pow quantisation would bias the
+        // long-run decay audibly.
+        const double rate = double(decayRate_) *
+                            std::pow(double(pmult), double(decayExp_));
+        decayGain_[i] = float(std::pow(10.0, -rate / (20.0 * double(rate_))));
+      }
     }
     cachedMultE_ = sMultE_;
     cachedRoE_   = sRoE_;
@@ -956,9 +1013,16 @@ protected:
   float trDepth_{0.0f}, trHz_{2.0f};
   float onsetSpread_{0.0f}, onsetTilt_{0.0f}, onsetFade_{0.03f};
 
+  // Per-partial decay + inharmonicity configs (piano; defaults inert)
+  float decayRate_{0.0f};   // dB/s at pmult == 1
+  float decayExp_{0.0f};    // rate_i = decayRate * pmult_i^decayExp
+  float inharmB_{0.0f};     // stiff-string B: m -> m*sqrt(1 + B*m^2)
+
   // Motion layer runtime state (allocated in partials_prepare)
   bool motionActive_{false}, shimmerActive_{false};
   bool tradeActive_{false}, onsetActive_{false};
+  bool decayActive_{false};
+  std::vector<float> decayGain_, decayState_;  // per-sample factor / running gain
   int moLen_{1}, shLen_{1}, trLen_{1};
   MotionWalk moShared_, shShared_;
   std::vector<MotionWalk> moWalks_, shWalks_, trWalks_;
