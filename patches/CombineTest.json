@@ -1,0 +1,112 @@
+{
+  "graph": {
+    "nodes": [
+      {
+        "id": "env1",
+        "params": {
+          "attack": 0.4000000059604645,
+          "decay": 0.10000000149011612,
+          "preset": "adsr",
+          "release": 0.10000000149011612,
+          "sustainLevel": 0.699999988079071
+        },
+        "type": "Envelope"
+      },
+      {
+        "id": "Sine1",
+        "params": {
+          "amplitude": {
+            "ref": "env1"
+          },
+          "frequency": 440.0,
+          "phase": 0.0
+        },
+        "type": "SineSource"
+      },
+      {
+        "id": "ADSREnvelope1",
+        "params": {
+          "attack": 0.20000000298023224,
+          "decay": 0.10000000149011612,
+          "release": 0.30000001192092896,
+          "sustainLevel": 0.20000000298023224
+        },
+        "type": "ADSREnvelope"
+      },
+      {
+        "id": "Saw1",
+        "params": {
+          "amplitude": {
+            "ref": "ADSREnvelope1"
+          },
+          "frequency": 440.0,
+          "phase": 0.0
+        },
+        "type": "SawSource"
+      },
+      {
+        "id": "Combined1",
+        "params": {
+          "gainAdj": 0.5,
+          "operation": 0,
+          "source1": {
+            "ref": "Sine1"
+          },
+          "source2": {
+            "ref": "Saw1"
+          }
+        },
+        "type": "CombinedSource"
+      }
+    ],
+    "output": "Combined1"
+  },
+  "instrument": {
+    "paramMap": {
+      "frequency": "Sine1.frequency"
+    },
+    "polyphony": 4
+  },
+  "sampleRate": 48000,
+  "score": [
+    {
+      "duration": 2.0,
+      "note": 60,
+      "time": 0.0,
+      "velocity": 0.800000011920929
+    }
+  ],
+  "seconds": 3.0,
+  "ui": {
+    "positions": {
+      "ADSREnvelope1": [
+        -34.0,
+        -134.0
+      ],
+      "Combined1": [
+        501.0,
+        -43.0
+      ],
+      "Saw1": [
+        255.0,
+        -35.0
+      ],
+      "Sine1": [
+        243.0,
+        -216.0
+      ],
+      "__output": [
+        694.0,
+        -141.0
+      ],
+      "__param_frequency": [
+        -22.0,
+        5.0
+      ],
+      "env1": [
+        -11.0,
+        -246.0
+      ]
+    }
+  }
+}
