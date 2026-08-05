@@ -829,7 +829,26 @@ def _repeat_xform(fig, rng):
     return out, op
 
 
+# Probability that the v4 "calib" final-note rule makes the last note EQUAL
+# the phrase's longest (backlog #16). Matt's standing verdict wants the final
+# note to be the longest much more often than the corpus does (MTD 0.354), so
+# this is deliberately above the corpus rate; the MAGNITUDE, unlike v3, is
+# bounded by the phrase's own longest note. Measured effect at n=200
+# (final_rule_sweep.py): 0.6 -> ratio p50 2.50 / longest 0.630.
+CALIB_LONGEST_P = 0.6
+
 _FINAL_PROFILE = None
+
+
+def _hist_pct(hist, q):
+    """Percentile of a {ratio: count} histogram (final_note_profile.json)."""
+    if not hist:
+        return float("inf")
+    vals = []
+    for k, w in hist.items():
+        vals.extend([float(k)] * int(w))
+    vals.sort()
+    return vals[min(len(vals) - 1, int(q * len(vals)))]
 
 
 def _final_profile(corpus="mtd"):
@@ -985,6 +1004,7 @@ def build_phrase_v3(figA, figB, pattern, transform, contour, model, rng,
     rest = durs[:-1] or durs                 # corpus convention: exclude final
     med = _stats.median(rest)
     last = occ_figs[-1]["units"][-1]
+    orig_final = last["duration"]
     final_ext = False
     # Own rng stream: the ratio draw must not shift the main stream, or the
     # A/B against markov_phrases3 (same seed, old rule) stops being
@@ -1007,17 +1027,21 @@ def build_phrase_v3(figA, figB, pattern, transform, contour, model, rng,
                 if target > last["duration"] + 1e-9:
                     last["duration"] = float(round(target, 6))
                     final_ext = True
-        else:
+        elif final_rule == "longest":
             # verdict 3 v3 — Matt (markov_phrases3/run 15): "These are good.
             # Still need more weighting of final note being longer/longEST
             # duration." The corpus draw put the final at the corpus median
-            # (~2x pulse) but rarely made it the phrase MAXIMUM. New weighting:
+            # (~2x pulse) but rarely made it the phrase MAXIMUM. Weighting:
             #   p=0.6  final becomes the LONGEST note of the phrase
             #          (max of all other durations * U[1.1, 1.6])
             #   p=0.3  final at least 1.5x the median pulse
             #   p=0.1  left as drawn (variety)
-            # Extensions are ceiled onto the 0.25-beat pulse grid, and the
-            # final note is only ever EXTENDED, never shortened.
+            # Superseded as the default by "calib" (backlog #16) — the
+            # max*U[1.1,1.6] anchor compounds: a generated phrase's own
+            # longest note is already median 2.1x / p95 8x the median pulse
+            # (final_rule_sweep.py, n=200), so multiplying it again lands the
+            # batch at ratio p50 3.0 / p95 11.0 / max 29 against a corpus of
+            # 2.0 / 6.0. Kept renderable as the A/B arm.
             roll = frng.random()
             target = None
             if roll < 0.6:
@@ -1029,14 +1053,72 @@ def build_phrase_v3(figA, figB, pattern, transform, contour, model, rng,
                 if snapped > last["duration"] + 1e-9:
                     last["duration"] = float(round(snapped, 6))
                     final_ext = True
+        else:
+            # v4 "calib" — backlog #16. v3 kept Matt's verdict (the final note
+            # should usually be the phrase's longest) but paid for it with a
+            # magnitude the corpus never shows. The fix separates the two:
+            #   FREQUENCY of final-is-longest is preserved (same 0.6 branch),
+            #   MAGNITUDE is bounded by the phrase's OWN longest note instead
+            #   of a multiplier on top of it. The rule can no longer invent a
+            #   duration longer than something already heard in the phrase.
+            #   p=0.6  final EQUALS the longest note of the phrase
+            #   p=0.3  ratio drawn from the corpus histogram, restricted to
+            #          >= 1.5x median (corpus-shaped, not a fixed 1.5)
+            #   p=0.1  left as drawn (variety)
+            # Extend-only + 0.25 snap + grid completion as in v3.
+            roll = frng.random()
+            target = None
+            if roll < CALIB_LONGEST_P:
+                target = max(rest)
+            elif roll < CALIB_LONGEST_P + 0.3:
+                # Restricted to [1.5, corpus p95]: the rule may never INVENT an
+                # ending past the corpus 95th percentile. (Branch A can still
+                # exceed it — but only by matching a long note the phrase
+                # already contains, which is inherited, not invented. Measured:
+                # the unrestricted draw put p22 of the 24-batch at 7.6x from a
+                # single rare 7.385 bin.)
+                prof = _final_profile(corpus)
+                hist = (prof or {}).get("hist") or {}
+                hi = _hist_pct(hist, 0.95)
+                qual = [(float(k), w) for k, w in hist.items()
+                        if 1.5 - 1e-9 <= float(k) <= hi + 1e-9]
+                if qual:
+                    ks, ws = zip(*qual)
+                    target = med * float(frng.choices(ks, weights=ws, k=1)[0])
+                else:
+                    target = 1.5 * med
+            if target is not None:
+                snapped = _math.ceil(target / 0.25 - 1e-9) * 0.25
+                if snapped > last["duration"] + 1e-9:
+                    last["duration"] = float(round(snapped, 6))
+                    final_ext = True
+        pre_grid = last["duration"]
         total = round(sum(total_beats(f) for f in occ_figs), 6)
         if abs(total / grid - round(total / grid)) > 1e-3:
-            pad = _math.ceil(total / grid - 1e-6) * grid - total
+            if final_rule == "calib":
+                # Backlog #16, the real overshoot mechanism. v3 always CEILED
+                # the phrase total onto the next barline, so grid completion
+                # added a uniform [0, 1) beats ON TOP of whatever the ratio
+                # draw asked for — measured at p50 +0.25 beats, which moved the
+                # batch ratio p50 from 2.00 (the corpus median, i.e. the draw
+                # was already right) to 3.00. Rounding to the NEAREST landing
+                # instead lets the grid absorb part of the drawn extension as
+                # often as it adds to it. Floored so the final note is never
+                # shortened below what it had before the rule ran.
+                floor_total = round(total - last["duration"] + orig_final, 6)
+                cand = round(total / grid) * grid
+                if cand < floor_total - 1e-9:
+                    cand = _math.ceil(floor_total / grid - 1e-6) * grid
+                pad = cand - total
+            else:
+                pad = _math.ceil(total / grid - 1e-6) * grid - total
             last["duration"] = float(round(last["duration"] + pad, 6))
-            final_ext = True
+            final_ext = final_ext or abs(pad) > 1e-9
+        grid_pad = round(last["duration"] - pre_grid, 6)
 
     motif_list = [(f"F{i}", occ_figs[i]) for i in range(len(occ_figs))]
     info = {"joins": joins, "final_ext": final_ext, "median_pulse": med,
+            "grid_pad": locals().get("grid_pad", 0.0),
             "final_ratio": last["duration"] / med if med > 0 else 0.0,
             "ops": ops, "repeat_ops": repeat_ops}
     return motif_list, refs, connectors, info
@@ -1127,9 +1209,15 @@ def main_v3():
                          "renders/corpus_flavors/<corpus>/.")
     ap.add_argument("--outdir", default=None,
                     help="override the render directory (repo-relative)")
-    ap.add_argument("--final-rule", default="longest",
-                    choices=["longest", "corpus", "old"], dest="final_rule",
-                    help="final-note treatment: 'longest' (v3, default) makes "
+    ap.add_argument("--final-rule", default="calib",
+                    choices=["calib", "longest", "corpus", "old"],
+                    dest="final_rule",
+                    help="final-note treatment: 'calib' (v4, default) makes "
+                         "the final note EQUAL the phrase's longest note with "
+                         "p=0.6, a corpus-histogram ratio >=1.5x median with "
+                         "p=0.3, as-drawn p=0.1 — same longest-frequency as "
+                         "v3 with the magnitude bounded by the phrase itself; "
+                         "'longest' (v3) makes "
                          "the final note the phrase maximum with p=0.6, "
                          ">=1.5x median with p=0.3, as-drawn p=0.1; 'corpus' "
                          "draws the ratio from final_note_profile.json; 'old' "
