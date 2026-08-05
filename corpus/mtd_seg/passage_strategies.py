@@ -600,9 +600,22 @@ def _pedal_progression(chosen, durs, cad_beats):
     spells Ab-Eb-F# (root, fifth, augmented sixth, no third)."""
     prog = [{"degree": d, "quality": TRIAD_QUALITY[d % 7], "beats": durs[i]}
             for i, d in enumerate(chosen)]
+    # The cadence chords PIN their voicing (Matt, run-15 audition of the
+    # smooth A/B): "The German 6th to tonic (6/4) arrival needs to be
+    # root-position bVI7 > 2nd inversion tonic, so in C major bottom notes of
+    # chord move Ab > G, top note Gb > G." A motion-minimizer cannot be
+    # trusted with that seam — the voicing IS the chord's cadential identity.
+    #   Ger6 pin: inversion 0 -> Ab C Eb Gb (bass Ab, top Gb already).
+    #   I(6/4) pin: inversion 2 -> bass G; topTone 2 doubles the G on top.
+    # Octave 3 pins the cadence into the register the smooth selector had
+    # already drifted the diatonic chords to (the register Matt auditioned) —
+    # at the default octave 4 the whole Ger6 lurches up an octave instead of
+    # arriving by semitone.
     prog += [
-        {"degree": 5, "alteration": -1, "quality": "7", "beats": cad_beats[0]},
-        {"degree": 0, "quality": "Major", "beats": cad_beats[1]},
+        {"degree": 5, "alteration": -1, "quality": "7", "beats": cad_beats[0],
+         "pin": {"inversion": 0, "octave": 3}},
+        {"degree": 0, "quality": "Major", "beats": cad_beats[1],
+         "pin": {"inversion": 2, "topTone": 2, "octave": 3}},
         {"degree": 4, "quality": "7", "beats": cad_beats[2]},
         {"degree": 0, "quality": "Major", "beats": cad_beats[3]},
     ]
@@ -900,6 +913,81 @@ def pedal_modulating(model, rng, bpm=92.0, seed=1, ring=None, selector="smooth")
 
 
 # --------------------------------------------------------------------------- #
+# strategy 8b — Bruckner pedal v2 (Matt's run-15 verdict on the v1 renders)
+# --------------------------------------------------------------------------- #
+# Matt: pedal_mod_minor3rds was the best of v1, with one structural bug (his
+# point d): under the Ger6 the G pedal was CHANGED to a C pedal, which made
+# the final C arrive non-inverted. Wrong. v2: the G pedal stays G under the
+# Ger6 (maximum dissonance), under the C(6/4), and under the plain G triad —
+# the bass moves to C ONLY on the final chord. And NO G7/V7 anywhere ("that
+# just weakens the arrival"): the dominant before the final tonic is a plain
+# G triad.
+#
+# Both takes walk the same 10 chords over the pedal; they differ only in the
+# pre-dominant: German sixth (bVI7 = Ab-C-Eb-Gb) vs Neapolitan (bVI major =
+# Ab-C-Eb). Chords are authored absolutely — the quality carries the
+# chromatics (A7's C#, Bm's F#, Bdim7's Ab) — so the whole progression lives
+# in C major with no keyContexts: nothing can drift, and the pedal needs no
+# scaleOverride to stay put. The two cadence chords pin their voicing (the
+# run-15 smooth caveat): root-position bVI, then bass-G tonic with the G
+# doubled on top.
+BRUCKNER2_CADENCE = {
+    "ger6": {"degree": 5, "alteration": -1, "quality": "7"},
+    "neap": {"degree": 5, "alteration": -1, "quality": "Major"},
+}
+
+
+def bruckner2(model, rng, bpm=92.0, seed=1, cadence="ger6", per_chord=4.0):
+    """G > Em > A7 > D > Bm > Bdim7 > {Ger6|Neapolitan} > C(6/4) > G > C,
+    all over a G pedal that releases to C only on the final chord. Fully
+    authored — model and rng are unused, kept for registry parity."""
+    pre = dict(BRUCKNER2_CADENCE[cadence], pin={"inversion": 0})
+    stations = [
+        ({"degree": 4, "quality": "Major"}, "V"),
+        ({"degree": 2, "quality": "m"}, "iii"),
+        ({"degree": 5, "quality": "7"}, "VI7"),
+        ({"degree": 1, "quality": "Major"}, "II"),
+        ({"degree": 6, "quality": "m"}, "vii-m"),
+        ({"degree": 6, "quality": "dim7"}, "viio7"),
+        (pre, "Ger6" if cadence == "ger6" else "bVI(N)"),
+        ({"degree": 0, "quality": "Major",
+          "pin": {"inversion": 2, "topTone": 2}}, "I(6/4)"),
+        ({"degree": 4, "quality": "Major"}, "V"),      # plain triad, NO 7th
+        ({"degree": 0, "quality": "Major"}, "I"),
+    ]
+    final_beats = 2.0 * per_chord                      # the arrival broadens
+    prog = [dict(c, beats=final_beats if i == len(stations) - 1 else per_chord)
+            for i, (c, _lab) in enumerate(stations)]
+    total = per_chord * (len(stations) - 1) + final_beats
+
+    # The pedal holds G3 under every chord including the G triad; connector
+    # -4 drops it a fifth to C3 exactly at the final chord's downbeat.
+    reps = len(stations) - 1
+    motifs = {"PED": {"units": [{"duration": per_chord, "step": 0}]},
+              "PEDRES": {"units": [{"duration": final_beats, "step": 0}]}}
+    t = {"keyName": "C", "scaleName": "Major", "bpm": bpm, "masterSeed": seed,
+         "motifs": [{"name": n, "figure": f, "userProvided": True}
+                    for n, f in motifs.items()],
+         "sections": [{"name": "Main", "beats": total}],
+         "parts": [
+             {"name": "pedal", "role": "bass",
+              "passages": {"Main": {
+                  "startingPitch": {"octave": 3, "pitch": "G"},
+                  "phrases": [phrase("PED", ["PED"] * reps + ["PEDRES"],
+                                     [None] + [0] * (reps - 1) + [-4],
+                                     octave=3, pitch="G")]}}},
+             {"name": "chords", "role": "harmony",
+              "passages": {"Main": {"chordConfig": {"octave": 4},
+                                    "voicingSelector": "smooth",
+                                    "chordProgression": prog}}},
+         ]}
+    return t, {"strategy": f"bruckner2_{cadence}",
+               "n_entries": len(stations),
+               "progression": "-".join(lab for _c, lab in stations),
+               "per_chord": per_chord, "beats": total}
+
+
+# --------------------------------------------------------------------------- #
 # strategy 8 — modulating wandering (Matt's run-12 cliche, unblocked by stage 3)
 # --------------------------------------------------------------------------- #
 # Matt: "sweet major theme -> sudden diminished/minor turn -> wander minor and
@@ -1119,20 +1207,24 @@ def _build_wandering_modulating(model, rng, plan, figs_per_stop):
 
 STRATEGIES = {
     "pedal_buildup": pedal_buildup,
-    "pedal_chords": pedal_chords,
-    "pedal_chords_only":
-        lambda m, r, **kw: pedal_chords(m, r, melody=False, **kw),
-    # Same chords, same seed, same everything — spelled by the engine's
-    # voicing tier instead of by hand (comp run 15). A/B against pedal_chords.
-    "pedal_chords_voiced":
-        lambda m, r, **kw: pedal_chords(m, r, voiced=True, **kw),
-    "pedal_chords_smooth":
+    # Matt's verdict on the run-15 A/B (hand vs voiced vs smooth): "Smooth is
+    # best" — so pedal_chords now IS the engine-voiced smooth path, with the
+    # Ger6 -> I(6/4) seam pinned (see _pedal_progression). The hand-voiced
+    # path stays reachable as pedal_chords_hand for archaeology.
+    "pedal_chords":
         lambda m, r, **kw: pedal_chords(m, r, voiced=True, selector="smooth",
                                         **kw),
+    "pedal_chords_hand": pedal_chords,
+    "pedal_chords_only":
+        lambda m, r, **kw: pedal_chords(m, r, melody=False, **kw),
     "modulating_fifths": modulating_fifths,
     "pedal_modulating": pedal_modulating,
     "pedal_mod_minor3rds":
         lambda m, r, **kw: pedal_modulating(m, r, ring="minor3rds", **kw),
+    "bruckner2_ger6":
+        lambda m, r, **kw: bruckner2(m, r, cadence="ger6", **kw),
+    "bruckner2_neap":
+        lambda m, r, **kw: bruckner2(m, r, cadence="neap", **kw),
     "modulating_fifths_up":
         lambda m, r, **kw: modulating_fifths(m, r, direction=True, **kw),
     "modulating_fifths_down":

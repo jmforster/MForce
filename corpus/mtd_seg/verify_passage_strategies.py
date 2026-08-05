@@ -314,8 +314,11 @@ CHECKERS = [
      lambda t, ev: check_arpeggio(part_notes(ev, index=0), t)),
     ("pedal_buildup",
      lambda t, ev: check_pedal_buildup(part_notes(ev, index=0))),
+    # pedal_chords now routes through the engine-voiced harmony path (run 16);
+    # its structural checks (pedal hold, Ger6->I64 seam, peaks) live in
+    # render_bruckner2.py. The voice0/1/2 checks below describe the hand path.
     ("pedal_chords_only", lambda t, ev: check_pedal_chords(ev, False)),
-    ("pedal_chords", lambda t, ev: check_pedal_chords(ev, True)),
+    ("pedal_chords_hand", lambda t, ev: check_pedal_chords(ev, True)),
     ("wandering_mod", lambda t, ev: check_modulating(t, ev)),
     ("modulating_fifths", lambda t, ev: check_modulating(t, ev)),
 ]
