@@ -2,6 +2,33 @@
 
 ## Awaiting Matt
 
+### 13. Phrase endings, recalibrated [listen] (run 17)
+`renders/markov_phrases6/` (new default `calib`) vs
+`renders/markov_phrases6/longest/` (the v3 rule you called "fine for now").
+Same seed, same 24 phrases, **only the last note differs** (README inside).
+You said fine; the measurement said the rule was running at ratio p50 3.0 /
+p95 11.0 against a corpus of 2.0 / 6.0. It turned out the DRAW was already
+right — grid completion was ceiling every phrase onto the next barline and
+adding a further quarter-beat at the median. v4 keeps the final note as the
+phrase's longest just as often in spirit (0.62 vs 0.785 measured, corpus
+0.354) but it can no longer invent a length the phrase never contained.
+Verdict decides: does the shorter ending still land, or did v3's extra length
+carry something? `--final-rule longest` restores v3 exactly.
+
+### 14. Passage-mode scoring — two semantics questions [read] (run 17)
+`renders/passage_scores/` (74 passages scored, README explains the screen).
+The screen itself is verified mechanically — I am not asking you to bless the
+numbers. Two things it cannot decide on its own:
+(a) A **descending** sequence scores 0.49–0.51 because the tension criterion
+asks "does this build". True, but a descending sequence into a cadence is a
+legitimate passage. Should a passage declare its INTENT (build / relax /
+static) and be scored against that intent instead of against "build"?
+(b) `pedal_buildup` is 8/8 "does not land on the tonic" — it ends on its
+dominant pedal, which is arguably exactly right. Should the arrival term know
+what the passage was aiming at rather than always meaning the piece tonic?
+Verdict decides whether passage mode grows a passage-type parameter, or stays
+one fixed set of criteria that some passage types will always score low on.
+
 ### 9. Bruckner v2 — your two progressions, pedal fixed [listen] (run 16)
 `renders/passage_bruckner2/` — `bruckner2_ger6_0/1`, `bruckner2_neap_0/1`.
 Your run-15 spec exactly: G Em A7 D Bm Bdim7 -> Ger6 (or Neapolitan Ab) ->

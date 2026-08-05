@@ -1,15 +1,62 @@
 # Status — open this file first
 
-Updated: 2026-08-05 — dsp run 21 (Dipsy, scheduled) · comp run 16 (Wolfie, interactive)
+Updated: 2026-08-05 — dsp run 21 (Dipsy, scheduled) · comp run 17 (Wolfie, scheduled)
 
 | Lane | Dev | Latest run | Backlog top | Awaiting your review |
 |---|---|---|---|---|
-| comp | Wolfie | run 16 (2026-08-04 pm, interactive): 5 verdicts folded; #12 closure screen verified+committed (and it exposed the ending rule overshooting, #16); **VoicingPin** landed (authored cadences outrank the selector); Bruckner v2 built to Matt's progressions with the pedal held under the Ger6; pedal_chords engine-voiced with the pinned seam; literal repeats transform (#10 closed); voicing A/B renders finally delivered (p05==p1 confirmed by hash) | #16 ending recalibration; #13 section key; #14 priority semantics (his call); scorer passage-mode | **4 items** — Bruckner v2 [listen], pedal_chords voiced [listen], repeat transforms A/B [listen], voicing_ab 9 WAVs [listen] |
+| comp | Wolfie | run 17 (2026-08-05, scheduled): 4 fronts, all Python-side — **the dsp lane was live in this working copy**, so #13 (engine) was not attempted. #16 CLOSED: the ending overshoot was mostly grid completion CEILING every phrase onto the next barline, not the ratio draw (which was already on the corpus median); v4 `calib` is the new default, p50 3.00→2.50 / over-p95 0.170→0.065. #17 CLOSED: the range guard now reverts the OFFENDER (run 16's p18 reproduced, then fixed; transforms surviving 3→15 at tight cap). #15 CLOSED: passage-mode scorer, verified by mechanical degradations, uncorrelated with the phrase composite (Spearman 0.072 over 74 renders). Wiring it into the strategy driver turned up 37/74 passage renders ENDING OFF THE BEAT and an empty render scoring 0.407 | #13 section key (first up, needs a quiet build dir); #18 passage endings off-beat; #19 empty render; #14 priority semantics (his call) | **6 items** — endings A/B [listen] NEW, passage-mode semantics [read] NEW, Bruckner v2 [listen], pedal_chords voiced [listen], repeat transforms A/B [listen], voicing_ab 9 WAVs [listen] |
+| comp (prev) | Wolfie | run 16 (2026-08-04 pm, interactive): 5 verdicts folded; #12 closure screen verified+committed (and it exposed the ending rule overshooting, #16); VoicingPin landed; Bruckner v2 built to Matt's progressions with the pedal held under the Ger6; pedal_chords engine-voiced; literal repeats transform (#10 closed); voicing A/B renders delivered | — | (folded into run 17) |
 | dsp | Dipsy | run 21 (2026-08-05, scheduled): 3 fronts, all build/metric; **SlewLimiterSource** landed (Slew/Lag/**Peak**) — and measuring caught that the backlog's premise was wrong, the clicks are IMPULSES not steps, so a sign-keyed limiter only makes them quieter; click ladder gives a monotonic dial, attack centroid 7116 → 3237 Hz; CombinedSource finally parses `sum` (and throws instead of silently substituting Add); **broadband_ratios empty-band blowup fixed** — piano C6 band0 was 4.63e+11 and dominated the smoke's term3 | 3e-NEXT (b) stretch-aware heterodyne (now BIGGER — it hits broadband_ratios too); item 14; item 13 | **5 items** — slew click ladder [listen] NEW, piano A/B [listen], click PoCs [listen], power-renorm answer [read], F1-retuning answer [read] |
 | dsp (prev) | Dipsy | run 20 (2026-08-04 pm, interactive): 9 verdicts folded; PIANO FIRST PASS — per-partial decay + inharmonicity engine configs (bit-exact at defaults, stretch verified to 0.1 cents), config-driven reference pipeline adopted from the dead run + onset alignment, 18-dim encoder, 108-eval smoke 1.521 -> 0.900 with knock band converging to the measured 2.5-8 kHz; t3_23 clicks EXPLAINED (velvet-phase, controllable 5-193/s) + 3 noisy-attack PoCs; expand front retired; CombineTest fixed | full piano run (gated on A/B); scorer debt 3e-NEXT; sum-op lint 3f | **4 items** — piano A/B [listen], click PoCs [listen], power-renorm answer [read], F1-retuning answer [read] |
 
 Reports: dsp/reports/2026-08-05-dipsy-run21.md ·
-comp/reports/2026-08-04-wolfie-run15.md
+comp/reports/2026-08-05-wolfie-run17.md
+
+Run-17 highlights (comp): four fronts, all metric/build, no blind taste
+iteration. The through-line is **the mechanism was not where the number said
+it was**.
+(0) **A live collision, not a tree-guard one.** The dsp lane was running in
+this working copy AT THE SAME TIME — its commits landed between mine at 08:23
+and 08:25, with engine/ and build/ being written throughout. Nothing of mine
+touches those files, but it rules out engine work: an engine edit must rebuild
+both targets in the same cycle and that is not verifiable against a concurrent
+build. **#13 was not attempted and is first up next comp run.**
+(1) **#16 — the ending rule's overshoot was the BARLINE, not the draw.** A new
+unrendered replay harness (`final_rule_sweep.py`, same rng streams as the real
+batch) makes n=200 arms cheap, and decomposing the ending showed the v4 draw
+already landing at ratio p50 **2.00**, exactly the corpus median — while grid
+completion CEILED every phrase onto the next barline and added a further
+uniform [0,1) beats on top, p50 +0.25. Two supporting mechanisms measured:
+the v3 anchor multiplies a phrase's own longest note, which is *already* median
+2.1x / p95 8x its pulse. v4 `calib` keeps the longest-frequency you asked for
+twice and bounds the magnitude — the final EQUALS the phrase max instead of
+exceeding it, the histogram branch is capped at corpus p95, and grid completion
+rounds to the NEAREST barline. n=200: p50 3.00→2.50, p95 11.00→7.00,
+over-corpus-p95 0.170→0.065, final-is-longest 0.785→0.620 (corpus 0.354).
+Anti-result recorded: raising the longest-branch probability 0.6→0.7→0.8
+SATURATES at 0.685, because nearest-grid rounding trims finals back regardless.
+(2) **#17 — the range guard was punishing the wrong transform**, and the new
+A/B harness reproduces run 16's exact report: p18, ornament reverted so an
+invert three occurrences earlier could stay. Offender-first now; at a tight cap
+the transforms surviving the guard go 3 → 15 over 300 phrases.
+(3) **#15 — passage mode.** The backlog's own example reproduces exactly:
+`pedal_mod_minor3rds_1_1`, 16 notes over 50 beats, 0.719 phrase vs 0.876
+passage. One real design correction inside it: tension must be measured to the
+PEAK, because a whole-passage slope reads NEGATIVE on exactly the passages that
+work (they build and then resolve). Verified by mechanical degradation, not
+taste — shuffle_pitch −0.235 vs the phrase composite's −0.066, offbeat_end
+−0.062 vs −0.012. Across 74 renders the two screens are **uncorrelated
+(Spearman 0.072)**. Two honest negatives kept: retrograde is barely caught (a
+build-and-resolve arc is near-symmetric in time), and on the single taste
+datapoint available it does NOT reproduce your minor3rds pick — reported, not
+tuned to.
+(4) **Wiring it in found the real defects.** `pedal_buildup_6lv` is the WORST
+row on the phrase composite (0.660, punished for repeating) and 0.808 in
+passage mode. And a sweep says **37 of 74 passage renders end off the beat**,
+in every family — the phrase path grid-completes onto a barline, the C++
+passage strategies have no equivalent, and nothing measured it until now
+(#18). Two batch-killing KeyErrors fixed on the way, plus: `wandering_24x` is
+an EMPTY render, 0 notes, and the phrase composite scores it **0.407** (#19).
 
 Run-21 highlights (dsp): three fronts, all build/metric, no blind taste
 iteration. The through-line is **premises that were wrong, caught by
@@ -378,11 +425,11 @@ not be relinked (Matt's UI held it locked), so the running binary still has
 the old behaviour. Once it is rebuilt, a comp-only engine edit will no longer
 make it shout STALE.
 
-Next "go": comp = #12 (one word from you unblocks it — the code is written and
-sitting in the tree) → scorer passage-mode (phrase screens mis-score passages
-by design: a Bruckner take with 16 notes over 50 beats scores 0.719 for
-reasons unrelated to whether it works) → #7 phrase-aware cadence. Eight comp
-review items waiting (five listen, two read, one word). dsp = **rebuild mforce_ui first and confirm
+Next "go": comp = **#13 section key first** — it is an engine edit and needs a
+build dir no other lane is using; run 17 could not touch the engine at all
+because the dsp lane was live in this working copy → #18 (37 of 74 passage
+renders end off the barline) → #19 (the empty `wandering_24x` render) → #7
+phrase-aware cadence. Six comp review items waiting (five listen, one read). dsp = **rebuild mforce_ui first and confirm
 `--stamp` exits 0**, then item 3c2 (FMSource's `phase` param is dead — apply
 phase_ to the carrier for true PM, then re-render the t1_06/t1_07 topologies
 as designed), then 2d-1 (vector path, needs an AVX2-availability decision).

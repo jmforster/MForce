@@ -2,7 +2,31 @@
 
 Priority order. (G1)-(G2) = GOALS.md Wolfie goals.
 
-13. **[build] Section-level key is not authorable** — `sections[].keyName` is
+18. **[build] Passage endings do not land on a barline** — found by the run-17
+    passage-mode sweep: **37 of 74** passage renders end off the beat, in
+    EVERY family (wandering 5/6, connective 4/6, sequence_passage 4/4,
+    chain_* 7/9). The phrase path grid-completes endings onto a barline
+    (run 13); the C++ passage strategies have no equivalent and nothing
+    measured it until now. Engine-side.
+19. **[build] Empty render, plausible score** — `wandering_24x` in
+    `renders/engine_passage_strategies/` has ZERO notes and the phrase
+    composite scores it 0.407. Run 17 added a `scorable` flag so a batch can
+    see it, but two things are open: whether that render still reproduces at
+    HEAD (untested — no CLI available in run 17) and whether `score()` should
+    refuse rather than flag. Re-render `wandering_24x` first.
+20. **[review:read] Passage-mode open semantics** — two questions the #15
+    screen cannot answer by itself. (a) A DESCENDING sequence scores
+    0.49–0.51 because the tension criterion asks "does it build", which is
+    true but may be the wrong question for a relaxing passage — should a
+    passage declare its intent (build / relax / static) and be scored against
+    that? (b) `pedal_buildup` is 8/8 "non-tonic arrival" because it ends on
+    its dominant pedal, which is arguably right — the tonic term needs to know
+    what the passage was aiming at. See REVIEW 14.
+13. **[build] Section-level key is not authorable** — NOT ATTEMPTED in run 17:
+    the dsp lane was live in this working copy (engine/ edits + build at
+    08:20–08:25), and an engine edit must rebuild both targets in the same
+    cycle, which is not verifiable against a concurrent build. First up next
+    comp run. `sections[].keyName` is
     silently ignored (SectionTemplate has no such field); the run-13 probe
     templates set it on three sections and got nothing. Found by
     `--lint-template` in run 15. The working mechanism is `keyContexts`, which
@@ -36,20 +60,23 @@ Priority order. (G1)-(G2) = GOALS.md Wolfie goals.
    keys). NOTE for both: stage 3 snaps the cursor's PITCH into the new scale,
    it does NOT move it to the new tonic, so adding keyContexts alone will not
    modulate audibly; the entry must be offset by the key distance.
-15. **[build] Scorer passage-mode** — the phrase-oriented screens mis-score
-    passages by design. A Bruckner take with 16 notes spread over 50 beats
-    scores 0.719 for reasons unrelated to whether it works; the repetition
-    screen punishes a sequence for being a sequence. Needs a passage-mode
-    that scores shape (does the tension curve rise, does the cadence land)
-    rather than first-order note plausibility. TOP of the list after #12.
-16. **[metric] Final-note rule overshoots the corpus** — the new closure
-    screen measures generated endings at median 4.0x vs corpus 2.0x, 25%
-    past corpus p95, final-is-longest 0.96 vs corpus 0.35. Recalibrate the
-    histogram draw (it was tuned by ear against the OLD 1.0x floor).
-17. **[build] Range-guard reversion is last-first** — when a stack of
-    repeat-transforms overshoots the span cap, an innocent late transform
-    is reverted in place of the earlier offender (p18: ornament died for
-    invert). Offender-first reversion; small.
+15. **DONE run 17** — `score_passage.py`: tension (measured to the PEAK, not
+    across the whole passage — a whole-passage slope reads negative on
+    exactly the passages that work) / arrival / coherence, weights
+    0.35/0.40/0.25, verified by a 4-way mechanical degradation harness rather
+    than by taste. Uncorrelated with the phrase composite (Spearman 0.072
+    over 74 renders) and much wider spread. The backlog's own example
+    reproduces: `pedal_mod_minor3rds_1_1` 0.719 phrase vs 0.876 passage.
+    Open semantics moved to #20.
+16. **DONE run 17** — v4 `calib` arm, default. The draw was already landing
+    on the corpus median; the overshoot was mostly GRID COMPLETION ceiling
+    every phrase onto the next barline (+0.25 beats at p50, on top of the
+    draw). n=200: ratio p50 3.00 → 2.50, p95 11.00 → 7.00, over-corpus-p95
+    0.170 → 0.065, final-is-longest 0.785 → 0.620 (corpus 0.354).
+    A/B in `renders/markov_phrases6/{,longest}` — REVIEW 13.
+17. **DONE run 17** — offender-first reversion; `range_guard_ab.py`
+    reproduces the reported p18 case and fixes it. cap 12 / prob 1.0, n=300:
+    transforms surviving the guard 3 → 15. Production defaults: 0 → 3.
 12. **DONE run 16** — closure screen verified against the run-13 A/B
     (byte-identical scores.csv now separates) and committed as 0fc3f29.
     Was: BLOCKED at run 15 by the
@@ -86,6 +113,13 @@ Priority order. (G1)-(G2) = GOALS.md Wolfie goals.
 
 ## Done
 
+- Run 17 (2026-08-05): four fronts, all Python-side — the dsp lane was live in
+  the working copy, so #13 (engine) was not attempted. #16 final-note
+  recalibration (the barline pad, not the draw, was the overshoot), #17
+  offender-first range guard, #15 passage-mode scorer + its degradation
+  harness, and passage mode wired into the strategy driver — which turned up
+  37/74 passage renders ending off the beat (#18), an empty render scoring
+  0.407 (#19), and two KeyError holes in the batch path.
 - Run 15 (2026-08-04): four fronts. Passage-level chord emission
   (`PassageTemplate.chordProgression` + span/pattern modes + one shared
   progression parser that accepts both authoring forms and carries
