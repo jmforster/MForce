@@ -21,7 +21,6 @@
 #include "mforce/source/segment_source.h"
 #include "mforce/source/repeating_source.h"
 #include "mforce/source/phased_value_source.h"
-#include "mforce/source/slew_limiter_source.h"
 #include "mforce/source/additive/basic_additive_source.h"
 #include "mforce/source/additive/additive_source2.h"
 #include "mforce/source/additive/full_additive_source.h"
@@ -420,9 +419,6 @@ void register_all_sources() {
 
     reg.register_type("Limiter", SourceCategory::Filter,
         [](int sr, auto) { return std::make_shared<Limiter>(sr); });
-
-    reg.register_type("SlewLimiterSource", SourceCategory::Filter,
-        [](int, auto) { return std::make_shared<SlewLimiterSource>(); });
 
     reg.register_type("Vibrato", SourceCategory::Modulator,
         [](int sr, auto seed) {

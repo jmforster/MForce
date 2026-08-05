@@ -4938,7 +4938,6 @@ static void show_create_menu() {
         menu_source("Delay", "DelayFilter");
         menu_source("Reverb", "Reverb");
         menu_source("Limiter", "Limiter");
-        menu_source("Slew Limiter", "SlewLimiterSource");
         menu_sep();
         menu_source("BW Bandpass", "BWBandpassFilter");
         menu_source("BW Lowpass", "BWLowpassFilter");
