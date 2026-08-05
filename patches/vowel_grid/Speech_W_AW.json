@@ -120,7 +120,42 @@
  },
  "instrument": {
   "paramMap": {
-   "frequency": "src.frequency"
+   "frequency": [
+    "src.frequency",
+    {
+     "target": "f1.frequency",
+     "curve": [
+      [
+       804.0,
+       804.0
+      ],
+      [
+       851.8,
+       851.8
+      ],
+      [
+       902.5,
+       902.5
+      ],
+      [
+       956.1,
+       956.1
+      ],
+      [
+       1013.0,
+       1013.0
+      ],
+      [
+       1073.2,
+       1073.2
+      ],
+      [
+       1100.0,
+       1100.0
+      ]
+     ]
+    }
+   ]
   },
   "polyphony": 1
  },

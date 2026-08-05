@@ -500,7 +500,8 @@
    {
     "freq": 804.0,
     "gain": 1.0,
-    "engine_width": 400.0
+    "engine_width": 400.0,
+    "table_freq": 804.0
    },
    {
     "freq": 1188.0,
@@ -522,7 +523,8 @@
     "gain": 0.1884,
     "engine_width": 1600.0
    }
-  ]
+  ],
+  "f1_retune": true
  },
  {
   "file": "Speech_W_EH.json",
@@ -1410,7 +1412,8 @@
    {
     "freq": 350.0,
     "gain": 1.0,
-    "engine_width": 320.0
+    "engine_width": 320.0,
+    "table_freq": 350.0
    },
    {
     "freq": 600.0,
@@ -1432,7 +1435,8 @@
     "gain": 0.0158,
     "engine_width": 960.0
    }
-  ]
+  ],
+  "f1_retune": true
  },
  {
   "file": "Sing_Tenor_A.json",
@@ -1550,7 +1554,8 @@
    {
     "freq": 400.0,
     "gain": 1.0,
-    "engine_width": 320.0
+    "engine_width": 320.0,
+    "table_freq": 400.0
    },
    {
     "freq": 800.0,
@@ -1572,7 +1577,8 @@
     "gain": 0.0501,
     "engine_width": 960.0
    }
-  ]
+  ],
+  "f1_retune": true
  },
  {
   "file": "Sing_Tenor_U.json",
@@ -1585,7 +1591,8 @@
    {
     "freq": 350.0,
     "gain": 1.0,
-    "engine_width": 320.0
+    "engine_width": 320.0,
+    "table_freq": 350.0
    },
    {
     "freq": 600.0,
@@ -1607,7 +1614,8 @@
     "gain": 0.0501,
     "engine_width": 960.0
    }
-  ]
+  ],
+  "f1_retune": true
  },
  {
   "file": "Sing_Alto_A.json",
@@ -1620,7 +1628,8 @@
    {
     "freq": 800.0,
     "gain": 1.0,
-    "engine_width": 640.0
+    "engine_width": 640.0,
+    "table_freq": 800.0
    },
    {
     "freq": 1150.0,
@@ -1642,7 +1651,8 @@
     "gain": 0.001,
     "engine_width": 1120.0
    }
-  ]
+  ],
+  "f1_retune": true
  },
  {
   "file": "Sing_Alto_E.json",
@@ -1760,7 +1770,8 @@
    {
     "freq": 325.0,
     "gain": 1.0,
-    "engine_width": 400.0
+    "engine_width": 400.0,
+    "table_freq": 325.0
    },
    {
     "freq": 700.0,
@@ -1782,7 +1793,8 @@
     "gain": 0.0006,
     "engine_width": 1600.0
    }
-  ]
+  ],
+  "f1_retune": true
  },
  {
   "file": "Sing_Soprano_A.json",
@@ -1795,7 +1807,8 @@
    {
     "freq": 800.0,
     "gain": 1.0,
-    "engine_width": 640.0
+    "engine_width": 640.0,
+    "table_freq": 800.0
    },
    {
     "freq": 1150.0,
@@ -1817,7 +1830,8 @@
     "gain": 0.0032,
     "engine_width": 1120.0
    }
-  ]
+  ],
+  "f1_retune": true
  },
  {
   "file": "Sing_Soprano_E.json",
@@ -1828,9 +1842,10 @@
   "f0_rendered": 440.0,
   "formants": [
    {
-    "freq": 350.0,
+    "freq": 440.0,
     "gain": 1.0,
-    "engine_width": 480.0
+    "engine_width": 480.0,
+    "table_freq": 350.0
    },
    {
     "freq": 2000.0,
@@ -1852,7 +1867,8 @@
     "gain": 0.0016,
     "engine_width": 1600.0
    }
-  ]
+  ],
+  "f1_retune": true
  },
  {
   "file": "Sing_Soprano_I.json",
@@ -1863,9 +1879,10 @@
   "f0_rendered": 440.0,
   "formants": [
    {
-    "freq": 270.0,
+    "freq": 440.2,
     "gain": 1.0,
-    "engine_width": 480.0
+    "engine_width": 480.0,
+    "table_freq": 270.0
    },
    {
     "freq": 2140.0,
@@ -1887,7 +1904,8 @@
     "gain": 0.0063,
     "engine_width": 960.0
    }
-  ]
+  ],
+  "f1_retune": true
  },
  {
   "file": "Sing_Soprano_O.json",
@@ -1900,7 +1918,8 @@
    {
     "freq": 450.0,
     "gain": 1.0,
-    "engine_width": 560.0
+    "engine_width": 560.0,
+    "table_freq": 450.0
    },
    {
     "freq": 800.0,
@@ -1922,7 +1941,8 @@
     "gain": 0.0032,
     "engine_width": 1080.0
    }
-  ]
+  ],
+  "f1_retune": true
  },
  {
   "file": "Sing_Soprano_U.json",
@@ -1933,9 +1953,10 @@
   "f0_rendered": 440.0,
   "formants": [
    {
-    "freq": 325.0,
+    "freq": 440.1,
     "gain": 1.0,
-    "engine_width": 400.0
+    "engine_width": 400.0,
+    "table_freq": 325.0
    },
    {
     "freq": 700.0,
@@ -1957,6 +1978,7 @@
     "gain": 0.001,
     "engine_width": 1600.0
    }
-  ]
+  ],
+  "f1_retune": true
  }
 ]
