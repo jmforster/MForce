@@ -130,13 +130,20 @@ def score(per_note, ref):
     term2 = float(np.mean(list(motion_terms.values())))
 
     # term3 — inter-harmonic broadband (log10 ratio, 1 decade == 1.0)
+    # Bands holding no harmonic line come back NaN from broadband_ratios (see
+    # its docstring); they are MISSING, so they are averaged out rather than
+    # counted as agreement. A note whose every band is empty contributes
+    # nothing at all instead of contributing noise.
     eps = 1e-5
     t3s = []
     for midi, meas in per_note.items():
-        rb = np.array(rnotes[name_by_midi[midi]]["broadband"])
-        cb = np.array(meas["broadband"])
-        t3s.append(np.mean(np.abs(np.log10(cb + eps) - np.log10(rb + eps))))
-    term3 = float(np.mean(t3s))
+        rb = np.array(rnotes[name_by_midi[midi]]["broadband"], dtype=float)
+        cb = np.array(meas["broadband"], dtype=float)
+        d = np.abs(np.log10(cb + eps) - np.log10(rb + eps))
+        if np.all(np.isnan(d)):
+            continue
+        t3s.append(float(np.nanmean(d)))
+    term3 = float(np.mean(t3s)) if t3s else 0.0
 
     # term4 — attack (lag scale 50 ms, rise scale 100 ms)
     t4s = []

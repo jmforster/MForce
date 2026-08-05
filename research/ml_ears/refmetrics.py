@@ -99,6 +99,12 @@ def broadband_ratios(x, sr, f0, tol_frac=0.06):
 
     Real bowed strings carry broadband bow noise between the harmonics; pure
     additive has (almost) none. This is the ml_ears-quantified gap.
+
+    A band with NO harmonic line in it returns NaN, not a number. BANDS[0] is
+    (160, 700), so every eval note above 700 Hz leaves it empty — and the
+    "ratio" there was between_e / 1e-12, i.e. a noise-floor measurement
+    inflated by twelve decades, which then dominated term3. Callers must
+    treat these bands as missing (nanmean), not as zero and not as huge.
     """
     seg = x * np.hanning(len(x))
     nfft = 1 << int(np.ceil(np.log2(len(seg))))
@@ -107,10 +113,18 @@ def broadband_ratios(x, sr, f0, tol_frac=0.06):
     tol_hz = f0 * tol_frac
     kmax = int(fbin[-1] / f0)
     lines = np.zeros(len(fbin), bool)
+    n_in_band = [0] * len(BANDS)
     for k in range(1, kmax + 1):
-        lines |= np.abs(fbin - k * f0) <= tol_hz
+        fk = k * f0
+        lines |= np.abs(fbin - fk) <= tol_hz
+        for bi, (lo, hi) in enumerate(BANDS):
+            if lo <= fk < hi:
+                n_in_band[bi] += 1
     ratios = []
-    for lo, hi in BANDS:
+    for bi, (lo, hi) in enumerate(BANDS):
+        if n_in_band[bi] == 0:
+            ratios.append(float("nan"))
+            continue
         b = (fbin >= lo) & (fbin < hi)
         line_e = spec[b & lines].sum()
         between_e = spec[b & ~lines].sum()
