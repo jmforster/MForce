@@ -125,3 +125,14 @@ the lane, not the session.
   most cases that's what we're trying to achieve but throw in a few
   outliers (figure that repeats 17 times, passage with a 24 bar phrase
   followed by an 8, whatever)
+
+- Subagents run long jobs (renders, builds, batch scoring) in the
+  FOREGROUND — no run_in_background, no monitors, no "will be notified"
+  waits. Completion wakeups do not reliably reach subagents: 2026-08-04
+  all three run-16 agents parked on background jobs and hung for hours,
+  and one background build DIED SILENTLY leaving a stale exe plus a
+  corrupted incremental build (stale .objs marked up-to-date; the fix was
+  deleting the Release obj dirs and recompiling). Backgrounding is for
+  the top-level session only. Subagents also do NOT commit — the
+  coordinator commits after verification (0fc3f29 was the second
+  violation; content was correct, the rule stands).

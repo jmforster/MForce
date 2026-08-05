@@ -42,7 +42,17 @@ Priority order. (G1)-(G2) = GOALS.md Wolfie goals.
     screen punishes a sequence for being a sequence. Needs a passage-mode
     that scores shape (does the tension curve rise, does the cadence land)
     rather than first-order note plausibility. TOP of the list after #12.
-12. **[build] Scorer is blind to the final note** — BLOCKED at run 15 by the
+16. **[metric] Final-note rule overshoots the corpus** — the new closure
+    screen measures generated endings at median 4.0x vs corpus 2.0x, 25%
+    past corpus p95, final-is-longest 0.96 vs corpus 0.35. Recalibrate the
+    histogram draw (it was tuned by ear against the OLD 1.0x floor).
+17. **[build] Range-guard reversion is last-first** — when a stack of
+    repeat-transforms overshoots the span cap, an innocent late transform
+    is reverted in place of the earlier offender (p18: ornament died for
+    invert). Offender-first reversion; small.
+12. **DONE run 16** — closure screen verified against the run-13 A/B
+    (byte-identical scores.csv now separates) and committed as 0fc3f29.
+    Was: BLOCKED at run 15 by the
     tree guard: an uncommitted implementation of exactly this is sitting in
     the working copy (`score_generated.py` +181, `corpus_baseline.py` +12,
     stamped 2026-08-03 07:10, no report, no commit — a run that died
@@ -61,7 +71,9 @@ Priority order. (G1)-(G2) = GOALS.md Wolfie goals.
     against the essen_asia anchor (int_jsd .087 vs .081). If corpus-specific
     modal/pentatonic flavor is wanted, the token alphabet (or realization)
     has to carry it. Design question, not yet a task.
-10. **DONE (found already implemented, run 15)** — Wire figure transforms into
+10. **DONE run 16 (second half: literal repeats)** — run 15 found only the
+   PRIME path wired; literal-repeat occurrences now transform too (A/B in
+   renders/markov_phrases5/). Was: Wire figure transforms into
     the phrase-builder. `markov_phrase.py` routes A-family primes through
     `figure_transforms` (INDEPENDENT_OPS / INVOLUTION_OPS / a "mixed" menu
     that draws a different op per occurrence), and enforces that each repeat
