@@ -837,6 +837,11 @@ def _repeat_xform(fig, rng):
 # (final_rule_sweep.py): 0.6 -> ratio p50 2.50 / longest 0.630.
 CALIB_LONGEST_P = 0.6
 
+# Backlog #17. True = revert the repeat-transform whose removal recovers the
+# most span; False = the v1 behaviour (revert last-applied first), kept only
+# so the two can be measured against each other (range_guard_ab.py).
+RANGE_GUARD_OFFENDER_FIRST = True
+
 _FINAL_PROFILE = None
 
 
@@ -949,6 +954,7 @@ def build_phrase_v3(figA, figB, pattern, transform, contour, model, rng,
     # is on or off — a transform must never rescue a draw the baseline arm
     # would have rerolled, or same-seed pairs stop being like-for-like.
     repeat_ops = []
+    reverted_ops = []
     if xform_rng is not None and repeat_xform_prob > 0 \
             and not (range_cap and _span(occ_figs, connectors) > range_cap):
         seen_fams = set()
@@ -964,11 +970,32 @@ def build_phrase_v3(figA, figB, pattern, transform, contour, model, rng,
         if repeat_ops:
             occ_figs, connectors = _materialize(base_seq)
             # Range guard: never emit out-of-range BECAUSE of a transform.
-            # Revert last-applied first until back under cap (fully reverted
-            # == the untransformed phrase, already verified under cap).
+            # Revert until back under cap (fully reverted == the untransformed
+            # phrase, already verified under cap).
+            #
+            # OFFENDER-FIRST (backlog #17): revert the transform whose removal
+            # buys the most span, not the last one applied. Reverting
+            # last-first punishes an innocent late transform for an earlier
+            # one's overshoot — run 16's p18 lost its ornament so that an
+            # invert three occurrences earlier could stay. Ties go to the
+            # later op, which is the old behaviour, so nothing moves unless
+            # the offender really is a different one. No rng is consumed
+            # either way, so the A/B stays like-for-like.
             while repeat_ops and range_cap \
                     and _span(occ_figs, connectors) > range_cap:
-                dropped = repeat_ops.pop()
+                if RANGE_GUARD_OFFENDER_FIRST:
+                    best = None
+                    for j, ro in enumerate(repeat_ops):
+                        trial = list(base_seq)
+                        trial[ro["idx"]] = _copy_fig(motifs[refs[ro["idx"]]])
+                        s = _span(*_materialize(trial))
+                        if best is None or s <= best[0]:
+                            best = (s, j)
+                    pick = best[1]
+                else:
+                    pick = len(repeat_ops) - 1        # v1: last-applied first
+                dropped = repeat_ops.pop(pick)
+                reverted_ops.append(dropped)
                 base_seq[dropped["idx"]] = \
                     _copy_fig(motifs[refs[dropped["idx"]]])
                 occ_figs, connectors = _materialize(base_seq)
@@ -1120,7 +1147,8 @@ def build_phrase_v3(figA, figB, pattern, transform, contour, model, rng,
     info = {"joins": joins, "final_ext": final_ext, "median_pulse": med,
             "grid_pad": locals().get("grid_pad", 0.0),
             "final_ratio": last["duration"] / med if med > 0 else 0.0,
-            "ops": ops, "repeat_ops": repeat_ops}
+            "ops": ops, "repeat_ops": repeat_ops,
+            "reverted_ops": reverted_ops}
     return motif_list, refs, connectors, info
 
 
