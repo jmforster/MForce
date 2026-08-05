@@ -28,7 +28,7 @@ with ZERO engine work. PoCs: `poc1_attack_amp400` (crackle fades over
 phase perturbations INSIDE the carrier — coupled to the tonal path by
 construction, not a parallel noise sum.
 Verdict decides: is this the noisy-attack direction worth pursuing; if the
-single-sample clicks are too harsh, a SlewLimiterSource (backlog 15) turns
+single-sample clicks are too harsh, a SlewLimiterSource (backlog 3g) turns
 steps into tunable-brightness chirps on the same dial.
 
 ### 11. Answer: what the power renorm would do (item 5 follow-up) [read] (run 20)
@@ -65,27 +65,6 @@ Two implementations:
     the sung-vowel direction gets real use.
 Verdict decides: ship (a) for the 11 flagged patches now, build (b), or
 leave documented.
-
-### 7. FM "PM" cells were never PM — re-take the verdict [listen] (run 19)
-renders/fm_phase/ (t1_06_ctrl vs t1_06_after, t1_07_ctrl vs t1_07_after,
-t3_23_patchfixed) + the re-rendered patches themselves.
-FMSource's `phase` param was inert: t1_06 and t1_07 rendered BYTE-IDENTICAL
-to twins with `phase` deleted, so the two "PM" topologies you auditioned in
-the run-12 matrix batch were plain FM. t3_23 was doubly dead (its offsets
-were whole cycles). All three are fixed and re-rendered.
-Verdict decides: (a) whatever you said about t1_06/t1_07/t3_23 in the FM
-matrix audition should be treated as void — do these three now earn a place
-in the keeper set? (b) t1_06 is the interesting one to my eye: a slow +-1
-cycle sweep is a frequency deviation, so it splits every partial into a
-1.7 Hz sideband cluster (6 -> 109 peaks) WITHOUT brightening. That is a
-texture the FM matrix had no other way to reach.
-
-MATT: Sounds fine, PM being roughly equivalent to FM, doing both just sounds
-like 2-level FM. But... a potentially interesting find. t3_23_patchfixed.WAV
-has some clicks whose speed of recurrence seems to vary roughly with the
-modulation. Can you try to determine where these are coming from? You can guess
-my reason... if the density of the clicks can be controlled, it could be
-enveloped as yet another stab at the "noisy attack" grail.
 
 ## Resolved
 
