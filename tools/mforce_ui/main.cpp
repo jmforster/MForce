@@ -666,7 +666,15 @@ static GraphNode* find_selected_node() {
     return nullptr;
 }
 
+// Defined with the transport helpers — stops only the continuous streams
+// (patch mono stream + node-graph mixer stream), which hold raw pointers
+// into node dspSources and would dangle when a node is destroyed. Voices
+// and buffer playback own their data (shared_ptrs / member buffer) and
+// survive structural edits.
+static void stop_streams();
+
 static void delete_node(int nodeId) {
+    stop_streams();
     s_graphDirty = true;
     if (g_selectedNodeId == nodeId) g_selectedNodeId = -1;
     for (auto& node : s_nodes) {
@@ -703,7 +711,14 @@ static void delete_link(int linkId) {
 // positions ARE present, so reload preserves user-placed positions.
 static bool s_needsLayout = false;
 
+// Defined with the transport helpers below. Called before graph teardown:
+// the continuous-stream paths (g_streamSource / g_streamChannels) hold raw
+// pointers into s_nodes' dspSources, so clearing the graph while the audio
+// callback is pulling them is a use-after-free.
+static void stop_playback();
+
 static void new_graph(GraphMode mode) {
+    stop_playback();
     s_currentFilePath.clear();
     s_nodes.clear();
     s_links.clear();
@@ -822,6 +837,7 @@ static void load_graph_from_path(const std::string& path) {
     std::ifstream f(path);
     if (!f) return;
     json root = json::parse(f);
+    stop_playback();  // stream paths hold raw pointers into s_nodes' DSP
     s_currentFilePath = path;
     s_graphDirty = false;
 
@@ -1983,6 +1999,22 @@ static ValueSource* g_streamSource = nullptr;
 static int g_streamRemaining = 0;
 static float g_streamVelocity = 0.5f;
 
+// Node-graph stereo stream (Channel → Mixer graphs, no instrument block).
+// Raw taps into the UI's in-memory DSP graph, pulled per-sample by the audio
+// callback with engine StereoMixer::render semantics (volume, equal-power
+// pan, gainL/gainR, soft_clip at the mix). Because these are the same live
+// objects the Properties panel mutates (constantSrc->set / update_node_dsp),
+// parameter tweaks during streaming are audible immediately — identical to
+// the patch-mode g_streamSource path. Non-empty vector == stream active.
+struct StreamChannel {
+    ValueSource* source = nullptr;   // Channel's "source" input (required)
+    ValueSource* volume = nullptr;   // Channel "volume" (node or pin constant)
+    ValueSource* pan    = nullptr;   // Channel "pan"    (node or pin constant)
+};
+static std::vector<StreamChannel> g_streamChannels;
+static ValueSource* g_streamGainL = nullptr;
+static ValueSource* g_streamGainR = nullptr;
+
 // Buffer playback: stream from a pre-rendered buffer (e.g. g_outputWaveform)
 static const float* g_bufferPlayback = nullptr;
 static int g_bufferPlaybackPos = 0;
@@ -2033,7 +2065,8 @@ static bool any_voice_active() {
 }
 
 static bool is_playing() {
-    return g_streamSource != nullptr || g_bufferPlayback != nullptr || any_voice_active();
+    return g_streamSource != nullptr || !g_streamChannels.empty()
+        || g_bufferPlayback != nullptr || any_voice_active();
 }
 
 // RtAudio callback — runs on RtAudio's audio thread, not the UI thread.
@@ -2097,20 +2130,46 @@ static int audio_callback(void* outputBuffer, void* /*inputBuffer*/,
             }
         }
 
+        // All mono contributions duplicate to both sides; the node-graph
+        // stereo stream below adds per-side.
+        float sL = s;
+        float sR = s;
+
+        // Node-graph stereo stream: per-sample mirror of the engine's
+        // StereoMixer::render (mixer.cpp) — channel volume, equal-power pan,
+        // master gainL/gainR, soft_clip at the mix. Mixer output is already
+        // stereo, so it lands directly on L/R with no extra panning.
+        if (!g_streamChannels.empty()) {
+            float gl = g_streamGainL ? g_streamGainL->next() : 1.0f;
+            float gr = g_streamGainR ? g_streamGainR->next() : 1.0f;
+            for (auto& ch : g_streamChannels) {
+                float v = ch.source->next() * (ch.volume ? ch.volume->next() : 1.0f);
+                float p = ch.pan ? ch.pan->next() : 0.0f;
+                p = std::clamp(p, -1.0f, 1.0f);
+                // Equal-power panning: map [-1,1] -> [0,1]
+                float t = (p + 1.0f) * 0.5f;
+                float aL = std::cos(t * 0.5f * 3.14159265358979323846f);
+                float aR = std::sin(t * 0.5f * 3.14159265358979323846f);
+                sL += v * aL * gl * g_streamVelocity;
+                sR += v * aR * gr * g_streamVelocity;
+            }
+        }
+
         // Diagnostic: pre-clip peak (raw mixer output)
-        float absS = std::fabs(s);
+        float absS = std::max(std::fabs(sL), std::fabs(sR));
         if (absS > localPeakPre) localPeakPre = absS;
 
         // Soft-clip the mix so a polyphonic stack of loud voices doesn't
         // hard-distort — matches the engine's render-path peak guard.
-        s = soft_clip(s);
+        sL = soft_clip(sL);
+        sR = soft_clip(sR);
 
         // Diagnostic: post-clip peak (what actually goes to the device)
-        absS = std::fabs(s);
+        absS = std::max(std::fabs(sL), std::fabs(sR));
         if (absS > localPeakPost) localPeakPost = absS;
 
-        out[i * 2]     = s;  // L
-        out[i * 2 + 1] = s;  // R (mono → stereo)
+        out[i * 2]     = sL;
+        out[i * 2 + 1] = sR;
     }
 
     // Decay-blend with stored peaks so the UI sees a slowly-fading reading
@@ -2469,25 +2528,111 @@ static void play_note(float noteNum, float velocity, float durationSeconds) {
     }
 }
 
-// Start continuous streaming — uses a long fixed duration for Envelope compat
+// Start continuous streaming — uses a long fixed duration for Envelope compat.
+// Patch graphs stream the mono source feeding the Output node; node graphs
+// stream the Mixer (Channel → Mixer termination) in stereo.
 static void play_continuous(float velocity) {
-    if (s_graphMode != GraphMode::PatchGraph) return;
+    if (s_graphMode == GraphMode::PatchGraph) {
+        ValueSource* src = find_output_source();
+        if (!src) return;
 
-    ValueSource* src = find_output_source();
-    if (!src) return;
+        int samples = AUDIO_SAMPLE_RATE * 30;
+        prepare_graph(samples);
+
+        std::lock_guard<std::mutex> lock(g_audioMutex);
+        g_streamVelocity = velocity;
+        g_streamRemaining = -1;
+        g_streamSource = src;
+        return;
+    }
+
+    // Node graph: stream the StereoMixer live. Resolve each mixer "ch N" pin
+    // to its SoundChannel and the channel's source/volume/pan taps. Accepting
+    // SoundChannel only matches the CLI loader, which rejects anything else
+    // wired into a mixer channel ("Node is not SoundChannel").
+    GraphNode* mixer = nullptr;
+    for (auto& n : s_nodes)
+        if (n.typeName == NT_STEREO_MIXER) { mixer = &n; break; }
+    if (!mixer) {
+        transport_set_status("Node graph has no Mixer to stream", true);
+        return;
+    }
+
+    // Pins resolved to a connected node's dspSource are prepared by
+    // prepare_graph below; unconnected pins fall back to the pin's own
+    // ConstantSource (the value Properties edits live), which is NOT a graph
+    // node — collect those for explicit prepare.
+    std::vector<ValueSource*> prepExtra;
+    auto resolve_pin = [&prepExtra](GraphNode& node, const char* name) -> ValueSource* {
+        for (auto& pin : node.inputs) {
+            if (pin.name != name) continue;
+            GraphNode* src = find_source_node(pin.id);
+            if (src && src->dspSource) return src->dspSource.get();
+            if (pin.constantSrc) prepExtra.push_back(pin.constantSrc.get());
+            return pin.constantSrc.get();
+        }
+        return nullptr;
+    };
+
+    std::vector<StreamChannel> channels;
+    for (auto& pin : mixer->inputs) {
+        if (pin.name.substr(0, 3) != "ch ") continue;
+        GraphNode* chNode = find_source_node(pin.id);
+        if (!chNode || chNode->typeName != NT_SOUND_CHANNEL) continue;
+
+        StreamChannel sc;
+        for (auto& cp : chNode->inputs) {
+            if (cp.name != "source") continue;
+            GraphNode* sn = find_source_node(cp.id);
+            if (sn && sn->dspSource) sc.source = sn->dspSource.get();
+            break;
+        }
+        if (!sc.source) continue;  // channel with nothing wired in
+        sc.volume = resolve_pin(*chNode, "volume");
+        sc.pan    = resolve_pin(*chNode, "pan");
+        channels.push_back(sc);
+    }
+    if (channels.empty()) {
+        transport_set_status(
+            "Mixer has no Channel with a connected source — wire "
+            "source → Channel → Mixer", true);
+        return;
+    }
+
+    ValueSource* gainL = resolve_pin(*mixer, "gainL");
+    ValueSource* gainR = resolve_pin(*mixer, "gainR");
 
     int samples = AUDIO_SAMPLE_RATE * 30;
     prepare_graph(samples);
+    RenderContext ctx{DSP_SAMPLE_RATE};
+    for (auto* vs : prepExtra)
+        if (vs) vs->prepare(ctx, samples);
 
+    {
+        std::lock_guard<std::mutex> lock(g_audioMutex);
+        g_streamVelocity = velocity;
+        g_streamRemaining = -1;
+        g_streamChannels = std::move(channels);
+        g_streamGainL = gainL;
+        g_streamGainR = gainR;
+    }
+    transport_set_status("Streaming node graph (Space or Stop to end)", false);
+}
+
+// Stop only the continuous streams (forward-declared above delete_node) —
+// they hold raw pointers into node dspSources, so any structural edit that
+// can destroy a node must clear them first.
+static void stop_streams() {
     std::lock_guard<std::mutex> lock(g_audioMutex);
-    g_streamVelocity = velocity;
-    g_streamRemaining = -1;
-    g_streamSource = src;
+    g_streamSource = nullptr;
+    g_streamChannels.clear();
+    g_streamGainL = nullptr;
+    g_streamGainR = nullptr;
 }
 
 static void stop_playback() {
+    stop_streams();
     std::lock_guard<std::mutex> lock(g_audioMutex);
-    g_streamSource = nullptr;
     g_bufferPlayback = nullptr;
     g_bufferPlaybackPos = 0;
     g_bufferPlaybackLen = 0;
@@ -3489,8 +3634,18 @@ static void draw_keyboard_panel() {
     ImGui::SameLine();
     ImGui::Spacing(); ImGui::SameLine();
 
-    // Wire to Transport's noteMode
+    // Wire to Transport's noteMode. Disabled in node-graph mode: notes need
+    // an instrument (see draw_transport_panel's PC Keyboard button).
+    bool kbDisabled = (s_graphMode != GraphMode::PatchGraph);
+    ImGui::BeginDisabled(kbDisabled);
     ImGui::Checkbox("PC Keyboard##kb", &g_transport.noteMode);
+    ImGui::EndDisabled();
+    if (kbDisabled && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+        ImGui::SetTooltip("Keyboard needs an instrument patch");
+    if (kbDisabled) {
+        ImGui::SameLine();
+        ImGui::TextDisabled("(keyboard needs an instrument patch)");
+    }
 
     // --- Audio peak meter (diagnostic, fresh line so it's always visible) ---
     // pre = raw mixer output before soft_clip; post = what hit the device.
@@ -3511,8 +3666,9 @@ static void draw_keyboard_panel() {
         ImGui::TextColored(peakColor(post), "   post=%.2f", post);
     }
 
-    // --- QWERTY input (gated by note mode and not typing in text field) ---
-    if (g_transport.noteMode && !ImGui::GetIO().WantTextInput) {
+    // --- QWERTY input (gated by note mode and not typing in text field;
+    // dead in node-graph mode — play_note needs an instrument) ---
+    if (g_transport.noteMode && !kbDisabled && !ImGui::GetIO().WantTextInput) {
         for (int i = 0; i < QWERTY_MAP_COUNT; ++i) {
             if (ImGui::IsKeyPressed(s_qwertyMap[i].key, false)) {
                 int absNote = (g_keyboard.octave + 1) * 12 + s_qwertyMap[i].offset;
@@ -3583,7 +3739,7 @@ static void draw_keyboard_panel() {
             dl->AddText(ImVec2(x0 + (keyW - 1.0f - textSize.x) * 0.5f, y1 - textSize.y - 4.0f),
                         IM_COL32(60, 60, 60, 255), name);
 
-            if (g_transport.noteMode) {
+            if (g_transport.noteMode && !kbDisabled) {
                 int chromOffset = oct * 12 + whiteOffsets[w];
                 if (chromOffset < 20) {
                     const char* ql = qwerty_label_for_offset(chromOffset);
@@ -3613,7 +3769,7 @@ static void draw_keyboard_panel() {
             dl->AddRectFilled(ImVec2(x0, y0), ImVec2(x1, y1), fillColor);
             dl->AddRect(ImVec2(x0, y0), ImVec2(x1, y1), IM_COL32(20, 20, 20, 255));
 
-            if (g_transport.noteMode) {
+            if (g_transport.noteMode && !kbDisabled) {
                 int chromOffset = oct * 12 + blackKeys[b].chromaticOffset;
                 if (chromOffset < 20) {
                     const char* ql = qwerty_label_for_offset(chromOffset);
@@ -4031,7 +4187,14 @@ static void transport_generate() {
 }
 
 static void transport_play() {
-    if (s_graphMode != GraphMode::PatchGraph) return;
+    if (s_graphMode != GraphMode::PatchGraph) {
+        // Node graphs have no instrument, so Note/Passage/Chords/Drums don't
+        // apply — Play means "stream the Mixer live", same as Stream. This is
+        // the continuous-sound pathway (crackling fire etc.), the analogue of
+        // legacy Mixer → AudioAdapter wiring.
+        play_continuous(g_transport.velocity);
+        return;
+    }
 
     switch (g_transport.mode) {
         case PlayMode::Note: {
@@ -4229,14 +4392,22 @@ static void draw_transport_panel() {
     ImGui::SameLine();
 
     {
-        bool noteMode = g_transport.noteMode;
+        // Notes need an instrument (play_note routes through the instrument
+        // loader) — in node-graph mode the keyboard stays visible but
+        // disabled so it doesn't look alive-but-dead.
+        bool kbDisabled = (s_graphMode != GraphMode::PatchGraph);
+        bool noteMode = g_transport.noteMode && !kbDisabled;
         if (noteMode) {
             ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.3f, 0.6f, 0.3f, 1.0f));
             ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.4f, 0.7f, 0.4f, 1.0f));
         }
+        ImGui::BeginDisabled(kbDisabled);
         if (ImGui::Button("PC Keyboard")) {
             g_transport.noteMode = !g_transport.noteMode;
         }
+        ImGui::EndDisabled();
+        if (kbDisabled && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+            ImGui::SetTooltip("Keyboard needs an instrument patch");
         if (noteMode) {
             ImGui::PopStyleColor(2);
         }
@@ -7330,8 +7501,11 @@ int main(int argc, char** argv) {
                 ImGui::EndMenu();
             }
 
-            // Play/Stop in menu bar (wired through transport state)
-            if (s_graphMode == GraphMode::PatchGraph) {
+            // Play/Stop in menu bar (wired through transport state). Shown in
+            // both graph modes — node graphs stream the Mixer live (Play and
+            // Stream are equivalent there; transport_play routes to
+            // play_continuous when there's no instrument).
+            {
                 ImGui::Separator();
                 bool isPlaying = is_playing();
                 if (!isPlaying) {
