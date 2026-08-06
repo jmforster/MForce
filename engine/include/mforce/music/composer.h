@@ -225,7 +225,13 @@ struct Composer {
       locus.pieceTemplate->parts[locus.partIdx].passages[sectionName] = planned;
     }
     // Compose phase — self-contained realization from the planned template.
-    return s->compose_passage(locus, planned);
+    Passage passage = s->compose_passage(locus, planned);
+
+    // Quantize the ending (#18). Central rather than repeated inside each
+    // strategy: every passage returns through here, so a strategy written
+    // tomorrow gets it for free and cannot forget it. endGrid=0 opts out.
+    passage_anchors::grid_complete(passage, planned.endGrid);
+    return passage;
   }
 
   // Motif accessors moved to PieceTemplate (Task 1). Callers reach them
@@ -507,12 +513,25 @@ private:
           nextMarking++;
         }
 
-        if (!u.rest) {
+        // Clamp a note that would ring past the section end (#18). The loop
+        // above stops STARTING notes at the boundary, but the last one to get
+        // in kept its full duration and overhung — so a passage composed
+        // longer than its section ended at an arbitrary beat no matter what
+        // grid completion did to its final unit (wandering_24x: composed to a
+        // clean 49.0, truncated, realized ending at 48.042 in a 48-beat
+        // section). Truncation now lands exactly ON the section end.
+        float dur = u.duration;
+        if (maxSectionBeats >= 0.0f) {
+          const float room = maxSectionBeats - (currentBeat - passageBeatOffset);
+          if (dur > room) dur = room;
+        }
+
+        if (!u.rest && dur > 0.0f) {
           float vel = dynamics.velocity_at(currentBeat);
-          Note n{soundNN, vel, u.duration, u.articulation, u.ornament};
+          Note n{soundNN, vel, dur, u.articulation, u.ornament};
           part.elementSequence.add({currentBeat, n});
         }
-        currentBeat += u.duration;
+        currentBeat += dur;
       }
     }
 

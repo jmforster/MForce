@@ -470,6 +470,14 @@ struct PassageTemplate {
     // Strategy selection. Empty = default_passage.
     std::string strategy;
 
+    // Quantize the passage's total length to this grid, in beats, by adjusting
+    // the LAST note (comp #18 — 17 of 23 passage renders ended mid-beat).
+    // 1.0 = integer beat (default), 4.0 = a 4/4 barline, 0 = leave it alone.
+    // Rounds to the NEAREST multiple, not up: run 17 measured ceiling-to-the-
+    // next-barline as the dominant term in the phrase path's ending overshoot.
+    // See docs/superpowers/specs/2026-08-06-passage-end-grid-design.md.
+    float endGrid{1.0f};
+
     // State
     uint32_t seed{0};
     bool locked{false};

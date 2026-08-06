@@ -854,6 +854,9 @@ inline void to_json(json& j, const PassageTemplate& pt) {
     if (!pt.toKey.empty()) j["toKey"] = pt.toKey;
     if (!pt.scaleOverride.empty()) j["scaleOverride"] = pt.scaleOverride;
     if (!pt.strategy.empty()) j["strategy"] = pt.strategy;
+    // Not defaultish (default is 1.0), so it must always be written or the
+    // round trip loses an authored 0 / 4.0.
+    j["endGrid"] = pt.endGrid;
     if (pt.seed != 0) j["seed"] = pt.seed;
     if (pt.locked) j["locked"] = true;
     if (!pt.periods.empty()) j["periods"] = pt.periods;
@@ -972,6 +975,7 @@ inline void from_json(const json& j, PassageTemplate& pt) {
     pt.toKey = j.value("toKey", std::string(""));
     pt.strategy = j.value("strategy", std::string(""));
     pt.scaleOverride = j.value("scaleOverride", std::string(""));
+    pt.endGrid = j.value("endGrid", 1.0f);
     pt.seed = j.value("seed", 0u);
     pt.locked = j.value("locked", false);
 
