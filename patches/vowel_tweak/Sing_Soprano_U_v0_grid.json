@@ -1,0 +1,234 @@
+{
+ "sampleRate": 48000,
+ "graph": {
+  "nodes": [
+   {
+    "id": "ampEnv",
+    "type": "Envelope",
+    "params": {
+     "preset": "adsr",
+     "attack": 0.03,
+     "decay": 0.05,
+     "sustainLevel": 0.9,
+     "release": 0.0
+    }
+   },
+   {
+    "id": "f1",
+    "type": "Formant",
+    "params": {
+     "frequency": 325.0,
+     "gain": 1.0,
+     "width": 400.0,
+     "power": 2.0
+    }
+   },
+   {
+    "id": "f2",
+    "type": "Formant",
+    "params": {
+     "frequency": 700.0,
+     "gain": 0.1585,
+     "width": 480.0,
+     "power": 2.0
+    }
+   },
+   {
+    "id": "f3",
+    "type": "Formant",
+    "params": {
+     "frequency": 2700.0,
+     "gain": 0.0178,
+     "width": 1360.0,
+     "power": 2.0
+    }
+   },
+   {
+    "id": "f4",
+    "type": "Formant",
+    "params": {
+     "frequency": 3800.0,
+     "gain": 0.01,
+     "width": 1440.0,
+     "power": 2.0
+    }
+   },
+   {
+    "id": "f5",
+    "type": "Formant",
+    "params": {
+     "frequency": 4950.0,
+     "gain": 0.001,
+     "width": 1600.0,
+     "power": 2.0
+    }
+   },
+   {
+    "id": "spec",
+    "type": "FormantSpectrum",
+    "params": {
+     "formants": [
+      {
+       "ref": "f1"
+      },
+      {
+       "ref": "f2"
+      },
+      {
+       "ref": "f3"
+      },
+      {
+       "ref": "f4"
+      },
+      {
+       "ref": "f5"
+      }
+     ]
+    }
+   },
+   {
+    "id": "fp",
+    "type": "FullPartials",
+    "params": {
+     "maxPartials": 160,
+     "minMult": 1,
+     "rolloff1": 0.0,
+     "rolloff2": 0.0
+    }
+   },
+   {
+    "id": "src",
+    "type": "AdditiveSource",
+    "params": {
+     "seed": 42,
+     "frequency": 440.0,
+     "amplitude": {
+      "ref": "ampEnv"
+     },
+     "formant": {
+      "ref": "spec"
+     },
+     "formantWeight": 1.0,
+     "formantFloor": 0.0,
+     "partials": {
+      "ref": "fp"
+     }
+    }
+   }
+  ],
+  "output": "src"
+ },
+ "instrument": {
+  "paramMap": {
+   "frequency": [
+    "src.frequency",
+    {
+     "target": "f1.frequency",
+     "curve": [
+      [
+       325.0,
+       325.0
+      ],
+      [
+       344.3,
+       344.3
+      ],
+      [
+       364.8,
+       364.8
+      ],
+      [
+       386.5,
+       386.5
+      ],
+      [
+       409.5,
+       409.5
+      ],
+      [
+       433.8,
+       433.8
+      ],
+      [
+       459.6,
+       459.6
+      ],
+      [
+       486.9,
+       486.9
+      ],
+      [
+       515.9,
+       515.9
+      ],
+      [
+       546.6,
+       546.6
+      ],
+      [
+       579.1,
+       579.1
+      ],
+      [
+       613.5,
+       613.5
+      ],
+      [
+       650.0,
+       650.0
+      ],
+      [
+       688.7,
+       688.7
+      ],
+      [
+       729.6,
+       729.6
+      ],
+      [
+       773.0,
+       773.0
+      ],
+      [
+       818.9,
+       818.9
+      ],
+      [
+       867.6,
+       867.6
+      ],
+      [
+       919.2,
+       919.2
+      ],
+      [
+       973.9,
+       973.9
+      ],
+      [
+       1031.8,
+       1031.8
+      ],
+      [
+       1093.2,
+       1093.2
+      ],
+      [
+       1100.0,
+       1100.0
+      ]
+     ]
+    }
+   ]
+  },
+  "polyphony": 1
+ },
+ "score": [
+  {
+   "note": 69,
+   "velocity": 0.85,
+   "time": 0.0,
+   "duration": 3.0
+  }
+ ]
+}
