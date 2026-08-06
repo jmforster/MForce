@@ -31,33 +31,139 @@ def midi_to_freq(m):
     return 440.0 * 2 ** ((m - 69) / 12.0)
 
 
-def harmonic_env(x, sr, f0, n_harm=32, tol=0.03):
-    """Log-amplitude (dB, peak normalised to 0) at each harmonic k*f0."""
+def partial_freq(f0, B, n):
+    """Centre frequency of partial n under the stiff-string stretch law.
+
+    f_n = n*f0*sqrt(1 + B*n^2). At B=0 this returns exactly n*f0 — the sqrt is
+    exactly 1.0 and IEEE multiplication by 1.0 is exact — so every B=0 caller
+    is bit-identical to the harmonic-position code this replaced.
+    """
+    return n * f0 * np.sqrt(1.0 + B * n * n)
+
+
+def _fit_stretch(meas):
+    """Least squares (f/n)^2 = a + b*n^2, b >= 0, with one 3-sigma outlier pass.
+
+    Returns (a, b); f0 = sqrt(a), B = b/a. Lifted from piano_analysis.py so
+    the scorer and the analysis script share one implementation (the import
+    goes analysis -> refmetrics: piano_analysis pulls matplotlib and the
+    CMA-ES inner loop must not).
+    """
+    ns = np.array([m[0] for m in meas], float)
+    fs = np.array([m[1] for m in meas], float)
+    y = (fs / ns) ** 2
+    A = np.vstack([np.ones_like(ns), ns ** 2]).T
+    coef, *_ = np.linalg.lstsq(A, y, rcond=None)
+    resid = y - A @ coef
+    keep = np.abs(resid) < 3 * (resid.std() + 1e-12)
+    if 4 <= keep.sum() < len(meas):
+        coef, *_ = np.linalg.lstsq(A[keep], y[keep], rcond=None)
+    return float(max(coef[0], 1e-12)), float(max(coef[1], 0.0))
+
+
+def _peak_interp(spec, i):
+    """Parabolic interpolation on log magnitude around bin i -> frac offset."""
+    if i <= 0 or i >= len(spec) - 1:
+        return 0.0
+    a, b, c = (np.log(spec[i - 1] + 1e-30), np.log(spec[i] + 1e-30),
+               np.log(spec[i + 1] + 1e-30))
+    d = a - 2 * b + c
+    return 0.0 if d == 0 else 0.5 * (a - c) / d
+
+
+def track_partials(x, sr, f0_nom, n_max=40, snr_db=10.0, pad=4):
+    """Sequentially track partial peaks up the spectrum, refitting the stretch
+    model after each acceptance so the search window FOLLOWS the stretch
+    instead of assuming harmonic positions.
+
+    Returns (f0_fit, B, [(n, f_meas, amp_db_rel_strongest)]).
+    """
+    seg = x * np.hanning(len(x))
+    nfft = pad * (1 << int(np.ceil(np.log2(len(seg)))))
+    spec = np.abs(np.fft.rfft(seg, nfft))
+    fbin = np.fft.rfftfreq(nfft, 1.0 / sr)
+    df = fbin[1] - fbin[0]
+    a, b = float(f0_nom) ** 2, 0.0
+    meas = []
+    for n in range(1, n_max + 1):
+        fpred = n * np.sqrt(a + b * n * n)
+        fnext = (n + 1) * np.sqrt(a + b * (n + 1) ** 2)
+        if fpred > 0.92 * fbin[-1]:
+            break
+        half = max(0.35 * (fnext - fpred), 4 * df)
+        lo, hi = np.searchsorted(fbin, [fpred - half, fpred + half])
+        if hi - lo < 3:
+            continue
+        i = lo + int(np.argmax(spec[lo:hi]))
+        span = 3 * (fnext - fpred)
+        nb_lo, nb_hi = np.searchsorted(fbin, [max(0.0, fpred - span), fpred + span])
+        floor = np.median(spec[nb_lo:nb_hi])
+        if spec[i] < floor * 10 ** (snr_db / 20.0) or i in (lo, hi - 1):
+            continue    # too weak, or peak pinned to window edge (not a peak)
+        fmeas = fbin[i] + _peak_interp(spec, i) * df
+        meas.append((n, fmeas, spec[i]))
+        if len(meas) >= 5:
+            a, b = _fit_stretch(meas)
+    if len(meas) >= 5:
+        a, b = _fit_stretch(meas)
+    amax = max(m[2] for m in meas) if meas else 1.0
+    plist = [(int(n), float(f), float(20 * np.log10(am / amax + 1e-12)))
+             for n, f, am in meas]
+    return float(np.sqrt(a)), float(b / a), plist
+
+
+def estimate_inharmonicity(x, sr, f0_nom, n_max=40):
+    """Measure B (and the refined f0) from a signal. Returns (f0, B).
+
+    Falls back to (refined-by-peak f0, 0.0) when too few partials clear the
+    SNR gate to fit — a fit on <5 points is noise, and B=0 is the honest
+    "no stretch measured" answer rather than a fabricated one.
+    """
+    f0, B, plist = track_partials(x, sr, f0_nom, n_max=n_max)
+    if len(plist) < 5:
+        return float(dm.refine_f0(x, sr, f0_nom)), 0.0
+    return f0, B
+
+
+def harmonic_env(x, sr, f0, n_harm=32, tol=0.03, B=0.0):
+    """Log-amplitude (dB, peak normalised to 0) at each partial of f0.
+
+    B is the inharmonicity coefficient (0 = harmonic positions k*f0). The
+    window is +-tol RELATIVE to the partial's own centre, so with the centre
+    at the stretched position it tracks a stiff string; without it, the offset
+    in percent is B*n^2/2 and passes 3% at n>23 for C4, n>8 for C6.
+    """
     seg = x * np.hanning(len(x))
     nfft = 1 << int(np.ceil(np.log2(len(seg))))
     spec = np.abs(np.fft.rfft(seg, nfft))
     fbin = np.fft.rfftfreq(nfft, 1.0 / sr)
     amps = []
     for k in range(1, n_harm + 1):
-        fc = k * f0
+        fc = partial_freq(f0, B, k)
         sel = (fbin >= fc * (1 - tol)) & (fbin <= fc * (1 + tol))
         amps.append(float(np.max(spec[sel])) if np.any(sel) else 0.0)
     amps = np.array(amps)
     return 20 * np.log10(amps / (amps.max() + 1e-12) + 1e-6)
 
 
-def motion_stats(x, sr, f0_nom):
+def motion_stats(x, sr, f0_nom, B=0.0):
     """derive_motion's per-harmonic decomposition on a sustain segment.
 
     Returns the residual (line-broadening) and amplitude-fluctuation stats,
     or None if too few harmonics clear the noise floor.
+
+    B stretches the heterodyne centres. Without it a stiff-string partial
+    displaced by more than the 40 Hz LP half-width leaves the passband
+    entirely and drops out at the noise-floor break, silently shortening the
+    analysis rather than reporting anything wrong.
     """
     f0 = dm.refine_f0(x, sr, f0_nom)
     decim = 32
     sr_env = sr / decim
     cents, amps = [], []
     for k in range(1, dm.N_HARM + 1):
-        env = dm.heterodyne(x, sr, k * f0)[::decim]
+        fc = partial_freq(f0, B, k)
+        env = dm.heterodyne(x, sr, fc)[::decim]
         env = env[int(0.1 * sr_env): -int(0.1 * sr_env) or None]
         a = np.abs(env)
         if a.mean() < 1e-7:
@@ -65,7 +171,7 @@ def motion_stats(x, sr, f0_nom):
         dphi = np.angle(env[1:] / env[:-1])
         # clip the ratio > 0 so a rare ~pi phase jump (noisy harmonic) can't
         # make log2 NaN; such samples are dominated out by the median anyway.
-        ratio = np.maximum(1.0 + (dphi * sr_env / (2 * np.pi)) / (k * f0), 1e-3)
+        ratio = np.maximum(1.0 + (dphi * sr_env / (2 * np.pi)) / fc, 1e-3)
         c = 1200.0 * np.log2(ratio)
         cents.append(c - c.mean())
         amps.append(a[1:] / a.mean())
@@ -94,8 +200,8 @@ MOTION_KEYS = ["resid_cents_rms", "resid_rate_hz", "resid_coherence",
                "amp_frac_rms", "amp_rate_hz", "amp_coherence"]
 
 
-def broadband_ratios(x, sr, f0, tol_frac=0.06):
-    """Per band: energy BETWEEN harmonic lines / energy AT lines.
+def broadband_ratios(x, sr, f0, tol_frac=0.06, B=0.0):
+    """Per band: energy BETWEEN partial lines / energy AT lines.
 
     Real bowed strings carry broadband bow noise between the harmonics; pure
     additive has (almost) none. This is the ml_ears-quantified gap.
@@ -105,6 +211,13 @@ def broadband_ratios(x, sr, f0, tol_frac=0.06):
     "ratio" there was between_e / 1e-12, i.e. a noise-floor measurement
     inflated by twelve decades, which then dominated term3. Callers must
     treat these bands as missing (nanmean), not as zero and not as huge.
+
+    B stretches the line positions. The mask half-width is a fixed tol_frac*f0
+    (line width is set by the analysis window, not by partial index), while a
+    stiff-string partial's offset grows as f0*B*n^3/2 — so at B=0 masking a
+    real piano, every partial past n^3 > 2*tol_frac/B falls OFF the mask and
+    is counted as inter-harmonic energy. That is n>10.6 at C4's B=1.1e-4, and
+    it is why the piano reference carried band ratios of 120/260/2056.
     """
     seg = x * np.hanning(len(x))
     nfft = 1 << int(np.ceil(np.log2(len(seg))))
@@ -115,7 +228,9 @@ def broadband_ratios(x, sr, f0, tol_frac=0.06):
     lines = np.zeros(len(fbin), bool)
     n_in_band = [0] * len(BANDS)
     for k in range(1, kmax + 1):
-        fk = k * f0
+        fk = partial_freq(f0, B, k)
+        if fk > fbin[-1]:
+            break       # stretch outruns Nyquist before kmax when B > 0
         lines |= np.abs(fbin - fk) <= tol_hz
         for bi, (lo, hi) in enumerate(BANDS):
             if lo <= fk < hi:

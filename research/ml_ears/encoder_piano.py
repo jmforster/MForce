@@ -4,23 +4,27 @@ LOCKED from measurement (never searched):
   - inharmonicity B(f0): the measured per-note table rides in the template's
     paramMap curve (pp.inharmonicity) untouched.
   - decayExp = 0.6 (within-note decay-vs-partial exponent, report sec 2).
-  - attack: ampEnv attack 8 ms (measured 10-90 rise 4-55 ms, no register
-    law), onsetSpread 0 (piano is an onset-dispersion~0 instrument).
+  - attack: ampEnv attack 8 ms LITERAL (timeMode=seconds, run-23 engine fix;
+    measured 10-90 rise 4-55 ms), onsetSpread 0.
+  - knock (run 23, REVIEW 16 fix 2 — the clarinet lesson: optimizer drift
+    away from a measured transient is what broke the breath): rise 5 ms,
+    decay 86 ms (= measured 69 ms decay-to-10%), level 0.01335 (calibrated
+    to the real C2 2.5-8 kHz first-50 ms energy share by
+    calibrate_knock_level.py), band 2500-8000 Hz (measured; the run-20
+    smoke converged there unprompted). All live in the template.
 
-SEARCHED (18 dims):
+SEARCHED (14 dims):
    0-7   env knots (8)  multiplicative over the 1/n baseline, log-interp
    8     rolloffLo      pp.rolloff1 @65 Hz   (per-note spectral tilt curve)
    9     rolloffHi      pp.rolloff1 @1046 Hz
-  10     decayScale     multiplies the template's measured h1-rate register
-                        curve (pp.decayRate paramMap values)
-  11     knockLevel     hammer-knock one-shot level (CombinedSource const)
-  12     knockDecay     knockEnv decay (s)
-  13     knockLo        knock band low edge (Hz)
-  14     knockHi        knock band high edge (Hz)
-  15     shimmerDepth   unison-string beating (seeded 0.15 — measured depth
+  10     decayScale     multiplies the template's re-fit h1-equivalent
+                        register curve (pp.decayRate paramMap values);
+                        narrow band around 1.0 now that the curve itself is
+                        measured per register (refit_decay_curve.py)
+  11     shimmerDepth   unison-string beating (seeded 0.15 — measured depth
                         0.106-0.285 multi-strung; rate unmeasurable, so:)
-  16     shimmerHz      searchable
-  17     shimmerCoherence searchable
+  12     shimmerHz      searchable
+  13     shimmerCoherence searchable
 """
 import copy
 
@@ -35,11 +39,7 @@ KNOT_RANGE = (0.25, 4.0)
 SCALARS = [
     ("rolloffLo",        0.0, 1.5, 0.2),
     ("rolloffHi",        0.0, 1.5, 0.2),
-    ("decayScale",       0.25, 4.0, 1.0),
-    ("knockLevel",       0.0, 0.3, 0.05),
-    ("knockDecay",       0.02, 0.2, 0.08),
-    ("knockLo",          500.0, 4000.0, 2500.0),
-    ("knockHi",          4000.0, 12000.0, 8000.0),
+    ("decayScale",       0.7, 1.4, 1.0),
     ("shimmerDepth",     0.0, 0.6, 0.15),
     ("shimmerHz",        0.2, 10.0, 2.0),
     ("shimmerCoherence", 0.0, 1.0, 0.5),
@@ -109,14 +109,8 @@ def encode(z, template):
     parts["shimmerHz"] = float(d["shimmerHz"])
     parts["shimmerCoherence"] = float(d["shimmerCoherence"])
 
-    # hammer knock: one-shot band-passed noise
-    _node(p, "knockEnv")["params"]["decay"] = float(d["knockDecay"])
-    _node(p, "knockAmp")["params"]["source2"] = float(d["knockLevel"])
-    kbp = _node(p, "knockBP")["params"]
-    lo, hi = float(d["knockLo"]), float(d["knockHi"])
-    if hi < lo + 500.0:
-        hi = lo + 500.0
-    kbp["lowCutoff"], kbp["highCutoff"] = lo, hi
+    # hammer knock: LOCKED in the template (measured rise/decay/level/band —
+    # run 23); the encoder no longer touches knockEnv/knockAmp/knockBP.
 
     # paramMap curves: keep locked B curve; scale the measured decay-rate
     # register curve; rewrite the rolloff tilt breakpoints.

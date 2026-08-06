@@ -7,6 +7,7 @@
         "type": "Envelope",
         "params": {
           "preset": "adsr",
+          "timeMode": "seconds",
           "attack": 0.008,
           "decay": 0.0,
           "sustainLevel": 1.0,
@@ -537,8 +538,9 @@
         "type": "Envelope",
         "params": {
           "preset": "adsr",
-          "attack": 0.002,
-          "decay": 0.08,
+          "timeMode": "seconds",
+          "attack": 0.005,
+          "decay": 0.086,
           "sustainLevel": 0.0,
           "release": 0.02
         }
@@ -551,7 +553,7 @@
           "source1": {
             "ref": "knockEnv"
           },
-          "source2": 0.05
+          "source2": 0.01335
         }
       },
       {
@@ -642,20 +644,44 @@
           "target": "pp.decayRate",
           "curve": [
             [
-              32.7,
-              1.4
+              32.5,
+              1.18
             ],
             [
-              130.8,
-              14.0
+              65.4,
+              2.58
             ],
             [
-              2093.0,
-              19.0
+              97.9,
+              7.7
             ],
             [
-              4186.0,
-              38.3
+              131.0,
+              5.82
+            ],
+            [
+              196.7,
+              22.75
+            ],
+            [
+              262.6,
+              34.44
+            ],
+            [
+              393.8,
+              32.22
+            ],
+            [
+              523.4,
+              15.09
+            ],
+            [
+              1041.0,
+              17.8
+            ],
+            [
+              2100.8,
+              17.44
             ]
           ]
         },
