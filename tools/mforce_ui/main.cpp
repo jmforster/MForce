@@ -1014,7 +1014,16 @@ static void load_graph_from_path(const std::string& path) {
                 params.contains("preset")) {
                 if (auto* env = dynamic_cast<Envelope*>(gn.dspSource.get())) {
                     std::string preset = params["preset"].get<std::string>();
-                    if (preset == "adsr") {
+                    if (preset == "adsr" &&
+                        params.value("timeMode", std::string("fraction")) == "seconds") {
+                        // Seconds-mode adsr (run 23): rebuild with the absolute
+                        // factory or the timing silently reverts to fractional.
+                        *env = Envelope::make_adsr_abs(DSP_SAMPLE_RATE,
+                            params.value("attack", 0.2f),
+                            params.value("decay", 0.1f),
+                            params.value("sustainLevel", 0.7f),
+                            params.value("release", 0.0f));
+                    } else if (preset == "adsr") {
                         *env = Envelope::make_adsr(DSP_SAMPLE_RATE,
                             params.value("attack", 0.2f),
                             params.value("decay", 0.1f),

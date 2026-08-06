@@ -88,6 +88,18 @@ struct Envelope : ValueSource {
   float stage_accuracy{1.0f};
   float ramp_accuracy{1.0f};
 
+  // Stage-timing semantics (2026-08-06, piano-chuff fix). Default false:
+  // Stage.percent is a FRACTION of note duration, clamped to
+  // [minSec, maxSec] — the semantics every pre-existing patch was authored
+  // against (bit-exact preserved). Opt-in true (JSON "timeMode":"seconds"
+  // on the adsr preset, or make_adsr_abs): Stage.percent is a LITERAL
+  // duration in seconds; minSec/maxSec are ignored and the only clamp is
+  // the physical one to [0, note duration]. An 8 ms attack renders as 8 ms
+  // whether the note lasts 0.5 s or 10 s, and a fixed decay no longer
+  // varies with note length. The expand stage (percent == 0) still fills
+  // the remainder in both modes.
+  bool absolute_time{false};
+
   void set_seed(uint32_t s) { seed_ = s; }
   uint32_t get_seed() const { return seed_; }
 
@@ -174,14 +186,17 @@ struct Envelope : ValueSource {
         continue;
       }
 
-      float stgDur = duration * stages_[i].percent;
+      float stgDur = absolute_time ? stages_[i].percent          // literal seconds
+                                   : duration * stages_[i].percent;
       // Apply stage_accuracy: multiply by a random factor in [stage_accuracy, 1]
       // so multiplex clones get jittered ramp lengths. No-op when == 1.
       if (stage_accuracy < 1.0f) {
         std::uniform_real_distribution<float> dist(stage_accuracy, 1.0f);
         stgDur *= dist(rng_);
       }
-      stgDur = std::clamp(stgDur, stages_[i].minSec, stages_[i].maxSec > 0 ? stages_[i].maxSec : stgDur);
+      stgDur = absolute_time
+        ? std::clamp(stgDur, 0.0f, duration)                     // physical clamp only
+        : std::clamp(stgDur, stages_[i].minSec, stages_[i].maxSec > 0 ? stages_[i].maxSec : stgDur);
       stageCounts_[i] = int(std::lround(stgDur * sampleRate_));
 
       // Rounding fix for last non-expand stage
@@ -263,6 +278,27 @@ struct Envelope : ValueSource {
     env.add_stage({{sustainLevel, sustainLevel, RampType::Linear, 0.0f}, 0.0f, 0.0f, 0.0f}); // expand
     env.add_stage({{sustainLevel, 0.0f, RampType::Sine, 0.0f}, releasePct, releaseMin, releaseMax});
     env.adsrLayout_ = true;  // enables live sustainLevel rewrites via set_config
+    return env;
+  }
+
+  // Attack → Decay → Sustain (expand) → Release with LITERAL-SECONDS stage
+  // times (absolute_time = true; JSON: preset "adsr" + "timeMode":"seconds").
+  // No min/max stage clamps — the fractional preset's 0.05 s attack floor is
+  // what smeared the piano's locked 8 ms attack into a 50 ms chuff and made
+  // knock decay vary with note duration (dsp run 22 diagnosis). A 0-second
+  // stage renders as 0 frames (percent == 0 keeps its expand meaning, so
+  // decay 0 simply vanishes and sustain expands; release 0 keeps the
+  // documented "release fills the sustain region" quirk).
+  static Envelope make_adsr_abs(int sampleRate,
+                                float attackSec, float decaySec,
+                                float sustainLevel, float releaseSec) {
+    Envelope env(sampleRate);
+    env.add_stage({{0.0f, 1.0f, RampType::Linear, 0.0f}, attackSec, 0.0f, 0.0f});
+    env.add_stage({{1.0f, sustainLevel, RampType::Linear, 0.0f}, decaySec, 0.0f, 0.0f});
+    env.add_stage({{sustainLevel, sustainLevel, RampType::Linear, 0.0f}, 0.0f, 0.0f, 0.0f}); // expand
+    env.add_stage({{sustainLevel, 0.0f, RampType::Sine, 0.0f}, releaseSec, 0.0f, 0.0f});
+    env.adsrLayout_ = true;
+    env.absolute_time = true;
     return env;
   }
 

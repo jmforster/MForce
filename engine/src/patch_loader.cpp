@@ -325,6 +325,10 @@ static GraphResult build_graph(
                     env->stage_accuracy = std::clamp(p["stage_accuracy"].get<float>(), 0.0f, 1.0f);
                 if (p.contains("ramp_accuracy") && p["ramp_accuracy"].is_number())
                     env->ramp_accuracy = std::clamp(p["ramp_accuracy"].get<float>(), 0.0f, 1.0f);
+                // Literal-seconds stage times (percent = seconds; see envelope.h
+                // absolute_time). Same key as the adsr preset form.
+                if (p.value("timeMode", std::string("fraction")) == "seconds")
+                    env->absolute_time = true;
                 valueNodes[id] = env;
             } else {
                 std::string preset = p.value("preset", std::string("ar"));
@@ -333,6 +337,27 @@ static GraphResult build_graph(
                     env = std::make_shared<Envelope>(Envelope::make_ar(sampleRate,
                         p.value("attack", 0.2f), p.value("attackMin", 0.0f), p.value("attackMax", 1.0f)));
                 } else if (preset == "adsr") {
+                    // Two timing semantics (2026-08-06):
+                    //   default "fraction": attack/decay/release are fractions
+                    //     of note duration, clamped per stage — unchanged for
+                    //     every existing patch.
+                    //   "timeMode":"seconds": literal-seconds stages, no
+                    //     clamps (make_adsr_abs) — the *Min/*Max keys are
+                    //     meaningless there, so their presence is an error
+                    //     rather than a silently dead knob.
+                    const std::string timeMode = p.value("timeMode", std::string("fraction"));
+                    if (timeMode == "seconds") {
+                        for (const char* k : {"attackMin", "attackMax", "decayMin",
+                                              "decayMax", "releaseMin", "releaseMax"})
+                            if (p.contains(k))
+                                throw std::runtime_error(
+                                    std::string("adsr timeMode=seconds does not take ") + k);
+                        env = std::make_shared<Envelope>(Envelope::make_adsr_abs(sampleRate,
+                            p.value("attack", 0.2f), p.value("decay", 0.1f),
+                            p.value("sustainLevel", 0.7f), p.value("release", 0.0f)));
+                    } else if (timeMode != "fraction") {
+                        throw std::runtime_error("Unknown adsr timeMode: " + timeMode);
+                    } else {
                     // make_adsr takes six randomization-range args that this
                     // loader used to drop on the floor, so an adsr preset could
                     // not express stage jitter at all (found 2026-08-04 by
@@ -344,6 +369,7 @@ static GraphResult build_graph(
                         p.value("attackMin",  0.05f),  p.value("attackMax",  1.0f),
                         p.value("decayMin",   0.025f), p.value("decayMax",   0.5f),
                         p.value("releaseMin", 0.0f),   p.value("releaseMax", 0.0f)));
+                    }
                 } else {
                     throw std::runtime_error("Unknown envelope preset: " + preset);
                 }
