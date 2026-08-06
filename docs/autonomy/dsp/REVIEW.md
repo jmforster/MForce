@@ -2,71 +2,50 @@
 
 ## Awaiting Matt
 
-### 17. The four UI requests — built [try] (run 22)
-All in the new build (title bar 08-05 12:06 @7648c61): Edit menu with
-Cut/Copy/Paste + ctrl-x/c/v (multi-select, links inside the selection
-rewire on paste); Edit > Convert to Patch/Node graph (same-session
-round trip restores instrument+curves verbatim; cold conversion uses the
-frequency heuristic + default score); Output category (Output patch-mode,
-Channel/Mixer node-mode, gated with reasons); File > Audition... window —
-Source pane (folder + controls + WAVs), Target pane (folder + patch list,
-refreshes after Save, click + Delete + Enter deletes the file).
-Headless checks green (--roundtrip 8/8, --convert-roundtrip
-byte-identical). Hands-on list: box-select copy/paste, conversion node
-placement, Audition pane sizing + delete flow, and NOTE Delete/Backspace
-node-delete now requires editor focus (was global).
+### 19. Piano after the calibration bundle [listen] (run 23)
+renders/cmaes_piano2/ — `piano_smoke2_baseline_C2C4C6` vs
+`piano_smoke2_best_C2C4C6` + `piano_smoke2_best_twohand`. Your 1+2+3 all
+landed and are VERIFIED in the render: attack now 4.9-5.7 ms (the 8 ms
+lock rendering honestly; was ~33-34 ms chuff), knock at the real
+measured scale (was ~68x over and smeared), C2/C6 early decay lands on
+the real trajectory, and the re-fit decay curve is validated by the
+optimizer itself (decayScale converged at 1.046). Smoke2: 1.188 ->
+0.876, still descending at 110 evals.
+Honest residuals, measured: (a) attack is now uniformly ~5 ms while
+real pianos trend 36/13/9 ms down the registers — a per-register attack
+curve is the next calibration step; (b) C4's late decay still dies with
+no aftersound coast, and real C4's overtones decay SLOWER than its
+fundamental — both point at option 4 (second decay stage), the
+structural fix you deferred.
+Verdict decides: is this piano-ward enough to fund option 4 and/or the
+600-eval run; which residual bothers your ear most.
 
-### 18. F1-retuned sopranos — re-rendered [listen] (run 22)
-renders/vowel_grid/ — the 11 flagged WAVs replaced in place per your
-"Let's do (a)". The true trio (Soprano E/I/U at A4) gained h1
-+8.2/+21.4/+14.9 dB (matching the predicted skirt deficit to 0.01 dB);
-the other 8 carry the curve but are no-ops at their scored note
-(merged-formant class, retune only matters if played higher).
-Tradeoff to listen for: power returns, vowel identity blurs toward
-F2-only cues — the physiologically accurate soprano situation.
+### 20. Vowel compare ladders — your called-out list [listen] (run 23)
+renders/vowel_tweak/ — 36 WAVs (26 variants + grid A/B copies + 3
+references) + README with per-entry diagnosis and the one thing to
+listen for per variant. Measured causes behind your reports: sung U has
+NO resolved F2 peak (speech UW's virtue — its F2 rides a clear harmonic
+at ~1 kHz); Alto_U is flat within 2.2 dB right in EH-F1 territory
+(your "between EH and OO", verbatim); Soprano_A has a 2.6-octave hole
+h3->h9 (your "individual partials"); Alto/Soprano E and I peak on the
+SAME harmonic — Soprano E's mid peak actually sits ABOVE I's (inverted
+e/i). Grid untouched — pick winners and I fold them in.
+Note for the future: if the soprano statics still disappoint, the
+remaining real-singer lever is vibrato sweeping partials across the
+formant bands — pitch-modulation-layer work.
 
-### 16. Piano diagnosis — the chuff was a bug, plus your FM accident measured [read] (run 22)
-Full numbers in research/ml_ears/piano_diagnosis.py output; the short form:
-
-THE CHUFF: `adsr` preset semantics. make_adsr treats attack as a FRACTION
-of note duration and clamps each stage (attack floor 0.05s) — so the
-"locked 8 ms" attack rendered as a 50 ms linear ramp (measured 10/90 rise
-43.6 ms vs real piano 9-36 ms), the knock ALSO hit the 50 ms floor and its
-decay rendered 267 ms vs the real 69 ms — AND the optimizer scored 2.2s
-eval notes while you heard 3.5s renders, so CMA-ES never even scored what
-you auditioned. Knock energy is ~150x overweight but smeared -> chuff.
-
-STRING-Y SUSTAIN: two causes. (a) Double decay is structurally absent — a
-single exponential + shimmer IS the string signature; real C4 drops -9.4
-dB by 0.5s then coasts at ~-1 dB/s, candidate does one steady slope (too
-slow early, too fast late). (b) The decay register curve is miscalibrated
-(C2 3.4x too fast, C4/C5 3x too slow) — no decayScale can fix both ends.
-Also term1: one global envelope can't serve C2 and C6 (13-20 dB per-note
-error; candidate bass is fundamental-only dark).
-
-YOUR FM ACCIDENT (t1_04): measured virtues = 2.6 ms attack (vs additive's
-~40), a 112-line quasi-harmonic forest at f0~36 Hz (multi-string bass
-thickness; NOT inharmonicity — fitted B~5e-6), highs-die-first sideband
-collapse, and onset tilt +3.7 dB vs real C2's +4.5. Caveat: its pitch
-comes from the modulation-rate grid, not `frequency` — playing a scale
-needs a mapping study first.
-
-OPTIONS (pick a bundle; no code written yet):
-1. Fix attack semantics for this path (absolute seconds / expose clamps)
-   — small, highest leverage, everything else inherits it.
-2. Recalibrate knock level+decay from measurement (post-1, cheap).
-3. Rebuild decay register curve from per-note measurement (no engine
-   work; fixes bass-too-fast AND mid-too-slow).
-4. Second decay stage (prompt/aftersound) — the one STRUCTURAL gap;
-   engine feature.
-5. Per-register spectral envelope (lock from measured spectra like B).
-6. FM-for-bass hybrid: characterize t1_04's pitch mapping, then either
-   FMSource for octaves 1-2 or port its virtues (attack, line density)
-   into additive.
-7. Full 600-eval run as-is — measurement argues AGAINST (optimizer would
-   be scoring the bug).
-My recommendation: 1+2+3 next run (all calibration, no new features),
-4 as the follow-up feature, 6 as a parallel exploration when you want it.
+### 21. Node graphs are playable [try] (run 23)
+Per your item-17 verdict. Play/Stream (menu, Space, S) now work in
+node-graph mode: the stream resolves Mixer -> Channel -> sources with
+per-channel volume/pan and mirrors StereoMixer::render exactly (equal-
+power pan, master gains, soft clip) — true stereo, no double-pan.
+Play == Stream there (no notes); PC keyboard visible-but-disabled with
+a tooltip. Also fixed a latent audio-thread use-after-free on
+load/delete-while-streaming that patch mode had too.
+Hands-on: New Node Graph -> Sine -> Channel -> Mixer ch1 -> Space;
+drag frequency and pan live. Good demos: rn_test.json (RedNoise — the
+crackling-fire case), wander_pan_test.json (live stereo motion),
+gs_chaotic.json.
 
 ### 11. Answer: what the power renorm would do (item 5 follow-up) [read] (run 20)
 Your read is right — with the current formula, power is N/A at count=1 by
@@ -83,6 +62,14 @@ code and in this queue, and we skip a sound-changing edit to a retiring
 front. Say the word if you want the renorm anyway.
 
 ## Resolved
+
+2026-08-06 (Matt, folded in run 23): UI batch "all looks good and works
+as advertised" + NodeGraphs-should-be-playable -> built (item 21).
+Vowel grid full audition: male speech all excellent, bass/tenor good
+except U; alto/soprano A/E-I/U called out with specifics; O the best;
+"do a compare pass on only the ones called out" -> 26-variant measured
+ladder (item 20). Piano options: "Yes, start with 1+2+3" -> all three
+landed + re-smoke (item 19).
 
 2026-08-05 (Matt, folded in run 22): clicks/slew "dead end, revert all
 code" -> REVERTED (d256536+50da8af; CombinedSource op-parse fix kept;

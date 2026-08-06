@@ -130,7 +130,15 @@ Priority order. Tags per WORKFLOW.md. (G1)-(G4) = GOALS.md Dipsy goals.
    who wrote the C#: what was ordinal 3? (REVIEW 10.)
    Regression-gated: 73/73 byte-identical vs the stored A/B arm, with exactly
    the 6 revived patches present only in the new arm.
-3e-NEXT2. **[build] Piano recovery bundle — GATED on Matt's option pick
+3e-NEXT3. **[build] Piano next steps** — gated on REVIEW 19 verdict:
+   (4) second decay stage (prompt/aftersound; C4 evidence now includes
+   overtones decaying SLOWER than h1 — inverted vs the fixed n^0.6 law,
+   so the feature likely needs per-partial break/rates, not one global
+   break); per-register ATTACK curve (real 36/13/9 ms trend vs the
+   uniform 8 ms lock; needs Envelope rebuild-on-config or a paramMap
+   freq curve on the attack config); 600-eval run once residuals are
+   funded; stretch-aware heterodyne (scorer debt, carried).
+3e-NEXT2. **DONE run 23 — [build] Piano recovery bundle** (was: GATED on Matt's option pick
    (REVIEW 16)** — recommended: (1) absolute-seconds attack semantics for
    this path, (2) knock recalibration from measurement, (3) decay register
    curve rebuilt from per-note fits; then re-smoke. Follow-up feature
