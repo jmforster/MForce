@@ -2,18 +2,27 @@
 
 Priority order. (G1)-(G2) = GOALS.md Wolfie goals.
 
-18. **[build] Passage endings do not land on a barline** — found by the run-17
-    passage-mode sweep: **37 of 74** passage renders end off the beat, in
-    EVERY family (wandering 5/6, connective 4/6, sequence_passage 4/4,
-    chain_* 7/9). The phrase path grid-completes endings onto a barline
-    (run 13); the C++ passage strategies have no equivalent and nothing
-    measured it until now. Engine-side.
-19. **[build] Empty render, plausible score** — `wandering_24x` in
-    `renders/engine_passage_strategies/` has ZERO notes and the phrase
-    composite scores it 0.407. Run 17 added a `scorable` flag so a batch can
-    see it, but two things are open: whether that render still reproduces at
-    HEAD (untested — no CLI available in run 17) and whether `score()` should
-    refuse rather than flag. Re-render `wandering_24x` first.
+18. **DONE run 18** — `passage_anchors::grid_complete` applied centrally in
+    `Composer::compose_passage` (every strategy returns through there), NEAREST
+    multiple not ceiling, knob `PassageTemplate::endGrid` (1.0 beat default /
+    4.0 barline / 0 off). Measuring found a SECOND mechanism the backlog did
+    not know about: a passage composed longer than its section was truncated
+    mid-note and overhung the boundary, so quantizing its final unit could
+    never help (`wandering_24x` composed a clean 49.0 into a 48-beat section).
+    Notes now clamp to the section end. 5/21 → **21/21** on the beat.
+    Blast radius: 31/38 templates byte-identical, the 7 that changed all moved
+    onto the grid. Beat-vs-barline default queued as REVIEW 17.
+    Also found: two STALE renders from an 08-01 `--takes 4` run were still in
+    `renders/engine_passage_strategies/` and had been counted by every sweep
+    since — including run 17's 37/74. Deleted.
+19. **DONE run 18** — the empty render does NOT reproduce: `wandering_24x`
+    renders 99 notes at HEAD (run 17 had no CLI to test with). On the open
+    design question, `score()` now REFUSES rather than flags — `composite` is
+    `None` below the 4-note threshold, so arithmetic raises instead of quietly
+    averaging a placeholder. Verified safe first: no caller passes fewer than
+    4 notes (`figure_transforms` samples kmin=5). Five aggregation sites in
+    the batch drivers filter on `scorable`; `figure_transforms` deliberately
+    does not, because a short figure there is a bug worth a traceback.
 20. **[review:read] Passage-mode open semantics** — two questions the #15
     screen cannot answer by itself. (a) A DESCENDING sequence scores
     0.49–0.51 because the tension criterion asks "does it build", which is

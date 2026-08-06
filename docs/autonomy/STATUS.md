@@ -1,16 +1,68 @@
 # Status — open this file first
 
-Updated: 2026-08-05 — dsp run 21 (Dipsy, scheduled) · comp run 17 (Wolfie, scheduled)
+Updated: 2026-08-06 — comp run 18 (Wolfie, scheduled) · dsp run 21/22 (Dipsy, scheduled)
 
 | Lane | Dev | Latest run | Backlog top | Awaiting your review |
 |---|---|---|---|---|
-| comp | Wolfie | run 17 (2026-08-05, scheduled): 4 fronts, all Python-side — **the dsp lane was live in this working copy**, so #13 (engine) was not attempted. #16 CLOSED: the ending overshoot was mostly grid completion CEILING every phrase onto the next barline, not the ratio draw (which was already on the corpus median); v4 `calib` is the new default, p50 3.00→2.50 / over-p95 0.170→0.065. #17 CLOSED: the range guard now reverts the OFFENDER (run 16's p18 reproduced, then fixed; transforms surviving 3→15 at tight cap). #15 CLOSED: passage-mode scorer, verified by mechanical degradations, uncorrelated with the phrase composite (Spearman 0.072 over 74 renders). Wiring it into the strategy driver turned up 37/74 passage renders ENDING OFF THE BEAT and an empty render scoring 0.407 | #13 section key (first up, needs a quiet build dir); #18 passage endings off-beat; #19 empty render; #14 priority semantics (his call) | **6 items** — endings A/B [listen] NEW, passage-mode semantics [read] NEW, Bruckner v2 [listen], pedal_chords voiced [listen], repeat transforms A/B [listen], voicing_ab 9 WAVs [listen] |
-| comp (prev) | Wolfie | run 16 (2026-08-04 pm, interactive): 5 verdicts folded; #12 closure screen verified+committed (and it exposed the ending rule overshooting, #16); VoicingPin landed; Bruckner v2 built to Matt's progressions with the pedal held under the Ger6; pedal_chords engine-voiced; literal repeats transform (#10 closed); voicing A/B renders delivered | — | (folded into run 17) |
+| comp | Wolfie | run 18 (2026-08-06, scheduled): 3 fronts, all build/metric — **the engine was free**, so both blocked engine items landed. #13 CLOSED: `sections[].keyName` desugars at COMPOSE time into a beat-0 KeyContext, and it had a second half nobody had recorded (a section's `scaleOverride` was realized at the PIECE tonic, so a section could change its scale type but never its tonic); null test 38/38 byte-identical. #18 CLOSED: central `grid_complete` in `compose_passage`, 5/21 → **21/21** endings on the beat — and measuring found a SECOND mechanism, a passage composed longer than its section overhung the boundary mid-note. #19 CLOSED: the empty render does NOT reproduce (99 notes at HEAD), and `score()` now REFUSES (composite `None`) rather than flagging | #7 phrase-aware cadence; #8 voicing open items; #9 PAC held-note; #14 priority semantics (his call); #20 passage-mode semantics (needs your read) | **8 items** — passage endings beat-vs-bar [listen] NEW, section key tonic [listen] NEW, endings A/B [listen], passage-mode semantics [read], Bruckner v2 [listen], pedal_chords voiced [listen], repeat transforms A/B [listen], voicing_ab 9 WAVs [listen] |
+| comp (prev) | Wolfie | run 17 (2026-08-05, scheduled): 4 fronts, all Python-side — the dsp lane was live, so #13 was not attempted. #16 (ending overshoot was grid completion CEILING onto the next barline, not the draw; v4 `calib` default), #17 (offender-first range guard), #15 (passage-mode scorer, uncorrelated with the phrase composite at Spearman 0.072) | — | (folded into run 18) |
 | dsp | Dipsy | run 21 (2026-08-05, scheduled): 3 fronts, all build/metric; **SlewLimiterSource** landed (Slew/Lag/**Peak**) — and measuring caught that the backlog's premise was wrong, the clicks are IMPULSES not steps, so a sign-keyed limiter only makes them quieter; click ladder gives a monotonic dial, attack centroid 7116 → 3237 Hz; CombinedSource finally parses `sum` (and throws instead of silently substituting Add); **broadband_ratios empty-band blowup fixed** — piano C6 band0 was 4.63e+11 and dominated the smoke's term3 | 3e-NEXT (b) stretch-aware heterodyne (now BIGGER — it hits broadband_ratios too); item 14; item 13 | **5 items** — slew click ladder [listen] NEW, piano A/B [listen], click PoCs [listen], power-renorm answer [read], F1-retuning answer [read] |
 | dsp (prev) | Dipsy | run 20 (2026-08-04 pm, interactive): 9 verdicts folded; PIANO FIRST PASS — per-partial decay + inharmonicity engine configs (bit-exact at defaults, stretch verified to 0.1 cents), config-driven reference pipeline adopted from the dead run + onset alignment, 18-dim encoder, 108-eval smoke 1.521 -> 0.900 with knock band converging to the measured 2.5-8 kHz; t3_23 clicks EXPLAINED (velvet-phase, controllable 5-193/s) + 3 noisy-attack PoCs; expand front retired; CombineTest fixed | full piano run (gated on A/B); scorer debt 3e-NEXT; sum-op lint 3f | **4 items** — piano A/B [listen], click PoCs [listen], power-renorm answer [read], F1-retuning answer [read] |
 
-Reports: dsp/reports/2026-08-05-dipsy-run21.md ·
+Reports: comp/reports/2026-08-06-wolfie-run18.md ·
+dsp/reports/2026-08-05-dipsy-run22.md ·
 comp/reports/2026-08-05-wolfie-run17.md
+
+Run-18 highlights (comp): three fronts, all build/metric, no blind taste
+iteration. The through-line is **two of the three defects were not where the
+backlog said they were**.
+(0) **A dsp run died in this working copy at 03:12 this morning.**
+`research/ml_ears/refmetrics.py` is modified and stamped 08-06 03:12:45, with
+`docs/superpowers/specs/2026-08-06-stretch-aware-metrics-design.md` (03:11:50)
+and `research/ml_ears/test_stretch_metrics.py` (03:14:20) untracked beside it
+— a spec plus an implementation plus a test for **3e-NEXT (b) stretch-aware
+heterodyne**, the top dsp item, with no report and no commit. Same orphan
+pattern as 08-01 and 08-03. Nothing written to them in the four hours since,
+`build/` untouched for six hours before my first build, so the lane was not
+live while I worked. Left exactly as found. **Dipsy: adopt or discard before
+re-doing that item from scratch.** (The standing dirt is the other two,
+`c2c_quiet.json` 08-01 and `v6_01_res_curve_lo.json` 07-30.)
+(1) **#13 — the section key had a second half nobody had written down.**
+`sections[].keyName` was dropped without a word; it now names the section
+TONIC and desugars at COMPOSE time into a beat-0 KeyContext (parse stores /
+serialize writes back, so the template round-trips and the linter stops
+reporting it — desugaring at PARSE time would make `to_json` emit both forms
+and re-reading the engine's own output would trip the conflict throw against
+itself). The unrecorded half: `setup_piece_` realized a section's
+`scaleOverride` at the **piece** tonic, so a section could change its scale
+TYPE but never its TONIC. Accepts `"G"` or `"G Minor"`, composes with LATER
+keyContexts, throws by name on a beat-0 conflict and an unknown key. Null test
+**38/38 WAVs byte-identical** — measured against a reverted build, not argued
+from the code. And run 13's carried caveat is CONFIRMED rather than repeated:
+it changes accidentals, it does NOT move the tonic (in D major the C3 entry
+is not even a scale tone and snaps to C#). Three-arm A/B, REVIEW 16.
+(2) **#18 — grid completion fixed most of it, and measuring found the rest.**
+Central `passage_anchors::grid_complete` in `Composer::compose_passage` (the
+one point every strategy returns through), NEAREST multiple not ceiling, knob
+`endGrid`. That got 21/23 — and the two stragglers were the payload. One was
+a **stale render from an 08-01 `--takes 4` run** that every sweep since has
+silently counted, run 17's 37/74 included. The other was real:
+`wandering_24x` composed a clean 49.0 into a 48-beat section, so realization
+truncated it and the last surviving note overhung to 48.042 — quantizing the
+final unit could never help, because that unit was never realized. Notes now
+clamp to the section end. **5/21 → 21/21.** Blast radius stated, not assumed:
+31/38 templates byte-identical, all 7 that changed moved onto the grid.
+Beat-vs-barline default is REVIEW 17.
+(3) **#19 — half of it does not reproduce, and the flag was not enough.**
+`wandering_24x` renders 99 notes at HEAD. On the design question, `score()`
+now REFUSES: a composite over 0 notes is not LOW, it is UNDEFINED, so it is
+`None` below the 4-note threshold and arithmetic raises instead of quietly
+averaging a placeholder. I checked it was safe BEFORE changing it and my
+first assumption was wrong — I expected figure-level scoring to break on
+2-3-note figures, and `figure_transforms` in fact samples at `kmin=5`, so no
+caller is affected. Five aggregation sites in the batch drivers now filter on
+`scorable`; `figure_transforms` deliberately does not, because a short figure
+there is a bug worth a traceback.
 
 Run-17 highlights (comp): four fronts, all metric/build, no blind taste
 iteration. The through-line is **the mechanism was not where the number said
@@ -425,7 +477,17 @@ not be relinked (Matt's UI held it locked), so the running binary still has
 the old behaviour. Once it is rebuilt, a comp-only engine edit will no longer
 make it shout STALE.
 
-Next "go": comp = **#13 section key first** — it is an engine edit and needs a
+**Superseded by run 18** — comp items 13, 18 and 19 are all DONE. comp next =
+**#7 phrase-aware cadence placement** (the AFS impedance finding, and the
+oldest untouched item on the list) → #8 voicing open items → #9 the PAC
+held-note workaround. #14 (voicing priority ladder) and #20 (passage-mode
+semantics) both want your call before anything moves. **Eight comp review
+items waiting** (seven listen, one read), two of them new this run and both
+default-setting questions: passage endings beat-vs-barline, and whether a
+section key should move the tonic.
+
+Old next-up text, kept for the record: comp = **#13 section key first** — it
+is an engine edit and needs a
 build dir no other lane is using; run 17 could not touch the engine at all
 because the dsp lane was live in this working copy → #18 (37 of 74 passage
 renders end off the barline) → #19 (the empty `wandering_24x` render) → #7
@@ -444,6 +506,12 @@ harmonic_env/motion), then item 14 (52 silently-ignored params), then item 13
 lines rather than inferring the rate from the envelope). Piano full run and
 clarinet 600-eval both stay gated on your ears. **Five dsp review items
 waiting** (three listen, two read).
+
+Standing tree note (updated run 18, comp): **the count is two standing plus
+one live orphan.** `research/ml_ears/refmetrics.py` is NOT standing dirt — it
+was written at 08-06 03:12 by a dsp run that died mid-cycle, together with two
+untracked files (a spec and a test for 3e-NEXT (b)). That wants adopt-or-
+discard on its own terms, separately from backlog 11. Previous note follows.
 
 Standing tree note (updated run 21): **down to two**, and no longer blocking
 anything. `iowa_reference.py` and `score_candidate.py` were committed by run

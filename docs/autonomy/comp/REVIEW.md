@@ -2,6 +2,23 @@
 
 ## Awaiting Matt
 
+### 17. Passage endings — beat or barline? [listen] (run 18)
+`renders/passage_end_grid/{off,beat,bar}` — the same 21 passages three times,
+`endGrid` the only difference. `off` is what you have been hearing (6/21 end
+on a beat), `beat` is the new default (21/21 on a beat, 8/21 on a barline),
+`bar` quantizes to the 4/4 barline (21/21 both).
+
+Passage endings landed wherever the arithmetic left them — 9.38, 37.25, 50.75
+— because the phrase path has grid-completed since run 13 and the passage path
+never got the equivalent. That is fixed and is not the question. The question
+is how far to round: to the beat, which moves the ending as little as
+possible, or to the barline, which is where a phrase actually stops but can
+add up to three beats of held final note.
+
+Verdict decides the default for `PassageTemplate.endGrid` (1.0 vs 4.0). Both
+stay authorable either way, and `0` turns it off for a pickup or an elided
+handoff.
+
 ### 16. Should a section key move the tonic? [listen] (run 18)
 `renders/section_key/` — three arms, same music, same seed, sections C / G / D.
 `control` (no section keys, everything in C) · `accidentals_only` (what
