@@ -69,7 +69,10 @@ def eval_method(gen, k, length, cs, rng):
         pooled_int.update(interval_hist(mel))
         pooled_ctr.update(contour_hist(mel))
         r = score(mel, cs)
-        comps.append(r["composite"])
+        # score() returns composite=None for an unscorable (near-empty)
+        # melody rather than a number that averages in silently (#19).
+        if r["scorable"]:
+            comps.append(r["composite"])
         leaps.append(r["big_leap"])
         ranges.append(r["range"])
     return {
@@ -119,7 +122,10 @@ def corpus_reference(k, cs, rng, corpus="mtd"):
         pooled_int.update(interval_hist(mel))
         pooled_ctr.update(contour_hist(mel))
         r = score(mel, cs)
-        comps.append(r["composite"])
+        # score() returns composite=None for an unscorable (near-empty)
+        # melody rather than a number that averages in silently (#19).
+        if r["scorable"]:
+            comps.append(r["composite"])
         leaps.append(r["big_leap"])
         ranges.append(r["range"])
     return {

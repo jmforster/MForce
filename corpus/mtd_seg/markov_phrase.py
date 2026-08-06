@@ -605,7 +605,12 @@ def main_v2():
         r.update(file=name + "_1.json", family=family, pattern=pattern,
                  contour=contour, transform=transform)
         rows.append(r)
-        by_family.setdefault(family, []).append(r["composite"])
+        # composite is None for an unscorable render (#19) — keep it out of the
+        # per-family aggregate rather than letting it crash or skew the mean.
+        if r["scorable"]:
+            by_family.setdefault(family, []).append(r["composite"])
+        else:
+            print(f"  {name}: UNSCORABLE ({r['n_notes']} notes) — excluded")
     csv_path = REPO / "renders/markov_phrases2/scores.csv"
     with open(csv_path, "w", newline="") as f:
         w = _csv.DictWriter(f, fieldnames=cols)
@@ -615,7 +620,8 @@ def main_v2():
     for fam, vals in by_family.items():
         print(f"{fam:11} mean={sum(vals)/len(vals):.3f} "
               f"min={min(vals):.3f} max={max(vals):.3f}")
-    low = [(r['file'], r['composite']) for r in rows if r['composite'] < 0.6]
+    low = [(r['file'], r['composite']) for r in rows
+           if r['scorable'] and r['composite'] < 0.6]
     print("flagged <0.6: " + (", ".join(f"{f} ({c})" for f, c in low)
                               if low else "none"))
 
@@ -687,7 +693,10 @@ def main_contrast():
         w.writerows(rows)
 
     def _agg(arm, key):
-        vals = [r[key] for r in rows if r["arm"] == arm]
+        # composite is None on an unscorable row (#19); drop those rather than
+        # averaging a placeholder in.
+        vals = [r[key] for r in rows
+                if r["arm"] == arm and r.get(key) is not None]
         return sum(vals) / len(vals) if vals else 0.0
     print(f"\n=== arm comparison (n={args.n} pairs) -> {csv_path} ===")
     for key in ("composite", "zero_rate", "range", "big_leap"):
@@ -1429,11 +1438,12 @@ def main_v3():
         w = _csv.DictWriter(f, fieldnames=cols, extrasaction="ignore")
         w.writeheader()
         w.writerows(rows)
-    comps = [r["composite"] for r in rows]
+    comps = [r["composite"] for r in rows if r["scorable"]]
     print(f"\n=== scores (n={len(rows)}) -> {csv_path} ===")
     print(f"composite mean={sum(comps)/len(comps):.3f} "
           f"min={min(comps):.3f} max={max(comps):.3f}")
-    low = [(r['file'], r['composite']) for r in rows if r['composite'] < 0.6]
+    low = [(r['file'], r['composite']) for r in rows
+           if r['scorable'] and r['composite'] < 0.6]
     print("flagged <0.6: " + (", ".join(f"{f} ({c})" for f, c in low)
                               if low else "none"))
 

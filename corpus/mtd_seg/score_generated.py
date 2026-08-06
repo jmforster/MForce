@@ -429,12 +429,22 @@ def score(mel, cs):
         # byte-identical.
         clo,
     ]
+    # An EMPTY or near-empty piece used to still produce a NUMBER — the
+    # wandering_24x render had 0 notes and scored 0.407, which reads like a
+    # mediocre melody rather than like nothing at all. Run 17 added the flag;
+    # #19 asked whether that is enough. It is not: a flag is advisory and every
+    # aggregator that forgot to read it averaged 0.407 in as if it were a
+    # score. A composite over 0 notes is not LOW, it is UNDEFINED, so it is now
+    # None and arithmetic on it raises instead of quietly succeeding.
+    #
+    # Safe because no caller feeds this fewer than 4 notes: figure_transforms
+    # samples kmin=5, and the phrase/passage batches score whole renders. The
+    # three batch drivers filter on `scorable` (they can legitimately meet an
+    # empty render); figure_transforms deliberately does NOT, because a
+    # sub-4-note figure there would be a bug worth a traceback.
+    scorable = 0 if ft["n_notes"] < 4 else 1
     return {
-        # An EMPTY or near-empty piece still produces a number — the existing
-        # wandering_24x render has 0 notes and scores 0.407, which reads like a
-        # mediocre melody rather than like nothing at all. Callers that batch
-        # over renders should check this flag before believing the composite.
-        "scorable": 0 if ft["n_notes"] < 4 else 1,
+        "scorable": scorable,
         "n_notes": ft["n_notes"],
         "final_ratio": round(ft["final_ratio"], 3),
         "final_longest": ft["final_longest"],
@@ -448,7 +458,7 @@ def score(mel, cs):
         "rep_LxCount": ft["rep_LxCount"],
         "big_leap": round(ft["big_leap"], 3),
         "range": ft["range"],
-        "composite": round(sum(parts) / len(parts), 3),
+        "composite": round(sum(parts) / len(parts), 3) if scorable else None,
     }
 
 
