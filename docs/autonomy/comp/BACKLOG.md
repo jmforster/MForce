@@ -22,17 +22,17 @@ Priority order. (G1)-(G2) = GOALS.md Wolfie goals.
     that? (b) `pedal_buildup` is 8/8 "non-tonic arrival" because it ends on
     its dominant pedal, which is arguably right — the tonic term needs to know
     what the passage was aiming at. See REVIEW 14.
-13. **[build] Section-level key is not authorable** — NOT ATTEMPTED in run 17:
-    the dsp lane was live in this working copy (engine/ edits + build at
-    08:20–08:25), and an engine edit must rebuild both targets in the same
-    cycle, which is not verifiable against a concurrent build. First up next
-    comp run. `sections[].keyName` is
-    silently ignored (SectionTemplate has no such field); the run-13 probe
-    templates set it on three sections and got nothing. Found by
-    `--lint-template` in run 15. The working mechanism is `keyContexts`, which
-    is beat-indexed and more general — so the question is whether a plain
-    "this section is in G" shorthand should desugar to a single keyContext at
-    beat 0, or whether the key should be rejected loudly instead of ignored.
+13. **DONE run 18** — `sections[].keyName` desugars at COMPOSE time into a
+    beat-0 KeyContext (parse stores / serialize writes back, so the template
+    round-trips and the linter stops reporting it). Accepts `"G"` or
+    `"G Minor"`; composes with LATER keyContexts; throws by name on a beat-0
+    conflict and on an unknown key. Found and fixed a second half nobody had
+    written down: `setup_piece_` realized a section's `scaleOverride` at the
+    PIECE tonic, so a section could change its scale type but never its tonic.
+    Null test 38/38 WAVs byte-identical (measured against a reverted build,
+    not argued). Carried caveat CONFIRMED by measurement: it changes
+    accidentals, it does not move the tonic — three-arm A/B in
+    `renders/section_key/`, REVIEW 16.
 14. **[build] Voicing priority ladder collapses** — with the nine
     `test_jazz_turnaround_*` patches rendering again (run 15 front 1),
     `_p05` and `_p1` are BYTE-IDENTICAL renders while `_p0` differs. Priority

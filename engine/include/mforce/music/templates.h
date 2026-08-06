@@ -582,7 +582,13 @@ struct PieceTemplate {
     struct SectionTemplate {
         std::string name;            // "verse", "chorus", "A", "B"
         float beats{32.0f};
-        std::string scaleOverride;   // empty = use piece key
+        // Section TONIC. Empty = inherit the piece key. Accepts a bare tonic
+        // ("G") or a full key name ("G Minor"); with a bare tonic the type
+        // comes from scaleOverride, else from the piece's scaleName.
+        // Desugars at compose time into a beat-0 KeyContext — see
+        // docs/superpowers/specs/2026-08-06-section-key-design.md.
+        std::string keyName;
+        std::string scaleOverride;   // scale TYPE; empty = piece scaleName
 
         // Harmony
         std::string progressionName;  // name for ChordProgressionBuilder (empty = no progression)

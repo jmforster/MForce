@@ -2,6 +2,25 @@
 
 ## Awaiting Matt
 
+### 16. Should a section key move the tonic? [listen] (run 18)
+`renders/section_key/` — three arms, same music, same seed, sections C / G / D.
+`control` (no section keys, everything in C) · `accidentals_only` (what
+landed) · `transposed` (same plus a per-passage `startingPitch` offset by the
+key distance). Three distinct renders by sha256.
+
+`sections[].keyName` now works — it was silently dropped before. But it does
+what the key-aware path has always done: it changes which **accidentals**
+appear, it does not move the cursor to the new tonic. So `accidentals_only`
+is still six notes hovering around C, with an F# in G and an F#/C# in D — and
+in D major the C3 entry is not even a scale tone, so it snaps to C#.
+`transposed` is what most people mean by "this section is in G".
+
+Verdict decides: does `keyName` on a section stay a pure key-signature
+statement (author transposes the entry themselves, which is what run 13
+concluded), or does it also offset the passage entry by the key distance —
+and if so, is that the default or an opt-in flag? Note the second one has a
+sharp edge: a template that sets both would get transposed twice.
+
 ### 13. Phrase endings, recalibrated [listen] (run 17)
 `renders/markov_phrases6/` (new default `calib`) vs
 `renders/markov_phrases6/longest/` (the v3 rule you called "fine for now").

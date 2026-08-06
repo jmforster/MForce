@@ -1149,6 +1149,7 @@ inline void from_json(const json& j, PartTemplate& pt) {
 
 inline void to_json(json& j, const PieceTemplate::SectionTemplate& sd) {
     j = json{{"name", sd.name}, {"beats", sd.beats}};
+    if (!sd.keyName.empty()) j["keyName"] = sd.keyName;
     if (!sd.scaleOverride.empty()) j["scaleOverride"] = sd.scaleOverride;
     if (!sd.progressionName.empty()) j["progressionName"] = sd.progressionName;
     if (sd.chordProgression) j["chordProgression"] = *sd.chordProgression;
@@ -1169,6 +1170,7 @@ inline void to_json(json& j, const PieceTemplate::SectionTemplate& sd) {
 inline void from_json(const json& j, PieceTemplate::SectionTemplate& sd) {
     sd.name = j.at("name").get<std::string>();
     sd.beats = j.at("beats").get<float>();
+    sd.keyName = j.value("keyName", std::string(""));
     sd.scaleOverride = j.value("scaleOverride", std::string(""));
 
     // progressionName

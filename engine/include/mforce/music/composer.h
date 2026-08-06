@@ -266,9 +266,28 @@ private:
     // Sections
     piece.sections.clear();
     for (auto& sd : tmpl.sections) {
-      Scale secScale = sd.scaleOverride.empty()
+      // Section key (#13). `keyName` was accepted by no struct field and
+      // dropped without a word; it now names the section's TONIC. The old
+      // line realized scaleOverride at the PIECE tonic, so a section could
+      // change its scale type but never its tonic — generalizing the tonic
+      // here is a textual no-op when keyName is empty.
+      const bool hasSectionKey = !sd.keyName.empty();
+      std::string secTonic = tmpl.keyName;
+      std::string secType  = sd.scaleOverride.empty() ? tmpl.scaleName
+                                                      : sd.scaleOverride;
+      if (hasSectionKey) {
+        // "G" (type from scaleOverride/scaleName) or "G Minor" (type stated).
+        auto sp = sd.keyName.find(' ');
+        if (sp == std::string::npos) {
+          secTonic = sd.keyName;
+        } else {
+          secTonic = sd.keyName.substr(0, sp);
+          secType  = sd.keyName.substr(sp + 1);
+        }
+      }
+      Scale secScale = (!hasSectionKey && sd.scaleOverride.empty())
         ? piece.key.scale
-        : Scale::get(tmpl.keyName, sd.scaleOverride);
+        : Scale::get(secTonic, secType);
       piece.add_section(Section(sd.name, sd.beats, tmpl.bpm, tmpl.meter, secScale));
 
       // Wire harmony
@@ -279,6 +298,32 @@ private:
         section.chordProgression = ChordProgressionBuilder::build(sd.progressionName, sd.beats);
       }
       section.keyContexts = sd.keyContexts;
+
+      // Desugar the section key into a beat-0 KeyContext. This is what makes
+      // the melody path key-aware (realize_passage_to_events_ gates on
+      // keyContexts being non-empty), and it composes with LATER contexts:
+      // "this section is in G, and modulates to D at beat 16" is legal.
+      // A context already at beat <= 0 is two statements about the same beat,
+      // which is an authoring error rather than a shorthand — say so.
+      if (hasSectionKey) {
+        for (const auto& kc : sd.keyContexts) {
+          if (kc.beat <= 0.0f) {
+            throw std::runtime_error(
+                "Section '" + sd.name + "': keyName '" + sd.keyName +
+                "' conflicts with a keyContext at beat " +
+                std::to_string(kc.beat) + " — state the key one way or the "
+                "other (drop keyName, or move the context off beat 0)");
+          }
+        }
+        KeyContext ctx;
+        ctx.beat = 0.0f;
+        ctx.key = Key::get(secTonic + " " +
+                           (secType == "Minor" ? "Minor" : "Major"));
+        // Only an exotic scale type needs to be carried explicitly; for
+        // Major/Minor the key's own scale already IS secScale.
+        if (secScale.scaleDef != ctx.key.scale.scaleDef) ctx.scaleOverride = secScale;
+        section.keyContexts.insert(section.keyContexts.begin(), ctx);
+      }
 
       // Populate HarmonyTimeline from whatever source provided the progression.
       if (section.chordProgression) {
