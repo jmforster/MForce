@@ -11,7 +11,7 @@
       {
         "id": "wander",
         "type": "WanderNoiseSource",
-        "params": { "speed": 1.0, "deltaSpeed": 0.5, "slopeLimit": 0.8, "seed": 42 }
+        "params": { "speed": 1.0, "deltaSpeed": 0.00005, "slopeLimit": 0.8, "seed": 42 }
       },
       {
         "id": "sin",

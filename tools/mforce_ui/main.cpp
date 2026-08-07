@@ -390,7 +390,17 @@ struct GraphNode {
 
         // Generic: create a temporary instance to read descriptors
         auto& reg = SourceRegistry::instance();
-        if (!reg.has(typeName)) return;
+        if (!reg.has(typeName)) {
+            // Unknown type (e.g. a patch authored against an engine branch
+            // this build doesn't have — gs_chaotic.json's GrayScottSource).
+            // Still emit one output attribute: an imnodes node with ZERO
+            // attributes makes ImGui 1.92's error-recovery fire every frame
+            // ("SetCursorPos() to extend parent boundaries" tooltip in the
+            // node-editor scrolling region). The node stays inert (no
+            // dspSource), but draws cleanly and keeps its place in the graph.
+            outputs.emplace_back("out", PinKind::Output);
+            return;
+        }
 
         auto tmp = reg.create(typeName, DSP_SAMPLE_RATE);
         for (const auto& desc : tmp->input_descriptors())
@@ -829,6 +839,11 @@ static void envelope_stages_from_json(Envelope& env, const nlohmann::json& stage
     }
 }
 
+// Defined with the transport helpers below — loads report unknown node
+// types (patch authored against an engine branch this build lacks) in the
+// transport status line instead of silently creating inert nodes.
+static void transport_set_status(const char* msg, bool isError);
+
 static void load_graph_from_path(const std::string& path) {
     using json = nlohmann::json;
 
@@ -940,12 +955,22 @@ static void load_graph_from_path(const std::string& path) {
     }
 
     // First pass: create all nodes
+    std::vector<std::string> unknownTypes;
     for (const auto& jnode : nodes) {
         std::string id = jnode["id"].get<std::string>();
         std::string type = jnode["type"].get<std::string>();
 
         // Skip Formants owned by a FormantSpectrum — they'll live inside its row table.
         if (ownedFormants.count(id)) continue;
+
+        // Track types this build's engine doesn't know. The node is still
+        // created (inert, no dspSource, one bare "out" pin) so the graph
+        // shape survives a load→save, but params/links through it are lost —
+        // surface that instead of failing silently.
+        if (!is_special_ui_type(type) && type != NT_ENVELOPE &&
+            type != "FormantSpectrum" && !SourceRegistry::instance().has(type) &&
+            std::find(unknownTypes.begin(), unknownTypes.end(), type) == unknownTypes.end())
+            unknownTypes.push_back(type);
 
         s_nodes.emplace_back(type);
         GraphNode& gn = s_nodes.back();
@@ -1247,6 +1272,13 @@ static void load_graph_from_path(const std::string& path) {
 
     // Wire all DSP connections (including RefSource for shared sources)
     update_all_dsp();
+
+    if (!unknownTypes.empty()) {
+        std::string msg = "Unknown node type(s) not in this build's engine:";
+        for (const auto& t : unknownTypes) msg += " " + t;
+        msg += " — node(s) loaded inert (no params, no audio)";
+        transport_set_status(msg.c_str(), true);
+    }
 }
 
 // Dialog-driven wrapper for load_graph_from_path.
@@ -2311,6 +2343,72 @@ static void prepare_graph(int samples) {
     }
 }
 
+// ---------------------------------------------------------------------------
+// Continuous-stream envelope handling (dsp run 24 issue 1).
+//
+// A stream has no note duration, but Envelope::prepare(frames) bakes one in:
+// stage lengths are FRACTIONS of the prepared duration, and past the last
+// stage next() returns 0 forever. The old 30 s stream prepare therefore made
+// every stream a 30-second envelope pass — for the common adsr-with-
+// release-0 shape, the release stage is the expand stage, i.e. the whole
+// stream was one long sustain→0 fade that hit exact silence at t=30 s.
+//
+// Streaming fix, UI-side only (Envelope's public API, no engine change):
+//  1. prepare for STREAM_PREP_SECONDS (hours, not seconds) so end-of-
+//     envelope is beyond any real session;
+//  2. flip each node Envelope to absolute_time for the stream so its
+//     attack/decay/release stay literal seconds instead of stretching with
+//     the huge duration (percent 0.05 → 50 ms attack, not 6 min), with the
+//     expand stage soaking up the rest as sustain;
+//  3. envelopes with no expand stage get a temporary hold stage appended so
+//     they sustain their final value instead of cutting to 0.
+// stop_streams() restores every envelope to its pre-stream state, so note
+// renders / Generate are untouched. True forever-streaming (and streams
+// >2 h) needs an engine-side Envelope hold/loop mode — engine is owned by
+// another agent this run.
+// ---------------------------------------------------------------------------
+static constexpr int STREAM_PREP_SECONDS = 7200;  // 2 h; int-safe at 48 kHz
+
+struct StreamEnvHold {
+    Envelope* env;
+    bool prevAbsolute;
+    int addedStageIdx;   // -1 = no hold stage appended
+};
+static std::vector<StreamEnvHold> g_streamEnvHolds;
+
+static void stream_envelopes_restore() {
+    for (auto& h : g_streamEnvHolds) {
+        h.env->absolute_time = h.prevAbsolute;
+        // Remove the appended hold stage only if it's still recognizably
+        // ours (last stage, expand). A mid-stream stage edit rebuilds the
+        // envelope's stage list wholesale, in which case there is nothing
+        // of ours left to remove.
+        if (h.addedStageIdx >= 0 && h.addedStageIdx == h.env->stage_count() - 1 &&
+            h.env->stage(h.addedStageIdx).percent == 0.0f)
+            h.env->remove_stage(h.addedStageIdx);
+    }
+    g_streamEnvHolds.clear();
+}
+
+static void stream_envelopes_hold() {
+    stream_envelopes_restore();  // idempotent if a stream restarts
+    for (auto& n : s_nodes) {
+        auto* env = dynamic_cast<Envelope*>(n.dspSource.get());
+        if (!env) continue;
+        StreamEnvHold h{env, env->absolute_time, -1};
+        env->absolute_time = true;
+        bool hasExpand = false;
+        for (int i = 0; i < env->stage_count(); ++i)
+            if (env->stage(i).percent == 0.0f) { hasExpand = true; break; }
+        if (!hasExpand && env->stage_count() > 0) {
+            float endV = env->stage(env->stage_count() - 1).ramp.endVal;
+            env->add_stage({{endV, endV, RampType::Linear, 0.0f}, 0.0f, 0.0f, 0.0f});
+            h.addedStageIdx = env->stage_count() - 1;
+        }
+        g_streamEnvHolds.push_back(h);
+    }
+}
+
 // Forward decl — defined further down with the other transport helpers.
 // Used by the *_authoritative render paths so silent failures (load throws,
 // non-pitched instrument, missing patch path) surface to the UI status line
@@ -2421,6 +2519,10 @@ static bool render_output_authoritative(float noteNum, float velocity,
 static void render_waveforms(float noteNum, float velocity, float durationSeconds) {
     ValueSource* src = find_output_source();
     if (!src) return;
+
+    // If a continuous stream flipped envelopes to streaming semantics,
+    // restore them so this offline note render behaves exactly as before.
+    stream_envelopes_restore();
 
     // Set frequency on Parameter nodes named "frequency"
     float freq = note_to_freq(noteNum);
@@ -2537,15 +2639,24 @@ static void play_note(float noteNum, float velocity, float durationSeconds) {
     }
 }
 
-// Start continuous streaming — uses a long fixed duration for Envelope compat.
+// Start continuous streaming. Streams prepare the graph for
+// STREAM_PREP_SECONDS with envelopes held at streaming semantics (see
+// stream_envelopes_hold) so the output is genuinely continuous instead of
+// fading out at a fixed note-duration horizon.
 // Patch graphs stream the mono source feeding the Output node; node graphs
 // stream the Mixer (Channel → Mixer termination) in stereo.
 static void play_continuous(float velocity) {
+    // Clear any active stream first: re-preparing the graph while the audio
+    // thread pulls it is a race, and this also restores envelope overrides
+    // from a previous stream before we snapshot state again.
+    stop_streams();
+
     if (s_graphMode == GraphMode::PatchGraph) {
         ValueSource* src = find_output_source();
         if (!src) return;
 
-        int samples = AUDIO_SAMPLE_RATE * 30;
+        stream_envelopes_hold();
+        int samples = AUDIO_SAMPLE_RATE * STREAM_PREP_SECONDS;
         prepare_graph(samples);
 
         std::lock_guard<std::mutex> lock(g_audioMutex);
@@ -2611,7 +2722,8 @@ static void play_continuous(float velocity) {
     ValueSource* gainL = resolve_pin(*mixer, "gainL");
     ValueSource* gainR = resolve_pin(*mixer, "gainR");
 
-    int samples = AUDIO_SAMPLE_RATE * 30;
+    stream_envelopes_hold();
+    int samples = AUDIO_SAMPLE_RATE * STREAM_PREP_SECONDS;
     prepare_graph(samples);
     RenderContext ctx{DSP_SAMPLE_RATE};
     for (auto* vs : prepExtra)
@@ -2632,11 +2744,16 @@ static void play_continuous(float velocity) {
 // they hold raw pointers into node dspSources, so any structural edit that
 // can destroy a node must clear them first.
 static void stop_streams() {
-    std::lock_guard<std::mutex> lock(g_audioMutex);
-    g_streamSource = nullptr;
-    g_streamChannels.clear();
-    g_streamGainL = nullptr;
-    g_streamGainR = nullptr;
+    {
+        std::lock_guard<std::mutex> lock(g_audioMutex);
+        g_streamSource = nullptr;
+        g_streamChannels.clear();
+        g_streamGainL = nullptr;
+        g_streamGainR = nullptr;
+    }
+    // Audio thread no longer touches the graph — safe to put envelopes back
+    // to their pre-stream (note-duration) semantics.
+    stream_envelopes_restore();
 }
 
 static void stop_playback() {
@@ -3856,6 +3973,9 @@ static void draw_keyboard_panel() {
 static void render_passage_waveforms(const std::vector<ParsedNote>& notes, float velocity) {
     ValueSource* src = find_output_source();
     if (!src || notes.empty()) return;
+
+    // Undo any streaming envelope overrides before an offline render.
+    stream_envelopes_restore();
 
     // Compute total samples
     int totalSamples = 0;
@@ -7220,6 +7340,90 @@ int main(int argc, char** argv) {
         return 0;
     }
 
+    // Headless continuous-stream dump: run the exact play_continuous +
+    // audio_callback stream mixdown offline for N seconds and report
+    // amplitude (and pan taps) over time. Exists to verify streaming is
+    // genuinely continuous (dsp run 24 issue 1 — streams decayed to silence
+    // at the old fixed 30 s prepare horizon). Node graphs use the stereo
+    // channel/pan mixdown; patch graphs use the mono output stream.
+    //   --dump-stream <patch.json> <out.wav> [--secs N] [--vel V]
+    if (argc >= 4 && std::string(argv[1]) == "--dump-stream") {
+        s_headless = true;
+        ImGui::CreateContext();
+        ImNodes::CreateContext();
+        register_all_sources();
+        try {
+            load_graph_from_path(argv[2]);
+            int secs = 40; float vel = 0.5f;
+            for (int i = 4; i < argc; ++i) {
+                std::string a = argv[i];
+                if (a == "--secs" && i + 1 < argc) secs = std::stoi(argv[++i]);
+                else if (a == "--vel" && i + 1 < argc) vel = std::stof(argv[++i]);
+            }
+            play_continuous(vel);
+            if (!g_streamSource && g_streamChannels.empty())
+                throw std::runtime_error(std::string("stream did not start: ") +
+                                         g_transport.statusMsg);
+
+            constexpr float PI = 3.14159265358979323846f;
+            std::vector<float> stereo(size_t(secs) * AUDIO_SAMPLE_RATE * 2);
+            for (int sec = 0; sec < secs; ++sec) {
+                double rmsL = 0.0, rmsR = 0.0, panSum = 0.0;
+                float panMin = 1e9f, panMax = -1e9f;
+                bool havePan = false;
+                for (int i = 0; i < AUDIO_SAMPLE_RATE; ++i) {
+                    float sL = 0.0f, sR = 0.0f;
+                    if (g_streamSource) {
+                        float m = g_streamSource->next() * g_streamVelocity;
+                        sL = m; sR = m;
+                    }
+                    float gl = 1.0f, gr = 1.0f;
+                    if (!g_streamChannels.empty()) {
+                        gl = g_streamGainL ? g_streamGainL->next() : 1.0f;
+                        gr = g_streamGainR ? g_streamGainR->next() : 1.0f;
+                    }
+                    for (auto& ch : g_streamChannels) {
+                        float v = ch.source->next() * (ch.volume ? ch.volume->next() : 1.0f);
+                        float p = ch.pan ? ch.pan->next() : 0.0f;
+                        if (ch.pan) {
+                            havePan = true;
+                            panMin = std::min(panMin, p);
+                            panMax = std::max(panMax, p);
+                            panSum += p;
+                        }
+                        p = std::clamp(p, -1.0f, 1.0f);
+                        float t = (p + 1.0f) * 0.5f;
+                        sL += v * std::cos(t * 0.5f * PI) * gl * g_streamVelocity;
+                        sR += v * std::sin(t * 0.5f * PI) * gr * g_streamVelocity;
+                    }
+                    sL = soft_clip(sL);
+                    sR = soft_clip(sR);
+                    size_t idx = (size_t(sec) * AUDIO_SAMPLE_RATE + i) * 2;
+                    stereo[idx] = sL;
+                    stereo[idx + 1] = sR;
+                    rmsL += double(sL) * sL;
+                    rmsR += double(sR) * sR;
+                }
+                rmsL = std::sqrt(rmsL / AUDIO_SAMPLE_RATE);
+                rmsR = std::sqrt(rmsR / AUDIO_SAMPLE_RATE);
+                if (havePan)
+                    printf("t=%3d rmsL=%.4f rmsR=%.4f pan[min=%+.3f max=%+.3f mean=%+.3f]\n",
+                           sec, rmsL, rmsR, panMin, panMax,
+                           panSum / double(AUDIO_SAMPLE_RATE));
+                else
+                    printf("t=%3d rmsL=%.4f rmsR=%.4f\n", sec, rmsL, rmsR);
+            }
+            stop_playback();
+            if (!write_wav_16le_stereo(argv[3], AUDIO_SAMPLE_RATE, stereo))
+                throw std::runtime_error(std::string("wav write failed: ") + argv[3]);
+            printf("dump-stream ok: %s -> %s\n", argv[2], argv[3]);
+        } catch (const std::exception& e) {
+            fprintf(stderr, "dump-stream failed: %s\n", e.what());
+            return 1;
+        }
+        return 0;
+    }
+
     try {
     if (!glfwInit()) return 1;
 
@@ -7316,9 +7520,13 @@ int main(int argc, char** argv) {
             try {
                 load_graph_from_path(patchArg);
                 recents_push(patchArg);
-                char buf[512];
-                snprintf(buf, sizeof(buf), "Loaded: %s", patchArg.c_str());
-                transport_set_status(buf, false);
+                // Don't clobber a warning the load itself put up
+                // (e.g. unknown node types).
+                if (!g_transport.statusIsError) {
+                    char buf[512];
+                    snprintf(buf, sizeof(buf), "Loaded: %s", patchArg.c_str());
+                    transport_set_status(buf, false);
+                }
             } catch (const std::exception& e) {
                 char buf[512];
                 snprintf(buf, sizeof(buf), "Failed to load %s: %s",
