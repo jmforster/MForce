@@ -130,6 +130,23 @@ Priority order. Tags per WORKFLOW.md. (G1)-(G4) = GOALS.md Dipsy goals.
    who wrote the C#: what was ordinal 3? (REVIEW 10.)
    Regression-gated: 73/73 byte-identical vs the stored A/B arm, with exactly
    the 6 revived patches present only in the new arm.
+3h. **[build] KS piano iteration** — gated on REVIEW 22: hammer voicing
+   (treble partial richness without noise input), true register-flat
+   aftersound mechanism, module re-wirability question. The additive
+   piano lane (3e-NEXT3 below) and this lane now compete on Matt's ears.
+3i. **[build] Envelope hold/loop mode** — one-flag engine change in
+   envelope.h::next() so UI streams can run truly forever (UI currently
+   preps 7200s with absolute_time overrides; run-24 UI report has the
+   sketch).
+3j. **[read] WanderNoiseSource deltaSpeed semantics** — applied per
+   SAMPLE, so audio-rate wander self-cancels (slope flips every ~3
+   samples); legacy init lastVal_=0.5 starts right-of-center. Candidate
+   rate-normalization; behavior-changing for existing wander patches.
+3k. **[build] Audio-thread AV in WaveSource::next via audio_callback** —
+   fresh crash log 2026-08-06 10:05 (Matt's run-23 session): dangling
+   source pulled after graph swap. Same family as the run-23 stream
+   use-after-free fix but on a different path (voices/buffer?). Needs a
+   proper audit of what the callback can hold across graph mutations.
 3e-NEXT3. **[build] Piano next steps** — gated on REVIEW 19 verdict:
    (4) second decay stage (prompt/aftersound; C4 evidence now includes
    overtones decaying SLOWER than h1 — inverted vs the fixed n^0.6 law,

@@ -2,50 +2,54 @@
 
 ## Awaiting Matt
 
-### 19. Piano after the calibration bundle [listen] (run 23)
-renders/cmaes_piano2/ — `piano_smoke2_baseline_C2C4C6` vs
-`piano_smoke2_best_C2C4C6` + `piano_smoke2_best_twohand`. Your 1+2+3 all
-landed and are VERIFIED in the render: attack now 4.9-5.7 ms (the 8 ms
-lock rendering honestly; was ~33-34 ms chuff), knock at the real
-measured scale (was ~68x over and smeared), C2/C6 early decay lands on
-the real trajectory, and the re-fit decay curve is validated by the
-optimizer itself (decayScale converged at 1.046). Smoke2: 1.188 ->
-0.876, still descending at 110 evals.
-Honest residuals, measured: (a) attack is now uniformly ~5 ms while
-real pianos trend 36/13/9 ms down the registers — a per-register attack
-curve is the next calibration step; (b) C4's late decay still dies with
-no aftersound coast, and real C4's overtones decay SLOWER than its
-fundamental — both point at option 4 (second decay stage), the
-structural fix you deferred.
-Verdict decides: is this piano-ward enough to fund option 4 and/or the
-600-eval run; which residual bothers your ear most.
+### 22. KS PIANO — the Gyutai build [listen] (run 24)
+renders/ks_piano/ — the ladder: `v1_string_c246` (combs only),
+`v2_hammer_c246` (+SVF hammer bank), `v3_full_c246` (the complete
+description: dispersion, nested-allpass inharmonic loop, negative
+feedback, reverb body), `v4_apres_c246` (Alpha Forever's packaged
+Allpass Resonator shape — different flavor, textural rather than
+stretched), `v3_phrase_twohand`.
+The measurement that matters: the dispersion allpasses produce
+inharmonicity that FITS your Iowa measurements nearly exactly with no
+curve-fitting (C2 B=1.23e-4 vs measured 1.23e-4; C6 4.67e-3 vs
+4.37e-3) — the physical route gets free what additive needed measured
+laws for. Tuning within 1.2 cents, attack rise in the real ballpark
+(C6 6.4ms vs real 8.8).
+Honest gaps (in the run report): the register-flat -1 dB/s aftersound
+is NOT reproduced (our second slope is HF damping + unison beating);
+treble partials are weak with a pure decaying-envelope input (the
+description's one explicit negative rules out noise); the C4 render
+has an audible 0.27 Hz unison-beat swell (flanging — real pianos do
+this, judge whether ours is right).
+Three new nodes are in the UI palette (KS Piano String, Allpass
+Resonator, Hammer Bank) — playable from the keyboard.
+Verdict decides: is this piano-er than the additive best (A/B vs
+renders/cmaes_piano2/); which rung of the ladder carries the magic;
+fund the next iteration (hammer voicing, aftersound mechanism)?
 
-### 20. Vowel compare ladders — your called-out list [listen] (run 23)
-renders/vowel_tweak/ — 36 WAVs (26 variants + grid A/B copies + 3
-references) + README with per-entry diagnosis and the one thing to
-listen for per variant. Measured causes behind your reports: sung U has
-NO resolved F2 peak (speech UW's virtue — its F2 rides a clear harmonic
-at ~1 kHz); Alto_U is flat within 2.2 dB right in EH-F1 territory
-(your "between EH and OO", verbatim); Soprano_A has a 2.6-octave hole
-h3->h9 (your "individual partials"); Alto/Soprano E and I peak on the
-SAME harmonic — Soprano E's mid peak actually sits ABOVE I's (inverted
-e/i). Grid untouched — pick winners and I fold them in.
-Note for the future: if the soprano statics still disappoint, the
-remaining real-singer lever is vibrato sweeping partials across the
-formant bands — pitch-modulation-layer work.
+### 23. Vowel pass 2 — UW-top hypothesis + ring ladder [listen] (run 24)
+renders/vowel_tweak2/ — 43 WAVs, README with listen-for lines.
+The U finding: your winners already match UW's F1/F2 — what they LACK
+is UW's top (F3 peak 2355 Hz at -14.7 dB + broad shelf to 4.2 kHz;
+the sung U tops sit 20-60 dB deader). u2_uwtop = full UW top grafted
+on, A/B against _REF_Speech_M_UW. Soprano_E: three genuinely new
+angles (two-peak h4+h5, h1-dominance, alto-recipe transposed with
+intervals preserved). Ring ladder: r1 gap-fill (subtle), r2 coherent
+6-cent wander (the only mechanism that WIDENS lines, 2 -> 4-8 Hz),
+r3 aggressive fill (-46 dB rel). Note r-variants keep the winner
+formant pattern intact (corr 1.000). Escalation if none land:
+vibrato via pitch-mod layer.
 
-### 21. Node graphs are playable [try] (run 23)
-Per your item-17 verdict. Play/Stream (menu, Space, S) now work in
-node-graph mode: the stream resolves Mixer -> Channel -> sources with
-per-channel volume/pan and mirrors StereoMixer::render exactly (equal-
-power pan, master gains, soft clip) — true stereo, no double-pan.
-Play == Stream there (no notes); PC keyboard visible-but-disabled with
-a tooltip. Also fixed a latent audio-thread use-after-free on
-load/delete-while-streaming that patch mode had too.
-Hands-on: New Node Graph -> Sine -> Channel -> Mixer ch1 -> Space;
-drag frequency and pan live. Good demos: rn_test.json (RedNoise — the
-crackling-fire case), wander_pan_test.json (live stereo motion),
-gs_chaotic.json.
+### 24. Node-graph stream fix [try] (run 24)
+Per your item-21 report. Streams no longer fade out: root cause was
+the 30s prepared duration + fractional envelopes (your streams were
+one long fade to silence at exactly t=30). Now steady (measured 100.3%
+at t=10, flat through t=60); 2-hour ceiling remains (true infinite
+needs an engine envelope hold mode — backlogged). wander_pan was NOT a
+UI bug — the patch's deltaSpeed self-cancelled per-sample; param fixed,
+it now pans. gs_chaotic: GrayScottSource only exists on the unmerged
+chord-walker branch — unknown nodes now load inert with a warning
+instead of ImGui erroring every frame.
 
 ### 11. Answer: what the power renorm would do (item 5 follow-up) [read] (run 20)
 Your read is right — with the current formula, power is N/A at count=1 by
@@ -62,6 +66,15 @@ code and in this queue, and we skip a sound-changing edit to a retiring
 front. Say the word if you want the renorm anyway.
 
 ## Resolved
+
+2026-08-06 pm (Matt, folded in run 24): piano additive "still far-off"
+(harpsichord buzz, boing) + Alpha Forever pivot -> Gyutai research
+(docs/research/alpha_forever.md: alive-but-quiet, Balazs="9b0",
+Allpass Resonator topology, nested-allpass 2025 quote) + KS piano
+BUILT (item 22). Vowel winners + Soprano_E miss + "one more pass" on
+ring -> pass 2 (item 23). Stream decay/wander_pan/gs_chaotic -> fixed/
+diagnosed (item 24). Session limit hit mid-run; all three agents
+resumed and completed after reset.
 
 2026-08-06 (Matt, folded in run 23): UI batch "all looks good and works
 as advertised" + NodeGraphs-should-be-playable -> built (item 21).
