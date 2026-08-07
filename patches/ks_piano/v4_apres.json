@@ -1,0 +1,150 @@
+{
+  "sampleRate": 48000,
+  "graph": {
+    "nodes": [
+      {
+        "id": "env",
+        "type": "Envelope",
+        "params": {
+          "preset": "adsr",
+          "timeMode": "seconds",
+          "attack": 0.0002,
+          "decay": 0.008,
+          "sustainLevel": 0.0,
+          "release": 0.0
+        }
+      },
+      {
+        "id": "hammer",
+        "type": "HammerBank",
+        "params": {
+          "source": {
+            "ref": "env"
+          },
+          "frequency": 220.0,
+          "numBands": 4,
+          "harm1": 1.0,
+          "harm2": 2.0,
+          "harm3": 3.0,
+          "harm4": 4.0,
+          "resStart": 25.0,
+          "resEnd": 1.2,
+          "resDecay": 0.012,
+          "bandTilt": -0.25,
+          "direct": 0.25,
+          "gain": 1.0
+        }
+      },
+      {
+        "id": "apres",
+        "type": "AllpassResonator",
+        "params": {
+          "source": {
+            "ref": "hammer"
+          },
+          "frequency": 220.0,
+          "feedback": 0.996,
+          "damping": 0.6,
+          "stiffness": 0.15,
+          "tension": 0.3,
+          "exciteGain": 0.3,
+          "direct": 0.15
+        }
+      },
+      {
+        "id": "verb",
+        "type": "Reverb",
+        "params": {
+          "source": {
+            "ref": "apres"
+          },
+          "roomSize": 0.18,
+          "damping": 0.55,
+          "wet": 0.18,
+          "dry": 0.85
+        }
+      }
+    ],
+    "output": "verb"
+  },
+  "instrument": {
+    "polyphony": 1,
+    "paramMap": {
+      "frequency": [
+        "apres.frequency",
+        "hammer.frequency",
+        {
+          "target": "apres.feedback",
+          "curve": [
+            [
+              65.0,
+              0.9995
+            ],
+            [
+              262.0,
+              0.998
+            ],
+            [
+              1047.0,
+              0.995
+            ]
+          ]
+        },
+        {
+          "target": "apres.damping",
+          "curve": [
+            [
+              65.0,
+              0.6
+            ],
+            [
+              262.0,
+              0.72
+            ],
+            [
+              1047.0,
+              0.85
+            ]
+          ]
+        },
+        {
+          "target": "apres.stiffness",
+          "curve": [
+            [
+              65.0,
+              0.5
+            ],
+            [
+              262.0,
+              0.35
+            ],
+            [
+              1047.0,
+              0.3
+            ]
+          ]
+        }
+      ]
+    }
+  },
+  "score": [
+    {
+      "note": 36,
+      "velocity": 0.85,
+      "time": 0.0,
+      "duration": 3.5
+    },
+    {
+      "note": 60,
+      "velocity": 0.85,
+      "time": 4.0,
+      "duration": 3.5
+    },
+    {
+      "note": 84,
+      "velocity": 0.85,
+      "time": 8.0,
+      "duration": 3.5
+    }
+  ]
+}

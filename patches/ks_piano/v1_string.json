@@ -1,0 +1,101 @@
+{
+  "sampleRate": 48000,
+  "graph": {
+    "nodes": [
+      {
+        "id": "env",
+        "type": "Envelope",
+        "params": {
+          "preset": "adsr",
+          "timeMode": "seconds",
+          "attack": 0.0002,
+          "decay": 0.008,
+          "sustainLevel": 0.0,
+          "release": 0.0
+        }
+      },
+      {
+        "id": "string",
+        "type": "KSPianoString",
+        "params": {
+          "source": {
+            "ref": "env"
+          },
+          "frequency": 220.0,
+          "numCombs": 3,
+          "detune": 1.5,
+          "t60": 6.0,
+          "brightness": 0.6,
+          "exciteGain": 0.1,
+          "direct": 0.15,
+          "dispersion": 0.0,
+          "inharmGain": 0.0,
+          "fbCoeff": 0.0
+        }
+      }
+    ],
+    "output": "string"
+  },
+  "instrument": {
+    "polyphony": 1,
+    "paramMap": {
+      "frequency": [
+        "string.frequency",
+        {
+          "target": "string.t60",
+          "curve": [
+            [
+              65.0,
+              25.0
+            ],
+            [
+              262.0,
+              15.0
+            ],
+            [
+              1047.0,
+              9.0
+            ]
+          ]
+        },
+        {
+          "target": "string.brightness",
+          "curve": [
+            [
+              65.0,
+              0.65
+            ],
+            [
+              262.0,
+              0.78
+            ],
+            [
+              1047.0,
+              0.93
+            ]
+          ]
+        }
+      ]
+    }
+  },
+  "score": [
+    {
+      "note": 36,
+      "velocity": 0.85,
+      "time": 0.0,
+      "duration": 3.5
+    },
+    {
+      "note": 60,
+      "velocity": 0.85,
+      "time": 4.0,
+      "duration": 3.5
+    },
+    {
+      "note": 84,
+      "velocity": 0.85,
+      "time": 8.0,
+      "duration": 3.5
+    }
+  ]
+}
