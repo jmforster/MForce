@@ -5781,6 +5781,8 @@ static void show_create_menu() {
         menu_source("FM", "FMSource");
         menu_source("Distorted", "DistortedSource");
         menu_source("Hybrid KS", "HybridKSSource");
+        menu_source("KS Piano String", "KSPianoString");
+        menu_source("Allpass Resonator", "AllpassResonator");
         menu_sep();
         menu_source("Phased", "PhasedValueSource");
         menu_source("Repeating", "RepeatingSource");
@@ -5886,6 +5888,7 @@ static void show_create_menu() {
         menu_source("Delay", "DelayFilter");
         menu_source("Reverb", "Reverb");
         menu_source("Limiter", "Limiter");
+        menu_source("Hammer Bank", "HammerBank");
         menu_sep();
         menu_source("BW Bandpass", "BWBandpassFilter");
         menu_source("BW Lowpass", "BWLowpassFilter");

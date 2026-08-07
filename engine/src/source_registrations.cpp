@@ -33,7 +33,10 @@
 #include "mforce/core/envelope_presets.h"
 #include "mforce/core/multi_source.h"
 #include "mforce/filter/filters.h"
+#include "mforce/filter/hammer_bank.h"
 #include "mforce/filter/limiter.h"
+#include "mforce/source/ks_piano_string.h"
+#include "mforce/source/allpass_resonator.h"
 #include "mforce/filter/reverb.h"
 #include "mforce/filter/vibrato.h"
 
@@ -540,6 +543,20 @@ void register_all_sources() {
         [](int sr, auto seed) {
             return std::make_shared<HybridKSSource>(sr, seed.value_or(0xBEEF'C0DEu));
         });
+
+    // -----------------------------------------------------------------------
+    // KS piano blocks (dsp run 24 — Alpha Forever piano port). All config
+    // wiring is generic (ConfigDescriptors), no configurators needed.
+    // -----------------------------------------------------------------------
+
+    reg.register_type("HammerBank", SourceCategory::Filter,
+        [](int sr, auto) { return std::make_shared<HammerBank>(sr); });
+
+    reg.register_type("KSPianoString", SourceCategory::Oscillator,
+        [](int sr, auto) { return std::make_shared<KSPianoString>(sr); });
+
+    reg.register_type("AllpassResonator", SourceCategory::Oscillator,
+        [](int sr, auto) { return std::make_shared<AllpassResonator>(sr); });
 }
 
 } // namespace mforce
