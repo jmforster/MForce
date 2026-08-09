@@ -1,7 +1,35 @@
 # Repo housekeeping — 2026-08-08
 
-Survey + first cleanup pass. Original survey numbers below are updated where the
-cleanup changed them; "Actions taken" and "Leftover / needs Matt" are the live sections.
+Survey + two cleanup passes. "Second pass" is the latest state; older sections kept for the record.
+
+## Second pass (Matt's round-2 annotations, executed same day)
+
+| Annotation | Status |
+|---|---|
+| renders/library: keep ignoring | ✅ decision recorded — blanket renders/ ignore stays |
+| CLAUDE.md: prune | ✅ legacy-repo section replaced with a two-line pointer to siblings ../mforce-legacy and ../mforce-unity; porting-era guidance dropped; garbled "## Commands" header fixed; sweep/pending/library structure documented. Committed with the docs trail. |
+| Docs backlog: agree | ✅ all 21 superpowers specs/plans committed (`87747f2`, 10,262 lines). Working-notes triage still open — see leftovers. |
+| Big disk items: delete | ✅ corpus/MTD_1.0.0.zip (497 MB), build/ (785 MB), research __MACOSX junk, and the **16 render dirs listed in the table below** (~3.6 GB incl. old/) all deleted. |
+
+**Disk free: 8 GB → 21 GB.** renders/ is down from 4.7 GB to 1.1 GB.
+
+### Deliberately NOT deleted from renders/
+The "Delete" annotation sat under the table of the 16 biggest dirs, so I deleted exactly those.
+~60 smaller dirs (1.1 GB total) remain, including **ks_piano/ (your pending A/B audition)**,
+fable1*/, cmaes_*/, clarinet_c2/, plus loose test WAVs and a `desktop.ini`. If you meant
+scorched earth, say so and I'll clear everything except sweep/pending/library + ks_piano.
+
+### Remaining leftovers (unchanged from pass 1)
+1. **Patch triage into sweep/pending/library** — fhn/ (342), curated/ (10), vowels/ (32), viola/ (7), ~60 loose test patches, and the 564 tracked sweep-shaped dirs (needs a proposal). Library taxonomy also undecided.
+2. **Docs working notes** (~22 session .txt/.md at docs/ root + research files) — needs your keep/kill pass.
+3. **build/ is gone** — next build is a full rebuild.
+
+### Headline numbers after pass 2
+Tracked 1,067 · untracked 496 (patches 454, docs 30, engine 8, research 2, lib 2) · disk free 21 GB.
+
+---
+
+Below: pass-1 record and original survey.
 
 ## Actions taken (Matt's annotations, executed 2026-08-08)
 
@@ -25,6 +53,8 @@ For both `patches/` and `renders/`, in parallel:
 ## Leftover / ambiguous / open questions
 
 1. **renders/library — checked in or not?** Your note says library = "curated good patches, checked in", but for renders that would mean WAVs in git. Currently the blanket `renders/` ignore still covers it. Assumed *not* checked in until you say otherwise (renders are regenerable from patches).
+MATT: yes, continue to ignore, we don't need WAVs in git
+
 2. **Populating the structure is untouched** — nothing was moved into sweep/pending/library. Needs your triage:
    - patches/fhn/ (342 untracked) — sweep material? Looks like ML-ears fodder → probably `git`-invisible move to patches/sweep/ or delete.
    - patches/curated/ (10) — obvious library candidate.
@@ -33,8 +63,13 @@ For both `patches/` and `renders/`, in parallel:
    - Existing *tracked* patch dirs (fm_matrix2, vowel_grid, vowel_tweak*, liar2, expand_sweep*…, 564 files) are sweep-shaped but tracked — moving/deleting them is a git operation; want a proposal first?
    - What's the instrument-family tree for library/? (e.g. keys/, strings/, winds/, bells/, synth/?)
 3. **CLAUDE.md still references the deleted repos** — "Legacy C# core implementation: ./mforce-legacy" and "./mforce-unity" (plus porting notes about gen-1/gen-2 wrappers). Left alone since it's your instructions file — say the word and I'll prune that section.
+Prune, that is old news. Both -unity and -legacy are still there as *siblings* under repos if they need to be consulted
+
 4. **Docs backlog (52 untracked)** — 21 superpowers specs/plans + ~22 working notes + research files. Recommendation stands: commit the specs/plans trail, then triage the session-scratch .txt files.
+MATT: Yes, agree with recommendation.
+
 5. **Big disk items untouched** (no annotation from you): corpus/MTD_1.0.0.zip (497 MB, extracted already), renders/ pruning (4.7 GB incl. old/ 1.6 GB), build/ (785 MB, regenerable), research/inst_samples __MACOSX junk (~180 files).
+MATT: delete.
 
 ## Headline numbers (after cleanup pass)
 
@@ -64,7 +99,7 @@ Remaining untracked: patches 454 (fhn 342 + vowels/curated/viola/loose), docs 52
 | snaps/ | 260 KB | ignored | screenshots |
 | styles/ | 5 KB | 2 tracked | chord-walker harmony style tables |
 
-## renders/ breakdown (4.7 GB, all git-ignored)
+## renders/ breakdown (4.7 GB, all git-ignored) — **all 16 dirs below DELETED in pass 2**
 
 | Subdir | Size | Subdir | Size |
 |---|---|---|---|
@@ -79,3 +114,5 @@ Remaining untracked: patches 454 (fhn 342 + vowels/curated/viola/loose), docs 52
 
 All regenerable from patches + specs (seeds stored in JSON). Archive-or-delete
 territory; the markov_phrases* six total ~570 MB.
+
+MATT: Delete

@@ -1,6 +1,6 @@
 # MForce project instructions
 
-## Commands                                                                                                       - Use literal paths, not shell variables ($CMAKE, $p, etc.)
+## Commands
 - Use literal paths, not shell variables ($CMAKE, $p, etc.)
 - Avoid for/while loops in bash commands, chain independent commands with && instead
 - Never combine cd with git — use git -C path instead
@@ -10,22 +10,8 @@
 
 ## Repositories
 - Current C++ implementation: this repo
-- Legacy C# core implementation: ./mforce-legacy
-- Legacy C#/Unity controller and UI implementation: ./mforce-unity
-- The base class for all components is MUnityComponent which extended MonoBehaviour (base for all Unity objects)
-- The top-level unity class is SoundController.cs
-- There are 2 generations of unity wrapper classes per "core" class:
-  1 - *Wrapper are gen 1, scripts user can add added to Unity hierarchy and set params via inspector UI
-  2 - *Node are gen 2, UI nodes using 3rd party xNode library which user can add to a visual node graph
-- Both generations are functional but source for port should be gen 2 nodes
-
-When porting code:
-- Always use best practices for modern C++ architecture
-- This will be a large professional project, not a toy, so architect accordingly
-- Don't blindly port class for class if you see issues or a better approach
-- Come back with a proposal or multiple options vs. proceeding if warranted
-
-The legacy implementation is unfinished, so this is only initially a porting exercise
+- Legacy C# reference implementations live as sibling repos, consult only if needed:
+  ../mforce-legacy (core) and ../mforce-unity (Unity controller/UI, gen-2 *Node classes were the port source)
 
 ## Mission
 Create a platform for making music and sound effects, with 3 pillars
@@ -73,6 +59,12 @@ Replicate legacy functionality of node-based UI to:
 - Build from repo root
 - Main executable: mforce_cli
 - Write renders into renders/
+
+## Patch/render organization
+Parallel structure under patches/ and renders/:
+- sweep/ — batch/ML-ears output, disposable, gitignored
+- pending/ — audition candidates for Matt, disposable, gitignored
+- library/ — curated keepers by instrument family; patches/library is tracked, renders stay gitignored
 
 ## Validation expectations
 After making code changes:
