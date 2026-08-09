@@ -76,6 +76,27 @@ research/additive_perf/*.obj
 __pycache__/
 
 ############################
+# UI runtime state
+############################
+imgui.ini
+mforce_recents.json
+mforce_ui_settings.json
+
+############################
+# Screenshots
+############################
+snaps/*.png
+snaps/*.jpg
+snaps/*.PNG
+snaps/*.JPG
+
+############################
+# Patch/render workflow: sweep + pending are disposable, library is curated (tracked)
+############################
+patches/sweep/
+patches/pending/
+
+############################
 # Session scratch
 ############################
 .superpowers/
