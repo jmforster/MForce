@@ -12,10 +12,19 @@ doing nothing (dsp run 19, 2026-08-04).
 
 Truth comes from the engine itself via `mforce_cli --dump-descriptors`, not from
 a list maintained here -- a hand-copied list is exactly the thing that drifts.
-The one thing this file does own is SPECIAL_KEYS: keys consumed by hand-written
-branches in patch_loader.cpp rather than by a descriptor loop. Those are
-allow-listed globally (not per type) so the linter under-reports rather than
-cries wolf.
+Keys consumed by hand-written branches (patch_loader.cpp) or by JsonConfigurator
+lambdas (source_registrations.cpp) are invisible to the descriptor sets, so they
+must be allow-listed. Those are now SCRAPED FROM THE SOURCES at lint time rather
+than hand-copied, because the hand-copied list drifted exactly as predicted:
+run 22 added Envelope "timeMode" (the absolute-seconds chuff fix), nobody
+updated the list, and the linter then reported 15 false positives across the
+piano template and every ks_piano patch -- including the v5 set queued for
+Matt's ears. Proven live, not argued: deleting "timeMode" from v5a_desc moves
+the render peak 0.601 -> 0.018.
+
+MANUAL_KEYS below is only the residue the scraper cannot see (keys reached by
+`at()`, iteration, or a helper). The selftest reports any entry the scraper
+already covers, so the residue shrinks instead of rotting.
 
 Usage:
   python tools/lint_patches.py [root_dir]     # default: patches/
@@ -23,6 +32,7 @@ Usage:
 """
 import json
 import os
+import re
 import subprocess
 import sys
 
@@ -38,32 +48,59 @@ CLI = os.path.join(ROOT, "build", "tools", "mforce_cli", "Release", "mforce_cli.
 #      PhasedValueSource "overlap" are both correct JSON consumed by their
 #      configurators; note "gap" sets a member called gapDuration, so the JSON
 #      key and the config descriptor name legitimately differ).
-# Re-extract with:
-#   grep -oE '\b(p|params)\.(value|contains)\("[a-zA-Z_]+"' \
-#     engine/src/patch_loader.cpp engine/src/source_registrations.cpp
+# Both are now SCRAPED at lint time (scrape_special_keys) instead of copied by
+# hand. Run 25 found fifteen more false positives after run 22 added Envelope
+# "timeMode" without touching the old hand-copied list.
 # Global rather than per-type so a stale entry can only hide a warning, never
 # invent one.
-SPECIAL_KEYS = {
-    # universal / structural
-    "seed", "preset", "source", "expandRule",
-    # Envelope
-    "stages", "stage_accuracy", "ramp_accuracy",
-    "attack", "attackMin", "attackMax", "decay", "release", "sustainLevel",
-    # SegmentSource
-    "values", "oneShot",
-    # WavetableSource evolution family
-    "evolution", "evolutionSeed", "muting", "sampleCount", "speed",
-    "decayFactor", "leading", "autoAdjust", "targetWave", "targetPartials",
-    "targetLength", "interpolate", "morphDuration", "morphRate",
-    "zeroCrossTendency", "holdCycles", "partialMode", "partialCount",
-    # partials / spectrum / formants
-    "formants", "gains", "numPartials", "absolute", "normalized",
-    # filters / misc
-    "cutoff", "sections", "threshold", "depthVar", "speedVar",
-    # JsonConfigurator lambdas in source_registrations.cpp
-    "baseValue", "bias", "durVarPct", "duration", "gainAdj", "gap",
-    "gapVarPct", "max", "min", "operation", "overlap", "ratio", "varPct",
+SCRAPE_SOURCES = ("engine/src/patch_loader.cpp",
+                  "engine/src/source_registrations.cpp")
+
+# `p.value("k", ...)`, `p.contains("k")`, `p.at("k")`, `p["k"]`, and the
+# `for (const char* k : {"a","b"})` loops patch_loader uses.
+# `.at(` matters as much as `.value(`: AdditiveSource2's evolving/envelope
+# branches read startPartials/endAmplitudes/amplitudes exclusively through
+# at(), so omitting it cost four more false positives on the as2_* patches.
+_SCRAPE_RE = re.compile(
+    r'(?:\.(?:value|contains|at)\(\s*"([A-Za-z_][A-Za-z0-9_]*)"'
+    r'|\[\s*"([A-Za-z_][A-Za-z0-9_]*)"\s*\])')
+# String literals inside a braced initialiser list of const char* keys.
+_KEYLIST_RE = re.compile(
+    r'const\s+char\*\s+\w+\s*:\s*\{([^}]*)\}', re.S)
+_LIT_RE = re.compile(r'"([A-Za-z_][A-Za-z0-9_]*)"')
+
+# Residue the scraper cannot see: keys reached via at(), iteration, or a helper
+# rather than a literal value()/contains()/[] call. Keep this SHORT -- the
+# selftest prints anything here the scraper already covers.
+MANUAL_KEYS = {
+    "sections",     # filter section list, reached by iteration
+    "oneShot",      # SegmentSource
 }
+# Pruned run 25: formants, values, partialCount, partialMode, absolute,
+# normalized, depthVar and speedVar were all in the old hand-copied list and
+# are all found by the scraper, so keeping them by hand bought nothing.
+
+
+def scrape_special_keys(include_manual=True):
+    """JSON keys consumed by hand-written loader code, read from the sources.
+
+    Global rather than per-type, so a spurious entry can only hide a warning,
+    never invent one. include_manual=False returns ONLY what the sources
+    actually yield, which is how the selftest spots prunable MANUAL_KEYS.
+    """
+    keys = set(MANUAL_KEYS) if include_manual else set()
+    for rel in SCRAPE_SOURCES:
+        path = os.path.join(ROOT, rel)
+        if not os.path.exists(path):
+            raise SystemExit(f"lint_patches: missing {rel} -- cannot build the "
+                             f"allowlist, refusing to report false positives")
+        text = open(path, encoding="utf-8", errors="replace").read()
+        for a, b in _SCRAPE_RE.findall(text):
+            keys.add(a or b)
+        for block in _KEYLIST_RE.findall(text):
+            keys.update(_LIT_RE.findall(block))
+    keys.discard("params")      # the container itself, not a param
+    return keys
 
 
 def load_descriptors():
@@ -80,7 +117,7 @@ def accepted_keys(desc, type_name):
     return set(e["params"]) | set(e["configs"]) | set(e["arrays"]) | set(e["inputs"])
 
 
-def lint_file(path, desc):
+def lint_file(path, desc, special):
     """Yield (node_id, type, key) for every silently-ignored param key."""
     try:
         with open(path, "r", encoding="utf-8") as f:
@@ -103,11 +140,11 @@ def lint_file(path, desc):
         if ok is None:
             continue  # type handled entirely outside the registry
         for key in params:
-            if key not in ok and key not in SPECIAL_KEYS:
+            if key not in ok and key not in special:
                 yield node.get("id", "?"), tname, key
 
 
-def selftest(desc):
+def selftest(desc, special):
     """The linter must flag a known-bad key and stay quiet on a known-good one."""
     import tempfile
     bad = {"graph": {"nodes": [{"id": "vn", "type": "VelvetNoiseSource",
@@ -115,12 +152,20 @@ def selftest(desc):
     good = {"graph": {"nodes": [{"id": "vn", "type": "VelvetNoiseSource",
                                  "params": {"density": 20.0, "amplitude": 1.0}}]}}
     ok = True
+    print("  scraped %d allowlist key(s) from %d source file(s)"
+          % (len(special), len(SCRAPE_SOURCES)))
+    for k in ("timeMode", "releaseMax", "seed"):
+        print("  scraped contains %-11s %s" % (k, k in special))
+    redundant = sorted(MANUAL_KEYS & scrape_special_keys(include_manual=False))
+    if redundant:
+        print("  MANUAL_KEYS the scraper already covers (prunable): %s"
+              % ", ".join(redundant))
     with tempfile.TemporaryDirectory() as d:
         for name, doc, want in (("bad", bad, 1), ("good", good, 0)):
             p = os.path.join(d, name + ".json")
             with open(p, "w", encoding="utf-8") as f:
                 json.dump(doc, f)
-            got = len(list(lint_file(p, desc)))
+            got = len(list(lint_file(p, desc, special)))
             print("  selftest %-5s expected %d finding(s), got %d  %s"
                   % (name, want, got, "OK" if got == want else "FAIL"))
             ok = ok and got == want
@@ -167,11 +212,13 @@ def report_duplicates(root):
 def main():
     args = sys.argv[1:]
     desc = load_descriptors()
-    print("loaded %d source types from the engine" % len(desc))
+    special = scrape_special_keys()
+    print("loaded %d source types from the engine; %d hand-written keys "
+          "scraped from the loader sources" % (len(desc), len(special)))
 
     if "--selftest" in args:
         print("selftest:")
-        return 0 if selftest(desc) else 1
+        return 0 if selftest(desc, special) else 1
 
     if "--dups" in args:
         return report_duplicates(os.path.join(ROOT, "patches"))
@@ -184,7 +231,7 @@ def main():
                 continue
             nfiles += 1
             p = os.path.join(dirpath, fn)
-            for nid, tname, key in lint_file(p, desc):
+            for nid, tname, key in lint_file(p, desc, special):
                 findings.append((os.path.relpath(p, ROOT), nid, tname, key))
 
     print("scanned %d patch files under %s\n" % (nfiles, os.path.relpath(root, ROOT)))
