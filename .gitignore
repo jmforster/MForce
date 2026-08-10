@@ -92,9 +92,12 @@ snaps/*.JPG
 
 ############################
 # Patch/render workflow: sweep + pending are disposable, library is curated (tracked)
+# old/ is the deletion grace window — rejected patches land here, purged >30
+# days by the nightly scheduled runs. Renders are deleted outright (derived).
 ############################
 patches/sweep/
 patches/pending/
+patches/old/
 
 ############################
 # Session scratch
