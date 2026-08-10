@@ -241,11 +241,29 @@ Priority order. Tags per WORKFLOW.md. (G1)-(G4) = GOALS.md Dipsy goals.
    (b2) **[metric] OPEN — `derive_motion` takes no B**, so the stored
    `motion_medians` are unchanged by the fix (verified: identical before and
    after). Same treatment as motion_stats, plus the measured-line idea.
-   (b3) **[metric] OPEN — low-f0 heterodyne breaks down.** resid_cents at
-   C1/F1/C2 is 181-469 c because the LP half-width (40 Hz) is comparable to
-   partial spacing below ~100 Hz. C2 is both an eval note and in
-   `motion_samples`, so this contaminates term2. Needs a spacing-relative
-   half-width, or those notes excluded from motion with the exclusion stated.
+   (b3) ✓ **DONE run25** (2026-08-10), commit bcf3413. Isolating one partial
+   needs the neighbours (±f0) outside the passband, i.e. lp < f0/2; LP_HZ=40
+   violates that below f0=80 (C1 f0/2=16.4, F1 21.8, C2 32.7 vs G2 49.0), and
+   the break sits exactly where the numbers broke. So the residual there was
+   adjacent-partial BEATING, not broadening. Confirmed by sensitivity sweep
+   (`diag_lowf0_heterodyne.py`, the run-18 beat-rate control shape): C1 swings
+   318.7 → 11.2 c across cutoffs 40/30/20, a **28.5x sensitivity**, vs 1.45-2.0x
+   for G2 up.
+   **The sweep killed the obvious fix**: a purely spacing-relative cutoff
+   wrecks the treble (C6 would get a 419 Hz passband, resid 6.1 → 37.3 c). The
+   rule is a CAP, `lp = min(LP_HZ, 0.4*f0)`, which does not bind above 100 Hz;
+   tap count scales only when the cutoff narrows, so nothing above the cap
+   moves by a bit.
+   resid_cents_rms: C1 468.70 → **4.27**, F1 340.44 → **21.45**, C2 181.45 →
+   **4.66**; G2/C3/C4/G4/C5/C6 unchanged to the digit. C1 amp_frac 42% → 12%.
+   Scorer (C2 is an eval note): term2 1.3114 → **0.8123**, TOTAL 1.0449 →
+   **0.9202**. Viola + clarinet references byte-identical.
+   (b3-open) **F1 is still not trustworthy** — 6.4x sensitivity at 21.45 c.
+   Better than 340 but not a measurement to rely on. Two attempts spent on the
+   low-f0 family this run, so per the 2-attempt rule it is annotated and left
+   rather than tried a third time. Likely needs a longer window (F1's 1.0 s
+   sus gives 1 Hz resolution against a 43.7 Hz spacing) rather than a
+   different filter.
    Velocity layers (mf-only today) stay Later.
 3f. **[build] CombinedSource JSON op string "sum" silently falls back to
    Add** — ✓ DONE run21 (2026-08-05), commit b08d795. CombineOp gained Sum in

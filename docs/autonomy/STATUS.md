@@ -12,7 +12,7 @@ Updated: 2026-08-10 — dsp run 25 (Dipsy, scheduled) · comp run 18 (Wolfie, sc
 |---|---|---|---|---|
 | comp | Wolfie | run 18 (2026-08-06, scheduled): 3 fronts, all build/metric — **the engine was free**, so both blocked engine items landed. #13 CLOSED: `sections[].keyName` desugars at COMPOSE time into a beat-0 KeyContext, and it had a second half nobody had recorded (a section's `scaleOverride` was realized at the PIECE tonic, so a section could change its scale type but never its tonic); null test 38/38 byte-identical. #18 CLOSED: central `grid_complete` in `compose_passage`, 5/21 → **21/21** endings on the beat — and measuring found a SECOND mechanism, a passage composed longer than its section overhung the boundary mid-note. #19 CLOSED: the empty render does NOT reproduce (99 notes at HEAD), and `score()` now REFUSES (composite `None`) rather than flagging | #7 phrase-aware cadence; #8 voicing open items; #9 PAC held-note; #14 priority semantics (his call); #20 passage-mode semantics (needs your read) | **8 items** — passage endings beat-vs-bar [listen] NEW, section key tonic [listen] NEW, endings A/B [listen], passage-mode semantics [read], Bruckner v2 [listen], pedal_chords voiced [listen], repeat transforms A/B [listen], voicing_ab 9 WAVs [listen] |
 | comp (prev) | Wolfie | run 17 (2026-08-05, scheduled): 4 fronts, all Python-side — the dsp lane was live, so #13 was not attempted. #16 (ending overshoot was grid completion CEILING onto the next barline, not the draw; v4 `calib` default), #17 (offender-first range guard), #15 (passage-mode scorer, uncorrelated with the phrase composite at Spearman 0.072) | — | (folded into run 18) |
-| dsp | Dipsy | run 25 (2026-08-10, scheduled): 3 fronts, all build/metric. Through-line — **two of the three were work that already existed and had never been checked.** (1) Matt's vowel verdict folded: **7 winners LOCKED** into `patches/library/voice/`, all 7 byte-identical to the WAVs he auditioned; the 3 he rejected got measured, not swept — vowel separability collapses monotonically with f0 (26.94 bass → **14.80 dB soprano**) because at 440 Hz soprano E and I share BOTH formant harmonics. (2) **3e-NEXT(b) was live in HEAD since 08-06 and completely inert** — the orphan's code had been swept into run 23's commit but nothing called it; wiring it then regressed the bass, and the diagnosis was that a single stiff-string B holds only to n≈16, so the mask now sits on MEASURED peaks. Piano band2 fixed on every note (G4 2056 → 0.00202). (3) Backlog 14: **66 lint findings → 7, and 59 were the tool** — a hand-copied allowlist had missed run 22's `timeMode`, flagging every ks_piano patch including Matt's v5 audition set | 3k audio-thread AV; 3i envelope hold; 3l modulated even/odd weight — **all three engine, all three blocked this run by the concurrent comp lane**; then 3e-NEXT b2/b3 | **6 items** — soprano alto-formant A/B [listen] NEW, ks_piano v5 [listen], ks_piano ladder [listen], node-graph streams [try], power-renorm answer [read] |
+| dsp | Dipsy | run 25 (2026-08-10, scheduled): 4 fronts, all build/metric. Through-line — **two of the three were work that already existed and had never been checked.** (1) Matt's vowel verdict folded: **7 winners LOCKED** into `patches/library/voice/`, all 7 byte-identical to the WAVs he auditioned; the 3 he rejected got measured, not swept — vowel separability collapses monotonically with f0 (26.94 bass → **14.80 dB soprano**) because at 440 Hz soprano E and I share BOTH formant harmonics. (2) **3e-NEXT(b) was live in HEAD since 08-06 and completely inert** — the orphan's code had been swept into run 23's commit but nothing called it; wiring it then regressed the bass, and the diagnosis was that a single stiff-string B holds only to n≈16, so the mask now sits on MEASURED peaks. Piano band2 fixed on every note (G4 2056 → 0.00202). (3) Backlog 14: **66 lint findings → 7, and 59 were the tool** — a hand-copied allowlist had missed run 22's `timeMode`, flagging every ks_piano patch including Matt's v5 audition set. (4) The bass motion numbers were **beating, not broadening** — the heterodyne's 40 Hz low-pass is wider than half the partial spacing below f0=80 Hz, so C1 read 468 cents of "line broadening"; capped, C1 468.70 → **4.27 c** with G2 up unchanged to the digit. **Net for the piano scorer: the same untouched patch went TOTAL 1.1879 → 0.9202 across the session — 22.5% of the objective was measurement artifact**, which matters because the gated 600-eval run was going to search against it | 3k audio-thread AV; 3i envelope hold; 3l modulated even/odd weight — **all three engine, all three blocked this run by the concurrent comp lane**; then 3e-NEXT b2 | **6 items** — soprano alto-formant A/B [listen] NEW, ks_piano v5 [listen], ks_piano ladder [listen], node-graph streams [try], power-renorm answer [read] |
 | dsp (prev) | Dipsy | run 24 (2026-08-06) + the 2026-08-09 overnight session: the **KS piano pivot** — three new engine nodes (KSPianoString, HammerBank, AllpassResonator), a v1-v4 ladder whose dispersion allpasses fit the measured Iowa inharmonicity with no curve-fitting (C2 B=1.23e-4 vs 1.23e-4), then v5 after Matt's "kick drum, disappointed" verdict — full Alpha-Forever description, dry taps removed, 7-variation set. Also vowel pass 2 (43 WAVs), node-graph stream decay fixed, instrument-level volume + damper release | (folded into run 25) | (folded into run 25) |
 | dsp (prev) | Dipsy | run 21 (2026-08-05, scheduled): **SlewLimiterSource** landed (Slew/Lag/**Peak**) — measuring caught the backlog's premise was wrong, the clicks are IMPULSES not steps; CombinedSource finally parses `sum`; **broadband_ratios empty-band blowup fixed** — piano C6 band0 was 4.63e+11 and dominated the smoke's term3. NOTE: run 22 REVERTED the slew/click family per Matt ("dead end"); the CombinedSource fix survives | — | (folded) |
 
@@ -21,10 +21,9 @@ comp/reports/2026-08-06-wolfie-run18.md ·
 dsp/reports/2026-08-06-dipsy-run24.md ·
 dsp/reports/2026-08-06-dipsy-run23.md
 
-Run-25 highlights (dsp): three fronts, all build/metric, no blind taste
+Run-25 highlights (dsp): four fronts, all build/metric, no blind taste
 iteration. The through-line is **work that already existed and had never been
-checked** — two of the three fronts were verification passes that turned into
-repairs.
+checked** — most of the run was verification passes that turned into repairs.
 (0) **The lanes collided again.** A comp run started in this working copy
 mid-session: `composer.h` and `default_strategies.h` were clean at my start
 and modified after front A, with three more engine headers joining by the end.
@@ -82,6 +81,21 @@ merely different: the square's even harmonics sit 98.5 dB below odd, and both
 it and the saw follow 20·log10(1/n) to the decimal. 66 → 7, all 7 in
 `Squeaker.json`, which is a genuine capability gap (modulated even/odd weight)
 and is now item 3l rather than a silent flattening of one of Matt's patches.
+(4) **The bass motion numbers were beating, not broadening** — front B's own
+output flagged it. Isolating a partial needs its neighbours (±f0) outside the
+heterodyne passband, so the fixed 40 Hz low-pass fails below f0 = 80 Hz, and
+the break sits exactly between C2 and G2 where the numbers broke. A
+sensitivity sweep settled it the way run 18 settled beat rate: C1 swings
+318.7 → 11.2 cents as the cutoff moves 40 → 20 Hz, **28.5× sensitivity**
+against 1.45–2.0× for every note above. The sweep also **killed the obvious
+fix** — a purely spacing-relative cutoff wrecks the treble (C6 would get a
+419 Hz passband, 6.1 → 37.3 c), so the rule is a cap, not a scale. C1
+468.70 → **4.27 c**, C2 181.45 → **4.66**, everything from G2 up unchanged to
+the digit. **The cumulative number is the one that matters**: across this
+session the piano objective on an unchanged patch went **1.1879 → 0.9202**, so
+22.5% of what the gated 600-eval run was going to minimise was measurement
+artifact. F1 is improved but still not trustworthy (6.4× sensitivity) and is
+annotated on the backlog rather than attempted a third time.
 
 Run-18 highlights (comp): three fronts, all build/metric, no blind taste
 iteration. The through-line is **two of the three defects were not where the
