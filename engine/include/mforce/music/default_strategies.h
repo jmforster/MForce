@@ -261,6 +261,16 @@ public:
   static std::vector<int> build_approach_steps(int headEndDeg, int targetDeg,
                                                int tailCount, int len);
   static std::vector<float> settle_tail(const std::vector<float>& tailDurs, float finalMin);
+  // Rewrites the tail of ONE figure into an approach + settled arrival on
+  // `targetDeg`. `degAtFigureStart` is the scale degree reached immediately
+  // before this figure's first unit. Split out of apply_cadence so callers
+  // that cannot use its degree accounting can supply the right starting
+  // degree themselves: apply_cadence sums net_step() over the preceding
+  // figures, which is only valid when every figure steps in SCALE degrees.
+  // A chord-driven phrase (phrase_aware_figure) mixes ChordFigures, whose
+  // steps are chord-tone indices, so it tracks the true pitch itself.
+  static void rebuild_cadential_tail(Figure& cf, int degAtFigureStart,
+                                     int targetDeg, int len, float finalMin);
   // Adjusts ONLY the last figure of the phrase to land on cadenceTarget.
   // When a phrase's cadential tail spans multiple figures (e.g., K467 bars
   // 7-8 where bar 7's two figures approach and bar 8 arrives), the earlier
@@ -377,9 +387,14 @@ inline void DefaultPhraseStrategy::apply_cadence(Phrase& phrase,
     }
     if (lastIdx < int(phrase.connectors.size())) headEndDeg += phrase.connectors[lastIdx].leadStep;
 
-    auto& cf = *phrase.figures[lastIdx];
+    rebuild_cadential_tail(*phrase.figures[lastIdx], headEndDeg, target, len, 1.0f);
+}
+
+inline void DefaultPhraseStrategy::rebuild_cadential_tail(
+    Figure& cf, int degAtFigureStart, int targetDeg, int len, float finalMin) {
     int N = cf.note_count();
     if (N <= 0) return;
+    int headEndDeg = degAtFigureStart;
     int head = std::max(0, N - 3);
     for (int i = 0; i < head; ++i) headEndDeg += cf.units[i].step;
 
@@ -387,9 +402,9 @@ inline void DefaultPhraseStrategy::apply_cadence(Phrase& phrase,
     std::vector<float> tailDurs;
     for (int i = head; i < N; ++i) tailDurs.push_back(cf.units[i].duration);
 
-    std::vector<float> newDurs = settle_tail(tailDurs, 1.0f);   // finalMin = 1.0 beat
+    std::vector<float> newDurs = settle_tail(tailDurs, finalMin);
     int A = int(newDurs.size());
-    std::vector<int> appSteps = build_approach_steps(headEndDeg, target, A, len);
+    std::vector<int> appSteps = build_approach_steps(headEndDeg, targetDeg, A, len);
 
     cf.units.resize(head);                       // keep the head, drop the old tail
     for (int i = 0; i < A; ++i) {
