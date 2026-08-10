@@ -1,0 +1,63 @@
+{
+  "graph": {
+    "nodes": [
+      {
+        "id": "VioletNoise1",
+        "type": "VioletNoiseSource"
+      },
+      {
+        "id": "EKSEvolution1",
+        "params": {
+          "decayStretch": 0.004999999888241291,
+          "drumBlend": 0.49000048637390137,
+          "pickDirection": 0.0,
+          "pickPosition": 0.0,
+          "stiffness": 0.0
+        },
+        "type": "EKSEvolution"
+      },
+      {
+        "id": "Wavetable1",
+        "params": {
+          "amplitude": 1.0,
+          "evolution": {
+            "ref": "EKSEvolution1"
+          },
+          "frequency": 6000.0,
+          "inputSource": {
+            "ref": "VioletNoise1"
+          },
+          "interpolate": false,
+          "phase": 0.0,
+          "speedFactor": 1.0
+        },
+        "type": "WavetableSource"
+      }
+    ],
+    "output": "Wavetable1"
+  },
+  "instrument": {
+    "polyphony": 4
+  },
+  "sampleRate": 48000,
+  "ui": {
+    "positions": {
+      "EKSEvolution1": [
+        330.0,
+        263.0
+      ],
+      "VioletNoise1": [
+        321.0,
+        38.0
+      ],
+      "Wavetable1": [
+        513.0,
+        87.0
+      ],
+      "__output": [
+        710.0,
+        80.0
+      ]
+    }
+  }
+}

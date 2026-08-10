@@ -1,0 +1,69 @@
+{
+  "_comment": "K467/i opening — over-repetitive baseline. Same shape primitives as test_k467_v4, but routed through motif Reference so that fig1==fig3 and fig2==fig4 (literally, byte-for-byte, except last-unit cadence adjustment). The point: see whether forced motivic re-use audibly reads as 'music' even with shape-driven content. From here we'd dial repetition BACK toward variety.",
+  "keyName": "C",
+  "scaleName": "Major",
+  "bpm": 100.0,
+  "masterSeed": 467,
+
+  "motifs": [
+    {
+      "name": "arpeggio",
+      "type": "figure",
+      "userProvided": false,
+      "constraints": {
+        "source": "generate",
+        "shape": "triadic_outline",
+        "shapeDirection": 1,
+        "totalBeats": 4.0
+      }
+    },
+    {
+      "name": "cadence",
+      "type": "figure",
+      "userProvided": false,
+      "constraints": {
+        "source": "generate",
+        "shape": "cadential_approach",
+        "shapeDirection": -1,
+        "shapeParam": 5,
+        "totalBeats": 4.0
+      }
+    }
+  ],
+
+  "sections": [
+    {"name": "Main", "beats": 16}
+  ],
+  "parts": [
+    {
+      "name": "melody",
+      "role": "melody",
+      "passages": {
+        "Main": {
+          "startingPitch": {"octave": 4, "pitch": "C"},
+          "phrases": [
+            {
+              "name": "Phrase1",
+              "startingPitch": {"octave": 4, "pitch": "C"},
+              "cadenceType": 1,
+              "cadenceTarget": 6,
+              "figures": [
+                {"source": "reference", "motifName": "arpeggio"},
+                {"source": "reference", "motifName": "cadence"}
+              ]
+            },
+            {
+              "name": "Phrase2",
+              "cadenceType": 2,
+              "cadenceTarget": 2,
+              "figures": [
+                {"source": "reference", "motifName": "arpeggio"},
+                {"source": "reference", "motifName": "cadence"}
+              ]
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

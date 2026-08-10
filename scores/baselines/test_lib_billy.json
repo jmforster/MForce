@@ -1,0 +1,27 @@
+{
+  "_comment": "Library pattern audition — BillyLife (16 bars, P1 P2hc P1 P3fc with progressive encroachment).",
+  "keyName": "C",
+  "scaleName": "Major",
+  "bpm": 100.0,
+  "masterSeed": 467,
+
+  "sections": [
+    {"name": "Main", "beats": 64}
+  ],
+  "parts": [
+    {
+      "name": "melody",
+      "role": "melody",
+      "passages": {
+        "Main": {
+          "startingPitch": {"octave": 4, "pitch": "C"},
+          "strategy": "library_passage",
+          "phrases": [],
+          "libraryConfig": {
+            "patternName": "BillyLife"
+          }
+        }
+      }
+    }
+  ]
+}

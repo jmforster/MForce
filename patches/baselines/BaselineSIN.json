@@ -1,0 +1,108 @@
+{
+  "graph": {
+    "nodes": [
+      {
+        "id": "env1",
+        "params": {
+          "ramp_accuracy": 1.0,
+          "stage_accuracy": 1.0,
+          "stages": [
+            {
+              "endVal": 1.0,
+              "holdPct": 0.0,
+              "maxSec": 1.0,
+              "minSec": 0.05000000074505806,
+              "percent": 0.05000000074505806,
+              "power": 0.0,
+              "startVal": 0.0,
+              "type": "Linear"
+            },
+            {
+              "endVal": 0.699999988079071,
+              "holdPct": 0.0,
+              "maxSec": 0.5,
+              "minSec": 0.02500000037252903,
+              "percent": 0.10000000149011612,
+              "power": 0.0,
+              "startVal": 1.0,
+              "type": "Linear"
+            },
+            {
+              "endVal": 0.699999988079071,
+              "holdPct": 0.0,
+              "maxSec": 0.0,
+              "minSec": 0.0,
+              "percent": 0.0,
+              "power": 0.0,
+              "startVal": 0.699999988079071,
+              "type": "Linear"
+            },
+            {
+              "endVal": 0.0,
+              "holdPct": 0.0,
+              "maxSec": 0.0,
+              "minSec": 0.0,
+              "percent": 0.20000000298023224,
+              "power": 0.0,
+              "startVal": 0.699999988079071,
+              "type": "Sine"
+            }
+          ]
+        },
+        "type": "Envelope"
+      },
+      {
+        "id": "Sine1",
+        "params": {
+          "amplitude": {
+            "ref": "env1"
+          },
+          "frequency": 440.0,
+          "phase": 0.0
+        },
+        "type": "SineSource"
+      }
+    ],
+    "output": "Sine1"
+  },
+  "instrument": {
+    "paramMap": {
+      "frequency": "Sine1.frequency"
+    },
+    "polyphony": 4
+  },
+  "sampleRate": 48000,
+  "score": [
+    {
+      "duration": 2.0,
+      "note": 60,
+      "time": 0.0,
+      "velocity": 0.800000011920929
+    }
+  ],
+  "seconds": 3.0,
+  "ui": {
+    "panning": [
+      9.0,
+      228.25054931640625
+    ],
+    "positions": {
+      "Sine1": [
+        443.0,
+        -146.25054931640625
+      ],
+      "__output": [
+        758.0,
+        -80.25054931640625
+      ],
+      "__param_frequency": [
+        165.0,
+        -185.25054931640625
+      ],
+      "env1": [
+        198.0,
+        -37.25054931640625
+      ]
+    }
+  }
+}

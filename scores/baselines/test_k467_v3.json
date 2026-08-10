@@ -1,0 +1,68 @@
+{
+  "_comment": "K467/i opening — WAV 3: fig1 + fig2 + fig3 replaced. Only fig4 still literal. fig2 uses cadential_approach with shapeParam=5 (six notes descending to half-cadence target B3 from wherever fig1's TriadicOutline left the cursor, which should be G4).",
+  "keyName": "C",
+  "scaleName": "Major",
+  "bpm": 100.0,
+  "masterSeed": 467,
+  "sections": [
+    {"name": "Main", "beats": 16}
+  ],
+  "parts": [
+    {
+      "name": "melody",
+      "role": "melody",
+      "passages": {
+        "Main": {
+          "startingPitch": {"octave": 4, "pitch": "C"},
+          "phrases": [
+            {
+              "name": "Phrase1",
+              "startingPitch": {"octave": 4, "pitch": "C"},
+              "cadenceType": 1,
+              "cadenceTarget": 6,
+              "figures": [
+                {
+                  "source": "generate",
+                  "shape": "triadic_outline",
+                  "shapeDirection": 1,
+                  "totalBeats": 4.0
+                },
+                {
+                  "source": "generate",
+                  "shape": "cadential_approach",
+                  "shapeDirection": -1,
+                  "shapeParam": 5,
+                  "totalBeats": 4.0
+                }
+              ]
+            },
+            {
+              "name": "Phrase2",
+              "cadenceType": 2,
+              "cadenceTarget": 2,
+              "figures": [
+                {
+                  "source": "generate",
+                  "shape": "triadic_outline",
+                  "shapeDirection": 1,
+                  "totalBeats": 4.0
+                },
+                {
+                  "source": "literal",
+                  "literalNotes": [
+                    {"pitch": {"octave": 4, "pitch": "G"}, "duration": 1.5},
+                    {"pitch": {"octave": 4, "pitch": "A"}, "duration": 0.16666667},
+                    {"pitch": {"octave": 4, "pitch": "G"}, "duration": 0.16666667},
+                    {"pitch": {"octave": 4, "pitch": "F"}, "duration": 0.16666667},
+                    {"pitch": {"octave": 4, "pitch": "E"}, "duration": 1.0},
+                    {"rest": true, "duration": 1.0}
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

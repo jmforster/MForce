@@ -1,0 +1,65 @@
+{
+  "sampleRate": 48000,
+  "seconds": 2,
+  "graph": {
+    "nodes": [
+      {
+        "id": "env1",
+        "type": "Envelope",
+        "params": {
+          "preset": "adsr",
+          "attack": 0.05,
+          "decay": 0.05,
+          "sustainLevel": 0.8,
+          "release": 0.1
+        }
+      },
+      {
+        "id": "sine1",
+        "type": "SineSource",
+        "params": {
+          "frequency": 440.0,
+          "amplitude": {
+            "ref": "env1"
+          },
+          "phase": 0.0
+        }
+      },
+      {
+        "id": "mux1",
+        "type": "MultiplexSource",
+        "params": {
+          "count": 4,
+          "source": {
+            "ref": "sine1"
+          }
+        }
+      },
+      {
+        "id": "ch1",
+        "type": "SoundChannel",
+        "inputs": {
+          "source": "mux1"
+        },
+        "params": {
+          "volume": 0.5,
+          "pan": 0.0
+        }
+      },
+      {
+        "id": "mix",
+        "type": "StereoMixer",
+        "inputs": {
+          "channels": [
+            "ch1"
+          ]
+        },
+        "params": {
+          "gainL": 1.0,
+          "gainR": 1.0
+        }
+      }
+    ],
+    "output": "mux1"
+  }
+}

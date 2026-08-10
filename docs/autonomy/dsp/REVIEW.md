@@ -2,8 +2,41 @@
 
 ## Awaiting Matt
 
+### 26. Housekeeping 2026-08-10 — leftovers and judgment calls [read]
+The patch/score restructure (docs/patch_triage_2026_08_10.md rev 2 + your
+annotations) is executed. Things you didn't rule on, or where I applied a
+pattern you should sanity-check:
+- **Two files modified in the working tree by an unidentified session** (dirty
+  since before 2026-08-09): `patches/clarinet_c2/c2c_quiet.json` and
+  `patches/fable1_v6/v6_01_res_curve_lo.json`. Both dirs are otherwise
+  triaged (c2 remainder in old/, v6 gated in place). Verdict decides: keep
+  the modifications (commit), discard them (checkout), and then where the
+  two families go (old/, presumably).
+- **"the 2 comp ones moved to renders/dsp/pending"** — the two templates are
+  patch-tree JSONs, not renders, so I read this as scores/pending/:
+  template_golden_phase1a + template_shaped_test + the 11 jazz_turnaround
+  patches all landed there. Say if you meant something else.
+- **Pattern-applied strays you didn't list:** fm_bell/fm_brass/fm_ep_test →
+  patches/baselines (fit the *_test pattern); untracked test_k467_v1-v4/
+  _structural/_v4_rep + test_aaab + test_lib_billy/blue/miley →
+  scores/baselines; liar3/ → old/; k467_bars_1_to_{12,27}.dun →
+  scores/baselines.
+- **renders/ dirs I could not classify** (left in place at renders/ root,
+  awaiting your call — delete, scratch, or a lane): algev, algev_convert,
+  bakeoff, bare_output, exp2_ab, features_0730, fig_demo, fm_phase,
+  markov_contrast, markov_figures, markov_phrases2, matt, noise_amp,
+  novelty, null_test_templates, nulltest_noise, passage_bruckner,
+  passage_chords, passage_strategies, phrase_aware_ab, probe_keyctx,
+  rng_ab, shimmer_floor, stage3_regress, stage4_wandering,
+  transform_variety, voicing_open_items, wander_fix, warmstart, _probe,
+  _smoke_final, plus loose files (_phrase_test_*, wolfie_par_*, matt).
+- **Missing renders cited by open comp items:** `passage_end_grid` (item 17),
+  `markov_phrases5` (item 11), `markov_phrases6` (item 13) no longer exist —
+  most likely casualties of the 2026-08-08 big-render deletion. Those items
+  need a re-render (same seed per their READMEs) or a verdict from memory.
+
 ### 25. Soprano E / I / U — the alto-formant candidate [listen] (run 25)
-`renders/pending/vowel_soprano_alt/` — 8 WAVs, 4 A/B pairs, `_cur` is what you
+`renders/dsp/pending/vowel_soprano_alt/` — 8 WAVs, 4 A/B pairs, `_cur` is what you
 rejected and `_altf` is the candidate. Same note (A4), same partials, same
 envelope; only the formant table differs. **The O pair is a control** — O is
 the family you rate best, so if `_altf` is worse there the idea is wrong.
@@ -34,7 +67,7 @@ bigger number means the vowels differ more from each other, not that any one
 is right.
 
 ### 22b. KS PIANO v5 — full description, no direct taps [listen] (2026-08-09 overnight)
-renders/pending/ks_piano_v5/ — 7 WAVs + README. Matt's verdict on v1-v4:
+renders/dsp/pending/ks_piano_v5/ — 7 WAVs + README. Matt's verdict on v1-v4:
 "kick drum, disappointed." v5: every patch has ALL six described elements;
 the hammer.direct/string.direct dry taps are removed (description has no
 dry path), exciteGain carries level. Variations move one mechanism each:
@@ -43,31 +76,6 @@ f=body, g=two-hand phrase. Measured vs old v3_full: C4 sustain much
 slower (-3.5 dB @1s vs -8.7; b: -1.2), C6 treble lives longer (b/c:
 -16/-15 dB @1s vs -25). C2 attack centroid still dark (116-157 Hz).
 Patches patches/pending/ks_piano_v5/, generator tools/gen_ks_piano_v5.py.
-
-### 22. KS PIANO — the Gyutai build [listen] (run 24)
-renders/ks_piano/ — the ladder: `v1_string_c246` (combs only),
-`v2_hammer_c246` (+SVF hammer bank), `v3_full_c246` (the complete
-description: dispersion, nested-allpass inharmonic loop, negative
-feedback, reverb body), `v4_apres_c246` (Alpha Forever's packaged
-Allpass Resonator shape — different flavor, textural rather than
-stretched), `v3_phrase_twohand`.
-The measurement that matters: the dispersion allpasses produce
-inharmonicity that FITS your Iowa measurements nearly exactly with no
-curve-fitting (C2 B=1.23e-4 vs measured 1.23e-4; C6 4.67e-3 vs
-4.37e-3) — the physical route gets free what additive needed measured
-laws for. Tuning within 1.2 cents, attack rise in the real ballpark
-(C6 6.4ms vs real 8.8).
-Honest gaps (in the run report): the register-flat -1 dB/s aftersound
-is NOT reproduced (our second slope is HF damping + unison beating);
-treble partials are weak with a pure decaying-envelope input (the
-description's one explicit negative rules out noise); the C4 render
-has an audible 0.27 Hz unison-beat swell (flanging — real pianos do
-this, judge whether ours is right).
-Three new nodes are in the UI palette (KS Piano String, Allpass
-Resonator, Hammer Bank) — playable from the keyboard.
-Verdict decides: is this piano-er than the additive best (A/B vs
-renders/cmaes_piano2/); which rung of the ladder carries the magic;
-fund the next iteration (hammer voicing, aftersound mechanism)?
 
 ### 24. Node-graph stream fix [try] (run 24)
 Per your item-21 report. Streams no longer fade out: root cause was
@@ -95,6 +103,13 @@ code and in this queue, and we skip a sound-changing edit to a retiring
 front. Say the word if you want the renorm anyway.
 
 ## Resolved
+
+2026-08-10 (Matt, via patch-triage manifest annotation): item 22 KS PIANO
+A/B CLOSED — "Already convinced KS is the future here." The KS/physical
+route beats the additive lane for piano; the v1-v4 ladder is superseded by
+v5 (item 22b, still open). patches/ks_piano/ + cmaes_piano* moved to
+old//deleted per render policy. Next iteration funding rides on the v5
+verdict.
 
 2026-08-09 (Matt, folded in run 25): vowel pass 2 (item 23) closed. Seven
 winners LOCKED into `patches/library/voice/`, all seven byte-identical to the

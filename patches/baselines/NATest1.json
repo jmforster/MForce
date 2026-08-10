@@ -1,0 +1,139 @@
+{
+  "graph": {
+    "nodes": [
+      {
+        "id": "ADSREnvelope1",
+        "params": {
+          "attack": 0.20000000298023224,
+          "decay": 0.10000000149011612,
+          "release": 0.10000000149011612,
+          "sustainLevel": 0.699999988079071
+        },
+        "type": "ADSREnvelope"
+      },
+      {
+        "id": "Saw1",
+        "params": {
+          "amplitude": {
+            "ref": "ADSREnvelope1"
+          },
+          "frequency": 440.0,
+          "phase": 0.0
+        },
+        "type": "SawSource"
+      },
+      {
+        "id": "ASEnvelope1",
+        "params": {
+          "attack": 0.20000000298023224,
+          "sustainLevel": 1.0
+        },
+        "type": "ASEnvelope"
+      },
+      {
+        "id": "Range1",
+        "params": {
+          "max": 50.0,
+          "min": 20000.0,
+          "normalized": true,
+          "var": {
+            "ref": "ASEnvelope1"
+          }
+        },
+        "type": "RangeSource"
+      },
+      {
+        "id": "ASEnvelope2",
+        "params": {
+          "attack": 0.20000000298023224,
+          "sustainLevel": 1.0
+        },
+        "type": "ASEnvelope"
+      },
+      {
+        "id": "Range2",
+        "params": {
+          "max": 1.0,
+          "min": 0.0,
+          "normalized": true,
+          "var": {
+            "ref": "ASEnvelope2"
+          }
+        },
+        "type": "RangeSource"
+      },
+      {
+        "id": "NoiseAttackFilter1",
+        "params": {
+          "cutoff": {
+            "ref": "Range1"
+          },
+          "offset": {
+            "ref": "Range2"
+          },
+          "source": {
+            "ref": "Saw1"
+          }
+        },
+        "type": "NoiseAttackFilter"
+      }
+    ],
+    "output": "NoiseAttackFilter1"
+  },
+  "instrument": {
+    "paramMap": {
+      "frequency": "Saw1.frequency"
+    },
+    "polyphony": 4
+  },
+  "sampleRate": 48000,
+  "score": [
+    {
+      "duration": 2.0,
+      "note": 60,
+      "time": 0.0,
+      "velocity": 0.800000011920929
+    }
+  ],
+  "seconds": 3.0,
+  "ui": {
+    "positions": {
+      "ADSREnvelope1": [
+        81.0,
+        -155.0
+      ],
+      "ASEnvelope1": [
+        178.0,
+        34.0
+      ],
+      "ASEnvelope2": [
+        122.0,
+        -53.5
+      ],
+      "NoiseAttackFilter1": [
+        703.0,
+        -298.0
+      ],
+      "Range1": [
+        425.0,
+        -6.0
+      ],
+      "Range2": [
+        339.0,
+        -136.5
+      ],
+      "Saw1": [
+        311.0,
+        -268.0
+      ],
+      "__output": [
+        879.0,
+        -32.0
+      ],
+      "__param_frequency": [
+        26.0,
+        -264.0
+      ]
+    }
+  }
+}

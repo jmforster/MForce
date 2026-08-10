@@ -1,0 +1,70 @@
+{
+  "_comment": "K467/i opening — fully structural. Bars 1,3: skipping strategy (chord-tone-like motion). Bars 2,4: cadential_approach (random descent to cadence target). Render with count=3 to hear variation across seeds.",
+  "keyName": "C",
+  "scaleName": "Major",
+  "bpm": 100.0,
+  "masterSeed": 467,
+  "sections": [
+    {"name": "Main", "beats": 16}
+  ],
+  "parts": [
+    {
+      "name": "melody",
+      "role": "melody",
+      "passages": {
+        "Main": {
+          "startingPitch": {"octave": 4, "pitch": "C"},
+          "phrases": [
+            {
+              "name": "Phrase1",
+              "startingPitch": {"octave": 4, "pitch": "C"},
+              "cadenceType": 1,
+              "cadenceTarget": 6,
+              "figures": [
+                {
+                  "source": "generate",
+                  "shape": "skipping",
+                  "direction": "turnaround_ascending",
+                  "totalBeats": 4.0,
+                  "defaultPulse": 1.0,
+                  "targetNet": 2
+                },
+                {
+                  "source": "generate",
+                  "shape": "cadential_approach",
+                  "shapeDirection": -1,
+                  "shapeParam": 5,
+                  "totalBeats": 4.0,
+                  "defaultPulse": 0.5
+                }
+              ]
+            },
+            {
+              "name": "Phrase2",
+              "cadenceType": 2,
+              "cadenceTarget": 2,
+              "figures": [
+                {
+                  "source": "generate",
+                  "shape": "skipping",
+                  "direction": "ascending_arc",
+                  "totalBeats": 4.0,
+                  "defaultPulse": 1.0,
+                  "targetNet": 2
+                },
+                {
+                  "source": "generate",
+                  "shape": "cadential_approach",
+                  "shapeDirection": -1,
+                  "shapeParam": 3,
+                  "totalBeats": 4.0,
+                  "defaultPulse": 0.5
+                }
+              ]
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

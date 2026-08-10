@@ -1,0 +1,116 @@
+{
+  "graph": {
+    "nodes": [
+      {
+        "id": "ADSREnvelope1",
+        "params": {
+          "attack": 0.29999998211860657,
+          "decay": 0.20000000298023224,
+          "release": 0.20000000298023224,
+          "sustainLevel": 0.800000011920929
+        },
+        "type": "ADSREnvelope"
+      },
+      {
+        "id": "RedNoise1",
+        "params": {
+          "amplitude": 1.0,
+          "boost": 0.0,
+          "continuity": 0.0,
+          "density": 0.5,
+          "frequency": 0.30000001192092896,
+          "phase": 0.0,
+          "rampVariation": 0.5,
+          "smoothness": 1.0,
+          "zeroCrossTendency": 0.0
+        },
+        "type": "RedNoiseSource"
+      },
+      {
+        "id": "Var1",
+        "params": {
+          "absolute": true,
+          "val": 1.0,
+          "var": {
+            "ref": "RedNoise1"
+          },
+          "varPct": 0.019999999552965164
+        },
+        "type": "VarSource"
+      },
+      {
+        "id": "Triangle1",
+        "params": {
+          "amplitude": {
+            "ref": "ADSREnvelope1"
+          },
+          "bias": 0.5,
+          "frequency": {
+            "ref": "Var1"
+          },
+          "phase": 0.0
+        },
+        "type": "TriangleSource"
+      },
+      {
+        "id": "Multiplex1",
+        "params": {
+          "count": 10,
+          "source": {
+            "ref": "Triangle1"
+          }
+        },
+        "type": "MultiplexSource"
+      }
+    ],
+    "output": "Multiplex1"
+  },
+  "instrument": {
+    "paramMap": {
+      "frequency": "Var1.val"
+    },
+    "polyphony": 4
+  },
+  "sampleRate": 48000,
+  "score": [
+    {
+      "duration": 2.0,
+      "note": 60,
+      "time": 0.0,
+      "velocity": 0.800000011920929
+    }
+  ],
+  "seconds": 3.0,
+  "ui": {
+    "positions": {
+      "ADSREnvelope1": [
+        380.0,
+        214.0
+      ],
+      "Multiplex1": [
+        836.5,
+        185.5
+      ],
+      "RedNoise1": [
+        102.0,
+        125.0
+      ],
+      "Triangle1": [
+        624.0,
+        64.0
+      ],
+      "Var1": [
+        384.0,
+        38.0
+      ],
+      "__output": [
+        1035.0,
+        157.0
+      ],
+      "__param_frequency": [
+        58.0,
+        15.0
+      ]
+    }
+  }
+}

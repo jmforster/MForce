@@ -91,13 +91,19 @@ snaps/*.PNG
 snaps/*.JPG
 
 ############################
-# Patch/render workflow: sweep + pending are disposable, library is curated (tracked)
-# old/ is the deletion grace window — rejected patches land here, purged >30
-# days by the nightly scheduled runs. Renders are deleted outright (derived).
+# Patch/score workflow (docs/patch_triage_2026_08_10.md rev 2):
+# patches/ = instruments (dsp lane), scores/ = musical material (comp lane).
+# sweep/pending/scratch are disposable working dirs; old/ is the deletion
+# grace window purged >30 days by the nightly runs; library/ and baselines/
+# are tracked. Renders are deleted outright (derived).
 ############################
 patches/sweep/
 patches/pending/
 patches/old/
+patches/scratch/
+scores/sweep/
+scores/pending/
+scores/scratch/
 
 ############################
 # Session scratch

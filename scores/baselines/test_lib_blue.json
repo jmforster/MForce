@@ -1,0 +1,27 @@
+{
+  "_comment": "Library pattern audition — BlueMorn (16 bars, P1 four times, ABC).",
+  "keyName": "C",
+  "scaleName": "Major",
+  "bpm": 100.0,
+  "masterSeed": 1212,
+
+  "sections": [
+    {"name": "Main", "beats": 64}
+  ],
+  "parts": [
+    {
+      "name": "melody",
+      "role": "melody",
+      "passages": {
+        "Main": {
+          "startingPitch": {"octave": 4, "pitch": "C"},
+          "strategy": "library_passage",
+          "phrases": [],
+          "libraryConfig": {
+            "patternName": "BlueMorn"
+          }
+        }
+      }
+    }
+  ]
+}

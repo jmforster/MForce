@@ -1,0 +1,80 @@
+{
+  "sampleRate": 48000,
+  "seconds": 10,
+  "graph": {
+    "nodes": [
+      {
+        "id": "widthLfo",
+        "type": "RedNoiseSource",
+        "params": { "seed": 101, "frequency": 0.5, "amplitude": 1.0, "smoothness": 0.8 }
+      },
+      {
+        "id": "widthVar",
+        "type": "RangeSource",
+        "params": { "min": 0.05, "max": 0.4, "var": { "ref": "widthLfo" }, "normalized": false }
+      },
+      {
+        "id": "valLfo",
+        "type": "RedNoiseSource",
+        "params": { "seed": 102, "frequency": 0.3, "amplitude": 1.0, "smoothness": 0.7 }
+      },
+      {
+        "id": "valVar",
+        "type": "RangeSource",
+        "params": { "min": 0.1, "max": 0.5, "var": { "ref": "valLfo" }, "normalized": false }
+      },
+      {
+        "id": "seg",
+        "type": "SegmentSource",
+        "params": {
+          "seed": 42,
+          "values": [
+            200, 0.02,
+            300, 0.05,
+            250, 0.03,
+            400, 0.08,
+            350, 0.04,
+            300, 0.10,
+            200, 0.06,
+            350, 0.12,
+            250, 0.08,
+            300, 0.18,
+            150, 0.10,
+            200, 0.25,
+            100, 0.15,
+            50,  0.40,
+            30,  1.00,
+            20,  0.80,
+            50,  0.30,
+            100, 0.10,
+            200, 0.03,
+            300, 0.01,
+            200, 0.00
+          ],
+          "amplitude": 0.9,
+          "smoothness": 0.6,
+          "widthVarPct": { "ref": "widthVar" },
+          "valVarPct": { "ref": "valVar" },
+          "gap": 0.0,
+          "gapVarPct": 0.0,
+          "oneShot": true
+        }
+      },
+      {
+        "id": "rep",
+        "type": "RepeatingSource",
+        "params": {
+          "seed": 77,
+          "source": { "ref": "seg" },
+          "duration": 0.1,
+          "durVarPct": 0.15,
+          "gap": 0.3,
+          "gapVarPct": 0.4
+        }
+      },
+      { "id": "ch1", "type": "SoundChannel", "inputs": { "source": "rep" }, "params": { "volume": 0.8, "pan": 0.0 } },
+      { "id": "mix", "type": "StereoMixer", "inputs": { "channels": ["ch1"] }, "params": { "gainL": 1.0, "gainR": 1.0 } }
+    ],
+    "output": "mix"
+  }
+}

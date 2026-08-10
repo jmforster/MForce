@@ -1,0 +1,64 @@
+{
+  "_comment": "K467/i opening — WAV 4: all four figures replaced with structural primitives. Fully 0% literal, 100% shape-driven. The test: is this still recognizable as classical music of the period, let alone as K467?",
+  "keyName": "C",
+  "scaleName": "Major",
+  "bpm": 100.0,
+  "masterSeed": 467,
+  "sections": [
+    {"name": "Main", "beats": 16}
+  ],
+  "parts": [
+    {
+      "name": "melody",
+      "role": "melody",
+      "passages": {
+        "Main": {
+          "startingPitch": {"octave": 4, "pitch": "C"},
+          "phrases": [
+            {
+              "name": "Phrase1",
+              "startingPitch": {"octave": 4, "pitch": "C"},
+              "cadenceType": 1,
+              "cadenceTarget": 6,
+              "figures": [
+                {
+                  "source": "generate",
+                  "shape": "triadic_outline",
+                  "shapeDirection": 1,
+                  "totalBeats": 4.0
+                },
+                {
+                  "source": "generate",
+                  "shape": "cadential_approach",
+                  "shapeDirection": -1,
+                  "shapeParam": 5,
+                  "totalBeats": 4.0
+                }
+              ]
+            },
+            {
+              "name": "Phrase2",
+              "cadenceType": 2,
+              "cadenceTarget": 2,
+              "figures": [
+                {
+                  "source": "generate",
+                  "shape": "triadic_outline",
+                  "shapeDirection": 1,
+                  "totalBeats": 4.0
+                },
+                {
+                  "source": "generate",
+                  "shape": "cadential_approach",
+                  "shapeDirection": -1,
+                  "shapeParam": 1,
+                  "totalBeats": 4.0
+                }
+              ]
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

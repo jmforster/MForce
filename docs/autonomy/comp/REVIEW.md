@@ -2,8 +2,14 @@
 
 ## Awaiting Matt
 
+> PATHS 2026-08-10: housekeeping moved comp render dirs to
+> renders/comp/pending/ and the live template/jazz-turnaround inputs to
+> scores/pending/ (patch/score split, docs/patch_triage_2026_08_10.md).
+> Items 11/13/17 cite renders that NO LONGER EXIST (2026-08-08 render
+> purge casualty) — flagged in dsp REVIEW item 26; re-render before verdict.
+
 ### 18. Cadential arrival — held, or approached? [listen] (run 26)
-`renders/cadential_arrival_ab/` — `template_golden_phase1a_{held,approach}`
+`renders/comp/pending/cadential_arrival_ab/` — `template_golden_phase1a_{held,approach}`
 and `template_shaped_test_{held,approach}`. Same template, same seed; the only
 difference is how the final figure of the *cadential* phrase is shaped.
 
@@ -27,7 +33,7 @@ authorable per phrase either way. (`template_shaped_test` was rendering pure
 silence until this run — it is one of six that were; see the run-26 report.)
 
 ### 17. Passage endings — beat or barline? [listen] (run 18)
-`renders/passage_end_grid/{off,beat,bar}` — the same 21 passages three times,
+`renders/passage_end_grid/{off,beat,bar}` [MISSING — see note above] — the same 21 passages three times,
 `endGrid` the only difference. `off` is what you have been hearing (6/21 end
 on a beat), `beat` is the new default (21/21 on a beat, 8/21 on a barline),
 `bar` quantizes to the 4/4 barline (21/21 both).
@@ -44,7 +50,7 @@ stay authorable either way, and `0` turns it off for a pickup or an elided
 handoff.
 
 ### 16. Should a section key move the tonic? [listen] (run 18)
-`renders/section_key/` — three arms, same music, same seed, sections C / G / D.
+`renders/comp/pending/section_key/` — three arms, same music, same seed, sections C / G / D.
 `control` (no section keys, everything in C) · `accidentals_only` (what
 landed) · `transposed` (same plus a per-passage `startingPitch` offset by the
 key distance). Three distinct renders by sha256.
@@ -63,8 +69,8 @@ and if so, is that the default or an opt-in flag? Note the second one has a
 sharp edge: a template that sets both would get transposed twice.
 
 ### 13. Phrase endings, recalibrated [listen] (run 17)
-`renders/markov_phrases6/` (new default `calib`) vs
-`renders/markov_phrases6/longest/` (the v3 rule you called "fine for now").
+`renders/markov_phrases6/` (new default `calib`) vs `renders/markov_phrases6/longest/`
+(the v3 rule you called "fine for now") [both MISSING — see note above].
 Same seed, same 24 phrases, **only the last note differs** (README inside).
 You said fine; the measurement said the rule was running at ratio p50 3.0 /
 p95 11.0 against a corpus of 2.0 / 6.0. It turned out the DRAW was already
@@ -76,7 +82,7 @@ Verdict decides: does the shorter ending still land, or did v3's extra length
 carry something? `--final-rule longest` restores v3 exactly.
 
 ### 14. Passage-mode scoring — two semantics questions [read] (run 17)
-`renders/passage_scores/` (74 passages scored, README explains the screen).
+`renders/comp/pending/passage_scores/` (74 passages scored, README explains the screen).
 The screen itself is verified mechanically — I am not asking you to bless the
 numbers. Two things it cannot decide on its own:
 (a) A **descending** sequence scores 0.49–0.51 because the tension criterion
@@ -90,7 +96,7 @@ Verdict decides whether passage mode grows a passage-type parameter, or stays
 one fixed set of criteria that some passage types will always score low on.
 
 ### 9. Bruckner v2 — your two progressions, pedal fixed [listen] (run 16)
-`renders/passage_bruckner2/` — `bruckner2_ger6_0/1`, `bruckner2_neap_0/1`.
+`renders/comp/pending/passage_bruckner2/` — `bruckner2_ger6_0/1`, `bruckner2_neap_0/1`.
 Your run-15 spec exactly: G Em A7 D Bm Bdim7 -> Ger6 (or Neapolitan Ab) ->
 C(6/4) -> G -> C. Point (d) verified in every event dump: the G3 pedal now
 holds under the Ger6, the C(6/4) AND the plain G (no G7 anywhere); the bass
@@ -101,7 +107,7 @@ Verdict decides: Ger6 vs Neapolitan flavor, 4 vs 8 beats pacing, and whether
 this cadence becomes the pedal-family default.
 
 ### 10. pedal_chords is now engine-voiced [listen] (run 16)
-`renders/passage_chords_ab2/` — 3 takes. `pedal_chords` routes through the
+`renders/comp/pending/passage_chords_ab2/` — 3 takes. `pedal_chords` routes through the
 harmony part with smooth voicing; your caveat is enforced by a new per-chord
 VoicingPin: Ger6 root position -> I(6/4), bass Ab->G, top Gb->G (verified
 [44,48,51,54] -> [43,48,52,55] in all dumps, register matched to the smooth
@@ -110,7 +116,7 @@ Verdict decides: does the pinned arrival read as you intended, and does the
 hand path stay reachable or retire.
 
 ### 11. Literal repeats can now transform [listen] (run 16)
-`renders/markov_phrases5/` vs `renders/markov_phrases5/before/` — same-seed
+`renders/markov_phrases5/` vs `renders/markov_phrases5/before/` [both MISSING — see note above] — same-seed
 A/B, backlog #10 closed. Repeated A/B occurrences can invert / retrograde /
 rotate / ornament instead of only transposing; first occurrence of a family
 never transformed; a range guard reverts span-breakers. Conservative 0.3
@@ -122,7 +128,7 @@ notes; and whether you want a denser batch (0.6 probability) to audition
 more instances.
 
 ### 12. Voicing A/B renders — now actually delivered [listen] (run 16)
-`renders/voicing_ab/` — the 9 WAVs item 8 promised and did not deliver
+`renders/comp/pending/voicing_ab/` — the 9 WAVs item 8 promised and did not deliver
 (README inside). flat / smooth / drift / random / scripted / rock, plus the
 priority ladder p0 / p05 / p1. Confirmed by hash: p05 == p1 byte-identical,
 only p0 differs — "priority" today separates zero from nonzero and nothing

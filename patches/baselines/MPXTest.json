@@ -1,0 +1,279 @@
+{
+  "graph": {
+    "nodes": [
+      {
+        "id": "env1",
+        "params": {
+          "attack": 0.20000000298023224,
+          "decay": 0.10000000149011612,
+          "preset": "adsr",
+          "release": 0.0,
+          "sustainLevel": 0.699999988079071
+        },
+        "type": "Envelope"
+      },
+      {
+        "id": "FormantSpectrum1__f0",
+        "params": {
+          "frequency": 220.0,
+          "gain": 0.699999988079071,
+          "power": 1.0,
+          "width": 400.0
+        },
+        "type": "Formant"
+      },
+      {
+        "id": "FormantSpectrum1__f1",
+        "params": {
+          "frequency": 850.0,
+          "gain": 1.0,
+          "power": 2.0,
+          "width": 900.0
+        },
+        "type": "Formant"
+      },
+      {
+        "id": "FormantSpectrum1__f2",
+        "params": {
+          "frequency": 1850.0,
+          "gain": 0.6000000238418579,
+          "power": 1.0,
+          "width": 1200.0
+        },
+        "type": "Formant"
+      },
+      {
+        "id": "FormantSpectrum1__f3",
+        "params": {
+          "frequency": 3100.0,
+          "gain": 0.6499999761581421,
+          "power": 1.5,
+          "width": 1000.0
+        },
+        "type": "Formant"
+      },
+      {
+        "id": "FormantSpectrum1",
+        "params": {
+          "formants": [
+            {
+              "ref": "FormantSpectrum1__f0"
+            },
+            {
+              "ref": "FormantSpectrum1__f1"
+            },
+            {
+              "ref": "FormantSpectrum1__f2"
+            },
+            {
+              "ref": "FormantSpectrum1__f3"
+            }
+          ]
+        },
+        "type": "FormantSpectrum"
+      },
+      {
+        "id": "ASEnvelope1",
+        "params": {
+          "attack": 0.20000000298023224,
+          "sustainLevel": 1.0
+        },
+        "type": "ASEnvelope"
+      },
+      {
+        "id": "RedNoise1",
+        "params": {
+          "amplitude": 1.0,
+          "boost": 0.0,
+          "continuity": 0.0,
+          "density": 0.5,
+          "frequency": 3.4000000953674316,
+          "phase": 0.0,
+          "rampVariation": 0.0,
+          "smoothness": 0.5,
+          "zeroCrossTendency": 0.0
+        },
+        "type": "RedNoiseSource"
+      },
+      {
+        "id": "Range1",
+        "params": {
+          "max": 0.9900000095367432,
+          "min": 0.6000000238418579,
+          "normalized": true,
+          "var": {
+            "ref": "RedNoise1"
+          }
+        },
+        "type": "RangeSource"
+      },
+      {
+        "id": "RedNoise2",
+        "params": {
+          "amplitude": 1.0,
+          "boost": 0.0,
+          "continuity": 0.0,
+          "density": 0.5,
+          "frequency": 0.6700000166893005,
+          "phase": 0.0,
+          "rampVariation": 0.0,
+          "smoothness": 0.5,
+          "zeroCrossTendency": 0.0
+        },
+        "type": "RedNoiseSource"
+      },
+      {
+        "id": "RedNoise3",
+        "params": {
+          "amplitude": 1.0,
+          "boost": 0.0,
+          "continuity": 0.0,
+          "density": 0.5,
+          "frequency": 5.0,
+          "phase": 0.0,
+          "rampVariation": 0.0,
+          "smoothness": 0.5,
+          "zeroCrossTendency": 0.0
+        },
+        "type": "RedNoiseSource"
+      },
+      {
+        "id": "Var1",
+        "params": {
+          "absolute": true,
+          "val": 0.0,
+          "var": {
+            "ref": "RedNoise3"
+          },
+          "varPct": 0.10000000149011612
+        },
+        "type": "VarSource"
+      },
+      {
+        "id": "FullPartials1",
+        "params": {
+          "amplEnv": {
+            "ref": "Range1"
+          },
+          "detune1": 0.10000000149011612,
+          "detune2": 0.019999999552965164,
+          "dtEnv": {
+            "ref": "Var1"
+          },
+          "evenWeight1": 0.0,
+          "evenWeight2": 1.0,
+          "maxPartials": 100,
+          "minMult": 1,
+          "multEnv": 0.0,
+          "oddWeight1": 1.0,
+          "oddWeight2": 0.0,
+          "poEnv": {
+            "ref": "RedNoise2"
+          },
+          "roEnv": {
+            "ref": "ASEnvelope1"
+          },
+          "rolloff1": 0.800000011920929,
+          "rolloff2": 1.2000000476837158,
+          "unitPO1": 0.0,
+          "unitPO2": 0.699999988079071
+        },
+        "type": "FullPartials"
+      },
+      {
+        "id": "Additive1",
+        "params": {
+          "amplitude": {
+            "ref": "env1"
+          },
+          "formant": {
+            "ref": "FormantSpectrum1"
+          },
+          "formantWeight": 1.0,
+          "frequency": 220.0,
+          "partials": {
+            "ref": "FullPartials1"
+          },
+          "phase": 0.0
+        },
+        "type": "AdditiveSource"
+      },
+      {
+        "id": "Multiplex1",
+        "params": {
+          "count": 10,
+          "source": {
+            "ref": "Additive1"
+          }
+        },
+        "type": "MultiplexSource"
+      }
+    ],
+    "output": "Multiplex1"
+  },
+  "instrument": {
+    "polyphony": 4
+  },
+  "sampleRate": 48000,
+  "score": [
+    {
+      "duration": 2.0,
+      "note": 60,
+      "time": 0.0,
+      "velocity": 0.800000011920929
+    }
+  ],
+  "seconds": 3.0,
+  "ui": {
+    "positions": {
+      "ASEnvelope1": [
+        710.1473388671875,
+        618.7252197265625
+      ],
+      "Additive1": [
+        860.2947387695313,
+        186.90087890625
+      ],
+      "FormantSpectrum1": [
+        721.1473388671875,
+        71.450439453125
+      ],
+      "FullPartials1": [
+        585.1473388671875,
+        176.450439453125
+      ],
+      "Multiplex1": [
+        1057.1473388671875,
+        185.7252197265625
+      ],
+      "Range1": [
+        258.0,
+        -9.0
+      ],
+      "RedNoise1": [
+        19.0,
+        10.0
+      ],
+      "RedNoise2": [
+        117.0,
+        287.0
+      ],
+      "RedNoise3": [
+        461.29473876953125,
+        391.90087890625
+      ],
+      "Var1": [
+        695.2947387695313,
+        454.90087890625
+      ],
+      "__output": [
+        1185.294677734375,
+        282.90087890625
+      ],
+      "env1": [
+        419.0,
+        64.0
+      ]
+    }
+  }
+}

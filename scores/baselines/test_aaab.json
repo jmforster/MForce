@@ -1,0 +1,59 @@
+{
+  "_comment": "AAAB rep-density baseline: 1 phrase, 4 figures, [a, a, a, b]. Cell A is generated as a repeated-note 2-beat cell; cell B is a cadential_approach 2-beat cell that breaks the rep. The same A is stamped 3 times via Reference; B closes. If this reads as 'phrase-shaped' on audition, we have a calibration floor for rep-density.",
+  "keyName": "C",
+  "scaleName": "Major",
+  "bpm": 100.0,
+  "masterSeed": 42,
+
+  "motifs": [
+    {
+      "name": "cell_a",
+      "type": "figure",
+      "userProvided": false,
+      "constraints": {
+        "source": "generate",
+        "totalBeats": 2.0,
+        "defaultPulse": 0.5
+      }
+    },
+    {
+      "name": "cell_b",
+      "type": "figure",
+      "userProvided": false,
+      "constraints": {
+        "source": "generate",
+        "totalBeats": 2.0,
+        "defaultPulse": 0.5
+      }
+    }
+  ],
+
+  "sections": [
+    {"name": "Main", "beats": 8}
+  ],
+  "parts": [
+    {
+      "name": "melody",
+      "role": "melody",
+      "passages": {
+        "Main": {
+          "startingPitch": {"octave": 4, "pitch": "C"},
+          "phrases": [
+            {
+              "name": "Phrase",
+              "startingPitch": {"octave": 4, "pitch": "C"},
+              "cadenceType": 1,
+              "cadenceTarget": 4,
+              "figures": [
+                {"source": "reference", "motifName": "cell_a"},
+                {"source": "reference", "motifName": "cell_a"},
+                {"source": "reference", "motifName": "cell_a"},
+                {"source": "reference", "motifName": "cell_b"}
+              ]
+            }
+          ]
+        }
+      }
+    }
+  ]
+}
