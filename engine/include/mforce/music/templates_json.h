@@ -658,6 +658,7 @@ inline void to_json(json& j, const PhraseTemplate& pt) {
     if (pt.totalBeats != 0.0f) j["totalBeats"] = pt.totalBeats;
     if (pt.cadenceType != 0) j["cadenceType"] = pt.cadenceType;
     if (pt.cadenceTarget != -1) j["cadenceTarget"] = pt.cadenceTarget;
+    if (!pt.cadentialArrival.empty()) j["cadentialArrival"] = pt.cadentialArrival;
     if (pt.function != MelodicFunction::Free) j["function"] = pt.function;
     if (pt.seed != 0) j["seed"] = pt.seed;
     if (pt.locked) j["locked"] = true;
@@ -703,6 +704,7 @@ inline void from_json(const json& j, PhraseTemplate& pt) {
     pt.totalBeats = j.value("totalBeats", 0.0f);
     pt.cadenceType = j.value("cadenceType", 0);
     pt.cadenceTarget = j.value("cadenceTarget", -1);
+    pt.cadentialArrival = j.value("cadentialArrival", std::string());
     if (j.contains("function")) from_json(j.at("function"), pt.function);
     pt.seed = j.value("seed", 0u);
     pt.locked = j.value("locked", false);
@@ -806,6 +808,7 @@ inline void from_json(const json& j, PeriodSpec& ps) {
         ph.totalBeats = pj.value("totalBeats", 0.0f);
         ph.cadenceType = pj.value("cadenceType", 0);
         ph.cadenceTarget = pj.value("cadenceTarget", -1);
+        ph.cadentialArrival = pj.value("cadentialArrival", std::string());
         if (pj.contains("function")) from_json(pj.at("function"), ph.function);
         ph.seed = pj.value("seed", 0u);
         ph.locked = pj.value("locked", false);

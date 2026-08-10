@@ -297,6 +297,20 @@ struct PhraseTemplate {
     float totalBeats{0.0f};                    // 0 = sum of figures
     int cadenceType{0};                        // 0=none, 1=half, 2=full
     int cadenceTarget{-1};                     // target scale degree (-1 = composer decides)
+
+    // How a Cadential phrase's ARRIVAL figure is shaped (comp #9).
+    // "held"     — the arrival is one long note. apply_cadence then has a
+    //              single unit to work with, so build_approach_steps takes
+    //              its far branch and LEAPS straight onto the target: the
+    //              tonic is sustained but nothing approaches it. This is the
+    //              standing workaround from 2026-04, kept as the default
+    //              because replacing it is a taste question.
+    // "approach" — the arrival is a CadentialApproach figure, so
+    //              rebuild_cadential_tail can do what it was written for:
+    //              step into the target and settle on a final note of at
+    //              least one beat.
+    // Empty = "held".
+    std::string cadentialArrival;
     MelodicFunction function{MelodicFunction::Free}; // drives shape selection for Free figures
 
     // State

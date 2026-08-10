@@ -1277,9 +1277,23 @@ inline Passage DefaultPassageStrategy::compose_passage(
     Locus locus, const PassageTemplate& passTmpl) {
   Passage passage;
 
-  if (!passTmpl.startingPitch) {
-    // Should not happen — loader refuses templates without startingPitch.
-    return passage;
+  // The comment that used to sit here said "should not happen — loader
+  // refuses templates without startingPitch" and returned an EMPTY passage.
+  // The loader does not refuse them: patches/template_shaped_test.json has
+  // no passage startingPitch and has therefore been rendering SILENCE, with
+  // no diagnostic, for as long as it has existed (comp #9 harness found it).
+  // The information is usually present one level down, so use it; and when
+  // it genuinely is not, refuse by name rather than emit nothing.
+  std::optional<Pitch> passageStart = passTmpl.startingPitch;
+  if (!passageStart) {
+    for (const auto& ph : passTmpl.phrases) {
+      if (ph.startingPitch) { passageStart = ph.startingPitch; break; }
+    }
+  }
+  if (!passageStart) {
+    throw std::runtime_error(
+        "default_passage: passage '" + passTmpl.name +
+        "' has no startingPitch and no phrase supplies one");
   }
 
   for (int i = 0; i < (int)passTmpl.phrases.size(); ++i) {
@@ -1301,11 +1315,11 @@ inline Passage DefaultPassageStrategy::compose_passage(
       // Structural fix for period parallelism — previously a parallel
       // consequent depended on the running pitch happening to land back on
       // the antecedent's opening pitch.
-      localTmpl.startingPitch = passTmpl.startingPitch;
+      localTmpl.startingPitch = passageStart;
     }
     if (!localTmpl.startingPitch) {
       // Compute cursor from the phrases realized so far in our local passage.
-      Pitch cursor = *passTmpl.startingPitch;
+      Pitch cursor = *passageStart;
       const Scale& scale = locus.piece->sections[locus.sectionIdx].scale;
       PitchReader reader(scale);
       reader.set_pitch(cursor);
@@ -1400,7 +1414,8 @@ inline Phrase DefaultPhraseStrategy::compose_phrase(
         && figTmpl.source == FigureSource::Generate
         && figTmpl.shape == FigureShape::Free) {
       figTmpl.shape = DefaultFigureStrategy::choose_shape(
-          phraseTmpl.function, i, numFigs, ::mforce::rng::next());
+          phraseTmpl.function, i, numFigs, ::mforce::rng::next(),
+          phraseTmpl.cadentialArrival == "approach");
     }
 
     // Dispatch to the figure level. DefaultFigureStrategy's Literal path

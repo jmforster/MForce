@@ -72,8 +72,11 @@ public:
 
   // Static — called directly by DefaultPhraseStrategy (Task 6) to select a
   // shape under a MelodicFunction.
+  // approachArrival: comp #9 knob, from PhraseTemplate::cadentialArrival.
+  // false (default) keeps the standing HeldNote arrival.
   static FigureShape choose_shape(MelodicFunction func, int posInPhrase,
-                                  int totalFigures, uint32_t seed);
+                                  int totalFigures, uint32_t seed,
+                                  bool approachArrival = false);
 };
 
 // ============================================================================
@@ -159,7 +162,8 @@ inline MelodicFigure DefaultFigureStrategy::apply_transform(
 }
 
 inline FigureShape DefaultFigureStrategy::choose_shape(
-    MelodicFunction func, int posInPhrase, int totalFigures, uint32_t seed) {
+    MelodicFunction func, int posInPhrase, int totalFigures, uint32_t seed,
+    bool approachArrival) {
     Randomizer r(seed);
     bool isLast = (posInPhrase == totalFigures - 1);
     bool isFirst = (posInPhrase == 0);
@@ -198,7 +202,13 @@ inline FigureShape DefaultFigureStrategy::choose_shape(
       case MelodicFunction::Cadential: {
         if (isFirst || !isLast)
           return FigureShape::CadentialApproach;
-        return FigureShape::HeldNote;
+        // comp #9. HeldNote leaves apply_cadence a single unit, so
+        // build_approach_steps takes its far branch and leaps onto the
+        // target — sustained, but unapproached. "approach" hands it a real
+        // figure to reshape instead. Default unchanged; see
+        // PhraseTemplate::cadentialArrival.
+        return approachArrival ? FigureShape::CadentialApproach
+                               : FigureShape::HeldNote;
       }
 
       case MelodicFunction::Free:

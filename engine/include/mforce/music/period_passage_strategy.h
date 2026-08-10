@@ -148,7 +148,8 @@ inline PassageTemplate PeriodPassageStrategy::plan_passage(
         genTmpl.seed = figSeed;
 
         if (genTmpl.shape == FigureShape::Free && func != MelodicFunction::Free) {
-          genTmpl.shape = DefaultFigureStrategy::choose_shape(func, fi, numFigs, figSeed);
+          genTmpl.shape = DefaultFigureStrategy::choose_shape(
+              func, fi, numFigs, figSeed, phrase.cadentialArrival == "approach");
         }
 
         DefaultFigureStrategy figStrat;
