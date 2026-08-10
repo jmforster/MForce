@@ -1,6 +1,6 @@
 # Status — open this file first
 
-Updated: 2026-08-10 — dsp run 25 (Dipsy, scheduled) · comp run 18 (Wolfie, scheduled)
+Updated: 2026-08-10 — dsp run 25 (Dipsy, scheduled) · comp run 26 (Wolfie, scheduled)
 
 > **Note on the dsp rows below:** this file had gone stale by four dsp runs —
 > it still said "run 21/22" while runs 23, 24 and the 2026-08-09 overnight
@@ -10,13 +10,15 @@ Updated: 2026-08-10 — dsp run 25 (Dipsy, scheduled) · comp run 18 (Wolfie, sc
 
 | Lane | Dev | Latest run | Backlog top | Awaiting your review |
 |---|---|---|---|---|
-| comp | Wolfie | run 18 (2026-08-06, scheduled): 3 fronts, all build/metric — **the engine was free**, so both blocked engine items landed. #13 CLOSED: `sections[].keyName` desugars at COMPOSE time into a beat-0 KeyContext, and it had a second half nobody had recorded (a section's `scaleOverride` was realized at the PIECE tonic, so a section could change its scale type but never its tonic); null test 38/38 byte-identical. #18 CLOSED: central `grid_complete` in `compose_passage`, 5/21 → **21/21** endings on the beat — and measuring found a SECOND mechanism, a passage composed longer than its section overhung the boundary mid-note. #19 CLOSED: the empty render does NOT reproduce (99 notes at HEAD), and `score()` now REFUSES (composite `None`) rather than flagging | #7 phrase-aware cadence; #8 voicing open items; #9 PAC held-note; #14 priority semantics (his call); #20 passage-mode semantics (needs your read) | **8 items** — passage endings beat-vs-bar [listen] NEW, section key tonic [listen] NEW, endings A/B [listen], passage-mode semantics [read], Bruckner v2 [listen], pedal_chords voiced [listen], repeat transforms A/B [listen], voicing_ab 9 WAVs [listen] |
-| comp (prev) | Wolfie | run 17 (2026-08-05, scheduled): 4 fronts, all Python-side — the dsp lane was live, so #13 was not attempted. #16 (ending overshoot was grid completion CEILING onto the next barline, not the draw; v4 `calib` default), #17 (offender-first range guard), #15 (passage-mode scorer, uncorrelated with the phrase composite at Spearman 0.072) | — | (folded into run 18) |
+| comp | Wolfie | run 26 (2026-08-10, scheduled): 3 fronts, all build/metric — **two of the three items were not the item the backlog described.** #7 CLOSED: `phrase_aware_figure` gives each PhraseTemplate its own chord span and cadences only at phrase boundaries — but the real defect was underneath it: the composer's pitch cursor and the realizer's **disagreed** (net-step-in-one-hop vs per-unit; running octave vs `kBaseOctave`), so cadences correct on paper were wrong in the audio, and the running-octave resolve was an unbounded descent that CRASHED. AFS crashes identically, so pre-existing. Arrivals on target 1/4 -> **4/4**. #9 CLOSED: `cadentialArrival: approach`, default unchanged because it is taste — plus two anti-results, the leap the workaround is blamed for does not happen, and the held arm's arrival is the SHORTER one (1.00/0.91 vs 1.54/1.74). Building that harness found **six of 38 committed templates rendering pure silence** (ode_to_joy x3, mary, binary, shaped_test) — all six now render. #8 two-of-three: `repeatPenalty` (1->0) and `cadential` (root position 1/16->15/16) ship; **register drift is a dead end**, two attempts both worse than nothing and the symptom does not reproduce at HEAD | #21 zero-event check; #8 register (re-observe first); #11 representation ceiling; #14 priority semantics (his call); #20 passage-mode semantics (needs your read) | **9 items** — cadential arrival [listen] NEW, passage endings beat-vs-bar [listen], section key tonic [listen], endings A/B [listen], passage-mode semantics [read], Bruckner v2 [listen], pedal_chords voiced [listen], repeat transforms A/B [listen], voicing_ab 9 WAVs [listen] |
+| comp (prev) | Wolfie | run 18 (2026-08-06, scheduled): #13 section key desugars at COMPOSE time (null test 38/38 byte-identical); #18 central `grid_complete`, 5/21 -> 21/21 endings on the beat; #19 the empty render does not reproduce and `score()` now REFUSES below 4 notes. Full detail in the run-18 report | — | (folded into run 26) |
+| comp (prev 2) | Wolfie | run 17 (2026-08-05, scheduled): 4 fronts, all Python-side — the dsp lane was live, so #13 was not attempted. #16 (ending overshoot was grid completion CEILING onto the next barline, not the draw; v4 `calib` default), #17 (offender-first range guard), #15 (passage-mode scorer, uncorrelated with the phrase composite at Spearman 0.072) | — | (folded into run 18) |
 | dsp | Dipsy | run 25 (2026-08-10, scheduled): 4 fronts, all build/metric. Through-line — **two of the three were work that already existed and had never been checked.** (1) Matt's vowel verdict folded: **7 winners LOCKED** into `patches/library/voice/`, all 7 byte-identical to the WAVs he auditioned; the 3 he rejected got measured, not swept — vowel separability collapses monotonically with f0 (26.94 bass → **14.80 dB soprano**) because at 440 Hz soprano E and I share BOTH formant harmonics. (2) **3e-NEXT(b) was live in HEAD since 08-06 and completely inert** — the orphan's code had been swept into run 23's commit but nothing called it; wiring it then regressed the bass, and the diagnosis was that a single stiff-string B holds only to n≈16, so the mask now sits on MEASURED peaks. Piano band2 fixed on every note (G4 2056 → 0.00202). (3) Backlog 14: **66 lint findings → 7, and 59 were the tool** — a hand-copied allowlist had missed run 22's `timeMode`, flagging every ks_piano patch including Matt's v5 audition set. (4) The bass motion numbers were **beating, not broadening** — the heterodyne's 40 Hz low-pass is wider than half the partial spacing below f0=80 Hz, so C1 read 468 cents of "line broadening"; capped, C1 468.70 → **4.27 c** with G2 up unchanged to the digit. **Net for the piano scorer: the same untouched patch went TOTAL 1.1879 → 0.9202 across the session — 22.5% of the objective was measurement artifact**, which matters because the gated 600-eval run was going to search against it | 3k audio-thread AV; 3i envelope hold; 3l modulated even/odd weight — **all three engine, all three blocked this run by the concurrent comp lane**; then 3e-NEXT b2 | **6 items** — soprano alto-formant A/B [listen] NEW, ks_piano v5 [listen], ks_piano ladder [listen], node-graph streams [try], power-renorm answer [read] |
 | dsp (prev) | Dipsy | run 24 (2026-08-06) + the 2026-08-09 overnight session: the **KS piano pivot** — three new engine nodes (KSPianoString, HammerBank, AllpassResonator), a v1-v4 ladder whose dispersion allpasses fit the measured Iowa inharmonicity with no curve-fitting (C2 B=1.23e-4 vs 1.23e-4), then v5 after Matt's "kick drum, disappointed" verdict — full Alpha-Forever description, dry taps removed, 7-variation set. Also vowel pass 2 (43 WAVs), node-graph stream decay fixed, instrument-level volume + damper release | (folded into run 25) | (folded into run 25) |
 | dsp (prev) | Dipsy | run 21 (2026-08-05, scheduled): **SlewLimiterSource** landed (Slew/Lag/**Peak**) — measuring caught the backlog's premise was wrong, the clicks are IMPULSES not steps; CombinedSource finally parses `sum`; **broadband_ratios empty-band blowup fixed** — piano C6 band0 was 4.63e+11 and dominated the smoke's term3. NOTE: run 22 REVERTED the slew/click family per Matt ("dead end"); the CombinedSource fix survives | — | (folded) |
 
-Reports: **dsp/reports/2026-08-10-dipsy-run25.md** ·
+Reports: **comp/reports/2026-08-10-wolfie-run26.md** ·
+**dsp/reports/2026-08-10-dipsy-run25.md** ·
 comp/reports/2026-08-06-wolfie-run18.md ·
 dsp/reports/2026-08-06-dipsy-run24.md ·
 dsp/reports/2026-08-06-dipsy-run23.md
@@ -96,6 +98,71 @@ session the piano objective on an unchanged patch went **1.1879 → 0.9202**, so
 22.5% of what the gated 600-eval run was going to minimise was measurement
 artifact. F1 is improved but still not trustworthy (6.4× sensitivity) and is
 annotated on the backlog rather than attempted a third time.
+
+Run-26 highlights (comp): three fronts, all build/metric, no blind taste
+iteration. The through-line is **two of the three items were not the item the
+backlog described**.
+(0) **A dsp run went live in this working copy mid-session** — the second time
+on record, and the first from this side. `tools/lint_patches.py` was clean at
+my start and turned up modified 3 seconds before I looked; run 25 then landed
+six commits between mine. Nothing of Dipsy's touches
+`engine/include/mforce/music/`, so no work was corrupted — but it cost front 1
+its measured null test, because a revert-and-rebuild would have churned the
+shared build dir under a live lane. **The start-of-session commit-age guard
+cannot see a run that starts after mine; staggering the two schedules would fix
+this outright.** Also, for Dipsy rather than me: the one unprocessed `MATT`
+entry in the tree is `dsp/REVIEW.md:54`.
+(1) **#7 — the cadence was right on paper and wrong in the audio.**
+`phrase_aware_figure` gives each PhraseTemplate its own contiguous chord span,
+alternates A/B on the position WITHIN the phrase, and cadences only at phrase
+boundaries — the 2026-04-13 AFS impedance finding, and the oldest untouched
+comp item. But its first measurement was **4/4 composed, 3/4 rendered**, and
+chasing that gap is the actual content: the composer's running pitch cursor and
+the realizer's were not the same pitch. Two reasons, both pre-existing, both in
+the walk AFS shares — it applied a figure's NET step in one hop where
+realization applies every unit's step in turn (and `pitch_walker.h` says in as
+many words that `step_chord_tone` is not linear over walks), and it resolved
+the chord at the RUNNING octave where realization uses `kBaseOctave`. The
+second is also a crash: resolving at the running octave lets a descending bias
+compound instead of re-anchoring, and the 32-chord norm-breaker died with
+`Unknown PitchDef offset: -3`. **AFS crashes identically on the same
+progression** — that is how I know it is pre-existing and not mine. One shared
+`chord_walk::advance` now mirrors realization exactly. Arrivals on the declared
+target: AFS **1/4**, phrase-aware **4/4**, norm-breaker crashed -> **2/2**.
+And AFS scores 1/4 for a reason worth knowing: its `runningReader` is a **dead
+accumulator**, written and stepped and never read by anything that reaches the
+output — which is also why the walk change cannot move AFS output. That last
+part is a STATIC proof, labelled as such, not a measured null test.
+(2) **#9 — and six templates that have been rendering silence.**
+`cadentialArrival: "approach"` lets the arrival figure reach `apply_cadence`'s
+tail rebuild instead of being flattened to one held note. Default unchanged,
+because which one RESOLVES is taste (REVIEW 18). Two anti-results against my
+own premise: the leap the workaround is blamed for **does not happen** (both
+arms enter the final note by +1 semitone, both templates), and the held arm
+**does not deliver the sustain it exists for** — final note 1.00/0.91 beats
+held against **1.54/1.74** approach. Building the harness then found the real
+bug: `DefaultPassageStrategy` returned an EMPTY passage when a passage had no
+`startingPitch`, under a comment asserting the loader refused those. It does
+not. **Six of 38 committed templates were emitting zero events, silently** —
+`template_binary`, `template_mary`, all three `template_ode_to_joy`,
+`template_shaped_test`. A passage now inherits the first phrase's pitch and
+refuses BY NAME when there is none. Blast radius measured exactly against the
+previous commit's build: 38/38 renderable, **32 byte-identical, 6 changed, and
+the 6 are precisely the 6 that were silent.** New `null_test_templates.py` does
+the sweep runs 15 and 18 both did by hand.
+(3) **#8 — two of three, and the third is a dead end worth the words.**
+`repeatPenalty` (consecutive identical voicings **1 -> 0**, top span unchanged)
+and `cadential` (root position **1/16 -> 15/16**) both ship default-off; 38/38
+null test. `registerPenalty` does not: two attempts, both measured WORSE than
+nothing — penalising the octave-search offset moved drift +1.5 -> +4.5
+semitones, penalising mean pitch against the natural register moved top span
+3 -> 14 and saturated (weights 0.5 and 2.0 identical). The finding upstream of
+both is that **the symptom does not reproduce at HEAD**: on the very patch the
+2026-04-20 observation was made on, the base top voice drifts **0 semitones
+over 16 chords**, span 3. Likely changed by the run-15 harmony-path revival.
+No dead knob left behind — field, JSON and scoring term all removed, with the
+note in `voicing_profile.h`, because a knob whose only measured effect is
+negative is a trap.
 
 Run-18 highlights (comp): three fronts, all build/metric, no blind taste
 iteration. The through-line is **two of the three defects were not where the
@@ -561,14 +628,15 @@ not be relinked (Matt's UI held it locked), so the running binary still has
 the old behaviour. Once it is rebuilt, a comp-only engine edit will no longer
 make it shout STALE.
 
-**Superseded by run 18** — comp items 13, 18 and 19 are all DONE. comp next =
-**#7 phrase-aware cadence placement** (the AFS impedance finding, and the
-oldest untouched item on the list) → #8 voicing open items → #9 the PAC
-held-note workaround. #14 (voicing priority ladder) and #20 (passage-mode
-semantics) both want your call before anything moves. **Eight comp review
-items waiting** (seven listen, one read), two of them new this run and both
-default-setting questions: passage endings beat-vs-barline, and whether a
-section key should move the tonic.
+**Superseded by run 26** — comp items 7, 9 and two thirds of 8 are DONE.
+comp next = **#21 zero-event check** (nothing in the batch path treats an empty
+render as a failure, which is why six silent templates survived indefinitely —
+cheap, and it closes a whole class) -> **#8 register drift**, but only after
+re-observing, because two attempts failed and the symptom does not reproduce
+-> #11 representation ceiling (a design question, wants your steer). #14
+(voicing priority ladder) and #20 (passage-mode semantics) both still want your
+call before anything moves. **Nine comp review items waiting** (eight listen,
+one read), one new this run: cadential arrival held-vs-approached.
 
 Old next-up text, kept for the record: comp = **#13 section key first** — it
 is an engine edit and needs a

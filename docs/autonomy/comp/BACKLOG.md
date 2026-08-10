@@ -115,13 +115,68 @@ Priority order. (G1)-(G2) = GOALS.md Wolfie goals.
     that draws a different op per occurrence), and enforces that each repeat
     actually differs via a rotate-then-ornament fallback when an
     occurrence-parameterized op saturates. The backlog entry was stale.
-7. **[build] Phrase-aware cadence placement** (AFS impedance finding).
-8. **[build] Voicing open items** — upward tendency, cadential chord role,
-   boring-repeat, StagedVoicingProfileSelector.
-9. **[build] Revisit PAC held-note workaround.**
+7. **DONE run 26** — `phrase_aware_figure` passage strategy: one chord span per
+   PhraseTemplate (beat-budgeted, else even), A/B alternating on the position
+   WITHIN the phrase, a melodic cadence figure on each phrase's last chord
+   driven by that phrase's own `cadenceType`. AFS untouched and still
+   registered. Arrivals landing on the declared target: AFS **1/4**,
+   phrase-aware **4/4**; norm-breaker 24+8 bars crashed -> **2/2**.
+   The real defect was underneath: the composer's pitch cursor and the
+   realizer's disagreed (net-step-in-one-hop vs per-unit, and running octave
+   vs `kBaseOctave`), so cadences correct on paper were wrong in the audio,
+   and the running-octave resolve was an unbounded descent that crashed with
+   `Unknown PitchDef offset: -3` — AFS crashes identically, so pre-existing.
+   One shared `chord_walk::advance` now mirrors realization exactly.
+   Blast radius is a STATIC proof (AFS's `runningReader` is never read by
+   anything reaching the output), not a measured null test — the dsp lane went
+   live mid-run. 38 hashes parked in `renders/null_test_templates/after/`.
+   Spec: `docs/superpowers/specs/2026-08-10-phrase-aware-cadence-design.md`.
+8. **[build] Voicing open items** — TWO OF THREE DONE run 26.
+   `repeatPenalty` (consecutive identical voicings 1 -> 0, top span unchanged)
+   and `cadential` (root position 1/16 -> 15/16) both ship as default-off
+   `VoicingProfile` terms. 38/38 null test.
+   **Register drift ("upward tendency") is BACK ON THE BACKLOG after two failed
+   attempts** — penalising the octave-search offset made drift WORSE
+   (+1.5 -> +4.5 semitones); penalising mean pitch against the natural register
+   made top span worse (3 -> 14) and saturated (weight 0.5 and 2.0 identical).
+   **Do not attempt a third without re-observing first: the symptom does not
+   reproduce at HEAD.** On the patch the 2026-04-20 observation was made on,
+   the base top voice drifts 0 semitones over 16 chords, span 3, bass span 3.
+   Likely changed by the run-15 harmony-path revival. If it IS still audible,
+   the measurement to target is spread, not the octave search — attempt 1
+   failed precisely because pinning `dOct` removes the downward compensation
+   while leaving spread unpriced. No dead knob was left behind; see the note in
+   `voicing_profile.h`.
+   Still untouched under this heading: StagedVoicingProfileSelector.
+9. **DONE run 26** — `PhraseTemplate.cadentialArrival: "approach"` hands the
+   arrival figure to `apply_cadence`'s tail rebuild instead of forcing
+   `HeldNote`. Default unchanged (`"held"`) because which one RESOLVES is
+   taste — REVIEW 18. Two anti-results: the leap the workaround was blamed for
+   does NOT happen (both arms enter the final note by +1 semitone on both
+   templates), and the held arm does not deliver the sustain it exists for
+   (final-note duration 1.00/0.91 held vs **1.54/1.74** approach).
+21. **[build] Zero-event renders are never treated as failures.** Building #9's
+    harness found **six of 38 committed templates rendering pure silence** —
+    `template_binary`, `template_mary`, all three `template_ode_to_joy`, and
+    `template_shaped_test` — because `DefaultPassageStrategy` returned an empty
+    passage when a passage had no `startingPitch`, under a comment claiming the
+    loader refused those. It does not. Fixed in run 26 (inherit the first
+    phrase's pitch; refuse by name when there is none), and all six now render.
+    What is NOT fixed: nothing in the batch/sweep path treats 0 events as a
+    failure, which is why this survived indefinitely and why run 17 hit the same
+    class with `wandering_24x`. Add a zero-event check to
+    `null_test_templates.py` and the strategy sweeps.
 
 ## Done
 
+- Run 26 (2026-08-10): three fronts, all build/metric — #7, #9, #8, the three
+  STATUS named as next. Two were not the item the backlog described: #7's real
+  defect was a composer/realizer cursor disagreement (cadences right on paper,
+  wrong in the audio) plus a crashing unbounded descent that AFS shares; #8's
+  register item does not reproduce at HEAD at all. #9 was roughly as described,
+  and building its harness found six committed templates that had been
+  rendering silence. A dsp run went live in this working copy mid-session for
+  the second time on record, which cost front 1 its measured null test.
 - Run 17 (2026-08-05): four fronts, all Python-side — the dsp lane was live in
   the working copy, so #13 (engine) was not attempted. #16 final-note
   recalibration (the barline pad, not the draw, was the overshoot), #17

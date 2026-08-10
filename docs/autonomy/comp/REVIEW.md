@@ -2,6 +2,30 @@
 
 ## Awaiting Matt
 
+### 18. Cadential arrival — held, or approached? [listen] (run 26)
+`renders/cadential_arrival_ab/` — `template_golden_phase1a_{held,approach}`
+and `template_shaped_test_{held,approach}`. Same template, same seed; the only
+difference is how the final figure of the *cadential* phrase is shaped.
+
+`held` is what you have been hearing since 2026-04: the arrival is forced to a
+single long note. That workaround predates `apply_cadence` growing a real tail
+rebuild, and a single note defeats it — there is nothing to reshape.
+`approach` hands it a real figure, so it steps into the target and settles.
+
+Two things worth knowing before you listen, because both contradict what I
+expected:
+- The leap the workaround is usually blamed for **does not happen**. Both arms
+  enter the final note by +1 semitone on both templates.
+- The held arm does **not** deliver the longer arrival it exists for. Final
+  note 1.00 / 0.91 beats held, against **1.54 / 1.74** approach.
+
+So the audible difference is the approach contour and a noticeably longer
+arrival, not a leap being removed.
+
+Verdict decides the default for `PhraseTemplate.cadentialArrival`. Both stay
+authorable per phrase either way. (`template_shaped_test` was rendering pure
+silence until this run — it is one of six that were; see the run-26 report.)
+
 ### 17. Passage endings — beat or barline? [listen] (run 18)
 `renders/passage_end_grid/{off,beat,bar}` — the same 21 passages three times,
 `endGrid` the only difference. `off` is what you have been hearing (6/21 end
