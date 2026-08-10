@@ -64,10 +64,29 @@ def refine_f0(x, sr, f0_nom):
     return freqs[band][np.argmax(spec[band])]
 
 
-def heterodyne(x, sr, fc):
+def heterodyne(x, sr, fc, lp_hz=None):
+    """Mix the partial at fc down to DC and low-pass to isolate it.
+
+    lp_hz: passband half-width, default LP_HZ. Isolating ONE partial requires
+    the neighbours -- a spacing of ~f0 away -- to sit outside the passband,
+    i.e. lp_hz < f0/2. At LP_HZ = 40 Hz that fails below f0 = 80 Hz, and the
+    "residual" then measures beating between adjacent partials rather than
+    line broadening. Callers pass a capped value for low notes; see
+    refmetrics.motion_stats and diag_lowf0_heterodyne.py.
+
+    Tap count scales with the cutoff. The stock firwin(1025) has a transition
+    band of roughly sr/1025 ~ 43 Hz at 44.1 kHz, so a narrowed cutoff with a
+    fixed tap count would be meaningless. 1025 is retained exactly when the
+    cutoff is the default, so nothing above the cap changes by a bit.
+    """
+    lp = LP_HZ if lp_hz is None else float(lp_hz)
     t = np.arange(len(x)) / sr
     z = x * np.exp(-2j * np.pi * fc * t)
-    taps = firwin(1025, LP_HZ / (sr / 2))
+    if lp >= LP_HZ:
+        ntaps = 1025
+    else:
+        ntaps = min(max(int(4 * sr / lp) | 1, 1025), len(x) | 1)
+    taps = firwin(ntaps, lp / (sr / 2))
     return fftconvolve(z, taps, mode="same")
 
 

@@ -146,6 +146,12 @@ def harmonic_env(x, sr, f0, n_harm=32, tol=0.03, B=0.0):
     return 20 * np.log10(amps / (amps.max() + 1e-12) + 1e-6)
 
 
+# Heterodyne passband half-width as a fraction of f0, capping dm.LP_HZ.
+# 0.4 keeps the neighbouring partials (at +-f0) out of the passband with a
+# margin, and binds only below f0 = 100 Hz.
+LP_FRAC = 0.4
+
+
 def motion_stats(x, sr, f0_nom, B=0.0):
     """derive_motion's per-harmonic decomposition on a sustain segment.
 
@@ -156,14 +162,23 @@ def motion_stats(x, sr, f0_nom, B=0.0):
     displaced by more than the 40 Hz LP half-width leaves the passband
     entirely and drops out at the noise-floor break, silently shortening the
     analysis rather than reporting anything wrong.
+
+    The low-pass half-width is CAPPED at LP_FRAC*f0. Isolating one partial
+    needs the neighbours (a spacing of ~f0 away) outside the passband, so
+    lp < f0/2; the stock 40 Hz violates that below f0 = 80 Hz and the residual
+    then measures adjacent-partial beating instead of line broadening. It was
+    reporting 181-469 cents on the piano's bottom three notes. The cap does
+    not bind above f0 = LP_HZ/LP_FRAC = 100 Hz, so every note from G2 up --
+    and every viola and clarinet reference -- is untouched bit for bit.
     """
     f0 = dm.refine_f0(x, sr, f0_nom)
+    lp_hz = min(dm.LP_HZ, LP_FRAC * f0)
     decim = 32
     sr_env = sr / decim
     cents, amps = [], []
     for k in range(1, dm.N_HARM + 1):
         fc = partial_freq(f0, B, k)
-        env = dm.heterodyne(x, sr, fc)[::decim]
+        env = dm.heterodyne(x, sr, fc, lp_hz)[::decim]
         env = env[int(0.1 * sr_env): -int(0.1 * sr_env) or None]
         a = np.abs(env)
         if a.mean() < 1e-7:
