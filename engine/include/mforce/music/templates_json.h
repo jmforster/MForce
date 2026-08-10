@@ -893,12 +893,16 @@ inline void to_json(json& j, const PassageTemplate& pt) {
       const auto& vp = pt.voicingProfile;
       bool anySet = vp.priority != 0.0f
                   || !vp.allowedInversions.empty()
-                  || !vp.allowedSpreads.empty();
+                  || !vp.allowedSpreads.empty()
+                  || vp.repeatPenalty != 0.0f
+                  || vp.cadential;
       if (anySet) {
         json vpj = json::object();
         if (vp.priority != 0.0f) vpj["priority"] = vp.priority;
         if (!vp.allowedInversions.empty()) vpj["allowedInversions"] = vp.allowedInversions;
         if (!vp.allowedSpreads.empty()) vpj["allowedSpreads"] = vp.allowedSpreads;
+        if (vp.repeatPenalty != 0.0f) vpj["repeatPenalty"] = vp.repeatPenalty;
+        if (vp.cadential) vpj["cadential"] = vp.cadential;
         j["voicingProfile"] = std::move(vpj);
       }
     }
@@ -1033,6 +1037,8 @@ inline void from_json(const json& j, PassageTemplate& pt) {
     if (j.contains("voicingProfile")) {
         const auto& vpj = j.at("voicingProfile");
         pt.voicingProfile.priority = vpj.value("priority", 0.0f);
+        pt.voicingProfile.repeatPenalty = vpj.value("repeatPenalty", 0.0f);
+        pt.voicingProfile.cadential = vpj.value("cadential", false);
         if (vpj.contains("allowedInversions")) {
             pt.voicingProfile.allowedInversions =
                 vpj.at("allowedInversions").get<std::vector<int>>();
