@@ -51,6 +51,26 @@ PHRASE_SCORE = [
     {"note": 60, "velocity": 0.75, "time": 3.0, "duration": 2.0},
 ]
 
+# Per-variant master gain, applied in Instrument::render BEFORE the soft_clip
+# peak guard. Calibrated 2026-08-09 by rendering each variant at volume 0.01
+# (clipper inactive) and scaling the measured true peak to 0.85: the raw chain
+# runs 3.4-9.5x over full scale, and the flat-topped soft_clip was the "harsh
+# clipping-like distortion" in the first audition round.
+VOLUMES = {
+    "v5a_desc.json":   0.2198,
+    "v5b_ring.json":   0.0898,
+    "v5c_bright.json": 0.2196,
+    "v5d_double.json": 0.1485,
+    "v5e_flange.json": 0.2220,
+    "v5f_body.json":   0.2468,
+    "v5g_phrase.json": 0.1229,
+}
+
+# Damper release: after the scored duration the voice rings on for this long
+# under an exponential fade to -60 dB, instead of hard-truncating at note-off
+# ("starts to decay then cuts off abruptly", first audition round).
+RELEASE_SECONDS = 0.35
+
 # Calibration curves from run 24 (Iowa-fit dispersion, measured t60 slopes).
 T60_CURVE    = [[65.0, 25.0], [262.0, 15.0], [1047.0, 9.0]]
 BRIGHT_CURVE = [[65.0, 0.65], [262.0, 0.78], [1047.0, 0.93]]
@@ -119,6 +139,7 @@ def base_patch(score, polyphony=1):
         },
         "instrument": {
             "polyphony": polyphony,
+            "release": RELEASE_SECONDS,
             "paramMap": {
                 "frequency": [
                     "string.frequency",
@@ -195,6 +216,7 @@ def build_all():
 def main():
     os.makedirs(OUT, exist_ok=True)
     for name, p in build_all().items():
+        p["instrument"]["volume"] = VOLUMES[name]
         path = os.path.join(OUT, name)
         with open(path, "w") as f:
             json.dump(p, f, indent=2)

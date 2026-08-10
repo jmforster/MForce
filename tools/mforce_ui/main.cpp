@@ -2071,6 +2071,12 @@ struct Voice {
     std::shared_ptr<ValueSource>     source;
     int   samplesRemaining = 0;
     float gain = 1.0f;
+    // Damper release: once samplesRemaining falls to fadeBelowRemaining the
+    // gain is multiplied by fadeDecay each sample — an exponential fall that
+    // reaches -60 dB over the patch's release window, mirroring play_note's
+    // offline damper. fadeBelowRemaining 0 = legacy hard stop.
+    int   fadeBelowRemaining = 0;
+    float fadeDecay = 1.0f;
     bool  active = false;
     int   midiNote = 0;  // for keyboard highlight
 };
@@ -2078,7 +2084,8 @@ static Voice g_voices[MAX_VOICES];
 
 static void voice_schedule(std::shared_ptr<InstrumentPatch> patch,
                            std::shared_ptr<ValueSource> source,
-                           int totalSamples, float gain, int midiNote) {
+                           int totalSamples, float gain, int midiNote,
+                           int fadeBelowRemaining = 0, float fadeDecay = 1.0f) {
     std::lock_guard<std::mutex> lock(g_audioMutex);
     // Find a free voice, or steal the one closest to done
     int slot = -1;
@@ -2095,6 +2102,8 @@ static void voice_schedule(std::shared_ptr<InstrumentPatch> patch,
     g_voices[slot].source = std::move(source);
     g_voices[slot].samplesRemaining = totalSamples;
     g_voices[slot].gain = gain;
+    g_voices[slot].fadeBelowRemaining = fadeBelowRemaining;
+    g_voices[slot].fadeDecay = fadeDecay;
     g_voices[slot].midiNote = midiNote;
     g_voices[slot].active = true;
 }
@@ -2142,6 +2151,8 @@ static int audio_callback(void* outputBuffer, void* /*inputBuffer*/,
             auto& voice = g_voices[v];
             if (!voice.active) continue;
             voiceSum += voice.source->next() * voice.gain;
+            if (voice.samplesRemaining <= voice.fadeBelowRemaining)
+                voice.gain *= voice.fadeDecay;
             voice.samplesRemaining--;
             if (voice.samplesRemaining <= 0) {
                 voice.active = false;
@@ -2440,14 +2451,13 @@ static bool render_passage_output_authoritative(
             return false;
         }
 
-        ip.instrument->volume = 1.0f;
         float timeCursor = 0.0f;
         for (const auto& pn : notes) {
             pitched->play_note(pn.noteNumber, velocity, pn.durationSeconds, timeCursor);
             timeCursor += pn.durationSeconds;
         }
 
-        float totalSeconds = timeCursor + 0.5f;
+        float totalSeconds = timeCursor + pitched->releaseSeconds + 0.5f;
         int frames = int(totalSeconds * float(ip.sampleRate));
         g_outputWaveform.assign(frames, 0.0f);
         g_waveformSamples = frames;
@@ -2492,10 +2502,10 @@ static bool render_output_authoritative(float noteNum, float velocity,
             return false;
         }
 
-        ip.instrument->volume = 1.0f;
         pitched->play_note(noteNum, velocity, durationSeconds, 0.0f);
 
-        int frames = int((durationSeconds + 0.5f) * float(ip.sampleRate));
+        int frames = int((durationSeconds + pitched->releaseSeconds + 0.5f)
+                         * float(ip.sampleRate));
         g_outputWaveform.assign(frames, 0.0f);
         g_waveformSamples = frames;
         RenderContext ctx{ip.sampleRate};
@@ -2623,15 +2633,21 @@ static void play_note(float noteNum, float velocity, float durationSeconds) {
         auto ip = std::make_shared<InstrumentPatch>(load_instrument_patch(path));
         auto* pitched = ip->instrument.get();
         if (!pitched) return;
-        ip->instrument->volume = 1.0f;
 
         // Prepare the voice (set frequency, prep the source) but DON'T render —
         // streaming voice mixer will pull samples on demand in fill_audio_buffer.
+        // sv.gain carries the patch's pre-clip volume (calibrated gain staging).
         auto sv = pitched->prepare_voice(noteNum, velocity, durationSeconds);
 
         // +0.5s tail past the nominal note duration for envelope/decay room.
+        // The damper fade starts right at note end and reaches -60 dB over the
+        // patch's release window; through the tail it just keeps falling.
         int tailSamples = int(0.5f * float(ip->sampleRate));
-        voice_schedule(ip, sv.source, sv.durSamples + tailSamples, sv.gain, int(noteNum));
+        int total = sv.durSamples + sv.releaseSamples + tailSamples;
+        float decay = sv.releaseSamples > 0
+            ? std::exp(std::log(1e-3f) / float(sv.releaseSamples)) : 1.0f;
+        voice_schedule(ip, sv.source, total, sv.gain, int(noteNum),
+                       sv.releaseSamples + tailSamples, decay);
     } catch (const std::exception& e) {
         char buf[256];
         std::snprintf(buf, sizeof(buf), "play_note failed: %s", e.what());
@@ -7303,13 +7319,17 @@ int main(int argc, char** argv) {
                 auto ip = load_instrument_patch(get_playback_patch_path());
                 auto* pitched = ip.instrument.get();
                 if (!pitched) throw std::runtime_error("not a PitchedInstrument");
-                ip.instrument->volume = 1.0f;
                 auto sv = pitched->prepare_voice(noteNum, vel, dur);
                 int tailSamples = int(0.5f * float(ip.sampleRate));
-                int total = sv.durSamples + tailSamples;
+                int total = sv.durSamples + sv.releaseSamples + tailSamples;
+                float fade = 1.0f;
+                float decay = sv.releaseSamples > 0
+                    ? std::exp(std::log(1e-3f) / float(sv.releaseSamples)) : 1.0f;
                 mono.resize(total);
-                for (int i = 0; i < total; ++i)
-                    mono[i] = soft_clip(sv.source->next() * sv.gain);
+                for (int i = 0; i < total; ++i) {
+                    mono[i] = soft_clip(sv.source->next() * sv.gain * fade);
+                    if (i >= sv.durSamples) fade *= decay;
+                }
             } else {
                 // Generate path: authoritative offline render into
                 // g_outputWaveform, then the buffer-playback soft_clip the

@@ -125,6 +125,10 @@ struct PitchedInstrument final : Instrument {
   };
 
   float hiBoost{0.0f};
+  // Damper stage: after the note's scored duration, the voice keeps rendering
+  // for releaseSeconds with an exponential fade reaching -60 dB at the end,
+  // instead of truncating the buffer at note-off. 0 = legacy hard cut.
+  float releaseSeconds{0.0f};
   std::vector<VoiceGraph> voicePool;
   int nextVoice{0};
 
@@ -135,7 +139,15 @@ struct PitchedInstrument final : Instrument {
   struct StreamingVoice {
     std::shared_ptr<ValueSource> source;
     int   durSamples{0};
+    // gain includes the instrument's pre-clip volume: streaming callers pull
+    // samples directly and never pass through Instrument::render, so the
+    // master gain must ride along here or hot chains hit the caller's
+    // soft_clip raw (UI keyboard distortion, 2026-08-09).
     float gain{1.0f};
+    // Damper window (releaseSeconds in samples). The caller owns the fade:
+    // keep pulling this many samples past durSamples with an exponential
+    // decay to -60 dB, matching play_note's offline damper.
+    int   releaseSamples{0};
   };
 
   StreamingVoice prepare_voice(float noteNumber, float velocity, float duration,
@@ -171,12 +183,13 @@ struct PitchedInstrument final : Instrument {
     float boost = hiBoost > 0.0f
         ? (std::log10(std::max(freq, 100.0f)) - 2.0f) * hiBoost
         : 0.0f;
-    float gain = velocity * (1.0f + boost);
+    float gain = velocity * (1.0f + boost) * volume;
 
+    int relSamples = int(releaseSeconds * float(sampleRate));
     RenderContext ctx{ sampleRate };
-    vg.source->prepare(ctx, durSamples);
+    vg.source->prepare(ctx, durSamples + relSamples);
 
-    return { vg.source, durSamples, gain };
+    return { vg.source, durSamples, gain, relSamples };
   }
 
   void play_note(float noteNumber, float velocity, float duration, float startTime,
@@ -225,14 +238,23 @@ struct PitchedInstrument final : Instrument {
         : 0.0f;
     float gain = velocity * (1.0f + boost);
 
-    RenderContext ctx{ sampleRate };
-    vg.source->prepare(ctx, durSamples);
+    int relSamples = int(releaseSeconds * float(sampleRate));
+    int totalSamples = durSamples + relSamples;
 
-    std::vector<float> buf(durSamples);
+    RenderContext ctx{ sampleRate };
+    vg.source->prepare(ctx, totalSamples);
+
+    std::vector<float> buf(totalSamples);
     for (int i = 0; i < durSamples; ++i)
       buf[i] = vg.source->next() * gain;
+    if (relSamples > 0) {
+      // exp decay hitting -60 dB (1e-3) at the end of the release window
+      float k = std::log(1e-3f) / float(relSamples);
+      for (int j = 0; j < relSamples; ++j)
+        buf[durSamples + j] = vg.source->next() * gain * std::exp(k * float(j));
+    }
 
-    add_rendered(startTime, buf.data(), durSamples);
+    add_rendered(startTime, buf.data(), totalSamples);
   }
 };
 

@@ -845,6 +845,11 @@ Patch load_patch_file(const std::string& path)
 
         auto inst = std::make_unique<PitchedInstrument>();
         inst->sampleRate = sampleRate;
+        // Pre-clip master gain (applied before the soft_clip peak guard, so it
+        // is the right knob for keeping hot chains out of the clipper) and the
+        // note-off damper release, both optional.
+        inst->volume         = instJson.value("volume", 1.0f);
+        inst->releaseSeconds = instJson.value("release", 0.0f);
 
         // Build voice pool: N independent graph instances
         for (int v = 0; v < polyphony; ++v) {
@@ -902,7 +907,8 @@ Patch load_patch_file(const std::string& path)
                 double d = noteJson.at("duration").get<double>();
                 maxEnd = std::max(maxEnd, t + d);
             }
-            patch.frames = int(std::lround((maxEnd + 0.5) * sampleRate)); // +0.5s tail
+            patch.frames = int(std::lround(
+                (maxEnd + inst->releaseSeconds + 0.5) * sampleRate)); // release + 0.5s tail
         }
 
         // Wire instrument into mixer
@@ -1035,6 +1041,8 @@ InstrumentPatch load_instrument_patch(const std::string& path)
 
     auto inst = std::make_unique<PitchedInstrument>();
     inst->sampleRate = sampleRate;
+    inst->volume         = instJson.value("volume", 1.0f);
+    inst->releaseSeconds = instJson.value("release", 0.0f);
 
     for (int v = 0; v < polyphony; ++v) {
         auto g = build_graph(nodeMap, nodeOrder, sampleRate);
