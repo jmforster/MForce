@@ -91,22 +91,52 @@ Priority order. Tags per WORKFLOW.md. (G1)-(G4) = GOALS.md Dipsy goals.
    **REVIEW 7:** the run-12 audition verdict on t1_06/t1_07/t3_23 needs
    re-taking — those three were judged as something they were not.
 
-14. **[build] 52 remaining silently-ignored params** (from run19's linter,
-   `python tools/lint_patches.py`). First run said 62; 3 were FALSE POSITIVES
-   (`RepeatingSource` `gap`, `PhasedValueSource` `overlap` — correct JSON
-   consumed by JsonConfigurator lambdas in source_registrations.cpp, which the
-   first SPECIAL_KEYS extraction never scanned), and 7 were the wander cells
-   fixed in run19. None of the 52 fixed blind. Triage:
-   (a) `AdditiveSource` fed rolloff/evenWeight/oddWeight/freqVar*/amplVar* in
-   add_square_test + add_string_test — pre-migration debt (those belong on
-   Partials), which contradicts the 2026-05-30 "no remaining debt" note;
-   (b) `AdditiveSource2` fed amplEnvelopes/startPartials/endAmplitudes/... in
-   5 as2_*_test patches — same species;
-   (c) `Envelope` fed `releaseMax` in 6 algev_test_* — preset is `ar`, whose
-   release stage always expands to fill the note, so release/releaseMax are
-   both meaningless there. Either drop the keys or give `ar` a real release;
-   Decide per group whether the patch or the engine is wrong; (a)/(b) are
-   probably just stale test patches that should be regenerated or deleted.
+14. **[build] Silently-ignored params** — ✓ **DONE run25** (2026-08-10),
+   commit 2f39819. The count had GROWN to 66 in 30 files, and **59 of the 66
+   were the linter crying wolf** for the third time. `SPECIAL_KEYS` was a
+   hand-copied list of keys consumed by hand-written loader code and it
+   drifted exactly as its own comment predicted:
+   - run 22's Envelope `timeMode` (the absolute-seconds chuff fix) was never
+     added → **15 false positives**, covering the piano template and every
+     ks_piano patch including the v5 set queued for Matt. Proven live, not
+     argued: deleting `timeMode` from `v5a_desc` moves the render peak
+     **0.601 → 0.018**.
+   - `AdditiveSource2`'s evolving/envelope branches read `startPartials` /
+     `endAmplitudes` / `amplEnvelopes` through `.at()` and an indexed key
+     loop, which the old extraction grep never covered → 4 more. **Group (b)
+     was entirely bogus.**
+   - `releaseMax` is read at `patch_loader.cpp:371` → **group (c) retired as
+     a non-issue.**
+   Allowlist is now SCRAPED from the two loader sources at lint time (value /
+   contains / at / `[]` / `const char*` key lists), 119 keys, so it cannot
+   drift again. `MANUAL_KEYS` down to a 2-key residue, and the selftest prints
+   any manual entry the scraper already covers so it shrinks instead of rots.
+   **Group (a) was the one real bug** and it was worse than written: the four
+   `add_*_test` patches wire NO partials node at all, so
+   `add_organ_test` / `add_saw_test` / `add_square_test` rendered
+   BYTE-IDENTICAL to each other (`ec3650bd`) — an organ, a saw and a square
+   producing one waveform. Migrated onto FullPartials
+   (`tools/migrate_legacy_additive_params.py`); all three now distinct and
+   correct against theory, not merely different — square's even harmonics sit
+   98.5 dB below odd with odd at 0/−9.5/−14.0/−16.9 dB, saw has every harmonic
+   at 0/−6.0/−9.5/−12.0 dB, both 20·log10(1/n) to the decimal. Both `_1` and
+   `_2` endpoints are written because they interpolate across the partial
+   range and both default to 1.0. The freqVar/amplVar → motion/shimmer half of
+   the mapping is an INFERENCE from the legacy names, affecting only
+   `add_string_test`. Also `_fx_limiter_test`'s PulseSource `width` → the real
+   param `dutyCycle` (byte-identical, 0.5 is the default).
+   **66 → 7 findings, all 7 in one file** → item 3l.
+
+3l. **[build] Modulated even/odd partial weight has no equivalent** — the
+   last 7 lint findings, all in `patches/Squeaker.json`, whose AdditiveSource
+   `evenWeight`/`oddWeight` are `{"ref": ...}` value sources. FullPartials
+   exposes them as `ConfigType::Float` configs, so a modulated even/odd weight
+   cannot be expressed post-decomposition. Deliberately NOT flattened to a
+   constant in run 25 — that would silently change one of Matt's own patches
+   into something that is neither the old behaviour nor the intended one.
+   Options: promote the two configs to ValueSource params, reach them via the
+   paramMap/curve mechanism, or accept the loss and rewrite Squeaker.
+   Engine edit; blocked in run 25 by the concurrent comp lane.
 
 15. **[build] 7 patches the CLI cannot render at all** — ✓ 6 of 7 DONE run19
    (2026-08-04), commit 6fc128b. Found while A/B-ing front 3. They were
@@ -178,13 +208,44 @@ Priority order. Tags per WORKFLOW.md. (G1)-(G4) = GOALS.md Dipsy goals.
    research/ml_ears/test_broadband_guard.py keeps the pre-fix formula inline
    so the blowup is shown, not asserted (1.325e13 at f0=880), and checks
    populated bands come back bit-identical.
-   (b) **OPEN, and BIGGER than first written**: harmonic_env/motion
-   heterodyne at k*f0, not the B-stretched positions. Run 21 found this also
-   hits `broadband_ratios` — its line mask is at k*f0 too, so partials
-   stretched by sqrt(1+B n^2) fall OFF the mask and get counted as
-   inter-harmonic energy. That is the likely explanation for piano band2
-   ratios of 120 (C3), 260 (C5), 2056 (G4). Stretch-aware heterodyne + a
-   stretch-aware line mask. Top non-gated item.
+   (b) ✓ **DONE run25** (2026-08-10), commit bc11389. Spec:
+   specs/2026-08-06-stretch-aware-metrics-design.md.
+   The 08-06 orphan run's stretch-aware `refmetrics.py` had been swept into
+   run 23's commit 4ae968a and was **live in HEAD since 08-06, unverified and
+   unreported**. Adopted its test (`test_stretch_metrics.py`): ALL PASS, B
+   recovered to 0.02%, mask inflation 11.5-68x on synthetic ground truth,
+   B=0 bit-identical.
+   **But it was INERT** — spec steps 1-3 were done and 4-5 were not. Nothing
+   called it: no `inharmonic` opt-in on any config, no mention in
+   `iowa_reference.py` or `score_candidate.py`, and the stored reference
+   predated the code. Wired: opt-in on piano_mf, B per note into
+   harmonic_env/broadband_ratios/motion_stats, `b_map()` to the candidate side.
+   **Naive wiring then REGRESSED the bass** (C2 band2 3.995 → 29.34, and C2 is
+   an eval note). Diagnosed (`diag_stretch_bass.py`) rather than guessed: the
+   fitted B is fine, the FIXED `tol_frac*f0` mask is not. Model error vs the
+   real tracked peaks, in mask half-widths — C2 ≤0.15 at n 1-16 but up to 9.9
+   at n 33-64; C4 up to 10.5; C5 up to 6.1. A single stiff-string B holds to
+   n≈16 and no further, and a model-centred mask wide enough to hold every
+   tracked partial would need 0.36-0.63*f0 — six to ten times current, which
+   would swallow the gaps the metric measures.
+   Fix is a better CENTRE, not a wider mask: `rm.measured_lines()` masks on the
+   peaks the tracker actually found, model-filling only below the SNR gate;
+   positions stored in the reference so the candidate is masked on them.
+   Piano band2 before → after: C1 10.99→3.18, F1 13.7→0.767, C2 3.995→0.876,
+   G2 2.677→0.159, C3 120.2→0.0254, C4 52.23→0.161, G4 2056→0.00202,
+   C5 259.5→0.0160. **Every note improves, nothing regresses.**
+   Same patch/code, only the reference differs: term3 1.1373→0.7934,
+   term2 1.6085→1.3114, TOTAL 1.1879→1.0449 — the patch did not improve, the
+   metric had been charging it for a defect in the reference's own
+   measurement. Viola + clarinet references regenerate BYTE-IDENTICAL.
+   (b2) **[metric] OPEN — `derive_motion` takes no B**, so the stored
+   `motion_medians` are unchanged by the fix (verified: identical before and
+   after). Same treatment as motion_stats, plus the measured-line idea.
+   (b3) **[metric] OPEN — low-f0 heterodyne breaks down.** resid_cents at
+   C1/F1/C2 is 181-469 c because the LP half-width (40 Hz) is comparable to
+   partial spacing below ~100 Hz. C2 is both an eval note and in
+   `motion_samples`, so this contaminates term2. Needs a spacing-relative
+   half-width, or those notes excluded from motion with the exclusion stated.
    Velocity layers (mf-only today) stay Later.
 3f. **[build] CombinedSource JSON op string "sum" silently falls back to
    Add** — ✓ DONE run21 (2026-08-05), commit b08d795. CombineOp gained Sum in
@@ -371,8 +432,33 @@ Priority order. Tags per WORKFLOW.md. (G1)-(G4) = GOALS.md Dipsy goals.
    (2026-07-30). instrument+score added + output rerouted to bare source;
    all 6 render with sound via the shared instrument path.
 10. **[review:listen] Vowel/formant re-tune after formantWeight refactor** —
-    prep render set + gain sweep, queue for ears. (Largely overtaken by the
-    run-11 vowel BASELINE set, REVIEW 1.)
+    ✓ **CLOSED run25** by Matt's 2026-08-09 verdict. Seven winners locked into
+    `patches/library/voice/` (alto A/E/I/U, bass U, soprano A keep their pass-1
+    winners; tenor U takes the pass-2 UW-F3 graft), all seven byte-identical to
+    the auditioned WAVs. `tools/lock_vowel_winners.py` is the promotion script.
+    Successor is item 16 below, which is a narrower question.
+
+16. **[review:listen] Soprano E / I / U — sampling-limited or tunable?** —
+    the only vowel families Matt rejected. Run 25 measured why instead of
+    sweeping again (`research/vowel/`):
+    (a) separability collapses monotonically with f0 — mean vowel-pair
+    distance 26.94 (bass 110) / 23.87 (tenor 165) / 21.39 (alto 220) /
+    **14.80 dB (soprano 440)**; E-vs-I 24.21 / 18.88 / 12.01 / 10.71. At
+    440 Hz soprano E and I put F1 on the SAME harmonic (h1) and F2 on the SAME
+    harmonic (h5), so they can differ only in gain. Harmonics below 3 kHz:
+    27 / 18 / 13 / **6**. Soprano U sits 5.20 dB from O, the closest pair in
+    the grid — "lacks vowel character" as a number.
+    (b) a 2x2 crossing recipe with pitch says the recipes were still giving
+    away ~7 dB: alto formants sung at 440 keep **16.90 dB** of E/I contrast
+    vs the soprano recipe's 10.20.
+    Candidate queued (REVIEW 25): alto formants unmoved, sung at A4. E-I
+    +6.69 dB, U-O +8.66, I-O +4.72; E-U and I-U unchanged. Distinct from
+    pass-2's `e3_altoXpose`, which scaled formants WITH the pitch (physically
+    wrong — formants are a tract property).
+    **GATED on Matt.** If none land, the honest read is that sung vowels at
+    440 Hz are sampling-limited and the front retires rather than getting a
+    pass 3. Escalation option if he wants one more: vibrato via the pitch-mod
+    layer (coherent FM is the strongest partial-fusion cue there is).
 11. **[build] Two standing dirty patch files** — ✓ **SHRUNK run21**: the
     Python half of this item is GONE. `score_candidate.py` and
     `iowa_reference.py` were committed by run 20 (72defb9), so HEAD can now

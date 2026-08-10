@@ -1,17 +1,87 @@
 # Status — open this file first
 
-Updated: 2026-08-06 — comp run 18 (Wolfie, scheduled) · dsp run 21/22 (Dipsy, scheduled)
+Updated: 2026-08-10 — dsp run 25 (Dipsy, scheduled) · comp run 18 (Wolfie, scheduled)
+
+> **Note on the dsp rows below:** this file had gone stale by four dsp runs —
+> it still said "run 21/22" while runs 23, 24 and the 2026-08-09 overnight
+> ks_piano v5 session had all landed and were only recorded in their own
+> reports. Run 25 rebuilt the dsp rows; the older run-by-run highlights further
+> down are kept as-is for the record.
 
 | Lane | Dev | Latest run | Backlog top | Awaiting your review |
 |---|---|---|---|---|
 | comp | Wolfie | run 18 (2026-08-06, scheduled): 3 fronts, all build/metric — **the engine was free**, so both blocked engine items landed. #13 CLOSED: `sections[].keyName` desugars at COMPOSE time into a beat-0 KeyContext, and it had a second half nobody had recorded (a section's `scaleOverride` was realized at the PIECE tonic, so a section could change its scale type but never its tonic); null test 38/38 byte-identical. #18 CLOSED: central `grid_complete` in `compose_passage`, 5/21 → **21/21** endings on the beat — and measuring found a SECOND mechanism, a passage composed longer than its section overhung the boundary mid-note. #19 CLOSED: the empty render does NOT reproduce (99 notes at HEAD), and `score()` now REFUSES (composite `None`) rather than flagging | #7 phrase-aware cadence; #8 voicing open items; #9 PAC held-note; #14 priority semantics (his call); #20 passage-mode semantics (needs your read) | **8 items** — passage endings beat-vs-bar [listen] NEW, section key tonic [listen] NEW, endings A/B [listen], passage-mode semantics [read], Bruckner v2 [listen], pedal_chords voiced [listen], repeat transforms A/B [listen], voicing_ab 9 WAVs [listen] |
 | comp (prev) | Wolfie | run 17 (2026-08-05, scheduled): 4 fronts, all Python-side — the dsp lane was live, so #13 was not attempted. #16 (ending overshoot was grid completion CEILING onto the next barline, not the draw; v4 `calib` default), #17 (offender-first range guard), #15 (passage-mode scorer, uncorrelated with the phrase composite at Spearman 0.072) | — | (folded into run 18) |
-| dsp | Dipsy | run 21 (2026-08-05, scheduled): 3 fronts, all build/metric; **SlewLimiterSource** landed (Slew/Lag/**Peak**) — and measuring caught that the backlog's premise was wrong, the clicks are IMPULSES not steps, so a sign-keyed limiter only makes them quieter; click ladder gives a monotonic dial, attack centroid 7116 → 3237 Hz; CombinedSource finally parses `sum` (and throws instead of silently substituting Add); **broadband_ratios empty-band blowup fixed** — piano C6 band0 was 4.63e+11 and dominated the smoke's term3 | 3e-NEXT (b) stretch-aware heterodyne (now BIGGER — it hits broadband_ratios too); item 14; item 13 | **5 items** — slew click ladder [listen] NEW, piano A/B [listen], click PoCs [listen], power-renorm answer [read], F1-retuning answer [read] |
-| dsp (prev) | Dipsy | run 20 (2026-08-04 pm, interactive): 9 verdicts folded; PIANO FIRST PASS — per-partial decay + inharmonicity engine configs (bit-exact at defaults, stretch verified to 0.1 cents), config-driven reference pipeline adopted from the dead run + onset alignment, 18-dim encoder, 108-eval smoke 1.521 -> 0.900 with knock band converging to the measured 2.5-8 kHz; t3_23 clicks EXPLAINED (velvet-phase, controllable 5-193/s) + 3 noisy-attack PoCs; expand front retired; CombineTest fixed | full piano run (gated on A/B); scorer debt 3e-NEXT; sum-op lint 3f | **4 items** — piano A/B [listen], click PoCs [listen], power-renorm answer [read], F1-retuning answer [read] |
+| dsp | Dipsy | run 25 (2026-08-10, scheduled): 3 fronts, all build/metric. Through-line — **two of the three were work that already existed and had never been checked.** (1) Matt's vowel verdict folded: **7 winners LOCKED** into `patches/library/voice/`, all 7 byte-identical to the WAVs he auditioned; the 3 he rejected got measured, not swept — vowel separability collapses monotonically with f0 (26.94 bass → **14.80 dB soprano**) because at 440 Hz soprano E and I share BOTH formant harmonics. (2) **3e-NEXT(b) was live in HEAD since 08-06 and completely inert** — the orphan's code had been swept into run 23's commit but nothing called it; wiring it then regressed the bass, and the diagnosis was that a single stiff-string B holds only to n≈16, so the mask now sits on MEASURED peaks. Piano band2 fixed on every note (G4 2056 → 0.00202). (3) Backlog 14: **66 lint findings → 7, and 59 were the tool** — a hand-copied allowlist had missed run 22's `timeMode`, flagging every ks_piano patch including Matt's v5 audition set | 3k audio-thread AV; 3i envelope hold; 3l modulated even/odd weight — **all three engine, all three blocked this run by the concurrent comp lane**; then 3e-NEXT b2/b3 | **6 items** — soprano alto-formant A/B [listen] NEW, ks_piano v5 [listen], ks_piano ladder [listen], node-graph streams [try], power-renorm answer [read] |
+| dsp (prev) | Dipsy | run 24 (2026-08-06) + the 2026-08-09 overnight session: the **KS piano pivot** — three new engine nodes (KSPianoString, HammerBank, AllpassResonator), a v1-v4 ladder whose dispersion allpasses fit the measured Iowa inharmonicity with no curve-fitting (C2 B=1.23e-4 vs 1.23e-4), then v5 after Matt's "kick drum, disappointed" verdict — full Alpha-Forever description, dry taps removed, 7-variation set. Also vowel pass 2 (43 WAVs), node-graph stream decay fixed, instrument-level volume + damper release | (folded into run 25) | (folded into run 25) |
+| dsp (prev) | Dipsy | run 21 (2026-08-05, scheduled): **SlewLimiterSource** landed (Slew/Lag/**Peak**) — measuring caught the backlog's premise was wrong, the clicks are IMPULSES not steps; CombinedSource finally parses `sum`; **broadband_ratios empty-band blowup fixed** — piano C6 band0 was 4.63e+11 and dominated the smoke's term3. NOTE: run 22 REVERTED the slew/click family per Matt ("dead end"); the CombinedSource fix survives | — | (folded) |
 
-Reports: comp/reports/2026-08-06-wolfie-run18.md ·
-dsp/reports/2026-08-05-dipsy-run22.md ·
-comp/reports/2026-08-05-wolfie-run17.md
+Reports: **dsp/reports/2026-08-10-dipsy-run25.md** ·
+comp/reports/2026-08-06-wolfie-run18.md ·
+dsp/reports/2026-08-06-dipsy-run24.md ·
+dsp/reports/2026-08-06-dipsy-run23.md
+
+Run-25 highlights (dsp): three fronts, all build/metric, no blind taste
+iteration. The through-line is **work that already existed and had never been
+checked** — two of the three fronts were verification passes that turned into
+repairs.
+(0) **The lanes collided again.** A comp run started in this working copy
+mid-session: `composer.h` and `default_strategies.h` were clean at my start
+and modified after front A, with three more engine headers joining by the end.
+The start-of-session commit-age guard cannot see a run that begins *after*
+mine — same as run 21, second time in a row. Consequence: **engine work was
+ruled out for the entire session**, which is why front C is a patch-side item
+and why 3k, 3i and the new 3l are all still waiting. All commits used explicit
+paths. `mforce_ui.exe` was NOT running, so the engine was otherwise free —
+this was purely a scheduling collision and is worth fixing at the schedule
+level.
+(1) **Vowels locked, and the sopranos explained rather than swept.** Seven
+patches into `patches/library/voice/`, each verified byte-identical (sha256) to
+the exact WAV Matt auditioned — the library file is the approved sound, not a
+re-derivation. For the three he rejected, two measurements instead of another
+43-WAV pass: separability collapses monotonically with pitch (mean vowel-pair
+distance 26.94 / 23.87 / 21.39 / **14.80 dB** across bass/tenor/alto/soprano),
+and the mechanism is explicit — at 440 Hz soprano E and I put F1 on the *same*
+harmonic and F2 on the *same* harmonic, so they can differ only in gain. Six
+harmonics live below 3 kHz at soprano pitch against 27 at bass. **A bug in my
+own harness was caught by its own guard**: the first 2×2 reported the soprano
+recipe identical at both pitches to two decimals, because these patches drive
+pitch from `score[].note` and setting `src.frequency` does nothing — the script
+now reads the fundamental back out of the render and refuses to score an arm
+that did not retune. The candidate (alto formants, unmoved, sung at A4) buys
+E-I +6.69 dB and U-O +8.66 dB, with an O control in the pair set. REVIEW 25.
+(2) **3e-NEXT(b) was already in HEAD, and doing nothing.** The 08-06 orphan
+run's stretch-aware `refmetrics.py` had been swept into run 23's commit
+`4ae968a` with no report — so the primitives shipped, their test passed, and
+**no caller existed**: no config opt-in, no mention in the reference builder or
+the scorer, and a stored reference that predated the code. Spec steps 1-3 done,
+4-5 not. Wiring it up then **regressed the bass** (C2 band2 3.995 → 29.34, and
+C2 is an eval note), and the diagnosis is the payload: the fitted B is fine,
+but a single stiff-string B only holds to n≈16 — past that the model is 5-10
+mask-widths off, and a mask wide enough to hold every tracked partial would
+need 0.36-0.63·f0, which would swallow the gaps being measured. So the mask now
+sits on the peaks the tracker actually **found**. Every note improves and none
+regresses; G4 band2 goes 2056 → 0.00202. Same patch, same code, only the
+reference differs: TOTAL 1.1879 → 1.0449 — **the patch did not get better, the
+metric had been charging it for a defect in the reference's own measurement.**
+Viola and clarinet references regenerate byte-identical.
+(3) **The patch linter cried wolf for the third time, at scale.** 66 findings
+in 30 files, **59 of them false**. A hand-copied allowlist had missed run 22's
+Envelope `timeMode` — the absolute-seconds chuff fix — so the tool was flagging
+the piano template and *every* ks_piano patch, including the v5 set queued for
+Matt's ears; proven live rather than argued by deleting the key and watching
+the render peak go 0.601 → 0.018. It also missed `.at()`, which is how
+AdditiveSource2 reads its evolving/envelope keys, and `releaseMax`, which
+retires backlog 14 group (c) outright. The allowlist is now scraped from the
+loader sources at lint time so it cannot drift again. **The one real bug was
+worse than the backlog said**: `add_organ_test`, `add_saw_test` and
+`add_square_test` rendered *byte-identical to each other* — an organ, a saw and
+a square producing one waveform, because none of them wires a partials node at
+all. After migration all three are distinct and correct against theory, not
+merely different: the square's even harmonics sit 98.5 dB below odd, and both
+it and the saw follow 20·log10(1/n) to the decimal. 66 → 7, all 7 in
+`Squeaker.json`, which is a genuine capability gap (modulated even/odd weight)
+and is now item 3l rather than a silent flattening of one of Matt's patches.
 
 Run-18 highlights (comp): three fronts, all build/metric, no blind taste
 iteration. The through-line is **two of the three defects were not where the
@@ -498,20 +568,37 @@ as designed), then 2d-1 (vector path, needs an AVX2-availability decision).
 All three are engine edits and all three were blocked in run 18 by the locked
 exe. Clarinet 600-eval stays gated on your ears. Verdicts fold in whenever
 you send them.
-**Superseded by run 21** — items 3c2, 3f and 3g are all DONE. dsp next =
-**3e-NEXT (b) stretch-aware heterodyne** (top non-gated item, and run 21
-widened it: the k*f0 line mask distorts `broadband_ratios` as well as
-harmonic_env/motion), then item 14 (52 silently-ignored params), then item 13
-(piano beat rate, attempt 3 — resolve the unison strings as separate spectral
-lines rather than inferring the rate from the envelope). Piano full run and
-clarinet 600-eval both stay gated on your ears. **Five dsp review items
-waiting** (three listen, two read).
+**Superseded by run 25** — items 3e-NEXT(b), 14 and 10 are all DONE, and 3g
+was reverted back in run 22. dsp next = **3k (audio-thread AV in
+`WaveSource::next`, from your 08-06 crash log)** → **3i (envelope hold/loop,
+the true-infinite-stream blocker)** → **3l (modulated even/odd partial
+weight)**. All three are engine edits and all three were blocked this run by
+the comp lane running concurrently in this working copy — not by anything in
+the work itself. After those: 3e-NEXT b2 (`derive_motion` takes no B) and b3
+(the heterodyne breaks down below ~100 Hz, which contaminates term2 via C2),
+then item 13 (piano beat rate, attempt 3). Piano full run and clarinet
+600-eval both stay gated on your ears. **Six dsp review items waiting** (four
+listen, one try, one read) — the newest is the soprano alto-formant A/B, whose
+verdict decides whether the vowel front continues or retires as
+sampling-limited.
 
-Standing tree note (updated run 18, comp): **the count is two standing plus
-one live orphan.** `research/ml_ears/refmetrics.py` is NOT standing dirt — it
-was written at 08-06 03:12 by a dsp run that died mid-cycle, together with two
-untracked files (a spec and a test for 3e-NEXT (b)). That wants adopt-or-
-discard on its own terms, separately from backlog 11. Previous note follows.
+**Worth your attention at the schedule level:** the dsp and comp scheduled
+runs have now overlapped in this shared working copy twice running (run 21,
+run 25). The session-start commit-age guard only sees runs that started
+*before* it, so it cannot catch this, and the cost each time is that the whole
+engine backlog goes untouchable for the session. Staggering the two schedules
+would recover it.
+
+Standing tree note (updated run 25, dsp): **the orphan is resolved and the
+count is back to two.** `research/ml_ears/refmetrics.py` is no longer dirty —
+run 23's commit `4ae968a` swept it in, so the 08-06 orphan's stretch-aware
+code was adopted without anyone deciding to. Run 25 verified it, found it
+inert, finished the wiring and adopted its test as well; the spec was already
+committed in the 08-08 housekeeping pass. Nothing of that orphan is
+outstanding. What still needs one word from you is backlog 11:
+`patches/clarinet_c2/c2c_quiet.json` and
+`patches/fable1_v6/v6_01_res_curve_lo.json`, dirty at every session start for
+eleven runs now — commit or revert. Previous note follows.
 
 Standing tree note (updated run 21): **down to two**, and no longer blocking
 anything. `iowa_reference.py` and `score_candidate.py` were committed by run

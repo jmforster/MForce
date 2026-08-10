@@ -2,6 +2,48 @@
 
 ## Awaiting Matt
 
+### 25. Soprano E / I / U — the alto-formant candidate [listen] (run 25)
+`renders/pending/vowel_soprano_alt/` — 8 WAVs, 4 A/B pairs, `_cur` is what you
+rejected and `_altf` is the candidate. Same note (A4), same partials, same
+envelope; only the formant table differs. **The O pair is a control** — O is
+the family you rate best, so if `_altf` is worse there the idea is wrong.
+
+Not another guess. Measured first: vowel separability collapses monotonically
+with pitch (mean pair distance 26.94 bass / 23.87 tenor / 21.39 alto / **14.80
+soprano** dB), because at 440 Hz soprano E and I put F1 on the *same* harmonic
+(h1) and F2 on the *same* harmonic (h5) — they can only differ in gain. Six
+harmonics live below 3 kHz at soprano pitch against 27 at bass. Soprano U sat
+**5.20 dB** from O, the closest pair in the whole grid, which is "lacks vowel
+character" as a number.
+
+Then a 2×2 crossing recipe with pitch showed the recipes were still giving
+away ~7 dB: alto formants sung at 440 keep **16.90 dB** of E/I contrast where
+the soprano recipe keeps 10.20. So: alto formants, unmoved, sung at A4.
+Measured effect — E-I 10.20 → **16.90** (+6.69), U-O 5.20 → **13.86** (+8.66),
+I-O +4.72, E-O +2.23; E-U and I-U do not move.
+
+This is **not** pass-2's `e3_altoXpose` (your "pennywhistle"), which scaled the
+formants ×2 along with the pitch. Formants are a property of the vocal tract,
+not the note — a singer's tract does not shrink an octave up.
+
+**Verdict decides:** do any of the three become the vowel they should be? If
+yes they get locked alongside the other seven; if no, the honest read is that
+sung vowels at 440 Hz are sampling-limited and the front retires rather than
+getting a pass 3. Caveat stated plainly: separability is not correctness — a
+bigger number means the vowels differ more from each other, not that any one
+is right.
+
+### 22b. KS PIANO v5 — full description, no direct taps [listen] (2026-08-09 overnight)
+renders/pending/ks_piano_v5/ — 7 WAVs + README. Matt's verdict on v1-v4:
+"kick drum, disappointed." v5: every patch has ALL six described elements;
+the hammer.direct/string.direct dry taps are removed (description has no
+dry path), exciteGain carries level. Variations move one mechanism each:
+a=straight, b=hammer ring, c=bright loop, d=double-envelope, e=flange,
+f=body, g=two-hand phrase. Measured vs old v3_full: C4 sustain much
+slower (-3.5 dB @1s vs -8.7; b: -1.2), C6 treble lives longer (b/c:
+-16/-15 dB @1s vs -25). C2 attack centroid still dark (116-157 Hz).
+Patches patches/pending/ks_piano_v5/, generator tools/gen_ks_piano_v5.py.
+
 ### 22. KS PIANO — the Gyutai build [listen] (run 24)
 renders/ks_piano/ — the ladder: `v1_string_c246` (combs only),
 `v2_hammer_c246` (+SVF hammer bank), `v3_full_c246` (the complete
@@ -26,19 +68,6 @@ Resonator, Hammer Bank) — playable from the keyboard.
 Verdict decides: is this piano-er than the additive best (A/B vs
 renders/cmaes_piano2/); which rung of the ladder carries the magic;
 fund the next iteration (hammer voicing, aftersound mechanism)?
-
-### 23. Vowel pass 2 — UW-top hypothesis + ring ladder [listen] (run 24)
-renders/vowel_tweak2/ — 43 WAVs, README with listen-for lines.
-The U finding: your winners already match UW's F1/F2 — what they LACK
-is UW's top (F3 peak 2355 Hz at -14.7 dB + broad shelf to 4.2 kHz;
-the sung U tops sit 20-60 dB deader). u2_uwtop = full UW top grafted
-on, A/B against _REF_Speech_M_UW. Soprano_E: three genuinely new
-angles (two-peak h4+h5, h1-dominance, alto-recipe transposed with
-intervals preserved). Ring ladder: r1 gap-fill (subtle), r2 coherent
-6-cent wander (the only mechanism that WIDENS lines, 2 -> 4-8 Hz),
-r3 aggressive fill (-46 dB rel). Note r-variants keep the winner
-formant pattern intact (corr 1.000). Escalation if none land:
-vibrato via pitch-mod layer.
 
 ### 24. Node-graph stream fix [try] (run 24)
 Per your item-21 report. Streams no longer fade out: root cause was
@@ -66,6 +95,36 @@ code and in this queue, and we skip a sound-changing edit to a retiring
 front. Say the word if you want the renorm anyway.
 
 ## Resolved
+
+2026-08-09 (Matt, folded in run 25): vowel pass 2 (item 23) closed. Seven
+winners LOCKED into `patches/library/voice/`, all seven byte-identical to the
+auditioned WAVs. Soprano E/I/U not locked -> measured instead of swept
+(separability collapses with f0; E and I share both formant harmonics at 440),
+and one measurement-derived candidate queued as item 25. Verbatim, kept for
+reference value — the Soprano diagnoses drove the analysis:
+
+> Diminishing returns. Only 1 improved on the previous "winners", and that
+> very marginally. Lock new Tenor_U_u1_f3peak.
+>
+>  Happy to stick with prior _winners for
+> - Alto A
+> - Alto E
+> - Alto I
+> - Alto U
+> - Bass U
+> - Soprano A
+>
+> Still unsatisfactory:
+> - Soprano E - all sound like I except _altoXpose which sounds like a pennywhistle
+> - Soprano I - all new attempts inferior to _winner but _winner too partially/organy
+> - Soprano U - all new attempts inferior to _winner but _winner lacks vowel character
+>
+> Alto A - all 4 sound identical, so let's lock the previous _winner.
+> Alto E - new ones very similar but have some wobble - lock _winner.
+> Alto I -
+
+(The note ends mid-line at "Alto I - ". The summary list above it says stick
+with the prior winner for Alto I, so that is what was locked.)
 
 2026-08-06 pm (Matt, folded in run 24): piano additive "still far-off"
 (harpsichord buzz, boing) + Alpha Forever pivot -> Gyutai research
