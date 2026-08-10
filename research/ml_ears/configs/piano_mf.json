@@ -21,7 +21,7 @@
   "template": "patches/piano1/template.json",
   "reference_path": "research/ml_ears/out/piano_reference.json",
   "reference_build": {"sus_start": 0.25, "sus_len": 1.0, "attack_len": 0.3,
-                      "onset_relative": true,
+                      "onset_relative": true, "inharmonic": true,
                       "motion_window": [0.1, 1.0]},
   "run_root": "research/ml_ears/cmaes_runs",
   "notes": [

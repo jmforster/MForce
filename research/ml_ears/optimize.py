@@ -230,11 +230,16 @@ def get_encoder(cfg):
 
 def make_objective(template, ref, note_midis, enc=None, windows=None, idx=[0]):
     enc = enc or encode
+    # Reference's per-note B (empty unless the config opted into inharmonic),
+    # so every candidate is analysed on the same stretched line positions the
+    # reference was built on.
+    bmap = sc.b_map(ref)
     def objective(z):
         idx[0] += 1
         try:
             patch = sc.set_score(enc(z, template), note_midis)
-            s = sc.score(sc.measure(patch, f"opt{idx[0] % 8}", note_midis, windows), ref)
+            s = sc.score(sc.measure(patch, f"opt{idx[0] % 8}", note_midis,
+                                    windows, bmap), ref)
             return s["total"], s
         except Exception as e:  # noqa: BLE001 — bad param combo -> penalty
             return 100.0, {"error": str(e)[:120]}

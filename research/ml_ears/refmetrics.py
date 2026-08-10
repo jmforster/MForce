@@ -200,8 +200,51 @@ MOTION_KEYS = ["resid_cents_rms", "resid_rate_hz", "resid_coherence",
                "amp_frac_rms", "amp_rate_hz", "amp_coherence"]
 
 
-def broadband_ratios(x, sr, f0, tol_frac=0.06, B=0.0):
+def measured_lines(x, sr, f0_nom, n_max=120, snr_db=10.0):
+    """Actual partial positions from the signal, model-filled where untracked.
+
+    A single stiff-string B does NOT hold to high partial index. Measured on
+    the Iowa piano (research/ml_ears/diag_stretch_bass.py), the fitted model's
+    position error against the real peaks, in units of the 0.06*f0 mask
+    half-width:
+
+        note   n 1-16      n 17-32     n 33-64     n 65-90
+        C2     <=0.15      up to 5.0   up to 9.9   up to 6.0
+        C3     <=0.12      up to 1.7   up to 5.5   up to 6.4
+        C4     <=1.20      up to 10.5  up to 8.4      -
+        C5     up to 1.3   up to 6.1   up to 6.0      -
+
+    So the fit is excellent to n~16 and unusable above it -- keeping every
+    tracked partial inside a model-centred mask would need a half-width of
+    0.36-0.63 * f0, six to ten times the current one, which would swallow the
+    inter-harmonic gaps the metric exists to measure.
+
+    The way out is not a wider mask but a better centre: use the peaks the
+    tracker actually found. Those are exact by construction. Partials the
+    tracker could not resolve (below the SNR gate) fall back to the model,
+    which is only used to interpolate between anchors it was fitted on.
+
+    Returns (lines_hz, B, n_tracked).
+    """
+    f0_fit, B, plist = track_partials(x, sr, f0_nom, n_max=n_max,
+                                      snr_db=snr_db)
+    found = {n: f for n, f, _amp in plist}
+    if not found:
+        return [], 0.0, 0
+    n_top = max(found)
+    lines = [found.get(n) or partial_freq(f0_nom, B, n)
+             for n in range(1, n_top + 1)]
+    return lines, B, len(found)
+
+
+def broadband_ratios(x, sr, f0, tol_frac=0.06, B=0.0, lines_hz=None):
     """Per band: energy BETWEEN partial lines / energy AT lines.
+
+    lines_hz: explicit partial positions (from measured_lines). When given,
+    B is ignored and the mask sits on these exact frequencies -- see
+    measured_lines for why a model-centred mask cannot work at high n.
+    A candidate is masked with the REFERENCE's lines, so a candidate whose
+    partials sit elsewhere is penalised.
 
     Real bowed strings carry broadband bow noise between the harmonics; pure
     additive has (almost) none. This is the ml_ears-quantified gap.
@@ -224,13 +267,21 @@ def broadband_ratios(x, sr, f0, tol_frac=0.06, B=0.0):
     spec = np.abs(np.fft.rfft(seg, nfft)) ** 2
     fbin = np.fft.rfftfreq(nfft, 1.0 / sr)
     tol_hz = f0 * tol_frac
-    kmax = int(fbin[-1] / f0)
+    if lines_hz is not None:
+        centres = list(lines_hz)
+    else:
+        kmax = int(fbin[-1] / f0)
+        centres = []
+        for k in range(1, kmax + 1):
+            fk = partial_freq(f0, B, k)
+            if fk > fbin[-1]:
+                break   # stretch outruns Nyquist before kmax when B > 0
+            centres.append(fk)
     lines = np.zeros(len(fbin), bool)
     n_in_band = [0] * len(BANDS)
-    for k in range(1, kmax + 1):
-        fk = partial_freq(f0, B, k)
+    for fk in centres:
         if fk > fbin[-1]:
-            break       # stretch outruns Nyquist before kmax when B > 0
+            continue
         lines |= np.abs(fbin - fk) <= tol_hz
         for bi, (lo, hi) in enumerate(BANDS):
             if lo <= fk < hi:

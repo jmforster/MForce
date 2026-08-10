@@ -87,22 +87,42 @@ def render(patch, tag):
     return x.astype(np.float64), sr
 
 
-def measure(patch, tag, note_midis=None, windows=None):
+def b_map(ref):
+    """{midi: (B, lines_hz)} from a reference built with reference_build.inharmonic.
+
+    Empty for every reference that did not opt in, which makes the candidate
+    side analyse at k*f0 exactly as before.
+    """
+    return {v["midi"]: (float(v["B"]), v.get("lines_hz") or None)
+            for v in ref.get("notes", {}).values() if v.get("B")}
+
+
+def measure(patch, tag, note_midis=None, windows=None, b_by_midi=None):
     """windows: (sus_start, sus_len, attack_len) — must match the windows the
-    reference was built with (config reference_build); default = viola's."""
+    reference was built with (config reference_build); default = viola's.
+
+    b_by_midi: per-note inharmonicity from b_map(ref). The candidate is masked
+    with the REFERENCE's B, not its own. B is locked from measurement in the
+    piano encoder and never searched, so the two agree by construction; and if
+    a candidate fails to stretch correctly its partials fall off the mask and
+    it is penalised, which is real signal. (The bug this fixes was the
+    reference's OWN partials falling off its own mask.)
+    """
     sus_start, sus_len, attack_len = windows or (SUS_START, SUS_LEN, ATTACK_LEN)
+    b_by_midi = b_by_midi or {}
     x, sr = render(patch, tag)
     per_note = {}
     for i, midi in enumerate(note_midis if note_midis is not None else NOTE_MIDIS):
         t0 = i * NOTE_GAP
         f0 = rm.midi_to_freq(midi)
+        B, lines = b_by_midi.get(midi, (0.0, None))
         s0 = int((t0 + sus_start) * sr)
         sus = x[s0: s0 + int(sus_len * sr)]
         atk = x[int(t0 * sr): int((t0 + attack_len) * sr)]
-        m = rm.motion_stats(sus, sr, f0)
+        m = rm.motion_stats(sus, sr, f0, B=B)
         per_note[midi] = {
-            "harm_env_db": rm.harmonic_env(sus, sr, f0),
-            "broadband": rm.broadband_ratios(sus, sr, f0),
+            "harm_env_db": rm.harmonic_env(sus, sr, f0, B=B),
+            "broadband": rm.broadband_ratios(sus, sr, f0, B=B, lines_hz=lines),
             "attack": rm.attack_stats(atk, sr),
             "motion": m,
         }
@@ -171,7 +191,8 @@ def cfg_windows(cfg):
 def score_patch(patch_path, ref, tag="p", note_midis=None, windows=None):
     midis = note_midis if note_midis is not None else NOTE_MIDIS
     patch = json.load(open(patch_path))
-    return score(measure(set_score(patch, midis), tag, midis, windows), ref)
+    return score(measure(set_score(patch, midis), tag, midis, windows,
+                         b_map(ref)), ref)
 
 
 def zero_motion(patch):
@@ -213,7 +234,8 @@ def main():
 
     if "--control" in sys.argv:
         ctrl = zero_motion(json.load(open(patch_path)))
-        cs = score(measure(set_score(ctrl, midis), "ctrl", midis, windows), ref)
+        cs = score(measure(set_score(ctrl, midis), "ctrl", midis, windows,
+                           b_map(ref)), ref)
         report("motion-zeroed control", cs)
         ok = s["term2_motion"] < cs["term2_motion"]
         print(f"\n[stage-a check] term2(patch)={s['term2_motion']:.4f} "

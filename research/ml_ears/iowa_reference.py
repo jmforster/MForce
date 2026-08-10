@@ -59,6 +59,12 @@ def main():
     sus_start, sus_len = rb["sus_start"], rb["sus_len"]
     attack_len = rb["attack_len"]
     onset_rel = bool(rb.get("onset_relative", False))
+    # reference_build.inharmonic (opt-in, piano only): measure each note's
+    # stiff-string B and analyse at the STRETCHED partial positions
+    # n*f0*sqrt(1+B n^2) instead of at k*f0. Absent -> B is never measured and
+    # never stored, so every other instrument regenerates byte-identically
+    # (partial_freq at B=0 multiplies by exactly 1.0).
+    inharmonic = bool(rb.get("inharmonic", False))
     out = cfg["reference_path"]
 
     notes = {}
@@ -76,16 +82,36 @@ def main():
         n0 = int(sus_start * sr)
         sus = x[n0: n0 + int(sus_len * sr)]
         atk = x[: int(attack_len * sr)]
+        B, lines = 0.0, None
+        if inharmonic:
+            # f0 stays the equal-tempered value: the tracker's refined f0 is a
+            # by-product of the fit and letting it move would shift every
+            # analysis bin for a reason unrelated to stretch.
+            lines, B, n_tracked = rm.measured_lines(sus, sr, f0)
+            if not lines:
+                lines = None
         notes[note] = {
             "midi": midi,
             "f0": round(f0, 3),
-            "harm_env_db": [round(v, 3) for v in rm.harmonic_env(sus, sr, f0)],
-            "broadband": [round(v, 6) for v in rm.broadband_ratios(sus, sr, f0)],
+            "harm_env_db": [round(v, 3)
+                            for v in rm.harmonic_env(sus, sr, f0, B=B)],
+            "broadband": [round(v, 6)
+                          for v in rm.broadband_ratios(sus, sr, f0, B=B,
+                                                       lines_hz=lines)],
             "attack": [[round(a, 5), round(b, 5)]
                        for a, b in rm.attack_stats(atk, sr)],
         }
-        m = rm.motion_stats(sus, sr, f0)
-        print(f"{note:3s} f0={f0:6.1f}  broadband={notes[note]['broadband']}  "
+        if inharmonic:
+            notes[note]["B"] = float(f"{B:.6g}")
+            # Stored so the candidate is masked on the SAME line positions the
+            # reference was measured on, rather than on a model refitted per
+            # candidate.
+            notes[note]["lines_hz"] = [round(v, 2) for v in (lines or [])]
+        m = rm.motion_stats(sus, sr, f0, B=B)
+        bstr = (f" B={B:.3e} lines={len(lines or [])}({n_tracked} tracked)"
+                if inharmonic else "")
+        print(f"{note:3s} f0={f0:6.1f}{bstr}  "
+              f"broadband={notes[note]['broadband']}  "
               f"resid={m['resid_cents_rms']:.2f}c amp={100*m['amp_frac_rms']:.0f}%")
 
     # Motion medians pooled over the config's broader sample set (more robust
