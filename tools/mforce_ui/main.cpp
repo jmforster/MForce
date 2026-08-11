@@ -2069,6 +2069,13 @@ static std::atomic<int>   g_audioActiveVoices{0};
 // die silently when another app grabs the device or changes its sample rate
 // (2026-08-10: playing a video in the browser killed audio until restart).
 static std::atomic<uint64_t> g_audioHeartbeat{0};
+// Focus-regain restart request (main loop sets, watchdog services): WASAPI
+// streams can go ZOMBIE after another app reconfigures the device — writes
+// succeed, callback keeps ticking, nothing renders. Undetectable from inside,
+// so we proactively restart the stream when the window regains focus after
+// being away (the exact switch-to-video-and-back moment; ~100 ms, and nothing
+// is playing right then anyway).
+static std::atomic<bool> g_audioRestartRequest{false};
 // Last async error RtAudio reported (WASAPI thread death reasons land here).
 static std::mutex g_audioErrMutex;
 static std::string g_lastAudioError;
@@ -2367,6 +2374,17 @@ static void audio_watchdog() {
     static bool     wasDead       = false;
 
     double now = glfwGetTime();
+
+    if (g_audioRestartRequest.exchange(false)) {
+        shutdown_audio();
+        if (init_audio(/*quiet=*/true))
+            transport_set_status("Audio stream restarted (app refocus)", false);
+        else
+            transport_set_status("Audio restart on refocus FAILED — watchdog will retry", true);
+        lastBeatTime = now;
+        return;
+    }
+
     uint64_t beat = g_audioHeartbeat.load(std::memory_order_relaxed);
     if (beat != lastBeat || !g_audio) {
         lastBeat = beat;
@@ -7681,6 +7699,19 @@ int main(int argc, char** argv) {
         // built-in shouldClose, taskbar X via our callback, or File→Quit
         // via s_closeRequested), check dirty state. Dirty + no modal up:
         // cancel the close, show the prompt. Clean + no modal up: bail.
+        // Track focus transitions: regaining focus after >2 s away requests a
+        // proactive audio-stream restart (zombie-stream guard, see
+        // g_audioRestartRequest).
+        {
+            static bool wasFocused = true;
+            static double unfocusedAt = 0.0;
+            bool focused = glfwGetWindowAttrib(window, GLFW_FOCUSED) != 0;
+            if (wasFocused && !focused) unfocusedAt = glfwGetTime();
+            if (!wasFocused && focused && glfwGetTime() - unfocusedAt > 2.0)
+                g_audioRestartRequest.store(true);
+            wasFocused = focused;
+        }
+
         bool wantClose = glfwWindowShouldClose(window) || s_closeRequested;
         if (wantClose && !s_showCloseConfirm) {
             if (s_closeApproved || !s_graphDirty) {
