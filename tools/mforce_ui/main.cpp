@@ -2035,6 +2035,11 @@ static std::mutex g_audioMutex;
 static std::atomic<float> g_audioPeakPre{0.0f};
 static std::atomic<float> g_audioPeakPost{0.0f};
 static std::atomic<int>   g_audioActiveVoices{0};
+// Incremented every audio_callback invocation. The UI-thread watchdog
+// (audio_watchdog) reopens the stream when this flatlines — WASAPI streams
+// die silently when another app grabs the device or changes its sample rate
+// (2026-08-10: playing a video in the browser killed audio until restart).
+static std::atomic<uint64_t> g_audioHeartbeat{0};
 
 static ValueSource* g_streamSource = nullptr;
 static int g_streamRemaining = 0;
@@ -2127,6 +2132,7 @@ static int audio_callback(void* outputBuffer, void* /*inputBuffer*/,
                           unsigned int nFrames, double /*streamTime*/,
                           RtAudioStreamStatus /*status*/, void* /*userData*/) {
     float* out = static_cast<float*>(outputBuffer);
+    g_audioHeartbeat.fetch_add(1, std::memory_order_relaxed);
     std::lock_guard<std::mutex> lock(g_audioMutex);
 
     // No polyphony scaling: each voice contributes at its full voice.gain.
@@ -2243,21 +2249,25 @@ static void audio_init_error(const char* msg) {
                 MB_OK | MB_ICONERROR);
 }
 
-static bool init_audio() {
+// quiet=true (watchdog reopen): failures must not raise a modal every retry —
+// the watchdog keeps retrying with backoff and reports via the status bar.
+static bool init_audio(bool quiet = false);
+
+static bool init_audio(bool quiet) {
     try {
         g_audio = std::make_unique<RtAudio>();
     } catch (const std::exception& e) {
         char buf[512];
         std::snprintf(buf, sizeof(buf), "RtAudio constructor threw: %s", e.what());
-        audio_init_error(buf);
+        if (!quiet) audio_init_error(buf);
         return false;
     } catch (...) {
-        audio_init_error("RtAudio constructor threw (unknown exception)");
+        if (!quiet) audio_init_error("RtAudio constructor threw (unknown exception)");
         return false;
     }
 
     if (g_audio->getDeviceCount() < 1) {
-        audio_init_error("No audio output devices found.");
+        if (!quiet) audio_init_error("No audio output devices found.");
         g_audio.reset();
         return false;
     }
@@ -2277,7 +2287,7 @@ static bool init_audio() {
         std::snprintf(buf, sizeof(buf),
             "RtAudio openStream failed (error %d).\n%s",
             int(err), g_audio->getErrorText().c_str());
-        audio_init_error(buf);
+        if (!quiet) audio_init_error(buf);
         g_audio.reset();
         return false;
     }
@@ -2288,7 +2298,7 @@ static bool init_audio() {
         std::snprintf(buf, sizeof(buf),
             "RtAudio startStream failed (error %d).\n%s",
             int(err), g_audio->getErrorText().c_str());
-        audio_init_error(buf);
+        if (!quiet) audio_init_error(buf);
         g_audio->closeStream();
         g_audio.reset();
         return false;
@@ -2302,6 +2312,46 @@ static void shutdown_audio() {
         if (g_audio->isStreamRunning()) g_audio->stopStream();
         if (g_audio->isStreamOpen())    g_audio->closeStream();
         g_audio.reset();
+    }
+}
+
+static void transport_set_status(const char* msg, bool isError);
+
+// UI-thread watchdog, called once per frame. If the audio callback stops
+// firing (device grabbed by another app, sample-rate change, output device
+// switch — WASAPI kills the stream silently), tear the stream down and
+// reopen it. Before this, playing a video in a browser meant no sound until
+// a full app restart (2026-08-10).
+static void audio_watchdog() {
+    static uint64_t lastBeat      = 0;
+    static double   lastBeatTime  = 0.0;
+    static double   lastAttempt   = -10.0;
+    static bool     wasDead       = false;
+
+    double now = glfwGetTime();
+    uint64_t beat = g_audioHeartbeat.load(std::memory_order_relaxed);
+    if (beat != lastBeat || !g_audio) {
+        lastBeat = beat;
+        lastBeatTime = now;
+        if (wasDead && g_audio) {
+            transport_set_status("Audio device recovered", false);
+            wasDead = false;
+        }
+        if (g_audio) return;
+    }
+
+    // No callback in 1s on a stream that should be running = dead.
+    if (now - lastBeatTime < 1.0) return;
+    if (now - lastAttempt < 2.0) return;   // retry backoff
+    lastAttempt = now;
+    wasDead = true;
+
+    shutdown_audio();
+    if (init_audio(/*quiet=*/true)) {
+        transport_set_status("Audio device lost — stream reopened", false);
+        lastBeatTime = now;   // give the new stream a fresh grace period
+    } else {
+        transport_set_status("Audio device lost — reopen failed, retrying...", true);
     }
 }
 
@@ -8053,6 +8103,7 @@ int main(int argc, char** argv) {
         // But: collect any voices the callback finished, releasing their
         // DSP-graph shared_ptrs on the UI thread instead of the audio thread.
         voice_gc();
+        audio_watchdog();
 
         // Save-prompt modal: shown when a close was requested with unsaved
         // edits. User picks Save / Don't Save / Cancel.
