@@ -38,14 +38,16 @@ VOLUMES = {
     "v6b_noise_short.json": 0.1471,
     "v6b_noise_med.json":   0.1408,
     "v6b_noise_long.json":  0.1169,
-    "v6c_shaped.json":      1.0,
-    "v6c_shaped_alt.json":  1.0,
+    "v6c_shaped.json":      0.2220,
+    "v6c_shaped_alt.json":  0.5627,
+    "v6c2_shaped.json":     1.0,
+    "v6c2_bloom.json":      1.0,
 }
 
 RELEASE_SECONDS = 0.35
 
 
-def base_patch(excite_noise=None, shaping=None):
+def base_patch(excite_noise=None, shaping=None, click_env=None):
     """excite_noise: None = v5a bare-envelope excitation; else (attack, decay)
     for the noise-burst envelope, with the bank fed by enveloped white noise.
     shaping: None = bank feeds the string directly (rung 1); else
@@ -92,12 +94,30 @@ def base_patch(excite_noise=None, shaping=None):
     extra_map = []
     if shaping is not None:
         lp_mult, click_gain = shaping
-        shaping_nodes = [
+        click_src = {"ref": "noise"}
+        if click_env is not None:
+            # v6c2: click path gets its OWN envelope + pitch-dependent gain
+            # (Matt's "drumstick, turned up too high" fix). His string-input
+            # hits measure ~0.002 attack-window click; the constant-gain
+            # shared-burst click slammed the low registers.
+            ca, cd, g_lo, g_hi = click_env
+            shaping_nodes += [
+                {"id": "env_click", "type": "Envelope", "params": {
+                    "preset": "adsr", "timeMode": "seconds",
+                    "attack": ca, "decay": cd,
+                    "sustainLevel": 0.0, "release": 0.0}},
+                {"id": "noise_click", "type": "WhiteNoiseSource", "params": {
+                    "amplitude": {"ref": "env_click"}}},
+            ]
+            click_src = {"ref": "noise_click"}
+            extra_map += [{"target": "exc_clickgain.source2",
+                           "curve": [[65.0, g_lo], [1046.5, g_hi]]}]
+        shaping_nodes += [
             {"id": "exc_lp", "type": "BWLowpassFilter", "params": {
                 "source": {"ref": "hammer"}, "sections": 2,
                 "cutoffFreq": 800.0}},
             {"id": "exc_click", "type": "BWBandpassFilter", "params": {
-                "source": {"ref": "noise"}, "sections": 2,
+                "source": click_src, "sections": 2,
                 "lowCutoff": 4000.0, "highCutoff": 9500.0}},
             {"id": "exc_clickgain", "type": "CombinedSource", "params": {
                 "source1": {"ref": "exc_click"}, "source2": click_gain,
@@ -108,10 +128,10 @@ def base_patch(excite_noise=None, shaping=None):
                 "operation": "sum"}},
         ]
         string_source = {"ref": "exc_mix"}
-        extra_map = [{"target": "exc_lp.cutoffFreq",
-                      "curve": [[65.0, lp_mult * 65.0],
-                                [262.0, lp_mult * 262.0],
-                                [1047.0, lp_mult * 1047.0]]}]
+        extra_map += [{"target": "exc_lp.cutoffFreq",
+                       "curve": [[65.0, lp_mult * 65.0],
+                                 [262.0, lp_mult * 262.0],
+                                 [1047.0, lp_mult * 1047.0]]}]
 
     patch = {
         "sampleRate": 48000,
@@ -183,6 +203,14 @@ def build_all():
                                            shaping=(2.5, 0.15)),
         "v6c_shaped_alt.json":  base_patch(excite_noise=(0.002, 0.020),
                                            shaping=(1.5, 0.30)),
+        # v6c2: click de-drumsticked — own envelope + pitch-dependent gain
+        # (grid winners from opt_ks_piano_v6c2.py, attack-window scored).
+        "v6c2_shaped.json":     base_patch(excite_noise=(0.002, 0.040),
+                                           shaping=(2.5, 0.15),
+                                           click_env=(0.002, 0.050, 0.03, 0.15)),
+        "v6c2_bloom.json":      base_patch(excite_noise=(0.002, 0.040),
+                                           shaping=(2.5, 0.15),
+                                           click_env=(0.015, 0.050, 0.03, 0.15)),
     }
 
 

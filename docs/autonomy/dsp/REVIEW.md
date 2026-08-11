@@ -11,7 +11,13 @@ BW lowpass body + pre-bank 4-9.5 kHz click path, grid-searched objectively
 (tools/opt_ks_piano_v6c.py; winner err 0.0245; the click MUST tap raw noise —
 the bank strips all HF, first grid run proved it). Optimizer re-bracketed
 burst decay to 40 ms (the LP removes the hash that made long bursts read as
-distortion). A/B: v6c_shaped + v6c_shaped_alt vs v6b_noise_short.
+distortion). v6c verdict (Matt, same day): away from piano except C6; low registers
+"drumstick on a buzzy string, turned up too high." v6c2 rev shipped:
+his attack-window click measures ~0.002 (HF = post-attack sheen, not a
+transient), so the click got its own envelope + pitch-dependent gain
+(0.03@C2 -> 0.15@C6), grid-searched with a new attack-window scoring term
+(opt_ks_piano_v6c2.py). A/B: v6c2_shaped (2 ms tick) + v6c2_bloom (15 ms
+bloom) vs v6b_noise_short. All earlier renders kept.
 Verdict decides: rung-2 pick -> base for rung 3 (vel->brightness), then
 in-loop releaseFb 0.82 damper, then detune-vs-pitch curve.
 Analysis: docs/research/afpiano_2021/ANALYSIS.md.
