@@ -103,6 +103,15 @@ fetched directly — treat those as lower confidence.
   productized as one node with four musician-facing knobs.
 
 ### Piano
+- **2026-08-10: third piano video found and fully analyzed** — "Synthesisizing an acoustic
+  piano sound - progress" (@9b0, Apr 24 2021, 10:44, narrated):
+  https://www.youtube.com/watch?v=uuebeNV-DS8
+  Full structural analysis with transcript + 1080p patch frames:
+  **docs/research/afpiano_2021/ANALYSIS.md**. Headline: the 2021 working patch's hammer is
+  an ENVELOPED WHITE-NOISE BURST through a filter bank (contradicts the later description's
+  no-noise rule); damper = in-loop feedback drop 1.0→0.82 at gate-off; 3 strings per note
+  with a pitch-dependent detune curve; loop = delay → damping LP → 1P → pitch-tracked
+  2nd-order AP (SVF-derived) → pitch-tracked 1st-order ZDF AP → feedback.
 - Two piano videos exist (titles/channels confirmed via YouTube oEmbed; upload dates and
   descriptions were not retrievable — YouTube pages don't render for my fetcher):
   - "Alpha Forever - AFNoding 031 - Acoustic piano synthesis" on the official channel
