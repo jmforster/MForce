@@ -2,20 +2,19 @@
 
 ## Awaiting Matt
 
-### 27. KS PIANO v6 rung 1 — noise excitation [listen] (2026-08-10)
-renders/dsp/pending/ks_piano_v6/ — v6a_anchor (= v5a) + three burst lengths
-of the 2021-video hammer mechanism (enveloped seeded white noise into the
-bank; 4.7 ms attack and 20-462 ms decays read off his nodes). README inside.
-C2 attack centroid 130 -> 209/250/274 Hz. Mechanical caveat: the Q-25 bank
-re-filters most noise onto the harmonics — if all three sit too close to the
-anchor, next knob is bank resonance, not burst length.
-Verdict decides: rung-1 pick (or reject) -> baseline for rung 2.
-Rung 2 (Matt: "key rung") = excitation filter shaping toward the band
-targets MEASURED from his demo audio (bimodal: <600 Hz thump + small
-4-10 kHz click, deep 600-1500 scoop — table + reference WAV segments in
-docs/research/afpiano_2021/). Iterated objectively vs the measured
-targets before audition. Then: vel->brightness, in-loop releaseFb 0.82
-damper, detune-vs-pitch curve. Analysis: docs/research/afpiano_2021/ANALYSIS.md.
+### 27. KS PIANO v6 rung 2 — shaped excitation [listen] (2026-08-10)
+renders/dsp/pending/ks_piano_v6/ — README inside. Rung 1 RESOLVED same day:
+Matt picked v6b_noise_short ("_long sounds like a distorted guitar pluck").
+Rung 2 = excitation shaped to the band targets measured from his 2021 demo
+audio (body-dominant, 600-1500 scooped, ~5% click at 4-10 kHz): pitch-tracked
+BW lowpass body + pre-bank 4-9.5 kHz click path, grid-searched objectively
+(tools/opt_ks_piano_v6c.py; winner err 0.0245; the click MUST tap raw noise —
+the bank strips all HF, first grid run proved it). Optimizer re-bracketed
+burst decay to 40 ms (the LP removes the hash that made long bursts read as
+distortion). A/B: v6c_shaped + v6c_shaped_alt vs v6b_noise_short.
+Verdict decides: rung-2 pick -> base for rung 3 (vel->brightness), then
+in-loop releaseFb 0.82 damper, then detune-vs-pitch curve.
+Analysis: docs/research/afpiano_2021/ANALYSIS.md.
 
 ### 26. Housekeeping 2026-08-10 — leftovers and judgment calls [read]
 The patch/score restructure (docs/patch_triage_2026_08_10.md rev 2 + your

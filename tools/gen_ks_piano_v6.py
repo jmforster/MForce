@@ -35,17 +35,24 @@ INHARM_CURVE = [[65.0, 0.50], [262.0, 0.15], [1047.0, 0.03]]
 # Peak-calibrated by tools/render_ks_piano_v6.py 2026-08-10.
 VOLUMES = {
     "v6a_anchor.json":      0.2198,   # = v5a_desc
-    "v6b_noise_short.json": 1.0,
-    "v6b_noise_med.json":   1.0,
-    "v6b_noise_long.json":  1.0,
+    "v6b_noise_short.json": 0.1471,
+    "v6b_noise_med.json":   0.1408,
+    "v6b_noise_long.json":  0.1169,
+    "v6c_shaped.json":      1.0,
+    "v6c_shaped_alt.json":  1.0,
 }
 
 RELEASE_SECONDS = 0.35
 
 
-def base_patch(excite_noise=None):
+def base_patch(excite_noise=None, shaping=None):
     """excite_noise: None = v5a bare-envelope excitation; else (attack, decay)
-    for the noise-burst envelope, with the bank fed by enveloped white noise."""
+    for the noise-burst envelope, with the bank fed by enveloped white noise.
+    shaping: None = bank feeds the string directly (rung 1); else
+    (lp_mult, click_gain) — rung 2 excitation shaping, optimized by
+    tools/opt_ks_piano_v6c.py against the 2021-video band targets: pitch-
+    tracked Butterworth LP body path (bank) in parallel with a 4-9.5 kHz
+    noise click path (pre-bank tap — the bank has no HF left to extract)."""
     if excite_noise is None:
         env = {"id": "env", "type": "Envelope", "params": {
             "preset": "adsr", "timeMode": "seconds",
@@ -65,29 +72,56 @@ def base_patch(excite_noise=None):
         excite_nodes = [env, noise]
         hammer_source = {"ref": "noise"}
 
-    return {
+    hammer_node = {
+        "id": "hammer",
+        "type": "HammerBank",
+        "params": {
+            "source": hammer_source,
+            "frequency": 220.0,
+            "numBands": 4,
+            "harm1": 1.0, "harm2": 2.0, "harm3": 3.0, "harm4": 4.0,
+            "resStart": 25.0, "resEnd": 1.2, "resDecay": 0.012,
+            "bandTilt": -0.25,
+            "direct": 0.0,
+            "gain": 2.0,
+        },
+    }
+
+    shaping_nodes = []
+    string_source = {"ref": "hammer"}
+    extra_map = []
+    if shaping is not None:
+        lp_mult, click_gain = shaping
+        shaping_nodes = [
+            {"id": "exc_lp", "type": "BWLowpassFilter", "params": {
+                "source": {"ref": "hammer"}, "sections": 2,
+                "cutoffFreq": 800.0}},
+            {"id": "exc_click", "type": "BWBandpassFilter", "params": {
+                "source": {"ref": "noise"}, "sections": 2,
+                "lowCutoff": 4000.0, "highCutoff": 9500.0}},
+            {"id": "exc_clickgain", "type": "CombinedSource", "params": {
+                "source1": {"ref": "exc_click"}, "source2": click_gain,
+                "operation": "multiply"}},
+            {"id": "exc_mix", "type": "CombinedSource", "params": {
+                "source1": {"ref": "exc_lp"},
+                "source2": {"ref": "exc_clickgain"},
+                "operation": "sum"}},
+        ]
+        string_source = {"ref": "exc_mix"}
+        extra_map = [{"target": "exc_lp.cutoffFreq",
+                      "curve": [[65.0, lp_mult * 65.0],
+                                [262.0, lp_mult * 262.0],
+                                [1047.0, lp_mult * 1047.0]]}]
+
+    patch = {
         "sampleRate": 48000,
         "graph": {
-            "nodes": excite_nodes + [
-                {
-                    "id": "hammer",
-                    "type": "HammerBank",
-                    "params": {
-                        "source": hammer_source,
-                        "frequency": 220.0,
-                        "numBands": 4,
-                        "harm1": 1.0, "harm2": 2.0, "harm3": 3.0, "harm4": 4.0,
-                        "resStart": 25.0, "resEnd": 1.2, "resDecay": 0.012,
-                        "bandTilt": -0.25,
-                        "direct": 0.0,
-                        "gain": 2.0,
-                    },
-                },
+            "nodes": excite_nodes + [hammer_node] + shaping_nodes + [
                 {
                     "id": "string",
                     "type": "KSPianoString",
                     "params": {
-                        "source": {"ref": "hammer"},
+                        "source": string_source,
                         "frequency": 220.0,
                         "numCombs": 3,
                         "detune": 1.8,
@@ -125,11 +159,12 @@ def base_patch(excite_noise=None):
                     {"target": "string.brightness", "curve": copy.deepcopy(BRIGHT_CURVE)},
                     {"target": "string.dispersion", "curve": copy.deepcopy(DISP_CURVE)},
                     {"target": "string.inharmGain", "curve": copy.deepcopy(INHARM_CURVE)},
-                ],
+                ] + extra_map,
             },
         },
         "score": C246_SCORE,
     }
+    return patch
 
 
 def build_all():
@@ -140,6 +175,14 @@ def build_all():
         "v6b_noise_short.json": base_patch(excite_noise=(0.002,  0.020)),
         "v6b_noise_med.json":   base_patch(excite_noise=(0.0047, 0.080)),
         "v6b_noise_long.json":  base_patch(excite_noise=(0.0047, 0.462)),
+        # Rung 2: excitation shaping. Grid winner (err 0.0245) + the rank-2
+        # alternate (less body rolloff, hotter click) from opt_ks_piano_v6c.py.
+        # Burst decay re-optimized objectively to 0.040 (the LP removes the
+        # noise hash that made long bursts read as distortion in rung 1).
+        "v6c_shaped.json":      base_patch(excite_noise=(0.002, 0.040),
+                                           shaping=(2.5, 0.15)),
+        "v6c_shaped_alt.json":  base_patch(excite_noise=(0.002, 0.020),
+                                           shaping=(1.5, 0.30)),
     }
 
 
