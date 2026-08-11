@@ -454,6 +454,10 @@ static nlohmann::json s_loadedParamMap = nlohmann::json::object();
 // note than the original. Carried through verbatim instead; the default is
 // only emitted when the loaded patch had no score at all.
 static nlohmann::json s_loadedScore   = nlohmann::json();
+// Instrument-block fields the UI has no widgets for (release, volume, future
+// keys). Preserved verbatim from load to save so UI round-trips don't strip
+// them (the 2026-08-10 live-audition damper/gain loss).
+static nlohmann::json s_loadedInstrumentExtras = nlohmann::json::object();
 static nlohmann::json s_loadedSeconds = nlohmann::json();
 
 // Convert-graph stash (Edit > Convert to <type> graph). Converting a Patch
@@ -734,6 +738,7 @@ static void new_graph(GraphMode mode) {
     s_links.clear();
     s_loadedParamMap = nlohmann::json::object();
     s_loadedScore    = nlohmann::json();
+    s_loadedInstrumentExtras = nlohmann::json::object();
     s_loadedSeconds  = nlohmann::json();
     conv_stash_clear();
     s_graphMode = mode;
@@ -860,6 +865,7 @@ static void load_graph_from_path(const std::string& path) {
     s_links.clear();
     s_loadedParamMap = nlohmann::json::object();
     s_loadedScore    = nlohmann::json();
+    s_loadedInstrumentExtras = nlohmann::json::object();
     s_loadedSeconds  = nlohmann::json();
     conv_stash_clear();
     s_nextId = 1;
@@ -874,6 +880,11 @@ static void load_graph_from_path(const std::string& path) {
     // transport's old hardcoded 2.0s/C4 against a 3.0s/A2 score was audibly
     // a different patch.
     if (root.contains("score")) s_loadedScore = root["score"];
+    if (root.contains("instrument")) {
+        s_loadedInstrumentExtras = root["instrument"];
+        s_loadedInstrumentExtras.erase("polyphony");
+        s_loadedInstrumentExtras.erase("paramMap");
+    }
     if (root.contains("seconds")) s_loadedSeconds = root["seconds"];
     apply_score_defaults(s_loadedScore);
 
@@ -1066,8 +1077,11 @@ static void load_graph_from_path(const std::string& path) {
             // Restore Envelope stages. For NT_ENVELOPE nodes saved with
             // params.stages, replace the live Envelope's stage list.
             if (gn.typeName == NT_ENVELOPE && params.contains("stages")) {
-                if (auto* env = dynamic_cast<Envelope*>(gn.dspSource.get()))
+                if (auto* env = dynamic_cast<Envelope*>(gn.dspSource.get())) {
                     envelope_stages_from_json(*env, params["stages"]);
+                    env->absolute_time =
+                        params.value("timeMode", std::string("fraction")) == "seconds";
+                }
             }
 
             // Restore config values
@@ -1609,6 +1623,11 @@ static void save_patch_graph(const std::string& path) {
             if (auto* env = dynamic_cast<Envelope*>(node.dspSource.get())) {
                 if (!jnode.contains("params")) jnode["params"] = json::object();
                 jnode["params"]["stages"] = envelope_stages_to_json(*env);
+                // Literal-seconds envelopes (make_adsr_abs) must round-trip:
+                // without this key the reload treats percent as a fraction of
+                // note duration (2 ms attack -> 0.2% of the note; the
+                // 2026-08-10 live-audition click + stretched-tail bug).
+                jnode["params"]["timeMode"] = env->absolute_time ? "seconds" : "fraction";
             }
         }
 
@@ -1670,6 +1689,11 @@ static void save_patch_graph(const std::string& path) {
     root["graph"]["output"] = outputId;
 
     if (outputNode) {
+        // Fields the UI doesn't model (release, volume, ...) pass through
+        // verbatim; UI-owned keys below overwrite.
+        for (auto it = s_loadedInstrumentExtras.begin();
+             it != s_loadedInstrumentExtras.end(); ++it)
+            root["instrument"][it.key()] = it.value();
         root["instrument"]["polyphony"] = outputNode->polyphony;
         if (!paramMap.empty())
             root["instrument"]["paramMap"] = paramMap;
@@ -1795,6 +1819,11 @@ static void save_node_graph(const std::string& path) {
             if (auto* env = dynamic_cast<Envelope*>(node.dspSource.get())) {
                 if (!jnode.contains("params")) jnode["params"] = json::object();
                 jnode["params"]["stages"] = envelope_stages_to_json(*env);
+                // Literal-seconds envelopes (make_adsr_abs) must round-trip:
+                // without this key the reload treats percent as a fraction of
+                // note duration (2 ms attack -> 0.2% of the note; the
+                // 2026-08-10 live-audition click + stretched-tail bug).
+                jnode["params"]["timeMode"] = env->absolute_time ? "seconds" : "fraction";
             }
         }
 
@@ -5312,8 +5341,10 @@ static nlohmann::json clip_node_state(const GraphNode& node) {
     }
 
     if (node.typeName == NT_ENVELOPE) {
-        if (const auto* env = dynamic_cast<const Envelope*>(node.dspSource.get()))
+        if (const auto* env = dynamic_cast<const Envelope*>(node.dspSource.get())) {
             j["stages"] = envelope_stages_to_json(*env);
+            j["timeMode"] = env->absolute_time ? "seconds" : "fraction";
+        }
     }
     return j;
 }
@@ -5378,8 +5409,10 @@ static int clip_instantiate(const nlohmann::json& j) {
     }
 
     if (j.contains("stages")) {
-        if (auto* env = dynamic_cast<Envelope*>(gn.dspSource.get()))
+        if (auto* env = dynamic_cast<Envelope*>(gn.dspSource.get())) {
             envelope_stages_from_json(*env, j["stages"]);
+            env->absolute_time = j.value("timeMode", std::string("fraction")) == "seconds";
+        }
     }
 
     return gn.id;
@@ -5616,6 +5649,7 @@ static void convert_patch_to_node_graph() {
     s_convStashValid = true;
     s_loadedParamMap = nlohmann::json::object();
     s_loadedScore    = nlohmann::json();
+    s_loadedInstrumentExtras = nlohmann::json::object();
     s_loadedSeconds  = nlohmann::json();
 
     // Whatever fed Output.source now feeds the Channel. Capture the pin id
