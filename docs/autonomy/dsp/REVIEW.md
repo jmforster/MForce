@@ -2,6 +2,21 @@
 
 ## Awaiting Matt
 
+### 27. KS PIANO v6 rung 1 — noise excitation [listen] (2026-08-10)
+renders/dsp/pending/ks_piano_v6/ — v6a_anchor (= v5a) + three burst lengths
+of the 2021-video hammer mechanism (enveloped seeded white noise into the
+bank; 4.7 ms attack and 20-462 ms decays read off his nodes). README inside.
+C2 attack centroid 130 -> 209/250/274 Hz. Mechanical caveat: the Q-25 bank
+re-filters most noise onto the harmonics — if all three sit too close to the
+anchor, next knob is bank resonance, not burst length.
+Verdict decides: rung-1 pick (or reject) -> baseline for rung 2.
+Rung 2 (Matt: "key rung") = excitation filter shaping toward the band
+targets MEASURED from his demo audio (bimodal: <600 Hz thump + small
+4-10 kHz click, deep 600-1500 scoop — table + reference WAV segments in
+docs/research/afpiano_2021/). Iterated objectively vs the measured
+targets before audition. Then: vel->brightness, in-loop releaseFb 0.82
+damper, detune-vs-pitch curve. Analysis: docs/research/afpiano_2021/ANALYSIS.md.
+
 ### 26. Housekeeping 2026-08-10 — leftovers and judgment calls [read]
 The patch/score restructure (docs/patch_triage_2026_08_10.md rev 2 + your
 annotations) is executed. Things you didn't rule on, or where I applied a
