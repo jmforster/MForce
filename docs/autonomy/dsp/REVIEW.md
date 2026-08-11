@@ -35,8 +35,11 @@ pattern you should sanity-check:
   most likely casualties of the 2026-08-08 big-render deletion. Those items
   need a re-render (same seed per their READMEs) or a verdict from memory.
 
-### 25. Soprano E / I / U — the alto-formant candidate [listen] (run 25)
-`renders/dsp/pending/vowel_soprano_alt/` — 8 WAVs, 4 A/B pairs, `_cur` is what you
+### 25. RESOLVED 2026-08-10 — see Resolved section. (Kept here one cycle for
+context continuity; safe to prune next run.)
+
+Soprano E / I / U — the alto-formant candidate [listen] (run 25)
+`renders/dsp/pending/vowel_soprano_alt/` [deleted post-verdict] — 8 WAVs, 4 A/B pairs, `_cur` is what you
 rejected and `_altf` is the candidate. Same note (A4), same partials, same
 envelope; only the formant table differs. **The O pair is a control** — O is
 the family you rate best, so if `_altf` is worse there the idea is wrong.
@@ -103,6 +106,16 @@ code and in this queue, and we skip a sound-changing edit to a retiring
 front. Say the word if you want the renorm anyway.
 
 ## Resolved
+
+2026-08-10 pm (Matt, hands-on): item 25 soprano alt-formant candidates
+CLOSED — Matt merged the full vowel_grid catalog into
+patches/library/voice/ as the new canonical voice library, overwriting
+with the soprano_alt candidates "where the new was an improvement", then
+deleted the pending dirs. The library/voice tree (59 files: 20 sung + 36
+speech + words/liar2 pair + README) IS the verdict record; filenames
+normalized to lowercase-with-uppercase-vowel-suffix (sing_alto_A.json).
+Note: the run-25 "seven locked winners" as separate tuned files are
+superseded by this merge — the merged file contents are Matt's picks.
 
 2026-08-10 (Matt, via patch-triage manifest annotation): item 22 KS PIANO
 A/B CLOSED — "Already convinced KS is the future here." The KS/physical

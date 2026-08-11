@@ -19,7 +19,7 @@
         "params": {
           "frequency": 350.0,
           "gain": 1.0,
-          "width": 320.0,
+          "width": 400.0,
           "power": 2.0
         }
       },
@@ -27,9 +27,9 @@
         "id": "f2",
         "type": "Formant",
         "params": {
-          "frequency": 824.0,
-          "gain": 0.32,
-          "width": 480.0,
+          "frequency": 2100.0,
+          "gain": 0.25,
+          "width": 720.0,
           "power": 2.0
         }
       },
@@ -37,9 +37,9 @@
         "id": "f3",
         "type": "Formant",
         "params": {
-          "frequency": 2355.0,
-          "gain": 0.1614,
-          "width": 880.0,
+          "frequency": 2700.0,
+          "gain": 0.0316,
+          "width": 960.0,
           "power": 2.0
         }
       },
@@ -47,9 +47,9 @@
         "id": "f4",
         "type": "Formant",
         "params": {
-          "frequency": 2900.0,
-          "gain": 0.0501,
-          "width": 960.0,
+          "frequency": 3700.0,
+          "gain": 0.0158,
+          "width": 1200.0,
           "power": 2.0
         }
       },
@@ -57,9 +57,9 @@
         "id": "f5",
         "type": "Formant",
         "params": {
-          "frequency": 3300.0,
-          "gain": 0.0251,
-          "width": 960.0,
+          "frequency": 4950.0,
+          "gain": 0.001,
+          "width": 1600.0,
           "power": 2.0
         }
       },
@@ -101,7 +101,7 @@
         "type": "AdditiveSource",
         "params": {
           "seed": 42,
-          "frequency": 165.0,
+          "frequency": 440.0,
           "amplitude": {
             "ref": "ampEnv"
           },
@@ -126,15 +126,16 @@
   },
   "score": [
     {
-      "note": 52,
+      "note": 69,
       "velocity": 0.85,
       "time": 0.0,
       "duration": 3.0
     }
   ],
   "_provenance": {
-    "source": "patches/vowel_tweak2/Sing_Tenor_U_u1_f3peak.json",
-    "locked_by": "Matt 2026-08-09, dsp/REVIEW.md item 23",
-    "why": "pass-2 NEW winner - UW F3 peak (2355 Hz) grafted onto the pass-1 winner; the only pass-2 variant Matt preferred"
+    "source": "patches/vowel_tweak/Sing_Alto_I_v2_f2up.json",
+    "note": 69,
+    "why": "alto formant recipe, unchanged, sung at A4",
+    "run": "dsp run 25 (2026-08-10)"
   }
 }

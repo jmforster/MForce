@@ -17,9 +17,9 @@
         "id": "f1",
         "type": "Formant",
         "params": {
-          "frequency": 350.0,
+          "frequency": 450.0,
           "gain": 1.0,
-          "width": 320.0,
+          "width": 560.0,
           "power": 2.0
         }
       },
@@ -27,9 +27,9 @@
         "id": "f2",
         "type": "Formant",
         "params": {
-          "frequency": 770.0,
-          "gain": 0.32,
-          "width": 480.0,
+          "frequency": 800.0,
+          "gain": 0.3548,
+          "width": 640.0,
           "power": 2.0
         }
       },
@@ -37,8 +37,8 @@
         "id": "f3",
         "type": "Formant",
         "params": {
-          "frequency": 2400.0,
-          "gain": 0.0251,
+          "frequency": 2830.0,
+          "gain": 0.1585,
           "width": 800.0,
           "power": 2.0
         }
@@ -47,9 +47,9 @@
         "id": "f4",
         "type": "Formant",
         "params": {
-          "frequency": 2675.0,
+          "frequency": 3500.0,
           "gain": 0.0398,
-          "width": 960.0,
+          "width": 1040.0,
           "power": 2.0
         }
       },
@@ -57,9 +57,9 @@
         "id": "f5",
         "type": "Formant",
         "params": {
-          "frequency": 2950.0,
-          "gain": 0.0158,
-          "width": 960.0,
+          "frequency": 4950.0,
+          "gain": 0.0018,
+          "width": 1080.0,
           "power": 2.0
         }
       },
@@ -101,7 +101,7 @@
         "type": "AdditiveSource",
         "params": {
           "seed": 42,
-          "frequency": 110.0,
+          "frequency": 440.0,
           "amplitude": {
             "ref": "ampEnv"
           },
@@ -126,15 +126,16 @@
   },
   "score": [
     {
-      "note": 45,
+      "note": 69,
       "velocity": 0.85,
       "time": 0.0,
       "duration": 3.0
     }
   ],
   "_provenance": {
-    "source": "patches/vowel_tweak/Sing_Bass_U_v3_midF2.json",
-    "locked_by": "Matt 2026-08-09, dsp/REVIEW.md item 23",
-    "why": "pass-1 winner; pass-2 UW-top grafts did not beat it"
+    "source": "patches/vowel_grid/Sing_Alto_O.json",
+    "note": 69,
+    "why": "alto O formants sung at A4",
+    "run": "dsp run 25 (2026-08-10)"
   }
 }

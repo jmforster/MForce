@@ -1,0 +1,135 @@
+{
+ "sampleRate": 48000,
+ "graph": {
+  "nodes": [
+   {
+    "id": "ampEnv",
+    "type": "Envelope",
+    "params": {
+     "preset": "adsr",
+     "attack": 0.03,
+     "decay": 0.05,
+     "sustainLevel": 0.9,
+     "release": 0.0
+    }
+   },
+   {
+    "id": "f1",
+    "type": "Formant",
+    "params": {
+     "frequency": 742.5,
+     "gain": 1.0,
+     "width": 400.0,
+     "power": 2.0
+    }
+   },
+   {
+    "id": "f2",
+    "type": "Formant",
+    "params": {
+     "frequency": 2290.0,
+     "gain": 0.3242,
+     "width": 560.0,
+     "power": 2.0
+    }
+   },
+   {
+    "id": "f3",
+    "type": "Formant",
+    "params": {
+     "frequency": 3311.5,
+     "gain": 0.2242,
+     "width": 880.0,
+     "power": 2.0
+    }
+   },
+   {
+    "id": "f4",
+    "type": "Formant",
+    "params": {
+     "frequency": 4651.1,
+     "gain": 0.1596,
+     "width": 2000.0,
+     "power": 2.0
+    }
+   },
+   {
+    "id": "f5",
+    "type": "Formant",
+    "params": {
+     "frequency": 4649.4,
+     "gain": 0.1597,
+     "width": 1600.0,
+     "power": 2.0
+    }
+   },
+   {
+    "id": "spec",
+    "type": "FormantSpectrum",
+    "params": {
+     "formants": [
+      {
+       "ref": "f1"
+      },
+      {
+       "ref": "f2"
+      },
+      {
+       "ref": "f3"
+      },
+      {
+       "ref": "f4"
+      },
+      {
+       "ref": "f5"
+      }
+     ]
+    }
+   },
+   {
+    "id": "fp",
+    "type": "FullPartials",
+    "params": {
+     "maxPartials": 160,
+     "minMult": 1,
+     "rolloff1": 0.0,
+     "rolloff2": 0.0
+    }
+   },
+   {
+    "id": "src",
+    "type": "AdditiveSource",
+    "params": {
+     "seed": 42,
+     "frequency": 237.25,
+     "amplitude": {
+      "ref": "ampEnv"
+     },
+     "formant": {
+      "ref": "spec"
+     },
+     "formantWeight": 1.0,
+     "formantFloor": 0.0,
+     "partials": {
+      "ref": "fp"
+     }
+    }
+   }
+  ],
+  "output": "src"
+ },
+ "instrument": {
+  "paramMap": {
+   "frequency": "src.frequency"
+  },
+  "polyphony": 1
+ },
+ "score": [
+  {
+   "note": 58,
+   "velocity": 0.85,
+   "time": 0.0,
+   "duration": 3.0
+  }
+ ]
+}
