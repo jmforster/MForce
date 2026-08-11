@@ -40,14 +40,15 @@ VOLUMES = {
     "v6b_noise_long.json":  0.1169,
     "v6c_shaped.json":      0.2220,
     "v6c_shaped_alt.json":  0.5627,
-    "v6c2_shaped.json":     1.0,
-    "v6c2_bloom.json":      1.0,
+    "v6c2_shaped.json":     0.2213,
+    "v6c2_bloom.json":      0.2218,
+    "v6c3_level.json":      1.0,
 }
 
 RELEASE_SECONDS = 0.35
 
 
-def base_patch(excite_noise=None, shaping=None, click_env=None):
+def base_patch(excite_noise=None, shaping=None, click_env=None, level_curve=None):
     """excite_noise: None = v5a bare-envelope excitation; else (attack, decay)
     for the noise-burst envelope, with the bank fed by enveloped white noise.
     shaping: None = bank feeds the string directly (rung 1); else
@@ -128,6 +129,18 @@ def base_patch(excite_noise=None, shaping=None, click_env=None):
                 "operation": "sum"}},
         ]
         string_source = {"ref": "exc_mix"}
+        if level_curve is not None:
+            # v6c3: measured per-register gain compensation — constant-Q bank
+            # passes noise energy ~ absolute bandwidth, leaving C2 ~12 dB under
+            # C6 (Matt obs 1). Curve equalizes excitation RMS across register.
+            shaping_nodes += [
+                {"id": "exc_level", "type": "CombinedSource", "params": {
+                    "source1": {"ref": "exc_mix"}, "source2": 1.0,
+                    "operation": "multiply"}},
+            ]
+            string_source = {"ref": "exc_level"}
+            extra_map += [{"target": "exc_level.source2",
+                           "curve": [list(pt) for pt in level_curve]}]
         extra_map += [{"target": "exc_lp.cutoffFreq",
                        "curve": [[65.0, lp_mult * 65.0],
                                  [262.0, lp_mult * 262.0],
@@ -211,6 +224,16 @@ def build_all():
         "v6c2_bloom.json":      base_patch(excite_noise=(0.002, 0.040),
                                            shaping=(2.5, 0.15),
                                            click_env=(0.015, 0.050, 0.03, 0.15)),
+        # v6c3: + measured level compensation (opt_ks_piano_v6c3.py:
+        # per-note excitation RMS equalized to 2%; nothing else changed —
+        # the "loose tail" turned out to be the UI envelope round-trip bug,
+        # canonical tails measure 40-45 ms).
+        "v6c3_level.json":      base_patch(excite_noise=(0.002, 0.040),
+                                           shaping=(2.5, 0.15),
+                                           click_env=(0.002, 0.050, 0.03, 0.15),
+                                           level_curve=[(65.0, 2.284),
+                                                        (261.63, 1.0),
+                                                        (1046.5, 0.458)]),
     }
 
 
