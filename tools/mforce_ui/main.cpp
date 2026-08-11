@@ -2069,6 +2069,13 @@ static std::atomic<int>   g_audioActiveVoices{0};
 // die silently when another app grabs the device or changes its sample rate
 // (2026-08-10: playing a video in the browser killed audio until restart).
 static std::atomic<uint64_t> g_audioHeartbeat{0};
+// Last async error RtAudio reported (WASAPI thread death reasons land here).
+static std::mutex g_audioErrMutex;
+static std::string g_lastAudioError;
+static void on_rtaudio_error(RtAudioErrorType /*type*/, const std::string& text) {
+    std::lock_guard<std::mutex> lk(g_audioErrMutex);
+    g_lastAudioError = text;
+}
 
 static ValueSource* g_streamSource = nullptr;
 static int g_streamRemaining = 0;
@@ -2295,6 +2302,8 @@ static bool init_audio(bool quiet) {
         return false;
     }
 
+    g_audio->setErrorCallback(&on_rtaudio_error);
+
     if (g_audio->getDeviceCount() < 1) {
         if (!quiet) audio_init_error("No audio output devices found.");
         g_audio.reset();
@@ -2363,7 +2372,7 @@ static void audio_watchdog() {
         lastBeat = beat;
         lastBeatTime = now;
         if (wasDead && g_audio) {
-            transport_set_status("Audio device recovered", false);
+            transport_set_status("Audio callback ALIVE again (post-reopen)", false);
             wasDead = false;
         }
         if (g_audio) return;
@@ -2375,12 +2384,30 @@ static void audio_watchdog() {
     lastAttempt = now;
     wasDead = true;
 
+    static int attempt = 0;
+    ++attempt;
     shutdown_audio();
+    std::string lastErr;
+    { std::lock_guard<std::mutex> lk(g_audioErrMutex); lastErr = g_lastAudioError; }
     if (init_audio(/*quiet=*/true)) {
-        transport_set_status("Audio device lost — stream reopened", false);
+        std::string devName = "?";
+        if (g_audio) {
+            auto info = g_audio->getDeviceInfo(g_audio->getDefaultOutputDevice());
+            devName = info.name;
+        }
+        char buf[512];
+        std::snprintf(buf, sizeof(buf),
+            "Audio stream reopened (attempt %d) on '%s'%s%s",
+            attempt, devName.c_str(),
+            lastErr.empty() ? "" : " — died: ", lastErr.c_str());
+        transport_set_status(buf, false);
         lastBeatTime = now;   // give the new stream a fresh grace period
     } else {
-        transport_set_status("Audio device lost — reopen failed, retrying...", true);
+        char buf[512];
+        std::snprintf(buf, sizeof(buf),
+            "Audio reopen FAILED (attempt %d)%s%s — retrying...",
+            attempt, lastErr.empty() ? "" : " — ", lastErr.c_str());
+        transport_set_status(buf, true);
     }
 }
 
