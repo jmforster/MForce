@@ -7880,6 +7880,13 @@ int main(int argc, char** argv) {
                     ? "Convert to Patch graph" : "Convert to Node graph";
                 if (ImGui::MenuItem(convLabel))
                     convert_graph_mode();
+                ImGui::Separator();
+                // Manual escape hatch for Bluetooth endpoints: BT profile
+                // transitions replace the endpoint entirely, and a stream
+                // opened mid-transition binds silently. Automatic layers
+                // (watchdog, refocus restart) can't time that; the user can.
+                if (ImGui::MenuItem("Restart audio", "Ctrl+Shift+A"))
+                    g_audioRestartRequest.store(true);
                 ImGui::EndMenu();
             }
 
@@ -8115,6 +8122,13 @@ int main(int argc, char** argv) {
             if (ImGui::IsKeyPressed(ImGuiKey_X)) clipboard_cut();
             if (ImGui::IsKeyPressed(ImGuiKey_C)) clipboard_copy();
             if (ImGui::IsKeyPressed(ImGuiKey_V)) clipboard_paste();
+        }
+
+        // Ctrl+Shift+A: manual audio-stream restart (works anywhere, no
+        // editor focus needed — the whole point is escaping a dead stream).
+        if (!ImGui::GetIO().WantTextInput && ImGui::GetIO().KeyCtrl &&
+            ImGui::GetIO().KeyShift && ImGui::IsKeyPressed(ImGuiKey_A)) {
+            g_audioRestartRequest.store(true);
         }
 
         if (editorFocused && !ImGui::GetIO().WantTextInput &&
