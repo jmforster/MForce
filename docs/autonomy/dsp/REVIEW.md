@@ -48,7 +48,16 @@ v6h Matt-locked seed. QUEUED FOR PASS 2 (Matt, while run1 cooks):
   (REBUILD PENDING: cli in use by run1, UI was open). Hand-playing the
   knob requires removing the string.detune paramMap curve first — the
   per-note curve stomps the knob at every note-on.
-Verdict decides: damper + detune. Then ENDGAME (agreed): CMA-ES joint
+ks_run1 COMPLETE (600 evals): 1.2447 -> 0.6584 (-47%). Terms: harm
+1.85->1.01, motion 1.03->0.21, attack HELD 0.08 (locks worked),
+broadband STUCK 1.17 (inter-harmonic energy — same residual gap as the
+viola; a mechanism gap, not a tuning gap; future front). Winner rendered
+as renders/dsp/pending/ks_piano_v6/v6i_cmaes.wav (A/B vs v6h_seed).
+Bold choices: bank hotter/faster (resStart 55, resDecay 4ms), LP 4.5xf0,
+bass brightness 0.90, t60 x0.6 (our 25s C2 was long vs Iowa), fbCoeff
+x2, inharm x0.5, detune_hi PINNED at the 8-cent bound -> widen in pass 2
+(with knock band lo/hi dims). Verdict decides: does run1's winner beat
+v6h_seed by ear; pass-2 dim list. Then ENDGAME (agreed): CMA-ES joint
 optimization of the full v6 settings matrix vs Iowa piano references
 (viola pipeline; ~200x realtime renders) — no per-knob ear tuning.
 Analysis: docs/research/afpiano_2021/ANALYSIS.md.
