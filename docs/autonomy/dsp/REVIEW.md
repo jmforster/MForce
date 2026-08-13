@@ -2,6 +2,40 @@
 
 ## Awaiting Matt
 
+### 28. Note-contained sound LANDED + v6m [listen] (2026-08-13, interactive)
+Spec docs/superpowers/specs/2026-08-13-note-contained-sound-design.md,
+plan docs/superpowers/plans/2026-08-13-note-contained-sound.md. Commits
+8cceb8e ae14a1b a715779 6ea2d72 7d8aff1 ccf405e. Release is now the final
+envelope stage INSIDE the note everywhere: Envelope gated mode +
+gate_release + damper preset + endHold; KSPianoString damper = continuous
+ValueSource input (half-pedal capable, thud re-arms per landing);
+noteOffFrame / instrument.release / UI silence-reclaim / +0.5s score tail
+all DELETED; voice lifetime = durSamples exactly; 10 ms reflection
+allowance engine-wide; CLI warns [containment] when a note is above
+-80 dBFS in its final 1 ms; QWERTY keys now HOLD (key-up = note-off,
+gate_release; rolled chord released together = one damper event);
+Envelope timeMode checkbox in UI.
+Verification record: corpus null test (189 renderable baselines+library)
+content-identical at allowance 0 (trailing-silence-normalized manifests);
+158/189 hashes move at 10 ms — intentional corpus-wide layout shift, 0
+new failures; probe note: 2.0 s renders exactly 96000 frames, envelope
+silent by 1.990 s. v6m mechanical A/B vs verb-bypassed v6l: 0 differing
+samples before the damper engages, all 3 notes.
+**LISTEN: renders/dsp/pending/ks_piano_v6/v6m.wav vs v6l_cmaes3.wav.**
+Two changes by construction: no verb (drier, room reverb moves to a
+future master stage), damper lands 0.25 s before note end. Open designer
+question from the containment check: bass notes (below ~E4) end
+-24..-51 dBFS at the cut — 0.82/period choke x only 7-33 periods at bass
+f0. Options: per-pitch damper time, stronger bass releaseFb, or accept
+(real bass dampers choke slowly too). CMA-ES RE-BASELINED by verb
+removal: run3's 0.5111 not comparable to v6m descendants.
+Manual checks awaiting your restarted UI (new exe built, stamp @ccf405e;
+your running instance is mforce_ui_locked_20260813.exe): (1) QWERTY hold
+sustains past transport duration, releases on key-up; (2) rolled chord
+released together = one damper event; (3) Envelope panel timeMode
+checkbox round-trips; (4) 10-voice stack doesn't glitch (reclaim gone —
+denormal/coeff fixes carry the load).
+
 ### 27. KS PIANO v6 rung 2 — shaped excitation [listen] (2026-08-10)
 renders/dsp/pending/ks_piano_v6/ — README inside. Rung 1 RESOLVED same day:
 Matt picked v6b_noise_short ("_long sounds like a distorted guitar pluck").
@@ -78,7 +112,29 @@ mechanism term), rise 0.14, level 0.54 on the harder 4-note set.
 Winner chose body_gain 1.04 (equal partner to the bank!), floor 1939 Hz
 (C2 keeps ~30 harmonics), body_mult 1.7. Rendered:
 renders/dsp/pending/ks_piano_v6/v6l_cmaes3.wav (vs v6k_seed, v6j).
-Verdict decides: pass-3 winner by ear; remaining fronts. Then ENDGAME: CMA-ES joint
+v6l verdict (Matt, 2026-08-13, per-octave, house notation): oct 8 excellent
+timbre but extremely loud + per-note degradation (E ringy, F/G dead, A high
+harmonic, B "spacy", C piercing near-Bb); oct 7 good, sustain inconsistent
+(C/D/G bell-ring, rest dead); oct 6 great/consistent; oct 5 great above G,
+harpsichordy F down; oct 4 harpsichordy (attack, sustain fine); oct 3 ditto
++ sustain a little flangey; oct 2 attack maybe too long; oct 1 B good, Bb
+out of tune, A unrecognizable "like a real piano", flange audible as beats.
+A/B: v6l probably > v6k_seed (less plucky attack) but harsher + flangier —
+consider an in-between. Asked for empirical volume-vs-octave measurement.
+MEASURED same day (tools/measure_ks_v6_levels.py, 87-note sweep): oct 1-6
+attack peaks flat ±3 dB (deterministic, structural); oct 7 ramps +13 dB
+C7->B7 tracking the exc_level curve's pass-3 level_top anchor (1046.5 Hz
+0.206 -> 2093 Hz 1.291, clamped above = +16 dB); oct 8 adds ~+8 dB more
+(burst spans more periods) peaking 15.5x mid-range -> deep into soft clip.
+The 2093 anchor was NEVER scored — eval set tops at midi 84. Ring/dead
+pattern confirmed note-for-note (sus@1s rel attack: G7 -8.3 / C7 -29.6 /
+D7 -21.8 vs rest <= -35; Eb8 -1.5, F8/G8 silent, B8 +12 dB GROWING =
+self-oscillation). Mechanism: comb len = period - filter phase delay;
+dispersion allpass chain costs ~10.4 samples at top vs B8 period 12.15 ->
+len clamps at 2-sample floor -> computed ~35 c flat (measured -40); tuning
+degrades through oct 8 (G8 -12, Bb8 +16 c) vs +-4 c below C7. Oct-1
+fundamentals dead-on (Bb1 -0.9 c) — what he hears there is not f0.
+Verdict decides: remaining fronts. Then ENDGAME: CMA-ES joint
 optimization of the full v6 settings matrix vs Iowa piano references
 (viola pipeline; ~200x realtime renders) — no per-knob ear tuning.
 Analysis: docs/research/afpiano_2021/ANALYSIS.md.
