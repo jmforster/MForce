@@ -373,10 +373,12 @@ static GraphResult build_graph(
                     }
                 } else if (preset == "damper") {
                     // Damper control (note-contained sound, 2026-08-13):
-                    // 0 = open through the note, final stage ramps to 1.
-                    // Wire to a note-off-aware node's `damper` input
-                    // (KSPianoString).
+                    // 0 = open through the note; release phase = fast felt
+                    // drop (drop, ~40 ms) + hold-closed choke window
+                    // (release/releaseMin/releaseMax triple). Wire to a
+                    // note-off-aware node's `damper` input (KSPianoString).
                     env = std::make_shared<Envelope>(Envelope::make_damper(sampleRate,
+                        p.value("drop", 0.04f),
                         p.value("release", 0.5f),
                         p.value("releaseMin", 0.0f), p.value("releaseMax", 0.0f)));
                 } else {

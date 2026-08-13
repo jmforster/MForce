@@ -1104,6 +1104,16 @@ static void load_graph_from_path(const std::string& path) {
                             params.value("attack", 0.2f),
                             params.value("attackMin", 0.0f),
                             params.value("attackMax", 1.0f));
+                    } else if (preset == "damper") {
+                        // Damper control (note-contained sound, 2026-08-13).
+                        // Without this branch the node kept its default
+                        // ADSR — a damper that ENGAGED during the attack
+                        // (Matt's 2026-08-13 audition catch).
+                        *env = Envelope::make_damper(DSP_SAMPLE_RATE,
+                            params.value("drop", 0.04f),
+                            params.value("release", 0.5f),
+                            params.value("releaseMin", 0.0f),
+                            params.value("releaseMax", 0.0f));
                     }
                 }
             }

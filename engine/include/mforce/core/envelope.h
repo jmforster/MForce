@@ -109,20 +109,35 @@ struct Envelope : ValueSource {
 
   void set_gated(bool g) { gated_ = g; }
 
-  // Live note-off: jump to the final stage NOW, re-anchored to the current
-  // output (click-free). Returns the final stage's frame count so the
-  // caller can bound the voice's remaining lifetime. Safe to call from the
-  // audio thread under the audio mutex — no allocation.
+  // Live note-off: jump to the START of the release phase NOW — the first
+  // stage after the expand/sustain stage (the final stage when no expand
+  // exists; for adsr that is the same stage). The jumped-to stage is
+  // re-anchored to the current output (click-free); later release stages
+  // (e.g. the damper's hold-closed choke window) then run normally.
+  // Returns the remaining release frames so the caller can bound the
+  // voice's lifetime. Safe on the audio thread under the audio mutex — no
+  // allocation.
   int gate_release() {
     if (stages_.empty() || stageCounts_.empty()) return 0;
     int last = int(stages_.size()) - 1;
-    if (currStage_ == last) return std::max(0, stageEnd_ - ptr_);
+    int relStage = (expandIdx_ >= 0 && expandIdx_ < last) ? expandIdx_ + 1
+                                                          : last;
+    if (currStage_ >= relStage) {
+      int rem = std::max(0, stageEnd_ - ptr_);
+      for (int i = currStage_ + 1; i < int(stageCounts_.size()); ++i)
+        rem += stageCounts_[i];
+      return rem;
+    }
     gateFrom_ = cur_;
     gateActive_ = true;
+    gateStage_ = relStage;
     stageStart_ = ptr_ + 1;
-    currStage_ = last;
-    stageEnd_ = stageStart_ + stageCounts_[last];
-    return stageCounts_[last];
+    currStage_ = relStage;
+    stageEnd_ = stageStart_ + stageCounts_[relStage];
+    int rem = 0;
+    for (int i = relStage; i < int(stageCounts_.size()); ++i)
+      rem += stageCounts_[i];
+    return rem;
   }
 
   void set_seed(uint32_t s) { seed_ = s; }
@@ -281,18 +296,20 @@ struct Envelope : ValueSource {
       stageEnd_ += stageCounts_[currStage_];
     }
 
-    // Past last stage → 0, unless endHold (a damper stays down after
-    // landing; amplitude envelopes stay at 0).
+    // Past last stage → output 0. (This is also the reflection-allowance
+    // window: every envelope is programmatically silent there. A damper
+    // env emitting 0 = lifted for those last 10 ms is inaudible — the
+    // string residual is already at the containment floor.)
     if (ptr_ >= stageEnd_ && currStage_ == int(stages_.size()) - 1) {
-      cur_ = endHold_ ? stages_.back().ramp.endVal : 0.0f;
+      cur_ = 0.0f;
       return cur_;
     }
 
     int count = stageCounts_[currStage_];
     float pos = (count > 0) ? float(ptr_ - stageStart_) / float(count) : 1.0f;
     cur_ = stages_[currStage_].ramp.value(pos);
-    if (gateActive_ && currStage_ == int(stages_.size()) - 1) {
-      // Final stage re-anchored to the value at gate_release() so a
+    if (gateActive_ && currStage_ == gateStage_) {
+      // Jumped-to stage re-anchored to the value at gate_release() so a
       // mid-attack key-up releases from where it was, click-free.
       const Ramp& r = stages_[currStage_].ramp;
       float denom = r.endVal - r.startVal;
@@ -357,17 +374,20 @@ struct Envelope : ValueSource {
   }
 
   // Damper control envelope (note-contained sound, 2026-08-13): holds 0
-  // (open) through the note; the FINAL stage ramps 0 -> 1 — the damper
-  // falling IS the release phase, expressed as the last Stage of an
-  // Envelope like every amplitude ADSR. Standard Stage triple: a generous
-  // pct + maxSec cap = constant release on normal notes, proportional
-  // compression on short ones. endHold: a damper stays down after landing.
-  static Envelope make_damper(int sampleRate, float releasePct,
+  // (open) through the note; the release phase is a FAST drop 0 -> 1 (the
+  // felt lands in ~40 ms on a real piano) followed by a hold-closed choke
+  // window in which the string physics kills the ring. The drop and choke
+  // were originally one 0.25 s ramp — Matt's staccato audition caught the
+  // conflation (a slow ramp averages half-strength choke = beating tail).
+  // Choke window uses the standard Stage triple: generous pct + maxSec cap
+  // = constant on normal notes, proportional compression on short ones.
+  // Plain vanilla 3-stage envelope — nothing damper-specific in the type.
+  static Envelope make_damper(int sampleRate, float dropSec, float releasePct,
                               float releaseMin, float releaseMax) {
     Envelope env(sampleRate);
     env.add_stage({{0.0f, 0.0f, RampType::Linear, 0.0f}, 0.0f, 0.0f, 0.0f}); // open (expand)
-    env.add_stage({{0.0f, 1.0f, RampType::Linear, 0.0f}, releasePct, releaseMin, releaseMax});
-    env.endHold_ = true;
+    env.add_stage({{0.0f, 1.0f, RampType::Linear, 0.0f}, 0.5f, dropSec, dropSec}); // felt drop (min=max pins it)
+    env.add_stage({{1.0f, 1.0f, RampType::Linear, 0.0f}, releasePct, releaseMin, releaseMax}); // choke window
     return env;
   }
 
@@ -410,9 +430,9 @@ private:
   // gateActive_/gateFrom_: final stage re-anchored to the value at
   //   gate_release() so a mid-attack key-up releases from where it was.
   bool  gated_{false};
-  bool  endHold_{false};
   int   expandIdx_{-1};
   bool  gateActive_{false};
+  int   gateStage_{-1};
   float gateFrom_{0.0f};
   std::vector<int>   stageCounts_;
 
