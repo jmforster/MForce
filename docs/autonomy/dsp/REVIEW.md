@@ -56,8 +56,19 @@ as renders/dsp/pending/ks_piano_v6/v6i_cmaes.wav (A/B vs v6h_seed).
 Bold choices: bank hotter/faster (resStart 55, resDecay 4ms), LP 4.5xf0,
 bass brightness 0.90, t60 x0.6 (our 25s C2 was long vs Iowa), fbCoeff
 x2, inharm x0.5, detune_hi PINNED at the 8-cent bound -> widen in pass 2
-(with knock band lo/hi dims). Verdict decides: does run1's winner beat
-v6h_seed by ear; pass-2 dim list. Then ENDGAME (agreed): CMA-ES joint
+(with knock band lo/hi dims). run1 verdict (Matt): fell well short of the viola result — mushy/twangy
+attack, sustain spectrally off, strident C6, C6 2x too loud. Direct
+C2/C6-vs-Iowa audit CONFIRMED all four and exposed scorer blind spots
+-> scorer v2 (rise-to-90% term, register level term, low-harmonic x3
+weighting; reference rebuilt) + pass-2 dims (detune bound 20, knock
+lo/hi). ks_run2 (702 evals, warm from run1): 0.5515. Rise term 0.84 ->
+0.11, level 0.10. Notable: burst halved to 20 ms (fast rise found),
+detune settled at 5.3 cents unpinned (Balazs used ~5), knock band moved
+barely from Matt's hand values (72/494 vs 80/500 — his ears validated).
+Winner rendered: renders/dsp/pending/ks_piano_v6/v6j_cmaes2.wav.
+A/B ladder: v6h_seed vs v6i_cmaes vs v6j_cmaes2.
+Verdict decides: pass-2 winner by ear; whether broadband (1.05, still
+the stuck term) becomes the next MECHANISM front. Then ENDGAME: CMA-ES joint
 optimization of the full v6 settings matrix vs Iowa piano references
 (viola pipeline; ~200x realtime renders) — no per-knob ear tuning.
 Analysis: docs/research/afpiano_2021/ANALYSIS.md.
