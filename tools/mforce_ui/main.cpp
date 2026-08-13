@@ -20,6 +20,7 @@
 #include <mutex>
 #include <atomic>
 #include "RtAudio.h"
+#include <cstring>
 #include "mforce/render/patch_loader.h"
 #include "mforce/core/equal_temperament.h"
 #include "mforce/core/source_registry.h"
@@ -765,6 +766,30 @@ static void new_graph(GraphMode mode) {
 // Save file dialog
 // ===========================================================================
 
+// Per-feature folder memory (slots live in UiSettings below; declared here
+// because the dialogs precede the settings block).
+static std::string* settings_dir_slot(const char* feature);
+static void settings_save();
+
+static void remember_feature_dir(const char* feature, const std::string& pickedPath) {
+    std::string* slot = settings_dir_slot(feature);
+    if (!slot) return;
+    std::error_code ec;
+    auto parent = std::filesystem::path(pickedPath).parent_path();
+    if (!parent.empty() && std::filesystem::exists(parent, ec)) {
+        *slot = parent.string();
+        settings_save();
+    }
+}
+
+static const char* feature_initial_dir(const char* feature) {
+    std::string* slot = settings_dir_slot(feature);
+    if (!slot || slot->empty()) return nullptr;
+    std::error_code ec;
+    if (!std::filesystem::exists(*slot, ec)) return nullptr;
+    return slot->c_str();
+}
+
 static std::string save_file_dialog() {
     char filename[MAX_PATH] = "patch.json";
     OPENFILENAMEA ofn{};
@@ -772,10 +797,13 @@ static std::string save_file_dialog() {
     ofn.lpstrFilter = "JSON Files\0*.json\0All Files\0*.*\0";
     ofn.lpstrFile = filename;
     ofn.nMaxFile = MAX_PATH;
+    ofn.lpstrInitialDir = feature_initial_dir("save");
     ofn.Flags = OFN_OVERWRITEPROMPT | OFN_NOCHANGEDIR;
     ofn.lpstrDefExt = "json";
-    if (GetSaveFileNameA(&ofn))
+    if (GetSaveFileNameA(&ofn)) {
+        remember_feature_dir("save", filename);
         return filename;
+    }
     return "";
 }
 
@@ -786,9 +814,12 @@ static std::string open_file_dialog() {
     ofn.lpstrFilter = "JSON Files\0*.json\0All Files\0*.*\0";
     ofn.lpstrFile = filename;
     ofn.nMaxFile = MAX_PATH;
+    ofn.lpstrInitialDir = feature_initial_dir("open");
     ofn.Flags = OFN_FILEMUSTEXIST | OFN_NOCHANGEDIR;
-    if (GetOpenFileNameA(&ofn))
+    if (GetOpenFileNameA(&ofn)) {
+        remember_feature_dir("open", filename);
         return filename;
+    }
     return "";
 }
 
@@ -1367,6 +1398,13 @@ static void load_graph() {
 
 struct UiSettings {
     std::string curatedFolder = "patches/curated";
+    // Per-feature folder memory: each picker remembers ITS last folder
+    // (Matt 2026-08-12 — a shared memory made Open/Save/Audition/SaveWAV
+    // fight over the location).
+    std::string lastOpenDir;
+    std::string lastSaveDir;
+    std::string lastWavDir;
+    std::string lastAuditionDir;
 };
 static UiSettings g_settings;
 static const char* SETTINGS_PATH = "mforce_ui_settings.json";
@@ -1378,12 +1416,32 @@ static void settings_load() {
         nlohmann::json j; f >> j;
         if (j.contains("curatedFolder") && j["curatedFolder"].is_string())
             g_settings.curatedFolder = j["curatedFolder"].get<std::string>();
+        auto readDir = [&](const char* key, std::string& slot) {
+            if (j.contains(key) && j[key].is_string()) slot = j[key].get<std::string>();
+        };
+        readDir("lastOpenDir",     g_settings.lastOpenDir);
+        readDir("lastSaveDir",     g_settings.lastSaveDir);
+        readDir("lastWavDir",      g_settings.lastWavDir);
+        readDir("lastAuditionDir", g_settings.lastAuditionDir);
     } catch (...) {}
+}
+
+static std::string* settings_dir_slot(const char* feature) {
+    std::string f(feature);
+    if (f == "open")     return &g_settings.lastOpenDir;
+    if (f == "save")     return &g_settings.lastSaveDir;
+    if (f == "wav")      return &g_settings.lastWavDir;
+    if (f == "audition") return &g_settings.lastAuditionDir;
+    return nullptr;
 }
 
 static void settings_save() {
     nlohmann::json j;
-    j["curatedFolder"] = g_settings.curatedFolder;
+    j["curatedFolder"]   = g_settings.curatedFolder;
+    j["lastOpenDir"]     = g_settings.lastOpenDir;
+    j["lastSaveDir"]     = g_settings.lastSaveDir;
+    j["lastWavDir"]      = g_settings.lastWavDir;
+    j["lastAuditionDir"] = g_settings.lastAuditionDir;
     std::ofstream f(SETTINGS_PATH);
     if (f) f << j.dump(2);
 }
@@ -3099,7 +3157,7 @@ static void audition_load_folder(const std::string& folder) {
 
 // Real folder picker: IFileOpenDialog with FOS_PICKFOLDERS. Replaces the old
 // "pick any file in the target folder, use its parent" workaround.
-static std::string pick_folder_dialog() {
+static std::string pick_folder_dialog(const std::string& initialDir = std::string()) {
     std::string result;
     HRESULT hrInit = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
     // S_OK and S_FALSE (already initialized) both require CoUninitialize;
@@ -3111,6 +3169,20 @@ static std::string pick_folder_dialog() {
         FILEOPENDIALOGOPTIONS opts = 0;
         dlg->GetOptions(&opts);
         dlg->SetOptions(opts | FOS_PICKFOLDERS | FOS_FORCEFILESYSTEM);
+        std::error_code ec;
+        if (!initialDir.empty() && std::filesystem::exists(initialDir, ec)) {
+            int wlen = MultiByteToWideChar(CP_ACP, 0, initialDir.c_str(), -1, nullptr, 0);
+            if (wlen > 1) {
+                std::wstring wdir(size_t(wlen), L'\0');
+                MultiByteToWideChar(CP_ACP, 0, initialDir.c_str(), -1, wdir.data(), wlen);
+                IShellItem* folder = nullptr;
+                if (SUCCEEDED(SHCreateItemFromParsingName(wdir.c_str(), nullptr,
+                                                          IID_PPV_ARGS(&folder)))) {
+                    dlg->SetFolder(folder);
+                    folder->Release();
+                }
+            }
+        }
         if (SUCCEEDED(dlg->Show(nullptr))) {   // fails with cancel HRESULT if dismissed
             IShellItem* item = nullptr;
             if (SUCCEEDED(dlg->GetResult(&item))) {
@@ -3294,8 +3366,12 @@ static void draw_audition_window() {
         ImGui::Text("Source folder:");
         ImGui::SameLine();
         if (ImGui::Button("Browse##audition_browse")) {
-            std::string f = pick_folder_dialog();
-            if (!f.empty()) audition_load_folder(f);
+            std::string f = pick_folder_dialog(g_settings.lastAuditionDir);
+            if (!f.empty()) {
+                g_settings.lastAuditionDir = f;
+                settings_save();
+                audition_load_folder(f);
+            }
         }
         ImGui::TextWrapped("%s", g_audition.folder.empty() ? "(none)" : g_audition.folder.c_str());
 
@@ -3372,7 +3448,7 @@ static void draw_audition_window() {
         ImGui::Text("Target folder:");
         ImGui::SameLine();
         if (ImGui::Button("Browse##curated_browse")) {
-            std::string f = pick_folder_dialog();
+            std::string f = pick_folder_dialog(g_settings.curatedFolder);
             if (!f.empty()) {
                 g_settings.curatedFolder = f;
                 settings_save();
@@ -3729,20 +3805,47 @@ static void draw_curves_window() {
         if (n.typeName == NT_PARAMETER && !n.paramName.empty())
             paramNames.push_back(n.paramName);
 
+    // --- Selected-node filter (Matt 2026-08-12): with exactly one node
+    // selected in the editor, show only curves targeting that node's
+    // attributes. No/multi selection = show everything.
+    std::string filterLabel;
+    if (ImNodes::NumSelectedNodes() == 1) {
+        int selId = -1;
+        ImNodes::GetSelectedNodes(&selId);
+        for (auto& n : s_nodes)
+            if (n.id == selId && !n.label.empty()) { filterLabel = n.label; break; }
+    }
+    auto entry_passes_filter = [&](const nlohmann::json& e) {
+        if (filterLabel.empty()) return true;
+        if (!e.is_object() || !e.contains("target") || !e["target"].is_string())
+            return true;   // malformed/legacy — never hide silently
+        const std::string t = e["target"].get<std::string>();
+        return t.rfind(filterLabel + ".", 0) == 0;
+    };
+    if (!filterLabel.empty())
+        ImGui::TextDisabled("Filtered to node '%s' (deselect to show all)",
+                            filterLabel.c_str());
+
     // --- Existing curve entries ---
     // Structural deletes are deferred to after iteration.
     struct DeleteReq { std::string param; int subIdx; };  // subIdx -1 = entry itself is the object
     std::vector<DeleteReq> deletes;
     bool anyCurve = false;
+    bool anyShown = false;
     for (auto& [pname, entry] : s_loadedParamMap.items()) {
         ImGui::PushID(pname.c_str());
         if (entry.is_object() && entry.contains("curve")) {
             anyCurve = true;
-            if (draw_one_curve(pname, entry)) deletes.push_back({pname, -1});
+            if (entry_passes_filter(entry)) {
+                anyShown = true;
+                if (draw_one_curve(pname, entry)) deletes.push_back({pname, -1});
+            }
         } else if (entry.is_array()) {
             for (int i = 0; i < (int)entry.size(); ++i) {
                 if (!entry[i].is_object() || !entry[i].contains("curve")) continue;
                 anyCurve = true;
+                if (!entry_passes_filter(entry[i])) continue;
+                anyShown = true;
                 ImGui::PushID(i);
                 if (draw_one_curve(pname, entry[i])) deletes.push_back({pname, i});
                 ImGui::PopID();
@@ -3752,6 +3855,8 @@ static void draw_curves_window() {
     }
     if (!anyCurve)
         ImGui::TextDisabled("No curves in this patch.");
+    else if (!anyShown)
+        ImGui::TextDisabled("No curves on node '%s'.", filterLabel.c_str());
 
     for (const auto& d : deletes) {
         nlohmann::json& entry = s_loadedParamMap[d.param];
@@ -4370,6 +4475,15 @@ static bool transport_can_generate(ValueSource* uiSrc) {
     return false;
 }
 
+// Transport settings captured at the last successful Note-mode Generate, so
+// Play can detect staleness (see PlayMode::Note in transport_play).
+static struct {
+    char  noteStr[64] = {};
+    float velocity = -1.0f;
+    float duration = -1.0f;
+    bool  valid = false;
+} g_noteGenSnap;
+
 static void transport_generate() {
     g_transport.statusMsg[0] = '\0';
     g_transport.statusIsError = false;
@@ -4389,8 +4503,14 @@ static void transport_generate() {
             // generation is running. Play then just streams the buffer.)
             // On failure it sets its own status message — don't overwrite it.
             if (render_output_authoritative(noteNum, g_transport.velocity,
-                                            g_transport.duration))
+                                            g_transport.duration)) {
                 transport_set_status("Generated note", false);
+                std::snprintf(g_noteGenSnap.noteStr, sizeof(g_noteGenSnap.noteStr),
+                              "%s", g_transport.noteStr);
+                g_noteGenSnap.velocity = g_transport.velocity;
+                g_noteGenSnap.duration = g_transport.duration;
+                g_noteGenSnap.valid = true;
+            }
             break;
         }
         case PlayMode::Passage: {
@@ -4467,10 +4587,16 @@ static void transport_play() {
 
     switch (g_transport.mode) {
         case PlayMode::Note: {
-            // Stream the pre-rendered buffer produced during Generate. If the
-            // user hasn't Generated yet (or changed the note since last Gen),
-            // generate now so Play reflects current settings.
-            if (g_outputWaveform.empty() || g_waveformSamples == 0)
+            // Stream the pre-rendered buffer produced during Generate — but
+            // regenerate when note/velocity/duration changed since the last
+            // Generate (the old empty-buffer check replayed the stale buffer,
+            // making the velocity field look ignored; Matt 2026-08-12).
+            bool stale = g_outputWaveform.empty() || g_waveformSamples == 0 ||
+                         !g_noteGenSnap.valid ||
+                         std::strcmp(g_noteGenSnap.noteStr, g_transport.noteStr) != 0 ||
+                         g_noteGenSnap.velocity != g_transport.velocity ||
+                         g_noteGenSnap.duration != g_transport.duration;
+            if (stale)
                 transport_generate();
             play_buffer();
             break;
@@ -4503,11 +4629,14 @@ static std::string save_wav_dialog() {
     ofn.lpstrFilter = "WAV Files\0*.wav\0All Files\0*.*\0";
     ofn.lpstrFile = filename;
     ofn.nMaxFile = MAX_PATH;
-    ofn.lpstrInitialDir = "renders";
+    const char* rememberedWav = feature_initial_dir("wav");
+    ofn.lpstrInitialDir = rememberedWav ? rememberedWav : "renders";
     ofn.Flags = OFN_OVERWRITEPROMPT | OFN_NOCHANGEDIR;
     ofn.lpstrDefExt = "wav";
-    if (GetSaveFileNameA(&ofn))
+    if (GetSaveFileNameA(&ofn)) {
+        remember_feature_dir("wav", filename);
         return filename;
+    }
     return "";
 }
 
