@@ -126,6 +126,11 @@ def lint_file(path, desc, special):
         return
     if not isinstance(patch, dict):
         return  # not a patch (e.g. a bare JSON list of presets)
+    # instrument.release retired 2026-08-13 (note-contained sound): release
+    # is the final stage of the patch's envelope; the loader ignores the key.
+    inst = patch.get("instrument")
+    if isinstance(inst, dict) and "release" in inst:
+        yield "instrument", "instrument", "release (retired 2026-08-13)"
     graph = patch.get("graph")
     if not isinstance(graph, dict):
         return

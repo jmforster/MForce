@@ -28,9 +28,15 @@ def wav_peak(path):
 
 
 def main():
+    # Optional argv filter: render only the named patch files (e.g.
+    # `render_ks_piano_v6.py v6m.json`) so a re-run doesn't overwrite the
+    # audition history with renders from a changed engine.
+    only = set(sys.argv[1:])
     os.makedirs(OUT, exist_ok=True)
     for f in sorted(os.listdir(SRC)):
         if not f.endswith(".json"):
+            continue
+        if only and f not in only:
             continue
         path = os.path.join(SRC, f)
         p = json.load(open(path))
