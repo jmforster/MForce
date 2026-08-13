@@ -1,5 +1,6 @@
 #pragma once
 #include "mforce/core/dsp_value_source.h"
+#include "mforce/core/randomizer.h"
 #include <memory>
 #include <vector>
 #include <cmath>
@@ -93,6 +94,7 @@ struct KSPianoString final : ValueSource {
       {"ap3",        ConfigType::Float, 0.20f,  -0.95f,  0.95f},
       {"fbCoeff",    ConfigType::Float, 0.2f,    0.0f,   0.9f},    // global neg fb (headroom-normalized)
       {"releaseFb",  ConfigType::Float, 1.0f,    0.0f,   1.0f},    // loop-gain mult after note-off (damper; 1 = off)
+      {"damperNoise", ConfigType::Float, 0.0f,   0.0f,   2.0f},    // felt-contact noise at note-off, scaled by ring level
       {"exciteGain", ConfigType::Float, 1.0f,    0.0f,   8.0f},
       {"direct",     ConfigType::Float, 0.2f,    0.0f,   1.0f},    // dry strike tap
     };
@@ -126,6 +128,7 @@ struct KSPianoString final : ValueSource {
     if (name == "ap3")        { ap_[2]      = std::clamp(v, -0.95f, 0.95f); return; }
     if (name == "fbCoeff")    { fbCoeff_    = v; return; }
     if (name == "releaseFb")  { releaseFb_  = std::clamp(v, 0.0f, 1.0f); return; }
+    if (name == "damperNoise") { damperNoise_ = std::clamp(v, 0.0f, 2.0f); return; }
     if (name == "exciteGain") { exciteGain_ = v; return; }
     if (name == "direct")     { direct_     = v; return; }
   }
@@ -144,6 +147,7 @@ struct KSPianoString final : ValueSource {
     if (name == "ap3")        return ap_[2];
     if (name == "fbCoeff")    return fbCoeff_;
     if (name == "releaseFb")  return releaseFb_;
+    if (name == "damperNoise") return damperNoise_;
     if (name == "exciteGain") return exciteGain_;
     if (name == "direct")     return direct_;
     return 0.0f;
@@ -169,6 +173,8 @@ struct KSPianoString final : ValueSource {
     cur_ = 0.0f;
     noteOffFrame_ = ctx.noteOffFrame;
     frame_ = 0;
+    envFollow_ = 0.0f;
+    dnAmp_ = 0.0f;
   }
 
   float next() override {
@@ -186,6 +192,18 @@ struct KSPianoString final : ValueSource {
     float damp = 1.0f;
     if (releaseFb_ < 0.9995f && noteOffFrame_ > 0 && frame_ >= noteOffFrame_)
       damp = releaseFb_;
+    // Damper-contact noise: at note-off, capture the string's ring level and
+    // ring a short noise burst (felt landing on a vibrating string — louder
+    // strings get louder contact noise). Injected into the loop input below,
+    // so the burst excites the now-damped string rather than sitting on top.
+    float dnoise = 0.0f;
+    if (damperNoise_ > 0.0001f && noteOffFrame_ > 0) {
+      if (frame_ == noteOffFrame_) dnAmp_ = damperNoise_ * envFollow_;
+      if (frame_ >= noteOffFrame_ && dnAmp_ > 1e-6f) {
+        dnoise = dnRng_.valuePN() * dnAmp_;
+        dnAmp_ *= 0.9995f;   // ~-60 dB over ~28 ms at 48 kHz
+      }
+    }
     ++frame_;
 
     // DC blocker on excitation (envelope input is unipolar)
@@ -227,7 +245,7 @@ struct KSPianoString final : ValueSource {
     }
 
     // ---- Main resonators: detuned combs with biquad allpasses ----
-    float s = xin + inharmGain_ * inh;
+    float s = xin + inharmGain_ * inh + dnoise;
     float sum = 0.0f;
     for (int i = 0; i < numCombs_; ++i) {
       Comb& c = comb_[i];
@@ -252,6 +270,10 @@ struct KSPianoString final : ValueSource {
     }
     float combMix = sum / float(numCombs_);
     lastOut_ = combMix;
+    // Ring-level follower for the damper-contact noise (fast attack, slow
+    // decay; frozen into dnAmp_ at note-off).
+    float acm = std::fabs(combMix);
+    envFollow_ = acm > envFollow_ ? acm : envFollow_ * 0.99995f;
 
     wpos_ = (wpos_ + 1) % kBufLen;
 
@@ -269,8 +291,12 @@ private:
   struct BiquadState { float x1{0}, x2{0}, y1{0}, y2{0}; };
 
   float releaseFb_{1.0f};
+  float damperNoise_{0.0f};
   int   noteOffFrame_{-1};
   int   frame_{0};
+  float envFollow_{0.0f};
+  float dnAmp_{0.0f};
+  Randomizer dnRng_{0xDA3B0E5u};
 
   struct Comb {
     std::vector<float> buf;

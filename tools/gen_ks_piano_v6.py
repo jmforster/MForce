@@ -50,10 +50,12 @@ VOLUMES = {
     "v6f_damper.json":      0.2561,
     "v6f_ctrl.json":        0.2561,
     "v6g_detune.json":      0.2548,
-    "v6f2_ctrl.json":       1.0,
-    "v6f2_damper82.json":   1.0,
-    "v6f2_damper60.json":   1.0,
-    "v6g2_detune12.json":   1.0,
+    "v6f3_dnoise_lo.json":  1.0,
+    "v6f3_dnoise_hi.json":  1.0,
+    "v6f2_ctrl.json":       0.2561,
+    "v6f2_damper82.json":   0.2561,
+    "v6f2_damper60.json":   0.2561,
+    "v6g2_detune12.json":   0.2548,
 }
 
 RELEASE_SECONDS = 0.35
@@ -78,7 +80,7 @@ VEL_LADDER_SCORE = [
 
 def base_patch(excite_noise=None, shaping=None, click_env=None, level_curve=None,
                knock=None, vel_bright=False, score=None, release_fb=None,
-               detune_curve=None, release=None):
+               detune_curve=None, release=None, damper_noise=None):
     """excite_noise: None = v5a bare-envelope excitation; else (attack, decay)
     for the noise-burst envelope, with the bank fed by enveloped white noise.
     shaping: None = bank feeds the string directly (rung 1); else
@@ -230,6 +232,7 @@ def base_patch(excite_noise=None, shaping=None, click_env=None, level_curve=None
                         "ap1": 0.55, "ap2": 0.35, "ap3": 0.20,
                         "fbCoeff": 0.3,
                         **({"releaseFb": release_fb} if release_fb is not None else {}),
+                        **({"damperNoise": damper_noise} if damper_noise is not None else {}),
                     },
                 },
                 {
@@ -402,6 +405,31 @@ def build_all():
                                            knock=(0.001, 0.080, 80.0, 500.0, 2.0),
                                            vel_bright=True,
                                            release_fb=0.60, release=2.0,
+                                           score=C246_GAPPED_SCORE),
+        # v6f3: damper-CONTACT noise (Matt 2026-08-12: real pianos thud at
+        # note-off; ours was a noiseless fade). Burst injected into the loop
+        # at note-off, scaled by the string's ring level at that instant.
+        "v6f3_dnoise_lo.json":  base_patch(excite_noise=(0.002, 0.040),
+                                           shaping=(2.5, 0.15),
+                                           click_env=(0.002, 0.050, 0.03, 0.15),
+                                           level_curve=[(65.0, 3.558),
+                                                        (261.63, 0.871),
+                                                        (1046.5, 0.458)],
+                                           knock=(0.001, 0.080, 80.0, 500.0, 2.0),
+                                           vel_bright=True,
+                                           release_fb=0.82, release=2.0,
+                                           damper_noise=0.3,
+                                           score=C246_GAPPED_SCORE),
+        "v6f3_dnoise_hi.json":  base_patch(excite_noise=(0.002, 0.040),
+                                           shaping=(2.5, 0.15),
+                                           click_env=(0.002, 0.050, 0.03, 0.15),
+                                           level_curve=[(65.0, 3.558),
+                                                        (261.63, 0.871),
+                                                        (1046.5, 0.458)],
+                                           knock=(0.001, 0.080, 80.0, 500.0, 2.0),
+                                           vel_bright=True,
+                                           release_fb=0.82, release=2.0,
+                                           damper_noise=1.0,
                                            score=C246_GAPPED_SCORE),
         "v6g2_detune12.json":   base_patch(excite_noise=(0.002, 0.040),
                                            shaping=(2.5, 0.15),
