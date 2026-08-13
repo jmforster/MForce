@@ -20,6 +20,8 @@
 #include <complex>
 #include <mutex>
 #include <atomic>
+#include <climits>
+#include <string_view>
 #include "RtAudio.h"
 #include <cstring>
 #include "mforce/render/patch_loader.h"
@@ -2178,17 +2180,12 @@ struct Voice {
     std::shared_ptr<ValueSource>     source;
     int   samplesRemaining = 0;
     float gain = 1.0f;
-    // Damper release: once samplesRemaining falls to fadeBelowRemaining the
-    // gain is multiplied by fadeDecay each sample — an exponential fall that
-    // reaches -60 dB over the patch's release window, mirroring play_note's
-    // offline damper. fadeBelowRemaining 0 = legacy hard stop.
-    int   fadeBelowRemaining = 0;
-    float fadeDecay = 1.0f;
-    // Silence reclaim: a decayed KS voice can never re-sound, so 250 ms of
-    // true silence ends it early instead of churning zeros for the rest of
-    // duration+release+tail (2026-08-12: silent voices stacking up at ~43%
-    // of a core each glitched two-note playing).
-    int   silentRun = 0;
+    // Live-gated note (key held): sustains until key-up fires
+    // gate_release() on its envelopes (note-contained sound, 2026-08-13 —
+    // release is the final envelope stage, so no fade/reclaim plumbing).
+    // envs are non-owning; the patch shared_ptr keeps the graph alive.
+    bool  held = false;
+    std::vector<mforce::Envelope*> envs;
     bool  active = false;
     int   midiNote = 0;  // for keyboard highlight
 };
@@ -2197,7 +2194,8 @@ static Voice g_voices[MAX_VOICES];
 static void voice_schedule(std::shared_ptr<InstrumentPatch> patch,
                            std::shared_ptr<ValueSource> source,
                            int totalSamples, float gain, int midiNote,
-                           int fadeBelowRemaining = 0, float fadeDecay = 1.0f) {
+                           bool held = false,
+                           std::vector<mforce::Envelope*> envs = {}) {
     std::lock_guard<std::mutex> lock(g_audioMutex);
     // Find a free voice, or steal the one closest to done
     int slot = -1;
@@ -2214,9 +2212,8 @@ static void voice_schedule(std::shared_ptr<InstrumentPatch> patch,
     g_voices[slot].source = std::move(source);
     g_voices[slot].samplesRemaining = totalSamples;
     g_voices[slot].gain = gain;
-    g_voices[slot].fadeBelowRemaining = fadeBelowRemaining;
-    g_voices[slot].fadeDecay = fadeDecay;
-    g_voices[slot].silentRun = 0;
+    g_voices[slot].held = held;
+    g_voices[slot].envs = std::move(envs);
     g_voices[slot].midiNote = midiNote;
     g_voices[slot].active = true;
 }
@@ -2266,18 +2263,7 @@ static int audio_callback(void* outputBuffer, void* /*inputBuffer*/,
         for (int v = 0; v < MAX_VOICES; ++v) {
             auto& voice = g_voices[v];
             if (!voice.active) continue;
-            float vs = voice.source->next() * voice.gain;
-            voiceSum += vs;
-            if (std::fabs(vs) < 1e-4f) {
-                if (++voice.silentRun > 12000) {   // 250 ms @48k of silence
-                    voice.active = false;
-                    continue;   // gc on the UI thread, as with normal ends
-                }
-            } else {
-                voice.silentRun = 0;
-            }
-            if (voice.samplesRemaining <= voice.fadeBelowRemaining)
-                voice.gain *= voice.fadeDecay;
+            voiceSum += voice.source->next() * voice.gain;
             voice.samplesRemaining--;
             if (voice.samplesRemaining <= 0) {
                 voice.active = false;
@@ -2519,6 +2505,8 @@ static void voice_gc() {
             if (!v.active && (v.source || v.patch)) {
                 if (v.source) dyingSources.push_back(std::move(v.source));
                 if (v.patch)  dyingPatches.push_back(std::move(v.patch));
+                v.envs.clear();   // non-owning; graph dies with the patch
+                v.held = false;
             }
         }
     }
@@ -2657,8 +2645,9 @@ static bool render_passage_output_authoritative(
             timeCursor += pn.durationSeconds;
         }
 
-        float totalSeconds = timeCursor + pitched->releaseSeconds + 0.5f;
-        int frames = int(totalSeconds * float(ip.sampleRate));
+        // Note-contained sound (2026-08-13): all sound ends by the last
+        // note's duration end.
+        int frames = int(timeCursor * float(ip.sampleRate));
         g_outputWaveform.assign(frames, 0.0f);
         g_waveformSamples = frames;
         RenderContext ctx{ip.sampleRate};
@@ -2704,8 +2693,7 @@ static bool render_output_authoritative(float noteNum, float velocity,
 
         pitched->play_note(noteNum, velocity, durationSeconds, 0.0f);
 
-        int frames = int((durationSeconds + pitched->releaseSeconds + 0.5f)
-                         * float(ip.sampleRate));
+        int frames = int(durationSeconds * float(ip.sampleRate));
         g_outputWaveform.assign(frames, 0.0f);
         g_waveformSamples = frames;
         RenderContext ctx{ip.sampleRate};
@@ -2842,19 +2830,85 @@ static void play_note(float noteNum, float velocity, float durationSeconds) {
         // sv.gain carries the patch's pre-clip volume (calibrated gain staging).
         auto sv = pitched->prepare_voice(noteNum, velocity, durationSeconds);
 
-        // +0.5s tail past the nominal note duration for envelope/decay room.
-        // The damper fade starts right at note end and reaches -60 dB over the
-        // patch's release window; through the tail it just keeps falling.
-        int tailSamples = int(0.5f * float(ip->sampleRate));
-        int total = sv.durSamples + sv.releaseSamples + tailSamples;
-        float decay = sv.releaseSamples > 0
-            ? std::exp(std::log(1e-3f) / float(sv.releaseSamples)) : 1.0f;
-        voice_schedule(ip, sv.source, total, sv.gain, int(noteNum),
-                       sv.releaseSamples + tailSamples, decay);
+        // Note-contained sound (2026-08-13): the voice lives exactly
+        // durSamples — release is inside the note, no tail window.
+        voice_schedule(ip, sv.source, sv.durSamples, sv.gain, int(noteNum));
     } catch (const std::exception& e) {
         char buf[256];
         std::snprintf(buf, sizeof(buf), "play_note failed: %s", e.what());
         transport_set_status(buf, true);
+    }
+}
+
+// Walk a loaded voice graph collecting Envelope nodes (for live gating).
+// Returns false if the graph contains a MultiplexSource — its internal
+// clones are not reachable by this walk, so gating the template would
+// silently do nothing; callers fall back to scheduled notes there.
+static bool collect_envelopes(mforce::ValueSource* vs,
+                              std::vector<mforce::Envelope*>& out,
+                              std::vector<mforce::ValueSource*>& seen) {
+    if (!vs) return true;
+    for (auto* s : seen) if (s == vs) return true;
+    seen.push_back(vs);
+    if (std::string_view(vs->type_name()).find("Multiplex") != std::string_view::npos)
+        return false;
+    if (auto* env = dynamic_cast<mforce::Envelope*>(vs)) out.push_back(env);
+    bool ok = true;
+    for (const auto& d : vs->input_descriptors())
+        ok = collect_envelopes(vs->get_param(d.name).get(), out, seen) && ok;
+    for (const auto& d : vs->param_descriptors())
+        ok = collect_envelopes(vs->get_param(d.name).get(), out, seen) && ok;
+    return ok;
+}
+
+// Key-down entry: hold the note until the matching key-up. Envelopes are
+// flipped to gated mode BEFORE prepare so the expand stage holds; pct
+// stages resolve against the transport duration as nominal. Falls back to
+// a scheduled note when the graph's envelopes aren't reachable
+// (MultiplexSource) or absent.
+static void play_note_held(float noteNum, float velocity, float nominalSeconds) {
+    if (s_graphMode != GraphMode::PatchGraph) return;
+    std::string path = get_playback_patch_path();
+    if (path.empty()) return;
+    try {
+        auto ip = std::make_shared<InstrumentPatch>(load_instrument_patch(path));
+        auto* pitched = ip->instrument.get();
+        if (!pitched) return;
+        std::vector<mforce::Envelope*> envs;
+        std::vector<mforce::ValueSource*> seen;
+        bool gateable = true;
+        for (auto& vg : pitched->voicePool)
+            gateable = collect_envelopes(vg.source.get(), envs, seen) && gateable;
+        if (!gateable || envs.empty()) {
+            play_note(noteNum, velocity, nominalSeconds);   // scheduled fallback
+            return;
+        }
+        note_played(noteNum);
+        for (auto* e : envs) e->set_gated(true);
+        auto sv = pitched->prepare_voice(noteNum, velocity, nominalSeconds);
+        voice_schedule(ip, sv.source, INT_MAX / 2, sv.gain, int(noteNum),
+                       true, std::move(envs));
+    } catch (const std::exception& e) {
+        char buf[256];
+        std::snprintf(buf, sizeof(buf), "play_note_held failed: %s", e.what());
+        transport_set_status(buf, true);
+    }
+}
+
+// Key-up: gate the matching held voice's envelopes and bound its life to
+// the longest release + the reflection allowance.
+static void release_note_held(int midiNote) {
+    std::lock_guard<std::mutex> lock(g_audioMutex);
+    for (int v = 0; v < MAX_VOICES; ++v) {
+        auto& voice = g_voices[v];
+        if (!voice.active || !voice.held || voice.midiNote != midiNote) continue;
+        int maxRel = 0;
+        for (auto* e : voice.envs) maxRel = std::max(maxRel, e->gate_release());
+        int allow = int(mforce::Envelope::kReflectionAllowanceSec
+                        * float(AUDIO_SAMPLE_RATE));
+        voice.samplesRemaining = maxRel + allow + 1;
+        voice.held = false;
+        return;
     }
 }
 
@@ -4066,10 +4120,25 @@ static void draw_keyboard_panel() {
     // --- QWERTY input (gated by note mode and not typing in text field;
     // dead in node-graph mode — play_note needs an instrument) ---
     if (g_transport.noteMode && !kbDisabled && !ImGui::GetIO().WantTextInput) {
+        // Key-up gating (note-contained sound, 2026-08-13): a QWERTY key
+        // HOLDS its note; release fires gate_release on the voice's
+        // envelopes. Per-key bookkeeping so an octave change mid-hold still
+        // releases the right note.
+        static int s_qwertyHeldNote[QWERTY_MAP_COUNT];
+        static bool s_qwertyHeldInit = false;
+        if (!s_qwertyHeldInit) {
+            for (int i = 0; i < QWERTY_MAP_COUNT; ++i) s_qwertyHeldNote[i] = -1;
+            s_qwertyHeldInit = true;
+        }
         for (int i = 0; i < QWERTY_MAP_COUNT; ++i) {
             if (ImGui::IsKeyPressed(s_qwertyMap[i].key, false)) {
                 int absNote = g_keyboard.octave * 12 + s_qwertyMap[i].offset;
-                play_note(float(absNote), g_transport.velocity, g_keyboard.duration);
+                s_qwertyHeldNote[i] = absNote;
+                play_note_held(float(absNote), g_transport.velocity, g_keyboard.duration);
+            }
+            if (ImGui::IsKeyReleased(s_qwertyMap[i].key) && s_qwertyHeldNote[i] >= 0) {
+                release_note_held(s_qwertyHeldNote[i]);
+                s_qwertyHeldNote[i] = -1;
             }
         }
         // Action keys
@@ -5326,6 +5395,14 @@ static void draw_properties_panel() {
         if (env) {
             ImGui::Spacing(); ImGui::Separator(); ImGui::Spacing();
             ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1), "Stages");
+            bool absTime = env->absolute_time;
+            if (ImGui::Checkbox("seconds (timeMode)", &absTime)) {
+                env->absolute_time = absTime;
+                s_graphDirty = true;
+            }
+            if (ImGui::IsItemHovered())
+                ImGui::SetTooltip("off: stage Pct is a fraction of note duration\n"
+                                  "on:  stage Pct is literal seconds (timeMode=seconds)");
 
             const char* typeNames[] = { "Linear", "Expo", "InverseExpo", "Sine" };
             bool changed = false;
@@ -7626,16 +7703,9 @@ int main(int argc, char** argv) {
                 auto* pitched = ip.instrument.get();
                 if (!pitched) throw std::runtime_error("not a PitchedInstrument");
                 auto sv = pitched->prepare_voice(noteNum, vel, dur);
-                int tailSamples = int(0.5f * float(ip.sampleRate));
-                int total = sv.durSamples + sv.releaseSamples + tailSamples;
-                float fade = 1.0f;
-                float decay = sv.releaseSamples > 0
-                    ? std::exp(std::log(1e-3f) / float(sv.releaseSamples)) : 1.0f;
-                mono.resize(total);
-                for (int i = 0; i < total; ++i) {
-                    mono[i] = soft_clip(sv.source->next() * sv.gain * fade);
-                    if (i >= sv.durSamples) fade *= decay;
-                }
+                mono.resize(sv.durSamples);
+                for (int i = 0; i < sv.durSamples; ++i)
+                    mono[i] = soft_clip(sv.source->next() * sv.gain);
             } else {
                 // Generate path: authoritative offline render into
                 // g_outputWaveform, then the buffer-playback soft_clip the
