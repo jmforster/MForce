@@ -2,6 +2,18 @@
 
 ## Awaiting Matt
 
+### 19. Octave naming convention — scientific or house? [decide] (2026-08-12)
+The music model's core (Pitch::note_number, parse_note_input, passage
+parser, pitch_reader) uses octave*12: "C4" = MIDI 48, one octave below
+scientific pitch (Iowa/MIDI standard C4 = 60 = middle C). The UI keyboard
+panel alone uses scientific ((octave+1)*12) — internally inconsistent.
+Numeric-MIDI paths (CMA-ES pipeline, reference scoring) are unaffected.
+Decision: (a) migrate the model to scientific — transposes every
+name-authored score/template/DURN by an octave, touch-everything change,
+belongs in the comp retrench; or (b) declare house convention =
+scientific-1, fix the keyboard panel to match, document prominently.
+Surfaced by Matt comparing renders against Iowa file labels.
+
 > PATHS 2026-08-10: housekeeping moved comp render dirs to
 > renders/comp/pending/ and the live template/jazz-turnaround inputs to
 > scores/pending/ (patch/score split, docs/patch_triage_2026_08_10.md).
