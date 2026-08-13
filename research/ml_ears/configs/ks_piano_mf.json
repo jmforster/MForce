@@ -1,0 +1,95 @@
+{
+ "name": "ks_piano_mf",
+ "source": "Iowa MIS piano mf (pre-2012 collection), 86 keys B0-C8, stereo 44.1k",
+ "sample_dir": "research/inst_samples/piano_mf",
+ "sample_glob": "*.aiff",
+ "score_notes": [
+  {
+   "note": "C1",
+   "string": "mf",
+   "midi": 24,
+   "f0": 32.703
+  },
+  {
+   "note": "F1",
+   "string": "mf",
+   "midi": 29,
+   "f0": 43.654
+  },
+  {
+   "note": "C2",
+   "string": "mf",
+   "midi": 36,
+   "f0": 65.406
+  },
+  {
+   "note": "G2",
+   "string": "mf",
+   "midi": 43,
+   "f0": 97.999
+  },
+  {
+   "note": "C3",
+   "string": "mf",
+   "midi": 48,
+   "f0": 130.813
+  },
+  {
+   "note": "C4",
+   "string": "mf",
+   "midi": 60,
+   "f0": 261.626
+  },
+  {
+   "note": "G4",
+   "string": "mf",
+   "midi": 67,
+   "f0": 391.995
+  },
+  {
+   "note": "C5",
+   "string": "mf",
+   "midi": 72,
+   "f0": 523.251
+  },
+  {
+   "note": "C6",
+   "string": "mf",
+   "midi": 84,
+   "f0": 1046.502
+  }
+ ],
+ "eval_note_midis": [
+  36,
+  60,
+  72
+ ],
+ "motion_samples": [
+  "mf.C2",
+  "mf.G2",
+  "mf.C3",
+  "mf.G3",
+  "mf.C4",
+  "mf.G4",
+  "mf.C5"
+ ],
+ "encoder": "ks_piano",
+ "template": "research/ml_ears/patches/ks_v6_seed.json",
+ "reference_path": "research/ml_ears/out/piano_reference.json",
+ "reference_build": {
+  "sus_start": 0.25,
+  "sus_len": 1.0,
+  "attack_len": 0.3,
+  "onset_relative": true,
+  "inharmonic": true,
+  "motion_window": [
+   0.1,
+   1.0
+  ]
+ },
+ "run_root": "research/ml_ears/cmaes_runs",
+ "notes": [
+  "v6 KS chain (2026-08-12): Matt-locked seed v6h; encoder_ks_piano 19 dims.",
+  "Reference piano_reference.json reused (same Iowa mf samples)."
+ ]
+}

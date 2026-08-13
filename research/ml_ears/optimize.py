@@ -225,6 +225,9 @@ def get_encoder(cfg):
     if cfg.get("encoder") == "piano":
         import encoder_piano as enc
         return enc.DIM, enc.warm_start, enc.encode
+    if cfg.get("encoder") == "ks_piano":
+        import encoder_ks_piano as enc
+        return enc.DIM, enc.warm_start, enc.encode
     return DIM, warm_start, encode
 
 
