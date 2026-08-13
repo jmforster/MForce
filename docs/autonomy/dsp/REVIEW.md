@@ -67,8 +67,18 @@ detune settled at 5.3 cents unpinned (Balazs used ~5), knock band moved
 barely from Matt's hand values (72/494 vs 80/500 — his ears validated).
 Winner rendered: renders/dsp/pending/ks_piano_v6/v6j_cmaes2.wav.
 A/B ladder: v6h_seed vs v6i_cmaes vs v6j_cmaes2.
-Verdict decides: pass-2 winner by ear; whether broadband (1.05, still
-the stuck term) becomes the next MECHANISM front. Then ENDGAME: CMA-ES joint
+v6j verdict (Matt): attack FIXED/sharp; octaves 6-7 piano-like; middle
+C down = harpsichord attack + bassoon sustain (bank-only h1-4 excitation
+starves harmonics 5-20 — structural); above-C6 still loud. Pass 3:
+broadband body path (raw burst -> pitch-LP with floor -> comb selects
+harmonics; Balazs's real architecture) + eval midi 84 + level_top
+anchor. Matt: v6k_seed hand preview "promising". ks_run3 (702 evals):
+0.5111 — harm 1.06->0.78, BROADBAND MOVED 1.05->0.86 (the stuck
+mechanism term), rise 0.14, level 0.54 on the harder 4-note set.
+Winner chose body_gain 1.04 (equal partner to the bank!), floor 1939 Hz
+(C2 keeps ~30 harmonics), body_mult 1.7. Rendered:
+renders/dsp/pending/ks_piano_v6/v6l_cmaes3.wav (vs v6k_seed, v6j).
+Verdict decides: pass-3 winner by ear; remaining fronts. Then ENDGAME: CMA-ES joint
 optimization of the full v6 settings matrix vs Iowa piano references
 (viola pipeline; ~200x realtime renders) — no per-knob ear tuning.
 Analysis: docs/research/afpiano_2021/ANALYSIS.md.
