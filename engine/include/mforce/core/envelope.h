@@ -101,10 +101,11 @@ struct Envelope : ValueSource {
   bool absolute_time{false};
 
   // Engine-wide reflection allowance: envelopes lay their stages out over
-  // (frames - allowance) so bounded internal-reflection dispersal can
-  // finish INSIDE the note. 0.0 until the corpus null test passes
-  // (2026-08-13 plan Task 6 flips it to 0.010f).
-  static constexpr float kReflectionAllowanceSec = 0.0f;
+  // (frames - allowance) so bounded internal-reflection dispersal (piano
+  // body reflections are 1-5 ms; Haas fusion ends ~30 ms) can finish
+  // INSIDE the note. Flipped 0 -> 10 ms 2026-08-13 after the corpus null
+  // test passed at 0 — an intentional corpus-wide 10 ms layout shift.
+  static constexpr float kReflectionAllowanceSec = 0.010f;
 
   void set_gated(bool g) { gated_ = g; }
 
