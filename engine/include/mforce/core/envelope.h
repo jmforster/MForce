@@ -100,6 +100,30 @@ struct Envelope : ValueSource {
   // the remainder in both modes.
   bool absolute_time{false};
 
+  // Engine-wide reflection allowance: envelopes lay their stages out over
+  // (frames - allowance) so bounded internal-reflection dispersal can
+  // finish INSIDE the note. 0.0 until the corpus null test passes
+  // (2026-08-13 plan Task 6 flips it to 0.010f).
+  static constexpr float kReflectionAllowanceSec = 0.0f;
+
+  void set_gated(bool g) { gated_ = g; }
+
+  // Live note-off: jump to the final stage NOW, re-anchored to the current
+  // output (click-free). Returns the final stage's frame count so the
+  // caller can bound the voice's remaining lifetime. Safe to call from the
+  // audio thread under the audio mutex — no allocation.
+  int gate_release() {
+    if (stages_.empty() || stageCounts_.empty()) return 0;
+    int last = int(stages_.size()) - 1;
+    if (currStage_ == last) return std::max(0, stageEnd_ - ptr_);
+    gateFrom_ = cur_;
+    gateActive_ = true;
+    stageStart_ = ptr_ + 1;
+    currStage_ = last;
+    stageEnd_ = stageStart_ + stageCounts_[last];
+    return stageCounts_[last];
+  }
+
   void set_seed(uint32_t s) { seed_ = s; }
   uint32_t get_seed() const { return seed_; }
 
@@ -163,7 +187,12 @@ struct Envelope : ValueSource {
 
   void prepare(const RenderContext& ctx, int frames) override {
     totalFrames_ = frames;
-    float duration = float(frames) / float(sampleRate_);
+    // Note-contained sound (2026-08-13): stages lay out over the layout
+    // window; the trailing allowance stays programmatically silent so
+    // bounded reflection dispersal can finish inside the note.
+    const int allowFrames = int(kReflectionAllowanceSec * float(sampleRate_));
+    const int layoutFrames = std::max(0, frames - allowFrames);
+    float duration = float(layoutFrames) / float(sampleRate_);
 
     // Reseed both RNGs from seed_ each prepare so renders are deterministic
     // for a given (seed, frames) pair. Multiplex perturbs seed_ per instance.
@@ -201,16 +230,21 @@ struct Envelope : ValueSource {
 
       // Rounding fix for last non-expand stage
       if (i == int(stages_.size()) - 1 && expandIdx < 0) {
-        if (std::abs(totCount + stageCounts_[i] - frames) <= 1)
-          stageCounts_[i] = frames - totCount;
+        if (std::abs(totCount + stageCounts_[i] - layoutFrames) <= 1)
+          stageCounts_[i] = layoutFrames - totCount;
       }
 
       totCount += stageCounts_[i];
     }
 
     if (expandIdx >= 0) {
-      stageCounts_[expandIdx] = std::max(0, frames - totCount);
+      stageCounts_[expandIdx] = std::max(0, layoutFrames - totCount);
+      // Gated notes need a live expand stage to hold in; a zero-count
+      // expand (short nominal duration) would fall straight into release.
+      if (gated_ && stageCounts_[expandIdx] == 0) stageCounts_[expandIdx] = 1;
     }
+    expandIdx_ = expandIdx;
+    gateActive_ = false;
 
     ptr_ = -1;
     currStage_ = 0;
@@ -225,6 +259,15 @@ struct Envelope : ValueSource {
     // ValueSource chain that includes an unprepared Envelope.
     if (stageCounts_.empty()) { cur_ = 0.0f; return cur_; }
 
+    if (gated_ && currStage_ == expandIdx_ && expandIdx_ >= 0 &&
+        ptr_ + 1 >= stageEnd_) {
+      // Held note: sit on the expand stage until gate_release().
+      cur_ = stages_[currStage_].ramp.value(1.0f);
+      if (ramp_accuracy < 1.0f)
+        cur_ *= 1.0f + (1.0f - ramp_accuracy) * lfo_next_();
+      return cur_;
+    }
+
     ++ptr_;
 
     // Advance stage if needed
@@ -237,15 +280,25 @@ struct Envelope : ValueSource {
       stageEnd_ += stageCounts_[currStage_];
     }
 
-    // Past last stage → output 0
+    // Past last stage → 0, unless endHold (a damper stays down after
+    // landing; amplitude envelopes stay at 0).
     if (ptr_ >= stageEnd_ && currStage_ == int(stages_.size()) - 1) {
-      cur_ = 0.0f;
+      cur_ = endHold_ ? stages_.back().ramp.endVal : 0.0f;
       return cur_;
     }
 
     int count = stageCounts_[currStage_];
     float pos = (count > 0) ? float(ptr_ - stageStart_) / float(count) : 1.0f;
     cur_ = stages_[currStage_].ramp.value(pos);
+    if (gateActive_ && currStage_ == int(stages_.size()) - 1) {
+      // Final stage re-anchored to the value at gate_release() so a
+      // mid-attack key-up releases from where it was, click-free.
+      const Ramp& r = stages_[currStage_].ramp;
+      float denom = r.endVal - r.startVal;
+      float shape = (std::fabs(denom) > 1e-9f) ? (cur_ - r.startVal) / denom
+                                               : pos;
+      cur_ = gateFrom_ + (r.endVal - gateFrom_) * shape;
+    }
 
     // ramp_accuracy: multiply by 1 + (1 - ramp_accuracy) * lfo, lfo in [-1,1].
     if (ramp_accuracy < 1.0f) {
@@ -302,6 +355,21 @@ struct Envelope : ValueSource {
     return env;
   }
 
+  // Damper control envelope (note-contained sound, 2026-08-13): holds 0
+  // (open) through the note; the FINAL stage ramps 0 -> 1 — the damper
+  // falling IS the release phase, expressed as the last Stage of an
+  // Envelope like every amplitude ADSR. Standard Stage triple: a generous
+  // pct + maxSec cap = constant release on normal notes, proportional
+  // compression on short ones. endHold: a damper stays down after landing.
+  static Envelope make_damper(int sampleRate, float releasePct,
+                              float releaseMin, float releaseMax) {
+    Envelope env(sampleRate);
+    env.add_stage({{0.0f, 0.0f, RampType::Linear, 0.0f}, 0.0f, 0.0f, 0.0f}); // open (expand)
+    env.add_stage({{0.0f, 1.0f, RampType::Linear, 0.0f}, releasePct, releaseMin, releaseMax});
+    env.endHold_ = true;
+    return env;
+  }
+
 private:
   // Smoothed-random LFO for ramp_accuracy. Cosine interpolation between
   // random ±1 targets; per-segment period jitters ±50% around base = N/10.
@@ -335,6 +403,16 @@ private:
   // True when stages were built by make_adsr — the fixed 4-stage layout that
   // sustainLevel set_config knows how to rewrite.
   bool adsrLayout_{false};
+  // Note-contained sound (2026-08-13 spec):
+  // gated_: live-note mode — the expand stage holds until gate_release().
+  // endHold_: past the last stage, hold its endVal instead of emitting 0.
+  // gateActive_/gateFrom_: final stage re-anchored to the value at
+  //   gate_release() so a mid-attack key-up releases from where it was.
+  bool  gated_{false};
+  bool  endHold_{false};
+  int   expandIdx_{-1};
+  bool  gateActive_{false};
+  float gateFrom_{0.0f};
   std::vector<int>   stageCounts_;
 
   // Per-instance decorrelation state

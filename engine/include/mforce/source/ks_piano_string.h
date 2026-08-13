@@ -75,6 +75,7 @@ struct KSPianoString final : ValueSource {
   std::span<const InputDescriptor> input_descriptors() const override {
     static constexpr InputDescriptor descs[] = {
       {"source"},
+      {"damper"},
     };
     return descs;
   }
@@ -103,12 +104,14 @@ struct KSPianoString final : ValueSource {
 
   void set_param(std::string_view name, std::shared_ptr<ValueSource> src) override {
     if (name == "source")    { source_    = std::move(src); return; }
+    if (name == "damper")    { damper_    = std::move(src); return; }
     if (name == "frequency") { frequency_ = std::move(src); return; }
     if (name == "amplitude") { amplitude_ = std::move(src); return; }
   }
 
   std::shared_ptr<ValueSource> get_param(std::string_view name) const override {
     if (name == "source")    return source_;
+    if (name == "damper")    return damper_;
     if (name == "frequency") return frequency_;
     if (name == "amplitude") return amplitude_;
     return nullptr;
@@ -155,6 +158,7 @@ struct KSPianoString final : ValueSource {
 
   void prepare(const RenderContext& ctx, int frames) override {
     if (source_)    source_->prepare(ctx, frames);
+    if (damper_)    damper_->prepare(ctx, frames);
     if (frequency_) frequency_->prepare(ctx, frames);
     if (amplitude_) amplitude_->prepare(ctx, frames);
 
@@ -171,8 +175,7 @@ struct KSPianoString final : ValueSource {
     lastOut_ = 0.0f;
     initialized_ = false;
     cur_ = 0.0f;
-    noteOffFrame_ = ctx.noteOffFrame;
-    frame_ = 0;
+    lastD_ = 0.0f;
     envFollow_ = 0.0f;
     dnAmp_ = 0.0f;
   }
@@ -185,26 +188,29 @@ struct KSPianoString final : ValueSource {
 
     if (!initialized_) init_note();
 
-    // In-loop damper (2021 AF patch: gate held -> fb ~1, released -> 0.82).
-    // Past note-off the loop gain is scaled by releaseFb_, so the release
-    // keeps passing through the damping LP — the note darkens as it dies,
-    // unlike the instrument-level output fade.
-    float damp = 1.0f;
-    if (releaseFb_ < 0.9995f && noteOffFrame_ > 0 && frame_ >= noteOffFrame_)
-      damp = releaseFb_;
-    // Damper-contact noise: at note-off, capture the string's ring level and
-    // ring a short noise burst (felt landing on a vibrating string — louder
-    // strings get louder contact noise). Injected into the loop input below,
-    // so the burst excites the now-damped string rather than sitting on top.
+    // In-loop damper, now a continuous input (0 = open, 1 = fully damped).
+    // d scales the loop gain toward releaseFb — at 1 identical to the old
+    // post-note-off choke, in between it's a partially lifted damper
+    // (half-pedaling). Driven by a damper-preset Envelope whose final
+    // stage IS the note's release phase (note-contained sound, 2026-08-13).
+    float d = 0.0f;
+    if (damper_) { damper_->next(); d = std::clamp(damper_->current(), 0.0f, 1.0f); }
+    float damp = 1.0f - d * (1.0f - releaseFb_);
+    // Damper-contact noise: each time the felt LANDS (rising threshold
+    // crossing), capture the ring level and ring a short burst through the
+    // now-damped string — injected into the loop input below, so the burst
+    // excites the damped string rather than sitting on top. Re-arms when
+    // the damper lifts: a re-dropped damper on a still-ringing string thuds
+    // again, scaled by whatever ring is left.
     float dnoise = 0.0f;
-    if (damperNoise_ > 0.0001f && noteOffFrame_ > 0) {
-      if (frame_ == noteOffFrame_) dnAmp_ = damperNoise_ * envFollow_;
-      if (frame_ >= noteOffFrame_ && dnAmp_ > 1e-6f) {
+    if (damperNoise_ > 0.0001f) {
+      if (d >= 0.05f && lastD_ < 0.05f) dnAmp_ = damperNoise_ * envFollow_;
+      if (dnAmp_ > 1e-6f) {
         dnoise = dnRng_.valuePN() * dnAmp_;
         dnAmp_ *= 0.9995f;   // ~-60 dB over ~28 ms at 48 kHz
       }
     }
-    ++frame_;
+    lastD_ = d;
 
     // DC blocker on excitation (envelope input is unipolar)
     float x = dcR_ * dcY_ + exc - dcX_;
@@ -292,8 +298,7 @@ private:
 
   float releaseFb_{1.0f};
   float damperNoise_{0.0f};
-  int   noteOffFrame_{-1};
-  int   frame_{0};
+  float lastD_{0.0f};
   float envFollow_{0.0f};
   float dnAmp_{0.0f};
   Randomizer dnRng_{0xDA3B0E5u};
@@ -385,6 +390,7 @@ private:
   }
 
   std::shared_ptr<ValueSource> source_;
+  std::shared_ptr<ValueSource> damper_;
   std::shared_ptr<ValueSource> frequency_;
   std::shared_ptr<ValueSource> amplitude_;
   int sampleRate_;
