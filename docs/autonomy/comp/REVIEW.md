@@ -8,10 +8,26 @@ parser, pitch_reader) uses octave*12: "C4" = MIDI 48, one octave below
 scientific pitch (Iowa/MIDI standard C4 = 60 = middle C). The UI keyboard
 panel alone uses scientific ((octave+1)*12) — internally inconsistent.
 Numeric-MIDI paths (CMA-ES pipeline, reference scoring) are unaffected.
-Decision: (a) migrate the model to scientific — transposes every
-name-authored score/template/DURN by an octave, touch-everything change,
-belongs in the comp retrench; or (b) declare house convention =
-scientific-1, fix the keyboard panel to match, document prominently.
+2026-08-12 pm: keyboard panel aligned to HOUSE convention (octave*12) —
+the app now agrees with itself; Matt not necessarily opposed to option
+(a) migration later. SWEEP LIST if we migrate to scientific (everything
+that encodes a note NAME or an octave number; raw-MIDI artifacts are
+safe):
+- scores/baselines/*.dun (DURN: note names + header octave), and any
+  future .dun
+- scores/baselines + scores/pending templates/specs that set
+  startingPitch/entry pitches by name or octave field (test_k467_*,
+  template_*, test_passage_*, test_jazz_*)
+- passage strings anywhere ("C4 e D4 e" — docs, tools, transport
+  defaults)
+- chord octave fields (parse_chord_token --octave semantics, chord
+  test patches)
+- PatternLibrary .ppl sources in lib/ppl (if pitched by name)
+- mforce_cli flag defaults (--octave 3/4), docs/examples using names
+- UI transport noteStr defaults + saved g_transport state in patches
+- CLAUDE.md/docs examples with note names
+Raw-MIDI (safe, no sweep): patch score blocks, paramMap curves,
+CMA-ES pipeline, Iowa reference, renders.
 Surfaced by Matt comparing renders against Iowa file labels.
 
 > PATHS 2026-08-10: housekeeping moved comp render dirs to

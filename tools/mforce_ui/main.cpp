@@ -2793,8 +2793,11 @@ static void render_waveforms(float noteNum, float velocity, float durationSecond
 // internal clones) applies to live-keyboard playback. The UI's in-memory
 // DSP tree is used only for the waveform display — that path shows the
 // UI's solo-preview state without the fan-out, which is fine for a visual.
+static void note_played(float noteNum);
+
 static void play_note(float noteNum, float velocity, float durationSeconds) {
     if (s_graphMode != GraphMode::PatchGraph) return;
+    note_played(noteNum);
 
     // (Waveform-display render intentionally skipped here — live keyboard
     // mode prioritizes audio responsiveness over visual feedback. Use the
@@ -3007,9 +3010,11 @@ static void apply_score_defaults(const nlohmann::json& score) {
 
     g_keyboard.velocity = vel;
     g_keyboard.duration = std::clamp(dur, 0.05f, 30.0f);
-    // Keyboard base octave so the score's note is reachable on the home row:
-    // absNote = (octave + 1) * 12 + offset, offset in [0, 19].
-    g_keyboard.octave = std::clamp(int(note) / 12 - 1, 0, 20);
+    // Keyboard base octave so the score's note is reachable on the home row.
+    // HOUSE octave convention (comp REVIEW item 19): absNote = octave * 12 +
+    // offset — matches parse_note_input and Pitch::note_number. The panel
+    // was the app's lone scientific-pitch holdout until 2026-08-12.
+    g_keyboard.octave = std::clamp(int(note) / 12, 0, 20);
 }
 
 // QWERTY-to-chromatic-offset mapping (from legacy LBKeyboard.cs)
@@ -4045,7 +4050,7 @@ static void draw_keyboard_panel() {
     if (g_transport.noteMode && !kbDisabled && !ImGui::GetIO().WantTextInput) {
         for (int i = 0; i < QWERTY_MAP_COUNT; ++i) {
             if (ImGui::IsKeyPressed(s_qwertyMap[i].key, false)) {
-                int absNote = (g_keyboard.octave + 1) * 12 + s_qwertyMap[i].offset;
+                int absNote = g_keyboard.octave * 12 + s_qwertyMap[i].offset;
                 play_note(float(absNote), g_transport.velocity, g_keyboard.duration);
             }
         }
@@ -4090,7 +4095,7 @@ static void draw_keyboard_panel() {
         {0, 1}, {1, 3}, {3, 6}, {4, 8}, {5, 10}
     };
 
-    int baseNote = (g_keyboard.octave + 1) * 12;
+    int baseNote = g_keyboard.octave * 12;
 
     // Draw white keys
     for (int oct = 0; oct < NUM_OCTAVES; ++oct) {
@@ -4454,6 +4459,12 @@ static void render_drums_waveforms(const ParsedDrumPattern& pat, float bpm, cons
     }
 }
 
+// Last note played (Play/Generate, QWERTY, on-screen keys). Displayed
+// right-aligned in the transport bar; label uses the HOUSE octave
+// convention (name = midi%12, octave = midi/12 — comp REVIEW item 19).
+static int g_lastNoteMidi = -1;
+static void note_played(float noteNum) { g_lastNoteMidi = int(noteNum + 0.5f); }
+
 static void transport_set_status(const char* msg, bool isError) {
     snprintf(g_transport.statusMsg, sizeof(g_transport.statusMsg), "%s", msg);
     g_transport.statusIsError = isError;
@@ -4508,6 +4519,7 @@ static void transport_generate() {
             if (render_output_authoritative(noteNum, g_transport.velocity,
                                             g_transport.duration)) {
                 transport_set_status("Generated note", false);
+                note_played(noteNum);
                 std::snprintf(g_noteGenSnap.noteStr, sizeof(g_noteGenSnap.noteStr),
                               "%s", g_transport.noteStr);
                 g_noteGenSnap.velocity = g_transport.velocity;
@@ -4824,6 +4836,20 @@ static void draw_transport_panel() {
         ImGui::SameLine();
         ImVec4 col = g_transport.statusIsError ? ImVec4(1,0.3f,0.3f,1) : ImVec4(0.5f,0.8f,0.5f,1);
         ImGui::TextColored(col, "%s", g_transport.statusMsg);
+    }
+
+    // Last note played — right-aligned (Matt 2026-08-12).
+    if (g_lastNoteMidi >= 0) {
+        static const char* kNames[12] = {"C","C#","D","D#","E","F",
+                                         "F#","G","G#","A","A#","B"};
+        char lastBuf[64];
+        snprintf(lastBuf, sizeof(lastBuf), "Last note: %d  %s%d  %.1fHz",
+                 g_lastNoteMidi, kNames[g_lastNoteMidi % 12],
+                 g_lastNoteMidi / 12, note_to_freq(float(g_lastNoteMidi)));
+        float w = ImGui::CalcTextSize(lastBuf).x;
+        ImGui::SameLine(std::max(ImGui::GetCursorPosX() + 8.0f,
+                        ImGui::GetWindowContentRegionMax().x - w));
+        ImGui::TextColored(ImVec4(0.75f, 0.75f, 0.9f, 1.0f), "%s", lastBuf);
     }
 
     ImGui::End();
