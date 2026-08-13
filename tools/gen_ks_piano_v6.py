@@ -47,12 +47,24 @@ VOLUMES = {
     "v6d_knock_tight.json": 0.3939,
     "v6e_vel.json":         0.3293,
     "v6e_flat.json":        0.3293,
-    "v6f_damper.json":      1.0,
-    "v6f_ctrl.json":        1.0,
-    "v6g_detune.json":      1.0,
+    "v6f_damper.json":      0.2561,
+    "v6f_ctrl.json":        0.2561,
+    "v6g_detune.json":      0.2548,
+    "v6f2_ctrl.json":       1.0,
+    "v6f2_damper82.json":   1.0,
+    "v6f2_damper60.json":   1.0,
+    "v6g2_detune12.json":   1.0,
 }
 
 RELEASE_SECONDS = 0.35
+
+# Damper/detune audition score: same C2/C4/C6 but 8 s apart so the 2 s
+# release tail is heard in silence instead of under the next onset.
+C246_GAPPED_SCORE = [
+    {"note": 36, "velocity": 0.85, "time": 0.0,  "duration": 3.5},
+    {"note": 60, "velocity": 0.85, "time": 8.0,  "duration": 3.5},
+    {"note": 84, "velocity": 0.85, "time": 16.0, "duration": 3.5},
+]
 
 # Rung-3 audition score: each register at soft/medium/hard velocity.
 VEL_LADDER_SCORE = [
@@ -356,6 +368,53 @@ def build_all():
                                            release_fb=0.82, release=0.6,
                                            detune_curve=[(65.0, 0.3),
                                                          (1046.5, 5.0)]),
+        # v6f2/v6g2: the v6f/v6g A/B was masked by the 0.6 s output fade (both
+        # arms fade together; the damper only changed a fraction of a second
+        # of quiet tail). Exposure fix: 2.0 s release window so ctrl rings on
+        # while the damper chokes; plus a harder 0.60 choke and an exaggerated
+        # detune (0.3 -> 12 cents) to audition each AXIS clearly.
+        "v6f2_ctrl.json":       base_patch(excite_noise=(0.002, 0.040),
+                                           shaping=(2.5, 0.15),
+                                           click_env=(0.002, 0.050, 0.03, 0.15),
+                                           level_curve=[(65.0, 3.558),
+                                                        (261.63, 0.871),
+                                                        (1046.5, 0.458)],
+                                           knock=(0.001, 0.080, 80.0, 500.0, 2.0),
+                                           vel_bright=True,
+                                           release=2.0,
+                                           score=C246_GAPPED_SCORE),
+        "v6f2_damper82.json":   base_patch(excite_noise=(0.002, 0.040),
+                                           shaping=(2.5, 0.15),
+                                           click_env=(0.002, 0.050, 0.03, 0.15),
+                                           level_curve=[(65.0, 3.558),
+                                                        (261.63, 0.871),
+                                                        (1046.5, 0.458)],
+                                           knock=(0.001, 0.080, 80.0, 500.0, 2.0),
+                                           vel_bright=True,
+                                           release_fb=0.82, release=2.0,
+                                           score=C246_GAPPED_SCORE),
+        "v6f2_damper60.json":   base_patch(excite_noise=(0.002, 0.040),
+                                           shaping=(2.5, 0.15),
+                                           click_env=(0.002, 0.050, 0.03, 0.15),
+                                           level_curve=[(65.0, 3.558),
+                                                        (261.63, 0.871),
+                                                        (1046.5, 0.458)],
+                                           knock=(0.001, 0.080, 80.0, 500.0, 2.0),
+                                           vel_bright=True,
+                                           release_fb=0.60, release=2.0,
+                                           score=C246_GAPPED_SCORE),
+        "v6g2_detune12.json":   base_patch(excite_noise=(0.002, 0.040),
+                                           shaping=(2.5, 0.15),
+                                           click_env=(0.002, 0.050, 0.03, 0.15),
+                                           level_curve=[(65.0, 3.558),
+                                                        (261.63, 0.871),
+                                                        (1046.5, 0.458)],
+                                           knock=(0.001, 0.080, 80.0, 500.0, 2.0),
+                                           vel_bright=True,
+                                           release_fb=0.82, release=2.0,
+                                           detune_curve=[(65.0, 0.3),
+                                                         (1046.5, 12.0)],
+                                           score=C246_GAPPED_SCORE),
         "v6e_flat.json":        base_patch(excite_noise=(0.002, 0.040),
                                            shaping=(2.5, 0.15),
                                            click_env=(0.002, 0.050, 0.03, 0.15),
