@@ -82,7 +82,7 @@ struct KSPianoString final : ValueSource {
   std::span<const ConfigDescriptor> config_descriptors() const override {
     static constexpr ConfigDescriptor descs[] = {
       {"numCombs",   ConfigType::Int,   3.0f,    1.0f,   3.0f},
-      {"detune",     ConfigType::Float, 1.5f,    0.0f,   20.0f},   // cents spread
+      {"detune",     ConfigType::Float, 1.5f,    0.0f,   1200.0f}, // cents spread (0-20 = unison beating; tens = honky-tonk; 1200 = octave)
       {"t60",        ConfigType::Float, 6.0f,    0.05f,  60.0f},   // sec at f0
       {"brightness", ConfigType::Float, 0.6f,    0.05f,  1.0f},    // loop LP coeff
       {"dispersion", ConfigType::Float, 0.12f,   0.0f,   0.95f},   // biquad AP pole

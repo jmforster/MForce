@@ -38,6 +38,16 @@ engine RenderContext.noteOffFrame + KSPianoString releaseFb (in-loop
 damper, 0.82; C2 post-off env 2089->158->1 vs ctrl 2089->538->46) and
 detune-vs-pitch curve (0.3->5 cents). A/B: v6f_ctrl / v6f_damper /
 v6g_detune.
+2026-08-12 pm verdicts: damper 0.82 IN; damperNoise 0.03 IN; detune
+axis audible (12 too much). CMA-ES ks_run1 (600 evals) LAUNCHED on the
+v6h Matt-locked seed. QUEUED FOR PASS 2 (Matt, while run1 cooks):
+- knock band lo/hi as searched dims (he hand-found lowCutoff 30 =
+  "dramatic effect"; current 80-500 was ear-picked under time pressure)
+- detune: slider was capped at 20 cents (unison-beating regime — flange
+  only, mechanism fine); ceiling raised to 1200 in ks_piano_string.h
+  (REBUILD PENDING: cli in use by run1, UI was open). Hand-playing the
+  knob requires removing the string.detune paramMap curve first — the
+  per-note curve stomps the knob at every note-on.
 Verdict decides: damper + detune. Then ENDGAME (agreed): CMA-ES joint
 optimization of the full v6 settings matrix vs Iowa piano references
 (viola pipeline; ~200x realtime renders) — no per-knob ear tuning.
