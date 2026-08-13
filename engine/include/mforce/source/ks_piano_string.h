@@ -92,6 +92,7 @@ struct KSPianoString final : ValueSource {
       {"ap2",        ConfigType::Float, 0.35f,  -0.95f,  0.95f},
       {"ap3",        ConfigType::Float, 0.20f,  -0.95f,  0.95f},
       {"fbCoeff",    ConfigType::Float, 0.2f,    0.0f,   0.9f},    // global neg fb (headroom-normalized)
+      {"releaseFb",  ConfigType::Float, 1.0f,    0.0f,   1.0f},    // loop-gain mult after note-off (damper; 1 = off)
       {"exciteGain", ConfigType::Float, 1.0f,    0.0f,   8.0f},
       {"direct",     ConfigType::Float, 0.2f,    0.0f,   1.0f},    // dry strike tap
     };
@@ -124,6 +125,7 @@ struct KSPianoString final : ValueSource {
     if (name == "ap2")        { ap_[1]      = std::clamp(v, -0.95f, 0.95f); return; }
     if (name == "ap3")        { ap_[2]      = std::clamp(v, -0.95f, 0.95f); return; }
     if (name == "fbCoeff")    { fbCoeff_    = v; return; }
+    if (name == "releaseFb")  { releaseFb_  = std::clamp(v, 0.0f, 1.0f); return; }
     if (name == "exciteGain") { exciteGain_ = v; return; }
     if (name == "direct")     { direct_     = v; return; }
   }
@@ -141,6 +143,7 @@ struct KSPianoString final : ValueSource {
     if (name == "ap2")        return ap_[1];
     if (name == "ap3")        return ap_[2];
     if (name == "fbCoeff")    return fbCoeff_;
+    if (name == "releaseFb")  return releaseFb_;
     if (name == "exciteGain") return exciteGain_;
     if (name == "direct")     return direct_;
     return 0.0f;
@@ -164,6 +167,8 @@ struct KSPianoString final : ValueSource {
     lastOut_ = 0.0f;
     initialized_ = false;
     cur_ = 0.0f;
+    noteOffFrame_ = ctx.noteOffFrame;
+    frame_ = 0;
   }
 
   float next() override {
@@ -173,6 +178,15 @@ struct KSPianoString final : ValueSource {
     if (source_) { source_->next(); exc = source_->current(); }
 
     if (!initialized_) init_note();
+
+    // In-loop damper (2021 AF patch: gate held -> fb ~1, released -> 0.82).
+    // Past note-off the loop gain is scaled by releaseFb_, so the release
+    // keeps passing through the damping LP — the note darkens as it dies,
+    // unlike the instrument-level output fade.
+    float damp = 1.0f;
+    if (releaseFb_ < 0.9995f && noteOffFrame_ > 0 && frame_ >= noteOffFrame_)
+      damp = releaseFb_;
+    ++frame_;
 
     // DC blocker on excitation (envelope input is unipolar)
     float x = dcR_ * dcY_ + exc - dcX_;
@@ -206,7 +220,7 @@ struct KSPianoString final : ValueSource {
       // One-pole highpass in the loop
       float hp = hpR_ * (disp_.hpY + y1 - disp_.hpX);
       disp_.hpX = y1; disp_.hpY = hp;
-      disp_.buf[wpos_] = xin + inharmFb_ * hp;
+      disp_.buf[wpos_] = xin + inharmFb_ * damp * hp;
       inh = d;
     } else {
       disp_.buf[wpos_] = 0.0f;
@@ -232,7 +246,7 @@ struct KSPianoString final : ValueSource {
         v = biquad_ap(v, c.bq[1]);
       }
       c.lp += brightness_ * (v - c.lp);
-      c.buf[wpos_] = s + c.gain * c.lp;
+      c.buf[wpos_] = s + c.gain * damp * c.lp;
 
       sum += r;
     }
@@ -253,6 +267,10 @@ private:
   static constexpr int kBufLen   = 4096;  // >= sr/12Hz at 48k
 
   struct BiquadState { float x1{0}, x2{0}, y1{0}, y2{0}; };
+
+  float releaseFb_{1.0f};
+  int   noteOffFrame_{-1};
+  int   frame_{0};
 
   struct Comb {
     std::vector<float> buf;

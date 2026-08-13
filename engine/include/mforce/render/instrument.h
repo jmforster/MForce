@@ -206,7 +206,7 @@ struct PitchedInstrument final : Instrument {
     float gain = velocity * (1.0f + boost) * volume;
 
     int relSamples = int(releaseSeconds * float(sampleRate));
-    RenderContext ctx{ sampleRate };
+    RenderContext ctx{ sampleRate, durSamples };
     vg.source->prepare(ctx, durSamples + relSamples);
 
     return { vg.source, durSamples, gain, relSamples };
@@ -261,7 +261,7 @@ struct PitchedInstrument final : Instrument {
     int relSamples = int(releaseSeconds * float(sampleRate));
     int totalSamples = durSamples + relSamples;
 
-    RenderContext ctx{ sampleRate };
+    RenderContext ctx{ sampleRate, durSamples };
     vg.source->prepare(ctx, totalSamples);
 
     std::vector<float> buf(totalSamples);

@@ -45,8 +45,11 @@ VOLUMES = {
     "v6c3_level.json":      0.4839,
     "v6d_knock.json":       0.2989,
     "v6d_knock_tight.json": 0.3939,
-    "v6e_vel.json":         1.0,
-    "v6e_flat.json":        1.0,
+    "v6e_vel.json":         0.3293,
+    "v6e_flat.json":        0.3293,
+    "v6f_damper.json":      1.0,
+    "v6f_ctrl.json":        1.0,
+    "v6g_detune.json":      1.0,
 }
 
 RELEASE_SECONDS = 0.35
@@ -62,7 +65,8 @@ VEL_LADDER_SCORE = [
 
 
 def base_patch(excite_noise=None, shaping=None, click_env=None, level_curve=None,
-               knock=None, vel_bright=False, score=None):
+               knock=None, vel_bright=False, score=None, release_fb=None,
+               detune_curve=None, release=None):
     """excite_noise: None = v5a bare-envelope excitation; else (attack, decay)
     for the noise-burst envelope, with the bank fed by enveloped white noise.
     shaping: None = bank feeds the string directly (rung 1); else
@@ -213,6 +217,7 @@ def base_patch(excite_noise=None, shaping=None, click_env=None, level_curve=None
                         "inharmFb": 0.90, "inharmHp": 150.0,
                         "ap1": 0.55, "ap2": 0.35, "ap3": 0.20,
                         "fbCoeff": 0.3,
+                        **({"releaseFb": release_fb} if release_fb is not None else {}),
                     },
                 },
                 {
@@ -229,7 +234,7 @@ def base_patch(excite_noise=None, shaping=None, click_env=None, level_curve=None
         },
         "instrument": {
             "polyphony": 1,
-            "release": RELEASE_SECONDS,
+            "release": release if release is not None else RELEASE_SECONDS,
             "paramMap": {
                 "frequency": [
                     "string.frequency",
@@ -238,7 +243,10 @@ def base_patch(excite_noise=None, shaping=None, click_env=None, level_curve=None
                     {"target": "string.brightness", "curve": copy.deepcopy(BRIGHT_CURVE)},
                     {"target": "string.dispersion", "curve": copy.deepcopy(DISP_CURVE)},
                     {"target": "string.inharmGain", "curve": copy.deepcopy(INHARM_CURVE)},
-                ] + extra_map,
+                ] + extra_map
+                  + ([{"target": "string.detune",
+                       "curve": [list(pt) for pt in detune_curve]}]
+                     if detune_curve is not None else []),
             },
         },
         "score": score if score is not None else C246_SCORE,
@@ -313,6 +321,41 @@ def build_all():
                                            knock=(0.001, 0.080, 80.0, 500.0, 2.0),
                                            vel_bright=True,
                                            score=VEL_LADDER_SCORE),
+        # v6f: RUNG 4 in-loop damper (engine releaseFb; his 0.82 at gate-off).
+        # C246 score; release window widened to 0.6 s so the damper's
+        # darkening curve is audible before the output-fade guard. v6f_ctrl =
+        # same base without the damper.
+        "v6f_damper.json":      base_patch(excite_noise=(0.002, 0.040),
+                                           shaping=(2.5, 0.15),
+                                           click_env=(0.002, 0.050, 0.03, 0.15),
+                                           level_curve=[(65.0, 3.558),
+                                                        (261.63, 0.871),
+                                                        (1046.5, 0.458)],
+                                           knock=(0.001, 0.080, 80.0, 500.0, 2.0),
+                                           vel_bright=True,
+                                           release_fb=0.82, release=0.6),
+        "v6f_ctrl.json":        base_patch(excite_noise=(0.002, 0.040),
+                                           shaping=(2.5, 0.15),
+                                           click_env=(0.002, 0.050, 0.03, 0.15),
+                                           level_curve=[(65.0, 3.558),
+                                                        (261.63, 0.871),
+                                                        (1046.5, 0.458)],
+                                           knock=(0.001, 0.080, 80.0, 500.0, 2.0),
+                                           vel_bright=True,
+                                           release=0.6),
+        # v6g: RUNG 5 detune-vs-pitch curve (his Custom Function 5: ~0 cents
+        # at the bass -> 5 cents at the top; replaces our fixed 1.8 cents).
+        "v6g_detune.json":      base_patch(excite_noise=(0.002, 0.040),
+                                           shaping=(2.5, 0.15),
+                                           click_env=(0.002, 0.050, 0.03, 0.15),
+                                           level_curve=[(65.0, 3.558),
+                                                        (261.63, 0.871),
+                                                        (1046.5, 0.458)],
+                                           knock=(0.001, 0.080, 80.0, 500.0, 2.0),
+                                           vel_bright=True,
+                                           release_fb=0.82, release=0.6,
+                                           detune_curve=[(65.0, 0.3),
+                                                         (1046.5, 5.0)]),
         "v6e_flat.json":        base_patch(excite_noise=(0.002, 0.040),
                                            shaping=(2.5, 0.15),
                                            click_env=(0.002, 0.050, 0.03, 0.15),

@@ -32,10 +32,15 @@ band top ~500 by ear. v6e SHIPPED: engine paramMap vcurve
 on the adjusted knock base (80-500, gain 2.0 — C2 level comp drops
 x8.5 -> x3.6); velocity-ladder score; v6e_flat A/B control. Verified
 soft-C4 centroid 283 vs 349 Hz, hard notes identical.
-Verdict decides: velocity-brightness endpoints. Remaining rungs: in-loop
-releaseFb damper, detune curve. ENDGAME AGREED for the settings matrix:
-CMA-ES joint optimization vs Iowa piano references (viola pipeline;
-~200x realtime renders make it cheap) — no per-knob ear tuning.
+v6e verdict (Matt, same day): "on the money"; harpsichord-y-ness much
+reduced (hotter 80-500 knock). v6f/v6g SHIPPED — ladder complete:
+engine RenderContext.noteOffFrame + KSPianoString releaseFb (in-loop
+damper, 0.82; C2 post-off env 2089->158->1 vs ctrl 2089->538->46) and
+detune-vs-pitch curve (0.3->5 cents). A/B: v6f_ctrl / v6f_damper /
+v6g_detune.
+Verdict decides: damper + detune. Then ENDGAME (agreed): CMA-ES joint
+optimization of the full v6 settings matrix vs Iowa piano references
+(viola pipeline; ~200x realtime renders) — no per-knob ear tuning.
 Analysis: docs/research/afpiano_2021/ANALYSIS.md.
 
 ### 26. Housekeeping 2026-08-10 — leftovers and judgment calls [read]
