@@ -6,6 +6,7 @@
 #include "mforce/music/pitch_bend.h"
 #include "mforce/music/pitch_curve.h"
 #include "mforce/source/multiplex_source.h"
+#include <cstdio>
 #include <memory>
 #include <vector>
 #include <string>
@@ -145,10 +146,6 @@ struct PitchedInstrument final : Instrument {
   };
 
   float hiBoost{0.0f};
-  // Damper stage: after the note's scored duration, the voice keeps rendering
-  // for releaseSeconds with an exponential fade reaching -60 dB at the end,
-  // instead of truncating the buffer at note-off. 0 = legacy hard cut.
-  float releaseSeconds{0.0f};
   std::vector<VoiceGraph> voicePool;
   int nextVoice{0};
 
@@ -164,10 +161,6 @@ struct PitchedInstrument final : Instrument {
     // master gain must ride along here or hot chains hit the caller's
     // soft_clip raw (UI keyboard distortion, 2026-08-09).
     float gain{1.0f};
-    // Damper window (releaseSeconds in samples). The caller owns the fade:
-    // keep pulling this many samples past durSamples with an exponential
-    // decay to -60 dB, matching play_note's offline damper.
-    int   releaseSamples{0};
   };
 
   StreamingVoice prepare_voice(float noteNumber, float velocity, float duration,
@@ -205,11 +198,10 @@ struct PitchedInstrument final : Instrument {
         : 0.0f;
     float gain = velocity * (1.0f + boost) * volume;
 
-    int relSamples = int(releaseSeconds * float(sampleRate));
-    RenderContext ctx{ sampleRate, durSamples };
-    vg.source->prepare(ctx, durSamples + relSamples);
+    RenderContext ctx{ sampleRate };
+    vg.source->prepare(ctx, durSamples);
 
-    return { vg.source, durSamples, gain, relSamples };
+    return { vg.source, durSamples, gain };
   }
 
   void play_note(float noteNumber, float velocity, float duration, float startTime,
@@ -258,23 +250,26 @@ struct PitchedInstrument final : Instrument {
         : 0.0f;
     float gain = velocity * (1.0f + boost);
 
-    int relSamples = int(releaseSeconds * float(sampleRate));
-    int totalSamples = durSamples + relSamples;
+    RenderContext ctx{ sampleRate };
+    vg.source->prepare(ctx, durSamples);
 
-    RenderContext ctx{ sampleRate, durSamples };
-    vg.source->prepare(ctx, totalSamples);
-
-    std::vector<float> buf(totalSamples);
+    std::vector<float> buf(durSamples);
     for (int i = 0; i < durSamples; ++i)
       buf[i] = vg.source->next() * gain;
-    if (relSamples > 0) {
-      // exp decay hitting -60 dB (1e-3) at the end of the release window
-      float k = std::log(1e-3f) / float(relSamples);
-      for (int j = 0; j < relSamples; ++j)
-        buf[durSamples + j] = vg.source->next() * gain * std::exp(k * float(j));
-    }
 
-    add_rendered(startTime, buf.data(), totalSamples);
+    // Note-contained-sound check (2026-08-13 spec): output must be at the
+    // audibility floor by duration end. WARN, never fail — a miss is a
+    // patch-design finding, and optimizer runs must keep scoring.
+    int checkStart = std::max(0, durSamples - sampleRate / 1000);
+    float tailPeak = 0.0f;
+    for (int i = checkStart; i < durSamples; ++i)
+      tailPeak = std::max(tailPeak, std::fabs(buf[i]));
+    if (tailPeak > 1e-4f)
+      std::fprintf(stderr,
+          "[containment] note %.1f (%.1f Hz) at t=%.2fs: %.1f dBFS in final 1 ms\n",
+          noteNumber, freq, startTime, 20.0f * std::log10(tailPeak));
+
+    add_rendered(startTime, buf.data(), durSamples);
   }
 };
 

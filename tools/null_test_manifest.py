@@ -3,15 +3,36 @@
 of a corpus null test. Patches that fail to render record FAIL (a FAIL that
 matches a FAIL is a pass for null purposes).
 
+Hashes are computed over the sample data with trailing all-zero frames
+stripped, so a render-length change that only adds/removes trailing
+silence (e.g. the 2026-08-13 removal of the +0.5 s score tail) does not
+read as a content change. Any nonzero sample difference still changes the
+hash.
+
 Usage: python tools/null_test_manifest.py <outfile> [dir ...]
 Default dirs: patches/baselines patches/library
 """
 import hashlib
 import os
+import struct
 import subprocess
 import sys
 import glob
 import tempfile
+import wave
+
+
+def stripped_hash(path):
+    w = wave.open(path)
+    n, ch, sw = w.getnframes(), w.getnchannels(), w.getsampwidth()
+    raw = w.readframes(n)
+    w.close()
+    frame = ch * sw
+    end = len(raw)
+    zero = b"\x00" * frame
+    while end >= frame and raw[end - frame:end] == zero:
+        end -= frame
+    return hashlib.sha256(raw[:end]).hexdigest()
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 CLI = os.path.join(ROOT, "build", "tools", "mforce_cli", "Release", "mforce_cli.exe")
@@ -39,8 +60,7 @@ def main():
         if not ok:
             lines.append("FAIL  %s" % rel)
             continue
-        h = hashlib.sha256(open(wav, "rb").read()).hexdigest()
-        lines.append("%s  %s" % (h, rel))
+        lines.append("%s  %s" % (stripped_hash(wav), rel))
     with open(outfile, "w") as f:
         f.write("\n".join(lines) + "\n")
     n_fail = sum(1 for l in lines if l.startswith("FAIL"))

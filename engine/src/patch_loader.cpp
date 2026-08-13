@@ -27,6 +27,7 @@
 #include <nlohmann/json.hpp>
 #include <fstream>
 #include <functional>
+#include <cstdio>
 #include <sstream>
 #include <stdexcept>
 #include <unordered_map>
@@ -370,6 +371,14 @@ static GraphResult build_graph(
                         p.value("decayMin",   0.025f), p.value("decayMax",   0.5f),
                         p.value("releaseMin", 0.0f),   p.value("releaseMax", 0.0f)));
                     }
+                } else if (preset == "damper") {
+                    // Damper control (note-contained sound, 2026-08-13):
+                    // 0 = open through the note, final stage ramps to 1.
+                    // Wire to a note-off-aware node's `damper` input
+                    // (KSPianoString).
+                    env = std::make_shared<Envelope>(Envelope::make_damper(sampleRate,
+                        p.value("release", 0.5f),
+                        p.value("releaseMin", 0.0f), p.value("releaseMax", 0.0f)));
                 } else {
                     throw std::runtime_error("Unknown envelope preset: " + preset);
                 }
@@ -860,10 +869,11 @@ Patch load_patch_file(const std::string& path)
         auto inst = std::make_unique<PitchedInstrument>();
         inst->sampleRate = sampleRate;
         // Pre-clip master gain (applied before the soft_clip peak guard, so it
-        // is the right knob for keeping hot chains out of the clipper) and the
-        // note-off damper release, both optional.
-        inst->volume         = instJson.value("volume", 1.0f);
-        inst->releaseSeconds = instJson.value("release", 0.0f);
+        // is the right knob for keeping hot chains out of the clipper).
+        inst->volume = instJson.value("volume", 1.0f);
+        if (instJson.value("release", 0.0f) != 0.0f)
+            std::fprintf(stderr, "[loader] instrument.release retired "
+                         "(note-contained sound 2026-08-13); ignored\n");
 
         // Build voice pool: N independent graph instances
         for (int v = 0; v < polyphony; ++v) {
@@ -921,8 +931,9 @@ Patch load_patch_file(const std::string& path)
                 double d = noteJson.at("duration").get<double>();
                 maxEnd = std::max(maxEnd, t + d);
             }
-            patch.frames = int(std::lround(
-                (maxEnd + inst->releaseSeconds + 0.5) * sampleRate)); // release + 0.5s tail
+            // Note-contained sound (2026-08-13): all sound ends by the last
+            // note's duration end, so the render is exactly the score length.
+            patch.frames = int(std::lround(maxEnd * sampleRate));
         }
 
         // Wire instrument into mixer
@@ -1055,8 +1066,10 @@ InstrumentPatch load_instrument_patch(const std::string& path)
 
     auto inst = std::make_unique<PitchedInstrument>();
     inst->sampleRate = sampleRate;
-    inst->volume         = instJson.value("volume", 1.0f);
-    inst->releaseSeconds = instJson.value("release", 0.0f);
+    inst->volume = instJson.value("volume", 1.0f);
+    if (instJson.value("release", 0.0f) != 0.0f)
+        std::fprintf(stderr, "[loader] instrument.release retired "
+                     "(note-contained sound 2026-08-13); ignored\n");
 
     for (int v = 0; v < polyphony; ++v) {
         auto g = build_graph(nodeMap, nodeOrder, sampleRate);
