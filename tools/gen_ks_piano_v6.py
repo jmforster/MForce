@@ -42,13 +42,16 @@ VOLUMES = {
     "v6c_shaped_alt.json":  0.5627,
     "v6c2_shaped.json":     0.2213,
     "v6c2_bloom.json":      0.2218,
-    "v6c3_level.json":      1.0,
+    "v6c3_level.json":      0.4839,
+    "v6d_knock.json":       1.0,
+    "v6d_knock_tight.json": 1.0,
 }
 
 RELEASE_SECONDS = 0.35
 
 
-def base_patch(excite_noise=None, shaping=None, click_env=None, level_curve=None):
+def base_patch(excite_noise=None, shaping=None, click_env=None, level_curve=None,
+               knock=None):
     """excite_noise: None = v5a bare-envelope excitation; else (attack, decay)
     for the noise-burst envelope, with the bank fed by enveloped white noise.
     shaping: None = bank feeds the string directly (rung 1); else
@@ -129,13 +132,37 @@ def base_patch(excite_noise=None, shaping=None, click_env=None, level_curve=None
                 "operation": "sum"}},
         ]
         string_source = {"ref": "exc_mix"}
+        if knock is not None:
+            # v6d: pitch-FIXED knock — the hammer/soundboard body real pianos
+            # share across the keyboard (commuted-synthesis style). Own
+            # envelope -> fixed BW bandpass on the raw noise -> gain -> summed.
+            ka, kd, k_lo, k_hi, k_gain = knock
+            shaping_nodes += [
+                {"id": "env_knock", "type": "Envelope", "params": {
+                    "preset": "adsr", "timeMode": "seconds",
+                    "attack": ka, "decay": kd,
+                    "sustainLevel": 0.0, "release": 0.0}},
+                {"id": "noise_knock", "type": "WhiteNoiseSource", "params": {
+                    "amplitude": {"ref": "env_knock"}}},
+                {"id": "exc_knock", "type": "BWBandpassFilter", "params": {
+                    "source": {"ref": "noise_knock"}, "sections": 2,
+                    "lowCutoff": k_lo, "highCutoff": k_hi}},
+                {"id": "exc_knockgain", "type": "CombinedSource", "params": {
+                    "source1": {"ref": "exc_knock"}, "source2": k_gain,
+                    "operation": "multiply"}},
+                {"id": "exc_mix2", "type": "CombinedSource", "params": {
+                    "source1": {"ref": "exc_mix"},
+                    "source2": {"ref": "exc_knockgain"},
+                    "operation": "sum"}},
+            ]
+            string_source = {"ref": "exc_mix2"}
         if level_curve is not None:
             # v6c3: measured per-register gain compensation — constant-Q bank
             # passes noise energy ~ absolute bandwidth, leaving C2 ~12 dB under
             # C6 (Matt obs 1). Curve equalizes excitation RMS across register.
             shaping_nodes += [
                 {"id": "exc_level", "type": "CombinedSource", "params": {
-                    "source1": {"ref": "exc_mix"}, "source2": 1.0,
+                    "source1": dict(string_source), "source2": 1.0,
                     "operation": "multiply"}},
             ]
             string_source = {"ref": "exc_level"}
@@ -234,6 +261,25 @@ def build_all():
                                            level_curve=[(65.0, 2.284),
                                                         (261.63, 1.0),
                                                         (1046.5, 0.458)]),
+        # v6d: pitch-fixed knock (80-300 Hz, own envelope) + FULL-CHAIN level
+        # calibration (opt_ks_piano_v6d.py). v6c3 equalized excitation RMS but
+        # the string loop loses another ~9 dB at C2 (loop buildup ~ burst
+        # periods spanned); these curves flatten the rendered attack peaks
+        # C2==C4==C6. Two knock decays for the ears.
+        "v6d_knock.json":       base_patch(excite_noise=(0.002, 0.040),
+                                           shaping=(2.5, 0.15),
+                                           click_env=(0.002, 0.050, 0.03, 0.15),
+                                           level_curve=[(65.0, 8.505),
+                                                        (261.63, 1.233),
+                                                        (1046.5, 0.458)],
+                                           knock=(0.001, 0.080, 80.0, 300.0, 1.0)),
+        "v6d_knock_tight.json": base_patch(excite_noise=(0.002, 0.040),
+                                           shaping=(2.5, 0.15),
+                                           click_env=(0.002, 0.050, 0.03, 0.15),
+                                           level_curve=[(65.0, 9.277),
+                                                        (261.63, 1.277),
+                                                        (1046.5, 0.458)],
+                                           knock=(0.001, 0.030, 80.0, 300.0, 1.0)),
     }
 
 
