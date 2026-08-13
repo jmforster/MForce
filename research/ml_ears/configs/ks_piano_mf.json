@@ -62,7 +62,8 @@
  "eval_note_midis": [
   36,
   60,
-  72
+  72,
+  84
  ],
  "motion_samples": [
   "mf.C2",
@@ -74,7 +75,7 @@
   "mf.C5"
  ],
  "encoder": "ks_piano",
- "template": "research/ml_ears/patches/ks_v6_seed.json",
+ "template": "research/ml_ears/patches/ks_v6k_seed.json",
  "reference_path": "research/ml_ears/out/piano_reference.json",
  "reference_build": {
   "sus_start": 0.25,
@@ -90,6 +91,7 @@
  "run_root": "research/ml_ears/cmaes_runs",
  "notes": [
   "v6 KS chain (2026-08-12): Matt-locked seed v6h; encoder_ks_piano 19 dims.",
-  "Reference piano_reference.json reused (same Iowa mf samples)."
+  "Reference piano_reference.json reused (same Iowa mf samples).",
+  "pass 3: body-noise path + level_top; eval gains midi 84 (C6 sci)."
  ]
 }

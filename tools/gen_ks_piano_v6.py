@@ -50,7 +50,8 @@ VOLUMES = {
     "v6f_damper.json":      0.2561,
     "v6f_ctrl.json":        0.2561,
     "v6g_detune.json":      0.2548,
-    "v6h_seed.json":        1.0,
+    "v6h_seed.json":        0.2548,
+    "v6k_seed.json":        1.0,
     "v6f3_dnoise_lo.json":  0.2561,
     "v6f3_dnoise_hi.json":  0.2561,
     "v6f2_ctrl.json":       0.2561,
@@ -81,7 +82,8 @@ VEL_LADDER_SCORE = [
 
 def base_patch(excite_noise=None, shaping=None, click_env=None, level_curve=None,
                knock=None, vel_bright=False, score=None, release_fb=None,
-               detune_curve=None, release=None, damper_noise=None):
+               detune_curve=None, release=None, damper_noise=None,
+               body_noise=None):
     """excite_noise: None = v5a bare-envelope excitation; else (attack, decay)
     for the noise-burst envelope, with the bank fed by enveloped white noise.
     shaping: None = bank feeds the string directly (rung 1); else
@@ -162,6 +164,31 @@ def base_patch(excite_noise=None, shaping=None, click_env=None, level_curve=None
                 "operation": "sum"}},
         ]
         string_source = {"ref": "exc_mix"}
+        if body_noise is not None:
+            # Pass 3 (Matt: below middle C = harpsichord attack, bassoon
+            # sustain): the bank rings ONLY h1-4, starving the string loop of
+            # harmonics 5-20 exactly where real pianos are rich (Iowa C2 piles
+            # energy on h4-h6). Broadband body path — the raw burst through a
+            # pitch-tracked LP with a FLOOR — feeds the comb, which selects
+            # the harmonics itself (Balazs's actual architecture: shaped
+            # noise in, the string does the picking).
+            bn_mult, bn_floor, bn_gain = body_noise
+            shaping_nodes += [
+                {"id": "exc_body", "type": "BWLowpassFilter", "params": {
+                    "source": {"ref": "noise"}, "sections": 2,
+                    "cutoffFreq": 1000.0}},
+                {"id": "exc_bodygain", "type": "CombinedSource", "params": {
+                    "source1": {"ref": "exc_body"}, "source2": bn_gain,
+                    "operation": "multiply"}},
+                {"id": "exc_mixb", "type": "CombinedSource", "params": {
+                    "source1": {"ref": "exc_mix"},
+                    "source2": {"ref": "exc_bodygain"},
+                    "operation": "sum"}},
+            ]
+            string_source = {"ref": "exc_mixb"}
+            extra_map += [{"target": "exc_body.cutoffFreq",
+                           "curve": [[f, max(bn_mult * f, bn_floor)]
+                                     for f in (65.0, 262.0, 1047.0)]}]
         if knock is not None:
             # v6d: pitch-FIXED knock — the hammer/soundboard body real pianos
             # share across the keyboard (commuted-synthesis style). Own
@@ -181,7 +208,7 @@ def base_patch(excite_noise=None, shaping=None, click_env=None, level_curve=None
                     "source1": {"ref": "exc_knock"}, "source2": k_gain,
                     "operation": "multiply"}},
                 {"id": "exc_mix2", "type": "CombinedSource", "params": {
-                    "source1": {"ref": "exc_mix"},
+                    "source1": dict(string_source),
                     "source2": {"ref": "exc_knockgain"},
                     "operation": "sum"}},
             ]
@@ -459,6 +486,24 @@ def build_all():
                                            damper_noise=0.03,
                                            detune_curve=[(65.0, 0.3),
                                                          (1046.5, 4.0)],
+                                           score=C246_GAPPED_SCORE),
+        # v6k_seed: pass-3 optimization template — run2 winner values baked,
+        # + broadband body path (warm: gentle) + 4-point level curve (top
+        # anchor regulates above-C6 loudness, Matt: "high still louder").
+        "v6k_seed.json":        base_patch(excite_noise=(0.002, 0.0202),
+                                           shaping=(4.497, 0.3836),
+                                           click_env=(0.002, 0.0846, 0.0221, 0.3836),
+                                           level_curve=[(65.0, 2.3291),
+                                                        (261.63, 0.4007),
+                                                        (1046.5, 0.9763),
+                                                        (2093.0, 0.9763)],
+                                           knock=(0.001, 0.1411, 71.73, 494.47, 1.1693),
+                                           vel_bright=True,
+                                           release_fb=0.82, release=2.0,
+                                           damper_noise=0.03,
+                                           detune_curve=[(65.0, 0.3),
+                                                         (1046.5, 5.2604)],
+                                           body_noise=(3.0, 800.0, 0.3),
                                            score=C246_GAPPED_SCORE),
         "v6e_flat.json":        base_patch(excite_noise=(0.002, 0.040),
                                            shaping=(2.5, 0.15),

@@ -64,6 +64,13 @@ SCALARS = [
     # pass 2 (Matt: hand-lowering knock lowCutoff to 30 was "dramatic")
     ("knock_lo",     20.0, 150.0,  80.0),
     ("knock_hi",    250.0, 900.0, 500.0),
+    # pass 3 (Matt: below middle C harpsichord/bassoon — bank-only excitation
+    # starves harmonics 5-20; broadband body path lets the comb self-select):
+    ("body_gain",    0.0,   2.0,   0.3),
+    ("body_mult",    1.5,  10.0,   3.0),
+    ("body_floor", 300.0, 2500.0, 800.0),
+    # pass 3 (Matt: above-C6 still louder than bass): 4th level anchor @2093
+    ("level_top",    0.10,  1.50,  0.976),
 ]
 
 DIM = len(SCALARS)
@@ -146,8 +153,16 @@ def encode(z, template):
         [65.0, blo], [262.0, 0.5 * (blo + bhi)], [1047.0, bhi]]
     _curve_entry(p, "string.detune")["curve"] = [
         [65.0, 0.3], [1046.5, v["detune_hi"]]]
-    _curve_entry(p, "exc_level.source2")["curve"] = [
-        [65.0, v["level_lo"]], [261.63, v["level_mid"]], [1046.5, v["level_hi"]]]
+    lvl = [[65.0, v["level_lo"]], [261.63, v["level_mid"]],
+           [1046.5, v["level_hi"]]]
+    if "level_top" in v:
+        lvl.append([2093.0, v["level_top"]])
+    _curve_entry(p, "exc_level.source2")["curve"] = lvl
+    if "body_gain" in v:
+        _node(p, "exc_bodygain")["source2"] = v["body_gain"]
+        _curve_entry(p, "exc_body.cutoffFreq")["curve"] = [
+            [f, max(v["body_mult"] * f, v["body_floor"])]
+            for f in (65.0, 262.0, 1047.0)]
     ig = _curve_entry(p, "string.inharmGain")
     ig["curve"] = [[65.0, 0.50 * v["inharm_scale"]],
                    [262.0, 0.15 * v["inharm_scale"]],
