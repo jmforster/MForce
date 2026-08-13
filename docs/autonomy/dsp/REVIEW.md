@@ -35,6 +35,21 @@ sustains past transport duration, releases on key-up; (2) rolled chord
 released together = one damper event; (3) Envelope panel timeMode
 checkbox round-trips; (4) 10-voice stack doesn't glitch (reclaim gone —
 denormal/coeff fixes carry the load).
+MATT AUDITION SAME DAY (first restart) + FIXES (47a00ac): note-off works;
+three findings, all root-caused and fixed. (1) Staccato "vibrating tail"
+= make_damper conflated felt DROP (~40 ms) with choke-out (~0.25 s) in
+one slow ramp — now 3 plain stages (hold-open / drop / hold-closed);
+tail at the cut -41 -> -58 dB. (2) Damper "fires on the attack" = UI
+preset loader missing the damper preset, fell through to default ADSR
+(engaged during attack) — fixed; UI keyboard profile now parallel to CLI
+at every window. (3) endHold flag REVERTED per Matt — Envelope stays
+plain stages; measured identical tails with/without. gate_release now
+jumps to release-phase START (first stage after expand). Beep on 4th
+held key = suspected keyboard ghosting (hardware): test same chord at a
+shifted octave. Top-octave volume blast = exc_level top anchor, still
+the next front, untouched. v6m.wav RE-RENDERED with the 3-stage damper
+— re-listen. Sound-quality parity ("as good, not better") expected:
+this change was semantics, not tone.
 
 ### 27. KS PIANO v6 rung 2 — shaped excitation [listen] (2026-08-10)
 renders/dsp/pending/ks_piano_v6/ — README inside. Rung 1 RESOLVED same day:
