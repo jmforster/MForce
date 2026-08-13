@@ -1,3 +1,4 @@
+#include "mforce/core/denormals.h"
 #include "mforce/render/patch_loader.h"
 #include "mforce/render/wav_writer.h"
 #include "mforce/core/source_registry.h"
@@ -1152,6 +1153,7 @@ static int run_lint_template(int argc, char** argv)
 
 int main(int argc, char** argv)
 {
+    mforce::enable_flush_denormals();
     try {
         if (argc >= 2 && std::string(argv[1]) == "--dump-descriptors")
             return run_dump_descriptors(argc, argv);

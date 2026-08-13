@@ -1,3 +1,4 @@
+#include "mforce/core/denormals.h"
 #include "imgui.h"
 #include "imgui_internal.h"
 #include "imgui_impl_glfw.h"
@@ -2183,6 +2184,11 @@ struct Voice {
     // offline damper. fadeBelowRemaining 0 = legacy hard stop.
     int   fadeBelowRemaining = 0;
     float fadeDecay = 1.0f;
+    // Silence reclaim: a decayed KS voice can never re-sound, so 250 ms of
+    // true silence ends it early instead of churning zeros for the rest of
+    // duration+release+tail (2026-08-12: silent voices stacking up at ~43%
+    // of a core each glitched two-note playing).
+    int   silentRun = 0;
     bool  active = false;
     int   midiNote = 0;  // for keyboard highlight
 };
@@ -2210,6 +2216,7 @@ static void voice_schedule(std::shared_ptr<InstrumentPatch> patch,
     g_voices[slot].gain = gain;
     g_voices[slot].fadeBelowRemaining = fadeBelowRemaining;
     g_voices[slot].fadeDecay = fadeDecay;
+    g_voices[slot].silentRun = 0;
     g_voices[slot].midiNote = midiNote;
     g_voices[slot].active = true;
 }
@@ -2233,6 +2240,8 @@ static int audio_callback(void* outputBuffer, void* /*inputBuffer*/,
                           unsigned int nFrames, double /*streamTime*/,
                           RtAudioStreamStatus /*status*/, void* /*userData*/) {
     float* out = static_cast<float*>(outputBuffer);
+    // RtAudio's thread — cheap to set per callback, disastrous to forget.
+    mforce::enable_flush_denormals();
     g_audioHeartbeat.fetch_add(1, std::memory_order_relaxed);
     std::lock_guard<std::mutex> lock(g_audioMutex);
 
@@ -2257,7 +2266,16 @@ static int audio_callback(void* outputBuffer, void* /*inputBuffer*/,
         for (int v = 0; v < MAX_VOICES; ++v) {
             auto& voice = g_voices[v];
             if (!voice.active) continue;
-            voiceSum += voice.source->next() * voice.gain;
+            float vs = voice.source->next() * voice.gain;
+            voiceSum += vs;
+            if (std::fabs(vs) < 1e-4f) {
+                if (++voice.silentRun > 12000) {   // 250 ms @48k of silence
+                    voice.active = false;
+                    continue;   // gc on the UI thread, as with normal ends
+                }
+            } else {
+                voice.silentRun = 0;
+            }
             if (voice.samplesRemaining <= voice.fadeBelowRemaining)
                 voice.gain *= voice.fadeDecay;
             voice.samplesRemaining--;
@@ -7463,6 +7481,7 @@ static void draw_banner() {
 } // namespace stamp
 
 int main(int argc, char** argv) {
+    mforce::enable_flush_denormals();
     SetUnhandledExceptionFilter(seh_crash_filter);
     stamp::init();
 

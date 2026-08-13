@@ -163,8 +163,14 @@ struct BWLowpassFilter final : ValueSource {
     float cutoff = cutoffFreq_ ? (cutoffFreq_->next(), cutoffFreq_->current()) : 1000.0f;
     cutoff = std::clamp(cutoff, 1.0f, float(sampleRate_) * 0.49f);
 
+    // Coefficients only when the cutoff moves — update() runs a tan() per
+    // section, and doing that per sample made each BW node ~10x costlier
+    // than its actual filtering (2026-08-12 live-voice CPU audit).
+    if (cutoff != lastCutoff_) {
+      for (auto& s : sections_) s.update(cutoff);
+      lastCutoff_ = cutoff;
+    }
     for (auto& s : sections_) {
-      s.update(cutoff);
       val = s.process(val);
     }
     cur_ = val;
@@ -178,6 +184,7 @@ private:
   std::shared_ptr<ValueSource> cutoffFreq_;
   int sampleRate_;
   std::vector<BWLPSection> sections_;
+  float lastCutoff_{-1.0f};
   float cur_{0.0f};
 };
 
@@ -234,8 +241,11 @@ struct BWHighpassFilter final : ValueSource {
     float cutoff = cutoffFreq_ ? (cutoffFreq_->next(), cutoffFreq_->current()) : 1000.0f;
     cutoff = std::clamp(cutoff, 1.0f, float(sampleRate_) * 0.49f);
 
+    if (cutoff != lastCutoff_) {
+      for (auto& s : sections_) s.update(cutoff);
+      lastCutoff_ = cutoff;
+    }
     for (auto& s : sections_) {
-      s.update(cutoff);
       val = s.process(val);
     }
     cur_ = val;
@@ -249,6 +259,7 @@ private:
   std::shared_ptr<ValueSource> cutoffFreq_;
   int sampleRate_;
   std::vector<BWHPSection> sections_;
+  float lastCutoff_{-1.0f};
   float cur_{0.0f};
 };
 
@@ -315,8 +326,13 @@ struct BWBandpassFilter final : ValueSource {
     lo = std::clamp(lo, 1.0f, float(sampleRate_) * 0.49f);
     hi = std::clamp(hi, 1.0f, float(sampleRate_) * 0.49f);
 
-    for (auto& s : hpSections_) { s.update(lo); val = s.process(val); }
-    for (auto& s : lpSections_) { s.update(hi); val = s.process(val); }
+    if (lo != lastLo_ || hi != lastHi_) {
+      for (auto& s : hpSections_) s.update(lo);
+      for (auto& s : lpSections_) s.update(hi);
+      lastLo_ = lo; lastHi_ = hi;
+    }
+    for (auto& s : hpSections_) { val = s.process(val); }
+    for (auto& s : lpSections_) { val = s.process(val); }
 
     cur_ = val;
     return cur_;
@@ -329,6 +345,7 @@ private:
   std::shared_ptr<ValueSource> lowCutoff_;
   std::shared_ptr<ValueSource> highCutoff_;
   int sampleRate_;
+  float lastLo_{-1.0f}, lastHi_{-1.0f};
   std::vector<BWHPSection> hpSections_;
   std::vector<BWLPSection> lpSections_;
   float cur_{0.0f};
