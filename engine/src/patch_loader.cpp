@@ -735,7 +735,8 @@ resolve_param_map(
     std::unordered_map<std::string, std::vector<PitchedInstrument::ParamSlot>> result;
 
     auto resolve_one_target = [&](const std::string& name, const std::string& target,
-                                  std::vector<std::pair<float, float>> curve = {}) {
+                                  std::vector<std::pair<float, float>> curve = {},
+                                  std::vector<std::pair<float, float>> vcurve = {}) {
         std::string nodeId, paramName;
         auto dot = target.find('.');
         if (dot != std::string::npos) {
@@ -755,6 +756,7 @@ resolve_param_map(
                 throw std::runtime_error("paramMap: '" + target + "' is not a ConstantSource (it's wired to a ref)");
             PitchedInstrument::ParamSlot slot{nodeIt->second, paramName, cs, nodeId};
             slot.curve = std::move(curve);
+            slot.vcurve = std::move(vcurve);
             result[name].push_back(std::move(slot));
             return;
         }
@@ -766,6 +768,7 @@ resolve_param_map(
                 PitchedInstrument::ParamSlot slot{nodeIt->second, paramName, nullptr, nodeId};
                 slot.isConfig = true;
                 slot.curve = std::move(curve);
+                slot.vcurve = std::move(vcurve);
                 result[name].push_back(std::move(slot));
                 return;
             }
@@ -773,9 +776,12 @@ resolve_param_map(
         throw std::runtime_error("paramMap: cannot resolve '" + target + "' (neither param nor config)");
     };
 
-    // Object entry: { "target": "node.paramOrConfig", "curve": [[hz, value], ...] }
+    // Object entry: { "target": "node.paramOrConfig", "curve": [[hz, value], ...],
+    //                 "vcurve": [[velocity, multiplier], ...] }
     // — the ParameterMapping "Function" port: frequency → curve(frequency)
     // (log-hz linear-value interpolation, clamped at the end breakpoints).
+    // vcurve composes multiplicatively: value = curve(freq) * vcurve(velocity)
+    // (linear interpolation in velocity; the AF-style "Veloc" mod input).
     auto resolve_entry = [&](const std::string& name, const json& t) {
         if (t.is_string()) { resolve_one_target(name, t.get<std::string>()); return; }
         if (t.is_object() && t.contains("target")) {
@@ -786,7 +792,15 @@ resolve_param_map(
                 if (curve.size() < 2)
                     throw std::runtime_error("paramMap: curve needs >= 2 breakpoints");
             }
-            resolve_one_target(name, t.at("target").get<std::string>(), std::move(curve));
+            std::vector<std::pair<float, float>> vcurve;
+            if (t.contains("vcurve")) {
+                for (const auto& bp : t.at("vcurve"))
+                    vcurve.emplace_back(bp.at(0).get<float>(), bp.at(1).get<float>());
+                if (vcurve.size() < 2)
+                    throw std::runtime_error("paramMap: vcurve needs >= 2 breakpoints");
+            }
+            resolve_one_target(name, t.at("target").get<std::string>(),
+                               std::move(curve), std::move(vcurve));
             return;
         }
         throw std::runtime_error("paramMap: '" + name + "' entries must be strings or {target, curve} objects");

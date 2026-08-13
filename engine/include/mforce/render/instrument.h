@@ -94,6 +94,26 @@ struct PitchedInstrument final : Instrument {
     // linear interpolation in log-frequency, clamped at the end values.
     // Empty curve = identity (slot receives the frequency itself).
     std::vector<std::pair<float, float>> curve;
+    // Optional velocity→MULTIPLIER curve, composed on top of the frequency
+    // mapping: value = map(freq) * vmap(velocity). Breakpoints (velocity
+    // 0..1, multiplier); linear interpolation, clamped at the ends. Empty =
+    // 1.0. This is the AF-style "Veloc" mod input (velocity->brightness).
+    std::vector<std::pair<float, float>> vcurve;
+
+    float vmap(float vel) const {
+      if (vcurve.empty()) return 1.0f;
+      if (vel <= vcurve.front().first) return vcurve.front().second;
+      if (vel >= vcurve.back().first)  return vcurve.back().second;
+      for (size_t i = 1; i < vcurve.size(); ++i) {
+        if (vel <= vcurve[i].first) {
+          float t = (vel - vcurve[i - 1].first) /
+                    (vcurve[i].first - vcurve[i - 1].first);
+          return vcurve[i - 1].second +
+                 (vcurve[i].second - vcurve[i - 1].second) * t;
+        }
+      }
+      return vcurve.back().second;
+    }
 
     float map(float freq) const {
       if (curve.empty()) return freq;
@@ -164,13 +184,13 @@ struct PitchedInstrument final : Instrument {
         if (slot.isConfig) {
           // Frequency-driven config (e.g. residue curves): mapped scalar via
           // set_config, applied before prepare so per-note state rebuilds.
-          slot.consumer->set_config(slot.paramName, slot.map(freq));
+          slot.consumer->set_config(slot.paramName, slot.map(freq) * slot.vmap(velocity));
         } else if (curve && slot.curve.empty()) {
           auto env = compile_pitch_curve(*curve, sampleRate);
           auto pbs = std::make_shared<PitchBendSource>(freq, std::move(env));
           slot.consumer->set_param(slot.paramName, pbs);
         } else {
-          float v = slot.map(freq);
+          float v = slot.map(freq) * slot.vmap(velocity);
           slot.originalCS->set(v);
           slot.consumer->set_param(slot.paramName, slot.originalCS);
           if (vg.topMultiplex && !slot.targetNodeId.empty()) {
@@ -206,7 +226,7 @@ struct PitchedInstrument final : Instrument {
         if (slot.isConfig) {
           // Frequency-driven config (e.g. residue curves): mapped scalar via
           // set_config, applied before prepare so per-note state rebuilds.
-          slot.consumer->set_config(slot.paramName, slot.map(freq));
+          slot.consumer->set_config(slot.paramName, slot.map(freq) * slot.vmap(velocity));
         } else if (curve && slot.curve.empty()) {
           // Build an Envelope from the curve, wrap in a PitchBendSource that
           // emits baseHz * 2^(semi/12), and plug it into the consumer's param
@@ -220,7 +240,7 @@ struct PitchedInstrument final : Instrument {
           // Plain note: set the nominal (or curve-mapped) value and restore
           // the edge to the original ConstantSource (idempotent if already
           // restored).
-          float v = slot.map(freq);
+          float v = slot.map(freq) * slot.vmap(velocity);
           slot.originalCS->set(v);
           slot.consumer->set_param(slot.paramName, slot.originalCS);
           // Fan out to Multiplex clones so each internal copy retunes too.

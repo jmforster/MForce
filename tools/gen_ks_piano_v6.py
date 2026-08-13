@@ -43,15 +43,26 @@ VOLUMES = {
     "v6c2_shaped.json":     0.2213,
     "v6c2_bloom.json":      0.2218,
     "v6c3_level.json":      0.4839,
-    "v6d_knock.json":       1.0,
-    "v6d_knock_tight.json": 1.0,
+    "v6d_knock.json":       0.2989,
+    "v6d_knock_tight.json": 0.3939,
+    "v6e_vel.json":         1.0,
+    "v6e_flat.json":        1.0,
 }
 
 RELEASE_SECONDS = 0.35
 
+# Rung-3 audition score: each register at soft/medium/hard velocity.
+VEL_LADDER_SCORE = [
+    {"note": n, "velocity": v, "time": float(i * 4), "duration": 3.5}
+    for i, (n, v) in enumerate(
+        [(36, 0.35), (36, 0.60), (36, 0.85),
+         (60, 0.35), (60, 0.60), (60, 0.85),
+         (84, 0.35), (84, 0.60), (84, 0.85)])
+]
+
 
 def base_patch(excite_noise=None, shaping=None, click_env=None, level_curve=None,
-               knock=None):
+               knock=None, vel_bright=False, score=None):
     """excite_noise: None = v5a bare-envelope excitation; else (attack, decay)
     for the noise-burst envelope, with the bank fed by enveloped white noise.
     shaping: None = bank feeds the string directly (rung 1); else
@@ -168,10 +179,18 @@ def base_patch(excite_noise=None, shaping=None, click_env=None, level_curve=None
             string_source = {"ref": "exc_level"}
             extra_map += [{"target": "exc_level.source2",
                            "curve": [list(pt) for pt in level_curve]}]
-        extra_map += [{"target": "exc_lp.cutoffFreq",
-                       "curve": [[65.0, lp_mult * 65.0],
-                                 [262.0, lp_mult * 262.0],
-                                 [1047.0, lp_mult * 1047.0]]}]
+        lp_entry = {"target": "exc_lp.cutoffFreq",
+                    "curve": [[65.0, lp_mult * 65.0],
+                              [262.0, lp_mult * 262.0],
+                              [1047.0, lp_mult * 1047.0]]}
+        if vel_bright:
+            # Rung 3: velocity->brightness (AF "Veloc" mod inputs). Soft
+            # notes darker + less click; hard notes brighter + clickier.
+            lp_entry["vcurve"] = [[0.2, 0.55], [0.85, 1.0], [1.0, 1.25]]
+            for m in extra_map:
+                if m.get("target") == "exc_clickgain.source2":
+                    m["vcurve"] = [[0.2, 0.30], [0.85, 1.0], [1.0, 1.6]]
+        extra_map += [lp_entry]
 
     patch = {
         "sampleRate": 48000,
@@ -222,7 +241,7 @@ def base_patch(excite_noise=None, shaping=None, click_env=None, level_curve=None
                 ] + extra_map,
             },
         },
-        "score": C246_SCORE,
+        "score": score if score is not None else C246_SCORE,
     }
     return patch
 
@@ -280,6 +299,28 @@ def build_all():
                                                         (261.63, 1.277),
                                                         (1046.5, 0.458)],
                                            knock=(0.001, 0.030, 80.0, 300.0, 1.0)),
+        # v6e: RUNG 3 velocity->brightness (engine vcurve, 2026-08-12) on the
+        # Matt-adjusted knock base (band 80-500 per his ears, gain 2.0 so it
+        # reads in the full patch; level curve recalibrated full-chain).
+        # Velocity-ladder score: C2/C4/C6 x vel 0.35/0.60/0.85.
+        # v6e_flat = same base, velocity scales gain only (the A/B control).
+        "v6e_vel.json":         base_patch(excite_noise=(0.002, 0.040),
+                                           shaping=(2.5, 0.15),
+                                           click_env=(0.002, 0.050, 0.03, 0.15),
+                                           level_curve=[(65.0, 3.558),
+                                                        (261.63, 0.871),
+                                                        (1046.5, 0.458)],
+                                           knock=(0.001, 0.080, 80.0, 500.0, 2.0),
+                                           vel_bright=True,
+                                           score=VEL_LADDER_SCORE),
+        "v6e_flat.json":        base_patch(excite_noise=(0.002, 0.040),
+                                           shaping=(2.5, 0.15),
+                                           click_env=(0.002, 0.050, 0.03, 0.15),
+                                           level_curve=[(65.0, 3.558),
+                                                        (261.63, 0.871),
+                                                        (1046.5, 0.458)],
+                                           knock=(0.001, 0.080, 80.0, 500.0, 2.0),
+                                           score=VEL_LADDER_SCORE),
     }
 
 
