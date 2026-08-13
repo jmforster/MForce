@@ -18,14 +18,16 @@ transient), so the click got its own envelope + pitch-dependent gain
 (0.03@C2 -> 0.15@C6), grid-searched with a new attack-window scoring term
 (opt_ks_piano_v6c2.py). A/B: v6c2_shaped (2 ms tick) + v6c2_bloom (15 ms
 bloom) vs v6b_noise_short. All earlier renders kept.
-v6c3 full-keyboard verdict (Matt, 2026-08-10 evening, UI round-trip fixed
-so live == CLI): "ultra-high notes are PERRRFECT (full patch)." Lower
-registers: harpsichord-adjacent (full patch); excitation in isolation
-"all rattle and no thump" (ears fatigued — re-confirm fresh). That is the
-textbook symptom of the everything-tracks-pitch excitation; the PARKED
-fixed-knock component (pitch-fixed ~100-300 Hz woody body, commuted-
-synthesis style) is the candidate fix — Matt's call whether to unpark
-as the next rung, ahead of vel->brightness / releaseFb / detune.
+v6c3 verdict CONFIRMED fresh-eared 2026-08-12 (+ new obs: volume falls
+dramatically with pitch). v6d SHIPPED same day: pitch-fixed knock
+(80-300 Hz, own env; two decays 80/30 ms) + level curve recalibrated
+against FULL-CHAIN attack peaks (v6c3 equalized excitation only; the KS
+loop loses another ~9 dB at C2 — buildup ~ periods spanned by the burst).
+Attack peaks now flat 0.371/0.372/0.372. Caveat flagged in README: flat
+attack peaks raise C2 sustain 2.3x C4 — listen for bass bloom; curve can
+target any register profile once ears pick the direction.
+Verdict decides: knock yes/no + decay; loudness target profile. Then:
+vel->brightness, in-loop releaseFb damper, detune curve.
 Analysis: docs/research/afpiano_2021/ANALYSIS.md.
 
 ### 26. Housekeeping 2026-08-10 — leftovers and judgment calls [read]
