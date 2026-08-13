@@ -26,8 +26,16 @@ loop loses another ~9 dB at C2 — buildup ~ periods spanned by the burst).
 Attack peaks now flat 0.371/0.372/0.372. Caveat flagged in README: flat
 attack peaks raise C2 sustain 2.3x C4 — listen for bass bloom; curve can
 target any register profile once ears pick the direction.
-Verdict decides: knock yes/no + decay; loudness target profile. Then:
-vel->brightness, in-loop releaseFb damper, detune curve.
+v6d verdict (Matt, same day): knock inaudible in full patch, too dark;
+band top ~500 by ear. v6e SHIPPED: engine paramMap vcurve
+(velocity->multiplier, composes with freq curve); velocity->brightness
+on the adjusted knock base (80-500, gain 2.0 — C2 level comp drops
+x8.5 -> x3.6); velocity-ladder score; v6e_flat A/B control. Verified
+soft-C4 centroid 283 vs 349 Hz, hard notes identical.
+Verdict decides: velocity-brightness endpoints. Remaining rungs: in-loop
+releaseFb damper, detune curve. ENDGAME AGREED for the settings matrix:
+CMA-ES joint optimization vs Iowa piano references (viola pipeline;
+~200x realtime renders make it cheap) — no per-knob ear tuning.
 Analysis: docs/research/afpiano_2021/ANALYSIS.md.
 
 ### 26. Housekeeping 2026-08-10 — leftovers and judgment calls [read]
