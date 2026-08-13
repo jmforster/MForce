@@ -55,12 +55,15 @@ SCALARS = [
     ("t60_scale",    0.6,   1.5,   1.0),
     ("bright_lo",    0.40,  0.90,  0.65),
     ("bright_hi",    0.70,  1.00,  0.93),
-    ("detune_hi",    0.5,   8.0,   4.0),
+    ("detune_hi",    0.5,  20.0,   4.0),   # run1 pinned the old 8.0 bound
     ("level_lo",     1.0,   8.0,   3.558),
     ("level_mid",    0.40,  1.60,  0.871),
     ("level_hi",     0.15,  1.00,  0.458),
     ("fbCoeff",      0.05,  0.60,  0.30),
     ("inharm_scale", 0.5,   2.0,   1.0),
+    # pass 2 (Matt: hand-lowering knock lowCutoff to 30 was "dramatic")
+    ("knock_lo",     20.0, 150.0,  80.0),
+    ("knock_hi",    250.0, 900.0, 500.0),
 ]
 
 DIM = len(SCALARS)
@@ -130,6 +133,9 @@ def encode(z, template):
 
     _node(p, "env_knock")["decay"] = v["knock_decay"]
     _node(p, "exc_knockgain")["source2"] = v["knock_gain"]
+    if "knock_lo" in v:
+        _node(p, "exc_knock")["lowCutoff"] = v["knock_lo"]
+        _node(p, "exc_knock")["highCutoff"] = v["knock_hi"]
 
     _curve_entry(p, "string.t60")["curve"] = [
         [65.0, 25.0 * v["t60_scale"]],

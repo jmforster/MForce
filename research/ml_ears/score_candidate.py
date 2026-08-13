@@ -42,6 +42,14 @@ NOTE_GAP, NOTE_DUR = 2.5, 2.2     # note start spacing / duration (sustain fits)
 SUS_START, SUS_LEN = 0.55, 1.4    # sustain window inside each note
 ATTACK_LEN = 0.55                 # onset window inside each note
 WEIGHTS = (0.35, 0.25, 0.20, 0.20)
+# Scorer v2 weights (harm, motion, broadband, attack, rise90, level) — used
+# when the reference carries rise90_ms/early_rms (2026-08-12, Matt's v6i
+# audit: old attack term said 0.08 while rise was 7x off; register loudness
+# was unscored entirely).
+WEIGHTS_V2 = (0.28, 0.17, 0.15, 0.10, 0.15, 0.15)
+# term1 low-harmonic emphasis: first N harmonics weighted W-fold (his C6 h2
+# sat +17 dB above h1 while term1 barely noticed).
+T1_LOW_N, T1_LOW_W = 6, 3.0
 
 # Per-metric normalisers for term2 (cents / Hz / correlation ranges).
 MOTION_SCALE = {"resid_cents_rms": 7.3, "resid_rate_hz": 8.3,
@@ -120,11 +128,17 @@ def measure(patch, tag, note_midis=None, windows=None, b_by_midi=None):
         sus = x[s0: s0 + int(sus_len * sr)]
         atk = x[int(t0 * sr): int((t0 + attack_len) * sr)]
         m = rm.motion_stats(sus, sr, f0, B=B)
+        a = np.abs(atk)
+        rise90 = (float(np.argmax(a >= 0.9 * a.max())) / sr * 1000.0
+                  if a.size and a.max() > 0 else 0.0)
+        early = x[int(t0 * sr): int(t0 * sr) + int(0.5 * sr)]
         per_note[midi] = {
             "harm_env_db": rm.harmonic_env(sus, sr, f0, B=B),
             "broadband": rm.broadband_ratios(sus, sr, f0, B=B, lines_hz=lines),
             "attack": rm.attack_stats(atk, sr),
             "motion": m,
+            "rise90_ms": rise90,
+            "early_rms": float(np.sqrt(np.mean(early ** 2) + 1e-20)),
         }
     return per_note
 
@@ -133,12 +147,21 @@ def score(per_note, ref):
     rnotes = ref["notes"]
     name_by_midi = {v["midi"]: k for k, v in rnotes.items()}
 
-    # term1 — harmonic envelope L2 (dB), 12 dB RMS == 1.0
+    v2 = all("rise90_ms" in rnotes[k] for k in rnotes)
+
+    # term1 — harmonic envelope L2 (dB), 12 dB RMS == 1.0. v2: first
+    # T1_LOW_N harmonics weighted T1_LOW_W-fold (low-harmonic balance is
+    # what the ear keys on; pooled L2 buried a +17 dB h2 error at C6).
     t1s = []
     for midi, meas in per_note.items():
         rdb = np.array(rnotes[name_by_midi[midi]]["harm_env_db"])
-        cdb = meas["harm_env_db"][:len(rdb)]
-        t1s.append(np.sqrt(np.mean((cdb - rdb) ** 2)) / 12.0)
+        cdb = np.array(meas["harm_env_db"][:len(rdb)])
+        n = min(len(rdb), len(cdb))
+        w = np.ones(n)
+        if v2:
+            w[:min(T1_LOW_N, n)] = T1_LOW_W
+        d2 = (cdb[:n] - rdb[:n]) ** 2
+        t1s.append(np.sqrt(np.sum(w * d2) / np.sum(w)) / 12.0)
     term1 = float(np.mean(t1s))
 
     # term2 — motion stats vs Iowa medians (metric means across notes)
@@ -174,11 +197,36 @@ def score(per_note, ref):
         t4s.append(np.nanmean(d))
     term4 = float(np.nanmean(t4s))
 
-    total = sum(w * t for w, t in zip(WEIGHTS, (term1, term2, term3, term4)))
-    return {"term1_harm": term1, "term2_motion": term2, "term3_broadband": term3,
-            "term4_attack": term4, "total": total,
-            "motion_metrics": {k: float(cand[k]) for k in rm.MOTION_KEYS},
-            "motion_terms": {k: float(v) for k, v in motion_terms.items()}}
+    result = {"term1_harm": term1, "term2_motion": term2,
+              "term3_broadband": term3, "term4_attack": term4,
+              "motion_metrics": {k: float(cand[k]) for k in rm.MOTION_KEYS},
+              "motion_terms": {k: float(v) for k, v in motion_terms.items()}}
+
+    if v2:
+        # term5 — rise-to-90% (ms), 20 ms == 1.0
+        t5s = []
+        for midi, meas in per_note.items():
+            rr = rnotes[name_by_midi[midi]]["rise90_ms"]
+            t5s.append(abs(meas["rise90_ms"] - rr) / 20.0)
+        term5 = float(np.mean(t5s))
+        # term6 — register level balance: per-note early RMS in dB relative
+        # to the eval set's own mean note, cand vs ref, 6 dB == 1.0. Relative
+        # framing keeps it volume-calibration invariant.
+        def rel_db(vals):
+            v = np.array(vals, dtype=float) + 1e-20
+            return 20.0 * np.log10(v / np.exp(np.mean(np.log(v))))
+        midis = sorted(per_note.keys())
+        cdb = rel_db([per_note[m]["early_rms"] for m in midis])
+        rdb = rel_db([rnotes[name_by_midi[m]]["early_rms"] for m in midis])
+        term6 = float(np.mean(np.abs(cdb - rdb)) / 6.0)
+        result["term5_rise"] = term5
+        result["term6_level"] = term6
+        result["total"] = float(sum(w * t for w, t in zip(
+            WEIGHTS_V2, (term1, term2, term3, term4, term5, term6))))
+    else:
+        result["total"] = float(sum(w * t for w, t in zip(
+            WEIGHTS, (term1, term2, term3, term4))))
+    return result
 
 
 def cfg_windows(cfg):

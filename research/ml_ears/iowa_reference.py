@@ -18,6 +18,14 @@ import sys
 import numpy as np
 import soundfile as sf
 
+
+def rm_rise90(atk, sr):
+    """Milliseconds from onset to 90% of the attack window's peak |x|."""
+    a = np.abs(atk)
+    if a.size == 0 or a.max() <= 0:
+        return 0.0
+    return float(np.argmax(a >= 0.9 * a.max())) / sr * 1000.0
+
 import derive_motion as dm
 import refmetrics as rm
 import score_candidate as sc
@@ -100,6 +108,14 @@ def main():
                                                        lines_hz=lines)],
             "attack": [[round(a, 5), round(b, 5)]
                        for a, b in rm.attack_stats(atk, sr)],
+            # 2026-08-12 scorer v2 (Matt's v6i audit): rise-to-90%-of-peak in
+            # ms (the old band-lag features scored 0.08 while the render was
+            # 7x slower than Iowa), and early RMS for register level balance
+            # (Iowa mf bass is ~2.5x louder than treble; the flat target was
+            # backwards).
+            "rise90_ms": round(float(rm_rise90(atk, sr)), 2),
+            "early_rms": round(float(np.sqrt(np.mean(
+                x[:int(0.5 * sr)] ** 2) + 1e-20)), 8),
         }
         if inharmonic:
             notes[note]["B"] = float(f"{B:.6g}")
