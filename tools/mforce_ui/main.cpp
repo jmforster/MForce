@@ -3995,7 +3995,10 @@ static void draw_keyboard_panel() {
     ImGui::Text("Velocity");
     ImGui::SameLine();
     ImGui::SetNextItemWidth(80.0f);
-    ImGui::SliderFloat("##vel", &g_keyboard.velocity, 0.0f, 1.0f, "%.2f");
+    // One velocity, everywhere: this slider and the Note tab's edit the same
+    // value — two independent velocities meant the Note tab looked ignored
+    // when playing via QWERTY (Matt 2026-08-12).
+    ImGui::SliderFloat("##vel", &g_transport.velocity, 0.0f, 1.0f, "%.2f");
 
     ImGui::SameLine();
     ImGui::Spacing(); ImGui::SameLine();
@@ -4043,7 +4046,7 @@ static void draw_keyboard_panel() {
         for (int i = 0; i < QWERTY_MAP_COUNT; ++i) {
             if (ImGui::IsKeyPressed(s_qwertyMap[i].key, false)) {
                 int absNote = (g_keyboard.octave + 1) * 12 + s_qwertyMap[i].offset;
-                play_note(float(absNote), g_keyboard.velocity, g_keyboard.duration);
+                play_note(float(absNote), g_transport.velocity, g_keyboard.duration);
             }
         }
         // Action keys
@@ -4160,7 +4163,7 @@ static void draw_keyboard_panel() {
 
     if (clicked) {
         int hitNote = -1;
-        float hitVelocity = g_keyboard.velocity;
+        float hitVelocity = g_transport.velocity;
 
         for (int oct = 0; oct < NUM_OCTAVES && hitNote < 0; ++oct) {
             for (int b = 0; b < 5; ++b) {
