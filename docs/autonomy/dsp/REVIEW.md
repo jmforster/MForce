@@ -49,7 +49,22 @@ session: damper PRESET also removed per Matt (presets are UI
 conveniences; one patch doesn't earn one) — env_damper is a plain
 stage-list Envelope, v6m render byte-identical; and the real
 duplication underneath bug (2) is gone: both loaders now call ONE
-shared envelope_from_preset_json (envelope_json.h). Beep on 4th
+shared envelope_from_preset_json (envelope_json.h).
+SECOND AUDITION ROUND (Matt, same day) + fixes 187f2ad/55b8aea:
+damper noise verdict GOOD ("close to my Chickering"). Two bugs found:
+(a) edit-any-setting -> volume cut ~70% — clean patches play from the
+ORIGINAL file, dirty ones from the UI re-serialize, which (pre-existing)
+dropped enum-string configs ('multiply' -> Mix on all 7 CombinedSources)
+and scalar constants on unconnected signal inputs (source2 gains) —
+fixed, roundtrip render now profile-identical to original (was peak
+0.602 -> 0.304); (b) live staccato "vibrating tail" — gate_release on
+release-0 excitation envs returned the remaining EXPAND (~3.4 s voice
+after key-up, Duration-knob-dependent, matching his observation) while
+the thud burst kept injecting into the re-opened string; expand-last
+envelopes now report 0 and the thud only injects while the felt is in
+contact (d > 0.02). Scheduled staccato dies -47 dB within 60 ms of the
+drop. v6m re-rendered. Beep-on-4th-key: suspected keyboard ghosting,
+octave-shift test still pending. Beep on 4th
 held key = suspected keyboard ghosting (hardware): test same chord at a
 shifted octave. Top-octave volume blast = exc_level top anchor, still
 the next front, untouched. v6m.wav RE-RENDERED with the 3-stage damper
