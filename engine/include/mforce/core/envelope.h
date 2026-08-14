@@ -120,6 +120,15 @@ struct Envelope : ValueSource {
   int gate_release() {
     if (stages_.empty() || stageCounts_.empty()) return 0;
     int last = int(stages_.size()) - 1;
+    // When the expand IS the last stage (make_adsr_abs release-0 quirk,
+    // AS shapes) there is nothing to release INTO: report 0 so the
+    // voice's post-key-up lifetime is set by envelopes that do have a
+    // release phase (the damper), not by the held expand's nominal
+    // remainder — which made a live staccato voice outlive its sound by
+    // seconds while the thud rang the re-opened string (the 2026-08-13
+    // QWERTY vibrating-tail bug). Earlier stages still complete
+    // naturally (a hammer strike released mid-attack finishes its burst).
+    if (expandIdx_ == last) return 0;
     int relStage = (expandIdx_ >= 0 && expandIdx_ < last) ? expandIdx_ + 1
                                                           : last;
     if (currStage_ >= relStage) {

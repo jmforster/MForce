@@ -205,9 +205,13 @@ struct KSPianoString final : ValueSource {
     float dnoise = 0.0f;
     if (damperNoise_ > 0.0001f) {
       if (d >= 0.05f && lastD_ < 0.05f) dnAmp_ = damperNoise_ * envFollow_;
-      if (dnAmp_ > 1e-6f) {
+      // Contact noise exists only while the felt is touching the string —
+      // without the d-gate, a burst not yet decayed out kept injecting
+      // into the RE-OPENED string after the damper env ended (live
+      // staccato: seconds of noise-driven ring, 2026-08-13).
+      if (dnAmp_ > 1e-6f && d > 0.02f) {
         dnoise = dnRng_.valuePN() * dnAmp_;
-        dnAmp_ *= 0.9995f;   // ~-60 dB over ~28 ms at 48 kHz
+        dnAmp_ *= 0.9995f;   // -60 dB over ~0.29 s at 48 kHz
       }
     }
     lastD_ = d;
