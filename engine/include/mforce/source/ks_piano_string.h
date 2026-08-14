@@ -165,6 +165,7 @@ struct KSPianoString final : ValueSource {
     for (int i = 0; i < kMaxCombs; ++i) {
       std::fill(comb_[i].buf.begin(), comb_[i].buf.end(), 0.0f);
       comb_[i].lp = 0.0f;
+      comb_[i].apX = comb_[i].apY = 0.0f;
       for (int b = 0; b < 2; ++b) comb_[i].bq[b] = BiquadState{};
     }
     std::fill(disp_.buf.begin(), disp_.buf.end(), 0.0f);
@@ -259,13 +260,25 @@ struct KSPianoString final : ValueSource {
     float sum = 0.0f;
     for (int i = 0; i < numCombs_; ++i) {
       Comb& c = comb_[i];
-      // Fractional read Li samples back (linear interp)
-      float rp = float(wpos_) - c.len;
-      if (rp < 0.0f) rp += float(kBufLen);
-      int i0 = int(rp);
-      int i1 = i0 + 1; if (i1 >= kBufLen) i1 = 0;
-      float frac = rp - float(i0);
-      float r = c.buf[i0] + (c.buf[i1] - c.buf[i0]) * frac;
+      float r;
+      if (c.apRead) {
+        // Allpass fractional read: integer tap + first-order allpass
+        // H(z) = (eta + z^-1)/(1 + eta z^-1) — lossless at all
+        // frequencies (see init_note).
+        int rd = wpos_ - c.lenInt;
+        if (rd < 0) rd += kBufLen;
+        float xr = c.buf[rd];
+        r = c.apEta * (xr - c.apY) + c.apX;
+        c.apX = xr; c.apY = r;
+      } else {
+        // Fractional read Li samples back (linear interp)
+        float rp = float(wpos_) - c.len;
+        if (rp < 0.0f) rp += float(kBufLen);
+        int i0 = int(rp);
+        int i1 = i0 + 1; if (i1 >= kBufLen) i1 = 0;
+        float frac = rp - float(i0);
+        r = c.buf[i0] + (c.buf[i1] - c.buf[i0]) * frac;
+      }
 
       // Loop path: 2 biquad allpasses (dispersion) -> damping LP -> gain
       float v = r;
@@ -297,6 +310,12 @@ struct KSPianoString final : ValueSource {
 private:
   static constexpr int kMaxCombs = 3;
   static constexpr int kBufLen   = 4096;  // >= sr/12Hz at 48k
+  // Minimum comb delay the dispersion-shedding guard preserves (samples).
+  static constexpr float kMinCombLen = 4.0f;
+  // Above this angular frequency the comb uses the allpass fractional
+  // read (linear-interp loss becomes material); below, linear interp is
+  // kept so the approved low/mid keyboard is bit-identical.
+  static constexpr float kApReadW0 = 0.1f;   // ~764 Hz at 48 kHz
 
   struct BiquadState { float x1{0}, x2{0}, y1{0}, y2{0}; };
 
@@ -312,6 +331,11 @@ private:
     float len{100.0f};   // fractional loop delay (samples)
     float gain{0.99f};   // loop gain from t60
     float lp{0.0f};      // damping one-pole state
+    // Allpass fractional read (top of the keyboard; see init_note)
+    bool  apRead{false};
+    int   lenInt{100};
+    float apEta{0.0f};
+    float apX{0.0f}, apY{0.0f};
     BiquadState bq[2];
   };
 
@@ -326,7 +350,7 @@ private:
   // frequency -> upper partials see a shorter loop -> stretched (sharp)
   // partials, the KS route to piano inharmonicity.
   float biquad_ap(float x, BiquadState& st) const {
-    const float a = dispersion_;
+    const float a = dispEff_;
     float y = a * a * x - 2.0f * a * st.x1 + st.x2
             + 2.0f * a * st.y1 - a * a * st.y2;
     st.x2 = st.x1; st.x1 = x;
@@ -345,6 +369,17 @@ private:
     return (w > 1e-6f) ? -ph / w : (1.0f + a) / (1.0f - a);
   }
 
+  // Phase delay (samples) of the fractional-delay allpass
+  // H(z) = (eta + z^-1)/(1 + eta z^-1) at angular frequency w. DC limit
+  // (1-eta)/(1+eta) = the nominal fractional delay for eta=(1-d)/(1+d).
+  static float apfrac_phase_delay(float eta, float w) {
+    float cw = std::cos(w), sw = std::sin(w);
+    float numRe = eta + cw,        numIm = -sw;
+    float denRe = 1.0f + eta * cw, denIm = -eta * sw;
+    float ph = std::atan2(numIm, numRe) - std::atan2(denIm, denRe);
+    return (w > 1e-6f) ? -ph / w : (1.0f - eta) / (1.0f + eta);
+  }
+
   void init_note() {
     float f0 = frequency_ ? frequency_->current() : 220.0f;
     f0 = std::clamp(f0, 12.0f, float(sampleRate_) * 0.4f);
@@ -353,10 +388,36 @@ private:
     const float w0 = 2.0f * 3.14159265f * f0 / sr;
 
     dispActive_ = dispersion_ > 0.001f;
+    dispEff_ = dispersion_;
 
     // Phase delay of the loop filters at f0:
     // 2 biquads = 4 first-order sections at pole `dispersion`
-    float apDelay = dispActive_ ? 4.0f * ap1_phase_delay(dispersion_, w0) : 0.0f;
+    float apDelay = dispActive_ ? 4.0f * ap1_phase_delay(dispEff_, w0) : 0.0f;
+    // Comb-floor guard (2026-08-13): at the top of the keyboard the
+    // dispersion chain's phase delay (~10 samples at a=0.5) can exceed
+    // what the period leaves for the comb (B8 period = 12.15 at 48 kHz),
+    // so len used to clamp at the floor — up to -40 cents mistuning,
+    // per-note ring/dead chaos across octave 8, and a self-oscillating
+    // B8. Instead of clamping, SHED dispersion per note: bisect the
+    // largest pole whose phase delay still leaves kMinCombLen samples of
+    // comb at the highest-detuned comb. Physically honest — top-octave
+    // strings are effectively dispersion-free (stretched partials sit
+    // above Nyquist). Notes with room to spare are untouched.
+    {
+      const float maxDet = std::pow(2.0f, (0.5f * detune_) / 1200.0f);
+      const float minPeriod = period / maxDet;
+      if (dispActive_ && minPeriod - apDelay - lpDelay_ < kMinCombLen) {
+        float lo = 0.0f, hi = dispEff_;
+        for (int it = 0; it < 24; ++it) {
+          float mid = 0.5f * (lo + hi);
+          float d = 4.0f * ap1_phase_delay(mid, w0);
+          if (minPeriod - d - lpDelay_ < kMinCombLen) hi = mid; else lo = mid;
+        }
+        dispEff_ = lo;
+        dispActive_ = dispEff_ > 0.001f;
+        apDelay = dispActive_ ? 4.0f * ap1_phase_delay(dispEff_, w0) : 0.0f;
+      }
+    }
     // damping one-pole y += c(x-y): H = c / (1-(1-c)z^-1); phase delay at w0
     {
       float b = 1.0f - brightness_;
@@ -377,6 +438,32 @@ private:
       comb_[i].len = std::clamp(len, 2.0f, float(kBufLen - 4));
       // Loop gain for t60 seconds of 60 dB decay at the fundamental
       comb_[i].gain = std::pow(10.0f, -3.0f * comb_[i].len / (sr * t60_));
+      // Fractional-delay realization (2026-08-13): the linear-interp read
+      // attenuates by |1-frac+frac*e^{-jw0}| per period — negligible low,
+      // but at short delays the frac-dependent loss swamps t60 (measured
+      // E7: -40 dB/s vs t60's -11) and made octave 7's sustain alternate
+      // ring/dead note to note purely on where frac landed. Gain
+      // compensation is NOT viable (a gain > 1 destabilizes the comb's
+      // low resonances where the interp is lossless — measured, blew up
+      // everything above C7). Correct fix: ALLPASS fractional delay
+      // (Jaffe-Smith), unity magnitude at every frequency. Applied only
+      // where linear loss is material (w0 >= kApReadW0 ~ 764 Hz) so the
+      // approved low/mid keyboard stays bit-identical.
+      if (w0 >= kApReadW0) {
+        int M = int(std::floor(comb_[i].len));
+        float frac = comb_[i].len - float(M);
+        if (frac < 0.1f) { M -= 1; frac += 1.0f; }  // keep eta away from 1
+        float lo = -0.5f, hi = 0.95f;  // pd(eta) monotonically decreasing
+        for (int it = 0; it < 24; ++it) {
+          float mid = 0.5f * (lo + hi);
+          if (apfrac_phase_delay(mid, w0) > frac) lo = mid; else hi = mid;
+        }
+        comb_[i].apEta = 0.5f * (lo + hi);
+        comb_[i].lenInt = std::max(1, M);
+        comb_[i].apRead = true;
+      } else {
+        comb_[i].apRead = false;
+      }
     }
 
     // Normalize the global feedback by comb resonance headroom: peak gain of
@@ -416,6 +503,7 @@ private:
   // Per-note state
   bool  initialized_{false};
   bool  dispActive_{false};
+  float dispEff_{0.12f};   // per-note effective dispersion (shed at the top)
   Comb  comb_[kMaxCombs];
   DispLoop disp_;
   int   dispLen_{100};
