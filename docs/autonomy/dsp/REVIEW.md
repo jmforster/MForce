@@ -63,8 +63,18 @@ after key-up, Duration-knob-dependent, matching his observation) while
 the thud burst kept injecting into the re-opened string; expand-last
 envelopes now report 0 and the thud only injects while the felt is in
 contact (d > 0.02). Scheduled staccato dies -47 dB within 60 ms of the
-drop. v6m re-rendered. Beep-on-4th-key: suspected keyboard ghosting,
-octave-shift test still pending. Beep on 4th
+drop. v6m re-rendered. Beep-on-4th-key: keyboard ghosting, Matt
+confirms plausible, living with it (same physical keys at any octave).
+THIRD ROUND (lunch break, e81a62c): top-octave volume blast FIXED —
+exc_level's unscored 2093 Hz -> 1.291 anchor replaced with sweep-derived
+top anchors (target = mid-range median attack peak; loop linear, one
+pass); octaves 7-8 now +-4 dB around mid-range (was +13..+24 dB), the
+residual scatter is the comb-floor per-note chaos (separate front).
+Curve carries explicit 20 Hz / 16 kHz endpoints — first application of
+Matt's no-implicit-end-clamp convention (clamp = visible repeated
+value). Convention linter rule + retrofit of the other 8 curves:
+proposed, awaiting his read. v6m.wav re-rendered again — CURRENT
+LISTEN COPY has: 3-stage damper, thud contact-gate, flattened top. Beep on 4th
 held key = suspected keyboard ghosting (hardware): test same chord at a
 shifted octave. Top-octave volume blast = exc_level top anchor, still
 the next front, untouched. v6m.wav RE-RENDERED with the 3-stage damper
