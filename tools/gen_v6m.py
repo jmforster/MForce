@@ -68,6 +68,27 @@ def main():
                 [3951.0,  0.10],
                 [16000.0, 0.10],
             ]
+
+    # Curve-endpoint convention retrofit (Matt 2026-08-13): every curve
+    # spans the full domain — 20 Hz..16 kHz for frequency, 0..1 for
+    # velocity — with clamps expressed as EXPLICIT repeated endpoint
+    # values. Behavior-identical by construction (the interpolator held
+    # end values anyway); null-verified by render hash.
+    for entry in p["instrument"]["paramMap"]["frequency"]:
+        if not isinstance(entry, dict):
+            continue
+        c = entry.get("curve")
+        if c:
+            if c[0][0] > 20.0:
+                c.insert(0, [20.0, c[0][1]])
+            if c[-1][0] < 16000.0:
+                c.append([16000.0, c[-1][1]])
+        v = entry.get("vcurve")
+        if v:
+            if v[0][0] > 0.0:
+                v.insert(0, [0.0, v[0][1]])
+            if v[-1][0] < 1.0:
+                v.append([1.0, v[-1][1]])
     json.dump(p, open(DST, "w"), indent=2)
     print("wrote", DST)
 
