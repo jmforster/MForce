@@ -477,6 +477,26 @@ Priority order. Tags per WORKFLOW.md. (G1)-(G4) = GOALS.md Dipsy goals.
     440 Hz are sampling-limited and the front retires rather than getting a
     pass 3. Escalation option if he wants one more: vibrato via the pitch-mod
     layer (coherent FM is the strongest partial-fusion cue there is).
+17. **[design/build] Revisit the UI live-audio serialize-to-temp-file round
+    trip** — Matt, 2026-08-13: "seems to work fine, and maybe it's the best
+    alternative, but has always seemed wonky." NO ACTION NOW — future item.
+    Current mechanism: every live keyboard note syncs the UI's in-memory
+    graph to a temp JSON, then loads it through the engine patch loader so
+    the CLI's voice-pool/paramMap/Multiplex machinery applies (the reason it
+    exists: guarantees UI audio == patch-on-disk audio, the RD
+    audition-path-mismatch lesson). Known costs: a full graph serialize +
+    parse + voice-pool build per note-on (load= was ~0.6-1.3 s on v6
+    patches — polyphony rebuilds the graph N times); and any UI-side
+    (de)serialization defect propagates into the AUDIO, which is how the
+    2026-08-13 damper-preset mangling became audible. When revisited,
+    candidates: loader entry point that accepts an in-memory json object
+    (kills the file, keeps the shared code path); caching the loaded
+    instrument until the graph is dirtied (kills the per-note rebuild);
+    or building the instrument directly from the UI node tree (fastest,
+    but re-opens the two-loaders drift problem the 2026-08-13 shared
+    dispatch just closed — needs a null-test harness comparing UI-built vs
+    loader-built renders before it can be trusted).
+
 11. **[build] Two standing dirty patch files** — ✓ **SHRUNK run21**: the
     Python half of this item is GONE. `score_candidate.py` and
     `iowa_reference.py` were committed by run 20 (72defb9), so HEAD can now
