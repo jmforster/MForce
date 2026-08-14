@@ -137,6 +137,15 @@ Priority order. Tags per WORKFLOW.md. (G1)-(G4) = GOALS.md Dipsy goals.
    Options: promote the two configs to ValueSource params, reach them via the
    paramMap/curve mechanism, or accept the loss and rewrite Squeaker.
    Engine edit; blocked in run 25 by the concurrent comp lane.
+3m. **[build] UI: curve-superseded scalars should show `<curve>` like
+   connected pins** (Matt, 2026-08-14). When a node's scalar config is the
+   target of a paramMap curve, the slider is misleading — the curve stomps
+   it at every note-on. Hide the slider and show `<curve>` in the same
+   green font used for connected pins. Corollary from the same session:
+   deleting a curve should make the scalar slider reappear/editable —
+   Matt deleted the flat exc_body.cutoffFreq curve and then could not
+   find the property to set the scalar, so he had to leave the curve in
+   place. Ideally `<curve>` click-navigates to the curve editor entry.
 
 15. **[build] 7 patches the CLI cannot render at all** — ✓ 6 of 7 DONE run19
    (2026-08-04), commit 6fc128b. Found while A/B-ing front 3. They were

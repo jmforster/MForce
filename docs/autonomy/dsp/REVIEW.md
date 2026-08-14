@@ -108,6 +108,23 @@ shifted octave. Top-octave volume blast = exc_level top anchor, still
 the next front, untouched. v6m.wav RE-RENDERED with the 3-stage damper
 — re-listen. Sound-quality parity ("as good, not better") expected:
 this change was semantics, not tone.
+RESOLVED SAME DAY — hand-tune session (2026-08-14): Matt tuned the
+curves himself in the UI (t60 / brightness / dispersion+inharmGain
+shoulders moved 1047 -> 780 Hz, where the stridency starts by ear; t60
+now 9 s @262 -> 2 s @780 -> 0 @16k endpoint — engine floors at 0.05 s)
+and saved as Piano_bright.json. Verified: lint PASS in isolation; C2/C4
+within 0.5 dB of v6m everywhere; C6 rms@1s -28.6 -> -67.7 dB (silent by
+2 s), attack centroid 3965 -> 2620 Hz; only the benign C2 containment
+warn. **PROMOTED per Matt's explicit authorization ("I'll let you
+promote it to library after you verify"): patches/library/keys/
+Piano_bright.json + renders/library/Piano_bright.wav = the KS piano
+BASELINE.** Superseded ks_piano_plausible.json moved to patches/old/.
+Notes: UI folder picker saved into pending/ks_piano_v5/ (not v6);
+re-serialize renamed node ids generically (string -> KSPianoString1) and
+the CMA-ES endgame tooling must retarget those ids + the new curve
+shapes. New backlog 3m: curve-superseded scalars should show <curve> in
+green + slider reappears on curve delete (his exc_body delete attempt
+dead-ended). Item below kept for the record of the original lock:
 MORNING VERDICT (Matt, 2026-08-14): **baseline DEMOTED back to pending**
 — procedural rule stated and recorded: never promote to library/ until he
 has auditioned and approved that exact artifact (the evening run locked
