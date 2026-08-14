@@ -84,6 +84,12 @@ struct Pin {
     PinKind kind;
     float defaultValue{0.0f};
     bool inputOnly{false};  // true for input_descriptors pins (no editable value)
+    // True when the loaded JSON supplied a scalar CONSTANT in this slot
+    // (e.g. CombinedSource "source2": 0.3836). inputOnly pins have no
+    // editable value in the UI, so without this flag save paths dropped
+    // the constant and every gain stage became a pass-through — the
+    // 2026-08-13 edit-then-play volume-drop bug.
+    bool hasConstant{false};
     bool multi{false};      // true = accepts multiple connections
     std::string hint;       // optional advisory tag (e.g. "hz", "0-1"); empty = none
     std::shared_ptr<ConstantSource> constantSrc;  // holds editable value for unconnected pins
@@ -1046,6 +1052,7 @@ static void load_graph_from_path(const std::string& path) {
                 const auto& val = params[pin.name];
                 if (val.is_number()) {
                     pin.defaultValue = val.get<float>();
+                    pin.hasConstant = true;
                     if (pin.constantSrc) pin.constantSrc->set(pin.defaultValue);
                 }
                 // refs handled in second pass
@@ -1110,6 +1117,27 @@ static void load_graph_from_path(const std::string& path) {
                 const auto& jval = params[desc.name];
                 if (jval.is_boolean()) val = jval.get<bool>() ? 1.0f : 0.0f;
                 else if (jval.is_number()) val = jval.get<float>();
+                else if (jval.is_string() && desc.enum_labels) {
+                    // Enum configs arrive as strings in hand-written patches
+                    // ("operation": "multiply"). Match display labels
+                    // case-insensitively; a miss keeps the default LOUDLY —
+                    // skipping strings silently is how every CombinedSource
+                    // loaded as Mix (the 2026-08-13 edit-then-play
+                    // volume-drop bug).
+                    std::string s = jval.get<std::string>();
+                    bool matched = false;
+                    for (int li = 0; desc.enum_labels[li]; ++li) {
+                        if (_stricmp(s.c_str(), desc.enum_labels[li]) == 0) {
+                            val = float(li);
+                            matched = true;
+                            break;
+                        }
+                    }
+                    if (!matched)
+                        std::fprintf(stderr,
+                            "[load] %s.%s: enum string '%s' matches no label; "
+                            "keeping default\n", id.c_str(), desc.name, s.c_str());
+                }
             }
             gn.apply_config();
 
@@ -1653,6 +1681,8 @@ static void save_patch_graph(const std::string& path) {
                 if (pin.inputOnly) {
                     if (src && nodeIds.count(src->id))
                         params[pin.name] = json{{"ref", nodeIds[src->id]}};
+                    else if (!src && pin.hasConstant)
+                        params[pin.name] = pin.defaultValue;
                 } else if (src) {
                     if (src->typeName == NT_PARAMETER)
                         params[pin.name] = pin.defaultValue;
@@ -1853,6 +1883,8 @@ static void save_node_graph(const std::string& path) {
             } else if (pin.inputOnly) {
                 if (src)
                     params[pin.name] = json{{"ref", nodeIds[src->id]}};
+                else if (pin.hasConstant)
+                    params[pin.name] = pin.defaultValue;
             } else {
                 if (src)
                     params[pin.name] = json{{"ref", nodeIds[src->id]}};
