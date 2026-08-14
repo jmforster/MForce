@@ -74,7 +74,9 @@ Curve carries explicit 20 Hz / 16 kHz endpoints — first application of
 Matt's no-implicit-end-clamp convention (clamp = visible repeated
 value). Convention linter rule + retrofit of the other 8 curves:
 proposed, awaiting his read. v6m.wav re-rendered again — CURRENT
-LISTEN COPY has: 3-stage damper, thud contact-gate, flattened top. Beep on 4th
+LISTEN COPY has: 3-stage damper, thud contact-gate, flattened top.
+Matt verdict same day: "Success, volume seems consistent across the
+keyboard." Top-octave level front CLOSED for v6m. Beep on 4th
 held key = suspected keyboard ghosting (hardware): test same chord at a
 shifted octave. Top-octave volume blast = exc_level top anchor, still
 the next front, untouched. v6m.wav RE-RENDERED with the 3-stage damper
