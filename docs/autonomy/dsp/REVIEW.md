@@ -44,7 +44,12 @@ preset loader missing the damper preset, fell through to default ADSR
 (engaged during attack) — fixed; UI keyboard profile now parallel to CLI
 at every window. (3) endHold flag REVERTED per Matt — Envelope stays
 plain stages; measured identical tails with/without. gate_release now
-jumps to release-phase START (first stage after expand). Beep on 4th
+jumps to release-phase START (first stage after expand). FOLLOW-UP same
+session: damper PRESET also removed per Matt (presets are UI
+conveniences; one patch doesn't earn one) — env_damper is a plain
+stage-list Envelope, v6m render byte-identical; and the real
+duplication underneath bug (2) is gone: both loaders now call ONE
+shared envelope_from_preset_json (envelope_json.h). Beep on 4th
 held key = suspected keyboard ghosting (hardware): test same chord at a
 shifted octave. Top-octave volume blast = exc_level top anchor, still
 the next front, untouched. v6m.wav RE-RENDERED with the 3-stage damper
