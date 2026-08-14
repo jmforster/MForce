@@ -81,7 +81,28 @@ Bass damper depth: Matt verdict = NON-PROBLEM ("staccato bass notes
 sound fine, I don't hear any residual after the damp") — option 3
 (accept) chosen; the [containment] warns below ~E4 on ks piano renders
 are EXPECTED and benign for this patch family, don't chase them. Front
-closed. Beep on 4th
+closed.
+EVENING RUN (Matt's go, "tty tomorrow" — fb1afa3 + b40e905):
+**ks_piano_plausible BASELINE LOCKED** to patches/library/keys/ +
+renders/library/ks_piano_plausible.wav. Two engine fixes behind it,
+both measured-first: (1) dispersion SHEDDING at the comb floor — B8
+self-osc gone, octave-8 tuning -40..+16 -> +-4 cents; (2) octave-7
+ring/dead alternation was LINEAR-INTERP LOSS (frac-dependent, E7
+-40 dB/s vs t60's -11) -> allpass fractional read above ~764 Hz; low/mid
+keyboard verified BIT-IDENTICAL (C2/C4 hashes), A6-B8 now all ring in a
+smooth band, zero dead, zero growth. Three anti-results recorded: beat-
+nulling (no dip-reswell), fbCoeff damping (fb=0 identical), and gain
+compensation (destabilizes the lossless low resonances — measured
+blowup). Curve-endpoint convention: all 9 piano curves retrofitted
+(render-identical, null-verified), linter enforces endpoints
+(20..16000 / 0..1), scraper reads envelope_json.h. **[listen]:
+renders/library/ks_piano_plausible.wav or hand-play — octaves 6-8
+should now sustain consistently; expect the top to ring LONG (t60
+curve clamps at 5.4 s up there — real pianos are ~0.3-1 s; that's a
+t60-endpoint taste/Iowa question for the CMA-ES endgame, now
+authorable thanks to the endpoint convention).** Remaining open:
+CMA-ES endgame on the baseline (re-baselined objective, eval notes
+must cover searched curve regions), knock-band dims queued. Beep on 4th
 held key = suspected keyboard ghosting (hardware): test same chord at a
 shifted octave. Top-octave volume blast = exc_level top anchor, still
 the next front, untouched. v6m.wav RE-RENDERED with the 3-stage damper
