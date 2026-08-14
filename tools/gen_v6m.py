@@ -45,6 +45,29 @@ def main():
     p["graph"]["nodes"] = nodes
     p["graph"]["output"] = "string"
     p["instrument"].pop("release", None)
+
+    # exc_level top-anchor fix (2026-08-13 sweep): the pass-3 CMA-ES
+    # "level_top" anchor (2093 Hz -> 1.291) was never scored — the eval set
+    # tops at midi 84 — and the curve end-clamp carried 1.291 across all of
+    # octave 8, +16..+24 dB attack peaks. New top anchors derived
+    # empirically (newLvl = usedLvl * targetPeak/measuredPeak, target =
+    # mid-range median 1.34, loop is linear), smoothed across the per-note
+    # comb-floor scatter. Endpoints at 20 Hz / 16 kHz per the no-implicit-
+    # end-clamp convention (Matt 2026-08-13): a clamp is now an EXPLICIT
+    # repeated value, not an accident of where the anchors stop.
+    for entry in p["instrument"]["paramMap"]["frequency"]:
+        if isinstance(entry, dict) and entry.get("target") == "exc_level.source2":
+            entry["curve"] = [
+                [20.0,    1.2033117079158895],
+                [65.0,    1.2033117079158895],
+                [261.63,  0.40203306798048677],
+                [1046.5,  0.20629715341244262],
+                [1480.0,  0.17],
+                [2093.0,  0.19],
+                [2960.0,  0.15],
+                [3951.0,  0.10],
+                [16000.0, 0.10],
+            ]
     json.dump(p, open(DST, "w"), indent=2)
     print("wrote", DST)
 
