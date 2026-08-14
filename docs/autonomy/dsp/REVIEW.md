@@ -108,6 +108,17 @@ shifted octave. Top-octave volume blast = exc_level top anchor, still
 the next front, untouched. v6m.wav RE-RENDERED with the 3-stage damper
 — re-listen. Sound-quality parity ("as good, not better") expected:
 this change was semantics, not tone.
+MORNING VERDICT (Matt, 2026-08-14): **baseline DEMOTED back to pending**
+— procedural rule stated and recorded: never promote to library/ until he
+has auditioned and approved that exact artifact (the evening run locked
+without a verdict). Patch now at patches/pending/ks_piano_v6/
+ks_piano_plausible.json (his move); renders/library copy deleted (was
+byte-identical to pending v6m.wav). On the sound: **top notes consistent
+— pitch perceivable even on E above top C** (the shedding + fractional-
+read fixes hold) — but (1) **very strident** and (2) **decay much too
+slow** (matches the measured t60 clamp: 5.4 s at the top vs real pianos'
+~0.3-1 s). Baseline is gated on those two; "then we'll have our
+baseline."
 
 ### 27. KS PIANO v6 rung 2 — shaped excitation [listen] (2026-08-10)
 renders/dsp/pending/ks_piano_v6/ — README inside. Rung 1 RESOLVED same day:
