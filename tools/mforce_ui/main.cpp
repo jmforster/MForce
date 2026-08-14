@@ -30,6 +30,7 @@
 #include "mforce/core/dsp_value_source.h"
 #include "mforce/core/dsp_wave_source.h"
 #include "mforce/core/envelope.h"      // needed for Envelope::make_adsr
+#include "mforce/core/envelope_json.h" // shared preset-form dispatch (both loaders)
 #include "mforce/core/envelope_presets.h" // ADSREnvelope for NT_ENVELOPE nodes
 #include "mforce/core/var_source.h"     // needed for VarSource constructor
 #include "mforce/core/range_source.h"   // needed for RangeSource constructor
@@ -1083,38 +1084,13 @@ static void load_graph_from_path(const std::string& path) {
             if (gn.typeName == NT_ENVELOPE && !params.contains("stages") &&
                 params.contains("preset")) {
                 if (auto* env = dynamic_cast<Envelope*>(gn.dspSource.get())) {
-                    std::string preset = params["preset"].get<std::string>();
-                    if (preset == "adsr" &&
-                        params.value("timeMode", std::string("fraction")) == "seconds") {
-                        // Seconds-mode adsr (run 23): rebuild with the absolute
-                        // factory or the timing silently reverts to fractional.
-                        *env = Envelope::make_adsr_abs(DSP_SAMPLE_RATE,
-                            params.value("attack", 0.2f),
-                            params.value("decay", 0.1f),
-                            params.value("sustainLevel", 0.7f),
-                            params.value("release", 0.0f));
-                    } else if (preset == "adsr") {
-                        *env = Envelope::make_adsr(DSP_SAMPLE_RATE,
-                            params.value("attack", 0.2f),
-                            params.value("decay", 0.1f),
-                            params.value("sustainLevel", 0.7f),
-                            params.value("release", 0.0f));
-                    } else if (preset == "ar") {
-                        *env = Envelope::make_ar(DSP_SAMPLE_RATE,
-                            params.value("attack", 0.2f),
-                            params.value("attackMin", 0.0f),
-                            params.value("attackMax", 1.0f));
-                    } else if (preset == "damper") {
-                        // Damper control (note-contained sound, 2026-08-13).
-                        // Without this branch the node kept its default
-                        // ADSR — a damper that ENGAGED during the attack
-                        // (Matt's 2026-08-13 audition catch).
-                        *env = Envelope::make_damper(DSP_SAMPLE_RATE,
-                            params.value("drop", 0.04f),
-                            params.value("release", 0.5f),
-                            params.value("releaseMin", 0.0f),
-                            params.value("releaseMax", 0.0f));
-                    }
+                    // Shared preset dispatch (envelope_json.h) — same
+                    // function the engine loader uses, so the two cannot
+                    // drift. (The hand-copied dispatch this replaces
+                    // silently kept the default ADSR for unknown presets
+                    // — the 2026-08-13 damper-fires-on-attack bug — and
+                    // dropped the fraction-adsr min/max jitter args.)
+                    *env = envelope_from_preset_json(params, DSP_SAMPLE_RATE);
                 }
             }
 

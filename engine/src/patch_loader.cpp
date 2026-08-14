@@ -5,6 +5,7 @@
 #include "mforce/core/range_source.h"
 #include "mforce/core/var_source.h"
 #include "mforce/core/envelope.h"
+#include "mforce/core/envelope_json.h"
 #include "mforce/render/instrument.h"
 #include "mforce/music/basics.h"
 #include "mforce/music/conductor.h"
@@ -332,59 +333,10 @@ static GraphResult build_graph(
                     env->absolute_time = true;
                 valueNodes[id] = env;
             } else {
-                std::string preset = p.value("preset", std::string("ar"));
-                std::shared_ptr<Envelope> env;
-                if (preset == "ar") {
-                    env = std::make_shared<Envelope>(Envelope::make_ar(sampleRate,
-                        p.value("attack", 0.2f), p.value("attackMin", 0.0f), p.value("attackMax", 1.0f)));
-                } else if (preset == "adsr") {
-                    // Two timing semantics (2026-08-06):
-                    //   default "fraction": attack/decay/release are fractions
-                    //     of note duration, clamped per stage — unchanged for
-                    //     every existing patch.
-                    //   "timeMode":"seconds": literal-seconds stages, no
-                    //     clamps (make_adsr_abs) — the *Min/*Max keys are
-                    //     meaningless there, so their presence is an error
-                    //     rather than a silently dead knob.
-                    const std::string timeMode = p.value("timeMode", std::string("fraction"));
-                    if (timeMode == "seconds") {
-                        for (const char* k : {"attackMin", "attackMax", "decayMin",
-                                              "decayMax", "releaseMin", "releaseMax"})
-                            if (p.contains(k))
-                                throw std::runtime_error(
-                                    std::string("adsr timeMode=seconds does not take ") + k);
-                        env = std::make_shared<Envelope>(Envelope::make_adsr_abs(sampleRate,
-                            p.value("attack", 0.2f), p.value("decay", 0.1f),
-                            p.value("sustainLevel", 0.7f), p.value("release", 0.0f)));
-                    } else if (timeMode != "fraction") {
-                        throw std::runtime_error("Unknown adsr timeMode: " + timeMode);
-                    } else {
-                    // make_adsr takes six randomization-range args that this
-                    // loader used to drop on the floor, so an adsr preset could
-                    // not express stage jitter at all (found 2026-08-04 by
-                    // tools/lint_patches.py). Defaults below are make_adsr's
-                    // own, so patches that omit the keys are unchanged.
-                    env = std::make_shared<Envelope>(Envelope::make_adsr(sampleRate,
-                        p.value("attack", 0.2f), p.value("decay", 0.1f),
-                        p.value("sustainLevel", 0.7f), p.value("release", 0.0f),
-                        p.value("attackMin",  0.05f),  p.value("attackMax",  1.0f),
-                        p.value("decayMin",   0.025f), p.value("decayMax",   0.5f),
-                        p.value("releaseMin", 0.0f),   p.value("releaseMax", 0.0f)));
-                    }
-                } else if (preset == "damper") {
-                    // Damper control (note-contained sound, 2026-08-13):
-                    // 0 = open through the note; release phase = fast felt
-                    // drop (drop, ~40 ms) + hold-closed choke window
-                    // (release/releaseMin/releaseMax triple). Wire to a
-                    // note-off-aware node's `damper` input (KSPianoString).
-                    env = std::make_shared<Envelope>(Envelope::make_damper(sampleRate,
-                        p.value("drop", 0.04f),
-                        p.value("release", 0.5f),
-                        p.value("releaseMin", 0.0f), p.value("releaseMax", 0.0f)));
-                } else {
-                    throw std::runtime_error("Unknown envelope preset: " + preset);
-                }
-                valueNodes[id] = env;
+                // Shared preset dispatch (envelope_json.h) — the UI graph
+                // loader calls the same function, so the two cannot drift.
+                valueNodes[id] = std::make_shared<Envelope>(
+                    envelope_from_preset_json(p, sampleRate));
             }
         }
         else if (type == "SegmentSource") {

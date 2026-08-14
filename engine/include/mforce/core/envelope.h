@@ -373,23 +373,13 @@ struct Envelope : ValueSource {
     return env;
   }
 
-  // Damper control envelope (note-contained sound, 2026-08-13): holds 0
-  // (open) through the note; the release phase is a FAST drop 0 -> 1 (the
-  // felt lands in ~40 ms on a real piano) followed by a hold-closed choke
-  // window in which the string physics kills the ring. The drop and choke
-  // were originally one 0.25 s ramp — Matt's staccato audition caught the
-  // conflation (a slow ramp averages half-strength choke = beating tail).
-  // Choke window uses the standard Stage triple: generous pct + maxSec cap
-  // = constant on normal notes, proportional compression on short ones.
-  // Plain vanilla 3-stage envelope — nothing damper-specific in the type.
-  static Envelope make_damper(int sampleRate, float dropSec, float releasePct,
-                              float releaseMin, float releaseMax) {
-    Envelope env(sampleRate);
-    env.add_stage({{0.0f, 0.0f, RampType::Linear, 0.0f}, 0.0f, 0.0f, 0.0f}); // open (expand)
-    env.add_stage({{0.0f, 1.0f, RampType::Linear, 0.0f}, 0.5f, dropSec, dropSec}); // felt drop (min=max pins it)
-    env.add_stage({{1.0f, 1.0f, RampType::Linear, 0.0f}, releasePct, releaseMin, releaseMax}); // choke window
-    return env;
-  }
+  // NOTE (2026-08-13): a piano damper envelope is a plain 3-stage Envelope
+  // authored in stage-list form — hold-open (expand at 0), fast 0->1 drop
+  // (the felt lands in ~40 ms; min=max pins it), hold-closed choke window
+  // (the string physics kills the ring; standard pct+max triple). It has
+  // NO preset on purpose: presets are UI conveniences, and inventing one
+  // for a single patch duplicated dispatch across both loaders (the exact
+  // drift bug class the patch linter exists for). See gen_v6m.py.
 
 private:
   // Smoothed-random LFO for ramp_accuracy. Cosine interpolation between

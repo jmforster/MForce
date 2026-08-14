@@ -1,9 +1,14 @@
 #!/usr/bin/env python3
 """v6m = v6l_cmaes3 restated under note-contained sound (2026-08-13 spec):
-verb node removed (string -> output), env_damper (preset damper, pct 0.5 /
-max 0.25 s) wired to string.damper, instrument.release removed. Everything
-else byte-identical to v6l. Volume left unfolded — render_ks_piano_v6.py
-recalibrates to 0.85 peak anyway.
+verb node removed (string -> output), env_damper wired to string.damper,
+instrument.release removed. Everything else byte-identical to v6l. Volume
+left unfolded — render_ks_piano_v6.py recalibrates to 0.85 peak anyway.
+
+The damper envelope is a PLAIN 3-stage Envelope in stage-list form (no
+preset — presets are UI conveniences, per Matt 2026-08-13): hold-open
+(expand at 0), fast 0->1 felt drop (min=max pins ~40 ms), hold-closed
+choke window (pct 0.5 capped at 0.25 s) in which the string physics kills
+the ring.
 """
 import json
 import os
@@ -18,7 +23,14 @@ def main():
     damper = {
         "id": "env_damper",
         "type": "Envelope",
-        "params": {"preset": "damper", "release": 0.5, "releaseMax": 0.25},
+        "params": {"stages": [
+            {"startVal": 0.0, "endVal": 0.0, "type": "Linear",
+             "percent": 0.0, "minSec": 0.0,  "maxSec": 0.0},   # open (expand)
+            {"startVal": 0.0, "endVal": 1.0, "type": "Linear",
+             "percent": 0.5, "minSec": 0.04, "maxSec": 0.04},  # felt drop
+            {"startVal": 1.0, "endVal": 1.0, "type": "Linear",
+             "percent": 0.5, "minSec": 0.0,  "maxSec": 0.25},  # choke window
+        ]},
     }
     # The loader resolves refs in file order, so env_damper must precede
     # the string node that references it.
