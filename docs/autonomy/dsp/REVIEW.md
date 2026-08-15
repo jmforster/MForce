@@ -2,6 +2,43 @@
 
 ## Awaiting Matt
 
+### 30. Mappings dialog + Parameter node retired [try] (2026-08-14 evening, interactive)
+Chunk 2 of the UI usability spec landed (plan docs/superpowers/plans/
+2026-08-14-ui-mappings-dialog.md; commits 5c27980 eaad8d5 ba529d0 ea83ba0
+3246ffe). What changed:
+- **Parameter nodes are gone from instrument patches** — bindings are data
+  (the paramMap), edited via **Edit > Parameter mapping...**: one table of
+  every binding (name/target/curve/vcurve/delete), add-binding row with
+  the selected graph node pre-selected, bare or with-curve (new curves
+  seed explicit 20/16000 endpoints). NodeGraph mode keeps its Parameter
+  node (that's what makes node graphs keyboard-playable).
+- **Green badges**: mapped pins/configs show <frequency>/<curve> in the
+  connected-pin green with the widget suppressed; deleting the binding
+  (dialog or Curves tab) brings the widget back — the exc_body dead-end
+  is now two clicks.
+- **UI note renders finally honor curves/vcurves** (apply_param_map,
+  engine-parity formulas). Before, the Waveforms/note path pushed RAW
+  note frequency into curve-bearing pin targets — Piano_bright's exc_lp
+  cutoff got 261 Hz at C4 instead of curve(261)≈1176. Long-standing
+  UI-vs-CLI infidelity, now closed.
+- **clarinet_locked repaired**: its paramMap had "Additive1.frequency"
+  exploded into a char array since 08-01 — unrenderable via CLI ever
+  since, and nothing noticed until verbatim stash emission stopped
+  hiding it. Only victim in the tree (scanned); renders again and its
+  roundtrip is now fully faithful (left KNOWN_DIFFS).
+Verification: corpus gate 196 patches, 0 id changes, 0 NEW render diffs;
+rename re-check post-retirement (exc_body -> body_lp headless): 0 stale
+references, render byte-identical.
+**TRY (restart UI first): (1) load Piano_bright — the string node's
+Settings should show six green <curve> badges, exc_lp.cutoffFreq /
+clickgain source2 / exc_level source2 pins likewise; (2) Edit >
+Parameter mapping — delete the flat exc_body.cutoffFreq row, watch the
+cutoffFreq widget return on the node; (3) add it back bare or with
+curve; (4) play the keyboard low/high — timbre should now match CLI
+renders (curves live); (5) a node graph still plays via QWERTY.**
+Chunk 3 (Groups) is specced, plan next; 3n (roundtrip fidelity, 33
+patches) queued after per your sequencing.
+
 ### 29. Stable node identity LANDED [try] (2026-08-14, interactive)
 Chunk 1 of the UI usability spec (docs/superpowers/specs/
 2026-08-14-ui-groups-usability-design.md; plan docs/superpowers/plans/

@@ -35,6 +35,13 @@ plan.
 
 ## 2. Parameter node retired → Mappings dialog
 
+> LANDED 2026-08-14 evening (chunk-2 plan). Two annotations from
+> implementation: NT_PARAMETER survives in NodeGraph mode only (its
+> synthesized frequency node is what makes node graphs keyboard-playable);
+> and the UI's own note render now evaluates curves/vcurves with engine
+> parity (apply_param_map) — previously it pushed raw note frequency into
+> curve-bearing pin targets, a silent UI-vs-CLI mismatch.
+
 The `instrument.paramMap` JSON format does NOT change. No file migration;
 old patches load unchanged. What changes is representation and editing:
 

@@ -148,6 +148,8 @@ Priority order. Tags per WORKFLOW.md. (G1)-(G4) = GOALS.md Dipsy goals.
    place. Ideally `<curve>` click-navigates to the curve editor entry.
    SUPERSEDED by the 2026-08-14 UI usability spec §2 (Mappings dialog +
    badges) — implement via that spec's chunk-2 plan, not standalone.
+   ✓ DONE 2026-08-14 evening (chunk 2 landed, commit 3246ffe): badges +
+   widget suppression + restore-on-delete shipped; REVIEW 30.
 3n. **[build] UI save round-trip changes the SOUND of 34 instrument
    patches** — found 2026-08-14 by the stable-identity regression
    (tools/test_stable_roundtrip.py; its KNOWN_DIFFS set is the exact
