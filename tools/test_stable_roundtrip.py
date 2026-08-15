@@ -50,7 +50,8 @@ KNOWN_DIFFS = {
     "patches/library/voice/sing_tenor_O.json",
     "patches/library/voice/sing_tenor_U.json",
     "patches/library/voice/speech_w_AW.json",
-    "patches/library/winds/clarinet_locked.json",
+    # clarinet_locked left this list 2026-08-14: its paramMap corruption was
+    # repaired and verbatim stash emission made its roundtrip faithful.
 }
 
 def load(path):

@@ -3788,10 +3788,12 @@ static bool curve_exists_for(const std::string& paramName, const std::string& ta
 static void curves_add_entry(const std::string& paramName, const std::string& target,
                              float currentValue) {
     using json = nlohmann::json;
+    // Explicit 20/16000 endpoints per the curve-endpoint convention
+    // (2026-08-13): a clamp is a visible repeated value, never implicit.
     json curveObj = {
         {"target", target},
-        {"curve", json::array({ json::array({ 50.0f, currentValue}),
-                                json::array({400.0f, currentValue}) })},
+        {"curve", json::array({ json::array({   20.0f, currentValue}),
+                                json::array({16000.0f, currentValue}) })},
     };
     if (!s_loadedParamMap.contains(paramName))
         s_loadedParamMap[paramName] = json::array();
@@ -3899,6 +3901,228 @@ static bool draw_one_curve(const std::string& paramName, nlohmann::json& obj) {
     }
     ImGui::Spacing();
     return deleteMe;
+}
+
+// Eligible mapping targets on a node: pins the loader can resolve to a
+// ConstantSource (value pins not wired to a source) plus all scalar
+// configs (delivered via set_config). Shared by the Curves tab's Add-curve
+// section and the Parameter-mappings dialog.
+struct TargetOpt { std::string name; float current; bool isConfig; };
+static std::vector<TargetOpt> eligible_targets(GraphNode* tn) {
+    std::vector<TargetOpt> opts;
+    for (auto& pin : tn->inputs) {
+        if (pin.inputOnly || pin.kind != PinKind::Input) continue;
+        if (pin.name.substr(0, 3) == "ch ") continue;
+        if (is_pin_connected(pin.id)) continue;  // loader rejects ref-wired targets
+        opts.push_back({pin.name, pin.defaultValue, false});
+    }
+    for (auto& [desc, val] : tn->configValues)
+        opts.push_back({desc.name, val, true});
+    return opts;
+}
+
+// True when target ("label.name") appears under paramName in any form —
+// bare string or {target,...} object. Guards duplicate adds in the dialog.
+static bool target_exists_for(const std::string& paramName, const std::string& target) {
+    auto it = s_loadedParamMap.find(paramName);
+    if (it == s_loadedParamMap.end()) return false;
+    auto matches = [&](const nlohmann::json& e) {
+        if (e.is_string()) return e.get<std::string>() == target;
+        return e.is_object() && e.value("target", std::string()) == target;
+    };
+    if (it->is_array()) {
+        for (const auto& e : *it) if (matches(e)) return true;
+        return false;
+    }
+    return matches(*it);
+}
+
+// ---------------------------------------------------------------------------
+// Parameter-mappings dialog (spec §2): the one table of every binding in the
+// patch. Rows come straight from the stash; deletes edit it in place; adds
+// go through the same append rules as the Curves tab.
+// ---------------------------------------------------------------------------
+static bool s_mappingsOpen = false;
+
+static void draw_mappings_dialog() {
+    if (!s_mappingsOpen) return;
+    ImGui::SetNextWindowSize(ImVec2(560, 380), ImGuiCond_FirstUseEver);
+    if (!ImGui::Begin("Parameter mapping", &s_mappingsOpen)) { ImGui::End(); return; }
+    if (s_graphMode != GraphMode::PatchGraph) {
+        ImGui::TextDisabled("Mappings apply to instrument patches only.");
+        ImGui::End();
+        return;
+    }
+
+    // --- Existing bindings ---
+    struct DeleteReq { std::string param; int subIdx; };  // -1 = whole entry
+    std::vector<DeleteReq> deletes;
+    bool focusCurves = false;
+    if (ImGui::BeginTable("mappings", 5,
+            ImGuiTableFlags_RowBg | ImGuiTableFlags_BordersInnerH)) {
+        ImGui::TableSetupColumn("Name",   ImGuiTableColumnFlags_WidthFixed, 90.0f);
+        ImGui::TableSetupColumn("Target", ImGuiTableColumnFlags_WidthStretch);
+        ImGui::TableSetupColumn("Curve",  ImGuiTableColumnFlags_WidthFixed, 90.0f);
+        ImGui::TableSetupColumn("VCurve", ImGuiTableColumnFlags_WidthFixed, 60.0f);
+        ImGui::TableSetupColumn("",       ImGuiTableColumnFlags_WidthFixed, 30.0f);
+        ImGui::TableHeadersRow();
+
+        auto row = [&](const std::string& pname, const nlohmann::json& e, int subIdx) {
+            ImGui::TableNextRow();
+            ImGui::TableNextColumn();
+            ImGui::Text("%s", pname.c_str());
+            if (pname != "frequency") {
+                ImGui::SameLine();
+                ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.4f, 1), "(inert)");
+                if (ImGui::IsItemHovered())
+                    ImGui::SetTooltip("Only 'frequency' is evaluated at note-on today.");
+            }
+            ImGui::TableNextColumn();
+            std::string target = e.is_string() ? e.get<std::string>()
+                                               : e.value("target", std::string("?"));
+            ImGui::Text("%s", target.c_str());
+            ImGui::TableNextColumn();
+            if (e.is_object() && e.contains("curve")) {
+                char lbl[48];
+                snprintf(lbl, sizeof(lbl), "%d pts##c%s%d",
+                         (int)e["curve"].size(), pname.c_str(), subIdx);
+                if (ImGui::SmallButton(lbl)) focusCurves = true;
+                if (ImGui::IsItemHovered())
+                    ImGui::SetTooltip("Edit the shape in the Curves window");
+            } else {
+                ImGui::TextDisabled("-");
+            }
+            ImGui::TableNextColumn();
+            if (e.is_object() && e.contains("vcurve"))
+                ImGui::Text("%d pts", (int)e["vcurve"].size());
+            else
+                ImGui::TextDisabled("-");
+            ImGui::TableNextColumn();
+            char xlbl[48];
+            snprintf(xlbl, sizeof(xlbl), "X##x%s%d", pname.c_str(), subIdx);
+            if (ImGui::SmallButton(xlbl)) deletes.push_back({pname, subIdx});
+            if (ImGui::IsItemHovered())
+                ImGui::SetTooltip("Remove this binding (the target's widget returns)");
+        };
+
+        for (auto& [pname, entry] : s_loadedParamMap.items()) {
+            if (entry.is_array()) {
+                for (int i = 0; i < (int)entry.size(); ++i) row(pname, entry[i], i);
+            } else {
+                row(pname, entry, -1);
+            }
+        }
+        ImGui::EndTable();
+    }
+    if (!s_loadedParamMap.is_object() || s_loadedParamMap.empty())
+        ImGui::TextDisabled("No bindings. Notes will not retune until 'frequency' maps to something.");
+
+    for (const auto& d : deletes) {
+        if (!s_loadedParamMap.contains(d.param)) continue;
+        nlohmann::json& entry = s_loadedParamMap[d.param];
+        if (d.subIdx < 0) {
+            s_loadedParamMap.erase(d.param);
+        } else if (entry.is_array() && d.subIdx < (int)entry.size()) {
+            entry.erase(entry.begin() + d.subIdx);
+            if (entry.empty()) s_loadedParamMap.erase(d.param);
+            else if (entry.size() == 1 && entry[0].is_string())
+                s_loadedParamMap[d.param] = entry[0];
+        }
+        s_graphDirty = true;
+    }
+
+    // --- Add a binding ---
+    ImGui::Separator();
+    ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1), "Add binding");
+
+    std::vector<GraphNode*> targetNodes;
+    for (auto& n : s_nodes)
+        if (!is_special_ui_type(n.typeName) && !n.label.empty())
+            targetNodes.push_back(&n);
+    if (targetNodes.empty()) {
+        ImGui::TextDisabled("No target nodes in graph.");
+        ImGui::End();
+        return;
+    }
+
+    static int selNode = 0, selTarget = 0;
+    // Pre-select the node selected in the editor, tracked across changes.
+    static int lastEditorSel = -1;
+    if (ImNodes::NumSelectedNodes() == 1) {
+        int selId = -1;
+        ImNodes::GetSelectedNodes(&selId);
+        if (selId != lastEditorSel) {
+            lastEditorSel = selId;
+            for (int i = 0; i < (int)targetNodes.size(); ++i)
+                if (targetNodes[i]->id == selId) { selNode = i; selTarget = 0; break; }
+        }
+    }
+    selNode = std::clamp(selNode, 0, (int)targetNodes.size() - 1);
+    ImGui::SetNextItemWidth(160.0f);
+    if (ImGui::BeginCombo("Node##map", targetNodes[selNode]->label.c_str())) {
+        for (int i = 0; i < (int)targetNodes.size(); ++i) {
+            ImGui::PushID(i);
+            if (ImGui::Selectable(targetNodes[i]->label.c_str(), i == selNode)) {
+                if (i != selNode) selTarget = 0;
+                selNode = i;
+            }
+            ImGui::PopID();
+        }
+        ImGui::EndCombo();
+    }
+
+    GraphNode* tn = targetNodes[selNode];
+    std::vector<TargetOpt> opts = eligible_targets(tn);
+    if (opts.empty()) {
+        ImGui::TextDisabled("Selected node has no mappable params/configs.");
+        ImGui::End();
+        return;
+    }
+    selTarget = std::clamp(selTarget, 0, (int)opts.size() - 1);
+    ImGui::SameLine();
+    ImGui::SetNextItemWidth(160.0f);
+    if (ImGui::BeginCombo("Param / config##map", opts[selTarget].name.c_str())) {
+        for (int i = 0; i < (int)opts.size(); ++i) {
+            char lbl[160];
+            snprintf(lbl, sizeof(lbl), "%s%s##mt%d", opts[i].name.c_str(),
+                     opts[i].isConfig ? "  (config)" : "", i);
+            if (ImGui::Selectable(lbl, i == selTarget)) selTarget = i;
+        }
+        ImGui::EndCombo();
+    }
+
+    std::string target = tn->label + "." + opts[selTarget].name;
+    bool exists = target_exists_for("frequency", target);
+    ImGui::BeginDisabled(exists);
+    if (ImGui::Button("Add (follows note)##mapbare")) {
+        // Bare binding: the target receives the raw note frequency.
+        if (!s_loadedParamMap.contains("frequency")) {
+            s_loadedParamMap["frequency"] = target;
+        } else {
+            nlohmann::json& e = s_loadedParamMap["frequency"];
+            if (!e.is_array()) {
+                nlohmann::json arr = nlohmann::json::array();
+                arr.push_back(e);
+                e = std::move(arr);
+            }
+            e.push_back(target);
+        }
+        s_graphDirty = true;
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Add with curve##mapcurve")) {
+        curves_add_entry("frequency", target, opts[selTarget].current);
+        s_graphDirty = true;
+        focusCurves = true;
+    }
+    ImGui::EndDisabled();
+    if (exists) {
+        ImGui::SameLine();
+        ImGui::TextDisabled("(already bound)");
+    }
+
+    if (focusCurves) ImGui::SetWindowFocus("Curves");
+    ImGui::End();
 }
 
 static void draw_curves_window() {
@@ -4028,20 +4252,10 @@ static void draw_curves_window() {
         ImGui::EndCombo();
     }
 
-    // Param/config combo for the chosen node. Eligible targets are pins the
-    // loader can resolve to a ConstantSource (value pins that are not wired
-    // to a source) plus all scalar configs (delivered via set_config).
+    // Param/config combo for the chosen node (shared with the Mappings
+    // dialog — see eligible_targets above draw_curves_window).
     GraphNode* tn = targetNodes[selNode];
-    struct TargetOpt { std::string name; float current; bool isConfig; };
-    std::vector<TargetOpt> opts;
-    for (auto& pin : tn->inputs) {
-        if (pin.inputOnly || pin.kind != PinKind::Input) continue;
-        if (pin.name.substr(0, 3) == "ch ") continue;
-        if (is_pin_connected(pin.id)) continue;  // loader rejects ref-wired targets
-        opts.push_back({pin.name, pin.defaultValue, false});
-    }
-    for (auto& [desc, val] : tn->configValues)
-        opts.push_back({desc.name, val, true});
+    std::vector<TargetOpt> opts = eligible_targets(tn);
     if (opts.empty()) {
         ImGui::TextDisabled("Selected node has no curve-able params/configs.");
         ImGui::End();
@@ -8128,6 +8342,10 @@ int main(int argc, char** argv) {
                 if (ImGui::MenuItem("Paste", "Ctrl+V", false, clipboard_has_content()))
                     clipboard_paste();
                 ImGui::Separator();
+                if (ImGui::MenuItem("Parameter mapping...", nullptr, false,
+                                    s_graphMode == GraphMode::PatchGraph))
+                    s_mappingsOpen = true;
+                ImGui::Separator();
                 // Label flips to the "other" type of the loaded graph.
                 const char* convLabel = (s_graphMode == GraphMode::NodeGraph)
                     ? "Convert to Patch graph" : "Convert to Node graph";
@@ -8434,6 +8652,7 @@ int main(int argc, char** argv) {
         // Curves window (paramMap frequency→value curve editor)
         // =================================================================
         draw_curves_window();
+        draw_mappings_dialog();
 
         // =================================================================
         // Waveform display window
