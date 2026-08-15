@@ -851,6 +851,8 @@ static void new_graph(GraphMode mode) {
     s_loadedScoreAbsent = false;  // fresh graphs get the default score
     s_groups.clear();
     s_groupPath.clear();
+    s_groupListen.clear();
+    s_listenTapNode = -1;
     conv_stash_clear();
     s_graphMode = mode;
     s_nextId = 1;
@@ -1007,6 +1009,8 @@ static void load_graph_from_path(const std::string& path) {
     s_links.clear();
     s_groups.clear();
     s_groupPath.clear();
+    s_groupListen.clear();
+    s_listenTapNode = -1;
     s_loadedParamMap = nlohmann::json::object();
     s_loadedScore    = nlohmann::json();
     s_loadedInstrumentExtras = nlohmann::json::object();
@@ -1840,7 +1844,9 @@ static bool rename_group(NodeGroup& group, const std::string& newName,
     return true;
 }
 
-static void save_patch_graph(const std::string& path) {
+// tapOverride: emit the Listen-tap node as graph.output (playback TEMP file
+// only — a user-facing Save must never persist the tap).
+static void save_patch_graph(const std::string& path, bool tapOverride = false) {
     using json = nlohmann::json;
 
     // Assign string IDs to nodes — the label IS the id (stable identity).
@@ -2039,6 +2045,12 @@ static void save_patch_graph(const std::string& path) {
 
         nodes.push_back(jnode);
     }
+
+    // Listen tap: the playback temp file monitors the tapped node instead
+    // of the patch output. The full graph is still emitted, so everything
+    // upstream keeps running exactly as wired (in-context semantics).
+    if (tapOverride && s_listenTapNode >= 0 && nodeIds.count(s_listenTapNode))
+        outputId = nodeIds[s_listenTapNode];
 
     // Build final JSON
     json root;
@@ -2340,6 +2352,13 @@ static float g_scrubberPos = 0.0f;
 // Playback paths should use this instead of s_currentFilePath directly so
 // MultiplexSource and other load-time-baked constructs see current edits.
 static std::string get_playback_patch_path() {
+    // A live Listen tap always goes through the temp file — the saved patch
+    // must keep its real output, the tap only exists in the playback copy.
+    if (s_graphMode == GraphMode::PatchGraph && s_listenTapNode >= 0) {
+        std::string tmp = (std::filesystem::temp_directory_path() / "mforce_playback.json").string();
+        save_patch_graph(tmp, true);
+        return tmp;
+    }
     // Use the saved file if one exists and the graph hasn't been edited.
     if (!s_graphDirty && !s_currentFilePath.empty()) return s_currentFilePath;
     // Otherwise (edited since last save, or never saved) write current state
@@ -2860,6 +2879,12 @@ static void voice_gc() {
 
 // Find the DSP source connected to the Output node
 static ValueSource* find_output_source() {
+    // Listen tap (spec §3): monitor the tapped node's output in-context —
+    // the graph runs exactly as wired, only the monitored signal moves.
+    if (s_listenTapNode >= 0)
+        for (auto& n : s_nodes)
+            if (n.id == s_listenTapNode && n.dspSource)
+                return n.dspSource.get();
     for (auto& n : s_nodes) {
         if (n.typeName != NT_PATCH_OUTPUT) continue;
         if (n.inputs.empty()) return nullptr;
@@ -5561,6 +5586,10 @@ static void draw_node(GraphNode& node) {
     // Title bar
     ImNodes::BeginNodeTitleBar();
     ImGui::TextUnformatted(node.label.c_str());
+    if (node.id == s_listenTapNode) {
+        ImGui::SameLine();
+        ImGui::TextColored(ImVec4(0.5f, 0.8f, 0.5f, 1.0f), "<)))");
+    }
 
     // Mixer "+" button stays — it's structural (adding channels), not parameter editing
     if (node.typeName == NT_STEREO_MIXER) {
@@ -5757,6 +5786,37 @@ static void draw_properties_panel() {
 
     GraphNode* node = find_selected_node();
     if (!node) {
+        // A collapsed group can be the selection: name + membership info.
+        NodeGroup* grp = nullptr;
+        for (auto& g : s_groups)
+            if (g.editorId == g_selectedNodeId) { grp = &g; break; }
+        if (grp) {
+            ImGui::TextColored(ImVec4(0.75f, 0.6f, 0.9f, 1), "%s", grp->name.c_str());
+            ImGui::SameLine();
+            ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1), "(Group)");
+            static int  renameGroupId = -1;
+            static char groupBuf[64];
+            static std::string groupErr;
+            if (renameGroupId != grp->editorId) {
+                renameGroupId = grp->editorId;
+                snprintf(groupBuf, sizeof(groupBuf), "%s", grp->name.c_str());
+                groupErr.clear();
+            }
+            ImGui::SetNextItemWidth(180.0f);
+            if (ImGui::InputText("##groupName", groupBuf, sizeof(groupBuf),
+                                 ImGuiInputTextFlags_EnterReturnsTrue)) {
+                if (rename_group(*grp, groupBuf, groupErr)) groupErr.clear();
+            }
+            if (!groupErr.empty())
+                ImGui::TextColored(ImVec4(0.9f, 0.4f, 0.4f, 1), "%s", groupErr.c_str());
+            ImGui::Separator();
+            ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1), "Members");
+            for (auto& m : grp->members)
+                ImGui::BulletText("%s%s", m.c_str(),
+                                  group_by_name(m) ? "  (group)" : "");
+            ImGui::End();
+            return;
+        }
         ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1), "Select a node to edit");
         ImGui::End();
         return;
@@ -7036,6 +7096,107 @@ static void show_create_menu() {
     ImGui::EndPopup();
 }
 
+// Group the current editor selection (spec §3). Members = selected nodes'
+// labels + selected collapsed groups at this level. Refuses the Output node
+// and two-output selections BY NAME. Returns the new group's name or "".
+static std::string group_selection(std::string& err) {
+    int n = ImNodes::NumSelectedNodes();
+    if (n < 1) { err = "nothing selected"; return ""; }
+    std::vector<int> ids(n);
+    ImNodes::GetSelectedNodes(ids.data());
+
+    NodeGroup g;
+    ImVec2 centroid(0, 0);
+    int posCount = 0;
+    for (int id : ids) {
+        bool matched = false;
+        for (auto& node : s_nodes) {
+            if (node.id != id) continue;
+            matched = true;
+            if (node.typeName == NT_PATCH_OUTPUT) {
+                err = "the Output node cannot be grouped";
+                return "";
+            }
+            g.members.push_back(node.label);
+            centroid.x += ImNodes::GetNodeGridSpacePos(id).x;
+            centroid.y += ImNodes::GetNodeGridSpacePos(id).y;
+            ++posCount;
+        }
+        if (!matched) {
+            for (auto& og : s_groups) {
+                if (og.editorId == id) {
+                    g.members.push_back(og.name);
+                    centroid.x += og.pos.x;
+                    centroid.y += og.pos.y;
+                    ++posCount;
+                }
+            }
+        }
+    }
+    if (g.members.empty()) { err = "nothing groupable selected"; return ""; }
+
+    // Two-output rule: refuse with the offenders' names.
+    std::vector<GroupBoundaryIn> ins;
+    std::vector<GraphNode*> outs;
+    group_boundary(g, ins, outs);
+    if (outs.size() > 1) {
+        err = "selection has " + std::to_string(outs.size()) + " outputs:";
+        for (auto* o : outs) err += " " + o->label;
+        return "";
+    }
+
+    // Unique name in the shared namespace.
+    std::string base = "Group", name = base;
+    auto taken = [&](const std::string& s) {
+        if (group_by_name(s)) return true;
+        for (auto& node : s_nodes) if (node.label == s) return true;
+        return false;
+    };
+    for (int i = 2; taken(name); ++i) name = base + std::to_string(i);
+    g.name = name;
+    g.pos = posCount ? ImVec2(centroid.x / posCount, centroid.y / posCount)
+                     : ImVec2(200, 200);
+    g.posApplied = false;
+    g.editorId = next_id();
+    g.outPinId = next_id();
+
+    // The new group lives at the CURRENT level: if we're inside a group,
+    // it becomes a member there (and its members leave that list).
+    if (!s_groupPath.empty()) {
+        if (NodeGroup* parent = group_by_name(s_groupPath.back())) {
+            for (auto& m : g.members)
+                parent->members.erase(std::remove(parent->members.begin(),
+                                                  parent->members.end(), m),
+                                      parent->members.end());
+            parent->members.push_back(g.name);
+        }
+    }
+    s_groups.push_back(std::move(g));
+    s_graphDirty = true;
+    return name;
+}
+
+// Ungroup: members rejoin the parent level; fully reverses group_selection.
+static void ungroup(const std::string& name) {
+    NodeGroup* g = group_by_name(name);
+    if (!g) return;
+    NodeGroup* parent = group_of(name);
+    std::vector<std::string> members = g->members;
+    if (parent) {
+        parent->members.erase(std::remove(parent->members.begin(),
+                                          parent->members.end(), name),
+                              parent->members.end());
+        for (auto& m : members) parent->members.push_back(m);
+    }
+    // Path entries pointing at the dead group fall back to its parent level.
+    while (!s_groupPath.empty() && s_groupPath.back() == name)
+        s_groupPath.pop_back();
+    s_groups.erase(std::remove_if(s_groups.begin(), s_groups.end(),
+                                  [&](const NodeGroup& x) { return x.name == name; }),
+                   s_groups.end());
+    s_graphDirty = true;
+}
+
 // Node context menu (right-click on existing node)
 static void show_node_context_menu() {
     if (!ImGui::BeginPopup("NodeContextMenu")) return;
@@ -7043,7 +7204,28 @@ static void show_node_context_menu() {
     GraphNode* node = nullptr;
     for (auto& n : s_nodes) if (n.id == s_contextNodeId) { node = &n; break; }
 
-    if (!node) { ImGui::EndPopup(); return; }
+    // Right-click on a collapsed GROUP node: group menu.
+    if (!node) {
+        NodeGroup* grp = nullptr;
+        for (auto& g : s_groups)
+            if (g.editorId == s_contextNodeId) { grp = &g; break; }
+        if (!grp) { ImGui::EndPopup(); return; }
+        GraphNode* gOut = group_output_node(*grp);
+        bool tapped = gOut && gOut->id == s_listenTapNode;
+        if (ImGui::MenuItem(tapped ? "Stop listening here" : "Listen here",
+                            nullptr, false, gOut != nullptr)) {
+            s_listenTapNode = tapped ? -1 : gOut->id;
+            s_groupListen[grp->name] = !tapped;
+        }
+        if (ImGui::MenuItem("Open")) {
+            s_groupPath.push_back(grp->name);
+        }
+        if (ImGui::MenuItem("Ungroup")) {
+            ungroup(grp->name);
+        }
+        ImGui::EndPopup();
+        return;
+    }
 
     if (ImGui::MenuItem("Duplicate")) {
         s_graphDirty = true;
@@ -7077,6 +7259,34 @@ static void show_node_context_menu() {
     if (ImGui::MenuItem("Delete")) {
         delete_node(s_contextNodeId);
         g_selectedNodeId = -1;
+    }
+
+    ImGui::Separator();
+
+    // Listen tap (spec §3): monitor this node's output in-context.
+    {
+        bool tapped = node->id == s_listenTapNode;
+        bool can = !node->outputs.empty() && node->typeName != NT_PATCH_OUTPUT;
+        if (ImGui::MenuItem(tapped ? "Stop listening here" : "Listen here",
+                            nullptr, false, can)) {
+            s_listenTapNode = tapped ? -1 : node->id;
+        }
+    }
+
+    // Group the selection (right-clicked node included via imnodes select).
+    {
+        int nSel = ImNodes::NumSelectedNodes();
+        char lbl[48];
+        snprintf(lbl, sizeof(lbl), "Group selection (%d)", nSel);
+        if (ImGui::MenuItem(lbl, nullptr, false, nSel >= 1)) {
+            std::string err;
+            std::string name = group_selection(err);
+            if (name.empty())
+                transport_set_status(("Group refused: " + err).c_str(), true);
+            else
+                transport_set_status(("Grouped as '" + name +
+                                      "' — double-click to open, rename in Properties").c_str(), false);
+        }
     }
 
     ImGui::EndPopup();
