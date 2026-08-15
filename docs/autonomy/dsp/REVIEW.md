@@ -2,6 +2,33 @@
 
 ## Awaiting Matt
 
+### 32. GROUPS landed — chunk 3 of the UI usability spec [try] (2026-08-15)
+Spec §3 complete (plan docs/superpowers/plans/2026-08-15-ui-groups.md).
+Groups are UI-only structure over the flat graph — a root "groups"
+section the engine never reads (proven: grouped vs ungrouped vs
+roundtripped Piano_bright render hash-identical).
+**TRY (restart UI):**
+1. Load Piano_bright, drag-select the excitation chain (env1 through
+   Combined7 or any subset without the string), right-click a selected
+   node -> "Group selection (N)". A purple collapsed node appears; its
+   input pins are the boundary wires, its "out" is the single feeding
+   node. Selecting the Output node or a two-output selection refuses
+   with names in the transport status.
+2. Double-click the group: the editor swaps to its interior, breadcrumb
+   "Piano_bright > Group" appears; click the patch name to come back.
+   Nodes created inside join the group.
+3. Rename in Properties (select the collapsed node); Ungroup from its
+   right-click menu restores everything.
+4. LISTEN: right-click any node -> "Listen here" (<))) marker appears) —
+   keyboard/transport/waveforms/spectrum now monitor that node while the
+   whole patch keeps running (in-context, your damper-tweak loop without
+   rewiring the output). Same item on a collapsed group taps its output;
+   drilling into a group auto-listens to it, the breadcrumb's
+   "Listen: Patch | Group" toggle flips it, and the choice is remembered
+   per group for the session. Saves NEVER persist a tap.
+Save/reload keeps groups, positions, and names; --roundtrip carries the
+section verbatim. Corpus gate stays green (196 patches).
+
 ### 31. 3n CLOSED — UI saves are now render-faithful [read] (2026-08-15)
 Every one of the 33 patches whose UI save round-trip changed their sound
 is fixed; the regression gate (tools/test_stable_roundtrip.py) now runs

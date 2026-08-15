@@ -65,6 +65,14 @@ old patches load unchanged. What changes is representation and editing:
 
 ## 3. Groups
 
+> LANDED 2026-08-15 (chunk-3 plan). Implementation notes: boundary links
+> render as projections onto the collapsed node's synthetic pins (the link
+> keeps its real id, so wiring/deleting through a projected pin edits the
+> real edge); a group with no outward wire takes its topologically last
+> output-bearing member as the Listen output; the tap is applied via
+> find_output_source (in-UI renders) and a graph.output override written
+> ONLY into the playback temp file.
+
 **Concept.** A Group is UI-level structure over a FLAT graph: the patch
 JSON keeps every node top-level; a `groups` section records membership.
 The engine never knows groups exist; renders are byte-identical with the
