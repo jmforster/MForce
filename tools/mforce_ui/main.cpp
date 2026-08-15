@@ -482,6 +482,13 @@ static std::vector<NodeGroup> s_groups;
 // Drill-in path: empty = top level; back() = the group whose interior the
 // Node Editor currently shows.
 static std::vector<std::string> s_groupPath;
+// Listen tap (spec §3): the node whose output is routed to the ears.
+// -1 = the patch output. In-context semantics — the whole patch keeps
+// running; only the monitored signal moves. Never persisted by a save.
+static int s_listenTapNode = -1;
+// Per-group session memory for the breadcrumb Patch|Group toggle
+// (default true: drill-in listens to the group).
+static std::unordered_map<std::string, bool> s_groupListen;
 
 static NodeGroup* group_by_name(const std::string& name) {
     for (auto& g : s_groups) if (g.name == name) return &g;
@@ -795,6 +802,17 @@ static void delete_node(int nodeId) {
             s_links.end());
         break;
     }
+    // Group bookkeeping: drop the deleted node from any membership list and
+    // release a tap pointing at it.
+    for (auto& node : s_nodes) {
+        if (node.id != nodeId) continue;
+        for (auto& g : s_groups)
+            g.members.erase(std::remove(g.members.begin(), g.members.end(),
+                                        node.label),
+                            g.members.end());
+        break;
+    }
+    if (s_listenTapNode == nodeId) s_listenTapNode = -1;
     s_nodes.erase(
         std::remove_if(s_nodes.begin(), s_nodes.end(),
             [nodeId](const GraphNode& n) { return n.id == nodeId; }),
@@ -5609,6 +5627,100 @@ static bool draw_formant_strip(GraphNode* node, ImU32 color,
                                bool showPopoutBtn, int popoutBtnId);
 
 // ===========================================================================
+// Collapsed-group drawing + boundary-link projection (spec §3). Rebuilt
+// every frame the editor draws.
+// ===========================================================================
+struct GroupProjection {
+    // group input pin (synthetic) -> the real inside input pin it represents
+    std::unordered_map<int, int> synthToRealIn;
+    // real inside input pin -> its synthetic pin (for link projection)
+    std::unordered_map<int, int> realInToSynth;
+    // group output pin -> real inside OUTPUT pin (the group output node's)
+    std::unordered_map<int, int> groupOutToReal;
+    // real inside output pin -> group output pin
+    std::unordered_map<int, int> realOutToGroupPin;
+};
+static GroupProjection s_groupProj;
+
+static void draw_group_node(NodeGroup& g) {
+    std::vector<GroupBoundaryIn> ins;
+    std::vector<GraphNode*> outs;
+    group_boundary(g, ins, outs);
+    GraphNode* outNode = group_output_node(g);
+
+    while (g.inPinIds.size() < ins.size()) g.inPinIds.push_back(next_id());
+
+    if (!g.posApplied && !s_headless) {
+        ImNodes::SetNodeGridSpacePos(g.editorId, g.pos);
+        g.posApplied = true;
+    }
+
+    ImU32 titleCol = IM_COL32(90, 60, 120, 255);   // distinct: groups are purple
+    ImNodes::PushColorStyle(ImNodesCol_TitleBar, titleCol);
+    ImNodes::PushColorStyle(ImNodesCol_NodeBackground, IM_COL32(45, 38, 55, 255));
+    ImNodes::PushColorStyle(ImNodesCol_NodeBackgroundHovered, IM_COL32(52, 44, 64, 255));
+    ImNodes::PushColorStyle(ImNodesCol_NodeBackgroundSelected, IM_COL32(52, 44, 64, 255));
+
+    ImNodes::BeginNode(g.editorId);
+    ImNodes::BeginNodeTitleBar();
+    ImGui::TextUnformatted(g.name.c_str());
+    bool tapped = outNode && outNode->id == s_listenTapNode;
+    if (tapped) {
+        ImGui::SameLine();
+        ImGui::TextColored(ImVec4(0.5f, 0.8f, 0.5f, 1.0f), "<)))");
+    }
+    ImNodes::EndNodeTitleBar();
+    ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f),
+                       "%d nodes  (double-click)", (int)g.members.size());
+
+    for (size_t i = 0; i < ins.size(); ++i) {
+        ImNodes::BeginInputAttribute(g.inPinIds[i]);
+        ImGui::TextColored(ImVec4(0.85f, 0.85f, 0.85f, 1.0f), "%s",
+                           ins[i].label.c_str());
+        ImNodes::EndInputAttribute();
+        s_groupProj.synthToRealIn[g.inPinIds[i]] = ins[i].realInPin;
+        s_groupProj.realInToSynth[ins[i].realInPin] = g.inPinIds[i];
+    }
+    if (outNode && !outNode->outputs.empty()) {
+        ImNodes::BeginOutputAttribute(g.outPinId);
+        float textWidth = ImGui::CalcTextSize("out").x;
+        ImGui::Indent(150.0f - textWidth - 20);
+        ImGui::TextUnformatted("out");
+        ImNodes::EndOutputAttribute();
+        int realOut = outNode->outputs[0].id;
+        s_groupProj.groupOutToReal[g.outPinId] = realOut;
+        s_groupProj.realOutToGroupPin[realOut] = g.outPinId;
+    }
+    ImNodes::EndNode();
+    ImNodes::PopColorStyle();
+    ImNodes::PopColorStyle();
+    ImNodes::PopColorStyle();
+    ImNodes::PopColorStyle();
+
+    if (!s_headless) g.pos = ImNodes::GetNodeGridSpacePos(g.editorId);
+}
+
+// The pin to draw for a real pin at the current view level: the pin itself
+// when its node is visible; the collapsing ancestor group's projected pin
+// when the node is inside a collapsed group at this level; -1 when the
+// endpoint has no representation here (e.g. an outside node while drilled
+// into a group — that wire is implied by the group's interface).
+static int project_pin(int realPin, bool isSource) {
+    GraphNode* n = find_node_for_pin(realPin);
+    if (!n) return -1;
+    if (visible_at_path(n->label)) return realPin;
+    NodeGroup* g = group_of(n->label);
+    while (g && !visible_at_path(g->name)) g = group_of(g->name);
+    if (!g) return -1;
+    if (isSource) {
+        auto it = s_groupProj.realOutToGroupPin.find(realPin);
+        return it == s_groupProj.realOutToGroupPin.end() ? -1 : it->second;
+    }
+    auto it = s_groupProj.realInToSynth.find(realPin);
+    return it == s_groupProj.realInToSynth.end() ? -1 : it->second;
+}
+
+// ===========================================================================
 // Properties panel — full editing UI for selected node
 // ===========================================================================
 
@@ -6697,6 +6809,10 @@ static void menu_source(const char* label, const char* typeName) {
     if (ImGui::MenuItem(label)) {
         s_nodes.emplace_back(std::string(typeName));
         ImNodes::SetNodeScreenSpacePos(s_nodes.back().id, s_createMenuPos);
+        // A node created while drilled into a group belongs to that group.
+        if (!s_groupPath.empty())
+            if (NodeGroup* g = group_by_name(s_groupPath.back()))
+                g->members.push_back(s_nodes.back().label);
         update_node_dsp(s_nodes.back());
         s_graphDirty = true;
     }
@@ -8838,16 +8954,100 @@ int main(int argc, char** argv) {
         // the node selection while e.g. the Audition window has focus.
         bool editorFocused = ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows);
 
+        // Breadcrumb bar (spec §3): PatchName ▸ Group ▸ ... with the Listen
+        // toggle right-aligned. Only drawn when groups exist or we're inside.
+        if (!s_groups.empty() || !s_groupPath.empty()) {
+            std::string patchName = s_currentFilePath.empty() ? "Patch"
+                : std::filesystem::path(s_currentFilePath).stem().string();
+            if (ImGui::SmallButton(patchName.c_str()))
+                s_groupPath.clear();
+            for (size_t i = 0; i < s_groupPath.size(); ++i) {
+                ImGui::SameLine();
+                ImGui::TextUnformatted(">");
+                ImGui::SameLine();
+                char lbl[96];
+                snprintf(lbl, sizeof(lbl), "%s##bc%d", s_groupPath[i].c_str(), (int)i);
+                if (ImGui::SmallButton(lbl))
+                    s_groupPath.resize(i + 1);
+            }
+            // Listen toggle: Patch | Group, active side in connection-green,
+            // in-context tap semantics (task: chunk-3 §Listen).
+            if (!s_groupPath.empty()) {
+                NodeGroup* cur = group_by_name(s_groupPath.back());
+                GraphNode* gOut = cur ? group_output_node(*cur) : nullptr;
+                if (gOut) {
+                    bool listenGroup = s_groupListen.count(cur->name)
+                        ? s_groupListen[cur->name] : true;
+                    // Manual taps elsewhere override the toggle display.
+                    if (s_listenTapNode >= 0 && s_listenTapNode != gOut->id)
+                        listenGroup = false;
+                    float w = ImGui::CalcTextSize("Listen:  Patch | Group").x + 40.0f;
+                    ImGui::SameLine(ImGui::GetContentRegionAvail().x - w);
+                    ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1), "Listen:");
+                    ImGui::SameLine();
+                    ImVec4 on(0.5f, 0.8f, 0.5f, 1), off(0.5f, 0.5f, 0.5f, 1);
+                    ImGui::PushStyleColor(ImGuiCol_Text, listenGroup ? off : on);
+                    if (ImGui::SmallButton("Patch")) {
+                        s_groupListen[cur->name] = false;
+                        s_listenTapNode = -1;
+                    }
+                    ImGui::PopStyleColor();
+                    ImGui::SameLine(); ImGui::TextUnformatted("|"); ImGui::SameLine();
+                    ImGui::PushStyleColor(ImGuiCol_Text, listenGroup ? on : off);
+                    if (ImGui::SmallButton("Group")) {
+                        s_groupListen[cur->name] = true;
+                        s_listenTapNode = gOut->id;
+                    }
+                    ImGui::PopStyleColor();
+                }
+            }
+            ImGui::Separator();
+        }
+
         ImNodes::BeginNodeEditor();
 
+        s_groupProj = GroupProjection{};
         for (auto& node : s_nodes)
-            draw_node(node);
-        for (auto& link : s_links)
-            ImNodes::Link(link.id, link.startPinId, link.endPinId);
+            if (visible_at_path(node.label)) draw_node(node);
+        for (auto& g : s_groups)
+            if (visible_at_path(g.name)) draw_group_node(g);
+
+        // Links: both endpoints projected to this level (own pin when the
+        // node is visible, the collapsing group's pin when it isn't). Links
+        // with an unrepresentable endpoint are implied by group interfaces
+        // and not drawn. The link keeps its REAL id either way, so the
+        // existing destroy handler works untouched.
+        for (auto& link : s_links) {
+            Pin* sp = find_pin(link.startPinId);
+            if (!sp) continue;
+            bool startIsSource = sp->kind == PinKind::Output;
+            int a = project_pin(link.startPinId, startIsSource);
+            int b = project_pin(link.endPinId, !startIsSource);
+            if (a >= 0 && b >= 0 && a != b)
+                ImNodes::Link(link.id, a, b);
+        }
 
         bool editorHovered = ImNodes::IsEditorHovered();
 
         ImNodes::EndNodeEditor();
+
+        // Double-click on a collapsed group drills in.
+        if (editorHovered && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) {
+            int hovered = -1;
+            if (ImNodes::IsNodeHovered(&hovered)) {
+                for (auto& g : s_groups) {
+                    if (g.editorId == hovered) {
+                        s_groupPath.push_back(g.name);
+                        // Drill-in auto-selects Group (per-group memory).
+                        bool listenGroup = s_groupListen.count(g.name)
+                            ? s_groupListen[g.name] : true;
+                        GraphNode* gOut = group_output_node(g);
+                        s_listenTapNode = (listenGroup && gOut) ? gOut->id : -1;
+                        break;
+                    }
+                }
+            }
+        }
 
         // Track selected node for properties panel
         if (ImNodes::NumSelectedNodes() == 1) {
@@ -8861,6 +9061,17 @@ int main(int argc, char** argv) {
         // New links (also handles rewiring: drag from connected pin removes old link)
         int startAttr, endAttr;
         if (ImNodes::IsLinkCreated(&startAttr, &endAttr)) {
+            // A drag onto a collapsed group's projected pin wires the REAL
+            // pin it represents — the interface is a view, not a boundary.
+            auto translate = [&](int attr) {
+                auto in = s_groupProj.synthToRealIn.find(attr);
+                if (in != s_groupProj.synthToRealIn.end()) return in->second;
+                auto out = s_groupProj.groupOutToReal.find(attr);
+                if (out != s_groupProj.groupOutToReal.end()) return out->second;
+                return attr;
+            };
+            startAttr = translate(startAttr);
+            endAttr   = translate(endAttr);
             Pin* startPin = find_pin(startAttr);
             Pin* endPin = find_pin(endAttr);
             if (startPin && endPin && startPin->kind != endPin->kind) {
