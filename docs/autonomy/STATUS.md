@@ -22,8 +22,9 @@ Updated: 2026-08-15 — dsp run 26 (Dipsy, "go dsp") · comp run 26 (Wolfie, sch
 | dsp (prev) | Dipsy | run 24 (2026-08-06) + the 2026-08-09 overnight session: the **KS piano pivot** — three new engine nodes (KSPianoString, HammerBank, AllpassResonator), a v1-v4 ladder whose dispersion allpasses fit the measured Iowa inharmonicity with no curve-fitting (C2 B=1.23e-4 vs 1.23e-4), then v5 after Matt's "kick drum, disappointed" verdict — full Alpha-Forever description, dry taps removed, 7-variation set. Also vowel pass 2 (43 WAVs), node-graph stream decay fixed, instrument-level volume + damper release | (folded into run 25) | (folded into run 25) |
 | dsp (prev) | Dipsy | run 21 (2026-08-05, scheduled): **SlewLimiterSource** landed (Slew/Lag/**Peak**) — measuring caught the backlog's premise was wrong, the clicks are IMPULSES not steps; CombinedSource finally parses `sum`; **broadband_ratios empty-band blowup fixed** — piano C6 band0 was 4.63e+11 and dominated the smoke's term3. NOTE: run 22 REVERTED the slew/click family per Matt ("dead end"); the CombinedSource fix survives | — | (folded) |
 
-Reports: **comp/reports/2026-08-10-wolfie-run26.md** ·
-**dsp/reports/2026-08-10-dipsy-run25.md** ·
+Reports: **dsp/reports/2026-08-15-dipsy-run26.md** ·
+**comp/reports/2026-08-10-wolfie-run26.md** ·
+dsp/reports/2026-08-10-dipsy-run25.md ·
 comp/reports/2026-08-06-wolfie-run18.md ·
 dsp/reports/2026-08-06-dipsy-run24.md ·
 dsp/reports/2026-08-06-dipsy-run23.md
