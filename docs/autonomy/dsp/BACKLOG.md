@@ -150,7 +150,20 @@ Priority order. Tags per WORKFLOW.md. (G1)-(G4) = GOALS.md Dipsy goals.
    badges) — implement via that spec's chunk-2 plan, not standalone.
    ✓ DONE 2026-08-14 evening (chunk 2 landed, commit 3246ffe): badges +
    widget suppression + restore-on-delete shipped; REVIEW 30.
-3n. **[build] UI save round-trip changes the SOUND of 34 instrument
+3n. ✓ DONE 2026-08-15 (commits 717bff2 b37bfa0 68c6557 c8ddc22 + patch
+   repairs). Five root causes, all fixed: score injection on score-less
+   files; formant child-id renaming (orphaned vowel curves — a UI save
+   BRICKED saved vowel patches); RangeSource.normalized default vs loader
+   contract; unmodeled params dropped (now carried verbatim via
+   GraphNode::jsonExtras); stage-form adsr envelopes ignoring per-note
+   sustainLevel (engine shape detection + declamp + UI sustainLevel
+   emission retired). Gate exception list is EMPTY of fidelity debt —
+   sole exemption FormantSequence1 (3p, not a save-path bug). NOTE: the
+   sustainLevel-0.0-artifact repairs to the two UNTRACKED library files
+   (cello_full_range.json, viola_res_lo.json) sit uncommitted in the
+   working tree pending Matt's tracked/untracked call from REVIEW 26.
+   Original text follows for the record:
+   **[build] UI save round-trip changes the SOUND of 34 instrument
    patches** — found 2026-08-14 by the stable-identity regression
    (tools/test_stable_roundtrip.py; its KNOWN_DIFFS set is the exact
    worklist). Same family as the 08-13 "edit-any-setting -> volume cut"
@@ -168,6 +181,16 @@ Priority order. Tags per WORKFLOW.md. (G1)-(G4) = GOALS.md Dipsy goals.
    loader/save parity like the 08-13 fix; each species fixed shrinks
    KNOWN_DIFFS until the gate is empty. Until then: don't re-save
    library patches from the UI without diffing the render.
+
+3p. **[build] FormantSequence1 is CLI-unrenderable and migrates silent** —
+   found closing 3n. The baselines patch uses the LEGACY inline formant
+   form (structs, no refs), which the CLI loader never supported ("key
+   'ref' not found"); the UI loads it fine. Migrating via UI roundtrip
+   produces valid ref-form JSON that renders SILENT (peak=0), so the UI
+   and CLI disagree about FormantSequence semantics beyond the format —
+   same UI-vs-CLI family as old item 15. Diagnose the silence (likely
+   FormantSequence's spectra wiring or blend path), then migrate the
+   file; it is the roundtrip gate's only exemption until then.
 
 15. **[build] 7 patches the CLI cannot render at all** — ✓ 6 of 7 DONE run19
    (2026-08-04), commit 6fc128b. Found while A/B-ing front 3. They were

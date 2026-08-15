@@ -2,6 +2,38 @@
 
 ## Awaiting Matt
 
+### 31. 3n CLOSED — UI saves are now render-faithful [read] (2026-08-15)
+Every one of the 33 patches whose UI save round-trip changed their sound
+is fixed; the regression gate (tools/test_stable_roundtrip.py) now runs
+196 patches with an EMPTY fidelity-exception list. Five root causes:
+(1) default-score injection on score-less files (19 patches);
+(2) FormantSpectrum row consumption renaming formant children — vowel
+    curves orphaned, so a UI save produced a patch that FAILED TO LOAD
+    (8 voice patches; rows now keep original ids);
+(3) RangeSource.normalized: descriptor said true, loader's absent-key
+    default is false — UI displayed and re-saved the wrong value
+    (engine default aligned; bowed/reed/fm_bell);
+(4) params the UI doesn't model were dropped on save (expandRule, the
+    'evolution'/'gap' loader-lambda keys) — now carried verbatim, UI
+    edits win over carried values;
+(5) stage-form adsr envelopes silently ignored per-note sustainLevel —
+    a preset adsr re-saved as stages lost its residue curve (v6_02/03).
+    Engine set_config now recognizes the adsr shape by its own
+    invariant, the [0,1] clamp is gone (corpus-scanned: no patch stores
+    >1, so no CLI render changes), and the UI no longer emits the
+    redundant sustainLevel config next to stages.
+Repairs riding along: clarinet_locked's artifact sustainLevel 0.0
+(committed) and the same artifact in cello_full_range.json +
+viola_res_lo.json — those two files are UNTRACKED (your REVIEW 26
+renders-classification call is still open), so their repairs sit
+uncommitted in the working tree; without the repair the new engine
+would have honored the bogus 0.0 and killed their sustain.
+Practical upshot: **re-saving any library patch from the UI is now
+safe** — the 08-14 "don't re-save from the UI" caution is lifted.
+One new item: 3p — FormantSequence1 (baselines) was never CLI-renderable
+(legacy inline formant form) and its format migration renders silent;
+it is the gate's only exemption and needs a semantics diagnosis.
+
 ### 30. Mappings dialog + Parameter node retired [try] (2026-08-14 evening, interactive)
 Chunk 2 of the UI usability spec landed (plan docs/superpowers/plans/
 2026-08-14-ui-mappings-dialog.md; commits 5c27980 eaad8d5 ba529d0 ea83ba0
