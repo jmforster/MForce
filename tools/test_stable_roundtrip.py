@@ -17,22 +17,7 @@ CLI = Path("build/tools/mforce_cli/Release/mforce_cli.exe")
 # never touched, and ids compare equal). Fixing that class shrinks this
 # list; a NEW entry here is a regression and fails the run.
 KNOWN_DIFFS = {
-    "patches/baselines/bowed_test.json",
     "patches/baselines/FormantSequence1.json",
-    "patches/baselines/inst_fm_bell_melody_test.json",
-    "patches/baselines/reed_test.json",
-    "patches/baselines/TriTest.json",
-    "patches/library/_eval/bowed_cello.json",
-    "patches/library/_eval/buzzy_bow.json",
-    "patches/library/_eval/fm_gritty_bass.json",
-    "patches/library/_eval/harsh_pluck.json",
-    "patches/library/effects/spacy/inst_spacy.json",
-    "patches/library/fm/inst_fm_rhodes_base.json",
-    "patches/library/fm/inst_fm_rhodes_clack.json",
-    "patches/library/fm/inst_fm_rhodes_dual.json",
-    "patches/library/percussion/hi_hat.json",
-    "patches/library/percussion/kick_drum.json",
-    "patches/library/percussion/snare_drum.json",
     "patches/library/strings/v6_02_res_curve_mid.json",
     "patches/library/strings/v6_03_res_curve_hi.json",
     # Pruned as fixed (2026-08-14/15): clarinet_locked (paramMap repair),

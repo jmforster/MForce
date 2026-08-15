@@ -74,7 +74,11 @@ struct RangeSource final : ValueSource {
 
   std::span<const ConfigDescriptor> config_descriptors() const override {
     static constexpr ConfigDescriptor descs[] = {
-      {"normalized", ConfigType::Bool, 1.0f, 0.0f, 1.0f},
+      // Default FALSE to match the loader's absent-key contract
+      // (patch_loader.cpp: p.value("normalized", false)). It was 1.0 here,
+      // so the UI displayed true for patches that omit the key and wrote
+      // true back on save — audibly changing them (3n, bowed/reed/fm_bell).
+      {"normalized", ConfigType::Bool, 0.0f, 0.0f, 1.0f},
     };
     return descs;
   }
@@ -92,7 +96,7 @@ private:
   std::shared_ptr<ValueSource> min_;
   std::shared_ptr<ValueSource> max_;
   std::shared_ptr<ValueSource> var_;
-  bool varNormalized_{true};
+  bool varNormalized_{false};  // matches loader absent-key default + descriptor
   float cur_{0.0f};
 };
 
