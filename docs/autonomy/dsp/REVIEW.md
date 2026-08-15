@@ -13,11 +13,10 @@ positions already persisted (ui.positions — discovered during planning)
 and now key off stable names. Corpus gate tools/test_stable_roundtrip.py:
 196 patches, 0 id changes, renders byte-identical except a KNOWN
 pre-existing set (below). Headless --rename mode for scripted renames.
-**TRY (after restarting the UI): load Piano_bright -> rename
-BWLowpassFilter2 to exc_body in Properties (type in the name field,
-Enter) -> save -> reload: name, wiring, curves, position all intact;
-duplicate/dotted names visibly refused.** Chunks 2 (Mappings dialog) and
-3 (Groups) are specced, plans to follow.
+TRY RESOLVED same day (Matt): "Works" — rename exercised live on
+Piano_bright; his saved rename verified render-byte-identical against
+HEAD and committed (3a316ac). Chunks 2 (Mappings dialog) and 3 (Groups)
+are specced, plans to follow.
 FOUND ON THE WAY — new backlog 3n, worth your awareness: **UI save
 round-trip currently changes the SOUND of 34 instrument patches**
 (clarinet_locked, 8 locked voice winners, percussion, bells, Rhodes
