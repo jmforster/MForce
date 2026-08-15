@@ -2787,6 +2787,88 @@ static bool render_output_authoritative(float noteNum, float velocity,
     }
 }
 
+// Apply the paramMap stash for one note, mirroring the engine's note-on
+// application exactly (instrument.h map/vmap): curve = log-frequency
+// interpolation, end-clamped; vcurve = linear in velocity, multiplicative;
+// bare targets receive the raw note frequency. Pin targets set the pin's
+// ConstantSource; config targets go through set_config (and refresh the
+// node's cached configValues so Properties shows the per-note value).
+// Replaces the old Parameter-node scan, which pushed RAW frequency into
+// curve-bearing pin targets — the UI render ignored curves entirely.
+static float eval_map_curve(const nlohmann::json& curve, float freq) {
+    auto x = [&](size_t i) { return curve[i][0].get<float>(); };
+    auto y = [&](size_t i) { return curve[i][1].get<float>(); };
+    size_t n = curve.size();
+    if (n == 0) return freq;
+    if (freq <= x(0))     return y(0);
+    if (freq >= x(n - 1)) return y(n - 1);
+    for (size_t i = 1; i < n; ++i) {
+        if (freq <= x(i)) {
+            float lf = std::log(freq / x(i - 1)) / std::log(x(i) / x(i - 1));
+            return y(i - 1) + (y(i) - y(i - 1)) * lf;
+        }
+    }
+    return y(n - 1);
+}
+
+static float eval_map_vcurve(const nlohmann::json& vcurve, float vel) {
+    auto x = [&](size_t i) { return vcurve[i][0].get<float>(); };
+    auto y = [&](size_t i) { return vcurve[i][1].get<float>(); };
+    size_t n = vcurve.size();
+    if (n == 0) return 1.0f;
+    if (vel <= x(0))     return y(0);
+    if (vel >= x(n - 1)) return y(n - 1);
+    for (size_t i = 1; i < n; ++i) {
+        if (vel <= x(i)) {
+            float t = (vel - x(i - 1)) / (x(i) - x(i - 1));
+            return y(i - 1) + (y(i) - y(i - 1)) * t;
+        }
+    }
+    return y(n - 1);
+}
+
+static void apply_param_map(float freq, float velocity) {
+    if (!s_loadedParamMap.is_object()) return;
+    auto it = s_loadedParamMap.find("frequency");
+    if (it == s_loadedParamMap.end()) return;
+
+    auto apply_one = [&](const nlohmann::json& e) {
+        std::string target;
+        float v = freq;
+        if (e.is_string()) {
+            target = e.get<std::string>();
+        } else if (e.is_object() && e.contains("target") && e["target"].is_string()) {
+            target = e["target"].get<std::string>();
+            if (e.contains("curve"))  v = eval_map_curve(e["curve"], freq);
+            if (e.contains("vcurve")) v *= eval_map_vcurve(e["vcurve"], velocity);
+        } else {
+            return;
+        }
+        auto dot = target.find('.');
+        std::string nodeId = (dot == std::string::npos) ? target : target.substr(0, dot);
+        std::string pname  = (dot == std::string::npos) ? "frequency" : target.substr(dot + 1);
+        for (auto& n : s_nodes) {
+            if (n.label != nodeId) continue;
+            if (auto* p = n.find_input(pname)) {
+                if (p->constantSrc && !is_pin_connected(p->id)) {
+                    p->defaultValue = v;
+                    p->constantSrc->set(v);
+                }
+            } else if (n.dspSource) {
+                n.dspSource->set_config(pname, v);
+                for (auto& [desc, val] : n.configValues)
+                    if (pname == desc.name) val = n.dspSource->get_config(desc.name);
+            }
+            return;
+        }
+    };
+    if (it->is_array()) {
+        for (const auto& e : *it) apply_one(e);
+    } else {
+        apply_one(*it);
+    }
+}
+
 static void render_waveforms(float noteNum, float velocity, float durationSeconds) {
     ValueSource* src = find_output_source();
     if (!src) return;
@@ -2795,8 +2877,10 @@ static void render_waveforms(float noteNum, float velocity, float durationSecond
     // restore them so this offline note render behaves exactly as before.
     stream_envelopes_restore();
 
-    // Set frequency on Parameter nodes named "frequency"
+    // Retune per the paramMap (curves/vcurves honored — engine parity);
+    // NodeGraph mode has no paramMap and keeps its Parameter frequency node.
     float freq = note_to_freq(noteNum);
+    apply_param_map(freq, velocity);
     for (auto& n : s_nodes) {
         if (n.typeName == NT_PARAMETER && n.paramName == "frequency") {
             if (auto* p = n.find_input("default"))
@@ -4407,6 +4491,7 @@ static void render_passage_waveforms(const std::vector<ParsedNote>& notes, float
     int offset = 0;
     for (const auto& pn : notes) {
         float freq = note_to_freq(pn.noteNumber);
+        apply_param_map(freq, velocity);
         for (auto& n : s_nodes) {
             if (n.typeName == NT_PARAMETER && n.paramName == "frequency") {
                 if (auto* p = n.find_input("default"))
