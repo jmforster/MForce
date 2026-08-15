@@ -289,27 +289,7 @@
  },
  "instrument": {
   "paramMap": {
-   "frequency": [
-    "A",
-    "d",
-    "d",
-    "i",
-    "t",
-    "i",
-    "v",
-    "e",
-    "1",
-    ".",
-    "f",
-    "r",
-    "e",
-    "q",
-    "u",
-    "e",
-    "n",
-    "c",
-    "y"
-   ]
+   "frequency": "Additive1.frequency"
   },
   "polyphony": 1
  },
