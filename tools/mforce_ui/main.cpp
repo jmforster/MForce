@@ -9241,6 +9241,30 @@ int main(int argc, char** argv) {
 
         ImNodes::EndNodeEditor();
 
+        // Ctrl-click DESELECTS an already-selected node (Matt, REVIEW 32):
+        // imnodes' multi-select modifier only ever adds, which makes
+        // assembling a precise selection for Group impossible. Compare
+        // against the PREVIOUS frame's selection — this frame's set already
+        // includes the node either way.
+        {
+            static std::unordered_set<int> prevSelection;
+            if (editorHovered && ImGui::GetIO().KeyCtrl &&
+                ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
+                int hovered = -1;
+                if (ImNodes::IsNodeHovered(&hovered) &&
+                    prevSelection.count(hovered)) {
+                    ImNodes::ClearNodeSelection(hovered);
+                }
+            }
+            prevSelection.clear();
+            int n = ImNodes::NumSelectedNodes();
+            if (n > 0) {
+                std::vector<int> sel(n);
+                ImNodes::GetSelectedNodes(sel.data());
+                prevSelection.insert(sel.begin(), sel.end());
+            }
+        }
+
         // Double-click on a collapsed group drills in.
         if (editorHovered && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) {
             int hovered = -1;
