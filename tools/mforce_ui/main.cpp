@@ -778,7 +778,8 @@ static void new_graph(GraphMode mode) {
     s_needsLayout = true;
 
     if (mode == GraphMode::PatchGraph) {
-        s_nodes.emplace_back(std::string(NT_PARAMETER), "frequency");
+        // No Parameter node (spec §2): a new patch starts with no mappings;
+        // bindings are added via the Parameter-mapping dialog.
         s_nodes.emplace_back("SineSource");
         s_nodes.emplace_back(std::string(NT_ENVELOPE));
         s_nodes.emplace_back(std::string(NT_PATCH_OUTPUT));
@@ -1261,58 +1262,12 @@ static void load_graph_from_path(const std::string& path) {
         if (outIt != outputPinMap.end())
             s_links.emplace_back(outIt->second, outNode.inputs[0].id);
 
-        // Create Parameter nodes from paramMap.
-        // paramMap value can be either a single string ("fmBody.frequency")
-        // or an array of strings (for dual/N-stack instruments where one
-        // logical name retunes multiple graph edges). One Parameter node is
-        // created per name and wired to ALL listed targets.
-        if (root["instrument"].contains("paramMap")) {
-            // Stash the paramMap verbatim so save_patch can carry forward curve
-            // entries the node graph can't model (see s_loadedParamMap).
+        // paramMap: the stash IS the model (2026-08-14 spec §2). No Parameter
+        // nodes are materialized in patch mode — bindings live as data, are
+        // edited in the Mappings dialog / Curves tab, show as green badges on
+        // Properties rows, and are applied per note by apply_param_map.
+        if (root["instrument"].contains("paramMap"))
             s_loadedParamMap = root["instrument"]["paramMap"];
-            for (auto& [paramName, targetJson] : root["instrument"]["paramMap"].items()) {
-                // A target is either a bare string ("node.param") or the
-                // ParameterMapping object form { "target": "node.param",
-                // "curve": [[hz,val],...] }. Both contribute a target name; the
-                // curve itself is preserved via s_loadedParamMap, not the graph.
-                std::vector<std::string> targets;
-                auto add_target = [&](const nlohmann::json& t) {
-                    if (t.is_string()) targets.push_back(t.get<std::string>());
-                    else if (t.is_object() && t.contains("target") && t["target"].is_string())
-                        targets.push_back(t["target"].get<std::string>());
-                };
-                if (targetJson.is_array()) {
-                    for (const auto& t : targetJson) add_target(t);
-                } else {
-                    add_target(targetJson);
-                }
-                if (targets.empty()) continue;
-
-                s_nodes.emplace_back(std::string(NT_PARAMETER), paramName);
-                GraphNode& pn = s_nodes.back();
-
-                // Use the first target's default as the Parameter node's default
-                // (all targets should share the same nominal value — e.g. base freq).
-                bool defaultSet = false;
-                for (const std::string& target : targets) {
-                    auto inIt = inputPinMap.find(target);
-                    if (inIt == inputPinMap.end()) continue;
-
-                    if (!defaultSet) {
-                        Pin* targetPin = find_pin(inIt->second);
-                        if (targetPin) {
-                            pn.inputs[0].defaultValue = targetPin->defaultValue;
-                            if (pn.inputs[0].constantSrc)
-                                pn.inputs[0].constantSrc->set(targetPin->defaultValue);
-                        }
-                        defaultSet = true;
-                    }
-
-                    // Wire this Parameter node's output to the target input pin
-                    s_links.emplace_back(pn.outputs[0].id, inIt->second);
-                }
-            }
-        }
     }
 
     // Restore positions from UI metadata, or fall back to grid layout
@@ -1323,8 +1278,6 @@ static void load_graph_from_path(const std::string& path) {
             std::string key;
             if (node.typeName == NT_PATCH_OUTPUT)
                 key = "__output";
-            else if (node.typeName == NT_PARAMETER)
-                key = "__param_" + node.paramName;
             else
                 key = node.label;  // label was set to the JSON id
 
@@ -1612,13 +1565,10 @@ static void save_patch_graph(const std::string& path) {
         nodeIds[node.id] = sanitize_unique_id(node.label, usedIds, node.typeName);
     }
 
-    // Find Output and Parameter nodes
+    // Find the Output node
     GraphNode* outputNode = nullptr;
-    std::vector<GraphNode*> paramNodes;
-    for (auto& node : s_nodes) {
+    for (auto& node : s_nodes)
         if (node.typeName == NT_PATCH_OUTPUT) outputNode = &node;
-        if (node.typeName == NT_PARAMETER) paramNodes.push_back(&node);
-    }
 
     // Determine graph output: what's connected to Output's source pin
     std::string outputId;
@@ -1627,10 +1577,9 @@ static void save_patch_graph(const std::string& path) {
         if (src) outputId = nodeIds[src->id];
     }
 
-    // Old-JSON-id → new-serialized-id map. Save renames every node to a
-    // type-prefixed id (fmBody→FM1), so any preserved paramMap entry — which
-    // still references the original loaded names — must be remapped or it will
-    // fail to resolve ("unknown node 'vib'") on the next load/render.
+    // Old-id → serialized-id map. Ids are labels now, so this is identity
+    // except where sanitize_unique_id had to rename (collision / illegal
+    // name) — exactly when the paramMap stash still needs the remap.
     std::unordered_map<std::string, std::string> oldToNew;
     for (auto& node : s_nodes) {
         auto it = nodeIds.find(node.id);
@@ -1659,49 +1608,13 @@ static void save_patch_graph(const std::string& path) {
         return e;
     };
 
-    // Build paramMap: trace each Parameter node's outgoing links to find
-    // targets. A Parameter node connected to N inputs emits N targets;
-    // serialized as a string when N==1 and as an array when N>1 (matches
-    // the engine's multi-target paramMap form for dual/N-stack instruments).
+    // paramMap: the stash is the model (spec §2) — emit it verbatim through
+    // the collision remap. The old link-derived path (trace Parameter-node
+    // wires) is gone with the Parameter nodes themselves.
     json paramMap = json::object();
-    for (auto* pn : paramNodes) {
-        if (pn->outputs.empty() || pn->paramName.empty()) continue;
-        int outPinId = pn->outputs[0].id;
-        std::vector<std::string> targets;
-        for (auto& link : s_links) {
-            int targetPinId = -1;
-            if (link.startPinId == outPinId) targetPinId = link.endPinId;
-            if (link.endPinId == outPinId) targetPinId = link.startPinId;
-            if (targetPinId < 0) continue;
-            for (auto& node : s_nodes) {
-                for (auto& pin : node.inputs) {
-                    if (pin.id == targetPinId && nodeIds.count(node.id)) {
-                        targets.push_back(nodeIds[node.id] + "." + pin.name);
-                    }
-                }
-            }
-        }
-        // Carry forward the original entry verbatim when it carried a curve:
-        // the node graph can't model curve targets (or config targets), so the
-        // link-derived form above would silently strip them. Only override for
-        // Parameter names that still exist in the graph (a deleted Parameter
-        // node drops out of paramNodes, so its stashed entry is not re-emitted).
-        auto entry_has_curve = [](const json& e) {
-            if (e.is_object()) return e.contains("curve");
-            if (e.is_array())
-                for (const auto& t : e)
-                    if (t.is_object() && t.contains("curve")) return true;
-            return false;
-        };
-        if (s_loadedParamMap.contains(pn->paramName) &&
-            entry_has_curve(s_loadedParamMap[pn->paramName])) {
-            paramMap[pn->paramName] = remap_entry(s_loadedParamMap[pn->paramName]);
-        } else if (targets.size() == 1) {
-            paramMap[pn->paramName] = targets[0];
-        } else if (targets.size() > 1) {
-            paramMap[pn->paramName] = targets;
-        }
-    }
+    if (s_loadedParamMap.is_object())
+        for (auto& [pname, entry] : s_loadedParamMap.items())
+            paramMap[pname] = remap_entry(entry);
 
     // Build graph nodes array (topologically sorted)
     auto sorted = topo_sort();
@@ -1868,11 +1781,6 @@ static void save_patch_graph(const std::string& path) {
         if (outputNode) {
             ImVec2 pos = ImNodes::GetNodeGridSpacePos(outputNode->id);
             positions["__output"] = {pos.x, pos.y};
-        }
-        for (auto* pn : paramNodes) {
-            if (pn->paramName.empty()) continue;
-            ImVec2 pos = ImNodes::GetNodeGridSpacePos(pn->id);
-            positions["__param_" + pn->paramName] = {pos.x, pos.y};
         }
         root["ui"]["positions"] = positions;
         ImVec2 pan = ImNodes::EditorContextGetPanning();
@@ -3858,32 +3766,6 @@ static void curve_sort(nlohmann::json& curve) {
 
 // Link-derived targets for a Parameter node, in stash form ("label.pinName" —
 // original loaded node ids; save_patch_graph remaps them to serialized ids).
-// Used when a curve is added under a param whose stash entry doesn't exist
-// yet: the carry-forward in save_patch_graph replaces the WHOLE entry with
-// the stash, so the stash must also contain the plain link targets or they
-// would be silently dropped from the saved paramMap.
-static std::vector<std::string> param_node_link_targets(const std::string& paramName) {
-    std::vector<std::string> targets;
-    for (auto& pn : s_nodes) {
-        if (pn.typeName != NT_PARAMETER || pn.paramName != paramName) continue;
-        if (pn.outputs.empty()) break;
-        int outPinId = pn.outputs[0].id;
-        for (auto& link : s_links) {
-            int targetPinId = -1;
-            if (link.startPinId == outPinId) targetPinId = link.endPinId;
-            if (link.endPinId == outPinId) targetPinId = link.startPinId;
-            if (targetPinId < 0) continue;
-            for (auto& node : s_nodes) {
-                for (auto& pin : node.inputs)
-                    if (pin.id == targetPinId && !node.label.empty())
-                        targets.push_back(node.label + "." + pin.name);
-            }
-        }
-        break;
-    }
-    return targets;
-}
-
 // True when the stash already holds a curve entry for target ("label.name")
 // under paramName. Used to annotate the Add-curve dropdown — targets are
 // never hidden, but ones that already carry a curve get flagged so adding a
@@ -3911,12 +3793,8 @@ static void curves_add_entry(const std::string& paramName, const std::string& ta
         {"curve", json::array({ json::array({ 50.0f, currentValue}),
                                 json::array({400.0f, currentValue}) })},
     };
-    if (!s_loadedParamMap.contains(paramName)) {
-        json entry = json::array();
-        for (const auto& t : param_node_link_targets(paramName))
-            entry.push_back(t);
-        s_loadedParamMap[paramName] = std::move(entry);
-    }
+    if (!s_loadedParamMap.contains(paramName))
+        s_loadedParamMap[paramName] = json::array();
     json& e = s_loadedParamMap[paramName];
     if (e.is_array()) {
         e.push_back(std::move(curveObj));
@@ -4032,12 +3910,13 @@ static void draw_curves_window() {
         return;
     }
 
-    // Collect Parameter-node names — curve entries only survive save for
-    // names that still have a Parameter node (see save_patch_graph).
-    std::vector<std::string> paramNames;
-    for (auto& n : s_nodes)
-        if (n.typeName == NT_PARAMETER && !n.paramName.empty())
-            paramNames.push_back(n.paramName);
+    // Logical mapping names come from the stash itself (the model);
+    // "frequency" is always offered — it is the only name the instrument
+    // evaluates at note-on.
+    std::vector<std::string> paramNames{"frequency"};
+    if (s_loadedParamMap.is_object())
+        for (auto& [k, v] : s_loadedParamMap.items())
+            if (k != "frequency") paramNames.push_back(k);
 
     // --- Selected-node filter (Matt 2026-08-12): with exactly one node
     // selected in the editor, show only curves targeting that node's
@@ -4095,19 +3974,12 @@ static void draw_curves_window() {
     for (const auto& d : deletes) {
         nlohmann::json& entry = s_loadedParamMap[d.param];
         if (d.subIdx < 0) {
-            // Entry was a bare {target, curve} object: fall back to the
-            // Parameter node's link-derived targets (what save would emit
-            // for a curveless entry), or drop the key if there are none.
-            auto targets = param_node_link_targets(d.param);
-            if (targets.empty()) {
-                s_loadedParamMap.erase(d.param);
-            } else if (targets.size() == 1) {
-                s_loadedParamMap[d.param] = targets[0];
-            } else {
-                nlohmann::json arr = nlohmann::json::array();
-                for (const auto& t : targets) arr.push_back(t);
-                s_loadedParamMap[d.param] = std::move(arr);
-            }
+            // Entry was a bare {target, curve} object: deleting the curve
+            // deletes the BINDING (spec §2 — the widget on the target's
+            // Properties row comes back; a curveless binding would push raw
+            // note frequency into a non-frequency target, which is never
+            // what the delete meant).
+            s_loadedParamMap.erase(d.param);
         } else if (entry.is_array() && d.subIdx < (int)entry.size()) {
             entry.erase(entry.begin() + d.subIdx);
             if (entry.size() == 1 && entry[0].is_string())
@@ -4119,12 +3991,6 @@ static void draw_curves_window() {
     // --- Add a new curve ---
     ImGui::Separator();
     ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1), "Add curve");
-
-    if (paramNames.empty()) {
-        ImGui::TextDisabled("No Parameter nodes in this patch — curves need a\nparamMap parameter (e.g. frequency) to hang off.");
-        ImGui::End();
-        return;
-    }
 
     static int selParam = 0, selNode = 0, selTarget = 0;
 
@@ -6052,67 +5918,6 @@ static void clipboard_cut() {
 // supplies the default score when none is stashed.
 // ===========================================================================
 
-// Resolve a paramMap target ("label.pinName") against live node labels.
-// Returns the input-pin id, or -1. Labels are the loaded JSON ids for nodes
-// that came from a file, so stash-restored targets resolve exactly.
-static int find_input_pin_by_target(const std::string& target) {
-    auto dot = target.find('.');
-    if (dot == std::string::npos) return -1;
-    std::string label = target.substr(0, dot);
-    std::string pinName = target.substr(dot + 1);
-    for (auto& n : s_nodes) {
-        if (n.label != label) continue;
-        for (auto& p : n.inputs)
-            if (p.name == pinName) return p.id;
-    }
-    return -1;
-}
-
-// Create Parameter nodes for every name in map, wired to all resolvable
-// targets — the same shape load_graph_from_path builds from a file's
-// paramMap. anchor positions the created nodes in a column.
-static void create_param_nodes_from_map(const nlohmann::json& map, ImVec2 anchor) {
-    int created = 0;
-    for (auto& [paramName, targetJson] : map.items()) {
-        std::vector<std::string> targets;
-        auto add_target = [&](const nlohmann::json& t) {
-            if (t.is_string()) targets.push_back(t.get<std::string>());
-            else if (t.is_object() && t.contains("target") && t["target"].is_string())
-                targets.push_back(t["target"].get<std::string>());
-        };
-        if (targetJson.is_array()) {
-            for (const auto& t : targetJson) add_target(t);
-        } else {
-            add_target(targetJson);
-        }
-        if (targets.empty()) continue;
-
-        s_nodes.emplace_back(std::string(NT_PARAMETER), paramName);
-        int pnId     = s_nodes.back().id;
-        int pnOutPin = s_nodes.back().outputs[0].id;
-        int pnDefPin = s_nodes.back().inputs[0].id;
-        if (!s_headless)
-            ImNodes::SetNodeGridSpacePos(pnId, ImVec2(anchor.x, anchor.y + 130.0f * (float)created));
-        created++;
-
-        bool defaultSet = false;
-        for (const std::string& target : targets) {
-            int pinId = find_input_pin_by_target(target);
-            if (pinId < 0) continue;   // config / curve-only target — carried via s_loadedParamMap
-            if (!defaultSet) {
-                Pin* targetPin = find_pin(pinId);
-                Pin* defPin    = find_pin(pnDefPin);
-                if (targetPin && defPin) {
-                    defPin->defaultValue = targetPin->defaultValue;
-                    if (defPin->constantSrc) defPin->constantSrc->set(targetPin->defaultValue);
-                }
-                defaultSet = true;
-            }
-            s_links.emplace_back(pnOutPin, pinId);
-        }
-    }
-}
-
 static void convert_patch_to_node_graph() {
     // Stash the instrument-level data for a verbatim same-session round trip.
     GraphNode* outNode = nullptr;
@@ -6230,8 +6035,6 @@ static void convert_node_to_patch_graph() {
         s_loadedParamMap = s_convParamMap;
         s_loadedScore    = s_convScore;
         s_loadedSeconds  = s_convSeconds;
-        create_param_nodes_from_map(s_loadedParamMap,
-                                    ImVec2(anchor.x - 260.0f, anchor.y));
         conv_stash_clear();
         restored = true;
     } else {
@@ -6253,17 +6056,16 @@ static void convert_node_to_patch_graph() {
             if (freqPinId >= 0) break;
         }
         if (freqPinId >= 0) {
-            s_nodes.emplace_back(std::string(NT_PARAMETER), "frequency");
-            int pnId     = s_nodes.back().id;
-            int pnOutPin = s_nodes.back().outputs[0].id;
-            Pin& defPin  = s_nodes.back().inputs[0];
-            defPin.defaultValue = freqDefault;
-            if (defPin.constantSrc) defPin.constantSrc->set(freqDefault);
-            if (!s_headless) {
-                ImVec2 p = ImNodes::GetNodeGridSpacePos(freqNodeId);
-                ImNodes::SetNodeGridSpacePos(pnId, ImVec2(p.x - 240.0f, p.y));
+            // Synthesized binding lives in the stash (no Parameter node):
+            // "frequency" -> the found node's frequency pin.
+            (void)freqDefault;
+            for (auto& n : s_nodes) {
+                if (n.id == freqNodeId && !n.label.empty()) {
+                    s_loadedParamMap = nlohmann::json::object();
+                    s_loadedParamMap["frequency"] = n.label + ".frequency";
+                    break;
+                }
             }
-            s_links.emplace_back(pnOutPin, freqPinId);
         }
     }
 
@@ -6326,7 +6128,9 @@ static void show_create_menu() {
     menu_source("Range", "RangeSource");
     menu_source("Red Noise", "RedNoiseSource");
 
-    if (ImGui::MenuItem("Parameter")) {
+    // Parameter nodes exist only in NodeGraph mode (keyboard playability);
+    // instrument patches bind via the Parameter-mapping dialog instead.
+    if (s_graphMode == GraphMode::NodeGraph && ImGui::MenuItem("Parameter")) {
         s_nodes.emplace_back(std::string(NT_PARAMETER), "frequency");
         ImNodes::SetNodeScreenSpacePos(s_nodes.back().id, s_createMenuPos);
     }
