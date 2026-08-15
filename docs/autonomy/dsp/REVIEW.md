@@ -29,6 +29,11 @@ roundtripped Piano_bright render hash-identical).
 Save/reload keeps groups, positions, and names; --roundtrip carries the
 section verbatim. Corpus gate stays green (196 patches).
 
+FOLDED (Dipsy, same day): ctrl-click deselect ADDED (98d13da) — ctrl-click
+now toggles a node out of the selection; restart the UI and the TRY list
+above is unblocked. (Verbatim request: "Ctrl-click selects additional
+nodes but *does not deselect*. Let's add that before I test.")
+
 ### 31. 3n CLOSED — UI saves are now render-faithful [read] (2026-08-15)
 Every one of the 33 patches whose UI save round-trip changed their sound
 is fixed; the regression gate (tools/test_stable_roundtrip.py) now runs
@@ -98,6 +103,14 @@ renders (curves live); (5) a node graph still plays via QWERTY.**
 Chunk 3 (Groups) is specced, plan next; 3n (roundtrip fidelity, 33
 patches) queued after per your sequencing.
 
+RESOLVED (Matt: "All good"). His question answered: a NODE graph (mixer-
+terminated file, no instrument block) is playable from the PC keyboard
+because the UI synthesizes a hidden Parameter frequency node driving the
+first unconnected frequency pin (the run-23 "node graphs playable" item).
+Chunk 2 removed Parameter nodes from PATCH mode only, so the try-item was
+checking that NodeGraph-mode keyboard playability survived the retirement
+— it did. Full entry retained below for reference; safe to prune next run.
+
 ### 29. Stable node identity LANDED [try] (2026-08-14, interactive)
 Chunk 1 of the UI usability spec (docs/superpowers/specs/
 2026-08-14-ui-groups-usability-design.md; plan docs/superpowers/plans/
@@ -120,6 +133,9 @@ families among them) — pre-existing, same family as the 08-13
 "edit-any-setting" bug, now measured and listed in the test's
 KNOWN_DIFFS. Until 3n lands: avoid re-saving library patches from the
 UI without diffing the render.
+
+RESOLVED (Matt: "Resolved except for 3n") — and 3n itself has since
+closed (item 31), so nothing here remains open. Safe to prune next run.
 
 ### 28. Note-contained sound LANDED + v6m [listen] (2026-08-13, interactive)
 Spec docs/superpowers/specs/2026-08-13-note-contained-sound-design.md,
@@ -256,6 +272,8 @@ slow** (matches the measured t60 clamp: 5.4 s at the top vs real pianos'
 ~0.3-1 s). Baseline is gated on those two; "then we'll have our
 baseline."
 
+MATT: Resolved.
+
 ### 27. KS PIANO v6 rung 2 — shaped excitation [listen] (2026-08-10)
 renders/dsp/pending/ks_piano_v6/ — README inside. Rung 1 RESOLVED same day:
 Matt picked v6b_noise_short ("_long sounds like a distorted guitar pluck").
@@ -359,6 +377,8 @@ optimization of the full v6 settings matrix vs Iowa piano references
 (viola pipeline; ~200x realtime renders) — no per-knob ear tuning.
 Analysis: docs/research/afpiano_2021/ANALYSIS.md.
 
+MATT: Resolved.
+
 ### 26. Housekeeping 2026-08-10 — leftovers and judgment calls [read]
 The patch/score restructure (docs/patch_triage_2026_08_10.md rev 2 + your
 annotations) is executed. Things you didn't rule on, or where I applied a
@@ -369,10 +389,18 @@ pattern you should sanity-check:
   triaged (c2 remainder in old/, v6 gated in place). Verdict decides: keep
   the modifications (commit), discard them (checkout), and then where the
   two families go (old/, presumably).
+
+MATT: I see clarinet_c2 folder in /old but no c2c_quiet patch in there. And no
+fable1_v6, not sure how all this stuff got delted, as I thot I just bulk-moved
+all folders to /old. Let me know if further action needed.
+
 - **"the 2 comp ones moved to renders/dsp/pending"** — the two templates are
   patch-tree JSONs, not renders, so I read this as scores/pending/:
   template_golden_phase1a + template_shaped_test + the 11 jazz_turnaround
   patches all landed there. Say if you meant something else.
+
+MATT: That's the right place.
+
 - **Pattern-applied strays you didn't list:** fm_bell/fm_brass/fm_ep_test →
   patches/baselines (fit the *_test pattern); untracked test_k467_v1-v4/
   _structural/_v4_rep + test_aaab + test_lib_billy/blue/miley →
@@ -391,6 +419,8 @@ pattern you should sanity-check:
   `markov_phrases5` (item 11), `markov_phrases6` (item 13) no longer exist —
   most likely casualties of the 2026-08-08 big-render deletion. Those items
   need a re-render (same seed per their READMEs) or a verdict from memory.
+
+MATT: All moved to /old.
 
 ### 25. RESOLVED 2026-08-10 — see Resolved section. (Kept here one cycle for
 context continuity; safe to prune next run.)
@@ -426,6 +456,11 @@ getting a pass 3. Caveat stated plainly: separability is not correctness — a
 bigger number means the vowels differ more from each other, not that any one
 is right.
 
+MATT: Seems I deleted the renders, but I don't see the patches either. I think
+I listened and heard no good candidates, but queue it up for a re-do just to
+make sure. If you want to vary the settings based on my recollection of verdict,
+go ahead.
+
 ### 22b. KS PIANO v5 — full description, no direct taps [listen] (2026-08-09 overnight)
 renders/dsp/pending/ks_piano_v5/ — 7 WAVs + README. Matt's verdict on v1-v4:
 "kick drum, disappointed." v5: every patch has ALL six described elements;
@@ -437,6 +472,8 @@ slower (-3.5 dB @1s vs -8.7; b: -1.2), C6 treble lives longer (b/c:
 -16/-15 dB @1s vs -25). C2 attack centroid still dark (116-157 Hz).
 Patches patches/pending/ks_piano_v5/, generator tools/gen_ks_piano_v5.py.
 
+MATT: Superceded by V6.
+
 ### 24. Node-graph stream fix [try] (run 24)
 Per your item-21 report. Streams no longer fade out: root cause was
 the 30s prepared duration + fractional envelopes (your streams were
@@ -447,6 +484,8 @@ UI bug — the patch's deltaSpeed self-cancelled per-sample; param fixed,
 it now pans. gs_chaotic: GrayScottSource only exists on the unmerged
 chord-walker branch — unknown nodes now load inert with a warning
 instead of ImGui erroring every frame.
+
+MATT: Good, done.
 
 ### 11. Answer: what the power renorm would do (item 5 follow-up) [read] (run 20)
 Your read is right — with the current formula, power is N/A at count=1 by
@@ -461,6 +500,8 @@ Given your item-4 verdict (depth second-order, expand front retiring), my
 recommendation is LEAVE IT: the degenerate case is now documented in the
 code and in this queue, and we skip a sound-changing edit to a retiring
 front. Say the word if you want the renorm anyway.
+
+MATT: Leave it.
 
 ## Resolved
 
