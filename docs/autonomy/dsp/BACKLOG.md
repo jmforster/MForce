@@ -226,11 +226,19 @@ Priority order. Tags per WORKFLOW.md. (G1)-(G4) = GOALS.md Dipsy goals.
    SAMPLE, so audio-rate wander self-cancels (slope flips every ~3
    samples); legacy init lastVal_=0.5 starts right-of-center. Candidate
    rate-normalization; behavior-changing for existing wander patches.
-3k. **[build] Audio-thread AV in WaveSource::next via audio_callback** —
-   fresh crash log 2026-08-06 10:05 (Matt's run-23 session): dangling
-   source pulled after graph swap. Same family as the run-23 stream
-   use-after-free fix but on a different path (voices/buffer?). Needs a
-   proper audit of what the callback can hold across graph mutations.
+3k. ✓ DONE run 26 (2026-08-15, commit 2f7bbba). Full audit of what the
+   callback can hold across graph mutations; three races closed:
+   (1) g_bufferPlayback pointed INTO g_outputWaveform while four sites
+   resized/cleared it unguarded (the header comment even claimed buffer
+   playback "owns its data" — the bug in prose); (2) graph rewiring
+   (update_node/all_dsp) mutated live shared_ptr edges the stream taps
+   dereference — now under g_audioMutex; (3) Properties set_config can
+   rebuild ExplicitPartials arrays mid-next() — locked. The load/new
+   graph-swap path was already guarded (run 23). Voices were never at
+   risk (own their patches). RESIDUAL noted: the Envelope stage-editor
+   panel and Curves-tab breakpoint edits still mutate live objects
+   unlocked — same fix pattern if a crash ever names them.
+   Original: audio-thread AV in WaveSource::next, crash log 08-06 10:05.
 3e-NEXT3. **[build] Piano next steps** — gated on REVIEW 19 verdict:
    (4) second decay stage (prompt/aftersound; C4 evidence now includes
    overtones decaying SLOWER than h1 — inverted vs the fixed n^0.6 law,
