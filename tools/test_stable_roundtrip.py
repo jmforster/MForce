@@ -17,10 +17,6 @@ CLI = Path("build/tools/mforce_cli/Release/mforce_cli.exe")
 # never touched, and ids compare equal). Fixing that class shrinks this
 # list; a NEW entry here is a regression and fails the run.
 KNOWN_DIFFS = {
-    "patches/library/keys/EP/Rhodes_belly.json",
-    "patches/library/keys/EP/Rhodes_bright.json",
-    "patches/library/keys/EP/Rhodes_dark.json",
-    "patches/library/keys/EP/Rhodes_std.json",
     "patches/baselines/bowed_test.json",
     "patches/baselines/FormantSequence1.json",
     "patches/baselines/inst_fm_bell_melody_test.json",
@@ -30,9 +26,6 @@ KNOWN_DIFFS = {
     "patches/library/_eval/buzzy_bow.json",
     "patches/library/_eval/fm_gritty_bass.json",
     "patches/library/_eval/harsh_pluck.json",
-    "patches/library/_eval/slow_attack_horn.json",
-    "patches/library/bells/bell_fast_decay.json",
-    "patches/library/bells/bell_sweep.json",
     "patches/library/effects/spacy/inst_spacy.json",
     "patches/library/fm/inst_fm_rhodes_base.json",
     "patches/library/fm/inst_fm_rhodes_clack.json",
@@ -42,16 +35,9 @@ KNOWN_DIFFS = {
     "patches/library/percussion/snare_drum.json",
     "patches/library/strings/v6_02_res_curve_mid.json",
     "patches/library/strings/v6_03_res_curve_hi.json",
-    "patches/library/voice/sing_alto_A.json",
-    "patches/library/voice/sing_alto_U.json",
-    "patches/library/voice/sing_bass_U.json",
-    "patches/library/voice/sing_soprano_A.json",
-    "patches/library/voice/sing_soprano_E.json",
-    "patches/library/voice/sing_tenor_O.json",
-    "patches/library/voice/sing_tenor_U.json",
-    "patches/library/voice/speech_w_AW.json",
-    # clarinet_locked left this list 2026-08-14: its paramMap corruption was
-    # repaired and verbatim stash emission made its roundtrip faithful.
+    # Pruned as fixed (2026-08-14/15): clarinet_locked (paramMap repair),
+    # 7 score-absence patches (Rhodes EPs, bells, slow_attack_horn),
+    # 8 voice patches (formant child ids preserved).
 }
 
 def load(path):

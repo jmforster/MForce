@@ -184,6 +184,12 @@ static constexpr int DSP_SAMPLE_RATE = 48000;
 // Row data for inline formant table (FormantSpectrum node)
 struct FormantRow {
     float frequency{1000.0f}, gain{1.0f}, width{500.0f}, power{2.0f};
+    // Original JSON id of the consumed Formant child ("f1"). Save re-emits
+    // the child under this id — paramMap curves target formants by id
+    // (vowel patches: "f1.frequency"), so synthesizing "<spec>__fN" names
+    // orphaned those mappings and made the saved patch unrenderable
+    // (backlog 3n, node:f1 species). Empty = UI-created row, gets __fN.
+    std::string srcId;
 };
 
 static std::string unique_node_label(const std::string& typeName);
@@ -1023,6 +1029,7 @@ static void load_graph_from_path(const std::string& path) {
             row.gain      = fp["gain"].get<float>();
             row.width     = fp["width"].get<float>();
             row.power     = fp["power"].get<float>();
+            row.srcId     = fid;
             rows.push_back(row);
             ids.push_back(fid);
         }
@@ -1695,7 +1702,12 @@ static void save_patch_graph(const std::string& path) {
             const std::string& specId = nodeIds[node.id];
             for (size_t i = 0; i < node.formantRows.size(); ++i) {
                 const auto& row = node.formantRows[i];
-                std::string fid = specId + "__f" + std::to_string(i);
+                // Keep the consumed child's ORIGINAL id — paramMap curves
+                // target formants by id (3n node:f1); __fN only for rows
+                // created in the UI.
+                std::string fid = row.srcId.empty()
+                    ? specId + "__f" + std::to_string(i)
+                    : sanitize_unique_id(row.srcId, usedIds, "Formant");
                 json fnode;
                 fnode["id"] = fid;
                 fnode["type"] = "Formant";
@@ -1886,7 +1898,12 @@ static void save_node_graph(const std::string& path) {
             const std::string& specId = nodeIds[node.id];
             for (size_t i = 0; i < node.formantRows.size(); ++i) {
                 const auto& row = node.formantRows[i];
-                std::string fid = specId + "__f" + std::to_string(i);
+                // Keep the consumed child's ORIGINAL id — paramMap curves
+                // target formants by id (3n node:f1); __fN only for rows
+                // created in the UI.
+                std::string fid = row.srcId.empty()
+                    ? specId + "__f" + std::to_string(i)
+                    : sanitize_unique_id(row.srcId, usedIds, "Formant");
                 json fnode;
                 fnode["id"] = fid;
                 fnode["type"] = "Formant";
