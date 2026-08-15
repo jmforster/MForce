@@ -669,7 +669,14 @@ static void dsp_rewire_link(int outputPinId, int inputPinId, bool connect) {
 
 // UpdateNode: re-apply ALL sources to a node's DSP object.
 // For each input pin: if connected, use the source node's dspSource; else use constantSrc.
-static void update_node_dsp(GraphNode& node) {
+// Serializes the audio callback's graph reads against UI-thread rewiring.
+// Declared here (ahead of the RtAudio block that documents it) because
+// update_node_dsp/update_all_dsp mutate live DSP shared_ptr edges that the
+// stream taps dereference per sample — an unlocked rewire during streaming
+// is a torn pointer read on the audio thread (backlog 3k).
+static std::mutex g_audioMutex;
+
+static void update_node_dsp_unlocked(GraphNode& node) {
     if (!node.dspSource) return;
 
     // First pass: wire all pins to their ConstantSource defaults, clear multi pins
@@ -706,13 +713,19 @@ static void update_node_dsp(GraphNode& node) {
     }
 }
 
+static void update_node_dsp(GraphNode& node) {
+    std::lock_guard<std::mutex> lock(g_audioMutex);
+    update_node_dsp_unlocked(node);
+}
+
 // Update ALL nodes' DSP (call after link changes)
 // Automatically wraps shared sources in RefSource for secondary consumers.
 static void update_all_dsp() {
+    std::lock_guard<std::mutex> lock(g_audioMutex);
     try {
         // First: run standard per-node wiring (primary sources)
         for (auto& node : s_nodes)
-            update_node_dsp(node);
+            update_node_dsp_unlocked(node);
 
         // Second: find sources with multiple consumers and wrap secondaries in RefSource.
         // Build map: source node output pin → list of (dest node, dest pin name)
@@ -780,9 +793,13 @@ static GraphNode* find_selected_node() {
 // Defined with the transport helpers — stops only the continuous streams
 // (patch mono stream + node-graph mixer stream), which hold raw pointers
 // into node dspSources and would dangle when a node is destroyed. Voices
-// and buffer playback own their data (shared_ptrs / member buffer) and
-// survive structural edits.
+// own their data (per-voice InstrumentPatch shared_ptrs) and survive
+// structural edits. Buffer playback does NOT own its data — it points at
+// g_outputWaveform.data(), so any resize/clear of that vector must call
+// buffer_playback_detach() first (backlog 3k: a reallocation mid-playback
+// was an audio-thread read of freed memory).
 static void stop_streams();
+static void buffer_playback_detach();
 
 static void delete_node(int nodeId) {
     stop_streams();
@@ -2478,9 +2495,9 @@ static int s_genState = 0;
 // RtAudio: callback-based audio I/O. The audio thread is created and managed
 // by RtAudio itself; our callback (audio_callback) is invoked on it whenever
 // the device needs more samples. UI-thread mutation of g_voices / g_streamSource
-// / g_bufferPlayback must be serialized with the callback's reads via g_audioMutex.
+// / g_bufferPlayback must be serialized with the callback's reads via
+// g_audioMutex (declared up with update_node_dsp — graph rewiring holds it too).
 static std::unique_ptr<RtAudio> g_audio;
-static std::mutex g_audioMutex;
 
 // Diagnostic peak meters — sampled per-buffer by the audio callback, displayed
 // by the UI. Pre-clip = peak the mixer produced BEFORE soft_clip; post-clip =
@@ -3195,6 +3212,7 @@ static void render_waveforms(float noteNum, float velocity, float durationSecond
         else
             n.waveformData.clear();
     }
+    buffer_playback_detach();  // it points into this vector (3k)
     g_outputWaveform.resize(samples);
     g_waveformSamples = samples;
 
@@ -3491,6 +3509,15 @@ static void stop_playback() {
     g_bufferPlaybackLen = 0;
     for (int i = 0; i < MAX_VOICES; ++i)
         g_voices[i].active = false;
+}
+
+// g_bufferPlayback points INTO g_outputWaveform — detach it (under the
+// audio lock) before that vector is resized or cleared. See backlog 3k.
+static void buffer_playback_detach() {
+    std::lock_guard<std::mutex> lock(g_audioMutex);
+    g_bufferPlayback = nullptr;
+    g_bufferPlaybackPos = 0;
+    g_bufferPlaybackLen = 0;
 }
 
 // Start playing from the pre-rendered g_outputWaveform buffer
@@ -4948,6 +4975,7 @@ static void render_passage_waveforms(const std::vector<ParsedNote>& notes, float
     for (const auto& n : notes)
         totalSamples += int(n.durationSeconds * float(AUDIO_SAMPLE_RATE));
 
+    buffer_playback_detach();  // it points into this vector (3k)
     g_outputWaveform.resize(totalSamples);
     g_waveformSamples = totalSamples;
     for (auto& node : s_nodes) {
@@ -5043,6 +5071,7 @@ static void render_chords_waveforms(const std::vector<ParsedChord>& chords, floa
             uiFrames = int(totalSeconds * float(AUDIO_SAMPLE_RATE));
         }
 
+        buffer_playback_detach();  // it points into this vector (3k)
         g_outputWaveform.resize(uiFrames);
         g_waveformSamples = uiFrames;
         for (auto& node : s_nodes) node.waveformData.clear();
@@ -5957,7 +5986,13 @@ static void draw_properties_panel() {
             }
             ImGui::PopItemWidth();
             if (changed && node->dspSource) {
-                node->dspSource->set_config(desc.name, val);
+                // Under the audio lock: set_config can rebuild internal
+                // arrays (ExplicitPartials) while a stream tap is mid-next()
+                // on the same object (3k audit residual).
+                {
+                    std::lock_guard<std::mutex> lock(g_audioMutex);
+                    node->dspSource->set_config(desc.name, val);
+                }
                 node->jsonExtras.erase(desc.name);  // edit wins over carried value
                 // set_config may have mutated internal arrays (e.g. ExplicitPartials
                 // mirrors _1 → _2 when evolve flips off). Re-pull cached values.
@@ -8906,6 +8941,7 @@ int main(int argc, char** argv) {
         // user sees the state change before the UI freezes.
         if (s_genState == 1) {
             s_genState = 2;
+            buffer_playback_detach();  // it points into this vector (3k)
             g_outputWaveform.clear();
             g_waveformSamples = 0;
             for (auto& n : s_nodes) n.waveformData.clear();
