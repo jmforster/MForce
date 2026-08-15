@@ -179,6 +179,20 @@ static ImU32 node_bg_color(ImU32 titleColor) {
     return IM_COL32(r, g, b, 255);
 }
 
+// Lighten toward white by pct (0-100). Selected vs hovered node cues
+// (Matt, 2026-08-15): hover = subtle background lift; selected = strong
+// lift + brightened title, so a ctrl-click deselect is visible while the
+// pointer is still on the node.
+static ImU32 lighten(ImU32 col, int pct) {
+    int r = (col >>  0) & 0xFF;
+    int g = (col >>  8) & 0xFF;
+    int b = (col >> 16) & 0xFF;
+    r = r + (255 - r) * pct / 100;
+    g = g + (255 - g) * pct / 100;
+    b = b + (255 - b) * pct / 100;
+    return IM_COL32(r, g, b, 255);
+}
+
 static constexpr int DSP_SAMPLE_RATE = 48000;
 
 // Row data for inline formant table (FormantSpectrum node)
@@ -5606,9 +5620,11 @@ static void draw_node(GraphNode& node) {
     ImU32 titleCol = node_title_color(node.typeName);
     ImU32 bgCol = node_bg_color(titleCol);
     ImNodes::PushColorStyle(ImNodesCol_TitleBar, titleCol);
+    ImNodes::PushColorStyle(ImNodesCol_TitleBarHovered, lighten(titleCol, 12));
+    ImNodes::PushColorStyle(ImNodesCol_TitleBarSelected, lighten(titleCol, 45));
     ImNodes::PushColorStyle(ImNodesCol_NodeBackground, bgCol);
-    ImNodes::PushColorStyle(ImNodesCol_NodeBackgroundHovered, bgCol);
-    ImNodes::PushColorStyle(ImNodesCol_NodeBackgroundSelected, bgCol);
+    ImNodes::PushColorStyle(ImNodesCol_NodeBackgroundHovered, lighten(bgCol, 6));
+    ImNodes::PushColorStyle(ImNodesCol_NodeBackgroundSelected, lighten(bgCol, 22));
 
     ImNodes::BeginNode(node.id);
 
@@ -5675,6 +5691,8 @@ static void draw_node(GraphNode& node) {
     ImNodes::PopColorStyle(); // NodeBackgroundSelected
     ImNodes::PopColorStyle(); // NodeBackgroundHovered
     ImNodes::PopColorStyle(); // NodeBackground
+    ImNodes::PopColorStyle(); // TitleBarSelected
+    ImNodes::PopColorStyle(); // TitleBarHovered
     ImNodes::PopColorStyle(); // TitleBar
 }
 
@@ -5714,10 +5732,13 @@ static void draw_group_node(NodeGroup& g) {
     }
 
     ImU32 titleCol = IM_COL32(90, 60, 120, 255);   // distinct: groups are purple
+    ImU32 gbg = IM_COL32(45, 38, 55, 255);
     ImNodes::PushColorStyle(ImNodesCol_TitleBar, titleCol);
-    ImNodes::PushColorStyle(ImNodesCol_NodeBackground, IM_COL32(45, 38, 55, 255));
-    ImNodes::PushColorStyle(ImNodesCol_NodeBackgroundHovered, IM_COL32(52, 44, 64, 255));
-    ImNodes::PushColorStyle(ImNodesCol_NodeBackgroundSelected, IM_COL32(52, 44, 64, 255));
+    ImNodes::PushColorStyle(ImNodesCol_TitleBarHovered, lighten(titleCol, 12));
+    ImNodes::PushColorStyle(ImNodesCol_TitleBarSelected, lighten(titleCol, 45));
+    ImNodes::PushColorStyle(ImNodesCol_NodeBackground, gbg);
+    ImNodes::PushColorStyle(ImNodesCol_NodeBackgroundHovered, lighten(gbg, 6));
+    ImNodes::PushColorStyle(ImNodesCol_NodeBackgroundSelected, lighten(gbg, 22));
 
     ImNodes::BeginNode(g.editorId);
     ImNodes::BeginNodeTitleBar();
@@ -5750,6 +5771,8 @@ static void draw_group_node(NodeGroup& g) {
         s_groupProj.realOutToGroupPin[realOut] = g.outPinId;
     }
     ImNodes::EndNode();
+    ImNodes::PopColorStyle();
+    ImNodes::PopColorStyle();
     ImNodes::PopColorStyle();
     ImNodes::PopColorStyle();
     ImNodes::PopColorStyle();
