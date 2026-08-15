@@ -5266,6 +5266,33 @@ static bool draw_formant_strip(GraphNode* node, ImU32 color,
 // Properties panel — full editing UI for selected node
 // ===========================================================================
 
+// Badge for a pin/config that a paramMap binding drives per note (spec §2,
+// absorbs backlog 3m): "<frequency>" for bare targets, "<curve>" for
+// curve/vcurve entries, nullptr when unmapped. The widget is suppressed
+// while mapped — the mapping stomps the scalar at every note-on, so a
+// live-looking widget is a lie; removing the mapping restores it.
+static const char* mapping_badge(const std::string& nodeLabel, const char* name) {
+    if (!s_loadedParamMap.is_object()) return nullptr;
+    std::string target = nodeLabel + "." + name;
+    const char* badge = nullptr;
+    auto check = [&](const nlohmann::json& e) {
+        if (e.is_string()) {
+            if (e.get<std::string>() == target) badge = "<frequency>";
+        } else if (e.is_object() && e.value("target", std::string()) == target) {
+            badge = (e.contains("curve") || e.contains("vcurve")) ? "<curve>"
+                                                                  : "<frequency>";
+        }
+    };
+    for (auto& [pname, entry] : s_loadedParamMap.items()) {
+        if (entry.is_array()) {
+            for (const auto& e : entry) { check(e); if (badge) return badge; }
+        } else {
+            check(entry); if (badge) return badge;
+        }
+    }
+    return badge;
+}
+
 static void draw_properties_panel() {
     ImGui::Begin("Properties", nullptr,
                  ImGuiWindowFlags_NoCollapse);
@@ -5324,9 +5351,14 @@ static void draw_properties_panel() {
             ImGui::TextColored(ImVec4(0.55f, 0.55f, 0.55f, 1), "(%s)", pin.hint.c_str());
         }
         ImGui::SameLine(labelW);
+        const char* badge = mapping_badge(node->label, pin.name.c_str());
         if (connected) {
             GraphNode* srcNode = find_source_node(pin.id);
             ImGui::TextColored(ImVec4(0.5f, 0.8f, 0.5f, 1), "<-- %s", srcNode ? srcNode->label.c_str() : "?");
+        } else if (badge) {
+            ImGui::TextColored(ImVec4(0.5f, 0.8f, 0.5f, 1), "%s", badge);
+            if (ImGui::IsItemHovered())
+                ImGui::SetTooltip("Driven per note by the paramMap — edit in\nEdit > Parameter mapping (curve shapes in Curves).");
         } else {
             ImGui::PushItemWidth(widgetW);
             char label[64];
@@ -5370,6 +5402,12 @@ static void draw_properties_panel() {
         for (auto& [desc, val] : node->configValues) {
             ImGui::Text("%s", desc.name);
             ImGui::SameLine(labelW);
+            if (const char* badge = mapping_badge(node->label, desc.name)) {
+                ImGui::TextColored(ImVec4(0.5f, 0.8f, 0.5f, 1), "%s", badge);
+                if (ImGui::IsItemHovered())
+                    ImGui::SetTooltip("Driven per note by the paramMap — edit in\nEdit > Parameter mapping (curve shapes in Curves).");
+                continue;
+            }
             ImGui::PushItemWidth(widgetW);
             char cfgLabel[64];
             snprintf(cfgLabel, sizeof(cfgLabel), "##pcfg_%s_%d", desc.name, node->id);
