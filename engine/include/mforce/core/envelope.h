@@ -164,24 +164,43 @@ struct Envelope : ValueSource {
   void set_config(std::string_view name, float value) override {
     if (name == "stage_accuracy") { stage_accuracy = std::clamp(value, 0.0f, 1.0f); return; }
     if (name == "ramp_accuracy")  { ramp_accuracy  = std::clamp(value, 0.0f, 1.0f); return; }
-    // Live sustain rewrite — adsr-preset envelopes only (stage layout known:
-    // decay endVal, expand start/end, release startVal all carry the sustain
-    // value). Lets paramMap drive sustainLevel per note (frequency curves).
-    if (name == "sustainLevel" && adsrLayout_ && stages_.size() == 4) {
-      float v = std::clamp(value, 0.0f, 1.0f);
-      stages_[1].ramp.endVal   = v;
-      stages_[2].ramp.startVal = v;
-      stages_[2].ramp.endVal   = v;
-      stages_[3].ramp.startVal = v;
+    // Live sustain rewrite (decay endVal, expand start/end, release startVal
+    // all carry the sustain value). Lets paramMap drive sustainLevel per
+    // note (frequency curves). Accepted for adsr-preset envelopes AND for
+    // stage-form envelopes whose shape satisfies the exact invariant the
+    // rewrite relies on — a preset adsr re-saved as stages (UI roundtrip)
+    // must not silently kill its residue curve (3n, v6 res_curve patches:
+    // stage-loaded envelopes no-opped the per-note sustain).
+    if (name == "sustainLevel" && has_adsr_shape_()) {
+      // No [0,1] clamp: sustain is a ramp amplitude and legitimately
+      // exceeds 1 in test envelopes (_envacc_test holds 2.6); the old
+      // clamp corrupted them the moment anything pushed the value back.
+      stages_[1].ramp.endVal   = value;
+      stages_[2].ramp.startVal = value;
+      stages_[2].ramp.endVal   = value;
+      stages_[3].ramp.startVal = value;
       return;
     }
+  }
+
+  // The four-slot sustain invariant: 4 stages, the third is the expand
+  // (percent 0), and decay-end / expand-start / expand-end / release-start
+  // hold one equal value. When it holds, the sustain rewrite is safe by
+  // construction whether the envelope came from make_adsr or a stage list.
+  bool has_adsr_shape_() const {
+    if (adsrLayout_ && stages_.size() == 4) return true;
+    return stages_.size() == 4 &&
+           stages_[2].percent == 0.0f &&
+           stages_[1].ramp.endVal   == stages_[2].ramp.startVal &&
+           stages_[2].ramp.startVal == stages_[2].ramp.endVal &&
+           stages_[2].ramp.endVal   == stages_[3].ramp.startVal;
   }
 
   float get_config(std::string_view name) const override {
     if (name == "stage_accuracy") return stage_accuracy;
     if (name == "ramp_accuracy")  return ramp_accuracy;
     if (name == "sustainLevel")
-      return (adsrLayout_ && stages_.size() == 4) ? stages_[2].ramp.startVal : 0.0f;
+      return has_adsr_shape_() ? stages_[2].ramp.startVal : 0.0f;
     return 0.0f;
   }
 

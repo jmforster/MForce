@@ -16,13 +16,16 @@ CLI = Path("build/tools/mforce_cli/Release/mforce_cli.exe")
 # params in the roundtripped file are produced by save code the id change
 # never touched, and ids compare equal). Fixing that class shrinks this
 # list; a NEW entry here is a regression and fails the run.
+# EMPTY of fidelity debt since 2026-08-15 — every roundtrip-fidelity failure
+# was root-caused and fixed (score absence, formant child ids,
+# RangeSource.normalized default, unmodeled-param carry, adsr-shape sustain
+# rewrite + declamp). A new entry appearing here is a regression: fix the
+# save path, don't grow the list. The one exemption is not a save-path bug:
+# FormantSequence1's ORIGINAL is CLI-unrenderable (legacy inline formant
+# form) and its migrated form renders silent — backlog 3p, a UI-vs-CLI
+# behavioral gap.
 KNOWN_DIFFS = {
     "patches/baselines/FormantSequence1.json",
-    "patches/library/strings/v6_02_res_curve_mid.json",
-    "patches/library/strings/v6_03_res_curve_hi.json",
-    # Pruned as fixed (2026-08-14/15): clarinet_locked (paramMap repair),
-    # 7 score-absence patches (Rhodes EPs, bells, slow_attack_horn),
-    # 8 voice patches (formant child ids preserved).
 }
 
 def load(path):

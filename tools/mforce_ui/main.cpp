@@ -226,6 +226,14 @@ struct GraphNode {
     // -1 = no seed present in the source JSON.
     long long jsonSeed{-1};
 
+    // Loaded params the UI does not model (ExplicitPartials expandRule,
+    // loader-lambda keys like WavetableSource "evolution"/"gap", …),
+    // carried verbatim so save cannot silently drop them (backlog 3n).
+    // On save these OVERWRITE the modeled emission for the same key; a UI
+    // edit of a pin/config with the same name erases its extras entry so
+    // the edit wins instead.
+    nlohmann::json jsonExtras = nlohmann::json::object();
+
     // Offline-rendered waveform samples for display
     std::vector<float> waveformData;
 
@@ -1141,6 +1149,14 @@ static void load_graph_from_path(const std::string& path) {
                     envelope_stages_from_json(*env, params["stages"]);
                     env->absolute_time =
                         params.value("timeMode", std::string("fraction")) == "seconds";
+                    // Sync the cached sustainLevel to the stages' actual slot
+                    // value: apply_config below pushes EVERY cached config,
+                    // and the 0.7 descriptor default would rewrite the four
+                    // sustain slots now that set_config recognizes the adsr
+                    // shape (it was a silent no-op before — 3n).
+                    for (auto& [desc, val] : gn.configValues)
+                        if (std::string_view(desc.name) == "sustainLevel")
+                            val = env->get_config("sustainLevel");
                 }
             }
 
@@ -1194,6 +1210,43 @@ static void load_graph_from_path(const std::string& path) {
             // descriptor defaults.
             for (auto& [desc, val] : gn.configValues)
                 val = gn.dspSource->get_config(desc.name);
+
+            // Capture every params key the passes above did NOT consume —
+            // carried verbatim through save (GraphNode::jsonExtras, 3n).
+            {
+                auto is_pin = [&](const std::string& k) {
+                    for (auto& pin : gn.inputs) if (pin.name == k) return true;
+                    return false;
+                };
+                auto is_config = [&](const std::string& k) {
+                    for (auto& [desc, v] : gn.configValues)
+                        if (k == desc.name) return true;
+                    return false;
+                };
+                auto is_float_array_key = [&](const std::string& k, const nlohmann::json& v) {
+                    if (!v.is_array()) return false;
+                    for (auto& [desc, vec] : gn.arrayValues)
+                        if (k == desc.name) return true;
+                    return false;
+                };
+                static const std::unordered_set<std::string> kEnvelopeKeys = {
+                    "stages", "timeMode", "preset", "attack", "decay",
+                    "sustainLevel", "release", "attackMin", "attackMax",
+                    "decayMin", "decayMax", "releaseMin", "releaseMax"};
+                for (auto& [k, v] : params.items()) {
+                    if (k == "seed") continue;
+                    if (k == "formants") continue;  // rows / ref-pins, both modeled
+                    if (gn.typeName == NT_ENVELOPE && kEnvelopeKeys.count(k)) continue;
+                    bool pinConsumed = is_pin(k) &&
+                        (v.is_number() ||
+                         (v.is_object() && v.contains("ref")) ||
+                         v.is_array());
+                    if (pinConsumed) continue;
+                    if (is_config(k)) continue;
+                    if (is_float_array_key(k, v)) continue;
+                    gn.jsonExtras[k] = v;
+                }
+            }
         }
 
         // Mixer: add extra channel inputs if needed
@@ -1563,6 +1616,21 @@ static bool rename_node(GraphNode& node, const std::string& newName,
         };
         for (auto& [k, v] : s_loadedParamMap.items()) fix(v);
     }
+    if (oldName != newName) {
+        // Verbatim-carried extras may embed refs ({"ref": "oldName"} inside
+        // e.g. an expandRule) — rewrite them so the rename can't strand one.
+        std::function<void(nlohmann::json&)> fixref = [&](nlohmann::json& j) {
+            if (j.is_object()) {
+                if (j.contains("ref") && j["ref"].is_string() &&
+                    j["ref"].get<std::string>() == oldName)
+                    j["ref"] = newName;
+                for (auto& [k, v] : j.items()) fixref(v);
+            } else if (j.is_array()) {
+                for (auto& v : j) fixref(v);
+            }
+        };
+        for (auto& n : s_nodes) fixref(n.jsonExtras);
+    }
     s_graphDirty = true;
     return true;
 }
@@ -1723,6 +1791,14 @@ static void save_patch_graph(const std::string& path) {
 
         // Config values
         for (auto& [desc, val] : node.configValues) {
+            // Envelope sustain lives INSIDE the emitted stages (slot
+            // values); writing the config too made reload rewrite the slots
+            // through set_config's [0,1] clamp, breaking >1.0 test
+            // envelopes (_envacc_test) — and 0.0 artifacts of the old
+            // get_config broke three library patches (3n).
+            if (node.typeName == NT_ENVELOPE &&
+                std::string_view(desc.name) == "sustainLevel")
+                continue;
             if (!jnode.contains("params")) jnode["params"] = json::object();
             if (desc.type == ConfigType::Bool)
                 jnode["params"][desc.name] = (val != 0.0f);
@@ -1744,6 +1820,16 @@ static void save_patch_graph(const std::string& path) {
         if (node.jsonSeed >= 0) {
             if (!jnode.contains("params")) jnode["params"] = json::object();
             jnode["params"]["seed"] = node.jsonSeed;
+        }
+
+        // Unmodeled params carried verbatim (jsonExtras, 3n). They win over
+        // the modeled emission for the same key: extras only exist for keys
+        // the UI never displayed, so the file's value is the truth; editing
+        // a same-named pin/config erases the extras entry first.
+        if (!node.jsonExtras.empty()) {
+            if (!jnode.contains("params")) jnode["params"] = json::object();
+            for (auto& [k, v] : node.jsonExtras.items())
+                jnode["params"][k] = v;
         }
 
         nodes.push_back(jnode);
@@ -1918,6 +2004,14 @@ static void save_node_graph(const std::string& path) {
         }
 
         for (auto& [desc, val] : node.configValues) {
+            // Envelope sustain lives INSIDE the emitted stages (slot
+            // values); writing the config too made reload rewrite the slots
+            // through set_config's [0,1] clamp, breaking >1.0 test
+            // envelopes (_envacc_test) — and 0.0 artifacts of the old
+            // get_config broke three library patches (3n).
+            if (node.typeName == NT_ENVELOPE &&
+                std::string_view(desc.name) == "sustainLevel")
+                continue;
             if (!jnode.contains("params")) jnode["params"] = json::object();
             if (desc.type == ConfigType::Bool)
                 jnode["params"][desc.name] = (val != 0.0f);
@@ -1938,6 +2032,16 @@ static void save_node_graph(const std::string& path) {
         if (node.jsonSeed >= 0) {
             if (!jnode.contains("params")) jnode["params"] = json::object();
             jnode["params"]["seed"] = node.jsonSeed;
+        }
+
+        // Unmodeled params carried verbatim (jsonExtras, 3n). They win over
+        // the modeled emission for the same key: extras only exist for keys
+        // the UI never displayed, so the file's value is the truth; editing
+        // a same-named pin/config erases the extras entry first.
+        if (!node.jsonExtras.empty()) {
+            if (!jnode.contains("params")) jnode["params"] = json::object();
+            for (auto& [k, v] : node.jsonExtras.items())
+                jnode["params"][k] = v;
         }
 
         nodes.push_back(jnode);
@@ -5395,6 +5499,7 @@ static void draw_properties_panel() {
             float step = std::max(0.001f, std::abs(pin.defaultValue) * 0.01f);
             if (ImGui::InputFloat(label, &pin.defaultValue, step, step * 10.0f, "%.4f")) {
                 if (pin.constantSrc) pin.constantSrc->set(pin.defaultValue);
+                node->jsonExtras.erase(pin.name);  // edit wins over carried value
                 update_node_dsp(*node);
                 s_graphDirty = true;
             }
@@ -5467,6 +5572,7 @@ static void draw_properties_panel() {
             ImGui::PopItemWidth();
             if (changed && node->dspSource) {
                 node->dspSource->set_config(desc.name, val);
+                node->jsonExtras.erase(desc.name);  // edit wins over carried value
                 // set_config may have mutated internal arrays (e.g. ExplicitPartials
                 // mirrors _1 → _2 when evolve flips off). Re-pull cached values.
                 for (auto& [d, v] : node->arrayValues)
