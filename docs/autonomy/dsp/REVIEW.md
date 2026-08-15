@@ -2,6 +2,30 @@
 
 ## Awaiting Matt
 
+### 29. Stable node identity LANDED [try] (2026-08-14, interactive)
+Chunk 1 of the UI usability spec (docs/superpowers/specs/
+2026-08-14-ui-groups-usability-design.md; plan docs/superpowers/plans/
+2026-08-14-ui-stable-node-identity.md). Saving no longer renames nodes:
+the label IS the JSON id, preserved verbatim; fresh nodes get a unique
+TypeN name; rename-in-place field at the top of Properties (unique / no
+'.' / no '__' enforced, paramMap curve targets follow automatically);
+positions already persisted (ui.positions — discovered during planning)
+and now key off stable names. Corpus gate tools/test_stable_roundtrip.py:
+196 patches, 0 id changes, renders byte-identical except a KNOWN
+pre-existing set (below). Headless --rename mode for scripted renames.
+**TRY (after restarting the UI): load Piano_bright -> rename
+BWLowpassFilter2 to exc_body in Properties (type in the name field,
+Enter) -> save -> reload: name, wiring, curves, position all intact;
+duplicate/dotted names visibly refused.** Chunks 2 (Mappings dialog) and
+3 (Groups) are specced, plans to follow.
+FOUND ON THE WAY — new backlog 3n, worth your awareness: **UI save
+round-trip currently changes the SOUND of 34 instrument patches**
+(clarinet_locked, 8 locked voice winners, percussion, bells, Rhodes
+families among them) — pre-existing, same family as the 08-13
+"edit-any-setting" bug, now measured and listed in the test's
+KNOWN_DIFFS. Until 3n lands: avoid re-saving library patches from the
+UI without diffing the render.
+
 ### 28. Note-contained sound LANDED + v6m [listen] (2026-08-13, interactive)
 Spec docs/superpowers/specs/2026-08-13-note-contained-sound-design.md,
 plan docs/superpowers/plans/2026-08-13-note-contained-sound.md. Commits

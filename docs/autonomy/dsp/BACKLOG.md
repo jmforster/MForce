@@ -146,6 +146,26 @@ Priority order. Tags per WORKFLOW.md. (G1)-(G4) = GOALS.md Dipsy goals.
    Matt deleted the flat exc_body.cutoffFreq curve and then could not
    find the property to set the scalar, so he had to leave the curve in
    place. Ideally `<curve>` click-navigates to the curve editor entry.
+   SUPERSEDED by the 2026-08-14 UI usability spec §2 (Mappings dialog +
+   badges) — implement via that spec's chunk-2 plan, not standalone.
+3n. **[build] UI save round-trip changes the SOUND of 34 instrument
+   patches** — found 2026-08-14 by the stable-identity regression
+   (tools/test_stable_roundtrip.py; its KNOWN_DIFFS set is the exact
+   worklist). Same family as the 08-13 "edit-any-setting -> volume cut"
+   bug, which fixed only CombinedSource enum-strings + unwired source2
+   scalars; still-lossy species measured in the roundtripped JSON:
+   Envelope preset/timeMode/stage semantics, AdditiveSource noiseBed*,
+   FullPartials motion/shimmer keys, ExplicitPartials decay keys,
+   SegmentSource values, RangeSource.normalized, FMSource
+   phase/oversample, MultiSource source, score/seconds injection.
+   Affects LOCKED library patches (clarinet_locked, 8 voice winners,
+   percussion, bells, both Rhodes families): opening one in the UI and
+   saving would silently change the archived sound. Proven pre-existing
+   (old-exe A/B + params-untouched-by-construction), NOT caused by
+   stable ids — the new gate just made it visible. Fix = per-species
+   loader/save parity like the 08-13 fix; each species fixed shrinks
+   KNOWN_DIFFS until the gate is empty. Until then: don't re-save
+   library patches from the UI without diffing the render.
 
 15. **[build] 7 patches the CLI cannot render at all** — ✓ 6 of 7 DONE run19
    (2026-08-04), commit 6fc128b. Found while A/B-ing front 3. They were
