@@ -186,6 +186,8 @@ struct FormantRow {
     float frequency{1000.0f}, gain{1.0f}, width{500.0f}, power{2.0f};
 };
 
+static std::string unique_node_label(const std::string& typeName);
+
 struct GraphNode {
     int id;
     std::string typeName;
@@ -225,7 +227,7 @@ struct GraphNode {
     std::string paramName;
     char paramNameBuf[32]{};
 
-    GraphNode(const std::string& type) : id(next_id()), typeName(type), label(node_display_name(type)) {
+    GraphNode(const std::string& type) : id(next_id()), typeName(type), label(unique_node_label(type)) {
         build_pins();
         create_dsp();
         init_config();
@@ -445,6 +447,22 @@ struct Link {
 // ===========================================================================
 static std::vector<GraphNode> s_nodes;
 static std::vector<Link> s_links;
+
+// Node labels ARE the serialized ids (2026-08-14 spec §1: stable
+// identity), so every node needs a unique one from birth. Load overwrites
+// with the JSON id afterward; this covers UI-created nodes.
+static std::string unique_node_label(const std::string& typeName) {
+    std::string base = node_display_name(typeName);
+    auto taken = [&](const std::string& s) {
+        for (auto& n : s_nodes) if (n.label == s) return true;
+        return false;
+    };
+    if (!taken(base)) return base;
+    for (int i = 2;; ++i) {
+        std::string cand = base + std::to_string(i);
+        if (!taken(cand)) return cand;
+    }
+}
 // Set by the --roundtrip headless path so load/save skip ImNodes node-position
 // calls (those need a live editor/frame the headless path doesn't set up).
 static bool s_headless = false;
@@ -1469,17 +1487,8 @@ static void settings_save() {
 
 // node_type_to_json removed — typeName strings are used directly
 
-// Generate a short prefix from a type name for JSON node IDs
-static std::string type_prefix(const std::string& typeName) {
-    if (typeName == NT_SOUND_CHANNEL) return "ch";
-    if (typeName == NT_STEREO_MIXER)  return "mix";
-    if (typeName == NT_ENVELOPE)      return "env";
-    // Strip "Source" suffix for shorter IDs
-    std::string name = typeName;
-    if (name.size() > 6 && name.substr(name.size() - 6) == "Source")
-        name = name.substr(0, name.size() - 6);
-    return name;
-}
+// type_prefix removed — serialized ids are the node labels (stable
+// identity, 2026-08-14 spec §1); see sanitize_unique_id.
 
 // Topological sort: dependencies before dependents
 static std::vector<GraphNode*> topo_sort() {
@@ -1540,18 +1549,33 @@ static GraphNode* find_source_node(int inputPinId) {
     return nullptr;
 }
 
+// Serialized id = the node's label, made safe: ids embed in "node.pin"
+// paramMap targets (no '.'), "__" is reserved for synthesized keys
+// (__output, __param_*, FormantSpectrum "__fN" children), and duplicates
+// from a hand-edited file must not collapse two nodes into one id.
+static std::string sanitize_unique_id(const std::string& want,
+                                      std::unordered_set<std::string>& used,
+                                      const std::string& typeName) {
+    std::string base = want;
+    std::replace(base.begin(), base.end(), '.', '_');
+    while (base.rfind("__", 0) == 0) base.erase(0, 1);
+    if (base.empty()) base = node_display_name(typeName);
+    std::string name = base;
+    for (int i = 2; used.count(name); ++i) name = base + std::to_string(i);
+    used.insert(name);
+    return name;
+}
+
 static void save_patch_graph(const std::string& path) {
     using json = nlohmann::json;
 
-    // Assign string IDs to nodes
+    // Assign string IDs to nodes — the label IS the id (stable identity).
     std::unordered_map<int, std::string> nodeIds;
-    std::unordered_map<std::string, int> typeCounts;
+    std::unordered_set<std::string> usedIds;
     for (auto& node : s_nodes) {
         if (node.typeName == NT_PATCH_OUTPUT || node.typeName == NT_PARAMETER)
             continue;
-        int& count = typeCounts[node.typeName];
-        count++;
-        nodeIds[node.id] = type_prefix(node.typeName) + std::to_string(count);
+        nodeIds[node.id] = sanitize_unique_id(node.label, usedIds, node.typeName);
     }
 
     // Find Output and Parameter nodes
@@ -1829,14 +1853,11 @@ static void save_patch_graph(const std::string& path) {
 static void save_node_graph(const std::string& path) {
     using json = nlohmann::json;
 
-    // Assign string IDs
+    // Assign string IDs — label IS the id (stable identity).
     std::unordered_map<int, std::string> nodeIds;
-    std::unordered_map<std::string, int> typeCounts;
-    for (auto& node : s_nodes) {
-        int& count = typeCounts[node.typeName];
-        count++;
-        nodeIds[node.id] = type_prefix(node.typeName) + std::to_string(count);
-    }
+    std::unordered_set<std::string> usedIds;
+    for (auto& node : s_nodes)
+        nodeIds[node.id] = sanitize_unique_id(node.label, usedIds, node.typeName);
 
     // Find mixer for output
     std::string outputId;
