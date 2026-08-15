@@ -1566,6 +1566,40 @@ static std::string sanitize_unique_id(const std::string& want,
     return name;
 }
 
+// Rename = identity change: the label is the serialized id, so the
+// paramMap stash (which references ids as "node.pin" target strings) must
+// be rewritten in the same breath. Graph wiring needs nothing — links are
+// integer pin ids. ui.positions keys regenerate from labels on save.
+static bool rename_node(GraphNode& node, const std::string& newName,
+                        std::string& err) {
+    if (newName.empty())              { err = "name is empty"; return false; }
+    if (newName.find('.') != std::string::npos)
+                                      { err = "'.' not allowed (ids embed in node.pin targets)"; return false; }
+    if (newName.rfind("__", 0) == 0)  { err = "'__' prefix is reserved"; return false; }
+    for (auto& n : s_nodes)
+        if (&n != &node && n.label == newName)
+                                      { err = "name already in use: " + newName; return false; }
+    const std::string oldName = node.label;
+    node.label = newName;
+    if (oldName != newName && s_loadedParamMap.is_object()) {
+        std::string prefix = oldName + ".";
+        std::function<void(nlohmann::json&)> fix = [&](nlohmann::json& e) {
+            if (e.is_string()) {
+                std::string s = e.get<std::string>();
+                if (s.rfind(prefix, 0) == 0) e = newName + s.substr(oldName.size());
+            } else if (e.is_object() && e.contains("target") && e["target"].is_string()) {
+                std::string s = e["target"].get<std::string>();
+                if (s.rfind(prefix, 0) == 0) e["target"] = newName + s.substr(oldName.size());
+            } else if (e.is_array()) {
+                for (auto& t : e) fix(t);
+            }
+        };
+        for (auto& [k, v] : s_loadedParamMap.items()) fix(v);
+    }
+    s_graphDirty = true;
+    return true;
+}
+
 static void save_patch_graph(const std::string& path) {
     using json = nlohmann::json;
 
@@ -5082,6 +5116,25 @@ static void draw_properties_panel() {
     ImGui::TextColored(ImColor(node_title_color(node->typeName)).Value, "%s", node->label.c_str());
     ImGui::SameLine();
     ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1), "(%s)", node_display_name(node->typeName).c_str());
+
+    // Rename-in-place: the label IS the serialized id (stable identity).
+    if (node->typeName != NT_PATCH_OUTPUT && node->typeName != NT_PARAMETER) {
+        static int  renameNodeId = -1;
+        static char renameBuf[64];
+        static std::string renameErr;
+        if (renameNodeId != node->id) {
+            renameNodeId = node->id;
+            snprintf(renameBuf, sizeof(renameBuf), "%s", node->label.c_str());
+            renameErr.clear();
+        }
+        ImGui::SetNextItemWidth(180.0f);
+        if (ImGui::InputText("##nodeName", renameBuf, sizeof(renameBuf),
+                             ImGuiInputTextFlags_EnterReturnsTrue)) {
+            if (rename_node(*node, renameBuf, renameErr)) renameErr.clear();
+        }
+        if (!renameErr.empty())
+            ImGui::TextColored(ImVec4(0.9f, 0.4f, 0.4f, 1), "%s", renameErr.c_str());
+    }
     ImGui::Separator();
 
     // Layout: label on left (120px), widget on right
@@ -7675,6 +7728,31 @@ int main(int argc, char** argv) {
             return 1;
         }
         printf("roundtrip ok: %s -> %s\n", argv[2], argv[3]);
+        return 0;
+    }
+
+    // Headless rename: load, rename one node (label = id), save. Exercises
+    // rename_node's validation + paramMap-target rewrite without a UI.
+    if (argc >= 6 && std::string(argv[1]) == "--rename") {
+        s_headless = true;
+        ImGui::CreateContext();
+        ImNodes::CreateContext();
+        register_all_sources();
+        try {
+            load_graph_from_path(argv[2]);
+            GraphNode* target = nullptr;
+            for (auto& n : s_nodes) if (n.label == argv[3]) target = &n;
+            if (!target) { fprintf(stderr, "rename: no node '%s'\n", argv[3]); return 1; }
+            std::string err;
+            if (!rename_node(*target, argv[4], err)) {
+                fprintf(stderr, "rename refused: %s\n", err.c_str()); return 1;
+            }
+            save_patch_graph(argv[5]);
+        } catch (const std::exception& e) {
+            fprintf(stderr, "rename failed: %s\n", e.what());
+            return 1;
+        }
+        printf("rename ok: %s %s->%s -> %s\n", argv[2], argv[3], argv[4], argv[5]);
         return 0;
     }
 
