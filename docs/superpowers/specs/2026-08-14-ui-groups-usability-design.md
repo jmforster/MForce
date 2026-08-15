@@ -96,16 +96,20 @@ nodes inside a group works exactly like top level (covers build-from-
 scratch without a "drag into container" mechanism, which imnodes can't
 express anyway).
 
-**Listen toggle (in the breadcrumb bar).** Two states: **this group /
-full patch**. Semantics: in-context tap, always — the whole patch keeps
-running exactly as wired (keyboard drives it, mappings apply); the toggle
-only chooses where the monitored audio is tapped: the group's output node
-vs the patch output. Literal isolation (inputs disconnected) is explicitly
-NOT a mode — for a group with inputs it's silence, not a use case (Matt).
-For zero-input groups (damper) tap and isolation coincide, so nothing is
-lost. Toggle defaults to "this group" on drill-in (the tweak-in-isolation ⇄
-full-piano loop is one click), remembered per session. Transport, QWERTY
-keyboard, Spectrum and Waveforms all follow the tap point.
+**Listen toggle (in the breadcrumb bar).** Right-aligned on the
+breadcrumb line: `Patch | Group`, active side highlighted in the same
+green as connections/badges (green = what's sounding, one consistent
+signal); clicking the label flips it. Semantics: in-context tap, always —
+the whole patch keeps running exactly as wired (keyboard drives it,
+mappings apply); the toggle only chooses where the monitored audio is
+tapped: the group's output node vs the patch output. Literal isolation
+(inputs disconnected) is explicitly NOT a mode — for a group with inputs
+it's silence, not a use case (Matt). For zero-input groups (damper) tap
+and isolation coincide, so nothing is lost. Drill-in auto-selects Group,
+with per-group session memory: first entry to a group defaults to Group;
+if flipped to Patch, re-entering that group keeps the last choice.
+Transport, QWERTY keyboard, Spectrum and Waveforms all follow the tap
+point.
 
 **Tap mechanics.** The UI's playback path already serializes a temp patch
 for the CLI-loader engine graph; the tap overrides which node is the
@@ -114,8 +118,12 @@ engine work expected; if the live-audio path taps differently (RtAudio
 graph), same principle — monitor source is a node pointer, not a rewire.
 
 **Generalization.** Right-click any node → **Listen here** — same tap
-mechanism, no group required. Kills the rewire-output-to-hear-the-damper
-dance everywhere; drill-in just does it implicitly.
+mechanism, no group required; drill-in is just an implicit Listen here at
+the group output. The tapped node shows a small speaker marker on the
+canvas; taps are exclusive (Listen here elsewhere moves the tap); the
+same menu item reads **Stop listening here** on the tapped node and
+restores the patch output. Kills the rewire-output-to-hear-the-damper
+dance everywhere.
 
 ## Interactions between chunks
 
