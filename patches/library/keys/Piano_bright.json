@@ -191,7 +191,7 @@
         "type": "CombinedSource"
       },
       {
-        "id": "BWLowpassFilter2",
+        "id": "exc_body",
         "params": {
           "cutoffFreq": 1000.0,
           "source": {
@@ -206,7 +206,7 @@
           "gainAdj": 0.0,
           "operation": 1,
           "source1": {
-            "ref": "BWLowpassFilter2"
+            "ref": "exc_body"
           },
           "source2": 1.0358452796936035
         },
@@ -577,7 +577,7 @@
               1939.2242022755308
             ]
           ],
-          "target": "BWLowpassFilter2.cutoffFreq"
+          "target": "exc_body.cutoffFreq"
         },
         {
           "curve": [
@@ -713,8 +713,8 @@
   "seconds": 3.0,
   "ui": {
     "panning": [
-      0.0,
-      -630.0
+      37.0,
+      -239.0
     ],
     "positions": {
       "BWBandpassFilter1": [
@@ -729,10 +729,6 @@
         254.0,
         109.0
       ],
-      "BWLowpassFilter2": [
-        254.0,
-        359.0
-      ],
       "Combined1": [
         694.0,
         109.0
@@ -746,8 +742,8 @@
         359.0
       ],
       "Combined4": [
-        694.0,
-        359.0
+        847.0,
+        268.0
       ],
       "Combined5": [
         694.0,
@@ -804,6 +800,10 @@
       "env4": [
         474.0,
         859.0
+      ],
+      "exc_body": [
+        254.0,
+        359.0
       ]
     }
   }
