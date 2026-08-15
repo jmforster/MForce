@@ -9287,9 +9287,28 @@ int main(int argc, char** argv) {
             if (editorHovered && ImGui::GetIO().KeyCtrl &&
                 ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
                 int hovered = -1;
-                if (ImNodes::IsNodeHovered(&hovered) &&
-                    prevSelection.count(hovered)) {
+                if (!ImNodes::IsNodeHovered(&hovered)) {
+                    // imnodes suppresses node-hover while a PIN is hovered
+                    // (socket dots have a hover radius), which blinded both
+                    // the native deselect and this handler near sockets —
+                    // resolve the pin's owning node instead.
+                    int pinId = -1;
+                    if (ImNodes::IsPinHovered(&pinId)) {
+                        if (GraphNode* pn = find_node_for_pin(pinId)) {
+                            hovered = pn->id;
+                        } else {
+                            for (auto& g : s_groups) {
+                                if (g.outPinId == pinId ||
+                                    std::find(g.inPinIds.begin(), g.inPinIds.end(),
+                                              pinId) != g.inPinIds.end())
+                                    hovered = g.editorId;
+                            }
+                        }
+                    }
+                }
+                if (hovered >= 0 && prevSelection.count(hovered)) {
                     ImNodes::ClearNodeSelection(hovered);
+                    transport_set_status("deselected", false);
                 }
             }
             prevSelection.clear();
