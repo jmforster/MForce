@@ -462,6 +462,48 @@ struct Link {
 static std::vector<GraphNode> s_nodes;
 static std::vector<Link> s_links;
 
+// ===========================================================================
+// Groups (spec §3): UI-level structure over the FLAT graph. The engine never
+// sees them — the patch JSON keeps every node top-level and a root "groups"
+// section records membership. Members are node labels or other group names
+// (nesting). editorId/pinIds are synthetic imnodes ids for the collapsed
+// node; pinIds[0..n-1] = input pins (one per boundary target), last = output.
+// ===========================================================================
+struct NodeGroup {
+    std::string name;
+    std::vector<std::string> members;
+    ImVec2 pos{0.0f, 0.0f};
+    bool posApplied{false};       // SetNodeGridSpacePos once after load
+    int editorId{-1};
+    std::vector<int> inPinIds;    // grown on demand per boundary input
+    int outPinId{-1};
+};
+static std::vector<NodeGroup> s_groups;
+// Drill-in path: empty = top level; back() = the group whose interior the
+// Node Editor currently shows.
+static std::vector<std::string> s_groupPath;
+
+static NodeGroup* group_by_name(const std::string& name) {
+    for (auto& g : s_groups) if (g.name == name) return &g;
+    return nullptr;
+}
+
+// Innermost group that lists `label` (node label or group name) as a member.
+static NodeGroup* group_of(const std::string& label) {
+    for (auto& g : s_groups)
+        for (auto& m : g.members)
+            if (m == label) return &g;
+    return nullptr;
+}
+
+// A label is visible when its containing group IS the current path target
+// (nullptr target = top level). Collapsed child groups are drawn separately.
+static bool visible_at_path(const std::string& label) {
+    NodeGroup* container = group_of(label);
+    if (s_groupPath.empty()) return container == nullptr;
+    return container && container->name == s_groupPath.back();
+}
+
 // Node labels ARE the serialized ids (2026-08-14 spec §1: stable
 // identity), so every node needs a unique one from birth. Load overwrites
 // with the JSON id afterward; this covers UI-created nodes.
@@ -789,6 +831,8 @@ static void new_graph(GraphMode mode) {
     s_loadedInstrumentExtras = nlohmann::json::object();
     s_loadedSeconds  = nlohmann::json();
     s_loadedScoreAbsent = false;  // fresh graphs get the default score
+    s_groups.clear();
+    s_groupPath.clear();
     conv_stash_clear();
     s_graphMode = mode;
     s_nextId = 1;
@@ -943,6 +987,8 @@ static void load_graph_from_path(const std::string& path) {
 
     s_nodes.clear();
     s_links.clear();
+    s_groups.clear();
+    s_groupPath.clear();
     s_loadedParamMap = nlohmann::json::object();
     s_loadedScore    = nlohmann::json();
     s_loadedInstrumentExtras = nlohmann::json::object();
@@ -1337,6 +1383,42 @@ static void load_graph_from_path(const std::string& path) {
             s_loadedParamMap = root["instrument"]["paramMap"];
     }
 
+    // Groups (spec §3): root-level section, engine-blind. Two passes so a
+    // member may reference a group defined later in the array.
+    if (root.contains("groups") && root["groups"].is_array()) {
+        for (const auto& jg : root["groups"]) {
+            if (!jg.contains("name") || !jg["name"].is_string()) continue;
+            NodeGroup g;
+            g.name = jg["name"].get<std::string>();
+            if (jg.contains("pos") && jg["pos"].is_array() && jg["pos"].size() == 2) {
+                g.pos = ImVec2(jg["pos"][0].get<float>(), jg["pos"][1].get<float>());
+                g.posApplied = false;
+            }
+            g.editorId = next_id();
+            g.outPinId = next_id();
+            for (const auto& m : jg.value("members", nlohmann::json::array()))
+                if (m.is_string()) g.members.push_back(m.get<std::string>());
+            s_groups.push_back(std::move(g));
+        }
+        // Validate membership against live labels + group names; drop dead
+        // entries loudly rather than carrying ghosts.
+        for (auto& g : s_groups) {
+            auto known = [&](const std::string& m) {
+                if (group_by_name(m)) return true;
+                for (auto& n : s_nodes) if (n.label == m) return true;
+                return false;
+            };
+            for (auto it = g.members.begin(); it != g.members.end();) {
+                if (!known(*it)) {
+                    std::fprintf(stderr, "[load] group '%s': member '%s' "
+                                 "not in graph — dropped\n",
+                                 g.name.c_str(), it->c_str());
+                    it = g.members.erase(it);
+                } else ++it;
+            }
+        }
+    }
+
     // Restore positions from UI metadata, or fall back to grid layout
     if (root.contains("ui") && root["ui"].contains("positions")) {
         const auto& positions = root["ui"]["positions"];
@@ -1586,6 +1668,78 @@ static std::string sanitize_unique_id(const std::string& want,
     return name;
 }
 
+// All node labels inside a group, including nested groups' members.
+static void collect_member_labels(const NodeGroup& g,
+                                  std::unordered_set<std::string>& out) {
+    for (const auto& m : g.members) {
+        if (NodeGroup* child = group_by_name(m)) {
+            if (out.insert(m).second) collect_member_labels(*child, out);
+        } else {
+            out.insert(m);
+        }
+    }
+}
+
+// One boundary-inbound crossing: an outside output pin feeding a member
+// node's input pin. The projected group-input pin represents realInPin.
+struct GroupBoundaryIn {
+    int  outsideOutPin;
+    int  realInPin;
+    std::string label;  // "member.pin" — the projected pin's display name
+};
+
+// Derive the group's interface from the live wiring (spec §3: boundary
+// edges ARE the interface, never authored).
+static void group_boundary(const NodeGroup& g,
+                           std::vector<GroupBoundaryIn>& ins,
+                           std::vector<GraphNode*>& outSources) {
+    std::unordered_set<std::string> inside;
+    collect_member_labels(g, inside);
+    auto is_inside = [&](GraphNode* n) {
+        return n && inside.count(n->label) > 0;
+    };
+    outSources.clear();
+    ins.clear();
+    for (auto& link : s_links) {
+        GraphNode* a = find_node_for_pin(link.startPinId);
+        GraphNode* b = find_node_for_pin(link.endPinId);
+        if (!a || !b) continue;
+        Pin* pa = find_pin(link.startPinId);
+        Pin* pb = find_pin(link.endPinId);
+        if (!pa || !pb) continue;
+        GraphNode* srcN = pa->kind == PinKind::Output ? a : b;
+        GraphNode* dstN = pa->kind == PinKind::Output ? b : a;
+        int srcPin = pa->kind == PinKind::Output ? link.startPinId : link.endPinId;
+        int dstPin = pa->kind == PinKind::Output ? link.endPinId : link.startPinId;
+        if (!is_inside(srcN) && is_inside(dstN)) {
+            Pin* dp = find_pin(dstPin);
+            ins.push_back({srcPin, dstPin,
+                           dstN->label + "." + (dp ? dp->name : "?")});
+        } else if (is_inside(srcN) && !is_inside(dstN)) {
+            if (std::find(outSources.begin(), outSources.end(), srcN) ==
+                outSources.end())
+                outSources.push_back(srcN);
+        }
+    }
+}
+
+// The node whose output IS the group's output: the single member feeding
+// outside; with no outward wire, the topologically last member with an
+// output pin (Listen needs a tappable output).
+static GraphNode* group_output_node(const NodeGroup& g) {
+    std::vector<GroupBoundaryIn> ins;
+    std::vector<GraphNode*> outs;
+    group_boundary(g, ins, outs);
+    if (outs.size() == 1) return outs[0];
+    if (outs.size() > 1)  return nullptr;  // invalid state; creation refuses it
+    std::unordered_set<std::string> inside;
+    collect_member_labels(g, inside);
+    GraphNode* last = nullptr;
+    for (auto* n : topo_sort())
+        if (inside.count(n->label) && !n->outputs.empty()) last = n;
+    return last;
+}
+
 // Rename = identity change: the label is the serialized id, so the
 // paramMap stash (which references ids as "node.pin" target strings) must
 // be rewritten in the same breath. Graph wiring needs nothing — links are
@@ -1599,6 +1753,7 @@ static bool rename_node(GraphNode& node, const std::string& newName,
     for (auto& n : s_nodes)
         if (&n != &node && n.label == newName)
                                       { err = "name already in use: " + newName; return false; }
+    if (group_by_name(newName))       { err = "name already in use by a group: " + newName; return false; }
     const std::string oldName = node.label;
     node.label = newName;
     if (oldName != newName && s_loadedParamMap.is_object()) {
@@ -1630,6 +1785,38 @@ static bool rename_node(GraphNode& node, const std::string& newName,
             }
         };
         for (auto& n : s_nodes) fixref(n.jsonExtras);
+    }
+    if (oldName != newName) {
+        // Group membership stores labels — follow the rename.
+        for (auto& g : s_groups)
+            for (auto& m : g.members)
+                if (m == oldName) m = newName;
+    }
+    s_graphDirty = true;
+    return true;
+}
+
+// Rename a GROUP: shares the node-id namespace rules (a group name is the
+// future reuse-library type name, so it can never collide with a node id).
+static bool rename_group(NodeGroup& group, const std::string& newName,
+                         std::string& err) {
+    if (newName.empty())              { err = "name is empty"; return false; }
+    if (newName.find('.') != std::string::npos)
+                                      { err = "'.' not allowed"; return false; }
+    if (newName.rfind("__", 0) == 0)  { err = "'__' prefix is reserved"; return false; }
+    for (auto& n : s_nodes)
+        if (n.label == newName)       { err = "name already in use by a node: " + newName; return false; }
+    for (auto& g : s_groups)
+        if (&g != &group && g.name == newName)
+                                      { err = "name already in use: " + newName; return false; }
+    const std::string oldName = group.name;
+    group.name = newName;
+    if (oldName != newName) {
+        for (auto& g : s_groups)                 // nesting references
+            for (auto& m : g.members)
+                if (m == oldName) m = newName;
+        for (auto& p : s_groupPath)              // live breadcrumb
+            if (p == oldName) p = newName;
     }
     s_graphDirty = true;
     return true;
@@ -1878,6 +2065,20 @@ static void save_patch_graph(const std::string& path) {
         });
     }
 
+    // Groups (spec §3): engine-blind root section, emitted verbatim from
+    // the model. Names double as the future reuse-library type names.
+    if (!s_groups.empty()) {
+        json jgroups = json::array();
+        for (const auto& g : s_groups) {
+            json jg;
+            jg["name"] = g.name;
+            jg["members"] = g.members;
+            jg["pos"] = {g.pos.x, g.pos.y};
+            jgroups.push_back(std::move(jg));
+        }
+        root["groups"] = std::move(jgroups);
+    }
+
     // Save UI layout (skip under headless round-trip — no live editor).
     if (!s_headless) {
         json positions = json::object();
@@ -2052,6 +2253,19 @@ static void save_node_graph(const std::string& path) {
     root["seconds"] = 5;
     root["graph"]["nodes"] = nodes;
     root["graph"]["output"] = outputId;
+
+    // Groups — same engine-blind section as the patch save.
+    if (!s_groups.empty()) {
+        json jgroups = json::array();
+        for (const auto& g : s_groups) {
+            json jg;
+            jg["name"] = g.name;
+            jg["members"] = g.members;
+            jg["pos"] = {g.pos.x, g.pos.y};
+            jgroups.push_back(std::move(jg));
+        }
+        root["groups"] = std::move(jgroups);
+    }
 
     // Save UI layout
     json positions = json::object();
