@@ -483,6 +483,11 @@ static nlohmann::json s_loadedParamMap = nlohmann::json::object();
 // note than the original. Carried through verbatim instead; the default is
 // only emitted when the loaded patch had no score at all.
 static nlohmann::json s_loadedScore   = nlohmann::json();
+// True when the loaded file had NO score key at all. Save must preserve the
+// absence — injecting the default note changes what mforce_cli renders
+// (backlog 3n root:score class, 7 library patches). Fresh graphs (New) keep
+// the default injection so a new patch renders a note out of the box.
+static bool s_loadedScoreAbsent = false;
 // Instrument-block fields the UI has no widgets for (release, volume, future
 // keys). Preserved verbatim from load to save so UI round-trips don't strip
 // them (the 2026-08-10 live-audition damper/gain loss).
@@ -769,6 +774,7 @@ static void new_graph(GraphMode mode) {
     s_loadedScore    = nlohmann::json();
     s_loadedInstrumentExtras = nlohmann::json::object();
     s_loadedSeconds  = nlohmann::json();
+    s_loadedScoreAbsent = false;  // fresh graphs get the default score
     conv_stash_clear();
     s_graphMode = mode;
     s_nextId = 1;
@@ -940,6 +946,7 @@ static void load_graph_from_path(const std::string& path) {
     // transport's old hardcoded 2.0s/C4 against a 3.0s/A2 score was audibly
     // a different patch.
     if (root.contains("score")) s_loadedScore = root["score"];
+    s_loadedScoreAbsent = !root.contains("score");
     if (root.contains("instrument")) {
         s_loadedInstrumentExtras = root["instrument"];
         s_loadedInstrumentExtras.erase("polyphony");
@@ -1757,6 +1764,10 @@ static void save_patch_graph(const std::string& path) {
             root["seconds"] = s_loadedSeconds;
         else
             root["seconds"] = 3.0f;
+    } else if (s_loadedScoreAbsent) {
+        // The loaded file had no score: keep it that way (3n root:score).
+        if (s_loadedSeconds.is_number())
+            root["seconds"] = s_loadedSeconds;
     } else {
         root["seconds"] = 3.0f;
         root["score"] = json::array({
