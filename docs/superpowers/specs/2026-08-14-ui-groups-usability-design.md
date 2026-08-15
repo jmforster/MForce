@@ -24,19 +24,14 @@ cooperates). Names are ids, so: enforced unique, and a rename updates every
 reference on save — graph `ref`s, `instrument.paramMap` targets
 (`node.pin`), layout keys, group membership (§3).
 
-**Positions.** New patch-level section, sibling of `graph`:
-
-```json
-"layout": { "<nodeId>": [x, y], ... }
-```
-
-Chosen over per-node `ui` blocks so the CLI loader and linter never see it
-inside node objects; a patch stripped of `layout` is still fully valid.
-UI applies it on load (missing entries / missing section → current
-auto-placement, once), writes it on every save. Loader/linter: must ignore
-unknown top-level `layout` and `groups` sections — verify during planning;
-if the loader errors on unknown sections today, teach it to skip them (a
-tolerance tweak, not a format change).
+**Positions.** RESOLVED DURING PLANNING (2026-08-14): a patch-level
+`ui.positions` / `ui.panning` block already exists — written on save
+(keyed by serialized node id, plus `__output` / `__param_*`), restored on
+load, ignored by the CLI loader and linter (proven: Piano_bright carries
+one and lints PASS). No new `layout` section needed; stable names make the
+existing keys stable. The `groups` section (§3) joins the same root-level
+`ui`-style tolerance and must be verified the same way in the chunk-3
+plan.
 
 ## 2. Parameter node retired → Mappings dialog
 
