@@ -2,9 +2,20 @@
 
 ## Awaiting Matt
 
-*(nothing — queue cleared 2026-08-15; next items will appear here as work
-lands. The AFP excitation analysis is the agreed next front: his 4
-build-up WAVs + corrected transcript, analysis-first before any CMA.)*
+### 33. AFP excitation stage analysis [read] (2026-08-15)
+docs/research/afpiano_2021/ANALYSIS.md — new dated section from your 4
+stage WAVs + corrected transcript. Headlines: step_3's "one more filter"
+is a 4-pole resonant lowpass (measured -18..-20 dB/oct, knee ~1.5-2 kHz,
+kills >4 kHz) = the frames' "Filter 4P Modulated with Emphasis"; the
+3-SVF stage is MILD sculpting (no resonances, Q~0 confirmed); his noise
+burst rings to ~350 ms where ours dies in 20-40 ms (candidate mechanism
+for the harpsichordy-attack family); "noises so identical" REFUTED as
+frozen noise (hit correlation ~0.09 — perceptual consistency, not
+seeding). Post-string gaps: pitch-tracked 1st-order ZDF allpass in-loop
++ a post-sum 1P tone filter, both absent, both cheap.
+**Verdict decides which of the proposed moves proceed: (A) burst-length
+ladder, (B) exc_lp knee retune + emphasis bump, (C) post-string 1P +
+in-loop 1P allpass rung, (D) frozen noise = skip.**
 
 ## Resolved
 
