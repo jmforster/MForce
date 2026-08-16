@@ -13,9 +13,14 @@ for the harpsichordy-attack family); "noises so identical" REFUTED as
 frozen noise (hit correlation ~0.09 — perceptual consistency, not
 seeding). Post-string gaps: pitch-tracked 1st-order ZDF allpass in-loop
 + a post-sum 1P tone filter, both absent, both cheap.
+step_0 CORRECTED per Matt's ear: thump + ~4 s HELD-KEY noise bed at
+~18% of burst level, core slope -1..-1.7 dB/oct ("pinker than white"
+confirmed; "white noise" is his source label, not the tap spectrum).
 **Verdict decides which of the proposed moves proceed: (A) burst-length
 ladder, (B) exc_lp knee retune + emphasis bump, (C) post-string 1P +
-in-loop 1P allpass rung, (D) frozen noise = skip.**
+in-loop 1P allpass rung, (D) frozen noise = skip, (E) held-key noise
+bed via excitation sustainLevel (~-15 dB rel burst) + slight noise
+tilt.**
 
 ## Resolved
 

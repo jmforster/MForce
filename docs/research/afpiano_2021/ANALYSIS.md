@@ -186,3 +186,21 @@ built): (A) lengthen burst release toward ~450 ms, A/B ladder;
 (B) retune exc_lp knee down with keyboard tracking + add an emphasis
 bump near the knee; (C) post-string 1P + in-loop 1P allpass as one
 small patch rung; (D) skip frozen noise (anti-result above).
+
+### step_0 corrected (2026-08-15, Matt's ear + segmentation)
+
+step_0 is TWO components demoed together, not one: a low thump burst
+(0.15-0.55 s, -11 dB/oct through 100-500 Hz, 96% below 200 Hz) followed
+by ~4 s of DEAD-FLAT sustained noise at ~18% of burst RMS — a HELD KEY.
+The sustained noise measures core slope -1..-1.7 dB/oct (100 Hz-8 kHz)
+with a -13 dB/oct shelf above 8 kHz (partly codec, possibly a gentle
+source LP): between white and pink, and Matt's "sounds pinker than
+white" is confirmed in direction — Balazs's "white noise" is the source
+label, not the spectrum at this tap.
+
+Consequence, new gap (E): his excitation envelope has a SUSTAIN stage —
+a continuous bow-like noise bed (~-15 dB rel burst) feeding the strings
+while the key is held. Our excitation envelopes have sustainLevel 0:
+after the burst, our strings get silence. Stacks with the burst-length
+gap as the two biggest excitation divergences; also argues the noise
+source should carry a slight downward tilt rather than pure white.
