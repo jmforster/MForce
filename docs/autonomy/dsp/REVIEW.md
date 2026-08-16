@@ -31,8 +31,15 @@ his 1-4 kHz rap has no un-smeared path in our chain (our click band
 sits at 4-9.5k). The crest/separation/tail gaps are all move-B
 territory: restructure excitation filters toward his measured chain
 (resonant 4P body with the ~1.5-2k knee, a FAST 1-4k rap path, mix
-rebalance). Recommend judging AE-vs-ctrl for the bed/clack decision and
-skipping fine env comparisons; move B proposal next.
+rebalance). REV 4 (the survivor): pb_exc_trace.wav — env1 TRACED point-for-point
+from the step_3 median hit envelope; verified shape-vs-shape at the
+string-input tap (head, shoulder, 100 ms level all inside noise
+wobble). Three intermediate theories (spike, resonant ping, impulse
+click) retired: the crest metrics that motivated them were window-
+alignment artifacts. Bed reduced to 0.02 in this arm. Remaining known
+gap: tail COLOR (centroid 664 vs his 501 Hz) = move B knee territory,
+untouched. LISTEN: pb_exc_trace vs pb_exc_ctrl, plus Listen-here at
+the string input.
 
 ### 33. AFP excitation stage analysis [read] (2026-08-15)
 docs/research/afpiano_2021/ANALYSIS.md — new dated section from your 4
