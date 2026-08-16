@@ -2,6 +2,19 @@
 
 ## Awaiting Matt
 
+### 34. AFP excitation ladder — moves A+E [listen] (2026-08-15)
+renders/dsp/pending/ks_piano_v6/pb_exc_*.wav + README_pb_exc.md.
+Four arms on Piano_bright: ctrl / A (350 ms burst decay, no bed) /
+AE (full measured envelope: 20 ms attack, 350 ms decay -> 0.18 bed,
+450 ms release) / AE_lo (bed 0.09). Measured: the bed brings C6 sustain
+from dead (-82 dB @1.5 s) to alive (-24/-30); attack peaks rebalance
+(C4 ~2x — judge timbre first, levels re-anchor later). HELD keys now
+carry a bow-like noise bed on the AE arms — hand-play them, not just
+the WAVs. Anti-result: lengthening the release alone is a no-op from a
+zero bed. Verdict decides: which arm (or an interpolation) becomes the
+excitation base, then move B (exc_lp knee retune + emphasis) runs on
+the winner.
+
 ### 33. AFP excitation stage analysis [read] (2026-08-15)
 docs/research/afpiano_2021/ANALYSIS.md — new dated section from your 4
 stage WAVs + corrected transcript. Headlines: step_3's "one more filter"
