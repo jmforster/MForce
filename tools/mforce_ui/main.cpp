@@ -251,6 +251,15 @@ struct GraphNode {
     // Offline-rendered waveform samples for display
     std::vector<float> waveformData;
 
+    // Canvas position, app-tracked: imnodes DESTROYS the pool entry of any
+    // node not submitted in a frame, so a node hidden by group drill-in
+    // loses its position inside imnodes. We keep it here (updated every
+    // visible frame) and re-apply on the hidden->visible transition; save
+    // also reads it so saving while drilled-in keeps hidden nodes' spots.
+    ImVec2 gridPos{0.0f, 0.0f};
+    bool gridPosKnown{false};
+    bool wasVisible{false};
+
     // Parameter-specific
     std::string paramName;
     char paramNameBuf[32]{};
@@ -1483,10 +1492,16 @@ static void load_graph_from_path(const std::string& path) {
             else
                 key = node.label;  // label was set to the JSON id
 
-            if (positions.contains(key) && !s_headless) {
+            if (positions.contains(key)) {
                 float x = positions[key][0].get<float>();
                 float y = positions[key][1].get<float>();
-                ImNodes::SetNodeGridSpacePos(node.id, ImVec2(x, y));
+                // App-tracked too: a node hidden inside a group at load is
+                // never submitted to imnodes until drill-in, and imnodes
+                // forgets unsubmitted nodes — gridPos is the durable copy.
+                node.gridPos = ImVec2(x, y);
+                node.gridPosKnown = true;
+                if (!s_headless)
+                    ImNodes::SetNodeGridSpacePos(node.id, ImVec2(x, y));
             }
         }
         // Positions restored — suppress the first-frame grid auto-layout that
@@ -2146,7 +2161,11 @@ static void save_patch_graph(const std::string& path, bool tapOverride = false) 
         for (auto* nodePtr : sorted) {
             if (nodePtr->typeName == NT_PATCH_OUTPUT || nodePtr->typeName == NT_PARAMETER)
                 continue;
-            ImVec2 pos = ImNodes::GetNodeGridSpacePos(nodePtr->id);
+            // gridPos is the durable copy — imnodes has already forgotten
+            // any node currently hidden by group drill-in.
+            ImVec2 pos = nodePtr->gridPosKnown
+                ? nodePtr->gridPos
+                : ImNodes::GetNodeGridSpacePos(nodePtr->id);
             positions[nodeIds[nodePtr->id]] = {pos.x, pos.y};
         }
         if (outputNode) {
@@ -2331,7 +2350,9 @@ static void save_node_graph(const std::string& path) {
     // Save UI layout
     json positions = json::object();
     for (auto* nodePtr : sorted) {
-        ImVec2 pos = ImNodes::GetNodeGridSpacePos(nodePtr->id);
+        ImVec2 pos = nodePtr->gridPosKnown
+            ? nodePtr->gridPos
+            : ImNodes::GetNodeGridSpacePos(nodePtr->id);
         positions[nodeIds[nodePtr->id]] = {pos.x, pos.y};
     }
     root["ui"]["positions"] = positions;
@@ -5619,12 +5640,13 @@ static void draw_transport_panel() {
 static void draw_node(GraphNode& node) {
     ImU32 titleCol = node_title_color(node.typeName);
     ImU32 bgCol = node_bg_color(titleCol);
+    // Selected slots NOT pushed: imnodes' default blue marks selection
+    // (Matt preferred it); hover keeps the subtle per-type lift, so the
+    // two states are distinct.
     ImNodes::PushColorStyle(ImNodesCol_TitleBar, titleCol);
     ImNodes::PushColorStyle(ImNodesCol_TitleBarHovered, lighten(titleCol, 12));
-    ImNodes::PushColorStyle(ImNodesCol_TitleBarSelected, lighten(titleCol, 45));
     ImNodes::PushColorStyle(ImNodesCol_NodeBackground, bgCol);
     ImNodes::PushColorStyle(ImNodesCol_NodeBackgroundHovered, lighten(bgCol, 6));
-    ImNodes::PushColorStyle(ImNodesCol_NodeBackgroundSelected, lighten(bgCol, 22));
 
     ImNodes::BeginNode(node.id);
 
@@ -5688,10 +5710,8 @@ static void draw_node(GraphNode& node) {
     }
 
     ImNodes::EndNode();
-    ImNodes::PopColorStyle(); // NodeBackgroundSelected
     ImNodes::PopColorStyle(); // NodeBackgroundHovered
     ImNodes::PopColorStyle(); // NodeBackground
-    ImNodes::PopColorStyle(); // TitleBarSelected
     ImNodes::PopColorStyle(); // TitleBarHovered
     ImNodes::PopColorStyle(); // TitleBar
 }
@@ -5735,10 +5755,8 @@ static void draw_group_node(NodeGroup& g) {
     ImU32 gbg = IM_COL32(45, 38, 55, 255);
     ImNodes::PushColorStyle(ImNodesCol_TitleBar, titleCol);
     ImNodes::PushColorStyle(ImNodesCol_TitleBarHovered, lighten(titleCol, 12));
-    ImNodes::PushColorStyle(ImNodesCol_TitleBarSelected, lighten(titleCol, 45));
     ImNodes::PushColorStyle(ImNodesCol_NodeBackground, gbg);
     ImNodes::PushColorStyle(ImNodesCol_NodeBackgroundHovered, lighten(gbg, 6));
-    ImNodes::PushColorStyle(ImNodesCol_NodeBackgroundSelected, lighten(gbg, 22));
 
     ImNodes::BeginNode(g.editorId);
     ImNodes::BeginNodeTitleBar();
@@ -5771,8 +5789,6 @@ static void draw_group_node(NodeGroup& g) {
         s_groupProj.realOutToGroupPin[realOut] = g.outPinId;
     }
     ImNodes::EndNode();
-    ImNodes::PopColorStyle();
-    ImNodes::PopColorStyle();
     ImNodes::PopColorStyle();
     ImNodes::PopColorStyle();
     ImNodes::PopColorStyle();
@@ -9276,10 +9292,23 @@ int main(int argc, char** argv) {
         ImNodes::BeginNodeEditor();
 
         s_groupProj = GroupProjection{};
-        for (auto& node : s_nodes)
-            if (visible_at_path(node.label)) draw_node(node);
-        for (auto& g : s_groups)
+        for (auto& node : s_nodes) {
+            bool vis = visible_at_path(node.label);
+            if (vis) {
+                // Returning from hiding: imnodes forgot this node's origin
+                // (pool entry destroyed) — restore the app-tracked one.
+                if (!node.wasVisible && node.gridPosKnown)
+                    ImNodes::SetNodeGridSpacePos(node.id, node.gridPos);
+                draw_node(node);
+                node.gridPos = ImNodes::GetNodeGridSpacePos(node.id);
+                node.gridPosKnown = true;
+            }
+            node.wasVisible = vis;
+        }
+        for (auto& g : s_groups) {
             if (visible_at_path(g.name)) draw_group_node(g);
+            else g.posApplied = false;  // re-apply g.pos when it reappears
+        }
 
         // Links: both endpoints projected to this level (own pin when the
         // node is visible, the collapsing group's pin when it isn't). Links
