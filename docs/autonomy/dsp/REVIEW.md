@@ -38,8 +38,25 @@ wobble). Three intermediate theories (spike, resonant ping, impulse
 click) retired: the crest metrics that motivated them were window-
 alignment artifacts. Bed reduced to 0.02 in this arm. Remaining known
 gap: tail COLOR (centroid 664 vs his 501 Hz) = move B knee territory,
-untouched. LISTEN: pb_exc_trace vs pb_exc_ctrl, plus Listen-here at
-the string input.
+untouched. VERDICT (Matt, end of day): rev 4 "just sounds terrible
+compared to his" — envelope-shape matching is EXHAUSTED as an approach
+(four revs, shape verified matching, still wrong). Front PARKED for a
+change of approach; candidate directions for tomorrow logged below.
+Sleep-on-it directions (not yet chosen):
+(1) SUBSTITUTION BISECT — sample one clean hit from his step_3 WAV and
+    play it AS our excitation (one-shot wavetable; wav_reader.h already
+    in tree). If our string then sounds right, the gap really is our
+    excitation synthesis and we distill against a known-good; if it
+    still sounds wrong, we have been polishing the wrong component and
+    the string/loop is the suspect. Decisive either way.
+(2) GET THE REAL PATCH — Alpha Forever is downloadable freeware and he
+    said "probably this will be a preset in Forever": if the piano
+    preset ships, every node value becomes READABLE at source quality,
+    no video archaeology. Check first tomorrow; obsoletes half the
+    reverse-engineering if it lands.
+(3) LITERAL CHAIN CLONE — reproduce his exact 4-path graph (1P + three
+    SVF + resonant 4P, mixer 1.00/0.76/0.33/0.47) instead of adapting
+    our chain toward it; may need a true SVF node (engine gap).
 
 ### 33. AFP excitation stage analysis [read] (2026-08-15)
 docs/research/afpiano_2021/ANALYSIS.md — new dated section from your 4
