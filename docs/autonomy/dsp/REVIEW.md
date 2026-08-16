@@ -29,10 +29,20 @@ roundtripped Piano_bright render hash-identical).
 Save/reload keeps groups, positions, and names; --roundtrip carries the
 section verbatim. Corpus gate stays green (196 patches).
 
-FOLDED (Dipsy, same day): ctrl-click deselect ADDED (98d13da) — ctrl-click
-now toggles a node out of the selection; restart the UI and the TRY list
-above is unblocked. (Verbatim request: "Ctrl-click selects additional
-nodes but *does not deselect*. Let's add that before I test.")
+FOLDED (Dipsy, same day): ctrl-click deselect ADDED (98d13da), then made
+pin-hover-aware (e9f5cac) after "still does not deselect" — root cause of
+the confusion was identical hover/selected colors (dfd4fae, then 34db4b0
+restoring the blue per Matt); breadcrumb-return position loss fixed same
+commit (imnodes frees pool entries for unsubmitted nodes). Piano_bright
+accidentally overwritten during testing — restored from git,
+hash-verified (f5174254...); the shared-source refusal that caused the
+detour is backlog 3q.
+VERDICT (Matt, 2026-08-15): **"Groups and Listen here work great, and
+this is huge. I've organized the piano patch which was previously almost
+a black box to me but now I can easily home in on each component."**
+Item CLOSED. His four excitation next-step proposals assessed in the
+session (option 3 both-references CMA recommended first, option 2 ladder
+alongside, 1 as fast inner loop later, 4 deferred).
 
 ### 31. 3n CLOSED — UI saves are now render-faithful [read] (2026-08-15)
 Every one of the 33 patches whose UI save round-trip changed their sound
