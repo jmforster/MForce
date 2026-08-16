@@ -182,6 +182,15 @@ Priority order. Tags per WORKFLOW.md. (G1)-(G4) = GOALS.md Dipsy goals.
    KNOWN_DIFFS until the gate is empty. Until then: don't re-save
    library patches from the UI without diffing the render.
 
+3r. **[listen-prep] Soprano alt-formant A/B re-render** — Matt (REVIEW 25
+   response): he deleted the renders AND the pending patches, recalls "no
+   good candidates" but wants a re-do to be sure, and invites setting
+   variations based on that recollection. Regenerate the 4 A/B pairs from
+   the run-25 recipe (alto formant table, unmoved, sung at A4; O pair as
+   control) against the CURRENT library/voice soprano files (his merged
+   picks), plus 1-2 variation arms since the originals didn't convince.
+   Queue as a fresh [listen].
+
 3q. **[build] Groups: shared-source selections hit the two-output refusal**
    — Matt (2026-08-15, testing REVIEW 32): a WhiteNoise feeding two
    consumers straddling the intended boundary refuses ("2 outputs"), and
