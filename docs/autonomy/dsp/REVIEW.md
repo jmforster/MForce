@@ -16,9 +16,23 @@ noise, feeble hit") measured TRUE — step_3 hits hit 50% in ~4-30 ms,
 rev 1's linear 350 ms decay was at ~92% there. Arms rebuilt as the
 measured CLACK (fast drop 50%@~17 ms, 10%@~100 ms, bed -32 dB,
 verified at the Combined7 tap; attack spectrum was already on target —
-the gap was temporal). Same filenames. Verdict decides: which arm
-becomes the excitation base, then move B (exc_lp knee retune +
-emphasis) runs on the winner.
+the gap was temporal). Same filenames. REV 3 (same day, Matt: "much better but weak attack +
+chuffy tail"): all three claims MEASURED — rise time already matches
+(7.7 ms both); the weak attack is a CREST deficit (his transient 4.6x
+over first-30 ms energy vs our 2.7x) plus COMPONENT SEPARATION (his
+bright rap and low clunk peak ~30 ms apart; ours stacked at -7 ms);
+tail centroid 664 vs his 501 Hz. Two new arms shipped
+(pb_exc_B1_sharp: 2 ms attack + steeper drop; pb_exc_B2_sep: + knock
+bloom delayed to 25 ms) — HONEST RESULT: crest only 2.7 -> 3.0 and the
+knock delay did NOT move separation (the low peak is the HammerBank's
+fundamental ring, not the knock). Envelope lever is exhausted at ~3.0:
+the resonant bank + body LP smear whatever the envelope sharpens, and
+his 1-4 kHz rap has no un-smeared path in our chain (our click band
+sits at 4-9.5k). The crest/separation/tail gaps are all move-B
+territory: restructure excitation filters toward his measured chain
+(resonant 4P body with the ~1.5-2k knee, a FAST 1-4k rap path, mix
+rebalance). Recommend judging AE-vs-ctrl for the bed/clack decision and
+skipping fine env comparisons; move B proposal next.
 
 ### 33. AFP excitation stage analysis [read] (2026-08-15)
 docs/research/afpiano_2021/ANALYSIS.md — new dated section from your 4

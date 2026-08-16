@@ -48,12 +48,41 @@ ARMS = {
     "pb_exc_AE_lo": (0.010,  0.03,  0.450),
 }
 
+# Rev 3 (Matt's rev-2 verdict, measured): crest deficit (his 4.6 vs our
+# 2.7 over the first 30 ms) and component separation (his bright rap and
+# low clunk peak ~30 ms apart; ours stacked). Arms move one mechanism:
+#   B1_sharp : hotter initial transient — 2 ms attack, steeper first drop
+#   B2_sep   : B1 + knock env blooms late (attack 1 -> 25 ms), separating
+#              the low clunk from the rap the way step_3 measures
+SHARP = {
+    # name              attack  drop_to@25ms  bed    release  knock_atk
+    "pb_exc_B1_sharp": (0.002,  0.30,         0.06,  0.450,   None),
+    "pb_exc_B2_sep":   (0.002,  0.30,         0.06,  0.450,   0.025),
+}
+
 def main():
     base = json.loads(SRC.read_text(encoding="utf-8"))
     PDIR.mkdir(parents=True, exist_ok=True)
     RDIR.mkdir(parents=True, exist_ok=True)
 
     outputs = {"pb_exc_ctrl": SRC}
+    for name, (atk, drop, bed, rel, knock_atk) in SHARP.items():
+        doc = copy.deepcopy(base)
+        for n in doc["graph"]["nodes"]:
+            if n["id"] == "env1":
+                tail = max(bed, 0.01)
+                n["params"] = {"timeMode": "seconds", "stages": [
+                    stage(0.0, 1.0, atk),
+                    stage(1.0, drop, 0.025),
+                    stage(drop, tail, 0.100, "Sine"),
+                    stage(tail, tail, 0.0),
+                    stage(tail, 0.0, rel, "Sine")]}
+            if n["id"] == "env3" and knock_atk is not None:
+                n["params"] = dict(n["params"])
+                n["params"]["attack"] = knock_atk
+        p2 = PDIR / f"{name}.json"
+        p2.write_text(json.dumps(doc, indent=2), encoding="utf-8")
+        outputs[name] = p2
     for name, (atk, bed, rel) in ARMS.items():
         doc = copy.deepcopy(base)
         for n in doc["graph"]["nodes"]:
