@@ -28,23 +28,24 @@ def stage(startVal, endVal, seconds, type_="Linear"):
             "percent": seconds, "minSec": 0.0, "maxSec": 0.0,
             "holdPct": 0.0, "power": 0.0}
 
-def env1_stages(attack, decay, bed, release):
-    # adsr shape: attack -> decay-to-bed -> sustain expand -> release.
-    # timeMode "seconds": percent = literal seconds; expand (percent 0)
-    # fills the held region; the release lands at the end of the note
-    # (note-contained sound semantics).
+def env1_stages(attack, bed, release):
+    # CLACK shape, measured from AFP step_3 hits (50% in ~15-30 ms, 10%
+    # by ~100 ms, tail to ~300 ms): fast two-segment drop, then the bed
+    # (held-key noise), release at note end. The first ladder cut used a
+    # LINEAR 350 ms decay — still at ~92% level after 30 ms — which Matt
+    # correctly heard as "a chuff of white noise with a feeble hit".
+    tail = max(bed, 0.01)
     return [stage(0.0, 1.0, attack),
-            stage(1.0, bed, decay),
-            stage(bed, bed, 0.0),
-            stage(bed, 0.0, release, "Sine")]
+            stage(1.0, 0.35, 0.030),           # fast drop: 50% by ~20 ms
+            stage(0.35, tail, 0.100, "Sine"),  # to ~10% by ~100 ms
+            stage(tail, tail, 0.0),            # held bed (expand)
+            stage(tail, 0.0, release, "Sine")]
 
 ARMS = {
-    # name           attack  decay   bed    release
-    # A alone = longer burst DECAY (a release from a zero bed is a no-op,
-    # measured: first cut of this arm was byte-equivalent to control).
-    "pb_exc_A":     (0.020,  0.350,  0.0,   0.020),
-    "pb_exc_AE":    (0.020,  0.350,  0.18,  0.450),
-    "pb_exc_AE_lo": (0.020,  0.350,  0.09,  0.450),
+    # name           attack  bed    release
+    "pb_exc_A":     (0.010,  0.0,   0.250),
+    "pb_exc_AE":    (0.010,  0.06,  0.450),
+    "pb_exc_AE_lo": (0.010,  0.03,  0.450),
 }
 
 def main():
@@ -53,12 +54,12 @@ def main():
     RDIR.mkdir(parents=True, exist_ok=True)
 
     outputs = {"pb_exc_ctrl": SRC}
-    for name, (atk, dec, bed, rel) in ARMS.items():
+    for name, (atk, bed, rel) in ARMS.items():
         doc = copy.deepcopy(base)
         for n in doc["graph"]["nodes"]:
             if n["id"] == "env1":
                 n["params"] = {"timeMode": "seconds",
-                               "stages": env1_stages(atk, dec, bed, rel)}
+                               "stages": env1_stages(atk, bed, rel)}
         p = PDIR / f"{name}.json"
         p.write_text(json.dumps(doc, indent=2), encoding="utf-8")
         outputs[name] = p

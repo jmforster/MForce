@@ -11,9 +11,14 @@ from dead (-82 dB @1.5 s) to alive (-24/-30); attack peaks rebalance
 (C4 ~2x — judge timbre first, levels re-anchor later). HELD keys now
 carry a bow-like noise bed on the AE arms — hand-play them, not just
 the WAVs. Anti-result: lengthening the release alone is a no-op from a
-zero bed. Verdict decides: which arm (or an interpolation) becomes the
-excitation base, then move B (exc_lp knee retune + emphasis) runs on
-the winner.
+zero bed. REV 2 same day: Matt's Listen-here verdict on rev 1 ("chuff of white
+noise, feeble hit") measured TRUE — step_3 hits hit 50% in ~4-30 ms,
+rev 1's linear 350 ms decay was at ~92% there. Arms rebuilt as the
+measured CLACK (fast drop 50%@~17 ms, 10%@~100 ms, bed -32 dB,
+verified at the Combined7 tap; attack spectrum was already on target —
+the gap was temporal). Same filenames. Verdict decides: which arm
+becomes the excitation base, then move B (exc_lp knee retune +
+emphasis) runs on the winner.
 
 ### 33. AFP excitation stage analysis [read] (2026-08-15)
 docs/research/afpiano_2021/ANALYSIS.md — new dated section from your 4
