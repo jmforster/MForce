@@ -182,6 +182,21 @@ Priority order. Tags per WORKFLOW.md. (G1)-(G4) = GOALS.md Dipsy goals.
    KNOWN_DIFFS until the gate is empty. Until then: don't re-save
    library patches from the UI without diffing the render.
 
+3q. **[build] Groups: shared-source selections hit the two-output refusal**
+   — Matt (2026-08-15, testing REVIEW 32): a WhiteNoise feeding two
+   consumers straddling the intended boundary refuses ("2 outputs"), and
+   the natural workaround — duplicate the noise node — SILENTLY CHANGES
+   THE SOUND (the duplicate is an independent RNG stream; the original
+   fan-out was one correlated source via RefSource). He also overwrote
+   Piano_bright doing it (restored from git, hash-verified). Options:
+   (a) allow multiple output pins on a collapsed group (boundary already
+   computes them; the refusal is policy, not mechanics); (b) treat a
+   source feeding both sides as an INPUT-side pass-through rather than an
+   output; (c) at minimum, warn in the Duplicate menu item that a
+   duplicated generator gets a fresh random stream. (a) looks right —
+   the single-output rule came from "a group IS a ValueSource", but a
+   multi-out group is just a group with two taps.
+
 3p. **[build] FormantSequence1 is CLI-unrenderable and migrates silent** —
    found closing 3n. The baselines patch uses the LEGACY inline formant
    form (structs, no refs), which the CLI loader never supported ("key
