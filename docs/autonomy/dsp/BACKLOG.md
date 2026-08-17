@@ -182,6 +182,21 @@ Priority order. Tags per WORKFLOW.md. (G1)-(G4) = GOALS.md Dipsy goals.
    KNOWN_DIFFS until the gate is empty. Until then: don't re-save
    library patches from the UI without diffing the render.
 
+3s. **[build] Resurrect SlewLimiterSource Peak mode as an envelope
+   follower** — Matt-approved logging 2026-08-16. Run 21 built
+   SlewLimiterSource (Slew/Lag/Peak); run 22 reverted the family per
+   Matt's "dead end" verdict on the CLICK use case — but Peak mode was
+   a true envelope follower (|x| + asymmetric attack/release), which
+   the AFP-31 study showed is a general-purpose block: AF uses it both
+   as a cheap AD generator (trigger pulse -> percussive env) and as a
+   step de-clicker (feedback crossfade smoothing). Future uses Matt
+   named: AUTO-WAH (follower drives a filter cutoff from signal level —
+   the SVFSource resonant LP is the natural partner) and SIDECHAIN
+   DUCKING (follower on one signal modulates another's gain). The
+   reverted code is in git history (run 21, commit era ~2026-08-05);
+   resurrect Peak mode only, as its own small node (EnvFollowerSource?)
+   rather than the three-mode family that got killed.
+
 3r. **[listen-prep] Soprano alt-formant A/B re-render** — Matt (REVIEW 25
    response): he deleted the renders AND the pending patches, recalls "no
    good candidates" but wants a re-do to be sure, and invites setting
