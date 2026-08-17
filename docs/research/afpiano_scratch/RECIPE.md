@@ -128,9 +128,29 @@ was chasing; it is SIMPLER than both the 2021 predecessor and our patch.
   string (his video never demos the top octaves) — v3 is faithful, v3b
   floors the excitation cutoff at f0 so treble stays alive.
 
+## Values read from frames (2026-08-17 pass 3 — "any other guesses?")
+- **Excitation SVF cutoff is FIXED, not pitch-tracked** [z_brightness]:
+  a separate Brightness knob = 91.50 (0-150 MIDI) ~= 1614 Hz feeds the
+  SVF cutoff; Resonance knob (range 0.001-12) sits low ~1.2 and feeds
+  both the SVF R and the Div. B2 = 6 = the x6. Only the Filter 1P
+  receives the limited pitch min(pitch+12, 60.82).
+- **Post chain** [z_postsvf, z_detune_2130]: Low cut knob = 3.30
+  (range 0-12, semitones) added to limited pitch -> Body HP (Filter
+  2P 1, R 1 = 3, H tap); then Filter 2P 2 (R 2 = 8, L tap) -> Div by
+  res; then a FINAL Filter 1P fed the plain (+12-compensated) pitch.
+  Velocity crossfade A=12 / B=64 confirmed on-screen.
+- **String internals** [z_string_1940, z_string_2010, z_damp_1325]:
+  original String 1 held feedback = **0.9995** (not 0.999) -> t60 =
+  13800/f; released = 0.8; follower 0.0 ms / 210.2 ms confirmed.
+  Allpass FB: String 1 = 0.1, String 2 = 0.2. In-loop damping 1P
+  cutoff = gate-follower x knob **135.00** (0-150 MIDI ~= 20 kHz):
+  nearly OPEN while held, slides to 0 over 210 ms on release — the
+  damping filter IS the damper, brightness is flat, not pitch-tracked.
+  Detune knob (cents, 0.001-24) read 0.00/~0.38 mid-build — his final
+  value still unread.
+
 ## Still to read (dense-frame pass when needed)
-- brightness/resonance knob value (range 1.01-12, transcript);
-  per-string allpass FB exact trio (0.1 / 0.2 / 0.125? transcript) and
-  per-string damping cutoffs; env-follower attack knobs (~9-10 ms +
-  curve mod); post SVF cutoff knobs + low-cut; velocity crossfade
-  endpoints (12 / 64, transcript); damper-noise layer LP + strength.
+- final detune cents; per-string damping-cutoff differences (if any);
+  env-follower attack knobs (~9-10 ms + curve mod) on the Reverb path;
+  damper-noise "fake reverb" layer LP + strength (section 6,
+  unimplemented).

@@ -27,7 +27,7 @@ namespace mforce {
 // CPU-audit convention).
 // ---------------------------------------------------------------------------
 struct SVFSource final : ValueSource {
-  enum Mode { kLowpass = 0, kHighpass = 1, kBandpass = 2 };
+  enum Mode { kLowpass = 0, kHighpass = 1, kBandpass = 2, kLowpass1P = 3, kHighpass1P = 4 };
 
   explicit SVFSource(int sampleRate) : sampleRate_(sampleRate) {}
 
@@ -51,9 +51,10 @@ struct SVFSource final : ValueSource {
 
   std::span<const ConfigDescriptor> config_descriptors() const override {
     static const char* const kModeLabels[] = {"Lowpass", "Highpass",
-                                              "Bandpass", nullptr};
+                                              "Bandpass", "Lowpass1P",
+                                              "Highpass1P", nullptr};
     static const ConfigDescriptor descs[] = {
-      {"mode",      ConfigType::Int,  float(kLowpass), 0.0f, 2.0f, kModeLabels},
+      {"mode",      ConfigType::Int,  float(kLowpass), 0.0f, 4.0f, kModeLabels},
       // Divide the output by the resonance (AF "brightness" semantics:
       // resonance shapes color while the level stays put).
       {"normalize", ConfigType::Bool, 0.0f, 0.0f, 1.0f},
@@ -75,7 +76,7 @@ struct SVFSource final : ValueSource {
   }
 
   void set_config(std::string_view name, float v) override {
-    if (name == "mode")      { mode_ = std::clamp(int(v), 0, 2); return; }
+    if (name == "mode")      { mode_ = std::clamp(int(v), 0, 4); return; }
     if (name == "normalize") { normalize_ = (v != 0.0f); return; }
   }
 
@@ -91,6 +92,7 @@ struct SVFSource final : ValueSource {
     if (resonance_)  resonance_->prepare(ctx, frames);
     ic1eq_ = 0.0f;
     ic2eq_ = 0.0f;
+    lp1_ = 0.0f;
   }
 
   float next() override {
@@ -109,6 +111,16 @@ struct SVFSource final : ValueSource {
       k_ = k;
       lastFc_ = fc;
       lastRes_ = res;
+    }
+
+    // 1-pole modes (AF "Filter 1P": 6 dB/oct, no resonance) share the
+    // cutoff smoothing but bypass the 2-pole core.
+    if (mode_ == kLowpass1P || mode_ == kHighpass1P) {
+      const float g1 = std::tan(3.14159265358979323846f * lastFc_ / float(sampleRate_));
+      const float a = g1 / (1.0f + g1);
+      lp1_ += a * (in - lp1_);
+      cur_ = (mode_ == kLowpass1P) ? lp1_ : in - lp1_;
+      return cur_;
     }
 
     const float v3 = in - ic2eq_;
@@ -140,6 +152,7 @@ private:
   float a1_{0.0f}, a2_{0.0f}, a3_{0.0f}, k_{1.0f};
   float lastFc_{-1.0f}, lastRes_{-1.0f};
   float ic1eq_{0.0f}, ic2eq_{0.0f};
+  float lp1_{0.0f};
   float cur_{0.0f};
 };
 

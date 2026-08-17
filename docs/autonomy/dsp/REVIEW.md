@@ -53,6 +53,29 @@ at -48 dB (his video never plays up there) — **afp31_v3.wav = fully
 faithful (dark/dead top), afp31_v3b.wav = identical except the
 excitation cutoff floors at f0 so treble stays alive.** A/B both; low
 and mid registers are byte-similar between them.
+V4 (2026-08-17, Matt: "any other guessed settings readable off the
+video?" — yes, and two changed the topology; RECIPE pass 3):
+**LISTEN afp31_v4.wav — supersedes v3/v3b.** (1) The excitation SVF
+cutoff is NOT pitch-tracked: it's a separate Brightness knob FIXED at
+91.50 MIDI ~= 1.6 kHz (eerily = my retracted 1660 Hz "calibration" —
+the 2021 knee was this filter), res 1.2 (not 6). Only the 1P tracks
+min(2f0, 277) — and it's 6 dB/oct, so C6 loses ~12 dB, not 48: the
+v3b floor concession is withdrawn, one faithful patch again. New
+SVFSource Lowpass1P/Highpass1P modes power it. (2) In-loop damping
+decoded (z_damp_1325): loop-filter cutoff = gate-follower x knob 135
+MIDI ~= 20 kHz while held — the loop is nearly OPEN; all release choke
+is the follower slide. So string brightness is FLAT 0.926 (20 kHz
+one-pole coeff), not my pitch-tracked curve, and held feedback reads
+0.9995 (not 0.999) -> t60 = 13800/f. (3) Body HP = limited + Low cut
+3.30 semis (min(2f0, 277) x 1.21, res 3). (4) The missing FINAL 1P
+added after vel_lp, cutoff = 2f0. Measured: C4 sustains -14 dB with
+gentle decay then clean 210 ms damp; C6 alive (peak -8.9 dB, faster
+fade = known short-delay frac loss, engine not patch). Faithful
+caveat: C2 peaks ~15 dB under C4 (Body HP at 158 Hz + final 1P tilt
+— that's what the topology does; his video bass is fundamental-light
+too). Still guessed: detune cents (his knob mid-build read 0.00/~0.38),
+per-string damping-cutoff trio, damper-noise "fake reverb" layer
+(unimplemented, recipe section 6).
 
 ### 34. AFP excitation ladder — moves A+E [listen] (2026-08-15)
 renders/dsp/pending/ks_piano_v6/pb_exc_*.wav + README_pb_exc.md.

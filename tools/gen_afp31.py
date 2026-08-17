@@ -1,19 +1,27 @@
-"""afp31_v3 — from-scratch rebuild of the AFNoding-031 piano per
+"""afp31_v4 — from-scratch rebuild of the AFNoding-031 piano per
 docs/research/afpiano_scratch/RECIPE.md (build-video archaeology).
 
-Chain: WhiteNoise x gated env (10 ms curved attack)
-       -> SVF LP (res = brightness, normalized, cutoff = min(2*f0, STIFF))
-       -> x6 -> SVF LP gentle (his 1P; we lack a true one-pole — noted)
-       -> KSPianoString (3 combs = his 3 strings; t60 = 6900/f == his
-          fixed 0.999 held feedback; releaseFb 0.8 == his released value;
-          damper drop ~210 ms == his env-follower smoothing)
-       -> SVF HP res 3 (Body: kills lows below the note)
-       -> SVF LP res 8 normalized (velocity-dependent brightness:
-          cutoff = f0 x 2^(12..64 semitones / 12) via curve x vcurve)
-       -> Output.
+v4 = every previously guessed value replaced by a frame-read one
+(frames z_brightness / z_postsvf, 2026-08-17):
+- exc SVF cutoff is FIXED at Brightness knob 91.50 MIDI = ~1614 Hz
+  (NOT pitch-tracked; only the 1P tracks the clamp). Resonance 1.2.
+- exc "Filter 1P" is a true one-pole (6 dB/oct) at limited pitch
+  min(2*f0, 277 Hz) — new SVFSource Lowpass1P mode. Being the ONLY
+  clamped stage, C6 loses just ~12 dB (v3's stacked resonant clamps
+  buried it 48 dB; the v3b floor concession is no longer needed).
+- Body HP cutoff = limited + Low cut knob 3.30 semitones
+  = min(2*f0, 277) * 1.21, res 3 (frame: R 1 = 3).
+- vel LP res 8 (frame: R 2 = 8), cutoff = limited + 12..64 semis by vel.
+- NEW final 1P after vel LP ("receives simply the pitch"): one-pole at
+  f0, untracked by the clamp. TUNE: could be 2*f0 if "pitch" there is
+  the +12-compensated signal.
 
-STIFF = MIDI 60.82 -> 277 Hz. All tracked cutoffs use the clamp curve —
-his "key insight". Unknowns marked TUNE are first A/B targets.
+Chain: WhiteNoise x one-shot env -> SVF LP 1614 Hz res 1.2 (/res)
+       -> x6 -> 1P LP @ min(2*f0, 277)
+       -> KSPianoString (3 combs, t60 = 6900/f == his fixed 0.999,
+          releaseFb 0.8, damper drop ~210 ms)
+       -> SVF HP res 3 (Body) -> SVF LP res 8 /res (velocity brightness)
+       -> 1P LP @ f0 -> Output.
 """
 import json, subprocess, sys
 from pathlib import Path
@@ -23,53 +31,43 @@ PDIR = ROOT / "patches/pending/afp31"
 RDIR = ROOT / "renders/dsp/pending/afp31"
 CLI  = ROOT / "build/tools/mforce_cli/Release/mforce_cli.exe"
 
-# v3: AF units ARE plain MIDI (frame z_velxfade settled it: the velocity
-# crossfade 12..64 is ADDED to limited pitch in semitones — only plain
-# MIDI makes 60.82+64 land at a sane 12.5 kHz). The earlier x6 came from
-# conflating the 2021 patch's 4P output knee with THIS patch's excitation
-# cutoff — and was exactly Matt's "chuff a little too high frequency".
-STIFF_HZ = 277.0   # MIDI 60.82, plain
+STIFF_HZ  = 277.0    # stiffness 60.82 MIDI, plain units
+BRIGHT_HZ = 1614.0   # Brightness knob 91.50 MIDI — FIXED exc cutoff
+LOWCUT    = 2.0 ** (3.30 / 12.0)   # Low cut knob 3.30 semitones -> x1.21
 
 def stage(a, b, sec, t="Linear", power=0.0):
     return {"startVal": a, "endVal": b, "type": t, "percent": sec,
             "minSec": 0.0, "maxSec": 0.0, "holdPct": 0.0, "power": power}
 
-# v3 hit envelope, read off the frames (z_envfollow): Trg->Gate makes a
-# 10 ms PULSE; the "Hit length" follower is attack 0.0 ms / release
-# 361 ms. So: INSTANT attack, 10 ms hold, ~exponential 361 ms release
-# (two-segment approximation of the exp tail). v2's 10 ms Sine ramp was
-# wrong on both ends — Matt's "attack too harsh + tail too long" verdict
-# pointed here and at the cutoff units.
+# Hit envelope read off z_envfollow: Trg->Gate 10 ms pulse; follower
+# attack 0.0 ms / release 361 ms -> instant attack, 10 ms hold,
+# ~exponential 361 ms release (two-segment approximation).
 EXC_ENV = [stage(0.0, 1.0, 0.001),
            stage(1.0, 1.0, 0.010),
            stage(1.0, 0.15, 0.110, "Sine"),
            stage(0.15, 0.0, 0.250, "Sine"),
            stage(0.0, 0.0, 0.0)]
 
-# All tracking curves use "interp": "loglog" (2026-08-17): log-value over
-# log-frequency interpolation makes a 2-point curve EXACTLY y = k*f^n, so
-# the power laws below need only their endpoints + explicit clamp points
-# (Matt: "that's a LOT of points... can we fit a formula?" — this is the
-# formula, in curve clothing).
+# All tracking curves use "interp":"loglog": 2-point curve == y = k*f^n.
 
-def clamp2f_curve():
-    # limited pitch: min(pitch+12, stiffness) == min(2*f0, 277 Hz).
+def clamp2f_curve(mult=1.0):
+    # mult * min(2*f0, 277): the "limited pitch", optionally offset.
     knee = round(STIFF_HZ / 2.0, 2)
-    return [[20.0, 40.0], [knee, STIFF_HZ], [16000.0, STIFF_HZ]]
+    return [[20.0, round(40.0 * mult, 2)],
+            [knee, round(STIFF_HZ * mult, 2)],
+            [16000.0, round(STIFF_HZ * mult, 2)]]
 
-def clampf_curve(hi):
-    # min(f0, hi) — the Body highpass tracks the note, clamped.
-    return [[20.0, 20.0], [hi, hi], [16000.0, hi]]
-
-def track_curve(mult, lo, hi):
-    # min(max(mult*f, lo), hi): flat - power - flat.
-    f_lo = round(lo / mult, 2)
-    f_hi = round(hi / mult, 2)
-    return [[20.0, lo], [f_lo, lo], [f_hi, hi], [16000.0, hi]]
+def ident_curve():
+    # Final 1P cutoff = 2*f0: the pitch signal feeding every filter is the
+    # +12-compensated one; only stages wired through the Min get clamped.
+    # (At plain f0 the bass register measured 17 dB under C4 — too dark.)
+    return [[20.0, 40.0], [8000.0, 16000.0], [16000.0, 16000.0]]
 
 def t60_curve():
-    # t60 = 6900/f (== fixed 0.999 per-pass feedback): pure power law.
-    return [[20.0, 345.0], [16000.0, 0.431]]
+    # t60 = 13800/f: frame z_string_1940 shows held feedback 0.9995 (not
+    # 0.999). Engine clamps t60 to 60 s, so the bottom ~2 octaves flatten
+    # there — inaudible over a 3.5 s note.
+    return [[20.0, 690.0], [16000.0, 0.863]]
 
 PATCH = {
   "sampleRate": 48000,
@@ -80,15 +78,14 @@ PATCH = {
       {"id": "noise", "type": "WhiteNoiseSource",
        "params": {"amplitude": {"ref": "exc_env"}}},
       {"id": "exc_svf", "type": "SVFSource",
-       "params": {"source": {"ref": "noise"}, "cutoffFreq": 200.0,
-                   "resonance": 6.0,  # TUNE: brightness 1.01-12
-                   "mode": "Lowpass", "normalize": True}},
+       "params": {"source": {"ref": "noise"}, "cutoffFreq": BRIGHT_HZ,
+                   "resonance": 1.2, "mode": "Lowpass", "normalize": True}},
       {"id": "exc_gain", "type": "CombinedSource",
        "params": {"source1": {"ref": "exc_svf"}, "source2": 6.0,
                    "operation": "multiply"}},
       {"id": "exc_1p", "type": "SVFSource",
        "params": {"source": {"ref": "exc_gain"}, "cutoffFreq": 200.0,
-                   "resonance": 0.707, "mode": "Lowpass", "normalize": False}},
+                   "resonance": 0.707, "mode": "Lowpass1P", "normalize": False}},
       {"id": "env_damper", "type": "Envelope",
        "params": {"stages": [
           {"startVal": 0.0, "endVal": 0.0, "type": "Linear", "percent": 0.0,
@@ -100,9 +97,14 @@ PATCH = {
       {"id": "string", "type": "KSPianoString",
        "params": {"source": {"ref": "exc_1p"}, "frequency": 220.0,
                    "numCombs": 3, "detune": 1.0, "t60": 10.0,
-                   "brightness": 0.72,       # TUNE: his in-loop damping 1P
+                   # Frame z_damp_1325: in-loop damping 1P cutoff = gate
+                   # follower x knob 135 MIDI ~= 20 kHz while held (nearly
+                   # open; release choke is the damper env, already modeled).
+                   # 20 kHz one-pole at 48k -> coeff 1-exp(-2*pi*fc/sr) = 0.926,
+                   # FLAT — not pitch-tracked as guessed in v3.
+                   "brightness": 0.926,
                    "exciteGain": 1.0, "direct": 0.0,
-                   "dispersion": 0.12,       # TUNE: his per-string allpass fb 0.1-0.2
+                   "dispersion": 0.12,       # TUNE: per-string allpass fb 0.1-0.2
                    "inharmGain": 0.0, "inharmFb": 0.0, "inharmHp": 150.0,
                    "ap1": 0.55, "ap2": 0.35, "ap3": 0.2,
                    "fbCoeff": 0.0, "releaseFb": 0.8, "damperNoise": 0.0,
@@ -113,23 +115,24 @@ PATCH = {
       {"id": "vel_lp", "type": "SVFSource",
        "params": {"source": {"ref": "body_hp"}, "cutoffFreq": 2000.0,
                    "resonance": 8.0, "mode": "Lowpass", "normalize": True}},
+      {"id": "final_1p", "type": "SVFSource",
+       "params": {"source": {"ref": "vel_lp"}, "cutoffFreq": 440.0,
+                   "resonance": 0.707, "mode": "Lowpass1P", "normalize": False}},
     ],
-    "output": "vel_lp"
+    "output": "final_1p"
   },
   "instrument": {
     "polyphony": 4,
-    "volume": 0.8,
+    "volume": 4.0,
     "paramMap": {
       "frequency": [
         "string.frequency",
-        {"target": "exc_svf.cutoffFreq", "curve": clamp2f_curve(), "interp": "loglog"},
-        {"target": "exc_1p.cutoffFreq",  "curve": clamp2f_curve(), "interp": "loglog"},
-        {"target": "string.t60",         "curve": t60_curve(), "interp": "loglog"},
-        {"target": "string.brightness",  "curve": [[20.0, 0.82], [65.0, 0.85],
-            [262.0, 0.93], [1046.0, 0.985], [4186.0, 0.995], [16000.0, 0.995]]},
-        {"target": "body_hp.cutoffFreq", "curve": clampf_curve(138.6), "interp": "loglog"},
-        {"target": "vel_lp.cutoffFreq",  "curve": clamp2f_curve(),
-         "interp": "loglog", "vcurve": [[0.0, 2.0], [1.0, 40.3]]},  # limited + 12..64 semitones
+        {"target": "exc_1p.cutoffFreq",   "curve": clamp2f_curve(), "interp": "loglog"},
+        {"target": "string.t60",          "curve": t60_curve(), "interp": "loglog"},
+        {"target": "body_hp.cutoffFreq",  "curve": clamp2f_curve(LOWCUT), "interp": "loglog"},
+        {"target": "vel_lp.cutoffFreq",   "curve": clamp2f_curve(),
+         "interp": "loglog", "vcurve": [[0.0, 2.0], [1.0, 40.3]]},  # +12..64 semis
+        {"target": "final_1p.cutoffFreq", "curve": ident_curve(), "interp": "loglog"},
       ]
     }
   },
@@ -141,33 +144,18 @@ PATCH = {
   ]
 }
 
-def treble_floor_curve():
-    # v3b concession: max(min(2*f0, 277), f0) — faithful clamp through the
-    # mids, but the excitation is never darker than the note itself, so
-    # the top octaves stay alive (his video never demos above ~C5; a
-    # literal 277 Hz clamp leaves C6 at -48 dB into the string).
-    knee = round(STIFF_HZ / 2.0, 2)
-    return [[20.0, 40.0], [knee, STIFF_HZ], [STIFF_HZ, STIFF_HZ],
-            [16000.0, 16000.0]]
-
 def main():
     PDIR.mkdir(parents=True, exist_ok=True)
     RDIR.mkdir(parents=True, exist_ok=True)
-    for name, floor in (("afp31_v3", False), ("afp31_v3b", True)):
-        doc = json.loads(json.dumps(PATCH))
-        if floor:
-            for e in doc["instrument"]["paramMap"]["frequency"]:
-                if isinstance(e, dict) and e["target"] in (
-                        "exc_svf.cutoffFreq", "exc_1p.cutoffFreq"):
-                    e["curve"] = treble_floor_curve()
-        p2 = PDIR / (name + ".json")
-        p2.write_text(json.dumps(doc, indent=2), encoding="utf-8")
-        wav = RDIR / (name + ".wav")
-        r = subprocess.run([str(CLI), str(p2), str(wav)], capture_output=True, text=True)
-        line = [l for l in r.stdout.splitlines() if "peak=" in l]
-        print(name, "OK" if r.returncode == 0 else "FAIL",
-              line[-1].strip() if line else (r.stdout + r.stderr)[-150:])
-    return 0
+    name = "afp31_v4"
+    p2 = PDIR / (name + ".json")
+    p2.write_text(json.dumps(PATCH, indent=2), encoding="utf-8")
+    wav = RDIR / (name + ".wav")
+    r = subprocess.run([str(CLI), str(p2), str(wav)], capture_output=True, text=True)
+    line = [l for l in r.stdout.splitlines() if "peak=" in l]
+    print(name, "OK" if r.returncode == 0 else "FAIL",
+          line[-1].strip() if line else (r.stdout + r.stderr)[-150:])
+    return 0 if r.returncode == 0 else 1
 
 if __name__ == "__main__":
     sys.exit(main())
