@@ -112,6 +112,22 @@ was chasing; it is SIMPLER than both the 2021 predecessor and our patch.
   "3 Strings"; "Velocity dependent LP filtering — the lower the
   velocity the darker the sound"; "Low cut".
 
+## Values read from frames (2026-08-17 pass 2 — Matt's v2 verdict pass)
+- **AF units are PLAIN MIDI** — z_velxfade: the velocity crossfade
+  endpoints A=12 / B=64 are ADDED to limited pitch (Add node), which
+  only lands sanely (587 Hz .. 12.5 kHz) in plain MIDI. The earlier x6
+  "calibration" conflated the 2021 patch's 4P output knee with this
+  patch's excitation cutoff. Stiffness 60.82 = ~277 Hz, literally.
+- **Hit envelope** — z_envfollow: Trg->Gate Time = 10 ms (a PULSE) into
+  "Hit length" env follower attack 0.0 ms / release 361 ms; so the hit
+  is INSTANT attack, 10 ms hold, ~exp 361 ms release. The "Reverb
+  length" follower: attack ~15 ms / release 462.2 ms (matches 2021).
+- **Post-chain resonances confirmed**: SVF1 (Body HP) res 3, SVF2
+  (velocity LP) res 8 with divide-by-res.
+- v3/v3b consequence: faithful 277 Hz clamp leaves C6 ~-48 dB into the
+  string (his video never demos the top octaves) — v3 is faithful, v3b
+  floors the excitation cutoff at f0 so treble stays alive.
+
 ## Still to read (dense-frame pass when needed)
 - brightness/resonance knob value (range 1.01-12, transcript);
   per-string allpass FB exact trio (0.1 / 0.2 / 0.125? transcript) and

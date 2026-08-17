@@ -1,4 +1,4 @@
-"""afp31_v2 — from-scratch rebuild of the AFNoding-031 piano per
+"""afp31_v3 — from-scratch rebuild of the AFNoding-031 piano per
 docs/research/afpiano_scratch/RECIPE.md (build-video archaeology).
 
 Chain: WhiteNoise x gated env (10 ms curved attack)
@@ -23,23 +23,27 @@ PDIR = ROOT / "patches/pending/afp31"
 RDIR = ROOT / "renders/dsp/pending/afp31"
 CLI  = ROOT / "build/tools/mforce_cli/Release/mforce_cli.exe"
 
-# AF filter-cutoff units are NOT plain MIDI-to-Hz: the measured knee of
-# his final excitation filter is ~1.66 kHz where naive MIDI mapping of
-# stiffness 60.82 gives 277 Hz. Calibrate with the measured knee:
-# scale = 1660/277 ~= 6.0 applied to the pitch-tracked excitation cutoffs.
-STIFF_HZ = 277.0 * 6.0   # ~1660 Hz, matches the measured step_3 knee
+# v3: AF units ARE plain MIDI (frame z_velxfade settled it: the velocity
+# crossfade 12..64 is ADDED to limited pitch in semitones — only plain
+# MIDI makes 60.82+64 land at a sane 12.5 kHz). The earlier x6 came from
+# conflating the 2021 patch's 4P output knee with THIS patch's excitation
+# cutoff — and was exactly Matt's "chuff a little too high frequency".
+STIFF_HZ = 277.0   # MIDI 60.82, plain
 
 def stage(a, b, sec, t="Linear", power=0.0):
     return {"startVal": a, "endVal": b, "type": t, "percent": sec,
             "minSec": 0.0, "maxSec": 0.0, "holdPct": 0.0, "power": power}
 
-# ONE-SHOT hit (v2): the env followers are fed by the TRIGGER pulse, not
-# the gate (transcript 25:52) — v1 held full-level noise while the key
-# was down, which a 0.999-feedback comb integrates into a non-decaying
-# sizzle (Matt's verdict, physics agrees). 10 ms curved attack, ~350 ms
-# release matching the measured video hit tails.
-EXC_ENV = [stage(0.0, 1.0, 0.010, "Sine"),
-           stage(1.0, 0.0, 0.350, "Sine"),
+# v3 hit envelope, read off the frames (z_envfollow): Trg->Gate makes a
+# 10 ms PULSE; the "Hit length" follower is attack 0.0 ms / release
+# 361 ms. So: INSTANT attack, 10 ms hold, ~exponential 361 ms release
+# (two-segment approximation of the exp tail). v2's 10 ms Sine ramp was
+# wrong on both ends — Matt's "attack too harsh + tail too long" verdict
+# pointed here and at the cutoff units.
+EXC_ENV = [stage(0.0, 1.0, 0.001),
+           stage(1.0, 1.0, 0.010),
+           stage(1.0, 0.15, 0.110, "Sine"),
+           stage(0.15, 0.0, 0.250, "Sine"),
            stage(0.0, 0.0, 0.0)]
 
 # All tracking curves use "interp": "loglog" (2026-08-17): log-value over
@@ -49,9 +53,13 @@ EXC_ENV = [stage(0.0, 1.0, 0.010, "Sine"),
 # formula, in curve clothing).
 
 def clamp2f_curve():
-    # cutoff = min(12*f0, STIFF_HZ): one power leg + flat clamp.
-    knee = round(STIFF_HZ / 12.0, 2)
-    return [[20.0, 240.0], [knee, STIFF_HZ], [16000.0, STIFF_HZ]]
+    # limited pitch: min(pitch+12, stiffness) == min(2*f0, 277 Hz).
+    knee = round(STIFF_HZ / 2.0, 2)
+    return [[20.0, 40.0], [knee, STIFF_HZ], [16000.0, STIFF_HZ]]
+
+def clampf_curve(hi):
+    # min(f0, hi) — the Body highpass tracks the note, clamped.
+    return [[20.0, 20.0], [hi, hi], [16000.0, hi]]
 
 def track_curve(mult, lo, hi):
     # min(max(mult*f, lo), hi): flat - power - flat.
@@ -119,9 +127,9 @@ PATCH = {
         {"target": "string.t60",         "curve": t60_curve(), "interp": "loglog"},
         {"target": "string.brightness",  "curve": [[20.0, 0.82], [65.0, 0.85],
             [262.0, 0.93], [1046.0, 0.985], [4186.0, 0.995], [16000.0, 0.995]]},
-        {"target": "body_hp.cutoffFreq", "curve": track_curve(0.75, 60.0, 800.0), "interp": "loglog"},
-        {"target": "vel_lp.cutoffFreq",  "curve": track_curve(1.0, 30.0, 12000.0),
-         "interp": "loglog", "vcurve": [[0.0, 2.0], [1.0, 40.0]]},  # +12 .. +64 semitones
+        {"target": "body_hp.cutoffFreq", "curve": clampf_curve(138.6), "interp": "loglog"},
+        {"target": "vel_lp.cutoffFreq",  "curve": clamp2f_curve(),
+         "interp": "loglog", "vcurve": [[0.0, 2.0], [1.0, 40.3]]},  # limited + 12..64 semitones
       ]
     }
   },
@@ -133,15 +141,33 @@ PATCH = {
   ]
 }
 
+def treble_floor_curve():
+    # v3b concession: max(min(2*f0, 277), f0) — faithful clamp through the
+    # mids, but the excitation is never darker than the note itself, so
+    # the top octaves stay alive (his video never demos above ~C5; a
+    # literal 277 Hz clamp leaves C6 at -48 dB into the string).
+    knee = round(STIFF_HZ / 2.0, 2)
+    return [[20.0, 40.0], [knee, STIFF_HZ], [STIFF_HZ, STIFF_HZ],
+            [16000.0, 16000.0]]
+
 def main():
     PDIR.mkdir(parents=True, exist_ok=True)
     RDIR.mkdir(parents=True, exist_ok=True)
-    p = PDIR / "afp31_v2.json"
-    p.write_text(json.dumps(PATCH, indent=2), encoding="utf-8")
-    wav = RDIR / "afp31_v2.wav"
-    r = subprocess.run([str(CLI), str(p), str(wav)], capture_output=True, text=True)
-    print(r.stdout[-400:] if r.returncode == 0 else "FAIL\n" + (r.stdout + r.stderr)[-400:])
-    return r.returncode
+    for name, floor in (("afp31_v3", False), ("afp31_v3b", True)):
+        doc = json.loads(json.dumps(PATCH))
+        if floor:
+            for e in doc["instrument"]["paramMap"]["frequency"]:
+                if isinstance(e, dict) and e["target"] in (
+                        "exc_svf.cutoffFreq", "exc_1p.cutoffFreq"):
+                    e["curve"] = treble_floor_curve()
+        p2 = PDIR / (name + ".json")
+        p2.write_text(json.dumps(doc, indent=2), encoding="utf-8")
+        wav = RDIR / (name + ".wav")
+        r = subprocess.run([str(CLI), str(p2), str(wav)], capture_output=True, text=True)
+        line = [l for l in r.stdout.splitlines() if "peak=" in l]
+        print(name, "OK" if r.returncode == 0 else "FAIL",
+              line[-1].strip() if line else (r.stdout + r.stderr)[-150:])
+    return 0
 
 if __name__ == "__main__":
     sys.exit(main())

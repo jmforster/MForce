@@ -37,6 +37,22 @@ registers: attack -> graceful piano-slope decay -> clean damp.
 LISTEN: afp31_v2.wav. Sawtooth-y verdict awaits re-listen on v2 —
 if it persists, first suspects are exc resonance 6 and vel_lp top
 (+64 semis) per the TUNE list.
+V3 + V3B (2026-08-17, after Matt's v2 verdict): every complaint traced
+to a readable value and the frames were read (RECIPE pass 2).
+"Chuff too high-frequency" = my x6 unit calibration was WRONG (AF units
+are plain MIDI; excitation clamp is literally ~277 Hz — matches the
+dark AFP excitation always measured). "Attack too harsh + tail too
+long" = the hit envelope is a 10 ms PULSE into a 0 ms-attack / 361 ms-
+release follower — instant attack, short hold, exp tail (v2 had a Sine
+ramp + Sine tail). "Ba-oh/nasal in low octaves" = my vel_lp read: the
+velocity crossfade 12..64 ADDS to LIMITED pitch, so the res-8 peak is
+register-independent above the clamp (v2 tracked raw f0 and parked the
+peak in the 1.5-2.6 kHz nasal zone on bass notes); body_hp likewise now
+min(f0, 139 Hz). One honest fork: the faithful 277 Hz clamp leaves C6
+at -48 dB (his video never plays up there) — **afp31_v3.wav = fully
+faithful (dark/dead top), afp31_v3b.wav = identical except the
+excitation cutoff floors at f0 so treble stays alive.** A/B both; low
+and mid registers are byte-similar between them.
 
 ### 34. AFP excitation ladder — moves A+E [listen] (2026-08-15)
 renders/dsp/pending/ks_piano_v6/pb_exc_*.wav + README_pb_exc.md.
