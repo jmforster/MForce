@@ -95,8 +95,26 @@ was chasing; it is SIMPLER than both the 2021 predecessor and our patch.
    attachment to our current patch").
 6. Damper noise layer: second envelope + noise + LP — nodes we have.
 
-## Values still to read from frames
-- stiffness value + range; brightness (res) value; envelope attack times
-  and curve amounts; feedback crossfade low value; per-string allpass fb
-  + damping cutoffs; DT1 detune; post SVF cutoffs/low-cut knob; velocity
-  crossfade exact 12/64; x6 multiplier confirm; reverb-layer LP + level.
+## Values read from frames (2026-08-16 pass 1)
+- **stiffness = 60.82** (knob range 0-128) [f_0120]
+- **feedback crossfade: held B = 0.999, released A = 0.8**, smoothed by
+  Env follower Modulated **attack 0.0 ms / release 210.2 ms** [f_0079] —
+  the damper IS a 210-ms-smoothed feedback drop 0.999 -> 0.8.
+- **Detune: CENTS mode, knob range 0.001-24**, String1 = pitch+detune,
+  String2 = pitch-detune (Add/Sub pair), String(3) = pitch [f_0120]
+- **x6 = literal Mul B=6** after the SVF/res division [f_0120]
+- String loop order confirmed: in-Add -> Delay(pitch2ms - 1 sample via
+  SampleLen) -> Allpass(FB per string) -> Mul(feedback) -> Filter 1P
+  (dampening, P-tracked) -> out [f_0079]
+- Original's own section labels [f_0120 right panel]: "Hammer sound
+  shaping"; "1pole LP — reducing the amplitude of higher frequency
+  strings"; "Body — post filter stage: removes unneeded lows and highs";
+  "3 Strings"; "Velocity dependent LP filtering — the lower the
+  velocity the darker the sound"; "Low cut".
+
+## Still to read (dense-frame pass when needed)
+- brightness/resonance knob value (range 1.01-12, transcript);
+  per-string allpass FB exact trio (0.1 / 0.2 / 0.125? transcript) and
+  per-string damping cutoffs; env-follower attack knobs (~9-10 ms +
+  curve mod); post SVF cutoff knobs + low-cut; velocity crossfade
+  endpoints (12 / 64, transcript); damper-noise layer LP + strength.
