@@ -726,7 +726,8 @@ resolve_param_map(
 
     auto resolve_one_target = [&](const std::string& name, const std::string& target,
                                   std::vector<std::pair<float, float>> curve = {},
-                                  std::vector<std::pair<float, float>> vcurve = {}) {
+                                  std::vector<std::pair<float, float>> vcurve = {},
+                                  bool loglog = false) {
         std::string nodeId, paramName;
         auto dot = target.find('.');
         if (dot != std::string::npos) {
@@ -747,6 +748,7 @@ resolve_param_map(
             PitchedInstrument::ParamSlot slot{nodeIt->second, paramName, cs, nodeId};
             slot.curve = std::move(curve);
             slot.vcurve = std::move(vcurve);
+            slot.loglog = loglog;
             result[name].push_back(std::move(slot));
             return;
         }
@@ -759,6 +761,7 @@ resolve_param_map(
                 slot.isConfig = true;
                 slot.curve = std::move(curve);
                 slot.vcurve = std::move(vcurve);
+                slot.loglog = loglog;
                 result[name].push_back(std::move(slot));
                 return;
             }
@@ -789,8 +792,12 @@ resolve_param_map(
                 if (vcurve.size() < 2)
                     throw std::runtime_error("paramMap: vcurve needs >= 2 breakpoints");
             }
+            // "interp": "loglog" — interpolate log(value) over log(freq):
+            // a two-point curve is then EXACTLY y = k*f^n (tracking /
+            // reciprocal laws) instead of a dense piecewise approximation.
+            const bool loglog = t.value("interp", std::string()) == "loglog";
             resolve_one_target(name, t.at("target").get<std::string>(),
-                               std::move(curve), std::move(vcurve));
+                               std::move(curve), std::move(vcurve), loglog);
             return;
         }
         throw std::runtime_error("paramMap: '" + name + "' entries must be strings or {target, curve} objects");

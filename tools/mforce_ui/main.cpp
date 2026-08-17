@@ -3144,7 +3144,8 @@ static bool render_output_authoritative(float noteNum, float velocity,
 // node's cached configValues so Properties shows the per-note value).
 // Replaces the old Parameter-node scan, which pushed RAW frequency into
 // curve-bearing pin targets — the UI render ignored curves entirely.
-static float eval_map_curve(const nlohmann::json& curve, float freq) {
+static float eval_map_curve(const nlohmann::json& curve, float freq,
+                            bool loglog = false) {
     auto x = [&](size_t i) { return curve[i][0].get<float>(); };
     auto y = [&](size_t i) { return curve[i][1].get<float>(); };
     size_t n = curve.size();
@@ -3154,6 +3155,10 @@ static float eval_map_curve(const nlohmann::json& curve, float freq) {
     for (size_t i = 1; i < n; ++i) {
         if (freq <= x(i)) {
             float lf = std::log(freq / x(i - 1)) / std::log(x(i) / x(i - 1));
+            // "interp":"loglog" (engine parity): straight line in log-log
+            // = exact y = k*f^n; positive values only.
+            if (loglog && y(i - 1) > 0.0f && y(i) > 0.0f)
+                return y(i - 1) * std::pow(y(i) / y(i - 1), lf);
             return y(i - 1) + (y(i) - y(i - 1)) * lf;
         }
     }
@@ -3188,7 +3193,9 @@ static void apply_param_map(float freq, float velocity) {
             target = e.get<std::string>();
         } else if (e.is_object() && e.contains("target") && e["target"].is_string()) {
             target = e["target"].get<std::string>();
-            if (e.contains("curve"))  v = eval_map_curve(e["curve"], freq);
+            if (e.contains("curve"))
+                v = eval_map_curve(e["curve"], freq,
+                                   e.value("interp", std::string()) == "loglog");
             if (e.contains("vcurve")) v *= eval_map_vcurve(e["vcurve"], velocity);
         } else {
             return;

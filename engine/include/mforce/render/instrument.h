@@ -100,6 +100,8 @@ struct PitchedInstrument final : Instrument {
     // 0..1, multiplier); linear interpolation, clamped at the ends. Empty =
     // 1.0. This is the AF-style "Veloc" mod input (velocity->brightness).
     std::vector<std::pair<float, float>> vcurve;
+    // "interp": "loglog" on the curve entry — see map().
+    bool loglog{false};
 
     float vmap(float vel) const {
       if (vcurve.empty()) return 1.0f;
@@ -124,6 +126,15 @@ struct PitchedInstrument final : Instrument {
         if (freq <= curve[i].first) {
           float lf = std::log(freq / curve[i - 1].first) /
                      std::log(curve[i].first / curve[i - 1].first);
+          // loglog: interpolate log(value) over log(freq) — a straight
+          // line in log-log space IS y = k*f^n, so tracking curves
+          // (cutoff = k*f, t60 = k/f) are EXACT with two points instead
+          // of a dense piecewise approximation. Values must be > 0;
+          // curves that touch zero stay on the linear interpolator.
+          if (loglog && curve[i - 1].second > 0.0f && curve[i].second > 0.0f) {
+            return curve[i - 1].second *
+                   std::pow(curve[i].second / curve[i - 1].second, lf);
+          }
           return curve[i - 1].second +
                  (curve[i].second - curve[i - 1].second) * lf;
         }

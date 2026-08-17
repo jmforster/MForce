@@ -42,36 +42,26 @@ EXC_ENV = [stage(0.0, 1.0, 0.010, "Sine"),
            stage(1.0, 0.0, 0.350, "Sine"),
            stage(0.0, 0.0, 0.0)]
 
+# All tracking curves use "interp": "loglog" (2026-08-17): log-value over
+# log-frequency interpolation makes a 2-point curve EXACTLY y = k*f^n, so
+# the power laws below need only their endpoints + explicit clamp points
+# (Matt: "that's a LOT of points... can we fit a formula?" — this is the
+# formula, in curve clothing).
+
 def clamp2f_curve():
-    # cutoff = min(2*f0, STIFF_HZ), dense points on the 2f leg (curve
-    # interpolation is linear-value over log-frequency).
-    pts = []
-    f = 20.0
-    while f * 12.0 < STIFF_HZ:
-        pts.append([round(f, 2), round(f * 12.0, 2)])
-        f *= 1.35
-    pts.append([round(STIFF_HZ / 12.0, 2), STIFF_HZ])
-    pts.append([16000.0, STIFF_HZ])
-    return pts
+    # cutoff = min(12*f0, STIFF_HZ): one power leg + flat clamp.
+    knee = round(STIFF_HZ / 12.0, 2)
+    return [[20.0, 240.0], [knee, STIFF_HZ], [16000.0, STIFF_HZ]]
 
 def track_curve(mult, lo, hi):
-    pts = []
-    f = 20.0
-    while f < 16000.0:
-        pts.append([round(f, 2), round(min(max(f * mult, lo), hi), 2)])
-        f *= 1.6
-    pts.append([16000.0, min(max(16000.0 * mult, lo), hi)])
-    return pts
+    # min(max(mult*f, lo), hi): flat - power - flat.
+    f_lo = round(lo / mult, 2)
+    f_hi = round(hi / mult, 2)
+    return [[20.0, lo], [f_lo, lo], [f_hi, hi], [16000.0, hi]]
 
 def t60_curve():
-    # t60 = 6900/f  (== fixed per-pass feedback 0.999 at every pitch)
-    pts = []
-    f = 20.0
-    while f < 16000.0:
-        pts.append([round(f, 2), round(min(6900.0 / f, 60.0), 2)])
-        f *= 1.6
-    pts.append([16000.0, round(6900.0 / 16000.0, 3)])
-    return pts
+    # t60 = 6900/f (== fixed 0.999 per-pass feedback): pure power law.
+    return [[20.0, 345.0], [16000.0, 0.431]]
 
 PATCH = {
   "sampleRate": 48000,
@@ -124,14 +114,14 @@ PATCH = {
     "paramMap": {
       "frequency": [
         "string.frequency",
-        {"target": "exc_svf.cutoffFreq", "curve": clamp2f_curve()},
-        {"target": "exc_1p.cutoffFreq",  "curve": clamp2f_curve()},
-        {"target": "string.t60",         "curve": t60_curve()},
+        {"target": "exc_svf.cutoffFreq", "curve": clamp2f_curve(), "interp": "loglog"},
+        {"target": "exc_1p.cutoffFreq",  "curve": clamp2f_curve(), "interp": "loglog"},
+        {"target": "string.t60",         "curve": t60_curve(), "interp": "loglog"},
         {"target": "string.brightness",  "curve": [[20.0, 0.82], [65.0, 0.85],
             [262.0, 0.93], [1046.0, 0.985], [4186.0, 0.995], [16000.0, 0.995]]},
-        {"target": "body_hp.cutoffFreq", "curve": track_curve(0.75, 60.0, 800.0)},
+        {"target": "body_hp.cutoffFreq", "curve": track_curve(0.75, 60.0, 800.0), "interp": "loglog"},
         {"target": "vel_lp.cutoffFreq",  "curve": track_curve(1.0, 30.0, 12000.0),
-         "vcurve": [[0.0, 2.0], [1.0, 40.0]]},  # +12 .. +64 semitones
+         "interp": "loglog", "vcurve": [[0.0, 2.0], [1.0, 40.0]]},  # +12 .. +64 semitones
       ]
     }
   },
