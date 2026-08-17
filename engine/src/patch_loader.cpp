@@ -165,6 +165,33 @@ static void wire_params_generic(
         float fv = 0.0f;
         if      (v.is_boolean()) fv = v.get<bool>() ? 1.0f : 0.0f;
         else if (v.is_number())  fv = v.get<float>();
+        else if (v.is_string() && desc.enum_labels) {
+            // Enum configs arrive as strings in hand-written patches
+            // ("mode": "Highpass"). Match display labels case-
+            // insensitively; a miss keeps the default LOUDLY — silently
+            // skipping strings is how SVFSource's mode no-opped on first
+            // use (same drop class as the UI-side 2026-08-13 fix).
+            const std::string s = v.get<std::string>();
+            bool matched = false;
+            for (int li = 0; desc.enum_labels[li]; ++li) {
+                if (s.size() == std::strlen(desc.enum_labels[li]) &&
+                    std::equal(s.begin(), s.end(), desc.enum_labels[li],
+                               [](char a, char b) {
+                                   return std::tolower((unsigned char)a) ==
+                                          std::tolower((unsigned char)b);
+                               })) {
+                    fv = float(li);
+                    matched = true;
+                    break;
+                }
+            }
+            if (!matched) {
+                std::fprintf(stderr,
+                    "[load] %s.%s: enum string '%s' matches no label; "
+                    "keeping default\n", src.type_name(), desc.name, s.c_str());
+                continue;
+            }
+        }
         else continue;
         src.set_config(desc.name, fv);
     }

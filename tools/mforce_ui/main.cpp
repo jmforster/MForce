@@ -7122,6 +7122,7 @@ static void show_create_menu() {
         menu_source("BW Bandpass", "BWBandpassFilter");
         menu_source("BW Lowpass", "BWLowpassFilter");
         menu_source("BW Highpass", "BWHighpassFilter");
+        menu_source("SVF (State Variable)", "SVFSource");
         ImGui::EndMenu();
     }
 

@@ -34,6 +34,7 @@
 #include "mforce/core/multi_source.h"
 #include "mforce/filter/filters.h"
 #include "mforce/filter/hammer_bank.h"
+#include "mforce/filter/svf_source.h"
 #include "mforce/filter/limiter.h"
 #include "mforce/source/ks_piano_string.h"
 #include "mforce/source/allpass_resonator.h"
@@ -413,6 +414,16 @@ void register_all_sources() {
 
     reg.register_type("BWBandpassFilter", SourceCategory::Filter,
         [](int sr, auto) { return std::make_shared<BWBandpassFilter>(sr, 2); });
+
+    // 2-pole state-variable filter (AFNoding-031 rebuild): selectable
+    // LP/HP/BP tap, modulatable resonance, optional divide-by-res
+    // normalization. "cutoff" JSON alias matches the BW filters.
+    reg.register_type("SVFSource", SourceCategory::Filter,
+        [](int sr, auto) { return std::make_shared<SVFSource>(sr); },
+        [](ValueSource& src, const nlohmann::json& p, const ResolveParamFn& resolve) {
+            if (p.contains("cutoff"))
+                src.set_param("cutoffFreq", resolve(p.at("cutoff")));
+        });
 
     reg.register_type("DelayFilter", SourceCategory::Filter,
         [](int sr, auto) { return std::make_shared<DelayFilter>(sr); });
