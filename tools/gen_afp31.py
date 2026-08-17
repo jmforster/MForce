@@ -1,4 +1,4 @@
-"""afp31_v4 — from-scratch rebuild of the AFNoding-031 piano per
+"""afp31_v5 — from-scratch rebuild of the AFNoding-031 piano per
 docs/research/afpiano_scratch/RECIPE.md (build-video archaeology).
 
 v4 = every previously guessed value replaced by a frame-read one
@@ -48,6 +48,16 @@ EXC_ENV = [stage(0.0, 1.0, 0.001),
            stage(0.15, 0.0, 0.250, "Sine"),
            stage(0.0, 0.0, 0.0)]
 
+# "Inner reverberation" layer (frames z_rev_2640/2740/2850): a SECOND
+# white noise x its own follower (attack ~16.9 ms / release 462.2 ms)
+# x velocity x Strength (~0.17, "lower volume than the main hit"),
+# summed with the hit noise BEFORE the excitation filter stack.
+REV_ENV = [stage(0.0, 1.0, 0.017, "Sine"),
+           stage(1.0, 0.15, 0.140, "Sine"),
+           stage(0.15, 0.0, 0.320, "Sine"),
+           stage(0.0, 0.0, 0.0)]
+REV_STRENGTH = 0.15   # TUNE: knob ~0.17 on-screen, exact value unread
+
 # All tracking curves use "interp":"loglog": 2-point curve == y = k*f^n.
 
 def clamp2f_curve(mult=1.0):
@@ -77,8 +87,18 @@ PATCH = {
        "params": {"timeMode": "seconds", "stages": EXC_ENV}},
       {"id": "noise", "type": "WhiteNoiseSource",
        "params": {"amplitude": {"ref": "exc_env"}}},
+      {"id": "env_rev", "type": "Envelope",
+       "params": {"timeMode": "seconds", "stages": REV_ENV}},
+      {"id": "rev_amp", "type": "CombinedSource",
+       "params": {"source1": {"ref": "env_rev"}, "source2": REV_STRENGTH,
+                   "operation": "multiply"}},
+      {"id": "rev_noise", "type": "WhiteNoiseSource",
+       "params": {"amplitude": {"ref": "rev_amp"}}},
+      {"id": "exc_sum", "type": "CombinedSource",
+       "params": {"source1": {"ref": "noise"}, "source2": {"ref": "rev_noise"},
+                   "operation": "add"}},
       {"id": "exc_svf", "type": "SVFSource",
-       "params": {"source": {"ref": "noise"}, "cutoffFreq": BRIGHT_HZ,
+       "params": {"source": {"ref": "exc_sum"}, "cutoffFreq": BRIGHT_HZ,
                    "resonance": 1.2, "mode": "Lowpass", "normalize": True}},
       {"id": "exc_gain", "type": "CombinedSource",
        "params": {"source1": {"ref": "exc_svf"}, "source2": 6.0,
@@ -147,7 +167,7 @@ PATCH = {
 def main():
     PDIR.mkdir(parents=True, exist_ok=True)
     RDIR.mkdir(parents=True, exist_ok=True)
-    name = "afp31_v4"
+    name = "afp31_v5"
     p2 = PDIR / (name + ".json")
     p2.write_text(json.dumps(PATCH, indent=2), encoding="utf-8")
     wav = RDIR / (name + ".wav")

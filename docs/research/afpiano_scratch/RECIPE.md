@@ -149,8 +149,23 @@ was chasing; it is SIMPLER than both the 2021 predecessor and our patch.
   Detune knob (cents, 0.001-24) read 0.00/~0.38 mid-build — his final
   value still unread.
 
-## Still to read (dense-frame pass when needed)
-- final detune cents; per-string damping-cutoff differences (if any);
-  env-follower attack knobs (~9-10 ms + curve mod) on the Reverb path;
-  damper-noise "fake reverb" layer LP + strength (section 6,
-  unimplemented).
+## Values read from frames (2026-08-17 pass 4 — reverb layer)
+- **"Inner reverberation"** [z_rev_2640/2740/2850] — original's label:
+  "The sound is reflecting inside the body. This is emulated by a long
+  releasing hammer noise on a lower volume than the main hit."
+  A SECOND White Noise node x its own env follower x velocity x
+  Strength knob, SUMMED with the hit noise before the excitation
+  filter stack. Original follower: attack ~16.9 ms / release 462.2 ms
+  (matches the 2021 patch). His rebuild's knobs read 36.0/702.2 ms
+  mid-set — the original values are authoritative. Trg->Gate on this
+  path = 9.0 ms; hit-attack Time node = 10.0 ms. Strength knob ~0.17
+  on-screen (exact value unread). Optionally its own shaping LP
+  ("we can also use a different noise... shape with a low-pass");
+  simplest faithful form shares the main excitation SVF.
+  IMPLEMENTED in afp31_v5 (REV_ENV + REV_STRENGTH in gen_afp31.py).
+
+## Still to read / genuinely unreadable
+- final detune cents (knob read 0.00 then ~0.38 mid-build; never shown
+  settled); exact Reverb strength value; per-string damping-cutoff
+  differences (if any). Sustain node = MIDI pedal passthrough, not
+  needed.

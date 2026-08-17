@@ -73,9 +73,17 @@ gentle decay then clean 210 ms damp; C6 alive (peak -8.9 dB, faster
 fade = known short-delay frac loss, engine not patch). Faithful
 caveat: C2 peaks ~15 dB under C4 (Body HP at 158 Hz + final 1P tilt
 — that's what the topology does; his video bass is fundamental-light
-too). Still guessed: detune cents (his knob mid-build read 0.00/~0.38),
-per-string damping-cutoff trio, damper-noise "fake reverb" layer
-(unimplemented, recipe section 6).
+too). V5 (same day, applying the new exhaust-the-source rule): the reverb
+pass was read too (RECIPE pass 4) — **LISTEN afp31_v5.wav, supersedes
+v4**. The "Inner reverberation" layer is now implemented: second white
+noise x follower (attack 16.9 ms / release 462.2 ms, read off the
+ORIGINAL panel) x strength 0.15, summed with the hit noise before the
+excitation SVF — his fake-reverb/body layer, was recipe section 6
+backlog. Measured: C4 tail now carries a -25 dB bed at 2 s instead of
+bare string. Remaining guesses, now explicitly enumerated: detune
+cents (knob never shown settled; ours 1.0), Reverb strength exact
+value (knob ~0.17; ours 0.15), per-string damping-cutoff differences
+if any. Everything else is frame-read.
 
 ### 34. AFP excitation ladder — moves A+E [listen] (2026-08-15)
 renders/dsp/pending/ks_piano_v6/pb_exc_*.wav + README_pb_exc.md.
