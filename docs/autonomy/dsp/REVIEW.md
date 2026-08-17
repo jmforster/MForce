@@ -22,6 +22,21 @@ restart). TUNE list (first A/B targets): brightness/res (6), exc
 release (120 ms), body_hp cutoff (0.75x f0) and res, vel_lp scale, the
 x6, string brightness/dispersion. Your Listen-here workflow applies —
 drill the excitation, compare against the AFP stage WAVs.
+V2 same day after Matt's v1 verdict ("sizzle that never decays;
+sawtooth-y"): BOTH v1 defects were mine, not the recipe's. (1) The
+excitation env held full-level noise while the key was down — but the
+env followers are fed by the TRIGGER pulse, not the gate (transcript
+25:52); a 0.999 comb integrates continuous noise into a non-decaying
+sizzle. One-shot now (10 ms attack / 350 ms release). (2) My damper
+stage lacked min/maxSec caps, so the felt landed from the note's
+MIDPOINT — v1's "sustain" was noise masking a choked string; fixed to
+the Piano_bright 3-stage shape (210 ms landing at note end). Plus
+brightness now pitch-tracked (flat 0.72 was eating C6's fundamental —
+dead by 0.5 s; now -17.8 dB @0.5 s and singing). Decay profiles all
+registers: attack -> graceful piano-slope decay -> clean damp.
+LISTEN: afp31_v2.wav. Sawtooth-y verdict awaits re-listen on v2 —
+if it persists, first suspects are exc resonance 6 and vel_lp top
+(+64 semis) per the TUNE list.
 
 ### 34. AFP excitation ladder — moves A+E [listen] (2026-08-15)
 renders/dsp/pending/ks_piano_v6/pb_exc_*.wav + README_pb_exc.md.

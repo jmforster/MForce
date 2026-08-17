@@ -1,4 +1,4 @@
-"""afp31_v1 — from-scratch rebuild of the AFNoding-031 piano per
+"""afp31_v2 — from-scratch rebuild of the AFNoding-031 piano per
 docs/research/afpiano_scratch/RECIPE.md (build-video archaeology).
 
 Chain: WhiteNoise x gated env (10 ms curved attack)
@@ -33,11 +33,14 @@ def stage(a, b, sec, t="Linear", power=0.0):
     return {"startVal": a, "endVal": b, "type": t, "percent": sec,
             "minSec": 0.0, "maxSec": 0.0, "holdPct": 0.0, "power": power}
 
-# Gated hit: 10 ms curved attack -> full while held (his env follower on
-# the gate) -> 120 ms release (TUNE; his release knob not yet read).
+# ONE-SHOT hit (v2): the env followers are fed by the TRIGGER pulse, not
+# the gate (transcript 25:52) — v1 held full-level noise while the key
+# was down, which a 0.999-feedback comb integrates into a non-decaying
+# sizzle (Matt's verdict, physics agrees). 10 ms curved attack, ~350 ms
+# release matching the measured video hit tails.
 EXC_ENV = [stage(0.0, 1.0, 0.010, "Sine"),
-           stage(1.0, 1.0, 0.0),
-           stage(1.0, 0.0, 0.120, "Sine")]
+           stage(1.0, 0.0, 0.350, "Sine"),
+           stage(0.0, 0.0, 0.0)]
 
 def clamp2f_curve():
     # cutoff = min(2*f0, STIFF_HZ), dense points on the 2f leg (curve
@@ -90,9 +93,12 @@ PATCH = {
                    "resonance": 0.707, "mode": "Lowpass", "normalize": False}},
       {"id": "env_damper", "type": "Envelope",
        "params": {"stages": [
-          stage(0.0, 0.0, 0.0),
-          stage(0.0, 1.0, 0.5, "Linear"),   # 210 ms felt landing ~ his smoothing
-          stage(1.0, 1.0, 0.5)]}},
+          {"startVal": 0.0, "endVal": 0.0, "type": "Linear", "percent": 0.0,
+           "minSec": 0.0, "maxSec": 0.0, "holdPct": 0.0, "power": 0.0},
+          {"startVal": 0.0, "endVal": 1.0, "type": "Linear", "percent": 0.5,
+           "minSec": 0.21, "maxSec": 0.21, "holdPct": 0.0, "power": 0.0},
+          {"startVal": 1.0, "endVal": 1.0, "type": "Linear", "percent": 0.5,
+           "minSec": 0.0, "maxSec": 0.25, "holdPct": 0.0, "power": 0.0}]}},
       {"id": "string", "type": "KSPianoString",
        "params": {"source": {"ref": "exc_1p"}, "frequency": 220.0,
                    "numCombs": 3, "detune": 1.0, "t60": 10.0,
@@ -114,13 +120,15 @@ PATCH = {
   },
   "instrument": {
     "polyphony": 4,
-    "volume": 1.2,
+    "volume": 0.8,
     "paramMap": {
       "frequency": [
         "string.frequency",
         {"target": "exc_svf.cutoffFreq", "curve": clamp2f_curve()},
         {"target": "exc_1p.cutoffFreq",  "curve": clamp2f_curve()},
         {"target": "string.t60",         "curve": t60_curve()},
+        {"target": "string.brightness",  "curve": [[20.0, 0.82], [65.0, 0.85],
+            [262.0, 0.93], [1046.0, 0.985], [4186.0, 0.995], [16000.0, 0.995]]},
         {"target": "body_hp.cutoffFreq", "curve": track_curve(0.75, 60.0, 800.0)},
         {"target": "vel_lp.cutoffFreq",  "curve": track_curve(1.0, 30.0, 12000.0),
          "vcurve": [[0.0, 2.0], [1.0, 40.0]]},  # +12 .. +64 semitones
@@ -138,9 +146,9 @@ PATCH = {
 def main():
     PDIR.mkdir(parents=True, exist_ok=True)
     RDIR.mkdir(parents=True, exist_ok=True)
-    p = PDIR / "afp31_v1.json"
+    p = PDIR / "afp31_v2.json"
     p.write_text(json.dumps(PATCH, indent=2), encoding="utf-8")
-    wav = RDIR / "afp31_v1.wav"
+    wav = RDIR / "afp31_v2.wav"
     r = subprocess.run([str(CLI), str(p), str(wav)], capture_output=True, text=True)
     print(r.stdout[-400:] if r.returncode == 0 else "FAIL\n" + (r.stdout + r.stderr)[-400:])
     return r.returncode
