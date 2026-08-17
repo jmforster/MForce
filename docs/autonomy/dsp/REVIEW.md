@@ -2,6 +2,27 @@
 
 ## Awaiting Matt
 
+### 35. afp31_v1 — the from-scratch AFNoding-031 rebuild [listen] (2026-08-16)
+renders/dsp/pending/afp31/afp31_v1.wav (C2/C4/C6 hard + C4 soft);
+patch patches/pending/afp31/afp31_v1.json; generator tools/gen_afp31.py;
+recipe docs/research/afpiano_scratch/RECIPE.md. Built per the build
+video: noise x 10 ms gated env -> resonant SVF LP (normalize, res 6)
+with cutoff = min(12*f0, 1660 Hz) — his min(pitch+12, stiffness) clamp
+CALIBRATED against the measured step_3 knee (AF cutoff units are ~2.5
+octaves above naive MIDI; first cut at 277 Hz left C6 nearly silent,
+atk 0.005 -> 0.363 after calibration) -> x6 -> gentle SVF (his 1P) ->
+KSPianoString (3 combs = his 3 strings, t60 = 6900/f == his fixed 0.999
+held feedback, releaseFb 0.8 == his release value, 210 ms damper drop
+== his smoothing) -> SVF HP res 3 (Body) -> SVF LP res 8 normalized
+with velocity vcurve +12..+64 semitones (his velocity filtering).
+Measured: attacks 0.28-0.39 all registers (no dead notes), sustain
+-16 dB @1.5 s uniformly, centroids 693->1207 Hz (mid-heavy, AFP zone).
+New engine node SVFSource powers 4 roles (in your Filters menu after a
+restart). TUNE list (first A/B targets): brightness/res (6), exc
+release (120 ms), body_hp cutoff (0.75x f0) and res, vel_lp scale, the
+x6, string brightness/dispersion. Your Listen-here workflow applies —
+drill the excitation, compare against the AFP stage WAVs.
+
 ### 34. AFP excitation ladder — moves A+E [listen] (2026-08-15)
 renders/dsp/pending/ks_piano_v6/pb_exc_*.wav + README_pb_exc.md.
 Four arms on Piano_bright: ctrl / A (350 ms burst decay, no bed) /
