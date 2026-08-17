@@ -1,0 +1,545 @@
+[  0:00] [Music]
+[  0:06] hi it's punished forever forever here
+[  0:09] and it's if not remember 31 if you'll
+[  0:12] follow us on the social media you
+[  0:14] probably have seen our piano pitch which
+[  0:17] I have built recently and I pretty much
+[  0:20] like it it sounds like a piano probably
+[  0:23] you can hear it in the background and
+[  0:26] since I did this patch in our latest
+[  0:29] version which is not public yet I have
+[  0:33] to rebuild it cuz we are done time words
+[  0:35] compatible so if I want to share this
+[  0:37] piano with you I have to rebuild it
+[  0:39] anyways so these Nodine session is going
+[  0:41] to be a bit different I'm going to redo
+[  0:43] something that I've done before and I
+[  0:47] hope it's going to be interesting cuz I
+[  0:50] can explain stuff while I'm building and
+[  0:53] without further ado let's jump into it
+[  0:57] and yeah on the right side you can see
+[  1:01] the of forever effect which is the
+[  1:04] latest version and you can see that
+[  1:06] there is some extra stuff there and on
+[  1:10] the left side you can see the current
+[  1:13] version
+[  1:14] and this Isabelle is probably I'm gonna
+[  1:17] switch between the two tracks anyways
+[  1:21] first things first
+[  1:23] underneath in everything as usual and
+[  1:26] recreate everything probably the same
+[  1:28] notes that I'm deleted anyways you have
+[  1:32] again in in the end and we have a MIDI
+[  1:35] note mode where everything starts from
+[  1:37] but I'm probably we are happy that we
+[  1:42] have this trigger output but in the
+[  1:45] current development build which is I
+[  1:48] think is the 6th or 7th of September
+[  1:53] this trigger output is buggy so if it's
+[  1:56] polyfill if you are using my knitting
+[  1:59] polyphonic mod you probably will
+[  2:02] encounter some glitches so I'm avoiding
+[  2:04] it for the time being because I'm taking
+[  2:08] care of our users and I do not wanna for
+[  2:11] them and and then we are using this the
+[  2:16] old-school method of multi painter get
+[  2:19] it it's changed value and from here on
+[  2:23] we have an envelope follower and for the
+[  2:28] time being I know I'm only using one
+[  2:31] envelope follower because of this second
+[  2:35] one is only for the reverberation which
+[  2:37] we are going to do but since it's not a
+[  2:40] real reverb we can it's a fake one so we
+[  2:48] got something here
+[  2:49] Stucky cool so I don't care about this
+[  2:54] for the time being so I'm going just to
+[  2:56] go and multiply the output of this
+[  3:01] envelope by the velocity because of
+[  3:08] piano is LCD dependent for sure and as
+[  3:13] far as I see that's what happened here
+[  3:15] this cone should origin from the
+[  3:17] velocity and it does and this goes into
+[  3:21] this cope which I only put here for the
+[  3:23] sake of that video
+[  3:27] and only said I'm going to put PS digit
+[  3:31] here but I'm not going to connect
+[  3:33] anything to it as it's only the envelope
+[  3:35] follower of the reverb there and after
+[  3:38] deism we have a multiplication and avoid
+[  3:42] noise first and if we take a listen to
+[  3:47] it
+[  3:49] pick on here so later on things will be
+[  3:53] easier to turn in there take the volume
+[  3:56] down so I don't make you deaf so if I
+[  3:59] hit a key on my mini keyboard we have a
+[  4:03] click if I turn the release iron
+[  4:06] it's simple light noise so I don't think
+[  4:11] that's wonder so you're here most of the
+[  4:19] patch is done good actually
+[  4:22] this piano is not as complex as it looks
+[  4:24] like well here we have a limit P thing
+[  4:28] we're doing inputs called stiffness so
+[  4:33] we are going to build this what's inside
+[  4:35] er it's just a simple if statement and
+[  4:38] waste let's do it
+[  4:41] let's call this limit T so we are
+[  4:45] limiting the pitch so the input is going
+[  4:47] to be the pitch
+[  4:52] we are adding left to it which maybe we
+[  4:56] want in the end anyway said I do what I
+[  4:59] did and if this and if these various
+[  5:03] bigger than the B input which is going
+[  5:07] to be the stiffness likely STF then we
+[  5:12] will put the stiffness as Realty the
+[  5:17] value of that part and the output is d
+[  5:21] in court building so limited pitch so we
+[  5:27] had served to the pitch one octave
+[  5:29] higher and then if we check if this
+[  5:31] value is higher than the thing called
+[  5:35] stiffness if it's higher then we will
+[  5:37] put the stiffness so we are limiting the
+[  5:39] pitch here and this is going to be
+[  5:42] important later on
+[  5:47] we have this thing here so we can
+[  5:49] connect the pitch here is not that that
+[  5:55] is is the pitch and I end up there and
+[  6:03] hear from the multiplication we go
+[  6:07] straight into the state variable filter
+[  6:14] I didn't follow the same structure but I
+[  6:20] don't think it matters too much and from
+[  6:23] there they go into this division from
+[  6:27] the low-pass filter so we divide at the
+[  6:32] resonance as we used to and the
+[  6:37] residence goes between 101 and 12 and
+[  6:45] this parameter is called brightness
+[  6:57] to take a listen to this now we will
+[  7:01] have a filter I set this to the same
+[  7:05] value so that is between zero and
+[  7:06] hundred fifty and we are about here and
+[  7:11] we are about there we can hear that it's
+[  7:19] simply a white noise via turd so it's a
+[  7:22] low pass filter on the previous white
+[  7:24] noise so nothing too special and the
+[  7:36] next thing we wanna do is to multiply
+[  7:40] this by six that's only for making it
+[  7:43] louder and we going to one poor filter
+[  7:55] which can
+[  7:57] the pitch of the building of this
+[  8:00] limited pitch and we was developer so
+[  8:06] good that's fine and I think I can even
+[  8:10] was already cleared the stiffness
+[  8:12] variable controller
+[  8:17] and the range of the stiffness was
+[  8:19] between 0 &amp; 1 28 and the ul8 was 60 80
+[  8:27] so somewhere here
+[  8:33] you
+[  8:36] that should be fine and here we go into
+[  8:44] the streams probably this is the most
+[  8:48] complex part of this whole thing we have
+[  8:50] three strings as a piano has three
+[  8:52] strings
+[  8:53] I know lower notes do not have three
+[  8:55] they have only one but they are wider
+[  8:57] but anyways this works for me and if you
+[  9:03] look inside the string you can see that
+[  9:05] it's not even that complex sorry I was
+[  9:08] taking try so it's not too complex thing
+[  9:12] actually this is close to a cup of
+[  9:15] strong touch so I create a string
+[  9:33] like the input we will fit something
+[  9:36] back without a delay we will have a
+[  9:41] multiplication and we will have some
+[  9:43] dampening for sure and the output is
+[  9:45] going to be the low pass filter
+[  9:47] something up I just created an output
+[  9:50] here by pressing o about this but I
+[  9:53] don't know where I and they put the
+[  9:55] output
+[  9:56] oh I did put the output to the addition
+[  9:58] so you are going to take it there and
+[ 10:02] call it out and something will come back
+[ 10:06] and it's going to look like the
+[ 10:09] feedbacks away I make it look like a
+[ 10:12] feedback - and this is a basic structure
+[ 10:22] for home filters and let's see what we
+[ 10:28] have here we have a pitch input which is
+[ 10:33] going to come into the delay so I call
+[ 10:36] this P and just simply place the I above
+[ 10:40] the the input path of the delay and I'm
+[ 10:44] gonna convert this pitch 2 millisecond
+[ 10:46] so pitch 2 milliseconds in the earlier
+[ 10:49] version we have to do this manually now
+[ 10:51] we don't have to do it anymore and I
+[ 10:55] subtract a shifty stack am I subtract 1
+[ 11:00] from the same one sample lengths from
+[ 11:03] this thing
+[ 11:09] I will do this data room but no I do it
+[ 11:12] now and oh not from here
+[ 11:16] sorry from here so we are going to
+[ 11:22] subtract the length of a sample from
+[ 11:24] this today cause it was generate one
+[ 11:27] sample delay and this way higher notes
+[ 11:32] will be to tune so I put this here
+[ 11:39] Sam and this way we are sure that the
+[ 11:44] things won't sound off to tune and then
+[ 11:49] we go into an office theatre so I put
+[ 11:54] another pass filter
+[ 11:55] after the delay but this is the same
+[ 12:00] delay time and yet the feedback time is
+[ 12:04] zero
+[ 12:05] yeah but I know that it's not on
+[ 12:07] everyone and from them we go to
+[ 12:10] multiplication and the input of the
+[ 12:17] multiplication is simply to crossfade
+[ 12:21] between two values and it's dependent of
+[ 12:23] the gate on the gate so if the gate is
+[ 12:26] active they're going to have a high
+[ 12:29] value like 0.999 if the gate is low we
+[ 12:35] are going to have a low value and as an
+[ 12:38] input we are going to use the gate so
+[ 12:42] until the gate is on the release is
+[ 12:44] going to be long and believe that if yo
+[ 12:47] the sound via both silent and these and
+[ 12:52] where the follower is only used to to
+[ 12:56] smooth this transition between these two
+[ 12:59] feedback waves or we can get clicks so I
+[ 13:02] put an envelope follower modulated here
+[ 13:04] and bring it to the bell to the same
+[ 13:09] value as they're going in and out of a
+[ 13:15] story and hear the pitches said to the
+[ 13:18] damping is set over you but I lied so
+[ 13:23] this is going to be between 0 and 150
+[ 13:27] and we go up to about the same value and
+[ 13:31] we're about there this is fine for me
+[ 13:36] and here we go we are ready with the
+[ 13:39] string so we have one string and
+[ 13:43] actually the order of the plaques is
+[ 13:46] different so I'm going to create this
+[ 13:48] same input again so it gets to the
+[ 13:50] bottom
+[ 13:52] this way it's bit nicer whoahhh
+[ 13:58] so we have a string I can play the input
+[ 14:01] of the the output of this old theater
+[ 14:02] low-pass filter inside of it and I
+[ 14:05] create an ad 8 node and the output goes
+[ 14:09] there so let's see what the pitch input
+[ 14:14] is going to be like and it's it comes
+[ 14:19] from the limited now it shouldn't be
+[ 14:23] limited but it is yeah string gets the
+[ 14:27] limited you know it doesn't hear the
+[ 14:30] pitch is a simple pitch so it's not
+[ 14:32] limited so what we can do is to like
+[ 14:37] this here get a cone here just s about
+[ 14:42] the input plane and we can produce P so
+[ 14:47] we know that this is the pitch this is
+[ 14:50] my pieces by conser handy that I have a
+[ 14:52] header rest there could be an input and
+[ 14:55] output at this way we can name them even
+[ 14:59] if it's a bit disturbing sometimes but I
+[ 15:01] like that I can name it and I can know
+[ 15:04] what it is so here the pitch term we can
+[ 15:09] also play the gate into the gate input
+[ 15:13] like this and create a cone here and I
+[ 15:23] call this G so gate and
+[ 15:30] it okay now
+[ 15:31] you
+[ 15:36] [Music]
+[ 15:40] this already sounds somewhat like a
+[ 15:42] piano only because of the filtering that
+[ 15:45] happens before and really nothing else
+[ 15:49] disease
+[ 15:51] almost a simple a personal touch yeah I
+[ 15:59] spent lots of time with this this
+[ 16:01] limiting the the P is very important so
+[ 16:05] this this is the note that I was missing
+[ 16:08] I wish spent every spent really yes
+[ 16:12] creating a piano and I'm happy with this
+[ 16:17] but I didn't set this to polyphonic so I
+[ 16:20] said it okay and we have this semi input
+[ 16:32] and if I hit a low key that's nice one
+[ 16:36] octave higher
+[ 16:37] that's nice to not be fine almost
+[ 16:42] everybody out of tune way to out of tune
+[ 16:46] so we had to get the sample in somehow
+[ 16:48] and it's not hard we just have to use
+[ 16:52] the reciprocal of the sample rate and
+[ 16:54] multiplied by thousand so high-quality
+[ 17:00] simple and I use a sample rate node
+[ 17:07] multiply the reciprocal by 1000 and you
+[ 17:13] still put as the seconds cuz this is a
+[ 17:15] milliseconds and I get here buying it
+[ 17:21] I call this samples that's Sammy is
+[ 17:26] connected to Sam now and now if I do the
+[ 17:29] same again nice one octave higher one
+[ 17:34] octave here
+[ 17:38] so it's until now and that's that's
+[ 17:43] important because even a plate is like
+[ 17:46] an instrument and yeah so this is one
+[ 17:51] string two strings three strings
+[ 17:55] alignment to the left
+[ 17:59] like things to wear there and what we
+[ 18:07] want to do is to use the same input on
+[ 18:11] all of them
+[ 18:14] Thanks at least I did use the same input
+[ 18:20] here and like this there and same gate
+[ 18:27] here and
+[ 18:28] [Music]
+[ 18:31] and to the beach and subject here and we
+[ 18:41] are going to insert the pitch here
+[ 18:47] and and what we want to do is to create
+[ 18:51] a knob call it DT 1
+[ 18:56] here and there so we are determining the
+[ 18:58] strings then we want to also connect the
+[ 19:02] sample ends like this
+[ 19:07] voila we have this thing ready and 0.001
+[ 19:15] and 24 and if we take a listen it's now
+[ 19:21] on because we are doing the same thing
+[ 19:22] three times so let's see what I did
+[ 19:26] differently in string one I gave the
+[ 19:30] Opus filter feedback value of 0.1 and it
+[ 19:37] changed release times it's a different
+[ 19:42] thing it has different parameters it's
+[ 19:44] just the matter of taste and it's a bit
+[ 19:48] lower
+[ 19:49] it's the if the damping is a bit
+[ 19:52] stronger fine let's see the string -
+[ 19:56] that's different
+[ 20:03] I gave you a pass filter value of 0.2
+[ 20:09] now this we will have to do something
+[ 20:13] with the mouse clicks it's an issue
+[ 20:16] anyways I've recorded it already to the
+[ 20:18] tasks it's only 125
+[ 20:26] yeah this should be fine and
+[ 20:32] so we had the three strings
+[ 20:39] actually if I'm not multiplying in basis
+[ 20:42] but turning back to I should be fine hmm
+[ 21:01] as you can see the did you know pets um
+[ 21:06] friend curve so I gave it a different
+[ 21:09] girl this wait it's more intuitive
+[ 21:15] anything in this sounds pretty close to
+[ 21:23] a piano already I only need a few
+[ 21:26] filters in the end so we have two state
+[ 21:30] variables here to be filters to want to
+[ 21:35] be filter and second one the first one
+[ 21:39] is using the high pass output and the
+[ 21:42] second one the low pass output which is
+[ 21:44] divided by the resonance and the
+[ 21:47] resonance is simply eight on the second
+[ 21:50] one
+[ 21:58] like this and here's some complex things
+[ 22:04] which I don't know what it is exactly
+[ 22:06] but we figure it out soon I know that
+[ 22:11] this docket is using maybe the
+[ 22:24] the limited pitch so we can like this
+[ 22:30] here
+[ 22:32] you
+[ 22:37] and what are we adding to it I really
+[ 22:40] don't remember anymore
+[ 22:41] oh this knob so yeah the low-cut knob
+[ 22:44] seems reasonable cause by cutting the
+[ 22:48] hose here and it's in one of the range
+[ 22:54] so from the limited pitch we are going
+[ 22:56] to one of the failure and the resonance
+[ 23:01] is simply three I don't know why this is
+[ 23:06] what I like and yet the second one
+[ 23:10] receives the
+[ 23:14] again move this door
+[ 23:30] you
+[ 23:42] okay and yeah the limited pitch comes
+[ 23:47] yeah
+[ 23:48] can I call this peel him I can and what
+[ 23:55] comes there is velocity dependent again
+[ 23:59] so I use a cross fader bucket yeah and
+[ 24:06] the low way is going to be 12 to have
+[ 24:09] the ivory whispering 364 and I think I
+[ 24:14] need to get the velocity from somewhere
+[ 24:16] yeah it's simply the velocity so it
+[ 24:21] comes like this
+[ 24:32] [Music]
+[ 24:36] nice
+[ 24:38] so actually I think looking at almost an
+[ 24:43] this only a high-pass filter in the end
+[ 24:49] so after the division we have a 100
+[ 24:53] filter and it's receiving
+[ 25:00] this name should be the pitch maybe it
+[ 25:03] received simply the pitch like I'm like
+[ 25:07] this room here
+[ 25:15] and I think it's the it stiff that's the
+[ 25:20] final stage yeah there was an ad note
+[ 25:22] before it but I didn't use that nice
+[ 25:33] and what we have is in our web
+[ 25:39] evaporation written another envelope
+[ 25:42] follower it gets the same trigger and
+[ 25:52] yeah one more thing they said trigger to
+[ 25:58] be a note before the emitter followers
+[ 26:03] and the gate comes as an input into both
+[ 26:08] and we look for the worst because the
+[ 26:10] attack is not a straight line it should
+[ 26:14] be a bit yeah
+[ 26:16] curved so I give it a bit of a decline
+[ 26:19] right ten milliseconds for nine
+[ 26:21] milliseconds and like the time so
+[ 26:27] demodulated time into the paddock input
+[ 26:30] of both envelope followers and turn on
+[ 26:33] term the modulation on left and
+[ 26:43] you
+[ 26:49] here I did add 12 to the pitch anyways
+[ 26:53] it's because of we have one octave lower
+[ 26:56] than normal you know in this end because
+[ 27:01] of the operators are in the feedback
+[ 27:07] [Music]
+[ 27:14] and this is the transients are much
+[ 27:20] monitor because of these triggered gate
+[ 27:24] and the attack and the final thing is
+[ 27:30] that we are not using this envelope it
+[ 27:32] at Maui via I give it a bit additional
+[ 27:35] attack and I'm going to multiply it by
+[ 27:43] by the velocity which is used here and
+[ 27:57] then I'm going to get Europe strength
+[ 28:08] take it there
+[ 28:11] so the you
+[ 28:12] is just a different level for the noise
+[ 28:17] which fear to the original
+[ 28:24] [Music]
+[ 28:43] we also use a different noise here if we
+[ 28:49] want to and this way we can shape the
+[ 28:53] frequency spectrum of this reverb with a
+[ 28:57] low-pass filter and simply simply add
+[ 29:00] this noise to the other one
+[ 29:06] I like that you can always an NCO
+[ 29:11] pitches and you can always have new
+[ 29:14] ideas of what you can do so it is a
+[ 29:22] damper let's sit to say that did
+[ 29:39] [Music]
+[ 29:41] actually I like this and we can also add
+[ 29:52] I have a spirited erectus why not you
+[ 30:00] see I we were a bloke at
+[ 30:11] [Music]
+[ 30:19] I wasted and we have one more thing here
+[ 30:40] it's called sustain and these node is
+[ 30:44] only meant for people who are using a
+[ 30:46] sustain pedal which I don't have here
+[ 30:47] currently but the moonlight sonata MIDI
+[ 30:51] I was using has it it used it so I
+[ 30:56] inserted this sustain load our designer
+[ 31:01] surely does a Stamper that is not
+[ 31:04] supported currently by off forever
+[ 31:07] directly but there's a workaround and
+[ 31:09] you can build it for yourself it's three
+[ 31:15] not that hard and once you have this
+[ 31:17] patch it's good for most situations I
+[ 31:20] can imagine pretty rare situations where
+[ 31:24] it doesn't work especially on amando
+[ 31:28] against a premium that
+[ 31:34] a part of that this should be fine so we
+[ 31:39] take the gate and feed it into a
+[ 31:41] variable and the variable is checking
+[ 31:45] for the change of something and it's the
+[ 31:48] midi CC and if the midi CC is going to
+[ 31:54] be higher than 0.5 then we are
+[ 31:58] outputting one here as zero and we have
+[ 32:03] to look at for the midi CC and the most
+[ 32:06] common thing for a sustain is BCC 64
+[ 32:12] these changes or is also going into the
+[ 32:18] crossfade and this is the sustain so we
+[ 32:25] are we are remembering when change
+[ 32:28] happens
+[ 32:31] you
+[ 32:33] oh no this comes here sorry
+[ 32:37] it goes there
+[ 32:40] so you can see better sorry
+[ 32:47] have to make these clicks a lot more a
+[ 32:51] lot less responsive because my waist I
+[ 32:56] will click and mess things up so yeah
+[ 33:02] this is the way the sustain patch looks
+[ 33:06] and what we have to do is - we have to
+[ 33:11] get there
+[ 33:15] here and whatever uses the 8
+[ 33:23] here we G gone I can play there align it
+[ 33:30] and we are ready with the piano
+[ 33:41] you
+[ 33:45] so uh you can see the new pitches are
+[ 33:49] more a lot better organized in my world
+[ 33:52] one and yeah it works it works nicely
+[ 34:03] [Music]
+[ 34:12] and you're the most most important thing
+[ 34:15] is this pitch limiting thing because
+[ 34:20] it's now 160 if I had to an attire we
+[ 34:26] got a harsher sound that if I move a lot
+[ 34:29] higher that's not a piano anymore but if
+[ 34:35] we remain to the stiffness so this was
+[ 34:50] the key that I didn't find I was always
+[ 34:53] trying to create extreme curves and
+[ 34:56] cutoff resonance settings and it was
+[ 34:59] completely wrong
+[ 35:00] this works nicely without
+[ 35:05] doing too much and I think it sounds
+[ 35:08] nice I like it
+[ 35:09] and it clearly is just a cup of strong
+[ 35:13] maybe if you are not using the Opus
+[ 35:15] Peters you will get the same result but
+[ 35:17] then everything is going to pitch one of
+[ 35:19] the fire I didn't try it yet maybe it
+[ 35:22] works and I think you can enhance this a
+[ 35:25] lot further if you want to anyways I'm
+[ 35:32] gonna share this page with you and I
+[ 35:34] hope you had fun watching this
+[ 35:38] I've spent it really really really lots
+[ 35:42] of time having a piano pitch and
+[ 35:45] actually this was one of my motivations
+[ 35:48] to to
+[ 35:51] to work in this Sun design business when
+[ 35:55] so yeah I always said the idea that I
+[ 36:00] can recreate acoustic instruments and I
+[ 36:03] was always interested in this but I'm
+[ 36:07] not the guy who is writing heavy
+[ 36:10] equations and stuff like that like the
+[ 36:14] geniuses that Julius Ausmus does I don't
+[ 36:17] understand half of the things he says
+[ 36:19] and but but I left the way I left this
+[ 36:25] intuitive way to design sound so I don't
+[ 36:28] think that I have to know that computer
+[ 36:32] is the same as a the equation of a
+[ 36:36] string because the delay times sound
+[ 36:40] like an oscillator and they just repeat
+[ 36:43] signals and and I can hear that it works
+[ 36:47] and I can hear that feeding some noise
+[ 36:49] into computer sounds like guitar and I
+[ 36:54] can imagine that it sounds the same way
+[ 36:57] that some random thing repeats itself
+[ 37:00] and then it's an oscillator and then it
+[ 37:02] gets something that that's pretty much
+[ 37:04] something like the physically physical
+[ 37:07] thing but I wouldn't call this physical
+[ 37:11] modeling because
+[ 37:13] the people who really do physical
+[ 37:16] modeling are really geniuses and I
+[ 37:20] really respect them because they they
+[ 37:24] don't need to experiment too much with
+[ 37:30] values Dave they do the maths they do
+[ 37:33] the measurements and they do stuff that
+[ 37:37] I never will do because I don't know how
+[ 37:40] to do it but I would call this something
+[ 37:45] that I feed back synthesis or or
+[ 37:48] yeah I like feedback synthesis anyways
+[ 37:54] it's still a lot more organic than what
+[ 37:58] but you can achieve it
+[ 38:01] regular subtractive synthesis or
+[ 38:03] additive synthesis yeah actually I don't
+[ 38:11] talk anymore more I hope you will have
+[ 38:13] fun with this little piano and I hope
+[ 38:16] you can extend it and if you can show me
+[ 38:20] what you can come up with
+[ 38:21] I will be more than happy so yes guys
+[ 38:26] thanks for watching and if you like this
+[ 38:29] kind of content then please subscribe
+[ 38:31] and supporters as you see we are working
+[ 38:36] for further the other in developments we
+[ 38:39] did the revolt World War II why and
+[ 38:44] you've seen it on the other editor we
+[ 38:46] have text fields now and
+[ 38:49] I hope that you will have the new
+[ 38:52] version soon it's under heavy testing as
+[ 38:55] you see so once again thanks for
+[ 39:00] watching and happy noting bye-bye
+[ 39:31] you
