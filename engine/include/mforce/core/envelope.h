@@ -86,6 +86,7 @@ struct Envelope : ValueSource {
   // ramp_accuracy:  1.0 = unmodulated; <1.0 = output multiplied by
   //   1 + (1 - ramp_accuracy) * lfo, lfo in [-1, 1].
   float stage_accuracy{1.0f};
+  float timeScale_{1.0f};
   float ramp_accuracy{1.0f};
 
   // Stage-timing semantics (2026-08-06, piano-chuff fix). Default false:
@@ -157,6 +158,10 @@ struct Envelope : ValueSource {
       {"stage_accuracy", ConfigType::Float, 1.0f, 0.0f, 1.0f},
       {"ramp_accuracy",  ConfigType::Float, 1.0f, 0.0f, 1.0f},
       {"sustainLevel",   ConfigType::Float, 0.7f, 0.0f, 1.0f},
+      // Keyboard tracking of envelope times (classic synth env-KBD-track):
+      // multiplies every stage duration. paramMap-able per note, so a hit
+      // envelope can shorten with pitch (treble hammers contact shorter).
+      {"timeScale",      ConfigType::Float, 1.0f, 0.01f, 10.0f},
     };
     return descs;
   }
@@ -164,6 +169,7 @@ struct Envelope : ValueSource {
   void set_config(std::string_view name, float value) override {
     if (name == "stage_accuracy") { stage_accuracy = std::clamp(value, 0.0f, 1.0f); return; }
     if (name == "ramp_accuracy")  { ramp_accuracy  = std::clamp(value, 0.0f, 1.0f); return; }
+    if (name == "timeScale")      { timeScale_ = std::clamp(value, 0.01f, 10.0f); return; }
     // Live sustain rewrite (decay endVal, expand start/end, release startVal
     // all carry the sustain value). Lets paramMap drive sustainLevel per
     // note (frequency curves). Accepted for adsr-preset envelopes AND for
@@ -199,6 +205,7 @@ struct Envelope : ValueSource {
   float get_config(std::string_view name) const override {
     if (name == "stage_accuracy") return stage_accuracy;
     if (name == "ramp_accuracy")  return ramp_accuracy;
+    if (name == "timeScale")      return timeScale_;
     if (name == "sustainLevel")
       return has_adsr_shape_() ? stages_[2].ramp.startVal : 0.0f;
     return 0.0f;
@@ -261,6 +268,7 @@ struct Envelope : ValueSource {
 
       float stgDur = absolute_time ? stages_[i].percent          // literal seconds
                                    : duration * stages_[i].percent;
+      stgDur *= timeScale_;
       // Apply stage_accuracy: multiply by a random factor in [stage_accuracy, 1]
       // so multiplex clones get jittered ramp lengths. No-op when == 1.
       if (stage_accuracy < 1.0f) {

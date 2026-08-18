@@ -1,4 +1,4 @@
-"""afp31_v5 — from-scratch rebuild of the AFNoding-031 piano per
+"""afp31_v7 — from-scratch rebuild of the AFNoding-031 piano per
 docs/research/afpiano_scratch/RECIPE.md (build-video archaeology).
 
 v4 = every previously guessed value replaced by a frame-read one
@@ -148,6 +148,17 @@ PATCH = {
       "frequency": [
         "string.frequency",
         {"target": "exc_1p.cutoffFreq",   "curve": clamp2f_curve(), "interp": "loglog"},
+        # Matt (v5 audition): hammer noise creeps in from ~523 Hz, growing
+        # with pitch. A gain taper (v6) measured as a pure volume fade —
+        # excitation feeds tone AND noise, linear chain, ratio untouched.
+        # The real ratio lever is TEMPORAL: the 361 ms hit tail is fixed
+        # while the treble ring shortens, so ever more of the note is bare
+        # chuff. Envelope timeScale (new, per-note mappable) shortens the
+        # hit + bed with pitch: x1 up to 523 Hz -> x0.4 at 4.2 kHz.
+        {"target": "exc_env.timeScale",   "curve": [[20.0, 1.0], [523.0, 1.0],
+            [4186.0, 0.4], [16000.0, 0.4]], "interp": "loglog"},
+        {"target": "env_rev.timeScale",   "curve": [[20.0, 1.0], [523.0, 1.0],
+            [4186.0, 0.4], [16000.0, 0.4]], "interp": "loglog"},
         {"target": "string.t60",          "curve": t60_curve(), "interp": "loglog"},
         {"target": "body_hp.cutoffFreq",  "curve": clamp2f_curve(LOWCUT), "interp": "loglog"},
         {"target": "vel_lp.cutoffFreq",   "curve": clamp2f_curve(),
@@ -161,13 +172,14 @@ PATCH = {
     {"note": 60, "velocity": 0.85, "time": 8.0,  "duration": 3.5},
     {"note": 84, "velocity": 0.85, "time": 16.0, "duration": 3.5},
     {"note": 60, "velocity": 0.30, "time": 24.0, "duration": 3.5},
+    {"note": 96, "velocity": 0.85, "time": 32.0, "duration": 3.5},
   ]
 }
 
 def main():
     PDIR.mkdir(parents=True, exist_ok=True)
     RDIR.mkdir(parents=True, exist_ok=True)
-    name = "afp31_v5"
+    name = "afp31_v7"
     p2 = PDIR / (name + ".json")
     p2.write_text(json.dumps(PATCH, indent=2), encoding="utf-8")
     wav = RDIR / (name + ".wav")

@@ -84,6 +84,22 @@ bare string. Remaining guesses, now explicitly enumerated: detune
 cents (knob never shown settled; ours 1.0), Reverb strength exact
 value (knob ~0.17; ours 0.15), per-string damping-cutoff differences
 if any. Everything else is frame-read.
+V6+V7 (2026-08-17, Matt's v5 verdict: "hammer noise too loud from
+~523 Hz, linearly more noticeable on up" — v4/v5 both good, iterating
+on v5): **LISTEN afp31_v7.wav** (v6 is superseded and honest-failed:
+its -3 dB/oct excitation gain taper measured as a PURE volume fade of
+the top register — excitation feeds tone and noise through a linear
+chain, so gain cannot move the hammer-to-tone ratio; my lever-1 offer
+was arithmetically wrong). v7 = v5 + the temporal lever: new Envelope
+config **timeScale** (keyboard tracking of envelope times, per-note
+mappable — classic synth primitive, multi-use) shortens the hit + bed
+envelopes above 523 Hz (x1 -> x0.4 at 4.2 kHz, loglog), so the 361 ms
+chuff no longer outlives the shortening treble ring. C2/C4 renders
+identical to v5; C6 excitation window ~74%; score gains a 2093 Hz
+note (t=32 s) to judge the tracking where it bites. If the top still
+reads noisy after this, the next suspects are the fixed 1.6 kHz
+excitation band itself (his Brightness knob — fidelity vs taste fork)
+and the reverb-bed strength.
 
 ### 34. AFP excitation ladder — moves A+E [listen] (2026-08-15)
 renders/dsp/pending/ks_piano_v6/pb_exc_*.wav + README_pb_exc.md.
