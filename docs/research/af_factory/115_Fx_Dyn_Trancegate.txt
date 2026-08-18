@@ -1,0 +1,60 @@
+# swengine::20200430  (3447 bytes)
+# build: 20220928_9572
+[0] swarray64        "Array 64 Mono" [~260B] i64 1 0 1 0 1 0 1 1 1 0 1 0 1 0 1 0 0 0 0 0 0 0 0
+[1] swout            "O1" 
+[2] swout            "O2" 
+[3] swsuperknob      "Step No" 0 15 1 0.333333 i1 i1 0
+[4] swsuperknob      "Step Value" 0 1 1 0 0 i1 0
+[5] swchange         "Change" 
+[6] swgain           "Gain Lin" 0 1
+[7] swin             "I1" 
+[8] swin             "I2" 
+[9] swtrunc          "Trunc 1" 
+[10] swscope          "Scope" [~36B] 0 0 0 0 2 0 i1 292 230
+[11] swsuperknob      "Attack (ms)" 0 1000 3 0.12285 i3 0 0
+[12] swsuperknob      "Release" 0 1000 3 0.35 i4 0 0
+[13] swconnect        "Con 2" 
+[14] SUBPATCH "Logics"  meta='{"elements":[]}\x00'
+  [0] swclock          "Clock" [~0B] 
+  [1] swmul            "Mul" 
+  [2] swtrunc          "Trunc" 
+  [3] swmod            "Modulo" 
+  [4] swconst          "B 1" 16
+  [5] swbpmsync        "BPM Sync" [~4B] 1
+  [6] swifless         "If <" 
+  [7] swlastsam        "Previous" [~0B] 
+  [8] swconst          "True" 1
+  [9] swconst          "False" 0
+  [10] swled            "LED" 
+  [11] swmul            "Mul 1" 
+  [12] swconnect        "Con 1" 
+  [13] swout            "RI" 
+  [14] swout            "F 1" 
+  [15] swout            "G" 
+  [16] swin             "Spd" 
+  [17] swmul            "Mul 2" 
+  [18] swconst          "B" 2
+  [19] swconnect        "Con" 
+    Mul.A <- Clock.1/4
+    Mul.B <- Mul 2.x
+    Trunc.A <- Mul.x
+    Modulo.A <- Trunc.Int
+    Modulo.B <- B 1.#
+    If <.A <- Con.O
+    If <.B <- Previous.Out
+    If <.T <- True.#
+    If <.F <- False.#
+    Previous.In <- Modulo.M
+    LED.I <- If <.<
+    Mul 1.A <- Con 1.O
+    Mul 1.B <- BPM Sync.Hz
+    Con 1.I <- Mul 2.x
+    RI.O <- Modulo.M
+    F 1.O <- Mul 1.x
+    G.O <- LED.O
+    Mul 2.A <- Spd.I
+    Mul 2.B <- B.#
+    Con.I <- Modulo.M
+[15] swsuperknob      "Spd" 1 8 1 0.428571 i2 i1 0
+[16] swenvfollow      "Env. follower" [~540B] i1 i1634890305 i875962489 i1852788000 i1850280559 i1970426890 i824206190 i1953384714 i266 i1920090368 2.39125e-06 i1867325492 i1376415598 i1867254345 i1935894887 i172577290 i1 i1634890305 i875962489 i1852788000 880807 i1702122250 i1867391088 i17454602
+!! stopped: error('unpack_from requires a buffer of at least 3451 bytes for unpacking 4 bytes at offset 3447 (actual buffer size is 3447)')

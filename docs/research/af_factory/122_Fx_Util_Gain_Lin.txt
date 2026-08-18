@@ -1,0 +1,15 @@
+# swengine::20200430  (556 bytes)
+# build: 20220928_9572
+[0] swgain           "Gain Lin" 0 1
+[1] swin             "I1" 
+[2] swin             "I2" 
+[3] swout            "O1" 
+[4] swout            "O2" 
+[5] swsuperknob      "Gain" 0 1 1 1 0 0 0
+  Gain Lin.In1 <- I1.I
+  Gain Lin.In2 <- I2.I
+  Gain Lin.M <- Gain.V
+  O1.O <- Gain Lin.O1
+  O2.O <- Gain Lin.O2
+== done, leftover 32 bytes
+   tail: 30b0a4c200ed1dc27e558e3f0100000000050000d00200000600000001000000

@@ -1,0 +1,251 @@
+# swengine::20200430  (9899 bytes)
+# build: 20220928_9572
+[0] swmidinote       "Midi Note" 
+[1] swsuperknob      "Metalic" 0.75 0.95 1 0.53 i5 0 0
+[2] swgain           "Gain Lin" 0.0400001 0
+[3] swout            "O1" 
+[4] swout            "O2" 
+[5] swconnect        "Con" 
+[6] swneg            "Neg" 
+[7] swmixlin4        "Mixer 4 Lin" [~32B] 0.13 0 0.265 0 0.36 0 1 0
+[8] swmul            "Mul" 
+[9] swenvfollowmod   "Env. follower Modulated 1" 0 0 0 1
+[10] swnoise          "White Noise" 
+[11] swmixlin4        "Mixer 4 Lin 1" [~32B] 1 0 0.53 0 0 0 0 0
+[12] swfilter2p       "Filter 2P" 
+[13] swsuperknob      "P" 0 150 1 0.63 i-1 0 0
+[14] swconst          "R" 15
+[15] swfilter1p       "Filter 1P" 
+[16] swsuperknob      "P 2" 0 150 1 0.07 i-1 0 0
+[17] swtrgtogate      "Trg->Gate" 0 1
+[18] swenvfollowmod   "Env. follower Modulated" 0 0 1 1
+[19] swmul            "Mul 3" 
+[20] swconst          "B 1" 4
+[21] swmul            "Mul 4" 
+[22] swmul            "Mul 5" 
+[23] swsuperknob      "Pitch" 400 1500 1 0.195 0 0 0
+[24] hz2ms            "Hz->ms" 
+[25] swconnect        "Con 1" 
+[26] swsuperknob      "Character" 0.65 0.8 1 0.92 i6 0 0
+[27] swcrossfade      "Crossfade" 
+[28] swconst          "A" 50
+[29] swled            "LED" 
+[30] swmul            "Mul 2" 
+[31] swmul            "Mul 7" 
+[32] swconnect        "Con 3" 
+[33] swsuperknob      "Attack" 0 1000 1 0.405 i1 0 0
+[34] swsuperknob      "Release" 10 10000 2 0.515 i2 0 0
+[35] SUBPATCH "Comb_Dmp"  meta='{"elements":[]}\x00'
+  [0] swdelay          "Delay" 
+  [1] swin             "In" 
+  [2] swout            "Out" 
+  [3] swfilter1p       "Filter 1P" 
+  [4] swmul            "Mul" 
+  [5] swin             "D" 
+  [6] swin             "Fb" 
+  [7] swin             "Lo" 
+  [8] swadd            "Add" 
+  [9] swconnect        "Con" 
+  [10] swconnect        "Con 1" 
+  [11] swfilter1p       "Filter 1P 1" 
+  [12] swin             "Hi" 
+    Delay.In <- Add.+
+    Delay.D <- D.I
+    Out.O <- Delay.Out
+    Filter 1P.In <- Delay.Out
+    Filter 1P.P <- Lo.I
+    Mul.A <- Filter 1P 1.H
+    Mul.B <- Fb.I
+    Add.A <- In.I
+    Add.B <- Con.O
+    Con.I <- Con 1.O
+    Con 1.I <- Mul.x
+    Filter 1P 1.In <- Filter 1P.L
+    Filter 1P 1.P <- Hi.I
+[36] swsuperknob      "Low Dmp" 0 150 1 0.755 i3 0 0
+[37] swmul            "Mul 1" 
+[38] swfilter1p       "Filter 1P 1" 
+[39] swcrossfade      "Crossfade 1" 
+[40] swconst          "B" 150
+[41] swconst          "A 1" 50
+[42] SUBPATCH "Comb_Dmp 1"  meta='{"elements":[]}\x00'
+  [0] swdelay          "Delay" 
+  [1] swin             "In" 
+  [2] swout            "Out" 
+  [3] swfilter1p       "Filter 1P" 
+  [4] swmul            "Mul" 
+  [5] swin             "D" 
+  [6] swin             "Fb" 
+  [7] swin             "Lo" 
+  [8] swadd            "Add" 
+  [9] swconnect        "Con" 
+  [10] swconnect        "Con 1" 
+  [11] swfilter1p       "Filter 1P 1" 
+  [12] swin             "Hi" 
+    Delay.In <- Add.+
+    Delay.D <- D.I
+    Out.O <- Delay.Out
+    Filter 1P.In <- Delay.Out
+    Filter 1P.P <- Lo.I
+    Mul.A <- Filter 1P 1.H
+    Mul.B <- Fb.I
+    Add.A <- In.I
+    Add.B <- Con.O
+    Con.I <- Con 1.O
+    Con 1.I <- Mul.x
+    Filter 1P 1.In <- Filter 1P.L
+    Filter 1P 1.P <- Hi.I
+[43] SUBPATCH "Comb_Dmp 2"  meta='{"elements":[]}\x00'
+  [0] swdelay          "Delay" 
+  [1] swin             "In" 
+  [2] swout            "Out" 
+  [3] swfilter1p       "Filter 1P" 
+  [4] swmul            "Mul" 
+  [5] swin             "D" 
+  [6] swin             "Fb" 
+  [7] swin             "Lo" 
+  [8] swadd            "Add" 
+  [9] swconnect        "Con" 
+  [10] swconnect        "Con 1" 
+  [11] swfilter1p       "Filter 1P 1" 
+  [12] swin             "Hi" 
+    Delay.In <- Add.+
+    Delay.D <- D.I
+    Out.O <- Delay.Out
+    Filter 1P.In <- Delay.Out
+    Filter 1P.P <- Lo.I
+    Mul.A <- Filter 1P 1.H
+    Mul.B <- Fb.I
+    Add.A <- In.I
+    Add.B <- Con.O
+    Con.I <- Con 1.O
+    Con 1.I <- Mul.x
+    Filter 1P 1.In <- Filter 1P.L
+    Filter 1P 1.P <- Hi.I
+[44] SUBPATCH "Comb_Dmp 3"  meta='{"elements":[]}\x00'
+  [0] swdelay          "Delay" 
+  [1] swin             "In" 
+  [2] swout            "Out" 
+  [3] swfilter1p       "Filter 1P" 
+  [4] swmul            "Mul" 
+  [5] swin             "D" 
+  [6] swin             "Fb" 
+  [7] swin             "Lo" 
+  [8] swadd            "Add" 
+  [9] swconnect        "Con" 
+  [10] swconnect        "Con 1" 
+  [11] swfilter1p       "Filter 1P 1" 
+  [12] swin             "Hi" 
+    Delay.In <- Add.+
+    Delay.D <- D.I
+    Out.O <- Delay.Out
+    Filter 1P.In <- Delay.Out
+    Filter 1P.P <- Lo.I
+    Mul.A <- Filter 1P 1.H
+    Mul.B <- Fb.I
+    Add.A <- In.I
+    Add.B <- Con.O
+    Con.I <- Con 1.O
+    Con 1.I <- Mul.x
+    Filter 1P 1.In <- Filter 1P.L
+    Filter 1P 1.P <- Hi.I
+[45] swsuperknob      "Hi Dmp" 0 150 1 0.265 i4 0 0
+[46] swfilter2p       "Filter 2P 1" 
+[47] swconnect        "Con 2" 
+[48] SUBPATCH "Eq"  meta='{"elements":[]}\x00'
+  [0] swin             "In" 
+  [1] swadd            "Add" 
+  [2] swout            "Out" 
+  [3] swfilter2p       "Filter 2P" 
+  [4] hz2pitch         "Hz->Pitch" 
+  [5] swconst          "F" 8000
+  [6] swconst          "R" 1
+  [7] swadd            "Add 1" 
+    Add.A <- In.I
+    Add.B <- Add 1.+
+    Out.O <- Add.+
+    Filter 2P.In <- In.I
+    Filter 2P.P <- Hz->Pitch.P
+    Filter 2P.R <- R.#
+    Hz->Pitch.F <- F.#
+    Add 1.A <- Filter 2P.B
+    Add 1.B <- Filter 2P.B
+[49] swmul            "Mul 6" 
+[50] swconnect        "Con 4" 
+  Gain Lin.In1 <- Con.O
+  Gain Lin.In2 <- Con.O
+  O1.O <- Gain Lin.O1
+  O2.O <- Gain Lin.O2
+  Con.I <- Mixer 4 Lin 1.Out
+  Neg.A <- Metalic.V
+  Mixer 4 Lin.In4 <- Comb_Dmp 3.Out
+  Mul.A <- Filter 1P 1.L
+  Mul.B <- Env. follower Modulated 1.E
+  Env. follower Modulated 1.In <- Mul 1.x
+  Env. follower Modulated 1.Rm <- Mul 6.x
+  Mixer 4 Lin 1.In1 <- Con 3.O
+  Mixer 4 Lin 1.In2 <- Mul 3.x
+  Filter 2P.In <- Con 3.O
+  Filter 2P.P <- Crossfade.=
+  Filter 2P.R <- R.#
+  Filter 1P.In <- Mixer 4 Lin.Out
+  Filter 1P.P <- P 2.V
+  Trg->Gate.T <- Con 1.O
+  Trg->Gate.M <- Attack.V
+  Env. follower Modulated.In <- Trg->Gate.G
+  Env. follower Modulated.Am <- Trg->Gate.OM
+  Env. follower Modulated.Rm <- Con 4.O
+  Mul 3.A <- Filter 2P 1.B
+  Mul 3.B <- B 1.#
+  Mul 4.A <- Hz->ms.ms
+  Mul 4.B <- Character.V
+  Mul 5.A <- Mul 4.x
+  Mul 5.B <- Character.V
+  Hz->ms.F <- Pitch.V
+  Con 1.I <- Midi Note.T
+  Crossfade.A <- A.#
+  Crossfade.B <- P.V
+  Crossfade.X <- LED.O
+  LED.I <- Mul 7.x
+  Mul 2.A <- Mul 5.x
+  Mul 2.B <- Character.V
+  Mul 7.A <- Env. follower Modulated.E
+  Mul 7.B <- Env. follower Modulated.E
+  Con 3.I <- Filter 1P.H
+  Comb_Dmp.In <- Mul.x
+  Comb_Dmp.D <- Hz->ms.ms
+  Comb_Dmp.Fb <- Neg.-A
+  Comb_Dmp.Lo <- Low Dmp.V
+  Comb_Dmp.Hi <- Hi Dmp.V
+  Mul 1.A <- Midi Note.T
+  Mul 1.B <- Midi Note.V
+  Filter 1P 1.In <- Eq.Out
+  Filter 1P 1.P <- Crossfade 1.=
+  Crossfade 1.A <- A 1.#
+  Crossfade 1.B <- B.#
+  Crossfade 1.X <- Midi Note.V
+  Comb_Dmp 1.In <- Comb_Dmp.Out
+  Comb_Dmp 1.D <- Mul 4.x
+  Comb_Dmp 1.Fb <- Neg.-A
+  Comb_Dmp 1.Lo <- Low Dmp.V
+  Comb_Dmp 1.Hi <- Hi Dmp.V
+  Comb_Dmp 2.In <- Comb_Dmp 1.Out
+  Comb_Dmp 2.D <- Mul 5.x
+  Comb_Dmp 2.Fb <- Neg.-A
+  Comb_Dmp 2.Lo <- Low Dmp.V
+  Comb_Dmp 2.Hi <- Hi Dmp.V
+  Comb_Dmp 3.In <- Comb_Dmp 2.Out
+  Comb_Dmp 3.D <- Mul 2.x
+  Comb_Dmp 3.Fb <- Neg.-A
+  Comb_Dmp 3.Lo <- Low Dmp.V
+  Comb_Dmp 3.Hi <- Hi Dmp.V
+  Filter 2P 1.In <- Filter 2P.B
+  Filter 2P 1.P <- Con 2.O
+  Filter 2P 1.R <- R.#
+  Con 2.I <- Crossfade.=
+  Eq.In <- White Noise.~
+  Mul 6.A <- Release.V
+  Mul 6.B <- Midi Note.V
+  Con 4.I <- Mul 6.x
+== done, leftover 32 bytes
+   tail: 6e96554459ab1c433d23d93e0000000000050000d00200000400000001000000

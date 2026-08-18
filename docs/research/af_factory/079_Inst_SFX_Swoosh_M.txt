@@ -1,0 +1,92 @@
+# swengine::20200430  (3810 bytes)
+# build: 20220928_9572
+[0] swmidinote       "Midi Note" 
+[1] swenvfollowmod   "Env. follower Modulated" 0 0 1 1
+[2] swmul            "Mul" 
+[3] swchange         "Change" 
+[4] swtrgtogate      "Trg->Gate" 0 1
+[5] swsuperknob      "Attack" 0 1000 1 0.11 0 0 0
+[6] swsuperknob      "Release" 0 1000 1 0.805 i1 0 0
+[7] swnoise          "White Noise" 
+[8] swmul            "Mul 1" 
+[9] swgain           "Gain Lin" 0.415 0
+[10] swout            "O1" 
+[11] swout            "O2" 
+[12] swfilter2p       "Filter 2P" 
+[13] swconnect        "Con" 
+[14] swcrossfade      "Crossfade" 
+[15] swsuperknob      "Resonance" 0 1 1 0.9 i4 0 0
+[16] swdiv            "Div" 
+[17] swsuperknob      "Freq. Low" 0 80 1 0.282437 i3 0 0
+[18] swsuperknob      "Freq. High" 0 150 1 1 i2 0 0
+[19] swconnect        "Con 1" 
+[20] swmul            "Mul 2" 
+[21] swconnect        "Con 2" 
+[22] swcomb           "Comb" [~0B] 
+[23] swcrossfade      "Crossfade 1" 
+[24] swconst          "B" 0
+[25] swsuperknob      "Comb depth" 0 150 1 0.8 i7 0 0
+[26] swconnect        "Con 3" 
+[27] swconnect        "Con 4" 
+[28] swcrossfade      "Crossfade 2" 
+[29] swsuperknob      "Noise / Comb" 0 1 1 0.275 i6 0 0
+[30] SUBPATCH "Designer"  meta='{"elements":[]}\x00'
+  [0] swin             "In" 
+  [1] swout            "Out" 
+  [2] swabs            "Abs" 
+  [3] swifless         "If <" 
+  [4] swin             "B" 
+  [5] swconst          "T" 0
+  [6] swconnect        "Con" 
+  [7] swcomplemet      "1-X" 
+    Out.O <- If <.<
+    Abs.A <- In.I
+    If <.A <- Abs.|A|
+    If <.B <- 1-X.1-X
+    If <.T <- T.#
+    If <.F <- Con.O
+    Con.I <- In.I
+    1-X.X <- B.I
+[31] swsuperknob      "Noise Density" 0 1 3 0.85 i5 0 0
+  Env. follower Modulated.In <- Trg->Gate.G
+  Env. follower Modulated.Am <- Attack.V
+  Env. follower Modulated.Rm <- Release.V
+  Mul.A <- Change.T
+  Mul.B <- Midi Note.G
+  Change.In <- Midi Note.G
+  Trg->Gate.T <- Mul.x
+  Trg->Gate.M <- Attack.V
+  Mul 1.A <- Designer.Out
+  Mul 1.B <- Env. follower Modulated.E
+  Gain Lin.In1 <- Con.O
+  Gain Lin.In2 <- Con.O
+  O1.O <- Gain Lin.O1
+  O2.O <- Gain Lin.O2
+  Filter 2P.In <- Crossfade 2.=
+  Filter 2P.P <- Crossfade.=
+  Filter 2P.R <- Resonance.V
+  Con.I <- Div./
+  Crossfade.A <- Freq. Low.V
+  Crossfade.B <- Mul 2.x
+  Crossfade.X <- Con 1.O
+  Div.A <- Filter 2P.B
+  Div.B <- Resonance.V
+  Con 1.I <- Env. follower Modulated.E
+  Mul 2.A <- Freq. High.V
+  Mul 2.B <- Con 2.O
+  Con 2.I <- Midi Note.V
+  Comb.In <- Con 4.O
+  Comb.D <- Crossfade 1.=
+  Comb.FB <- Con 3.O
+  Crossfade 1.A <- Comb depth.V
+  Crossfade 1.B <- B.#
+  Crossfade 1.X <- Con 1.O
+  Con 3.I <- Con 1.O
+  Con 4.I <- Mul 1.x
+  Crossfade 2.A <- Mul 1.x
+  Crossfade 2.B <- Comb.Out
+  Crossfade 2.X <- Noise / Comb.V
+  Designer.In <- White Noise.~
+  Designer.B <- Noise Density.V
+== done, leftover 32 bytes
+   tail: 60007041cb062d43b2f41e3f0100000000050000d00200000600000001000000

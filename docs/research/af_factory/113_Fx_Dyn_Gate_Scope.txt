@@ -1,0 +1,94 @@
+# swengine::20200430  (3838 bytes)
+# build: 20220928_9572
+[0] swscope          "1. Dry signal" [~36B] 0 0 0 0 0 0 i1 292 230
+[1] swvudual         "VU Dual" [~0B] 
+[2] swin             "I1" 
+[3] swin             "I2" 
+[4] swout            "O1" 
+[5] swout            "O2" 
+[6] SUBPATCH "Scope Sync"  meta='{"elements":[]}\x00'
+  [0] swbpmsync        "BPM Sync" [~4B] 0.125
+  [1] swout            "Hz" 
+  [2] swclock          "Clock" [~0B] 
+  [3] swmod            "Modulo" 
+  [4] swconst          "B" 2
+  [5] swtrunc          "Trunc" 
+  [6] swchange         "Change" 
+  [7] swout            "T" 
+    Hz.O <- BPM Sync.Hz
+    Modulo.A <- Clock.1/4
+    Modulo.B <- B.#
+    Trunc.A <- Modulo.M
+    Change.In <- Trunc.Int
+    T.O <- Change.T
+[7] swled            "Trg" 
+[8] swscope          "2. Set threshold" [~36B] 0 0 0 0 0 0 i1 292 230
+[9] swadd            "Add" 
+[10] swmul            "Mul" 
+[11] swconst          "B" 0.5
+[12] swabs            "Abs" 
+[13] swscope          "3. Create envelope" [~36B] 0 0 0 0 0 0 i1 292 230
+[14] swifless         "If <" 
+[15] swsuperknob      "Threshold" 0 -60 3 0.365 0 0 0
+[16] swconst          "T" 0
+[17] swconst          "F" 1
+[18] swconnect        "Frq" 
+[19] swscope          "4. Follow envelope" [~36B] 0 0 0 0 0 0 i1 292 230
+[20] swsuperknob      "Attack" 0 3000 3 0 i1 0 0
+[21] swsuperknob      "Release" 0 3000 3 0.526667 i2 0 0
+[22] swtrgtogate      "Trg->Gate" 0 1
+[23] swsuperknob      "Hold" 0 3000 3 0 i3 0 0
+[24] swgain           "Gain Lin" 0 1
+[25] swdb2lin         "dB->Lin" 
+[26] swmul            "Mul 3" 
+[27] swenvfollow      "Env. follower" [~0B] 
+[28] swconnect        "Con 1" 
+[29] swconnect        "Con 2" 
+  1. Dry signal.IA <- I1.I
+  1. Dry signal.IB <- I2.I
+  1. Dry signal.F <- Frq.O
+  1. Dry signal.G <- Trg.O
+  VU Dual.I1 <- Gain Lin.O1
+  VU Dual.I2 <- Gain Lin.O2
+  VU Dual.M12 <- Con 2.O
+  VU Dual.M22 <- Con 2.O
+  O1.O <- VU Dual.O1
+  O2.O <- VU Dual.O2
+  Trg.I <- Scope Sync.T
+  2. Set threshold.IA <- Abs.|A|
+  2. Set threshold.IB <- dB->Lin.Lin
+  2. Set threshold.F <- Frq.O
+  2. Set threshold.G <- Trg.O
+  Add.A <- 1. Dry signal.OA
+  Add.B <- 1. Dry signal.OB
+  Mul.A <- Add.+
+  Mul.B <- B.#
+  Abs.A <- Mul.x
+  3. Create envelope.IA <- 2. Set threshold.OB
+  3. Create envelope.IB <- If <.<
+  3. Create envelope.F <- Frq.O
+  3. Create envelope.G <- Trg.O
+  If <.A <- Con 1.O
+  If <.B <- dB->Lin.Lin
+  If <.T <- T.#
+  If <.F <- F.#
+  Frq.I <- Scope Sync.Hz
+  4. Follow envelope.IA <- Mul 3.x
+  4. Follow envelope.IB <- Env. follower.E
+  4. Follow envelope.F <- Frq.O
+  4. Follow envelope.G <- Trg.O
+  Trg->Gate.T <- 3. Create envelope.OB
+  Trg->Gate.M <- Hold.V
+  Gain Lin.In1 <- 1. Dry signal.OA
+  Gain Lin.In2 <- 1. Dry signal.OB
+  Gain Lin.M <- 4. Follow envelope.OB
+  dB->Lin.dB <- Threshold.V
+  Mul 3.A <- Con 1.O
+  Mul 3.B <- Env. follower.E
+  Env. follower.In <- Trg->Gate.G
+  Env. follower.A <- Attack.V
+  Env. follower.R <- Release.V
+  Con 1.I <- 2. Set threshold.OA
+  Con 2.I <- Threshold.V
+== done, leftover 32 bytes
+   tail: f4ac2a439beba1425c81103f0100000000050000d00200000600000001000000

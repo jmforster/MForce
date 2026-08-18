@@ -1,0 +1,163 @@
+# swengine::20200430  (6004 bytes)
+# build: 20220928_9572
+[0] swgain           "Gain Lin" 0 0.832
+[1] swout            "O1" 
+[2] swout            "O2" 
+[3] swmidinote       "Midi Note" 
+[4] swfilter2p       "Filter 2P" 
+[5] swconst          "R" 0.03
+[6] swmul            "Mul 1" 
+[7] swconst          "B 2" 64
+[8] swsuperknob      "FB" 0 1 1 0.87 i-1 0 0
+[9] swconst          "D" 347
+[10] swchange         "Change 1" 
+[11] swmul            "Mul 2" 
+[12] swadd            "Add" 
+[13] swconnect        "Con" 
+[14] SUBPATCH "RandomTrig"  meta='{"elements":[]}\x00'
+  [0] swlfo_noise      "LFO Noise" [~0B] 
+  [1] swsub            "Sub" 
+  [2] swifless         "If <" 
+  [3] swconst          "B 1" 0
+  [4] swconst          "T" 1
+  [5] swconst          "B" 0.0002
+  [6] swled            "LED" 
+  [7] swchange         "Change" 
+  [8] swmul            "Mul" 
+  [9] swled            "LED 1" 
+  [10] swtrgtogate      "Trg->Gate" 90.25 0
+  [11] swout            "O" 
+    Sub.A <- LFO Noise.~
+    Sub.B <- B.#
+    If <.A <- Sub.-
+    If <.B <- B 1.#
+    If <.T <- T.#
+    If <.F <- B 1.#
+    LED.I <- Mul.x
+    Change.In <- Trg->Gate.G
+    Mul.A <- Change.T
+    Mul.B <- Trg->Gate.G
+    LED 1.I <- If <.<
+    Trg->Gate.T <- LED 1.O
+    O.O <- LED.O
+[15] swfilter2p       "Filter 2P 1" 
+[16] swconst          "R 1" 0.03
+[17] swmul            "Mul 3" 
+[18] swconst          "B 1" 64
+[19] swsuperknob      "FB 1" 0 1 1 0.9 i-1 0 0
+[20] swconst          "D 1" 231
+[21] swadd            "Add 1" 
+[22] SUBPATCH "RandomTrig 1"  meta='{"elements":[]}\x00'
+  [0] swlfo_noise      "LFO Noise" [~0B] 
+  [1] swsub            "Sub" 
+  [2] swifless         "If <" 
+  [3] swconst          "B 1" 0
+  [4] swconst          "T" 1
+  [5] swconst          "B" 0.0002
+  [6] swled            "LED" 
+  [7] swchange         "Change" 
+  [8] swmul            "Mul" 
+  [9] swled            "LED 1" 
+  [10] swtrgtogate      "Trg->Gate" 90.25 0
+  [11] swout            "O" 
+    Sub.A <- LFO Noise.~
+    Sub.B <- B.#
+    If <.A <- Sub.-
+    If <.B <- B 1.#
+    If <.T <- T.#
+    If <.F <- B 1.#
+    LED.I <- Mul.x
+    Change.In <- Trg->Gate.G
+    Mul.A <- Change.T
+    Mul.B <- Trg->Gate.G
+    LED 1.I <- If <.<
+    Trg->Gate.T <- LED 1.O
+    O.O <- LED.O
+[23] swdelay          "Delay" 
+[24] swdelay          "Delay 1" 
+[25] swmul            "Mul" 
+[26] swmul            "Mul 4" 
+[27] swadd            "Add 2" 
+[28] swadd            "Add 3" 
+[29] SUBPATCH "Stereo Width"  meta='{"elements":[]}\x00'
+  [0] swin             "IL" 
+  [1] swin             "IR" 
+  [2] swout            "OL" 
+  [3] swout            "OR" 
+  [4] swadd            "Add 4" 
+  [5] swcrossfade      "Crossfade" 
+  [6] swcrossfade      "Crossfade 1" 
+  [7] swin             "W" 
+    OL.O <- Crossfade.=
+    OR.O <- Crossfade 1.=
+    Add 4.A <- IL.I
+    Add 4.B <- IR.I
+    Crossfade.A <- Add 4.+
+    Crossfade.B <- IL.I
+    Crossfade.X <- W.I
+    Crossfade 1.A <- Add 4.+
+    Crossfade 1.B <- IR.I
+    Crossfade 1.X <- W.I
+[30] swsuperknob      "Stereo W" 0 1 1 0.45 i-1 0 0
+[31] swconnect        "Con 1" 
+[32] swconnect        "Con 2" 
+[33] swmul            "Mul 5" 
+[34] swconnect        "Con 3" 
+[35] swmul            "Mul 6" 
+[36] swmul            "Mul 7" 
+[37] swrtadsr         "ADSR Modulated" [~32B] 1653.42 0 1 1054.44 0 0 0 0
+[38] swadd            "Add 4" 
+[39] swconst          "B" 12
+[40] swsuperknob      "Volume" 0 8 1 0.68 i-1 0 0
+  Gain Lin.In1 <- Stereo Width.OL
+  Gain Lin.In2 <- Stereo Width.OR
+  Gain Lin.M <- Volume.V
+  O1.O <- Gain Lin.O1
+  O2.O <- Gain Lin.O2
+  Filter 2P.In <- Mul 5.x
+  Filter 2P.P <- Con.O
+  Filter 2P.R <- R.#
+  Mul 1.A <- Filter 2P.L
+  Mul 1.B <- B 2.#
+  Change 1.In <- Midi Note.G
+  Mul 2.A <- Change 1.T
+  Mul 2.B <- Midi Note.G
+  Add.A <- Mul 2.x
+  Add.B <- RandomTrig.O
+  Con.I <- Midi Note.P
+  Filter 2P 1.In <- Mul 6.x
+  Filter 2P 1.P <- Add 4.+
+  Filter 2P 1.R <- R 1.#
+  Mul 3.A <- Filter 2P 1.L
+  Mul 3.B <- B 1.#
+  Add 1.A <- Mul 2.x
+  Add 1.B <- RandomTrig 1.O
+  Delay.In <- Add 2.+
+  Delay.D <- D 1.#
+  Delay 1.In <- Add 3.+
+  Delay 1.D <- D.#
+  Mul.A <- Delay 1.Out
+  Mul.B <- FB.V
+  Mul 4.A <- Delay.Out
+  Mul 4.B <- FB 1.V
+  Add 2.A <- Mul 1.x
+  Add 2.B <- Mul.x
+  Add 3.A <- Mul 3.x
+  Add 3.B <- Mul 4.x
+  Stereo Width.IL <- Con 1.O
+  Stereo Width.IR <- Con 2.O
+  Stereo Width.W <- Stereo W.V
+  Con 1.I <- Add 3.+
+  Con 2.I <- Add 2.+
+  Mul 5.A <- Add.+
+  Mul 5.B <- Mul 7.x
+  Con 3.I <- Midi Note.V
+  Mul 6.A <- Add 1.+
+  Mul 6.B <- Mul 7.x
+  Mul 7.A <- Con 3.O
+  Mul 7.B <- ADSR Modulated.E
+  ADSR Modulated.G <- Midi Note.G
+  Add 4.A <- Con.O
+  Add 4.B <- B.#
+== done, leftover 32 bytes
+   tail: f0da904380bbba425c81103f0000000000050000d00200000400000001000000

@@ -1,0 +1,91 @@
+# swengine::20200430  (8677 bytes)
+# build: 20220928_9572
+[0] swgain           "Gain Lin" 0.164 0
+[1] swout            "O1" 
+[2] swout            "O2" 
+[3] swmidinote       "Midi Note" 
+[4] swosc_multi      "OSC Multi" [~32B] i4 0 0 0 -0.31 0 0 0.5
+[5] swconst          "V" 1
+[6] swosc_multi      "OSC Multi 1" [~135B] i6 -1 0 0 -1 0 0 0.5 i1936684915 i1970102115 i174683244 i1868789619 0.000711209 0.00016898 0.00016901 211.309 i1819626784 i840984948 i-1702887414 i234881091 i1870099268 i1834967923 i1769237621 i808598074
+[7] swmixlin4        "Mixer 4 Lin" [~32B] 1 0 1 0 1 0 0.23 0
+[8] swrtadsr         "ADSR Modulated" [~32B] 1418.45 0 1 2806.05 0 0 0 0
+[9] swled            "LED" 
+[10] swmixlin4        "Mixer 4 Lin 1" [~32B] 0 0.34 0 1 0 0.8 0 0.6
+[11] swmul            "Mul" 
+[12] swosc_multi      "OSC Multi 3" [~32B] i4 0 0 0 -0.1 0 0 0.5
+[13] swsuperknob      "Pm" 0 0.1 1 0.335 i-1 0 0
+[14] swconnect        "Con" 
+[15] swosc_wavetablemorph "OSC Wavetable Morph" [~28B] 1 0 0 0 0 0.22 0.68
+[16] swconst          "Set" 65
+[17] swlfo_multi      "LFO Multi" [~28B] 0.182917 1 0 0 i1 0 0
+[18] swled            "LED 1" 
+[19] swrtadsr         "ADSR Modulated 1" [~32B] 2826.23 0 1 6395.54 0 0 0 0
+[20] swadd            "Add" 
+[21] swled            "LED 2" 
+[22] swled            "LED 3" 
+[23] swled            "LED 4" 
+[24] swdelaygated     "Gated Delay" [~0B] 
+[25] swfiltermod      "Filter Modulated" [~123B] 40.5 1.70368 0 0 0.46 0 i1718384499 i1970102127 i174683244 i1868789619 0.000711209 0.00016898 0.00016901 i1330007050 i1819626784 i857762164 i-1948254198 i683671620 i1819767620 i1834970982 i1769237621 i808598074 i842020145 -34.5471
+[26] swled            "LED 7" 
+[27] swmul            "Mul 5" 
+[28] swconst          "B 2" 128
+[29] swmul            "Mul 6" 
+[30] swnoise          "White Noise" 
+[31] swdelaygated     "Gated Delay 1" [~0B] 
+[32] swadd            "Add 4" 
+[33] swmul            "Mul 8" 
+[34] swlfo_multi      "LFO Multi 1" [~28B] 0 1 1 0 i3 0 0
+[35] swconst          "Fm" 1
+[36] swled            "LED 5" 
+[37] swchange         "Change" 
+[38] swmul            "Mul 1" 
+[39] swled            "LED 6" 
+[40] swinc            "Increment" 
+[41] swsamplerate     "Sample Rate" 
+[42] swconst          "Str" 0
+[43] swled            "LED 8" 
+[44] swcomplemet      "1-X" 
+[45] swabs            "Abs" 
+[46] swled            "LED 10" 
+[47] swcomplemet      "1-X 2" 
+[48] swadd            "Add 3" 
+[49] swmul            "Mul 9" 
+[50] swconst          "B 1" 32
+[51] swadd            "Add 5" 
+[52] swmul            "Mul 10" 
+[53] swled            "LED 14" 
+[54] swled            "LED 15" 
+[55] swmul            "Mul 11" 
+[56] swconst          "B 5" 2
+[57] swrescalegui     "Re-scaler GUI" [~12B] i170920497 i170920497 0
+[58] swmul            "Mul 12" 
+[59] swconst          "B 6" 2
+[60] swrescalegui     "Re-scaler GUI 1" [~12B] i170920497 i170920497 0
+[61] swadd            "Add 1" 
+[62] swconst          "B 7" 0.5
+[63] swmod            "Modulo" 
+[64] swconst          "B 8" 1
+[65] swmul            "Mul 13" 
+[66] swconst          "B 9" 1
+[67] swrtadsr         "ADSR Modulated 2" [~32B] 2130.96 0 1 5696.04 0 0 0 0
+[68] swadd            "Add 2" 
+[69] swled            "LED 16" 
+[70] swfiltermod      "Filter Modulated 1" [~127B] 84.375 7.15822 0.955 0 0 0 i1936684915 i1970102115 i174683244 i1868789619 0.000711209 0.00016898 0.00016901 211.309 i1819626784 i874539380 i-2136997878 i2046820420 i1870099267 i1834967923 i1769237621 i808598074 i842020145 i101330993
+[71] swcrossfadegui   "Crossfade GUI" [~8B] 0.5 0
+[72] swconnect        "Con 1" 
+[73] swconnect        "Con 2" 
+[74] swcomplemet      "1-X 1" 
+[75] swmul            "Mul 2" 
+[76] swcomplemet      "1-X 3" 
+[77] swled            "LED 9" 
+[78] swrescalegui     "Re-scaler GUI 2" [~16B] i805974579 i808465418 i170986032 i1
+[79] swconnect        "Con 3" 
+[80] swconnect        "Con 4" 
+[81] swconnect        "Con 5" 
+[82] swconnect        "Con 6" 
+[83] swconnect        "Con 7" 
+[84] swled            "LED 11" 
+[85] swconnect        "Con 8" 
+[86] swchorus         "Chorus" [~20B] 26.2 0.93 12 0 0
+[87] swnote           "Instructions" [~3347B] 267.769 32 i1409955893 i1948285298 i544434536 i1668571504 i1919950952 i1936024421 i543450483 i1752459639 i1814061344 i744975983 i1836343584 i1752200047 i1667854949 i1986359840 i778203749 i256 i1767982848 i1766596718 i1850280558 i1766656561 i544367992 i1766596660
+!! stopped: ValueError('subsection not found')

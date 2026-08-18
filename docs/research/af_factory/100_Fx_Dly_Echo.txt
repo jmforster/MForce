@@ -1,0 +1,205 @@
+# swengine::20200430  (7893 bytes)
+# build: 20220928_9572
+[0] swout            "O1" 
+[1] swout            "O2" 
+[2] swin             "I1" 
+[3] SUBPATCH "Echo L"  meta='{"elements":[]}\x00'
+  [0] swdelay          "Delay" 
+  [1] swadd            "Add" 
+  [2] swfilter2p       "Filter 2P" 
+  [3] swstanhdist      "TanH Dist." [~0B] 
+  [4] swconst          "C" 1
+  [5] hz2pitch         "Hz->Pitch" 
+  [6] swin             "In" 
+  [7] swin             "D" 
+  [8] swmul            "Mul" 
+  [9] swin             "Fb" 
+  [10] swin             "F" 
+  [11] swin             "R" 
+  [12] swcrossfade      "Crossfade" 
+  [13] swin             "Flt" 
+  [14] swconnect        "Con" 
+  [15] swout            "Ech" 
+    Delay.In <- Add.+
+    Delay.D <- D.I
+    Add.A <- In.I
+    Add.B <- Con.O
+    Filter 2P.In <- Mul.x
+    Filter 2P.P <- Hz->Pitch.P
+    Filter 2P.R <- R.I
+    TanH Dist..In <- Filter 2P.B
+    TanH Dist..C <- C.#
+    Hz->Pitch.F <- F.I
+    Mul.A <- Delay.Out
+    Mul.B <- Fb.I
+    Crossfade.A <- Mul.x
+    Crossfade.B <- TanH Dist..Out
+    Crossfade.X <- Flt.I
+    Con.I <- Crossfade.=
+    Ech.O <- Crossfade.=
+[4] swsuperknob      "Delay L (ms)" 0 1 1 0.035 0 0 0
+[5] swsuperknob      "Feedback" 0 1.2 1 0.78 i2 0 0
+[6] swsuperknob      "Cutoff" 1 22000 3 0.342502 i5 0 0
+[7] swsuperknob      "Resonance" 0 1 1 1 i6 0 0
+[8] swsuperknob      "Feedback filter" 0 1 1 1 i7 0 i1
+[9] swadd            "Add" 
+[10] swlfo_multi      "LFO Multi" [~28B] 0 1 1 0 i1 i1 0
+[11] swcrossfade      "Crossfade" 
+[12] swsuperknob      "LFO Range" 0 1 3 0.365 i10 0 0
+[13] swneg            "Neg" 
+[14] swmul            "Mul" 
+[15] swconnect        "Con" 
+[16] swsuperknob      "LFO Frequency" 0 60 3 0.125 i8 0 0
+[17] swled            "LED" 
+[18] swsuperknob      "LFO Waveform" 1 5 1 0.25 i9 i1 0
+[19] SUBPATCH "Echo R"  meta='{"elements":[]}\x00'
+  [0] swdelay          "Delay" 
+  [1] swadd            "Add" 
+  [2] swfilter2p       "Filter 2P" 
+  [3] swstanhdist      "TanH Dist." [~0B] 
+  [4] swconst          "C" 1
+  [5] hz2pitch         "Hz->Pitch" 
+  [6] swin             "In" 
+  [7] swin             "D" 
+  [8] swmul            "Mul" 
+  [9] swin             "Fb" 
+  [10] swin             "F" 
+  [11] swin             "R" 
+  [12] swcrossfade      "Crossfade" 
+  [13] swin             "Flt" 
+  [14] swconnect        "Con" 
+  [15] swout            "Ech" 
+    Delay.In <- Add.+
+    Delay.D <- D.I
+    Add.A <- In.I
+    Add.B <- Con.O
+    Filter 2P.In <- Mul.x
+    Filter 2P.P <- Hz->Pitch.P
+    Filter 2P.R <- R.I
+    TanH Dist..In <- Filter 2P.B
+    TanH Dist..C <- C.#
+    Hz->Pitch.F <- F.I
+    Mul.A <- Delay.Out
+    Mul.B <- Fb.I
+    Crossfade.A <- Mul.x
+    Crossfade.B <- TanH Dist..Out
+    Crossfade.X <- Flt.I
+    Con.I <- Crossfade.=
+    Ech.O <- Crossfade.=
+[20] swconnect        "Con 1" 
+[21] swconnect        "Con 2" 
+[22] swconnect        "Con 3" 
+[23] swconnect        "Con 4" 
+[24] swsuperknob      "Delay R (ms)" 0 1 1 0.065 i1 0 0
+[25] swcrossfade      "Crossfade 1" 
+[26] swneg            "Neg 1" 
+[27] swmul            "Mul 1" 
+[28] swconnect        "Con 5" 
+[29] swin             "I2" 
+[30] swcrossfade      "Crossfade 2" 
+[31] swsuperknob      "Link L / R" 0 1 1 0.5 i3 0 i1
+[32] swadd            "Add 1" 
+[33] swconnect        "Con 6" 
+[34] swcrossfade      "Crossfade 3" 
+[35] swmul            "Mul 2" 
+[36] swmul            "Mul 3" 
+[37] swmul            "Mul 4" 
+[38] swconst          "B" 4000
+[39] swmul            "Mul 5" 
+[40] swmul            "Mul 6" 
+[41] swmul            "Mul 7" 
+[42] swcrossfade      "Crossfade 4" 
+[43] swconst          "B 1" 16
+[44] swtrunc          "Trunc" 
+[45] swtrunc          "Trunc 1" 
+[46] swbpmsync        "BPM Sync" [~4B] 0.0625
+[47] swmul            "Mul 10" 
+[48] swmul            "Mul 11" 
+[49] swsuperknob      "BPM Sync 1" 0 1 1 1 i4 0 i1
+[50] swcrossfade      "Crossfade 5" 
+[51] swcrossfade      "Crossfade 6" 
+[52] swconst          "A" 1
+[53] swcrossfade      "Crossfade 7" 
+[54] swcrossfade      "Crossfade 8" 
+[55] swsuperknob      "D / W" 0 1 1 0.39 i11 0 i1
+  O1.O <- Crossfade 7.=
+  O2.O <- Crossfade 8.=
+  Echo L.In <- I1.I
+  Echo L.D <- Add.+
+  Echo L.Fb <- Feedback.V
+  Echo L.F <- Cutoff.V
+  Echo L.R <- Resonance.V
+  Echo L.Flt <- Feedback filter.V
+  Add.A <- Con 6.O
+  Add.B <- Crossfade.=
+  LFO Multi.Fm <- LFO Frequency.V
+  LFO Multi.Wav <- LFO Waveform.V
+  Crossfade.A <- Neg.-A
+  Crossfade.B <- Mul.x
+  Crossfade.X <- Con 5.O
+  Neg.A <- Mul.x
+  Mul.A <- LFO Range.V
+  Mul.B <- Con.O
+  Con.I <- Con 6.O
+  LED.I <- LFO Multi.O
+  Echo R.In <- I2.I
+  Echo R.D <- Add 1.+
+  Echo R.Fb <- Con 1.O
+  Echo R.F <- Con 2.O
+  Echo R.R <- Con 3.O
+  Echo R.Flt <- Con 4.O
+  Con 1.I <- Feedback.V
+  Con 2.I <- Cutoff.V
+  Con 3.I <- Resonance.V
+  Con 4.I <- Feedback filter.V
+  Crossfade 1.A <- Neg 1.-A
+  Crossfade 1.B <- Mul 1.x
+  Crossfade 1.X <- Con 5.O
+  Neg 1.A <- Mul 1.x
+  Mul 1.A <- LFO Range.V
+  Mul 1.B <- Crossfade 2.=
+  Con 5.I <- LED.O
+  Crossfade 2.A <- Crossfade 4.=
+  Crossfade 2.B <- Con 6.O
+  Crossfade 2.X <- Link L / R.V
+  Add 1.A <- Crossfade 2.=
+  Add 1.B <- Crossfade 1.=
+  Con 6.I <- Crossfade 3.=
+  Crossfade 3.A <- Mul 4.x
+  Crossfade 3.B <- Mul 10.x
+  Crossfade 3.X <- BPM Sync 1.V
+  Mul 2.A <- Delay L (ms).V
+  Mul 2.B <- Delay L (ms).V
+  Mul 3.A <- Mul 2.x
+  Mul 3.B <- Mul 2.x
+  Mul 4.A <- Mul 3.x
+  Mul 4.B <- B.#
+  Mul 5.A <- Delay R (ms).V
+  Mul 5.B <- Delay R (ms).V
+  Mul 6.A <- Mul 5.x
+  Mul 6.B <- Mul 5.x
+  Mul 7.A <- Mul 6.x
+  Mul 7.B <- B.#
+  Crossfade 4.A <- Mul 7.x
+  Crossfade 4.B <- Mul 11.x
+  Crossfade 4.X <- BPM Sync 1.V
+  Trunc.A <- Crossfade 5.=
+  Trunc 1.A <- Crossfade 6.=
+  Mul 10.A <- Trunc.Int
+  Mul 10.B <- BPM Sync.ms
+  Mul 11.A <- Trunc 1.Int
+  Mul 11.B <- BPM Sync.ms
+  Crossfade 5.A <- A.#
+  Crossfade 5.B <- B 1.#
+  Crossfade 5.X <- Delay L (ms).V
+  Crossfade 6.A <- A.#
+  Crossfade 6.B <- B 1.#
+  Crossfade 6.X <- Delay R (ms).V
+  Crossfade 7.A <- I1.I
+  Crossfade 7.B <- Echo L.Ech
+  Crossfade 7.X <- D / W.V
+  Crossfade 8.A <- I2.I
+  Crossfade 8.B <- Echo R.Ech
+  Crossfade 8.X <- D / W.V
+== done, leftover 32 bytes
+   tail: 9609d94390763e41f7d92e3f0100000000050000d00200000600000001000000

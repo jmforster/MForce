@@ -1,0 +1,382 @@
+# swengine::20200430  (15148 bytes)
+# build: 20220928_9572
+[0] swmidinote       "Midi Note" 
+[1] SUBPATCH "String Resonator"  meta='{"elements":[]}\x00'
+  [0] swin             "In" 
+  [1] swout            "Out" 
+  [2] swin             "P" 
+  [3] swin             "Pos" 
+  [4] swsub            "Sub" 
+  [5] swfilter1p       "Filter 1P" 
+  [6] swmul            "Mul" 
+  [7] swin             "Fb" 
+  [8] swin             "Dmp" 
+  [9] hz2pitch         "Hz->Pitch" 
+  [10] swconnect        "Con" 
+  [11] swconnect        "Con 1" 
+  [12] swmul            "Mul 1" 
+  [13] swconnect        "Con 2" 
+  [14] swadd            "Add 1" 
+  [15] swmul            "Mul 2" 
+  [16] swadd            "Add" 
+  [17] swconnect        "Con 3" 
+  [18] swstanhdist      "TanH Dist." [~0B] 
+  [19] swconst          "C" 1
+  [20] swallpass        "Allpass" 
+  [21] swallpass        "Allpass 1" 
+  [22] swsuperknob      "FB" 0 1 1 0.0371 i-1 0 0
+  [23] swfilter1p       "Filter 1P 1" 
+  [24] swsub            "Sub 1" 
+  [25] swsuperknob      "P 1" 0 150 1 0.455 i-1 0 0
+  [26] swconnect        "Con 4" 
+  [27] swconnect        "Con 5" 
+  [28] pitch2ms         "Pitch->ms" 
+  [29] swconnect        "Con 6" 
+  [30] swconnect        "Con 7" 
+  [31] swsub            "Sub 2" 
+  [32] swsamplerate     "Sample Rate" 
+  [33] swfilter2p       "Filter 2P" 
+  [34] swconst          "R 1" 1
+    Out.O <- Sub 1.-
+    Sub.A <- Sub 2.-
+    Sub.B <- Mul 2.x
+    Filter 1P.In <- Add 1.+
+    Filter 1P.P <- Hz->Pitch.P
+    Mul.A <- Allpass 1.Out
+    Mul.B <- Fb.I
+    Hz->Pitch.F <- Dmp.I
+    Con.I <- Sub.-
+    Con 1.I <- Hz->Pitch.P
+    Mul 1.A <- TanH Dist..Out
+    Mul 1.B <- Con 2.O
+    Con 2.I <- Fb.I
+    Add 1.A <- In.I
+    Add 1.B <- Con 7.O
+    Mul 2.A <- Sub 2.-
+    Mul 2.B <- Pos.I
+    Add.A <- In.I
+    Add.B <- Mul.x
+    Con 3.I <- Mul 1.x
+    TanH Dist..In <- Allpass.Out
+    TanH Dist..C <- C.#
+    Allpass.In <- Filter 2P.L
+    Allpass.D <- Con.O
+    Allpass.FB <- Con 4.O
+    Allpass 1.In <- Filter 1P.L
+    Allpass 1.D <- Mul 2.x
+    Allpass 1.FB <- FB.V
+    Filter 1P 1.In <- Con 5.O
+    Filter 1P 1.P <- P 1.V
+    Sub 1.A <- Con 5.O
+    Sub 1.B <- Filter 1P 1.L
+    Con 4.I <- FB.V
+    Con 5.I <- Con 6.O
+    Pitch->ms.P <- P.I
+    Con 6.I <- Filter 2P.L
+    Con 7.I <- Con 3.O
+    Sub 2.A <- Pitch->ms.ms
+    Sub 2.B <- Sample Rate.Lng
+    Filter 2P.In <- Add.+
+    Filter 2P.P <- Con 1.O
+    Filter 2P.R <- R 1.#
+[2] swout            "OL" 
+[3] swout            "OR" 
+[4] swmul            "Mul" 
+[5] swsuperknob      "Volume" 0 16 1 0.898 i11 0 0
+[6] swsuperknob      "Pickup Position" 0 1 1 0.64 i7 0 0
+[7] swsuperknob      "Decay" 0.95 1 1 0.92 i2 0 0
+[8] swsuperknob      "Damp Hi" 22000 0 2 0.79 i6 0 0
+[9] SUBPATCH "Exciter"  meta='{"elements":[]}\x00'
+  [0] swin             "In" 
+  [1] swnoise          "White Noise" 
+  [2] swenvfollow      "Env. follower" [~0B] 
+  [3] swin             "Stf" 
+  [4] swmul            "Mul" 
+  [5] swin             "V" 
+  [6] swmul            "Mul 1" 
+  [7] swabs            "Abs" 
+  [8] swfilter1p       "Filter 1P" 
+  [9] swfilteran       "Filter AN" [~0B] 
+  [10] swin             "P" 
+  [11] swfilteran       "Filter AN 1" [~0B] 
+  [12] swsub            "Sub" 
+  [13] swout            "Exc" 
+  [14] swmul            "Mul 2" 
+  [15] swenvfollow      "Env. follower 1" [~0B] 
+  [16] swconst          "A" 4
+  [17] swmul            "Mul 3" 
+  [18] swconnect        "Con" 
+  [19] swout            "E" 
+    Env. follower.In <- Mul 2.x
+    Env. follower.R <- Mul.x
+    Mul.A <- V.I
+    Mul.B <- Stf.I
+    Mul 1.A <- Env. follower 1.E
+    Mul 1.B <- Abs.|A|
+    Abs.A <- White Noise.~
+    Filter 1P.In <- Mul 1.x
+    Filter 1P.P <- Con.O
+    Filter AN.In <- Mul 1.x
+    Filter AN.P <- Mul 3.x
+    Filter AN 1.In <- Filter AN.L
+    Filter AN 1.P <- Con.O
+    Sub.A <- Filter AN 1.L
+    Sub.B <- Filter 1P.L
+    Exc.O <- Sub.-
+    Mul 2.A <- In.I
+    Mul 2.B <- V.I
+    Env. follower 1.In <- Env. follower.E
+    Env. follower 1.A <- A.#
+    Mul 3.A <- V.I
+    Mul 3.B <- P.I
+    Con.I <- P.I
+    E.O <- Env. follower.E
+[10] swsuperknob      "Stiffness" 1 200 1 0.09 i1 0 0
+[11] SUBPATCH "Gate>Fb"  meta='{"elements":[]}\x00'
+  [0] swin             "G" 
+  [1] swin             "Fb " 
+  [2] swin             "Rel" 
+  [3] swmul            "Mul" 
+  [4] swmul            "Mul 1" 
+  [5] swadd            "Add" 
+  [6] swout            "Fb" 
+  [7] swcomplemet      "1-X" 
+    Mul.A <- G.I
+    Mul.B <- Fb .I
+    Mul 1.A <- 1-X.1-X
+    Mul 1.B <- Rel.I
+    Add.A <- Mul 1.x
+    Add.B <- Mul.x
+    Fb.O <- Add.+
+    1-X.X <- G.I
+[12] swsuperknob      "Release" 0.95 1 1 0.115 i3 0 0
+[13] SUBPATCH "Filter"  meta='{"elements":[]}\x00'
+  [0] swin             "In" 
+  [1] swout            "Out" 
+  [2] swfilter1p       "Filter 1P" 
+  [3] swconst          "P" 70
+    Out.O <- Filter 1P.H
+    Filter 1P.In <- In.I
+    Filter 1P.P <- P.#
+[14] swsuperknob      "Exciter Freq." 0 128 1 0.260351 0 0 0
+[15] swmul            "Mul 1" 
+[16] swcrossfade      "Crossfade" 
+[17] swsuperknob      "Direct / Body" 0 1 1 0.315 i10 0 0
+[18] swconnect        "Con 1" 
+[19] swenvfollowmod   "Env. follower Modulated" 0 0 1 1
+[20] swlastsam        "Previous" [~0B] 
+[21] swmul            "Mul 2" 
+[22] swsuperknob      "Legato Length" 0 2000 2 0.525 i12 0 0
+[23] swadd            "Add" 
+[24] swlfo_multi      "LFO Multi" [~28B] 34.3072 1 0 0 i4 0 0
+[25] swenvfollowmod   "Env. follower Modulated 1" 6724 6241 0 0
+[26] swmul            "Mul 4" 
+[27] swadd            "Add 1" 
+[28] swlfo_noise      "LFO Noise" [~0B] 
+[29] swlastsam        "Previous 1" [~0B] 
+[30] swsub            "Sub" 
+[31] swabs            "Abs" 
+[32] swmul            "Mul 5" 
+[33] swsamplerate     "Sample Rate 1" 
+[34] swmul            "Mul 6" 
+[35] swconst          "B 1" 0.001
+[36] swstanhdist      "TanH Dist." [~0B] 
+[37] swconst          "C" 1
+[38] swconnect        "Con 2" 
+[39] swconnect        "Con 3" 
+[40] swconnect        "Con 4" 
+[41] swsuperknob      "Size" 0 0.2 2 0.129999 i8 0 0
+[42] swrescalegui     "Re-scaler GUI" [~13B] i170920497 i841812530 i266
+[43] swmul            "Mul 7" 
+[44] swadd            "Add 2" 
+[45] swconst          "B 2" 25
+[46] swsuperknob      "Damp Lo" 22000 0 2 0.75 i5 0 0
+[47] swcrossfade      "Crossfade 1" 
+[48] swconnect        "Con 5" 
+[49] swmul            "Mul 9" 
+[50] swcomplemet      "1-X" 
+[51] swadd            "Add 4" 
+[52] swconnect        "Con 6" 
+[53] swmul            "Mul 10" 
+[54] swmidicc         "Midi CC" 1
+[55] swadd            "Add 5" 
+[56] swmul            "Mul 12" 
+[57] swconst          "B 3" 4
+[58] SUBPATCH "Body 2"  meta='{"elements":[]}\x00'
+  [0] swin             "In" 
+  [1] swout            "Out" 
+  [2] swmul            "Mul" 
+  [3] swconst          "B" 1
+  [4] swconst          "D" 1
+  [5] swmul            "Mul 1" 
+  [6] swconst          "B 1" -0.9
+  [7] swconst          "D 1" 5
+  [8] swmul            "Mul 2" 
+  [9] swconst          "B 2" 0.8
+  [10] swconst          "D 2" 11
+  [11] swmul            "Mul 3" 
+  [12] swconst          "B 3" -0.5
+  [13] swconst          "D 3" 16
+  [14] swmul            "Mul 4" 
+  [15] swconst          "B 4" 0.3
+  [16] swconst          "D 4" 22
+  [17] swmul            "Mul 5" 
+  [18] swconst          "B 5" -0.1
+  [19] swconst          "D 5" 35
+  [20] swconnect        "Con" 
+  [21] swadd8           "Add8" 
+  [22] swmul            "Mul 6" 
+  [23] swmul            "Mul 7" 
+  [24] swmul            "Mul 8" 
+  [25] swmul            "Mul 9" 
+  [26] swmul            "Mul 10" 
+  [27] swmul            "Mul 11" 
+  [28] swin             "Siz" 
+  [29] swallpass        "Allpass" 
+  [30] swallpass        "Allpass 1" 
+  [31] swallpass        "Allpass 2" 
+  [32] swallpass        "Allpass 3" 
+  [33] swallpass        "Allpass 4" 
+  [34] swallpass        "Allpass 5" 
+  [35] swsuperknob      "FB" 0 1 1 0.5 i-1 0 0
+  [36] swadd            "Add" 
+  [37] swmul            "Mul 12" 
+  [38] swsuperknob      "B 6" 0 1 1 0.95 i-1 0 0
+  [39] swfilter1p       "Filter 1P" 
+  [40] swsuperknob      "P" 0 150 1 0.42 i-1 0 0
+    Out.O <- Add8.+
+    Mul.A <- Allpass.Out
+    Mul.B <- B.#
+    Mul 1.A <- Allpass 1.Out
+    Mul 1.B <- B 1.#
+    Mul 2.A <- Allpass 2.Out
+    Mul 2.B <- B 2.#
+    Mul 3.A <- Allpass 3.Out
+    Mul 3.B <- B 3.#
+    Mul 4.A <- Allpass 4.Out
+    Mul 4.B <- B 4.#
+    Mul 5.A <- Allpass 5.Out
+    Mul 5.B <- B 5.#
+    Con.I <- Add.+
+    Add8.V1 <- Mul.x
+    Add8.V2 <- Mul 1.x
+    Add8.V3 <- Mul 2.x
+    Add8.V4 <- Mul 3.x
+    Add8.V5 <- Mul 4.x
+    Add8.V6 <- Mul 5.x
+    Mul 6.A <- D.#
+    Mul 6.B <- Siz.I
+    Mul 7.A <- D 1.#
+    Mul 7.B <- Siz.I
+    Mul 8.A <- D 2.#
+    Mul 8.B <- Siz.I
+    Mul 9.A <- D 3.#
+    Mul 9.B <- Siz.I
+    Mul 10.A <- D 4.#
+    Mul 10.B <- Siz.I
+    Mul 11.A <- D 5.#
+    Mul 11.B <- Siz.I
+    Allpass.In <- Con.O
+    Allpass.D <- Mul 6.x
+    Allpass.FB <- FB.V
+    Allpass 1.In <- Allpass.Out
+    Allpass 1.D <- Mul 7.x
+    Allpass 1.FB <- FB.V
+    Allpass 2.In <- Allpass 1.Out
+    Allpass 2.D <- Mul 8.x
+    Allpass 2.FB <- FB.V
+    Allpass 3.In <- Allpass 2.Out
+    Allpass 3.D <- Mul 9.x
+    Allpass 3.FB <- FB.V
+    Allpass 4.In <- Allpass 3.Out
+    Allpass 4.D <- Mul 10.x
+    Allpass 4.FB <- FB.V
+    Allpass 5.In <- Allpass 4.Out
+    Allpass 5.D <- Mul 11.x
+    Allpass 5.FB <- FB.V
+    Add.A <- In.I
+    Add.B <- Filter 1P.L
+    Mul 12.A <- Allpass 5.Out
+    Mul 12.B <- B 6.V
+    Filter 1P.In <- Mul 12.x
+    Filter 1P.P <- P.V
+[59] swconnect        "Con 8" 
+[60] swcustfun        "Custom Function" [~537B] json={"elements":[{"id":"linebox","type":"linebox","points":[{"x":0.0,"y":0.0,"c":false},{"x":0.11999955028295517,"y":0.88000035285949707,"c":true},{"x":1.0,"y":1.0,"c":false}]},{"id":"yMax","type":"numbereditbox","text":"1"},{"id":"yMin","type":"numbereditbox","text":"0"},{"id":"xMax","type":"numbereditbox","text":"1"},{"id":"xMin","type":"numbereditbox","text":"0"},{"id":"X bars","type":"numbereditbox","text":"2"},{"id":"Y bars","type":"numbereditbox","text":"2"},{"id":"snapselect","type":"listselect","selectedindex":0}]}  i71531008
+[61] swconnect        "Con 9" 
+  String Resonator.In <- Filter.Out
+  String Resonator.P <- Add 2.+
+  String Resonator.Pos <- Pickup Position.V
+  String Resonator.Fb <- Gate>Fb.Fb
+  String Resonator.Dmp <- Mul 1.x
+  OL.O <- Mul.x
+  OR.O <- Mul.x
+  Mul.A <- Crossfade.=
+  Mul.B <- Volume.V
+  Exciter.In <- Add 1.+
+  Exciter.Stf <- Stiffness.V
+  Exciter.V <- Con 9.O
+  Exciter.P <- Exciter Freq..V
+  Gate>Fb.G <- Midi Note.G
+  Gate>Fb.Fb  <- Decay.V
+  Gate>Fb.Rel <- Release.V
+  Filter.In <- Exciter.Exc
+  Mul 1.A <- Con 1.O
+  Mul 1.B <- Crossfade 1.=
+  Crossfade.A <- String Resonator.Out
+  Crossfade.B <- Con 8.O
+  Crossfade.X <- Direct / Body.V
+  Con 1.I <- Con 9.O
+  Env. follower Modulated.In <- Add 5.+
+  Env. follower Modulated.Am <- Mul 2.x
+  Env. follower Modulated.Rm <- Mul 2.x
+  Previous.In <- Midi Note.G
+  Mul 2.A <- Previous.Out
+  Mul 2.B <- Mul 9.x
+  Add.A <- Env. follower Modulated.E
+  Add.B <- Mul 10.x
+  Env. follower Modulated 1.In <- Re-scaler GUI.Out
+  Mul 4.A <- LFO Noise.~
+  Mul 4.B <- TanH Dist..Out
+  Add 1.A <- Mul 4.x
+  Add 1.B <- Con 3.O
+  Previous 1.In <- Con 4.O
+  Sub.A <- Previous 1.Out
+  Sub.B <- Con 4.O
+  Abs.A <- Sub.-
+  Mul 5.A <- Abs.|A|
+  Mul 5.B <- Mul 6.x
+  Mul 6.A <- Sample Rate 1.SR
+  Mul 6.B <- B 1.#
+  TanH Dist..In <- Mul 5.x
+  TanH Dist..C <- C.#
+  Con 2.I <- Midi Note.T
+  Con 3.I <- Con 2.O
+  Con 4.I <- Env. follower Modulated.E
+  Re-scaler GUI.In <- LFO Multi.O
+  Mul 7.A <- Add 1.+
+  Mul 7.B <- B 2.#
+  Add 2.A <- Mul 7.x
+  Add 2.B <- Add.+
+  Crossfade 1.A <- Damp Lo.V
+  Crossfade 1.B <- Damp Hi.V
+  Crossfade 1.X <- Con 5.O
+  Con 5.I <- Con 1.O
+  Mul 9.A <- Legato Length.V
+  Mul 9.B <- 1-X.1-X
+  1-X.X <- Midi Note.V
+  Add 4.A <- Body 2.Out
+  Add 4.B <- Con 6.O
+  Con 6.I <- String Resonator.Out
+  Mul 10.A <- Env. follower Modulated 1.E
+  Mul 10.B <- Midi CC.CC
+  Add 5.A <- Midi Note.P
+  Add 5.B <- Mul 12.x
+  Mul 12.A <- Midi Note.B
+  Mul 12.B <- B 3.#
+  Body 2.In <- String Resonator.Out
+  Body 2.Siz <- Size.V
+  Con 8.I <- Add 4.+
+  Custom Function.X <- Midi Note.V
+  Con 9.I <- Custom Function.Y
+== done, leftover 32 bytes
+   tail: 6c2cfb43baa93143da65c53e0100000000050000d00200000100000001000000

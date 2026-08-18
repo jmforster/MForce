@@ -1,0 +1,9 @@
+# swengine::20200430  (270 bytes)
+# build: 20220928_9572
+[0] swin             "IL" 
+[1] swout            "OL" 
+[2] swout            "OR" 
+  OL.O <- IL.I
+  OR.O <- IL.I
+== done, leftover 32 bytes
+   tail: b026d54100fe823f0000803f0100000000050000d00200000600000001000000

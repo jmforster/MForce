@@ -1,0 +1,1078 @@
+# swengine::20200430  (43882 bytes)
+# build: 20221026_9573
+[0] swsuperknob      "Ctf_" 0 1 1 0 0 0 0
+[1] swsuperknob      "Dec_" 0 1 1 1 i3 0 0
+[2] swsuperknob      "Env_" 0 1 1 0.116 i2 0 0
+[3] swsuperknob      "Acc_" 0 1 1 1 i4 0 0
+[4] swsuperknob      "Res_" 0 1 1 1 i1 0 0
+[5] SUBPATCH "Sequencer"  meta='{"elements":[]}\x00'
+  [0] swarray64        "Pitch" [~260B] i64 0.550798 0.0707249 0.708148 0.839949 0.290905 0.121329 0.510828 0.569311 0.892947 0.437062 0.896293 0.018748 0.125585 0.0406307 0.207243 0.247888 0.0514672 0.0935515 0.44081 0.694824 0.0298762 0.14537 0.456833
+  [1] swin             "Rnd" 
+  [2] swin             "Wrt" 
+  [3] swarray64        "Accent" [~260B] i64 0.845751 0.398991 0.377994 0.424702 0.092217 0.413719 0.653411 0.787139 0.557841 0.713566 0.361565 0.0231176 0.225055 0.315767 0.40652 0.56277 0.46894 0.748157 0.269236 0.609624 0.291793 0.203355 0.457686
+  [4] swarray64        "Gate" [~260B] i64 0.0615289 0.302264 0.242675 0.807023 0.971603 0.319495 0.230584 0.0212257 0.691478 0.482446 0.650477 0.0260263 0.723939 0.505574 0.475089 0.91803 0.596664 0.206966 0.0669694 0.925733 0.0725621 0.277323 0.198976
+  [5] swconst          "Inc" 1
+  [6] swout            "P" 
+  [7] swout            "V" 
+  [8] swout            "G" 
+  [9] swout            "T" 
+  [10] swin             "T_" 
+  [11] swin             "Cyc_" 
+  [12] swinc            "Increment" 
+  [13] swconnect        "Con" 
+  [14] swconst          "Max" 64
+  [15] SUBPATCH "Counter"  meta='{"elements":[]}\x00'
+    [0] swin             "T" 
+    [1] swout            "Out" 
+    [2] swin             "Inc" 
+    [3] swin             "Max" 
+    [4] swinc            "Increment" 
+    [5] swifgreater      "If >" 
+    [6] swconst          "T 1" 1
+    [7] swmul            "Mul" 
+    [8] swcomplemet      "1-X" 
+    [9] swmul            "Mul 1" 
+    [10] swmul            "Mul 2" 
+    [11] swadd            "Add" 
+    [12] swconnect        "Con" 
+    [13] swconnect        "Con 1" 
+    [14] swout            "Done" 
+    [15] swmul            "Mul 3" 
+    [16] swchange         "Change" 
+    [17] swout            "_Inc" 
+    [18] swout            "_Max" 
+    [19] swout            "G" 
+    [20] swsub            "Sub" 
+    [21] swconst          "B" 1
+      Out.O <- Sub.-
+      Increment.Inc <- Mul.x
+      Increment.T <- T.I
+      If >.A <- Increment.Out
+      If >.B <- Max.I
+      If >.T <- T 1.#
+      Mul.A <- Con.O
+      Mul.B <- Inc.I
+      1-X.X <- If >.>
+      Mul 1.A <- Increment.Out
+      Mul 1.B <- 1-X.1-X
+      Mul 2.A <- Max.I
+      Mul 2.B <- If >.>
+      Add.A <- Mul 1.x
+      Add.B <- Mul 2.x
+      Con.I <- Con 1.O
+      Con 1.I <- 1-X.1-X
+      Done.O <- Mul 3.x
+      Mul 3.A <- If >.>
+      Mul 3.B <- Change.T
+      Change.In <- If >.>
+      _Inc.O <- Inc.I
+      _Max.O <- Max.I
+      G.O <- 1-X.1-X
+      Sub.A <- Add.+
+      Sub.B <- B.#
+  [16] SUBPATCH "Counter 1"  meta='{"elements":[]}\x00'
+    [0] swin             "T" 
+    [1] swout            "Out" 
+    [2] swin             "Inc" 
+    [3] swin             "Max" 
+    [4] swinc            "Increment" 
+    [5] swifgreater      "If >" 
+    [6] swconst          "T 1" 1
+    [7] swmul            "Mul" 
+    [8] swcomplemet      "1-X" 
+    [9] swmul            "Mul 1" 
+    [10] swmul            "Mul 2" 
+    [11] swadd            "Add" 
+    [12] swconnect        "Con" 
+    [13] swconnect        "Con 1" 
+    [14] swout            "Done" 
+    [15] swmul            "Mul 3" 
+    [16] swchange         "Change" 
+    [17] swout            "_Inc" 
+    [18] swout            "_Max" 
+    [19] swout            "G" 
+    [20] swsub            "Sub" 
+    [21] swconst          "B" 1
+      Out.O <- Sub.-
+      Increment.Inc <- Mul.x
+      Increment.T <- T.I
+      If >.A <- Increment.Out
+      If >.B <- Max.I
+      If >.T <- T 1.#
+      Mul.A <- Con.O
+      Mul.B <- Inc.I
+      1-X.X <- If >.>
+      Mul 1.A <- Increment.Out
+      Mul 1.B <- 1-X.1-X
+      Mul 2.A <- Max.I
+      Mul 2.B <- If >.>
+      Add.A <- Mul 1.x
+      Add.B <- Mul 2.x
+      Con.I <- Con 1.O
+      Con 1.I <- 1-X.1-X
+      Done.O <- Mul 3.x
+      Mul 3.A <- If >.>
+      Mul 3.B <- Change.T
+      Change.In <- If >.>
+      _Inc.O <- Inc.I
+      _Max.O <- Max.I
+      G.O <- 1-X.1-X
+      Sub.A <- Add.+
+      Sub.B <- B.#
+  [17] SUBPATCH "Counter 2"  meta='{"elements":[]}\x00'
+    [0] swin             "T" 
+    [1] swout            "Out" 
+    [2] swin             "Inc" 
+    [3] swin             "Max" 
+    [4] swinc            "Increment" 
+    [5] swifgreater      "If >" 
+    [6] swconst          "T 1" 1
+    [7] swmul            "Mul" 
+    [8] swcomplemet      "1-X" 
+    [9] swmul            "Mul 1" 
+    [10] swmul            "Mul 2" 
+    [11] swadd            "Add" 
+    [12] swconnect        "Con" 
+    [13] swconnect        "Con 1" 
+    [14] swout            "Done" 
+    [15] swmul            "Mul 3" 
+    [16] swchange         "Change" 
+    [17] swout            "_Inc" 
+    [18] swout            "_Max" 
+    [19] swout            "G" 
+    [20] swsub            "Sub" 
+    [21] swconst          "B" 1
+      Out.O <- Sub.-
+      Increment.Inc <- Mul.x
+      Increment.T <- T.I
+      If >.A <- Increment.Out
+      If >.B <- Max.I
+      If >.T <- T 1.#
+      Mul.A <- Con.O
+      Mul.B <- Inc.I
+      1-X.X <- If >.>
+      Mul 1.A <- Increment.Out
+      Mul 1.B <- 1-X.1-X
+      Mul 2.A <- Max.I
+      Mul 2.B <- If >.>
+      Add.A <- Mul 1.x
+      Add.B <- Mul 2.x
+      Con.I <- Con 1.O
+      Con 1.I <- 1-X.1-X
+      Done.O <- Mul 3.x
+      Mul 3.A <- If >.>
+      Mul 3.B <- Change.T
+      Change.In <- If >.>
+      _Inc.O <- Inc.I
+      _Max.O <- Max.I
+      G.O <- 1-X.1-X
+      Sub.A <- Add.+
+      Sub.B <- B.#
+  [18] swrescalegui     "Re-scaler GUI" [~14B] i170920497 i856305718 i68150
+  [19] swtrunc          "Trunc" 
+  [20] swifgreater      "If >" 
+  [21] swconst          "B" 0.5
+  [22] swconst          "T 1" 1
+  [23] swconst          "F" 0.6
+  [24] swbpmsync        "BPM Sync" [~4B] 0.0625
+  [25] swtrgtogate      "Trg->Gate" 0 1
+  [26] swmul            "Mul" 
+  [27] swifgreater      "If > 1" 
+  [28] swconst          "B 1" 0.8
+  [29] swconst          "T 2" 1
+    Pitch.In <- Rnd.I
+    Pitch.RI <- Con.O
+    Pitch.WI <- Counter.Out
+    Pitch.T <- Counter.G
+    Accent.In <- Rnd.I
+    Accent.RI <- Con.O
+    Accent.WI <- Counter 1.Out
+    Accent.T <- Counter 1.G
+    Gate.In <- Rnd.I
+    Gate.RI <- Con.O
+    Gate.WI <- Counter 2.Out
+    Gate.T <- Counter 2.G
+    P.O <- Trunc.Int
+    V.O <- If > 1.>
+    G.O <- Trg->Gate.G
+    T.O <- T_.I
+    Increment.Inc <- T_.I
+    Increment.T <- Cyc_.I
+    Con.I <- Increment.Out
+    Counter.T <- Wrt.I
+    Counter.Inc <- Inc.#
+    Counter.Max <- Max.#
+    Counter 1.T <- Counter.Done
+    Counter 1.Inc <- Counter._Inc
+    Counter 1.Max <- Counter._Max
+    Counter 2.T <- Counter 1.Done
+    Counter 2.Inc <- Counter 1._Inc
+    Counter 2.Max <- Counter 1._Max
+    Re-scaler GUI.In <- Pitch.Out
+    Trunc.A <- Re-scaler GUI.Out
+    If >.A <- Gate.Out
+    If >.B <- B.#
+    If >.T <- T 1.#
+    If >.F <- F.#
+    Trg->Gate.T <- T_.I
+    Trg->Gate.M <- Mul.x
+    Mul.A <- If >.>
+    Mul.B <- BPM Sync.ms
+    If > 1.A <- Accent.Out
+    If > 1.B <- B 1.#
+    If > 1.T <- T 2.#
+[6] swpseudorandom   "Pseudo Random" [~2B] 
+[7] swclock          "Clock" [~0B] 
+[8] swvariable       "Variable" 
+[9] swconst          "Max" 1
+[10] swmidinote       "Midi Note" 
+[11] swsuperknob      "Length" 1 32 1 0.483871 i5 i1 0
+[12] SUBPATCH "Euclid"  meta='{"elements":[]}\x00'
+  [0] sweuclid         "Euclid" [~292B] json={"elements":[{"id":"Length","type":"knob","curvalue":1.0},{"id":"LengthModulationKnob","type":"knob","curvalue":1.0},{"id":"Fill","type":"knob","curvalue":0.0},{"id":"FillModulationKnob","type":"knob","curvalue":1.0},{"id":"clockSelector","type":"listselect","selectedindex":1}]}  164 164
+  [1] swin             "LM" 
+  [2] swin             "FM" 
+  [3] swout            "Lng" 
+  [4] swin             "Clk" 
+  [5] swout            "T" 
+  [6] swout            "Cyc" 
+  [7] swsub            "Sub" 
+  [8] swconst          "B" 1
+    Euclid.Clk <- Clk.I
+    Euclid.LM <- Sub.-
+    Euclid.FM <- FM.I
+    Lng.O <- LM.I
+    T.O <- Euclid.T
+    Cyc.O <- Euclid.Cyc
+    Sub.A <- LM.I
+    Sub.B <- B.#
+[13] swsuperknob      "Fill" 0 1 1 0.96 i6 0 0
+[14] swconnect        "Con 2" 
+[15] SUBPATCH "Designer"  meta='{"elements":[]}\x00'
+  [0] SUBPATCH "Counter"  meta='{"elements":[]}\x00'
+    [0] swin             "T" 
+    [1] swout            "Out" 
+    [2] swin             "Inc" 
+    [3] swin             "Max" 
+    [4] swinc            "Increment" 
+    [5] swifgreater      "If >" 
+    [6] swconst          "T 1" 1
+    [7] swmul            "Mul" 
+    [8] swcomplemet      "1-X" 
+    [9] swmul            "Mul 1" 
+    [10] swmul            "Mul 2" 
+    [11] swadd            "Add" 
+    [12] swconnect        "Con" 
+    [13] swconnect        "Con 1" 
+      Out.O <- Add.+
+      Increment.Inc <- Mul.x
+      Increment.T <- T.I
+      If >.A <- Increment.Out
+      If >.B <- Max.I
+      If >.T <- T 1.#
+      Mul.A <- Con.O
+      Mul.B <- Inc.I
+      1-X.X <- If >.>
+      Mul 1.A <- Increment.Out
+      Mul 1.B <- 1-X.1-X
+      Mul 2.A <- Max.I
+      Mul 2.B <- If >.>
+      Add.A <- Mul 1.x
+      Add.B <- Mul 2.x
+      Con.I <- Con 1.O
+      Con 1.I <- 1-X.1-X
+  [1] swin             "T" 
+  [2] swconst          "Inc" 1
+  [3] swmul            "Mul" 
+  [4] swconst          "B" 70
+  [5] swifless         "If <" 
+  [6] swconst          "T 1" 1
+  [7] swout            "G" 
+  [8] swconst          "B 1" 3
+    Counter.T <- T.I
+    Counter.Inc <- Inc.#
+    Counter.Max <- Mul.x
+    Mul.A <- B.#
+    Mul.B <- B 1.#
+    If <.A <- Counter.Out
+    If <.B <- Mul.x
+    If <.T <- T 1.#
+    G.O <- If <.<
+[16] SUBPATCH "Minor_scale"  meta='{"elements":[]}\x00'
+  [0] swswitch8        "Switch 8" 
+  [1] swswitch8        "Switch 1" 
+  [2] swtrunc          "Trunc" 
+  [3] swsub            "Sub" 
+  [4] swmod            "Modulo" 
+  [5] swconst          "B" 8
+  [6] swconnect        "Con" 
+  [7] swsub            "Sub 1" 
+  [8] swdiv            "Div" 
+  [9] swmul            "Mul" 
+  [10] swmul            "Mul 1" 
+  [11] swadd            "Add" 
+  [12] swcomplemet      "1-X" 
+  [13] swconnect        "Con 1" 
+  [14] SUBPATCH "Designer"  meta='{"elements":[]}\x00'
+    [0] swout            "C" 
+    [1] swconst          "O" 0
+    [2] swout            "C#" 
+    [3] swconst          "O 1" -1
+    [4] swout            "D" 
+    [5] swconst          "O 2" 0
+    [6] swout            "D#" 
+    [7] swconst          "O 3" 0
+    [8] swout            "E" 
+    [9] swconst          "O 4" -1
+    [10] swout            "F" 
+    [11] swconst          "O 5" 0
+    [12] swout            "F#" 
+    [13] swconst          "O 6" -1
+    [14] swout            "G" 
+    [15] swconst          "O 7" 0
+    [16] swout            "G#" 
+    [17] swconst          "O 8" 0
+    [18] swout            "A" 
+    [19] swconst          "O 9" -1
+    [20] swout            "A#" 
+    [21] swconst          "O 10" 0
+    [22] swout            "B" 
+    [23] swconst          "O 11" -1
+      C.O <- O.#
+      C#.O <- O 1.#
+      D.O <- O 2.#
+      D#.O <- O 3.#
+      E.O <- O 4.#
+      F.O <- O 5.#
+      F#.O <- O 6.#
+      G.O <- O 7.#
+      G#.O <- O 8.#
+      A.O <- O 9.#
+      A#.O <- O 10.#
+      B.O <- O 11.#
+  [15] swadd            "Add 1" 
+  [16] swconst          "B 1" 1
+  [17] swadd            "Add 2" 
+  [18] swadd            "Add 3" 
+  [19] swadd            "Add 4" 
+  [20] swin             "P" 
+  [21] swin             "Root" 
+  [22] swout            "OP" 
+  [23] swmod            "Modulo 1" 
+  [24] swconst          "B 2" 12
+    Switch 8.S <- Add 1.+
+    Switch 8.1 <- Designer.C
+    Switch 8.2 <- Designer.C#
+    Switch 8.3 <- Designer.D
+    Switch 8.4 <- Designer.D#
+    Switch 8.5 <- Designer.E
+    Switch 8.6 <- Designer.F
+    Switch 8.7 <- Designer.F#
+    Switch 8.8 <- Designer.G
+    Switch 1.S <- Add 1.+
+    Switch 1.1 <- Designer.G#
+    Switch 1.2 <- Designer.A
+    Switch 1.3 <- Designer.A#
+    Switch 1.4 <- Designer.B
+    Trunc.A <- Con.O
+    Sub.A <- Con.O
+    Sub.B <- Trunc.Int
+    Modulo.A <- Modulo 1.M
+    Modulo.B <- B.#
+    Con.I <- P.I
+    Sub 1.A <- Modulo 1.M
+    Sub 1.B <- Modulo.M
+    Div.A <- Sub 1.-
+    Div.B <- Sub 1.-
+    Mul.A <- Switch 8.=
+    Mul.B <- 1-X.1-X
+    Mul 1.A <- Switch 1.=
+    Mul 1.B <- Con 1.O
+    Add.A <- Mul.x
+    Add.B <- Mul 1.x
+    1-X.X <- Con 1.O
+    Con 1.I <- Div./
+    Add 1.A <- Add 4.+
+    Add 1.B <- B 1.#
+    Add 2.A <- Sub.-
+    Add 2.B <- Add 3.+
+    Add 3.A <- Trunc.Int
+    Add 3.B <- Add.+
+    Add 4.A <- Modulo.M
+    Add 4.B <- Root.I
+    OP.O <- Add 2.+
+    Modulo 1.A <- Trunc.Int
+    Modulo 1.B <- B 2.#
+[17] swconst          "Root" 4
+[18] swnote           "Instructions" [~265B] 194.32 158.16 i171128114 i824192815 i1951599117 i544502369 i543516788 i1851880052 i1919905907 i1718558836 i1970239776 12.2579 i1869881431 i1634496544 i1752440953 i1702043749 i1852142961 i168650083 i791611917 i168636960 i544567129 i544104803 i1851877475 i1948280167
+[19] swgain           "Gain Lin" 0 0.176
+[20] swconnect        "Con" 
+[21] swconnect        "Con 1" 
+[22] swout            "O1" 
+[23] swout            "O2" 
+[24] swstereotrack    "Stereo Track" [~242B] json={"elements":[{"id":"gainslider","type":"slider","curvalue":7.8783340454101562},{"id":"panslider","type":"slider","curvalue":0.5},{"id":"gainmodknob","type":"knob","curvalue":0.0},{"id":"panmodknob","type":"knob","curvalue":0.0}]}  i138595328
+[25] swneg            "Neg 1" 
+[26] swconst          "Accent Velocity" 0.75
+[27] swcrossfadegui   "Sqr / Saw" [~8B] 0 0
+[28] swsuperknob      "Tune" -12 12 1 0 i-1 0 i1
+[29] swconnect        "Con 3" 
+[30] swadd            "Add" 
+[31] swadd            "Add 1" 
+[32] SUBPATCH "Loss"  meta='{"elements":[]}\x00'
+  [0] swin             "In" 
+  [1] swfilter1p       "Filter 1P" 
+  [2] swout            "H" 
+  [3] swconst          "P 1" 75
+  [4] swfilter1pmodulated "Filter 1P Modulated" [~236B] json={"elements":[{"id":"knobCutoff","type":"knob","curvalue":18.3599853515625},{"id":"knobKBD","type":"knob","curvalue":0.0},{"id":"knobModVel","type":"knob","curvalue":0.0},{"id":"knobModCutoff","type":"knob","curvalue":1.0}]}  i4387840
+  [5] swin             "CM" 
+    Filter 1P.In <- In.I
+    Filter 1P.P <- P 1.#
+    H.O <- Filter 1P Modulated.OHP
+    Filter 1P Modulated.In <- Filter 1P.L
+    Filter 1P Modulated.CM <- CM.I
+[33] SUBPATCH "Oscillator"  meta='{"elements":[]}\x00'
+  [0] swosc_sqr        "OSC AN Square" [~66B] i1936684915 i1634951011 i2004028023 i1886220131 i808598074 4.20149e-05 i1326070065 10.0164 i1632837710 -1.37532 i1796031405 i2004042657 i1600353135 0.000943682 i825242170 i825372725
+  [1] swin             "P" 
+  [2] swconst          "A" 1
+  [3] swout            "Sqr" 
+  [4] swout            "Saw" 
+  [5] swin             "PW" 
+  [6] swout            "_P" 
+  [7] swneg            "Neg" 
+  [8]    OSC AN Square "P" 
+     Square.A <- A.#
+    OSC AN Square.PW <- PW.I
+    OSC AN Saw.P <- P.I
+    OSC AN Saw.A <- A.#
+    Sqr.O <- OSC AN Square.=
+    Saw.O <- Neg.-A
+    _P.O <- P.I
+    Neg.A <- OSC AN Saw.=
+[34] SUBPATCH "Controllers"  meta='{"elements":[]}\x00'
+  [0] swin             "P" 
+  [1] swin             "V" 
+  [2] swin             "G" 
+  [3] swin             "T" 
+  [4] swout            "_P" 
+  [5] swout            "Amp" 
+  [6] swout            "_Ctf" 
+  [7] SUBPATCH "Slide"  meta='{"elements":[]}\x00'
+    [0] swin             "P" 
+    [1] swin             "G" 
+    [2] swenvfollow      "Env. follower" [~0B] 
+    [3] swmul            "Mul" 
+    [4] swlastsam        "Previous" [~0B] 
+    [5] swconst          "B" 200
+    [6] swout            "Ptc" 
+      Env. follower.In <- P.I
+      Env. follower.A <- Mul.x
+      Env. follower.R <- Mul.x
+      Mul.A <- Previous.Out
+      Mul.B <- B.#
+      Previous.In <- G.I
+      Ptc.O <- Env. follower.E
+  [8] SUBPATCH "Smooth"  meta='{"elements":[]}\x00'
+    [0] swin             "G" 
+    [1] swenvfollow      "Env. follower" [~0B] 
+    [2] swconst          "A" 8
+    [3] swout            "E" 
+    [4] swconst          "R" 50
+      Env. follower.In <- G.I
+      Env. follower.A <- A.#
+      Env. follower.R <- R.#
+      E.O <- Env. follower.E
+  [9] swin             "Ctf_" 
+  [10] SUBPATCH "AmpDecay"  meta='{"elements":[]}\x00'
+    [0] swin             "G" 
+    [1] swout            "Out" 
+    [2] swenvfollow      "Env. follower" [~0B] 
+    [3] swmul            "Mul" 
+    [4] swchange         "Change" 
+    [5] swconst          "R" 5000
+    [6] swmul            "Mul 1" 
+    [7] swenvfollowmod   "Env. follower Modulated" 0 51.8402 0 0
+    [8] swmul            "Mul 2" 
+      Out.O <- Mul 1.x
+      Env. follower.In <- Mul.x
+      Env. follower.R <- R.#
+      Mul.A <- G.I
+      Mul.B <- Change.T
+      Change.In <- G.I
+      Mul 1.A <- Mul 2.x
+      Mul 1.B <- Mul 2.x
+      Env. follower Modulated.In <- G.I
+      Mul 2.A <- Env. follower.E
+      Mul 2.B <- Env. follower Modulated.E
+  [11] swin             "Res_" 
+  [12] swin             "Env_" 
+  [13] swin             "Dec_" 
+  [14] swin             "Acc_" 
+  [15] SUBPATCH "Cutoff"  meta='{"elements":[]}\x00'
+    [0] swin             "Flt_" 
+    [1] swin             "Amp_" 
+    [2] swin             "Ctf_" 
+    [3] swin             "Res_" 
+    [4] swin             "Env_" 
+    [5] swin             "Dec_" 
+    [6] swin             "Acc_" 
+    [7] swout            "_Flt" 
+    [8] swout            "_Amp" 
+    [9] swout            "_Ctf" 
+    [10] swout            "_Res" 
+    [11] swout            "_Env" 
+    [12] swout            "_Dec" 
+    [13] swout            "_Acc" 
+    [14] swin             "P_" 
+    [15] swin             "V_" 
+    [16] swin             "T_" 
+    [17] swin             "G_" 
+    [18] swout            "_P" 
+    [19] swout            "_V" 
+    [20] swout            "_T" 
+    [21] swout            "_G" 
+    [22] swin             "AcV" 
+    [23] swout            "_AcV" 
+    [24] SUBPATCH "Res2Ctf"  meta='{"elements":[]}\x00'
+      [0] swin             "Ctf" 
+      [1] swin             "Res" 
+      [2] swadd            "Add" 
+      [3] swconst          "B" 1
+      [4] swmul            "Mul" 
+      [5] swout            "Flt" 
+      [6] swmul            "Mul 1" 
+      [7] swconst          "B 1" 0.164
+      [8] swmul            "Mul 2" 
+      [9] swconst          "B 2" 0.85
+      [10] swadd            "Add 1" 
+      [11] swconst          "B 3" 0.519996
+      [12] swcomplemet      "1-X" 
+      [13] swmul            "Mul 3" 
+      [14] swmul            "Mul 5" 
+        Add.A <- Mul 1.x
+        Add.B <- B.#
+        Mul.A <- Mul 2.x
+        Mul.B <- Add.+
+        Flt.O <- Mul.x
+        Mul 1.A <- Res.I
+        Mul 1.B <- B 1.#
+        Mul 2.A <- Add 1.+
+        Mul 2.B <- B 2.#
+        Add 1.A <- Mul 3.x
+        Add 1.B <- B 3.#
+        1-X.X <- B 3.#
+        Mul 3.A <- Mul 5.x
+        Mul 3.B <- 1-X.1-X
+        Mul 5.A <- Ctf.I
+        Mul 5.B <- Ctf.I
+    [25] SUBPATCH "Acc"  meta='{"elements":[]}\x00'
+      [0] swin             "V" 
+      [1] swin             "T" 
+      [2] swifgreater      "If >" 
+      [3] swin             "AcV" 
+      [4] swout            "AcT" 
+        If >.A <- V.I
+        If >.B <- AcV.I
+        If >.T <- T.I
+        AcT.O <- If >.>
+    [26] swout            "_AcT" 
+      _Flt.O <- Res2Ctf.Flt
+      _Amp.O <- Amp_.I
+      _Res.O <- Res_.I
+      _Env.O <- Env_.I
+      _Dec.O <- Dec_.I
+      _Acc.O <- Acc_.I
+      _P.O <- P_.I
+      _V.O <- V_.I
+      _T.O <- T_.I
+      _G.O <- G_.I
+      _AcV.O <- AcV.I
+      Res2Ctf.Ctf <- Ctf_.I
+      Res2Ctf.Res <- Res_.I
+      Acc.V <- V_.I
+      Acc.T <- T_.I
+      Acc.AcV <- AcV.I
+      _AcT.O <- Acc.AcT
+  [16] swmul            "Mul" 
+  [17] swout            "_Res" 
+  [18] swmul            "Mul 1" 
+  [19] swconst          "B" 101
+  [20] swifgreater      "If >" 
+  [21] swconst          "B 2" 122
+  [22] swin             "AcV" 
+  [23] SUBPATCH "Decay"  meta='{"elements":[]}\x00'
+    [0] swin             "Flt_" 
+    [1] swin             "Amp_" 
+    [2] swin             "Ctf_" 
+    [3] swin             "Res_" 
+    [4] swin             "Env_" 
+    [5] swin             "Dec_" 
+    [6] swin             "Acc_" 
+    [7] swout            "_Flt" 
+    [8] swout            "_Amp" 
+    [9] swout            "_Ctf" 
+    [10] swout            "_Res" 
+    [11] swout            "_Env" 
+    [12] swout            "_Dec" 
+    [13] swout            "_Acc" 
+    [14] swin             "P_" 
+    [15] swin             "V_" 
+    [16] swin             "T_" 
+    [17] swin             "G_" 
+    [18] swout            "_P" 
+    [19] swout            "_V" 
+    [20] swout            "_T" 
+    [21] swout            "_G" 
+    [22] swin             "AcV_" 
+    [23] swout            "_AcV" 
+    [24] SUBPATCH "Dcy2Flt"  meta='{"elements":[]}\x00'
+      [0] swin             "Dec" 
+      [1] swenvfollow      "Env. follower" [~0B] 
+      [2] swmul            "Mul" 
+      [3] swin             "T" 
+      [4] swconst          "B" 40000
+      [5] swadd            "Add" 
+      [6] swconst          "B 1" 3500
+      [7] swout            "Dcy" 
+      [8] swmul            "Mul 1" 
+      [9] swin             "IsAc" 
+      [10] swcomplemet      "1-X" 
+      [11] swmul            "Mul 3" 
+      [12] swmul            "Mul 2" 
+        Env. follower.In <- T.I
+        Env. follower.R <- Add.+
+        Mul.A <- Dec.I
+        Mul.B <- B.#
+        Add.A <- Mul 3.x
+        Add.B <- B 1.#
+        Dcy.O <- Mul 2.x
+        Mul 1.A <- Env. follower.E
+        Mul 1.B <- Env. follower.E
+        1-X.X <- IsAc.I
+        Mul 3.A <- Mul.x
+        Mul 3.B <- 1-X.1-X
+        Mul 2.A <- Mul 1.x
+        Mul 2.B <- Mul 1.x
+    [25] SUBPATCH "G->T"  meta='{"elements":[]}\x00'
+      [0] swin             "G" 
+      [1] swmul            "Mul" 
+      [2] swout            "T" 
+      [3] swchange         "Change" 
+        Mul.A <- G.I
+        Mul.B <- Change.T
+        T.O <- Mul.x
+        Change.In <- G.I
+    [26] swin             "AcT_" 
+    [27] swout            "_AcT" 
+    [28] SUBPATCH "IsAc"  meta='{"elements":[]}\x00'
+      [0] swin             "V" 
+      [1] swifgreater      "If >" 
+      [2] swin             "AcV" 
+      [3] swconst          "T" 1
+      [4] swout            "Is" 
+        If >.A <- V.I
+        If >.B <- AcV.I
+        If >.T <- T.#
+        Is.O <- If >.>
+      _Flt.O <- Flt_.I
+      _Amp.O <- Amp_.I
+      _Ctf.O <- Ctf_.I
+      _Res.O <- Res_.I
+      _Env.O <- Env_.I
+      _Dec.O <- Dcy2Flt.Dcy
+      _Acc.O <- Acc_.I
+      _P.O <- P_.I
+      _V.O <- V_.I
+      _T.O <- T_.I
+      _G.O <- G_.I
+      _AcV.O <- AcV_.I
+      Dcy2Flt.Dec <- Dec_.I
+      Dcy2Flt.T <- G->T.T
+      Dcy2Flt.IsAc <- IsAc.Is
+      G->T.G <- G_.I
+      _AcT.O <- AcT_.I
+      IsAc.V <- V_.I
+      IsAc.AcV <- AcV_.I
+  [24] SUBPATCH "Env.Mod"  meta='{"elements":[]}\x00'
+    [0] swin             "Flt_" 
+    [1] swin             "Amp_" 
+    [2] swin             "Ctf_" 
+    [3] swin             "Res_" 
+    [4] swin             "Env_" 
+    [5] swin             "Dec_" 
+    [6] swin             "Acc_" 
+    [7] swout            "_Flt" 
+    [8] swout            "_Amp" 
+    [9] swout            "_Ctf" 
+    [10] swout            "_Res" 
+    [11] swout            "_Env" 
+    [12] swout            "_Dec" 
+    [13] swout            "_Acc" 
+    [14] swin             "P_" 
+    [15] swin             "V_" 
+    [16] swin             "T_" 
+    [17] swin             "G_" 
+    [18] swout            "_P" 
+    [19] swout            "_V" 
+    [20] swout            "_T" 
+    [21] swout            "_G" 
+    [22] swin             "AcV" 
+    [23] swout            "_AcV" 
+    [24] SUBPATCH "Dec2Env"  meta='{"elements":[]}\x00'
+      [0] swin             "Dec" 
+      [1] swin             "Env" 
+      [2] swout            "_Env" 
+      [3] swmul            "Mul 5" 
+      [4] swmul            "Mul 1" 
+      [5] swmul            "Mul 2" 
+      [6] swconst          "B 1" 0.15
+      [7] swadd            "Add" 
+      [8] swsuperknob      "B" 0 1 1 0.71808 i-1 0 0
+      [9] swmul            "Mul 3" 
+      [10] swmul            "Mul 6" 
+      [11] swcrossfade      "Crossfade" 
+      [12] swout            "x" 
+      [13] swconst          "A" 1
+      [14] swsuperknob      "B 2" 0 1 1 0.74 i-1 0 0
+        _Env.O <- Add.+
+        Mul 5.A <- Env.I
+        Mul 5.B <- Env.I
+        Mul 1.A <- Mul 2.x
+        Mul 1.B <- B 1.#
+        Mul 2.A <- Dec.I
+        Mul 2.B <- Dec.I
+        Add.A <- Mul 1.x
+        Add.B <- Mul 6.x
+        Mul 3.A <- Mul 2.x
+        Mul 3.B <- B.V
+        Mul 6.A <- Mul 5.x
+        Mul 6.B <- Mul 3.x
+        Crossfade.A <- A.#
+        Crossfade.B <- B 2.V
+        Crossfade.X <- Mul 5.x
+        x.O <- Crossfade.=
+    [25] swin             "AcT_" 
+    [26] swout            "_AcT" 
+    [27] SUBPATCH "Apply"  meta='{"elements":[]}\x00'
+      [0] swin             "Flt_" 
+      [1] swout            "_Flt" 
+      [2] swadd            "Add" 
+      [3] swin             "Env" 
+      [4] swin             "x" 
+      [5] swmul            "Mul" 
+        _Flt.O <- Mul.x
+        Add.A <- Flt_.I
+        Add.B <- Env.I
+        Mul.A <- Add.+
+        Mul.B <- x.I
+      _Flt.O <- Apply._Flt
+      _Amp.O <- Amp_.I
+      _Ctf.O <- Ctf_.I
+      _Res.O <- Res_.I
+      _Env.O <- Env_.I
+      _Dec.O <- Dec_.I
+      _Acc.O <- Acc_.I
+      _P.O <- P_.I
+      _V.O <- V_.I
+      _T.O <- T_.I
+      _G.O <- G_.I
+      _AcV.O <- AcV.I
+      Dec2Env.Dec <- Dec_.I
+      Dec2Env.Env <- Env_.I
+      _AcT.O <- AcT_.I
+      Apply.Flt_ <- Flt_.I
+      Apply.Env <- Dec2Env._Env
+      Apply.x <- Dec2Env.x
+  [25] swmul            "Mul 2" 
+  [26] swconst          "B 1" 12
+  [27] SUBPATCH "Accent"  meta='{"elements":[]}\x00'
+    [0] swin             "Flt_" 
+    [1] swin             "Amp_" 
+    [2] swin             "Ctf_" 
+    [3] swin             "Res_" 
+    [4] swin             "Env_" 
+    [5] swin             "Dec_" 
+    [6] swin             "Acc_" 
+    [7] swout            "_Flt" 
+    [8] swout            "_Amp" 
+    [9] swout            "_Ctf" 
+    [10] swout            "_Res" 
+    [11] swout            "_Env" 
+    [12] swout            "_Dec" 
+    [13] swout            "_Acc" 
+    [14] swin             "P_" 
+    [15] swin             "V_" 
+    [16] swin             "T_" 
+    [17] swin             "G_" 
+    [18] swout            "_P" 
+    [19] swout            "_V" 
+    [20] swout            "_T" 
+    [21] swout            "_G" 
+    [22] swin             "AcV" 
+    [23] swout            "_AcV" 
+    [24] SUBPATCH "Ac. Env."  meta='{"elements":[]}\x00'
+      [0] swin             "AcT" 
+      [1] swout            "AcE" 
+      [2] swenvfollowmod   "Env. follower Modulated 1" 0 0 0 0.424
+      [3] swenvfollowmod   "Env. follower Modulated" 0 2500 0 0
+      [4] swout            "AcPh" 
+      [5] swenvfollowmod   "Env. follower Modulated 2" 0 595.359 0 0
+      [6] swin             "V" 
+      [7] swmul            "Mul" 
+      [8] swconnect        "Con" 
+      [9] swin             "Env_" 
+      [10] swout            "_Env" 
+      [11] swconst          "Rm" 100
+      [12] swsub            "Sub" 
+      [13] swmul            "Mul 1" 
+      [14] swconst          "B" 90
+      [15] swmul            "Mul 3" 
+      [16] swin             "Dec" 
+      [17] swmul            "Mul 2" 
+      [18] swin             "AcV" 
+      [19] swifgreater      "If >" 
+      [20] swconst          "T" 1
+        AcE.O <- Mul.x
+        Env. follower Modulated 1.In <- Mul 3.x
+        Env. follower Modulated 1.Rm <- Sub.-
+        Env. follower Modulated.In <- Env. follower Modulated 1.E
+        AcPh.O <- Env. follower Modulated 1.E
+        Env. follower Modulated 2.In <- If >.>
+        Mul.A <- Env. follower Modulated.E
+        Mul.B <- Con.O
+        Con.I <- Env. follower Modulated 2.E
+        _Env.O <- Env_.I
+        Sub.A <- Rm.#
+        Sub.B <- Mul 1.x
+        Mul 1.A <- Env_.I
+        Mul 1.B <- B.#
+        Mul 3.A <- AcT.I
+        Mul 3.B <- Mul 2.x
+        Mul 2.A <- Dec.I
+        Mul 2.B <- Dec.I
+        If >.A <- V.I
+        If >.B <- AcV.I
+        If >.T <- T.#
+    [25] SUBPATCH "Env2Param"  meta='{"elements":[]}\x00'
+      [0] swin             "AcE" 
+      [1] swin             "Acc" 
+      [2] swout            "FltE" 
+      [3] swout            "AmpE" 
+      [4] swmul            "Mul 3" 
+      [5] swconst          "B 2" 1.25
+      [6] swin             "AcPh" 
+      [7] swout            "_AcPh" 
+      [8] swcomplemet      "1-X" 
+      [9] swmul            "Mul 1" 
+      [10] swin             "Dec" 
+      [11] swmul            "Mul 4" 
+      [12] swmul            "Mul 2" 
+      [13] swmul            "Mul 5" 
+      [14] swmul            "Mul 6" 
+      [15] swsuperknob      "B" 0 1 1 0.268 i-1 0 0
+      [16] swsub            "Sub" 
+      [17] swin             "_Env" 
+      [18] swmul            "Mul" 
+      [19] swsuperknob      "B 1" 0 1 1 0.188 i-1 0 0
+        FltE.O <- Mul 6.x
+        AmpE.O <- Mul 3.x
+        Mul 3.A <- Mul 4.x
+        Mul 3.B <- Mul 1.x
+        _AcPh.O <- Mul 2.x
+        1-X.X <- AcPh.I
+        Mul 1.A <- B 2.#
+        Mul 1.B <- 1-X.1-X
+        Mul 4.A <- Mul 5.x
+        Mul 4.B <- Dec.I
+        Mul 2.A <- Mul 5.x
+        Mul 2.B <- AcPh.I
+        Mul 5.A <- Acc.I
+        Mul 5.B <- AcE.I
+        Mul 6.A <- Mul 4.x
+        Mul 6.B <- Sub.-
+        Sub.A <- B.V
+        Sub.B <- Mul.x
+        Mul.A <- _Env.I
+        Mul.B <- B 1.V
+    [26] SUBPATCH "Acc2Flt"  meta='{"elements":[]}\x00'
+      [0] swin             "Flt" 
+      [1] swin             "FltE" 
+      [2] swout            "_Flt" 
+      [3] swadd            "Add" 
+      [4] swin             "AcPh" 
+      [5] swmul            "Mul" 
+      [6] swcomplemet      "1-X" 
+        _Flt.O <- Mul.x
+        Add.A <- Flt.I
+        Add.B <- FltE.I
+        Mul.A <- Add.+
+        Mul.B <- 1-X.1-X
+        1-X.X <- AcPh.I
+    [27] swin             "AcT_" 
+    [28] SUBPATCH "Acc2Amp"  meta='{"elements":[]}\x00'
+      [0] swin             "Amp_" 
+      [1] swin             "AmpE" 
+      [2] swout            "_Amp" 
+      [3] swadd            "Add 1" 
+      [4] swmul            "Mul" 
+      [5] swconst          "B" 1
+        _Amp.O <- Add 1.+
+        Add 1.A <- Amp_.I
+        Add 1.B <- Mul.x
+        Mul.A <- AmpE.I
+        Mul.B <- B.#
+      _Flt.O <- Acc2Flt._Flt
+      _Amp.O <- Acc2Amp._Amp
+      _Ctf.O <- Ctf_.I
+      _Res.O <- Res_.I
+      _Env.O <- Env_.I
+      _Dec.O <- Dec_.I
+      _P.O <- P_.I
+      _V.O <- V_.I
+      _T.O <- T_.I
+      _G.O <- G_.I
+      _AcV.O <- AcV.I
+      Ac. Env..AcT <- AcT_.I
+      Ac. Env..V <- V_.I
+      Ac. Env..Env_ <- Env_.I
+      Ac. Env..Dec <- Dec_.I
+      Ac. Env..AcV <- AcV.I
+      Env2Param.AcE <- Ac. Env..AcE
+      Env2Param.Acc <- Acc_.I
+      Env2Param.AcPh <- Ac. Env..AcPh
+      Env2Param.Dec <- Dec_.I
+      Env2Param._Env <- Ac. Env.._Env
+      Acc2Flt.Flt <- Flt_.I
+      Acc2Flt.FltE <- Env2Param.FltE
+      Acc2Flt.AcPh <- Env2Param._AcPh
+      Acc2Amp.Amp_ <- Amp_.I
+      Acc2Amp.AmpE <- Env2Param.AmpE
+  [28] SUBPATCH "PW"  meta='{"elements":[]}\x00'
+    [0] swin             "P" 
+    [1] swout            "PW" 
+    [2] swcustfun        "Custom Function" [~496B] json={"elements":[{"id":"linebox","type":"linebox","points":[{"x":0.0,"y":0.67733335494995117,"c":false},{"x":1.0,"y":0.0,"c":false}]},{"id":"yMax","type":"numbereditbox","text":"1"},{"id":"yMin","type":"numbereditbox","text":"0"},{"id":"xMax","type":"numbereditbox","text":"150"},{"id":"xMin","type":"numbereditbox","text":"0"},{"id":"X bars","type":"numbereditbox","text":"2"},{"id":"Y bars","type":"numbereditbox","text":"2"},{"id":"snapselect","type":"listselect","selectedindex":0}]}  250 196
+    [3] swcrossfadegui   "Crossfade GUI" [~113B] 0 0 i1 i1326077776 i1869759242 i1634104179 41061.4 0.0337613 i266 i1937064704 i544042868 i1668183366 i1852795252 i1342855178 i17451274 128 i1936945010 i1701077350 873586 138.254 i1869902709 i1967530093 i1769235310 i1493855855
+      t.swcomp::20190819 <- PWM.ùCªCswout::20150210
+      _P.O <- Slide.Ptc
+      Amp.O <- Accent._Amp
+      _Ctf.O <- If >.>
+      Slide.P <- P.I
+      Slide.G <- G.I
+      Smooth.G <- G.I
+      AmpDecay.G <- G.I
+      Cutoff.Amp_ <- Mul.x
+      Cutoff.Ctf_ <- Ctf_.I
+      Cutoff.Res_ <- Res_.I
+      Cutoff.Env_ <- Env_.I
+      Cutoff.Dec_ <- Dec_.I
+      Cutoff.Acc_ <- Acc_.I
+      Cutoff.P_ <- Slide.Ptc
+      Cutoff.V_ <- V.I
+      Cutoff.T_ <- T.I
+      Cutoff.G_ <- G.I
+      Cutoff.AcV <- AcV.I
+      Mul.A <- Smooth.E
+      Mul.B <- AmpDecay.Out
+      _Res.O <- Mul 2.x
+      Mul 1.A <- Accent._Flt
+      Mul 1.B <- B.#
+      If >.A <- Mul 1.x
+      If >.B <- B 2.#
+      If >.T <- B 2.#
+      If >.F <- Mul 1.x
+      Decay.Flt_ <- Cutoff._Flt
+      Decay.Amp_ <- Cutoff._Amp
+      Decay.Ctf_ <- Cutoff._Ctf
+      Decay.Res_ <- Cutoff._Res
+      Decay.Env_ <- Cutoff._Env
+      Decay.Dec_ <- Cutoff._Dec
+      Decay.Acc_ <- Cutoff._Acc
+      Decay.P_ <- Cutoff._P
+      Decay.V_ <- Cutoff._V
+      Decay.T_ <- Cutoff._T
+      Decay.G_ <- Cutoff._G
+      Decay.AcV_ <- Cutoff._AcV
+      Decay.AcT_ <- Cutoff._AcT
+      Env.Mod.Flt_ <- Decay._Flt
+      Env.Mod.Amp_ <- Decay._Amp
+      Env.Mod.Ctf_ <- Decay._Ctf
+      Env.Mod.Res_ <- Decay._Res
+      Env.Mod.Env_ <- Decay._Env
+      Env.Mod.Dec_ <- Decay._Dec
+      Env.Mod.Acc_ <- Decay._Acc
+      Env.Mod.P_ <- Decay._P
+      Env.Mod.V_ <- Decay._V
+      Env.Mod.T_ <- Decay._T
+      Env.Mod.G_ <- Decay._G
+      Env.Mod.AcV <- Decay._AcV
+      Env.Mod.AcT_ <- Decay._AcT
+      Mul 2.A <- Accent._Res
+      Mul 2.B <- B 1.#
+      Accent.Flt_ <- Env.Mod._Flt
+      Accent.Amp_ <- Env.Mod._Amp
+      Accent.Ctf_ <- Env.Mod._Ctf
+      Accent.Res_ <- Env.Mod._Res
+      Accent.Env_ <- Env.Mod._Env
+      Accent.Dec_ <- Env.Mod._Dec
+      Accent.Acc_ <- Env.Mod._Acc
+      Accent.P_ <- Env.Mod._P
+      Accent.V_ <- Env.Mod._V
+      Accent.T_ <- Env.Mod._T
+      Accent.G_ <- Env.Mod._G
+      Accent.AcV <- Env.Mod._AcV
+      Accent.AcT_ <- Env.Mod._AcT
+      PW.P <- P.I
+      PWM.O <- PW.PW
+  [29] swfilter4pnlmodulated "Filter 4P NL Modulated" [~744B] json={"elements":[{"id":"knobCutoff","type":"knob","curvalue":0.0},{"id":"knobResonance","type":"knob","curvalue":0.0},{"id":"knobKBD","type":"knob","curvalue":0.0},{"id":"knobModVel","type":"knob","curvalue":0.0},{"id":"knobModCutoff","type":"knob","curvalue":1.0},{"id":"knobModReso","type":"knob","curvalue":0.25999999046325684},{"id":"sliderP1","type":"slider","curvalue":14432.1142578125},{"id":"sliderP2","type":"slider","curvalue":108.99000549316406},{"id":"knobOffset","type":"knob","curvalue":-0.15752960741519928},{"id":"knobOffsetMod","type":"knob","curvalue":0.0},{"id":"knobDrive","type":"knob","curvalue":1.159252405166626},{"id":"knobDriveMod","type":"knob","curvalue":0.0}]}  i4397056 i1883475712 i1751348329 i175794226 i1868789619 0.000711209 0.00016898 0.00016901 i1953058826 0.169344 i840989256 i-285339126 i-101836219
+    nnect.swcomp::20190819 <- Con 8.é\îEîñD   Sequencer
+    Pseudo Random.Out <-    Sequencer.Wrt
+    2.O <-    Sequencer.T_
+    id.T <-    Sequencer.Cyc_
+    id.Cyc <-    Pseudo Random.G
+    gner.G <-    Pseudo Random.Max
+    #.   Pseudo Random <- T.Midi Note
+      Variable.New <- Clock.1/4
+    Variable.Trg <- Clock.G
+    Euclid.LM <- Length.V
+    Euclid.FM <- Fill.V
+    Euclid.Clk <- Variable.Val
+    Con 2.I <- Midi Note.T
+    Designer.T <- Midi Note.T
+    Minor_scale.P <- Sequencer.P
+    Minor_scale.Root <- Root.#
+    Gain Lin.In1 <- Add 1.+
+    Gain Lin.In2 <- Add 1.+
+    Gain Lin.M <- Controllers.Amp
+    Con.I <- Controllers._Ctf
+    Con 1.I <- Controllers._Res
+    O1.O <- Stereo Track.O1
+    O2.O <- Stereo Track.O2
+    Stereo Track.I1 <- Gain Lin.O1
+    Stereo Track.I2 <- Gain Lin.O2
+    Neg 1.A <- Filter 4P NL Modulated.OLP
+    Sqr / Saw.A <- Oscillator.Sqr
+    Sqr / Saw.B <- Oscillator.Saw
+    Con 3.I <- Oscillator._P
+    Add.A <- Tune.V
+    Add.B <- Minor_scale.OP
+    Add 1.A <- Neg 1.-A
+    Add 1.B <- Neg 1.-A
+    Loss.In <- Sqr / Saw.=
+    Loss.CM <- Con 3.O
+    Oscillator.P <- Controllers._P
+    Oscillator.PW <- Controllers.PWM
+    Controllers.P <- Add.+
+    Controllers.V <- Sequencer.V
+    Controllers.G <- Sequencer.G
+    Controllers.T <- Sequencer.T
+    Controllers.Ctf_ <- Ctf_.V
+    Controllers.Res_ <- Res_.V
+    Controllers.Env_ <- Env_.V
+    Controllers.Dec_ <- Dec_.V
+    Controllers.Acc_ <- Acc_.V
+    Controllers.AcV <- Accent Velocity.#
+    Filter 4P NL Modulated.In <- Loss.H
+    Filter 4P NL Modulated.CM <- Con 8.O
+    Filter 4P NL Modulated.RM <- Con 1.O
+    Filter 4P NL Modulated.P1o <- Pitch->Hz 2.F
+    Pitch->Hz 2.P <- Con 8.O
+    Con 8.I <- Con.O
+!! stopped: ValueError('subsection not found')

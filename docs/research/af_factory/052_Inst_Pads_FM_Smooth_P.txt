@@ -1,0 +1,25 @@
+# swengine::20200430  (2376 bytes)
+# build: 20220928_9572
+[0] swgain           "Gain Lin" 0 0.492
+[1] swout            "O1" 
+[2] swout            "O2" 
+[3] swosc_multi      "OSC Multi 1" [~32B] i3 0 0 0 0.1642 0 0 0.5
+[4] swmidinote       "Midi Note" 
+[5] pitch2hz         "Pitch->Hz" 
+[6] hz2pitch         "Hz->Pitch" 
+[7] swmul            "Mul" 
+[8] swlfo_multi      "LFO Multi" [~74B] 0 1 1 0 0 0 0 i1668573552 i2053649000 i1668772618 0.000917158 i825242170 i825765945 i1766853177 i761815924 i544884798 i2609 i-2147466664
+[9] swconst          "V" 1
+[10] swmixlin4        "Mixer 4 Lin" [~32B] 0.5 0 0.18 0 1 0 1 0
+[11] swrtadsr         "ADSR Modulated" [~32B] 147.921 306.25 0.5329 322.998 0 0 0 0
+[12] swmul            "Mul 1" 
+[13] swconst          "B" 0.5
+[14] swlfo_multi      "LFO Multi 1" [~28B] 0.479999 1 1 0 0 0 0
+[15] swled            "LED" 
+[16] swfiltermod      "Filter Modulated" [~24B] 47.925 10.8269 1 0 0.21 0
+[17] swmul            "Mul 2" 
+[18] swconst          "B 1" 128
+[19] swled            "LED 1" 
+[20] swled            "LED 2" 
+[21] swosc_multi      "OSC Multi 2" [~891B] i3 1 0 0 -0.2858 0 0 0.5 i1 i1852399943 i1852394528 i829311242 i1818838538 i544367988 i1969516365 i1702125932 i1280248420 i68176 i1632043008 i1277193833 567015 8844.61 i1702128745 i1867325554
+!! stopped: ValueError('subsection not found')

@@ -1,0 +1,46 @@
+# swengine::20200430  (2164 bytes)
+# build: 20220928_9572
+[0] swgain           "Gain Lin" 0 0.46
+[1] swout            "O1" 
+[2] swout            "O2" 
+[3] swmidinote       "Midi Note" 
+[4] swosc_wavetablemorph "OSC Wavetable Morph" [~28B] 0 0 0 0 0 1 0
+[5] swconst          "V" 1
+[6] swconst          "Set" 15
+[7] swlfo_multi      "LFO Multi" [~28B] 2.35824 1 0 0 i1 0 0
+[8] swfiltermod      "Filter Modulated" [~24B] 39.825 0 1 0.35 0.72 0
+[9] swrtadsr         "Amp Envelope" [~32B] 0 342.25 0.207025 782.44 0 0 0 0
+[10] swled            "LED" 
+[11] swrtadsr         "Filter Envelope" [~32B] 0 576 0 1761.66 0 0 0 0
+[12] swmul            "Mul" 
+[13] swconst          "A" 128
+[14] swosc_multi      "OSC Multi" [~32B] i4 -1 0 0 0 0 0 0.5
+[15] swmixlin4        "Mixer 4 Lin" [~32B] 1 0 0.505 0 0.225 0 1 0
+[16] swnoise          "White Noise" 
+[17] swconnect        "Con" 
+  Gain Lin.In1 <- Filter Modulated.OLP
+  Gain Lin.In2 <- Filter Modulated.OLP
+  Gain Lin.M <- Amp Envelope.E
+  O1.O <- Gain Lin.O1
+  O2.O <- Gain Lin.O2
+  OSC Wavetable Morph.P <- Midi Note.P
+  OSC Wavetable Morph.V <- V.#
+  OSC Wavetable Morph.Set <- Set.#
+  OSC Wavetable Morph.WSm <- LFO Multi.O
+  Filter Modulated.In <- Mixer 4 Lin.Out
+  Filter Modulated.PKB <- OSC Wavetable Morph.OP
+  Filter Modulated.V <- Con.O
+  Filter Modulated.CM <- Mul.x
+  Amp Envelope.G <- LED.O
+  LED.I <- Midi Note.G
+  Filter Envelope.G <- Midi Note.G
+  Mul.A <- A.#
+  Mul.B <- Filter Envelope.E
+  OSC Multi.P <- OSC Wavetable Morph.OP
+  OSC Multi.V <- OSC Wavetable Morph.OV
+  Mixer 4 Lin.In1 <- OSC Wavetable Morph.O
+  Mixer 4 Lin.In2 <- OSC Multi.O
+  Mixer 4 Lin.In3 <- White Noise.~
+  Con.I <- Midi Note.V
+== done, leftover 32 bytes
+   tail: 00cdf343380e3e435881103f0000000000050000d00200000400000001000000

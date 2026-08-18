@@ -1,0 +1,99 @@
+# swengine::20200430  (3902 bytes)
+# build: 20220928_9572
+[0] swout            "O1" 
+[1] swout            "O2" 
+[2] swmidinote       "Midi Note" 
+[3] swgain           "Gain Lin" 1 0
+[4] swconnect        "Con" 
+[5] SUBPATCH "Rim"  meta='{"elements":[]}\x00'
+  [0] SUBPATCH "G to T"  meta='{"elements":[]}\x00'
+    [0] swin             "G" 
+    [1] swmul            "Mul" 
+    [2] swchange         "Change" 
+    [3] swout            "T" 
+      Mul.A <- G.I
+      Mul.B <- Change.T
+      Change.In <- G.I
+      T.O <- Mul.x
+  [1] swfilter2p       "Filter 2P" 
+  [2] swdiv            "Div" 
+  [3] hz2pitch         "Hz->Pitch" 
+  [4] swconst          "F" 495
+  [5] swconst          "R 1" 0.13
+  [6] swfilter2p       "Filter 2P 1" 
+  [7] swdiv            "Div 1" 
+  [8] hz2pitch         "Hz->Pitch 1" 
+  [9] swconst          "F 1" 220
+  [10] swconst          "R 2" 0.16
+  [11] swadd8           "Add8" 
+  [12] swconnect        "Con" 
+  [13] swconnect        "Con 1" 
+  [14] swin             "G" 
+  [15] swout            "Out" 
+  [16] swfilter2p       "Filter 2P 3" 
+  [17] swdiv            "Div 3" 
+  [18] hz2pitch         "Hz->Pitch 3" 
+  [19] swconst          "F 2" 990
+  [20] swconst          "R 4" 0.13
+  [21] swconnect        "Con 2" 
+  [22] swadd            "Add" 
+  [23] swenvfollow      "Env. follower" [~0B] 
+  [24] swmul            "Mul" 
+  [25] swnoise          "White Noise" 
+  [26] swmul            "Mul 1" 
+  [27] swenvfollowmod   "Env. follower Modulated" 0 0.6241 0 0
+  [28] swfilter1p       "Filter 1P" 
+  [29] swin             "Lng" 
+  [30] swin             "Cut" 
+  [31] swin             "Mix" 
+    G to T.G <- G.I
+    Filter 2P.In <- Con.O
+    Filter 2P.P <- Hz->Pitch.P
+    Filter 2P.R <- R 1.#
+    Div.A <- Filter 2P.B
+    Div.B <- R 1.#
+    Hz->Pitch.F <- F.#
+    Filter 2P 1.In <- Con 1.O
+    Filter 2P 1.P <- Hz->Pitch 1.P
+    Filter 2P 1.R <- R 2.#
+    Div 1.A <- Filter 2P 1.B
+    Div 1.B <- R 2.#
+    Hz->Pitch 1.F <- F 1.#
+    Add8.V2 <- Div./
+    Add8.V3 <- Div 1./
+    Add8.V4 <- Div 3./
+    Con.I <- Add.+
+    Con 1.I <- Con.O
+    Out.O <- Add8.+
+    Filter 2P 3.In <- Con 2.O
+    Filter 2P 3.P <- Hz->Pitch 3.P
+    Filter 2P 3.R <- R 4.#
+    Div 3.A <- Filter 2P 3.B
+    Div 3.B <- R 4.#
+    Hz->Pitch 3.F <- F 2.#
+    Con 2.I <- Con 1.O
+    Add.A <- Env. follower Modulated.E
+    Add.B <- Mul 1.x
+    Env. follower.In <- Env. follower Modulated.E
+    Env. follower.R <- Lng.I
+    Mul.A <- Env. follower.E
+    Mul.B <- Filter 1P.H
+    Mul 1.A <- Mul.x
+    Mul 1.B <- Mix.I
+    Env. follower Modulated.In <- G to T.T
+    Filter 1P.In <- White Noise.~
+    Filter 1P.P <- Cut.I
+[6] swsuperknob      "Rim Rev. Length" 0 2000 2 0.492214 i1 0 0
+[7] swsuperknob      "Rim Rev. Hp" 0 128 1 0.72 i2 0 0
+[8] swsuperknob      "Rim Reverb Mix" 0 0.05 2 0.817214 0 0 0
+  O1.O <- Gain Lin.O1
+  O2.O <- Gain Lin.O2
+  Gain Lin.In1 <- Con.O
+  Gain Lin.In2 <- Con.O
+  Con.I <- Rim.Out
+  Rim.G <- Midi Note.T
+  Rim.Lng <- Rim Rev. Length.V
+  Rim.Cut <- Rim Rev. Hp.V
+  Rim.Mix <- Rim Reverb Mix.V
+== done, leftover 32 bytes
+   tail: a01d17c2cc1585c345e19a3f0100000000050000d00200000600000001000000

@@ -1,0 +1,703 @@
+# swengine::20200430  (25752 bytes)
+# build: 20220928_9572
+[0] swin             "I1" 
+[1] swsuperknob      "Freeze / Record" 0 1 1 1 0 i1 0
+[2] swlfo_multi      "LFO Multi" [~28B] 0 1 1 0 i2 i1 0
+[3] swsuperknob      "Pitch (Freeze only)" 0 1 1 1 i4 0 0
+[4] swsuperknob      "Scanner Position" 5000 0 1 1 i2 0 0
+[5] swsuperknob      "Scanner Random" 0 2500 3 0 i3 0 0
+[6] SUBPATCH "GranulatorL"  meta='{"elements":[]}\x00'
+  [0] SUBPATCH "Gran_01"  meta='{"elements":[]}\x00'
+    [0] swdelaygated     "Gated Delay" [~0B] 
+    [1] SUBPATCH "SampleCounter"  meta='{"elements":[]}\x00'
+      [0] swadd            "Add" 
+      [1] swmul            "Mul" 
+      [2] swsamplerate     "Sample Rate" 
+      [3] swdiv            "Div" 
+      [4] swconst          "A" 1000
+      [5] swin             "T" 
+      [6] swout            "Ms" 
+      [7] swmul            "Mul 1" 
+      [8] swin             "Spd" 
+      [9] swmul            "Mul 2" 
+      [10] swconst          "B" -1
+      [11] swcomplemet      "1-X" 
+        Add.A <- Div./
+        Add.B <- Mul.x
+        Mul.A <- Add.+
+        Mul.B <- 1-X.1-X
+        Div.A <- Mul 1.x
+        Div.B <- Sample Rate.SR
+        Ms.O <- Add.+
+        Mul 1.A <- Mul 2.x
+        Mul 1.B <- A.#
+        Mul 2.A <- Spd.I
+        Mul 2.B <- B.#
+        1-X.X <- T.I
+    [2] SUBPATCH "Ramp>T"  meta='{"elements":[]}\x00'
+      [0] swin             "G" 
+      [1] swlastsam        "Previous" [~0B] 
+      [2] swout            "T" 
+      [3] swifgreater      "If >" 
+      [4] swconst          "T 1" 1
+      [5] swconst          "F" 0
+        Previous.In <- G.I
+        T.O <- If >.>
+        If >.A <- Previous.Out
+        If >.B <- G.I
+        If >.T <- T 1.#
+        If >.F <- F.#
+    [3] SUBPATCH "Ramp>Env"  meta='{"elements":[]}\x00'
+      [0] swin             "In" 
+      [1] swout            "Out" 
+      [2] swmul            "Mul" 
+      [3] swconst          "B" 2
+      [4] swifgreater      "If >" 
+      [5] swconst          "B 1" 1
+      [6] swsub            "Sub" 
+      [7] swconnect        "Con" 
+      [8] swmul            "Mul 1" 
+      [9] swin             "x" 
+      [10] swifgreater      "If > 1" 
+      [11] swconst          "B 3" 1
+      [12] swcomplemet      "1-X" 
+        Out.O <- If > 1.>
+        Mul.A <- In.I
+        Mul.B <- B.#
+        If >.A <- Mul.x
+        If >.B <- B 1.#
+        If >.T <- 1-X.1-X
+        If >.F <- Con.O
+        Sub.A <- Con.O
+        Sub.B <- B 1.#
+        Con.I <- Mul.x
+        Mul 1.A <- If >.>
+        Mul 1.B <- x.I
+        If > 1.A <- Mul 1.x
+        If > 1.B <- B 3.#
+        If > 1.T <- B 3.#
+        If > 1.F <- Mul 1.x
+        1-X.X <- Sub.-
+    [4] swmul            "Mul" 
+    [5] swadd            "Add 1" 
+    [6] swvariable       "Variable" 
+    [7] SUBPATCH "Offset"  meta='{"elements":[]}\x00'
+      [0] swin             "In" 
+      [1] swout            "Out" 
+      [2] swifgreater      "If >" 
+      [3] swconst          "B" 1
+      [4] swsub            "Sub" 
+      [5] swconnect        "Con" 
+      [6] swadd            "Add" 
+      [7] swin             "Ofs" 
+        Out.O <- If >.>
+        If >.A <- Add.+
+        If >.B <- B.#
+        If >.T <- Sub.-
+        If >.F <- Con.O
+        Sub.A <- Con.O
+        Sub.B <- B.#
+        Con.I <- Add.+
+        Add.A <- In.I
+        Add.B <- Ofs.I
+    [8] swadd            "Add" 
+    [9] swnoise          "White Noise" 
+    [10] swmul            "Mul 2" 
+    [11] swout            "Out" 
+    [12] swin             "In" 
+    [13] swin             "Rmp" 
+    [14] swin             "G" 
+    [15] swin             "Pos" 
+    [16] swconst          "x" 4
+    [17] swin             "Rnd" 
+    [18] swout            "Oin" 
+    [19] swout            "OD" 
+    [20] swout            "OG" 
+    [21] swin             "Spd" 
+    [22] swin             "Ofs" 
+    [23] swmod            "Modulo" 
+    [24] swconst          "B" 5000
+    [25] swabs            "Abs" 
+      Gated Delay.In <- In.I
+      Gated Delay.D <- Abs.|A|
+      Gated Delay.G <- G.I
+      SampleCounter.T <- Ramp>T.T
+      SampleCounter.Spd <- Spd.I
+      Ramp>T.G <- Offset.Out
+      Ramp>Env.In <- Offset.Out
+      Ramp>Env.x <- x.#
+      Mul.A <- Gated Delay.Out
+      Mul.B <- Ramp>Env.Out
+      Add 1.A <- SampleCounter.Ms
+      Add 1.B <- Variable.Val
+      Variable.New <- Add.+
+      Variable.Trg <- Ramp>T.T
+      Offset.In <- Rmp.I
+      Offset.Ofs <- Ofs.I
+      Add.A <- Pos.I
+      Add.B <- Mul 2.x
+      Mul 2.A <- White Noise.~
+      Mul 2.B <- Rnd.I
+      Out.O <- Mul.x
+      Oin.O <- In.I
+      OD.O <- Abs.|A|
+      OG.O <- G.I
+      Modulo.A <- Add 1.+
+      Modulo.B <- B.#
+      Abs.A <- Modulo.M
+  [1] swin             "In" 
+  [2] swin             "Rmp" 
+  [3] swin             "G" 
+  [4] swin             "Pos" 
+  [5] swin             "Rnd" 
+  [6] swin             "Spd" 
+  [7] swadd            "Add" 
+  [8] swout            "Out" 
+  [9] swout            "Oin" 
+  [10] swout            "OD" 
+  [11] swout            "OG" 
+  [12] SUBPATCH "Gran_02"  meta='{"elements":[]}\x00'
+    [0] swdelaygated     "Gated Delay" [~0B] 
+    [1] SUBPATCH "SampleCounter"  meta='{"elements":[]}\x00'
+      [0] swadd            "Add" 
+      [1] swmul            "Mul" 
+      [2] swsamplerate     "Sample Rate" 
+      [3] swdiv            "Div" 
+      [4] swconst          "A" 1000
+      [5] swin             "T" 
+      [6] swout            "Ms" 
+      [7] swmul            "Mul 1" 
+      [8] swin             "Spd" 
+      [9] swmul            "Mul 2" 
+      [10] swconst          "B" -1
+      [11] swcomplemet      "1-X" 
+        Add.A <- Div./
+        Add.B <- Mul.x
+        Mul.A <- Add.+
+        Mul.B <- 1-X.1-X
+        Div.A <- Mul 1.x
+        Div.B <- Sample Rate.SR
+        Ms.O <- Add.+
+        Mul 1.A <- Mul 2.x
+        Mul 1.B <- A.#
+        Mul 2.A <- Spd.I
+        Mul 2.B <- B.#
+        1-X.X <- T.I
+    [2] SUBPATCH "Ramp>T"  meta='{"elements":[]}\x00'
+      [0] swin             "G" 
+      [1] swlastsam        "Previous" [~0B] 
+      [2] swout            "T" 
+      [3] swifgreater      "If >" 
+      [4] swconst          "T 1" 1
+      [5] swconst          "F" 0
+        Previous.In <- G.I
+        T.O <- If >.>
+        If >.A <- Previous.Out
+        If >.B <- G.I
+        If >.T <- T 1.#
+        If >.F <- F.#
+    [3] SUBPATCH "Ramp>Env"  meta='{"elements":[]}\x00'
+      [0] swin             "In" 
+      [1] swout            "Out" 
+      [2] swmul            "Mul" 
+      [3] swconst          "B" 2
+      [4] swifgreater      "If >" 
+      [5] swconst          "B 1" 1
+      [6] swsub            "Sub" 
+      [7] swconnect        "Con" 
+      [8] swmul            "Mul 1" 
+      [9] swin             "x" 
+      [10] swifgreater      "If > 1" 
+      [11] swconst          "B 3" 1
+      [12] swcomplemet      "1-X" 
+        Out.O <- If > 1.>
+        Mul.A <- In.I
+        Mul.B <- B.#
+        If >.A <- Mul.x
+        If >.B <- B 1.#
+        If >.T <- 1-X.1-X
+        If >.F <- Con.O
+        Sub.A <- Con.O
+        Sub.B <- B 1.#
+        Con.I <- Mul.x
+        Mul 1.A <- If >.>
+        Mul 1.B <- x.I
+        If > 1.A <- Mul 1.x
+        If > 1.B <- B 3.#
+        If > 1.T <- B 3.#
+        If > 1.F <- Mul 1.x
+        1-X.X <- Sub.-
+    [4] swmul            "Mul" 
+    [5] swadd            "Add 1" 
+    [6] swvariable       "Variable" 
+    [7] SUBPATCH "Offset"  meta='{"elements":[]}\x00'
+      [0] swin             "In" 
+      [1] swout            "Out" 
+      [2] swifgreater      "If >" 
+      [3] swconst          "B" 1
+      [4] swsub            "Sub" 
+      [5] swconnect        "Con" 
+      [6] swadd            "Add" 
+      [7] swin             "Ofs" 
+        Out.O <- If >.>
+        If >.A <- Add.+
+        If >.B <- B.#
+        If >.T <- Sub.-
+        If >.F <- Con.O
+        Sub.A <- Con.O
+        Sub.B <- B.#
+        Con.I <- Add.+
+        Add.A <- In.I
+        Add.B <- Ofs.I
+    [8] swadd            "Add" 
+    [9] swnoise          "White Noise" 
+    [10] swmul            "Mul 2" 
+    [11] swout            "Out" 
+    [12] swin             "In" 
+    [13] swin             "Rmp" 
+    [14] swin             "G" 
+    [15] swin             "Pos" 
+    [16] swconst          "x" 4
+    [17] swin             "Rnd" 
+    [18] swout            "Oin" 
+    [19] swout            "OD" 
+    [20] swout            "OG" 
+    [21] swin             "Spd" 
+    [22] swin             "Ofs" 
+    [23] swmod            "Modulo" 
+    [24] swconst          "B" 5000
+    [25] swabs            "Abs" 
+      Gated Delay.In <- In.I
+      Gated Delay.D <- Abs.|A|
+      Gated Delay.G <- G.I
+      SampleCounter.T <- Ramp>T.T
+      SampleCounter.Spd <- Spd.I
+      Ramp>T.G <- Offset.Out
+      Ramp>Env.In <- Offset.Out
+      Ramp>Env.x <- x.#
+      Mul.A <- Gated Delay.Out
+      Mul.B <- Ramp>Env.Out
+      Add 1.A <- SampleCounter.Ms
+      Add 1.B <- Variable.Val
+      Variable.New <- Add.+
+      Variable.Trg <- Ramp>T.T
+      Offset.In <- Rmp.I
+      Offset.Ofs <- Ofs.I
+      Add.A <- Pos.I
+      Add.B <- Mul 2.x
+      Mul 2.A <- White Noise.~
+      Mul 2.B <- Rnd.I
+      Out.O <- Mul.x
+      Oin.O <- In.I
+      OD.O <- Abs.|A|
+      OG.O <- G.I
+      Modulo.A <- Add 1.+
+      Modulo.B <- B.#
+      Abs.A <- Modulo.M
+  [13] swconst          "Ofs" 0
+  [14] swconst          "Ofs 1" 0.5
+    Gran_01.In <- In.I
+    Gran_01.Rmp <- Rmp.I
+    Gran_01.G <- G.I
+    Gran_01.Pos <- Pos.I
+    Gran_01.Rnd <- Rnd.I
+    Gran_01.Spd <- Spd.I
+    Gran_01.Ofs <- Ofs.#
+    Add.A <- Gran_01.Out
+    Add.B <- Gran_02.Out
+    Out.O <- Add.+
+    Oin.O <- Gran_01.Oin
+    OD.O <- Gran_01.OD
+    OG.O <- Gran_01.OG
+    Gran_02.In <- In.I
+    Gran_02.Rmp <- Rmp.I
+    Gran_02.G <- G.I
+    Gran_02.Pos <- Pos.I
+    Gran_02.Rnd <- Rnd.I
+    Gran_02.Spd <- Spd.I
+    Gran_02.Ofs <- Ofs 1.#
+[7] swin             "I2" 
+[8] swsuperknob      "Scanner Freq." 1 60 1 0.07 i1 0 0
+[9] SUBPATCH "Prep2Vis"  meta='{"elements":[]}\x00'
+  [0] swin             "In" 
+  [1] swout            "Out" 
+  [2] swabs            "Abs" 
+  [3] swenvfollow      "Env. follower" [~0B] 
+  [4] swconst          "R" 100
+    Out.O <- Env. follower.E
+    Abs.A <- In.I
+    Env. follower.In <- Abs.|A|
+    Env. follower.R <- R.#
+[10] swdelaygated     "Gated Delay" [~0B] 
+[11] swvudual         "VU Dual" [~0B] 
+[12] swout            "O1" 
+[13] swout            "O2" 
+[14] swconnect        "Con 1" 
+[15] SUBPATCH "GranulatorR"  meta='{"elements":[]}\x00'
+  [0] SUBPATCH "Gran_01"  meta='{"elements":[]}\x00'
+    [0] swdelaygated     "Gated Delay" [~0B] 
+    [1] SUBPATCH "SampleCounter"  meta='{"elements":[]}\x00'
+      [0] swadd            "Add" 
+      [1] swmul            "Mul" 
+      [2] swsamplerate     "Sample Rate" 
+      [3] swdiv            "Div" 
+      [4] swconst          "A" 1000
+      [5] swin             "T" 
+      [6] swout            "Ms" 
+      [7] swmul            "Mul 1" 
+      [8] swin             "Spd" 
+      [9] swmul            "Mul 2" 
+      [10] swconst          "B" -1
+      [11] swcomplemet      "1-X" 
+        Add.A <- Div./
+        Add.B <- Mul.x
+        Mul.A <- Add.+
+        Mul.B <- 1-X.1-X
+        Div.A <- Mul 1.x
+        Div.B <- Sample Rate.SR
+        Ms.O <- Add.+
+        Mul 1.A <- Mul 2.x
+        Mul 1.B <- A.#
+        Mul 2.A <- Spd.I
+        Mul 2.B <- B.#
+        1-X.X <- T.I
+    [2] SUBPATCH "Ramp>T"  meta='{"elements":[]}\x00'
+      [0] swin             "G" 
+      [1] swlastsam        "Previous" [~0B] 
+      [2] swout            "T" 
+      [3] swifgreater      "If >" 
+      [4] swconst          "T 1" 1
+      [5] swconst          "F" 0
+        Previous.In <- G.I
+        T.O <- If >.>
+        If >.A <- Previous.Out
+        If >.B <- G.I
+        If >.T <- T 1.#
+        If >.F <- F.#
+    [3] SUBPATCH "Ramp>Env"  meta='{"elements":[]}\x00'
+      [0] swin             "In" 
+      [1] swout            "Out" 
+      [2] swmul            "Mul" 
+      [3] swconst          "B" 2
+      [4] swifgreater      "If >" 
+      [5] swconst          "B 1" 1
+      [6] swsub            "Sub" 
+      [7] swconnect        "Con" 
+      [8] swmul            "Mul 1" 
+      [9] swin             "x" 
+      [10] swifgreater      "If > 1" 
+      [11] swconst          "B 3" 1
+      [12] swcomplemet      "1-X" 
+        Out.O <- If > 1.>
+        Mul.A <- In.I
+        Mul.B <- B.#
+        If >.A <- Mul.x
+        If >.B <- B 1.#
+        If >.T <- 1-X.1-X
+        If >.F <- Con.O
+        Sub.A <- Con.O
+        Sub.B <- B 1.#
+        Con.I <- Mul.x
+        Mul 1.A <- If >.>
+        Mul 1.B <- x.I
+        If > 1.A <- Mul 1.x
+        If > 1.B <- B 3.#
+        If > 1.T <- B 3.#
+        If > 1.F <- Mul 1.x
+        1-X.X <- Sub.-
+    [4] swmul            "Mul" 
+    [5] swadd            "Add 1" 
+    [6] swvariable       "Variable" 
+    [7] SUBPATCH "Offset"  meta='{"elements":[]}\x00'
+      [0] swin             "In" 
+      [1] swout            "Out" 
+      [2] swifgreater      "If >" 
+      [3] swconst          "B" 1
+      [4] swsub            "Sub" 
+      [5] swconnect        "Con" 
+      [6] swadd            "Add" 
+      [7] swin             "Ofs" 
+        Out.O <- If >.>
+        If >.A <- Add.+
+        If >.B <- B.#
+        If >.T <- Sub.-
+        If >.F <- Con.O
+        Sub.A <- Con.O
+        Sub.B <- B.#
+        Con.I <- Add.+
+        Add.A <- In.I
+        Add.B <- Ofs.I
+    [8] swadd            "Add" 
+    [9] swnoise          "White Noise" 
+    [10] swmul            "Mul 2" 
+    [11] swout            "Out" 
+    [12] swin             "In" 
+    [13] swin             "Rmp" 
+    [14] swin             "G" 
+    [15] swin             "Pos" 
+    [16] swconst          "x" 4
+    [17] swin             "Rnd" 
+    [18] swout            "Oin" 
+    [19] swout            "OD" 
+    [20] swout            "OG" 
+    [21] swin             "Spd" 
+    [22] swin             "Ofs" 
+    [23] swmod            "Modulo" 
+    [24] swconst          "B" 5000
+    [25] swabs            "Abs" 
+      Gated Delay.In <- In.I
+      Gated Delay.D <- Abs.|A|
+      Gated Delay.G <- G.I
+      SampleCounter.T <- Ramp>T.T
+      SampleCounter.Spd <- Spd.I
+      Ramp>T.G <- Offset.Out
+      Ramp>Env.In <- Offset.Out
+      Ramp>Env.x <- x.#
+      Mul.A <- Gated Delay.Out
+      Mul.B <- Ramp>Env.Out
+      Add 1.A <- SampleCounter.Ms
+      Add 1.B <- Variable.Val
+      Variable.New <- Add.+
+      Variable.Trg <- Ramp>T.T
+      Offset.In <- Rmp.I
+      Offset.Ofs <- Ofs.I
+      Add.A <- Pos.I
+      Add.B <- Mul 2.x
+      Mul 2.A <- White Noise.~
+      Mul 2.B <- Rnd.I
+      Out.O <- Mul.x
+      Oin.O <- In.I
+      OD.O <- Abs.|A|
+      OG.O <- G.I
+      Modulo.A <- Add 1.+
+      Modulo.B <- B.#
+      Abs.A <- Modulo.M
+  [1] swin             "In" 
+  [2] swin             "Rmp" 
+  [3] swin             "G" 
+  [4] swin             "Pos" 
+  [5] swin             "Rnd" 
+  [6] swin             "Spd" 
+  [7] swadd            "Add" 
+  [8] swout            "Out" 
+  [9] swout            "Oin" 
+  [10] swout            "OD" 
+  [11] swout            "OG" 
+  [12] SUBPATCH "Gran_02"  meta='{"elements":[]}\x00'
+    [0] swdelaygated     "Gated Delay" [~0B] 
+    [1] SUBPATCH "SampleCounter"  meta='{"elements":[]}\x00'
+      [0] swadd            "Add" 
+      [1] swmul            "Mul" 
+      [2] swsamplerate     "Sample Rate" 
+      [3] swdiv            "Div" 
+      [4] swconst          "A" 1000
+      [5] swin             "T" 
+      [6] swout            "Ms" 
+      [7] swmul            "Mul 1" 
+      [8] swin             "Spd" 
+      [9] swmul            "Mul 2" 
+      [10] swconst          "B" -1
+      [11] swcomplemet      "1-X" 
+        Add.A <- Div./
+        Add.B <- Mul.x
+        Mul.A <- Add.+
+        Mul.B <- 1-X.1-X
+        Div.A <- Mul 1.x
+        Div.B <- Sample Rate.SR
+        Ms.O <- Add.+
+        Mul 1.A <- Mul 2.x
+        Mul 1.B <- A.#
+        Mul 2.A <- Spd.I
+        Mul 2.B <- B.#
+        1-X.X <- T.I
+    [2] SUBPATCH "Ramp>T"  meta='{"elements":[]}\x00'
+      [0] swin             "G" 
+      [1] swlastsam        "Previous" [~0B] 
+      [2] swout            "T" 
+      [3] swifgreater      "If >" 
+      [4] swconst          "T 1" 1
+      [5] swconst          "F" 0
+        Previous.In <- G.I
+        T.O <- If >.>
+        If >.A <- Previous.Out
+        If >.B <- G.I
+        If >.T <- T 1.#
+        If >.F <- F.#
+    [3] SUBPATCH "Ramp>Env"  meta='{"elements":[]}\x00'
+      [0] swin             "In" 
+      [1] swout            "Out" 
+      [2] swmul            "Mul" 
+      [3] swconst          "B" 2
+      [4] swifgreater      "If >" 
+      [5] swconst          "B 1" 1
+      [6] swsub            "Sub" 
+      [7] swconnect        "Con" 
+      [8] swmul            "Mul 1" 
+      [9] swin             "x" 
+      [10] swifgreater      "If > 1" 
+      [11] swconst          "B 3" 1
+      [12] swcomplemet      "1-X" 
+        Out.O <- If > 1.>
+        Mul.A <- In.I
+        Mul.B <- B.#
+        If >.A <- Mul.x
+        If >.B <- B 1.#
+        If >.T <- 1-X.1-X
+        If >.F <- Con.O
+        Sub.A <- Con.O
+        Sub.B <- B 1.#
+        Con.I <- Mul.x
+        Mul 1.A <- If >.>
+        Mul 1.B <- x.I
+        If > 1.A <- Mul 1.x
+        If > 1.B <- B 3.#
+        If > 1.T <- B 3.#
+        If > 1.F <- Mul 1.x
+        1-X.X <- Sub.-
+    [4] swmul            "Mul" 
+    [5] swadd            "Add 1" 
+    [6] swvariable       "Variable" 
+    [7] SUBPATCH "Offset"  meta='{"elements":[]}\x00'
+      [0] swin             "In" 
+      [1] swout            "Out" 
+      [2] swifgreater      "If >" 
+      [3] swconst          "B" 1
+      [4] swsub            "Sub" 
+      [5] swconnect        "Con" 
+      [6] swadd            "Add" 
+      [7] swin             "Ofs" 
+        Out.O <- If >.>
+        If >.A <- Add.+
+        If >.B <- B.#
+        If >.T <- Sub.-
+        If >.F <- Con.O
+        Sub.A <- Con.O
+        Sub.B <- B.#
+        Con.I <- Add.+
+        Add.A <- In.I
+        Add.B <- Ofs.I
+    [8] swadd            "Add" 
+    [9] swnoise          "White Noise" 
+    [10] swmul            "Mul 2" 
+    [11] swout            "Out" 
+    [12] swin             "In" 
+    [13] swin             "Rmp" 
+    [14] swin             "G" 
+    [15] swin             "Pos" 
+    [16] swconst          "x" 4
+    [17] swin             "Rnd" 
+    [18] swout            "Oin" 
+    [19] swout            "OD" 
+    [20] swout            "OG" 
+    [21] swin             "Spd" 
+    [22] swin             "Ofs" 
+    [23] swmod            "Modulo" 
+    [24] swconst          "B" 5000
+    [25] swabs            "Abs" 
+      Gated Delay.In <- In.I
+      Gated Delay.D <- Abs.|A|
+      Gated Delay.G <- G.I
+      SampleCounter.T <- Ramp>T.T
+      SampleCounter.Spd <- Spd.I
+      Ramp>T.G <- Offset.Out
+      Ramp>Env.In <- Offset.Out
+      Ramp>Env.x <- x.#
+      Mul.A <- Gated Delay.Out
+      Mul.B <- Ramp>Env.Out
+      Add 1.A <- SampleCounter.Ms
+      Add 1.B <- Variable.Val
+      Variable.New <- Add.+
+      Variable.Trg <- Ramp>T.T
+      Offset.In <- Rmp.I
+      Offset.Ofs <- Ofs.I
+      Add.A <- Pos.I
+      Add.B <- Mul 2.x
+      Mul 2.A <- White Noise.~
+      Mul 2.B <- Rnd.I
+      Out.O <- Mul.x
+      Oin.O <- In.I
+      OD.O <- Abs.|A|
+      OG.O <- G.I
+      Modulo.A <- Add 1.+
+      Modulo.B <- B.#
+      Abs.A <- Modulo.M
+  [13] swconst          "Ofs" 0
+  [14] swconst          "Ofs 1" 0.5
+    Gran_01.In <- In.I
+    Gran_01.Rmp <- Rmp.I
+    Gran_01.G <- G.I
+    Gran_01.Pos <- Pos.I
+    Gran_01.Rnd <- Rnd.I
+    Gran_01.Spd <- Spd.I
+    Gran_01.Ofs <- Ofs.#
+    Add.A <- Gran_01.Out
+    Add.B <- Gran_02.Out
+    Out.O <- Add.+
+    Oin.O <- Gran_01.Oin
+    OD.O <- Gran_01.OD
+    OG.O <- Gran_01.OG
+    Gran_02.In <- In.I
+    Gran_02.Rmp <- Rmp.I
+    Gran_02.G <- G.I
+    Gran_02.Pos <- Pos.I
+    Gran_02.Rnd <- Rnd.I
+    Gran_02.Spd <- Spd.I
+    Gran_02.Ofs <- Ofs 1.#
+[16] swconnect        "Con 2" 
+[17] swmul            "Mul" 
+[18] swcomplemet      "1-X" 
+[19] SUBPATCH "D/W"  meta='{"elements":[]}\x00'
+  [0] swin             "D1" 
+  [1] swin             "D2" 
+  [2] swin             "W 1" 
+  [3] swin             "W2" 
+  [4] swcrossfade      "Crossfade" 
+  [5] swcrossfade      "Crossfade 1" 
+  [6] swin             "X" 
+  [7] swout            "O1" 
+  [8] swout            "O2" 
+    Crossfade.A <- D1.I
+    Crossfade.B <- W 1.I
+    Crossfade.X <- X.I
+    Crossfade 1.A <- D2.I
+    Crossfade 1.B <- W2.I
+    Crossfade 1.X <- X.I
+    O1.O <- Crossfade.=
+    O2.O <- Crossfade 1.=
+[20] swconnect        "Con" 
+[21] swsuperknob      "D/W 1" 0 1 1 0 i5 0 0
+  LFO Multi.Fm <- Scanner Freq..V
+  GranulatorL.In <- I1.I
+  GranulatorL.Rmp <- LFO Multi.O
+  GranulatorL.G <- Freeze / Record.V
+  GranulatorL.Pos <- Scanner Position.V
+  GranulatorL.Rnd <- Scanner Random.V
+  GranulatorL.Spd <- Mul.x
+  Prep2Vis.In <- GranulatorL.Oin
+  Gated Delay.In <- Prep2Vis.Out
+  Gated Delay.D <- GranulatorL.OD
+  Gated Delay.G <- GranulatorL.OG
+  VU Dual.I1 <- GranulatorL.Out
+  VU Dual.I2 <- Con 2.O
+  VU Dual.M22 <- Gated Delay.Out
+  O1.O <- D/W.O1
+  O2.O <- D/W.O2
+  Con 1.I <- LFO Multi.O
+  GranulatorR.In <- I2.I
+  GranulatorR.Rmp <- Con 1.O
+  GranulatorR.G <- Freeze / Record.V
+  GranulatorR.Pos <- Scanner Position.V
+  GranulatorR.Rnd <- Scanner Random.V
+  GranulatorR.Spd <- Mul.x
+  Con 2.I <- GranulatorR.Out
+  Mul.A <- 1-X.1-X
+  Mul.B <- Pitch (Freeze only).V
+  1-X.X <- Freeze / Record.V
+  D/W.D1 <- I1.I
+  D/W.D2 <- Con.O
+  D/W.W 1 <- VU Dual.O2
+  D/W.W2 <- VU Dual.O1
+  D/W.X <- D/W 1.V
+  Con.I <- I2.I
+== done, leftover 32 bytes
+   tail: d0e2d7428001c140fb91533f0100000000050000d00200000600000001000000

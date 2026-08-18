@@ -1,0 +1,90 @@
+# swengine::20200430  (3493 bytes)
+# build: 20220928_9572
+[0] swout            "O1" 
+[1] swout            "O2" 
+[2] swmidinote       "Midi Note" 
+[3] SUBPATCH "Snare"  meta='{"elements":[]}\x00'
+  [0] SUBPATCH "G to T"  meta='{"elements":[]}\x00'
+    [0] swin             "G" 
+    [1] swmul            "Mul" 
+    [2] swchange         "Change" 
+    [3] swout            "T" 
+      Mul.A <- G.I
+      Mul.B <- Change.T
+      Change.In <- G.I
+      T.O <- Mul.x
+  [1] swnoise          "White Noise" 
+  [2] swenvfollow      "Env. follower" [~0B] 
+  [3] swmul            "Mul" 
+  [4] swfilter2p       "Filter 2P" 
+  [5] swdiv            "Div" 
+  [6] hz2pitch         "Hz->Pitch" 
+  [7] swconst          "F" 250
+  [8] swconst          "R 1" 0.05
+  [9] swfilter2p       "Filter 2P 1" 
+  [10] swdiv            "Div 1" 
+  [11] hz2pitch         "Hz->Pitch 1" 
+  [12] swconst          "F 1" 490
+  [13] swconst          "R 2" 0.095
+  [14] swadd8           "Add8" 
+  [15] swmul            "Mul 1" 
+  [16] swsuperknob      "B" 0 1 1 0.16 i-1 0 0
+  [17] swfilter2p       "Filter 2P 2" 
+  [18] swconnect        "Con" 
+  [19] swconnect        "Con 1" 
+  [20] hz2pitch         "Hz->Pitch 2" 
+  [21] swsuperknob      "R 3" 0 2 1 0.9125 i-1 0 0
+  [22] swdiv            "Div 2" 
+  [23] swin             "G" 
+  [24] swout            "+" 
+  [25] swin             "R" 
+  [26] swin             "Brt" 
+  [27] swmul            "Mul 2" 
+  [28] swconst          "B 1" 8
+    G to T.G <- G.I
+    Env. follower.In <- G to T.T
+    Env. follower.R <- R.I
+    Mul.A <- Env. follower.E
+    Mul.B <- Div 2./
+    Filter 2P.In <- Con.O
+    Filter 2P.P <- Hz->Pitch.P
+    Filter 2P.R <- R 1.#
+    Div.A <- Filter 2P.B
+    Div.B <- R 1.#
+    Hz->Pitch.F <- F.#
+    Filter 2P 1.In <- Con 1.O
+    Filter 2P 1.P <- Hz->Pitch 1.P
+    Filter 2P 1.R <- R 2.#
+    Div 1.A <- Filter 2P 1.B
+    Div 1.B <- R 2.#
+    Hz->Pitch 1.F <- F 1.#
+    Add8.V1 <- Mul 1.x
+    Add8.V2 <- Div./
+    Add8.V3 <- Div 1./
+    Mul 1.A <- Mul.x
+    Mul 1.B <- B.V
+    Filter 2P 2.In <- White Noise.~
+    Filter 2P 2.P <- Hz->Pitch 2.P
+    Filter 2P 2.R <- R 3.V
+    Con.I <- G to T.T
+    Con 1.I <- Con.O
+    Hz->Pitch 2.F <- Brt.I
+    Div 2.A <- Filter 2P 2.B
+    Div 2.B <- R 3.V
+    +.O <- Mul 2.x
+    Mul 2.A <- Add8.+
+    Mul 2.B <- B 1.#
+[4] swsuperknob      "Snare Release" 50 120 2 0.84 i1 0 0
+[5] swsuperknob      "Snare Brightness" 4000 8000 1 0 0 0 0
+[6] swgain           "Gain Lin" 0.884 0
+[7] swconnect        "Con" 
+  O1.O <- Gain Lin.O1
+  O2.O <- Gain Lin.O2
+  Snare.G <- Midi Note.T
+  Snare.R <- Snare Release.V
+  Snare.Brt <- Snare Brightness.V
+  Gain Lin.In1 <- Con.O
+  Gain Lin.In2 <- Con.O
+  Con.I <- Snare.+
+== done, leftover 32 bytes
+   tail: d08ecbc232c55fc345e19a3f0100000000050000d00200000600000001000000

@@ -1,0 +1,81 @@
+# swengine::20200430  (3362 bytes)
+# build: 20220928_9572
+[0] swmidinote       "Midi Note" 
+[1] swfilter2p       "Filter 2P" 
+[2] swchange         "Change" 
+[3] swmul            "Mul" 
+[4] swenvfollowmod   "Env. follower Modulated" 0 0 0 1
+[5] swled            "LED" 
+[6] swsuperknob      "Transient Lng" 0.01 1 2 0.165 i2 0 0
+[7] swdiv            "Div" 
+[8] swmixlin4        "Mixer 4 Lin" [~32B] 1 0 1 0 1 0 0 0
+[9] swgain           "Gain Lin" 0.12248 0
+[10] swout            "O1" 
+[11] swout            "O2" 
+[12] swconnect        "Con" 
+[13] swconst          "V" 1
+[14] swcrossfade      "Crossfade" 
+[15] swsuperknob      "Pitch Env. Mod" 0 20 1 0.805 i1 0 0
+[16] swadd            "Add" 
+[17] swstanhdist      "TanH Dist." [~0B] 
+[18] swconst          "C" 1
+[19] swmul            "Mul 2" 
+[20] swsuperknob      "Distortion" 1 32 1 0.201774 i4 0 0
+[21] swfilter2p       "Filter 2P 1" 
+[22] swsuperknob      "Click Pitch" 80 150 1 0.095 i5 0 0
+[23] swsuperknob      "Click Resonance" 0 1 1 0.915 i6 0 0
+[24] swdiv            "Div 1" 
+[25] swconnect        "Con 1" 
+[26] swconnect        "Con 2" 
+[27] swfilter2p       "Filter 2P 2" 
+[28] swdiv            "Div 2" 
+[29] swsuperknob      "Sub Length" 0.005 0.02 2 0.04 i3 0 0
+[30] swconnect        "Con 3" 
+[31] swconnect        "Con 4" 
+[32] swconnect        "Con 5" 
+[33] swconnect        "Con 6" 
+[34] swsuperknob      "Release" 50 2000 1 0 0 0 0
+  Filter 2P.In <- Con 3.O
+  Filter 2P.P <- Add.+
+  Filter 2P.R <- Transient Lng.V
+  Change.In <- Midi Note.G
+  Mul.A <- Change.T
+  Mul.B <- Midi Note.G
+  Env. follower Modulated.In <- Mul.x
+  Env. follower Modulated.Rm <- Release.V
+  LED.I <- Env. follower Modulated.E
+  Div.A <- Filter 2P.B
+  Div.B <- Transient Lng.V
+  Mixer 4 Lin.In1 <- TanH Dist..Out
+  Mixer 4 Lin.In2 <- Con 6.O
+  Mixer 4 Lin.In3 <- Div 1./
+  Gain Lin.In1 <- Mixer 4 Lin.Out
+  Gain Lin.In2 <- Mixer 4 Lin.Out
+  O1.O <- Gain Lin.O1
+  O2.O <- Gain Lin.O2
+  Con.I <- Midi Note.P
+  Crossfade.B <- Pitch Env. Mod.V
+  Crossfade.X <- Con 3.O
+  Add.A <- Midi Note.P
+  Add.B <- Crossfade.=
+  TanH Dist..In <- Mul 2.x
+  TanH Dist..C <- C.#
+  Mul 2.A <- Div./
+  Mul 2.B <- Distortion.V
+  Filter 2P 1.In <- Con 1.O
+  Filter 2P 1.P <- Click Pitch.V
+  Filter 2P 1.R <- Click Resonance.V
+  Div 1.A <- Filter 2P 1.B
+  Div 1.B <- Click Resonance.V
+  Con 1.I <- Mul.x
+  Filter 2P 2.In <- Con 5.O
+  Filter 2P 2.P <- Con 4.O
+  Filter 2P 2.R <- Sub Length.V
+  Div 2.A <- Filter 2P 2.B
+  Div 2.B <- Sub Length.V
+  Con 3.I <- LED.O
+  Con 4.I <- Add.+
+  Con 5.I <- Con 3.O
+  Con 6.I <- Div 2./
+== done, leftover 32 bytes
+   tail: ead23443cc1af842aef41e3f0100000000050000d00200000600000001000000

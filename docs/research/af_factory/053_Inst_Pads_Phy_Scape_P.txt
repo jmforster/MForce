@@ -1,0 +1,480 @@
+# swengine::20200430  (18180 bytes)
+# build: 20220928_9572
+[0] swlfo_multi      "LFO Multi" [~28B] 2.25572 1 1 0 i4 0 0
+[1] swmul            "Mul" 
+[2] swchange         "Change" 
+[3] SUBPATCH "Modes"  meta='{"elements":[]}\x00'
+  [0] swin             "In" 
+  [1] swin             "P" 
+  [2] SUBPATCH "Mode"  meta='{"elements":[]}\x00'
+    [0] swin             "In" 
+    [1] swin             "P" 
+    [2] swfilter2p       "Filter 2P" 
+    [3] pitch2hz         "Pitch->Hz" 
+    [4] hz2pitch         "Hz->Pitch" 
+    [5] swmul            "Mul" 
+    [6] swin             "R" 
+    [7] swdiv            "Div" 
+    [8] swout            "Out" 
+    [9] swout            "Byp" 
+    [10] swout            "ByP" 
+    [11] swout            "ByR" 
+    [12] swin             "Ord" 
+      Filter 2P.In <- In.I
+      Filter 2P.P <- Hz->Pitch.P
+      Filter 2P.R <- R.I
+      Pitch->Hz.P <- P.I
+      Hz->Pitch.F <- Mul.x
+      Mul.A <- Pitch->Hz.F
+      Mul.B <- Ord.I
+      Div.A <- Filter 2P.B
+      Div.B <- R.I
+      Out.O <- Div./
+      Byp.O <- In.I
+      ByP.O <- P.I
+      ByR.O <- R.I
+  [3] swin             "R" 
+  [4] SUBPATCH "Mode 1"  meta='{"elements":[]}\x00'
+    [0] swin             "In" 
+    [1] swin             "P" 
+    [2] swfilter2p       "Filter 2P" 
+    [3] pitch2hz         "Pitch->Hz" 
+    [4] hz2pitch         "Hz->Pitch" 
+    [5] swmul            "Mul" 
+    [6] swin             "R" 
+    [7] swdiv            "Div" 
+    [8] swout            "Out" 
+    [9] swout            "Byp" 
+    [10] swout            "ByP" 
+    [11] swout            "ByR" 
+    [12] swin             "Ord" 
+      Filter 2P.In <- In.I
+      Filter 2P.P <- Hz->Pitch.P
+      Filter 2P.R <- R.I
+      Pitch->Hz.P <- P.I
+      Hz->Pitch.F <- Mul.x
+      Mul.A <- Pitch->Hz.F
+      Mul.B <- Ord.I
+      Div.A <- Filter 2P.B
+      Div.B <- R.I
+      Out.O <- Div./
+      Byp.O <- In.I
+      ByP.O <- P.I
+      ByR.O <- R.I
+  [5] SUBPATCH "Mode 2"  meta='{"elements":[]}\x00'
+    [0] swin             "In" 
+    [1] swin             "P" 
+    [2] swfilter2p       "Filter 2P" 
+    [3] pitch2hz         "Pitch->Hz" 
+    [4] hz2pitch         "Hz->Pitch" 
+    [5] swmul            "Mul" 
+    [6] swin             "R" 
+    [7] swdiv            "Div" 
+    [8] swout            "Out" 
+    [9] swout            "Byp" 
+    [10] swout            "ByP" 
+    [11] swout            "ByR" 
+    [12] swin             "Ord" 
+      Filter 2P.In <- In.I
+      Filter 2P.P <- Hz->Pitch.P
+      Filter 2P.R <- R.I
+      Pitch->Hz.P <- P.I
+      Hz->Pitch.F <- Mul.x
+      Mul.A <- Pitch->Hz.F
+      Mul.B <- Ord.I
+      Div.A <- Filter 2P.B
+      Div.B <- R.I
+      Out.O <- Div./
+      Byp.O <- In.I
+      ByP.O <- P.I
+      ByR.O <- R.I
+  [6] swmixlin4        "Mixer 4 Lin" [~32B] 1 0 0.585 0 0.37 0 1 0
+  [7] swconst          "Ord" 1
+  [8] swconst          "Ord 1" 2
+  [9] swconst          "Ord 2" 7
+  [10] swout            "Out" 
+  [11] swout            "ByP" 
+  [12] swrandom         "Random" [~0B] 
+  [13] swfilter2p       "Filter 2P" 
+  [14] swconst          "R 1" 1
+  [15] swconst          "Min" 50
+  [16] swconst          "Max" 150
+  [17] swin             "T" 
+  [18] swout            "ByT" 
+    Mode.In <- In.I
+    Mode.P <- P.I
+    Mode.R <- R.I
+    Mode.Ord <- Ord.#
+    Mode 1.In <- Mode.Byp
+    Mode 1.P <- Mode.ByP
+    Mode 1.R <- Mode.ByR
+    Mode 1.Ord <- Ord 1.#
+    Mode 2.In <- Mode 1.Byp
+    Mode 2.P <- Mode 1.ByP
+    Mode 2.R <- Mode 1.ByR
+    Mode 2.Ord <- Ord 2.#
+    Mixer 4 Lin.In1 <- Mode.Out
+    Mixer 4 Lin.In2 <- Mode 1.Out
+    Mixer 4 Lin.In3 <- Mode 2.Out
+    Out.O <- Filter 2P.L
+    ByP.O <- P.I
+    Random.T <- T.I
+    Random.Min <- Min.#
+    Random.Max <- Max.#
+    Filter 2P.In <- Mixer 4 Lin.Out
+    Filter 2P.P <- Random.Out
+    Filter 2P.R <- R 1.#
+    ByT.O <- T.I
+[4] swmidinote       "Midi Note" 
+[5] swmul            "Mul 1" 
+[6] swconnect        "Con" 
+[7] swsuperknob      "R" 0.0001 1 3 0.305 i-1 0 0
+[8] swnoise          "White Noise" 
+[9] swenvfollowmod   "Env. follower Modulated" 0 36 0 0
+[10] swmul            "Mul 2" 
+[11] swlfo_multi      "LFO Multi 1" [~28B] 0.730019 1 0 0 i1 0 0
+[12] swled            "LED" 
+[13] swmul            "Mul 3" 
+[14] swconst          "B" 10
+[15] swenvfollowmod   "Env. follower Modulated 1" 0 3782.25 0 0
+[16] swmul            "Mul 4" 
+[17] swsuperknob      "B 1" 0 1 1 0.13 i-1 0 0
+[18] swadd            "Add" 
+[19] SUBPATCH "Harmonizer"  meta='{"elements":[]}\x00'
+  [0] swin             "In" 
+  [1] swout            "Out" 
+  [2] SUBPATCH "Resonator"  meta='{"elements":[]}\x00'
+    [0] swin             "In" 
+    [1] swdelay          "Delay" 
+    [2] swout            "Out" 
+    [3] swadd            "Add" 
+    [4] swmul            "Mul" 
+    [5] swconnect        "Con" 
+    [6] swconnect        "Con 1" 
+    [7] swin             "P" 
+    [8] swout            "Byp" 
+    [9] swout            "Hz" 
+    [10] swout            "FbBy" 
+    [11] pitch2hz         "Pitch->Hz" 
+    [12] swmul            "Mul 1" 
+    [13] hz2ms            "Hz->ms" 
+    [14] swin             "Fb" 
+    [15] swin             "Ord" 
+    [16] swfilter1p       "Filter 1P" 
+    [17] swin             "Dmp" 
+    [18] swsub            "Sub" 
+    [19] swin             "Sam" 
+      Delay.In <- Add.+
+      Delay.D <- Sub.-
+      Out.O <- Delay.Out
+      Add.A <- In.I
+      Add.B <- Con.O
+      Mul.A <- Delay.Out
+      Mul.B <- Fb.I
+      Con.I <- Filter 1P.L
+      Con 1.I <- Mul.x
+      Byp.O <- In.I
+      Hz.O <- Pitch->Hz.F
+      FbBy.O <- Fb.I
+      Pitch->Hz.P <- P.I
+      Mul 1.A <- Pitch->Hz.F
+      Mul 1.B <- Ord.I
+      Hz->ms.F <- Mul 1.x
+      Filter 1P.In <- Con 1.O
+      Filter 1P.P <- Dmp.I
+      Sub.A <- Hz->ms.ms
+      Sub.B <- Sam.I
+  [3] swin             "P" 
+  [4] swin             "Fb" 
+  [5] SUBPATCH "Resonator 1"  meta='{"elements":[]}\x00'
+    [0] swin             "In" 
+    [1] swdelay          "Delay" 
+    [2] swout            "Out" 
+    [3] swadd            "Add" 
+    [4] swmul            "Mul" 
+    [5] swconnect        "Con" 
+    [6] swconnect        "Con 1" 
+    [7] swout            "Byp" 
+    [8] swout            "ByHz" 
+    [9] swout            "FbBy" 
+    [10] swmul            "Mul 1" 
+    [11] hz2ms            "Hz->ms" 
+    [12] swin             "Hz" 
+    [13] swin             "Fb" 
+    [14] swin             "Ord" 
+    [15] swfilter1p       "Filter 1P" 
+    [16] swin             "Dmp" 
+    [17] swsub            "Sub" 
+    [18] swin             "Sam" 
+      Delay.In <- Add.+
+      Delay.D <- Sub.-
+      Out.O <- Delay.Out
+      Add.A <- In.I
+      Add.B <- Con.O
+      Mul.A <- Delay.Out
+      Mul.B <- Fb.I
+      Con.I <- Filter 1P.L
+      Con 1.I <- Mul.x
+      Byp.O <- In.I
+      ByHz.O <- Hz.I
+      FbBy.O <- Fb.I
+      Mul 1.A <- Hz.I
+      Mul 1.B <- Ord.I
+      Hz->ms.F <- Mul 1.x
+      Filter 1P.In <- Con 1.O
+      Filter 1P.P <- Dmp.I
+      Sub.A <- Hz->ms.ms
+      Sub.B <- Sam.I
+  [6] SUBPATCH "Resonator 2"  meta='{"elements":[]}\x00'
+    [0] swin             "In" 
+    [1] swdelay          "Delay" 
+    [2] swout            "Out" 
+    [3] swadd            "Add" 
+    [4] swmul            "Mul" 
+    [5] swconnect        "Con" 
+    [6] swconnect        "Con 1" 
+    [7] swout            "Byp" 
+    [8] swout            "ByHz" 
+    [9] swout            "FbBy" 
+    [10] swmul            "Mul 1" 
+    [11] hz2ms            "Hz->ms" 
+    [12] swin             "Hz" 
+    [13] swin             "Fb" 
+    [14] swin             "Ord" 
+    [15] swfilter1p       "Filter 1P" 
+    [16] swin             "Dmp" 
+    [17] swsub            "Sub" 
+    [18] swin             "Sam" 
+      Delay.In <- Add.+
+      Delay.D <- Sub.-
+      Out.O <- Delay.Out
+      Add.A <- In.I
+      Add.B <- Con.O
+      Mul.A <- Delay.Out
+      Mul.B <- Fb.I
+      Con.I <- Filter 1P.L
+      Con 1.I <- Mul.x
+      Byp.O <- In.I
+      ByHz.O <- Hz.I
+      FbBy.O <- Fb.I
+      Mul 1.A <- Hz.I
+      Mul 1.B <- Ord.I
+      Hz->ms.F <- Mul 1.x
+      Filter 1P.In <- Con 1.O
+      Filter 1P.P <- Dmp.I
+      Sub.A <- Hz->ms.ms
+      Sub.B <- Sam.I
+  [7] swconst          "Ord" 1
+  [8] swconst          "Ord 1" 2
+  [9] swconst          "Ord 2" 5
+  [10] swmixlin4        "Mixer 4 Lin" [~32B] 0.835 0 1 0 1 0 1 0
+  [11] swin             "Dmp" 
+  [12] swsamplerate     "Sample Rate" 
+  [13] swconnect        "Con" 
+  [14] swout            "ByP" 
+  [15] swrandom         "Random" [~0B] 
+  [16] swfilter2p       "Filter 2P 1" 
+  [17] swconst          "R 1" 1
+  [18] swconst          "Min" 50
+  [19] swconst          "Max" 150
+  [20] swin             "T" 
+    Out.O <- Mixer 4 Lin.Out
+    Resonator.In <- Filter 2P 1.L
+    Resonator.P <- P.I
+    Resonator.Fb <- Fb.I
+    Resonator.Ord <- Ord.#
+    Resonator.Dmp <- Con.O
+    Resonator.Sam <- Sample Rate.Lng
+    Resonator 1.In <- Resonator.Byp
+    Resonator 1.Hz <- Resonator.Hz
+    Resonator 1.Fb <- Resonator.FbBy
+    Resonator 1.Ord <- Ord 1.#
+    Resonator 1.Dmp <- Con.O
+    Resonator 1.Sam <- Sample Rate.Lng
+    Resonator 2.In <- Resonator 1.Byp
+    Resonator 2.Hz <- Resonator 1.ByHz
+    Resonator 2.Fb <- Resonator 1.FbBy
+    Resonator 2.Ord <- Ord 2.#
+    Resonator 2.Dmp <- Con.O
+    Resonator 2.Sam <- Sample Rate.Lng
+    Mixer 4 Lin.In1 <- Resonator.Out
+    Mixer 4 Lin.In2 <- Resonator 1.Out
+    Mixer 4 Lin.In3 <- Resonator 2.Out
+    Con.I <- Dmp.I
+    ByP.O <- P.I
+    Random.T <- T.I
+    Random.Min <- Min.#
+    Random.Max <- Max.#
+    Filter 2P 1.In <- In.I
+    Filter 2P 1.P <- Random.Out
+    Filter 2P 1.R <- R 1.#
+[20] swsuperknob      "Fb" 0.98 1 1 0.935 i-1 0 0
+[21] swmixlin4        "Mixer 4 Lin" [~32B] 1 0 0.925 0 0.51 0 1 0
+[22] swsuperknob      "Dmp" 0 150 1 0.265 i-1 0 0
+[23] swcrossfade      "Crossfade" 
+[24] swsuperknob      "Release" 0.9 1 1 0.635 i-1 0 0
+[25] swconnect        "Con 1" 
+[26] swconnect        "Con 3" 
+[27] swconnect        "Con 4" 
+[28] SUBPATCH "Pitched_rev"  meta='{"elements":[]}\x00'
+  [0] swin             "In" 
+  [1] swallpass        "Allpass" 
+  [2] swallpass        "Allpass 1" 
+  [3] swallpass        "Allpass 2" 
+  [4] swadd            "Add" 
+  [5] swconnect        "Con" 
+  [6] swconnect        "Con 1" 
+  [7] swout            "Out" 
+  [8] swin             "P" 
+  [9] pitch2ms         "Pitch->ms" 
+  [10] swconnect        "Con 2" 
+  [11] swconnect        "Con 3" 
+  [12] swconst          "FB" 0.5
+  [13] swmul            "Mul" 
+  [14] swmul            "Mul 1" 
+  [15] swconst          "B" 0.789
+  [16] swconst          "B 1" 0.325
+  [17] swmul            "Mul 2" 
+  [18] swin             "Lng" 
+  [19] swfilter1p       "Filter 1P" 
+  [20] swconst          "P 1" 50
+  [21] swfilter1p       "Filter 1P 1" 
+  [22] swconst          "P 2" 120
+    Allpass.In <- Add.+
+    Allpass.D <- Pitch->ms.ms
+    Allpass.FB <- FB.#
+    Allpass 1.In <- Allpass.Out
+    Allpass 1.D <- Mul.x
+    Allpass 1.FB <- FB.#
+    Allpass 2.In <- Allpass 1.Out
+    Allpass 2.D <- Mul 1.x
+    Allpass 2.FB <- FB.#
+    Add.A <- In.I
+    Add.B <- Con.O
+    Con.I <- Filter 1P 1.L
+    Con 1.I <- Allpass 2.Out
+    Out.O <- Filter 1P.H
+    Pitch->ms.P <- P.I
+    Con 2.I <- Pitch->ms.ms
+    Con 3.I <- Con 2.O
+    Mul.A <- Con 2.O
+    Mul.B <- B.#
+    Mul 1.A <- Con 3.O
+    Mul 1.B <- B 1.#
+    Mul 2.A <- Con 1.O
+    Mul 2.B <- Lng.I
+    Filter 1P.In <- Allpass 2.Out
+    Filter 1P.P <- P 1.#
+    Filter 1P 1.In <- Mul 2.x
+    Filter 1P 1.P <- P 2.#
+[29] swsuperknob      "Lng" 0 1 1 0.97 i-1 0 0
+[30] swconnect        "Con 2" 
+[31] swfilter1p       "Filter 1P" 
+[32] swconnect        "Con 5" 
+[33] swconst          "P" 50
+[34] swconnect        "Con 6" 
+[35] swconnect        "Con 7" 
+[36] swcrossfade      "Crossfade 1" 
+[37] swsuperknob      "X" 0 1 1 0.505 i-1 0 i1
+[38] swgain           "Gain Lin" 0.5 0
+[39] swout            "O1" 
+[40] swout            "O2" 
+[41] swpolyid         "Note ID" [~0B] 
+[42] swmod            "Modulo" 
+[43] swconst          "B 2" 4
+[44] swdiv            "Div 1" 
+[45] swcomplemet      "1-X" 
+[46] swmul            "Mul 7" 
+[47] swmul            "Mul 9" 
+[48] swcrossfade      "Crossfade 2" 
+[49] swcrossfade      "Crossfade 3" 
+[50] swsuperknob      "Stereo width" 0 1 3 0.989 i-1 0 0
+[51] swconnect        "Con 8" 
+[52] swconnect        "Con 9" 
+[53] swconnect        "Con 10" 
+[54] swfilter1p       "Filter 1P 1" 
+[55] swcrossfade      "Crossfade 4" 
+[56] swconst          "B 3" 150
+[57] swconst          "A" 80
+[58] swconnect        "Con 11" 
+[59] swmul            "Mul 6" 
+  LFO Multi.Fm <- Mul 3.x
+  Mul.A <- LFO Multi.O
+  Mul.B <- Change.T
+  Change.In <- LFO Multi.O
+  Modes.In <- Mul 2.x
+  Modes.P <- Con.O
+  Modes.R <- R.V
+  Modes.T <- Con 7.O
+  Mul 1.A <- Midi Note.G
+  Mul 1.B <- Mul.x
+  Con.I <- Midi Note.P
+  Env. follower Modulated.In <- Mul 6.x
+  Mul 2.A <- Add.+
+  Mul 2.B <- Filter 1P 1.L
+  LED.I <- LFO Multi 1.O
+  Mul 3.A <- LED.O
+  Mul 3.B <- B.#
+  Env. follower Modulated 1.In <- Mul 6.x
+  Mul 4.A <- Env. follower Modulated 1.E
+  Mul 4.B <- B 1.V
+  Add.A <- Env. follower Modulated.E
+  Add.B <- Mul 4.x
+  Harmonizer.In <- Crossfade 1.=
+  Harmonizer.P <- Con 3.O
+  Harmonizer.Fb <- Crossfade.=
+  Harmonizer.Dmp <- Dmp.V
+  Harmonizer.T <- Con 2.O
+  Mixer 4 Lin.In1 <- Modes.Out
+  Mixer 4 Lin.In2 <- Con 5.O
+  Mixer 4 Lin.In3 <- Pitched_rev.Out
+  Crossfade.A <- Release.V
+  Crossfade.B <- Fb.V
+  Crossfade.X <- Con 1.O
+  Con 1.I <- Midi Note.G
+  Con 3.I <- Modes.ByP
+  Con 4.I <- Mul 2.x
+  Pitched_rev.In <- Harmonizer.Out
+  Pitched_rev.P <- Harmonizer.ByP
+  Pitched_rev.Lng <- Lng.V
+  Con 2.I <- Modes.ByT
+  Filter 1P.In <- Harmonizer.Out
+  Filter 1P.P <- P.#
+  Con 5.I <- Filter 1P.H
+  Con 6.I <- Mul 1.x
+  Con 7.I <- Con 6.O
+  Crossfade 1.A <- Modes.Out
+  Crossfade 1.B <- Con 4.O
+  Crossfade 1.X <- X.V
+  Gain Lin.In1 <- Mixer 4 Lin.Out
+  Gain Lin.In2 <- Mixer 4 Lin.Out
+  O1.O <- Crossfade 2.=
+  O2.O <- Crossfade 3.=
+  Modulo.A <- Note ID.ID
+  Modulo.B <- B 2.#
+  Div 1.A <- Modulo.M
+  Div 1.B <- B 2.#
+  1-X.X <- Div 1./
+  Mul 7.A <- Gain Lin.O1
+  Mul 7.B <- Div 1./
+  Mul 9.A <- Con 10.O
+  Mul 9.B <- 1-X.1-X
+  Crossfade 2.A <- Con 8.O
+  Crossfade 2.B <- Mul 7.x
+  Crossfade 2.X <- Stereo width.V
+  Crossfade 3.A <- Gain Lin.O2
+  Crossfade 3.B <- Mul 9.x
+  Crossfade 3.X <- Con 9.O
+  Con 8.I <- Gain Lin.O1
+  Con 9.I <- Stereo width.V
+  Con 10.I <- Gain Lin.O2
+  Filter 1P 1.In <- White Noise.~
+  Filter 1P 1.P <- Crossfade 4.=
+  Crossfade 4.A <- A.#
+  Crossfade 4.B <- B 3.#
+  Crossfade 4.X <- Con 11.O
+  Con 11.I <- Midi Note.V
+  Mul 6.A <- Midi Note.V
+  Mul 6.B <- Mul 1.x
+== done, leftover 32 bytes
+   tail: e2a31e447c27854354d3863e0000000000050000d00200000600000001000000

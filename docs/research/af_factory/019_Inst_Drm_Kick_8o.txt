@@ -1,0 +1,68 @@
+# swengine::20200430  (2868 bytes)
+# build: 20220928_9572
+[0] swmidinote       "Midi Note" 
+[1] swchange         "Change" 
+[2] swled            "LED" 
+[3] swmul            "Mul" 
+[4] swled            "LED 1" 
+[5] swled            "LED 2" 
+[6] swgain           "Gain Lin" 0.20755 0
+[7] swout            "O1" 
+[8] swout            "O2" 
+[9] swenvfollowmod   "Env. follower Modulated" 0 0 0 1
+[10] swled            "LED 3" 
+[11] swfiltermod      "Filter Modulated" [~24B] 0 0 1 0 1 1
+[12] swsuperknob      "Low Freq (Hz)" 40 200 2 0.22 0 0 0
+[13] hz2pitch         "Hz->Pitch" 
+[14] swcrossfade      "Crossfade" 
+[15] swsuperknob      "Hi Freq (Hz)" 40 1500 2 1 i1 0 0
+[16] hz2pitch         "Hz->Pitch 1" 
+[17] swfilter1p       "Filter 1P" 
+[18] swsub            "Sub" 
+[19] swconnect        "Con" 
+[20] swsuperknob      "Resonance" 0 5000 2 0.795 i2 0 0
+[21] swsuperknob      "Click Length (ms)" 0 500 2 0.055 i3 0 0
+[22] swstanhdist      "TanH Dist." [~0B] 
+[23] swsuperknob      "Distortion" 0 1 1 0.275 i4 0 0
+[24] swdiv            "Div" 
+[25] swconnect        "Con 1" 
+[26] swcrossfade      "Crossfade 1" 
+[27] swconst          "A" 64
+[28] swsuperknob      "KBD" 0 1 1 0 i5 0 0
+  Change.In <- LED.O
+  LED.I <- Midi Note.G
+  Mul.A <- LED 1.O
+  Mul.B <- LED.O
+  LED 1.I <- Change.T
+  LED 2.I <- Mul.x
+  Gain Lin.In1 <- Div./
+  Gain Lin.In2 <- Div./
+  O1.O <- Gain Lin.O1
+  O2.O <- Gain Lin.O2
+  Env. follower Modulated.In <- LED 2.O
+  Env. follower Modulated.Rm <- Click Length (ms).V
+  LED 3.I <- Env. follower Modulated.E
+  Filter Modulated.In <- LED 3.O
+  Filter Modulated.PKB <- Crossfade 1.=
+  Filter Modulated.CM <- Con.O
+  Filter Modulated.RM <- Resonance.V
+  Hz->Pitch.F <- Low Freq (Hz).V
+  Crossfade.A <- Hz->Pitch.P
+  Crossfade.B <- Hz->Pitch 1.P
+  Crossfade.X <- LED 3.O
+  Hz->Pitch 1.F <- Hi Freq (Hz).V
+  Filter 1P.In <- Filter Modulated.OLP
+  Filter 1P.P <- Con.O
+  Sub.A <- Filter Modulated.OLP
+  Sub.B <- Filter 1P.L
+  Con.I <- Crossfade.=
+  TanH Dist..In <- Sub.-
+  TanH Dist..C <- Distortion.V
+  Div.A <- TanH Dist..Out
+  Div.B <- Distortion.V
+  Con 1.I <- Midi Note.P
+  Crossfade 1.A <- A.#
+  Crossfade 1.B <- Con 1.O
+  Crossfade 1.X <- KBD.V
+== done, leftover 32 bytes
+   tail: 0c22174312ef3843b2f41e3f0000000000050000d00200000100000001000000

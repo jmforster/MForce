@@ -1,0 +1,11 @@
+# swengine::20200430  (385 bytes)
+# build: 20221104_9576
+[0] swout            "O1" 
+[1] swout            "O2" 
+[2] swin             "I1" 
+[3] swin             "I2" 
+[4] swmidinote       "Midi Note" 
+  O1.O <- I1.I
+  O2.O <- I2.I
+== done, leftover 32 bytes
+   tail: 70dfaa4298b527422eba683f0100000000050000d00200000600000001000000

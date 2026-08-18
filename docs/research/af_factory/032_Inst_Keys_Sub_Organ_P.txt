@@ -1,0 +1,166 @@
+# swengine::20200430  (6497 bytes)
+# build: 20220928_9572
+[0] swout            "O1" 
+[1] swout            "O2" 
+[2] swmidinote       "Midi Note" 
+[3] swnoise          "White Noise" 
+[4] swfilter2p       "Filter 2P" 
+[5] pitch2hz         "Pitch->Hz" 
+[6] hz2pitch         "Hz->Pitch" 
+[7] swmul            "Mul" 
+[8] swconst          "B" 0.5
+[9] swmixlin4        "Mixer 4 Lin" [~32B] 0 1 0 1 0 1 0 1
+[10] swconst          "R" 0.01
+[11] swfilter2p       "Filter 2P 1" 
+[12] hz2pitch         "Hz->Pitch 1" 
+[13] swmul            "Mul 1" 
+[14] swconst          "B 1" 0.75
+[15] swfilter2p       "Filter 2P 2" 
+[16] hz2pitch         "Hz->Pitch 2" 
+[17] swmul            "Mul 2" 
+[18] swconst          "B 2" 1
+[19] swfilter2p       "Filter 2P 3" 
+[20] hz2pitch         "Hz->Pitch 3" 
+[21] swmul            "Mul 3" 
+[22] swconst          "B 3" 2
+[23] swconnect        "Con" 
+[24] swconnect        "Con 1" 
+[25] swrtadsr         "ADSR Modulated" [~32B] 0 484 0.585225 20 0 0 0 0
+[26] swfilter2p       "Filter 2P 4" 
+[27] hz2pitch         "Hz->Pitch 4" 
+[28] swmul            "Mul 4" 
+[29] swconst          "B 4" 3
+[30] swfilter2p       "Filter 2P 5" 
+[31] hz2pitch         "Hz->Pitch 5" 
+[32] swmul            "Mul 5" 
+[33] swconst          "B 5" 4
+[34] swfilter2p       "Filter 2P 6" 
+[35] hz2pitch         "Hz->Pitch 6" 
+[36] swmul            "Mul 6" 
+[37] swconst          "B 6" 6
+[38] swfilter2p       "Filter 2P 7" 
+[39] hz2pitch         "Hz->Pitch 7" 
+[40] swmul            "Mul 7" 
+[41] swconst          "B 7" 8
+[42] swmixlin4        "Mixer 4 Lin 1" [~32B] 0 1 0 1 0 1 0 1
+[43] swadd            "Add" 
+[44] swmul            "Mul 8" 
+[45] swfiltermod      "Filter Modulated" [~24B] 99.225 9.67473 1 0 0 0
+[46] swsuperknob      "1" 0 1 0.125 1 i-1 i1 0
+[47] swsuperknob      "2" 0 1 0.125 0.625 i-1 i1 0
+[48] swsuperknob      "3" 0 1 0.125 0.75 i-1 i1 0
+[49] swsuperknob      "4" 0 1 0.125 0.375 i-1 i1 0
+[50] swsuperknob      "5" 0 1 0.125 1 i-1 i1 0
+[51] swsuperknob      "6" 0 1 0.125 1 i-1 i1 0
+[52] swsuperknob      "7" 0 1 0.125 0.375 i-1 i1 0
+[53] swsuperknob      "8" 0 1 0.125 0.625 i-1 i1 0
+[54] swdelay          "Delay" 
+[55] swlfo_sine       "LFO Sine" [~0B] 
+[56] swconst          "A" 1
+[57] swconst          "F" 1
+[58] swdelay          "Delay 1" 
+[59] swcomplemet      "1-X" 
+[60] swmul            "Mul 9" 
+[61] swconst          "B 8" 3
+[62] swmul            "Mul 10" 
+[63] swconnect        "Con 2" 
+[64] swcrossfade      "Crossfade" 
+[65] swsuperknob      "X" 0 1 1 0.26 i-1 0 0
+[66] swgain           "Gain Lin" 0 1
+[67] swconst          "M" 12
+  O1.O <- Gain Lin.O1
+  O2.O <- Gain Lin.O2
+  Filter 2P.In <- Con.O
+  Filter 2P.P <- Hz->Pitch.P
+  Filter 2P.R <- R.#
+  Pitch->Hz.P <- Midi Note.P
+  Hz->Pitch.F <- Mul.x
+  Mul.A <- Con 1.O
+  Mul.B <- B.#
+  Mixer 4 Lin.In1 <- Filter 2P.B
+  Mixer 4 Lin.In2 <- Filter 2P 1.B
+  Mixer 4 Lin.In3 <- Filter 2P 2.B
+  Mixer 4 Lin.In4 <- Filter 2P 3.B
+  Mixer 4 Lin.M1 <- 1.V
+  Mixer 4 Lin.M2 <- 2.V
+  Mixer 4 Lin.M3 <- 3.V
+  Mixer 4 Lin.M4 <- 4.V
+  Filter 2P 1.In <- Con.O
+  Filter 2P 1.P <- Hz->Pitch 1.P
+  Filter 2P 1.R <- R.#
+  Hz->Pitch 1.F <- Mul 1.x
+  Mul 1.A <- Con 1.O
+  Mul 1.B <- B 1.#
+  Filter 2P 2.In <- Con.O
+  Filter 2P 2.P <- Hz->Pitch 2.P
+  Filter 2P 2.R <- R.#
+  Hz->Pitch 2.F <- Mul 2.x
+  Mul 2.A <- Con 1.O
+  Mul 2.B <- B 2.#
+  Filter 2P 3.In <- Con.O
+  Filter 2P 3.P <- Hz->Pitch 3.P
+  Filter 2P 3.R <- R.#
+  Hz->Pitch 3.F <- Mul 3.x
+  Mul 3.A <- Con 1.O
+  Mul 3.B <- B 3.#
+  Con.I <- Mul 8.x
+  Con 1.I <- Pitch->Hz.F
+  ADSR Modulated.G <- Midi Note.G
+  Filter 2P 4.In <- Con.O
+  Filter 2P 4.P <- Hz->Pitch 4.P
+  Filter 2P 4.R <- R.#
+  Hz->Pitch 4.F <- Mul 4.x
+  Mul 4.A <- Con 1.O
+  Mul 4.B <- B 4.#
+  Filter 2P 5.In <- Con.O
+  Filter 2P 5.P <- Hz->Pitch 5.P
+  Filter 2P 5.R <- R.#
+  Hz->Pitch 5.F <- Mul 5.x
+  Mul 5.A <- Con 1.O
+  Mul 5.B <- B 5.#
+  Filter 2P 6.In <- Con.O
+  Filter 2P 6.P <- Hz->Pitch 6.P
+  Filter 2P 6.R <- R.#
+  Hz->Pitch 6.F <- Mul 6.x
+  Mul 6.A <- Con 1.O
+  Mul 6.B <- B 6.#
+  Filter 2P 7.In <- Con.O
+  Filter 2P 7.P <- Hz->Pitch 7.P
+  Filter 2P 7.R <- R.#
+  Hz->Pitch 7.F <- Mul 7.x
+  Mul 7.A <- Con 1.O
+  Mul 7.B <- B 7.#
+  Mixer 4 Lin 1.In1 <- Filter 2P 4.B
+  Mixer 4 Lin 1.In2 <- Filter 2P 5.B
+  Mixer 4 Lin 1.In3 <- Filter 2P 6.B
+  Mixer 4 Lin 1.In4 <- Filter 2P 7.B
+  Mixer 4 Lin 1.M1 <- 5.V
+  Mixer 4 Lin 1.M2 <- 6.V
+  Mixer 4 Lin 1.M3 <- 7.V
+  Mixer 4 Lin 1.M4 <- 8.V
+  Add.A <- Mixer 4 Lin.Out
+  Add.B <- Mixer 4 Lin 1.Out
+  Mul 8.A <- ADSR Modulated.E
+  Mul 8.B <- Crossfade.=
+  Filter Modulated.In <- White Noise.~
+  Filter Modulated.PKB <- Midi Note.P
+  Delay.In <- Add.+
+  Delay.D <- Mul 10.x
+  LFO Sine.F <- F.#
+  LFO Sine.A <- A.#
+  Delay 1.In <- Con 2.O
+  Delay 1.D <- Mul 9.x
+  1-X.X <- LFO Sine.=
+  Mul 9.A <- 1-X.1-X
+  Mul 9.B <- B 8.#
+  Mul 10.A <- LFO Sine.=
+  Mul 10.B <- B 8.#
+  Con 2.I <- Add.+
+  Crossfade.A <- Filter Modulated.OBP
+  Crossfade.B <- Filter Modulated.OLP
+  Crossfade.X <- X.V
+  Gain Lin.In1 <- Delay.Out
+  Gain Lin.In2 <- Delay 1.Out
+  Gain Lin.M <- M.#
+== done, leftover 32 bytes
+   tail: 4e9c63430c29e3425881103f0000000000050000d00200000600000001000000

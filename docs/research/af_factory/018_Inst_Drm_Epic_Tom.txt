@@ -1,0 +1,202 @@
+# swengine::20200430  (8385 bytes)
+# build: 20220928_9572
+[0] swmidinote       "Midi Note" 
+[1] SUBPATCH "G > T"  meta='{"elements":[]}\x00'
+  [0] swin             "G" 
+  [1] swchange         "Change" 
+  [2] swmul            "Mul" 
+  [3] swout            "T" 
+    Change.In <- G.I
+    Mul.A <- Change.T
+    Mul.B <- G.I
+    T.O <- Mul.x
+[2] SUBPATCH "Contact"  meta='{"elements":[]}\x00'
+  [0] swin             "V" 
+  [1] swout            "Out" 
+  [2] swnoise          "White Noise" 
+  [3] swenvfollowmod   "Env. follower Modulated" 0 169 1 1
+  [4] swmul            "Mul" 
+  [5] swmul            "Mul 1" 
+  [6] swin             "T" 
+  [7] swmul            "Mul 2" 
+  [8] swout            "E" 
+  [9] swtrgtogate      "Trg->Gate" 0 1
+  [10] swin             "M" 
+  [11] swconnect        "Con" 
+  [12] swin             "Rel" 
+  [13] swenvfollowmod   "Env. follower Modulated 1" 0 169 1 1
+  [14] swconst          "Rm" 200
+  [15] swout            "E2" 
+    Out.O <- Mul.x
+    Env. follower Modulated.In <- Mul 1.x
+    Env. follower Modulated.Am <- Con.O
+    Env. follower Modulated.Rm <- Rel.I
+    Mul.A <- Mul 2.x
+    Mul.B <- White Noise.~
+    Mul 1.A <- V.I
+    Mul 1.B <- Trg->Gate.G
+    Mul 2.A <- Env. follower Modulated.E
+    Mul 2.B <- Env. follower Modulated.E
+    E.O <- Env. follower Modulated.E
+    Trg->Gate.T <- T.I
+    Trg->Gate.M <- M.I
+    Con.I <- M.I
+    Env. follower Modulated 1.In <- Mul 1.x
+    Env. follower Modulated 1.Am <- Con.O
+    Env. follower Modulated 1.Rm <- Rm.#
+    E2.O <- Env. follower Modulated 1.E
+[3] SUBPATCH "Resonator"  meta='{"elements":[]}\x00'
+  [0] swout            "Out" 
+  [1] swin             "P" 
+  [2] swin             "In" 
+  [3] pitch2hz         "Pitch->Hz" 
+  [4] swdiv            "Div" 
+  [5] swconst          "A" 1000
+  [6] swfilter1p       "Filter 1P" 
+  [7] swallpass        "Allpass" 
+  [8] swmul            "Mul" 
+  [9] swadd            "Add" 
+  [10] swconnect        "Con" 
+  [11] swin             "Fb" 
+  [12] swin             "Dmp" 
+  [13] swfilter2p       "Filter 2P" 
+  [14] swmul            "Mul 1" 
+  [15] swconst          "B" 1
+  [16] swmixlin4        "Mixer 4 Lin" [~32B] 1 0 1 0 1 0 1 0
+  [17] swfilter2p       "Filter 2P 1" 
+  [18] swmul            "Mul 2" 
+  [19] swfilter2p       "Filter 2P 2" 
+  [20] swmul            "Mul 3" 
+  [21] hz2pitch         "Hz->Pitch" 
+  [22] hz2pitch         "Hz->Pitch 2" 
+  [23] hz2pitch         "Hz->Pitch 1" 
+  [24] swin             "R" 
+  [25] swadd            "Add 1" 
+  [26] swin             "Det" 
+  [27] swadd            "Add 2" 
+  [28] swrescalegui     "Re-scaler GUI" [~18B] i170920497 i170995248 i808463920 i2609
+  [29] swsuperknob      "FB" 0 1 1 0.725 i-1 0 0
+  [30] swout            "L" 
+  [31] swfiltermod      "Filter Modulated" [~24B] 37.125 0 0 0 0 0
+  [32] swin             "CM" 
+    Out.O <- Mixer 4 Lin.Out
+    Pitch->Hz.P <- P.I
+    Div.A <- A.#
+    Div.B <- Pitch->Hz.F
+    Filter 1P.In <- Add.+
+    Filter 1P.P <- Dmp.I
+    Allpass.In <- Filter 1P.L
+    Allpass.D <- Div./
+    Allpass.FB <- FB.V
+    Mul.A <- Allpass.Out
+    Mul.B <- Fb.I
+    Add.A <- In.I
+    Add.B <- Con.O
+    Con.I <- Mul.x
+    Filter 2P.In <- Filter 1P.L
+    Filter 2P.P <- Hz->Pitch.P
+    Filter 2P.R <- Re-scaler GUI.Out
+    Mul 1.A <- Pitch->Hz.F
+    Mul 1.B <- B.#
+    Mixer 4 Lin.In1 <- Filter 2P.L
+    Mixer 4 Lin.In2 <- Filter 2P 1.B
+    Mixer 4 Lin.In3 <- Filter 2P 2.B
+    Filter 2P 1.In <- Filter 1P.L
+    Filter 2P 1.P <- Hz->Pitch 2.P
+    Filter 2P 1.R <- Re-scaler GUI.Out
+    Mul 2.A <- Pitch->Hz.F
+    Mul 2.B <- Add 1.+
+    Filter 2P 2.In <- Filter 1P.L
+    Filter 2P 2.P <- Hz->Pitch 1.P
+    Filter 2P 2.R <- Re-scaler GUI.Out
+    Mul 3.A <- Pitch->Hz.F
+    Mul 3.B <- Add 2.+
+    Hz->Pitch.F <- Mul 1.x
+    Hz->Pitch 2.F <- Mul 2.x
+    Hz->Pitch 1.F <- Mul 3.x
+    Add 1.A <- B.#
+    Add 1.B <- Det.I
+    Add 2.A <- Add 1.+
+    Add 2.B <- Det.I
+    Re-scaler GUI.In <- R.I
+    L.O <- Filter Modulated.OLP
+    Filter Modulated.In <- Allpass.Out
+    Filter Modulated.CM <- CM.I
+[4] swsuperknob      "Resonance" 0 1 1 0.365 i4 0 0
+[5] swsuperknob      "Inharmonics" 0 1 1 0.15 i5 0 0
+[6] swmul            "Mul 1" 
+[7] swsuperknob      "Damping" 0 160 1 1 i6 0 0
+[8] swconnect        "Con 1" 
+[9] swsuperknob      "Size" -0.5 -0.9 1 0.595 i3 0 0
+[10] swgain           "Gain Lin" 0.245 0
+[11] swout            "O1" 
+[12] swout            "O2" 
+[13] swrescalegui     "Re-scaler GUI" [~13B] i170920497 i805974065 i266
+[14] swmul            "Mul" 
+[15] swconst          "B" 128
+[16] hz2pitch         "Hz->Pitch" 
+[17] swcrossfadegui   "Crossfade GUI" [~8B] 0.5 1
+[18] swadd            "Add" 
+[19] swsuperknob      "Tune" 0 100 1 0.715 i1 0 0
+[20] swmidicc         "Midi CC" 1
+[21] swmul            "Mul 2" 
+[22] swconst          "B 1" 800
+[23] swmul            "Mul 3" 
+[24] swsuperknob      "Release" 0 5000 1 0.255 0 0 0
+[25] swrescalegui     "Re-scaler GUI 1" [~15B] i170920497 i170930225 i17444914
+[26] swrtadsr         "ADSR Modulated" [~32B] 0 324 0 419.108 0 0 0 0
+[27] swled            "LED" 
+[28] swmixlin4        "Mixer 4 Lin" [~32B] 0 0.92 0 1 1 0 1 0
+[29] swconnect        "Con" 
+[30] swrtadsr         "ADSR Modulated 1" [~32B] 2256.25 1521 0.455625 7051.32 0 0 0 0
+[31] swmul            "Mul 4" 
+[32] swfiltermod      "Filter Modulated" [~24B] 16.875 0 0 0 0 0
+[33] swconnect        "Con 2" 
+[34] swsuperknob      "Drum / Contact" -0.5 0.5 1 0.25 i2 0 i1
+  G > T.G <- Midi Note.G
+  Contact.V <- Midi Note.V
+  Contact.T <- G > T.T
+  Contact.M <- Mul 2.x
+  Contact.Rel <- Mul 4.x
+  Resonator.P <- Hz->Pitch.P
+  Resonator.In <- Contact.Out
+  Resonator.Fb <- Size.V
+  Resonator.Dmp <- Mul 1.x
+  Resonator.R <- Resonance.V
+  Resonator.Det <- Inharmonics.V
+  Resonator.CM <- Re-scaler GUI 1.Out
+  Mul 1.A <- Damping.V
+  Mul 1.B <- Con 1.O
+  Con 1.I <- Midi Note.V
+  Gain Lin.In1 <- Filter Modulated.OHP
+  Gain Lin.In2 <- Filter Modulated.OHP
+  O1.O <- Gain Lin.O1
+  O2.O <- Gain Lin.O2
+  Re-scaler GUI.In <- Contact.E
+  Mul.A <- Crossfade GUI.=
+  Mul.B <- B.#
+  Hz->Pitch.F <- Add.+
+  Crossfade GUI.A <- Resonator.Out
+  Crossfade GUI.B <- Mul 3.x
+  Crossfade GUI.M <- Drum / Contact.V
+  Add.A <- Re-scaler GUI.Out
+  Add.B <- Tune.V
+  Mul 2.A <- Midi CC.CC
+  Mul 2.B <- B 1.#
+  Mul 3.A <- Resonator.L
+  Mul 3.B <- Con 2.O
+  Re-scaler GUI 1.In <- Contact.E
+  ADSR Modulated.G <- LED.O
+  LED.I <- Midi Note.G
+  Mixer 4 Lin.In1 <- Con.O
+  Mixer 4 Lin.In2 <- Con.O
+  Mixer 4 Lin.M1 <- ADSR Modulated.E
+  Mixer 4 Lin.M2 <- ADSR Modulated 1.E
+  Con.I <- Mul.x
+  ADSR Modulated 1.G <- LED.O
+  Mul 4.A <- Midi Note.V
+  Mul 4.B <- Release.V
+  Filter Modulated.In <- Mixer 4 Lin.Out
+  Con 2.I <- Contact.E2
+== done, leftover 32 bytes
+   tail: ccca1d433689444305daee3e0000000000050000d00200000400000001000000

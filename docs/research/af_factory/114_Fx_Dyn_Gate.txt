@@ -1,0 +1,50 @@
+# swengine::20200430  (1889 bytes)
+# build: 20220928_9572
+[0] swin             "I1" 
+[1] swin             "I2" 
+[2] swout            "O1" 
+[3] swout            "O2" 
+[4] swadd            "Add" 
+[5] swmul            "Mul" 
+[6] swconst          "B" 0.5
+[7] swabs            "Abs" 
+[8] swifless         "If <" 
+[9] swsuperknob      "Threshold" 0 -60 3 0.51 0 0 0
+[10] swconst          "T" 0
+[11] swconst          "F" 1
+[12] swsuperknob      "Attack" 0 3000 3 0 i1 0 0
+[13] swsuperknob      "Release" 0 3000 3 0.526667 i2 0 0
+[14] swtrgtogate      "Trg->Gate" 0 1
+[15] swsuperknob      "Hold" 0 3000 3 0 i3 0 0
+[16] swgain           "Gain Lin" 0 1
+[17] swdb2lin         "dB->Lin" 
+[18] swenvfollow      "Env. follower" [~0B] 
+[19] swvudual         "VU Dual" [~0B] 
+[20] swconnect        "Con" 
+  O1.O <- VU Dual.O1
+  O2.O <- VU Dual.O2
+  Add.A <- I1.I
+  Add.B <- I2.I
+  Mul.A <- Add.+
+  Mul.B <- B.#
+  Abs.A <- Mul.x
+  If <.A <- Abs.|A|
+  If <.B <- dB->Lin.Lin
+  If <.T <- T.#
+  If <.F <- F.#
+  Trg->Gate.T <- If <.<
+  Trg->Gate.M <- Hold.V
+  Gain Lin.In1 <- I1.I
+  Gain Lin.In2 <- I2.I
+  Gain Lin.M <- Env. follower.E
+  dB->Lin.dB <- Threshold.V
+  Env. follower.In <- Trg->Gate.G
+  Env. follower.A <- Attack.V
+  Env. follower.R <- Release.V
+  VU Dual.I1 <- Gain Lin.O1
+  VU Dual.I2 <- Gain Lin.O2
+  VU Dual.M11 <- Con.O
+  VU Dual.M21 <- Con.O
+  Con.I <- Threshold.V
+== done, leftover 32 bytes
+   tail: bcac4c433e0e8a422a56403f0100000000050000d00200000600000001000000

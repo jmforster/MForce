@@ -1,0 +1,140 @@
+# swengine::20200430  (5594 bytes)
+# build: 20220928_9572
+[0] swgain           "Gain Lin" 0.46 0
+[1] swout            "O1" 
+[2] swout            "O2" 
+[3] swnoise          "White Noise" 
+[4] swstanhdist      "TanH Dist." [~0B] 
+[5] swadd            "Add" 
+[6] swmul            "Mul" 
+[7] swconst          "C" 1
+[8] swdelay          "Delay" 
+[9] swmidinote       "Midi Note" 
+[10] pitch2hz         "Pitch->Hz" 
+[11] swdiv            "Div" 
+[12] swconst          "A" 1000
+[13] swconnect        "Con" 
+[14] swmixlin4        "Mixer 4 Lin" [~32B] 0.4 0 1 0 1 0 1 0
+[15] swmul            "Mul 1" 
+[16] swsuperknob      "B" 0 -32 1 0.245 i-1 0 0
+[17] swmul            "Mul 2" 
+[18] swenvfollowmod   "Env. follower Modulated" 64 25 0 0
+[19] swled            "LED" 
+[20] swled            "LED 1" 
+[21] swfilter2p       "Filter 2P" 
+[22] swfilter2p       "Filter 2P 1" 
+[23] swconnect        "Con 1" 
+[24] swfiltermod      "Filter Modulated" [~24B] 129.6 0 0 0 0 0
+[25] swenvfollowmod   "Env. follower Modulated 1" 0 0 1 1
+[26] swsuperknob      "Am" 0 500 1 0.7 i-1 0 0
+[27] swmul            "Mul 3" 
+[28] swlastsam        "Previous" [~0B] 
+[29] swsuperknob      "R" 0.1 1 1 1 i-1 0 0
+[30] swdiv            "Div 1" 
+[31] swconnect        "Con 2" 
+[32] swscope          "Scope" [~36B] 0 0 0 0 2 0 i1 292 230
+[33] swcrossfade      "Crossfade" 
+[34] swchange         "Change" 
+[35] swmul            "Mul 4" 
+[36] swenvfollowmod   "Env. follower Modulated 2" 0 1190.25 1 0
+[37] swcomb           "Comb" [~0B] 
+[38] swsuperknob      "FB" 0 -1 1 0.535 i-1 0 0
+[39] swtrgtogate      "Trg->Gate" 0 1
+[40] swsuperknob      "M" 0 100 1 0.875 i-1 0 0
+[41] swmul            "Mul 5" 
+[42] swsuperknob      "B 1" 0 1 1 0.47 i-1 0 0
+[43] swled            "LED 2" 
+[44] swconnect        "Con 3" 
+[45] swconnect        "Con 4" 
+[46] swmul            "Mul 6" 
+[47] swmul            "Mul 7" 
+[48] swenvfollowmod   "Env. follower Modulated 3" 380.25 650.25 0 0
+[49] swadd            "Add 2" 
+[50] swsuperknob      "B 2" 0 128 1 0.095 i-1 0 0
+[51] swmul            "Mul 8" 
+[52] swcrossfade      "Crossfade 1" 
+[53] swconst          "B 3" 1
+[54] swconst          "X" 0.5
+[55] swconnect        "Con 5" 
+[56] swconnect        "Con 6" 
+[57] swconnect        "Con 7" 
+[58] swconnect        "Con 8" 
+  Gain Lin.In1 <- Mixer 4 Lin.Out
+  Gain Lin.In2 <- Mixer 4 Lin.Out
+  O1.O <- Gain Lin.O1
+  O2.O <- Gain Lin.O2
+  TanH Dist..In <- Mul.x
+  TanH Dist..C <- C.#
+  Add.A <- Mul 1.x
+  Add.B <- TanH Dist..Out
+  Mul.A <- Filter 2P 1.B
+  Mul.B <- Mul 8.x
+  Delay.In <- Add.+
+  Delay.D <- Con.O
+  Pitch->Hz.P <- Env. follower Modulated 1.E
+  Div.A <- A.#
+  Div.B <- Pitch->Hz.F
+  Con.I <- Div./
+  Mixer 4 Lin.In1 <- Scope.OA
+  Mul 1.A <- Crossfade.=
+  Mul 1.B <- LED.O
+  Mul 2.A <- B.V
+  Mul 2.B <- LED.O
+  Env. follower Modulated.In <- LED 1.O
+  LED.I <- Env. follower Modulated.E
+  LED 1.I <- Midi Note.G
+  Filter 2P.In <- Delay.Out
+  Filter 2P.P <- Env. follower Modulated 1.E
+  Filter 2P.R <- Mul 7.x
+  Filter 2P 1.In <- Filter 2P.B
+  Filter 2P 1.P <- Add 2.+
+  Filter 2P 1.R <- Con 5.O
+  Con 1.I <- Env. follower Modulated 1.E
+  Filter Modulated.In <- Mul 6.x
+  Env. follower Modulated 1.In <- Midi Note.P
+  Env. follower Modulated 1.Am <- Mul 3.x
+  Env. follower Modulated 1.Rm <- Mul 3.x
+  Mul 3.A <- Am.V
+  Mul 3.B <- Previous.Out
+  Previous.In <- Midi Note.G
+  Div 1.A <- Filter 2P.B
+  Div 1.B <- Con 2.O
+  Con 2.I <- Mul 7.x
+  Scope.IA <- Div 1./
+  Scope.F <- Con 4.O
+  Crossfade.A <- Filter Modulated.OHP
+  Crossfade.B <- Comb.Out
+  Crossfade.X <- LED 2.O
+  Change.In <- Midi Note.G
+  Mul 4.A <- Change.T
+  Mul 4.B <- Midi Note.G
+  Env. follower Modulated 2.In <- Trg->Gate.G
+  Env. follower Modulated 2.Am <- M.V
+  Comb.In <- Con 3.O
+  Comb.D <- Div./
+  Comb.FB <- FB.V
+  Trg->Gate.T <- Mul 4.x
+  Trg->Gate.M <- M.V
+  Mul 5.A <- Env. follower Modulated 2.E
+  Mul 5.B <- B 1.V
+  LED 2.I <- Mul 5.x
+  Con 3.I <- Mul 6.x
+  Con 4.I <- Pitch->Hz.F
+  Mul 6.A <- White Noise.~
+  Mul 6.B <- Midi Note.V
+  Mul 7.A <- R.V
+  Mul 7.B <- Env. follower Modulated 3.E
+  Env. follower Modulated 3.In <- Con 8.O
+  Add 2.A <- Con 1.O
+  Add 2.B <- B 2.V
+  Mul 8.A <- Mul 2.x
+  Mul 8.B <- Con 7.O
+  Crossfade 1.A <- Con 6.O
+  Crossfade 1.B <- B 3.#
+  Crossfade 1.X <- X.#
+  Con 5.I <- Mul 7.x
+  Con 6.I <- Env. follower Modulated 3.E
+  Con 7.I <- Crossfade 1.=
+  Con 8.I <- Midi Note.V
+== done, leftover 32 bytes
+   tail: b3c92a4460de3f424a23d93e0100000000050000d00200000600000001000000

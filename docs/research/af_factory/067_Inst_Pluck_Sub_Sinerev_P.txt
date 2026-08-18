@@ -1,0 +1,74 @@
+# swengine::20200430  (3214 bytes)
+# build: 20220928_9572
+[0] swgain           "Gain Lin" 0.985 0
+[1] swout            "O1" 
+[2] swout            "O2" 
+[3] swmidinote       "Midi Note" 
+[4] swosc_multi      "OSC Multi" [~32B] i3 0 0 0 0 0 0 0.5
+[5] swconst          "V" 1
+[6] swfilter2p       "Filter 2P" 
+[7] swnoise          "White Noise" 
+[8] swconst          "R" 0.05
+[9] swmixlin4        "Mixer 4 Lin" [~32B] 0 1 0 1 1 0 1 0
+[10] swmixlin4        "Mixer 4 Lin 1" [~32B] 0.38 0 1 0 1 0 1 0
+[11] swmul            "Mul" 
+[12] swfilter2p       "Filter 2P 1" 
+[13] swchange         "Change" 
+[14] swmul            "Mul 1" 
+[15] swled            "LED" 
+[16] swenvfollowmod   "Env. follower Modulated" 0 0 0 1
+[17] swsuperknob      "Tail_Length (ms)" 0 5000 1 0.5 i1 0 0
+[18] swenvfollowmod   "Env. follower Modulated 1" 0 0 0 1
+[19] swsuperknob      "Pluck Length (ms)" 0 2000 1 0.19 0 0 0
+[20] swenvfollowmod   "Env. follower Modulated 2" 0 0 1 0
+[21] swconnect        "Con" 
+[22] swconnect        "Con 1" 
+[23] swled            "LED 1" 
+[24] swled            "LED 2" 
+[25] swconnect        "Con 2" 
+[26] swconnect        "Con 3" 
+[27] swled            "LED 3" 
+[28] swsuperknob      "Tail Level" 0 1 3 0.525 i2 0 0
+[29] swmul            "Mul 2" 
+[30] swconst          "B" 64
+  Gain Lin.In1 <- Mixer 4 Lin 1.Out
+  Gain Lin.In2 <- Mixer 4 Lin 1.Out
+  O1.O <- Gain Lin.O1
+  O2.O <- Gain Lin.O2
+  OSC Multi.P <- Midi Note.P
+  OSC Multi.V <- V.#
+  OSC Multi.G <- Midi Note.G
+  Filter 2P.In <- White Noise.~
+  Filter 2P.P <- Con 3.O
+  Filter 2P.R <- R.#
+  Mixer 4 Lin.In1 <- OSC Multi.O
+  Mixer 4 Lin.In2 <- Filter 2P 1.B
+  Mixer 4 Lin.M1 <- LED 1.O
+  Mixer 4 Lin.M2 <- Con 1.O
+  Mixer 4 Lin 1.In1 <- Mixer 4 Lin.Out
+  Mul.A <- LED 2.O
+  Mul.B <- Mul 2.x
+  Filter 2P 1.In <- Filter 2P.B
+  Filter 2P 1.P <- Con.O
+  Filter 2P 1.R <- R.#
+  Change.In <- LED.O
+  Mul 1.A <- Change.T
+  Mul 1.B <- LED.O
+  LED.I <- Midi Note.G
+  Env. follower Modulated.In <- LED 3.O
+  Env. follower Modulated.Rm <- Tail_Length (ms).V
+  Env. follower Modulated 1.In <- LED 3.O
+  Env. follower Modulated 1.Rm <- Pluck Length (ms).V
+  Env. follower Modulated 2.In <- Env. follower Modulated.E
+  Env. follower Modulated 2.Am <- Con 2.O
+  Con.I <- Con 3.O
+  Con 1.I <- Mul.x
+  LED 1.I <- Env. follower Modulated 1.E
+  LED 2.I <- Env. follower Modulated 2.E
+  Con 2.I <- Pluck Length (ms).V
+  Con 3.I <- OSC Multi.OP
+  LED 3.I <- Mul 1.x
+  Mul 2.A <- Tail Level.V
+  Mul 2.B <- B.#
+== done, leftover 32 bytes
+   tail: 131aa8434edf1643f3d92e3f0000000000050000d00200000600000001000000

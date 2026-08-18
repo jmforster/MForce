@@ -1,0 +1,54 @@
+# swengine::20200430  (5401 bytes)
+# build: 20220928_9572
+[0] swmidinote       "Midi Note" 
+[1] swosc_wavetablemorph "OSC Wavetable Morph" [~28B] 0 0 0 0 0 0 0
+[2] swmixlin4        "Mixer 4 Lin" [~32B] 0 0.55 0.22 0 1 0 1 0
+[3] swgain           "Gain Lin" 0 0.566
+[4] swrtadsr         "ADSR Modulated" [~32B] 10 0 1 4485.27 0 0 0 0
+[5] swconnect        "Con" 
+[6] swout            "O1" 
+[7] swout            "O2" 
+[8] swconst          "V" 1
+[9] swsuperknob      "WSm" 0 120 1 0.241667 i-1 i1 0
+[10] swtrunc          "Trunc" 
+[11] swrtadsr         "ADSR Modulated 1" [~32B] 0 2916 0 6400 0 0 0 0
+[12] swled            "LED" 
+[13] swconnect        "Con 1" 
+[14] swosc_wavetablemorph "OSC Wavetable Morph 1" [~28B] 0 0 0.00940001 0 0 0.58 0.455
+[15] swtrunc          "Trunc 1" 
+[16] swsuperknob      "WSm 1" 0 120 1 0.2 i-1 i1 0
+[17] swlfo_multi      "LFO Multi" [~28B] 0.223432 1 0 0 0 0 0
+[18] swled            "LED 1" 
+[19] swosc_wavetablemorph "OSC Wavetable Morph 2" [~28B] -1 0 -0.0355 0 0 0.73 0.14
+[20] swtrunc          "Trunc 2" 
+[21] swsuperknob      "WSm 2" 0 120 1 0.141667 i-1 i1 0
+[22] swconnect        "Con 2" 
+[23] swlfo_multi      "LFO Multi 1" [~28B] 0.13182 1 0 0 0 0 0
+[24] swled            "LED 2" 
+[25] swfiltermod      "Filter Modulated" [~24B] 23.625 20 0 0 0.67 0
+[26] swrtadsr         "ADSR Modulated 2" [~32B] 1764 1560.25 1 4900 0 0 0 0
+[27] swcrossfade      "Crossfade" 
+[28] swconst          "A" 60
+[29] swconst          "B" 100
+[30] swchorus         "Chorus" [~20B] 60 0.525 2 0 0
+[31] swcrossfadegui   "Crossfade GUI" [~8B] 0.785 0
+[32] swnoise          "White Noise" 
+[33] swmul            "Mul" 
+[34] swmul            "Mul 1" 
+[35] swcomb           "Comb" [~0B] 
+[36] swdiv            "Div" 
+[37] pitch2hz         "Pitch->Hz" 
+[38] swconnect        "Con 3" 
+[39] swconst          "A 1" 1000
+[40] swsuperknob      "FB" 0 0.95 1 1 i-1 0 0
+[41] swsub            "Sub" 
+[42] swfilter1p       "Filter 1P" 
+[43] swsuperknob      "P" 0 150 1 0.685 i-1 0 0
+[44] swmul            "Mul 2" 
+[45] swconst          "B 1" 0.5
+[46] swcrossfade      "Crossfade 1" 
+[47] swconst          "B 2" 2
+[48] swmidicc         "Midi CC" 1
+[49] swenvfollowmod   "Env. follower Modulated" 506.25 576 0 0
+[50] swchorus         "Chorus 1" [~1881B] 17.5 0.5 10 0 0 i1 i541283151 i1702256983 i1818386804 i1867325541 i174616690 i1766656592 i1310746980 i174421103 i68176 i1397686272 i1633099843 i1635018102 i543517794 i1886547789 i173410920 i170068566 i1 i541283151
+!! stopped: error('unpack_from requires a buffer of at least 5405 bytes for unpacking 4 bytes at offset 5401 (actual buffer size is 5401)')

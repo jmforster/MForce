@@ -72,14 +72,30 @@ def parse_designer(b, pos, depth, out):
                 continue
             s = PAYLOAD.get(ctype)
             if s is None:
-                # unknown type: scan for the next component boundary
+                # Unknown type. Modern (2019+) nodes mostly serialize as a
+                # length line + JSON elements dump + NUL, then a few raw
+                # bytes. Consume JSON blocks greedily, then scan a short
+                # window for the next component boundary.
+                start = pos
+                jvals = []
+                while True:
+                    m = re.match(rb'(\d{1,5})\n\{', b[pos:pos+9])
+                    if not m: break
+                    ln = int(m.group(1))
+                    j = b[pos+len(m.group(1))+1 : pos+len(m.group(1))+1+ln]
+                    jvals.append(j.decode('latin-1', 'replace'))
+                    pos += len(m.group(1)) + 1 + ln
+                    if b[pos:pos+1] == b'\x00': pos += 1
                 m = COMP_RE.search(b, pos)
-                s = (m.start() if m else len(b)) - pos
-                out.append(f'{ind}[{k}] {ctype:16s} "{name}" UNKNOWN-PAYLOAD[{s}B] {fmt_state(b[pos:pos+s])}')
-                pos += s
+                rest = (m.start() if m else len(b)) - pos
+                if rest > 96 and jvals: rest = 0   # JSON consumed; long gap = misparse risk
+                tail = b[pos:pos+min(rest, 96)]
+                pos += rest
+                jtxt = (' json=' + ' | '.join(jvals)) if jvals else ''
+                out.append(f'{ind}[{k}] {ctype:16s} "{name}" [~{pos-start}B]{jtxt} {fmt_state(tail)}')
                 tr = name.encode('latin-1') + b'\n'
-                if b[pos - len(tr):pos] == tr:
-                    pass
+                if b[pos:pos+len(tr)] == tr:
+                    pos += len(tr)
                 continue
             state = b[pos:pos + s]
             pos += s
@@ -110,11 +126,18 @@ def main():
         print(__doc__)
         return 1
     raw = open(sys.argv[1], 'rb').read()
-    blob = base64.b64decode(b''.join(raw.split()))
+    if raw.startswith(b'swengine::') or raw.startswith(b'swdesigner'):
+        blob = raw                          # raw binary (factory-bank extract)
+    else:
+        blob = base64.b64decode(b''.join(raw.split()))
     out = []
     hdr, pos = read_line(blob, 0)
     out.append(f'# {hdr}  ({len(blob)} bytes)')
-    if not hdr.endswith(('20150715',)):
+    if hdr.startswith('swengine::'):
+        pname, pos = read_line(blob, pos)   # engine build name
+        out.append(f'# build: {pname}')
+        _dsg, pos = read_line(blob, pos)    # swdesigner::date line
+    elif not hdr.endswith(('20150715',)):
         pname, pos = read_line(blob, pos)   # 2020 clipboard: patch name line
         out.append(f'# patch name: {pname}')
     try:

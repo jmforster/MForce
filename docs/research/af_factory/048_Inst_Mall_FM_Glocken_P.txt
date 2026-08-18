@@ -1,0 +1,432 @@
+# swengine::20200430  (15629 bytes)
+# build: 20220928_9572
+[0] swmidinote       "Midi Note" 
+[1] swout            "O1" 
+[2] swout            "O2" 
+[3] swscope          "Scope" [~36B] 0 0 0 0 0 0 i1 292 230
+[4] SUBPATCH "FM-Op A"  meta='{"elements":[]}\x00'
+  [0] swsine           "Sine" 
+  [1] swrtadsr         "ADSR Modulated" [~32B] 0 23.0396 0 282.24 0 0 0 0
+  [2] swmul            "Mul 2" 
+  [3] swout            "Out" 
+  [4] swin             "Mod" 
+  [5] swin             "F" 
+  [6] swin             "G" 
+  [7] swout            "_F" 
+  [8] swout            "_G" 
+  [9] swadd            "Add" 
+  [10] swconst          "Offset" -0.39
+  [11] swmul            "Mul" 
+  [12] swconst          "Gain" 0.37
+  [13] swadd            "Add 1" 
+  [14] swmul            "Mul 1" 
+  [15] swconst          "Ratio" 1.7301
+  [16] SUBPATCH "Ramp"  meta='{"elements":[]}\x00'
+    [0] swout            "Rmp" 
+    [1] swsamplerate     "Sample Rate" 
+    [2] swmul            "Mul 1" 
+    [3] swmod            "Modulo" 
+    [4] swconst          "1" 1
+    [5] swin             "F" 
+    [6] SUBPATCH "Inc"  meta='{"elements":[]}\x00'
+      [0] swin             "Str" 
+      [1] swin             "Inc" 
+      [2] swin             "T" 
+      [3] swcomplemet      "1-X" 
+      [4] swadd            "Add" 
+      [5] swmul            "Mul" 
+      [6] swadd            "Add 1" 
+      [7] swout            "Out" 
+      [8] swadd            "Add 2" 
+      [9] swmul            "Mul 1" 
+      [10] swmul            "Mul 2" 
+        1-X.X <- T.I
+        Add.A <- Inc.I
+        Add.B <- Mul.x
+        Mul.A <- Add.+
+        Mul.B <- 1-X.1-X
+        Add 1.A <- Add 2.+
+        Add 1.B <- Add.+
+        Out.O <- Add 1.+
+        Add 2.A <- Mul 1.x
+        Add 2.B <- Mul 2.x
+        Mul 1.A <- Str.I
+        Mul 1.B <- T.I
+        Mul 2.A <- Add 2.+
+        Mul 2.B <- 1-X.1-X
+    [7] swabs            "Abs" 
+    [8] swifless         "If <" 
+    [9] swifgreater      "If >" 
+    [10] swneg            "Neg" 
+    [11] swconst          "T" 1
+    [12] swifless         "If < 1" 
+    [13] swconst          "T 1" 1
+    [14] swin             "G" 
+    [15] swmul            "Mul" 
+    [16] swchange         "Change" 
+    [17] swadd            "Add" 
+    [18] swcrossfade      "Crossfade" 
+      Rmp.O <- Inc.Out
+      Mul 1.A <- If <.<
+      Mul 1.B <- Abs.|A|
+      Modulo.A <- Inc.Out
+      Modulo.B <- 1.#
+      Inc.Str <- Crossfade.=
+      Inc.Inc <- Mul 1.x
+      Inc.T <- Add.+
+      Abs.A <- F.I
+      If <.A <- F.I
+      If <.T <- Neg.-A
+      If <.F <- Sample Rate.1/S
+      If >.A <- Inc.Out
+      If >.B <- T.#
+      If >.T <- T.#
+      If >.F <- If < 1.<
+      Neg.A <- Sample Rate.1/S
+      If < 1.A <- Inc.Out
+      If < 1.T <- T 1.#
+      Mul.A <- G.I
+      Mul.B <- Change.T
+      Change.In <- G.I
+      Add.A <- If >.>
+      Add.B <- Mul.x
+      Crossfade.A <- Modulo.M
+      Crossfade.X <- Mul.x
+    Sine.X <- Add 1.+
+    ADSR Modulated.G <- G.I
+    Mul 2.A <- Sine.Sin
+    Mul 2.B <- ADSR Modulated.E
+    Out.O <- Mul.x
+    _F.O <- F.I
+    _G.O <- G.I
+    Add.A <- Mul 1.x
+    Add.B <- Offset.#
+    Mul.A <- Mul 2.x
+    Mul.B <- Gain.#
+    Add 1.A <- Ramp.Rmp
+    Add 1.B <- Mod.I
+    Mul 1.A <- F.I
+    Mul 1.B <- Ratio.#
+    Ramp.F <- Add.+
+    Ramp.G <- G.I
+[5] SUBPATCH "FM-Op B"  meta='{"elements":[]}\x00'
+  [0] swsine           "Sine" 
+  [1] swrtadsr         "ADSR Modulated" [~32B] 0 998.557 0 1239.04 0 0 0 0
+  [2] swmul            "Mul 2" 
+  [3] swout            "Out" 
+  [4] swin             "Mod" 
+  [5] swin             "F" 
+  [6] swin             "G" 
+  [7] swout            "_F" 
+  [8] swout            "_G" 
+  [9] swadd            "Add" 
+  [10] swconst          "Offset" 0.22
+  [11] swmul            "Mul" 
+  [12] swconst          "Gain" 1
+  [13] swadd            "Add 1" 
+  [14] swmul            "Mul 1" 
+  [15] swconst          "Ratio" 1.0004
+  [16] SUBPATCH "Ramp"  meta='{"elements":[]}\x00'
+    [0] swout            "Rmp" 
+    [1] swsamplerate     "Sample Rate" 
+    [2] swmul            "Mul 1" 
+    [3] swmod            "Modulo" 
+    [4] swconst          "1" 1
+    [5] swin             "F" 
+    [6] SUBPATCH "Inc"  meta='{"elements":[]}\x00'
+      [0] swin             "Str" 
+      [1] swin             "Inc" 
+      [2] swin             "T" 
+      [3] swcomplemet      "1-X" 
+      [4] swadd            "Add" 
+      [5] swmul            "Mul" 
+      [6] swadd            "Add 1" 
+      [7] swout            "Out" 
+      [8] swadd            "Add 2" 
+      [9] swmul            "Mul 1" 
+      [10] swmul            "Mul 2" 
+        1-X.X <- T.I
+        Add.A <- Inc.I
+        Add.B <- Mul.x
+        Mul.A <- Add.+
+        Mul.B <- 1-X.1-X
+        Add 1.A <- Add 2.+
+        Add 1.B <- Add.+
+        Out.O <- Add 1.+
+        Add 2.A <- Mul 1.x
+        Add 2.B <- Mul 2.x
+        Mul 1.A <- Str.I
+        Mul 1.B <- T.I
+        Mul 2.A <- Add 2.+
+        Mul 2.B <- 1-X.1-X
+    [7] swabs            "Abs" 
+    [8] swifless         "If <" 
+    [9] swifgreater      "If >" 
+    [10] swneg            "Neg" 
+    [11] swconst          "T" 1
+    [12] swifless         "If < 1" 
+    [13] swconst          "T 1" 1
+    [14] swin             "G" 
+    [15] swmul            "Mul" 
+    [16] swchange         "Change" 
+    [17] swadd            "Add" 
+    [18] swcrossfade      "Crossfade" 
+      Rmp.O <- Inc.Out
+      Mul 1.A <- If <.<
+      Mul 1.B <- Abs.|A|
+      Modulo.A <- Inc.Out
+      Modulo.B <- 1.#
+      Inc.Str <- Crossfade.=
+      Inc.Inc <- Mul 1.x
+      Inc.T <- Add.+
+      Abs.A <- F.I
+      If <.A <- F.I
+      If <.T <- Neg.-A
+      If <.F <- Sample Rate.1/S
+      If >.A <- Inc.Out
+      If >.B <- T.#
+      If >.T <- T.#
+      If >.F <- If < 1.<
+      Neg.A <- Sample Rate.1/S
+      If < 1.A <- Inc.Out
+      If < 1.T <- T 1.#
+      Mul.A <- G.I
+      Mul.B <- Change.T
+      Change.In <- G.I
+      Add.A <- If >.>
+      Add.B <- Mul.x
+      Crossfade.A <- Modulo.M
+      Crossfade.X <- Mul.x
+    Sine.X <- Add 1.+
+    ADSR Modulated.G <- G.I
+    Mul 2.A <- Sine.Sin
+    Mul 2.B <- ADSR Modulated.E
+    Out.O <- Mul.x
+    _F.O <- F.I
+    _G.O <- G.I
+    Add.A <- Mul 1.x
+    Add.B <- Offset.#
+    Mul.A <- Mul 2.x
+    Mul.B <- Gain.#
+    Add 1.A <- Ramp.Rmp
+    Add 1.B <- Mod.I
+    Mul 1.A <- F.I
+    Mul 1.B <- Ratio.#
+    Ramp.F <- Add.+
+    Ramp.G <- G.I
+[6] SUBPATCH "FM-Op C"  meta='{"elements":[]}\x00'
+  [0] swsine           "Sine" 
+  [1] swrtadsr         "ADSR Modulated" [~32B] 0 108.159 0 184.959 0 0 0 0
+  [2] swmul            "Mul 2" 
+  [3] swout            "Out" 
+  [4] swin             "Mod" 
+  [5] swin             "F" 
+  [6] swin             "G" 
+  [7] swout            "_F" 
+  [8] swout            "_G" 
+  [9] swadd            "Add" 
+  [10] swconst          "Offset" 1.57
+  [11] swmul            "Mul" 
+  [12] swconst          "Gain" 0.18
+  [13] swadd            "Add 1" 
+  [14] swmul            "Mul 1" 
+  [15] swconst          "Ratio" 7
+  [16] SUBPATCH "Ramp"  meta='{"elements":[]}\x00'
+    [0] swout            "Rmp" 
+    [1] swsamplerate     "Sample Rate" 
+    [2] swmul            "Mul 1" 
+    [3] swmod            "Modulo" 
+    [4] swconst          "1" 1
+    [5] swin             "F" 
+    [6] SUBPATCH "Inc"  meta='{"elements":[]}\x00'
+      [0] swin             "Str" 
+      [1] swin             "Inc" 
+      [2] swin             "T" 
+      [3] swcomplemet      "1-X" 
+      [4] swadd            "Add" 
+      [5] swmul            "Mul" 
+      [6] swadd            "Add 1" 
+      [7] swout            "Out" 
+      [8] swadd            "Add 2" 
+      [9] swmul            "Mul 1" 
+      [10] swmul            "Mul 2" 
+        1-X.X <- T.I
+        Add.A <- Inc.I
+        Add.B <- Mul.x
+        Mul.A <- Add.+
+        Mul.B <- 1-X.1-X
+        Add 1.A <- Add 2.+
+        Add 1.B <- Add.+
+        Out.O <- Add 1.+
+        Add 2.A <- Mul 1.x
+        Add 2.B <- Mul 2.x
+        Mul 1.A <- Str.I
+        Mul 1.B <- T.I
+        Mul 2.A <- Add 2.+
+        Mul 2.B <- 1-X.1-X
+    [7] swabs            "Abs" 
+    [8] swifless         "If <" 
+    [9] swifgreater      "If >" 
+    [10] swneg            "Neg" 
+    [11] swconst          "T" 1
+    [12] swifless         "If < 1" 
+    [13] swconst          "T 1" 1
+    [14] swin             "G" 
+    [15] swmul            "Mul" 
+    [16] swchange         "Change" 
+    [17] swadd            "Add" 
+    [18] swcrossfade      "Crossfade" 
+      Rmp.O <- Inc.Out
+      Mul 1.A <- If <.<
+      Mul 1.B <- Abs.|A|
+      Modulo.A <- Inc.Out
+      Modulo.B <- 1.#
+      Inc.Str <- Crossfade.=
+      Inc.Inc <- Mul 1.x
+      Inc.T <- Add.+
+      Abs.A <- F.I
+      If <.A <- F.I
+      If <.T <- Neg.-A
+      If <.F <- Sample Rate.1/S
+      If >.A <- Inc.Out
+      If >.B <- T.#
+      If >.T <- T.#
+      If >.F <- If < 1.<
+      Neg.A <- Sample Rate.1/S
+      If < 1.A <- Inc.Out
+      If < 1.T <- T 1.#
+      Mul.A <- G.I
+      Mul.B <- Change.T
+      Change.In <- G.I
+      Add.A <- If >.>
+      Add.B <- Mul.x
+      Crossfade.A <- Modulo.M
+      Crossfade.X <- Mul.x
+    Sine.X <- Add 1.+
+    ADSR Modulated.G <- G.I
+    Mul 2.A <- Sine.Sin
+    Mul 2.B <- ADSR Modulated.E
+    Out.O <- Mul.x
+    _F.O <- F.I
+    _G.O <- G.I
+    Add.A <- Mul 1.x
+    Add.B <- Offset.#
+    Mul.A <- Mul 2.x
+    Mul.B <- Gain.#
+    Add 1.A <- Ramp.Rmp
+    Add 1.B <- Mod.I
+    Mul 1.A <- F.I
+    Mul 1.B <- Ratio.#
+    Ramp.F <- Add.+
+    Ramp.G <- G.I
+[7] SUBPATCH "FM-Op D"  meta='{"elements":[]}\x00'
+  [0] swsine           "Sine" 
+  [1] swrtadsr         "ADSR Modulated" [~32B] 0 219.039 0 282.24 0 0 0 0
+  [2] swmul            "Mul 2" 
+  [3] swout            "Out" 
+  [4] swin             "Mod" 
+  [5] swin             "F" 
+  [6] swin             "G" 
+  [7] swout            "_F" 
+  [8] swout            "_G" 
+  [9] swadd            "Add" 
+  [10] swconst          "Offset" -0.22
+  [11] swmul            "Mul" 
+  [12] swconst          "Gain" 1
+  [13] swadd            "Add 1" 
+  [14] swmul            "Mul 1" 
+  [15] swconst          "Ratio" 0.9996
+  [16] SUBPATCH "Ramp"  meta='{"elements":[]}\x00'
+    [0] swout            "Rmp" 
+    [1] swsamplerate     "Sample Rate" 
+    [2] swmul            "Mul 1" 
+    [3] swmod            "Modulo" 
+    [4] swconst          "1" 1
+    [5] swin             "F" 
+    [6] SUBPATCH "Inc"  meta='{"elements":[]}\x00'
+      [0] swin             "Str" 
+      [1] swin             "Inc" 
+      [2] swin             "T" 
+      [3] swcomplemet      "1-X" 
+      [4] swadd            "Add" 
+      [5] swmul            "Mul" 
+      [6] swadd            "Add 1" 
+      [7] swout            "Out" 
+      [8] swadd            "Add 2" 
+      [9] swmul            "Mul 1" 
+      [10] swmul            "Mul 2" 
+        1-X.X <- T.I
+        Add.A <- Inc.I
+        Add.B <- Mul.x
+        Mul.A <- Add.+
+        Mul.B <- 1-X.1-X
+        Add 1.A <- Add 2.+
+        Add 1.B <- Add.+
+        Out.O <- Add 1.+
+        Add 2.A <- Mul 1.x
+        Add 2.B <- Mul 2.x
+        Mul 1.A <- Str.I
+        Mul 1.B <- T.I
+        Mul 2.A <- Add 2.+
+        Mul 2.B <- 1-X.1-X
+    [7] swabs            "Abs" 
+    [8] swifless         "If <" 
+    [9] swifgreater      "If >" 
+    [10] swneg            "Neg" 
+    [11] swconst          "T" 1
+    [12] swifless         "If < 1" 
+    [13] swconst          "T 1" 1
+    [14] swin             "G" 
+    [15] swmul            "Mul" 
+    [16] swchange         "Change" 
+    [17] swadd            "Add" 
+    [18] swcrossfade      "Crossfade" 
+      Rmp.O <- Inc.Out
+      Mul 1.A <- If <.<
+      Mul 1.B <- Abs.|A|
+      Modulo.A <- Inc.Out
+      Modulo.B <- 1.#
+      Inc.Str <- Crossfade.=
+      Inc.Inc <- Mul 1.x
+      Inc.T <- Add.+
+      Abs.A <- F.I
+      If <.A <- F.I
+      If <.T <- Neg.-A
+      If <.F <- Sample Rate.1/S
+      If >.A <- Inc.Out
+      If >.B <- T.#
+      If >.T <- T.#
+      If >.F <- If < 1.<
+      Neg.A <- Sample Rate.1/S
+      If < 1.A <- Inc.Out
+      If < 1.T <- T 1.#
+      Mul.A <- G.I
+      Mul.B <- Change.T
+      Change.In <- G.I
+      Add.A <- If >.>
+      Add.B <- Mul.x
+      Crossfade.A <- Modulo.M
+      Crossfade.X <- Mul.x
+    Sine.X <- Add 1.+
+    ADSR Modulated.G <- G.I
+    Mul 2.A <- Sine.Sin
+    Mul 2.B <- ADSR Modulated.E
+    Out.O <- Mul.x
+    _F.O <- F.I
+    _G.O <- G.I
+    Add.A <- Mul 1.x
+    Add.B <- Offset.#
+    Mul.A <- Mul 2.x
+    Mul.B <- Gain.#
+    Add 1.A <- Ramp.Rmp
+    Add 1.B <- Mod.I
+    Mul 1.A <- F.I
+    Mul 1.B <- Ratio.#
+    Ramp.F <- Add.+
+    Ramp.G <- G.I
+[8] swmixlin4        "Mixer 4 Lin" [~76B] 0.616 0 0.72 0 1 0 1 0 i1668573552 i2053649000 i1668772618 0.000917158 i825242170 i825765945 i1766853177 i761815924 i175786046 240.683 -163.599
+[9] swconnect        "Con" 
+[10] swconnect        "Con 1" 
+[11] swgain           "Gain Lin" 0.176 0
+[12] swnote           "Instructions" [~692B] 189.091 50.9091 i170996017 i1936287828 i544434464 i1701060705 10268.1 i1700995149 i1953719660 i1634738277 i778593140 i1970231584 i1851876128 i1702327328 i1948281697 i1881171304 i1835102817 i1919251557 i1852383347 i1701079411 i1701344288 i1701867296 i1869898098 i1970479218
+!! stopped: ValueError('subsection not found')

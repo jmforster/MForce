@@ -1,0 +1,50 @@
+# swengine::20200430  (2029 bytes)
+# build: 20220928_9572
+[0] swgain           "Gain Lin" 0 0.51
+[1] swout            "O1" 
+[2] swout            "O2" 
+[3] swmidinote       "Midi Note" 
+[4] SUBPATCH "Polyporta"  meta='{"elements":[]}\x00'
+  [0] swin             "P" 
+  [1] swin             "Prt" 
+  [2] swout            "E" 
+  [3] swenvfollow      "Env. follower" [~0B] 
+  [4] swlastsam        "Previous" [~0B] 
+  [5] swcrossfade      "Crossfade" 
+  [6] swconnect        "Con" 
+  [7] swin             "T" 
+  [8] swmul            "Mul" 
+  [9] swcomplemet      "1-X" 
+    E.O <- Env. follower.E
+    Env. follower.In <- Crossfade.=
+    Env. follower.A <- Mul.x
+    Env. follower.R <- Mul.x
+    Previous.In <- Env. follower.E
+    Crossfade.A <- P.I
+    Crossfade.B <- Con.O
+    Crossfade.X <- T.I
+    Con.I <- Previous.NTrg
+    Mul.A <- Prt.I
+    Mul.B <- 1-X.1-X
+    1-X.X <- T.I
+[5] swsuperknob      "Polyporta (ms)" 0 2000 2 0.56 0 0 0
+[6] swosc_multi      "OSC Multi" [~32B] i3 0 0 0 0 0 0 0.5
+[7] swconst          "V" 0.5
+[8] swrtadsr         "ADSR Modulated" [~32B] 10 676 0.416025 20 0 0 0 0
+[9] swled            "LED" 
+[10] swconnect        "Con" 
+  Gain Lin.In1 <- OSC Multi.O
+  Gain Lin.In2 <- OSC Multi.O
+  Gain Lin.M <- ADSR Modulated.E
+  O1.O <- Gain Lin.O1
+  O2.O <- Gain Lin.O2
+  Polyporta.P <- Midi Note.P
+  Polyporta.Prt <- Polyporta (ms).V
+  Polyporta.T <- Con.O
+  OSC Multi.P <- Polyporta.E
+  OSC Multi.V <- V.#
+  ADSR Modulated.G <- LED.O
+  LED.I <- Midi Note.G
+  Con.I <- Midi Note.T
+== done, leftover 32 bytes
+   tail: ae959f43c46f9a42feff7f3f0000000000050000d00200000600000001000000

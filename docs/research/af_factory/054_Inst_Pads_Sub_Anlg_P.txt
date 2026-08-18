@@ -1,0 +1,47 @@
+# swengine::20200430  (4682 bytes)
+# build: 20220928_9572
+[0] swosc_multi      "OSC Multi" [~32B] i4 1 0 0 0 0 0 0.5
+[1] swmidinote       "Midi Note" 
+[2] swconst          "V" 1
+[3] swosc_multi      "OSC Multi 1" [~135B] i4 -1 0 -0.0300001 1 0 0 0.5 i1936684915 i1970102115 i174683244 i1868789619 0.000711209 0.00016898 0.00016901 211.309 i1819626784 i840984948 i520093706 i-436207548 i1870099267 i1834967923 i1769237621 i808598074
+[4] swmixlin4        "Mixer 4 Lin" [~32B] 1 0 1 0 1 0 0.24 0
+[5] swfiltermod      "Filter Modulated" [~24B] 117.45 0 1 0.535 1 1
+[6] swsuperknob      "Detune" 0 0.1 1 1 0 0 0
+[7] swmixlin4        "Mixer 4 Lin 1" [~32B] 0.506 0 1 0 1 0 1 0
+[8] swgain           "Gain Lin" 0 0.1382
+[9] swrtadsr         "ADSR Modulated" [~32B] 2617.58 0 1 3360.77 0 0 0 0
+[10] swvudual         "VU Dual" [~0B] 
+[11] swout            "O1" 
+[12] swout            "O2" 
+[13] swrtadsr         "ADSR Modulated 1" [~32B] 6972.25 8100 0.540225 7739.1 0 0 0 0
+[14] swrescalegui     "Re-scaler GUI" [~14B] i170920497 i171455025 i68144
+[15] swnoise          "White Noise" 
+[16] swled            "LED" 
+[17] swled            "LED 1" 
+[18] swled            "LED 2" 
+[19] swconnect        "Con" 
+[20] swadd            "Add" 
+[21] swlfo_multi      "LFO Multi" [~28B] 22.3949 1 0 0 i2 i1 0
+[22] swmul            "Mul" 
+[23] swmidicc         "Midi CC" 1
+[24] swled            "LED 3" 
+[25] swmul            "Mul 1" 
+[26] swconst          "B" 0.3
+[27] swcrossfadegui   "Crossfade GUI" [~8B] 0 1
+[28] swsuperknob      "Lp / Bp" -0.5 0.5 1 0.5 i3 0 i1
+[29] swsuperknob      "Resonance" 1 0.05 1 0.555 i2 0 0
+[30] swmul            "Mul 3" 
+[31] swsuperknob      "Env. Mod" 0 1 1 0.615 i1 0 0
+[32] swconnect        "Con 1" 
+[33] swconnect        "Con 2" 
+[34] swdiv            "Div" 
+[35] swconst          "A" 1
+[36] swdiv            "Div 1" 
+[37] swconnect        "Con 3" 
+[38] swlfo_multi      "LFO Multi 1" [~28B] 0.29478 1 0 0 0 0 0
+[39] swcrossfade      "Crossfade" 
+[40] swconst          "A 1" 0
+[41] swconst          "B 1" 0.5
+[42] swled            "LED 4" 
+[43] swfiltermod      "Filter Modulated 1" [~1642B] 0 0 0 0 1 1 i1 i541283151 i1953264973 i173017705 i1768188237 i1953451552 i173017701 i1 i541283151 i1953264973 i173410921 i170068566 i1 i541283151 i1953264973 i170991721 i1397688912 i1967988803
+!! stopped: ValueError('subsection not found')
