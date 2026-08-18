@@ -4696,6 +4696,17 @@ static void draw_curves_window() {
         ImGui::End();
         return;
     }
+    // Pre-select the node selected in the editor, tracked across changes.
+    static int lastEditorSelCurve = -1;
+    if (ImNodes::NumSelectedNodes() == 1) {
+        int selId = -1;
+        ImNodes::GetSelectedNodes(&selId);
+        if (selId != lastEditorSelCurve) {
+            lastEditorSelCurve = selId;
+            for (int i = 0; i < (int)targetNodes.size(); ++i)
+                if (targetNodes[i]->id == selId) { selNode = i; selTarget = 0; break; }
+        }
+    }
     selNode = std::clamp(selNode, 0, (int)targetNodes.size() - 1);
     ImGui::SetNextItemWidth(140.0f);
     if (ImGui::BeginCombo("Node", targetNodes[selNode]->label.c_str())) {
@@ -5897,10 +5908,9 @@ static void draw_properties_panel() {
         return;
     }
 
-    // Header
-    ImGui::TextColored(ImColor(node_title_color(node->typeName)).Value, "%s", node->label.c_str());
-    ImGui::SameLine();
-    ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1), "(%s)", node_display_name(node->typeName).c_str());
+    // Header: just the type — the rename field below carries the name.
+    ImGui::TextColored(ImColor(node_title_color(node->typeName)).Value, "%s",
+                       node_display_name(node->typeName).c_str());
 
     // Rename-in-place: the label IS the serialized id (stable identity).
     if (node->typeName != NT_PATCH_OUTPUT && node->typeName != NT_PARAMETER) {

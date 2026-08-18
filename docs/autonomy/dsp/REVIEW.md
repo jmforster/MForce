@@ -154,7 +154,24 @@ now near its tone). Loser reverts with one curve. Matt also hit a
 Mappings-dialog gap: exc_svf.cutoffFreq missing from the dropdown —
 likely a wire left connected into the pin (dialog hides ref-wired
 targets, loader restriction); if his pin is bare, it's a UI bug to
-chase.
+chase. [resolved: Matt's bad — a wire was connected]
+V12 (2026-08-18, Matt: exc_svf cutoff didn't audibly change the
+hammer but exc_1p did): **LISTEN afp31_v12.wav, supersedes v11.**
+He's right and v11 tracked the wrong filter: the 1P at 277 Hz was the
+LOWER corner — the actual band edge — while the SVF's 1614 Hz corner
+sits ~15 dB down the 1P slope where movement is nearly inaudible.
+v12 puts the real-piano tracking on exc_1p: 2*f0, floored 100 Hz
+(bass thump), capped 4 kHz (treble tick); v11's SVF tracking kept so
+the corners scale together. Widening the band pumped +12 dB into the
+treble -> exc gain taper above 277 (6 -> 1.5 at 2 kHz, LEVEL only)
++ volume 4.0 -> 3.0 (C4 was pinned at the 0.7 limiter). Attack
+centroids 76 Hz (C1) -> 2287 Hz (C8). Register peaks: 0.11 / 0.20 /
+0.66 / 0.34 / 0.35 (C4 a touch hot vs neighbors — ears to judge).
+UI (same session): Curves-window Add-curve node combo now pre-selects
+the editor-selected node (was Mappings-dialog only); properties
+header shows just the type, no parentheses (name lives in the rename
+field). PENDING RELINK: mforce_ui.exe was running — close it and
+rebuild to get both tweaks + detune 7200 range.
 
 ### 34. AFP excitation ladder — moves A+E [listen] (2026-08-15)
 renders/dsp/pending/ks_piano_v6/pb_exc_*.wav + README_pb_exc.md.

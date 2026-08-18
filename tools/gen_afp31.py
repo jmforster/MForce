@@ -1,4 +1,4 @@
-"""afp31_v11 — from-scratch rebuild of the AFNoding-031 piano per
+"""afp31_v12 — from-scratch rebuild of the AFNoding-031 piano per
 docs/research/afpiano_scratch/RECIPE.md (build-video archaeology).
 
 v4 = every previously guessed value replaced by a frame-read one
@@ -143,7 +143,7 @@ PATCH = {
   },
   "instrument": {
     "polyphony": 4,
-    "volume": 4.0,
+    "volume": 3.0,
     "paramMap": {
       "frequency": [
         "string.frequency",
@@ -155,10 +155,13 @@ PATCH = {
         {"target": "exc_svf.cutoffFreq",  "curve": [[20.0, 800.0],
             [262.0, 1614.0], [4186.0, 6000.0], [16000.0, 6000.0]],
          "interp": "loglog"},
-        # Floor the excitation 1P at 100 Hz: at C1 the faithful 2f0 = 65 Hz
-        # leaves almost no noise band to strike the string with.
+        # v12 (Matt: exc_1p is what changes the hammer, not exc_svf — right:
+        # the 1P at 277 was the LOWER corner, hence the band edge; the SVF's
+        # 1614 corner sits ~15 dB down its slope). Real-piano tracking on the
+        # edge that matters: 2*f0, floored 100 Hz (bass thump), capped 4 kHz
+        # (treble tick). AF's 277 clamp abandoned on this filter.
         {"target": "exc_1p.cutoffFreq",   "curve": [[20.0, 100.0], [50.0, 100.0],
-            [138.5, 277.0], [16000.0, 277.0]], "interp": "loglog"},
+            [2000.0, 4000.0], [16000.0, 4000.0]], "interp": "loglog"},
         # Matt (v5 audition): hammer noise creeps in from ~523 Hz, growing
         # with pitch. A gain taper (v6) measured as a pure volume fade —
         # excitation feeds tone AND noise, linear chain, ratio untouched.
@@ -169,8 +172,12 @@ PATCH = {
         # Bass excitation shelf (same v9 verdict): below the 277 Hz clamp
         # the excitation 1P tracks down with 2f0, so bottom octaves also
         # get less input energy. x6 rises to x15 at 20 Hz.
+        # Upper taper added in v12: widening the knock band (277 -> up to
+        # 4 kHz) pumps ~+12 dB more energy into the treble; this rebalances
+        # LEVEL only (band edge / timbre set by the curves above).
         {"target": "exc_gain.source2",    "curve": [[20.0, 30.0],
-            [138.5, 7.5], [277.0, 6.0], [16000.0, 6.0]], "interp": "loglog"},
+            [138.5, 7.5], [277.0, 6.0], [2000.0, 1.5], [16000.0, 1.5]],
+         "interp": "loglog"},
         {"target": "exc_env.timeScale",   "curve": [[20.0, 1.0], [523.0, 1.0],
             [4186.0, 0.4], [16000.0, 0.4]], "interp": "loglog"},
         {"target": "env_rev.timeScale",   "curve": [[20.0, 1.0], [523.0, 1.0],
@@ -224,7 +231,7 @@ PATCH = {
 def main():
     PDIR.mkdir(parents=True, exist_ok=True)
     RDIR.mkdir(parents=True, exist_ok=True)
-    name = "afp31_v11"
+    name = "afp31_v12"
     p2 = PDIR / (name + ".json")
     p2.write_text(json.dumps(PATCH, indent=2), encoding="utf-8")
     wav = RDIR / (name + ".wav")
