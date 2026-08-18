@@ -1,4 +1,4 @@
-"""afp31_v9 — from-scratch rebuild of the AFNoding-031 piano per
+"""afp31_v10 — from-scratch rebuild of the AFNoding-031 piano per
 docs/research/afpiano_scratch/RECIPE.md (build-video archaeology).
 
 v4 = every previously guessed value replaced by a frame-read one
@@ -147,7 +147,10 @@ PATCH = {
     "paramMap": {
       "frequency": [
         "string.frequency",
-        {"target": "exc_1p.cutoffFreq",   "curve": clamp2f_curve(), "interp": "loglog"},
+        # Floor the excitation 1P at 100 Hz: at C1 the faithful 2f0 = 65 Hz
+        # leaves almost no noise band to strike the string with.
+        {"target": "exc_1p.cutoffFreq",   "curve": [[20.0, 100.0], [50.0, 100.0],
+            [138.5, 277.0], [16000.0, 277.0]], "interp": "loglog"},
         # Matt (v5 audition): hammer noise creeps in from ~523 Hz, growing
         # with pitch. A gain taper (v6) measured as a pure volume fade —
         # excitation feeds tone AND noise, linear chain, ratio untouched.
@@ -155,6 +158,11 @@ PATCH = {
         # while the treble ring shortens, so ever more of the note is bare
         # chuff. Envelope timeScale (new, per-note mappable) shortens the
         # hit + bed with pitch: x1 up to 523 Hz -> x0.4 at 4.2 kHz.
+        # Bass excitation shelf (same v9 verdict): below the 277 Hz clamp
+        # the excitation 1P tracks down with 2f0, so bottom octaves also
+        # get less input energy. x6 rises to x15 at 20 Hz.
+        {"target": "exc_gain.source2",    "curve": [[20.0, 30.0],
+            [138.5, 7.5], [277.0, 6.0], [16000.0, 6.0]], "interp": "loglog"},
         {"target": "exc_env.timeScale",   "curve": [[20.0, 1.0], [523.0, 1.0],
             [4186.0, 0.4], [16000.0, 0.4]], "interp": "loglog"},
         {"target": "env_rev.timeScale",   "curve": [[20.0, 1.0], [523.0, 1.0],
@@ -172,8 +180,14 @@ PATCH = {
         # ~0.7*f0 above 480 Hz — carves the noise out from beneath high
         # notes; tone at/above f0 passes. (Taste departure from the clamp;
         # his video never plays up there.)
-        {"target": "body_hp.cutoffFreq",  "curve": [[20.0, 48.4],
-            [138.5, 335.6], [480.0, 335.6], [16000.0, 11200.0]],
+        # Matt (v9): bass octaves much quieter, octave 1 barely audible.
+        # Root cause: below the clamp knee the Body HP sat at a CONSTANT
+        # 2.42*f0 — every bass note lost ~20 dB of fundamental, where low
+        # notes carry most audible energy. Now 0.95*f0 in the bass (rumble
+        # still cut, fundamental survives), blending to the 336 clamp and
+        # treble tracking.
+        {"target": "body_hp.cutoffFreq",  "curve": [[20.0, 19.0],
+            [300.0, 285.0], [480.0, 335.6], [16000.0, 11200.0]],
          "interp": "loglog"},
         # Matt (v7): "no brightness difference with velocity" — CONFIRMED
         # bug: his crossfade interpolates SEMITONES 12..64 linearly, so the
@@ -195,13 +209,14 @@ PATCH = {
     {"note": 60, "velocity": 0.30, "time": 24.0, "duration": 3.5},
     {"note": 96, "velocity": 0.85, "time": 32.0, "duration": 3.5},
     {"note": 100, "velocity": 0.85, "time": 40.0, "duration": 3.5},
+    {"note": 24, "velocity": 0.85, "time": 48.0, "duration": 3.5},
   ]
 }
 
 def main():
     PDIR.mkdir(parents=True, exist_ok=True)
     RDIR.mkdir(parents=True, exist_ok=True)
-    name = "afp31_v9"
+    name = "afp31_v10"
     p2 = PDIR / (name + ".json")
     p2.write_text(json.dumps(PATCH, indent=2), encoding="utf-8")
     wav = RDIR / (name + ".wav")

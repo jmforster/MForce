@@ -132,6 +132,18 @@ halved, ALL stored patches compensated (node scalars AND paramMap
 curves halved — Piano_bright renders bit-exact, hash f5174254 verified
 before/after; halving is exact in binary so every patch is
 sound-preserving, not approximate).
+V10 (2026-08-18, Matt's v9 verdict: detune great -> clamp raised to
+7200 ("just for fun", 6 octaves per side); bass octaves much too
+quiet, octave 1 barely audible): **LISTEN afp31_v10.wav.** Three bass
+levers, all taste departures from his clamp topology: (1) Body HP
+below the knee sat at a CONSTANT 2.42*f0 — every bass note lost
+~20 dB of fundamental; now 0.95*f0 (rumble still cut). (2) Excitation
+gain shelf x6 -> x30 at 20 Hz. (3) Excitation 1P floored at 100 Hz
+(faithful 2f0 = 65 Hz at C1 left almost no noise band to strike
+with). Score gains C1 (t=48 s). Measured register peaks now a bell
+around C4: C1 -16.6 / C2 -11.4 / C4 -5.5 / C6 -11.8 / C8 -18.6 dB
+(was C2 -20.8, C1 unmeasured-and-inaudible). Peaks understate bass
+loudness (longer sustain integrates louder); judge by ear.
 
 ### 34. AFP excitation ladder — moves A+E [listen] (2026-08-15)
 renders/dsp/pending/ks_piano_v6/pb_exc_*.wav + README_pb_exc.md.

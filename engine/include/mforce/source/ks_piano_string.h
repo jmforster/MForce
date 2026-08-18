@@ -83,7 +83,7 @@ struct KSPianoString final : ValueSource {
   std::span<const ConfigDescriptor> config_descriptors() const override {
     static constexpr ConfigDescriptor descs[] = {
       {"numCombs",   ConfigType::Int,   3.0f,    1.0f,   3.0f},
-      {"detune",     ConfigType::Float, 0.75f,   0.0f,   1200.0f}, // cents PER SIDE, AF semantics (outer combs at +/-detune; 600 = tritones, 1200 = octaves). 2026-08-18: was total-spread — all stored patches halved to compensate, bit-exact.
+      {"detune",     ConfigType::Float, 0.75f,   0.0f,   7200.0f}, // cents PER SIDE, AF semantics (outer combs at +/-detune; 600 = tritones, 1200 = octaves). 2026-08-18: was total-spread — all stored patches halved to compensate, bit-exact.
       {"t60",        ConfigType::Float, 6.0f,    0.05f,  60.0f},   // sec at f0
       {"brightness", ConfigType::Float, 0.6f,    0.05f,  1.0f},    // loop LP coeff
       {"dispersion", ConfigType::Float, 0.12f,   0.0f,   0.95f},   // biquad AP pole
