@@ -144,6 +144,17 @@ with). Score gains C1 (t=48 s). Measured register peaks now a bell
 around C4: C1 -16.6 / C2 -11.4 / C4 -5.5 / C6 -11.8 / C8 -18.6 dB
 (was C2 -20.8, C1 unmeasured-and-inaudible). Peaks understate bass
 loudness (longer sustain integrates louder); judge by ear.
+V11 (2026-08-18, Matt asked whether the hammer noise is really the
+same frequency at every pitch — in AF yes, fixed 1.6 kHz; in a real
+piano no): **A/B afp31_v11.wav vs v10.** Experiment: excitation SVF
+cutoff now tracks pitch, sqrt-ish law through the AF value (800 Hz at
+the bottom, 1614 at C4, 6 kHz at 4186+). Attack centroids scale
+76 Hz (C1) -> 2212 Hz (C8), were pinned ~1.6 k. C8 peak +4 dB (knock
+now near its tone). Loser reverts with one curve. Matt also hit a
+Mappings-dialog gap: exc_svf.cutoffFreq missing from the dropdown —
+likely a wire left connected into the pin (dialog hides ref-wired
+targets, loader restriction); if his pin is bare, it's a UI bug to
+chase.
 
 ### 34. AFP excitation ladder — moves A+E [listen] (2026-08-15)
 renders/dsp/pending/ks_piano_v6/pb_exc_*.wav + README_pb_exc.md.

@@ -1,4 +1,4 @@
-"""afp31_v10 — from-scratch rebuild of the AFNoding-031 piano per
+"""afp31_v11 — from-scratch rebuild of the AFNoding-031 piano per
 docs/research/afpiano_scratch/RECIPE.md (build-video archaeology).
 
 v4 = every previously guessed value replaced by a frame-read one
@@ -98,7 +98,7 @@ PATCH = {
        "params": {"source1": {"ref": "noise"}, "source2": {"ref": "rev_noise"},
                    "operation": "add"}},
       {"id": "exc_svf", "type": "SVFSource",
-       "params": {"source": {"ref": "exc_sum"}, "cutoffFreq": BRIGHT_HZ,
+       "params": {"source": {"ref": "exc_sum"}, "cutoffFreq": BRIGHT_HZ,  # overridden by pitch curve below (v11)
                    "resonance": 1.2, "mode": "Lowpass", "normalize": True}},
       {"id": "exc_gain", "type": "CombinedSource",
        "params": {"source1": {"ref": "exc_svf"}, "source2": 6.0,
@@ -147,6 +147,14 @@ PATCH = {
     "paramMap": {
       "frequency": [
         "string.frequency",
+        # v11 experiment (Matt: "is the hammer noise of a high note really
+        # the same freq as a low note?" — in AF yes, in reality no): track
+        # the excitation band with pitch. sqrt-ish law through the AF value
+        # at C4: darker bass thump (800 Hz at 20), 1614 at 262, brighter
+        # treble knock (6 kHz at 4186).
+        {"target": "exc_svf.cutoffFreq",  "curve": [[20.0, 800.0],
+            [262.0, 1614.0], [4186.0, 6000.0], [16000.0, 6000.0]],
+         "interp": "loglog"},
         # Floor the excitation 1P at 100 Hz: at C1 the faithful 2f0 = 65 Hz
         # leaves almost no noise band to strike the string with.
         {"target": "exc_1p.cutoffFreq",   "curve": [[20.0, 100.0], [50.0, 100.0],
@@ -216,7 +224,7 @@ PATCH = {
 def main():
     PDIR.mkdir(parents=True, exist_ok=True)
     RDIR.mkdir(parents=True, exist_ok=True)
-    name = "afp31_v10"
+    name = "afp31_v11"
     p2 = PDIR / (name + ".json")
     p2.write_text(json.dumps(PATCH, indent=2), encoding="utf-8")
     wav = RDIR / (name + ".wav")
