@@ -173,6 +173,28 @@ header shows just the type, no parentheses (name lives in the rename
 field). PENDING RELINK: mforce_ui.exe was running — close it and
 rebuild to get both tweaks + detune 7200 range.
 
+### 37. afks_v1 — the "beautiful" AF KS patch, rebuilt from its file [listen] (2026-08-18)
+renders/dsp/pending/afks/afks_v1.wav; patch patches/pending/afks/
+afks_v1.json; generator tools/gen_afks.py; decoded source
+docs/research/af_ks/parse_full.txt (patch "20211206_9403", decoded
+with the generalized tools/parse_af_patch.py). Character: NOT a piano
+— the exciter noise is GATED (runs while held, ~75 ms velocity-scaled
+release) and the loop's effective feedback is 0.998^2 = 0.996, so the
+string reaches a bowed/ebow-like EQUILIBRIUM (measured: held C4 sits
+at -6 dB until note-off). Chain: gated noise -> two pitch-tracked
+SVFs res 2 (first also velocity-scaled: his cutoff = pitch x vel in
+MIDI units) minus a 1P of the raw noise -> HP 466 -> single-loop
+string (t60 = 1723/f, releaseFb 0.911, fast 20 ms damp landing) ->
+5-bandpass NOTCH body (196/1008/1605/2960/11470 Hz, res 0.4,
+subtracted at 0.675). Skipped v1 (in file, not built): per-voice
+Strum stagger (PolyID mod 6 x 3.3 ms — engine has no voice-id
+concept), random pitch drift (LFO->follower, 0.078 semis), Abs() on
+the noise, Tubular invert (knob at 0 anyway), pickup position (knob
+at 1.0 = degenerate). Also fixed in passing: CombinedSource "add"
+matched no enum label and fell back to Mix (averaging) with only a
+stderr warning — gt generator now says "sum" with volume halved
+(byte-identical output).
+
 ### 36. afp31_gt — GROUND TRUTH from the recovered patch file [listen] (2026-08-18)
 Matt recovered the original AFNoding-031 patch via Wayback Machine;
 the base64 AF clipboard format is fully decoded (zero unparsed bytes)

@@ -76,7 +76,7 @@ PATCH = {
                    "resonance": 0.707, "mode": "Highpass1P", "normalize": False}},
       {"id": "exc_sum", "type": "CombinedSource",
        "params": {"source1": {"ref": "noise"}, "source2": {"ref": "rev_hp"},
-                   "operation": "add"}},
+                   "operation": "sum"}},
       {"id": "exc_svf", "type": "SVFSource",
        "params": {"source": {"ref": "exc_sum"}, "cutoffFreq": BRIGHT_HZ,
                    "resonance": EXC_RES, "mode": "Lowpass", "normalize": True}},
@@ -118,7 +118,7 @@ PATCH = {
   },
   "instrument": {
     "polyphony": 4,
-    "volume": 48.0,
+    "volume": 24.0,
     "paramMap": {
       "frequency": [
         "string.frequency",
