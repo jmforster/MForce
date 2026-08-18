@@ -1,0 +1,319 @@
+[0] swmidinote     "Midi Note" 
+[1] swgain         "Gain Lin" 0.5 0
+[2] swout          "O1" 
+[3] swout          "O2" 
+[4] swmul          "Mul" 
+[5] swchange       "Change" 
+[6] swenvfollowmod "Env. follower Modulated" 0 144 1 0
+[7] swmul          "Mul 1" 
+[8] swconnect      "Con" 
+[9] swmul          "Mul 2" 
+[10] swnoise        "White Noise" 
+[11] swconnect      "Con 1" 
+[12] SUBPATCH "Limit P"
+  [0] swin           "P" 
+  [1] swadd          "Add" 
+  [2] swconst        "B" 12
+  [3] swifgreater    "If >" 
+  [4] swin           "Stf" 
+  [5] swout          "Plim" 
+    Add.A <- P.I
+    Add.B <- B.#
+    If >.A <- Add.+
+    If >.B <- Stf.I
+    If >.T <- Stf.I
+    If >.F <- Add.+
+    Plim.O <- If >.>
+[13] swfilter2p     "Filter 2P" 
+[14] swdiv          "Div" 
+[15] swsuperknob    "R" 0.001 12 1 0.705 i-1 0 0
+[16] swsuperknob    "Brightness" 0 150 1 0.609367 i-1 0 0
+[17] swmul          "Mul 3" 
+[18] swconst        "B" 2
+[19] swfilter1p     "Filter 1P" 
+[20] swsuperknob    "Stf" 0 128 1 0.47 i-1 0 0
+[21] SUBPATCH "String"
+  [0] swin           "In" 
+  [1] swadd          "Add" 
+  [2] swdelay        "Delay" 
+  [3] swmul          "Mul" 
+  [4] swfilter1p     "Filter 1P" 
+  [5] swout          "Out" 
+  [6] swconnect      "Con" 
+  [7] swconnect      "Con 1" 
+  [8] swin           "P" 
+  [9] pitch2ms       "Pitch->ms" 
+  [10] swsub          "Sub" 
+  [11] swallpass      "Allpass" 
+  [12] swconst        "FB" 0
+  [13] swcrossfade    "Crossfade" 
+  [14] swconst        "B" 0.999
+  [15] swconst        "A" 0.8
+  [16] swin           "G" 
+  [17] swenvfollowmod "Env. follower Modulated" 0 196 0 0
+  [18] swsuperknob    "P 1" 0 150 1 0.90135 i-1 0 0
+  [19] swin           "Sam" 
+    Add.A <- In.I
+    Add.B <- Con.O
+    Delay.In <- Add.+
+    Delay.D <- Sub.-
+    Mul.A <- Allpass.Out
+    Mul.B <- Env. follower Modulated.E
+    Filter 1P.In <- Mul.x
+    Filter 1P.P <- P 1.V
+    Out.O <- Add.+
+    Con.I <- Con 1.O
+    Con 1.I <- Filter 1P.L
+    Pitch->ms.P <- P.I
+    Sub.A <- Pitch->ms.ms
+    Sub.B <- Sam.I
+    Allpass.In <- Delay.Out
+    Allpass.D <- Sub.-
+    Allpass.FB <- FB.#
+    Crossfade.A <- A.#
+    Crossfade.B <- B.#
+    Crossfade.X <- G.I
+    Env. follower Modulated.In <- Crossfade.=
+[22] swadd8         "Add8" 
+[23] swconnect      "P" 
+[24] swconnect      "G" 
+[25] SUBPATCH "Sample"
+  [0] swsamplerate   "Sample Rate" 
+  [1] swmul          "Mul" 
+  [2] swconst        "B" 1000
+  [3] swout          "Sam" 
+    Mul.A <- Sample Rate.1/S
+    Mul.B <- B.#
+    Sam.O <- Mul.x
+[26] SUBPATCH "String 1"
+  [0] swin           "In" 
+  [1] swadd          "Add" 
+  [2] swdelay        "Delay" 
+  [3] swmul          "Mul" 
+  [4] swfilter1p     "Filter 1P" 
+  [5] swout          "Out" 
+  [6] swconnect      "Con" 
+  [7] swconnect      "Con 1" 
+  [8] swin           "P" 
+  [9] pitch2ms       "Pitch->ms" 
+  [10] swsub          "Sub" 
+  [11] swallpass      "Allpass" 
+  [12] swconst        "FB" 0.1
+  [13] swcrossfade    "Crossfade" 
+  [14] swconst        "B" 0.995
+  [15] swconst        "A" 0.8
+  [16] swin           "G" 
+  [17] swenvfollowmod "Env. follower Modulated" 0 196 0 0
+  [18] swsuperknob    "P 1" 0 150 1 0.8672 i-1 0 0
+  [19] swin           "Sam" 
+    Add.A <- In.I
+    Add.B <- Con.O
+    Delay.In <- Add.+
+    Delay.D <- Sub.-
+    Mul.A <- Allpass.Out
+    Mul.B <- Env. follower Modulated.E
+    Filter 1P.In <- Mul.x
+    Filter 1P.P <- P 1.V
+    Out.O <- Add.+
+    Con.I <- Con 1.O
+    Con 1.I <- Filter 1P.L
+    Pitch->ms.P <- P.I
+    Sub.A <- Pitch->ms.ms
+    Sub.B <- Sam.I
+    Allpass.In <- Delay.Out
+    Allpass.D <- Sub.-
+    Allpass.FB <- FB.#
+    Crossfade.A <- A.#
+    Crossfade.B <- B.#
+    Crossfade.X <- G.I
+    Env. follower Modulated.In <- Crossfade.=
+[27] SUBPATCH "String 2"
+  [0] swin           "In" 
+  [1] swadd          "Add" 
+  [2] swdelay        "Delay" 
+  [3] swmul          "Mul" 
+  [4] swfilter1p     "Filter 1P" 
+  [5] swout          "Out" 
+  [6] swconnect      "Con" 
+  [7] swconnect      "Con 1" 
+  [8] swin           "P" 
+  [9] pitch2ms       "Pitch->ms" 
+  [10] swsub          "Sub" 
+  [11] swallpass      "Allpass" 
+  [12] swconst        "FB" 0.2
+  [13] swcrossfade    "Crossfade" 
+  [14] swconst        "B" 0.999
+  [15] swconst        "A" 0.8
+  [16] swin           "G" 
+  [17] swenvfollowmod "Env. follower Modulated" 0 196 0 0
+  [18] swsuperknob    "P 1" 0 150 1 0.83565 i-1 0 0
+  [19] swin           "Sam" 
+    Add.A <- In.I
+    Add.B <- Con.O
+    Delay.In <- Add.+
+    Delay.D <- Sub.-
+    Mul.A <- Allpass.Out
+    Mul.B <- Env. follower Modulated.E
+    Filter 1P.In <- Mul.x
+    Filter 1P.P <- P 1.V
+    Out.O <- Add.+
+    Con.I <- Con 1.O
+    Con 1.I <- Filter 1P.L
+    Pitch->ms.P <- P.I
+    Sub.A <- Pitch->ms.ms
+    Sub.B <- Sam.I
+    Allpass.In <- Delay.Out
+    Allpass.D <- Sub.-
+    Allpass.FB <- FB.#
+    Crossfade.A <- A.#
+    Crossfade.B <- B.#
+    Crossfade.X <- G.I
+    Env. follower Modulated.In <- Crossfade.=
+[28] swconnect      "Con 2" 
+[29] swadd          "Add 1" 
+[30] swsub          "Sub" 
+[31] swconnect      "Con 3" 
+[32] swsuperknob    "Detune" 0.001 24 4 0.06 i-1 0 0
+[33] swconnect      "Con 4" 
+[34] swfilter2p     "Filter 2P 1" 
+[35] swfilter2p     "Filter 2P 2" 
+[36] swdiv          "Div 1" 
+[37] swconst        "R 1" 8
+[38] swadd          "Add 2" 
+[39] swconnect      "Plim" 
+[40] swsuperknob    "Low cut" 0 12 1 0 i-1 0 0
+[41] swconst        "R 2" 3
+[42] swadd          "Add 3" 
+[43] swconnect      "Con 6" 
+[44] swcrossfade    "Crossfade" 
+[45] swconst        "A" 12
+[46] swconst        "B 1" 64
+[47] swconnect      "Con 5" 
+[48] swfilter1p     "Filter 1P 1" 
+[49] swconnect      "Con 7" 
+[50] swenvfollowmod "Env. follower Modulated 1" 0 1444 1 0
+[51] swtrgtogate    "Trg->Gate" 9 0
+[52] swadd          "Add 4" 
+[53] swconst        "B 2" 12
+[54] swmul          "Mul 4" 
+[55] swmul          "Mul 5" 
+[56] swsuperknob    "Strength" 0 1 1 0.155 i-1 0 0
+[57] swmul          "Mul 6" 
+[58] swnoise        "White Noise 1" 
+[59] swfilter1p     "Filter 1P 2" 
+[60] swadd          "Add 5" 
+[61] swsuperknob    "Reverb Damp" 0 150 1 0.63 i-1 0 0
+[62] swfilter1p     "Filter 1P 3" 
+[63] swsuperknob    "Reverb Lo cut" 0 150 1 0.415 i-1 0 0
+[64] SUBPATCH "Sustain"
+  [0] swin           "G" 
+  [1] swcrossfade    "Crossfade" 
+  [2] swvariable     "Variable" 
+  [3] swchange       "Change" 
+  [4] swifgreater    "If >" 
+  [5] swconst        "B" 0.5
+  [6] swconst        "T" 1
+  [7] swmidicc       "Midi CC" 64
+  [8] swout          "Gsus" 
+  [9] swconnect      "Con" 
+    Crossfade.A <- G.I
+    Crossfade.B <- Variable.Val
+    Crossfade.X <- Con.O
+    Variable.New <- G.I
+    Variable.Trg <- Change.T
+    Change.In <- If >.>
+    If >.A <- Midi CC.CC
+    If >.B <- B.#
+    If >.T <- T.#
+    Gsus.O <- Crossfade.=
+    Con.I <- If >.>
+  Gain Lin.In1 <- Con 1.O
+  Gain Lin.In2 <- Con 1.O
+  O1.O <- Gain Lin.O1
+  O2.O <- Gain Lin.O2
+  Mul.A <- Midi Note.G
+  Mul.B <- Change.T
+  Change.In <- Midi Note.G
+  Env. follower Modulated.In <- Trg->Gate.G
+  Env. follower Modulated.Am <- Trg->Gate.OM
+  Mul 1.A <- Env. follower Modulated.E
+  Mul 1.B <- Con.O
+  Con.I <- Midi Note.V
+  Mul 2.A <- Mul 1.x
+  Mul 2.B <- White Noise.~
+  Con 1.I <- Filter 1P 1.H
+  Limit P.P <- Add 4.+
+  Limit P.Stf <- Stf.V
+  Filter 2P.In <- Add 5.+
+  Filter 2P.P <- Brightness.V
+  Filter 2P.R <- R.V
+  Div.A <- Filter 2P.L
+  Div.B <- R.V
+  Mul 3.A <- Div./
+  Mul 3.B <- B.#
+  Filter 1P.In <- Mul 3.x
+  Filter 1P.P <- Limit P.Plim
+  String.In <- Con 2.O
+  String.P <- P.O
+  String.G <- G.O
+  String.Sam <- Con 4.O
+  Add8.V1 <- String.Out
+  Add8.V2 <- String 1.Out
+  Add8.V3 <- String 2.Out
+  P.I <- Add 4.+
+  G.I <- Sustain.Gsus
+  String 1.In <- Con 2.O
+  String 1.P <- Add 1.+
+  String 1.G <- G.O
+  String 1.Sam <- Con 4.O
+  String 2.In <- Con 2.O
+  String 2.P <- Sub.-
+  String 2.G <- G.O
+  String 2.Sam <- Con 4.O
+  Con 2.I <- Filter 1P.L
+  Add 1.A <- Con 3.O
+  Add 1.B <- Detune.V
+  Sub.A <- Con 3.O
+  Sub.B <- Detune.V
+  Con 3.I <- P.O
+  Con 4.I <- Sample.Sam
+  Filter 2P 1.In <- Add8.+
+  Filter 2P 1.P <- Add 2.+
+  Filter 2P 1.R <- R 2.#
+  Filter 2P 2.In <- Filter 2P 1.H
+  Filter 2P 2.P <- Add 3.+
+  Filter 2P 2.R <- R 1.#
+  Div 1.A <- Filter 2P 2.L
+  Div 1.B <- Con 6.O
+  Add 2.A <- Low cut.V
+  Add 2.B <- Plim.O
+  Plim.I <- Limit P.Plim
+  Add 3.A <- Plim.O
+  Add 3.B <- Crossfade.=
+  Con 6.I <- R 1.#
+  Crossfade.A <- A.#
+  Crossfade.B <- B 1.#
+  Crossfade.X <- Con 5.O
+  Con 5.I <- Midi Note.V
+  Filter 1P 1.In <- Div 1./
+  Filter 1P 1.P <- Con 7.O
+  Con 7.I <- P.O
+  Env. follower Modulated 1.In <- Trg->Gate.G
+  Env. follower Modulated 1.Am <- Trg->Gate.OM
+  Trg->Gate.T <- Mul.x
+  Add 4.A <- Midi Note.P
+  Add 4.B <- B 2.#
+  Mul 4.A <- Env. follower Modulated 1.E
+  Mul 4.B <- Con.O
+  Mul 5.A <- Mul 4.x
+  Mul 5.B <- Strength.V
+  Mul 6.A <- Mul 5.x
+  Mul 6.B <- White Noise 1.~
+  Filter 1P 2.In <- Mul 6.x
+  Filter 1P 2.P <- Reverb Damp.V
+  Add 5.A <- Mul 2.x
+  Add 5.B <- Filter 1P 3.H
+  Filter 1P 3.In <- Filter 1P 2.L
+  Filter 1P 3.P <- Reverb Lo cut.V
+  Sustain.G <- Midi Note.G
+== done, leftover 0 bytes: 

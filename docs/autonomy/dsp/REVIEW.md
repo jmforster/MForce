@@ -173,6 +173,24 @@ header shows just the type, no parentheses (name lives in the rename
 field). PENDING RELINK: mforce_ui.exe was running — close it and
 rebuild to get both tweaks + detune 7200 range.
 
+### 36. afp31_gt — GROUND TRUTH from the recovered patch file [listen] (2026-08-18)
+Matt recovered the original AFNoding-031 patch via Wayback Machine;
+the base64 AF clipboard format is fully decoded (zero unparsed bytes)
+in docs/research/afpiano/parse_full.txt — every knob and wire. The
+file corrected several frame-era errors, biggest: the FINAL FILTER IS
+A HIGHPASS (1P at 2*f0, thinning lows — ours was a LP, darkening),
+gain x2 not x6, exc res 8.46 not 1.2, hit release 144 ms not 361,
+reverb release 1444 ms + band-passed 298-1917 Hz, string damping
+FIXED per string (20.1k/15.0k/11.4k, no gate mod), held fb
+0.999/0.995/0.999 (middle string = built-in double decay), detune
+~0.001 cents (effectively zero). **LISTEN afp31_gt.wav** — faithful,
+taste layers (timeScale, bass rebalance, treble body tracking, hammer
+pitch tracking) deliberately excluded so we finally hear HIS patch.
+A/B against afp31_v12: verdict decides which taste layers get
+re-applied on top of ground truth. Register peaks: C1 .078 / C2 .109 /
+C4 .320 / C6 .117 / C8 .067. Engine gaps (approximated): per-comb
+damping cutoffs, per-comb feedback, exp follower tails.
+
 ### 34. AFP excitation ladder — moves A+E [listen] (2026-08-15)
 renders/dsp/pending/ks_piano_v6/pb_exc_*.wav + README_pb_exc.md.
 Four arms on Piano_bright: ctrl / A (350 ms burst decay, no bed) /

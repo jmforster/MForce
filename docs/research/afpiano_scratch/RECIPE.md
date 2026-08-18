@@ -169,3 +169,33 @@ was chasing; it is SIMPLER than both the 2021 predecessor and our patch.
   settled); exact Reverb strength value; per-string damping-cutoff
   differences (if any). Sustain node = MIDI pedal passthrough, not
   needed.
+
+## GROUND TRUTH (2026-08-18): the original patch file, decoded
+Matt recovered the dead patch page via Wayback Machine. The download
+(docs/research/afpiano/patch.txt, base64 AF clipboard format) is fully
+decoded — every node, knob, and wire — in
+docs/research/afpiano/parse_full.txt. The FILE supersedes all frame
+reads. Corrections vs our frame-era beliefs:
+- FINAL FILTER IS A ONE-POLE HIGHPASS at pitch+12 (2*f0), H tap — we
+  had a lowpass (darkening; his thins lows).
+- Post-SVF gain is x2, not x6 (const B = 2).
+- Excitation SVF: cutoff Brightness 91.405 MIDI ~= 1605 Hz, res 8.46
+  (normalized /res) — not 1.2.
+- Hit follower release 144 ms (not 361); Trg->Gate 9 ms; reverb
+  follower release 1444 ms (not 462).
+- Reverb noise band-passed: own 1P LP at 94.5 MIDI (~1917 Hz) then 1P
+  HP at 62.25 MIDI (~298 Hz), x velocity x Strength 0.155, summed with
+  hit noise BEFORE the excitation SVF.
+- Strings: allpass FB 0 / 0.1 / 0.2; damping 1P FIXED (no gate mod) at
+  135.2 / 130.1 / 125.3 MIDI (20.1k / 15.0k / 11.4 kHz); held fb
+  0.999 / 0.995 / 0.999 (t60 = 6900/f, middle string 5x faster =
+  built-in double decay); released fb 0.8; smoothing follower 196 ms.
+  The video's env-modulated damping was his REBUILD, not the original.
+- Detune knob ~0.0013 cents == effectively zero (curve-4 knob at
+  norm 0.06); unison character comes from FB/damping differences.
+- Stf 60.16 MIDI ~= 264 Hz; Low cut = 0; Body HP res 3 at
+  min(2f0, 264); velocity LP res 8 /res, cutoff = limited + 12..64
+  semis (linear in SEMITONES); master Gain 0.5.
+- Sustain: CC64 latch crossfades string G, 0.5 threshold.
+Faithful rebuild: tools/gen_afp31_gt.py -> afp31_gt.json/wav (taste
+layers excluded; engine-gap approximations listed in its docstring).
