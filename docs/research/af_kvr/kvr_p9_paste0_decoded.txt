@@ -1,0 +1,11 @@
+# swdesignerclipboard::20150715  (428 bytes)
+[0] swmidinote       "Midi Note" 
+[1] swmidicc         "Midi CC" 64
+[2] swifgreater      "If >" 
+[3] swconst          "B" 0.5
+[4] swconst          "T" 1
+  If >.A <- Midi CC.CC
+  If >.B <- B.#
+  If >.T <- T.#
+  If >.F <- Midi Note.G
+== done, leftover 0 bytes

@@ -1,0 +1,26 @@
+# swdesignerclipboard::20150715  (969 bytes)
+[0] SUBPATCH "Sustain"
+  [0] swchange         "Change" 
+  [1] swvariable       "Variable" 
+  [2] swconst          "B 1" 0.5
+  [3] swconst          "T 1" 1
+  [4] swcrossfade      "Crossfade" 
+  [5] swconnect        "Con" 
+  [6] swin             "G" 
+  [7] swifgreater      "If > 1" 
+  [8] swout            "Gs" 
+  [9] swmidicc         "Midi CC" 64
+    Change.In <- If > 1.>
+    Variable.New <- G.I
+    Variable.Trg <- Change.T
+    Crossfade.A <- G.I
+    Crossfade.B <- Variable.Val
+    Crossfade.X <- Con.O
+    Con.I <- If > 1.>
+    If > 1.A <- Midi CC.CC
+    If > 1.B <- B 1.#
+    If > 1.T <- T 1.#
+    Gs.O <- Crossfade.=
+  Sustain.G <- Midi Note.G
+== done, leftover 24 bytes
+   tail: e75dbae77139e37e81f3bd361770b4f02d35d390bbe05f43

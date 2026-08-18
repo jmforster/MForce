@@ -1,0 +1,20 @@
+# swdesignerclipboard::20150715  (732 bytes)
+[0] SUBPATCH "Sustain"
+  [0] swvariable       "Variable" 
+  [1] swconst          "B 1" 0.5
+  [2] swin             "G" 
+  [3] swout            "Gs" 
+  [4] swmidicc         "Midi CC" 64
+  [5] swadd            "Add" 
+  [6] swtrunc          "Trunc" 
+  [7] swcomplemet      "1-X" 
+    Variable.New <- G.I
+    Variable.Trg <- 1-X.1-X
+    Gs.O <- Variable.Val
+    Add.A <- Midi CC.CC
+    Add.B <- B 1.#
+    Trunc.A <- Add.+
+    1-X.X <- Trunc.Int
+  Sustain.G <- Midi Note.G
+== done, leftover 24 bytes
+   tail: 07af020c5039f05e04ec5038d7ce42d38dfdd42df7d03145
