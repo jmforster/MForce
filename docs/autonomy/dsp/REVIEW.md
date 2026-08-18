@@ -117,6 +117,21 @@ Highs: the Body HP clamped at ~336 Hz, so C6/C7 kept their whole
 0-1.6 kHz chuff band UNDER the tone; v8 tracks ~0.7*f0 above 480 Hz
 (taste departure from his clamp). Measured C7 first-300 ms
 chuff-to-tone: -9.2 -> -26.8 dB.
+V9 (2026-08-18, Matt's v8 verdict "very nice" + 2 items):
+**LISTEN afp31_v9.wav.** (1) Ultra-high sustain (optional ask): the
+string-loop LP (brightness 0.926 ~= 20 kHz) is a real per-pass loss at
+thousands of passes/sec; v9 opens it to 0.992 above a 1.6 kHz knee
+(flat below — lower notes byte-unchanged). 2093 Hz note: -85 dB @0.6 s
+vs v8's -94, alive at 1 s where v8 was silent; score gains a 2637 Hz
+note (t=40 s). Fully-open frac-delay loss still bounds the top —
+further stretch = engine work (allpass frac read), flagged not done.
+(2) Detune semantics changed engine-wide to AF per-side cents (600 =
+tritones both ways, as Matt observed the old total-spread gave minor
+thirds): KSPianoString outer combs now +/-detune, descriptor default
+halved, ALL stored patches compensated (node scalars AND paramMap
+curves halved — Piano_bright renders bit-exact, hash f5174254 verified
+before/after; halving is exact in binary so every patch is
+sound-preserving, not approximate).
 
 ### 34. AFP excitation ladder — moves A+E [listen] (2026-08-15)
 renders/dsp/pending/ks_piano_v6/pb_exc_*.wav + README_pb_exc.md.

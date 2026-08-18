@@ -83,7 +83,7 @@ struct KSPianoString final : ValueSource {
   std::span<const ConfigDescriptor> config_descriptors() const override {
     static constexpr ConfigDescriptor descs[] = {
       {"numCombs",   ConfigType::Int,   3.0f,    1.0f,   3.0f},
-      {"detune",     ConfigType::Float, 1.5f,    0.0f,   1200.0f}, // cents spread (0-20 = unison beating; tens = honky-tonk; 1200 = octave)
+      {"detune",     ConfigType::Float, 0.75f,   0.0f,   1200.0f}, // cents PER SIDE, AF semantics (outer combs at +/-detune; 600 = tritones, 1200 = octaves). 2026-08-18: was total-spread — all stored patches halved to compensate, bit-exact.
       {"t60",        ConfigType::Float, 6.0f,    0.05f,  60.0f},   // sec at f0
       {"brightness", ConfigType::Float, 0.6f,    0.05f,  1.0f},    // loop LP coeff
       {"dispersion", ConfigType::Float, 0.12f,   0.0f,   0.95f},   // biquad AP pole
@@ -404,7 +404,7 @@ private:
     // strings are effectively dispersion-free (stretched partials sit
     // above Nyquist). Notes with room to spare are untouched.
     {
-      const float maxDet = std::pow(2.0f, (0.5f * detune_) / 1200.0f);
+      const float maxDet = std::pow(2.0f, detune_ / 1200.0f);
       const float minPeriod = period / maxDet;
       if (dispActive_ && minPeriod - apDelay - lpDelay_ < kMinCombLen) {
         float lo = 0.0f, hi = dispEff_;
@@ -429,8 +429,8 @@ private:
     // Unison detune offsets (cents): the flanging mechanism of the
     // description — detuning detunes the comb lengths together.
     float off[kMaxCombs] = {0.0f, 0.0f, 0.0f};
-    if (numCombs_ == 2)      { off[0] = -0.5f; off[1] = 0.5f; }
-    else if (numCombs_ == 3) { off[0] = -0.5f; off[1] = 0.0f; off[2] = 0.5f; }
+    if (numCombs_ == 2)      { off[0] = -1.0f; off[1] = 1.0f; }
+    else if (numCombs_ == 3) { off[0] = -1.0f; off[1] = 0.0f; off[2] = 1.0f; }
 
     for (int i = 0; i < numCombs_; ++i) {
       float det = std::pow(2.0f, (off[i] * detune_) / 1200.0f);

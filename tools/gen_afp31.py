@@ -1,4 +1,4 @@
-"""afp31_v8 — from-scratch rebuild of the AFNoding-031 piano per
+"""afp31_v9 — from-scratch rebuild of the AFNoding-031 piano per
 docs/research/afpiano_scratch/RECIPE.md (build-video archaeology).
 
 v4 = every previously guessed value replaced by a frame-read one
@@ -116,7 +116,7 @@ PATCH = {
            "minSec": 0.0, "maxSec": 0.25, "holdPct": 0.0, "power": 0.0}]}},
       {"id": "string", "type": "KSPianoString",
        "params": {"source": {"ref": "exc_1p"}, "frequency": 220.0,
-                   "numCombs": 3, "detune": 1.0, "t60": 10.0,
+                   "numCombs": 3, "detune": 0.5, "t60": 10.0,
                    # Frame z_damp_1325: in-loop damping 1P cutoff = gate
                    # follower x knob 135 MIDI ~= 20 kHz while held (nearly
                    # open; release choke is the damper env, already modeled).
@@ -160,6 +160,13 @@ PATCH = {
         {"target": "env_rev.timeScale",   "curve": [[20.0, 1.0], [523.0, 1.0],
             [4186.0, 0.4], [16000.0, 0.4]], "interp": "loglog"},
         {"target": "string.t60",          "curve": t60_curve(), "interp": "loglog"},
+        # Matt (v8): ultra-highs (>2093 Hz) could sustain a LITTLE longer.
+        # The loop LP (brightness 0.926 ~= 20 kHz) is a real per-pass loss
+        # at thousands of passes/sec; open it toward 0.992 above 1.6 kHz.
+        # Flat below the knee — lower notes byte-unchanged.
+        {"target": "string.brightness",   "curve": [[20.0, 0.926],
+            [1600.0, 0.926], [8372.0, 0.992], [16000.0, 0.992]],
+         "interp": "loglog"},
         # Matt (v7): highs still noisy. The Body HP clamps at ~336 Hz, so a
         # C6/C7 keeps its whole 0-1.6 kHz chuff band UNDER the tone. Track
         # ~0.7*f0 above 480 Hz — carves the noise out from beneath high
@@ -187,13 +194,14 @@ PATCH = {
     {"note": 84, "velocity": 0.85, "time": 16.0, "duration": 3.5},
     {"note": 60, "velocity": 0.30, "time": 24.0, "duration": 3.5},
     {"note": 96, "velocity": 0.85, "time": 32.0, "duration": 3.5},
+    {"note": 100, "velocity": 0.85, "time": 40.0, "duration": 3.5},
   ]
 }
 
 def main():
     PDIR.mkdir(parents=True, exist_ok=True)
     RDIR.mkdir(parents=True, exist_ok=True)
-    name = "afp31_v8"
+    name = "afp31_v9"
     p2 = PDIR / (name + ".json")
     p2.write_text(json.dumps(PATCH, indent=2), encoding="utf-8")
     wav = RDIR / (name + ".wav")
