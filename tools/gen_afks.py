@@ -125,7 +125,7 @@ PATCH = {
   },
   "instrument": {
     "polyphony": 4,
-    "volume": 0.55,
+    "volume": 0.38,
     "paramMap": {
       "frequency": [
         "string.frequency",
