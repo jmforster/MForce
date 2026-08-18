@@ -5991,6 +5991,22 @@ static void draw_properties_panel() {
         if (connected) {
             GraphNode* srcNode = find_source_node(pin.id);
             ImGui::TextColored(ImVec4(0.5f, 0.8f, 0.5f, 1), "<-- %s", srcNode ? srcNode->label.c_str() : "?");
+        } else if (pin.hasConstant) {
+            // The loader accepts a scalar on any input pin (wrapped in a
+            // ConstantSource); expose it for editing the same way param
+            // pins are (afp31_gt rev_amp.source2 was invisible without
+            // this — a stored constant the panel could not show).
+            ImGui::PushItemWidth(widgetW);
+            char label[64];
+            snprintf(label, sizeof(label), "##propin%d", pin.id);
+            float step = std::max(0.001f, std::abs(pin.defaultValue) * 0.01f);
+            if (ImGui::InputFloat(label, &pin.defaultValue, step, step * 10.0f, "%.4f")) {
+                if (pin.constantSrc) pin.constantSrc->set(pin.defaultValue);
+                node->jsonExtras.erase(pin.name);
+                update_node_dsp(*node);
+                s_graphDirty = true;
+            }
+            ImGui::PopItemWidth();
         } else {
             ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1), "(not connected)");
         }
