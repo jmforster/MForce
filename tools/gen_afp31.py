@@ -1,4 +1,4 @@
-"""afp31_v7 — from-scratch rebuild of the AFNoding-031 piano per
+"""afp31_v8 — from-scratch rebuild of the AFNoding-031 piano per
 docs/research/afpiano_scratch/RECIPE.md (build-video archaeology).
 
 v4 = every previously guessed value replaced by a frame-read one
@@ -160,9 +160,23 @@ PATCH = {
         {"target": "env_rev.timeScale",   "curve": [[20.0, 1.0], [523.0, 1.0],
             [4186.0, 0.4], [16000.0, 0.4]], "interp": "loglog"},
         {"target": "string.t60",          "curve": t60_curve(), "interp": "loglog"},
-        {"target": "body_hp.cutoffFreq",  "curve": clamp2f_curve(LOWCUT), "interp": "loglog"},
+        # Matt (v7): highs still noisy. The Body HP clamps at ~336 Hz, so a
+        # C6/C7 keeps its whole 0-1.6 kHz chuff band UNDER the tone. Track
+        # ~0.7*f0 above 480 Hz — carves the noise out from beneath high
+        # notes; tone at/above f0 passes. (Taste departure from the clamp;
+        # his video never plays up there.)
+        {"target": "body_hp.cutoffFreq",  "curve": [[20.0, 48.4],
+            [138.5, 335.6], [480.0, 335.6], [16000.0, 11200.0]],
+         "interp": "loglog"},
+        # Matt (v7): "no brightness difference with velocity" — CONFIRMED
+        # bug: his crossfade interpolates SEMITONES 12..64 linearly, so the
+        # multiplier is 2^((12+52v)/12), exponential. The old 2-point
+        # vcurve interpolated the MULTIPLIER linearly: vel 0.3 gave 3.7 kHz
+        # (inaudible vs the 1.6 kHz excitation band) where his math gives
+        # 1.37 kHz (clearly darker). Sampled at v = 0,.2,.4,.6,.8,1.
         {"target": "vel_lp.cutoffFreq",   "curve": clamp2f_curve(),
-         "interp": "loglog", "vcurve": [[0.0, 2.0], [1.0, 40.3]]},  # +12..64 semis
+         "interp": "loglog", "vcurve": [[0.0, 2.0], [0.2, 3.65],
+            [0.4, 6.65], [0.6, 12.13], [0.8, 22.11], [1.0, 40.32]]},
         {"target": "final_1p.cutoffFreq", "curve": ident_curve(), "interp": "loglog"},
       ]
     }
@@ -179,7 +193,7 @@ PATCH = {
 def main():
     PDIR.mkdir(parents=True, exist_ok=True)
     RDIR.mkdir(parents=True, exist_ok=True)
-    name = "afp31_v7"
+    name = "afp31_v8"
     p2 = PDIR / (name + ".json")
     p2.write_text(json.dumps(PATCH, indent=2), encoding="utf-8")
     wav = RDIR / (name + ".wav")

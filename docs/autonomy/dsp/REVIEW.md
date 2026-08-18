@@ -100,6 +100,23 @@ note (t=32 s) to judge the tracking where it bites. If the top still
 reads noisy after this, the next suspects are the fixed 1.6 kHz
 excitation band itself (his Brightness knob — fidelity vs taste fork)
 and the reverb-bed strength.
+V8 (2026-08-18, Matt's v7 verdict: highs still too noisy + "no
+brightness difference with velocity, volume drops a bit too much"):
+**LISTEN afp31_v8.wav.** The velocity half was a CONFIRMED translation
+bug, not taste: his crossfade interpolates SEMITONES 12..64 linearly
+(multiplier = 2^((12+52v)/12), exponential); my 2-point vcurve
+interpolated the multiplier linearly, so vel 0.3 landed at 3.7 kHz —
+inaudible against the 1.6 kHz excitation band — where his math gives
+1.37 kHz. Measured: v7 hard/soft C4 spectra identical (his ear was
+right); v8 soft C4 clearly differs — the res-8 peak sits at 1.37 kHz
+(mid-focused "ivory whisper" color) vs 7.1 kHz on hard. Volume-vs-
+velocity is faithful (he multiplies excitation by velocity linearly,
+so do we) — re-judge loudness now that timbre works; if still too
+steep, an instrument velocity-gain curve is a small engine add.
+Highs: the Body HP clamped at ~336 Hz, so C6/C7 kept their whole
+0-1.6 kHz chuff band UNDER the tone; v8 tracks ~0.7*f0 above 480 Hz
+(taste departure from his clamp). Measured C7 first-300 ms
+chuff-to-tone: -9.2 -> -26.8 dB.
 
 ### 34. AFP excitation ladder — moves A+E [listen] (2026-08-15)
 renders/dsp/pending/ks_piano_v6/pb_exc_*.wav + README_pb_exc.md.
