@@ -64,8 +64,8 @@ PATCH = {
       {"id": "env_rev", "type": "Envelope",
        "params": {"timeMode": "seconds", "stages": REV_ENV}},
       {"id": "rev_amp", "type": "CombinedSource",
-       "params": {"source1": {"ref": "env_rev"}, "source2": 0.155,
-                   "operation": "multiply"}},
+       "params": {"source1": {"ref": "env_rev"}, "source2": 0.07,
+                   "operation": "multiply"}},  # file value 0.155; Matt: bed not subtle enough (-7 dB)
       {"id": "rev_noise", "type": "WhiteNoiseSource",
        "params": {"amplitude": {"ref": "rev_amp"}}},
       {"id": "rev_lp", "type": "SVFSource",
