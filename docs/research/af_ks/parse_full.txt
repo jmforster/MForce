@@ -1,0 +1,294 @@
+# swdesignerclipboard::20200430  (13091 bytes)
+# patch name: 20211206_9403
+[0] swmidinote       "Midi Note" 
+[1] SUBPATCH "String Resonator"  meta='{"elements":[]}\x00'
+  [0] swin             "In" 
+  [1] swout            "Out" 
+  [2] swin             "P" 
+  [3] swin             "Pos" 
+  [4] swdelay          "Delay" 
+  [5] swsub            "Sub" 
+  [6] swfilter1p       "Filter 1P" 
+  [7] swmul            "Mul" 
+  [8] swin             "Fb" 
+  [9] swin             "Dmp" 
+  [10] hz2pitch         "Hz->Pitch" 
+  [11] swdelay          "Delay 1" 
+  [12] swconnect        "Con" 
+  [13] swfilter1p       "Filter 1P 1" 
+  [14] swconnect        "Con 1" 
+  [15] swmul            "Mul 1" 
+  [16] swconnect        "Con 2" 
+  [17] swadd            "Add 1" 
+  [18] swmul            "Mul 2" 
+  [19] swneg            "Neg" 
+  [20] swadd            "Add" 
+  [21] swcrossfade      "Crossfade" 
+  [22] swin             "Invert" 
+  [23] pitch2ms         "Pitch->ms" 
+  [24] swconnect        "Con 3" 
+  [25] swconnect        "Con 4" 
+  [26] swconnect        "Con 5" 
+  [27] swsub            "Sub 1" 
+  [28] swsamplerate     "Sample Rate" 
+  [29] swsub            "Sub 2" 
+  [30] swconnect        "Con 6" 
+  [31] swmul            "Mul 3" 
+  [32] swconst          "B" 2
+    Out.O <- Filter 1P 1.L
+    Delay.In <- Add 1.+
+    Delay.D <- Sub 2.-
+    Sub.A <- Con 3.O
+    Sub.B <- Mul 2.x
+    Filter 1P.In <- Delay.Out
+    Filter 1P.P <- Hz->Pitch.P
+    Mul.A <- Filter 1P.L
+    Mul.B <- Fb.I
+    Hz->Pitch.F <- Dmp.I
+    Delay 1.In <- Add.+
+    Delay 1.D <- Con.O
+    Con.I <- Sub 1.-
+    Filter 1P 1.In <- Delay 1.Out
+    Filter 1P 1.P <- Con 1.O
+    Con 1.I <- Hz->Pitch.P
+    Mul 1.A <- Filter 1P 1.L
+    Mul 1.B <- Con 2.O
+    Con 2.I <- Fb.I
+    Add 1.A <- In.I
+    Add 1.B <- Con 4.O
+    Mul 2.A <- Con 3.O
+    Mul 2.B <- Pos.I
+    Neg.A <- Mul.x
+    Add.A <- In.I
+    Add.B <- Crossfade.=
+    Crossfade.A <- Mul.x
+    Crossfade.B <- Neg.-A
+    Crossfade.X <- Invert.I
+    Pitch->ms.P <- P.I
+    Con 3.I <- Pitch->ms.ms
+    Con 4.I <- Con 5.O
+    Con 5.I <- Mul 1.x
+    Sub 1.A <- Sub.-
+    Sub 1.B <- Con 6.O
+    Sub 2.A <- Mul 2.x
+    Sub 2.B <- Mul 3.x
+    Con 6.I <- Mul 3.x
+    Mul 3.A <- Sample Rate.Lng
+    Mul 3.B <- B.#
+[2] swsuperknob      "Pickup Position" 0 1 1 1 i-1 0 0
+[3] swsuperknob      "Decay" 0.95 1 1 0.96 i-1 0 0
+[4] swsuperknob      "Damp" 0 22000 1 0.945 i-1 0 0
+[5] swsuperknob      "Tubular" 0 1 1 0 i-1 i1 0
+[6] SUBPATCH "Exciter"  meta='{"elements":[]}\x00'
+  [0] swin             "In" 
+  [1] swnoise          "White Noise" 
+  [2] swenvfollow      "Env. follower" UNKNOWN-PAYLOAD[0B] 
+  [3] swin             "Stf" 
+  [4] swmul            "Mul" 
+  [5] swin             "V" 
+  [6] swmul            "Mul 1" 
+  [7] swabs            "Abs" 
+  [8] swfilter1p       "Filter 1P" 
+  [9] swin             "P" 
+  [10] swsub            "Sub" 
+  [11] swout            "Exc" 
+  [12] swmul            "Mul 2" 
+  [13] swenvfollow      "Env. follower 1" UNKNOWN-PAYLOAD[0B] 
+  [14] swconst          "A" 5
+  [15] swmul            "Mul 3" 
+  [16] swfiltersvfmodulated "Filter SVF Modulated" UNKNOWN-PAYLOAD[445B] i171127604 i1818567291 i1852140901 0.000619701 i1763867483 i574235236 i1651469931 i1869903171 i740451942 i1887007778 i574235237 i1651469931 i1663183906 i1635152501 i577074540 i808333370 i578497661 0.000619477 i1869507362 i1936020066 i1851879023 i740451683 i1887007778 i574235237 i1651469931 i1663183906 i1635152501 i577074540 i808333882 i578497661 0.000619477 i1869507362 777.178 i1948396578 i577073273 i1852514874 i740450927 i1920295714 i1970037110 i809116261 i746401838 i1684611707 i1797405218 i1298296686 i1700160623 i573317740 i1701869940 i1797405218 i576876398 i1969431084 i1818326642 0.000619493 i2100309552 i1763867436 i574235236 i1651469931 228.435 i1718580341 i573317734 i1701869940 i1797405218 i576876398 i1969431084 i1818326642 0.000619493 i2100309553 i1763867436 i574235236 i1651469931 i1382313805 i1852797797 i1701015137 i1948396578 i577073273 i1852514874 i740450927 i1920295714 i1970037110 i809116261 i746401838 i1684611707 i1931622946 i1701079404 i1702122354 i1701736549 i740455283 i1887007778 i574235237 i1684630643 i740455013 i1920295714 i1970037110 i809116261 i746401838 i1684611707 i1931622946 i1701079404 i1702122354 i1701736549 i1867346803 i573317732 i1701869940 i1931622946 i1701079404 i573317746 i1987212643 i1702194273 i774912546 i2103278896 i402652160 i1929378883
+  [17] swfiltersvfmodulated "Filter SVF Modulated 1" UNKNOWN-PAYLOAD[445B] i171127604 i1818567291 i1852140901 0.000619701 i1763867483 i574235236 i1651469931 i1869903171 i740451942 i1887007778 i574235237 i1651469931 i1663183906 i1635152501 i577074540 i808333370 i578497661 0.000619477 i1869507362 i1936020066 i1851879023 i740451683 i1887007778 i574235237 i1651469931 i1663183906 i1635152501 i577074540 i808333882 i578497661 0.000619477 i1869507362 777.178 i1948396578 i577073273 i1852514874 i740450927 i1920295714 i1970037110 i809116261 i746401838 i1684611707 i1797405218 i1298296686 i1700160623 i573317740 i1701869940 i1797405218 i576876398 i1969431084 i1818326642 0.000619493 i2100309552 i1763867436 i574235236 i1651469931 228.435 i1718580341 i573317734 i1701869940 i1797405218 i576876398 i1969431084 i1818326642 0.000619493 i2100309553 i1763867436 i574235236 i1651469931 i1382313805 i1852797797 i1701015137 i1948396578 i577073273 i1852514874 i740450927 i1920295714 i1970037110 i809116261 i746401838 i1684611707 i1931622946 i1701079404 i1702122354 i1701736549 i740455283 i1887007778 i574235237 i1684630643 i740455013 i1920295714 i1970037110 i809116261 i746401838 i1684611707 i1931622946 i1701079404 i1702122354 i1701736549 i1867346803 i573317732 i1701869940 i1931622946 i1701079404 i573317746 i1987212643 i1702194273 i774912546 i2103278896 i402653184 i1929380419
+  [18] swconnect        "Con" 
+  [19] swconnect        "Con 1" 
+  [20] swconnect        "Con 2" 
+  [21] swconnect        "Con 3" 
+    Env. follower.In <- Mul 2.x
+    Env. follower.R <- Mul.x
+    Mul.A <- Stf.I
+    Mul.B <- V.I
+    Mul 1.A <- Env. follower 1.E
+    Mul 1.B <- Abs.|A|
+    Abs.A <- White Noise.~
+    Filter 1P.In <- Con 2.O
+    Filter 1P.P <- Con 1.O
+    Sub.A <- Filter SVF Modulated 1.OLP
+    Sub.B <- Filter 1P.L
+    Exc.O <- Sub.-
+    Mul 2.A <- In.I
+    Mul 2.B <- Con 3.O
+    Env. follower 1.In <- Env. follower.E
+    Env. follower 1.A <- A.#
+    Mul 3.A <- P.I
+    Mul 3.B <- Con 3.O
+    Filter SVF Modulated.In <- Mul 1.x
+    Filter SVF Modulated.CM <- Mul 3.x
+    Filter SVF Modulated 1.In <- Filter SVF Modulated.OLP
+    Filter SVF Modulated 1.CM <- Con.O
+    Con.I <- P.I
+    Con 1.I <- Con.O
+    Con 2.I <- Mul 1.x
+    Con 3.I <- V.I
+[7] swsuperknob      "Stiffness" 1 200 1 0.425 i-1 0 0
+[8] SUBPATCH "Gate>Fb"  meta='{"elements":[]}\x00'
+  [0] swin             "G" 
+  [1] swin             "Fb " 
+  [2] swin             "Rel" 
+  [3] swmul            "Mul" 
+  [4] swsub            "Sub" 
+  [5] swconst          "A" 1
+  [6] swmul            "Mul 1" 
+  [7] swadd            "Add" 
+  [8] swout            "Fb" 
+    Mul.A <- G.I
+    Mul.B <- Fb .I
+    Sub.A <- A.#
+    Sub.B <- G.I
+    Mul 1.A <- Sub.-
+    Mul 1.B <- Rel.I
+    Add.A <- Mul 1.x
+    Add.B <- Mul.x
+    Fb.O <- Add.+
+[9] swsuperknob      "Release" 0.95 1 1 0.0850003 i-1 0 0
+[10] SUBPATCH "Strum"  meta='{"elements":[]}\x00'
+  [0] swin             "In" 
+  [1] swout            "Out" 
+  [2] swdelay          "Delay" 
+  [3] swpolyid         "Poly. ID" UNKNOWN-PAYLOAD[0B] 
+  [4] swin             "Dpt" 
+  [5] swmul            "Mul" 
+  [6] swmod            "Modulo" 
+  [7] swconst          "B" 6
+    Out.O <- Delay.Out
+    Delay.In <- In.I
+    Delay.D <- Mul.x
+    Mul.A <- Modulo.M
+    Mul.B <- Dpt.I
+    Modulo.A <- Poly. ID.ID
+    Modulo.B <- B.#
+[11] SUBPATCH "Filter"  meta='{"elements":[]}\x00'
+  [0] swin             "In" 
+  [1] swout            "Out" 
+  [2] swfilter1p       "Filter 1P" 
+  [3] swconst          "P" 70
+  [4] swsub            "Sub" 
+    Out.O <- Sub.-
+    Filter 1P.In <- In.I
+    Filter 1P.P <- P.#
+    Sub.A <- In.I
+    Sub.B <- Filter 1P.L
+[12] swsuperknob      "Strum depth" 0 16 1 0.205 i-1 0 0
+[13] swsuperknob      "P" 0 128 1 0.305351 i-1 0 0
+[14] swmul            "Mul 1" 
+[15] SUBPATCH "Body"  meta='{"elements":[]}\x00'
+  [0] swin             "In" 
+  [1] swout            "Out" 
+  [2] SUBPATCH "Filter"  meta='{"elements":[]}\x00'
+    [0] swfilter2p       "Filter 2P" 
+    [1] swconst          "R" 0.4
+    [2] swfilter2p       "Filter 2P 1" 
+    [3] swfilter2p       "Filter 2P 2" 
+    [4] swfilter2p       "Filter 2P 3" 
+    [5] swfilter2p       "Filter 2P 4" 
+    [6] swin             "In" 
+    [7] swadd8           "Add8" 
+    [8] swsub            "Sub" 
+    [9] swout            "-" 
+    [10] swconst          "P" 125.49
+    [11] swconst          "P 1" 91.2414
+    [12] swconst          "P 2" 83.3682
+    [13] swconst          "P 3" 55
+    [14] swconst          "P 4" 102
+      Filter 2P.In <- In.I
+      Filter 2P.P <- P 4.#
+      Filter 2P.R <- R.#
+      Filter 2P 1.In <- In.I
+      Filter 2P 1.P <- P 3.#
+      Filter 2P 1.R <- R.#
+      Filter 2P 2.In <- In.I
+      Filter 2P 2.P <- P 2.#
+      Filter 2P 2.R <- R.#
+      Filter 2P 3.In <- In.I
+      Filter 2P 3.P <- P 1.#
+      Filter 2P 3.R <- R.#
+      Filter 2P 4.In <- In.I
+      Filter 2P 4.P <- P.#
+      Filter 2P 4.R <- R.#
+      Add8.V1 <- Filter 2P.B
+      Add8.V2 <- Filter 2P 1.B
+      Add8.V3 <- Filter 2P 2.B
+      Add8.V4 <- Filter 2P 3.B
+      Add8.V5 <- Filter 2P 4.B
+      Sub.A <- In.I
+      Sub.B <- Add8.+
+      -.O <- Sub.-
+    Out.O <- Filter.-
+    Filter.In <- In.I
+[16] swcrossfade      "Crossfade" 
+[17] swsuperknob      "Direct / Body" 0 1 1 0.675 i-1 0 0
+[18] swenvfollow      "Env. follower" UNKNOWN-PAYLOAD[14B] i779513413 i1819239968 i1702326124
+[19] swsuperknob      "Glide Time" 0 150 1 0 i-1 0 0
+[20] swenvfollow      "Env. follower 1" UNKNOWN-PAYLOAD[16B] i779513413 i1819239968 i1702326124 i170991730
+[21] swadd            "Add" 
+[22] swsuperknob      "Random Slope" 0 80 1 0.95745 i-1 0 0
+[23] swmul            "Mul 2" 
+[24] swsuperknob      "Random Depth" 0 10 1 0.00775004 i-1 0 0
+[25] swrtadsr         "ADSR Modulated" UNKNOWN-PAYLOAD[47B] 0 0 0 0 0 0 0 0 i1381188673 i1685015840 i1952541813
+[26] swconnect        "Con" 
+[27] swconnect        "Con 1" 
+[28] swconnect        "Con 2" 
+[29] swgain           "Gain Lin" 1 0
+[30] swout            "O1" 
+[31] swout            "O2" 
+[32] swconnect        "Con 3" 
+[33] swlfo_multi      "LFO Multi" UNKNOWN-PAYLOAD[38B] 0 1 1 0 i4 0 0 i542066252 i1953264973
+[34] swrescalegui     "Re-scaler GUI" UNKNOWN-PAYLOAD[27B] i170920497 i825035313 i266 i761614848 i1818321779 41074.4
+[35] swenvfollow      "Env. follower 2" UNKNOWN-PAYLOAD[70B] i779513413 i1819239968 i1702326124 i171057266 i1668573552 i1936536168 i1668772618 0.000917158 i825242170 i825765945 i1766853177 i761815924 i175336766 431.909 465.8 i1668573520 i1832791400
+[36] swconst          "Fm" 4000
+[37]    String Resonator "Filter" 
+  ng Resonator.P <- Env. follower.E
+  String Resonator.Pos <- Pickup Position.V
+  String Resonator.Fb <- Gate>Fb.Fb
+  String Resonator.Dmp <- Con.O
+  String Resonator.Invert <- Tubular.V
+  Exciter.In <- Con 3.O
+  Exciter.Stf <- Stiffness.V
+  Exciter.V <- Con 1.O
+  Exciter.P <- P.V
+  Gate>Fb.G <- Midi Note.G
+  Gate>Fb.Fb  <- Decay.V
+  Gate>Fb.Rel <- Release.V
+  Strum.In <- Exciter.Exc
+  Strum.Dpt <- Strum depth.V
+  Filter.In <- Strum.Out
+  Mul 1.A <- Damp.V
+  Mul 1.B <- Con 1.O
+  Body.In <- String Resonator.Out
+  Crossfade.A <- String Resonator.Out
+  Crossfade.B <- Body.Out
+  Crossfade.X <- Direct / Body.V
+  Env. follower.In <- Add.+
+  Env. follower.A <- Glide Time.V
+  Env. follower.R <- Glide Time.V
+  Env. follower 1.In <- Env. follower 2.E
+  Env. follower 1.A <- Random Slope.V
+  Env. follower 1.R <- Random Slope.V
+  Add.A <- Midi Note.P
+  Add.B <- Mul 2.x
+  Mul 2.A <- Env. follower 1.E
+  Mul 2.B <- Random Depth.V
+  ADSR Modulated.G <- Midi Note.G
+  Con.I <- Mul 1.x
+  Con 1.I <- Con 2.O
+  Con 2.I <- Midi Note.V
+  Gain Lin.In1 <- Crossfade.=
+  Gain Lin.In2 <- Crossfade.=
+  O1.O <- Gain Lin.O1
+  O2.O <- Gain Lin.O2
+  Con 3.I <- ADSR Modulated.E
+  LFO Multi.Fm <- Fm.#
+  Re-scaler GUI.In <- LFO Multi.O
+  Env. follower 2.In <- Re-scaler GUI.Out
+  Env. follower 2.A <- Pitch->ms.ms
+  Env. follower 2.R <- Pitch->ms.ms
+  Pitch->ms.P <- LFO Multi.OF
+== done, leftover 0 bytes
