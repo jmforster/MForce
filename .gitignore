@@ -112,3 +112,5 @@ scores/scratch/
 Pre_crash.txt
 /*.PNG
 /*.png
+# purchased Alpha Forever plugin binaries - never commit
+research/AFF_plugin/
