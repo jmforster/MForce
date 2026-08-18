@@ -173,6 +173,25 @@ header shows just the type, no parentheses (name lives in the rename
 field). PENDING RELINK: mforce_ui.exe was running — close it and
 rebuild to get both tweaks + detune 7200 range.
 
+### 38. AF saxophone — source exhausted, build awaiting go [discuss] (2026-08-18)
+docs/research/af_sax/RECIPE.md: complete value table from the breakdown
+video (2560x1440 — every knob read; frames archived). Architecture:
+self-oscillating SVF as the tone source (gate rescales resonance to ~0),
+ADSR 10/731/0.19/6.2 as "air pressure", multiplicative breath
+y = x(1 + 0.1*noise*env), velocity-scaled legato glide (600->15 ms,
+first note instant), 5.8 Hz TRI vibrato FM'd by 1.3 Hz RND with 6 s
+fade-in, THE character = feedback delay loop at 2x period with
+AUDIO-RATE delay modulation (x(1 + 0.36*signal)), in-loop tanh + 1P
+damping (pitch+35 semis), loop gain crossfaded 0.5->1.16 by the
+expression "Power" follower whose ATTACK = f(velocity) 600->16 ms (the
+scoop). Body = stock reverb, size 0.06 decay 0.39 lp 8408 wet 1.0.
+Only 3 TUNEs remain (vibrato depth, SVF tap, tanh shape). BLOCKED on
+design go-ahead: needs a new ModDelayLoop node (audio-rate delay mod +
+in-loop tanh + gain>1) and a body strategy (mini reverb node vs skip).
+Reference audio af_sax_demo.wav (the played demo Matt prefers).
+BEST SOURCE: the actual patch file is on the AF Discord — grab when
+joining; parse_af_patch.py will decode it and settle the TUNEs.
+
 ### 37. afks_v1 — the "beautiful" AF KS patch, rebuilt from its file [listen] (2026-08-18)
 renders/dsp/pending/afks/afks_v1.wav; patch patches/pending/afks/
 afks_v1.json; generator tools/gen_afks.py; decoded source

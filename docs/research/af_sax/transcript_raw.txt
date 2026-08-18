@@ -1,0 +1,408 @@
+[  0:01] hi I've done a video lately where I
+[  0:04] played the patch uh that I built in
+[  0:06] Alpha forever which featured a saxophone
+[  0:10] sound and this is basically the same
+[  0:13] patch I was trying to record this video
+[  0:16] in a different way before and um yeah I
+[  0:19] didn't succeed and I don't want to
+[  0:21] restart it so I'm trying to do it live
+[  0:24] and trying to break down this patch live
+[  0:28] so if I play is you can hear that this
+[  0:31] is quite the same as in the previous
+[  0:35] video it sounds pretty acoustic and uh
+[  0:38] fine for me at least I don't know how a
+[  0:41] sexophone works at all so bear with me
+[  0:43] if you if you are a saxophone player
+[  0:45] then don't hate me please yeah let's
+[  0:47] disconnect this patch and uh try to
+[  0:50] rebuild the whole thing from the ground
+[  0:53] up so I create an output and I need the
+[  0:56] midi input for sure so I create a midi
+[  0:59] not node as well and uh the first thing
+[  1:01] that uh creates a sound is the adsr
+[  1:06] modulated and let me copy this settings
+[  1:08] from
+[  1:10] there so 700 milliseconds for the
+[  1:14] dec19 for sustain and uh 6.2
+[  1:17] milliseconds for
+[  1:19] release and uh I'm going to plug this
+[  1:22] into the stereo check so we can have a
+[  1:25] listen to an
+[  1:27] adsr it will sound not good
+[  1:33] good yeah it's um it's not good but uh
+[  1:38] this is simulating the air pressure so
+[  1:41] if you blow the instrument a air
+[  1:44] pressure is uh Rising inside the
+[  1:46] instrument so this is the idea behind
+[  1:49] this node I hope this makes sense and
+[  1:52] this is all that I know from from a
+[  1:56] saxophone and the second thing that you
+[  1:58] see is uh this uh filter here so I place
+[  2:02] the filter here use the P pass output
+[  2:06] and uh plugging the pitch into the C of
+[  2:11] mation and yeah if I crank down the
+[  2:14] resonance then you can hear that this
+[  2:17] is sign a s sound and if I release the
+[  2:20] key we have another
+[  2:25] click um so the idea is that we rescale
+[  2:30] the gate so that when the gate is high
+[  2:34] then we have a low value for this
+[  2:36] [Music]
+[  2:38] resonance um since
+[  2:41] the state variable
+[  2:44] filter s oscillates when when it's close
+[  2:47] to zero and we have a
+[  2:51] fairly high amount of resonance when the
+[  2:54] gate is
+[  2:55] low so now this will be a continuous
+[  2:58] sign so it sound
+[  3:03] and it is
+[  3:05] indeed uh the next thing we want to work
+[  3:07] on is the band so we have pit band here
+[  3:11] and I if I create the band note
+[  3:15] um yeah maybe it's not a good idea to
+[  3:19] have the original patch here so I create
+[  3:22] a designer for
+[  3:25] it and place it
+[  3:27] inside so if I need some help I can come
+[  3:32] back into this designer because this way
+[  3:34] the naming is getting
+[  3:37] Disturbed so for the pitch band I need
+[  3:40] an input for
+[  3:41] pitch and an input for the
+[  3:45] band and uh we simply add this
+[  3:49] together and the output is the um I call
+[  3:54] it V and I also want to Output the
+[  3:58] unmodified pitch
+[  4:01] um and the pit band range is in between
+[  4:04] minus one and one and I want to double
+[  4:07] it so that we move it into the range of
+[  4:11] minus 2 and two7 tons cuz that's what I
+[  4:14] like for pach
+[  4:15] band so pitch and bend and this can go
+[  4:20] into the cat of modulation and and now
+[  4:22] we can pitch
+[  4:26] band it
+[  4:28] works um
+[  4:30] and then we have
+[  4:32] Legato which is pretty important
+[  4:37] so we take the pitch and we take the
+[  4:41] gate and I think we also use the
+[  4:43] velocity so I'm not sure that it's like
+[  4:46] that but as far as I
+[  4:49] remember and we want to put an envelope
+[  4:51] follower on the
+[  4:53] pitch and delay the gate by to the
+[  4:56] previous
+[  4:58] sample and multiply the previous sample
+[  5:02] by the Legato
+[  5:07] amount and then this goes out and uh
+[  5:11] yeah I also want to out put the
+[  5:13] unmodified pitch here as
+[  5:15] well and um yeah the Legato amount is
+[  5:19] going to be depending on the
+[  5:22] velocity
+[  5:25] so I can put a custom function here
+[  5:29] and as far as I remember it's it's going
+[  5:31] to look like this and
+[  5:34] um if the velocity is low then we have
+[  5:37] want to have a longer
+[  5:40] um Legato so let's say then the output
+[  5:44] should be like 600 MCS and if it's high
+[  5:47] then
+[  5:49] 15 as far as I
+[  5:51] remember it should be like
+[  5:56] this and uh then the pitch can come here
+[  6:00] velocity can go there and gate can can
+[  6:03] come here and now we can plug in this
+[  6:05] once again into the cut off modulation
+[  6:07] and we can we can play we can play the
+[  6:10] [Music]
+[  6:17] Legato and it
+[  6:20] works I crank down the volume to minus
+[  6:23] 12 DP and I also test that on Lower
+[  6:28] velocities the leg to is
+[  6:30] [Music]
+[  6:38] longer it
+[  6:40] works um then we have
+[  6:47] vibr it will also need the pitch
+[  6:51] input and it will also need the velocity
+[  6:54] input and the
+[  6:57] gate so in the previous node maybe it's
+[  7:00] uh better to
+[  7:04] Output the
+[  7:08] gate no first the velocity then the
+[  7:15] gate so this way the patch won't
+[  7:19] be uh Spider
+[  7:23] Web
+[  7:25] hopefully so we can just go like this
+[  7:28] that pitch velocity and
+[  7:31] gate and uh yeah
+[  7:35] the is just adding to
+[  7:39] the pitch and the output is going to be
+[  7:43] like
+[  7:45] this and um yeah we want to put an
+[  7:50] envelope follow on the gate let's give
+[  7:52] it some attack like 6,000 milliseconds
+[  7:56] is six 6
+[  7:58] seconds and and then multiply the
+[  8:02] modulator by this
+[  8:05] value and here I'm going to use a
+[  8:08] triangle L
+[  8:10] 4 6
+[  8:15] Hertz and also moderate this LFO by a
+[  8:20] random LFO and I think it wasr
+[  8:25] here like
+[  8:28] this actually this should work it's
+[  8:31] better if this is bipolar so I double it
+[  8:36] double it and subtract from from the
+[  8:38] reset and sorry for sometimes I hit a
+[  8:41] key here on my keyboard I don't know
+[  8:45] where
+[  8:50] but my deck is not the most comfortable
+[  8:53] one and I don't need the velocity
+[  8:58] nice and this can go there once
+[  9:01] [Music]
+[  9:05] again and it works so we have the
+[  9:07] articulations
+[  9:09] ready and I think this is until now the
+[  9:12] same as
+[  9:14] before and we can add air to the sound
+[  9:18] which is just White Noise
+[  9:20] basically so I call this air and this
+[  9:24] will have an input of
+[  9:27] X and I'm going to multiply this by
+[  9:29] something and output
+[  9:32] by and that something is going to be
+[  9:34] white
+[  9:36] noise and uh it will be multiplied by
+[  9:39] the
+[  9:42] envelope like
+[  9:46] this and after the multiplication we
+[  9:49] need to add one to it sorry I forgot
+[  9:53] that because this way if the white noise
+[  9:56] in is in the range of one and minus one
+[  9:58] and we are add one to it then the whole
+[ 10:01] thing is going to be centered around one
+[ 10:04] and that way if we multiply we just add
+[ 10:06] noise to this signal without uh mixing
+[ 10:10] it properly so this way this way it's
+[ 10:13] like the noise is going to conform to
+[ 10:16] the envelope of the original signal if
+[ 10:18] this makes sense I hope it makes so we
+[ 10:22] can take the input and we can take the
+[ 10:23] envelopes output and pag this into the
+[ 10:27] output there
+[ 10:31] and obviously this is too
+[ 10:34] noisy so we need to multiply this by
+[ 10:38] some
+[ 10:40] scaler and I think
+[ 10:43] that1 is
+[ 10:47] [Music]
+[ 10:49] enough it works
+[ 10:51] okay but this is still just a sine
+[ 10:54] wave so let's create a resonator
+[ 11:02] and it will be a very basic resonator
+[ 11:04] actually so we take the input of X add
+[ 11:07] something to it and that's going to be
+[ 11:09] the output on
+[ 11:11] Y and uh we will just delay the
+[ 11:16] signal like
+[ 11:18] this multiply it by a coefficient and
+[ 11:21] plug it back to the input s basically
+[ 11:23] this is this is currently A Car Plus
+[ 11:25] strong patch we will have a delay time
+[ 11:28] we will have an input which we are going
+[ 11:30] to call power or p and we will have an
+[ 11:33] input called DMP for damping I just
+[ 11:36] create this so we have it um for the
+[ 11:39] time being we only use
+[ 11:42] the uh delay input and we are going to
+[ 11:45] make use of the power input which is
+[ 11:47] going to be the coefficient
+[ 11:50] here all right um what I also wanted to
+[ 11:57] do no that can come later so I just pug
+[ 12:01] in the air into the X and the output
+[ 12:04] goes straight into the
+[ 12:07] um
+[ 12:09] output and then we can take the original
+[ 12:13] pitch so the unmodified pitch from here
+[ 12:16] and convert it to
+[ 12:18] milliseconds and double it I found it
+[ 12:22] that doubling the length of the cycle
+[ 12:25] helps a
+[ 12:27] lot and the power is going to be the
+[ 12:30] envelope itself and since there's no
+[ 12:32] damping yet I'm not patching it in but I
+[ 12:34] think that it's going to be this once
+[ 12:36] again so it can go
+[ 12:39] [Music]
+[ 12:48] there
+[ 12:51] um maybe it's better to use
+[ 12:55] this
+[ 12:57] [Music]
+[ 13:03] yeah it's better all
+[ 13:06] right so I'm going to Output then let's
+[ 13:10] use the pitch with the with the vbr
+[ 13:12] sorry for the um messing
+[ 13:16] around we can use that for ding to and
+[ 13:18] then the patch is going to be cleaner
+[ 13:20] I'm I'm sure that this is not the way I
+[ 13:22] did the original pitch
+[ 13:24] but this the sound is not going to be
+[ 13:27] too different
+[ 13:28] [Music]
+[ 13:31] we just uh spare some
+[ 13:33] Creeks all right Next Step add some
+[ 13:37] nonlinearities because of these
+[ 13:38] instruments tend to be nonlinear so I
+[ 13:41] insert a 10h distorter here and another
+[ 13:44] one into the feedback
+[ 13:48] [Music]
+[ 13:55] loop this is quite um
+[ 13:59] so this is this is this sounds like a
+[ 14:01] flute now
+[ 14:02] so or something like a flute so let's
+[ 14:06] also introduce um
+[ 14:10] damping I put an filter one p one po
+[ 14:13] filter into the feedback loop that's
+[ 14:16] going to be our
+[ 14:18] damping and yeah I can already patch
+[ 14:21] this into the cut off
+[ 14:23] modulation crank up the CATE of
+[ 14:25] modulation this down to zero and
+[ 14:31] this is not not what we want
+[ 14:34] exactly because of we want to do
+[ 14:36] something really crazy
+[ 14:38] here we just add one to this uh
+[ 14:44] 10age and uh also put a again in in
+[ 14:48] front of it because if we want to scale
+[ 14:49] that signal later
+[ 14:52] on and we will multiply the delay time
+[ 14:54] with this so we are going to modulate
+[ 14:57] the uh um delay time with the audio
+[ 15:01] input
+[ 15:03] which which doesn't sound like that it
+[ 15:06] makes a lot of sense but it
+[ 15:08] [Music]
+[ 15:16] should and we can crank this
+[ 15:19] [Music]
+[ 15:26] down now the ding is a bit too
+[ 15:32] [Music]
+[ 15:40] much now we we are getting there so this
+[ 15:44] sounds like a brush instrument or
+[ 15:46] something like
+[ 15:48] [Music]
+[ 15:53] it
+[ 15:55] nice let's also add some
+[ 16:00] body to this and this is going to be the
+[ 16:02] magic part once again like in my string
+[ 16:06] video
+[ 16:08] um basically this is the same
+[ 16:12] trick X output one output
+[ 16:19] two and this is going to be the
+[ 16:22] resonance this is like this is going to
+[ 16:26] simulate the air while it's B bouncing
+[ 16:28] sing around inside the instrument so I
+[ 16:31] crank down the lp to 1,000 8,000 is
+[ 16:37] drive at on maximum the size to
+[ 16:40] something very small like this o6 and
+[ 16:43] the Decay to
+[ 16:47] [Music]
+[ 16:52] taste
+[ 16:55] done and uh basically this is the patch
+[ 17:00] itself there's one more thing that I've
+[ 17:03] done is to do some
+[ 17:06] expression and that requires a vstd
+[ 17:09] parameter that I call
+[ 17:12] expression and I'm using the first vstd
+[ 17:15] parameter and I can already control
+[ 17:19] it and uh yeah this will go into uh
+[ 17:23] Power
+[ 17:25] node where I take the input of the
+[ 17:30] expression I think I use the velocity
+[ 17:34] also and um what do I
+[ 17:39] use I have to I have to cheat I don't
+[ 17:43] remember
+[ 17:45] anymore so yeah expression by the
+[ 17:48] envelope and then the velocity I just
+[ 17:50] copy paste this part here because of
+[ 17:52] this is only the controller for the
+[ 17:55] attack time of the envelope follower
+[ 17:57] yeah I know
+[ 18:00] now
+[ 18:04] um so let's come back
+[ 18:08] here and we have the
+[ 18:11] expression we have the Velocity and we
+[ 18:13] have the envelope so let's create an
+[ 18:15] input for the envelope as
+[ 18:18] well and one for the
+[ 18:22] velocity and yeah
+[ 18:28] the velocity has a curve that was um so
+[ 18:32] I changed it to a curve that was uh fine
+[ 18:35] for my playing style I don't know if
+[ 18:37] this is right or not and I RC it to
+[ 18:42] 616 could have done it like this as well
+[ 18:45] and then there's no need for the res
+[ 18:47] scaler and I create an envelope for
+[ 18:50] modulated give it a bit of release
+[ 18:52] because of uh the parameter smoothing or
+[ 18:56] I don't know and multiply the expression
+[ 18:59] by the
+[ 19:01] envelope and that comes
+[ 19:07] here and the I modulate the attack time
+[ 19:11] using this value here and this is going
+[ 19:14] to be the
+[ 19:17] E and then I can plug in this to the
+[ 19:20] expression the envelope can go there and
+[ 19:23] the velocity can come
+[ 19:26] here like this
+[ 19:31] um I try to make the patch a bit clean
+[ 19:35] maybe I succeed maybe not so I PL plug
+[ 19:39] this into the
+[ 19:48] power something like
+[ 19:52] this it's not ideal but but somewhat
+[ 19:56] readable
+[ 19:58] yeah this way it's
+[ 20:01] better anyways
+[ 20:04] um I can move this to the yeah now it
+[ 20:08] looks better and uh we need to create
+[ 20:13] um we need to mod modify this part as
+[ 20:16] well so I create a cross feder cuz this
+[ 20:18] power is going to Crossfade in between
+[ 20:20] different
+[ 20:21] values and as far as I I remember I used
+[ 20:26] um the power of point5
+[ 20:29] when the power is low and so
+[ 20:33] 1.6 maybe if it's
+[ 20:35] high so this way if the expression is a
+[ 20:39] bit higher then the uh signal is
+[ 20:42] saturated a bit more than without it and
+[ 20:46] if the expression is low
+[ 20:48] then the signal is a bit um weaker
+[ 20:52] inside the feedback loop as well
+[ 20:58] the
+[ 21:01] [Music]
+[ 21:29] so yeah basically this is the
+[ 21:33] patch and this is how I made
+[ 21:36] it it's basically just a simple carus
+[ 21:39] strong patch with um that that works on
+[ 21:41] a sinusoid signal so it's um it's not
+[ 21:45] the carpus strong strong part which
+[ 21:47] creates the
+[ 21:48] resonances it just um modifies the sound
+[ 21:52] of the sine waves and uh the trick is to
+[ 21:56] modulate the delay time basically and it
+[ 21:59] it really creates a nice brush sound so
+[ 22:02] even without the
+[ 22:04] [Music]
+[ 22:08] body this is something that that's
+[ 22:12] usable um
+[ 22:15] yeah I hope this was interesting or
+[ 22:19] useful and
+[ 22:21] um if you like this kind of content then
+[ 22:24] subscribe leave a comment and share this
+[ 22:28] video or I don't know um you can
+[ 22:31] download this patch from our Discord
+[ 22:33] server and um yeah see you again next
+[ 22:37] time happy noing bye-bye
