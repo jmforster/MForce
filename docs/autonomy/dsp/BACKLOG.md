@@ -579,24 +579,48 @@ Priority order. Tags per WORKFLOW.md. (G1)-(G4) = GOALS.md Dipsy goals.
     pass 3. Escalation option if he wants one more: vibrato via the pitch-mod
     layer (coherent FM is the strongest partial-fusion cue there is).
 17. **[design/build] Revisit the UI live-audio serialize-to-temp-file round
-    trip** — Matt, 2026-08-13: "seems to work fine, and maybe it's the best
-    alternative, but has always seemed wonky." NO ACTION NOW — future item.
-    Current mechanism: every live keyboard note syncs the UI's in-memory
-    graph to a temp JSON, then loads it through the engine patch loader so
-    the CLI's voice-pool/paramMap/Multiplex machinery applies (the reason it
-    exists: guarantees UI audio == patch-on-disk audio, the RD
-    audition-path-mismatch lesson). Known costs: a full graph serialize +
-    parse + voice-pool build per note-on (load= was ~0.6-1.3 s on v6
-    patches — polyphony rebuilds the graph N times); and any UI-side
-    (de)serialization defect propagates into the AUDIO, which is how the
-    2026-08-13 damper-preset mangling became audible. When revisited,
-    candidates: loader entry point that accepts an in-memory json object
-    (kills the file, keeps the shared code path); caching the loaded
-    instrument until the graph is dirtied (kills the per-note rebuild);
-    or building the instrument directly from the UI node tree (fastest,
-    but re-opens the two-loaders drift problem the 2026-08-13 shared
-    dispatch just closed — needs a null-test harness comparing UI-built vs
-    loader-built renders before it can be trusted).
+    trip** — ✓ ADDRESSED 2026-08-18 (MIDI keyboard made the per-note lag
+    unignorable; Piano_bright measured load=466 ms per keypress). Landed:
+    candidate 2 — the loaded InstrumentPatch is cached in the UI and all
+    live notes go through its voicePool (the engine's own round-robin
+    polyphony), keyed on a graph-edit counter + listen tap; any edit
+    rebuilds once on the next note-on. The serialize→temp→shared-loader
+    route is retained as the cache BUILD path, so UI audio == patch-on-disk
+    audio still holds (RD audition-path-mismatch lesson). Companion pieces:
+    loader minPolyphony floor (UI passes 8), same-source voice stealing in
+    voice_schedule, slot-scoped envelope gating (gated_ survives prepare —
+    scheduled notes explicitly un-gate their slot). Remaining candidate if
+    the once-per-edit rebuild ever matters (slider drags pay it on the next
+    note): loader entry point accepting an in-memory json object (kills the
+    temp file, keeps the shared code path).
+
+18. **[build] MIDI input off the UI-frame cadence** — Matt 2026-08-18: not
+    critical (additive/KS CPU glitches dominate; UI-polling latency "least
+    of our worries"), queued for when live feel matters. Today pump_midi
+    drains RtMidi's queue once per UI frame → 0-16.7 ms jitter on top of
+    the ~11 ms audio-buffer floor (512 @ 48k). The move: trigger notes
+    directly on RtMidi's WinMM callback thread via setCallback instead of
+    polling. Prereqs now in place (instrument cache — note-on no longer
+    does disk I/O or touches UI-graph state on the fast path). Remaining
+    work is thread discipline: prepare_voice + voice_schedule_unlocked
+    under g_audioMutex from the MIDI thread is fine, but (a) last-note
+    display globals become atomics, (b) no transport_set_status from the
+    MIDI thread, (c) g_keyboard.duration read becomes atomic, (d) cache
+    invalid at note-on (just-edited graph) must fall back to queueing the
+    note for the UI thread to rebuild-then-play — worst case one
+    frame-latency note after an edit, then back to fast path. Do NOT drain
+    MIDI in the audio callback (Unity pattern): prepare inside the render
+    deadline risks underruns for zero latency win over the MIDI-thread
+    approach.
+
+19. **[build] hiBoost → explicit curve** — Matt 2026-08-18 (PerformSource
+    brainstorm): `PitchedInstrument.hiBoost` is a hidden loudness
+    compensation factor — `gain *= 1 + (log10(max(f,100))-2)*hiBoost` at
+    voice summing — a keytrack curve wearing a scalar's clothing. When
+    PerformSource lands (docs/perform_source_design.md), convert it to a
+    visible transfer-curve wiring (CurveNode from NoteState frequency into
+    the voice-gain path) so the last invisible per-note compensation
+    becomes patch data. Null-test the conversion like the paramMap flip.
 
 11. **[build] Two standing dirty patch files** — ✓ **SHRUNK run21**: the
     Python half of this item is GONE. `score_candidate.py` and
