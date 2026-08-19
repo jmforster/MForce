@@ -1,5 +1,6 @@
 #pragma once
 #include "mforce/core/dsp_value_source.h"
+#include "mforce/core/randomizer.h"
 #include <memory>
 #include <cmath>
 #include <algorithm>

@@ -5,6 +5,8 @@
 #include "mforce/core/range_source.h"
 #include "mforce/core/var_source.h"
 #include "mforce/core/curve_node.h"
+#include "mforce/render/perform_source.h"
+#include "mforce/source/combined_source.h"
 #include "mforce/core/envelope.h"
 #include "mforce/core/envelope_json.h"
 #include "mforce/render/instrument.h"
@@ -833,6 +835,170 @@ resolve_param_map(
 }
 
 // ---------------------------------------------------------------------------
+// Convert paramMap JSON into PerformSource bindings (perform_source_design.md
+// §5; replaces resolve_param_map as the runtime model — the JSON stays the
+// supported legacy authoring format, converted here at load).
+// Decision matrix per "frequency" entry:
+//   1. config target            -> PushBinding (isConfig, chain evaluated at
+//                                  note time, delivered via set_config)
+//   2. voice has topMultiplex   -> PushBinding for EVERY entry (clone fan
+//                                  keeps push semantics wholesale, bit-safe)
+//   3. no curve                 -> pin wired to the chain (bare freqOut, or
+//                                  the vcurve chain) + a BendSwap entry so
+//                                  the P1 PitchBendSource graft can swap the
+//                                  pin per note, exactly like the old path
+//                                  (which grafted every empty-curve slot,
+//                                  vcurve-only ones included)
+//   4. curve present            -> pin wired ONCE to the chain
+// Chain = freqOut [-> CurveNode(curve, LogX|LogLog)] [* CurveNode(vcurve,
+// Linear)(velOut)]; the multiply is CombinedSource Multiply with gainAdj 0
+// (exact: *1.0f). paramMap names other than "frequency" are parsed and
+// skipped with a warning — the old engine only ever consumed "frequency".
+// ---------------------------------------------------------------------------
+static void build_bindings(const json& paramMapJson, const GraphResult& g,
+                           PitchedInstrument::VoiceGraph& vg)
+{
+    auto make_chain = [&](const std::vector<std::pair<float, float>>& curve,
+                          const std::vector<std::pair<float, float>>& vcurve,
+                          bool loglog) -> std::shared_ptr<ValueSource> {
+        std::shared_ptr<ValueSource> chain = vg.freqOut;
+        if (!curve.empty()) {
+            auto cn = std::make_shared<CurveNode>();
+            cn->knots = curve;
+            cn->interp = loglog ? CurveNode::CurveInterp::LogLog
+                                : CurveNode::CurveInterp::LogX;
+            cn->set_param("source", vg.freqOut);
+            chain = cn;
+        }
+        if (!vcurve.empty()) {
+            auto vn = std::make_shared<CurveNode>();
+            vn->knots = vcurve;
+            vn->interp = CurveNode::CurveInterp::Linear;
+            vn->set_param("source", vg.velOut);
+            chain = std::make_shared<CombinedSource>(chain, vn,
+                                                     CombineOp::Multiply);
+        }
+        return chain;
+    };
+
+    auto bind_one = [&](const std::string& name, const std::string& target,
+                        std::vector<std::pair<float, float>> curve = {},
+                        std::vector<std::pair<float, float>> vcurve = {},
+                        bool loglog = false) {
+        if (name != "frequency") {
+            std::fprintf(stderr,
+                "[loader] paramMap name '%s' ignored (only \"frequency\" was "
+                "ever consumed; wire it in the graph post-PerformSource)\n",
+                name.c_str());
+            return;
+        }
+        std::string nodeId, paramName;
+        auto dot = target.find('.');
+        if (dot != std::string::npos) {
+            nodeId = target.substr(0, dot);
+            paramName = target.substr(dot + 1);
+        } else {
+            nodeId = target;
+            paramName = "frequency";  // default for backward compat
+        }
+        auto nodeIt = g.valueNodes.find(nodeId);
+        if (nodeIt == g.valueNodes.end())
+            throw std::runtime_error("paramMap: unknown node '" + nodeId + "'");
+
+        auto paramSrc = nodeIt->second->get_param(paramName);
+        if (paramSrc) {
+            auto cs = std::dynamic_pointer_cast<ConstantSource>(paramSrc);
+            if (!cs)
+                throw std::runtime_error("paramMap: '" + target +
+                    "' is not a ConstantSource (it's wired to a ref)");
+            auto chain = make_chain(curve, vcurve, loglog);
+            if (vg.topMultiplex) {
+                // Matrix case 2: push wholesale (clone fan).
+                PitchedInstrument::PushBinding b;
+                b.consumer = nodeIt->second;
+                b.paramName = paramName;
+                b.targetNodeId = nodeId;
+                b.chain = std::move(chain);
+                b.cs = cs;
+                vg.pushBindings.push_back(std::move(b));
+            } else {
+                // Matrix cases 3/4: wire the pin to the chain.
+                nodeIt->second->set_param(paramName, chain);
+                if (curve.empty()) {
+                    // Old graft membership: every empty-freq-curve entry.
+                    vg.bendSwaps.push_back({nodeIt->second, paramName, chain});
+                }
+            }
+            return;
+        }
+        // Config target (matrix case 1) — same scan as the old resolver.
+        for (const auto& desc : nodeIt->second->config_descriptors()) {
+            if (paramName == desc.name) {
+                PitchedInstrument::PushBinding b;
+                b.consumer = nodeIt->second;
+                b.paramName = paramName;
+                b.targetNodeId = nodeId;
+                b.chain = make_chain(curve, vcurve, loglog);
+                b.cs = nullptr;
+                b.isConfig = true;
+                vg.pushBindings.push_back(std::move(b));
+                return;
+            }
+        }
+        throw std::runtime_error("paramMap: cannot resolve '" + target +
+                                 "' (neither param nor config)");
+    };
+
+    auto bind_entry = [&](const std::string& name, const json& t) {
+        if (t.is_string()) { bind_one(name, t.get<std::string>()); return; }
+        if (t.is_object() && t.contains("target")) {
+            std::vector<std::pair<float, float>> curve;
+            if (t.contains("curve")) {
+                for (const auto& bp : t.at("curve"))
+                    curve.emplace_back(bp.at(0).get<float>(), bp.at(1).get<float>());
+                if (curve.size() < 2)
+                    throw std::runtime_error("paramMap: curve needs >= 2 breakpoints");
+            }
+            std::vector<std::pair<float, float>> vcurve;
+            if (t.contains("vcurve")) {
+                for (const auto& bp : t.at("vcurve"))
+                    vcurve.emplace_back(bp.at(0).get<float>(), bp.at(1).get<float>());
+                if (vcurve.size() < 2)
+                    throw std::runtime_error("paramMap: vcurve needs >= 2 breakpoints");
+            }
+            const bool loglog = t.value("interp", std::string()) == "loglog";
+            bind_one(name, t.at("target").get<std::string>(),
+                     std::move(curve), std::move(vcurve), loglog);
+            return;
+        }
+        throw std::runtime_error("paramMap: '" + name +
+            "' entries must be strings or {target, curve} objects");
+    };
+
+    for (auto& [name, targetJson] : paramMapJson.items()) {
+        if (targetJson.is_array()) {
+            for (const auto& t : targetJson) bind_entry(name, t);
+        } else {
+            bind_entry(name, targetJson);
+        }
+    }
+}
+
+// Build the per-voice performance objects, then convert the paramMap.
+// Shared by the two instrument-loading paths.
+static void attach_perform_source(const json& instJson, const GraphResult& g,
+                                  PitchedInstrument::VoiceGraph& vg)
+{
+    vg.performSource = std::make_shared<PerformSource>();
+    vg.freqOut = std::make_shared<PerformOut>(vg.performSource,
+                                              PerformOut::Field::Frequency);
+    vg.velOut  = std::make_shared<PerformOut>(vg.performSource,
+                                              PerformOut::Field::Velocity);
+    if (instJson.contains("paramMap"))
+        build_bindings(instJson["paramMap"], g, vg);
+}
+
+// ---------------------------------------------------------------------------
 // Patch loading
 // ---------------------------------------------------------------------------
 
@@ -896,9 +1062,8 @@ Patch load_patch_file(const std::string& path)
             // can fan paramMap changes into each clone.
             vg.topMultiplex = std::dynamic_pointer_cast<MultiplexSource>(vg.source);
 
-            // Resolve param map for this voice
-            if (instJson.contains("paramMap"))
-                vg.params = resolve_param_map(instJson["paramMap"], g, nodeMap);
+            // Per-voice PerformSource + converted paramMap bindings
+            attach_perform_source(instJson, g, vg);
 
             inst->voicePool.push_back(std::move(vg));
         }
@@ -1089,8 +1254,7 @@ InstrumentPatch load_instrument_patch(const std::string& path,
 
         vg.topMultiplex = std::dynamic_pointer_cast<MultiplexSource>(vg.source);
 
-        if (instJson.contains("paramMap"))
-            vg.params = resolve_param_map(instJson["paramMap"], g, nodeMap);
+        attach_perform_source(instJson, g, vg);
 
         inst->voicePool.push_back(std::move(vg));
     }

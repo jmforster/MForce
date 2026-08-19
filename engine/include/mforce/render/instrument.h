@@ -5,6 +5,7 @@
 #include "mforce/core/equal_temperament.h"
 #include "mforce/music/pitch_bend.h"
 #include "mforce/music/pitch_curve.h"
+#include "mforce/render/perform_source.h"
 #include "mforce/source/multiplex_source.h"
 #include <cstdio>
 #include <memory>
@@ -143,6 +144,21 @@ struct PitchedInstrument final : Instrument {
     }
   };
 
+  // A converted paramMap entry that must be PUSH-delivered at note time
+  // (perform_source_design.md §5): config targets (set_config rebuilds
+  // state at prepare — no pointer to pull) and every entry on a Multiplex
+  // voice (clone fan-out keeps push semantics wholesale, bit-safe).
+  // `chain` is the transfer chain rooted at the voice's PerformOut
+  // adapters; evaluated once per note at Realization/Setup.
+  struct PushBinding {
+    std::shared_ptr<ValueSource>     consumer;
+    std::string                      paramName;
+    std::string                      targetNodeId;  // Multiplex clone fan
+    std::shared_ptr<ValueSource>     chain;
+    std::shared_ptr<ConstantSource>  cs;            // non-config delivery
+    bool                             isConfig{false};
+  };
+
   struct VoiceGraph {
     std::shared_ptr<ValueSource> source;
     // One logical paramMap name (e.g. "frequency") can target multiple graph
@@ -154,11 +170,56 @@ struct PitchedInstrument final : Instrument {
     // into its clones. Captured at voice-pool build time by casting
     // `source`. Null for non-Multiplex voices — fan-out is a no-op.
     std::shared_ptr<MultiplexSource> topMultiplex;
+
+    // --- PerformSource bindings (P1 conversion; ParamSlot path retires
+    // once these are the only model — plan_perform_source_p1.md T7) ---
+    std::shared_ptr<PerformSource> performSource;
+    std::shared_ptr<ValueSource>   freqOut, velOut;   // shared leaf adapters
+    std::vector<PushBinding>       pushBindings;
+    // Bend-graft swap targets (P1 keeps the legacy PitchBendSource graft;
+    // P3 retires it): exactly the entries the old path grafted — those with
+    // an empty freq-curve, INCLUDING vcurve-only entries (whose velocity
+    // multiplier the old graft dropped for the bent note; preserved
+    // verbatim). `restore` is what the pin holds on non-bent notes: the
+    // bare freqOut, or the vcurve chain.
+    struct BendSwap {
+      std::shared_ptr<ValueSource> consumer;
+      std::string                  paramName;
+      std::shared_ptr<ValueSource> restore;
+    };
+    std::vector<BendSwap> bendSwaps;
   };
 
   float hiBoost{0.0f};
   std::vector<VoiceGraph> voicePool;
   int nextVoice{0};
+
+  // Live-voice slot accounting (legacy SourcePool semantics restored
+  // 2026-08-18): acquire hands out an idle slot rotating from nextVoice,
+  // release returns it to the pool when the voice stops sounding. Live
+  // callers (mforce_ui) own the sounding/steal policy and serialize these
+  // under their audio mutex — not internally synchronized. The scheduled
+  // path (play_note / prepare_voice) doesn't participate: overlap there is
+  // fixed by score timing, blind round-robin suffices.
+  std::vector<uint8_t> slotInUse;
+  int acquire_voice() {
+    int n = int(voicePool.size());
+    if (n == 0) return -1;
+    if (int(slotInUse.size()) != n) slotInUse.assign(size_t(n), 0);
+    for (int k = 0; k < n; ++k) {
+      int s = (nextVoice + k) % n;
+      if (!slotInUse[s]) {
+        slotInUse[s] = 1;
+        nextVoice = s + 1;   // rotation freshness for the next acquire
+        return s;
+      }
+    }
+    return -1;   // every slot sounding — caller picks a steal victim
+  }
+  void release_voice(int slot) {
+    if (slot >= 0 && slot < int(slotInUse.size())) slotInUse[slot] = 0;
+  }
+  void release_all_voices() { slotInUse.assign(voicePool.size(), 0); }
 
   // Streaming-mode handoff: same set-frequency + prepare logic as play_note,
   // but returns the prepared voice source instead of rendering immediately.
@@ -176,33 +237,59 @@ struct PitchedInstrument final : Instrument {
 
   StreamingVoice prepare_voice(float noteNumber, float velocity, float duration,
                                const PitchCurve* curve = nullptr) {
-    auto& vg = voicePool[nextVoice % voicePool.size()];
+    int slot = int(nextVoice % int(voicePool.size()));
     nextVoice++;
+    return prepare_voice_at(slot, noteNumber, velocity, duration, curve);
+  }
+
+  // Slot-explicit variant: callers that know which pool slots are still
+  // sounding (mforce_ui's live keyboard) pick a genuinely free slot instead
+  // of trusting the blind round-robin — which happily wraps onto a held
+  // note's slot while idle slots sit in between (2026-08-18: a held note +
+  // poolSize staccato notes cut the held note). Does not advance nextVoice;
+  // slot-aware callers manage their own rotation.
+  // Realization/Setup delivery (perform_source_design.md §5): one NoteState
+  // write, push-binding evaluation (configs + Multiplex fans), and the P1
+  // bend graft on the swap targets. Push deliveries happen BEFORE
+  // vg.source->prepare — configs rebuild per-note state there.
+  void apply_note_bindings(VoiceGraph& vg, float freq, float velocity,
+                           int durSamples, const PitchCurve* curve) {
+    if (vg.performSource)
+      vg.performSource->set_note(freq, velocity, durSamples);
+
+    for (auto& b : vg.pushBindings) {
+      b.chain->next();
+      float v = b.chain->current();
+      if (b.isConfig) {
+        b.consumer->set_config(b.paramName, v);
+      } else {
+        b.cs->set(v);
+        b.consumer->set_param(b.paramName, b.cs);
+        if (vg.topMultiplex && !b.targetNodeId.empty())
+          vg.topMultiplex->set_clone_param(b.targetNodeId, b.paramName, v);
+      }
+    }
+
+    if (curve) {
+      auto env = compile_pitch_curve(*curve, sampleRate);
+      auto pbs = std::make_shared<PitchBendSource>(freq, std::move(env));
+      for (auto& bs : vg.bendSwaps)
+        bs.consumer->set_param(bs.paramName, pbs);
+    } else {
+      for (auto& bs : vg.bendSwaps)
+        bs.consumer->set_param(bs.paramName, bs.restore);
+    }
+  }
+
+  StreamingVoice prepare_voice_at(int slot, float noteNumber, float velocity,
+                                  float duration,
+                                  const PitchCurve* curve = nullptr) {
+    auto& vg = voicePool[slot];
 
     float freq = note_to_freq(noteNumber);
     int durSamples = int(duration * float(sampleRate));
 
-    auto it = vg.params.find("frequency");
-    if (it != vg.params.end()) {
-      for (auto& slot : it->second) {
-        if (slot.isConfig) {
-          // Frequency-driven config (e.g. residue curves): mapped scalar via
-          // set_config, applied before prepare so per-note state rebuilds.
-          slot.consumer->set_config(slot.paramName, slot.map(freq) * slot.vmap(velocity));
-        } else if (curve && slot.curve.empty()) {
-          auto env = compile_pitch_curve(*curve, sampleRate);
-          auto pbs = std::make_shared<PitchBendSource>(freq, std::move(env));
-          slot.consumer->set_param(slot.paramName, pbs);
-        } else {
-          float v = slot.map(freq) * slot.vmap(velocity);
-          slot.originalCS->set(v);
-          slot.consumer->set_param(slot.paramName, slot.originalCS);
-          if (vg.topMultiplex && !slot.targetNodeId.empty()) {
-            vg.topMultiplex->set_clone_param(slot.targetNodeId, slot.paramName, v);
-          }
-        }
-      }
-    }
+    apply_note_bindings(vg, freq, velocity, durSamples, curve);
 
     float boost = hiBoost > 0.0f
         ? (std::log10(std::max(freq, 100.0f)) - 2.0f) * hiBoost
@@ -223,37 +310,7 @@ struct PitchedInstrument final : Instrument {
     float freq = note_to_freq(noteNumber);
     int durSamples = int(duration * float(sampleRate));
 
-    auto it = vg.params.find("frequency");
-    if (it != vg.params.end()) {
-      for (auto& slot : it->second) {
-        if (slot.isConfig) {
-          // Frequency-driven config (e.g. residue curves): mapped scalar via
-          // set_config, applied before prepare so per-note state rebuilds.
-          slot.consumer->set_config(slot.paramName, slot.map(freq) * slot.vmap(velocity));
-        } else if (curve && slot.curve.empty()) {
-          // Build an Envelope from the curve, wrap in a PitchBendSource that
-          // emits baseHz * 2^(semi/12), and plug it into the consumer's param
-          // edge — replacing the nominal ConstantSource for this note.
-          // Curved slots are excluded: they carry a mapped scalar, not the
-          // frequency itself, so pitch bend doesn't apply.
-          auto env = compile_pitch_curve(*curve, sampleRate);
-          auto pbs = std::make_shared<PitchBendSource>(freq, std::move(env));
-          slot.consumer->set_param(slot.paramName, pbs);
-        } else {
-          // Plain note: set the nominal (or curve-mapped) value and restore
-          // the edge to the original ConstantSource (idempotent if already
-          // restored).
-          float v = slot.map(freq) * slot.vmap(velocity);
-          slot.originalCS->set(v);
-          slot.consumer->set_param(slot.paramName, slot.originalCS);
-          // Fan out to Multiplex clones so each internal copy retunes too.
-          // No-op when the voice's output isn't a Multiplex.
-          if (vg.topMultiplex && !slot.targetNodeId.empty()) {
-            vg.topMultiplex->set_clone_param(slot.targetNodeId, slot.paramName, v);
-          }
-        }
-      }
-    }
+    apply_note_bindings(vg, freq, velocity, durSamples, curve);
 
     // Frequency-dependent brightness compensation
     float boost = hiBoost > 0.0f
