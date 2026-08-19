@@ -89,6 +89,15 @@ struct Envelope : ValueSource {
   float timeScale_{1.0f};
   float ramp_accuracy{1.0f};
 
+  // Output range mapping (PerformSource P1, perform_source_design.md §2.4):
+  // returned value = lo + (hi - lo) * raw, raw being the 0..1-domain stage
+  // value. Null = 0/1 = identity (bit-compatible). Pullable params per the
+  // credo — velocity→maxValue is the garden velocity wiring once
+  // PerformSource lands. ALL internal state (gate anchor, sustain rewrite)
+  // stays in the raw domain; only next()/current() report mapped values.
+  std::shared_ptr<ValueSource> minValue_;
+  std::shared_ptr<ValueSource> maxValue_;
+
   // Stage-timing semantics (2026-08-06, piano-chuff fix). Default false:
   // Stage.percent is a FRACTION of note duration, clamped to
   // [minSec, maxSec] — the semantics every pre-existing patch was authored
@@ -236,7 +245,26 @@ struct Envelope : ValueSource {
     if (i >= 0 && i < int(stages_.size())) stages_.erase(stages_.begin() + i);
   }
 
+  std::span<const ParamDescriptor> param_descriptors() const override {
+    static constexpr ParamDescriptor descs[] = {
+      {"minValue", 0.0f, -100000.0f, 100000.0f},
+      {"maxValue", 1.0f, -100000.0f, 100000.0f},
+    };
+    return descs;
+  }
+  void set_param(std::string_view name, std::shared_ptr<ValueSource> src) override {
+    if (name == "minValue") { minValue_ = std::move(src); return; }
+    if (name == "maxValue") { maxValue_ = std::move(src); return; }
+  }
+  std::shared_ptr<ValueSource> get_param(std::string_view name) const override {
+    if (name == "minValue") return minValue_;
+    if (name == "maxValue") return maxValue_;
+    return nullptr;
+  }
+
   void prepare(const RenderContext& ctx, int frames) override {
+    if (minValue_) minValue_->prepare(ctx, frames);
+    if (maxValue_) maxValue_->prepare(ctx, frames);
     totalFrames_ = frames;
     // Note-contained sound (2026-08-13): stages lay out over the layout
     // window; the trailing allowance stays programmatically silent so
@@ -305,6 +333,22 @@ struct Envelope : ValueSource {
   }
 
   float next() override {
+    float raw = next_raw_();
+    if (minValue_ || maxValue_) {
+      if (minValue_) minValue_->next();
+      if (maxValue_) maxValue_->next();
+      const float lo = minValue_ ? minValue_->current() : 0.0f;
+      const float hi = maxValue_ ? maxValue_->current() : 1.0f;
+      mapped_ = lo + (hi - lo) * raw;
+    } else {
+      mapped_ = raw;
+    }
+    return mapped_;
+  }
+
+  // Raw 0..1-domain stage evaluation. cur_ and the gate anchor live HERE,
+  // in the raw domain — the range mapping applies strictly on the way out.
+  float next_raw_() {
     // Pre-prepare safety: stageCounts_ is sized in prepare(); without it,
     // stageCounts_[currStage_] indexes a null buffer. Reachable when UI
     // display paths (e.g. draw_formant_strip) cascade next() through a
@@ -361,7 +405,7 @@ struct Envelope : ValueSource {
     return cur_;
   }
 
-  float current() const override { return cur_; }
+  float current() const override { return mapped_; }
 
   // ----- Preset factories -----
 
@@ -445,7 +489,8 @@ private:
   int currStage_{0};
   int stageStart_{0};
   int stageEnd_{0};
-  float cur_{0.0f};
+  float cur_{0.0f};      // raw 0..1-domain stage value (gate anchor domain)
+  float mapped_{0.0f};   // range-mapped output — what next()/current() report
   std::vector<Stage> stages_;
   // True when stages were built by make_adsr — the fixed 4-stage layout that
   // sustainLevel set_config knows how to rewrite.
