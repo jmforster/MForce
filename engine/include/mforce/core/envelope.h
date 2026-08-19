@@ -72,6 +72,13 @@ struct Envelope : ValueSource {
     float percent{0.0f};  // fraction of total duration; 0 = expand to fill
     float minSec{0.0f};
     float maxSec{0.0f};
+    // Live-mode stage length in seconds (perform_source_design.md §2.4):
+    // when gated AND nominal > 0, the stage lays out as `nominal` seconds
+    // (then the ordinary minSec/maxSec clamp applies) instead of resolving
+    // percent against the caller's nominal note duration — live envelope
+    // behavior becomes patch-intrinsic, the UI Duration spinner demotes to
+    // override. 0 = unset (all existing patches; behavior unchanged).
+    float nominal{0.0f};
   };
 
   explicit Envelope(int sampleRate) : sampleRate_(sampleRate) {}
@@ -296,6 +303,11 @@ struct Envelope : ValueSource {
 
       float stgDur = absolute_time ? stages_[i].percent          // literal seconds
                                    : duration * stages_[i].percent;
+      // Gated (live) notes: a stage with an authored nominal takes that
+      // length outright — patch-intrinsic live layout (§2.4). The expand
+      // stage (percent == 0) never reaches here.
+      if (gated_ && stages_[i].nominal > 0.0f)
+        stgDur = stages_[i].nominal;
       stgDur *= timeScale_;
       // Apply stage_accuracy: multiply by a random factor in [stage_accuracy, 1]
       // so multiplex clones get jittered ramp lengths. No-op when == 1.

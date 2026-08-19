@@ -346,6 +346,7 @@ static GraphResult build_graph(
                     s.percent = sj.value("percent", 0.0f);
                     s.minSec  = sj.value("minSec",  0.0f);
                     s.maxSec  = sj.value("maxSec",  0.0f);
+                    s.nominal = sj.value("nominal", 0.0f);
                     env->add_stage(s);
                 }
                 // Pick up multiplex-injected seed and any accuracy configs.
