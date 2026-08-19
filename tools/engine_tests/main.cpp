@@ -78,9 +78,65 @@ static void run_envelope_range_tests() {
     CHECK(e1->get_param("maxValue") == nullptr);
 }
 
+static void run_stage_nominal_tests() {
+    RenderContext ctx{48000};
+    auto env = std::make_shared<Envelope>(48000);
+    // 0->1 attack with nominal 0.25 s (percent tiny), then gated expand hold.
+    Envelope::Stage a{{0.0f, 1.0f, RampType::Linear, 0.0f}, 0.001f, 0.0f, 0.0f};
+    a.nominal = 0.25f;
+    env->add_stage(a);
+    env->add_stage({{1.0f, 1.0f, RampType::Linear, 0.0f}, 0.0f, 0.0f, 0.0f});
+    env->set_gated(true);
+    env->prepare(ctx, 48000);  // nominal note duration 1 s
+    // Nominal honored: attack = 12000 samples; value at sample 6000 ~ 0.5.
+    // Without nominal the 0.001-pct attack finishes in ~48 samples.
+    float v = 0; for (int i = 0; i < 6000; ++i) v = env->next();
+    CHECK(v > 0.3f && v < 0.7f);
+
+    // NOT gated: nominal ignored, tiny attack — value ~1.0 by sample 6000.
+    auto env2 = std::make_shared<Envelope>(48000);
+    Envelope::Stage a2{{0.0f, 1.0f, RampType::Linear, 0.0f}, 0.001f, 0.0f, 0.0f};
+    a2.nominal = 0.25f;
+    env2->add_stage(a2);
+    env2->add_stage({{1.0f, 1.0f, RampType::Linear, 0.0f}, 0.0f, 0.0f, 0.0f});
+    env2->prepare(ctx, 48000);
+    float v2 = 0; for (int i = 0; i < 6000; ++i) v2 = env2->next();
+    CHECK_NEAR(v2, 1.0f, 1e-3f);
+}
+
+#include "mforce/render/perform_source.h"
+
+static void run_perform_source_tests() {
+    auto ps = std::make_shared<PerformSource>();
+    ps->set_note(220.0f, 0.9f, 48000);
+    PerformOut f(ps, PerformOut::Field::Frequency);
+    PerformOut v(ps, PerformOut::Field::Velocity);
+    f.next(); v.next();
+    CHECK_NEAR(f.current(), 220.0f, 1e-6f);
+    CHECK_NEAR(v.current(), 0.9f, 1e-6f);
+    ps->set_note(440.0f, 0.5f, 24000);      // re-strike: adapters follow
+    f.next(); v.next();
+    CHECK_NEAR(f.current(), 440.0f, 1e-6f);
+    CHECK_NEAR(v.current(), 0.5f, 1e-6f);
+    CHECK(ps->note().durSamples == 24000);
+
+    // Chain: PerformOut freq -> LogX CurveNode, re-evaluates on re-strike
+    auto fo = std::make_shared<PerformOut>(ps, PerformOut::Field::Frequency);
+    CurveNode cn; cn.interp = CurveNode::CurveInterp::LogX;
+    cn.knots = {{100.0f, 0.0f}, {10000.0f, 2.0f}};
+    cn.set_param("source", fo);
+    cn.next();
+    CHECK_NEAR(cn.current(), cn.map(440.0f), 1e-6f);
+    ps->set_note(1000.0f, 0.5f, 24000);
+    cn.next();
+    CHECK_NEAR(cn.current(), 1.0f, 1e-4f);
+}
+
 int main() {
     run_curve_node_tests();
     run_envelope_range_tests();
+    run_stage_nominal_tests();
+    run_perform_source_tests();
     if (g_fails) { std::printf("%d/%d FAILED\n", g_fails, g_checks); return 1; }
     std::printf("ALL PASS (%d checks)\n", g_checks);
     return 0;
