@@ -4,6 +4,7 @@
 #include "mforce/core/dsp_wave_source.h"
 #include "mforce/core/range_source.h"
 #include "mforce/core/var_source.h"
+#include "mforce/core/curve_node.h"
 #include "mforce/core/envelope.h"
 #include "mforce/core/envelope_json.h"
 #include "mforce/render/instrument.h"
@@ -365,6 +366,22 @@ static GraphResult build_graph(
                 valueNodes[id] = std::make_shared<Envelope>(
                     envelope_from_preset_json(p, sampleRate));
             }
+        }
+        else if (type == "CurveNode") {
+            auto cn = std::make_shared<CurveNode>();
+            if (pp) {
+                const auto& p = *pp;
+                if (p.contains("knots"))
+                    for (const auto& k : p["knots"])
+                        cn->knots.emplace_back(k.at(0).get<float>(),
+                                               k.at(1).get<float>());
+                const std::string in = p.value("interp", std::string("linear"));
+                cn->interp = in == "loglog" ? CurveNode::CurveInterp::LogLog
+                           : in == "logx"   ? CurveNode::CurveInterp::LogX
+                           :                  CurveNode::CurveInterp::Linear;
+            }
+            // "source" wires through the generic param pass like any node.
+            valueNodes[id] = cn;
         }
         else if (type == "SegmentSource") {
             std::vector<float> values;
@@ -1028,7 +1045,8 @@ Patch load_patch_file(const std::string& path)
 // Load just the Instrument (no score, no mixer) for external use
 // ---------------------------------------------------------------------------
 
-InstrumentPatch load_instrument_patch(const std::string& path)
+InstrumentPatch load_instrument_patch(const std::string& path,
+                                      int minPolyphony)
 {
     json root = json::parse(slurp(path));
 
@@ -1050,7 +1068,7 @@ InstrumentPatch load_instrument_patch(const std::string& path)
     }
 
     const auto& instJson = root["instrument"];
-    int polyphony = instJson.value("polyphony", 4);
+    int polyphony = std::max(instJson.value("polyphony", 4), minPolyphony);
 
     auto inst = std::make_unique<PitchedInstrument>();
     inst->sampleRate = sampleRate;

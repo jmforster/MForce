@@ -29,6 +29,7 @@
 #include "mforce/source/wave_evolution.h"
 #include "mforce/core/var_source.h"
 #include "mforce/core/range_source.h"
+#include "mforce/core/curve_node.h"
 #include "mforce/core/envelope.h"
 #include "mforce/core/envelope_presets.h"
 #include "mforce/core/multi_source.h"
@@ -181,6 +182,9 @@ void register_all_sources() {
                 std::make_shared<ConstantSource>(1.0f),
                 std::make_shared<ConstantSource>(0.0f), true);
         });
+
+    reg.register_type("CurveNode", SourceCategory::Modulator,
+        [](int, auto) { return std::make_shared<CurveNode>(); });
 
     // -----------------------------------------------------------------------
     // Envelope
