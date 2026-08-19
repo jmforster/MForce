@@ -34,6 +34,12 @@ set(RTAUDIO_BUILD_PYTHON      OFF CACHE BOOL "" FORCE)
 set(RTAUDIO_STATIC_MSVCRT     OFF CACHE BOOL "" FORCE)
 add_subdirectory(engine/third_party/rtaudio)
 
+# RtMidi — MIDI keyboard input for mforce_ui. Static lib, WinMM on Windows
+# (default), no tests.
+set(RTMIDI_BUILD_STATIC_LIBS ON  CACHE BOOL "" FORCE)
+set(RTMIDI_BUILD_TESTING     OFF CACHE BOOL "" FORCE)
+add_subdirectory(engine/third_party/rtmidi)
+
 add_subdirectory(engine)
 add_subdirectory(tools/mforce_cli)
 add_subdirectory(tools/mforce_keys)
@@ -42,3 +48,4 @@ add_subdirectory(tools/durn_converter)
 add_subdirectory(tools/test_figures)
 add_subdirectory(tools/ppl_to_json)
 add_subdirectory(tools/stamp_test)
+add_subdirectory(tools/engine_tests)
