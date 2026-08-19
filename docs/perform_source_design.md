@@ -392,11 +392,17 @@ wires `PerformNode.pressure` either way.
 
 - **P0** — this spec. ✓ (naming settled: PerformSource/PerformNode,
   NoteState/InstrumentState, Realization[Setup|Rendering].)
-- **P1 (engine, baked)** — PerformSource + NoteState/InstrumentState;
-  CurveNode; Envelope minValue/maxValue + Stage.nominal; loader
-  load-conversion of paramMap; ParamSlot retirement; **null-test gate over
-  the whole library** (Multiplex line item; Piano_bright is the stress
-  case — 9 mappings, vcurves, config targets).
+- **P1 (engine, baked)** — ✓ **LANDED 2026-08-18** (commits dfd6f1f..07bbbc2,
+  plan_perform_source_p1.md executed inline). PerformSource + NoteState +
+  PerformOut adapters; CurveNode (3 interp modes — note: the default
+  paramMap curve interp is LogX, value-linear-over-log-x, so CurveNode has
+  Linear|LogX|LogLog, a refinement over this spec's linear|loglog);
+  Envelope minValue/maxValue + Stage.nominal; paramMap load-conversion
+  (build_bindings: wire/push/bend-swap matrix, Multiplex voices push
+  wholesale); ParamSlot machinery deleted. **Null gate: 196/196
+  bit-identical** after both conversion and retirement, incl. all 7
+  Multiplex patches and the 4 bend/slide baselines. InstrumentState
+  deferred to P3 (YAGNI — first consumer is the wheel).
 - **P2 (UI)** — PerformNode, CurveNode knot editor, Curves tab + Mappings
   dialog as derived views, save emits wiring format.
 - **P3 (liveness, pulled params only)** — articulated `.frequency`

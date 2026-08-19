@@ -613,6 +613,16 @@ Priority order. Tags per WORKFLOW.md. (G1)-(G4) = GOALS.md Dipsy goals.
     deadline risks underruns for zero latency win over the MIDI-thread
     approach.
 
+20. **[build] PerformSource P2 (UI) is next** — P1 LANDED 2026-08-18
+    null-gated 196/196 (perform_source_design.md §7). P2 = PerformNode +
+    CurveNode knot editor + Curves tab/Mappings dialog as derived views +
+    save emits wiring format. Note for P2: UI re-save of patches using the
+    new Envelope fields (minValue/maxValue/nominal) will DROP them until
+    the UI serializer learns them — don't hand-author those fields into
+    library patches before P2. Also pending: mforce_keys is broken against
+    the post-ParamSlot engine API (pre-existing breakage, now different
+    first error) — fix or retire, Matt's call.
+
 19. **[build] hiBoost → explicit curve** — Matt 2026-08-18 (PerformSource
     brainstorm): `PitchedInstrument.hiBoost` is a hidden loudness
     compensation factor — `gain *= 1 + (log10(max(f,100))-2)*hiBoost` at
