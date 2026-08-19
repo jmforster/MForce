@@ -75,74 +75,9 @@ protected:
 // ---------------------------------------------------------------------------
 struct PitchedInstrument final : Instrument {
 
-  // A paramMap slot resolved to the graph node that consumes the value
-  // (consumer + paramName) plus the ConstantSource that normally supplies
-  // the nominal value. play_note can swap the consumer's param edge between
-  // originalCS (for constant pitch) and a time-varying source (for bends),
-  // per the "parameters are pluggable ValueSource edges" architecture.
-  struct ParamSlot {
-    std::shared_ptr<ValueSource>    consumer;
-    std::string                      paramName;
-    std::shared_ptr<ConstantSource>  originalCS;   // null for config slots
-    // Node id the paramMap targets (e.g. "Var1" for "Var1.val"). Used by
-    // play_note to fan values into Multiplex clones' matching nodes when
-    // the voice's output is a MultiplexSource.
-    std::string                      targetNodeId;
-    // Config-target slot: the mapped value is delivered via
-    // consumer->set_config(paramName, v) instead of a ConstantSource edge.
-    bool                             isConfig{false};
-    // Optional frequency→value transfer curve — the C++ port of legacy
-    // ParameterMapping's Function. Breakpoints (hz, value); evaluated with
-    // linear interpolation in log-frequency, clamped at the end values.
-    // Empty curve = identity (slot receives the frequency itself).
-    std::vector<std::pair<float, float>> curve;
-    // Optional velocity→MULTIPLIER curve, composed on top of the frequency
-    // mapping: value = map(freq) * vmap(velocity). Breakpoints (velocity
-    // 0..1, multiplier); linear interpolation, clamped at the ends. Empty =
-    // 1.0. This is the AF-style "Veloc" mod input (velocity->brightness).
-    std::vector<std::pair<float, float>> vcurve;
-    // "interp": "loglog" on the curve entry — see map().
-    bool loglog{false};
-
-    float vmap(float vel) const {
-      if (vcurve.empty()) return 1.0f;
-      if (vel <= vcurve.front().first) return vcurve.front().second;
-      if (vel >= vcurve.back().first)  return vcurve.back().second;
-      for (size_t i = 1; i < vcurve.size(); ++i) {
-        if (vel <= vcurve[i].first) {
-          float t = (vel - vcurve[i - 1].first) /
-                    (vcurve[i].first - vcurve[i - 1].first);
-          return vcurve[i - 1].second +
-                 (vcurve[i].second - vcurve[i - 1].second) * t;
-        }
-      }
-      return vcurve.back().second;
-    }
-
-    float map(float freq) const {
-      if (curve.empty()) return freq;
-      if (freq <= curve.front().first) return curve.front().second;
-      if (freq >= curve.back().first)  return curve.back().second;
-      for (size_t i = 1; i < curve.size(); ++i) {
-        if (freq <= curve[i].first) {
-          float lf = std::log(freq / curve[i - 1].first) /
-                     std::log(curve[i].first / curve[i - 1].first);
-          // loglog: interpolate log(value) over log(freq) — a straight
-          // line in log-log space IS y = k*f^n, so tracking curves
-          // (cutoff = k*f, t60 = k/f) are EXACT with two points instead
-          // of a dense piecewise approximation. Values must be > 0;
-          // curves that touch zero stay on the linear interpolator.
-          if (loglog && curve[i - 1].second > 0.0f && curve[i].second > 0.0f) {
-            return curve[i - 1].second *
-                   std::pow(curve[i].second / curve[i - 1].second, lf);
-          }
-          return curve[i - 1].second +
-                 (curve[i].second - curve[i - 1].second) * lf;
-        }
-      }
-      return curve.back().second;
-    }
-  };
+  // (ParamSlot retired 2026-08-18 — plan_perform_source_p1.md T7. Its map/
+  // vmap formulas live on verbatim as CurveNode's LogX/LogLog and Linear
+  // interp modes; its delivery loop became apply_note_bindings.)
 
   // A converted paramMap entry that must be PUSH-delivered at note time
   // (perform_source_design.md §5): config targets (set_config rebuilds
@@ -161,11 +96,6 @@ struct PitchedInstrument final : Instrument {
 
   struct VoiceGraph {
     std::shared_ptr<ValueSource> source;
-    // One logical paramMap name (e.g. "frequency") can target multiple graph
-    // edges (e.g. dual-stack instruments where both fmBody.frequency AND
-    // fmTine.frequency must be retuned per note). Vector size 1 is the
-    // common case; vector empty means no mapping for that name.
-    std::unordered_map<std::string, std::vector<ParamSlot>> params;
     // If this voice's output IS a MultiplexSource, fan paramMap changes
     // into its clones. Captured at voice-pool build time by casting
     // `source`. Null for non-Multiplex voices — fan-out is a no-op.

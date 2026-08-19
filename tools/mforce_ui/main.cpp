@@ -23,6 +23,7 @@
 #include <climits>
 #include <string_view>
 #include "RtAudio.h"
+#include "RtMidi.h"
 #include <cstring>
 #include "mforce/render/patch_loader.h"
 #include "mforce/core/equal_temperament.h"
@@ -51,6 +52,7 @@ using namespace mforce;
 #include <vector>
 #include <string>
 #include <cstdint>
+#include <chrono>
 #include <algorithm>
 #include <cstdio>
 #include <filesystem>
@@ -608,6 +610,19 @@ static std::string s_currentFilePath;
 // sync to a temp file before loading the instrument so MultiplexSource (and
 // anything else that bakes state at patch-load time) picks up current edits.
 static bool s_graphDirty = false;
+// Monotonic count of graph-content changes (edits, loads, new graphs, listen
+// taps). The live-playback instrument cache keys on it: notes replay the
+// cached instrument until this moves, then one rebuild picks up the change
+// (BACKLOG dsp 17, 2026-08-18). Unlike s_graphDirty it never resets — it
+// only answers "did anything change since the cache was built?".
+static uint64_t g_graphEditCounter = 0;
+static void mark_graph_dirty() {
+    s_graphDirty = true;
+    ++g_graphEditCounter;
+}
+// For graph-content changes that must invalidate the playback cache but do
+// NOT count as unsaved edits (load, new graph, listen-tap toggles).
+static void invalidate_instrument_cache() { ++g_graphEditCounter; }
 // Save-prompt machinery: the close callback sets s_closeRequested; the main
 // loop checks it each frame, runs the dirty-check, and either pops the modal
 // (s_showCloseConfirm) or lets the close proceed. s_closeApproved short-
@@ -826,7 +841,7 @@ static void buffer_playback_detach();
 
 static void delete_node(int nodeId) {
     stop_streams();
-    s_graphDirty = true;
+    mark_graph_dirty();
     if (g_selectedNodeId == nodeId) g_selectedNodeId = -1;
     for (auto& node : s_nodes) {
         if (node.id != nodeId) continue;
@@ -860,7 +875,7 @@ static void delete_node(int nodeId) {
 }
 
 static void delete_link(int linkId) {
-    s_graphDirty = true;
+    mark_graph_dirty();
     s_links.erase(
         std::remove_if(s_links.begin(), s_links.end(),
             [linkId](const Link& l) { return l.id == linkId; }),
@@ -893,6 +908,7 @@ static void new_graph(GraphMode mode) {
     s_groupPath.clear();
     s_groupListen.clear();
     s_listenTapNode = -1;
+    invalidate_instrument_cache();
     conv_stash_clear();
     s_graphMode = mode;
     s_nextId = 1;
@@ -1051,6 +1067,7 @@ static void load_graph_from_path(const std::string& path) {
     s_groupPath.clear();
     s_groupListen.clear();
     s_listenTapNode = -1;
+    invalidate_instrument_cache();
     s_loadedParamMap = nlohmann::json::object();
     s_loadedScore    = nlohmann::json();
     s_loadedInstrumentExtras = nlohmann::json::object();
@@ -1860,7 +1877,7 @@ static bool rename_node(GraphNode& node, const std::string& newName,
             for (auto& m : g.members)
                 if (m == oldName) m = newName;
     }
-    s_graphDirty = true;
+    mark_graph_dirty();
     return true;
 }
 
@@ -1886,7 +1903,7 @@ static bool rename_group(NodeGroup& group, const std::string& newName,
         for (auto& p : s_groupPath)              // live breadcrumb
             if (p == oldName) p = newName;
     }
-    s_graphDirty = true;
+    mark_graph_dirty();
     return true;
 }
 
@@ -2604,19 +2621,46 @@ struct Voice {
     std::vector<mforce::Envelope*> envs;
     bool  active = false;
     int   midiNote = 0;  // for keyboard highlight
+    // Which of patch->instrument's pool slots this voice occupies; -1 = not
+    // pool-backed. Deactivation must release it (voice_deactivate_unlocked /
+    // the audio callback's finish path) or the slot leaks.
+    int   poolSlot = -1;
 };
 static Voice g_voices[MAX_VOICES];
 
-static void voice_schedule(std::shared_ptr<InstrumentPatch> patch,
-                           std::shared_ptr<ValueSource> source,
-                           int totalSamples, float gain, int midiNote,
-                           bool held = false,
-                           std::vector<mforce::Envelope*> envs = {}) {
-    std::lock_guard<std::mutex> lock(g_audioMutex);
-    // Find a free voice, or steal the one closest to done
+// Deactivate a voice and return its pool slot. Caller holds g_audioMutex.
+// Flag writes only — shared_ptr destruction stays with voice_gc (UI thread).
+static void voice_deactivate_unlocked(Voice& v) {
+    if (v.active && v.poolSlot >= 0 && v.patch && v.patch->instrument)
+        v.patch->instrument->release_voice(v.poolSlot);
+    v.poolSlot = -1;
+    v.active = false;
+}
+
+// Caller must hold g_audioMutex (the play paths prepare the voice and
+// schedule it under one lock, since prepare mutates graph state the audio
+// callback may be reading).
+static void voice_schedule_unlocked(std::shared_ptr<InstrumentPatch> patch,
+                                    std::shared_ptr<ValueSource> source,
+                                    int totalSamples, float gain, int midiNote,
+                                    bool held = false,
+                                    std::vector<mforce::Envelope*> envs = {},
+                                    int poolSlot = -1) {
+    // Same-source steal: a note whose pool slot's previous note is still
+    // sounding must replace that voice outright (two active entries pulling
+    // one source would double-render it).
     int slot = -1;
     for (int i = 0; i < MAX_VOICES; ++i) {
-        if (!g_voices[i].active) { slot = i; break; }
+        if (g_voices[i].active && g_voices[i].source.get() == source.get()) {
+            slot = i;
+            break;
+        }
+    }
+    // Otherwise a free voice, or steal the one closest to done
+    if (slot < 0) {
+        for (int i = 0; i < MAX_VOICES; ++i) {
+            if (!g_voices[i].active) { slot = i; break; }
+        }
     }
     if (slot < 0) {
         int best = 0;
@@ -2624,6 +2668,11 @@ static void voice_schedule(std::shared_ptr<InstrumentPatch> patch,
             if (g_voices[i].samplesRemaining < g_voices[best].samplesRemaining) best = i;
         slot = best;
     }
+    // Whatever voice we're overwriting gives its pool slot back — unless it
+    // IS this note's slot (same-source steal above: slot ownership just
+    // transfers to the new note).
+    if (g_voices[slot].active && g_voices[slot].poolSlot != poolSlot)
+        voice_deactivate_unlocked(g_voices[slot]);
     g_voices[slot].patch = std::move(patch);
     g_voices[slot].source = std::move(source);
     g_voices[slot].samplesRemaining = totalSamples;
@@ -2631,7 +2680,38 @@ static void voice_schedule(std::shared_ptr<InstrumentPatch> patch,
     g_voices[slot].held = held;
     g_voices[slot].envs = std::move(envs);
     g_voices[slot].midiNote = midiNote;
+    g_voices[slot].poolSlot = poolSlot;
     g_voices[slot].active = true;
+}
+
+static void voice_schedule(std::shared_ptr<InstrumentPatch> patch,
+                           std::shared_ptr<ValueSource> source,
+                           int totalSamples, float gain, int midiNote,
+                           bool held = false,
+                           std::vector<mforce::Envelope*> envs = {}) {
+    std::lock_guard<std::mutex> lock(g_audioMutex);
+    voice_schedule_unlocked(std::move(patch), std::move(source), totalSamples,
+                            gain, midiNote, held, std::move(envs));
+}
+
+// Acquire a pool slot for a live note. The pool's own free-list answers the
+// common case; when every slot is sounding, steal the active voice of this
+// instrument closest to done (held notes sit at INT_MAX/2 remaining, so
+// they are stolen last) and take its slot. Caller must hold g_audioMutex.
+// Returns -1 only for an instrument with no pool.
+static int acquire_pool_slot(InstrumentPatch* patch) {
+    auto* pitched = patch->instrument.get();
+    int slot = pitched->acquire_voice();
+    if (slot >= 0) return slot;
+    int best = -1, bestRem = INT_MAX;
+    for (int v = 0; v < MAX_VOICES; ++v) {
+        auto& vc = g_voices[v];
+        if (!vc.active || vc.patch.get() != patch || vc.poolSlot < 0) continue;
+        if (vc.samplesRemaining < bestRem) { bestRem = vc.samplesRemaining; best = v; }
+    }
+    if (best >= 0) voice_deactivate_unlocked(g_voices[best]);
+    else pitched->release_all_voices();  // slot leak (bug) — self-heal
+    return pitched->acquire_voice();
 }
 
 static bool any_voice_active() {
@@ -2682,11 +2762,12 @@ static int audio_callback(void* outputBuffer, void* /*inputBuffer*/,
             voiceSum += voice.source->next() * voice.gain;
             voice.samplesRemaining--;
             if (voice.samplesRemaining <= 0) {
-                voice.active = false;
+                // Flag writes only (pool release is a flag too — RT-safe).
                 // Do NOT reset() the source/patch shared_ptrs here — dropping
                 // the last ref would destruct the whole DSP graph on the audio
                 // thread, hitting the Windows heap lock and causing glitches.
                 // voice_gc() on the UI thread does the actual destruction.
+                voice_deactivate_unlocked(voice);
             }
         }
 
@@ -3313,40 +3394,93 @@ static void render_waveforms(float noteNum, float velocity, float durationSecond
 // internal clones) applies to live-keyboard playback. The UI's in-memory
 // DSP tree is used only for the waveform display — that path shows the
 // UI's solo-preview state without the fan-out, which is fine for a visual.
-static void note_played(float noteNum);
+static void note_played(float noteNum, float velocity);
+static bool collect_envelopes(mforce::ValueSource* vs,
+                              std::vector<mforce::Envelope*>& out,
+                              std::vector<mforce::ValueSource*>& seen);
+
+// ---------------------------------------------------------------------------
+// Live-playback instrument cache (BACKLOG dsp 17, 2026-08-18). The play
+// paths used to rebuild the whole instrument per keypress — serialize-if-
+// dirty + JSON parse + polyphony × graph build, ~0.6-1.3 s on heavy patches
+// — which was the live-keyboard lag. Now the loaded InstrumentPatch is
+// cached and notes go through its voicePool (the engine's own polyphony
+// machinery, round-robin slots). The shared loader path is preserved: the
+// cache is BUILT by exactly the old serialize→load route, just once per
+// graph change instead of once per note. Keyed on g_graphEditCounter plus
+// the listen tap; any mismatch rebuilds on the next note-on.
+// ---------------------------------------------------------------------------
+static constexpr int LIVE_MIN_POLYPHONY = 8;
+static std::shared_ptr<InstrumentPatch> g_cachedInstrument;
+static uint64_t g_cachedEditCounter = ~0ull;
+static int      g_cachedTapNode     = -1;
+
+// Returns the cached instrument, rebuilding if the graph changed. Throws on
+// load failure (callers' try/catch reports). Null = no playable patch path.
+static std::shared_ptr<InstrumentPatch> get_cached_instrument() {
+    if (g_cachedInstrument &&
+        g_cachedEditCounter == g_graphEditCounter &&
+        g_cachedTapNode == s_listenTapNode)
+        return g_cachedInstrument;
+    std::string path = get_playback_patch_path();
+    if (path.empty()) return nullptr;
+    auto t0 = std::chrono::steady_clock::now();
+    // shared_ptr so Voice slots keep the whole DSP graph alive while sounding
+    // (and across cache invalidation — an old instrument survives until its
+    // last voice ends).
+    auto ip = std::make_shared<InstrumentPatch>(
+        load_instrument_patch(path, LIVE_MIN_POLYPHONY));
+    if (!ip->instrument || ip->instrument->voicePool.empty()) return nullptr;
+    g_cachedInstrument  = ip;
+    g_cachedEditCounter = g_graphEditCounter;
+    g_cachedTapNode     = s_listenTapNode;
+    int ms = int(std::chrono::duration_cast<std::chrono::milliseconds>(
+                     std::chrono::steady_clock::now() - t0).count());
+    char buf[128];
+    std::snprintf(buf, sizeof(buf), "Instrument rebuilt: %d voices, %d ms",
+                  int(ip->instrument->voicePool.size()), ms);
+    transport_set_status(buf, false);
+    return ip;
+}
 
 static void play_note(float noteNum, float velocity, float durationSeconds) {
     if (s_graphMode != GraphMode::PatchGraph) return;
-    note_played(noteNum);
+    note_played(noteNum, velocity);
 
     // (Waveform-display render intentionally skipped here — live keyboard
     // mode prioritizes audio responsiveness over visual feedback. Use the
     // Render button / offline render path when you want to see the waveform.)
 
-    // Audio path: load a fresh instrument from the current UI state (synced
-    // to a temp file if dirty) and play_note on it, so Multiplex clones
-    // retune correctly via paramMap fan-out.
-    std::string path = get_playback_patch_path();
-    if (path.empty()) return;
-
     try {
-        // Wrap the loaded patch in a shared_ptr so a Voice slot can keep the
-        // whole DSP graph alive for the lifetime of the note. (InstrumentPatch
-        // owns the unique_ptr<PitchedInstrument>, so the shared wrapper keeps
-        // both the instrument and the voicePool source graphs from being
-        // destroyed mid-play.)
-        auto ip = std::make_shared<InstrumentPatch>(load_instrument_patch(path));
+        auto ip = get_cached_instrument();
+        if (!ip) return;
         auto* pitched = ip->instrument.get();
-        if (!pitched) return;
+
+        // Slot acquire, envelope un-gate, prepare and schedule all under one
+        // lock: the steal path reads voice actives, and prepare mutates graph
+        // state the audio callback may be reading if a steal is happening.
+        std::lock_guard<std::mutex> lock(g_audioMutex);
+        int slot = acquire_pool_slot(ip.get());
+        if (slot < 0) return;
+
+        // A previous HELD note on this slot leaves its envelopes in gated
+        // mode (gated_ survives prepare), which would make a scheduled note
+        // sustain forever — un-gate them explicitly.
+        std::vector<mforce::Envelope*> envs;
+        std::vector<mforce::ValueSource*> seen;
+        collect_envelopes(pitched->voicePool[slot].source.get(), envs, seen);
+        for (auto* e : envs) e->set_gated(false);
 
         // Prepare the voice (set frequency, prep the source) but DON'T render —
         // streaming voice mixer will pull samples on demand in fill_audio_buffer.
         // sv.gain carries the patch's pre-clip volume (calibrated gain staging).
-        auto sv = pitched->prepare_voice(noteNum, velocity, durationSeconds);
+        auto sv = pitched->prepare_voice_at(slot, noteNum, velocity,
+                                           durationSeconds);
 
         // Note-contained sound (2026-08-13): the voice lives exactly
         // durSamples — release is inside the note, no tail window.
-        voice_schedule(ip, sv.source, sv.durSamples, sv.gain, int(noteNum));
+        voice_schedule_unlocked(ip, sv.source, sv.durSamples, sv.gain,
+                                int(noteNum), false, {}, slot);
     } catch (const std::exception& e) {
         char buf[256];
         std::snprintf(buf, sizeof(buf), "play_note failed: %s", e.what());
@@ -3382,26 +3516,40 @@ static bool collect_envelopes(mforce::ValueSource* vs,
 // (MultiplexSource) or absent.
 static void play_note_held(float noteNum, float velocity, float nominalSeconds) {
     if (s_graphMode != GraphMode::PatchGraph) return;
-    std::string path = get_playback_patch_path();
-    if (path.empty()) return;
     try {
-        auto ip = std::make_shared<InstrumentPatch>(load_instrument_patch(path));
+        auto ip = get_cached_instrument();
+        if (!ip) return;
         auto* pitched = ip->instrument.get();
-        if (!pitched) return;
-        std::vector<mforce::Envelope*> envs;
-        std::vector<mforce::ValueSource*> seen;
-        bool gateable = true;
-        for (auto& vg : pitched->voicePool)
-            gateable = collect_envelopes(vg.source.get(), envs, seen) && gateable;
-        if (!gateable || envs.empty()) {
-            play_note(noteNum, velocity, nominalSeconds);   // scheduled fallback
-            return;
+
+        {
+            // Slot acquire, gating, prepare and schedule under one lock — see
+            // play_note. Scoped so the non-gateable fallback below can call
+            // play_note (which takes the lock itself) without deadlocking.
+            std::lock_guard<std::mutex> lock(g_audioMutex);
+            int slot = acquire_pool_slot(ip.get());
+            if (slot < 0) return;
+
+            // Gate only the slot this note will occupy — with the shared
+            // cached instrument, other pool slots may be sounding other notes.
+            std::vector<mforce::Envelope*> envs;
+            std::vector<mforce::ValueSource*> seen;
+            bool gateable = collect_envelopes(
+                pitched->voicePool[slot].source.get(), envs, seen);
+            if (gateable && !envs.empty()) {
+                note_played(noteNum, velocity);
+                for (auto* e : envs) e->set_gated(true);
+                auto sv = pitched->prepare_voice_at(slot, noteNum, velocity,
+                                                    nominalSeconds);
+                voice_schedule_unlocked(ip, sv.source, INT_MAX / 2, sv.gain,
+                                        int(noteNum), true, std::move(envs),
+                                        slot);
+                return;
+            }
+            // Not gateable: hand the acquired slot back before falling
+            // through — play_note will re-acquire it.
+            pitched->release_voice(slot);
         }
-        note_played(noteNum);
-        for (auto* e : envs) e->set_gated(true);
-        auto sv = pitched->prepare_voice(noteNum, velocity, nominalSeconds);
-        voice_schedule(ip, sv.source, INT_MAX / 2, sv.gain, int(noteNum),
-                       true, std::move(envs));
+        play_note(noteNum, velocity, nominalSeconds);   // scheduled fallback
     } catch (const std::exception& e) {
         char buf[256];
         std::snprintf(buf, sizeof(buf), "play_note_held failed: %s", e.what());
@@ -3550,7 +3698,7 @@ static void stop_playback() {
     g_bufferPlaybackPos = 0;
     g_bufferPlaybackLen = 0;
     for (int i = 0; i < MAX_VOICES; ++i)
-        g_voices[i].active = false;
+        voice_deactivate_unlocked(g_voices[i]);
 }
 
 // g_bufferPlayback points INTO g_outputWaveform — detach it (under the
@@ -3583,6 +3731,86 @@ struct KeyboardState {
     bool sustain = false;
 };
 static KeyboardState g_keyboard;
+
+// ===========================================================================
+// MIDI input (RtMidi) — hardware keyboard into the same held-note path as
+// QWERTY. Polled from the UI thread once per frame (pump_midi); RtMidi's
+// WinMM backend queues incoming messages internally, so there is no callback
+// threading on our side. Unlike QWERTY there is no noteMode gate: a key
+// struck on a MIDI keyboard is always intent to play.
+// ===========================================================================
+static std::unique_ptr<RtMidiIn> g_midiIn;
+static int g_midiPort = -1;            // opened port index, -1 = none
+static std::string g_midiPortName;     // display name of the opened port
+
+static void midi_close() {
+    if (g_midiIn && g_midiIn->isPortOpen()) g_midiIn->closePort();
+    g_midiPort = -1;
+    g_midiPortName.clear();
+}
+
+static bool midi_open_port(unsigned int port) {
+    if (!g_midiIn) return false;
+    midi_close();
+    try {
+        std::string name = g_midiIn->getPortName(port);
+        g_midiIn->openPort(port);
+        g_midiPort = int(port);
+        g_midiPortName = name;
+        char buf[256];
+        std::snprintf(buf, sizeof(buf), "MIDI in: %s", name.c_str());
+        transport_set_status(buf, false);
+        return true;
+    } catch (RtMidiError& e) {
+        transport_set_status(e.getMessage().c_str(), true);
+        return false;
+    }
+}
+
+// Auto-sense at startup: open the first MIDI input if one is present. Every
+// failure mode is non-fatal — MIDI is an optional input source.
+static void init_midi() {
+    try {
+        g_midiIn = std::make_unique<RtMidiIn>();
+        if (g_midiIn->getPortCount() > 0) midi_open_port(0);
+    } catch (RtMidiError&) {
+        g_midiIn.reset();
+    }
+}
+
+static void shutdown_midi() {
+    midi_close();
+    g_midiIn.reset();
+}
+
+// Per-frame drain. Note bytes map directly to engine note numbers
+// (note_to_freq is MIDI-standard: 69 = A440). Velocity 1..127 scales to the
+// same 0..1 range the velocity slider produces, but is per-note — the slider
+// keeps governing QWERTY/on-screen keys only. Duration is the keyboard
+// panel's Duration value (nominal length for envelope pacing; the actual
+// release fires on key-up, exactly like QWERTY).
+static void pump_midi() {
+    if (!g_midiIn || g_midiPort < 0) return;
+    std::vector<unsigned char> msg;
+    for (;;) {
+        try { g_midiIn->getMessage(&msg); }
+        catch (RtMidiError&) { return; }
+        if (msg.empty()) return;
+        if (msg.size() < 3) continue;
+        unsigned char status = msg[0] & 0xF0;
+        int note = msg[1];
+        int vel  = msg[2];
+        if (status == 0x90 && vel > 0) {          // note on
+            play_note_held(float(note), float(vel) / 127.0f,
+                           g_keyboard.duration);
+        } else if (status == 0x80 ||              // note off (0x90 vel 0 =
+                   (status == 0x90 && vel == 0)) {  // running-status note off)
+            release_note_held(note);
+        }
+        // CC64 sustain pedal: deferred (needs release-hold semantics in the
+        // voice layer before it can do anything).
+    }
+}
 
 // Seed transport + keyboard playback defaults from a loaded patch's score so
 // UI playback matches the CLI render of the same file. The patch's note
@@ -4189,14 +4417,15 @@ static void draw_audition_window() {
 // dirty, every edit here is immediately audible on keyboard playback and
 // lands in the file on Save. All edits set s_graphDirty.
 //
-// Engine semantics (ParamSlot::map in engine/include/mforce/render/
-// instrument.h): breakpoints are ascending (hz, value) pairs, >= 2 of them;
+// Engine semantics (CurveNode::map, LogX/LogLog modes, in engine/include/
+// mforce/core/curve_node.h — ParamSlot retired 2026-08-18, PerformSource
+// P1): breakpoints are ascending (hz, value) pairs, >= 2 of them;
 // evaluation is linear in log-frequency, clamped past the ends; curves are
 // evaluated per note-on from the note frequency, so only entries under the
 // "frequency" paramMap name have any effect at present.
 // ===========================================================================
 
-// Mirror of ParamSlot::map for the plot preview.
+// Mirror of CurveNode::map (LogX/LogLog) for the plot preview.
 static float curve_eval(const nlohmann::json& curve, float freq) {
     size_t n = curve.size();
     if (n == 0) return freq;
@@ -4264,7 +4493,7 @@ static void curves_add_entry(const std::string& paramName, const std::string& ta
         arr.push_back(std::move(curveObj));
         s_loadedParamMap[paramName] = std::move(arr);
     }
-    s_graphDirty = true;
+    mark_graph_dirty();
 }
 
 // Draw the editor for one curve-bearing entry. Returns true if the user asked
@@ -4334,7 +4563,7 @@ static bool draw_one_curve(const std::string& paramName, nlohmann::json& obj) {
     if (ImGui::SmallButton(" Delete curve ")) deleteMe = true;
 
     if (needSort) curve_sort(curve);
-    if (changed || needSort) s_graphDirty = true;
+    if (changed || needSort) mark_graph_dirty();
 
     // --- Plot: interpolated curve, log-x from first to last breakpoint ---
     if (curve.size() >= 2) {
@@ -4486,7 +4715,7 @@ static void draw_mappings_dialog() {
             else if (entry.size() == 1 && entry[0].is_string())
                 s_loadedParamMap[d.param] = entry[0];
         }
-        s_graphDirty = true;
+        mark_graph_dirty();
     }
 
     // --- Add a binding ---
@@ -4565,12 +4794,12 @@ static void draw_mappings_dialog() {
             }
             e.push_back(target);
         }
-        s_graphDirty = true;
+        mark_graph_dirty();
     }
     ImGui::SameLine();
     if (ImGui::Button("Add with curve##mapcurve")) {
         curves_add_entry("frequency", target, opts[selTarget].current);
-        s_graphDirty = true;
+        mark_graph_dirty();
         focusCurves = true;
     }
     ImGui::EndDisabled();
@@ -4667,7 +4896,7 @@ static void draw_curves_window() {
             if (entry.size() == 1 && entry[0].is_string())
                 s_loadedParamMap[d.param] = entry[0];
         }
-        s_graphDirty = true;
+        mark_graph_dirty();
     }
 
     // --- Add a new curve ---
@@ -5258,8 +5487,12 @@ static void render_drums_waveforms(const ParsedDrumPattern& pat, float bpm, cons
 // Last note played (Play/Generate, QWERTY, on-screen keys). Displayed
 // right-aligned in the transport bar; label uses the HOUSE octave
 // convention (name = midi%12, octave = midi/12 — comp REVIEW item 19).
-static int g_lastNoteMidi = -1;
-static void note_played(float noteNum) { g_lastNoteMidi = int(noteNum + 0.5f); }
+static int   g_lastNoteMidi = -1;
+static float g_lastNoteVel  = -1.0f;
+static void note_played(float noteNum, float velocity) {
+    g_lastNoteMidi = int(noteNum + 0.5f);
+    g_lastNoteVel  = velocity;
+}
 
 static void transport_set_status(const char* msg, bool isError) {
     snprintf(g_transport.statusMsg, sizeof(g_transport.statusMsg), "%s", msg);
@@ -5315,7 +5548,7 @@ static void transport_generate() {
             if (render_output_authoritative(noteNum, g_transport.velocity,
                                             g_transport.duration)) {
                 transport_set_status("Generated note", false);
-                note_played(noteNum);
+                note_played(noteNum, g_transport.velocity);
                 std::snprintf(g_noteGenSnap.noteStr, sizeof(g_noteGenSnap.noteStr),
                               "%s", g_transport.noteStr);
                 g_noteGenSnap.velocity = g_transport.velocity;
@@ -5623,6 +5856,39 @@ static void draw_transport_panel() {
     }
     ImGui::SameLine();
 
+    // MIDI input selector — startup auto-opens the first device; this combo
+    // is for switching when there is more than one, or picking up a keyboard
+    // plugged in after launch (ports re-enumerate every time it opens).
+    {
+        char label[192];
+        if (g_midiPort >= 0)
+            std::snprintf(label, sizeof(label), "MIDI: %s",
+                          g_midiPortName.c_str());
+        else
+            std::snprintf(label, sizeof(label), "MIDI: none");
+        ImGui::SetNextItemWidth(200.0f);
+        if (ImGui::BeginCombo("##midiIn", label)) {
+            unsigned int count = 0;
+            if (g_midiIn) {
+                try { count = g_midiIn->getPortCount(); }
+                catch (RtMidiError&) {}
+            }
+            if (ImGui::Selectable("(none)", g_midiPort < 0)) midi_close();
+            for (unsigned int p = 0; p < count; ++p) {
+                std::string name;
+                try { name = g_midiIn->getPortName(p); }
+                catch (RtMidiError&) { continue; }
+                char item[192];
+                std::snprintf(item, sizeof(item), "%s##midi%u",
+                              name.c_str(), p);
+                if (ImGui::Selectable(item, int(p) == g_midiPort))
+                    midi_open_port(p);
+            }
+            ImGui::EndCombo();
+        }
+    }
+    ImGui::SameLine();
+
     if (ImGui::Button("Save WAV")) {
         transport_save_wav();
     }
@@ -5638,10 +5904,11 @@ static void draw_transport_panel() {
     if (g_lastNoteMidi >= 0) {
         static const char* kNames[12] = {"C","C#","D","D#","E","F",
                                          "F#","G","G#","A","A#","B"};
-        char lastBuf[64];
-        snprintf(lastBuf, sizeof(lastBuf), "Last note: %d  %s%d  %.1fHz",
+        char lastBuf[80];
+        snprintf(lastBuf, sizeof(lastBuf), "Last note: %d  %s%d  %.1fHz  vel %.2f",
                  g_lastNoteMidi, kNames[g_lastNoteMidi % 12],
-                 g_lastNoteMidi / 12, note_to_freq(float(g_lastNoteMidi)));
+                 g_lastNoteMidi / 12, note_to_freq(float(g_lastNoteMidi)),
+                 g_lastNoteVel);
         float w = ImGui::CalcTextSize(lastBuf).x;
         ImGui::SameLine(std::max(ImGui::GetCursorPosX() + 8.0f,
                         ImGui::GetWindowContentRegionMax().x - w));
@@ -5972,7 +6239,7 @@ static void draw_properties_panel() {
                 if (pin.constantSrc) pin.constantSrc->set(pin.defaultValue);
                 node->jsonExtras.erase(pin.name);  // edit wins over carried value
                 update_node_dsp(*node);
-                s_graphDirty = true;
+                mark_graph_dirty();
             }
             ImGui::PopItemWidth();
         }
@@ -6004,7 +6271,7 @@ static void draw_properties_panel() {
                 if (pin.constantSrc) pin.constantSrc->set(pin.defaultValue);
                 node->jsonExtras.erase(pin.name);
                 update_node_dsp(*node);
-                s_graphDirty = true;
+                mark_graph_dirty();
             }
             ImGui::PopItemWidth();
         } else {
@@ -6070,7 +6337,7 @@ static void draw_properties_panel() {
                 // mirrors _1 → _2 when evolve flips off). Re-pull cached values.
                 for (auto& [d, v] : node->arrayValues)
                     v = node->dspSource->get_array(d.name);
-                s_graphDirty = true;
+                mark_graph_dirty();
             }
         }
     }
@@ -6141,7 +6408,7 @@ static void draw_properties_panel() {
                     changed = true;
                 }
                 ImGui::PopID();
-                if (changed) { node->push_array(d.name); s_graphDirty = true; }
+                if (changed) { node->push_array(d.name); mark_graph_dirty(); }
             } else {
                 // Grouped: render all columns in a table with a single row
                 // count shared across columns (invariant-preserving).
@@ -6219,7 +6486,7 @@ static void draw_properties_panel() {
                     // Push every column in the group (lengths must stay synced).
                     for (size_t c = i; c < groupEnd; ++c)
                         node->push_array(node->arrayValues[c].first.name);
-                    s_graphDirty = true;
+                    mark_graph_dirty();
                 }
             }
 
@@ -6298,7 +6565,7 @@ static void draw_properties_panel() {
         ImGui::EndGroup();
         ImVec2 leftSize = ImGui::GetItemRectSize();
 
-        if (changed) { node->rebuild_formant_spectrum(); s_graphDirty = true; }
+        if (changed) { node->rebuild_formant_spectrum(); mark_graph_dirty(); }
 
         // Gain-vs-frequency preview to the right (reuses the existing strip draw)
         ImGui::SameLine();
@@ -6320,7 +6587,7 @@ static void draw_properties_panel() {
             bool absTime = env->absolute_time;
             if (ImGui::Checkbox("seconds (timeMode)", &absTime)) {
                 env->absolute_time = absTime;
-                s_graphDirty = true;
+                mark_graph_dirty();
             }
             if (ImGui::IsItemHovered())
                 ImGui::SetTooltip("off: stage Pct is a fraction of note duration\n"
@@ -6474,7 +6741,7 @@ static void draw_properties_panel() {
             ImGui::PlotLines("##envprev", plotVals, N, 0, nullptr,
                              vmin - vpad, vmax + vpad, ImVec2(plotW, leftSize.y));
 
-            if (changed) s_graphDirty = true;
+            if (changed) mark_graph_dirty();
         }
     }
 
@@ -6757,7 +7024,7 @@ static void clipboard_paste() {
     }
 
     update_all_dsp();
-    s_graphDirty = true;
+    mark_graph_dirty();
 
     char buf[96];
     if (skipped > 0)
@@ -6844,7 +7111,7 @@ static void convert_patch_to_node_graph() {
     s_links.emplace_back(chOutPin, mixCh1Pin);
 
     s_graphMode  = GraphMode::NodeGraph;
-    s_graphDirty = true;
+    mark_graph_dirty();
     update_all_dsp();
     transport_set_status("Converted to Node graph (instrument data stashed for convert-back)", false);
 }
@@ -6949,7 +7216,7 @@ static void convert_node_to_patch_graph() {
     }
 
     s_graphMode  = GraphMode::PatchGraph;
-    s_graphDirty = true;
+    mark_graph_dirty();
     update_all_dsp();
     transport_set_status(restored
         ? "Converted to Patch graph (stashed instrument data restored)"
@@ -6981,7 +7248,7 @@ static void menu_source(const char* label, const char* typeName) {
             if (NodeGroup* g = group_by_name(s_groupPath.back()))
                 g->members.push_back(s_nodes.back().label);
         update_node_dsp(s_nodes.back());
-        s_graphDirty = true;
+        mark_graph_dirty();
     }
 }
 
@@ -7174,7 +7441,7 @@ static void show_create_menu() {
                 if (ImGui::MenuItem("Output")) {
                     s_nodes.emplace_back(std::string(NT_PATCH_OUTPUT));
                     ImNodes::SetNodeScreenSpacePos(s_nodes.back().id, s_createMenuPos);
-                    s_graphDirty = true;
+                    mark_graph_dirty();
                 }
             } else {
                 menu_placeholder("Output (exists)");
@@ -7186,13 +7453,13 @@ static void show_create_menu() {
             if (ImGui::MenuItem("Channel")) {
                 s_nodes.emplace_back(std::string(NT_SOUND_CHANNEL));
                 ImNodes::SetNodeScreenSpacePos(s_nodes.back().id, s_createMenuPos);
-                s_graphDirty = true;
+                mark_graph_dirty();
             }
             if (!hasMixer) {
                 if (ImGui::MenuItem("Mixer")) {
                     s_nodes.emplace_back(std::string(NT_STEREO_MIXER));
                     ImNodes::SetNodeScreenSpacePos(s_nodes.back().id, s_createMenuPos);
-                    s_graphDirty = true;
+                    mark_graph_dirty();
                 }
             } else {
                 menu_placeholder("Mixer (exists)");
@@ -7280,7 +7547,7 @@ static std::string group_selection(std::string& err) {
         }
     }
     s_groups.push_back(std::move(g));
-    s_graphDirty = true;
+    mark_graph_dirty();
     return name;
 }
 
@@ -7302,7 +7569,7 @@ static void ungroup(const std::string& name) {
     s_groups.erase(std::remove_if(s_groups.begin(), s_groups.end(),
                                   [&](const NodeGroup& x) { return x.name == name; }),
                    s_groups.end());
-    s_graphDirty = true;
+    mark_graph_dirty();
 }
 
 // Node context menu (right-click on existing node)
@@ -7336,7 +7603,7 @@ static void show_node_context_menu() {
     }
 
     if (ImGui::MenuItem("Duplicate")) {
-        s_graphDirty = true;
+        mark_graph_dirty();
         // Create a copy of the node with same type and settings
         if (node->typeName == NT_PARAMETER) {
             s_nodes.emplace_back(node->typeName, node->paramName);
@@ -8935,6 +9202,9 @@ int main(int argc, char** argv) {
         // Non-fatal — UI works without audio
     }
 
+    // MIDI input: auto-open the first device if one is plugged in.
+    init_midi();
+
     // Initialize the source registry before creating any nodes
     register_all_sources();
 
@@ -9482,7 +9752,7 @@ int main(int argc, char** argv) {
 
                     s_links.emplace_back(outPin, inPin);
                     update_all_dsp();
-                    s_graphDirty = true;
+                    mark_graph_dirty();
                 }
             }
         }
@@ -9496,7 +9766,7 @@ int main(int argc, char** argv) {
                         [destroyedLinkId](const Link& l) { return l.id == destroyedLinkId; }),
                     s_links.end());
                 update_all_dsp();
-                s_graphDirty = true;
+                mark_graph_dirty();
             }
         }
 
@@ -9654,6 +9924,7 @@ int main(int argc, char** argv) {
         // DSP-graph shared_ptrs on the UI thread instead of the audio thread.
         voice_gc();
         audio_watchdog();
+        pump_midi();
 
         // Save-prompt modal: shown when a close was requested with unsaved
         // edits. User picks Save / Don't Save / Cancel.
@@ -9722,6 +9993,7 @@ int main(int argc, char** argv) {
         }
     }
 
+    shutdown_midi();
     shutdown_audio();
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplGlfw_Shutdown();
