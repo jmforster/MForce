@@ -1213,8 +1213,16 @@ Patch load_patch_file(const std::string& path)
         // Override from graph's mixer node if present
         auto mixIt = nodeMap.find("mix");
         if (mixIt != nodeMap.end() && mixIt->second.contains("params")) {
-            // Build a throwaway graph just to resolve mixer/channel params
-            auto gMix = build_graph(nodeMap, nodeOrder, sampleRate);
+            // Build a throwaway graph just to resolve mixer/channel params.
+            // It rebuilds the WHOLE node graph, PerformNodes included, so it
+            // needs a context or it throws "no voice context" — which is how
+            // the conversion gate first failed the five Rhodes/FM patches, the
+            // only ones carrying a "mix" node. The context is deliberately a
+            // throwaway: mixer gain is patch-level and must not depend on note
+            // state, so nothing here is ever read per note.
+            PitchedInstrument::VoiceGraph mixThrowaway;
+            PerformContext mixPerf = make_perform_context(mixThrowaway);
+            auto gMix = build_graph(nodeMap, nodeOrder, sampleRate, &mixPerf);
             const auto& mp = mixIt->second["params"];
             mixer->gainL = resolve_param_or(mp, "gainL", 1.0f, gMix.valueNodes);
             mixer->gainR = resolve_param_or(mp, "gainR", 1.0f, gMix.valueNodes);

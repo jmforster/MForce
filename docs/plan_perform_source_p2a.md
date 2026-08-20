@@ -461,6 +461,27 @@ In **both** voice loops — `load_patch_file`'s instrument path (~line 946) and
 Preserve whatever else each loop already does between `build_graph` and
 `voicePool.push_back`.
 
+**There is a THIRD `build_graph` call site, and this plan originally missed
+it.** Inside `load_patch_file`'s instrument path, a patch carrying a `mix` node
+builds a *throwaway* graph purely to resolve mixer `gainL`/`gainR`
+(`patch_loader.cpp`, "Build a throwaway graph just to resolve mixer/channel
+params"). It rebuilds the whole node graph, PerformNodes included, so without a
+context it throws `no voice context`. That is how the Task 6 conversion gate
+first failed — five Rhodes/FM patches, the only ones with a `mix` node:
+
+```cpp
+            PitchedInstrument::VoiceGraph mixThrowaway;
+            PerformContext mixPerf = make_perform_context(mixThrowaway);
+            auto gMix = build_graph(nodeMap, nodeOrder, sampleRate, &mixPerf);
+```
+
+The context is deliberately throwaway: mixer gain is patch-level and must not
+depend on note state, so nothing built here is read per note.
+
+Do **not** give a context to the fourth call site — standard mode with no
+instrument block. A PerformNode there is an authoring error and must keep
+throwing; that is the NodeGraph guard.
+
 - [ ] **Step 4: Build and gate**
 
 Build, then `python tools/null_gate_perform_source.py`.
