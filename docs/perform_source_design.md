@@ -403,12 +403,35 @@ wires `PerformNode.pressure` either way.
   bit-identical** after both conversion and retirement, incl. all 7
   Multiplex patches and the 4 bend/slide baselines. InstrumentState
   deferred to P3 (YAGNI — first consumer is the wheel).
-- **P2 (UI)** — PerformNode, CurveNode knot editor, Curves tab + Mappings
-  dialog as derived views, save emits wiring format.
+- **P2** — REVISED 2026-08-19. As originally written ("PerformNode, CurveNode
+  knot editor, Curves tab + Mappings dialog as derived views, save emits
+  wiring format") this phase assumed a config story that **`docs/pin_model_design.md`
+  now replaces**: a driven setting is a *dynamic pin*, promoted per patch
+  rather than declared per type, and it serialises as a distinct kind of pin.
+  Read that spec first — P2 depends on it.
+  A P2a plan covering the format half was written and PARKED the same day
+  (`docs/plan_perform_source_p2a.md`) for exactly this reason: it picked a file
+  spelling before the model existed. Its engine content survives — the
+  PerformNode JSON type, building the voice adapters before `build_graph`, the
+  paramMap→wiring converter, the 196-patch conversion null gate. What changed
+  is how a chain landing on a *setting* is expressed, in the file and on
+  screen. Split as: **P2a** format (engine + loader + converter + gate),
+  **P2b** UI (PerformNode/CurveNode as editor nodes, knot editor extending the
+  existing Curves table + plot, grey→gold promotion in the Settings pane,
+  Curves/Mappings as derived views, save emits the format).
 - **P3 (liveness, pulled params only)** — articulated `.frequency`
   (retire PitchBendSource graft), InstrumentState + wheel + pressure with
   smoothers, MIDI plumbing. Re-listen bend-using material. Configs stay
-  Setup-frozen (§6.6).
+  Setup-frozen (§6.6) — which is the same contract
+  `pin_model_design.md` §5 makes definitional for dynamic pins.
+  **Hole recorded 2026-08-19: bend tracking is per-node, and this phase does
+  not say so.** `WavetableSource` follows a moving frequency per sample via a
+  fractional read head (`wavetable_source.h:105`), but `KSPianoString` reads
+  its frequency ONCE in `init_note()` (`ks_piano_string.h:384`) and never
+  again — so an articulated `.frequency` is silently inert there, and a bend
+  curve on a piano patch today moves a number nobody reads. Backlog 26(a).
+  P3 must either make the inertness loud or scope itself to the nodes that
+  can track.
 - **P4 (cleanup sweep, optional)** — RangeSource migration across the 155
   patches; hiBoost → explicit curve (BACKLOG dsp 19); revisit NT_PARAMETER
   in NodeGraph mode.
