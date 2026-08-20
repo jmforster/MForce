@@ -765,6 +765,17 @@ Priority order. Tags per WORKFLOW.md. (G1)-(G4) = GOALS.md Dipsy goals.
     heard properly, which argues for a listen before a retire on the ones with
     real patches behind them (BowedString 5, Reed 3).
 
+28. **[build] Patch→Node→Patch conversion drops instrument extras** — found
+    2026-08-20 chasing a phantom volume diff in Matt's WIP piano: the
+    Edit-menu conversion lane (`--convert-roundtrip` drives it) loses
+    `instrument.volume` (0.4019 on both pianos) because the node-graph form
+    has no instrument block and the return trip SYNTHESIZES one from the
+    heuristic instead of restoring the stashed extras. Same 3n save-fidelity
+    class. Plain load/save (`--roundtrip`, rt_smoke, interactive save) all
+    carry extras correctly. Fix: stash `s_loadedInstrumentExtras` across
+    convert_patch_to_node_graph and merge into the synthesized block on the
+    way back; gate by comparing instrument blocks through the lane.
+
 27. **[design] Groups allow only ONE output — control wires collide with the
     rule** — Matt hit this 2026-08-20 doing the piano control-strip cleanup:
     a Curve node can't move into a group when it feeds a target OUTSIDE the
