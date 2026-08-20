@@ -613,15 +613,37 @@ Priority order. Tags per WORKFLOW.md. (G1)-(G4) = GOALS.md Dipsy goals.
     deadline risks underruns for zero latency win over the MIDI-thread
     approach.
 
-20. **[build] PerformSource P2 (UI) is next** — P1 LANDED 2026-08-18
-    null-gated 196/196 (perform_source_design.md §7). P2 = PerformNode +
-    CurveNode knot editor + Curves tab/Mappings dialog as derived views +
-    save emits wiring format. Note for P2: UI re-save of patches using the
-    new Envelope fields (minValue/maxValue/nominal) will DROP them until
-    the UI serializer learns them — don't hand-author those fields into
-    library patches before P2. Also pending: mforce_keys is broken against
-    the post-ParamSlot engine API (pre-existing breakage, now different
-    first error) — fix or retire, Matt's call.
+20. **[design] PerformSource P2 — BLOCKED on the config-chain design** — P1
+    LANDED 2026-08-18, null-gated 196/196 (perform_source_design.md §7). A P2a
+    plan (format half: PerformNode JSON type, config refs, converter, gate) was
+    written 2026-08-19 and **PARKED by Matt the same day**
+    (`docs/plan_perform_source_p2a.md` carries the stop notice). Reason: it
+    picked a file-format spelling for "a chain lands on a config" before the
+    model question was settled. Spec §5 covers that in one sentence — "landing
+    on a config pin — one visual language, two evaluation times, distinguished
+    by pin type" — and nowhere says what a config pin **is**, how it reads on a
+    node, or how a user attaches one. Format follows model, not the reverse.
+    **Census done** (`docs/config_pin_census.md`, generated from
+    `mforce_cli --dump-descriptors`): 76 types, **212 float configs**, but only
+    **34 distinct (type, target) pairs are mapped anywhere in `patches/`** —
+    and the demand is concentrated (`KSPianoString.t60` in 85 patches,
+    `brightness` 78, `dispersion`/`inharmGain` 68 each). Blanket "every float
+    config gets a pin" is dead: FullPartials/SequencePartials carry 33 each,
+    ExplicitPartials 29. Open direction (not decided): pins are a property of
+    the *patch*, not the type — a config grows a pin only once something drives
+    it. Terminology also live: "config" is a **port invention** (legacy's only
+    `config` is `MConfig`, a global sample-rate/range holder); C# carried the
+    distinction in its type signatures, and the C++ port needed a name for the
+    first time. A rename would touch 2 virtuals, 1 struct, 1 enum, 27 files —
+    and **zero patch files and zero user-facing text** (patch JSON has no
+    `config` key; the UI already says "Settings"). Resume by finishing the
+    brainstorm, then revise or rewrite the P2a plan. Standing note for whatever
+    lands: UI re-save of patches using the new Envelope fields
+    (minValue/maxValue/nominal) will DROP them until the UI serializer learns
+    them — don't hand-author those fields into library patches first. Also
+    pending: mforce_keys is broken against the post-ParamSlot engine API
+    (pre-existing breakage, now different first error) — fix or retire, Matt's
+    call.
 
 19. **[build] hiBoost → explicit curve** — Matt 2026-08-18 (PerformSource
     brainstorm): `PitchedInstrument.hiBoost` is a hidden loudness
@@ -640,6 +662,158 @@ Priority order. Tags per WORKFLOW.md. (G1)-(G4) = GOALS.md Dipsy goals.
     `patches/fable1_v6/v6_01_res_curve_lo.json`, dirty at session start for
     seven runs now (a UI re-save of v6_01 and a clarinet variant). Left
     untouched again per the tree guard. One word from Matt: commit or revert.
+
+21. **[build] WhiteNoiseSource lost three params in the port** — found
+    2026-08-19 sweeping legacy for capability the C++ port dropped; Matt: "was
+    wondering where the WhiteNoise params went while editing the piano exciter
+    nodes." The C# original
+    (`mforce-legacy/MForce/Sound/Source/WhiteNoiseSource.cs`) held four
+    connectable `ISingleValueSource` members — Amplitude, Boost, Density,
+    Continuity — and used all four per sample:
+    `if (Rand.Decide(Density)) { Value = Rand.Range(Boost, 1) * Rand.Sign();
+    if (Continuity != 0) Value = Rand.Range(LastVal, Value, min(Continuity,
+    0.999)); }`. The C++ node exposes **only `amplitude`**. Not demoted to
+    configs — absent. Reads as an incomplete port rather than a decision,
+    because the RedNoiseSource sibling next door carries the whole set as
+    pins (`density`, `smoothness`, `rampVariation`, `boost`, `continuity`,
+    `zeroCrossTendency`). Port the three onto WhiteNoiseSource following
+    RedNoise's implementation; defaults must reproduce today's output exactly
+    (verify against the legacy constructor before trusting density 1.0 /
+    boost 0.0 / continuity 0.0), and no patch sets these keys, so the null
+    gate staying 196/196 is the check.
+
+22. **[read] Vibrato lost its user-supplied speed/depth envelopes** — question
+    for Matt, from the same 2026-08-19 sweep. Legacy `Vibrato` exposed
+    `SetSpeedEnvelope(MEnvelope)` and `SetDepthEnvelope(MEnvelope)` — the only
+    way to make speed or depth vary, since both were plain floats. The port
+    turned that into a **hardcoded internal** ASEnvelope
+    (`engine/include/mforce/filter/vibrato.h:121`): speed ramps 1 Hz → speed
+    and depth ramps 0 → depth across the attack, then both hold. Fixed shape,
+    not suppliable. This is the ONLY instance of the pattern in the whole
+    legacy tree — swept all 194 `.cs` files, no other class has a `Set*Envelope`.
+    Vibrato appears in 47 patches. Question: restore user-suppliable envelopes
+    (speed/depth become pins), leave the hardcoded ramp alone, or fold it into
+    whatever the config-chain design settles on? Not urgent — nothing is
+    currently blocked on it.
+
+23. **[read] CombinedSource lost its connectable Amplitude** — question for
+    Matt, same sweep. Legacy `CombinedSource` had `Amplitude` as a connectable
+    `ISingleValueSource` applied as the final multiply (`Value = val *
+    Amplitude.GetCurrent()`), alongside the scalar `GainAdj` that scales
+    source2 only. The C++ node kept `gainAdj` (as a config) and dropped
+    `amplitude` entirely. Expressible today as a second CombinedSource
+    multiply, so this is a cost — one extra node per gain stage — not a wall,
+    which is why it is a question and not a repair. CombinedSource is
+    everywhere (138 patches map its `source2`), so adding a pin back is not
+    free either. Question: worth restoring, or is the extra node the honest
+    spelling?
+
+    > Sweep provenance for 21-23: 31 legacy classes expose 82
+    > `Set*(ISingleValueSource)` setters. **Zero were demoted to configs** —
+    > nothing connectable in C# became a config in C++; the rest survived as
+    > pins with renamed keys (`CutoffFrequency`→`cutoffFreq`,
+    > `StartFrequency`→`startFreq`, `RetracePercent`→`retracePct`,
+    > `VarPercent`→`varPct`). These three are the whole delta.
+
+24. **[listen-prep] Does each attribute actually change the sound?** — Matt
+    2026-08-19, on the attribute census: **"being used by a patch ≠ contributes
+    materially to the sound."** A patch setting a key proves an author typed it,
+    not that it earns its place. Prep A/B ladders isolating each suspect, then
+    queue for Matt's ears "when bored" — this is a low-priority listening item,
+    not a blocker. Suspects, strongest first (counts from
+    `docs/config_pin_census.md`):
+    - **HammerBank `harm1`-`harm4` + `numBands`** — present in all **147**
+      patches, **non-default in zero**. Five of eleven attributes on the node,
+      never once varied. Strongest candidate anywhere in the census.
+    - **KSPianoString `inharmHp`** — present in 83, non-default in 0, never
+      mapped. (Everything else on that node earns its place.)
+    - **FullPartials' 12 never-set shared attributes** — motionScale,
+      shimmerCoherence/Evolve/Floor, tradeDepth/Hz, onsetSpread/Tilt/Fade,
+      decayRate, decayExp, inharmonicity. Live on ExplicitPartials, untouched
+      here.
+    - **Vibrato `threshold` + `zeroCrossTendency`** — non-default in 0 of 48.
+    Method note that must not be skipped: **"always default" does NOT mean
+    unused when the attribute is mapped.** `ExplicitPartials.inharmonicity` is
+    at default in all 4 patches that set it and driven per note by a curve in
+    all 4; `KSPianoString.t60` is statically non-default in only 15 of 85 but
+    mapped in all 85. Check the mapped column before calling anything dead.
+
+25. **[read] Retire or keep the wave-evolution experiments** — Matt 2026-08-19:
+    this review was agreed long ago, pre-autonomy, in the earliest sessions, and
+    was never filed anywhere — confirmed by scanning BACKLOG and REVIEW (the
+    only related item is 9, "convert 6 algev patches", done run8). These were
+    the hunt for the breath/bow/noisy-attack grail. Usage across all of
+    `patches/`:
+    | type | patches |
+    |---|---|
+    | BrassEvolution | **0** |
+    | AveragingEvolution | **0** |
+    | BezierPullEvolution | 1 |
+    | EKSEvolution | 1 |
+    | ReactionDiffusionEvolution | 1 |
+    | CellularAutomatonEvolution | 1 |
+    | HistogramEqualizeEvolution | 1 |
+    | ReedEvolution | 3 |
+    | BowedStringEvolution | 5 |
+    Most of the single-patch ones also sit at defaults on half their attributes,
+    i.e. the one patch does not exercise them either. Decide keep/retire per
+    type; retiring is cheap (no patch depends on the zero- and most
+    one-patch types) and each removal shrinks the surface the config-pin work
+    has to account for. Related: `project_rd_audition_path_mismatch` — the algev
+    patches' audition path was CLI-vs-UI mismatched, so some may never have been
+    heard properly, which argues for a listen before a retire on the ones with
+    real patches behind them (BowedString 5, Reed 3).
+
+26. **[design/build] Bend is inert on KSPianoString — and the missing
+    block-level cadence** — found 2026-08-19 while working out what per-block
+    re-config would buy musically. Matt asked for the concrete bug and the
+    broader topic together.
+
+    **(a) The concrete finding.** `KSPianoString::init_note()` reads the
+    frequency exactly once, on the first sample of the note:
+    `float f0 = frequency_->current();` … `const float period = sr / f0;`
+    (`ks_piano_string.h:384`), then sets `initialized_ = true`. Comb lengths
+    are fixed for the life of the note. `frequency_->next()` is still pulled
+    every sample (`:185`) but nothing reads the result again. **So a bend curve
+    on a piano patch moves a number nobody looks at — silently inert**, the
+    same failure class as backlog 14 (silently-ignored params) and the
+    2026-08-13 UI drop bugs: it renders, it just doesn't do what was authored.
+    Contrast `WavetableSource`, which DOES track a bend per sample via a
+    fractional read head advancing by `currFreq_/baseFreq_`
+    (`wavetable_source.h:105`) — that is where the bend work landed, and the
+    piano was never in it. Minimum fix is to stop it being silent: refuse or
+    warn when a bend/pitch curve targets a node that cannot retune. Nobody has
+    hit this yet because no piano patch carries a bend — which is exactly why
+    it will be found the hard way.
+
+    **(b) The broader topic.** The engine has **no block cadence at all**. Its
+    only rhythm is `vg.source->prepare(ctx, durSamples)` once per note
+    (`instrument.h:230`) and then `next()` per sample. The 512-frame block
+    (~10.7 ms @ 48k, `tools/mforce_ui/main.cpp:2472`) exists solely in the UI's
+    RtAudio callback; nothing in the engine is ever told a block went by. So
+    the tier table is:
+
+    | tier | set when | what uses it today |
+    |---|---|---|
+    | fixed | patch load | scalar configs |
+    | per note | note-on | dynamic pins (the 2026-08-19 design) |
+    | **per block** | every ~10.7 ms | **nothing — does not exist** |
+    | per sample | every sample | ordinary pins |
+
+    Spec §6.6 already parks the narrow version (`t60` tracking a bend,
+    "cheap for KS ~3 pows/block, but a real mechanism, per-source opt-in").
+    This item is the wider question: is the block tier worth introducing at
+    all, and if so what is the hook — a `block_tick()` on ValueSource, an
+    opt-in flag, something else? Cost is wildly per-node: `t60` is three
+    `pow`s (`ks_piano_string.h:440`), whereas retuning comb lengths mid-ring —
+    what an actual piano bend needs — means changing a delay-line length while
+    it is ringing, which has its own artifacts and is a different and much
+    harder problem than recomputing a gain. **Do not conflate the two:** (a) is
+    a silent-failure bug fixable today; (b) is a design question that does not
+    block the config-pin work. Musical note from the discussion: a KS string
+    has no decay *stage* to schedule — excitation dumps energy into a loop and
+    the loop leaks it, so decay is the whole life of the note and `t60` is a
+    rate, not a phase.
 
 ## Done
 
