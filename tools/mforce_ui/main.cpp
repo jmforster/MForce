@@ -266,6 +266,12 @@ struct GraphNode {
     std::string paramName;
     char paramNameBuf[32]{};
 
+    // True when this node's id came from the file already carrying the "__"
+    // synthesized-node prefix. Set at load; keeps sanitize_unique_id from
+    // stripping it back out on save. A human still cannot type "__" —
+    // rename_node refuses it.
+    bool synthesizedId{false};
+
     GraphNode(const std::string& type) : id(next_id()), typeName(type), label(unique_node_label(type)) {
         build_pins();
         create_dsp();
@@ -1193,6 +1199,14 @@ static void load_graph_from_path(const std::string& path) {
         s_nodes.emplace_back(type);
         GraphNode& gn = s_nodes.back();
         gn.label = id;  // use JSON id as label
+        // A "__" id in the FILE is a legitimately synthesized node — the
+        // wiring format's __perf_freq / __curve_N / __mul_N, or the UI's own
+        // __output / __param_* / __fN. sanitize_unique_id strips that prefix
+        // to stop a human LABEL claiming the reserved namespace; without this
+        // flag it also renames the converter's nodes on every round trip
+        // (__perf_freq -> _perf_freq). Renders are unaffected, but silently
+        // renaming nodes the converter created makes later diffs unreadable.
+        gn.synthesizedId = (id.rfind("__", 0) == 0);
         nodeMap[id] = &gn;
 
         // Map output pin
@@ -1742,10 +1756,14 @@ static GraphNode* find_source_node(int inputPinId) {
 // from a hand-edited file must not collapse two nodes into one id.
 static std::string sanitize_unique_id(const std::string& want,
                                       std::unordered_set<std::string>& used,
-                                      const std::string& typeName) {
+                                      const std::string& typeName,
+                                      bool keepReservedPrefix = false) {
     std::string base = want;
     std::replace(base.begin(), base.end(), '.', '_');
-    while (base.rfind("__", 0) == 0) base.erase(0, 1);
+    // The strip guards the reserved namespace against human LABELS. A node
+    // whose id arrived from the file already synthesized keeps it.
+    if (!keepReservedPrefix)
+        while (base.rfind("__", 0) == 0) base.erase(0, 1);
     if (base.empty()) base = node_display_name(typeName);
     std::string name = base;
     for (int i = 2; used.count(name); ++i) name = base + std::to_string(i);
@@ -1918,7 +1936,8 @@ static void save_patch_graph(const std::string& path, bool tapOverride = false) 
     for (auto& node : s_nodes) {
         if (node.typeName == NT_PATCH_OUTPUT || node.typeName == NT_PARAMETER)
             continue;
-        nodeIds[node.id] = sanitize_unique_id(node.label, usedIds, node.typeName);
+        nodeIds[node.id] = sanitize_unique_id(node.label, usedIds, node.typeName,
+                                              node.synthesizedId);
     }
 
     // Find the Output node
@@ -2206,7 +2225,8 @@ static void save_node_graph(const std::string& path) {
     std::unordered_map<int, std::string> nodeIds;
     std::unordered_set<std::string> usedIds;
     for (auto& node : s_nodes)
-        nodeIds[node.id] = sanitize_unique_id(node.label, usedIds, node.typeName);
+        nodeIds[node.id] = sanitize_unique_id(node.label, usedIds, node.typeName,
+                                              node.synthesizedId);
 
     // Find mixer for output
     std::string outputId;
