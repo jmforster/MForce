@@ -655,14 +655,14 @@ Priority order. Tags per WORKFLOW.md. (G1)-(G4) = GOALS.md Dipsy goals.
     the voice-gain path) so the last invisible per-note compensation
     becomes patch data. Null-test the conversion like the paramMap flip.
 
-11. **[build] Two standing dirty patch files** — ✓ **SHRUNK run21**: the
-    Python half of this item is GONE. `score_candidate.py` and
-    `iowa_reference.py` were committed by run 20 (72defb9), so HEAD can now
-    run the clarinet CMA-ES pipeline on its own. What remains is only
-    `patches/clarinet_c2/c2c_quiet.json` and
-    `patches/fable1_v6/v6_01_res_curve_lo.json`, dirty at session start for
-    seven runs now (a UI re-save of v6_01 and a clarinet variant). Left
-    untouched again per the tree guard. One word from Matt: commit or revert.
+11. ✓ **CLOSED 2026-08-20** (was: two standing dirty patch files) — resolved
+    2026-08-15 by Matt's bulk-move reconcile `5c5c139` and nobody updated
+    this entry: `v6_01_res_curve_lo` was committed as the rename to
+    `library/strings/viola_res_lo` (with the 3n sustainLevel repairs);
+    `c2c_quiet` parked in `patches/old/` grace window, its 11-run dirty
+    modifications dying with the working-tree delete. Matt said "commit"
+    on 2026-08-20; there was nothing left to commit — both paths gone,
+    tree clean. (Python half already closed run 21.)
 
 21. **[build] WhiteNoiseSource lost three params in the port** — found
     2026-08-19 sweeping legacy for capability the C++ port dropped; Matt: "was
