@@ -7060,10 +7060,16 @@ static void draw_group_node(NodeGroup& g) {
                        "%d nodes  (double-click)", (int)g.members.size());
 
     for (size_t i = 0; i < ins.size(); ++i) {
+        // Same detach affordance as any real input pin (Matt 2026-08-20:
+        // dragging on a group pin drew a NEW wire instead of detaching).
+        // The projected link keeps its REAL id, so the existing destroy
+        // handler removes the right link.
+        ImNodes::PushAttributeFlag(ImNodesAttributeFlags_EnableLinkDetachWithDragClick);
         ImNodes::BeginInputAttribute(g.inPinIds[i]);
         ImGui::TextColored(ImVec4(0.85f, 0.85f, 0.85f, 1.0f), "%s",
                            ins[i].label.c_str());
         ImNodes::EndInputAttribute();
+        ImNodes::PopAttributeFlag();
         s_groupProj.synthToRealIn[g.inPinIds[i]] = ins[i].realInPin;
         s_groupProj.realInToSynth[ins[i].realInPin] = g.inPinIds[i];
     }

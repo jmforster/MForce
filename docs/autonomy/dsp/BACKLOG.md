@@ -765,6 +765,19 @@ Priority order. Tags per WORKFLOW.md. (G1)-(G4) = GOALS.md Dipsy goals.
     heard properly, which argues for a listen before a retire on the ones with
     real patches behind them (BowedString 5, Reed 3).
 
+27. **[design] Groups allow only ONE output — control wires collide with the
+    rule** — Matt hit this 2026-08-20 doing the piano control-strip cleanup:
+    a Curve node can't move into a group when it feeds a target OUTSIDE the
+    group, because the collapsed face has exactly one output pin and the
+    two-output check (rightly, for that face model) refuses. Workaround he
+    accepted for now: disconnect, move, reconnect (the group-pin detach fix
+    landed same day). Real fix is multi-output group faces — one synthetic
+    output pin per boundary-crossing source, projection maps per pin like
+    inputs already do. Design question first: does a control tap (curve →
+    setting elsewhere) even belong in the audio group's interface, or should
+    the face distinguish audio-out from control-outs (gold, per the pin
+    model)?
+
 26. **[design/build] Bend is inert on KSPianoString — and the missing
     block-level cadence** — found 2026-08-19 while working out what per-block
     re-config would buy musically. Matt asked for the concrete bug and the
