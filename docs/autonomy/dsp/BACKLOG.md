@@ -614,6 +614,14 @@ Priority order. Tags per WORKFLOW.md. (G1)-(G4) = GOALS.md Dipsy goals.
     approach.
 
 20. **[review:try] PerformSource P2/P3 — P2 COMPLETE, needs Matt's hands** —
+    **Full same-evening audit of the day's 23 commits:**
+    `reports/2026-08-19-opus5-day-review.md` — verdict KEEP ALL, four edge
+    defects found and fixed on top (lint consumer of the renamed dump key;
+    rename/delete of a driving CurveNode produced an unrenderable file, now
+    fixup/demote; synthesized-node layout implemented after being silently
+    skipped). Top remaining P2b item, flagged there: Matt's approved design
+    puts a GOLD PIN ON THE NODE FACE for a promoted setting — what shipped is
+    Settings-pane-only, deferred without asking.
     P1 2026-08-18; **P2a + P2b both LANDED 2026-08-19** (004295e..88cc197).
     The whole PerformSource editor story is in: a patch expresses "this note's
     pitch, through this curve, into this setting" entirely as graph nodes; the
