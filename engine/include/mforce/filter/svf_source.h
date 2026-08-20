@@ -49,15 +49,15 @@ struct SVFSource final : ValueSource {
     return descs;
   }
 
-  std::span<const ConfigDescriptor> config_descriptors() const override {
+  std::span<const SettingDescriptor> setting_descriptors() const override {
     static const char* const kModeLabels[] = {"Lowpass", "Highpass",
                                               "Bandpass", "Lowpass1P",
                                               "Highpass1P", nullptr};
-    static const ConfigDescriptor descs[] = {
-      {"mode",      ConfigType::Int,  float(kLowpass), 0.0f, 4.0f, kModeLabels},
+    static const SettingDescriptor descs[] = {
+      {"mode",      SettingType::Int,  float(kLowpass), 0.0f, 4.0f, kModeLabels},
       // Divide the output by the resonance (AF "brightness" semantics:
       // resonance shapes color while the level stays put).
-      {"normalize", ConfigType::Bool, 0.0f, 0.0f, 1.0f},
+      {"normalize", SettingType::Bool, 0.0f, 0.0f, 1.0f},
     };
     return descs;
   }
@@ -75,12 +75,12 @@ struct SVFSource final : ValueSource {
     return nullptr;
   }
 
-  void set_config(std::string_view name, float v) override {
+  void set_setting(std::string_view name, float v) override {
     if (name == "mode")      { mode_ = std::clamp(int(v), 0, 4); return; }
     if (name == "normalize") { normalize_ = (v != 0.0f); return; }
   }
 
-  float get_config(std::string_view name) const override {
+  float get_setting(std::string_view name) const override {
     if (name == "mode")      return float(mode_);
     if (name == "normalize") return normalize_ ? 1.0f : 0.0f;
     return 0.0f;

@@ -48,19 +48,19 @@ struct HammerBank final : ValueSource {
     return descs;
   }
 
-  std::span<const ConfigDescriptor> config_descriptors() const override {
-    static constexpr ConfigDescriptor descs[] = {
-      {"numBands",  ConfigType::Int,   4.0f,   1.0f,  4.0f},
-      {"harm1",     ConfigType::Float, 1.0f,   0.1f,  32.0f},
-      {"harm2",     ConfigType::Float, 2.0f,   0.1f,  32.0f},
-      {"harm3",     ConfigType::Float, 3.0f,   0.1f,  32.0f},
-      {"harm4",     ConfigType::Float, 4.0f,   0.1f,  32.0f},
-      {"resStart",  ConfigType::Float, 20.0f,  0.5f,  200.0f},
-      {"resEnd",    ConfigType::Float, 1.5f,   0.5f,  50.0f},
-      {"resDecay",  ConfigType::Float, 0.010f, 0.0005f, 0.5f},
-      {"bandTilt",  ConfigType::Float, -0.5f,  -3.0f, 3.0f},
-      {"direct",    ConfigType::Float, 0.0f,   0.0f,  1.0f},
-      {"gain",      ConfigType::Float, 1.0f,   0.0f,  8.0f},
+  std::span<const SettingDescriptor> setting_descriptors() const override {
+    static constexpr SettingDescriptor descs[] = {
+      {"numBands",  SettingType::Int,   4.0f,   1.0f,  4.0f},
+      {"harm1",     SettingType::Float, 1.0f,   0.1f,  32.0f},
+      {"harm2",     SettingType::Float, 2.0f,   0.1f,  32.0f},
+      {"harm3",     SettingType::Float, 3.0f,   0.1f,  32.0f},
+      {"harm4",     SettingType::Float, 4.0f,   0.1f,  32.0f},
+      {"resStart",  SettingType::Float, 20.0f,  0.5f,  200.0f},
+      {"resEnd",    SettingType::Float, 1.5f,   0.5f,  50.0f},
+      {"resDecay",  SettingType::Float, 0.010f, 0.0005f, 0.5f},
+      {"bandTilt",  SettingType::Float, -0.5f,  -3.0f, 3.0f},
+      {"direct",    SettingType::Float, 0.0f,   0.0f,  1.0f},
+      {"gain",      SettingType::Float, 1.0f,   0.0f,  8.0f},
     };
     return descs;
   }
@@ -76,7 +76,7 @@ struct HammerBank final : ValueSource {
     return nullptr;
   }
 
-  void set_config(std::string_view name, float v) override {
+  void set_setting(std::string_view name, float v) override {
     if (name == "numBands") { numBands_ = std::clamp(int(v), 1, kMaxBands); return; }
     if (name == "harm1")    { harm_[0] = v; return; }
     if (name == "harm2")    { harm_[1] = v; return; }
@@ -90,7 +90,7 @@ struct HammerBank final : ValueSource {
     if (name == "gain")     { gain_     = v; return; }
   }
 
-  float get_config(std::string_view name) const override {
+  float get_setting(std::string_view name) const override {
     if (name == "numBands") return float(numBands_);
     if (name == "harm1")    return harm_[0];
     if (name == "harm2")    return harm_[1];

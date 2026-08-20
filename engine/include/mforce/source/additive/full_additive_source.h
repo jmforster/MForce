@@ -71,19 +71,19 @@ struct FullAdditiveSource final : WaveSource {
   // --- NoiseBed configs (scalar so paramMap frequency-curves can drive them
   // per register — e.g. the clarinet noise-lead law 0.15/0.10/0.04 s by f0
   // is expressed as a patch-side curve on noiseBedDelay, never hardcoded).
-  std::span<const ConfigDescriptor> config_descriptors() const override {
-    static constexpr ConfigDescriptor descs[] = {
-      {"noiseBedLevel", ConfigType::Float, 0.0f,    0.0f,   1.0f},     // linear, rel tone; 0 = inert
-      {"noiseBedFreq",  ConfigType::Float, 2900.0f, 20.0f,  16000.0f}, // bandpass center Hz
-      {"noiseBedWidth", ConfigType::Float, 1500.0f, 10.0f,  12000.0f}, // bandpass width Hz (Q = freq/width)
-      {"noiseBedDelay", ConfigType::Float, 0.0f,    0.0f,   2.0f},     // TONE delay sec (noise runs from t=0)
-      {"noiseBedFadePow", ConfigType::Float, 1.0f, 0.25f, 8.0f},
-      {"noiseBedFade",  ConfigType::Float, 0.05f,   0.001f, 2.0f},     // tone fade-in sec after the delay
+  std::span<const SettingDescriptor> setting_descriptors() const override {
+    static constexpr SettingDescriptor descs[] = {
+      {"noiseBedLevel", SettingType::Float, 0.0f,    0.0f,   1.0f},     // linear, rel tone; 0 = inert
+      {"noiseBedFreq",  SettingType::Float, 2900.0f, 20.0f,  16000.0f}, // bandpass center Hz
+      {"noiseBedWidth", SettingType::Float, 1500.0f, 10.0f,  12000.0f}, // bandpass width Hz (Q = freq/width)
+      {"noiseBedDelay", SettingType::Float, 0.0f,    0.0f,   2.0f},     // TONE delay sec (noise runs from t=0)
+      {"noiseBedFadePow", SettingType::Float, 1.0f, 0.25f, 8.0f},
+      {"noiseBedFade",  SettingType::Float, 0.05f,   0.001f, 2.0f},     // tone fade-in sec after the delay
     };
     return descs;
   }
 
-  void set_config(std::string_view name, float value) override {
+  void set_setting(std::string_view name, float value) override {
     if (name == "noiseBedLevel") { noiseBedLevel_ = value; return; }
     if (name == "noiseBedFreq")  { noiseBedFreq_  = value; return; }
     if (name == "noiseBedWidth") { noiseBedWidth_ = value; return; }
@@ -92,7 +92,7 @@ struct FullAdditiveSource final : WaveSource {
     if (name == "noiseBedFade")  { noiseBedFade_  = value; return; }
   }
 
-  float get_config(std::string_view name) const override {
+  float get_setting(std::string_view name) const override {
     if (name == "noiseBedLevel") return noiseBedLevel_;
     if (name == "noiseBedFreq")  return noiseBedFreq_;
     if (name == "noiseBedWidth") return noiseBedWidth_;

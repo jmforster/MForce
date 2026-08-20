@@ -80,7 +80,7 @@ struct PitchedInstrument final : Instrument {
   // interp modes; its delivery loop became apply_note_bindings.)
 
   // A converted paramMap entry that must be PUSH-delivered at note time
-  // (perform_source_design.md §5): config targets (set_config rebuilds
+  // (perform_source_design.md §5): setting targets (set_setting rebuilds
   // state at prepare — no pointer to pull) and every entry on a Multiplex
   // voice (clone fan-out keeps push semantics wholesale, bit-safe).
   // `chain` is the transfer chain rooted at the voice's PerformOut
@@ -90,7 +90,7 @@ struct PitchedInstrument final : Instrument {
     std::string                      paramName;
     std::string                      targetNodeId;  // Multiplex clone fan
     std::shared_ptr<ValueSource>     chain;
-    std::shared_ptr<ConstantSource>  cs;            // non-config delivery
+    std::shared_ptr<ConstantSource>  cs;            // non-setting delivery
     bool                             isConfig{false};
   };
 
@@ -179,9 +179,9 @@ struct PitchedInstrument final : Instrument {
   // poolSize staccato notes cut the held note). Does not advance nextVoice;
   // slot-aware callers manage their own rotation.
   // Realization/Setup delivery (perform_source_design.md §5): one NoteState
-  // write, push-binding evaluation (configs + Multiplex fans), and the P1
+  // write, push-binding evaluation (settings + Multiplex fans), and the P1
   // bend graft on the swap targets. Push deliveries happen BEFORE
-  // vg.source->prepare — configs rebuild per-note state there.
+  // vg.source->prepare — settings rebuild per-note state there.
   void apply_note_bindings(VoiceGraph& vg, float freq, float velocity,
                            int durSamples, const PitchCurve* curve) {
     if (vg.performSource)
@@ -191,7 +191,7 @@ struct PitchedInstrument final : Instrument {
       b.chain->next();
       float v = b.chain->current();
       if (b.isConfig) {
-        b.consumer->set_config(b.paramName, v);
+        b.consumer->set_setting(b.paramName, v);
       } else {
         b.cs->set(v);
         b.consumer->set_param(b.paramName, b.cs);

@@ -169,20 +169,20 @@ struct Envelope : ValueSource {
   void set_seed(uint32_t s) { seed_ = s; }
   uint32_t get_seed() const { return seed_; }
 
-  std::span<const ConfigDescriptor> config_descriptors() const override {
-    static constexpr ConfigDescriptor descs[] = {
-      {"stage_accuracy", ConfigType::Float, 1.0f, 0.0f, 1.0f},
-      {"ramp_accuracy",  ConfigType::Float, 1.0f, 0.0f, 1.0f},
-      {"sustainLevel",   ConfigType::Float, 0.7f, 0.0f, 1.0f},
+  std::span<const SettingDescriptor> setting_descriptors() const override {
+    static constexpr SettingDescriptor descs[] = {
+      {"stage_accuracy", SettingType::Float, 1.0f, 0.0f, 1.0f},
+      {"ramp_accuracy",  SettingType::Float, 1.0f, 0.0f, 1.0f},
+      {"sustainLevel",   SettingType::Float, 0.7f, 0.0f, 1.0f},
       // Keyboard tracking of envelope times (classic synth env-KBD-track):
       // multiplies every stage duration. paramMap-able per note, so a hit
       // envelope can shorten with pitch (treble hammers contact shorter).
-      {"timeScale",      ConfigType::Float, 1.0f, 0.01f, 10.0f},
+      {"timeScale",      SettingType::Float, 1.0f, 0.01f, 10.0f},
     };
     return descs;
   }
 
-  void set_config(std::string_view name, float value) override {
+  void set_setting(std::string_view name, float value) override {
     if (name == "stage_accuracy") { stage_accuracy = std::clamp(value, 0.0f, 1.0f); return; }
     if (name == "ramp_accuracy")  { ramp_accuracy  = std::clamp(value, 0.0f, 1.0f); return; }
     if (name == "timeScale")      { timeScale_ = std::clamp(value, 0.01f, 10.0f); return; }
@@ -218,7 +218,7 @@ struct Envelope : ValueSource {
            stages_[2].ramp.endVal   == stages_[3].ramp.startVal;
   }
 
-  float get_config(std::string_view name) const override {
+  float get_setting(std::string_view name) const override {
     if (name == "stage_accuracy") return stage_accuracy;
     if (name == "ramp_accuracy")  return ramp_accuracy;
     if (name == "timeScale")      return timeScale_;
@@ -440,7 +440,7 @@ struct Envelope : ValueSource {
     env.add_stage({{1.0f, sustainLevel, RampType::Linear, 0.0f}, decayPct, decayMin, decayMax});
     env.add_stage({{sustainLevel, sustainLevel, RampType::Linear, 0.0f}, 0.0f, 0.0f, 0.0f}); // expand
     env.add_stage({{sustainLevel, 0.0f, RampType::Sine, 0.0f}, releasePct, releaseMin, releaseMax});
-    env.adsrLayout_ = true;  // enables live sustainLevel rewrites via set_config
+    env.adsrLayout_ = true;  // enables live sustainLevel rewrites via set_setting
     return env;
   }
 
@@ -505,7 +505,7 @@ private:
   float mapped_{0.0f};   // range-mapped output — what next()/current() report
   std::vector<Stage> stages_;
   // True when stages were built by make_adsr — the fixed 4-stage layout that
-  // sustainLevel set_config knows how to rewrite.
+  // sustainLevel set_setting knows how to rewrite.
   bool adsrLayout_{false};
   // Note-contained sound (2026-08-13 spec):
   // gated_: live-note mode — the expand stage holds until gate_release().

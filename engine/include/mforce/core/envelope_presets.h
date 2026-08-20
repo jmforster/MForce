@@ -5,7 +5,7 @@ namespace mforce {
 
 // ---------------------------------------------------------------------------
 // Convenience envelope classes — thin wrappers around Envelope with
-// config_descriptors() for the relevant params. Each rebuilds its stages
+// setting_descriptors() for the relevant params. Each rebuilds its stages
 // when a config value changes.
 //
 // Stage min/max timing constraints use sensible defaults internally;
@@ -20,23 +20,23 @@ struct AREnvelope final : Envelope {
 
   const char* type_name() const override { return "AREnvelope"; }
 
-  std::span<const ConfigDescriptor> config_descriptors() const override {
-    static constexpr ConfigDescriptor descs[] = {
-      {"attack",         ConfigType::Float, 0.2f, 0.0f, 1.0f},
-      {"stage_accuracy", ConfigType::Float, 1.0f, 0.0f, 1.0f},
-      {"ramp_accuracy",  ConfigType::Float, 1.0f, 0.0f, 1.0f},
+  std::span<const SettingDescriptor> setting_descriptors() const override {
+    static constexpr SettingDescriptor descs[] = {
+      {"attack",         SettingType::Float, 0.2f, 0.0f, 1.0f},
+      {"stage_accuracy", SettingType::Float, 1.0f, 0.0f, 1.0f},
+      {"ramp_accuracy",  SettingType::Float, 1.0f, 0.0f, 1.0f},
     };
     return descs;
   }
 
-  void set_config(std::string_view name, float value) override {
+  void set_setting(std::string_view name, float value) override {
     if (name == "attack") { attack_ = value; rebuild(); return; }
-    Envelope::set_config(name, value);
+    Envelope::set_setting(name, value);
   }
 
-  float get_config(std::string_view name) const override {
+  float get_setting(std::string_view name) const override {
     if (name == "attack") return attack_;
-    return Envelope::get_config(name);
+    return Envelope::get_setting(name);
   }
 
 private:
@@ -57,29 +57,29 @@ struct ASEnvelope final : Envelope {
 
   const char* type_name() const override { return "ASEnvelope"; }
 
-  std::span<const ConfigDescriptor> config_descriptors() const override {
-    static constexpr ConfigDescriptor descs[] = {
-      {"attack",         ConfigType::Float, 0.2f, 0.0f, 1.0f},
-      {"sustainLevel",   ConfigType::Float, 1.0f, 0.0f, 1.0f},
-      {"reverse",        ConfigType::Bool,  0.0f, 0.0f, 1.0f},
-      {"stage_accuracy", ConfigType::Float, 1.0f, 0.0f, 1.0f},
-      {"ramp_accuracy",  ConfigType::Float, 1.0f, 0.0f, 1.0f},
+  std::span<const SettingDescriptor> setting_descriptors() const override {
+    static constexpr SettingDescriptor descs[] = {
+      {"attack",         SettingType::Float, 0.2f, 0.0f, 1.0f},
+      {"sustainLevel",   SettingType::Float, 1.0f, 0.0f, 1.0f},
+      {"reverse",        SettingType::Bool,  0.0f, 0.0f, 1.0f},
+      {"stage_accuracy", SettingType::Float, 1.0f, 0.0f, 1.0f},
+      {"ramp_accuracy",  SettingType::Float, 1.0f, 0.0f, 1.0f},
     };
     return descs;
   }
 
-  void set_config(std::string_view name, float value) override {
+  void set_setting(std::string_view name, float value) override {
     if (name == "attack")       { attack_ = value; rebuild(); return; }
     if (name == "sustainLevel") { sustainLevel_ = value; rebuild(); return; }
     if (name == "reverse")      { reverse_ = (value != 0.0f); rebuild(); return; }
-    Envelope::set_config(name, value);
+    Envelope::set_setting(name, value);
   }
 
-  float get_config(std::string_view name) const override {
+  float get_setting(std::string_view name) const override {
     if (name == "attack")       return attack_;
     if (name == "sustainLevel") return sustainLevel_;
     if (name == "reverse")      return reverse_ ? 1.0f : 0.0f;
-    return Envelope::get_config(name);
+    return Envelope::get_setting(name);
   }
 
 private:
@@ -110,29 +110,29 @@ struct ASREnvelope final : Envelope {
 
   const char* type_name() const override { return "ASREnvelope"; }
 
-  std::span<const ConfigDescriptor> config_descriptors() const override {
-    static constexpr ConfigDescriptor descs[] = {
-      {"attack",         ConfigType::Float, 0.2f, 0.0f, 1.0f},
-      {"sustainLevel",   ConfigType::Float, 1.0f, 0.0f, 1.0f},
-      {"release",        ConfigType::Float, 0.1f, 0.0f, 1.0f},
-      {"stage_accuracy", ConfigType::Float, 1.0f, 0.0f, 1.0f},
-      {"ramp_accuracy",  ConfigType::Float, 1.0f, 0.0f, 1.0f},
+  std::span<const SettingDescriptor> setting_descriptors() const override {
+    static constexpr SettingDescriptor descs[] = {
+      {"attack",         SettingType::Float, 0.2f, 0.0f, 1.0f},
+      {"sustainLevel",   SettingType::Float, 1.0f, 0.0f, 1.0f},
+      {"release",        SettingType::Float, 0.1f, 0.0f, 1.0f},
+      {"stage_accuracy", SettingType::Float, 1.0f, 0.0f, 1.0f},
+      {"ramp_accuracy",  SettingType::Float, 1.0f, 0.0f, 1.0f},
     };
     return descs;
   }
 
-  void set_config(std::string_view name, float value) override {
+  void set_setting(std::string_view name, float value) override {
     if (name == "attack")       { attack_ = value; rebuild(); return; }
     if (name == "sustainLevel") { sustainLevel_ = value; rebuild(); return; }
     if (name == "release")      { release_ = value; rebuild(); return; }
-    Envelope::set_config(name, value);
+    Envelope::set_setting(name, value);
   }
 
-  float get_config(std::string_view name) const override {
+  float get_setting(std::string_view name) const override {
     if (name == "attack")       return attack_;
     if (name == "sustainLevel") return sustainLevel_;
     if (name == "release")      return release_;
-    return Envelope::get_config(name);
+    return Envelope::get_setting(name);
   }
 
 private:
@@ -157,29 +157,29 @@ struct ADSEnvelope final : Envelope {
 
   const char* type_name() const override { return "ADSEnvelope"; }
 
-  std::span<const ConfigDescriptor> config_descriptors() const override {
-    static constexpr ConfigDescriptor descs[] = {
-      {"attack",         ConfigType::Float, 0.2f, 0.0f, 1.0f},
-      {"decay",          ConfigType::Float, 0.1f, 0.0f, 1.0f},
-      {"sustainLevel",   ConfigType::Float, 0.0f, 0.0f, 1.0f},
-      {"stage_accuracy", ConfigType::Float, 1.0f, 0.0f, 1.0f},
-      {"ramp_accuracy",  ConfigType::Float, 1.0f, 0.0f, 1.0f},
+  std::span<const SettingDescriptor> setting_descriptors() const override {
+    static constexpr SettingDescriptor descs[] = {
+      {"attack",         SettingType::Float, 0.2f, 0.0f, 1.0f},
+      {"decay",          SettingType::Float, 0.1f, 0.0f, 1.0f},
+      {"sustainLevel",   SettingType::Float, 0.0f, 0.0f, 1.0f},
+      {"stage_accuracy", SettingType::Float, 1.0f, 0.0f, 1.0f},
+      {"ramp_accuracy",  SettingType::Float, 1.0f, 0.0f, 1.0f},
     };
     return descs;
   }
 
-  void set_config(std::string_view name, float value) override {
+  void set_setting(std::string_view name, float value) override {
     if (name == "attack")       { attack_ = value; rebuild(); return; }
     if (name == "decay")        { decay_ = value; rebuild(); return; }
     if (name == "sustainLevel") { sustainLevel_ = value; rebuild(); return; }
-    Envelope::set_config(name, value);
+    Envelope::set_setting(name, value);
   }
 
-  float get_config(std::string_view name) const override {
+  float get_setting(std::string_view name) const override {
     if (name == "attack")       return attack_;
     if (name == "decay")        return decay_;
     if (name == "sustainLevel") return sustainLevel_;
-    return Envelope::get_config(name);
+    return Envelope::get_setting(name);
   }
 
 private:
@@ -204,29 +204,29 @@ struct ADREnvelope final : Envelope {
 
   const char* type_name() const override { return "ADREnvelope"; }
 
-  std::span<const ConfigDescriptor> config_descriptors() const override {
-    static constexpr ConfigDescriptor descs[] = {
-      {"attack",         ConfigType::Float, 0.2f, 0.0f, 1.0f},
-      {"decay",          ConfigType::Float, 0.1f, 0.0f, 1.0f},
-      {"decayLevel",     ConfigType::Float, 0.7f, 0.0f, 1.0f},
-      {"stage_accuracy", ConfigType::Float, 1.0f, 0.0f, 1.0f},
-      {"ramp_accuracy",  ConfigType::Float, 1.0f, 0.0f, 1.0f},
+  std::span<const SettingDescriptor> setting_descriptors() const override {
+    static constexpr SettingDescriptor descs[] = {
+      {"attack",         SettingType::Float, 0.2f, 0.0f, 1.0f},
+      {"decay",          SettingType::Float, 0.1f, 0.0f, 1.0f},
+      {"decayLevel",     SettingType::Float, 0.7f, 0.0f, 1.0f},
+      {"stage_accuracy", SettingType::Float, 1.0f, 0.0f, 1.0f},
+      {"ramp_accuracy",  SettingType::Float, 1.0f, 0.0f, 1.0f},
     };
     return descs;
   }
 
-  void set_config(std::string_view name, float value) override {
+  void set_setting(std::string_view name, float value) override {
     if (name == "attack")     { attack_ = value; rebuild(); return; }
     if (name == "decay")      { decay_ = value; rebuild(); return; }
     if (name == "decayLevel") { decayLevel_ = value; rebuild(); return; }
-    Envelope::set_config(name, value);
+    Envelope::set_setting(name, value);
   }
 
-  float get_config(std::string_view name) const override {
+  float get_setting(std::string_view name) const override {
     if (name == "attack")     return attack_;
     if (name == "decay")      return decay_;
     if (name == "decayLevel") return decayLevel_;
-    return Envelope::get_config(name);
+    return Envelope::get_setting(name);
   }
 
 private:
@@ -251,32 +251,32 @@ struct ADSREnvelope final : Envelope {
 
   const char* type_name() const override { return "ADSREnvelope"; }
 
-  std::span<const ConfigDescriptor> config_descriptors() const override {
-    static constexpr ConfigDescriptor descs[] = {
-      {"attack",         ConfigType::Float, 0.2f, 0.0f, 1.0f},
-      {"decay",          ConfigType::Float, 0.1f, 0.0f, 1.0f},
-      {"sustainLevel",   ConfigType::Float, 0.7f, 0.0f, 1.0f},
-      {"release",        ConfigType::Float, 0.0f, 0.0f, 1.0f},
-      {"stage_accuracy", ConfigType::Float, 1.0f, 0.0f, 1.0f},
-      {"ramp_accuracy",  ConfigType::Float, 1.0f, 0.0f, 1.0f},
+  std::span<const SettingDescriptor> setting_descriptors() const override {
+    static constexpr SettingDescriptor descs[] = {
+      {"attack",         SettingType::Float, 0.2f, 0.0f, 1.0f},
+      {"decay",          SettingType::Float, 0.1f, 0.0f, 1.0f},
+      {"sustainLevel",   SettingType::Float, 0.7f, 0.0f, 1.0f},
+      {"release",        SettingType::Float, 0.0f, 0.0f, 1.0f},
+      {"stage_accuracy", SettingType::Float, 1.0f, 0.0f, 1.0f},
+      {"ramp_accuracy",  SettingType::Float, 1.0f, 0.0f, 1.0f},
     };
     return descs;
   }
 
-  void set_config(std::string_view name, float value) override {
+  void set_setting(std::string_view name, float value) override {
     if (name == "attack")       { attack_ = value; rebuild(); return; }
     if (name == "decay")        { decay_ = value; rebuild(); return; }
     if (name == "sustainLevel") { sustainLevel_ = value; rebuild(); return; }
     if (name == "release")      { release_ = value; rebuild(); return; }
-    Envelope::set_config(name, value);
+    Envelope::set_setting(name, value);
   }
 
-  float get_config(std::string_view name) const override {
+  float get_setting(std::string_view name) const override {
     if (name == "attack")       return attack_;
     if (name == "decay")        return decay_;
     if (name == "sustainLevel") return sustainLevel_;
     if (name == "release")      return release_;
-    return Envelope::get_config(name);
+    return Envelope::get_setting(name);
   }
 
 private:

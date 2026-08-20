@@ -96,18 +96,18 @@ struct AdditiveSource2 final : WaveSource {
     return WaveSource::get_param(name);
   }
 
-  std::span<const ConfigDescriptor> config_descriptors() const override {
-    static constexpr ConfigDescriptor descs[] = {
-      {"partialCount", ConfigType::Int, 500.0f, 1.0f, 2000.0f},
+  std::span<const SettingDescriptor> setting_descriptors() const override {
+    static constexpr SettingDescriptor descs[] = {
+      {"partialCount", SettingType::Int, 500.0f, 1.0f, 2000.0f},
     };
     return descs;
   }
 
-  void set_config(std::string_view name, float value) override {
+  void set_setting(std::string_view name, float value) override {
     if (name == "partialCount") { set_default_partials(int(value)); return; }
   }
 
-  float get_config(std::string_view name) const override {
+  float get_setting(std::string_view name) const override {
     if (name == "partialCount") return float(partialCount_);
     return 0.0f;
   }

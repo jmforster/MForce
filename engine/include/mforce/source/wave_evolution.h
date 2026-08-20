@@ -588,17 +588,17 @@ struct PluckEvolutionSource final : ValueSource, IEvolutionHolder {
 
   WaveEvolution* get_evolution() override { return &evo_; }
 
-  std::span<const ConfigDescriptor> config_descriptors() const override {
-    static constexpr ConfigDescriptor descs[] = {
-      {"muting", ConfigType::Float, 0.0f, 0.0f, 1.0f},
+  std::span<const SettingDescriptor> setting_descriptors() const override {
+    static constexpr SettingDescriptor descs[] = {
+      {"muting", SettingType::Float, 0.0f, 0.0f, 1.0f},
     };
     return descs;
   }
 
-  void set_config(std::string_view name, float value) override {
+  void set_setting(std::string_view name, float value) override {
     if (name == "muting") { muting_ = value; evo_ = PluckEvolution(muting_, seed_); }
   }
-  float get_config(std::string_view name) const override {
+  float get_setting(std::string_view name) const override {
     if (name == "muting") return muting_;
     return 0.0f;
   }
@@ -627,18 +627,18 @@ struct AveragingEvolutionSource final : ValueSource, IEvolutionHolder {
 
   WaveEvolution* get_evolution() override { return &evo_; }
 
-  std::span<const ConfigDescriptor> config_descriptors() const override {
-    static constexpr ConfigDescriptor descs[] = {
-      {"sampleCount", ConfigType::Float, 4.0f, 1.0f, 48.0f},
-      {"speed",       ConfigType::Float, 1.0f, 0.1f, 20.0f},
-      {"decayFactor", ConfigType::Float, 0.999f, 0.9f, 1.0f},
-      {"leading",     ConfigType::Bool,  0.0f, 0.0f, 1.0f},
-      {"autoAdjust",  ConfigType::Bool,  0.0f, 0.0f, 1.0f},
+  std::span<const SettingDescriptor> setting_descriptors() const override {
+    static constexpr SettingDescriptor descs[] = {
+      {"sampleCount", SettingType::Float, 4.0f, 1.0f, 48.0f},
+      {"speed",       SettingType::Float, 1.0f, 0.1f, 20.0f},
+      {"decayFactor", SettingType::Float, 0.999f, 0.9f, 1.0f},
+      {"leading",     SettingType::Bool,  0.0f, 0.0f, 1.0f},
+      {"autoAdjust",  SettingType::Bool,  0.0f, 0.0f, 1.0f},
     };
     return descs;
   }
 
-  void set_config(std::string_view name, float value) override {
+  void set_setting(std::string_view name, float value) override {
     if (name == "sampleCount") { sampleCount_ = value; rebuild(); }
     else if (name == "speed")       { speed_ = value; rebuild(); }
     else if (name == "decayFactor") { decayFactor_ = value; rebuild(); }
@@ -646,7 +646,7 @@ struct AveragingEvolutionSource final : ValueSource, IEvolutionHolder {
     else if (name == "autoAdjust")  { autoAdjust_ = (value != 0.0f); rebuild(); }
   }
 
-  float get_config(std::string_view name) const override {
+  float get_setting(std::string_view name) const override {
     if (name == "sampleCount") return sampleCount_;
     if (name == "speed")       return speed_;
     if (name == "decayFactor") return decayFactor_;
@@ -686,18 +686,18 @@ struct EKSEvolutionSource final : ValueSource, IEvolutionHolder {
 
   WaveEvolution* get_evolution() override { return &evo_; }
 
-  std::span<const ConfigDescriptor> config_descriptors() const override {
-    static constexpr ConfigDescriptor descs[] = {
-      {"pickPosition",  ConfigType::Float, 0.0f, 0.0f, 1.0f},
-      {"pickDirection", ConfigType::Float, 0.0f, 0.0f, 0.95f},
-      {"stiffness",     ConfigType::Float, 0.0f, 0.0f, 0.1f},
-      {"decayStretch",  ConfigType::Float, 0.5f, 0.0f, 1.0f},
-      {"drumBlend",     ConfigType::Float, 1.0f, 0.0f, 1.0f},
+  std::span<const SettingDescriptor> setting_descriptors() const override {
+    static constexpr SettingDescriptor descs[] = {
+      {"pickPosition",  SettingType::Float, 0.0f, 0.0f, 1.0f},
+      {"pickDirection", SettingType::Float, 0.0f, 0.0f, 0.95f},
+      {"stiffness",     SettingType::Float, 0.0f, 0.0f, 0.1f},
+      {"decayStretch",  SettingType::Float, 0.5f, 0.0f, 1.0f},
+      {"drumBlend",     SettingType::Float, 1.0f, 0.0f, 1.0f},
     };
     return descs;
   }
 
-  void set_config(std::string_view name, float value) override {
+  void set_setting(std::string_view name, float value) override {
     if (name == "pickPosition")  evo_.pickPosition = value;
     else if (name == "pickDirection") evo_.pickDirection = value;
     else if (name == "stiffness")     evo_.stiffness = value;
@@ -705,7 +705,7 @@ struct EKSEvolutionSource final : ValueSource, IEvolutionHolder {
     else if (name == "drumBlend")     evo_.drumBlend = value;
   }
 
-  float get_config(std::string_view name) const override {
+  float get_setting(std::string_view name) const override {
     if (name == "pickPosition")  return evo_.pickPosition;
     if (name == "pickDirection") return evo_.pickDirection;
     if (name == "stiffness")     return evo_.stiffness;
@@ -767,20 +767,20 @@ struct ReedEvolutionSource final : ValueSource, IEvolutionHolder {
     return {};
   }
 
-  std::span<const ConfigDescriptor> config_descriptors() const override {
-    static constexpr ConfigDescriptor descs[] = {
-      {"tubeLoss",   ConfigType::Float, 0.02f, 0.0f, 0.5f},
-      {"loopFilter", ConfigType::Float, 0.5f,  0.05f, 1.0f},
+  std::span<const SettingDescriptor> setting_descriptors() const override {
+    static constexpr SettingDescriptor descs[] = {
+      {"tubeLoss",   SettingType::Float, 0.02f, 0.0f, 0.5f},
+      {"loopFilter", SettingType::Float, 0.5f,  0.05f, 1.0f},
     };
     return descs;
   }
 
-  void set_config(std::string_view name, float value) override {
+  void set_setting(std::string_view name, float value) override {
     if (name == "tubeLoss")        evo_.tubeLoss = value;
     else if (name == "loopFilter") evo_.loopFilter = value;
   }
 
-  float get_config(std::string_view name) const override {
+  float get_setting(std::string_view name) const override {
     if (name == "tubeLoss")   return evo_.tubeLoss;
     if (name == "loopFilter") return evo_.loopFilter;
     return 0.0f;
@@ -844,22 +844,22 @@ struct BowedStringEvolutionSource final : ValueSource, IEvolutionHolder {
     return {};
   }
 
-  std::span<const ConfigDescriptor> config_descriptors() const override {
-    static constexpr ConfigDescriptor descs[] = {
-      {"tubeLoss",    ConfigType::Float, 0.005f, 0.0f,  0.5f},
-      {"bowSpeed",    ConfigType::Float, 0.3f,   0.01f, 1.0f},
-      {"bowPosition", ConfigType::Float, 0.14f,  0.02f, 0.5f},
+  std::span<const SettingDescriptor> setting_descriptors() const override {
+    static constexpr SettingDescriptor descs[] = {
+      {"tubeLoss",    SettingType::Float, 0.005f, 0.0f,  0.5f},
+      {"bowSpeed",    SettingType::Float, 0.3f,   0.01f, 1.0f},
+      {"bowPosition", SettingType::Float, 0.14f,  0.02f, 0.5f},
     };
     return descs;
   }
 
-  void set_config(std::string_view name, float value) override {
+  void set_setting(std::string_view name, float value) override {
     if (name == "tubeLoss")         evo_.tubeLoss = value;
     else if (name == "bowSpeed")    evo_.bowSpeed = value;
     else if (name == "bowPosition") evo_.bowPosition = value;
   }
 
-  float get_config(std::string_view name) const override {
+  float get_setting(std::string_view name) const override {
     if (name == "tubeLoss")    return evo_.tubeLoss;
     if (name == "bowSpeed")    return evo_.bowSpeed;
     if (name == "bowPosition") return evo_.bowPosition;
@@ -924,24 +924,24 @@ struct BrassEvolutionSource final : ValueSource, IEvolutionHolder {
     return {};
   }
 
-  std::span<const ConfigDescriptor> config_descriptors() const override {
-    static constexpr ConfigDescriptor descs[] = {
-      {"tubeLoss",     ConfigType::Float, 0.01f, 0.0f,  0.5f},
-      {"lipTension",   ConfigType::Float, 0.92f, 0.0f,  0.99f},
-      {"lipFreqRatio", ConfigType::Float, 1.2f,  0.5f,  4.0f},
-      {"lipQ",         ConfigType::Float, 3.0f,  0.5f,  15.0f},
+  std::span<const SettingDescriptor> setting_descriptors() const override {
+    static constexpr SettingDescriptor descs[] = {
+      {"tubeLoss",     SettingType::Float, 0.01f, 0.0f,  0.5f},
+      {"lipTension",   SettingType::Float, 0.92f, 0.0f,  0.99f},
+      {"lipFreqRatio", SettingType::Float, 1.2f,  0.5f,  4.0f},
+      {"lipQ",         SettingType::Float, 3.0f,  0.5f,  15.0f},
     };
     return descs;
   }
 
-  void set_config(std::string_view name, float value) override {
+  void set_setting(std::string_view name, float value) override {
     if (name == "tubeLoss")          evo_.tubeLoss = value;
     else if (name == "lipTension")   evo_.lipTension = value;
     else if (name == "lipFreqRatio") evo_.lipFreqRatio = value;
     else if (name == "lipQ")         evo_.lipQ = value;
   }
 
-  float get_config(std::string_view name) const override {
+  float get_setting(std::string_view name) const override {
     if (name == "tubeLoss")     return evo_.tubeLoss;
     if (name == "lipTension")   return evo_.lipTension;
     if (name == "lipFreqRatio") return evo_.lipFreqRatio;
@@ -1051,19 +1051,19 @@ struct ReactionDiffusionEvolutionSource final : ValueSource, IEvolutionHolder {
 
   WaveEvolution* get_evolution() override { return &evo_; }
 
-  std::span<const ConfigDescriptor> config_descriptors() const override {
-    static constexpr ConfigDescriptor descs[] = {
-      {"feed",     ConfigType::Float, 0.0367f, 0.0f,  0.1f},
-      {"kill",     ConfigType::Float, 0.0649f, 0.0f,  0.1f},
-      {"diffU",    ConfigType::Float, 0.16f,   0.0f,  1.0f},
-      {"diffV",    ConfigType::Float, 0.08f,   0.0f,  1.0f},
-      {"dt",       ConfigType::Float, 1.0f,    0.05f, 2.0f},
-      {"subSteps", ConfigType::Int,   1.0f,    1.0f,  8.0f},
+  std::span<const SettingDescriptor> setting_descriptors() const override {
+    static constexpr SettingDescriptor descs[] = {
+      {"feed",     SettingType::Float, 0.0367f, 0.0f,  0.1f},
+      {"kill",     SettingType::Float, 0.0649f, 0.0f,  0.1f},
+      {"diffU",    SettingType::Float, 0.16f,   0.0f,  1.0f},
+      {"diffV",    SettingType::Float, 0.08f,   0.0f,  1.0f},
+      {"dt",       SettingType::Float, 1.0f,    0.05f, 2.0f},
+      {"subSteps", SettingType::Int,   1.0f,    1.0f,  8.0f},
     };
     return descs;
   }
 
-  void set_config(std::string_view name, float value) override {
+  void set_setting(std::string_view name, float value) override {
     if (name == "feed")          evo_.feed = value;
     else if (name == "kill")     evo_.kill = value;
     else if (name == "diffU")    evo_.diffU = value;
@@ -1072,7 +1072,7 @@ struct ReactionDiffusionEvolutionSource final : ValueSource, IEvolutionHolder {
     else if (name == "subSteps") evo_.subSteps = std::max(1, int(value));
   }
 
-  float get_config(std::string_view name) const override {
+  float get_setting(std::string_view name) const override {
     if (name == "feed")     return evo_.feed;
     if (name == "kill")     return evo_.kill;
     if (name == "diffU")    return evo_.diffU;
@@ -1131,20 +1131,20 @@ struct SortErosionEvolutionSource final : ValueSource, IEvolutionHolder {
 
   WaveEvolution* get_evolution() override { return &evo_; }
 
-  std::span<const ConfigDescriptor> config_descriptors() const override {
-    static constexpr ConfigDescriptor descs[] = {
-      {"swapsPerSample", ConfigType::Int,  4.0f, 1.0f, 32.0f},
-      {"descending",     ConfigType::Bool, 0.0f, 0.0f, 1.0f},
+  std::span<const SettingDescriptor> setting_descriptors() const override {
+    static constexpr SettingDescriptor descs[] = {
+      {"swapsPerSample", SettingType::Int,  4.0f, 1.0f, 32.0f},
+      {"descending",     SettingType::Bool, 0.0f, 0.0f, 1.0f},
     };
     return descs;
   }
 
-  void set_config(std::string_view name, float value) override {
+  void set_setting(std::string_view name, float value) override {
     if (name == "swapsPerSample") evo_.swapsPerSample = std::max(1, int(value));
     else if (name == "descending") evo_.descending = (value != 0.0f);
   }
 
-  float get_config(std::string_view name) const override {
+  float get_setting(std::string_view name) const override {
     if (name == "swapsPerSample") return float(evo_.swapsPerSample);
     if (name == "descending")     return evo_.descending ? 1.0f : 0.0f;
     return 0.0f;
@@ -1226,18 +1226,18 @@ struct CellularAutomatonEvolutionSource final : ValueSource, IEvolutionHolder {
 
   WaveEvolution* get_evolution() override { return &evo_; }
 
-  std::span<const ConfigDescriptor> config_descriptors() const override {
-    static constexpr ConfigDescriptor descs[] = {
-      {"rule",       ConfigType::Int,   110.0f, 0.0f,  255.0f},
-      {"threshold",  ConfigType::Float, 0.0f,  -1.0f,  1.0f},
-      {"levelHi",    ConfigType::Float, 0.8f,   0.0f,  1.0f},
-      {"levelLo",    ConfigType::Float,-0.8f,  -1.0f,  0.0f},
-      {"stepEvery",  ConfigType::Int,   8.0f,   1.0f,  256.0f},
+  std::span<const SettingDescriptor> setting_descriptors() const override {
+    static constexpr SettingDescriptor descs[] = {
+      {"rule",       SettingType::Int,   110.0f, 0.0f,  255.0f},
+      {"threshold",  SettingType::Float, 0.0f,  -1.0f,  1.0f},
+      {"levelHi",    SettingType::Float, 0.8f,   0.0f,  1.0f},
+      {"levelLo",    SettingType::Float,-0.8f,  -1.0f,  0.0f},
+      {"stepEvery",  SettingType::Int,   8.0f,   1.0f,  256.0f},
     };
     return descs;
   }
 
-  void set_config(std::string_view name, float value) override {
+  void set_setting(std::string_view name, float value) override {
     if (name == "rule")            evo_.rule = std::clamp(int(value), 0, 255);
     else if (name == "threshold")  evo_.threshold = value;
     else if (name == "levelHi")    evo_.levelHi = value;
@@ -1245,7 +1245,7 @@ struct CellularAutomatonEvolutionSource final : ValueSource, IEvolutionHolder {
     else if (name == "stepEvery")  evo_.stepEvery = std::max(1, int(value));
   }
 
-  float get_config(std::string_view name) const override {
+  float get_setting(std::string_view name) const override {
     if (name == "rule")       return float(evo_.rule);
     if (name == "threshold")  return evo_.threshold;
     if (name == "levelHi")    return evo_.levelHi;
@@ -1322,20 +1322,20 @@ struct HistogramEqualizeEvolutionSource final : ValueSource, IEvolutionHolder {
 
   WaveEvolution* get_evolution() override { return &evo_; }
 
-  std::span<const ConfigDescriptor> config_descriptors() const override {
-    static constexpr ConfigDescriptor descs[] = {
-      {"bins", ConfigType::Int,   64.0f,    4.0f,   256.0f},
-      {"rate", ConfigType::Float, 0.00005f, 0.0f,   0.1f},
+  std::span<const SettingDescriptor> setting_descriptors() const override {
+    static constexpr SettingDescriptor descs[] = {
+      {"bins", SettingType::Int,   64.0f,    4.0f,   256.0f},
+      {"rate", SettingType::Float, 0.00005f, 0.0f,   0.1f},
     };
     return descs;
   }
 
-  void set_config(std::string_view name, float value) override {
+  void set_setting(std::string_view name, float value) override {
     if (name == "bins")      evo_.bins = std::clamp(int(value), 4, 256);
     else if (name == "rate") evo_.rate = value;
   }
 
-  float get_config(std::string_view name) const override {
+  float get_setting(std::string_view name) const override {
     if (name == "bins") return float(evo_.bins);
     if (name == "rate") return evo_.rate;
     return 0.0f;
@@ -1401,18 +1401,18 @@ struct BezierPullEvolutionSource final : ValueSource, IEvolutionHolder {
 
   WaveEvolution* get_evolution() override { return &evo_; }
 
-  std::span<const ConfigDescriptor> config_descriptors() const override {
-    static constexpr ConfigDescriptor descs[] = {
-      {"p0",   ConfigType::Float, -1.0f,    -2.0f, 2.0f},
-      {"p1",   ConfigType::Float,  0.5f,    -2.0f, 2.0f},
-      {"p2",   ConfigType::Float, -0.5f,    -2.0f, 2.0f},
-      {"p3",   ConfigType::Float,  1.0f,    -2.0f, 2.0f},
-      {"rate", ConfigType::Float,  0.00005f, 0.0f, 0.1f},
+  std::span<const SettingDescriptor> setting_descriptors() const override {
+    static constexpr SettingDescriptor descs[] = {
+      {"p0",   SettingType::Float, -1.0f,    -2.0f, 2.0f},
+      {"p1",   SettingType::Float,  0.5f,    -2.0f, 2.0f},
+      {"p2",   SettingType::Float, -0.5f,    -2.0f, 2.0f},
+      {"p3",   SettingType::Float,  1.0f,    -2.0f, 2.0f},
+      {"rate", SettingType::Float,  0.00005f, 0.0f, 0.1f},
     };
     return descs;
   }
 
-  void set_config(std::string_view name, float value) override {
+  void set_setting(std::string_view name, float value) override {
     if (name == "p0") evo_.p0 = value;
     else if (name == "p1") evo_.p1 = value;
     else if (name == "p2") evo_.p2 = value;
@@ -1420,7 +1420,7 @@ struct BezierPullEvolutionSource final : ValueSource, IEvolutionHolder {
     else if (name == "rate") evo_.rate = value;
   }
 
-  float get_config(std::string_view name) const override {
+  float get_setting(std::string_view name) const override {
     if (name == "p0") return evo_.p0;
     if (name == "p1") return evo_.p1;
     if (name == "p2") return evo_.p2;
@@ -1479,20 +1479,20 @@ struct BitRotateEvolutionSource final : ValueSource, IEvolutionHolder {
 
   WaveEvolution* get_evolution() override { return &evo_; }
 
-  std::span<const ConfigDescriptor> config_descriptors() const override {
-    static constexpr ConfigDescriptor descs[] = {
-      {"shiftBits", ConfigType::Int, 3.0f, 0.0f, 31.0f},
-      {"stepEvery", ConfigType::Int, 4.0f, 1.0f, 256.0f},
+  std::span<const SettingDescriptor> setting_descriptors() const override {
+    static constexpr SettingDescriptor descs[] = {
+      {"shiftBits", SettingType::Int, 3.0f, 0.0f, 31.0f},
+      {"stepEvery", SettingType::Int, 4.0f, 1.0f, 256.0f},
     };
     return descs;
   }
 
-  void set_config(std::string_view name, float value) override {
+  void set_setting(std::string_view name, float value) override {
     if (name == "shiftBits")      evo_.shiftBits = std::clamp(int(value), 0, 31);
     else if (name == "stepEvery") evo_.stepEvery = std::max(1, int(value));
   }
 
-  float get_config(std::string_view name) const override {
+  float get_setting(std::string_view name) const override {
     if (name == "shiftBits") return float(evo_.shiftBits);
     if (name == "stepEvery") return float(evo_.stepEvery);
     return 0.0f;

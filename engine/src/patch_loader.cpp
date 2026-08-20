@@ -161,15 +161,15 @@ static void wire_params_generic(
         if (skip_unresolvable(params.at(desc.name))) continue;
         src.set_param(desc.name, resolve_param(params.at(desc.name), valueNodes, usage));
     }
-    // Scalar configs (int/float/bool) — apply if present in JSON.
-    for (const auto& desc : src.config_descriptors()) {
+    // Scalar settings (int/float/bool) — apply if present in JSON.
+    for (const auto& desc : src.setting_descriptors()) {
         if (!params.contains(desc.name)) continue;
         const auto& v = params.at(desc.name);
         float fv = 0.0f;
         if      (v.is_boolean()) fv = v.get<bool>() ? 1.0f : 0.0f;
         else if (v.is_number())  fv = v.get<float>();
         else if (v.is_string() && desc.enum_labels) {
-            // Enum configs arrive as strings in hand-written patches
+            // Enum settings arrive as strings in hand-written patches
             // ("mode": "Highpass"). Match display labels case-
             // insensitively; a miss keeps the default LOUDLY — silently
             // skipping strings is how SVFSource's mode no-opped on first
@@ -196,7 +196,7 @@ static void wire_params_generic(
             }
         }
         else continue;
-        src.set_config(desc.name, fv);
+        src.set_setting(desc.name, fv);
     }
     // User-editable float arrays — ExplicitPartials multipliers, spectrum gains, etc.
     for (const auto& desc : src.array_descriptors()) {
@@ -205,7 +205,7 @@ static void wire_params_generic(
         if (!v.is_array()) continue;
         src.set_array(desc.name, v.get<std::vector<float>>());
     }
-    // ExpandRule (PartialGroups) — a struct, not a pin/config/array, so it isn't
+    // ExpandRule (PartialGroups) — a struct, not a pin/setting/array, so it isn't
     // covered by the loops above. Consumed only by Partials hosts. Two JSON forms:
     //   "expandRule": { "count": 4, "spacing1": 0.3, ... }   (inline)
     //   "expandRule": { "ref": "<ExpandRule node id>" }        (shared node)
@@ -305,7 +305,7 @@ static GraphResult build_graph(
             seed = static_cast<uint32_t>((*pp)["seed"].get<int>());
 
         // =================================================================
-        // Types that need special construction (config in constructor args)
+        // Types that need special construction (setting in constructor args)
         // =================================================================
 
         if (type == "VarSource") {
@@ -351,7 +351,7 @@ static GraphResult build_graph(
                     s.nominal = sj.value("nominal", 0.0f);
                     env->add_stage(s);
                 }
-                // Pick up multiplex-injected seed and any accuracy configs.
+                // Pick up multiplex-injected seed and any accuracy settings.
                 if (p.contains("seed") && p["seed"].is_number())
                     env->set_seed(uint32_t(p["seed"].get<int64_t>()));
                 if (p.contains("stage_accuracy") && p["stage_accuracy"].is_number())
@@ -553,7 +553,7 @@ static GraphResult build_graph(
             valueNodes[id] = wt;
             add_mono(g, id, wt);
         }
-        // ---- HybridKSSource (config params) ----
+        // ---- HybridKSSource (setting params) ----
         else if (type == "HybridKSSource") {
             auto hks = std::make_shared<HybridKSSource>(sampleRate, seed.value_or(0xBEEF'C0DEu));
             if (pp) {
@@ -572,7 +572,7 @@ static GraphResult build_graph(
         else if (type == "MultiplexSource") {
             auto mux = std::make_shared<MultiplexSource>();
             if (pp) {
-                // Apply "count" config via generic path.
+                // Apply "count" setting via generic path.
                 wire_params_generic(*mux, *pp, valueNodes, &usage);
 
                 // Resolve the "source" input to its template root node id.
@@ -734,8 +734,8 @@ build_subgraph_with_seed_perturbation(
 // §5; replaces resolve_param_map as the runtime model — the JSON stays the
 // supported legacy authoring format, converted here at load).
 // Decision matrix per "frequency" entry:
-//   1. config target            -> PushBinding (isConfig, chain evaluated at
-//                                  note time, delivered via set_config)
+//   1. setting target            -> PushBinding (isConfig, chain evaluated at
+//                                  note time, delivered via set_setting)
 //   2. voice has topMultiplex   -> PushBinding for EVERY entry (clone fan
 //                                  keeps push semantics wholesale, bit-safe)
 //   3. no curve                 -> pin wired to the chain (bare freqOut, or
@@ -827,7 +827,7 @@ static void build_bindings(const json& paramMapJson, const GraphResult& g,
             return;
         }
         // Config target (matrix case 1) — same scan as the old resolver.
-        for (const auto& desc : nodeIt->second->config_descriptors()) {
+        for (const auto& desc : nodeIt->second->setting_descriptors()) {
             if (paramName == desc.name) {
                 PitchedInstrument::PushBinding b;
                 b.consumer = nodeIt->second;
@@ -841,7 +841,7 @@ static void build_bindings(const json& paramMapJson, const GraphResult& g,
             }
         }
         throw std::runtime_error("paramMap: cannot resolve '" + target +
-                                 "' (neither param nor config)");
+                                 "' (neither param nor setting)");
     };
 
     auto bind_entry = [&](const std::string& name, const json& t) {

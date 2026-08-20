@@ -64,18 +64,18 @@ struct WavetableSource final : WaveSource {
     return WaveSource::get_param(name);
   }
 
-  std::span<const ConfigDescriptor> config_descriptors() const override {
-    static constexpr ConfigDescriptor descs[] = {
-      {"interpolate", ConfigType::Bool, 0.0f, 0.0f, 1.0f},
+  std::span<const SettingDescriptor> setting_descriptors() const override {
+    static constexpr SettingDescriptor descs[] = {
+      {"interpolate", SettingType::Bool, 0.0f, 0.0f, 1.0f},
     };
     return descs;
   }
 
-  void set_config(std::string_view name, float value) override {
+  void set_setting(std::string_view name, float value) override {
     if (name == "interpolate") { set_interpolate(value != 0.0f); return; }
   }
 
-  float get_config(std::string_view name) const override {
+  float get_setting(std::string_view name) const override {
     if (name == "interpolate") return interpolate_ ? 1.0f : 0.0f;
     return 0.0f;
   }

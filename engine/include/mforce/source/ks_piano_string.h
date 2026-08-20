@@ -80,24 +80,24 @@ struct KSPianoString final : ValueSource {
     return descs;
   }
 
-  std::span<const ConfigDescriptor> config_descriptors() const override {
-    static constexpr ConfigDescriptor descs[] = {
-      {"numCombs",   ConfigType::Int,   3.0f,    1.0f,   3.0f},
-      {"detune",     ConfigType::Float, 0.75f,   0.0f,   7200.0f}, // cents PER SIDE, AF semantics (outer combs at +/-detune; 600 = tritones, 1200 = octaves). 2026-08-18: was total-spread — all stored patches halved to compensate, bit-exact.
-      {"t60",        ConfigType::Float, 6.0f,    0.05f,  60.0f},   // sec at f0
-      {"brightness", ConfigType::Float, 0.6f,    0.05f,  1.0f},    // loop LP coeff
-      {"dispersion", ConfigType::Float, 0.12f,   0.0f,   0.95f},   // biquad AP pole
-      {"inharmGain", ConfigType::Float, 0.25f,   0.0f,   4.0f},
-      {"inharmFb",   ConfigType::Float, 0.90f,   0.0f,   0.995f},
-      {"inharmHp",   ConfigType::Float, 150.0f,  10.0f,  5000.0f}, // hz
-      {"ap1",        ConfigType::Float, 0.55f,  -0.95f,  0.95f},
-      {"ap2",        ConfigType::Float, 0.35f,  -0.95f,  0.95f},
-      {"ap3",        ConfigType::Float, 0.20f,  -0.95f,  0.95f},
-      {"fbCoeff",    ConfigType::Float, 0.2f,    0.0f,   0.9f},    // global neg fb (headroom-normalized)
-      {"releaseFb",  ConfigType::Float, 1.0f,    0.0f,   1.0f},    // loop-gain mult after note-off (damper; 1 = off)
-      {"damperNoise", ConfigType::Float, 0.0f,   0.0f,   2.0f},    // felt-contact noise at note-off, scaled by ring level
-      {"exciteGain", ConfigType::Float, 1.0f,    0.0f,   8.0f},
-      {"direct",     ConfigType::Float, 0.2f,    0.0f,   1.0f},    // dry strike tap
+  std::span<const SettingDescriptor> setting_descriptors() const override {
+    static constexpr SettingDescriptor descs[] = {
+      {"numCombs",   SettingType::Int,   3.0f,    1.0f,   3.0f},
+      {"detune",     SettingType::Float, 0.75f,   0.0f,   7200.0f}, // cents PER SIDE, AF semantics (outer combs at +/-detune; 600 = tritones, 1200 = octaves). 2026-08-18: was total-spread — all stored patches halved to compensate, bit-exact.
+      {"t60",        SettingType::Float, 6.0f,    0.05f,  60.0f},   // sec at f0
+      {"brightness", SettingType::Float, 0.6f,    0.05f,  1.0f},    // loop LP coeff
+      {"dispersion", SettingType::Float, 0.12f,   0.0f,   0.95f},   // biquad AP pole
+      {"inharmGain", SettingType::Float, 0.25f,   0.0f,   4.0f},
+      {"inharmFb",   SettingType::Float, 0.90f,   0.0f,   0.995f},
+      {"inharmHp",   SettingType::Float, 150.0f,  10.0f,  5000.0f}, // hz
+      {"ap1",        SettingType::Float, 0.55f,  -0.95f,  0.95f},
+      {"ap2",        SettingType::Float, 0.35f,  -0.95f,  0.95f},
+      {"ap3",        SettingType::Float, 0.20f,  -0.95f,  0.95f},
+      {"fbCoeff",    SettingType::Float, 0.2f,    0.0f,   0.9f},    // global neg fb (headroom-normalized)
+      {"releaseFb",  SettingType::Float, 1.0f,    0.0f,   1.0f},    // loop-gain mult after note-off (damper; 1 = off)
+      {"damperNoise", SettingType::Float, 0.0f,   0.0f,   2.0f},    // felt-contact noise at note-off, scaled by ring level
+      {"exciteGain", SettingType::Float, 1.0f,    0.0f,   8.0f},
+      {"direct",     SettingType::Float, 0.2f,    0.0f,   1.0f},    // dry strike tap
     };
     return descs;
   }
@@ -117,7 +117,7 @@ struct KSPianoString final : ValueSource {
     return nullptr;
   }
 
-  void set_config(std::string_view name, float v) override {
+  void set_setting(std::string_view name, float v) override {
     if (name == "numCombs")   { numCombs_   = std::clamp(int(v), 1, kMaxCombs); return; }
     if (name == "detune")     { detune_     = v; return; }
     if (name == "t60")        { t60_        = std::max(v, 0.05f); return; }
@@ -136,7 +136,7 @@ struct KSPianoString final : ValueSource {
     if (name == "direct")     { direct_     = v; return; }
   }
 
-  float get_config(std::string_view name) const override {
+  float get_setting(std::string_view name) const override {
     if (name == "numCombs")   return float(numCombs_);
     if (name == "detune")     return detune_;
     if (name == "t60")        return t60_;

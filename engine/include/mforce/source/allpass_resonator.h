@@ -63,14 +63,14 @@ struct AllpassResonator final : ValueSource {
     return descs;
   }
 
-  std::span<const ConfigDescriptor> config_descriptors() const override {
-    static constexpr ConfigDescriptor descs[] = {
-      {"feedback",   ConfigType::Float, 0.995f, 0.0f, 0.9999f},
-      {"damping",    ConfigType::Float, 0.6f,   0.05f, 1.0f},   // LP coeff
-      {"stiffness",  ConfigType::Float, 0.15f,  0.0f, 0.95f},   // AP pole
-      {"tension",    ConfigType::Float, 0.35f,  0.0f, 0.95f},   // diffuser fb
-      {"exciteGain", ConfigType::Float, 1.0f,   0.0f, 8.0f},
-      {"direct",     ConfigType::Float, 0.2f,   0.0f, 1.0f},
+  std::span<const SettingDescriptor> setting_descriptors() const override {
+    static constexpr SettingDescriptor descs[] = {
+      {"feedback",   SettingType::Float, 0.995f, 0.0f, 0.9999f},
+      {"damping",    SettingType::Float, 0.6f,   0.05f, 1.0f},   // LP coeff
+      {"stiffness",  SettingType::Float, 0.15f,  0.0f, 0.95f},   // AP pole
+      {"tension",    SettingType::Float, 0.35f,  0.0f, 0.95f},   // diffuser fb
+      {"exciteGain", SettingType::Float, 1.0f,   0.0f, 8.0f},
+      {"direct",     SettingType::Float, 0.2f,   0.0f, 1.0f},
     };
     return descs;
   }
@@ -88,7 +88,7 @@ struct AllpassResonator final : ValueSource {
     return nullptr;
   }
 
-  void set_config(std::string_view name, float v) override {
+  void set_setting(std::string_view name, float v) override {
     if (name == "feedback")   { feedback_   = std::clamp(v, 0.0f, 0.9999f); return; }
     if (name == "damping")    { damping_    = std::clamp(v, 0.05f, 1.0f); return; }
     if (name == "stiffness")  { stiffness_  = std::clamp(v, 0.0f, 0.95f); return; }
@@ -97,7 +97,7 @@ struct AllpassResonator final : ValueSource {
     if (name == "direct")     { direct_     = v; return; }
   }
 
-  float get_config(std::string_view name) const override {
+  float get_setting(std::string_view name) const override {
     if (name == "feedback")   return feedback_;
     if (name == "damping")    return damping_;
     if (name == "stiffness")  return stiffness_;

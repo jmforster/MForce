@@ -125,20 +125,20 @@ struct ExpandRuleNode final : ValueSource {
     return nullptr;
   }
 
-  std::span<const ConfigDescriptor> config_descriptors() const override {
-    static constexpr ConfigDescriptor descs[] = {
-      {"count",   ConfigType::Int, 2.0f, 0.0f, 16.0f},
-      {"recurse", ConfigType::Int, 0.0f, 0.0f, 4.0f},
+  std::span<const SettingDescriptor> setting_descriptors() const override {
+    static constexpr SettingDescriptor descs[] = {
+      {"count",   SettingType::Int, 2.0f, 0.0f, 16.0f},
+      {"recurse", SettingType::Int, 0.0f, 0.0f, 4.0f},
     };
     return descs;
   }
 
-  void set_config(std::string_view name, float value) override {
+  void set_setting(std::string_view name, float value) override {
     if (name == "count")   { count = int(value);   return; }
     if (name == "recurse") { recurse = int(value); return; }
   }
 
-  float get_config(std::string_view name) const override {
+  float get_setting(std::string_view name) const override {
     if (name == "count")   return float(count);
     if (name == "recurse") return float(recurse);
     return 0.0f;
@@ -158,7 +158,7 @@ private:
 
 // Shared config descriptor entries (motion layer + per-partial decay +
 // inharmonicity) for Partials and its subclasses. Subclasses override
-// config_descriptors() wholesale (each list re-declares the base entries —
+// setting_descriptors() wholesale (each list re-declares the base entries —
 // established pattern), so this block is spliced into every list via this
 // macro to keep them in sync.
 //
@@ -173,26 +173,26 @@ private:
 // effective multiplier becomes m*sqrt(1 + B*m^2). Per-note B arrives via a
 // paramMap frequency->curve config entry. Default 0 = off (bit-exact).
 #define MFORCE_PARTIALS_MOTION_CONFIG_DESCS \
-      {"motionDepth1",     ConfigType::Float, 0.0f,  0.0f,  400.0f}, \
-      {"motionDepth2",     ConfigType::Float, 0.0f,  0.0f,  400.0f}, \
-      {"motionHz",         ConfigType::Float, 4.0f,  0.01f, 200.0f}, \
-      {"motionCoherence",  ConfigType::Float, 1.0f,  0.0f,  1.0f},   \
-      {"motionEvolve",     ConfigType::Float, 0.0f,  0.0f,  1.0f},   \
-      {"motionScale",      ConfigType::Float, 0.0f, -2.0f,  2.0f},   \
-      {"shimmerDepth1",    ConfigType::Float, 0.0f,  0.0f,  1.0f},   \
-      {"shimmerDepth2",    ConfigType::Float, 0.0f,  0.0f,  1.0f},   \
-      {"shimmerHz",        ConfigType::Float, 3.0f,  0.01f, 200.0f}, \
-      {"shimmerCoherence", ConfigType::Float, 0.0f,  0.0f,  1.0f},   \
-      {"shimmerEvolve",    ConfigType::Float, 0.0f,  0.0f,  1.0f},   \
-      {"shimmerFloor",     ConfigType::Float, 0.0f,  0.0f,  1.0f},   \
-      {"tradeDepth",       ConfigType::Float, 0.0f,  0.0f,  1.0f},   \
-      {"tradeHz",          ConfigType::Float, 2.0f,  0.01f, 50.0f},  \
-      {"onsetSpread",      ConfigType::Float, 0.0f,  0.0f,  2.0f},   \
-      {"onsetTilt",        ConfigType::Float, 0.0f, -1.0f,  1.0f},   \
-      {"onsetFade",        ConfigType::Float, 0.03f, 0.001f, 1.0f},  \
-      {"decayRate",        ConfigType::Float, 0.0f,  0.0f,  400.0f}, \
-      {"decayExp",         ConfigType::Float, 0.0f, -2.0f,  4.0f},   \
-      {"inharmonicity",    ConfigType::Float, 0.0f,  0.0f,  0.1f},
+      {"motionDepth1",     SettingType::Float, 0.0f,  0.0f,  400.0f}, \
+      {"motionDepth2",     SettingType::Float, 0.0f,  0.0f,  400.0f}, \
+      {"motionHz",         SettingType::Float, 4.0f,  0.01f, 200.0f}, \
+      {"motionCoherence",  SettingType::Float, 1.0f,  0.0f,  1.0f},   \
+      {"motionEvolve",     SettingType::Float, 0.0f,  0.0f,  1.0f},   \
+      {"motionScale",      SettingType::Float, 0.0f, -2.0f,  2.0f},   \
+      {"shimmerDepth1",    SettingType::Float, 0.0f,  0.0f,  1.0f},   \
+      {"shimmerDepth2",    SettingType::Float, 0.0f,  0.0f,  1.0f},   \
+      {"shimmerHz",        SettingType::Float, 3.0f,  0.01f, 200.0f}, \
+      {"shimmerCoherence", SettingType::Float, 0.0f,  0.0f,  1.0f},   \
+      {"shimmerEvolve",    SettingType::Float, 0.0f,  0.0f,  1.0f},   \
+      {"shimmerFloor",     SettingType::Float, 0.0f,  0.0f,  1.0f},   \
+      {"tradeDepth",       SettingType::Float, 0.0f,  0.0f,  1.0f},   \
+      {"tradeHz",          SettingType::Float, 2.0f,  0.01f, 50.0f},  \
+      {"onsetSpread",      SettingType::Float, 0.0f,  0.0f,  2.0f},   \
+      {"onsetTilt",        SettingType::Float, 0.0f, -1.0f,  1.0f},   \
+      {"onsetFade",        SettingType::Float, 0.03f, 0.001f, 1.0f},  \
+      {"decayRate",        SettingType::Float, 0.0f,  0.0f,  400.0f}, \
+      {"decayExp",         SettingType::Float, 0.0f, -2.0f,  4.0f},   \
+      {"inharmonicity",    SettingType::Float, 0.0f,  0.0f,  0.1f},
 
 // ---------------------------------------------------------------------------
 // IPartials — interface for partial rendering engines.
@@ -302,15 +302,15 @@ struct Partials : ValueSource, IPartials {
     return descs;
   }
 
-  std::span<const ConfigDescriptor> config_descriptors() const override {
-    static constexpr ConfigDescriptor descs[] = {
-      {"rolloff1", ConfigType::Float, 1.0f, 0.0f, 10.0f},
-      {"rolloff2", ConfigType::Float, 1.0f, 0.0f, 10.0f},
-      {"detune1",  ConfigType::Float, 0.0f, 0.0f, 1.0f},
-      {"detune2",  ConfigType::Float, 0.0f, 0.0f, 1.0f},
-      {"bandwidth1",  ConfigType::Float, 0.0f, 0.0f, 1.0f},
-      {"bandwidth2",  ConfigType::Float, 0.0f, 0.0f, 1.0f},
-      {"bandwidthHz", ConfigType::Float, 30.0f, 1.0f, 2000.0f},
+  std::span<const SettingDescriptor> setting_descriptors() const override {
+    static constexpr SettingDescriptor descs[] = {
+      {"rolloff1", SettingType::Float, 1.0f, 0.0f, 10.0f},
+      {"rolloff2", SettingType::Float, 1.0f, 0.0f, 10.0f},
+      {"detune1",  SettingType::Float, 0.0f, 0.0f, 1.0f},
+      {"detune2",  SettingType::Float, 0.0f, 0.0f, 1.0f},
+      {"bandwidth1",  SettingType::Float, 0.0f, 0.0f, 1.0f},
+      {"bandwidth2",  SettingType::Float, 0.0f, 0.0f, 1.0f},
+      {"bandwidthHz", SettingType::Float, 30.0f, 1.0f, 2000.0f},
       MFORCE_PARTIALS_MOTION_CONFIG_DESCS
     };
     return descs;
@@ -339,7 +339,7 @@ struct Partials : ValueSource, IPartials {
     return nullptr;
   }
 
-  void set_config(std::string_view name, float value) override {
+  void set_setting(std::string_view name, float value) override {
     if (name == "rolloff1")   { ro1_ = value; return; }
     if (name == "rolloff2")   { ro2_ = value; return; }
     if (name == "detune1")    { dt1_ = value; return; }
@@ -369,7 +369,7 @@ struct Partials : ValueSource, IPartials {
     if (name == "inharmonicity")    { inharmB_ = value; return; }
   }
 
-  float get_config(std::string_view name) const override {
+  float get_setting(std::string_view name) const override {
     if (name == "rolloff1")   return ro1_;
     if (name == "rolloff2")   return ro2_;
     if (name == "detune1")    return dt1_;
@@ -1074,29 +1074,29 @@ struct FullPartials final : Partials {
 
   const char* type_name() const override { return "FullPartials"; }
 
-  std::span<const ConfigDescriptor> config_descriptors() const override {
-    static constexpr ConfigDescriptor descs[] = {
-      {"maxPartials",  ConfigType::Int,   30.0f, 1.0f, 200.0f},
-      {"minMult",      ConfigType::Int,   1.0f,  1.0f, 100.0f},
-      {"evenWeight1",  ConfigType::Float, 1.0f,  0.0f, 10.0f},
-      {"evenWeight2",  ConfigType::Float, 1.0f,  0.0f, 10.0f},
-      {"oddWeight1",   ConfigType::Float, 1.0f,  0.0f, 10.0f},
-      {"oddWeight2",   ConfigType::Float, 1.0f,  0.0f, 10.0f},
-      {"unitPO1",      ConfigType::Float, 0.0f,  0.0f, 1.0f},
-      {"unitPO2",      ConfigType::Float, 0.0f,  0.0f, 1.0f},
-      {"rolloff1",     ConfigType::Float, 1.0f,  0.0f, 10.0f},
-      {"rolloff2",     ConfigType::Float, 1.0f,  0.0f, 10.0f},
-      {"detune1",      ConfigType::Float, 0.0f,  0.0f, 1.0f},
-      {"detune2",      ConfigType::Float, 0.0f,  0.0f, 1.0f},
-      {"bandwidth1",   ConfigType::Float, 0.0f,  0.0f, 1.0f},
-      {"bandwidth2",   ConfigType::Float, 0.0f,  0.0f, 1.0f},
-      {"bandwidthHz",  ConfigType::Float, 30.0f, 1.0f, 2000.0f},
+  std::span<const SettingDescriptor> setting_descriptors() const override {
+    static constexpr SettingDescriptor descs[] = {
+      {"maxPartials",  SettingType::Int,   30.0f, 1.0f, 200.0f},
+      {"minMult",      SettingType::Int,   1.0f,  1.0f, 100.0f},
+      {"evenWeight1",  SettingType::Float, 1.0f,  0.0f, 10.0f},
+      {"evenWeight2",  SettingType::Float, 1.0f,  0.0f, 10.0f},
+      {"oddWeight1",   SettingType::Float, 1.0f,  0.0f, 10.0f},
+      {"oddWeight2",   SettingType::Float, 1.0f,  0.0f, 10.0f},
+      {"unitPO1",      SettingType::Float, 0.0f,  0.0f, 1.0f},
+      {"unitPO2",      SettingType::Float, 0.0f,  0.0f, 1.0f},
+      {"rolloff1",     SettingType::Float, 1.0f,  0.0f, 10.0f},
+      {"rolloff2",     SettingType::Float, 1.0f,  0.0f, 10.0f},
+      {"detune1",      SettingType::Float, 0.0f,  0.0f, 1.0f},
+      {"detune2",      SettingType::Float, 0.0f,  0.0f, 1.0f},
+      {"bandwidth1",   SettingType::Float, 0.0f,  0.0f, 1.0f},
+      {"bandwidth2",   SettingType::Float, 0.0f,  0.0f, 1.0f},
+      {"bandwidthHz",  SettingType::Float, 30.0f, 1.0f, 2000.0f},
       MFORCE_PARTIALS_MOTION_CONFIG_DESCS
     };
     return descs;
   }
 
-  void set_config(std::string_view name, float value) override {
+  void set_setting(std::string_view name, float value) override {
     if (name == "maxPartials")  { maxPartials_ = std::max(1, int(value)); arrayUpdateReq_ = true; return; }
     if (name == "minMult")      { minMult_ = std::max(1, int(value)); arrayUpdateReq_ = true; return; }
     if (name == "evenWeight1")  { evenWeight1_ = value; arrayUpdateReq_ = true; return; }
@@ -1105,10 +1105,10 @@ struct FullPartials final : Partials {
     if (name == "oddWeight2")   { oddWeight2_ = value; arrayUpdateReq_ = true; return; }
     if (name == "unitPO1")      { unitPO1_ = value; arrayUpdateReq_ = true; return; }
     if (name == "unitPO2")      { unitPO2_ = value; arrayUpdateReq_ = true; return; }
-    Partials::set_config(name, value);
+    Partials::set_setting(name, value);
   }
 
-  float get_config(std::string_view name) const override {
+  float get_setting(std::string_view name) const override {
     if (name == "maxPartials")  return float(maxPartials_);
     if (name == "minMult")      return float(minMult_);
     if (name == "evenWeight1")  return evenWeight1_;
@@ -1117,7 +1117,7 @@ struct FullPartials final : Partials {
     if (name == "oddWeight2")   return oddWeight2_;
     if (name == "unitPO1")      return unitPO1_;
     if (name == "unitPO2")      return unitPO2_;
-    return Partials::get_config(name);
+    return Partials::get_setting(name);
   }
 
   // Programmatic setup (backward compat with old FullAdditiveSource::init_full_partials)
@@ -1177,28 +1177,28 @@ struct SequencePartials final : Partials {
 
   const char* type_name() const override { return "SequencePartials"; }
 
-  std::span<const ConfigDescriptor> config_descriptors() const override {
-    static constexpr ConfigDescriptor descs[] = {
-      {"maxPartials", ConfigType::Int,   30.0f, 1.0f, 200.0f},
-      {"minMult1",    ConfigType::Float, 1.0f,  0.01f, 100.0f},
-      {"minMult2",    ConfigType::Float, 1.0f,  0.01f, 100.0f},
-      {"incr1",       ConfigType::Float, 1.0f,  0.01f, 100.0f},
-      {"incr2",       ConfigType::Float, 1.0f,  0.01f, 100.0f},
-      {"unitPO1",     ConfigType::Float, 0.0f,  0.0f, 1.0f},
-      {"unitPO2",     ConfigType::Float, 0.0f,  0.0f, 1.0f},
-      {"rolloff1",    ConfigType::Float, 1.0f,  0.0f, 10.0f},
-      {"rolloff2",    ConfigType::Float, 1.0f,  0.0f, 10.0f},
-      {"detune1",     ConfigType::Float, 0.0f,  0.0f, 1.0f},
-      {"detune2",     ConfigType::Float, 0.0f,  0.0f, 1.0f},
-      {"bandwidth1",  ConfigType::Float, 0.0f,  0.0f, 1.0f},
-      {"bandwidth2",  ConfigType::Float, 0.0f,  0.0f, 1.0f},
-      {"bandwidthHz", ConfigType::Float, 30.0f, 1.0f, 2000.0f},
+  std::span<const SettingDescriptor> setting_descriptors() const override {
+    static constexpr SettingDescriptor descs[] = {
+      {"maxPartials", SettingType::Int,   30.0f, 1.0f, 200.0f},
+      {"minMult1",    SettingType::Float, 1.0f,  0.01f, 100.0f},
+      {"minMult2",    SettingType::Float, 1.0f,  0.01f, 100.0f},
+      {"incr1",       SettingType::Float, 1.0f,  0.01f, 100.0f},
+      {"incr2",       SettingType::Float, 1.0f,  0.01f, 100.0f},
+      {"unitPO1",     SettingType::Float, 0.0f,  0.0f, 1.0f},
+      {"unitPO2",     SettingType::Float, 0.0f,  0.0f, 1.0f},
+      {"rolloff1",    SettingType::Float, 1.0f,  0.0f, 10.0f},
+      {"rolloff2",    SettingType::Float, 1.0f,  0.0f, 10.0f},
+      {"detune1",     SettingType::Float, 0.0f,  0.0f, 1.0f},
+      {"detune2",     SettingType::Float, 0.0f,  0.0f, 1.0f},
+      {"bandwidth1",  SettingType::Float, 0.0f,  0.0f, 1.0f},
+      {"bandwidth2",  SettingType::Float, 0.0f,  0.0f, 1.0f},
+      {"bandwidthHz", SettingType::Float, 30.0f, 1.0f, 2000.0f},
       MFORCE_PARTIALS_MOTION_CONFIG_DESCS
     };
     return descs;
   }
 
-  void set_config(std::string_view name, float value) override {
+  void set_setting(std::string_view name, float value) override {
     if (name == "maxPartials") { maxPartials_ = std::max(1, int(value)); arrayUpdateReq_ = true; return; }
     if (name == "minMult1")    { minMult1_ = value; arrayUpdateReq_ = true; return; }
     if (name == "minMult2")    { minMult2_ = value; arrayUpdateReq_ = true; return; }
@@ -1206,10 +1206,10 @@ struct SequencePartials final : Partials {
     if (name == "incr2")       { incr2_ = value; arrayUpdateReq_ = true; return; }
     if (name == "unitPO1")     { unitPO1_ = value; arrayUpdateReq_ = true; return; }
     if (name == "unitPO2")     { unitPO2_ = value; arrayUpdateReq_ = true; return; }
-    Partials::set_config(name, value);
+    Partials::set_setting(name, value);
   }
 
-  float get_config(std::string_view name) const override {
+  float get_setting(std::string_view name) const override {
     if (name == "maxPartials") return float(maxPartials_);
     if (name == "minMult1")    return minMult1_;
     if (name == "minMult2")    return minMult2_;
@@ -1217,7 +1217,7 @@ struct SequencePartials final : Partials {
     if (name == "incr2")       return incr2_;
     if (name == "unitPO1")     return unitPO1_;
     if (name == "unitPO2")     return unitPO2_;
-    return Partials::get_config(name);
+    return Partials::get_setting(name);
   }
 
   // Programmatic setup
@@ -1261,25 +1261,25 @@ struct ExplicitPartials final : Partials {
 
   const char* type_name() const override { return "ExplicitPartials"; }
 
-  std::span<const ConfigDescriptor> config_descriptors() const override {
-    static constexpr ConfigDescriptor descs[] = {
-      {"maxPartials", ConfigType::Int,   16.0f, 1.0f, 200.0f},
-      {"evolve",      ConfigType::Bool,  1.0f,  0.0f, 1.0f},
-      {"unitPO1",     ConfigType::Float, 0.0f,  0.0f, 1.0f},
-      {"unitPO2",     ConfigType::Float, 0.0f,  0.0f, 1.0f},
-      {"rolloff1",    ConfigType::Float, 1.0f,  0.0f, 10.0f},
-      {"rolloff2",    ConfigType::Float, 1.0f,  0.0f, 10.0f},
-      {"detune1",     ConfigType::Float, 0.0f,  0.0f, 1.0f},
-      {"detune2",     ConfigType::Float, 0.0f,  0.0f, 1.0f},
-      {"bandwidth1",  ConfigType::Float, 0.0f,  0.0f, 1.0f},
-      {"bandwidth2",  ConfigType::Float, 0.0f,  0.0f, 1.0f},
-      {"bandwidthHz", ConfigType::Float, 30.0f, 1.0f, 2000.0f},
+  std::span<const SettingDescriptor> setting_descriptors() const override {
+    static constexpr SettingDescriptor descs[] = {
+      {"maxPartials", SettingType::Int,   16.0f, 1.0f, 200.0f},
+      {"evolve",      SettingType::Bool,  1.0f,  0.0f, 1.0f},
+      {"unitPO1",     SettingType::Float, 0.0f,  0.0f, 1.0f},
+      {"unitPO2",     SettingType::Float, 0.0f,  0.0f, 1.0f},
+      {"rolloff1",    SettingType::Float, 1.0f,  0.0f, 10.0f},
+      {"rolloff2",    SettingType::Float, 1.0f,  0.0f, 10.0f},
+      {"detune1",     SettingType::Float, 0.0f,  0.0f, 1.0f},
+      {"detune2",     SettingType::Float, 0.0f,  0.0f, 1.0f},
+      {"bandwidth1",  SettingType::Float, 0.0f,  0.0f, 1.0f},
+      {"bandwidth2",  SettingType::Float, 0.0f,  0.0f, 1.0f},
+      {"bandwidthHz", SettingType::Float, 30.0f, 1.0f, 2000.0f},
       MFORCE_PARTIALS_MOTION_CONFIG_DESCS
     };
     return descs;
   }
 
-  void set_config(std::string_view name, float value) override {
+  void set_setting(std::string_view name, float value) override {
     if (name == "maxPartials") { maxPartials_ = std::max(1, int(value)); init_arrays_defaults(); return; }
     if (name == "evolve") {
       evolve_ = (value != 0.0f);
@@ -1293,15 +1293,15 @@ struct ExplicitPartials final : Partials {
     }
     if (name == "unitPO1")     { unitPO1_ = value; return; }
     if (name == "unitPO2")     { unitPO2_ = value; return; }
-    Partials::set_config(name, value);
+    Partials::set_setting(name, value);
   }
 
-  float get_config(std::string_view name) const override {
+  float get_setting(std::string_view name) const override {
     if (name == "maxPartials") return float(maxPartials_);
     if (name == "evolve")      return evolve_ ? 1.0f : 0.0f;
     if (name == "unitPO1")     return unitPO1_;
     if (name == "unitPO2")     return unitPO2_;
-    return Partials::get_config(name);
+    return Partials::get_setting(name);
   }
 
   // Direct array setters for patch_loader / programmatic use

@@ -46,24 +46,24 @@ struct RepeatingSource final : ValueSource {
     return nullptr;
   }
 
-  std::span<const ConfigDescriptor> config_descriptors() const override {
-    static constexpr ConfigDescriptor descs[] = {
-      {"duration",    ConfigType::Float, 0.5f,  0.001f, 10.0f},
-      {"durVarPct",   ConfigType::Float, 0.0f,  0.0f,   1.0f},
-      {"gapDuration", ConfigType::Float, 0.2f,  0.0f,   10.0f},
-      {"gapVarPct",   ConfigType::Float, 0.0f,  0.0f,   1.0f},
+  std::span<const SettingDescriptor> setting_descriptors() const override {
+    static constexpr SettingDescriptor descs[] = {
+      {"duration",    SettingType::Float, 0.5f,  0.001f, 10.0f},
+      {"durVarPct",   SettingType::Float, 0.0f,  0.0f,   1.0f},
+      {"gapDuration", SettingType::Float, 0.2f,  0.0f,   10.0f},
+      {"gapVarPct",   SettingType::Float, 0.0f,  0.0f,   1.0f},
     };
     return descs;
   }
 
-  void set_config(std::string_view name, float value) override {
+  void set_setting(std::string_view name, float value) override {
     if (name == "duration")    { duration = value; return; }
     if (name == "durVarPct")   { durVarPct = value; return; }
     if (name == "gapDuration") { gapDuration = value; return; }
     if (name == "gapVarPct")   { gapVarPct = value; return; }
   }
 
-  float get_config(std::string_view name) const override {
+  float get_setting(std::string_view name) const override {
     if (name == "duration")    return duration;
     if (name == "durVarPct")   return durVarPct;
     if (name == "gapDuration") return gapDuration;

@@ -51,7 +51,7 @@ struct CombinedSource final : ValueSource {
     return nullptr;
   }
 
-  std::span<const ConfigDescriptor> config_descriptors() const override {
+  std::span<const SettingDescriptor> setting_descriptors() const override {
     // Display labels for the operation dropdown. Index must match CombineOp:
     // 0=Add (averaged mix), 1=Multiply, 2=Fade (crossfade), 3=Sum (raw add).
     // "Add" is shown as "Mix" since it's actually (v1+v2)/2 — averaging, not
@@ -59,19 +59,19 @@ struct CombinedSource final : ValueSource {
     static constexpr const char* kOpLabels[] = {
       "Mix", "Multiply", "Fade", "Sum", nullptr
     };
-    static constexpr ConfigDescriptor descs[] = {
-      {"operation", ConfigType::Int,   0.0f,  0.0f,  3.0f, kOpLabels},
-      {"gainAdj",   ConfigType::Float, 0.0f, -1.0f, 10.0f},
+    static constexpr SettingDescriptor descs[] = {
+      {"operation", SettingType::Int,   0.0f,  0.0f,  3.0f, kOpLabels},
+      {"gainAdj",   SettingType::Float, 0.0f, -1.0f, 10.0f},
     };
     return descs;
   }
 
-  void set_config(std::string_view name, float value) override {
+  void set_setting(std::string_view name, float value) override {
     if (name == "operation") { op = static_cast<CombineOp>(int(value)); return; }
     if (name == "gainAdj")   { gainAdj = value; return; }
   }
 
-  float get_config(std::string_view name) const override {
+  float get_setting(std::string_view name) const override {
     if (name == "operation") return float(static_cast<int>(op));
     if (name == "gainAdj")   return gainAdj;
     return 0.0f;
@@ -161,22 +161,22 @@ struct CrossfadeSource final : ValueSource {
     return nullptr;
   }
 
-  std::span<const ConfigDescriptor> config_descriptors() const override {
-    static constexpr ConfigDescriptor descs[] = {
-      {"ratio",   ConfigType::Float, 0.5f, 0.0f, 1.0f},
-      {"overlap", ConfigType::Float, 0.1f, 0.0f, 1.0f},
-      {"gainAdj", ConfigType::Float, 0.0f, -1.0f, 10.0f},
+  std::span<const SettingDescriptor> setting_descriptors() const override {
+    static constexpr SettingDescriptor descs[] = {
+      {"ratio",   SettingType::Float, 0.5f, 0.0f, 1.0f},
+      {"overlap", SettingType::Float, 0.1f, 0.0f, 1.0f},
+      {"gainAdj", SettingType::Float, 0.0f, -1.0f, 10.0f},
     };
     return descs;
   }
 
-  void set_config(std::string_view name, float value) override {
+  void set_setting(std::string_view name, float value) override {
     if (name == "ratio")   { ratio = value; return; }
     if (name == "overlap") { overlap = value; return; }
     if (name == "gainAdj") { gainAdj = value; return; }
   }
 
-  float get_config(std::string_view name) const override {
+  float get_setting(std::string_view name) const override {
     if (name == "ratio")   return ratio;
     if (name == "overlap") return overlap;
     if (name == "gainAdj") return gainAdj;

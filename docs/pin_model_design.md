@@ -194,15 +194,27 @@ and `tools/mforce_ui/main.cpp` (53) are the bulk.
 **Zero patch files change** — the format has no `config` key; settings are read
 out of the same `params` object as pins.
 
-**Almost zero user-facing text.** Corrected 2026-08-19 during execution: an
-earlier draft of this section claimed *zero*, which was wrong. The Mappings
-dialog annotates a target with `"  (config)"` in two places
-(`tools/mforce_ui/main.cpp:4775` and `:4970`), so the word does reach the
-screen and becomes `"(setting)"`. The Properties heading was already
-"Settings".
+**Six user-facing strings, not zero.** Corrected 2026-08-19 during execution;
+an earlier draft claimed zero. The Mappings dialog and Curves tab between them
+say the word six times — two `"  (config)"` target annotations, two
+`"Param / config"` combo labels, and two `"…no mappable/curve-able
+params/configs"` empty-state lines. All become "setting". The Properties
+heading was already "Settings".
 
 No rendered audio changes, so the null gate holds the whole rename honest for
-free — and a missed identifier is a compile error, not a silent bug.
+free.
+
+**Two execution lessons worth keeping**, because "a missed rename is a compile
+error" turned out to be only half true:
+
+- A *consistently* wrong rename compiles fine. `get_config` is a prefix of
+  `get_configurator`, so a blanket substitution produced `get_settingurator`
+  across declaration, definition and call site — clean build, permanently
+  nonsense name. Prefix collisions need checking explicitly: enumerate every
+  occurrence of each renamed token afterwards and confirm the set is exactly
+  the intended names.
+- `configurator` is NOT a setting concept and keeps its name. It configures a
+  node from JSON — pins, settings and arrays alike.
 
 Deliberately separable: the rename can land before, after, or never, without
 affecting anything else here.

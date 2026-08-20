@@ -41,15 +41,15 @@ struct InputDescriptor {
   const char* hint = nullptr;
 };
 
-enum class ConfigType { Float, Int, Bool };
+enum class SettingType { Float, Int, Bool };
 
-struct ConfigDescriptor {
+struct SettingDescriptor {
   const char* name;
-  ConfigType type;
+  SettingType type;
   float default_value;
   float min_value;
   float max_value;   // for Float/Int; ignored for Bool
-  // Optional: null-terminated array of display labels for Int configs that
+  // Optional: null-terminated array of display labels for Int settings that
   // represent an enum. When set, the UI renders a dropdown instead of a
   // numeric input. The stored value remains the integer index.
   const char* const* enum_labels = nullptr;
@@ -92,9 +92,9 @@ struct ValueSource {
   virtual std::span<const InputDescriptor> input_descriptors() const { return {}; }
 
   // Config params — non-connectable scalars (int, float, bool)
-  virtual std::span<const ConfigDescriptor> config_descriptors() const { return {}; }
-  virtual void set_config(std::string_view /*name*/, float /*value*/) {}
-  virtual float get_config(std::string_view /*name*/) const { return 0.0f; }
+  virtual std::span<const SettingDescriptor> setting_descriptors() const { return {}; }
+  virtual void set_setting(std::string_view /*name*/, float /*value*/) {}
+  virtual float get_setting(std::string_view /*name*/) const { return 0.0f; }
 
   // Array params — user-editable float vectors (e.g. ExplicitPartials multipliers,
   // FixedSpectrum/BandSpectrum gains). Grouped arrays (shared groupName) must be

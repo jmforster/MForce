@@ -441,7 +441,7 @@ void register_all_sources() {
     reg.register_type("Vibrato", SourceCategory::Modulator,
         [](int sr, auto seed) {
             // Defaults; configs (speed/depth/attack/...) are set after creation
-            // via set_config (UI) or the patch_loader special case (JSON).
+            // via set_setting (UI) or the patch_loader special case (JSON).
             return std::make_shared<Vibrato>(
                 sr, 5.0f, 0.02f, 0.3f, 0.0f, 0.0f, 0.0f, 1.0f,
                 seed.value_or(0xF1B0'0000u));
@@ -561,7 +561,7 @@ void register_all_sources() {
 
     // -----------------------------------------------------------------------
     // KS piano blocks (dsp run 24 — Alpha Forever piano port). All config
-    // wiring is generic (ConfigDescriptors), no configurators needed.
+    // wiring is generic (SettingDescriptors), no configurators needed.
     // -----------------------------------------------------------------------
 
     reg.register_type("HammerBank", SourceCategory::Filter,

@@ -59,22 +59,22 @@ struct HybridKSSource final : WaveSource {
     return WaveSource::get_param(name);
   }
 
-  std::span<const ConfigDescriptor> config_descriptors() const override {
-    static constexpr ConfigDescriptor descs[] = {
-      {"holdCycles",     ConfigType::Int,   5.0f,   1.0f, 50.0f},
-      {"morphDuration",  ConfigType::Float, 0.5f,   0.01f, 5.0f},
-      {"numPartials",    ConfigType::Int,   30.0f,  1.0f, 200.0f},
+  std::span<const SettingDescriptor> setting_descriptors() const override {
+    static constexpr SettingDescriptor descs[] = {
+      {"holdCycles",     SettingType::Int,   5.0f,   1.0f, 50.0f},
+      {"morphDuration",  SettingType::Float, 0.5f,   0.01f, 5.0f},
+      {"numPartials",    SettingType::Int,   30.0f,  1.0f, 200.0f},
     };
     return descs;
   }
 
-  void set_config(std::string_view name, float value) override {
+  void set_setting(std::string_view name, float value) override {
     if (name == "holdCycles")    { holdCycles_ = int(value); return; }
     if (name == "morphDuration") { morphSeconds_ = value; return; }
     if (name == "numPartials")   { numPartials_ = int(value); return; }
   }
 
-  float get_config(std::string_view name) const override {
+  float get_setting(std::string_view name) const override {
     if (name == "holdCycles")    return float(holdCycles_);
     if (name == "morphDuration") return morphSeconds_;
     if (name == "numPartials")   return float(numPartials_);

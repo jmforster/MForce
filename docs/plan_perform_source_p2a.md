@@ -1,25 +1,13 @@
 # PerformSource P2a Implementation Plan — the wiring format
 
-> ## ⛔ PARKED 2026-08-19 — DO NOT EXECUTE
->
-> Parked by Matt during review. The plan decides *where in the file* a chain
-> landing on a config gets written (the `bindings` object) without the model
-> question having been settled first: what a config pin **is**, how it reads
-> on a node, and how a user attaches one. Spec §5 covers it in one sentence
-> ("landing on a config pin — one visual language, two evaluation times,
-> distinguished by pin type") and no more.
->
-> The file format should follow that model, not lead it. Superseded by the
-> brainstorm on config chains; revise or rewrite this plan afterwards.
->
-> Also carried into the brainstorm: the `bindings`-vs-`params` cost estimate
-> in here is wrong. It claims ~40 configurators would need teaching; the load
-> path builds registry instances *before* handing over params, so descriptors
-> are already known at that point and only the hand-rolled construction
-> branches read blind — of which only `Envelope` reads a config key. Re-cost
-> before deciding.
-
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+> **Revision 2 — 2026-08-19.** Supersedes the version parked earlier the same
+> day. That one decided where a chain landing on a config gets written before
+> the model existed; `docs/pin_model_design.md` now settles the model, and this
+> revision follows it. Its engine content survives; the vocabulary and the
+> serialization changed. The old cost estimate (~40 configurators needing
+> teaching) was wrong and is gone.
 
 ---
 
@@ -27,131 +15,85 @@
 
 ### What's true today
 
-A patch file has a block called `paramMap`. It's the list of "when a note
-plays, send its pitch to *this* setting on *that* node" instructions —
-sometimes straight through, sometimes bent through a curve first.
+A patch file has a block called `paramMap` — the list of "when a note plays,
+send its pitch to *this* setting on *that* node," sometimes bent through a
+curve first.
 
-P1 (landed yesterday) changed what happens to that block when a patch loads.
-It used to be handled by special-case machinery bolted onto the side of the
-voice. Now it gets turned into ordinary graph parts — a node that reports the
-note's pitch, a curve node, a wire — the same kinds of parts the rest of the
-patch is made of. Nothing sounds different; all 196 patches render byte for
-byte identical.
+P1 (landed 2026-08-18) changed what happens to that block at load. It's now
+turned into ordinary graph parts — a node reporting the note's pitch, a curve
+node, a wire. Nothing sounds different; all 196 patches render byte for byte
+identical.
 
 ### What's missing
 
-Those parts only exist in memory. Nothing can write them back out to a file.
-There is no way to *spell* "a node that reports the note's pitch" in patch
-JSON — the loader invents it during load and it dies when the patch unloads.
-
-That matters because the next step (P2b) teaches the UI's Save to write this
-stuff. Save has to write *something*, and right now there's no spelling for it.
+Those parts only exist in memory. There's no way to *spell* "a node that
+reports the note's pitch" in patch JSON — the loader invents it at load and it
+dies when the patch unloads. The next step (P2b) teaches the UI's Save to write
+this, and Save has to write something.
 
 ### What P2a does
 
 Defines the spelling, and proves it says the same thing the old one did.
 
-1. A new node type you can write in a patch file — `PerformNode` — that
-   reports the note's pitch or its velocity. Put as many as you like in a
-   patch; they all report the same note.
-2. Teaches the loader to accept a wire pointing at a *config* setting (see the
-   decision below).
-3. A converter that rewrites any patch's `paramMap` into the new spelling.
-4. The proof: take all 196 patches, run them through the converter, render
-   them, and require every single one to come out **byte for byte identical**
-   to what it renders today. Not "sounds the same" — identical.
+1. **Renames `config` to `setting`** throughout the engine, and lands it first
+   so everything after is written in the vocabulary we're keeping. Zero patch
+   files and zero on-screen text change — the format has no `config` key and
+   the UI already says "Settings."
+2. A new node type — **`PerformNode`** — that reports the note's pitch or
+   velocity. As many per patch as you like; they all report the same note.
+3. Teaches the loader to read **`dynamicPins`**, a small per-node object naming
+   the settings this patch drives per note.
+4. A converter that rewrites any patch's `paramMap` into the new spelling.
+5. The proof: run all 196 patches through the converter, render them, require
+   every one **byte for byte identical** to what it renders today.
 
 ### What it costs you
 
 Nothing changes in how patches load or sound. `paramMap` keeps working and
-keeps being read; this adds a second way to say the same thing, it doesn't
-retire the first. Your patch files are not touched — the converter writes to a
+keeps being read. Your patch files aren't touched — the converter writes to a
 scratch copy. Files only change format when the UI saves them, which is P2b.
+Two new baseline patches land in `patches/baselines/perform/`.
 
-Two new baseline patches land in `patches/baselines/perform/`, written in the
-new format as smoke tests.
+### The one decision left in here
 
-### Decisions in here you may want to veto
+`pin_model_design.md` §11 says a dynamic pin serialises separately from
+`params`, and gives the reason: it's a different kind of pin, and node
+*construction* reads `params` before it knows which keys are settings. It
+doesn't name the JSON key. **This plan calls it `dynamicPins`.** One line to
+change if you'd rather it were something else — say so before Task 3.
 
-**1. Where "this curve's output goes to that config" gets written down.**
-
-Node settings come in two kinds. **Pins** can be fed from another node — a
-wire into a pin is normal and already works. **Configs** are plain numbers,
-read once when the node is built and updated only by being handed a new
-number: envelope sustain level, the KS string's t60/brightness/dispersion.
-
-Nothing is ever *wired* to a config, and P2a does not change that. A `paramMap`
-entry aimed at a config is evaluated once at note-on and the resulting number
-is handed over via `set_config` — that timing is identical before and after.
-Four patches do this, all in the viola family, all through a curve:
-
+```json
+{ "id": "env", "type": "Envelope",
+  "params":      { "preset": "adsr", "sustainLevel": 0.7 },
+  "dynamicPins": { "sustainLevel": { "ref": "__curve_sus" } } }
 ```
-viola_default.json:   {"target": "env2.sustainLevel",
-                       "curve": [[50, 0.08], [400, 0.4], [1200, 20.0]]}
-```
-
-(`Envelope::set_config` has a deliberate special case for this,
-`envelope.h:196`, unclamped — which is why 20.0 there is legal.)
-
-The problem is bookkeeping, not signal. Today the whole instruction lives
-*outside* the node, in the `paramMap` block, so the envelope's JSON never
-contains anything unusual. The new spelling turns the curve into real nodes,
-and then something has to record where that curve's output lands —
-`env2.sustainLevel` — inside the envelope node's own JSON. That is exactly the
-slot the envelope's construction code reads expecting a number. Put the record
-there and the patch fails to load.
-
-- **Chosen:** the record goes in its own small section of the node, called
-  `bindings`, where the node-building code never looks. Nothing else changes.
-- **Rejected:** put it with everything else in `params`. Reads nicer, but ~40
-  node types would each need teaching to tolerate it, and the failure mode is
-  a patch that won't load at all.
-
-No audible difference either way. It's about what the file looks like and how
-much of the loader has to move.
-
-**2. A converter exists at all.** It wasn't in the spec — added here as the
-only way to get 196 patches into the new format for testing before the UI can
-write it. It's also what P4's bulk migration will use.
-
-**3. `PerformNode` is one node per thing reported** — one for pitch, one for
-velocity — rather than a single node with several outputs. Matches how the
-engine is already built; the alternative would change how every node type in
-the engine resolves its wires, to serve this one case.
 
 ### How you'll know it worked
 
-`python tools/null_gate_wiring.py` prints `196/196 identical after
-conversion`. If it prints anything else, the format doesn't say what
-`paramMap` said, and the plan stops there rather than papering over it.
+`python tools/null_gate_wiring.py` prints `196/196 identical after conversion`.
+Anything else means the format doesn't say what `paramMap` said, and the plan
+stops rather than papering over it.
 
 ---
 
 ## The rest is execution detail
 
-**Goal:** Give the bindings P1 builds in memory a **serialized form** — a
-`PerformNode` JSON node type, wireable config pins, and a converter that
-rewrites any legacy `paramMap` into pure graph wiring — proven by rendering
-all 196 gated patches from their *converted* files and matching the frozen
-manifest bit for bit.
+**Goal:** Give the bindings P1 builds in memory a serialized form — the
+`setting` rename, a `PerformNode` JSON type, `dynamicPins`, and a
+paramMap→wiring converter — proven by rendering all 196 gated patches from
+their *converted* files against the frozen manifest.
 
-**Architecture:** P1's `build_bindings()` converts `paramMap` → CurveNode
-chains + wires + PushBindings at load, but nothing can write those back out:
-`freqOut`/`velOut` are constructed by the loader and no JSON node resolves to
-them. P2a closes that. The voice's `PerformSource` and its two `PerformOut`
-adapters are created **before** `build_graph`, handed down as a context, and a
+**Architecture:** The voice's `PerformSource` and its two `PerformOut` adapters
+are created **before** `build_graph` and handed down as a context, so a
 `{"type":"PerformNode","params":{"field":"frequency"}}` node resolves to the
 shared adapter — one JSON node per field, because each `PerformOut` already is
-a separate one-output `ValueSource`. Config keys learn to accept `{"ref": …}`
-and become Setup-evaluated PushBindings. The legacy `paramMap` path stays
-untouched and is read forever; the two formats coexist.
+a separate one-output `ValueSource`. Dynamic pins are read from a per-node
+`dynamicPins` object and become Setup-evaluated push bindings. Legacy
+`paramMap` stays untouched and is read forever; the two formats coexist.
 
 **Not in P2a:** all UI work — PerformNode/CurveNode as editor nodes, the knot
-editor, Curves/Mappings as derived views, the UI serializer. That is P2b. The
-split is about proof order, not about scheduling around anything: the UI's
-Save is what will start writing this format into Matt's patch files, so the
-format gets nailed down and gated against all 196 patches *before* the editor
-is taught to emit it.
+editor, grey→gold promotion, Curves/Mappings as derived views, the UI
+serializer. That is P2b.
 
 **Tech Stack:** C++20 (MSVC), CMake (VS-bundled:
 `C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/bin/cmake.exe`),
@@ -159,9 +101,8 @@ nlohmann::json, Python 3.
 
 ## Global Constraints
 
-- **The null gate is the law.** `python tools/null_gate_perform_source.py`
-  must stay 196/196 after every task. A diff = stop and diagnose, never
-  rationalize.
+- **The null gate is the law.** `python tools/null_gate_perform_source.py` must
+  stay 196/196 after every task. A diff = stop and diagnose, never rationalize.
 - **A running `mforce_ui.exe` is not a reason to change the plan.** If the exe
   is locked, rename it out of the way and link the new one (run-19 precedent —
   `mforce_ui_running_backup2.exe` in the build dir is that trick's residue);
@@ -171,73 +112,36 @@ nlohmann::json, Python 3.
 - No heap allocation in `next()` paths (CLAUDE.md non-negotiable).
 - Verify the current branch live (`git branch --show-current`) before each
   commit — two Claudes share this working copy.
-- Stage tracked changes with `git add -u` plus explicit paths for new files;
-  never `git add <dir>/`.
+- Stage with explicit paths. `git add -u` would sweep up
+  `engine/include/mforce/render/patch_loader.h` and
+  `tools/mforce_ui/CMakeLists.txt`, both dirty before this work started and
+  not ours to commit.
 - Commit trailer: `Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>`
-- New JSON keys are optional with defaults that reproduce current behavior.
-- `__`-prefixed node ids are reserved for synthesized nodes (the UI already
-  reserves the prefix, `tools/mforce_ui/main.cpp:1740`).
-- Legacy `paramMap` keeps working unchanged. P2a **adds** a format; it removes
-  nothing.
+- New JSON keys are optional with defaults reproducing current behavior.
+- `__`-prefixed node ids are reserved for synthesized nodes.
 
-## Known bit-identity risks (watch these; the gate decides)
+## Known bit-identity risks (the gate decides; do not pre-emptively "fix")
 
 1. **RefSource wrapping.** `build_bindings` calls `set_param` directly, so a
    chain feeding N pins is shared raw. The generic param pass goes through
    `resolve_param`, which wraps 2nd+ uses in `RefSource`
    (`engine/src/patch_loader.cpp:286-295`). `PerformOut` and `CurveNode` are
-   both documented idempotent, so wrapping should be value-identical.
-   **If Task 5 shows diffs on multi-consumer patches**, the fix is to exempt
-   `PerformOut`/`CurveNode` from usage counting in `resolve_param`, not to
-   change the converter.
+   both documented idempotent, so wrapping should be value-identical. **If
+   Task 6 shows diffs across unrelated patches**, exempt `PerformOut`/`CurveNode`
+   from usage counting in `resolve_param` — do not change the converter.
 2. **Multiplex clones.** P1 pushes into clones (`set_clone_param`); wiring
    format instead pulls, because `extract_subgraph_json` drags the referenced
    chain into each clone's subtree and each clone builds its own CurveNode
    against the shared adapter. Values are equal; the 7 Multiplex patches are
-   the proof. They are called out explicitly in Task 5. **Two things to check
-   there before assuming the pull works:** `extract_subgraph_json` follows
-   refs in `params` — it must learn to follow `bindings` refs too, or a config
-   target inside a clone subtree loses its chain; and `bind_wiring` walks only
-   top-level `nodeMap`, so a config binding *inside* a clone subtree is not
-   seen at all. If either bites, the fallback is to keep those targets on the
-   push path by matching P1: detect `vg.topMultiplex` in `bind_wiring` and
-   emit a `PushBinding` with `targetNodeId` set, exactly as `build_bindings`
-   case 2 does.
-3. **Bend graft.** P1 keeps the legacy `PitchBendSource` graft and populates
-   `vg.bendSwaps` for exactly the entries with an empty freq-curve. Wiring
-   format must reproduce that membership by graph shape (Task 3) or the 4
-   bend/slide baselines will diff.
-
-## Format decision: config refs live in a per-node `bindings` object
-
-Param refs go where they always have — in `params`, resolved by the generic
-pass. **Config refs go in a sibling object**, `"bindings"`:
-
-```json
-{ "id": "env", "type": "Envelope",
-  "params":   { "preset": "adsr", "sustainLevel": 0.7 },
-  "bindings": { "sustainLevel": { "ref": "__curve_sus" } } }
-```
-
-The alternative — putting config refs in `params` alongside everything else —
-was rejected because it detonates on contact. Node **construction** reads
-`params` directly, before any descriptor is known: `envelope_from_preset_json`
-does `p.value("sustainLevel", 0.7f)`, and nlohmann's `value()` throws
-`type_error.302` when the stored value is an object rather than a number. Four
-of the gated patches map frequency onto `sustainLevel`, so they would fail to
-load at all — and the same pattern (`p.value(key, default)` at construction)
-appears in most of the ~40 registered configurators, including the KS piano's
-`t60`/`brightness`/`dispersion`/`inharmGain`. A blanket "filter object values
-out of params before construction" pre-pass is not available either:
-`MultiplexSource` legitimately reads a ref out of `params` at construction to
-extract its subtree.
-
-`bindings` costs one new key, cannot collide with any existing reader, and
-says what it means — these are pushed once at Setup, not pulled. Spec §5's
-"one visual language" is about the editor, which draws both kinds as wires and
-distinguishes them by pin type; it does not require one JSON key. If the
-`params`-only shape is wanted later, it is a converter change plus a
-construction-time filter, not a format re-think.
+   the proof. Two things to check first: `extract_subgraph_json` follows refs in
+   `params` and must learn to follow `dynamicPins` refs too, and `bind_wiring`
+   walks only top-level `nodeMap`, so a dynamic pin *inside* a clone subtree
+   isn't seen. If either bites, fall back to matching P1 exactly: detect
+   `vg.topMultiplex` in `bind_wiring` and emit a `PushBinding` with
+   `targetNodeId` set.
+3. **Bend graft.** P1 populates `vg.bendSwaps` for exactly the entries with an
+   empty freq-curve. Task 4 reproduces that membership by graph shape, or the
+   4 bend/slide baselines diff.
 
 ---
 
@@ -245,113 +149,210 @@ construction-time filter, not a format re-think.
 
 **Files:** none (verification only).
 
-**Interfaces:**
-- Produces: a known-good starting point. Every later task compares against it.
-
-- [ ] **Step 1: Check whether the UI is holding the exe**
+- [ ] **Step 1: Handle a locked UI exe**
 
 Run: `Get-Process mforce_ui -ErrorAction SilentlyContinue`
 
-If it prints a process, rename the locked exe so links still succeed:
-
+If it prints a process:
 ```
 Rename-Item build/tools/mforce_ui/Release/mforce_ui.exe mforce_ui_locked.exe
 ```
+If the rename fails, stop and ask Matt to close it. Either way, note in the run
+report that the running UI is one build behind until he restarts it.
 
-If the rename fails, stop and ask Matt to close the UI. Either way, note in
-the run report that the running UI is one build behind until he restarts it.
-
-- [ ] **Step 2: Confirm the tree is on main and note what is dirty**
+- [ ] **Step 2: Verify branch and note pre-existing dirt**
 
 Run: `git branch --show-current` then `git status --short`
-Expected: `main`. Two pre-existing dirty files are expected and are NOT ours
-to commit: `engine/include/mforce/render/patch_loader.h` (minPolyphony) and
-`tools/mforce_ui/CMakeLists.txt` (rtmidi). Leave them alone.
+Expected: `main`. `engine/include/mforce/render/patch_loader.h` and
+`tools/mforce_ui/CMakeLists.txt` are expected dirty and are NOT ours.
 
-- [ ] **Step 3: Build the CLI**
+- [ ] **Step 3: Build and gate**
 
 Run:
 ```
-& "C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/bin/cmake.exe" --build build --config Release --target mforce_cli
+& "C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/bin/cmake.exe" --build build --config Release
 ```
-Expected: build succeeds.
-
-- [ ] **Step 4: Run the gate**
-
-Run: `python tools/null_gate_perform_source.py`
-Expected: last line `196/196 identical`, exit 0.
-
-If it is not 196/196, STOP. Something landed dirty; diagnose before writing a
-line of P2a.
+then `python tools/null_gate_perform_source.py`
+Expected: `196/196 identical`, exit 0. If not, STOP — something landed dirty.
 
 ---
 
-### Task 1: `PerformNode` JSON type
+### Task 1: Rename `config` → `setting`
 
 **Files:**
-- Modify: `engine/src/patch_loader.cpp` (build_graph signature + dispatch +
-  both instrument call sites + subgraph rebuild)
-- Modify: `tools/engine_tests/main.cpp` (add `run_perform_node_tests`)
+- Modify: `engine/include/mforce/core/dsp_value_source.h` (the declarations)
+- Modify: 26 further files under `engine/` and `tools/` (mechanical)
+- Modify: `tools/mforce_cli/main.cpp` (`--dump-descriptors` output key)
+
+**Interfaces:**
+- Produces: `SettingType`, `SettingDescriptor`, `setting_descriptors()`,
+  `set_setting()`, `get_setting()`. Every later task uses these names.
+- Produces: `--dump-descriptors` emits `"settings"` where it emitted
+  `"configs"`. Task 5's converter consumes the new key.
+
+**Why first:** approved by Matt 2026-08-19 (`pin_model_design.md` §8). Landing
+it before the rest means Tasks 2-7 are written once, in the vocabulary we're
+keeping, instead of being written in the old one and renamed after.
+
+**Why it is safe:** the word reaches no patch file (the format has no `config`
+key — settings are read out of the same `params` object) and no on-screen text
+(the Properties panel already says "Settings"). No rendered audio changes, so
+the null gate proves the rename exactly.
+
+- [ ] **Step 1: Rename the declarations**
+
+In `engine/include/mforce/core/dsp_value_source.h`:
+
+```cpp
+enum class SettingType { Float, Int, Bool };
+
+struct SettingDescriptor {
+  const char* name;
+  SettingType type;
+  float default_value;
+  float min_value;
+  float max_value;   // for Float/Int; ignored for Bool
+  const char* const* enum_labels = nullptr;
+};
+```
+
+and on `ValueSource`:
+
+```cpp
+  virtual std::span<const SettingDescriptor> setting_descriptors() const { return {}; }
+  virtual void set_setting(std::string_view /*name*/, float /*value*/) {}
+  virtual float get_setting(std::string_view /*name*/) const { return 0.0f; }
+```
+
+Keep the existing signatures' semantics identical — this step changes spelling
+only. Match the real `get_config` signature before writing `get_setting`; read
+it rather than trusting the line above.
+
+- [ ] **Step 2: Sweep the rest**
+
+27 files reference the old names. Rename, in this order, checking each compiles
+before moving on:
+
+`ConfigType`→`SettingType`, `ConfigDescriptor`→`SettingDescriptor`,
+`config_descriptors`→`setting_descriptors`, `set_config`→`set_setting`,
+`get_config`→`get_setting`, and the UI's `configValues`→`settingValues`.
+
+Do NOT rename: `MConfig` in the legacy sibling repo (out of tree), the
+`isConfig` field on `PitchedInstrument::PushBinding` (Task 3 renames it to
+`isSetting` as part of its own edit), or any local variable named `cfg` that
+does not refer to this concept — check before touching.
+
+Heaviest files, expect the most hits:
+`engine/include/mforce/source/additive/partials.h` (88),
+`engine/include/mforce/source/wave_evolution.h` (78),
+`engine/include/mforce/core/envelope_presets.h` (54),
+`tools/mforce_ui/main.cpp` (21).
+
+- [ ] **Step 3: Rename the dump key**
+
+In `tools/mforce_cli/main.cpp`'s `run_dump_descriptors`, emit `"settings"`
+instead of `"configs"` (the array of `{name,type,isEnum,default,min,max}`
+objects). Leave `inputs`/`params`/`arrays` alone.
+
+- [ ] **Step 4: Build everything**
+
+Run:
+```
+& "C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/bin/cmake.exe" --build build --config Release
+```
+Expected: `mforce_cli`, `mforce_ui`, `engine_tests` all build. A missed rename
+is a compile error, not a silent bug — that is the point of doing it wholesale.
+
+- [ ] **Step 5: Prove nothing moved**
+
+Run: `python tools/null_gate_perform_source.py`
+Expected: `196/196 identical`. A pure rename that changes a hash means
+something was renamed that shouldn't have been.
+
+Also run `./build/tools/engine_tests/Release/engine_tests.exe` — expected
+`0 failures`.
+
+- [ ] **Step 6: Confirm the word is gone AND nothing was mangled**
+
+Run: `grep -rn "ConfigType\|ConfigDescriptor\|config_descriptors\|set_config\|get_config" engine tools --include=*.h --include=*.cpp`
+Expected: no output.
+
+**Then the check that actually matters.** A blanket substitution can produce a
+*consistently* wrong name, which compiles clean — `get_config` is a prefix of
+`get_configurator`, and a naive sed turns it into `get_settingurator` across
+declaration, definition and call site with no compile error. Enumerate every
+occurrence of each renamed token and confirm the set is exactly the six
+intended names:
+
+```
+grep -rno "set_setting[A-Za-z_]*\|get_setting[A-Za-z_]*\|setting_descriptors[A-Za-z_]*\|SettingType[A-Za-z_]*\|SettingDescriptor[A-Za-z_]*\|settingValues[A-Za-z_]*" --include=*.h --include=*.cpp engine tools | sed 's/.*://' | sort -u
+```
+Expected exactly: `SettingDescriptor`, `SettingDescriptors`, `SettingType`,
+`get_setting`, `set_setting`, `settingValues`, `setting_descriptors`. Anything
+longer is a prefix collision — fix it and re-run.
+
+**`configurator` keeps its name.** It configures a node from JSON — pins,
+settings and arrays alike — so it is not a setting concept. Protect it during
+any sed: `s/configurator/@@CFGR@@/g; …; s/@@CFGR@@/configurator/g`.
+
+- [ ] **Step 6b: Rename the strings the identifier sweep cannot reach**
+
+Six user-facing strings and one internal JSON key. In `tools/mforce_ui/main.cpp`:
+the two `"  (config)"` target annotations (`:4775`, `:4970`), the two
+`"Param / config"` combo labels, the two `"…no mappable/curve-able
+params/configs"` empty-state lines, and the node-clipboard key `j["configs"]`
+(`:6818` write, `:6865` read). The clipboard is process-local — "no OS
+clipboard involvement" (`:6783`) — so renaming its key has no compatibility
+cost. Also do a prose-comment pass over `dsp_value_source.h`, `instrument.h`
+and `patch_loader.cpp`, which is where a reader meets the vocabulary first.
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add -A engine tools && git reset engine/include/mforce/render/patch_loader.h tools/mforce_ui/CMakeLists.txt
+git commit -m "refactor(engine): config -> setting, the name the UI already used"
+```
+
+---
+
+### Task 2: `PerformNode` JSON type
+
+**Files:**
+- Modify: `engine/src/patch_loader.cpp`
+- Modify: `tools/engine_tests/main.cpp`
 - Create: `patches/baselines/perform/wiring_smoke.json`
 
 **Interfaces:**
-- Produces: `struct PerformContext { std::shared_ptr<ValueSource> freqOut, velOut; };`
-  in `engine/src/patch_loader.cpp` (file-local).
-- Produces: `build_graph(nodeMap, nodeOrder, sampleRate, const PerformContext* perf)`
-  — fourth parameter defaults to `nullptr`. Tasks 2 and 3 consume the same
-  call sites.
-- Produces: JSON node type `PerformNode` with one param, `field`
-  (`"frequency"` | `"velocity"`, default `"frequency"`). Task 4's converter
-  emits exactly this.
+- Produces: file-local `struct PerformContext { std::shared_ptr<ValueSource> freqOut, velOut; };`
+- Produces: `build_graph(nodeMap, nodeOrder, sampleRate, const PerformContext* perf = nullptr)`
+- Produces: JSON type `PerformNode`, one param `field` (`"frequency"` |
+  `"velocity"`, default `"frequency"`). Task 5's converter emits exactly this.
 
-- [ ] **Step 1: Add the context struct and thread it through build_graph**
+- [ ] **Step 1: Add the context and thread it through**
 
-In `engine/src/patch_loader.cpp`, immediately above the forward declarations
-at line 257 (`// Forward declarations for subgraph extraction …`), add:
+Above the forward declarations in `engine/src/patch_loader.cpp` (~line 257):
 
 ```cpp
 // Per-voice performance adapters, handed down so PerformNode instances all
-// resolve to the SAME objects (perform_source_design.md §2.3: "All instances
-// render the same outputs"). Null in NodeGraph/standalone contexts, where a
-// PerformNode is an authoring error rather than a silent constant.
+// resolve to the SAME objects (pin_model_design.md; perform_source_design.md
+// §2.3: "All instances render the same outputs"). Null in NodeGraph/standalone
+// contexts, where a PerformNode is an authoring error rather than a silent
+// constant.
 struct PerformContext {
     std::shared_ptr<ValueSource> freqOut, velOut;
 };
 ```
 
-Extend the forward declaration of `build_subgraph_with_seed_perturbation`
-(line 266) and `build_graph` (line 271) to carry it:
-
-```cpp
-build_subgraph_with_seed_perturbation(
-    const std::string& subtreeJsonStr,
-    uint32_t seedPerturbation,
-    int sampleRate,
-    const PerformContext* perf);
-```
-
-```cpp
-static GraphResult build_graph(
-    const std::unordered_map<std::string, json>& nodeMap,
-    const std::vector<std::string>& nodeOrder,
-    int sampleRate,
-    const PerformContext* perf = nullptr)
-```
-
-Apply the same two extra parameters to the *definition* of
-`build_subgraph_with_seed_perturbation` (near line 696), and forward `perf` to
-the `build_graph` call inside it.
-
-Inside `build_graph`, the Multiplex branch's closure (line ~604) calls
-`build_subgraph_with_seed_perturbation`. Capture `perf` by value in that
-closure (it is a raw pointer into the caller's stack frame; the closure is
-invoked during the same `build_graph` call, so this is safe — add the comment
-saying so) and pass it through.
+Add the parameter to `build_graph`'s declaration and definition, and to
+`build_subgraph_with_seed_perturbation` (declaration ~266, definition ~696),
+forwarding `perf` to the `build_graph` call inside it. The Multiplex branch's
+closure (~line 604) must capture `perf` by value — it is a raw pointer into the
+caller's frame, and the closure runs during that same `build_graph` call; say
+so in a comment.
 
 - [ ] **Step 2: Add the dispatch branch**
 
-In `build_graph`'s type chain, directly after the `CurveNode` branch (which
-ends at line 388), insert:
+Directly after the `CurveNode` branch (ends ~line 388):
 
 ```cpp
 else if (type == "PerformNode") {
@@ -371,13 +372,12 @@ else if (type == "PerformNode") {
 
 - [ ] **Step 3: Create the adapters before build_graph at both call sites**
 
-`attach_perform_source` (line 884) currently creates the adapters *after* the
-graph. Reduce it to the conversion step only:
+Reduce `attach_perform_source` (~line 884) to the conversion step:
 
 ```cpp
 // Convert the legacy paramMap, if the patch carries one. The performance
-// objects themselves are now created BEFORE build_graph (PerformNode needs
-// them during graph construction) — see the two voice loops.
+// objects are now created BEFORE build_graph (PerformNode needs them during
+// graph construction) — see the two voice loops.
 static void attach_perform_source(const json& instJson, const GraphResult& g,
                                   PitchedInstrument::VoiceGraph& vg)
 {
@@ -386,9 +386,8 @@ static void attach_perform_source(const json& instJson, const GraphResult& g,
 }
 ```
 
-In **both** voice loops — `load_patch_file`'s instrument path (the `for (int v
-= 0; v < polyphony; ++v)` at line 946) and `load_instrument_patch`'s (line
-1141) — hoist the construction. The `load_instrument_patch` loop becomes:
+In **both** voice loops — `load_patch_file`'s instrument path (~line 946) and
+`load_instrument_patch`'s (~line 1141) — hoist construction:
 
 ```cpp
     for (int v = 0; v < polyphony; ++v) {
@@ -406,7 +405,6 @@ In **both** voice loops — `load_patch_file`'s instrument path (the `for (int v
         if (srcIt == g.valueNodes.end())
             throw std::runtime_error("instrument: output node '" + outputId + "' not found");
         vg.source = srcIt->second;
-
         vg.topMultiplex = std::dynamic_pointer_cast<MultiplexSource>(vg.source);
 
         attach_perform_source(instJson, g, vg);
@@ -415,33 +413,23 @@ In **both** voice loops — `load_patch_file`'s instrument path (the `for (int v
     }
 ```
 
-Make the same edit at the line-946 loop, preserving whatever else that loop
-already does between `build_graph` and `voicePool.push_back`.
+Preserve whatever else each loop already does between `build_graph` and
+`voicePool.push_back`.
 
-- [ ] **Step 4: Build**
+- [ ] **Step 4: Build and gate**
 
-Run:
-```
-& "C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/bin/cmake.exe" --build build --config Release --target mforce_cli
-```
-Expected: succeeds.
+Build, then `python tools/null_gate_perform_source.py`.
+Expected: `196/196 identical`. No patch uses `PerformNode` yet, so any diff
+here is a pure-refactor regression.
 
-- [ ] **Step 5: Run the gate — nothing may have moved yet**
+- [ ] **Step 5: Engine test**
 
-Run: `python tools/null_gate_perform_source.py`
-Expected: `196/196 identical`, exit 0. This step is the whole point of doing
-the hoist as its own change: no patch uses `PerformNode` yet, so any diff here
-is a pure refactor regression.
-
-- [ ] **Step 6: Write the engine test**
-
-In `tools/engine_tests/main.cpp`, add after `run_curve_node_tests`:
+In `tools/engine_tests/main.cpp`, after `run_curve_node_tests`:
 
 ```cpp
 #include "mforce/render/perform_source.h"
 
 static void run_perform_node_tests() {
-    // Two adapters over one store; both track set_note, both idempotent.
     auto ps = std::make_shared<PerformSource>();
     auto f = std::make_shared<PerformOut>(ps, PerformOut::Field::Frequency);
     auto v = std::make_shared<PerformOut>(ps, PerformOut::Field::Velocity);
@@ -451,11 +439,11 @@ static void run_perform_node_tests() {
     CHECK_NEAR(f->current(), 220.0f, 1e-6f);
     CHECK_NEAR(v->current(), 0.25f,  1e-6f);
 
-    // Idempotent: repeated next() between set_note calls does not drift.
+    // Idempotent between set_note calls.
     for (int i = 0; i < 8; ++i) f->next();
     CHECK_NEAR(f->current(), 220.0f, 1e-6f);
 
-    // A CurveNode reading the shared adapter re-evaluates on the next note.
+    // A CurveNode on the shared adapter re-evaluates on the next note.
     CurveNode cn; cn.interp = CurveNode::CurveInterp::LogX;
     cn.knots = {{110.0f, 0.0f}, {880.0f, 3.0f}};
     cn.set_param("source", f);
@@ -467,22 +455,15 @@ static void run_perform_node_tests() {
 }
 ```
 
-Call it from `main` alongside the existing suites.
+Call it from `main`. Build `engine_tests`, run it, expect `0 failures`.
 
-- [ ] **Step 7: Run the engine tests**
+- [ ] **Step 6: The smoke patch**
 
-Run:
-```
-& "C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/bin/cmake.exe" --build build --config Release --target engine_tests
-```
-then `./build/tools/engine_tests/Release/engine_tests.exe`
-Expected: `0 failures`.
-
-- [ ] **Step 8: Write the hand-authored smoke patch**
-
-Create `patches/baselines/perform/wiring_smoke.json` — the first patch written
-in wiring format, deliberately exercising a PerformNode straight into a pin
-and a PerformNode through a CurveNode:
+Create `patches/baselines/perform/wiring_smoke.json`. Names verified against
+the registry: `SineSource` is registered and inherits `frequency`/`amplitude`/
+`phase` from `WaveSource` (`dsp_wave_source.h:75-81`); the adsr preset's
+sustain key is `sustainLevel`, not `sustain` (`envelope_json.h:41`) — a wrong
+key there is silently defaulted, not reported.
 
 ```json
 {
@@ -513,73 +494,62 @@ and a PerformNode through a CurveNode:
 }
 ```
 
-Names verified against the registry while writing this plan: `SineSource` is
-registered (`source_registrations.cpp:56`) and inherits `frequency` /
-`amplitude` / `phase` from `WaveSource` (`dsp_wave_source.h:75-81`); the adsr
-preset's sustain key is `sustainLevel`, not `sustain`
-(`envelope_json.h:41`) — a wrong key here is silently defaulted, not
-reported.
-
-- [ ] **Step 9: Render it and confirm both mechanisms fired**
+- [ ] **Step 7: Render and prove the curve fires**
 
 Run: `./build/tools/mforce_cli/Release/mforce_cli.exe patches/baselines/perform/wiring_smoke.json renders/scratch/wiring_smoke.wav`
-Expected: exit 0, a WAV written, no `[loader]` warnings.
+Expected: exit 0, no `[loader]` warnings.
 
-Then confirm the curve is *doing something* — the A5 note must be quieter than
-the A2 note, because `__curve_bright` maps 110→0.9 and 880→0.2:
+The A5 note must be quieter than A2 — `__curve_bright` maps 110→0.9, 880→0.2:
 
 ```
-python -c "import wave,struct,sys; w=wave.open('renders/scratch/wiring_smoke.wav'); n=w.getnframes(); sr=w.getframerate(); ch=w.getnchannels(); d=struct.unpack('<%dh'%(n*ch), w.readframes(n)); seg=lambda a,b: max(abs(x) for x in d[int(a*sr)*ch:int(b*sr)*ch]); lo=seg(0.0,0.8); hi=seg(1.0,1.8); print('A2 peak',lo,'A5 peak',hi,'ratio',hi/lo); sys.exit(0 if hi < lo*0.6 else 1)"
+python -c "import wave,struct,sys; w=wave.open('renders/scratch/wiring_smoke.wav'); n=w.getnframes(); sr=w.getframerate(); ch=w.getnchannels(); d=struct.unpack('<%dh'%(n*ch), w.readframes(n)); seg=lambda a,b: max(abs(x) for x in d[int(a*sr)*ch:int(b*sr)*ch]); lo=seg(0.0,0.8); hi=seg(1.0,1.8); print('A2',lo,'A5',hi,'ratio',hi/lo); sys.exit(0 if hi < lo*0.6 else 1)"
 ```
-Expected: prints a ratio well under 0.6 and exits 0. If the peaks are equal,
-the CurveNode is not wired — diagnose before continuing.
+Expected: ratio well under 0.6, exit 0. Equal peaks = the CurveNode isn't
+wired; diagnose before continuing.
 
-- [ ] **Step 10: Confirm the guard fires in NodeGraph mode**
-
-Make a throwaway copy with the `instrument` block removed:
+- [ ] **Step 8: Prove the NodeGraph guard fires**
 
 ```
 python -c "import json; d=json.load(open('patches/baselines/perform/wiring_smoke.json')); d.pop('instrument'); json.dump(d, open('renders/scratch/no_inst.json','w'), indent=1)"
 ```
-Run: `./build/tools/mforce_cli/Release/mforce_cli.exe renders/scratch/no_inst.json renders/scratch/x.wav`
-Expected: non-zero exit with the message `PerformNode '__perf_freq': no voice
-context`. A silent success here means the guard is not on the NodeGraph path
-— find the other `build_graph` call site and check why `perf` is non-null.
+Run the CLI on it. Expected: non-zero exit, message `PerformNode '__perf_freq':
+no voice context`. Silent success means the guard isn't on the NodeGraph path —
+find the other `build_graph` call site.
 
-- [ ] **Step 11: Commit**
+- [ ] **Step 9: Commit**
 
 ```bash
-git add -u && git add tools/engine_tests/main.cpp patches/baselines/perform/wiring_smoke.json
+git add engine/src/patch_loader.cpp tools/engine_tests/main.cpp patches/baselines/perform/wiring_smoke.json
 git commit -m "feat(engine): PerformNode JSON type — voice adapters as graph citizens"
 ```
 
 ---
 
-### Task 2: Config pins accept refs
+### Task 3: `dynamicPins` — settings driven per note
 
 **Files:**
 - Modify: `engine/src/patch_loader.cpp` (new `bind_wiring` pass + call sites)
-- Create: `patches/baselines/perform/wiring_config.json`
+- Modify: `engine/include/mforce/render/instrument.h` (`isConfig`→`isSetting`)
+- Create: `patches/baselines/perform/wiring_setting.json`
 
 **Interfaces:**
-- Consumes: `PerformContext`, `build_graph(…, perf)` from Task 1.
+- Consumes: `PerformContext`, `build_graph(…, perf)` from Task 2.
 - Produces: `static void bind_wiring(const std::unordered_map<std::string, json>& nodeMap,
   const std::vector<std::string>& nodeOrder, const GraphResult& g,
-  PitchedInstrument::VoiceGraph& vg);` — Task 3 extends this same function.
+  PitchedInstrument::VoiceGraph& vg);` — Task 4 extends this same function.
 
-**Why:** nothing reads a node's `bindings` object today, so a converted patch
-would silently lose every config target. 118 of the 196 gated patches carry a
-paramMap and their targets include real configs — `sustainLevel` ×4
-(`envelope.h:176`) and the KS piano's `t60` / `brightness` / `dispersion` /
-`inharmGain`. Without this the converter cannot express them.
+**Why:** nothing reads `dynamicPins` today, so a converted patch would silently
+lose every setting target. 118 of the 196 gated patches carry a paramMap and
+their targets include real settings — `Envelope.sustainLevel` ×4 and the KS
+piano's `t60`/`brightness`/`dispersion`/`inharmGain`/`detune` across 85.
 
 - [ ] **Step 1: Write the failing patch**
 
-Create `patches/baselines/perform/wiring_config.json`. It maps note frequency
-onto an Envelope's `sustainLevel` **config** through a curve — low notes
-sustain, high notes do not. Note `sustainLevel` appears twice and that is
-correct: the scalar in `params` is what construction reads, the ref in
-`bindings` is what overrides it per note.
+Create `patches/baselines/perform/wiring_setting.json`. It drives an Envelope's
+`sustainLevel` **setting** from note pitch through a curve — low notes sustain,
+high notes don't. `sustainLevel` appears twice and that is correct: the scalar
+in `params` is what construction reads, the ref in `dynamicPins` is what
+overrides it per note.
 
 ```json
 {
@@ -595,7 +565,7 @@ correct: the scalar in `params` is what construction reads, the ref in
     { "id": "env", "type": "Envelope",
       "params": { "preset": "adsr", "attack": 0.01, "decay": 0.05,
                   "sustainLevel": 0.7, "release": 0.1 },
-      "bindings": { "sustainLevel": { "ref": "__curve_sus" } } },
+      "dynamicPins": { "sustainLevel": { "ref": "__curve_sus" } } },
     { "id": "out", "type": "CombinedSource",
       "params": { "source1": { "ref": "tone" }, "source2": { "ref": "env" },
                   "operation": "multiply", "gainAdj": 0.0 } }
@@ -608,35 +578,36 @@ correct: the scalar in `params` is what construction reads, the ref in
 }
 ```
 
-- [ ] **Step 2: Render it and watch it do nothing**
+- [ ] **Step 2: Watch it do nothing**
 
-Run: `./build/tools/mforce_cli/Release/mforce_cli.exe patches/baselines/perform/wiring_config.json renders/scratch/wiring_config.wav`
-
-Then measure the sustain plateau of each note:
+Render it, then measure each note's sustain plateau:
 
 ```
-python -c "import wave,struct; w=wave.open('renders/scratch/wiring_config.wav'); n=w.getnframes(); sr=w.getframerate(); ch=w.getnchannels(); d=struct.unpack('<%dh'%(n*ch), w.readframes(n)); seg=lambda a,b: max(abs(x) for x in d[int(a*sr)*ch:int(b*sr)*ch]); print('A2 sustain',seg(0.4,0.7),'A5 sustain',seg(1.4,1.7))"
+python -c "import wave,struct; w=wave.open('renders/scratch/wiring_setting.wav'); n=w.getnframes(); sr=w.getframerate(); ch=w.getnchannels(); d=struct.unpack('<%dh'%(n*ch), w.readframes(n)); seg=lambda a,b: max(abs(x) for x in d[int(a*sr)*ch:int(b*sr)*ch]); print('A2 sustain',seg(0.4,0.7),'A5 sustain',seg(1.4,1.7))"
 ```
-Expected NOW: the two numbers are roughly equal — the `bindings` object was
-ignored and both notes used the patch's own `sustainLevel` 0.7. This is the
-failing test.
+Expected NOW: roughly equal — `dynamicPins` is ignored and both notes used the
+patch's own `sustainLevel` 0.7. This is the failing test.
 
-- [ ] **Step 3: Add the bind_wiring pass**
+- [ ] **Step 3: Rename the PushBinding flag**
 
-In `engine/src/patch_loader.cpp`, directly after `build_bindings` ends (line
-880), add:
+In `engine/include/mforce/render/instrument.h`, rename `PushBinding::isConfig`
+to `isSetting` and update its uses in `apply_note_bindings` (the
+`b.consumer->set_setting(...)` branch) and in `build_bindings`.
+
+- [ ] **Step 4: Add the bind_wiring pass**
+
+After `build_bindings` ends (~line 880) in `engine/src/patch_loader.cpp`:
 
 ```cpp
 // ---------------------------------------------------------------------------
-// Wiring-format bindings (perform_source_design.md §5, P2a). The generic
-// param pass already wires refs on ordinary pins; this pass handles what it
-// structurally cannot: a node's "bindings" object, which names CONFIG keys.
-// Configs rebuild state in prepare and have no pointer to pull, so the chain
-// is evaluated ONCE per note and pushed via set_config. They live outside
-// "params" because construction reads params directly, before any descriptor
-// is known, and nlohmann's value() throws on an object where it wants a
-// number (see the format-decision section of plan_perform_source_p2a.md).
-// Task 3 adds bend-swap classification to this same walk.
+// Wiring-format bindings (pin_model_design.md §3, §11). The generic param pass
+// already wires refs on ordinary (fixed) pins; this pass handles DYNAMIC pins:
+// a node's "dynamicPins" object, naming settings this patch drives per note.
+// Settings rebuild state and have no pointer to pull, so the chain is
+// evaluated ONCE per note and pushed via set_setting. They live outside
+// "params" because construction reads params before any descriptor is known,
+// and nlohmann's value() throws on an object where it wants a number.
+// Task 4 adds bend-swap classification to this same walk.
 // ---------------------------------------------------------------------------
 static void bind_wiring(const std::unordered_map<std::string, json>& nodeMap,
                         const std::vector<std::string>& nodeOrder,
@@ -649,23 +620,23 @@ static void bind_wiring(const std::unordered_map<std::string, json>& nodeMap,
         if (nodeIt == g.valueNodes.end()) continue;
         const auto& consumer = nodeIt->second;
 
-        if (node.contains("bindings")) {
-            for (const auto& [key, v] : node["bindings"].items()) {
+        if (node.contains("dynamicPins")) {
+            for (const auto& [key, v] : node["dynamicPins"].items()) {
                 if (!v.is_object() || !v.contains("ref"))
-                    throw std::runtime_error("wiring: '" + id + ".bindings." + key +
-                                             "' must be a {\"ref\": …} object");
-                bool isConfig = false;
-                for (const auto& desc : consumer->config_descriptors())
-                    if (key == desc.name) { isConfig = true; break; }
-                if (!isConfig)
-                    throw std::runtime_error("wiring: '" + id + ".bindings." + key +
-                        "' is not a config on " + consumer->type_name() +
-                        " (ordinary pins belong in \"params\")");
+                    throw std::runtime_error("wiring: '" + id + ".dynamicPins." +
+                                             key + "' must be a {\"ref\": …} object");
+                bool isSetting = false;
+                for (const auto& desc : consumer->setting_descriptors())
+                    if (key == desc.name) { isSetting = true; break; }
+                if (!isSetting)
+                    throw std::runtime_error("wiring: '" + id + ".dynamicPins." +
+                        key + "' is not a setting on " + consumer->type_name() +
+                        " (fixed pins belong in \"params\")");
 
                 const std::string srcId = v.at("ref").get<std::string>();
                 auto srcIt = g.valueNodes.find(srcId);
                 if (srcIt == g.valueNodes.end())
-                    throw std::runtime_error("wiring: config '" + id + "." + key +
+                    throw std::runtime_error("wiring: '" + id + "." + key +
                                              "' refs unknown node '" + srcId + "'");
 
                 PitchedInstrument::PushBinding b;
@@ -674,7 +645,7 @@ static void bind_wiring(const std::unordered_map<std::string, json>& nodeMap,
                 b.targetNodeId = id;
                 b.chain        = srcIt->second;
                 b.cs           = nullptr;
-                b.isConfig     = true;
+                b.isSetting    = true;
                 vg.pushBindings.push_back(std::move(b));
             }
         }
@@ -682,78 +653,73 @@ static void bind_wiring(const std::unordered_map<std::string, json>& nodeMap,
 }
 ```
 
-- [ ] **Step 4: Call it from both voice loops**
+- [ ] **Step 5: Call it from both voice loops**
 
-In both loops edited in Task 1, add the call right after
-`attach_perform_source(instJson, g, vg);`:
+After `attach_perform_source(instJson, g, vg);` in both loops:
 
 ```cpp
         bind_wiring(nodeMap, nodeOrder, g, vg);
 ```
 
-Order matters and is deliberate: `build_bindings` (legacy) runs first so a
-patch carrying both formats resolves the legacy entries exactly as it does
-today, and the wiring pass appends. No gated patch carries both; the ordering
-is documented so that a hybrid, if one ever appears, is deterministic.
+Order is deliberate: legacy `build_bindings` runs first, so a patch carrying
+both formats resolves its legacy entries exactly as today and the wiring pass
+appends. No gated patch carries both; the ordering is documented so a hybrid,
+if one ever appears, is deterministic.
 
-- [ ] **Step 5: Rebuild and re-measure**
+- [ ] **Step 6: Rebuild and re-measure**
 
-Run the build command from Task 1 Step 4, then re-render and re-measure with
-the same python one-liner from Step 2.
-Expected: A2 sustain is now several times A5 sustain. If they are still equal,
-the config name is wrong or `bind_wiring` is not being called — check with a
-temporary `fprintf` on the push count, and remove it before committing.
+Re-render and re-run the Step 2 measurement.
+Expected: A2 sustain now several times A5 sustain. If still equal, the setting
+name is wrong or `bind_wiring` isn't being called — check with a temporary
+`fprintf` on the push count, and remove it before committing.
 
-- [ ] **Step 6: Run the gate**
+- [ ] **Step 7: Gate**
 
 Run: `python tools/null_gate_perform_source.py`
-Expected: `196/196 identical`. No gated patch uses wiring format yet, so the
+Expected: `196/196 identical`. No gated patch uses `dynamicPins` yet, so the
 new pass must be a no-op for all of them.
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 8: Commit**
 
 ```bash
-git add -u && git add patches/baselines/perform/wiring_config.json
-git commit -m "feat(engine): config pins accept refs — Setup-evaluated push bindings"
+git add engine/src/patch_loader.cpp engine/include/mforce/render/instrument.h patches/baselines/perform/wiring_setting.json
+git commit -m "feat(engine): dynamicPins — settings driven once per note"
 ```
 
 ---
 
-### Task 3: Bend-swap classification for wired pins
+### Task 4: Bend-swap classification for wired pins
 
 **Files:**
 - Modify: `engine/src/patch_loader.cpp` (`bind_wiring` gains a second walk)
 
 **Interfaces:**
-- Consumes: `bind_wiring(…)` from Task 2.
-- Produces: `vg.bendSwaps` entries for wiring-format patches, with membership
-  identical to `build_bindings`' rule.
+- Consumes: `bind_wiring(…)` from Task 3.
+- Produces: `vg.bendSwaps` entries for wiring-format patches, membership
+  identical to `build_bindings`.
 
-**Why:** P1 keeps the legacy `PitchBendSource` graft. `build_bindings`
-populates `vg.bendSwaps` for exactly the entries whose **freq** curve is
-empty — bare targets and vcurve-only targets both
-(`engine/src/patch_loader.cpp:822-825`). A converted patch must land in the
-same set or the 4 bend/slide baselines diff in Task 5. P3 deletes all of this;
-until then it must be reproduced faithfully.
+**Why:** P1 keeps the legacy `PitchBendSource` graft and populates
+`vg.bendSwaps` for exactly the entries whose **freq** curve is empty — bare
+targets and vcurve-only targets both (`patch_loader.cpp:822-825`). A converted
+patch must land in the same set or the 4 bend/slide baselines diff in Task 6.
+P3 deletes all of this; until then reproduce it faithfully.
 
-The graph-shape rule that reproduces it exactly: **a wired param pin is a
+The graph-shape rule that reproduces it exactly: **a wired fixed pin is a
 bend-swap target when the path from that pin down to a
-`PerformNode(field=frequency)` passes through no `CurveNode`.** A bare ref to
-the PerformNode qualifies; `Combined(PerformNode, CurveNode(velocity))` — the
-vcurve-only shape — also qualifies, because the frequency leg of that multiply
-is direct. A freq-curve chain does not.
+`PerformNode(field=frequency)` crosses no `CurveNode`.** A bare ref qualifies;
+`Combined(PerformNode, CurveNode(velocity))` — the vcurve-only shape — also
+qualifies, because the frequency leg is direct. A freq-curve chain does not.
 
 - [ ] **Step 1: Add the JSON-space path walk**
 
-Inside `bind_wiring`, above the per-node loop, add the classifier. It works on
-JSON, not on built objects, because the shape question is about which node
-types lie on the path and JSON still has the type names:
+Inside `bind_wiring`, above the per-node loop. It works on JSON, not built
+objects, because the question is which node *types* lie on the path:
 
 ```cpp
     // True when `startId` reaches a frequency PerformNode along at least one
-    // path that crosses no CurveNode. Mirrors build_bindings' graft rule:
+    // path crossing no CurveNode. Mirrors build_bindings' graft rule:
     // "empty freq curve", vcurve-only shapes included.
-    std::unordered_map<std::string, int> memo;   // -1 unknown, 0 no, 1 yes
+    std::unordered_map<std::string, int> memo;   // 0 = no, 1 = yes
     std::function<bool(const std::string&)> direct_freq =
         [&](const std::string& nid) -> bool {
             auto m = memo.find(nid);
@@ -763,7 +729,7 @@ types lie on the path and JSON still has the type names:
             if (it == nodeMap.end()) return false;
             const auto& n = it->second;
             const std::string t = n.at("type").get<std::string>();
-            if (t == "CurveNode") return false;  // a curve on the path disqualifies it
+            if (t == "CurveNode") return false;  // a curve on the path disqualifies
             if (t == "PerformNode") {
                 const bool isFreq =
                     !n.contains("params") ||
@@ -790,12 +756,11 @@ types lie on the path and JSON still has the type names:
         };
 ```
 
-Add `#include <functional>` at the top of the file if it is not already there.
+Add `#include <functional>` if not already present.
 
 - [ ] **Step 2: Emit the bend swaps in the same node loop**
 
-Inside the per-node loop in `bind_wiring`, after the config-descriptor loop,
-add the param-descriptor loop:
+After the `dynamicPins` block, inside the per-node loop:
 
 ```cpp
         if (!node.contains("params")) continue;
@@ -806,76 +771,65 @@ add the param-descriptor loop:
             const std::string srcId = v.at("ref").get<std::string>();
             if (!direct_freq(srcId)) continue;   // freq-curve chain: no graft
             auto srcIt = g.valueNodes.find(srcId);
-            if (srcIt == g.valueNodes.end()) continue;   // generic pass already threw if real
+            if (srcIt == g.valueNodes.end()) continue;
             // `restore` is what the pin holds on unbent notes — the chain
             // itself, exactly as build_bindings records it.
             vg.bendSwaps.push_back({consumer, desc.name, srcIt->second});
         }
 ```
 
-Note the deliberate asymmetry: `input_descriptors` pins (CombinedSource's
+The asymmetry is deliberate: `input_descriptors` pins (CombinedSource's
 `source1`/`source2` and friends) are **not** scanned. The legacy graft only
-ever touched `param_descriptors` pins backed by a ConstantSource — grafting a
-combiner input would be a new behavior, not a reproduction.
+touched `param_descriptors` pins backed by a ConstantSource; grafting a
+combiner input would be new behavior, not a reproduction.
 
-- [ ] **Step 3: Build**
+- [ ] **Step 3: Build and gate**
 
-Run the Task 1 Step 4 build command.
-Expected: succeeds.
-
-- [ ] **Step 4: Prove membership on a bend baseline, before any conversion**
-
-Run: `python tools/null_gate_perform_source.py`
 Expected: `196/196 identical`. Still no gated patch in wiring format, so this
-must remain a no-op. The real proof is Task 5, where converted bend baselines
-must match.
+must remain a no-op. The real proof is Task 6.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 4: Commit**
 
 ```bash
-git add -u
+git add engine/src/patch_loader.cpp
 git commit -m "feat(engine): bend-swap classification for wiring-format pins"
 ```
 
 ---
 
-### Task 4: The paramMap → wiring converter
+### Task 5: The paramMap → wiring converter
 
 **Files:**
 - Create: `tools/parammap_to_wiring.py`
 
 **Interfaces:**
-- Produces: `python tools/parammap_to_wiring.py <in.json> <out.json>` —
-  rewrites one patch, exits 1 with a message on anything it cannot express.
-- Produces: `python tools/parammap_to_wiring.py --check <in.json>` — exits 0
-  if the patch has no `paramMap` (already wiring format or never had one), 2
-  if it has one that this tool would convert.
+- Produces: `python tools/parammap_to_wiring.py <in.json> <out.json>` — rewrites
+  one patch; exits 1 with a message on anything it cannot express.
+- Produces: `python tools/parammap_to_wiring.py --check <in.json>` — exit 0 if
+  the patch has no `paramMap`, 2 if it has one.
 - Consumes: `mforce_cli --dump-descriptors` (`tools/mforce_cli/main.cpp:981`),
-  which already emits per-type `configs` straight from the registry. The
-  converter shells out to it and caches the result in
-  `renders/scratch/descriptors.json`. **Do not hand-copy a config list into
-  this tool** — that is exactly how the patch linter cried wolf three times,
+  which emits per-type `settings` straight from the registry after Task 1.
+  Cached in `renders/scratch/descriptors.json`. **Do not hand-copy a settings
+  list into this tool** — that is how the patch linter cried wolf three times,
   most recently on 59 false findings in run 25.
-- Consumed by: Task 5's gate, and eventually the P4 mass migration.
 
 **Emission rules** (mirroring `build_bindings`' matrix in JSON space):
 
 | paramMap entry | emitted wiring |
 |---|---|
 | bare `"node.pin"` | pin refs `__perf_freq` |
-| `{target, curve}` | a `CurveNode` (`logx`, or `loglog` when `interp=="loglog"`) reading `__perf_freq`; pin refs the CurveNode |
+| `{target, curve}` | a `CurveNode` (`logx`, or `loglog` when `interp=="loglog"`) reading `__perf_freq`; pin refs it |
 | `{target, vcurve}` | a `CombinedSource` multiply of the freq leg and a `linear` CurveNode reading `__perf_vel`; pin refs the multiply |
-| `{target, curve, vcurve}` | both, multiply of the curve chain and the vcurve chain |
-| target with no `.` | pin name defaults to `"frequency"` (loader rule, `patch_loader.cpp:797`) |
-| name != `"frequency"` | dropped, with a printed note — the old engine ignored these too (`patch_loader.cpp:783`) |
+| `{target, curve, vcurve}` | both, multiply of the two chains |
+| target with no `.` | pin name defaults to `"frequency"` (`patch_loader.cpp:797`) |
+| name != `"frequency"` | dropped with a printed note — the old engine ignored these too (`patch_loader.cpp:783`) |
 
-"pin refs X" means `nodes[target].params[pin] = {"ref": X}` when `pin` is an
-ordinary param, and `nodes[target].bindings[pin] = {"ref": X}` when `pin` is a
-**config** on that node's type — decided by the descriptor dump, never by
-name matching.
+"pin refs X" means `nodes[target].params[pin] = {"ref": X}` when `pin` is a
+fixed pin, and `nodes[target].dynamicPins[pin] = {"ref": X}` when it is a
+**setting** — decided by the descriptor dump, never by name matching.
 
-Synthesized nodes are **prepended** to the `nodes` array in dependency order
-(`__perf_freq`, `__perf_vel`, curves, multiplies) because `build_graph`
+Synthesized nodes are **prepended** to `nodes` in dependency order
+(`__perf_freq`, `__perf_vel`, curves, multiplies), because `build_graph`
 resolves refs against nodes already built, in array order.
 
 - [ ] **Step 1: Write the converter**
@@ -884,7 +838,7 @@ Create `tools/parammap_to_wiring.py`:
 
 ```python
 """Rewrite a patch's legacy instrument.paramMap as pure graph wiring
-(plan_perform_source_p2a.md Task 4).
+(plan_perform_source_p2a.md Task 5).
 
 Mirrors the loader's build_bindings matrix (engine/src/patch_loader.cpp) in
 JSON space. The proof that the mirror is faithful is the conversion null gate
@@ -907,9 +861,9 @@ PERF_V = "__perf_vel"
 
 
 def descriptors():
-    """{typeName: {"params": [...], "configs": [...], ...}} straight from the
-    registry. Cached per run; regenerated whenever the exe is newer than the
-    cache, so a rebuilt engine cannot leave a stale map behind."""
+    """{typeName: {"params": [...], "settings": [...], ...}} straight from the
+    registry. Regenerated whenever the exe is newer than the cache, so a
+    rebuilt engine cannot leave a stale map behind."""
     if (DESC_CACHE.exists()
             and DESC_CACHE.stat().st_mtime > CLI.stat().st_mtime):
         return json.loads(DESC_CACHE.read_text(encoding="utf-8"))
@@ -922,6 +876,19 @@ def descriptors():
     return json.loads(r.stdout)
 
 
+def node_container(doc):
+    """Patches come in two shapes: nodes at top level, or nested under a
+    "graph" key ({"graph": {"nodes": [...], "output": ...}}) — Piano_bright.json
+    is the latter. Returns the dict that OWNS the "nodes" list, so callers can
+    both read and replace it."""
+    g = doc.get("graph")
+    if isinstance(g, dict) and isinstance(g.get("nodes"), list):
+        return g
+    if isinstance(doc.get("nodes"), list):
+        return doc
+    raise ValueError("patch has no node list at doc['nodes'] or doc['graph']['nodes']")
+
+
 def convert(doc):
     """Returns (doc, n_entries_converted). Raises ValueError if inexpressible."""
     inst = doc.get("instrument")
@@ -929,8 +896,9 @@ def convert(doc):
         return doc, 0
     pm = inst["paramMap"]
 
-    by_id = {n["id"]: n for n in doc["nodes"]}
-    new_nodes = OrderedDict()   # id -> node, prepended in insertion order
+    container = node_container(doc)
+    by_id = {n["id"]: n for n in container["nodes"]}
+    new_nodes = OrderedDict()
     counter = [0]
 
     def need_perf(field):
@@ -959,7 +927,6 @@ def convert(doc):
         return nid
 
     def chain_for(entry):
-        """entry: str or {target, curve?, vcurve?, interp?} -> (target, head_id)"""
         if isinstance(entry, str):
             return entry, need_perf("frequency")
         target = entry["target"]
@@ -989,23 +956,22 @@ def convert(doc):
             ntype = node["type"]
             if ntype not in desc:
                 raise ValueError("node %r has unregistered type %r — cannot tell "
-                                 "a config from a pin" % (node_id, ntype))
-            # Config targets land in "bindings"; ordinary pins in "params".
+                                 "a setting from a fixed pin" % (node_id, ntype))
+            # Settings land in dynamicPins; fixed pins in params.
             # The registry decides, not a name list.
-            slot = "bindings" if pin in desc[ntype]["configs"] else "params"
+            slot = "dynamicPins" if pin in desc[ntype]["settings"] else "params"
             node.setdefault(slot, {})[pin] = {"ref": head}
             converted += 1
 
     del inst["paramMap"]
-    doc["nodes"] = list(new_nodes.values()) + doc["nodes"]
+    container["nodes"] = list(new_nodes.values()) + container["nodes"]
     return doc, converted
 
 
 def main():
     if "--check" in sys.argv:
         doc = json.load(open(sys.argv[-1], encoding="utf-8"))
-        has = "paramMap" in doc.get("instrument", {})
-        sys.exit(2 if has else 0)
+        sys.exit(2 if "paramMap" in doc.get("instrument", {}) else 0)
     src, dst = sys.argv[1], sys.argv[2]
     doc = json.load(open(src, encoding="utf-8"), object_pairs_hook=OrderedDict)
     doc, n = convert(doc)
@@ -1017,42 +983,48 @@ def main():
 main()
 ```
 
+**Note on patch shape:** the two patch shapes (nodes at top level vs nested
+under `graph`) are handled by `node_container()` above. `Piano_bright.json` is
+a nested one and is used deliberately as a test case in Step 4 — if that
+renders identical, both shapes work.
+
 - [ ] **Step 2: Convert one bare-target patch and read the output**
 
-Pick a simple library patch with a bare paramMap target:
-
 ```
-python -c "import json,glob; [print(f) for f in sorted(glob.glob('patches/library/**/*.json',recursive=True)) if isinstance(json.load(open(f)).get('instrument',{}).get('paramMap',{}).get('frequency'), str)][:3]"
+python -c "import json,glob; [print(f) for f in sorted(glob.glob('patches/library/**/*.json',recursive=True)) if isinstance(json.load(open(f,encoding='utf-8')).get('instrument',{}).get('paramMap',{}).get('frequency'), str)][:3]"
 ```
-Convert the first one to `renders/scratch/conv1.json` and read the file. The
-first node must be `__perf_freq`; the old target node's frequency pin must now
-be `{"ref": "__perf_freq"}`; `instrument.paramMap` must be gone.
+Convert the first to `renders/scratch/conv1.json` and read it. First node must
+be `__perf_freq`; the target node's frequency pin must be `{"ref":
+"__perf_freq"}`; `instrument.paramMap` must be gone.
 
-- [ ] **Step 3: Render both and compare hashes by hand**
+- [ ] **Step 3: Render both, compare hashes**
 
 ```
 ./build/tools/mforce_cli/Release/mforce_cli.exe <the original patch> renders/scratch/a.wav
 ./build/tools/mforce_cli/Release/mforce_cli.exe renders/scratch/conv1.json renders/scratch/b.wav
 python -c "import hashlib; h=lambda p: hashlib.sha256(open(p,'rb').read()).hexdigest(); a=h('renders/scratch/a.wav'); b=h('renders/scratch/b.wav'); print(a); print(b); print('IDENTICAL' if a==b else 'DIFF')"
 ```
-Expected: `IDENTICAL`. If not, stop here — one patch is far cheaper to
-diagnose than 118, and Task 5 will only tell you the same thing louder.
+Expected: `IDENTICAL`. If not, stop — one patch is far cheaper to diagnose
+than 118.
 
-- [ ] **Step 4: Repeat Step 3 for one curve patch and one vcurve patch**
+- [ ] **Step 4: Repeat for one curve patch, one vcurve patch, one setting patch**
 
 Find them:
 ```
 python -c "
 import json,glob
 for f in sorted(glob.glob('patches/library/**/*.json',recursive=True)+glob.glob('patches/baselines/**/*.json',recursive=True)):
-    pm=json.load(open(f)).get('instrument',{}).get('paramMap',{})
+    d=json.load(open(f,encoding='utf-8'))
+    pm=d.get('instrument',{}).get('paramMap',{})
     for n,e in pm.items():
         for x in (e if isinstance(e,list) else [e]):
             if isinstance(x,dict) and 'vcurve' in x: print('VCURVE',f)
             elif isinstance(x,dict) and 'curve' in x: print('CURVE',f)
 " | sort -u | head
 ```
-Convert one of each, render, compare. Expected: `IDENTICAL` both times.
+For the setting case use `patches/library/keys/Piano_bright.json` (five
+settings on `KSPianoString1`, and the nested-`graph` shape). Convert, render,
+compare. Expected: `IDENTICAL` each time.
 
 - [ ] **Step 5: Commit**
 
@@ -1063,17 +1035,15 @@ git commit -m "feat(tools): paramMap -> wiring format converter"
 
 ---
 
-### Task 5: The conversion null gate
+### Task 6: The conversion null gate
 
 **Files:**
 - Create: `tools/null_gate_wiring.py`
 
 **Interfaces:**
-- Consumes: `tools/parammap_to_wiring.py` (Task 4),
-  `tools/null_gate_manifest.json` (frozen at P1).
-- Produces: `python tools/null_gate_wiring.py` — converts every manifest patch
-  to a temp file, renders it, compares against the P1 hash. Exit 0 = all
-  identical.
+- Consumes: `tools/parammap_to_wiring.py`, `tools/null_gate_manifest.json`.
+- Produces: `python tools/null_gate_wiring.py` — exit 0 = every converted patch
+  renders identically to its pre-PerformSource hash.
 
 This is the task that proves P2a. Everything before it is machinery.
 
@@ -1082,17 +1052,16 @@ This is the task that proves P2a. Everything before it is machinery.
 Create `tools/null_gate_wiring.py`:
 
 ```python
-"""Conversion null gate (plan_perform_source_p2a.md Task 5).
+"""Conversion null gate (plan_perform_source_p2a.md Task 6).
 
 Every patch in the P1 manifest is rewritten into wiring format by
 tools/parammap_to_wiring.py, rendered, and compared against the hash the SAME
-patch produced before PerformSource existed. A converted patch that renders
-one byte differently means the wiring format does not say what the paramMap
-said.
+patch produced before PerformSource existed. A converted patch that renders one
+byte differently means the wiring format does not say what the paramMap said.
 
-Patches with no paramMap are converted trivially (no-op) and still rendered —
-a no-op conversion that changes the audio would mean the tool is corrupting
-files it claims not to touch.
+Patches with no paramMap are converted trivially (no-op) and still rendered — a
+no-op conversion that changes the audio would mean the tool is corrupting files
+it claims not to touch.
 """
 import hashlib, json, subprocess, sys
 from pathlib import Path
@@ -1128,7 +1097,8 @@ def main():
     bad = converted = 0
     for key, want in sorted(ref.items()):
         src = ROOT / key
-        had_pm = "paramMap" in json.loads(src.read_text(encoding="utf-8")).get("instrument", {})
+        had_pm = "paramMap" in json.loads(
+            src.read_text(encoding="utf-8")).get("instrument", {})
         if convert_file(src) != 0:
             bad += 1
             continue
@@ -1148,13 +1118,11 @@ main()
 - [ ] **Step 2: Run it**
 
 Run: `python tools/null_gate_wiring.py`
-Expected: `196/196 identical after conversion (118 carried a paramMap)`,
-exit 0.
+Expected: `196/196 identical after conversion (118 carried a paramMap)`, exit 0.
 
 - [ ] **Step 3: If there are diffs, triage by class before fixing anything**
 
-Group the diffs before touching code — the three risk classes at the top of
-this plan have different fixes and a shotgun edit will mask which one fired:
+The three risk classes have different fixes; a shotgun edit masks which fired:
 
 ```
 python tools/null_gate_wiring.py 2>&1 | python -c "
@@ -1163,9 +1131,9 @@ for line in sys.stdin:
     if not line.startswith('DIFF'): continue
     key = line.split()[1]
     d = json.load(open(key, encoding='utf-8'))
-    types = {n['type'] for n in d['nodes']}
-    inst = d.get('instrument', {})
-    pm = inst.get('paramMap', {})
+    g = d.get('graph'); nl = g.get('nodes') if isinstance(g, dict) else d.get('nodes')
+    types = {n['type'] for n in nl}
+    pm = d.get('instrument', {}).get('paramMap', {})
     flat = [x for e in pm.values() for x in (e if isinstance(e, list) else [e])]
     print(('MULTIPLEX' if 'MultiplexSource' in types else
            'VCURVE'    if any(isinstance(x, dict) and 'vcurve' in x for x in flat) else
@@ -1174,103 +1142,57 @@ for line in sys.stdin:
 " | sort | uniq -c
 ```
 
-- `MULTIPLEX` diffs → risk 2. The clones now pull instead of being pushed;
-  check whether `extract_subgraph_json` is pulling the chain into the subtree
-  at all, and whether each clone got its own CurveNode.
-- `BARE`/`CURVE` diffs on a bend/slide baseline → risk 3, Task 3's
-  classifier. Compare `vg.bendSwaps.size()` between the two load paths with a
-  temporary `fprintf`.
-- Broad diffs across unrelated patches → risk 1, RefSource wrapping. Apply
-  the stated fallback: exempt `PerformOut`/`CurveNode` from usage counting in
-  `resolve_param`.
+- `MULTIPLEX` → risk 2. Check whether `extract_subgraph_json` pulls the chain
+  into the subtree at all, and whether it follows `dynamicPins` refs.
+- `BARE`/`CURVE` on a bend/slide baseline → risk 3, Task 4's classifier.
+  Compare `vg.bendSwaps.size()` between the two load paths with a temporary
+  `fprintf`.
+- Broad diffs across unrelated patches → risk 1, RefSource wrapping. Apply the
+  stated fallback.
 
-- [ ] **Step 4: Re-run both gates**
+- [ ] **Step 4: Run both gates**
 
-Run: `python tools/null_gate_perform_source.py` then
-`python tools/null_gate_wiring.py`
+`python tools/null_gate_perform_source.py` then `python tools/null_gate_wiring.py`.
 Expected: `196/196` from each. The first proves the legacy path still works,
 the second proves the new format says the same thing.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add tools/null_gate_wiring.py && git add -u
+git add tools/null_gate_wiring.py
 git commit -m "test: conversion null gate — 196/196 identical from wiring format"
 ```
 
 ---
 
-### Task 6: Record what landed
+### Task 7: Record what landed
 
 **Files:**
-- Modify: `docs/perform_source_design.md` (§7 phases)
+- Modify: `docs/perform_source_design.md` (§7)
+- Modify: `docs/pin_model_design.md` (§11 — note the JSON key that shipped)
 - Modify: `docs/autonomy/dsp/BACKLOG.md` (item 20)
 
-- [ ] **Step 1: Update the spec's phase list**
+- [ ] **Step 1: Update the phase list**
 
-In `docs/perform_source_design.md` §7, split the P2 bullet:
+In `docs/perform_source_design.md` §7, mark P2a landed with the conversion-gate
+result and the `setting` rename, and leave P2b as the remaining half.
 
-```markdown
-- **P2a (format)** — ✓ **LANDED <date>** (plan_perform_source_p2a.md).
-  `PerformNode` JSON type (one node per field; all instances resolve to the
-  voice's shared `PerformOut`), config pins accept refs as Setup-evaluated
-  push bindings, bend-swap membership reproduced from graph shape, and
-  `tools/parammap_to_wiring.py`. **Conversion null gate: 196/196
-  bit-identical** rendering from converted files. Legacy `paramMap` still
-  read, unchanged.
-- **P2b (UI)** — PerformNode + CurveNode as editor nodes, knot editor
-  (extending the existing Curves table + plot), Curves tab and Mappings
-  dialog as derived views, save emits the P2a wiring format. Blocked while
-  `mforce_ui.exe` is running.
-```
+- [ ] **Step 2: Close the loop in the pin-model spec**
 
-- [ ] **Step 2: Update BACKLOG item 20**
+In `docs/pin_model_design.md` §11, record that the serialization shipped as a
+per-node `dynamicPins` object, so the spec names the key that actually exists.
 
-Replace item 20's body in `docs/autonomy/dsp/BACKLOG.md` with:
+- [ ] **Step 3: Update BACKLOG item 20**
 
-```markdown
-20. **[build] PerformSource P2b (UI) is next** — P1 LANDED 2026-08-18
-    (null-gated 196/196); **P2a LANDED <date>** — the wiring format itself:
-    `PerformNode` JSON type, config refs in a per-node `bindings` object as
-    Setup-evaluated push bindings, bend-swap membership reproduced from graph
-    shape, and `tools/parammap_to_wiring.py`. Conversion gate
-    (`tools/null_gate_wiring.py`): **196/196 bit-identical rendering from
-    converted files**, 118 of them carrying a paramMap. Legacy paramMap is
-    still read and is not going away.
-    P2b = PerformNode + CurveNode as editor nodes, knot editor (extending the
-    existing Curves table + plot rather than a new 2D canvas — Matt
-    2026-08-19), Curves tab/Mappings dialog as derived views over the graph,
-    and save emitting the P2a format. Note for P2b: UI re-save of patches
-    using the Envelope fields (`minValue`/`maxValue`/`nominal`) will DROP them
-    until the UI serializer learns them — don't hand-author those fields into
-    library patches before P2b. Also pending: mforce_keys is broken against
-    the post-ParamSlot engine API (pre-existing breakage) — fix or retire,
-    Matt's call.
-```
+Rewrite it to say P2a landed — rename, PerformNode, dynamicPins, converter,
+196/196 conversion gate — and that P2b (editor nodes, knot editor, grey→gold
+promotion, derived views, UI serializer) is what remains. Keep the standing
+warning that UI re-save drops `Envelope.minValue/maxValue/nominal` until the
+serializer learns them.
 
-- [ ] **Step 3: Commit**
+- [ ] **Step 4: Commit**
 
 ```bash
-git add -u
+git add docs/perform_source_design.md docs/pin_model_design.md docs/autonomy/dsp/BACKLOG.md
 git commit -m "docs: PerformSource P2a landed — wiring format, 196/196 conversion gate"
 ```
-
----
-
-## What P2b inherits
-
-Recorded here so the next plan does not have to re-derive it:
-
-- The wiring format is now fixed and gated. The UI serializer's job is to emit
-  exactly what `tools/parammap_to_wiring.py` emits, from the node graph it
-  already holds.
-- `PerformNode` is patch-mode only (spec §6.4) and throws in NodeGraph mode.
-  The editor must not offer it in NodeGraph mode — and NT_PARAMETER's survival
-  there is spec §6.4's open question, to settle in P2b.
-- The UI's `s_loadedParamMap` stash (`tools/mforce_ui/main.cpp:565`) is the
-  thing P2b retires. Load converts it into real nodes; the Mappings dialog and
-  Curves tab (`main.cpp:4634`, `main.cpp:4409`) read the graph instead.
-- `Envelope.minValue` / `maxValue` / `Stage.nominal` land in the UI serializer
-  in P2b. Until then, re-saving a patch that uses them drops them.
-- `mforce_keys` is broken against the post-ParamSlot engine API (pre-existing).
-  Fix or retire is Matt's call, not P2b's.

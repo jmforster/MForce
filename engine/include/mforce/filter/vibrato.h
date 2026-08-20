@@ -54,20 +54,20 @@ struct Vibrato final : ValueSource {
     return nullptr;
   }
 
-  std::span<const ConfigDescriptor> config_descriptors() const override {
-    static constexpr ConfigDescriptor descs[] = {
-      {"speed",             ConfigType::Float, 5.0f,   0.01f, 20.0f},
-      {"depth",             ConfigType::Float, 0.02f,  0.0f,  1.0f},
-      {"attack",            ConfigType::Float, 0.3f,   0.0f,  1.0f},
-      {"threshold",         ConfigType::Float, 0.0f,   0.0f,  10.0f},
-      {"speedVar",          ConfigType::Float, 0.0f,   0.0f,  1.0f},
-      {"depthVar",          ConfigType::Float, 0.0f,   0.0f,  1.0f},
-      {"zeroCrossTendency", ConfigType::Float, 1.0f,   0.0f,  1.0f},
+  std::span<const SettingDescriptor> setting_descriptors() const override {
+    static constexpr SettingDescriptor descs[] = {
+      {"speed",             SettingType::Float, 5.0f,   0.01f, 20.0f},
+      {"depth",             SettingType::Float, 0.02f,  0.0f,  1.0f},
+      {"attack",            SettingType::Float, 0.3f,   0.0f,  1.0f},
+      {"threshold",         SettingType::Float, 0.0f,   0.0f,  10.0f},
+      {"speedVar",          SettingType::Float, 0.0f,   0.0f,  1.0f},
+      {"depthVar",          SettingType::Float, 0.0f,   0.0f,  1.0f},
+      {"zeroCrossTendency", SettingType::Float, 1.0f,   0.0f,  1.0f},
     };
     return descs;
   }
 
-  void set_config(std::string_view name, float v) override {
+  void set_setting(std::string_view name, float v) override {
     if      (name == "speed")             speed_ = v;
     else if (name == "depth")             depth_ = v;
     else if (name == "attack")            attack_ = v;
@@ -77,7 +77,7 @@ struct Vibrato final : ValueSource {
     else if (name == "zeroCrossTendency") zct_ = v;
   }
 
-  float get_config(std::string_view name) const override {
+  float get_setting(std::string_view name) const override {
     if (name == "speed")             return speed_;
     if (name == "depth")             return depth_;
     if (name == "attack")            return attack_;
@@ -120,13 +120,13 @@ private:
   // the rest of the note — that's an ASEnvelope (attack→sustain).
   void build_lfo() {
     auto speedRamp = std::make_shared<ASEnvelope>(sampleRate_);
-    speedRamp->set_config("attack", attack_);
+    speedRamp->set_setting("attack", attack_);
     auto speedRange = std::make_shared<RangeSource>(
         std::make_shared<ConstantSource>(1.0f),
         std::make_shared<ConstantSource>(speed_), speedRamp, true);
 
     auto depthRamp = std::make_shared<ASEnvelope>(sampleRate_);
-    depthRamp->set_config("attack", attack_);
+    depthRamp->set_setting("attack", attack_);
     auto depthRange = std::make_shared<RangeSource>(
         std::make_shared<ConstantSource>(0.0f),
         std::make_shared<ConstantSource>(depth_), depthRamp, true);

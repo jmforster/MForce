@@ -69,18 +69,18 @@ struct VarSource final : ValueSource {
     return nullptr;
   }
 
-  std::span<const ConfigDescriptor> config_descriptors() const override {
-    static constexpr ConfigDescriptor descs[] = {
-      {"absolute", ConfigType::Bool, 1.0f, 0.0f, 1.0f},
+  std::span<const SettingDescriptor> setting_descriptors() const override {
+    static constexpr SettingDescriptor descs[] = {
+      {"absolute", SettingType::Bool, 1.0f, 0.0f, 1.0f},
     };
     return descs;
   }
 
-  void set_config(std::string_view name, float value) override {
+  void set_setting(std::string_view name, float value) override {
     if (name == "absolute") { absolute_ = (value != 0.0f); return; }
   }
 
-  float get_config(std::string_view name) const override {
+  float get_setting(std::string_view name) const override {
     if (name == "absolute") return absolute_ ? 1.0f : 0.0f;
     return 0.0f;
   }

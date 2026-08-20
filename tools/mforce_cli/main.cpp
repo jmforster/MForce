@@ -995,7 +995,7 @@ static int run_dump_descriptors(int argc, char** argv)
 
         nlohmann::json e = nlohmann::json::object();
         e["category"] = int(cat);
-        for (const char* key : {"inputs", "params", "configs", "arrays"})
+        for (const char* key : {"inputs", "params", "settings", "arrays"})
             e[key] = nlohmann::json::array();
         for (const auto& d : s->input_descriptors())  e["inputs"].push_back(d.name);
         for (const auto& d : s->param_descriptors())  e["params"].push_back(d.name);
@@ -1004,18 +1004,18 @@ static int run_dump_descriptors(int argc, char** argv)
         // that happens to be expensive to change, while a Bool/enum config is
         // structural and could never take a chain. The two are worth telling
         // apart when deciding what may be driven per note.
-        for (const auto& d : s->config_descriptors()) {
+        for (const auto& d : s->setting_descriptors()) {
             nlohmann::json c = {
                 {"name", d.name},
-                {"type", d.type == ConfigType::Bool  ? "bool"
-                       : d.type == ConfigType::Int   ? "int"
+                {"type", d.type == SettingType::Bool  ? "bool"
+                       : d.type == SettingType::Int   ? "int"
                        :                               "float"},
                 {"isEnum", d.enum_labels != nullptr},
                 {"default", d.default_value},
                 {"min", d.min_value},
                 {"max", d.max_value},
             };
-            e["configs"].push_back(std::move(c));
+            e["settings"].push_back(std::move(c));
         }
         out[name] = std::move(e);
     }

@@ -221,7 +221,7 @@ struct GraphNode {
     std::shared_ptr<ValueSource> dspSource;
 
     // Config values (non-connectable params like holdCycles, absolute, etc.)
-    std::vector<std::pair<ConfigDescriptor, float>> configValues;
+    std::vector<std::pair<SettingDescriptor, float>> settingValues;
 
     // Array values (user-editable vectors — gains, partial multipliers, etc.)
     // Preserves descriptor order; inspector groups consecutive entries with
@@ -363,10 +363,10 @@ struct GraphNode {
 
     void init_config() {
         if (!dspSource) return;
-        auto descs = dspSource->config_descriptors();
-        configValues.clear();
+        auto descs = dspSource->setting_descriptors();
+        settingValues.clear();
         for (const auto& desc : descs)
-            configValues.push_back({desc, desc.default_value});
+            settingValues.push_back({desc, desc.default_value});
     }
 
     // Populate editable array cache from the live DSP object. Called once on
@@ -407,8 +407,8 @@ struct GraphNode {
 
     void apply_config() {
         if (!dspSource) return;
-        for (auto& [desc, val] : configValues)
-            dspSource->set_config(desc.name, val);
+        for (auto& [desc, val] : settingValues)
+            dspSource->set_setting(desc.name, val);
     }
 
     void build_pins() {
@@ -1277,16 +1277,16 @@ static void load_graph_from_path(const std::string& path) {
                     // Sync the cached sustainLevel to the stages' actual slot
                     // value: apply_config below pushes EVERY cached config,
                     // and the 0.7 descriptor default would rewrite the four
-                    // sustain slots now that set_config recognizes the adsr
+                    // sustain slots now that set_setting recognizes the adsr
                     // shape (it was a silent no-op before — 3n).
-                    for (auto& [desc, val] : gn.configValues)
+                    for (auto& [desc, val] : gn.settingValues)
                         if (std::string_view(desc.name) == "sustainLevel")
-                            val = env->get_config("sustainLevel");
+                            val = env->get_setting("sustainLevel");
                 }
             }
 
             // Restore config values
-            for (auto& [desc, val] : gn.configValues) {
+            for (auto& [desc, val] : gn.settingValues) {
                 if (!params.contains(desc.name)) continue;
                 const auto& jval = params[desc.name];
                 if (jval.is_boolean()) val = jval.get<bool>() ? 1.0f : 0.0f;
@@ -1333,8 +1333,8 @@ static void load_graph_from_path(const std::string& path) {
             // maxPartials from array length) — sync the UI table back from
             // the DSP object so the inspector shows live values, not stale
             // descriptor defaults.
-            for (auto& [desc, val] : gn.configValues)
-                val = gn.dspSource->get_config(desc.name);
+            for (auto& [desc, val] : gn.settingValues)
+                val = gn.dspSource->get_setting(desc.name);
 
             // Capture every params key the passes above did NOT consume —
             // carried verbatim through save (GraphNode::jsonExtras, 3n).
@@ -1344,7 +1344,7 @@ static void load_graph_from_path(const std::string& path) {
                     return false;
                 };
                 auto is_config = [&](const std::string& k) {
-                    for (auto& [desc, v] : gn.configValues)
+                    for (auto& [desc, v] : gn.settingValues)
                         if (k == desc.name) return true;
                     return false;
                 };
@@ -2064,19 +2064,19 @@ static void save_patch_graph(const std::string& path, bool tapOverride = false) 
         }
 
         // Config values
-        for (auto& [desc, val] : node.configValues) {
+        for (auto& [desc, val] : node.settingValues) {
             // Envelope sustain lives INSIDE the emitted stages (slot
             // values); writing the config too made reload rewrite the slots
-            // through set_config's [0,1] clamp, breaking >1.0 test
+            // through set_setting's [0,1] clamp, breaking >1.0 test
             // envelopes (_envacc_test) — and 0.0 artifacts of the old
-            // get_config broke three library patches (3n).
+            // get_setting broke three library patches (3n).
             if (node.typeName == NT_ENVELOPE &&
                 std::string_view(desc.name) == "sustainLevel")
                 continue;
             if (!jnode.contains("params")) jnode["params"] = json::object();
-            if (desc.type == ConfigType::Bool)
+            if (desc.type == SettingType::Bool)
                 jnode["params"][desc.name] = (val != 0.0f);
-            else if (desc.type == ConfigType::Int)
+            else if (desc.type == SettingType::Int)
                 jnode["params"][desc.name] = int(val);
             else
                 jnode["params"][desc.name] = val;
@@ -2301,19 +2301,19 @@ static void save_node_graph(const std::string& path) {
             jnode["params"]["formants"] = refs;
         }
 
-        for (auto& [desc, val] : node.configValues) {
+        for (auto& [desc, val] : node.settingValues) {
             // Envelope sustain lives INSIDE the emitted stages (slot
             // values); writing the config too made reload rewrite the slots
-            // through set_config's [0,1] clamp, breaking >1.0 test
+            // through set_setting's [0,1] clamp, breaking >1.0 test
             // envelopes (_envacc_test) — and 0.0 artifacts of the old
-            // get_config broke three library patches (3n).
+            // get_setting broke three library patches (3n).
             if (node.typeName == NT_ENVELOPE &&
                 std::string_view(desc.name) == "sustainLevel")
                 continue;
             if (!jnode.contains("params")) jnode["params"] = json::object();
-            if (desc.type == ConfigType::Bool)
+            if (desc.type == SettingType::Bool)
                 jnode["params"][desc.name] = (val != 0.0f);
-            else if (desc.type == ConfigType::Int)
+            else if (desc.type == SettingType::Int)
                 jnode["params"][desc.name] = int(val);
             else
                 jnode["params"][desc.name] = val;
@@ -3221,8 +3221,8 @@ static bool render_output_authoritative(float noteNum, float velocity,
 // application exactly (instrument.h map/vmap): curve = log-frequency
 // interpolation, end-clamped; vcurve = linear in velocity, multiplicative;
 // bare targets receive the raw note frequency. Pin targets set the pin's
-// ConstantSource; config targets go through set_config (and refresh the
-// node's cached configValues so Properties shows the per-note value).
+// ConstantSource; config targets go through set_setting (and refresh the
+// node's cached settingValues so Properties shows the per-note value).
 // Replaces the old Parameter-node scan, which pushed RAW frequency into
 // curve-bearing pin targets — the UI render ignored curves entirely.
 static float eval_map_curve(const nlohmann::json& curve, float freq,
@@ -3292,9 +3292,9 @@ static void apply_param_map(float freq, float velocity) {
                     p->constantSrc->set(v);
                 }
             } else if (n.dspSource) {
-                n.dspSource->set_config(pname, v);
-                for (auto& [desc, val] : n.configValues)
-                    if (pname == desc.name) val = n.dspSource->get_config(desc.name);
+                n.dspSource->set_setting(pname, v);
+                for (auto& [desc, val] : n.settingValues)
+                    if (pname == desc.name) val = n.dspSource->get_setting(desc.name);
             }
             return;
         }
@@ -4592,7 +4592,7 @@ static bool draw_one_curve(const std::string& paramName, nlohmann::json& obj) {
 
 // Eligible mapping targets on a node: pins the loader can resolve to a
 // ConstantSource (value pins not wired to a source) plus all scalar
-// configs (delivered via set_config). Shared by the Curves tab's Add-curve
+// configs (delivered via set_setting). Shared by the Curves tab's Add-curve
 // section and the Parameter-mappings dialog.
 struct TargetOpt { std::string name; float current; bool isConfig; };
 static std::vector<TargetOpt> eligible_targets(GraphNode* tn) {
@@ -4603,7 +4603,7 @@ static std::vector<TargetOpt> eligible_targets(GraphNode* tn) {
         if (is_pin_connected(pin.id)) continue;  // loader rejects ref-wired targets
         opts.push_back({pin.name, pin.defaultValue, false});
     }
-    for (auto& [desc, val] : tn->configValues)
+    for (auto& [desc, val] : tn->settingValues)
         opts.push_back({desc.name, val, true});
     return opts;
 }
@@ -4761,18 +4761,18 @@ static void draw_mappings_dialog() {
     GraphNode* tn = targetNodes[selNode];
     std::vector<TargetOpt> opts = eligible_targets(tn);
     if (opts.empty()) {
-        ImGui::TextDisabled("Selected node has no mappable params/configs.");
+        ImGui::TextDisabled("Selected node has no mappable params/settings.");
         ImGui::End();
         return;
     }
     selTarget = std::clamp(selTarget, 0, (int)opts.size() - 1);
     ImGui::SameLine();
     ImGui::SetNextItemWidth(160.0f);
-    if (ImGui::BeginCombo("Param / config##map", opts[selTarget].name.c_str())) {
+    if (ImGui::BeginCombo("Param / setting##map", opts[selTarget].name.c_str())) {
         for (int i = 0; i < (int)opts.size(); ++i) {
             char lbl[160];
             snprintf(lbl, sizeof(lbl), "%s%s##mt%d", opts[i].name.c_str(),
-                     opts[i].isConfig ? "  (config)" : "", i);
+                     opts[i].isConfig ? "  (setting)" : "", i);
             if (ImGui::Selectable(lbl, i == selTarget)) selTarget = i;
         }
         ImGui::EndCombo();
@@ -4955,19 +4955,19 @@ static void draw_curves_window() {
     GraphNode* tn = targetNodes[selNode];
     std::vector<TargetOpt> opts = eligible_targets(tn);
     if (opts.empty()) {
-        ImGui::TextDisabled("Selected node has no curve-able params/configs.");
+        ImGui::TextDisabled("Selected node has no curve-able params/settings.");
         ImGui::End();
         return;
     }
     selTarget = std::clamp(selTarget, 0, (int)opts.size() - 1);
     ImGui::SetNextItemWidth(140.0f);
-    if (ImGui::BeginCombo("Param / config", opts[selTarget].name.c_str())) {
+    if (ImGui::BeginCombo("Param / setting", opts[selTarget].name.c_str())) {
         for (int i = 0; i < (int)opts.size(); ++i) {
             const bool hasCurve = curve_exists_for(
                 paramNames[selParam], tn->label + "." + opts[i].name);
             char lbl[160];
             snprintf(lbl, sizeof(lbl), "%s%s%s##%d", opts[i].name.c_str(),
-                     opts[i].isConfig ? "  (config)" : "",
+                     opts[i].isConfig ? "  (setting)" : "",
                      hasCurve ? "  (has curve)" : "", i);
             if (ImGui::Selectable(lbl, i == selTarget)) selTarget = i;
         }
@@ -6281,12 +6281,12 @@ static void draw_properties_panel() {
 
     // Config values. Int configs that are logically enums (e.g.
     // CombinedSource.operation) render as a dropdown using labels
-    // declared on the ConfigDescriptor.
-    if (!node->configValues.empty()) {
+    // declared on the SettingDescriptor.
+    if (!node->settingValues.empty()) {
         if (hasParams) { ImGui::Spacing(); ImGui::Separator(); ImGui::Spacing(); }
         ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1), "Settings");
 
-        for (auto& [desc, val] : node->configValues) {
+        for (auto& [desc, val] : node->settingValues) {
             ImGui::Text("%s", desc.name);
             ImGui::SameLine(labelW);
             if (const char* badge = mapping_badge(node->label, desc.name)) {
@@ -6299,10 +6299,10 @@ static void draw_properties_panel() {
             char cfgLabel[64];
             snprintf(cfgLabel, sizeof(cfgLabel), "##pcfg_%s_%d", desc.name, node->id);
             bool changed = false;
-            if (desc.type == ConfigType::Bool) {
+            if (desc.type == SettingType::Bool) {
                 bool b = (val != 0.0f);
                 if (ImGui::Checkbox(cfgLabel, &b)) { val = b ? 1.0f : 0.0f; changed = true; }
-            } else if (desc.type == ConfigType::Int && desc.enum_labels) {
+            } else if (desc.type == SettingType::Int && desc.enum_labels) {
                 // Count labels (null-terminated).
                 int count = 0;
                 while (desc.enum_labels[count]) ++count;
@@ -6310,7 +6310,7 @@ static void draw_properties_panel() {
                 if (ImGui::Combo(cfgLabel, &iv, desc.enum_labels, count)) {
                     val = float(iv); changed = true;
                 }
-            } else if (desc.type == ConfigType::Int) {
+            } else if (desc.type == SettingType::Int) {
                 int iv = int(val);
                 if (ImGui::InputInt(cfgLabel, &iv, 1, 10)) {
                     iv = std::clamp(iv, int(desc.min_value), int(desc.max_value));
@@ -6325,15 +6325,15 @@ static void draw_properties_panel() {
             }
             ImGui::PopItemWidth();
             if (changed && node->dspSource) {
-                // Under the audio lock: set_config can rebuild internal
+                // Under the audio lock: set_setting can rebuild internal
                 // arrays (ExplicitPartials) while a stream tap is mid-next()
                 // on the same object (3k audit residual).
                 {
                     std::lock_guard<std::mutex> lock(g_audioMutex);
-                    node->dspSource->set_config(desc.name, val);
+                    node->dspSource->set_setting(desc.name, val);
                 }
                 node->jsonExtras.erase(desc.name);  // edit wins over carried value
-                // set_config may have mutated internal arrays (e.g. ExplicitPartials
+                // set_setting may have mutated internal arrays (e.g. ExplicitPartials
                 // mirrors _1 → _2 when evolve flips off). Re-pull cached values.
                 for (auto& [d, v] : node->arrayValues)
                     v = node->dspSource->get_array(d.name);
@@ -6370,7 +6370,7 @@ static void draw_properties_panel() {
             if (grouped && node->typeName == "ExplicitPartials" &&
                 firstDesc.groupName && std::string_view(firstDesc.groupName) == "partials")
             {
-                for (auto& [cdesc, cval] : node->configValues) {
+                for (auto& [cdesc, cval] : node->settingValues) {
                     if (std::string_view(cdesc.name) == "evolve") {
                         evolveOff = (cval == 0.0f);
                         break;
@@ -6812,10 +6812,10 @@ static nlohmann::json clip_node_state(const GraphNode& node) {
     if (!pins.empty()) j["pins"]   = pins;
     if (chPins > 0)    j["chPins"] = chPins;
 
-    if (!node.configValues.empty()) {
+    if (!node.settingValues.empty()) {
         json cfg = json::object();
-        for (const auto& [desc, val] : node.configValues) cfg[desc.name] = val;
-        j["configs"] = cfg;
+        for (const auto& [desc, val] : node.settingValues) cfg[desc.name] = val;
+        j["settings"] = cfg;
     }
     for (const auto& [desc, vec] : node.arrayValues)
         if (!vec.empty()) j["arrays"][desc.name] = vec;
@@ -6862,10 +6862,10 @@ static int clip_instantiate(const nlohmann::json& j) {
         }
     }
 
-    if (j.contains("configs")) {
-        for (auto& [desc, val] : gn.configValues) {
-            if (j["configs"].contains(desc.name))
-                val = j["configs"][desc.name].get<float>();
+    if (j.contains("settings")) {
+        for (auto& [desc, val] : gn.settingValues) {
+            if (j["settings"].contains(desc.name))
+                val = j["settings"][desc.name].get<float>();
         }
         gn.apply_config();
     }
@@ -6878,8 +6878,8 @@ static int clip_instantiate(const nlohmann::json& j) {
         }
         // set_array can update derived configs (maxPartials from length) —
         // sync the UI table back from the DSP object, mirroring load.
-        for (auto& [desc, val] : gn.configValues)
-            val = gn.dspSource->get_config(desc.name);
+        for (auto& [desc, val] : gn.settingValues)
+            val = gn.dspSource->get_setting(desc.name);
     }
 
     if (j.contains("formants")) {
@@ -7620,10 +7620,10 @@ static void show_node_context_menu() {
         }
 
         // Copy config values
-        for (int i = 0; i < (int)node->configValues.size() && i < (int)dup.configValues.size(); ++i) {
-            dup.configValues[i].second = node->configValues[i].second;
+        for (int i = 0; i < (int)node->settingValues.size() && i < (int)dup.settingValues.size(); ++i) {
+            dup.settingValues[i].second = node->settingValues[i].second;
             if (dup.dspSource)
-                dup.dspSource->set_config(dup.configValues[i].first.name, dup.configValues[i].second);
+                dup.dspSource->set_setting(dup.settingValues[i].first.name, dup.settingValues[i].second);
         }
 
         // Offset position
@@ -8002,8 +8002,8 @@ static bool draw_partials_strip(GraphNode* node, ImU32 color,
     // at render time: ampl *= 1 / pmult^rolloff.  rolloff1 → _1 column,
     // rolloff2 → _2 column.  Without this, weight-only bars look misleading
     // (all 1.0) when rolloff is what's actually shaping the spectrum.
-    float ro1 = ipt->get_config("rolloff1");
-    float ro2 = ipt->get_config("rolloff2");
+    float ro1 = ipt->get_setting("rolloff1");
+    float ro2 = ipt->get_setting("rolloff2");
     auto apply_rolloff = [](std::vector<float>& a, const std::vector<float>& m, float ro) {
         if (ro == 0.0f) return;
         for (size_t i = 0; i < a.size(); ++i) {
@@ -8881,10 +8881,10 @@ int main(int argc, char** argv) {
         }
         for (auto& n : s_nodes) {
             if (is_special_ui_type(n.typeName) || n.label.empty()) continue;
-            printf("node '%s' (%s): dsp=%s configValues=%zu\n",
+            printf("node '%s' (%s): dsp=%s settingValues=%zu\n",
                    n.label.c_str(), n.typeName.c_str(),
                    n.dspSource ? n.dspSource->type_name() : "NULL",
-                   n.configValues.size());
+                   n.settingValues.size());
             for (auto& pin : n.inputs) {
                 if (pin.inputOnly || pin.kind != PinKind::Input) continue;
                 if (pin.name.substr(0, 3) == "ch ") continue;
@@ -8892,7 +8892,7 @@ int main(int argc, char** argv) {
                 printf("    pin  %s = %g%s\n", pin.name.c_str(), pin.defaultValue,
                        curve_exists_for("frequency", n.label + "." + pin.name) ? "  (has curve)" : "");
             }
-            for (auto& [desc, val] : n.configValues)
+            for (auto& [desc, val] : n.settingValues)
                 printf("    cfg  %s = %g%s\n", desc.name, val,
                        curve_exists_for("frequency", n.label + "." + desc.name) ? "  (has curve)" : "");
         }

@@ -26,9 +26,9 @@ struct LayeredRedNoiseSource final : ValueSource {
     const char* type_name() const override { return "LayeredRedNoiseSource"; }
     SourceCategory category() const override { return SourceCategory::Generator; }
 
-    std::span<const ConfigDescriptor> config_descriptors() const override {
-        static constexpr ConfigDescriptor descs[] = {
-            {"count", ConfigType::Int, 3.0f, 1.0f, 16.0f},
+    std::span<const SettingDescriptor> setting_descriptors() const override {
+        static constexpr SettingDescriptor descs[] = {
+            {"count", SettingType::Int, 3.0f, 1.0f, 16.0f},
         };
         return descs;
     }
@@ -41,7 +41,7 @@ struct LayeredRedNoiseSource final : ValueSource {
         return descs;
     }
 
-    void set_config(std::string_view name, float value) override {
+    void set_setting(std::string_view name, float value) override {
         if (name == "count") {
             int n = std::max(1, std::min(16, int(value)));
             if (n != count_) {
@@ -52,7 +52,7 @@ struct LayeredRedNoiseSource final : ValueSource {
         }
     }
 
-    float get_config(std::string_view name) const override {
+    float get_setting(std::string_view name) const override {
         if (name == "count") return float(count_);
         return 0.0f;
     }

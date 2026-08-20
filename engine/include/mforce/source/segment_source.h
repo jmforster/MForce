@@ -69,18 +69,18 @@ struct SegmentSource final : ValueSource {
     return nullptr;
   }
 
-  std::span<const ConfigDescriptor> config_descriptors() const override {
-    static constexpr ConfigDescriptor descs[] = {
-      {"oneShot", ConfigType::Bool, 0.0f, 0.0f, 1.0f},
+  std::span<const SettingDescriptor> setting_descriptors() const override {
+    static constexpr SettingDescriptor descs[] = {
+      {"oneShot", SettingType::Bool, 0.0f, 0.0f, 1.0f},
     };
     return descs;
   }
 
-  void set_config(std::string_view name, float value) override {
+  void set_setting(std::string_view name, float value) override {
     if (name == "oneShot") { oneShot = (value != 0.0f); return; }
   }
 
-  float get_config(std::string_view name) const override {
+  float get_setting(std::string_view name) const override {
     if (name == "oneShot") return oneShot ? 1.0f : 0.0f;
     return 0.0f;
   }

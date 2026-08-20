@@ -41,14 +41,14 @@ struct MultiplexSource final : ValueSource {
         return descs;
     }
 
-    std::span<const ConfigDescriptor> config_descriptors() const override {
-        static constexpr ConfigDescriptor descs[] = {
-            {"count", ConfigType::Int, 10.0f, 1.0f, 50.0f},
+    std::span<const SettingDescriptor> setting_descriptors() const override {
+        static constexpr SettingDescriptor descs[] = {
+            {"count", SettingType::Int, 10.0f, 1.0f, 50.0f},
         };
         return descs;
     }
 
-    void set_config(std::string_view name, float value) override {
+    void set_setting(std::string_view name, float value) override {
         if (name == "count") {
             int newCount = std::max(1, std::min(50, int(value)));
             if (newCount != count_) {
@@ -58,7 +58,7 @@ struct MultiplexSource final : ValueSource {
         }
     }
 
-    float get_config(std::string_view name) const override {
+    float get_setting(std::string_view name) const override {
         if (name == "count") return float(count_);
         return 0.0f;
     }
