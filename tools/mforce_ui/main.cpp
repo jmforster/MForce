@@ -291,6 +291,13 @@ struct GraphNode {
     // 1 = velocity. Matches PerformOut::Field and the JSON "field" string.
     int performField{0};
 
+    // Dynamic pins: the SETTINGS this node instance drives once per note
+    // (pin_model_design.md §3). {"sustainLevel": {"ref": "__curve_sus"}}.
+    // A sibling of "params", not a member of it, because node construction
+    // reads params before any descriptor is known. Carried through save with
+    // its refs remapped; Task 4 makes it editable via promotion.
+    nlohmann::json dynamicPins = nlohmann::json::object();
+
     GraphNode(const std::string& type) : id(next_id()), typeName(type), label(unique_node_label(type)) {
         build_pins();
         create_dsp();
@@ -1246,6 +1253,13 @@ static void load_graph_from_path(const std::string& path) {
         // (__perf_freq -> _perf_freq). Renders are unaffected, but silently
         // renaming nodes the converter created makes later diffs unreadable.
         gn.synthesizedId = (id.rfind("__", 0) == 0);
+
+        // Dynamic pins ride ALONGSIDE params, not inside them — read here
+        // rather than in the params block, since a node can carry dynamicPins
+        // and no params at all.
+        if (jnode.contains("dynamicPins") && jnode["dynamicPins"].is_object())
+            gn.dynamicPins = jnode["dynamicPins"];
+
         nodeMap[id] = &gn;
 
         // Map output pin
@@ -1285,6 +1299,7 @@ static void load_graph_from_path(const std::string& path) {
                 gn.performField = (field == "velocity") ? 1 : 0;
                 gn.create_dsp();
             }
+
 
             // Restore formant table. New canonical form: params.formants is a
             // ref-array of owned Formant nodes, pulled into rows via the
@@ -2095,6 +2110,23 @@ static void save_patch_graph(const std::string& path, bool tapOverride = false) 
             }
         }
         if (!params.empty()) jnode["params"] = params;
+
+        // Dynamic pins: the settings this node drives once per note. Their
+        // refs name node ids, which sanitize_unique_id may have renamed, so
+        // they go through the same oldToNew map the paramMap targets used.
+        if (!node.dynamicPins.empty()) {
+            json dp = json::object();
+            for (auto& [key, val] : node.dynamicPins.items()) {
+                json entry = val;
+                if (entry.is_object() && entry.contains("ref") &&
+                    entry["ref"].is_string()) {
+                    auto it = oldToNew.find(entry["ref"].get<std::string>());
+                    if (it != oldToNew.end()) entry["ref"] = it->second;
+                }
+                dp[key] = entry;
+            }
+            jnode["dynamicPins"] = dp;
+        }
 
         // Envelope: emit multi-stage form
         if (node.typeName == NT_ENVELOPE) {
