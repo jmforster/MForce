@@ -1,6 +1,20 @@
 # Status — open this file first
 
-Updated: 2026-08-15 — dsp run 26 (Dipsy, "go dsp") · comp run 26 (Wolfie, scheduled)
+Updated: 2026-08-19 — dsp interactive sessions 08-18/08-19 (PerformSource P1+P2) · comp run 26 (Wolfie, scheduled)
+
+> **2026-08-18 → 08-19 interactive (not numbered runs): PerformSource P1, P2a
+> and P2b ALL LANDED** — paramMap's whole story is now graph nodes, engine and
+> editor both (specs: `docs/pin_model_design.md` + `perform_source_design.md`
+> §7; ~26 commits, every gate green from Fable-era references). **Caveat on
+> 08-19:** the session ran on Opus 5 after an unannounced model switch; a full
+> same-evening audit by Fable 5 (`dsp/reports/2026-08-19-opus5-day-review.md`)
+> kept everything and fixed four edge defects on top. **Next up, in order:**
+> (1) gold pin on the NODE FACE for promoted settings — Matt's approved
+> design, shipped Settings-pane-only, he confirmed it's next; (2) Matt's try
+> list in BACKLOG 20 (load Piano_bright, judge the converted layout, promotion
+> UX, Note/Curve legibility); (3) P3 liveness, carrying the bend-inertness
+> hole (BACKLOG 26a). Session-start hygiene: VERIFY THE MODEL before starting
+> work — bottom-right of the app window.
 
 > The 2026-08-13 → 08-15 interactive sessions (not numbered runs) landed a
 > large body of dsp work between runs 25 and 26; the dsp row below folds
