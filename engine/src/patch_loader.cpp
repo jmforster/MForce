@@ -254,6 +254,21 @@ static void add_formant(
     if (fmt) g.formantNodes[id] = fmt;
 }
 
+// Per-voice performance adapters, handed down so PerformNode instances all
+// resolve to the SAME objects (pin_model_design.md; perform_source_design.md
+// §2.3: "All instances render the same outputs"). Null in NodeGraph/standalone
+// contexts, where a PerformNode is an authoring error rather than a silent
+// constant.
+//
+// Holds shared_ptrs, NOT raw references to the voice's members, because the
+// Multiplex instance-builder closure captures this and outlives the loader:
+// MultiplexSource::rebuild_() runs from prepare(), and mark_dirty() can
+// retrigger it after a UI edit. A pointer into the voice-loop stack frame
+// would dangle.
+struct PerformContext {
+    std::shared_ptr<ValueSource> freqOut, velOut;
+};
+
 // Forward declarations for subgraph extraction / rebuild helpers (defined
 // after build_graph since build_subgraph_with_seed_perturbation calls it).
 static json extract_subgraph_json(
@@ -266,12 +281,14 @@ static std::pair<std::shared_ptr<ValueSource>,
 build_subgraph_with_seed_perturbation(
     const std::string& subtreeJsonStr,
     uint32_t seedPerturbation,
-    int sampleRate);
+    int sampleRate,
+    const PerformContext* perf);
 
 static GraphResult build_graph(
     const std::unordered_map<std::string, json>& nodeMap,
     const std::vector<std::string>& nodeOrder,
-    int sampleRate)
+    int sampleRate,
+    const PerformContext* perf = nullptr)
 {
     // Lazy init registry
     static bool registered = false;
@@ -383,8 +400,32 @@ static GraphResult build_graph(
                            : in == "logx"   ? CurveNode::CurveInterp::LogX
                            :                  CurveNode::CurveInterp::Linear;
             }
-            // "source" wires through the generic param pass like any node.
+            // "source" is a param_descriptor, but wire_params_generic is NOT
+            // automatic — every special-cased type calls it explicitly. P1
+            // shipped this branch with a comment claiming the generic pass
+            // handled it and no call, so a CurveNode loaded from JSON silently
+            // had a null source: next() returned 0, and map(0) clamped to the
+            // first knot's value for every note. Invisible until now because
+            // P1's CurveNodes were all built programmatically by
+            // build_bindings, which calls set_param("source", …) directly —
+            // no patch had ever loaded one from JSON, so the 196-patch gate
+            // could not see it.
+            if (pp) wire_params_generic(*cn, *pp, valueNodes, &usage);
             valueNodes[id] = cn;
+        }
+        else if (type == "PerformNode") {
+            // Leaf: resolves to the voice's shared PerformOut adapter. Several
+            // PerformNode nodes naming the same field are the SAME object by
+            // design — the pin model's "all instances render the same outputs".
+            if (!perf)
+                throw std::runtime_error("PerformNode '" + id + "': no voice "
+                    "context (PerformNode is instrument/patch mode only)");
+            const std::string field = pp ? pp->value("field", std::string("frequency"))
+                                         : std::string("frequency");
+            if      (field == "frequency") valueNodes[id] = perf->freqOut;
+            else if (field == "velocity")  valueNodes[id] = perf->velOut;
+            else throw std::runtime_error("PerformNode '" + id + "': unknown field '"
+                                          + field + "' (expected frequency|velocity)");
         }
         else if (type == "SegmentSource") {
             std::vector<float> values;
@@ -596,13 +637,22 @@ static GraphResult build_graph(
                     }
 
                     // Closure captures subtree + seed by value, outlives loader stack.
+                    // The PerformContext is copied in BY VALUE for the same
+                    // reason: rebuild_() runs from prepare(), and mark_dirty()
+                    // can retrigger it after a UI edit, so a pointer to the
+                    // caller's context would dangle. The copy holds shared_ptrs
+                    // to the very same adapters, so clones still share the
+                    // voice's one PerformSource.
                     int sr = sampleRate;
+                    const bool hasPerf = (perf != nullptr);
+                    PerformContext perfCopy = hasPerf ? *perf : PerformContext{};
                     MultiplexSource::InstanceBuilder builder =
-                        [subtreeStr, baseSeed, sr](int instanceIdx) {
+                        [subtreeStr, baseSeed, sr, hasPerf, perfCopy](int instanceIdx) {
                             uint32_t perturbation =
                                 baseSeed ^ (uint32_t(instanceIdx) * 0x9E3779B9u);
                             return build_subgraph_with_seed_perturbation(
-                                subtreeStr, perturbation, sr);
+                                subtreeStr, perturbation, sr,
+                                hasPerf ? &perfCopy : nullptr);
                         };
 
                     mux->set_template(subtreeStr, baseSeed, std::move(builder));
@@ -696,7 +746,8 @@ static std::pair<std::shared_ptr<ValueSource>,
 build_subgraph_with_seed_perturbation(
     const std::string& subtreeJsonStr,
     uint32_t seedPerturbation,
-    int sampleRate)
+    int sampleRate,
+    const PerformContext* perf)
 {
     json subtree = json::parse(subtreeJsonStr);
 
@@ -718,7 +769,7 @@ build_subgraph_with_seed_perturbation(
         nodeOrder.push_back(id);
     }
 
-    auto g = build_graph(nodeMap, nodeOrder, sampleRate);
+    auto g = build_graph(nodeMap, nodeOrder, sampleRate, perf);
 
     std::string outputId = subtree["output"].get<std::string>();
     auto it = g.valueNodes.find(outputId);
@@ -879,16 +930,24 @@ static void build_bindings(const json& paramMapJson, const GraphResult& g,
     }
 }
 
-// Build the per-voice performance objects, then convert the paramMap.
-// Shared by the two instrument-loading paths.
-static void attach_perform_source(const json& instJson, const GraphResult& g,
-                                  PitchedInstrument::VoiceGraph& vg)
+// Create the voice's performance objects. Must run BEFORE build_graph now:
+// a PerformNode in the JSON resolves to these adapters during construction,
+// so they cannot be created afterwards.
+static PerformContext make_perform_context(PitchedInstrument::VoiceGraph& vg)
 {
     vg.performSource = std::make_shared<PerformSource>();
     vg.freqOut = std::make_shared<PerformOut>(vg.performSource,
                                               PerformOut::Field::Frequency);
     vg.velOut  = std::make_shared<PerformOut>(vg.performSource,
                                               PerformOut::Field::Velocity);
+    return PerformContext{vg.freqOut, vg.velOut};
+}
+
+// Convert the legacy paramMap, if the patch carries one. Runs after the graph
+// exists, because its targets are resolved node ids.
+static void attach_perform_source(const json& instJson, const GraphResult& g,
+                                  PitchedInstrument::VoiceGraph& vg)
+{
     if (instJson.contains("paramMap"))
         build_bindings(instJson["paramMap"], g, vg);
 }
@@ -944,8 +1003,9 @@ Patch load_patch_file(const std::string& path)
 
         // Build voice pool: N independent graph instances
         for (int v = 0; v < polyphony; ++v) {
-            auto g = build_graph(nodeMap, nodeOrder, sampleRate);
             PitchedInstrument::VoiceGraph vg;
+            PerformContext perf = make_perform_context(vg);
+            auto g = build_graph(nodeMap, nodeOrder, sampleRate, &perf);
 
             // Find the top-level source for this voice
             auto srcIt = g.valueNodes.find(outputId);
@@ -1139,8 +1199,9 @@ InstrumentPatch load_instrument_patch(const std::string& path,
                      "(note-contained sound 2026-08-13); ignored\n");
 
     for (int v = 0; v < polyphony; ++v) {
-        auto g = build_graph(nodeMap, nodeOrder, sampleRate);
         PitchedInstrument::VoiceGraph vg;
+        PerformContext perf = make_perform_context(vg);
+        auto g = build_graph(nodeMap, nodeOrder, sampleRate, &perf);
 
         auto srcIt = g.valueNodes.find(outputId);
         if (srcIt == g.valueNodes.end())

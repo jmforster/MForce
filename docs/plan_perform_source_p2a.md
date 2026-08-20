@@ -345,10 +345,36 @@ struct PerformContext {
 
 Add the parameter to `build_graph`'s declaration and definition, and to
 `build_subgraph_with_seed_perturbation` (declaration ~266, definition ~696),
-forwarding `perf` to the `build_graph` call inside it. The Multiplex branch's
-closure (~line 604) must capture `perf` by value — it is a raw pointer into the
-caller's frame, and the closure runs during that same `build_graph` call; say
-so in a comment.
+forwarding `perf` to the `build_graph` call inside it.
+
+**The Multiplex closure is a lifetime trap.** An earlier draft of this plan
+said it "runs during that same `build_graph` call," so a raw pointer would be
+safe. **That is wrong.** `mux->set_template(...)` *stores* the builder;
+`MultiplexSource::rebuild_()` invokes it from `prepare()`
+(`multiplex_source.h:106`), and `mark_dirty()` can retrigger it later after a
+UI edit. A `const PerformContext*` into the voice-loop stack frame would
+dangle, and a UI edit could retrigger the use-after-free at will.
+
+So `PerformContext` holds `shared_ptr`s, and the closure captures a **copy by
+value**:
+
+```cpp
+                    int sr = sampleRate;
+                    const bool hasPerf = (perf != nullptr);
+                    PerformContext perfCopy = hasPerf ? *perf : PerformContext{};
+                    MultiplexSource::InstanceBuilder builder =
+                        [subtreeStr, baseSeed, sr, hasPerf, perfCopy](int instanceIdx) {
+                            uint32_t perturbation =
+                                baseSeed ^ (uint32_t(instanceIdx) * 0x9E3779B9u);
+                            return build_subgraph_with_seed_perturbation(
+                                subtreeStr, perturbation, sr,
+                                hasPerf ? &perfCopy : nullptr);
+                        };
+```
+
+The copy holds `shared_ptr`s to the very same adapters, so clones still share
+the voice's one `PerformSource` — the property the Multiplex bit-identity risk
+depends on.
 
 - [ ] **Step 2: Add the dispatch branch**
 

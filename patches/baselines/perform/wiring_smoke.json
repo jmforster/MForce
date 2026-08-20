@@ -1,0 +1,29 @@
+{
+  "_comment": "First patch authored in wiring format (plan_perform_source_p2a.md Task 2). Two PerformNode nodes name the same field deliberately: __perf_freq drives the oscillator, __perf_freq2 drives the brightness curve. They MUST resolve to the same shared adapter — if the second were a fresh unset PerformSource it would report the 440 Hz default, the curve would return one constant for every note, and both notes would render at equal peak. The A2-vs-A5 ratio check is what catches that.",
+  "sampleRate": 48000,
+  "graph": {
+    "nodes": [
+      { "id": "__perf_freq", "type": "PerformNode", "params": { "field": "frequency" } },
+      { "id": "__perf_freq2", "type": "PerformNode", "params": { "field": "frequency" } },
+      { "id": "__curve_bright", "type": "CurveNode",
+        "params": { "interp": "logx",
+                    "knots": [[110.0, 0.9], [880.0, 0.2]],
+                    "source": { "ref": "__perf_freq2" } } },
+      { "id": "tone", "type": "SineSource",
+        "params": { "frequency": { "ref": "__perf_freq" }, "amplitude": 1.0 } },
+      { "id": "env", "type": "Envelope",
+        "params": { "preset": "adsr", "attack": 0.01, "decay": 0.1,
+                    "sustainLevel": 0.7, "release": 0.2 } },
+      { "id": "vca", "type": "CombinedSource",
+        "params": { "source1": { "ref": "tone" }, "source2": { "ref": "env" },
+                    "operation": "multiply", "gainAdj": 0.0 } },
+      { "id": "out", "type": "CombinedSource",
+        "params": { "source1": { "ref": "vca" }, "source2": { "ref": "__curve_bright" },
+                    "operation": "multiply", "gainAdj": 0.0 } }
+    ],
+    "output": "out"
+  },
+  "instrument": { "polyphony": 4, "volume": 1.0 },
+  "score": [ { "note": 57, "time": 0.0, "duration": 0.8, "velocity": 0.8 },
+             { "note": 81, "time": 1.0, "duration": 0.8, "velocity": 0.8 } ]
+}
