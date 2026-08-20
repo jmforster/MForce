@@ -613,37 +613,34 @@ Priority order. Tags per WORKFLOW.md. (G1)-(G4) = GOALS.md Dipsy goals.
     deadline risks underruns for zero latency win over the MIDI-thread
     approach.
 
-20. **[design] PerformSource P2 — BLOCKED on the config-chain design** — P1
-    LANDED 2026-08-18, null-gated 196/196 (perform_source_design.md §7). A P2a
-    plan (format half: PerformNode JSON type, config refs, converter, gate) was
-    written 2026-08-19 and **PARKED by Matt the same day**
-    (`docs/plan_perform_source_p2a.md` carries the stop notice). Reason: it
-    picked a file-format spelling for "a chain lands on a config" before the
-    model question was settled. Spec §5 covers that in one sentence — "landing
-    on a config pin — one visual language, two evaluation times, distinguished
-    by pin type" — and nowhere says what a config pin **is**, how it reads on a
-    node, or how a user attaches one. Format follows model, not the reverse.
-    **Census done** (`docs/config_pin_census.md`, generated from
-    `mforce_cli --dump-descriptors`): 76 types, **212 float configs**, but only
-    **34 distinct (type, target) pairs are mapped anywhere in `patches/`** —
-    and the demand is concentrated (`KSPianoString.t60` in 85 patches,
-    `brightness` 78, `dispersion`/`inharmGain` 68 each). Blanket "every float
-    config gets a pin" is dead: FullPartials/SequencePartials carry 33 each,
-    ExplicitPartials 29. Open direction (not decided): pins are a property of
-    the *patch*, not the type — a config grows a pin only once something drives
-    it. Terminology also live: "config" is a **port invention** (legacy's only
-    `config` is `MConfig`, a global sample-rate/range holder); C# carried the
-    distinction in its type signatures, and the C++ port needed a name for the
-    first time. A rename would touch 2 virtuals, 1 struct, 1 enum, 27 files —
-    and **zero patch files and zero user-facing text** (patch JSON has no
-    `config` key; the UI already says "Settings"). Resume by finishing the
-    brainstorm, then revise or rewrite the P2a plan. Standing note for whatever
-    lands: UI re-save of patches using the new Envelope fields
-    (minValue/maxValue/nominal) will DROP them until the UI serializer learns
-    them — don't hand-author those fields into library patches first. Also
-    pending: mforce_keys is broken against the post-ParamSlot engine API
-    (pre-existing breakage, now different first error) — fix or retire, Matt's
-    call.
+20. **[build] PerformSource P2b (UI) is next** — P1 LANDED 2026-08-18;
+    **P2a LANDED 2026-08-19**, commits 004295e..db4aafe
+    (`docs/plan_perform_source_p2a.md`). The format half is done and proven:
+    `config`→`setting` rename, `PerformNode` JSON type, `dynamicPins`,
+    bend-swap membership from graph shape, `tools/parammap_to_wiring.py`, and
+    `tools/null_gate_wiring.py`. **Conversion gate: 196/196 bit-identical**
+    rendering from converted files (117 carried a paramMap). Legacy paramMap
+    still read.
+    The design it waited on is `docs/pin_model_design.md` (Matt-approved,
+    terminology included): pins belong to the patch not the type, two flavours
+    (fixed = pulled per sample, dynamic = pushed once per note), promotion is a
+    grey→gold click in the Settings pane, float means eligible.
+    **P2b = the UI half:** PerformNode/CurveNode as editor nodes, knot editor
+    extending the existing Curves table + plot (not a new 2D canvas — Matt),
+    grey→gold promotion, Curves/Mappings as derived views over the graph, save
+    emits the P2a format. Still open before authoring is possible
+    (`pin_model_design.md` §9): what may feed a dynamic pin — today only a
+    curve off the note, and Matt's read is "it might be that Curve is the
+    *only* thing these guys can get" — and demotion semantics.
+    Standing warning: UI re-save of a patch using
+    `Envelope.minValue`/`maxValue`/`Stage.nominal` DROPS them until the
+    serializer learns them; don't hand-author those into library patches first.
+    Three latent bugs surfaced during P2a, all pre-existing, all the same
+    shape — code that worked only because it had exactly one consumer or one
+    construction path: CurveNode's unwired `source` when loaded from JSON,
+    `PerformOut` caching state it did not have (broke every 2nd+ consumer via
+    RefSource), and a third `build_graph` call site (the mixer throwaway graph)
+    with no perform context. mforce_keys was retired rather than fixed.
 
 19. **[build] hiBoost → explicit curve** — Matt 2026-08-18 (PerformSource
     brainstorm): `PitchedInstrument.hiBoost` is a hidden loudness

@@ -403,22 +403,42 @@ wires `PerformNode.pressure` either way.
   bit-identical** after both conversion and retirement, incl. all 7
   Multiplex patches and the 4 bend/slide baselines. InstrumentState
   deferred to P3 (YAGNI — first consumer is the wheel).
-- **P2** — REVISED 2026-08-19. As originally written ("PerformNode, CurveNode
-  knot editor, Curves tab + Mappings dialog as derived views, save emits
-  wiring format") this phase assumed a config story that **`docs/pin_model_design.md`
-  now replaces**: a driven setting is a *dynamic pin*, promoted per patch
-  rather than declared per type, and it serialises as a distinct kind of pin.
-  Read that spec first — P2 depends on it.
-  A P2a plan covering the format half was written and PARKED the same day
-  (`docs/plan_perform_source_p2a.md`) for exactly this reason: it picked a file
-  spelling before the model existed. Its engine content survives — the
-  PerformNode JSON type, building the voice adapters before `build_graph`, the
-  paramMap→wiring converter, the 196-patch conversion null gate. What changed
-  is how a chain landing on a *setting* is expressed, in the file and on
-  screen. Split as: **P2a** format (engine + loader + converter + gate),
-  **P2b** UI (PerformNode/CurveNode as editor nodes, knot editor extending the
-  existing Curves table + plot, grey→gold promotion in the Settings pane,
-  Curves/Mappings as derived views, save emits the format).
+- **P2a (format)** — ✓ **LANDED 2026-08-19** (commits 004295e..db4aafe,
+  `docs/plan_perform_source_p2a.md`). The `config`→`setting` rename;
+  `PerformNode` JSON type (one node per field, all instances resolving to the
+  voice's shared `PerformOut`); `dynamicPins`, a per-node object naming the
+  settings a patch drives once per note; bend-swap membership reproduced from
+  graph shape; `tools/parammap_to_wiring.py`; and
+  `tools/null_gate_wiring.py`. **Conversion gate: 196/196 bit-identical**
+  rendering from converted files, 117 of them carrying a paramMap. Legacy
+  `paramMap` is still read and is not going away.
+
+  P2 as originally written assumed a config story that
+  **`docs/pin_model_design.md` replaced**: a driven setting is a *dynamic pin*,
+  promoted per patch rather than declared per type, and it serialises as a
+  distinct kind of pin. Read that spec first.
+
+  Three latent bugs surfaced, none of them introduced by the phase — all were
+  code that worked only because it had exactly one consumer or exactly one
+  construction path, which wiring format multiplies:
+  - **CurveNode loaded from JSON never wired its `source`.** Its branch claimed
+    the generic param pass handled it; `wire_params_generic` is not automatic.
+    Shipped in P1 under a green gate because P1 only ever built CurveNodes
+    programmatically. Every converted patch would have had frozen curves.
+  - **`PerformOut` cached state it did not have.** `RefSource::next()` returns
+    `source->current()` without pulling, so every 2nd+ consumer read 0 —
+    the common case in wiring format, where one PerformNode feeds many pins.
+    Now a stateless view over `NoteState`.
+  - **A third `build_graph` call site** — the throwaway graph that resolves
+    mixer gain for patches with a `mix` node — passed no context and threw on
+    every PerformNode. Found by the conversion gate; five Rhodes/FM patches.
+- **P2b (UI)** — PerformNode/CurveNode as editor nodes, knot editor extending
+  the existing Curves table + plot, grey→gold promotion in the Settings pane
+  (`pin_model_design.md` §6), Curves/Mappings as derived views over the graph,
+  and save emitting the P2a format. Standing warning: UI re-save of a patch
+  using `Envelope.minValue`/`maxValue`/`Stage.nominal` will DROP those fields
+  until the serializer learns them, so do not hand-author them into library
+  patches first.
 - **P3 (liveness, pulled params only)** — articulated `.frequency`
   (retire PitchBendSource graft), InstrumentState + wheel + pressure with
   smoothers, MIDI plumbing. Re-listen bend-using material. Configs stay

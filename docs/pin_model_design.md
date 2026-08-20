@@ -249,7 +249,18 @@ file and on screen.
 
 **Serialization follows the model.** A dynamic pin is a distinct kind of pin, so
 it serialises distinctly — a per-node object listing the settings this patch
-drives, separate from `params`. Worth recording why, because the same shape was
+drives, separate from `params`. **Shipped 2026-08-19 as `dynamicPins`**
+(P2a, commit bdd51b4):
+
+```json
+{ "id": "env", "type": "Envelope",
+  "params":      { "preset": "adsr", "sustainLevel": 0.7 },
+  "dynamicPins": { "sustainLevel": { "ref": "__curve_sus" } } }
+```
+
+The setting appears in both objects and that is correct, not redundant: the
+scalar in `params` is what node construction reads, the ref in `dynamicPins` is
+what overrides it per note. Worth recording why, because the same shape was
 proposed and rightly rejected a day earlier: proposed as a workaround for a
 loader detail (node construction reads `params` before descriptors are known,
 and `nlohmann`'s `value()` throws on an object where it wants a number), it was
