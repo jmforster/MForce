@@ -8,30 +8,11 @@
 
 namespace mforce {
 
-// PitchBendSource — wraps a semitone-offset Envelope and produces
-// baseHz * 2^(semi(t)/12) per sample. Lives at the frequency endpoint
-// (via ConstantSource::set_override) for the duration of one note.
-struct PitchBendSource : ValueSource {
-  float baseHz{0.0f};
-  std::shared_ptr<Envelope> env;
-
-  PitchBendSource(float hz, std::shared_ptr<Envelope> e)
-    : baseHz(hz), env(std::move(e)) {}
-
-  void prepare(const RenderContext& ctx, int frames) override { if (env) env->prepare(ctx, frames); }
-
-  float next() override {
-    float semi = env ? env->next() : 0.0f;
-    cur_ = baseHz * std::exp2(semi / 12.0f);
-    return cur_;
-  }
-  float current() const override { return cur_; }
-
-  const char* type_name() const override { return "PitchBend"; }
-  SourceCategory category() const override { return SourceCategory::Envelope; }
-private:
-  float cur_{0.0f};
-};
+// (PitchBendSource retired 2026-08-20, plan_perform_source_p3.md T1: bend
+// articulation lives on PerformSource itself — .frequency reports
+// base * 2^(bend(t)/12), advanced by the voice's explicit sample clock. The
+// compile functions below are unchanged; they are where the bend envelope
+// still comes from.)
 
 // Compile a PitchCurve (Score/Performer semantic) into an Envelope (DSP).
 // v1: linear ramps only; nodes define hold regions, trans straddles boundaries.

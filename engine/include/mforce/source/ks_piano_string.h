@@ -62,6 +62,10 @@ struct KSPianoString final : ValueSource {
   }
 
   const char* type_name() const override { return "KSPianoString"; }
+  // Frequency is read once in init_note() (comb lengths are per-note state);
+  // a bend articulated onto it moves a number nobody reads — backlog 26a.
+  // The loader warns at load via this flag (plan_perform_source_p3.md T2).
+  bool tracks_frequency_live() const override { return false; }
   SourceCategory category() const override { return SourceCategory::Oscillator; }
 
   std::span<const ParamDescriptor> param_descriptors() const override {

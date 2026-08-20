@@ -80,6 +80,13 @@ struct ValueSource {
   // Self-description — defaults allow incremental adoption
   virtual const char* type_name() const { return "Unknown"; }
   virtual SourceCategory category() const { return SourceCategory::Utility; }
+
+  // False when this node reads its `frequency` pin ONCE at note start and
+  // never again (KSPianoString: init_note), so an articulated/bent frequency
+  // is silently inert on it. The loader uses this to warn by name at load —
+  // backlog 26a made loud (plan_perform_source_p3.md T2). Default true:
+  // ordinary pulled-per-sample consumption tracks a moving frequency.
+  virtual bool tracks_frequency_live() const { return true; }
   virtual std::span<const ParamDescriptor> param_descriptors() const { return {}; }
   virtual void set_param(std::string_view /*name*/, std::shared_ptr<ValueSource> /*src*/) {}
   virtual std::shared_ptr<ValueSource> get_param(std::string_view /*name*/) const { return nullptr; }

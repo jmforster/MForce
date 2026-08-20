@@ -118,6 +118,18 @@ static constexpr const char* NT_ENVELOPE      = "Envelope";
 // of a render. Patch mode only; the engine throws "no voice context" otherwise.
 static constexpr const char* NT_PERFORM       = "PerformNode";
 
+// PerformNode field vocabulary — index matches GraphNode::performField and
+// the engine's PerformOut::Field. wheel/pressure are P3 (InstrumentState:
+// one physical wheel / channel-pressure stream, smoothed per voice).
+static constexpr const char* kPerformFieldNames[] =
+    {"frequency", "velocity", "wheel", "pressure"};
+static constexpr int kPerformFieldCount = 4;
+static int perform_field_index(const std::string& s) {
+    for (int i = 0; i < kPerformFieldCount; ++i)
+        if (s == kPerformFieldNames[i]) return i;
+    return 0;
+}
+
 static bool is_special_ui_type(const std::string& typeName) {
     return typeName == NT_SOUND_CHANNEL || typeName == NT_STEREO_MIXER
         || typeName == NT_PATCH_OUTPUT  || typeName == NT_PARAMETER;
@@ -362,8 +374,12 @@ struct GraphNode {
             // so previews and Listen taps render something instead of silence.
             // Nothing here reaches a CLI render — that path goes through the
             // loader, which builds the real adapter.
+            // frequency 440, velocity 0.8; wheel/pressure preview at 0 —
+            // an untouched controller is silent, and the preview should be
+            // the untouched instrument.
             dspSource = std::make_shared<ConstantSource>(
-                performField == 1 ? 0.8f : 440.0f);
+                performField == 1 ? 0.8f :
+                performField >= 2 ? 0.0f : 440.0f);
             return;
         }
 
@@ -1560,7 +1576,7 @@ static void load_graph_from_path(const std::string& path) {
             // the stand-in constant matches the field.
             if (gn.typeName == NT_PERFORM) {
                 const std::string field = params.value("field", std::string("frequency"));
-                gn.performField = (field == "velocity") ? 1 : 0;
+                gn.performField = perform_field_index(field);
                 gn.create_dsp();
             }
 
@@ -2468,7 +2484,8 @@ static void save_patch_graph(const std::string& path, bool tapOverride = false) 
         // field it reports. Emitted explicitly because the pin loop below has
         // nothing to walk — the node has no inputs by design.
         if (node.typeName == NT_PERFORM)
-            params["field"] = (node.performField == 1) ? "velocity" : "frequency";
+            params["field"] = kPerformFieldNames[
+                std::clamp(node.performField, 0, kPerformFieldCount - 1)];
 
         // CurveNode knots/interp are modeled, not carried — emitted from the
         // node so an edit in the Curves window survives the save.
@@ -3139,6 +3156,10 @@ struct Voice {
     // pool-backed. Deactivation must release it (voice_deactivate_unlocked /
     // the audio callback's finish path) or the slot leaks.
     int   poolSlot = -1;
+    // P3 sample clock: ticked once per sample by the audio callback before
+    // source->next(), so bend and wheel/pressure move during the note. Null
+    // for voices with no perform context.
+    std::shared_ptr<mforce::PerformSource> performSource;
 };
 static Voice g_voices[MAX_VOICES];
 
@@ -3159,7 +3180,9 @@ static void voice_schedule_unlocked(std::shared_ptr<InstrumentPatch> patch,
                                     int totalSamples, float gain, int midiNote,
                                     bool held = false,
                                     std::vector<mforce::Envelope*> envs = {},
-                                    int poolSlot = -1) {
+                                    int poolSlot = -1,
+                                    std::shared_ptr<mforce::PerformSource>
+                                        performSource = nullptr) {
     // Same-source steal: a note whose pool slot's previous note is still
     // sounding must replace that voice outright (two active entries pulling
     // one source would double-render it).
@@ -3195,6 +3218,7 @@ static void voice_schedule_unlocked(std::shared_ptr<InstrumentPatch> patch,
     g_voices[slot].envs = std::move(envs);
     g_voices[slot].midiNote = midiNote;
     g_voices[slot].poolSlot = poolSlot;
+    g_voices[slot].performSource = std::move(performSource);
     g_voices[slot].active = true;
 }
 
@@ -3273,6 +3297,9 @@ static int audio_callback(void* outputBuffer, void* /*inputBuffer*/,
         for (int v = 0; v < MAX_VOICES; ++v) {
             auto& voice = g_voices[v];
             if (!voice.active) continue;
+            // P3 sample clock: bend + wheel/pressure smoothers advance here,
+            // exactly once per voice per sample, never inside consumer pulls.
+            if (voice.performSource) voice.performSource->tick();
             voiceSum += voice.source->next() * voice.gain;
             voice.samplesRemaining--;
             if (voice.samplesRemaining <= 0) {
@@ -3516,6 +3543,8 @@ static void voice_gc() {
             if (!v.active && (v.source || v.patch)) {
                 if (v.source) dyingSources.push_back(std::move(v.source));
                 if (v.patch)  dyingPatches.push_back(std::move(v.patch));
+                v.performSource.reset();  // pool keeps its own ref; the bend
+                                          // envelope dies off-thread with it
                 v.envs.clear();   // non-owning; graph dies with the patch
                 v.held = false;
             }
@@ -3785,6 +3814,7 @@ static float eval_map_vcurve(const nlohmann::json& vcurve, float vel) {
 static void apply_perform_nodes(float freq, float velocity) {
     for (auto& n : s_nodes) {
         if (n.typeName != NT_PERFORM) continue;
+        if (n.performField >= 2) continue;  // wheel/pressure: preview stays 0
         if (auto* cs = dynamic_cast<ConstantSource*>(n.dspSource.get()))
             cs->set(n.performField == 1 ? velocity : freq);
     }
@@ -4009,7 +4039,8 @@ static void play_note(float noteNum, float velocity, float durationSeconds) {
         // Note-contained sound (2026-08-13): the voice lives exactly
         // durSamples — release is inside the note, no tail window.
         voice_schedule_unlocked(ip, sv.source, sv.durSamples, sv.gain,
-                                int(noteNum), false, {}, slot);
+                                int(noteNum), false, {}, slot,
+                                sv.performSource);
     } catch (const std::exception& e) {
         char buf[256];
         std::snprintf(buf, sizeof(buf), "play_note failed: %s", e.what());
@@ -4071,7 +4102,7 @@ static void play_note_held(float noteNum, float velocity, float nominalSeconds) 
                                                     nominalSeconds);
                 voice_schedule_unlocked(ip, sv.source, INT_MAX / 2, sv.gain,
                                         int(noteNum), true, std::move(envs),
-                                        slot);
+                                        slot, sv.performSource);
                 return;
             }
             // Not gateable: hand the acquired slot back before falling
@@ -4325,10 +4356,29 @@ static void pump_midi() {
         try { g_midiIn->getMessage(&msg); }
         catch (RtMidiError&) { return; }
         if (msg.empty()) return;
-        if (msg.size() < 3) continue;
+        if (msg.size() < 2) continue;
         unsigned char status = msg[0] & 0xF0;
+
+        // P3 liveness (plan_perform_source_p3.md T4): wheel + channel
+        // pressure land in the instrument's InstrumentState (atomic stores;
+        // each voice's PerformSource smooths them on the audio thread).
+        // Channel pressure is a TWO-byte message — it must be handled before
+        // the 3-byte guard below or it is silently dropped.
+        if (status == 0xD0) {                     // channel pressure
+            if (auto ip = get_cached_instrument(); ip && ip->instrument)
+                ip->instrument->instrumentState->pressure.store(
+                    float(msg[1]) / 127.0f, std::memory_order_relaxed);
+            continue;
+        }
+        if (msg.size() < 3) continue;
         int note = msg[1];
         int vel  = msg[2];
+        if (status == 0xB0 && note == 1) {        // CC1 mod wheel
+            if (auto ip = get_cached_instrument(); ip && ip->instrument)
+                ip->instrument->instrumentState->wheel.store(
+                    float(vel) / 127.0f, std::memory_order_relaxed);
+            continue;
+        }
         if (status == 0x90 && vel > 0) {          // note on
             play_note_held(float(note), float(vel) / 127.0f,
                            g_keyboard.duration);
@@ -4337,7 +4387,9 @@ static void pump_midi() {
             release_note_held(note);
         }
         // CC64 sustain pedal: deferred (needs release-hold semantics in the
-        // voice layer before it can do anything).
+        // voice layer before it can do anything). MIDI pitch wheel (0xE0):
+        // deferred — InstrumentState has no field for it in the spec; poly
+        // aftertouch (0xA0) likewise until hardware exists to test it.
     }
 }
 
@@ -6712,6 +6764,13 @@ static void draw_node(GraphNode& node) {
         ImGui::TextColored(ImVec4(0.9f, 0.7f, 0.9f, 1.0f), "%s", node.paramName.c_str());
     }
 
+    // Note node: show which field of the performance it reports.
+    if (node.typeName == NT_PERFORM) {
+        int f = std::clamp(node.performField, 0, kPerformFieldCount - 1);
+        ImGui::TextColored(ImVec4(0.85f, 0.72f, 0.30f, 1.0f), "%s",
+                           kPerformFieldNames[f]);
+    }
+
     // Input pins — compact: show name + read-only value, no editing widgets
     for (auto& pin : node.inputs) {
         // Hide the "default" pin on Parameter nodes (it's internal plumbing)
@@ -6976,6 +7035,27 @@ static void draw_properties_panel() {
             ImGui::TextColored(ImVec4(0.9f, 0.4f, 0.4f, 1), "%s", renameErr.c_str());
     }
     ImGui::Separator();
+
+    // PerformNode: the one thing to edit is which field of the performance
+    // it reports. wheel/pressure are P3 — InstrumentState smoothed per
+    // voice; previews hold them at 0 (an untouched controller).
+    if (node->typeName == NT_PERFORM) {
+        ImGui::Text("field");
+        ImGui::SameLine(120.0f);
+        ImGui::SetNextItemWidth(120.0f);
+        int f = std::clamp(node->performField, 0, kPerformFieldCount - 1);
+        if (ImGui::Combo("##perffield", &f, kPerformFieldNames,
+                         kPerformFieldCount)) {
+            node->performField = f;
+            node->create_dsp();      // stand-in constant matches the field
+            update_all_dsp();
+            mark_graph_dirty();
+        }
+        if (ImGui::IsItemHovered())
+            ImGui::SetTooltip("frequency/velocity: this note, set at note-on.\n"
+                              "wheel/pressure: the instrument as played (CC1 /\n"
+                              "channel pressure), smoothed, live during the note.");
+    }
 
     // Layout: label on left (120px), widget on right
     float labelW = 120.0f;
@@ -8142,6 +8222,42 @@ static void show_create_menu() {
     }
 
     ImGui::Separator();
+
+    // --- Performance (pin_model_design.md): the note and its transfer
+    // curves. Until now these nodes only ever entered a graph via paramMap
+    // conversion, so per-group Note copies — the intended "instantiable N
+    // times, any group" usage — were unreachable (Matt 2026-08-20 blocker).
+    if (ImGui::BeginMenu("Performance")) {
+        if (s_graphMode == GraphMode::PatchGraph) {
+            // A PerformNode resolves to the voice's adapter; the node-graph
+            // render path has no voice, so patch mode only.
+            if (ImGui::MenuItem("Note")) {
+                s_nodes.emplace_back(std::string(NT_PERFORM));
+                ImNodes::SetNodeScreenSpacePos(s_nodes.back().id, s_createMenuPos);
+                if (!s_groupPath.empty())
+                    if (NodeGroup* g = group_by_name(s_groupPath.back()))
+                        g->members.push_back(s_nodes.back().label);
+                update_node_dsp(s_nodes.back());
+                mark_graph_dirty();
+            }
+        } else {
+            menu_placeholder("Note (patch graph only)");
+        }
+        if (ImGui::MenuItem("Curve")) {
+            s_nodes.emplace_back(std::string("CurveNode"));
+            auto& cn = s_nodes.back();
+            // Identity seed — an empty knot list maps everything to 0,
+            // which reads as a broken node. Edit in the Curves tab.
+            cn.curveKnots = {{0.0f, 0.0f}, {1.0f, 1.0f}};
+            ImNodes::SetNodeScreenSpacePos(cn.id, s_createMenuPos);
+            if (!s_groupPath.empty())
+                if (NodeGroup* g = group_by_name(s_groupPath.back()))
+                    g->members.push_back(cn.label);
+            update_node_dsp(cn);
+            mark_graph_dirty();
+        }
+        ImGui::EndMenu();
+    }
 
     // --- Generators ---
     if (ImGui::BeginMenu("Generators")) {
@@ -9946,8 +10062,10 @@ int main(int argc, char** argv) {
                 if (!pitched) throw std::runtime_error("not a PitchedInstrument");
                 auto sv = pitched->prepare_voice(noteNum, vel, dur);
                 mono.resize(sv.durSamples);
-                for (int i = 0; i < sv.durSamples; ++i)
+                for (int i = 0; i < sv.durSamples; ++i) {
+                    if (sv.performSource) sv.performSource->tick();  // P3 clock
                     mono[i] = soft_clip(sv.source->next() * sv.gain);
+                }
             } else {
                 // Generate path: authoritative offline render into
                 // g_outputWaveform, then the buffer-playback soft_clip the

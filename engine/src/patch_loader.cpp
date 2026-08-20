@@ -266,7 +266,7 @@ static void add_formant(
 // retrigger it after a UI edit. A pointer into the voice-loop stack frame
 // would dangle.
 struct PerformContext {
-    std::shared_ptr<ValueSource> freqOut, velOut;
+    std::shared_ptr<ValueSource> freqOut, velOut, wheelOut, pressOut;
 };
 
 // Forward declarations for subgraph extraction / rebuild helpers (defined
@@ -424,8 +424,10 @@ static GraphResult build_graph(
                                          : std::string("frequency");
             if      (field == "frequency") valueNodes[id] = perf->freqOut;
             else if (field == "velocity")  valueNodes[id] = perf->velOut;
+            else if (field == "wheel")     valueNodes[id] = perf->wheelOut;
+            else if (field == "pressure")  valueNodes[id] = perf->pressOut;
             else throw std::runtime_error("PerformNode '" + id + "': unknown field '"
-                                          + field + "' (expected frequency|velocity)");
+                + field + "' (expected frequency|velocity|wheel|pressure)");
         }
         else if (type == "SegmentSource") {
             std::vector<float> values;
@@ -789,13 +791,11 @@ build_subgraph_with_seed_perturbation(
 //                                  note time, delivered via set_setting)
 //   2. voice has topMultiplex   -> PushBinding for EVERY entry (clone fan
 //                                  keeps push semantics wholesale, bit-safe)
-//   3. no curve                 -> pin wired to the chain (bare freqOut, or
-//                                  the vcurve chain) + a BendSwap entry so
-//                                  the P1 PitchBendSource graft can swap the
-//                                  pin per note, exactly like the old path
-//                                  (which grafted every empty-curve slot,
-//                                  vcurve-only ones included)
-//   4. curve present            -> pin wired ONCE to the chain
+//   3/4. pin target             -> pin wired ONCE to the chain. Bend rides
+//                                  the freqOut leaf itself as of P3
+//                                  (plan_perform_source_p3.md T1) — the
+//                                  PitchBendSource graft and its per-entry
+//                                  BendSwap membership are retired.
 // Chain = freqOut [-> CurveNode(curve, LogX|LogLog)] [* CurveNode(vcurve,
 // Linear)(velOut)]; the multiply is CombinedSource Multiply with gainAdj 0
 // (exact: *1.0f). paramMap names other than "frequency" are parsed and
@@ -853,6 +853,14 @@ static void build_bindings(const json& paramMapJson, const GraphResult& g,
 
         auto paramSrc = nodeIt->second->get_param(paramName);
         if (paramSrc) {
+            // 26a made loud (P3 T2), legacy path: a bend articulated onto a
+            // node that reads its frequency pin once is silently inert.
+            if (paramName == "frequency" &&
+                !nodeIt->second->tracks_frequency_live())
+                std::fprintf(stderr,
+                    "[loader] bend inert on '%s' (%s reads frequency once at "
+                    "note start; backlog 26a)\n",
+                    nodeId.c_str(), nodeIt->second->type_name());
             auto cs = std::dynamic_pointer_cast<ConstantSource>(paramSrc);
             if (!cs)
                 throw std::runtime_error("paramMap: '" + target +
@@ -868,12 +876,13 @@ static void build_bindings(const json& paramMapJson, const GraphResult& g,
                 b.cs = cs;
                 vg.pushBindings.push_back(std::move(b));
             } else {
-                // Matrix cases 3/4: wire the pin to the chain.
+                // Matrix cases 3/4: wire the pin to the chain. Bend needs no
+                // per-entry membership anymore — as of P3 the freqOut leaf
+                // itself articulates base * 2^(bend/12), so every chain
+                // rooted at it follows the bend (curve-fed ones included,
+                // which the retired graft deliberately skipped — the P3
+                // re-listen item).
                 nodeIt->second->set_param(paramName, chain);
-                if (curve.empty()) {
-                    // Old graft membership: every empty-freq-curve entry.
-                    vg.bendSwaps.push_back({nodeIt->second, paramName, chain});
-                }
             }
             return;
         }
@@ -947,20 +956,16 @@ static void bind_wiring(const std::unordered_map<std::string, json>& nodeMap,
                         const GraphResult& g,
                         PitchedInstrument::VoiceGraph& vg)
 {
-    // Bend-graft membership, reproduced from graph shape. P1 keeps the legacy
-    // PitchBendSource graft and records a BendSwap for exactly the paramMap
-    // entries whose FREQUENCY curve is empty — bare targets and vcurve-only
-    // targets both (build_bindings, "Old graft membership"). The equivalent
-    // rule here: a wired fixed pin is a bend-swap target when the path from
-    // that pin down to a PerformNode(field=frequency) crosses no CurveNode.
-    // A bare ref qualifies; Combined(PerformNode, CurveNode(velocity)) — the
-    // vcurve-only shape — also qualifies, because its frequency leg is direct.
-    // A freq-curve chain does not. Works on JSON rather than built objects
-    // because the question is which node TYPES lie on the path.
-    // P3 deletes all of this; until then it must be reproduced faithfully or
-    // converted bend baselines diff.
-    std::unordered_map<std::string, int> memo;   // 1 = yes, 0 = no
-    std::function<bool(const std::string&)> direct_freq =
+    // P3 (T2, plan_perform_source_p3.md): the bend-graft membership walk that
+    // lived here is retired — freqOut itself articulates the bend now, so no
+    // swap targets exist. What survives is its reachability question, relaxed
+    // (curves no longer disqualify — bend flows through them as of P3), in
+    // service of making the 26a hole LOUD: a node that reads its frequency
+    // pin ONCE at note start (KSPianoString, init_note) is silently inert
+    // under bend articulation. Warn at load, by name, so a bend curve on a
+    // piano patch stops being a number nobody reads without anyone knowing.
+    std::unordered_map<std::string, int> memo;   // 1 = reaches, 0 = no
+    std::function<bool(const std::string&)> reaches_freq =
         [&](const std::string& nid) -> bool {
             auto m = memo.find(nid);
             if (m != memo.end()) return m->second == 1;
@@ -969,7 +974,6 @@ static void bind_wiring(const std::unordered_map<std::string, json>& nodeMap,
             if (it == nodeMap.end()) return false;
             const auto& n = it->second;
             const std::string t = n.at("type").get<std::string>();
-            if (t == "CurveNode") return false;   // a curve on the path disqualifies
             if (t == "PerformNode") {
                 const bool isFreq =
                     !n.contains("params") ||
@@ -980,14 +984,14 @@ static void bind_wiring(const std::unordered_map<std::string, json>& nodeMap,
             if (!n.contains("params")) return false;
             for (const auto& [k, v] : n["params"].items()) {
                 if (v.is_object() && v.contains("ref") &&
-                    direct_freq(v.at("ref").get<std::string>())) {
+                    reaches_freq(v.at("ref").get<std::string>())) {
                     memo[nid] = 1;
                     return true;
                 }
                 if (v.is_array())
                     for (const auto& e : v)
                         if (e.is_object() && e.contains("ref") &&
-                            direct_freq(e.at("ref").get<std::string>())) {
+                            reaches_freq(e.at("ref").get<std::string>())) {
                             memo[nid] = 1;
                             return true;
                         }
@@ -998,37 +1002,16 @@ static void bind_wiring(const std::unordered_map<std::string, json>& nodeMap,
     for (const auto& id : nodeOrder) {
         const auto& node = nodeMap.at(id);
         auto nIt = g.valueNodes.find(id);
-        // Chain-INTERNAL pins never graft. Legacy grafts exactly one pin per
-        // paramMap entry — the target pin on the consumer — never a pin inside
-        // the transfer chain feeding it. CurveNode.source is the only such pin
-        // that is a param_descriptor, so without this a converted curve chain
-        // grafts the curve's own INPUT and a bent note swaps the curve's x
-        // instead of leaving it alone. Caught by A/B: legacy renders a
-        // curve-fed bent note identically with and without the bend (no graft),
-        // wiring did not until this line existed. CombinedSource — the vcurve
-        // multiply — escapes anyway, since source1/source2 are
-        // input_descriptors and only param_descriptors are scanned.
-        const std::string nodeType = node.at("type").get<std::string>();
-        const bool chainInternal = (nodeType == "CurveNode" || nodeType == "PerformNode");
-        if (!chainInternal && nIt != g.valueNodes.end() && node.contains("params")) {
-            // Fixed pins wired to a direct-frequency chain join the graft.
-            // input_descriptors pins (CombinedSource source1/source2 and
-            // friends) are deliberately NOT scanned: the legacy graft only
-            // ever touched param_descriptors pins backed by a ConstantSource,
-            // so grafting a combiner input would be new behaviour, not a
-            // reproduction.
-            for (const auto& desc : nIt->second->param_descriptors()) {
-                if (!node["params"].contains(desc.name)) continue;
-                const auto& v = node["params"].at(desc.name);
-                if (!v.is_object() || !v.contains("ref")) continue;
-                const std::string srcId = v.at("ref").get<std::string>();
-                if (!direct_freq(srcId)) continue;
-                auto srcIt = g.valueNodes.find(srcId);
-                if (srcIt == g.valueNodes.end()) continue;
-                // `restore` is what the pin holds on unbent notes — the chain
-                // itself, exactly as build_bindings records it.
-                vg.bendSwaps.push_back({nIt->second, desc.name, srcIt->second});
-            }
+        if (nIt != g.valueNodes.end() && node.contains("params") &&
+            !nIt->second->tracks_frequency_live() &&
+            node["params"].contains("frequency")) {
+            const auto& v = node["params"].at("frequency");
+            if (v.is_object() && v.contains("ref") &&
+                reaches_freq(v.at("ref").get<std::string>()))
+                std::fprintf(stderr,
+                    "[loader] bend inert on '%s' (%s reads frequency once at "
+                    "note start; backlog 26a)\n",
+                    id.c_str(), nIt->second->type_name());
         }
         if (!node.contains("dynamicPins")) continue;
         auto nodeIt = g.valueNodes.find(id);
@@ -1068,14 +1051,21 @@ static void bind_wiring(const std::unordered_map<std::string, json>& nodeMap,
 // Create the voice's performance objects. Must run BEFORE build_graph now:
 // a PerformNode in the JSON resolves to these adapters during construction,
 // so they cannot be created afterwards.
-static PerformContext make_perform_context(PitchedInstrument::VoiceGraph& vg)
+static PerformContext make_perform_context(PitchedInstrument::VoiceGraph& vg,
+                                           std::shared_ptr<InstrumentState> is,
+                                           int sampleRate)
 {
     vg.performSource = std::make_shared<PerformSource>();
-    vg.freqOut = std::make_shared<PerformOut>(vg.performSource,
-                                              PerformOut::Field::Frequency);
-    vg.velOut  = std::make_shared<PerformOut>(vg.performSource,
-                                              PerformOut::Field::Velocity);
-    return PerformContext{vg.freqOut, vg.velOut};
+    vg.performSource->set_instrument_state(std::move(is), sampleRate);
+    vg.freqOut  = std::make_shared<PerformOut>(vg.performSource,
+                                               PerformOut::Field::Frequency);
+    vg.velOut   = std::make_shared<PerformOut>(vg.performSource,
+                                               PerformOut::Field::Velocity);
+    vg.wheelOut = std::make_shared<PerformOut>(vg.performSource,
+                                               PerformOut::Field::Wheel);
+    vg.pressOut = std::make_shared<PerformOut>(vg.performSource,
+                                               PerformOut::Field::Pressure);
+    return PerformContext{vg.freqOut, vg.velOut, vg.wheelOut, vg.pressOut};
 }
 
 // Convert the legacy paramMap, if the patch carries one. Runs after the graph
@@ -1139,7 +1129,8 @@ Patch load_patch_file(const std::string& path)
         // Build voice pool: N independent graph instances
         for (int v = 0; v < polyphony; ++v) {
             PitchedInstrument::VoiceGraph vg;
-            PerformContext perf = make_perform_context(vg);
+            PerformContext perf = make_perform_context(
+                vg, inst->instrumentState, sampleRate);
             auto g = build_graph(nodeMap, nodeOrder, sampleRate, &perf);
 
             // Find the top-level source for this voice
@@ -1221,7 +1212,8 @@ Patch load_patch_file(const std::string& path)
             // throwaway: mixer gain is patch-level and must not depend on note
             // state, so nothing here is ever read per note.
             PitchedInstrument::VoiceGraph mixThrowaway;
-            PerformContext mixPerf = make_perform_context(mixThrowaway);
+            PerformContext mixPerf = make_perform_context(
+                mixThrowaway, nullptr, sampleRate);
             auto gMix = build_graph(nodeMap, nodeOrder, sampleRate, &mixPerf);
             const auto& mp = mixIt->second["params"];
             mixer->gainL = resolve_param_or(mp, "gainL", 1.0f, gMix.valueNodes);
@@ -1348,7 +1340,8 @@ InstrumentPatch load_instrument_patch(const std::string& path,
 
     for (int v = 0; v < polyphony; ++v) {
         PitchedInstrument::VoiceGraph vg;
-        PerformContext perf = make_perform_context(vg);
+        PerformContext perf = make_perform_context(
+            vg, inst->instrumentState, sampleRate);
         auto g = build_graph(nodeMap, nodeOrder, sampleRate, &perf);
 
         auto srcIt = g.valueNodes.find(outputId);

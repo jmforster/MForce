@@ -104,23 +104,19 @@ struct PitchedInstrument final : Instrument {
     // --- PerformSource bindings (P1 conversion; ParamSlot path retires
     // once these are the only model — plan_perform_source_p1.md T7) ---
     std::shared_ptr<PerformSource> performSource;
-    std::shared_ptr<ValueSource>   freqOut, velOut;   // shared leaf adapters
+    // Shared leaf adapters (frequency articulates the bend as of P3 —
+    // the PitchBendSource graft and its BendSwap machinery are retired;
+    // plan_perform_source_p3.md T1).
+    std::shared_ptr<ValueSource>   freqOut, velOut, wheelOut, pressOut;
     std::vector<PushBinding>       pushBindings;
-    // Bend-graft swap targets (P1 keeps the legacy PitchBendSource graft;
-    // P3 retires it): exactly the entries the old path grafted — those with
-    // an empty freq-curve, INCLUDING vcurve-only entries (whose velocity
-    // multiplier the old graft dropped for the bent note; preserved
-    // verbatim). `restore` is what the pin holds on non-bent notes: the
-    // bare freqOut, or the vcurve chain.
-    struct BendSwap {
-      std::shared_ptr<ValueSource> consumer;
-      std::string                  paramName;
-      std::shared_ptr<ValueSource> restore;
-    };
-    std::vector<BendSwap> bendSwaps;
   };
 
   float hiBoost{0.0f};
+  // The instrument as played — mod wheel, channel pressure — outliving
+  // every note (perform_source_design.md §2.1). MIDI/UI threads store;
+  // each voice's PerformSource smooths and reports it.
+  std::shared_ptr<InstrumentState> instrumentState =
+      std::make_shared<InstrumentState>();
   std::vector<VoiceGraph> voicePool;
   int nextVoice{0};
 
@@ -163,6 +159,11 @@ struct PitchedInstrument final : Instrument {
     // master gain must ride along here or hot chains hit the caller's
     // soft_clip raw (UI keyboard distortion, 2026-08-09).
     float gain{1.0f};
+    // P3: the voice's sample clock. Streaming callers MUST call
+    // performSource->tick() once per sample before source->next(), or bend
+    // and wheel/pressure freeze at their note-on values. Null for graphs
+    // with no perform context.
+    std::shared_ptr<PerformSource> performSource;
   };
 
   StreamingVoice prepare_voice(float noteNumber, float velocity, float duration,
@@ -184,9 +185,24 @@ struct PitchedInstrument final : Instrument {
   // vg.source->prepare — settings rebuild per-note state there.
   void apply_note_bindings(VoiceGraph& vg, float freq, float velocity,
                            int durSamples, const PitchCurve* curve) {
-    if (vg.performSource)
-      vg.performSource->set_note(freq, velocity, durSamples);
+    if (vg.performSource) {
+      // P3: the bend rides the PerformSource itself — .frequency
+      // articulates base * 2^(bend(t)/12), advanced by tick() from the
+      // render driver. The PitchBendSource graft (and its swap targets)
+      // is retired; every consumer of the frequency chain sees the bend,
+      // including curve-fed pins the graft deliberately skipped
+      // (re-listen item, plan_perform_source_p3.md T1).
+      std::shared_ptr<Envelope> bend;
+      if (curve) {
+        bend = compile_pitch_curve(*curve, sampleRate);
+        bend->prepare(RenderContext{sampleRate}, durSamples);
+      }
+      vg.performSource->set_note(freq, velocity, durSamples, std::move(bend));
+    }
 
+    // Push deliveries evaluate the chain ONCE at note-on (Setup), so a bend
+    // never reaches a setting — dynamic pins stay frozen for the note by
+    // definition (pin_model_design.md §5).
     for (auto& b : vg.pushBindings) {
       b.chain->next();
       float v = b.chain->current();
@@ -198,16 +214,6 @@ struct PitchedInstrument final : Instrument {
         if (vg.topMultiplex && !b.targetNodeId.empty())
           vg.topMultiplex->set_clone_param(b.targetNodeId, b.paramName, v);
       }
-    }
-
-    if (curve) {
-      auto env = compile_pitch_curve(*curve, sampleRate);
-      auto pbs = std::make_shared<PitchBendSource>(freq, std::move(env));
-      for (auto& bs : vg.bendSwaps)
-        bs.consumer->set_param(bs.paramName, pbs);
-    } else {
-      for (auto& bs : vg.bendSwaps)
-        bs.consumer->set_param(bs.paramName, bs.restore);
     }
   }
 
@@ -229,7 +235,7 @@ struct PitchedInstrument final : Instrument {
     RenderContext ctx{ sampleRate };
     vg.source->prepare(ctx, durSamples);
 
-    return { vg.source, durSamples, gain };
+    return { vg.source, durSamples, gain, vg.performSource };
   }
 
   void play_note(float noteNumber, float velocity, float duration, float startTime,
@@ -252,8 +258,10 @@ struct PitchedInstrument final : Instrument {
     vg.source->prepare(ctx, durSamples);
 
     std::vector<float> buf(durSamples);
-    for (int i = 0; i < durSamples; ++i)
+    for (int i = 0; i < durSamples; ++i) {
+      if (vg.performSource) vg.performSource->tick();   // P3 sample clock
       buf[i] = vg.source->next() * gain;
+    }
 
     // Note-contained-sound check (2026-08-13 spec): output must be at the
     // audibility floor by duration end. WARN, never fail — a miss is a
