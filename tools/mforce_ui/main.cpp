@@ -109,6 +109,13 @@ static constexpr const char* NT_STEREO_MIXER  = "StereoMixer";
 static constexpr const char* NT_PATCH_OUTPUT  = "PatchOutput";
 static constexpr const char* NT_PARAMETER     = "Parameter";
 static constexpr const char* NT_ENVELOPE      = "Envelope";
+// PerformNode reports one field of the note being played. It has no engine
+// object in the editor: the real PerformOut adapter belongs to a VOICE, and
+// the editor is not a voice. create_dsp backs it with a ConstantSource holding
+// a plausible preview value so waveform previews and Listen taps show
+// something rather than silence — that value is a fiction of the canvas, never
+// of a render. Patch mode only; the engine throws "no voice context" otherwise.
+static constexpr const char* NT_PERFORM       = "PerformNode";
 
 static bool is_special_ui_type(const std::string& typeName) {
     return typeName == NT_SOUND_CHANNEL || typeName == NT_STEREO_MIXER
@@ -120,6 +127,8 @@ static std::string node_display_name(const std::string& typeName) {
     if (typeName == NT_STEREO_MIXER)  return "Mixer";
     if (typeName == NT_PATCH_OUTPUT)  return "Output";
     if (typeName == NT_PARAMETER)     return "Parameter";
+    if (typeName == NT_PERFORM)       return "Note";
+    if (typeName == "CurveNode")      return "Curve";
     // Strip "Source" suffix for cleaner display
     std::string name = typeName;
     if (name.size() > 6 && name.substr(name.size() - 6) == "Source")
@@ -146,6 +155,12 @@ static ImU32 node_title_color(const std::string& typeName) {
         return IM_COL32(120, 130, 145, 255);    // Blue grey — Output
     if (typeName == NT_PARAMETER)
         return IM_COL32(190, 140, 170, 255);    // Pink — Parameter
+    // The performance family, deliberately its own colour: these are the only
+    // nodes whose value comes from the NOTE rather than from the graph.
+    if (typeName == NT_PERFORM)
+        return IM_COL32(205, 170, 60, 255);     // Gold — Note (performance)
+    if (typeName == "CurveNode")
+        return IM_COL32(170, 145, 75, 255);     // Dark gold — Curve (transfer)
 
     auto& reg = SourceRegistry::instance();
     if (!reg.has(typeName)) return IM_COL32(128, 128, 128, 255);
@@ -272,6 +287,10 @@ struct GraphNode {
     // rename_node refuses it.
     bool synthesizedId{false};
 
+    // PerformNode: which field of the note this reports. 0 = frequency,
+    // 1 = velocity. Matches PerformOut::Field and the JSON "field" string.
+    int performField{0};
+
     GraphNode(const std::string& type) : id(next_id()), typeName(type), label(unique_node_label(type)) {
         build_pins();
         create_dsp();
@@ -296,6 +315,18 @@ struct GraphNode {
             // Parameter node's DSP is just its constantSrc from the "default" pin
             if (auto* p = find_input("default"))
                 dspSource = p->constantSrc;
+            return;
+        }
+
+        if (typeName == NT_PERFORM) {
+            // STAND-IN, not the real thing. The engine resolves a PerformNode
+            // to the voice's shared PerformOut adapter at load; the editor has
+            // no voice, so it holds a ConstantSource at a plausible value just
+            // so previews and Listen taps render something instead of silence.
+            // Nothing here reaches a CLI render — that path goes through the
+            // loader, which builds the real adapter.
+            dspSource = std::make_shared<ConstantSource>(
+                performField == 1 ? 0.8f : 440.0f);
             return;
         }
 
@@ -440,8 +471,16 @@ struct GraphNode {
             return;
         }
 
-        // Envelope: output only; ADSR params are config values shown in Properties
+        // Envelope: output only; ADSR params are setting values shown in Properties
         if (typeName == NT_ENVELOPE) {
+            outputs.emplace_back("out", PinKind::Output);
+            return;
+        }
+
+        // PerformNode: a leaf. One output, no inputs — its value comes from
+        // the note, not from the graph. Which field it reports is chosen in
+        // Properties, not wired.
+        if (typeName == NT_PERFORM) {
             outputs.emplace_back("out", PinKind::Output);
             return;
         }
@@ -1238,6 +1277,15 @@ static void load_graph_from_path(const std::string& path) {
                 // refs handled in second pass
             }
 
+            // PerformNode: which note field this reports. Not a pin — it is
+            // chosen, not wired. Re-create the preview source afterwards so
+            // the stand-in constant matches the field.
+            if (gn.typeName == NT_PERFORM) {
+                const std::string field = params.value("field", std::string("frequency"));
+                gn.performField = (field == "velocity") ? 1 : 0;
+                gn.create_dsp();
+            }
+
             // Restore formant table. New canonical form: params.formants is a
             // ref-array of owned Formant nodes, pulled into rows via the
             // pre-scan. Legacy form: inline struct array.
@@ -2004,6 +2052,13 @@ static void save_patch_graph(const std::string& path, bool tapOverride = false) 
         jnode["type"] = node.typeName;
 
         json params = json::object();
+
+        // PerformNode carries exactly one param and it is not a pin: the note
+        // field it reports. Emitted explicitly because the pin loop below has
+        // nothing to walk — the node has no inputs by design.
+        if (node.typeName == NT_PERFORM)
+            params["field"] = (node.performField == 1) ? "velocity" : "frequency";
+
         for (auto& pin : node.inputs) {
             bool isChannelPin = (pin.name.substr(0, 3) == "ch ");
             if (isChannelPin) continue;
