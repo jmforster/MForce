@@ -219,16 +219,28 @@ error" turned out to be only half true:
 Deliberately separable: the rename can land before, after, or never, without
 affecting anything else here.
 
-## 9. Open questions
+## 9. Settled (2026-08-19)
 
-1. **What may feed a dynamic pin?** Today, only a curve off the note. Options:
-   enforce that, or allow anything and let the once-per-note contract explain
-   the result. Matt: "it might be that Curve is the *only* thing these guys can
-   get." Must be settled before the UI can author connections.
-2. **Demotion semantics.** When a dynamic pin is demoted, the widget returns
-   holding *some* value. The setting's static value, or the last value the
-   chain produced? The former is predictable, the latter is what you just heard.
-3. **The rename** (§8).
+**1. What may feed a dynamic pin: a Curve, and nothing else — until we need
+something else.** (Matt.) Not a permanent restriction, a deliberate floor: the
+only thing anything has ever driven per note is a curve off the note, and
+allowing more invites the LFO-sampled-once-per-note surprise (§5) before anyone
+has asked for it.
+
+Implementation reading, reversible by design: **the editor offers only
+CurveNode** as a source when promoting; the **loader stays permissive**, since
+it already evaluates whatever it finds once per note. So "when we need
+something else" costs a UI change and no engine change. Enforcing it in the
+loader instead would have to be undone later.
+
+**2. Demotion restores the stowed scalar, not the last chain value.** (Matt.)
+Promotion stows the setting's static value; demotion puts it back and the
+widget returns holding it. The reasoning is that the last value a curve
+produced is whatever the final note happened to ask for — "unlikely to be the
+'overall average' you want if you decided against a curve." Predictable beats
+recently-audible here.
+
+**3. The rename** — ✓ approved and LANDED 2026-08-19 (commit c8432db). See §8.
 
 ## 10. Non-goals
 

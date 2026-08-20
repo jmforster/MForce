@@ -628,10 +628,14 @@ Priority order. Tags per WORKFLOW.md. (G1)-(G4) = GOALS.md Dipsy goals.
     **P2b = the UI half:** PerformNode/CurveNode as editor nodes, knot editor
     extending the existing Curves table + plot (not a new 2D canvas — Matt),
     grey→gold promotion, Curves/Mappings as derived views over the graph, save
-    emits the P2a format. Still open before authoring is possible
-    (`pin_model_design.md` §9): what may feed a dynamic pin — today only a
-    curve off the note, and Matt's read is "it might be that Curve is the
-    *only* thing these guys can get" — and demotion semantics.
+    emits the P2a format. **Nothing blocking left** — both open questions
+    answered by Matt 2026-08-19 (`pin_model_design.md` §9): a dynamic pin may
+    be fed by **a Curve and nothing else, until we need something else** (UI
+    restricts, loader stays permissive, so widening it later costs no engine
+    change); and **demotion restores the stowed scalar**, not the last chain
+    value, since the last value a curve produced is whatever the final note
+    asked for rather than the average you'd want having decided against a
+    curve.
     Standing warning: UI re-save of a patch using
     `Envelope.minValue`/`maxValue`/`Stage.nominal` DROPS them until the
     serializer learns them; don't hand-author those into library patches first.
