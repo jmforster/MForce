@@ -122,13 +122,32 @@ nlohmann::json, Python 3.
 
 ## Known bit-identity risks (the gate decides; do not pre-emptively "fix")
 
-1. **RefSource wrapping.** `build_bindings` calls `set_param` directly, so a
-   chain feeding N pins is shared raw. The generic param pass goes through
-   `resolve_param`, which wraps 2nd+ uses in `RefSource`
-   (`engine/src/patch_loader.cpp:286-295`). `PerformOut` and `CurveNode` are
-   both documented idempotent, so wrapping should be value-identical. **If
-   Task 6 shows diffs across unrelated patches**, exempt `PerformOut`/`CurveNode`
-   from usage counting in `resolve_param` — do not change the converter.
+1. **RefSource wrapping — HIT AND RESOLVED in Task 3.** `build_bindings` calls
+   `set_param` directly, so a chain feeding N pins is shared raw. The generic
+   param pass goes through `resolve_param`, which wraps 2nd+ uses in
+   `RefSource` (`engine/src/patch_loader.cpp:286-295`).
+
+   This is **not** a corner case in wiring format: one `__perf_freq` normally
+   feeds many pins (131 frequency targets across the library), so the wrapper
+   is the common path, not the exception.
+
+   It broke immediately. `RefSource::next()` returns `source->current()`
+   **without** pulling the source — it assumes the primary consumer already
+   did this sample. `PerformOut::current()` returned a cached `cur_` written
+   only by `next()`, so every wrapped copy reported 0 until the primary
+   happened to pull. First symptom: `ERROR: WaveSource: non-positive
+   frequency` the moment a PerformNode fed two consumers.
+
+   **Fix applied — make `PerformOut` stateless**, not exempt it from usage
+   counting as an earlier draft of this plan suggested. It is a pure view over
+   `NoteState`, constant between `set_note` calls, so there was never anything
+   to cache; `next()` and `current()` both read live. This fixes the root
+   cause, keeps `RefSource` working as designed, and adds no special case to
+   the loader. Bit-identical for P1's direct (unwrapped) uses, since the value
+   only changes at `set_note`.
+
+   `CurveNode` needs no equivalent change: its `next()` does pull its source,
+   so a wrapped copy's `current()` is valid once the primary has run.
 2. **Multiplex clones.** P1 pushes into clones (`set_clone_param`); wiring
    format instead pulls, because `extract_subgraph_json` drags the referenced
    chain into each clone's subtree and each clone builds its own CurveNode
@@ -577,30 +596,45 @@ high notes don't. `sustainLevel` appears twice and that is correct: the scalar
 in `params` is what construction reads, the ref in `dynamicPins` is what
 overrides it per note.
 
+**Patch-shape rules learned in Task 2 — get these wrong and the failure is
+silent or misleading:**
+- Instrument patches nest the graph under **`"graph"`**; both instrument load
+  paths do `root.at("graph").at("nodes")` (`patch_loader.cpp:965`, `:1169`).
+  Top-level `"nodes"` is NodeGraph-mode only and throws here.
+- A score note's start time key is **`"time"`**, not `"start"`
+  (`patch_loader.cpp:1026`). A wrong key is silently 0.0, so every note stacks
+  at the origin.
+- **`"seconds"` is inert** on the instrument path — render length comes from
+  the score's last `time + duration` (`patch_loader.cpp:1052`). Don't include
+  it; a key that does nothing is the failure class this project keeps hitting.
+- Measured DC/peak values carry a **mono→stereo −3 dB factor** (×0.7071,
+  backlog 3d). Divide it out before comparing against theory.
+
 ```json
 {
   "sampleRate": 48000,
-  "nodes": [
-    { "id": "__perf_freq", "type": "PerformNode", "params": { "field": "frequency" } },
-    { "id": "__curve_sus", "type": "CurveNode",
-      "params": { "interp": "logx",
-                  "knots": [[110.0, 0.9], [880.0, 0.05]],
-                  "source": { "ref": "__perf_freq" } } },
-    { "id": "tone", "type": "SineSource",
-      "params": { "frequency": { "ref": "__perf_freq" }, "amplitude": 1.0 } },
-    { "id": "env", "type": "Envelope",
-      "params": { "preset": "adsr", "attack": 0.01, "decay": 0.05,
-                  "sustainLevel": 0.7, "release": 0.1 },
-      "dynamicPins": { "sustainLevel": { "ref": "__curve_sus" } } },
-    { "id": "out", "type": "CombinedSource",
-      "params": { "source1": { "ref": "tone" }, "source2": { "ref": "env" },
-                  "operation": "multiply", "gainAdj": 0.0 } }
-  ],
-  "output": "out",
+  "graph": {
+    "nodes": [
+      { "id": "__perf_freq", "type": "PerformNode", "params": { "field": "frequency" } },
+      { "id": "__curve_sus", "type": "CurveNode",
+        "params": { "interp": "logx",
+                    "knots": [[110.0, 0.9], [880.0, 0.05]],
+                    "source": { "ref": "__perf_freq" } } },
+      { "id": "tone", "type": "SineSource",
+        "params": { "frequency": { "ref": "__perf_freq" }, "amplitude": 1.0 } },
+      { "id": "env", "type": "Envelope",
+        "params": { "preset": "adsr", "attack": 0.01, "decay": 0.05,
+                    "sustainLevel": 0.7, "release": 0.1 },
+        "dynamicPins": { "sustainLevel": { "ref": "__curve_sus" } } },
+      { "id": "out", "type": "CombinedSource",
+        "params": { "source1": { "ref": "tone" }, "source2": { "ref": "env" },
+                    "operation": "multiply", "gainAdj": 0.0 } }
+    ],
+    "output": "out"
+  },
   "instrument": { "polyphony": 4, "volume": 1.0 },
-  "score": [ { "note": 57, "start": 0.0, "duration": 0.8, "velocity": 0.8 },
-             { "note": 81, "start": 1.0, "duration": 0.8, "velocity": 0.8 } ],
-  "seconds": 2.0
+  "score": [ { "note": 45, "time": 0.0, "duration": 0.8, "velocity": 0.8 },
+             { "note": 81, "time": 1.0, "duration": 0.8, "velocity": 0.8 } ]
 }
 ```
 

@@ -36,19 +36,26 @@ struct PerformOut final : ValueSource {
       : ps_(std::move(ps)), field_(f) {}
 
   void prepare(const RenderContext&, int) override {}
-  float next() override {
-    cur_ = field_ == Field::Frequency ? ps_->note().frequency
-                                      : ps_->note().velocity;
-    return cur_;
-  }
-  float current() const override { return cur_; }
+  // Stateless view over NoteState — there is nothing to cache, because the
+  // value is constant between set_note calls. current() must read live, NOT
+  // a value stashed by next(): RefSource::next() returns source->current()
+  // WITHOUT pulling the source (it assumes the primary consumer already did),
+  // so a cached cur_ made every RefSource-wrapped copy report 0 until the
+  // primary happened to pull. That surfaced as "WaveSource: non-positive
+  // frequency" the first time one PerformNode fed two consumers — which is
+  // the normal case for a converted patch, where one node feeds many pins.
+  float next() override { return read_(); }
+  float current() const override { return read_(); }
   const char* type_name() const override { return "PerformOut"; }
   SourceCategory category() const override { return SourceCategory::Modulator; }
 
 private:
+  float read_() const {
+    return field_ == Field::Frequency ? ps_->note().frequency
+                                      : ps_->note().velocity;
+  }
   std::shared_ptr<PerformSource> ps_;
   Field field_;
-  float cur_{0.0f};
 };
 
 } // namespace mforce

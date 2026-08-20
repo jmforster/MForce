@@ -91,7 +91,7 @@ struct PitchedInstrument final : Instrument {
     std::string                      targetNodeId;  // Multiplex clone fan
     std::shared_ptr<ValueSource>     chain;
     std::shared_ptr<ConstantSource>  cs;            // non-setting delivery
-    bool                             isConfig{false};
+    bool                             isSetting{false};
   };
 
   struct VoiceGraph {
@@ -190,7 +190,7 @@ struct PitchedInstrument final : Instrument {
     for (auto& b : vg.pushBindings) {
       b.chain->next();
       float v = b.chain->current();
-      if (b.isConfig) {
+      if (b.isSetting) {
         b.consumer->set_setting(b.paramName, v);
       } else {
         b.cs->set(v);

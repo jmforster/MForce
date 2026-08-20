@@ -1,0 +1,26 @@
+{
+  "_comment": "Wiring-format baseline for dynamic pins (plan_perform_source_p2a.md Task 3). Note pitch drives the Envelope's sustainLevel SETTING through a curve: low notes sustain (0.9 at 110 Hz), high notes die (0.05 at 880 Hz). sustainLevel appears twice on purpose — the scalar in params is what construction reads, the ref in dynamicPins is what overrides it per note. Settings live outside params because node construction reads params before any descriptor is known, and envelope_from_preset_json would throw on an object where it wants a number.",
+  "sampleRate": 48000,
+  "graph": {
+    "nodes": [
+      { "id": "__perf_freq", "type": "PerformNode", "params": { "field": "frequency" } },
+      { "id": "__curve_sus", "type": "CurveNode",
+        "params": { "interp": "logx",
+                    "knots": [[110.0, 0.9], [880.0, 0.05]],
+                    "source": { "ref": "__perf_freq" } } },
+      { "id": "tone", "type": "SineSource",
+        "params": { "frequency": { "ref": "__perf_freq" }, "amplitude": 1.0 } },
+      { "id": "env", "type": "Envelope",
+        "params": { "preset": "adsr", "attack": 0.01, "decay": 0.05,
+                    "sustainLevel": 0.7, "release": 0.1 },
+        "dynamicPins": { "sustainLevel": { "ref": "__curve_sus" } } },
+      { "id": "out", "type": "CombinedSource",
+        "params": { "source1": { "ref": "tone" }, "source2": { "ref": "env" },
+                    "operation": "multiply", "gainAdj": 0.0 } }
+    ],
+    "output": "out"
+  },
+  "instrument": { "polyphony": 4, "volume": 1.0 },
+  "score": [ { "note": 45, "time": 0.0, "duration": 0.8, "velocity": 0.8 },
+             { "note": 81, "time": 1.0, "duration": 0.8, "velocity": 0.8 } ]
+}

@@ -4594,7 +4594,7 @@ static bool draw_one_curve(const std::string& paramName, nlohmann::json& obj) {
 // ConstantSource (value pins not wired to a source) plus all scalar
 // configs (delivered via set_setting). Shared by the Curves tab's Add-curve
 // section and the Parameter-mappings dialog.
-struct TargetOpt { std::string name; float current; bool isConfig; };
+struct TargetOpt { std::string name; float current; bool isSetting; };
 static std::vector<TargetOpt> eligible_targets(GraphNode* tn) {
     std::vector<TargetOpt> opts;
     for (auto& pin : tn->inputs) {
@@ -4772,7 +4772,7 @@ static void draw_mappings_dialog() {
         for (int i = 0; i < (int)opts.size(); ++i) {
             char lbl[160];
             snprintf(lbl, sizeof(lbl), "%s%s##mt%d", opts[i].name.c_str(),
-                     opts[i].isConfig ? "  (setting)" : "", i);
+                     opts[i].isSetting ? "  (setting)" : "", i);
             if (ImGui::Selectable(lbl, i == selTarget)) selTarget = i;
         }
         ImGui::EndCombo();
@@ -4967,7 +4967,7 @@ static void draw_curves_window() {
                 paramNames[selParam], tn->label + "." + opts[i].name);
             char lbl[160];
             snprintf(lbl, sizeof(lbl), "%s%s%s##%d", opts[i].name.c_str(),
-                     opts[i].isConfig ? "  (setting)" : "",
+                     opts[i].isSetting ? "  (setting)" : "",
                      hasCurve ? "  (has curve)" : "", i);
             if (ImGui::Selectable(lbl, i == selTarget)) selTarget = i;
         }

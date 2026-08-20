@@ -785,7 +785,7 @@ build_subgraph_with_seed_perturbation(
 // §5; replaces resolve_param_map as the runtime model — the JSON stays the
 // supported legacy authoring format, converted here at load).
 // Decision matrix per "frequency" entry:
-//   1. setting target            -> PushBinding (isConfig, chain evaluated at
+//   1. setting target            -> PushBinding (isSetting, chain evaluated at
 //                                  note time, delivered via set_setting)
 //   2. voice has topMultiplex   -> PushBinding for EVERY entry (clone fan
 //                                  keeps push semantics wholesale, bit-safe)
@@ -886,7 +886,7 @@ static void build_bindings(const json& paramMapJson, const GraphResult& g,
                 b.targetNodeId = nodeId;
                 b.chain = make_chain(curve, vcurve, loglog);
                 b.cs = nullptr;
-                b.isConfig = true;
+                b.isSetting = true;
                 vg.pushBindings.push_back(std::move(b));
                 return;
             }
@@ -926,6 +926,60 @@ static void build_bindings(const json& paramMapJson, const GraphResult& g,
             for (const auto& t : targetJson) bind_entry(name, t);
         } else {
             bind_entry(name, targetJson);
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Wiring-format bindings (pin_model_design.md §3, §11). The generic param pass
+// already wires refs on ordinary (FIXED) pins; this pass handles DYNAMIC pins:
+// a node's "dynamicPins" object, naming the settings this patch drives per
+// note.
+//
+// Settings rebuild internal state and have no pointer to pull, so the chain is
+// evaluated ONCE per note and pushed via set_setting. They live outside
+// "params" because node CONSTRUCTION reads params before any descriptor is
+// known — envelope_from_preset_json does p.value("sustainLevel", 0.7f), and
+// nlohmann's value() throws on an object where it wants a number.
+// ---------------------------------------------------------------------------
+static void bind_wiring(const std::unordered_map<std::string, json>& nodeMap,
+                        const std::vector<std::string>& nodeOrder,
+                        const GraphResult& g,
+                        PitchedInstrument::VoiceGraph& vg)
+{
+    for (const auto& id : nodeOrder) {
+        const auto& node = nodeMap.at(id);
+        if (!node.contains("dynamicPins")) continue;
+        auto nodeIt = g.valueNodes.find(id);
+        if (nodeIt == g.valueNodes.end()) continue;
+        const auto& consumer = nodeIt->second;
+
+        for (const auto& [key, v] : node["dynamicPins"].items()) {
+            if (!v.is_object() || !v.contains("ref"))
+                throw std::runtime_error("wiring: '" + id + ".dynamicPins." + key +
+                                         "' must be a {\"ref\": ...} object");
+            bool isSetting = false;
+            for (const auto& desc : consumer->setting_descriptors())
+                if (key == desc.name) { isSetting = true; break; }
+            if (!isSetting)
+                throw std::runtime_error("wiring: '" + id + ".dynamicPins." + key +
+                    "' is not a setting on " + consumer->type_name() +
+                    " (fixed pins belong in \"params\")");
+
+            const std::string srcId = v.at("ref").get<std::string>();
+            auto srcIt = g.valueNodes.find(srcId);
+            if (srcIt == g.valueNodes.end())
+                throw std::runtime_error("wiring: '" + id + "." + key +
+                                         "' refs unknown node '" + srcId + "'");
+
+            PitchedInstrument::PushBinding b;
+            b.consumer     = consumer;
+            b.paramName    = key;
+            b.targetNodeId = id;
+            b.chain        = srcIt->second;
+            b.cs           = nullptr;
+            b.isSetting    = true;
+            vg.pushBindings.push_back(std::move(b));
         }
     }
 }
@@ -1019,6 +1073,11 @@ Patch load_patch_file(const std::string& path)
 
             // Per-voice PerformSource + converted paramMap bindings
             attach_perform_source(instJson, g, vg);
+            // Legacy paramMap first, then wiring format: a patch carrying both
+            // resolves its legacy entries exactly as today and the wiring pass
+            // appends. No gated patch carries both; the order is fixed so a
+            // hybrid, if one ever appears, is deterministic.
+            bind_wiring(nodeMap, nodeOrder, g, vg);
 
             inst->voicePool.push_back(std::move(vg));
         }
@@ -1211,6 +1270,7 @@ InstrumentPatch load_instrument_patch(const std::string& path,
         vg.topMultiplex = std::dynamic_pointer_cast<MultiplexSource>(vg.source);
 
         attach_perform_source(instJson, g, vg);
+        bind_wiring(nodeMap, nodeOrder, g, vg);
 
         inst->voicePool.push_back(std::move(vg));
     }
