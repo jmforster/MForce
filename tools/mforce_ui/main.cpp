@@ -1518,6 +1518,13 @@ static void load_graph_from_path(const std::string& path) {
         // shape survives a load→save, but params/links through it are lost —
         // surface that instead of failing silently.
         if (!is_special_ui_type(type) && type != NT_ENVELOPE &&
+            type != NT_PERFORM &&   // UI-special like Parameter/Output: the
+                                    // engine resolves it per voice, the editor
+                                    // has its own branch — NOT unknown. The
+                                    // exemption list predates PerformNode and
+                                    // fired a false "loaded inert" on every
+                                    // converted patch's first human load
+                                    // (Matt, 2026-08-20).
             type != "FormantSpectrum" && !SourceRegistry::instance().has(type) &&
             std::find(unknownTypes.begin(), unknownTypes.end(), type) == unknownTypes.end())
             unknownTypes.push_back(type);
