@@ -21,6 +21,10 @@ struct InstrumentPatch {
   int sampleRate{48000};
 };
 
-InstrumentPatch load_instrument_patch(const std::string& path);
+// minPolyphony: floor on the voice-pool size (0 = respect the patch's own
+// "polyphony" value). Live-keyboard callers pass a floor so patches authored
+// with small pools (default 4) still give an 88-key board enough voices.
+InstrumentPatch load_instrument_patch(const std::string& path,
+                                      int minPolyphony = 0);
 
 } // namespace mforce

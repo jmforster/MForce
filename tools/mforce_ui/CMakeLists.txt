@@ -31,6 +31,7 @@ target_link_libraries(mforce_ui PRIVATE
   mforce_engine
   glfw
   rtaudio
+  rtmidi
   opengl32
   comdlg32
 )
