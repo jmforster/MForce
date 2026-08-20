@@ -6850,10 +6850,75 @@ static void draw_properties_panel() {
         for (auto& [desc, val] : node->settingValues) {
             ImGui::Text("%s", desc.name);
             ImGui::SameLine(labelW);
+
+            // --- Promotion (pin_model_design.md §6) ---
+            // Float settings are eligible; int/bool/enum are structural and
+            // never get a pin. Promoted = a DYNAMIC PIN: evaluated once at
+            // note-on and frozen for the note.
+            const bool eligible = (desc.type == SettingType::Float) && !desc.enum_labels;
+            const bool promoted = node->dynamicPins.contains(desc.name);
+            ImGui::PushID(desc.name);
+
+            if (promoted) {
+                const std::string ref = node->dynamicPins[desc.name].is_object()
+                    ? node->dynamicPins[desc.name].value("ref", std::string("?"))
+                    : std::string("?");
+                ImGui::TextColored(ImVec4(0.85f, 0.72f, 0.30f, 1), "<- %s", ref.c_str());
+                if (ImGui::IsItemHovered())
+                    ImGui::SetTooltip("Dynamic pin: driven once per note by '%s'.\n"
+                                      "The value below is what it returns to if demoted.",
+                                      ref.c_str());
+                ImGui::SameLine();
+                if (ImGui::SmallButton("demote")) {
+                    // Restores the STOWED SCALAR, not the last value the chain
+                    // produced (Matt 2026-08-19): the last curve value is
+                    // whatever the final note asked for, not the average you
+                    // want having decided against a curve. The scalar was never
+                    // overwritten — it lives in settingValues and is emitted to
+                    // params whether or not the setting is promoted — so
+                    // demotion is simply dropping the dynamic pin.
+                    node->dynamicPins.erase(desc.name);
+                    node->apply_config();   // push the stowed scalar back to the DSP
+                    mark_graph_dirty();
+                }
+                ImGui::PopID();
+                continue;
+            }
+
+            if (eligible) {
+                // Grey pin: click to promote. Only a CurveNode may feed a
+                // dynamic pin (Matt 2026-08-19: "a Curve and nothing else,
+                // until we need something else") — the editor enforces that
+                // floor; the loader stays permissive, so widening it later
+                // costs no engine change.
+                std::vector<GraphNode*> curves;
+                for (auto& c : s_nodes)
+                    if (c.typeName == "CurveNode") curves.push_back(&c);
+                ImGui::TextColored(ImVec4(0.45f, 0.45f, 0.45f, 1), "%s", "o");
+                if (ImGui::IsItemHovered())
+                    ImGui::SetTooltip(curves.empty()
+                        ? "Promote to a dynamic pin — needs a Curve node to drive it.\nAdd one first."
+                        : "Promote to a dynamic pin (driven once per note).");
+                ImGui::SameLine();
+                if (!curves.empty() && ImGui::SmallButton("promote")) ImGui::OpenPopup("promote");
+                if (ImGui::BeginPopup("promote")) {
+                    ImGui::TextDisabled("Drive %s from:", desc.name);
+                    for (auto* c : curves)
+                        if (ImGui::Selectable(c->label.c_str())) {
+                            node->dynamicPins[desc.name] = {{"ref", c->label}};
+                            mark_graph_dirty();
+                        }
+                    ImGui::EndPopup();
+                }
+                ImGui::SameLine();
+            }
+            ImGui::PopID();
+
             if (const char* badge = mapping_badge(node->label, desc.name)) {
                 ImGui::TextColored(ImVec4(0.5f, 0.8f, 0.5f, 1), "%s", badge);
                 if (ImGui::IsItemHovered())
-                    ImGui::SetTooltip("Driven per note by the paramMap — edit in\nEdit > Parameter mapping (curve shapes in Curves).");
+                    ImGui::SetTooltip("Driven per note by a legacy paramMap entry\n"
+                                      "(not convertible to a node). Edit in Curves.");
                 continue;
             }
             ImGui::PushItemWidth(widgetW);
