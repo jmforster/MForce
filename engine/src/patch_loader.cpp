@@ -947,8 +947,89 @@ static void bind_wiring(const std::unordered_map<std::string, json>& nodeMap,
                         const GraphResult& g,
                         PitchedInstrument::VoiceGraph& vg)
 {
+    // Bend-graft membership, reproduced from graph shape. P1 keeps the legacy
+    // PitchBendSource graft and records a BendSwap for exactly the paramMap
+    // entries whose FREQUENCY curve is empty — bare targets and vcurve-only
+    // targets both (build_bindings, "Old graft membership"). The equivalent
+    // rule here: a wired fixed pin is a bend-swap target when the path from
+    // that pin down to a PerformNode(field=frequency) crosses no CurveNode.
+    // A bare ref qualifies; Combined(PerformNode, CurveNode(velocity)) — the
+    // vcurve-only shape — also qualifies, because its frequency leg is direct.
+    // A freq-curve chain does not. Works on JSON rather than built objects
+    // because the question is which node TYPES lie on the path.
+    // P3 deletes all of this; until then it must be reproduced faithfully or
+    // converted bend baselines diff.
+    std::unordered_map<std::string, int> memo;   // 1 = yes, 0 = no
+    std::function<bool(const std::string&)> direct_freq =
+        [&](const std::string& nid) -> bool {
+            auto m = memo.find(nid);
+            if (m != memo.end()) return m->second == 1;
+            memo[nid] = 0;                        // cycle guard: assume no
+            auto it = nodeMap.find(nid);
+            if (it == nodeMap.end()) return false;
+            const auto& n = it->second;
+            const std::string t = n.at("type").get<std::string>();
+            if (t == "CurveNode") return false;   // a curve on the path disqualifies
+            if (t == "PerformNode") {
+                const bool isFreq =
+                    !n.contains("params") ||
+                    n["params"].value("field", std::string("frequency")) == "frequency";
+                memo[nid] = isFreq ? 1 : 0;
+                return isFreq;
+            }
+            if (!n.contains("params")) return false;
+            for (const auto& [k, v] : n["params"].items()) {
+                if (v.is_object() && v.contains("ref") &&
+                    direct_freq(v.at("ref").get<std::string>())) {
+                    memo[nid] = 1;
+                    return true;
+                }
+                if (v.is_array())
+                    for (const auto& e : v)
+                        if (e.is_object() && e.contains("ref") &&
+                            direct_freq(e.at("ref").get<std::string>())) {
+                            memo[nid] = 1;
+                            return true;
+                        }
+            }
+            return false;
+        };
+
     for (const auto& id : nodeOrder) {
         const auto& node = nodeMap.at(id);
+        auto nIt = g.valueNodes.find(id);
+        // Chain-INTERNAL pins never graft. Legacy grafts exactly one pin per
+        // paramMap entry — the target pin on the consumer — never a pin inside
+        // the transfer chain feeding it. CurveNode.source is the only such pin
+        // that is a param_descriptor, so without this a converted curve chain
+        // grafts the curve's own INPUT and a bent note swaps the curve's x
+        // instead of leaving it alone. Caught by A/B: legacy renders a
+        // curve-fed bent note identically with and without the bend (no graft),
+        // wiring did not until this line existed. CombinedSource — the vcurve
+        // multiply — escapes anyway, since source1/source2 are
+        // input_descriptors and only param_descriptors are scanned.
+        const std::string nodeType = node.at("type").get<std::string>();
+        const bool chainInternal = (nodeType == "CurveNode" || nodeType == "PerformNode");
+        if (!chainInternal && nIt != g.valueNodes.end() && node.contains("params")) {
+            // Fixed pins wired to a direct-frequency chain join the graft.
+            // input_descriptors pins (CombinedSource source1/source2 and
+            // friends) are deliberately NOT scanned: the legacy graft only
+            // ever touched param_descriptors pins backed by a ConstantSource,
+            // so grafting a combiner input would be new behaviour, not a
+            // reproduction.
+            for (const auto& desc : nIt->second->param_descriptors()) {
+                if (!node["params"].contains(desc.name)) continue;
+                const auto& v = node["params"].at(desc.name);
+                if (!v.is_object() || !v.contains("ref")) continue;
+                const std::string srcId = v.at("ref").get<std::string>();
+                if (!direct_freq(srcId)) continue;
+                auto srcIt = g.valueNodes.find(srcId);
+                if (srcIt == g.valueNodes.end()) continue;
+                // `restore` is what the pin holds on unbent notes — the chain
+                // itself, exactly as build_bindings records it.
+                vg.bendSwaps.push_back({nIt->second, desc.name, srcIt->second});
+            }
+        }
         if (!node.contains("dynamicPins")) continue;
         auto nodeIt = g.valueNodes.find(id);
         if (nodeIt == g.valueNodes.end()) continue;

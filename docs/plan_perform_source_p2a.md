@@ -822,7 +822,23 @@ Add `#include <functional>` if not already present.
 
 After the `dynamicPins` block, inside the per-node loop:
 
+**Chain-internal pins must be excluded**, or the graft lands in the wrong
+place. Legacy grafts exactly one pin per paramMap entry — the target pin on the
+consumer — never a pin *inside* the transfer chain feeding it.
+`CurveNode.source` is the only chain-internal input that is a
+`param_descriptor`, so without this the converted curve chain grafts the
+curve's own **x input**, and a bent note swaps what the curve reads instead of
+leaving it alone. `CombinedSource` (the vcurve multiply) escapes anyway,
+because `source1`/`source2` are `input_descriptors` and only
+`param_descriptors` are scanned.
+
+Caught by A/B, not by inspection: legacy renders a curve-fed bent note
+identically with and without the bend (proving it does not graft), and the
+wiring path did not match until this exclusion existed.
+
 ```cpp
+        const std::string nodeType = node.at("type").get<std::string>();
+        if (nodeType == "CurveNode" || nodeType == "PerformNode") continue;
         if (!node.contains("params")) continue;
         for (const auto& desc : consumer->param_descriptors()) {
             if (!node["params"].contains(desc.name)) continue;
