@@ -116,6 +116,18 @@ the lane, not the session.
   same cycle — a cli-only rebuild leaves Matt's UI on a different engine
   (2026-08-01: stale-banner fired because a revert rebuilt cli only).
   `mforce_ui.exe --stamp` must exit 0 before the cycle closes.
+- A running mforce_ui.exe is NOT a blocker for engine work (Matt,
+  2026-08-20). The lock is on the final link of one exe only. Rename the
+  running exe (mforce_ui_locked_<date>.exe), link the new build into
+  place, `--stamp` exit 0 — Matt's open windows keep running the renamed
+  image and pick up the new build on restart. If rename genuinely fails,
+  complete ALL the code anyway, ask Matt to close the UI, relink after.
+  Never drop engine fronts because the UI is up.
+- Regression scope is patches/library/ (plus baselines/ when relevant),
+  NOT the full tree (Matt, 2026-08-20). ~95% of patches outside library/
+  are Claude-generated variants/sweeps/scratch; full-corpus byte-identical
+  sweeps (196 patches, 1200 renders) are not required and must not hold
+  up work. library/ is the Matt-approved set and the regression set.
 - Any "steering" aka ideas on approach or steps toward goal Matt happens
   to include in GOALS.md should be taken as suggestions, not instructions.
   Especially in dsp lane we are treading a lot of already-trodden ground,
