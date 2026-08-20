@@ -4920,6 +4920,123 @@ static bool draw_one_curve(const std::string& paramName, nlohmann::json& obj) {
     return deleteMe;
 }
 
+// ---------------------------------------------------------------------------
+// Editor for a real CurveNode in the graph (P2b). The stash-based editor above
+// still serves entries that could not be converted (owned formant children);
+// this one edits the node, which is where every converted patch's curves now
+// live. Same table + plot idiom deliberately — Matt asked for the existing
+// table extended, not a new 2D canvas.
+//
+// Describes itself by what it FEEDS, not by its own id: "__curve_3" means
+// nothing, "-> KSPianoString1.t60" is the thing being shaped.
+// ---------------------------------------------------------------------------
+static std::string curve_node_destination(const GraphNode& curve) {
+    for (const auto& n : s_nodes) {
+        for (auto& [key, val] : n.dynamicPins.items())
+            if (val.is_object() && val.value("ref", std::string()) == curve.label)
+                return n.label + "." + key + "  (per note)";
+        for (const auto& link : s_links) {
+            const Pin* src = find_pin(link.startPinId);
+            const Pin* dst = find_pin(link.endPinId);
+            if (!src || !dst) continue;
+            const GraphNode* srcNode = find_node_for_pin(link.startPinId);
+            const GraphNode* dstNode = find_node_for_pin(link.endPinId);
+            if (srcNode && dstNode && srcNode->id == curve.id && dstNode->id == n.id)
+                return n.label + "." + dst->name;
+        }
+    }
+    return "(not connected)";
+}
+
+// Returns true if anything changed.
+static bool draw_curve_node(GraphNode& node) {
+    bool changed = false;
+    char header[256];
+    snprintf(header, sizeof(header), "%s -> %s##cn%d",
+             node.label.c_str(), curve_node_destination(node).c_str(), node.id);
+    if (!ImGui::CollapsingHeader(header, ImGuiTreeNodeFlags_DefaultOpen))
+        return false;
+
+    ImGui::PushID(node.id);
+    ImGui::SetNextItemWidth(120.0f);
+    const char* kInterp[] = {"linear", "logx", "loglog"};
+    if (ImGui::Combo("interp", &node.curveInterp, kInterp, 3)) changed = true;
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("logx: value linear in log(x) — this is exactly\n"
+                          "linear in semitones, which is why pitch curves use it.\n"
+                          "loglog: a 2-knot segment is exactly y = k*x^n.");
+
+    int removeIdx = -1;
+    if (ImGui::BeginTable("knots", 3, ImGuiTableFlags_SizingFixedFit)) {
+        for (int r = 0; r < (int)node.curveKnots.size(); ++r) {
+            ImGui::TableNextRow();
+            ImGui::PushID(r);
+            ImGui::TableNextColumn();
+            ImGui::SetNextItemWidth(90.0f);
+            float x = node.curveKnots[r].first;
+            if (ImGui::InputFloat("##x", &x, 0.0f, 0.0f, "%.4g")) {
+                node.curveKnots[r].first = std::max(0.0001f, x);  // log-x needs > 0
+                changed = true;
+            }
+            ImGui::TableNextColumn();
+            ImGui::SetNextItemWidth(90.0f);
+            float y = node.curveKnots[r].second;
+            if (ImGui::InputFloat("##y", &y, 0.0f, 0.0f, "%.4g")) {
+                node.curveKnots[r].second = y;
+                changed = true;
+            }
+            ImGui::TableNextColumn();
+            // The engine needs >= 2 knots; below that CurveNode is identity.
+            if (node.curveKnots.size() > 2 && ImGui::SmallButton("x")) removeIdx = r;
+            ImGui::PopID();
+        }
+        ImGui::EndTable();
+    }
+    if (removeIdx >= 0) {
+        node.curveKnots.erase(node.curveKnots.begin() + removeIdx);
+        changed = true;
+    }
+    if (ImGui::SmallButton("+ knot")) {
+        float lastX = node.curveKnots.empty() ? 100.0f : node.curveKnots.back().first;
+        float lastY = node.curveKnots.empty() ? 0.0f   : node.curveKnots.back().second;
+        node.curveKnots.emplace_back(lastX * 2.0f, lastY);
+        changed = true;
+    }
+
+    if (changed) {
+        std::stable_sort(node.curveKnots.begin(), node.curveKnots.end(),
+                         [](const auto& a, const auto& b) { return a.first < b.first; });
+        if (auto* cn = dynamic_cast<CurveNode*>(node.dspSource.get())) {
+            cn->knots = node.curveKnots;
+            cn->interp = static_cast<CurveNode::CurveInterp>(node.curveInterp);
+        }
+        mark_graph_dirty();
+    }
+
+    // Plot, evaluated through the ENGINE's own map() rather than a mirror of
+    // it — the node is right here, so there is nothing to keep in sync.
+    if (node.curveKnots.size() >= 2) {
+        CurveNode probe;
+        probe.knots = node.curveKnots;
+        probe.interp = static_cast<CurveNode::CurveInterp>(node.curveInterp);
+        float lo = node.curveKnots.front().first;
+        float hi = node.curveKnots.back().first;
+        if (lo > 0.0f && hi > lo) {
+            constexpr int N = 128;
+            float samples[N];
+            for (int i = 0; i < N; ++i)
+                samples[i] = probe.map(lo * std::pow(hi / lo, float(i) / float(N - 1)));
+            char overlay[64];
+            snprintf(overlay, sizeof(overlay), "%.4g .. %.4g (log x)", lo, hi);
+            ImGui::PlotLines("##cnplot", samples, N, 0, overlay, FLT_MAX, FLT_MAX,
+                             ImVec2(ImGui::GetContentRegionAvail().x, 70.0f));
+        }
+    }
+    ImGui::PopID();
+    ImGui::Spacing();
+    return changed;
+}
+
 // Eligible mapping targets on a node: pins the loader can resolve to a
 // ConstantSource (value pins not wired to a source) plus all scalar
 // configs (delivered via set_setting). Shared by the Curves tab's Add-curve
@@ -5180,12 +5297,33 @@ static void draw_curves_window() {
         ImGui::TextDisabled("Filtered to node '%s' (deselect to show all)",
                             filterLabel.c_str());
 
-    // --- Existing curve entries ---
+    // --- Real CurveNodes in the graph (P2b) ---
+    // Every converted patch's curves live here now. Listed first because this
+    // is where curves ARE; the stash section below survives only for entries
+    // that could not be converted.
+    int curveNodeCount = 0;
+    for (auto& n : s_nodes) {
+        if (n.typeName != "CurveNode") continue;
+        if (!filterLabel.empty() &&
+            curve_node_destination(n).rfind(filterLabel + ".", 0) != 0 &&
+            n.label != filterLabel)
+            continue;
+        ++curveNodeCount;
+        draw_curve_node(n);
+    }
+    if (curveNodeCount == 0 && !filterLabel.empty())
+        ImGui::TextDisabled("No curve nodes on '%s'.", filterLabel.c_str());
+
+    // --- Legacy stash entries (unconverted: owned formant children) ---
     // Structural deletes are deferred to after iteration.
     struct DeleteReq { std::string param; int subIdx; };  // subIdx -1 = entry itself is the object
     std::vector<DeleteReq> deletes;
     bool anyCurve = false;
     bool anyShown = false;
+    if (!s_loadedParamMap.empty()) {
+        ImGui::Separator();
+        ImGui::TextDisabled("Legacy paramMap curves (not convertible to nodes)");
+    }
     for (auto& [pname, entry] : s_loadedParamMap.items()) {
         ImGui::PushID(pname.c_str());
         if (entry.is_object() && entry.contains("curve")) {
@@ -5207,10 +5345,10 @@ static void draw_curves_window() {
         }
         ImGui::PopID();
     }
-    if (!anyCurve)
+    if (!anyCurve && curveNodeCount == 0 && filterLabel.empty())
         ImGui::TextDisabled("No curves in this patch.");
-    else if (!anyShown)
-        ImGui::TextDisabled("No curves on node '%s'.", filterLabel.c_str());
+    else if (anyCurve && !anyShown)
+        ImGui::TextDisabled("No legacy curves on node '%s'.", filterLabel.c_str());
 
     for (const auto& d : deletes) {
         nlohmann::json& entry = s_loadedParamMap[d.param];
