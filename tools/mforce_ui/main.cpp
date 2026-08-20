@@ -35,6 +35,7 @@
 #include "mforce/core/envelope_presets.h" // ADSREnvelope for NT_ENVELOPE nodes
 #include "mforce/core/var_source.h"     // needed for VarSource constructor
 #include "mforce/core/range_source.h"   // needed for RangeSource constructor
+#include "mforce/core/curve_node.h"     // CurveNode knots/interp are modeled (P2b)
 #include "mforce/source/additive/formant.h" // needed for FormantSpectrum inline table
 #include "mforce/source/additive/partials.h" // for Partials live array access in strip draw
 #include "mforce/render/instrument.h"
@@ -290,6 +291,11 @@ struct GraphNode {
     // PerformNode: which field of the note this reports. 0 = frequency,
     // 1 = velocity. Matches PerformOut::Field and the JSON "field" string.
     int performField{0};
+
+    // CurveNode: knots and interp, modeled so the Curves window can edit them.
+    // interp: 0 = linear, 1 = logx, 2 = loglog — matches CurveNode::CurveInterp.
+    std::vector<std::pair<float, float>> curveKnots;
+    int curveInterp{0};
 
     // Dynamic pins: the SETTINGS this node instance drives once per note
     // (pin_model_design.md §3). {"sustainLevel": {"ref": "__curve_sus"}}.
@@ -1470,6 +1476,20 @@ static void load_graph_from_path(const std::string& path) {
                 gn.create_dsp();
             }
 
+            if (gn.typeName == "CurveNode") {
+                gn.curveKnots.clear();
+                if (params.contains("knots") && params["knots"].is_array())
+                    for (const auto& k : params["knots"])
+                        if (k.is_array() && k.size() >= 2)
+                            gn.curveKnots.emplace_back(k[0].get<float>(), k[1].get<float>());
+                const std::string in = params.value("interp", std::string("linear"));
+                gn.curveInterp = (in == "loglog") ? 2 : (in == "logx") ? 1 : 0;
+                if (auto* cn = dynamic_cast<CurveNode*>(gn.dspSource.get())) {
+                    cn->knots = gn.curveKnots;
+                    cn->interp = static_cast<CurveNode::CurveInterp>(gn.curveInterp);
+                }
+            }
+
 
             // Restore formant table. New canonical form: params.formants is a
             // ref-array of owned Formant nodes, pulled into rows via the
@@ -1609,6 +1629,13 @@ static void load_graph_from_path(const std::string& path) {
                     if (k == "seed") continue;
                     if (k == "formants") continue;  // rows / ref-pins, both modeled
                     if (gn.typeName == NT_ENVELOPE && kEnvelopeKeys.count(k)) continue;
+                    // CurveNode knots/interp are modeled (curveKnots /
+                    // curveInterp) so the Curves window can edit them. They
+                    // rode jsonExtras verbatim until P2b; a verbatim copy
+                    // would win over an edit on save.
+                    if (gn.typeName == "CurveNode" && (k == "knots" || k == "interp"))
+                        continue;
+                    if (gn.typeName == NT_PERFORM && k == "field") continue;
                     bool pinConsumed = is_pin(k) &&
                         (v.is_number() ||
                          (v.is_object() && v.contains("ref")) ||
@@ -2243,6 +2270,17 @@ static void save_patch_graph(const std::string& path, bool tapOverride = false) 
         // nothing to walk — the node has no inputs by design.
         if (node.typeName == NT_PERFORM)
             params["field"] = (node.performField == 1) ? "velocity" : "frequency";
+
+        // CurveNode knots/interp are modeled, not carried — emitted from the
+        // node so an edit in the Curves window survives the save.
+        if (node.typeName == "CurveNode") {
+            json knots = json::array();
+            for (const auto& [x, y] : node.curveKnots)
+                knots.push_back(json::array({x, y}));
+            params["knots"] = knots;
+            params["interp"] = node.curveInterp == 2 ? "loglog"
+                             : node.curveInterp == 1 ? "logx" : "linear";
+        }
 
         for (auto& pin : node.inputs) {
             bool isChannelPin = (pin.name.substr(0, 3) == "ch ");
