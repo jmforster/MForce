@@ -118,17 +118,9 @@ static constexpr const char* NT_ENVELOPE      = "Envelope";
 // of a render. Patch mode only; the engine throws "no voice context" otherwise.
 static constexpr const char* NT_PERFORM       = "PerformNode";
 
-// PerformNode field vocabulary — index matches GraphNode::performField and
-// the engine's PerformOut::Field. wheel/pressure are P3 (InstrumentState:
-// one physical wheel / channel-pressure stream, smoothed per voice).
-static constexpr const char* kPerformFieldNames[] =
-    {"frequency", "velocity", "wheel", "pressure"};
-static constexpr int kPerformFieldCount = 4;
-static int perform_field_index(const std::string& s) {
-    for (int i = 0; i < kPerformFieldCount; ++i)
-        if (s == kPerformFieldNames[i]) return i;
-    return 0;
-}
+// PerformNode fields (frequency/velocity/wheel/pressure) are carried by the
+// Note face's OUTPUT PIN NAMES — see build_pins — and one file node per
+// field at save. No index vocabulary needed since 2026-08-20.
 
 static bool is_special_ui_type(const std::string& typeName) {
     return typeName == NT_SOUND_CHANNEL || typeName == NT_STEREO_MIXER
@@ -307,7 +299,17 @@ struct GraphNode {
 
     // PerformNode: which field of the note this reports. 0 = frequency,
     // 1 = velocity. Matches PerformOut::Field and the JSON "field" string.
+    // (Legacy — the editor face now carries one output pin per field; kept
+    // because create-menu construction predates pins being built.)
     int performField{0};
+
+    // Note FACE only: field -> serialized per-field node id. The editor
+    // shows one Note node with an output pin per field; the FILE keeps one
+    // PerformNode per field (a ref names a node, and a node is one value
+    // stream). Load consumes the file nodes into this map; save re-emits
+    // them under the SAME ids so round-trips stay id-stable. A wired field
+    // with no entry gets a fresh __perf_* id at save.
+    std::map<std::string, std::string> perfFieldIds;
 
     // CurveNode: knots and interp, modeled so the Curves window can edit them.
     // interp: 0 = linear, 1 = logx, 2 = loglog — matches CurveNode::CurveInterp.
@@ -368,18 +370,16 @@ struct GraphNode {
         }
 
         if (typeName == NT_PERFORM) {
-            // STAND-IN, not the real thing. The engine resolves a PerformNode
-            // to the voice's shared PerformOut adapter at load; the editor has
-            // no voice, so it holds a ConstantSource at a plausible value just
-            // so previews and Listen taps render something instead of silence.
-            // Nothing here reaches a CLI render — that path goes through the
-            // loader, which builds the real adapter.
-            // frequency 440, velocity 0.8; wheel/pressure preview at 0 —
-            // an untouched controller is silent, and the preview should be
-            // the untouched instrument.
-            dspSource = std::make_shared<ConstantSource>(
-                performField == 1 ? 0.8f :
-                performField >= 2 ? 0.0f : 440.0f);
+            // STAND-INS, not the real thing. The engine resolves a PerformNode
+            // to the voice's shared PerformOut adapters at load; the editor
+            // has no voice, so each OUTPUT PIN's constantSrc is that field's
+            // preview value (frequency 440, velocity 0.8, wheel/pressure 0 —
+            // an untouched controller). update_node_dsp wires consumers to
+            // the PIN's constant, not to dspSource; dspSource is kept as the
+            // frequency stand-in for node-level uses (waveform preview).
+            dspSource = find_output("frequency")
+                            ? find_output("frequency")->constantSrc
+                            : std::make_shared<ConstantSource>(440.0f);
             return;
         }
 
@@ -448,6 +448,11 @@ struct GraphNode {
 
     Pin* find_input(const std::string& name) {
         for (auto& p : inputs) if (p.name == name) return &p;
+        return nullptr;
+    }
+
+    Pin* find_output(const std::string& name) {
+        for (auto& p : outputs) if (p.name == name) return &p;
         return nullptr;
     }
 
@@ -530,11 +535,17 @@ struct GraphNode {
             return;
         }
 
-        // PerformNode: a leaf. One output, no inputs — its value comes from
-        // the note, not from the graph. Which field it reports is chosen in
-        // Properties, not wired.
+        // PerformNode: a leaf with one output PER FIELD — the node Matt's
+        // design discussions always described (perform_source_design.md
+        // §2.1/§2.3 "all instances render the same outputS"); the P2a/P2b
+        // one-field-per-node face was an editor-side conflation of the FILE
+        // shape (which stays one node per field, invisible here). Each
+        // output pin's constantSrc is that field's preview stand-in.
         if (typeName == NT_PERFORM) {
-            outputs.emplace_back("out", PinKind::Output);
+            outputs.emplace_back("frequency", PinKind::Output, 440.0f);
+            outputs.emplace_back("velocity",  PinKind::Output, 0.8f);
+            outputs.emplace_back("wheel",     PinKind::Output, 0.0f);
+            outputs.emplace_back("pressure",  PinKind::Output, 0.0f);
             return;
         }
 
@@ -868,10 +879,17 @@ static void update_node_dsp_unlocked(GraphNode& node) {
             GraphNode* srcNode = find_node_for_pin(otherPinId);
             Pin* otherPin = find_pin(otherPinId);
             if (srcNode && otherPin && otherPin->kind == PinKind::Output && srcNode->dspSource) {
+                // A Note face has one output PER FIELD — the source is the
+                // PIN's stand-in constant, not the node-level dspSource
+                // (which is just the frequency pin's constant).
+                std::shared_ptr<ValueSource> src =
+                    (srcNode->typeName == NT_PERFORM && otherPin->constantSrc)
+                        ? std::static_pointer_cast<ValueSource>(otherPin->constantSrc)
+                        : srcNode->dspSource;
                 if (pin.multi && node.dspSource)
-                    node.dspSource->add_param(pin.name, srcNode->dspSource);
+                    node.dspSource->add_param(pin.name, src);
                 else
-                    node.wire_pin(pin.name, srcNode->dspSource);
+                    node.wire_pin(pin.name, src);
             }
         }
     }
@@ -929,6 +947,10 @@ static void update_all_dsp() {
 
             GraphNode* srcNode = find_node_for_pin(outPinId);
             if (!srcNode || !srcNode->dspSource) continue;
+            // Note-face pins are ConstantSources — idempotent, any number of
+            // direct consumers is safe, and a RefSource here would wrap the
+            // WRONG source (node-level dspSource = the frequency pin).
+            if (srcNode->typeName == NT_PERFORM) continue;
 
             // First consumer already has the real source wired (from update_node_dsp).
             // Wrap for subsequent consumers.
@@ -1504,6 +1526,22 @@ static void load_graph_from_path(const std::string& path) {
         }
     }
 
+    // PerformNode file nodes are CONSUMED into Note faces: the file keeps
+    // one node per field (refs name nodes; a node is one value stream), the
+    // editor shows one Note node with an output pin per field — the shape
+    // every design discussion described (Matt 2026-08-20; the per-field
+    // editor face was a P2a/P2b conflation of file shape with face shape).
+    // ui.noteFaces records face identity; without it (converted/legacy
+    // files) all perf nodes merge into a single face.
+    std::unordered_map<std::string, std::string> perfFileField;  // id -> field
+    for (const auto& jnode : nodes) {
+        if (jnode.value("type", std::string()) != NT_PERFORM) continue;
+        std::string f = "frequency";
+        if (jnode.contains("params"))
+            f = jnode["params"].value("field", std::string("frequency"));
+        perfFileField[jnode["id"].get<std::string>()] = f;
+    }
+
     // First pass: create all nodes
     std::vector<std::string> unknownTypes;
     for (const auto& jnode : nodes) {
@@ -1512,6 +1550,9 @@ static void load_graph_from_path(const std::string& path) {
 
         // Skip Formants owned by a FormantSpectrum — they'll live inside its row table.
         if (ownedFormants.count(id)) continue;
+        // Skip consumed PerformNode file nodes — faces are built after this
+        // loop and their pins registered under these ids.
+        if (perfFileField.count(id)) continue;
 
         // Track types this build's engine doesn't know. The node is still
         // created (inert, no dspSource, one bare "out" pin) so the graph
@@ -1576,15 +1617,6 @@ static void load_graph_from_path(const std::string& path) {
                     if (pin.constantSrc) pin.constantSrc->set(pin.defaultValue);
                 }
                 // refs handled in second pass
-            }
-
-            // PerformNode: which note field this reports. Not a pin — it is
-            // chosen, not wired. Re-create the preview source afterwards so
-            // the stand-in constant matches the field.
-            if (gn.typeName == NT_PERFORM) {
-                const std::string field = params.value("field", std::string("frequency"));
-                gn.performField = perform_field_index(field);
-                gn.create_dsp();
             }
 
             if (gn.typeName == "CurveNode") {
@@ -1768,6 +1800,56 @@ static void load_graph_from_path(const std::string& path) {
             // Re-map input pins after adding channels
             for (auto& pin : gn.inputs)
                 inputPinMap[id + "." + pin.name] = pin.id;
+        }
+    }
+
+    // Build Note faces from the consumed PerformNode file nodes, and
+    // register each file id under the matching face PIN so the ref pass
+    // below wires straight to it. ui.noteFaces preserves face identity
+    // across UI round-trips; a file without it (converted/legacy) merges
+    // every perf node into one face.
+    if (!perfFileField.empty()) {
+        std::vector<std::pair<std::string, std::map<std::string, std::string>>> plan;
+        if (root.contains("ui") && root["ui"].contains("noteFaces") &&
+            root["ui"]["noteFaces"].is_array()) {
+            for (const auto& fj : root["ui"]["noteFaces"]) {
+                std::map<std::string, std::string> fields;
+                if (fj.contains("fields") && fj["fields"].is_object())
+                    for (auto& [f, fid] : fj["fields"].items())
+                        if (fid.is_string() &&
+                            perfFileField.count(fid.get<std::string>()))
+                            fields[f] = fid.get<std::string>();
+                plan.emplace_back(fj.value("label", std::string("Note")),
+                                  std::move(fields));
+            }
+        }
+        if (plan.empty()) {
+            std::map<std::string, std::string> fields;
+            for (auto& [fid, f] : perfFileField)
+                if (!fields.count(f)) fields[f] = fid;  // first id per field
+            plan.emplace_back(unique_node_label(NT_PERFORM), std::move(fields));
+        }
+        for (auto& [label, fields] : plan) {
+            s_nodes.emplace_back(std::string(NT_PERFORM));
+            GraphNode& face = s_nodes.back();
+            face.label = label;
+            face.perfFieldIds = fields;
+            for (auto& [f, fid] : fields)
+                if (Pin* p = face.find_output(f))
+                    outputPinMap[fid] = p->id;
+        }
+        // Stragglers (duplicate same-field file nodes, or a noteFaces list
+        // that missed one): wire through the first face's matching pin.
+        for (auto& [fid, f] : perfFileField) {
+            if (outputPinMap.count(fid)) continue;
+            for (auto& n : s_nodes) {
+                if (n.typeName != NT_PERFORM) continue;
+                if (Pin* p = n.find_output(f)) {
+                    outputPinMap[fid] = p->id;
+                    if (!n.perfFieldIds.count(f)) n.perfFieldIds[f] = fid;
+                }
+                break;
+            }
         }
     }
 
@@ -2224,6 +2306,21 @@ static GraphNode* find_source_node(int inputPinId) {
     return nullptr;
 }
 
+// Same walk, but returns the source OUTPUT PIN — needed wherever the source
+// node alone is ambiguous (a Note face has one output per field).
+static Pin* find_source_out_pin(int inputPinId) {
+    for (auto& link : s_links) {
+        int other = -1;
+        if (link.endPinId == inputPinId)   other = link.startPinId;
+        if (link.startPinId == inputPinId) other = link.endPinId;
+        if (other < 0) continue;
+        for (auto& node : s_nodes)
+            for (auto& pin : node.outputs)
+                if (pin.id == other) return &pin;
+    }
+    return nullptr;
+}
+
 // Serialized id = the node's label, made safe: ids embed in "node.pin"
 // paramMap targets (no '.'), "__" is reserved for synthesized keys
 // (__output, __param_*, FormantSpectrum "__fN" children), and duplicates
@@ -2422,6 +2519,35 @@ static void save_patch_graph(const std::string& path, bool tapOverride = false) 
                                               node.synthesizedId);
     }
 
+    // Note faces (editor-only): the FILE keeps one PerformNode per field.
+    // Give each WIRED face pin its serialized per-field node id — the id it
+    // arrived under (perfFieldIds), or a fresh __perf_<field> — and collect
+    // those nodes for PREPENDING, so refs resolve against earlier nodes
+    // exactly as the converter guarantees.
+    std::unordered_map<int, std::string> perfPinRef;   // face pin id -> file id
+    json perfNodes = json::array();
+    for (auto& node : s_nodes) {
+        if (node.typeName != NT_PERFORM) continue;
+        for (auto& p : node.outputs) {
+            if (!is_pin_connected(p.id)) continue;
+            std::string fid;
+            if (auto it = node.perfFieldIds.find(p.name);
+                it != node.perfFieldIds.end() && !usedIds.count(it->second))
+                fid = it->second;
+            if (fid.empty()) {
+                std::string base = "__perf_" + p.name;
+                fid = base;
+                for (int i = 2; usedIds.count(fid); ++i)
+                    fid = base + std::to_string(i);
+            }
+            usedIds.insert(fid);
+            node.perfFieldIds[p.name] = fid;   // stable on the next save
+            perfPinRef[p.id] = fid;
+            perfNodes.push_back({{"id", fid}, {"type", NT_PERFORM},
+                                 {"params", {{"field", p.name}}}});
+        }
+    }
+
     // Find the Output node
     GraphNode* outputNode = nullptr;
     for (auto& node : s_nodes)
@@ -2480,19 +2606,16 @@ static void save_patch_graph(const std::string& path, bool tapOverride = false) 
         auto& node = *nodePtr;
         if (node.typeName == NT_PATCH_OUTPUT || node.typeName == NT_PARAMETER)
             continue;
+        // Note faces are editor-only: their file form is the per-field
+        // PerformNode set in perfNodes, prepended below.
+        if (node.typeName == NT_PERFORM)
+            continue;
 
         json jnode;
         jnode["id"] = nodeIds[node.id];
         jnode["type"] = node.typeName;
 
         json params = json::object();
-
-        // PerformNode carries exactly one param and it is not a pin: the note
-        // field it reports. Emitted explicitly because the pin loop below has
-        // nothing to walk — the node has no inputs by design.
-        if (node.typeName == NT_PERFORM)
-            params["field"] = kPerformFieldNames[
-                std::clamp(node.performField, 0, kPerformFieldCount - 1)];
 
         // CurveNode knots/interp are modeled, not carried — emitted from the
         // node so an edit in the Curves window survives the save.
@@ -2519,22 +2642,42 @@ static void save_patch_graph(const std::string& path, bool tapOverride = false) 
                     if (outPinId < 0) continue;
                     GraphNode* srcNode = find_node_for_pin(outPinId);
                     Pin* srcPin = find_pin(outPinId);
-                    if (srcNode && srcPin && srcPin->kind == PinKind::Output && nodeIds.count(srcNode->id))
+                    if (!srcNode || !srcPin || srcPin->kind != PinKind::Output)
+                        continue;
+                    if (srcNode->typeName == NT_PERFORM) {
+                        if (auto pr = perfPinRef.find(srcPin->id);
+                            pr != perfPinRef.end())
+                            refs.push_back(json{{"ref", pr->second}});
+                    } else if (nodeIds.count(srcNode->id)) {
                         refs.push_back(json{{"ref", nodeIds[srcNode->id]}});
+                    }
                 }
                 if (!refs.empty()) params[pin.name] = refs;
             } else {
                 GraphNode* src = find_source_node(pin.id);
+                // A Note face's ref is PER PIN (one file node per field).
+                auto ref_for = [&](GraphNode* s) -> json {
+                    if (s->typeName == NT_PERFORM) {
+                        if (Pin* op = find_source_out_pin(pin.id))
+                            if (auto pr = perfPinRef.find(op->id);
+                                pr != perfPinRef.end())
+                                return json{{"ref", pr->second}};
+                        return json();   // unwired face pin: fall to default
+                    }
+                    if (nodeIds.count(s->id))
+                        return json{{"ref", nodeIds[s->id]}};
+                    return json();
+                };
                 if (pin.inputOnly) {
-                    if (src && nodeIds.count(src->id))
-                        params[pin.name] = json{{"ref", nodeIds[src->id]}};
+                    json r = src ? ref_for(src) : json();
+                    if (!r.is_null())
+                        params[pin.name] = r;
                     else if (!src && pin.hasConstant)
                         params[pin.name] = pin.defaultValue;
                 } else if (src) {
-                    if (src->typeName == NT_PARAMETER)
-                        params[pin.name] = pin.defaultValue;
-                    else if (nodeIds.count(src->id))
-                        params[pin.name] = json{{"ref", nodeIds[src->id]}};
+                    json r = (src->typeName == NT_PARAMETER) ? json() : ref_for(src);
+                    if (!r.is_null()) params[pin.name] = r;
+                    else              params[pin.name] = pin.defaultValue;
                 } else {
                     params[pin.name] = pin.defaultValue;
                 }
@@ -2655,6 +2798,13 @@ static void save_patch_graph(const std::string& path, bool tapOverride = false) 
     // Build final JSON
     json root;
     root["sampleRate"] = 48000;
+    // Per-field PerformNode file nodes PREPENDED — refs must resolve
+    // against earlier nodes (same rule as the converter).
+    if (!perfNodes.empty()) {
+        json merged = perfNodes;
+        for (auto& n : nodes) merged.push_back(std::move(n));
+        nodes = std::move(merged);
+    }
     root["graph"]["nodes"] = nodes;
     root["graph"]["output"] = outputId;
 
@@ -2729,6 +2879,18 @@ static void save_patch_graph(const std::string& path, bool tapOverride = false) 
         root["ui"]["positions"] = positions;
         ImVec2 pan = ImNodes::EditorContextGetPanning();
         root["ui"]["panning"] = {pan.x, pan.y};
+
+        // Note-face identity: which per-field file nodes belong to which
+        // editor face. UI-owned; the engine loader never reads it. Without
+        // it a re-load merges all perf nodes into one face.
+        json faces = json::array();
+        for (auto& n : s_nodes) {
+            if (n.typeName != NT_PERFORM || n.perfFieldIds.empty()) continue;
+            json ff = json::object();
+            for (auto& [f, fid] : n.perfFieldIds) ff[f] = fid;
+            faces.push_back({{"label", nodeIds[n.id]}, {"fields", ff}});
+        }
+        if (!faces.empty()) root["ui"]["noteFaces"] = faces;
     }
 
     std::ofstream f(path);
@@ -3821,9 +3983,13 @@ static float eval_map_vcurve(const nlohmann::json& vcurve, float vel) {
 static void apply_perform_nodes(float freq, float velocity) {
     for (auto& n : s_nodes) {
         if (n.typeName != NT_PERFORM) continue;
-        if (n.performField >= 2) continue;  // wheel/pressure: preview stays 0
-        if (auto* cs = dynamic_cast<ConstantSource*>(n.dspSource.get()))
-            cs->set(n.performField == 1 ? velocity : freq);
+        // Per-pin stand-ins; wheel/pressure previews stay 0 (untouched
+        // controller).
+        for (auto& p : n.outputs) {
+            if (!p.constantSrc) continue;
+            if (p.name == "frequency")     p.constantSrc->set(freq);
+            else if (p.name == "velocity") p.constantSrc->set(velocity);
+        }
     }
 }
 
@@ -6771,12 +6937,6 @@ static void draw_node(GraphNode& node) {
         ImGui::TextColored(ImVec4(0.9f, 0.7f, 0.9f, 1.0f), "%s", node.paramName.c_str());
     }
 
-    // Note node: show which field of the performance it reports.
-    if (node.typeName == NT_PERFORM) {
-        int f = std::clamp(node.performField, 0, kPerformFieldCount - 1);
-        ImGui::TextColored(ImVec4(0.85f, 0.72f, 0.30f, 1.0f), "%s",
-                           kPerformFieldNames[f]);
-    }
 
     // Input pins — compact: show name + read-only value, no editing widgets
     for (auto& pin : node.inputs) {
@@ -7042,27 +7202,6 @@ static void draw_properties_panel() {
             ImGui::TextColored(ImVec4(0.9f, 0.4f, 0.4f, 1), "%s", renameErr.c_str());
     }
     ImGui::Separator();
-
-    // PerformNode: the one thing to edit is which field of the performance
-    // it reports. wheel/pressure are P3 — InstrumentState smoothed per
-    // voice; previews hold them at 0 (an untouched controller).
-    if (node->typeName == NT_PERFORM) {
-        ImGui::Text("field");
-        ImGui::SameLine(120.0f);
-        ImGui::SetNextItemWidth(120.0f);
-        int f = std::clamp(node->performField, 0, kPerformFieldCount - 1);
-        if (ImGui::Combo("##perffield", &f, kPerformFieldNames,
-                         kPerformFieldCount)) {
-            node->performField = f;
-            node->create_dsp();      // stand-in constant matches the field
-            update_all_dsp();
-            mark_graph_dirty();
-        }
-        if (ImGui::IsItemHovered())
-            ImGui::SetTooltip("frequency/velocity: this note, set at note-on.\n"
-                              "wheel/pressure: the instrument as played (CC1 /\n"
-                              "channel pressure), smoothed, live during the note.");
-    }
 
     // Layout: label on left (120px), widget on right
     float labelW = 120.0f;
