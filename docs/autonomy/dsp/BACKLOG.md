@@ -613,38 +613,30 @@ Priority order. Tags per WORKFLOW.md. (G1)-(G4) = GOALS.md Dipsy goals.
     deadline risks underruns for zero latency win over the MIDI-thread
     approach.
 
-20. **[build] PerformSource P2b (UI) is next** — P1 LANDED 2026-08-18;
-    **P2a LANDED 2026-08-19**, commits 004295e..db4aafe
-    (`docs/plan_perform_source_p2a.md`). The format half is done and proven:
-    `config`→`setting` rename, `PerformNode` JSON type, `dynamicPins`,
-    bend-swap membership from graph shape, `tools/parammap_to_wiring.py`, and
-    `tools/null_gate_wiring.py`. **Conversion gate: 196/196 bit-identical**
-    rendering from converted files (117 carried a paramMap). Legacy paramMap
-    still read.
-    The design it waited on is `docs/pin_model_design.md` (Matt-approved,
-    terminology included): pins belong to the patch not the type, two flavours
-    (fixed = pulled per sample, dynamic = pushed once per note), promotion is a
-    grey→gold click in the Settings pane, float means eligible.
-    **P2b = the UI half:** PerformNode/CurveNode as editor nodes, knot editor
-    extending the existing Curves table + plot (not a new 2D canvas — Matt),
-    grey→gold promotion, Curves/Mappings as derived views over the graph, save
-    emits the P2a format. **Nothing blocking left** — both open questions
-    answered by Matt 2026-08-19 (`pin_model_design.md` §9): a dynamic pin may
-    be fed by **a Curve and nothing else, until we need something else** (UI
-    restricts, loader stays permissive, so widening it later costs no engine
-    change); and **demotion restores the stowed scalar**, not the last chain
-    value, since the last value a curve produced is whatever the final note
-    asked for rather than the average you'd want having decided against a
-    curve.
-    Standing warning: UI re-save of a patch using
-    `Envelope.minValue`/`maxValue`/`Stage.nominal` DROPS them until the
-    serializer learns them; don't hand-author those into library patches first.
-    Three latent bugs surfaced during P2a, all pre-existing, all the same
-    shape — code that worked only because it had exactly one consumer or one
-    construction path: CurveNode's unwired `source` when loaded from JSON,
-    `PerformOut` caching state it did not have (broke every 2nd+ consumer via
-    RefSource), and a third `build_graph` call site (the mixer throwaway graph)
-    with no perform context. mforce_keys was retired rather than fixed.
+20. **[review:try] PerformSource P2/P3 — P2 COMPLETE, needs Matt's hands** —
+    P1 2026-08-18; **P2a + P2b both LANDED 2026-08-19** (004295e..88cc197).
+    The whole PerformSource editor story is in: a patch expresses "this note's
+    pitch, through this curve, into this setting" entirely as graph nodes; the
+    UI converts legacy paramMaps on load, shows curves and bindings as views
+    over the graph, and lets a float setting be promoted to a dynamic pin.
+    Gates: null_gate_perform_source 196/196, null_gate_wiring 196/196,
+    test_stable_roundtrip 0 id changes / 0 render diffs across 199 patches.
+    New tool: `tools/rt_smoke.py`, one patch per shape, 18s vs minutes — use it
+    between edits, full gate at a task boundary.
+    **What needs Matt:** none of the UI work has been seen by a human. It
+    builds and round-trips byte-identically, but nobody has clicked promote,
+    looked at a gold pin, or opened the Curves tab on a converted piano. Load
+    Piano_bright and try it. Specifically worth a look: whether "Note" and
+    "Curve" nodes read clearly on the canvas, whether the gold/dim distinction
+    between dynamic and fixed pins is legible, and whether a converted patch
+    opens laid out sensibly or as a pile.
+    Design of record: `docs/pin_model_design.md` (Matt-approved incl.
+    terminology). Deferred: the node-face gold pin section (promotion currently
+    lives in the Settings pane only); the formant row model carrying driven
+    params, which is what would let the paramMap residue go entirely.
+    Next phase is **P3** (liveness: articulated `.frequency`, wheel, pressure,
+    MIDI) — carrying the hole in item 26a, that bend tracking is per-node and
+    an articulated frequency is silently inert on KSPianoString.
 
 19. **[build] hiBoost → explicit curve** — Matt 2026-08-18 (PerformSource
     brainstorm): `PitchedInstrument.hiBoost` is a hidden loudness

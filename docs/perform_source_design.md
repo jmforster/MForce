@@ -432,13 +432,33 @@ wires `PerformNode.pressure` either way.
   - **A third `build_graph` call site** — the throwaway graph that resolves
     mixer gain for patches with a `mix` node — passed no context and threw on
     every PerformNode. Found by the conversion gate; five Rhodes/FM patches.
-- **P2b (UI)** — PerformNode/CurveNode as editor nodes, knot editor extending
-  the existing Curves table + plot, grey→gold promotion in the Settings pane
-  (`pin_model_design.md` §6), Curves/Mappings as derived views over the graph,
-  and save emitting the P2a format. Standing warning: UI re-save of a patch
-  using `Envelope.minValue`/`maxValue`/`Stage.nominal` will DROP those fields
-  until the serializer learns them, so do not hand-author them into library
-  patches first.
+- **P2b (UI)** — ✓ **LANDED 2026-08-19** (commits e7009e5..88cc197,
+  `docs/plan_perform_source_p2b.md`). The editor speaks the pin model:
+  `PerformNode` as an editor node, load converting a legacy `paramMap` into
+  real graph nodes, `dynamicPins` through load and save, `CurveNode` knots
+  modeled and editable, Curves and Mappings as derived views over the graph,
+  and grey→gold promotion in the Settings pane. Round-trip gate green
+  throughout — 0 id changes, 0 render diffs across 199 patches.
+
+  Four things surfaced that the plan had not predicted:
+  - **The `__` prefix collided with the UI's own reserved namespace.**
+    `sanitize_unique_id` strips a leading `__` to stop human labels claiming
+    it; that also renamed the converter's synthesized nodes on every round
+    trip. Fixed by distinguishing an id that arrived from the file already
+    synthesized from a label a person typed.
+  - **Owned Formant children are not convertible.** A `FormantSpectrum`
+    consumes them into a row table whose rows hold literal floats, so a driven
+    param cannot be represented. Those entries stay in the paramMap, which is
+    now RESIDUE rather than the model — conversion is per-entry, not
+    all-or-nothing.
+  - **Waveform previews needed a UI-side `set_note`.** A PerformNode's editor
+    DSP is a stand-in constant, so previews would have drawn every note at
+    440 Hz once the stash stopped driving retunes.
+  - **The three-phase Envelope warning was two-thirds wrong.**
+    `minValue`/`maxValue` already round-tripped through the jsonExtras
+    verbatim carry; only `Stage.nominal` was lost, because stages ARE modeled
+    and a model drops what it was never taught. Now fixed — the warning is
+    retired.
 - **P3 (liveness, pulled params only)** — articulated `.frequency`
   (retire PitchBendSource graft), InstrumentState + wheel + pressure with
   smoothers, MIDI plumbing. Re-listen bend-using material. Configs stay
