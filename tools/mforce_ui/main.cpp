@@ -1885,63 +1885,104 @@ static void load_graph_from_path(const std::string& path) {
         }
         // Nodes with NO saved position are the ones paramMap conversion just
         // synthesized (__perf_freq, __curve_N, __mul_N) — the file's ui block
-        // predates them. Without placement they all stack at the origin, so a
-        // converted patch opened as a pile. Place each to the LEFT of the
-        // first consumer that has a position, staggered vertically when
-        // several feed the same consumer; multi-pass so chains resolve
-        // (curve gets its spot from the target, then the perform node from
-        // the curve). This was a planned P2b step that the first
-        // implementation skipped (2026-08-19 day review).
+        // predates them. The first placement pass (2026-08-19) put each one
+        // at consumer.x - 280 with no collision awareness, which on a dense
+        // saved canvas scattered them straight into occupied space — Matt's
+        // 2026-08-20 verdict: still "a pile of nodes". So: a CONTROL STRIP.
+        // The whole synthesized set lays out in clean dependency columns
+        // (perform -> curve -> mul) in empty canvas below everything the
+        // file positioned, rows sorted by the y of what they feed so wires
+        // don't cross more than they must. Guaranteed collision-free with
+        // the saved layout because it starts past the canvas extent.
         {
-            std::unordered_map<int, int> fanOut;   // consumer id -> placed count
-            auto consumer_pos = [&](const GraphNode& n, ImVec2& out, int& cid) {
+            // Extent of everything already placed — nodes and group faces.
+            float minX = 1e9f, maxY = -1e9f;
+            bool any = false;
+            for (const auto& c : s_nodes)
+                if (c.gridPosKnown) {
+                    minX = std::min(minX, c.gridPos.x);
+                    maxY = std::max(maxY, c.gridPos.y);
+                    any = true;
+                }
+            for (const auto& g : s_groups) {
+                minX = std::min(minX, g.pos.x);
+                maxY = std::max(maxY, g.pos.y);
+                any = true;
+            }
+            if (!any) { minX = 0.0f; maxY = 0.0f; }
+
+            // Dependency depth among the UNPLACED set, via links only
+            // (dynamicPins point at placed targets, never between synthesized
+            // nodes). Iterate to fixpoint; chains are perf->curve->mul, so
+            // this settles in 2-3 passes.
+            std::unordered_map<int, int> depth;   // node id -> column
+            for (const auto& n : s_nodes)
+                if (!n.gridPosKnown) depth[n.id] = 0;
+            for (bool moved = true; moved; ) {
+                moved = false;
+                for (const auto& l : s_links) {
+                    const GraphNode* src = find_node_for_pin(l.startPinId);
+                    const GraphNode* dst = find_node_for_pin(l.endPinId);
+                    if (!src || !dst) continue;
+                    auto si = depth.find(src->id), di = depth.find(dst->id);
+                    if (si == depth.end() || di == depth.end()) continue;
+                    if (di->second < si->second + 1) {
+                        di->second = si->second + 1;
+                        moved = true;
+                    }
+                }
+            }
+
+            // Row order: the y of the placed node each one ultimately feeds
+            // (via dynamicPins or links), so a curve lands roughly opposite
+            // its target. Unknown feeds sort last.
+            auto feed_y = [&](const GraphNode& n) -> float {
                 for (const auto& c : s_nodes) {
                     if (!c.gridPosKnown) continue;
                     for (auto& [k, v] : c.dynamicPins.items())
                         if (v.is_object() &&
-                            v.value("ref", std::string()) == n.label) {
-                            out = c.gridPos; cid = c.id; return true;
-                        }
+                            v.value("ref", std::string()) == n.label)
+                            return c.gridPos.y;
                 }
                 for (const auto& l : s_links) {
                     bool fromN = false;
                     for (const auto& p : n.outputs)
-                        if (l.startPinId == p.id || l.endPinId == p.id) fromN = true;
+                        if (l.startPinId == p.id) fromN = true;
                     if (!fromN) continue;
-                    const GraphNode* a = find_node_for_pin(l.startPinId);
-                    const GraphNode* b = find_node_for_pin(l.endPinId);
-                    const GraphNode* other = (a && a->id == n.id) ? b : a;
-                    if (other && other->gridPosKnown) {
-                        out = other->gridPos; cid = other->id; return true;
-                    }
+                    const GraphNode* dst = find_node_for_pin(l.endPinId);
+                    if (dst && dst->gridPosKnown) return dst->gridPos.y;
                 }
-                return false;
+                return 1e9f;
             };
-            for (int pass = 0; pass < 3; ++pass) {
-                for (auto& node : s_nodes) {
-                    if (node.gridPosKnown) continue;
-                    ImVec2 base; int cid = -1;
-                    if (!consumer_pos(node, base, cid)) continue;
-                    node.gridPos = ImVec2(base.x - 280.0f,
-                                          base.y + 100.0f * float(fanOut[cid]++));
-                    node.gridPosKnown = true;
-                    if (!s_headless)
-                        ImNodes::SetNodeGridSpacePos(node.id, node.gridPos);
-                }
-            }
-            // Anything still adrift (no placed consumer found): a column to
-            // the left of everything, stacked — legible, if not pretty.
-            float minX = 0.0f;
-            for (const auto& c : s_nodes)
-                if (c.gridPosKnown) minX = std::min(minX, c.gridPos.x);
-            float stackY = 0.0f;
-            for (auto& node : s_nodes) {
-                if (node.gridPosKnown) continue;
-                node.gridPos = ImVec2(minX - 320.0f, stackY);
-                stackY += 100.0f;
-                node.gridPosKnown = true;
+
+            // Estimated face height from pin count — imnodes only knows real
+            // sizes after a frame, and this runs at load. Generous row gaps
+            // beat exact numbers.
+            auto est_h = [](const GraphNode& n) {
+                return 40.0f + 24.0f * float(n.inputs.size() + n.outputs.size());
+            };
+
+            std::vector<GraphNode*> strip;
+            for (auto& n : s_nodes)
+                if (!n.gridPosKnown) strip.push_back(&n);
+            std::stable_sort(strip.begin(), strip.end(),
+                [&](GraphNode* a, GraphNode* b) {
+                    if (depth[a->id] != depth[b->id])
+                        return depth[a->id] < depth[b->id];
+                    return feed_y(*a) < feed_y(*b);
+                });
+
+            const float stripTop = maxY + 260.0f;   // clear of the tallest saved face
+            const float colW = 240.0f;
+            std::unordered_map<int, float> colY;    // column -> next free y
+            for (auto* n : strip) {
+                int col = depth[n->id];
+                if (!colY.count(col)) colY[col] = stripTop;
+                n->gridPos = ImVec2(minX + colW * float(col), colY[col]);
+                colY[col] += est_h(*n) + 40.0f;
+                n->gridPosKnown = true;
                 if (!s_headless)
-                    ImNodes::SetNodeGridSpacePos(node.id, node.gridPos);
+                    ImNodes::SetNodeGridSpacePos(n->id, n->gridPos);
             }
         }
 
@@ -8466,6 +8507,98 @@ static void show_node_context_menu() {
         }
     }
 
+    // Membership editing (Matt 2026-08-20: until now a group could only be
+    // built from scratch — adding a node later meant ungroup-and-redo).
+    // Acts on the whole selection when the clicked node is part of it,
+    // otherwise on just the clicked node.
+    {
+        std::vector<GraphNode*> targets;
+        {
+            int nSel = ImNodes::NumSelectedNodes();
+            std::vector<int> sel(std::max(nSel, 1));
+            if (nSel > 0) ImNodes::GetSelectedNodes(sel.data());
+            bool clickedInSel = false;
+            for (int i = 0; i < nSel; ++i)
+                if (sel[i] == node->id) clickedInSel = true;
+            if (clickedInSel) {
+                for (int i = 0; i < nSel; ++i)
+                    for (auto& n : s_nodes)
+                        if (n.id == sel[i]) targets.push_back(&n);
+            } else {
+                targets.push_back(node);
+            }
+        }
+
+        if (!s_groups.empty()) {
+            char lbl[48];
+            snprintf(lbl, sizeof(lbl), "Add to group (%d)", (int)targets.size());
+            if (ImGui::BeginMenu(lbl)) {
+                for (auto& g : s_groups) {
+                    // Skip groups every target is already in.
+                    bool allIn = true;
+                    for (auto* t : targets)
+                        if (std::find(g.members.begin(), g.members.end(),
+                                      t->label) == g.members.end())
+                            allIn = false;
+                    if (allIn) continue;
+                    if (!ImGui::MenuItem(g.name.c_str())) continue;
+
+                    // Same two-output rule as group creation, checked on a
+                    // TRIAL membership before anything moves.
+                    NodeGroup trial = g;
+                    for (auto* t : targets)
+                        if (std::find(trial.members.begin(), trial.members.end(),
+                                      t->label) == trial.members.end())
+                            trial.members.push_back(t->label);
+                    std::vector<GroupBoundaryIn> ins;
+                    std::vector<GraphNode*> outs;
+                    group_boundary(trial, ins, outs);
+                    if (outs.size() > 1) {
+                        std::string err = "Add refused: '" + g.name + "' would have " +
+                                          std::to_string(outs.size()) + " outputs:";
+                        for (auto* o : outs) err += " " + o->label;
+                        transport_set_status(err.c_str(), true);
+                        continue;
+                    }
+                    for (auto* t : targets) {
+                        for (auto& og : s_groups)
+                            og.members.erase(std::remove(og.members.begin(),
+                                                         og.members.end(),
+                                                         t->label),
+                                             og.members.end());
+                        g.members.push_back(t->label);
+                    }
+                    transport_set_status(
+                        (std::to_string(targets.size()) + " node(s) -> '" +
+                         g.name + "'").c_str(), false);
+                    mark_graph_dirty();
+                }
+                ImGui::EndMenu();
+            }
+        }
+
+        if (NodeGroup* cur = group_of(node->label)) {
+            std::string lbl = "Remove from '" + cur->name + "'";
+            if (ImGui::MenuItem(lbl.c_str())) {
+                // Out of its group, into that group's parent level (top
+                // level when the group isn't nested) — where the group face
+                // itself lives. Per target, so a mixed selection resolves
+                // each node against its own group.
+                for (auto* t : targets) {
+                    NodeGroup* tg = group_of(t->label);
+                    if (!tg) continue;
+                    NodeGroup* parent = group_of(tg->name);
+                    tg->members.erase(std::remove(tg->members.begin(),
+                                                  tg->members.end(), t->label),
+                                      tg->members.end());
+                    if (parent) parent->members.push_back(t->label);
+                }
+                transport_set_status("removed from group", false);
+                mark_graph_dirty();
+            }
+        }
+    }
+
     ImGui::EndPopup();
 }
 
@@ -9843,6 +9976,39 @@ int main(int argc, char** argv) {
                    noteNum, vel, dur, mono.size(), peak, rms);
         } catch (const std::exception& e) {
             fprintf(stderr, "dump-playback failed: %s\n", e.what());
+            return 1;
+        }
+        return 0;
+    }
+
+    // Headless layout dump: load a patch (paramMap conversion + the
+    // synthesized-node placement pass included) and print every node's
+    // resolved canvas position, its group (if any), and top-level
+    // visibility. Exists because the placement pass could only ever be
+    // "verified by construction" — this makes what the user will actually
+    // see checkable from a terminal.
+    //   --dump-layout <patch.json>
+    if (argc >= 3 && std::string(argv[1]) == "--dump-layout") {
+        s_headless = true;
+        ImGui::CreateContext();
+        ImNodes::CreateContext();
+        register_all_sources();
+        try {
+            load_graph_from_path(argv[2]);
+            for (auto& n : s_nodes) {
+                NodeGroup* g = group_of(n.label);
+                printf("node %-24s type %-18s pos %8.1f %8.1f %s%s%s\n",
+                       n.label.c_str(), n.typeName.c_str(),
+                       n.gridPos.x, n.gridPos.y,
+                       n.gridPosKnown ? "" : "UNPLACED ",
+                       g ? "group=" : "top-level",
+                       g ? g->name.c_str() : "");
+            }
+            for (auto& g : s_groups)
+                printf("group %-23s pos %8.1f %8.1f members %d\n",
+                       g.name.c_str(), g.pos.x, g.pos.y, (int)g.members.size());
+        } catch (const std::exception& e) {
+            fprintf(stderr, "dump-layout failed: %s\n", e.what());
             return 1;
         }
         return 0;
