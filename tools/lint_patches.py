@@ -117,7 +117,12 @@ def accepted_keys(desc, type_name):
     e = desc.get(type_name)
     if e is None:
         return None
-    return set(e["params"]) | set(e["configs"]) | set(e["arrays"]) | set(e["inputs"])
+    # "settings" (2026-08-19 config->setting rename) is a list of descriptor
+    # OBJECTS ({name, type, isEnum, ...}), unlike the other three, which are
+    # bare name lists. The rename commit changed the producer and missed this
+    # consumer — every lint run died with a KeyError on "configs".
+    return (set(e["params"]) | {s["name"] for s in e["settings"]}
+            | set(e["arrays"]) | set(e["inputs"]))
 
 
 def lint_file(path, desc, special):
