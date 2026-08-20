@@ -16,8 +16,16 @@ Updated: 2026-08-19 — dsp interactive sessions 08-18/08-19 (PerformSource P1+P
 > Same morning: HEAD build break fixed (`fe96a8d` — the 08-18 sessions left
 > the minPolyphony header decl + rtmidi link line uncommitted). (2) Matt's try
 > list in BACKLOG 20 (load Piano_bright, judge the converted layout, promotion
-> UX now including the node face, Note/Curve legibility); (3) P3 liveness,
-> carrying the bend-inertness hole (BACKLOG 26a). Session-start hygiene:
+> UX now including the node face, Note/Curve legibility); (3) ~~P3
+> liveness~~ **LANDED 2026-08-20** (`1a11fd9`): articulated .frequency via
+> per-voice sample clock (graft deleted), InstrumentState + wheel/pressure
+> smoothers, MIDI CC1/channel-pressure, Note+Curve creatable from the menu
+> (Matt's per-group cleanup blocker), 26a warning loud in both loaders.
+> Null gate 120/120 bit-identical incl. all bend/slide baselines; nothing
+> audible changed, no [listen] item. Wants Matt: mod wheel / pressure on
+> the MIDI keyboard once a patch wires a wheel/pressure Note node to
+> something. NEXT: P4 cleanup sweep (RangeSource migration, hiBoost →
+> curve = BACKLOG 19), or Matt's pick. Session-start hygiene:
 > VERIFY THE MODEL before starting work — bottom-right of the app window.
 > NEW STANDING RULES (Matt 2026-08-20, in WORKFLOW.md): a running UI is not
 > a blocker (rename-then-link); regression scope = library/ (+baselines),
