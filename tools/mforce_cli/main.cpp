@@ -999,8 +999,24 @@ static int run_dump_descriptors(int argc, char** argv)
             e[key] = nlohmann::json::array();
         for (const auto& d : s->input_descriptors())  e["inputs"].push_back(d.name);
         for (const auto& d : s->param_descriptors())  e["params"].push_back(d.name);
-        for (const auto& d : s->config_descriptors()) e["configs"].push_back(d.name);
         for (const auto& d : s->array_descriptors())  e["arrays"].push_back(d.name);
+        // Configs carry their type and enum-ness: a Float config is a value
+        // that happens to be expensive to change, while a Bool/enum config is
+        // structural and could never take a chain. The two are worth telling
+        // apart when deciding what may be driven per note.
+        for (const auto& d : s->config_descriptors()) {
+            nlohmann::json c = {
+                {"name", d.name},
+                {"type", d.type == ConfigType::Bool  ? "bool"
+                       : d.type == ConfigType::Int   ? "int"
+                       :                               "float"},
+                {"isEnum", d.enum_labels != nullptr},
+                {"default", d.default_value},
+                {"min", d.min_value},
+                {"max", d.max_value},
+            };
+            e["configs"].push_back(std::move(c));
+        }
         out[name] = std::move(e);
     }
 
