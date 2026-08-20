@@ -149,6 +149,11 @@ static bool is_wavetable_type(const std::string& t) {
         || t.find("Evolution") != std::string::npos;
 }
 
+// Gold = "set once at note-on, frozen for the note" — the performance
+// cadence. Shared by the Note node's title, the Settings-pane promotion UI
+// and the node-face dynamic pins so the meaning reads as one color.
+static constexpr ImU32 kDynPinGold = IM_COL32(205, 170, 60, 255);
+
 static ImU32 node_title_color(const std::string& typeName) {
     if (typeName == NT_SOUND_CHANNEL || typeName == NT_STEREO_MIXER)
         return IM_COL32(120, 130, 145, 255);    // Blue grey — Output
@@ -303,6 +308,25 @@ struct GraphNode {
     // reads params before any descriptor is known. Carried through save with
     // its refs remapped; Task 4 makes it editable via promotion.
     nlohmann::json dynamicPins = nlohmann::json::object();
+
+    // imnodes ids for the gold pins/wires that render dynamicPins on the
+    // node face. Session-only (never serialized — dynamicPins is the truth);
+    // stable across frames because imnodes tracks pin positions by id.
+    // Entries for demoted pins linger harmlessly.
+    std::unordered_map<std::string, int> dynPinAttrIds;
+    std::unordered_map<std::string, int> dynLinkIds;
+    int dyn_attr_id(const std::string& setting) {
+        auto it = dynPinAttrIds.find(setting);
+        if (it == dynPinAttrIds.end())
+            it = dynPinAttrIds.emplace(setting, next_id()).first;
+        return it->second;
+    }
+    int dyn_link_id(const std::string& setting) {
+        auto it = dynLinkIds.find(setting);
+        if (it == dynLinkIds.end())
+            it = dynLinkIds.emplace(setting, next_id()).first;
+        return it->second;
+    }
 
     GraphNode(const std::string& type) : id(next_id()), typeName(type), label(unique_node_label(type)) {
         build_pins();
@@ -708,6 +732,32 @@ static GraphNode* find_node_for_pin(int pinId) {
     for (auto& node : s_nodes) {
         for (auto& pin : node.inputs)  if (pin.id == pinId) return &node;
         for (auto& pin : node.outputs) if (pin.id == pinId) return &node;
+    }
+    return nullptr;
+}
+
+// Resolve a gold dynamic-pin attribute (or its wire) back to the owning node
+// and the setting it drives. Only ids for CURRENTLY promoted settings count —
+// stale ids from demoted pins resolve to nothing.
+static GraphNode* find_node_for_dyn_attr(int attrId, std::string* settingOut) {
+    for (auto& node : s_nodes) {
+        for (auto& [setting, id] : node.dynPinAttrIds) {
+            if (id == attrId && node.dynamicPins.contains(setting)) {
+                if (settingOut) *settingOut = setting;
+                return &node;
+            }
+        }
+    }
+    return nullptr;
+}
+static GraphNode* find_node_for_dyn_link(int linkId, std::string* settingOut) {
+    for (auto& node : s_nodes) {
+        for (auto& [setting, id] : node.dynLinkIds) {
+            if (id == linkId && node.dynamicPins.contains(setting)) {
+                if (settingOut) *settingOut = setting;
+                return &node;
+            }
+        }
     }
     return nullptr;
 }
@@ -6646,6 +6696,31 @@ static void draw_node(GraphNode& node) {
         ImNodes::PopAttributeFlag();
     }
 
+    // Dynamic pins (pin_model_design.md §6): the settings THIS PATCH drives
+    // once per note, below the fixed pins. Gold and quad-shaped — visibly not
+    // a fixed pin, because the value is frozen for the life of the note.
+    // dynamicPins is read live, so Settings-pane promote/demote shows up the
+    // same frame.
+    for (auto& [setting, val] : node.dynamicPins.items()) {
+        const std::string ref = val.is_object()
+            ? val.value("ref", std::string("?")) : std::string("?");
+        ImNodes::PushColorStyle(ImNodesCol_Pin, kDynPinGold);
+        ImNodes::PushColorStyle(ImNodesCol_PinHovered, lighten(kDynPinGold, 25));
+        ImNodes::BeginInputAttribute(node.dyn_attr_id(setting),
+                                     ImNodesPinShape_QuadFilled);
+        ImGui::TextColored(ImVec4(0.85f, 0.72f, 0.30f, 1.0f), "%s",
+                           setting.c_str());
+        if (ImGui::IsItemHovered())
+            ImGui::SetTooltip("Dynamic pin: set once at note-on by '%s',\n"
+                              "frozen for the life of the note.\n"
+                              "Drag a Curve output here to change the driver;\n"
+                              "demote in the Settings pane or delete the wire.",
+                              ref.c_str());
+        ImNodes::EndInputAttribute();
+        ImNodes::PopColorStyle();  // PinHovered
+        ImNodes::PopColorStyle();  // Pin
+    }
+
     // Output pins
     for (auto& pin : node.outputs) {
         ImNodes::BeginOutputAttribute(pin.id);
@@ -10356,6 +10431,34 @@ int main(int argc, char** argv) {
                 ImNodes::Link(link.id, a, b);
         }
 
+        // Dynamic-pin wires (pin_model_design.md §6): gold, from the driving
+        // node's output to the promoted setting's gold pin. A VIEW of
+        // dynamicPins — the JSON ref is the truth, there is no Link object.
+        // Drawn only when the target node itself is visible: a node hidden
+        // inside a collapsed group keeps its binding, the wire is implied by
+        // the group face like any other unrepresentable endpoint. The source
+        // end does project through group faces.
+        for (auto& node : s_nodes) {
+            if (node.dynamicPins.empty() || !visible_at_path(node.label))
+                continue;
+            for (auto& [setting, val] : node.dynamicPins.items()) {
+                if (!val.is_object()) continue;
+                const std::string ref = val.value("ref", std::string());
+                GraphNode* src = nullptr;
+                for (auto& c : s_nodes) if (c.label == ref) { src = &c; break; }
+                if (!src || src->outputs.empty()) continue;
+                int a = project_pin(src->outputs[0].id, true);
+                if (a < 0) continue;
+                ImNodes::PushColorStyle(ImNodesCol_Link, kDynPinGold);
+                ImNodes::PushColorStyle(ImNodesCol_LinkHovered, lighten(kDynPinGold, 25));
+                ImNodes::PushColorStyle(ImNodesCol_LinkSelected, lighten(kDynPinGold, 40));
+                ImNodes::Link(node.dyn_link_id(setting), a, node.dyn_attr_id(setting));
+                ImNodes::PopColorStyle();  // LinkSelected
+                ImNodes::PopColorStyle();  // LinkHovered
+                ImNodes::PopColorStyle();  // Link
+            }
+        }
+
         bool editorHovered = ImNodes::IsEditorHovered();
 
         ImNodes::EndNodeEditor();
@@ -10379,6 +10482,9 @@ int main(int argc, char** argv) {
                     if (ImNodes::IsPinHovered(&pinId)) {
                         if (GraphNode* pn = find_node_for_pin(pinId)) {
                             hovered = pn->id;
+                        } else if (GraphNode* dn =
+                                       find_node_for_dyn_attr(pinId, nullptr)) {
+                            hovered = dn->id;
                         } else {
                             for (auto& g : s_groups) {
                                 if (g.outPinId == pinId ||
@@ -10446,7 +10552,34 @@ int main(int argc, char** argv) {
             endAttr   = translate(endAttr);
             Pin* startPin = find_pin(startAttr);
             Pin* endPin = find_pin(endAttr);
-            if (startPin && endPin && startPin->kind != endPin->kind) {
+
+            // A drag landing on (or starting from) a GOLD pin retargets the
+            // dynamic pin's driver. Only a CurveNode may feed one (Matt
+            // 2026-08-19) — the same floor the Settings pane enforces.
+            std::string dynSetting;
+            GraphNode* dynNode = find_node_for_dyn_attr(startAttr, &dynSetting);
+            int otherAttr = endAttr;
+            if (!dynNode) {
+                dynNode = find_node_for_dyn_attr(endAttr, &dynSetting);
+                otherAttr = startAttr;
+            }
+            if (dynNode) {
+                GraphNode* srcNode = find_node_for_pin(otherAttr);
+                Pin* srcPin = find_pin(otherAttr);
+                if (srcNode && srcPin && srcPin->kind == PinKind::Output &&
+                    srcNode->typeName == "CurveNode") {
+                    dynNode->dynamicPins[dynSetting] = {{"ref", srcNode->label}};
+                    char msg[128];
+                    snprintf(msg, sizeof(msg), "%s.%s <- %s (per note)",
+                             dynNode->label.c_str(), dynSetting.c_str(),
+                             srcNode->label.c_str());
+                    transport_set_status(msg, false);
+                    mark_graph_dirty();
+                } else {
+                    transport_set_status(
+                        "Only a Curve may feed a dynamic pin", true);
+                }
+            } else if (startPin && endPin && startPin->kind != endPin->kind) {
                 int outPin = (startPin->kind == PinKind::Output) ? startAttr : endAttr;
                 int inPin  = (startPin->kind == PinKind::Input)  ? startAttr : endAttr;
 
@@ -10579,7 +10712,20 @@ int main(int argc, char** argv) {
             if (numLinks > 0) {
                 std::vector<int> sel(numLinks);
                 ImNodes::GetSelectedLinks(sel.data());
-                for (int lid : sel) delete_link(lid);
+                for (int lid : sel) {
+                    // A gold wire is a dynamic pin's driver: deleting it
+                    // DEMOTES — the wire is removed and the stowed scalar
+                    // (still in settingValues, never overwritten) takes
+                    // over again, same as the Settings-pane demote.
+                    std::string setting;
+                    if (GraphNode* dn = find_node_for_dyn_link(lid, &setting)) {
+                        dn->dynamicPins.erase(setting);
+                        dn->apply_config();
+                        mark_graph_dirty();
+                        continue;
+                    }
+                    delete_link(lid);
+                }
             }
             if (numNodes > 0) {
                 std::vector<int> sel(numNodes);
