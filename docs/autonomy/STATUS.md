@@ -9,12 +9,19 @@ Updated: 2026-08-19 — dsp interactive sessions 08-18/08-19 (PerformSource P1+P
 > 08-19:** the session ran on Opus 5 after an unannounced model switch; a full
 > same-evening audit by Fable 5 (`dsp/reports/2026-08-19-opus5-day-review.md`)
 > kept everything and fixed four edge defects on top. **Next up, in order:**
-> (1) gold pin on the NODE FACE for promoted settings — Matt's approved
-> design, shipped Settings-pane-only, he confirmed it's next; (2) Matt's try
+> (1) ~~gold pin on the NODE FACE~~ **DONE 2026-08-20** (`ca27225`, Fable 5
+> interactive): gold quad pins below the fixed pins, gold wires from the
+> driver, drag-a-Curve-to-retarget, delete-wire-demotes; roundtrip +
+> convert-roundtrip gates green, live-ran with Piano_default's five pins.
+> Same morning: HEAD build break fixed (`fe96a8d` — the 08-18 sessions left
+> the minPolyphony header decl + rtmidi link line uncommitted). (2) Matt's try
 > list in BACKLOG 20 (load Piano_bright, judge the converted layout, promotion
-> UX, Note/Curve legibility); (3) P3 liveness, carrying the bend-inertness
-> hole (BACKLOG 26a). Session-start hygiene: VERIFY THE MODEL before starting
-> work — bottom-right of the app window.
+> UX now including the node face, Note/Curve legibility); (3) P3 liveness,
+> carrying the bend-inertness hole (BACKLOG 26a). Session-start hygiene:
+> VERIFY THE MODEL before starting work — bottom-right of the app window.
+> NEW STANDING RULES (Matt 2026-08-20, in WORKFLOW.md): a running UI is not
+> a blocker (rename-then-link); regression scope = library/ (+baselines),
+> not full-tree sweeps.
 
 > The 2026-08-13 → 08-15 interactive sessions (not numbered runs) landed a
 > large body of dsp work between runs 25 and 26; the dsp row below folds
