@@ -70,8 +70,21 @@ def main():
             if r.returncode != 0:
                 bad_ids.append((pt, "roundtrip failed: " + r.stderr.strip()))
                 continue
-            if ids_of(pt) != ids_of(rt):
-                bad_ids.append((pt, f"{ids_of(pt)} -> {ids_of(rt)}"))
+            # The property is that no PRE-EXISTING id was renamed or lost —
+            # not that the id set is byte-identical. Loading a legacy patch now
+            # converts its paramMap into real graph nodes (P2b), which ADDS
+            # synthesized "__" ids: __perf_freq, __curve_N, __mul_N. That is
+            # the intended behaviour, and counting it as an id change reported
+            # 117 failures against 0 render diffs. Additions in the reserved
+            # namespace are expected; anything else still fails.
+            before, after = set(ids_of(pt)), set(ids_of(rt))
+            lost = before - after
+            added = {i for i in (after - before) if not i.startswith("__")}
+            if lost or added:
+                why = []
+                if lost:  why.append(f"lost {sorted(lost)}")
+                if added: why.append(f"unexpected new {sorted(added)}")
+                bad_ids.append((pt, "; ".join(why)))
                 continue
             # Render byte-identity is asserted only for instrument-style
             # patches: --roundtrip force-saves through save_patch_graph,

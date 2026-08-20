@@ -1101,6 +1101,173 @@ static void envelope_stages_from_json(Envelope& env, const nlohmann::json& stage
 // transport status line instead of silently creating inert nodes.
 static void transport_set_status(const char* msg, bool isError);
 
+// ---------------------------------------------------------------------------
+// Legacy paramMap -> wiring format, in JSON, before the graph is built.
+//
+// Deliberately done in JSON space rather than by constructing GraphNodes and
+// Links directly: it is the SAME algorithm on the SAME representation as
+// tools/parammap_to_wiring.py, which is gated at 196/196, so the two cannot
+// drift into disagreement. The existing loader then builds the graph from the
+// converted document and needs no knowledge of paramMap at all.
+//
+// Mirrors build_bindings' matrix (engine/src/patch_loader.cpp):
+//   bare "node.pin"         -> pin refs __perf_freq
+//   {target, curve}         -> CurveNode(logx|loglog) reading __perf_freq
+//   {target, vcurve}        -> multiply of the freq leg and a linear CurveNode
+//                              reading __perf_vel
+//   target with no '.'      -> pin defaults to "frequency"
+//   name != "frequency"     -> dropped; the engine ignored these too
+// A target lands in dynamicPins when it names a SETTING on that node's type,
+// asked of the registry directly.
+// ---------------------------------------------------------------------------
+static bool convert_parammap_to_wiring(nlohmann::json& root) {
+    using json = nlohmann::json;
+    if (!root.contains("instrument") || !root["instrument"].contains("paramMap"))
+        return false;
+    json pm = root["instrument"]["paramMap"];
+    if (!pm.is_object() || pm.empty()) {
+        root["instrument"].erase("paramMap");
+        return false;
+    }
+    json* container = nullptr;
+    if (root.contains("graph") && root["graph"].contains("nodes"))
+        container = &root["graph"];
+    else if (root.contains("nodes"))
+        container = &root;
+    if (!container) return false;
+
+    auto& nodes = (*container)["nodes"];
+    std::unordered_map<std::string, json*> byId;
+    for (auto& n : nodes) byId[n["id"].get<std::string>()] = &n;
+
+    // Formant children owned by a FormantSpectrum are NOT convertible. The
+    // UI consumes them into the spectrum's row table, and a row holds literal
+    // floats — it cannot represent a driven param. Writing a ref into one
+    // makes the pre-scan stop consuming it, so the spectrum re-emits
+    // synthesized rows and the original children survive as orphans (caught
+    // by the round-trip gate on 5 voice patches: spec.formants went
+    // [f1..f5] -> [spec__f0..spec__f3] with f1..f5 left loose).
+    // Those entries stay in the paramMap, which still round-trips as it always
+    // has. Converting them needs the row model to carry driven params — real
+    // work, and not this task's.
+    std::unordered_set<std::string> ownedFormants;
+    for (auto& n : nodes) {
+        if (!n.contains("params") || !n["params"].contains("formants")) continue;
+        const auto& arr = n["params"]["formants"];
+        if (!arr.is_array()) continue;
+        for (const auto& f : arr)
+            if (f.is_object() && f.contains("ref")) {
+                const std::string rid = f["ref"].get<std::string>();
+                auto it = byId.find(rid);
+                if (it != byId.end() && (*it->second)["type"] == "Formant")
+                    ownedFormants.insert(rid);
+            }
+    }
+
+    std::vector<json> synth;
+    std::unordered_map<std::string, bool> havePerf;
+    int counter = 0;
+
+    auto need_perf = [&](const char* field) -> std::string {
+        std::string nid = std::string("__perf_") + (std::string(field) == "velocity" ? "vel" : "freq");
+        if (!havePerf[nid]) {
+            synth.push_back({{"id", nid}, {"type", "PerformNode"},
+                             {"params", {{"field", field}}}});
+            havePerf[nid] = true;
+        }
+        return nid;
+    };
+    auto add_curve = [&](const json& knots, const char* interp,
+                         const std::string& srcId) -> std::string {
+        std::string nid = "__curve_" + std::to_string(++counter);
+        synth.push_back({{"id", nid}, {"type", "CurveNode"},
+                         {"params", {{"interp", interp}, {"knots", knots},
+                                     {"source", {{"ref", srcId}}}}}});
+        return nid;
+    };
+    auto add_mul = [&](const std::string& a, const std::string& b) -> std::string {
+        std::string nid = "__mul_" + std::to_string(++counter);
+        synth.push_back({{"id", nid}, {"type", "CombinedSource"},
+                         {"params", {{"source1", {{"ref", a}}},
+                                     {"source2", {{"ref", b}}},
+                                     {"operation", "multiply"}, {"gainAdj", 0.0}}}});
+        return nid;
+    };
+
+    auto& reg = SourceRegistry::instance();
+    auto is_setting = [&](const std::string& type, const std::string& key) {
+        if (!reg.has(type)) return false;
+        auto probe = reg.create(type, DSP_SAMPLE_RATE);
+        if (!probe) return false;
+        for (const auto& d : probe->setting_descriptors())
+            if (key == d.name) return true;
+        return false;
+    };
+
+    int converted = 0, kept = 0;
+    json leftover = json::object();
+    auto keep = [&](const std::string& name, const json& e) {
+        if (!leftover.contains(name)) leftover[name] = json::array();
+        leftover[name].push_back(e);
+        ++kept;
+    };
+
+    for (auto& [name, entries] : pm.items()) {
+        json list = entries.is_array() ? entries : json::array({entries});
+        if (name != "frequency") {   // the engine ignored these too; keep as-is
+            for (const auto& e : list) keep(name, e);
+            continue;
+        }
+        for (const auto& e : list) {
+            std::string target;
+            if (e.is_string())                              target = e.get<std::string>();
+            else if (e.is_object() && e.contains("target")) target = e["target"].get<std::string>();
+            else { keep(name, e); continue; }
+
+            auto dot = target.find('.');
+            std::string nodeId = dot == std::string::npos ? target : target.substr(0, dot);
+            std::string pin    = dot == std::string::npos ? "frequency" : target.substr(dot + 1);
+            auto it = byId.find(nodeId);
+            if (it == byId.end() || ownedFormants.count(nodeId)) { keep(name, e); continue; }
+
+            // Build the chain only once the target is known convertible, so a
+            // kept entry leaves no orphan synthesized nodes behind.
+            std::string head = need_perf("frequency");
+            if (e.is_object()) {
+                if (e.contains("curve"))
+                    head = add_curve(e["curve"],
+                                     e.value("interp", std::string()) == "loglog"
+                                         ? "loglog" : "logx", head);
+                if (e.contains("vcurve"))
+                    head = add_mul(head, add_curve(e["vcurve"], "linear",
+                                                   need_perf("velocity")));
+            }
+            json& tgt = *it->second;
+            const std::string ttype = tgt["type"].get<std::string>();
+            const char* slot = is_setting(ttype, pin) ? "dynamicPins" : "params";
+            if (!tgt.contains(slot)) tgt[slot] = json::object();
+            tgt[slot][pin] = {{"ref", head}};
+            ++converted;
+        }
+    }
+
+    // Prepend in dependency order — refs must resolve against earlier nodes.
+    json merged = json::array();
+    for (auto& n : synth) merged.push_back(n);
+    for (auto& n : nodes) merged.push_back(n);
+    nodes = merged;
+    // Unconvertible entries stay in the paramMap and keep working exactly as
+    // before; the stash path is unchanged for them. Only a fully converted
+    // patch loses its paramMap.
+    if (kept) root["instrument"]["paramMap"] = leftover;
+    else      root["instrument"].erase("paramMap");
+    if (converted || kept)
+        std::fprintf(stderr, "[ui] paramMap: %d converted to wiring, %d kept "
+                     "(owned formant children are not convertible)\n",
+                     converted, kept);
+    return converted > 0;
+}
+
 static void load_graph_from_path(const std::string& path) {
     using json = nlohmann::json;
 
@@ -1109,6 +1276,9 @@ static void load_graph_from_path(const std::string& path) {
     std::ifstream f(path);
     if (!f) return;
     json root = json::parse(f);
+    // Legacy paramMap becomes real nodes before anything else looks at the
+    // document. After this the stash is dead: nothing downstream reads it.
+    convert_parammap_to_wiring(root);
     stop_playback();  // stream paths hold raw pointers into s_nodes' DSP
     s_currentFilePath = path;
     s_graphDirty = false;
@@ -3369,6 +3539,20 @@ static float eval_map_vcurve(const nlohmann::json& vcurve, float vel) {
     return y(n - 1);
 }
 
+// The UI-side equivalent of PerformSource::set_note, for offline note renders
+// (waveform previews and the audition tap). A PerformNode's editor DSP is a
+// stand-in ConstantSource — the real adapter belongs to a voice, and the
+// editor has none — so retuning a preview means writing the note into those
+// constants. Without this, every preview of a converted patch would draw at
+// the stand-in's 440 Hz no matter which key was pressed.
+static void apply_perform_nodes(float freq, float velocity) {
+    for (auto& n : s_nodes) {
+        if (n.typeName != NT_PERFORM) continue;
+        if (auto* cs = dynamic_cast<ConstantSource*>(n.dspSource.get()))
+            cs->set(n.performField == 1 ? velocity : freq);
+    }
+}
+
 static void apply_param_map(float freq, float velocity) {
     if (!s_loadedParamMap.is_object()) return;
     auto it = s_loadedParamMap.find("frequency");
@@ -3425,6 +3609,7 @@ static void render_waveforms(float noteNum, float velocity, float durationSecond
     // NodeGraph mode has no paramMap and keeps its Parameter frequency node.
     float freq = note_to_freq(noteNum);
     apply_param_map(freq, velocity);
+    apply_perform_nodes(freq, velocity);
     for (auto& n : s_nodes) {
         if (n.typeName == NT_PARAMETER && n.paramName == "frequency") {
             if (auto* p = n.find_input("default"))
@@ -5378,6 +5563,7 @@ static void render_passage_waveforms(const std::vector<ParsedNote>& notes, float
     for (const auto& pn : notes) {
         float freq = note_to_freq(pn.noteNumber);
         apply_param_map(freq, velocity);
+        apply_perform_nodes(freq, velocity);
         for (auto& n : s_nodes) {
             if (n.typeName == NT_PARAMETER && n.paramName == "frequency") {
                 if (auto* p = n.find_input("default"))
