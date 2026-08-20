@@ -930,6 +930,29 @@ static void delete_node(int nodeId) {
             g.members.erase(std::remove(g.members.begin(), g.members.end(),
                                         node.label),
                             g.members.end());
+        // Any dynamic pin driven by the deleted node is DEMOTED — the entry
+        // is dropped and the setting's scalar (never overwritten by
+        // promotion) takes over again. Without this, save emitted a ref to a
+        // node that no longer exists and the CLI loader refused the whole
+        // patch ("refs unknown node"). Demotion, not error, is the right
+        // response: it is exactly what the demote button does, applied
+        // because the driver went away.
+        for (auto& other : s_nodes) {
+            if (other.dynamicPins.empty()) continue;
+            for (auto it = other.dynamicPins.begin();
+                 it != other.dynamicPins.end(); ) {
+                if (it.value().is_object() &&
+                    it.value().value("ref", std::string()) == node.label) {
+                    std::fprintf(stderr,
+                        "[ui] %s.%s demoted: its driver '%s' was deleted\n",
+                        other.label.c_str(), it.key().c_str(),
+                        node.label.c_str());
+                    it = other.dynamicPins.erase(it);
+                } else {
+                    ++it;
+                }
+            }
+        }
         break;
     }
     if (s_listenTapNode == nodeId) s_listenTapNode = -1;
@@ -1810,6 +1833,68 @@ static void load_graph_from_path(const std::string& path) {
                     ImNodes::SetNodeGridSpacePos(node.id, ImVec2(x, y));
             }
         }
+        // Nodes with NO saved position are the ones paramMap conversion just
+        // synthesized (__perf_freq, __curve_N, __mul_N) — the file's ui block
+        // predates them. Without placement they all stack at the origin, so a
+        // converted patch opened as a pile. Place each to the LEFT of the
+        // first consumer that has a position, staggered vertically when
+        // several feed the same consumer; multi-pass so chains resolve
+        // (curve gets its spot from the target, then the perform node from
+        // the curve). This was a planned P2b step that the first
+        // implementation skipped (2026-08-19 day review).
+        {
+            std::unordered_map<int, int> fanOut;   // consumer id -> placed count
+            auto consumer_pos = [&](const GraphNode& n, ImVec2& out, int& cid) {
+                for (const auto& c : s_nodes) {
+                    if (!c.gridPosKnown) continue;
+                    for (auto& [k, v] : c.dynamicPins.items())
+                        if (v.is_object() &&
+                            v.value("ref", std::string()) == n.label) {
+                            out = c.gridPos; cid = c.id; return true;
+                        }
+                }
+                for (const auto& l : s_links) {
+                    bool fromN = false;
+                    for (const auto& p : n.outputs)
+                        if (l.startPinId == p.id || l.endPinId == p.id) fromN = true;
+                    if (!fromN) continue;
+                    const GraphNode* a = find_node_for_pin(l.startPinId);
+                    const GraphNode* b = find_node_for_pin(l.endPinId);
+                    const GraphNode* other = (a && a->id == n.id) ? b : a;
+                    if (other && other->gridPosKnown) {
+                        out = other->gridPos; cid = other->id; return true;
+                    }
+                }
+                return false;
+            };
+            for (int pass = 0; pass < 3; ++pass) {
+                for (auto& node : s_nodes) {
+                    if (node.gridPosKnown) continue;
+                    ImVec2 base; int cid = -1;
+                    if (!consumer_pos(node, base, cid)) continue;
+                    node.gridPos = ImVec2(base.x - 280.0f,
+                                          base.y + 100.0f * float(fanOut[cid]++));
+                    node.gridPosKnown = true;
+                    if (!s_headless)
+                        ImNodes::SetNodeGridSpacePos(node.id, node.gridPos);
+                }
+            }
+            // Anything still adrift (no placed consumer found): a column to
+            // the left of everything, stacked — legible, if not pretty.
+            float minX = 0.0f;
+            for (const auto& c : s_nodes)
+                if (c.gridPosKnown) minX = std::min(minX, c.gridPos.x);
+            float stackY = 0.0f;
+            for (auto& node : s_nodes) {
+                if (node.gridPosKnown) continue;
+                node.gridPos = ImVec2(minX - 320.0f, stackY);
+                stackY += 100.0f;
+                node.gridPosKnown = true;
+                if (!s_headless)
+                    ImNodes::SetNodeGridSpacePos(node.id, node.gridPos);
+            }
+        }
+
         // Positions restored — suppress the first-frame grid auto-layout that
         // would otherwise scatter the just-loaded nodes.
         s_needsLayout = false;
@@ -2163,6 +2248,14 @@ static bool rename_node(GraphNode& node, const std::string& newName,
             }
         };
         for (auto& n : s_nodes) fixref(n.jsonExtras);
+        // Dynamic pins reference their driving CurveNode by label. Renaming
+        // that curve without this left a stale ref that save would emit
+        // verbatim — and the CLI loader then throws "refs unknown node", so
+        // the saved patch stopped RENDERING. Same 2026-08-13 failure family
+        // (UI action silently produces a broken file); found in the
+        // 2026-08-19 day review, not by the gates, which never simulate a
+        // user edit after promotion.
+        for (auto& n : s_nodes) fixref(n.dynamicPins);
     }
     if (oldName != newName) {
         // Group membership stores labels — follow the rename.
