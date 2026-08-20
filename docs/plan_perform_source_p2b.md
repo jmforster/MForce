@@ -436,12 +436,21 @@ The Mappings dialog becomes a table of every dynamic pin and perform-rooted
 wire in the graph. The Curves window edits the knots of real `CurveNode`s.
 `mapping_badge` asks the graph whether a pin is driven.
 
-- [ ] **Step 2: Delete `s_loadedParamMap`**
+- [ ] **Step 2: ~~Delete `s_loadedParamMap`~~ — REVISED, it stays**
 
-All 45 references across 15 functions, including the convert-graph stash paths
-(`convert_patch_to_node_graph`, `convert_node_to_patch_graph`) and
-`clipboard_cut`. The compiler finds them; that is the point of deleting the
-declaration first.
+This step assumed conversion was all-or-nothing. It is not: a paramMap target
+pointing into a Formant child owned by a FormantSpectrum cannot become a node,
+because the UI consumes those children into the spectrum's row table and a row
+holds literal floats. Five voice patches hit this.
+
+So the stash survives, **demoted from the model to the residue** — expected
+empty for most patches, small for the rest. Its declaration comment says so.
+Deleting it outright needs the formant row model to carry driven params, which
+is real work and not this task's.
+
+What DID have to change is every consumer that treated it as the model: the
+Curves window and Mappings dialog now derive from the graph and show the stash
+only under an explicit "not convertible to nodes" heading.
 
 - [ ] **Step 3: `apply_param_map` retires too**
 

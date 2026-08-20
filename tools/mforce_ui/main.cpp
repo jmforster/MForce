@@ -612,14 +612,21 @@ static std::string unique_node_label(const std::string& typeName) {
 // Set by the --roundtrip headless path so load/save skip ImNodes node-position
 // calls (those need a live editor/frame the headless path doesn't set up).
 static bool s_headless = false;
-// paramMap entries as loaded from JSON, captured verbatim. The UI node graph
-// models a paramMap target only when it resolves to an input pin, so it cannot
-// represent curve entries ({target, curve}) or targets that are configs (e.g.
-// Envelope.sustainLevel — a config, not a param pin). To avoid silently
-// stripping those on load→save, save_patch carries forward the original entry
-// verbatim for any Parameter name whose loaded entry carried a curve. Full
-// visual editing of curves is deferred (see dsp BACKLOG 3b "Later"). Reset on
-// new/clear/load.
+// paramMap RESIDUE — the entries convert_parammap_to_wiring could NOT turn
+// into graph nodes. No longer the model (P2b, 2026-08-19): load converts every
+// convertible entry into real PerformNode/CurveNode/CombinedSource nodes, and
+// the Curves window and Mappings dialog derive from the graph, not from here.
+//
+// What is left, and why: a paramMap target pointing INTO a Formant child owned
+// by a FormantSpectrum. The UI consumes those children into the spectrum's row
+// table, and a row holds literal floats — it cannot represent a driven param.
+// Writing a ref into one makes the pre-scan stop consuming it, so the spectrum
+// re-emits synthesized rows and orphans the originals. Those entries stay here
+// and keep working exactly as they always have.
+//
+// So this is expected to be EMPTY for most patches and small for the rest.
+// If it is ever empty for all of them, it can go — that needs the formant row
+// model to carry driven params. Reset on new/clear/load.
 static nlohmann::json s_loadedParamMap = nlohmann::json::object();
 
 // Verbatim "score" array and "seconds" value from the loaded patch JSON.
@@ -5088,7 +5095,92 @@ static void draw_mappings_dialog() {
         return;
     }
 
-    // --- Existing bindings ---
+    // --- Bindings that live in the GRAPH (P2b) ---
+    // A binding is now a wire, so this table is a VIEW: every pin fed by a
+    // chain rooted at a PerformNode. Dynamic pins (settings, pushed once per
+    // note) and fixed pins (pulled) are listed together but distinguished,
+    // because that difference is the whole point of the pin model.
+    {
+        // Walk back from a node to see whether a PerformNode feeds it, and
+        // through what. Depth-limited rather than visited-set — these chains
+        // are 1-3 nodes by construction.
+        std::function<const GraphNode*(const GraphNode*, int, bool&)> root_perform =
+            [&](const GraphNode* n, int depth, bool& viaCurve) -> const GraphNode* {
+                if (!n || depth > 6) return nullptr;
+                if (n->typeName == NT_PERFORM) return n;
+                if (n->typeName == "CurveNode") viaCurve = true;
+                for (const auto& link : s_links) {
+                    const GraphNode* dst = find_node_for_pin(link.endPinId);
+                    if (!dst || dst->id != n->id) continue;
+                    const GraphNode* src = find_node_for_pin(link.startPinId);
+                    if (const GraphNode* r = root_perform(src, depth + 1, viaCurve))
+                        return r;
+                }
+                return nullptr;
+            };
+
+        int rows = 0;
+        if (ImGui::BeginTable("graphbindings", 4,
+                ImGuiTableFlags_RowBg | ImGuiTableFlags_BordersInnerH)) {
+            ImGui::TableSetupColumn("Target", ImGuiTableColumnFlags_WidthStretch);
+            ImGui::TableSetupColumn("Kind",   ImGuiTableColumnFlags_WidthFixed, 110.0f);
+            ImGui::TableSetupColumn("Driven by", ImGuiTableColumnFlags_WidthFixed, 130.0f);
+            ImGui::TableSetupColumn("Shape",  ImGuiTableColumnFlags_WidthFixed, 70.0f);
+            ImGui::TableHeadersRow();
+
+            for (auto& n : s_nodes) {
+                // Dynamic pins: promoted settings, pushed once per note.
+                for (auto& [key, val] : n.dynamicPins.items()) {
+                    const std::string ref = val.is_object()
+                        ? val.value("ref", std::string()) : std::string();
+                    const GraphNode* srcNode = nullptr;
+                    for (auto& c : s_nodes) if (c.label == ref) { srcNode = &c; break; }
+                    ImGui::TableNextRow(); ++rows;
+                    ImGui::TableNextColumn();
+                    ImGui::Text("%s.%s", n.label.c_str(), key.c_str());
+                    ImGui::TableNextColumn();
+                    ImGui::TextColored(ImVec4(0.85f, 0.72f, 0.30f, 1), "dynamic pin");
+                    if (ImGui::IsItemHovered())
+                        ImGui::SetTooltip("A setting. Evaluated once at note-on and\n"
+                                          "frozen for the life of the note.");
+                    ImGui::TableNextColumn();
+                    ImGui::Text("%s", ref.empty() ? "-" : ref.c_str());
+                    ImGui::TableNextColumn();
+                    ImGui::Text("%s", srcNode && srcNode->typeName == "CurveNode"
+                                          ? "curve" : "direct");
+                }
+                // Fixed pins wired to a perform-rooted chain: pulled per sample.
+                for (const auto& pin : n.inputs) {
+                    const GraphNode* src = find_source_node(pin.id);
+                    if (!src) continue;
+                    bool viaCurve = false;
+                    const GraphNode* perf = root_perform(src, 0, viaCurve);
+                    if (!perf) continue;
+                    ImGui::TableNextRow(); ++rows;
+                    ImGui::TableNextColumn();
+                    ImGui::Text("%s.%s", n.label.c_str(), pin.name.c_str());
+                    ImGui::TableNextColumn();
+                    ImGui::TextDisabled("fixed pin");
+                    if (ImGui::IsItemHovered())
+                        ImGui::SetTooltip("An ordinary pin. Pulled every sample.");
+                    ImGui::TableNextColumn();
+                    ImGui::Text("%s", perf->label.c_str());
+                    ImGui::TableNextColumn();
+                    ImGui::Text("%s", viaCurve ? "curve" : "direct");
+                }
+            }
+            ImGui::EndTable();
+        }
+        if (rows == 0)
+            ImGui::TextDisabled("Nothing in this patch is driven by the note.");
+    }
+
+    if (!s_loadedParamMap.empty()) {
+        ImGui::Separator();
+        ImGui::TextDisabled("Legacy paramMap entries (not convertible to nodes)");
+    }
+
+    // --- Legacy stash entries ---
     struct DeleteReq { std::string param; int subIdx; };  // -1 = whole entry
     std::vector<DeleteReq> deletes;
     bool focusCurves = false;
