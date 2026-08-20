@@ -187,10 +187,22 @@ Proposal, aligning code with what the UI already says on screen:
 - A promoted setting is a **dynamic pin**. A non-promotable one is a
   **structural setting**.
 
-Cost: 2 virtuals, 1 struct, 1 enum, ~76 declaration sites, 27 files — and
-**zero patch files and zero user-facing strings**, since the format has no
-`config` key and the UI never says the word. No rendered audio changes, so the
-null gate holds it honest for free.
+Cost: 3 virtuals, 1 struct, 1 enum, and ~500 occurrences across **29 files**,
+of which `partials.h` (96), `wave_evolution.h` (90), `envelope_presets.h` (66)
+and `tools/mforce_ui/main.cpp` (53) are the bulk.
+
+**Zero patch files change** — the format has no `config` key; settings are read
+out of the same `params` object as pins.
+
+**Almost zero user-facing text.** Corrected 2026-08-19 during execution: an
+earlier draft of this section claimed *zero*, which was wrong. The Mappings
+dialog annotates a target with `"  (config)"` in two places
+(`tools/mforce_ui/main.cpp:4775` and `:4970`), so the word does reach the
+screen and becomes `"(setting)"`. The Properties heading was already
+"Settings".
+
+No rendered audio changes, so the null gate holds the whole rename honest for
+free — and a missed identifier is a compile error, not a silent bug.
 
 Deliberately separable: the rename can land before, after, or never, without
 affecting anything else here.

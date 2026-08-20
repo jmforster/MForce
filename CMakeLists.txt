@@ -42,7 +42,6 @@ add_subdirectory(engine/third_party/rtmidi)
 
 add_subdirectory(engine)
 add_subdirectory(tools/mforce_cli)
-add_subdirectory(tools/mforce_keys)
 add_subdirectory(tools/mforce_ui)
 add_subdirectory(tools/durn_converter)
 add_subdirectory(tools/test_figures)

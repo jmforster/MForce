@@ -37,14 +37,31 @@ def main():
         print(f"Manifest: {len(manifest)} entries")
         return
     ref = json.loads(MANIFEST.read_text())
-    bad = 0
+    seen, bad, new = set(), 0, 0
     for p in patches:
         key = str(p.relative_to(ROOT)).replace("\\", "/")
+        seen.add(key)
         h = render_hash(p)
-        if ref.get(key) != h:
+        if key not in ref:
+            # Authored since the freeze. NOT a regression — there is nothing to
+            # compare it to. Reported so it is visible, but it must not fail the
+            # run: a gate that cries wolf on a patch someone just saved is how a
+            # real diff gets waved through later.
+            new += 1
+            print(f"NEW  {key} (not in manifest, nothing to compare)", flush=True)
+            continue
+        if ref[key] != h:
             bad += 1
-            print(f"DIFF {key}: {ref.get(key)} -> {h}", flush=True)
-    print(f"{len(patches) - bad}/{len(patches)} identical")
+            print(f"DIFF {key}: {ref[key]} -> {h}", flush=True)
+    # A manifest entry with no file is its own failure — a patch that silently
+    # vanished would otherwise shrink the denominator and read as a pass.
+    for key in sorted(set(ref) - seen):
+        bad += 1
+        print(f"GONE {key} (in manifest, no file on disk)", flush=True)
+
+    checked = len(ref)
+    print(f"{checked - bad}/{checked} manifest entries identical"
+          + (f"; {new} new patch(es) not in manifest" if new else ""))
     sys.exit(1 if bad else 0)
 
 main()
