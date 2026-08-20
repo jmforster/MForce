@@ -1074,7 +1074,7 @@ static nlohmann::json envelope_stages_to_json(const Envelope& env) {
                       : (s.ramp.type == RampType::InverseExpo) ? "InverseExpo"
                       : (s.ramp.type == RampType::Sine)        ? "Sine"
                                                                 : "Linear";
-        stages.push_back({
+        nlohmann::json sj = {
             {"percent",  s.percent},
             {"startVal", s.ramp.startVal},
             {"endVal",   s.ramp.endVal},
@@ -1083,7 +1083,14 @@ static nlohmann::json envelope_stages_to_json(const Envelope& env) {
             {"holdPct",  s.ramp.holdPct},
             {"minSec",   s.minSec},
             {"maxSec",   s.maxSec},
-        });
+        };
+        // Stage.nominal — the stage's authored length for LIVE playback, added
+        // by P1 and never taught to this serializer. Omitted at its default so
+        // no existing patch's bytes move; emitted when set, so a re-save stops
+        // silently discarding it. That was the standing "don't hand-author
+        // these fields before P2b" warning in BACKLOG 20.
+        if (s.nominal != 0.0f) sj["nominal"] = s.nominal;
+        stages.push_back(std::move(sj));
     }
     return stages;
 }
@@ -1105,6 +1112,7 @@ static void envelope_stages_from_json(Envelope& env, const nlohmann::json& stage
         s.percent = sj.value("percent", 0.0f);
         s.minSec  = sj.value("minSec",  0.0f);
         s.maxSec  = sj.value("maxSec",  0.0f);
+        s.nominal = sj.value("nominal", 0.0f);   // P1 live-playback stage length
         env.add_stage(s);
     }
 }
