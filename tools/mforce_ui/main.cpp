@@ -10831,6 +10831,59 @@ int main(int argc, char** argv) {
             ImGui::Separator();
         }
 
+        // Drill-transition camera (Matt 2026-08-20: drilling in/out could
+        // land on a blank pane, then F-and-hunt). Every path change funnels
+        // through s_groupPath, so one detector covers double-click, context
+        // Open, breadcrumb and ungroup. Drill-IN frames the new level's
+        // content (top-left + 80px margin); drill-OUT restores the exact pan
+        // you had at that level when you left it — panStack[d] = pan at
+        // depth d. Breadcrumb-only moves are always prefix moves, so the
+        // two cases cover everything.
+        {
+            static std::vector<std::string> prevPath;
+            static std::vector<ImVec2> panStack;
+            if (prevPath != s_groupPath) {
+                auto frame_level = [&]() {
+                    float minX = 1e9f, minY = 1e9f;
+                    bool any = false;
+                    for (auto& n : s_nodes)
+                        if (visible_at_path(n.label) && n.gridPosKnown) {
+                            minX = std::min(minX, n.gridPos.x);
+                            minY = std::min(minY, n.gridPos.y);
+                            any = true;
+                        }
+                    for (auto& g : s_groups)
+                        if (visible_at_path(g.name)) {
+                            minX = std::min(minX, g.pos.x);
+                            minY = std::min(minY, g.pos.y);
+                            any = true;
+                        }
+                    if (any)
+                        ImNodes::EditorContextResetPanning(
+                            ImVec2(80.0f - minX, 80.0f - minY));
+                };
+                const bool deeper =
+                    s_groupPath.size() > prevPath.size() &&
+                    std::equal(prevPath.begin(), prevPath.end(),
+                               s_groupPath.begin());
+                if (deeper) {
+                    // Remember where we were at the departed depth.
+                    panStack.resize(prevPath.size() + 1,
+                                    ImNodes::EditorContextGetPanning());
+                    panStack[prevPath.size()] =
+                        ImNodes::EditorContextGetPanning();
+                    frame_level();
+                } else if (s_groupPath.size() < panStack.size()) {
+                    ImNodes::EditorContextResetPanning(
+                        panStack[s_groupPath.size()]);
+                    panStack.resize(s_groupPath.size());
+                } else {
+                    frame_level();
+                }
+                prevPath = s_groupPath;
+            }
+        }
+
         ImNodes::BeginNodeEditor();
 
         s_groupProj = GroupProjection{};
@@ -10897,7 +10950,26 @@ int main(int argc, char** argv) {
 
         bool editorHovered = ImNodes::IsEditorHovered();
 
+        // Navigable overview (imnodes built-in, never enabled until Matt's
+        // 2026-08-20 navigation pass): drag inside it to jump.
+        ImNodes::MiniMap(0.15f, ImNodesMiniMapLocation_BottomRight);
+
         ImNodes::EndNodeEditor();
+
+        // Wheel pans the canvas: wheel = vertical, Shift+wheel = horizontal
+        // (TrackPoint/middle-button scrolling emits exactly these events, so
+        // the eraserhead pans without Alt-drag). Middle-drag still pans
+        // natively; Alt+left stays as the no-middle-button fallback.
+        if (editorHovered && !ImGui::GetIO().WantTextInput) {
+            float wy = ImGui::GetIO().MouseWheel;
+            float wx = ImGui::GetIO().MouseWheelH;
+            if (ImGui::GetIO().KeyShift && wx == 0.0f) { wx = wy; wy = 0.0f; }
+            if (wx != 0.0f || wy != 0.0f) {
+                ImVec2 p = ImNodes::EditorContextGetPanning();
+                ImNodes::EditorContextResetPanning(
+                    ImVec2(p.x + wx * 40.0f, p.y + wy * 40.0f));
+            }
+        }
 
         // Ctrl-click DESELECTS an already-selected node (Matt, REVIEW 32):
         // imnodes' multi-select modifier only ever adds, which makes
