@@ -2,6 +2,17 @@
 
 ## Awaiting Matt
 
+### 39. Wheel + pressure, live [try] (2026-08-20)
+The one piece of the 2026-08-20 session no human has exercised: P3 wired
+CC1 mod wheel and channel pressure from the MIDI keyboard into
+InstrumentState, smoothed per voice (~10 ms). Nothing hears them until a
+patch does: add a Note node, wire its `wheel` (or `pressure`) pin through
+a Curve into something audible — Overall_lpf.cutoffFreq on the WIP piano
+is a natural first target — then play and ride the wheel. Everything else
+from today (gold pins, Note faces, control strips, group editing,
+drill camera, minimap) you verdicted live at the canvas; no listen items,
+P3's null gate was 120/120 bit-identical.
+
 ### 35. afp31_v1 — the from-scratch AFNoding-031 rebuild [listen] (2026-08-16)
 renders/dsp/pending/afp31/afp31_v1.wav (C2/C4/C6 hard + C4 soft);
 patch patches/pending/afp31/afp31_v1.json; generator tools/gen_afp31.py;

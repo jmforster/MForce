@@ -1,6 +1,20 @@
 # Status — open this file first
 
-Updated: 2026-08-19 — dsp interactive sessions 08-18/08-19 (PerformSource P1+P2) · comp run 26 (Wolfie, scheduled)
+Updated: 2026-08-20 — dsp interactive (Fable 5): P3 LANDED + Matt's full
+hands-on day (Note faces, control-strip cleanup, group editing, drill
+camera + wheel pan + minimap). WIP piano = Piano_default byte-identical
+with group-local control chains; promotion to library is Matt's call.
+
+> **Queued for the next session (Matt intends Opus 4.8; trivialities
+> only, saving Fable for 08-21):** (1) Matt picks: smoothed wheel pan
+> and/or right-drag pan (drag-threshold vs context menu); (2) taste
+> knobs from today — frame margin 80px, wheel step 40px/notch, minimap
+> 15%, in-group control placements in WIP; (3) BACKLOG 21 WhiteNoise
+> lost params; (4) BACKLOG 28 conversion drops instrument extras;
+> (5) REVIEW 39 [try] = wheel/pressure live once a patch wires them.
+> Rules of the day (in WORKFLOW.md): running UI = rename-then-link,
+> never a blocker; regression scope = library/ + baselines, no full-tree
+> sweeps.
 
 > **2026-08-18 → 08-19 interactive (not numbered runs): PerformSource P1, P2a
 > and P2b ALL LANDED** — paramMap's whole story is now graph nodes, engine and
