@@ -1,0 +1,165 @@
+{
+  "genres": [
+    "Pop",
+    "Rock"
+  ],
+  "name": "Pop1",
+  "patterns": [
+    {
+      "bars": 16,
+      "name": "BillyLife",
+      "passage": [
+        {
+          "phrase": 1
+        },
+        {
+          "cadence": "half",
+          "phrase": 2
+        },
+        {
+          "phrase": 1
+        },
+        {
+          "cadence": "full",
+          "phrase": 3
+        }
+      ],
+      "phrases": [
+        {
+          "figures": [
+            {
+              "slot": "A"
+            },
+            {
+              "newAnchor": true,
+              "slot": "A"
+            },
+            {
+              "newAnchor": true,
+              "slot": "A"
+            },
+            {
+              "slot": "B"
+            }
+          ],
+          "index": 1
+        },
+        {
+          "figures": [
+            {
+              "slot": "A"
+            },
+            {
+              "newAnchor": true,
+              "slot": "A"
+            },
+            {
+              "elideAfter": 1,
+              "newAnchor": true,
+              "slot": "A"
+            },
+            {
+              "slot": "C"
+            }
+          ],
+          "index": 2
+        },
+        {
+          "figures": [
+            {
+              "slot": "A"
+            },
+            {
+              "newAnchor": true,
+              "slot": "A"
+            },
+            {
+              "elideAfter": 2,
+              "newAnchor": true,
+              "slot": "A"
+            },
+            {
+              "slot": "D"
+            }
+          ],
+          "index": 3
+        }
+      ],
+      "roles": [
+        "Verse",
+        "Chorus"
+      ]
+    },
+    {
+      "bars": 8,
+      "name": "MileyFlowers",
+      "passage": [
+        {
+          "phrase": 1
+        },
+        {
+          "phrase": 1
+        }
+      ],
+      "phrases": [
+        {
+          "figures": [
+            {
+              "slot": "A"
+            },
+            {
+              "slot": "A"
+            },
+            {
+              "slot": "B"
+            }
+          ],
+          "index": 1
+        }
+      ],
+      "roles": [
+        "Verse"
+      ]
+    },
+    {
+      "bars": 16,
+      "name": "BlueMorn",
+      "passage": [
+        {
+          "phrase": 1
+        },
+        {
+          "phrase": 1
+        },
+        {
+          "phrase": 1
+        },
+        {
+          "phrase": 1
+        }
+      ],
+      "phrases": [
+        {
+          "figures": [
+            {
+              "slot": "A"
+            },
+            {
+              "slot": "B"
+            },
+            {
+              "slot": "C"
+            }
+          ],
+          "index": 1
+        }
+      ],
+      "roles": [
+        "Verse"
+      ]
+    }
+  ],
+  "roles": [
+    "Chorus"
+  ]
+}

@@ -114,3 +114,37 @@ Pre_crash.txt
 /*.png
 # purchased Alpha Forever plugin binaries - never commit
 docs/research/af_plugin/
+
+############################
+# Vendored third-party (local checkouts, not versioned here)
+############################
+engine/third_party/
+
+############################
+# Research raw assets (2026-08-22): bulk source material stays local.
+# Curated artifacts (RECIPE.md, ANALYSIS.md, decoded patches, selected
+# z_*.png frames) stay tracked — add new ones with git add -f if a
+# pattern below catches them.
+############################
+docs/research/afpiano_scratch/frames/f_*.png
+docs/research/afpiano_scratch/*.mp4
+docs/research/afpiano_scratch/*.vtt
+docs/research/af_sax/*.mp4
+docs/research/af_sax/*.wav
+docs/research/af_sax/*.vtt
+docs/research/afpiano_2021/*.wav
+docs/research/afpiano_2021/*.mp3
+docs/research/afpiano_2021/*.png
+docs/research/afpiano_2021/patch.txt
+docs/research/afpiano_2021/transcript.txt
+docs/research/structure/
+docs/research/ThemeDict.pdf
+docs/research/p16_bach*.png
+docs/research/page16.png
+docs/research/AFPiano?notes.txt
+docs/research/af_ks/modernized_ks.txt
+
+############################
+# Personal notes / session scratch docs (moved from docs/ root 2026-08-22)
+############################
+docs/notes/

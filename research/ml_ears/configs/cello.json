@@ -1,0 +1,20 @@
+{
+  "name": "cello",
+  "_TODO": "STUB — samples not present locally. Matt: download Iowa MIS cello arco ff (https://theremin.music.uiowa.edu/MIS.html) into research/inst_samples/cello, verify the .aif naming carries .sulX. and .<note>. tags like the viola set, then run `python iowa_reference.py --config cello` to build the reference JSON. The template is the viola additive patch as a starting point; replace with a cello-measured ampl baseline (derive from the C2/G2/D3/A3 samples) before a real run.",
+  "source": "Iowa MIS cello arco ff (NOT DOWNLOADED)",
+  "sample_dir": "research/inst_samples/cello",
+  "sample_glob": "*.aif",
+  "score_notes": [
+    {"note": "C2", "string": "sulC", "midi": 36, "f0": 65.406},
+    {"note": "G2", "string": "sulG", "midi": 43, "f0": 97.999},
+    {"note": "D3", "string": "sulD", "midi": 50, "f0": 146.832},
+    {"note": "A3", "string": "sulA", "midi": 57, "f0": 220.0}
+  ],
+  "eval_note_midis": [36, 50, 57],
+  "motion_samples": ["sulC.C2", "sulC.G2", "sulG.G2", "sulG.D3",
+                     "sulD.D3", "sulD.A3", "sulA.A3", "sulA.E4"],
+  "template": "patches/fable1_v5/v5_04_cal_sustain.json",
+  "reference_path": "research/ml_ears/out/iowa_cello_reference.json",
+  "reference_build": {"sus_start": 0.55, "sus_len": 1.4, "attack_len": 0.55},
+  "run_root": "research/ml_ears/cmaes_runs"
+}
