@@ -851,13 +851,17 @@ Priority order. Tags per WORKFLOW.md. (G1)-(G4) = GOALS.md Dipsy goals.
     rate, not a phase.
 
 29. **[build] TriangleSource `power` shape control** — ✓ **DONE 2026-08-21**
-    (MISC.md). New `power` ValueSource warps each straight leg, modelled on
+    (MISC.md). New `power` ValueSource warps the straight legs, modelled on
     RampSource Expo/Inverse_Expo. Signed, neutral at 1: `|power|<=1` linear
     (byte-identical — neutral band returns the exact legacy arithmetic),
-    `power>1` concave (`t^power`), `power<-1` convex (`1-(1-t)^|power|`).
-    Default 1.0 → all 5 Triangle baselines in the 196/196 gate identical.
-    Shape verified numerically (concave<linear<convex at a fixed leg phase).
-    Taste-confirm queued REVIEW 40 [listen]. Report: reports/2026-08-21-dipsy-misc.md.
+    `power>1` CONCAVE sides, `power<-1` CONVEX sides. **Both sides bend the SAME
+    way** (falling leg mirrors the rising leg about the peak) — the first cut's
+    per-leg warp was a shark-fin (opposite senses), fixed same session per Matt.
+    The shark-fin math is preserved behind a new `asymmetric` Bool setting
+    (checkbox; default off). Default power 1.0 → all 5 Triangle baselines in the
+    196/196 gate identical; `asymmetric=true` at power 3 is byte-identical to the
+    first cut. Symmetry verified numerically. REVIEW 40 [listen].
+    Report: reports/2026-08-21-dipsy-misc.md.
 
 30. **[build] UI piano — dynamic octaves + top C** — ✓ **DONE 2026-08-21**
     (MISC.md). `draw_keyboard_panel`: (a) keyboard always ends on the C above

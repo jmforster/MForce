@@ -13,17 +13,20 @@ resulting key-width band feel right, and that the trailing top C sounds. Taste
 constants (MIN_KEY_W 20 / MAX_KEY_W 40 / default octaves 4) are at the top of
 the render block if the band wants retuning.
 
-### 40. Triangle `power` shape control [listen] (2026-08-21)
+### 40. Triangle `power` shape control [listen] (2026-08-21, shark-fin fixed)
 New `power` ValueSource on TriangleSource (MISC.md). Signed, neutral at 1:
-`|power|<=1` linear (= today), `power>1` concave legs (`t^power`, Ramp-Expo
-slow-start), `power<-1` convex legs (mirror, fast-start). Default 1.0 is
-byte-identical (all 5 Triangle baselines passed the 196/196 gate). Scratch A/B
-today: `renders/scratch/misc_0821/tri_pow{1,3,neg3}.wav` (220 Hz, bias 0.5).
-DECIDE: does the concave/convex feel match intent, and is the signed convention
-(1 = linear, cross 1 up for concave / cross -1 down for convex) the one you
-want, vs. a plain fractional exponent (power 2 concave / 0.5 convex)? The band
-[-1,1] is currently a linear dead-zone by design — say if you'd rather it bend
-continuously from 0.
+`|power|<=1` linear (= today), `power>1` CONCAVE sides (pinched/spiky),
+`power<-1` CONVEX sides (domed/rounded). **Both sides now bend the same way**
+(symmetric) — your shark-fin complaint on the first cut is fixed; the old
+per-leg shark-fin math is preserved behind an **Asymmetric** checkbox on the
+node (default off). Default power 1.0 byte-identical (all 5 Triangle baselines
+in the 196/196 gate). Scratch: `renders/scratch/misc_0821/tri_pow{1,3,neg3}.wav`
+(first cut = now the asymmetric shape) + `tri_pow3_sym.wav` /
+`tri_pow3_asym.wav`. DECIDE: does the symmetric concave/convex feel match
+intent, and is the signed convention (1 = linear, cross 1 up for concave /
+cross -1 down for convex) the one you want, vs. a plain fractional exponent
+(power 2 concave / 0.5 convex)? The band [-1,1] is a linear dead-zone by
+design — say if you'd rather it bend continuously from 0.
 
 ### 39. Wheel + pressure, live [try] (2026-08-20)
 The one piece of the 2026-08-20 session no human has exercised: P3 wired

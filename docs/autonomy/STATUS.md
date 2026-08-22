@@ -4,8 +4,10 @@ Updated: 2026-08-21 — dsp (Opus 4.8, MISC.md): three trivialities landed,
 all byte-identical at defaults (null gate 196/196). (1) **WhiteNoiseSource**
 regained density/boost/continuity + a new zeroCrossTendency (backlog 21 done);
 byte-identical fast path at defaults, shaping engages only off-default. (2)
-**TriangleSource `power`** — signed shape knob, concave (power>1) / convex
-(power<-1) legs, linear at default 1 (backlog 29 done). (3) **UI piano** —
+**TriangleSource `power`** — signed shape knob, symmetric concave (power>1) /
+convex (power<-1) sides, linear at default 1 (backlog 29 done). First cut was a
+shark-fin (Matt); fixed to symmetric same session, old math kept behind an
+`asymmetric` checkbox. (3) **UI piano** —
 adds/removes a whole octave on resize to hold key width in a 20–40px band, and
 always ends on the top C (backlog 30 done). Both engine changes rebuilt cli+ui
 (rename-then-link past Matt's running UI, --stamp exit 0). Two review items

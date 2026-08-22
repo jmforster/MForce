@@ -84,6 +84,25 @@ at the top of the render block, easy for Matt to retune.
   confirm the add/remove-octave thresholds and key-width band feel right, and that
   the trailing C plays.
 
+## Follow-up (same session): Triangle shark-fin fixed → symmetric legs + `asymmetric` flag
+
+Matt's verdict on the first Triangle cut: `power > 1` gave a "shark fin" — one
+side convex, the other concave — because my falling leg was warped from its own
+start (`1 - 2·warp(u)`) instead of mirroring the rising leg, so the two sides bent
+in opposite senses. Fixed: the falling leg now mirrors the rising leg about the
+peak (`-1 + 2·warp(1-u)`), so both sides bend the SAME way — a symmetric shape,
+concave sides at `power>1` (pinched/spiky), convex at `power<-1` (domed/rounded).
+
+The old per-leg math is preserved behind a new `asymmetric` Bool setting
+(SettingType::Bool → renders as a checkbox in the UI automatically, loads
+generically). Default off = symmetric.
+
+Verified: `asymmetric=true` at power 3 renders BYTE-IDENTICAL to the first cut's
+shark-fin (hash 0ee66bf3), so nothing was lost. Symmetric default at power 3
+mirrors about the peak to within sample quantization (max leg asymmetry 0.014 vs
+0.675 for the asymmetric arm). Null gate still 196/196 (power/asymmetric both at
+inert defaults everywhere). Scratch: `renders/scratch/misc_0821/tri_pow3_{sym,asym}.wav`.
+
 ## Not done / notes
 
 - No commit of scratch test patches (patches/scratch + renders/scratch are
