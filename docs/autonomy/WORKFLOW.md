@@ -81,6 +81,16 @@ A fresh session has everything it needs from the repo + memory; for comp,
 the composition chat thread's transcript is additionally searchable when
 deep context helps.
 
+## Misc task lists (MISC.md)
+
+Matt may drop a dated list of small, concrete tasks in a lane's `MISC.md`
+(pattern established with dsp/MISC.md, 2026-08-21). These are do-as-written
+items — no decomposition or design pass needed — and they outrank the
+backlog when Matt points a run at them. Completed items flow through the
+normal machinery (report, gates, BACKLOG/REVIEW/STATUS updates); when a
+list is done, replace it with a pointer to the report so the file only
+ever holds outstanding tasks.
+
 ## Lane personas
 
 Matt is proj lead. Lane work is reported in the voice of a named dev:

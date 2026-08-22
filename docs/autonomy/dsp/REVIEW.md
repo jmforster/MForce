@@ -269,93 +269,30 @@ re-applied on top of ground truth. Register peaks: C1 .078 / C2 .109 /
 C4 .320 / C6 .117 / C8 .067. Engine gaps (approximated): per-comb
 damping cutoffs, per-comb feedback, exp follower tails.
 
-### 34. AFP excitation ladder — moves A+E [listen] (2026-08-15)
-renders/dsp/pending/ks_piano_v6/pb_exc_*.wav + README_pb_exc.md.
-Four arms on Piano_bright: ctrl / A (350 ms burst decay, no bed) /
-AE (full measured envelope: 20 ms attack, 350 ms decay -> 0.18 bed,
-450 ms release) / AE_lo (bed 0.09). Measured: the bed brings C6 sustain
-from dead (-82 dB @1.5 s) to alive (-24/-30); attack peaks rebalance
-(C4 ~2x — judge timbre first, levels re-anchor later). HELD keys now
-carry a bow-like noise bed on the AE arms — hand-play them, not just
-the WAVs. Anti-result: lengthening the release alone is a no-op from a
-zero bed. REV 2 same day: Matt's Listen-here verdict on rev 1 ("chuff of white
-noise, feeble hit") measured TRUE — step_3 hits hit 50% in ~4-30 ms,
-rev 1's linear 350 ms decay was at ~92% there. Arms rebuilt as the
-measured CLACK (fast drop 50%@~17 ms, 10%@~100 ms, bed -32 dB,
-verified at the Combined7 tap; attack spectrum was already on target —
-the gap was temporal). Same filenames. REV 3 (same day, Matt: "much better but weak attack +
-chuffy tail"): all three claims MEASURED — rise time already matches
-(7.7 ms both); the weak attack is a CREST deficit (his transient 4.6x
-over first-30 ms energy vs our 2.7x) plus COMPONENT SEPARATION (his
-bright rap and low clunk peak ~30 ms apart; ours stacked at -7 ms);
-tail centroid 664 vs his 501 Hz. Two new arms shipped
-(pb_exc_B1_sharp: 2 ms attack + steeper drop; pb_exc_B2_sep: + knock
-bloom delayed to 25 ms) — HONEST RESULT: crest only 2.7 -> 3.0 and the
-knock delay did NOT move separation (the low peak is the HammerBank's
-fundamental ring, not the knock). Envelope lever is exhausted at ~3.0:
-the resonant bank + body LP smear whatever the envelope sharpens, and
-his 1-4 kHz rap has no un-smeared path in our chain (our click band
-sits at 4-9.5k). The crest/separation/tail gaps are all move-B
-territory: restructure excitation filters toward his measured chain
-(resonant 4P body with the ~1.5-2k knee, a FAST 1-4k rap path, mix
-rebalance). REV 4 (the survivor): pb_exc_trace.wav — env1 TRACED point-for-point
-from the step_3 median hit envelope; verified shape-vs-shape at the
-string-input tap (head, shoulder, 100 ms level all inside noise
-wobble). Three intermediate theories (spike, resonant ping, impulse
-click) retired: the crest metrics that motivated them were window-
-alignment artifacts. Bed reduced to 0.02 in this arm. Remaining known
-gap: tail COLOR (centroid 664 vs his 501 Hz) = move B knee territory,
-untouched. VERDICT (Matt, end of day): rev 4 "just sounds terrible
-compared to his" — envelope-shape matching is EXHAUSTED as an approach
-(four revs, shape verified matching, still wrong). Front PARKED for a
-change of approach; candidate directions for tomorrow logged below.
-Sleep-on-it directions (not yet chosen):
-(1) SUBSTITUTION BISECT — sample one clean hit from his step_3 WAV and
-    play it AS our excitation (one-shot wavetable; wav_reader.h already
-    in tree). If our string then sounds right, the gap really is our
-    excitation synthesis and we distill against a known-good; if it
-    still sounds wrong, we have been polishing the wrong component and
-    the string/loop is the suspect. Decisive either way.
-(2) GET THE REAL PATCH — Alpha Forever is downloadable freeware and he
-    said "probably this will be a preset in Forever": if the piano
-    preset ships, every node value becomes READABLE at source quality,
-    no video archaeology. Check first tomorrow; obsoletes half the
-    reverse-engineering if it lands.
-(3) LITERAL CHAIN CLONE — reproduce his exact 4-path graph (1P + three
-    SVF + resonant 4P, mixer 1.00/0.76/0.33/0.47) instead of adapting
-    our chain toward it; may need a true SVF node (engine gap).
-
-### 33. AFP excitation stage analysis [read] (2026-08-15)
-docs/research/afpiano_2021/ANALYSIS.md — new dated section from your 4
-stage WAVs + corrected transcript. Headlines: step_3's "one more filter"
-is a 4-pole resonant lowpass (measured -18..-20 dB/oct, knee ~1.5-2 kHz,
-kills >4 kHz) = the frames' "Filter 4P Modulated with Emphasis"; the
-3-SVF stage is MILD sculpting (no resonances, Q~0 confirmed); his noise
-burst rings to ~350 ms where ours dies in 20-40 ms (candidate mechanism
-for the harpsichordy-attack family); "noises so identical" REFUTED as
-frozen noise (hit correlation ~0.09 — perceptual consistency, not
-seeding). Post-string gaps: pitch-tracked 1st-order ZDF allpass in-loop
-+ a post-sum 1P tone filter, both absent, both cheap.
-step_0 CORRECTED per Matt's ear: thump + ~4 s HELD-KEY noise bed at
-~18% of burst level, core slope -1..-1.7 dB/oct ("pinker than white"
-confirmed; "white noise" is his source label, not the tap spectrum).
-**Verdict decides which of the proposed moves proceed: (A) burst-length
-ladder, (B) exc_lp knee retune + emphasis bump, (C) post-string 1P +
-in-loop 1P allpass rung, (D) frozen noise = skip, (E) held-key noise
-bed via excitation sustainLevel (~-15 dB rel burst) + slight noise
-tilt.**
-
 ## Resolved
 
-Pared 2026-08-15 at Matt's request — compact stubs only; full detail
-lives in the run reports (docs/autonomy/dsp/reports/) and git history.
+Pared 2026-08-15 at Matt's request (and again 2026-08-22) — compact stubs
+only; full detail lives in the run reports (docs/autonomy/dsp/reports/)
+and git history.
 
+- **34. AFP excitation ladder** (2026-08-15, resolved 2026-08-22 housekeeping):
+  four revs of envelope-shape matching, shape verified matching at the
+  string-input tap, then Matt's final verdict "just sounds terrible compared
+  to his" — approach EXHAUSTED, front parked. Of the three logged
+  change-of-approach directions, (2) get-the-real-patch HAPPENED (Wayback →
+  item 36 ground truth); (1) substitution bisect and (3) literal chain clone
+  remain available if the gt A/B still leaves a gap. Full rev history in this
+  file's git history.
+- **33. AFP excitation stage analysis** (2026-08-15, resolved 2026-08-22):
+  the analysis stands at docs/research/afpiano_2021/ANALYSIS.md; its
+  proposed moves A-E were mooted by the decoded ground-truth patch (item
+  36) — moves now derive from real values, not frame inference.
 - **32. Groups + Listen tap** (2026-08-15): "work great, and this is
   huge" — piano patch de-black-boxed. Follow-ups landed same day:
   ctrl-click deselect (pin-hover aware), hover-vs-selected cues with the
   blue selection kept, drill-out position loss fixed. Piano_bright
   accidental overwrite restored from git, hash-verified. Shared-source
-  group refusal + duplicate-changes-sound trap → backlog 3q.
+  group refusal + duplicate-changes-sound trap → backlog 27 (absorbs 3q).
 - **31. 3n closed** (2026-08-15): all 33 UI-save fidelity failures fixed
   (5 root causes, incl. engine adsr-shape sustain rewrite); gate 196
   patches, exception list empty but FormantSequence1 (backlog 3p).

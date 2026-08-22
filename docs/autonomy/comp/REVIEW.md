@@ -33,8 +33,10 @@ Surfaced by Matt comparing renders against Iowa file labels.
 > PATHS 2026-08-10: housekeeping moved comp render dirs to
 > renders/comp/pending/ and the live template/jazz-turnaround inputs to
 > scores/pending/ (patch/score split, docs/patch_triage_2026_08_10.md).
-> Items 11/13/17 cite renders that NO LONGER EXIST (2026-08-08 render
-> purge casualty) — flagged in dsp REVIEW item 26; re-render before verdict.
+> **Items 11/13/17 are BLOCKED** — their renders NO LONGER EXIST
+> (2026-08-08 render purge casualty). Re-render is backlog #22, the FIRST
+> task of the next comp run; Matt should not attempt verdicts until the
+> entries here carry fresh paths.
 
 ### 18. Cadential arrival — held, or approached? [listen] (run 26)
 `renders/comp/pending/cadential_arrival_ab/` — `template_golden_phase1a_{held,approach}`
@@ -60,7 +62,7 @@ Verdict decides the default for `PhraseTemplate.cadentialArrival`. Both stay
 authorable per phrase either way. (`template_shaped_test` was rendering pure
 silence until this run — it is one of six that were; see the run-26 report.)
 
-### 17. Passage endings — beat or barline? [listen] (run 18)
+### 17. Passage endings — beat or barline? [listen] (run 18) — BLOCKED, re-render = backlog #22
 `renders/passage_end_grid/{off,beat,bar}` [MISSING — see note above] — the same 21 passages three times,
 `endGrid` the only difference. `off` is what you have been hearing (6/21 end
 on a beat), `beat` is the new default (21/21 on a beat, 8/21 on a barline),
@@ -96,7 +98,7 @@ concluded), or does it also offset the passage entry by the key distance —
 and if so, is that the default or an opt-in flag? Note the second one has a
 sharp edge: a template that sets both would get transposed twice.
 
-### 13. Phrase endings, recalibrated [listen] (run 17)
+### 13. Phrase endings, recalibrated [listen] (run 17) — BLOCKED, re-render = backlog #22
 `renders/markov_phrases6/` (new default `calib`) vs `renders/markov_phrases6/longest/`
 (the v3 rule you called "fine for now") [both MISSING — see note above].
 Same seed, same 24 phrases, **only the last note differs** (README inside).
@@ -143,7 +145,7 @@ arm you picked). Hand-voiced path survives as `pedal_chords_hand`.
 Verdict decides: does the pinned arrival read as you intended, and does the
 hand path stay reachable or retire.
 
-### 11. Literal repeats can now transform [listen] (run 16)
+### 11. Literal repeats can now transform [listen] (run 16) — BLOCKED, re-render = backlog #22
 `renders/markov_phrases5/` vs `renders/markov_phrases5/before/` [both MISSING — see note above] — same-seed
 A/B, backlog #10 closed. Repeated A/B occurrences can invert / retrograde /
 rotate / ornament instead of only transposing; first occurrence of a family
