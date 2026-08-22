@@ -311,7 +311,7 @@ struct GraphNode {
     // with no entry gets a fresh __perf_* id at save.
     std::map<std::string, std::string> perfFieldIds;
 
-    // CurveNode: knots and interp, modeled so the Curves window can edit them.
+    // CurveNode: knots and interp, edited in the node's Properties pane.
     // interp: 0 = linear, 1 = logx, 2 = loglog — matches CurveNode::CurveInterp.
     std::vector<std::pair<float, float>> curveKnots;
     int curveInterp{0};
@@ -666,7 +666,7 @@ static bool s_headless = false;
 // paramMap RESIDUE — the entries convert_parammap_to_wiring could NOT turn
 // into graph nodes. No longer the model (P2b, 2026-08-19): load converts every
 // convertible entry into real PerformNode/CurveNode/CombinedSource nodes, and
-// the Curves window and Mappings dialog derive from the graph, not from here.
+// the curve editors and Mappings dialog derive from the graph, not from here.
 //
 // What is left, and why: a paramMap target pointing INTO a Formant child owned
 // by a FormantSpectrum. The UI consumes those children into the spectrum's row
@@ -1773,7 +1773,7 @@ static void load_graph_from_path(const std::string& path) {
                     if (k == "formants") continue;  // rows / ref-pins, both modeled
                     if (gn.typeName == NT_ENVELOPE && kEnvelopeKeys.count(k)) continue;
                     // CurveNode knots/interp are modeled (curveKnots /
-                    // curveInterp) so the Curves window can edit them. They
+                    // curveInterp) so the Properties curve editor can edit them. They
                     // rode jsonExtras verbatim until P2b; a verbatim copy
                     // would win over an edit on save.
                     if (gn.typeName == "CurveNode" && (k == "knots" || k == "interp"))
@@ -1923,7 +1923,7 @@ static void load_graph_from_path(const std::string& path) {
 
         // paramMap: the stash IS the model (2026-08-14 spec §2). No Parameter
         // nodes are materialized in patch mode — bindings live as data, are
-        // edited in the Mappings dialog / Curves tab, show as green badges on
+        // edited in the Mappings dialog / Curve Properties, show as green badges on
         // Properties rows, and are applied per note by apply_param_map.
         if (root["instrument"].contains("paramMap"))
             s_loadedParamMap = root["instrument"]["paramMap"];
@@ -2618,7 +2618,7 @@ static void save_patch_graph(const std::string& path, bool tapOverride = false) 
         json params = json::object();
 
         // CurveNode knots/interp are modeled, not carried — emitted from the
-        // node so an edit in the Curves window survives the save.
+        // node so an edit in the curve editor survives the save.
         if (node.typeName == "CurveNode") {
             json knots = json::array();
             for (const auto& [x, y] : node.curveKnots)
@@ -5160,12 +5160,15 @@ static void draw_audition_window() {
 }
 
 // ===========================================================================
-// Curves window — visual editor for paramMap frequency→value curves.
+// Curve editors. CurveNode shapes are edited in the node's Properties pane
+// (draw_curve_node); the legacy stash editor (draw_one_curve) lives in the
+// Parameter-mapping dialog. The separate Curves window was retired
+// 2026-08-22 (Matt).
 //
 // Curve-bearing paramMap entries ({"target": "node.paramOrConfig", "curve":
 // [[hz, value], ...]}) live verbatim in s_loadedParamMap (the UI node graph
-// cannot model them — see the stash comment near its declaration). This
-// window edits that stash directly. Because save_patch_graph carries the
+// cannot model them — see the stash comment near its declaration). The
+// legacy editor edits that stash directly. Because save_patch_graph carries the
 // stash forward (with node-id remapping) and get_playback_patch_path
 // re-serializes the patch through save_patch_graph whenever the graph is
 // dirty, every edit here is immediately audible on keyboard playback and
@@ -5391,6 +5394,7 @@ static bool draw_curve_node(GraphNode& node) {
                           "loglog: a 2-knot segment is exactly y = k*x^n.");
 
     int removeIdx = -1;
+    bool needSort = false;
     if (ImGui::BeginTable("knots", 3, ImGuiTableFlags_SizingFixedFit)) {
         for (int r = 0; r < (int)node.curveKnots.size(); ++r) {
             ImGui::TableNextRow();
@@ -5402,6 +5406,11 @@ static bool draw_curve_node(GraphNode& node) {
                 node.curveKnots[r].first = std::max(0.0001f, x);  // log-x needs > 0
                 changed = true;
             }
+            // Re-sort only when the X edit is COMMITTED. Sorting on every
+            // keystroke moved the row being typed out from under the active
+            // widget, so the digits landed in a previously created knot
+            // (Matt, 2026-08-22).
+            if (ImGui::IsItemDeactivatedAfterEdit()) needSort = true;
             ImGui::TableNextColumn();
             ImGui::SetNextItemWidth(90.0f);
             float y = node.curveKnots[r].second;
@@ -5419,19 +5428,27 @@ static bool draw_curve_node(GraphNode& node) {
     if (removeIdx >= 0) {
         node.curveKnots.erase(node.curveKnots.begin() + removeIdx);
         changed = true;
+        needSort = true;
     }
     if (ImGui::SmallButton("+ knot")) {
         float lastX = node.curveKnots.empty() ? 100.0f : node.curveKnots.back().first;
         float lastY = node.curveKnots.empty() ? 0.0f   : node.curveKnots.back().second;
         node.curveKnots.emplace_back(lastX * 2.0f, lastY);
         changed = true;
+        needSort = true;
     }
 
+    auto by_x = [](const auto& a, const auto& b) { return a.first < b.first; };
+    if (needSort)
+        std::stable_sort(node.curveKnots.begin(), node.curveKnots.end(), by_x);
+    // The engine (and the plot) assume ascending knots; while the table is
+    // mid-edit the editor order may lag, so hand them a sorted copy.
+    auto sortedKnots = node.curveKnots;
+    std::stable_sort(sortedKnots.begin(), sortedKnots.end(), by_x);
+
     if (changed) {
-        std::stable_sort(node.curveKnots.begin(), node.curveKnots.end(),
-                         [](const auto& a, const auto& b) { return a.first < b.first; });
         if (auto* cn = dynamic_cast<CurveNode*>(node.dspSource.get())) {
-            cn->knots = node.curveKnots;
+            cn->knots = sortedKnots;
             cn->interp = static_cast<CurveNode::CurveInterp>(node.curveInterp);
         }
         mark_graph_dirty();
@@ -5439,12 +5456,12 @@ static bool draw_curve_node(GraphNode& node) {
 
     // Plot, evaluated through the ENGINE's own map() rather than a mirror of
     // it — the node is right here, so there is nothing to keep in sync.
-    if (node.curveKnots.size() >= 2) {
+    if (sortedKnots.size() >= 2) {
         CurveNode probe;
-        probe.knots = node.curveKnots;
+        probe.knots = sortedKnots;
         probe.interp = static_cast<CurveNode::CurveInterp>(node.curveInterp);
-        float lo = node.curveKnots.front().first;
-        float hi = node.curveKnots.back().first;
+        float lo = sortedKnots.front().first;
+        float hi = sortedKnots.back().first;
         if (lo > 0.0f && hi > lo) {
             constexpr int N = 128;
             float samples[N];
@@ -5463,7 +5480,7 @@ static bool draw_curve_node(GraphNode& node) {
 
 // Eligible mapping targets on a node: pins the loader can resolve to a
 // ConstantSource (value pins not wired to a source) plus all scalar
-// configs (delivered via set_setting). Shared by the Curves tab's Add-curve
+// configs (delivered via set_setting). Shared by the Mappings dialog Add-with-curve
 // section and the Parameter-mappings dialog.
 struct TargetOpt { std::string name; float current; bool isSetting; };
 static std::vector<TargetOpt> eligible_targets(GraphNode* tn) {
@@ -5498,7 +5515,7 @@ static bool target_exists_for(const std::string& paramName, const std::string& t
 // ---------------------------------------------------------------------------
 // Parameter-mappings dialog (spec §2): the one table of every binding in the
 // patch. Rows come straight from the stash; deletes edit it in place; adds
-// go through the same append rules as the Curves tab.
+// go through the same append rules as the Mappings dialog.
 // ---------------------------------------------------------------------------
 static bool s_mappingsOpen = false;
 
@@ -5600,7 +5617,6 @@ static void draw_mappings_dialog() {
     // --- Legacy stash entries ---
     struct DeleteReq { std::string param; int subIdx; };  // -1 = whole entry
     std::vector<DeleteReq> deletes;
-    bool focusCurves = false;
     if (ImGui::BeginTable("mappings", 5,
             ImGuiTableFlags_RowBg | ImGuiTableFlags_BordersInnerH)) {
         ImGui::TableSetupColumn("Name",   ImGuiTableColumnFlags_WidthFixed, 90.0f);
@@ -5626,12 +5642,9 @@ static void draw_mappings_dialog() {
             ImGui::Text("%s", target.c_str());
             ImGui::TableNextColumn();
             if (e.is_object() && e.contains("curve")) {
-                char lbl[48];
-                snprintf(lbl, sizeof(lbl), "%d pts##c%s%d",
-                         (int)e["curve"].size(), pname.c_str(), subIdx);
-                if (ImGui::SmallButton(lbl)) focusCurves = true;
+                ImGui::Text("%d pts", (int)e["curve"].size());
                 if (ImGui::IsItemHovered())
-                    ImGui::SetTooltip("Edit the shape in the Curves window");
+                    ImGui::SetTooltip("Shape editor is below the table");
             } else {
                 ImGui::TextDisabled("-");
             }
@@ -5659,6 +5672,38 @@ static void draw_mappings_dialog() {
     }
     if (!s_loadedParamMap.is_object() || s_loadedParamMap.empty())
         ImGui::TextDisabled("No bindings. Notes will not retune until 'frequency' maps to something.");
+
+    // --- Legacy curve SHAPES (the Curves window retired 2026-08-22) ---
+    // Unconvertible stash entries keep their breakpoint editor here;
+    // CurveNode shapes are edited in the Curve node's Properties pane.
+    // Deleting a shape deletes the BINDING (same semantics as the table's X:
+    // a curveless binding would push raw note frequency into a
+    // non-frequency target, which is never what the delete meant).
+    {
+        bool anyShape = false;
+        auto shape_header = [&]() {
+            if (anyShape) return;
+            ImGui::Separator();
+            ImGui::TextDisabled("Legacy curve shapes");
+            anyShape = true;
+        };
+        for (auto& [pname, entry] : s_loadedParamMap.items()) {
+            ImGui::PushID(pname.c_str());
+            if (entry.is_object() && entry.contains("curve")) {
+                shape_header();
+                if (draw_one_curve(pname, entry)) deletes.push_back({pname, -1});
+            } else if (entry.is_array()) {
+                for (int i = 0; i < (int)entry.size(); ++i) {
+                    if (!entry[i].is_object() || !entry[i].contains("curve")) continue;
+                    shape_header();
+                    ImGui::PushID(i);
+                    if (draw_one_curve(pname, entry[i])) deletes.push_back({pname, i});
+                    ImGui::PopID();
+                }
+            }
+            ImGui::PopID();
+        }
+    }
 
     for (const auto& d : deletes) {
         if (!s_loadedParamMap.contains(d.param)) continue;
@@ -5756,7 +5801,6 @@ static void draw_mappings_dialog() {
     if (ImGui::Button("Add with curve##mapcurve")) {
         curves_add_entry("frequency", target, opts[selTarget].current);
         mark_graph_dirty();
-        focusCurves = true;
     }
     ImGui::EndDisabled();
     if (exists) {
@@ -5764,204 +5808,9 @@ static void draw_mappings_dialog() {
         ImGui::TextDisabled("(already bound)");
     }
 
-    if (focusCurves) ImGui::SetWindowFocus("Curves");
     ImGui::End();
 }
 
-static void draw_curves_window() {
-    ImGui::Begin("Curves", nullptr, ImGuiWindowFlags_NoCollapse);
-
-    if (s_graphMode != GraphMode::PatchGraph) {
-        ImGui::TextDisabled("Curves apply to instrument patches only\n(no instrument block in this graph).");
-        ImGui::End();
-        return;
-    }
-
-    // Logical mapping names come from the stash itself (the model);
-    // "frequency" is always offered — it is the only name the instrument
-    // evaluates at note-on.
-    std::vector<std::string> paramNames{"frequency"};
-    if (s_loadedParamMap.is_object())
-        for (auto& [k, v] : s_loadedParamMap.items())
-            if (k != "frequency") paramNames.push_back(k);
-
-    // --- Selected-node filter (Matt 2026-08-12): with exactly one node
-    // selected in the editor, show only curves targeting that node's
-    // attributes. No/multi selection = show everything.
-    std::string filterLabel;
-    if (ImNodes::NumSelectedNodes() == 1) {
-        int selId = -1;
-        ImNodes::GetSelectedNodes(&selId);
-        for (auto& n : s_nodes)
-            if (n.id == selId && !n.label.empty()) { filterLabel = n.label; break; }
-    }
-    auto entry_passes_filter = [&](const nlohmann::json& e) {
-        if (filterLabel.empty()) return true;
-        if (!e.is_object() || !e.contains("target") || !e["target"].is_string())
-            return true;   // malformed/legacy — never hide silently
-        const std::string t = e["target"].get<std::string>();
-        return t.rfind(filterLabel + ".", 0) == 0;
-    };
-    if (!filterLabel.empty())
-        ImGui::TextDisabled("Filtered to node '%s' (deselect to show all)",
-                            filterLabel.c_str());
-
-    // --- Real CurveNodes in the graph (P2b) ---
-    // Every converted patch's curves live here now. Listed first because this
-    // is where curves ARE; the stash section below survives only for entries
-    // that could not be converted.
-    int curveNodeCount = 0;
-    for (auto& n : s_nodes) {
-        if (n.typeName != "CurveNode") continue;
-        if (!filterLabel.empty() &&
-            curve_node_destination(n).rfind(filterLabel + ".", 0) != 0 &&
-            n.label != filterLabel)
-            continue;
-        ++curveNodeCount;
-        draw_curve_node(n);
-    }
-    if (curveNodeCount == 0 && !filterLabel.empty())
-        ImGui::TextDisabled("No curve nodes on '%s'.", filterLabel.c_str());
-
-    // --- Legacy stash entries (unconverted: owned formant children) ---
-    // Structural deletes are deferred to after iteration.
-    struct DeleteReq { std::string param; int subIdx; };  // subIdx -1 = entry itself is the object
-    std::vector<DeleteReq> deletes;
-    bool anyCurve = false;
-    bool anyShown = false;
-    if (!s_loadedParamMap.empty()) {
-        ImGui::Separator();
-        ImGui::TextDisabled("Legacy paramMap curves (not convertible to nodes)");
-    }
-    for (auto& [pname, entry] : s_loadedParamMap.items()) {
-        ImGui::PushID(pname.c_str());
-        if (entry.is_object() && entry.contains("curve")) {
-            anyCurve = true;
-            if (entry_passes_filter(entry)) {
-                anyShown = true;
-                if (draw_one_curve(pname, entry)) deletes.push_back({pname, -1});
-            }
-        } else if (entry.is_array()) {
-            for (int i = 0; i < (int)entry.size(); ++i) {
-                if (!entry[i].is_object() || !entry[i].contains("curve")) continue;
-                anyCurve = true;
-                if (!entry_passes_filter(entry[i])) continue;
-                anyShown = true;
-                ImGui::PushID(i);
-                if (draw_one_curve(pname, entry[i])) deletes.push_back({pname, i});
-                ImGui::PopID();
-            }
-        }
-        ImGui::PopID();
-    }
-    if (!anyCurve && curveNodeCount == 0 && filterLabel.empty())
-        ImGui::TextDisabled("No curves in this patch.");
-    else if (anyCurve && !anyShown)
-        ImGui::TextDisabled("No legacy curves on node '%s'.", filterLabel.c_str());
-
-    for (const auto& d : deletes) {
-        nlohmann::json& entry = s_loadedParamMap[d.param];
-        if (d.subIdx < 0) {
-            // Entry was a bare {target, curve} object: deleting the curve
-            // deletes the BINDING (spec §2 — the widget on the target's
-            // Properties row comes back; a curveless binding would push raw
-            // note frequency into a non-frequency target, which is never
-            // what the delete meant).
-            s_loadedParamMap.erase(d.param);
-        } else if (entry.is_array() && d.subIdx < (int)entry.size()) {
-            entry.erase(entry.begin() + d.subIdx);
-            if (entry.size() == 1 && entry[0].is_string())
-                s_loadedParamMap[d.param] = entry[0];
-        }
-        mark_graph_dirty();
-    }
-
-    // --- Add a new curve ---
-    ImGui::Separator();
-    ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1), "Add curve");
-
-    static int selParam = 0, selNode = 0, selTarget = 0;
-
-    // Parameter combo (which paramMap name the curve is evaluated under).
-    // Only "frequency" is evaluated at note-on today; still list all names.
-    selParam = std::clamp(selParam, 0, (int)paramNames.size() - 1);
-    ImGui::SetNextItemWidth(140.0f);
-    if (ImGui::BeginCombo("Parameter", paramNames[selParam].c_str())) {
-        for (int i = 0; i < (int)paramNames.size(); ++i)
-            if (ImGui::Selectable(paramNames[i].c_str(), i == selParam)) selParam = i;
-        ImGui::EndCombo();
-    }
-
-    // Target node combo (any non-special node in the graph).
-    std::vector<GraphNode*> targetNodes;
-    for (auto& n : s_nodes)
-        if (!is_special_ui_type(n.typeName) && !n.label.empty())
-            targetNodes.push_back(&n);
-    if (targetNodes.empty()) {
-        ImGui::TextDisabled("No target nodes in graph.");
-        ImGui::End();
-        return;
-    }
-    // Pre-select the node selected in the editor, tracked across changes.
-    static int lastEditorSelCurve = -1;
-    if (ImNodes::NumSelectedNodes() == 1) {
-        int selId = -1;
-        ImNodes::GetSelectedNodes(&selId);
-        if (selId != lastEditorSelCurve) {
-            lastEditorSelCurve = selId;
-            for (int i = 0; i < (int)targetNodes.size(); ++i)
-                if (targetNodes[i]->id == selId) { selNode = i; selTarget = 0; break; }
-        }
-    }
-    selNode = std::clamp(selNode, 0, (int)targetNodes.size() - 1);
-    ImGui::SetNextItemWidth(140.0f);
-    if (ImGui::BeginCombo("Node", targetNodes[selNode]->label.c_str())) {
-        for (int i = 0; i < (int)targetNodes.size(); ++i) {
-            ImGui::PushID(i);
-            if (ImGui::Selectable(targetNodes[i]->label.c_str(), i == selNode)) {
-                if (i != selNode) selTarget = 0;
-                selNode = i;
-            }
-            ImGui::PopID();
-        }
-        ImGui::EndCombo();
-    }
-
-    // Param/config combo for the chosen node (shared with the Mappings
-    // dialog — see eligible_targets above draw_curves_window).
-    GraphNode* tn = targetNodes[selNode];
-    std::vector<TargetOpt> opts = eligible_targets(tn);
-    if (opts.empty()) {
-        ImGui::TextDisabled("Selected node has no curve-able params/settings.");
-        ImGui::End();
-        return;
-    }
-    selTarget = std::clamp(selTarget, 0, (int)opts.size() - 1);
-    ImGui::SetNextItemWidth(140.0f);
-    if (ImGui::BeginCombo("Param / setting", opts[selTarget].name.c_str())) {
-        for (int i = 0; i < (int)opts.size(); ++i) {
-            const bool hasCurve = curve_exists_for(
-                paramNames[selParam], tn->label + "." + opts[i].name);
-            char lbl[160];
-            snprintf(lbl, sizeof(lbl), "%s%s%s##%d", opts[i].name.c_str(),
-                     opts[i].isSetting ? "  (setting)" : "",
-                     hasCurve ? "  (has curve)" : "", i);
-            if (ImGui::Selectable(lbl, i == selTarget)) selTarget = i;
-        }
-        ImGui::EndCombo();
-    }
-
-    if (ImGui::Button("Add##addcurve")) {
-        std::string target = tn->label + "." + opts[selTarget].name;
-        curves_add_entry(paramNames[selParam], target, opts[selTarget].current);
-    }
-    if (paramNames[selParam] != "frequency") {
-        ImGui::TextColored(ImVec4(0.9f, 0.75f, 0.3f, 1),
-            "Note: only 'frequency' curves are evaluated at note-on today.");
-    }
-
-    ImGui::End();
-}
 
 static void draw_keyboard_panel() {
     ImGui::Begin("Keyboard", nullptr, ImGuiWindowFlags_NoCollapse);
@@ -6075,8 +5924,11 @@ static void draw_keyboard_panel() {
     // (Matt, 2026-08-21). Default 4 octaves; add an octave when keys get too
     // wide, drop one when they get too narrow. The layout always ends on the
     // C above the top octave, so the range is a whole number of octaves + 1.
-    const float MIN_KEY_W = 20.0f;   // narrower than this → drop an octave
-    const float MAX_KEY_W = 40.0f;   // wider than this   → add an octave
+    // Band widened 20/40 -> 30/60 (Matt 2026-08-22: "greater key width").
+    // Keep MAX/MIN >= 15/8: the 1->2 octave step changes white-key count
+    // 8 -> 15, and a narrower band would oscillate at that boundary.
+    const float MIN_KEY_W = 30.0f;   // narrower than this → drop an octave
+    const float MAX_KEY_W = 60.0f;   // wider than this   → add an octave
     const int   MIN_OCTAVES = 1;
     const int   MAX_OCTAVES = 10;    // stays inside the MIDI range from any base
     auto keyWidthFor = [&](int oct) { return availW / float(oct * WHITE_KEYS_PER_OCT + 1); };
@@ -7222,6 +7074,19 @@ static void draw_properties_panel() {
     }
     ImGui::Separator();
 
+    // A Curve node's Properties pane IS its curve editor (Matt 2026-08-22;
+    // the separate Curves window is retired). Input side first so the pane
+    // reads source -> curve -> destination.
+    if (node->typeName == "CurveNode") {
+        const GraphNode* src = node->inputs.empty()
+            ? nullptr : find_source_node(node->inputs[0].id);
+        ImGui::TextColored(ImVec4(0.5f, 0.8f, 0.5f, 1), "in: %s",
+                           src ? src->label.c_str() : "(not connected)");
+        draw_curve_node(*node);
+        ImGui::End();
+        return;
+    }
+
     // Layout: label on left (120px), widget on right
     float labelW = 120.0f;
     // Cap widget width so spinners/combos don't stretch absurdly when the
@@ -7251,7 +7116,7 @@ static void draw_properties_panel() {
         } else if (badge) {
             ImGui::TextColored(ImVec4(0.5f, 0.8f, 0.5f, 1), "%s", badge);
             if (ImGui::IsItemHovered())
-                ImGui::SetTooltip("Driven per note by the paramMap — edit in\nEdit > Parameter mapping (curve shapes in Curves).");
+                ImGui::SetTooltip("Driven per note by the paramMap — edit in\nEdit > Parameter mapping (shape editor is there too).");
         } else {
             ImGui::PushItemWidth(widgetW);
             char label[64];
@@ -7380,7 +7245,7 @@ static void draw_properties_panel() {
                 ImGui::TextColored(ImVec4(0.5f, 0.8f, 0.5f, 1), "%s", badge);
                 if (ImGui::IsItemHovered())
                     ImGui::SetTooltip("Driven per note by a legacy paramMap entry\n"
-                                      "(not convertible to a node). Edit in Curves.");
+                                      "(not convertible to a node). Edit in\nEdit > Parameter mapping.");
                 continue;
             }
             ImGui::PushItemWidth(widgetW);
@@ -8412,7 +8277,7 @@ static void show_create_menu() {
             s_nodes.emplace_back(std::string("CurveNode"));
             auto& cn = s_nodes.back();
             // Identity seed — an empty knot list maps everything to 0,
-            // which reads as a broken node. Edit in the Curves tab.
+            // which reads as a broken node. Edit in the node's Properties.
             cn.curveKnots = {{0.0f, 0.0f}, {1.0f, 1.0f}};
             ImNodes::SetNodeScreenSpacePos(cn.id, s_createMenuPos);
             if (!s_groupPath.empty())
@@ -10082,7 +9947,7 @@ int main(int argc, char** argv) {
     // path (dsp BACKLOG 3b — paramMap curve entries must survive). ImGui/ImNodes
     // contexts are created because load/save read/write node positions; no
     // frame or renderer is needed for that.
-    // TEMP DEBUG: dump the curve-target options the Curves window would list
+    // TEMP DEBUG: dump the curve-target options the Add-curve combos would list
     // for every node in a patch. Mirrors draw_curves_window's opts collection.
     if (argc >= 3 && std::string(argv[1]) == "--dump-curve-opts") {
         s_headless = true;
@@ -10754,8 +10619,7 @@ int main(int argc, char** argv) {
             // Bottom area holds Waveforms + Keyboard as tabs (Waveforms selected first).
             ImGui::DockBuilderDockWindow("Transport", dockTransport);
             ImGui::DockBuilderDockWindow("Node Editor", dockCenter);
-            ImGui::DockBuilderDockWindow("Properties", dockRight);  // docked first → selected tab
-            ImGui::DockBuilderDockWindow("Curves", dockRight);
+            ImGui::DockBuilderDockWindow("Properties", dockRight);
             ImGui::DockBuilderDockWindow("Waveforms", dockBottom);  // docked first → selected tab
             ImGui::DockBuilderDockWindow("Spectrum",  dockBottom);
             ImGui::DockBuilderDockWindow("Keyboard",  dockBottom);
@@ -11285,9 +11149,8 @@ int main(int argc, char** argv) {
         draw_properties_panel();
 
         // =================================================================
-        // Curves window (paramMap frequency→value curve editor)
+        // Parameter-mapping dialog (legacy paramMap bindings + shapes)
         // =================================================================
-        draw_curves_window();
         draw_mappings_dialog();
 
         // =================================================================

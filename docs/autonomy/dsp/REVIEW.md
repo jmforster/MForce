@@ -2,16 +2,32 @@
 
 ## Awaiting Matt
 
+### 42. Curve editing: fixed knot bug + editor now lives in Properties [try] (2026-08-22)
+Two of your three morning items, in the 13:33 build. (a) BUG FIXED: typing
+into a new knot's X field landed digits in earlier rows — the CurveNode editor
+re-sorted the knot list on every keystroke, so the row under the active widget
+changed mid-edit. Sort now happens only when an X edit is committed (the
+legacy paramMap editor already did this). (b) The separate Curves window is
+GONE: select a Curve node and its Properties pane IS the curve editor
+(in-source line, interp, knot table, plot). Other nodes' Properties unchanged.
+The legacy paramMap shape editor (unconvertible formant-child entries) moved
+into Edit > Parameter mapping, below the bindings table. TRY: build a curve
+from scratch (add knots, type values), confirm the digits stay put; confirm
+the Properties flow feels right and nothing you used in the old Curves window
+is missing. Restart the UI to pick up the build (your pid 25572 is on the
+renamed 08-21 image).
+
 ### 41. UI piano — dynamic octaves + top C [try] (2026-08-21)
 `draw_keyboard_panel` (built into today's mforce_ui). Two changes off MISC.md:
 (a) the keyboard always ends on the C above the top octave now (extra playable
 white key on the right); (b) on resize it adds/removes a whole octave at a
 width threshold instead of scaling key width without bound — default 4 octaves,
-grows past 40px/key, shrinks below 20px/key, clamped 1..10. TRY: resize the
-Keyboard panel wide and narrow, confirm the octave add/drop thresholds and the
-resulting key-width band feel right, and that the trailing top C sounds. Taste
-constants (MIN_KEY_W 20 / MAX_KEY_W 40 / default octaves 4) are at the top of
-the render block if the band wants retuning.
+clamped 1..10. **Band widened 2026-08-22 per Matt: grows past 60px/key,
+shrinks below 30px/key** (was 40/20; the ratio must stay >= 15/8 or the 1->2
+octave step oscillates). TRY: resize the Keyboard panel wide and narrow,
+confirm the thresholds and the resulting key-width band feel right, and that
+the trailing top C sounds. Constants MIN_KEY_W 30 / MAX_KEY_W 60 / default
+octaves 4 are at the top of the render block if the band wants retuning.
 
 ### 40. Triangle `power` shape control [listen] (2026-08-21, shark-fin fixed)
 New `power` ValueSource on TriangleSource (MISC.md). Signed, neutral at 1:
