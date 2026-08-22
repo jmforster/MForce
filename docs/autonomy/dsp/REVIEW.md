@@ -2,6 +2,29 @@
 
 ## Awaiting Matt
 
+### 41. UI piano — dynamic octaves + top C [try] (2026-08-21)
+`draw_keyboard_panel` (built into today's mforce_ui). Two changes off MISC.md:
+(a) the keyboard always ends on the C above the top octave now (extra playable
+white key on the right); (b) on resize it adds/removes a whole octave at a
+width threshold instead of scaling key width without bound — default 4 octaves,
+grows past 40px/key, shrinks below 20px/key, clamped 1..10. TRY: resize the
+Keyboard panel wide and narrow, confirm the octave add/drop thresholds and the
+resulting key-width band feel right, and that the trailing top C sounds. Taste
+constants (MIN_KEY_W 20 / MAX_KEY_W 40 / default octaves 4) are at the top of
+the render block if the band wants retuning.
+
+### 40. Triangle `power` shape control [listen] (2026-08-21)
+New `power` ValueSource on TriangleSource (MISC.md). Signed, neutral at 1:
+`|power|<=1` linear (= today), `power>1` concave legs (`t^power`, Ramp-Expo
+slow-start), `power<-1` convex legs (mirror, fast-start). Default 1.0 is
+byte-identical (all 5 Triangle baselines passed the 196/196 gate). Scratch A/B
+today: `renders/scratch/misc_0821/tri_pow{1,3,neg3}.wav` (220 Hz, bias 0.5).
+DECIDE: does the concave/convex feel match intent, and is the signed convention
+(1 = linear, cross 1 up for concave / cross -1 down for convex) the one you
+want, vs. a plain fractional exponent (power 2 concave / 0.5 convex)? The band
+[-1,1] is currently a linear dead-zone by design — say if you'd rather it bend
+continuously from 0.
+
 ### 39. Wheel + pressure, live [try] (2026-08-20)
 The one piece of the 2026-08-20 session no human has exercised: P3 wired
 CC1 mod wheel and channel pressure from the MIDI keyboard into

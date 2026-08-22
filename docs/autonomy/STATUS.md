@@ -1,6 +1,19 @@
 # Status — open this file first
 
-Updated: 2026-08-20 — dsp interactive (Fable 5): P3 LANDED + Matt's full
+Updated: 2026-08-21 — dsp (Opus 4.8, MISC.md): three trivialities landed,
+all byte-identical at defaults (null gate 196/196). (1) **WhiteNoiseSource**
+regained density/boost/continuity + a new zeroCrossTendency (backlog 21 done);
+byte-identical fast path at defaults, shaping engages only off-default. (2)
+**TriangleSource `power`** — signed shape knob, concave (power>1) / convex
+(power<-1) legs, linear at default 1 (backlog 29 done). (3) **UI piano** —
+adds/removes a whole octave on resize to hold key width in a 20–40px band, and
+always ends on the top C (backlog 30 done). Both engine changes rebuilt cli+ui
+(rename-then-link past Matt's running UI, --stamp exit 0). Two review items
+queued: **40 Triangle power [listen]** (confirm concave/convex feel + the signed
+convention), **41 UI piano [try]** (resize thresholds + trailing C).
+Report: dsp/reports/2026-08-21-dipsy-misc.md.
+
+> **Prior handoff (2026-08-20, Fable 5): P3 LANDED + Matt's full**
 hands-on day (Note faces, control-strip cleanup, group editing, drill
 camera + wheel pan + minimap). WIP piano = Piano_default byte-identical
 with group-local control chains; promotion to library is Matt's call.

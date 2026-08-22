@@ -664,8 +664,18 @@ Priority order. Tags per WORKFLOW.md. (G1)-(G4) = GOALS.md Dipsy goals.
     on 2026-08-20; there was nothing left to commit — both paths gone,
     tree clean. (Python half already closed run 21.)
 
-21. **[build] WhiteNoiseSource lost three params in the port** — found
-    2026-08-19 sweeping legacy for capability the C++ port dropped; Matt: "was
+21. **[build] WhiteNoiseSource lost three params in the port** — ✓ **DONE
+    2026-08-21** (MISC.md). Density, Boost, Continuity restored + `zeroCrossTendency`
+    ADDED (Matt's ask — not in legacy WhiteNoise; modelled on RedNoiseSource's
+    sign rule), all four as ValueSource pins wired by the generic loader. Shaping
+    mirrors the C# `decide(density) → range(boost,1)*sign → continuity mix` exactly.
+    **Byte-identical defaults** via a fast path: at density>=1/boost<=0/continuity<=0
+    /zct<=0 the node emits `valuePN()*amplitude` (one rng_ draw, unchanged); shaping
+    engages only when a param leaves its inert default. Null gate 196/196 — the
+    WhiteNoise baselines (pluck_sanity, bend*_pluck, mux_noise_test, harsh_pluck)
+    are all in it and identical. Report: reports/2026-08-21-dipsy-misc.md.
+    Original text follows for the record:
+    Found 2026-08-19 sweeping legacy for capability the C++ port dropped; Matt: "was
     wondering where the WhiteNoise params went while editing the piano exciter
     nodes." The C# original
     (`mforce-legacy/MForce/Sound/Source/WhiteNoiseSource.cs`) held four
@@ -839,6 +849,23 @@ Priority order. Tags per WORKFLOW.md. (G1)-(G4) = GOALS.md Dipsy goals.
     has no decay *stage* to schedule — excitation dumps energy into a loop and
     the loop leaks it, so decay is the whole life of the note and `t60` is a
     rate, not a phase.
+
+29. **[build] TriangleSource `power` shape control** — ✓ **DONE 2026-08-21**
+    (MISC.md). New `power` ValueSource warps each straight leg, modelled on
+    RampSource Expo/Inverse_Expo. Signed, neutral at 1: `|power|<=1` linear
+    (byte-identical — neutral band returns the exact legacy arithmetic),
+    `power>1` concave (`t^power`), `power<-1` convex (`1-(1-t)^|power|`).
+    Default 1.0 → all 5 Triangle baselines in the 196/196 gate identical.
+    Shape verified numerically (concave<linear<convex at a fixed leg phase).
+    Taste-confirm queued REVIEW 40 [listen]. Report: reports/2026-08-21-dipsy-misc.md.
+
+30. **[build] UI piano — dynamic octaves + top C** — ✓ **DONE 2026-08-21**
+    (MISC.md). `draw_keyboard_panel`: (a) keyboard always ends on the C above
+    the top octave (white count = octaves*7+1, flat-indexed draw + hit-test so
+    it plays); (b) octave count derived from panel width to hold white-key
+    width in a band (default 4 oct, +1 above 40px/key, -1 below 20px/key,
+    clamped 1..10) instead of unbounded scaling. Try queued REVIEW 41.
+    Report: reports/2026-08-21-dipsy-misc.md.
 
 ## Done
 
