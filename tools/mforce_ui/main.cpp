@@ -6065,12 +6065,28 @@ static void draw_keyboard_panel() {
     }
 
     // --- Piano keyboard rendering via ImDrawList ---
-    const int NUM_OCTAVES = 4;
     const int WHITE_KEYS_PER_OCT = 7;
-    const int TOTAL_WHITE = NUM_OCTAVES * WHITE_KEYS_PER_OCT;
 
     float availW = ImGui::GetContentRegionAvail().x;
     float availH = ImGui::GetContentRegionAvail().y;
+
+    // Octave count is chosen from the available width so white-key width stays
+    // in a comfortable band instead of shrinking/expanding without limit
+    // (Matt, 2026-08-21). Default 4 octaves; add an octave when keys get too
+    // wide, drop one when they get too narrow. The layout always ends on the
+    // C above the top octave, so the range is a whole number of octaves + 1.
+    const float MIN_KEY_W = 20.0f;   // narrower than this → drop an octave
+    const float MAX_KEY_W = 40.0f;   // wider than this   → add an octave
+    const int   MIN_OCTAVES = 1;
+    const int   MAX_OCTAVES = 10;    // stays inside the MIDI range from any base
+    auto keyWidthFor = [&](int oct) { return availW / float(oct * WHITE_KEYS_PER_OCT + 1); };
+    int NUM_OCTAVES = 4;
+    while (NUM_OCTAVES < MAX_OCTAVES && keyWidthFor(NUM_OCTAVES) > MAX_KEY_W) ++NUM_OCTAVES;
+    while (NUM_OCTAVES > MIN_OCTAVES && keyWidthFor(NUM_OCTAVES) < MIN_KEY_W) --NUM_OCTAVES;
+
+    // White keys = full octaves + the trailing top C.
+    const int TOTAL_WHITE = NUM_OCTAVES * WHITE_KEYS_PER_OCT + 1;
+
     float keyW = availW / float(TOTAL_WHITE);
     float whiteH = std::max(40.0f, availH - 4.0f);
     float blackH = whiteH * 0.6f;
@@ -6096,36 +6112,35 @@ static void draw_keyboard_panel() {
 
     int baseNote = g_keyboard.octave * 12;
 
-    // Draw white keys
-    for (int oct = 0; oct < NUM_OCTAVES; ++oct) {
-        for (int w = 0; w < WHITE_KEYS_PER_OCT; ++w) {
-            int idx = oct * WHITE_KEYS_PER_OCT + w;
-            float x0 = origin.x + idx * keyW;
-            float y0 = origin.y;
-            float x1 = x0 + keyW - 1.0f;
-            float y1 = y0 + whiteH;
+    // Draw white keys (flat index so the trailing top C is included).
+    for (int idx = 0; idx < TOTAL_WHITE; ++idx) {
+        int oct = idx / WHITE_KEYS_PER_OCT;
+        int w   = idx % WHITE_KEYS_PER_OCT;
+        float x0 = origin.x + idx * keyW;
+        float y0 = origin.y;
+        float x1 = x0 + keyW - 1.0f;
+        float y1 = y0 + whiteH;
 
-            int midiNote = baseNote + oct * 12 + whiteOffsets[w];
-            bool isActive = isNoteActive(midiNote);
+        int midiNote = baseNote + oct * 12 + whiteOffsets[w];
+        bool isActive = isNoteActive(midiNote);
 
-            ImU32 fillColor = isActive ? IM_COL32(140, 200, 255, 255) : IM_COL32(240, 240, 240, 255);
-            dl->AddRectFilled(ImVec2(x0, y0), ImVec2(x1, y1), fillColor);
-            dl->AddRect(ImVec2(x0, y0), ImVec2(x1, y1), IM_COL32(80, 80, 80, 255));
+        ImU32 fillColor = isActive ? IM_COL32(140, 200, 255, 255) : IM_COL32(240, 240, 240, 255);
+        dl->AddRectFilled(ImVec2(x0, y0), ImVec2(x1, y1), fillColor);
+        dl->AddRect(ImVec2(x0, y0), ImVec2(x1, y1), IM_COL32(80, 80, 80, 255));
 
-            const char* name = whiteNames[w];
-            ImVec2 textSize = ImGui::CalcTextSize(name);
-            dl->AddText(ImVec2(x0 + (keyW - 1.0f - textSize.x) * 0.5f, y1 - textSize.y - 4.0f),
-                        IM_COL32(60, 60, 60, 255), name);
+        const char* name = whiteNames[w];
+        ImVec2 textSize = ImGui::CalcTextSize(name);
+        dl->AddText(ImVec2(x0 + (keyW - 1.0f - textSize.x) * 0.5f, y1 - textSize.y - 4.0f),
+                    IM_COL32(60, 60, 60, 255), name);
 
-            if (g_transport.noteMode && !kbDisabled) {
-                int chromOffset = oct * 12 + whiteOffsets[w];
-                if (chromOffset < 20) {
-                    const char* ql = qwerty_label_for_offset(chromOffset);
-                    if (ql[0]) {
-                        ImVec2 qlSize = ImGui::CalcTextSize(ql);
-                        dl->AddText(ImVec2(x0 + (keyW - 1.0f - qlSize.x) * 0.5f, y0 + 4.0f),
-                                    IM_COL32(0, 0, 0, 255), ql);
-                    }
+        if (g_transport.noteMode && !kbDisabled) {
+            int chromOffset = oct * 12 + whiteOffsets[w];
+            if (chromOffset < 20) {
+                const char* ql = qwerty_label_for_offset(chromOffset);
+                if (ql[0]) {
+                    ImVec2 qlSize = ImGui::CalcTextSize(ql);
+                    dl->AddText(ImVec2(x0 + (keyW - 1.0f - qlSize.x) * 0.5f, y0 + 4.0f),
+                                IM_COL32(0, 0, 0, 255), ql);
                 }
             }
         }
@@ -6187,22 +6202,20 @@ static void draw_keyboard_panel() {
         }
 
         if (hitNote < 0) {
-            for (int oct = 0; oct < NUM_OCTAVES; ++oct) {
-                for (int w = 0; w < WHITE_KEYS_PER_OCT; ++w) {
-                    int idx = oct * WHITE_KEYS_PER_OCT + w;
-                    float x0 = origin.x + idx * keyW;
-                    float y0 = origin.y;
-                    float x1 = x0 + keyW - 1.0f;
-                    float y1 = y0 + whiteH;
+            for (int idx = 0; idx < TOTAL_WHITE; ++idx) {
+                int oct = idx / WHITE_KEYS_PER_OCT;
+                int w   = idx % WHITE_KEYS_PER_OCT;
+                float x0 = origin.x + idx * keyW;
+                float y0 = origin.y;
+                float x1 = x0 + keyW - 1.0f;
+                float y1 = y0 + whiteH;
 
-                    if (mousePos.x >= x0 && mousePos.x <= x1 && mousePos.y >= y0 && mousePos.y <= y1) {
-                        hitNote = baseNote + oct * 12 + whiteOffsets[w];
-                        float t = (mousePos.y - y0) / (y1 - y0);
-                        hitVelocity = 0.125f + t * 0.875f;
-                        break;
-                    }
+                if (mousePos.x >= x0 && mousePos.x <= x1 && mousePos.y >= y0 && mousePos.y <= y1) {
+                    hitNote = baseNote + oct * 12 + whiteOffsets[w];
+                    float t = (mousePos.y - y0) / (y1 - y0);
+                    hitVelocity = 0.125f + t * 0.875f;
+                    break;
                 }
-                if (hitNote >= 0) break;
             }
         }
 
