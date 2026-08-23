@@ -101,6 +101,13 @@ struct SegmentSource final : ValueSource {
       widthIsSecs_ = !values_.empty() && values_[0] < 1.0f;
     }
   }
+  // Missing until 2026-08-23: the UI re-pulls every array from the DSP object
+  // after ANY setting edit, so toggling oneShot replaced the cached shape with
+  // the base class's empty vector and the save then dropped it.
+  std::vector<float> get_array(std::string_view name) const override {
+    if (name == "values") return values_;
+    return {};
+  }
 
   SegmentSource(std::vector<float> values, int sr, bool os = false,
                 uint32_t seed = 0x5E6A'0000u)
@@ -136,7 +143,9 @@ struct SegmentSource final : ValueSource {
 
     interp_.setSmoothness(smoothness_->current());
 
-    if (done_) { cur_ = 0.0f; return cur_; }
+    // Empty shape (a node fresh from the menu, or values cleared) used to
+    // index currVals_[0] out of bounds on the first sample (2026-08-23).
+    if (done_ || currVals_.size() < 2) { cur_ = 0.0f; return cur_; }
 
     if (currSegCount_ >= int(currVals_[currSeg_ * 2])) {
       if (currSeg_ >= int(currVals_.size()) / 2 - 1) {

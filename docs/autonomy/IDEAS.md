@@ -26,6 +26,19 @@ might not decide to do it.")
   (per-note mappable, scales ALL stages) — if that suffices, this stays
   parked.
 
+- **One-shot table source vs SegmentSource** — 2026-08-23, from the
+  Passport-roots brainstorm. No "play this array once" source exists today
+  (WavetableSource fills from an input and loops at `frequency`; legacy
+  `Wavetable(float[])`/`EffectWavetableSource` were never ported). The segment
+  sweep uses SegmentSource as the player (width-1 segments = raw samples when
+  the generator pre-sums overlaps). Likely both survive: a OneShotTable for
+  "any waveform, play once" (also what the sampled-hit substitution test
+  needs) and SegmentSource for the compact, per-trigger-re-randomizing
+  parametric flavour; generator families that prove out may become engine
+  nodes so variation lives per hit. **Decide after** round-1/2 verdicts say
+  which families are gold. Matt's own notes: docs/notes/SegmentRevisit.md,
+  docs/notes/Stoned2.txt.
+
 ## comp
 
 (nothing yet)
