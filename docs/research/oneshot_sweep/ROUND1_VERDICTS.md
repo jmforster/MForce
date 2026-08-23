@@ -337,3 +337,28 @@ both_shrink_then_grow, dots2 family** — scrape trains kept only as raw
 material for resonator coupling.
 Still unverdicted in round 2: texture (crunch trajectories, holdsnap,
 regenerated drop_settle).
+
+### texture (15 cells) — final round-2 verdict
+
+**"nothing promising in /texture .. we'll move on"** — crunch trajectories,
+holdsnap variants and the (pause-fixed) drop_settle family all retire.
+
+### NOTE for the excitation phase (Matt, 2026-08-23)
+
+**"a fast reverse bounce resembles a 'creak' — might contribute to a string
+attack."** Filed with the excitation candidates: bounce2 reverse_*_faster /
+_fastest as string-attack material (creak-into-tone).
+
+---
+
+## ROUND 2 COMPLETE. Net state:
+- **Paid off**: jagged (as a family; snare application parked with
+  diagnosis), reverse bounces (creak note above), cluster->thump,
+  thump_cluster_tailoff, dots2 (percussion + excitation).
+- **Queued for round 3**: combo family (wide body + spike superimposed,
+  bodies capped ~40 ms), pairs-of-combos replacing twohit.
+- **Excitation candidates**: cluster->thump cells, bounce2 (all speeds,
+  reverse=creak), both_shrink_then_grow, dots2 family, scrape trains
+  (coupling-only), jagged legs.
+- **Closed/parked**: scrape (raw), snares (with diagnosis), kick, twohit2,
+  clusters (standalone), texture, rulebreak.
