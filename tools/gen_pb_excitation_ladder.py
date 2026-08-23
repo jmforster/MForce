@@ -18,7 +18,9 @@ import copy, json, subprocess, sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-SRC  = ROOT / "patches/library/keys/Piano_bright.json"
+# Piano_bright was retired in Matt's 2026-08-22 library curation; piano_default
+# is its successor (08-20: byte-identical re-layout with group-local chains).
+SRC  = ROOT / "patches/library/keys/acoustic_piano/piano_default.json"
 PDIR = ROOT / "patches/pending/ks_piano_v6"
 RDIR = ROOT / "renders/dsp/pending/ks_piano_v6"
 CLI  = ROOT / "build/tools/mforce_cli/Release/mforce_cli.exe"

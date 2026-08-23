@@ -8,7 +8,8 @@ a ten-second question into a five-minute one.
 This covers the shapes that actually differ, and runs in seconds:
   bare            paramMap target with no curve
   curve           frequency->curve
-  vcurve+settings Piano_bright: vcurve legs, 5 dynamicPins, nested "graph"
+  vcurve+settings piano_default (was Piano_bright until the 2026-08-22 library
+                  curation): vcurve legs as CurveNode chains, dynamicPins
   formant         voice patch whose paramMap targets an OWNED Formant child
                   (the unconvertible carve-out)
   bend            real Bend articulation in the score — graft membership
@@ -29,8 +30,8 @@ CLI = ROOT / "build/tools/mforce_cli/Release/mforce_cli.exe"
 
 CASES = [
     ("bare",            "patches/baselines/BaselineSIN.json"),
-    ("curve",           "patches/library/strings/v6_04_bwfloor_curve.json"),
-    ("vcurve+settings", "patches/library/keys/Piano_bright.json"),
+    ("curve",           "patches/library/strings/viola_default.json"),
+    ("vcurve+settings", "patches/library/keys/acoustic_piano/piano_default.json"),
     ("formant",         "patches/library/voice/sing_soprano_A.json"),
     ("bend",            "patches/baselines/bend_test.json"),
     ("wiring",          "patches/baselines/perform/wiring_setting.json"),

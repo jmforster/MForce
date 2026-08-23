@@ -46,6 +46,11 @@ re-render is backlog #22, the first task of the next comp run.
 
 - The dsp and comp *scheduled* runs have collided twice in this shared
   working copy (runs 21, 25); staggering the two schedules is still open.
+- **patches/library/ curated by Matt 2026-08-22 (bdc390d): 74 files, final
+  patches only from here on.** KS piano baseline is now
+  keys/acoustic_piano/piano_default.json (Piano_bright retired); clarinet_*,
+  fm rhodes, v6 strings, percussion kick/snare are gone. rt_smoke cases
+  repointed. Tools/docs that name the old files are historical.
 - Nightly scheduled run purges patches/old/ >30 days.
 - Misc task drops: Matt can leave a dated list in a lane's MISC.md
   (pattern established 08-21); see WORKFLOW.md.
