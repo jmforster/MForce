@@ -11,7 +11,7 @@ KS piano family, live MIDI) grew out of interactive sessions, not GOALS.
 
 | Lane | Dev | State | Next up | Awaiting Matt |
 |---|---|---|---|---|
-| dsp | Dipsy | active — 08-22 curve-editor fixes + MISC 08-21 | P4 cleanup (19) → 28 → 3l/3i/3p/3s | **8 items** |
+| dsp | Dipsy | active — 08-22 curve editor + Envelope min/max fix (was dead on disk) | P4 cleanup (19) → 28 → 3l/3i/3p/3s | **8 items** |
 | comp | Wolfie | dormant since run 26 (08-10) | #22 re-renders → #21 zero-event check → #8 re-observe | **10 items** (3 blocked on #22) |
 
 ## dsp

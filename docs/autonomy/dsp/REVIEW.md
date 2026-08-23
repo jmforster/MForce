@@ -14,8 +14,18 @@ The legacy paramMap shape editor (unconvertible formant-child entries) moved
 into Edit > Parameter mapping, below the bindings table. TRY: build a curve
 from scratch (add knots, type values), confirm the digits stay put; confirm
 the Properties flow feels right and nothing you used in the old Curves window
-is missing. Restart the UI to pick up the build (your pid 25572 is on the
-renamed 08-21 image).
+is missing. (c) ADDED 14:13 build — **Envelope minValue/maxValue were dead
+on disk, now live.** Your "I don't see maxValue" was two bugs: the stage-form
+Envelope node built only an `out` pin (the P1 params were unreachable from
+the editor), AND the engine loader's explicit Envelope branch never ran the
+generic param wiring, so `maxValue` in a patch file was silently ignored —
+proved by A/B (maxValue 0.25 rendered byte-identical to control before the
+fix; peak 0.565 → 0.141 = exactly 0.25x after). Both fixed; null gate
+186/186 library+baselines byte-identical (no patch sets the keys). TRY:
+select an Envelope, minValue/maxValue are now pins in Properties — wire
+Note.velocity → Curve → Env.maxValue for the garden velocity wiring.
+Restart the UI to pick up the build (your pid 25572 is on the renamed
+08-21 image).
 
 ### 41. UI piano — dynamic octaves + top C [try] (2026-08-21)
 `draw_keyboard_panel` (built into today's mforce_ui). Two changes off MISC.md:

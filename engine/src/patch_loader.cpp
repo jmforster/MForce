@@ -386,6 +386,14 @@ static GraphResult build_graph(
                 valueNodes[id] = std::make_shared<Envelope>(
                     envelope_from_preset_json(p, sampleRate));
             }
+            // Pullable range params (minValue / maxValue, PerformSource P1,
+            // envelope.h param_descriptors). This explicit branch never ran
+            // the generic wiring, so from 2026-08-18 to 2026-08-22 the keys
+            // were silently IGNORED on every stage-form and preset-form
+            // Envelope — proved by A/B, maxValue 0.25 rendered byte-identical
+            // to the control. Registry-path envelope types (ADSREnvelope…)
+            // were always wired. Null when absent → identity, unchanged.
+            wire_params_generic(*valueNodes[id], p, valueNodes, &usage);
         }
         else if (type == "CurveNode") {
             auto cn = std::make_shared<CurveNode>();

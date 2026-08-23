@@ -80,6 +80,20 @@ file's git history. Tags per WORKFLOW.md. (G1)-(G4) = GOALS.md Dipsy goals.
     callback (Unity pattern): prepare inside the render deadline risks
     underruns for zero latency win.
 
+31. **[build] Lint gap: descriptors the loader never wires** — found
+    2026-08-22 via Envelope minValue/maxValue: the params existed in
+    `param_descriptors()` since P1 (08-18) but the loader's hand-written
+    `Envelope` branch never called `wire_params_generic`, so the keys were
+    silently ignored for four days and `lint_patches.py` could not see it
+    (its allowlist is scraped FROM descriptors — a descriptor the loader
+    ignores looks "consumed"). Every hand-written branch in patch_loader.cpp
+    that constructs a type without calling `wire_params_generic` is a
+    candidate. Add a check: for each registered type, instantiate, and for
+    each descriptor confirm a JSON key with that name actually reaches
+    `set_param` through the loader (build a one-node patch, set the key to a
+    ref of a marker source, assert `get_param` returns it). Same failure
+    class as backlog 14 and 26a, one level lower.
+
 ## Design questions
 
 27. **[design] Groups multi-output — control wires AND shared sources

@@ -386,6 +386,8 @@ struct GraphNode {
         if (typeName == NT_ENVELOPE) {
             dspSource = std::make_shared<Envelope>(Envelope::make_adsr(DSP_SAMPLE_RATE,
                 0.05f, 0.1f, 0.7f, 0.2f));
+            for (auto& pin : inputs)
+                if (pin.constantSrc) dspSource->set_param(pin.name, pin.constantSrc);
             return;
         }
 
@@ -529,8 +531,17 @@ struct GraphNode {
             return;
         }
 
-        // Envelope: output only; ADSR params are setting values shown in Properties
+        // Envelope: stage shape lives in settings/stages (Properties), but the
+        // PULLABLE range params (minValue/maxValue, PerformSource P1) are real
+        // pins — read off the engine's own descriptors so the list cannot
+        // drift. Before 2026-08-22 this branch emitted only "out", so the
+        // P1 params were unreachable from the editor on the stage-form type
+        // (Matt: "I don't see maxValue anywhere in the properties").
         if (typeName == NT_ENVELOPE) {
+            Envelope tmp(DSP_SAMPLE_RATE);
+            for (const auto& desc : tmp.param_descriptors())
+                inputs.emplace_back(desc.name, PinKind::Input, desc.default_value,
+                                    false, false, desc.hint);
             outputs.emplace_back("out", PinKind::Output);
             return;
         }
