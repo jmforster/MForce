@@ -1,0 +1,61 @@
+{
+  "graph": {
+    "nodes": [
+      {
+        "id": "ampEnv",
+        "params": {
+          "stages": [
+            {
+              "endVal": 0.0,
+              "percent": 0.0,
+              "power": 2.0,
+              "startVal": 1.0,
+              "type": "Expo"
+            }
+          ]
+        },
+        "type": "Envelope"
+      },
+      {
+        "id": "depthEnv",
+        "params": {
+          "stages": [
+            {
+              "endVal": 0.0,
+              "percent": 0.0,
+              "power": 3.0,
+              "startVal": 5.0,
+              "type": "Expo"
+            }
+          ]
+        },
+        "type": "Envelope"
+      },
+      {
+        "id": "fm",
+        "params": {
+          "amplitude": {
+            "ref": "ampEnv"
+          },
+          "carrierRatio": 1.0,
+          "depth": {
+            "ref": "depthEnv"
+          },
+          "frequency": 99999.96875,
+          "modRatio": 1.4,
+          "unbounded_pos": true
+        },
+        "type": "FMSource"
+      }
+    ],
+    "output": "fm"
+  },
+  "instrument": {
+    "paramMap": {
+      "frequency": "fm.frequency"
+    },
+    "polyphony": 10
+  },
+  "sampleRate": 48000,
+  "seconds": 3.0
+}

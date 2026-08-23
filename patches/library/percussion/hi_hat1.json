@@ -3,13 +3,16 @@
     "nodes": [
       {
         "id": "VioletNoise1",
+        "params": {
+          "amplitude": 1.0
+        },
         "type": "VioletNoiseSource"
       },
       {
         "id": "EKSEvolution1",
         "params": {
-          "decayStretch": 0.004999999888241291,
-          "drumBlend": 0.49000048637390137,
+          "decayStretch": 0.003000000026077032,
+          "drumBlend": 0.0,
           "pickDirection": 0.0,
           "pickPosition": 0.0,
           "stiffness": 0.0
@@ -41,18 +44,22 @@
   },
   "sampleRate": 48000,
   "ui": {
+    "panning": [
+      19.0,
+      10.250555992126465
+    ],
     "positions": {
       "EKSEvolution1": [
-        330.0,
-        263.0
+        329.0,
+        261.0
       ],
       "VioletNoise1": [
-        321.0,
-        38.0
+        323.0,
+        37.0
       ],
       "Wavetable1": [
-        513.0,
-        87.0
+        512.0,
+        86.99999237060547
       ],
       "__output": [
         710.0,

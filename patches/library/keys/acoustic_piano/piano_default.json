@@ -1,0 +1,1309 @@
+{
+  "graph": {
+    "nodes": [
+      {
+        "id": "__perf_freq",
+        "params": {
+          "field": "frequency"
+        },
+        "type": "PerformNode"
+      },
+      {
+        "id": "__perf_frequency",
+        "params": {
+          "field": "frequency"
+        },
+        "type": "PerformNode"
+      },
+      {
+        "id": "__perf_velocity",
+        "params": {
+          "field": "velocity"
+        },
+        "type": "PerformNode"
+      },
+      {
+        "id": "__perf_freq_hf",
+        "params": {
+          "field": "frequency"
+        },
+        "type": "PerformNode"
+      },
+      {
+        "id": "__perf_vel_hf",
+        "params": {
+          "field": "velocity"
+        },
+        "type": "PerformNode"
+      },
+      {
+        "id": "__perf_freq_body",
+        "params": {
+          "field": "frequency"
+        },
+        "type": "PerformNode"
+      },
+      {
+        "id": "__perf_frequency2",
+        "params": {
+          "field": "frequency"
+        },
+        "type": "PerformNode"
+      },
+      {
+        "id": "__curve_1",
+        "params": {
+          "interp": "logx",
+          "knots": [
+            [
+              20.0,
+              15.004170417785645
+            ],
+            [
+              65.0,
+              15.004170417785645
+            ],
+            [
+              262.0,
+              9.00250244140625
+            ],
+            [
+              780.0,
+              2.0
+            ],
+            [
+              16000.0,
+              0.0
+            ]
+          ],
+          "source": {
+            "ref": "__perf_freq"
+          }
+        },
+        "type": "CurveNode"
+      },
+      {
+        "id": "__curve_2",
+        "params": {
+          "interp": "logx",
+          "knots": [
+            [
+              20.0,
+              0.8989197015762329
+            ],
+            [
+              65.0,
+              0.8989197015762329
+            ],
+            [
+              262.0,
+              0.9492699503898621
+            ],
+            [
+              780.0,
+              0.8799999952316284
+            ],
+            [
+              16000.0,
+              0.800000011920929
+            ]
+          ],
+          "source": {
+            "ref": "__perf_freq"
+          }
+        },
+        "type": "CurveNode"
+      },
+      {
+        "id": "__curve_3",
+        "params": {
+          "interp": "logx",
+          "knots": [
+            [
+              20.0,
+              0.8550000190734863
+            ],
+            [
+              65.0,
+              0.8550000190734863
+            ],
+            [
+              262.0,
+              0.6100000143051147
+            ],
+            [
+              780.0,
+              0.5
+            ],
+            [
+              16000.0,
+              0.5
+            ]
+          ],
+          "source": {
+            "ref": "__perf_freq"
+          }
+        },
+        "type": "CurveNode"
+      },
+      {
+        "id": "__curve_4",
+        "params": {
+          "interp": "logx",
+          "knots": [
+            [
+              20.0,
+              0.25
+            ],
+            [
+              65.0,
+              0.20000000298023224
+            ],
+            [
+              262.0,
+              0.05000000074505806
+            ],
+            [
+              780.0,
+              0.015026773326098919
+            ],
+            [
+              16000.0,
+              0.009999999776482582
+            ]
+          ],
+          "source": {
+            "ref": "__perf_freq"
+          }
+        },
+        "type": "CurveNode"
+      },
+      {
+        "id": "__curve_5",
+        "params": {
+          "interp": "logx",
+          "knots": [
+            [
+              20.0,
+              0.09429838508367538
+            ],
+            [
+              65.0,
+              0.09429838508367538
+            ],
+            [
+              1046.5,
+              0.35917332768440247
+            ],
+            [
+              16000.0,
+              0.35917332768440247
+            ]
+          ],
+          "source": {
+            "ref": "__perf_freq_hf"
+          }
+        },
+        "type": "CurveNode"
+      },
+      {
+        "id": "__curve_6",
+        "params": {
+          "interp": "linear",
+          "knots": [
+            [
+              0.0,
+              0.30000001192092896
+            ],
+            [
+              0.20000000298023224,
+              0.30000001192092896
+            ],
+            [
+              0.8500000238418579,
+              1.0
+            ],
+            [
+              1.0,
+              1.600000023841858
+            ]
+          ],
+          "source": {
+            "ref": "__perf_vel_hf"
+          }
+        },
+        "type": "CurveNode"
+      },
+      {
+        "id": "__mul_7",
+        "params": {
+          "gainAdj": 0.0,
+          "operation": 1,
+          "source1": {
+            "ref": "__curve_5"
+          },
+          "source2": {
+            "ref": "__curve_6"
+          }
+        },
+        "type": "CombinedSource"
+      },
+      {
+        "id": "__curve_8",
+        "params": {
+          "interp": "logx",
+          "knots": [
+            [
+              20.0,
+              1939.2242431640625
+            ],
+            [
+              65.0,
+              1939.2242431640625
+            ],
+            [
+              262.0,
+              1939.2242431640625
+            ],
+            [
+              1047.0,
+              1939.2242431640625
+            ],
+            [
+              16000.0,
+              1939.2242431640625
+            ]
+          ],
+          "source": {
+            "ref": "__perf_freq_body"
+          }
+        },
+        "type": "CurveNode"
+      },
+      {
+        "id": "__curve_9",
+        "params": {
+          "interp": "logx",
+          "knots": [
+            [
+              20.0,
+              1.2033116817474365
+            ],
+            [
+              65.0,
+              1.2033116817474365
+            ],
+            [
+              261.6300048828125,
+              0.4020330607891083
+            ],
+            [
+              1046.5,
+              0.2062971591949463
+            ],
+            [
+              1480.0,
+              0.17000000178813934
+            ],
+            [
+              2093.0,
+              0.1899999976158142
+            ],
+            [
+              2960.0,
+              0.15000000596046448
+            ],
+            [
+              3951.0,
+              0.10000000149011612
+            ],
+            [
+              16000.0,
+              0.10000000149011612
+            ]
+          ],
+          "source": {
+            "ref": "__perf_frequency2"
+          }
+        },
+        "type": "CurveNode"
+      },
+      {
+        "id": "__curve_10",
+        "params": {
+          "interp": "logx",
+          "knots": [
+            [
+              20.0,
+              291.77984619140625
+            ],
+            [
+              65.0,
+              291.77984619140625
+            ],
+            [
+              262.0,
+              1176.09716796875
+            ],
+            [
+              1047.0,
+              4699.89990234375
+            ],
+            [
+              16000.0,
+              4699.89990234375
+            ]
+          ],
+          "source": {
+            "ref": "__perf_frequency"
+          }
+        },
+        "type": "CurveNode"
+      },
+      {
+        "id": "__curve_11",
+        "params": {
+          "interp": "linear",
+          "knots": [
+            [
+              0.0,
+              0.550000011920929
+            ],
+            [
+              0.20000000298023224,
+              0.550000011920929
+            ],
+            [
+              0.8500000238418579,
+              1.0
+            ],
+            [
+              1.0,
+              1.25
+            ]
+          ],
+          "source": {
+            "ref": "__perf_velocity"
+          }
+        },
+        "type": "CurveNode"
+      },
+      {
+        "id": "__mul_12",
+        "params": {
+          "gainAdj": 0.0,
+          "operation": 1,
+          "source1": {
+            "ref": "__curve_10"
+          },
+          "source2": {
+            "ref": "__curve_11"
+          }
+        },
+        "type": "CombinedSource"
+      },
+      {
+        "id": "__curve_13",
+        "params": {
+          "interp": "logx",
+          "knots": [
+            [
+              20.0,
+              0.15000000596046448
+            ],
+            [
+              65.0,
+              0.18000000715255737
+            ],
+            [
+              1046.5,
+              2.4000000953674316
+            ],
+            [
+              16000.0,
+              3.0
+            ]
+          ],
+          "source": {
+            "ref": "__perf_freq"
+          }
+        },
+        "type": "CurveNode"
+      },
+      {
+        "id": "__curve_14",
+        "params": {
+          "interp": "logx",
+          "knots": [
+            [
+              20.0,
+              1000.0
+            ],
+            [
+              65.0,
+              1000.0
+            ],
+            [
+              130.0,
+              2100.0
+            ],
+            [
+              260.0,
+              3200.0
+            ],
+            [
+              520.0,
+              4000.0
+            ],
+            [
+              1040.0,
+              4600.0
+            ],
+            [
+              2080.0,
+              6000.0
+            ],
+            [
+              16000.0,
+              16000.0
+            ]
+          ],
+          "source": {
+            "ref": "__perf_freq"
+          }
+        },
+        "type": "CurveNode"
+      },
+      {
+        "id": "Hammer_click_env",
+        "params": {
+          "ramp_accuracy": 1.0,
+          "stage_accuracy": 1.0,
+          "stages": [
+            {
+              "endVal": 1.0,
+              "holdPct": 0.0,
+              "maxSec": 0.0,
+              "minSec": 0.0,
+              "percent": 0.0020000000949949026,
+              "power": 0.0,
+              "startVal": 0.0,
+              "type": "Linear"
+            },
+            {
+              "endVal": 0.0,
+              "holdPct": 0.0,
+              "maxSec": 0.0,
+              "minSec": 0.0,
+              "percent": 0.020296167582273483,
+              "power": 0.0,
+              "startVal": 1.0,
+              "type": "Linear"
+            },
+            {
+              "endVal": 0.0,
+              "holdPct": 0.0,
+              "maxSec": 0.0,
+              "minSec": 0.0,
+              "percent": 0.0,
+              "power": 0.0,
+              "startVal": 0.0,
+              "type": "Linear"
+            }
+          ],
+          "timeMode": "seconds",
+          "timeScale": 1.0
+        },
+        "type": "Envelope"
+      },
+      {
+        "id": "Hammer_click_wn",
+        "params": {
+          "amplitude": {
+            "ref": "Hammer_click_env"
+          },
+          "boost": 0.0,
+          "continuity": 0.0,
+          "density": 1.0,
+          "zeroCrossTendency": 0.0
+        },
+        "type": "WhiteNoiseSource"
+      },
+      {
+        "id": "Hammer_bank",
+        "params": {
+          "bandTilt": -0.017840363085269928,
+          "direct": 0.0,
+          "frequency": {
+            "ref": "__perf_frequency"
+          },
+          "gain": 2.0,
+          "harm1": 1.0,
+          "harm2": 2.0,
+          "harm3": 3.0,
+          "harm4": 4.0,
+          "numBands": 4,
+          "resDecay": 0.004094600677490234,
+          "resEnd": 1.2000000476837158,
+          "resStart": 58.883056640625,
+          "source": {
+            "ref": "Hammer_click_wn"
+          }
+        },
+        "type": "HammerBank"
+      },
+      {
+        "id": "Excite_hf_env",
+        "params": {
+          "ramp_accuracy": 1.0,
+          "stage_accuracy": 1.0,
+          "stages": [
+            {
+              "endVal": 1.0,
+              "holdPct": 0.0,
+              "maxSec": 0.0,
+              "minSec": 0.0,
+              "percent": 0.0020000000949949026,
+              "power": 0.0,
+              "startVal": 0.0,
+              "type": "Linear"
+            },
+            {
+              "endVal": 0.0,
+              "holdPct": 0.0,
+              "maxSec": 0.0,
+              "minSec": 0.0,
+              "percent": 0.112397201359272,
+              "power": 0.0,
+              "startVal": 1.0,
+              "type": "Linear"
+            },
+            {
+              "endVal": 0.0,
+              "holdPct": 0.0,
+              "maxSec": 0.0,
+              "minSec": 0.0,
+              "percent": 0.0,
+              "power": 0.0,
+              "startVal": 0.0,
+              "type": "Linear"
+            },
+            {
+              "endVal": 0.0,
+              "holdPct": 0.0,
+              "maxSec": 0.0,
+              "minSec": 0.0,
+              "percent": 0.0,
+              "power": 0.0,
+              "startVal": 0.0,
+              "type": "Sine"
+            }
+          ],
+          "timeMode": "seconds",
+          "timeScale": 1.0
+        },
+        "type": "Envelope"
+      },
+      {
+        "id": "Excite_hf_wn",
+        "params": {
+          "amplitude": {
+            "ref": "Excite_hf_env"
+          },
+          "boost": 0.0,
+          "continuity": 0.0,
+          "density": 1.0,
+          "zeroCrossTendency": 0.0
+        },
+        "type": "WhiteNoiseSource"
+      },
+      {
+        "id": "Hammer_lpf",
+        "params": {
+          "cutoffFreq": {
+            "ref": "__mul_12"
+          },
+          "source": {
+            "ref": "Hammer_bank"
+          }
+        },
+        "type": "BWLowpassFilter"
+      },
+      {
+        "id": "Excite_hf_bpf",
+        "params": {
+          "highCutoff": 9500.0,
+          "lowCutoff": 4000.0,
+          "source": {
+            "ref": "Excite_hf_wn"
+          }
+        },
+        "type": "BWBandpassFilter"
+      },
+      {
+        "id": "Combined1",
+        "params": {
+          "gainAdj": 0.0,
+          "operation": 1,
+          "source1": {
+            "ref": "Excite_hf_bpf"
+          },
+          "source2": {
+            "ref": "__mul_7"
+          }
+        },
+        "type": "CombinedSource"
+      },
+      {
+        "id": "Hammer+hf",
+        "params": {
+          "gainAdj": 0.0,
+          "operation": 3,
+          "source1": {
+            "ref": "Hammer_lpf"
+          },
+          "source2": {
+            "ref": "Combined1"
+          }
+        },
+        "type": "CombinedSource"
+      },
+      {
+        "id": "Body_env",
+        "params": {
+          "ramp_accuracy": 1.0,
+          "stage_accuracy": 1.0,
+          "stages": [
+            {
+              "endVal": 1.0,
+              "holdPct": 0.0,
+              "maxSec": 1.0,
+              "minSec": 0.05000000074505806,
+              "percent": 0.0020000000949949026,
+              "power": 0.0,
+              "startVal": 0.0,
+              "type": "Linear"
+            },
+            {
+              "endVal": 0.0,
+              "holdPct": 0.0,
+              "maxSec": 0.5,
+              "minSec": 0.02500000037252903,
+              "percent": 0.019999999552965164,
+              "power": 0.0,
+              "startVal": 1.0,
+              "type": "Linear"
+            },
+            {
+              "endVal": 0.0,
+              "holdPct": 0.0,
+              "maxSec": 0.0,
+              "minSec": 0.0,
+              "percent": 0.0,
+              "power": 0.0,
+              "startVal": 0.0,
+              "type": "Linear"
+            }
+          ],
+          "timeMode": "fraction",
+          "timeScale": 1.0
+        },
+        "type": "Envelope"
+      },
+      {
+        "id": "Body_wn",
+        "params": {
+          "amplitude": {
+            "ref": "Body_env"
+          },
+          "boost": 0.0,
+          "continuity": 0.0,
+          "density": 1.0,
+          "zeroCrossTendency": 0.0
+        },
+        "type": "WhiteNoiseSource"
+      },
+      {
+        "id": "Body_lpf",
+        "params": {
+          "cutoffFreq": {
+            "ref": "__curve_8"
+          },
+          "source": {
+            "ref": "Body_wn"
+          }
+        },
+        "type": "BWLowpassFilter"
+      },
+      {
+        "id": "Combined3",
+        "params": {
+          "gainAdj": 0.0,
+          "operation": 1,
+          "source1": {
+            "ref": "Body_lpf"
+          },
+          "source2": 1.0358452796936035
+        },
+        "type": "CombinedSource"
+      },
+      {
+        "id": "Hammer+hf+body",
+        "params": {
+          "gainAdj": 0.0,
+          "operation": 3,
+          "source1": {
+            "ref": "Hammer+hf"
+          },
+          "source2": {
+            "ref": "Combined3"
+          }
+        },
+        "type": "CombinedSource"
+      },
+      {
+        "id": "Excite_lf_env",
+        "params": {
+          "ramp_accuracy": 1.0,
+          "stage_accuracy": 1.0,
+          "stages": [
+            {
+              "endVal": 1.0,
+              "holdPct": 0.0,
+              "maxSec": 0.0,
+              "minSec": 0.0,
+              "percent": 0.0010000000474974513,
+              "power": 0.0,
+              "startVal": 0.0,
+              "type": "Linear"
+            },
+            {
+              "endVal": 0.0,
+              "holdPct": 0.0,
+              "maxSec": 0.0,
+              "minSec": 0.0,
+              "percent": 0.14300668239593506,
+              "power": 0.0,
+              "startVal": 1.0,
+              "type": "Linear"
+            },
+            {
+              "endVal": 0.0,
+              "holdPct": 0.0,
+              "maxSec": 0.0,
+              "minSec": 0.0,
+              "percent": 0.0,
+              "power": 0.0,
+              "startVal": 0.0,
+              "type": "Linear"
+            },
+            {
+              "endVal": 0.0,
+              "holdPct": 0.0,
+              "maxSec": 0.0,
+              "minSec": 0.0,
+              "percent": 0.0,
+              "power": 0.0,
+              "startVal": 0.0,
+              "type": "Sine"
+            }
+          ],
+          "timeMode": "seconds",
+          "timeScale": 1.0
+        },
+        "type": "Envelope"
+      },
+      {
+        "id": "Excite_lf_wn",
+        "params": {
+          "amplitude": {
+            "ref": "Excite_lf_env"
+          },
+          "boost": 0.0,
+          "continuity": 0.0,
+          "density": 1.0,
+          "zeroCrossTendency": 0.0
+        },
+        "type": "WhiteNoiseSource"
+      },
+      {
+        "id": "Excite_lf_bfp",
+        "params": {
+          "highCutoff": 881.0015869140625,
+          "lowCutoff": 88.8049545288086,
+          "source": {
+            "ref": "Excite_lf_wn"
+          }
+        },
+        "type": "BWBandpassFilter"
+      },
+      {
+        "id": "Combined5",
+        "params": {
+          "gainAdj": 0.0,
+          "operation": 1,
+          "source1": {
+            "ref": "Excite_lf_bfp"
+          },
+          "source2": 2.6334705352783203
+        },
+        "type": "CombinedSource"
+      },
+      {
+        "id": "Combined6",
+        "params": {
+          "gainAdj": 0.0,
+          "operation": 3,
+          "source1": {
+            "ref": "Hammer+hf+body"
+          },
+          "source2": {
+            "ref": "Combined5"
+          }
+        },
+        "type": "CombinedSource"
+      },
+      {
+        "id": "Combined7",
+        "params": {
+          "gainAdj": 0.0,
+          "operation": 1,
+          "source1": {
+            "ref": "Combined6"
+          },
+          "source2": {
+            "ref": "__curve_9"
+          }
+        },
+        "type": "CombinedSource"
+      },
+      {
+        "id": "Damper_env",
+        "params": {
+          "ramp_accuracy": 1.0,
+          "stage_accuracy": 1.0,
+          "stages": [
+            {
+              "endVal": 0.0,
+              "holdPct": 0.0,
+              "maxSec": 0.0,
+              "minSec": 0.0,
+              "percent": 0.0,
+              "power": 0.0,
+              "startVal": 0.0,
+              "type": "Linear"
+            },
+            {
+              "endVal": 1.0,
+              "holdPct": 0.0,
+              "maxSec": 0.03999999910593033,
+              "minSec": 0.03999999910593033,
+              "percent": 0.5,
+              "power": 0.0,
+              "startVal": 0.0,
+              "type": "Linear"
+            },
+            {
+              "endVal": 1.0,
+              "holdPct": 0.0,
+              "maxSec": 0.25,
+              "minSec": 0.0,
+              "percent": 0.5,
+              "power": 0.0,
+              "startVal": 1.0,
+              "type": "Linear"
+            }
+          ],
+          "timeMode": "fraction",
+          "timeScale": 1.0
+        },
+        "type": "Envelope"
+      },
+      {
+        "dynamicPins": {
+          "brightness": {
+            "ref": "__curve_2"
+          },
+          "detune": {
+            "ref": "__curve_13"
+          },
+          "dispersion": {
+            "ref": "__curve_3"
+          },
+          "inharmGain": {
+            "ref": "__curve_4"
+          },
+          "t60": {
+            "ref": "__curve_1"
+          }
+        },
+        "id": "KS_piano_strings",
+        "params": {
+          "amplitude": 1.0,
+          "ap1": 0.550000011920929,
+          "ap2": 0.3499999940395355,
+          "ap3": 0.20000000298023224,
+          "brightness": 0.6000000238418579,
+          "damper": {
+            "ref": "Damper_env"
+          },
+          "damperNoise": 0.029999999329447746,
+          "detune": 0.8999999761581421,
+          "direct": 0.0,
+          "dispersion": 0.1599999964237213,
+          "exciteGain": 1.0,
+          "fbCoeff": 0.5920843482017517,
+          "frequency": {
+            "ref": "__perf_freq"
+          },
+          "inharmFb": 0.8999999761581421,
+          "inharmGain": 0.25,
+          "inharmHp": 150.0,
+          "numCombs": 3,
+          "releaseFb": 0.8199999928474426,
+          "source": {
+            "ref": "Combined7"
+          },
+          "t60": 6.0
+        },
+        "type": "KSPianoString"
+      },
+      {
+        "id": "Overall_lpf",
+        "params": {
+          "cutoffFreq": {
+            "ref": "__curve_14"
+          },
+          "source": {
+            "ref": "KS_piano_strings"
+          }
+        },
+        "type": "BWLowpassFilter"
+      }
+    ],
+    "output": "Overall_lpf"
+  },
+  "groups": [
+    {
+      "members": [
+        "Hammer_click_env",
+        "Hammer_click_wn",
+        "Hammer_bank",
+        "Hammer_lpf",
+        "__mul_12",
+        "__curve_10",
+        "__curve_11",
+        "Note2"
+      ],
+      "name": "Hammer",
+      "pos": [
+        -632.5,
+        -263.25
+      ]
+    },
+    {
+      "members": [
+        "Combined1",
+        "Excite_hf_bpf",
+        "Excite_hf_wn",
+        "Excite_hf_env",
+        "__curve_5",
+        "__curve_6",
+        "__mul_7",
+        "Note_hf"
+      ],
+      "name": "Excite_hf1",
+      "pos": [
+        -572.88037109375,
+        -108.7734375
+      ]
+    },
+    {
+      "members": [
+        "Body_wn",
+        "Body_env",
+        "Combined3",
+        "Body_lpf",
+        "__curve_8",
+        "Note_body"
+      ],
+      "name": "Body",
+      "pos": [
+        -389.0,
+        -44.0
+      ]
+    },
+    {
+      "members": [
+        "Combined5",
+        "Excite_lf_bfp",
+        "Excite_lf_wn",
+        "Excite_lf_env"
+      ],
+      "name": "Excite_lf",
+      "pos": [
+        -202.66436767578125,
+        -26.60015869140625
+      ]
+    },
+    {
+      "members": [
+        "Excite_lf",
+        "Body",
+        "Excite_hf1",
+        "Hammer",
+        "Combined7",
+        "Combined6",
+        "Hammer+hf+body",
+        "Hammer+hf",
+        "__curve_9",
+        "Note3"
+      ],
+      "name": "String excitation",
+      "pos": [
+        -204.2325439453125,
+        -400.6448974609375
+      ]
+    }
+  ],
+  "instrument": {
+    "polyphony": 1,
+    "volume": 0.4019
+  },
+  "sampleRate": 48000,
+  "score": [
+    {
+      "duration": 3.5,
+      "note": 36,
+      "time": 0.0,
+      "velocity": 0.85
+    },
+    {
+      "duration": 3.5,
+      "note": 60,
+      "time": 8.0,
+      "velocity": 0.85
+    },
+    {
+      "duration": 3.5,
+      "note": 84,
+      "time": 16.0,
+      "velocity": 0.85
+    }
+  ],
+  "seconds": 3.0,
+  "ui": {
+    "noteFaces": [
+      {
+        "fields": {
+          "frequency": "__perf_freq"
+        },
+        "label": "Note"
+      },
+      {
+        "fields": {
+          "frequency": "__perf_frequency",
+          "velocity": "__perf_velocity"
+        },
+        "label": "Note2"
+      },
+      {
+        "fields": {
+          "frequency": "__perf_freq_hf",
+          "velocity": "__perf_vel_hf"
+        },
+        "label": "Note_hf"
+      },
+      {
+        "fields": {
+          "frequency": "__perf_freq_body"
+        },
+        "label": "Note_body"
+      },
+      {
+        "fields": {
+          "frequency": "__perf_frequency2"
+        },
+        "label": "Note3"
+      }
+    ],
+    "panning": [
+      1031.0,
+      486.0
+    ],
+    "positions": {
+      "Body_env": [
+        -540.0,
+        -183.00003051757813
+      ],
+      "Body_lpf": [
+        -89.0,
+        4.999969482421875
+      ],
+      "Body_wn": [
+        -340.0,
+        -87.00003051757813
+      ],
+      "Combined1": [
+        364.0,
+        232.0
+      ],
+      "Combined3": [
+        202.0,
+        -49.0
+      ],
+      "Combined5": [
+        54.0,
+        540.0
+      ],
+      "Combined6": [
+        -16.91229248046875,
+        -80.45111083984375
+      ],
+      "Combined7": [
+        -16.89404296875,
+        44.48553466796875
+      ],
+      "Damper_env": [
+        -524.1009521484375,
+        -392.2999267578125
+      ],
+      "Excite_hf_bpf": [
+        154.0,
+        238.0
+      ],
+      "Excite_hf_env": [
+        -371.0,
+        145.0
+      ],
+      "Excite_hf_wn": [
+        -154.0,
+        163.0
+      ],
+      "Excite_lf_bfp": [
+        -198.0,
+        560.0
+      ],
+      "Excite_lf_env": [
+        -655.0,
+        401.0
+      ],
+      "Excite_lf_wn": [
+        -417.0,
+        478.0
+      ],
+      "Hammer+hf": [
+        -387.99993896484375,
+        -169.0
+      ],
+      "Hammer+hf+body": [
+        -200.99993896484375,
+        -151.0
+      ],
+      "Hammer_bank": [
+        -777.0,
+        -254.0
+      ],
+      "Hammer_click_env": [
+        -1188.0,
+        -368.9999694824219
+      ],
+      "Hammer_click_wn": [
+        -972.0,
+        -317.9999694824219
+      ],
+      "Hammer_lpf": [
+        -592.0,
+        -132.0
+      ],
+      "KS_piano_strings": [
+        43.8990478515625,
+        -317.2999267578125
+      ],
+      "Note": [
+        -889.0,
+        -389.0
+      ],
+      "Note2": [
+        -1663.9832763671875,
+        -370.97747802734375
+      ],
+      "Note3": [
+        -625.9242553710938,
+        29.126068115234375
+      ],
+      "Note_body": [
+        -560.0,
+        130.0
+      ],
+      "Note_hf": [
+        -650.0,
+        330.0
+      ],
+      "Overall_lpf": [
+        233.554931640625,
+        -82.114501953125
+      ],
+      "__curve_1": [
+        -624.0,
+        102.0
+      ],
+      "__curve_10": [
+        -1471.1431884765625,
+        -322.92535400390625
+      ],
+      "__curve_11": [
+        -1477.927978515625,
+        -202.47979736328125
+      ],
+      "__curve_13": [
+        -622.5181884765625,
+        -190.1083984375
+      ],
+      "__curve_14": [
+        -623.5181884765625,
+        201.8916015625
+      ],
+      "__curve_2": [
+        -624.5181884765625,
+        -295.1083984375
+      ],
+      "__curve_3": [
+        -620.5181884765625,
+        -93.1083984375
+      ],
+      "__curve_4": [
+        -621.5181884765625,
+        4.8916015625
+      ],
+      "__curve_5": [
+        -430.0,
+        330.0
+      ],
+      "__curve_6": [
+        -430.0,
+        470.0
+      ],
+      "__curve_8": [
+        -330.0,
+        130.0
+      ],
+      "__curve_9": [
+        -390.2415771484375,
+        54.784942626953125
+      ],
+      "__mul_12": [
+        -1182.93896484375,
+        -262.94189453125
+      ],
+      "__mul_7": [
+        -210.0,
+        400.0
+      ],
+      "__output": [
+        441.0758056640625,
+        -76.8739013671875
+      ]
+    }
+  }
+}

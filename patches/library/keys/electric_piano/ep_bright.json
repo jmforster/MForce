@@ -1,0 +1,195 @@
+{
+  "graph": {
+    "nodes": [
+      {
+        "id": "ampBody",
+        "params": {
+          "stages": [
+            {
+              "endVal": 1.0,
+              "maxSec": 0.015,
+              "minSec": 0.003,
+              "percent": 0.01,
+              "power": 0.0,
+              "startVal": 0.0,
+              "type": "Linear"
+            },
+            {
+              "endVal": 0.0,
+              "percent": 0.0,
+              "power": 2.0,
+              "startVal": 1.0,
+              "type": "Expo"
+            }
+          ]
+        },
+        "type": "Envelope"
+      },
+      {
+        "id": "ampTine",
+        "params": {
+          "stages": [
+            {
+              "endVal": 1.0,
+              "maxSec": 0.01,
+              "minSec": 0.002,
+              "percent": 0.005,
+              "power": 0.0,
+              "startVal": 0.0,
+              "type": "Linear"
+            },
+            {
+              "endVal": 0.0,
+              "percent": 0.0,
+              "power": 4.0,
+              "startVal": 1.0,
+              "type": "Expo"
+            }
+          ]
+        },
+        "type": "Envelope"
+      },
+      {
+        "id": "depthBody",
+        "params": {
+          "stages": [
+            {
+              "endVal": 0.3,
+              "percent": 0.0,
+              "power": 2.0,
+              "startVal": 1.0,
+              "type": "Expo"
+            }
+          ]
+        },
+        "type": "Envelope"
+      },
+      {
+        "id": "depthTine",
+        "params": {
+          "stages": [
+            {
+              "endVal": 0.0,
+              "percent": 0.0,
+              "power": 3.0,
+              "startVal": 1.0,
+              "type": "Expo"
+            }
+          ]
+        },
+        "type": "Envelope"
+      },
+      {
+        "id": "depthBodyRange",
+        "params": {
+          "max": 2.0,
+          "min": 0.0,
+          "var": {
+            "ref": "depthBody"
+          }
+        },
+        "type": "RangeSource"
+      },
+      {
+        "id": "depthTineRange",
+        "params": {
+          "max": 7.0,
+          "min": 0.0,
+          "var": {
+            "ref": "depthTine"
+          }
+        },
+        "type": "RangeSource"
+      },
+      {
+        "id": "fmBody",
+        "params": {
+          "amplitude": {
+            "ref": "ampBody"
+          },
+          "carrierRatio": 1.0,
+          "depth": {
+            "ref": "depthBodyRange"
+          },
+          "frequency": 440.0,
+          "modRatio": 1.0,
+          "unbounded_pos": false
+        },
+        "type": "FMSource"
+      },
+      {
+        "id": "fmTine",
+        "params": {
+          "amplitude": {
+            "ref": "ampTine"
+          },
+          "carrierRatio": 1.0,
+          "depth": {
+            "ref": "depthTineRange"
+          },
+          "frequency": 440.0,
+          "modRatio": 14.0,
+          "unbounded_pos": false
+        },
+        "type": "FMSource"
+      },
+      {
+        "id": "clack",
+        "params": {
+          "amplitude": 1.5,
+          "oneShot": true,
+          "smoothness": 0.6,
+          "values": [
+            0.001,
+            0.0,
+            0.0015,
+            1.0,
+            0.002,
+            0.0,
+            0.001,
+            0.5,
+            0.002,
+            0.0,
+            0.001,
+            0.25,
+            0.003,
+            0.0
+          ]
+        },
+        "type": "SegmentSource"
+      },
+      {
+        "id": "mix",
+        "params": {
+          "source": [
+            {
+              "ref": "fmBody",
+              "weight": 0.5
+            },
+            {
+              "ref": "fmTine",
+              "weight": 0.5
+            },
+            {
+              "ref": "clack",
+              "weight": 0.30000001192092896
+            }
+          ]
+        },
+        "type": "MultiSource"
+      }
+    ],
+    "output": "mix"
+  },
+  "instrument": {
+    "paramMap": {
+      "frequency": [
+        "fmBody.frequency",
+        "fmTine.frequency"
+      ]
+    },
+    "polyphony": 6
+  },
+  "sampleRate": 48000,
+  "seconds": 3.0
+}
