@@ -19,7 +19,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "research" / "novelty"))
 from embedding import embed  # noqa: E402
 
-RDIR = ROOT / "renders/dsp/pending/segment_sweep"
+RDIR = ROOT / "renders/dsp/pending/segment_sweep"   # override with --dir
 SR = 48000
 
 def load(path):
@@ -100,7 +100,10 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--n", type=int, default=40)
     ap.add_argument("--per-family", type=int, default=3)
+    ap.add_argument("--dir", default=None, help="sweep dir name under renders/dsp/pending/")
     args = ap.parse_args()
+    global RDIR
+    if args.dir: RDIR = ROOT / "renders/dsp/pending" / args.dir
     man = json.loads((RDIR / "manifest.json").read_text(encoding="utf-8"))
     rows, seen = [], {}
     for e in man:
@@ -138,12 +141,12 @@ def main():
     # write outputs
     pdir = RDIR / "_picks"; pdir.mkdir(exist_ok=True)
     for f in pdir.glob("*.wav"): f.unlink()
-    lines = ["# Segment sweep — round 1 (one-shot waveforms), 2026-08-23", "",
+    lines = [f"# {RDIR.name} — one-shot waveform sweep picks", "",
              f"{len(man)} cells generated, {len(rows)} unique after hash-dedupe "
              f"({len(man)-len(rows)} byte-identical dups dropped), {len(picks)} picked for ears.",
              "Picks = farthest-point sampling in z-scored [structure x1.5 + timbre x0.6] space,",
              f"seeded with {args.per_family} per family. Full set stays in the family folders;",
-             "picks are copied to _picks/ as <family>__<name>.wav. Patches: patches/audition/segment_sweep/.",
+             "picks are copied to _picks/ as <family>__<name>.wav.",
              "", "| # | family | name | ms | onsets | IOI ms (cv) | attack ms | crest | centroid Hz | first-10ms Hz | note |",
              "|---|---|---|---|---|---|---|---|---|---|---|"]
     for k, i in enumerate(picks, 1):

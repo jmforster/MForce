@@ -2,6 +2,32 @@
 
 ## Awaiting Matt
 
+### 44. Segment sweep round 2 [listen] (2026-08-23)
+**renders/dsp/pending/segment_sweep2/** — 92 cells, 9 families, built cell-
+by-cell from your round-1 verdicts (docs/research/oneshot_sweep/
+ROUND1_VERDICTS.md); _picks/ has a 40-WAV diversity cut + README table, but
+round 1 showed you listen by family folder, and the folders are the real
+deliverable:
+- **xthump (12)** — the standout construction expanded: scrape→thump
+  (regular/gamma/accel scrapes × thump size × gap), thump→scrape,
+  scrape→thump→scrape, cluster→thump and thump→cluster ("2 for 1").
+- **scrape2 (11)** — shorter (0.2-0.35 s); growfat_* = slips start narrow and
+  GROW fat; buzz_r{60,90,140}_cv{10,20} = the buzzy-regular corner laddered;
+  coupled (slip-interval relaxation) + surface_walk as single probes.
+- **bounce2 (8)** — long/chunky (to ~1.7 s), two-component impacts
+  (thump+tick), reverse_full and reverse_peaks_only.
+- **dots2 (8)** — shorter; halfhump_* = "first half of hump" as its own
+  schedule (stops at the widest point).
+- **clusters2 (8)** — leadin_shrink / tailoff_grow variations.
+- **twohit2 (9)** — longer heel-toe and thump-ka, thump widths 40-150 ms,
+  ka widths 2-12 ms.
+- **kick (12)** — the 12-90 ms atom corner, sharp/tri/bipolar.
+- **texture (15)** — crunch coarse↔fine trajectories, the drop_settle family
+  (bounce-half × settle-half + a reverse-bounce lead-in), hold_then_snap
+  variants, two fresh rule-breaks.
+- **jagged (9)** — YOUR new family: noise condensing into a clean ramp
+  (in / out / both × white/coarse noise × depth × power).
+Same verdict protocol as round 1 — area by area into the log when ready.
 ### 42. Curve editing: fixed knot bug + editor now lives in Properties [try] (2026-08-22)
 Two of your three morning items, in the 13:33 build. (a) BUG FIXED: typing
 into a new knot's X field landed digits in earlier rows — the CurveNode editor

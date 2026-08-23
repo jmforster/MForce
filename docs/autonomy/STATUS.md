@@ -11,7 +11,7 @@ KS piano family, live MIDI) grew out of interactive sessions, not GOALS.
 
 | Lane | Dev | State | Next up | Awaiting Matt |
 |---|---|---|---|---|
-| dsp | Dipsy | active — 08-23 segment sweep r1 verdicted (see oneshot_sweep/ROUND1_VERDICTS.md) | segment sweep r2; P4 cleanup (19) → 28 → 3l/3i/3p/3s | **8 items** |
+| dsp | Dipsy | active — 08-23 segment sweep r2 rendered (92 cells off r1 verdicts) | r2 verdicts → r3/excitation; P4 cleanup (19) → 28 → 3l/3i/3p/3s | **9 items** |
 | comp | Wolfie | dormant since run 26 (08-10) | #22 re-renders → #21 zero-event check → #8 re-observe | **10 items** (3 blocked on #22) |
 
 ## dsp
@@ -26,7 +26,8 @@ cache, RtMidi, wheel/pressure smoothers), plus Matt's hands-on day 08-20
 and the AF archaeology thread (afp31 v1–v12 + decoded ground truth, afks,
 sax recipe).
 
-Review queue (dsp/REVIEW.md): 42 curve editing [try], 41 UI piano [try], 40 Triangle power
+Review queue (dsp/REVIEW.md): **44 segment sweep round 2 [listen] — 92 cells
+incl. the new jagged family (2026-08-23)**, 42 curve editing [try], 41 UI piano [try], 40 Triangle power
 [listen], 39 wheel/pressure [try], 37 afks [listen], 36 afp31_gt [listen],
 35 afp31 v12 [listen], 38 AF sax [discuss — ModDelayLoop go/no-go].
 

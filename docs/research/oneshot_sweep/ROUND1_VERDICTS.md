@@ -142,4 +142,13 @@ the overall longer-durations note).
 
 ---
 
+### NEW family for round 2: jagged (Matt, 2026-08-23)
+
+Verbatim: "for lead-in, tail-off, or both, random noise turns into a jagged
+ramp to a peak, with the jaggedness decreasing to 0 on the way up (reverse
+on the way down)." Construction: v = ramp + j*noise, ramp 0→peak (power-
+curveable), jaggedness j: 1→0 rising (0→1 falling); variants = leg (in/out/
+both) x noise character (per-sample white vs coarse connect-the-dots) x jag
+depth x ramp power x duration.
+
 ## All areas in — round 2 designs from this file.
