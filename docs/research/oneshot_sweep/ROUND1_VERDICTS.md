@@ -152,3 +152,25 @@ both) x noise character (per-sample white vs coarse connect-the-dots) x jag
 depth x ramp power x duration.
 
 ## All areas in — round 2 designs from this file.
+
+---
+
+# Round-2 verdicts (Matt, 2026-08-23)
+
+### jagged (9 cells)
+
+**"Jagged paid off! Snare drum city!"** — the new family lands on first
+listen, and lands as a THING: snares. First round-2 family verdicted; a
+snare-corner expansion is the obvious round-3 candidate (leg lengths /
+noise character / depth / power around whichever cells read most
+snare-like) — awaiting the rest of the round-2 areas before designing.
+
+**Follow-up (same session): the three jagged_in cells are the snare ones.**
+Matt's snare recipe, verbatim: "pairing that with a hit (pulse) at the onset,
+varying the pulse width from sharp to fat, varying the jagged tail from white
+to coarse, and varying the speed of the tailoff should produce an infinite
+variety of snares." → built immediately as the snare_corner mini-sweep
+(gen_snare_corner.py): pulse {sharp 1.5 ms / mid 8 ms tri / fat 25 ms tri} ×
+tail noise {white / coarse 1800 Hz / coarse 700 Hz} × tailoff {fast 0.10 /
+mid 0.22 / slow 0.45 s}, tail = the jagged out-leg (body ramp fading under
+emerging noise) with an overall fade so it actually tails off.

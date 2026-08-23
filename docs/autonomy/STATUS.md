@@ -26,7 +26,8 @@ cache, RtMidi, wheel/pressure smoothers), plus Matt's hands-on day 08-20
 and the AF archaeology thread (afp31 v1–v12 + decoded ground truth, afks,
 sax recipe).
 
-Review queue (dsp/REVIEW.md): **44 segment sweep round 2 [listen] — 92 cells
+Review queue (dsp/REVIEW.md): **45 snare corner [listen] — jagged verdict
+"Snare drum city!" built out as a 27-cell recipe grid**, **44 segment sweep round 2 [listen] — 92 cells
 incl. the new jagged family (2026-08-23)**, 42 curve editing [try], 41 UI piano [try], 40 Triangle power
 [listen], 39 wheel/pressure [try], 37 afks [listen], 36 afp31_gt [listen],
 35 afp31 v12 [listen], 38 AF sax [discuss — ModDelayLoop go/no-go].

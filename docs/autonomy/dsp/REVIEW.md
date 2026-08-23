@@ -2,6 +2,17 @@
 
 ## Awaiting Matt
 
+### 45. Snare corner — your jagged recipe, 27 cells [listen] (2026-08-23)
+**renders/dsp/pending/snare_corner/** — the "infinite variety of snares"
+recipe built as a 3x3x3 grid, names `<pulse>_<noise>_<tailoff>`: pulse sharp
+(1.5 ms) / mid (8 ms tri) / fat (25 ms tri) x tail noise white / coarse
+1800 Hz / coarse 700 Hz x tailoff fast 0.10 / mid 0.22 / slow 0.45 s. Tail =
+the jagged out-leg (fading tonal body under emerging noise) with an overall
+fade; the tail starts inside the pulse's decay. No filters anywhere in the
+chain. Generator tools/gen_snare_corner.py — the three axes are exactly your
+three named dials, so a verdict like "fat_coarse7_mid but tighter" maps
+straight to parameters.
+
 ### 44. Segment sweep round 2 [listen] (2026-08-23)
 **renders/dsp/pending/segment_sweep2/** — 92 cells, 9 families, built cell-
 by-cell from your round-1 verdicts (docs/research/oneshot_sweep/
