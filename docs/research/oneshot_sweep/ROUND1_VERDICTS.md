@@ -362,3 +362,14 @@ _fastest as string-attack material (creak-into-tone).
   (coupling-only), jagged legs.
 - **Closed/parked**: scrape (raw), snares (with diagnosis), kick, twohit2,
   clusters (standalone), texture, rulebreak.
+
+---
+
+# Round 3 (2026-08-23): combo + combopair — 20 cells
+
+renders/dsp/pending/segment_sweep3/. **combo** (12): body width ladder
+8/15/25/40 ms (capped per the twohit2 lesson) x tri/sine, spike at onset /
+20% / 40% in, spike-vs-body level ratios, fat spikes. **combopair** (8):
+heel-toe at two gaps, ka-thump / thump-ka (small spike-heavy combo vs big
+sine-bodied combo), equal + fat pairs, one triple_run. All amplitudes kept
+hot (0.6-1.0). Awaiting verdict; excitation phase follows regardless.
