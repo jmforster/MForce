@@ -2,17 +2,6 @@
 
 ## Awaiting Matt
 
-### 45. Snare corner — your jagged recipe, 27 cells [listen] (2026-08-23)
-**renders/dsp/pending/snare_corner/** — the "infinite variety of snares"
-recipe built as a 3x3x3 grid, names `<pulse>_<noise>_<tailoff>`: pulse sharp
-(1.5 ms) / mid (8 ms tri) / fat (25 ms tri) x tail noise white / coarse
-1800 Hz / coarse 700 Hz x tailoff fast 0.10 / mid 0.22 / slow 0.45 s. Tail =
-the jagged out-leg (fading tonal body under emerging noise) with an overall
-fade; the tail starts inside the pulse's decay. No filters anywhere in the
-chain. Generator tools/gen_snare_corner.py — the three axes are exactly your
-three named dials, so a verdict like "fat_coarse7_mid but tighter" maps
-straight to parameters.
-
 ### 46. Excitation round 1 — 13 candidates into a pitched string [listen] (2026-08-23)
 **renders/dsp/pending/excite1/** — the excitation-candidates list from the
 sweep verdicts, each played as SegmentSource → KSPianoString (afp31_gt's
@@ -25,32 +14,6 @@ the sustained-excitation round (gated, looping with varPct — the bow
 experiment). Also round 3 combo/combopair (segment_sweep3/) still awaits
 its raw verdict.
 
-### 44. Segment sweep round 2 [listen] (2026-08-23)
-**renders/dsp/pending/segment_sweep2/** — 92 cells, 9 families, built cell-
-by-cell from your round-1 verdicts (docs/research/oneshot_sweep/
-ROUND1_VERDICTS.md); _picks/ has a 40-WAV diversity cut + README table, but
-round 1 showed you listen by family folder, and the folders are the real
-deliverable:
-- **xthump (12)** — the standout construction expanded: scrape→thump
-  (regular/gamma/accel scrapes × thump size × gap), thump→scrape,
-  scrape→thump→scrape, cluster→thump and thump→cluster ("2 for 1").
-- **scrape2 (11)** — shorter (0.2-0.35 s); growfat_* = slips start narrow and
-  GROW fat; buzz_r{60,90,140}_cv{10,20} = the buzzy-regular corner laddered;
-  coupled (slip-interval relaxation) + surface_walk as single probes.
-- **bounce2 (8)** — long/chunky (to ~1.7 s), two-component impacts
-  (thump+tick), reverse_full and reverse_peaks_only.
-- **dots2 (8)** — shorter; halfhump_* = "first half of hump" as its own
-  schedule (stops at the widest point).
-- **clusters2 (8)** — leadin_shrink / tailoff_grow variations.
-- **twohit2 (9)** — longer heel-toe and thump-ka, thump widths 40-150 ms,
-  ka widths 2-12 ms.
-- **kick (12)** — the 12-90 ms atom corner, sharp/tri/bipolar.
-- **texture (15)** — crunch coarse↔fine trajectories, the drop_settle family
-  (bounce-half × settle-half + a reverse-bounce lead-in), hold_then_snap
-  variants, two fresh rule-breaks.
-- **jagged (9)** — YOUR new family: noise condensing into a clean ramp
-  (in / out / both × white/coarse noise × depth × power).
-Same verdict protocol as round 1 — area by area into the log when ready.
 ### 42. Curve editing: fixed knot bug + editor now lives in Properties [try] (2026-08-22)
 Two of your three morning items, in the 13:33 build. (a) BUG FIXED: typing
 into a new knot's X field landed digits in earlier rows — the CurveNode editor
@@ -350,6 +313,17 @@ Pared 2026-08-15 at Matt's request (and again 2026-08-22) — compact stubs
 only; full detail lives in the run reports (docs/autonomy/dsp/reports/)
 and git history.
 
+- **45 + snare_corner2. Snare corners** (2026-08-23, resolved same day):
+  both "terrible"/"nothing good" — snares PARKED with Matt's diagnosis
+  (crack needs internal structure; density collapse alone doesn't redden).
+  Full detail in oneshot_sweep/ROUND1_VERDICTS.md; revisit at instrument-
+  roster time.
+- **44. Segment sweep round 2** (2026-08-23, resolved same day, area by
+  area): jagged paid off; reverse bounces re-based and parked for
+  excitation; cluster->thump beats scrape->thump; dots2 kept+extended;
+  scrape/kick/twohit2/texture closed. Full log:
+  docs/research/oneshot_sweep/ROUND1_VERDICTS.md. seq() pause bug found by
+  Matt's ears and fixed mid-review.
 - **43. Segment sweep round 1** (2026-08-23, resolved same day): Matt
   auditioned ALL cells, area by area — "many are promising." Full verdicts +
   round-2 directions in docs/research/oneshot_sweep/ROUND1_VERDICTS.md
