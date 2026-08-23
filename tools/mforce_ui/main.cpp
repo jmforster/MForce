@@ -5935,11 +5935,13 @@ static void draw_keyboard_panel() {
     // (Matt, 2026-08-21). Default 4 octaves; add an octave when keys get too
     // wide, drop one when they get too narrow. The layout always ends on the
     // C above the top octave, so the range is a whole number of octaves + 1.
-    // Band widened 20/40 -> 30/60 (Matt 2026-08-22: "greater key width").
-    // Keep MAX/MIN >= 15/8: the 1->2 octave step changes white-key count
-    // 8 -> 15, and a narrower band would oscillate at that boundary.
-    const float MIN_KEY_W = 30.0f;   // narrower than this → drop an octave
-    const float MAX_KEY_W = 60.0f;   // wider than this   → add an octave
+    // Band 20/40 -> 30/60 -> 25/45 (Matt 2026-08-22, two passes). The
+    // octave count is recomputed from width every frame (no stored state),
+    // so any band is stable; with MAX/MIN < 15/8 the 1->2 octave step
+    // (8 -> 15 white keys) has a small width window where neither bound
+    // can be met and the shrink loop wins (1 octave, keys a hair over MAX).
+    const float MIN_KEY_W = 25.0f;   // narrower than this → drop an octave
+    const float MAX_KEY_W = 45.0f;   // wider than this   → add an octave
     const int   MIN_OCTAVES = 1;
     const int   MAX_OCTAVES = 10;    // stays inside the MIDI range from any base
     auto keyWidthFor = [&](int oct) { return availW / float(oct * WHITE_KEYS_PER_OCT + 1); };

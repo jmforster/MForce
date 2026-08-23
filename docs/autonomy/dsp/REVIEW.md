@@ -32,12 +32,12 @@ Restart the UI to pick up the build (your pid 25572 is on the renamed
 (a) the keyboard always ends on the C above the top octave now (extra playable
 white key on the right); (b) on resize it adds/removes a whole octave at a
 width threshold instead of scaling key width without bound — default 4 octaves,
-clamped 1..10. **Band widened 2026-08-22 per Matt: grows past 60px/key,
-shrinks below 30px/key** (was 40/20; the ratio must stay >= 15/8 or the 1->2
-octave step oscillates). TRY: resize the Keyboard panel wide and narrow,
-confirm the thresholds and the resulting key-width band feel right, and that
-the trailing top C sounds. Constants MIN_KEY_W 30 / MAX_KEY_W 60 / default
-octaves 4 are at the top of the render block if the band wants retuning.
+clamped 1..10. **Band retuned 2026-08-22 per Matt, twice: 20/40 → 30/60
+("too wide") → 25/45.** No oscillation risk — the octave count is a pure
+function of width each frame. TRY: resize the Keyboard panel wide and
+narrow, confirm the thresholds feel right and the trailing top C sounds.
+Constants MIN_KEY_W 25 / MAX_KEY_W 45 / default octaves 4 at the top of the
+render block if it wants another pass.
 
 ### 40. Triangle `power` shape control [listen] (2026-08-21, shark-fin fixed)
 New `power` ValueSource on TriangleSource (MISC.md). Signed, neutral at 1:

@@ -10,7 +10,7 @@
           "attack": 0.03,
           "decay": 0.05,
           "sustainLevel": 0.9,
-          "release": 0.0
+          "release": 0.1
         }
       },
       {

@@ -140,7 +140,15 @@ file's git history. Tags per WORKFLOW.md. (G1)-(G4) = GOALS.md Dipsy goals.
 
 ## Listen-prep
 
-3r. **[listen-prep] Soprano alt-formant A/B re-render** — Matt (REVIEW 25
+3r. **[listen-prep] Vowel review pass — soprano re-render + tenor O** —
+    **Matt 2026-08-22 (curating library/voice): review ALL the sung vowels,
+    not just soprano — "some of the vowels need additional work; I knew
+    this about the 3 soprano vowels but tenor O is not quite right either."**
+    Same day: every voice/ envelope had release 0.0 (= the release ramp
+    filled the sustain region, and live key-up cut hard → click); swept to
+    release 0.1, so the locked WAVs in renders/library no longer match
+    these files — re-render before any A/B. Original soprano item follows.
+    Soprano alt-formant A/B re-render — Matt (REVIEW 25
     response): he deleted the renders AND the pending patches, recalls "no
     good candidates" but wants a re-do to be sure, and invites variation
     arms based on that recollection. Regenerate the 4 A/B pairs from the
