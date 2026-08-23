@@ -38,12 +38,18 @@ def thump(width_s=0.03, peak=1.0, shape="sharp", power=2.0):
     return atom(width_s, peak, shape, power)
 
 def seq(*bufs_gaps):
-    """Alternating (buf, gap_s, buf, gap_s, ...) -> concatenated with gaps."""
+    """Alternating (buf, gap_s, buf, gap_s, ...) -> concatenated with gaps.
+    Advances by each buffer's ACTIVE length — place() pads 0.3 s of trailing
+    silence, and counting it inserted an audible pause before every later
+    element (Matt heard it in all cluster/scrape-first xthump cells,
+    2026-08-23). Trailing near-zeros are trimmed from the timeline, not the
+    audio (buffers still overlap-sum)."""
     ev, t = [], 0.0
     it = iter(bufs_gaps)
     for b in it:
         ev.append((t, b))
-        t += len(b) / SR
+        nz = np.nonzero(np.abs(b) > 1e-6)[0]
+        t += (int(nz[-1]) + 1) / SR if len(nz) else len(b) / SR
         g = next(it, None)
         if g is None: break
         t += g
