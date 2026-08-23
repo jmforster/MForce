@@ -67,7 +67,7 @@ P3's null gate was 120/120 bit-identical.
 
 ### 35. afp31_v1 — the from-scratch AFNoding-031 rebuild [listen] (2026-08-16)
 renders/dsp/pending/afp31/afp31_v1.wav (C2/C4/C6 hard + C4 soft);
-patch patches/pending/afp31/afp31_v1.json; generator tools/gen_afp31.py;
+patch patches/audition/afp31/afp31_v1.json; generator tools/gen_afp31.py;
 recipe docs/research/afpiano_scratch/RECIPE.md. Built per the build
 video: noise x 10 ms gated env -> resonant SVF LP (normalize, res 6)
 with cutoff = min(12*f0, 1660 Hz) — his min(pitch+12, stiffness) clamp
@@ -256,7 +256,7 @@ BEST SOURCE: the actual patch file is on the AF Discord — grab when
 joining; parse_af_patch.py will decode it and settle the TUNEs.
 
 ### 37. afks_v1 — the "beautiful" AF KS patch, rebuilt from its file [listen] (2026-08-18)
-renders/dsp/pending/afks/afks_v1.wav; patch patches/pending/afks/
+renders/dsp/pending/afks/afks_v1.wav; patch patches/audition/afks/
 afks_v1.json; generator tools/gen_afks.py; decoded source
 docs/research/af_ks/parse_full.txt (patch "20211206_9403", decoded
 with the generalized tools/parse_af_patch.py). Character: NOT a piano

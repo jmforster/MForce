@@ -119,8 +119,9 @@ the lane, not the session.
 - Taste questions convert to either queued review items or metric questions.
   Blind iteration on "does it sound/look better" is prohibited.
 - NEVER promote to library/ (patches or renders) without Matt's audition
-  and approval of that exact artifact. New work lands in pending/ with a
-  [listen] item; "locked baseline" is Matt's to declare, and earlier
+  and approval of that exact artifact. New work lands in patches/audition/
+  (renamed from pending/ 2026-08-22; patches/pending/ is now Matt's own
+  sandbox — never write there) with a [listen] item; "locked baseline" is Matt's to declare, and earlier
   verdicts on precursors do not transfer to a new render (2026-08-14: the
   08-13 evening run locked ks_piano_plausible unauditioned; demoted).
 - Runs are sequential, never parallel, in the shared working copy.

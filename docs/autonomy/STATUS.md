@@ -51,6 +51,8 @@ re-render is backlog #22, the first task of the next comp run.
   keys/acoustic_piano/piano_default.json (Piano_bright retired); clarinet_*,
   fm rhodes, v6 strings, percussion kick/snare are gone. rt_smoke cases
   repointed. Tools/docs that name the old files are historical.
+- **patches/audition/ is the listening queue (renamed from pending/ 2026-08-22,
+  gitignored); patches/pending/ is now Matt's sandbox — runs never write there.**
 - Nightly scheduled run purges patches/old/ >30 days.
 - Misc task drops: Matt can leave a dated list in a lane's MISC.md
   (pattern established 08-21); see WORKFLOW.md.

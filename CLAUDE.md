@@ -66,8 +66,10 @@ instrument-independent musical material (score events, templates, passage/piece 
 The embedded "score" block in patch JSON is a smoke-test convenience only; new comp
 artifacts are score files. Full triage record: docs/patch_triage_2026_08_10.md.
 
-- patches/ = dsp lane: {sweep, pending}/<effort-family>/ (gitignored) + library/<instrument-family>/
-  (tracked) + baselines/ (tracked dev-test/regression patches) + old/ + scratch/ (gitignored)
+- patches/ = dsp lane: {sweep, audition}/<effort-family>/ (gitignored) + library/<instrument-family>/
+  (tracked, FINAL patches only — Matt's 2026-08-22 curation) + baselines/ (tracked dev-test/regression
+  patches) + pending/ (gitignored — Matt's own play area, NOT a queue) + old/ + scratch/ (gitignored).
+  Renamed 2026-08-22: audition/ is the listening queue (was pending/); pending/ is Matt's sandbox.
 - scores/ = comp lane: same shape (sweep, pending, baselines, library, scratch)
 - renders/ keeps the lane level — {dsp, comp}/{sweep, pending}/<effort-family>/ — because
   renders come from both lanes; per-lane pending/ = Matt's two listening queues.
@@ -77,8 +79,9 @@ artifacts are score files. Full triage record: docs/patch_triage_2026_08_10.md.
   never deleted directly; the nightly scheduled runs purge files >30 days old.
 
 Rules: no loose files at any level above a family folder; new patches/scores/renders are
-NEVER written to a tree root. pending/ holds only what awaits Matt's ears; each audition
-verdict promotes to library/ or moves to old/ the same day. Failed renders are deleted
+NEVER written to a tree root. patches/audition/ holds only what awaits Matt's ears; each
+audition verdict promotes to library/ or moves to old/ the same day. Never write into
+patches/pending/ — that is Matt's sandbox. (scores/ and renders/ keep their pending/ naming.) Failed renders are deleted
 outright (derived data — score + patch + engine commit reproduces them). Never delete/move
 anything still cited by an open item in docs/autonomy/*/REVIEW.md. Keeper WAVs in
 renders/library/ are the audio archive — don't re-render over them after engine changes
