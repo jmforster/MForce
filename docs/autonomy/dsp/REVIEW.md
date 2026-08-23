@@ -2,33 +2,6 @@
 
 ## Awaiting Matt
 
-### 43. Segment sweep round 1 — one-shot waveforms [listen] (2026-08-23)
-**renders/dsp/pending/segment_sweep/_picks/** — 40 WAVs named
-`<family>__<name>.wav`, ~0.3-1.1 s each, dry, played once; README.md in the
-parent folder has the pick table (onsets, IOI, attack, crest, centroid per
-cell) and the 69 not-picked cells stay in the family folders. Patches:
-patches/audition/segment_sweep/<family>/ (render-style, SegmentSource
-oneShot=true as the player; Play==Stream in the UI, it goes silent after one
-pass — Stop it yourself). Generator tools/gen_segment_sweep.py, pruner
-tools/_run_segment_sweep.py (hash-dedupe + farthest-point over structure
-descriptors ×1.5 + timbre embedding ×0.6, 3-per-family floor).
-Families, per the brainstorm: **atoms** (single-pulse ladders, uni/bipolar,
-power-curved), **twohit** (ta-tack / ka-thump / thump-ka / heel-toe at four
-gaps), **clusters** (N atoms, lead-in / tail-off / both envelopes, overlap,
-width schedules, lead-in→big→tail-off), **dots** (RedNoise-style connect-the-
-dots with a ramp-length SCHEDULE: white→red→single pulse, reverse, hump, with
-boost/zct/continuity/density variants), **physics** (bounce ×4, **scrape ×12**
-— stick-slip slip trains with const/accel/decel/swell velocity, exp/gamma/
-jittered interval laws, light/heavy press, fine/coarse — plus crunch ×4,
-drop+settle, scrape→thump), **rulebreak** (clip ×3, ±1 zigzag, DC ramp,
-negative-only, 1-sample spike, hold-then-snap). Clank deliberately absent
-(FM does clanks). VERDICT WANTED: which families/cells are worth a round 2
-(mutation + denser ladders around your picks) and which retire; anything
-that already sounds like a *thing* (a footstep surface, a scrape you'd use).
-Engine: SegmentSource gained the missing `get_array` override (toggling a
-setting in the UI no longer wipes the shape on save) and an empty-shape guard
-(a fresh Segment node no longer reads out of bounds); null gate identical.
-
 ### 42. Curve editing: fixed knot bug + editor now lives in Properties [try] (2026-08-22)
 Two of your three morning items, in the 13:33 build. (a) BUG FIXED: typing
 into a new knot's X field landed digits in earlier rows — the CurveNode editor
@@ -327,6 +300,13 @@ damping cutoffs, per-comb feedback, exp follower tails.
 Pared 2026-08-15 at Matt's request (and again 2026-08-22) — compact stubs
 only; full detail lives in the run reports (docs/autonomy/dsp/reports/)
 and git history.
+
+- **43. Segment sweep round 1** (2026-08-23, resolved same day): Matt
+  auditioned ALL cells, area by area — "many are promising." Full verdicts +
+  round-2 directions in docs/research/oneshot_sweep/ROUND1_VERDICTS.md
+  (standout: scrape_then_thump; kick corner in wide atoms; scheduled
+  clusters; dots = time-domain synth-kick recipe; rulebreak demoted;
+  fixed_fine_zct dropped as "earsplitting"). Round 2 designed from the log.
 
 - **34. AFP excitation ladder** (2026-08-15, resolved 2026-08-22 housekeeping):
   four revs of envelope-shape matching, shape verified matching at the
