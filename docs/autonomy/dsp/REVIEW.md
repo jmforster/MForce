@@ -13,6 +13,18 @@ chain. Generator tools/gen_snare_corner.py — the three axes are exactly your
 three named dials, so a verdict like "fat_coarse7_mid but tighter" maps
 straight to parameters.
 
+### 46. Excitation round 1 — 13 candidates into a pitched string [listen] (2026-08-23)
+**renders/dsp/pending/excite1/** — the excitation-candidates list from the
+sweep verdicts, each played as SegmentSource → KSPianoString (afp31_gt's
+damper + t60 keytrack) at notes 36/60/84. Includes the creak question
+(reverse_full_faster/_fastest), the scrape coupling test (scrape_buzz), both
+jagged legs, the cluster→thumps, dots cells, and combo_ref as the plain-
+strike reference. Auto-leveled under the 0.7 limiter. VERDICT: whose
+character survives/transforms interestingly through the string; which earn
+the sustained-excitation round (gated, looping with varPct — the bow
+experiment). Also round 3 combo/combopair (segment_sweep3/) still awaits
+its raw verdict.
+
 ### 44. Segment sweep round 2 [listen] (2026-08-23)
 **renders/dsp/pending/segment_sweep2/** — 92 cells, 9 families, built cell-
 by-cell from your round-1 verdicts (docs/research/oneshot_sweep/

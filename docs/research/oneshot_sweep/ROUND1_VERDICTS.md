@@ -373,3 +373,20 @@ renders/dsp/pending/segment_sweep3/. **combo** (12): body width ladder
 heel-toe at two gaps, ka-thump / thump-ka (small spike-heavy combo vs big
 sine-bodied combo), equal + fat pairs, one triple_run. All amplitudes kept
 hot (0.6-1.0). Awaiting verdict; excitation phase follows regardless.
+
+---
+
+# Excitation phase, round 1 (2026-08-23): pitched string — 13 candidates
+
+renders/dsp/pending/excite1/ — each candidate as SegmentSource (oneShot,
+normalized 0.9) into a KSPianoString (afp31_gt damper + t60 keytrack;
+detune 0.5, brightness 0.926), notes 36/60/84 at 3.5 s. Auto-leveled below
+the 0.7 instrument limiter (first pass pinned all 13 at exactly 0.700 —
+caught and re-leveled to 0.30-0.59 peaks).
+Candidates: thump_cluster_tailoff, fatthump_cluster_tailoff,
+cluster_dense_thump, both_shrink_then_grow, reverse_full_faster + _fastest
+(the creak → string-attack note), med_twocomp, dots_grow_boost,
+dots_halfhump_6k, jagged_in_white, jagged_out_coarse, scrape_buzz (the
+coupling test), combo_ref (plain body+spike as the reference strike).
+Question for the verdicts: whose character SURVIVES or transforms
+interestingly through the string — not who imitates piano.
