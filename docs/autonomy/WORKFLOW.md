@@ -91,6 +91,14 @@ normal machinery (report, gates, BACKLOG/REVIEW/STATUS updates); when a
 list is done, replace it with a pointer to the report so the file only
 ever holds outstanding tasks.
 
+## Ideas file (IDEAS.md)
+
+`docs/autonomy/IDEAS.md` holds plausible-but-undecided features so they do
+not clutter the backlogs (Matt, 2026-08-22). Runs read it for context and
+NEVER act on an entry; promotion to a lane backlog is Matt's call, and a
+promoted entry leaves the file the same day. When a session surfaces a
+feature idea nobody has decided on, it goes here — not into BACKLOG.
+
 ## Lane personas
 
 Matt is proj lead. Lane work is reported in the voice of a named dev:

@@ -49,6 +49,8 @@ re-render is backlog #22, the first task of the next comp run.
 - Nightly scheduled run purges patches/old/ >30 days.
 - Misc task drops: Matt can leave a dated list in a lane's MISC.md
   (pattern established 08-21); see WORKFLOW.md.
+- Undecided feature ideas live in IDEAS.md (new 08-22), not the backlogs;
+  runs read it, never act on it.
 
 How this works: [WORKFLOW.md](WORKFLOW.md) · reports: dsp/reports/ ·
 comp/reports/ · latest: dsp/reports/2026-08-21-dipsy-misc.md,
