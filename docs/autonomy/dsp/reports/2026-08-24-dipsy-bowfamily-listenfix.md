@@ -92,6 +92,27 @@ brightness was built on the recirculation theory while the bigger cause was
 the resample seam; it survives as a legitimate tone control, but the order
 was wrong.
 
+## 5. Evening — KSString bow mode, verdict, and the direction
+
+Matt's ears had had it with strings; deal was one build + one listen +
+verdict. KSPianoString renamed **KSString** (loading alias keeps the piano
+library bit-identical; full gate 180/180) and given a **bow pin**: the
+Friedlander junction against the loop's own delayed output (MSW — the
+BowedStringEvolution character mechanism inside the damped, keytracked,
+tuned loop), pressure = the conditioned stochastic bow. ksbow_a/b/c cells.
+
+Verdict (REVIEW 52): character + promise confirmed; peripheral problems —
+over-resonance (a), string/trumpet hybrid middles (b, c), top octave
+screech-or-inaudible, and attacks universally too slow for strings.
+**Direction: KSString physical-mode family is the model** (strings /
+flutes / horns via the piano's architecture; possibly KSPipe).
+BowedStringEvolution parked for comparison; Reed/BrassEvolution will not
+be debugged. Backlog 34 carries the work list; the trumpet-adjacency of
+the b/c middles is explicitly noted as a lead for the horn mode.
+
+Also committed: Matt's own piano work (b542642) — default tone curve
+halved, bright/dark variants into the library.
+
 ## Files
 
 - engine/src/patch_loader.cpp — promote_starved_refs + 5 call sites

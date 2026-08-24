@@ -11,7 +11,7 @@ KS piano family, live MIDI) grew out of interactive sessions, not GOALS.
 
 | Lane | Dev | State | Next up | Awaiting Matt |
 |---|---|---|---|---|
-| dsp | Dipsy | **08-24: bow family r1 rendered (30 cells) + Listen-here FIXED** (backlog 32 both halves; null-gate manifest re-frozen 180/180 — was stale since the 08-22 voice bump) | bow family verdicts → r2; menu reorg; Reed/Brass revisit | **10 items** |
+| dsp | Dipsy | **08-24: KSString IS THE MODEL** — bow mode verdicted same day ("character + promise, problems on the periphery"); flutter/sizzle/seam all root-caused; BowedStringEvolution parked; Listen-here fixed; gate re-frozen 180/180 | backlog 34: KSString mode family (fast attacks via source pin, resonance balance, top-octave bow keytrack, KSPipe); menu reorg | **10 items** |
 | comp | Wolfie | dormant since run 26 (08-10) | #22 re-renders → #21 zero-event check → #8 re-observe | **10 items** (3 blocked on #22) |
 
 ## dsp

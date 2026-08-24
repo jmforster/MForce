@@ -95,9 +95,28 @@ file's git history. Tags per WORKFLOW.md. (G1)-(G4) = GOALS.md Dipsy goals.
     class as backlog 14 and 26a, one level lower.
 
 
+34. **[build] KSString physical-mode family — strings / flutes / horns on
+    the piano's KS architecture** — Matt's direction 2026-08-24 after the
+    ksbow verdict (REVIEW 52): "lots of character, lots of promise";
+    KSString modes (and possibly a KSPipe sibling) over debugging the
+    wave-evolution trio. BowedStringEvolution parked for comparison;
+    Reed/BrassEvolution not being debugged. Known first problems from the
+    verdict: (a) **attacks too slow for a string** — the bow-env 60 ms sine
+    rise + friction startup read as horn; the `source` pin still takes
+    excite4 attack textures (creak et al.), which was the design intent —
+    fast bite + bowed sustain; (b) over-resonance in the a-cell config —
+    resonance/drive balance knob work; (c) top octave: screech (a) or
+    under-drive (b) — bow-side keytracking (bowSpeed/frictionGain/pressure
+    curves per note) parallel to the existing t60 curve; (d) the
+    middle-register trumpet-adjacency in b/c is a HINT for the horn mode,
+    not only a defect — the junction at those settings is already lip-ish.
+    KSPipe = jet/air excitation + open-pipe loop for flutes/recorders.
+
 33. **[build] Vibrato/bend on live-evolution wavetables needs a real
-    mechanism** — found 2026-08-24 chasing Matt's headphone sizzle on the
-    bow family. The fractional-read-head resample (KS bend Approach A,
+    mechanism** — PRIORITY DROPPED 2026-08-24 evening: BowedStringEvolution
+    parked (REVIEW 52), so live-evolution tables are no longer a production
+    path; item stands for whenever they return. Found chasing Matt's
+    headphone sizzle on the bow family. The fractional-read-head resample (KS bend Approach A,
     project_ks_bend) treats the table as frozen content; with a live
     evolution (bowed string) the table is the string's ring buffer, and any
     rateScale != 1 makes the reader lap the writer — the output sweeps the
