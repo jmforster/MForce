@@ -2,6 +2,39 @@
 
 ## Awaiting Matt
 
+### 51. Listen-here fixed — taps sound, monitor at unity [try] (2026-08-24)
+Backlog 32, both halves, in today's mforce_cli + mforce_ui builds.
+(a) **Engine**: a shared source's advancing consumer could fall outside the
+tap's render cone — RefSource wrapping gives the advance to the FIRST-WIRED
+consumer, and when the tap re-roots the graph that consumer may not render,
+so the shared envelope froze at 0.0 and muted everything it gated. That was
+your all-zero wt tap on creak__wtsaw15_bedlow (bed, wired first, owned
+bow_env). The loader now proves starvation from the patch JSON (advancer
+node unreachable from the output) and promotes the tapped-side RefSource to
+advancing. Null gate 180/180 — full-graph renders are byte-identical.
+(b) **UI**: instrument volume is leveled for the patch output, so raw
+excitation taps sat 20-30 dB down (your "silent" att/bed/sums — they DID
+render). Per your call: Listen taps now monitor at unity volume, ignoring
+instrument.volume. TRY: Listen on att / bed / wt / sums in the excite4
+patches — beds should loop audibly, one-shots fire per note-on.
+
+### 50. THE BOW gets a family — 30 cells [listen] (2026-08-24)
+**renders/dsp/pending/bow_family/** — your parameter notes turned into axis
+ladders off the exact discovery bytes (baseline included), notes 36/60/84,
+3.5 s bows: RedNoise frequency 100→1400 + **rnfreq_track** (bow events
+follow the note instead of sitting at 350 Hz — the stochastic-bow reading
+says they should), density 0.15→1.0 (your "hesitant" axis), smoothness /
+continuity / rampVariation, the TBD pair boost + zeroCrossTendency, bow
+position 0.05→0.40, friction 2/8, tubeLoss ladder, and three combo cells
+from your verbatim characterizations (hesitant / bright / darklow).
+FOUND EN ROUTE: bowSpeed x frictionGain is ONE axis — the Friedlander
+recursion has an exact scale symmetry (verified corr=1.0 on rendered
+pairs), so shape depends only on the product ("drive"; baseline 1.2,
+fric2=0.6, fric8=2.4) and the leftover is pure gain. The bowspeed cells
+were exact duplicates and were dropped. VERDICT: which axes matter, does
+freq-tracking beat fixed 350, do the combos read as characters; names for
+keepers.
+
 ### 49. Smoothing the bed — duck / smooth / Helmholtz, 9 cells [listen] (2026-08-23)
 **renders/dsp/pending/excite4_smooth/** — your "just use a sawtooth ;-)"
 taken at face value, plus the two cheaper dials, all on the triptych

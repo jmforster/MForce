@@ -94,15 +94,6 @@ file's git history. Tags per WORKFLOW.md. (G1)-(G4) = GOALS.md Dipsy goals.
     ref of a marker source, assert `get_param` returns it). Same failure
     class as backlog 14 and 26a, one level lower.
 
-32. **[build] Listen-here silent on non-string nodes in the excite
-    patches** — Matt 2026-08-23, on excite4's creak__wtsaw15_bedlow: Listen
-    tap produces sound ONLY on the string node; att / bed / fill_seg / wt /
-    sums are all silent. Expected per the stream-hold design: beds should
-    loop audibly, one-shots should play once at stream start. Suspects to
-    check first: does the Listen stream actually prepare() the tapped
-    node's upstream chain (one-shot done_ latched from a prior play?);
-    envelope-hold treatment on bow_env/att_env refs when the tapped node
-    is mid-chain; CombinedSource sums under the tap. Investigate 2026-08-24.
 
 ## Design questions
 
@@ -347,6 +338,12 @@ One line each; full text in run reports + this file's git history.
 - 21. WhiteNoise density/boost/continuity + zeroCrossTendency — 08-21.
 - 29. Triangle `power` (symmetric; `asymmetric` flag) — 08-21; REVIEW 40.
 - 30. UI piano dynamic octaves + top C — 08-21; REVIEW 41.
+- 32. Listen-here silent on non-string excite nodes — 08-24, two causes:
+  starved RefSource outside the tap cone (loader promotion fix, null gate
+  180/180) + instrument volume crushing raw-excitation taps (UI monitors at
+  unity now, Matt's call); REVIEW 51. En route: null-gate manifest was
+  stale since the 08-22 voice release-bump (8657bae) + curation — re-frozen
+  at 180 entries.
 - Partial motion layer + v1-v4 batches (docs/Fable1_results.md); 16 kHz
   cutoff break→continue fix; UI array-restore fix; 96-partial
   extrapolation — pre-run-1 era.

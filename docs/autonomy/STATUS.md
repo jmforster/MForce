@@ -11,7 +11,7 @@ KS piano family, live MIDI) grew out of interactive sessions, not GOALS.
 
 | Lane | Dev | State | Next up | Awaiting Matt |
 |---|---|---|---|---|
-| dsp | Dipsy | **08-23: THE BOW FOUND** (BowedStringEvolution + RedNoise defaults, backlog 25 reversed); halfhump ≈ piano_default; excite r1-r4 built | bow family sweep; backlog 32 (Listen-here); menu reorg; Reed/Brass revisit | **8 items** |
+| dsp | Dipsy | **08-24: bow family r1 rendered (30 cells) + Listen-here FIXED** (backlog 32 both halves; null-gate manifest re-frozen 180/180 — was stale since the 08-22 voice bump) | bow family verdicts → r2; menu reorg; Reed/Brass revisit | **10 items** |
 | comp | Wolfie | dormant since run 26 (08-10) | #22 re-renders → #21 zero-event check → #8 re-observe | **10 items** (3 blocked on #22) |
 
 ## dsp
@@ -26,7 +26,8 @@ cache, RtMidi, wheel/pressure smoothers), plus Matt's hands-on day 08-20
 and the AF archaeology thread (afp31 v1–v12 + decoded ground truth, afks,
 sax recipe).
 
-Review queue (dsp/REVIEW.md): 49 excite4 duck/smooth/Helmholtz [listen —
+Review queue (dsp/REVIEW.md): **51 Listen-here fixed [try]**, **50 bow
+family 30 cells [listen]**, 49 excite4 duck/smooth/Helmholtz [listen —
 partially verdicted, + 7 follow-up cells unheard: jin ladder, hot attacks],
 48 triptych [listen, partial], 47 sustained probe [listen, verdicted-ish],
 46 excite1 [listen — interim only; piano_ab A/B + segment_sweep3 combo
@@ -66,5 +67,5 @@ re-render is backlog #22, the first task of the next comp run.
   runs read it, never act on it.
 
 How this works: [WORKFLOW.md](WORKFLOW.md) · reports: dsp/reports/ ·
-comp/reports/ · latest: dsp/reports/2026-08-21-dipsy-misc.md,
+comp/reports/ · latest: dsp/reports/2026-08-24-dipsy-bowfamily-listenfix.md,
 comp/reports/2026-08-10-wolfie-run26.md
