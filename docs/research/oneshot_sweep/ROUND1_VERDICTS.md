@@ -405,3 +405,6 @@ piano_default's, so there is headroom. Built same day: piano_halfhump A/B —
 piano_default's exact graph with only the excitation chain's output swapped
 for the halfhump SegmentSource, rendered beside stock piano_default on the
 same score (renders/dsp/pending/excite1/piano_ab/).
+
+Interim (Matt, pre-headphones, 2026-08-23): **"guaranteed octave 1 of humpy
+sounds better than default."** Full set + A/B verdict when he returns.
