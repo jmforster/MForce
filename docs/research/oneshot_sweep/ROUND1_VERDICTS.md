@@ -465,3 +465,29 @@ creak_into_* leads!) never reached the string. Matt's "I didn't think it
 was creak-like" was literally accurate: there was no creak. Fixed in both
 generators; attacks verified distinct by head-RMS; the two excite2 cells
 regenerated with their creaks real for the first time.
+
+### Triptych (REVIEW 48) — verdict (Matt, 2026-08-23)
+
+**"Pretty cool. I can still hear the segment period.. much less, and in
+some almost not at all. Also the bed phase is too noisy in every case, how
+can we smooth that out.. just use a sawtooth? ;-)"**
+The wink = the physics: bowed steady state IS the sawtooth (Helmholtz
+motion, slips locked to the string period); our beds slip at a fixed rate
+regardless of pitch — aperiodic input poured over the ring.
+
+# Excitation round 4 (2026-08-23): smoothing the bed — 9 cells
+
+renders/dsp/pending/excite4_smooth/. Three stacked mechanisms:
+A. **Duck** — bow env sustains at 0.3-0.5 instead of 1.0 (string ring
+   carries the tone): creak__buzz_sus{050,030}, jaggedin__fine_sus030.
+B. **Smooth bed** — 4 ms soft slips at smoothness 1.0, isolated
+   (sus100) and combined with ducking (sus040): creak__smooth_*,
+   jaggedin__smooth_sus040.
+C. **Helmholtz layer** — drawn ramp+jag into WavetableSource.inputSource:
+   the fill truncates it to ONE PERIOD AT THE NOTE FREQUENCY (truncated
+   ramp = single-period saw), read pitch-locked, bow env on amplitude;
+   wt.frequency added to the paramMap. creak__wtsaw_jag{15,40} +
+   creak__wtsaw15_bedlow (saw + buzz bed at 0.25). Auto-level note: the
+   wtsaw cells needed ~6x less volume — periodic input at f0 drives the
+   combs far more efficiently, which is itself evidence the pitch-lock
+   is working.

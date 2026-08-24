@@ -2,6 +2,19 @@
 
 ## Awaiting Matt
 
+### 49. Smoothing the bed — duck / smooth / Helmholtz, 9 cells [listen] (2026-08-23)
+**renders/dsp/pending/excite4_smooth/** — your "just use a sawtooth ;-)"
+taken at face value, plus the two cheaper dials, all on the triptych
+harness: **sus-ladder** (bed ducks to 0.5/0.3 after the attack),
+**smooth bed** (4 ms merging slips, sine interp; isolated and ducked), and
+the **Helmholtz layer** — a drawn ramp+jag fed to WavetableSource, whose
+fill takes exactly one period at the note frequency → a pitch-locked
+single-period saw with drawn roughness, bowed by the envelope
+(creak__wtsaw_jag15 / jag40 / wtsaw15+low buzz bed). The wtsaw cells took
+~6x less drive — the pitch-lock resonates the combs, structurally the bow
+behavior. VERDICT: which mechanism kills the noise; does wtsaw finally bow;
+jag 15 vs 40.
+
 ### 48. Triptych — bow without zither, 11 cells [listen] (2026-08-23)
 **renders/dsp/pending/excite3_triptych/** — your attack/sustain(/release)
 architecture: one-shot attack (creak / chaos scrape / jagged-in) crossfading
