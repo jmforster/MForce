@@ -390,3 +390,18 @@ dots_halfhump_6k, jagged_in_white, jagged_out_coarse, scrape_buzz (the
 coupling test), combo_ref (plain body+spike as the reference strike).
 Question for the verdicts: whose character SURVIVES or transforms
 interestingly through the string — not who imitates piano.
+
+### Excitation round 1 — verdict (Matt, 2026-08-23)
+
+**"Very promising. Lots of novelty and variety, hints (in tailoffs) of
+continuous excitation possibilities and... dots_halfhump_6k is at least as
+good a piano as piano_default ... think the sound is better lacking the
+hammer noise, which I only notice in comparison."**
+Notes: (1) the tailoff cells point at the sustained/gated round;
+(2) **dots_halfhump_6k = a 154-value drawn one-shot matching the four-path
+noise+filter excitation of the flagship piano** — and the harness string
+was afp31-flavored (brightness .926, no dispersion/inharm), not
+piano_default's, so there is headroom. Built same day: piano_halfhump A/B —
+piano_default's exact graph with only the excitation chain's output swapped
+for the halfhump SegmentSource, rendered beside stock piano_default on the
+same score (renders/dsp/pending/excite1/piano_ab/).
