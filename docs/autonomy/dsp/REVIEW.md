@@ -46,10 +46,22 @@ tubeLoss, no frequency-dependent loss. NEW `brightness` setting on
 BowedStringEvolution (one-pole per line write, default 1.0 = original
 node byte-identical — discovery bytes locked): **brt095/090/080/065/050**
 ladder, plus **vib000_brt080** (both fixes together — the cleanest cell).
+**THE FLUTTER (Matt's rename, and he's right — it's a third artifact):
+~5-7 Hz amplitude modulation, and it IS the RedNoise.** Bow force =
+bowSpeed x pressure, so the noise's slow content modulates amplitude
+directly (constant pressure: mod-energy 487 -> 4 at n84). Highpassing the
+pressure only partly helps — the friction nonlinearity demodulates the
+noise, so its envelope variance becomes new LF wobble past any cutoff.
+Depth is the knob: **conditioning ladder** pressure_const040 (character-
+free anchor), cond_hp005/020/060/200 (const 0.4 + HP'd noise), and
+**cond_hp200_half** (noise at half depth — flutter 487 -> 11, the best
+character-keeping cell on paper). All patch-level: two nodes (BWHighpass +
+CombinedSource) on the bow pin, no engine change — adoptable into the
+discovery patch directly if it survives your ears.
 VERDICT: which axes matter, does freq-tracking beat fixed 350, do the
-combos read as characters, names for keepers; and on the sizzle pair —
-does vib000_brt080 kill it on headphones, and where on the brt ladder
-does arco-clean live.
+combos read as characters, names for keepers; on the sizzle pair — does
+vib000_brt080 kill the HF plateau; and on the conditioning ladder — where
+does character survive minus flutter (cond_hp200_half is the candidate).
 
 ### 49. Smoothing the bed — duck / smooth / Helmholtz, 9 cells [listen] (2026-08-23)
 **renders/dsp/pending/excite4_smooth/** — your "just use a sawtooth ;-)"

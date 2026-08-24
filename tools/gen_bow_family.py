@@ -33,7 +33,8 @@ SCORE = [{"note": n, "velocity": 0.85, "time": t, "duration": 3.5}
          for n, t in ((36, 0.0), (60, 4.0), (84, 8.0))]
 
 
-def make_patch(volume, rn=None, bow=None, rn_freq_ref=False, vib_depth=None):
+def make_patch(volume, rn=None, bow=None, rn_freq_ref=False, vib_depth=None,
+               cond=None):
     p = copy.deepcopy(json.loads(BASE.read_text(encoding="utf-8")))
     nodes = {n["id"]: n for n in p["graph"]["nodes"]}
     for k, v in (rn or {}).items():
@@ -44,6 +45,24 @@ def make_patch(volume, rn=None, bow=None, rn_freq_ref=False, vib_depth=None):
         nodes["BowedStringEvolution2"]["params"][k] = v
     if vib_depth is not None:
         nodes["Vibrato"]["params"]["depth"] = vib_depth
+    if cond is not None:
+        # Bow-pressure conditioning (flutter root cause, 2026-08-24): bow
+        # force is bowSpeed*pressure, so RedNoise's 5-7 Hz content modulates
+        # amplitude directly — the flutter. Keep the texture, pin the mean:
+        # bow pin = const base + highpassed RedNoise.
+        base, cutoff = cond
+        insert = [
+            {"id": "BowHP", "type": "BWHighpassFilter",
+             "params": {"source": {"ref": "RedNoise"}, "cutoffFreq": cutoff}},
+            {"id": "BowCond", "type": "CombinedSource",
+             "params": {"source1": {"ref": "BowHP"}, "source2": base,
+                        "operation": "sum"}},
+        ]
+        # refs resolve against earlier nodes: insert right after RedNoise
+        ns = p["graph"]["nodes"]
+        at = next(i for i, n in enumerate(ns) if n["id"] == "RedNoise") + 1
+        p["graph"]["nodes"] = ns[:at] + insert + ns[at:]
+        nodes["BowedStringEvolution2"]["params"]["bow"] = {"ref": "BowCond"}
     p["score"] = SCORE
     p["seconds"] = 12.5
     p["instrument"]["volume"] = volume
@@ -128,6 +147,11 @@ def main():
     # recirculation component).
     emit("vib000", vib_depth=0.0)
     emit("vib000_brt080", vib_depth=0.0, bow={"brightness": 0.8})
+    # pressure conditioning ladder (flutter fix): const base 0.4 + HP'd
+    # RedNoise at rising cutoffs; const-only anchor = zero character extreme.
+    emit("pressure_const040", bow={"bow": 0.4})
+    for hz in (5, 20, 60, 200):
+        emit(f"cond_hp{hz:03d}", cond=(0.4, float(hz)))
 
 
 if __name__ == "__main__":
