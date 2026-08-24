@@ -408,3 +408,19 @@ same score (renders/dsp/pending/excite1/piano_ab/).
 
 Interim (Matt, pre-headphones, 2026-08-23): **"guaranteed octave 1 of humpy
 sounds better than default."** Full set + A/B verdict when he returns.
+
+---
+
+# Excitation phase, round 2 prep (2026-08-23): SUSTAINED excitation — 9 cells
+
+Built at Matt's go, ahead of the full r1 verdicts. renders/dsp/pending/
+excite2_sustain/. Mechanism: SegmentSource LOOPS (oneShot=false) with
+widthVarPct/valVarPct 0.15 so each pass re-randomizes (no loop pitch), and
+a bow-pressure Envelope drives seg.amplitude (sine rise 8% -> hold ->
+sine settle 18%, fractions of the note). Same string harness as excite1.
+Beds: scrape_buzz, scrape_fine, cluster_tailoff, shrinkgrow, jagged_out,
+dots_coarse_wander (continuity 0.9 slow walk), crunch. Plus the composed
+string-attack cells: **creak_into_buzz_bed / creak_into_cluster_bed** —
+one-shot fast reverse bounce summed with a gated bed (CombinedSource sum).
+Envelope minValue/maxValue verified by Matt this same day ("works as
+advertised") — available for bed floors when tuning starts.

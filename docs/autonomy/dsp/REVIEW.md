@@ -2,6 +2,16 @@
 
 ## Awaiting Matt
 
+### 47. Sustained excitation probe — the bow experiment, 9 cells [listen] (2026-08-23)
+**renders/dsp/pending/excite2_sustain/** — textures LOOPING into the string
+while the note lasts (SegmentSource oneShot=false, varPct 0.15 re-randomizes
+each pass so the loop has no pitch of its own), bow-pressure Envelope on
+seg.amplitude, same string harness as excite1. Seven beds (scrape buzz/fine,
+cluster tailoff, shrinkgrow, jagged out, dots slow-wander, crunch) + two
+composed string-attack cells: **creak_into_buzz_bed / creak_into_cluster_bed**
+(one-shot fast reverse bounce + gated bed). Probe set built ahead of your
+full r1 verdicts — those verdicts re-aim it. VERDICT: does anything bow?
+
 ### 46. Excitation round 1 — 13 candidates into a pitched string [listen] (2026-08-23)
 **renders/dsp/pending/excite1/** — the excitation-candidates list from the
 sweep verdicts, each played as SegmentSource → KSPianoString (afp31_gt's
@@ -13,31 +23,6 @@ character survives/transforms interestingly through the string; which earn
 the sustained-excitation round (gated, looping with varPct — the bow
 experiment). Also round 3 combo/combopair (segment_sweep3/) still awaits
 its raw verdict.
-
-### 42. Curve editing: fixed knot bug + editor now lives in Properties [try] (2026-08-22)
-Two of your three morning items, in the 13:33 build. (a) BUG FIXED: typing
-into a new knot's X field landed digits in earlier rows — the CurveNode editor
-re-sorted the knot list on every keystroke, so the row under the active widget
-changed mid-edit. Sort now happens only when an X edit is committed (the
-legacy paramMap editor already did this). (b) The separate Curves window is
-GONE: select a Curve node and its Properties pane IS the curve editor
-(in-source line, interp, knot table, plot). Other nodes' Properties unchanged.
-The legacy paramMap shape editor (unconvertible formant-child entries) moved
-into Edit > Parameter mapping, below the bindings table. TRY: build a curve
-from scratch (add knots, type values), confirm the digits stay put; confirm
-the Properties flow feels right and nothing you used in the old Curves window
-is missing. (c) ADDED 14:13 build — **Envelope minValue/maxValue were dead
-on disk, now live.** Your "I don't see maxValue" was two bugs: the stage-form
-Envelope node built only an `out` pin (the P1 params were unreachable from
-the editor), AND the engine loader's explicit Envelope branch never ran the
-generic param wiring, so `maxValue` in a patch file was silently ignored —
-proved by A/B (maxValue 0.25 rendered byte-identical to control before the
-fix; peak 0.565 → 0.141 = exactly 0.25x after). Both fixed; null gate
-186/186 library+baselines byte-identical (no patch sets the keys). TRY:
-select an Envelope, minValue/maxValue are now pins in Properties — wire
-Note.velocity → Curve → Env.maxValue for the garden velocity wiring.
-Restart the UI to pick up the build (your pid 25572 is on the renamed
-08-21 image).
 
 ### 41. UI piano — dynamic octaves + top C [try] (2026-08-21)
 `draw_keyboard_panel` (built into today's mforce_ui). Two changes off MISC.md:
@@ -313,6 +298,10 @@ Pared 2026-08-15 at Matt's request (and again 2026-08-22) — compact stubs
 only; full detail lives in the run reports (docs/autonomy/dsp/reports/)
 and git history.
 
+- **42. Curve editing + Envelope min/max** (2026-08-22, resolved
+  2026-08-23): Matt tested minValue/maxValue explicitly — works as
+  advertised; the knot-editor fix and Properties-pane curve editor have
+  been in daily use through the sweep sessions without complaint.
 - **45 + snare_corner2. Snare corners** (2026-08-23, resolved same day):
   both "terrible"/"nothing good" — snares PARKED with Matt's diagnosis
   (crack needs internal structure; density collapse alone doesn't redden).

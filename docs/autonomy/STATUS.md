@@ -11,7 +11,7 @@ KS piano family, live MIDI) grew out of interactive sessions, not GOALS.
 
 | Lane | Dev | State | Next up | Awaiting Matt |
 |---|---|---|---|---|
-| dsp | Dipsy | active — 08-23 sweeps r1-r3 verdicted/built; excitation r1 rendered | excite verdicts → sustained round; P4 cleanup (19) | **10 items** |
+| dsp | Dipsy | active — 08-23 excitation r1 verdicted promising; sustained probe + piano A/B rendered | excite verdicts fold → tune winners; P4 (19) | **10 items** |
 | comp | Wolfie | dormant since run 26 (08-10) | #22 re-renders → #21 zero-event check → #8 re-observe | **10 items** (3 blocked on #22) |
 
 ## dsp
