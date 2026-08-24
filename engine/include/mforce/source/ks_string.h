@@ -9,8 +9,10 @@
 namespace mforce {
 
 // ---------------------------------------------------------------------------
-// KSPianoString — Karplus-Strong-family piano string block (dsp run 24,
-// port of Balazs Gyutai's Alpha Forever piano description).
+// KSString — Karplus-Strong-family string block (dsp run 24, port of Balazs
+// Gyutai's Alpha Forever piano description; renamed from KSPianoString
+// 2026-08-24 when it grew a bow mode — the registry keeps the old name as a
+// loading alias for stored patches).
 //
 // One node encapsulates everything in the description that forms feedback
 // loops — the ValueSource graph is acyclic, so the loops must live INSIDE a
@@ -51,9 +53,9 @@ namespace mforce {
 // ~12 Hz at 48k (kBufLen); prepare() only zero-fills; next() allocates
 // nothing.
 // ---------------------------------------------------------------------------
-struct KSPianoString final : ValueSource {
+struct KSString final : ValueSource {
 
-  explicit KSPianoString(int sampleRate)
+  explicit KSString(int sampleRate)
   : sampleRate_(sampleRate) {
     frequency_ = std::make_shared<ConstantSource>(220.0f);
     amplitude_ = std::make_shared<ConstantSource>(1.0f);
@@ -61,7 +63,7 @@ struct KSPianoString final : ValueSource {
     disp_.buf.assign(kBufLen, 0.0f);
   }
 
-  const char* type_name() const override { return "KSPianoString"; }
+  const char* type_name() const override { return "KSString"; }
   // Frequency is read once in init_note() (comb lengths are per-note state);
   // a bend articulated onto it moves a number nobody reads — backlog 26a.
   // The loader warns at load via this flag (plan_perform_source_p3.md T2).
@@ -80,6 +82,7 @@ struct KSPianoString final : ValueSource {
     static constexpr InputDescriptor descs[] = {
       {"source"},
       {"damper"},
+      {"bow", false, "0-1"},
     };
     return descs;
   }
@@ -102,6 +105,14 @@ struct KSPianoString final : ValueSource {
       {"damperNoise", SettingType::Float, 0.0f,   0.0f,   2.0f},    // felt-contact noise at note-off, scaled by ring level
       {"exciteGain", SettingType::Float, 1.0f,    0.0f,   8.0f},
       {"direct",     SettingType::Float, 0.2f,    0.0f,   1.0f},    // dry strike tap
+      // Bow mode (2026-08-24, MSW junction): active when the `bow` pin is
+      // wired. Friedlander friction against the loop's own velocity —
+      // vRel = bowSpeed*pressure - lastOut — injected into the comb input,
+      // so the sustain is coupled feedback (the BowedStringEvolution
+      // character) inside THIS node's damped, keytracked, tuned loop.
+      {"bowSpeed",     SettingType::Float, 0.3f, 0.0f, 2.0f},
+      {"frictionGain", SettingType::Float, 4.0f, 0.0f, 20.0f},
+      {"bowGain",      SettingType::Float, 1.0f, 0.0f, 8.0f},
     };
     return descs;
   }
@@ -109,6 +120,7 @@ struct KSPianoString final : ValueSource {
   void set_param(std::string_view name, std::shared_ptr<ValueSource> src) override {
     if (name == "source")    { source_    = std::move(src); return; }
     if (name == "damper")    { damper_    = std::move(src); return; }
+    if (name == "bow")       { bow_       = std::move(src); return; }
     if (name == "frequency") { frequency_ = std::move(src); return; }
     if (name == "amplitude") { amplitude_ = std::move(src); return; }
   }
@@ -116,6 +128,7 @@ struct KSPianoString final : ValueSource {
   std::shared_ptr<ValueSource> get_param(std::string_view name) const override {
     if (name == "source")    return source_;
     if (name == "damper")    return damper_;
+    if (name == "bow")       return bow_;
     if (name == "frequency") return frequency_;
     if (name == "amplitude") return amplitude_;
     return nullptr;
@@ -138,6 +151,9 @@ struct KSPianoString final : ValueSource {
     if (name == "damperNoise") { damperNoise_ = std::clamp(v, 0.0f, 2.0f); return; }
     if (name == "exciteGain") { exciteGain_ = v; return; }
     if (name == "direct")     { direct_     = v; return; }
+    if (name == "bowSpeed")     { bowSpeed_     = v; return; }
+    if (name == "frictionGain") { frictionGain_ = v; return; }
+    if (name == "bowGain")      { bowGain_      = v; return; }
   }
 
   float get_setting(std::string_view name) const override {
@@ -157,12 +173,16 @@ struct KSPianoString final : ValueSource {
     if (name == "damperNoise") return damperNoise_;
     if (name == "exciteGain") return exciteGain_;
     if (name == "direct")     return direct_;
+    if (name == "bowSpeed")     return bowSpeed_;
+    if (name == "frictionGain") return frictionGain_;
+    if (name == "bowGain")      return bowGain_;
     return 0.0f;
   }
 
   void prepare(const RenderContext& ctx, int frames) override {
     if (source_)    source_->prepare(ctx, frames);
     if (damper_)    damper_->prepare(ctx, frames);
+    if (bow_)       bow_->prepare(ctx, frames);
     if (frequency_) frequency_->prepare(ctx, frames);
     if (amplitude_) amplitude_->prepare(ctx, frames);
 
@@ -177,6 +197,7 @@ struct KSPianoString final : ValueSource {
     disp_.hpY = disp_.hpX = 0.0f;
     wpos_ = 0;
     dcX_ = dcY_ = 0.0f;
+    dcBX_ = dcBY_ = 0.0f;
     lastOut_ = 0.0f;
     initialized_ = false;
     cur_ = 0.0f;
@@ -259,8 +280,30 @@ struct KSPianoString final : ValueSource {
       disp_.buf[wpos_] = 0.0f;
     }
 
+    // ---- Bow junction (MSW): Friedlander friction against the loop's own
+    // velocity, one-sample delayed (lastOut_, same convention as the global
+    // negative feedback). Self-sustaining: from silence vRel = bowSpeed *
+    // pressure kicks the combs; as the string rings, vRel collapses in the
+    // stick phase and the friction curve limits the amplitude — the sustain
+    // is coupled feedback, not an injected recording of one. The impulse is
+    // DC-blocked (pressure is unipolar; a comb resonates at DC) and damped
+    // by the damper like every other loop input.
+    float bowF = 0.0f;
+    if (bow_) {
+      bow_->next();
+      float pressure = bow_->current();
+      float vRel = bowSpeed_ * pressure - lastOut_;
+      float bt = std::fabs(frictionGain_ * vRel) + 0.75f;
+      float fricCoef = std::pow(bt, -4.0f);
+      if (fricCoef > 0.98f) fricCoef = 0.98f;
+      float f = fricCoef * vRel * pressure * bowGain_;
+      float fb = dcR_ * dcBY_ + f - dcBX_;
+      dcBX_ = f; dcBY_ = fb;
+      bowF = fb;
+    }
+
     // ---- Main resonators: detuned combs with biquad allpasses ----
-    float s = xin + inharmGain_ * inh + dnoise;
+    float s = xin + inharmGain_ * inh + dnoise + bowF;
     float sum = 0.0f;
     for (int i = 0; i < numCombs_; ++i) {
       Comb& c = comb_[i];
@@ -486,6 +529,7 @@ private:
 
   std::shared_ptr<ValueSource> source_;
   std::shared_ptr<ValueSource> damper_;
+  std::shared_ptr<ValueSource> bow_;
   std::shared_ptr<ValueSource> frequency_;
   std::shared_ptr<ValueSource> amplitude_;
   int sampleRate_;
@@ -503,6 +547,9 @@ private:
   float fbCoeff_{0.2f};
   float exciteGain_{1.0f};
   float direct_{0.2f};
+  float bowSpeed_{0.3f};
+  float frictionGain_{4.0f};
+  float bowGain_{1.0f};
 
   // Per-note state
   bool  initialized_{false};
@@ -517,6 +564,7 @@ private:
   float dcR_{0.997f};
   float lpDelay_{0.0f};
   float dcX_{0.0f}, dcY_{0.0f};
+  float dcBX_{0.0f}, dcBY_{0.0f};
   float lastOut_{0.0f};
   float cur_{0.0f};
 };

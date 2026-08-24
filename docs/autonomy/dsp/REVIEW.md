@@ -2,6 +2,26 @@
 
 ## Awaiting Matt
 
+### 52. KSString bow mode — the MSW consolidation, 3 cells [listen] (2026-08-24)
+**renders/dsp/pending/bow_family/ksbow_a/b/c.wav** — KSPianoString renamed
+KSString (old name kept as loading alias, null gate green) and given a bow
+pin: Friedlander friction against the loop's own one-sample-delayed output,
+injected at the comb input. The BowedStringEvolution character mechanism
+inside the damped/keytracked/tuned loop, with the conditioned pressure from
+the flutter work (const 0.4 + HP200 RedNoise at half depth, bow-env gated).
+Measured vs the waveguide baseline: flutter 12/49/367 -> 1.7/4.9/3.5
+(ksbow_a, notes 36/60/84); pitch-locked; sustained.
+- **ksbow_a** — straight port (excite4 harness: t60 keytrack, brightness
+  0.926, dispersion 0.12). KNOWN BLEMISH: note 84 is screechy — half its
+  energy above 4 kHz, 5th-harmonic dominant; top-octave loop tuning
+  (t60 curve / brightness keytrack) untouched in this first pass.
+- **ksbow_b** — dispersion 0: much darker (HF -33 dBr) but the top note
+  barely oscillates (rms 0.09, wobbly) — under-driven up there.
+- **ksbow_c** — frictionGain 8: locks onto the octave harmonic, grittier.
+VERDICT: does ksbow_a have the character that made the discovery worth
+keeping, minus the flutter and plateau? If yes = victory, family work moves
+here (top-octave tuning, bow ladders); if no, park strings.
+
 ### 51. Listen-here fixed — taps sound, monitor at unity [try] (2026-08-24)
 Backlog 32, both halves, in today's mforce_cli + mforce_ui builds.
 (a) **Engine**: a shared source's advancing consumer could fall outside the

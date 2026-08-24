@@ -37,7 +37,7 @@
 #include "mforce/filter/hammer_bank.h"
 #include "mforce/filter/svf_source.h"
 #include "mforce/filter/limiter.h"
-#include "mforce/source/ks_piano_string.h"
+#include "mforce/source/ks_string.h"
 #include "mforce/source/allpass_resonator.h"
 #include "mforce/filter/reverb.h"
 #include "mforce/filter/vibrato.h"
@@ -567,8 +567,12 @@ void register_all_sources() {
     reg.register_type("HammerBank", SourceCategory::Filter,
         [](int sr, auto) { return std::make_shared<HammerBank>(sr); });
 
+    reg.register_type("KSString", SourceCategory::Oscillator,
+        [](int sr, auto) { return std::make_shared<KSString>(sr); });
+    // Loading alias — the node was KSPianoString until 2026-08-24 (bow mode
+    // made the name wrong); library piano patches still say so on disk.
     reg.register_type("KSPianoString", SourceCategory::Oscillator,
-        [](int sr, auto) { return std::make_shared<KSPianoString>(sr); });
+        [](int sr, auto) { return std::make_shared<KSString>(sr); });
 
     reg.register_type("AllpassResonator", SourceCategory::Oscillator,
         [](int sr, auto) { return std::make_shared<AllpassResonator>(sr); });

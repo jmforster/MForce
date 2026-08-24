@@ -8319,7 +8319,7 @@ static void show_create_menu() {
         menu_source("FM", "FMSource");
         menu_source("Distorted", "DistortedSource");
         menu_source("Hybrid KS", "HybridKSSource");
-        menu_source("KS Piano String", "KSPianoString");
+        menu_source("KS String", "KSString");
         menu_source("Allpass Resonator", "AllpassResonator");
         menu_sep();
         menu_source("Phased", "PhasedValueSource");
