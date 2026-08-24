@@ -33,7 +33,7 @@ SCORE = [{"note": n, "velocity": 0.85, "time": t, "duration": 3.5}
          for n, t in ((36, 0.0), (60, 4.0), (84, 8.0))]
 
 
-def make_patch(volume, rn=None, bow=None, rn_freq_ref=False):
+def make_patch(volume, rn=None, bow=None, rn_freq_ref=False, vib_depth=None):
     p = copy.deepcopy(json.loads(BASE.read_text(encoding="utf-8")))
     nodes = {n["id"]: n for n in p["graph"]["nodes"]}
     for k, v in (rn or {}).items():
@@ -42,6 +42,8 @@ def make_patch(volume, rn=None, bow=None, rn_freq_ref=False):
         nodes["RedNoise"]["params"]["frequency"] = {"ref": "__perf_frequency"}
     for k, v in (bow or {}).items():
         nodes["BowedStringEvolution2"]["params"][k] = v
+    if vib_depth is not None:
+        nodes["Vibrato"]["params"]["depth"] = vib_depth
     p["score"] = SCORE
     p["seconds"] = 12.5
     p["instrument"]["volume"] = volume
@@ -110,6 +112,22 @@ def main():
     emit("combo_hesitant", rn={"density": 0.25, "smoothness": 0.7})
     emit("combo_bright", rn={"frequency": 900.0}, bow={"bowPosition": 0.06})
     emit("combo_darklow", rn={"frequency": 150.0}, bow={"bowPosition": 0.30})
+    # in-loop damping ladder (headphone-sizzle fix, 2026-08-24): brightness
+    # is the new one-pole loop filter on BowedStringEvolution; 1.0 = the
+    # original undamped node (all cells above), lower = HF dies faster in
+    # the loop. Ladder spans measured floor-collapse to audibly-dark.
+    for b in (0.95, 0.90, 0.80, 0.65, 0.50):
+        emit(f"brt{int(b*100):03d}", bow={"brightness": b})
+    # THE SIZZLE ISOLATION (Matt's headphone report): the dominant broadband
+    # is NOT loop content — it is the fractional-read-head resample (KS bend,
+    # Approach A) with a LIVE evolution: vibrato makes rateScale != 1, the
+    # reader drifts past the writer, and the output continuously sweeps the
+    # seam between this pass and last pass of the string state. depth 0 ->
+    # floors collapse ~25-30 dB at note 36. These two cells demonstrate it;
+    # vib000_brt080 adds loop damping on top (the remaining bow-noise
+    # recirculation component).
+    emit("vib000", vib_depth=0.0)
+    emit("vib000_brt080", vib_depth=0.0, bow={"brightness": 0.8})
 
 
 if __name__ == "__main__":

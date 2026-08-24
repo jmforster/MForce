@@ -95,6 +95,21 @@ file's git history. Tags per WORKFLOW.md. (G1)-(G4) = GOALS.md Dipsy goals.
     class as backlog 14 and 26a, one level lower.
 
 
+33. **[build] Vibrato/bend on live-evolution wavetables needs a real
+    mechanism** — found 2026-08-24 chasing Matt's headphone sizzle on the
+    bow family. The fractional-read-head resample (KS bend Approach A,
+    project_ks_bend) treats the table as frozen content; with a live
+    evolution (bowed string) the table is the string's ring buffer, and any
+    rateScale != 1 makes the reader lap the writer — the output sweeps the
+    old-pass/new-pass seam continuously, measured as ~25-30 dB of
+    inter-harmonic broadband at note 36 (vibrato depth 0.01!). Options:
+    revive Approach B (loop-length modulation) for evolution tables;
+    in-loop allpass tuning driven per-sample from the frequency pin;
+    or evolution-aware bend routing (resample stays for frozen tables,
+    waveguide modulation for live ones). Until fixed, vibrato on
+    BowedStringEvolution = sizzle; the bow family r2 should decide
+    direction WITH Matt (Approach B was parked deliberately).
+
 ## Design questions
 
 27. **[design] Groups multi-output — control wires AND shared sources

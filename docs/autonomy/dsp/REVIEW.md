@@ -31,9 +31,25 @@ FOUND EN ROUTE: bowSpeed x frictionGain is ONE axis — the Friedlander
 recursion has an exact scale symmetry (verified corr=1.0 on rendered
 pairs), so shape depends only on the product ("drive"; baseline 1.2,
 fric2=0.6, fric8=2.4) and the leftover is pure gain. The bowspeed cells
-were exact duplicates and were dropped. VERDICT: which axes matter, does
-freq-tracking beat fixed 350, do the combos read as characters; names for
-keepers.
+were exact duplicates and were dropped.
+
+**YOUR SIZZLE REPORT (same day, headphones): measured and split in two.**
+All 30 r1 cells carry it because both mechanisms are engine-side:
+(1) DOMINANT — the KS-bend fractional read head (Approach A) is wrong for
+a LIVE evolution: vibrato makes the reader drift past the writer, and the
+output continuously sweeps the seam between this pass and last pass of
+the string state. Vibrato depth 0 collapses the inter-harmonic floor
+~25-30 dB at note 36. Hear it: **vib000** (no vibrato — but also no
+vibrato, which is the open problem, backlog 33).
+(2) SECONDARY — bow noise recirculating undamped: the loop had only flat
+tubeLoss, no frequency-dependent loss. NEW `brightness` setting on
+BowedStringEvolution (one-pole per line write, default 1.0 = original
+node byte-identical — discovery bytes locked): **brt095/090/080/065/050**
+ladder, plus **vib000_brt080** (both fixes together — the cleanest cell).
+VERDICT: which axes matter, does freq-tracking beat fixed 350, do the
+combos read as characters, names for keepers; and on the sizzle pair —
+does vib000_brt080 kill it on headphones, and where on the brt ladder
+does arco-clean live.
 
 ### 49. Smoothing the bed — duck / smooth / Helmholtz, 9 cells [listen] (2026-08-23)
 **renders/dsp/pending/excite4_smooth/** — your "just use a sawtooth ;-)"

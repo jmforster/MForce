@@ -407,6 +407,16 @@ struct BowedStringEvolution final : WaveEvolution {
   float tubeLoss{0.005f};              // per-sample loop loss on each line
   float bowSpeed{0.3f};                // bow velocity scale
   float bowPosition{0.14f};            // bow along string (0=bridge, 0.5=middle)
+  // In-loop damping: one-pole lowpass on each line's write (y += b*(x-y)),
+  // the string/bridge loss filter of the reference model. Flat tubeLoss alone
+  // recirculates 12 kHz as long as the fundamental, which measured as an
+  // inter-harmonic noise floor AT/ABOVE harmonic energy >2 kHz (headphone
+  // "sizzle", 2026-08-24) — both injected bow noise and the model's own
+  // low-note chaos need frequency-dependent decay to die out. 1.0 = filter
+  // bypassed entirely, byte-identical to the pre-brightness node (the
+  // discovery patch's sound is locked to that). Applied per line write, so
+  // the loop sees it twice per round trip.
+  float brightness{1.0f};
   ValueSource* frictionGain{nullptr};  // slope of Friedlander bow table
   ValueSource* bow{nullptr};           // bow pressure envelope (0..1)
 
@@ -424,6 +434,8 @@ struct BowedStringEvolution final : WaveEvolution {
     neckLine_.assign(2 * Ln, 0.0f);
     bPtr_ = 0;
     nPtr_ = 0;
+    bridgeLp_ = 0.0f;
+    neckLp_ = 0.0f;
     return 0.0f;
   }
 
@@ -463,6 +475,13 @@ struct BowedStringEvolution final : WaveEvolution {
     float outBridge = (neckIn   + bowImpulse) * (1.0f - tubeLoss);
     float outNeck   = (bridgeIn + bowImpulse) * (1.0f - tubeLoss);
 
+    if (brightness < 1.0f) {
+      bridgeLp_ += brightness * (outBridge - bridgeLp_);
+      outBridge = bridgeLp_;
+      neckLp_ += brightness * (outNeck - neckLp_);
+      outNeck = neckLp_;
+    }
+
     bridgeLine_[bPtr_] = outBridge;
     neckLine_[nPtr_]   = outNeck;
 
@@ -478,6 +497,8 @@ private:
   std::vector<float> neckLine_;
   int bPtr_{0};
   int nPtr_{0};
+  float bridgeLp_{0.0f};
+  float neckLp_{0.0f};
 };
 
 // ---------------------------------------------------------------------------
@@ -849,6 +870,7 @@ struct BowedStringEvolutionSource final : ValueSource, IEvolutionHolder {
       {"tubeLoss",    SettingType::Float, 0.005f, 0.0f,  0.5f},
       {"bowSpeed",    SettingType::Float, 0.3f,   0.01f, 1.0f},
       {"bowPosition", SettingType::Float, 0.14f,  0.02f, 0.5f},
+      {"brightness",  SettingType::Float, 1.0f,   0.05f, 1.0f},
     };
     return descs;
   }
@@ -857,12 +879,14 @@ struct BowedStringEvolutionSource final : ValueSource, IEvolutionHolder {
     if (name == "tubeLoss")         evo_.tubeLoss = value;
     else if (name == "bowSpeed")    evo_.bowSpeed = value;
     else if (name == "bowPosition") evo_.bowPosition = value;
+    else if (name == "brightness")  evo_.brightness = value;
   }
 
   float get_setting(std::string_view name) const override {
     if (name == "tubeLoss")    return evo_.tubeLoss;
     if (name == "bowSpeed")    return evo_.bowSpeed;
     if (name == "bowPosition") return evo_.bowPosition;
+    if (name == "brightness")  return evo_.brightness;
     return 0.0f;
   }
 

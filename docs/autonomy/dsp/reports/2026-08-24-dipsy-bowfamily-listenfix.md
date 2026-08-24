@@ -64,6 +64,34 @@ re-frozen with the fixed build: **180 entries, 180/180 identical.**
 Standing lesson: a deliberate patch edit or curation pass must re-freeze
 the manifest the same day, or the next engine change gets blamed for it.
 
+## 4. Same-day addendum — Matt's headphone sizzle, measured and split
+
+Matt: great through Bose speakers; on headphones "noise zithering"/sizzle,
+mid noticeable, high pronounced, ALL sweep cells. Measured (harmonic-to-
+inter-harmonic-floor per band, sustain windows): floor at or ABOVE harmonic
+energy >2 kHz in every cell. Isolation experiments:
+
+- Constant bow pressure (no RedNoise): notes 60/84 clean up 14-28 dB;
+  note 36 unchanged → two mechanisms suspected.
+- Vibrato depth 0: note 36 floor collapses ~25-30 dB → the DOMINANT
+  mechanism is the KS-bend fractional read head (Approach A) against a
+  LIVE evolution — reader drifts past writer, output sweeps the
+  old-pass/new-pass seam of the string state. Backlog 33 (needs a real
+  vibrato mechanism for waveguide tables — direction is Matt's call,
+  Approach B was parked deliberately).
+- The secondary mechanism (bow noise recirculating with only flat
+  tubeLoss) got the structural fix Matt approved: **brightness** on
+  BowedStringEvolution — one-pole per line write, default 1.0 bypasses
+  entirely (discovery render byte-identical, hash-checked). With vibrato
+  off, brt080 lifts note-60 hi-band 8.3 → 18.2 dB.
+
+New family cells: brt095/090/080/065/050 ladder, vib000, vib000_brt080
+(both fixes — the diagnosis demo). REVIEW 50 updated with the verdict asks.
+Lesson relearned the hard way: isolate mechanisms BEFORE building the fix —
+brightness was built on the recirculation theory while the bigger cause was
+the resample seam; it survives as a legitimate tone control, but the order
+was wrong.
+
 ## Files
 
 - engine/src/patch_loader.cpp — promote_starved_refs + 5 call sites
