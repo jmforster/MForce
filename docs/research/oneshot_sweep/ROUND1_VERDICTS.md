@@ -531,3 +531,22 @@ periodicity "in some, not all."
 - The Listen-here question was motivated by suspecting the wtsaw attack
   was silent — answered by measurement instead (backlog 32 still blocks
   the by-ear check).
+
+### The bow — Matt's parameter notes (2026-08-23, verbatim intent)
+
+Patch saved: patches/pending/bow_evolution.json (Matt's sandbox); exact
+bytes ALSO committed as patches/baselines/bow_evolution_discovery.json so
+the accidental values have git history. Notes:
+- **density (RedNoise) down → "hesitant, tentative character"**
+- **frequency (RedNoise) → brightness** (as does **bow position**)
+- **smoothness, continuity, rampVariation "directly translate"** — do what
+  you would expect
+- **boost and zeroCrossTendency TBD, "but all have an impact"**
+- Squeaky/creaky attack STILL desirable for the hoe-down register — the
+  grunge attacks stay in the toolkit; arco-clean and fiddle-dirty are both
+  targets.
+- Matt: "I owe you an apology for whatever conclusion I came to back in
+  <pick a month>" — the standing lesson is nobody ever fed these nodes the
+  right input: **revisit ReedEvolution and BrassEvolution** the same way
+  (proper excitation on the right pin, incl. the accidental-defaults trick)
+  "in case there's gold in there, too."

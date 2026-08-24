@@ -1,0 +1,164 @@
+{
+  "graph": {
+    "nodes": [
+      {
+        "id": "__perf_frequency",
+        "params": {
+          "field": "frequency"
+        },
+        "type": "PerformNode"
+      },
+      {
+        "id": "WhiteNoise",
+        "params": {
+          "amplitude": 1.0,
+          "boost": 0.0,
+          "continuity": 0.0,
+          "density": 1.0,
+          "zeroCrossTendency": 0.0
+        },
+        "type": "WhiteNoiseSource"
+      },
+      {
+        "id": "RedNoise",
+        "params": {
+          "amplitude": 1.0,
+          "boost": 0.0,
+          "continuity": 0.0,
+          "density": 0.5,
+          "frequency": 350.0,
+          "phase": 0.0,
+          "rampVariation": 0.20000000298023224,
+          "smoothness": 0.5,
+          "zeroCrossTendency": 0.0
+        },
+        "type": "RedNoiseSource"
+      },
+      {
+        "id": "BowedStringEvolution2",
+        "params": {
+          "bow": {
+            "ref": "RedNoise"
+          },
+          "bowPosition": 0.14000000059604645,
+          "bowSpeed": 0.30000001192092896,
+          "frictionGain": 4.0,
+          "tubeLoss": 0.004999999888241291
+        },
+        "type": "BowedStringEvolution"
+      },
+      {
+        "id": "Vibrato",
+        "params": {
+          "attack": 0.30000001192092896,
+          "depth": 0.009999999776482582,
+          "depthVar": 0.0,
+          "frequency": {
+            "ref": "__perf_frequency"
+          },
+          "speed": 5.0,
+          "speedVar": 0.0,
+          "threshold": 0.0,
+          "zeroCrossTendency": 1.0
+        },
+        "type": "Vibrato"
+      },
+      {
+        "id": "ASREnvelope",
+        "params": {
+          "attack": 0.0,
+          "maxValue": 1.0,
+          "minValue": 0.0,
+          "ramp_accuracy": 1.0,
+          "release": 0.02000000700354576,
+          "stage_accuracy": 1.0,
+          "sustainLevel": 1.0
+        },
+        "type": "ASREnvelope"
+      },
+      {
+        "id": "Wavetable",
+        "params": {
+          "amplitude": {
+            "ref": "ASREnvelope"
+          },
+          "evolution": {
+            "ref": "BowedStringEvolution2"
+          },
+          "frequency": {
+            "ref": "Vibrato"
+          },
+          "inputSource": {
+            "ref": "WhiteNoise"
+          },
+          "interpolate": false,
+          "phase": 0.0,
+          "speedFactor": 1.0
+        },
+        "type": "WavetableSource"
+      }
+    ],
+    "output": "Wavetable"
+  },
+  "instrument": {
+    "polyphony": 4
+  },
+  "sampleRate": 48000,
+  "score": [
+    {
+      "duration": 2.0,
+      "note": 60,
+      "time": 0.0,
+      "velocity": 0.800000011920929
+    }
+  ],
+  "seconds": 3.0,
+  "ui": {
+    "noteFaces": [
+      {
+        "fields": {
+          "frequency": "__perf_frequency"
+        },
+        "label": "Note"
+      }
+    ],
+    "panning": [
+      1239.0,
+      580.0
+    ],
+    "positions": {
+      "ASREnvelope": [
+        -765.0,
+        -136.0
+      ],
+      "BowedStringEvolution2": [
+        -1014.0,
+        -411.0
+      ],
+      "Note": [
+        -1081.0,
+        -139.0
+      ],
+      "RedNoise": [
+        -1228.0,
+        -418.0
+      ],
+      "Vibrato": [
+        -823.0,
+        -283.0
+      ],
+      "Wavetable": [
+        -577.0,
+        -412.0
+      ],
+      "WhiteNoise": [
+        -843.0,
+        -566.0
+      ],
+      "__output": [
+        -358.0,
+        -436.0
+      ]
+    }
+  }
+}
