@@ -424,3 +424,44 @@ string-attack cells: **creak_into_buzz_bed / creak_into_cluster_bed** —
 one-shot fast reverse bounce summed with a gated bed (CombinedSource sum).
 Envelope minValue/maxValue verified by Matt this same day ("works as
 advertised") — available for bed floors when tuning starts.
+
+### Sustained probe (REVIEW 47) — verdict (Matt, 2026-08-23)
+
+**"A lot of signs of life"** — but: **"for most at all frequencies, and for
+all at high frequencies, the segment absolutely produces a 3.3 Hz (or
+whatever) rhythm — a rapidly-picked zither or mandolin effect vs a
+continuous bow."** Attacks are the win: "some sound really good in the
+attack — noisy, chaotic, creaky/scrapy" (scrape among the leaders). His
+framing: **"The grail we've been seeking is just the attack"** — the
+sustained string sound is already good; tacked-on attack + crossfade onto
+additive viola would work but is costly; **all-KS is elegant, tempting.**
+His proposal = attack segment + sustain segment (+ maybe release segment).
+Diagnosis agreed on: the zither is CONTOUR INSIDE THE LOOP — every bed was
+a repurposed one-shot, so each pass restarts from zero through an onset =
+a pluck per pass (worst at high f where string memory is short). Fix =
+STATIONARY sustain beds (uniform statistics, 1-1.5 s, seam near zero) +
+the triptych. Clarified for Matt: creak_into_* cells are TWO SegmentSources
+summed by a CombinedSource (lead oneShot + looping bed), not one grafted
+segment — the "recurring" sound was the bed seam, not the creak.
+→ **excite3: 3 attacks x 3 stationary beds crossfaded + release-segment
+cells.** Deeper wall parked for IDEAS: real bow slips phase-lock to the
+string (feedback a waveform cannot express).
+
+---
+
+# Excitation phase, round 3 (2026-08-23): the TRIPTYCH — 11 cells
+
+renders/dsp/pending/excite3_triptych/. Attack (one-shot: creak / chaos
+scrape / jagged-in, faded by a 0.15 s-hold + 0.25 s-sine-fall seconds
+envelope) + STATIONARY sustain bed (uniform statistics, ~1.2 s/pass, seam
+at zero, varPct 0.12: buzz 90/s, fine 400/s, velvet 150/s) crossfaded via
+the bow envelope; two cells add a release seg (fine fizzle) gated by an
+envelope silent until 78% of the note. 3x3 grid + creak__buzz__rel +
+jaggedin__fine__rel.
+**BUG found building it, backlog-31 class in my own generated patches:**
+CombinedSource's pin is `source1`, not `source` — the generic wiring
+silently dropped my key, so excite3's attacks (and the excite2
+creak_into_* leads!) never reached the string. Matt's "I didn't think it
+was creak-like" was literally accurate: there was no creak. Fixed in both
+generators; attacks verified distinct by head-RMS; the two excite2 cells
+regenerated with their creaks real for the first time.

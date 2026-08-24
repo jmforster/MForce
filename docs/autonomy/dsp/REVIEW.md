@@ -2,6 +2,18 @@
 
 ## Awaiting Matt
 
+### 48. Triptych — bow without zither, 11 cells [listen] (2026-08-23)
+**renders/dsp/pending/excite3_triptych/** — your attack/sustain(/release)
+architecture: one-shot attack (creak / chaos scrape / jagged-in) crossfading
+into a STATIONARY looping bed (buzz / fine / velvet — uniform statistics,
+seam at zero, ~1.2 s passes wobbled by varPct, i.e. the anti-zither fix),
+3x3 plus two cells with a release seg swelling as the bow settles
+(creak__buzz__rel, jaggedin__fine__rel). NOTE: a silent-drop bug
+(CombinedSource pin is source1, not source) meant the excite2 creak_into_*
+cells you already heard had NO creak — both regenerated; re-listen counts.
+VERDICT: does the triptych bow; which attack x bed pairs live; is the
+release seg worth keeping.
+
 ### 47. Sustained excitation probe — the bow experiment, 9 cells [listen] (2026-08-23)
 **renders/dsp/pending/excite2_sustain/** — textures LOOPING into the string
 while the note lasts (SegmentSource oneShot=false, varPct 0.15 re-randomizes

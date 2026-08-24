@@ -81,7 +81,7 @@ def patch(values, sm, volume, lead=None):
                                  "widthVarPct": 0.0, "valVarPct": 0.0, "gap": 0.0, "gapVarPct": 0.0,
                                  "oneShot": True}})
         nodes.append({"id": "mixsum", "type": "CombinedSource",
-                      "params": {"source": {"ref": "lead"}, "source2": {"ref": "seg"}, "operation": "sum"}})
+                      "params": {"source1": {"ref": "lead"}, "source2": {"ref": "seg"}, "operation": "sum"}})
         src = "mixsum"
     nodes += [
         {"id": "env_damper", "type": "Envelope", "params": DAMPER},
