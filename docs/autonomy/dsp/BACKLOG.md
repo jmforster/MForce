@@ -94,6 +94,16 @@ file's git history. Tags per WORKFLOW.md. (G1)-(G4) = GOALS.md Dipsy goals.
     ref of a marker source, assert `get_param` returns it). Same failure
     class as backlog 14 and 26a, one level lower.
 
+32. **[build] Listen-here silent on non-string nodes in the excite
+    patches** — Matt 2026-08-23, on excite4's creak__wtsaw15_bedlow: Listen
+    tap produces sound ONLY on the string node; att / bed / fill_seg / wt /
+    sums are all silent. Expected per the stream-hold design: beds should
+    loop audibly, one-shots should play once at stream start. Suspects to
+    check first: does the Listen stream actually prepare() the tapped
+    node's upstream chain (one-shot done_ latched from a prior play?);
+    envelope-hold treatment on bow_env/att_env refs when the tapped node
+    is mid-chain; CombinedSource sums under the tap. Investigate 2026-08-24.
+
 ## Design questions
 
 27. **[design] Groups multi-output — control wires AND shared sources
