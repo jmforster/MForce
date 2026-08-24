@@ -261,7 +261,19 @@ file's git history. Tags per WORKFLOW.md. (G1)-(G4) = GOALS.md Dipsy goals.
     > `Set*(ISingleValueSource)` setters; zero were demoted to configs;
     > these were the whole delta.
 
-25. **Retire or keep the wave-evolution experiments** — the old
+25. **[REVERSED 2026-08-23: THE BOW LIVES HERE] Wave-evolution revisit** —
+    BowedStringEvolution + RedNoise on the bow pin (accidental UI defaults)
+    = Matt: "a pretty fucking nice bowed string... mind blown." NOTHING
+    retires until each type has been tried WITH A REAL EXCITATION INPUT —
+    the old "amounted to nothing" verdicts were made without one.
+    Discovery patch: patches/baselines/bow_evolution_discovery.json
+    (+ Matt's live copy in pending/). Next: (a) bow family sweep — density
+    (hesitant character), RedNoise frequency + bow position (brightness),
+    boost/zct (TBD), per Matt's notes in the oneshot_sweep log; (b) revisit
+    ReedEvolution and BrassEvolution with proper inputs (Reed "does
+    nothing" at defaults — so did the bow until RedNoise landed on the
+    right pin). Original text follows for the record.
+    (was) **Retire or keep the wave-evolution experiments** — the old
     breath/bow grail hunt. Usage: BrassEvolution 0 patches, Averaging 0,
     BezierPull/EKS/ReactionDiffusion/CellularAutomaton/HistogramEqualize
     1 each, ReedEvolution 3, BowedString 5. Retiring the 0/1-patch types
