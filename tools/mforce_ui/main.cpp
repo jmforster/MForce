@@ -2825,6 +2825,13 @@ static void save_patch_graph(const std::string& path, bool tapOverride = false) 
         for (auto it = s_loadedInstrumentExtras.begin();
              it != s_loadedInstrumentExtras.end(); ++it)
             root["instrument"][it.key()] = it.value();
+        // Listen tap: instrument volume is leveled for the PATCH OUTPUT (a
+        // resonator's gain, an auto-leveled mix); a mid-chain monitor point
+        // never went through that leveling, so the same volume renders raw
+        // excitation taps 20-30 dB down — Matt heard them as "silent"
+        // (backlog 32, the non-engine half). Monitor at unity instead.
+        if (tapOverride && s_listenTapNode >= 0)
+            root["instrument"]["volume"] = 1.0f;
         root["instrument"]["polyphony"] = outputNode->polyphony;
         if (!paramMap.empty())
             root["instrument"]["paramMap"] = paramMap;
