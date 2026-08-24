@@ -437,35 +437,35 @@
           "knots": [
             [
               20.0,
-              500.0
+              1000.0
             ],
             [
               65.0,
-              500.0
+              1000.0
             ],
             [
               130.0,
-              1050.0
+              2100.0
             ],
             [
               260.0,
-              1600.0
+              3200.0
             ],
             [
               520.0,
-              2000.0
+              4000.0
             ],
             [
               1040.0,
-              2300.0
+              4600.0
             ],
             [
               2080.0,
-              3000.0
+              6000.0
             ],
             [
               16000.0,
-              8000.0
+              16000.0
             ]
           ],
           "source": {
@@ -477,8 +477,6 @@
       {
         "id": "Hammer_click_env",
         "params": {
-          "maxValue": 1.0,
-          "minValue": 0.0,
           "ramp_accuracy": 1.0,
           "stage_accuracy": 1.0,
           "stages": [
@@ -557,8 +555,6 @@
       {
         "id": "Excite_hf_env",
         "params": {
-          "maxValue": 1.0,
-          "minValue": 0.0,
           "ramp_accuracy": 1.0,
           "stage_accuracy": 1.0,
           "stages": [
@@ -675,8 +671,6 @@
       {
         "id": "Body_env",
         "params": {
-          "maxValue": 1.0,
-          "minValue": 0.0,
           "ramp_accuracy": 1.0,
           "stage_accuracy": 1.0,
           "stages": [
@@ -770,8 +764,6 @@
       {
         "id": "Excite_lf_env",
         "params": {
-          "maxValue": 1.0,
-          "minValue": 0.0,
           "ramp_accuracy": 1.0,
           "stage_accuracy": 1.0,
           "stages": [
@@ -888,8 +880,6 @@
       {
         "id": "Damper_env",
         "params": {
-          "maxValue": 1.0,
-          "minValue": 0.0,
           "ramp_accuracy": 1.0,
           "stage_accuracy": 1.0,
           "stages": [
@@ -1138,8 +1128,8 @@
       }
     ],
     "panning": [
-      873.0,
-      2.0
+      1031.0,
+      486.0
     ],
     "positions": {
       "Body_env": [
@@ -1251,7 +1241,7 @@
         330.0
       ],
       "Overall_lpf": [
-        232.554931640625,
+        233.554931640625,
         -82.114501953125
       ],
       "__curve_1": [
