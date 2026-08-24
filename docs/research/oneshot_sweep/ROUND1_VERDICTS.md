@@ -491,3 +491,43 @@ C. **Helmholtz layer** — drawn ramp+jag into WavetableSource.inputSource:
    wtsaw cells needed ~6x less volume — periodic input at f0 drives the
    combs far more efficiently, which is itself evidence the pitch-lock
    is working.
+
+---
+
+# THE BOW (Matt, 2026-08-23 evening)
+
+While mapping a context-menu reorg, Matt tried **BowedStringEvolution**
+(a wave-evolution node queued for retirement in backlog 25) with a
+**RedNoiseSource on the bow pin at UI descriptor defaults** — frequency
+440, density 0.5, smoothness 0.5, the values from the documented
+descriptor-vs-constructor mismatch that nobody ever chose on purpose:
+**"Sounds like a pretty fucking nice bowed string."** Then played bow
+position + settings: "mind blown."
+Why it works where every parallel-sum failed: the evolution modifies the
+wavetable IN THE LOOP — coupled excitation, exactly what the breath+tone
+post-mortem demanded; and the accidental RedNoise is a stochastic bow
+(~events near the string period, density dropouts = stick-slip).
+CONSEQUENCES: backlog 25's BowedString does NOT retire — it gets a family;
+Matt to SAVE the exact canvas (accidental settings must not be lost);
+ReedEvolution tried the same evening: "does nothing, as expected."
+
+### excite4 — verdict (same evening)
+
+"Excite4 was profitable too." Cells still promising; residual segment
+periodicity "in some, not all."
+- **wtsaw**: "basically no noisy attack" — first reaction negative, then
+  RECALIBRATED against Iowa strings: "there's really no scrape or creak
+  going on there at all" (arco attack is clean; the grunge was taste).
+  Measured (attack-muted A/B): the creak IS present (2.6x head energy)
+  but buried — auto-level scaled everything down 6x for the efficient
+  wt drive; attack needs separate leveling. → creak_hot__wtsaw* cells
+  rendered (attack x2.5).
+- **jaggedin attacks "sound like plucks"** — Matt's suspects: jag on the
+  pulse decline, or pulse too short. Mechanism agreed: the 0.15s-hold/
+  0.25s-fade attack env completes DURING the 0.3 s jag rise → rise x fall
+  = hump with abrupt stop = a pluck by construction. → laddered:
+  jin{150,300,600,1000}_matched__fine (env fade matched to attack length)
+  + jin300_oldenv__fine control. All in excite4_smooth/.
+- The Listen-here question was motivated by suspecting the wtsaw attack
+  was silent — answered by measurement instead (backlog 32 still blocks
+  the by-ear check).
