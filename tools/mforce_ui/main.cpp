@@ -3197,7 +3197,19 @@ static int g_waveformSamples = 0;            // number of samples in waveform bu
 
 static int g_waveZoom = 1;        // samples per pixel (1 = most zoomed in)
 static int g_waveScrollPos = 0;   // starting sample offset into available data
+static bool g_waveViewInited = false;  // fit-to-buffer has run at least once
 static int g_waveColumns = 1;     // number of columns for waveform tiling
+
+// Post-render view policy: auto-fit only the FIRST render — after that a
+// Generate keeps the user's zoom and scroll so a zoomed-in region can be
+// watched across regenerations (the draw loop clamps scroll to the new
+// buffer length). The explicit "fit" button still refits any time.
+static void wave_view_after_render(int samples) {
+    if (g_waveViewInited) return;
+    g_waveScrollPos = 0;
+    g_waveZoom = std::max(1, samples / 800);
+    g_waveViewInited = true;
+}
 static bool g_showEnvelopes = true;  // header toggle — hide envelope-category strips
 
 // Pop-out waveform: one independent ImGui window per entry, each with its own
@@ -3886,8 +3898,7 @@ static bool render_passage_output_authoritative(
         RenderContext ctx{ip.sampleRate};
         ip.instrument->render(ctx, g_outputWaveform.data(), frames);
 
-        g_waveScrollPos = 0;
-        g_waveZoom = std::max(1, frames / 800);
+        wave_view_after_render(frames);
         compute_output_spectrum();
         return true;
     } catch (const std::exception& e) {
@@ -3932,9 +3943,7 @@ static bool render_output_authoritative(float noteNum, float velocity,
         RenderContext ctx{ip.sampleRate};
         ip.instrument->render(ctx, g_outputWaveform.data(), frames);
 
-        // Reset waveform view to show the full authoritative buffer.
-        g_waveScrollPos = 0;
-        g_waveZoom = std::max(1, frames / 800);
+        wave_view_after_render(frames);
         compute_output_spectrum();
         return true;
     } catch (const std::exception& e) {
@@ -4128,9 +4137,7 @@ static void render_waveforms(float noteNum, float velocity, float durationSecond
         }
     }
 
-    // Reset zoom to fit entire waveform, reset scroll
-    g_waveScrollPos = 0;
-    g_waveZoom = std::max(1, samples / 800);
+    wave_view_after_render(samples);
 
     // Refresh the output spectrum from the freshly-rendered g_outputWaveform.
     compute_output_spectrum();
@@ -6155,8 +6162,7 @@ static void render_passage_waveforms(const std::vector<ParsedNote>& notes, float
         offset += samples;
     }
 
-    g_waveScrollPos = 0;
-    g_waveZoom = std::max(1, totalSamples / 800);
+    wave_view_after_render(totalSamples);
 }
 
 // Render chords through the Conductor/ChordPerformer pipeline using the
@@ -6233,8 +6239,7 @@ static void render_chords_waveforms(const std::vector<ParsedChord>& chords, floa
             }
         }
 
-        g_waveScrollPos = 0;
-        g_waveZoom = std::max(1, uiFrames / 800);
+        wave_view_after_render(uiFrames);
     } catch (const std::exception& e) {
         fprintf(stderr, "Chords render error: %s\n", e.what());
     }
@@ -6340,8 +6345,7 @@ static void render_drums_waveforms(const ParsedDrumPattern& pat, float bpm, cons
         g_waveformSamples = frames;
         for (auto& node : s_nodes) node.waveformData.clear();
 
-        g_waveScrollPos = 0;
-        g_waveZoom = std::max(1, frames / 800);
+        wave_view_after_render(frames);
     } catch (const std::exception& e) {
         transport_set_status(e.what(), true);
     }
@@ -7551,10 +7555,11 @@ static void draw_properties_panel() {
         ImGui::Dummy(ImVec2(plotW, leftSize.y));
     }
 
-    // Inline stage table (bare Envelope)
-    if (node->typeName == NT_ENVELOPE) {
-        auto* env = dynamic_cast<Envelope*>(node->dspSource.get());
-        if (env) {
+    // Inline stage table (bare Envelope) + envelope display below the
+    // settings for ALL envelope types, presets included (Matt 2026-08-29).
+    if (auto* env = dynamic_cast<Envelope*>(node->dspSource.get())) {
+        bool envChanged = false;
+        if (node->typeName == NT_ENVELOPE) {
             ImGui::Spacing(); ImGui::Separator(); ImGui::Spacing();
             ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1), "Stages");
             bool absTime = env->absolute_time;
@@ -7650,10 +7655,12 @@ static void draw_properties_panel() {
             if (removeIdx >= 0) { env->remove_stage(removeIdx); changed = true; }
             if (ImGui::SmallButton(" + Add Stage ")) { env->add_stage_default(); changed = true; }
             ImGui::EndGroup();
-            ImVec2 leftSize = ImGui::GetItemRectSize();
+            envChanged = changed;
+        }
 
-            // Curve preview to the right of the table
-            ImGui::SameLine();
+        // --- Envelope display — full width, below the settings/table ---
+        {
+            ImGui::Spacing(); ImGui::Separator(); ImGui::Spacing();
 
             const int N = 256;
             float plotVals[N];
@@ -7712,10 +7719,9 @@ static void draw_properties_panel() {
             float plotW = ImGui::GetContentRegionAvail().x;
             if (plotW < 80.0f) plotW = 200.0f;
             ImGui::PlotLines("##envprev", plotVals, N, 0, nullptr,
-                             vmin - vpad, vmax + vpad, ImVec2(plotW, leftSize.y));
-
-            if (changed) mark_graph_dirty();
+                             vmin - vpad, vmax + vpad, ImVec2(plotW, 110.0f));
         }
+        if (envChanged) mark_graph_dirty();
     }
 
     // PatchOutput: polyphony
@@ -8245,18 +8251,39 @@ static void menu_placeholder(const char* label) {
 static void show_create_menu() {
     if (!ImGui::BeginPopup("CreateNodeMenu")) return;
 
-    // --- Top level quick access ---
-    menu_source("Sine", "SineSource");
+    // --- Top level quick access (Matt 2026-08-26 rearrangement) ---
+    // Note and Curve promoted from the old Performance submenu.
+    if (s_graphMode == GraphMode::PatchGraph) {
+        // A PerformNode resolves to the voice's adapter; the node-graph
+        // render path has no voice, so patch mode only.
+        if (ImGui::MenuItem("Note")) {
+            s_nodes.emplace_back(std::string(NT_PERFORM));
+            ImNodes::SetNodeScreenSpacePos(s_nodes.back().id, s_createMenuPos);
+            if (!s_groupPath.empty())
+                if (NodeGroup* g = group_by_name(s_groupPath.back()))
+                    g->members.push_back(s_nodes.back().label);
+            update_node_dsp(s_nodes.back());
+            mark_graph_dirty();
+        }
+    } else {
+        menu_placeholder("Note (patch graph only)");
+    }
+    if (ImGui::MenuItem("Curve")) {
+        s_nodes.emplace_back(std::string("CurveNode"));
+        auto& cn = s_nodes.back();
+        // Identity seed — an empty knot list maps everything to 0,
+        // which reads as a broken node. Edit in the node's Properties.
+        cn.curveKnots = {{0.0f, 0.0f}, {1.0f, 1.0f}};
+        ImNodes::SetNodeScreenSpacePos(cn.id, s_createMenuPos);
+        if (!s_groupPath.empty())
+            if (NodeGroup* g = group_by_name(s_groupPath.back()))
+                g->members.push_back(cn.label);
+        update_node_dsp(cn);
+        mark_graph_dirty();
+    }
+    menu_source("Envelope", "Envelope");
     menu_source("Var", "VarSource");
     menu_source("Range", "RangeSource");
-    menu_source("Red Noise", "RedNoiseSource");
-
-    // Parameter nodes exist only in NodeGraph mode (keyboard playability);
-    // instrument patches bind via the Parameter-mapping dialog instead.
-    if (s_graphMode == GraphMode::NodeGraph && ImGui::MenuItem("Parameter")) {
-        s_nodes.emplace_back(std::string(NT_PARAMETER), "frequency");
-        ImNodes::SetNodeScreenSpacePos(s_nodes.back().id, s_createMenuPos);
-    }
 
     if (s_graphMode == GraphMode::PatchGraph) {
         bool hasOutput = false;
@@ -8271,43 +8298,14 @@ static void show_create_menu() {
         }
     }
 
-    ImGui::Separator();
-
-    // --- Performance (pin_model_design.md): the note and its transfer
-    // curves. Until now these nodes only ever entered a graph via paramMap
-    // conversion, so per-group Note copies — the intended "instantiable N
-    // times, any group" usage — were unreachable (Matt 2026-08-20 blocker).
-    if (ImGui::BeginMenu("Performance")) {
-        if (s_graphMode == GraphMode::PatchGraph) {
-            // A PerformNode resolves to the voice's adapter; the node-graph
-            // render path has no voice, so patch mode only.
-            if (ImGui::MenuItem("Note")) {
-                s_nodes.emplace_back(std::string(NT_PERFORM));
-                ImNodes::SetNodeScreenSpacePos(s_nodes.back().id, s_createMenuPos);
-                if (!s_groupPath.empty())
-                    if (NodeGroup* g = group_by_name(s_groupPath.back()))
-                        g->members.push_back(s_nodes.back().label);
-                update_node_dsp(s_nodes.back());
-                mark_graph_dirty();
-            }
-        } else {
-            menu_placeholder("Note (patch graph only)");
-        }
-        if (ImGui::MenuItem("Curve")) {
-            s_nodes.emplace_back(std::string("CurveNode"));
-            auto& cn = s_nodes.back();
-            // Identity seed — an empty knot list maps everything to 0,
-            // which reads as a broken node. Edit in the node's Properties.
-            cn.curveKnots = {{0.0f, 0.0f}, {1.0f, 1.0f}};
-            ImNodes::SetNodeScreenSpacePos(cn.id, s_createMenuPos);
-            if (!s_groupPath.empty())
-                if (NodeGroup* g = group_by_name(s_groupPath.back()))
-                    g->members.push_back(cn.label);
-            update_node_dsp(cn);
-            mark_graph_dirty();
-        }
-        ImGui::EndMenu();
+    // Parameter nodes exist only in NodeGraph mode (keyboard playability);
+    // instrument patches bind via the Parameter-mapping dialog instead.
+    if (s_graphMode == GraphMode::NodeGraph && ImGui::MenuItem("Parameter")) {
+        s_nodes.emplace_back(std::string(NT_PARAMETER), "frequency");
+        ImNodes::SetNodeScreenSpacePos(s_nodes.back().id, s_createMenuPos);
     }
+
+    ImGui::Separator();
 
     // --- Generators ---
     if (ImGui::BeginMenu("Generators")) {
@@ -8317,7 +8315,6 @@ static void show_create_menu() {
         menu_source("Triangle", "TriangleSource");
         menu_sep();
         menu_source("FM", "FMSource");
-        menu_source("Distorted", "DistortedSource");
         menu_source("Hybrid KS", "HybridKSSource");
         menu_source("KS String", "KSString");
         menu_source("Allpass Resonator", "AllpassResonator");
@@ -8327,41 +8324,30 @@ static void show_create_menu() {
         ImGui::EndMenu();
     }
 
-    // --- Combiner ---
-    if (ImGui::BeginMenu("Combiner")) {
-        menu_source("Combined", "CombinedSource");
-        menu_source("Crossfade", "CrossfadeSource");
-        menu_source("Multi", "MultiSource");
-        menu_source("Multiplex", "MultiplexSource");
+    // --- Noise (mainstream set; the experimental noises live under
+    // Experimental > Noise) ---
+    if (ImGui::BeginMenu("Noise")) {
+        menu_source("Red", "RedNoiseSource");
+        menu_source("Pink", "PinkNoiseSource");
+        menu_source("White", "WhiteNoiseSource");
+        menu_source("Blue", "BlueNoiseSource");
+        menu_source("Violet", "VioletNoiseSource");
+        menu_sep();
+        menu_source("Segment", "SegmentSource");
+        menu_source("Velvet", "VelvetNoiseSource");
+        menu_source("Perlin", "PerlinNoiseSource");
+        menu_source("Crackle", "CrackleNoiseSource");
         ImGui::EndMenu();
     }
 
-    // --- Wavetable ---
+    // --- Wavetable (physical + algorithmic evolutions live under
+    // Experimental) ---
     if (ImGui::BeginMenu("Wavetable")) {
         menu_source("Wavetable", "WavetableSource");
         menu_sep();
         menu_source("EKS Evolution", "EKSEvolution");
         menu_source("Pluck Evolution", "PluckEvolution");
         menu_source("Averaging Evolution", "AveragingEvolution");
-        ImGui::EndMenu();
-    }
-
-    // --- Physical (continuous-excitation WaveEvolutions) ---
-    if (ImGui::BeginMenu("Physical")) {
-        menu_source("Reed (clarinet)", "ReedEvolution");
-        menu_source("Bowed String", "BowedStringEvolution");
-        menu_source("Brass (lip-reed)", "BrassEvolution");
-        ImGui::EndMenu();
-    }
-
-    // --- Algorithmic (abstract WaveEvolutions, not physical models) ---
-    if (ImGui::BeginMenu("Algorithmic")) {
-        menu_source("Reaction-Diffusion (Gray-Scott)", "ReactionDiffusionEvolution");
-        menu_source("Sort Erosion (->saw)", "SortErosionEvolution");
-        menu_source("Cellular Automaton (Wolfram)", "CellularAutomatonEvolution");
-        menu_source("Histogram Equalize", "HistogramEqualizeEvolution");
-        menu_source("Bezier Pull (->curve)", "BezierPullEvolution");
-        menu_source("Bit Rotate (glitch)", "BitRotateEvolution");
         ImGui::EndMenu();
     }
 
@@ -8375,37 +8361,17 @@ static void show_create_menu() {
         menu_source("Sequence Partials", "SequencePartials");
         menu_source("Explicit Partials", "ExplicitPartials");
         menu_source("Composite Partials", "CompositePartials");
+        menu_source("Partials Expand Rule", "ExpandRule");
         menu_sep();
         menu_source("Formant", "Formant");
         menu_source("Formant Sequence", "FormantSequence");
         menu_source("Formant Spectrum", "FormantSpectrum");
         menu_source("Band Spectrum", "BandSpectrum");
         menu_source("Fixed Spectrum", "FixedSpectrum");
-        menu_sep();
-        menu_source("Expand Rule", "ExpandRule");
         ImGui::EndMenu();
     }
 
-    // --- Noise ---
-    if (ImGui::BeginMenu("Noise")) {
-        menu_source("White", "WhiteNoiseSource");
-        menu_source("Pink", "PinkNoiseSource");
-        menu_source("Red", "RedNoiseSource");
-        menu_source("Layered Red", "LayeredRedNoiseSource");
-        menu_source("Blue", "BlueNoiseSource");
-        menu_source("Violet", "VioletNoiseSource");
-        menu_sep();
-        menu_source("Velvet", "VelvetNoiseSource");
-        menu_source("Perlin", "PerlinNoiseSource");
-        menu_source("Crackle", "CrackleNoiseSource");
-        menu_source("Murmuration", "MurmurationNoiseSource");
-        menu_sep();
-        menu_source("Segment", "SegmentSource");
-        menu_source("Wander 1", "WanderNoiseSource");
-        menu_source("Wander 2", "WanderNoise2Source");
-        menu_source("Wander 3", "WanderNoise3Source");
-        ImGui::EndMenu();
-    }
+    ImGui::Separator();
 
     // --- Envelopes ---
     if (ImGui::BeginMenu("Envelopes")) {
@@ -8427,6 +8393,7 @@ static void show_create_menu() {
         menu_source("Reverb", "Reverb");
         menu_source("Limiter", "Limiter");
         menu_source("Hammer Bank", "HammerBank");
+        menu_source("Distortion", "DistortedSource");
         menu_sep();
         menu_source("BW Bandpass", "BWBandpassFilter");
         menu_source("BW Lowpass", "BWLowpassFilter");
@@ -8434,6 +8401,17 @@ static void show_create_menu() {
         menu_source("SVF (State Variable)", "SVFSource");
         ImGui::EndMenu();
     }
+
+    // --- Combiners ---
+    if (ImGui::BeginMenu("Combiners")) {
+        menu_source("Combined", "CombinedSource");
+        menu_source("Crossfade", "CrossfadeSource");
+        menu_source("Multi", "MultiSource");
+        menu_source("Multiplex", "MultiplexSource");
+        ImGui::EndMenu();
+    }
+
+    ImGui::Separator();
 
     // --- Output (special UI sink types, gated by graph mode) ---
     // Output terminates a Patch graph (one per graph); Channel/Mixer
@@ -8473,6 +8451,44 @@ static void show_create_menu() {
             } else {
                 menu_placeholder("Mixer (exists)");
             }
+        }
+        ImGui::EndMenu();
+    }
+
+    ImGui::Separator();
+
+    // --- Experimental: parked / in-progress node families, mirroring the
+    // main category names (Matt 2026-08-26). Physical + Algorithmic
+    // WaveEvolutions moved here from their own top-level menus.
+    if (ImGui::BeginMenu("Experimental")) {
+        if (ImGui::BeginMenu("Generators")) {
+            menu_placeholder("(none yet)");
+            ImGui::EndMenu();
+        }
+        if (ImGui::BeginMenu("Noise")) {
+            menu_source("Layered Red", "LayeredRedNoiseSource");
+            menu_source("Murmuration", "MurmurationNoiseSource");
+            menu_source("Wander 1", "WanderNoiseSource");
+            menu_source("Wander 2", "WanderNoise2Source");
+            menu_source("Wander 3", "WanderNoise3Source");
+            ImGui::EndMenu();
+        }
+        if (ImGui::BeginMenu("Wavetable")) {
+            menu_source("Bowed String Evolution", "BowedStringEvolution");
+            menu_source("Reed Evolution", "ReedEvolution");
+            menu_source("Brass Evolution", "BrassEvolution");
+            menu_sep();
+            menu_source("Reaction-Diffusion (Gray-Scott)", "ReactionDiffusionEvolution");
+            menu_source("Sort Erosion (->saw)", "SortErosionEvolution");
+            menu_source("Cellular Automaton (Wolfram)", "CellularAutomatonEvolution");
+            menu_source("Histogram Equalize", "HistogramEqualizeEvolution");
+            menu_source("Bezier Pull (->curve)", "BezierPullEvolution");
+            menu_source("Bit Rotate (glitch)", "BitRotateEvolution");
+            ImGui::EndMenu();
+        }
+        if (ImGui::BeginMenu("Filters")) {
+            menu_placeholder("(none yet)");
+            ImGui::EndMenu();
         }
         ImGui::EndMenu();
     }
@@ -9915,6 +9931,42 @@ static LONG WINAPI seh_crash_filter(EXCEPTION_POINTERS* info) {
     return EXCEPTION_EXECUTE_HANDLER;
 }
 
+// Collapse/restore for the bottom pane — the dock node holding Waveforms/
+// Spectrum/Keyboard (Matt 2026-08-29). A chevron overlays the pane's
+// top-right corner: down collapses the pane to a sliver (tab bar stays
+// visible, so the tabs and the restore chevron remain reachable), up
+// restores the height it had when collapsed.
+static float s_bottomPaneSavedH = 0.0f;
+static void draw_bottom_pane_toggle() {
+    ImGuiWindow* wf = ImGui::FindWindowByName("Waveforms");
+    if (!wf || !wf->DockNode) return;   // undocked/floating: nothing to collapse
+    ImGuiDockNode* dn = wf->DockNode;
+    const float collapsedH = ImGui::GetFrameHeight() + 10.0f;
+    const bool collapsed = dn->Size.y <= collapsedH + 6.0f;
+
+    ImGui::SetNextWindowPos(ImVec2(dn->Pos.x + dn->Size.x - 40.0f, dn->Pos.y + 2.0f));
+    ImGui::SetNextWindowBgAlpha(0.30f);
+    ImGui::Begin("##bottomPaneToggle", nullptr,
+        ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
+        ImGuiWindowFlags_NoMove | ImGuiWindowFlags_AlwaysAutoResize |
+        ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_NoSavedSettings |
+        ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav);
+    if (ImGui::ArrowButton("##paneChevron", collapsed ? ImGuiDir_Up : ImGuiDir_Down)) {
+        if (collapsed) {
+            float h = (s_bottomPaneSavedH > collapsedH)
+                    ? s_bottomPaneSavedH
+                    : ImGui::GetIO().DisplaySize.y * 0.28f;
+            ImGui::DockBuilderSetNodeSize(dn->ID, ImVec2(dn->Size.x, h));
+        } else {
+            s_bottomPaneSavedH = dn->Size.y;
+            ImGui::DockBuilderSetNodeSize(dn->ID, ImVec2(dn->Size.x, collapsedH));
+        }
+    }
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip(collapsed ? "Restore pane height" : "Collapse pane");
+    ImGui::End();
+}
+
 // Engine-stamp guard (dsp backlog 3c) — detection lives in build_stamp.h so
 // that tools/stamp_test can exercise it headlessly while a running mforce_ui
 // holds this exe locked. Only the banner belongs here; it needs ImGui.
@@ -10646,6 +10698,8 @@ int main(int argc, char** argv) {
 
             ImGui::DockBuilderFinish(dockspaceId);
         }
+
+        draw_bottom_pane_toggle();
 
         // Global keyboard shortcuts (work regardless of focused window)
         if (ImGui::GetIO().KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_S))

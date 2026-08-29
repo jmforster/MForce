@@ -8,6 +8,30 @@ file's git history. Tags per WORKFLOW.md. (G1)-(G4) = GOALS.md Dipsy goals.
 
 ## Active — engine/build
 
+35. **[fix] Editor↔loader asymmetries on input pins — three ways a
+    CLI-legal patch mangles in the editor** — found 2026-08-29 (Dipsy +
+    Matt, grail post-mortem session). A patch that renders correctly via
+    mforce_cli can load into the editor missing wires, constants, or
+    engine defaults: (a) the editor reconstructs wires by EXACT pin name,
+    so loader-side param aliases ("cutoff" → BWLowpassFilter.cutoffFreq,
+    registered in source_registrations.cpp) drop the wire silently —
+    Matt saw Combined→lpf.cutoff vanish; (b) numeric constants on
+    input-descriptor pins (e.g. "source1": 8000.0) have no editor
+    representation — inputOnly pins carry no editable value — so the
+    constant evaporates on load and playback re-serializes without it;
+    (c) update_node_dsp wires EVERY unconnected input pin to
+    ConstantSource(0.0) (main.cpp first pass), clobbering engine defaults
+    — WavetableSource's WhiteNoise inputSource default never applies in
+    the editor, which silences value-conserving evolutions (Sort/HE,
+    plain Pluck) that sound fine in CLI. Fix directions: alias table
+    shared with the loader for (a); either reject or synthesize a Var
+    node for (b); leave engine defaults in place for unconnected
+    input-only pins for (c). Related trap, same session: Edit>Convert
+    node→patch synthesizes a legacy paramMap frequency row that collides
+    with a later Note-face wire ("not a ConstantSource" at play) — the
+    heuristic should synthesize a Note face instead, and the Parameter-
+    mapping dialog should stop accepting new bindings (residue-only).
+
 19. **[build] hiBoost → explicit curve — the P4 cleanup sweep** — Matt
     2026-08-18 (PerformSource brainstorm): `PitchedInstrument.hiBoost` is a
     hidden loudness compensation — `gain *= 1 + (log10(max(f,100))-2)*hiBoost`

@@ -1469,8 +1469,10 @@ private:
 // scramble of the original — aliasing-laden, hard-edged.
 // ---------------------------------------------------------------------------
 struct BitRotateEvolution final : WaveEvolution {
-  int shiftBits{3};
-  int stepEvery{4};
+  // Pins, read every evolve() call (= once per output sample) so a wired
+  // envelope advances on the note's sample clock even between rotations.
+  ValueSource* shiftBits{nullptr};  // rotation depth, int 0..31
+  ValueSource* stepEvery{nullptr};  // samples between rotations, int >= 1
 
   float adjust(float /*frequency*/) override {
     ctr_ = 0;
@@ -1478,11 +1480,13 @@ struct BitRotateEvolution final : WaveEvolution {
   }
 
   void evolve(std::vector<float>& values, int index) override {
+    const int step = stepEvery ? std::max(1, int(stepEvery->next())) : 4;
+    const int bits = shiftBits ? int(shiftBits->next()) : 3;
     ctr_++;
-    if (ctr_ < stepEvery) return;
+    if (ctr_ < step) return;
     ctr_ = 0;
 
-    const int k = ((shiftBits % 32) + 32) % 32;
+    const int k = ((bits % 32) + 32) % 32;
     if (k == 0) return;
 
     const float v = std::clamp(values[index], -1.0f, 1.0f);
@@ -1496,38 +1500,53 @@ private:
 };
 
 struct BitRotateEvolutionSource final : ValueSource, IEvolutionHolder {
-  explicit BitRotateEvolutionSource(uint32_t /*seed*/ = 0u) {}
+  explicit BitRotateEvolutionSource(uint32_t /*seed*/ = 0u)
+  : shiftBitsSrc_(std::make_shared<ConstantSource>(3.0f))
+  , stepEverySrc_(std::make_shared<ConstantSource>(4.0f)) {
+    evo_.shiftBits = shiftBitsSrc_.get();
+    evo_.stepEvery = stepEverySrc_.get();
+  }
 
   const char* type_name() const override { return "BitRotateEvolution"; }
   SourceCategory category() const override { return SourceCategory::Combiner; }
 
   WaveEvolution* get_evolution() override { return &evo_; }
 
-  std::span<const SettingDescriptor> setting_descriptors() const override {
-    static constexpr SettingDescriptor descs[] = {
-      {"shiftBits", SettingType::Int, 3.0f, 0.0f, 31.0f},
-      {"stepEvery", SettingType::Int, 4.0f, 1.0f, 256.0f},
+  std::span<const ParamDescriptor> param_descriptors() const override {
+    static constexpr ParamDescriptor descs[] = {
+      {"shiftBits", 3.0f, 0.0f, 31.0f, "int"},
+      {"stepEvery", 4.0f, 1.0f, 256.0f, "int"},
     };
     return descs;
   }
 
-  void set_setting(std::string_view name, float value) override {
-    if (name == "shiftBits")      evo_.shiftBits = std::clamp(int(value), 0, 31);
-    else if (name == "stepEvery") evo_.stepEvery = std::max(1, int(value));
+  void set_param(std::string_view name, std::shared_ptr<ValueSource> src) override {
+    if (name == "shiftBits") {
+      shiftBitsSrc_ = std::move(src);
+      evo_.shiftBits = shiftBitsSrc_.get();
+    } else if (name == "stepEvery") {
+      stepEverySrc_ = std::move(src);
+      evo_.stepEvery = stepEverySrc_.get();
+    }
   }
 
-  float get_setting(std::string_view name) const override {
-    if (name == "shiftBits") return float(evo_.shiftBits);
-    if (name == "stepEvery") return float(evo_.stepEvery);
-    return 0.0f;
+  std::shared_ptr<ValueSource> get_param(std::string_view name) const override {
+    if (name == "shiftBits") return shiftBitsSrc_;
+    if (name == "stepEvery") return stepEverySrc_;
+    return {};
   }
 
-  void prepare(const RenderContext&, int) override {}
+  void prepare(const RenderContext& ctx, int frames) override {
+    if (shiftBitsSrc_) shiftBitsSrc_->prepare(ctx, frames);
+    if (stepEverySrc_) stepEverySrc_->prepare(ctx, frames);
+  }
   float next() override { return 0.0f; }
   float current() const override { return 0.0f; }
 
 private:
   BitRotateEvolution evo_;
+  std::shared_ptr<ValueSource> shiftBitsSrc_;
+  std::shared_ptr<ValueSource> stepEverySrc_;
 };
 
 } // namespace mforce

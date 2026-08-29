@@ -169,6 +169,25 @@ struct Envelope : ValueSource {
   void set_seed(uint32_t s) { seed_ = s; }
   uint32_t get_seed() const { return seed_; }
 
+  // Replace this envelope's stage layout with `fresh` while keeping every
+  // knob that lives OUTSIDE the layout: the accuracy knobs, seed, timeScale,
+  // the minValue/maxValue range params, and the live-gate flag. The preset
+  // subclasses' rebuild() used to hand-restore only accuracy + seed, so a
+  // JSON load — which wires params BEFORE settings — lost minValue/maxValue
+  // the moment any setting triggered a rebuild (TriPower.json: the ADSR
+  // driving TriangleSource.power collapsed to raw 0..1, inside the
+  // triangle's neutral band).
+  void replace_stages(Envelope&& fresh) {
+    fresh.stage_accuracy = stage_accuracy;
+    fresh.ramp_accuracy  = ramp_accuracy;
+    fresh.timeScale_     = timeScale_;
+    fresh.minValue_      = std::move(minValue_);
+    fresh.maxValue_      = std::move(maxValue_);
+    fresh.gated_         = gated_;
+    fresh.seed_          = seed_;
+    *this = std::move(fresh);
+  }
+
   std::span<const SettingDescriptor> setting_descriptors() const override {
     static constexpr SettingDescriptor descs[] = {
       {"stage_accuracy", SettingType::Float, 1.0f, 0.0f, 1.0f},
