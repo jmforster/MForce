@@ -2,18 +2,6 @@
 
 ## Awaiting Matt
 
-### 52. KSString bow mode — VERDICTED same day (2026-08-24)
-Matt: "lots of character, lots of promise, lots of problems on the
-periphery." Per cell: **a** over-resonant ("resonance knob turned up too
-high"), top C screechy as measured; **b** no over-resonance, middle note
-halfway string/trumpet, top note near-inaudible (as measured); **c**
-bottom+top plausible, middle very trumpet-adjacent. Cross-cutting: **all
-attacks too slow for a string — hence the horn sound**. No tuning problems
-except the near-inaudible C6. DECISION: KSString modes is the model —
-BowedStringEvolution kept for comparison/experimentation only, no
-debugging of Reed/BrassEvolution; instead more KSString modes or a KSPipe.
-Backlog 34 carries the direction; cells stay in bow_family.
-
 ### 51. Listen-here fixed — taps sound, monitor at unity [try] (2026-08-24)
 Backlog 32, both halves, in today's mforce_cli + mforce_ui builds.
 (a) **Engine**: a shared source's advancing consumer could fall outside the
@@ -30,13 +18,12 @@ render). Per your call: Listen taps now monitor at unity volume, ignoring
 instrument.volume. TRY: Listen on att / bed / wt / sums in the excite4
 patches — beds should loop audibly, one-shots fire per note-on.
 
-### 50. THE BOW gets a family — 30 cells [PARKED 2026-08-24 evening]
-Superseded by the KSString-modes decision (REVIEW 52): BowedStringEvolution
-is kept for old time's sake / comparison / experimentation, not production.
-The 30 cells + conditioning/brt ladders stay in bow_family for reference;
-no verdict owed. Original entry follows for the record.
-
 ### (parked) THE BOW gets a family — 30 cells (2026-08-24)
+PARKED 2026-08-24 evening — superseded by the KSString-modes decision
+(item 52, now in Resolved): BowedStringEvolution is kept for old time's
+sake / comparison / experimentation, not production. The 30 cells +
+conditioning/brt ladders stay in bow_family for reference; **no verdict
+owed**. Original entry follows for the record.
 **renders/dsp/pending/bow_family/** — your parameter notes turned into axis
 ladders off the exact discovery bytes (baseline included), notes 36/60/84,
 3.5 s bows: RedNoise frequency 100→1400 + **rnfreq_track** (bow events
@@ -401,6 +388,11 @@ damping cutoffs, per-comb feedback, exp follower tails.
 Pared 2026-08-15 at Matt's request (and again 2026-08-22) — compact stubs
 only; full detail lives in the run reports (docs/autonomy/dsp/reports/)
 and git history.
+
+- **52. KSString bow mode** (2026-08-24, verdicted same day): "character +
+  promise, problems on the periphery"; all attacks too slow for a string.
+  DECISION: KSString modes is the model; BowedStringEvolution parked.
+  Full verdict text in the 08-24 report; direction carried by backlog 34.
 
 - **42. Curve editing + Envelope min/max** (2026-08-22, resolved
   2026-08-23): Matt tested minValue/maxValue explicitly — works as
