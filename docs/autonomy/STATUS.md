@@ -11,7 +11,7 @@ KS piano family, live MIDI) grew out of interactive sessions, not GOALS.
 
 | Lane | Dev | State | Next up | Awaiting Matt |
 |---|---|---|---|---|
-| dsp | Dipsy | **08-24: KSString IS THE MODEL** — bow mode verdicted same day ("character + promise, problems on the periphery"); flutter/sizzle/seam all root-caused; BowedStringEvolution parked; Listen-here fixed; gate re-frozen 180/180 | backlog 34: KSString mode family (fast attacks via source pin, resonance balance, top-octave bow keytrack, KSPipe); menu reorg | **10 items** |
+| dsp | Dipsy | **08-29: noisy-attack grail CLOSED after 5 fool's-gold rounds** (integration lives upstream in excitation — reinforces backlog 34a); envelope Curve/Power + UI batch landed ba5200b (gate 180/180); Reed/Brass root-caused as breath-starved, NOT broken; editor↔loader asymmetries → backlog 35 | backlog 34: KSString mode family (fast attacks via source pin, resonance balance, top-octave bow keytrack, KSPipe) | **10 items** |
 | comp | Wolfie | dormant since run 26 (08-10) | #22 re-renders → #21 zero-event check → #8 re-observe | **10 items** (3 blocked on #22) |
 
 ## dsp
@@ -67,5 +67,5 @@ re-render is backlog #22, the first task of the next comp run.
   runs read it, never act on it.
 
 How this works: [WORKFLOW.md](WORKFLOW.md) · reports: dsp/reports/ ·
-comp/reports/ · latest: dsp/reports/2026-08-24-dipsy-bowfamily-listenfix.md,
+comp/reports/ · latest: dsp/reports/2026-08-29-dipsy-grail-hunt-ui-batch.md,
 comp/reports/2026-08-10-wolfie-run26.md
