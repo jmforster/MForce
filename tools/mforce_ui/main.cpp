@@ -36,6 +36,7 @@
 #include "mforce/core/var_source.h"     // needed for VarSource constructor
 #include "mforce/core/range_source.h"   // needed for RangeSource constructor
 #include "mforce/core/curve_node.h"     // CurveNode knots/interp are modeled (P2b)
+#include "mforce/core/smoothness_interpolator.h"  // SegmentSource shape preview
 #include "mforce/source/additive/formant.h" // needed for FormantSpectrum inline table
 #include "mforce/source/additive/partials.h" // for Partials live array access in strip draw
 #include "mforce/render/instrument.h"
@@ -1043,10 +1044,11 @@ static void delete_node(int nodeId) {
                 if (it.value().is_object() &&
                     it.value().value("ref", std::string()) == node.label) {
                     std::fprintf(stderr,
-                        "[ui] %s.%s demoted: its driver '%s' was deleted\n",
+                        "[ui] %s.%s unwired: its driver '%s' was deleted\n",
                         other.label.c_str(), it.key().c_str(),
                         node.label.c_str());
-                    it = other.dynamicPins.erase(it);
+                    it.value() = nullptr;  // pin stays promoted, unwired
+                    ++it;
                 } else {
                     ++it;
                 }
@@ -5416,7 +5418,7 @@ static bool draw_curve_node(GraphNode& node) {
     if (ImGui::IsItemHovered())
         ImGui::SetTooltip("logx: value linear in log(x) — this is exactly\n"
                           "linear in semitones, which is why pitch curves use it.\n"
-                          "loglog: a 2-knot segment is exactly y = k*x^n.");
+                          "loglog: a 2-point segment is exactly y = k*x^n.");
 
     int removeIdx = -1;
     bool needSort = false;
@@ -5427,7 +5429,7 @@ static bool draw_curve_node(GraphNode& node) {
             ImGui::TableNextColumn();
             ImGui::SetNextItemWidth(90.0f);
             float x = node.curveKnots[r].first;
-            if (ImGui::InputFloat("##x", &x, 0.0f, 0.0f, "%.4g")) {
+            if (ImGui::InputFloat("##x", &x, 0.0f, 0.0f, "%.6g")) {
                 node.curveKnots[r].first = std::max(0.0001f, x);  // log-x needs > 0
                 changed = true;
             }
@@ -5439,7 +5441,7 @@ static bool draw_curve_node(GraphNode& node) {
             ImGui::TableNextColumn();
             ImGui::SetNextItemWidth(90.0f);
             float y = node.curveKnots[r].second;
-            if (ImGui::InputFloat("##y", &y, 0.0f, 0.0f, "%.4g")) {
+            if (ImGui::InputFloat("##y", &y, 0.0f, 0.0f, "%.6g")) {
                 node.curveKnots[r].second = y;
                 changed = true;
             }
@@ -5455,7 +5457,7 @@ static bool draw_curve_node(GraphNode& node) {
         changed = true;
         needSort = true;
     }
-    if (ImGui::SmallButton("+ knot")) {
+    if (ImGui::SmallButton("+ point")) {
         float lastX = node.curveKnots.empty() ? 100.0f : node.curveKnots.back().first;
         float lastY = node.curveKnots.empty() ? 0.0f   : node.curveKnots.back().second;
         node.curveKnots.emplace_back(lastX * 2.0f, lastY);
@@ -6858,21 +6860,35 @@ static void draw_node(GraphNode& node) {
     // dynamicPins is read live, so Settings-pane promote/demote shows up the
     // same frame.
     for (auto& [setting, val] : node.dynamicPins.items()) {
-        const std::string ref = val.is_object()
-            ? val.value("ref", std::string("?")) : std::string("?");
+        const bool wired = val.is_object();
+        const std::string ref = wired ? val.value("ref", std::string("?"))
+                                      : std::string();
         ImNodes::PushColorStyle(ImNodesCol_Pin, kDynPinGold);
         ImNodes::PushColorStyle(ImNodesCol_PinHovered, lighten(kDynPinGold, 25));
+        // Same detach affordance as real pins: dragging the gold wire off
+        // unwires (handled in the IsLinkDestroyed block).
+        ImNodes::PushAttributeFlag(ImNodesAttributeFlags_EnableLinkDetachWithDragClick);
+        // Unwired promoted pins render hollow — same gold, waiting for a wire.
         ImNodes::BeginInputAttribute(node.dyn_attr_id(setting),
-                                     ImNodesPinShape_QuadFilled);
+                                     wired ? ImNodesPinShape_QuadFilled
+                                           : ImNodesPinShape_Quad);
         ImGui::TextColored(ImVec4(0.85f, 0.72f, 0.30f, 1.0f), "%s",
                            setting.c_str());
-        if (ImGui::IsItemHovered())
-            ImGui::SetTooltip("Dynamic pin: set once at note-on by '%s',\n"
-                              "frozen for the life of the note.\n"
-                              "Drag a Curve output here to change the driver;\n"
-                              "demote in the Settings pane or delete the wire.",
-                              ref.c_str());
+        if (ImGui::IsItemHovered()) {
+            if (wired)
+                ImGui::SetTooltip("Dynamic pin: set once at note-on by '%s',\n"
+                                  "frozen for the life of the note.\n"
+                                  "Drag a Curve output here to change the driver;\n"
+                                  "delete the wire to unwire, demote via the\n"
+                                  "Settings-pane circle.",
+                                  ref.c_str());
+            else
+                ImGui::SetTooltip("Dynamic pin (unwired): drag a Curve output\n"
+                                  "here. Until wired, the Settings-pane value\n"
+                                  "applies. Demote via the Settings-pane circle.");
+        }
         ImNodes::EndInputAttribute();
+        ImNodes::PopAttributeFlag();
         ImNodes::PopColorStyle();  // PinHovered
         ImNodes::PopColorStyle();  // Pin
     }
@@ -7195,10 +7211,35 @@ static void draw_properties_panel() {
     // CombinedSource.operation) render as a dropdown using labels
     // declared on the SettingDescriptor.
     if (!node->settingValues.empty()) {
-        if (hasParams) { ImGui::Spacing(); ImGui::Separator(); ImGui::Spacing(); }
-        ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1), "Settings");
+        // Envelope nodes lay their settings out differently (Matt
+        // 2026-08-29): accuracy knobs flow inline under the params with no
+        // "Settings" heading; preset envelopes put their time/level knobs
+        // under a "Duration" heading and their per-stage Curve/Power pairs
+        // in a "Shape" table. Every other node keeps the flat list.
+        const bool isEnvNode =
+            dynamic_cast<Envelope*>(node->dspSource.get()) != nullptr;
+        const bool isPresetEnv = isEnvNode && node->typeName != NT_ENVELOPE;
+        auto is_env_inline = [](std::string_view n) {
+            return n == "stage_accuracy" || n == "ramp_accuracy" ||
+                   n == "timeScale";
+        };
+        auto is_env_shape = [](std::string_view n) {
+            return n.size() > 5 && (n.substr(n.size() - 5) == "Curve" ||
+                                    n.substr(n.size() - 5) == "Power");
+        };
+        auto apply_setting_value = [&](const char* name, float v) {
+            if (!node->dspSource) return;
+            {
+                std::lock_guard<std::mutex> lock(g_audioMutex);
+                node->dspSource->set_setting(name, v);
+            }
+            node->jsonExtras.erase(name);
+            for (auto& [d2, v2] : node->arrayValues)
+                v2 = node->dspSource->get_array(d2.name);
+            mark_graph_dirty();
+        };
 
-        for (auto& [desc, val] : node->settingValues) {
+        auto render_setting_row = [&](const SettingDescriptor& desc, float& val) {
             ImGui::Text("%s", desc.name);
             ImGui::SameLine(labelW);
 
@@ -7210,58 +7251,53 @@ static void draw_properties_panel() {
             const bool promoted = node->dynamicPins.contains(desc.name);
             ImGui::PushID(desc.name);
 
-            if (promoted) {
-                const std::string ref = node->dynamicPins[desc.name].is_object()
-                    ? node->dynamicPins[desc.name].value("ref", std::string("?"))
-                    : std::string("?");
+            // Promotion circle (Matt 2026-08-29, replaces the promote/demote
+            // buttons): hollow grey = click to promote — ONLY a gold pin
+            // appears on the node; wiring it happens in the editor like any
+            // pin. Gold-filled = promoted; click again to demote, which drops
+            // the pin (and wire) and restores the STOWED SCALAR — never the
+            // last value the chain produced (Matt 2026-08-19): the scalar
+            // lives in settingValues and is never overwritten.
+            if (eligible || promoted) {
+                const float r = ImGui::GetFontSize() * 0.30f;
+                ImVec2 pos = ImGui::GetCursorScreenPos();
+                ImVec2 center(pos.x + r + 2.0f,
+                              pos.y + ImGui::GetFrameHeight() * 0.5f);
+                if (ImGui::InvisibleButton("##promoCircle",
+                        ImVec2(2.0f * r + 6.0f, ImGui::GetFrameHeight()))) {
+                    if (promoted) {
+                        node->dynamicPins.erase(desc.name);
+                        node->apply_config();   // stowed scalar back to the DSP
+                    } else {
+                        node->dynamicPins[desc.name] = nullptr;  // pin, unwired
+                    }
+                    mark_graph_dirty();
+                }
+                ImDrawList* dl = ImGui::GetWindowDrawList();
+                if (promoted)
+                    dl->AddCircleFilled(center, r, IM_COL32(217, 184, 77, 255));
+                else
+                    dl->AddCircle(center, r, IM_COL32(115, 115, 115, 255), 0, 1.5f);
+                if (ImGui::IsItemHovered())
+                    ImGui::SetTooltip(promoted
+                        ? "Promoted: gold pin on the node (wire a Curve to it there).\nClick to demote — the value below takes over."
+                        : "Click to promote to a dynamic pin (set once per note).\nA gold pin appears on the node; wire it in the editor.");
+                ImGui::SameLine();
+            }
+
+            // find(), NOT operator[] — json operator[] inserts a null entry
+            // for a missing key, which resurrected the pin the same frame
+            // the demote click erased it (stuck-gold-circle bug).
+            auto dpIt = node->dynamicPins.find(desc.name);
+            if (dpIt != node->dynamicPins.end() && dpIt->is_object()) {
+                const std::string ref = dpIt->value("ref", std::string("?"));
                 ImGui::TextColored(ImVec4(0.85f, 0.72f, 0.30f, 1), "<- %s", ref.c_str());
                 if (ImGui::IsItemHovered())
                     ImGui::SetTooltip("Dynamic pin: driven once per note by '%s'.\n"
                                       "The value below is what it returns to if demoted.",
                                       ref.c_str());
-                ImGui::SameLine();
-                if (ImGui::SmallButton("demote")) {
-                    // Restores the STOWED SCALAR, not the last value the chain
-                    // produced (Matt 2026-08-19): the last curve value is
-                    // whatever the final note asked for, not the average you
-                    // want having decided against a curve. The scalar was never
-                    // overwritten — it lives in settingValues and is emitted to
-                    // params whether or not the setting is promoted — so
-                    // demotion is simply dropping the dynamic pin.
-                    node->dynamicPins.erase(desc.name);
-                    node->apply_config();   // push the stowed scalar back to the DSP
-                    mark_graph_dirty();
-                }
                 ImGui::PopID();
-                continue;
-            }
-
-            if (eligible) {
-                // Grey pin: click to promote. Only a CurveNode may feed a
-                // dynamic pin (Matt 2026-08-19: "a Curve and nothing else,
-                // until we need something else") — the editor enforces that
-                // floor; the loader stays permissive, so widening it later
-                // costs no engine change.
-                std::vector<GraphNode*> curves;
-                for (auto& c : s_nodes)
-                    if (c.typeName == "CurveNode") curves.push_back(&c);
-                ImGui::TextColored(ImVec4(0.45f, 0.45f, 0.45f, 1), "%s", "o");
-                if (ImGui::IsItemHovered())
-                    ImGui::SetTooltip(curves.empty()
-                        ? "Promote to a dynamic pin — needs a Curve node to drive it.\nAdd one first."
-                        : "Promote to a dynamic pin (driven once per note).");
-                ImGui::SameLine();
-                if (!curves.empty() && ImGui::SmallButton("promote")) ImGui::OpenPopup("promote");
-                if (ImGui::BeginPopup("promote")) {
-                    ImGui::TextDisabled("Drive %s from:", desc.name);
-                    for (auto* c : curves)
-                        if (ImGui::Selectable(c->label.c_str())) {
-                            node->dynamicPins[desc.name] = {{"ref", c->label}};
-                            mark_graph_dirty();
-                        }
-                    ImGui::EndPopup();
-                }
-                ImGui::SameLine();
+                return;
             }
             ImGui::PopID();
 
@@ -7270,7 +7306,7 @@ static void draw_properties_panel() {
                 if (ImGui::IsItemHovered())
                     ImGui::SetTooltip("Driven per note by a legacy paramMap entry\n"
                                       "(not convertible to a node). Edit in\nEdit > Parameter mapping.");
-                continue;
+                return;
             }
             ImGui::PushItemWidth(widgetW);
             char cfgLabel[64];
@@ -7316,6 +7352,156 @@ static void draw_properties_panel() {
                     v = node->dspSource->get_array(d.name);
                 mark_graph_dirty();
             }
+        };
+
+        if (!isEnvNode) {
+            if (hasParams) { ImGui::Spacing(); ImGui::Separator(); ImGui::Spacing(); }
+            ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1), "Settings");
+            for (auto& [desc, val] : node->settingValues)
+                render_setting_row(desc, val);
+        } else if (!isPresetEnv) {
+            // Generic Envelope: all settings inline, straight under maxValue.
+            for (auto& [desc, val] : node->settingValues)
+                render_setting_row(desc, val);
+        } else {
+            // Preset envelope: accuracy inline, then Duration, then Shape.
+            for (auto& [desc, val] : node->settingValues)
+                if (is_env_inline(desc.name))
+                    render_setting_row(desc, val);
+
+            bool anyDuration = false;
+            for (auto& [desc, val] : node->settingValues)
+                if (!is_env_inline(desc.name) && !is_env_shape(desc.name))
+                    anyDuration = true;
+            if (anyDuration) {
+                ImGui::Spacing(); ImGui::Separator(); ImGui::Spacing();
+                ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1), "Duration");
+                for (auto& [desc, val] : node->settingValues)
+                    if (!is_env_inline(desc.name) && !is_env_shape(desc.name))
+                        render_setting_row(desc, val);
+            }
+
+            // Shape table: one row per stage that has a Curve setting, the
+            // matching Power beside it.
+            struct ShapeRow { std::string label; int curveIdx; int powerIdx; };
+            std::vector<ShapeRow> shapeRows;
+            for (int i = 0; i < (int)node->settingValues.size(); ++i) {
+                std::string_view n = node->settingValues[i].first.name;
+                if (n.size() <= 5 || n.substr(n.size() - 5) != "Curve") continue;
+                std::string prefix(n.substr(0, n.size() - 5));
+                int pIdx = -1;
+                for (int j = 0; j < (int)node->settingValues.size(); ++j)
+                    if (prefix + "Power" == node->settingValues[j].first.name) {
+                        pIdx = j; break;
+                    }
+                std::string label = prefix;
+                if (!label.empty())
+                    label[0] = char(::toupper((unsigned char)label[0]));
+                shapeRows.push_back({std::move(label), i, pIdx});
+            }
+            if (!shapeRows.empty()) {
+                ImGui::Spacing(); ImGui::Separator(); ImGui::Spacing();
+                ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1), "Shape");
+                if (ImGui::BeginTable("envshape", 3,
+                        ImGuiTableFlags_SizingFixedFit | ImGuiTableFlags_BordersInnerV)) {
+                    ImGui::TableSetupColumn("");
+                    ImGui::TableSetupColumn("Curve");
+                    ImGui::TableSetupColumn("Power");
+                    ImGui::TableHeadersRow();
+                    for (auto& r : shapeRows) {
+                        ImGui::TableNextRow();
+                        ImGui::PushID(r.label.c_str());
+
+                        ImGui::TableNextColumn();
+                        ImGui::AlignTextToFramePadding();
+                        ImGui::Text("%s", r.label.c_str());
+
+                        ImGui::TableNextColumn();
+                        {
+                            auto& [cd, cv] = node->settingValues[r.curveIdx];
+                            int count = 0;
+                            while (cd.enum_labels && cd.enum_labels[count]) ++count;
+                            int iv = std::clamp(int(cv), 0, std::max(0, count - 1));
+                            ImGui::PushItemWidth(110);
+                            if (count > 0 &&
+                                ImGui::Combo("##shpcurve", &iv, cd.enum_labels, count)) {
+                                cv = float(iv);
+                                apply_setting_value(cd.name, cv);
+                            }
+                            ImGui::PopItemWidth();
+                        }
+
+                        ImGui::TableNextColumn();
+                        if (r.powerIdx >= 0) {
+                            auto& [pd, pv] = node->settingValues[r.powerIdx];
+                            ImGui::PushItemWidth(60);
+                            if (ImGui::DragFloat("##shppow", &pv, 0.05f,
+                                                 pd.min_value, pd.max_value, "%.2f"))
+                                apply_setting_value(pd.name, pv);
+                            ImGui::PopItemWidth();
+                        }
+
+                        ImGui::PopID();
+                    }
+                    ImGui::EndTable();
+                }
+            }
+        }
+    }
+
+    // SegmentSource: shape preview ABOVE the points table (Matt
+    // 2026-08-29). Rendered from the cached values array + the smoothness
+    // pin's constant, through the engine's own SmoothnessInterpolator, so
+    // the drawing matches what renders (gap and varPct excluded).
+    if (node->typeName == "SegmentSource") {
+        const std::vector<float>* vals = nullptr;
+        for (auto& [d, v] : node->arrayValues)
+            if (std::string_view(d.name) == "values") { vals = &v; break; }
+        if (vals && vals->size() >= 4) {
+            const int pairs = int(vals->size()) / 2;
+            float totalW = 0.0f;
+            for (int i = 0; i < pairs; ++i)
+                totalW += std::max(0.0f, (*vals)[i * 2]);
+            if (totalW > 0.0f) {
+                float smooth = 0.5f;
+                for (auto& pin : node->inputs)
+                    if (pin.name == "smoothness" && pin.constantSrc) {
+                        smooth = pin.constantSrc->current();
+                        break;
+                    }
+                SmoothnessInterpolator si(smooth, false);
+                constexpr int N = 256;
+                float pv[N];
+                for (int k = 0; k < N; ++k) {
+                    const float t = (float(k) + 0.5f) / float(N) * totalW;
+                    float acc = 0.0f, prev = 0.0f, out = 0.0f;
+                    for (int i = 0; i < pairs; ++i) {
+                        const float w = std::max(0.0f, (*vals)[i * 2]);
+                        const float v = (*vals)[i * 2 + 1];
+                        if (t <= acc + w || i == pairs - 1) {
+                            const float pos = w > 0.0f
+                                ? std::clamp((t - acc) / w, 0.0f, 1.0f) : 1.0f;
+                            out = si.interpolate(prev, v, pos);
+                            break;
+                        }
+                        acc += w;
+                        prev = v;
+                    }
+                    pv[k] = out;
+                }
+                float vmin = pv[0], vmax = pv[0];
+                for (int k = 1; k < N; ++k) {
+                    vmin = std::min(vmin, pv[k]);
+                    vmax = std::max(vmax, pv[k]);
+                }
+                if (vmax - vmin < 0.001f) vmax = vmin + 1.0f;
+                const float vpad = (vmax - vmin) * 0.05f;
+                ImGui::Spacing(); ImGui::Separator(); ImGui::Spacing();
+                float plotW = ImGui::GetContentRegionAvail().x;
+                if (plotW < 80.0f) plotW = 200.0f;
+                ImGui::PlotLines("##segprev", pv, N, 0, nullptr,
+                                 vmin - vpad, vmax + vpad, ImVec2(plotW, 90.0f));
+            }
         }
     }
 
@@ -7355,7 +7541,70 @@ static void draw_properties_panel() {
                 }
             }
 
-            if (!grouped) {
+            if (!grouped && node->typeName == "SegmentSource" &&
+                std::string_view(firstDesc.name) == "values") {
+                // Interleaved [width, val] pairs — edited as POINT rows
+                // (Matt 2026-08-29): the generic per-float delete shifted
+                // the tail by one, turning widths into values (the
+                // alternating-preview bug). Width column is unclamped by
+                // the descriptor range (widths are samples/seconds, not
+                // -10..10 values).
+                auto& vec = node->arrayValues[i].second;
+                const ArrayDescriptor d = firstDesc;
+                bool changed = false;
+                if (vec.size() % 2) {  // heal an odd (corrupted) tail
+                    vec.push_back(0.0f);
+                    changed = true;
+                }
+                int removePair = -1;
+                ImGui::PushID((int)i);
+                if (ImGui::BeginTable("segvals", 4,
+                        ImGuiTableFlags_SizingFixedFit)) {
+                    ImGui::TableSetupColumn("#");
+                    ImGui::TableSetupColumn("Width");
+                    ImGui::TableSetupColumn("Value");
+                    ImGui::TableSetupColumn("");
+                    ImGui::TableHeadersRow();
+                    const int pairs = int(vec.size()) / 2;
+                    for (int r = 0; r < pairs; ++r) {
+                        ImGui::TableNextRow();
+                        ImGui::PushID(r);
+                        ImGui::TableNextColumn();
+                        ImGui::AlignTextToFramePadding();
+                        ImGui::Text("%d", r);
+                        ImGui::TableNextColumn();
+                        ImGui::SetNextItemWidth(90.0f);
+                        if (ImGui::InputFloat("##w", &vec[r * 2], 0.0f, 0.0f, "%.6g")) {
+                            vec[r * 2] = std::max(0.0f, vec[r * 2]);
+                            changed = true;
+                        }
+                        ImGui::TableNextColumn();
+                        ImGui::SetNextItemWidth(90.0f);
+                        if (ImGui::InputFloat("##v", &vec[r * 2 + 1], 0.0f, 0.0f, "%.4f")) {
+                            vec[r * 2 + 1] = std::clamp(vec[r * 2 + 1],
+                                                        d.min_value, d.max_value);
+                            changed = true;
+                        }
+                        ImGui::TableNextColumn();
+                        if (pairs > 1 && ImGui::SmallButton(" x ")) removePair = r;
+                        ImGui::PopID();
+                    }
+                    ImGui::EndTable();
+                }
+                if (removePair >= 0) {
+                    vec.erase(vec.begin() + removePair * 2,
+                              vec.begin() + removePair * 2 + 2);
+                    changed = true;
+                }
+                if (ImGui::SmallButton(" + point ")) {
+                    const float lastW = vec.size() >= 2 ? vec[vec.size() - 2] : 10.0f;
+                    vec.push_back(lastW);
+                    vec.push_back(0.0f);
+                    changed = true;
+                }
+                ImGui::PopID();
+                if (changed) { node->push_array(d.name); mark_graph_dirty(); }
+            } else if (!grouped) {
                 // Standalone array — vertical list with per-row delete + append.
                 auto& vec = node->arrayValues[i].second;
                 const ArrayDescriptor d = firstDesc;
@@ -10831,6 +11080,21 @@ int main(int argc, char** argv) {
                 } else {
                     frame_level();
                 }
+                // Listen tap follows the drill level (Matt 2026-08-29):
+                // backing out retargets the tap the same way drilling in
+                // set it — the new level's group face (per-group Listen
+                // memory, default on), or no tap at the top level. Drill-IN
+                // already handles itself at the double-click site.
+                if (!deeper) {
+                    if (s_groupPath.empty()) {
+                        s_listenTapNode = -1;
+                    } else if (NodeGroup* cur = group_by_name(s_groupPath.back())) {
+                        bool listenGroup = s_groupListen.count(cur->name)
+                            ? s_groupListen[cur->name] : true;
+                        GraphNode* gOut = group_output_node(*cur);
+                        s_listenTapNode = (listenGroup && gOut) ? gOut->id : -1;
+                    }
+                }
                 prevPath = s_groupPath;
             }
         }
@@ -11080,12 +11344,22 @@ int main(int argc, char** argv) {
         {
             int destroyedLinkId;
             if (ImNodes::IsLinkDestroyed(&destroyedLinkId)) {
-                s_links.erase(
-                    std::remove_if(s_links.begin(), s_links.end(),
-                        [destroyedLinkId](const Link& l) { return l.id == destroyedLinkId; }),
-                    s_links.end());
-                update_all_dsp();
-                mark_graph_dirty();
+                std::string setting;
+                if (GraphNode* dn = find_node_for_dyn_link(destroyedLinkId,
+                                                           &setting)) {
+                    // Gold wire dragged off its pin: unwire — the pin stays
+                    // promoted (hollow), the stowed scalar takes over.
+                    dn->dynamicPins[setting] = nullptr;
+                    dn->apply_config();
+                    mark_graph_dirty();
+                } else {
+                    s_links.erase(
+                        std::remove_if(s_links.begin(), s_links.end(),
+                            [destroyedLinkId](const Link& l) { return l.id == destroyedLinkId; }),
+                        s_links.end());
+                    update_all_dsp();
+                    mark_graph_dirty();
+                }
             }
         }
 
@@ -11173,12 +11447,13 @@ int main(int argc, char** argv) {
                 ImNodes::GetSelectedLinks(sel.data());
                 for (int lid : sel) {
                     // A gold wire is a dynamic pin's driver: deleting it
-                    // DEMOTES — the wire is removed and the stowed scalar
-                    // (still in settingValues, never overwritten) takes
-                    // over again, same as the Settings-pane demote.
+                    // UNWIRES the pin (the pin itself stays — promotion is
+                    // the Settings-pane circle's job, Matt 2026-08-29) and
+                    // the stowed scalar (still in settingValues, never
+                    // overwritten) takes over again.
                     std::string setting;
                     if (GraphNode* dn = find_node_for_dyn_link(lid, &setting)) {
-                        dn->dynamicPins.erase(setting);
+                        dn->dynamicPins[setting] = nullptr;
                         dn->apply_config();
                         mark_graph_dirty();
                         continue;

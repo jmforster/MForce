@@ -67,5 +67,5 @@ re-render is backlog #22, the first task of the next comp run.
   runs read it, never act on it.
 
 How this works: [WORKFLOW.md](WORKFLOW.md) · reports: dsp/reports/ ·
-comp/reports/ · latest: dsp/reports/2026-08-29-dipsy-grail-hunt-ui-batch.md,
+comp/reports/ · latest: dsp/reports/2026-08-30-dipsy-ui-round-ksbow-shape-editor-spec.md,
 comp/reports/2026-08-10-wolfie-run26.md

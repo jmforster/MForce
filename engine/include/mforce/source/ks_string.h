@@ -23,7 +23,7 @@ namespace mforce {
 //      (allpass inside an allpass inside an allpass, Schroeder/Gardner
 //      lattice with unit inner delays). "Important for lower notes" —
 //      controlled by inharmGain, per-note mappable.
-//   2. Main resonators: numCombs (<=3) feedback comb filters, detuned in
+//   2. Main resonators: numCombs (<=10) feedback comb filters, detuned in
 //      unison fashion (detune cents spread -> the realistic flanging), each
 //      loop containing 2 second-order allpasses (double-real-pole biquads,
 //      coefficient = dispersion) for frequency-dependent delay = stretched
@@ -89,8 +89,17 @@ struct KSString final : ValueSource {
 
   std::span<const SettingDescriptor> setting_descriptors() const override {
     static constexpr SettingDescriptor descs[] = {
-      {"numCombs",   SettingType::Int,   3.0f,    1.0f,   3.0f},
+      {"numCombs",   SettingType::Int,   3.0f,    1.0f,   10.0f},
       {"detune",     SettingType::Float, 0.75f,   0.0f,   7200.0f}, // cents PER SIDE, AF semantics (outer combs at +/-detune; 600 = tritones, 1200 = octaves). 2026-08-18: was total-spread — all stored patches halved to compensate, bit-exact.
+      // Decoherence pair (Matt 2026-08-29): the even offset spread + shared
+      // excitation make the descending decoherence front audible at high
+      // comb counts (partial n re-phases at t ∝ 1/n). spreadJitter breaks
+      // the ordered beat ladder (offsets perturbed up to ±half the comb
+      // spacing at 1.0); excStagger breaks the coherent onset (per-comb
+      // random excitation delay, seconds). Both deterministic per comb
+      // index; defaults 0 = byte-identical.
+      {"spreadJitter", SettingType::Float, 0.0f,  0.0f,   1.0f},
+      {"excStagger",   SettingType::Float, 0.0f,  0.0f,   0.02f},  // sec
       {"t60",        SettingType::Float, 6.0f,    0.05f,  60.0f},   // sec at f0
       {"brightness", SettingType::Float, 0.6f,    0.05f,  1.0f},    // loop LP coeff
       {"dispersion", SettingType::Float, 0.12f,   0.0f,   0.95f},   // biquad AP pole
@@ -137,6 +146,8 @@ struct KSString final : ValueSource {
   void set_setting(std::string_view name, float v) override {
     if (name == "numCombs")   { numCombs_   = std::clamp(int(v), 1, kMaxCombs); return; }
     if (name == "detune")     { detune_     = v; return; }
+    if (name == "spreadJitter") { spreadJitter_ = std::clamp(v, 0.0f, 1.0f); return; }
+    if (name == "excStagger")   { excStagger_   = std::clamp(v, 0.0f, 0.02f); return; }
     if (name == "t60")        { t60_        = std::max(v, 0.05f); return; }
     if (name == "brightness") { brightness_ = std::clamp(v, 0.05f, 1.0f); return; }
     if (name == "dispersion") { dispersion_ = std::clamp(v, 0.0f, 0.95f); return; }
@@ -158,6 +169,8 @@ struct KSString final : ValueSource {
 
   float get_setting(std::string_view name) const override {
     if (name == "numCombs")   return float(numCombs_);
+    if (name == "spreadJitter") return spreadJitter_;
+    if (name == "excStagger")   return excStagger_;
     if (name == "detune")     return detune_;
     if (name == "t60")        return t60_;
     if (name == "brightness") return brightness_;
@@ -304,9 +317,18 @@ struct KSString final : ValueSource {
 
     // ---- Main resonators: detuned combs with biquad allpasses ----
     float s = xin + inharmGain_ * inh + dnoise + bowF;
+    if (staggerActive_) inHist_[inPos_] = s;
     float sum = 0.0f;
     for (int i = 0; i < numCombs_; ++i) {
       Comb& c = comb_[i];
+      // Per-comb staggered excitation (0 when excStagger is off: si == s
+      // exactly — the default path is byte-identical).
+      float si = s;
+      if (staggerActive_) {
+        int rd2 = inPos_ - staggerSamp_[i];
+        if (rd2 < 0) rd2 += kInHist;
+        si = inHist_[rd2];
+      }
       float r;
       if (c.apRead) {
         // Allpass fractional read: integer tap + first-order allpass
@@ -334,10 +356,11 @@ struct KSString final : ValueSource {
         v = biquad_ap(v, c.bq[1]);
       }
       c.lp += brightness_ * (v - c.lp);
-      c.buf[wpos_] = s + c.gain * damp * c.lp;
+      c.buf[wpos_] = si + c.gain * damp * c.lp;
 
       sum += r;
     }
+    if (staggerActive_) inPos_ = (inPos_ + 1) % kInHist;
     float combMix = sum / float(numCombs_);
     lastOut_ = combMix;
     // Ring-level follower for the damper-contact noise (fast attack, slow
@@ -355,7 +378,11 @@ struct KSString final : ValueSource {
   float current() const override { return cur_; }
 
 private:
-  static constexpr int kMaxCombs = 3;
+  // Raised 3 → 10 (Matt 2026-08-29, "outside the Steinway"): dense detuned
+  // unison territory — 12-string / dulcimer / cimbalom / cluster mass at
+  // large detunes. Even-spread offsets reproduce the old 1/2/3 layouts
+  // exactly, so existing patches are byte-identical.
+  static constexpr int kMaxCombs = 10;
   static constexpr int kBufLen   = 4096;  // >= sr/12Hz at 48k
   // Minimum comb delay the dispersion-shedding guard preserves (samples).
   static constexpr float kMinCombLen = 4.0f;
@@ -475,9 +502,35 @@ private:
 
     // Unison detune offsets (cents): the flanging mechanism of the
     // description — detuning detunes the comb lengths together.
-    float off[kMaxCombs] = {0.0f, 0.0f, 0.0f};
-    if (numCombs_ == 2)      { off[0] = -1.0f; off[1] = 1.0f; }
-    else if (numCombs_ == 3) { off[0] = -1.0f; off[1] = 0.0f; off[2] = 1.0f; }
+    // Even spread from -1 to +1 — for N=2 (-1,+1) and N=3 (-1,0,+1) this
+    // is bit-exact with the old hardcoded layouts; N=1 stays centered.
+    float off[kMaxCombs] = {};
+    if (numCombs_ > 1)
+      for (int i = 0; i < numCombs_; ++i)
+        off[i] = -1.0f + 2.0f * float(i) / float(numCombs_ - 1);
+
+    // spreadJitter: perturb the even offsets by up to ±half the comb
+    // spacing (at 1.0). Deterministic per comb index — same layout every
+    // note and every render.
+    if (spreadJitter_ > 0.0f && numCombs_ > 1) {
+      const float spacing = 2.0f / float(numCombs_ - 1);
+      for (int i = 0; i < numCombs_; ++i)
+        off[i] += spreadJitter_ * spacing *
+                  (hash01_(0x5EED0000u + uint32_t(i)) - 0.5f);
+    }
+
+    // excStagger: per-comb random excitation onset delay (breaks the
+    // coherent start). History ring is zeroed so pre-note input is silence.
+    staggerActive_ = excStagger_ > 0.0f;
+    for (int i = 0; i < numCombs_; ++i)
+      staggerSamp_[i] = staggerActive_
+          ? std::min(kInHist - 1,
+                     int(hash01_(0xACC0FFEEu + uint32_t(i)) * excStagger_ * sr))
+          : 0;
+    if (staggerActive_) {
+      for (int i = 0; i < kInHist; ++i) inHist_[i] = 0.0f;
+      inPos_ = 0;
+    }
 
     for (int i = 0; i < numCombs_; ++i) {
       float det = std::pow(2.0f, (off[i] * detune_) / 1200.0f);
@@ -556,6 +609,19 @@ private:
   bool  dispActive_{false};
   float dispEff_{0.12f};   // per-note effective dispersion (shed at the top)
   Comb  comb_[kMaxCombs];
+
+  // Decoherence pair (spreadJitter / excStagger) — see setting docs.
+  static float hash01_(uint32_t x) {
+    x ^= x >> 16; x *= 0x7feb352dU; x ^= x >> 15; x *= 0x846ca68bU; x ^= x >> 16;
+    return float(x) * (1.0f / 4294967296.0f);
+  }
+  static constexpr int kInHist = 1024;  // 21 ms @ 48k >= max stagger 20 ms
+  float spreadJitter_{0.0f};
+  float excStagger_{0.0f};
+  bool  staggerActive_{false};
+  int   staggerSamp_[kMaxCombs] = {};
+  float inHist_[kInHist] = {};
+  int   inPos_{0};
   DispLoop disp_;
   int   dispLen_{100};
   float fbScale_{0.0f};

@@ -1162,6 +1162,9 @@ static void bind_wiring(const std::unordered_map<std::string, json>& nodeMap,
         const auto& consumer = nodeIt->second;
 
         for (const auto& [key, v] : node["dynamicPins"].items()) {
+            // null = promoted in the editor but not yet wired — the pin
+            // exists as editor state only; the stowed scalar governs.
+            if (v.is_null()) continue;
             if (!v.is_object() || !v.contains("ref"))
                 throw std::runtime_error("wiring: '" + id + ".dynamicPins." + key +
                                          "' must be a {\"ref\": ...} object");

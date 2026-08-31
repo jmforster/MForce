@@ -42,6 +42,10 @@ struct SegmentSource final : ValueSource {
     static constexpr ParamDescriptor descs[] = {
       {"amplitude",   1.0f, 0.0f, 10.0f, "0-1"},
       {"smoothness",  0.5f, 0.0f, 1.0f,  "0-1"},
+      // Global time-scale of the whole shape (Matt 2026-08-29): 1 = as
+      // drawn, <1 narrower, >1 wider — every segment width multiplied,
+      // read once per cycle. Gap is NOT scaled (it's its own knob).
+      {"width",       1.0f, 0.05f, 20.0f, "ratio"},
       {"widthVarPct", 0.0f, 0.0f, 1.0f,  "0-1"},
       {"valVarPct",   0.0f, 0.0f, 1.0f,  "0-1"},
       {"gap",         0.0f, 0.0f, 10.0f, "sec"},
@@ -53,6 +57,7 @@ struct SegmentSource final : ValueSource {
   void set_param(std::string_view name, std::shared_ptr<ValueSource> src) override {
     if (name == "amplitude")   { amplitude_ = std::move(src); return; }
     if (name == "smoothness")  { smoothness_ = std::move(src); return; }
+    if (name == "width")       { width_ = std::move(src); return; }
     if (name == "widthVarPct") { widthVarPct_ = std::move(src); return; }
     if (name == "valVarPct")   { valVarPct_ = std::move(src); return; }
     if (name == "gap")         { gap_ = std::move(src); return; }
@@ -62,6 +67,7 @@ struct SegmentSource final : ValueSource {
   std::shared_ptr<ValueSource> get_param(std::string_view name) const override {
     if (name == "amplitude")   return amplitude_;
     if (name == "smoothness")  return smoothness_;
+    if (name == "width")       return width_;
     if (name == "widthVarPct") return widthVarPct_;
     if (name == "valVarPct")   return valVarPct_;
     if (name == "gap")         return gap_;
@@ -114,6 +120,7 @@ struct SegmentSource final : ValueSource {
   : values_(std::move(values)), sampleRate(sr), oneShot(os), rng_(seed),
     amplitude_(std::make_shared<ConstantSource>(1.0f)),
     smoothness_(std::make_shared<ConstantSource>(0.5f)),
+    width_(std::make_shared<ConstantSource>(1.0f)),
     widthVarPct_(std::make_shared<ConstantSource>(0.0f)),
     valVarPct_(std::make_shared<ConstantSource>(0.0f)),
     gap_(std::make_shared<ConstantSource>(0.0f)),
@@ -125,23 +132,32 @@ struct SegmentSource final : ValueSource {
   void prepare(const RenderContext& ctx, int frames) override {
     if (amplitude_) amplitude_->prepare(ctx, frames);
     if (smoothness_) smoothness_->prepare(ctx, frames);
+    if (width_) width_->prepare(ctx, frames);
     if (widthVarPct_) widthVarPct_->prepare(ctx, frames);
     if (valVarPct_) valVarPct_->prepare(ctx, frames);
     if (gap_) gap_->prepare(ctx, frames);
     if (gapVarPct_) gapVarPct_->prepare(ctx, frames);
     done_ = false;
-    update_segments();
+    // Deferred to the first next() (2026-08-29): update_segments() reads
+    // the width/var/gap pins via current(), and at prepare() time a wired
+    // chain (e.g. Note→Curve→width) still holds the PREVIOUS note's value
+    // on a reused voice — Matt heard it as nondeterministic clicks/thumps
+    // per keypress. First-next() runs after the pins advance for THIS note.
+    pendingInit_ = true;
   }
 
   float next() override {
     amplitude_->next();
     smoothness_->next();
+    if (width_) width_->next();
     gap_->next();
     gapVarPct_->next();
     widthVarPct_->next();
     valVarPct_->next();
 
     interp_.setSmoothness(smoothness_->current());
+
+    if (pendingInit_) { pendingInit_ = false; update_segments(); }
 
     // Empty shape (a node fresh from the menu, or values cleared) used to
     // index currVals_[0] out of bounds on the first sample (2026-08-23).
@@ -179,23 +195,55 @@ private:
     int gapInt = int(gapSamples);
 
     int pairCount = int(values_.size()) / 2;
-    int totalPairs = pairCount + (gapInt > 0 ? 1 : 0);
-    currVals_.resize(totalPairs * 2);
-
     float wvp = widthVarPct_->current();
     float vvp = valVarPct_->current();
+    float wscale = width_ ? width_->current() : 1.0f;
     float rate = widthIsSecs_ ? float(sampleRate) : 1.0f;
 
-    for (int i = 0; i < pairCount; ++i) {
-      currVals_[i * 2] = std::round(rng_.range(
-          values_[i * 2] * (1.0f - wvp), values_[i * 2] * (1.0f + wvp)) * rate);
-      currVals_[i * 2 + 1] = rng_.range(
-          values_[i * 2 + 1] * (1.0f - vvp), values_[i * 2 + 1] * (1.0f + vvp));
+    currVals_.clear();
+    currVals_.reserve((pairCount + 1) * 2);
+    if (wscale == 1.0f) {
+      // Exact legacy path — byte-identical at the default width.
+      for (int i = 0; i < pairCount; ++i) {
+        currVals_.push_back(std::round(rng_.range(
+            values_[i * 2] * (1.0f - wvp), values_[i * 2] * (1.0f + wvp)) * rate));
+        currVals_.push_back(rng_.range(
+            values_[i * 2 + 1] * (1.0f - vvp), values_[i * 2 + 1] * (1.0f + vvp)));
+      }
+    } else {
+      // Error-diffused width scaling (2026-08-30): per-segment rounding
+      // floored every segment at 1 sample (the stepping consumes >=1 per
+      // segment), so wscale<1 was inaudible on unit-width sampled shapes.
+      // Diffusion drops segments whose scaled width rounds to zero — a
+      // width-1 texture at 0.5 emits every other point (decimation).
+      // Draw count per pair matches the legacy path, so varPct streams
+      // stay aligned across width changes.
+      float accExact = 0.0f;
+      long long emitted = 0;
+      for (int i = 0; i < pairCount; ++i) {
+        const float w = rng_.range(
+            values_[i * 2] * (1.0f - wvp), values_[i * 2] * (1.0f + wvp))
+            * rate * wscale;
+        const float v = rng_.range(
+            values_[i * 2 + 1] * (1.0f - vvp), values_[i * 2 + 1] * (1.0f + vvp));
+        accExact += std::max(0.0f, w);
+        const long long target = (long long)std::llround(accExact);
+        const long long wi = target - emitted;
+        if (wi <= 0) continue;
+        emitted = target;
+        currVals_.push_back(float(wi));
+        currVals_.push_back(v);
+      }
+      if (currVals_.empty() && pairCount > 0) {
+        // Degenerate scale: keep one segment so the shape isn't silence.
+        currVals_.push_back(1.0f);
+        currVals_.push_back(values_[pairCount * 2 - 1]);
+      }
     }
 
     if (gapInt > 0) {
-      currVals_[(totalPairs - 1) * 2] = float(gapInt);
-      currVals_[(totalPairs - 1) * 2 + 1] = 0.0f;
+      currVals_.push_back(float(gapInt));
+      currVals_.push_back(0.0f);
     }
 
     currSeg_ = 0;
@@ -204,6 +252,7 @@ private:
 
   std::shared_ptr<ValueSource> amplitude_;
   std::shared_ptr<ValueSource> smoothness_;
+  std::shared_ptr<ValueSource> width_;
   std::shared_ptr<ValueSource> widthVarPct_;
   std::shared_ptr<ValueSource> valVarPct_;
   std::shared_ptr<ValueSource> gap_;
@@ -212,6 +261,7 @@ private:
   std::vector<float> currVals_;
   bool widthIsSecs_{false};
   bool done_{false};
+  bool pendingInit_{false};
   int currSeg_{0};
   int currSegCount_{0};
   Randomizer rng_;

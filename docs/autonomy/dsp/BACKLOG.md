@@ -8,6 +8,28 @@ file's git history. Tags per WORKFLOW.md. (G1)-(G4) = GOALS.md Dipsy goals.
 
 ## Active — engine/build
 
+36. **[cleanup] Envelope dialect + preset-file consolidation (node types
+    STAY)** — Matt 2026-08-29, after deciding against retiring the preset
+    envelope node types (named settings are mapping/promotion targets —
+    capability, not just convenience). Also carries (c, Matt same day
+    "cleanliness"): formalize the lazy first-sample init idiom — a
+    `first_sample()` hook called once after prepare(), replacing the three
+    hand-rolled spellings (KSString `initialized_`/init_note, WavetableSource
+    `ptr_==0`/fill_table, SegmentSource `pendingInit_`). The RULE behind
+    them, stated once: prepare() runs before the pin chain computes for the
+    note, so pin reads via current() in prepare are STALE — that exact trap
+    caused the 08-29 SegmentSource nondeterminism (clicks/thumps per
+    keypress on pin-driven width). Two cleanups that don't touch the
+    type roster: (a) convert the legacy generic-Envelope
+    `"preset":"ar"`-style params (algev patches et al.) to explicit stages
+    at LOAD, paramMap→wiring precedent — kills one of three envelope
+    authoring dialects, gate-provable byte-identical; (b) deduplicate
+    envelope_presets.h internals — the six preset classes repeat the same
+    curve/power member/descriptor/set/get/rebuild boilerplate (~200 lines
+    after the 08-29 Curve/Power addition); a shared helper or small base
+    for the per-stage ramp overrides shrinks it without changing any
+    external name or behavior.
+
 35. **[fix] Editor↔loader asymmetries on input pins — three ways a
     CLI-legal patch mangles in the editor** — found 2026-08-29 (Dipsy +
     Matt, grail post-mortem session). A patch that renders correctly via

@@ -56,6 +56,29 @@ UI: 08-26 create-menu rearrangement + Experimental submenu; first-render-
 only waveform auto-fit; envelope display below settings for all envelope
 types; bottom-pane collapse/restore chevron.
 
+## REVIEW 49 verdicted in full (excite4_smooth, Matt 2026-08-29)
+
+- **Bed level is the dominant problem**: buzz bed "way too loud" at every
+  level tried, and acceptable-at-low-f / terrible-at-high-f — the bed
+  amplitude MUST keytrack down with note frequency (pin model: Note face
+  → Curve → bed amplitude; patch-level, no engine work).
+- **Seams are real but secondary**: the 4 ms sine-merge cells still carry
+  a subtle "zithering"; smoothing helps, doesn't cure. A longer merge is
+  a candidate cell for round 2, behind the level fix.
+- **wtsaw (Helmholtz bed) = ok; jag40 > jag15, extend the ladder upward**
+  (60/80 next round). The pitch-locked drawn-saw bed remains the thesis
+  bet for bowing.
+- **Hot attack variants: no audible difference** — dropped.
+- **jins + jags all sound alike, "more plucky than bowy"** — attack
+  duration/texture does NOT move the pluck→bow needle. Design consequence
+  for backlog 34a: the KSString source pin buys attack BITE; bow
+  character must come from sustained coupling (wtsaw-style bed / the bow
+  junction), not from attack shaping.
+
+Round-2 spec when a run picks it up: keytracked bed level, jag 60/80,
+wtsaw as the default bed core, no hot cells, optional long-merge seam
+cell.
+
 ## Process changes (memory-logged)
 
 - Null gate: once per commit (pre-commit over the batch), not per tweak.
