@@ -5187,6 +5187,291 @@ static void draw_audition_window() {
 }
 
 // ===========================================================================
+// ===========================================================================
+// Shape editor (docs/shape_editor_design.md) — unified breakpoint canvas,
+// opened by double-clicking a shape preview. Increment 2: window shell +
+// CurveNode client. Always points; the canvas draws the editing skeleton
+// (straight grey lines between points) with the ENGINE-evaluated curve
+// overlaid, so what you shape and what renders stay distinguishable.
+// ===========================================================================
+struct ShapeEditorState {
+    bool  open{false};
+    int   nodeId{-1};
+    bool  logX{true};
+    float xMin{20.0f}, xMax{16000.0f}, yMin{0.0f}, yMax{1.0f};
+    int   dragIdx{-1};
+    bool  fitPending{false};
+};
+static ShapeEditorState s_shapeEd;
+
+static GraphNode* shape_ed_node() {
+    for (auto& n : s_nodes)
+        if (n.id == s_shapeEd.nodeId) return &n;
+    return nullptr;
+}
+
+static void shape_editor_open_curve(GraphNode& node) {
+    s_shapeEd = ShapeEditorState{};
+    s_shapeEd.open = true;
+    s_shapeEd.nodeId = node.id;
+    // logx/loglog curves default to a log x-axis; linear curves to linear.
+    s_shapeEd.logX = node.curveInterp != 0;
+    s_shapeEd.fitPending = true;
+    ImGui::SetWindowFocus("###shapeEditor");
+}
+
+// Push the (sorted) points into the live CurveNode — same semantics as the
+// Properties-pane table editor.
+static void shape_editor_apply_curve(GraphNode& node) {
+    std::stable_sort(node.curveKnots.begin(), node.curveKnots.end(),
+                     [](const std::pair<float, float>& a,
+                        const std::pair<float, float>& b) {
+                         return a.first < b.first;
+                     });
+    if (auto* cn = dynamic_cast<CurveNode*>(node.dspSource.get())) {
+        cn->knots  = node.curveKnots;
+        cn->interp = static_cast<CurveNode::CurveInterp>(node.curveInterp);
+    }
+    mark_graph_dirty();
+}
+
+static void draw_shape_editor() {
+    if (!s_shapeEd.open) return;
+    GraphNode* nodePtr = shape_ed_node();
+    if (!nodePtr || nodePtr->typeName != "CurveNode") {
+        s_shapeEd.open = false;
+        return;
+    }
+    GraphNode& node = *nodePtr;
+    auto& pts = node.curveKnots;
+
+    ImGui::SetNextWindowSize(ImVec2(760, 440), ImGuiCond_FirstUseEver);
+    char title[160];
+    snprintf(title, sizeof(title), "Shape — %s###shapeEditor", node.label.c_str());
+    bool keepOpen = true;
+    if (!ImGui::Begin(title, &keepOpen, ImGuiWindowFlags_NoCollapse)) {
+        ImGui::End();
+        if (!keepOpen) s_shapeEd.open = false;
+        return;
+    }
+
+    // --- Toolbar ---
+    ImGui::Checkbox("log x", &s_shapeEd.logX);
+    ImGui::SameLine();
+    if (ImGui::SmallButton("Fit")) s_shapeEd.fitPending = true;
+    ImGui::SameLine();
+    ImGui::TextDisabled("%d points  |  click empty: add   drag: move   "
+                        "right-click: delete   wheel: zoom x (shift: y)   "
+                        "middle-drag: pan", (int)pts.size());
+
+    if (s_shapeEd.fitPending && !pts.empty()) {
+        float x0 = pts.front().first, x1 = pts.front().first;
+        float y0 = pts.front().second, y1 = pts.front().second;
+        for (auto& [x, y] : pts) {
+            x0 = std::min(x0, x); x1 = std::max(x1, x);
+            y0 = std::min(y0, y); y1 = std::max(y1, y);
+        }
+        if (x1 - x0 < 1e-6f) { x0 -= 1.0f; x1 += 1.0f; }
+        if (y1 - y0 < 1e-6f) { y0 -= 0.5f; y1 += 0.5f; }
+        const float xm = (x1 - x0) * 0.08f, ym = (y1 - y0) * 0.10f;
+        s_shapeEd.xMin = x0 - xm; s_shapeEd.xMax = x1 + xm;
+        s_shapeEd.yMin = y0 - ym; s_shapeEd.yMax = y1 + ym;
+        if (s_shapeEd.logX) s_shapeEd.xMin = std::max(s_shapeEd.xMin, x0 * 0.8f);
+        s_shapeEd.fitPending = false;
+    }
+    if (s_shapeEd.logX && s_shapeEd.xMin <= 0.0f) s_shapeEd.xMin = 1e-3f;
+
+    // --- Canvas ---
+    ImVec2 cp = ImGui::GetCursorScreenPos();
+    ImVec2 cs = ImGui::GetContentRegionAvail();
+    if (cs.x < 120.0f) cs.x = 120.0f;
+    if (cs.y < 100.0f) cs.y = 100.0f;
+    ImGui::InvisibleButton("##shapeCanvas", cs,
+        ImGuiButtonFlags_MouseButtonLeft | ImGuiButtonFlags_MouseButtonRight |
+        ImGuiButtonFlags_MouseButtonMiddle);
+    const bool hovered = ImGui::IsItemHovered();
+    ImDrawList* dl = ImGui::GetWindowDrawList();
+    dl->AddRectFilled(cp, ImVec2(cp.x + cs.x, cp.y + cs.y), IM_COL32(24, 24, 28, 255));
+    dl->AddRect(cp, ImVec2(cp.x + cs.x, cp.y + cs.y), IM_COL32(70, 70, 78, 255));
+    dl->PushClipRect(cp, ImVec2(cp.x + cs.x, cp.y + cs.y), true);
+
+    const float lxMin = s_shapeEd.logX ? std::log(s_shapeEd.xMin) : s_shapeEd.xMin;
+    const float lxMax = s_shapeEd.logX ? std::log(s_shapeEd.xMax) : s_shapeEd.xMax;
+    auto tx = [&](float x) {
+        float lx = s_shapeEd.logX ? std::log(std::max(x, 1e-6f)) : x;
+        return cp.x + (lx - lxMin) / (lxMax - lxMin) * cs.x;
+    };
+    auto ty = [&](float y) {
+        return cp.y + (1.0f - (y - s_shapeEd.yMin) /
+                       (s_shapeEd.yMax - s_shapeEd.yMin)) * cs.y;
+    };
+    auto fx = [&](float sx) {
+        float t = (sx - cp.x) / cs.x;
+        float lx = lxMin + t * (lxMax - lxMin);
+        return s_shapeEd.logX ? std::exp(lx) : lx;
+    };
+    auto fy = [&](float sy) {
+        float t = 1.0f - (sy - cp.y) / cs.y;
+        return s_shapeEd.yMin + t * (s_shapeEd.yMax - s_shapeEd.yMin);
+    };
+
+    // Grid: y zero-line + quarters; x decades when log, quarters when linear.
+    const ImU32 gridCol = IM_COL32(50, 50, 58, 255);
+    for (int q = 0; q <= 4; ++q) {
+        float y = s_shapeEd.yMin + (s_shapeEd.yMax - s_shapeEd.yMin) * q / 4.0f;
+        dl->AddLine(ImVec2(cp.x, ty(y)), ImVec2(cp.x + cs.x, ty(y)), gridCol);
+        char lbl[32]; snprintf(lbl, sizeof(lbl), "%.4g", y);
+        dl->AddText(ImVec2(cp.x + 4, ty(y) - 14), IM_COL32(120, 120, 130, 255), lbl);
+    }
+    if (s_shapeEd.logX) {
+        for (float d = 1e-3f; d <= 1e5f; d *= 10.0f) {
+            if (d < s_shapeEd.xMin || d > s_shapeEd.xMax) continue;
+            dl->AddLine(ImVec2(tx(d), cp.y), ImVec2(tx(d), cp.y + cs.y), gridCol);
+            char lbl[32]; snprintf(lbl, sizeof(lbl), "%.4g", d);
+            dl->AddText(ImVec2(tx(d) + 3, cp.y + cs.y - 16), IM_COL32(120, 120, 130, 255), lbl);
+        }
+    } else {
+        for (int q = 0; q <= 4; ++q) {
+            float x = s_shapeEd.xMin + (s_shapeEd.xMax - s_shapeEd.xMin) * q / 4.0f;
+            dl->AddLine(ImVec2(tx(x), cp.y), ImVec2(tx(x), cp.y + cs.y), gridCol);
+            char lbl[32]; snprintf(lbl, sizeof(lbl), "%.4g", x);
+            dl->AddText(ImVec2(tx(x) + 3, cp.y + cs.y - 16), IM_COL32(120, 120, 130, 255), lbl);
+        }
+    }
+
+    // Engine-evaluated curve overlay (through CurveNode::map, like the plot).
+    if (pts.size() >= 2) {
+        auto sorted = pts;
+        std::stable_sort(sorted.begin(), sorted.end(),
+                         [](auto& a, auto& b) { return a.first < b.first; });
+        CurveNode probe;
+        probe.knots = sorted;
+        probe.interp = static_cast<CurveNode::CurveInterp>(node.curveInterp);
+        const int N = std::max(64, int(cs.x / 3.0f));
+        ImVec2 prev{};
+        for (int i = 0; i < N; ++i) {
+            float sx = cp.x + cs.x * float(i) / float(N - 1);
+            float x = fx(sx);
+            if (node.curveInterp != 0 && x <= 0.0f) continue;
+            ImVec2 p(sx, ty(probe.map(x)));
+            if (i > 0) dl->AddLine(prev, p, IM_COL32(120, 200, 220, 255), 1.6f);
+            prev = p;
+        }
+    }
+
+    // Editing skeleton + points.
+    for (size_t i = 0; i + 1 < pts.size(); ++i)
+        dl->AddLine(ImVec2(tx(pts[i].first), ty(pts[i].second)),
+                    ImVec2(tx(pts[i + 1].first), ty(pts[i + 1].second)),
+                    IM_COL32(110, 110, 120, 160));
+
+    const ImVec2 m = ImGui::GetIO().MousePos;
+    int hot = -1;
+    float bestD2 = 100.0f;  // 10 px pick radius
+    for (int i = 0; i < (int)pts.size(); ++i) {
+        float dx = tx(pts[i].first) - m.x, dy = ty(pts[i].second) - m.y;
+        float d2 = dx * dx + dy * dy;
+        if (d2 < bestD2) { bestD2 = d2; hot = i; }
+    }
+    for (int i = 0; i < (int)pts.size(); ++i) {
+        bool lit = (i == hot && hovered) || i == s_shapeEd.dragIdx;
+        dl->AddCircleFilled(ImVec2(tx(pts[i].first), ty(pts[i].second)),
+                            lit ? 6.0f : 4.0f,
+                            lit ? IM_COL32(255, 210, 90, 255)
+                                : IM_COL32(210, 210, 220, 255));
+    }
+    dl->PopClipRect();
+
+    // Hovered-point readout in the toolbar line's right edge.
+    if (hot >= 0 && hovered) {
+        char ro[64];
+        snprintf(ro, sizeof(ro), "(%.6g, %.6g)", pts[hot].first, pts[hot].second);
+        dl->AddText(ImVec2(cp.x + cs.x - ImGui::CalcTextSize(ro).x - 8, cp.y + 4),
+                    IM_COL32(255, 210, 90, 255), ro);
+    }
+
+    // --- Interaction ---
+    bool changed = false;
+    if (hovered) {
+        if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
+            if (hot >= 0) {
+                s_shapeEd.dragIdx = hot;
+            } else {
+                float nx = fx(m.x);
+                if (node.curveInterp != 0) nx = std::max(nx, 1e-4f);
+                auto it = std::lower_bound(pts.begin(), pts.end(), nx,
+                    [](const std::pair<float, float>& p, float x) {
+                        return p.first < x;
+                    });
+                s_shapeEd.dragIdx = int(it - pts.begin());
+                pts.insert(it, {nx, fy(m.y)});
+                changed = true;
+            }
+        }
+        if (ImGui::IsMouseClicked(ImGuiMouseButton_Right) && hot >= 0 &&
+            pts.size() > 2) {
+            pts.erase(pts.begin() + hot);
+            if (s_shapeEd.dragIdx == hot) s_shapeEd.dragIdx = -1;
+            changed = true;
+        }
+        const float wheel = ImGui::GetIO().MouseWheel;
+        if (wheel != 0.0f) {
+            const float f = std::pow(1.18f, -wheel);
+            if (ImGui::GetIO().KeyShift) {
+                float cy = fy(m.y);
+                s_shapeEd.yMin = cy + (s_shapeEd.yMin - cy) * f;
+                s_shapeEd.yMax = cy + (s_shapeEd.yMax - cy) * f;
+            } else if (s_shapeEd.logX) {
+                float clx = std::log(std::max(fx(m.x), 1e-6f));
+                float nMin = clx + (std::log(s_shapeEd.xMin) - clx) * f;
+                float nMax = clx + (std::log(s_shapeEd.xMax) - clx) * f;
+                s_shapeEd.xMin = std::exp(nMin);
+                s_shapeEd.xMax = std::exp(nMax);
+            } else {
+                float cx = fx(m.x);
+                s_shapeEd.xMin = cx + (s_shapeEd.xMin - cx) * f;
+                s_shapeEd.xMax = cx + (s_shapeEd.xMax - cx) * f;
+            }
+        }
+        if (ImGui::IsMouseDragging(ImGuiMouseButton_Middle)) {
+            ImVec2 d = ImGui::GetIO().MouseDelta;
+            if (s_shapeEd.logX) {
+                float shift = -d.x / cs.x * (lxMax - lxMin);
+                s_shapeEd.xMin = std::exp(std::log(s_shapeEd.xMin) + shift);
+                s_shapeEd.xMax = std::exp(std::log(s_shapeEd.xMax) + shift);
+            } else {
+                float shift = -d.x / cs.x * (s_shapeEd.xMax - s_shapeEd.xMin);
+                s_shapeEd.xMin += shift; s_shapeEd.xMax += shift;
+            }
+            float yShift = d.y / cs.y * (s_shapeEd.yMax - s_shapeEd.yMin);
+            s_shapeEd.yMin += yShift; s_shapeEd.yMax += yShift;
+        }
+    }
+    if (s_shapeEd.dragIdx >= 0 && s_shapeEd.dragIdx < (int)pts.size()) {
+        if (ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
+            float nx = fx(m.x), ny = fy(m.y);
+            // Clamp x between neighbors so order is stable while dragging
+            // (decision 1: moving a point never reorders its neighbors).
+            const float eps = s_shapeEd.logX
+                ? pts[s_shapeEd.dragIdx].first * 1e-4f + 1e-6f : 1e-6f;
+            if (s_shapeEd.dragIdx > 0)
+                nx = std::max(nx, pts[s_shapeEd.dragIdx - 1].first + eps);
+            if (s_shapeEd.dragIdx + 1 < (int)pts.size())
+                nx = std::min(nx, pts[s_shapeEd.dragIdx + 1].first - eps);
+            if (node.curveInterp != 0) nx = std::max(nx, 1e-4f);
+            pts[s_shapeEd.dragIdx] = {nx, ny};
+            changed = true;
+        } else {
+            s_shapeEd.dragIdx = -1;
+        }
+    }
+
+    if (changed) shape_editor_apply_curve(node);
+
+    ImGui::End();
+    if (!keepOpen) s_shapeEd.open = false;
+}
+
 // Curve editors. CurveNode shapes are edited in the node's Properties pane
 // (draw_curve_node); the legacy stash editor (draw_one_curve) lives in the
 // Parameter-mapping dialog. The separate Curves window was retired
@@ -5498,6 +5783,12 @@ static bool draw_curve_node(GraphNode& node) {
             snprintf(overlay, sizeof(overlay), "%.4g .. %.4g (log x)", lo, hi);
             ImGui::PlotLines("##cnplot", samples, N, 0, overlay, FLT_MAX, FLT_MAX,
                              ImVec2(ImGui::GetContentRegionAvail().x, 70.0f));
+            if (ImGui::IsItemHovered()) {
+                if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
+                    shape_editor_open_curve(node);
+                else
+                    ImGui::SetTooltip("Double-click to open the shape editor");
+            }
         }
     }
     ImGui::PopID();
@@ -11501,6 +11792,9 @@ int main(int argc, char** argv) {
         // Parameter-mapping dialog (legacy paramMap bindings + shapes)
         // =================================================================
         draw_mappings_dialog();
+
+        // Shape editor (docs/shape_editor_design.md)
+        draw_shape_editor();
 
         // =================================================================
         // Waveform display window
