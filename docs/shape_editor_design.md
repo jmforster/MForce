@@ -1,5 +1,12 @@
 # Shape editor — design (v1 scope)
 
+**Status: v1 SHIPPED 2026-08-30** — increments 1–5 (timeMode, canvas +
+curve client, segment client, Pulse Train generator, variation ghosts),
+commits 227d8b7..06593c3, same evening as the spec. Matt's canvas verdict:
+"brilliant"; segment client "works great". Remaining: the atom-port
+trickle (jagged, dots, clusters, beds — one pure function each, add to the
+generator combo as they land).
+
 2026-08-30, Dipsy + Matt. Lineage: docs/notes/Stoned2.txt (categories that
 generate random examples; "wtf is happening, I'm redesigning MForce!"),
 docs/notes/SegmentRevisit.md (the pulse-train vocabulary), and the 08-29/30

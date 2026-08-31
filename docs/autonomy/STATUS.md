@@ -11,7 +11,7 @@ KS piano family, live MIDI) grew out of interactive sessions, not GOALS.
 
 | Lane | Dev | State | Next up | Awaiting Matt |
 |---|---|---|---|---|
-| dsp | Dipsy | **08-29: noisy-attack grail CLOSED after 5 fool's-gold rounds** (integration lives upstream in excitation — reinforces backlog 34a); envelope Curve/Power + UI batch landed ba5200b (gate 180/180); Reed/Brass root-caused as breath-starved, NOT broken; editor↔loader asymmetries → backlog 35 | backlog 34: KSString mode family (fast attacks via source pin, resonance balance, top-octave bow keytrack, KSPipe) | **10 items** |
+| dsp | Dipsy | **08-30: SHAPE EDITOR v1 SHIPPED same day as its spec** (breakpoint canvas, curve+segment clients, Pulse Train generator, ghosts — docs/shape_editor_design.md); segment width pin + determinism fix; KSString 10 combs + decoherence pair; piano_seg (halfhump) joined the library; grail CLOSED 08-29 (integration lives upstream → 34a) | backlog 34a via ksbow_creak (patches/scratch) + shape-editor atom ports; excite 46-48 remainders | **5 items** |
 | comp | Wolfie | dormant since run 26 (08-10) | #22 re-renders → #21 zero-event check → #8 re-observe | **10 items** (3 blocked on #22) |
 
 ## dsp
