@@ -5197,12 +5197,18 @@ static void draw_audition_window() {
 struct ShapeEditorState {
     bool  open{false};
     int   nodeId{-1};
+    enum class Client { Curve, Segment } client{Client::Curve};
     bool  logX{true};
     float xMin{20.0f}, xMax{16000.0f}, yMin{0.0f}, yMax{1.0f};
     int   dragIdx{-1};
     bool  fitPending{false};
+    bool  readOnly{false};   // segment shapes above the density limit
 };
 static ShapeEditorState s_shapeEd;
+
+// Segment shapes above this many points open read-only — sampled textures
+// are generator territory, not point-dragging territory (spec, non-goals).
+static constexpr int kShapeEdMaxPoints = 512;
 
 static GraphNode* shape_ed_node() {
     for (auto& n : s_nodes)
@@ -5214,10 +5220,58 @@ static void shape_editor_open_curve(GraphNode& node) {
     s_shapeEd = ShapeEditorState{};
     s_shapeEd.open = true;
     s_shapeEd.nodeId = node.id;
+    s_shapeEd.client = ShapeEditorState::Client::Curve;
     // logx/loglog curves default to a log x-axis; linear curves to linear.
     s_shapeEd.logX = node.curveInterp != 0;
     s_shapeEd.fitPending = true;
     ImGui::SetWindowFocus("###shapeEditor");
+}
+
+static void shape_editor_open_segment(GraphNode& node) {
+    s_shapeEd = ShapeEditorState{};
+    s_shapeEd.open = true;
+    s_shapeEd.nodeId = node.id;
+    s_shapeEd.client = ShapeEditorState::Client::Segment;
+    s_shapeEd.logX = false;  // time axis
+    s_shapeEd.fitPending = true;
+    ImGui::SetWindowFocus("###shapeEditor");
+}
+
+// Segment client accessors: the values array lives in arrayValues (the same
+// storage the pair table edits, so the two stay in sync frame to frame).
+static std::vector<float>* shape_ed_segment_values(GraphNode& node) {
+    for (auto& [d, v] : node.arrayValues)
+        if (std::string_view(d.name) == "values") return &v;
+    return nullptr;
+}
+
+// Deltas -> absolute points (x = cumulative width, y = arrival value).
+static std::vector<std::pair<float, float>> shape_ed_segment_load(
+        const std::vector<float>& vals) {
+    std::vector<std::pair<float, float>> pts;
+    float acc = 0.0f;
+    for (size_t i = 0; i + 1 < vals.size(); i += 2) {
+        acc += std::max(0.0f, vals[i]);
+        pts.emplace_back(acc, vals[i + 1]);
+    }
+    return pts;
+}
+
+// Absolute points -> deltas, pushed live (same path as the pair table).
+static void shape_editor_apply_segment(
+        GraphNode& node, const std::vector<std::pair<float, float>>& pts) {
+    std::vector<float>* vals = shape_ed_segment_values(node);
+    if (!vals) return;
+    vals->clear();
+    vals->reserve(pts.size() * 2);
+    float prevX = 0.0f;
+    for (auto& [x, y] : pts) {
+        vals->push_back(std::max(0.0f, x - prevX));
+        vals->push_back(y);
+        prevX = x;
+    }
+    node.push_array("values");
+    mark_graph_dirty();
 }
 
 // Push the (sorted) points into the live CurveNode — same semantics as the
@@ -5238,12 +5292,25 @@ static void shape_editor_apply_curve(GraphNode& node) {
 static void draw_shape_editor() {
     if (!s_shapeEd.open) return;
     GraphNode* nodePtr = shape_ed_node();
-    if (!nodePtr || nodePtr->typeName != "CurveNode") {
+    const bool isSeg = s_shapeEd.client == ShapeEditorState::Client::Segment;
+    if (!nodePtr ||
+        (!isSeg && nodePtr->typeName != "CurveNode") ||
+        (isSeg && nodePtr->typeName != "SegmentSource")) {
         s_shapeEd.open = false;
         return;
     }
     GraphNode& node = *nodePtr;
-    auto& pts = node.curveKnots;
+
+    // Segment points reload from arrayValues every frame (cheap at <=512),
+    // so pair-table edits and editor edits never go stale against each other.
+    std::vector<std::pair<float, float>> segPts;
+    if (isSeg) {
+        std::vector<float>* vals = shape_ed_segment_values(node);
+        if (!vals) { s_shapeEd.open = false; return; }
+        segPts = shape_ed_segment_load(*vals);
+        s_shapeEd.readOnly = (int)segPts.size() > kShapeEdMaxPoints;
+    }
+    auto& pts = isSeg ? segPts : node.curveKnots;
 
     ImGui::SetNextWindowSize(ImVec2(760, 440), ImGuiCond_FirstUseEver);
     char title[160];
@@ -5260,9 +5327,27 @@ static void draw_shape_editor() {
     ImGui::SameLine();
     if (ImGui::SmallButton("Fit")) s_shapeEd.fitPending = true;
     ImGui::SameLine();
-    ImGui::TextDisabled("%d points  |  click empty: add   drag: move   "
-                        "right-click: delete   wheel: zoom x (shift: y)   "
-                        "middle-drag: pan", (int)pts.size());
+    if (isSeg) {
+        // Units from the live node: explicit timeMode wins, else inference.
+        const char* units = "samples";
+        if (node.dspSource) {
+            int tm = int(node.dspSource->get_setting("timeMode"));
+            if (tm == 2) units = "seconds";
+            else if (tm == 0 && !pts.empty() && pts.front().first < 1.0f)
+                units = "seconds";
+        }
+        ImGui::TextDisabled("x: %s", units);
+        ImGui::SameLine();
+    }
+    if (s_shapeEd.readOnly)
+        ImGui::TextColored(ImVec4(0.9f, 0.6f, 0.3f, 1),
+            "%d points — too dense to edit; regenerate instead (read-only)",
+            (int)pts.size());
+    else
+        ImGui::TextDisabled("%d points  |  click empty: add   drag: move "
+                            "(shift: slide tail)   right-click: delete   "
+                            "wheel: zoom x (shift: y)   middle-drag: pan",
+                            (int)pts.size());
 
     if (s_shapeEd.fitPending && !pts.empty()) {
         float x0 = pts.front().first, x1 = pts.front().first;
@@ -5271,6 +5356,7 @@ static void draw_shape_editor() {
             x0 = std::min(x0, x); x1 = std::max(x1, x);
             y0 = std::min(y0, y); y1 = std::max(y1, y);
         }
+        if (isSeg) { x0 = 0.0f; y0 = std::min(y0, -1.0f); y1 = std::max(y1, 1.0f); }
         if (x1 - x0 < 1e-6f) { x0 -= 1.0f; x1 += 1.0f; }
         if (y1 - y0 < 1e-6f) { y0 -= 0.5f; y1 += 0.5f; }
         const float xm = (x1 - x0) * 0.08f, ym = (y1 - y0) * 0.10f;
@@ -5339,8 +5425,9 @@ static void draw_shape_editor() {
         }
     }
 
-    // Engine-evaluated curve overlay (through CurveNode::map, like the plot).
-    if (pts.size() >= 2) {
+    // Engine-evaluated overlay: CurveNode::map for curves; the segment
+    // transition chain (SmoothnessInterpolator, departs from 0) for shapes.
+    if (!isSeg && pts.size() >= 2) {
         auto sorted = pts;
         std::stable_sort(sorted.begin(), sorted.end(),
                          [](auto& a, auto& b) { return a.first < b.first; });
@@ -5357,9 +5444,49 @@ static void draw_shape_editor() {
             if (i > 0) dl->AddLine(prev, p, IM_COL32(120, 200, 220, 255), 1.6f);
             prev = p;
         }
+    } else if (isSeg && !pts.empty()) {
+        float smooth = 0.5f;
+        for (auto& pin : node.inputs)
+            if (pin.name == "smoothness" && pin.constantSrc) {
+                smooth = pin.constantSrc->current();
+                break;
+            }
+        SmoothnessInterpolator si(smooth, false);
+        const int N = std::max(64, int(cs.x / 2.0f));
+        ImVec2 prev{};
+        bool started = false;
+        for (int i = 0; i < N; ++i) {
+            float sx = cp.x + cs.x * float(i) / float(N - 1);
+            float x = fx(sx);
+            if (x < 0.0f) continue;
+            float pX = 0.0f, pV = 0.0f, out;
+            if (x >= pts.back().first) {
+                out = pts.back().second;
+            } else {
+                out = pts.back().second;
+                for (auto& [qx, qv] : pts) {
+                    if (x <= qx) {
+                        float pos = qx > pX
+                            ? std::clamp((x - pX) / (qx - pX), 0.0f, 1.0f)
+                            : 1.0f;
+                        out = si.interpolate(pV, qv, pos);
+                        break;
+                    }
+                    pX = qx; pV = qv;
+                }
+            }
+            ImVec2 p(sx, ty(out));
+            if (started) dl->AddLine(prev, p, IM_COL32(120, 200, 220, 255), 1.6f);
+            prev = p;
+            started = true;
+        }
     }
 
-    // Editing skeleton + points.
+    // Editing skeleton + points (segment shapes depart from the origin).
+    if (isSeg && !pts.empty())
+        dl->AddLine(ImVec2(tx(0.0f), ty(0.0f)),
+                    ImVec2(tx(pts[0].first), ty(pts[0].second)),
+                    IM_COL32(110, 110, 120, 160));
     for (size_t i = 0; i + 1 < pts.size(); ++i)
         dl->AddLine(ImVec2(tx(pts[i].first), ty(pts[i].second)),
                     ImVec2(tx(pts[i + 1].first), ty(pts[i + 1].second)),
@@ -5392,28 +5519,37 @@ static void draw_shape_editor() {
 
     // --- Interaction ---
     bool changed = false;
-    if (hovered) {
+    const bool editable = !s_shapeEd.readOnly;
+    if (hovered && editable) {
         if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
             if (hot >= 0) {
                 s_shapeEd.dragIdx = hot;
             } else {
                 float nx = fx(m.x);
-                if (node.curveInterp != 0) nx = std::max(nx, 1e-4f);
+                float ny = fy(m.y);
+                if (isSeg) {
+                    nx = std::max(nx, 1e-3f);
+                    ny = std::clamp(ny, -1.0f, 1.0f);  // decision 2
+                } else if (node.curveInterp != 0) {
+                    nx = std::max(nx, 1e-4f);
+                }
                 auto it = std::lower_bound(pts.begin(), pts.end(), nx,
                     [](const std::pair<float, float>& p, float x) {
                         return p.first < x;
                     });
                 s_shapeEd.dragIdx = int(it - pts.begin());
-                pts.insert(it, {nx, fy(m.y)});
+                pts.insert(it, {nx, ny});
                 changed = true;
             }
         }
         if (ImGui::IsMouseClicked(ImGuiMouseButton_Right) && hot >= 0 &&
-            pts.size() > 2) {
+            pts.size() > (isSeg ? size_t(1) : size_t(2))) {
             pts.erase(pts.begin() + hot);
             if (s_shapeEd.dragIdx == hot) s_shapeEd.dragIdx = -1;
             changed = true;
         }
+    }
+    if (hovered) {  // view navigation works even in read-only mode
         const float wheel = ImGui::GetIO().MouseWheel;
         if (wheel != 0.0f) {
             const float f = std::pow(1.18f, -wheel);
@@ -5447,26 +5583,41 @@ static void draw_shape_editor() {
             s_shapeEd.yMin += yShift; s_shapeEd.yMax += yShift;
         }
     }
-    if (s_shapeEd.dragIdx >= 0 && s_shapeEd.dragIdx < (int)pts.size()) {
+    if (editable && s_shapeEd.dragIdx >= 0 &&
+        s_shapeEd.dragIdx < (int)pts.size()) {
         if (ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
+            const int di = s_shapeEd.dragIdx;
             float nx = fx(m.x), ny = fy(m.y);
-            // Clamp x between neighbors so order is stable while dragging
-            // (decision 1: moving a point never reorders its neighbors).
+            const bool slideTail = ImGui::GetIO().KeyShift;
+            // Clamp x against the previous neighbor always; against the next
+            // only when NOT sliding the tail (decision 1: plain drag moves
+            // one point, shift-drag preserves the tail's deltas).
             const float eps = s_shapeEd.logX
-                ? pts[s_shapeEd.dragIdx].first * 1e-4f + 1e-6f : 1e-6f;
-            if (s_shapeEd.dragIdx > 0)
-                nx = std::max(nx, pts[s_shapeEd.dragIdx - 1].first + eps);
-            if (s_shapeEd.dragIdx + 1 < (int)pts.size())
-                nx = std::min(nx, pts[s_shapeEd.dragIdx + 1].first - eps);
-            if (node.curveInterp != 0) nx = std::max(nx, 1e-4f);
-            pts[s_shapeEd.dragIdx] = {nx, ny};
+                ? pts[di].first * 1e-4f + 1e-6f : 1e-6f;
+            if (di > 0) nx = std::max(nx, pts[di - 1].first + eps);
+            if (!slideTail && di + 1 < (int)pts.size())
+                nx = std::min(nx, pts[di + 1].first - eps);
+            if (isSeg) {
+                nx = std::max(nx, 1e-3f);
+                ny = std::clamp(ny, -1.0f, 1.0f);  // decision 2
+            } else if (node.curveInterp != 0) {
+                nx = std::max(nx, 1e-4f);
+            }
+            const float dxTail = nx - pts[di].first;
+            pts[di] = {nx, ny};
+            if (slideTail && dxTail != 0.0f)
+                for (int j = di + 1; j < (int)pts.size(); ++j)
+                    pts[j].first += dxTail;
             changed = true;
         } else {
             s_shapeEd.dragIdx = -1;
         }
     }
 
-    if (changed) shape_editor_apply_curve(node);
+    if (changed) {
+        if (isSeg) shape_editor_apply_segment(node, pts);
+        else       shape_editor_apply_curve(node);
+    }
 
     ImGui::End();
     if (!keepOpen) s_shapeEd.open = false;
@@ -7792,6 +7943,12 @@ static void draw_properties_panel() {
                 if (plotW < 80.0f) plotW = 200.0f;
                 ImGui::PlotLines("##segprev", pv, N, 0, nullptr,
                                  vmin - vpad, vmax + vpad, ImVec2(plotW, 90.0f));
+                if (ImGui::IsItemHovered()) {
+                    if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
+                        shape_editor_open_segment(*node);
+                    else
+                        ImGui::SetTooltip("Double-click to open the shape editor");
+                }
             }
         }
     }
