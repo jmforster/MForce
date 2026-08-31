@@ -5210,6 +5210,51 @@ static ShapeEditorState s_shapeEd;
 // are generator territory, not point-dragging territory (spec, non-goals).
 static constexpr int kShapeEdMaxPoints = 512;
 
+// Generator panel state (Pulse Train, the founding preset —
+// docs/notes/SegmentRevisit.md parameterized). Params live here, not in the
+// patch: the emitted points are the artifact; seed shown for reproduction.
+struct ShapeEdGenState {
+    int   count{8};
+    float width{40.0f};        // samples per pulse side (triangle half-width)
+    float widthRamp{1.0f};     // last pulse's width as x of the first (click->clack->clunk)
+    float spacing{80.0f};      // samples between pulses
+    float spacingRamp{1.0f};   // <1 sparse->dense ("pile up into the mountain"), >1 dense->sparse
+    float peakEnd{1.0f};       // last peak as fraction of the first (tail-off decay)
+    float varPct{0.10f};       // generate-time jitter on widths/spacings/peaks
+    bool  bipolar{false};      // alternate pulse sign (SegmentRevisit's open question)
+    int   seed{1234};
+};
+static ShapeEdGenState s_shapeEdGen;
+
+// Emit a pulse train as absolute (x, y) points: each pulse is rise-to-peak
+// then fall-to-zero (two points), then a gap to the next.
+static std::vector<std::pair<float, float>> shape_ed_gen_pulse_train(
+        const ShapeEdGenState& g) {
+    std::vector<std::pair<float, float>> pts;
+    Randomizer rng(uint32_t(g.seed));
+    const int n = std::max(1, g.count);
+    float t = 0.0f;
+    for (int k = 0; k < n; ++k) {
+        const float u = n > 1 ? float(k) / float(n - 1) : 0.0f;
+        const float ramp = std::pow(std::max(0.01f, g.widthRamp), u);
+        const float sramp = std::pow(std::max(0.01f, g.spacingRamp), u);
+        float w = g.width * ramp
+                * rng.range(1.0f - g.varPct, 1.0f + g.varPct);
+        float s = g.spacing * sramp
+                * rng.range(1.0f - g.varPct, 1.0f + g.varPct);
+        float peak = (1.0f + (g.peakEnd - 1.0f) * u)
+                   * rng.range(1.0f - g.varPct, 1.0f + g.varPct);
+        peak = std::clamp(peak, -1.0f, 1.0f);
+        if (g.bipolar && (k & 1)) peak = -peak;
+        w = std::max(1.0f, w);
+        s = std::max(0.0f, s);
+        pts.emplace_back(t + w, peak);          // rise to the peak
+        pts.emplace_back(t + 2.0f * w, 0.0f);   // fall back to zero
+        t += 2.0f * w + s;
+    }
+    return pts;
+}
+
 static GraphNode* shape_ed_node() {
     for (auto& n : s_nodes)
         if (n.id == s_shapeEd.nodeId) return &n;
@@ -5349,6 +5394,49 @@ static void draw_shape_editor() {
                             "wheel: zoom x (shift: y)   middle-drag: pan",
                             (int)pts.size());
 
+    // --- Generator panel (segment client; spec: presets emit points, the
+    // points are the artifact, params stay dialog-local) ---
+    if (isSeg && !s_shapeEd.readOnly &&
+        ImGui::CollapsingHeader("Generate — Pulse Train")) {
+        auto& G = s_shapeEdGen;
+        ImGui::PushItemWidth(110.0f);
+        ImGui::DragInt("pulses", &G.count, 0.2f, 1, 64);
+        ImGui::SameLine();
+        ImGui::DragFloat("width", &G.width, 1.0f, 1.0f, 4000.0f, "%.0f");
+        ImGui::SameLine();
+        ImGui::DragFloat("widthRamp", &G.widthRamp, 0.02f, 0.1f, 8.0f, "%.2f");
+        ImGui::DragFloat("spacing", &G.spacing, 1.0f, 0.0f, 8000.0f, "%.0f");
+        ImGui::SameLine();
+        ImGui::DragFloat("spacingRamp", &G.spacingRamp, 0.02f, 0.05f, 8.0f, "%.2f");
+        if (ImGui::IsItemHovered())
+            ImGui::SetTooltip("<1: sparse->dense (pile up)\n>1: dense->sparse");
+        ImGui::SameLine();
+        ImGui::DragFloat("peakEnd", &G.peakEnd, 0.01f, 0.0f, 1.0f, "%.2f");
+        ImGui::DragFloat("varPct", &G.varPct, 0.005f, 0.0f, 1.0f, "%.2f");
+        ImGui::SameLine();
+        ImGui::Checkbox("bipolar", &G.bipolar);
+        ImGui::SameLine();
+        ImGui::InputInt("seed", &G.seed, 0, 0);
+        ImGui::PopItemWidth();
+        bool emit = false;
+        if (ImGui::Button("Generate (new seed)")) {
+            G.seed = int(ImGui::GetFrameCount() * 2654435761u & 0x7fffffff);
+            emit = true;
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Reuse seed")) emit = true;
+        ImGui::SameLine();
+        ImGui::TextDisabled("replaces the current points");
+        if (emit) {
+            auto gen = shape_ed_gen_pulse_train(G);
+            shape_editor_apply_segment(node, gen);
+            pts = std::move(gen);
+            s_shapeEd.fitPending = true;
+            s_shapeEd.dragIdx = -1;
+        }
+        ImGui::Separator();
+    }
+
     if (s_shapeEd.fitPending && !pts.empty()) {
         float x0 = pts.front().first, x1 = pts.front().first;
         float y0 = pts.front().second, y1 = pts.front().second;
@@ -5422,6 +5510,35 @@ static void draw_shape_editor() {
             dl->AddLine(ImVec2(tx(x), cp.y), ImVec2(tx(x), cp.y + cs.y), gridCol);
             char lbl[32]; snprintf(lbl, sizeof(lbl), "%.4g", x);
             dl->AddText(ImVec2(tx(x) + 3, cp.y + cs.y - 16), IM_COL32(120, 120, 130, 255), lbl);
+        }
+    }
+
+    // Variation ghosts (decision 3): 3 faint re-randomized instances of the
+    // shape, drawn only while a varPct is nonzero — they show width wobble
+    // shifting points in TIME, which a vertical band cannot.
+    if (isSeg && !pts.empty()) {
+        float wvp = 0.0f, vvp = 0.0f;
+        for (auto& pin : node.inputs) {
+            if (pin.name == "widthVarPct" && pin.constantSrc)
+                wvp = pin.constantSrc->current();
+            if (pin.name == "valVarPct" && pin.constantSrc)
+                vvp = pin.constantSrc->current();
+        }
+        if (wvp > 0.001f || vvp > 0.001f) {
+            for (int gh = 0; gh < 3; ++gh) {
+                Randomizer grng(0xB00B1E5u + uint32_t(gh) * 7919u);
+                float acc = 0.0f, prevX = 0.0f;
+                ImVec2 prev(tx(0.0f), ty(0.0f));
+                for (auto& [x, y] : pts) {
+                    acc += std::max(0.0f, (x - prevX)
+                            * grng.range(1.0f - wvp, 1.0f + wvp));
+                    float v = y * grng.range(1.0f - vvp, 1.0f + vvp);
+                    ImVec2 p(tx(acc), ty(v));
+                    dl->AddLine(prev, p, IM_COL32(120, 200, 220, 42), 1.0f);
+                    prev = p;
+                    prevX = x;
+                }
+            }
         }
     }
 
