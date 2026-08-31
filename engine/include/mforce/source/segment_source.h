@@ -76,18 +76,32 @@ struct SegmentSource final : ValueSource {
   }
 
   std::span<const SettingDescriptor> setting_descriptors() const override {
+    // timeMode (shape_editor_design.md): explicit units for the widths.
+    // "auto" keeps the legacy first-width inference (values[0] < 1 =>
+    // seconds) so patches without the setting are byte-identical; the
+    // shape editor always writes samples/seconds explicitly.
+    static constexpr const char* kTimeModeLabels[] = {
+      "auto", "samples", "seconds", nullptr
+    };
     static constexpr SettingDescriptor descs[] = {
-      {"oneShot", SettingType::Bool, 0.0f, 0.0f, 1.0f},
+      {"oneShot",  SettingType::Bool, 0.0f, 0.0f, 1.0f},
+      {"timeMode", SettingType::Int,  0.0f, 0.0f, 2.0f, kTimeModeLabels},
     };
     return descs;
   }
 
   void set_setting(std::string_view name, float value) override {
     if (name == "oneShot") { oneShot = (value != 0.0f); return; }
+    if (name == "timeMode") {
+      timeMode_ = std::clamp(int(value), 0, 2);
+      refresh_units_();
+      return;
+    }
   }
 
   float get_setting(std::string_view name) const override {
     if (name == "oneShot") return oneShot ? 1.0f : 0.0f;
+    if (name == "timeMode") return float(timeMode_);
     return 0.0f;
   }
 
@@ -104,7 +118,7 @@ struct SegmentSource final : ValueSource {
   void set_array(std::string_view name, std::vector<float> v) override {
     if (name == "values") {
       values_ = std::move(v);
-      widthIsSecs_ = !values_.empty() && values_[0] < 1.0f;
+      refresh_units_();
     }
   }
   // Missing until 2026-08-23: the UI re-pulls every array from the DSP object
@@ -126,7 +140,7 @@ struct SegmentSource final : ValueSource {
     gap_(std::make_shared<ConstantSource>(0.0f)),
     gapVarPct_(std::make_shared<ConstantSource>(0.0f))
   {
-    widthIsSecs_ = !values_.empty() && values_[0] < 1.0f;
+    refresh_units_();
   }
 
   void prepare(const RenderContext& ctx, int frames) override {
@@ -187,6 +201,12 @@ struct SegmentSource final : ValueSource {
   float current() const override { return cur_; }
 
 private:
+  void refresh_units_() {
+    if (timeMode_ == 1)      widthIsSecs_ = false;
+    else if (timeMode_ == 2) widthIsSecs_ = true;
+    else widthIsSecs_ = !values_.empty() && values_[0] < 1.0f;  // legacy auto
+  }
+
   void update_segments() {
     float gapSamples = std::round(
         rng_.range(gap_->current() * (1.0f - gapVarPct_->current()),
@@ -260,6 +280,7 @@ private:
   std::vector<float> values_;
   std::vector<float> currVals_;
   bool widthIsSecs_{false};
+  int  timeMode_{0};  // 0=auto (legacy inference), 1=samples, 2=seconds
   bool done_{false};
   bool pendingInit_{false};
   int currSeg_{0};
