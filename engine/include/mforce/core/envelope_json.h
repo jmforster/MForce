@@ -49,8 +49,8 @@ inline Envelope envelope_from_preset_json(const nlohmann::json& p,
     return Envelope::make_adsr(sampleRate,
         p.value("attack", 0.2f), p.value("decay", 0.1f),
         p.value("sustainLevel", 0.7f), p.value("release", 0.0f),
-        p.value("attackMin",  0.05f),  p.value("attackMax",  1.0f),
-        p.value("decayMin",   0.025f), p.value("decayMax",   0.5f),
+        p.value("attackMin",  0.0f),   p.value("attackMax",  1.0f),
+        p.value("decayMin",   0.0f),   p.value("decayMax",   0.5f),
         p.value("releaseMin", 0.0f),   p.value("releaseMax", 0.0f));
   }
   throw std::runtime_error("Unknown envelope preset: " + preset);

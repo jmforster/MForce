@@ -449,10 +449,17 @@ struct Envelope : ValueSource {
   }
 
   // Attack → Decay → Sustain (expand) → Release
+  // Min floors removed 2026-09-01 (Matt: a 50 ms attack "is audibly not
+  // instantaneous"): the old attackMin 0.05 / decayMin 0.025 defaults
+  // silently stretched short stages — falsifying attack-0 pluck baselines
+  // and holding feedback loops below oscillation threshold at note-on
+  // (the run-22 piano chuff, third strike). Explicit *Min JSON keys still
+  // clamp for patches that want it; max caps unchanged (backlog 36 owns
+  // any further dialect cleanup).
   static Envelope make_adsr(int sampleRate,
                             float attackPct, float decayPct, float sustainLevel, float releasePct,
-                            float attackMin = 0.05f, float attackMax = 1.0f,
-                            float decayMin = 0.025f, float decayMax = 0.5f,
+                            float attackMin = 0.0f, float attackMax = 1.0f,
+                            float decayMin = 0.0f, float decayMax = 0.5f,
                             float releaseMin = 0.0f, float releaseMax = 0.0f) {
     Envelope env(sampleRate);
     env.add_stage({{0.0f, 1.0f, RampType::Linear, 0.0f}, attackPct, attackMin, attackMax});

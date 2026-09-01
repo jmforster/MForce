@@ -126,7 +126,7 @@ private:
     const float startV = reverse_ ? sustainLevel_ : 0.0f;
     const float endV   = reverse_ ? 0.0f          : sustainLevel_;
     Envelope env(sr_);
-    env.add_stage({{startV, endV, RampType(attackCurve_), attackPower_}, attack_, 0.05f, 1.0f});
+    env.add_stage({{startV, endV, RampType(attackCurve_), attackPower_}, attack_, 0.0f, 1.0f});
     env.add_stage({{endV, endV, RampType::Linear, 0.0f}, 0.0f, 0.0f, 0.0f});
     replace_stages(std::move(env));
   }
@@ -184,7 +184,7 @@ struct ASREnvelope final : Envelope {
 private:
   void rebuild() {
     Envelope env(sr_);
-    env.add_stage({{0.0f, sustainLevel_, RampType(attackCurve_), attackPower_}, attack_, 0.05f, 1.0f});
+    env.add_stage({{0.0f, sustainLevel_, RampType(attackCurve_), attackPower_}, attack_, 0.0f, 1.0f});
     env.add_stage({{sustainLevel_, sustainLevel_, RampType::Linear, 0.0f}, 0.0f, 0.0f, 0.0f});
     env.add_stage({{sustainLevel_, 0.0f, RampType(releaseCurve_), releasePower_}, release_, 0.0f, 0.0f});
     replace_stages(std::move(env));
@@ -244,8 +244,8 @@ struct ADSEnvelope final : Envelope {
 private:
   void rebuild() {
     Envelope env(sr_);
-    env.add_stage({{0.0f, 1.0f, RampType(attackCurve_), attackPower_}, attack_, 0.05f, 1.0f});
-    env.add_stage({{1.0f, sustainLevel_, RampType(decayCurve_), decayPower_}, decay_, 0.025f, 0.5f});
+    env.add_stage({{0.0f, 1.0f, RampType(attackCurve_), attackPower_}, attack_, 0.0f, 1.0f});
+    env.add_stage({{1.0f, sustainLevel_, RampType(decayCurve_), decayPower_}, decay_, 0.0f, 0.5f});
     env.add_stage({{sustainLevel_, sustainLevel_, RampType::Linear, 0.0f}, 0.0f, 0.0f, 0.0f});
     replace_stages(std::move(env));
   }
@@ -310,8 +310,8 @@ struct ADREnvelope final : Envelope {
 private:
   void rebuild() {
     Envelope env(sr_);
-    env.add_stage({{0.0f, 1.0f, RampType(attackCurve_), attackPower_}, attack_, 0.05f, 1.0f});
-    env.add_stage({{1.0f, decayLevel_, RampType(decayCurve_), decayPower_}, decay_, 0.025f, 0.5f});
+    env.add_stage({{0.0f, 1.0f, RampType(attackCurve_), attackPower_}, attack_, 0.0f, 1.0f});
+    env.add_stage({{1.0f, decayLevel_, RampType(decayCurve_), decayPower_}, decay_, 0.0f, 0.5f});
     env.add_stage({{decayLevel_, 0.0f, RampType(releaseCurve_), releasePower_}, 0.0f, 0.0f, 0.0f});
     replace_stages(std::move(env));
   }
