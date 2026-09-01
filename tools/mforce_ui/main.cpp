@@ -95,6 +95,10 @@ struct Pin {
     // 2026-08-13 edit-then-play volume-drop bug.
     bool hasConstant{false};
     bool multi{false};      // true = accepts multiple connections
+    // Tap output pin (feedback_loop_design.md §4.1): wires from it read the
+    // node's PREVIOUS sample (guarded RefSource) instead of pulling — the
+    // only legal way to close a feedback cycle.
+    bool isTap{false};
     std::string hint;       // optional advisory tag (e.g. "hz", "0-1"); empty = none
     std::shared_ptr<ConstantSource> constantSrc;  // holds editable value for unconnected pins
 
@@ -544,6 +548,8 @@ struct GraphNode {
                 inputs.emplace_back(desc.name, PinKind::Input, desc.default_value,
                                     false, false, desc.hint);
             outputs.emplace_back("out", PinKind::Output);
+            outputs.emplace_back("tap", PinKind::Output);
+            outputs.back().isTap = true;
             return;
         }
 
@@ -581,6 +587,8 @@ struct GraphNode {
         for (const auto& desc : tmp->param_descriptors())
             inputs.emplace_back(desc.name, PinKind::Input, desc.default_value, false, false, desc.hint);
         outputs.emplace_back("out", PinKind::Output);
+        outputs.emplace_back("tap", PinKind::Output);
+        outputs.back().isTap = true;
     }
 
     void add_channel_input() {
@@ -898,6 +906,10 @@ static void update_node_dsp_unlocked(GraphNode& node) {
                     (srcNode->typeName == NT_PERFORM && otherPin->constantSrc)
                         ? std::static_pointer_cast<ValueSource>(otherPin->constantSrc)
                         : srcNode->dspSource;
+                // Tap wire: previous-sample read through a guarded RefSource
+                // (feedback_loop_design.md §4.1) — never the raw source.
+                if (otherPin->isTap)
+                    src = std::make_shared<RefSource>(src, true);
                 if (pin.multi && node.dspSource)
                     node.dspSource->add_param(pin.name, src);
                 else
@@ -915,6 +927,38 @@ static void update_node_dsp_unlocked(GraphNode& node) {
 static void update_node_dsp(GraphNode& node) {
     std::lock_guard<std::mutex> lock(g_audioMutex);
     update_node_dsp_unlocked(node);
+}
+
+// Cycle legality (feedback_loop_design.md §2): a NORMAL wire src->dst is
+// refused when a normal-edge path dst -> ... -> src already exists — the
+// pull would recurse forever. Tap edges are invisible here (they read the
+// previous sample, breaking the recursion), so loops close through taps.
+static bool would_close_normal_cycle(GraphNode* srcNode, GraphNode* dstNode) {
+    if (!srcNode || !dstNode) return false;
+    if (srcNode == dstNode) return true;   // direct self-wire
+    std::vector<GraphNode*> stack{dstNode};
+    std::unordered_set<GraphNode*> visited;
+    while (!stack.empty()) {
+        GraphNode* n = stack.back();
+        stack.pop_back();
+        if (!visited.insert(n).second) continue;
+        if (n == srcNode) return true;
+        // Follow n's outputs to their consumers along non-tap links.
+        for (auto& out : n->outputs) {
+            if (out.isTap) continue;
+            for (auto& link : s_links) {
+                int other = -1;
+                if (link.startPinId == out.id) other = link.endPinId;
+                else if (link.endPinId == out.id) other = link.startPinId;
+                if (other < 0) continue;
+                Pin* op = find_pin(other);
+                if (!op || op->kind != PinKind::Input) continue;
+                if (GraphNode* consumer = find_node_for_pin(other))
+                    stack.push_back(consumer);
+            }
+        }
+    }
+    return false;
 }
 
 // Update ALL nodes' DSP (call after link changes)
@@ -945,6 +989,13 @@ static void update_all_dsp() {
                 outPinId = link.endPinId; inPinId = link.startPinId;
             }
             if (outPinId < 0) continue;
+
+            // Tap wires never join the advancer bookkeeping: each tap
+            // consumer already holds its own guarded RefSource (idempotent
+            // previous-sample read — any number is safe), and wrapping here
+            // would replace it with an UNguarded live read.
+            Pin* outPinDesc = find_pin(outPinId);
+            if (outPinDesc && outPinDesc->isTap) continue;
 
             GraphNode* dstNode = find_node_for_pin(inPinId);
             Pin* dstPin = find_pin(inPinId);
@@ -1470,6 +1521,8 @@ static void load_graph_from_path(const std::string& path) {
     std::unordered_map<std::string, int> inputPinMap;
     // Map nodeId → output pin ID
     std::unordered_map<std::string, int> outputPinMap;
+    // Map nodeId → tap pin ID ({"tap": id} wires reload onto this pin)
+    std::unordered_map<std::string, int> tapPinMap;
 
     // Pre-scan: count ref occurrences across the whole graph so we can
     // detect Formant nodes whose sole referrer is a FormantSpectrum.
@@ -1603,9 +1656,11 @@ static void load_graph_from_path(const std::string& path) {
 
         nodeMap[id] = &gn;
 
-        // Map output pin
+        // Map output pin (and the tap pin, for {"tap": id} wire reload)
         if (!gn.outputs.empty())
             outputPinMap[id] = gn.outputs[0].id;
+        for (auto& op : gn.outputs)
+            if (op.isTap) { tapPinMap[id] = op.id; break; }
 
         // Map input pins and set default values
         for (auto& pin : gn.inputs) {
@@ -1877,16 +1932,34 @@ static void load_graph_from_path(const std::string& path) {
                 auto inIt = inputPinMap.find(id + "." + paramName);
                 if (inIt == inputPinMap.end()) continue;
                 for (const auto& refObj : val) {
-                    if (!refObj.is_object() || !refObj.contains("ref")) continue;
-                    std::string refId = refObj["ref"].get<std::string>();
-                    auto outIt = outputPinMap.find(refId);
-                    if (outIt != outputPinMap.end())
-                        s_links.emplace_back(outIt->second, inIt->second);
+                    if (!refObj.is_object()) continue;
+                    if (refObj.contains("ref")) {
+                        std::string refId = refObj["ref"].get<std::string>();
+                        auto outIt = outputPinMap.find(refId);
+                        if (outIt != outputPinMap.end())
+                            s_links.emplace_back(outIt->second, inIt->second);
+                    } else if (refObj.contains("tap")) {
+                        std::string refId = refObj["tap"].get<std::string>();
+                        auto tapIt = tapPinMap.find(refId);
+                        if (tapIt != tapPinMap.end())
+                            s_links.emplace_back(tapIt->second, inIt->second);
+                    }
                 }
                 continue;
             }
 
-            if (!val.is_object() || !val.contains("ref")) continue;
+            if (!val.is_object()) continue;
+            if (val.contains("tap")) {
+                // Tap wire: reload onto the source node's TAP pin so the
+                // previous-sample semantics survive the round trip.
+                std::string refId = val["tap"].get<std::string>();
+                auto tapIt = tapPinMap.find(refId);
+                auto inIt = inputPinMap.find(id + "." + paramName);
+                if (tapIt != tapPinMap.end() && inIt != inputPinMap.end())
+                    s_links.emplace_back(tapIt->second, inIt->second);
+                continue;
+            }
+            if (!val.contains("ref")) continue;
             std::string refId = val["ref"].get<std::string>();
 
             auto outIt = outputPinMap.find(refId);
@@ -2275,7 +2348,11 @@ static std::vector<GraphNode*> topo_sort() {
 
                 for (auto& srcNode : s_nodes) {
                     for (auto& sp : srcNode.outputs) {
-                        if (sp.id == srcPinId)
+                        // Tap edges are NOT build-order dependencies: they
+                        // may point forward (the loader binds them pass-2),
+                        // and counting them here would rotate a loop's
+                        // normal refs out of backward order.
+                        if (sp.id == srcPinId && !sp.isTap)
                             deps[node.id].push_back(srcNode.id);
                     }
                 }
@@ -2662,7 +2739,10 @@ static void save_patch_graph(const std::string& path, bool tapOverride = false) 
                             pr != perfPinRef.end())
                             refs.push_back(json{{"ref", pr->second}});
                     } else if (nodeIds.count(srcNode->id)) {
-                        refs.push_back(json{{"ref", nodeIds[srcNode->id]}});
+                        // Tap wires save as {"tap": id} — previous-sample
+                        // reads, not pulls (feedback_loop_design.md §4.1).
+                        refs.push_back(json{{srcPin->isTap ? "tap" : "ref",
+                                             nodeIds[srcNode->id]}});
                     }
                 }
                 if (!refs.empty()) params[pin.name] = refs;
@@ -2677,8 +2757,13 @@ static void save_patch_graph(const std::string& path, bool tapOverride = false) 
                                 return json{{"ref", pr->second}};
                         return json();   // unwired face pin: fall to default
                     }
-                    if (nodeIds.count(s->id))
-                        return json{{"ref", nodeIds[s->id]}};
+                    if (nodeIds.count(s->id)) {
+                        // Tap wires save as {"tap": id} (previous-sample
+                        // read); the feeding OUT pin knows which kind it is.
+                        Pin* op = find_source_out_pin(pin.id);
+                        return json{{op && op->isTap ? "tap" : "ref",
+                                     nodeIds[s->id]}};
+                    }
                     return json();
                 };
                 if (pin.inputOnly) {
@@ -2967,17 +3052,22 @@ static void save_node_graph(const std::string& path) {
                     GraphNode* srcNode = find_node_for_pin(outPinId);
                     Pin* srcPin = find_pin(outPinId);
                     if (srcNode && srcPin && srcPin->kind == PinKind::Output)
-                        refs.push_back(json{{"ref", nodeIds[srcNode->id]}});
+                        refs.push_back(json{{srcPin->isTap ? "tap" : "ref",
+                                             nodeIds[srcNode->id]}});
                 }
                 if (!refs.empty()) params[pin.name] = refs;
             } else if (pin.inputOnly) {
+                Pin* op = find_source_out_pin(pin.id);
                 if (src)
-                    params[pin.name] = json{{"ref", nodeIds[src->id]}};
+                    params[pin.name] = json{{op && op->isTap ? "tap" : "ref",
+                                             nodeIds[src->id]}};
                 else if (pin.hasConstant)
                     params[pin.name] = pin.defaultValue;
             } else {
+                Pin* op = find_source_out_pin(pin.id);
                 if (src)
-                    params[pin.name] = json{{"ref", nodeIds[src->id]}};
+                    params[pin.name] = json{{op && op->isTap ? "tap" : "ref",
+                                             nodeIds[src->id]}};
                 else
                     params[pin.name] = pin.defaultValue;
             }
@@ -7521,8 +7611,21 @@ static void draw_node(GraphNode& node) {
         ImNodes::PopColorStyle();  // Pin
     }
 
-    // Output pins
+    // Output pins. The tap pin (feedback_loop_design.md §4.1) renders
+    // small/dim in teal — wires from it read the node's previous sample,
+    // the only legal way to close a feedback cycle.
     for (auto& pin : node.outputs) {
+        if (pin.isTap) {
+            ImNodes::PushColorStyle(ImNodesCol_Pin, IM_COL32(70, 150, 160, 255));
+            ImNodes::BeginOutputAttribute(pin.id, ImNodesPinShape_Quad);
+            float textWidth = ImGui::CalcTextSize(pin.name.c_str()).x;
+            ImGui::Indent(150.0f - textWidth - 20);
+            ImGui::TextColored(ImVec4(0.35f, 0.65f, 0.7f, 1.0f), "%s",
+                               pin.name.c_str());
+            ImNodes::EndOutputAttribute();
+            ImNodes::PopColorStyle();
+            continue;
+        }
         ImNodes::BeginOutputAttribute(pin.id);
         float nodeWidth = 150.0f;
         float textWidth = ImGui::CalcTextSize(pin.name.c_str()).x;
@@ -11768,8 +11871,20 @@ int main(int argc, char** argv) {
             bool startIsSource = sp->kind == PinKind::Output;
             int a = project_pin(link.startPinId, startIsSource);
             int b = project_pin(link.endPinId, !startIsSource);
-            if (a >= 0 && b >= 0 && a != b)
-                ImNodes::Link(link.id, a, b);
+            if (a >= 0 && b >= 0 && a != b) {
+                // Tap wires (previous-sample feedback reads) draw teal so a
+                // closed loop is visibly different from a forward wire.
+                Pin* ep = find_pin(link.endPinId);
+                bool isTap = (sp->isTap) || (ep && ep->isTap);
+                if (isTap) {
+                    ImNodes::PushColorStyle(ImNodesCol_Link,
+                                            IM_COL32(70, 150, 160, 255));
+                    ImNodes::Link(link.id, a, b);
+                    ImNodes::PopColorStyle();
+                } else {
+                    ImNodes::Link(link.id, a, b);
+                }
+            }
         }
 
         // Dynamic-pin wires (pin_model_design.md §6): gold, from the driving
@@ -11951,12 +12066,21 @@ int main(int argc, char** argv) {
                 GraphNode* outNode = find_node_for_pin(outPin);
                 GraphNode* inNode  = find_node_for_pin(inPin);
                 Pin* inPinDesc     = find_pin(inPin);
+                Pin* outPinDesc    = find_pin(outPin);
                 bool accept = true;
                 if (outNode && inNode && inPinDesc) {
                     const char* err = pin_type_compat_error(
                         inNode->typeName, inPinDesc->name, outNode->typeName);
                     if (err) {
                         transport_set_status(err, true);
+                        accept = false;
+                    }
+                    // Cycle legality (feedback_loop_design.md §2): normal
+                    // wires may not close a cycle — loops close via taps.
+                    if (accept && outPinDesc && !outPinDesc->isTap &&
+                        would_close_normal_cycle(outNode, inNode)) {
+                        transport_set_status(
+                            "Cycle - close loops through a tap pin", true);
                         accept = false;
                     }
                 }
