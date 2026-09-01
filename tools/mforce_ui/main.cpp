@@ -321,6 +321,10 @@ struct GraphNode {
     // interp: 0 = linear, 1 = logx, 2 = loglog — matches CurveNode::CurveInterp.
     std::vector<std::pair<float, float>> curveKnots;
     int curveInterp{0};
+    // Expressions mode (curve_node.h header comment): knot values are
+    // Linear a*x+b / Power a*x^p rows instead of literals.
+    bool curveExprMode{false};
+    std::vector<CurveNode::ExprKnot> curveExprKnots;
 
     // Dynamic pins: the SETTINGS this node instance drives once per note
     // (pin_model_design.md §3). {"sustainLevel": {"ref": "__curve_sus"}}.
@@ -1696,9 +1700,25 @@ static void load_graph_from_path(const std::string& path) {
                             gn.curveKnots.emplace_back(k[0].get<float>(), k[1].get<float>());
                 const std::string in = params.value("interp", std::string("linear"));
                 gn.curveInterp = (in == "loglog") ? 2 : (in == "logx") ? 1 : 0;
+                gn.curveExprMode =
+                    params.value("mode", std::string("points")) == "expressions";
+                gn.curveExprKnots.clear();
+                if (params.contains("exprKnots") && params["exprKnots"].is_array())
+                    for (const auto& k : params["exprKnots"]) {
+                        CurveNode::ExprKnot ek;
+                        ek.x = k.value("x", 100.0f);
+                        ek.form = k.value("form", std::string("linear")) == "power"
+                                  ? CurveNode::KnotForm::Power
+                                  : CurveNode::KnotForm::Linear;
+                        ek.a = k.value("a", 0.0f);
+                        ek.b = k.value("b", 0.0f);
+                        gn.curveExprKnots.push_back(ek);
+                    }
                 if (auto* cn = dynamic_cast<CurveNode*>(gn.dspSource.get())) {
                     cn->knots = gn.curveKnots;
                     cn->interp = static_cast<CurveNode::CurveInterp>(gn.curveInterp);
+                    cn->exprMode = gn.curveExprMode;
+                    cn->exprKnots = gn.curveExprKnots;
                 }
             }
 
@@ -1845,7 +1865,9 @@ static void load_graph_from_path(const std::string& path) {
                     // curveInterp) so the Properties curve editor can edit them. They
                     // rode jsonExtras verbatim until P2b; a verbatim copy
                     // would win over an edit on save.
-                    if (gn.typeName == "CurveNode" && (k == "knots" || k == "interp"))
+                    if (gn.typeName == "CurveNode" &&
+                        (k == "knots" || k == "interp" ||
+                         k == "mode" || k == "exprKnots"))
                         continue;
                     if (gn.typeName == NT_PERFORM && k == "field") continue;
                     bool pinConsumed = is_pin(k) &&
@@ -2717,6 +2739,18 @@ static void save_patch_graph(const std::string& path, bool tapOverride = false) 
             params["knots"] = knots;
             params["interp"] = node.curveInterp == 2 ? "loglog"
                              : node.curveInterp == 1 ? "logx" : "linear";
+            // Expressions mode rides its own keys; the typed coefficients
+            // round-trip, never evaluated values (the 3n fidelity lesson).
+            if (node.curveExprMode || !node.curveExprKnots.empty()) {
+                params["mode"] = node.curveExprMode ? "expressions" : "points";
+                json ek = json::array();
+                for (const auto& k : node.curveExprKnots)
+                    ek.push_back({{"x", k.x},
+                                  {"form", k.form == CurveNode::KnotForm::Power
+                                           ? "power" : "linear"},
+                                  {"a", k.a}, {"b", k.b}});
+                params["exprKnots"] = ek;
+            }
         }
 
         for (auto& pin : node.inputs) {
@@ -6199,6 +6233,115 @@ static std::string curve_node_destination(const GraphNode& curve) {
     return "(not connected)";
 }
 
+// Expressions-mode row table: x | form | a | b(=p) | remove. Coefficients
+// like keytrack slopes can be ~1e-5, hence %.8g. Returns true on change and
+// pushes the edited rows into the live node + draws the extrapolating plot.
+static bool draw_curve_expr_rows(GraphNode& node) {
+    bool changed = false;
+    int removeIdx = -1;
+    bool needSort = false;
+    if (ImGui::BeginTable("exprknots", 5, ImGuiTableFlags_SizingFixedFit)) {
+        for (int r = 0; r < (int)node.curveExprKnots.size(); ++r) {
+            auto& k = node.curveExprKnots[r];
+            ImGui::TableNextRow();
+            ImGui::PushID(r);
+            ImGui::TableNextColumn();
+            ImGui::SetNextItemWidth(80.0f);
+            float x = k.x;
+            if (ImGui::InputFloat("##x", &x, 0.0f, 0.0f, "%.6g")) {
+                k.x = std::max(0.0001f, x);
+                changed = true;
+            }
+            if (ImGui::IsItemDeactivatedAfterEdit()) needSort = true;
+            ImGui::TableNextColumn();
+            ImGui::SetNextItemWidth(70.0f);
+            int form = (k.form == CurveNode::KnotForm::Power) ? 1 : 0;
+            const char* kForm[] = {"a*x+b", "a*x^p"};
+            if (ImGui::Combo("##form", &form, kForm, 2)) {
+                k.form = form ? CurveNode::KnotForm::Power
+                              : CurveNode::KnotForm::Linear;
+                changed = true;
+            }
+            ImGui::TableNextColumn();
+            ImGui::SetNextItemWidth(90.0f);
+            float a = k.a;
+            if (ImGui::InputFloat("##a", &a, 0.0f, 0.0f, "%.8g")) {
+                k.a = a;
+                changed = true;
+            }
+            ImGui::TableNextColumn();
+            ImGui::SetNextItemWidth(90.0f);
+            float b = k.b;
+            if (ImGui::InputFloat("##b", &b, 0.0f, 0.0f, "%.8g")) {
+                k.b = b;
+                changed = true;
+            }
+            if (ImGui::IsItemHovered())
+                ImGui::SetTooltip(k.form == CurveNode::KnotForm::Power
+                                  ? "p — the exponent in a*x^p"
+                                  : "b — the offset in a*x+b");
+            ImGui::TableNextColumn();
+            // One knot is legitimate here — it's the global-formula case.
+            if (node.curveExprKnots.size() > 1 && ImGui::SmallButton("x"))
+                removeIdx = r;
+            ImGui::PopID();
+        }
+        ImGui::EndTable();
+    }
+    if (removeIdx >= 0) {
+        node.curveExprKnots.erase(node.curveExprKnots.begin() + removeIdx);
+        changed = true;
+        needSort = true;
+    }
+    if (ImGui::SmallButton("+ point")) {
+        auto k = node.curveExprKnots.empty()
+                 ? CurveNode::ExprKnot{100.0f, CurveNode::KnotForm::Linear, 1.0f, 0.0f}
+                 : node.curveExprKnots.back();
+        k.x = node.curveExprKnots.empty() ? 100.0f : k.x * 2.0f;
+        node.curveExprKnots.push_back(k);
+        changed = true;
+        needSort = true;
+    }
+
+    auto by_x = [](const CurveNode::ExprKnot& a, const CurveNode::ExprKnot& b) {
+        return a.x < b.x;
+    };
+    if (needSort)
+        std::stable_sort(node.curveExprKnots.begin(), node.curveExprKnots.end(), by_x);
+    auto sorted = node.curveExprKnots;
+    std::stable_sort(sorted.begin(), sorted.end(), by_x);
+
+    if (changed) {
+        if (auto* cn = dynamic_cast<CurveNode*>(node.dspSource.get())) {
+            cn->exprMode = true;
+            cn->exprKnots = sorted;
+            cn->interp = static_cast<CurveNode::CurveInterp>(node.curveInterp);
+        }
+        mark_graph_dirty();
+    }
+
+    // Plot through the engine's own map_expr; extend an octave past the end
+    // knots so the live extrapolation — the point of this mode — is visible.
+    if (!sorted.empty()) {
+        CurveNode probe;
+        probe.exprMode = true;
+        probe.exprKnots = sorted;
+        probe.interp = static_cast<CurveNode::CurveInterp>(node.curveInterp);
+        float lo = std::max(0.0001f, sorted.front().x * 0.5f);
+        float hi = std::max(lo * 4.0f, sorted.back().x * 2.0f);
+        constexpr int N = 128;
+        float samples[N];
+        for (int i = 0; i < N; ++i)
+            samples[i] = probe.map(lo * std::pow(hi / lo, float(i) / float(N - 1)));
+        char overlay[64];
+        snprintf(overlay, sizeof(overlay), "%.4g .. %.4g (log x, extrapolated)",
+                 lo, hi);
+        ImGui::PlotLines("##cnexprplot", samples, N, 0, overlay, FLT_MAX, FLT_MAX,
+                         ImVec2(ImGui::GetContentRegionAvail().x, 70.0f));
+    }
+    return changed;
+}
+
 // Returns true if anything changed.
 static bool draw_curve_node(GraphNode& node) {
     bool changed = false;
@@ -6210,12 +6353,40 @@ static bool draw_curve_node(GraphNode& node) {
 
     ImGui::PushID(node.id);
     ImGui::SetNextItemWidth(120.0f);
+    int mode = node.curveExprMode ? 1 : 0;
+    const char* kMode[] = {"points", "expressions"};
+    if (ImGui::Combo("mode", &mode, kMode, 2)) {
+        node.curveExprMode = (mode == 1);
+        // First switch into expressions: seed one identity-ish row so the
+        // node maps something instead of going silent.
+        if (node.curveExprMode && node.curveExprKnots.empty())
+            node.curveExprKnots.push_back({100.0f, CurveNode::KnotForm::Linear,
+                                           1.0f, 0.0f});
+        changed = true;
+    }
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip(
+            "points: knot values are literals (clamped past the end knots).\n"
+            "expressions: each knot's value is a formula of x — a*x+b or\n"
+            "a*x^p — evaluated at the CURRENT x and blended between knots.\n"
+            "Past the end knots the edge formula keeps evaluating, so one\n"
+            "Linear knot (a=8, b=0) is global keytrack: no 16000 knot needed.");
+    ImGui::SameLine();
+    ImGui::SetNextItemWidth(120.0f);
     const char* kInterp[] = {"linear", "logx", "loglog"};
     if (ImGui::Combo("interp", &node.curveInterp, kInterp, 3)) changed = true;
     if (ImGui::IsItemHovered())
         ImGui::SetTooltip("logx: value linear in log(x) — this is exactly\n"
                           "linear in semitones, which is why pitch curves use it.\n"
-                          "loglog: a 2-point segment is exactly y = k*x^n.");
+                          "loglog: a 2-point segment is exactly y = k*x^n.\n"
+                          "In expressions mode this weights the blend between knots.");
+
+    if (node.curveExprMode) {
+        changed |= draw_curve_expr_rows(node);
+        ImGui::PopID();
+        ImGui::Spacing();
+        return changed;
+    }
 
     int removeIdx = -1;
     bool needSort = false;

@@ -624,6 +624,21 @@ static GraphResult build_graph(
                     for (const auto& k : p["knots"])
                         cn->knots.emplace_back(k.at(0).get<float>(),
                                                k.at(1).get<float>());
+                // Expressions mode: knot values are formulas of x, stored as
+                // {"x":..,"form":"linear"|"power","a":..,"b":..} rows (b is
+                // the exponent p for power). See curve_node.h header comment.
+                cn->exprMode = p.value("mode", std::string("points")) == "expressions";
+                if (p.contains("exprKnots"))
+                    for (const auto& k : p["exprKnots"]) {
+                        CurveNode::ExprKnot ek;
+                        ek.x = k.at("x").get<float>();
+                        ek.form = k.value("form", std::string("linear")) == "power"
+                                  ? CurveNode::KnotForm::Power
+                                  : CurveNode::KnotForm::Linear;
+                        ek.a = k.value("a", 0.0f);
+                        ek.b = k.value("b", 0.0f);
+                        cn->exprKnots.push_back(ek);
+                    }
                 const std::string in = p.value("interp", std::string("linear"));
                 cn->interp = in == "loglog" ? CurveNode::CurveInterp::LogLog
                            : in == "logx"   ? CurveNode::CurveInterp::LogX

@@ -15,7 +15,10 @@ file's git history. Tags per WORKFLOW.md. (G1)-(G4) = GOALS.md Dipsy goals.
     "very fiddly". Work items distilled: (a) cutoff KEYTRACK (LogX curve
     from Note frequency, cutoff as multiple of f0) — fixed 6 kHz gives
     string lows / breathy mids / lung-condition-flutist highs (under-drive,
-    same shape as KSString 34(c)); (b) ~~release on SVF cutoff~~ — Matt
+    same shape as KSString 34(c)) — MECHANISM LANDED 09-01: expressions-mode
+    Curve (one Linear knot a=m) + compensate; demo loop_keytrack.json plays
+    C3→A7 at constant |H(f0)|, ±5 cents (old fixed-cutoff ceiling was ~F7);
+    ratio/family tuning by ear still Matt's; (b) ~~release on SVF cutoff~~ — Matt
     09-01: "doesn't really work"; SUPERSEDED by DelayLine `amplitude` pin
     (landed 09-01: read-side loop gain, the KS loss factor — release env
     on it ring-out-and-dies with pitch dead-steady, measured 260.2 Hz

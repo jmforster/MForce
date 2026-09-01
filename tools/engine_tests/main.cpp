@@ -48,6 +48,43 @@ static void run_curve_node_tests() {
     CHECK_NEAR(ident.map(123.0f), 123.0f, 1e-6f);
 }
 
+static void run_curve_expr_tests() {
+    using EK = CurveNode::ExprKnot;
+    using KF = CurveNode::KnotForm;
+    // One Linear knot = global formula with live extrapolation on both sides
+    // (the keytrack case: cutoff = 8*f0 everywhere, no 16000-knot needed).
+    CurveNode kt; kt.exprMode = true;
+    kt.exprKnots = {{440.0f, KF::Linear, 8.0f, 0.0f}};
+    CHECK_NEAR(kt.map(100.0f),  800.0f,   1e-3f);
+    CHECK_NEAR(kt.map(440.0f),  3520.0f,  1e-2f);
+    CHECK_NEAR(kt.map(5000.0f), 40000.0f, 1e-1f);
+
+    // Matt's 3-point example: flat 0.1 low, 0.1 - x/50000 high, smooth
+    // morph between; equal formulas on the top knots pin the formula exactly
+    // over [3200,16000] and keep extrapolating above.
+    CurveNode m; m.exprMode = true;
+    m.exprKnots = {{20.0f,    KF::Linear, 0.0f,      0.1f},
+                   {3200.0f,  KF::Linear, -2e-5f,    0.1f},
+                   {16000.0f, KF::Linear, -2e-5f,    0.1f}};
+    CHECK_NEAR(m.map(10.0f),     0.1f,    1e-6f);   // edge: constant holds
+    CHECK_NEAR(m.map(8000.0f),  -0.06f,   1e-5f);   // formula exact mid-span
+    CHECK_NEAR(m.map(20000.0f), -0.3f,    1e-5f);   // extrapolates past last
+    // Blend region: t = (1610-20)/3180 = 0.5, v0 = 0.1, v1 = 0.0678
+    CHECK_NEAR(m.map(1610.0f),   0.0839f, 1e-4f);
+
+    // Power form: y = 2 * x^0.5
+    CurveNode pw; pw.exprMode = true;
+    pw.exprKnots = {{100.0f, KF::Power, 2.0f, 0.5f}};
+    CHECK_NEAR(pw.map(100.0f),  20.0f, 1e-4f);
+    CHECK_NEAR(pw.map(2500.0f), 100.0f, 1e-3f);
+
+    // exprMode off leaves points behavior untouched even with exprKnots set
+    CurveNode off;
+    off.exprKnots = {{440.0f, KF::Linear, 8.0f, 0.0f}};
+    off.knots = {{0.0f, 0.0f}, {1.0f, 10.0f}};
+    CHECK_NEAR(off.map(0.5f), 5.0f, 1e-6f);
+}
+
 #include "mforce/core/envelope.h"
 
 static void run_envelope_range_tests() {
@@ -415,6 +452,7 @@ static void run_shaper_tests() {
 
 int main() {
     run_curve_node_tests();
+    run_curve_expr_tests();
     run_envelope_range_tests();
     run_stage_nominal_tests();
     run_perform_source_tests();

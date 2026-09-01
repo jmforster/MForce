@@ -1,0 +1,42 @@
+{
+  "_comment": "Keytracked feedback loop (backlog 37a-a, 2026-09-01): cutoff = 6*f0 via a one-knot expressions-mode Curve (Linear a=6 b=0, live extrapolation - no 16000 endpoint needed), so |H(f0)| is identical on every key. With DelayLine compensate the moving-per-note cutoff stays on pitch. Score deliberately climbs past the fixed-cutoff version's ~F7 ceiling (loop_tuned at cutoff 1500 cannot play the top notes).",
+  "sampleRate": 48000,
+  "graph": {
+    "nodes": [
+      { "id": "__perf_freq", "type": "PerformNode", "params": { "field": "frequency" } },
+      { "id": "excite", "type": "SegmentSource",
+        "params": { "oneShot": true, "seed": 774001,
+                    "values": [2.0, 0.6, 3.0, -0.35, 4.0, 0.15, 6.0, 0.0] } },
+      { "id": "bowenv", "type": "Envelope",
+        "params": { "preset": "adsr", "attack": 0.03, "decay": 0.15,
+                    "sustainLevel": 1.0, "release": 0.25,
+                    "minValue": 0.08, "maxValue": 1.15 } },
+      { "id": "sum", "type": "CombinedSource",
+        "params": { "source1": { "ref": "excite" }, "source2": { "tap": "delay" },
+                    "operation": "sum", "gainAdj": 0.0 } },
+      { "id": "junction", "type": "Shaper",
+        "params": { "source": { "ref": "sum" }, "drive": { "ref": "bowenv" },
+                    "smoothness": 0.5,
+                    "values": [-1.0, -0.8, -0.5, -0.75, -0.1, -0.5,
+                               0.1, 0.5, 0.5, 0.75, 1.0, 0.8] } },
+      { "id": "keytrack", "type": "CurveNode",
+        "params": { "mode": "expressions",
+                    "exprKnots": [ { "x": 440.0, "form": "linear", "a": 6.0, "b": 0.0 } ],
+                    "source": { "ref": "__perf_freq" } } },
+      { "id": "damp", "type": "SVFSource",
+        "params": { "source": { "ref": "junction" }, "mode": "Lowpass",
+                    "cutoff": { "ref": "keytrack" }, "resonance": 0.7 } },
+      { "id": "delay", "type": "DelayLine",
+        "params": { "source": { "ref": "damp" },
+                    "frequency": { "ref": "__perf_freq" }, "ratio": 1.0,
+                    "compensate": true } }
+    ],
+    "output": "delay"
+  },
+  "instrument": { "polyphony": 2, "volume": 0.5 },
+  "score": [ { "note": 48, "time": 0.0, "duration": 1.2, "velocity": 0.8 },
+             { "note": 60, "time": 1.4, "duration": 1.2, "velocity": 0.8 },
+             { "note": 72, "time": 2.8, "duration": 1.2, "velocity": 0.8 },
+             { "note": 84, "time": 4.2, "duration": 1.2, "velocity": 0.8 },
+             { "note": 93, "time": 5.6, "duration": 1.2, "velocity": 0.8 } ]
+}
