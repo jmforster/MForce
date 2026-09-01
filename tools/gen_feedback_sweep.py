@@ -18,26 +18,56 @@ import numpy as np
 
 
 def gen_curve(rng):
-    """One junction curve as (values_flat, params_dict)."""
+    """One junction curve as (values_flat, params_dict).
+
+    Round-2 families (Matt's sweep-1 verdict, 2026-08-31): the baselines'
+    perceived quality lives on MONOTONE saturating curves — even steep ones
+    (slope 4.5-5) sing; humps/folds (multivalued gain) were the chaos
+    engine, not steepness. So: mostly monotone, a gently-non-monotone
+    middle family, and a wild minority the pitchedness gate can judge.
+    Smoothness floor 0.25 (step curves = infinite slope at every point)."""
     p = {}
-    p["slope0"] = float(rng.uniform(1.5, 8.0))       # gain through zero
+    p["family"] = str(rng.choice(["saturating", "plateau", "wild"],
+                                 p=[0.5, 0.3, 0.2]))
+    p["slope0"] = float(rng.uniform(1.2, 6.0))       # gain through zero
     p["x0"] = float(rng.uniform(0.04, 0.25))         # end of the linear core
     p["dead_zone"] = bool(rng.random() < 0.25)       # flat spot at the origin
-    p["odd_sym"] = bool(rng.random() < 0.4)          # mirror the negative side
-    p["smoothness"] = float(rng.choice([0.0, 0.25, 0.5, 0.75, 1.0],
-                                       p=[0.15, 0.2, 0.3, 0.2, 0.15]))
+    p["odd_sym"] = bool(rng.random() < 0.5)          # mirror the negative side
+    p["smoothness"] = float(rng.choice([0.25, 0.5, 0.75, 1.0],
+                                       p=[0.2, 0.35, 0.25, 0.2]))
 
     def half_side(sign):
         """Points for one polarity, origin-outward, as [(x, y), ...]."""
         shoulder = rng.uniform(0.5, 0.95)
         y0 = min(p["slope0"] * p["x0"], 0.95)
+        # A steep core can top the drawn shoulder (slope*x0 up to 0.95);
+        # monotone families lift the shoulder to meet it rather than descend.
+        if p["family"] != "wild":
+            shoulder = max(shoulder, y0)
         pts = [(p["x0"], y0)]
-        n_humps = int(rng.integers(0, 3))            # interior direction changes
-        xs = sorted(rng.uniform(p["x0"] + 0.08, 0.9, size=n_humps))
-        for x in xs:
-            # free y: may dip below the running level = negative-slope region
-            pts.append((float(x), float(rng.uniform(-0.7, 1.0))))
-        fold = rng.random() < 0.15                   # shoulder folds back down
+        fold = False
+        if p["family"] == "saturating":
+            # Monotone rise: optional soft knee between core and shoulder.
+            n_humps = 0
+            if rng.random() < 0.5:
+                kx = rng.uniform(p["x0"] + 0.1, 0.8)
+                ky = rng.uniform(y0, shoulder)       # monotone by construction
+                pts.append((float(kx), float(ky)))
+        elif p["family"] == "plateau":
+            # Gently non-monotone: one dip of at most 0.15 below the running
+            # level, then back up to the shoulder.
+            n_humps = 1
+            kx = rng.uniform(p["x0"] + 0.1, 0.75)
+            dip = rng.uniform(0.02, 0.15)
+            pts.append((float(kx), float(max(-0.2, y0 - dip))))
+        else:  # wild — round-1 behavior, judged by the pitchedness gate
+            n_humps = int(rng.integers(1, 3))
+            xs = sorted(rng.uniform(p["x0"] + 0.08, 0.9, size=n_humps))
+            for x in xs:
+                pts.append((float(x), float(rng.uniform(-0.7, 1.0))))
+            fold = rng.random() < 0.3
+        if shoulder < max(y for _, y in pts) and p["family"] != "wild":
+            shoulder = max(y for _, y in pts)        # keep monotone families monotone
         pts.append((1.0, -shoulder if fold else shoulder))
         return [(sign * x, sign * y) for x, y in pts], \
                {"shoulder": float(shoulder), "humps": n_humps, "fold": bool(fold)}
