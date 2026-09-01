@@ -15,9 +15,14 @@ file's git history. Tags per WORKFLOW.md. (G1)-(G4) = GOALS.md Dipsy goals.
     "very fiddly". Work items distilled: (a) cutoff KEYTRACK (LogX curve
     from Note frequency, cutoff as multiple of f0) — fixed 6 kHz gives
     string lows / breathy mids / lung-condition-flutist highs (under-drive,
-    same shape as KSString 34(c)); (b) release on SVF CUTOFF, not drive —
-    drive release is knife-edged (never-dies vs chops); closing the filter
-    decays gradually and treble-first; (c) drive sustain parameterized as
+    same shape as KSString 34(c)); (b) ~~release on SVF cutoff~~ — Matt
+    09-01: "doesn't really work"; SUPERSEDED by DelayLine `amplitude` pin
+    (landed 09-01: read-side loop gain, the KS loss factor — release env
+    on it ring-out-and-dies with pitch dead-steady, measured 260.2 Hz
+    ±0.1 through the whole decay; demo patches/baselines/feedback/
+    loop_amp_release.json, render in renders/dsp/pending/
+    feedback_amp_release/); cutoff release stays available for treble-
+    first *color*, no longer the decay mechanism; (c) drive sustain parameterized as
     offset-above-measured-critical per cell, making attack time a real
     axis; (d) audible in-loop breath (hiss 0.005-0.02 under its own decay
     envelope) — Matt's breath-integration principle, proven by ear on

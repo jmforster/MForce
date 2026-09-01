@@ -1,0 +1,37 @@
+{
+  "_comment": "Backlog 37a(b') demo: release via DelayLine.amplitude instead of Shaper drive or SVF cutoff. Drive is held at sustain (1.15, a never-dies config on its own); ampenv closes the loop gain on note-off - gradual ring-out, no pitch bend (gain adds no phase lag to the loop period).",
+  "sampleRate": 48000,
+  "graph": {
+    "nodes": [
+      { "id": "__perf_freq", "type": "PerformNode", "params": { "field": "frequency" } },
+      { "id": "excite", "type": "SegmentSource",
+        "params": { "oneShot": true, "seed": 774001,
+                    "values": [2.0, 0.6, 3.0, -0.35, 4.0, 0.15, 6.0, 0.0] } },
+      { "id": "bowenv", "type": "Envelope",
+        "params": { "preset": "adsr", "attack": 0.03, "decay": 0.15,
+                    "sustainLevel": 1.0, "release": 0.25,
+                    "minValue": 1.15, "maxValue": 1.15 } },
+      { "id": "ampenv", "type": "Envelope",
+        "params": { "preset": "adsr", "attack": 0.001, "decay": 0.0,
+                    "sustainLevel": 1.0, "release": 0.4,
+                    "minValue": 0.0, "maxValue": 1.0 } },
+      { "id": "sum", "type": "CombinedSource",
+        "params": { "source1": { "ref": "excite" }, "source2": { "tap": "delay" },
+                    "operation": "sum", "gainAdj": 0.0 } },
+      { "id": "junction", "type": "Shaper",
+        "params": { "source": { "ref": "sum" }, "drive": { "ref": "bowenv" },
+                    "smoothness": 0.5,
+                    "values": [-1.0, -0.8, -0.5, -0.75, -0.1, -0.5,
+                               0.1, 0.5, 0.5, 0.75, 1.0, 0.8] } },
+      { "id": "delay", "type": "DelayLine",
+        "params": { "source": { "ref": "junction" },
+                    "frequency": { "ref": "__perf_freq" }, "ratio": 1.0,
+                    "amplitude": { "ref": "ampenv" } } }
+    ],
+    "output": "delay"
+  },
+  "instrument": { "polyphony": 2, "volume": 0.5 },
+  "score": [ { "note": 48, "time": 0.0, "duration": 1.5, "velocity": 0.8 },
+             { "note": 55, "time": 1.8, "duration": 1.5, "velocity": 0.8 },
+             { "note": 60, "time": 3.6, "duration": 1.5, "velocity": 0.8 } ]
+}
