@@ -8,6 +8,20 @@ file's git history. Tags per WORKFLOW.md. (G1)-(G4) = GOALS.md Dipsy goals.
 
 ## Active — engine/build
 
+37. **[research] Curve-space novelty sweep over feedback loops** — the
+    payoff run for the feedback-loop subsystem (docs/feedback_loop_design.md,
+    shipped 2026-08-31): batch-generate seeded random Shaper curves inside
+    the loop_selfosc / loop_bowed skeletons (vary breakpoint count, slope
+    through zero, shoulder symmetry, bipolarity; also delay `ratio` pairs
+    for inharmonic two-line loops), render via mforce_cli, filter with the
+    novelty metric (research/novelty, run 5), surface survivors to
+    renders/dsp/pending/ for Matt. The search space "all drawable
+    nonlinearities inside resonant loops" is the literal "another KS" hunt —
+    period doubling, subharmonics, multiphonics live at curve transitions.
+    Start narrow: one loop shape, ~100 curves, listen before scaling.
+    Reference behaviors to beat: selfosc blooms 0→limit cycle in ~70 ms;
+    bowed sustains while drive>0.2/slope-5 and collapses below.
+
 36. **[cleanup] Envelope dialect + preset-file consolidation (node types
     STAY)** — Matt 2026-08-29, after deciding against retiring the preset
     envelope node types (named settings are mapping/promotion targets —

@@ -1,6 +1,15 @@
 # Feedback loops: tap edges, DelayLine, Shaper
 
-Status: SPEC — agreed with Matt 2026-08-31 (interactive brainstorm).
+Status: SHIPPED 2026-08-31, same day as the spec (commits 36f54d5..
+tasks 1-8; plan docs/superpowers/plans/2026-08-31-feedback-loops.md).
+Execution deltas from this spec: the loader's tap collector is RAII
+build-scoped (not a threaded parameter); promotion additionally NEVER
+promotes a guarded ref (would unbreak the cycle); DrumKit untouched
+(drum graphs never load from JSON); mixer-mode patches warn loudly on
+tap-only tails instead of hosting an advance list; topo_sort excludes
+tap edges from save ordering. Reference patches verified: selfosc
+blooms 0→limit-cycle in ~70 ms from a 0.001 noise seed; bowed
+sustains under drive and collapses on release.
 Lineage: KS-bow thread (backlog 34/34a), shape editor
 (docs/shape_editor_design.md), breath/tone coupling principle.
 

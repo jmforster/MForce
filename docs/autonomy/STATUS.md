@@ -11,7 +11,7 @@ KS piano family, live MIDI) grew out of interactive sessions, not GOALS.
 
 | Lane | Dev | State | Next up | Awaiting Matt |
 |---|---|---|---|---|
-| dsp | Dipsy | **08-30: SHAPE EDITOR v1 SHIPPED same day as its spec** (breakpoint canvas, curve+segment clients, Pulse Train generator, ghosts — docs/shape_editor_design.md); segment width pin + determinism fix; KSString 10 combs + decoherence pair; piano_seg (halfhump) joined the library; grail CLOSED 08-29 (integration lives upstream → 34a) | backlog 34a via ksbow_creak (patches/scratch) + shape-editor atom ports; excite 46-48 remainders | **5 items** |
+| dsp | Dipsy | **08-31: FEEDBACK LOOPS v1 SHIPPED same day as its spec** (tap edges + advance list, DelayLine + Shaper, editor tap pins + Shaper client — docs/feedback_loop_design.md; loop_bowed + loop_selfosc references render: self-oscillation from a drawn curve works). Also 08-31: shape-editor fix batch (timeMode pinning, pulse gaps, ghost visibility d996c1b). 08-30: shape editor v1 | backlog 37 curve-space novelty sweep (the payoff run); 34a ksbow_creak + shape-editor atom ports; excite 46-48 remainders | **6 items** (+ feedback loop renders in renders/dsp/pending/feedback/) |
 | comp | Wolfie | dormant since run 26 (08-10) | #22 re-renders → #21 zero-event check → #8 re-observe | **10 items** (3 blocked on #22) |
 
 ## dsp

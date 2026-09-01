@@ -13,7 +13,7 @@
 ## Global Constraints
 
 - No heap allocation in hot render loops (buffers sized at construction).
-- Null gate must stay clean: `guard` defaults false, `{"tap": ...}` absent from all existing patches → every existing render byte-identical. Frozen manifest: `tools/null_gate_manifest.json`. Run the gate before each engine-touching commit (standing rule: once per commit batch, not per tweak).
+- Null gate must stay clean: `guard` defaults false, `{"tap": ...}` absent from all existing patches → every existing render byte-identical. THE gate is `python tools/null_gate_perform_source.py` (compare mode) against the frozen `tools/null_gate_manifest.json`; expected output `N/N manifest entries identical` (NEW lines for just-added baselines are fine). Re-freeze = same script with `--freeze`. (`tools/null_test_manifest.py` is a DIFFERENT tool — stripped-hash text manifests for ad-hoc A/B — do not gate with it.) Run the gate before each engine-touching commit (standing rule: once per commit batch, not per tweak).
 - Registry pattern: explicit registration in `engine/src/source_registrations.cpp`, self-describing descriptors, generic wiring. No reflection.
 - Seeds: none of the new nodes are stochastic; no seed plumbing needed.
 - Build: `cmake --build build --target <t> --config Release` from repo root. CLI at `build\tools\mforce_cli\Release\mforce_cli.exe`, tests at `build\tools\engine_tests\Release\engine_tests.exe`.
@@ -107,7 +107,7 @@ private:
 
 - [ ] **Step 4: Run test to verify it passes.** Rebuild `engine_tests`, run; expected `0 fails`.
 
-- [ ] **Step 5: Null gate + commit.** Run `python tools/null_test_manifest.py <scratchpad>\null_t1.txt`, then diff against `tools/null_gate_manifest.json` (`git diff --no-index tools/null_gate_manifest.json <scratchpad>\null_t1.txt`). Expected: identical. Commit:
+- [ ] **Step 5: Null gate + commit.** Run `python tools/null_gate_perform_source.py`; expected `180/180 manifest entries identical` (entry count per current freeze). Commit:
 
 ```bash
 git add engine/include/mforce/core/dsp_value_source.h tools/engine_tests/main.cpp
@@ -194,7 +194,7 @@ Expected: FAIL — "Param must be a number or {\"ref\":\"...\"}" from `resolve_p
 struct TapBind { std::shared_ptr<RefSource> ref; std::string targetId; };
 ```
 
-(b) In `resolve_param`, before the final `throw`, add (and give `resolve_param` + `resolve_param_or` + the `ResolveParamFn` lambdas that wrap them an extra `std::vector<TapBind>* taps = nullptr` parameter, threaded from `build_graph`):
+(b) In `resolve_param`, before the final `throw`, add. Threading a `taps` parameter through every `resolve_param`/`resolve_param_or` call site (~40, many in hand-written constructor branches) invites mechanical errors — instead use a build-scoped collector: a file-static pointer set by an RAII guard at `build_graph` entry (saving/restoring the previous value, so nested `build_subgraph_with_seed_perturbation` builds bind within their own graph). If the collector is null when a tap is encountered (a loader path outside build_graph), THROW loudly — never return a silently-unbound placeholder:
 
 ```cpp
     if (val.is_object() && val.contains("tap")) {
@@ -243,7 +243,7 @@ Implementation: walk every node's `params` recursively (mirror the existing JSON
                 vg.advanceList.push_back(g.valueNodes.at(id));
 ```
 
-(c) `promote_starved_refs` sighted-ness fix (spec §3.3 hazard): its JSON-reachability walk from `outputId` must ALSO start from every advance-list id — an advance-list node ticks every sample, so its advancing consumers are live. Pass `collect_advance_ids(...)` results in as extra walk roots.
+(c) `promote_starved_refs` fixes, BOTH required: (1) sighted-ness (spec §3.3 hazard): its JSON-reachability walk from `outputId` must ALSO start from every advance-list id — an advance-list node ticks every sample, so its advancing consumers are live. Pass `collect_advance_ids(...)` results in as extra walk roots. (2) Never promote a tap (found in execution review): the built-graph walk's `see_param` promotes ANY RefSource view of a starved source — promoting a `guard` RefSource would replace it with the raw source, destroying the z⁻¹ and leaving an unbroken cycle (infinite recursion in next()). Skip promotion when `rs->guard`, still pushing `rs->source` for the walk.
 
 (d) In `instrument.h`: add to `VoiceGraph` and `StreamingVoice`:
 
@@ -268,7 +268,7 @@ In `prepare_voice_at` (:236) after `vg.source->prepare(ctx, durSamples);`:
 
 and include `vg.advanceList` in the returned StreamingVoice: `return { vg.source, durSamples, gain, vg.performSource, vg.advanceList };` (append the member after `performSource` so aggregate init order matches).
 
-`DrumKit` has no VoiceGraph; give `DrumSource` its own `advanceList` filled at :1508's build, prepare it in `play_hit`, and tick it in the `play_hit` loop the same way.
+DrumKit: NO changes (execution finding — drum graphs are never built from JSON; nothing in patch_loader.cpp constructs a DrumKit). The two build sites are load_patch_file's instrument branch (:1276) and load_instrument_patch (:1508). Mixer-mode patches (no instrument block) have no advance-list host in v1: make that loader path warn LOUDLY to stderr if collect_advance_ids is non-empty ("tap-only loop tail not ticked in mixer patches") rather than silently rendering a dead loop.
 
 (e) In `tools/mforce_ui/main.cpp`, find the audio callback's per-sample loop (grep `performSource->tick()` — the comment at instrument.h:163 names the contract) and add the same advance-list tick after each `source->next()` for live voices.
 
@@ -287,7 +287,7 @@ print("ok: ramp then clamp,", len(nz), "nonzero samples checked")
 
 Expected: `ok`. (If the patch clips at the instrument's soft_clip before the guard's 8.0, lower the embedded score velocity — the shape, not the exact ceiling, is the assertion.)
 
-- [ ] **Step 6: Null gate + commit.** Gate as in Task 1 — the new baseline ADDS a line to the regenerated manifest; every pre-existing line must be unchanged. Re-freeze `tools/null_gate_manifest.json` with the new line included (copy the regenerated file over it) — that is the established re-freeze pattern. Commit:
+- [ ] **Step 6: Null gate + commit.** Run `python tools/null_gate_perform_source.py` — the new baselines report as NEW (not failures); every manifest entry must be identical. Then re-freeze (`--freeze`) so the new baselines join the manifest, and spot-check the re-frozen file's diff touches only added lines. Commit:
 
 ```bash
 git add engine/src/patch_loader.cpp engine/include/mforce/render/instrument.h tools/mforce_ui/main.cpp patches/baselines/feedback/ tools/null_gate_manifest.json
@@ -633,7 +633,7 @@ Check `SmoothnessInterpolator`'s actual setter name in `smoothness_interpolator.
 
 - [ ] **Step 4: Run to verify it passes.** Rebuild + run `engine_tests`; `0 fails`.
 
-- [ ] **Step 5: Null gate + commit.** Full gate (two new registrations since last freeze); every pre-existing line unchanged; re-freeze including the Task 3 baseline if not already done.
+- [ ] **Step 5: Null gate + commit.** Full gate run (two new registrations since last freeze); every manifest entry identical.
 
 ```bash
 git add engine/include/mforce/source/shaper_source.h engine/src/source_registrations.cpp tools/engine_tests/main.cpp tools/null_gate_manifest.json
@@ -734,7 +734,7 @@ git commit -m "ui: shape editor Shaper client - four-quadrant drawn transfer cur
 - [ ] **Step 1: loop_bowed.json.** The bowed-string skeleton from spec §1: excitation (a short SegmentSource thump, oneShot) + tap of the DelayLine → CombinedSource(add) → Shaper holding a friction-ish curve (steep through zero, compressive shoulders — e.g. values `[-1, -0.85, -0.3, -0.75, -0.05, -0.6, 0.05, 0.6, 0.3, 0.75, 1, 0.85]`) → DelayLine (frequency from the Note face / instrument frequency param, ratio 1) → output. Loop gain must sit just under unity through the shaper's slope, or it runs away to the guard — start compressive (slope < 1 at the extremes) and iterate until the render RINGS and DECAYS. Instrument block, polyphony 2, embedded score: three notes across an octave, ~1.5 s each.
 - [ ] **Step 2: loop_selfosc.json.** No excitation at all: Shaper with gain through zero (e.g. `[-1, -0.9, -0.2, -0.9, 0, 0, 0.2, 0.9, 1, 0.9]` — slope ≈ 4.5 near origin, saturating shoulders) → DelayLine → tap back into the Shaper's source. Render must be NON-silent from the noise floor... which in a digital loop is exactly zero — so seed it: a WhiteNoiseSource through a very small gain (CombinedSource add, ~0.001 amplitude) summed into the loop input. That stays honest to the spec's "blooming from the noise floor."
 - [ ] **Step 3: Render both.** `mforce_cli <patch> <scratchpad>\<name>.wav` — verify non-silent (python: peak > 0.05) and finite. Iterate curve values until both behave as described (ring-and-decay; sustained self-oscillation). These curves are STARTING POINTS — the sound is Matt's to judge; the gate freezes reproducibility, not aesthetics. Copy renders to `renders/dsp/pending/feedback/` for audition (standing rule: leave audition material in pending, never promote).
-- [ ] **Step 4: Null gate + re-freeze + commit.**
+- [ ] **Step 4: Null gate + re-freeze + commit.** Gate (all entries identical, feedback patches NEW), then `--freeze` to adopt them.
 
 ```bash
 git add patches/baselines/feedback/ tools/null_gate_manifest.json
