@@ -8,19 +8,6 @@ file's git history. Tags per WORKFLOW.md. (G1)-(G4) = GOALS.md Dipsy goals.
 
 ## Active — engine/build
 
-38. **[fix] Live keyboard: 2nd held note gets instant attack (loop patches,
-    maybe all)** — Matt 2026-08-31 evening, on tweaked_57-style loop patches:
-    first held note has the slow breathy attack; any note played while it is
-    held "jumps straight to sustain". ENGINE PATH EXONERATED by measurement
-    (CLI probe, same-voice sequential notes on polyphony 1: both onsets
-    equally gradual — prepare() resets envelopes/delay/loop correctly; live
-    pool floors at 8 so no steal either). The bug is in the UI held-note
-    path — gated-envelope layout is the main thing the probe can't reach.
-    Two discriminating tests, 30 s each at the keyboard: (a) does a slow-
-    attack NON-loop patch show it too? (general gating bug vs loop-specific)
-    (b) does note 1 keep ringing when note 2 starts? (steal despite floor).
-    Echoes a years-old "shared envelope instance" bug per Matt.
-
 37a. **[build] Feedback-loop playability round** — Matt's 2026-08-31 evening
     hand-tuning verdicts (tweaked_57, patches/scratch, HIS sandbox — read
     only): in-loop SVF + hiss amp/density envelopes = "somewhere between a
@@ -469,6 +456,10 @@ One line each; full text in run reports + this file's git history.
   unity now, Matt's call); REVIEW 51. En route: null-gate manifest was
   stale since the 08-22 voice release-bump (8657bae) + curation — re-frozen
   at 180 entries.
+- 38. Live 2nd-note instant-attack — CLOSED 09-01, NOT A BUG: Matt couldn't
+  repro on other patches or on the original loop patch next morning;
+  perceptual — attack transients partially masked by the noise bed of the
+  already-sounding note. Engine had already been exonerated by CLI probe.
 - Partial motion layer + v1-v4 batches (docs/Fable1_results.md); 16 kHz
   cutoff break→continue fix; UI array-restore fix; 96-partial
   extrapolation — pre-run-1 era.
