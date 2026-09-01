@@ -158,12 +158,36 @@ static void run_tap_guard_tests() {
     CHECK_NEAR(empty.next(), 0.0f, 1e-6f);
 }
 
+#include "mforce/source/combined_source.h"
+
+static void run_tap_cycle_tests() {
+    // The positional z-1 the whole feedback subsystem rests on: a tap
+    // consumer evaluates before its source each tick, so reading current()
+    // yields last tick's value. Self-referencing counter: out = 1 + tap(out)
+    // ramps 1, 2, 3... and the guard ceiling (not inf) catches the runaway.
+    auto counter = std::make_shared<CombinedSource>(
+        std::make_shared<ConstantSource>(1.0f),
+        std::make_shared<ConstantSource>(0.0f),   // replaced by the tap below
+        CombineOp::Sum, 0.0f);                    // Sum: true addition (Add averages)
+    auto tap = std::make_shared<RefSource>(counter, true);
+    counter->set_param("source2", tap);
+
+    CHECK_NEAR(counter->next(), 1.0f, 1e-6f);
+    CHECK_NEAR(counter->next(), 2.0f, 1e-6f);
+    CHECK_NEAR(counter->next(), 3.0f, 1e-6f);
+    for (int i = 0; i < 20; ++i) counter->next();
+    // Equilibrium, not inf: the guard caps the FEEDBACK at 8, so the
+    // counter settles at 1 + 8 = 9.
+    CHECK_NEAR(counter->current(), 9.0f, 1e-6f);
+}
+
 int main() {
     run_curve_node_tests();
     run_envelope_range_tests();
     run_stage_nominal_tests();
     run_perform_source_tests();
     run_tap_guard_tests();
+    run_tap_cycle_tests();
     if (g_fails) { std::printf("%d/%d FAILED\n", g_fails, g_checks); return 1; }
     std::printf("ALL PASS (%d checks)\n", g_checks);
     return 0;
