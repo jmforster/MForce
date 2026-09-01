@@ -5223,6 +5223,7 @@ struct ShapeEdGenState {
     float varPct{0.10f};       // generate-time jitter on widths/spacings/peaks
     bool  bipolar{false};      // alternate pulse sign (SegmentRevisit's open question)
     int   seed{1234};
+    bool  showVariance{true};  // draw the varPct ghost traces on the canvas
 };
 static ShapeEdGenState s_shapeEdGen;
 
@@ -5233,7 +5234,7 @@ static std::vector<std::pair<float, float>> shape_ed_gen_pulse_train(
     std::vector<std::pair<float, float>> pts;
     Randomizer rng(uint32_t(g.seed));
     const int n = std::max(1, g.count);
-    float t = 0.0f;
+    float t = 0.0f, prevEnd = 0.0f;
     for (int k = 0; k < n; ++k) {
         const float u = n > 1 ? float(k) / float(n - 1) : 0.0f;
         const float ramp = std::pow(std::max(0.01f, g.widthRamp), u);
@@ -5248,9 +5249,15 @@ static std::vector<std::pair<float, float>> shape_ed_gen_pulse_train(
         if (g.bipolar && (k & 1)) peak = -peak;
         w = std::max(1.0f, w);
         s = std::max(0.0f, s);
+        // Hold zero through the gap: without this point the engine ramps
+        // from the previous pulse's base straight up to this peak across
+        // spacing+width samples, and "spacing" is never silent.
+        if (k > 0 && t > prevEnd + 1e-3f)
+            pts.emplace_back(t, 0.0f);
         pts.emplace_back(t + w, peak);          // rise to the peak
         pts.emplace_back(t + 2.0f * w, 0.0f);   // fall back to zero
-        t += 2.0f * w + s;
+        prevEnd = t + 2.0f * w;
+        t = prevEnd + s;
     }
     return pts;
 }
@@ -5302,11 +5309,33 @@ static std::vector<std::pair<float, float>> shape_ed_segment_load(
     return pts;
 }
 
+// Write an explicit timeMode setting (1=samples, 2=seconds) to the node.
+static void shape_ed_set_time_mode(GraphNode& node, int mode) {
+    for (auto& [d, v] : node.settingValues)
+        if (std::string_view(d.name) == "timeMode") v = float(mode);
+    if (node.dspSource) {
+        std::lock_guard<std::mutex> lock(g_audioMutex);
+        node.dspSource->set_setting("timeMode", float(mode));
+    }
+    node.jsonExtras.erase("timeMode");
+    mark_graph_dirty();
+}
+
 // Absolute points -> deltas, pushed live (same path as the pair table).
 static void shape_editor_apply_segment(
         GraphNode& node, const std::vector<std::pair<float, float>>& pts) {
     std::vector<float>* vals = shape_ed_segment_values(node);
     if (!vals) return;
+    // Pin the units BEFORE the edit can change values[0]: in auto timeMode
+    // the engine re-infers seconds-vs-samples from the first width on every
+    // values write, so an edit that pushed the first width under 1.0
+    // (inserting a point left of the first, or a 0-width lead-in) silently
+    // flipped the whole shape to seconds — heard as silence. Resolve auto
+    // against the pre-edit shape and make it explicit.
+    if (node.dspSource && int(node.dspSource->get_setting("timeMode")) == 0) {
+        const bool secs = !vals->empty() && (*vals)[0] < 1.0f;
+        shape_ed_set_time_mode(node, secs ? 2 : 1);
+    }
     vals->clear();
     vals->reserve(pts.size() * 2);
     float prevX = 0.0f;
@@ -5426,9 +5455,18 @@ static void draw_shape_editor() {
         ImGui::SameLine();
         if (ImGui::Button("Reuse seed")) emit = true;
         ImGui::SameLine();
+        ImGui::Checkbox("Show variance", &G.showVariance);
+        if (ImGui::IsItemHovered())
+            ImGui::SetTooltip("Ghost traces of the node's widthVarPct/"
+                              "valVarPct re-randomization\n(nothing to show "
+                              "while both are 0)");
+        ImGui::SameLine();
         ImGui::TextDisabled("replaces the current points");
         if (emit) {
             auto gen = shape_ed_gen_pulse_train(G);
+            // Generator params are defined in samples; a seconds-authored
+            // shape must not reinterpret a 40-sample pulse as 40 seconds.
+            shape_ed_set_time_mode(node, 1);
             shape_editor_apply_segment(node, gen);
             pts = std::move(gen);
             s_shapeEd.fitPending = true;
@@ -5517,26 +5555,47 @@ static void draw_shape_editor() {
     // shape, drawn only while a varPct is nonzero — they show width wobble
     // shifting points in TIME, which a vertical band cannot.
     if (isSeg && !pts.empty()) {
+        // pin.defaultValue, NOT constantSrc->current(): ConstantSource::set
+        // only stages the value for the next next(), and nothing on the
+        // editor canvas ever advances these sources — current() stays at
+        // the construction-time default forever.
         float wvp = 0.0f, vvp = 0.0f;
         for (auto& pin : node.inputs) {
-            if (pin.name == "widthVarPct" && pin.constantSrc)
-                wvp = pin.constantSrc->current();
-            if (pin.name == "valVarPct" && pin.constantSrc)
-                vvp = pin.constantSrc->current();
+            if (pin.name == "widthVarPct") wvp = pin.defaultValue;
+            if (pin.name == "valVarPct")   vvp = pin.defaultValue;
         }
-        if (wvp > 0.001f || vvp > 0.001f) {
+        if (s_shapeEdGen.showVariance && (wvp > 0.001f || vvp > 0.001f)) {
+            float gsm = 0.5f;
+            for (auto& pin : node.inputs)
+                if (pin.name == "smoothness") {  // defaultValue: see below
+                    gsm = pin.defaultValue;
+                    break;
+                }
+            SmoothnessInterpolator gsi(gsm, false);
+            // Warm orange, distinct from the cyan engine overlay — at the
+            // overlay's own hue the ghosts read as noise. Each jittered
+            // segment is subdivided by pixel width and run through the
+            // engine's interpolator so ghosts curve/step like the render.
+            const ImU32 gcol = IM_COL32(235, 160, 90, 96);
             for (int gh = 0; gh < 3; ++gh) {
                 Randomizer grng(0xB00B1E5u + uint32_t(gh) * 7919u);
-                float acc = 0.0f, prevX = 0.0f;
-                ImVec2 prev(tx(0.0f), ty(0.0f));
+                float prevX = 0.0f, px = 0.0f, pv = 0.0f;
                 for (auto& [x, y] : pts) {
-                    acc += std::max(0.0f, (x - prevX)
+                    const float w = std::max(0.0f, (x - prevX)
                             * grng.range(1.0f - wvp, 1.0f + wvp));
-                    float v = y * grng.range(1.0f - vvp, 1.0f + vvp);
-                    ImVec2 p(tx(acc), ty(v));
-                    dl->AddLine(prev, p, IM_COL32(120, 200, 220, 42), 1.0f);
-                    prev = p;
-                    prevX = x;
+                    const float qx = px + w;
+                    const float qv = y * grng.range(1.0f - vvp, 1.0f + vvp);
+                    const int steps = std::clamp(
+                        int((tx(qx) - tx(px)) / 3.0f), 1, 64);
+                    ImVec2 prev(tx(px), ty(pv));
+                    for (int st = 1; st <= steps; ++st) {
+                        const float pos = float(st) / float(steps);
+                        ImVec2 p(tx(px + w * pos),
+                                 ty(gsi.interpolate(pv, qv, pos)));
+                        dl->AddLine(prev, p, gcol, 1.0f);
+                        prev = p;
+                    }
+                    px = qx; pv = qv; prevX = x;
                 }
             }
         }
@@ -5564,8 +5623,8 @@ static void draw_shape_editor() {
     } else if (isSeg && !pts.empty()) {
         float smooth = 0.5f;
         for (auto& pin : node.inputs)
-            if (pin.name == "smoothness" && pin.constantSrc) {
-                smooth = pin.constantSrc->current();
+            if (pin.name == "smoothness") {  // defaultValue: see ghost note
+                smooth = pin.defaultValue;
                 break;
             }
         SmoothnessInterpolator si(smooth, false);
@@ -8024,8 +8083,10 @@ static void draw_properties_panel() {
             if (totalW > 0.0f) {
                 float smooth = 0.5f;
                 for (auto& pin : node->inputs)
-                    if (pin.name == "smoothness" && pin.constantSrc) {
-                        smooth = pin.constantSrc->current();
+                    if (pin.name == "smoothness") {
+                        // defaultValue, not constantSrc->current(): set()
+                        // stages for next() and the panel never advances it.
+                        smooth = pin.defaultValue;
                         break;
                     }
                 SmoothnessInterpolator si(smooth, false);
