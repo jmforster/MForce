@@ -75,6 +75,24 @@ struct ValueSourceMono final : MonoSource {
 // Param resolution: number -> ConstantSource, {"ref":"id"} -> lookup
 // ---------------------------------------------------------------------------
 
+// Tap edges (feedback_loop_design.md §3.2): {"tap": "<id>"} resolves to a
+// GUARDED RefSource and may point FORWARD in nodeOrder — that is its purpose
+// (closing a feedback cycle) — so targets bind in a second pass at the end
+// of build_graph, once every node exists. The collector is build-scoped via
+// RAII rather than threaded through the ~40 resolve_param call sites; nested
+// builds (Multiplex subgraphs) save/restore so each binds within its own
+// graph. Taps never touch the usage counter: a tap never advances, so it
+// must never claim the advancing-consumer role.
+struct TapBind { std::shared_ptr<RefSource> ref; std::string targetId; };
+static thread_local std::vector<TapBind>* t_tapBinds = nullptr;
+struct TapBindScope {
+    std::vector<TapBind>* prev;
+    explicit TapBindScope(std::vector<TapBind>* cur) : prev(t_tapBinds) {
+        t_tapBinds = cur;
+    }
+    ~TapBindScope() { t_tapBinds = prev; }
+};
+
 // Resolve a JSON ref/number into a ValueSource. When `usage` is non-null,
 // each resolved ref increments usage[refId]; on the SECOND+ resolve of the
 // same source, the returned shared_ptr wraps the source in a RefSource so
@@ -103,7 +121,17 @@ static std::shared_ptr<ValueSource> resolve_param(
         return it->second;
     }
 
-    throw std::runtime_error("Param must be a number or {\"ref\":\"...\"}");
+    if (val.is_object() && val.contains("tap")) {
+        if (!t_tapBinds)
+            throw std::runtime_error(
+                "{\"tap\":...} not supported in this position");
+        auto rs = std::make_shared<RefSource>(nullptr, true);
+        t_tapBinds->push_back({rs, val.at("tap").get<std::string>()});
+        return rs;
+    }
+
+    throw std::runtime_error(
+        "Param must be a number, {\"ref\":\"...\"} or {\"tap\":\"...\"}");
 }
 
 static std::shared_ptr<ValueSource> resolve_param_or(
@@ -145,6 +173,51 @@ static std::shared_ptr<ValueSource> resolve_param_or(
 // cannot be promoted (no setter to reach it): the tap stays quiet there
 // rather than risking a wrong advance; conservative by design.
 // ---------------------------------------------------------------------------
+// Advance list (feedback_loop_design.md §3.3): a node consumed ONLY by tap
+// edges is never ticked by the pull — the loop tail is silently dead. Decide
+// membership from the JSON (the built graph is not fully walkable — same
+// evidence base as promote_starved_refs below): enumerate every {"ref":id},
+// plain-string "inputs" id, and {"tap":id} across all nodes; result = ids
+// with a tap consumer, no normal consumer, and != outputId, in nodeOrder.
+static std::vector<std::string> collect_advance_ids(
+    const std::unordered_map<std::string, json>& nodeMap,
+    const std::vector<std::string>& nodeOrder,
+    const std::string& outputId)
+{
+    std::unordered_set<std::string> normal, tapped;
+    std::function<void(const json&)> scan = [&](const json& v) {
+        if (v.is_object()) {
+            if (v.size() == 1 && v.contains("ref") && v["ref"].is_string())
+                normal.insert(v["ref"].get<std::string>());
+            else if (v.size() == 1 && v.contains("tap") && v["tap"].is_string())
+                tapped.insert(v["tap"].get<std::string>());
+            else
+                for (auto it = v.begin(); it != v.end(); ++it) scan(it.value());
+        } else if (v.is_array()) {
+            for (const auto& item : v) scan(item);
+        }
+    };
+    for (const auto& id : nodeOrder) {
+        const auto& node = nodeMap.at(id);
+        if (node.contains("params")) scan(node["params"]);
+        if (node.contains("inputs")) {
+            std::function<void(const json&)> scanIds = [&](const json& v) {
+                if (v.is_string()) normal.insert(v.get<std::string>());
+                else if (v.is_object())
+                    for (auto it = v.begin(); it != v.end(); ++it) scanIds(it.value());
+                else if (v.is_array())
+                    for (const auto& item : v) scanIds(item);
+            };
+            scanIds(node["inputs"]);
+        }
+    }
+    std::vector<std::string> out;
+    for (const auto& id : nodeOrder)
+        if (tapped.count(id) && !normal.count(id) && id != outputId)
+            out.push_back(id);
+    return out;
+}
+
 static void promote_starved_refs(
     const std::vector<std::shared_ptr<ValueSource>>& roots,
     const std::unordered_map<std::string, json>& nodeMap,
@@ -188,9 +261,15 @@ static void promote_starved_refs(
         for (const auto& r : refs) advancer.emplace(r, id);
     }
 
-    // reachable node ids from the output
+    // reachable node ids from the output — PLUS every advance-list node:
+    // those tick every sample (feedback_loop_design.md §3.3), so their
+    // advancing consumers are live even though no normal edge reaches them
+    // from the output; without this they'd look starved and get promoted
+    // into a double advance.
     std::unordered_set<std::string> reachable;
     std::vector<std::string> idStack{outputId};
+    for (const auto& id : collect_advance_ids(nodeMap, nodeOrder, outputId))
+        idStack.push_back(id);
     while (!idStack.empty()) {
         std::string id = std::move(idStack.back());
         idStack.pop_back();
@@ -225,7 +304,10 @@ static void promote_starved_refs(
             auto child = node->get_param(name);
             if (!child) return;
             if (auto* rs = dynamic_cast<RefSource*>(child.get())) {
-                if (rs->source && starved.count(rs->source.get())) {
+                // NEVER promote a tap: swapping the guarded ref for the raw
+                // source would destroy the z-1 and leave an unbroken cycle
+                // (infinite recursion in next()). Walk through it only.
+                if (!rs->guard && rs->source && starved.count(rs->source.get())) {
                     node->set_param(name, rs->source);
                     starved.erase(rs->source.get());
                 }
@@ -431,6 +513,11 @@ static GraphResult build_graph(
     GraphResult g;
     auto& valueNodes   = g.valueNodes;
     auto& formantNodes = g.formantNodes;
+
+    // Tap edges resolve to placeholders during the node loop; bound below
+    // once every node exists (they may point forward in nodeOrder).
+    std::vector<TapBind> tapBinds;
+    TapBindScope tapScope(&tapBinds);
 
     auto& reg = SourceRegistry::instance();
 
@@ -825,6 +912,14 @@ static GraphResult build_graph(
         }
 
     } // end for each node
+
+    // Pass 2: bind tap targets (feedback_loop_design.md §3.2).
+    for (auto& tb : tapBinds) {
+        auto it = valueNodes.find(tb.targetId);
+        if (it == valueNodes.end())
+            throw std::runtime_error("Unresolved tap target: " + tb.targetId);
+        tb.ref->source = it->second;
+    }
 
     return g;
 }
@@ -1302,6 +1397,11 @@ Patch load_patch_file(const std::string& path)
             promote_starved_refs(vg.source, nodeMap, nodeOrder, outputId,
                                  g.valueNodes);
 
+            // Loop tails consumed only by tap edges: the voice ticks these
+            // after the root pull (feedback_loop_design.md §3.3).
+            for (const auto& aid : collect_advance_ids(nodeMap, nodeOrder, outputId))
+                vg.advanceList.push_back(g.valueNodes.at(aid));
+
             inst->voicePool.push_back(std::move(vg));
         }
 
@@ -1382,6 +1482,17 @@ Patch load_patch_file(const std::string& path)
     auto g = build_graph(nodeMap, nodeOrder, sampleRate);
     auto& valueNodes = g.valueNodes;
     auto& monoNodes  = g.monoNodes;
+
+    // Mixer-mode patches have no per-sample driver to tick tap-only loop
+    // tails (the advance list is a voice concept — feedback_loop_design.md
+    // §3.3), so such a tail here would render as a silently dead loop. Say
+    // so loudly instead.
+    for (const auto& aid : collect_advance_ids(nodeMap, nodeOrder, outputId))
+        std::fprintf(stderr,
+            "[loader] WARNING: node '%s' is consumed only by tap edges and "
+            "will NOT advance in a mixer-mode patch — give the patch an "
+            "instrument block, or take audio output from the loop tail\n",
+            aid.c_str());
 
     auto outIt = nodeMap.find(outputId);
     if (outIt == nodeMap.end())
@@ -1522,6 +1633,10 @@ InstrumentPatch load_instrument_patch(const std::string& path,
         bind_wiring(nodeMap, nodeOrder, g, vg);
         promote_starved_refs(vg.source, nodeMap, nodeOrder, outputId,
                              g.valueNodes);  // see render-path twin above
+
+        // Loop tails consumed only by tap edges (see render-path twin above).
+        for (const auto& aid : collect_advance_ids(nodeMap, nodeOrder, outputId))
+            vg.advanceList.push_back(g.valueNodes.at(aid));
 
         inst->voicePool.push_back(std::move(vg));
     }

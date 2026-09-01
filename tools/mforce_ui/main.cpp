@@ -3361,6 +3361,9 @@ struct Voice {
     // source->next(), so bend and wheel/pressure move during the note. Null
     // for voices with no perform context.
     std::shared_ptr<mforce::PerformSource> performSource;
+    // Tap-only loop tails (feedback_loop_design.md §3.3): ticked once per
+    // sample AFTER source->next(), or tap-closed feedback loops fall silent.
+    std::vector<std::shared_ptr<mforce::ValueSource>> advanceList;
 };
 static Voice g_voices[MAX_VOICES];
 
@@ -3383,7 +3386,9 @@ static void voice_schedule_unlocked(std::shared_ptr<InstrumentPatch> patch,
                                     std::vector<mforce::Envelope*> envs = {},
                                     int poolSlot = -1,
                                     std::shared_ptr<mforce::PerformSource>
-                                        performSource = nullptr) {
+                                        performSource = nullptr,
+                                    std::vector<std::shared_ptr<mforce::ValueSource>>
+                                        advanceList = {}) {
     // Same-source steal: a note whose pool slot's previous note is still
     // sounding must replace that voice outright (two active entries pulling
     // one source would double-render it).
@@ -3420,6 +3425,7 @@ static void voice_schedule_unlocked(std::shared_ptr<InstrumentPatch> patch,
     g_voices[slot].midiNote = midiNote;
     g_voices[slot].poolSlot = poolSlot;
     g_voices[slot].performSource = std::move(performSource);
+    g_voices[slot].advanceList = std::move(advanceList);
     g_voices[slot].active = true;
 }
 
@@ -3502,6 +3508,7 @@ static int audio_callback(void* outputBuffer, void* /*inputBuffer*/,
             // exactly once per voice per sample, never inside consumer pulls.
             if (voice.performSource) voice.performSource->tick();
             voiceSum += voice.source->next() * voice.gain;
+            for (auto& a : voice.advanceList) a->next();  // tap-only loop tails
             voice.samplesRemaining--;
             if (voice.samplesRemaining <= 0) {
                 // Flag writes only (pool release is a flag too — RT-safe).
@@ -3744,6 +3751,9 @@ static void voice_gc() {
             if (!v.active && (v.source || v.patch)) {
                 if (v.source) dyingSources.push_back(std::move(v.source));
                 if (v.patch)  dyingPatches.push_back(std::move(v.patch));
+                for (auto& a : v.advanceList)   // loop tails die off-thread too
+                    dyingSources.push_back(std::move(a));
+                v.advanceList.clear();
                 v.performSource.reset();  // pool keeps its own ref; the bend
                                           // envelope dies off-thread with it
                 v.envs.clear();   // non-owning; graph dies with the patch
@@ -4240,7 +4250,7 @@ static void play_note(float noteNum, float velocity, float durationSeconds) {
         // durSamples — release is inside the note, no tail window.
         voice_schedule_unlocked(ip, sv.source, sv.durSamples, sv.gain,
                                 int(noteNum), false, {}, slot,
-                                sv.performSource);
+                                sv.performSource, sv.advanceList);
     } catch (const std::exception& e) {
         char buf[256];
         std::snprintf(buf, sizeof(buf), "play_note failed: %s", e.what());
@@ -4302,7 +4312,7 @@ static void play_note_held(float noteNum, float velocity, float nominalSeconds) 
                                                     nominalSeconds);
                 voice_schedule_unlocked(ip, sv.source, INT_MAX / 2, sv.gain,
                                         int(noteNum), true, std::move(envs),
-                                        slot, sv.performSource);
+                                        slot, sv.performSource, sv.advanceList);
                 return;
             }
             // Not gateable: hand the acquired slot back before falling
@@ -11042,6 +11052,7 @@ int main(int argc, char** argv) {
                 for (int i = 0; i < sv.durSamples; ++i) {
                     if (sv.performSource) sv.performSource->tick();  // P3 clock
                     mono[i] = soft_clip(sv.source->next() * sv.gain);
+                    for (auto& a : sv.advanceList) a->next();  // loop tails
                 }
             } else {
                 // Generate path: authoritative offline render into

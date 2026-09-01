@@ -109,6 +109,12 @@ struct PitchedInstrument final : Instrument {
     // plan_perform_source_p3.md T1).
     std::shared_ptr<ValueSource>   freqOut, velOut, wheelOut, pressOut;
     std::vector<PushBinding>       pushBindings;
+    // Loop tails consumed only by tap edges (feedback_loop_design.md §3.3):
+    // never reached by the pull, ticked once per sample AFTER the root pull
+    // (their tap consumers must read the previous value first; their own
+    // forward inputs are reached through the normal multi-consumer
+    // RefSource wrap, so nothing double-advances).
+    std::vector<std::shared_ptr<ValueSource>> advanceList;
   };
 
   float hiBoost{0.0f};
@@ -164,6 +170,11 @@ struct PitchedInstrument final : Instrument {
     // and wheel/pressure freeze at their note-on values. Null for graphs
     // with no perform context.
     std::shared_ptr<PerformSource> performSource;
+    // Loop tails consumed only by tap edges. Streaming callers MUST tick
+    // each entry once per sample AFTER source->next(), or tap-closed
+    // feedback loops fall silent (same contract class as performSource).
+    // Empty for graphs with no tap-only tails.
+    std::vector<std::shared_ptr<ValueSource>> advanceList;
   };
 
   StreamingVoice prepare_voice(float noteNumber, float velocity, float duration,
@@ -234,8 +245,9 @@ struct PitchedInstrument final : Instrument {
 
     RenderContext ctx{ sampleRate };
     vg.source->prepare(ctx, durSamples);
+    for (auto& a : vg.advanceList) a->prepare(ctx, durSamples);
 
-    return { vg.source, durSamples, gain, vg.performSource };
+    return { vg.source, durSamples, gain, vg.performSource, vg.advanceList };
   }
 
   void play_note(float noteNumber, float velocity, float duration, float startTime,
@@ -256,11 +268,13 @@ struct PitchedInstrument final : Instrument {
 
     RenderContext ctx{ sampleRate };
     vg.source->prepare(ctx, durSamples);
+    for (auto& a : vg.advanceList) a->prepare(ctx, durSamples);
 
     std::vector<float> buf(durSamples);
     for (int i = 0; i < durSamples; ++i) {
       if (vg.performSource) vg.performSource->tick();   // P3 sample clock
       buf[i] = vg.source->next() * gain;
+      for (auto& a : vg.advanceList) a->next();         // tap-only loop tails
     }
 
     // Note-contained-sound check (2026-08-13 spec): output must be at the

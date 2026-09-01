@@ -1,0 +1,20 @@
+{
+  "_comment": "Feedback v1 (docs/feedback_loop_design.md): starved-advancement test. Node b is consumed ONLY by tap edges (its own self-tap and a's tap), so the pull never ticks it - it must ride the advance list or this renders silence. b self-counts by 0.02/tick to the 8.0 guard ceiling; a reads b through a tap; output scales a to 0.1. A dead advance list = all-zero WAV.",
+  "sampleRate": 48000,
+  "graph": {
+    "nodes": [
+      { "id": "b", "type": "CombinedSource",
+        "params": { "source1": 0.02, "source2": { "tap": "b" },
+                    "operation": "sum", "gainAdj": 0.0 } },
+      { "id": "a", "type": "CombinedSource",
+        "params": { "source1": 0.0, "source2": { "tap": "b" },
+                    "operation": "sum", "gainAdj": 0.0 } },
+      { "id": "scaled", "type": "CombinedSource",
+        "params": { "source1": { "ref": "a" }, "source2": 0.1,
+                    "operation": "multiply", "gainAdj": 0.0 } }
+    ],
+    "output": "scaled"
+  },
+  "instrument": { "polyphony": 1, "volume": 1.0 },
+  "score": [ { "note": 60, "time": 0.0, "duration": 0.2, "velocity": 0.8 } ]
+}

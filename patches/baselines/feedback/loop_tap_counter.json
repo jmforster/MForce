@@ -1,0 +1,17 @@
+{
+  "_comment": "Feedback v1 (docs/feedback_loop_design.md): tap self-reference smoke. counter = 1 + tap(counter) via Sum ramps 1,2,3... each tick reading last tick's value (positional z-1), and settles at 1+8 because the guard clamps the FEEDBACK at 8. The 0.05 scale keeps the ramp under the soft clip so it survives to the WAV.",
+  "sampleRate": 48000,
+  "graph": {
+    "nodes": [
+      { "id": "counter", "type": "CombinedSource",
+        "params": { "source1": 1.0, "source2": { "tap": "counter" },
+                    "operation": "sum", "gainAdj": 0.0 } },
+      { "id": "scaled", "type": "CombinedSource",
+        "params": { "source1": { "ref": "counter" }, "source2": 0.05,
+                    "operation": "multiply", "gainAdj": 0.0 } }
+    ],
+    "output": "scaled"
+  },
+  "instrument": { "polyphony": 1, "volume": 1.0 },
+  "score": [ { "note": 60, "time": 0.0, "duration": 0.2, "velocity": 0.8 } ]
+}
