@@ -181,6 +181,91 @@ static void run_tap_cycle_tests() {
     CHECK_NEAR(counter->current(), 9.0f, 1e-6f);
 }
 
+#include "mforce/source/delay_line_source.h"
+
+static void run_delay_line_tests() {
+    RenderContext ctx{48000};
+    // sr 48000, freq 480 -> exactly 100 samples of delay
+    auto dl = std::make_shared<DelayLineSource>(48000);
+    dl->set_param("frequency", std::make_shared<ConstantSource>(480.0f));
+    auto in = std::make_shared<ConstantSource>(0.0f);
+    dl->set_param("source", in);
+    dl->prepare(ctx, 48000);
+
+    in->set(1.0f);
+    float first = dl->next();          // impulse enters at tick 1
+    in->set(0.0f);
+    CHECK_NEAR(first, 0.0f, 1e-6f);    // empty line
+    float out = 0.0f;
+    for (int i = 0; i < 99; ++i) out = dl->next();
+    CHECK_NEAR(out, 0.0f, 1e-6f);      // still inside the line (tick 100)
+    out = dl->next();                  // tick 101: impulse emerges
+    CHECK_NEAR(out, 1.0f, 1e-3f);
+    out = dl->next();
+    CHECK_NEAR(out, 0.0f, 1e-3f);      // and passes
+
+    // ratio doubles the period: 200 samples
+    auto dl2 = std::make_shared<DelayLineSource>(48000);
+    dl2->set_param("frequency", std::make_shared<ConstantSource>(480.0f));
+    dl2->set_param("ratio", std::make_shared<ConstantSource>(2.0f));
+    auto in2 = std::make_shared<ConstantSource>(0.0f);
+    dl2->set_param("source", in2);
+    dl2->prepare(ctx, 48000);
+    in2->set(1.0f); dl2->next(); in2->set(0.0f);
+    for (int i = 0; i < 199; ++i) out = dl2->next();
+    out = dl2->next();
+    CHECK_NEAR(out, 1.0f, 1e-3f);
+
+    // prepare() clears the line: no ring-over between notes
+    dl2->prepare(ctx, 48000);
+    for (int i = 0; i < 300; ++i) CHECK(dl2->next() == 0.0f);
+}
+
+#include "mforce/source/shaper_source.h"
+
+static void run_shaper_tests() {
+    RenderContext ctx{48000};
+    // Default identity curve passes input through
+    auto sh = std::make_shared<ShaperSource>();
+    auto in = std::make_shared<ConstantSource>(0.5f);
+    sh->set_param("source", in);
+    sh->prepare(ctx, 100);
+    CHECK_NEAR(sh->next(), 0.5f, 1e-3f);
+
+    // Clamp past the drawn ends
+    in->set(3.0f); in->next();
+    CHECK_NEAR(sh->next(), 1.0f, 1e-3f);
+    in->set(-3.0f); in->next();
+    CHECK_NEAR(sh->next(), -1.0f, 1e-3f);
+
+    // drive scales input BEFORE the lookup: drive 2 pushes 0.4 to 0.8
+    sh->set_param("drive", std::make_shared<ConstantSource>(2.0f));
+    in->set(0.4f); in->next();
+    CHECK_NEAR(sh->next(), 0.8f, 1e-3f);
+
+    // A drawn dead-zone curve: flat 0 across [-0.5, 0.5], ramps outside.
+    // smoothness 0.5 = linear segments (0 = hold-v1 step, 1 = sine).
+    auto dz = std::make_shared<ShaperSource>();
+    dz->set_array("values", {-1.0f, -1.0f, -0.5f, 0.0f, 0.5f, 0.0f, 1.0f, 1.0f});
+    dz->set_param("smoothness", std::make_shared<ConstantSource>(0.5f));
+    auto in2 = std::make_shared<ConstantSource>(0.2f);
+    dz->set_param("source", in2);
+    dz->prepare(ctx, 100);
+    float mid = dz->next();
+    CHECK(std::fabs(mid) < 0.05f);           // inside the dead zone
+    in2->set(0.75f); in2->next();
+    float hi = dz->next();
+    CHECK_NEAR(hi, 0.5f, 1e-3f);             // linear outer ramp midpoint
+
+    // smoothness 0 steps: same input holds the segment's START value (0)
+    dz->set_param("smoothness", std::make_shared<ConstantSource>(0.0f));
+    CHECK_NEAR(dz->next(), 0.0f, 1e-6f);
+
+    // values round-trip via get_array (UI re-pull path)
+    auto back = dz->get_array("values");
+    CHECK(back.size() == 8 && back[2] == -0.5f);
+}
+
 int main() {
     run_curve_node_tests();
     run_envelope_range_tests();
@@ -188,6 +273,8 @@ int main() {
     run_perform_source_tests();
     run_tap_guard_tests();
     run_tap_cycle_tests();
+    run_delay_line_tests();
+    run_shaper_tests();
     if (g_fails) { std::printf("%d/%d FAILED\n", g_fails, g_checks); return 1; }
     std::printf("ALL PASS (%d checks)\n", g_checks);
     return 0;
