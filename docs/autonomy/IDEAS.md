@@ -22,8 +22,12 @@ might not decide to do it.")
   and damping must stay tuned together they belong in ONE node — delay +
   built-in damping, cutoff pin, closed-form lag subtraction per
   sample/block. The free-wired SVF form stays as the deliberately-coupled
-  variant. **Decide after:** a loop patch earns instrument-matching
-  treatment (pitch stability starts to matter more than the scoop).
+  variant — confirmed by ear 09-01: cutoff-as-release "created an
+  interesting effect, just not what we'd usually want" (Matt); normal
+  decay now belongs to DelayLine `amplitude` (pitch-neutral loop gain,
+  landed 2d11c96), leaving cutoff motion free to be the effect.
+  **Decide after:** a loop patch earns instrument-matching treatment
+  (pitch stability starts to matter more than the scoop).
 
 - **Per-stage Envelope bindings (e.g. `Envelope.attack.percent` from a
   Curve)** — 2026-08-22. Right tier is per-note (stage layout happens in
