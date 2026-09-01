@@ -1,4 +1,5 @@
 #pragma once
+#include <cmath>
 #include <memory>
 #include <span>
 #include <string_view>
@@ -128,17 +129,32 @@ private:
 // The primary consumer calls next() on the real source; secondary consumers
 // use a RefSource which just reads current() without advancing.
 // Created automatically by the UI when multiple inputs wire to the same output.
+// guard=true is the TAP form (feedback_loop_design.md): reads are armored —
+// non-finite scrubbed to 0, clamped to +-8 — so a runaway loop saturates
+// audibly instead of poisoning the graph. The z-1 a tap provides is
+// positional (tap consumers evaluate before their source each tick), not
+// implemented here.
 struct RefSource final : ValueSource {
   std::shared_ptr<ValueSource> source;
+  bool guard{false};
 
-  explicit RefSource(std::shared_ptr<ValueSource> src) : source(std::move(src)) {}
+  explicit RefSource(std::shared_ptr<ValueSource> src, bool g = false)
+    : source(std::move(src)), guard(g) {}
 
   void prepare(const RenderContext& /*ctx*/, int /*frames*/) override {} // primary consumer prepares the real source
-  float next() override { return source ? source->current() : 0.0f; }
-  float current() const override { return source ? source->current() : 0.0f; }
+  float next() override { return read(); }
+  float current() const override { return read(); }
 
   const char* type_name() const override { return "RefSource"; }
   SourceCategory category() const override { return SourceCategory::Utility; }
+
+private:
+  float read() const {
+    float v = source ? source->current() : 0.0f;
+    if (!guard) return v;
+    if (!std::isfinite(v)) return 0.0f;
+    return v < -8.0f ? -8.0f : (v > 8.0f ? 8.0f : v);
+  }
 };
 
 } // namespace mforce

@@ -132,11 +132,38 @@ static void run_perform_source_tests() {
     CHECK_NEAR(cn.current(), 1.0f, 1e-4f);
 }
 
+static void run_tap_guard_tests() {
+    // Unguarded RefSource: passes values through untouched (existing behavior)
+    auto c = std::make_shared<ConstantSource>(42.0f);
+    c->next();
+    RefSource plain(c);
+    CHECK_NEAR(plain.next(), 42.0f, 1e-6f);
+
+    // Guarded: clamp to +-8
+    RefSource g1(c, true);
+    CHECK_NEAR(g1.next(), 8.0f, 1e-6f);
+    c->set(-100.0f); c->next();
+    CHECK_NEAR(g1.next(), -8.0f, 1e-6f);
+    c->set(3.5f); c->next();
+    CHECK_NEAR(g1.next(), 3.5f, 1e-6f);
+
+    // Guarded: NaN/inf scrub to 0
+    c->set(std::nanf("")); c->next();
+    CHECK_NEAR(g1.next(), 0.0f, 1e-6f);
+    c->set(INFINITY); c->next();
+    CHECK_NEAR(g1.next(), 0.0f, 1e-6f);
+
+    // Null source still reads 0 (pass-2 placeholder state)
+    RefSource empty(nullptr, true);
+    CHECK_NEAR(empty.next(), 0.0f, 1e-6f);
+}
+
 int main() {
     run_curve_node_tests();
     run_envelope_range_tests();
     run_stage_nominal_tests();
     run_perform_source_tests();
+    run_tap_guard_tests();
     if (g_fails) { std::printf("%d/%d FAILED\n", g_fails, g_checks); return 1; }
     std::printf("ALL PASS (%d checks)\n", g_checks);
     return 0;
