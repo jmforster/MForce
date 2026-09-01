@@ -8,6 +8,37 @@ file's git history. Tags per WORKFLOW.md. (G1)-(G4) = GOALS.md Dipsy goals.
 
 ## Active — engine/build
 
+38. **[fix] Live keyboard: 2nd held note gets instant attack (loop patches,
+    maybe all)** — Matt 2026-08-31 evening, on tweaked_57-style loop patches:
+    first held note has the slow breathy attack; any note played while it is
+    held "jumps straight to sustain". ENGINE PATH EXONERATED by measurement
+    (CLI probe, same-voice sequential notes on polyphony 1: both onsets
+    equally gradual — prepare() resets envelopes/delay/loop correctly; live
+    pool floors at 8 so no steal either). The bug is in the UI held-note
+    path — gated-envelope layout is the main thing the probe can't reach.
+    Two discriminating tests, 30 s each at the keyboard: (a) does a slow-
+    attack NON-loop patch show it too? (general gating bug vs loop-specific)
+    (b) does note 1 keep ringing when note 2 starts? (steal despite floor).
+    Echoes a years-old "shared envelope instance" bug per Matt.
+
+37a. **[build] Feedback-loop playability round** — Matt's 2026-08-31 evening
+    hand-tuning verdicts (tweaked_57, patches/scratch, HIS sandbox — read
+    only): in-loop SVF + hiss amp/density envelopes = "somewhere between a
+    bow and a reed attack, slightly woody string sustain" — promising but
+    "very fiddly". Work items distilled: (a) cutoff KEYTRACK (LogX curve
+    from Note frequency, cutoff as multiple of f0) — fixed 6 kHz gives
+    string lows / breathy mids / lung-condition-flutist highs (under-drive,
+    same shape as KSString 34(c)); (b) release on SVF CUTOFF, not drive —
+    drive release is knife-edged (never-dies vs chops); closing the filter
+    decays gradually and treble-first; (c) drive sustain parameterized as
+    offset-above-measured-critical per cell, making attack time a real
+    axis; (d) audible in-loop breath (hiss 0.005-0.02 under its own decay
+    envelope) — Matt's breath-integration principle, proven by ear on
+    tweaked_57. Physics notes: cutoff modulation ⇒ pitch (filter phase lag
+    is part of the loop period) — expressive scoop AND compensation debt;
+    the eventual fix is a fused DampedDelayLine (delay + damping + internal
+    lag compensation — the KSString lesson), logged in IDEAS.md.
+
 37. **[research] Curve-space novelty sweep over feedback loops** — the
     payoff run for the feedback-loop subsystem (docs/feedback_loop_design.md,
     shipped 2026-08-31): batch-generate seeded random Shaper curves inside
