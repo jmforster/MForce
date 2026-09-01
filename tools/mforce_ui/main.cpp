@@ -36,6 +36,7 @@
 #include "mforce/core/var_source.h"     // needed for VarSource constructor
 #include "mforce/core/range_source.h"   // needed for RangeSource constructor
 #include "mforce/core/curve_node.h"     // CurveNode knots/interp are modeled (P2b)
+#include "mforce/source/shaper_source.h" // shape editor Shaper client probe
 #include "mforce/core/smoothness_interpolator.h"  // SegmentSource shape preview
 #include "mforce/source/additive/formant.h" // needed for FormantSpectrum inline table
 #include "mforce/source/additive/partials.h" // for Partials live array access in strip draw
@@ -5297,7 +5298,7 @@ static void draw_audition_window() {
 struct ShapeEditorState {
     bool  open{false};
     int   nodeId{-1};
-    enum class Client { Curve, Segment } client{Client::Curve};
+    enum class Client { Curve, Segment, Shaper } client{Client::Curve};
     bool  logX{true};
     float xMin{20.0f}, xMax{16000.0f}, yMin{0.0f}, yMax{1.0f};
     int   dragIdx{-1};
@@ -5389,12 +5390,51 @@ static void shape_editor_open_segment(GraphNode& node) {
     ImGui::SetWindowFocus("###shapeEditor");
 }
 
+static void shape_editor_open_shaper(GraphNode& node) {
+    s_shapeEd = ShapeEditorState{};
+    s_shapeEd.open = true;
+    s_shapeEd.nodeId = node.id;
+    s_shapeEd.client = ShapeEditorState::Client::Shaper;
+    s_shapeEd.logX = false;  // input-value axis, four-quadrant
+    s_shapeEd.fitPending = true;
+    ImGui::SetWindowFocus("###shapeEditor");
+}
+
 // Segment client accessors: the values array lives in arrayValues (the same
 // storage the pair table edits, so the two stay in sync frame to frame).
 static std::vector<float>* shape_ed_segment_values(GraphNode& node) {
     for (auto& [d, v] : node.arrayValues)
         if (std::string_view(d.name) == "values") return &v;
     return nullptr;
+}
+
+// Shaper client: values are ABSOLUTE (x, y) pairs — no delta math, no
+// timeMode; the flat<->pairs conversion is the whole adapter.
+static std::vector<std::pair<float, float>> shape_ed_shaper_load(
+        const std::vector<float>& vals) {
+    std::vector<std::pair<float, float>> pts;
+    for (size_t i = 0; i + 1 < vals.size(); i += 2)
+        pts.emplace_back(vals[i], vals[i + 1]);
+    return pts;
+}
+
+static void shape_editor_apply_shaper(
+        GraphNode& node, std::vector<std::pair<float, float>>& pts) {
+    std::stable_sort(pts.begin(), pts.end(),
+                     [](const std::pair<float, float>& a,
+                        const std::pair<float, float>& b) {
+                         return a.first < b.first;
+                     });
+    std::vector<float>* vals = shape_ed_segment_values(node);
+    if (!vals) return;
+    vals->clear();
+    vals->reserve(pts.size() * 2);
+    for (auto& [x, y] : pts) {
+        vals->push_back(x);
+        vals->push_back(y);
+    }
+    node.push_array("values");
+    mark_graph_dirty();
 }
 
 // Deltas -> absolute points (x = cumulative width, y = arrival value).
@@ -5466,25 +5506,29 @@ static void shape_editor_apply_curve(GraphNode& node) {
 static void draw_shape_editor() {
     if (!s_shapeEd.open) return;
     GraphNode* nodePtr = shape_ed_node();
-    const bool isSeg = s_shapeEd.client == ShapeEditorState::Client::Segment;
+    const bool isSeg    = s_shapeEd.client == ShapeEditorState::Client::Segment;
+    const bool isShaper = s_shapeEd.client == ShapeEditorState::Client::Shaper;
     if (!nodePtr ||
-        (!isSeg && nodePtr->typeName != "CurveNode") ||
-        (isSeg && nodePtr->typeName != "SegmentSource")) {
+        (!isSeg && !isShaper && nodePtr->typeName != "CurveNode") ||
+        (isSeg && nodePtr->typeName != "SegmentSource") ||
+        (isShaper && nodePtr->typeName != "Shaper")) {
         s_shapeEd.open = false;
         return;
     }
     GraphNode& node = *nodePtr;
 
-    // Segment points reload from arrayValues every frame (cheap at <=512),
-    // so pair-table edits and editor edits never go stale against each other.
+    // Segment/Shaper points reload from arrayValues every frame (cheap at
+    // <=512), so table edits and editor edits never go stale against each
+    // other. Segment = delta-encoded widths; Shaper = absolute (x, y).
     std::vector<std::pair<float, float>> segPts;
-    if (isSeg) {
+    if (isSeg || isShaper) {
         std::vector<float>* vals = shape_ed_segment_values(node);
         if (!vals) { s_shapeEd.open = false; return; }
-        segPts = shape_ed_segment_load(*vals);
+        segPts = isSeg ? shape_ed_segment_load(*vals)
+                       : shape_ed_shaper_load(*vals);
         s_shapeEd.readOnly = (int)segPts.size() > kShapeEdMaxPoints;
     }
-    auto& pts = isSeg ? segPts : node.curveKnots;
+    auto& pts = (isSeg || isShaper) ? segPts : node.curveKnots;
 
     ImGui::SetNextWindowSize(ImVec2(760, 440), ImGuiCond_FirstUseEver);
     char title[160];
@@ -5496,9 +5540,13 @@ static void draw_shape_editor() {
         return;
     }
 
-    // --- Toolbar ---
-    ImGui::Checkbox("log x", &s_shapeEd.logX);
-    ImGui::SameLine();
+    // --- Toolbar --- (no log x for the Shaper client: its x axis spans
+    // negative input values, which a log axis cannot represent)
+    if (isShaper) s_shapeEd.logX = false;
+    else {
+        ImGui::Checkbox("log x", &s_shapeEd.logX);
+        ImGui::SameLine();
+    }
     if (ImGui::SmallButton("Fit")) s_shapeEd.fitPending = true;
     ImGui::SameLine();
     if (isSeg) {
@@ -5511,6 +5559,9 @@ static void draw_shape_editor() {
                 units = "seconds";
         }
         ImGui::TextDisabled("x: %s", units);
+        ImGui::SameLine();
+    } else if (isShaper) {
+        ImGui::TextDisabled("x: input value");
         ImGui::SameLine();
     }
     if (s_shapeEd.readOnly)
@@ -5583,6 +5634,7 @@ static void draw_shape_editor() {
             y0 = std::min(y0, y); y1 = std::max(y1, y);
         }
         if (isSeg) { x0 = 0.0f; y0 = std::min(y0, -1.0f); y1 = std::max(y1, 1.0f); }
+        if (isShaper) { y0 = std::min(y0, -1.0f); y1 = std::max(y1, 1.0f); }
         if (x1 - x0 < 1e-6f) { x0 -= 1.0f; x1 += 1.0f; }
         if (y1 - y0 < 1e-6f) { y0 -= 0.5f; y1 += 0.5f; }
         const float xm = (x1 - x0) * 0.08f, ym = (y1 - y0) * 0.10f;
@@ -5701,9 +5753,35 @@ static void draw_shape_editor() {
         }
     }
 
-    // Engine-evaluated overlay: CurveNode::map for curves; the segment
-    // transition chain (SmoothnessInterpolator, departs from 0) for shapes.
-    if (!isSeg && pts.size() >= 2) {
+    // Engine-evaluated overlay: CurveNode::map for curves; ShaperSource::map
+    // for transfer curves; the segment transition chain
+    // (SmoothnessInterpolator, departs from 0) for shapes.
+    if (isShaper && pts.size() >= 2) {
+        ShaperSource probe;
+        std::vector<float> flat;
+        flat.reserve(pts.size() * 2);
+        auto sorted = pts;
+        std::stable_sort(sorted.begin(), sorted.end(),
+                         [](auto& a, auto& b) { return a.first < b.first; });
+        for (auto& [x, y] : sorted) { flat.push_back(x); flat.push_back(y); }
+        probe.set_array("values", std::move(flat));
+        float smooth = 0.5f;
+        for (auto& pin : node.inputs)
+            if (pin.name == "smoothness") {  // defaultValue: see ghost note
+                smooth = pin.defaultValue;
+                break;
+            }
+        probe.set_param("smoothness", std::make_shared<ConstantSource>(smooth));
+        probe.next();  // loads smoothness into the interpolator
+        const int N = std::max(64, int(cs.x / 3.0f));
+        ImVec2 prev{};
+        for (int i = 0; i < N; ++i) {
+            float sx = cp.x + cs.x * float(i) / float(N - 1);
+            ImVec2 p(sx, ty(probe.map(fx(sx))));
+            if (i > 0) dl->AddLine(prev, p, IM_COL32(120, 200, 220, 255), 1.6f);
+            prev = p;
+        }
+    } else if (!isSeg && !isShaper && pts.size() >= 2) {
         auto sorted = pts;
         std::stable_sort(sorted.begin(), sorted.end(),
                          [](auto& a, auto& b) { return a.first < b.first; });
@@ -5806,6 +5884,9 @@ static void draw_shape_editor() {
                 if (isSeg) {
                     nx = std::max(nx, 1e-3f);
                     ny = std::clamp(ny, -1.0f, 1.0f);  // decision 2
+                } else if (isShaper) {
+                    nx = std::clamp(nx, -2.0f, 2.0f);  // array descriptor range
+                    ny = std::clamp(ny, -2.0f, 2.0f);
                 } else if (node.curveInterp != 0) {
                     nx = std::max(nx, 1e-4f);
                 }
@@ -5876,6 +5957,9 @@ static void draw_shape_editor() {
             if (isSeg) {
                 nx = std::max(nx, 1e-3f);
                 ny = std::clamp(ny, -1.0f, 1.0f);  // decision 2
+            } else if (isShaper) {
+                nx = std::clamp(nx, -2.0f, 2.0f);  // array descriptor range
+                ny = std::clamp(ny, -2.0f, 2.0f);
             } else if (node.curveInterp != 0) {
                 nx = std::max(nx, 1e-4f);
             }
@@ -5891,8 +5975,9 @@ static void draw_shape_editor() {
     }
 
     if (changed) {
-        if (isSeg) shape_editor_apply_segment(node, pts);
-        else       shape_editor_apply_curve(node);
+        if (isSeg)         shape_editor_apply_segment(node, pts);
+        else if (isShaper) shape_editor_apply_shaper(node, pts);
+        else               shape_editor_apply_curve(node);
     }
 
     ImGui::End();
@@ -8240,6 +8325,42 @@ static void draw_properties_panel() {
                     else
                         ImGui::SetTooltip("Double-click to open the shape editor");
                 }
+            }
+        }
+    }
+
+    // Shaper: transfer-curve preview (y = curve(x) across the input range),
+    // rendered through the engine's own map() so drawing matches render.
+    if (node->typeName == "Shaper") {
+        const std::vector<float>* vals = nullptr;
+        for (auto& [d, v] : node->arrayValues)
+            if (std::string_view(d.name) == "values") { vals = &v; break; }
+        if (vals && vals->size() >= 4) {
+            ShaperSource probe;
+            probe.set_array("values", *vals);
+            float smooth = 0.5f;
+            for (auto& pin : node->inputs)
+                if (pin.name == "smoothness") {  // defaultValue: stale-read rule
+                    smooth = pin.defaultValue;
+                    break;
+                }
+            probe.set_param("smoothness",
+                            std::make_shared<ConstantSource>(smooth));
+            probe.next();
+            constexpr int N = 256;
+            float pv[N];
+            for (int k = 0; k < N; ++k)
+                pv[k] = probe.map(-1.5f + 3.0f * float(k) / float(N - 1));
+            ImGui::Spacing(); ImGui::Separator(); ImGui::Spacing();
+            float plotW = ImGui::GetContentRegionAvail().x;
+            if (plotW < 80.0f) plotW = 200.0f;
+            ImGui::PlotLines("##shaperprev", pv, N, 0, nullptr,
+                             -1.6f, 1.6f, ImVec2(plotW, 90.0f));
+            if (ImGui::IsItemHovered()) {
+                if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
+                    shape_editor_open_shaper(*node);
+                else
+                    ImGui::SetTooltip("Double-click to open the shape editor");
             }
         }
     }
