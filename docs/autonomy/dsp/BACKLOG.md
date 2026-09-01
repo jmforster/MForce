@@ -27,9 +27,10 @@ file's git history. Tags per WORKFLOW.md. (G1)-(G4) = GOALS.md Dipsy goals.
     axis; (d) audible in-loop breath (hiss 0.005-0.02 under its own decay
     envelope) — Matt's breath-integration principle, proven by ear on
     tweaked_57. Physics notes: cutoff modulation ⇒ pitch (filter phase lag
-    is part of the loop period) — expressive scoop AND compensation debt;
-    the eventual fix is a fused DampedDelayLine (delay + damping + internal
-    lag compensation — the KSString lesson), logged in IDEAS.md.
+    is part of the loop period) — expressive scoop when wanted; the
+    compensation debt is PAID as of 09-01 (phase_delay_at + DelayLine
+    `compensate`, ~1 cent vs 40-78 flat; feedback_loop_design.md §5) —
+    the fused-DampedDelayLine idea resolved composably instead.
 
 37. **[research] Curve-space novelty sweep over feedback loops** — the
     payoff run for the feedback-loop subsystem (docs/feedback_loop_design.md,

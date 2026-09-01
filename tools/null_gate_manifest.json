@@ -48,6 +48,7 @@
  "patches/baselines/feedback/loop_selfosc.json": "ac5bc9a36c76bc6f88c7c68514f1494346cbc589d417f4dc7171afa65d93a136",
  "patches/baselines/feedback/loop_tap_counter.json": "5fa7dc6bde4000b3dd614fa5f223acf7cd717c27557f3b6b712aa53d5a65e745",
  "patches/baselines/feedback/loop_tap_starved.json": "ac8da46a5ae83390d47bf7da567827d50b675d9ae2b418f8a3358357429cffb9",
+ "patches/baselines/feedback/loop_tuned.json": "04e21087d8e4b6117033c847db91ed4909d727296346ca3304b848f68f2487b0",
  "patches/baselines/filter_sweep_test.json": "24914f2d3923aa1bb5497ca5034d549eb94bb4a877b57671a5917aaf43ad7fe3",
  "patches/baselines/fm_bell_test.json": "7fb18555ef88aa5e3e0eac225a7838cee9b300ae32030eef7c7a8b4734d36adf",
  "patches/baselines/fm_brass_test.json": "d8650e2474372c19440e0fdacffe5b5aebc2404b6439abf323727f7a1328c707",

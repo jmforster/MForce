@@ -142,6 +142,44 @@ struct SVFSource final : ValueSource {
 
   float current() const override { return cur_; }
 
+  // Exact phase delay of the ZDF core at `hz`. The TPT integrator equals the
+  // bilinear transform of the analog SVF, so H(e^{jw}) is the analog response
+  // evaluated at O = tan(w/2)/g — closed form, no impulse measurement needed.
+  // Uses the coefficient state actually filtering (lastFc_/lastRes_), which
+  // exists only after the first next(); until then reports 0. Cached on
+  // (hz, fc, res, mode) so per-sample callers pay one comparison.
+  float phase_delay_at(float hz) override {
+    if (hz <= 0.0f || lastFc_ < 0.0f) return 0.0f;
+    if (hz == pdHz_ && lastFc_ == pdFc_ && lastRes_ == pdRes_ && mode_ == pdMode_)
+      return pd_;
+    constexpr float pi = 3.14159265358979323846f;
+    const float w = 2.0f * pi * hz / float(sampleRate_);
+    const float tw = std::tan(std::min(0.5f * w, 0.49f * pi));
+    float d;
+    if (mode_ == kLowpass1P || mode_ == kHighpass1P) {
+      // The 1P path is the leaky integrator y += a(x-y), NOT a TPT one-pole:
+      // H_lp = a/(1 - b z^-1), b = 1-a. Its phase differs from the bilinear
+      // form (measured: 7.15 vs 3.75 samples at fc=2k, hz=400), so use the
+      // difference equation's own transfer function.
+      const float g1 = std::tan(pi * lastFc_ / float(sampleRate_));
+      const float b = 1.0f - g1 / (1.0f + g1);
+      const float argDen = std::atan2(b * std::sin(w), 1.0f - b * std::cos(w));
+      d = (mode_ == kLowpass1P)
+          ? argDen / w
+          : argDen / w - 0.5f * pi / w + 0.5f;  // hp = b(1-z^-1)/(1-b z^-1)
+    } else {
+      const float o = tw / std::tan(pi * lastFc_ / float(sampleRate_));
+      // Denominator 1 - O^2 + j*k*O shared by all three taps; numerators
+      // contribute 0 (LP), +90 deg (BP), or 180 deg (HP) of constant phase.
+      const float argD = std::atan2(k_ * o, 1.0f - o * o);
+      if      (mode_ == kLowpass)  d = argD / w;
+      else if (mode_ == kBandpass) d = (argD - 0.5f * pi) / w;
+      else                         d = (argD - pi) / w;
+    }
+    pdHz_ = hz; pdFc_ = lastFc_; pdRes_ = lastRes_; pdMode_ = mode_; pd_ = d;
+    return d;
+  }
+
 private:
   std::shared_ptr<ValueSource> source_;
   std::shared_ptr<ValueSource> cutoffFreq_;
@@ -151,6 +189,8 @@ private:
   bool normalize_{false};
   float a1_{0.0f}, a2_{0.0f}, a3_{0.0f}, k_{1.0f};
   float lastFc_{-1.0f}, lastRes_{-1.0f};
+  float pdHz_{-1.0f}, pdFc_{-1.0f}, pdRes_{-1.0f}, pd_{0.0f};
+  int pdMode_{-1};
   float ic1eq_{0.0f}, ic2eq_{0.0f};
   float lp1_{0.0f};
   float cur_{0.0f};

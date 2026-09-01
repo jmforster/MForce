@@ -88,6 +88,17 @@ struct ValueSource {
   // backlog 26a made loud (plan_perform_source_p3.md T2). Default true:
   // ordinary pulled-per-sample consumption tracks a moving frequency.
   virtual bool tracks_frequency_live() const { return true; }
+
+  // Phase delay, in samples, that this node's processing imposes on a signal
+  // at `hz` passing THROUGH it, from its current parameter state. DelayLine
+  // sums this over its loop members to keep a tap-closed feedback loop on
+  // pitch while in-loop filters move (feedback_loop_design.md §5 revisited,
+  // 2026-09-01). Memoryless nodes (shapers, gains, combiners) and generators
+  // keep the default 0; only stateful in-loop processors override. Negative
+  // = phase lead (highpass/bandpass below cutoff). Non-const so overrides
+  // may cache the atan2 work behind a same-inputs guard.
+  virtual float phase_delay_at(float /*hz*/) { return 0.0f; }
+
   virtual std::span<const ParamDescriptor> param_descriptors() const { return {}; }
   virtual void set_param(std::string_view /*name*/, std::shared_ptr<ValueSource> /*src*/) {}
   virtual std::shared_ptr<ValueSource> get_param(std::string_view /*name*/) const { return nullptr; }

@@ -191,10 +191,18 @@ mid-loop may show an unadvanced loop tail. Accepted for v1.
 
 - **Depth-N taps** — rejected outright (§2).
 - **Pitch compensation** — total loop delay = DelayLine + one sample per
-  tap + filter group delay, so naive loops ring slightly flat. Ship
-  without compensation; add (as a DelayLine setting subtracting a
-  latency estimate) only when a loop patch earns instrument-matching
-  treatment. Novelty lane does not care.
+  tap + filter group delay, so naive loops ring slightly flat. ~~Ship
+  without compensation~~ LANDED 2026-09-01 as `compensate` (DelayLine
+  setting, default off): the delay walks its own loop at prepare(), and
+  per sample subtracts the tap's z^-1 plus each member's
+  `ValueSource::phase_delay_at(f0)` (default 0 — memoryless nodes are
+  free; SVFSource overrides with the closed-form ZDF phase). Measured:
+  bowed+SVF loop lands within ~1 cent vs 40-78 cents flat uncompensated
+  (baseline patches/baselines/feedback/loop_tuned.json). A moving cutoff
+  stays pitch-neutral because the query re-runs per sample. Limits:
+  the closing tap must target the DelayLine itself; parallel feedback
+  paths are summed (single-path assumption); linear-interp read lag
+  (~KSString allpass-read territory) is not modeled.
 - **Shaper morph pin** — deferred (§3.5).
 - **Container/group loop node** — grouping an assembled loop into a face
   already works via Groups; a dedicated container adds nothing in v1.
