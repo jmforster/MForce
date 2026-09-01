@@ -39,6 +39,8 @@
 #include "mforce/filter/limiter.h"
 #include "mforce/source/ks_string.h"
 #include "mforce/source/allpass_resonator.h"
+#include "mforce/source/delay_line_source.h"
+#include "mforce/source/shaper_source.h"
 #include "mforce/filter/reverb.h"
 #include "mforce/filter/vibrato.h"
 
@@ -576,6 +578,17 @@ void register_all_sources() {
 
     reg.register_type("AllpassResonator", SourceCategory::Oscillator,
         [](int sr, auto) { return std::make_shared<AllpassResonator>(sr); });
+
+    // -----------------------------------------------------------------------
+    // Feedback loop blocks (docs/feedback_loop_design.md) — the resonator
+    // backbone and the drawn-junction nonlinearity for tap-closed loops.
+    // -----------------------------------------------------------------------
+
+    reg.register_type("DelayLine", SourceCategory::Oscillator,
+        [](int sr, auto) { return std::make_shared<DelayLineSource>(sr); });
+
+    reg.register_type("Shaper", SourceCategory::Modulator,
+        [](int, auto) { return std::make_shared<ShaperSource>(); });
 }
 
 } // namespace mforce
