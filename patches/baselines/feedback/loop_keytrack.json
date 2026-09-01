@@ -25,7 +25,7 @@
                     "source": { "ref": "__perf_freq" } } },
       { "id": "damp", "type": "SVFSource",
         "params": { "source": { "ref": "junction" }, "mode": "Lowpass",
-                    "cutoff": { "ref": "keytrack" }, "resonance": 0.7 } },
+                    "cutoffFreq": { "ref": "keytrack" }, "resonance": 0.7 } },
       { "id": "delay", "type": "DelayLine",
         "params": { "source": { "ref": "damp" },
                     "frequency": { "ref": "__perf_freq" }, "ratio": 1.0,

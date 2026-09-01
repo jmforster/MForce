@@ -21,7 +21,7 @@
                                0.1, 0.5, 0.5, 0.75, 1.0, 0.8] } },
       { "id": "damp", "type": "SVFSource",
         "params": { "source": { "ref": "junction" }, "mode": "Lowpass",
-                    "cutoff": 1500.0, "resonance": 0.7 } },
+                    "cutoffFreq": 1500.0, "resonance": 0.7 } },
       { "id": "delay", "type": "DelayLine",
         "params": { "source": { "ref": "damp" },
                     "frequency": { "ref": "__perf_freq" }, "ratio": 1.0,
