@@ -1,0 +1,30 @@
+{
+  "_comment": "Feedback v1 reference (docs/feedback_loop_design.md 6): self-oscillator. No excitation burst - a whisper of seeded noise (0.001) blooms into whatever limit cycle the curve supports (slope ~4.5 through zero, saturating shoulders). The drive envelope collapses the oscillation at note end so the render stays note-contained.",
+  "sampleRate": 48000,
+  "graph": {
+    "nodes": [
+      { "id": "__perf_freq", "type": "PerformNode", "params": { "field": "frequency" } },
+      { "id": "hiss", "type": "WhiteNoiseSource",
+        "params": { "seed": 774002, "amplitude": 0.001 } },
+      { "id": "env", "type": "Envelope",
+        "params": { "preset": "adsr", "attack": 0.01, "decay": 0.1,
+                    "sustainLevel": 1.0, "release": 0.2,
+                    "minValue": 0.05, "maxValue": 1.0 } },
+      { "id": "sum", "type": "CombinedSource",
+        "params": { "source1": { "ref": "hiss" }, "source2": { "tap": "delay" },
+                    "operation": "sum", "gainAdj": 0.0 } },
+      { "id": "junction", "type": "Shaper",
+        "params": { "source": { "ref": "sum" }, "drive": { "ref": "env" },
+                    "smoothness": 0.5,
+                    "values": [-1.0, -0.9, -0.2, -0.9, 0.0, 0.0,
+                               0.2, 0.9, 1.0, 0.9] } },
+      { "id": "delay", "type": "DelayLine",
+        "params": { "source": { "ref": "junction" },
+                    "frequency": { "ref": "__perf_freq" }, "ratio": 1.0 } }
+    ],
+    "output": "delay"
+  },
+  "instrument": { "polyphony": 2, "volume": 0.5 },
+  "score": [ { "note": 43, "time": 0.0, "duration": 2.0, "velocity": 0.8 },
+             { "note": 50, "time": 2.4, "duration": 2.0, "velocity": 0.8 } ]
+}
