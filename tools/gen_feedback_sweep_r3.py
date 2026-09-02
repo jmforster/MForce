@@ -316,4 +316,5 @@ def main():
         raise SystemExit("mode must be 'sweep' or 'archetypes'")
 
 
-main()
+if __name__ == "__main__":     # r4 imports build_patch/flatten_curve/ANCHORS
+    main()

@@ -27,7 +27,15 @@ file's git history. Tags per WORKFLOW.md. (G1)-(G4) = GOALS.md Dipsy goals.
     feedback_amp_release/); cutoff release stays available for treble-
     first *color*, no longer the decay mechanism; (c) drive sustain parameterized as
     offset-above-measured-critical per cell, making attack time a real
-    axis; (d) audible in-loop breath (hiss 0.005-0.02 under its own decay
+    axis — MECHANISM LANDED 09-01 in sweep r4 (gen_feedback_sweep_r4.py:
+    bisection-measured critical per junction, 24/24 measurable, range
+    0.05..1.93 — a 40x spread that explains r3's uncontrolled operating
+    points; drive = crit*(1+offset) ramped from 0.95*crit over attack_s).
+    Validated: bloom90 rises with ramp (0.25→0.40 s medians) and falls
+    with offset (0.43→0.24 s). Run lessons: ramp must start just under
+    critical (0.6*crit start spends the ramp inaudibly below threshold);
+    measure attack note-on→90%, not 10→90 (swell delay is attack too);
+    (d) audible in-loop breath (hiss 0.005-0.02 under its own decay
     envelope) — Matt's breath-integration principle, proven by ear on
     tweaked_57. Physics notes: cutoff modulation ⇒ pitch (filter phase lag
     is part of the loop period) — expressive scoop when wanted; the
