@@ -35,7 +35,22 @@ file's git history. Tags per WORKFLOW.md. (G1)-(G4) = GOALS.md Dipsy goals.
     `compensate`, ~1 cent vs 40-78 flat; feedback_loop_design.md §5) —
     the fused-DampedDelayLine idea resolved composably instead.
 
-37. **[research] Curve-space novelty sweep over feedback loops** — the
+37. **[research] Curve-space novelty sweep over feedback loops** — **r3 RUN
+    2026-09-01 (the damped round)**: 100 cells on the playability-kit
+    skeleton (keytracked SVF + compensate + amplitude release + in-loop DC
+    blocker), curve families anchored on the four nature junctions (bow
+    friction / reed table / jet sigmoid / lip valve, jittered) + r2's
+    saturating + wild. **92 periodic / 1 chaotic / 7 dead** (r2: 66/17/17)
+    — damping converts the buzz pile into pitched material. Top 15 by
+    novelty-among-periodic → renders/dsp/pending/feedback_curves3/ (TOP.md
+    describes each); un-jittered archetypes → patches/audition/
+    feedback_archetypes/ + renders/dsp/pending/feedback_archetypes/.
+    Run lessons: asymmetric junctions rectify DC into the loop (lip rode a
+    +97%-of-peak rail, +185 cents sharp → HP1P 12 Hz in-loop blocker, the
+    composable-compensation design absorbing its phase automatically);
+    expansive (lip) curves need an explicit near-origin knot because
+    smoothness easing zeroes endpoint slopes. NEXT: Matt's verdicts on
+    archetypes + top-15, then scale or steer. Original brief follows —
     payoff run for the feedback-loop subsystem (docs/feedback_loop_design.md,
     shipped 2026-08-31): batch-generate seeded random Shaper curves inside
     the loop_selfosc / loop_bowed skeletons (vary breakpoint count, slope

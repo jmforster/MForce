@@ -122,8 +122,11 @@ def main():
             f"pos(sh {p['pos']['shoulder']:.2f}, humps {p['pos']['humps']}"
             f"{', FOLD' if p['pos']['fold'] else ''}), "
             f"{'odd-sym' if p['odd_sym'] else 'asym'}"
-            f"{', dead-zone' if p['dead_zone'] else ''} — "
-            f"patch {sweep_rel}/{v['patch']}")
+            f"{', dead-zone' if p['dead_zone'] else ''}"
+            # r3 axes (damped skeleton) — absent in r1/r2 manifests.
+            + (f", m {p['m']:.1f}, res {p['res']:.1f}, hiss {p['hiss']:.4f}"
+               if "m" in p else "")
+            + f" — patch {sweep_rel}/{v['patch']}")
 
     lines = ["# Feedback curve sweep — top picks, novel-among-periodic",
              f"(library = {len(names)} sounds; {n_ok} periodic, {n_chaos} "

@@ -9,7 +9,7 @@ def main():
     patch_dir, wav_dir = sys.argv[1], sys.argv[2]
     os.makedirs(wav_dir, exist_ok=True)
     ok = fail = 0
-    for p in sorted(glob.glob(os.path.join(patch_dir, "fb1_*.json"))):
+    for p in sorted(glob.glob(os.path.join(patch_dir, "fb*_*.json"))):
         name = os.path.splitext(os.path.basename(p))[0]
         wav = os.path.join(wav_dir, name + ".wav")
         r = subprocess.run([CLI, p, wav], capture_output=True, timeout=600)
