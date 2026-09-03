@@ -8,6 +8,19 @@ file's git history. Tags per WORKFLOW.md. (G1)-(G4) = GOALS.md Dipsy goals.
 
 ## Active — engine/build
 
+53. **[build] Live-keyboard mono mode — patch polyphony must be able to
+    override the pool floor** — Matt 2026-09-02: a flute playing fast —
+    in the world the previous note is cut off instantly when the next
+    breath attack starts; live play should be able to behave that way.
+    Today the UI floors the pool at LIVE_MIN_POLYPHONY=8
+    (tools/mforce_ui/main.cpp:4307; loader takes max(patch, floor),
+    engine/src/patch_loader.cpp:1625), so an authored polyphony 1 is
+    ignored live and successive notes overlap in separate slots. Wanted:
+    respect small patch polyphony (or a mono/voice-steal flag) in live
+    play — note-on steals the sounding voice, last-note priority; watch
+    for click on the cut (short fade-out on the stolen voice?). CLI
+    renders already respect patch polyphony.
+
 37a. **[build] Feedback-loop playability round** — Matt's 2026-08-31 evening
     hand-tuning verdicts (tweaked_57, patches/scratch, HIS sandbox — read
     only): in-loop SVF + hiss amp/density envelopes = "somewhere between a
@@ -62,7 +75,19 @@ file's git history. Tags per WORKFLOW.md. (G1)-(G4) = GOALS.md Dipsy goals.
     R4_VERDICTS.md; flute002 → library/winds/flute_default.json; reed001a
     library-grade awaiting a name; winds > brass > strings (no bow attack);
     cross-cutting register problem = noise amp + drive ramp not keytracked
-    (cutoff is). NEXT: steer r5 per verdict doc. Original brief follows —
+    (cutoff is). **r5a RUN 09-02** (gen_feedback_sweep_r5a.py): the
+    keytrack round — 6 keepers × noise-exp {0,-.4,-.8} × ramp-exp
+    {0,-.35,-.7}, transforms on Matt's saves (tweaks preserved; n00_r00 =
+    control), new 5-note C3..C7 render format, 54/54 →
+    renders/dsp/pending/feedback_curves5a/. Both axes measured live
+    (hiss 56x C3→C7 flattened; attack 0.2s-flat → 0.38/0.04s tracked).
+    NEXT: r5b single-patch deep-dive on reed001a — cutoff multiple
+    (re-measure critical per cell — stale calibration caused reed001a's
+    per-note overblow spread) × excitation shape (incl. overshoot-then-
+    settle = tonguing) × junction jitter (exploit around the winner,
+    ±10-20%/point) — after Matt's 5a verdict. Matt 09-02 philosophy:
+    per-range instruments (great oboe + great bassoon) over one averaged
+    5-octave patch; keytrack still matters *within* the home range. Original brief follows —
     payoff run for the feedback-loop subsystem (docs/feedback_loop_design.md,
     shipped 2026-08-31): batch-generate seeded random Shaper curves inside
     the loop_selfosc / loop_bowed skeletons (vary breakpoint count, slope
