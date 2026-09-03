@@ -1,6 +1,6 @@
 # Status — open this file first
 
-Updated: 2026-08-22 (housekeeping pass, Fable 5 interactive with Matt).
+Updated: 2026-09-02 (r4 verdict session, Fable 5 interactive with Matt).
 STATUS and both BACKLOGs compacted: done items are now one-line ledgers in
 the lane backlogs; run-by-run history lives in the lane `reports/` and in
 git history of these files. Stale gates fixed in the same pass (dsp 15's
@@ -11,7 +11,7 @@ KS piano family, live MIDI) grew out of interactive sessions, not GOALS.
 
 | Lane | Dev | State | Next up | Awaiting Matt |
 |---|---|---|---|---|
-| dsp | Dipsy | **09-01 (interactive, Fable 5): the PLAYABILITY DAY** — DelayLine `amplitude` (loss factor, pitch-neutral release) + `compensate` (phase_delay_at walk: loops ON PITCH, ±1-5 cents vs 40-78 flat, while cutoff moves) + Curve EXPRESSIONS mode (Matt's design: knot values are a*x+b / a*x^p widgets, edge formulas extrapolate → one-knot keytrack) + envelope min-floor removal (50ms attack floor was blocking loop launches above F5) + **sweep r3 RUN: 92/100 periodic vs r2's 66, top-15 + 4 nature-junction archetypes (bow/reed/jet/lip) queued** | Matt's r4 verdict (24 slow-bloom corners in renders/dsp/pending/feedback_curves4/ — his 20 picks + 4 archetypes at +3%-above-measured-critical, 400 ms ramp; full 216 grid in sweep/; naming: oXX=offset %, aYYY=ramp ms) — **r4 landed the 37a(c) mechanism 09-01 eve** (criticals 0.05..1.93, 40x spread; bloom90 validated on both axes); then steer r5 per verdict. Remaining 37a: in-loop breath (d). 34a; excite 46-48 | **many** (feedback_curves4 24 = the live queue; curves3 top-15 + archetypes largely superseded by r4 re-renders of the same junctions; amp_release/tuned/keytrack demos) |
+| dsp | Dipsy | **09-02: r4 VERDICTED — "nailed it, concept proven."** First feedback-loop patch in library: **flute002 → library/winds/flute_default.json** ("killer, makes Clarinet1 sound fake"-class integrated attacks); reed001a library-grade, awaiting a name (oboe?). Winds > brass > strings (no bow attack yet). Full record: docs/research/feedback_sweeps/R4_VERDICTS.md — incl. code-verified physics answers (voice state IS cleared per note; noise RNG free-runs → real per-hit non-determinism). Cross-cutting gap: noise amp + drive ramp not keytracked (cutoff is) → patches only characteristic in home register | Steer r5 per R4_VERDICTS.md (candidate axes: keytracked noise/ramp, brass swell that survives register, bow attack for strings). Remaining 37a: in-loop breath (d). 34a; excite 46-48 | reed001a name/family call; amp_release/tuned/keytrack demos; older curves3 top-15 largely superseded |
 | comp | Wolfie | dormant since run 26 (08-10) | #22 re-renders → #21 zero-event check → #8 re-observe | **10 items** (3 blocked on #22) |
 
 ## dsp

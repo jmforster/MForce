@@ -57,8 +57,12 @@ file's git history. Tags per WORKFLOW.md. (G1)-(G4) = GOALS.md Dipsy goals.
     +97%-of-peak rail, +185 cents sharp → HP1P 12 Hz in-loop blocker, the
     composable-compensation design absorbing its phase automatically);
     expansive (lip) curves need an explicit near-origin knot because
-    smoothness easing zeroes endpoint slopes. NEXT: Matt's verdicts on
-    archetypes + top-15, then scale or steer. Original brief follows —
+    smoothness easing zeroes endpoint slopes. **r4 VERDICTED 09-02: "nailed
+    it, concept proven"** — full record docs/research/feedback_sweeps/
+    R4_VERDICTS.md; flute002 → library/winds/flute_default.json; reed001a
+    library-grade awaiting a name; winds > brass > strings (no bow attack);
+    cross-cutting register problem = noise amp + drive ramp not keytracked
+    (cutoff is). NEXT: steer r5 per verdict doc. Original brief follows —
     payoff run for the feedback-loop subsystem (docs/feedback_loop_design.md,
     shipped 2026-08-31): batch-generate seeded random Shaper curves inside
     the loop_selfosc / loop_bowed skeletons (vary breakpoint count, slope

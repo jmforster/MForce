@@ -1,0 +1,318 @@
+{
+  "graph": {
+    "nodes": [
+      {
+        "id": "__perf_freq",
+        "params": {
+          "field": "frequency"
+        },
+        "type": "PerformNode"
+      },
+      {
+        "id": "hiss",
+        "params": {
+          "amplitude": 0.009999999776482582,
+          "boost": 0.0,
+          "continuity": 0.0,
+          "density": 1.0,
+          "seed": 774329,
+          "zeroCrossTendency": 0.0
+        },
+        "type": "WhiteNoiseSource"
+      },
+      {
+        "id": "driveenv",
+        "params": {
+          "maxValue": 0.38670000433921814,
+          "minValue": 0.35659998655319214,
+          "ramp_accuracy": 1.0,
+          "stage_accuracy": 1.0,
+          "stages": [
+            {
+              "endVal": 1.0,
+              "holdPct": 0.0,
+              "maxSec": 1.0,
+              "minSec": 0.0,
+              "percent": 0.13333334028720856,
+              "power": 0.0,
+              "startVal": 0.0,
+              "type": "Linear"
+            },
+            {
+              "endVal": 1.0,
+              "holdPct": 0.0,
+              "maxSec": 0.5,
+              "minSec": 0.0,
+              "percent": 0.0,
+              "power": 0.0,
+              "startVal": 1.0,
+              "type": "Linear"
+            },
+            {
+              "endVal": 1.0,
+              "holdPct": 0.0,
+              "maxSec": 0.0,
+              "minSec": 0.0,
+              "percent": 0.0,
+              "power": 0.0,
+              "startVal": 1.0,
+              "type": "Linear"
+            },
+            {
+              "endVal": 0.0,
+              "holdPct": 0.0,
+              "maxSec": 0.0,
+              "minSec": 0.0,
+              "percent": 0.20000000298023224,
+              "power": 0.0,
+              "startVal": 1.0,
+              "type": "Sine"
+            }
+          ],
+          "timeMode": "fraction",
+          "timeScale": 1.0
+        },
+        "type": "Envelope"
+      },
+      {
+        "id": "ampenv",
+        "params": {
+          "maxValue": 1.0,
+          "minValue": 0.0,
+          "ramp_accuracy": 1.0,
+          "stage_accuracy": 1.0,
+          "stages": [
+            {
+              "endVal": 1.0,
+              "holdPct": 0.0,
+              "maxSec": 1.0,
+              "minSec": 0.0,
+              "percent": 0.0,
+              "power": 0.0,
+              "startVal": 0.0,
+              "type": "Linear"
+            },
+            {
+              "endVal": 1.0,
+              "holdPct": 0.0,
+              "maxSec": 0.5,
+              "minSec": 0.0,
+              "percent": 0.0,
+              "power": 0.0,
+              "startVal": 1.0,
+              "type": "Linear"
+            },
+            {
+              "endVal": 1.0,
+              "holdPct": 0.0,
+              "maxSec": 0.0,
+              "minSec": 0.0,
+              "percent": 0.0,
+              "power": 0.0,
+              "startVal": 1.0,
+              "type": "Linear"
+            },
+            {
+              "endVal": 0.0,
+              "holdPct": 0.0,
+              "maxSec": 0.0,
+              "minSec": 0.0,
+              "percent": 0.25,
+              "power": 0.0,
+              "startVal": 1.0,
+              "type": "Sine"
+            }
+          ],
+          "timeMode": "fraction",
+          "timeScale": 1.0
+        },
+        "type": "Envelope"
+      },
+      {
+        "id": "keytrack",
+        "params": {
+          "exprKnots": [
+            {
+              "a": 4.5,
+              "b": 0.0,
+              "form": "linear",
+              "x": 440.0
+            }
+          ],
+          "interp": "linear",
+          "knots": [],
+          "mode": "expressions",
+          "source": {
+            "ref": "__perf_freq"
+          }
+        },
+        "type": "CurveNode"
+      },
+      {
+        "id": "sum",
+        "params": {
+          "gainAdj": 0.0,
+          "operation": 3,
+          "source1": {
+            "ref": "hiss"
+          },
+          "source2": {
+            "tap": "delay"
+          }
+        },
+        "type": "CombinedSource"
+      },
+      {
+        "id": "junction",
+        "params": {
+          "drive": {
+            "ref": "driveenv"
+          },
+          "smoothness": 0.6000000238418579,
+          "source": {
+            "ref": "sum"
+          },
+          "values": [
+            -1.0,
+            -0.8999999761581421,
+            -0.550000011920929,
+            -0.800000011920929,
+            -0.11999999731779099,
+            -0.41999998688697815,
+            0.0,
+            0.0,
+            0.11999999731779099,
+            0.41999998688697815,
+            0.4000000059604645,
+            0.699999988079071,
+            0.699999988079071,
+            0.44999998807907104,
+            1.0,
+            0.10000000149011612
+          ]
+        },
+        "type": "Shaper"
+      },
+      {
+        "id": "dcblock",
+        "params": {
+          "cutoffFreq": 12.0,
+          "mode": 4,
+          "normalize": false,
+          "resonance": 0.699999988079071,
+          "source": {
+            "ref": "junction"
+          }
+        },
+        "type": "SVFSource"
+      },
+      {
+        "id": "damp",
+        "params": {
+          "cutoffFreq": {
+            "ref": "keytrack"
+          },
+          "mode": 0,
+          "normalize": false,
+          "resonance": 0.699999988079071,
+          "source": {
+            "ref": "dcblock"
+          }
+        },
+        "type": "SVFSource"
+      },
+      {
+        "id": "delay",
+        "params": {
+          "amplitude": {
+            "ref": "ampenv"
+          },
+          "compensate": true,
+          "frequency": {
+            "ref": "__perf_freq"
+          },
+          "ratio": 1.0,
+          "source": {
+            "ref": "damp"
+          }
+        },
+        "type": "DelayLine"
+      }
+    ],
+    "output": "delay"
+  },
+  "instrument": {
+    "polyphony": 1,
+    "volume": 0.5
+  },
+  "sampleRate": 48000,
+  "score": [
+    {
+      "duration": 3.0,
+      "note": 41,
+      "time": 0.0,
+      "velocity": 0.8
+    }
+  ],
+  "seconds": 3.0,
+  "ui": {
+    "noteFaces": [
+      {
+        "fields": {
+          "frequency": "__perf_freq"
+        },
+        "label": "Note"
+      }
+    ],
+    "panning": [
+      873.0,
+      2.0
+    ],
+    "positions": {
+      "Note": [
+        -619.0,
+        357.0
+      ],
+      "__output": [
+        -399.0,
+        357.0
+      ],
+      "ampenv": [
+        -399.0,
+        -143.0
+      ],
+      "damp": [
+        -179.0,
+        107.0
+      ],
+      "dcblock": [
+        -399.0,
+        107.0
+      ],
+      "delay": [
+        -839.0,
+        357.0
+      ],
+      "driveenv": [
+        -619.0,
+        -143.0
+      ],
+      "hiss": [
+        -839.0,
+        -143.0
+      ],
+      "junction": [
+        -619.0,
+        107.0
+      ],
+      "keytrack": [
+        -179.0,
+        -143.0
+      ],
+      "sum": [
+        -839.0,
+        107.0
+      ]
+    }
+  }
+}
