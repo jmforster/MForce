@@ -68,6 +68,27 @@ r5b tour verdict ("attack too long on some"): the reference argues for
 slow swells on phrase notes, at least legato ones. Ears rule; the numbers
 are just here for the record.
 
+## Round 2 (same day) — after Matt's formant retune
+
+Matt: formants at ~1.5k/3k with resonance 5 and 7, drive attack reduced
+to 0.15 (his call: the ref's 435 ms rise was *expression*, not attack —
+the ref's true attack on a detached note measures 30 ms; render 39 ms.
+Confirmed: longer attacks "ruined the sound").
+
+Re-measured (matched note now the long opener, ref 753 Hz / 1.7 s):
+- **H2 deficit −41.5 → −12.9 dB; H4 −40.4 → −14.2.** The formant boost
+  recovered most of the even-harmonic energy perceptually; the odd bias
+  still shows at H6/H7 (−52.5 vs −44.0) — junction asymmetry remains the
+  structural item.
+- LTAS: render's 1.6 k peak now matches/exceeds the ref's 1.5 k; the 3 k
+  peak is still ~8 dB underweight relative to the 1.5 k one (in the ref,
+  3 k is the STRONGER peak) — the remaining formant-balance gap.
+- Vibrato now registers: render 6.8 Hz / ~2 cents vs ref 5.9 Hz /
+  ~9 cents — rate right, depth has headroom.
+- Noise: on this (breathy, long) ref note the render is 21 dB cleaner —
+  the opening-note breath surge is an expression feature the patch
+  doesn't do; steady-state noise was already matched in round 1.
+
 ## Sustain brightness
 
 Ref holds ≥−40 dB out through H8 and stays −45..−57 to H20; render cliffs

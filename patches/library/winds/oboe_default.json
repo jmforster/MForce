@@ -62,7 +62,7 @@
               "holdPct": 0.0,
               "maxSec": 1.0,
               "minSec": 0.0,
-              "percent": 0.20000000298023224,
+              "percent": 0.15000000596046448,
               "power": 2.5,
               "startVal": 0.0,
               "type": "Expo"
@@ -184,7 +184,7 @@
       {
         "id": "Vibrato",
         "params": {
-          "attack": 0.30000001192092896,
+          "attack": 0.10000000149011612,
           "depth": 0.18000000715255737,
           "depthVar": 0.5,
           "frequency": {
@@ -274,12 +274,25 @@
       {
         "id": "SVF",
         "params": {
-          "cutoffFreq": 1100.0,
+          "cutoffFreq": 1500.0,
           "mode": 0,
           "normalize": false,
-          "resonance": 0.5,
+          "resonance": 5.0,
           "source": {
             "ref": "delay"
+          }
+        },
+        "type": "SVFSource"
+      },
+      {
+        "id": "SVF2",
+        "params": {
+          "cutoffFreq": 3000.0,
+          "mode": 0,
+          "normalize": false,
+          "resonance": 7.0,
+          "source": {
+            "ref": "SVF"
           }
         },
         "type": "SVFSource"
@@ -293,7 +306,7 @@
             "ref": "delay"
           },
           "source2": {
-            "ref": "SVF"
+            "ref": "SVF2"
           }
         },
         "type": "CombinedSource"
@@ -382,8 +395,8 @@
       }
     ],
     "panning": [
-      1631.66650390625,
-      512.3333129882813
+      1636.66650390625,
+      362.6667175292969
     ],
     "positions": {
       "Breath_curve": [
@@ -419,12 +432,16 @@
         232.99996948242188
       ],
       "SVF": [
-        -861.333251953125,
+        -863.333251953125,
         87.99996948242188
+      ],
+      "SVF2": [
+        -1163.66650390625,
+        259.99993896484375
       ],
       "Vibrato": [
         -882.333251953125,
-        -162.00006103515625
+        -163.00003051757813
       ],
       "__output": [
         -265.0,
