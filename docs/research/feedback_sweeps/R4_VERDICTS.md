@@ -85,5 +85,10 @@ not yet keytracked.
   flute_default.wav (archive render, peak 0.17). clarinet1's "default wind"
   role now shared.
 - reed001a library-ready by ear but unnamed (oboe?) — awaiting Matt's call
-  on name/family before promotion.
-- r5 steer: from these verdicts, not yet scoped.
+  on name/family before promotion. → RESOLVED 09-03: promoted as
+  **patches/library/winds/oboe_default.json**, Matt's own build-out from
+  the r5b material: keytrack up to a=6, breath-noise curve, Vibrato node,
+  fixed ~1.1 kHz formant (loose SVF bandpass + Sum bell — the honk),
+  Reverb on the output. Archive render renders/library/oboe_default.wav.
+- r5 steer: from these verdicts, not yet scoped. → r5a (keytrack round)
+  and r5b (reed001a deep-dive) both ran; see backlog 37.
