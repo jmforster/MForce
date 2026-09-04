@@ -4756,9 +4756,34 @@ static void apply_score_defaults(const nlohmann::json& score) {
     g_keyboard.octave = std::clamp(int(note) / 12, 0, 20);
 }
 
-// QWERTY-to-chromatic-offset mapping (from legacy LBKeyboard.cs)
+// QWERTY-to-chromatic-offset mapping (from legacy LBKeyboard.cs).
+// Two zones (AF/SAVIHost-style, Matt 2026-09-03): Q row + number row =
+// upper zone at the keyboard octave; Z row + home row = lower zone, the
+// same layout 2 octaves down (negative offsets from octave*12). Both
+// zones shift together with the octave keys. This claimed G/H/V/B as
+// note keys, so the action keys moved to the arrows (octave Left/Right,
+// duration Down/Up).
 struct QwertyMapping { ImGuiKey key; int offset; const char* label; };
 static const QwertyMapping s_qwertyMap[] = {
+    // Lower zone: Z-row whites, home-row blacks, 2 octaves down.
+    { ImGuiKey_Z,          -24, "Z" },
+    { ImGuiKey_S,          -23, "S" },
+    { ImGuiKey_X,          -22, "X" },
+    { ImGuiKey_D,          -21, "D" },
+    { ImGuiKey_C,          -20, "C" },
+    { ImGuiKey_V,          -19, "V" },
+    { ImGuiKey_G,          -18, "G" },
+    { ImGuiKey_B,          -17, "B" },
+    { ImGuiKey_H,          -16, "H" },
+    { ImGuiKey_N,          -15, "N" },
+    { ImGuiKey_J,          -14, "J" },
+    { ImGuiKey_M,          -13, "M" },
+    { ImGuiKey_Comma,      -12, "," },
+    { ImGuiKey_L,          -11, "L" },
+    { ImGuiKey_Period,     -10, "." },
+    { ImGuiKey_Semicolon,   -9, ";" },
+    { ImGuiKey_Slash,       -8, "/" },
+    // Upper zone at the keyboard octave.
     { ImGuiKey_Q,            0, "Q" },
     { ImGuiKey_2,            1, "2" },
     { ImGuiKey_W,            2, "W" },
@@ -6895,6 +6920,7 @@ static void draw_keyboard_panel() {
         for (int i = 0; i < QWERTY_MAP_COUNT; ++i) {
             if (ImGui::IsKeyPressed(s_qwertyMap[i].key, false)) {
                 int absNote = g_keyboard.octave * 12 + s_qwertyMap[i].offset;
+                if (absNote < 0) continue;   // lower zone below MIDI 0 at low octaves
                 s_qwertyHeldNote[i] = absNote;
                 play_note_held(float(absNote), g_transport.velocity, g_keyboard.duration);
             }
@@ -6903,14 +6929,15 @@ static void draw_keyboard_panel() {
                 s_qwertyHeldNote[i] = -1;
             }
         }
-        // Action keys
-        if (ImGui::IsKeyPressed(ImGuiKey_G, false))
+        // Action keys — moved off G/H (octave) and V/B (duration) 2026-09-03:
+        // those letters are now lower-zone notes. Both zones track the octave.
+        if (ImGui::IsKeyPressed(ImGuiKey_LeftArrow, false))
             g_keyboard.octave = std::max(0, g_keyboard.octave - 1);
-        if (ImGui::IsKeyPressed(ImGuiKey_H, false))
+        if (ImGui::IsKeyPressed(ImGuiKey_RightArrow, false))
             g_keyboard.octave = std::min(20, g_keyboard.octave + 1);
-        if (ImGui::IsKeyPressed(ImGuiKey_V, false))
+        if (ImGui::IsKeyPressed(ImGuiKey_DownArrow, false))
             g_keyboard.duration = std::max(0.05f, g_keyboard.duration * 0.5f);
-        if (ImGui::IsKeyPressed(ImGuiKey_B, false))
+        if (ImGui::IsKeyPressed(ImGuiKey_UpArrow, false))
             g_keyboard.duration = std::min(30.0f, g_keyboard.duration * 2.0f);
     }
 
