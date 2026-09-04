@@ -4761,8 +4761,8 @@ static void apply_score_defaults(const nlohmann::json& score) {
 // upper zone at the keyboard octave; Z row + home row = lower zone, the
 // same layout 2 octaves down (negative offsets from octave*12). Both
 // zones shift together with the octave keys. This claimed G/H/V/B as
-// note keys, so the action keys moved to the arrows (octave Left/Right,
-// duration Down/Up).
+// note keys, so the action keys moved to the arrows (octave Up/Down,
+// duration Right/Left).
 struct QwertyMapping { ImGuiKey key; int offset; const char* label; };
 static const QwertyMapping s_qwertyMap[] = {
     // Lower zone: Z-row whites, home-row blacks, 2 octaves down.
@@ -6931,13 +6931,13 @@ static void draw_keyboard_panel() {
         }
         // Action keys — moved off G/H (octave) and V/B (duration) 2026-09-03:
         // those letters are now lower-zone notes. Both zones track the octave.
-        if (ImGui::IsKeyPressed(ImGuiKey_LeftArrow, false))
-            g_keyboard.octave = std::max(0, g_keyboard.octave - 1);
-        if (ImGui::IsKeyPressed(ImGuiKey_RightArrow, false))
-            g_keyboard.octave = std::min(20, g_keyboard.octave + 1);
         if (ImGui::IsKeyPressed(ImGuiKey_DownArrow, false))
-            g_keyboard.duration = std::max(0.05f, g_keyboard.duration * 0.5f);
+            g_keyboard.octave = std::max(0, g_keyboard.octave - 1);
         if (ImGui::IsKeyPressed(ImGuiKey_UpArrow, false))
+            g_keyboard.octave = std::min(20, g_keyboard.octave + 1);
+        if (ImGui::IsKeyPressed(ImGuiKey_LeftArrow, false))
+            g_keyboard.duration = std::max(0.05f, g_keyboard.duration * 0.5f);
+        if (ImGui::IsKeyPressed(ImGuiKey_RightArrow, false))
             g_keyboard.duration = std::min(30.0f, g_keyboard.duration * 2.0f);
     }
 
