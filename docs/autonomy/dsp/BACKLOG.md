@@ -84,11 +84,19 @@ file's git history. Tags per WORKFLOW.md. (G1)-(G4) = GOALS.md Dipsy goals.
     Matt 09-03 interim: ramp curve maybe unnecessary; noise curve good,
     wants more aggressive → n90/n105/n120 extension rendered same day
     (18 cells, r00 only; caveat: power law boosts hiss BELOW home too).
-    NEXT: r5b single-patch deep-dive on reed001a — cutoff multiple
-    (re-measure critical per cell — stale calibration caused reed001a's
-    per-note overblow spread) × excitation shape (incl. overshoot-then-
-    settle = tonguing) × junction jitter (exploit around the winner,
-    ±10-20%/point) — after Matt's 5a verdict. Matt 09-02 philosophy:
+    Matt's 5a verdict 09-03: ramp curve unnecessary; noise keytrack
+    KEEPER, sweet spot exponent -0.80..-0.95 per patch, he fine-tunes by
+    hand. **r5b RUN 09-03** (gen_feedback_sweep_r5b.py): reed001a
+    deep-dive, noise kt baked at -0.85 — cutoff multiple {1.5,2,3,4.5,
+    6,9} × drive shape {lin, blo=Expo2.5, ovs=+60% overshoot/240ms
+    settle, tng=15ms spike} × junction jitter {j0 verbatim, j1-5 ±15%},
+    criticals re-measured per (m,j) (36 bisections; spread tight,
+    0.54-0.65 — and m3/j0 = 0.6252 vs the 0.631 implied by Matt's saved
+    o30 drive). 144/144 → renders/dsp/sweep/feedback_curves5b/; 14-cell
+    axis tour → renders/dsp/pending/feedback_curves5b/ (README inside;
+    control cell = fb5b_m3p0_lin_j0, per-note peaks flat 0.083-0.087
+    C3→C7). NEXT: Matt's tour verdict, then neighbors from the full
+    grid. Matt 09-02 philosophy:
     per-range instruments (great oboe + great bassoon) over one averaged
     5-octave patch; keytrack still matters *within* the home range. Original brief follows —
     payoff run for the feedback-loop subsystem (docs/feedback_loop_design.md,
