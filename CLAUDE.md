@@ -71,8 +71,10 @@ artifacts are score files. Full triage record: docs/patch_triage_2026_08_10.md.
   patches) + pending/ (gitignored — Matt's own play area, NOT a queue) + old/ + scratch/ (gitignored).
   Renamed 2026-08-22: audition/ is the listening queue (was pending/); pending/ is Matt's sandbox.
 - scores/ = comp lane: same shape (sweep, pending, baselines, library, scratch)
-- renders/ keeps the lane level — {dsp, comp}/{sweep, pending}/<effort-family>/ — because
-  renders come from both lanes; per-lane pending/ = Matt's two listening queues.
+- renders/ keeps the lane level — {dsp, comp}/{sweep, audition}/<effort-family>/ — because
+  renders come from both lanes; per-lane audition/ = Matt's two listening queues
+  (renamed from pending/ 2026-09-03 to match patches/; renders/*/pending/ is now
+  Matt's hand-work, runs never write there; pre-rename queues left in place).
   renders/library/ is laneless (audio archive of locked patches); renders/scratch/ for
   manual material. All of renders/ stays gitignored.
 - old/ — deletion grace window (patches ONLY): rejected/failed patches are MOVED here,
@@ -81,7 +83,8 @@ artifacts are score files. Full triage record: docs/patch_triage_2026_08_10.md.
 Rules: no loose files at any level above a family folder; new patches/scores/renders are
 NEVER written to a tree root. patches/audition/ holds only what awaits Matt's ears; each
 audition verdict promotes to library/ or moves to old/ the same day. Never write into
-patches/pending/ — that is Matt's sandbox. (scores/ and renders/ keep their pending/ naming.) Failed renders are deleted
+patches/pending/ or renders/*/pending/ — those are Matt's sandboxes. (scores/ keeps its
+pending/ naming.) Failed renders are deleted
 outright (derived data — score + patch + engine commit reproduces them). Never delete/move
 anything still cited by an open item in docs/autonomy/*/REVIEW.md. Keeper WAVs in
 renders/library/ are the audio archive — don't re-render over them after engine changes

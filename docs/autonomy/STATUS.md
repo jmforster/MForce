@@ -60,6 +60,9 @@ re-render is backlog #22, the first task of the next comp run.
   repointed. Tools/docs that name the old files are historical.
 - **patches/audition/ is the listening queue (renamed from pending/ 2026-08-22,
   gitignored); patches/pending/ is now Matt's sandbox — runs never write there.**
+- **renders/{dsp,comp}/audition/ follows the same rename (Matt 2026-09-03): future
+  round queues go to audition/, renders/*/pending/ = Matt's hand-work. The
+  feedback_curves5a/5b queues predate the rename and stay in dsp/pending/.**
 - Nightly scheduled run purges patches/old/ >30 days.
 - Misc task drops: Matt can leave a dated list in a lane's MISC.md
   (pattern established 08-21); see WORKFLOW.md.
