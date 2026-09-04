@@ -81,6 +81,9 @@ file's git history. Tags per WORKFLOW.md. (G1)-(G4) = GOALS.md Dipsy goals.
     control), new 5-note C3..C7 render format, 54/54 →
     renders/dsp/pending/feedback_curves5a/. Both axes measured live
     (hiss 56x C3→C7 flattened; attack 0.2s-flat → 0.38/0.04s tracked).
+    Matt 09-03 interim: ramp curve maybe unnecessary; noise curve good,
+    wants more aggressive → n90/n105/n120 extension rendered same day
+    (18 cells, r00 only; caveat: power law boosts hiss BELOW home too).
     NEXT: r5b single-patch deep-dive on reed001a — cutoff multiple
     (re-measure critical per cell — stale calibration caused reed001a's
     per-note overblow spread) × excitation shape (incl. overshoot-then-

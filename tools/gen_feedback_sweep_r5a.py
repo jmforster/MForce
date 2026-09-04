@@ -23,7 +23,9 @@ the hiss curve is an ordinary per-sample param wire.
 Render format per Matt 09-02: 5 notes, octaves C3..C7 (MIDI 48..96), 2 s
 each — register behavior audible in one WAV, no second Audition pass.
 
-Usage:  python tools/gen_feedback_sweep_r5a.py
+Usage:  python tools/gen_feedback_sweep_r5a.py [noise_exps] [ramp_exps]
+        (comma-separated overrides, e.g. "-0.9,-1.05,-1.2" "0" for the
+        09-03 noise-only extension; defaults = the original 3x3)
 Writes patches -> patches/sweep/feedback_curves5a/
        renders -> renders/dsp/pending/feedback_curves5a/  (the full 54 =
        the listening queue; no novelty filter, these are polish grids)
@@ -101,11 +103,23 @@ def make_cell(base, p_noise, q_ramp):
 
 
 def main():
+    global NOISE_EXPS, RAMP_EXPS
+    if len(sys.argv) > 1:
+        NOISE_EXPS = [float(x) for x in sys.argv[1].split(",")]
+    if len(sys.argv) > 2:
+        RAMP_EXPS = [float(x) for x in sys.argv[2].split(",")]
     os.makedirs(PATCH_OUT, exist_ok=True)
     os.makedirs(REND_OUT, exist_ok=True)
-    manifest = {"round": "r5a keytrack (noise amp x ramp time)",
-                "noise_exps": NOISE_EXPS, "ramp_exps": RAMP_EXPS,
-                "notes": NOTES, "note_dur": NOTE_DUR, "variants": []}
+    mpath = os.path.join(REND_OUT, "manifest.json")
+    manifest = (json.load(open(mpath)) if os.path.exists(mpath) else
+                {"round": "r5a keytrack (noise amp x ramp time)",
+                 "notes": NOTES, "note_dur": NOTE_DUR, "variants": []})
+    manifest.setdefault("noise_exps", [])
+    manifest.setdefault("ramp_exps", [])
+    manifest["noise_exps"] = sorted(set(manifest["noise_exps"] + NOISE_EXPS),
+                                    reverse=True)
+    manifest["ramp_exps"] = sorted(set(manifest["ramp_exps"] + RAMP_EXPS),
+                                   reverse=True)
     failures = 0
     for name in KEEPERS:
         base = json.load(open(os.path.join(PICKS, name + ".json")))
