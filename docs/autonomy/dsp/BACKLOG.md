@@ -96,7 +96,15 @@ file's git history. Tags per WORKFLOW.md. (G1)-(G4) = GOALS.md Dipsy goals.
     axis tour → renders/dsp/pending/feedback_curves5b/ (README inside;
     control cell = fb5b_m3p0_lin_j0, per-note peaks flat 0.083-0.087
     C3→C7). NEXT: Matt's tour verdict, then neighbors from the full
-    grid. Matt 09-02 philosophy:
+    grid. **09-03 eve steer (Matt): strings AND brass — both weak
+    families — get the oboe treatment**: seed each round from a proven
+    wind line (strings from oboe_again's junction/formants transposed to
+    cello range — its bass sounds BOWED, Matt-pinned; brass likewise),
+    plus junction-asymmetry-as-axis (r5c) and per-instrument reference
+    analysis (research/ml_ears/oboe_ref_compare.py generalizes). Matt's
+    09-03 library/winds saves (oboe_again, oboe_pumped) committed; he
+    flagged straight-to-library as a protocol slip he'll sort himself.
+    Matt 09-02 philosophy:
     per-range instruments (great oboe + great bassoon) over one averaged
     5-octave patch; keytrack still matters *within* the home range. Original brief follows —
     payoff run for the feedback-loop subsystem (docs/feedback_loop_design.md,
