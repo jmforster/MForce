@@ -206,7 +206,6 @@ struct Envelope : ValueSource {
     Stage s;
     s.ramp.type     = RampType::Linear;
     s.ramp.power    = 0.0f;
-    s.ramp.holdPct  = 0.0f;
     s.ramp.startVal = stages_.empty() ? 0.0f : stages_.back().ramp.endVal;
     s.ramp.endVal   = 0.0f;
     s.percent = 0.2f;

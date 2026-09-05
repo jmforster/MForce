@@ -1253,6 +1253,7 @@ static nlohmann::json envelope_stages_to_json(const Envelope& env) {
         const char* t = (s.ramp.type == RampType::Expo)        ? "Expo"
                       : (s.ramp.type == RampType::InverseExpo) ? "InverseExpo"
                       : (s.ramp.type == RampType::Sine)        ? "Sine"
+                      : (s.ramp.type == RampType::Hold)        ? "Hold"
                                                                 : "Linear";
         nlohmann::json sj = {
             {"percent",  s.percent},
@@ -1260,7 +1261,6 @@ static nlohmann::json envelope_stages_to_json(const Envelope& env) {
             {"endVal",   s.ramp.endVal},
             {"type",     t},
             {"power",    s.ramp.power},
-            {"holdPct",  s.ramp.holdPct},
             {"minSec",   s.minSec},
             {"maxSec",   s.maxSec},
         };
@@ -1283,11 +1283,11 @@ static void envelope_stages_from_json(Envelope& env, const nlohmann::json& stage
         s.ramp.startVal = sj.value("startVal", 0.0f);
         s.ramp.endVal   = sj.value("endVal",   0.0f);
         s.ramp.power    = sj.value("power",    0.0f);
-        s.ramp.holdPct  = sj.value("holdPct",  0.0f);
         std::string t   = sj.value("type", std::string("Linear"));
         s.ramp.type = (t == "Expo")        ? RampType::Expo
                     : (t == "InverseExpo") ? RampType::InverseExpo
                     : (t == "Sine")        ? RampType::Sine
+                    : (t == "Hold")        ? RampType::Hold
                                             : RampType::Linear;
         s.percent = sj.value("percent", 0.0f);
         s.minSec  = sj.value("minSec",  0.0f);
@@ -8878,19 +8878,19 @@ static void draw_properties_panel() {
                 ImGui::SetTooltip("off: stage Pct is a fraction of note duration\n"
                                   "on:  stage Pct is literal seconds (timeMode=seconds)");
 
-            const char* typeNames[] = { "Linear", "Expo", "InverseExpo", "Sine" };
+            const char* typeNames[] = { "Linear", "Expo", "InverseExpo", "Sine",
+                                        "Hold" };
             bool changed = false;
             int  removeIdx = -1;
 
             ImGui::BeginGroup();
-            if (ImGui::BeginTable("stages", 9,
+            if (ImGui::BeginTable("stages", 8,
                     ImGuiTableFlags_SizingFixedFit | ImGuiTableFlags_BordersInnerV)) {
                 ImGui::TableSetupColumn("Pct");
                 ImGui::TableSetupColumn("Start");
                 ImGui::TableSetupColumn("End");
                 ImGui::TableSetupColumn("Curve");
                 ImGui::TableSetupColumn("Power");
-                ImGui::TableSetupColumn("Hold");
                 ImGui::TableSetupColumn("Min Secs");
                 ImGui::TableSetupColumn("Max Secs");
                 ImGui::TableSetupColumn("");
@@ -8898,10 +8898,10 @@ static void draw_properties_panel() {
                 // Centered header row (replaces TableHeadersRow's left-aligned labels)
                 {
                     static const char* hdrs[] = {
-                        "Pct", "Start", "End", "Curve", "Power", "Hold", "Min Secs", "Max Secs", ""
+                        "Pct", "Start", "End", "Curve", "Power", "Min Secs", "Max Secs", ""
                     };
                     ImGui::TableNextRow(ImGuiTableRowFlags_Headers);
-                    for (int c = 0; c < 9; ++c) {
+                    for (int c = 0; c < 8; ++c) {
                         ImGui::TableSetColumnIndex(c);
                         float colW = ImGui::GetContentRegionAvail().x;
                         float txtW = ImGui::CalcTextSize(hdrs[c]).x;
@@ -8937,10 +8937,6 @@ static void draw_properties_panel() {
 
                     ImGui::TableNextColumn(); ImGui::PushItemWidth(60);
                     changed |= ImGui::DragFloat("##pow", &s.ramp.power,   0.05f, 0.0f, 10.0f, "%.2f");
-                    ImGui::PopItemWidth();
-
-                    ImGui::TableNextColumn(); ImGui::PushItemWidth(60);
-                    changed |= ImGui::DragFloat("##hold", &s.ramp.holdPct, 0.005f, 0.0f, 1.0f, "%.3f");
                     ImGui::PopItemWidth();
 
                     ImGui::TableNextColumn(); ImGui::PushItemWidth(60);

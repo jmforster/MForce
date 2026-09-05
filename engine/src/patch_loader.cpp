@@ -577,11 +577,13 @@ static GraphResult build_graph(
                     s.ramp.startVal = sj.value("startVal", 0.0f);
                     s.ramp.endVal   = sj.value("endVal",   0.0f);
                     s.ramp.power    = sj.value("power",    0.0f);
-                    s.ramp.holdPct  = sj.value("holdPct",  0.0f);
+                    // holdPct removed 2026-09-05 (curve-morph spec §3): a
+                    // stale key in old JSON is simply ignored here.
                     std::string t   = sj.value("type", std::string("Linear"));
                     s.ramp.type = (t == "Expo")        ? RampType::Expo
                                 : (t == "InverseExpo") ? RampType::InverseExpo
                                 : (t == "Sine")        ? RampType::Sine
+                                : (t == "Hold")        ? RampType::Hold
                                                        : RampType::Linear;
                     s.percent = sj.value("percent", 0.0f);
                     s.minSec  = sj.value("minSec",  0.0f);
