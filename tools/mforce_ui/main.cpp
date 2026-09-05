@@ -5374,6 +5374,10 @@ struct ShapeEditorState {
     bool  hasRevert{false};
     std::vector<std::pair<float, float>> revertPts;
     std::vector<Curve::Seg> revertSegs;
+    // Morph A/B workflow (curve-morph spec §5): which curve is being
+    // edited. 0 = A (values/segs), 1 = B (values2/segs2). Structure
+    // (point count, order, segment types) is shared; geometry per-curve.
+    int   activeCurve{0};
 };
 static ShapeEditorState s_shapeEd;
 
@@ -5530,23 +5534,13 @@ static std::vector<std::pair<float, float>> shape_ed_shaper_load(
     return pts;
 }
 
+static void shape_editor_apply_shaper_named(
+        GraphNode& node, std::vector<std::pair<float, float>>& pts,
+        const char* name);
+
 static void shape_editor_apply_shaper(
         GraphNode& node, std::vector<std::pair<float, float>>& pts) {
-    std::stable_sort(pts.begin(), pts.end(),
-                     [](const std::pair<float, float>& a,
-                        const std::pair<float, float>& b) {
-                         return a.first < b.first;
-                     });
-    std::vector<float>* vals = shape_ed_segment_values(node);
-    if (!vals) return;
-    vals->clear();
-    vals->reserve(pts.size() * 2);
-    for (auto& [x, y] : pts) {
-        vals->push_back(x);
-        vals->push_back(y);
-    }
-    node.push_array("values");
-    mark_graph_dirty();
+    shape_editor_apply_shaper_named(node, pts, "values");
 }
 
 // Per-segment override accessors (Shaper client). The "segs" array uses the
@@ -5560,20 +5554,43 @@ static std::vector<float>* shape_ed_array(GraphNode& node, const char* name) {
 }
 
 static std::vector<Curve::Seg> shape_ed_segs_load(GraphNode& node,
-                                                  size_t nPts) {
+                                                  size_t nPts,
+                                                  const char* name = "segs") {
     std::vector<Curve::Seg> segs;
-    if (auto* raw = shape_ed_array(node, "segs"))
+    if (auto* raw = shape_ed_array(node, name))
         segs = ShaperSource::decode_segs(*raw);
     segs.resize(nPts > 0 ? nPts - 1 : 0);
     return segs;
 }
 
 static void shape_editor_apply_segs(GraphNode& node,
-                                    const std::vector<Curve::Seg>& segs) {
-    std::vector<float>* raw = shape_ed_array(node, "segs");
+                                    const std::vector<Curve::Seg>& segs,
+                                    const char* name = "segs") {
+    std::vector<float>* raw = shape_ed_array(node, name);
     if (!raw) return;
     *raw = ShaperSource::encode_segs(segs);
-    node.push_array("segs");
+    node.push_array(name);
+    mark_graph_dirty();
+}
+
+// Flat write of absolute (x, y) points into a named Shaper array.
+static void shape_editor_apply_shaper_named(
+        GraphNode& node, std::vector<std::pair<float, float>>& pts,
+        const char* name) {
+    std::stable_sort(pts.begin(), pts.end(),
+                     [](const std::pair<float, float>& a,
+                        const std::pair<float, float>& b) {
+                         return a.first < b.first;
+                     });
+    std::vector<float>* vals = shape_ed_array(node, name);
+    if (!vals) return;
+    vals->clear();
+    vals->reserve(pts.size() * 2);
+    for (auto& [x, y] : pts) {
+        vals->push_back(x);
+        vals->push_back(y);
+    }
+    node.push_array(name);
     mark_graph_dirty();
 }
 
@@ -5660,17 +5677,43 @@ static void draw_shape_editor() {
     // Segment/Shaper points reload from arrayValues every frame (cheap at
     // <=512), so table edits and editor edits never go stale against each
     // other. Segment = delta-encoded widths; Shaper = absolute (x, y).
-    std::vector<std::pair<float, float>> segPts;
+    // With morph (values2 present, same length) the Shaper client edits the
+    // ACTIVE curve; the other one is loaded for ghosting and structural
+    // mirroring (spec §5: shared structure, two geometries).
+    std::vector<std::pair<float, float>> segPts, otherPts;
+    std::vector<Curve::Seg> otherSegs;
+    bool morphOn = false, editB = false;
     if (isSeg || isShaper) {
-        std::vector<float>* vals = shape_ed_segment_values(node);
-        if (!vals) { s_shapeEd.open = false; return; }
-        segPts = isSeg ? shape_ed_segment_load(*vals)
-                       : shape_ed_shaper_load(*vals);
+        std::vector<float>* valsA = shape_ed_segment_values(node);
+        if (!valsA) { s_shapeEd.open = false; return; }
+        if (isShaper) {
+            std::vector<float>* valsB = shape_ed_array(node, "values2");
+            morphOn = valsB && !valsB->empty()
+                   && valsB->size() == valsA->size();
+            if (!morphOn) s_shapeEd.activeCurve = 0;
+            editB = morphOn && s_shapeEd.activeCurve == 1;
+            segPts = shape_ed_shaper_load(editB ? *valsB : *valsA);
+            if (morphOn)
+                otherPts = shape_ed_shaper_load(editB ? *valsA : *valsB);
+        } else {
+            segPts = shape_ed_segment_load(*valsA);
+        }
         s_shapeEd.readOnly = (int)segPts.size() > kShapeEdMaxPoints;
     }
     auto& pts = (isSeg || isShaper) ? segPts : node.curveKnots;
     std::vector<Curve::Seg> segs;
-    if (isShaper) segs = shape_ed_segs_load(node, pts.size());
+    if (isShaper) {
+        segs = shape_ed_segs_load(node, pts.size(),
+                                  editB ? "segs2" : "segs");
+        if (morphOn)
+            otherSegs = shape_ed_segs_load(node, pts.size(),
+                                           editB ? "segs" : "segs2");
+    }
+    const char* activePtsName  = editB ? "values2" : "values";
+    const char* activeSegsName = editB ? "segs2"   : "segs";
+    const char* otherPtsName   = editB ? "values"  : "values2";
+    const char* otherSegsName  = editB ? "segs"    : "segs2";
+    bool otherChanged = false;
 
     ImGui::SetNextWindowSize(ImVec2(760, 440), ImGuiCond_FirstUseEver);
     char title[160];
@@ -5706,6 +5749,54 @@ static void draw_shape_editor() {
         ImGui::TextDisabled("x: input value");
         ImGui::SameLine();
         if (!s_shapeEd.readOnly) {
+            if (!morphOn) {
+                if (ImGui::SmallButton("+ morph")) {
+                    // Birth B as a copy of A: correspondence by construction.
+                    auto cpPts = segPts;
+                    auto cpSegs = segs;
+                    shape_editor_apply_shaper_named(node, cpPts, "values2");
+                    shape_editor_apply_segs(node, cpSegs, "segs2");
+                    s_shapeEd.activeCurve = 1;   // land on B, ready to shape
+                }
+                if (ImGui::IsItemHovered())
+                    ImGui::SetTooltip(
+                        "Add a second curve; the morph pin blends A to B");
+                ImGui::SameLine();
+            } else {
+                int ac = s_shapeEd.activeCurve;
+                if (ImGui::RadioButton("A", ac == 0)) s_shapeEd.activeCurve = 0;
+                ImGui::SameLine();
+                if (ImGui::RadioButton("B", ac == 1)) s_shapeEd.activeCurve = 1;
+                ImGui::SameLine();
+                if (ImGui::SmallButton("remove morph"))
+                    ImGui::OpenPopup("Remove morph?");
+                ImGui::SameLine();
+                if (ImGui::BeginPopupModal("Remove morph?", nullptr,
+                                           ImGuiWindowFlags_AlwaysAutoResize)) {
+                    ImGui::TextUnformatted(
+                        "Collapse to a single curve?\n"
+                        "The ACTIVE curve is kept; the other is deleted.");
+                    if (ImGui::Button("Remove", ImVec2(120, 0))) {
+                        if (editB) {   // keep B: it becomes curve A
+                            auto keepPts = segPts;
+                            auto keepSegs = segs;
+                            shape_editor_apply_shaper_named(node, keepPts,
+                                                            "values");
+                            shape_editor_apply_segs(node, keepSegs, "segs");
+                        }
+                        std::vector<std::pair<float, float>> none;
+                        shape_editor_apply_shaper_named(node, none, "values2");
+                        std::vector<Curve::Seg> noSegs;
+                        shape_editor_apply_segs(node, noSegs, "segs2");
+                        s_shapeEd.activeCurve = 0;
+                        ImGui::CloseCurrentPopup();
+                    }
+                    ImGui::SameLine();
+                    if (ImGui::Button("Cancel", ImVec2(120, 0)))
+                        ImGui::CloseCurrentPopup();
+                    ImGui::EndPopup();
+                }
+            }
             ImGui::PushItemWidth(110.0f);
             if (ImGui::BeginCombo("##shaperPreset", "Preset…")) {
                 for (const auto& P : kShaperPresets) {
@@ -5719,8 +5810,17 @@ static void draw_shape_editor() {
                             if (si >= 0 && size_t(si) < segs.size())
                                 segs[si] = Curve::Seg{true,
                                     RampType(ti - 1), pw};
-                        shape_editor_apply_shaper(node, pts);
-                        shape_editor_apply_segs(node, segs);
+                        shape_editor_apply_shaper_named(node, pts,
+                                                        activePtsName);
+                        shape_editor_apply_segs(node, segs, activeSegsName);
+                        if (morphOn) {
+                            // Correspondence is structural: the other curve
+                            // resets to a copy of the preset (point counts
+                            // must match; edit it apart afterwards).
+                            otherPts = pts;
+                            otherSegs = segs;
+                            otherChanged = true;
+                        }
                         s_shapeEd.fitPending = true;
                         s_shapeEd.dragIdx = -1;
                         s_shapeEd.segDragIdx = -1;
@@ -5737,8 +5837,13 @@ static void draw_shape_editor() {
                     pts = s_shapeEd.revertPts;
                     segs = s_shapeEd.revertSegs;
                     segs.resize(pts.empty() ? 0 : pts.size() - 1);
-                    shape_editor_apply_shaper(node, pts);
-                    shape_editor_apply_segs(node, segs);
+                    shape_editor_apply_shaper_named(node, pts, activePtsName);
+                    shape_editor_apply_segs(node, segs, activeSegsName);
+                    if (morphOn && otherPts.size() != pts.size()) {
+                        otherPts = pts;
+                        otherSegs = segs;
+                        otherChanged = true;
+                    }
                     s_shapeEd.hasRevert = false;
                     s_shapeEd.fitPending = true;
                 }
@@ -6059,6 +6164,46 @@ static void draw_shape_editor() {
                     ImVec2(tx(pts[i + 1].first), ty(pts[i + 1].second)),
                     IM_COL32(110, 110, 120, 160));
 
+    // Morph ghost + live blend (Shaper client): the inactive curve faint
+    // behind the skeleton; the engine's current blend as a thin overlay so
+    // both endpoints and the audible in-between stay visible at once.
+    if (isShaper && morphOn && otherPts.size() == pts.size()) {
+        for (size_t i = 0; i + 1 < otherPts.size(); ++i)
+            dl->AddLine(
+                ImVec2(tx(otherPts[i].first), ty(otherPts[i].second)),
+                ImVec2(tx(otherPts[i + 1].first), ty(otherPts[i + 1].second)),
+                IM_COL32(140, 140, 150, 90));
+        float mv = 0.0f;
+        if (node.dspSource)
+            if (auto mp = node.dspSource->get_param("morph"))
+                mv = std::clamp(mp->current(), 0.0f, 1.0f);
+        if (mv > 0.001f) {
+            const auto& A = editB ? otherPts : pts;
+            const auto& B = editB ? pts : otherPts;
+            const auto& As = editB ? otherSegs : segs;
+            const auto& Bs = editB ? segs : otherSegs;
+            ImVec2 prev{};
+            bool started = false;
+            for (size_t i = 0; i + 1 < A.size(); ++i) {
+                Curve::Seg sg = i < As.size() ? As[i] : Curve::Seg{};
+                if (sg.overridden && i < Bs.size() && Bs[i].overridden)
+                    sg.power += (Bs[i].power - sg.power) * mv;
+                const float x0 = A[i].first + (B[i].first - A[i].first) * mv;
+                const float y0 = A[i].second + (B[i].second - A[i].second) * mv;
+                const float x1 = A[i+1].first + (B[i+1].first - A[i+1].first) * mv;
+                const float y1 = A[i+1].second + (B[i+1].second - A[i+1].second) * mv;
+                if (!started) { prev = ImVec2(tx(x0), ty(y0)); started = true; }
+                for (int k = 1; k <= 12; ++k) {
+                    const float t = float(k) / 12.0f;
+                    ImVec2 p(tx(x0 + (x1 - x0) * t),
+                             ty(Curve::eval_seg(y0, y1, t, sg, 0.5f)));
+                    dl->AddLine(prev, p, IM_COL32(120, 200, 220, 130), 1.0f);
+                    prev = p;
+                }
+            }
+        }
+    }
+
     // Overridden segments (Shaper client): the segment's true shape in
     // orange, with a persistent mid-segment power dot. Dot positions are
     // reused by the interaction pass below.
@@ -6174,8 +6319,40 @@ static void draw_shape_editor() {
                 pts.insert(it, {nx, ny});
                 // Structural edit: splitting a segment duplicates its
                 // override onto both halves; a new outer segment is default.
+                // With morph on, the OTHER curve gains a point ON its own
+                // line at the same segment fraction — shape-preserving on
+                // both sides (spec §5).
                 if (isShaper && pts.size() >= 2) {
                     const int k = s_shapeEd.dragIdx;
+                    if (morphOn && otherPts.size() + 1 == pts.size()) {
+                        std::pair<float, float> op;
+                        if (k <= 0) {
+                            op = otherPts.front();
+                            op.first -= 1e-3f;
+                            otherPts.insert(otherPts.begin(), op);
+                        } else if (k >= int(pts.size()) - 1) {
+                            op = otherPts.back();
+                            op.first += 1e-3f;
+                            otherPts.push_back(op);
+                        } else {
+                            const auto& l = pts[k - 1];
+                            const auto& r = pts[k + 1];
+                            const float tf = (r.first - l.first) > 1e-9f
+                                ? (nx - l.first) / (r.first - l.first) : 0.5f;
+                            const auto& ol = otherPts[k - 1];
+                            const auto& orr = otherPts[k];
+                            const size_t j = size_t(k - 1);
+                            const Curve::Seg oseg =
+                                j < otherSegs.size() ? otherSegs[j]
+                                                     : Curve::Seg{};
+                            op.first = ol.first
+                                + (orr.first - ol.first) * tf;
+                            op.second = Curve::eval_seg(
+                                ol.second, orr.second, tf, oseg, 0.5f);
+                            otherPts.insert(otherPts.begin() + k, op);
+                        }
+                        otherChanged = true;
+                    }
                     if (k <= 0) segs.insert(segs.begin(), Curve::Seg{});
                     else if (k >= int(pts.size()) - 1)
                         segs.push_back(Curve::Seg{});
@@ -6184,6 +6361,21 @@ static void draw_shape_editor() {
                         const Curve::Seg cp =
                             j < segs.size() ? segs[j] : Curve::Seg{};
                         segs.insert(segs.begin() + j, cp);
+                    }
+                    if (morphOn) {
+                        otherSegs.resize(pts.empty() ? 0 : pts.size() - 2);
+                        if (k <= 0)
+                            otherSegs.insert(otherSegs.begin(), Curve::Seg{});
+                        else if (k >= int(pts.size()) - 1)
+                            otherSegs.push_back(Curve::Seg{});
+                        else {
+                            const size_t j = size_t(k - 1);
+                            const Curve::Seg cp =
+                                j < otherSegs.size() ? otherSegs[j]
+                                                     : Curve::Seg{};
+                            otherSegs.insert(otherSegs.begin() + j, cp);
+                        }
+                        otherChanged = true;
                     }
                     segsChanged = true;
                 }
@@ -6194,24 +6386,45 @@ static void draw_shape_editor() {
             if (hot >= 0 && pts.size() > (isSeg ? size_t(1) : size_t(2))) {
                 // Structural edit: deleting point i merges its segments —
                 // the left segment's override survives (left point owns).
+                // Removed from BOTH curves when morphing.
                 if (isShaper && !segs.empty()) {
                     const size_t drop =
                         std::min(size_t(hot), segs.size() - 1);
                     segs.erase(segs.begin() + drop);
+                    if (morphOn) {
+                        if (drop < otherSegs.size())
+                            otherSegs.erase(otherSegs.begin() + drop);
+                        if (size_t(hot) < otherPts.size())
+                            otherPts.erase(otherPts.begin() + hot);
+                        otherChanged = true;
+                    }
                     segsChanged = true;
                 }
                 pts.erase(pts.begin() + hot);
                 if (s_shapeEd.dragIdx == hot) s_shapeEd.dragIdx = -1;
                 changed = true;
             } else if (isShaper && hot < 0 && hotDot >= 0) {
+                // Type/override state is shared structure: clear on both.
                 segs[hotDot] = Curve::Seg{};      // reset to default interp
+                if (morphOn && size_t(hotDot) < otherSegs.size()) {
+                    otherSegs[hotDot] = Curve::Seg{};
+                    otherChanged = true;
+                }
                 if (s_shapeEd.segDragIdx == hotDot) s_shapeEd.segDragIdx = -1;
                 segsChanged = true;
             } else if (isShaper && hot < 0) {
                 const int si = seg_hit();
                 if (si >= 0 && size_t(si) < segs.size()) {
-                    if (!segs[si].overridden)
+                    if (!segs[si].overridden) {
                         segs[si] = Curve::Seg{true, RampType::Expo, 2.0f};
+                        // Shared type; the other curve starts at the same
+                        // power and diverges when edited over there.
+                        if (morphOn && size_t(si) < otherSegs.size()) {
+                            otherSegs[si] =
+                                Curve::Seg{true, RampType::Expo, 2.0f};
+                            otherChanged = true;
+                        }
+                    }
                     s_shapeEd.segDragIdx = si;
                     s_shapeEd.segDragStartPower = segs[si].power;
                     segsChanged = true;
@@ -6312,11 +6525,16 @@ static void draw_shape_editor() {
 
     if (changed) {
         if (isSeg)         shape_editor_apply_segment(node, pts);
-        else if (isShaper) shape_editor_apply_shaper(node, pts);
+        else if (isShaper) shape_editor_apply_shaper_named(node, pts,
+                                                           activePtsName);
         else               shape_editor_apply_curve(node);
     }
     if (isShaper && (changed || segsChanged))
-        shape_editor_apply_segs(node, segs);
+        shape_editor_apply_segs(node, segs, activeSegsName);
+    if (isShaper && otherChanged) {
+        shape_editor_apply_shaper_named(node, otherPts, otherPtsName);
+        shape_editor_apply_segs(node, otherSegs, otherSegsName);
+    }
 
     ImGui::End();
     if (!keepOpen) s_shapeEd.open = false;
