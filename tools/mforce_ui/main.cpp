@@ -2014,32 +2014,52 @@ static void load_graph_from_path(const std::string& path) {
             }
         }
         if (plan.empty()) {
-            std::map<std::string, std::string> fields;
-            for (auto& [fid, f] : perfFileField)
-                if (!fields.count(f)) fields[f] = fid;  // first id per field
-            plan.emplace_back(unique_node_label(NT_PERFORM), std::move(fields));
+            // Greedy packing in FILE order: each id lands on the first face
+            // whose slot for its field is free, and a duplicate same-field id
+            // (legal — the engine resolves all of them to one shared adapter)
+            // opens a new face. One face per field-set keeps the common case
+            // a single Note node, while a duplicate keeps its own pin — the
+            // save path emits one file node per WIRED PIN, so an id with no
+            // pin of its own would be dropped (stable-identity contract).
+            for (const auto& jnode : nodes) {
+                if (jnode.value("type", std::string()) != NT_PERFORM) continue;
+                std::string fid = jnode["id"].get<std::string>();
+                const std::string& f = perfFileField[fid];
+                bool placed = false;
+                for (auto& [label, fields] : plan)
+                    if (!fields.count(f)) { fields[f] = fid; placed = true; break; }
+                if (!placed)
+                    plan.emplace_back(std::string(),
+                                      std::map<std::string, std::string>{{f, fid}});
+            }
         }
         for (auto& [label, fields] : plan) {
             s_nodes.emplace_back(std::string(NT_PERFORM));
             GraphNode& face = s_nodes.back();
-            face.label = label;
+            if (!label.empty()) face.label = label;  // else keep ctor-unique label
             face.perfFieldIds = fields;
             for (auto& [f, fid] : fields)
                 if (Pin* p = face.find_output(f))
                     outputPinMap[fid] = p->id;
         }
-        // Stragglers (duplicate same-field file nodes, or a noteFaces list
-        // that missed one): wire through the first face's matching pin.
+        // Stragglers (a noteFaces list that missed a file node): each id
+        // needs a face pin of its OWN — claim the first face whose slot for
+        // the field is free, else open a new face. Sharing an already-claimed
+        // pin would drop the id on save (one file node per wired pin).
         for (auto& [fid, f] : perfFileField) {
             if (outputPinMap.count(fid)) continue;
+            GraphNode* home = nullptr;
             for (auto& n : s_nodes) {
-                if (n.typeName != NT_PERFORM) continue;
-                if (Pin* p = n.find_output(f)) {
-                    outputPinMap[fid] = p->id;
-                    if (!n.perfFieldIds.count(f)) n.perfFieldIds[f] = fid;
-                }
-                break;
+                if (n.typeName != NT_PERFORM || n.perfFieldIds.count(f)) continue;
+                if (n.find_output(f)) { home = &n; break; }
             }
+            if (!home) {
+                s_nodes.emplace_back(std::string(NT_PERFORM));
+                home = &s_nodes.back();
+            }
+            home->perfFieldIds[f] = fid;
+            if (Pin* p = home->find_output(f))
+                outputPinMap[fid] = p->id;
         }
     }
 
