@@ -1,4 +1,5 @@
 #pragma once
+#include "mforce/core/curve.h"
 #include "mforce/core/dsp_value_source.h"
 #include <cmath>
 #include <limits>
@@ -81,39 +82,15 @@ struct CurveNode final : ValueSource {
     return eval_expr(exprKnots.back(), x);
   }
 
+  // Delegates to the shared evaluator (curve.h) — its eval_core carries the
+  // ParamSlot::vmap/map semantics forward; smoothness 0.5 is exact lerp.
   float map(float x) const {
     if (exprMode) return map_expr(x);
-    if (knots.empty()) return x;  // identity
-    if (x <= knots.front().first) return knots.front().second;
-    if (x >= knots.back().first)  return knots.back().second;
-    if (interp == CurveInterp::Linear) {
-      // === ParamSlot::vmap body, verbatim (instrument.h) ===
-      for (size_t i = 1; i < knots.size(); ++i) {
-        if (x <= knots[i].first) {
-          float t = (x - knots[i - 1].first) /
-                    (knots[i].first - knots[i - 1].first);
-          return knots[i - 1].second +
-                 (knots[i].second - knots[i - 1].second) * t;
-        }
-      }
-      return knots.back().second;
-    }
-    // === ParamSlot::map body, verbatim (instrument.h); LogLog is its
-    // loglog branch ===
-    for (size_t i = 1; i < knots.size(); ++i) {
-      if (x <= knots[i].first) {
-        float lf = std::log(x / knots[i - 1].first) /
-                   std::log(knots[i].first / knots[i - 1].first);
-        if (interp == CurveInterp::LogLog &&
-            knots[i - 1].second > 0.0f && knots[i].second > 0.0f) {
-          return knots[i - 1].second *
-                 std::pow(knots[i].second / knots[i - 1].second, lf);
-        }
-        return knots[i - 1].second +
-               (knots[i].second - knots[i - 1].second) * lf;
-      }
-    }
-    return knots.back().second;
+    const Curve::Domain d =
+        interp == CurveInterp::LogLog ? Curve::Domain::LogLog
+      : interp == CurveInterp::LogX   ? Curve::Domain::LogX
+      :                                 Curve::Domain::Linear;
+    return Curve::eval(knots, {}, d, 0.5f, x);
   }
 
   const char* type_name() const override { return "CurveNode"; }

@@ -1,6 +1,6 @@
 #pragma once
+#include "mforce/core/curve.h"
 #include "mforce/core/dsp_value_source.h"
-#include "mforce/core/smoothness_interpolator.h"
 #include <algorithm>
 #include <memory>
 #include <vector>
@@ -75,36 +75,25 @@ struct ShaperSource final : ValueSource {
   float next() override {
     const float x = (source_ ? source_->next() : 0.0f) * drive_->next();
     smoothness_->next();
-    interp_.setSmoothness(smoothness_->current());
+    smoothCur_ = smoothness_->current();
     cur_ = map(x);
     return cur_;
   }
 
   float current() const override { return cur_; }
 
-  // Public for the UI preview/editor overlay (mirrors CurveNode::map).
+  // Public for the UI preview/editor overlay. Delegates to the shared
+  // evaluator (curve.h); segs_ is empty until per-segment overrides land.
   float map(float x) {
-    const size_t n = values_.size() / 2;
-    auto px = [&](size_t i) { return values_[i * 2]; };
-    auto py = [&](size_t i) { return values_[i * 2 + 1]; };
-    if (n == 0) return x;
-    if (x <= px(0))     return py(0);
-    if (x >= px(n - 1)) return py(n - 1);
-    for (size_t i = 1; i < n; ++i) {
-      if (x <= px(i)) {
-        const float w = px(i) - px(i - 1);
-        const float pos = w > 0.0f
-            ? std::clamp((x - px(i - 1)) / w, 0.0f, 1.0f) : 1.0f;
-        return interp_.interpolate(py(i - 1), py(i), pos);
-      }
-    }
-    return py(n - 1);
+    return Curve::eval_flat(values_, segs_, Curve::Domain::Linear,
+                            smoothCur_, x);
   }
 
 private:
   std::shared_ptr<ValueSource> source_, drive_, smoothness_;
   std::vector<float> values_;
-  SmoothnessInterpolator interp_{0.5f, false};
+  std::vector<Curve::Seg> segs_;
+  float smoothCur_{0.5f};
   float cur_{0.0f};
 };
 
