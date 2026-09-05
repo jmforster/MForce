@@ -7,15 +7,6 @@ WORKFLOW.md. (G1)-(G2) = GOALS.md Wolfie goals.
 
 ## Next up
 
-22. **[build] Re-render the three purge-casualty review items** — REVIEW
-    11 (literal repeats, `renders/markov_phrases5/{,before}`), 13 (phrase
-    endings, `renders/markov_phrases6/{,longest}`), 17 (passage endings,
-    `renders/passage_end_grid/{off,beat,bar}`) all cite renders deleted in
-    the 2026-08-08 render purge — Matt can never verdict them as they
-    stand. Re-render each A/B with the same seeds/recipes (READMEs and
-    generator scripts document them), place under renders/comp/pending/,
-    and update the REVIEW entries' paths. FIRST task of the next comp run.
-
 21. **[build] Zero-event renders are never treated as failures** —
     building #9's harness found six of 38 committed templates rendering
     pure silence (empty passage when no `startingPitch`, under a comment
@@ -63,6 +54,13 @@ WORKFLOW.md. (G1)-(G2) = GOALS.md Wolfie goals.
 
 One line each; full text in run reports + this file's git history.
 
+- 22. Purge-casualty re-renders — run 27: REVIEW 11/13/17 A/Bs re-rendered
+  at HEAD, same seeds, under renders/comp/audition/; faithful to the
+  originals (11: 6 pairs differ per the run-17 guard; 13: 24/24 final-note-
+  only re-verified; 17: run-18 table reproduced exactly). Additive1.json
+  rescued from patches/old/ purge window -> patches/baselines/; all 7 comp
+  harnesses repointed; passage_end_grid_ab.py written (run 18's arm driver
+  was never kept).
 - 6. PassageStrategy expansion (G2) — closed run 15: all four C++ stages,
   key-aware realization, WanderingPassageStrategy, Bruckner
   pedal-through-keys (`scaleOverride` so a pedal refuses to modulate).

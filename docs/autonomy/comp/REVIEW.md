@@ -33,10 +33,11 @@ Surfaced by Matt comparing renders against Iowa file labels.
 > PATHS 2026-08-10: housekeeping moved comp render dirs to
 > renders/comp/pending/ and the live template/jazz-turnaround inputs to
 > scores/pending/ (patch/score split, docs/patch_triage_2026_08_10.md).
-> **Items 11/13/17 are BLOCKED** — their renders NO LONGER EXIST
-> (2026-08-08 render purge casualty). Re-render is backlog #22, the FIRST
-> task of the next comp run; Matt should not attempt verdicts until the
-> entries here carry fresh paths.
+> UNBLOCKED 2026-09-05 (run 27): items 11/13/17, whose renders died in the
+> 2026-08-08 purge, are re-rendered at HEAD with the same seeds/recipes
+> under **renders/comp/audition/** (the post-09-03 queue location; the
+> pre-purge items above still say pending/). All seven items here are now
+> verdictable.
 
 ### 18. Cadential arrival — held, or approached? [listen] (run 26)
 `renders/comp/pending/cadential_arrival_ab/` — `template_golden_phase1a_{held,approach}`
@@ -62,11 +63,13 @@ Verdict decides the default for `PhraseTemplate.cadentialArrival`. Both stay
 authorable per phrase either way. (`template_shaped_test` was rendering pure
 silence until this run — it is one of six that were; see the run-26 report.)
 
-### 17. Passage endings — beat or barline? [listen] (run 18) — BLOCKED, re-render = backlog #22
-`renders/passage_end_grid/{off,beat,bar}` [MISSING — see note above] — the same 21 passages three times,
-`endGrid` the only difference. `off` is what you have been hearing (6/21 end
-on a beat), `beat` is the new default (21/21 on a beat, 8/21 on a barline),
-`bar` quantizes to the 4/4 barline (21/21 both).
+### 17. Passage endings — beat or barline? [listen] (run 18; re-rendered run 27)
+`renders/comp/audition/passage_end_grid/{off,beat,bar}` — the same 21 passages
+three times, `endGrid` the only difference. Re-rendered 2026-09-05 at HEAD,
+same seeds (README inside); faithful to run 18 down to the individual
+off-grid end times (9.375, 37.250, 50.750...). `off` is what you had been
+hearing (6/21 end on a beat), `beat` is the new default (21/21 on a beat,
+8/21 on a barline), `bar` quantizes to the 4/4 barline (21/21 both).
 
 Passage endings landed wherever the arithmetic left them — 9.38, 37.25, 50.75
 — because the phrase path has grid-completed since run 13 and the passage path
@@ -98,16 +101,19 @@ concluded), or does it also offset the passage entry by the key distance —
 and if so, is that the default or an opt-in flag? Note the second one has a
 sharp edge: a template that sets both would get transposed twice.
 
-### 13. Phrase endings, recalibrated [listen] (run 17) — BLOCKED, re-render = backlog #22
-`renders/markov_phrases6/` (new default `calib`) vs `renders/markov_phrases6/longest/`
-(the v3 rule you called "fine for now") [both MISSING — see note above].
-Same seed, same 24 phrases, **only the last note differs** (README inside).
+### 13. Phrase endings, recalibrated [listen] (run 17; re-rendered run 27)
+`renders/comp/audition/markov_phrases6/` (new default `calib`) vs
+`renders/comp/audition/markov_phrases6/longest/` (the v3 rule you called
+"fine for now"). Re-rendered 2026-09-05 at HEAD, same seed/recipe (README
+inside). Same seed, same 24 phrases, **only the last note differs** —
+re-verified event-by-event on this render, 24/24 pairs.
 You said fine; the measurement said the rule was running at ratio p50 3.0 /
 p95 11.0 against a corpus of 2.0 / 6.0. It turned out the DRAW was already
 right — grid completion was ceiling every phrase onto the next barline and
 adding a further quarter-beat at the median. v4 keeps the final note as the
-phrase's longest just as often in spirit (0.62 vs 0.785 measured, corpus
-0.354) but it can no longer invent a length the phrase never contained.
+phrase's longest just as often in spirit (17/24 vs 24/24 this render, corpus
+0.354) but it can no longer invent a length the phrase never contained
+(ratio median 2.50 vs 4.00, max 19 vs 27).
 Verdict decides: does the shorter ending still land, or did v3's extra length
 carry something? `--final-rule longest` restores v3 exactly.
 
@@ -145,14 +151,18 @@ arm you picked). Hand-voiced path survives as `pedal_chords_hand`.
 Verdict decides: does the pinned arrival read as you intended, and does the
 hand path stay reachable or retire.
 
-### 11. Literal repeats can now transform [listen] (run 16) — BLOCKED, re-render = backlog #22
-`renders/markov_phrases5/` vs `renders/markov_phrases5/before/` [both MISSING — see note above] — same-seed
-A/B, backlog #10 closed. Repeated A/B occurrences can invert / retrograde /
-rotate / ornament instead of only transposing; first occurrence of a family
-never transformed; a range guard reverts span-breakers. Conservative 0.3
-probability -> exactly 4 of 24 pairs differ: p00 (retrograde), p01 + p17
-(rotate), p19 (invert); the other 20 are byte-identical on purpose.
-Composite flat (0.815 vs 0.814) — this change is for ears, not metrics.
+### 11. Literal repeats can now transform [listen] (run 16; re-rendered run 27)
+`renders/comp/audition/markov_phrases5/` vs
+`renders/comp/audition/markov_phrases5/before/` — same-seed A/B, backlog #10
+closed. Re-rendered 2026-09-05 at HEAD, same seed/recipe (README inside).
+Repeated A/B occurrences can invert / retrograde / rotate / ornament instead
+of only transposing; first occurrence of a family never transformed; a range
+guard reverts span-breakers. Conservative 0.3 probability -> **6 of 24 pairs
+differ** at HEAD: run 16's four (p00 retrograde, p01 + p17 rotate, p19
+invert) plus p14 (invert) and p18 (ornament), which run 17's offender-first
+range guard recovered; the other 18 are byte-identical on purpose (verified
+by sha256 on this render).
+Composite flat (0.822 vs 0.814) — this change is for ears, not metrics.
 Verdict decides: do the transformed repeats read as variation or as wrong
 notes; and whether you want a denser batch (0.6 probability) to audition
 more instances.

@@ -25,7 +25,7 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
 CLI = REPO / "build/tools/mforce_cli/Release/mforce_cli.exe"
-PATCH = REPO / "patches/Additive1.json"
+PATCH = REPO / "patches/baselines/Additive1.json"
 OUT = REPO / "renders/cadential_arrival_ab"
 
 TEMPLATES = ["template_golden_phase1a", "template_shaped_test"]

@@ -9,7 +9,7 @@ import argparse, json, pathlib, random, subprocess, sys
 
 REPO  = pathlib.Path(__file__).resolve().parent.parent.parent
 CLI   = REPO / "build/tools/mforce_cli/Release/mforce_cli.exe"
-PATCH = REPO / "patches/Additive1.json"
+PATCH = REPO / "patches/baselines/Additive1.json"
 MAJOR = [0, 2, 4, 5, 7, 9, 11]
 
 

@@ -28,7 +28,7 @@ import score_passage as spg                                        # noqa: E402
 
 REPO = HERE.parent.parent
 CLI = REPO / "build/tools/mforce_cli/Release/mforce_cli.exe"
-PATCH = REPO / "patches/Additive1.json"
+PATCH = REPO / "patches/baselines/Additive1.json"
 OUTROOT = "renders/engine_passage_strategies"
 
 
