@@ -52,6 +52,7 @@
 
 using namespace mforce;
 
+#include <tuple>
 #include <vector>
 #include <string>
 #include <cstdint>
@@ -5363,6 +5364,16 @@ struct ShapeEditorState {
     int   dragIdx{-1};
     bool  fitPending{false};
     bool  readOnly{false};   // segment shapes above the density limit
+    // Shaper client per-segment overrides: which segment's power is being
+    // dragged (via its mid-segment dot or the creating right-drag), and the
+    // power at drag start (drag distance scales it exponentially).
+    int   segDragIdx{-1};
+    float segDragStartPower{2.0f};
+    // One-shot revert stash for preset insertion (the editor has no undo
+    // stack; this delivers "undoable" as a single Revert).
+    bool  hasRevert{false};
+    std::vector<std::pair<float, float>> revertPts;
+    std::vector<Curve::Seg> revertSegs;
 };
 static ShapeEditorState s_shapeEd;
 
@@ -5421,6 +5432,48 @@ static std::vector<std::pair<float, float>> shape_ed_gen_pulse_train(
     }
     return pts;
 }
+
+// Shaper preset curves (curve-morph spec §4): the five junction
+// nonlinearities nature provides + the degenerate sixth, plus the standard
+// waveforms as transfer curves (sine/triangle fold, saw wraps). Hardcoded
+// by design — a curve-library file format is deferred until this list
+// feels cramped. segs tuples are (segment index, typeIdx 1..5, power)
+// in the engine encoding (2 Expo, 4 Sine, 1 Linear, 5 Hold).
+struct ShaperPreset {
+    const char* name;
+    std::vector<std::pair<float, float>> pts;
+    std::vector<std::tuple<int, int, float>> segs;
+};
+static const ShaperPreset kShaperPresets[] = {
+    {"bow",      {{-1.00f,-0.33f},{-0.10f,-0.52f},{-0.015f,-0.95f},
+                  { 0.015f, 0.95f},{ 0.10f, 0.52f},{ 1.00f, 0.33f}},
+                 {{0,2,0.5f},{4,2,2.0f}}},
+    {"reed1",    {{-1.00f,-0.90f},{-0.55f,-0.80f},{-0.12f,-0.42f},
+                  { 0.00f, 0.00f},{ 0.12f, 0.42f},{ 0.40f, 0.70f},
+                  { 0.70f, 0.45f},{ 1.00f, 0.10f}}, {}},
+    {"reed2",    {{-1.00f,-0.95f},{-0.50f,-0.85f},{-0.10f,-0.48f},
+                  { 0.00f, 0.00f},{ 0.10f, 0.50f},{ 0.28f, 0.72f},
+                  { 0.50f, 0.15f},{ 0.62f, 0.00f},{ 1.00f, 0.00f}},
+                 {{7,5,0.0f}}},
+    {"lip",      {{-1.00f,-0.45f},{-0.50f,-0.30f},{-0.20f,-0.10f},
+                  {-0.05f,-0.03f},{ 0.06f, 0.04f},{ 0.25f, 0.12f},
+                  { 0.55f, 0.50f},{ 0.80f, 0.92f},{ 1.00f, 0.98f}}, {}},
+    {"jet",      {{-1.00f,-0.82f},{-0.45f,-0.78f},{-0.18f,-0.50f},
+                  { 0.00f, 0.00f},{ 0.18f, 0.50f},{ 0.45f, 0.78f},
+                  { 1.00f, 0.82f}},
+                 {{0,4,0.0f},{1,4,0.0f},{2,4,0.0f},
+                  {3,4,0.0f},{4,4,0.0f},{5,4,0.0f}}},
+    {"hard",     {{-0.52f,-0.60f},{ 0.52f, 0.60f}}, {}},
+    {"sine",     {{-1.00f, 0.00f},{-0.50f,-1.00f},{ 0.00f, 0.00f},
+                  { 0.50f, 1.00f},{ 1.00f, 0.00f}},
+                 {{0,4,0.0f},{1,4,0.0f},{2,4,0.0f},{3,4,0.0f}}},
+    {"saw",      {{-1.00f,-1.00f},{-0.002f, 1.00f},{ 0.002f,-1.00f},
+                  { 1.00f, 1.00f}},
+                 {{0,1,0.0f},{1,1,0.0f},{2,1,0.0f}}},
+    {"triangle", {{-1.00f, 0.00f},{-0.50f,-1.00f},{ 0.00f, 0.00f},
+                  { 0.50f, 1.00f},{ 1.00f, 0.00f}},
+                 {{0,1,0.0f},{1,1,0.0f},{2,1,0.0f},{3,1,0.0f}}},
+};
 
 static GraphNode* shape_ed_node() {
     for (auto& n : s_nodes)
@@ -5493,6 +5546,34 @@ static void shape_editor_apply_shaper(
         vals->push_back(y);
     }
     node.push_array("values");
+    mark_graph_dirty();
+}
+
+// Per-segment override accessors (Shaper client). The "segs" array uses the
+// engine encoding (ShaperSource::decode_segs/encode_segs: flat [typeIdx,
+// power] pairs, typeIdx 0 = default). Loaded per frame like the points so
+// table edits and editor edits never go stale against each other.
+static std::vector<float>* shape_ed_array(GraphNode& node, const char* name) {
+    for (auto& [d, v] : node.arrayValues)
+        if (std::string_view(d.name) == name) return &v;
+    return nullptr;
+}
+
+static std::vector<Curve::Seg> shape_ed_segs_load(GraphNode& node,
+                                                  size_t nPts) {
+    std::vector<Curve::Seg> segs;
+    if (auto* raw = shape_ed_array(node, "segs"))
+        segs = ShaperSource::decode_segs(*raw);
+    segs.resize(nPts > 0 ? nPts - 1 : 0);
+    return segs;
+}
+
+static void shape_editor_apply_segs(GraphNode& node,
+                                    const std::vector<Curve::Seg>& segs) {
+    std::vector<float>* raw = shape_ed_array(node, "segs");
+    if (!raw) return;
+    *raw = ShaperSource::encode_segs(segs);
+    node.push_array("segs");
     mark_graph_dirty();
 }
 
@@ -5588,6 +5669,8 @@ static void draw_shape_editor() {
         s_shapeEd.readOnly = (int)segPts.size() > kShapeEdMaxPoints;
     }
     auto& pts = (isSeg || isShaper) ? segPts : node.curveKnots;
+    std::vector<Curve::Seg> segs;
+    if (isShaper) segs = shape_ed_segs_load(node, pts.size());
 
     ImGui::SetNextWindowSize(ImVec2(760, 440), ImGuiCond_FirstUseEver);
     char title[160];
@@ -5622,16 +5705,87 @@ static void draw_shape_editor() {
     } else if (isShaper) {
         ImGui::TextDisabled("x: input value");
         ImGui::SameLine();
+        if (!s_shapeEd.readOnly) {
+            ImGui::PushItemWidth(110.0f);
+            if (ImGui::BeginCombo("##shaperPreset", "Preset…")) {
+                for (const auto& P : kShaperPresets) {
+                    if (ImGui::Selectable(P.name)) {
+                        s_shapeEd.revertPts = pts;
+                        s_shapeEd.revertSegs = segs;
+                        s_shapeEd.hasRevert = true;
+                        pts = P.pts;
+                        segs.assign(pts.size() - 1, Curve::Seg{});
+                        for (const auto& [si, ti, pw] : P.segs)
+                            if (si >= 0 && size_t(si) < segs.size())
+                                segs[si] = Curve::Seg{true,
+                                    RampType(ti - 1), pw};
+                        shape_editor_apply_shaper(node, pts);
+                        shape_editor_apply_segs(node, segs);
+                        s_shapeEd.fitPending = true;
+                        s_shapeEd.dragIdx = -1;
+                        s_shapeEd.segDragIdx = -1;
+                    }
+                }
+                ImGui::EndCombo();
+            }
+            ImGui::PopItemWidth();
+            if (ImGui::IsItemHovered())
+                ImGui::SetTooltip("Replaces the current points");
+            if (s_shapeEd.hasRevert) {
+                ImGui::SameLine();
+                if (ImGui::SmallButton("Revert")) {
+                    pts = s_shapeEd.revertPts;
+                    segs = s_shapeEd.revertSegs;
+                    segs.resize(pts.empty() ? 0 : pts.size() - 1);
+                    shape_editor_apply_shaper(node, pts);
+                    shape_editor_apply_segs(node, segs);
+                    s_shapeEd.hasRevert = false;
+                    s_shapeEd.fitPending = true;
+                }
+            }
+            ImGui::SameLine();
+        }
     }
+    bool segsChanged = false;
     if (s_shapeEd.readOnly)
         ImGui::TextColored(ImVec4(0.9f, 0.6f, 0.3f, 1),
             "%d points — too dense to edit; regenerate instead (read-only)",
             (int)pts.size());
+    else if (isShaper)
+        ImGui::TextDisabled("%d points  |  click empty: add   drag: move   "
+                            "right-click point: delete   right-drag segment: "
+                            "curve it   drag dot: power   right-click dot: "
+                            "reset   wheel: zoom   middle-drag: pan",
+                            (int)pts.size());
     else
         ImGui::TextDisabled("%d points  |  click empty: add   drag: move "
                             "(shift: slide tail)   right-click: delete   "
                             "wheel: zoom x (shift: y)   middle-drag: pan",
                             (int)pts.size());
+    if (isShaper && !s_shapeEd.readOnly) {
+        bool anyOverride = false;
+        for (auto& sg : segs) anyOverride |= sg.overridden;
+        if (anyOverride) {
+            ImGui::SameLine();
+            if (ImGui::SmallButton("Clear overrides"))
+                ImGui::OpenPopup("Clear segment overrides?");
+        }
+        if (ImGui::BeginPopupModal("Clear segment overrides?", nullptr,
+                                   ImGuiWindowFlags_AlwaysAutoResize)) {
+            ImGui::TextUnformatted(
+                "Reset every segment to the default interpolation?\n"
+                "All per-segment curve shapes on this node are cleared.");
+            if (ImGui::Button("Clear", ImVec2(120, 0))) {
+                for (auto& sg : segs) sg = Curve::Seg{};
+                segsChanged = true;
+                ImGui::CloseCurrentPopup();
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("Cancel", ImVec2(120, 0)))
+                ImGui::CloseCurrentPopup();
+            ImGui::EndPopup();
+        }
+    }
 
     // --- Generator panel (segment client; spec: presets emit points, the
     // points are the artifact, params stay dialog-local) ---
@@ -5905,6 +6059,35 @@ static void draw_shape_editor() {
                     ImVec2(tx(pts[i + 1].first), ty(pts[i + 1].second)),
                     IM_COL32(110, 110, 120, 160));
 
+    // Overridden segments (Shaper client): the segment's true shape in
+    // orange, with a persistent mid-segment power dot. Dot positions are
+    // reused by the interaction pass below.
+    std::vector<std::pair<int, ImVec2>> segDots;
+    if (isShaper) {
+        for (size_t i = 0; i + 1 < pts.size() && i < segs.size(); ++i) {
+            if (!segs[i].overridden) continue;
+            ImVec2 prev(tx(pts[i].first), ty(pts[i].second));
+            for (int k = 1; k <= 24; ++k) {
+                const float t = float(k) / 24.0f;
+                const float xx = pts[i].first
+                    + (pts[i + 1].first - pts[i].first) * t;
+                const float yy = Curve::eval_seg(
+                    pts[i].second, pts[i + 1].second, t, segs[i], 0.5f);
+                ImVec2 p(tx(xx), ty(yy));
+                dl->AddLine(prev, p, IM_COL32(255, 150, 60, 220), 1.6f);
+                prev = p;
+            }
+            const float mx = 0.5f * (pts[i].first + pts[i + 1].first);
+            const float my = Curve::eval_seg(
+                pts[i].second, pts[i + 1].second, 0.5f, segs[i], 0.5f);
+            ImVec2 dot(tx(mx), ty(my));
+            const bool lit = int(i) == s_shapeEd.segDragIdx;
+            dl->AddCircleFilled(dot, lit ? 6.0f : 5.0f,
+                                IM_COL32(255, 150, 60, 255));
+            segDots.emplace_back(int(i), dot);
+        }
+    }
+
     const ImVec2 m = ImGui::GetIO().MousePos;
     int hot = -1;
     float bestD2 = 100.0f;  // 10 px pick radius
@@ -5933,10 +6116,44 @@ static void draw_shape_editor() {
     // --- Interaction ---
     bool changed = false;
     const bool editable = !s_shapeEd.readOnly;
+
+    // Shaper: nearest power dot (10 px pick, same radius as points) and
+    // nearest segment line (8 px) for the override gestures.
+    int hotDot = -1;
+    if (isShaper && !segDots.empty()) {
+        float bestDot = 100.0f;
+        for (auto& [si, p] : segDots) {
+            const float dx = p.x - m.x, dy = p.y - m.y;
+            const float d2 = dx * dx + dy * dy;
+            if (d2 < bestDot) { bestDot = d2; hotDot = si; }
+        }
+    }
+    auto seg_hit = [&]() -> int {
+        float best = 64.0f;  // 8 px
+        int bi = -1;
+        for (size_t i = 0; i + 1 < pts.size(); ++i) {
+            const ImVec2 a(tx(pts[i].first), ty(pts[i].second));
+            const ImVec2 b(tx(pts[i + 1].first), ty(pts[i + 1].second));
+            const float abx = b.x - a.x, aby = b.y - a.y;
+            const float len2 = abx * abx + aby * aby;
+            const float t = len2 > 0.0f
+                ? std::clamp(((m.x - a.x) * abx + (m.y - a.y) * aby) / len2,
+                             0.0f, 1.0f) : 0.0f;
+            const float dx = a.x + abx * t - m.x;
+            const float dy = a.y + aby * t - m.y;
+            const float d2 = dx * dx + dy * dy;
+            if (d2 < best) { best = d2; bi = int(i); }
+        }
+        return bi;
+    };
+
     if (hovered && editable) {
         if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
             if (hot >= 0) {
                 s_shapeEd.dragIdx = hot;
+            } else if (isShaper && hotDot >= 0) {
+                s_shapeEd.segDragIdx = hotDot;
+                s_shapeEd.segDragStartPower = segs[hotDot].power;
             } else {
                 float nx = fx(m.x);
                 float ny = fy(m.y);
@@ -5955,14 +6172,51 @@ static void draw_shape_editor() {
                     });
                 s_shapeEd.dragIdx = int(it - pts.begin());
                 pts.insert(it, {nx, ny});
+                // Structural edit: splitting a segment duplicates its
+                // override onto both halves; a new outer segment is default.
+                if (isShaper && pts.size() >= 2) {
+                    const int k = s_shapeEd.dragIdx;
+                    if (k <= 0) segs.insert(segs.begin(), Curve::Seg{});
+                    else if (k >= int(pts.size()) - 1)
+                        segs.push_back(Curve::Seg{});
+                    else {
+                        const size_t j = size_t(k - 1);
+                        const Curve::Seg cp =
+                            j < segs.size() ? segs[j] : Curve::Seg{};
+                        segs.insert(segs.begin() + j, cp);
+                    }
+                    segsChanged = true;
+                }
                 changed = true;
             }
         }
-        if (ImGui::IsMouseClicked(ImGuiMouseButton_Right) && hot >= 0 &&
-            pts.size() > (isSeg ? size_t(1) : size_t(2))) {
-            pts.erase(pts.begin() + hot);
-            if (s_shapeEd.dragIdx == hot) s_shapeEd.dragIdx = -1;
-            changed = true;
+        if (ImGui::IsMouseClicked(ImGuiMouseButton_Right)) {
+            if (hot >= 0 && pts.size() > (isSeg ? size_t(1) : size_t(2))) {
+                // Structural edit: deleting point i merges its segments —
+                // the left segment's override survives (left point owns).
+                if (isShaper && !segs.empty()) {
+                    const size_t drop =
+                        std::min(size_t(hot), segs.size() - 1);
+                    segs.erase(segs.begin() + drop);
+                    segsChanged = true;
+                }
+                pts.erase(pts.begin() + hot);
+                if (s_shapeEd.dragIdx == hot) s_shapeEd.dragIdx = -1;
+                changed = true;
+            } else if (isShaper && hot < 0 && hotDot >= 0) {
+                segs[hotDot] = Curve::Seg{};      // reset to default interp
+                if (s_shapeEd.segDragIdx == hotDot) s_shapeEd.segDragIdx = -1;
+                segsChanged = true;
+            } else if (isShaper && hot < 0) {
+                const int si = seg_hit();
+                if (si >= 0 && size_t(si) < segs.size()) {
+                    if (!segs[si].overridden)
+                        segs[si] = Curve::Seg{true, RampType::Expo, 2.0f};
+                    s_shapeEd.segDragIdx = si;
+                    s_shapeEd.segDragStartPower = segs[si].power;
+                    segsChanged = true;
+                }
+            }
         }
     }
     if (hovered) {  // view navigation works even in read-only mode
@@ -6033,11 +6287,36 @@ static void draw_shape_editor() {
         }
     }
 
+    // Power drag: exponential vertical mapping, works for the creating
+    // right-drag and the left-drag on an existing dot. Exclusive with a
+    // point drag (dragIdx wins the left button).
+    if (isShaper && editable && s_shapeEd.segDragIdx >= 0 &&
+        s_shapeEd.segDragIdx < int(segs.size()) && s_shapeEd.dragIdx < 0) {
+        const bool downR = ImGui::IsMouseDown(ImGuiMouseButton_Right);
+        const bool downL = ImGui::IsMouseDown(ImGuiMouseButton_Left);
+        if (downR || downL) {
+            const float dy = ImGui::GetMouseDragDelta(
+                downR ? ImGuiMouseButton_Right : ImGuiMouseButton_Left).y;
+            auto& sg = segs[s_shapeEd.segDragIdx];
+            if (sg.overridden) {
+                sg.power = std::clamp(
+                    s_shapeEd.segDragStartPower *
+                        std::pow(2.0f, -dy / 60.0f),
+                    0.1f, 20.0f);
+                segsChanged = true;
+            }
+        } else {
+            s_shapeEd.segDragIdx = -1;
+        }
+    }
+
     if (changed) {
         if (isSeg)         shape_editor_apply_segment(node, pts);
         else if (isShaper) shape_editor_apply_shaper(node, pts);
         else               shape_editor_apply_curve(node);
     }
+    if (isShaper && (changed || segsChanged))
+        shape_editor_apply_segs(node, segs);
 
     ImGui::End();
     if (!keepOpen) s_shapeEd.open = false;
