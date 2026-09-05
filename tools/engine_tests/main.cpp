@@ -450,6 +450,53 @@ static void run_shaper_tests() {
     CHECK(back.size() == 8 && back[2] == -0.5f);
 }
 
+#include "mforce/core/curve.h"
+
+// Shared Curve evaluator parity (2026-09-05 curve-morph plan Task 2):
+// Curve::eval must reproduce CurveNode::map (all three domains, smoothness
+// 0.5 == exact lerp) and ShaperSource::map (SmoothnessInterpolator path)
+// before either host delegates to it.
+static void run_curve_shared_tests() {
+    RenderContext ctx{48000};
+
+    // Parity vs CurveNode::map — Linear domain
+    CurveNode lin;
+    lin.knots = {{0.0f, 0.3f}, {0.2f, 0.3f}, {0.85f, 1.0f}, {1.0f, 1.6f}};
+    for (float x : {-1.0f, 0.0f, 0.1f, 0.2f, 0.5f, 0.925f, 1.0f, 2.0f})
+        CHECK_NEAR(Curve::eval(lin.knots, {}, Curve::Domain::Linear, 0.5f, x),
+                   lin.map(x), 1e-7f);
+
+    // Parity vs CurveNode::map — LogX and LogLog domains
+    CurveNode logx; logx.interp = CurveNode::CurveInterp::LogX;
+    logx.knots = {{100.0f, 0.0f}, {10000.0f, 2.0f}};
+    CHECK_NEAR(Curve::eval(logx.knots, {}, Curve::Domain::LogX, 0.5f, 1000.0f),
+               logx.map(1000.0f), 1e-6f);
+    CurveNode ll; ll.interp = CurveNode::CurveInterp::LogLog;
+    ll.knots = {{10.0f, 100.0f}, {100.0f, 10000.0f}};
+    CHECK_NEAR(Curve::eval(ll.knots, {}, Curve::Domain::LogLog, 0.5f,
+                           31.6227766f),
+               ll.map(31.6227766f), 0.5f);
+
+    // Parity vs ShaperSource::map — smoothness 0.6, asymmetric curve
+    ShaperSource sh;
+    sh.set_array("values", {-1.0f,-0.76f, -0.87f,-0.73f, -0.1f,-0.2f,
+                             0.0f,0.0f, 0.11f,0.19f, 0.78f,0.57f,
+                             0.93f,0.66f});
+    sh.set_param("smoothness", std::make_shared<ConstantSource>(0.6f));
+    sh.set_param("drive", std::make_shared<ConstantSource>(1.0f));
+    sh.set_param("source", std::make_shared<ConstantSource>(0.0f));
+    sh.prepare(ctx, 8);
+    sh.next();  // latches smoothness into the evaluator
+    auto vals = sh.get_array("values");
+    for (float x : {-1.5f, -0.9f, -0.3f, 0.0f, 0.05f, 0.5f, 0.9f, 1.5f})
+        CHECK_NEAR(Curve::eval_flat(vals, {}, Curve::Domain::Linear, 0.6f, x),
+                   sh.map(x), 1e-6f);
+
+    // Identity on empty
+    CHECK_NEAR(Curve::eval({}, {}, Curve::Domain::Linear, 0.5f, 123.0f),
+               123.0f, 1e-9f);
+}
+
 int main() {
     run_curve_node_tests();
     run_curve_expr_tests();
@@ -462,6 +509,7 @@ int main() {
     run_phase_delay_tests();
     run_loop_compensation_tests();
     run_shaper_tests();
+    run_curve_shared_tests();
     if (g_fails) { std::printf("%d/%d FAILED\n", g_fails, g_checks); return 1; }
     std::printf("ALL PASS (%d checks)\n", g_checks);
     return 0;
