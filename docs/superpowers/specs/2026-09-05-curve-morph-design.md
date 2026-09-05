@@ -49,8 +49,12 @@ connects to the next," stored on the segment's left point.
   power), Sine — plus **Hold** (flat until next point; reed-closure
   plateaus, stairsteps). The enum is genuinely shared: Hold thereby
   becomes a legal Envelope stage type too (value pinned at startVal
-  for the stage; distinct from the existing holdPct field, which
-  keeps its meaning — name them apart in UI). No new vocabulary.
+  for the stage). The old `Stage::holdPct` field is REMOVED in the
+  same stroke (Matt 2026-09-05): scanned every patch/score tree —
+  zero nonzero uses; the UI never exposed it; pitch_bend.h's holds
+  are flat ramps and untouched. Loader ignores the stale key in old
+  JSONs; audio at holdPct=0 was already identical, so the null gate
+  is unaffected. No new vocabulary, one less field.
 - Storage: optional parallel array beside `values` (e.g.
   `"segs": [[type, power], ...]`), written only when overrides exist.
   All existing patches parse unchanged; null gate stays green. (A
@@ -170,7 +174,9 @@ or death mid-note — expressive and calibration-hostile.
 
 1. Curve type extraction; Shaper + CurveNode points-mode swap to it.
    Null gate frozen before/after. Tests (a).
-2. Per-segment data model + eval. Tests (b)(c)(e).
+2. Per-segment data model + eval; Hold joins the shared enum and
+   Stage::holdPct is removed (envelope.h + patch_loader.cpp; loader
+   tolerates the stale key). Tests (b)(c)(e).
 3. Shaper editor client: gesture, power dot, global-reset confirm.
 4. Presets menu (the six curves).
 5. Morph pin: engine lerp + serialization. Tests (d)(e)(f).
