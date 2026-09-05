@@ -47,7 +47,10 @@ connects to the next," stored on the segment's left point.
 
 - Enum reuses the Envelope stage vocabulary — Linear, Expo (with
   power), Sine — plus **Hold** (flat until next point; reed-closure
-  plateaus, stairsteps). No new vocabulary.
+  plateaus, stairsteps). The enum is genuinely shared: Hold thereby
+  becomes a legal Envelope stage type too (value pinned at startVal
+  for the stage; distinct from the existing holdPct field, which
+  keeps its meaning — name them apart in UI). No new vocabulary.
 - Storage: optional parallel array beside `values` (e.g.
   `"segs": [[type, power], ...]`), written only when overrides exist.
   All existing patches parse unchanged; null gate stays green. (A
@@ -79,11 +82,15 @@ the Curve type supports it for every client, adoption later):
   distance sets power. A distinct-colored dot appears mid-segment and
   **persists** as the curvature handle (drag to adjust power;
   right-click the dot to clear back to default interp).
-- Preset menu (hardcoded list, additions by code for now): bow, single
-  reed, double reed, lip valve, air jet, hard clip — the five nature
-  curves + the degenerate sixth, per-segment overrides included where
-  the shape needs them (bow flank). Insert replaces the current curve;
-  undoable. A curve-library *file* format is deferred until the
+- Preset menu (hardcoded list, additions by code for now):
+  **bow, reed1, reed2, lip, jet, hard** — the five nature curves + the
+  degenerate sixth, per-segment overrides included where the shape
+  needs them (bow flank) — plus the standard waveforms
+  **sine, saw, triangle** drawn as transfer curves across the domain
+  (sine/triangle fold, saw wraps via a near-vertical drop; open-loop
+  these are classic wavefolder/wrapper shapes, in-loop they're
+  periodic junction nonlinearities). Insert replaces the current
+  curve; undoable. A curve-library *file* format is deferred until the
   hardcoded list feels cramped.
 
 ## 5. Morph pin (Shaper only, v1)
@@ -142,7 +149,8 @@ or death mid-note — expressive and calibration-hostile.
 - Morph on CurveNode; per-segment gesture in non-Shaper editor
   clients; SegmentSource per-segment overrides.
 - Envelope-stages-as-Curve unification (the shared enum keeps the door
-  open; nothing walks through it now).
+  open; Hold walks through it as an Envelope stage type, nothing else
+  does now).
 - Per-segment log domains.
 
 ## 7. Validation
