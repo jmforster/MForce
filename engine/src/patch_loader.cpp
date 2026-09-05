@@ -23,6 +23,7 @@
 #include "mforce/source/wavetable_source.h"
 #include "mforce/source/hybrid_ks_source.h"
 #include "mforce/source/segment_source.h"
+#include "mforce/source/shaper_source.h"
 #include "mforce/source/phased_value_source.h"
 #include "mforce/source/wave_evolution.h"
 #include "mforce/source/multiplex_source.h"
@@ -420,6 +421,33 @@ static void wire_params_generic(
         const auto& v = params.at(desc.name);
         if (!v.is_array()) continue;
         src.set_array(desc.name, v.get<std::vector<float>>());
+    }
+    // Shaper morph invariants (curve-morph spec §5): curve B must have the
+    // same point count as A (point-space morph needs correspondence), and
+    // segs2's TYPE column must equal segs' (types are shared structure;
+    // only powers differ per curve). Checked here, right after the generic
+    // array pass, so a hand-edited patch fails loudly instead of morphing
+    // garbage.
+    if (dynamic_cast<ShaperSource*>(&src)) {
+        const auto arr = [&](const char* n) {
+            return params.contains(n) && params.at(n).is_array()
+                 ? params.at(n).get<std::vector<float>>()
+                 : std::vector<float>{};
+        };
+        const auto vals = arr("values"), vals2 = arr("values2");
+        if (!vals2.empty() && vals2.size() != vals.size())
+            throw std::runtime_error(
+                "Shaper: values2 length must match values");
+        const auto segs = arr("segs"), segs2 = arr("segs2");
+        if (!segs2.empty() && !segs.empty()) {
+            if (segs2.size() != segs.size())
+                throw std::runtime_error(
+                    "Shaper: segs2 length must match segs");
+            for (size_t i = 0; i < segs.size(); i += 2)
+                if (int(segs[i]) != int(segs2[i]))
+                    throw std::runtime_error(
+                        "Shaper: segs2 segment types must match segs");
+        }
     }
     // ExpandRule (PartialGroups) — a struct, not a pin/setting/array, so it isn't
     // covered by the loops above. Consumed only by Partials hosts. Two JSON forms:

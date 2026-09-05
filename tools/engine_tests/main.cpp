@@ -452,6 +452,78 @@ static void run_shaper_tests() {
 
 #include "mforce/core/curve.h"
 
+// Shaper per-segment overrides (curve-morph plan Task 5). "segs" array:
+// flat [typeIdx, power] per segment; typeIdx 0 = default (smoothness),
+// else 1 + int(RampType).
+static void run_shaper_seg_tests() {
+    RenderContext ctx{48000};
+    ShaperSource sh;
+    sh.set_array("values", {-1.0f,-1.0f, 0.0f,0.0f, 1.0f,1.0f});
+    sh.set_param("smoothness", std::make_shared<ConstantSource>(0.5f));
+    sh.set_param("drive", std::make_shared<ConstantSource>(1.0f));
+    sh.set_param("source", std::make_shared<ConstantSource>(0.0f));
+    sh.prepare(ctx, 8);
+    sh.next();
+    // Segment 1 (0->1) overridden to Hold (typeIdx 5): y stays 0 across it.
+    sh.set_array("segs", {0.0f,0.0f, 5.0f,0.0f});
+    CHECK_NEAR(sh.map(0.5f), 0.0f, 1e-9f);
+    // Segment 0 default: smoothness 0.5 == lerp
+    CHECK_NEAR(sh.map(-0.5f), -0.5f, 1e-6f);
+    // Expo override with power 2 on segment 1 (typeIdx 2 = 1 + Expo)
+    sh.set_array("segs", {0.0f,0.0f, 2.0f,2.0f});
+    CHECK_NEAR(sh.map(0.5f), 0.25f, 1e-6f);   // t^2 at t=0.5
+    // Round-trip: get_array returns what was set (Expo override live)
+    auto back = sh.get_array("segs");
+    CHECK(back.size() == 4);
+    // A fresh node has no segs and an all-default set encodes to empty
+    ShaperSource fresh;
+    CHECK(fresh.get_array("segs").empty());
+    sh.set_array("segs", {0.0f,0.0f, 0.0f,0.0f});
+    CHECK(sh.get_array("segs").empty());
+    // Smoothness must NOT bend an overridden Linear segment (typeIdx 1)
+    sh.set_array("segs", {0.0f,0.0f, 1.0f,0.0f});
+    sh.set_param("smoothness", std::make_shared<ConstantSource>(1.0f));
+    sh.next();
+    CHECK_NEAR(sh.map(0.5f), 0.5f, 1e-6f);
+}
+
+// Shaper morph pin (curve-morph plan Task 8): point-space A/B blend.
+static void run_shaper_morph_tests() {
+    RenderContext ctx{48000};
+    ShaperSource sh;
+    sh.set_array("values",  {-1.0f,-1.0f, 0.4f,0.2f, 1.0f,1.0f});
+    sh.set_array("values2", {-1.0f,-1.0f, 0.1f,0.6f, 1.0f,1.0f});
+    auto morph = std::make_shared<ConstantSource>(0.0f);
+    sh.set_param("morph", morph);
+    sh.set_param("source", std::make_shared<ConstantSource>(0.0f));
+    sh.set_param("drive", std::make_shared<ConstantSource>(1.0f));
+    sh.set_param("smoothness", std::make_shared<ConstantSource>(0.5f));
+    sh.prepare(ctx, 8);
+    sh.next();
+    // m=0: exactly curve A (knee at 0.4)
+    CHECK_NEAR(sh.map(0.4f), 0.2f, 1e-7f);
+    // m=1: exactly curve B (knee at 0.1)
+    morph->set(1.0f); morph->next(); sh.next();
+    CHECK_NEAR(sh.map(0.1f), 0.6f, 1e-7f);
+    // m=0.5: the knee SLIDES to (0.25, 0.4) — point-space, not output blend
+    morph->set(0.5f); morph->next(); sh.next();
+    CHECK_NEAR(sh.map(0.25f), 0.4f, 1e-6f);
+    // Segment powers lerp when both sides override the same segment
+    sh.set_array("segs",  {0.0f,0.0f, 2.0f,1.0f});   // seg1 Expo p1
+    sh.set_array("segs2", {0.0f,0.0f, 2.0f,3.0f});   // seg1 Expo p3
+    // blended seg1: Expo p2 between blended points (0.25,0.4)->(1,1):
+    // at x=0.625 (t=0.5): 0.4 + 0.6*0.25 = 0.55
+    CHECK_NEAR(sh.map(0.625f), 0.55f, 1e-5f);
+    // Mismatched point count: morph ignored (B degenerates to A)
+    sh.set_array("segs", {}); sh.set_array("segs2", {});
+    sh.set_array("values2", {-1.0f,-1.0f, 1.0f,1.0f});
+    CHECK_NEAR(sh.map(0.4f), 0.2f, 1e-6f);
+    // No values2 at all: byte-identity path
+    ShaperSource plain;
+    plain.set_array("values", {-1.0f,-1.0f, 1.0f,1.0f});
+    CHECK_NEAR(plain.map(0.3f), 0.3f, 1e-7f);
+}
+
 // RampType::Hold + holdPct removal (curve-morph plan Task 4).
 static void run_ramp_hold_tests() {
     Ramp h{0.7f, 0.2f, RampType::Hold, 0.0f};
@@ -526,6 +598,8 @@ int main() {
     run_shaper_tests();
     run_curve_shared_tests();
     run_ramp_hold_tests();
+    run_shaper_seg_tests();
+    run_shaper_morph_tests();
     if (g_fails) { std::printf("%d/%d FAILED\n", g_fails, g_checks); return 1; }
     std::printf("ALL PASS (%d checks)\n", g_checks);
     return 0;
