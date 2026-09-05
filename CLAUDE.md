@@ -77,8 +77,9 @@ artifacts are score files. Full triage record: docs/patch_triage_2026_08_10.md.
   Matt's hand-work, runs never write there; pre-rename queues left in place).
   renders/library/ is laneless (audio archive of locked patches); renders/scratch/ for
   manual material. All of renders/ stays gitignored.
-- old/ — deletion grace window (patches ONLY): rejected/failed patches are MOVED here,
-  never deleted directly; the nightly scheduled runs purge files >30 days old.
+- old/ — permanent archive (patches ONLY): rejected/failed patches are MOVED here,
+  never deleted. NO purge — Matt 2026-09-05: nothing in patches/old/ is ever deleted
+  (the former 30-day scheduled purge is rescinded and removed from the run prompts).
 
 Rules: no loose files at any level above a family folder; new patches/scores/renders are
 NEVER written to a tree root. patches/audition/ holds only what awaits Matt's ears; each

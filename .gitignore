@@ -94,9 +94,9 @@ snaps/*.JPG
 # Patch/score workflow (docs/patch_triage_2026_08_10.md rev 2):
 # patches/ = instruments (dsp lane), scores/ = musical material (comp lane).
 # sweep/audition/scratch are disposable working dirs (audition = Matt's listening
-# queue, renamed from pending 2026-08-22; pending = Matt's sandbox); old/ is the deletion
-# grace window purged >30 days by the nightly runs; library/ and baselines/
-# are tracked. Renders are deleted outright (derived).
+# queue, renamed from pending 2026-08-22; pending = Matt's sandbox); old/ is a
+# permanent archive of rejected patches, NEVER purged (Matt 2026-09-05); library/
+# and baselines/ are tracked. Renders are deleted outright (derived).
 ############################
 patches/sweep/
 patches/audition/
