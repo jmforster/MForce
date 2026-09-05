@@ -28,7 +28,7 @@ import score_passage as spg                                        # noqa: E402
 
 REPO = HERE.parent.parent
 CLI = REPO / "build/tools/mforce_cli/Release/mforce_cli.exe"
-PATCH = REPO / "patches/baselines/Additive1.json"
+PATCH = REPO / "patches/library/keys/acoustic_piano/piano_default.json"  # comp render vehicle unless otherwise indicated (Matt 2026-09-05)
 OUTROOT = "renders/engine_passage_strategies"
 
 

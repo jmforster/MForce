@@ -59,6 +59,9 @@ Replicate legacy functionality of node-based UI to:
 - Build from repo root
 - Main executable: mforce_cli
 - Write renders into renders/
+- Comp-lane renders use patches/library/keys/acoustic_piano/piano_default.json
+  as the instrument unless otherwise indicated (Matt 2026-09-05); the
+  corpus/mtd_seg harnesses all point there via their PATCH constant
 
 ## Patch/score/render organization
 A **patch** is an instrument (DSP graph + instrument block). A **score** is
