@@ -12866,34 +12866,34 @@ int main(int argc, char** argv) {
             Pin* sp = find_pin(link.startPinId);
             if (!sp) continue;
             bool startIsSource = sp->kind == PinKind::Output;
+            Pin* ep = find_pin(link.endPinId);
+            bool isTap = (sp->isTap) || (ep && ep->isTap);
+            // Net-label rendering: a tagged edge draws as its numbered
+            // square pair instead of a wire. Checked BEFORE the pin
+            // projection guard: squares hang on entities (node, or the
+            // collapsed ancestor group's face), so they survive cases
+            // where the pin has no face projection at all — a grouped
+            // SOURCE's tap pin is not in the face interface, which is why
+            // wires (and, before this fix, tags) vanish there (Matt
+            // 09-06: "group the source and there are no tags anywhere").
+            const std::string key = link_key(link);
+            auto tagIt = s_tagLinks.find(key);
+            if (tagIt != s_tagLinks.end()) {
+                const int srcEnt = project_entity(
+                    startIsSource ? link.startPinId : link.endPinId);
+                const int dstEnt = project_entity(
+                    startIsSource ? link.endPinId : link.startPinId);
+                if (srcEnt >= 0 && dstEnt >= 0 && srcEnt != dstEnt) {
+                    draw_tag(srcEnt, key, tagIt->second, true, isTap);
+                    draw_tag(dstEnt, key, tagIt->second, false, isTap);
+                    continue;
+                }
+            }
             int a = project_pin(link.startPinId, startIsSource);
             int b = project_pin(link.endPinId, !startIsSource);
             if (a >= 0 && b >= 0 && a != b) {
                 // Tap wires (previous-sample feedback reads) draw teal so a
                 // closed loop is visibly different from a forward wire.
-                Pin* ep = find_pin(link.endPinId);
-                bool isTap = (sp->isTap) || (ep && ep->isTap);
-                // Net-label rendering: a tagged edge draws as its numbered
-                // square pair instead of a wire. Each square hangs on the
-                // entity representing its endpoint at this drill level — a
-                // grouped endpoint's square sits on the collapsed group
-                // face, exactly like other wires project (fixes Matt's
-                // 09-06 report: the tag reverted to a wire on grouping and
-                // right-click no-opped because the tag entry had never
-                // left the map).
-                const std::string key = link_key(link);
-                auto tagIt = s_tagLinks.find(key);
-                if (tagIt != s_tagLinks.end()) {
-                    const int srcEnt = project_entity(
-                        startIsSource ? link.startPinId : link.endPinId);
-                    const int dstEnt = project_entity(
-                        startIsSource ? link.endPinId : link.startPinId);
-                    if (srcEnt >= 0 && dstEnt >= 0 && srcEnt != dstEnt) {
-                        draw_tag(srcEnt, key, tagIt->second, true, isTap);
-                        draw_tag(dstEnt, key, tagIt->second, false, isTap);
-                        continue;
-                    }
-                }
                 if (isTap) {
                     ImNodes::PushColorStyle(ImNodesCol_Link,
                                             IM_COL32(70, 150, 160, 255));
