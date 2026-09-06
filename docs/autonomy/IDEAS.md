@@ -66,14 +66,17 @@ might not decide to do it.")
   overrides disallowed/greyed — PCHIP chooses knot slopes from neighbors,
   so a Hold or Expo override inside it is contradictory). Morph: PCHIP
   lerps point-space same as today; mode is shared structure between A/B.
-  Smoothness pin on Shaper becomes vestigial under this scheme — BUT
-  library winds carry smoothness 0.6 on their Junctions, so removal is
-  behavior-changing for keepers. Path: loader keeps honoring the pin
-  (legacy), UI stops exposing it on new Shapers, full removal only after
-  Matt re-verdicts/re-saves the winds at 0.5 or re-tunes. SegmentSource
-  keeps smoothness untouched (textures want the 0..1 sweep).
-  **Decide:** whether PCHIP earns a build slot, and whether Shaper
-  smoothness deprecates with it.
+  Smoothness STAYS in the UI for points mode (Matt 2026-09-05, reversing
+  the deprecation idea): library winds carry 0.6 on their Junctions, and
+  out-of-range values are a sound-design zone — Matt hit smoothness 9 by
+  accident with "crazy (possibly happy) results." Mechanism: above 0.5 the
+  interpolator blends 2(1-s)*linear + 2(s-0.5)*sine, so s>1 runs the blend
+  weights negative/super-unity = wild overshoot between points; nothing
+  clamps a wired pin at eval time (the 0..1 descriptor range is advisory).
+  Treat that as a feature: document the extrapolation zone rather than
+  clamp it. SegmentSource smoothness untouched as ever.
+  **Decide:** whether PCHIP earns a build slot (smoothness question is
+  settled: keep it).
 
 ## comp
 
