@@ -5780,11 +5780,9 @@ static void draw_shape_editor() {
         ImGui::TextDisabled("x: %s", units);
         ImGui::SameLine();
     } else if (isShaper) {
-        ImGui::TextDisabled("x: input value");
-        ImGui::SameLine();
         if (!s_shapeEd.readOnly) {
             if (!morphOn) {
-                if (ImGui::SmallButton("+ morph")) {
+                if (ImGui::SmallButton("Add Morph")) {
                     // Birth B as a copy of A: correspondence by construction.
                     auto cpPts = segPts;
                     auto cpSegs = segs;
@@ -5802,7 +5800,7 @@ static void draw_shape_editor() {
                 ImGui::SameLine();
                 if (ImGui::RadioButton("B", ac == 1)) s_shapeEd.activeCurve = 1;
                 ImGui::SameLine();
-                if (ImGui::SmallButton("remove morph"))
+                if (ImGui::SmallButton("Remove Morph"))
                     ImGui::OpenPopup("Remove morph?");
                 ImGui::SameLine();
                 if (ImGui::BeginPopupModal("Remove morph?", nullptr,
@@ -5830,6 +5828,39 @@ static void draw_shape_editor() {
                         ImGui::CloseCurrentPopup();
                     ImGui::EndPopup();
                 }
+            }
+            if (ImGui::SmallButton("Clear"))
+                ImGui::OpenPopup("Clear curve?");
+            ImGui::SameLine();
+            if (ImGui::BeginPopupModal("Clear curve?", nullptr,
+                                       ImGuiWindowFlags_AlwaysAutoResize)) {
+                ImGui::TextUnformatted(morphOn
+                    ? "Reset to the identity curve?\nBoth morph curves and "
+                      "all segment overrides are cleared."
+                    : "Reset to the identity curve?\nAll points and segment "
+                      "overrides are cleared.");
+                if (ImGui::Button("Clear", ImVec2(120, 0))) {
+                    s_shapeEd.revertPts = pts;
+                    s_shapeEd.revertSegs = segs;
+                    s_shapeEd.hasRevert = true;
+                    pts = {{-1.0f, -1.0f}, {1.0f, 1.0f}};
+                    segs.assign(1, Curve::Seg{});
+                    shape_editor_apply_shaper_named(node, pts, activePtsName);
+                    shape_editor_apply_segs(node, segs, activeSegsName);
+                    if (morphOn) {
+                        otherPts = pts;
+                        otherSegs = segs;
+                        otherChanged = true;
+                    }
+                    s_shapeEd.fitPending = true;
+                    s_shapeEd.dragIdx = -1;
+                    s_shapeEd.segDragIdx = -1;
+                    ImGui::CloseCurrentPopup();
+                }
+                ImGui::SameLine();
+                if (ImGui::Button("Cancel", ImVec2(120, 0)))
+                    ImGui::CloseCurrentPopup();
+                ImGui::EndPopup();
             }
             ImGui::PushItemWidth(110.0f);
             if (ImGui::BeginCombo("##shaperPreset", "Preset…")) {
@@ -5890,17 +5921,8 @@ static void draw_shape_editor() {
         ImGui::TextColored(ImVec4(0.9f, 0.6f, 0.3f, 1),
             "%d points — too dense to edit; regenerate instead (read-only)",
             (int)pts.size());
-    else if (isShaper)
-        ImGui::TextDisabled("%d points  |  click empty: add   drag: move   "
-                            "right-click point: delete   right-drag segment: "
-                            "curve it   drag dot: power   right-click dot: "
-                            "reset   wheel: zoom   middle-drag: pan",
-                            (int)pts.size());
     else
-        ImGui::TextDisabled("%d points  |  click empty: add   drag: move "
-                            "(shift: slide tail)   right-click: delete   "
-                            "wheel: zoom x (shift: y)   middle-drag: pan",
-                            (int)pts.size());
+        ImGui::TextDisabled("(%d points)", (int)pts.size());
     if (isShaper && !s_shapeEd.readOnly) {
         bool anyOverride = false;
         for (auto& sg : segs) anyOverride |= sg.overridden;
