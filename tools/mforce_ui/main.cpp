@@ -5366,9 +5366,12 @@ struct ShapeEditorState {
     bool  readOnly{false};   // segment shapes above the density limit
     // Shaper client per-segment overrides: which segment's power is being
     // dragged (via its mid-segment dot or the creating right-drag), and the
-    // power at drag start (drag distance scales it exponentially).
+    // SIGNED curvature at drag start. Curvature c = ±log2(power): positive
+    // = InverseExpo (bulge up/out), negative = Expo (bulge down/in), 0 =
+    // linear. Dragging sweeps c, so the curve crosses smoothly through
+    // straight and out the other side — no fractional-power kinks.
     int   segDragIdx{-1};
-    float segDragStartPower{2.0f};
+    float segDragStartCurv{0.0f};
     // One-shot revert stash for preset insertion (the editor has no undo
     // stack; this delivers "undoable" as a single Revert).
     bool  hasRevert{false};
@@ -5448,35 +5451,49 @@ struct ShaperPreset {
     std::vector<std::pair<float, float>> pts;
     std::vector<std::tuple<int, int, float>> segs;
 };
+// Point tables are dense samples of the physics formulas from the 09-05
+// junction-curve session (bow friction, Bernoulli reeds, lip valve, jet
+// tanh) — the shapes hold without leaning on the smoothness pin, and no
+// decorative overrides (reed2's Hold tail is the one structural override:
+// the closed reed). Odd-symmetric families list negative-x side explicitly
+// because opening clamps differ from closing clamps.
 static const ShaperPreset kShaperPresets[] = {
-    {"bow",      {{-1.00f,-0.33f},{-0.10f,-0.52f},{-0.015f,-0.95f},
-                  { 0.015f, 0.95f},{ 0.10f, 0.52f},{ 1.00f, 0.33f}},
-                 {{0,2,0.5f},{4,2,2.0f}}},
-    {"reed1",    {{-1.00f,-0.90f},{-0.55f,-0.80f},{-0.12f,-0.42f},
-                  { 0.00f, 0.00f},{ 0.12f, 0.42f},{ 0.40f, 0.70f},
-                  { 0.70f, 0.45f},{ 1.00f, 0.10f}}, {}},
-    {"reed2",    {{-1.00f,-0.95f},{-0.50f,-0.85f},{-0.10f,-0.48f},
-                  { 0.00f, 0.00f},{ 0.10f, 0.50f},{ 0.28f, 0.72f},
-                  { 0.50f, 0.15f},{ 0.62f, 0.00f},{ 1.00f, 0.00f}},
-                 {{7,5,0.0f}}},
-    {"lip",      {{-1.00f,-0.45f},{-0.50f,-0.30f},{-0.20f,-0.10f},
-                  {-0.05f,-0.03f},{ 0.06f, 0.04f},{ 0.25f, 0.12f},
-                  { 0.55f, 0.50f},{ 0.80f, 0.92f},{ 1.00f, 0.98f}}, {}},
-    {"jet",      {{-1.00f,-0.82f},{-0.45f,-0.78f},{-0.18f,-0.50f},
-                  { 0.00f, 0.00f},{ 0.18f, 0.50f},{ 0.45f, 0.78f},
-                  { 1.00f, 0.82f}},
-                 {{0,4,0.0f},{1,4,0.0f},{2,4,0.0f},
-                  {3,4,0.0f},{4,4,0.0f},{5,4,0.0f}}},
+    {"bow",      // sign(x)*(0.33 + 0.67/(1+9|x|)): stick spike, slip flanks
+     {{-1.00f,-0.40f},{-0.80f,-0.41f},{-0.55f,-0.44f},{-0.35f,-0.49f},
+      {-0.20f,-0.57f},{-0.10f,-0.68f},{-0.05f,-0.79f},{-0.015f,-0.92f},
+      { 0.015f, 0.92f},{ 0.05f, 0.79f},{ 0.10f, 0.68f},{ 0.20f, 0.57f},
+      { 0.35f, 0.49f},{ 0.55f, 0.44f},{ 0.80f, 0.41f},{ 1.00f, 0.40f}}, {}},
+    {"reed1",    // 1.15*clamp(1-x,0,1.25)*sign(x)*sqrt|x|: closes at x=1
+     {{-1.00f,-1.44f},{-0.75f,-1.24f},{-0.55f,-1.07f},{-0.35f,-0.85f},
+      {-0.20f,-0.62f},{-0.10f,-0.40f},{-0.05f,-0.27f},{ 0.00f, 0.00f},
+      { 0.05f, 0.24f},{ 0.10f, 0.33f},{ 0.20f, 0.41f},{ 0.33f, 0.44f},
+      { 0.45f, 0.42f},{ 0.60f, 0.36f},{ 0.75f, 0.25f},{ 0.90f, 0.11f},
+      { 1.00f, 0.00f}}, {}},
+    {"reed2",    // steeper blades, slam shut at x=0.556; Hold = closed
+     {{-1.00f,-1.44f},{-0.75f,-1.24f},{-0.50f,-1.02f},{-0.30f,-0.79f},
+      {-0.14f,-0.54f},{-0.07f,-0.34f},{ 0.00f, 0.00f},{ 0.05f, 0.23f},
+      { 0.10f, 0.30f},{ 0.185f,0.33f},{ 0.27f, 0.31f},{ 0.35f, 0.25f},
+      { 0.45f, 0.15f},{ 0.52f, 0.05f},{ 0.556f,0.00f},{ 1.00f, 0.00f}},
+     {{14,5,0.0f}}},
+    {"lip",      // shallow leak below, min(1, 2.1*x^1.8) rising to sat
+     {{-1.00f,-0.32f},{-0.50f,-0.16f},{ 0.00f, 0.00f},{ 0.10f, 0.03f},
+      { 0.20f, 0.12f},{ 0.30f, 0.24f},{ 0.40f, 0.40f},{ 0.50f, 0.60f},
+      { 0.60f, 0.84f},{ 0.66f, 1.00f},{ 1.00f, 1.00f}}, {}},
+    {"jet",      // 0.85*tanh(2.6x)
+     {{-1.00f,-0.84f},{-0.80f,-0.82f},{-0.60f,-0.78f},{-0.45f,-0.70f},
+      {-0.30f,-0.56f},{-0.20f,-0.41f},{-0.10f,-0.22f},{ 0.00f, 0.00f},
+      { 0.10f, 0.22f},{ 0.20f, 0.41f},{ 0.30f, 0.56f},{ 0.45f, 0.70f},
+      { 0.60f, 0.78f},{ 0.80f, 0.82f},{ 1.00f, 0.84f}}, {}},
     {"hard",     {{-0.52f,-0.60f},{ 0.52f, 0.60f}}, {}},
-    {"sine",     {{-1.00f, 0.00f},{-0.50f,-1.00f},{ 0.00f, 0.00f},
-                  { 0.50f, 1.00f},{ 1.00f, 0.00f}},
-                 {{0,4,0.0f},{1,4,0.0f},{2,4,0.0f},{3,4,0.0f}}},
+    {"sine",     // sin(pi*x), one cycle across the domain
+     {{-1.00f, 0.00f},{-0.83f,-0.50f},{-0.67f,-0.87f},{-0.50f,-1.00f},
+      {-0.33f,-0.87f},{-0.17f,-0.50f},{ 0.00f, 0.00f},{ 0.17f, 0.50f},
+      { 0.33f, 0.87f},{ 0.50f, 1.00f},{ 0.67f, 0.87f},{ 0.83f, 0.50f},
+      { 1.00f, 0.00f}}, {}},
     {"saw",      {{-1.00f,-1.00f},{-0.002f, 1.00f},{ 0.002f,-1.00f},
-                  { 1.00f, 1.00f}},
-                 {{0,1,0.0f},{1,1,0.0f},{2,1,0.0f}}},
+                  { 1.00f, 1.00f}}, {}},
     {"triangle", {{-1.00f, 0.00f},{-0.50f,-1.00f},{ 0.00f, 0.00f},
-                  { 0.50f, 1.00f},{ 1.00f, 0.00f}},
-                 {{0,1,0.0f},{1,1,0.0f},{2,1,0.0f},{3,1,0.0f}}},
+                  { 0.50f, 1.00f},{ 1.00f, 0.00f}}, {}},
 };
 
 static GraphNode* shape_ed_node() {
@@ -5561,6 +5578,23 @@ static std::vector<Curve::Seg> shape_ed_segs_load(GraphNode& node,
         segs = ShaperSource::decode_segs(*raw);
     segs.resize(nPts > 0 ? nPts - 1 : 0);
     return segs;
+}
+
+// Signed curvature of a power-family segment override (see
+// ShapeEditorState::segDragStartCurv). Non-power types report 0.
+static float shape_ed_seg_curv(const Curve::Seg& s) {
+    if (!s.overridden) return 0.0f;
+    if (s.type == RampType::Expo)
+        return -std::log2(std::max(s.power, 1e-3f));
+    if (s.type == RampType::InverseExpo)
+        return std::log2(std::max(s.power, 1e-3f));
+    return 0.0f;
+}
+static void shape_ed_seg_from_curv(Curve::Seg& s, float c) {
+    c = std::clamp(c, -4.32f, 4.32f);   // power capped at ~20
+    s.overridden = true;
+    s.type = c >= 0.0f ? RampType::InverseExpo : RampType::Expo;
+    s.power = std::pow(2.0f, std::fabs(c));
 }
 
 static void shape_editor_apply_segs(GraphNode& node,
@@ -6083,6 +6117,7 @@ static void draw_shape_editor() {
                          [](auto& a, auto& b) { return a.first < b.first; });
         for (auto& [x, y] : sorted) { flat.push_back(x); flat.push_back(y); }
         probe.set_array("values", std::move(flat));
+        probe.set_array("segs", ShaperSource::encode_segs(segs));
         float smooth = 0.5f;
         for (auto& pin : node.inputs)
             if (pin.name == "smoothness") {  // defaultValue: see ghost note
@@ -6091,13 +6126,25 @@ static void draw_shape_editor() {
             }
         probe.set_param("smoothness", std::make_shared<ConstantSource>(smooth));
         probe.next();  // loads smoothness into the interpolator
+        // Overridden segments draw as their own green curves — the blue
+        // engine overlay breaks around them instead of double-drawing.
+        auto inOverride = [&](float x) {
+            for (size_t i = 0; i + 1 < sorted.size() && i < segs.size(); ++i)
+                if (segs[i].overridden && x >= sorted[i].first
+                    && x <= sorted[i + 1].first) return true;
+            return false;
+        };
         const int N = std::max(64, int(cs.x / 3.0f));
         ImVec2 prev{};
+        bool run = false;
         for (int i = 0; i < N; ++i) {
             float sx = cp.x + cs.x * float(i) / float(N - 1);
-            ImVec2 p(sx, ty(probe.map(fx(sx))));
-            if (i > 0) dl->AddLine(prev, p, IM_COL32(120, 200, 220, 255), 1.6f);
+            const float x = fx(sx);
+            if (inOverride(x)) { run = false; continue; }
+            ImVec2 p(sx, ty(probe.map(x)));
+            if (run) dl->AddLine(prev, p, IM_COL32(120, 200, 220, 255), 1.6f);
             prev = p;
+            run = true;
         }
     } else if (!isSeg && !isShaper && pts.size() >= 2) {
         auto sorted = pts;
@@ -6159,10 +6206,14 @@ static void draw_shape_editor() {
         dl->AddLine(ImVec2(tx(0.0f), ty(0.0f)),
                     ImVec2(tx(pts[0].first), ty(pts[0].second)),
                     IM_COL32(110, 110, 120, 160));
-    for (size_t i = 0; i + 1 < pts.size(); ++i)
+    for (size_t i = 0; i + 1 < pts.size(); ++i) {
+        // An overridden Shaper segment's skeleton line is REPLACED by its
+        // green curve below — one line per segment, no double image.
+        if (isShaper && i < segs.size() && segs[i].overridden) continue;
         dl->AddLine(ImVec2(tx(pts[i].first), ty(pts[i].second)),
                     ImVec2(tx(pts[i + 1].first), ty(pts[i + 1].second)),
                     IM_COL32(110, 110, 120, 160));
+    }
 
     // Morph ghost + live blend (Shaper client): the inactive curve faint
     // behind the skeleton; the engine's current blend as a thin overlay so
@@ -6205,8 +6256,9 @@ static void draw_shape_editor() {
     }
 
     // Overridden segments (Shaper client): the segment's true shape in
-    // orange, with a persistent mid-segment power dot. Dot positions are
-    // reused by the interaction pass below.
+    // green (replacing skeleton + engine overlay there), with an orange
+    // mid-segment power dot. Dot positions are reused by the interaction
+    // pass below.
     std::vector<std::pair<int, ImVec2>> segDots;
     if (isShaper) {
         for (size_t i = 0; i + 1 < pts.size() && i < segs.size(); ++i) {
@@ -6219,7 +6271,7 @@ static void draw_shape_editor() {
                 const float yy = Curve::eval_seg(
                     pts[i].second, pts[i + 1].second, t, segs[i], 0.5f);
                 ImVec2 p(tx(xx), ty(yy));
-                dl->AddLine(prev, p, IM_COL32(255, 150, 60, 220), 1.6f);
+                dl->AddLine(prev, p, IM_COL32(110, 220, 120, 235), 1.8f);
                 prev = p;
             }
             const float mx = 0.5f * (pts[i].first + pts[i + 1].first);
@@ -6298,7 +6350,7 @@ static void draw_shape_editor() {
                 s_shapeEd.dragIdx = hot;
             } else if (isShaper && hotDot >= 0) {
                 s_shapeEd.segDragIdx = hotDot;
-                s_shapeEd.segDragStartPower = segs[hotDot].power;
+                s_shapeEd.segDragStartCurv = shape_ed_seg_curv(segs[hotDot]);
             } else {
                 float nx = fx(m.x);
                 float ny = fy(m.y);
@@ -6416,17 +6468,17 @@ static void draw_shape_editor() {
                 const int si = seg_hit();
                 if (si >= 0 && size_t(si) < segs.size()) {
                     if (!segs[si].overridden) {
-                        segs[si] = Curve::Seg{true, RampType::Expo, 2.0f};
-                        // Shared type; the other curve starts at the same
-                        // power and diverges when edited over there.
+                        // Born at curvature 0 (power 1): visually identical
+                        // to the segment it replaces until dragged.
+                        segs[si] = Curve::Seg{true, RampType::Expo, 1.0f};
                         if (morphOn && size_t(si) < otherSegs.size()) {
                             otherSegs[si] =
-                                Curve::Seg{true, RampType::Expo, 2.0f};
+                                Curve::Seg{true, RampType::Expo, 1.0f};
                             otherChanged = true;
                         }
                     }
                     s_shapeEd.segDragIdx = si;
-                    s_shapeEd.segDragStartPower = segs[si].power;
+                    s_shapeEd.segDragStartCurv = shape_ed_seg_curv(segs[si]);
                     segsChanged = true;
                 }
             }
@@ -6500,25 +6552,30 @@ static void draw_shape_editor() {
         }
     }
 
-    // Power drag: exponential vertical mapping, works for the creating
-    // right-drag and the left-drag on an existing dot. Exclusive with a
-    // point drag (dragIdx wins the left button).
+    // Curvature drag: vertical drag sweeps signed curvature, so the curve
+    // follows the mouse — drag up, bulge up (InverseExpo); drag down,
+    // bulge down (Expo); through linear in the middle, no kinks. Works for
+    // the creating right-drag and the left-drag on an existing dot.
+    // Exclusive with a point drag (dragIdx wins the left button); only the
+    // power family participates (a Hold/Sine override's dot just clears).
     if (isShaper && editable && s_shapeEd.segDragIdx >= 0 &&
         s_shapeEd.segDragIdx < int(segs.size()) && s_shapeEd.dragIdx < 0) {
         const bool downR = ImGui::IsMouseDown(ImGuiMouseButton_Right);
         const bool downL = ImGui::IsMouseDown(ImGuiMouseButton_Left);
-        if (downR || downL) {
+        auto& sg = segs[s_shapeEd.segDragIdx];
+        const bool powFamily = sg.overridden &&
+            (sg.type == RampType::Expo || sg.type == RampType::InverseExpo);
+        if ((downR || downL) && powFamily) {
             const float dy = ImGui::GetMouseDragDelta(
                 downR ? ImGuiMouseButton_Right : ImGuiMouseButton_Left).y;
-            auto& sg = segs[s_shapeEd.segDragIdx];
-            if (sg.overridden) {
-                sg.power = std::clamp(
-                    s_shapeEd.segDragStartPower *
-                        std::pow(2.0f, -dy / 60.0f),
-                    0.1f, 20.0f);
-                segsChanged = true;
-            }
-        } else {
+            // Screen-up (negative dy) = bulge up = positive curvature.
+            // Ramp's ascending/descending branch swap makes Expo bulge
+            // toward LOWER y and InverseExpo toward HIGHER y regardless of
+            // segment slope, so this mapping is direction-true everywhere.
+            float c = s_shapeEd.segDragStartCurv - dy / 60.0f;
+            shape_ed_seg_from_curv(sg, c);
+            segsChanged = true;
+        } else if (!downR && !downL) {
             s_shapeEd.segDragIdx = -1;
         }
     }

@@ -443,10 +443,16 @@ static void wire_params_generic(
             if (segs2.size() != segs.size())
                 throw std::runtime_error(
                     "Shaper: segs2 length must match segs");
-            for (size_t i = 0; i < segs.size(); i += 2)
-                if (int(segs[i]) != int(segs2[i]))
+            // Types are shared structure, EXCEPT the Expo/InverseExpo pair:
+            // those are one signed-curvature axis (bulge direction is
+            // geometry) and morph lerps between them.
+            auto isPow = [](int t) { return t == 2 || t == 3; };
+            for (size_t i = 0; i < segs.size(); i += 2) {
+                const int a = int(segs[i]), b = int(segs2[i]);
+                if (a != b && !(isPow(a) && isPow(b)))
                     throw std::runtime_error(
                         "Shaper: segs2 segment types must match segs");
+            }
         }
     }
     // ExpandRule (PartialGroups) — a struct, not a pin/setting/array, so it isn't

@@ -514,6 +514,12 @@ static void run_shaper_morph_tests() {
     // blended seg1: Expo p2 between blended points (0.25,0.4)->(1,1):
     // at x=0.625 (t=0.5): 0.4 + 0.6*0.25 = 0.55
     CHECK_NEAR(sh.map(0.625f), 0.55f, 1e-5f);
+    // Signed-curvature lerp across the Expo/InverseExpo axis: A Expo p2
+    // (bulge down) vs B InverseExpo p2 (bulge up) at m=0.5 cancels to
+    // linear — segment midpoint lands on the chord midpoint.
+    sh.set_array("segs",  {0.0f,0.0f, 2.0f,2.0f});
+    sh.set_array("segs2", {0.0f,0.0f, 3.0f,2.0f});
+    CHECK_NEAR(sh.map(0.625f), 0.7f, 1e-5f);
     // Mismatched point count: morph ignored (B degenerates to A)
     sh.set_array("segs", {}); sh.set_array("segs2", {});
     sh.set_array("values2", {-1.0f,-1.0f, 1.0f,1.0f});

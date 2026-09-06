@@ -160,8 +160,29 @@ struct ShaperSource final : ValueSource {
         [&](size_t i) { return lp(A[i * 2 + 1], B[i * 2 + 1]); },
         [&](size_t i) {
             Curve::Seg s = i < segs_.size() ? segs_[i] : Curve::Seg{};
-            if (s.overridden && i < segsB_.size() && segsB_[i].overridden)
-                s.power = lp(s.power, segsB_[i].power);
+            if (s.overridden && i < segsB_.size() && segsB_[i].overridden) {
+                const Curve::Seg& b = segsB_[i];
+                const bool aPow = s.type == RampType::Expo
+                               || s.type == RampType::InverseExpo;
+                const bool bPow = b.type == RampType::Expo
+                               || b.type == RampType::InverseExpo;
+                if (aPow && bPow && s.type != b.type) {
+                    // Bulge direction is geometry, not structure: Expo and
+                    // InverseExpo are one signed-curvature axis (Expo
+                    // negative). Lerp the signed log-power so the curve
+                    // flattens through linear and bulges out the other side.
+                    auto c = [](const Curve::Seg& g) {
+                        const float lg = std::log2(std::max(g.power, 1e-3f));
+                        return g.type == RampType::InverseExpo ? lg : -lg;
+                    };
+                    const float cm = lp(c(s), c(b));
+                    s.type = cm >= 0.0f ? RampType::InverseExpo
+                                        : RampType::Expo;
+                    s.power = std::pow(2.0f, std::fabs(cm));
+                } else {
+                    s.power = lp(s.power, b.power);
+                }
+            }
             return s;
         },
         Curve::Domain::Linear, smoothCur_, x);
