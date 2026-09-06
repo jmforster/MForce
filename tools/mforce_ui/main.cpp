@@ -616,6 +616,18 @@ struct Link {
     Link(int start, int end) : id(next_id()), startPinId(start), endPinId(end) {}
 };
 
+// Net-label link rendering (Matt 2026-09-05): a tagged edge draws as a
+// matched pair of numbered squares at its two endpoints instead of a wire —
+// KiCad-style, for taming a loop-heavy canvas where feedback wires arc the
+// whole graph. Pure display: the Link stays real, the engine never knows.
+// Keyed by the destination input ("NodeLabel.pinName" — an input pin holds
+// at most one wire), persisted in ui.tagLinks. Right-click a wire to tag
+// it; right-click either square to restore the wire. Per-edge, per-taste,
+// like the group auto-pin promotion.
+static std::map<std::string, int> s_tagLinks;
+struct TagRect { std::string key; ImVec2 mn, mx; };
+static std::vector<TagRect> s_tagRects;   // rebuilt every frame for hit-test
+
 // ===========================================================================
 // Graph state
 // ===========================================================================
@@ -787,6 +799,26 @@ static GraphNode* find_node_for_pin(int pinId) {
         for (auto& pin : node.outputs) if (pin.id == pinId) return &node;
     }
     return nullptr;
+}
+
+// Stable identity of a link's destination input: "NodeLabel.pinName".
+// Empty when either end no longer resolves.
+static std::string link_key(const Link& link) {
+    Pin* sp = find_pin(link.startPinId);
+    Pin* ep = find_pin(link.endPinId);
+    if (!sp || !ep) return {};
+    const int inId = sp->kind == PinKind::Input ? link.startPinId
+                                                : link.endPinId;
+    Pin* ip = sp->kind == PinKind::Input ? sp : ep;
+    GraphNode* n = find_node_for_pin(inId);
+    if (!n) return {};
+    return n->label + "." + ip->name;
+}
+
+static int tag_next_number() {
+    int mx = 0;
+    for (auto& [k, v] : s_tagLinks) mx = std::max(mx, v);
+    return mx + 1;
 }
 
 // Resolve a gold dynamic-pin attribute (or its wire) back to the owning node
@@ -1145,6 +1177,7 @@ static void new_graph(GraphMode mode) {
     s_currentFilePath.clear();
     s_nodes.clear();
     s_links.clear();
+    s_tagLinks.clear();
     s_loadedParamMap = nlohmann::json::object();
     s_loadedScore    = nlohmann::json();
     s_loadedInstrumentExtras = nlohmann::json::object();
@@ -1487,6 +1520,7 @@ static void load_graph_from_path(const std::string& path) {
 
     s_nodes.clear();
     s_links.clear();
+    s_tagLinks.clear();
     s_groups.clear();
     s_groupPath.clear();
     s_groupListen.clear();
@@ -2216,6 +2250,13 @@ static void load_graph_from_path(const std::string& path) {
         float py = root["ui"]["panning"][1].get<float>();
         ImNodes::EditorContextResetPanning(ImVec2(px, py));
     }
+
+    // Net-label tags (display-only; see s_tagLinks).
+    s_tagLinks.clear();
+    if (root.contains("ui") && root["ui"].contains("tagLinks") &&
+        root["ui"]["tagLinks"].is_object())
+        for (const auto& [k, v] : root["ui"]["tagLinks"].items())
+            if (v.is_number()) s_tagLinks[k] = v.get<int>();
 
     // Wire all DSP connections (including RefSource for shared sources)
     update_all_dsp();
@@ -3034,6 +3075,15 @@ static void save_patch_graph(const std::string& path, bool tapOverride = false) 
         if (!faces.empty()) root["ui"]["noteFaces"] = faces;
     }
 
+    // Net-label tags (display-only; see s_tagLinks). OUTSIDE the headless
+    // guard: unlike positions/panning they are loaded data, not live-editor
+    // state, so a headless --roundtrip must carry them through.
+    if (!s_tagLinks.empty()) {
+        json tags = json::object();
+        for (const auto& [k, v] : s_tagLinks) tags[k] = v;
+        root["ui"]["tagLinks"] = tags;
+    }
+
     std::ofstream f(path);
     f << root.dump(2);
     f.close();
@@ -3222,6 +3272,13 @@ static void save_node_graph(const std::string& path) {
     {
         ImVec2 pan = ImNodes::EditorContextGetPanning();
         root["ui"]["panning"] = {pan.x, pan.y};
+    }
+
+    // Net-label tags (display-only; see s_tagLinks).
+    if (!s_tagLinks.empty()) {
+        json tags = json::object();
+        for (const auto& [k, v] : s_tagLinks) tags[k] = v;
+        root["ui"]["tagLinks"] = tags;
     }
 
     std::ofstream f(path);
@@ -12756,6 +12813,30 @@ int main(int argc, char** argv) {
         // with an unrepresentable endpoint are implied by group interfaces
         // and not drawn. The link keeps its REAL id either way, so the
         // existing destroy handler works untouched.
+        s_tagRects.clear();
+        std::unordered_map<int, int> tagStackR, tagStackL;  // per-node shelf
+        auto draw_tag = [&](GraphNode* n, const std::string& key, int num,
+                            bool outSide, bool isTap) {
+            ImVec2 np = ImNodes::GetNodeScreenSpacePos(n->id);
+            ImVec2 nd = ImNodes::GetNodeDimensions(n->id);
+            auto& shelf = outSide ? tagStackR : tagStackL;
+            const float y = np.y + 6.0f + 18.0f * float(shelf[n->id]++);
+            const float x = outSide ? np.x + nd.x + 4.0f : np.x - 26.0f;
+            ImVec2 mn(x, y), mx(x + 22.0f, y + 15.0f);
+            ImDrawList* dl = ImGui::GetWindowDrawList();
+            const ImU32 fill = isTap ? IM_COL32(40, 90, 96, 255)
+                                     : IM_COL32(58, 58, 72, 255);
+            const ImU32 edge = isTap ? IM_COL32(70, 150, 160, 255)
+                                     : IM_COL32(140, 140, 160, 255);
+            dl->AddRectFilled(mn, mx, fill, 3.0f);
+            dl->AddRect(mn, mx, edge, 3.0f);
+            char t[8];
+            snprintf(t, sizeof(t), "%d", num);
+            ImVec2 ts = ImGui::CalcTextSize(t);
+            dl->AddText(ImVec2(mn.x + (22.0f - ts.x) * 0.5f, mn.y + 1.0f),
+                        IM_COL32(225, 225, 235, 255), t);
+            s_tagRects.push_back({key, mn, mx});
+        };
         for (auto& link : s_links) {
             Pin* sp = find_pin(link.startPinId);
             if (!sp) continue;
@@ -12767,6 +12848,27 @@ int main(int argc, char** argv) {
                 // closed loop is visibly different from a forward wire.
                 Pin* ep = find_pin(link.endPinId);
                 bool isTap = (sp->isTap) || (ep && ep->isTap);
+                // Net-label rendering: a tagged edge whose endpoints are
+                // both directly visible (not projected through a group
+                // face) draws as its numbered square pair instead of a
+                // wire. Projected endpoints fall back to the wire — the
+                // group face is already an abstraction; hiding its wires
+                // behind tags too would orphan the squares.
+                const std::string key = link_key(link);
+                auto tagIt = s_tagLinks.find(key);
+                if (tagIt != s_tagLinks.end() &&
+                    a == (startIsSource ? link.startPinId : link.endPinId) &&
+                    b == (startIsSource ? link.endPinId : link.startPinId)) {
+                    GraphNode* srcN = find_node_for_pin(
+                        startIsSource ? link.startPinId : link.endPinId);
+                    GraphNode* dstN = find_node_for_pin(
+                        startIsSource ? link.endPinId : link.startPinId);
+                    if (srcN && dstN) {
+                        draw_tag(srcN, key, tagIt->second, true, isTap);
+                        draw_tag(dstN, key, tagIt->second, false, isTap);
+                        continue;
+                    }
+                }
                 if (isTap) {
                     ImNodes::PushColorStyle(ImNodesCol_Link,
                                             IM_COL32(70, 150, 160, 255));
@@ -13018,6 +13120,30 @@ int main(int argc, char** argv) {
         // Right-click context menu
         if (editorHovered && ImGui::IsMouseClicked(ImGuiMouseButton_Right)) {
             s_createMenuPos = ImGui::GetMousePos();
+            // Net-label gestures first: a tag square hit restores the wire
+            // (squares sit on node edges, so this must beat the node menu);
+            // a hovered wire becomes a tag pair.
+            const ImVec2 mp = ImGui::GetMousePos();
+            std::string hitTag;
+            for (const auto& tr : s_tagRects)
+                if (mp.x >= tr.mn.x && mp.x <= tr.mx.x &&
+                    mp.y >= tr.mn.y && mp.y <= tr.mx.y) { hitTag = tr.key; break; }
+            int hoveredLink = -1;
+            const bool linkHov = ImNodes::IsLinkHovered(&hoveredLink);
+            if (!hitTag.empty()) {
+                s_tagLinks.erase(hitTag);
+                mark_graph_dirty();
+            } else if (linkHov) {
+                for (auto& link : s_links) {
+                    if (link.id != hoveredLink) continue;
+                    const std::string key = link_key(link);
+                    if (!key.empty() && !s_tagLinks.count(key)) {
+                        s_tagLinks[key] = tag_next_number();
+                        mark_graph_dirty();
+                    }
+                    break;
+                }
+            } else {
             // Check if right-click is on a node
             int hoveredNode = -1;
             for (auto& n : s_nodes) {
@@ -13028,6 +13154,7 @@ int main(int argc, char** argv) {
                 s_wantNodeMenu = true;
             } else {
                 s_wantCreateMenu = true;
+            }
             }
         }
         if (s_wantCreateMenu) {
