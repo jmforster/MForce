@@ -12815,12 +12815,23 @@ int main(int argc, char** argv) {
         // existing destroy handler works untouched.
         s_tagRects.clear();
         std::unordered_map<int, int> tagStackR, tagStackL;  // per-node shelf
-        auto draw_tag = [&](GraphNode* n, const std::string& key, int num,
+        // imnodes entity representing a real pin's owner at this drill
+        // level: the node itself when visible, else the collapsed ancestor
+        // group's face (same walk as project_pin). -1 = unrepresented.
+        auto project_entity = [&](int realPin) -> int {
+            GraphNode* n = find_node_for_pin(realPin);
+            if (!n) return -1;
+            if (visible_at_path(n->label)) return n->id;
+            NodeGroup* g = group_of(n->label);
+            while (g && !visible_at_path(g->name)) g = group_of(g->name);
+            return g ? g->editorId : -1;
+        };
+        auto draw_tag = [&](int entityId, const std::string& key, int num,
                             bool outSide, bool isTap) {
-            ImVec2 np = ImNodes::GetNodeScreenSpacePos(n->id);
-            ImVec2 nd = ImNodes::GetNodeDimensions(n->id);
+            ImVec2 np = ImNodes::GetNodeScreenSpacePos(entityId);
+            ImVec2 nd = ImNodes::GetNodeDimensions(entityId);
             auto& shelf = outSide ? tagStackR : tagStackL;
-            const float y = np.y + 6.0f + 18.0f * float(shelf[n->id]++);
+            const float y = np.y + 6.0f + 18.0f * float(shelf[entityId]++);
             const float x = outSide ? np.x + nd.x + 4.0f : np.x - 26.0f;
             ImVec2 mn(x, y), mx(x + 22.0f, y + 15.0f);
             ImDrawList* dl = ImGui::GetWindowDrawList();
@@ -12848,24 +12859,24 @@ int main(int argc, char** argv) {
                 // closed loop is visibly different from a forward wire.
                 Pin* ep = find_pin(link.endPinId);
                 bool isTap = (sp->isTap) || (ep && ep->isTap);
-                // Net-label rendering: a tagged edge whose endpoints are
-                // both directly visible (not projected through a group
-                // face) draws as its numbered square pair instead of a
-                // wire. Projected endpoints fall back to the wire — the
-                // group face is already an abstraction; hiding its wires
-                // behind tags too would orphan the squares.
+                // Net-label rendering: a tagged edge draws as its numbered
+                // square pair instead of a wire. Each square hangs on the
+                // entity representing its endpoint at this drill level — a
+                // grouped endpoint's square sits on the collapsed group
+                // face, exactly like other wires project (fixes Matt's
+                // 09-06 report: the tag reverted to a wire on grouping and
+                // right-click no-opped because the tag entry had never
+                // left the map).
                 const std::string key = link_key(link);
                 auto tagIt = s_tagLinks.find(key);
-                if (tagIt != s_tagLinks.end() &&
-                    a == (startIsSource ? link.startPinId : link.endPinId) &&
-                    b == (startIsSource ? link.endPinId : link.startPinId)) {
-                    GraphNode* srcN = find_node_for_pin(
+                if (tagIt != s_tagLinks.end()) {
+                    const int srcEnt = project_entity(
                         startIsSource ? link.startPinId : link.endPinId);
-                    GraphNode* dstN = find_node_for_pin(
+                    const int dstEnt = project_entity(
                         startIsSource ? link.endPinId : link.startPinId);
-                    if (srcN && dstN) {
-                        draw_tag(srcN, key, tagIt->second, true, isTap);
-                        draw_tag(dstN, key, tagIt->second, false, isTap);
+                    if (srcEnt >= 0 && dstEnt >= 0 && srcEnt != dstEnt) {
+                        draw_tag(srcEnt, key, tagIt->second, true, isTap);
+                        draw_tag(dstEnt, key, tagIt->second, false, isTap);
                         continue;
                     }
                 }
