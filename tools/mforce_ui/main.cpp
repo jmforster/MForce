@@ -2608,6 +2608,12 @@ static bool rename_node(GraphNode& node, const std::string& newName,
                 if (j.contains("ref") && j["ref"].is_string() &&
                     j["ref"].get<std::string>() == oldName)
                     j["ref"] = newName;
+                // Tap refs are the same by-name reference in a different
+                // key; leaving them stale saves a patch the engine refuses
+                // with "Unresolved tap target" (Matt hit this 09-06).
+                if (j.contains("tap") && j["tap"].is_string() &&
+                    j["tap"].get<std::string>() == oldName)
+                    j["tap"] = newName;
                 for (auto& [k, v] : j.items()) fixref(v);
             } else if (j.is_array()) {
                 for (auto& v : j) fixref(v);
@@ -2628,6 +2634,14 @@ static bool rename_node(GraphNode& node, const std::string& newName,
         for (auto& g : s_groups)
             for (auto& m : g.members)
                 if (m == oldName) m = newName;
+        // Net-label tag keys embed the destination label — follow too,
+        // or the tag silently orphans on rename.
+        std::map<std::string, int> fixed;
+        const std::string prefix = oldName + ".";
+        for (auto& [k, v] : s_tagLinks)
+            fixed[k.rfind(prefix, 0) == 0
+                      ? newName + k.substr(oldName.size()) : k] = v;
+        s_tagLinks = std::move(fixed);
     }
     mark_graph_dirty();
     return true;
