@@ -52,6 +52,29 @@ might not decide to do it.")
   which families are gold. Matt's own notes: docs/notes/SegmentRevisit.md,
   docs/notes/Stoned2.txt.
 
+- **PCHIP "smooth" curve mode; retire smoothness on Shaper?** — 2026-09-05,
+  from Matt's curve-editor review. Problem: SmoothnessInterpolator's sine
+  easing forces zero slope at every breakpoint, so several segments
+  approximating one smooth function come out scalloped (Matt's 5-segment
+  accelerating ascent). Right tool: monotone cubic interpolation (PCHIP,
+  Fritsch–Carlson slopes) — C1 through the points, no overshoot, no
+  scalloping; lives in `Curve` as a third evaluation path.
+  Interaction design (Matt: "I don't see how the 2 methods will interact"):
+  they DON'T — modes are exclusive per curve. A Shaper curve is either
+  "points" (linear default + per-segment signed-curvature overrides, the
+  09-05 gesture set) or "smooth" (PCHIP over all points; per-segment
+  overrides disallowed/greyed — PCHIP chooses knot slopes from neighbors,
+  so a Hold or Expo override inside it is contradictory). Morph: PCHIP
+  lerps point-space same as today; mode is shared structure between A/B.
+  Smoothness pin on Shaper becomes vestigial under this scheme — BUT
+  library winds carry smoothness 0.6 on their Junctions, so removal is
+  behavior-changing for keepers. Path: loader keeps honoring the pin
+  (legacy), UI stops exposing it on new Shapers, full removal only after
+  Matt re-verdicts/re-saves the winds at 0.5 or re-tunes. SegmentSource
+  keeps smoothness untouched (textures want the 0..1 sweep).
+  **Decide:** whether PCHIP earns a build slot, and whether Shaper
+  smoothness deprecates with it.
+
 ## comp
 
 (nothing yet)
