@@ -289,6 +289,18 @@ file's git history. Tags per WORKFLOW.md. (G1)-(G4) = GOALS.md Dipsy goals.
 
 ## Design questions
 
+54. **[design] Function/Operation node** — Matt 2026-09-06, from the
+    wormhole brainstorm: he dislikes the CombinedSource-with-constant
+    idiom (gain = multiply-by-constant trick, e.g. piano_default
+    Combined3/Combined5, the legacy __mul_N synthesis) — "node types are
+    cheap." Wanted: an explicit small node for scalar math — op enum
+    (add/mul/sub/div, maybe min/max/pow) over one or two inputs, or a
+    one-input f(x) function node; makes intent legible where Combined
+    obfuscates it. Related decision kept separate on purpose: Wormhole
+    stays pure glass (no params). Needs the usual sweep: which ops, one
+    node or two, migration stance for existing Combined-trick patches
+    (probably none — no back-compat pressure, idiom keeps loading).
+
 27. **[design] Groups multi-output — control wires AND shared sources
     collide with the one-output rule** (absorbs 3q) — two hits on the same
     policy. (a) Matt 2026-08-20, piano control-strip cleanup: a Curve node
