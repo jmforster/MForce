@@ -309,9 +309,15 @@ file's git history. Tags per WORKFLOW.md. (G1)-(G4) = GOALS.md Dipsy goals.
     on save; null gate render-hash unaffected; one-time churn of tracked
     patches. Kills the whole rename-rewrite registry class. Matt's
     principles: renames mostly happen early (downstream stability is what
-    matters); python gen tooling may stay fast-and-loose. Needs its own
-    spec (both loaders, both savers, groups/dynamicPins/ui keys,
-    roundtrip contract). Post-lanes.
+    matters); python gen tooling may stay fast-and-loose. EXPLICIT
+    REQUIREMENT (Matt, same day — part of the agenda all along): DROP the
+    label-uniqueness check. Labels become pure display — every Note face
+    labeled "Note", both wormhole halves "WH1". Name-refs then require
+    exactly one match (ambiguous = loud load error; generators police
+    their own namespaces). Also fixes: hand-edit workflow was never
+    Matt's (UI is the editor), so ref-site readability carries no weight.
+    Needs its own spec (both loaders, both savers, groups/dynamicPins/ui
+    keys, roundtrip contract). Post-lanes.
 
 54. **[design] Function/Operation node** — Matt 2026-09-06, from the
     wormhole brainstorm: he dislikes the CombinedSource-with-constant
