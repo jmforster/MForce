@@ -2521,6 +2521,12 @@ static void group_boundary(const NodeGroup& g,
         Pin* pa = find_pin(link.startPinId);
         Pin* pb = find_pin(link.endPinId);
         if (!pa || !pb) continue;
+        // A wormhole pair's hidden span is invisible at every drill level,
+        // so it is invisible to the interface too: it neither counts as a
+        // boundary output (the two-output rule was refusing exactly the
+        // configuration wormholes exist for — Matt 09-06) nor creates a
+        // face input pin.
+        if (is_wormhole(a) && is_wormhole(b)) continue;
         GraphNode* srcN = pa->kind == PinKind::Output ? a : b;
         GraphNode* dstN = pa->kind == PinKind::Output ? b : a;
         int srcPin = pa->kind == PinKind::Output ? link.startPinId : link.endPinId;
@@ -12940,6 +12946,35 @@ int main(int argc, char** argv) {
         // twin visible -> ghost to it; twin inside a collapsed face -> ghost
         // to the face; twin unrepresented here -> tooltip only.
         {
+            // Span ghosting runs for the hovered half AND any selected
+            // half — a freshly wired pair stays visibly connected while
+            // selected, so pairing never looks like wire-deletion.
+            auto draw_span_for = [&](GraphNode& half, GraphNode& twin) {
+                int ent = -1;
+                if (visible_at_path(twin.label)) ent = twin.id;
+                else {
+                    NodeGroup* g = group_of(twin.label);
+                    while (g && !visible_at_path(g->name))
+                        g = group_of(g->name);
+                    if (g) ent = g->editorId;
+                }
+                if (ent < 0 || !visible_at_path(half.label)) return;
+                ImVec2 p0 = ImNodes::GetNodeScreenSpacePos(half.id);
+                ImVec2 d0 = ImNodes::GetNodeDimensions(half.id);
+                ImVec2 p1 = ImNodes::GetNodeScreenSpacePos(ent);
+                ImVec2 d1 = ImNodes::GetNodeDimensions(ent);
+                ImDrawList* dl = ImGui::GetWindowDrawList();
+                dl->AddLine(ImVec2(p0.x + d0.x * 0.5f, p0.y + d0.y * 0.5f),
+                            ImVec2(p1.x + d1.x * 0.5f, p1.y + d1.y * 0.5f),
+                            IM_COL32(140, 170, 200, 110), 2.0f);
+                dl->AddRect(p1, ImVec2(p1.x + d1.x, p1.y + d1.y),
+                            IM_COL32(140, 170, 200, 200), 6.0f, 0, 2.0f);
+            };
+            for (auto& n : s_nodes) {
+                if (!is_wormhole(&n) || !ImNodes::IsNodeSelected(n.id))
+                    continue;
+                if (GraphNode* t = wormhole_twin(n)) draw_span_for(n, *t);
+            }
             int hovId = -1;
             if (ImNodes::IsNodeHovered(&hovId)) {
                 GraphNode* hn = nullptr;
@@ -13170,6 +13205,17 @@ int main(int argc, char** argv) {
                     }
 
                     s_links.emplace_back(outPin, inPin);
+                    // Wiring two Wormholes IS pairing them — and the wire
+                    // immediately hides, which without this reads as the
+                    // wire being eaten rather than the pair forming.
+                    {
+                        GraphNode* an = find_node_for_pin(outPin);
+                        GraphNode* bn = find_node_for_pin(inPin);
+                        if (is_wormhole(an) && is_wormhole(bn))
+                            transport_set_status(
+                                "wormhole pair linked — span hidden; hover "
+                                "or select either half to see it", false);
+                    }
                     update_all_dsp();
                     mark_graph_dirty();
                 }
