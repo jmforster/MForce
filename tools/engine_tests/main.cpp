@@ -487,6 +487,29 @@ static void run_shaper_seg_tests() {
     CHECK_NEAR(sh.map(0.5f), 0.5f, 1e-6f);
 }
 
+#include "mforce/source/wormhole_source.h"
+
+// Wormhole: pure pass-through, including chained pairs (out-half refs
+// in-half — the hidden-wire configuration the UI creates).
+static void run_wormhole_tests() {
+    RenderContext ctx{48000};
+    auto in = std::make_shared<ConstantSource>(0.42f);
+    WormholeSource wh;
+    wh.set_param("source", in);
+    wh.prepare(ctx, 8);
+    CHECK_NEAR(wh.next(), 0.42f, 1e-9f);
+    auto whIn = std::make_shared<WormholeSource>();
+    whIn->set_param("source", in);
+    WormholeSource whOut;
+    whOut.set_param("source", whIn);
+    whOut.prepare(ctx, 8);
+    CHECK_NEAR(whOut.next(), 0.42f, 1e-9f);
+    // Unwired = silence, not garbage
+    WormholeSource bare;
+    bare.prepare(ctx, 8);
+    CHECK_NEAR(bare.next(), 0.0f, 1e-9f);
+}
+
 // Shaper morph pin (curve-morph plan Task 8): point-space A/B blend.
 static void run_shaper_morph_tests() {
     RenderContext ctx{48000};
@@ -606,6 +629,7 @@ int main() {
     run_ramp_hold_tests();
     run_shaper_seg_tests();
     run_shaper_morph_tests();
+    run_wormhole_tests();
     if (g_fails) { std::printf("%d/%d FAILED\n", g_fails, g_checks); return 1; }
     std::printf("ALL PASS (%d checks)\n", g_checks);
     return 0;

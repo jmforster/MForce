@@ -41,6 +41,7 @@
 #include "mforce/source/allpass_resonator.h"
 #include "mforce/source/delay_line_source.h"
 #include "mforce/source/shaper_source.h"
+#include "mforce/source/wormhole_source.h"
 #include "mforce/filter/reverb.h"
 #include "mforce/filter/vibrato.h"
 
@@ -589,6 +590,11 @@ void register_all_sources() {
 
     reg.register_type("Shaper", SourceCategory::Modulator,
         [](int, auto) { return std::make_shared<ShaperSource>(); });
+
+    // Pure pass-through; UI draws wormhole pairs with the connecting wire
+    // hidden (wormhole_source.h).
+    reg.register_type("Wormhole", SourceCategory::Modulator,
+        [](int, auto) { return std::make_shared<WormholeSource>(); });
 }
 
 } // namespace mforce

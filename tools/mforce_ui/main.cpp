@@ -616,17 +616,8 @@ struct Link {
     Link(int start, int end) : id(next_id()), startPinId(start), endPinId(end) {}
 };
 
-// Net-label link rendering (Matt 2026-09-05): a tagged edge draws as a
-// matched pair of numbered squares at its two endpoints instead of a wire —
-// KiCad-style, for taming a loop-heavy canvas where feedback wires arc the
-// whole graph. Pure display: the Link stays real, the engine never knows.
-// Keyed by the destination input ("NodeLabel.pinName" — an input pin holds
-// at most one wire), persisted in ui.tagLinks. Right-click a wire to tag
-// it; right-click either square to restore the wire. Per-edge, per-taste,
-// like the group auto-pin promotion.
-static std::map<std::string, int> s_tagLinks;
-struct TagRect { std::string key; ImVec2 mn, mx; };
-static std::vector<TagRect> s_tagRects;   // rebuilt every frame for hit-test
+// (Net-label tags lived here 09-05..06 — replaced by Wormhole node pairs,
+// which stay inside the node/pin/wire model instead of special-casing it.)
 
 // ===========================================================================
 // Graph state
@@ -801,24 +792,24 @@ static GraphNode* find_node_for_pin(int pinId) {
     return nullptr;
 }
 
-// Stable identity of a link's destination input: "NodeLabel.pinName".
-// Empty when either end no longer resolves.
-static std::string link_key(const Link& link) {
-    Pin* sp = find_pin(link.startPinId);
-    Pin* ep = find_pin(link.endPinId);
-    if (!sp || !ep) return {};
-    const int inId = sp->kind == PinKind::Input ? link.startPinId
-                                                : link.endPinId;
-    Pin* ip = sp->kind == PinKind::Input ? sp : ep;
-    GraphNode* n = find_node_for_pin(inId);
-    if (!n) return {};
-    return n->label + "." + ip->name;
+// Wormhole pairing is by WIRING, not by name: node B is the out-half of a
+// pair when B.source is wired from another Wormhole A's output. Names are
+// cosmetic and freely renameable.
+static bool is_wormhole(const GraphNode* n) {
+    return n && n->typeName == "Wormhole";
 }
-
-static int tag_next_number() {
-    int mx = 0;
-    for (auto& [k, v] : s_tagLinks) mx = std::max(mx, v);
-    return mx + 1;
+// The twin of a wormhole half, or null: the Wormhole it feeds, or the
+// Wormhole feeding it (first match; a wormhole chained to several is not a
+// pair, and the wires between them still hide — each hop resolves).
+static GraphNode* wormhole_twin(const GraphNode& w) {
+    for (auto& link : s_links) {
+        GraphNode* a = find_node_for_pin(link.startPinId);
+        GraphNode* b = find_node_for_pin(link.endPinId);
+        if (!a || !b) continue;
+        if (a == &w && is_wormhole(b)) return b;
+        if (b == &w && is_wormhole(a)) return a;
+    }
+    return nullptr;
 }
 
 // Resolve a gold dynamic-pin attribute (or its wire) back to the owning node
@@ -1177,7 +1168,6 @@ static void new_graph(GraphMode mode) {
     s_currentFilePath.clear();
     s_nodes.clear();
     s_links.clear();
-    s_tagLinks.clear();
     s_loadedParamMap = nlohmann::json::object();
     s_loadedScore    = nlohmann::json();
     s_loadedInstrumentExtras = nlohmann::json::object();
@@ -1520,7 +1510,6 @@ static void load_graph_from_path(const std::string& path) {
 
     s_nodes.clear();
     s_links.clear();
-    s_tagLinks.clear();
     s_groups.clear();
     s_groupPath.clear();
     s_groupListen.clear();
@@ -2251,12 +2240,8 @@ static void load_graph_from_path(const std::string& path) {
         ImNodes::EditorContextResetPanning(ImVec2(px, py));
     }
 
-    // Net-label tags (display-only; see s_tagLinks).
-    s_tagLinks.clear();
-    if (root.contains("ui") && root["ui"].contains("tagLinks") &&
-        root["ui"]["tagLinks"].is_object())
-        for (const auto& [k, v] : root["ui"]["tagLinks"].items())
-            if (v.is_number()) s_tagLinks[k] = v.get<int>();
+    // (ui.tagLinks from the 09-05 net-label experiment is ignored: tags
+    // were replaced by Wormhole node pairs; stale keys are harmless.)
 
     // Wire all DSP connections (including RefSource for shared sources)
     update_all_dsp();
@@ -2634,14 +2619,6 @@ static bool rename_node(GraphNode& node, const std::string& newName,
         for (auto& g : s_groups)
             for (auto& m : g.members)
                 if (m == oldName) m = newName;
-        // Net-label tag keys embed the destination label — follow too,
-        // or the tag silently orphans on rename.
-        std::map<std::string, int> fixed;
-        const std::string prefix = oldName + ".";
-        for (auto& [k, v] : s_tagLinks)
-            fixed[k.rfind(prefix, 0) == 0
-                      ? newName + k.substr(oldName.size()) : k] = v;
-        s_tagLinks = std::move(fixed);
     }
     mark_graph_dirty();
     return true;
@@ -3089,15 +3066,6 @@ static void save_patch_graph(const std::string& path, bool tapOverride = false) 
         if (!faces.empty()) root["ui"]["noteFaces"] = faces;
     }
 
-    // Net-label tags (display-only; see s_tagLinks). OUTSIDE the headless
-    // guard: unlike positions/panning they are loaded data, not live-editor
-    // state, so a headless --roundtrip must carry them through.
-    if (!s_tagLinks.empty()) {
-        json tags = json::object();
-        for (const auto& [k, v] : s_tagLinks) tags[k] = v;
-        root["ui"]["tagLinks"] = tags;
-    }
-
     std::ofstream f(path);
     f << root.dump(2);
     f.close();
@@ -3286,13 +3254,6 @@ static void save_node_graph(const std::string& path) {
     {
         ImVec2 pan = ImNodes::EditorContextGetPanning();
         root["ui"]["panning"] = {pan.x, pan.y};
-    }
-
-    // Net-label tags (display-only; see s_tagLinks).
-    if (!s_tagLinks.empty()) {
-        json tags = json::object();
-        for (const auto& [k, v] : s_tagLinks) tags[k] = v;
-        root["ui"]["tagLinks"] = tags;
     }
 
     std::ofstream f(path);
@@ -8678,6 +8639,65 @@ static int project_pin(int realPin, bool isSource) {
     return it == s_groupProj.realInToSynth.end() ? -1 : it->second;
 }
 
+// Route an existing wire through a fresh wormhole pair: src -> whIn beside
+// it, whOut beside the destination -> dst; the whIn->whOut span is the
+// hidden wire. Tap edges keep their tap pin verbatim, so tap semantics
+// (and DelayLine compensation's the-tap-targets-the-delay rule) survive.
+static void route_link_through_wormhole(int linkId) {
+    auto it = std::find_if(s_links.begin(), s_links.end(),
+                           [&](const Link& l) { return l.id == linkId; });
+    if (it == s_links.end()) return;
+    const Link link = *it;
+    Pin* sp = find_pin(link.startPinId);
+    if (!sp) return;
+    const bool startIsSource = sp->kind == PinKind::Output;
+    const int outPin = startIsSource ? link.startPinId : link.endPinId;
+    const int inPin  = startIsSource ? link.endPinId   : link.startPinId;
+    GraphNode* srcN = find_node_for_pin(outPin);
+    GraphNode* dstN = find_node_for_pin(inPin);
+    if (!srcN || !dstN) return;
+    if (is_wormhole(srcN) || is_wormhole(dstN)) return;  // already routed
+    const std::string srcLabel = srcN->label, dstLabel = dstN->label;
+    const ImVec2 srcPos = srcN->gridPosKnown
+        ? srcN->gridPos : ImNodes::GetNodeGridSpacePos(srcN->id);
+    const ImVec2 dstPos = dstN->gridPosKnown
+        ? dstN->gridPos : ImNodes::GetNodeGridSpacePos(dstN->id);
+
+    // emplace_back may reallocate s_nodes — take ids, re-find after.
+    s_nodes.emplace_back(std::string("Wormhole"));
+    const int whInId = s_nodes.back().id;
+    s_nodes.emplace_back(std::string("Wormhole"));
+    const int whOutId = s_nodes.back().id;
+    GraphNode* whIn = nullptr;
+    GraphNode* whOut = nullptr;
+    for (auto& n : s_nodes) {
+        if (n.id == whInId)  whIn = &n;
+        if (n.id == whOutId) whOut = &n;
+    }
+    if (!whIn || !whOut || whIn->inputs.empty() || whIn->outputs.empty() ||
+        whOut->inputs.empty() || whOut->outputs.empty()) return;
+
+    // Each half lives beside — and in the same group as — its endpoint.
+    auto place = [](GraphNode& w, ImVec2 at) {
+        w.gridPos = at;
+        w.gridPosKnown = true;
+        ImNodes::SetNodeGridSpacePos(w.id, at);
+    };
+    place(*whIn,  ImVec2(srcPos.x + 230.0f, srcPos.y + 30.0f));
+    place(*whOut, ImVec2(dstPos.x - 160.0f, dstPos.y + 30.0f));
+    if (NodeGroup* g = group_of(srcLabel)) g->members.push_back(whIn->label);
+    if (NodeGroup* g = group_of(dstLabel)) g->members.push_back(whOut->label);
+
+    s_links.erase(std::remove_if(s_links.begin(), s_links.end(),
+                                 [&](const Link& l) { return l.id == linkId; }),
+                  s_links.end());
+    s_links.emplace_back(outPin, whIn->inputs[0].id);
+    s_links.emplace_back(whIn->outputs[0].id, whOut->inputs[0].id);  // hidden
+    s_links.emplace_back(whOut->outputs[0].id, inPin);
+    update_all_dsp();
+    mark_graph_dirty();
+}
+
 // ===========================================================================
 // Properties panel — full editing UI for selected node
 // ===========================================================================
@@ -10358,6 +10378,16 @@ static void show_create_menu() {
         menu_source("Crossfade", "CrossfadeSource");
         menu_source("Multi", "MultiSource");
         menu_source("Multiplex", "MultiplexSource");
+        ImGui::EndMenu();
+    }
+
+    // --- Loop (feedback blocks; Wormhole is routing glass — right-click
+    // any wire to route it through a pair) ---
+    if (ImGui::BeginMenu("Loop")) {
+        menu_source("Delay Line", "DelayLine");
+        menu_source("Shaper", "Shaper");
+        menu_sep();
+        menu_source("Wormhole", "Wormhole");
         ImGui::EndMenu();
     }
 
@@ -12827,8 +12857,6 @@ int main(int argc, char** argv) {
         // with an unrepresentable endpoint are implied by group interfaces
         // and not drawn. The link keeps its REAL id either way, so the
         // existing destroy handler works untouched.
-        s_tagRects.clear();
-        std::unordered_map<int, int> tagStackR, tagStackL;  // per-node shelf
         // imnodes entity representing a real pin's owner at this drill
         // level: the node itself when visible, else the collapsed ancestor
         // group's face (same walk as project_pin). -1 = unrepresented.
@@ -12840,54 +12868,19 @@ int main(int argc, char** argv) {
             while (g && !visible_at_path(g->name)) g = group_of(g->name);
             return g ? g->editorId : -1;
         };
-        auto draw_tag = [&](int entityId, const std::string& key, int num,
-                            bool outSide, bool isTap) {
-            ImVec2 np = ImNodes::GetNodeScreenSpacePos(entityId);
-            ImVec2 nd = ImNodes::GetNodeDimensions(entityId);
-            auto& shelf = outSide ? tagStackR : tagStackL;
-            const float y = np.y + 6.0f + 18.0f * float(shelf[entityId]++);
-            const float x = outSide ? np.x + nd.x + 4.0f : np.x - 26.0f;
-            ImVec2 mn(x, y), mx(x + 22.0f, y + 15.0f);
-            ImDrawList* dl = ImGui::GetWindowDrawList();
-            const ImU32 fill = isTap ? IM_COL32(40, 90, 96, 255)
-                                     : IM_COL32(58, 58, 72, 255);
-            const ImU32 edge = isTap ? IM_COL32(70, 150, 160, 255)
-                                     : IM_COL32(140, 140, 160, 255);
-            dl->AddRectFilled(mn, mx, fill, 3.0f);
-            dl->AddRect(mn, mx, edge, 3.0f);
-            char t[8];
-            snprintf(t, sizeof(t), "%d", num);
-            ImVec2 ts = ImGui::CalcTextSize(t);
-            dl->AddText(ImVec2(mn.x + (22.0f - ts.x) * 0.5f, mn.y + 1.0f),
-                        IM_COL32(225, 225, 235, 255), t);
-            s_tagRects.push_back({key, mn, mx});
-        };
         for (auto& link : s_links) {
             Pin* sp = find_pin(link.startPinId);
             if (!sp) continue;
             bool startIsSource = sp->kind == PinKind::Output;
             Pin* ep = find_pin(link.endPinId);
             bool isTap = (sp->isTap) || (ep && ep->isTap);
-            // Net-label rendering: a tagged edge draws as its numbered
-            // square pair instead of a wire. Checked BEFORE the pin
-            // projection guard: squares hang on entities (node, or the
-            // collapsed ancestor group's face), so they survive cases
-            // where the pin has no face projection at all — a grouped
-            // SOURCE's tap pin is not in the face interface, which is why
-            // wires (and, before this fix, tags) vanish there (Matt
-            // 09-06: "group the source and there are no tags anywhere").
-            const std::string key = link_key(link);
-            auto tagIt = s_tagLinks.find(key);
-            if (tagIt != s_tagLinks.end()) {
-                const int srcEnt = project_entity(
-                    startIsSource ? link.startPinId : link.endPinId);
-                const int dstEnt = project_entity(
-                    startIsSource ? link.endPinId : link.startPinId);
-                if (srcEnt >= 0 && dstEnt >= 0 && srcEnt != dstEnt) {
-                    draw_tag(srcEnt, key, tagIt->second, true, isTap);
-                    draw_tag(dstEnt, key, tagIt->second, false, isTap);
-                    continue;
-                }
+            // Wormhole pairs: the wire between two Wormhole nodes is the
+            // hidden span — never drawn. Hover on either half ghosts it
+            // (below, after nodes are placed).
+            {
+                GraphNode* an = find_node_for_pin(link.startPinId);
+                GraphNode* bn = find_node_for_pin(link.endPinId);
+                if (is_wormhole(an) && is_wormhole(bn)) continue;
             }
             int a = project_pin(link.startPinId, startIsSource);
             int b = project_pin(link.endPinId, !startIsSource);
@@ -12940,6 +12933,70 @@ int main(int argc, char** argv) {
         ImNodes::MiniMap(0.15f, ImNodesMiniMapLocation_BottomRight);
 
         ImNodes::EndNodeEditor();
+
+        // Wormhole hover: highlight the twin's representative at this drill
+        // level and ghost the hidden span; tooltip names the twin and where
+        // it lives; double-click jumps there. Degrades exactly like wires:
+        // twin visible -> ghost to it; twin inside a collapsed face -> ghost
+        // to the face; twin unrepresented here -> tooltip only.
+        {
+            int hovId = -1;
+            if (ImNodes::IsNodeHovered(&hovId)) {
+                GraphNode* hn = nullptr;
+                for (auto& n : s_nodes) if (n.id == hovId) { hn = &n; break; }
+                if (is_wormhole(hn)) {
+                    GraphNode* twin = wormhole_twin(*hn);
+                    if (!twin) {
+                        ImGui::SetTooltip(
+                            "unpaired wormhole — wire it to another "
+                            "Wormhole to open the far end");
+                    } else {
+                        std::string loc = "in main";
+                        if (NodeGroup* g = group_of(twin->label))
+                            loc = "inside '" + g->name + "'";
+                        ImGui::SetTooltip("twin: %s — %s\ndouble-click: jump",
+                                          twin->label.c_str(), loc.c_str());
+                        int ent = -1;
+                        if (visible_at_path(twin->label)) ent = twin->id;
+                        else {
+                            NodeGroup* g = group_of(twin->label);
+                            while (g && !visible_at_path(g->name))
+                                g = group_of(g->name);
+                            if (g) ent = g->editorId;
+                        }
+                        if (ent >= 0) {
+                            ImVec2 p0 = ImNodes::GetNodeScreenSpacePos(hovId);
+                            ImVec2 d0 = ImNodes::GetNodeDimensions(hovId);
+                            ImVec2 p1 = ImNodes::GetNodeScreenSpacePos(ent);
+                            ImVec2 d1 = ImNodes::GetNodeDimensions(ent);
+                            ImDrawList* dl = ImGui::GetWindowDrawList();
+                            dl->AddLine(
+                                ImVec2(p0.x + d0.x * 0.5f, p0.y + d0.y * 0.5f),
+                                ImVec2(p1.x + d1.x * 0.5f, p1.y + d1.y * 0.5f),
+                                IM_COL32(140, 170, 200, 110), 2.0f);
+                            dl->AddRect(p1,
+                                        ImVec2(p1.x + d1.x, p1.y + d1.y),
+                                        IM_COL32(140, 170, 200, 200),
+                                        6.0f, 0, 2.0f);
+                        }
+                        if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) {
+                            std::vector<std::string> chain;
+                            for (NodeGroup* g = group_of(twin->label); g;
+                                 g = group_of(g->name))
+                                chain.push_back(g->name);
+                            s_groupPath.assign(chain.rbegin(), chain.rend());
+                            const ImVec2 gp = twin->gridPosKnown
+                                ? twin->gridPos
+                                : ImNodes::GetNodeGridSpacePos(twin->id);
+                            ImNodes::EditorContextResetPanning(
+                                ImVec2(ImGui::GetWindowWidth() * 0.5f - gp.x,
+                                       (ImGui::GetWindowHeight() - 50.0f) * 0.5f
+                                           - gp.y));
+                        }
+                    }
+                }
+            }
+        }
 
         // Wheel pans the canvas: wheel = vertical, Shift+wheel = horizontal
         // (TrackPoint/middle-button scrolling emits exactly these events, so
@@ -13145,29 +13202,21 @@ int main(int argc, char** argv) {
         // Right-click context menu
         if (editorHovered && ImGui::IsMouseClicked(ImGuiMouseButton_Right)) {
             s_createMenuPos = ImGui::GetMousePos();
-            // Net-label gestures first: a tag square hit restores the wire
-            // (squares sit on node edges, so this must beat the node menu);
-            // a hovered wire becomes a tag pair.
-            const ImVec2 mp = ImGui::GetMousePos();
-            std::string hitTag;
-            for (const auto& tr : s_tagRects)
-                if (mp.x >= tr.mn.x && mp.x <= tr.mx.x &&
-                    mp.y >= tr.mn.y && mp.y <= tr.mx.y) { hitTag = tr.key; break; }
+            // Wire gesture first: right-click a wire to route it through a
+            // wormhole pair. Only real s_links qualify (a gold dynamic-pin
+            // wire resolves to no s_links entry and falls through to the
+            // ordinary menus).
             int hoveredLink = -1;
-            const bool linkHov = ImNodes::IsLinkHovered(&hoveredLink);
-            if (!hitTag.empty()) {
-                s_tagLinks.erase(hitTag);
-                mark_graph_dirty();
-            } else if (linkHov) {
-                for (auto& link : s_links) {
-                    if (link.id != hoveredLink) continue;
-                    const std::string key = link_key(link);
-                    if (!key.empty() && !s_tagLinks.count(key)) {
-                        s_tagLinks[key] = tag_next_number();
-                        mark_graph_dirty();
+            bool linkRouted = false;
+            if (ImNodes::IsLinkHovered(&hoveredLink)) {
+                for (auto& link : s_links)
+                    if (link.id == hoveredLink) {
+                        route_link_through_wormhole(hoveredLink);
+                        linkRouted = true;
+                        break;
                     }
-                    break;
-                }
+            }
+            if (linkRouted) {
             } else {
             // Check if right-click is on a node
             int hoveredNode = -1;
