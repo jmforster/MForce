@@ -289,6 +289,30 @@ file's git history. Tags per WORKFLOW.md. (G1)-(G4) = GOALS.md Dipsy goals.
 
 ## Design questions
 
+55. **[build, small] Wormhole face: no tap pin** — Matt 2026-09-06. Every
+    face gets a tap pin uniformly; on pure glass it's redundant (tapping a
+    pass-through == tapping its source) and clutters the minimal in/out
+    face. Skip the tap pin when typeName == "Wormhole" at face build
+    (tools/mforce_ui/main.cpp ~557/596). Queued for next build round.
+
+56. **[design] Node ids: migrate labels-as-ids → assigned invisible ids** —
+    Matt 2026-09-06, after the rename-rewrite pile grew to six subsystems
+    and two same-day field bugs (stale {"tap": old}, orphaned tag keys).
+    Debate record: my readability objections mostly dismantled — grep/diff
+    still work (name field stays), sweep gens can do label→id lookup or
+    stay name-based, docs cite names that won't be renamed post-analysis.
+    Surviving cost is ref-site readability in raw JSON ({"ref": "@17"})
+    — mitigable by DUAL RESOLUTION: refs resolve by id first, then by
+    unique name; ids use a reserved char labels can't contain (e.g. '@'),
+    so hand-authored/generated patches may keep name refs forever while
+    savers emit id refs. Legacy load synthesizes ids from labels; upgrade
+    on save; null gate render-hash unaffected; one-time churn of tracked
+    patches. Kills the whole rename-rewrite registry class. Matt's
+    principles: renames mostly happen early (downstream stability is what
+    matters); python gen tooling may stay fast-and-loose. Needs its own
+    spec (both loaders, both savers, groups/dynamicPins/ui keys,
+    roundtrip contract). Post-lanes.
+
 54. **[design] Function/Operation node** — Matt 2026-09-06, from the
     wormhole brainstorm: he dislikes the CombinedSource-with-constant
     idiom (gain = multiply-by-constant trick, e.g. piano_default
