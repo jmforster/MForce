@@ -1,0 +1,709 @@
+{
+  "graph": {
+    "nodes": [
+      {
+        "id": "__perf_freq",
+        "params": {
+          "field": "frequency"
+        },
+        "type": "PerformNode"
+      },
+      {
+        "id": "__perf_frequency",
+        "params": {
+          "field": "frequency"
+        },
+        "type": "PerformNode"
+      },
+      {
+        "id": "__perf_frequency2",
+        "params": {
+          "field": "frequency"
+        },
+        "type": "PerformNode"
+      },
+      {
+        "id": "Breath_curve",
+        "params": {
+          "exprKnots": [
+            {
+              "a": 2.2289178371429443,
+              "b": -1.0,
+              "form": "power",
+              "x": 440.0
+            }
+          ],
+          "interp": "linear",
+          "knots": [],
+          "mode": "expressions",
+          "source": {
+            "ref": "__perf_frequency"
+          }
+        },
+        "type": "CurveNode"
+      },
+      {
+        "id": "Drive_env",
+        "params": {
+          "maxValue": 0.6000000238418579,
+          "minValue": 0.3499999940395355,
+          "ramp_accuracy": 1.0,
+          "stage_accuracy": 1.0,
+          "stages": [
+            {
+              "endVal": 1.0,
+              "maxSec": 1.0,
+              "minSec": 0.0,
+              "percent": 0.4000000059604645,
+              "power": 2.5,
+              "startVal": 0.0,
+              "type": "Expo"
+            },
+            {
+              "endVal": 1.0,
+              "maxSec": 0.0,
+              "minSec": 0.0,
+              "percent": 0.0,
+              "power": 0.0,
+              "startVal": 1.0,
+              "type": "Linear"
+            },
+            {
+              "endVal": 0.0,
+              "maxSec": 0.0,
+              "minSec": 0.0,
+              "percent": 0.25,
+              "power": 0.0,
+              "startVal": 1.0,
+              "type": "Sine"
+            }
+          ],
+          "timeMode": "fraction",
+          "timeScale": 0.5
+        },
+        "type": "Envelope"
+      },
+      {
+        "id": "Ampl_env",
+        "params": {
+          "maxValue": 0.8999999761581421,
+          "minValue": 0.0,
+          "ramp_accuracy": 1.0,
+          "stage_accuracy": 1.0,
+          "stages": [
+            {
+              "endVal": 0.800000011920929,
+              "maxSec": 0.0,
+              "minSec": 0.0,
+              "percent": 0.029999999329447746,
+              "power": 6.0,
+              "startVal": 0.0,
+              "type": "Linear"
+            },
+            {
+              "endVal": 1.0,
+              "maxSec": 0.0,
+              "minSec": 0.0,
+              "percent": 0.0,
+              "power": 0.0,
+              "startVal": 0.800000011920929,
+              "type": "Linear"
+            },
+            {
+              "endVal": 0.0,
+              "maxSec": 0.0,
+              "minSec": 0.0,
+              "percent": 0.25,
+              "power": 0.0,
+              "startVal": 1.0,
+              "type": "Sine"
+            }
+          ],
+          "timeMode": "fraction",
+          "timeScale": 1.0
+        },
+        "type": "Envelope"
+      },
+      {
+        "id": "Damp_cutoff_curve",
+        "params": {
+          "exprKnots": [
+            {
+              "a": 4.0,
+              "b": 0.0,
+              "form": "linear",
+              "x": 440.0
+            },
+            {
+              "a": 3.0,
+              "b": 0.0,
+              "form": "linear",
+              "x": 880.0
+            },
+            {
+              "a": 2.0,
+              "b": 0.0,
+              "form": "linear",
+              "x": 1760.0
+            },
+            {
+              "a": 2.0,
+              "b": 0.0,
+              "form": "linear",
+              "x": 2000.0
+            }
+          ],
+          "interp": "linear",
+          "knots": [],
+          "mode": "expressions",
+          "source": {
+            "ref": "__perf_frequency2"
+          }
+        },
+        "type": "CurveNode"
+      },
+      {
+        "id": "Wormhole",
+        "params": {
+          "source": {
+            "tap": "Delay_line"
+          }
+        },
+        "type": "Wormhole"
+      },
+      {
+        "id": "Wormhole2",
+        "params": {
+          "source": {
+            "ref": "Wormhole"
+          }
+        },
+        "type": "Wormhole"
+      },
+      {
+        "id": "WhiteNoise",
+        "params": {
+          "amplitude": {
+            "ref": "Breath_curve"
+          },
+          "boost": 0.0,
+          "continuity": 0.0,
+          "density": 1.0,
+          "zeroCrossTendency": 0.0
+        },
+        "type": "WhiteNoiseSource"
+      },
+      {
+        "id": "Drive_inputs",
+        "params": {
+          "gainAdj": -7.450580596923828e-08,
+          "operation": 3,
+          "source1": {
+            "ref": "WhiteNoise"
+          },
+          "source2": {
+            "ref": "Wormhole2"
+          }
+        },
+        "type": "CombinedSource"
+      },
+      {
+        "id": "Drive_vib",
+        "params": {
+          "attack": 0.10000000149011612,
+          "depth": 0.25,
+          "depthVar": 0.5,
+          "frequency": {
+            "ref": "Drive_env"
+          },
+          "speed": 6.699999809265137,
+          "speedVar": 0.5,
+          "threshold": 0.0,
+          "zeroCrossTendency": 1.0
+        },
+        "type": "Vibrato"
+      },
+      {
+        "id": "Junction",
+        "params": {
+          "drive": {
+            "ref": "Drive_vib"
+          },
+          "morph": 0.0,
+          "segs": [
+            0.0,
+            2.0,
+            0.0,
+            2.0,
+            0.0,
+            2.0,
+            0.0,
+            2.0,
+            0.0,
+            2.0,
+            0.0,
+            2.0,
+            0.0,
+            2.0,
+            0.0,
+            2.0,
+            0.0,
+            2.0,
+            0.0,
+            2.0,
+            0.0,
+            2.0,
+            0.0,
+            2.0,
+            0.0,
+            2.0,
+            0.0,
+            2.0,
+            5.0,
+            0.0
+          ],
+          "segs2": [
+            0.0,
+            2.0,
+            0.0,
+            2.0,
+            0.0,
+            2.0,
+            0.0,
+            2.0,
+            0.0,
+            2.0,
+            0.0,
+            2.0,
+            0.0,
+            2.0,
+            0.0,
+            2.0,
+            0.0,
+            2.0,
+            0.0,
+            2.0,
+            0.0,
+            2.0,
+            0.0,
+            2.0,
+            0.0,
+            2.0,
+            0.0,
+            2.0,
+            5.0,
+            0.0
+          ],
+          "smoothness": 0.6000000238418579,
+          "source": {
+            "ref": "Drive_inputs"
+          },
+          "values": [
+            -1.0,
+            -1.440000057220459,
+            -0.75,
+            -1.2400000095367432,
+            -0.5,
+            -1.0199999809265137,
+            -0.30000001192092896,
+            -0.7900000214576721,
+            -0.14000000059604645,
+            -0.5400000214576721,
+            -0.07000000029802322,
+            -0.3400000035762787,
+            0.0,
+            0.0,
+            0.05000000074505806,
+            0.23000000417232513,
+            0.10000000149011612,
+            0.30000001192092896,
+            0.1850000023841858,
+            0.33000001311302185,
+            0.27000001072883606,
+            0.3100000023841858,
+            0.3499999940395355,
+            0.25,
+            0.44999998807907104,
+            0.15000000596046448,
+            0.5199999809265137,
+            0.05000000074505806,
+            0.5559999942779541,
+            0.0,
+            1.0,
+            0.0
+          ],
+          "values2": [
+            -1.0,
+            -1.440000057220459,
+            -0.75,
+            -1.2400000095367432,
+            -0.5,
+            -1.0199999809265137,
+            -0.30000001192092896,
+            -0.7900000214576721,
+            -0.14000000059604645,
+            -0.5400000214576721,
+            -0.07000000029802322,
+            -0.3400000035762787,
+            0.0,
+            0.0,
+            0.05000000074505806,
+            0.23000000417232513,
+            0.10000000149011612,
+            0.30000001192092896,
+            0.1850000023841858,
+            0.33000001311302185,
+            0.27000001072883606,
+            0.3100000023841858,
+            0.3499999940395355,
+            0.25,
+            0.44999998807907104,
+            0.15000000596046448,
+            0.5199999809265137,
+            0.05000000074505806,
+            0.5559999942779541,
+            0.0,
+            1.0,
+            0.0
+          ]
+        },
+        "type": "Shaper"
+      },
+      {
+        "id": "DC_Block_hpf",
+        "params": {
+          "cutoffFreq": 12.0,
+          "mode": 4,
+          "normalize": false,
+          "resonance": 0.699999988079071,
+          "source": {
+            "ref": "Junction"
+          }
+        },
+        "type": "SVFSource"
+      },
+      {
+        "id": "Damp_lpf",
+        "params": {
+          "cutoffFreq": {
+            "ref": "Damp_cutoff_curve"
+          },
+          "mode": 0,
+          "normalize": false,
+          "resonance": 0.800000011920929,
+          "source": {
+            "ref": "DC_Block_hpf"
+          }
+        },
+        "type": "SVFSource"
+      },
+      {
+        "id": "Pitch_vibrato",
+        "params": {
+          "attack": 0.10000000149011612,
+          "depth": 0.014999999664723873,
+          "depthVar": 0.5,
+          "frequency": {
+            "ref": "__perf_freq"
+          },
+          "speed": 6.699999809265137,
+          "speedVar": 0.5,
+          "threshold": 0.0,
+          "zeroCrossTendency": 1.0
+        },
+        "type": "Vibrato"
+      },
+      {
+        "id": "Delay_line",
+        "params": {
+          "amplitude": {
+            "ref": "Ampl_env"
+          },
+          "compensate": true,
+          "frequency": {
+            "ref": "Pitch_vibrato"
+          },
+          "ratio": 1.0,
+          "source": {
+            "ref": "Damp_lpf"
+          }
+        },
+        "type": "DelayLine"
+      },
+      {
+        "id": "Formant1",
+        "params": {
+          "cutoffFreq": 1500.0,
+          "mode": 0,
+          "normalize": false,
+          "resonance": 5.0,
+          "source": {
+            "ref": "Delay_line"
+          }
+        },
+        "type": "SVFSource"
+      },
+      {
+        "id": "SVF2",
+        "params": {
+          "cutoffFreq": 3000.0,
+          "mode": 0,
+          "normalize": false,
+          "resonance": 23.0,
+          "source": {
+            "ref": "Formant1"
+          }
+        },
+        "type": "SVFSource"
+      },
+      {
+        "id": "Combined",
+        "params": {
+          "gainAdj": 1.040000081062317,
+          "operation": 3,
+          "source1": {
+            "ref": "Delay_line"
+          },
+          "source2": {
+            "ref": "SVF2"
+          }
+        },
+        "type": "CombinedSource"
+      },
+      {
+        "id": "Reverb",
+        "params": {
+          "damping": 0.699999988079071,
+          "dry": 0.6000000238418579,
+          "roomSize": 0.20000000298023224,
+          "source": {
+            "ref": "Combined"
+          },
+          "wet": 0.20000000298023224
+        },
+        "type": "Reverb"
+      },
+      {
+        "id": "Morph_env",
+        "params": {
+          "attack": 0.20000000298023224,
+          "attackCurve": 0,
+          "attackPower": 0.0,
+          "maxValue": 1.0,
+          "minValue": 0.0,
+          "ramp_accuracy": 1.0,
+          "reverse": false,
+          "stage_accuracy": 1.0,
+          "sustainLevel": 1.0
+        },
+        "type": "ASEnvelope"
+      }
+    ],
+    "output": "Reverb"
+  },
+  "groups": [
+    {
+      "members": [
+        "WhiteNoise",
+        "Breath_curve",
+        "Note1"
+      ],
+      "name": "Breath",
+      "pos": [
+        -1616.1044921875,
+        -528.3392944335938
+      ]
+    },
+    {
+      "members": [
+        "Drive_inputs",
+        "Drive_env",
+        "Drive_vib",
+        "Junction",
+        "DC_Block_hpf",
+        "Damp_lpf",
+        "Damp_cutoff_curve",
+        "Note2",
+        "Wormhole2",
+        "Morph_env"
+      ],
+      "name": "Drive",
+      "pos": [
+        -1425.888916015625,
+        -477.5
+      ]
+    },
+    {
+      "members": [
+        "Ampl_env",
+        "Note3",
+        "Delay_line",
+        "Pitch_vibrato",
+        "Wormhole"
+      ],
+      "name": "Delay",
+      "pos": [
+        -1233.19384765625,
+        -377.07611083984375
+      ]
+    }
+  ],
+  "instrument": {
+    "polyphony": 1,
+    "volume": 0.5
+  },
+  "sampleRate": 48000,
+  "score": [
+    {
+      "duration": 2.0,
+      "note": 48,
+      "time": 0.0,
+      "velocity": 0.8
+    },
+    {
+      "duration": 2.0,
+      "note": 60,
+      "time": 2.0,
+      "velocity": 0.8
+    },
+    {
+      "duration": 2.0,
+      "note": 72,
+      "time": 4.0,
+      "velocity": 0.8
+    },
+    {
+      "duration": 2.0,
+      "note": 84,
+      "time": 6.0,
+      "velocity": 0.8
+    },
+    {
+      "duration": 2.0,
+      "note": 96,
+      "time": 8.0,
+      "velocity": 0.8
+    }
+  ],
+  "seconds": 10.0,
+  "ui": {
+    "noteFaces": [
+      {
+        "fields": {
+          "frequency": "__perf_freq"
+        },
+        "label": "Note3"
+      },
+      {
+        "fields": {
+          "frequency": "__perf_frequency"
+        },
+        "label": "Note1"
+      },
+      {
+        "fields": {
+          "frequency": "__perf_frequency2"
+        },
+        "label": "Note2"
+      }
+    ],
+    "panning": [
+      1597.906005859375,
+      581.3334350585938
+    ],
+    "positions": {
+      "Ampl_env": [
+        -1636.0,
+        -103.00003051757813
+      ],
+      "Breath_curve": [
+        -1108.208984375,
+        -265.6785583496094
+      ],
+      "Combined": [
+        -677.333251953125,
+        -439.0
+      ],
+      "DC_Block_hpf": [
+        -796.0,
+        -158.00003051757813
+      ],
+      "Damp_cutoff_curve": [
+        -1003.0,
+        -48.000030517578125
+      ],
+      "Damp_lpf": [
+        -590.0,
+        -10.0
+      ],
+      "Delay_line": [
+        -1170.4423828125,
+        -43.304229736328125
+      ],
+      "Drive_env": [
+        -1416.0,
+        -221.0
+      ],
+      "Drive_inputs": [
+        -1207.0,
+        -367.0000305175781
+      ],
+      "Drive_vib": [
+        -1202.333251953125,
+        -204.00003051757813
+      ],
+      "Formant1": [
+        -1047.333251953125,
+        -270.0
+      ],
+      "Junction": [
+        -1001.0,
+        -286.00006103515625
+      ],
+      "Morph_env": [
+        -777.2393798828125,
+        -316.0000305175781
+      ],
+      "Note1": [
+        -1370.208984375,
+        -313.0
+      ],
+      "Note2": [
+        -1409.0,
+        -69.00003051757813
+      ],
+      "Note3": [
+        -1632.0,
+        -272.0000305175781
+      ],
+      "Pitch_vibrato": [
+        -1405.332763671875,
+        -191.0
+      ],
+      "Reverb": [
+        -492.333251953125,
+        -349.0
+      ],
+      "SVF2": [
+        -858.66650390625,
+        -317.0
+      ],
+      "WhiteNoise": [
+        -823.0,
+        -327.0
+      ],
+      "Wormhole": [
+        -932.0,
+        -45.000030517578125
+      ],
+      "Wormhole2": [
+        -1415.2393798828125,
+        -362.0848388671875
+      ],
+      "__output": [
+        0.0,
+        0.0
+      ]
+    }
+  }
+}
