@@ -304,13 +304,20 @@ file's git history. Tags per WORKFLOW.md. (G1)-(G4) = GOALS.md Dipsy goals.
     at note-on — can drive e.g. Drive_env minValue (ignition depth),
     attack lengths, breath amount as functions of duration. Alternatives
     to weigh in the spec: per-duration patch variants, or articulation
-    override sets. Layer placement (Matt, same day): patch-picking lives
-    in the PERFORM layer; variants/overrides span Perform AND Render —
-    i.e., this slots into the Composition→Performance→Realization
-    architecture (docs/perform_source_design.md), not the patch format
-    alone. Related: Stage.nominal (live patch-intrinsic stage seconds)
-    and the fraction-vs-seconds articulation lesson from the clarinet
-    work (CLARINET_REF_ANALYSIS.md rounds 3-4).
+    override sets. Two-tier placement (Matt, same day, second pass):
+    TIER 1 (cheap, no Perform layer needed): duration becomes a field on
+    the Note face / PerformNode like frequency — the PATCH itself reacts
+    via curves/dynamicPins (ignition depth, attack, breath as functions
+    of duration), pure Render-side. TIER 2 (future utopia): the Perform
+    layer owns performer identity — NotePerformer preferences picking
+    articulation strategies per player ("Fred prefers double tonguing"),
+    patch-picking, variants — Composition→Performance→Realization per
+    docs/perform_source_design.md. Terminology guard: this is
+    lowercase-a articulation (attack/blow behavior), NOT capital-A
+    Articulations (Mordent/Turn — score-symbol ornaments, the pitch
+    modulation design's territory). Related: Stage.nominal and the
+    fraction-vs-seconds articulation lesson (CLARINET_REF_ANALYSIS.md
+    rounds 3-4).
 
 63. **[build, small] Voice tail allowance — kill the cutoff click for
     good** — Matt 2026-09-07. For a dummy: when a note is released, the
