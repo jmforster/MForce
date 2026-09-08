@@ -372,6 +372,16 @@ file's git history. Tags per WORKFLOW.md. (G1)-(G4) = GOALS.md Dipsy goals.
     beside the file (name~1.json, name~2.json or .bak). Cheap insurance;
     the UI temp playback file is no help (overwritten per play).
 
+59b. **[bug, unreproduced] Auto-listen ghost sighting on the FIXED build**
+    — Matt 2026-09-07 late: "bit by auto-listen-here again" while
+    verifiably running the cf04155 binary (process/exe timestamps
+    checked). Code audit found no remaining automatic tap writes — only
+    the manual Listen-here / breadcrumb-Group buttons. Either a missed
+    path or a different sound-change wearing the costume. CAPTURE DRILL
+    next time: (1) read the breadcrumb "Listen: Patch | Group" row —
+    since cf04155 it shows the ACTUAL tap, so Group = real missed path,
+    Patch = different bug; (2) note the exact click that preceded it.
+
 59. **[bug, unreproduced] Live-path clicking cleared by app restart** —
     2026-09-07. After a long UI editing session on pending/oboe_grouped
     (many save/reload cycles, Replace-with swaps, morph experiments),
