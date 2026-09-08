@@ -289,6 +289,72 @@ file's git history. Tags per WORKFLOW.md. (G1)-(G4) = GOALS.md Dipsy goals.
 
 ## Design questions
 
+64. **[design] Duration-aware articulation** — Matt 2026-09-07, from
+    jamming mordents/turns on QWERTY against the loop family's slow
+    noisy blooms. The insight, plainly: a wind player KNOWS the length
+    of the note she's about to play and articulates accordingly — takes
+    her time blowing into a long note, but blasts or tongues the short
+    ones. Our patches can't do that: per-note behavior today keys on
+    frequency (keytracks) and velocity, never on note DURATION. QWERTY
+    can't know duration in advance (key-up is the future), but
+    pre-composed/score playback knows every note's length at note-on.
+    Direction to explore: expose duration as a per-note performance
+    field (like frequency/velocity on the Note face / PerformNode), so
+    existing machinery — curves on a perform field, dynamicPins set once
+    at note-on — can drive e.g. Drive_env minValue (ignition depth),
+    attack lengths, breath amount as functions of duration. Alternatives
+    to weigh in the spec: per-duration patch variants, or articulation
+    override sets. Related: Stage.nominal (live patch-intrinsic stage
+    seconds) and the fraction-vs-seconds articulation lesson from the
+    clarinet work (CLARINET_REF_ANALYSIS.md rounds 3-4).
+
+63. **[build, small] Voice tail allowance — kill the cutoff click for
+    good** — Matt 2026-09-07. For a dummy: when a note is released, the
+    voice (the running copy of the patch that renders that note) is
+    only kept alive for as long as the amplitude envelope still has
+    release left. The moment the envelope reaches zero the voice is
+    destroyed — but the Reverb (and any ringing filter) INSIDE that
+    voice still holds sound in its internal buffers, and destroying the
+    voice cuts that stored sound off mid-sample: that is the faint
+    click at note end that keeps coming back no matter how long the
+    release is. Today's workaround: add a trailing envelope stage that
+    holds at zero (Start 0, End 0, nonzero Pct), which keeps the voice
+    alive doing nothing audible while the reverb tail rings out. The
+    right fix: the engine grants every voice a fixed tail allowance
+    (say 0.25-0.5 s, or derived from the patch's reverb/delay sizes)
+    past envelope-end before destroying it, so no patch ever needs the
+    trick. Touches voice lifetime bookkeeping only; envelopes and
+    patches unchanged.
+
+62. **[build, small] noiseBed* settings must affect ONLY the noise bed** —
+    Matt 2026-09-07, hard requirement, not just a naming nit: he spent an
+    hour zeroing all 23 Partials settings chasing clarinet1's slow
+    attack because noiseBedDelay/noiseBedFade/noiseBedFadePow actually
+    gate the TONE (full_additive_source.h: "TONE delay sec (noise runs
+    from t=0)", "tone fade-in sec after the delay"). The noise-lead
+    behavior itself is GOOD — bed audible at level 0.003, noise+bloom
+    ear-approved (Matt; the loop still beats it, hence his loop→additive
+    crossfade work) — it just cannot live under noiseBed names. Fix: move the tone gate to honestly-named settings
+    (toneDelay / toneFade / toneFadePow), keep noiseBed* strictly
+    bed-scoped. No compat shims (standing policy); migrate the keys in
+    the patches that set them (clarinet1 at minimum — sweep for others)
+    in the same commit so nothing silently changes sound.
+
+61. **[housekeeping] Partials + noiseBed settings: document and prove
+    effect** — Matt 2026-09-07, first task of the new HOUSEKEEPING
+    sub-lane, after the clarinet1 attack hunt (the answer was
+    noiseBedDelay/Fade gating the TONE — a naming trap that cost a full
+    bisect). The partial-motion push added ~23 Partials settings
+    (motion*/shimmer*/trade*/onset*/bandwidth*/decay*/detune/rolloff/
+    inharmonicity + the *Env amounts) and 6 noiseBed* settings on
+    AdditiveSource; none are documented and nobody has verified each one
+    audibly does something. Task, per setting: (1) one-line mechanism
+    from the code; (2) rendered A/B proof-of-effect at a sensible
+    non-default value (flag inert/dead knobs); (3) flag naming traps
+    (noiseBedDelay -> rename toneDelay/toneFade candidate — no
+    back-compat pressure); (4) deliverable = a settings reference doc in
+    docs/research/. Independent of the search lanes.
+
 60. **[build, small] Save backups for hand-work** — Matt 2026-09-07, after
     the oboe_grouped scare (repeated save-over-save, no safety net;
     pending/ is gitignored). On save, rotate a couple of prior versions
