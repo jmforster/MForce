@@ -652,8 +652,11 @@ static std::vector<std::string> s_groupPath;
 // -1 = the patch output. In-context semantics — the whole patch keeps
 // running; only the monitored signal moves. Never persisted by a save.
 static int s_listenTapNode = -1;
-// Per-group session memory for the breadcrumb Patch|Group toggle
-// (default true: drill-in listens to the group).
+// Per-group session memory for the breadcrumb Patch|Group toggle.
+// Auto-listen-on-drill-in removed 2026-09-07 (Matt: the tweak-then-listen
+// workflow almost always wants the PATCH; hearing the group's raw output
+// by surprise cost a day of "wtf changed the tone"). Listen here / the
+// breadcrumb Group button are the manual opt-in; default is Patch.
 static std::unordered_map<std::string, bool> s_groupListen;
 
 static NodeGroup* group_by_name(const std::string& name) {
@@ -13280,11 +13283,9 @@ int main(int argc, char** argv) {
                 NodeGroup* cur = group_by_name(s_groupPath.back());
                 GraphNode* gOut = cur ? group_output_node(*cur) : nullptr;
                 if (gOut) {
-                    bool listenGroup = s_groupListen.count(cur->name)
-                        ? s_groupListen[cur->name] : true;
-                    // Manual taps elsewhere override the toggle display.
-                    if (s_listenTapNode >= 0 && s_listenTapNode != gOut->id)
-                        listenGroup = false;
+                    // Display reflects the ACTUAL tap (no auto-listen means
+                    // the per-group memory no longer implies a live tap).
+                    bool listenGroup = s_listenTapNode == gOut->id;
                     float w = ImGui::CalcTextSize("Listen:  Patch | Group").x + 40.0f;
                     ImGui::SameLine(ImGui::GetContentRegionAvail().x - w);
                     ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1), "Listen:");
@@ -13363,14 +13364,10 @@ int main(int argc, char** argv) {
                 // memory, default on), or no tap at the top level. Drill-IN
                 // already handles itself at the double-click site.
                 if (!deeper) {
-                    if (s_groupPath.empty()) {
-                        s_listenTapNode = -1;
-                    } else if (NodeGroup* cur = group_by_name(s_groupPath.back())) {
-                        bool listenGroup = s_groupListen.count(cur->name)
-                            ? s_groupListen[cur->name] : true;
-                        GraphNode* gOut = group_output_node(*cur);
-                        s_listenTapNode = (listenGroup && gOut) ? gOut->id : -1;
-                    }
+                    // Backing out returns the ears to the PATCH at any level
+                    // (Matt 2026-09-07; the per-group memory used to re-tap
+                    // the parent group's output here).
+                    s_listenTapNode = -1;
                 }
                 prevPath = s_groupPath;
             }
@@ -13640,11 +13637,9 @@ int main(int argc, char** argv) {
                 for (auto& g : s_groups) {
                     if (g.editorId == hovered) {
                         s_groupPath.push_back(g.name);
-                        // Drill-in auto-selects Group (per-group memory).
-                        bool listenGroup = s_groupListen.count(g.name)
-                            ? s_groupListen[g.name] : true;
-                        GraphNode* gOut = group_output_node(g);
-                        s_listenTapNode = (listenGroup && gOut) ? gOut->id : -1;
+                        // No auto-listen on drill-in (Matt 2026-09-07): the
+                        // ears stay where they were; the breadcrumb Group
+                        // button / Listen here are the manual opt-in.
                         break;
                     }
                 }
