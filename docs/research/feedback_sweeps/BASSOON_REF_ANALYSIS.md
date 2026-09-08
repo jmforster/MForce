@@ -30,6 +30,30 @@ envelopes. (The clarinet session's seconds-mode articulation cells were
 NOT needed here — b3's re-anchored band came out softer than the
 original and regressed.)
 
+## Rounds 2–4 + the clip hunt (same day, after Matt's "raucous" verdict)
+
+Matt heard every round-1 cell as raucous ("sounds like clipping") on held
+notes, with all his fixes trading raucousness for darkness. Rounds 2–3
+falsified the in-loop and dry-leg theories (softening the reed fold or
+lowpassing legs changed nothing above 2 kHz — the excess was invariant
+to every filter). The octave-band map then showed the ref is ~a 500–1k
+bandpass both ways; a bandpass body (Formant1 mode 2 @ 550, dry leg
+muted) matched sub-2k within ±2 dB (r7).
+
+The invariant top-octave excess was then run to ground: **it WAS
+clipping.** The raw mix peaks ~5.7x full scale; at instrument volume 0.5
+soft_clip saturates on every note. The tell: every render peaked at
+exactly 0.700 = 0.999 clip ceiling x 0.7071 equal-power center pan.
+Volume 0.15 (r10): sustained top octaves drop ~30 dB, sub-2k unchanged.
+Lessons recorded:
+- **A WAV peaking at ~0.700 from the CLI means the mix is PINNED at the
+  clipper** (0.999 x pan 0.7071), not "comfortably at 70%".
+- Loop patches with hot junction clamps (this one reaches |y|=1.44) need
+  instrument.volume set for clipper headroom; every tone knob otherwise
+  doubles as a distortion knob and tuning becomes impossible.
+- Candidate housekeeping/engine item: a loud stderr warning from the
+  render path when soft_clip engages for more than a few samples.
+
 ## Open
 
 - Render ~10 dB cleaner than the ref on the matched note (breath axis).
