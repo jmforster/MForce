@@ -54,6 +54,40 @@ Lessons recorded:
 - Candidate housekeeping/engine item: a loud stderr warning from the
   render path when soft_clip engages for more than a few samples.
 
+## Plain-language lessons (Matt-requested, 2026-09-07 session end)
+
+1. **If a render's loudest moment reads exactly 0.70, the sound is being
+   squashed by the safety limiter.** (0.70 = the limiter's ceiling times
+   the stereo-center scaling.) Fix: turn instrument volume down until the
+   peak reads well under 0.7. A squashed patch adds a crackly/raspy edge
+   that NO tone knob can remove — every knob just trades loudness for
+   grit, which is why tuning feels impossible.
+2. **A slow attack on LOW notes can be a damping problem, not an
+   envelope problem.** The damp filter's keytrack decides how much energy
+   the loop keeps per cycle; at the bottom of the range the loop can be
+   so starved it takes half a second to speak. Raising the low-register
+   damp cutoff fixed a 344 ms attack down to ~50 ms with the envelopes
+   untouched. There is a knee: below a certain cutoff nothing changes,
+   above it the attack snaps fast.
+3. **The big fundamental is doing a job: it MASKS the loop's rough
+   edges.** Filtering the output down to just the "honk" band (like the
+   real bassoon's spectrum suggests) exposed crackle that was always in
+   the circulating signal but inaudible under the fundamental. Lesson:
+   add the honk as a BOOST on the full sound; don't strip the sound down
+   to the honk.
+4. **The measurements find addresses, ears pick furniture.** The
+   pipeline correctly located the honk (~500-540 Hz), the attack knee,
+   and the clipping — but every "optimized" patch lost to Matt's
+   hand-tuned one. Use the numbers to find WHICH knob and WHERE; use
+   ears to set it.
+5. **Short notes get squeezed articulation** (fraction-mode envelopes
+   scale with note length; the loop's bloom time doesn't) — the same
+   lesson as the clarinet session, and the reason duration-aware
+   articulation (backlog 64) keeps coming up.
+6. Tooling: junction curve `values` are (x,y) point PAIRS; the analysis
+   scripts must not run their sweeps on import; single-note metrics are
+   noisy — average across the phrase before believing a 3 dB claim.
+
 ## Open
 
 - Render ~10 dB cleaner than the ref on the matched note (breath axis).

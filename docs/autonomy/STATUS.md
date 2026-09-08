@@ -1,6 +1,31 @@
 # Status — open this file first
 
-Updated: 2026-09-02 (r4 verdict session, Fable 5 interactive with Matt).
+Updated: 2026-09-07 (marathon interactive session, Fable 5 with Matt).
+**09-07 session digest** (details in the docs cited): UI shipped
+copy/paste (OS clipboard, cross-instance; commit 7a1b6ac), plus fixes:
+group out-pin killed by Note-face refs, GUI crash from corrupt __output
+positions written by save-while-drilled (both 9f15efb), auto-listen on
+drill-in REMOVED (cf04155 — the ears now stay on the patch; the tap
+surprise cost a day of confusion). oboe_grouped promoted to
+library/winds/oboe_default (9d04b64, wormhole install completed).
+Reference-match sessions: CLARINET (kSfEDb1cMAw, D maj) and BASSOON
+(_t2q0lsUl4k, D maj 8vb) — full records + PLAIN-LANGUAGE LESSONS in
+docs/research/feedback_sweeps/{CLARINET,BASSOON}_REF_ANALYSIS.md and
+LOOP_PATCH_ANATOMY.md (the proto-doc for Matt's lane MDs). Headline
+lessons: WAV peak exactly 0.70 = pinned at the soft-clip (0.999 x pan
+0.7071) — volume is the un-distort knob; low-register damp choke
+masquerades as slow attack (knee near a=6-7); the fundamental MASKS loop
+hash — boost the honk, never strip to it; metrics find addresses, ears
+pick furniture (Matt's hand patches beat every optimized cell). Matt's
+verdicted keepers: clarinet c8_fast_breath_tweaked +
+c8_h130_v25_tweaked, damp res ~0.66-0.67 = HIS overblow fix
+(pending/clarinets/); bassoon_attempt still champion, he'll "honk it up"
+by hand (honk address: ~500-540 Hz formant hump, ref spectrum peaks at
+H3). Backlog 57-64 added (toggle A/B node, Crackle revisit, live-click
+incident, save backups, settings audit + housekeeping sub-lane, noiseBed
+scoping, voice tail allowance, duration-aware articulation two-tier).
+Unreproduced gremlin watch: two knot-save losses + density=2000
+reverts — capture drill in backlog 59.
 STATUS and both BACKLOGs compacted: done items are now one-line ledgers in
 the lane backlogs; run-by-run history lives in the lane `reports/` and in
 git history of these files. Stale gates fixed in the same pass (dsp 15's
