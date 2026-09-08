@@ -593,6 +593,9 @@ struct GraphNode {
         for (const auto& desc : tmp->param_descriptors())
             inputs.emplace_back(desc.name, PinKind::Input, desc.default_value, false, false, desc.hint);
         outputs.emplace_back("out", PinKind::Output);
+        // Wormhole: no tap pin (backlog 55) — tapping pure glass == tapping
+        // its source, and the mini face is just the in/out pair.
+        if (typeName == "Wormhole") return;
         outputs.emplace_back("tap", PinKind::Output);
         outputs.back().isTap = true;
     }
@@ -2560,23 +2563,14 @@ static GraphNode* group_output_node(const NodeGroup& g) {
     return last;
 }
 
-// Rename = identity change: the label is the serialized id, so the
-// paramMap stash (which references ids as "node.pin" target strings) must
-// be rewritten in the same breath. Graph wiring needs nothing — links are
-// integer pin ids. ui.positions keys regenerate from labels on save.
-static bool rename_node(GraphNode& node, const std::string& newName,
-                        std::string& err) {
-    if (newName.empty())              { err = "name is empty"; return false; }
-    if (newName.find('.') != std::string::npos)
-                                      { err = "'.' not allowed (ids embed in node.pin targets)"; return false; }
-    if (newName.rfind("__", 0) == 0)  { err = "'__' prefix is reserved"; return false; }
-    for (auto& n : s_nodes)
-        if (&n != &node && n.label == newName)
-                                      { err = "name already in use: " + newName; return false; }
-    if (group_by_name(newName))       { err = "name already in use by a group: " + newName; return false; }
-    const std::string oldName = node.label;
-    node.label = newName;
-    if (oldName != newName && s_loadedParamMap.is_object()) {
+// Rewrite every by-name reference to a node label — paramMap targets
+// ("old.pin"), {"ref"}/{"tap"} refs in extras and dynamic pins, group
+// membership. Shared by rename and Replace-with (which is a rename of the
+// surviving identity onto a new node).
+static void rewrite_label_refs(const std::string& oldName,
+                               const std::string& newName) {
+    if (oldName == newName) return;
+    if (s_loadedParamMap.is_object()) {
         std::string prefix = oldName + ".";
         std::function<void(nlohmann::json&)> fix = [&](nlohmann::json& e) {
             if (e.is_string()) {
@@ -2591,7 +2585,7 @@ static bool rename_node(GraphNode& node, const std::string& newName,
         };
         for (auto& [k, v] : s_loadedParamMap.items()) fix(v);
     }
-    if (oldName != newName) {
+    {
         // Verbatim-carried extras may embed refs ({"ref": "oldName"} inside
         // e.g. an expandRule) — rewrite them so the rename can't strand one.
         std::function<void(nlohmann::json&)> fixref = [&](nlohmann::json& j) {
@@ -2620,12 +2614,29 @@ static bool rename_node(GraphNode& node, const std::string& newName,
         // user edit after promotion.
         for (auto& n : s_nodes) fixref(n.dynamicPins);
     }
-    if (oldName != newName) {
-        // Group membership stores labels — follow the rename.
-        for (auto& g : s_groups)
-            for (auto& m : g.members)
-                if (m == oldName) m = newName;
-    }
+    // Group membership stores labels — follow the rename.
+    for (auto& g : s_groups)
+        for (auto& m : g.members)
+            if (m == oldName) m = newName;
+}
+
+// Rename = identity change: the label is the serialized id, so every
+// by-name reference must be rewritten in the same breath. Graph wiring
+// needs nothing — links are integer pin ids. ui.positions keys regenerate
+// from labels on save.
+static bool rename_node(GraphNode& node, const std::string& newName,
+                        std::string& err) {
+    if (newName.empty())              { err = "name is empty"; return false; }
+    if (newName.find('.') != std::string::npos)
+                                      { err = "'.' not allowed (ids embed in node.pin targets)"; return false; }
+    if (newName.rfind("__", 0) == 0)  { err = "'__' prefix is reserved"; return false; }
+    for (auto& n : s_nodes)
+        if (&n != &node && n.label == newName)
+                                      { err = "name already in use: " + newName; return false; }
+    if (group_by_name(newName))       { err = "name already in use by a group: " + newName; return false; }
+    const std::string oldName = node.label;
+    node.label = newName;
+    rewrite_label_refs(oldName, newName);
     mark_graph_dirty();
     return true;
 }
@@ -8406,7 +8417,47 @@ static void draw_transport_panel() {
 // Node rendering
 // ===========================================================================
 
+// Wormhole mini-face (Matt 2026-09-06: a wormhole is a teleporting WIRE,
+// not an instrument node, so a full face is wrong). One row — in pin,
+// label, out pin — no title bar, tight padding, dim violet so it can't be
+// mistaken for a sound-making node. Pair identity stays behavioral: hover
+// ghosts the hidden span, double-click jumps to the twin.
+static void draw_wormhole_node(GraphNode& node) {
+    const ImU32 bg = IM_COL32(52, 46, 74, 255);
+    ImNodes::PushColorStyle(ImNodesCol_NodeBackground, bg);
+    ImNodes::PushColorStyle(ImNodesCol_NodeBackgroundHovered, lighten(bg, 14));
+    ImNodes::PushStyleVar(ImNodesStyleVar_NodePadding, ImVec2(7.0f, 4.0f));
+    ImNodes::PushStyleVar(ImNodesStyleVar_NodeCornerRounding, 9.0f);
+
+    ImNodes::BeginNode(node.id);
+    if (!node.inputs.empty()) {
+        ImNodes::PushAttributeFlag(ImNodesAttributeFlags_EnableLinkDetachWithDragClick);
+        ImNodes::BeginInputAttribute(node.inputs[0].id);
+        ImGui::TextColored(ImVec4(0.74f, 0.68f, 0.94f, 1.0f), "%s",
+                           node.label.c_str());
+        if (node.id == s_listenTapNode) {
+            ImGui::SameLine();
+            ImGui::TextColored(ImVec4(0.5f, 0.8f, 0.5f, 1.0f), "<)))");
+        }
+        ImNodes::EndInputAttribute();
+        ImNodes::PopAttributeFlag();
+    }
+    if (!node.outputs.empty()) {
+        ImGui::SameLine();
+        ImNodes::BeginOutputAttribute(node.outputs[0].id);
+        ImGui::Dummy(ImVec2(1.0f, ImGui::GetTextLineHeight()));
+        ImNodes::EndOutputAttribute();
+    }
+    ImNodes::EndNode();
+
+    ImNodes::PopStyleVar();  // NodeCornerRounding
+    ImNodes::PopStyleVar();  // NodePadding
+    ImNodes::PopColorStyle();  // NodeBackgroundHovered
+    ImNodes::PopColorStyle();  // NodeBackground
+}
+
 static void draw_node(GraphNode& node) {
+    if (node.typeName == "Wormhole") { draw_wormhole_node(node); return; }
     ImU32 titleCol = node_title_color(node.typeName);
     ImU32 bgCol = node_bg_color(titleCol);
     // Selected slots NOT pushed: imnodes' default blue marks selection
@@ -10193,18 +10244,32 @@ static bool s_wantNodeMenu = false;
 static ImVec2 s_createMenuPos;
 static int s_contextNodeId = -1;
 
-// Helper: add a menu item that creates a registered source node
+// What a source menu item does with the chosen type: create at the click
+// point (the create menu) or replace the right-clicked node (Replace with).
+// Set by whichever popup is drawing the tree, every frame it draws.
+static std::function<void(const char*)> s_menuSourceAction;
+
+static void create_source_at_menu(const char* typeName) {
+    s_nodes.emplace_back(std::string(typeName));
+    auto& n = s_nodes.back();
+    // Identity seed — an empty knot list maps everything to 0, which reads
+    // as a broken node. Edit in the node's Properties.
+    if (std::string_view(typeName) == "CurveNode")
+        n.curveKnots = {{0.0f, 0.0f}, {1.0f, 1.0f}};
+    ImNodes::SetNodeScreenSpacePos(n.id, s_createMenuPos);
+    // A node created while drilled into a group belongs to that group.
+    if (!s_groupPath.empty())
+        if (NodeGroup* g = group_by_name(s_groupPath.back()))
+            g->members.push_back(n.label);
+    update_node_dsp(n);
+    mark_graph_dirty();
+}
+
+// Helper: add a menu item for a registered source type; the current
+// s_menuSourceAction decides what selecting it does.
 static void menu_source(const char* label, const char* typeName) {
-    if (ImGui::MenuItem(label)) {
-        s_nodes.emplace_back(std::string(typeName));
-        ImNodes::SetNodeScreenSpacePos(s_nodes.back().id, s_createMenuPos);
-        // A node created while drilled into a group belongs to that group.
-        if (!s_groupPath.empty())
-            if (NodeGroup* g = group_by_name(s_groupPath.back()))
-                g->members.push_back(s_nodes.back().label);
-        update_node_dsp(s_nodes.back());
-        mark_graph_dirty();
-    }
+    if (ImGui::MenuItem(label))
+        s_menuSourceAction(typeName);
 }
 
 // Helper: visible separator with vertical padding for submenus
@@ -10224,65 +10289,10 @@ static void menu_placeholder(const char* label) {
     ImGui::TextColored(ImVec4(0.4f, 0.4f, 0.4f, 1.0f), "%s", label);
 }
 
-static void show_create_menu() {
-    if (!ImGui::BeginPopup("CreateNodeMenu")) return;
-
-    // --- Top level quick access (Matt 2026-08-26 rearrangement) ---
-    // Note and Curve promoted from the old Performance submenu.
-    if (s_graphMode == GraphMode::PatchGraph) {
-        // A PerformNode resolves to the voice's adapter; the node-graph
-        // render path has no voice, so patch mode only.
-        if (ImGui::MenuItem("Note")) {
-            s_nodes.emplace_back(std::string(NT_PERFORM));
-            ImNodes::SetNodeScreenSpacePos(s_nodes.back().id, s_createMenuPos);
-            if (!s_groupPath.empty())
-                if (NodeGroup* g = group_by_name(s_groupPath.back()))
-                    g->members.push_back(s_nodes.back().label);
-            update_node_dsp(s_nodes.back());
-            mark_graph_dirty();
-        }
-    } else {
-        menu_placeholder("Note (patch graph only)");
-    }
-    if (ImGui::MenuItem("Curve")) {
-        s_nodes.emplace_back(std::string("CurveNode"));
-        auto& cn = s_nodes.back();
-        // Identity seed — an empty knot list maps everything to 0,
-        // which reads as a broken node. Edit in the node's Properties.
-        cn.curveKnots = {{0.0f, 0.0f}, {1.0f, 1.0f}};
-        ImNodes::SetNodeScreenSpacePos(cn.id, s_createMenuPos);
-        if (!s_groupPath.empty())
-            if (NodeGroup* g = group_by_name(s_groupPath.back()))
-                g->members.push_back(cn.label);
-        update_node_dsp(cn);
-        mark_graph_dirty();
-    }
-    menu_source("Envelope", "Envelope");
-    menu_source("Var", "VarSource");
-    menu_source("Range", "RangeSource");
-
-    if (s_graphMode == GraphMode::PatchGraph) {
-        bool hasOutput = false;
-        for (auto& n : s_nodes) if (n.typeName == NT_PATCH_OUTPUT) hasOutput = true;
-        if (!hasOutput) {
-            if (ImGui::MenuItem("Output")) {
-                s_nodes.emplace_back(std::string(NT_PATCH_OUTPUT));
-                ImNodes::SetNodeScreenSpacePos(s_nodes.back().id, s_createMenuPos);
-            }
-        } else {
-            ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "Output (exists)");
-        }
-    }
-
-    // Parameter nodes exist only in NodeGraph mode (keyboard playability);
-    // instrument patches bind via the Parameter-mapping dialog instead.
-    if (s_graphMode == GraphMode::NodeGraph && ImGui::MenuItem("Parameter")) {
-        s_nodes.emplace_back(std::string(NT_PARAMETER), "frequency");
-        ImNodes::SetNodeScreenSpacePos(s_nodes.back().id, s_createMenuPos);
-    }
-
-    ImGui::Separator();
-
+// The registry-backed source families, shared by the create menu and the
+// node context menu's Replace-with. Actions route through
+// s_menuSourceAction, set by whichever popup draws the tree.
+static void source_family_menus() {
     // --- Generators ---
     if (ImGui::BeginMenu("Generators")) {
         menu_source("Sine", "SineSource");
@@ -10396,6 +10406,95 @@ static void show_create_menu() {
         menu_source("Wormhole", "Wormhole");
         ImGui::EndMenu();
     }
+}
+
+// --- Experimental: parked / in-progress node families, mirroring the
+// main category names (Matt 2026-08-26). Physical + Algorithmic
+// WaveEvolutions moved here from their own top-level menus.
+static void experimental_family_menu() {
+    if (ImGui::BeginMenu("Experimental")) {
+        if (ImGui::BeginMenu("Generators")) {
+            menu_placeholder("(none yet)");
+            ImGui::EndMenu();
+        }
+        if (ImGui::BeginMenu("Noise")) {
+            menu_source("Layered Red", "LayeredRedNoiseSource");
+            menu_source("Murmuration", "MurmurationNoiseSource");
+            menu_source("Wander 1", "WanderNoiseSource");
+            menu_source("Wander 2", "WanderNoise2Source");
+            menu_source("Wander 3", "WanderNoise3Source");
+            ImGui::EndMenu();
+        }
+        if (ImGui::BeginMenu("Wavetable")) {
+            menu_source("Bowed String Evolution", "BowedStringEvolution");
+            menu_source("Reed Evolution", "ReedEvolution");
+            menu_source("Brass Evolution", "BrassEvolution");
+            menu_sep();
+            menu_source("Reaction-Diffusion (Gray-Scott)", "ReactionDiffusionEvolution");
+            menu_source("Sort Erosion (->saw)", "SortErosionEvolution");
+            menu_source("Cellular Automaton (Wolfram)", "CellularAutomatonEvolution");
+            menu_source("Histogram Equalize", "HistogramEqualizeEvolution");
+            menu_source("Bezier Pull (->curve)", "BezierPullEvolution");
+            menu_source("Bit Rotate (glitch)", "BitRotateEvolution");
+            ImGui::EndMenu();
+        }
+        if (ImGui::BeginMenu("Filters")) {
+            menu_placeholder("(none yet)");
+            ImGui::EndMenu();
+        }
+        ImGui::EndMenu();
+    }
+}
+
+static void show_create_menu() {
+    if (!ImGui::BeginPopup("CreateNodeMenu")) return;
+    s_menuSourceAction = create_source_at_menu;
+
+    // --- Top level quick access (Matt 2026-08-26 rearrangement) ---
+    // Note and Curve promoted from the old Performance submenu.
+    if (s_graphMode == GraphMode::PatchGraph) {
+        // A PerformNode resolves to the voice's adapter; the node-graph
+        // render path has no voice, so patch mode only.
+        if (ImGui::MenuItem("Note")) {
+            s_nodes.emplace_back(std::string(NT_PERFORM));
+            ImNodes::SetNodeScreenSpacePos(s_nodes.back().id, s_createMenuPos);
+            if (!s_groupPath.empty())
+                if (NodeGroup* g = group_by_name(s_groupPath.back()))
+                    g->members.push_back(s_nodes.back().label);
+            update_node_dsp(s_nodes.back());
+            mark_graph_dirty();
+        }
+    } else {
+        menu_placeholder("Note (patch graph only)");
+    }
+    menu_source("Curve", "CurveNode");
+    menu_source("Envelope", "Envelope");
+    menu_source("Var", "VarSource");
+    menu_source("Range", "RangeSource");
+
+    if (s_graphMode == GraphMode::PatchGraph) {
+        bool hasOutput = false;
+        for (auto& n : s_nodes) if (n.typeName == NT_PATCH_OUTPUT) hasOutput = true;
+        if (!hasOutput) {
+            if (ImGui::MenuItem("Output")) {
+                s_nodes.emplace_back(std::string(NT_PATCH_OUTPUT));
+                ImNodes::SetNodeScreenSpacePos(s_nodes.back().id, s_createMenuPos);
+            }
+        } else {
+            ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "Output (exists)");
+        }
+    }
+
+    // Parameter nodes exist only in NodeGraph mode (keyboard playability);
+    // instrument patches bind via the Parameter-mapping dialog instead.
+    if (s_graphMode == GraphMode::NodeGraph && ImGui::MenuItem("Parameter")) {
+        s_nodes.emplace_back(std::string(NT_PARAMETER), "frequency");
+        ImNodes::SetNodeScreenSpacePos(s_nodes.back().id, s_createMenuPos);
+    }
+
+    ImGui::Separator();
+
+    source_family_menus();
 
     ImGui::Separator();
 
@@ -10443,41 +10542,7 @@ static void show_create_menu() {
 
     ImGui::Separator();
 
-    // --- Experimental: parked / in-progress node families, mirroring the
-    // main category names (Matt 2026-08-26). Physical + Algorithmic
-    // WaveEvolutions moved here from their own top-level menus.
-    if (ImGui::BeginMenu("Experimental")) {
-        if (ImGui::BeginMenu("Generators")) {
-            menu_placeholder("(none yet)");
-            ImGui::EndMenu();
-        }
-        if (ImGui::BeginMenu("Noise")) {
-            menu_source("Layered Red", "LayeredRedNoiseSource");
-            menu_source("Murmuration", "MurmurationNoiseSource");
-            menu_source("Wander 1", "WanderNoiseSource");
-            menu_source("Wander 2", "WanderNoise2Source");
-            menu_source("Wander 3", "WanderNoise3Source");
-            ImGui::EndMenu();
-        }
-        if (ImGui::BeginMenu("Wavetable")) {
-            menu_source("Bowed String Evolution", "BowedStringEvolution");
-            menu_source("Reed Evolution", "ReedEvolution");
-            menu_source("Brass Evolution", "BrassEvolution");
-            menu_sep();
-            menu_source("Reaction-Diffusion (Gray-Scott)", "ReactionDiffusionEvolution");
-            menu_source("Sort Erosion (->saw)", "SortErosionEvolution");
-            menu_source("Cellular Automaton (Wolfram)", "CellularAutomatonEvolution");
-            menu_source("Histogram Equalize", "HistogramEqualizeEvolution");
-            menu_source("Bezier Pull (->curve)", "BezierPullEvolution");
-            menu_source("Bit Rotate (glitch)", "BitRotateEvolution");
-            ImGui::EndMenu();
-        }
-        if (ImGui::BeginMenu("Filters")) {
-            menu_placeholder("(none yet)");
-            ImGui::EndMenu();
-        }
-        ImGui::EndMenu();
-    }
+    experimental_family_menu();
 
     ImGui::EndPopup();
 }
@@ -10583,6 +10648,114 @@ static void ungroup(const std::string& name) {
     mark_graph_dirty();
 }
 
+// Replace a node with a fresh instance of another type, keeping wiring and
+// state matched by NAME (pin defaults, settings, dynamic pins). Wires into
+// pins the new type lacks die with the old node and are reported. The swap
+// that motivated this: WhiteNoise -> RedNoise inside a group without
+// touching the (invisible) boundary (Matt 2026-09-06) — the group interface
+// re-derives from the rewired links, so membership and boundary survive.
+static void replace_node_with(int nodeId, const char* newType) {
+    GraphNode* oldN = nullptr;
+    for (auto& n : s_nodes) if (n.id == nodeId) { oldN = &n; break; }
+    if (!oldN) return;
+    const std::string oldLabel = oldN->label;
+    const ImVec2 pos = oldN->gridPosKnown
+        ? oldN->gridPos : ImNodes::GetNodeGridSpacePos(oldN->id);
+
+    // emplace_back may reallocate s_nodes — re-find both after.
+    s_nodes.emplace_back(std::string(newType));
+    const int newId = s_nodes.back().id;
+    GraphNode* newN = nullptr;
+    oldN = nullptr;
+    for (auto& n : s_nodes) {
+        if (n.id == nodeId) oldN = &n;
+        if (n.id == newId)  newN = &n;
+    }
+    if (!oldN || !newN) return;
+    if (std::string_view(newType) == "CurveNode")
+        newN->curveKnots = {{0.0f, 0.0f}, {1.0f, 1.0f}};  // identity seed
+
+    // State copy by name: pin defaults, settings, dynamic-pin promotions.
+    for (auto& np : newN->inputs)
+        for (auto& op : oldN->inputs)
+            if (np.name == op.name) {
+                np.defaultValue = op.defaultValue;
+                if (np.constantSrc) np.constantSrc->set(op.defaultValue);
+                break;
+            }
+    for (auto& [nd, nv] : newN->settingValues)
+        for (auto& [od, ov] : oldN->settingValues)
+            if (std::string_view(nd.name) == od.name) { nv = ov; break; }
+    newN->apply_config();
+    for (auto& [setting, val] : oldN->dynamicPins.items())
+        for (auto& [nd, nv] : newN->settingValues)
+            if (setting == nd.name) { newN->dynamicPins[setting] = val; break; }
+
+    // Rewire: remap each link endpoint on the old node to the same-named
+    // pin on the new node. A link needing a pin the new type lacks stays on
+    // the old node and dies with it — reported below.
+    // Returns the new pin id, -1 for pins not on the old node, -2 when the
+    // new type has no pin of that name (nameOut filled for the report).
+    auto mapPin = [&](int pinId, std::string& nameOut) -> int {
+        for (auto& p : oldN->inputs) {
+            if (p.id != pinId) continue;
+            for (auto& np : newN->inputs) if (np.name == p.name) return np.id;
+            nameOut = p.name; return -2;
+        }
+        for (auto& p : oldN->outputs) {
+            if (p.id != pinId) continue;
+            for (auto& np : newN->outputs) if (np.name == p.name) return np.id;
+            nameOut = p.name; return -2;
+        }
+        return -1;
+    };
+    int kept = 0;
+    std::string dropped;
+    for (auto& l : s_links) {
+        std::string sName, eName;
+        const int s = mapPin(l.startPinId, sName);
+        const int e = mapPin(l.endPinId, eName);
+        if (s == -1 && e == -1) continue;   // link doesn't touch the old node
+        if (s == -2 || e == -2) {
+            if (!dropped.empty()) dropped += ", ";
+            dropped += (s == -2) ? sName : eName;
+            continue;
+        }
+        if (s >= 0) l.startPinId = s;
+        if (e >= 0) l.endPinId = e;
+        ++kept;
+    }
+
+    newN->gridPos = pos;
+    newN->gridPosKnown = true;
+    ImNodes::SetNodeGridSpacePos(newId, pos);
+
+    // The new node inherits the old identity's references: group membership,
+    // dynamic-pin refs it drives, paramMap targets, tap refs in extras.
+    rewrite_label_refs(oldLabel, newN->label);
+    if (s_listenTapNode == nodeId) s_listenTapNode = newId;
+    if (g_selectedNodeId == nodeId) g_selectedNodeId = newId;
+
+    delete_node(nodeId);                 // takes the unmappable wires with it
+    newN = nullptr;                      // delete invalidated the pointer
+    for (auto& n : s_nodes) if (n.id == newId) { newN = &n; break; }
+    if (newN) update_node_dsp(*newN);
+    update_all_dsp();
+    mark_graph_dirty();
+
+    char msg[256];
+    if (dropped.empty())
+        snprintf(msg, sizeof(msg), "Replaced %s with %s (%d wire%s kept)",
+                 oldLabel.c_str(), newN ? newN->label.c_str() : newType,
+                 kept, kept == 1 ? "" : "s");
+    else
+        snprintf(msg, sizeof(msg),
+                 "Replaced %s with %s (%d wire%s kept; dropped: %s)",
+                 oldLabel.c_str(), newN ? newN->label.c_str() : newType,
+                 kept, kept == 1 ? "" : "s", dropped.c_str());
+    transport_set_status(msg, !dropped.empty());
+}
+
 // Node context menu (right-click on existing node)
 static void show_node_context_menu() {
     if (!ImGui::BeginPopup("NodeContextMenu")) return;
@@ -10640,6 +10813,26 @@ static void show_node_context_menu() {
         // Offset position
         ImVec2 pos = ImNodes::GetNodeScreenSpacePos(node->id);
         ImNodes::SetNodeScreenSpacePos(dup.id, ImVec2(pos.x + 30, pos.y + 30));
+    }
+
+    // Replace with (Matt 2026-09-06): swap the node's type, keeping wiring
+    // and same-named state — the group-boundary-safe way to trade e.g.
+    // WhiteNoise for RedNoise. Special UI sinks/sources keep their identity.
+    if (!is_special_ui_type(node->typeName) && node->typeName != NT_PERFORM &&
+        ImGui::BeginMenu("Replace with")) {
+        const int targetId = node->id;
+        s_menuSourceAction = [targetId](const char* t) {
+            replace_node_with(targetId, t);
+        };
+        menu_source("Curve", "CurveNode");
+        menu_source("Envelope", "Envelope");
+        menu_source("Var", "VarSource");
+        menu_source("Range", "RangeSource");
+        ImGui::Separator();
+        source_family_menus();
+        ImGui::Separator();
+        experimental_family_menu();
+        ImGui::EndMenu();
     }
 
     if (ImGui::MenuItem("Delete")) {
@@ -12082,6 +12275,29 @@ int main(int argc, char** argv) {
             return 1;
         }
         printf("rename ok: %s %s->%s -> %s\n", argv[2], argv[3], argv[4], argv[5]);
+        return 0;
+    }
+
+    // Headless replace: load, replace one node (label -> new type), save.
+    // Exercises replace_node_with's wire remap + ref rewrite without a UI.
+    if (argc >= 6 && std::string(argv[1]) == "--replace") {
+        s_headless = true;
+        ImGui::CreateContext();
+        ImNodes::CreateContext();
+        register_all_sources();
+        try {
+            load_graph_from_path(argv[2]);
+            GraphNode* target = nullptr;
+            for (auto& n : s_nodes) if (n.label == argv[3]) target = &n;
+            if (!target) { fprintf(stderr, "replace: no node '%s'\n", argv[3]); return 1; }
+            replace_node_with(target->id, argv[4]);
+            save_patch_graph(argv[5]);
+        } catch (const std::exception& e) {
+            fprintf(stderr, "replace failed: %s\n", e.what());
+            return 1;
+        }
+        printf("replace ok: %s %s->%s -> %s\n  status: %s\n",
+               argv[2], argv[3], argv[4], argv[5], g_transport.statusMsg);
         return 0;
     }
 
