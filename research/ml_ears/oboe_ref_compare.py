@@ -207,4 +207,5 @@ def main():
         print(f"  attack 10-90% on matched note: ref {aR*1000 if aR else -1:.0f} ms, render {aN*1000 if aN else -1:.0f} ms")
 
 
-main()
+if __name__ == "__main__":
+    main()

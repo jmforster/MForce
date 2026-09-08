@@ -2115,6 +2115,17 @@ static void load_graph_from_path(const std::string& path) {
             if (positions.contains(key)) {
                 float x = positions[key][0].get<float>();
                 float y = positions[key][1].get<float>();
+                // Corrupt-coordinate guard: files in the wild carry garbage
+                // written by the old save-while-drilled __output bug
+                // (x=1.19e27, y=-2.4e13 observed; the latter crashed the
+                // GUI at first frame). Treat absurd positions as absent —
+                // the node re-places instead of the app dying.
+                if (!(std::fabs(x) < 1e7f && std::fabs(y) < 1e7f)) {
+                    std::fprintf(stderr, "[load] ui.positions['%s'] is "
+                                 "corrupt (%g, %g) — ignored\n",
+                                 key.c_str(), x, y);
+                    continue;
+                }
                 // App-tracked too: a node hidden inside a group at load is
                 // never submitted to imnodes until drill-in, and imnodes
                 // forgets unsubmitted nodes — gridPos is the durable copy.
@@ -2539,6 +2550,12 @@ static void group_boundary(const NodeGroup& g,
             ins.push_back({srcPin, dstPin,
                            dstN->label + "." + (dp ? dp->name : "?")});
         } else if (is_inside(srcN) && !is_inside(dstN)) {
+            // A Note face broadcasts performance fields; it is never the
+            // group's SIGNAL output. Without this, wiring any outside node
+            // to a member face's field (Additive1.frequency <- Note3's
+            // __perf_freq) made a second boundary output and nulled the
+            // group's out pin (Matt 2026-09-07, clarinet crossfade work).
+            if (srcN->typeName == NT_PERFORM) continue;
             if (std::find(outSources.begin(), outSources.end(), srcN) ==
                 outSources.end())
                 outSources.push_back(srcN);
@@ -3068,8 +3085,13 @@ static void save_patch_graph(const std::string& path, bool tapOverride = false) 
                 : ImNodes::GetNodeGridSpacePos(nodePtr->id);
             positions[nodeIds[nodePtr->id]] = {pos.x, pos.y};
         }
-        if (outputNode && (!s_headless || outputNode->gridPosKnown)) {
-            ImVec2 pos = (s_headless && outputNode->gridPosKnown)
+        // __output takes the same gridPos-first fallback as every other
+        // node: querying imnodes live while drilled into a group (Output
+        // not submitted, imnodes forgot it) wrote garbage coordinates —
+        // oboe_grouped carried x=1.19e27, clarinet_attempt y=-2.4e13, and
+        // the latter crashed the GUI on load (Matt 2026-09-07).
+        if (outputNode && (outputNode->gridPosKnown || !s_headless)) {
+            ImVec2 pos = outputNode->gridPosKnown
                 ? outputNode->gridPos
                 : ImNodes::GetNodeGridSpacePos(outputNode->id);
             positions["__output"] = {pos.x, pos.y};
@@ -12546,6 +12568,35 @@ int main(int argc, char** argv) {
         }
         printf("replace ok: %s %s->%s -> %s\n  status: %s\n",
                argv[2], argv[3], argv[4], argv[5], g_transport.statusMsg);
+        return 0;
+    }
+
+    // Headless boundary dump: per group, the derived interface (boundary
+    // inputs, outward-feeding members, the output-pin owner or NONE). The
+    // exact derivation the collapsed faces draw from — for verifying pin
+    // bugs without a GUI.
+    if (argc >= 3 && std::string(argv[1]) == "--dump-boundary") {
+        s_headless = true;
+        ImGui::CreateContext();
+        ImNodes::CreateContext();
+        register_all_sources();
+        try {
+            load_graph_from_path(argv[2]);
+        } catch (const std::exception& e) {
+            fprintf(stderr, "load failed: %s\n", e.what());
+            return 1;
+        }
+        for (auto& g : s_groups) {
+            std::vector<GroupBoundaryIn> ins;
+            std::vector<GraphNode*> outs;
+            group_boundary(g, ins, outs);
+            GraphNode* outNode = group_output_node(g);
+            printf("group %-12s ins=%d outs=%d [", g.name.c_str(),
+                   (int)ins.size(), (int)outs.size());
+            for (size_t i = 0; i < outs.size(); ++i)
+                printf("%s%s", i ? ", " : "", outs[i]->label.c_str());
+            printf("] outPin=%s\n", outNode ? outNode->label.c_str() : "NONE");
+        }
         return 0;
     }
 
