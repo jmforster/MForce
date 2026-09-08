@@ -8,6 +8,28 @@ file's git history. Tags per WORKFLOW.md. (G1)-(G4) = GOALS.md Dipsy goals.
 
 ## Active — engine/build
 
+65. **[build] Loop behavior depends on graph rooting — minimal repro
+    pair** — found 2026-09-08 during the valve1 brass probe. Two patches
+    identical except `graph.output` (patches/baselines/feedback/
+    loop_root_sensitivity_{fires,dead}.json — oboe1 + in-loop bandpass
+    1.25×f0 Q5, constant drive 0.7972, breath seeded 0.001): rooted at
+    Junction (delay tap-only → §3.3 advance list) the loop ignites and
+    settles at RMS 0.064; rooted at Delay_line (plain pull, the shipped
+    shape) it is dead to the quantization floor forever — same equations
+    should hold in both orders per feedback_loop_design.md §3.2/3.3.
+    Eliminated by experiment: compensation (compensate=false still dead),
+    delay reader count (2 vs 3 readers both dead), drive envelope, breath
+    level. The firing mode oscillates at ~659 Hz ≈ 2× the valve center,
+    not f0 — so at least one rooting sustains a mode the other cannot;
+    stock oboe1 is root-invariant (both fire). Smells adjacent to Matt's
+    earlier "Delay group > 2 targets" issue and §4.4's mid-loop preview
+    caveat, but this is voice rendering, not preview. Practical rule
+    until diagnosed: probe/measure loops ONLY at the shipped root
+    (valve2's generator already complies). Diagnose = trace one sample
+    of each order on the pair and find where the state diverges
+    (advance-list tick order? a guard returning pre-advance state? a
+    double advance §3.3 warns about?).
+
 53. **[build] Live-keyboard mono mode — patch polyphony must be able to
     override the pool floor** — Matt 2026-09-02: a flute playing fast —
     in the world the previous note is cut off instantly when the next

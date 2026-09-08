@@ -51,7 +51,7 @@ import wave
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 CLI = os.path.join(ROOT, "build", "tools", "mforce_cli", "Release",
                    "mforce_cli.exe")
-BASE = os.path.join(ROOT, "patches", "library", "winds", "oboe_default.json")
+BASE = os.path.join(ROOT, "patches", "library", "winds", "oboe1.json")
 PATCH_OUT = os.path.join(ROOT, "patches", "sweep", "feedback_valve1")
 SWEEP_OUT = os.path.join(ROOT, "renders", "dsp", "sweep", "feedback_valve1")
 AUD_OUT = os.path.join(ROOT, "renders", "dsp", "audition", "feedback_valve1")
