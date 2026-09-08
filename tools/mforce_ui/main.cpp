@@ -3049,12 +3049,18 @@ static void save_patch_graph(const std::string& path, bool tapOverride = false) 
         root["groups"] = std::move(jgroups);
     }
 
-    // Save UI layout (skip under headless round-trip — no live editor).
-    if (!s_headless) {
+    // Save UI layout. Headless (round-trip / paste harnesses): no live
+    // editor, so panning and imnodes position fallbacks are unavailable —
+    // but emit what the graph itself knows (loaded gridPos, face identity).
+    // The old skip-everything-headless shed ui.noteFaces, and on the NEXT
+    // load the face labels no longer matched, so group membership of Note
+    // faces silently died across a headless load→save cycle.
+    {
         json positions = json::object();
         for (auto* nodePtr : sorted) {
             if (nodePtr->typeName == NT_PATCH_OUTPUT || nodePtr->typeName == NT_PARAMETER)
                 continue;
+            if (s_headless && !nodePtr->gridPosKnown) continue;
             // gridPos is the durable copy — imnodes has already forgotten
             // any node currently hidden by group drill-in.
             ImVec2 pos = nodePtr->gridPosKnown
@@ -3062,13 +3068,17 @@ static void save_patch_graph(const std::string& path, bool tapOverride = false) 
                 : ImNodes::GetNodeGridSpacePos(nodePtr->id);
             positions[nodeIds[nodePtr->id]] = {pos.x, pos.y};
         }
-        if (outputNode) {
-            ImVec2 pos = ImNodes::GetNodeGridSpacePos(outputNode->id);
+        if (outputNode && (!s_headless || outputNode->gridPosKnown)) {
+            ImVec2 pos = (s_headless && outputNode->gridPosKnown)
+                ? outputNode->gridPos
+                : ImNodes::GetNodeGridSpacePos(outputNode->id);
             positions["__output"] = {pos.x, pos.y};
         }
-        root["ui"]["positions"] = positions;
-        ImVec2 pan = ImNodes::EditorContextGetPanning();
-        root["ui"]["panning"] = {pan.x, pan.y};
+        if (!positions.empty()) root["ui"]["positions"] = positions;
+        if (!s_headless) {
+            ImVec2 pan = ImNodes::EditorContextGetPanning();
+            root["ui"]["panning"] = {pan.x, pan.y};
+        }
 
         // Note-face identity: which per-field file nodes belong to which
         // editor face. UI-owned; the engine loader never reads it. Without
@@ -7530,8 +7540,10 @@ static void draw_keyboard_panel() {
     }
 
     // --- QWERTY input (gated by note mode and not typing in text field;
-    // dead in node-graph mode — play_note needs an instrument) ---
-    if (g_transport.noteMode && !kbDisabled && !ImGui::GetIO().WantTextInput) {
+    // dead in node-graph mode — play_note needs an instrument). Ctrl-chords
+    // are editor shortcuts (Ctrl+C/V copy/paste), never notes. ---
+    if (g_transport.noteMode && !kbDisabled && !ImGui::GetIO().WantTextInput &&
+        !ImGui::GetIO().KeyCtrl) {
         // Key-up gating (note-contained sound, 2026-08-13): a QWERTY key
         // HOLDS its note; release fires gate_release on the voice's
         // envelopes. Per-key bookkeeping so an octave change mid-hold still
@@ -10446,9 +10458,16 @@ static void experimental_family_menu() {
     }
 }
 
+// Forward decl — defined with the copy/paste block below (needs the savers).
+static void paste_clipboard();
+
 static void show_create_menu() {
     if (!ImGui::BeginPopup("CreateNodeMenu")) return;
     s_menuSourceAction = create_source_at_menu;
+
+    if (ImGui::MenuItem("Paste", "Ctrl+V"))
+        paste_clipboard();
+    ImGui::Separator();
 
     // --- Top level quick access (Matt 2026-08-26 rearrangement) ---
     // Note and Curve promoted from the old Performance submenu.
@@ -10756,6 +10775,225 @@ static void replace_node_with(int nodeId, const char* newType) {
     transport_set_status(msg, !dropped.empty());
 }
 
+// ===========================================================================
+// Copy/paste (Matt 2026-09-07). The clipboard carries a JSON fragment of the
+// SAVED form of the selected nodes, produced by the real saver and consumed
+// by the real loader (merge-then-reload) — so the fragment format can never
+// drift from the file format, and cross-INSTANCE paste is free because it
+// rides the OS clipboard. V1 scope: registry nodes only (no Note faces,
+// Output, Mixer/Channel, Parameter, collapsed groups); wires among the
+// selection travel, boundary refs re-resolve by name against the target
+// graph (so __perf_freq reconnects) or are dropped with a count.
+// ===========================================================================
+
+static std::string clip_stage_path(const char* name) {
+    return (std::filesystem::temp_directory_path() / name).string();
+}
+
+static void copy_selection_to_clipboard() {
+    int n = ImNodes::NumSelectedNodes();
+    if (n < 1) { transport_set_status("Copy: nothing selected", true); return; }
+    std::vector<int> ids(n);
+    ImNodes::GetSelectedNodes(ids.data());
+    std::unordered_set<std::string> labels;
+    int skipped = 0;
+    for (int id : ids) {
+        GraphNode* nd = nullptr;
+        for (auto& x : s_nodes) if (x.id == id) { nd = &x; break; }
+        if (!nd) { ++skipped; continue; }  // collapsed group face, etc.
+        if (nd->typeName == NT_PATCH_OUTPUT || nd->typeName == NT_PERFORM ||
+            nd->typeName == NT_PARAMETER || nd->typeName == NT_STEREO_MIXER ||
+            nd->typeName == NT_SOUND_CHANNEL) { ++skipped; continue; }
+        labels.insert(nd->label);
+    }
+    if (labels.empty()) {
+        transport_set_status(
+            "Copy: nothing copyable selected (Note/Output/Mixer/groups are v2)",
+            true);
+        return;
+    }
+
+    const std::string tmp = clip_stage_path("mforce_clip_stage.json");
+    if (s_graphMode == GraphMode::PatchGraph) save_patch_graph(tmp);
+    else                                      save_node_graph(tmp);
+    nlohmann::json doc;
+    try { std::ifstream f(tmp); f >> doc; } catch (...) {
+        transport_set_status("Copy failed: could not stage the graph", true);
+        return;
+    }
+
+    nlohmann::json frag;
+    frag["mforceClip"] = 1;
+    frag["mode"] = s_graphMode == GraphMode::PatchGraph ? "patch" : "node";
+    frag["nodes"] = nlohmann::json::array();
+    for (auto& jn : doc["graph"]["nodes"])
+        if (jn.contains("id") && labels.count(jn["id"].get<std::string>()))
+            frag["nodes"].push_back(jn);
+    if (doc.contains("ui") && doc["ui"].contains("positions"))
+        for (const auto& l : labels)
+            if (doc["ui"]["positions"].contains(l))
+                frag["positions"][l] = doc["ui"]["positions"][l];
+
+    ImGui::SetClipboardText(frag.dump().c_str());
+    char msg[128];
+    snprintf(msg, sizeof(msg), "Copied %d node%s%s",
+             (int)frag["nodes"].size(), frag["nodes"].size() == 1 ? "" : "s",
+             skipped ? " (uncopyable selection skipped)" : "");
+    transport_set_status(msg, false);
+}
+
+static void paste_fragment_text(const char* txt) {
+    if (!txt || !*txt) { transport_set_status("Paste: clipboard empty", true); return; }
+    nlohmann::json frag;
+    try { frag = nlohmann::json::parse(txt); } catch (...) {
+        transport_set_status("Paste: clipboard is not an MForce fragment", true);
+        return;
+    }
+    if (!frag.is_object() || frag.value("mforceClip", 0) != 1 ||
+        !frag.contains("nodes") || !frag["nodes"].is_array() ||
+        frag["nodes"].empty()) {
+        transport_set_status("Paste: clipboard is not an MForce fragment", true);
+        return;
+    }
+    const bool fragPatch = frag.value("mode", std::string("patch")) == "patch";
+    if (fragPatch != (s_graphMode == GraphMode::PatchGraph)) {
+        transport_set_status(fragPatch
+            ? "Paste: fragment is from a PATCH graph (this is a node graph)"
+            : "Paste: fragment is from a NODE graph (this is a patch graph)",
+            true);
+        return;
+    }
+
+    // Stage the current graph through the real saver; keep this pre-merge
+    // file untouched so a failed merge-load can restore it.
+    const std::string stage  = clip_stage_path("mforce_clip_stage.json");
+    const std::string merged = clip_stage_path("mforce_clip_merged.json");
+    if (s_graphMode == GraphMode::PatchGraph) save_patch_graph(stage);
+    else                                      save_node_graph(stage);
+    nlohmann::json doc;
+    try { std::ifstream f(stage); f >> doc; } catch (...) {
+        transport_set_status("Paste failed: could not stage the graph", true);
+        return;
+    }
+
+    // Identity namespace of the target: node ids, group names, face labels.
+    std::unordered_set<std::string> taken;
+    for (auto& jn : doc["graph"]["nodes"])
+        if (jn.contains("id")) taken.insert(jn["id"].get<std::string>());
+    for (auto& g : s_groups) taken.insert(g.name);
+    if (doc.contains("ui") && doc["ui"].contains("noteFaces"))
+        for (auto& fc : doc["ui"]["noteFaces"])
+            if (fc.contains("label")) taken.insert(fc["label"].get<std::string>());
+
+    // Fresh labels for the incoming nodes.
+    std::unordered_map<std::string, std::string> ren;
+    for (auto& jn : frag["nodes"]) {
+        if (!jn.contains("id")) continue;
+        const std::string old = jn["id"].get<std::string>();
+        std::string nn = old;
+        for (int k = 2; taken.count(nn); ++k) nn = old + std::to_string(k);
+        taken.insert(nn);
+        ren[old] = nn;
+    }
+
+    // Ref fixups: internal refs follow the rename; refs that resolve in the
+    // target stay (reconnect-by-name); the rest are stripped and counted.
+    int dropped = 0;
+    std::function<void(nlohmann::json&)> fix = [&](nlohmann::json& j) {
+        // 0 = not a ref object, 1 = resolved (maybe rewritten), 2 = strip
+        auto resolve = [&](nlohmann::json& obj) -> int {
+            if (!obj.is_object()) return 0;
+            for (const char* key : {"ref", "tap"}) {
+                if (obj.contains(key) && obj[key].is_string()) {
+                    const std::string t = obj[key].get<std::string>();
+                    auto r = ren.find(t);
+                    if (r != ren.end()) { obj[key] = r->second; return 1; }
+                    return taken.count(t) ? 1 : 2;
+                }
+            }
+            return 0;
+        };
+        if (j.is_object()) {
+            for (auto it = j.begin(); it != j.end();) {
+                const int r = resolve(it.value());
+                if (r == 2) { it = j.erase(it); ++dropped; continue; }
+                if (r == 0) fix(it.value());
+                ++it;
+            }
+        } else if (j.is_array()) {
+            for (auto it = j.begin(); it != j.end();) {
+                const int r = resolve(*it);
+                if (r == 2) { it = j.erase(it); ++dropped; continue; }
+                if (r == 0) fix(*it);
+                ++it;
+            }
+        }
+    };
+
+    int pasted = 0;
+    std::string firstLabel;
+    for (auto& jn : frag["nodes"]) {
+        if (!jn.contains("id")) continue;
+        const std::string old = jn["id"].get<std::string>();
+        jn["id"] = ren[old];
+        if (firstLabel.empty()) firstLabel = ren[old];
+        fix(jn);
+        doc["graph"]["nodes"].push_back(jn);
+        // Duplicate-style offset so a same-graph paste doesn't land exactly
+        // on the originals; cross-graph pastes keep their relative layout.
+        if (frag.contains("positions") && frag["positions"].contains(old) &&
+            frag["positions"][old].is_array()) {
+            const auto& p = frag["positions"][old];
+            doc["ui"]["positions"][ren[old]] =
+                {p[0].get<float>() + 60.0f, p[1].get<float>() + 60.0f};
+        }
+        ++pasted;
+    }
+    if (!pasted) { transport_set_status("Paste: fragment had no nodes", true); return; }
+
+    // Pasting while drilled in adds the new nodes to the open group.
+    if (!s_groupPath.empty() && doc.contains("groups"))
+        for (auto& g : doc["groups"])
+            if (g.value("name", std::string()) == s_groupPath.back())
+                for (auto& [o, nn] : ren) g["members"].push_back(nn);
+
+    const std::string curPath = s_currentFilePath;
+    const std::vector<std::string> drill = s_groupPath;
+    { std::ofstream f(merged); f << doc.dump(2); }
+    try {
+        load_graph_from_path(merged);
+    } catch (const std::exception& e) {
+        // The failed load may have torn the graph down — restore the
+        // pre-merge stage file, which is this session's state verbatim.
+        try { load_graph_from_path(stage); } catch (...) {}
+        s_currentFilePath = curPath;
+        char msg[256];
+        snprintf(msg, sizeof(msg), "Paste failed (graph restored): %s", e.what());
+        transport_set_status(msg, true);
+        return;
+    }
+    s_currentFilePath = curPath;
+    for (const auto& lvl : drill)
+        if (group_by_name(lvl)) s_groupPath.push_back(lvl);
+    mark_graph_dirty();
+
+    char msg[256];
+    if (dropped)
+        snprintf(msg, sizeof(msg),
+                 "Pasted %d node%s (%s...) — %d unresolvable ref%s dropped",
+                 pasted, pasted == 1 ? "" : "s", firstLabel.c_str(),
+                 dropped, dropped == 1 ? "" : "s");
+    else
+        snprintf(msg, sizeof(msg), "Pasted %d node%s (%s%s)",
+                 pasted, pasted == 1 ? "" : "s", firstLabel.c_str(),
+                 pasted > 1 ? ", ..." : "");
+    transport_set_status(msg, dropped > 0);
+}
+
+static void paste_clipboard() {
+    paste_fragment_text(ImGui::GetClipboardText());
+}
+
 // Node context menu (right-click on existing node)
 static void show_node_context_menu() {
     if (!ImGui::BeginPopup("NodeContextMenu")) return;
@@ -10813,6 +11051,16 @@ static void show_node_context_menu() {
         // Offset position
         ImVec2 pos = ImNodes::GetNodeScreenSpacePos(node->id);
         ImNodes::SetNodeScreenSpacePos(dup.id, ImVec2(pos.x + 30, pos.y + 30));
+    }
+
+    // Copy acts on the whole selection (the right-clicked node is selected
+    // by imnodes, same as Group selection below). Ctrl+C works too.
+    {
+        int nSel = ImNodes::NumSelectedNodes();
+        char lbl[32];
+        snprintf(lbl, sizeof(lbl), "Copy (%d)", std::max(nSel, 1));
+        if (ImGui::MenuItem(lbl, "Ctrl+C"))
+            copy_selection_to_clipboard();
     }
 
     // Replace with (Matt 2026-09-06): swap the node's type, keeping wiring
@@ -12301,6 +12549,30 @@ int main(int argc, char** argv) {
         return 0;
     }
 
+    // Headless paste: load a patch, put a fragment file's content on the
+    // (in-process) clipboard, run the real paste path, save. ImGui's
+    // built-in clipboard buffer serves when no GLFW backend is attached.
+    if (argc >= 5 && std::string(argv[1]) == "--paste-frag") {
+        s_headless = true;
+        ImGui::CreateContext();
+        ImNodes::CreateContext();
+        register_all_sources();
+        try {
+            load_graph_from_path(argv[2]);
+            std::ifstream ff(argv[3]);
+            std::stringstream ss; ss << ff.rdbuf();
+            paste_fragment_text(ss.str().c_str());
+            if (s_graphMode == GraphMode::PatchGraph) save_patch_graph(argv[4]);
+            else                                      save_node_graph(argv[4]);
+        } catch (const std::exception& e) {
+            fprintf(stderr, "paste-frag failed: %s\n", e.what());
+            return 1;
+        }
+        printf("paste-frag ok: %s + %s -> %s\n  status: %s\n",
+               argv[2], argv[3], argv[4], g_transport.statusMsg);
+        return 0;
+    }
+
     // Headless conversion round-trip: exercises the Edit-menu conversion.
     // Patch input → convert Patch→Node→Patch (stash-restore path); node
     // input → convert Node→Patch once (instrument-synthesis heuristic).
@@ -13335,6 +13607,15 @@ int main(int argc, char** argv) {
             g_selectedNodeId = sel;
         } else if (ImNodes::NumSelectedNodes() == 0) {
             g_selectedNodeId = -1;
+        }
+
+        // Copy/paste — Ctrl-chords only, over the editor, never while a text
+        // field owns the keyboard. (The QWERTY note keys ignore Ctrl-chords,
+        // so Ctrl+C can't also play a note.)
+        if (editorHovered && ImGui::GetIO().KeyCtrl &&
+            !ImGui::GetIO().WantTextInput) {
+            if (ImGui::IsKeyPressed(ImGuiKey_C, false)) copy_selection_to_clipboard();
+            if (ImGui::IsKeyPressed(ImGuiKey_V, false)) paste_clipboard();
         }
 
         // New links (also handles rewiring: drag from connected pin removes old link)
