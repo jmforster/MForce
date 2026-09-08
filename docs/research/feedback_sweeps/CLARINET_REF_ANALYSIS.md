@@ -47,6 +47,25 @@ noise gap →13.6 dB (ref 15.3), attack →59 ms (ref 90).
 4. The ref's 15 dB noise gap partly reflects recording/room, not only
    breath — matching it exactly may overshoot on a dry render.
 
+## Rounds 3–4 (same day): the bloom-vs-spectrum tradeoff
+
+Matt's ear report on round 2 ("all barely achieving oscillation") traced
+to three stacked causes on 0.62 s quarter notes: drive parked at bare
+ignition (+5%), Ampl_env's in-loop swell holding the loop at x0.72–0.9
+gain, and fraction-mode envelopes stretching articulation with note
+length while bloom time is absolute physics. Fixing all three
+(seconds-mode envelopes, swell removed, band re-anchored) produced
+c7_fast: **evens 5.0 / odds 3.9 dB — the best spectral match of the day**
+— but bloom is still ~400 ms at drive 1.3x threshold, and drive hot
+enough to bloom in <100 ms costs 20+ dB of even error (round 3 data).
+With this curve, drive cannot buy both. The real instrument gets 90 ms
+bloom AND a clean odd spectrum from a stiffer valve: next directed axis
+is steepening the symmetrized curve's outer segments (y-scale beyond
+|x| > 0.3) — faster level regulation at unchanged odd symmetry. Also
+lane-MD-worthy: **fraction-mode envelopes make articulation
+tempo-dependent in a loop instrument; seconds-mode is the fix** — this
+affects the whole feedback family, not just clarinets.
+
 ## Open
 
 - c4/c5 (vib/attack add-ons) measured worse than c3 on the single
