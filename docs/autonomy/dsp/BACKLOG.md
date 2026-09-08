@@ -289,11 +289,49 @@ file's git history. Tags per WORKFLOW.md. (G1)-(G4) = GOALS.md Dipsy goals.
 
 ## Design questions
 
-55. **[build, small] Wormhole face: no tap pin** — Matt 2026-09-06. Every
-    face gets a tap pin uniformly; on pure glass it's redundant (tapping a
-    pass-through == tapping its source) and clutters the minimal in/out
-    face. Skip the tap pin when typeName == "Wormhole" at face build
-    (tools/mforce_ui/main.cpp ~557/596). Queued for next build round.
+60. **[build, small] Save backups for hand-work** — Matt 2026-09-07, after
+    the oboe_grouped scare (repeated save-over-save, no safety net;
+    pending/ is gitignored). On save, rotate a couple of prior versions
+    beside the file (name~1.json, name~2.json or .bak). Cheap insurance;
+    the UI temp playback file is no help (overwritten per play).
+
+59. **[bug, unreproduced] Live-path clicking cleared by app restart** —
+    2026-09-07. After a long UI editing session on pending/oboe_grouped
+    (many save/reload cycles, Replace-with swaps, morph experiments),
+    lower octaves developed distinct clicking mid-note and on release in
+    LIVE playback. CLI renders of the same saved file: zero click events
+    (detector at 4x local diff-RMS, floor 0.02, down to C1) — file clean.
+    Quit + relaunch: clicking gone, same file. So: accumulated live-session
+    state, suspects unproven (voice pool, instrument cache after many
+    reloads, RtAudio stream health — the watchdog exists for stream death,
+    this was degradation). If it recurs, capture BEFORE restarting: does
+    File>New + reload clear it; stderr output; does the click survive into
+    a fresh patch; QWERTY vs MIDI; held vs short notes.
+
+58. **[test] Revisit Crackle — standalone AND as loop excitation** — Matt
+    2026-09-07, from the Replace-with excitation session. Crackle was the
+    only excitation sub that didn't work in the oboe loop. Suspected
+    mechanism, unverified: sparse impulses leave the loop under-fed
+    between hits with drive sitting at threshold. Revisit on its own
+    merits too (the node predates the loop family).
+
+57. **[design] Toggle/selector node for instant A/B audition** — Matt
+    2026-09-06, from the Replace-with discussion. Instead of replacing
+    WhiteNoise with RedNoise (then re-setting scalars), keep BOTH wired
+    visually to a Toggle node/connector — only one actually connected at
+    a time — and a widget flips between them to instantly hear the
+    contrast. Design questions: engine citizen (SelectorSource
+    pass-through with an index, both branches loaded) vs UI-only wiring
+    swap; click-free switching while live; 2-way vs N-way; does the
+    inactive branch render (CPU) or freeze; interaction with groups and
+    the derived boundary; save semantics (does the patch keep both
+    branches?). Wishlist — no go yet.
+
+55. **[LANDED 2026-09-06] Wormhole face: no tap pin** — shipped same day
+    with the mini-face (draw_wormhole_node: no title bar, tight padding,
+    dim violet chip — in pin | label | out pin). Verified: wormhole-pair
+    patch roundtrips through the UI and renders byte-identical to stock
+    oboe_default.
 
 56. **[design] Node ids: migrate labels-as-ids → assigned invisible ids** —
     Matt 2026-09-06, after the rename-rewrite pile grew to six subsystems
