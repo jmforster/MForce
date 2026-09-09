@@ -18,6 +18,8 @@ struct ShaperSource final : ValueSource {
     : source_(std::make_shared<ConstantSource>(0.0f)),
       drive_(std::make_shared<ConstantSource>(1.0f)),
       smoothness_(std::make_shared<ConstantSource>(0.5f)),
+      breakaway_(std::make_shared<ConstantSource>(0.6f)),
+      capture_(std::make_shared<ConstantSource>(0.0f)),
       values_{-1.0f, -1.0f, 1.0f, 1.0f} {}
 
   const char* type_name() const override { return "Shaper"; }
@@ -37,6 +39,11 @@ struct ShaperSource final : ValueSource {
       // Point-space blend toward curve B (values2/segs2); 0 = pure A =
       // byte-identical legacy path. Curve-morph spec §5.
       {"morph",      0.0f, 0.0f, 1.0f, "0-1"},
+      // Hysteresis thresholds, in post-drive curve-x units (hysteresis
+      // spec §2). breakaway ~ bow pressure; capture 0 = zero-cross-only
+      // recapture.
+      {"breakaway",  0.6f, 0.0f, 2.0f, "curve-x"},
+      {"capture",    0.0f, 0.0f, 2.0f, "curve-x"},
     };
     return descs;
   }
@@ -46,13 +53,33 @@ struct ShaperSource final : ValueSource {
     if (name == "drive")      { drive_ = std::move(src); return; }
     if (name == "smoothness") { smoothness_ = std::move(src); return; }
     if (name == "morph")      { morph_ = std::move(src); return; }
+    if (name == "breakaway")  { breakaway_ = std::move(src); return; }
+    if (name == "capture")    { capture_ = std::move(src); return; }
   }
   std::shared_ptr<ValueSource> get_param(std::string_view name) const override {
     if (name == "source")     return source_;
     if (name == "drive")      return drive_;
     if (name == "smoothness") return smoothness_;
     if (name == "morph")      return morph_;
+    if (name == "breakaway")  return breakaway_;
+    if (name == "capture")    return capture_;
     return nullptr;
+  }
+
+  std::span<const SettingDescriptor> setting_descriptors() const override {
+    // Stick/slip junction mode (hysteresis spec §3): curve A = stick,
+    // curve B = slip, one bit of state. Mutually exclusive with morph
+    // (morph is ignored while on; loader warns).
+    static constexpr SettingDescriptor descs[] = {
+      {"hysteresis", SettingType::Bool, 0.0f, 0.0f, 1.0f},
+    };
+    return descs;
+  }
+  void set_setting(std::string_view name, float v) override {
+    if (name == "hysteresis") hysteresis_ = (v != 0.0f);
+  }
+  float get_setting(std::string_view name) const override {
+    return (name == "hysteresis" && hysteresis_) ? 1.0f : 0.0f;
   }
 
   std::span<const ArrayDescriptor> array_descriptors() const override {
@@ -124,6 +151,10 @@ struct ShaperSource final : ValueSource {
     drive_->prepare(ctx, frames);
     smoothness_->prepare(ctx, frames);
     if (morph_) morph_->prepare(ctx, frames);
+    breakaway_->prepare(ctx, frames);
+    capture_->prepare(ctx, frames);
+    stuck_ = true;      // bow resting on the string at note start
+    lastSign_ = 0;
     cur_ = 0.0f;
   }
 
@@ -132,6 +163,33 @@ struct ShaperSource final : ValueSource {
     smoothness_->next();
     smoothCur_ = smoothness_->current();
     if (morph_) { morph_->next(); morphCur_ = morph_->current(); }
+    if (hysteresis_) {
+      breakaway_->next();
+      capture_->next();
+      const float ba = breakaway_->current();
+      const float cap = capture_->current();
+      if (stuck_) {
+        if (std::fabs(x) > ba) stuck_ = false;
+      } else if ((lastSign_ != 0 && x != 0.0f
+                  && (x > 0.0f) != (lastSign_ > 0))
+                 || std::fabs(x) < cap) {
+        stuck_ = true;   // sign reversal (or capture band) re-sticks —
+                         // compared against the last NONZERO sign, so a
+                         // sample landing exactly on 0 can't swallow the
+                         // crossing (loops sit at exact 0 routinely)
+      }
+      if (x > 0.0f)      lastSign_ = 1;
+      else if (x < 0.0f) lastSign_ = -1;
+      // Slip curve = values2; absent/short values2 leaves the mode inert
+      // (loader warns at load).
+      const bool useB = !stuck_ && valuesB_.size() >= 4;
+      cur_ = useB
+        ? Curve::eval_flat(valuesB_, segsB_, Curve::Domain::Linear,
+                           smoothCur_, x)
+        : Curve::eval_flat(values_, segs_, Curve::Domain::Linear,
+                           smoothCur_, x);
+      return cur_;
+    }
     cur_ = map(x);
     return cur_;
   }
@@ -190,6 +248,10 @@ struct ShaperSource final : ValueSource {
 
 private:
   std::shared_ptr<ValueSource> source_, drive_, smoothness_, morph_;
+  std::shared_ptr<ValueSource> breakaway_, capture_;
+  bool hysteresis_{false};
+  bool stuck_{true};
+  int lastSign_{0};
   float morphCur_{0.0f};
   std::vector<float> values_;
   std::vector<Curve::Seg> segs_;
