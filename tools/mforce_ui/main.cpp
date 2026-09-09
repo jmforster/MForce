@@ -5880,9 +5880,15 @@ static void draw_shape_editor() {
                 ImGui::SameLine();
             } else {
                 int ac = s_shapeEd.activeCurve;
-                if (ImGui::RadioButton("A", ac == 0)) s_shapeEd.activeCurve = 0;
+                // Hysteresis mode reuses the A/B workflow; the curves ARE
+                // the stick and slip curves, so say so (hysteresis spec §3).
+                const bool hyst = node.dspSource
+                    && node.dspSource->get_setting("hysteresis") != 0.0f;
+                if (ImGui::RadioButton(hyst ? "Stick" : "A", ac == 0))
+                    s_shapeEd.activeCurve = 0;
                 ImGui::SameLine();
-                if (ImGui::RadioButton("B", ac == 1)) s_shapeEd.activeCurve = 1;
+                if (ImGui::RadioButton(hyst ? "Slip" : "B", ac == 1))
+                    s_shapeEd.activeCurve = 1;
                 ImGui::SameLine();
                 if (ImGui::SmallButton("Remove Morph"))
                     ImGui::OpenPopup("Remove morph?");
