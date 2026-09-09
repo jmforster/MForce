@@ -756,6 +756,12 @@ Tags per WORKFLOW.md.
 One line each; full text in run reports + this file's git history.
 Fall-cleaning moves (2026-09-14) are marked → IDEAS or → ledger.
 
+- Null-gate pre-existing FAIL pair (09-08, cited in item 66) — closed 09-08:
+  FormantSequence1.json migrated from the inline-formant FormantSpectrum era
+  to Formant-node refs (FSTest pattern) + given the standard smoke-test score
+  and `frequency` paramMap, renders again; NATest1.json retired to
+  patches/old/ — its NoiseAttackFilter type exists nowhere (current engine,
+  git history, or legacy C# repos), nothing left to test.
 - 1. fable1 thread + autonomy scaffold committed — early runs.
 - 2. Iowa motion-param derivation — superseded; folded into item 3.
 - 3. CMA-ES endgame — → IDEAS 2026-09-14 (parked pending re-scope).
