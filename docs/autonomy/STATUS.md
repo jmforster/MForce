@@ -1,6 +1,40 @@
 # Status — open this file first
 
-Updated: 2026-09-07 (marathon interactive session, Fable 5 with Matt).
+Updated: 2026-09-08 (marathon interactive session, Fable 5 with Matt; he
+may be away ~4 days — Fable usage limit — check powered-by at session
+start per the model-switch protocol).
+**09-08 session digest — the junction-state day.** Library went NUMBERED
+(oboe1/2, flute1, bassoon1 replace _defaults; f330497). Brass probes:
+series valve (round 1) and drive-coupled valve (rounds 2-4, valve2) both
+FAILED to leave the reed basin — ceiling named: memoryless single-input
+junction = reed family, Matt accepted ("we can make any reed you can
+imagine"); verdict log docs/research/feedback_sweeps/VALVE_VERDICTS.md.
+Two engine bugs found with repro pairs and FIXED: backlog 66 compensation
+walk (param-pin descent + member-cap eviction; walk now inputs-only, cap
+16; 4c34acf) — 65 (root-sensitivity, ±1-sample ordering ambiguity)
+remains OPEN with baselines. Backlog 67 NEW: loader should warn on
+unknown keys (silent stale-binary audition trap, cost a confused round).
+**HYSTERESIS JUNCTION SHIPPED same day as spec** (specs 2026-09-08-
+hysteresis-junction + junction-2d; plan + tasks f556358/3586751/dc8dd21/
+48c70fa): Shaper stick/slip mode, breakaway/capture pins, Stick/Slip
+editor labels, null gate 195 clean, open-loop state-machine test. Bow
+round 1 = double-slip buzz (no bow); round 2 added BOW-VELOCITY BIAS
+(Bow_bias env + Bow_sum; drive PINNED 1.0 — upstream bias gets
+drive-scaled into clamps; loop gain via Ampl_env maxValue) → measured
+mode-locking chain (sub-octave period-2 cycle → damp x3 → sawtooth
+corners → **delay ratio 0.5 lands it ON PITCH: peak/f0 0.994 C3..C7,
+1.97 corners/period**, first bowed-mechanism oscillation at pitch;
+a3b4ef7). Matt's verdict on those cells: "syn-drum attached to an oboe"
+— mechanism right, character wrong; suspects logged in
+audition/hysteresis_bow2/README (bias-step percussion, slow bloom,
+wind front end). NEXT: bow round 3 from those suspects; 2D junction
+gate = zero-code morph-pin probe (spec §2), Matt-gated. Awaiting Matt:
+both bow queues + valve2 queue verdicts. Loose end: piano_default /
+cello_full_range / viola_default modified in worktree, Matt says not
+his (recent) doing — uncommitted, uninvestigated. CLAUDE.md gained the
+no-wrap-ups hard rule (ab21d1d).
+
+Previous update: 2026-09-07 (marathon interactive session, Fable 5 with Matt).
 **09-07 session digest** (details in the docs cited): UI shipped
 copy/paste (OS clipboard, cross-instance; commit 7a1b6ac), plus fixes:
 group out-pin killed by Note-face refs, GUI crash from corrupt __output
