@@ -1,5 +1,13 @@
 # MForce project instructions
 
+## Session style (hard rule — Matt has had to ask repeatedly)
+- NEVER wrap up. No day summaries ("where the day nets out/ended up"), no
+  closure framing ("X awaits whenever you're done"), no offers to stop or
+  defer to "next session". Matt works on MForce alongside other things and
+  decides himself when a day ends — sometimes that's noon, sometimes not.
+- Reports state results and the next live threads, then stop. Summarize
+  STATE, never elapsed time or the session as an arc.
+
 ## Commands
 - Use literal paths, not shell variables ($CMAKE, $p, etc.)
 - Avoid for/while loops in bash commands, chain independent commands with && instead
