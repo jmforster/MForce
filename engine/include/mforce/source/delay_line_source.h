@@ -129,16 +129,24 @@ struct DelayLineSource final : ValueSource {
 
 private:
   static constexpr int kMaxWalk = 64;
-  static constexpr int kMaxMembers = 8;
+  // 8 proved too small the moment a loop grew a valve chain (backlog 66b:
+  // Damp_lpf silently evicted, −85¢). 16 costs 64 bytes per delay.
+  static constexpr int kMaxMembers = 16;
 
   // DFS from a pin toward the tap that closes the cycle back to this node.
   // Returns true when this subtree reaches such a tap; every non-Ref node on
   // a reaching path records itself in members_ (shared_ptr, so a UI rewire
   // between walks can't dangle the render thread). Plain RefSource wrappers
   // (shared-consumer guards) are transparent: the wrapped node is walked and
-  // records itself. A subtree that never reaches the tap — e.g. a drive
-  // envelope — contributes nothing, which is correct: its lag is not in the
-  // signal cycle.
+  // records itself.
+  //
+  // The walk follows INPUT pins only (backlog 66, 2026-09-08). Signal flows
+  // through inputs; params (drive, morph, amplitude, cutoff…) are control.
+  // A control chain that happens to read the loop — valve2's
+  // Junction.drive → valve → sum → tap — delays no signal, but the old walk
+  // recorded its nodes as members, compensating phase that isn't in the
+  // cycle (r090 +300¢ sharp) and overflowing the member cap until real
+  // members were silently evicted (r100 −85¢ flat, Damp_lpf dropped).
   bool walk_to_tap(const std::shared_ptr<ValueSource>& sp,
                    ValueSource** visited, int& nVisited) {
     ValueSource* n = sp.get();
@@ -152,10 +160,6 @@ private:
     if (nVisited >= kMaxWalk) return false;
     visited[nVisited++] = n;
     bool found = false;
-    for (const auto& d : n->param_descriptors()) {
-      auto child = n->get_param(d.name);
-      if (child && walk_to_tap(child, visited, nVisited)) found = true;
-    }
     for (const auto& d : n->input_descriptors()) {
       auto child = n->get_param(d.name);
       if (child && walk_to_tap(child, visited, nVisited)) found = true;

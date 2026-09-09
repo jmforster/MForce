@@ -120,19 +120,14 @@ def make_patch(base, ratio, res, k):
     at = next(i for i, n in enumerate(arr) if n["id"] == "Junction")
     arr[at:at] = new
     nodes_by_id(patch)["Junction"]["params"]["drive"] = {"ref": "DriveMul"}
-    # Close the loop with a DIRECT tap, not the wormhole pair. The delay's
-    # compensation walk (walk_to_tap) also descends Junction.drive into
-    # this valve chain, and its kMaxMembers=8 slots fill with control-path
-    # nodes until Damp_lpf is silently evicted — measured ~85c flat with
-    # wormholes in (backlog 66). Dropping the two wormholes frees the
-    # slots so every real loop member is compensated again. Cost: the tap
-    # edge is display-invisible in the UI (the very thing wormholes fix).
-    nodes_by_id(patch)["Drive_inputs"]["params"]["source2"] = \
-        {"tap": "Delay_line"}
-    arr[:] = [n for n in arr if n["id"] not in ("Wormhole", "Wormhole2")]
-    for grp in patch.get("groups", []):
-        grp["members"] = [m for m in grp["members"]
-                          if m not in ("Wormhole", "Wormhole2")]
+    # Stock wormhole closure stays (UI-visible loop wiring). The direct-tap
+    # workaround that briefly lived here is obsolete: the backlog-66 engine
+    # fix (walk_to_tap follows input pins only, kMaxMembers 16) keeps the
+    # valve chain out of the compensation members, so wormholes no longer
+    # push real members past the cap. Residual: all valve2 cells run ~1
+    # sample of uncompensated loop latency vs control (-11c at C4 to -74c
+    # at C7, the consumer-ordering ambiguity noted in backlog 65/66) —
+    # uniform across cells, so A/B within the round is unaffected.
     patch["ui"]["noteFaces"].append(
         {"fields": {"frequency": "__perf_frequency3"}, "label": "Note4"})
     patch["ui"]["positions"].update(NEW_POS)

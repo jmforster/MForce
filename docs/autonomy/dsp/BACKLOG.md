@@ -47,13 +47,22 @@ file's git history. Tags per WORKFLOW.md. (G1)-(G4) = GOALS.md Dipsy goals.
     wormhole nodes recorded first, Damp_lpf fell off the end and its
     ~7.4 samples at C4 went uncompensated → the whole r100 column
     measured ~85 cents flat (hidden under 0.015 pitch vibrato in run 1;
-    exposed at 0.003). At minimum the cap overflow should warn; better,
-    raise it or record biggest-contributors-first. Tool-level workaround
-    shipped in gen_feedback_valve2.py: close the loop with a direct tap
-    instead of the wormhole pair (frees 2 slots, near-zero control-path
-    phase at valve center; verified −16c vs control −11c) — at the cost
-    of the display-invisible tap edge wormholes exist to fix. Sibling
-    finding: backlog 65 (rooting sensitivity, same session).
+    exposed at 0.003).
+    **(a)+(b) FIXED same day** (delay_line_source.h): walk follows
+    input_descriptors only (signal flows through inputs; drive/morph/
+    amplitude/cutoff are control) and kMaxMembers 8→16. Null gate
+    195-patch before/after: byte-identical (2 pre-existing FAILs match).
+    Verified on the repro cells: r090 +389c → −22c; wormhole closure and
+    direct tap now tune identically, so valve2's direct-tap workaround
+    was reverted (wormholes back, UI wiring visible again).
+    **REMAINING (open, shared root with 65):** every valve2 cell still
+    runs exactly ONE uncompensated sample of loop latency vs control —
+    −11c at C4 scaling to −74c at C7, precisely 1/period at every note.
+    Mechanism: the valve chain adds a second consumer to Drive_inputs,
+    and the shared-consumer guard/advance ordering shifts the tap read
+    by one sample. comp=1 assumes the tap is the only z⁻¹; sometimes
+    it's two. This ±1-sample ordering ambiguity is very likely the same
+    root as 65's rooting sensitivity — diagnose them together.
 
 53. **[build] Live-keyboard mono mode — patch polyphony must be able to
     override the pool floor** — Matt 2026-09-02: a flute playing fast —
