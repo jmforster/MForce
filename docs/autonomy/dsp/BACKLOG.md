@@ -64,6 +64,17 @@ file's git history. Tags per WORKFLOW.md. (G1)-(G4) = GOALS.md Dipsy goals.
     it's two. This ±1-sample ordering ambiguity is very likely the same
     root as 65's rooting sensitivity — diagnose them together.
 
+67. **[build, small] Loader: warn on unknown params/settings keys** —
+    2026-09-08: Matt auditioned hysteresis_bow1 patches in a UI session
+    predating the hysteresis build; the old loader silently ignored the
+    unknown `hysteresis` key and played the patches as plain stick-curve
+    shapers — a silent feature downgrade that cost a confused audition
+    round. The generic settings/params loops skip unrecognized keys with
+    no message. Wanted: one stderr line per unknown key ("[load]
+    Shaper: unknown param 'hysteresis' — engine older than patch?").
+    Cheap, and it converts every future old-binary/new-patch mismatch
+    from a mystery into a log line.
+
 53. **[build] Live-keyboard mono mode — patch polyphony must be able to
     override the pool floor** — Matt 2026-09-02: a flute playing fast —
     in the world the previous note is cut off instantly when the next
