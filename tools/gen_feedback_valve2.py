@@ -88,6 +88,10 @@ def nodes_by_id(patch):
 def make_patch(base, ratio, res, k):
     """ratio None = stock topology (control / stock probe)."""
     patch = copy.deepcopy(base)
+    # Matt 09-08: pitch vibrato "wildly out of control" in this round —
+    # dial 0.015 -> 0.003 EVERYWHERE (control included, so A/B stays
+    # clean). Library oboe1 untouched.
+    nodes_by_id(patch)["Pitch_vibrato"]["params"]["depth"] = 0.003
     if ratio is None:
         return patch
     arr = patch["graph"]["nodes"]
@@ -116,6 +120,19 @@ def make_patch(base, ratio, res, k):
     at = next(i for i, n in enumerate(arr) if n["id"] == "Junction")
     arr[at:at] = new
     nodes_by_id(patch)["Junction"]["params"]["drive"] = {"ref": "DriveMul"}
+    # Close the loop with a DIRECT tap, not the wormhole pair. The delay's
+    # compensation walk (walk_to_tap) also descends Junction.drive into
+    # this valve chain, and its kMaxMembers=8 slots fill with control-path
+    # nodes until Damp_lpf is silently evicted — measured ~85c flat with
+    # wormholes in (backlog 66). Dropping the two wormholes frees the
+    # slots so every real loop member is compensated again. Cost: the tap
+    # edge is display-invisible in the UI (the very thing wormholes fix).
+    nodes_by_id(patch)["Drive_inputs"]["params"]["source2"] = \
+        {"tap": "Delay_line"}
+    arr[:] = [n for n in arr if n["id"] not in ("Wormhole", "Wormhole2")]
+    for grp in patch.get("groups", []):
+        grp["members"] = [m for m in grp["members"]
+                          if m not in ("Wormhole", "Wormhole2")]
     patch["ui"]["noteFaces"].append(
         {"fields": {"frequency": "__perf_frequency3"}, "label": "Note4"})
     patch["ui"]["positions"].update(NEW_POS)

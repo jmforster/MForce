@@ -30,6 +30,31 @@ file's git history. Tags per WORKFLOW.md. (G1)-(G4) = GOALS.md Dipsy goals.
     (advance-list tick order? a guard returning pre-advance state? a
     double advance §3.3 warns about?).
 
+66. **[build] Delay compensation walk counts control-path members and
+    silently evicts real ones** — found 2026-09-08 in valve2, two defects
+    in DelayLineSource::walk_to_tap (delay_line_source.h), both verified
+    by measurement against analytic phase numbers:
+    (a) The walk descends param_descriptors as well as input_descriptors,
+    so a CONTROL path that reaches the tap (valve2: Junction.drive →
+    DriveMul → LipOpen → Valve → Drive_inputs → tap) records its nodes as
+    loop members and their phase_delay_at(f0) gets compensated even
+    though drive delays no signal. A bandpass valve at 0.9×f0 "reports"
+    ±30 samples → the r090 column measured +237..+303 cents sharp.
+    Likely fix direction: walk INPUTS only (signal flows through inputs;
+    drive/frequency/amplitude are control) — needs a check that no
+    existing loop compensates through a param pin before changing.
+    (b) kMaxMembers = 8 fills silently: with the six control-path +
+    wormhole nodes recorded first, Damp_lpf fell off the end and its
+    ~7.4 samples at C4 went uncompensated → the whole r100 column
+    measured ~85 cents flat (hidden under 0.015 pitch vibrato in run 1;
+    exposed at 0.003). At minimum the cap overflow should warn; better,
+    raise it or record biggest-contributors-first. Tool-level workaround
+    shipped in gen_feedback_valve2.py: close the loop with a direct tap
+    instead of the wormhole pair (frees 2 slots, near-zero control-path
+    phase at valve center; verified −16c vs control −11c) — at the cost
+    of the display-invisible tap edge wormholes exist to fix. Sibling
+    finding: backlog 65 (rooting sensitivity, same session).
+
 53. **[build] Live-keyboard mono mode — patch polyphony must be able to
     override the pool floor** — Matt 2026-09-02: a flute playing fast —
     in the world the previous note is cut off instantly when the next
