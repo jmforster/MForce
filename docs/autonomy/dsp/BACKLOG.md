@@ -65,11 +65,11 @@ file's git history. Tags per WORKFLOW.md. (G1)-(G4) = GOALS.md Dipsy goals.
     root as 65's rooting sensitivity — diagnose them together.
 
 67. **[build, small] Loader: warn on unknown params/settings keys** —
-    2026-09-08: Matt auditioned hysteresis_bow1 patches in a UI session
-    predating the hysteresis build; the old loader silently ignored the
-    unknown `hysteresis` key and played the patches as plain stick-curve
-    shapers — a silent feature downgrade that cost a confused audition
-    round. The generic settings/params loops skip unrecognized keys with
+    2026-09-08: filed during a confused audition round that I first
+    blamed on a stale UI binary — WRONGLY (Matt was on a fresh launch;
+    correction 09-08 late). The feature itself remains right: an old
+    binary loading a newer patch silently ignores unknown keys and
+    plays a silently downgraded patch, and nobody can tell. The generic settings/params loops skip unrecognized keys with
     no message. Wanted: one stderr line per unknown key ("[load]
     Shaper: unknown param 'hysteresis' — engine older than patch?").
     Cheap, and it converts every future old-binary/new-patch mismatch

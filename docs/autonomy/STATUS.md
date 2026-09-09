@@ -13,7 +13,7 @@ Two engine bugs found with repro pairs and FIXED: backlog 66 compensation
 walk (param-pin descent + member-cap eviction; walk now inputs-only, cap
 16; 4c34acf) — 65 (root-sensitivity, ±1-sample ordering ambiguity)
 remains OPEN with baselines. Backlog 67 NEW: loader should warn on
-unknown keys (silent stale-binary audition trap, cost a confused round).
+unknown keys (would make old-binary/new-patch mismatches self-announcing; NOTE: the 09-08 confusion it was filed under turned out NOT to be a stale binary - Matt was on a fresh launch and the feature is just invisible by design).
 **HYSTERESIS JUNCTION SHIPPED same day as spec** (specs 2026-09-08-
 hysteresis-junction + junction-2d; plan + tasks f556358/3586751/dc8dd21/
 48c70fa): Shaper stick/slip mode, breakaway/capture pins, Stick/Slip
