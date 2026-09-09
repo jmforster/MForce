@@ -454,6 +454,18 @@ static void wire_params_generic(
                         "Shaper: segs2 segment types must match segs");
             }
         }
+        // Hysteresis invariants (hysteresis spec §3). The generic
+        // settings pass above has already applied the flag.
+        if (src.get_setting("hysteresis") != 0.0f) {
+            if (params.contains("morph"))
+                std::fprintf(stderr,
+                    "[load] Shaper: morph is ignored while hysteresis "
+                    "is on\n");
+            if (vals2.empty())
+                std::fprintf(stderr,
+                    "[load] Shaper: hysteresis without values2 is "
+                    "inert (no slip curve)\n");
+        }
     }
     // ExpandRule (PartialGroups) — a struct, not a pin/setting/array, so it isn't
     // covered by the loops above. Consumed only by Partials hosts. Two JSON forms:
