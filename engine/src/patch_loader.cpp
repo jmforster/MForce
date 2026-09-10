@@ -528,7 +528,7 @@ static void add_formant(
 // retrigger it after a UI edit. A pointer into the voice-loop stack frame
 // would dangle.
 struct PerformContext {
-    std::shared_ptr<ValueSource> freqOut, velOut, wheelOut, pressOut;
+    std::shared_ptr<ValueSource> freqOut, velOut, wheelOut, pressOut, durOut;
 };
 
 // Forward declarations for subgraph extraction / rebuild helpers (defined
@@ -718,8 +718,10 @@ static GraphResult build_graph(
             else if (field == "velocity")  valueNodes[id] = perf->velOut;
             else if (field == "wheel")     valueNodes[id] = perf->wheelOut;
             else if (field == "pressure")  valueNodes[id] = perf->pressOut;
+            else if (field == "duration")  valueNodes[id] = perf->durOut;
             else throw std::runtime_error("PerformNode '" + id + "': unknown field '"
-                + field + "' (expected frequency|velocity|wheel|pressure)");
+                + field
+                + "' (expected frequency|velocity|wheel|pressure|duration)");
         }
         else if (type == "SegmentSource") {
             std::vector<float> values;
@@ -1369,7 +1371,10 @@ static PerformContext make_perform_context(PitchedInstrument::VoiceGraph& vg,
                                                PerformOut::Field::Wheel);
     vg.pressOut = std::make_shared<PerformOut>(vg.performSource,
                                                PerformOut::Field::Pressure);
-    return PerformContext{vg.freqOut, vg.velOut, vg.wheelOut, vg.pressOut};
+    vg.durOut   = std::make_shared<PerformOut>(vg.performSource,
+                                               PerformOut::Field::Duration);
+    return PerformContext{vg.freqOut, vg.velOut, vg.wheelOut, vg.pressOut,
+                          vg.durOut};
 }
 
 // Convert the legacy paramMap, if the patch carries one. Runs after the graph

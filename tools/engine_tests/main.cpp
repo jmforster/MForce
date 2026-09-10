@@ -145,16 +145,19 @@ static void run_stage_nominal_tests() {
 
 static void run_perform_source_tests() {
     auto ps = std::make_shared<PerformSource>();
-    ps->set_note(220.0f, 0.9f, 48000);
+    ps->set_note(220.0f, 0.9f, 48000, 1.0f);
     PerformOut f(ps, PerformOut::Field::Frequency);
     PerformOut v(ps, PerformOut::Field::Velocity);
-    f.next(); v.next();
+    PerformOut d(ps, PerformOut::Field::Duration);
+    f.next(); v.next(); d.next();
     CHECK_NEAR(f.current(), 220.0f, 1e-6f);
     CHECK_NEAR(v.current(), 0.9f, 1e-6f);
-    ps->set_note(440.0f, 0.5f, 24000);      // re-strike: adapters follow
-    f.next(); v.next();
+    CHECK_NEAR(d.current(), 1.0f, 1e-6f);
+    ps->set_note(440.0f, 0.5f, 24000, 0.5f); // re-strike: adapters follow
+    f.next(); v.next(); d.next();
     CHECK_NEAR(f.current(), 440.0f, 1e-6f);
     CHECK_NEAR(v.current(), 0.5f, 1e-6f);
+    CHECK_NEAR(d.current(), 0.5f, 1e-6f);   // backlog 64 Tier 1
     CHECK(ps->note().durSamples == 24000);
 
     // Chain: PerformOut freq -> LogX CurveNode, re-evaluates on re-strike

@@ -24,6 +24,11 @@ struct NoteState {
   float frequency{440.0f};   // Hz, base (bend articulates on top — P3)
   float velocity{0.8f};      // 0..1
   int   durSamples{0};       // actual (Piece) or nominal (Live)
+  // Seconds view of durSamples, set at note-on (backlog 64 Tier 1:
+  // duration-aware articulation — curves/dynamicPins key on this like
+  // frequency). Score playback = the note's actual length; live play =
+  // the caller's nominal (the UI's fixed-duration header setting).
+  float durSeconds{0.0f};
 };
 
 // P3 liveness: the voice owns an explicit per-sample clock. tick() advances
@@ -37,10 +42,12 @@ struct NoteState {
 class PerformSource {
 public:
   void set_note(float freqHz, float velocity, int durSamples,
+                float durSeconds = 0.0f,
                 std::shared_ptr<Envelope> bend = nullptr) {
     note_.frequency  = freqHz;
     note_.velocity   = velocity;
     note_.durSamples = durSamples;
+    note_.durSeconds = durSeconds;
     bend_            = std::move(bend);
     bendSemis_       = 0.0f;
   }
@@ -89,7 +96,7 @@ private:
 // between tick() calls. Idempotent next() — safe for many consumers
 // without RefSource wrapping.
 struct PerformOut final : ValueSource {
-  enum class Field { Frequency, Velocity, Wheel, Pressure };
+  enum class Field { Frequency, Velocity, Wheel, Pressure, Duration };
   PerformOut(std::shared_ptr<PerformSource> ps, Field f)
       : ps_(std::move(ps)), field_(f) {}
 
@@ -114,6 +121,7 @@ private:
       case Field::Velocity:  return ps_->note().velocity;
       case Field::Wheel:     return ps_->wheel();
       case Field::Pressure:  return ps_->pressure();
+      case Field::Duration:  return ps_->note().durSeconds;
     }
     return 0.0f;
   }

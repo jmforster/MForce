@@ -107,7 +107,8 @@ struct PitchedInstrument final : Instrument {
     // Shared leaf adapters (frequency articulates the bend as of P3 —
     // the PitchBendSource graft and its BendSwap machinery are retired;
     // plan_perform_source_p3.md T1).
-    std::shared_ptr<ValueSource>   freqOut, velOut, wheelOut, pressOut;
+    std::shared_ptr<ValueSource>   freqOut, velOut, wheelOut, pressOut,
+                                   durOut;
     std::vector<PushBinding>       pushBindings;
     // Loop tails consumed only by tap edges (feedback_loop_design.md §3.3):
     // never reached by the pull, ticked once per sample AFTER the root pull
@@ -195,7 +196,8 @@ struct PitchedInstrument final : Instrument {
   // bend graft on the swap targets. Push deliveries happen BEFORE
   // vg.source->prepare — settings rebuild per-note state there.
   void apply_note_bindings(VoiceGraph& vg, float freq, float velocity,
-                           int durSamples, const PitchCurve* curve) {
+                           int durSamples, float durSeconds,
+                           const PitchCurve* curve) {
     if (vg.performSource) {
       // P3: the bend rides the PerformSource itself — .frequency
       // articulates base * 2^(bend(t)/12), advanced by tick() from the
@@ -208,7 +210,8 @@ struct PitchedInstrument final : Instrument {
         bend = compile_pitch_curve(*curve, sampleRate);
         bend->prepare(RenderContext{sampleRate}, durSamples);
       }
-      vg.performSource->set_note(freq, velocity, durSamples, std::move(bend));
+      vg.performSource->set_note(freq, velocity, durSamples, durSeconds,
+                                 std::move(bend));
     }
 
     // Push deliveries evaluate the chain ONCE at note-on (Setup), so a bend
@@ -236,7 +239,7 @@ struct PitchedInstrument final : Instrument {
     float freq = note_to_freq(noteNumber);
     int durSamples = int(duration * float(sampleRate));
 
-    apply_note_bindings(vg, freq, velocity, durSamples, curve);
+    apply_note_bindings(vg, freq, velocity, durSamples, duration, curve);
 
     float boost = hiBoost > 0.0f
         ? (std::log10(std::max(freq, 100.0f)) - 2.0f) * hiBoost
@@ -258,7 +261,7 @@ struct PitchedInstrument final : Instrument {
     float freq = note_to_freq(noteNumber);
     int durSamples = int(duration * float(sampleRate));
 
-    apply_note_bindings(vg, freq, velocity, durSamples, curve);
+    apply_note_bindings(vg, freq, velocity, durSamples, duration, curve);
 
     // Frequency-dependent brightness compensation
     float boost = hiBoost > 0.0f
