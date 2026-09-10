@@ -570,6 +570,10 @@ struct GraphNode {
             outputs.emplace_back("velocity",  PinKind::Output, 0.8f);
             outputs.emplace_back("wheel",     PinKind::Output, 0.0f);
             outputs.emplace_back("pressure",  PinKind::Output, 0.0f);
+            // Backlog 64 Tier 1: the note's length in SECONDS, known at
+            // note-on for score playback and fixed-duration live mode;
+            // the patch reacts via curves/dynamicPins like any field.
+            outputs.emplace_back("duration",  PinKind::Output, 1.0f);
             return;
         }
 
@@ -4709,6 +4713,12 @@ struct KeyboardState {
     float duration = 0.5f;
     float velocity = 0.8f;
     bool sustain = false;
+    // Live mode (Matt 2026-09-10): checked = QWERTY holds until key-up
+    // (current behavior) and the on-screen keys hold under the mouse;
+    // unchecked = BOTH fire fixed-Duration scheduled notes (the header
+    // Duration), so duration-aware patches (backlog 64 Tier 1) get the
+    // real length at note-on and can be tested from the keyboard.
+    bool live = true;
 };
 static KeyboardState g_keyboard;
 
@@ -7522,6 +7532,15 @@ static void draw_keyboard_panel() {
     ImGui::SameLine();
     ImGui::Spacing(); ImGui::SameLine();
 
+    ImGui::Checkbox("Live", &g_keyboard.live);
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Checked: QWERTY and on-screen keys hold until\n"
+                          "key/mouse release. Unchecked: both fire fixed\n"
+                          "Duration notes (tests duration-aware patches).");
+
+    ImGui::SameLine();
+    ImGui::Spacing(); ImGui::SameLine();
+
     ImGui::Text("Velocity");
     ImGui::SameLine();
     ImGui::SetNextItemWidth(80.0f);
@@ -7589,8 +7608,18 @@ static void draw_keyboard_panel() {
             if (ImGui::IsKeyPressed(s_qwertyMap[i].key, false)) {
                 int absNote = g_keyboard.octave * 12 + s_qwertyMap[i].offset;
                 if (absNote < 0) continue;   // lower zone below MIDI 0 at low octaves
-                s_qwertyHeldNote[i] = absNote;
-                play_note_held(float(absNote), g_transport.velocity, g_keyboard.duration);
+                if (g_keyboard.live) {
+                    s_qwertyHeldNote[i] = absNote;
+                    play_note_held(float(absNote), g_transport.velocity,
+                                   g_keyboard.duration);
+                } else {
+                    // Live unchecked (Matt 2026-09-10): fixed-Duration
+                    // scheduled note, key-up ignored — the pre-hold QWERTY
+                    // behavior, and the duration-aware test path (the patch
+                    // sees the REAL length at note-on).
+                    play_note(float(absNote), g_transport.velocity,
+                              g_keyboard.duration);
+                }
             }
             if (ImGui::IsKeyReleased(s_qwertyMap[i].key) && s_qwertyHeldNote[i] >= 0) {
                 release_note_held(s_qwertyHeldNote[i]);
@@ -7730,6 +7759,14 @@ static void draw_keyboard_panel() {
     ImVec2 mousePos = ImGui::GetIO().MousePos;
     bool clicked = ImGui::IsMouseClicked(0) && ImGui::IsWindowHovered();
 
+    // Live mode: the mouse HOLDS the note (Matt 2026-09-10). Release fires
+    // on mouse-up anywhere — dragging off the key must not strand a voice.
+    static int s_mouseHeldNote = -1;
+    if (s_mouseHeldNote >= 0 && ImGui::IsMouseReleased(0)) {
+        release_note_held(s_mouseHeldNote);
+        s_mouseHeldNote = -1;
+    }
+
     if (clicked) {
         int hitNote = -1;
         float hitVelocity = g_transport.velocity;
@@ -7770,7 +7807,15 @@ static void draw_keyboard_panel() {
         }
 
         if (hitNote >= 0) {
-            play_note(float(hitNote), hitVelocity, g_keyboard.duration);
+            if (g_keyboard.live) {
+                s_mouseHeldNote = hitNote;
+                play_note_held(float(hitNote), hitVelocity,
+                               g_keyboard.duration);
+            } else {
+                // Fixed-Duration scheduled note — the pre-Live on-screen
+                // behavior, and the duration-aware test path.
+                play_note(float(hitNote), hitVelocity, g_keyboard.duration);
+            }
         }
     }
 
