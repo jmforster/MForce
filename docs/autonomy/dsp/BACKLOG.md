@@ -356,7 +356,17 @@ file's git history. Tags per WORKFLOW.md. (G1)-(G4) = GOALS.md Dipsy goals.
 
 ## Design questions
 
-64. **[design] Duration-aware articulation** — Matt 2026-09-07, from
+64. **[design] Duration-aware articulation** — **TIER 1 LANDED 2026-09-10**
+    (Matt's direct request; commits 4081879 engine + 9152dc5 UI):
+    duration is a perform field like frequency — Note face gains a
+    `duration` output pin (seconds), NoteState.durSeconds set at every
+    note-on (score = actual, live = keyboard nominal), engine_tests +
+    end-to-end DC render verified, null gate clean. UI also gained the
+    keyboard "Live" checkbox (unchecked = QWERTY AND on-screen keys fire
+    fixed-Duration scheduled notes = the duration-aware test rig; checked
+    = hold-to-release on both, on-screen via mouse hold — new). Tier 2
+    (Perform-layer performers) remains the open design below. —
+    Original item, Matt 2026-09-07, from
     jamming mordents/turns on QWERTY against the loop family's slow
     noisy blooms. The insight, plainly: a wind player KNOWS the length
     of the note she's about to play and articulates accordingly — takes
