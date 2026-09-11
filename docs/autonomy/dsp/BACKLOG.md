@@ -376,9 +376,39 @@ file's git history. Tags per WORKFLOW.md. (G1)-(G4) = GOALS.md Dipsy goals.
     shape (pool per root? shared pool with per-note root selection —
     voices are pre-built copies of ONE graph today); patch JSON form
     (one file with named graphs vs a table of patch refs); cache/memory
-    cost per articulation; interaction with the short-term
-    articulation-as-perform-field (which covers within-one-graph
-    reaction and stays useful after).
+    cost per articulation.
+    Analysis folded in from the 2026-09-10 discussion (Matt: both points
+    go here; the short-term "articulation as a float perform field" idea
+    is SUBSUMED by this item, not built separately):
+    (a) Plumbing reality: articulation does NOT reach PlayNote today —
+    Tone/Note carry it, but the Conductor flattens it via
+    apply_articulation into {adjustedDuration, adjustedVelocity} before
+    the instrument sees the name. Any design here re-plumbs the name
+    through Conductor → play_note/prepare_voice; the flatten can stay
+    for its duration/velocity effects.
+    (b) Encoding: articulation is a NAME; perform fields are floats. A
+    curve keying on a variant ordinal (append-only type list as the
+    registry) works but is clunky — stepwise Hold segments to avoid
+    interpolating between Staccato and Pizzicato. That clunkiness is an
+    argument FOR this item's shape instead: switch on the enum INSIDE
+    PlayNote (Matt: "the place to switch on an enum is inside PlayNote,
+    probably") to select the articulation's patchlet/root — discrete
+    selection wants a switch, not a curve.
+    Brainstorm must also cover the Ornament → PitchCurve layering
+    (docs/pitch_modulation_design.md): ornaments already route
+    score-symbol → Performer-compiled PitchCurve → play_note's curve
+    param → bend on PerformSource.frequency — the existing example of
+    "score symbol becomes a per-note performance object", and the
+    pattern patchlet selection should be coherent with.
+    Ornament-pacing resolution (Matt 2026-09-10, settled ahead of the
+    brainstorm): PitchCurve's fractional dur[] stretching with note
+    length is a non-problem in practice — mordents/turns are almost
+    always fast and move on immediately; the rare long-note case is a
+    COMPOSE-tier decision expressed with existing tie machinery (DURN
+    ties incl. cross-bar): e.g. mordent on a half note = 3 triplet
+    quarters if slow is wanted, or mordent-on-an-eighth TIED to a
+    dotted quarter — Performer realizes 2 triplet 16ths then the held
+    remainder. No Performer-side speed normalization mechanism needed.
 
 64. **[design] Duration-aware articulation** — **TIER 1 LANDED 2026-09-10**
     (Matt's direct request; commits 4081879 engine + 9152dc5 UI):
