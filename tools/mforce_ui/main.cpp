@@ -1271,6 +1271,44 @@ static std::string open_file_dialog() {
     return "";
 }
 
+// Text-file dialogs for transport strings (passages, chord progressions) —
+// same per-feature folder memory as the patch dialogs, independent slots
+// (Matt 2026-09-11: passage/chords save/load with their OWN last folder).
+static std::string text_save_dialog(const char* feature, const char* filter,
+                                    const char* defExt, const char* defName) {
+    char filename[MAX_PATH];
+    snprintf(filename, sizeof(filename), "%s", defName);
+    OPENFILENAMEA ofn{};
+    ofn.lStructSize = sizeof(ofn);
+    ofn.lpstrFilter = filter;
+    ofn.lpstrFile = filename;
+    ofn.nMaxFile = MAX_PATH;
+    ofn.lpstrInitialDir = feature_initial_dir(feature);
+    ofn.Flags = OFN_OVERWRITEPROMPT | OFN_NOCHANGEDIR;
+    ofn.lpstrDefExt = defExt;
+    if (GetSaveFileNameA(&ofn)) {
+        remember_feature_dir(feature, filename);
+        return filename;
+    }
+    return "";
+}
+
+static std::string text_open_dialog(const char* feature, const char* filter) {
+    char filename[MAX_PATH] = "";
+    OPENFILENAMEA ofn{};
+    ofn.lStructSize = sizeof(ofn);
+    ofn.lpstrFilter = filter;
+    ofn.lpstrFile = filename;
+    ofn.nMaxFile = MAX_PATH;
+    ofn.lpstrInitialDir = feature_initial_dir(feature);
+    ofn.Flags = OFN_FILEMUSTEXIST | OFN_NOCHANGEDIR;
+    if (GetOpenFileNameA(&ofn)) {
+        remember_feature_dir(feature, filename);
+        return filename;
+    }
+    return "";
+}
+
 // ===========================================================================
 // JSON import
 // ===========================================================================
@@ -2354,6 +2392,8 @@ struct UiSettings {
     std::string lastSaveDir;
     std::string lastWavDir;
     std::string lastAuditionDir;
+    std::string lastPassageDir;
+    std::string lastChordsDir;
 };
 static UiSettings g_settings;
 static const char* SETTINGS_PATH = "mforce_ui_settings.json";
@@ -2372,6 +2412,8 @@ static void settings_load() {
         readDir("lastSaveDir",     g_settings.lastSaveDir);
         readDir("lastWavDir",      g_settings.lastWavDir);
         readDir("lastAuditionDir", g_settings.lastAuditionDir);
+        readDir("lastPassageDir",  g_settings.lastPassageDir);
+        readDir("lastChordsDir",   g_settings.lastChordsDir);
     } catch (...) {}
 }
 
@@ -2381,6 +2423,8 @@ static std::string* settings_dir_slot(const char* feature) {
     if (f == "save")     return &g_settings.lastSaveDir;
     if (f == "wav")      return &g_settings.lastWavDir;
     if (f == "audition") return &g_settings.lastAuditionDir;
+    if (f == "passage")  return &g_settings.lastPassageDir;
+    if (f == "chords")   return &g_settings.lastChordsDir;
     return nullptr;
 }
 
@@ -2391,6 +2435,8 @@ static void settings_save() {
     j["lastSaveDir"]     = g_settings.lastSaveDir;
     j["lastWavDir"]      = g_settings.lastWavDir;
     j["lastAuditionDir"] = g_settings.lastAuditionDir;
+    j["lastPassageDir"]  = g_settings.lastPassageDir;
+    j["lastChordsDir"]   = g_settings.lastChordsDir;
     std::ofstream f(SETTINGS_PATH);
     if (f) f << j.dump(2);
 }
@@ -3460,11 +3506,11 @@ struct TransportState {
     float velocity = 0.8f;
     float duration = 2.0f;
     // Passage mode
-    char passageStr[256] = "";
+    char passageStr[1024] = "";
     int octave = 4;
     float bpm = 120.0f;
     // Chords mode
-    char chordsStr[256] = "";
+    char chordsStr[1024] = "";
     char defChordGrp[64] = "";
     char figure[64] = "";
     int inversion = 0;
@@ -4709,15 +4755,14 @@ static void play_buffer() {
 // ===========================================================================
 
 struct KeyboardState {
-    int octave = 4;
-    float duration = 0.5f;
-    float velocity = 0.8f;
-    bool sustain = false;
+    // Octave/Duration/Velocity retired 2026-09-11 (Matt: the keyboard
+    // header line is gone; the TRANSPORT widgets control everything) —
+    // all callers read g_transport.{octave,duration,velocity} now.
     // Live mode (Matt 2026-09-10): checked = QWERTY holds until key-up
-    // (current behavior) and the on-screen keys hold under the mouse;
-    // unchecked = BOTH fire fixed-Duration scheduled notes (the header
-    // Duration), so duration-aware patches (backlog 64 Tier 1) get the
-    // real length at note-on and can be tested from the keyboard.
+    // and the on-screen keys hold under the mouse; unchecked = BOTH fire
+    // fixed-Duration scheduled notes (the transport Duration), so
+    // duration-aware patches (backlog 64 Tier 1) get the real length at
+    // note-on. Lives on the Transport Note tab as of 2026-09-11.
     bool live = true;
 };
 static KeyboardState g_keyboard;
@@ -4811,7 +4856,7 @@ static void pump_midi() {
         }
         if (status == 0x90 && vel > 0) {          // note on
             play_note_held(float(note), float(vel) / 127.0f,
-                           g_keyboard.duration);
+                           g_transport.duration);
         } else if (status == 0x80 ||              // note off (0x90 vel 0 =
                    (status == 0x90 && vel == 0)) {  // running-status note off)
             release_note_held(note);
@@ -4842,13 +4887,14 @@ static void apply_score_defaults(const nlohmann::json& score) {
     g_transport.velocity = vel;
     g_transport.duration = dur;
 
-    g_keyboard.velocity = vel;
-    g_keyboard.duration = std::clamp(dur, 0.05f, 30.0f);
+    g_transport.velocity = vel;
+    g_transport.duration = std::clamp(dur, 0.05f, 30.0f);
+    (void)0;
     // Keyboard base octave so the score's note is reachable on the home row.
     // HOUSE octave convention (comp REVIEW item 19): absNote = octave * 12 +
     // offset — matches parse_note_input and Pitch::note_number. The panel
     // was the app's lone scientific-pitch holdout until 2026-08-12.
-    g_keyboard.octave = std::clamp(int(note) / 12, 0, 20);
+    g_transport.octave = std::clamp(int(note) / 12, 0, 8);
 }
 
 // QWERTY-to-chromatic-offset mapping (from legacy LBKeyboard.cs).
@@ -7517,58 +7563,12 @@ static void draw_mappings_dialog() {
 static void draw_keyboard_panel() {
     ImGui::Begin("Keyboard", nullptr, ImGuiWindowFlags_NoCollapse);
 
-    // --- Header bar ---
-    ImGui::Text("Octave");
-    ImGui::SameLine();
-    spinner_int("kb_oct", &g_keyboard.octave, 1, 0, 20);
-
-    ImGui::SameLine();
-    ImGui::Spacing(); ImGui::SameLine();
-
-    ImGui::Text("Duration");
-    ImGui::SameLine();
-    spinner_float("kb_dur", &g_keyboard.duration, 0.05f, 0.05f, 30.0f, "%.2f");
-
-    ImGui::SameLine();
-    ImGui::Spacing(); ImGui::SameLine();
-
-    ImGui::Checkbox("Live", &g_keyboard.live);
-    if (ImGui::IsItemHovered())
-        ImGui::SetTooltip("Checked: QWERTY and on-screen keys hold until\n"
-                          "key/mouse release. Unchecked: both fire fixed\n"
-                          "Duration notes (tests duration-aware patches).");
-
-    ImGui::SameLine();
-    ImGui::Spacing(); ImGui::SameLine();
-
-    ImGui::Text("Velocity");
-    ImGui::SameLine();
-    ImGui::SetNextItemWidth(80.0f);
-    // One velocity, everywhere: this slider and the Note tab's edit the same
-    // value — two independent velocities meant the Note tab looked ignored
-    // when playing via QWERTY (Matt 2026-08-12).
-    ImGui::SliderFloat("##vel", &g_transport.velocity, 0.0f, 1.0f, "%.2f");
-
-    ImGui::SameLine();
-    ImGui::Spacing(); ImGui::SameLine();
-
-    if (ImGui::Checkbox("Sustain", &g_keyboard.sustain)) {}
-
-    ImGui::SameLine();
-    ImGui::Spacing(); ImGui::SameLine();
-
-    // Wire to Transport's noteMode. Disabled in node-graph mode: notes need
-    // an instrument (see draw_transport_panel's PC Keyboard button).
+    // Header line removed 2026-09-11 (Matt): the Transport widgets control
+    // everything — octave/duration/velocity/Live are on the Note tab; the
+    // PC Keyboard toggle is the Transport panel's button.
     bool kbDisabled = (s_graphMode != GraphMode::PatchGraph);
-    ImGui::BeginDisabled(kbDisabled);
-    ImGui::Checkbox("PC Keyboard##kb", &g_transport.noteMode);
-    ImGui::EndDisabled();
-    if (kbDisabled && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
-        ImGui::SetTooltip("Keyboard needs an instrument patch");
-    if (kbDisabled) {
-        ImGui::SameLine();
+    if (kbDisabled)
         ImGui::TextDisabled("(keyboard needs an instrument patch)");
-    }
 
     // --- Audio peak meter (diagnostic, fresh line so it's always visible) ---
     // pre = raw mixer output before soft_clip; post = what hit the device.
@@ -7606,19 +7606,19 @@ static void draw_keyboard_panel() {
         }
         for (int i = 0; i < QWERTY_MAP_COUNT; ++i) {
             if (ImGui::IsKeyPressed(s_qwertyMap[i].key, false)) {
-                int absNote = g_keyboard.octave * 12 + s_qwertyMap[i].offset;
+                int absNote = g_transport.octave * 12 + s_qwertyMap[i].offset;
                 if (absNote < 0) continue;   // lower zone below MIDI 0 at low octaves
                 if (g_keyboard.live) {
                     s_qwertyHeldNote[i] = absNote;
                     play_note_held(float(absNote), g_transport.velocity,
-                                   g_keyboard.duration);
+                                   g_transport.duration);
                 } else {
                     // Live unchecked (Matt 2026-09-10): fixed-Duration
                     // scheduled note, key-up ignored — the pre-hold QWERTY
                     // behavior, and the duration-aware test path (the patch
                     // sees the REAL length at note-on).
                     play_note(float(absNote), g_transport.velocity,
-                              g_keyboard.duration);
+                              g_transport.duration);
                 }
             }
             if (ImGui::IsKeyReleased(s_qwertyMap[i].key) && s_qwertyHeldNote[i] >= 0) {
@@ -7629,13 +7629,13 @@ static void draw_keyboard_panel() {
         // Action keys — moved off G/H (octave) and V/B (duration) 2026-09-03:
         // those letters are now lower-zone notes. Both zones track the octave.
         if (ImGui::IsKeyPressed(ImGuiKey_DownArrow, false))
-            g_keyboard.octave = std::max(0, g_keyboard.octave - 1);
+            g_transport.octave = std::max(0, g_transport.octave - 1);
         if (ImGui::IsKeyPressed(ImGuiKey_UpArrow, false))
-            g_keyboard.octave = std::min(20, g_keyboard.octave + 1);
+            g_transport.octave = std::min(20, g_transport.octave + 1);
         if (ImGui::IsKeyPressed(ImGuiKey_LeftArrow, false))
-            g_keyboard.duration = std::max(0.05f, g_keyboard.duration * 0.5f);
+            g_transport.duration = std::max(0.05f, g_transport.duration * 0.5f);
         if (ImGui::IsKeyPressed(ImGuiKey_RightArrow, false))
-            g_keyboard.duration = std::min(30.0f, g_keyboard.duration * 2.0f);
+            g_transport.duration = std::min(30.0f, g_transport.duration * 2.0f);
     }
 
     // --- Piano keyboard rendering via ImDrawList ---
@@ -7689,7 +7689,7 @@ static void draw_keyboard_panel() {
         {0, 1}, {1, 3}, {3, 6}, {4, 8}, {5, 10}
     };
 
-    int baseNote = g_keyboard.octave * 12;
+    int baseNote = g_transport.octave * 12;
 
     // Draw white keys (flat index so the trailing top C is included).
     for (int idx = 0; idx < TOTAL_WHITE; ++idx) {
@@ -7810,11 +7810,11 @@ static void draw_keyboard_panel() {
             if (g_keyboard.live) {
                 s_mouseHeldNote = hitNote;
                 play_note_held(float(hitNote), hitVelocity,
-                               g_keyboard.duration);
+                               g_transport.duration);
             } else {
                 // Fixed-Duration scheduled note — the pre-Live on-screen
                 // behavior, and the duration-aware test path.
-                play_note(float(hitNote), hitVelocity, g_keyboard.duration);
+                play_note(float(hitNote), hitVelocity, g_transport.duration);
             }
         }
     }
@@ -8309,6 +8309,46 @@ static void transport_label_inline(const char* label) {
     ImGui::Text("%s", label);
     ImGui::SameLine();
 }
+// Snug variant (Matt 2026-09-11: "little less separation" on the tabs)
+static void transport_label_snug(const char* label) {
+    ImGui::SameLine(0, 12);
+    ImGui::Text("%s", label);
+    ImGui::SameLine(0, 4);
+}
+
+// Save/load the transport text strings (passage, chords) as plain text
+// files with per-feature folder memory (Matt 2026-09-11).
+static void transport_save_text(const char* feature, const char* filter,
+                                const char* defExt, const char* defName,
+                                const char* text) {
+    std::string path = text_save_dialog(feature, filter, defExt, defName);
+    if (path.empty()) return;
+    std::ofstream f(path, std::ios::binary);
+    if (f) { f << text; transport_set_status(("Saved: " + path).c_str(), false); }
+    else transport_set_status(("Failed to save: " + path).c_str(), true);
+}
+static void transport_load_text(const char* feature, const char* filter,
+                                char* buf, size_t bufSz) {
+    std::string path = text_open_dialog(feature, filter);
+    if (path.empty()) return;
+    std::ifstream f(path, std::ios::binary);
+    if (!f) { transport_set_status(("Failed to open: " + path).c_str(), true); return; }
+    std::string content((std::istreambuf_iterator<char>(f)),
+                        std::istreambuf_iterator<char>());
+    // Normalize CRLF (InputTextMultiline wants \n) and fit the buffer.
+    std::string norm;
+    norm.reserve(content.size());
+    for (char c : content) if (c != '\r') norm.push_back(c);
+    while (!norm.empty() && (norm.back() == '\n' || norm.back() == ' '))
+        norm.pop_back();
+    snprintf(buf, bufSz, "%s", norm.c_str());
+    transport_set_status(("Loaded: " + path).c_str(), false);
+}
+
+static const char* kPassageFilter =
+    "Passage Files\0*.psg\0Text Files\0*.txt\0All Files\0*.*\0";
+static const char* kChordsFilter =
+    "Chord Files\0*.chd\0Text Files\0*.txt\0All Files\0*.*\0";
 
 static void draw_transport_panel() {
     ImGui::Begin("Transport", nullptr, ImGuiWindowFlags_NoCollapse);
@@ -8326,51 +8366,103 @@ static void draw_transport_panel() {
 
     // Per-mode fields
     switch (g_transport.mode) {
-        case PlayMode::Note:
-            ImGui::Text("Note"); ImGui::SameLine();
-            ImGui::SetNextItemWidth(50);
-            ImGui::InputText("##note", g_transport.noteStr, sizeof(g_transport.noteStr));
-            transport_label_inline("Velocity");
-            ImGui::SetNextItemWidth(100);
-            ImGui::SliderFloat("##vel", &g_transport.velocity, 0.0f, 1.0f);
-            transport_label_inline("Duration");
+        case PlayMode::Note: {
+            // Pitch dropdown + Octave spinner compose noteStr ("C#4") —
+            // the string stays the storage so parse_note_input, score
+            // defaults, and hand-typed numeric notes keep working
+            // (Matt 2026-09-11). Octave also drives QWERTY/on-screen keys
+            // (the keyboard header is gone; top widgets control all).
+            static const char* kPitch[12] = {"C","C#","D","D#","E","F",
+                                             "F#","G","G#","A","A#","B"};
+            int noteNum = int(parse_note_input(g_transport.noteStr));
+            int pc = ((noteNum % 12) + 12) % 12;
+            int oct = std::clamp(noteNum / 12, 0, 8);
+            bool nchg = false;
+            ImGui::Text("Note"); ImGui::SameLine(0, 4);
+            ImGui::SetNextItemWidth(52);
+            if (ImGui::Combo("##notepc", &pc, kPitch, 12)) nchg = true;
+            transport_label_snug("Octave");
+            if (spinner_int("noct", &oct, 1, 0, 8)) nchg = true;
+            if (nchg) {
+                snprintf(g_transport.noteStr, sizeof(g_transport.noteStr),
+                         "%s%d", kPitch[pc], oct);
+                g_transport.octave = oct;   // QWERTY follows the note octave
+            }
+            transport_label_snug("Velocity");
+            spinner_float("nvel", &g_transport.velocity, 0.05f, 0.0f, 1.0f,
+                          "%.2f");
+            transport_label_snug("Duration");
             spinner_float("dur", &g_transport.duration, 0.1f, 0.1f, 30.0f, "%.1f");
+            ImGui::SameLine(0, 12);
+            ImGui::Checkbox("Live", &g_keyboard.live);
+            if (ImGui::IsItemHovered())
+                ImGui::SetTooltip(
+                    "Checked: QWERTY and on-screen keys hold until\n"
+                    "key/mouse release. Unchecked: both fire fixed\n"
+                    "Duration notes (tests duration-aware patches).");
             break;
+        }
 
-        case PlayMode::Passage:
-            ImGui::Text("Passage"); ImGui::SameLine();
-            ImGui::SetNextItemWidth(-1);
-            ImGui::InputText("##passage", g_transport.passageStr, sizeof(g_transport.passageStr));
-            ImGui::Text("Octave"); ImGui::SameLine();
+        case PlayMode::Passage: {
+            ImGui::Text("Passage"); ImGui::SameLine(0, 4);
+            const float twoLine = ImGui::GetTextLineHeight() * 2.0f
+                + ImGui::GetStyle().FramePadding.y * 2.0f + 6.0f;
+            ImGui::InputTextMultiline("##passage", g_transport.passageStr,
+                                      sizeof(g_transport.passageStr),
+                                      ImVec2(-1, twoLine));
+            ImGui::Text("Octave"); ImGui::SameLine(0, 4);
             spinner_int("oct", &g_transport.octave, 1, 0, 8);
-            transport_label_inline("BPM");
+            transport_label_snug("BPM");
             spinner_float("bpm", &g_transport.bpm, 5.0f, 20.0f, 300.0f, "%.0f");
-            transport_label_inline("Velocity");
-            ImGui::SetNextItemWidth(100);
-            ImGui::SliderFloat("##pvel", &g_transport.velocity, 0.0f, 1.0f);
+            transport_label_snug("Velocity");
+            spinner_float("pvel", &g_transport.velocity, 0.05f, 0.0f, 1.0f,
+                          "%.2f");
+            ImGui::SameLine(0, 12);
+            if (ImGui::Button("Save Passage"))
+                transport_save_text("passage", kPassageFilter, "psg",
+                                    "passage.psg", g_transport.passageStr);
+            ImGui::SameLine(0, 4);
+            if (ImGui::Button("Load Passage"))
+                transport_load_text("passage", kPassageFilter,
+                                    g_transport.passageStr,
+                                    sizeof(g_transport.passageStr));
             break;
+        }
 
-        case PlayMode::Chords:
-            ImGui::Text("Chords"); ImGui::SameLine();
-            ImGui::SetNextItemWidth(-1);
-            ImGui::InputText("##chords", g_transport.chordsStr, sizeof(g_transport.chordsStr));
-            ImGui::Text("Group"); ImGui::SameLine();
+        case PlayMode::Chords: {
+            ImGui::Text("Chords"); ImGui::SameLine(0, 4);
+            const float twoLine = ImGui::GetTextLineHeight() * 2.0f
+                + ImGui::GetStyle().FramePadding.y * 2.0f + 6.0f;
+            ImGui::InputTextMultiline("##chords", g_transport.chordsStr,
+                                      sizeof(g_transport.chordsStr),
+                                      ImVec2(-1, twoLine));
+            ImGui::Text("Group"); ImGui::SameLine(0, 4);
             ImGui::SetNextItemWidth(100);
             ImGui::InputText("##grp", g_transport.defChordGrp, sizeof(g_transport.defChordGrp));
-            transport_label_inline("Figure");
+            transport_label_snug("Figure");
             ImGui::SetNextItemWidth(100);
             ImGui::InputText("##fig", g_transport.figure, sizeof(g_transport.figure));
-            ImGui::Text("Octave"); ImGui::SameLine();
+            ImGui::SameLine(0, 12);
+            if (ImGui::Button("Save Chords"))
+                transport_save_text("chords", kChordsFilter, "chd",
+                                    "chords.chd", g_transport.chordsStr);
+            ImGui::SameLine(0, 4);
+            if (ImGui::Button("Load Chords"))
+                transport_load_text("chords", kChordsFilter,
+                                    g_transport.chordsStr,
+                                    sizeof(g_transport.chordsStr));
+            ImGui::Text("Octave"); ImGui::SameLine(0, 4);
             spinner_int("coct", &g_transport.octave, 1, 0, 8);
-            transport_label_inline("BPM");
+            transport_label_snug("BPM");
             spinner_float("cbpm", &g_transport.bpm, 5.0f, 20.0f, 300.0f, "%.0f");
-            transport_label_inline("Inversion");
+            transport_label_snug("Inversion");
             spinner_int("inv", &g_transport.inversion, 1, 0, 4);
-            transport_label_inline("Spread");
+            transport_label_snug("Spread");
             spinner_int("sprd", &g_transport.spread, 1, 0, 4);
-            transport_label_inline("Delay");
+            transport_label_snug("Delay");
             spinner_float("cdly", &g_transport.chordDelay, 5.0f, 0.0f, 200.0f, "%.0f");
             break;
+        }
 
         case PlayMode::Drums:
             ImGui::Text("Pattern"); ImGui::SameLine();
