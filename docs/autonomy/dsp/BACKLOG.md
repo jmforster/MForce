@@ -356,6 +356,30 @@ file's git history. Tags per WORKFLOW.md. (G1)-(G4) = GOALS.md Dipsy goals.
 
 ## Design questions
 
+68. **[design, brainstorm] Articulation-keyed multi-graph Instruments** —
+    Matt 2026-09-10, verbatim shape, to be brainstormed before any spec:
+    (1) an Instrument has MULTIPLE node graphs (ValueSource roots) in a
+    table keyed by Articulation.name; (2) articulations to use are
+    specified by Composer / in score, or by "Performer"; (3) Performer
+    selects the Instrument used to play a Part (as now); (4) in PlayNote,
+    the Instrument selects the articulation-specific patch root, or the
+    default when no articulation is present. Relationship notes for the
+    brainstorm: this is a concrete mechanism for backlog 64 Tier 2's
+    "patch-picking" (Perform layer owns performer identity,
+    perform_source_design.md Composition→Performance→Realization); the
+    Articulation vocabulary already exists (music/basics.h — Default,
+    Bow, Marcato, Sforzando, Staccato, Pizzicato, Pick, Pluck, Strum,
+    Snap, HammerOn, PullOff, Harmonic, Mute, MuteHarmonic, Bend, Slide;
+    Tone/Note carry one); today the Conductor FLATTENS articulation into
+    {adjustedDuration, adjustedVelocity} (conductor.h apply_articulation)
+    before the instrument ever sees it. Brainstorm questions: voice-pool
+    shape (pool per root? shared pool with per-note root selection —
+    voices are pre-built copies of ONE graph today); patch JSON form
+    (one file with named graphs vs a table of patch refs); cache/memory
+    cost per articulation; interaction with the short-term
+    articulation-as-perform-field (which covers within-one-graph
+    reaction and stays useful after).
+
 64. **[design] Duration-aware articulation** — **TIER 1 LANDED 2026-09-10**
     (Matt's direct request; commits 4081879 engine + 9152dc5 UI):
     duration is a perform field like frequency — Note face gains a
