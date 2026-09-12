@@ -232,3 +232,44 @@ Escape hatch for sustains the loop can't reach (Matt 09-07): graft a
 different engine for the sustain stage — CrossfadeSource(loop, Additive)
 exists as a primitive. The bar is that the loop must come close enough
 that the handoff doesn't read as a crossfade; unexplored.
+
+## Skeleton taxonomy (2026-09-11, from the bow rounds' framing correction)
+
+The "one skeleton, different junction curve" framing was TRUE at the
+MSW level (nonlinearity + resonator + feedback) but overcompressed:
+instrument identity also lives in the junction's SEAT - where it sits
+on the resonator, how energy enters, what the output tap is. Two
+chassis, not four:
+
+WIND CHASSIS (proven - flute/oboe/clarinet/bassoon live here): valve
+at the END of a bore, breath = pressure source into the medium
+(additive noise in-loop is CORRECT here), single delay loop, output
+through bell/formants.
+- Reed: valve resonance far above playing range -> memoryless junction
+  suffices. The bore picks the note.
+- Jet/flute: jet junction, same seat.
+- BRASS = wind chassis + four deltas: (1) resonant OUTWARD-striking
+  valve near the note (2D junction/state roadmap) - the LIP picks
+  which bore mode speaks; (2) mode-selection architecture: delay at
+  the BORE fundamental (long - a trumpet C5 rides a ~C3 bore), lip
+  resonance selects harmonic n; valve1's "mode pulling" was this
+  trying to happen; (3) bell = complementary crossover (loop keeps the
+  lowpass REFLECTION, output IS the highpass TRANSMISSION - one
+  signal, two filters, existing primitives); (4) fixed mouthpiece-cup
+  bandpass ~300-1000 Hz, NOT keytracked. Loud brassiness = shock
+  steepening, approximable as mild distributed in-loop shaping.
+
+STRING CHASSIS (not yet built): junction at an INTERIOR point - two
+delay segments (bridge side p, nut side 1-p; bow position = the split
+= the bowing-point comb), silent at rest (NO additive noise in-loop:
+all energy enters through friction - bias x grip; bow-hair noise =
+modulation of breakaway/bias, not a summed signal), gentle HF-tilted
+losses near unity, output = bridge-side force into body resonances.
+Key mechanism hope: the returning Helmholtz corner strikes the
+junction once per period - the natural one-slip-per-cycle trigger the
+single-loop retrofits never had (their stick/slip cycles ran period-2:
+the note was a SUBHARMONIC of the loop, hence the two-octave
+overblown-wind character of bow rounds 2-4).
+
+Retraction (Matt 2026-09-11): the hysteresis octave-doubling is NOT an
+overblow novelty - oboe_default does real overblowing well already.
