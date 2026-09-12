@@ -1,0 +1,55 @@
+{
+  "name": "trumpet_bb",
+  "source": "Iowa MIS trumpet novib ff",
+  "sample_dir": "research/inst_samples/trumpet_Bb",
+  "sample_glob": "*.aif",
+  "score_notes": [
+    {
+      "note": "C4",
+      "string": "novib",
+      "midi": 60,
+      "f0": 261.626
+    },
+    {
+      "note": "G4",
+      "string": "novib",
+      "midi": 67,
+      "f0": 391.995
+    },
+    {
+      "note": "C5",
+      "string": "novib",
+      "midi": 72,
+      "f0": 523.251
+    },
+    {
+      "note": "G5",
+      "string": "novib",
+      "midi": 79,
+      "f0": 783.991
+    }
+  ],
+  "eval_note_midis": [
+    60,
+    67,
+    72
+  ],
+  "motion_samples": [
+    "novib.C4",
+    "novib.E4",
+    "novib.G4",
+    "novib.Bb4",
+    "novib.C5",
+    "novib.E5",
+    "novib.G5",
+    "novib.C6"
+  ],
+  "template": "patches/sweep/brass_harness1/br1_t100_q15_m2.json",
+  "reference_path": "research/ml_ears/out/trumpet_reference.json",
+  "reference_build": {
+    "sus_start": 0.55,
+    "sus_len": 1.4,
+    "attack_len": 0.55
+  },
+  "run_root": "research/ml_ears/cmaes_runs"
+}
