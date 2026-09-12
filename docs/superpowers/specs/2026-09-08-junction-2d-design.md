@@ -120,3 +120,17 @@ compensates through a param pin today.
 2. Station count N: is 2-8 the right cap, or is 2-3 enough for
    everything you can imagine authoring?
 3. Naming: `state` vs `morph` as the surviving pin name in UI copy.
+
+## Addendum 2026-09-11: gate design caveat from the skeleton taxonomy
+
+The bow rounds exposed a framing error recorded in
+LOOP_PATCH_ANATOMY.md ("Skeleton taxonomy"): junction SEAT is part of
+instrument identity, not just the curve. Consequence for section 2's
+gate: a morph-coupling probe on stock oboe1 tests the valve in a
+REED-seated chassis. Brass also differs by (a) long-bore mode
+selection (delay at the bore fundamental, lip picks harmonic n - the
+mode pulling valve1 measured), (b) bell as complementary
+reflection/transmission crossover, (c) fixed ~300-1000 Hz mouthpiece
+bandpass. The gate round should include at least one cell with these
+chassis deltas (all existing primitives), so a null result indicts the
+coupling rather than the seat. Brainstorm this alongside backlog 68.
