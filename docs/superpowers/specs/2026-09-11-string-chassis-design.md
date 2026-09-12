@@ -112,3 +112,25 @@ the bow retrofit family is closed).
 3. Bow-hair noise into breakaway vs bias â€” or omit entirely for
    round 1? (My lean: omit; add on a second round only if the clean
    mechanism sounds sterile.)
+
+## Addendum 2026-09-12 — harness campaign framing (Matt's directive)
+
+This spec is now one of TWO sibling harnesses (with
+2026-09-12-brass-harness-design.md) built per Matt's directive:
+state-of-the-art first, sweep 2-3 axes, ML-ears until probable
+success. Research refresh (see sources in the session record):
+the two-rail waveguide + friction-curve junction remains the
+real-time standard; the published realism ladder above it is
+elasto-plastic (bristle-state) and thermal/finite-width friction
+(Serafin/Avanzini; Woodhouse) - CONTINUOUS friction state, not
+expressible in current primitives. v1 builds the standard structure
+with ZERO engine code (hysteresis Shaper = the friction junction,
+round-5 period-1 capture recipe as the starting setting); the
+elasto-plastic junction is the measurement-gated engine upgrade if
+v1's stick-slip texture fails ML ears / Matt's ears.
+
+Beyond replication (MForce levers): bow position p as a modulatable
+pin (audio-rate flautando/sul-pont morphs no player can do), bias =
+bow velocity as a drawn stroke envelope, breakaway noise = hair
+texture, duration field pacing strokes (backlog 64). ML ears scoring:
+viola config (research/ml_ears/configs/viola.json, reference built).
