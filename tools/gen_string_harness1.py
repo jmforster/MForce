@@ -64,7 +64,8 @@ BA = 0.6
 BIAS = 0.36              # 0.6 x ba - round-5 period-1 regime
 P = {"p16": 1.0/6.0, "p18": 1.0/8.0, "p112": 1.0/12.0}
 CAP = {"c25": 0.25, "c12": 0.12}
-LOSS = {"L8": 8.0, "L12": 12.0}
+LOSS = {"L12": 12.0}
+HAIR = {"h0": 0.0, "h05": 0.05, "h12": 0.12}
 GAIN_OFF = 1.2
 ENGAGE = 0.03
 PROBE_NOTE = 60
@@ -80,7 +81,7 @@ SLIP = [-1.0, -0.25, -0.6, -0.35, -0.15, -1.0, 0.0, 0.0,
         0.15, 1.0, 0.6, 0.35, 1.0, 0.25]
 
 
-def make_patch(p_frac, cap, loss_mult):
+def make_patch(p_frac, cap, loss_mult, hair=0.0):
     nodes = [
         {"id": "__perf_f1", "type": "PerformNode",
          "params": {"field": "frequency"}},
@@ -116,6 +117,12 @@ def make_patch(p_frac, cap, loss_mult):
                 {"type": "Sine", "startVal": 1.0, "endVal": 0.0,
                  "percent": 0.25, "power": 0.0,
                  "minSec": 0.0, "maxSec": 0.0}]}},
+        {"id": "Hair_noise", "type": "WhiteNoiseSource", "params": {
+            "amplitude": round(hair, 4), "boost": 0.0, "continuity": 0.0,
+            "density": 1.0, "zeroCrossTendency": 0.0}},
+        {"id": "Breakaway_mod", "type": "CombinedSource", "params": {
+            "gainAdj": 0.0, "operation": 3,
+            "source1": {"ref": "Hair_noise"}, "source2": 0.6}},
         {"id": "Bow_sum", "type": "CombinedSource", "params": {
             "gainAdj": 0.0, "operation": 3,
             "source1": {"tap": "NutDelay"},
@@ -123,7 +130,7 @@ def make_patch(p_frac, cap, loss_mult):
         {"id": "Junction", "type": "Shaper", "params": {
             "source": {"ref": "Bow_sum"}, "drive": 1.0,
             "smoothness": 0.6, "morph": 0.0,
-            "hysteresis": True, "breakaway": BA, "capture": cap,
+            "hysteresis": True, "breakaway": {"ref": "Breakaway_mod"}, "capture": cap,
             "values": list(STICK), "values2": list(SLIP)}},
         {"id": "BridgeDelay", "type": "DelayLine", "params": {
             "source": {"ref": "Junction"},
@@ -247,14 +254,13 @@ def main():
 
     crits = {}
     for ptag, pf in P.items():
-        for ltag, lm in LOSS.items():
-            key = f"{ptag}_{ltag}"
-            crits[key] = measure_critical(pf, CAP["c25"], lm, scratch)
-            print(f"crit {key}: {crits[key]}", flush=True)
+        key = f"{ptag}_L12"
+        crits[key] = measure_critical(pf, CAP["c25"], LOSS["L12"], scratch)
+        print(f"crit {key}: {crits[key]}", flush=True)
 
     manifest = {"round": "string_harness1 waveguide bowed string",
                 "bias": BIAS, "ba": BA, "gain_off": GAIN_OFF,
-                "p": P, "cap": CAP, "loss": LOSS, "criticals": crits,
+                "p": P, "cap": CAP, "hair": HAIR, "loss": 12.0, "criticals": crits,
                 "variants": []}
     failures = 0
 
@@ -272,23 +278,22 @@ def main():
         return normalize_copy(pw, os.path.join(AUD_OUT, cell + ".wav"))
 
     for ptag, pf in P.items():
-        for ltag, lm in LOSS.items():
-            crit = crits[f"{ptag}_{ltag}"]
-            if crit is None:
-                manifest["variants"].append(
-                    {"id": f"{ptag}_{ltag}", "ok": False,
-                     "skip": "no critical"})
-                continue
-            for ctag, cap in CAP.items():
-                cell = f"str1_{ptag}_{ctag}_{ltag}"
-                patch = make_patch(pf, cap, lm)
+        crit = crits[f"{ptag}_L12"]
+        if crit is None:
+            manifest["variants"].append(
+                {"id": ptag, "ok": False, "skip": "no critical"})
+            continue
+        for ctag, cap in CAP.items():
+            for htag, hr in HAIR.items():
+                cell = f"str1_{ptag}_{ctag}_{htag}"
+                patch = make_patch(pf, cap, LOSS["L12"], hr)
                 set_loopgain(patch, GAIN_OFF * crit)
                 gn = render(patch, cell)
                 if gn is None:
                     failures += 1
                 manifest["variants"].append(
                     {"id": cell, "ok": gn is not None,
-                     "params": {"p": round(pf, 4), "cap": cap, "loss": lm,
+                     "params": {"p": round(pf, 4), "cap": cap, "hair": hr,
                                 "critical": crit,
                                 "loop_gain": round(GAIN_OFF * crit, 4)}})
 
