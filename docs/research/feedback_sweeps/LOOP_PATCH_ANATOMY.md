@@ -273,3 +273,14 @@ overblown-wind character of bow rounds 2-4).
 
 Retraction (Matt 2026-09-11): the hysteresis octave-doubling is NOT an
 overblow novelty - oboe_default does real overblowing well already.
+
+## Method note (Matt, 2026-09-11 - binding for this lane)
+
+"We are trying to make some plausible instruments using physical
+modeling. This is well-trodden ground... the starting point should
+always be the state of the art that others have worked very hard to
+come up with." Refinements and serendipity welcome ON TOP. Concretely:
+before the string-chassis build (or any new mechanism family), start
+from the published waveguide/MSW model of that instrument and design
+the ValueSource-graph expression of it - the translation and the
+sweeps are our contribution surface, not first-principles rediscovery.
