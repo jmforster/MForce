@@ -2496,6 +2496,21 @@ static std::vector<GraphNode*> topo_sort() {
 }
 
 // Find which node's output is connected to a given input pin
+// Like find_source_node, but also names the source's OUTPUT pin — needed
+// to resolve which perform FIELD feeds a pin (evo snapshot derivation,
+// render-capture unification spec 2026-09-13).
+static std::pair<GraphNode*, std::string> find_source_pin(int inputPinId) {
+    for (auto& link : s_links) {
+        int other = link.endPinId == inputPinId ? link.startPinId
+                  : link.startPinId == inputPinId ? link.endPinId : -1;
+        if (other < 0) continue;
+        for (auto& node : s_nodes)
+            for (auto& pin : node.outputs)
+                if (pin.id == other) return {&node, pin.name};
+    }
+    return {nullptr, {}};
+}
+
 static GraphNode* find_source_node(int inputPinId) {
     for (auto& link : s_links) {
         if (link.endPinId == inputPinId) {
@@ -4188,6 +4203,17 @@ static bool generate_unified(const std::vector<SchedNote>& notes) {
             }
         }
 
+        // Perform FIELD nodes: captured so evo snapshots can show
+        // keytracked pins (frequency into Partials). Buffers land in a
+        // side map, not in a GraphNode strip.
+        std::vector<std::string> perfIds;
+        for (auto& n : s_nodes)
+            if (n.typeName == NT_PERFORM)
+                for (auto& [field, fid] : n.perfFieldIds)
+                    perfIds.push_back(fid);
+        size_t nStrips = capIds.size();
+        capIds.insert(capIds.end(), perfIds.begin(), perfIds.end());
+
         float end = 0.0f;
         for (const auto& sn : notes)
             end = std::max(end, sn.startSeconds + sn.durationSeconds);
@@ -4206,7 +4232,44 @@ static bool generate_unified(const std::vector<SchedNote>& notes) {
 
         for (size_t k = 0; k < capNodes.size(); ++k)
             capNodes[k]->waveformData = std::move(pitched->captureBuffers[k]);
+        std::unordered_map<std::string, std::vector<float>> perfStrips;
+        for (size_t k = 0; k < perfIds.size(); ++k)
+            perfStrips[perfIds[k]] =
+                std::move(pitched->captureBuffers[nStrips + k]);
         pitched->capture_end();
+
+        // Evo snapshots (Partials/Formant scrubber): stride-sample the
+        // SOURCE node's captured strip — the render IS the observation,
+        // no second pass. Perform-face-fed pins resolve through the
+        // face's per-field file node captured above.
+        g_evoSnapshots.clear();
+        int snapStride = std::max(1, frames / EVO_SNAP_COUNT);
+        for (auto& n : s_nodes) {
+            if (!is_partials_type(n.typeName) && !is_formant_type(n.typeName))
+                continue;
+            auto& byPin = g_evoSnapshots[n.id];
+            for (auto& pin : n.inputs) {
+                auto [sn, srcPinName] = find_source_pin(pin.id);
+                if (!sn) continue;
+                const std::vector<float>* buf = nullptr;
+                if (sn->typeName == NT_PERFORM) {
+                    auto fit = sn->perfFieldIds.find(srcPinName);
+                    if (fit != sn->perfFieldIds.end()) {
+                        auto pit = perfStrips.find(fit->second);
+                        if (pit != perfStrips.end()) buf = &pit->second;
+                    }
+                } else if (!sn->waveformData.empty()) {
+                    buf = &sn->waveformData;
+                }
+                if (!buf) continue;
+                auto& vec = byPin[pin.name];
+                vec.assign(EVO_SNAP_COUNT, 0.0f);
+                for (int s = 0; s < EVO_SNAP_COUNT; ++s) {
+                    int f = s * snapStride;
+                    if (f < int(buf->size())) vec[size_t(s)] = (*buf)[size_t(f)];
+                }
+            }
+        }
 
         wave_view_after_render(frames);
         compute_output_spectrum();
