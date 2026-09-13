@@ -4522,12 +4522,19 @@ static void play_note(float noteNum, float velocity, float durationSeconds) {
 // Returns false if the graph contains a MultiplexSource — its internal
 // clones are not reachable by this walk, so gating the template would
 // silently do nothing; callers fall back to scheduled notes there.
+// RefSource (tap edges and secondary-consumer wrappers) exposes no
+// descriptors, so the walk follows its source pointer directly — without
+// this, an envelope inside a tap-closed loop (e.g. loop gain on a
+// tap-only delay) stays ungated and a self-oscillating loop ignores
+// key-up, sounding for the full scheduled duration.
 static bool collect_envelopes(mforce::ValueSource* vs,
                               std::vector<mforce::Envelope*>& out,
                               std::vector<mforce::ValueSource*>& seen) {
     if (!vs) return true;
     for (auto* s : seen) if (s == vs) return true;
     seen.push_back(vs);
+    if (auto* ref = dynamic_cast<mforce::RefSource*>(vs))
+        return collect_envelopes(ref->source.get(), out, seen);
     if (std::string_view(vs->type_name()).find("Multiplex") != std::string_view::npos)
         return false;
     if (auto* env = dynamic_cast<mforce::Envelope*>(vs)) out.push_back(env);
@@ -8229,12 +8236,15 @@ static void transport_play() {
             break;
         }
         case PlayMode::Passage: {
-            // Generate into buffer, then stream the pre-rendered result
-            auto notes = parse_passage(g_transport.passageStr, g_transport.octave, g_transport.bpm);
-            if (!notes.empty()) {
-                render_passage_waveforms(notes, g_transport.velocity);
-                play_buffer();
-            }
+            // Play exactly what Generate last produced — no re-render, no
+            // staleness check (Matt 2026-09-13): generate → tweak → Play is
+            // the A/B workflow, so Play must stay the pre-tweak reference.
+            // The old re-render here went through the UI-graph pass, which
+            // never ticks tap-only loop tails — silence + a flattened
+            // waveform on every tap-loop patch, plus the full render delay.
+            if (g_outputWaveform.empty() || g_waveformSamples == 0)
+                transport_generate();   // first press with nothing generated
+            play_buffer();
             break;
         }
         case PlayMode::Chords:
@@ -12651,6 +12661,33 @@ int main(int argc, char** argv) {
     // staleness logic is verifiable without launching the GUI.
     if (argc >= 2 && std::string(argv[1]) == "--stamp") {
         return stamp::print_report();
+    }
+
+    // Headless gating-walk readout: which Envelope nodes can live gating
+    // reach in this patch's voice graph? Regression harness for the
+    // 2026-09-13 tap-loop bug (envelopes behind RefSource/tap edges were
+    // invisible, so key-up couldn't stop a self-oscillating loop).
+    if (argc >= 3 && std::string(argv[1]) == "--gatecheck") {
+        s_headless = true;
+        register_all_sources();
+        try {
+            auto ip = load_instrument_patch(argv[2]);
+            auto* pitched = dynamic_cast<PitchedInstrument*>(ip.instrument.get());
+            if (!pitched || pitched->voicePool.empty()) {
+                fprintf(stderr, "gatecheck: not a PitchedInstrument or empty voice pool\n");
+                return 1;
+            }
+            std::vector<mforce::Envelope*> envs;
+            std::vector<mforce::ValueSource*> seen;
+            bool gateable = collect_envelopes(
+                pitched->voicePool[0].source.get(), envs, seen);
+            printf("gatecheck %s: gateable=%d envelopes=%d\n",
+                   argv[2], int(gateable), int(envs.size()));
+            return 0;
+        } catch (const std::exception& e) {
+            fprintf(stderr, "gatecheck failed: %s\n", e.what());
+            return 1;
+        }
     }
 
     if (argc >= 4 && std::string(argv[1]) == "--roundtrip") {
