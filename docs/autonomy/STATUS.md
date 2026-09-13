@@ -1,6 +1,41 @@
 # Status — open this file first
 
-Updated: 2026-09-08 (marathon interactive session, Fable 5 with Matt; he
+Updated: 2026-09-12 (harness-campaign day, Fable 5 with Matt; session
+restarted clean after this update — pick up from here).
+**09-12 digest — string + brass harnesses, specced/built/measured in one
+day (Matt's directive: state-of-the-art first, sweep, ML ears).** Both
+built with ZERO new engine code. STRING (waveguide two-segment, native;
+specs 09-11 + addendum; tools/gen_string_harness1.py): IN TUNE ±22c
+across C2..C6 all bow positions with capture 0.25; build lessons —
+compensate-on-NUT = exact two-delay tuning, cycle NEEDS dcblock (bias
+DC → 45 Hz relax "note"), output post-DC. Round 2 drive sweep
+(string_harness2): Matt's flutter diagnosis confirmed numerically
+(1.2x crit = 98% envelope dips); GAIN is the flutter knob, sweet spot
+3.2x crit → flutter 9%, pitch +5.7c iqr 0, ML ears 1.075 = campaign
+best (additive-viola lineage started at 1.28). Start cell
+str2_g32_b36_h05. BRASS (outward-striking lip = morph-pin N=2 slice;
+spec 09-12; tools/gen_brass_harness1.py): pressure must enter POST-cup;
+ignition is a WINDOW (linear scan, not bisection); lock probe
+pitch-gated; locked register C3-C5 (t100 column), ML 1.65-1.9, flutter
+<2% but +22-38c static sharp = intonation trim + spectral-balance
+knobs open (blend test moved total but worsened harm — stopped per
+no-blind-tweaks). Docs: {STRING,BRASS}_HARNESS_NOTES.md (component
+notes, reed-diff tables, hand-tweak guides);
+tools/measure_stability.py = new flutter/pitch metrics in the
+pipeline; trumpet ML config+reference built (ml_ears/configs/
+trumpet_bb.json). Matt's round-1 ears: "far from good but extremely
+promising - moments of stringiness, one amazing moment of saxiness";
+he's playing string round-1 winner + brass q15_m3 by hand. Queues
+AWAITING EARS: string_harness1/2, brass_harness1 (+ hysteresis_bow*
+and valve2 verdicts still open). Backlogs: 65 (root sensitivity, +
+1-sample ordering residual) OPEN; 67 (loader unknown-key warning)
+OPEN; 68 brainstorm pending (weekend meeting postponed). Prior 09-11:
+duration perform field + Live checkbox landed (backlog 64 Tier 1);
+transport tab rework + passage/chords save-load; bow rounds 1-5
+(period-1 capture rule) — see 09-11 commits and hysteresis_bow*
+READMEs.
+
+Previous update: 2026-09-08 (marathon interactive session, Fable 5 with Matt; he
 may be away ~4 days — Fable usage limit — check powered-by at session
 start per the model-switch protocol).
 **09-08 session digest — the junction-state day.** Library went NUMBERED
