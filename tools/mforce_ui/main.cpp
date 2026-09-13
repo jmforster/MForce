@@ -4145,6 +4145,80 @@ static void stream_envelopes_hold() {
 static void transport_set_status(const char* msg, bool isError);
 
 // Offline render: populate per-node waveformData and g_outputWaveform for display
+// ONE Generate path for patch mode (render-capture unification spec
+// 2026-09-13): serialize the live editor graph, load a PitchedInstrument
+// from it directly — no temp file — and render through the engine with
+// per-node capture. Generate IS the CLI render path by construction;
+// strips observe the clones that actually play, summed across voices at
+// timeline offsets like the audio itself.
+struct SchedNote {
+    float noteNumber;
+    float durationSeconds;
+    float startSeconds;
+    float velocity;
+};
+
+static bool generate_unified(const std::vector<SchedNote>& notes) {
+    if (notes.empty()) return false;
+    try {
+        std::unordered_map<int, std::string> idMap;
+        nlohmann::json root = serialize_patch_graph(false, &idMap);
+        auto ip = load_instrument_patch_json(root.dump());
+        auto* pitched = dynamic_cast<PitchedInstrument*>(ip.instrument.get());
+        if (!pitched) {
+            transport_set_status("Generate: patch did not load as a "
+                                 "PitchedInstrument", true);
+            return false;
+        }
+
+        // Capture set = every displayable node, by its serialized id.
+        // Perform FACES serialize as per-field __perf_* nodes, not under
+        // their own id — excluded here (their field buffers are captured
+        // separately for evo snapshots).
+        std::vector<GraphNode*> capNodes;
+        std::vector<std::string> capIds;
+        for (auto& n : s_nodes) {
+            auto it = idMap.find(n.id);
+            if (n.dspSource && !is_special_ui_type(n.typeName)
+                && n.typeName != NT_PERFORM && it != idMap.end()) {
+                capNodes.push_back(&n);
+                capIds.push_back(it->second);
+            } else {
+                n.waveformData.clear();
+            }
+        }
+
+        float end = 0.0f;
+        for (const auto& sn : notes)
+            end = std::max(end, sn.startSeconds + sn.durationSeconds);
+        int frames = int(end * float(ip.sampleRate));
+
+        pitched->capture_begin(capIds, frames);
+        for (const auto& sn : notes)
+            pitched->play_note(sn.noteNumber, sn.velocity,
+                               sn.durationSeconds, sn.startSeconds);
+
+        buffer_playback_detach();   // it points into g_outputWaveform (3k)
+        g_outputWaveform.assign(size_t(frames), 0.0f);
+        g_waveformSamples = frames;
+        RenderContext ctx{ip.sampleRate};
+        ip.instrument->render(ctx, g_outputWaveform.data(), frames);
+
+        for (size_t k = 0; k < capNodes.size(); ++k)
+            capNodes[k]->waveformData = std::move(pitched->captureBuffers[k]);
+        pitched->capture_end();
+
+        wave_view_after_render(frames);
+        compute_output_spectrum();
+        return true;
+    } catch (const std::exception& e) {
+        char buf[256];
+        snprintf(buf, sizeof(buf), "Generate failed: %s", e.what());
+        transport_set_status(buf, true);
+        return false;
+    }
+}
+
 // Overwrite g_outputWaveform with authoritative audio for a passage (note
 // sequence) via load_instrument_patch + PitchedInstrument. Per-node
 // waveform data still comes from render_passage_waveforms' UI DSP pass.
@@ -8138,17 +8212,13 @@ static void transport_generate() {
             ValueSource* uiSrc = find_output_source();
             if (!transport_can_generate(uiSrc)) break;
             float noteNum = parse_note_input(g_transport.noteStr);
-            // Per-node waveforms from UI DSP tree (fast, for inspector views).
-            // Skipped when the UI graph has no modeled output link — the
-            // authoritative render below is what actually matters.
-            if (uiSrc)
-                render_waveforms(noteNum, g_transport.velocity, g_transport.duration);
-            // Authoritative audio into g_outputWaveform (slow for fat Multiplex;
-            // UI blocks here until done — that's the visible feedback that
-            // generation is running. Play then just streams the buffer.)
-            // On failure it sets its own status message — don't overwrite it.
-            if (render_output_authoritative(noteNum, g_transport.velocity,
-                                            g_transport.duration)) {
+            // Unified render (spec 2026-09-13): one engine pass fills the
+            // play buffer AND every node strip. Blocks until done — that's
+            // the visible feedback that generation is running; on failure
+            // it sets its own status message.
+            std::vector<SchedNote> sched{
+                {noteNum, g_transport.duration, 0.0f, g_transport.velocity}};
+            if (generate_unified(sched)) {
                 transport_set_status("Generated note", false);
                 note_played(noteNum, g_transport.velocity);
                 std::snprintf(g_noteGenSnap.noteStr, sizeof(g_noteGenSnap.noteStr),
@@ -8167,9 +8237,16 @@ static void transport_generate() {
                 if (notes.empty()) {
                     transport_set_status("No notes parsed from passage string", true);
                 } else {
-                    if (uiSrc)
-                        render_passage_waveforms(notes, g_transport.velocity);
-                    if (render_passage_output_authoritative(notes, g_transport.velocity)) {
+                    // Unified render (spec 2026-09-13): passage notes are
+                    // sequential — schedule them back to back.
+                    std::vector<SchedNote> sched;
+                    float cursor = 0.0f;
+                    for (const auto& pn : notes) {
+                        sched.push_back({pn.noteNumber, pn.durationSeconds,
+                                         cursor, g_transport.velocity});
+                        cursor += pn.durationSeconds;
+                    }
+                    if (generate_unified(sched)) {
                         char buf[128];
                         snprintf(buf, sizeof(buf), "Generated %d notes", (int)notes.size());
                         transport_set_status(buf, false);
@@ -12698,6 +12775,54 @@ int main(int argc, char** argv) {
             return 0;
         } catch (const std::exception& e) {
             fprintf(stderr, "gatecheck failed: %s\n", e.what());
+            return 1;
+        }
+    }
+
+    // Headless unified-Generate check: render the patch's EMBEDDED score
+    // through generate_unified, write the output buffer as WAV, print
+    // per-node strip RMS. Acceptance for the render-capture unification
+    // spec §6: output proportional to mforce_cli on the same patch, and
+    // in-loop strips (NutDelay class) non-flat.
+    if (argc >= 4 && std::string(argv[1]) == "--gencheck") {
+        s_headless = true;
+        ImGui::CreateContext();
+        ImNodes::CreateContext();
+        register_all_sources();
+        try {
+            load_graph_from_path(argv[2]);
+            std::vector<SchedNote> notes;
+            if (s_loadedScore.is_array())
+                for (const auto& ev : s_loadedScore)
+                    notes.push_back({ev.value("note", 60.0f),
+                                     ev.value("duration", 1.0f),
+                                     ev.value("time", 0.0f),
+                                     ev.value("velocity", 0.8f)});
+            if (notes.empty()) { fprintf(stderr, "gencheck: no score\n"); return 1; }
+            if (!generate_unified(notes)) {
+                fprintf(stderr, "gencheck: generate_unified failed: %s\n",
+                        g_transport.statusMsg);
+                return 1;
+            }
+            std::vector<float> stereo(size_t(g_waveformSamples) * 2);
+            for (int i = 0; i < g_waveformSamples; ++i)
+                stereo[size_t(i)*2] = stereo[size_t(i)*2+1] =
+                    g_outputWaveform[size_t(i)];
+            if (!write_wav_16le_stereo(argv[3], AUDIO_SAMPLE_RATE, stereo)) {
+                fprintf(stderr, "gencheck: wav write failed\n");
+                return 1;
+            }
+            for (auto& n : s_nodes) {
+                if (n.waveformData.empty()) continue;
+                double acc = 0.0;
+                for (float s : n.waveformData) acc += double(s) * double(s);
+                printf("strip %-24s rms %.6f\n", n.label.c_str(),
+                       std::sqrt(acc / double(n.waveformData.size())));
+            }
+            printf("gencheck ok: %d frames\n", g_waveformSamples);
+            return 0;
+        } catch (const std::exception& e) {
+            fprintf(stderr, "gencheck failed: %s\n", e.what());
             return 1;
         }
     }
