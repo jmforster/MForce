@@ -2739,7 +2739,13 @@ static bool rename_group(NodeGroup& group, const std::string& newName,
 
 // tapOverride: emit the Listen-tap node as graph.output (playback TEMP file
 // only — a user-facing Save must never persist the tap).
-static void save_patch_graph(const std::string& path, bool tapOverride = false) {
+// Build the patch JSON from the live editor state. When outIds is
+// non-null it receives the GraphNode.id -> serialized string id map, so
+// capture registration (unified Generate) can never drift from what was
+// serialized (render-capture unification spec 2026-09-13 §4a).
+static nlohmann::json serialize_patch_graph(
+        bool tapOverride,
+        std::unordered_map<int, std::string>* outIds) {
     using json = nlohmann::json;
 
     // Assign string IDs to nodes — the label IS the id (stable identity).
@@ -3168,6 +3174,12 @@ static void save_patch_graph(const std::string& path, bool tapOverride = false) 
         if (!faces.empty()) root["ui"]["noteFaces"] = faces;
     }
 
+    if (outIds) *outIds = nodeIds;
+    return root;
+}
+
+static void save_patch_graph(const std::string& path, bool tapOverride = false) {
+    nlohmann::json root = serialize_patch_graph(tapOverride, nullptr);
     std::ofstream f(path);
     f << root.dump(2);
     f.close();
