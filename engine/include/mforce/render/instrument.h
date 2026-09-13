@@ -158,6 +158,31 @@ struct PitchedInstrument final : Instrument {
   }
   void release_all_voices() { slotInUse.assign(voicePool.size(), 0); }
 
+  // --- Offline per-node capture (render-capture unification spec
+  // 2026-09-13). Registered by the UI's Generate; play_note SUMS each
+  // captured clone's current() into a timeline-length buffer at the
+  // note's start offset — strips accumulate across voices exactly like
+  // add_rendered accumulates audio. OFFLINE path only: the streaming/
+  // live path never touches this, and with no registration the render
+  // loop pays one branch. Buffers are pre-allocated here — nothing
+  // allocates inside the per-sample loop.
+  struct CaptureEntry { ValueSource* node; int bufIdx; };
+  std::vector<std::vector<CaptureEntry>> capturePerVoice; // parallel to voicePool
+  std::vector<std::vector<float>> captureBuffers;         // per id, timeline frames
+
+  void capture_begin(const std::vector<std::string>& ids, int timelineFrames) {
+    captureBuffers.assign(ids.size(), {});
+    for (auto& b : captureBuffers) b.assign(size_t(timelineFrames), 0.0f);
+    capturePerVoice.assign(voicePool.size(), {});
+    for (size_t v = 0; v < voicePool.size(); ++v)
+      for (size_t k = 0; k < ids.size(); ++k) {
+        auto it = voicePool[v].nodesById.find(ids[k]);
+        if (it != voicePool[v].nodesById.end())
+          capturePerVoice[v].push_back({it->second.get(), int(k)});
+      }
+  }
+  void capture_end() { capturePerVoice.clear(); }  // buffers stay for the caller
+
   // Streaming-mode handoff: same set-frequency + prepare logic as play_note,
   // but returns the prepared voice source instead of rendering immediately.
   // Caller is responsible for calling next() durSamples times (e.g. from the
@@ -259,7 +284,8 @@ struct PitchedInstrument final : Instrument {
 
   void play_note(float noteNumber, float velocity, float duration, float startTime,
                  const PitchCurve* curve = nullptr) {
-    auto& vg = voicePool[nextVoice % voicePool.size()];
+    int vIdx = int(nextVoice % int(voicePool.size()));
+    auto& vg = voicePool[size_t(vIdx)];
     nextVoice++;
 
     float freq = note_to_freq(noteNumber);
@@ -277,11 +303,23 @@ struct PitchedInstrument final : Instrument {
     vg.source->prepare(ctx, durSamples);
     for (auto& a : vg.advanceList) a->prepare(ctx, durSamples);
 
+    int startFrame = int(startTime * float(sampleRate));
+    const bool capturing = !capturePerVoice.empty();
     std::vector<float> buf(durSamples);
     for (int i = 0; i < durSamples; ++i) {
       if (vg.performSource) vg.performSource->tick();   // P3 sample clock
       buf[i] = vg.source->next() * gain;
       for (auto& a : vg.advanceList) a->next();         // tap-only loop tails
+      if (capturing) {
+        // Strips record raw current() — no velocity/volume gain — matching
+        // what the per-node display always showed.
+        int f = startFrame + i;
+        for (auto& ce : capturePerVoice[size_t(vIdx)]) {
+          auto& dst = captureBuffers[size_t(ce.bufIdx)];
+          if (f >= 0 && f < int(dst.size()))
+            dst[size_t(f)] += ce.node->current();
+        }
+      }
     }
 
     // Note-contained-sound check (2026-08-13 spec): output must be at the
