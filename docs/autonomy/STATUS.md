@@ -24,16 +24,20 @@ the in-memory loader. Proof: UI output ∝ CLI at exactly 1/√2 pan law
 (worst 2.5 LSB, 3 families); NutDelay strip live (was silently flat);
 null gate 80/80 hash-identical; --gatecheck + --gencheck are the
 standing harnesses. Matt's morning verdict: "works great." He deleted
-oboe1's orphan Morph_env (found by the truthful strips). PRELIM EARS
-(pre-fix, live path was broken — re-take): strings flutter GONE but
-attack fast/harsh "distorted guitar," multi-attack count grows with
-pitch (2→10 by C7; NOT in offline renders — measure again post-fix),
-AmplEnv.maxValue barely moves attack (self-limiting loop; drive-onset
-decoupled from loop gain is the named lever); brass round 2 "very saxy
-not brassy," squeaky/out-of-tune high, buzzy vowel low — maps to
-documented +22-38c sharp, C6+ non-lock, spectral-balance gap; per-note
-pressure-window map (probe was C4-only) is the offered zero-code next
-step. Backlogs 65/67/68 unchanged.
+oboe1's orphan Morph_env (found by the truthful strips). STRING VERDICT
+(post-fix, 09-13, full log in STRING_HARNESS_NOTES.md §Round 2 ears):
+multi-attack GONE except C5/C6 on some cells (possibly BEATING not
+retrigger); attack+sustain harsh/saturated "distorted guitar played by
+a bow"; ALL cells sound TWO OCTAVES per note (near-equal weight at
+4.0x gain); 32/36/05 = reference cell (stability winner + only clean
+C6); b48 column confirmed dead (thump-then-sine / breath). Measure
+next: f0-vs-2f0 spectrum across gain band, C6 beat-rate vs detune;
+drive-onset decoupled from loop gain stays the saturation lever. BRASS
+prelim (pre-fix): "very saxy not brassy," squeaky/out-of-tune high,
+buzzy vowel low — maps to documented +22-38c sharp, C6+ non-lock,
+spectral-balance gap; per-note pressure-window map (probe was C4-only)
+is the offered zero-code next step. No promotions; queues in place
+pending the steering meeting. Backlogs 65/67/68 unchanged.
 
 Previous update: 2026-09-12 (harness-campaign day, Fable 5 with Matt; session
 restarted clean after this update — pick up from here).

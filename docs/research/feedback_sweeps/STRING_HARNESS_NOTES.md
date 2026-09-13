@@ -75,3 +75,58 @@ disease is impossible here by construction.
   ring-down.
 - **Body:** deliberately absent. Add 2-3 fixed SVF resonances on the
   output when the raw mechanism satisfies - one variable at a time.
+
+## Round 2 (drive sweep, string_harness2) — Matt's ears, 2026-09-13
+
+Heard AFTER the tap-loop live fixes (RefSource gating + Play replay,
+09-13 commits) — supersedes the 09-12 prelim notes taken through the
+broken live path.
+
+Overall:
+- Multi-attack GONE except C5/C6 on certain cells — and there it "may
+  be oscillation vs. collapse/re-trigger" (Matt), i.e. possibly
+  amplitude beating, not envelope retriggering.
+- Attack AND sustain "very harsh and saturated — more like a dirty
+  synth stab or distorted electric guitar being played *by a bow*."
+- All cells (harder to tell on some): TWO OCTAVES sounding per note.
+
+Per cell (gain x bias x hair):
+- 12/36/0: rough/borderline attack; oscillation/multi-attack C5+C6.
+- 12/36/05: same, more oscillation C5/C6.
+- 12/48/0 and /05: strange — no bow; little thump then a sine wave.
+- 16/36/0: stabby attack, distorted-guitar/synth sustain; 5
+  attacks/oscillations on C6.
+- 16/36/05: very similar; 4 beats on C6.
+- 16/48/0 and /05: darker with "zithering"; very breathy sustain on
+  high notes; h05 = slower zithering, breathier.
+- 22/36/0: smoother, white-noisy attack; oscillation on C6.
+- 22/36/05: same, more C6 oscillation.
+- 22/48/0 and /05: "giant's breath thru massive tube" — almost all
+  noise, faint pitch.
+- 26/36/0: least harsh but still synthy; slight double hit on C6.
+- 26/36/05: same.
+- 32/36/0: similar to 26/36, slightly darker; 5 oscillations on C6.
+- 32/36/05: same BUT NO oscillation on C6 — the only clean C6.
+- 40/36/0 and /05: similar, octaves very pronounced — near-equal
+  weight f0 vs octave.
+
+Reading (annotation, not verdict): b48's thump-then-sine / breath cells
+match the measured off-grid bias (pitch destroyed, loop under-driven or
+noise-dominated). The octave content growing with gain (near-equal at
+4.0x) plus C6 "oscillation" counts of a few per 2 s note smell like two
+components beating, connected to the octave doubling — measurable, not
+yet measured.
+
+Open follow-ups (measure first, no knob-guessing):
+1. Spectrum per cell: f0 vs 2f0 energy across the gain band — is the
+   octave a junction even-harmonic product, a half-loop resonance, or
+   segment-ratio related? Why does 32/36/05 alone clean up C6?
+2. C6 amplitude envelope: beat rate vs cell — does it track f0-vs-2f0
+   detune (beating) or envelope collapse (retrigger)?
+3. The standing saturation gap: attack/sustain harshness = loop deep in
+   clamp at speaking gains; drive-onset decoupled from loop gain is the
+   named lever (09-13 STATUS).
+
+Disposition: no keepers named; queue left in place pending the steering
+meeting (32/36/05 is the reference cell: stability winner + only clean
+C6).
