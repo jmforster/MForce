@@ -1,6 +1,41 @@
 # Status — open this file first
 
-Updated: 2026-09-12 (harness-campaign day, Fable 5 with Matt; session
+Updated: 2026-09-13 (render-unification day, Fable 5 with Matt; session
+restarted clean after this update — pick up from here; next sesh =
+steering committee meeting).
+**09-13 digest — tap-loop UI bugs root-caused, then the two-renderer
+Generate deleted at Matt's direction.** Morning: Matt's harness live-play
+anomalies traced (systematic-debugging): (1) collect_envelopes couldn't
+see through RefSource (taps + secondary-consumer wraps expose no
+descriptors) → string loop-gain env (Ampl_env on tap-only NutDelay)
+stayed ungated → key-up ignored, notes = spinner length (brass gated
+fine — Mouth is walkable; Matt confirmed the split). (2) Passage Play
+re-rendered via the UI-graph pass (no advanceList → tap tails frozen →
+flat waveform + silence + re-render delay). Fixes: walk follows
+RefSource::source; Play = dumb replay of last Generate (no staleness —
+generate/tweak/Play is Matt's A/B workflow). Then the big one
+(spec+plan 2026-09-13-render-capture-unification): generate_unified =
+serialize editor graph → load_instrument_patch_json (no temp file) →
+play_note with per-node CAPTURE (engine sums each clone's current()
+at timeline offsets, legacy addValueListener reborn) → strips + play
+buffer from ONE engine render. render_waveforms/passage/both
+*_authoritative DELETED (−211 lines); chords/cache/--dump-playback on
+the in-memory loader. Proof: UI output ∝ CLI at exactly 1/√2 pan law
+(worst 2.5 LSB, 3 families); NutDelay strip live (was silently flat);
+null gate 80/80 hash-identical; --gatecheck + --gencheck are the
+standing harnesses. Matt's morning verdict: "works great." He deleted
+oboe1's orphan Morph_env (found by the truthful strips). PRELIM EARS
+(pre-fix, live path was broken — re-take): strings flutter GONE but
+attack fast/harsh "distorted guitar," multi-attack count grows with
+pitch (2→10 by C7; NOT in offline renders — measure again post-fix),
+AmplEnv.maxValue barely moves attack (self-limiting loop; drive-onset
+decoupled from loop gain is the named lever); brass round 2 "very saxy
+not brassy," squeaky/out-of-tune high, buzzy vowel low — maps to
+documented +22-38c sharp, C6+ non-lock, spectral-balance gap; per-note
+pressure-window map (probe was C4-only) is the offered zero-code next
+step. Backlogs 65/67/68 unchanged.
+
+Previous update: 2026-09-12 (harness-campaign day, Fable 5 with Matt; session
 restarted clean after this update — pick up from here).
 **09-12 digest — string + brass harnesses, specced/built/measured in one
 day (Matt's directive: state-of-the-art first, sweep, ML ears).** Both
