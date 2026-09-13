@@ -4282,100 +4282,9 @@ static bool generate_unified(const std::vector<SchedNote>& notes) {
     }
 }
 
-// Overwrite g_outputWaveform with authoritative audio for a passage (note
-// sequence) via load_instrument_patch + PitchedInstrument. Per-node
-// waveform data still comes from render_passage_waveforms' UI DSP pass.
-static bool render_passage_output_authoritative(
-    const std::vector<ParsedNote>& notes, float velocity)
-{
-    if (notes.empty()) return false;
-    std::string path = get_playback_patch_path();
-    if (path.empty()) {
-        transport_set_status("Authoritative passage render: no patch path "
-                             "(get_playback_patch_path empty)", true);
-        return false;
-    }
-
-    try {
-        auto ip = load_instrument_patch(path);
-        auto* pitched = dynamic_cast<PitchedInstrument*>(ip.instrument.get());
-        if (!pitched) {
-            transport_set_status("Authoritative passage render: loaded patch is not "
-                                 "a PitchedInstrument", true);
-            return false;
-        }
-
-        float timeCursor = 0.0f;
-        for (const auto& pn : notes) {
-            pitched->play_note(pn.noteNumber, velocity, pn.durationSeconds, timeCursor);
-            timeCursor += pn.durationSeconds;
-        }
-
-        // Note-contained sound (2026-08-13): all sound ends by the last
-        // note's duration end.
-        int frames = int(timeCursor * float(ip.sampleRate));
-        g_outputWaveform.assign(frames, 0.0f);
-        g_waveformSamples = frames;
-        RenderContext ctx{ip.sampleRate};
-        ip.instrument->render(ctx, g_outputWaveform.data(), frames);
-
-        wave_view_after_render(frames);
-        compute_output_spectrum();
-        return true;
-    } catch (const std::exception& e) {
-        char buf[256];
-        snprintf(buf, sizeof(buf),
-                 "Authoritative passage render failed: %s", e.what());
-        transport_set_status(buf, true);
-        std::fprintf(stderr, "render_passage_output_authoritative failed: %s\n", e.what());
-        return false;
-    }
-}
-
-// Overwrite g_outputWaveform with authoritative audio produced via
-// load_instrument_patch — the same path CLI `mforce_cli` uses, so
-// MultiplexSource fan-out (and any other load-time constructs) apply.
-// Called after render_waveforms during Generate so per-node displays still
-// use the UI DSP tree for per-node waveforms, but the main g_outputWaveform
-// and Play path reflect what the patch will really sound like.
-static bool render_output_authoritative(float noteNum, float velocity,
-                                        float durationSeconds) {
-    std::string path = get_playback_patch_path();
-    if (path.empty()) {
-        transport_set_status("Authoritative render: no patch path "
-                             "(get_playback_patch_path empty)", true);
-        return false;
-    }
-
-    try {
-        auto ip = load_instrument_patch(path);
-        auto* pitched = dynamic_cast<PitchedInstrument*>(ip.instrument.get());
-        if (!pitched) {
-            transport_set_status("Authoritative render: loaded patch is not "
-                                 "a PitchedInstrument", true);
-            return false;
-        }
-
-        pitched->play_note(noteNum, velocity, durationSeconds, 0.0f);
-
-        int frames = int(durationSeconds * float(ip.sampleRate));
-        g_outputWaveform.assign(frames, 0.0f);
-        g_waveformSamples = frames;
-        RenderContext ctx{ip.sampleRate};
-        ip.instrument->render(ctx, g_outputWaveform.data(), frames);
-
-        wave_view_after_render(frames);
-        compute_output_spectrum();
-        return true;
-    } catch (const std::exception& e) {
-        char buf[256];
-        snprintf(buf, sizeof(buf),
-                 "Authoritative render failed: %s", e.what());
-        transport_set_status(buf, true);
-        std::fprintf(stderr, "render_output_authoritative failed: %s\n", e.what());
-        return false;
-    }
-}
+// (render_output_authoritative / render_passage_output_authoritative
+// deleted 2026-09-13: generate_unified above IS the engine render — the
+// word "authoritative" retired with the second renderer.)
 
 // Apply the paramMap stash for one note, mirroring the engine's note-on
 // application exactly (instrument.h map/vmap): curve = log-frequency
@@ -4485,84 +4394,8 @@ static void apply_param_map(float freq, float velocity) {
     }
 }
 
-static void render_waveforms(float noteNum, float velocity, float durationSeconds) {
-    ValueSource* src = find_output_source();
-    if (!src) return;
-
-    // If a continuous stream flipped envelopes to streaming semantics,
-    // restore them so this offline note render behaves exactly as before.
-    stream_envelopes_restore();
-
-    // Retune per the paramMap (curves/vcurves honored — engine parity);
-    // NodeGraph mode has no paramMap and keeps its Parameter frequency node.
-    float freq = note_to_freq(noteNum);
-    apply_param_map(freq, velocity);
-    apply_perform_nodes(freq, velocity);
-    for (auto& n : s_nodes) {
-        if (n.typeName == NT_PARAMETER && n.paramName == "frequency") {
-            if (auto* p = n.find_input("default"))
-                p->constantSrc->set(freq);
-        }
-    }
-
-    int samples = int(durationSeconds * float(AUDIO_SAMPLE_RATE));
-    prepare_graph(samples);
-
-    // Allocate per-node buffers for DSP nodes
-    for (auto& n : s_nodes) {
-        if (n.dspSource && !is_special_ui_type(n.typeName))
-            n.waveformData.resize(samples);
-        else
-            n.waveformData.clear();
-    }
-    buffer_playback_detach();  // it points into this vector (3k)
-    g_outputWaveform.resize(samples);
-    g_waveformSamples = samples;
-
-    // Snapshot capture setup: for every Partials/Formant node, record which
-    // input pins are connected to live ValueSources so we can sample their
-    // current() values at EVO_SNAP_COUNT evenly-spaced time points during
-    // the render loop. This populates g_evoSnapshots used by the scrubber.
-    g_evoSnapshots.clear();
-    struct EvoCap { int nodeId; std::string pin; ValueSource* vs; std::vector<float>* vec; };
-    std::vector<EvoCap> evoCaptures;
-    int snapStride = std::max(1, samples / EVO_SNAP_COUNT);
-    for (auto& n : s_nodes) {
-        if (!is_partials_type(n.typeName) && !is_formant_type(n.typeName)) continue;
-        auto& byPin = g_evoSnapshots[n.id];
-        for (auto& pin : n.inputs) {
-            GraphNode* sn = find_source_node(pin.id);
-            if (!sn || !sn->dspSource) continue;
-            byPin[pin.name].assign(EVO_SNAP_COUNT, 0.0f);
-            evoCaptures.push_back({n.id, pin.name, sn->dspSource.get(), &byPin[pin.name]});
-        }
-    }
-
-    // Render the full note offline
-    for (int i = 0; i < samples; ++i) {
-        float s = src->next();
-        g_outputWaveform[i] = s * velocity;
-
-        // Capture each node's current output
-        for (auto& n : s_nodes) {
-            if (!n.waveformData.empty())
-                n.waveformData[i] = n.dspSource->current();
-        }
-
-        // Snapshot evolving inputs at stride boundaries.
-        if (i % snapStride == 0) {
-            int idx = i / snapStride;
-            if (idx < EVO_SNAP_COUNT) {
-                for (auto& c : evoCaptures) (*c.vec)[idx] = c.vs->current();
-            }
-        }
-    }
-
-    wave_view_after_render(samples);
-
-    // Refresh the output spectrum from the freshly-rendered g_outputWaveform.
-    compute_output_spectrum();
-}
+// (render_waveforms deleted 2026-09-13: generate_unified fills per-node
+// strips and evo snapshots from the engine render itself.)
 
 // Play a note: render offline into a voice buffer for polyphonic mixing.
 // Also updates the waveform display with the most recent note.
@@ -4600,14 +4433,16 @@ static std::shared_ptr<InstrumentPatch> get_cached_instrument() {
         g_cachedEditCounter == g_graphEditCounter &&
         g_cachedTapNode == s_listenTapNode)
         return g_cachedInstrument;
-    std::string path = get_playback_patch_path();
-    if (path.empty()) return nullptr;
+    if (s_graphMode != GraphMode::PatchGraph) return nullptr;
     auto t0 = std::chrono::steady_clock::now();
+    // In-memory serialize -> load (no temp file; spec 2026-09-13 §4c).
+    // The Listen-tap override rides the same flag it always did.
+    nlohmann::json liveRoot = serialize_patch_graph(s_listenTapNode >= 0, nullptr);
     // shared_ptr so Voice slots keep the whole DSP graph alive while sounding
     // (and across cache invalidation — an old instrument survives until its
     // last voice ends).
     auto ip = std::make_shared<InstrumentPatch>(
-        load_instrument_patch(path, LIVE_MIN_POLYPHONY));
+        load_instrument_patch_json(liveRoot.dump(), LIVE_MIN_POLYPHONY));
     if (!ip->instrument || ip->instrument->voicePool.empty()) return nullptr;
     g_cachedInstrument  = ip;
     g_cachedEditCounter = g_graphEditCounter;
@@ -7983,59 +7818,8 @@ static void draw_keyboard_panel() {
 // Transport: generate actions
 // ===========================================================================
 
-// Render a passage (sequence of notes) through the UI DSP graph into the
-// output waveform buffers.  Each note sets the frequency parameter, prepares
-// the graph for the note duration, renders, then concatenates.
-static void render_passage_waveforms(const std::vector<ParsedNote>& notes, float velocity) {
-    ValueSource* src = find_output_source();
-    if (!src || notes.empty()) return;
-
-    // Undo any streaming envelope overrides before an offline render.
-    stream_envelopes_restore();
-
-    // Compute total samples
-    int totalSamples = 0;
-    for (const auto& n : notes)
-        totalSamples += int(n.durationSeconds * float(AUDIO_SAMPLE_RATE));
-
-    buffer_playback_detach();  // it points into this vector (3k)
-    g_outputWaveform.resize(totalSamples);
-    g_waveformSamples = totalSamples;
-    for (auto& node : s_nodes) {
-        if (node.dspSource && !is_special_ui_type(node.typeName))
-            node.waveformData.resize(totalSamples);
-        else
-            node.waveformData.clear();
-    }
-
-    int offset = 0;
-    for (const auto& pn : notes) {
-        float freq = note_to_freq(pn.noteNumber);
-        apply_param_map(freq, velocity);
-        apply_perform_nodes(freq, velocity);
-        for (auto& n : s_nodes) {
-            if (n.typeName == NT_PARAMETER && n.paramName == "frequency") {
-                if (auto* p = n.find_input("default"))
-                    p->constantSrc->set(freq);
-            }
-        }
-
-        int samples = int(pn.durationSeconds * float(AUDIO_SAMPLE_RATE));
-        prepare_graph(samples);
-
-        for (int i = 0; i < samples && (offset + i) < totalSamples; ++i) {
-            float s = src->next();
-            g_outputWaveform[offset + i] = s * velocity;
-            for (auto& node : s_nodes) {
-                if (!node.waveformData.empty())
-                    node.waveformData[offset + i] = node.dspSource->current();
-            }
-        }
-        offset += samples;
-    }
-
-    wave_view_after_render(totalSamples);
-}
+// (render_passage_waveforms deleted 2026-09-13: generate_unified renders
+// passages through the engine with per-node capture.)
 
 // Render chords through the Conductor/ChordPerformer pipeline using the
 // current patch file loaded as a PitchedInstrument.
@@ -8048,7 +7832,10 @@ static void render_chords_waveforms(const std::vector<ParsedChord>& chords, floa
     }
 
     try {
-        auto ip = load_instrument_patch(get_playback_patch_path());
+        // In-memory serialize -> load (no temp file; spec 2026-09-13 §4c).
+        nlohmann::json chordRoot =
+            serialize_patch_graph(s_listenTapNode >= 0, nullptr);
+        auto ip = load_instrument_patch_json(chordRoot.dump());
         ip.instrument->volume = 1.0f;
         // Disable the engine's per-sample soft_clip so we can see the *real*
         // un-clipped peak below. Otherwise the peak-normalize is a no-op —
@@ -13039,7 +12826,7 @@ int main(int argc, char** argv) {
     //   --dump-playback <patch.json> <out.wav> [--note N] [--vel V] [--dur D] [--keyboard]
     // Default note/vel/dur are the transport values after load — i.e. the
     // patch's score (apply_score_defaults). Without --keyboard this runs the
-    // Generate path (render_output_authoritative + the audio callback's
+    // Generate path (generate_unified + the audio callback's
     // soft_clip); with --keyboard it runs the live-keyboard streaming path
     // (prepare_voice + per-sample pull at voice gain + soft_clip).
     if (argc >= 4 && std::string(argv[1]) == "--dump-playback") {
@@ -13067,7 +12854,8 @@ int main(int argc, char** argv) {
                 // Live-keyboard path: streaming voice, no Instrument::render
                 // (so no instrument-level volume/peak-guard); the audio
                 // callback applies gain per sample and one soft_clip.
-                auto ip = load_instrument_patch(get_playback_patch_path());
+                auto ip = load_instrument_patch_json(
+                    serialize_patch_graph(false, nullptr).dump());
                 auto* pitched = ip.instrument.get();
                 if (!pitched) throw std::runtime_error("not a PitchedInstrument");
                 auto sv = pitched->prepare_voice(noteNum, vel, dur);
@@ -13078,10 +12866,11 @@ int main(int argc, char** argv) {
                     for (auto& a : sv.advanceList) a->next();  // loop tails
                 }
             } else {
-                // Generate path: authoritative offline render into
+                // Generate path: unified offline render into
                 // g_outputWaveform, then the buffer-playback soft_clip the
                 // audio callback would apply when streaming it.
-                if (!render_output_authoritative(noteNum, vel, dur))
+                std::vector<SchedNote> sched{{noteNum, dur, 0.0f, vel}};
+                if (!generate_unified(sched))
                     throw std::runtime_error(g_transport.statusMsg);
                 mono.assign(g_outputWaveform.begin(), g_outputWaveform.end());
                 for (auto& s : mono) s = soft_clip(s);
