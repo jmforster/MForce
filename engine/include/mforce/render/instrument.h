@@ -116,6 +116,10 @@ struct PitchedInstrument final : Instrument {
     // forward inputs are reached through the normal multi-consumer
     // RefSource wrap, so nothing double-advances).
     std::vector<std::shared_ptr<ValueSource>> advanceList;
+    // JSON node id -> this voice's clone (retained from build_graph so
+    // offline capture can resolve display ids; ~node-count shared_ptrs,
+    // the graph outlives them anyway). Empty for mixer-path instruments.
+    std::unordered_map<std::string, std::shared_ptr<ValueSource>> nodesById;
   };
 
   float hiBoost{0.0f};

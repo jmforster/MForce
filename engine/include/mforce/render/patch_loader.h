@@ -27,4 +27,10 @@ struct InstrumentPatch {
 InstrumentPatch load_instrument_patch(const std::string& path,
                                       int minPolyphony = 0);
 
+// Same as load_instrument_patch, from already-serialized JSON text —
+// no file. The UI's Generate path serializes its live editor graph and
+// loads it directly (render-capture unification spec 2026-09-13).
+InstrumentPatch load_instrument_patch_json(const std::string& jsonText,
+                                           int minPolyphony = 0);
+
 } // namespace mforce

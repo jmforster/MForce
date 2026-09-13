@@ -1652,15 +1652,15 @@ Patch load_patch_file(const std::string& path)
 // Load just the Instrument (no score, no mixer) for external use
 // ---------------------------------------------------------------------------
 
-InstrumentPatch load_instrument_patch(const std::string& path,
-                                      int minPolyphony)
+InstrumentPatch load_instrument_patch_json(const std::string& jsonText,
+                                           int minPolyphony)
 {
-    json root = json::parse(slurp(path));
+    json root = json::parse(jsonText);
 
     int sampleRate = root.value("sampleRate", 48000);
 
     if (!root.contains("instrument"))
-        throw std::runtime_error("Patch has no 'instrument' section: " + path);
+        throw std::runtime_error("Patch has no 'instrument' section");
 
     const json& graph = root.at("graph");
     const json& nodes = graph.at("nodes");
@@ -1706,10 +1706,18 @@ InstrumentPatch load_instrument_patch(const std::string& path,
         for (const auto& aid : collect_advance_ids(nodeMap, nodeOrder, outputId))
             vg.advanceList.push_back(g.valueNodes.at(aid));
 
+        vg.nodesById = std::move(g.valueNodes);
+
         inst->voicePool.push_back(std::move(vg));
     }
 
     return {std::move(inst), sampleRate};
+}
+
+InstrumentPatch load_instrument_patch(const std::string& path,
+                                      int minPolyphony)
+{
+    return load_instrument_patch_json(slurp(path), minPolyphony);
 }
 
 } // namespace mforce
