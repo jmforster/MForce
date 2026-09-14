@@ -42,6 +42,8 @@
 #include "mforce/source/delay_line_source.h"
 #include "mforce/source/shaper_source.h"
 #include "mforce/source/wormhole_source.h"
+#include "mforce/source/bow_table_source.h"
+#include "mforce/filter/biquad_source.h"
 #include "mforce/filter/reverb.h"
 #include "mforce/filter/vibrato.h"
 
@@ -595,6 +597,17 @@ void register_all_sources() {
     // hidden (wormhole_source.h).
     reg.register_type("Wormhole", SourceCategory::Modulator,
         [](int, auto) { return std::make_shared<WormholeSource>(); });
+
+    // -----------------------------------------------------------------------
+    // Reference-port blocks (steal-first campaign, first use: STK Bowed —
+    // docs/superpowers/specs/2026-09-13-stk-bowed-port-design.md).
+    // -----------------------------------------------------------------------
+
+    reg.register_type("Biquad", SourceCategory::Filter,
+        [](int sr, auto) { return std::make_shared<BiquadSource>(sr); });
+
+    reg.register_type("BowTable", SourceCategory::Modulator,
+        [](int, auto) { return std::make_shared<BowTableSource>(); });
 }
 
 } // namespace mforce

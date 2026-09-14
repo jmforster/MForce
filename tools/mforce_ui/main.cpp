@@ -4891,30 +4891,31 @@ static void apply_score_defaults(const nlohmann::json& score) {
 // QWERTY-to-chromatic-offset mapping (from legacy LBKeyboard.cs).
 // Two zones (AF/SAVIHost-style, Matt 2026-09-03): Q row + number row =
 // upper zone at the keyboard octave; Z row + home row = lower zone, the
-// same layout 2 octaves down (negative offsets from octave*12). Both
-// zones shift together with the octave keys. This claimed G/H/V/B as
-// note keys, so the action keys moved to the arrows (octave Up/Down,
-// duration Right/Left).
+// same layout ONE octave down (Matt 2026-09-13; was 2 — too far). The
+// zones overlap by a fifth (comma = same C as Q). Both zones shift
+// together with the octave keys. This claimed G/H/V/B as note keys, so
+// the action keys moved to the arrows (octave Up/Down, duration
+// Right/Left).
 struct QwertyMapping { ImGuiKey key; int offset; const char* label; };
 static const QwertyMapping s_qwertyMap[] = {
-    // Lower zone: Z-row whites, home-row blacks, 2 octaves down.
-    { ImGuiKey_Z,          -24, "Z" },
-    { ImGuiKey_S,          -23, "S" },
-    { ImGuiKey_X,          -22, "X" },
-    { ImGuiKey_D,          -21, "D" },
-    { ImGuiKey_C,          -20, "C" },
-    { ImGuiKey_V,          -19, "V" },
-    { ImGuiKey_G,          -18, "G" },
-    { ImGuiKey_B,          -17, "B" },
-    { ImGuiKey_H,          -16, "H" },
-    { ImGuiKey_N,          -15, "N" },
-    { ImGuiKey_J,          -14, "J" },
-    { ImGuiKey_M,          -13, "M" },
-    { ImGuiKey_Comma,      -12, "," },
-    { ImGuiKey_L,          -11, "L" },
-    { ImGuiKey_Period,     -10, "." },
-    { ImGuiKey_Semicolon,   -9, ";" },
-    { ImGuiKey_Slash,       -8, "/" },
+    // Lower zone: Z-row whites, home-row blacks, 1 octave down.
+    { ImGuiKey_Z,          -12, "Z" },
+    { ImGuiKey_S,          -11, "S" },
+    { ImGuiKey_X,          -10, "X" },
+    { ImGuiKey_D,           -9, "D" },
+    { ImGuiKey_C,           -8, "C" },
+    { ImGuiKey_V,           -7, "V" },
+    { ImGuiKey_G,           -6, "G" },
+    { ImGuiKey_B,           -5, "B" },
+    { ImGuiKey_H,           -4, "H" },
+    { ImGuiKey_N,           -3, "N" },
+    { ImGuiKey_J,           -2, "J" },
+    { ImGuiKey_M,           -1, "M" },
+    { ImGuiKey_Comma,        0, "," },
+    { ImGuiKey_L,            1, "L" },
+    { ImGuiKey_Period,       2, "." },
+    { ImGuiKey_Semicolon,    3, ";" },
+    { ImGuiKey_Slash,        4, "/" },
     // Upper zone at the keyboard octave.
     { ImGuiKey_Q,            0, "Q" },
     { ImGuiKey_2,            1, "2" },
@@ -4940,9 +4941,18 @@ static const QwertyMapping s_qwertyMap[] = {
 static constexpr int QWERTY_MAP_COUNT = sizeof(s_qwertyMap) / sizeof(s_qwertyMap[0]);
 
 static const char* qwerty_label_for_offset(int offset) {
-    for (int i = 0; i < QWERTY_MAP_COUNT; ++i)
-        if (s_qwertyMap[i].offset == offset) return s_qwertyMap[i].label;
-    return "";
+    // Zones overlap by a fifth since the 1-octave-down change: a note can
+    // have a key in each zone. Show both, upper zone first ("Q ,").
+    // Static buffer is fine: the caller consumes the label immediately.
+    static char buf[8];
+    const char* found[2] = { nullptr, nullptr };
+    int n = 0;
+    for (int i = 0; i < QWERTY_MAP_COUNT && n < 2; ++i)
+        if (s_qwertyMap[i].offset == offset) found[n++] = s_qwertyMap[i].label;
+    if (n == 0) return "";
+    if (n == 1) return found[0];
+    snprintf(buf, sizeof(buf), "%s %s", found[1], found[0]);  // upper first
+    return buf;
 }
 
 // Triangle-button spinner for int values (tight auto-width)

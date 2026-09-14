@@ -629,6 +629,27 @@ file's git history. Tags per WORKFLOW.md. (G1)-(G4) = GOALS.md Dipsy goals.
     harder problem (delay-line length change artifacts). Musical note: a
     KS string has no decay *stage* — t60 is a rate, not a phase.
 
+69. **[audit] 48k rate-bake sort (physical vs normalized constants)** —
+    filed 2026-09-13 from Matt's question after the STK 22050 discovery.
+    MForce is structurally parametric (nodes take sr, RenderContext
+    carries it, patches declare sampleRate, envelopes in seconds, SVF/BW
+    prewarped in Hz, Reverb combs scale sr/44100, perform smoothers
+    derive alpha from a seconds tau) — but a handful of PER-SAMPLE
+    constants are 48k-baked and would shift character at any other
+    rate, exactly the STK disease: ks_string.h dnAmp_ *= 0.9995
+    (comment admits "at 48 kHz"), envFollow_ 0.99995/sample, lipTension
+    normalized one-pole; the noise family's continuity/step semantics
+    (white/red per-sample blending = normalized one-pole corner;
+    density/zeroCross per-sample odds); UI live audio + saves pin 48000.
+    No action needed while everything renders at 48k (it is our native
+    rate, self-consistently tuned by ear). MUST be sorted before any
+    non-48k work: 44.1k export, variable-rate live audio, or the GOALS
+    FM-aliasing oversampling ambition (96k inside the loop would
+    detune every baked constant). Sort rule from the STK port: for each
+    constant ask "physical quantity or normalized-frequency quantity";
+    normalized ones get re-derived from sr (seconds/Hz form) with a
+    null gate at 48k proving byte-identity.
+
 ## Listen-prep
 
 3r. **[listen-prep] Vowel review pass — soprano re-render + tenor O** —

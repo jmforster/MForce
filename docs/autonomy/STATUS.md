@@ -1,6 +1,167 @@
 # Status — open this file first
 
-Updated: 2026-09-13 (render-unification day, Fable 5 with Matt; session
+Updated: 2026-09-13 evening (steering meeting + STK port day, Fable 5).
+**STEERING MEETING HELD — process decisions, execution deferred by Matt
+except the STK port directive.** Decisions (capture only, action items
+NOT started): (1) Dipsy/Wolfie personas retired; ONE dev runs both
+lanes; lanes survive as backlog namespaces, campaigns = big backlog
+items. (2) Run contract: machine gates may self-verdict REJECTS
+(logged, patches to old/, renders deleted) + near-duplicate culling by
+perceptual distance; ears budget <= 20/run honest count; Keep on the
+future dashboard writes to pending/<campaign>/ (Matt's live-play bench;
+runs still never write pending/ — the dashboard writes as Matt's
+click); library promote from bench stays Matt-only; stop conditions
+live in each campaign item. (3) "Audition dashboard" = own brainstorm
+session later (queue aware, play/A-B/verdict buttons writing structured
+verdict files → future Matt-likelihood ranker). (4) Comp restart: back
+to Mary-Had-a-Little-Lamb scale WITH harmony from bar one,
+piano_default as the comp instrument (vanilla, non-fatiguing). (5)
+DSP model = STEAL-FIRST: vendor proven code, render its WAVs as ground
+truth, port into the graph, extend from the proven point; ML-ears and
+comp-scorer get cheap discrimination backtests before trust. (6)
+Cleanup to come, collaborative and brutal: BACKLOG nuke = dead/done/
+moot items die, "maybe someday" moves to IDEAS (NOT keep-only-remembered);
+baselines cull 188 -> ~40 by node/feature coverage (set-cover proposal
+from me, axe swung by Matt). (7) Null gate measured today: 290 s at
+--jobs (parallelized 09-05); batch-mode mforce_cli remains the lever
+(95% spawn/load). Gate found the 09-08 mystery edits CHANGE AUDIO:
+piano_default + viola_default DIFF vs manifest (cello edit is
+render-neutral); manifest also stale (8 NEW). Deferred with the rest.
+**STK PORT CAMPAIGN — 4 families ported and validated in one run (Matt's
+directive before leaving).** STK checkout at ../stk; minimal reference
+drivers tools/stk_ref/ (bowed/clarinet/flute/brass, 48 kHz, no RtAudio);
+ground truth in renders/scratch/stk_ref/ (+ JOS Mohonk05 14-WAV bowed
+set archived there). Engine: NEW nodes **Biquad** (raw coefficients +
+resonance mode with frequency/radius pins) and **BowTable** (Smith
+friction curve, slope/offset pins) — registry-only, null gate 186/188
+(same 2 pre-existing dirty-file DIFFs as the morning run, engine
+byte-neutral). Ports: patches/sweep/stk_{bowed,clarinet,flute,brass}_port/
+via tools/gen_stk_*.py, each auto-compared to reference (f0 cents,
+envelope corr, gain fit, harmonic profile). RESULTS: **bowed +0.0c on
+43/43 locked slots incl. reproducing STK's own C6 multiphonic and
+wolves; clarinet +0.0c all 40, noise-free variant 0.09 dB exact; flute
+noise-free exact <= 0.11 dB; brass reproduces the reference INCLUDING
+its silences (STK brass barely speaks at 48 kHz — corroborates the
+native harness ignition-window finding).** Noisy-variant deviations =
+noise realization (STK seeds from clock), documented. Roundtrip 33/33
+clean after adding noteFaces (UI save consolidates faceless
+PerformNodes — same known class as the wiring_smoke find). Full record:
+docs/research/stk_port/STK_PORT_NOTES.md; spec
+docs/superpowers/specs/2026-09-13-stk-bowed-port-design.md. EARS QUEUE:
+renders/dsp/audition/stk_port1/ = 4 port-vs-REF A/B pairs + README
+(question: does the port sound like the reference?). NOT COMMITTED —
+awaiting Matt (working tree also still carries the deferred dirty-file
+question). Next when Matt returns: his ears on stk_port1, then the
+extension round (compensate ON, hysteresis-junction swap-in, drive
+exploration past STK's ranges) and/or more families (Saxofony,
+BlowHole, BandedWG, Mohonk torsion/dispersion features).
+
+**EVENING ADDENDUM — Matt's ear caught a bogus baseline; fixed.** The
+Maestre body coefficients (and other fixed numbers in STK) are designed
+at STK's NATIVE 22050 Hz; verbatim at 48k the body resonances shift
+2.18x up (261/525/1072/1287/1839 -> 569..4004 Hz). Fixes: drivers take
+a rate arg (22050 canonical refs rendered); gen_stk_bowed.py default =
+**body48** re-realized sections (z -> z^(22050/48000); matches native
+body to 0.46 dB max 100-4000 Hz; --verbatim keeps the STK-null form);
+audition pair restaged = body48 port vs STK@22050. Measured: STK brass
+at 22050 SPEAKS at C4/C5 (48k silence was partly rate artifact). Queued:
+brass lip-radius + clarinet OneZero rate corrections. Port lesson:
+every fixed constant must be sorted physical-Hz vs normalized-frequency.
+**Round 2 of Matt's ears → CANONICAL bowed mode** (gen_stk_bowed default;
+--verbatim = old form): his two complaints measured+fixed — (a) "high
+harmonic drowns fundamental" = STK@48k itself double-slips (H2 +31..46dB
+vs 22050's Helmholtz +18.6; per-sample ADSR rates halve gestures at 48k
++ string filter under-darkens) → canon re-realizes the 22050 model at
+48k (pole 0.7600, 22050-second gestures, f-calibrated comp table, 2
+iterations); (b) clicks = literal-seconds envelope truncating short
+Passage notes + voice cut mid-ring at note end → duration-adaptive
+pinned stages + LoopGate 90ms loop-closure on NeckDelay read-gain
+(MForce-native; STK truncates too). Canon vs 22050 ref: C3-C5 ±5c,
+envCorr ≥.98, C3/C4 harmonics match ~1dB/harmonic, click gone (0.018
+residual = attack transient). C6/C7 fragile in ref too. Roundtrip 24/24.
+bowed_port.wav in audition = default_canon.
+**Round 4 (Matt away): CANONICAL PASS ALL FAMILIES + BOWED EXTENSIONS.**
+Bowed verdicted by Matt ("port matches REF"). Clarinet canon VALIDATED
+(±2c C3-C6 all variants; 48k biquad refit of the OneZero, zero pinned
+11025; parabolic-autocorr f0 added after catching integer-lag
+calibration chasing). Flute canon VALIDATED zero-calibration (±1c
+C3-C6). Brass canon PARTIAL, root cause PROVEN by experiment: lip DC
+gain at 48k = 2.13x native (rate ratio) even peak-preserved; unblocked
+mouth DC times the ignition window (C4 speaks with DC-preserving b0);
+clean fix = keytracked DC-zero in Biquad resonance mode — parked, brass
+superseded by junction roadmap. EXTENSIONS ROUND 1: 13 zero-code cells
+on the canonical base retuned to EQUAL TEMPERAMENT (port inherits STK's
+own +7/+25/+49c sharpness; extensions don't — control = +0c). 12/13
+pass gates+dedup → renders/dsp/audition/stk_bowed_ext1/ (README inside).
+HEADLINE: **hysteresis stick/slip junction inside the proven chassis
+locks ±7c across C3-C5** — the in-tune multi-octave lock the native
+harness never achieved; the chassis was the missing half. Also: torsion
+coupling (passes, +5-16c pull), dispersion allpass (re-comped, clean),
+bow-bite pressure gesture (live pin, STK can't), body A/B/ablation.
+Roundtrip 59/59. EARS QUEUES: stk_port1/ (4 families, canon pairs) +
+stk_bowed_ext1/ (12 cells). Nothing committed all day — Matt hasn't
+asked; tree carries engine nodes + tools + patches + docs.
+**Round 5 (Matt verdicted round 4, approved round-2 plan): PROVENANCE +
+BRASS FIX + EXT2.** Matt's verdicts: families match refs; STK skeletons
+underwhelm everywhere (flute rubbish both sides, clarinet loses to oboe
+harness, gold strike elusive); brass UN-PARKED ("we have no brass at
+all"). Mohonk WAVs identified = Peder Larson Music 421 project 2003
+(writeup archived in docs/research/stk_port/ + bach/staccato WAVs);
+code unpublished → exact WAV reproduction impossible (his cello-body IR
++ bridge coeffs + gestures are lost), mechanism-exact fully possible
+(all constants documented). New rate discipline: validate ports AT
+native rate; canonicalize separately. Brass canon COMPLETED patch-level:
+fixed 12.5 Hz low-shelf (DC 0.461) before the lip — DC excess is
+constant 2.17x across notes — ignition map now matches ref (C4/C5
+speak); +29c C4 lock offset left for trim. EXT2 (cello register, from
+Larson's numbers): 5/7 staged → renders/dsp/audition/stk_bowed_ext2/ —
+control2 +0c, width_h2 (his #1 feature), tors_phys (Z/Zt=0.306), disp16
+(D-string range by design), larson_btd (b+t+d, +25c retunable). Killed:
+2 hyperbolic cells, diagnosed (stick must leak ~2%, plateau must be
+continuous) → own round. Body deferred: Matt ear-picks a public cello
+IR (links in ext2 README), then biquad-stack fit. Still nothing
+committed.
+**Late 09-13 addendum:** QWERTY lower zone fixed to ONE octave down
+(was two; tools/mforce_ui/main.cpp s_qwertyMap; zones now overlap a
+fifth, shared keys show both hints "Q ,"); UI rebuilt, uncommitted with
+the rest. Also standing offer accepted in principle: late-night ideas
+get dictated and filed to IDEAS.md dated (runs read, never act).
+**NEXT SESSION = steering-meeting EXECUTION (Matt, end of 09-13):**
+workflow retooling, housekeeping, cleanup — the deferred action items
+from the morning meeting (WORKFLOW.md rewrite around the single-dev run
+contract, queue bankruptcy w/ BACKLOG→IDEAS rule, baselines coverage
+cull to ~40, null-gate refreeze after the piano/viola verdict, GOALS
+refresh is Matt's). STK campaign TABLED mid-thread — round-3 entry
+point when resumed: fit Larson's body filter (measured curve in
+STK_PORT_NOTES; 3-pair LTAS ratio: +20 dB @150 Hz block, −10 @500,
++15/+11 @800-1200, −22..−30 above 2k) as a biquad stack on the chassis,
+A/B vs bachd.wav.
+**Evening verdicts (Matt), session ends here:** brass canon = "roughly
+the same, only C4 actually producing a note" — STK-brass chapter closed
+as parity-with-a-poor-reference. Key insight recorded: "brassy" needs
+NONLINEAR bore propagation (wave steepening at forte); linear bore +
+valve = "saxy not brassy" — which retro-explains the native brass
+harness verdict exactly. Lightweight surrogate = amplitude-dependent
+waveshaping along the bore (Shaper + drive ← level follower is the
+native idiom) — required ingredient for EITHER brass path (donor
+survey: OpenWind/MoReeSC/NESS lineage; or native lip on the loop
+family). Larger context Matt named: the well-done physical models
+(VL1, SWAM, Arturia) are closed; the open ones are skeletons — the
+campaign's real yield is the validated chassis + the documented list of
+missing ingredients (nonlinear bore, real body IR, finite bow width),
+not finished instruments. Ears queues stand: stk_port1, stk_bowed_ext1,
+stk_bowed_ext2 (+ hysteresis_bow/valve2/string_harness backlogs).
+Nothing committed 09-13; meeting action items still deferred.
+**Round 3: legato mechanism verified** — STK slurs = setFrequency on the
+sounding string (bow held, no reclear): rise times 0.36/0.03/0/0/0 s vs
+detached 0.36/0.14/0.04/0.04/0. Ours re-ignites every note (fresh voice,
+state cleared) → staccato 8ths. Graph is already legato-capable (per-
+sample frequency pin retunes delays); the gap is note delivery (voice
+reuse without reset) = Slide/HammerOn/PullOff articulation family →
+backlog 68 brainstorm input, backlog 53 mono-mode twin. NOT built.
+bowed_REF_legato.wav staged. Full analysis in STK_PORT_NOTES §LEGATO.
+
+Previous update: 2026-09-13 (render-unification day, Fable 5 with Matt; session
 restarted clean after this update — pick up from here; next sesh =
 steering committee meeting).
 **09-13 digest — tap-loop UI bugs root-caused, then the two-renderer
