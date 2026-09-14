@@ -2,8 +2,17 @@
   "graph": {
     "nodes": [
       {
+        "id": "__perf_freq",
+        "params": {
+          "field": "frequency"
+        },
+        "type": "PerformNode"
+      },
+      {
         "id": "env1",
         "params": {
+          "maxValue": 1.0,
+          "minValue": 0.0,
           "ramp_accuracy": 1.0,
           "stage_accuracy": 1.0,
           "stages": [
@@ -48,8 +57,8 @@
               "type": "Sine"
             }
           ],
-          "sustainLevel": 1.0,
-          "timeMode": "fraction"
+          "timeMode": "fraction",
+          "timeScale": 1.0
         },
         "type": "Envelope"
       },
@@ -142,7 +151,7 @@
             0.3571343719959259,
             0.5671166181564331,
             0.7940128445625305,
-            1.0391311645507812,
+            1.0391311645507813,
             1.3039599657058716,
             1.5900553464889526,
             1.7932945489883423,
@@ -741,7 +750,9 @@
           "attack": 0.4000000059604645,
           "depth": 0.004999999888241291,
           "depthVar": 0.15000000596046448,
-          "frequency": 293.6600036621094,
+          "frequency": {
+            "ref": "__perf_freq"
+          },
           "speed": 6.107727527618408,
           "speedVar": 0.11999999731779099,
           "threshold": 0.0,
@@ -794,9 +805,6 @@
     "output": "Reverb1"
   },
   "instrument": {
-    "paramMap": {
-      "frequency": "Vibrato1.frequency"
-    },
     "polyphony": 1
   },
   "sampleRate": 48000,
@@ -870,6 +878,14 @@
   ],
   "seconds": 3.0,
   "ui": {
+    "noteFaces": [
+      {
+        "fields": {
+          "frequency": "__perf_freq"
+        },
+        "label": "Note"
+      }
+    ],
     "panning": [
       -297.8797607421875,
       157.63250732421875
@@ -887,6 +903,10 @@
         528.0,
         -128.25054931640625
       ],
+      "Note": [
+        88.0,
+        381.74945068359375
+      ],
       "Reverb1": [
         794.0,
         60.74945068359375
@@ -898,10 +918,6 @@
       "__output": [
         970.8797607421875,
         68.36749267578125
-      ],
-      "__param_frequency": [
-        528.0,
-        121.74945068359375
       ],
       "env1": [
         88.0,

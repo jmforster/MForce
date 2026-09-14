@@ -150,3 +150,9 @@ docs/research/af_ks/modernized_ks.txt
 # Personal notes / session scratch docs (moved from docs/ root 2026-08-22)
 ############################
 docs/notes/
+
+############################
+# UI save-load work areas (transport tab chords/passages saves, 2026-09-14)
+############################
+chords/
+passages/

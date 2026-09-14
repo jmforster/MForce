@@ -51,7 +51,7 @@
         "type": "PerformNode"
       },
       {
-        "id": "__curve_1",
+        "id": "T60_curve",
         "params": {
           "interp": "logx",
           "knots": [
@@ -83,7 +83,7 @@
         "type": "CurveNode"
       },
       {
-        "id": "__curve_2",
+        "id": "Brightness_curve",
         "params": {
           "interp": "logx",
           "knots": [
@@ -115,7 +115,7 @@
         "type": "CurveNode"
       },
       {
-        "id": "__curve_3",
+        "id": "Dispersion_curve",
         "params": {
           "interp": "logx",
           "knots": [
@@ -147,7 +147,7 @@
         "type": "CurveNode"
       },
       {
-        "id": "__curve_4",
+        "id": "Inharm_gain_curve",
         "params": {
           "interp": "logx",
           "knots": [
@@ -403,7 +403,7 @@
         "type": "CombinedSource"
       },
       {
-        "id": "__curve_13",
+        "id": "Detune_curve",
         "params": {
           "interp": "logx",
           "knots": [
@@ -431,7 +431,7 @@
         "type": "CurveNode"
       },
       {
-        "id": "__curve_14",
+        "id": "Lpf_cutoff_curve",
         "params": {
           "interp": "logx",
           "knots": [
@@ -484,7 +484,6 @@
           "stages": [
             {
               "endVal": 1.0,
-              "holdPct": 0.0,
               "maxSec": 0.0,
               "minSec": 0.0,
               "percent": 0.0020000000949949026,
@@ -494,7 +493,6 @@
             },
             {
               "endVal": 0.0,
-              "holdPct": 0.0,
               "maxSec": 0.0,
               "minSec": 0.0,
               "percent": 0.020296167582273483,
@@ -504,7 +502,6 @@
             },
             {
               "endVal": 0.0,
-              "holdPct": 0.0,
               "maxSec": 0.0,
               "minSec": 0.0,
               "percent": 0.0,
@@ -564,7 +561,6 @@
           "stages": [
             {
               "endVal": 1.0,
-              "holdPct": 0.0,
               "maxSec": 0.0,
               "minSec": 0.0,
               "percent": 0.0020000000949949026,
@@ -574,7 +570,6 @@
             },
             {
               "endVal": 0.0,
-              "holdPct": 0.0,
               "maxSec": 0.0,
               "minSec": 0.0,
               "percent": 0.112397201359272,
@@ -584,7 +579,6 @@
             },
             {
               "endVal": 0.0,
-              "holdPct": 0.0,
               "maxSec": 0.0,
               "minSec": 0.0,
               "percent": 0.0,
@@ -594,7 +588,6 @@
             },
             {
               "endVal": 0.0,
-              "holdPct": 0.0,
               "maxSec": 0.0,
               "minSec": 0.0,
               "percent": 0.0,
@@ -682,7 +675,6 @@
           "stages": [
             {
               "endVal": 1.0,
-              "holdPct": 0.0,
               "maxSec": 1.0,
               "minSec": 0.05000000074505806,
               "percent": 0.0020000000949949026,
@@ -692,7 +684,6 @@
             },
             {
               "endVal": 0.0,
-              "holdPct": 0.0,
               "maxSec": 0.5,
               "minSec": 0.02500000037252903,
               "percent": 0.019999999552965164,
@@ -702,7 +693,6 @@
             },
             {
               "endVal": 0.0,
-              "holdPct": 0.0,
               "maxSec": 0.0,
               "minSec": 0.0,
               "percent": 0.0,
@@ -777,7 +767,6 @@
           "stages": [
             {
               "endVal": 1.0,
-              "holdPct": 0.0,
               "maxSec": 0.0,
               "minSec": 0.0,
               "percent": 0.0010000000474974513,
@@ -787,7 +776,6 @@
             },
             {
               "endVal": 0.0,
-              "holdPct": 0.0,
               "maxSec": 0.0,
               "minSec": 0.0,
               "percent": 0.14300668239593506,
@@ -797,7 +785,6 @@
             },
             {
               "endVal": 0.0,
-              "holdPct": 0.0,
               "maxSec": 0.0,
               "minSec": 0.0,
               "percent": 0.0,
@@ -807,7 +794,6 @@
             },
             {
               "endVal": 0.0,
-              "holdPct": 0.0,
               "maxSec": 0.0,
               "minSec": 0.0,
               "percent": 0.0,
@@ -895,7 +881,6 @@
           "stages": [
             {
               "endVal": 0.0,
-              "holdPct": 0.0,
               "maxSec": 0.0,
               "minSec": 0.0,
               "percent": 0.0,
@@ -905,7 +890,6 @@
             },
             {
               "endVal": 1.0,
-              "holdPct": 0.0,
               "maxSec": 0.03999999910593033,
               "minSec": 0.03999999910593033,
               "percent": 0.5,
@@ -915,7 +899,6 @@
             },
             {
               "endVal": 1.0,
-              "holdPct": 0.0,
               "maxSec": 0.25,
               "minSec": 0.0,
               "percent": 0.5,
@@ -932,27 +915,29 @@
       {
         "dynamicPins": {
           "brightness": {
-            "ref": "__curve_2"
+            "ref": "Brightness_curve"
           },
           "detune": {
-            "ref": "__curve_13"
+            "ref": "Detune_curve"
           },
           "dispersion": {
-            "ref": "__curve_3"
+            "ref": "Dispersion_curve"
           },
           "inharmGain": {
-            "ref": "__curve_4"
+            "ref": "Inharm_gain_curve"
           },
           "t60": {
-            "ref": "__curve_1"
+            "ref": "T60_curve"
           }
         },
-        "id": "KS_piano_strings",
+        "id": "Strings",
         "params": {
           "amplitude": 1.0,
           "ap1": 0.550000011920929,
           "ap2": 0.3499999940395355,
           "ap3": 0.20000000298023224,
+          "bowGain": 1.0,
+          "bowSpeed": 0.30000001192092896,
           "brightness": 0.6000000238418579,
           "damper": {
             "ref": "Damper_env"
@@ -961,11 +946,13 @@
           "detune": 0.8999999761581421,
           "direct": 0.0,
           "dispersion": 0.1599999964237213,
+          "excStagger": 0.0,
           "exciteGain": 1.0,
           "fbCoeff": 0.5920843482017517,
           "frequency": {
             "ref": "__perf_freq"
           },
+          "frictionGain": 4.0,
           "inharmFb": 0.8999999761581421,
           "inharmGain": 0.25,
           "inharmHp": 150.0,
@@ -974,6 +961,7 @@
           "source": {
             "ref": "Combined7"
           },
+          "spreadJitter": 0.0,
           "t60": 6.0
         },
         "type": "KSPianoString"
@@ -982,16 +970,29 @@
         "id": "Overall_lpf",
         "params": {
           "cutoffFreq": {
-            "ref": "__curve_14"
+            "ref": "Lpf_cutoff_curve"
           },
           "source": {
-            "ref": "KS_piano_strings"
+            "ref": "Strings"
           }
         },
         "type": "BWLowpassFilter"
+      },
+      {
+        "id": "Reverb",
+        "params": {
+          "damping": 0.5,
+          "dry": 0.4000000059604645,
+          "roomSize": 0.20000000298023224,
+          "source": {
+            "ref": "Overall_lpf"
+          },
+          "wet": 0.33000001311302185
+        },
+        "type": "Reverb"
       }
     ],
-    "output": "Overall_lpf"
+    "output": "Reverb"
   },
   "groups": [
     {
@@ -1071,8 +1072,8 @@
       ],
       "name": "String excitation",
       "pos": [
-        -204.2325439453125,
-        -400.6448974609375
+        -179.2325439453125,
+        -445.6448974609375
       ]
     }
   ],
@@ -1138,8 +1139,8 @@
       }
     ],
     "panning": [
-      873.0,
-      2.0
+      937.0,
+      406.0000915527344
     ],
     "positions": {
       "Body_env": [
@@ -1153,6 +1154,10 @@
       "Body_wn": [
         -340.0,
         -87.00003051757813
+      ],
+      "Brightness_curve": [
+        -624.5181884765625,
+        -295.1083984375
       ],
       "Combined1": [
         364.0,
@@ -1175,8 +1180,16 @@
         44.48553466796875
       ],
       "Damper_env": [
-        -524.1009521484375,
-        -392.2999267578125
+        -409.1009521484375,
+        -451.2999267578125
+      ],
+      "Detune_curve": [
+        -626.5181884765625,
+        -174.1083984375
+      ],
+      "Dispersion_curve": [
+        -628.5181884765625,
+        -52.1083984375
       ],
       "Excite_hf_bpf": [
         154.0,
@@ -1226,13 +1239,17 @@
         -592.0,
         -132.0
       ],
-      "KS_piano_strings": [
-        43.8990478515625,
-        -317.2999267578125
+      "Inharm_gain_curve": [
+        -627.5181884765625,
+        73.89163208007813
+      ],
+      "Lpf_cutoff_curve": [
+        -632.5181884765625,
+        320.8915710449219
       ],
       "Note": [
-        -889.0,
-        -389.0
+        -885.0,
+        -412.0
       ],
       "Note2": [
         -1663.9832763671875,
@@ -1251,12 +1268,20 @@
         330.0
       ],
       "Overall_lpf": [
-        232.554931640625,
-        -82.114501953125
+        239.554931640625,
+        -76.114501953125
       ],
-      "__curve_1": [
-        -624.0,
-        102.0
+      "Reverb": [
+        461.6666259765625,
+        -115.0
+      ],
+      "Strings": [
+        41.8990478515625,
+        -318.2999267578125
+      ],
+      "T60_curve": [
+        -630.0,
+        193.99993896484375
       ],
       "__curve_10": [
         -1471.1431884765625,
@@ -1265,26 +1290,6 @@
       "__curve_11": [
         -1477.927978515625,
         -202.47979736328125
-      ],
-      "__curve_13": [
-        -622.5181884765625,
-        -190.1083984375
-      ],
-      "__curve_14": [
-        -623.5181884765625,
-        201.8916015625
-      ],
-      "__curve_2": [
-        -624.5181884765625,
-        -295.1083984375
-      ],
-      "__curve_3": [
-        -620.5181884765625,
-        -93.1083984375
-      ],
-      "__curve_4": [
-        -621.5181884765625,
-        4.8916015625
       ],
       "__curve_5": [
         -430.0,
@@ -1311,8 +1316,8 @@
         400.0
       ],
       "__output": [
-        441.0758056640625,
-        -76.8739013671875
+        660.0758056640625,
+        -89.8739013671875
       ]
     }
   }

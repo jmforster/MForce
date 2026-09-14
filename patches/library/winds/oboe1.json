@@ -226,9 +226,12 @@
       {
         "id": "Junction",
         "params": {
+          "breakaway": 0.6000000238418579,
+          "capture": 0.0,
           "drive": {
             "ref": "Drive_vib"
           },
+          "hysteresis": false,
           "morph": 0.0,
           "smoothness": 0.6000000238418579,
           "source": {
@@ -386,21 +389,6 @@
           "wet": 0.20000000298023224
         },
         "type": "Reverb"
-      },
-      {
-        "id": "Morph_env",
-        "params": {
-          "attack": 0.20000000298023224,
-          "attackCurve": 0,
-          "attackPower": 0.0,
-          "maxValue": 1.0,
-          "minValue": 0.0,
-          "ramp_accuracy": 1.0,
-          "reverse": false,
-          "stage_accuracy": 1.0,
-          "sustainLevel": 1.0
-        },
-        "type": "ASEnvelope"
       }
     ],
     "output": "Reverb"
@@ -428,8 +416,7 @@
         "Damp_lpf",
         "Damp_cutoff_curve",
         "Note2",
-        "Wormhole2",
-        "Morph_env"
+        "Wormhole2"
       ],
       "name": "Drive",
       "pos": [
@@ -513,7 +500,7 @@
     ],
     "panning": [
       1495.2393798828125,
-      386.0000305175781
+      447.0000305175781
     ],
     "positions": {
       "Ampl_env": [
@@ -563,10 +550,6 @@
       "Junction": [
         -1001.0,
         -286.00006103515625
-      ],
-      "Morph_env": [
-        -777.2393798828125,
-        -316.0000305175781
       ],
       "Note1": [
         -1370.208984375,
