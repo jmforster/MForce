@@ -44,9 +44,16 @@ UI relinked via rename — Matt was live in it); **Vibrato per-note pins
 already work** via dynamicPins, render-proven, backlog 22 closed, no
 code. IR pick DROPPED (rotten links) — STK round 3 proceeds from
 Larson's measured LTAS curve instead (biquad-stack body fit, A/B vs
-bachd.wav) = campaign item 70, IN PROGRESS. AF sax still blocked on
+bachd.wav) = campaign item 70. **Round 3 DONE same evening:**
+fit_larson_body.py (4-pair fine LTAS, 14-biquad fit, err 0.68 dB median
+at the data's 2.8 dB spread) + gen_stk_bowed_ext3.py → 4/4 cells to
+renders/dsp/audition/stk_bowed_ext3/ (nobody / Maestre / Larson body /
+btd+Larson full recipe), all +0c locks, in-graph LTAS validated
+(+0.83 dB median vs target) = **REVIEW 58**. AF sax still blocked on
 Discord annoyance; offered alternative: green-light building from the
-video table. dsp REVIEW Awaiting is now just 38 + 39.
+video table. dsp REVIEW Awaiting: 58 + 38 + 39. Campaign next when 58
+verdicts: leaky-stick hysteresis round, remaining families (Saxofony,
+BlowHole, BandedWG), or the tone-shaping filter round Matt expects.
 
 Previous update: 2026-09-13 evening (steering meeting + STK port day, Fable 5).
 **STEERING MEETING HELD — process decisions, execution deferred by Matt

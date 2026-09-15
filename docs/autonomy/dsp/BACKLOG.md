@@ -144,11 +144,14 @@ Tags per WORKFLOW.md.
     hysteresis cells rejected as harsh — next hysteresis-in-chassis round
     must build in the ext2 diagnosis first (stick LEAKS ~2%, plateau
     continuous); ext2 cello-register cells all promising, "could be good
-    if tamed by filters we're planning to add anyway." ROUND 3 (running):
-    fit Larson's measured body curve (STK_PORT_NOTES 3-pair LTAS ratio:
-    +20 dB @150, −10 @500, +15/+11 @800-1200, −22..−30 above 2k) as a
-    biquad stack on the chassis, A/B vs bachd.wav — the IR-download idea
-    is DEAD (links rotten/malware-adjacent); derive from measurements.
+    if tamed by filters we're planning to add anyway." ROUND 3 DONE
+    2026-09-14 (IR-download idea DEAD — links rotten; derived from his
+    measurements instead): tools/fit_larson_body.py recomputes the LTAS
+    ratio fine-grained from FOUR pairs and fits a 14-biquad stack (err
+    median 0.68 dB at the pairs' 2.8 dB spread; coefficients in
+    docs/research/stk_port/larson_body_fit.json);
+    tools/gen_stk_bowed_ext3.py stages nobody/Maestre/Larson/btd+Larson
+    to audition (REVIEW 58), in-graph LTAS validated +0.83 dB median.
     LATER ROUNDS: leaky-stick hysteresis round; remaining families
     (Saxofony, BlowHole, BandedWG, Mohonk torsion/dispersion features);
     compensate-ON + drive exploration past STK's ranges. STOP CONDITIONS:

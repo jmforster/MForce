@@ -5,6 +5,20 @@ the same evening. Awaiting = only what still needs Matt.
 
 ## Awaiting Matt
 
+### 58. stk_bowed_ext3 — Larson's cello body, recovered [listen] (2026-09-14)
+**renders/dsp/audition/stk_bowed_ext3/** (README inside) — the body he
+never published, fit from his own WAVs (LTAS ratio of 4 with/without
+pairs, tools/fit_larson_body.py; fit err median 0.68 dB at the pairs'
+own 2.8 dB spread) as a 14-biquad stack on the canonical chassis.
+Cells: ctl3_nobody / body_m48 (Maestre violin) / body_lar (the
+recovered cello body) / btd_lar (his full width+torsion+dispersion+body
+recipe). All +0c locks except btd_lar's documented D-string-scoped top
+slots. In-graph validation: rendered LTAS diff matches the fitted
+target, median +0.83 dB. A/B vs renders/scratch/stk_ref/mohonk05/
+{bachd,bowedbtbodyd}.wav. THE QUESTION: does the recovered body turn
+the chassis into a cello — and does body_lar beat body_m48 enough to
+become the chassis default?
+
 ### 38. AF saxophone — build awaiting go [discuss] (2026-08-18)
 docs/research/af_sax/RECIPE.md: complete value table from the breakdown
 video; only 3 TUNEs remain. BLOCKED on design go-ahead: needs a new
