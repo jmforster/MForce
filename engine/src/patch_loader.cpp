@@ -497,6 +497,58 @@ static void wire_params_generic(
             }
         }
     }
+
+    // Unknown-key warning (backlog 67): an OLD binary loading a NEWER
+    // patch silently ignores keys it has no descriptor for and plays a
+    // silently downgraded patch. One stderr line per unknown key turns
+    // that mystery into a log line. The allowlist below covers keys the
+    // hand-written branches consume outside the descriptor loops —
+    // grown empirically until the whole gate corpus loads warning-free,
+    // so a warning means a genuinely unrecognized key.
+    {
+        static const std::unordered_set<std::string> kStructural = {
+            // node/JSON structure
+            "type", "id", "seed", "dynamicPins",
+            // envelope preset + stage vocabulary (envelope_from_preset_json)
+            "preset", "stages", "attack", "decay", "release", "sustain",
+            "sustainLevel", "attackCurve", "attackPower", "releaseCurve",
+            "releasePower", "curve", "power",
+            // hand-written branch keys
+            "evolution", "expandRule", "spectra", "formants", "partials",
+            "values2", "segs", "segs2", "powers", "powers2",
+            // corpus-verified branch/configurator keys (2026-09-15 scan:
+            // every one is consumed by a special case; none were dead)
+            "interp", "knots", "exprKnots", "mode", "timeMode",
+            "attackMin", "attackMax", "decayMin", "decayMax",
+            "releaseMin", "releaseMax", "evolutionSeed", "muting",
+            "autoAdjust", "interpolate", "amplEnvelopes", "freqEnvelopes",
+            "partialMode", "targetPartials", "cutoff", "sections",
+            "overlap", "gap",
+        };
+        auto known = [&](const std::string& k) {
+            if (kStructural.count(k)) return true;
+            for (const auto& d : src.input_descriptors())
+                if (k == d.name) return true;
+            for (const auto& d : src.param_descriptors())
+                if (k == d.name) return true;
+            for (const auto& d : src.setting_descriptors())
+                if (k == d.name) return true;
+            for (const auto& d : src.array_descriptors())
+                if (k == d.name) return true;
+            return false;
+        };
+        // One line per (type, key) per process — voice pre-cloning would
+        // otherwise repeat every warning once per voice.
+        static std::unordered_set<std::string> warned;
+        for (auto it = params.begin(); it != params.end(); ++it)
+            if (!known(it.key()) &&
+                warned.insert(std::string(src.type_name()) + "."
+                              + it.key()).second)
+                std::fprintf(stderr,
+                    "[load] %s: unknown param '%s' — engine older than "
+                    "patch, or a typo? (value ignored)\n",
+                    src.type_name(), it.key().c_str());
+    }
 }
 
 // Register MonoSource wrapper (WaveSource → WaveSourceMono, else ValueSourceMono).

@@ -41,14 +41,6 @@ Tags per WORKFLOW.md.
     stateful chain behind exactly ONE normal consumer (the ports now
     comply); symptom to recognize = gestures at exactly 2x speed.
 
-67. **[build, small] Loader: warn on unknown params/settings keys** —
-    2026-09-08. The generic settings/params loops skip unrecognized keys
-    silently, so an old binary loading a newer patch plays a silently
-    downgraded patch. Wanted: one stderr line per unknown key ("[load]
-    Shaper: unknown param 'hysteresis' — engine older than patch?").
-    Cheap; converts every future old-binary/new-patch mismatch from a
-    mystery into a log line.
-
 69. **[audit] 48k rate-bake sort (physical vs normalized constants)** —
     filed 2026-09-13 from Matt's question after the STK 22050 discovery.
     MForce is structurally rate-parametric, but a handful of PER-SAMPLE
@@ -400,5 +392,11 @@ Fall-cleaning moves (2026-09-14) are marked → IDEAS or → ledger.
 - 66. Delay compensation walk defects (a)+(b) — FIXED 2026-09-08 same
   day (inputs-only walk, kMaxMembers 16; r090 +389c → −22c); the
   ±1-sample residual lives in 65.
+- 67. Loader unknown-key warning — SHIPPED 2026-09-15: wire_params_generic
+  warns once per (type, key) on keys matching no descriptor and no
+  branch-consumed allowlist entry (allowlist corpus-verified: 133
+  patches load warning-free, all 16 flagged classes proved
+  branch-consumed, none dead; positive control fires). Null gate 79/79
+  byte-identical; both binaries rebuilt, --stamp 0.
 - Partial motion layer + v1-v4 batches; 16 kHz cutoff fix; UI
   array-restore fix; 96-partial extrapolation — pre-run-1 era.
