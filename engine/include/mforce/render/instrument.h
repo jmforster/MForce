@@ -75,6 +75,18 @@ protected:
 // ---------------------------------------------------------------------------
 struct PitchedInstrument final : Instrument {
 
+  // Voice tail allowance (backlog 63, 2026-09-15): a voice used to live
+  // exactly duration samples, so Reverb/ringing-filter state INSIDE the
+  // voice was cut mid-sample at envelope end — the faint click at note
+  // end no release length could fix (patch-side workaround was a trailing
+  // hold-at-zero stage). Every voice now renders/lives this much longer:
+  // envelopes are programmatically 0 past their last stage (envelope.h),
+  // so the window is pure ring-out. Musical semantics (envelope stage
+  // layout, perform fields, bend curves) still use the un-extended
+  // duration — prepare() and set_note() see durSamples, only the render/
+  // life length grows.
+  static constexpr float kVoiceTailSec = 0.4f;
+
   // (ParamSlot retired 2026-08-18 — plan_perform_source_p1.md T7. Its map/
   // vmap formulas live on verbatim as CurveNode's LogX/LogLog and Linear
   // interp modes; its delivery loop became apply_note_bindings.)
@@ -279,7 +291,11 @@ struct PitchedInstrument final : Instrument {
     vg.source->prepare(ctx, durSamples);
     for (auto& a : vg.advanceList) a->prepare(ctx, durSamples);
 
-    return { vg.source, durSamples, gain, vg.performSource, vg.advanceList };
+    // Tail allowance: the returned life length includes the ring-out
+    // window; musical prep above used the un-extended duration.
+    const int tailSamples = int(kVoiceTailSec * float(sampleRate));
+    return { vg.source, durSamples + tailSamples, gain, vg.performSource,
+             vg.advanceList };
   }
 
   void play_note(float noteNumber, float velocity, float duration, float startTime,
@@ -305,8 +321,12 @@ struct PitchedInstrument final : Instrument {
 
     int startFrame = int(startTime * float(sampleRate));
     const bool capturing = !capturePerVoice.empty();
-    std::vector<float> buf(durSamples);
-    for (int i = 0; i < durSamples; ++i) {
+    // Tail allowance (kVoiceTailSec): render past duration so in-voice
+    // reverb/filter state rings out instead of being cut mid-sample.
+    const int tailSamples = int(kVoiceTailSec * float(sampleRate));
+    const int renderSamples = durSamples + tailSamples;
+    std::vector<float> buf(renderSamples);
+    for (int i = 0; i < renderSamples; ++i) {
       if (vg.performSource) vg.performSource->tick();   // P3 sample clock
       buf[i] = vg.source->next() * gain;
       for (auto& a : vg.advanceList) a->next();         // tap-only loop tails
@@ -323,18 +343,19 @@ struct PitchedInstrument final : Instrument {
     }
 
     // Note-contained-sound check (2026-08-13 spec): output must be at the
-    // audibility floor by duration end. WARN, never fail — a miss is a
-    // patch-design finding, and optimizer runs must keep scoring.
-    int checkStart = std::max(0, durSamples - sampleRate / 1000);
+    // audibility floor by the end of the voice — now measured at the end
+    // of the tail allowance (reverb ring-out past duration is the
+    // allowance's purpose, not a containment miss). WARN, never fail.
+    int checkStart = std::max(0, renderSamples - sampleRate / 1000);
     float tailPeak = 0.0f;
-    for (int i = checkStart; i < durSamples; ++i)
+    for (int i = checkStart; i < renderSamples; ++i)
       tailPeak = std::max(tailPeak, std::fabs(buf[i]));
     if (tailPeak > 1e-4f)
       std::fprintf(stderr,
           "[containment] note %.1f (%.1f Hz) at t=%.2fs: %.1f dBFS in final 1 ms\n",
           noteNumber, freq, startTime, 20.0f * std::log10(tailPeak));
 
-    add_rendered(startTime, buf.data(), durSamples);
+    add_rendered(startTime, buf.data(), renderSamples);
   }
 };
 

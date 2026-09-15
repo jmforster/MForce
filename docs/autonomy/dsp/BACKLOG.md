@@ -246,13 +246,6 @@ Tags per WORKFLOW.md.
     Cost is wildly per-node (t60 tracking = 3 pows/block; retuning combs
     mid-ring is a much harder problem).
 
-63. **[build, small] Voice tail allowance — kill the cutoff click for
-    good** — Matt 2026-09-07: voices die at envelope-zero while Reverb/
-    ringing filters inside still hold sound → click. Workaround today: a
-    trailing hold-at-zero stage. Right fix: engine grants every voice a
-    fixed tail allowance (0.25-0.5 s, or derived from reverb/delay sizes)
-    past envelope-end. Voice lifetime bookkeeping only.
-
 62. **[build, small] noiseBed* settings must affect ONLY the noise bed** —
     Matt 2026-09-07, hard requirement: noiseBedDelay/Fade/FadePow
     actually gate the TONE (full_additive_source.h). Move the tone gate
@@ -392,6 +385,14 @@ Fall-cleaning moves (2026-09-14) are marked → IDEAS or → ledger.
 - 66. Delay compensation walk defects (a)+(b) — FIXED 2026-09-08 same
   day (inputs-only walk, kMaxMembers 16; r090 +389c → −22c); the
   ±1-sample residual lives in 65.
+- 63. Voice tail allowance — SHIPPED 2026-09-15: every voice renders/
+  lives kVoiceTailSec=0.4 s past duration (instrument.h); envelopes are
+  0 past their last stage so the window is pure ring-out; musical prep
+  still uses un-extended duration. Verified on piano_default: reverb
+  tail now decays to -66 dB with zero step at voice end (was a
+  mid-ring cut). Containment check moved to tail end. 15/79 gate
+  patches ring past duration and re-froze; 64 byte-identical. The
+  trailing hold-at-zero-stage workaround is obsolete.
 - 67. Loader unknown-key warning — SHIPPED 2026-09-15: wire_params_generic
   warns once per (type, key) on keys matching no descriptor and no
   branch-consumed allowlist entry (allowlist corpus-verified: 133

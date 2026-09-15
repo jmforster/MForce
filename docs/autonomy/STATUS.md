@@ -70,6 +70,17 @@ dv* into its output. Manifest refrozen 79 entries with the repro pair.
 dsp REVIEW Awaiting: 59 + 58 + 38 + 39. Campaign next on verdicts:
 extension rounds for surviving families, leaky-stick hysteresis round,
 48k canonicalization, or the tone-shaping filter round.
+**09-15 fronts 2+3 (same run): backlog 67 + 63 SHIPPED.** 67: loader
+warns once per (type,key) on unknown param keys — allowlist
+corpus-verified (133 patches warning-free; all 16 flagged classes
+proved branch-consumed, none dead; positive control fires; gate 79/79
+byte-identical). 63: voice tail allowance kVoiceTailSec=0.4 s —
+voices render/live past duration so in-voice reverb/filters ring out
+(piano_default tail now ends at -66 dB, zero step; containment check
+moved to tail end; live path inherits via StreamingVoice.durSamples;
+15/79 gate patches ring past duration, manifest refrozen). The
+trailing hold-at-zero-stage workaround is obsolete. Run stops here
+per contract (3 fronts): everything else dsp is verdict-gated.
 
 Previous update: 2026-09-13 evening (steering meeting + STK port day, Fable 5).
 **STEERING MEETING HELD — process decisions, execution deferred by Matt

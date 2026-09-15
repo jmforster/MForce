@@ -4490,8 +4490,9 @@ static void play_note(float noteNum, float velocity, float durationSeconds) {
         auto sv = pitched->prepare_voice_at(slot, noteNum, velocity,
                                            durationSeconds);
 
-        // Note-contained sound (2026-08-13): the voice lives exactly
-        // durSamples — release is inside the note, no tail window.
+        // sv.durSamples includes the engine's voice tail allowance
+        // (kVoiceTailSec, backlog 63) — release is inside the note and
+        // the tail window lets in-voice reverb/filters ring out.
         voice_schedule_unlocked(ip, sv.source, sv.durSamples, sv.gain,
                                 int(noteNum), false, {}, slot,
                                 sv.performSource, sv.advanceList);
