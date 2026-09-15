@@ -48,6 +48,15 @@ INSIDE the loop (placement x resonance, normalized, loop-referenced
 criticals). VERDICT: does in-loop formant coloration beat the
 outside-the-loop bell; which placement/res cells live.
 
+### 57. Two parked one-worders [decide] (backlog 3d + 22)
+(a) **Pan law**: CLI WAVs are −3 dB vs UI (equal-power center pan vs
+unity mono; render unification proved UI ∝ CLI at exactly 1/√2). Make
+mono patches write ×1.0 to both channels so WAV loudness == UI, or
+leave it? (b) **Vibrato speed/depth envelopes**: legacy connectable
+envelopes became a hardcoded internal ramp. Restore as pins, leave, or
+fold into config-chain whenever? Nothing blocked on either — one word
+each closes them.
+
 ### 38. AF saxophone — source exhausted, build awaiting go [discuss] (2026-08-18)
 docs/research/af_sax/RECIPE.md: complete value table from the breakdown
 video; only 3 TUNEs remain. BLOCKED on design go-ahead: needs a new

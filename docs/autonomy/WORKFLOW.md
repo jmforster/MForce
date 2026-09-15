@@ -3,9 +3,17 @@
 The loop that lets work proceed unattended, with Matt reviewing in batches.
 Rewritten 2026-09-14 around the 2026-09-13 steering meeting: ONE dev (the
 personas Dipsy/Wolfie are retired), lanes survive as backlog namespaces.
-Each lane directory has `BACKLOG.md`, `REVIEW.md`, `reports/`. Top level has
-`STATUS.md` (the one file Matt opens), `GOALS.md` (Matt's raw ambitions —
+Each lane directory has `BACKLOG.md`, `REVIEW.md`, `reports/`. Top level
+has `STATUS.md` (the SESSION HANDOFF file — Claude opens it first; Matt
+doesn't read it, confirmed 2026-09-14), `GOALS.md` (Matt's raw ambitions —
 input to decomposition), and `IDEAS.md` (parked, undecided).
+
+**Matt's interface is the two REVIEW files.** He goes straight to
+dsp/REVIEW.md and comp/REVIEW.md to see what's waiting for him. HARD
+RULE: anything that needs Matt's ears, eyes, or a decision MUST have a
+REVIEW entry — a queue or question that exists only in STATUS or a
+backlog section is a routing bug (2026-09-14: three weeks of September
+ears queues lived only in STATUS and were invisible to him).
 
 ## The cycle (unit of work)
 
@@ -97,7 +105,8 @@ must contain ONLY items still needing Matt's input.
 
 ## Review protocol (Matt's side)
 
-Open `STATUS.md`. Each lane's `REVIEW.md` lists items as:
+Open `dsp/REVIEW.md` and `comp/REVIEW.md` — nothing else required. Each
+lists items as:
 what to review (files/renders) → what a verdict decides → options if known.
 Feedback can be a single unstructured message; folding it into backlogs and
 re-prioritizing is the session's job, not Matt's. The audition dashboard

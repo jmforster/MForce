@@ -1,4 +1,4 @@
-# Status — open this file first
+# Status — session handoff (Claude reads this first; Matt's queue = */REVIEW.md)
 
 Updated: 2026-09-14 (fall cleaning, Fable 5 with Matt). **Steering-meeting
 execution DONE except GOALS refresh (Matt's) and the audition-dashboard
