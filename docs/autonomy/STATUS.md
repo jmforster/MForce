@@ -351,16 +351,11 @@ cache, RtMidi, wheel/pressure smoothers), plus Matt's hands-on day 08-20
 and the AF archaeology thread (afp31 v1–v12 + decoded ground truth, afks,
 sax recipe).
 
-Review queue (dsp/REVIEW.md): **51 Listen-here fixed [try]**, **50 bow
-family 30 cells [listen]**, 49 excite4 duck/smooth/Helmholtz [listen —
-partially verdicted, + 7 follow-up cells unheard: jin ladder, hot attacks],
-48 triptych [listen, partial], 47 sustained probe [listen, verdicted-ish],
-46 excite1 [listen — interim only; piano_ab A/B + segment_sweep3 combo
-verdicts still open], 41 piano [try], 40 Triangle [listen], 39 wheel [try],
-35-38 AF items. **The day's full narrative + all verdicts:
-docs/research/oneshot_sweep/ROUND1_VERDICTS.md** (bow discovery, parameter
-notes, excite rounds). Bow patch: patches/baselines/
-bow_evolution_discovery.json (byte-copy of Matt's pending/ save).
+Review queue: dsp/REVIEW.md REBUILT 2026-09-14 — Awaiting is now (top
+first) 53 stk_bowed_ext1, 54 stk_bowed_ext2 + cello-IR pick, 55
+feedback_curves5b tour, 56 feedback_inloop1, 38 AF sax [discuss], 39
+wheel [parked hardware], + one parked excitation stub. Everything else
+folded to Resolved stubs there.
 
 ## comp
 
