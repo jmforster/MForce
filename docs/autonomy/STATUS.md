@@ -30,6 +30,23 @@ brainstorm (own session).** What landed (commits aa50c49, dda11f3):
 Ears queues UNCHANGED and standing: stk_port1, stk_bowed_ext1/2,
 hysteresis_bow*, valve2, string_harness1/2, brass_harness1, r5b axis
 tour, feedback_inloop1, + the whole comp REVIEW queue.
+**Same-day addendum — Matt verdicted the whole dsp REVIEW queue (1 hr),
+verdicts folded + executed:** inloop1 REJECTED (patches→old, renders
+deleted; formants stay outside the loop); ext1 hysteresis cells rejected
+harsh (→old; next hysteresis round needs ext2's leaky-stick fix);
+ext_perf runaway vibrato root-caused (±0.27 summed into neck ratio) and
+fixed canonically (±19c C4 measured), "most stringy" keeper; ext1
+saxophony + all ext2 + fb5b cells KEPT in place for Matt's hand-play
+(his call: heap, no copying to pending/). r5b thread closed, no neighbor
+round. Decisions executed: **pan law → unity center** (mixer.cpp,
+verified exactly sqrt2 x old, WAV==UI loudness; manifest refrozen 77/77,
+UI relinked via rename — Matt was live in it); **Vibrato per-note pins
+already work** via dynamicPins, render-proven, backlog 22 closed, no
+code. IR pick DROPPED (rotten links) — STK round 3 proceeds from
+Larson's measured LTAS curve instead (biquad-stack body fit, A/B vs
+bachd.wav) = campaign item 70, IN PROGRESS. AF sax still blocked on
+Discord annoyance; offered alternative: green-light building from the
+video table. dsp REVIEW Awaiting is now just 38 + 39.
 
 Previous update: 2026-09-13 evening (steering meeting + STK port day, Fable 5).
 **STEERING MEETING HELD — process decisions, execution deferred by Matt

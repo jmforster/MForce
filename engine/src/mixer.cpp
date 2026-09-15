@@ -31,10 +31,15 @@ void StereoMixer::render(const RenderContext& ctx, float* outLR, int frames) {
       float p = ch.pan->next();               // [-1,1]
       p = std::clamp(p, -1.0f, 1.0f);
 
-      // Equal-power panning: map [-1,1] -> [0,1]
+      // Equal-power panning: map [-1,1] -> [0,1], normalized to UNITY at
+      // center (Matt 2026-09-14: mono/center patches write x1.0 to both
+      // channels so WAV loudness == UI's unity-mono monitoring). Edges
+      // reach +3 dB relative to the old -3 dB-center law; soft_clip below
+      // still bounds the mix.
       float t = (p + 1.0f) * 0.5f;
-      float aL = std::cos(t * 0.5f * 3.14159265358979323846f);
-      float aR = std::sin(t * 0.5f * 3.14159265358979323846f);
+      constexpr float kRoot2 = 1.41421356237309504880f;
+      float aL = kRoot2 * std::cos(t * 0.5f * 3.14159265358979323846f);
+      float aR = kRoot2 * std::sin(t * 0.5f * 3.14159265358979323846f);
 
       float s = mono[i] * v;
       outLR[i*2 + 0] += s * aL * gl;

@@ -117,21 +117,44 @@ Tags per WORKFLOW.md.
 37. **[research] Feedback-loop search — live threads** — the curve-space
     sweep campaign, full history in R4_VERDICTS.md + run reports (r3
     damped round, r4 "nailed it, concept proven" → flute_default; r5a
-    noise-keytrack keeper at exponent −0.80..−0.95). LIVE: (a) r5b axis
-    tour awaits Matt's verdict (14 cells in renders/dsp/pending/
-    feedback_curves5b/, full 144 grid in sweep/; control =
-    fb5b_m3p0_lin_j0), then pull neighbors from the grid; (b) r5c =
-    junction-asymmetry round using DIRECTED axes per
-    docs/research/feedback_sweeps/JUNCTION_OPERATING_POINT.md
-    (origin-asymmetry ratio + drive floor relative to measured threshold,
-    not breakpoint jitter); (c) strings AND brass get the oboe treatment
-    (Matt 09-03: seed from a proven wind line — oboe_again's bass sounds
-    BOWED and is the strings-round lead; junction asymmetry = axis
-    candidate); (d) 37a's remaining item: audible in-loop breath (hiss
-    0.005-0.02 under its own decay envelope) — breath must couple to the
-    tonal path, the parallel-sum dead end stands. Matt's philosophy notes:
-    per-range instruments over one averaged 5-octave patch; keytrack
-    matters within the home range.
+    noise-keytrack keeper at exponent −0.80..−0.95; r5b axis tour
+    verdicted 09-14 "all promising, tho very similar" — heap, no
+    neighbor round). LIVE: (a) r5c = junction-asymmetry round using
+    DIRECTED axes per docs/research/feedback_sweeps/
+    JUNCTION_OPERATING_POINT.md (origin-asymmetry ratio + drive floor
+    relative to measured threshold, not breakpoint jitter); (b) strings
+    AND brass get the oboe treatment (Matt 09-03: seed from a proven
+    wind line — oboe_again's bass sounds BOWED and is the strings-round
+    lead); (c) audible in-loop breath (hiss 0.005-0.02 under its own
+    decay envelope) — breath must couple to the tonal path, the
+    parallel-sum dead end stands. NOTE 09-14: in-loop FORMANTS rejected
+    (REVIEW 56, "none successful") — formants stay outside as the
+    oboe_default bell; breath-in-loop is unaffected. Attack-texture
+    insight (Matt 09-14, from the excite archive): ZITHERING fast
+    enough approaches continuous bow excitation; creak_fine
+    (excite3_triptych) demonstrates best — lo-f = "a 20-foot tall cello
+    on Mars"; candidate excitation for this family's `source` pin.
+    Philosophy notes: per-range instruments over one averaged 5-octave
+    patch; keytrack matters within the home range.
+
+70. **[campaign] STK-lineage bowed chassis — extensions on the validated
+    port** — the resumed STK campaign (port phase closed, REVIEW stk_port1
+    stub). State after Matt's 09-14 verdicts: ext1 saxophony cells +
+    ext_perf (vibrato fixed, "most stringy") kept for hand-play; ext1
+    hysteresis cells rejected as harsh — next hysteresis-in-chassis round
+    must build in the ext2 diagnosis first (stick LEAKS ~2%, plateau
+    continuous); ext2 cello-register cells all promising, "could be good
+    if tamed by filters we're planning to add anyway." ROUND 3 (running):
+    fit Larson's measured body curve (STK_PORT_NOTES 3-pair LTAS ratio:
+    +20 dB @150, −10 @500, +15/+11 @800-1200, −22..−30 above 2k) as a
+    biquad stack on the chassis, A/B vs bachd.wav — the IR-download idea
+    is DEAD (links rotten/malware-adjacent); derive from measurements.
+    LATER ROUNDS: leaky-stick hysteresis round; remaining families
+    (Saxofony, BlowHole, BandedWG, Mohonk torsion/dispersion features);
+    compensate-ON + drive exploration past STK's ranges. STOP CONDITIONS:
+    a round with zero gate-passing cells ends its sub-thread (2-attempt
+    rule per mechanism); the campaign parks when the filter/body work
+    lands and Matt's bench has what it needs for hand-tuning.
 
 ## Design questions
 
@@ -267,18 +290,6 @@ Tags per WORKFLOW.md.
     escalation option is vibrato via the pitch-mod layer (coherent FM =
     strongest partial-fusion cue).
 
-## [read] Questions parked on Matt
-
-22. **Vibrato lost its user-supplied speed/depth envelopes** — legacy
-    SetSpeedEnvelope/SetDepthEnvelope became a hardcoded internal ramp
-    (vibrato.h). Restore as pins, leave hardcoded, or fold into the
-    config-chain design? 47 patches use Vibrato; nothing blocked.
-
-3d. **Pan-law question** — CLI WAVs are −3 dB vs UI (equal-power center
-    pan in StereoMixer vs unity mono); render unification proved UI ∝ CLI
-    at exactly 1/√2. Option: mono patches write ×1.0 to both channels so
-    WAV loudness == UI loudness.
-
 ## Done / retired ledger
 
 One line each; full text in run reports + this file's git history.
@@ -333,8 +344,16 @@ Fall-cleaning moves (2026-09-14) are marked → IDEAS or → ledger.
   feel matters").
 - 20. PerformSource P1-P3 — landed 08-18..20.
 - 21. WhiteNoise density/boost/continuity + zeroCrossTendency — 08-21.
+- 22. Vibrato speed/depth envelopes — CLOSED 2026-09-14 (Matt: audio-rate
+  never wanted; per-note is the ask) — ALREADY WORKS via dynamicPins
+  (speed/depth are setting descriptors); render-proven 19c@C3 vs
+  226c@C6 from one depth curve. Nothing built.
 - 23. CombinedSource connectable Amplitude — CLOSED 2026-09-14, absorbed
   by 54 (explicit op node is the honest spelling).
+- 3d. Pan law — CLOSED 2026-09-14 (Matt: mono writes x1): StereoMixer
+  equal-power law normalized to unity center; verified exactly sqrt2 x
+  old within 1.4 LSB; manifest refrozen same commit. Edge pans now
+  +3 dB relative to old law, soft-clip guarded.
 - 24. Attribute proof-of-effect ladders — → IDEAS 2026-09-14 ("when
   bored"; census data stands in docs/config_pin_census.md).
 - 29. Triangle `power` — 08-21; REVIEW 40.
