@@ -1,11 +1,21 @@
-# Composition lane — backlog (Wolfie)
+# Composition lane — backlog
 
-Housekept 2026-08-22 (with Matt). Item ids are STABLE (reports/REVIEW cite
-them); order = priority. Done items are one-liners in the ledger at the
-bottom; full text in run reports + this file's git history. Tags per
-WORKFLOW.md. (G1)-(G2) = GOALS.md Wolfie goals.
+Housekept 2026-08-22 (with Matt); fall-cleaning pass 2026-09-14 added the
+steering restart as item 23 (nothing culled — queue was already tight).
+Item ids are STABLE (reports/REVIEW cite them); order = priority. Done
+items are one-liners in the ledger at the bottom; full text in run
+reports + this file's git history. Tags per WORKFLOW.md.
 
 ## Next up
+
+23. **[campaign] Comp restart — simple scale WITH harmony from bar one** —
+    steering decision 2026-09-13 (4). Back to Mary-Had-a-Little-Lamb-class
+    material, but harmonized from the first bar (the four-level harmony
+    model is the spine, not a later layer); piano_default is the comp
+    instrument (vanilla, non-fatiguing — CLAUDE.md 09-05 standing rule).
+    Campaign item: define its own stop conditions when scoped; existing
+    REVIEW queue verdicts (cadential arrival, section key, voicing A/Bs)
+    fold in as they arrive rather than blocking the restart.
 
 21. **[build] Zero-event renders are never treated as failures** —
     building #9's harness found six of 38 committed templates rendering

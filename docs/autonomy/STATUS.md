@@ -1,6 +1,37 @@
 # Status — open this file first
 
-Updated: 2026-09-13 evening (steering meeting + STK port day, Fable 5).
+Updated: 2026-09-14 (fall cleaning, Fable 5 with Matt). **Steering-meeting
+execution DONE except GOALS refresh (Matt's) and the audition-dashboard
+brainstorm (own session).** What landed (commits aa50c49, dda11f3):
+- **Dirty-patch verdict: KEEP** — piano_default (curve renames + added
+  Reverb) and viola_default (PerformNode re-save) are Matt's, committed;
+  cello/oboe1 render-neutral churn committed with them. chords/ +
+  passages/ (UI transport save areas) gitignored; stray hysteresis plan
+  doc tracked.
+- **BACKLOG nuke** — dsp 864→330 lines: 6 items to ledger, 13
+  maybe-somedays to IDEAS.md (ledger keeps ids resolvable), survivors
+  compressed to live threads; comp untouched (already tight) but gained
+  item 23 = the steering comp-restart campaign. Open Matt questions 3d
+  (pan law) and 22 (Vibrato envelopes) still parked — he skipped them.
+- **WORKFLOW.md rewritten** for the single-dev run contract: personas
+  retired, campaigns carry stop conditions, steal-first model + rate
+  discipline, machine self-verdict REJECTS, ears budget ≤ 20/run,
+  dashboard Keep→pending/<campaign>/ semantics, IDEAS housekeeping rule.
+- **Baselines set-cover cull 116 → 42** (+9 prof_additive ladder): 65
+  redundant patches → patches/old/baselines_culled_2026-09-14/; keepers =
+  one per node type/loader feature + harness citations + repro patches.
+  Additive1 culled (comp uses piano_default). FIND: Biquad/BowTable have
+  ZERO tracked gate coverage (only gitignored sweep cells use them) —
+  Matt: STK cells go in once they do something good.
+- **Null gate refit**: skips library/voice vowels except sing_alto_A +
+  speech_c_AE (identical mechanism, formant freqs only — Matt); manifest
+  refrozen 196 → 77 entries, verified 77/77 (2 RENDER_FAILs = deliberate
+  keepers FormantSequence1/NATest1). Gate wall-clock drops ~60%.
+Ears queues UNCHANGED and standing: stk_port1, stk_bowed_ext1/2,
+hysteresis_bow*, valve2, string_harness1/2, brass_harness1, r5b axis
+tour, feedback_inloop1, + the whole comp REVIEW queue.
+
+Previous update: 2026-09-13 evening (steering meeting + STK port day, Fable 5).
 **STEERING MEETING HELD — process decisions, execution deferred by Matt
 except the STK port directive.** Decisions (capture only, action items
 NOT started): (1) Dipsy/Wolfie personas retired; ONE dev runs both
