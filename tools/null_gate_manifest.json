@@ -39,6 +39,8 @@
  "patches/baselines/bow_evolution_discovery.json": "7456775c65b33179aad56f69a646304f37f695c1c8b327cb203c218524c6ee94",
  "patches/baselines/delay_test.json": "de38359a2417c76c89f4b1dbc2eb1e6f6912fad788f1fbad5d5c9c5343e95939",
  "patches/baselines/distortion_test.json": "b6c0de591b9e804680c16e700b86fa68b152ff3dae8b751a7e5ad29eea2aa99a",
+ "patches/baselines/double_advance_bug.json": "4768178f2237e7d09327beec8b97143c4645256e0a1c0c904c741e9012cc2d3d",
+ "patches/baselines/double_advance_ok.json": "7b2b6f38cf8fa99a8868a0934a168aeaf13163ffb60c98d2fdc4ea700d3f1888",
  "patches/baselines/fadd_band_test.json": "00eb72810dd1e19d2cdc7bef367a1d3bcfecee24b631a652cf91a405792d94cd",
  "patches/baselines/fadd_explicit_test.json": "c4cff50b60b094a54a9e841fa914b39986e9f5df7c869259bc5cf0a41e2d53a0",
  "patches/baselines/fadd_formant_test.json": "b3a93784c2fd0456d6264a29b085cbb0ba7abecf384518b6ee0c46db64669942",

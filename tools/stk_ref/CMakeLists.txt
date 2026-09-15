@@ -60,3 +60,38 @@ foreach(tgt stk_bowed_ref stk_clarinet_ref stk_flute_ref stk_brass_ref)
         target_compile_definitions(${tgt} PRIVATE _CRT_SECURE_NO_WARNINGS)
     endif()
 endforeach()
+
+add_executable(stk_saxofony_ref
+    saxofony_ref.cpp
+    ${STK_ROOT}/src/Stk.cpp
+    ${STK_ROOT}/src/Saxofony.cpp
+    ${STK_ROOT}/src/Envelope.cpp
+    ${STK_ROOT}/src/Noise.cpp
+    ${STK_ROOT}/src/OneZero.cpp
+    ${STK_ROOT}/src/DelayL.cpp
+    ${STK_ROOT}/src/SineWave.cpp
+)
+target_include_directories(stk_saxofony_ref PRIVATE ${STK_ROOT}/include)
+
+add_executable(stk_blowhole_ref
+    blowhole_ref.cpp
+    ${STK_ROOT}/src/Stk.cpp
+    ${STK_ROOT}/src/BlowHole.cpp
+    ${STK_ROOT}/src/Envelope.cpp
+    ${STK_ROOT}/src/Noise.cpp
+    ${STK_ROOT}/src/OneZero.cpp
+    ${STK_ROOT}/src/PoleZero.cpp
+    ${STK_ROOT}/src/DelayL.cpp
+    ${STK_ROOT}/src/SineWave.cpp
+)
+target_include_directories(stk_blowhole_ref PRIVATE ${STK_ROOT}/include)
+
+add_executable(stk_bandedwg_ref
+    bandedwg_ref.cpp
+    ${STK_ROOT}/src/Stk.cpp
+    ${STK_ROOT}/src/BandedWG.cpp
+    ${STK_ROOT}/src/ADSR.cpp
+    ${STK_ROOT}/src/BiQuad.cpp
+    ${STK_ROOT}/src/DelayL.cpp
+)
+target_include_directories(stk_bandedwg_ref PRIVATE ${STK_ROOT}/include)

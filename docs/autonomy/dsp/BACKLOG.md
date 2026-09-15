@@ -27,6 +27,20 @@ Tags per WORKFLOW.md.
     assumes the tap is the only z⁻¹. Diagnose = trace one sample of each
     rooting on the repro pair and find where state diverges.
 
+71. **[build] Stateful chain double-advances behind a shared stateless
+    node — repro pair in baselines** — found 2026-09-15 porting BandedWG
+    bowed: adding ONE stateless CombinedSource (DvF, a second consumer
+    of Dv) made the 4.5 s AdsrEnv run in exactly half the time (2.258 s
+    = 2x advance rate of the env chain). Repro pair:
+    patches/baselines/double_advance_{ok,bug}.json — identical except
+    that node. NARROWED same day: the minimal env→mul→two-consumers
+    shape is guarded correctly (verified), so the trigger needs the
+    loop/advance-list context (tap-only delays re-pulling the shared
+    cone during the advance pass). Same guard/advance cluster as 65/66
+    — diagnose together. Until fixed: in loop patches, keep every
+    stateful chain behind exactly ONE normal consumer (the ports now
+    comply); symptom to recognize = gestures at exactly 2x speed.
+
 67. **[build, small] Loader: warn on unknown params/settings keys** —
     2026-09-08. The generic settings/params loops skip unrecognized keys
     silently, so an old binary loading a newer patch plays a silently
@@ -152,8 +166,16 @@ Tags per WORKFLOW.md.
     docs/research/stk_port/larson_body_fit.json);
     tools/gen_stk_bowed_ext3.py stages nobody/Maestre/Larson/btd+Larson
     to audition (REVIEW 58), in-graph LTAS validated +0.83 dB median.
-    LATER ROUNDS: leaky-stick hysteresis round; remaining families
-    (Saxofony, BlowHole, BandedWG, Mohonk torsion/dispersion features);
+    REMAINING FAMILIES PORTED 2026-09-15 (round 4): Saxofony, BlowHole,
+    BandedWG — tools/gen_stk_{saxofony,blowhole,bandedwg}.py +
+    tools/stk_ref/{saxofony,blowhole,bandedwg}_ref.cpp, native-22050
+    validation per the rate discipline, ears queue = REVIEW 59
+    (stk_port2). Findings en route: 1-sample envelope stages never fire
+    (2+ do); engine BowTable outputs dv*rc (multiply folded in);
+    backlog 71 double-advance repro; BlowHole is register-chaotic at
+    22050 (ref flips against itself); BandedWG bowed blooms ~4 s by
+    design. LATER ROUNDS: leaky-stick hysteresis round; canonicalize
+    surviving families to 48k; Mohonk torsion/dispersion features;
     compensate-ON + drive exploration past STK's ranges. STOP CONDITIONS:
     a round with zero gate-passing cells ends its sub-thread (2-attempt
     rule per mechanism); the campaign parks when the filter/body work

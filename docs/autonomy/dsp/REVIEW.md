@@ -19,6 +19,22 @@ target, median +0.83 dB. A/B vs renders/scratch/stk_ref/mohonk05/
 the chassis into a cello — and does body_lar beat body_m48 enough to
 become the chassis default?
 
+### 59. stk_port2 — Saxofony, BlowHole, BandedWG ports vs STK [listen] (2026-09-15)
+**renders/dsp/audition/stk_port2/** (README inside) — the remaining STK
+families, ported and machine-validated at native 22050 (rate discipline;
+canon to 48k comes after ears). 7 A/B pairs: saxofony default +
+pos_bridge (the "blowed string", blow position = its sax↔clarinet
+axis; ±1c locks, noise-free 0.04 dB at C4), blowhole default (register
+vent + dynamic tonehole; locks C3-C5, top slots out of model range at
+22050, noisy variants register-flip — the ref flips against itself
+too), bandedwg tbar struck+bowed / bowl struck / glass bowed (banded
+waveguides: struck bars/bowls with EXACTLY matching decay rates —
+first percussion-with-physics in the graph — and bowed bars that
+bloom over ~4 s like the model does).
+THE QUESTION: which families earn extension rounds on the validated
+chassis (the bowed precedent)? Saxofony = strings/sax-adjacent;
+BandedWG = new percussion territory; BlowHole = another reed.
+
 ### 38. AF saxophone — build awaiting go [discuss] (2026-08-18)
 docs/research/af_sax/RECIPE.md: complete value table from the breakdown
 video; only 3 TUNEs remain. BLOCKED on design go-ahead: needs a new

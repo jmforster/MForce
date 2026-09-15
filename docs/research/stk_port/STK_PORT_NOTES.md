@@ -349,3 +349,48 @@ execution (workflow/cleanup) per Matt.
   BlowHole (clarinet + register hole + tonehole), Bowed's Mohonk
   variants (torsion/dispersion/body via the archived JOS examples),
   BandedWG (bar/bowl percussion).
+
+## ROUND 4 — REMAINING FAMILIES (09-15, autonomous)
+
+Saxofony / BlowHole / BandedWG ported and validated at NATIVE 22050
+(rate discipline from round 5 of the bowed thread; canonicalization is
+a separate later step). Drivers: tools/stk_ref/{saxofony,blowhole,
+bandedwg}_ref.cpp; generators: tools/gen_stk_{saxofony,blowhole,
+bandedwg}.py; ears queue renders/dsp/audition/stk_port2/ (REVIEW 59).
+
+- SAXOFONY ("blowed string"): bowed-port two-delay skeleton + clarinet
+  reed idiom. STK's own delay identity (sr/f - 1.5, position split)
+  locks +-1c with NO structural correction. noise_off C4 = 0.04 dB
+  exact. Divergent cells (pos_bridge C6/C7, reed_hard, aper_wide) are
+  the model's barely-igniting regimes — ref RMS 0.01-0.02 there.
+  Positive reed slope (+0.3) = ascending Shaper curve.
+- BLOWHOLE (clarinet + register vent + 3-port tonehole): vent =
+  current-sample PoleZero (Biquad), tonehole = self-tapped PoleZero
+  ({"tap": ThFilt} closes the z^-1). Loop needed a measured comp
+  (~0.6 samples, per-note anchors) — the model is register-BISTABLE
+  within a ~0.03-sample window at C4/C5 (fixed 9-sample junction
+  spacing vs short bores), so noisy variants land in different
+  registers than the ref, AND the ref does the same against itself
+  (ref-vs-ref: default C4 -702c). noise_off locks -0.3/-3.6/-1.3c.
+  C6/C7 out of model range at 22050 (D1 length goes negative).
+- BANDEDWG (banded waveguides, Essl & Cook): per mode = raw-Biquad
+  zeros (1,0,-1) in series with resonance-mode Biquad (b0 = .5(1-R^2),
+  frequency pin = f*mode_k) + integer delay + tap feedback. Loop
+  structure exact (single-mode probe rings at 1400.7 Hz matching an
+  STK-exact python sim; the ring-at-BP-center regime dies with ONE
+  extra loop sample — probe before assuming). Struck: burst must
+  enter the DELAY LINE (BP zeros kill DC); decay rates match exactly;
+  residual mode-2 level -6 dB = attack detail (instant pre-fill vs
+  streamed burst). Bowed: blooms ~4 s (measured on STK itself: energy
+  doubles per ~0.5 s, saturates ~4 s) — reference driver gives bowed
+  variants 5 s slots; tbar_bowed +-1c. bar_bowed NOT ported: the
+  reference itself is silent (no self-oscillation at this pressure).
+  f-dependent structure (mode drops, 1/nModes, f<=1568 clamp) baked as
+  step-shaped CurveNodes on note frequency.
+
+ENGINE FINDS EN ROUTE (filed): backlog 71 double-advance behind a
+shared stateless node in loop context (repro pair in baselines;
+minimal case is guarded correctly); 1-sample seconds-mode envelope
+stages render SILENT (2-sample stages fire; keep bursts >= 2 samples);
+engine BowTable outputs dv*rc — the multiply is folded in, do not
+multiply by dv again (that squared error also masked the bloom).

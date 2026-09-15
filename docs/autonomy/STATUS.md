@@ -51,9 +51,25 @@ renders/dsp/audition/stk_bowed_ext3/ (nobody / Maestre / Larson body /
 btd+Larson full recipe), all +0c locks, in-graph LTAS validated
 (+0.83 dB median vs target) = **REVIEW 58**. AF sax still blocked on
 Discord annoyance; offered alternative: green-light building from the
-video table. dsp REVIEW Awaiting: 58 + 38 + 39. Campaign next when 58
-verdicts: leaky-stick hysteresis round, remaining families (Saxofony,
-BlowHole, BandedWG), or the tone-shaping filter round Matt expects.
+video table.
+**09-15: STK round 4 — remaining families ported (Matt: "move on to
+remaining families").** Saxofony/BlowHole/BandedWG reference drivers
+built (tools/stk_ref/), ground truth at native 22050, ports validated
+per rate discipline: saxofony ±1c all locks, noise-free 0.04 dB C4;
+blowhole C3-C5 locks (per-note comp anchors; model is register-BISTABLE
+at 22050 and the ref flips against itself run-to-run — parity); bandedwg
+struck bars/bowls with EXACTLY matching decay rates + bowed bars
+blooming ~4 s like the model (bar_bowed not ported — ref silent).
+Ears queue = **REVIEW 59** (stk_port2, 7 A/B pairs). En-route engine
+finds: **backlog 71** — a shared stateless node in loop context
+double-advances the stateful chain behind it (env at exactly 2x; repro
+pair patches/baselines/double_advance_{ok,bug}.json; minimal case IS
+guarded — needs the advance-list context; 65/66 cluster); 1-sample
+seconds-mode envelope stages never fire (2+ do); engine BowTable folds
+dv* into its output. Manifest refrozen 79 entries with the repro pair.
+dsp REVIEW Awaiting: 59 + 58 + 38 + 39. Campaign next on verdicts:
+extension rounds for surviving families, leaky-stick hysteresis round,
+48k canonicalization, or the tone-shaping filter round.
 
 Previous update: 2026-09-13 evening (steering meeting + STK port day, Fable 5).
 **STEERING MEETING HELD — process decisions, execution deferred by Matt
