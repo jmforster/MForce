@@ -46,8 +46,23 @@ def hash_all(patches):
     with cf.ThreadPoolExecutor(max_workers=jobs_arg()) as ex:
         return list(ex.map(work, enumerate(patches)))
 
+# library/voice vowels are identical mechanisms differing only in formant
+# frequencies (Matt 2026-09-14): the gate keeps ONE sung and ONE spoken
+# representative and skips the rest. words/ (sequences) still covered.
+VOICE_DIR = "patches/library/voice"
+VOICE_KEEP = {"sing_alto_A.json", "speech_c_AE.json"}
+
+def gate_skipped(p: Path) -> bool:
+    rel = p.relative_to(ROOT)
+    if rel.parts[:3] != ("patches", "library", "voice") or len(rel.parts) != 4:
+        return False
+    name = rel.parts[3]
+    return (name.startswith("sing_") or name.startswith("speech_")) \
+        and name not in VOICE_KEEP
+
 def main():
-    patches = [p for s in SETS for p in sorted((ROOT / s).rglob("*.json"))]
+    patches = [p for s in SETS for p in sorted((ROOT / s).rglob("*.json"))
+               if not gate_skipped(p)]
     if "--freeze" in sys.argv:
         manifest = {}
         for p, h in hash_all(patches):
