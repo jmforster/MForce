@@ -5,36 +5,6 @@ the same evening. Awaiting = only what still needs Matt.
 
 ## Awaiting Matt
 
-### 58. stk_bowed_ext3 — Larson's cello body, recovered [listen] (2026-09-14)
-**renders/dsp/audition/stk_bowed_ext3/** (README inside) — the body he
-never published, fit from his own WAVs (LTAS ratio of 4 with/without
-pairs, tools/fit_larson_body.py; fit err median 0.68 dB at the pairs'
-own 2.8 dB spread) as a 14-biquad stack on the canonical chassis.
-Cells: ctl3_nobody / body_m48 (Maestre violin) / body_lar (the
-recovered cello body) / btd_lar (his full width+torsion+dispersion+body
-recipe). All +0c locks except btd_lar's documented D-string-scoped top
-slots. In-graph validation: rendered LTAS diff matches the fitted
-target, median +0.83 dB. A/B vs renders/scratch/stk_ref/mohonk05/
-{bachd,bowedbtbodyd}.wav. THE QUESTION: does the recovered body turn
-the chassis into a cello — and does body_lar beat body_m48 enough to
-become the chassis default?
-
-### 59. stk_port2 — Saxofony, BlowHole, BandedWG ports vs STK [listen] (2026-09-15)
-**renders/dsp/audition/stk_port2/** (README inside) — the remaining STK
-families, ported and machine-validated at native 22050 (rate discipline;
-canon to 48k comes after ears). 7 A/B pairs: saxofony default +
-pos_bridge (the "blowed string", blow position = its sax↔clarinet
-axis; ±1c locks, noise-free 0.04 dB at C4), blowhole default (register
-vent + dynamic tonehole; locks C3-C5, top slots out of model range at
-22050, noisy variants register-flip — the ref flips against itself
-too), bandedwg tbar struck+bowed / bowl struck / glass bowed (banded
-waveguides: struck bars/bowls with EXACTLY matching decay rates —
-first percussion-with-physics in the graph — and bowed bars that
-bloom over ~4 s like the model does).
-THE QUESTION: which families earn extension rounds on the validated
-chassis (the bowed precedent)? Saxofony = strings/sax-adjacent;
-BandedWG = new percussion territory; BlowHole = another reed.
-
 ### 38. AF saxophone — build awaiting go [discuss] (2026-08-18)
 docs/research/af_sax/RECIPE.md: complete value table from the breakdown
 video; only 3 TUNEs remain. BLOCKED on design go-ahead: needs a new
@@ -53,6 +23,30 @@ something audible and ride it, whenever hardware appears.
 
 Compact stubs only; full detail in run reports, STATUS digests, and the
 verdict logs cited. Newest first.
+
+- **58. stk_bowed_ext3 — Larson body** (09-14, verdicted 09-16): btd_lar
+  REJECTED ("4 detuned cellos at the bottom... completely haywire at the
+  top"). ctl3_nobody / body_m48 / body_lar all have "promising bow
+  attacks"; body_lar does NOT beat body_m48, no_body credible — no
+  chassis-default change. ALL cells "lose string attack character and
+  turn into whistles at the top end" → the WHISTLE-TOP issue is the
+  named gate for higher-register bowed work (bowed thread continues
+  toward cello). Folded 2026-09-16.
+- **59. stk_port2 — Saxofony/BlowHole/BandedWG (+brass)** (09-15,
+  verdicted 09-16): Brass, Saxofony, BlowHole ABANDONED for now ("I've
+  done better tweaking the oboe and string patches"; brass mostly
+  silent/near-silent low, squeaky-shrill high; saxofony string-like low
+  + raucous whistle high, reed_hard/soft low-volume zithering; blowhole
+  only _default low C interesting). Note: "silent" pairs passing = the
+  gates scored PARITY WITH THE REFERENCE (STK's own silence), not
+  quality — same lesson as backlog 72's lucky-seed find: machine gates
+  need a floor for "audible at all." BandedWG KEEPER, two directions:
+  (1) percussive sounds — tuned drums, xylo, chimes (low-hanging
+  fruit); (2) percussive/bowed cells as excitation sources. Known
+  defect to fix first: all bandedwg renders "cut off abruptly with a
+  click" (Matt couldn't find a culprit node — likely render-window, not
+  patch). New areas queued: DAFX04 P_101 (brass beyond STK?) and
+  Chafe 2D-mesh extensions (harness feasibility). Folded 2026-09-16.
 
 - **53. stk_bowed_ext1** (09-13, verdicted 09-14): hysteresis cells (3)
   REJECTED — "extremely harsh noise alongside the bow/note" (patches →

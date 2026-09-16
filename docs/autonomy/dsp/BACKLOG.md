@@ -27,6 +27,31 @@ Tags per WORKFLOW.md.
     assumes the tap is the only z⁻¹. Diagnose = trace one sample of each
     rooting on the repro pair and find where state diverges.
 
+72. **[research] Loop-family ignition is duration-marginal and
+    noise-realization-sensitive — fixed seeds mask it in every gate** —
+    diagnosed 2026-09-16 from Matt's clarinet_att2 passage flutter (live
+    keyboard fine, passage notes 2+ flutter). NOT an engine bug: per-note
+    reset proven thorough (control strips sample-identical across notes;
+    pre-tail engine fails identically, so not a backlog-63 regression).
+    Mechanism: percent-mode envelopes compress attack ramps with note
+    duration; att2's junction basin needs an absolute-time ramp, so
+    ignition at 1.5 s prepared duration succeeds only ~1/12 for random
+    noise state — and EVERY first-note/fresh-clone render uses the fixed
+    virgin RNG seed, which happens to be a lucky draw (why note 1 always
+    locked and sweeps/gates never see the marginality). Live keyboard is
+    immune because live notes prepare at transport duration (2.0 s
+    default) regardless of played speed. flute1 has a milder version
+    (0.65→0.11 f0-band frac on clone reuse); c8_fast/oboe1 immune at
+    their operating points. Mitigation validated in scratch: minSec
+    floors on Drive_env/Ampl_env attack stages (0.35/0.12) take the
+    0.556 s 12-note case from 0/12 to 9/12 locks and 1.5 s reuse to 2/2
+    — residual is drive-floor-vs-threshold operating point (r5c axes,
+    JUNCTION_OPERATING_POINT.md). Patch tweaks are Matt's; the campaign
+    lesson is methodological: machine sweeps rate ignition on one lucky
+    seed — a robustness gate should probe notes 2+ (continued RNG) or
+    varied seeds. Diagnostic tool worth keeping: gencheck strip dump to
+    .f32 (was a scratch-worktree hack, ~8 lines in gencheck's strip loop).
+
 71. **[build] Stateful chain double-advances behind a shared stateless
     node — repro pair in baselines** — found 2026-09-15 porting BandedWG
     bowed: adding ONE stateless CombinedSource (DvF, a second consumer
@@ -166,12 +191,29 @@ Tags per WORKFLOW.md.
     (2+ do); engine BowTable outputs dv*rc (multiply folded in);
     backlog 71 double-advance repro; BlowHole is register-chaotic at
     22050 (ref flips against itself); BandedWG bowed blooms ~4 s by
-    design. LATER ROUNDS: leaky-stick hysteresis round; canonicalize
+    design. MATT'S 09-16 VERDICTS FOLDED: Brass/Saxofony/BlowHole
+    ABANDONED for now; BandedWG is the keeper — round 5 = percussion
+    (tuned drums, xylo, chimes, glass; low-hanging fruit) after fixing
+    the render cutoff click, then bandedwg-as-excitation-source cells;
+    bowed thread continues toward cello, GATED on the whistle-top
+    diagnosis (all ext3 cells lose string attack character above
+    mid-register — measure what breaks: bow-friction operating point vs
+    delay length, capture/friction not keytracked, Helmholtz collapse).
+    ext3 btd_lar rejected; body_lar ≠ upgrade over body_m48, no default
+    change. LATER ROUNDS: leaky-stick hysteresis round; canonicalize
     surviving families to 48k; Mohonk torsion/dispersion features;
     compensate-ON + drive exploration past STK's ranges. STOP CONDITIONS:
     a round with zero gate-passing cells ends its sub-thread (2-attempt
     rule per mechanism); the campaign parks when the filter/body work
     lands and Matt's bench has what it needs for hand-tuning.
+
+73. **[research] New physical-model donors (Matt, REVIEW 59)** — (1)
+    DAFX 2004 P_101 (dafx.de/paper-archive/2004/P_101.PDF): anything
+    that beats STK and gets us to brass? Assess vs the named brass
+    requirement (NONLINEAR bore propagation). (2) Chafe 2D-mesh
+    extensions (ccrma extensionsTo2DMeshChafe8pages.pdf): enough info
+    to build a harness? Deliverable per paper: read + go/no-go + (on
+    go) harness spec per steal-first discipline.
 
 ## Design questions
 
