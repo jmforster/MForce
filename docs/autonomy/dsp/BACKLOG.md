@@ -192,9 +192,13 @@ Tags per WORKFLOW.md.
     backlog 71 double-advance repro; BlowHole is register-chaotic at
     22050 (ref flips against itself); BandedWG bowed blooms ~4 s by
     design. MATT'S 09-16 VERDICTS FOLDED: Brass/Saxofony/BlowHole
-    ABANDONED for now; BandedWG is the keeper — round 5 = percussion
-    (tuned drums, xylo, chimes, glass; low-hanging fruit) after fixing
-    the render cutoff click, then bandedwg-as-excitation-source cells;
+    ABANDONED for now; BandedWG is the keeper — ROUND 5 RUN 2026-09-16:
+    cutoff click root-caused (fixed 0.4 s tail cut ringing bars —
+    adaptive ring-out shipped, ledger 63b) and percussion round 1
+    staged (tools/gen_bwg_perc1.py, F&R mode sets at 48 kHz, 7/8 cells
+    pass gates → REVIEW 60; tbar_bright machine-culled as runaway).
+    Next: axis round on Matt's verdicts, then
+    bandedwg-as-excitation-source cells;
     bowed thread continues toward cello, GATED on the whistle-top
     diagnosis (all ext3 cells lose string attack character above
     mid-register — measure what breaks: bow-friction operating point vs
@@ -207,13 +211,17 @@ Tags per WORKFLOW.md.
     rule per mechanism); the campaign parks when the filter/body work
     lands and Matt's bench has what it needs for hand-tuning.
 
-73. **[research] New physical-model donors (Matt, REVIEW 59)** — (1)
-    DAFX 2004 P_101 (dafx.de/paper-archive/2004/P_101.PDF): anything
-    that beats STK and gets us to brass? Assess vs the named brass
-    requirement (NONLINEAR bore propagation). (2) Chafe 2D-mesh
-    extensions (ccrma extensionsTo2DMeshChafe8pages.pdf): enough info
-    to build a harness? Deliverable per paper: read + go/no-go + (on
-    go) harness spec per steal-first discipline.
+73. **[research] New physical-model donors (Matt, REVIEW 59)** — DONE
+    2026-09-16, verdicts in docs/research/donor_survey_2026_09_16.md +
+    REVIEW 61: DAFx'04 FTM brass NO-GO (linear bore — freq-independent
+    damping, zero radiation load; lip valve is our ceilinged class;
+    small steal: lumped mouthpiece two-pole as a Biquad, zero code).
+    Chafe 2019 2D-mesh GO: STK Mesh2D + published constants (edge
+    allpass fc 1575/R; pie-pan r=0.75+0.2x; Pierce sign-dependent
+    stiffness s=-0.5/+0.003), 5x realtime at the real plate's 25x6.
+    NEXT STAGE (Matt-gated via REVIEW 61): zero-code 1D Pierce probe
+    (loop-termination Biquad radius pin ← signal via Curve), then the
+    Mesh2D port round on evidence.
 
 ## Design questions
 
@@ -434,7 +442,24 @@ Fall-cleaning moves (2026-09-14) are marked → IDEAS or → ledger.
   tail now decays to -66 dB with zero step at voice end (was a
   mid-ring cut). Containment check moved to tail end. 15/79 gate
   patches ring past duration and re-froze; 64 byte-identical. The
-  trailing hold-at-zero-stage workaround is obsolete.
+  trailing hold-at-zero-stage workaround is obsolete. NOTE 2026-09-16:
+  trailing hold-at-zero stages were NOT harmless in existing patches —
+  percent stages steal sounding duration (Matt's staccato complaint);
+  he purged them + shortened releases (winds + viola, committed
+  72be940).
+- 63b. Adaptive ring-out — SHIPPED 2026-09-16 (5dd07d7): a voice still
+  above kRingFloor (-60 dBFS running peak) at the fixed tail's end
+  keeps rendering/living until quiet or kMaxRingSec=8 s past duration;
+  live callback extends in 100 ms chunks (Voice.ringEnv/ringBudget).
+  Fixes REVIEW 59's BandedWG mid-ring cutoff click (bars rang seconds,
+  window was 0.4 s). Quiet-enders byte-identical (71/79); 8 reverb-tail
+  DIFFs refrozen deliberately. Same day: patch_loader honors an
+  explicit `seconds` LARGER than score end (was silently overridden —
+  ring headroom was inexpressible); 13 gate patches with dormant
+  seconds fields lengthened, refrozen. UI passage Generate still clips
+  the last note's ring at score end (frames = score end in
+  generate_unified) — mild, pre-existing; fold into any future
+  transport ring-headroom ask.
 - 67. Loader unknown-key warning — SHIPPED 2026-09-15: wire_params_generic
   warns once per (type, key) on keys matching no descriptor and no
   branch-consumed allowlist entry (allowlist corpus-verified: 133

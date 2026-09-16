@@ -1559,9 +1559,15 @@ Patch load_patch_file(const std::string& path)
                 double d = noteJson.at("duration").get<double>();
                 maxEnd = std::max(maxEnd, t + d);
             }
-            // Note-contained sound (2026-08-13): all sound ends by the last
-            // note's duration end, so the render is exactly the score length.
-            patch.frames = int(std::lround(maxEnd * sampleRate));
+            // The render covers at least the score; an explicit larger
+            // `seconds` extends it (ring headroom — adaptive ring-out,
+            // backlog 63b, lets struck bars/reverbs finish past the last
+            // note instead of clipping at the buffer edge). Before
+            // 2026-09-16 the score end silently overrode `seconds`.
+            int scoreFrames = int(std::lround(maxEnd * sampleRate));
+            patch.frames = root.contains("seconds")
+                ? std::max(patch.frames, scoreFrames)
+                : scoreFrames;
         }
 
         // Wire instrument into mixer

@@ -1,6 +1,37 @@
 # Status — session handoff (Claude reads this first; Matt's queue = */REVIEW.md)
 
-Updated: 2026-09-14 (fall cleaning, Fable 5 with Matt). **Steering-meeting
+Updated: 2026-09-16 (interactive morning + "go dsp" run, Fable 5 with Matt).
+**Morning (interactive):** clarinet_att2 passage flutter root-caused —
+NOT an engine bug: per-note reset proven thorough; ignition at short
+prepared durations is marginal and noise-realization-sensitive, masked
+everywhere by the fixed virgin RNG seed (backlog 72; gates/sweeps rate
+ignition on one lucky seed — needs a notes-2+/varied-seed robustness
+probe + an audibility floor). Matt's minSec-floor fix (both attacks
+0.1) validated ~9-10/12 across random states; his UI zero-flutter =
+Generate determinism (fresh instrument per gen = same seed). Matt's
+envelope pass committed (72be940): trailing hold-at-zero stages
+REMOVED from winds+viola + releases to 0.1 — they were stealing
+duration (percent stages), the staccato culprit; manifest refrozen.
+**"go dsp" run (verdicts 58/59 folded, 2768f90):** (1) BandedWG cutoff
+click = the fixed 0.4 s tail cutting ringing bars → **adaptive
+ring-out shipped (63b, 5dd07d7)**: voices ring to −60 dB or +8 s cap,
+offline + live; loader now honors seconds > score end (was silently
+overridden — ring headroom was inexpressible); two deliberate
+refreezes, quiet-enders byte-identical both times; 4 verdicted
+bandedwg pairs re-rendered click-free. (2) **Percussion round 1 →
+REVIEW 60**: gen_bwg_perc1.py, F&R mode sets at 48k, 7/8 cells pass
+(marimba/xylo/vibes/chime/tomdrum/woodblock/glass; tbar_bright
+machine-culled). (3) **Donor papers → REVIEW 61** (backlog 73 done):
+DAFx'04 brass NO-GO (linear bore; mouthpiece two-pole steal noted);
+Chafe 2D-mesh GO with a zero-code 1D Pierce probe proposed first.
+INCIDENT (repaired): worktree removal followed third_party junctions
+and wiped the vendored libs; restored (rtmidi re-vendored 6.0.0),
+remaining worktree junctions de-linked, builds green. Details:
+dsp/reports/2026-09-16-dsp-run.md. dsp REVIEW Awaiting: 60, 61, 38, 39.
+NOTE: Matt's running UI predates today's builds — relaunch picks up
+ring-out + seconds-honor live.
+
+Previous update: 2026-09-14 (fall cleaning, Fable 5 with Matt). **Steering-meeting
 execution DONE except GOALS refresh (Matt's) and the audition-dashboard
 brainstorm (own session).** What landed (commits aa50c49, dda11f3):
 - **Dirty-patch verdict: KEEP** — piano_default (curve renames + added

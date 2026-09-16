@@ -5,6 +5,32 @@ the same evening. Awaiting = only what still needs Matt.
 
 ## Awaiting Matt
 
+### 60. bwg_perc1 — BandedWG percussion round 1 [listen] (2026-09-16)
+**renders/dsp/audition/bwg_perc1/** (README inside) — your "low-hanging
+fruit" direction: 7 cells (marimba, xylophone, vibraphone, chime,
+tomdrum, woodblock, glass_long; F&R mode ratios, 48 kHz, gates: mode-1
+pitch, decay sanity, click scan; tbar_bright machine-culled as runaway).
+The cutoff click is FIXED engine-side (adaptive ring-out, backlog 63b —
+voices ring to −60 dB or 8 s cap); the 4 verdicted stk_port2 bandedwg
+pairs were re-rendered click-free in place. THE QUESTION: which
+characters earn an axis round (strike brightness, damping, mode count),
+and does anything already deserve the bench? Direction 2
+(bandedwg-as-excitation) queues behind these verdicts.
+
+### 61. Donor papers verdict — brass NO-GO, 2D mesh GO [read] (2026-09-16)
+docs/research/donor_survey_2026_09_16.md — your two REVIEW-59 papers.
+(1) DAFx'04 FTM brass: does NOT get us to brass — the bore is linear
+(freq-independent damping, zero radiation load); only nonlinearity is
+the same lip-valve class we ceilinged. Small steal noted: the lumped
+mouthpiece two-pole (cup compliance + constriction inertance) as a
+Biquad in front of any future lip — zero engine code. Brass path stays
+nonlinear-bore donors / native waveshaping surrogate. (2) Chafe 2019
+2D-mesh: fully harness-able — STK Mesh2D + all constants published,
+runs 5x realtime at the real plate's 25x6 size. Proposed order: FIRST a
+zero-code 1D probe of Pierce's sign-dependent stiffness (Biquad radius
+pin on an existing loop termination — gong-like modal upwelling if it
+works), THEN the Mesh2D port round on evidence. OK to proceed that way?
+
 ### 38. AF saxophone — build awaiting go [discuss] (2026-08-18)
 docs/research/af_sax/RECIPE.md: complete value table from the breakdown
 video; only 3 TUNEs remain. BLOCKED on design go-ahead: needs a new
