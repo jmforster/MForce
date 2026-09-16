@@ -3651,6 +3651,13 @@ struct Voice {
     // Tap-only loop tails (feedback_loop_design.md §3.3): ticked once per
     // sample AFTER source->next(), or tap-closed feedback loops fall silent.
     std::vector<std::shared_ptr<mforce::ValueSource>> advanceList;
+    // Adaptive ring-out (backlog 63b, mirrors PitchedInstrument::play_note):
+    // running-peak follower (~50 ms decay) over this voice's own output.
+    // At samplesRemaining==0 the callback keeps a still-audible voice alive
+    // — in small chunks, up to ringBudget samples — instead of clicking a
+    // ringing bar/bowl off. Both fields set at schedule time.
+    float ringEnv = 0.0f;
+    int   ringBudget = 0;
 };
 static Voice g_voices[MAX_VOICES];
 
@@ -3713,6 +3720,11 @@ static void voice_schedule_unlocked(std::shared_ptr<InstrumentPatch> patch,
     g_voices[slot].poolSlot = poolSlot;
     g_voices[slot].performSource = std::move(performSource);
     g_voices[slot].advanceList = std::move(advanceList);
+    // Adaptive ring-out budget (backlog 63b): matches the engine's
+    // kMaxRingSec window past the scheduled life.
+    g_voices[slot].ringEnv = 0.0f;
+    g_voices[slot].ringBudget =
+        int(mforce::PitchedInstrument::kMaxRingSec * 48000.0f);
     g_voices[slot].active = true;
 }
 
@@ -3794,16 +3806,30 @@ static int audio_callback(void* outputBuffer, void* /*inputBuffer*/,
             // P3 sample clock: bend + wheel/pressure smoothers advance here,
             // exactly once per voice per sample, never inside consumer pulls.
             if (voice.performSource) voice.performSource->tick();
-            voiceSum += voice.source->next() * voice.gain;
+            float vs = voice.source->next() * voice.gain;
+            voiceSum += vs;
             for (auto& a : voice.advanceList) a->next();  // tap-only loop tails
+            // Adaptive ring-out follower (backlog 63b): ~50 ms running peak.
+            // 0.99958 ≈ exp(-1/(0.05*48000)); constant is fine — live audio
+            // is pinned at 48 kHz (see the rate-bake audit, backlog 69).
+            voice.ringEnv = std::max(std::fabs(vs), voice.ringEnv * 0.99958f);
             voice.samplesRemaining--;
             if (voice.samplesRemaining <= 0) {
-                // Flag writes only (pool release is a flag too — RT-safe).
-                // Do NOT reset() the source/patch shared_ptrs here — dropping
-                // the last ref would destruct the whole DSP graph on the audio
-                // thread, hitting the Windows heap lock and causing glitches.
-                // voice_gc() on the UI thread does the actual destruction.
-                voice_deactivate_unlocked(voice);
+                if (voice.ringEnv >= 0.001f && voice.ringBudget > 0) {
+                    // Still audible: extend in 100 ms chunks until quiet or
+                    // out of budget, so a ringing bar finishes instead of
+                    // clicking off. Flag-free arithmetic — RT-safe.
+                    int chunk = std::min(4800, voice.ringBudget);
+                    voice.samplesRemaining += chunk;
+                    voice.ringBudget -= chunk;
+                } else {
+                    // Flag writes only (pool release is a flag too — RT-safe).
+                    // Do NOT reset() the source/patch shared_ptrs here — dropping
+                    // the last ref would destruct the whole DSP graph on the audio
+                    // thread, hitting the Windows heap lock and causing glitches.
+                    // voice_gc() on the UI thread does the actual destruction.
+                    voice_deactivate_unlocked(voice);
+                }
             }
         }
 

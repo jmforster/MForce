@@ -86,6 +86,13 @@ struct PitchedInstrument final : Instrument {
   // duration — prepare() and set_note() see durSamples, only the render/
   // life length grows.
   static constexpr float kVoiceTailSec = 0.4f;
+  // Adaptive ring-out bounds (backlog 63b): a voice still above kRingFloor
+  // (~-60 dBFS) at the fixed tail's end keeps rendering/living until it
+  // decays below the floor or reaches kMaxRingSec past its duration.
+  // Percussion-with-physics (BandedWG bars/bowls) rings for seconds; the
+  // fixed tail alone cut it mid-ring with a click (Matt, REVIEW 59).
+  static constexpr float kRingFloor  = 0.001f;
+  static constexpr float kMaxRingSec = 8.0f;
 
   // (ParamSlot retired 2026-08-18 — plan_perform_source_p1.md T7. Its map/
   // vmap formulas live on verbatim as CurveNode's LogX/LogLog and Linear
@@ -323,13 +330,27 @@ struct PitchedInstrument final : Instrument {
     const bool capturing = !capturePerVoice.empty();
     // Tail allowance (kVoiceTailSec): render past duration so in-voice
     // reverb/filter state rings out instead of being cut mid-sample.
+    // Adaptive ring-out (backlog 63b, 2026-09-16): a voice still audible
+    // at the end of the fixed tail keeps rendering until it decays below
+    // kRingFloor or hits kMaxRingSec — struck bars/bowls (BandedWG) ring
+    // for seconds and the fixed 0.4 s window cut them mid-ring with a
+    // click. Voices already quiet at the tail end stop exactly where
+    // they always did, so their renders stay byte-identical.
     const int tailSamples = int(kVoiceTailSec * float(sampleRate));
     const int renderSamples = durSamples + tailSamples;
-    std::vector<float> buf(renderSamples);
-    for (int i = 0; i < renderSamples; ++i) {
+    const int maxSamples = durSamples + int(kMaxRingSec * float(sampleRate));
+    std::vector<float> buf(size_t(std::max(renderSamples, maxSamples)));
+    float ringEnv = 0.0f;
+    // ~50 ms decay follower: per-sample multiplier for the running peak.
+    const float ringDecay = std::exp(-1.0f / (0.05f * float(sampleRate)));
+    int rendered = 0;
+    for (int i = 0; i < maxSamples; ++i) {
+      if (i >= renderSamples && ringEnv < kRingFloor) break;
       if (vg.performSource) vg.performSource->tick();   // P3 sample clock
       buf[i] = vg.source->next() * gain;
       for (auto& a : vg.advanceList) a->next();         // tap-only loop tails
+      ringEnv = std::max(std::fabs(buf[i]), ringEnv * ringDecay);
+      rendered = i + 1;
       if (capturing) {
         // Strips record raw current() — no velocity/volume gain — matching
         // what the per-node display always showed.
@@ -344,18 +365,18 @@ struct PitchedInstrument final : Instrument {
 
     // Note-contained-sound check (2026-08-13 spec): output must be at the
     // audibility floor by the end of the voice — now measured at the end
-    // of the tail allowance (reverb ring-out past duration is the
-    // allowance's purpose, not a containment miss). WARN, never fail.
-    int checkStart = std::max(0, renderSamples - sampleRate / 1000);
+    // of the (possibly ring-extended) window. A voice that hits the
+    // kMaxRingSec cap still audible is exactly what this warns about.
+    int checkStart = std::max(0, rendered - sampleRate / 1000);
     float tailPeak = 0.0f;
-    for (int i = checkStart; i < renderSamples; ++i)
+    for (int i = checkStart; i < rendered; ++i)
       tailPeak = std::max(tailPeak, std::fabs(buf[i]));
     if (tailPeak > 1e-4f)
       std::fprintf(stderr,
           "[containment] note %.1f (%.1f Hz) at t=%.2fs: %.1f dBFS in final 1 ms\n",
           noteNumber, freq, startTime, 20.0f * std::log10(tailPeak));
 
-    add_rendered(startTime, buf.data(), renderSamples);
+    add_rendered(startTime, buf.data(), rendered);
   }
 };
 
