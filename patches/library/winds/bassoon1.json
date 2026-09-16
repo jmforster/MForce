@@ -113,19 +113,10 @@
               "endVal": 0.0,
               "maxSec": 0.0,
               "minSec": 0.0,
-              "percent": 0.25,
+              "percent": 0.10000000149011612,
               "power": 0.0,
               "startVal": 1.0,
               "type": "Sine"
-            },
-            {
-              "endVal": 0.0,
-              "maxSec": 0.0,
-              "minSec": 0.0,
-              "percent": 0.30000001192092896,
-              "power": 0.0,
-              "startVal": 0.0,
-              "type": "Linear"
             }
           ],
           "timeMode": "fraction",
@@ -217,9 +208,12 @@
       {
         "id": "Junction",
         "params": {
+          "breakaway": 0.6000000238418579,
+          "capture": 0.0,
           "drive": {
             "ref": "Drive_vib"
           },
+          "hysteresis": false,
           "morph": 0.0,
           "segs": [
             0.0,
@@ -622,8 +616,8 @@
       }
     ],
     "panning": [
-      1062.0,
-      468.0
+      1716.0,
+      352.0000305175781
     ],
     "positions": {
       "Ampl_env": [
