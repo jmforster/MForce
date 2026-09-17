@@ -5,69 +5,38 @@ the same evening. Awaiting = only what still needs Matt.
 
 ## Awaiting Matt
 
-### 62. bwg_perc2 — characteristic decay round [listen] (2026-09-16)
-**renders/dsp/audition/bwg_perc2/** (README inside) — your round-1
-verdict executed: per-mode loop gains are now frequency curves
-targeting constant T60 per cell (fixed gains made decay scale with
-period — the gong-everything failure). Woodblock 0.13 s, tomdrum
-0.29 s, xylo 0.44 s, marimba 1.1 s, glass 2.4 s, vibes 5.2 s, chime
-6.4 s measured at C4; 7/7 pass gates. Round-1 renders kept for A/B.
-The 8 s ring cap now FADES (80 ms) instead of hard-cutting — bowl/glass
-stk_port2 pairs re-rendered. THE QUESTION: do decays now read as the
-named instruments, and which cells earn the bench / an axis round?
+### 62. bwg_perc2 — tuned percussion, decay fixed [listen — BLOCKED, re-render coming] (2026-09-16)
+**renders/dsp/audition/bwg_perc2/** — marimba/xylo/vibes/chime/tom/
+woodblock/glass with realistic decay times (round 1's fault: everything
+rang like a gong; fixed). YOUR 09-16 NOTE: "so quiet I can barely hear
+it at 100%... everything sounds glassy." The quiet is a render-gain
+calibration bug on my side (queue cells rendered ~20 dB below library
+patches) — next run re-renders this queue at proper loudness; hold your
+verdict until then. "Glassy" is recorded as a first impression to
+re-test at real level.
 
-### 63. pierce1d_1 — 1D Pierce probe: UPWELLING CONFIRMED [listen] (2026-09-16)
-**renders/dsp/audition/pierce1d_1/** (README inside) — the zero-code
-probe from REVIEW 61, run same day: sign-dependent damp cutoff on a
-KS pluck (Pierce's differential stiffness in existing pins). Clean
-dose-response with a dead control: swing 0/1k → highs die; 3k trace;
-5k strong retention (0.56); **8k = true upwelling, late/early 2.35 —
-highs GROW through the decay, the gong signature**; 12k past peak
-(1.51). Evidence gate for the Mesh2D port round is MET. THE QUESTIONS:
-do s5k/s8k sound musically interesting, and go on the Mesh2D port
-(new engine node + STK reference driver + Chafe's three extensions)?
+### 65. Metal plates & plucks, safe-filter retry [listen] (2026-09-16)
+Two folders. **renders/dsp/audition/mesh2d_ext2/**: 14 struck-plate
+sounds — every "special edge" version sits next to an identical plain
+version so you can A/B what the special edge adds. Four plate sizes,
+two strike spots, three hammer hardnesses. These do NOT track pitch —
+a plate's pitch IS its size (same as a real gong); making them playable
+by key needs one of the routes we discussed (size-per-note = coarse,
+strike-spot-per-note = timbre walk, or plate-as-attack into a pitched
+string). **renders/dsp/audition/pierce1d_2/**: 4 plucked strings (the
+ones you liked, rebuilt on the mathematically-safe filter) — these DO
+track pitch; C3 then C4 in each file. If they sounded same-pitch to
+you, tell me — that would be a bug.
+Background in one line: the special edge is a filter that shifts energy
+between frequencies without ever adding any (we found and fixed a
+real flaw in the published design to get that guarantee).
+THE QUESTION: A/B the twins — does the special edge add anything you'd
+use? And plucks: better/worse than the 63 round you liked?
 
-### 64. mesh2d_ext1 — the 2nd dimension, first listen [listen] (2026-09-16)
-**renders/dsp/audition/mesh2d_ext1/** (README inside) — the Mesh2D port
-(validated to one 16-bit LSB against STK) plus Chafe's edge behaviors:
-8 cells, plate 25x6 × bar 12x3, each with STK edges (control) / fixed
-allpass / pie-pan (R follows signal) / gong (Pierce sign rule via
-CurveNode into the new edgeR pin). Three strikes 4 s apart per cell.
-Measured headline is MODE COUNT, not upwelling: STK edges leave the bar
-with 2 audible modes and the plate with 4; Chafe's allpass takes them
-to 11/23 and the dynamic rules to 24-84 — the published detuning/
-ratio-stretch, live in our graph. bar_piepan alone shows measured
-upwelling (16.9x). Drive is the safety knob: at the naive drive 3 of 4
-dynamic cells ran away (time-varying allpass is not passive; our global
-edgeR pumps all edges coherently) — cells run at half drive, inside the
-clamp. All 8 pass the full gate battery incl. level ceiling.
-THE QUESTIONS: which edge behaviors sound alive, and which geometry
-direction (plate vs bar) deserves the first real instrument attempt?
-
-### 65. mesh2d_ext2 + pierce1d_2 — the passive round [listen] (2026-09-16)
-**renders/dsp/audition/mesh2d_ext2/** (14 cells: 7 Pierce + 7 matched
-control twins at identical strike/tap/exciter/decay/drive) and
-**renders/dsp/audition/pierce1d_2/** (4 KS plucks: exactly-linear
-control + 3 asymmetry strengths — the round-63 "pretty nice" thread on
-the real filter). Round-1 failures fixed: the REAL Pierce/Van Duyne
-passive filter (recovered from US patent 5,703,313 + Faust filters.lib;
-the literal published recurrence measurably CREATES energy in discrete
-time, worst 2.43x — shipped form adds an energy-preserving state
-rescale, measured passivity 1.000000000, and reduces to the published
-form for symmetric stiffness) → full drive, no clamp, no runaway
-possible; axes that move audible furniture (4 geometries 8x8..48x48,
-strike position, exciter 0.3-4 ms, decay classes); and the new
-feature-audibility gate — every cell demonstrably differs from its twin
-(ΔhighBand up to +95.7 pp; small8 corner strike is the standout pair).
-New node PierceFilter (coefNeg/coefPos pins) usable anywhere in the
-graph, not just mesh edges. Two physics facts for your hands, in the
-READMEs: the passive filter is HOMOGENEOUS — striking harder changes
-level, never timbre (the paper's physics; brightness-by-velocity must
-come from the exciter or an envelope on a coefficient pin) — and in 1D
-it delivers a bright attack, not a swell (loop damping drains highs
-faster than the bridge refills them). THE QUESTIONS: does the passive
-round produce anything ALIVE (which cells), and plate vs bar vs pluck —
-where does the first instrument attempt go?
+MATT (09-17, folded): "None of these track pitch" — mesh: correct and
+structural, see above; plucks: they should — flag if not. "What does
+'the passive round' mean" — jargon, retired; plain-language REVIEW
+entries from now on.
 
 ### 38. AF saxophone — build awaiting go [discuss] (2026-08-18)
 docs/research/af_sax/RECIPE.md: complete value table from the breakdown
@@ -87,6 +56,20 @@ something audible and ride it, whenever hardware appears.
 
 Compact stubs only; full detail in run reports, STATUS digests, and the
 verdict logs cited. Newest first.
+
+- **63. pierce1d_1** (folded 09-17): Matt's verdicts arrived via chat
+  09-16 and were never folded here — hygiene miss, his "thought I
+  responded?" is right. Verdicts: plucks "pretty nice" (nostalgia
+  caveat); the stale-v1 speaker incident came from this queue (rules
+  now in WORKFLOW.md); s8k upwelling = partly parametric pump, not
+  passive physics. Superseded by pierce1d_2 (REVIEW 65).
+- **64. mesh2d_ext1** (folded 09-17): verdicted 09-16 in chat
+  ("underwhelming... a bunch of dings... variety as narrow as could
+  be, not key-tracked") and superseded by REVIEW 65 the same night —
+  should have left Awaiting immediately; Matt's "isn't this out of
+  date?" is right. Lessons executed in 65: feature-audibility gate
+  (round-1 metrics celebrated -60 dB trivia), passive filter for full
+  drive, axes that move audible furniture.
 
 - **BandedWG re-audition + ring-out revert question** (Matt 09-16,
   answered same day): verdict was KEEP — adaptive ring-out demonstrably

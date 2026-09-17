@@ -67,7 +67,17 @@ trusted for verdicts.
   queue (2026-09-16 — Matt's speakers). Corollary: every queue gets a
   LEVEL-SAFETY gate — no 0.5 s window above rms 0.5 (sustained level is
   the speaker hazard, not momentary peak) and an audibility floor (the
-  silent-parity lesson, REVIEW 59).
+  silent-parity lesson, REVIEW 59). Queue renders also get LOUDNESS
+  CALIBRATION: peak-normalize to −6 dBFS (or match a library reference)
+  unless the cell's character forbids it — Matt at 100% volume barely
+  hearing a queue (REVIEW 62, 09-17) is an audition blocker, and
+  twin/control pairs must stay matched after normalization.
+- **REVIEW entries in PLAIN LANGUAGE** (Matt, 09-17): no campaign
+  jargon in headers or bodies ("the passive round" → say what it is);
+  supersede an Awaiting item the moment its replacement queues; fold
+  chat verdicts into REVIEW the same turn they arrive — a verdict that
+  lives only in conversation is invisible to Matt's own queue and he
+  will rightly ask "didn't I respond to this?".
 - Near-duplicate culling by perceptual distance is allowed before queueing.
 - What survives to Matt is capped: **ears budget ≤ 20 items per run,
   honest count** (an A/B pair counts as what it costs to audition).
