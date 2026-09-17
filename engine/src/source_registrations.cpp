@@ -44,6 +44,7 @@
 #include "mforce/source/wormhole_source.h"
 #include "mforce/source/bow_table_source.h"
 #include "mforce/source/mesh2d_source.h"
+#include "mforce/source/pierce_filter.h"
 #include "mforce/filter/biquad_source.h"
 #include "mforce/filter/reverb.h"
 #include "mforce/filter/vibrato.h"
@@ -612,6 +613,13 @@ void register_all_sources() {
 
     reg.register_type("Mesh2D", SourceCategory::Oscillator,
         [](int, auto) { return std::make_shared<Mesh2DSource>(); });
+
+    // Pierce/Van Duyne passive nonlinear allpass (JASA 101(2), 1997) — the
+    // same filter Mesh2D edgeMode 2 puts on its boundary, exposed on its own
+    // so it can terminate a 1D loop.  See pierce_filter.h for why it is a
+    // node rather than a mode on Shaper or Biquad.
+    reg.register_type("PierceFilter", SourceCategory::Filter,
+        [](int, auto) { return std::make_shared<PierceFilterSource>(); });
 }
 
 } // namespace mforce

@@ -1,5 +1,6 @@
 #pragma once
 #include "mforce/core/dsp_value_source.h"
+#include "mforce/core/pierce_allpass.h"
 #include <algorithm>
 #include <cmath>
 #include <memory>
@@ -62,8 +63,28 @@ namespace mforce {
 //               magnitude, phase only: it detunes/stretches the mode set
 //               ("complex metallic timbres") without adding loss of its own.
 //               fc and R come from the `edgeFc` / `edgeR` pins.
+//   2 "pierce" — the Pierce/Van Duyne passive nonlinear filter (JASA 101(2)
+//               1120-1126, 1997), one per edge node, which is the boundary
+//               termination the patent itself names for a 2D mesh.  A
+//               first-order allpass whose coefficient is a spring stiffness
+//               switched by the sign of its own internal state: `coefNeg`
+//               while that state is negative, `coefPos` while it is >= 0.
+//               Equal coefficients = a linear allpass; the distance between
+//               them is the nonlinearity.  See core/pierce_allpass.h and
+//               docs/research/stk_port/PIERCE_PASSIVE_NOTES.md.
 //
-// APPROXIMATION, deliberate and worth knowing.  Chafe's signal-dependent
+//               The reason this mode exists: mode 1's signal-dependent R (the
+//               APPROXIMATION note below) is a TIME-VARYING allpass, which is
+//               not passive — round 1 had to normalise the drive to half scale
+//               and clamp R to stop three of four dynamic cells running away.
+//               Mode 2 is passive per sample for every coefficient pair, so it
+//               needs neither: full drive, no clamp, no runaway.  It is also a
+//               genuinely PER-NODE nonlinearity — each edge node switches on
+//               its own state — which is what Chafe's rule describes and what
+//               the one-global-R stand-in could not do.
+//
+// APPROXIMATION, deliberate and worth knowing.  It applies to edgeMode 1 ONLY
+// (mode 2 is per-node by construction).  Chafe's signal-dependent
 // variants — r(n) = 0.75 + s*x(n), s = 0.2 for the "bashed aluminum pie pan",
 // and Pierce differential stiffness s = -0.5 for x <= 0 / +0.003 for x > 0 for
 // the gong-like modal upwelling — make R a function of the signal AT EACH EDGE
@@ -84,7 +105,9 @@ struct Mesh2DSource final : ValueSource {
       outY_(std::make_shared<ConstantSource>(1.0f)),
       decay_(std::make_shared<ConstantSource>(0.99f)),
       edgeFc_(std::make_shared<ConstantSource>(kChafeFc)),
-      edgeR_(std::make_shared<ConstantSource>(kChafeR)) {}
+      edgeR_(std::make_shared<ConstantSource>(kChafeR)),
+      coefNeg_(std::make_shared<ConstantSource>(kPierceNeg)),
+      coefPos_(std::make_shared<ConstantSource>(kPiercePos)) {}
 
   const char* type_name() const override { return "Mesh2D"; }
   SourceCategory category() const override { return SourceCategory::Oscillator; }
@@ -106,21 +129,27 @@ struct Mesh2DSource final : ValueSource {
       // Read per sample in edgeMode 1 only; ignored in mode 0.
       {"edgeFc", kChafeFc, 0.0f, 20000.0f, "Hz"},
       {"edgeR",  kChafeR,  0.0f, kRMax,    "0-1"},
+      // Read per sample in edgeMode 2 only; ignored in modes 0 and 1.
+      {"coefNeg", kPierceNeg, -PierceAllpass::kCoefMax,
+                              PierceAllpass::kCoefMax, "stiffness"},
+      {"coefPos", kPiercePos, -PierceAllpass::kCoefMax,
+                              PierceAllpass::kCoefMax, "stiffness"},
     };
     return descs;
   }
 
   std::span<const SettingDescriptor> setting_descriptors() const override {
-    static constexpr const char* kEdgeModes[] = {"stk", "chafe", nullptr};
+    static constexpr const char* kEdgeModes[] = {"stk", "chafe", "pierce",
+                                                 nullptr};
     static constexpr SettingDescriptor descs[] = {
       {"cols", SettingType::Int, 12.0f, 2.0f, float(kMaxN)},
       {"rows", SettingType::Int, 12.0f, 2.0f, float(kMaxN)},
-      {"edgeMode", SettingType::Int, 0.0f, 0.0f, 1.0f, kEdgeModes},
+      {"edgeMode", SettingType::Int, 0.0f, 0.0f, 2.0f, kEdgeModes},
     };
     return descs;
   }
   void set_setting(std::string_view name, float v) override {
-    if (name == "edgeMode") { edgeMode_ = std::clamp(int(v), 0, 1); clear_mesh(); return; }
+    if (name == "edgeMode") { edgeMode_ = std::clamp(int(v), 0, 2); clear_mesh(); return; }
     const int n = std::clamp(int(v), 2, kMaxN);
     if      (name == "cols") { NX_ = n; clear_mesh(); }
     else if (name == "rows") { NY_ = n; clear_mesh(); }
@@ -141,6 +170,8 @@ struct Mesh2DSource final : ValueSource {
     if (name == "decay")      { decay_  = std::move(src); return; }
     if (name == "edgeFc")     { edgeFc_ = std::move(src); return; }
     if (name == "edgeR")      { edgeR_  = std::move(src); return; }
+    if (name == "coefNeg")    { coefNeg_ = std::move(src); return; }
+    if (name == "coefPos")    { coefPos_ = std::move(src); return; }
   }
   std::shared_ptr<ValueSource> get_param(std::string_view name) const override {
     if (name == "source") return source_;
@@ -151,6 +182,8 @@ struct Mesh2DSource final : ValueSource {
     if (name == "decay")  return decay_;
     if (name == "edgeFc") return edgeFc_;
     if (name == "edgeR")  return edgeR_;
+    if (name == "coefNeg") return coefNeg_;
+    if (name == "coefPos") return coefPos_;
     return nullptr;
   }
 
@@ -163,6 +196,8 @@ struct Mesh2DSource final : ValueSource {
     decay_->prepare(ctx, frames);
     edgeFc_->prepare(ctx, frames);
     edgeR_->prepare(ctx, frames);
+    coefNeg_->prepare(ctx, frames);
+    coefPos_->prepare(ctx, frames);
     sr_ = float(ctx.sampleRate > 0 ? ctx.sampleRate : 48000);
     clear_mesh();
     cur_ = 0.0f;
@@ -171,7 +206,7 @@ struct Mesh2DSource final : ValueSource {
   float next() override {
     const float in = source_ ? source_->next() : 0.0f;
     inX_->next(); inY_->next(); outX_->next(); outY_->next(); decay_->next();
-    edgeFc_->next(); edgeR_->next();
+    edgeFc_->next(); edgeR_->next(); coefNeg_->next(); coefPos_->next();
     const int xi = junction(inX_->current(),  NX_);
     const int yi = junction(inY_->current(),  NY_);
     const int xo = junction(outX_->current(), NX_);
@@ -189,6 +224,12 @@ struct Mesh2DSource final : ValueSource {
       const float fc = std::clamp(edgeFc_->current(), 0.0f, 0.49f * sr_);
       a1_ = -2.0f * R * std::cos(6.28318530717958647692f * fc / sr_);
       a2_ = R * R;
+    } else if (edgeMode_ == 2) {
+      // Latched once per sample and shared by every edge node, like the mode
+      // 1 coefficients — but unlike mode 1 the STATE that selects between
+      // them is each node's own, so the nonlinearity is genuinely per-node.
+      cNeg_ = PierceAllpass::clamp_coef(coefNeg_->current());
+      cPos_ = PierceAllpass::clamp_coef(coefPos_->current());
     }
 
     if (counter_ & 1) {
@@ -212,6 +253,11 @@ private:
   static constexpr float kChafeFc = 1575.0f;       // Chafe 2019, published
   static constexpr float kChafeR  = 0.75f;         // Chafe 2019, published
   static constexpr float kRMax    = 0.999f;        // pole radius stability cap
+  // edgeMode 2 defaults: Faust's own apnl example pair, +-0.5 — symmetric in
+  // magnitude, so the energy rescale is exactly 1 there and the mode reduces
+  // to the paper's literal recurrence.
+  static constexpr float kPierceNeg =  0.5f;
+  static constexpr float kPiercePos = -0.5f;
 
   // STK truncates the 0..1 factor to a junction index; see the header note.
   static int junction(float f, int n) {
@@ -230,12 +276,14 @@ private:
 
   float edge_x(int i, float x) {   // filterX_ — the y = 0 face
     if (edgeMode_ == 1) return allpass(fxAp_[i], gain_ * x);
+    if (edgeMode_ == 2) return fxPc_[i].tick(gain_ * x, cNeg_, cPos_);
     const float y = kEdgeB0 * (gain_ * x) + kPole * fxState_[i];
     fxState_[i] = y;
     return y;
   }
   float edge_y(int i, float x) {   // filterY_ — the x = 0 face
     if (edgeMode_ == 1) return allpass(fyAp_[i], gain_ * x);
+    if (edgeMode_ == 2) return fyPc_[i].tick(gain_ * x, cNeg_, cPos_);
     const float y = kEdgeB0 * (gain_ * x) + kPole * fyState_[i];
     fyState_[i] = y;
     return y;
@@ -305,21 +353,25 @@ private:
         if (x < kMaxN - 1 && y < kMaxN - 1) v_[x][y] = 0.0f;
       }
     }
+    const float p0 = coefPos_ ? coefPos_->current() : kPiercePos;
     for (int i = 0; i < kMaxN; ++i) {
       fxState_[i] = fyState_[i] = 0.0f;
       for (int k = 0; k < 4; ++k) fxAp_[i][k] = fyAp_[i][k] = 0.0f;
+      fxPc_[i].reset(p0);
+      fyPc_[i].reset(p0);
     }
     counter_ = 0;
   }
 
   std::shared_ptr<ValueSource> source_, inX_, inY_, outX_, outY_, decay_,
-      edgeFc_, edgeR_;
+      edgeFc_, edgeR_, coefNeg_, coefPos_;
   int NX_{12}, NY_{12};
   int edgeMode_{0};
   int counter_{0};
   float gain_{0.99f};
   float sr_{48000.0f};
   float a1_{0.0f}, a2_{0.0f};   // edgeMode 1 allpass coefficients, per sample
+  float cNeg_{kPierceNeg}, cPos_{kPiercePos};  // edgeMode 2, per sample
   float cur_{0.0f};
 
   // Sized for the 64x64 cap at construction — set_setting/prepare never
@@ -334,6 +386,9 @@ private:
   // Sized for the 64 cap like the mesh planes, so mode switching and
   // set_setting never allocate; clear_mesh() zeroes both modes' state.
   float fxAp_[kMaxN][4]{}, fyAp_[kMaxN][4]{};
+  // edgeMode 2: one Pierce passive nonlinear allpass per edge node, each
+  // switching on its OWN state.  Same 64-cap sizing rule as everything above.
+  PierceAllpass fxPc_[kMaxN]{}, fyPc_[kMaxN]{};
 };
 
 } // namespace mforce

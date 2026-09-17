@@ -44,6 +44,31 @@ clamp. All 8 pass the full gate battery incl. level ceiling.
 THE QUESTIONS: which edge behaviors sound alive, and which geometry
 direction (plate vs bar) deserves the first real instrument attempt?
 
+### 65. mesh2d_ext2 + pierce1d_2 — the passive round [listen] (2026-09-16)
+**renders/dsp/audition/mesh2d_ext2/** (14 cells: 7 Pierce + 7 matched
+control twins at identical strike/tap/exciter/decay/drive) and
+**renders/dsp/audition/pierce1d_2/** (4 KS plucks: exactly-linear
+control + 3 asymmetry strengths — the round-63 "pretty nice" thread on
+the real filter). Round-1 failures fixed: the REAL Pierce/Van Duyne
+passive filter (recovered from US patent 5,703,313 + Faust filters.lib;
+the literal published recurrence measurably CREATES energy in discrete
+time, worst 2.43x — shipped form adds an energy-preserving state
+rescale, measured passivity 1.000000000, and reduces to the published
+form for symmetric stiffness) → full drive, no clamp, no runaway
+possible; axes that move audible furniture (4 geometries 8x8..48x48,
+strike position, exciter 0.3-4 ms, decay classes); and the new
+feature-audibility gate — every cell demonstrably differs from its twin
+(ΔhighBand up to +95.7 pp; small8 corner strike is the standout pair).
+New node PierceFilter (coefNeg/coefPos pins) usable anywhere in the
+graph, not just mesh edges. Two physics facts for your hands, in the
+READMEs: the passive filter is HOMOGENEOUS — striking harder changes
+level, never timbre (the paper's physics; brightness-by-velocity must
+come from the exciter or an envelope on a coefficient pin) — and in 1D
+it delivers a bright attack, not a swell (loop damping drains highs
+faster than the bridge refills them). THE QUESTIONS: does the passive
+round produce anything ALIVE (which cells), and plate vs bar vs pluck —
+where does the first instrument attempt go?
+
 ### 38. AF saxophone — build awaiting go [discuss] (2026-08-18)
 docs/research/af_sax/RECIPE.md: complete value table from the breakdown
 video; only 3 TUNEs remain. BLOCKED on design go-ahead: needs a new
