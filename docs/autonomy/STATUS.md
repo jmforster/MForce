@@ -59,8 +59,18 @@ upwelling; drive = safety knob, naive drive runs away — time-varying
 allpass non-passive, global edgeR pumps coherently). Speaker incident
 earlier folded: stale v1 pierce WAVs in queue → gen-scripts-own-dirs +
 level-ceiling rules in WORKFLOW.md (59062f7). Pierce 1D probe =
-REVIEW 63 (upwelling 2.35 at s8k). dsp REVIEW Awaiting: 62, 63, 64,
-38, 39. Next on verdicts: real instrument attempt on the winning
+REVIEW 63 (upwelling 2.35 at s8k). dsp REVIEW Awaiting: 62, 63, 64, 65,
+38, 39. Matt verdicted 64 same evening (underwhelming near-identical
+chimes; metrics measured -60 dB trivia — feature-audibility gate born
+from it) → ROUND 2 same night (faf2cff, REVIEW 65): REAL Pierce/Van
+Duyne passive filter recovered from patent 5,703,313 + Faust fi.apnl;
+FINDING: the literal published recurrence is NOT passive in discrete
+time (2.43x energy creation) — shipped form adds an energy-preserving
+state rescale, measured 1.000000000, hard engine_tests gate; new
+PierceFilter node + Mesh2D edgeMode 2, full drive, twin-controlled
+cells with real audible spread (ΔhB to +95.7 pp), pierce1d_2 pluck
+thread included. Homogeneity fact recorded (velocity can't change
+timbre through a passive piecewise-linear spring). Next on verdicts: real instrument attempt on the winning
 geometry/edge behavior; passive Pierce filter structure (the
 principled fix for the pump); perc axis round; nonlinear bore front.
 
