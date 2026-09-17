@@ -8125,17 +8125,21 @@ static void transport_generate() {
                     transport_set_status("No notes parsed from passage string", true);
                 } else {
                     // Unified render (spec 2026-09-13): passage notes are
-                    // sequential — schedule them back to back.
+                    // sequential — schedule them back to back. Rests advance
+                    // the cursor only, leaving a gap in the schedule.
                     std::vector<SchedNote> sched;
                     float cursor = 0.0f;
                     for (const auto& pn : notes) {
-                        sched.push_back({pn.noteNumber, pn.durationSeconds,
-                                         cursor, g_transport.velocity});
+                        if (pn.noteNumber != kRestNote)
+                            sched.push_back({pn.noteNumber, pn.durationSeconds,
+                                             cursor, g_transport.velocity});
                         cursor += pn.durationSeconds;
                     }
-                    if (generate_unified(sched)) {
+                    if (sched.empty()) {
+                        transport_set_status("Passage contains only rests", true);
+                    } else if (generate_unified(sched)) {
                         char buf[128];
-                        snprintf(buf, sizeof(buf), "Generated %d notes", (int)notes.size());
+                        snprintf(buf, sizeof(buf), "Generated %d notes", (int)sched.size());
                         transport_set_status(buf, false);
                     }
                 }

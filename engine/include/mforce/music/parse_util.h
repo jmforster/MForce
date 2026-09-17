@@ -220,7 +220,11 @@ inline float parse_note_input(const char* str) {
 
 // ---------------------------------------------------------------------------
 // ParsedNote — result of parsing a passage string note
+// noteNumber == kRestNote marks a rest: consumers advance their timeline
+// cursor by durationSeconds but emit no note.
 // ---------------------------------------------------------------------------
+inline constexpr float kRestNote = -1.0f;
+
 struct ParsedNote {
     float noteNumber;
     float durationSeconds;
@@ -230,6 +234,7 @@ struct ParsedNote {
 // Parse a passage string into a sequence of notes.
 // Format: 3-char commands separated by spaces.
 //   Note: letter from "CdDeEFgGaAbB" (chromatic index) + duration char
+//   Rest: "R" + duration char ("Rq", "Rh.") → ParsedNote with kRestNote
 //   "O+ " / "O- " for octave shifts
 // Duration in seconds = beats * 60 / bpm
 // ---------------------------------------------------------------------------
@@ -264,6 +269,13 @@ inline std::vector<ParsedNote> parse_passage(const char* str, int octave, float 
 
         if (token.size() < 2)
             throw std::runtime_error("Passage token too short: " + token + " (token #" + std::to_string(tokenNum) + ")");
+
+        // Rest: 'R' + duration
+        if (token[0] == 'R') {
+            float restBeats = parse_duration(token.substr(1)); // throws on invalid duration char
+            result.push_back({kRestNote, restBeats * 60.0f / bpm});
+            continue;
+        }
 
         // Parse note: letter [#/b] duration
         char letter = token[0];
