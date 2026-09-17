@@ -16,6 +16,17 @@ The 8 s ring cap now FADES (80 ms) instead of hard-cutting — bowl/glass
 stk_port2 pairs re-rendered. THE QUESTION: do decays now read as the
 named instruments, and which cells earn the bench / an axis round?
 
+### 63. pierce1d_1 — 1D Pierce probe: UPWELLING CONFIRMED [listen] (2026-09-16)
+**renders/dsp/audition/pierce1d_1/** (README inside) — the zero-code
+probe from REVIEW 61, run same day: sign-dependent damp cutoff on a
+KS pluck (Pierce's differential stiffness in existing pins). Clean
+dose-response with a dead control: swing 0/1k → highs die; 3k trace;
+5k strong retention (0.56); **8k = true upwelling, late/early 2.35 —
+highs GROW through the decay, the gong signature**; 12k past peak
+(1.51). Evidence gate for the Mesh2D port round is MET. THE QUESTIONS:
+do s5k/s8k sound musically interesting, and go on the Mesh2D port
+(new engine node + STK reference driver + Chafe's three extensions)?
+
 ### 38. AF saxophone — build awaiting go [discuss] (2026-08-18)
 docs/research/af_sax/RECIPE.md: complete value table from the breakdown
 video; only 3 TUNEs remain. BLOCKED on design go-ahead: needs a new

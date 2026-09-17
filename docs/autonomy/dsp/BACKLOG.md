@@ -207,8 +207,15 @@ Tags per WORKFLOW.md.
     seconds-mode AdsrEnv — switch to gated/hold envelopes so held notes
     keep bowing. NONLINEAR BORE GREENLIT by Matt 09-16 ("if we need a
     non-linear bore, let's do it") — future campaign front, donors in
-    donor_survey_2026_09_16.md. Next: perc axis round on 62 verdicts,
-    bandedwg-as-excitation, 1D Pierce probe (approved);
+    donor_survey_2026_09_16.md. 1D PIERCE PROBE RUN same day
+    (gen_pierce_probe1.py → REVIEW 63): sign-dependent damp cutoff on
+    a KS pluck, dose-response 0/0/0.06/0.56/2.35/1.51 across swing
+    0..12k — TRUE modal upwelling at 8k with a dead control; Mesh2D
+    evidence gate MET (port round awaits the REVIEW 63 go). Probe
+    lesson: Chafe's edge filter is an ALLPASS — dynamic-radius
+    magnitude filters either kill the string or run away (v1);
+    cutoff-by-sign is the mechanism in our pins. Next: perc axis round
+    on 62 verdicts, bandedwg-as-excitation, Mesh2D port on 63 go;
     bowed thread continues toward cello, GATED on the whistle-top
     diagnosis (all ext3 cells lose string attack character above
     mid-register — measure what breaks: bow-friction operating point vs
