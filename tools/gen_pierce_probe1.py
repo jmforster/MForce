@@ -120,6 +120,17 @@ def band_ratio(x, sr, a_s, b_s):
 def main():
     os.makedirs(PATCH_OUT, exist_ok=True)
     os.makedirs(REND_OUT, exist_ok=True)
+    # The output dirs belong to THIS cell set: purge anything else.
+    # (2026-09-16 incident: a rename between probe versions left v1
+    # runaway WAVs — sustained rms 0.97 — sitting in the audition queue
+    # next to quiet v2 plucks. Matt's speakers noticed.)
+    keep = {f"pierce_{n}.json" for n in CELLS} | \
+           {f"pierce_{n}.wav" for n in CELLS} | {"README.md"}
+    for d in (PATCH_OUT, REND_OUT):
+        for fn in os.listdir(d):
+            if fn not in keep:
+                os.remove(os.path.join(d, fn))
+                print(f"purged stale: {fn}")
     print("%-8s %10s %10s %8s   %s" % ("cell", "early", "late",
                                        "late/early", "(C4 note)"))
     for name, swing in CELLS.items():
@@ -141,11 +152,20 @@ def main():
             print(f"{name:8s} SILENT (rms {rms:.2e})")
             continue
         peak = float(np.abs(x).max())
+        # Level-safety gate: sustained loudness is the speaker hazard,
+        # not momentary peak — no 0.5 s window may exceed rms 0.5.
+        win = int(0.5 * sr)
+        nw = len(x) // win
+        wrms = np.sqrt((x[:nw * win].reshape(nw, win) ** 2).mean(axis=1))
+        if wrms.max() > 0.5:
+            os.remove(ppath)
+            os.remove(wpath)
+            print(f"{name:8s} REJECT sustained rms {wrms.max():.2f} — culled")
+            continue
         early = band_ratio(x, sr, SLOT + 0.1, SLOT + 0.6)
         late = band_ratio(x, sr, SLOT + 2.0, SLOT + 3.0)
-        flag = " RUNAWAY?" if peak > 0.98 else ""
-        print("%-8s %10.4f %10.4f %8.2f   rms %.4f peak %.3f%s"
-              % (name, early, late, late / early, rms, peak, flag))
+        print("%-8s %10.4f %10.4f %8.2f   rms %.4f peak %.3f"
+              % (name, early, late, late / early, rms, peak))
 
 
 if __name__ == "__main__":

@@ -61,6 +61,13 @@ trusted for verdicts.
   gate (pitch lock, click, silence, envelope) is logged, its patch moves
   to patches/old/, its renders are DELETED (derived data). No Matt pass
   needed for failures.
+- **Gen scripts OWN their output dirs**: before staging, purge any file
+  not in the current cell set. A cell rename between script versions
+  left stale runaway WAVs interleaved with quiet cells in an audition
+  queue (2026-09-16 — Matt's speakers). Corollary: every queue gets a
+  LEVEL-SAFETY gate — no 0.5 s window above rms 0.5 (sustained level is
+  the speaker hazard, not momentary peak) and an audibility floor (the
+  silent-parity lesson, REVIEW 59).
 - Near-duplicate culling by perceptual distance is allowed before queueing.
 - What survives to Matt is capped: **ears budget ≤ 20 items per run,
   honest count** (an A/B pair counts as what it costs to audition).
