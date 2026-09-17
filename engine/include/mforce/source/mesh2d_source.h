@@ -1,6 +1,7 @@
 #pragma once
 #include "mforce/core/dsp_value_source.h"
 #include <algorithm>
+#include <cmath>
 #include <memory>
 
 namespace mforce {
@@ -43,10 +44,35 @@ namespace mforce {
 // so a swept position steps rather than glides.  Interpolated (Chafe-style
 // moving) taps are an extension, not part of this port.
 //
-// EXTENSION HOOK: the edge filters are the one place the model's material
-// character lives.  They are the two `edge_x`/`edge_y` calls in tick0/tick1;
-// a richer boundary (per-face filters, frequency-dependent or anisotropic
-// loss) replaces those calls and nothing else.
+// EDGE MODES (the extension hook).  The edge filters are the one place the
+// model's material character lives; they are the two `edge_x`/`edge_y` calls
+// in tick0/tick1, and `edgeMode` selects which filter those calls run.  Both
+// modes filter the same two faces (x = 0 and y = 0) and leave the far faces
+// reflecting at unity, exactly as STK does, and both apply the `decay` pin to
+// the filter input, so `decay` keeps its meaning as the per-hop edge loss.
+//
+//   0 "stk"   — STK's OnePole, pole 0.05, gain = decay.  DEFAULT, and
+//               byte-identical to the validated port.
+//   1 "chafe" — Chafe's 2nd-order allpass (ICSV26 2019, "Extensions to the
+//               2D Waveguide Mesh for Modeling Thin Plate Vibrations"):
+//                   H(z) = (a2 + a1 z^-1 + z^-2) / (1 + a1 z^-1 + a2 z^-2)
+//                   a1 = -2 R cos(wc T),  a2 = R^2,  published fc = 1575 Hz,
+//                   R = 0.75
+//               One allpass per edge node, own state per node.  Unity
+//               magnitude, phase only: it detunes/stretches the mode set
+//               ("complex metallic timbres") without adding loss of its own.
+//               fc and R come from the `edgeFc` / `edgeR` pins.
+//
+// APPROXIMATION, deliberate and worth knowing.  Chafe's signal-dependent
+// variants — r(n) = 0.75 + s*x(n), s = 0.2 for the "bashed aluminum pie pan",
+// and Pierce differential stiffness s = -0.5 for x <= 0 / +0.003 for x > 0 for
+// the gong-like modal upwelling — make R a function of the signal AT EACH EDGE
+// NODE.  Here `edgeR` is a single pin shared by every allpass, so the dynamic
+// behaviour is patched by wiring a tap of some mesh signal (normally the output
+// tap) through a CurveNode into `edgeR`: one chosen node's displacement drives
+// the whole boundary instead of each node driving its own.  That is a global
+// approximation of a per-node rule, accepted for this round; per-node x would
+// need the excitation-side signal broadcast into the node, not a pin.
 struct Mesh2DSource final : ValueSource {
   static constexpr int kMaxN = 64;
 
@@ -56,7 +82,9 @@ struct Mesh2DSource final : ValueSource {
       inY_(std::make_shared<ConstantSource>(0.0f)),
       outX_(std::make_shared<ConstantSource>(1.0f)),
       outY_(std::make_shared<ConstantSource>(1.0f)),
-      decay_(std::make_shared<ConstantSource>(0.99f)) {}
+      decay_(std::make_shared<ConstantSource>(0.99f)),
+      edgeFc_(std::make_shared<ConstantSource>(kChafeFc)),
+      edgeR_(std::make_shared<ConstantSource>(kChafeR)) {}
 
   const char* type_name() const override { return "Mesh2D"; }
   SourceCategory category() const override { return SourceCategory::Oscillator; }
@@ -75,25 +103,32 @@ struct Mesh2DSource final : ValueSource {
       {"outX",  1.0f, 0.0f, 1.0f, "0-1"},
       {"outY",  1.0f, 0.0f, 1.0f, "0-1"},
       {"decay", 0.99f, 0.0f, 1.0f, "0-1"},
+      // Read per sample in edgeMode 1 only; ignored in mode 0.
+      {"edgeFc", kChafeFc, 0.0f, 20000.0f, "Hz"},
+      {"edgeR",  kChafeR,  0.0f, kRMax,    "0-1"},
     };
     return descs;
   }
 
   std::span<const SettingDescriptor> setting_descriptors() const override {
+    static constexpr const char* kEdgeModes[] = {"stk", "chafe", nullptr};
     static constexpr SettingDescriptor descs[] = {
       {"cols", SettingType::Int, 12.0f, 2.0f, float(kMaxN)},
       {"rows", SettingType::Int, 12.0f, 2.0f, float(kMaxN)},
+      {"edgeMode", SettingType::Int, 0.0f, 0.0f, 1.0f, kEdgeModes},
     };
     return descs;
   }
   void set_setting(std::string_view name, float v) override {
+    if (name == "edgeMode") { edgeMode_ = std::clamp(int(v), 0, 1); clear_mesh(); return; }
     const int n = std::clamp(int(v), 2, kMaxN);
     if      (name == "cols") { NX_ = n; clear_mesh(); }
     else if (name == "rows") { NY_ = n; clear_mesh(); }
   }
   float get_setting(std::string_view name) const override {
-    if (name == "cols") return float(NX_);
-    if (name == "rows") return float(NY_);
+    if (name == "cols")     return float(NX_);
+    if (name == "rows")     return float(NY_);
+    if (name == "edgeMode") return float(edgeMode_);
     return 0.0f;
   }
 
@@ -104,6 +139,8 @@ struct Mesh2DSource final : ValueSource {
     if (name == "outX")       { outX_   = std::move(src); return; }
     if (name == "outY")       { outY_   = std::move(src); return; }
     if (name == "decay")      { decay_  = std::move(src); return; }
+    if (name == "edgeFc")     { edgeFc_ = std::move(src); return; }
+    if (name == "edgeR")      { edgeR_  = std::move(src); return; }
   }
   std::shared_ptr<ValueSource> get_param(std::string_view name) const override {
     if (name == "source") return source_;
@@ -112,6 +149,8 @@ struct Mesh2DSource final : ValueSource {
     if (name == "outX")   return outX_;
     if (name == "outY")   return outY_;
     if (name == "decay")  return decay_;
+    if (name == "edgeFc") return edgeFc_;
+    if (name == "edgeR")  return edgeR_;
     return nullptr;
   }
 
@@ -122,6 +161,9 @@ struct Mesh2DSource final : ValueSource {
     outX_->prepare(ctx, frames);
     outY_->prepare(ctx, frames);
     decay_->prepare(ctx, frames);
+    edgeFc_->prepare(ctx, frames);
+    edgeR_->prepare(ctx, frames);
+    sr_ = float(ctx.sampleRate > 0 ? ctx.sampleRate : 48000);
     clear_mesh();
     cur_ = 0.0f;
   }
@@ -129,11 +171,25 @@ struct Mesh2DSource final : ValueSource {
   float next() override {
     const float in = source_ ? source_->next() : 0.0f;
     inX_->next(); inY_->next(); outX_->next(); outY_->next(); decay_->next();
+    edgeFc_->next(); edgeR_->next();
     const int xi = junction(inX_->current(),  NX_);
     const int yi = junction(inY_->current(),  NY_);
     const int xo = junction(outX_->current(), NX_);
     const int yo = junction(outY_->current(), NY_);
     gain_ = std::clamp(decay_->current(), 0.0f, 1.0f);
+
+    if (edgeMode_ == 1) {
+      // One cos() per sample for the whole boundary, not one per edge node:
+      // edgeFc/edgeR are global pins, so all NX_+NY_ allpasses share these two
+      // coefficients.  A trig call per sample is affordable at this node's
+      // cost (the scattering loop is O(NX*NY) multiply-adds) and it is what
+      // makes the pins continuously modulatable — which is the whole point of
+      // the Chafe dynamic-R variants.
+      const float R  = std::clamp(edgeR_->current(), 0.0f, kRMax);
+      const float fc = std::clamp(edgeFc_->current(), 0.0f, 0.49f * sr_);
+      a1_ = -2.0f * R * std::cos(6.28318530717958647692f * fc / sr_);
+      a2_ = R * R;
+    }
 
     if (counter_ & 1) {
       vxp1_[xi][yi] += in;
@@ -153,18 +209,33 @@ private:
   static constexpr float kVScale = 0.5f;
   static constexpr float kPole   = 0.05f;          // STK Mesh2D ctor
   static constexpr float kEdgeB0 = 1.0f - kPole;   // OnePole::setPole
+  static constexpr float kChafeFc = 1575.0f;       // Chafe 2019, published
+  static constexpr float kChafeR  = 0.75f;         // Chafe 2019, published
+  static constexpr float kRMax    = 0.999f;        // pole radius stability cap
 
   // STK truncates the 0..1 factor to a junction index; see the header note.
   static int junction(float f, int n) {
     return std::clamp(int(std::clamp(f, 0.0f, 1.0f) * float(n - 1)), 0, n - 1);
   }
 
+  // Chafe 2nd-order allpass, direct form I:
+  //   y[n] = a2 x[n] + a1 x[n-1] + x[n-2] - a1 y[n-1] - a2 y[n-2]
+  // `s` is one edge node's 4-float state (see the state layout below).
+  float allpass(float* s, float x) {
+    const float y = a2_ * x + a1_ * s[0] + s[1] - a1_ * s[2] - a2_ * s[3];
+    s[1] = s[0]; s[0] = x;
+    s[3] = s[2]; s[2] = y;
+    return y;
+  }
+
   float edge_x(int i, float x) {   // filterX_ — the y = 0 face
+    if (edgeMode_ == 1) return allpass(fxAp_[i], gain_ * x);
     const float y = kEdgeB0 * (gain_ * x) + kPole * fxState_[i];
     fxState_[i] = y;
     return y;
   }
   float edge_y(int i, float x) {   // filterY_ — the x = 0 face
+    if (edgeMode_ == 1) return allpass(fyAp_[i], gain_ * x);
     const float y = kEdgeB0 * (gain_ * x) + kPole * fyState_[i];
     fyState_[i] = y;
     return y;
@@ -234,14 +305,21 @@ private:
         if (x < kMaxN - 1 && y < kMaxN - 1) v_[x][y] = 0.0f;
       }
     }
-    for (int i = 0; i < kMaxN; ++i) fxState_[i] = fyState_[i] = 0.0f;
+    for (int i = 0; i < kMaxN; ++i) {
+      fxState_[i] = fyState_[i] = 0.0f;
+      for (int k = 0; k < 4; ++k) fxAp_[i][k] = fyAp_[i][k] = 0.0f;
+    }
     counter_ = 0;
   }
 
-  std::shared_ptr<ValueSource> source_, inX_, inY_, outX_, outY_, decay_;
+  std::shared_ptr<ValueSource> source_, inX_, inY_, outX_, outY_, decay_,
+      edgeFc_, edgeR_;
   int NX_{12}, NY_{12};
+  int edgeMode_{0};
   int counter_{0};
   float gain_{0.99f};
+  float sr_{48000.0f};
+  float a1_{0.0f}, a2_{0.0f};   // edgeMode 1 allpass coefficients, per sample
   float cur_{0.0f};
 
   // Sized for the 64x64 cap at construction — set_setting/prepare never
@@ -252,6 +330,10 @@ private:
   float vxp1_[kMaxN][kMaxN]{}, vxm1_[kMaxN][kMaxN]{};
   float vyp1_[kMaxN][kMaxN]{}, vym1_[kMaxN][kMaxN]{};
   float fxState_[kMaxN]{}, fyState_[kMaxN]{};
+  // edgeMode 1: one allpass per edge node, [x[n-1], x[n-2], y[n-1], y[n-2]].
+  // Sized for the 64 cap like the mesh planes, so mode switching and
+  // set_setting never allocate; clear_mesh() zeroes both modes' state.
+  float fxAp_[kMaxN][4]{}, fyAp_[kMaxN][4]{};
 };
 
 } // namespace mforce

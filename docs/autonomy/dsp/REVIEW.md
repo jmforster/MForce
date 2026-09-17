@@ -27,6 +27,23 @@ highs GROW through the decay, the gong signature**; 12k past peak
 do s5k/s8k sound musically interesting, and go on the Mesh2D port
 (new engine node + STK reference driver + Chafe's three extensions)?
 
+### 64. mesh2d_ext1 — the 2nd dimension, first listen [listen] (2026-09-16)
+**renders/dsp/audition/mesh2d_ext1/** (README inside) — the Mesh2D port
+(validated to one 16-bit LSB against STK) plus Chafe's edge behaviors:
+8 cells, plate 25x6 × bar 12x3, each with STK edges (control) / fixed
+allpass / pie-pan (R follows signal) / gong (Pierce sign rule via
+CurveNode into the new edgeR pin). Three strikes 4 s apart per cell.
+Measured headline is MODE COUNT, not upwelling: STK edges leave the bar
+with 2 audible modes and the plate with 4; Chafe's allpass takes them
+to 11/23 and the dynamic rules to 24-84 — the published detuning/
+ratio-stretch, live in our graph. bar_piepan alone shows measured
+upwelling (16.9x). Drive is the safety knob: at the naive drive 3 of 4
+dynamic cells ran away (time-varying allpass is not passive; our global
+edgeR pumps all edges coherently) — cells run at half drive, inside the
+clamp. All 8 pass the full gate battery incl. level ceiling.
+THE QUESTIONS: which edge behaviors sound alive, and which geometry
+direction (plate vs bar) deserves the first real instrument attempt?
+
 ### 38. AF saxophone — build awaiting go [discuss] (2026-08-18)
 docs/research/af_sax/RECIPE.md: complete value table from the breakdown
 video; only 3 TUNEs remain. BLOCKED on design go-ahead: needs a new
