@@ -64,6 +64,8 @@ Replicate legacy functionality of node-based UI to:
 - Maintain compatibility with future use of JUCE or other frameworks
 
 ## Build and run
+- Session start: sweep stale renamed UI exes (build/tools/mforce_ui/Release/
+  mforce_ui_*.exe — rename-then-link leftovers; skip any still locked/running)
 - Build from repo root
 - Main executable: mforce_cli
 - Write renders into renders/

@@ -3658,6 +3658,9 @@ struct Voice {
     // ringing bar/bowl off. Both fields set at schedule time.
     float ringEnv = 0.0f;
     int   ringBudget = 0;
+    // Cap-fade state: fadeStep > 0 while the final ring chunk ramps out.
+    float fadeGain = 0.0f;
+    float fadeStep = 0.0f;
 };
 static Voice g_voices[MAX_VOICES];
 
@@ -3725,6 +3728,8 @@ static void voice_schedule_unlocked(std::shared_ptr<InstrumentPatch> patch,
     g_voices[slot].ringEnv = 0.0f;
     g_voices[slot].ringBudget =
         int(mforce::PitchedInstrument::kMaxRingSec * 48000.0f);
+    g_voices[slot].fadeGain = 0.0f;
+    g_voices[slot].fadeStep = 0.0f;
     g_voices[slot].active = true;
 }
 
@@ -3807,6 +3812,13 @@ static int audio_callback(void* outputBuffer, void* /*inputBuffer*/,
             // exactly once per voice per sample, never inside consumer pulls.
             if (voice.performSource) voice.performSource->tick();
             float vs = voice.source->next() * voice.gain;
+            // Cap fade (REVIEW 09-16): once the ring budget is spent, ramp
+            // the final chunk to zero instead of hard-cutting a resonator
+            // that is still audible. fadeGain 0 = not fading.
+            if (voice.fadeStep > 0.0f) {
+                vs *= voice.fadeGain;
+                voice.fadeGain = std::max(0.0f, voice.fadeGain - voice.fadeStep);
+            }
             voiceSum += vs;
             for (auto& a : voice.advanceList) a->next();  // tap-only loop tails
             // Adaptive ring-out follower (backlog 63b): ~50 ms running peak.
@@ -3822,6 +3834,11 @@ static int audio_callback(void* outputBuffer, void* /*inputBuffer*/,
                     int chunk = std::min(4800, voice.ringBudget);
                     voice.samplesRemaining += chunk;
                     voice.ringBudget -= chunk;
+                    if (voice.ringBudget == 0) {
+                        // Last chunk: fade it out.
+                        voice.fadeGain = 1.0f;
+                        voice.fadeStep = 1.0f / float(chunk);
+                    }
                 } else {
                     // Flag writes only (pool release is a flag too — RT-safe).
                     // Do NOT reset() the source/patch shared_ptrs here — dropping

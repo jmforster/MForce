@@ -7,7 +7,7 @@
  "patches/library/keys/acoustic_piano/piano_bright.json": "ac453b85766b837d794a907cf41d9230d594d53e1beefe701286d27b76626a31",
  "patches/library/keys/acoustic_piano/piano_dark.json": "b468270941c03ed9c792eae933a5c96a4383e0e93b05f2bafe331ed2b9d2cdb3",
  "patches/library/keys/acoustic_piano/piano_default.json": "decb02c5d007e97936c69abc2a9c1345bc1a7b22f89f62ca4292453c5ee6a924",
- "patches/library/keys/acoustic_piano/piano_seg.json": "56daac83e463b8ebff49cd8ed0f07d5dc2898fc3673a97a8578dfc8d3e1f25a7",
+ "patches/library/keys/acoustic_piano/piano_seg.json": "2df338dd32ce9bb6bd8e186de77f591c210c6203780ed239275e2c287d38c8ce",
  "patches/library/keys/electric_piano/ep_belly.json": "ec3650bd450cebe9985c1d4d4b59749debe34301f9f9e889171d0e49a316c89c",
  "patches/library/keys/electric_piano/ep_bright.json": "ec3650bd450cebe9985c1d4d4b59749debe34301f9f9e889171d0e49a316c89c",
  "patches/library/keys/electric_piano/ep_dark.json": "ec3650bd450cebe9985c1d4d4b59749debe34301f9f9e889171d0e49a316c89c",

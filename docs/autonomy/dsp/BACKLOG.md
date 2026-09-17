@@ -196,9 +196,19 @@ Tags per WORKFLOW.md.
     cutoff click root-caused (fixed 0.4 s tail cut ringing bars —
     adaptive ring-out shipped, ledger 63b) and percussion round 1
     staged (tools/gen_bwg_perc1.py, F&R mode sets at 48 kHz, 7/8 cells
-    pass gates → REVIEW 60; tbar_bright machine-culled as runaway).
-    Next: axis round on Matt's verdicts, then
-    bandedwg-as-excitation-source cells;
+    pass gates; tbar_bright machine-culled as runaway). Round-1 verdict
+    same day ("all loooong ambient — TomDrum sounds like a gong; need
+    characteristic envelopes or ultra-rapid decay") → ROUND 2 same day
+    (gen_bwg_perc2.py, REVIEW 62): per-mode gains = frequency curves
+    targeting constant T60 per cell (fixed gains made T60 ∝ period);
+    measured calibration T60/4 documented in the script; 7/7 pass.
+    Bowed-cell note for the next bowed round: the "cut off before fully
+    bloomed" complaint = the gen scripts bake bow-stop at ~4.5 s in
+    seconds-mode AdsrEnv — switch to gated/hold envelopes so held notes
+    keep bowing. NONLINEAR BORE GREENLIT by Matt 09-16 ("if we need a
+    non-linear bore, let's do it") — future campaign front, donors in
+    donor_survey_2026_09_16.md. Next: perc axis round on 62 verdicts,
+    bandedwg-as-excitation, 1D Pierce probe (approved);
     bowed thread continues toward cello, GATED on the whistle-top
     diagnosis (all ext3 cells lose string attack character above
     mid-register — measure what breaks: bow-friction operating point vs
@@ -459,7 +469,12 @@ Fall-cleaning moves (2026-09-14) are marked → IDEAS or → ledger.
   seconds fields lengthened, refrozen. UI passage Generate still clips
   the last note's ring at score end (frames = score end in
   generate_unified) — mild, pre-existing; fold into any future
-  transport ring-headroom ask.
+  transport ring-headroom ask. SAME-DAY ADDENDUM (Matt's re-audition:
+  "still hear the hard cutoff" on struck bowl): KEEP verdict per his
+  conditional — the residual was the 8 s CAP chopping near-lossless
+  resonators; cap now FADES 80 ms (offline + live), one deliberate
+  DIFF (piano_seg) refrozen. Ambient ring-forever sounds are
+  Stream-mode citizens per Matt; cap+fade is the notes-world backstop.
 - 67. Loader unknown-key warning — SHIPPED 2026-09-15: wire_params_generic
   warns once per (type, key) on keys matching no descriptor and no
   branch-consumed allowlist entry (allowlist corpus-verified: 133

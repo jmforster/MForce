@@ -5,31 +5,16 @@ the same evening. Awaiting = only what still needs Matt.
 
 ## Awaiting Matt
 
-### 60. bwg_perc1 — BandedWG percussion round 1 [listen] (2026-09-16)
-**renders/dsp/audition/bwg_perc1/** (README inside) — your "low-hanging
-fruit" direction: 7 cells (marimba, xylophone, vibraphone, chime,
-tomdrum, woodblock, glass_long; F&R mode ratios, 48 kHz, gates: mode-1
-pitch, decay sanity, click scan; tbar_bright machine-culled as runaway).
-The cutoff click is FIXED engine-side (adaptive ring-out, backlog 63b —
-voices ring to −60 dB or 8 s cap); the 4 verdicted stk_port2 bandedwg
-pairs were re-rendered click-free in place. THE QUESTION: which
-characters earn an axis round (strike brightness, damping, mode count),
-and does anything already deserve the bench? Direction 2
-(bandedwg-as-excitation) queues behind these verdicts.
-
-### 61. Donor papers verdict — brass NO-GO, 2D mesh GO [read] (2026-09-16)
-docs/research/donor_survey_2026_09_16.md — your two REVIEW-59 papers.
-(1) DAFx'04 FTM brass: does NOT get us to brass — the bore is linear
-(freq-independent damping, zero radiation load); only nonlinearity is
-the same lip-valve class we ceilinged. Small steal noted: the lumped
-mouthpiece two-pole (cup compliance + constriction inertance) as a
-Biquad in front of any future lip — zero engine code. Brass path stays
-nonlinear-bore donors / native waveshaping surrogate. (2) Chafe 2019
-2D-mesh: fully harness-able — STK Mesh2D + all constants published,
-runs 5x realtime at the real plate's 25x6 size. Proposed order: FIRST a
-zero-code 1D probe of Pierce's sign-dependent stiffness (Biquad radius
-pin on an existing loop termination — gong-like modal upwelling if it
-works), THEN the Mesh2D port round on evidence. OK to proceed that way?
+### 62. bwg_perc2 — characteristic decay round [listen] (2026-09-16)
+**renders/dsp/audition/bwg_perc2/** (README inside) — your round-1
+verdict executed: per-mode loop gains are now frequency curves
+targeting constant T60 per cell (fixed gains made decay scale with
+period — the gong-everything failure). Woodblock 0.13 s, tomdrum
+0.29 s, xylo 0.44 s, marimba 1.1 s, glass 2.4 s, vibes 5.2 s, chime
+6.4 s measured at C4; 7/7 pass gates. Round-1 renders kept for A/B.
+The 8 s ring cap now FADES (80 ms) instead of hard-cutting — bowl/glass
+stk_port2 pairs re-rendered. THE QUESTION: do decays now read as the
+named instruments, and which cells earn the bench / an axis round?
 
 ### 38. AF saxophone — build awaiting go [discuss] (2026-08-18)
 docs/research/af_sax/RECIPE.md: complete value table from the breakdown
@@ -49,6 +34,37 @@ something audible and ride it, whenever hardware appears.
 
 Compact stubs only; full detail in run reports, STATUS digests, and the
 verdict logs cited. Newest first.
+
+- **BandedWG re-audition + ring-out revert question** (Matt 09-16,
+  answered same day): verdict was KEEP — adaptive ring-out demonstrably
+  helps musical notes (reverb/piano tails complete; quiet-enders
+  byte-identical; cost one abs+multiply per voice-sample) — and the
+  residual "still hear the hard cutoff" was the 8 s CAP chopping
+  near-lossless resonators (struck bowl T60 = minutes). Fixed: the cap
+  now fades 80 ms instead of cutting (offline + live; one deliberate
+  gate DIFF, piano_seg, refrozen). Matt's framing adopted: ambient
+  ring-forever sounds are Stream-mode citizens / get duration = ring
+  time; the cap+fade is the notes-world backstop. His sound notes
+  recorded verbatim: "glass less glassy than tbar, imeo... more
+  inharmonicity which I associate with metal things"; bowed cells "very
+  quiet, very slow bloom, cut off before fully bloomed" even held — NOT
+  a physics threshold: the bowed patches bake the bow-stop at ~4.5 s in
+  a seconds-mode AdsrEnv (gen script), so holding a note can't extend
+  the bow. Next bowed round should switch to a gated/hold envelope.
+- **60. bwg_perc1** (09-16, verdicted same day): "lots of fun...
+  near-automatic wins. Well-plowed ground. However, names don't align
+  with sounds, and main issue is they are almost all loooong ambient
+  sounds — TomDrum sounds like a gong. Woodblock is a pretty good tom
+  in low register, somewhat marimba-ish high. We need characteristic
+  envelopes, or the physics equivalent (ultra-rapid decay)." → REVIEW
+  62 (constant-T60 gain curves) executed same day; round-1 renders kept
+  for A/B.
+- **61. Donor papers** (09-16, verdicted same day): "Sure" to the
+  1D-Pierce-probe-then-Mesh2D order. On brass: "I'm counting on you..
+  if we need a non-linear bore, let's do it!" → nonlinear-bore campaign
+  is GREENLIT as a future front (donor survey names the lineage:
+  OpenWind / MoReeSC / NESS, or native amplitude-dependent waveshaping
+  along the bore).
 
 - **58. stk_bowed_ext3 — Larson body** (09-14, verdicted 09-16): btd_lar
   REJECTED ("4 detuned cellos at the bottom... completely haywire at the

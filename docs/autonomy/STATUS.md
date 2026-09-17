@@ -27,9 +27,24 @@ Chafe 2D-mesh GO with a zero-code 1D Pierce probe proposed first.
 INCIDENT (repaired): worktree removal followed third_party junctions
 and wiped the vendored libs; restored (rtmidi re-vendored 6.0.0),
 remaining worktree junctions de-linked, builds green. Details:
-dsp/reports/2026-09-16-dsp-run.md. dsp REVIEW Awaiting: 60, 61, 38, 39.
+dsp/reports/2026-09-16-dsp-run.md.
+**Same-day round 2 (Matt verdicted 60/61 + BandedWG re-audition within
+hours):** ring-out KEPT per his conditional (helps musical notes,
+trivial cost); residual hard cutoff was the 8 s cap on near-lossless
+resonators → cap now FADES 80 ms (offline+live; piano_seg the one
+deliberate DIFF, refrozen). Perc ROUND 2 shipped (gen_bwg_perc2.py →
+REVIEW 62): per-mode gains = constant-T60 frequency curves (round 1's
+fixed gains made T60 ∝ period = gong-everything), measured calibration
+/4, 7/7 pass, woodblock 0.13 s → chime 6.4 s. Bowed "cut before bloom"
+explained: gen scripts bake bow-stop at 4.5 s (seconds-mode AdsrEnv),
+not a physics threshold — next bowed round uses gated/hold envelopes.
+NONLINEAR BORE GREENLIT ("I'm counting on you.. let's do it!"); 1D
+Pierce probe approved. Passage strings gained REST tokens (R+duration,
+dc4fce3, implemented by an Opus subagent — quota conservation pattern,
+works). Session-start rule added to CLAUDE.md: sweep stale renamed UI
+exes. dsp REVIEW Awaiting: 62, 38, 39.
 NOTE: Matt's running UI predates today's builds — relaunch picks up
-ring-out + seconds-honor live.
+ring-out + cap fade + seconds-honor + rests live.
 
 Previous update: 2026-09-14 (fall cleaning, Fable 5 with Matt). **Steering-meeting
 execution DONE except GOALS refresh (Matt's) and the audition-dashboard

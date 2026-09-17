@@ -351,6 +351,12 @@ struct PitchedInstrument final : Instrument {
       for (auto& a : vg.advanceList) a->next();         // tap-only loop tails
       ringEnv = std::max(std::fabs(buf[i]), ringEnv * ringDecay);
       rendered = i + 1;
+      // Cap fade: a voice that will still be audible at kMaxRingSec (a
+      // near-lossless resonator — struck bowl class) gets an 80 ms ramp
+      // to zero instead of a hard cut (Matt, REVIEW 09-16).
+      const int fadeN = int(0.08f * float(sampleRate));
+      if (i >= maxSamples - fadeN && ringEnv >= kRingFloor)
+        buf[i] *= float(maxSamples - i) / float(fadeN);
       if (capturing) {
         // Strips record raw current() — no velocity/volume gain — matching
         // what the per-node display always showed.
