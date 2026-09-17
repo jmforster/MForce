@@ -95,3 +95,11 @@ add_executable(stk_bandedwg_ref
     ${STK_ROOT}/src/DelayL.cpp
 )
 target_include_directories(stk_bandedwg_ref PRIVATE ${STK_ROOT}/include)
+
+add_executable(stk_mesh2d_ref
+    mesh2d_ref.cpp
+    ${STK_ROOT}/src/Stk.cpp
+    ${STK_ROOT}/src/Mesh2D.cpp
+    ${STK_ROOT}/src/OnePole.cpp
+)
+target_include_directories(stk_mesh2d_ref PRIVATE ${STK_ROOT}/include)

@@ -394,3 +394,102 @@ minimal case is guarded correctly); 1-sample seconds-mode envelope
 stages render SILENT (2-sample stages fire; keep bursts >= 2 samples);
 engine BowTable outputs dv*rc — the multiply is folded in, do not
 multiply by dv again (that squared error also masked the bloom).
+
+## MESH2D — PORTED AND VALIDATED 2026-09-16 (48k, matches to 1 LSB)
+
+Rectilinear 2D waveguide mesh (Van Duyne & Smith 1993). The eighth family,
+and the first one where the port is effectively BIT-EXACT rather than
+"locks to +-Xc": max |port - reference| = 3.05e-05 on every case, which is
+exactly one 16-bit LSB, with sample-domain correlation 0.9999995-1.0000000.
+The 16-bit WAV floor is the only thing between the two renders.
+
+Engine: **one new node, Mesh2D** (engine/include/mforce/source/
+mesh2d_source.h), registry-only — null gate 79/79 identical, same
+Biquad/BowTable precedent. STK's state layout, alternating-buffer scheme,
+scattering order and edge handling verbatim; buffers sized for a 64x64 cap
+at construction, prepare() zeroes all mesh state and both edge-filter
+states. Pins: source / inX / inY / outX / outY / decay. Settings:
+cols (NX) / rows (NY), clamped [2, 64].
+
+Three deliberate deviations, all additive (corner output + decay 0.99
+reproduce STK exactly):
+- **Output position.** STK hard-codes the tap at vxp[NX-1][NY-2] +
+  vyp[NX-2][NY-1]. Generalized to vxp[ox][oy-1] + vyp[ox-1][oy], which IS
+  STK's expression at (ox,oy) = (NX-1, NY-1).
+- **Cap 64, not STK's NXMAX = NYMAX = 12.** Chafe's 25x6 plate does not fit
+  in 12.
+- **decay pin** = STK's setDecay (CC 11), per sample.
+NOT changed, and worth knowing before the extension round: **STK does not
+interpolate the positions.** `xInput_ = (unsigned short)(xFactor*(NX_-1))`
+truncates, so a swept position STEPS. Chafe-style interpolated/moving taps
+are an extension, not part of this port.
+
+Rate: Mesh2D bakes no fixed-Hz coefficients. Propagation is one sample per
+hop, geometry is in samples (N = SR*len/c, Chafe eq. 1) and the edge
+one-pole constants (pole 0.05, gain = decay) are per-hop quantities, so the
+model is scale-free and the "is this physical or normalized-frequency"
+question from the 48k baseline bug has nothing to correct. Validated at
+48000, Chafe's own rate.
+
+### Reference driver — STK's 12x12 cap vs a 25x6 plate
+
+tools/stk_ref/mesh2d_ref.cpp renders with TWO engines. stk::Mesh2D itself
+(unmodified, linked from the sibling checkout) is the real ground truth but
+can only serve meshes <= 12x12 with a corner tap. MeshBig is a
+transcription of tick0/tick1 differing in exactly two things — cap 64 and a
+settable output junction — and using stk::OnePole for the edge filters, so
+the filtering is STK's own code. **main() will not write anything until
+MeshBig(12,12) with a corner tap reproduces stk::Mesh2D(12,12) sample for
+sample; it does, max |diff| = 0.000e+00.** That certifies the
+transcription, after which the big-mesh and moved-tap renders are usable as
+ground truth. The 12x3_a/b cases are real stk::Mesh2D renders.
+
+Excitation is injected through inputTick(), NOT noteOn: STK's strike is a
+corner impulse the graph cannot express, and the point is for both sides to
+see identical drive. Standard strike = 1 ms raised cosine, amplitude 0.5.
+**Zero fitting was needed for this**: the MForce Envelope's Sine ramp is
+start + range*(cos((1+t)*PI)+1)/2, so two seconds-mode Sine stages of
+0.0005 s (0->1 then 1->0) ARE the raised cosine, exactly — the driver
+evaluates the same float expression and the drive samples are bit-identical.
+General lesson for the next port: check the Ramp/Curve primitives for an
+exact algebraic match before reaching for knot tables.
+
+### Results (tools/gen_stk_mesh2d.py, 6 cases x 6 s)
+
+| case   | peaks | worst f err | envCorr | sampCorr  | max abs diff |
+|--------|-------|-------------|---------|-----------|--------------|
+| 25x6_a | 15/15 | 0.420%      | 1.0000  | 0.9999997 | 3.05e-05     |
+| 25x6_b | 15/15 | 0.468%      | 1.0000  | 0.9999997 | 3.05e-05     |
+| 25x6_c | 15/15 | 0.452%      | 1.0000  | 0.9999995 | 3.05e-05     |
+| 12x3_a | 15/15 | 0.469%      | 1.0000  | 1.0000000 | 3.05e-05     |
+| 12x3_b | 15/15 | 0.464%      | 1.0000  | 1.0000000 | 3.05e-05     |
+| 12x3_c | 15/15 | 0.465%      | 1.0000  | 1.0000000 | 3.05e-05     |
+
+Level safety: worst 0.5 s window rms 0.124, peak 0.62 — far under the
+run-contract 0.5 ceiling; every case well above the 1e-4 audibility floor.
+Roundtrip clean (twice, and the roundtripped patch re-renders).
+
+**Metric trap, cost three iterations, worth writing down.** With the
+waveforms 1 LSB apart, the FIRST three peak-set metrics all "failed" the
+port. Causes, in order: (1) truncating BOTH sides to a top-15 list reads a
+rank swap between two near-equal peaks as a frequency error; (2) a mesh
+mode is a LOBE several bins wide, so plain local maxima sample one mode a
+dozen times; (3) the real killer — below ~100 Hz there is no mesh mode at
+all (lowest is 660 Hz on the plate, 1323 Hz on the bar), just the smooth
+low-frequency shoulder of the burst, whose 40-60 dB-down ripple moves a
+couple of bins under one LSB of dither = a 2-9% "frequency error". Final
+form: ref side = top 15 distinct peaks (MIN_SEP 10 Hz) in 200 Hz - 15 kHz;
+port side = every peak in band; a hit needs +-0.5% AND magnitude within
+10 dB (frequency alone is free when the candidate list is dense). When a
+gate fails but max|diff| is at the quantization floor, fix the gate.
+
+### Extension round (NOT this port)
+
+The edge filters are where the model's material character lives, and they
+are the one thing STK left deliberately crude ("we're only filtering on one
+x and y edge here"). They are the two `edge_x`/`edge_y` calls in tick0/tick1
+— a richer boundary (per-face filters, frequency-dependent or anisotropic
+loss, a Biquad pin instead of the fixed one-pole) replaces those calls and
+nothing else. Other axes visible from here: interpolated/moving in-out
+positions (Chafe), non-rectangular meshes via per-junction gating,
+excitation from the loop family rather than a burst.

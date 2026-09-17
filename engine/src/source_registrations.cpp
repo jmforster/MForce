@@ -43,6 +43,7 @@
 #include "mforce/source/shaper_source.h"
 #include "mforce/source/wormhole_source.h"
 #include "mforce/source/bow_table_source.h"
+#include "mforce/source/mesh2d_source.h"
 #include "mforce/filter/biquad_source.h"
 #include "mforce/filter/reverb.h"
 #include "mforce/filter/vibrato.h"
@@ -608,6 +609,9 @@ void register_all_sources() {
 
     reg.register_type("BowTable", SourceCategory::Modulator,
         [](int, auto) { return std::make_shared<BowTableSource>(); });
+
+    reg.register_type("Mesh2D", SourceCategory::Oscillator,
+        [](int, auto) { return std::make_shared<Mesh2DSource>(); });
 }
 
 } // namespace mforce
