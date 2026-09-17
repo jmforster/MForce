@@ -45,6 +45,24 @@ works). Session-start rule added to CLAUDE.md: sweep stale renamed UI
 exes. dsp REVIEW Awaiting: 62, 38, 39.
 NOTE: Matt's running UI predates today's builds — relaunch picks up
 ring-out + cap fade + seconds-honor + rests live.
+**Evening: MESH2D CAMPAIGN, both stages, via Opus subagents (quota
+pattern, 2 dispatches, ~376k on Opus's meter, both verified by
+coordinator).** Stage A (74c81c3): Mesh2DSource ported from STK —
+positions/decay as pins, 64x64 cap (STK caps 12x12; extended ref class
+proven sample-exact vs stock first), validated to exactly one 16-bit
+LSB across 6 cases at 48k; null gate 79/79. Stage B (9ecdd82):
+edgeMode setting (0 = STK verbatim default, byte-identical proven;
+1 = Chafe allpass with edgeFc/edgeR PINS) → pie-pan/Pierce-gong as
+pure patch wiring; 8-cell queue = REVIEW 64 (mode count 2-4 → 11-84,
+mode-set downshift = Chafe's published detuning; bar_piepan 16.9x
+upwelling; drive = safety knob, naive drive runs away — time-varying
+allpass non-passive, global edgeR pumps coherently). Speaker incident
+earlier folded: stale v1 pierce WAVs in queue → gen-scripts-own-dirs +
+level-ceiling rules in WORKFLOW.md (59062f7). Pierce 1D probe =
+REVIEW 63 (upwelling 2.35 at s8k). dsp REVIEW Awaiting: 62, 63, 64,
+38, 39. Next on verdicts: real instrument attempt on the winning
+geometry/edge behavior; passive Pierce filter structure (the
+principled fix for the pump); perc axis round; nonlinear bore front.
 
 Previous update: 2026-09-14 (fall cleaning, Fable 5 with Matt). **Steering-meeting
 execution DONE except GOALS refresh (Matt's) and the audition-dashboard
