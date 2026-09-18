@@ -1,6 +1,36 @@
 # Status — session handoff (Claude reads this first; Matt's queue = */REVIEW.md)
 
-Updated: 2026-09-16 (interactive morning + "go dsp" run, Fable 5 with Matt).
+Updated: 2026-09-17 (interactive, Fable 5 with Matt; ~8% Fable quota — both
+heavy dispatches ran on Opus subagents per the quota pattern).
+**NONLINEAR BORE FRONT OPENED (Matt: skip survey, go Msallam classic).**
+(1) Literature recovered (Opus, fetch-then-convert):
+docs/research/nonlinear_bore/MSALLAM_DIGEST.md — ICMC'97 algorithm paper FULL
+(all equations; the faithful IRCAM element filters the DELAY signal with
+self-referential feedback, integer p>1, Lagrange ≤2) + JASA'96 measurements
+FULL; Acta Acustica 2000 unobtainable (metadata-only HAL deposit) so lip
+params / bell coefficients / rates are tier-C gaps. Load-bearing physics:
+steepening acts on the RADIATED sound, not the lip loop → out-of-loop
+placement is sanctioned. (2) Spec (Fable):
+docs/superpowers/specs/2026-09-17-nonlinear-bore-design.md — zero-code
+probe, DelayLine ratio ← Curve(tap of own input), d = D·(1−depth·x), no
+shock handling (C&A: omitting it sounds better). (3) Probe BUILT (Opus,
+1a11064, REVIEW 66): mechanism works first try; wiring fact — modulator
+must read via TAP not ref (ref = one sample early; null proves lag exactly
+400); gates all green (depth-0 bit-identical −231 dB; THD monotonic 6-step
+ladder; 9× input → 9.5× distortion = effect appears with level). SPEC
+CORRECTION: sine → Bessel ladder (PM, β match to 3 digits), not sawtooth —
+expected for the shock-omitted variant, probe is a PM-style brightener.
+KEY FINDING: distortion ∝ source frequency (doubles/octave) → bites bright
+material only (oboe centroid +633 Hz vs flute +37 Hz at same depth) →
+**lip exciter outranks more bore work for round 2**. Ears queue:
+renders/dsp/audition/nlbore_probe1/ (8 cells; money A/B =
+oboe_soft_d030 vs oboe_loud_d030, centroid 1121 vs 1705 Hz). Round-2
+options in spec §Round 2: faithful delay-signal node, in-loop variant,
+Smyth&Scott measured bell filters, lip round on the loop family.
+dsp REVIEW Awaiting: 66, 62, 63, 65, 38, 39. Plucks/plates paused til
+next week (Matt); Matt on catch-up/cleanup + GOALS refresh.
+
+Previous update: 2026-09-16 (interactive morning + "go dsp" run, Fable 5 with Matt).
 **Morning (interactive):** clarinet_att2 passage flutter root-caused —
 NOT an engine bug: per-note reset proven thorough; ignition at short
 prepared durations is marginal and noise-realization-sensitive, masked
