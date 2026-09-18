@@ -38,6 +38,41 @@ structural, see above; plucks: they should — flag if not. "What does
 'the passive round' mean" — jargon, retired; plain-language REVIEW
 entries from now on.
 
+### 66. Does forte get brassy? — a loudness-brightness effect [listen] (2026-09-17)
+**renders/dsp/audition/nlbore_probe1/** — 8 cells, README in the folder.
+
+A real trombone gets brighter when it is played loud, all by itself: sound
+travels slightly faster through compressed air, so the loud peaks of the wave
+catch up with the troughs on the way down the tube, the wave goes lopsided,
+and lopsided means high frequencies. Quiet playing doesn't do it at all. I
+built that one effect and hung it on the OUTPUT of our flute and oboe
+patches. Nothing inside either patch changed, and no new engine code — it's
+a delay whose length wobbles with the signal passing through it.
+
+It measures exactly right. Turn it off and it's bit-identical to the original
+(−231 dB). Turn it up in six steps and the added harmonics go up in six
+steps, no exceptions. Drive the same setting 9× louder and you get 9.5× the
+distortion — that proportionality IS the brass effect.
+
+THE QUESTION: does the loud version read as **brassy**, or just as
+**distorted**? And is there a setting you'd actually keep on a patch?
+
+The pair to A/B is **oboe_soft_d030 vs oboe_loud_d030** — same patch, same
+effect, same playback loudness, the only difference is how hard the signal is
+driven into the effect before being turned back down. flute_ctl and oboe_ctl
+are dead controls (effect wired in, strength zero) so you can check me
+without trusting me. flute_d060 is deliberately pushed twice as far as a real
+instrument, to hear where it breaks.
+
+One thing I got wrong in the plan and want on the record: I expected this to
+turn a sine into a sawtooth. It doesn't — it does mild FM instead, which is
+what the source paper says happens when you leave out the shock-wave handling
+(I did leave it out, on purpose). So the effect is real and level-dependent,
+but it's the gentle end of the phenomenon, not the shock end. It also turns
+out to bite much harder on bright fast material than on dark smooth material
+— the oboe moves ~6× as much as the flute at the same setting — which points
+at the lips being the next thing to build, not more bore.
+
 ### 38. AF saxophone — build awaiting go [discuss] (2026-08-18)
 docs/research/af_sax/RECIPE.md: complete value table from the breakdown
 video; only 3 TUNEs remain. BLOCKED on design go-ahead: needs a new
