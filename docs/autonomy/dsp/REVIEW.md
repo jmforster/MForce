@@ -38,63 +38,6 @@ structural, see above; plucks: they should — flag if not. "What does
 'the passive round' mean" — jargon, retired; plain-language REVIEW
 entries from now on.
 
-### 67. Is this brass yet? — the loudness-brightness effect on our lip patches [listen — OPTIONAL, see note] (2026-09-17)
-**renders/dsp/audition/nlbore_brass1/** — 8 cells, README in the folder.
-
-SUPERSEDED by 68 below, which is the real brass attempt and landed the same
-day. Skip this folder unless you specifically want the prep result.
-
-READ THIS FIRST. Your best-possible-in-round-one directive landed while I was
-building this, and it names this exact round: I put the tube effect on the
-buzzing-lip patches we already had rather than on the published one-mass lip
-that's sitting recovered in the donor digest. You're right, and this is not
-the brass round. It is the tube effect tested on known carriers — legitimate
-prep, not the real attempt, and the real attempt is the one-mass lip
-assembly. So treat these 8 files as OPTIONAL: listen only if you want to know
-whether the tube effect carries over to lip-driven sources before the proper
-lip lands. If you'd rather wait for the real thing, skip the folder entirely
-and nothing is lost — the measurements below stand on their own.
-
-You kept the effect from the last round ("it definitely brightens in a brassy
-way"), but I'd hung it on the flute and oboe, which aren't brass. This round
-puts it on the two buzzing-lip patches we actually have. Nothing inside
-either patch changed and there's still no new engine code. One thing moved:
-the effect now sits inside the tube, before the bell and the room, instead of
-bolted on the very end — that's where the physics says it happens.
-
-The two patches are limited and I rendered only what they can play. The lips
-patch from September 12 holds pitch for three notes, C3 C4 C5, and its tuning
-is off in both directions (34 cents flat at the bottom, 22 sharp at the top).
-The ported STK brass model plays C4 and C5 and is two thirds of a semitone
-sharp. Those are the patches' own faults, not the effect's, and I left them
-alone.
-
-Machine checks all pass. Turned off, it's bit-identical to the untouched
-patch (−219 dB), so the two `_ctl` files really are the plain carrier and you
-can check me without trusting me. Turned up in steps it gets steadily
-brighter, every step. Same setting driven loud instead of quiet gives 2.3×
-the energy above 2 kHz at the same playback volume. It does not move the
-pitch at all, at any setting, to within a cent.
-
-THE QUESTION: **is this brass yet — or still saxy?**
-
-The pair to A/B is **nlb_lip_soft_d030 vs nlb_lip_loud_d030** — same patch,
-same effect, same playback loudness, only difference is how hard it's driven
-into the effect. nlb_lip_loud_d060 is pushed twice as far as a real
-instrument. nlb_stk_d030_bell tames the top with a filter; the measurement
-says that filter takes away more than the effect added, so treat it as "is
-duller nicer", not as a finished bell.
-
-Two things on the record. First, if your answer is "still saxy" the honest
-reading is that the lips are the problem and not the tube — the last round
-already pointed there, and this round doesn't contradict it. Second, on the
-STK patch only, the very weakest settings make it DARKER before brighter; I
-ruled out the obvious cause (the delay reading between samples — that costs a
-tenth of what's observed) and don't have the real one. No file you're being
-asked to listen to sits in that dip.
-
-Report: docs/autonomy/dsp/reports/2026-09-17-nlbore-brass1.md.
-
 ### 68. The real brass attempt — lips with weight [listen] (2026-09-17)
 **renders/dsp/audition/onemass_lip1/** — 7 files, README in the folder.
 
@@ -169,6 +112,20 @@ something audible and ride it, whenever hardware appears.
 Compact stubs only; full detail in run reports, STATUS digests, and the
 verdict logs cited. Newest first.
 
+- **67. Brightener on the old lip patches** (verdicted 09-18): Matt
+  listened despite the "optional" label: **no good** — the brightener on
+  the memoryless-lip carriers does not make brass. Expected result, per
+  the entry's own record: the lips were the problem, not the tube; the
+  round was prep for 68 and 68 is the real attempt. Kept from the round:
+  steepener-inside-the-tube placement, the harness tuning correction
+  (34c flat C3 → 22c sharp C5, not uniformly sharp), the open STK
+  darker-at-weak-settings oddity (one cause eliminated, real one
+  unknown). Cells rejected: patches → patches/old/nlbore_brass1/,
+  renders deleted. Hygiene note on the record: the entry was left
+  muddled — a "superseded" note on top of the unedited body still
+  carried A/B instructions; fold-on-supersede means collapsing the body,
+  not stapling a warning above it. Report:
+  reports/2026-09-17-nlbore-brass1.md.
 - **66. Does forte get brassy?** (queued and verdicted 09-17): the
   loudness-brightness effect (a delay whose length wobbles with the signal
   through it) hung on the flute and oboe outputs, zero engine code. Matt:
