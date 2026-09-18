@@ -38,8 +38,19 @@ structural, see above; plucks: they should — flag if not. "What does
 'the passive round' mean" — jargon, retired; plain-language REVIEW
 entries from now on.
 
-### 67. Is this brass yet? — the loudness-brightness effect on our lip patches [listen] (2026-09-17)
+### 67. Is this brass yet? — the loudness-brightness effect on our lip patches [listen — OPTIONAL, see note] (2026-09-17)
 **renders/dsp/audition/nlbore_brass1/** — 8 cells, README in the folder.
+
+READ THIS FIRST. Your best-possible-in-round-one directive landed while I was
+building this, and it names this exact round: I put the tube effect on the
+buzzing-lip patches we already had rather than on the published one-mass lip
+that's sitting recovered in the donor digest. You're right, and this is not
+the brass round. It is the tube effect tested on known carriers — legitimate
+prep, not the real attempt, and the real attempt is the one-mass lip
+assembly. So treat these 8 files as OPTIONAL: listen only if you want to know
+whether the tube effect carries over to lip-driven sources before the proper
+lip lands. If you'd rather wait for the real thing, skip the folder entirely
+and nothing is lost — the measurements below stand on their own.
 
 You kept the effect from the last round ("it definitely brightens in a brassy
 way"), but I'd hung it on the flute and oboe, which aren't brass. This round

@@ -186,6 +186,19 @@ question, but it is a darkening cell, not a brightening one.
 
 **THE QUESTION for Matt: is this brass yet, or still saxy?**
 
+## Round mode — this is PREP, not round one (rule landed mid-run)
+
+Matt's best-possible-in-round-one directive was committed to WORKFLOW.md
+(`bd2666f`) while this round was rendering, and its origin note names this
+round: the follow-up "got dispatched on the known-inferior memoryless lip
+while the published one-mass lip sat recovered in the digest." That is
+accurate. Under the rule's own taxonomy this is a mechanism-isolation probe —
+one element on known-good carriers — which the rule calls legitimate PREP but
+explicitly not a round-one substitute. It is not the brass round and I have
+relabelled the REVIEW entry as optional listening so it does not compete with
+the one-mass lip assembly for Matt's ears. The measurements stand on their
+own; the claim "this is our brass attempt" does not, and was not made.
+
 ## Honest position on what this round can and cannot settle
 
 The element works and it works harder on lips than it did on winds: on the
