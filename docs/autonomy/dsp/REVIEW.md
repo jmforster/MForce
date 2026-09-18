@@ -41,6 +41,9 @@ entries from now on.
 ### 67. Is this brass yet? — the loudness-brightness effect on our lip patches [listen — OPTIONAL, see note] (2026-09-17)
 **renders/dsp/audition/nlbore_brass1/** — 8 cells, README in the folder.
 
+SUPERSEDED by 68 below, which is the real brass attempt and landed the same
+day. Skip this folder unless you specifically want the prep result.
+
 READ THIS FIRST. Your best-possible-in-round-one directive landed while I was
 building this, and it names this exact round: I put the tube effect on the
 buzzing-lip patches we already had rather than on the published one-mass lip
@@ -91,6 +94,61 @@ tenth of what's observed) and don't have the real one. No file you're being
 asked to listen to sits in that dip.
 
 Report: docs/autonomy/dsp/reports/2026-09-17-nlbore-brass1.md.
+
+### 68. The real brass attempt — lips with weight [listen] (2026-09-17)
+**renders/dsp/audition/onemass_lip1/** — 7 files, README in the folder.
+
+This is the round 67 said was coming, built the way your
+best-possible-in-round-one note asks: I went and got the published trombone
+paper, copied its lip equations and its parameter table out of the PDF, and
+built that — not our nearest approximation of it. No new engine code; it is
+all made of parts we already have.
+
+**What changed.** Every wind patch we own models the valve as one fixed
+curve: pressure in, flow out, no memory. That is a fair clarinet reed and it
+is the wrong thing for a brass player's lips, and it is why everything has
+come out somewhere between an oboe and a sax. This patch replaces the curve
+with an actual mass on a spring — a lip that has weight, has its own pitch,
+and can be retuned by the player.
+
+**Three things it does that no curve can.**
+
+1. **The lip picks the note, not the tube.** The tube is three times longer
+   than the note, the way a real trumpet's air column is. Tune the lip and
+   the pitch climbs: the in-tune setting takes the tube's third note, one
+   setting up gets stuck between two of them (the cracked-note zone), one
+   more clears the gap onto the fourth. Same patch, same written notes,
+   three different sounds. That is lipping.
+2. **It gets brighter when blown harder** — 2.1× the energy above 1 kHz at
+   matched playback loudness — and that is before last round's brightener,
+   which adds another 2.6× on top. Two independent brightening mechanisms,
+   both live.
+3. **Delete the mass and it goes silent.** Not quieter. Silent.
+   `flat_r080_loud_st1` is the headline patch with the mass taken out and
+   nothing else touched — it is in the folder at the same playback gain so
+   you can hear that nothing comes out. The weight IS the oscillator.
+
+**What's honest about it.** It plays C3, C4 and C5, and it plays them
+18–33 cents sharp — consistently, widening with register. That is a tuning
+trim I know how to do (the lip wants to sit a bit lower than I put it) and
+I left it alone because you asked for timbre first; say the word and it gets
+centred. The old valve, for comparison, is dead in tune but only plays over
+a hair's width of blowing pressure, refuses C5 entirely, and on the long
+tube can only ever sound the bottom note.
+
+**THE QUESTION: does a lip with weight sound like brass, where the curve
+sounded like a sax?**
+
+The pair to A/B is **lip_r080_loud_st1 vs reed_r080_loud_st1** — same three
+notes, matched loudness, same brightener, same flow physics, same family of
+tube. The only difference is whether the valve has mass.
+
+If the answer is "still not brass", that is worth as much as a yes: it would
+mean the lip was never the missing piece, and the next suspect is the tube
+and the bell rather than the exciter. Everything here is measured and the
+numbers are in the folder's README, so you can check me without trusting me.
+
+Report: docs/autonomy/dsp/reports/2026-09-17-onemass-lip1.md.
 
 ### 38. AF saxophone — build awaiting go [discuss] (2026-08-18)
 docs/research/af_sax/RECIPE.md: complete value table from the breakdown
