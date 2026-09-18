@@ -27,8 +27,43 @@ renders/dsp/audition/nlbore_probe1/ (8 cells; money A/B =
 oboe_soft_d030 vs oboe_loud_d030, centroid 1121 vs 1705 Hz). Round-2
 options in spec §Round 2: faithful delay-signal node, in-loop variant,
 Smyth&Scott measured bell filters, lip round on the loop family.
-dsp REVIEW Awaiting: 66, 62, 63, 65, 38, 39. Plucks/plates paused til
-next week (Matt); Matt on catch-up/cleanup + GOALS refresh.
+**Same day, rounds 2+3 (Opus dispatches 3+4):** Matt verdicted 66 within
+the hour ("definitely brightens in a brassy way" — element KEPT, folded to
+Resolved). Pairing round (13bb1b5/b0accd0, REVIEW 67): steepener onto the
+memoryless-lip carriers, gates green (2.3× >2 kHz loud-vs-soft, pitch
+unmoved ±1c, steepener now INSIDE the tube pre-bell), BUT built on the
+known-inferior lip → Matt issued the **BEST-POSSIBLE-IN-ROUND-ONE rule**
+(verbatim in WORKFLOW.md §Steal-first, bd2666f + ca96c24; also in Claude
+memory): known targets get the full state-of-the-art assembly round one,
+stealing included; iteration is for true experiments only; probes = prep.
+Agent self-relabeled 67 as optional prep. Harness-notes correction: the
+09-12 lip is NOT uniformly sharp — 34c flat C3 → 22c sharp C5. Open
+oddity: STK carrier goes darker at weakest steepener settings (one cause
+eliminated, real one unknown; no queued cell in the dip).
+**ONE-MASS LIP ROUND (the real brass attempt; spec
+2026-09-17-onemass-lip-design.md, commit 08f00d7, REVIEW 68): the
+published dynamic lip IGNITED AND LOCKED, zero engine code.** Berjamin
+arXiv:1511.04247 §3.1 Eqs. 43–49 + Table 2 fetched and transcribed
+(digest's uncertain y-row CONFIRMED); r=√(mk)/4 ⇒ Q=4 exactly ⇒ constant-Q
+keytracking licensed. Bernoulli √ ships real (CurveNode power knot a=1
+p=0.5; only approx = one-sample tap lag for the fixed-point solve; flow
+subgraph validated ≤0.07% vs Python closed form). Ignition/lock C3–C5
++18…+33c over a 16–46 kPa pressure window; brightness 2.1× >1 kHz with
+pressure, steepener adds 2.6× on top independently. DESIGN FIND (bore not
+lip): one-period loop ignites but plays wildly sharp — lip reflection
+measured 0.38, loop lacks authority; THREE-period bore fixes it and the
+lip ratio then SELECTS THE PARTIAL (3.03/3.28/4.13 at ratio 0.8/1.0/1.2)
+= the register mechanism in existing nodes. Controls are decisive:
+mass-deleted graph is SILENT at every pressure; memoryless reed on the
+same bore sounds only the bore fundamental, ignition window 1 scan step
+vs the lip's 16. Known + deferred: lip cells consistently sharp, ratio
+~0.77 would center (timbre first per spec). Ears queue:
+renders/dsp/audition/onemass_lip1/, 7 cells; money A/B =
+lip_r080_loud_st1 vs reed_r080_loud_st1 (only difference: the valve has
+mass). Opus-meter total for the day ~945k across 4 dispatches; Fable
+coordination stayed light. dsp REVIEW Awaiting: **68**, 67 (optional
+prep), 62, 65, 38, 39. Plucks/plates paused til next week (Matt); Matt on
+catch-up/cleanup + GOALS refresh.
 
 Previous update: 2026-09-16 (interactive morning + "go dsp" run, Fable 5 with Matt).
 **Morning (interactive):** clarinet_att2 passage flutter root-caused —
