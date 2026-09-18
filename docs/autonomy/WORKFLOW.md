@@ -55,18 +55,25 @@ constant sorted physical-Hz vs normalized-frequency). Scorers (ML-ears,
 comp metrics) get cheap discrimination backtests before their numbers are
 trusted for verdicts.
 
-Start from the state of the art (Matt, 2026-09-12; repo-visible here since
-2026-09-17): this is well-trodden ground — before DESIGNING any round on a
-known mechanism, fetch the published standard model (JOS/waveguide/MSW,
-the campaign's donor digests) and express THAT, then refine. Never build a
-round on our nearest existing approximation when the published component is
-already recovered and expressible. The one sanctioned exception is a
-mechanism-isolation probe (validating a single new element on a known-good
-carrier) — and then the state-of-the-art pairing is the NEXT round, by
-default, not an afterthought. (Rule made explicit after the 09-17 nonlinear
-bore day: the steepener probe was a legitimate isolation round, but its
-follow-up got dispatched on the known-inferior memoryless lip while the
-published one-mass lip sat recovered in the digest.)
+Best-possible-in-round-one (Matt, verbatim 2026-09-17): "Matt doesn't want
+to plod through 5 batches of disappointing audition renders based on
+half-baked designs. If it is a true experiment (seeking novelty, trying
+crazy things) that's fine, but if it's, say, trying to make a brass patch,
+make the best brass patch you possibly can, relying on literature and/or
+outright stealing, IN ROUND ONE."
+
+So every round declares which mode it is in. EXPERIMENT (novelty hunting,
+crazy things, no published target) → iterate freely. KNOWN TARGET (a real
+instrument or published mechanism) → round one is the full state-of-the-art
+assembly: fetch the standard model (JOS/waveguide/MSW, the campaign's donor
+digests), steal outright where code or constants exist, and ship the best
+complete attempt — never a round built on our nearest existing
+approximation while the published component sits recovered in a digest.
+Mechanism-isolation probes (one new element on a known-good carrier) are
+legitimate PREP, not a round-one substitute — the full assembly follows
+immediately. (Origin: the 09-17 nonlinear bore day — steepener probe fine,
+but its follow-up got dispatched on the known-inferior memoryless lip while
+the published one-mass lip sat recovered in the digest.)
 
 ## Run contract — machine verdicts and the ears budget
 
