@@ -5,6 +5,58 @@ the same evening. Awaiting = only what still needs Matt.
 
 ## Awaiting Matt
 
+### 69. Trombone, attempt 1 [listen + play] (2026-09-18)
+**renders/dsp/audition/trombone1/** (8 files, README inside) and the
+patch itself at
+**patches/audition/trombone1/trombone_attempt1.json** — load it and
+play it, it's a proper instrument patch with a keyboard face.
+
+This is the answer to everything you listed about the one-mass lip.
+Supersedes entry 68's queue; nothing in the old onemass_lip1 folder
+needs another pass.
+
+THE QUESTION: **is this a usable trombone?** Not "is it better" —
+would you put it on a track and play it.
+
+What you should be able to hear and check:
+- **Tuning.** Every one of the 37 chromatic notes from C2 to C5 now
+  lands within 5 cents (worst is A4 at 4; everything else is inside 3).
+  Last round it was 15 to 30 cents sharp and the eight notes from C2 up
+  to G2 didn't play at all.
+- **It speaks now.** Low C used to be unplayable; it now starts in
+  78 ms. Middle C3 went from 694 ms to 72 ms. The slowest note in the
+  range is top C at 216 ms.
+- **Holding a key works.** The blowing envelope had no hold stage at
+  all, which is why the note used to run its own schedule no matter
+  what you did with the key. Fixed. `held_6s.wav` is a six-second note;
+  `short_notes.wav` is the same pitches as half-second notes.
+- **The release** no longer mirrors the attack. `line.wav` against
+  `line_old_release.wav` is that exact A/B on the same notes.
+- **The bell** is the big one, and it's the pair I most want your ears
+  on: `line.wav` (real measured trombone bell) against
+  `line_bell_off.wav` (the plain lowpass it replaced). There is also
+  `line_bell_onaxis.wav`, which is the same bell read the way the
+  paper measured it — microphone right in the bell — and it is much
+  brighter. If the plain one sounds more like a trombone than either
+  bell, that is worth knowing and I won't argue with it.
+- **Soft and loud** are `soft.wav` and `loud.wav`, played at the same
+  gain so the difference is real. Honest warning: the brightness
+  change with blowing pressure is measurable but small — a real
+  trombone opens up much more at ff. That is the known weak spot.
+
+One thing I changed that you didn't ask for, because chasing your
+"low notes take forever" complaint found it: the old patch built a
+tube three note-lengths long for **every** note, so low C rode a 15
+metre air column. A real trombone is one tube of about 2.7 m for the
+whole range and the player picks which of its notes speaks with the
+lips. This patch does that now, and it is why the bottom of the range
+suddenly works.
+
+Report: reports/2026-09-18-trombone1.md (includes what I could and
+could not get out of the bell paper — its own curves are pictures with
+no numbers behind them, so I solved its model on its measured bell
+shape rather than tracing a graph).
+
 ### 62. bwg_perc2 — tuned percussion, decay fixed [listen — BLOCKED, re-render coming] (2026-09-16)
 **renders/dsp/audition/bwg_perc2/** — marimba/xylo/vibes/chime/tom/
 woodblock/glass with realistic decay times (round 1's fault: everything

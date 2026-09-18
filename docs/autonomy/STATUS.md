@@ -1,6 +1,57 @@
 # Status — session handoff (Claude reads this first; Matt's queue = */REVIEW.md)
 
-Updated: 2026-09-17 (interactive, Fable 5 with Matt; ~8% Fable quota — both
+Updated: 2026-09-18 (dsp, trombone round; Opus 5 dispatch).
+**TROMBONE ATTEMPT 1 SHIPPED — REVIEW 69, backlog 74 opened as the brass
+campaign item. Zero engine code.** Matt verdicted 68 ("attack indeed
+resembles a brass attack… definitely not saxy") with four defects; this is
+the full KNOWN-TARGET assembly answering all four plus the bell.
+Artifacts: tools/gen_trombone1.py + tools/bell_smyth.py, candidate
+patches/audition/trombone1/trombone_attempt1.json (instrument-style, 39
+nodes, noteFaces + positions, QWERTY-playable), 8 ears cells in
+renders/dsp/audition/trombone1/, report
+reports/2026-09-18-trombone1.md, bell curves+coefficients in
+docs/research/nonlinear_bore/smyth_bell_fit.json.
+**BELL: Smyth & Scott 2011 (EURASIP 151436) FETCHED in full** — but it
+publishes NO numeric filter (Figs 8/13/16 are raster plots, and ref [12]'s
+RL/TL expressions are paywalled), so what ships is the paper's own model
+solved on its own measured Bessel-horn geometry (Table 1, which
+self-validates: Eq. 21 reproduces its own stated radii to 3 digits).
+Three labelled substitutions, all measured not asserted: piecewise-
+cylindrical transfer matrix at 400 slices (0.27 dB from a 2000-slice
+reference) instead of Eqs. 22–25's conical scattering; flanged-piston
+termination instead of [12]'s L&S (median 0.42 dB difference); and
+radiated-POWER rather than on-axis pressure for the transmission, because
+the on-axis reading is a mic inside the bell and rendered at centroid
+2150 Hz vs the power reading's 760. Independent cross-check: solved
+reflection is −3 dB at 662 Hz against ICMC'97's ~800 Hz bell-reflection
+bandwidth, different group, different measurement.
+**TWO DEFECTS WERE MISDIAGNOSED BY ROUND 68, both corrected by
+measurement.** (1) The sharpness is NOT the lip — it grows with frequency,
+the signature of the delay's linear-interpolated short read; the lip ratio
+moves pitch only ~170 c/unit against a ~0.10-wide speaking window, so
+chasing cents with it walks off the edge into silence. Fix: lip ratio
+solved for the WIDEST SPEAKING WINDOW (margin against cracking), air
+column solved for cents (BORE_MAP, 1.000 at C2 → 1.019 at C4). Both maps
+measured at all 37 chromatic steps and pasted into the gen script.
+(2) Low notes were slow because round 68's bore was THREE NOTE-PERIODS
+LONG FOR EVERY NOTE — 15.7 m at C2. Replaced with the real architecture:
+one trombone-length tube, delay ratio pin = partial number
+round(f0/58.27 Hz). RESULTS: 37/37 notes speak within 4.2 c (was +15…+29 c
+and dead below G2); speak median 114 ms, worst 216 ms (was C3 694, C4 348,
+C5 426, C2 dead); playing window 9–51 kPa on all nine audition notes;
+0.5/2/6 s renders scale the hold only (onset fixed at 0.100 s, tail 0.18 s
+inside kVoiceTailSec). Fifth defect found and fixed: pm ∝ f_lip² left C2 a
+near-pure sine 30 dB under C5 — PM_EXP 0.5 cuts the register spread to
+4 dB. WIRING TRAP WORTH REMEMBERING: reading the tuned lip frequency back
+through {"tap":"Flip"} cost −33.7 c and 15 dB (nothing else advances Flip
+on that sample); each such pin now gets its own points map on __perf_f.
+KNOWN WEAK SPOT, reported not hidden: blowing 4× harder moves the centroid
+742→751 Hz — the dynamics-to-timbre link has nearly vanished vs round 68's
+2.1×; that is backlog 74(a) and the next measurement. Breath-burst lever
+measured at 12× and 40× and changed NOTHING — wired, off, reported.
+dsp REVIEW Awaiting: **69**, 62, 65, 38, 39 (68 and 67 resolved).
+
+Previous update: 2026-09-17 (interactive, Fable 5 with Matt; ~8% Fable quota — both
 heavy dispatches ran on Opus subagents per the quota pattern).
 **NONLINEAR BORE FRONT OPENED (Matt: skip survey, go Msallam classic).**
 (1) Literature recovered (Opus, fetch-then-convert):

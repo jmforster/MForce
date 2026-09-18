@@ -240,6 +240,38 @@ Tags per WORKFLOW.md.
     (loop-termination Biquad radius pin ← signal via Curve), then the
     Mesh2D port round on evidence.
 
+74. **[campaign] Brass — the one-mass lip line, toward a usable trombone**
+    — opened 2026-09-17 (REVIEW 66/67/68), first full assembly shipped
+    2026-09-18 (REVIEW 69, reports/2026-09-18-trombone1.md,
+    tools/gen_trombone1.py + tools/bell_smyth.py, zero engine code).
+    WHERE IT STANDS: the published one-mass lip (Berjamin
+    arXiv:1511.04247 §3.1) drives a trombone-length air column whose
+    partial is chosen by the lip, terminated by Smyth & Scott's measured
+    trombone bell (EURASIP 2011:151436, solved from its Table-1 geometry
+    — the paper publishes no numeric filter), with the REVIEW-66
+    steepener between them. Measured: 37/37 chromatic notes C2–C5 speak
+    within 4.2 cents, speak time median 114 ms (round 68: C2 dead, C3
+    694 ms, +15…+29 c), 9–51 kPa playing window, gated envelope with a
+    real expand stage, fast non-mirrored release. Candidate at
+    patches/audition/trombone1/trombone_attempt1.json awaiting Matt.
+    OPEN, IN PRIORITY ORDER: (a) **dynamics barely change timbre** —
+    742→751 Hz centroid across a 4× pressure range where round 68 got
+    2.1× more HF energy; suspects are the bell reflection throwing away
+    the harmonics harder blowing makes, and the steepener sitting outside
+    a now-bell-limited loop. This is the next measurement. (b) the slide
+    is `round(f0/58.27)` rather than seven real positions, and the
+    instrument can play notes a real tenor cannot. (c) no viscothermal
+    loss on the ~2.7 m of cylindrical tube in front of the bell. (d) the
+    loop sign convention is still non-inverting; a real bell reflection
+    inverts at low frequency and adopting it changes which partials the
+    tube supports. (e) nothing is fitted to a real trombone recording —
+    the ML-ears/viola machinery is the obvious next validation.
+    (f) three notes (A#2, A#4, B4) have lip windows only 3–5 scan steps
+    wide, the round's thinnest cracking margins. STOP CONDITIONS: a round
+    with zero gate-passing cells ends its sub-thread (2-attempt rule per
+    mechanism); the campaign parks when Matt has a trombone he calls
+    usable, or when two consecutive rounds fail to move his verdict.
+
 ## Design questions
 
 68. **[design, brainstorm] Articulation-keyed multi-graph Instruments** —
