@@ -38,61 +38,6 @@ structural, see above; plucks: they should — flag if not. "What does
 'the passive round' mean" — jargon, retired; plain-language REVIEW
 entries from now on.
 
-### 68. The real brass attempt — lips with weight [listen] (2026-09-17)
-**renders/dsp/audition/onemass_lip1/** — 7 files, README in the folder.
-
-This is the round 67 said was coming, built the way your
-best-possible-in-round-one note asks: I went and got the published trombone
-paper, copied its lip equations and its parameter table out of the PDF, and
-built that — not our nearest approximation of it. No new engine code; it is
-all made of parts we already have.
-
-**What changed.** Every wind patch we own models the valve as one fixed
-curve: pressure in, flow out, no memory. That is a fair clarinet reed and it
-is the wrong thing for a brass player's lips, and it is why everything has
-come out somewhere between an oboe and a sax. This patch replaces the curve
-with an actual mass on a spring — a lip that has weight, has its own pitch,
-and can be retuned by the player.
-
-**Three things it does that no curve can.**
-
-1. **The lip picks the note, not the tube.** The tube is three times longer
-   than the note, the way a real trumpet's air column is. Tune the lip and
-   the pitch climbs: the in-tune setting takes the tube's third note, one
-   setting up gets stuck between two of them (the cracked-note zone), one
-   more clears the gap onto the fourth. Same patch, same written notes,
-   three different sounds. That is lipping.
-2. **It gets brighter when blown harder** — 2.1× the energy above 1 kHz at
-   matched playback loudness — and that is before last round's brightener,
-   which adds another 2.6× on top. Two independent brightening mechanisms,
-   both live.
-3. **Delete the mass and it goes silent.** Not quieter. Silent.
-   `flat_r080_loud_st1` is the headline patch with the mass taken out and
-   nothing else touched — it is in the folder at the same playback gain so
-   you can hear that nothing comes out. The weight IS the oscillator.
-
-**What's honest about it.** It plays C3, C4 and C5, and it plays them
-18–33 cents sharp — consistently, widening with register. That is a tuning
-trim I know how to do (the lip wants to sit a bit lower than I put it) and
-I left it alone because you asked for timbre first; say the word and it gets
-centred. The old valve, for comparison, is dead in tune but only plays over
-a hair's width of blowing pressure, refuses C5 entirely, and on the long
-tube can only ever sound the bottom note.
-
-**THE QUESTION: does a lip with weight sound like brass, where the curve
-sounded like a sax?**
-
-The pair to A/B is **lip_r080_loud_st1 vs reed_r080_loud_st1** — same three
-notes, matched loudness, same brightener, same flow physics, same family of
-tube. The only difference is whether the valve has mass.
-
-If the answer is "still not brass", that is worth as much as a yes: it would
-mean the lip was never the missing piece, and the next suspect is the tube
-and the bell rather than the exciter. Everything here is measured and the
-numbers are in the folder's README, so you can check me without trusting me.
-
-Report: docs/autonomy/dsp/reports/2026-09-17-onemass-lip1.md.
-
 ### 38. AF saxophone — build awaiting go [discuss] (2026-08-18)
 docs/research/af_sax/RECIPE.md: complete value table from the breakdown
 video; only 3 TUNEs remain. BLOCKED on design go-ahead: needs a new
@@ -112,6 +57,20 @@ something audible and ride it, whenever hardware appears.
 Compact stubs only; full detail in run reports, STATUS digests, and the
 verdict logs cited. Newest first.
 
+- **68. One-mass lip, first ears** (verdicted 09-18, Matt in REVIEW):
+  "Attack indeed resembles a brass attack, though it's still pretty far
+  from a trombone patch. Definitely not saxy." — the mass-on-a-spring lip
+  is the first wind exciter to escape the reed basin. Four defects
+  recorded, all actionable: (1) 18–33c sharp (deferring it was MY spec's
+  sequencing, not Matt's ask — mis-attributed in the entry); (2) attack
+  time tied to frequency, low notes take "forever," only whole notes
+  playable; (3) on QWERTY the note evolves and releases regardless of the
+  key being held (envelope not key-gated); (4) release mirrors the attack
+  — "b-waa-OO" — unnatural at current strength. Matt's directive:
+  "proceed with intonation + bell + whatever else is known to be lacking
+  in pursuit of a usable trombone patch" → trombone round dispatched
+  same day (next entry when it lands). Report:
+  reports/2026-09-17-onemass-lip1.md.
 - **67. Brightener on the old lip patches** (verdicted 09-18): Matt
   listened despite the "optional" label: **no good** — the brightener on
   the memoryless-lip carriers does not make brass. Expected result, per
