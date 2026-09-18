@@ -55,6 +55,19 @@ constant sorted physical-Hz vs normalized-frequency). Scorers (ML-ears,
 comp metrics) get cheap discrimination backtests before their numbers are
 trusted for verdicts.
 
+Start from the state of the art (Matt, 2026-09-12; repo-visible here since
+2026-09-17): this is well-trodden ground — before DESIGNING any round on a
+known mechanism, fetch the published standard model (JOS/waveguide/MSW,
+the campaign's donor digests) and express THAT, then refine. Never build a
+round on our nearest existing approximation when the published component is
+already recovered and expressible. The one sanctioned exception is a
+mechanism-isolation probe (validating a single new element on a known-good
+carrier) — and then the state-of-the-art pairing is the NEXT round, by
+default, not an afterthought. (Rule made explicit after the 09-17 nonlinear
+bore day: the steepener probe was a legitimate isolation round, but its
+follow-up got dispatched on the known-inferior memoryless lip while the
+published one-mass lip sat recovered in the digest.)
+
 ## Run contract — machine verdicts and the ears budget
 
 - Machine gates may self-verdict REJECTS: a cell that fails its stated
