@@ -38,40 +38,48 @@ structural, see above; plucks: they should — flag if not. "What does
 'the passive round' mean" — jargon, retired; plain-language REVIEW
 entries from now on.
 
-### 66. Does forte get brassy? — a loudness-brightness effect [listen] (2026-09-17)
-**renders/dsp/audition/nlbore_probe1/** — 8 cells, README in the folder.
+### 67. Is this brass yet? — the loudness-brightness effect on our lip patches [listen] (2026-09-17)
+**renders/dsp/audition/nlbore_brass1/** — 8 cells, README in the folder.
 
-A real trombone gets brighter when it is played loud, all by itself: sound
-travels slightly faster through compressed air, so the loud peaks of the wave
-catch up with the troughs on the way down the tube, the wave goes lopsided,
-and lopsided means high frequencies. Quiet playing doesn't do it at all. I
-built that one effect and hung it on the OUTPUT of our flute and oboe
-patches. Nothing inside either patch changed, and no new engine code — it's
-a delay whose length wobbles with the signal passing through it.
+You kept the effect from the last round ("it definitely brightens in a brassy
+way"), but I'd hung it on the flute and oboe, which aren't brass. This round
+puts it on the two buzzing-lip patches we actually have. Nothing inside
+either patch changed and there's still no new engine code. One thing moved:
+the effect now sits inside the tube, before the bell and the room, instead of
+bolted on the very end — that's where the physics says it happens.
 
-It measures exactly right. Turn it off and it's bit-identical to the original
-(−231 dB). Turn it up in six steps and the added harmonics go up in six
-steps, no exceptions. Drive the same setting 9× louder and you get 9.5× the
-distortion — that proportionality IS the brass effect.
+The two patches are limited and I rendered only what they can play. The lips
+patch from September 12 holds pitch for three notes, C3 C4 C5, and its tuning
+is off in both directions (34 cents flat at the bottom, 22 sharp at the top).
+The ported STK brass model plays C4 and C5 and is two thirds of a semitone
+sharp. Those are the patches' own faults, not the effect's, and I left them
+alone.
 
-THE QUESTION: does the loud version read as **brassy**, or just as
-**distorted**? And is there a setting you'd actually keep on a patch?
+Machine checks all pass. Turned off, it's bit-identical to the untouched
+patch (−219 dB), so the two `_ctl` files really are the plain carrier and you
+can check me without trusting me. Turned up in steps it gets steadily
+brighter, every step. Same setting driven loud instead of quiet gives 2.3×
+the energy above 2 kHz at the same playback volume. It does not move the
+pitch at all, at any setting, to within a cent.
 
-The pair to A/B is **oboe_soft_d030 vs oboe_loud_d030** — same patch, same
-effect, same playback loudness, the only difference is how hard the signal is
-driven into the effect before being turned back down. flute_ctl and oboe_ctl
-are dead controls (effect wired in, strength zero) so you can check me
-without trusting me. flute_d060 is deliberately pushed twice as far as a real
-instrument, to hear where it breaks.
+THE QUESTION: **is this brass yet — or still saxy?**
 
-One thing I got wrong in the plan and want on the record: I expected this to
-turn a sine into a sawtooth. It doesn't — it does mild FM instead, which is
-what the source paper says happens when you leave out the shock-wave handling
-(I did leave it out, on purpose). So the effect is real and level-dependent,
-but it's the gentle end of the phenomenon, not the shock end. It also turns
-out to bite much harder on bright fast material than on dark smooth material
-— the oboe moves ~6× as much as the flute at the same setting — which points
-at the lips being the next thing to build, not more bore.
+The pair to A/B is **nlb_lip_soft_d030 vs nlb_lip_loud_d030** — same patch,
+same effect, same playback loudness, only difference is how hard it's driven
+into the effect. nlb_lip_loud_d060 is pushed twice as far as a real
+instrument. nlb_stk_d030_bell tames the top with a filter; the measurement
+says that filter takes away more than the effect added, so treat it as "is
+duller nicer", not as a finished bell.
+
+Two things on the record. First, if your answer is "still saxy" the honest
+reading is that the lips are the problem and not the tube — the last round
+already pointed there, and this round doesn't contradict it. Second, on the
+STK patch only, the very weakest settings make it DARKER before brighter; I
+ruled out the obvious cause (the delay reading between samples — that costs a
+tenth of what's observed) and don't have the real one. No file you're being
+asked to listen to sits in that dip.
+
+Report: docs/autonomy/dsp/reports/2026-09-17-nlbore-brass1.md.
 
 ### 38. AF saxophone — build awaiting go [discuss] (2026-08-18)
 docs/research/af_sax/RECIPE.md: complete value table from the breakdown
@@ -92,6 +100,17 @@ something audible and ride it, whenever hardware appears.
 Compact stubs only; full detail in run reports, STATUS digests, and the
 verdict logs cited. Newest first.
 
+- **66. Does forte get brassy?** (queued and verdicted 09-17): the
+  loudness-brightness effect (a delay whose length wobbles with the signal
+  through it) hung on the flute and oboe outputs, zero engine code. Matt:
+  "It definitely brightens in a brassy way." Element KEPT. Measured
+  bit-identical when off (−231 dB), monotonic in six steps, 9.5× the
+  distortion for 9× the drive. Honest correction on the record: it does
+  mild FM, not shock formation — the source paper says so when shock
+  handling is omitted, which it was, deliberately. It bites ~6× harder on
+  the oboe than the flute, i.e. on bright fast material, which pointed at
+  the lips as the next build. Superseded same day by REVIEW 67, which does
+  exactly that. Report: reports/2026-09-17-nlbore-probe1.md.
 - **63. pierce1d_1** (folded 09-17): Matt's verdicts arrived via chat
   09-16 and were never folded here — hygiene miss, his "thought I
   responded?" is right. Verdicts: plucks "pretty nice" (nostalgia
