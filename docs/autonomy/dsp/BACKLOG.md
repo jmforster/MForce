@@ -303,49 +303,85 @@ Tags per WORKFLOW.md.
     the loudness/brightness linkage is there, but it's subtle, and *only*
     there in the attack - once the notes settle, their sustain phases
     sound identical to me, just louder." Full verdict verbatim in REVIEW
-    71's resolved stub. Attempt 4 dispatched same day.
-    OPEN, IN PRIORITY ORDER: (a5) **the brightness linkage lives only in
-    the attack — settled sustain is timbre-identical, just louder**
-    (Matt's ears 09-19, "feel free to check this empirically"). Verify
-    time-resolved first: centroid in an attack window vs a settled window,
-    pp/mf/ff, and the travelling-wave amplitude AT the steepener input in
-    the settled phase (probe via gen_trombone3.probe_signal). Then
-    attribute: does the loop self-limit to the same sustain amplitude
-    regardless of breath, does the a4 ±8 clamp rail flatten the top, or
-    does the steepener see the difference and act too weakly? Real brass
-    brightens with sustained level, so this is physics owed, not polish.
-    Attempt 3's deferred work order 5 (steepener depth riding the breath)
-    is sanctioned exactly if the measurement says the loop genuinely
-    saturates. (a6) **the low-register rattle, REOPENED on new evidence**
-    — attempt 2's closure measured lock-time and periodicity and stands
-    as measured, but Matt's 09-19 octave map describes a different thing:
-    an audible oscillation in attack AND release tail, frequency-linked
-    (too slow low, right in octave 5, too fast at the top of octave 6),
-    with a formant sweep "B-wAWWW"→"B-wAHHH" from G2 to C3 and a release
-    rattle that compresses to a terminating buzz by G4 and a feature by
-    C5. Measure the modulation rate of the attack/release envelope per
-    note and match candidates against his map: bore round-trip rate
-    (three-period bore ⇒ ~f0/3), the per-note lip resonance, the breath
-    ramp constants, post-key-up bore ring-down. His map is the ground
-    truth; fresh 2-attempt budget for the reopened claim. Also
-    characterize what the patch does BELOW the solved range (maps start
-    at F2/midi 29; he plays down into octave 1 and gets rattle-only).
-    (a7) **intermittent squeak at max velocity** — new at attempt 3
-    (velocity 1.0 drives each note's measured pressure ceiling); suspects
-    are the a4 clamp railing 53–69% of the cycle at ff and overblow past
-    the intended partial. A lower velocity→pressure ceiling is an
-    acceptable fix — 0.8's "not-great trumpet player" squeak he likes.
-    (a3) **the low register still does not open
+    71's resolved stub.
+    RESOLVED at attempt 4 (09-19, REVIEW 72,
+    reports/2026-09-19-trombone4.md, tools/gen_trombone4.py, zero engine
+    code) — (a5) **the sustain was never flat; a fixed output filter was
+    eating it.** Measured before the voicing lowpass, attempt 3's own
+    settled-window pp→ff centroid is F2 +24.9%, A#3 +80.8%, C5 +53.0%,
+    F5 +163.0%; measured after it, +0.8 / +18.5 / +33.8 / +27.0%. The
+    2200-vs-1100 corner Matt picked at attempt 2 was picked while the
+    instrument was stuck at forte, and a FIXED corner sitting where the
+    energy moves removes most of the movement. Fix: one CurveNode (Vk) on
+    __perf_v driving both SVF cutoff pins, 550 / **1100** / 1600 Hz at
+    pp / 0.8 / ff, the two ends SOLVED (criterion: the instrument's own
+    pre-filter pp→ff ratio must survive to the output; 0.8 pinned to
+    Matt's number). Result, settled pp→ff: F2 +23.7%, A#3 +99.2%, C5
+    +89.9%, F5 +66.9%; mf→ff (the half he pushes into) +0.5%→+19.8% on
+    A#3. Velocity 0.8 matches attempt 3 to ONE 16-bit step (knot-value
+    rounding from the steepener domain ±4→±8, same slope). Eliminated by
+    measurement first: the loop does NOT self-limit (drive at the
+    steepener input is linear in breath over 10.8–27.2 dB) and the
+    steepener's transfer DOES scale with amplitude (Δcentroid +5→+56 Hz
+    on A#3, +7→+125 on C5), so attempt 3's deferred work order 5 was
+    never triggered. (a4) **CLOSED, and it was a measurement artifact.**
+    A probe reading through a {"tap"} is a GUARDED RefSource clamping at
+    ±8 (dsp_value_source.h:164) — attempt 3's "the lip rails 53-69% of
+    every cycle" was reading its own probe's clamp. Raw-{"ref"} probe:
+    lip peak 70.0 where the tap said 8.000. The engine clamp never
+    touches the lip in the signal path (Qn reads it by plain {"ref"}) and
+    rails 0.0% on all three tap reads in sustain. What does hold is OUR
+    Qn end knot, 37-69% of the positive half-cycle; widening it 8→256 at
+    identical slope moves the settled centroid 1.2% and breaks F2's
+    tuning, so it is not load-bearing and NO ENGINE ROUND IS NEEDED.
+    (a7) **the max-velocity squeak, fixed where it was real.** Measured:
+    slices off the written partial 10 / 32 / 37 at velocity 0.8 / 0.9 /
+    1.0 over 14 notes; not the clamp (0% rails), not a clean overblow
+    (off-slices read ×1.07–1.25 = an attack that overshoots and settles);
+    C#6 at 1.0 genuinely drops an octave. Fix: per-note ff ceiling walked
+    down until the ATTACK is stable, not just the settled pitch — 6 of 51
+    notes moved (D#5, E5, A#5, B5, C6, C#6), 45 unchanged, 0.8 untouched.
+    Two of my own metric bugs found on the way (a fixed 60 ms slice is
+    2.6 periods at F2 and its lag search overruns the slice; counting
+    DOWNWARD excursions catches autocorrelation subharmonics and pulled
+    25 notes' ff in on an artifact).
+    (a6) MEASUREMENT ATTEMPT 1 OF 2 SPENT, no mechanism standing:
+    **the oscillation IS the note.** Envelope modulation rate, two
+    independent detrending methods, F2 through C5: measured/f0 = 0.99-1.01
+    on every note. Bore round trip 0.50-4.01 (matches only where p=1),
+    lip resonance 1.23-1.41, envelope constants note-independent by
+    construction. No sub-f0 modulation exists (the two methods disagree
+    everywhere below 0.8·f0, and at C6/G6 they disagree outright, so
+    those are reported as "no single rate"). There is no rate to retune —
+    changing it means changing the pitch. Below the solved range,
+    measured: C1/F1 produce NO oscillation (rms 0.0000, lock 0.01-0.03) —
+    only the attack thump and the bore ring-down, which is exactly his
+    "dullish impact put thru a spring reverb"; the first note that holds
+    is D2 (lock 0.72), the note he named by ear, and D2/E2 run +27/+12
+    cents because every map holds its F2 knot below midi 29.
+    OPEN, IN PRIORITY ORDER: (a8) **NOTHING CHANGES DURING A HELD NOTE** —
+    the honest remaining half of Matt's verdict ("what's missing is any
+    swell or brightening *after* the attack"). Measured at ff: the
+    centroid reaches its value by ~200 ms and is then identical to three
+    digits from 0.2 s to 2.2 s (A#3 505/505/505/505). Velocity is fixed
+    for a note's life, so the breath is, so the timbre is. Needs breath
+    that MOVES while a note sounds: a continuous controller (blocked on
+    hardware, REVIEW 39), a per-note breath contour, or PerformSource
+    carrying a performance curve. Design question, not a tweak — brainstorm
+    before any build. (a9) **pp is now 4.5 dB quieter** (rms 0.00212 →
+    0.00126 on A#3, same pitch, same 1.00 periodicity) because the pp end
+    of the new corner passes less energy. One constant (VOICE_PP) if Matt
+    says it is too much. (a3) **the low register still does not open
     up** — F2 moves +1.3% because its usable breath span is 3.8:1 against
     A#3's 13.7:1: below ~26 kPa it goes sharp and then falls into a
     pressure hole where it stops speaking. Needs the lip/bore pairing
-    looked at, not another map. (a4) **the engine's global ±8 value clamp
-    (core/dsp_value_source.h) is inside the lip's operating range at ff** —
-    the displacement rails for 53–69% of each cycle, and the POSITIVE rail
-    matters because flow is proportional to the opening, so the top of the
-    dynamic range is squared off by a safety clamp rather than by physics.
-    Either an engine round or a rescaling of the lip's normalised units.
-    Logged 09-18, no engine code that round. (b) **G6 needs
+    looked at, not another map. Attempt 4 note: F2's flatness is ALSO
+    that the steepener contributes nothing at F2 at any dynamic (−3 Hz at
+    pp and at ff), so its brightness comes only from the flow
+    nonlinearity. (a10) **above mf some notes have almost no breath
+    left** — A#3's own measured ceiling is 1.135× its mf (45.4 vs
+    40 kPa), which is why attempt 3's mf→ff was +0.5% there. Same
+    lip/bore pairing question as a3/b. (b) **G6 needs
     72 kPa to ignite** where everything below B5 needs 8 — a real player
     does not need nine times the breath for a top note; that is a property
     of this lip/bore pairing. Attempt 3 measured the consequence: G6's pp

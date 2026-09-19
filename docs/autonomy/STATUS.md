@@ -1,10 +1,103 @@
 # Status — session handoff (Claude reads this first; Matt's queue = */REVIEW.md)
 
-Updated: 2026-09-18 (dsp, trombone attempt 3 — the blowing-harder round;
+Updated: 2026-09-19 (dsp, trombone attempt 4 — the held-note round;
 Opus 5 dispatch).
 WORKING-TREE NOTE for the next session: docs/autonomy/GOALS.md carries
 Matt's own uncommitted refresh (his steering action item) — never revert
 or fold it into a run commit; he commits it himself.
+**TROMBONE ATTEMPT 4 SHIPPED — REVIEW 72, backlog 74(a4)(a5)(a7) RESOLVED,
+(a6) measurement attempt 1 of 2 spent with no mechanism standing, 71
+superseded. Zero engine code.** Artifacts: tools/gen_trombone4.py,
+candidate patches/audition/trombone1/trombone_attempt4.json (56 nodes,
+gateable=1), 8 ears cells in renders/dsp/audition/trombone4/, report
+reports/2026-09-19-trombone4.md.
+
+**74(a5) — THE SUSTAIN WAS NEVER FLAT; A FIXED OUTPUT FILTER WAS EATING
+IT.** Matt heard "sustain phases sound identical, just louder". Measured
+BEFORE the voicing lowpass (probe Trans4), attempt 3's own settled-window
+pp→ff centroid is F2 **+24.9%**, A#3 **+80.8%**, C5 **+53.0%**, F5
+**+163.0%**; measured AFTER it, +0.8 / +18.5 / +33.8 / +27.0%. The fixed
+1100 Hz corner Matt picked at attempt 2 was picked while the instrument was
+stuck at forte (attempt 3's two gain stages), and a FIXED corner sitting
+where the energy moves removes most of the movement. FIX: one CurveNode
+(Vk) on __perf_v driving both SVF cutoff pins — 550 / **1100** / 1600 Hz at
+pp / 0.8 / ff. Both ends SOLVED, not picked: the criterion is that the
+instrument's own pre-filter pp→ff ratio must survive to the output, 0.8
+pinned to Matt's number. RESULT settled pp→ff: F2 **+23.7%**, A#3
+**+99.2%**, C5 **+89.9%**, F5 **+66.9%**; mf→ff (the half he pushes into,
+and where attempt 3 was nearly dead) A#3 +0.5%→**+19.8%**, F5
++10.6%→+31.2%. >1 kHz share pp→ff ×3.45→**×102** (A#3), ×8.42→**×233**
+(F5). Velocity 0.8 matches attempt 3 to **one 16-bit step** (knot-value
+rounding from the steepener domain ±4→±8 at identical slope).
+
+**ELIMINATED FIRST, BY MEASUREMENT.** The loop does NOT self-limit: drive
+at the steepener input is linear in breath over 10.8–27.2 dB (A#3 13.9×
+drive for 13.8× pressure). The steepener's transfer DOES scale with
+amplitude (Δcentroid pp→ff +5→+56 Hz on A#3, +7→+125 on C5). So attempt
+3's deferred work order 5 (steepener depth riding the breath) was never
+triggered.
+
+**74(a4) CLOSED — IT WAS MY OWN PROBE'S CLAMP.** A probe reading through a
+{"tap"} is a GUARDED RefSource clamping every read to ±8
+(dsp_value_source.h:164; only {"tap"} sets guard=true,
+patch_loader.cpp:105-122). Attempt 3's "the lip rails 53–69% of every
+cycle" could not have returned anything else. Raw-{"ref"} probe on the same
+render: lip peak **70.0** where the tap said 8.000. In this graph the
+engine clamp never touches the lip (Qn reads it by plain {"ref"}) and rails
+**0.0%** on all three tap reads in sustain. What does hold is OUR Qn end
+knot (37–69% of the positive half-cycle) — and widening it 8→256 at
+identical slope moves the settled centroid **1.2%** and breaks F2's tuning.
+Not load-bearing. **NO ENGINE ROUND NEEDED.**
+
+**74(a6), MEASUREMENT ATTEMPT 1 OF 2 — THE OSCILLATION IS THE NOTE.**
+Envelope modulation rate, two independent detrending methods (polynomial on
+the log envelope; moving average), F2 through C5: measured/f0 =
+**0.99–1.01** on every note. Bore round trip 0.50–4.01 (matches only where
+p=1), lip resonance 1.23–1.41, envelope constants note-independent by
+construction. No sub-f0 modulation exists. There is no rate to retune —
+changing it means changing the pitch. BELOW the solved range, measured:
+C1/F1 produce NO oscillation (rms 0.0000, lock 0.01–0.03), so all that is
+audible is the attack thump and the bore ring-down = his "dullish impact
+put thru a spring reverb"; the first note that holds is **D2** (lock 0.72),
+the note he named by ear; D2/E2 run +27/+12 cents because every map holds
+its F2 knot below midi 29.
+
+**74(a7) FIXED WHERE IT WAS REAL.** Slices off the written partial 10 / 32
+/ 37 at velocity 0.8 / 0.9 / 1.0 over 14 notes. Not the clamp (0% rails),
+not a clean overblow (off-slices ×1.07–1.25 = an attack that overshoots and
+settles); C#6 at 1.0 genuinely drops an octave. Fix: per-note ff ceiling
+walked down until the ATTACK is stable, not just the settled pitch — **6 of
+51 notes moved**, 45 unchanged, 0.8 untouched (his liked squeak intact).
+TWO METRIC BUGS OF MINE found on the way: a fixed 60 ms slice is 2.6
+periods at F2 and its autocorrelation lag search overruns the slice; and
+counting DOWNWARD excursions catches subharmonic readings and pulled 25
+notes' ff in on an artifact.
+
+**NEW OPEN, 74(a8): NOTHING CHANGES DURING A HELD NOTE** — the honest
+remaining half of Matt's verdict ("missing any swell or brightening *after*
+the attack"). Measured at ff, the centroid reaches its value by ~200 ms and
+is then identical to three digits from 0.2 s to 2.2 s (A#3 505/505/505/505).
+Velocity is fixed for a note's life, so the breath is, so the timbre is.
+Needs breath that MOVES while a note sounds — controller (blocked on
+hardware, REVIEW 39), per-note breath contour, or PerformSource curve.
+Design question, brainstorm before any build. Also new: 74(a9), pp is 4.5 dB
+quieter (one constant if Matt says too much); 74(a10), above mf some notes
+have almost no breath left (A#3's ceiling is 1.135× its mf).
+
+Gates: 51/51 speak at 0.8 worst **1.9 c** (= attempt 3), no tuning or
+speak-time regression, 51/51 ignite from silence at pp AND mf AND ff,
+steepener drive inside its domain on every note at ff over the whole note
+(worst 6.16 of ±8 — attempt 3 checked 4 notes over the settled window only
+and saw 3.19), no clip (worst peak 0.900), level ceiling worst 0.331,
+held-pair level match −0.00 dB, queue −0.1 to −7.4 dB vs oboe1 (0.1761).
+GATE NOTE: the ignition gate is pitch-and-periodicity, never loudness —
+the darker pp corner drops pp 4.5 dB, so attempt 3's 0.0015 rms floor would
+have failed 22 notes that lock to the same cent and the same 1.00
+periodicity. Floor is now the repo true-silence floor; pp level reported.
+dsp REVIEW Awaiting: **72**, 62, 65, 38, 39 (71, 70, 69, 68, 67 resolved).
+
+Previous update: 2026-09-18 (dsp, trombone attempt 3 — the blowing-harder
+round; Opus 5 dispatch).
 **TROMBONE ATTEMPT 3 SHIPPED — REVIEW 71, backlog 74(a) RESOLVED, 70 folded
 to a Resolved stub with Matt's verdict verbatim. Zero engine code.**
 Artifacts: tools/gen_trombone3.py, candidate
@@ -59,7 +152,6 @@ Gates: 51/51 speak, worst 1.9 c, no tuning/speak regression vs attempt 2,
 51/51 ignite from silence at pp AND mf AND ff, steepener drive inside its
 domain (knots widened ±2→±4 at the identical slope, untested territory
 attempt 2's normalisation had hidden), no clip, level ceiling ok.
-dsp REVIEW Awaiting: **71**, 62, 65, 38, 39 (70, 69, 68, 67 resolved).
 
 Previous update: 2026-09-18 (dsp, trombone attempt 2; Opus 5 dispatch).
 **TROMBONE ATTEMPT 2 SHIPPED — REVIEW 70, backlog 74 updated. Zero engine

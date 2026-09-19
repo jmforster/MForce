@@ -5,6 +5,68 @@ the same evening. Awaiting = only what still needs Matt.
 
 ## Awaiting Matt
 
+### 72. Trombone, attempt 4 — the held note [listen] (2026-09-19)
+**renders/dsp/audition/trombone4/** — 8 files, README inside.
+
+**What changed, in one line:** the tone control at the end of the chain now
+moves with how hard you blow, instead of sitting at one fixed setting.
+
+You said the loudness/brightness link was there but "only in the attack —
+once the notes settle, their sustain phases sound identical to me, just
+louder", and told me to check it empirically. I did. The instrument *was*
+making a different tone when blown harder, all the way through the held part
+of the note — and then throwing most of it away at the very last step. The
+culprit is the tone control you picked yourself last round ("line beats
+line_brighter"). It is one fixed setting, and you picked it back when the
+instrument was stuck permanently at full blast, so it was chosen to tame a
+sound that had no dynamics. Sitting where it sits, it was removing most of
+the movement: on the low F it let +1% of +25% through; on F5, +27% of +163%.
+
+So the tone control now opens when you blow harder and closes when you play
+softly. **At your normal playing strength it is exactly the number you set
+and the sound is unchanged** — I checked that sample by sample against
+attempt 3 and the two files differ by one step of a 16-bit file, which is
+rounding. How far it opens and closes was solved, not picked by ear: the rule
+is that the amount the instrument brightens between soft and hard has to
+survive to the output.
+
+Also in this build: six of the 51 notes had their hardest setting pulled in,
+because their attack squeaks at maximum. Velocity 0.8 is untouched — the
+"not-great trumpet player" squeak you said you like is still exactly there.
+One of those six, C#6, was not squeaking at maximum, it was dropping a whole
+octave.
+
+**On the rattle map you sent** — you guessed "some Curve just needs some
+tweaking" and added "have a feeling it's not that simple". It isn't. I
+measured the rate of that oscillation on nine notes and tested it against
+every candidate in the instrument. **The oscillation is the note itself** —
+its own pulse rate, to within one percent on every note where the
+measurement gives a clean answer. Not the air column's echo, not the lip,
+not any envelope timing. So there is no rate to retune: changing it means
+changing the pitch. Why it sounds like an impact down low is that below
+about 40 pulses a second the ear stops hearing pitch and starts hearing
+separate events — and you located that boundary by ear to the semitone. You
+said the sustain appears at D2, 36.7 Hz. Measured, D2 is the first note that
+holds at all; C1 and F1 produce no oscillation whatsoever, so all there is
+to hear down there is the thump and the ring-down. Those notes are also
+below everything that is tuned (every setting stops at F2), which is why D2
+and E2 play 12–27 cents sharp.
+
+**THE QUESTION: play `hold_soft.wav` then `hold_hard.wav`.** They are the
+same note held four seconds, matched to the same loudness in the held part
+on purpose, so volume can't fool either of us. Is the held part a different
+tone now, or still the same tone louder? If you play only one file, play
+**hold_hard.wav**.
+
+Two things I did NOT fix and want you to know before you listen. Soft is now
+darker AND about 4.5 dB quieter than last round — that is the soft end of the
+same tone control, and if it's too much it is one number. And nothing still
+changes *during* a held note: measured, the tone is identical to three digits
+from 0.2 s to 2.2 s. Your "swell after the attack" needs the breath to move
+while a note is sounding, which nothing in the current setup can do — that's
+a design conversation (a breath controller, or a per-note shape), not a tweak.
+Report: reports/2026-09-19-trombone4.md.
+
 ### 62. bwg_perc2 — tuned percussion, decay fixed [listen — BLOCKED, re-render coming] (2026-09-16)
 **renders/dsp/audition/bwg_perc2/** — marimba/xylo/vibes/chime/tom/
 woodblock/glass with realistic decay times (round 1's fault: everything
@@ -58,7 +120,7 @@ Compact stubs only; full detail in run reports, STATUS digests, and the
 verdict logs cited. Newest first.
 
 - **71. Trombone, attempt 3 — the blowing-harder round** (verdicted 09-19,
-  attempt 4 dispatched the same day): the two-gain-stages fix landed, but
+  SUPERSEDED by entry 72 the same day): the two-gain-stages fix landed, but
   only half the instrument. Matt, verbatim: "Line is still good, no
   regression... the loudness/brightness linkage is there, but it's subtle,
   and *only* there in the attack - once the notes settle, their sustain
