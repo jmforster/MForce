@@ -299,7 +299,43 @@ Tags per WORKFLOW.md.
     note-to-note scatter with 5.0 dB jumps between ADJACENT semitones; the
     scatter (unambiguous artifact) is still corrected in full and 65% of
     the ramp, leaving 5.3 dB of register slope in the signal.
-    OPEN, IN PRIORITY ORDER: (a3) **the low register still does not open
+    VERDICT AT ATTEMPT 3 (09-19): "Line is still good, no regression...
+    the loudness/brightness linkage is there, but it's subtle, and *only*
+    there in the attack - once the notes settle, their sustain phases
+    sound identical to me, just louder." Full verdict verbatim in REVIEW
+    71's resolved stub. Attempt 4 dispatched same day.
+    OPEN, IN PRIORITY ORDER: (a5) **the brightness linkage lives only in
+    the attack — settled sustain is timbre-identical, just louder**
+    (Matt's ears 09-19, "feel free to check this empirically"). Verify
+    time-resolved first: centroid in an attack window vs a settled window,
+    pp/mf/ff, and the travelling-wave amplitude AT the steepener input in
+    the settled phase (probe via gen_trombone3.probe_signal). Then
+    attribute: does the loop self-limit to the same sustain amplitude
+    regardless of breath, does the a4 ±8 clamp rail flatten the top, or
+    does the steepener see the difference and act too weakly? Real brass
+    brightens with sustained level, so this is physics owed, not polish.
+    Attempt 3's deferred work order 5 (steepener depth riding the breath)
+    is sanctioned exactly if the measurement says the loop genuinely
+    saturates. (a6) **the low-register rattle, REOPENED on new evidence**
+    — attempt 2's closure measured lock-time and periodicity and stands
+    as measured, but Matt's 09-19 octave map describes a different thing:
+    an audible oscillation in attack AND release tail, frequency-linked
+    (too slow low, right in octave 5, too fast at the top of octave 6),
+    with a formant sweep "B-wAWWW"→"B-wAHHH" from G2 to C3 and a release
+    rattle that compresses to a terminating buzz by G4 and a feature by
+    C5. Measure the modulation rate of the attack/release envelope per
+    note and match candidates against his map: bore round-trip rate
+    (three-period bore ⇒ ~f0/3), the per-note lip resonance, the breath
+    ramp constants, post-key-up bore ring-down. His map is the ground
+    truth; fresh 2-attempt budget for the reopened claim. Also
+    characterize what the patch does BELOW the solved range (maps start
+    at F2/midi 29; he plays down into octave 1 and gets rattle-only).
+    (a7) **intermittent squeak at max velocity** — new at attempt 3
+    (velocity 1.0 drives each note's measured pressure ceiling); suspects
+    are the a4 clamp railing 53–69% of the cycle at ff and overblow past
+    the intended partial. A lower velocity→pressure ceiling is an
+    acceptable fix — 0.8's "not-great trumpet player" squeak he likes.
+    (a3) **the low register still does not open
     up** — F2 moves +1.3% because its usable breath span is 3.8:1 against
     A#3's 13.7:1: below ~26 kPa it goes sharp and then falls into a
     pressure hole where it stops speaking. Needs the lip/bore pairing
@@ -333,7 +369,10 @@ Tags per WORKFLOW.md.
     harmonic count; comb tolerance narrower than the analysis window's
     mainlobe) and the corrected metrics live in gen_trombone2.residual /
     lock_time. 2-attempt rule invoked; reopen only on new evidence from
-    Matt's ears. Also measured and REJECTED: a keytracked voicing corner —
+    Matt's ears. REOPENED 09-19 as (a6) above — his octave map IS that
+    new evidence, and it names a different observable (audible attack/
+    tail oscillation rate) than the lock-time/periodicity metrics this
+    closure measured; the closure's numbers themselves stand. Also measured and REJECTED: a keytracked voicing corner —
     it flattens brightness-relative-to-pitch (13.4×/1.9× → 4.1×/1.8×) but
     takes the register level spread from 13.1 dB to 36.5 dB by stripping
     the low notes of the only band they have energy in.
@@ -346,6 +385,32 @@ Tags per WORKFLOW.md.
     sub-thread (2-attempt rule per mechanism); the campaign parks when
     Matt has a trombone he calls usable, or when two consecutive rounds
     fail to move his verdict.
+
+75. **[bug] Passage renders cut the last note off abruptly — a trailing
+    Rest does not help** — Matt 09-19 (REVIEW 71 verdict), auditioning
+    Ode2Joy and shorter Passages in the UI. Suspects, in order: the
+    transport/Generate window ends at the last EVENT rather than honoring
+    a trailing Rest when computing score end; the voice tail allowance
+    (kVoiceTailSec=0.4, backlog 63) not reaching the final voice on the
+    passage path; Play-buffer length truncated to score end. Localize
+    with the unified Generate: mforce_ui --gencheck vs mforce_cli on the
+    same passage — if the CLI WAV rings out and the UI buffer doesn't,
+    it's the window; if both cut, it's the loader/score-end math.
+    Diagnosis is coordinator (Fable) work, queued behind the attempt-4
+    dispatch so the build isn't rebuilt under a running render batch.
+
+76. **[perf] UI chokes on trombone-scale patches (55 nodes)** — Matt
+    09-19 (REVIEW 71 verdict), his laptop: wire drawing "super
+    sluggish," five velocity-slider clicks queue up and count down over
+    multiple seconds, noticeable key-press-to-sound delay. Profile with
+    trombone_attempt3.json loaded; prime suspects: per-frame waveform
+    strips across a 55-node graph, full-graph redraw per frame, live-path
+    voice setup cost. The queued-clicks symptom smells like work done
+    per-event on the UI thread (each click re-triggering something
+    heavy), which would also explain key-to-sound latency. Related but
+    separate: Matt added auto-grouping/auto-layout + a Patch node to
+    GOALS himself (organization features); this item is the raw
+    performance.
 
 ## Design questions
 

@@ -5,80 +5,6 @@ the same evening. Awaiting = only what still needs Matt.
 
 ## Awaiting Matt
 
-### 71. Trombone, attempt 3 — does it open up when you blow harder? [listen] (2026-09-18)
-**renders/dsp/audition/trombone3/** (8 files, README inside), patch at
-**patches/audition/trombone1/trombone_attempt3.json** — it sits next to
-attempts 1 and 2 so you can load one after the other.
-
-You said you'd play attempt 2, and that the thing left to fix was the
-blowing-harder thing. That is the whole of this round.
-
-**It was never the physics. It was two of my own volume knobs.**
-
-The first one is embarrassing and simple. The part of this instrument that
-makes it brighter when you blow harder works by being hit harder — and I
-had a gain stage in front of it that took the loudness out, set per render,
-and another one after it that put the loudness back. So soft and loud
-arrived at that part at exactly the same size and came out exactly the same.
-Both knobs are gone. It now gets the air column's own wave at whatever size
-it happens to be, and across the playing range that is a **23 dB**
-difference instead of none.
-
-The second: **the whole instrument was already playing at forte.** Attempt
-2 had one breath setting for every note, and that setting was dragged up by
-G6, which won't start below 72 kPa. Measured one note at a time, A#3 plays
-in tune anywhere from 2.7 to 53 kPa — a 20-to-1 range — and attempt 2 sat at
-40. There was nowhere softer to go. Every note now has its own soft and its
-own loud, measured from silence, so no note is held hostage by another.
-
-**How you blow harder: velocity.** Hit the key harder on the MIDI keyboard,
-or move the velocity slider for QWERTY. The default 0.8 is EXACTLY attempt
-2's setting, so the instrument you liked is still sitting in the middle —
-below it you get genuinely soft, above it genuinely hard.
-
-Measured, soft to hard:
-
-| note | attempt 2 | attempt 3 |
-|---|---|---|
-| F2 | +0.6% brighter | +1.3% |
-| A#3 | −0.3% | **+18.5%** |
-| F5 | −0.4% | **+27.0%** |
-| A#3 loudness | +4 dB | **+23 dB** |
-
-**The level-flattening you told me to take out is out.** Attempt 2 flattened
-the instrument to exactly 0.0 dB bottom to top, which is a studio move, not
-an instrument. I separated that trim into two parts: 5 dB jumps between
-neighbouring semitones (that is a model bug, no instrument does that — kept
-and still corrected) and a smooth "gets stronger as it climbs" ramp (partly
-real, a bell radiates highs better than lows — only 65% corrected now). The
-register is **5.3 dB louder at the top than the bottom** instead of dead
-flat. Nothing that is left touches the sound before the nonlinear part — I
-rendered that node with the trim on and off and it is identical to six
-decimal places.
-
-**I checked your lip theory and it was not the lip.** The published brass
-physics says the lip slamming shut at forte is what creates brightness, so I
-measured it inside the graph: the lip is already shut for a quarter of every
-cycle even when played softly, and the steepness of the pulse it makes goes
-up **28× on A#3 and 53× on F5** between soft and hard. Nothing about the lip
-was changed.
-
-**Where it is still flat, and I am not dressing it up:** F2. The low notes
-only have about 3.5 dB of breath between "as soft as it goes" and normal —
-below that they go out of tune and then fall into a hole where they stop
-speaking entirely. So `ladder_low` will not do much and `ladder_mid` will.
-
-Nothing regressed: all 51 notes F2–G6 still speak, worst 1.9 cents, nothing
-slower to start, and every note now also starts on its own at BOTH the soft
-and the hard setting.
-
-THE QUESTION: **does it open up when you blow harder now?** The one cell to
-play if you play only one is `ladder_mid` (A#3, soft/normal/hard). Then
-`ab_attempt2_ff` against `ab_attempt3_ff` — those two are level-matched on
-purpose, so anything you hear is tone and not volume.
-
-Report: reports/2026-09-18-trombone3.md.
-
 ### 62. bwg_perc2 — tuned percussion, decay fixed [listen — BLOCKED, re-render coming] (2026-09-16)
 **renders/dsp/audition/bwg_perc2/** — marimba/xylo/vibes/chime/tom/
 woodblock/glass with realistic decay times (round 1's fault: everything
@@ -130,6 +56,40 @@ something audible and ride it, whenever hardware appears.
 
 Compact stubs only; full detail in run reports, STATUS digests, and the
 verdict logs cited. Newest first.
+
+- **71. Trombone, attempt 3 — the blowing-harder round** (verdicted 09-19,
+  attempt 4 dispatched the same day): the two-gain-stages fix landed, but
+  only half the instrument. Matt, verbatim: "Line is still good, no
+  regression... the loudness/brightness linkage is there, but it's subtle,
+  and *only* there in the attack - once the notes settle, their sustain
+  phases sound identical to me, just louder... what's missing to my ears
+  is any swell or brightening *after* the attack, which is pretty
+  characteristic of brass." → backlog 74(a5), attempt 4's headline.
+  His octave-by-octave rattle map, new evidence that reopens the thread
+  attempt 2 closed (→ 74(a6)): a "dullish impact put thru a spring
+  reverb, with a second / softer spring reverb rattle at the release";
+  octave 1 is ONLY that, regardless of hold; octave 2 (from D2/36.7 Hz)
+  sustains but with a formant-modulation "B-wAWWW" at G2 becoming
+  "B-wAHHH" by C3; by G3 the formant shift is gone and the rattle has
+  compressed into a sluggish horn attack, improving through octave 3; by
+  G4 the release tail is a terminating buzz, by C5 no longer a problem
+  "and possibly even a feature"; octave 5 is the best overall sound
+  (trumpet territory), attack intermittently squeaky, especially now at
+  max velocity (→ 74(a7)) — at 0.8 it "squeaks just enuf to sound like a
+  not-great trumpet player - but is so perfectly realistic that I kind of
+  like it"; octave 6 sustain weakens to "tinks" at A/B/C (74(b) stands).
+  His mechanism guess, recorded as the map's shape: an oscillation in the
+  attack, repeated in the tail, linked to frequency — too slow low,
+  perfect in octave 5, too fast at the top of octave 6 — "as if some
+  Curve just needs some tweaking. Have a feeling it's not that simple."
+  (Likely relevant and to be verified in the round: the solved maps start
+  at F2/midi 29 — what the patch does below that is currently
+  uncharacterized, and octaves 1–2-below-F2 are exactly where the rattle
+  is worst.) Two side reports spun off: the last note of a passage cuts
+  off abruptly even with a trailing Rest → backlog 75 [bug]; the UI can
+  barely handle a patch this size on his laptop → backlog 76 [perf], and
+  Matt added auto-grouping/auto-layout + a Patch node to the GOALS
+  wishlist himself. Report: reports/2026-09-18-trombone3.md.
 
 - **70. Trombone, attempt 2** (verdicted 09-18, superseded by 71 the same
   day): the range Matt actually plays solved end to end — 51 chromatic
