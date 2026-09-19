@@ -1,6 +1,64 @@
 # Status — session handoff (Claude reads this first; Matt's queue = */REVIEW.md)
 
-Updated: 2026-09-18 (dsp, trombone attempt 2; Opus 5 dispatch).
+Updated: 2026-09-18 (dsp, trombone attempt 3 — the blowing-harder round;
+Opus 5 dispatch).
+**TROMBONE ATTEMPT 3 SHIPPED — REVIEW 71, backlog 74(a) RESOLVED, 70 folded
+to a Resolved stub with Matt's verdict verbatim. Zero engine code.**
+Artifacts: tools/gen_trombone3.py, candidate
+patches/audition/trombone1/trombone_attempt3.json (55 nodes, gateable=1),
+8 ears cells in renders/dsp/audition/trombone3/, report
+reports/2026-09-18-trombone3.md.
+
+**74(a) WAS NEVER THE PHYSICS — IT WAS TWO GAIN STAGES OF MINE.** (1)
+gen_trombone2.calibrate() peak-normalised INTO the steepener per cell
+(in_gain = DRIVE_PEAK/peak) and un-normalised after it, so soft and loud
+drove the nonlinearity to the same 0.800 peak BY CONSTRUCTION. Ablated, the
+steepener contributes +6 Hz of centroid at S=0.2 and +65 Hz at S=3.0 — it is
+a dynamics component the moment it sees dynamics. (2) the instrument was
+permanently at forte: one global pressure had to keep G6 (72 kPa) alive
+while A#3 plays in tune over 2.7–53 kPa, so there was no softer to go to.
+FIXED: DRIVE_GAIN is a constant 1.0 (steepener sees the raw travelling
+wave; verified the output trim does not move NL_in by 1e-6), and blowing
+pressure is now PER NOTE and VELOCITY-DRIVEN, solved from each note's own
+measured floor and ceiling (51 notes × 19 pressures, single note per render
+from silence). Velocity 0.8 = attempt 2's exact working point, so the gates
+hold by construction.
+
+**THE METRIC, centroid pp→ff:** F2 +0.6%→+1.3%, A#3 −0.3%→**+18.5%**, F5
+−0.4%→**+27.0%**. >1 kHz share ×0.98→×3.44 (A#3), ×1.02→×8.42 (F5). Level
+pp→ff +4 dB→+23 dB. Attribution measured separately: the per-note span alone
+buys +5.3%, removing the normalisation triples it. Both fixes were needed.
+
+**LEVELLING DE-KLUDGED per Matt's directive** ("we want the sound to be
+right, can always get bigger speakers"). Attempt 2's trim decomposes into a
+15.1 dB smooth register ramp and ±4.9 dB of note-to-note scatter with 5.0 dB
+jumps between ADJACENT semitones. Scatter = unambiguous artifact, kept in
+full; 65% of the ramp applied. Register spread 0.0 dB → **5.3 dB**, top
+louder. Queue WAVs still presentation-calibrated to oboe1 (0.1761).
+
+**THE LIP WAS NOT THE LIMIT** (work order 4, one measurement, negative):
+shut ~28% of every cycle even at pp, pressure rise rate up 28× (A#3) and 53×
+(F5) pp→ff. No lip parameter touched. Work order 5 (steepener depth riding
+the breath) NOT built — it was conditioned on 1–4 leaving brightness flat.
+
+**NEW 74(a4), ENGINE TRAP LOGGED NOT FIXED:** the engine's global ±8 value
+clamp (core/dsp_value_source.h:144) is inside the lip's operating range at
+ff — displacement rails 53–69% of each cycle, and the POSITIVE rail matters
+because flow is proportional to the opening. The top of the dynamic range is
+squared off by a safety clamp, not by physics.
+**MEASUREMENT NOTE, reusable:** a probe rendering an internal graph node is
+multiplied by the voice mix gain (velocity × volume) like the real output —
+this round's first pass read a soft note's lip as never closing because of
+it. gen_trombone3.probe_signal() divides both out.
+**STILL FLAT:** F2, +1.3%. Its breath span is 3.8:1 against A#3's 13.7:1 —
+below ~26 kPa it goes sharp and then falls into a pressure hole. 74(a3).
+Gates: 51/51 speak, worst 1.9 c, no tuning/speak regression vs attempt 2,
+51/51 ignite from silence at pp AND mf AND ff, steepener drive inside its
+domain (knots widened ±2→±4 at the identical slope, untested territory
+attempt 2's normalisation had hidden), no clip, level ceiling ok.
+dsp REVIEW Awaiting: **71**, 62, 65, 38, 39 (70, 69, 68, 67 resolved).
+
+Previous update: 2026-09-18 (dsp, trombone attempt 2; Opus 5 dispatch).
 **TROMBONE ATTEMPT 2 SHIPPED — REVIEW 70, backlog 74 updated. Zero engine
 code.** Matt verdicted 69 ("no, not quite yet. But it is way, way better")
 with five items; this round answers all five. Artifacts:

@@ -243,8 +243,14 @@ Tags per WORKFLOW.md.
 74. **[campaign] Brass — the one-mass lip line, toward a usable trombone**
     — opened 2026-09-17 (REVIEW 66/67/68), first full assembly 2026-09-18
     (REVIEW 69, reports/2026-09-18-trombone1.md), second pass same day
-    (REVIEW 70, reports/2026-09-18-trombone2.md, tools/gen_trombone2.py,
-    zero engine code both rounds).
+    (REVIEW 70, reports/2026-09-18-trombone2.md, tools/gen_trombone2.py),
+    third pass same day (REVIEW 71, reports/2026-09-18-trombone3.md,
+    tools/gen_trombone3.py) — zero engine code in all three.
+    MATT'S VERDICT AT ATTEMPT 2: "Yes, I'd play it. Decent trombone in the
+    lows and trumpet in the highs... Line beats line_brighter. Nice mellow
+    tone. Further refinement possible, of course, especially the blowing
+    harder thing." The 1100 Hz "line" voicing corner is therefore the
+    instrument's, fixed.
     WHERE IT STANDS: the published one-mass lip (Berjamin
     arXiv:1511.04247 §3.1) drives a trombone-length air column whose
     partial is chosen by the lip, terminated by Smyth & Scott's measured
@@ -267,16 +273,48 @@ Tags per WORKFLOW.md.
     standing check. Also resolved: the top two notes would not ignite from
     silence (only in a line, inheriting the previous note's energy) — the
     breath map fixes it.
-    OPEN, IN PRIORITY ORDER: (a) **dynamics barely change timbre** —
-    re-measured at real level, centroid 473→477 Hz from 31 to 50 kPa.
-    Unchanged verdict, and now the dynamic range itself is narrow because
-    the top note's ignition threshold sets the soft end. Suspects
-    unchanged and untested: the bell reflection throwing away the
-    harmonics harder blowing makes, and the steepener sitting outside a
-    now-bell-limited loop. Still the next measurement. (b) **G6 needs
+    RESOLVED at attempt 3 — (a) **dynamics barely change timbre**, the
+    long-standing 74a. It was not the physics; it was two gain stages of
+    mine. (1) gen_trombone2.calibrate() peak-normalised INTO the steepener
+    per cell and un-normalised after it, so soft and loud drove the
+    nonlinearity to the same 0.800 peak by construction; ablated, the
+    steepener contributes +6 Hz of centroid at S=0.2 and +65 Hz at S=3.0,
+    i.e. it is a dynamics component the moment it sees dynamics. (2) the
+    instrument was permanently at forte, because one global pressure had
+    to keep G6 (72 kPa) alive while A#3 plays in tune over 2.7–53 kPa.
+    Fixed: DRIVE_GAIN is a constant 1.0 (the steepener sees the raw
+    travelling wave; verified the output trim does not move NL_in by 1e-6)
+    and blowing pressure is per-note, velocity-driven, solved from each
+    note's own measured floor and ceiling, with velocity 0.8 pinned to
+    attempt 2's exact working point so the gates hold by construction.
+    MEASURED, centroid pp→ff: F2 +0.6%→+1.3%, A#3 −0.3%→**+18.5%**, F5
+    −0.4%→**+27.0%**; >1 kHz share ×0.98→×3.44 (A#3) and ×1.02→×8.42
+    (F5); level pp→ff +4 dB→+23 dB. Attribution measured separately: the
+    per-note span alone buys +5.3%, removing the normalisation triples it.
+    Also resolved at attempt 3: the LIP was not the limit (it is shut ~28%
+    of every cycle at pp and its pressure rise rate goes up 28× on A#3 and
+    53× on F5 pp→ff, so no lip parameter was touched), and attempt 2's
+    exact-0.0 dB register flattening is out per Matt's standing directive
+    — the trim decomposes into a 15.1 dB smooth ramp and ±4.9 dB of
+    note-to-note scatter with 5.0 dB jumps between ADJACENT semitones; the
+    scatter (unambiguous artifact) is still corrected in full and 65% of
+    the ramp, leaving 5.3 dB of register slope in the signal.
+    OPEN, IN PRIORITY ORDER: (a3) **the low register still does not open
+    up** — F2 moves +1.3% because its usable breath span is 3.8:1 against
+    A#3's 13.7:1: below ~26 kPa it goes sharp and then falls into a
+    pressure hole where it stops speaking. Needs the lip/bore pairing
+    looked at, not another map. (a4) **the engine's global ±8 value clamp
+    (core/dsp_value_source.h) is inside the lip's operating range at ff** —
+    the displacement rails for 53–69% of each cycle, and the POSITIVE rail
+    matters because flow is proportional to the opening, so the top of the
+    dynamic range is squared off by a safety clamp rather than by physics.
+    Either an engine round or a rescaling of the lip's normalised units.
+    Logged 09-18, no engine code that round. (b) **G6 needs
     72 kPa to ignite** where everything below B5 needs 8 — a real player
     does not need nine times the breath for a top note; that is a property
-    of this lip/bore pairing. (c) the slide is `round(f0/58.27)` rather
+    of this lip/bore pairing. Attempt 3 measured the consequence: G6's pp
+    is 92 kPa, louder than most of the instrument's ff, and its whole
+    dynamic span is 2.3:1. (c) the slide is `round(f0/58.27)` rather
     than seven real positions, and the instrument can play notes a real
     tenor cannot. (d) no viscothermal loss on the ~2.7 m of cylindrical
     tube in front of the bell. (e) the loop sign convention is still
@@ -299,6 +337,11 @@ Tags per WORKFLOW.md.
     it flattens brightness-relative-to-pitch (13.4×/1.9× → 4.1×/1.8×) but
     takes the register level spread from 13.1 dB to 36.5 dB by stripping
     the low notes of the only band they have energy in.
+    MEASUREMENT NOTE worth reusing: a probe that renders an internal graph
+    node is multiplied by the voice mix gain (velocity × volume) exactly
+    like the real output — attempt 3's first pass read a soft note's lip
+    as never closing because of it. gen_trombone3.probe_signal() divides
+    both gains out and is the reusable form.
     STOP CONDITIONS: a round with zero gate-passing cells ends its
     sub-thread (2-attempt rule per mechanism); the campaign parks when
     Matt has a trombone he calls usable, or when two consecutive rounds

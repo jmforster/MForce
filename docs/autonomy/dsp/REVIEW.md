@@ -5,84 +5,79 @@ the same evening. Awaiting = only what still needs Matt.
 
 ## Awaiting Matt
 
-### 70. Trombone, attempt 2 [VERDICTED 09-18: "Yes, I'd play it" — folds to Resolved when the 74a round lands]
-**renders/dsp/audition/trombone2/** (8 files, README inside) and the
-patch at **patches/audition/trombone1/trombone_attempt2.json** — it sits
-in the same folder as attempt 1 so you can load one, then the other.
+### 71. Trombone, attempt 3 — does it open up when you blow harder? [listen] (2026-09-18)
+**renders/dsp/audition/trombone3/** (8 files, README inside), patch at
+**patches/audition/trombone1/trombone_attempt3.json** — it sits next to
+attempts 1 and 2 so you can load one after the other.
 
-**First, the thing you caught.** You said low C doesn't sound and the
-lowest note is G2 at 49 Hz. You were right, and there was no bug in the
-patch — I had been writing note names an octave below the ones your
-keyboard shows you. The UI names a key by dividing its MIDI number by
-12; I was using the other common convention. So my "low C" was the key
-you call **C3**, and the key you pressed labelled C2 was a whole octave
-below anything I had ever tuned. Your 49 Hz, your 784 Hz top note and
-your "tink" above it are all reproduced exactly in the render. I also
-rendered the same patch through the command-line renderer and through
-the UI's own render path to be sure: they agree to six decimal places,
-so there is no live-versus-offline difference at all. Everything from
-here on is in YOUR note names.
+You said you'd play attempt 2, and that the thing left to fix was the
+blowing-harder thing. That is the whole of this round.
 
-**What that fixed.** Last round only ever tuned from C3 upward, and you
-play down to G2. Below C3 the patch was guessing — up to 80 cents sharp,
-nearly a quarter tone, with the lip set to a guess instead of a measured
-value. This round solves **every chromatic note from F2 to G6**, the whole
-range you reported as playable. All 51 of them speak and the worst one is
-**1.9 cents** off (last round: 37 notes, worst 4.2). Nothing that worked
-before got worse — that is gated, not hoped for.
+**It was never the physics. It was two of my own volume knobs.**
 
-**Volume.** Two causes, both fixed. The queue was never compared to a real
-patch; I now render `patches/library/winds/oboe1.json` through the same
-pipeline and match it. And the instrument itself was **14.3 dB louder at
-the top of its range than at the bottom**, so levelling a line that crosses
-the range set the gain from the top note and buried the trombone register.
-There is a measured per-note level trim in the patch now and that spread is
-**0.0 dB** — it is in the patch, so it is there when you play it live.
-`soft` is **12 dB louder** than the one you couldn't hear.
+The first one is embarrassing and simple. The part of this instrument that
+makes it brighter when you blow harder works by being hit harder — and I
+had a gain stage in front of it that took the loudness out, set per render,
+and another one after it that put the loudness back. So soft and loud
+arrived at that part at exactly the same size and came out exactly the same.
+Both knobs are gone. It now gets the air column's own wave at whatever size
+it happens to be, and across the playing range that is a **23 dB**
+difference instead of none.
 
-**Brightness.** There is a lowpass in the patch. `line.wav` is the darker
-corner and `line_brighter.wav` is the brighter one, same take otherwise.
-**This is the one thing only your ears can decide — if you answer nothing
-else, answer which of those two is the instrument.**
+The second: **the whole instrument was already playing at forte.** Attempt
+2 had one breath setting for every note, and that setting was dragged up by
+G6, which won't start below 72 kPa. Measured one note at a time, A#3 plays
+in tune anywhere from 2.7 to 53 kPa — a 20-to-1 range — and attempt 2 sat at
+40. There was nowhere softer to go. Every note now has its own soft and its
+own loud, measured from silence, so no note is held hostage by another.
 
-**The low register.** I tested two theories about the attack and both were
-wrong, and I am not dressing them up: the sustain down there is as periodic
-as the top, and the bottom actually settles onto its pitch FASTER than the
-top does. What was genuinely broken is the two things above — those notes
-were a quarter tone sharp and 14 dB quiet. `low_before.wav` against
-`low_after.wav` is that comparison on the notes you were playing, and the
-pair is deliberately NOT level-matched, so you hear the loudness difference
-as it really is. If the rattle is still there after that, it is a third
-thing and I have nothing measurable on it yet.
+**How you blow harder: velocity.** Hit the key harder on the MIDI keyboard,
+or move the velocity slider for QWERTY. The default 0.8 is EXACTLY attempt
+2's setting, so the instrument you liked is still sitting in the middle —
+below it you get genuinely soft, above it genuinely hard.
 
-**Your soft/loud observation was the useful one.** "High C in soft
-struggles to lock in while loud locks much quicker" — that is real and it
-now has a number. A note won't start at all until the blowing pressure
-clears its own threshold, and that threshold climbs steeply at the top:
-everything up to B5 starts at 8 kPa, C6 needs 12, F6 needs 36, G6 needs 72.
-Last round blew the same pressure at every pitch, so its soft setting was
-literally below the pressure the top notes need. The patch now carries a
-measured per-note breath map, and the top two notes went from "won't start
-unless another note just played" to starting on their own. The honest cost:
-this instrument's soft end is limited by its top note, so soft and loud are
-31 and 50 kPa — a narrower range than I claimed last round, because that
-window had been measured on a line where each note coasted in on the
-previous one's energy.
+Measured, soft to hard:
 
-**Still the weak spot, unchanged:** blowing harder barely changes the
-timbre (centroid 473 → 477 Hz). A real trombone opens up enormously between
-p and ff and this one does not. Now at least it is loud enough for you to
-judge that for yourself.
+| note | attempt 2 | attempt 3 |
+|---|---|---|
+| F2 | +0.6% brighter | +1.3% |
+| A#3 | −0.3% | **+18.5%** |
+| F5 | −0.4% | **+27.0%** |
+| A#3 loudness | +4 dB | **+23 dB** |
 
-THE QUESTION: same as last time. **Would you put it on a track and play
-it?** And: `line` or `line_brighter`?
+**The level-flattening you told me to take out is out.** Attempt 2 flattened
+the instrument to exactly 0.0 dB bottom to top, which is a studio move, not
+an instrument. I separated that trim into two parts: 5 dB jumps between
+neighbouring semitones (that is a model bug, no instrument does that — kept
+and still corrected) and a smooth "gets stronger as it climbs" ramp (partly
+real, a bell radiates highs better than lows — only 65% corrected now). The
+register is **5.3 dB louder at the top than the bottom** instead of dead
+flat. Nothing that is left touches the sound before the nonlinear part — I
+rendered that node with the trim on and off and it is identical to six
+decimal places.
 
-MATT: Yes, I'd play it. Decent trombone in the lows and trumpet in the
-highs. Somehow you fixed the attack on low notes.. it's not perfect but
-way better. Line beats line_brighter. Nice mellow tone. Further refinement
-possible, of course, especially the blowing harder thing.
+**I checked your lip theory and it was not the lip.** The published brass
+physics says the lip slamming shut at forte is what creates brightness, so I
+measured it inside the graph: the lip is already shut for a quarter of every
+cycle even when played softly, and the steepness of the pulse it makes goes
+up **28× on A#3 and 53× on F5** between soft and hard. Nothing about the lip
+was changed.
 
-Report: reports/2026-09-18-trombone2.md.
+**Where it is still flat, and I am not dressing it up:** F2. The low notes
+only have about 3.5 dB of breath between "as soft as it goes" and normal —
+below that they go out of tune and then fall into a hole where they stop
+speaking entirely. So `ladder_low` will not do much and `ladder_mid` will.
+
+Nothing regressed: all 51 notes F2–G6 still speak, worst 1.9 cents, nothing
+slower to start, and every note now also starts on its own at BOTH the soft
+and the hard setting.
+
+THE QUESTION: **does it open up when you blow harder now?** The one cell to
+play if you play only one is `ladder_mid` (A#3, soft/normal/hard). Then
+`ab_attempt2_ff` against `ab_attempt3_ff` — those two are level-matched on
+purpose, so anything you hear is tone and not volume.
+
+Report: reports/2026-09-18-trombone3.md.
 
 ### 62. bwg_perc2 — tuned percussion, decay fixed [listen — BLOCKED, re-render coming] (2026-09-16)
 **renders/dsp/audition/bwg_perc2/** — marimba/xylo/vibes/chime/tom/
@@ -135,6 +130,21 @@ something audible and ride it, whenever hardware appears.
 
 Compact stubs only; full detail in run reports, STATUS digests, and the
 verdict logs cited. Newest first.
+
+- **70. Trombone, attempt 2** (verdicted 09-18, superseded by 71 the same
+  day): the range Matt actually plays solved end to end — 51 chromatic
+  notes F2–G6 (HOUSE names) inside 1.9 cents, a measured per-note breath
+  map so the top two notes start from silence, queue loudness matched to a
+  library patch, and the note-naming mismatch that cost round 1 an octave
+  found and fixed. Matt, verbatim: "Yes, I'd play it. Decent trombone in
+  the lows and trumpet in the highs. Somehow you fixed the attack on low
+  notes.. it's not perfect but way better. Line beats line_brighter. Nice
+  mellow tone. Further refinement possible, of course, especially the
+  blowing harder thing." Acted on: the 1100 Hz "line" voicing corner is
+  now the instrument's, fixed, and the blowing-harder thing is entry 71's
+  whole round — it was two of my own gain stages, not the physics
+  (reports/2026-09-18-trombone3.md §1). Full detail:
+  reports/2026-09-18-trombone2.md.
 
 - **69. Trombone, attempt 1** (verdicted 09-18, superseded by 70 the same
   day): the full assembly — measured Smyth & Scott bell, one-tube bore with
