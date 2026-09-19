@@ -2,6 +2,9 @@
 
 Updated: 2026-09-18 (dsp, trombone attempt 3 — the blowing-harder round;
 Opus 5 dispatch).
+WORKING-TREE NOTE for the next session: docs/autonomy/GOALS.md carries
+Matt's own uncommitted refresh (his steering action item) — never revert
+or fold it into a run commit; he commits it himself.
 **TROMBONE ATTEMPT 3 SHIPPED — REVIEW 71, backlog 74(a) RESOLVED, 70 folded
 to a Resolved stub with Matt's verdict verbatim. Zero engine code.**
 Artifacts: tools/gen_trombone3.py, candidate
