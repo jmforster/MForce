@@ -241,36 +241,68 @@ Tags per WORKFLOW.md.
     Mesh2D port round on evidence.
 
 74. **[campaign] Brass — the one-mass lip line, toward a usable trombone**
-    — opened 2026-09-17 (REVIEW 66/67/68), first full assembly shipped
-    2026-09-18 (REVIEW 69, reports/2026-09-18-trombone1.md,
-    tools/gen_trombone1.py + tools/bell_smyth.py, zero engine code).
+    — opened 2026-09-17 (REVIEW 66/67/68), first full assembly 2026-09-18
+    (REVIEW 69, reports/2026-09-18-trombone1.md), second pass same day
+    (REVIEW 70, reports/2026-09-18-trombone2.md, tools/gen_trombone2.py,
+    zero engine code both rounds).
     WHERE IT STANDS: the published one-mass lip (Berjamin
     arXiv:1511.04247 §3.1) drives a trombone-length air column whose
     partial is chosen by the lip, terminated by Smyth & Scott's measured
     trombone bell (EURASIP 2011:151436, solved from its Table-1 geometry
     — the paper publishes no numeric filter), with the REVIEW-66
-    steepener between them. Measured: 37/37 chromatic notes C2–C5 speak
-    within 4.2 cents, speak time median 114 ms (round 68: C2 dead, C3
-    694 ms, +15…+29 c), 9–51 kPa playing window, gated envelope with a
-    real expand stage, fast non-mirrored release. Candidate at
-    patches/audition/trombone1/trombone_attempt1.json awaiting Matt.
+    steepener between them, and a voicing lowpass after it. Four measured
+    per-note maps ride the played note: lip ratio (widest speaking
+    window), air-column trim (equal temperament), breath support
+    (ignition threshold), output trim (register level).
+    Measured at attempt 2: **51/51 chromatic notes midi 29–79 (house
+    F2–G6) speak within 1.9 cents**, register level spread 14.3 dB → 0.0,
+    queue loudness matched to patches/library/winds/oboe1.json (worst cell
+    −4.8 dB, was −18.9), no tuning or speak-time regression against
+    attempt 1. Candidate at
+    patches/audition/trombone1/trombone_attempt2.json awaiting Matt.
+    RESOLVED at attempt 2: the "C2 does not sound" report was a NOTE-NAME
+    mismatch, not a live-path bug — the UI names notes by midi/12 and the
+    round-1 tooling used midi/12−1. mforce_cli and mforce_ui --gencheck
+    agree to 1e-6 on the same patch; `gen_trombone2.py parity` is the
+    standing check. Also resolved: the top two notes would not ignite from
+    silence (only in a line, inheriting the previous note's energy) — the
+    breath map fixes it.
     OPEN, IN PRIORITY ORDER: (a) **dynamics barely change timbre** —
-    742→751 Hz centroid across a 4× pressure range where round 68 got
-    2.1× more HF energy; suspects are the bell reflection throwing away
-    the harmonics harder blowing makes, and the steepener sitting outside
-    a now-bell-limited loop. This is the next measurement. (b) the slide
-    is `round(f0/58.27)` rather than seven real positions, and the
-    instrument can play notes a real tenor cannot. (c) no viscothermal
-    loss on the ~2.7 m of cylindrical tube in front of the bell. (d) the
-    loop sign convention is still non-inverting; a real bell reflection
-    inverts at low frequency and adopting it changes which partials the
-    tube supports. (e) nothing is fitted to a real trombone recording —
-    the ML-ears/viola machinery is the obvious next validation.
-    (f) three notes (A#2, A#4, B4) have lip windows only 3–5 scan steps
-    wide, the round's thinnest cracking margins. STOP CONDITIONS: a round
-    with zero gate-passing cells ends its sub-thread (2-attempt rule per
-    mechanism); the campaign parks when Matt has a trombone he calls
-    usable, or when two consecutive rounds fail to move his verdict.
+    re-measured at real level, centroid 473→477 Hz from 31 to 50 kPa.
+    Unchanged verdict, and now the dynamic range itself is narrow because
+    the top note's ignition threshold sets the soft end. Suspects
+    unchanged and untested: the bell reflection throwing away the
+    harmonics harder blowing makes, and the steepener sitting outside a
+    now-bell-limited loop. Still the next measurement. (b) **G6 needs
+    72 kPa to ignite** where everything below B5 needs 8 — a real player
+    does not need nine times the breath for a top note; that is a property
+    of this lip/bore pairing. (c) the slide is `round(f0/58.27)` rather
+    than seven real positions, and the instrument can play notes a real
+    tenor cannot. (d) no viscothermal loss on the ~2.7 m of cylindrical
+    tube in front of the bell. (e) the loop sign convention is still
+    non-inverting; a real bell reflection inverts at low frequency and
+    adopting it changes which partials the tube supports. (f) nothing is
+    fitted to a real trombone recording — the ML-ears/viola machinery is
+    the obvious next validation. (g) **no shared note-naming helper in the
+    repo** — the UI's house convention and the tools' scientific naming
+    coexist and cost a round; a one-function fix whenever a tool touch is
+    due anyway.
+    CLOSED at attempt 2 (measured, not assumed): the low-register "rattle"
+    has no separate onset defect that two hypotheses could find — the
+    sustain is as periodic at the bottom as the top (residual 0.02–0.05
+    everywhere) and the bottom reaches periodicity FASTER (10–50 ms vs
+    90 ms at C6). Both first measurements were metric bugs of mine (fixed
+    harmonic count; comb tolerance narrower than the analysis window's
+    mainlobe) and the corrected metrics live in gen_trombone2.residual /
+    lock_time. 2-attempt rule invoked; reopen only on new evidence from
+    Matt's ears. Also measured and REJECTED: a keytracked voicing corner —
+    it flattens brightness-relative-to-pitch (13.4×/1.9× → 4.1×/1.8×) but
+    takes the register level spread from 13.1 dB to 36.5 dB by stripping
+    the low notes of the only band they have energy in.
+    STOP CONDITIONS: a round with zero gate-passing cells ends its
+    sub-thread (2-attempt rule per mechanism); the campaign parks when
+    Matt has a trombone he calls usable, or when two consecutive rounds
+    fail to move his verdict.
 
 ## Design questions
 

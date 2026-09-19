@@ -1,55 +1,80 @@
 # Status — session handoff (Claude reads this first; Matt's queue = */REVIEW.md)
 
-Updated: 2026-09-18 (dsp, trombone round; Opus 5 dispatch).
-**TROMBONE ATTEMPT 1 SHIPPED — REVIEW 69, backlog 74 opened as the brass
-campaign item. Zero engine code.** Matt verdicted 68 ("attack indeed
-resembles a brass attack… definitely not saxy") with four defects; this is
-the full KNOWN-TARGET assembly answering all four plus the bell.
-Artifacts: tools/gen_trombone1.py + tools/bell_smyth.py, candidate
-patches/audition/trombone1/trombone_attempt1.json (instrument-style, 39
-nodes, noteFaces + positions, QWERTY-playable), 8 ears cells in
-renders/dsp/audition/trombone1/, report
-reports/2026-09-18-trombone1.md, bell curves+coefficients in
-docs/research/nonlinear_bore/smyth_bell_fit.json.
-**BELL: Smyth & Scott 2011 (EURASIP 151436) FETCHED in full** — but it
-publishes NO numeric filter (Figs 8/13/16 are raster plots, and ref [12]'s
-RL/TL expressions are paywalled), so what ships is the paper's own model
-solved on its own measured Bessel-horn geometry (Table 1, which
-self-validates: Eq. 21 reproduces its own stated radii to 3 digits).
-Three labelled substitutions, all measured not asserted: piecewise-
-cylindrical transfer matrix at 400 slices (0.27 dB from a 2000-slice
-reference) instead of Eqs. 22–25's conical scattering; flanged-piston
-termination instead of [12]'s L&S (median 0.42 dB difference); and
-radiated-POWER rather than on-axis pressure for the transmission, because
-the on-axis reading is a mic inside the bell and rendered at centroid
-2150 Hz vs the power reading's 760. Independent cross-check: solved
-reflection is −3 dB at 662 Hz against ICMC'97's ~800 Hz bell-reflection
-bandwidth, different group, different measurement.
-**TWO DEFECTS WERE MISDIAGNOSED BY ROUND 68, both corrected by
-measurement.** (1) The sharpness is NOT the lip — it grows with frequency,
-the signature of the delay's linear-interpolated short read; the lip ratio
-moves pitch only ~170 c/unit against a ~0.10-wide speaking window, so
-chasing cents with it walks off the edge into silence. Fix: lip ratio
-solved for the WIDEST SPEAKING WINDOW (margin against cracking), air
-column solved for cents (BORE_MAP, 1.000 at C2 → 1.019 at C4). Both maps
-measured at all 37 chromatic steps and pasted into the gen script.
-(2) Low notes were slow because round 68's bore was THREE NOTE-PERIODS
-LONG FOR EVERY NOTE — 15.7 m at C2. Replaced with the real architecture:
-one trombone-length tube, delay ratio pin = partial number
-round(f0/58.27 Hz). RESULTS: 37/37 notes speak within 4.2 c (was +15…+29 c
-and dead below G2); speak median 114 ms, worst 216 ms (was C3 694, C4 348,
-C5 426, C2 dead); playing window 9–51 kPa on all nine audition notes;
-0.5/2/6 s renders scale the hold only (onset fixed at 0.100 s, tail 0.18 s
-inside kVoiceTailSec). Fifth defect found and fixed: pm ∝ f_lip² left C2 a
-near-pure sine 30 dB under C5 — PM_EXP 0.5 cuts the register spread to
-4 dB. WIRING TRAP WORTH REMEMBERING: reading the tuned lip frequency back
-through {"tap":"Flip"} cost −33.7 c and 15 dB (nothing else advances Flip
-on that sample); each such pin now gets its own points map on __perf_f.
-KNOWN WEAK SPOT, reported not hidden: blowing 4× harder moves the centroid
-742→751 Hz — the dynamics-to-timbre link has nearly vanished vs round 68's
-2.1×; that is backlog 74(a) and the next measurement. Breath-burst lever
-measured at 12× and 40× and changed NOTHING — wired, off, reported.
-dsp REVIEW Awaiting: **69**, 62, 65, 38, 39 (68 and 67 resolved).
+Updated: 2026-09-18 (dsp, trombone attempt 2; Opus 5 dispatch).
+**TROMBONE ATTEMPT 2 SHIPPED — REVIEW 70, backlog 74 updated. Zero engine
+code.** Matt verdicted 69 ("no, not quite yet. But it is way, way better")
+with five items; this round answers all five. Artifacts:
+tools/gen_trombone2.py (imports gen_trombone1's chassis — verified
+BIT-IDENTICAL at matched config, max sample diff 0.0), candidate
+patches/audition/trombone1/trombone_attempt2.json (43 nodes, instrument-
+style, noteFaces, gateable=1), 8 ears cells in
+renders/dsp/audition/trombone2/, report reports/2026-09-18-trombone2.md.
+
+**THE HEADLINE IS A NOTE-NAMING BUG AND IT WAS MINE.** Matt: "low C does
+not sound; lowest note is G2 (49Hz)." There is NO live/offline divergence —
+mforce_cli and mforce_ui --gencheck agree to **1e-6** on the same patch at
+every note midi 24–39, gatecheck gateable=1. mforce_ui names notes by the
+HOUSE convention (octave = midi/12, main.cpp `baseNote = octave*12`, cites
+comp REVIEW 19); gen_trombone1.py used scientific (midi/12−1). The two ends
+of the conversation were an octave apart all round. His "C2" = midi 24 =
+32.70 Hz, an octave below anything attempt 1 tuned; his "G2" = midi 31 =
+49.00 Hz, which IS the lowest locking note in the render; his G6 = midi 79
+= 784 Hz and the "tink" above it = midi 81+, attack transient only. Every
+range claim he made reproduces to the Hz. gen_trombone2.py uses HOUSE names
+throughout. **There is no shared note-naming helper in the repo** — backlog
+74(g), do it on the next tool touch.
+
+**RESULTS.** Solved range went 37 notes (midi 36–72) → **51 notes (midi
+29–79, house F2–G6), all speaking, worst tuning 1.9 cents** (was 4.2 over
+37). Regression-gated against attempt 1 across the shared range: zero
+tuning regressions, zero speak-time regressions. Register level spread
+**14.3 dB → 0.0 dB** via a measured per-note output trim in the patch (so
+it applies live too). Queue loudness now matched to a measured library
+reference — patches/library/winds/oboe1.json, sounding rms 0.1761, the
+median of that family — worst cell **−4.8 dB (was −18.9)**, `soft` **+12.1
+dB** on last round. Voicing lowpass INSIDE the patch, two corners staged
+for his ears (1100 Hz candidate / 2200 Hz alternative, median centroid
+737 → 498 / 611 Hz).
+
+**SECOND REAL FINDING: ignition threshold climbs steeply with register.**
+Measured as SINGLE NOTES FROM SILENCE (a note rendered after another
+inherits the bore's energy and starts on it — which is why attempt 1's top
+notes looked fine in a line and would not start alone): everything to B5
+ignites at 8 kPa, C6 12, F6 36, F#6 52, G6 72. PRESS_MAP now carries
+per-note breath support at 1.6× each note's own threshold, FLOORED AT 1.0
+so nothing that already worked moves. This is also the mechanism behind
+Matt's "high C in soft struggles to lock in" — attempt 1's flat soft
+pressure sat below the top notes' threshold. Cost, stated: the soft end is
+limited by the top note, so soft/loud are 31/50 kPa, narrower than attempt
+1's claimed 4× (that window had been measured on a line).
+
+**TWO HYPOTHESES KILLED, both my own metric bugs — the corrected metrics
+are reusable and live in gen_trombone2.residual / lock_time.** (1) "sustain
+is non-harmonic at the bottom": artifact of a FIXED 16-harmonic comb, which
+at 49 Hz only covers to 784 Hz. Whole-band comb → residual 0.02–0.05 at
+every note. (2) "low notes take longer to become periodic than to become
+loud": artifact of a comb tolerance narrower than the analysis window's own
+Hann mainlobe (2 bins). Fixed, with a period-scaled window: the bottom
+locks in 10–50 ms and the TOP is the slow one (C6 90 ms). Four onset levers
+ablated (breath grain, lip kick, steepener, overshoot amount/duration) —
+none moves anything; making the onset SLOWER kills the bottom three notes
+outright, so "scale the onset in periods" is measurably the wrong
+direction. 2-attempt rule invoked on "separate low-register onset defect".
+ALSO BUILT, MEASURED, REJECTED: a keytracked voicing corner. It does
+flatten brightness-relative-to-pitch (13.4×/1.9× → 4.1×/1.8×) and it takes
+the register spread from 13.1 dB to **36.5 dB** by stripping the low notes
+of the only band they have energy in. Fixed corner ships.
+
+**KNOWN WEAK SPOT, unchanged and re-measured at real level:** blowing
+harder barely changes timbre — centroid 473 → 477 Hz, energy >1 kHz
+0.0194 → 0.0210, from 31 to 50 kPa. Backlog 74(a), still the next
+measurement, suspects unchanged. New 74(b): G6 needing 72 kPa where
+everything below B5 needs 8 is not what a real instrument does.
+For the record against the word "bright": 95% of attempt 1's energy is
+below 1571 Hz and 22% above 1 kHz, against 67% above 1 kHz for the library
+oboe. Whatever Matt hears as brightness, it is not HF content by that
+measure.
+dsp REVIEW Awaiting: **70**, 62, 65, 38, 39 (69, 68, 67 resolved).
 
 Previous update: 2026-09-17 (interactive, Fable 5 with Matt; ~8% Fable quota — both
 heavy dispatches ran on Opus subagents per the quota pattern).

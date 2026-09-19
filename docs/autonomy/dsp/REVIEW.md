@@ -5,57 +5,79 @@ the same evening. Awaiting = only what still needs Matt.
 
 ## Awaiting Matt
 
-### 69. Trombone, attempt 1 [listen + play] (2026-09-18)
-**renders/dsp/audition/trombone1/** (8 files, README inside) and the
-patch itself at
-**patches/audition/trombone1/trombone_attempt1.json** — load it and
-play it, it's a proper instrument patch with a keyboard face.
+### 70. Trombone, attempt 2 [listen + play] (2026-09-18)
+**renders/dsp/audition/trombone2/** (8 files, README inside) and the
+patch at **patches/audition/trombone1/trombone_attempt2.json** — it sits
+in the same folder as attempt 1 so you can load one, then the other.
 
-This is the answer to everything you listed about the one-mass lip.
-Supersedes entry 68's queue; nothing in the old onemass_lip1 folder
-needs another pass.
+**First, the thing you caught.** You said low C doesn't sound and the
+lowest note is G2 at 49 Hz. You were right, and there was no bug in the
+patch — I had been writing note names an octave below the ones your
+keyboard shows you. The UI names a key by dividing its MIDI number by
+12; I was using the other common convention. So my "low C" was the key
+you call **C3**, and the key you pressed labelled C2 was a whole octave
+below anything I had ever tuned. Your 49 Hz, your 784 Hz top note and
+your "tink" above it are all reproduced exactly in the render. I also
+rendered the same patch through the command-line renderer and through
+the UI's own render path to be sure: they agree to six decimal places,
+so there is no live-versus-offline difference at all. Everything from
+here on is in YOUR note names.
 
-THE QUESTION: **is this a usable trombone?** Not "is it better" —
-would you put it on a track and play it.
+**What that fixed.** Last round only ever tuned from C3 upward, and you
+play down to G2. Below C3 the patch was guessing — up to 80 cents sharp,
+nearly a quarter tone, with the lip set to a guess instead of a measured
+value. This round solves **every chromatic note from F2 to G6**, the whole
+range you reported as playable. All 51 of them speak and the worst one is
+**1.9 cents** off (last round: 37 notes, worst 4.2). Nothing that worked
+before got worse — that is gated, not hoped for.
 
-What you should be able to hear and check:
-- **Tuning.** Every one of the 37 chromatic notes from C2 to C5 now
-  lands within 5 cents (worst is A4 at 4; everything else is inside 3).
-  Last round it was 15 to 30 cents sharp and the eight notes from C2 up
-  to G2 didn't play at all.
-- **It speaks now.** Low C used to be unplayable; it now starts in
-  78 ms. Middle C3 went from 694 ms to 72 ms. The slowest note in the
-  range is top C at 216 ms.
-- **Holding a key works.** The blowing envelope had no hold stage at
-  all, which is why the note used to run its own schedule no matter
-  what you did with the key. Fixed. `held_6s.wav` is a six-second note;
-  `short_notes.wav` is the same pitches as half-second notes.
-- **The release** no longer mirrors the attack. `line.wav` against
-  `line_old_release.wav` is that exact A/B on the same notes.
-- **The bell** is the big one, and it's the pair I most want your ears
-  on: `line.wav` (real measured trombone bell) against
-  `line_bell_off.wav` (the plain lowpass it replaced). There is also
-  `line_bell_onaxis.wav`, which is the same bell read the way the
-  paper measured it — microphone right in the bell — and it is much
-  brighter. If the plain one sounds more like a trombone than either
-  bell, that is worth knowing and I won't argue with it.
-- **Soft and loud** are `soft.wav` and `loud.wav`, played at the same
-  gain so the difference is real. Honest warning: the brightness
-  change with blowing pressure is measurable but small — a real
-  trombone opens up much more at ff. That is the known weak spot.
+**Volume.** Two causes, both fixed. The queue was never compared to a real
+patch; I now render `patches/library/winds/oboe1.json` through the same
+pipeline and match it. And the instrument itself was **14.3 dB louder at
+the top of its range than at the bottom**, so levelling a line that crosses
+the range set the gain from the top note and buried the trombone register.
+There is a measured per-note level trim in the patch now and that spread is
+**0.0 dB** — it is in the patch, so it is there when you play it live.
+`soft` is **12 dB louder** than the one you couldn't hear.
 
-One thing I changed that you didn't ask for, because chasing your
-"low notes take forever" complaint found it: the old patch built a
-tube three note-lengths long for **every** note, so low C rode a 15
-metre air column. A real trombone is one tube of about 2.7 m for the
-whole range and the player picks which of its notes speaks with the
-lips. This patch does that now, and it is why the bottom of the range
-suddenly works.
+**Brightness.** There is a lowpass in the patch. `line.wav` is the darker
+corner and `line_brighter.wav` is the brighter one, same take otherwise.
+**This is the one thing only your ears can decide — if you answer nothing
+else, answer which of those two is the instrument.**
 
-Report: reports/2026-09-18-trombone1.md (includes what I could and
-could not get out of the bell paper — its own curves are pictures with
-no numbers behind them, so I solved its model on its measured bell
-shape rather than tracing a graph).
+**The low register.** I tested two theories about the attack and both were
+wrong, and I am not dressing them up: the sustain down there is as periodic
+as the top, and the bottom actually settles onto its pitch FASTER than the
+top does. What was genuinely broken is the two things above — those notes
+were a quarter tone sharp and 14 dB quiet. `low_before.wav` against
+`low_after.wav` is that comparison on the notes you were playing, and the
+pair is deliberately NOT level-matched, so you hear the loudness difference
+as it really is. If the rattle is still there after that, it is a third
+thing and I have nothing measurable on it yet.
+
+**Your soft/loud observation was the useful one.** "High C in soft
+struggles to lock in while loud locks much quicker" — that is real and it
+now has a number. A note won't start at all until the blowing pressure
+clears its own threshold, and that threshold climbs steeply at the top:
+everything up to B5 starts at 8 kPa, C6 needs 12, F6 needs 36, G6 needs 72.
+Last round blew the same pressure at every pitch, so its soft setting was
+literally below the pressure the top notes need. The patch now carries a
+measured per-note breath map, and the top two notes went from "won't start
+unless another note just played" to starting on their own. The honest cost:
+this instrument's soft end is limited by its top note, so soft and loud are
+31 and 50 kPa — a narrower range than I claimed last round, because that
+window had been measured on a line where each note coasted in on the
+previous one's energy.
+
+**Still the weak spot, unchanged:** blowing harder barely changes the
+timbre (centroid 473 → 477 Hz). A real trombone opens up enormously between
+p and ff and this one does not. Now at least it is loud enough for you to
+judge that for yourself.
+
+THE QUESTION: same as last time. **Would you put it on a track and play
+it?** And: `line` or `line_brighter`?
+
+Report: reports/2026-09-18-trombone2.md.
 
 ### 62. bwg_perc2 — tuned percussion, decay fixed [listen — BLOCKED, re-render coming] (2026-09-16)
 **renders/dsp/audition/bwg_perc2/** — marimba/xylo/vibes/chime/tom/
@@ -109,6 +131,31 @@ something audible and ride it, whenever hardware appears.
 Compact stubs only; full detail in run reports, STATUS digests, and the
 verdict logs cited. Newest first.
 
+- **69. Trombone, attempt 1** (verdicted 09-18, superseded by 70 the same
+  day): the full assembly — measured Smyth & Scott bell, one-tube bore with
+  the lip picking the partial, key-gated envelope, fast release, 37 notes
+  inside 5 cents. Matt, verbatim: "Would I put it on a track and play it?
+  No, not quite yet. But it is way, way better. Everything is waaay too
+  bright, but a final LPF takes care of that. The top register with the lpf
+  added is a usable trumpet, with a 'straining' squeaky attack. The brass
+  character disappears in the lower register, attack comes off as a kind of
+  rattle and the sustain phase isn't quite right either, but I can't quite
+  pin down why. If by low C you meant C2, that does *not* sound for me
+  (using 'loud' patch). Lowest sounding note for that patch is G2 (49Hz).
+  G6 (784) is highest note (A/B/C7 make sound but it's like a tink)...
+  overall a pretty great range. Overall volume is still very low, so it's
+  tough to confirm your (lack of) loudness/briteness linkage diagnosis -
+  because 'soft' is barely audible at 100% speakers. I did notice high C in
+  'soft' struggles to lock in while 'loud' locks much quicker, in case
+  that's relevant. Go ahead with next pass, though I haven't given you much
+  re: 'fixing' the actual trombone range (maybe adjustments to 'lip' /
+  excitation for lower notes?)." All five items answered in entry 70. The
+  one that mattered most was mine to own: the round's note names were an
+  octave below the UI's, so "C2 does not sound" was me tuning a different
+  octave from the one he was playing — not a live-path bug, and the two
+  render paths agree to six decimals. Renders superseded by
+  renders/dsp/audition/trombone2/; attempt 1's patch kept beside attempt 2
+  for A/B. Report: reports/2026-09-18-trombone1.md.
 - **68. One-mass lip, first ears** (verdicted 09-18, Matt in REVIEW):
   "Attack indeed resembles a brass attack, though it's still pretty far
   from a trombone patch. Definitely not saxy." — the mass-on-a-spring lip
