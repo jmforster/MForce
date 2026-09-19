@@ -5,7 +5,7 @@ the same evening. Awaiting = only what still needs Matt.
 
 ## Awaiting Matt
 
-### 70. Trombone, attempt 2 [listen + play] (2026-09-18)
+### 70. Trombone, attempt 2 [VERDICTED 09-18: "Yes, I'd play it" — folds to Resolved when the 74a round lands]
 **renders/dsp/audition/trombone2/** (8 files, README inside) and the
 patch at **patches/audition/trombone1/trombone_attempt2.json** — it sits
 in the same folder as attempt 1 so you can load one, then the other.
@@ -76,6 +76,11 @@ judge that for yourself.
 
 THE QUESTION: same as last time. **Would you put it on a track and play
 it?** And: `line` or `line_brighter`?
+
+MATT: Yes, I'd play it. Decent trombone in the lows and trumpet in the
+highs. Somehow you fixed the attack on low notes.. it's not perfect but
+way better. Line beats line_brighter. Nice mellow tone. Further refinement
+possible, of course, especially the blowing harder thing.
 
 Report: reports/2026-09-18-trombone2.md.
 
