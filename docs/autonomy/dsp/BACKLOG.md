@@ -412,6 +412,27 @@ Tags per WORKFLOW.md.
     GOALS himself (organization features); this item is the raw
     performance.
 
+77. **[tool] Post-success patch audit — which knobs do anything, then
+    strip the rest** — Matt 09-19, from hand-tweaking trombone_attempt3:
+    "most tweaks I made *did nothing*. I set MaxValues to zero, other
+    things to crazy numbers - no impact on sound... when we achieve
+    success on a patch, there oughtta be one more step - *auditing* it to
+    see which knobs actually do something, and stripping out the
+    extraneous ones that got bolted on in the quest for the target
+    sound." Mechanize the attempt-3 procedure that found the two dead
+    gain stages: for every settable descriptor in a patch, render
+    baseline vs perturbed, report audible effect size; for measured-dead
+    candidates, strip and prove the render unchanged (null-gate
+    discipline per knob). Two hard requirements: (1) sample the operating
+    space — a few notes × velocities — before calling anything dead (the
+    steepener is inert at any FIXED velocity; a single-point audit would
+    strip the dynamics component); (2) classify, don't just cull:
+    genuinely-extraneous (strip), masked (e.g. the per-note baked maps
+    override upstream hand-tweaks by design — document, don't strip),
+    and live-path bug (setting never reaches render — fix; backlog 31 is
+    the known kin). Output = a per-knob table Matt can read before
+    hand-tweaking, plus a minimal-patch candidate.
+
 ## Design questions
 
 68. **[design, brainstorm] Articulation-keyed multi-graph Instruments** —
