@@ -768,9 +768,71 @@ static void run_transition_field_tests() {
     CHECK(out.current() == 0.0f);
 }
 
+#include "mforce/render/patch_loader.h"
+#include "mforce/render/instrument.h"
+#include <nlohmann/json.hpp>
+#include <fstream>
+#include <sstream>
+#include <cstring>
+
+// Load a baseline patch with its score block stripped (the tests schedule
+// their own notes). Run engine_tests from the repo root.
+static InstrumentPatch load_scoreless(const char* path) {
+    std::ifstream f(path);
+    std::stringstream ss; ss << f.rdbuf();
+    std::string txt = ss.str();
+    auto j = nlohmann::json::parse(txt);
+    j.erase("score");
+    return load_instrument_patch_json(j.dump());
+}
+
+static void run_phrase_tests() {
+    const char* kPatch = "patches/baselines/BaselineSIN.json";
+    const int N = int(1.6f * 48000);
+
+    // Gate 2 (spec §7): a two-note phrase, same pitch/velocity, nothing
+    // wired to transition — byte-identical to one note of summed duration.
+    auto a = load_scoreless(kPatch);
+    auto* pa = dynamic_cast<PitchedInstrument*>(a.instrument.get());
+    CHECK(pa != nullptr);
+    pa->play_note(60.0f, 0.8f, 1.0f, 0.0f);
+    std::vector<float> bufA(size_t(N), 0.0f);
+    RenderContext ctxA{a.sampleRate};
+    a.instrument->render(ctxA, bufA.data(), N);
+
+    auto b = load_scoreless(kPatch);
+    auto* pb = dynamic_cast<PitchedInstrument*>(b.instrument.get());
+    pb->play_phrase({{60.0f, 0.8f, 0.5f, ""}, {60.0f, 0.8f, 0.5f, ""}}, 0.0f);
+    std::vector<float> bufB(size_t(N), 0.0f);
+    RenderContext ctxB{b.sampleRate};
+    b.instrument->render(ctxB, bufB.data(), N);
+
+    CHECK(std::memcmp(bufA.data(), bufB.data(), size_t(N) * sizeof(float)) == 0);
+
+    // Mid-voice retune: second half of a C4->G4 phrase must oscillate
+    // ~1.5x faster (zero-crossing count), proving set_note re-drives the
+    // frequency chain on the living voice.
+    auto c = load_scoreless(kPatch);
+    auto* pc = dynamic_cast<PitchedInstrument*>(c.instrument.get());
+    pc->play_phrase({{60.0f, 0.8f, 0.5f, ""}, {67.0f, 0.8f, 0.5f, ""}}, 0.0f);
+    std::vector<float> bufC(size_t(N), 0.0f);
+    RenderContext ctxC{c.sampleRate};
+    c.instrument->render(ctxC, bufC.data(), N);
+    auto zc = [&](int from, int to) {
+        int n = 0;
+        for (int i = from + 1; i < to; ++i)
+            if ((bufC[size_t(i)] >= 0) != (bufC[size_t(i-1)] >= 0)) ++n;
+        return n;
+    };
+    int half = 24000;
+    float ratio = float(zc(half, 2 * half)) / float(std::max(1, zc(0, half)));
+    CHECK(ratio > 1.35f && ratio < 1.65f);   // 392/261.6 = 1.498
+}
+
 int main() {
     run_passage_parse_tests();
     run_transition_field_tests();
+    run_phrase_tests();
     run_curve_node_tests();
     run_curve_expr_tests();
     run_envelope_range_tests();

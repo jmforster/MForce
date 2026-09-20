@@ -9,6 +9,7 @@
 #include "mforce/source/multiplex_source.h"
 #include <cstdio>
 #include <memory>
+#include <set>
 #include <vector>
 #include <string>
 #include <unordered_map>
@@ -243,9 +244,27 @@ struct PitchedInstrument final : Instrument {
   // write, push-binding evaluation (settings + Multiplex fans), and the P1
   // bend graft on the swap targets. Push deliveries happen BEFORE
   // vg.source->prepare — settings rebuild per-note state there.
+  // Transition vocabulary (spec 2026-09-19-note-transitions §5): the
+  // instrument block's "transitions" array, in declaration order. Interned
+  // ids are 1-based; 0 = none/unknown. Stable, so ordinal use in a Curve
+  // is dependable.
+  std::vector<std::string> transitionNames;
+  std::set<std::string> warnedTransitions_;   // once-per-name unknown warn
+  float transition_id(const std::string& name) {
+    if (name.empty()) return 0.0f;
+    for (size_t k = 0; k < transitionNames.size(); ++k)
+      if (transitionNames[k] == name) return float(k + 1);
+    if (warnedTransitions_.insert(name).second)
+      std::fprintf(stderr, "[transition] name '%s' is not in this "
+                   "instrument's transitions[] vocabulary — it will never "
+                   "fire\n", name.c_str());
+    return 0.0f;
+  }
+
   void apply_note_bindings(VoiceGraph& vg, float freq, float velocity,
                            int durSamples, float durSeconds,
-                           const PitchCurve* curve) {
+                           const PitchCurve* curve,
+                           float transitionId = 0.0f) {
     if (vg.performSource) {
       // P3: the bend rides the PerformSource itself — .frequency
       // articulates base * 2^(bend(t)/12), advanced by tick() from the
@@ -259,7 +278,7 @@ struct PitchedInstrument final : Instrument {
         bend->prepare(RenderContext{sampleRate}, durSamples);
       }
       vg.performSource->set_note(freq, velocity, durSamples, durSeconds,
-                                 std::move(bend));
+                                 std::move(bend), transitionId);
     }
 
     // Push deliveries evaluate the chain ONCE at note-on (Setup), so a bend
@@ -305,26 +324,101 @@ struct PitchedInstrument final : Instrument {
              vg.advanceList };
   }
 
-  void play_note(float noteNumber, float velocity, float duration, float startTime,
-                 const PitchCurve* curve = nullptr) {
+  // One note of a phrase (spec 2026-09-19-note-transitions §4). The phrase
+  // is the unit that acquires a voice, prepares the graph and opens the
+  // envelope span — everything a note was; in-phrase notes re-drive the
+  // living voice. transition = a name from the instrument's transitions[]
+  // vocabulary ("" = none).
+  struct PhraseNote {
+    float noteNumber;
+    float velocity;
+    float durationSeconds;
+    std::string transition;
+  };
+
+  // Trigger firing at Setup (spec §5): envelopes whose trigger input is
+  // nonzero at this note's Setup restart from their current value. The
+  // bindings are collected at load; empty = no-op (feature at rest).
+  void fire_triggers(VoiceGraph& vg) {
+    (void)vg;   // bindings land with the trigger-collection loader pass
+  }
+
+  // Mid-phrase Setup: set_note + push bindings, NO graph prepare. Settings
+  // (isSetting) bindings are SKIPPED — set_setting rebuilds per-note state
+  // at prepare and must not run mid-render (v1 decision, spec verify-flag
+  // (b)); they hold their phrase-start value. Non-setting deliveries are
+  // pointer/value swaps and safe. Pull chains (noteFaces curves) need no
+  // delivery at all — they read the new NoteState live.
+  void advance_phrase_note(VoiceGraph& vg, const PhraseNote& p) {
+    float freq = note_to_freq(p.noteNumber);
+    int durS = int(p.durationSeconds * float(sampleRate));
+    if (vg.performSource)
+      vg.performSource->set_note(freq, p.velocity, durS, p.durationSeconds,
+                                 nullptr, transition_id(p.transition));
+    for (auto& b : vg.pushBindings) {
+      if (b.isSetting) continue;
+      b.chain->next();
+      float v = b.chain->current();
+      b.cs->set(v);
+      b.consumer->set_param(b.paramName, b.cs);
+      if (vg.topMultiplex && !b.targetNodeId.empty())
+        vg.topMultiplex->set_clone_param(b.targetNodeId, b.paramName, v);
+    }
+    fire_triggers(vg);
+  }
+
+  void play_note(float noteNumber, float velocity, float duration,
+                 float startTime, const PitchCurve* curve = nullptr) {
+    play_phrase({{noteNumber, velocity, duration, {}}}, startTime, curve);
+  }
+
+  void play_phrase(const std::vector<PhraseNote>& pns, float startTime,
+                   const PitchCurve* curve = nullptr) {
+    if (pns.empty()) return;
     int vIdx = int(nextVoice % int(voicePool.size()));
     auto& vg = voicePool[size_t(vIdx)];
     nextVoice++;
 
+    const float noteNumber = pns[0].noteNumber;   // containment report id
     float freq = note_to_freq(noteNumber);
-    int durSamples = int(duration * float(sampleRate));
+    float totalSec = 0.0f;
+    for (auto& p : pns) totalSec += p.durationSeconds;
+    // The phrase is one long note to the graph: envelopes lay their
+    // stages over the PHRASE length (spec §4 — that is the one-breath
+    // model, and a one-note phrase is byte-identical to today's note).
+    const int durSamples = int(totalSec * float(sampleRate));
 
-    apply_note_bindings(vg, freq, velocity, durSamples, duration, curve);
+    apply_note_bindings(vg, freq, pns[0].velocity,
+                        int(pns[0].durationSeconds * float(sampleRate)),
+                        pns[0].durationSeconds, curve,
+                        transition_id(pns[0].transition));
 
-    // Frequency-dependent brightness compensation
+    // Frequency-dependent brightness compensation. The voice-mix gain is
+    // per-voice and fixed for the phrase (note 1's velocity): it cannot
+    // change mid-buffer without a zipper. Mid-phrase velocity still
+    // reaches the graph through the velocity face for patches that wire
+    // it (the winds do — velocity IS the breath there).
     float boost = hiBoost > 0.0f
         ? (std::log10(std::max(freq, 100.0f)) - 2.0f) * hiBoost
         : 0.0f;
-    float gain = velocity * (1.0f + boost);
+    float gain = pns[0].velocity * (1.0f + boost);
 
     RenderContext ctx{ sampleRate };
     vg.source->prepare(ctx, durSamples);
     for (auto& a : vg.advanceList) a->prepare(ctx, durSamples);
+    fire_triggers(vg);
+
+    // In-phrase boundaries, in samples from phrase start. boundary[k] is
+    // where pns[k] begins (k >= 1).
+    std::vector<int> boundary(pns.size(), 0);
+    {
+      float acc = 0.0f;
+      for (size_t k = 1; k < pns.size(); ++k) {
+        acc += pns[k - 1].durationSeconds;
+        boundary[k] = int(acc * float(sampleRate));
+      }
+    }
+    size_t nextNote = 1;
 
     int startFrame = int(startTime * float(sampleRate));
     const bool capturing = !capturePerVoice.empty();
@@ -346,6 +440,12 @@ struct PitchedInstrument final : Instrument {
     int rendered = 0;
     for (int i = 0; i < maxSamples; ++i) {
       if (i >= renderSamples && ringEnv < kRingFloor) break;
+      // In-phrase note boundary: re-drive the living voice BEFORE this
+      // sample's tick so the whole sample sees the new NoteState.
+      while (nextNote < pns.size() && i >= boundary[nextNote]) {
+        advance_phrase_note(vg, pns[nextNote]);
+        ++nextNote;
+      }
       if (vg.performSource) vg.performSource->tick();   // P3 sample clock
       buf[i] = vg.source->next() * gain;
       for (auto& a : vg.advanceList) a->next();         // tap-only loop tails
