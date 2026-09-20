@@ -4285,6 +4285,11 @@ static bool generate_unified(const std::vector<SchedNote>& notes) {
         float end = 0.0f;
         for (const auto& sn : notes)
             end = std::max(end, sn.startSeconds + sn.durationSeconds);
+        // Ring headroom (backlog 75, surfaced hard by phrasing): the last
+        // event's release/reverb used to be cut at the buffer edge — the
+        // engine renders voices kVoiceTailSec past duration, so the
+        // Generate/Play buffer must include that window too.
+        end += PitchedInstrument::kVoiceTailSec;
         int frames = int(end * float(ip.sampleRate));
 
         pitched->capture_begin(capIds, frames);

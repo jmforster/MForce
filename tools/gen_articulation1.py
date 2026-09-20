@@ -34,17 +34,32 @@ PEAK_CEIL = 0.85
 Q = 0.4                            # quarter note seconds (bpm 150)
 TAIL = 1.2                         # trailing window so voice tails complete
 
-# The tongue consonant, stated once: 8 ms close to zero breath, 22 ms
-# closed, 30 ms reopen, idle at 1.0. Multiplied into the breath, so
-# 1.0 = "not tonguing". The full close matters: the bore's stored energy
-# rides through a partial pinch almost unchanged (measured: a 12 ms dip
-# to 0.15 moved the output envelope by only ~10%).
+# The tongue consonant, stated once: 8 ms dip to DIP_DEPTH, 22 ms there,
+# 30 ms reopen, idle at 1.0. Multiplied into the breath, so 1.0 = "not
+# tonguing". Depth 0.6 is Matt's ear (2026-09-19 interactive pass:
+# "way closer to desired effect" than the full close — a full close
+# reads as a restart, and on marginal loop patches can kill ignition).
+DIP_DEPTH = 0.6
 DIP_STAGES = [
-    {"startVal": 1.0, "endVal": 0.0, "type": "Linear", "percent": 0.008},
-    {"startVal": 0.0, "endVal": 0.0, "type": "Linear", "percent": 0.022},
-    {"startVal": 0.0, "endVal": 1.0, "type": "Linear", "percent": 0.030},
+    {"startVal": 1.0, "endVal": DIP_DEPTH, "type": "Linear",
+     "percent": 0.008},
+    {"startVal": DIP_DEPTH, "endVal": DIP_DEPTH, "type": "Linear",
+     "percent": 0.022},
+    {"startVal": DIP_DEPTH, "endVal": 1.0, "type": "Linear",
+     "percent": 0.030},
     {"startVal": 1.0, "endVal": 1.0, "type": "Linear", "percent": 0.0},
 ]
+
+# Phrase hygiene for percent-mode envelopes (Matt's #4, same pass): a
+# phrase IS one long note, so an unbounded percent stage stretches with
+# the LINE — oboe1's 25%-of-duration release became a 3 s die-off that
+# quashed line endings. maxSec clamps chosen to be INACTIVE at
+# single-note lengths (<= 0.8 s here), so flat behavior is untouched
+# and only the phrase-length stretch is pinned.
+ENV_CLAMPS = {
+    "oboe": {"Drive_env": {0: 0.35, 2: 0.25},
+             "Ampl_env":  {0: 0.05, 2: 0.10}},
+}
 
 # ---------------------------------------------------------------------------
 # wav helpers
@@ -80,12 +95,18 @@ def sounding_rms(x):
 # teaching (patch JSON surgery)
 # ---------------------------------------------------------------------------
 
-def teach(src_path, dst_path, breath_id, consumer_id, consumer_key):
+def teach(src_path, dst_path, breath_id, consumer_id, consumer_key,
+          env_clamps=None):
     """Insert the tongue machinery; repoint consumer_id.params[consumer_key]
-    from breath_id to a new multiply of (breath, TDip)."""
+    from breath_id to a new multiply of (breath, TDip). env_clamps =
+    {env_id: {stage_index: maxSec}} phrase-hygiene clamps."""
     p = json.load(open(src_path))
     p.pop("score", None)           # instrument patch, no smoke score
     p.setdefault("instrument", {})["transitions"] = ["tongue"]
+    for env_id, clamps in (env_clamps or {}).items():
+        node = next(n for n in p["graph"]["nodes"] if n["id"] == env_id)
+        for idx, mx in clamps.items():
+            node["params"]["stages"][idx]["maxSec"] = mx
     nodes = p["graph"]["nodes"]
     ids = {n["id"] for n in nodes}
     for nid in ("__perf_t", "NGt", "TDip", "BreathT"):
@@ -209,7 +230,8 @@ def main():
                           "Mouth", "Pm", "source2"),
         "oboe": teach(SRC["oboe"],
                       os.path.join(PATCH_DIR, "oboe_tongue.json"),
-                      "Drive_env", "Drive_vib", "frequency"),
+                      "Drive_env", "Drive_vib", "frequency",
+                      env_clamps=ENV_CLAMPS["oboe"]),
     }
     base = {"trombone": 48, "oboe": 60}       # house C4 / C5
     holdn = {"trombone": 46, "oboe": 64}      # A#3 / E5
@@ -261,7 +283,9 @@ def main():
     mean_dip = sum(ratios) / len(ratios)
     print("trombone tongue-dip ratios (post/pre boundary): " +
           " ".join("%.2f" % r for r in ratios))
-    assert mean_dip < 0.95, "trombone consonant not measurable"
+    # Threshold matched to the 0.6-depth consonant (Matt's ear): the dent
+    # is deliberately gentle now; this gate only proves it exists.
+    assert mean_dip < 0.97, "trombone consonant not measurable"
     stats["tromb_dip"] = mean_dip
 
     readme = open(os.path.join(OUT, "README.md"), "w")
