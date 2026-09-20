@@ -114,6 +114,30 @@ struct Envelope : ValueSource {
     return rem;
   }
 
+  // Re-enter stage 0 NOW, anchored to the current output (click-free) —
+  // the transition-gesture restart (spec 2026-09-19-note-transitions §5).
+  // Called at note Setup by the instrument's trigger bindings when this
+  // envelope's `trigger` input is nonzero. Reuses the gate-anchor
+  // machinery: the jumped-to stage interpolates from gateFrom_. The
+  // re-entered stages keep their prepared counts, so the expand stage
+  // extends past the original layout end — harmless: the layout window's
+  // trailing silence is masked by the voice's own amp envelope.
+  void retrigger() {
+    if (stages_.empty() || stageCounts_.empty()) return;
+    gateFrom_   = cur_;
+    gateActive_ = true;
+    gateStage_  = 0;
+    stageStart_ = ptr_ + 1;
+    currStage_  = 0;
+    stageEnd_   = stageStart_ + stageCounts_[0];
+  }
+
+  // Setup-sampled restart input (spec 2026-09-19-note-transitions §5).
+  // Read via current() at note Setup by the instrument's trigger
+  // bindings; NEVER pulled in next() — keep trigger chains stateless
+  // (NameGate / PerformOut), or their state freezes.
+  std::shared_ptr<ValueSource> trigger_;
+
   void set_seed(uint32_t s) { seed_ = s; }
   uint32_t get_seed() const { return seed_; }
 
@@ -133,6 +157,7 @@ struct Envelope : ValueSource {
     fresh.maxValue_      = std::move(maxValue_);
     fresh.gated_         = gated_;
     fresh.seed_          = seed_;
+    fresh.trigger_       = std::move(trigger_);
     *this = std::move(fresh);
   }
 
@@ -222,16 +247,19 @@ struct Envelope : ValueSource {
     static constexpr ParamDescriptor descs[] = {
       {"minValue", 0.0f, -100000.0f, 100000.0f},
       {"maxValue", 1.0f, -100000.0f, 100000.0f},
+      {"trigger",  0.0f, 0.0f, 1.0f},
     };
     return descs;
   }
   void set_param(std::string_view name, std::shared_ptr<ValueSource> src) override {
     if (name == "minValue") { minValue_ = std::move(src); return; }
     if (name == "maxValue") { maxValue_ = std::move(src); return; }
+    if (name == "trigger")  { trigger_  = std::move(src); return; }
   }
   std::shared_ptr<ValueSource> get_param(std::string_view name) const override {
     if (name == "minValue") return minValue_;
     if (name == "maxValue") return maxValue_;
+    if (name == "trigger")  return trigger_;
     return nullptr;
   }
 
