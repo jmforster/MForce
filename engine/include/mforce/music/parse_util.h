@@ -228,6 +228,11 @@ inline constexpr float kRestNote = -1.0f;
 struct ParsedNote {
     float noteNumber;
     float durationSeconds;
+    // Phrase delivery (spec 2026-09-19-note-transitions §2): true on the
+    // first note of each phrase. Defaults true so aggregate-init callers
+    // and rests (which never read it) stay valid; a `|`-free passage is
+    // all one-note phrases = exactly the pre-phrase behavior.
+    bool phraseStart{true};
 };
 
 // ---------------------------------------------------------------------------
@@ -257,9 +262,20 @@ inline std::vector<ParsedNote> parse_passage(const char* str, int octave, float 
     std::istringstream iss(str);
     std::string token;
     int tokenNum = 0;
+    // Phrase grouping (spec 2026-09-19-note-transitions §2): `|` marks a
+    // boundary; notes between boundaries (or a boundary and the string's
+    // ends) form one phrase, and rests also end the current phrase (v1
+    // rule). Grouping activates only when the string contains a `|` at
+    // all — a bar-free passage is every-note-its-own-phrase, which is
+    // exactly the pre-phrase behavior (a one-note phrase IS a note).
+    // The `|` check sits BEFORE the size guard — `|` is one char.
+    const bool grouping = std::string_view(str).find('|') != std::string_view::npos;
+    bool nextIsPhraseStart = true;
 
     while (iss >> token) {
         ++tokenNum;
+
+        if (token == "|") { nextIsPhraseStart = true; continue; }
 
         // Octave shifts
         if (token == "O+" || token == "O-") {
@@ -274,6 +290,7 @@ inline std::vector<ParsedNote> parse_passage(const char* str, int octave, float 
         if (token[0] == 'R') {
             float restBeats = parse_duration(token.substr(1)); // throws on invalid duration char
             result.push_back({kRestNote, restBeats * 60.0f / bpm});
+            nextIsPhraseStart = true;
             continue;
         }
 
@@ -308,7 +325,9 @@ inline std::vector<ParsedNote> parse_passage(const char* str, int octave, float 
 
         float durationSeconds = beats * 60.0f / bpm;
 
-        result.push_back({noteNumber, durationSeconds});
+        result.push_back({noteNumber, durationSeconds,
+                          grouping ? nextIsPhraseStart : true});
+        nextIsPhraseStart = false;
     }
 
     return result;
