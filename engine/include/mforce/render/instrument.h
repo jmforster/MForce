@@ -258,6 +258,11 @@ struct PitchedInstrument final : Instrument {
   std::set<std::string> warnedTransitions_;   // once-per-name unknown warn
   float transition_id(const std::string& name) {
     if (name.empty()) return 0.0f;
+    // Untaught instrument (no vocabulary): every name maps to 0,
+    // SILENTLY — phrases still phrase, gestures just don't exist here
+    // (the degradation contract, spec §5). The warn is for a taught
+    // instrument receiving a name outside its vocabulary.
+    if (transitionNames.empty()) return 0.0f;
     for (size_t k = 0; k < transitionNames.size(); ++k)
       if (transitionNames[k] == name) return float(k + 1);
     if (warnedTransitions_.insert(name).second)

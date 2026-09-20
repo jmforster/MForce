@@ -1579,11 +1579,54 @@ Patch load_patch_file(const std::string& path)
         if (root.contains("score")) {
             NotePerformer performer;
             const float bpm = 60.0f;
-            for (const auto& noteJson : root["score"]) {
+            // Phrase grouping (spec 2026-09-19-note-transitions §3): a
+            // note with "phrase":"cont" joins the previous note's phrase
+            // (its own "time" is ignored — it starts where its
+            // predecessor ends). Phrase notes go to play_phrase directly;
+            // everything else keeps the NotePerformer path verbatim.
+            // NOTE this is notation processing over a complete score
+            // array, not note delivery — scanning ahead here is reading
+            // the score, not lookahead in the spec's sense.
+            const auto& score = root["score"];
+            auto is_cont = [&](size_t i) {
+                return i < score.size() &&
+                       score[i].value("phrase", std::string()) == "cont";
+            };
+            std::vector<PitchedInstrument::PhraseNote> phrase;
+            float phraseStart = 0.0f;
+            auto flush = [&]() {
+                if (!phrase.empty()) inst->play_phrase(phrase, phraseStart);
+                phrase.clear();
+            };
+            for (size_t i = 0; i < score.size(); ++i) {
+                const auto& noteJson = score[i];
                 float note     = noteJson.at("note").get<float>();
                 float velocity = noteJson.value("velocity", 0.8f);
                 float duration = noteJson.at("duration").get<float>();
                 float start    = noteJson.value("time", 0.0f);
+                const bool cont = is_cont(i);
+                const bool headsPhrase = !cont && is_cont(i + 1);
+
+                if (cont || headsPhrase) {
+                    // Transition emission — the Performer rule (spec §3
+                    // seam, one function's worth of policy): first of
+                    // phrase "breath", continuations "tongue"; an
+                    // explicit "transition" key overrides.
+                    if (noteJson.contains("articulation") ||
+                        noteJson.contains("ornament"))
+                        throw std::runtime_error("score: articulation/"
+                            "ornament are unsupported on phrase notes "
+                            "(spec 2026-09-19 §3)");
+                    if (cont && phrase.empty())
+                        throw std::runtime_error("score: \"phrase\":"
+                            "\"cont\" with no preceding note");
+                    if (!cont) { flush(); phraseStart = start; }
+                    phrase.push_back({note, velocity, duration,
+                        noteJson.value("transition",
+                            std::string(cont ? "tongue" : "breath"))});
+                    continue;
+                }
+                flush();
 
                 Articulation art = articulations::Default{};
                 if (noteJson.contains("articulation"))
@@ -1596,16 +1639,22 @@ Patch load_patch_file(const std::string& path)
                 Note n{note, velocity, duration, art, orn};
                 performer.perform_note(n, start, bpm, *inst);
             }
+            flush();
             performer.conclude(bpm, *inst);
         }
 
-        // Compute total duration from score
+        // Compute total duration from score. Continuation notes start at
+        // their predecessor's end regardless of any "time" field.
         if (root.contains("score")) {
             double maxEnd = 0;
+            double prevEnd = 0;
             for (const auto& noteJson : root["score"]) {
-                double t = noteJson.value("time", 0.0);
                 double d = noteJson.at("duration").get<double>();
-                maxEnd = std::max(maxEnd, t + d);
+                double t = noteJson.value("phrase", std::string()) == "cont"
+                    ? prevEnd
+                    : noteJson.value("time", 0.0);
+                prevEnd = t + d;
+                maxEnd = std::max(maxEnd, prevEnd);
             }
             // The render covers at least the score; an explicit larger
             // `seconds` extends it (ring headroom — adaptive ring-out,
