@@ -1768,6 +1768,16 @@ static void load_graph_from_path(const std::string& path) {
                 // refs handled in second pass
             }
 
+            // NameGate: restore the transition-name string (spec
+            // 2026-09-19 §5) — a string is outside the pin model, carried
+            // in node.paramName like the Parameter node's name.
+            if (gn.typeName == "NameGate" && params.contains("name") &&
+                params["name"].is_string()) {
+                gn.paramName = params["name"].get<std::string>();
+                snprintf(gn.paramNameBuf, sizeof(gn.paramNameBuf), "%s",
+                         gn.paramName.c_str());
+            }
+
             if (gn.typeName == "CurveNode") {
                 gn.curveKnots.clear();
                 if (params.contains("knots") && params["knots"].is_array())
@@ -2991,6 +3001,12 @@ static nlohmann::json serialize_patch_graph(
                 // 2026-08-10 live-audition click + stretched-tail bug).
                 jnode["params"]["timeMode"] = env->absolute_time ? "seconds" : "fraction";
             }
+        }
+
+        // NameGate: the transition-name string (spec 2026-09-19 §5).
+        if (node.typeName == "NameGate" && !node.paramName.empty()) {
+            if (!jnode.contains("params")) jnode["params"] = json::object();
+            jnode["params"]["name"] = node.paramName;
         }
 
         // FormantSpectrum: synthesize a bare Formant graph node per row and
@@ -4218,6 +4234,11 @@ struct SchedNote {
     float durationSeconds;
     float startSeconds;
     float velocity;
+    // Phrase delivery (spec 2026-09-19-note-transitions §4): a run of
+    // !phraseStart notes extends the phrase of the last phraseStart note.
+    // Defaults keep every existing call site a one-note phrase = today.
+    bool phraseStart{true};
+    std::string transition;
 };
 
 static bool generate_unified(const std::vector<SchedNote>& notes) {
@@ -4267,9 +4288,25 @@ static bool generate_unified(const std::vector<SchedNote>& notes) {
         int frames = int(end * float(ip.sampleRate));
 
         pitched->capture_begin(capIds, frames);
-        for (const auto& sn : notes)
-            pitched->play_note(sn.noteNumber, sn.velocity,
-                               sn.durationSeconds, sn.startSeconds);
+        // Group SchedNotes into phrases (spec 2026-09-19-note-transitions
+        // §4): consecutive !phraseStart notes ride the phrase opened by
+        // the last phraseStart note. Single notes are one-note phrases —
+        // play_note itself delegates to play_phrase, so this is the same
+        // path either way.
+        {
+            std::vector<PitchedInstrument::PhraseNote> phrase;
+            float phraseStart = 0.0f;
+            auto flush = [&]() {
+                if (!phrase.empty()) pitched->play_phrase(phrase, phraseStart);
+                phrase.clear();
+            };
+            for (const auto& sn : notes) {
+                if (sn.phraseStart) { flush(); phraseStart = sn.startSeconds; }
+                phrase.push_back({sn.noteNumber, sn.velocity,
+                                  sn.durationSeconds, sn.transition});
+            }
+            flush();
+        }
 
         buffer_playback_detach();   // it points into g_outputWaveform (3k)
         g_outputWaveform.assign(size_t(frames), 0.0f);
@@ -8151,9 +8188,17 @@ static void transport_generate() {
                     std::vector<SchedNote> sched;
                     float cursor = 0.0f;
                     for (const auto& pn : notes) {
-                        if (pn.noteNumber != kRestNote)
+                        if (pn.noteNumber != kRestNote) {
+                            // Transition emission — the Performer rule
+                            // (spec 2026-09-19 §3 seam): first of phrase
+                            // "breath", continuations "tongue". Untaught
+                            // patches intern these to 0 silently.
                             sched.push_back({pn.noteNumber, pn.durationSeconds,
-                                             cursor, g_transport.velocity});
+                                             cursor, g_transport.velocity,
+                                             pn.phraseStart,
+                                             pn.phraseStart ? "breath"
+                                                            : "tongue"});
+                        }
                         cursor += pn.durationSeconds;
                     }
                     if (sched.empty()) {
@@ -8680,8 +8725,12 @@ static void draw_node(GraphNode& node) {
 
     ImNodes::EndNodeTitleBar();
 
-    // Parameter node: show param name in body
-    if (node.typeName == NT_PARAMETER && !node.paramName.empty()) {
+    // Parameter node: show param name in body. NameGate shows its
+    // transition name the same way — the string is the node's whole
+    // meaning, so it lives on the face, visible in the graph (spec
+    // 2026-09-19 §5: the name lives on a node you can see).
+    if ((node.typeName == NT_PARAMETER || node.typeName == "NameGate")
+        && !node.paramName.empty()) {
         ImGui::TextColored(ImVec4(0.9f, 0.7f, 0.9f, 1.0f), "%s", node.paramName.c_str());
     }
 
@@ -9952,14 +10001,17 @@ static void draw_properties_panel() {
         ImGui::PopItemWidth();
     }
 
-    // Parameter: editable name
-    if (node->typeName == NT_PARAMETER) {
+    // Parameter: editable name. NameGate: editable transition name (the
+    // string the Performer's emitted names match against; graph dirties
+    // so the next Generate/instrument reload re-resolves the id).
+    if (node->typeName == NT_PARAMETER || node->typeName == "NameGate") {
         ImGui::Spacing(); ImGui::Separator(); ImGui::Spacing();
         ImGui::PushItemWidth(-1);
         char nameLabel[32];
         snprintf(nameLabel, sizeof(nameLabel), "name##ppname%d", node->id);
         if (ImGui::InputText(nameLabel, node->paramNameBuf, sizeof(node->paramNameBuf))) {
             node->paramName = node->paramNameBuf;
+            if (node->typeName == "NameGate") mark_graph_dirty();
         }
         ImGui::PopItemWidth();
     }
@@ -12704,12 +12756,28 @@ int main(int argc, char** argv) {
         try {
             load_graph_from_path(argv[2]);
             std::vector<SchedNote> notes;
-            if (s_loadedScore.is_array())
-                for (const auto& ev : s_loadedScore)
-                    notes.push_back({ev.value("note", 60.0f),
-                                     ev.value("duration", 1.0f),
-                                     ev.value("time", 0.0f),
-                                     ev.value("velocity", 0.8f)});
+            if (s_loadedScore.is_array()) {
+                // Mirrors the engine loader's score reading exactly,
+                // including phrase grouping and the Performer emission
+                // rule (spec 2026-09-19 §3) — gencheck parity depends on
+                // the two ends reading one score the same way.
+                const auto& sc = s_loadedScore;
+                float prevEnd = 0.0f;
+                for (size_t i = 0; i < sc.size(); ++i) {
+                    const auto& ev = sc[i];
+                    bool cont = ev.value("phrase", std::string()) == "cont";
+                    bool heads = !cont && i + 1 < sc.size() &&
+                        sc[i+1].value("phrase", std::string()) == "cont";
+                    float dur = ev.value("duration", 1.0f);
+                    float t   = cont ? prevEnd : ev.value("time", 0.0f);
+                    std::string def = cont ? "tongue"
+                                    : heads ? "breath" : "";
+                    notes.push_back({ev.value("note", 60.0f), dur, t,
+                                     ev.value("velocity", 0.8f), !cont,
+                                     ev.value("transition", def)});
+                    prevEnd = t + dur;
+                }
+            }
             if (notes.empty()) { fprintf(stderr, "gencheck: no score\n"); return 1; }
             if (!generate_unified(notes)) {
                 fprintf(stderr, "gencheck: generate_unified failed: %s\n",
