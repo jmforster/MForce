@@ -471,7 +471,25 @@ Tags per WORKFLOW.md.
 
 ## Design questions
 
+78. **[design, someday] InstrumentClass — the principled home for
+    articulation-name coupling** — Matt 2026-09-19, from the note-transitions
+    brainstorm (spec 2026-09-19-note-transitions-design.md): someday Parts
+    specify an Instrument CLASS they are assigned to, and a Performer must
+    use an Instrument of that class; at that stage InstrumentClass holds its
+    valid shape and transition vocabularies, and both Performer emissions and
+    patch NameGates are checked against them. Until then the coupling is
+    name-agreement between the Performer's emission rule and patch-declared
+    vocabularies, visible and lintable (orphan-NameGate warning). v1's
+    patch-level vocabulary list is the seed of the class's.
+
 68. **[design, brainstorm] Articulation-keyed multi-graph Instruments** —
+    STATUS 2026-09-19: the articulation brainstorm happened (spec
+    2026-09-19-note-transitions-design.md) and settled the v1 slice WITHOUT
+    multi-graph: transitions + gestures as trigger-wired envelopes on ONE
+    graph, with the multi-graph question deliberately parked behind a named
+    boundary — it earns its complexity only when a shape refuses to be a
+    permanently-wired-but-silenced path (structurally different excitation).
+    The plumbing questions below remain live for that day.
     Matt 2026-09-10, verbatim shape, to be brainstormed before any spec:
     (1) an Instrument has MULTIPLE node graphs keyed by Articulation.name;
     (2) articulations specified by Composer/score or "Performer";
