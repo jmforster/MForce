@@ -755,8 +755,22 @@ static void run_passage_parse_tests() {
     CHECK(r[3].phraseStart);
 }
 
+#include "mforce/render/perform_source.h"
+
+static void run_transition_field_tests() {
+    auto ps = std::make_shared<PerformSource>();
+    PerformOut out(ps, PerformOut::Field::Transition);
+    CHECK(out.current() == 0.0f);                          // no note yet
+    ps->set_note(440.0f, 0.8f, 48000, 1.0f, nullptr, 2.0f);
+    CHECK(out.current() == 2.0f);
+    CHECK(out.next() == 2.0f);
+    ps->set_note(440.0f, 0.8f, 48000, 1.0f, nullptr);      // default arg = none
+    CHECK(out.current() == 0.0f);
+}
+
 int main() {
     run_passage_parse_tests();
+    run_transition_field_tests();
     run_curve_node_tests();
     run_curve_expr_tests();
     run_envelope_range_tests();

@@ -127,7 +127,7 @@ struct PitchedInstrument final : Instrument {
     // the PitchBendSource graft and its BendSwap machinery are retired;
     // plan_perform_source_p3.md T1).
     std::shared_ptr<ValueSource>   freqOut, velOut, wheelOut, pressOut,
-                                   durOut;
+                                   durOut, transOut;
     std::vector<PushBinding>       pushBindings;
     // Loop tails consumed only by tap edges (feedback_loop_design.md §3.3):
     // never reached by the pull, ticked once per sample AFTER the root pull

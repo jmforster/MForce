@@ -574,6 +574,10 @@ struct GraphNode {
             // note-on for score playback and fixed-duration live mode;
             // the patch reacts via curves/dynamicPins like any field.
             outputs.emplace_back("duration",  PinKind::Output, 1.0f);
+            // The note's interned transition id (spec 2026-09-19-note-
+            // transitions §5): 0 = none, 1.. = the instrument's
+            // transitions[] vocabulary. Held level, like velocity.
+            outputs.emplace_back("transition", PinKind::Output, 0.0f);
             return;
         }
 
