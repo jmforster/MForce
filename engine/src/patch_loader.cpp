@@ -1541,6 +1541,13 @@ Patch load_patch_file(const std::string& path)
                 throw std::runtime_error("instrument: output node '" + outputId + "' not found");
             vg.source = srcIt->second;
 
+            // Trigger bindings (spec 2026-09-19-note-transitions §5):
+            // envelopes with a wired trigger restart at matching Setups.
+            for (auto& [nid, src] : g.valueNodes)
+                if (auto* env = dynamic_cast<Envelope*>(src.get());
+                    env && env->trigger_)
+                    vg.triggerBindings.push_back(env);
+
             // If the voice's output is a MultiplexSource, capture it so play_note
             // can fan paramMap changes into each clone.
             vg.topMultiplex = std::dynamic_pointer_cast<MultiplexSource>(vg.source);
@@ -1797,6 +1804,12 @@ InstrumentPatch load_instrument_patch_json(const std::string& jsonText,
         if (srcIt == g.valueNodes.end())
             throw std::runtime_error("instrument: output node '" + outputId + "' not found");
         vg.source = srcIt->second;
+
+        // Trigger bindings (spec 2026-09-19-note-transitions §5).
+        for (auto& [nid, src] : g.valueNodes)
+            if (auto* env = dynamic_cast<Envelope*>(src.get());
+                env && env->trigger_)
+                vg.triggerBindings.push_back(env);
 
         vg.topMultiplex = std::dynamic_pointer_cast<MultiplexSource>(vg.source);
 

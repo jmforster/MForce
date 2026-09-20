@@ -140,6 +140,12 @@ struct PitchedInstrument final : Instrument {
     // offline capture can resolve display ids; ~node-count shared_ptrs,
     // the graph outlives them anyway). Empty for mixer-path instruments.
     std::unordered_map<std::string, std::shared_ptr<ValueSource>> nodesById;
+    // Envelopes in this voice with a wired `trigger` input (spec
+    // 2026-09-19-note-transitions §5), collected at load. Raw pointers:
+    // the voice's graph owns them (same lifetime rationale as
+    // CaptureEntry). fire_triggers reads each trigger via current() at
+    // note Setup — never in the sample loop.
+    std::vector<Envelope*> triggerBindings;
   };
 
   float hiBoost{0.0f};
@@ -339,8 +345,12 @@ struct PitchedInstrument final : Instrument {
   // Trigger firing at Setup (spec §5): envelopes whose trigger input is
   // nonzero at this note's Setup restart from their current value. The
   // bindings are collected at load; empty = no-op (feature at rest).
+  // Ordering contract: set_note FIRST (the new transitionId must be
+  // visible), push bindings second, fire_triggers LAST.
   void fire_triggers(VoiceGraph& vg) {
-    (void)vg;   // bindings land with the trigger-collection loader pass
+    for (auto* env : vg.triggerBindings)
+      if (env->trigger_ && env->trigger_->current() != 0.0f)
+        env->retrigger();
   }
 
   // Mid-phrase Setup: set_note + push bindings, NO graph prepare. Settings

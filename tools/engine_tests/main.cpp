@@ -876,12 +876,77 @@ static void run_name_gate_tests() {
     CHECK(ng->current() == 0.0f);
 }
 
+static void run_phrase_trigger_tests() {
+    // Minimal taught patch: sine * gesture envelope; gesture's trigger
+    // wired Note.transition -> NameGate("tongue") -> Envelope.trigger.
+    // Spec §5 end to end: the dip fires on the tongued note only.
+    const char* kJson = R"({
+      "sampleRate": 48000,
+      "instrument": { "polyphony": 1, "transitions": ["tongue"] },
+      "graph": {
+        "output": "sine1",
+        "nodes": [
+          { "id": "perf1", "type": "PerformNode",
+            "params": { "field": "transition" } },
+          { "id": "ng1", "type": "NameGate",
+            "params": { "name": "tongue", "in": { "ref": "perf1" } } },
+          { "id": "gest1", "type": "Envelope",
+            "params": { "timeMode": "seconds",
+                        "trigger": { "ref": "ng1" },
+                        "stages": [
+              { "startVal": 1.0, "endVal": 0.1, "type": "Linear", "percent": 0.010 },
+              { "startVal": 0.1, "endVal": 1.0, "type": "Linear", "percent": 0.020 },
+              { "startVal": 1.0, "endVal": 1.0, "type": "Linear", "percent": 0.0 }
+            ] } },
+          { "id": "sine1", "type": "SineSource",
+            "params": { "frequency": 220.0, "amplitude": { "ref": "gest1" },
+                        "phase": 0.0 } }
+        ]
+      }
+    })";
+    auto ip = load_instrument_patch_json(kJson);
+    auto* pi = dynamic_cast<PitchedInstrument*>(ip.instrument.get());
+    CHECK(pi != nullptr);
+    pi->play_phrase({{57.0f, 0.8f, 0.5f, ""}, {57.0f, 0.8f, 0.5f, "tongue"}},
+                    0.0f);
+    const int N = int(1.2f * 48000);
+    std::vector<float> buf(size_t(N), 0.0f);
+    RenderContext ctx{48000};
+    ip.instrument->render(ctx, buf.data(), N);
+
+    auto rms = [&](float fromSec, float toSec) {
+        int a = int(fromSec * 48000), b = int(toSec * 48000);
+        double s = 0.0;
+        for (int i = a; i < b; ++i) s += double(buf[size_t(i)]) * buf[size_t(i)];
+        return float(std::sqrt(s / double(b - a)));
+    };
+    float before = rms(0.45f, 0.49f);          // settled, pre-boundary
+    float dip    = rms(0.507f, 0.513f);        // around the dip minimum
+                                               // (10ms fall + start of rise)
+    float after  = rms(0.60f, 0.90f);          // recovered sustain
+    CHECK(dip < 0.5f * before);                // the consonant fired
+    CHECK(after > 0.9f * before);              // and got out of the way
+    // Control: same phrase, no transition name — no dip.
+    auto ip2 = load_instrument_patch_json(kJson);
+    auto* pi2 = dynamic_cast<PitchedInstrument*>(ip2.instrument.get());
+    pi2->play_phrase({{57.0f, 0.8f, 0.5f, ""}, {57.0f, 0.8f, 0.5f, ""}}, 0.0f);
+    std::vector<float> buf2(size_t(N), 0.0f);
+    RenderContext ctx2{48000};
+    ip2.instrument->render(ctx2, buf2.data(), N);
+    double s = 0.0;
+    int a = int(0.500f * 48000), b = int(0.508f * 48000);
+    for (int i = a; i < b; ++i) s += double(buf2[size_t(i)]) * buf2[size_t(i)];
+    float dip2 = float(std::sqrt(s / double(b - a)));
+    CHECK(dip2 > 0.9f * before);
+}
+
 int main() {
     run_passage_parse_tests();
     run_transition_field_tests();
     run_phrase_tests();
     run_envelope_retrigger_tests();
     run_name_gate_tests();
+    run_phrase_trigger_tests();
     run_curve_node_tests();
     run_curve_expr_tests();
     run_envelope_range_tests();
