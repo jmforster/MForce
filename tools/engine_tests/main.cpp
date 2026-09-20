@@ -858,11 +858,30 @@ static void run_envelope_retrigger_tests() {
     CHECK_NEAR(v, 1.0f, 1e-3f);
 }
 
+#include "mforce/core/name_gate.h"
+
+static void run_name_gate_tests() {
+    auto ps = std::make_shared<PerformSource>();
+    auto in = std::make_shared<PerformOut>(ps, PerformOut::Field::Transition);
+    auto ng = std::make_shared<NameGate>(48000);
+    ng->set_param("in", in);
+    ng->targetId = 2.0f;
+    ps->set_note(440.0f, 0.8f, 100, 0.0f, nullptr, 2.0f);
+    CHECK(ng->current() == 1.0f);
+    CHECK(ng->next() == 1.0f);
+    ps->set_note(440.0f, 0.8f, 100, 0.0f, nullptr, 1.0f);
+    CHECK(ng->current() == 0.0f);
+    ng->targetId = -1.0f;                    // unresolved never matches
+    ps->set_note(440.0f, 0.8f, 100, 0.0f, nullptr, 0.0f);
+    CHECK(ng->current() == 0.0f);
+}
+
 int main() {
     run_passage_parse_tests();
     run_transition_field_tests();
     run_phrase_tests();
     run_envelope_retrigger_tests();
+    run_name_gate_tests();
     run_curve_node_tests();
     run_curve_expr_tests();
     run_envelope_range_tests();

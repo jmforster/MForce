@@ -1,6 +1,7 @@
 #include "mforce/render/patch_loader.h"
 #include "mforce/core/source_registry.h"
 #include "mforce/core/dsp_value_source.h"
+#include "mforce/core/name_gate.h"
 #include "mforce/core/dsp_wave_source.h"
 #include "mforce/core/range_source.h"
 #include "mforce/core/var_source.h"
@@ -509,6 +510,8 @@ static void wire_params_generic(
         static const std::unordered_set<std::string> kStructural = {
             // node/JSON structure
             "type", "id", "seed", "dynamicPins",
+            // NameGate's transition-name string (loader special case)
+            "name",
             // envelope preset + stage vocabulary (envelope_from_preset_json)
             "preset", "stages", "attack", "decay", "release", "sustain",
             "sustainLevel", "attackCurve", "attackPower", "releaseCurve",
@@ -603,7 +606,12 @@ static GraphResult build_graph(
     const std::unordered_map<std::string, json>& nodeMap,
     const std::vector<std::string>& nodeOrder,
     int sampleRate,
-    const PerformContext* perf = nullptr)
+    const PerformContext* perf = nullptr,
+    // Instrument transition vocabulary (spec 2026-09-19-note-transitions
+    // §5) for NameGate name→id resolution. Null on non-instrument paths
+    // (and inside Multiplex subgraph rebuilds): an authored NameGate then
+    // warns loudly instead of matching.
+    const std::vector<std::string>* transitions = nullptr)
 {
     // Lazy init registry
     static bool registered = false;
@@ -776,6 +784,31 @@ static GraphResult build_graph(
             else throw std::runtime_error("PerformNode '" + id + "': unknown field '"
                 + field
                 + "' (expected frequency|velocity|wheel|pressure|duration|transition)");
+        }
+        else if (type == "NameGate") {
+            // Transition-name match (spec 2026-09-19-note-transitions §5).
+            // The `name` string resolves against the instrument's
+            // transitions[] vocabulary; ids are 1-based declaration order.
+            auto ng = std::make_shared<NameGate>(sampleRate);
+            if (pp && pp->contains("name")) {
+                ng->name = (*pp)["name"].get<std::string>();
+                if (transitions)
+                    for (size_t k = 0; k < transitions->size(); ++k)
+                        if ((*transitions)[k] == ng->name) {
+                            ng->targetId = float(k + 1);
+                            break;
+                        }
+                if (!ng->name.empty() && ng->targetId < 0.0f) {
+                    static std::unordered_set<std::string> warnedGates;
+                    if (warnedGates.insert(ng->name).second)
+                        std::fprintf(stderr, "[load] NameGate '%s': name "
+                            "'%s' is not in the instrument's transitions[] "
+                            "vocabulary — it will never fire\n",
+                            id.c_str(), ng->name.c_str());
+                }
+            }
+            if (pp) wire_params_generic(*ng, *pp, valueNodes, &usage);
+            valueNodes[id] = ng;
         }
         else if (type == "SegmentSource") {
             std::vector<float> values;
@@ -1487,6 +1520,9 @@ Patch load_patch_file(const std::string& path)
         // Pre-clip master gain (applied before the soft_clip peak guard, so it
         // is the right knob for keeping hot chains out of the clipper).
         inst->volume = instJson.value("volume", 1.0f);
+        if (instJson.contains("transitions"))
+            inst->transitionNames =
+                instJson["transitions"].get<std::vector<std::string>>();
         if (instJson.value("release", 0.0f) != 0.0f)
             std::fprintf(stderr, "[loader] instrument.release retired "
                          "(note-contained sound 2026-08-13); ignored\n");
@@ -1496,7 +1532,8 @@ Patch load_patch_file(const std::string& path)
             PitchedInstrument::VoiceGraph vg;
             PerformContext perf = make_perform_context(
                 vg, inst->instrumentState, sampleRate);
-            auto g = build_graph(nodeMap, nodeOrder, sampleRate, &perf);
+            auto g = build_graph(nodeMap, nodeOrder, sampleRate, &perf,
+                                 &inst->transitionNames);
 
             // Find the top-level source for this voice
             auto srcIt = g.valueNodes.find(outputId);
@@ -1742,6 +1779,9 @@ InstrumentPatch load_instrument_patch_json(const std::string& jsonText,
     auto inst = std::make_unique<PitchedInstrument>();
     inst->sampleRate = sampleRate;
     inst->volume = instJson.value("volume", 1.0f);
+    if (instJson.contains("transitions"))
+        inst->transitionNames =
+            instJson["transitions"].get<std::vector<std::string>>();
     if (instJson.value("release", 0.0f) != 0.0f)
         std::fprintf(stderr, "[loader] instrument.release retired "
                      "(note-contained sound 2026-08-13); ignored\n");
@@ -1750,7 +1790,8 @@ InstrumentPatch load_instrument_patch_json(const std::string& jsonText,
         PitchedInstrument::VoiceGraph vg;
         PerformContext perf = make_perform_context(
             vg, inst->instrumentState, sampleRate);
-        auto g = build_graph(nodeMap, nodeOrder, sampleRate, &perf);
+        auto g = build_graph(nodeMap, nodeOrder, sampleRate, &perf,
+                             &inst->transitionNames);
 
         auto srcIt = g.valueNodes.find(outputId);
         if (srcIt == g.valueNodes.end())

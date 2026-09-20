@@ -1,4 +1,5 @@
 #include "mforce/core/source_registry.h"
+#include "mforce/core/name_gate.h"
 #include <stdexcept>
 #include <string>
 
@@ -192,6 +193,12 @@ void register_all_sources() {
 
     reg.register_type("CurveNode", SourceCategory::Modulator,
         [](int, auto) { return std::make_shared<CurveNode>(); });
+
+    // Transition-name match (spec 2026-09-19-note-transitions §5). The
+    // `name` string and its vocabulary resolution are a loader special
+    // case (SettingType has no string).
+    reg.register_type("NameGate", SourceCategory::Modulator,
+        [](int sr, auto) { return std::make_shared<NameGate>(sr); });
 
     // -----------------------------------------------------------------------
     // Envelope
