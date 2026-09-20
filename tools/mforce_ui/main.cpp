@@ -11478,12 +11478,48 @@ static bool draw_waveform(const char* label, const float* buf, int sampleCount,
     dl->AddText(ImVec2(x + 2, y + 2), IM_COL32(150, 150, 150, 255), label);
 
     if (sampleCount > 0 && buf) {
-        // Find global peak for normalization
-        float peakPos = 0.0f, peakNeg = 0.0f;
-        for (int i = 0; i < sampleCount; ++i) {
-            peakPos = std::max(peakPos, buf[i]);
-            peakNeg = std::min(peakNeg, buf[i]);
+        // Per-buffer draw cache (backlog 76 root cause, found 2026-09-20):
+        // this function used to scan EVERY sample of EVERY strip EVERY
+        // frame — once for peak normalization, once for the min/max
+        // columns. A 34 s passage × ~25 strips ≈ 80M ops per frame =
+        // seconds per frame on a laptop, queueing all input behind it.
+        // Now: peaks + a 64-sample min/max mipmap built once per buffer
+        // (fingerprinted, so a regenerated buffer rebuilds), columns read
+        // the mipmap when zoom >= 64.
+        struct WaveMip {
+            int count{0};
+            float fp[3]{0, 0, 0};
+            float peakPos{0}, peakNeg{0};
+            std::vector<std::pair<float, float>> mm;   // per-64 min/max
+        };
+        static std::unordered_map<const float*, WaveMip> s_waveMips;
+        const float f0 = buf[0], f1 = buf[sampleCount / 2],
+                    f2 = buf[sampleCount - 1];
+        WaveMip& mip = s_waveMips[buf];
+        if (mip.count != sampleCount || mip.fp[0] != f0 || mip.fp[1] != f1 ||
+            mip.fp[2] != f2) {
+            if (s_waveMips.size() > 64) {           // stale-buffer bound
+                WaveMip keep;
+                s_waveMips.clear();
+                s_waveMips[buf] = keep;
+            }
+            WaveMip& m = s_waveMips[buf];
+            m.count = sampleCount;
+            m.fp[0] = f0; m.fp[1] = f1; m.fp[2] = f2;
+            m.peakPos = 0.0f; m.peakNeg = 0.0f;
+            m.mm.assign(size_t((sampleCount + 63) / 64),
+                        {1e9f, -1e9f});
+            for (int i = 0; i < sampleCount; ++i) {
+                float v = buf[i];
+                m.peakPos = std::max(m.peakPos, v);
+                m.peakNeg = std::min(m.peakNeg, v);
+                auto& b = m.mm[size_t(i >> 6)];
+                b.first  = std::min(b.first, v);
+                b.second = std::max(b.second, v);
+            }
         }
+        const WaveMip& m = s_waveMips[buf];
+        float peakPos = m.peakPos, peakNeg = m.peakNeg;
         float peakAbs = std::max(std::abs(peakPos), std::abs(peakNeg));
         float scale = (peakAbs > 0.0001f) ? (1.0f / peakAbs) : 1.0f;
 
@@ -11494,7 +11530,9 @@ static bool draw_waveform(const char* label, const float* buf, int sampleCount,
         snprintf(peakBuf, sizeof(peakBuf), "%.3f", peakNeg);
         dl->AddText(ImVec2(x + 2, y + height * 0.75f), IM_COL32(100, 100, 100, 255), peakBuf);
 
-        // Draw waveform (normalized)
+        // Draw waveform (normalized). Columns read the mipmap when a
+        // column spans >= 64 samples (bucket-aligned bounds — visually
+        // identical, O(zoom/64) instead of O(zoom) per column).
         int pixelCount = (int)drawW;
         for (int px = 0; px < pixelCount; ++px) {
             int sampleStart = scrollPos + px * zoom;
@@ -11502,6 +11540,14 @@ static bool draw_waveform(const char* label, const float* buf, int sampleCount,
 
             float minVal = 1.0f, maxVal = -1.0f;
             int sampleEnd = std::min(sampleStart + zoom, sampleCount);
+            if (zoom >= 64) {
+                int b0 = sampleStart >> 6;
+                int b1 = std::min(int(m.mm.size()) - 1, (sampleEnd - 1) >> 6);
+                for (int b = b0; b <= b1; ++b) {
+                    minVal = std::min(minVal, m.mm[size_t(b)].first * scale);
+                    maxVal = std::max(maxVal, m.mm[size_t(b)].second * scale);
+                }
+            } else
             for (int s = sampleStart; s < sampleEnd; ++s) {
                 float v = buf[s] * scale;
                 minVal = std::min(minVal, v);
