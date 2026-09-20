@@ -5,6 +5,44 @@ the same evening. Awaiting = only what still needs Matt.
 
 ## Awaiting Matt
 
+### 73. One breath per line — phrasing lands [listen] (2026-09-19)
+**renders/dsp/audition/articulation1/** — 6 files, README inside.
+
+The articulation design you brainstormed this morning is built, end to
+end: `|` phrase marks in passage strings, one voice living through a
+whole phrase instead of dying per note, and a per-note transition name
+the patch can wire. Zero behavior change anywhere you don't ask for it —
+the whole corpus renders byte-identical with the feature at rest, and a
+two-note phrase of the same pitch is PROVABLY the same file as one long
+note.
+
+What you can play with today, in the UI: type a passage with `|` marks
+and Generate — any patch phrases (in-phrase notes retune the living
+voice instead of restarting it). Two patches are also TAUGHT the tongue:
+`patches/audition/articulation1/{trombone,oboe}_tongue.json`. In those,
+a NameGate node ("tongue" written on its face) fires a little envelope
+called TDip that closes the breath for 30 ms and reopens it — that
+envelope is the whole consonant, ordinary stage editing if you want it
+harder or softer. Wiring pattern: Note node's new `transition` pin →
+NameGate → the envelope's new `trigger` pin.
+
+THE QUESTION: **play `otj_trombone_flat.wav` then
+`otj_trombone_phrased.wav` — does the phrased one sound like a player
+on one breath per line?** Same pair exists for the oboe. The
+`phrase_hold_*` files are the isolated consonant: one note eight times
+on one breath.
+
+Known limits, stated up front: the tongue dent is modest (~13% of
+amplitude) because the bore's stored energy legitimately rings through
+a 30 ms breath interruption — if it reads as slurring rather than
+tonguing, TDip is the knob and your ears are the calibration. Live
+keyboard legato (overlap = same breath) is designed but NOT built —
+it needs the mono/steal work (backlog 53) and comes next. And nothing
+here gives within-note swell yet — that is 74a8, its own conversation.
+
+Report: reports/2026-09-19-note-transitions.md; spec
+docs/superpowers/specs/2026-09-19-note-transitions-design.md.
+
 ### 72. Trombone, attempt 4 — the held note [listen] (2026-09-19)
 **renders/dsp/audition/trombone4/** — 8 files, README inside.
 

@@ -1,6 +1,48 @@
 # Status — session handoff (Claude reads this first; Matt's queue = */REVIEW.md)
 
-Updated: 2026-09-19 (dsp, trombone attempt 4 — the held-note round;
+Updated: 2026-09-19 evening (articulation day: the note-transitions build,
+inline on Fable, same day as the brainstorm).
+WORKING-TREE NOTE unchanged: docs/autonomy/GOALS.md carries Matt's own
+uncommitted refresh — never stage, commit or revert it.
+**NOTE TRANSITIONS v1 SHIPPED — brainstorm (Matt + Fable, this morning) →
+spec → plan → build in one day. REVIEW 73.**
+Spec docs/superpowers/specs/2026-09-19-note-transitions-design.md; plan
+docs/superpowers/plans/2026-09-19-note-transitions.md; report
+reports/2026-09-19-note-transitions.md. The shape: `|` phrase marks in
+passage strings; a phrase = the unit that acquires a voice and opens the
+gate (play_phrase; play_note is now a one-note phrase, byte-identically);
+in-phrase notes re-drive the LIVING voice (set_note + non-setting push
+bindings, no prepare); transitions arrive as a per-note interned name on
+a new Note.transition pin; a new NameGate node (name string visible on
+its face) feeds the new Envelope.trigger pin (Setup-sampled,
+restart-from-current, click-free by numeric test). Emission rule v1:
+first-of-phrase "breath", rest "tongue" — one seam, two callers (score
+loader "phrase":"cont" + UI transport). Taught patches:
+patches/audition/articulation1/{trombone,oboe}_tongue.json (originals
+untouched; the consonant = one TDip envelope, Matt's knob). Ears queue
+renders/dsp/audition/articulation1/ — OTJ one-breath-per-line against
+today's every-note-a-breath.
+GATES: null gate 79/79 after every task incl. the play_note delegation
+refactor; two-note phrase == one long note byte-identical (engine test +
+CLI smoke pair patches/baselines/phrase_smoke_*.json — NEW baselines,
+add to manifest at next deliberate refreeze); mid-voice retune
+zero-crossing ratio 1.498; gencheck parity scale 1.000000 / 1 LSB incl.
+a taught+phrased score; taught-patch roundtrip intact; engine_tests
+474→494.
+DEFERRED, on record: live keyboard legato (overlap = phrase; needs
+backlog 53's pool work — delivery machinery ready); shape slot
+(honk/squeak — own brainstorm); isSetting push bindings hold their
+phrase-start value mid-phrase (v1 decision); backlog 75 passage-cutoff
+diagnosis queued (Matt: "extremely minor", deferred).
+NEW FIND, backlog 79: 7 pre-existing roundtrip render diffs on
+loop/bug-repro baselines (+ the known wiring_smoke id loss) — proven
+pre-existing against a 46f4564-built CLI on identical roundtripped
+JSON; first surfaced because that corpus had never met the harness.
+Matt's informal note on 72 (formal verdict pending): "the
+velocity-linked brightness is there."
+dsp REVIEW Awaiting: **73**, **72**, 62, 65, 38, 39.
+
+Previous update: 2026-09-19 (dsp, trombone attempt 4 — the held-note round;
 Opus 5 dispatch).
 WORKING-TREE NOTE for the next session: docs/autonomy/GOALS.md carries
 Matt's own uncommitted refresh (his steering action item) — never revert

@@ -79,7 +79,17 @@ Tags per WORKFLOW.md.
     constant ask "physical or normalized-frequency quantity"; normalized
     ones re-derive from sr, null gate at 48k proving byte-identity.
 
-53. **[build] Live-keyboard mono mode — patch polyphony must override the
+53. **[build, unblocked 09-19] Live-keyboard mono mode + live legato — the
+    delivery machinery LANDED** — note-transitions v1 (spec 2026-09-19)
+    shipped play_phrase / conditional release / transition triggers; the
+    live rule is designed and decided (spec §4: overlap = legato, gap =
+    detached, NO tolerance threshold — a gap tolerance delays every
+    detached release by the window; escape hatch if playing proves
+    sloppy = a latch/pedal, never a threshold). What remains is exactly
+    this item's original scope: the UI's pool floor, last-note steal,
+    key-overlap detection feeding phrase continuation, click-free cuts.
+    Original item:
+    **[build] Live-keyboard mono mode — patch polyphony must override the
     pool floor** — Matt 2026-09-02: fast flute lines should cut the
     previous note at the next attack. UI floors the pool at
     LIVE_MIN_POLYPHONY=8 (tools/mforce_ui/main.cpp; loader takes
@@ -468,6 +478,20 @@ Tags per WORKFLOW.md.
     and live-path bug (setting never reaches render — fix; backlog 31 is
     the known kin). Output = a per-knob table Matt can read before
     hand-tweaking, plus a minimal-patch candidate.
+
+79. **[bug, pre-existing, surfaced 09-19] UI roundtrip is render-lossy on
+    the loop/bug-repro baselines** — running the roundtrip harness over
+    patches/baselines + library (first time for this corpus) found 7
+    render diffs + 1 id change: double_advance_{ok,bug},
+    loop_root_sensitivity_{fires,dead}, loop_tap_{counter,starved},
+    perform/wiring_setting, and wiring_smoke's known __perf_freq id loss.
+    PROVEN pre-existing, not a note-transitions regression: a CLI built
+    at 46f4564 (pre-feature) renders the identical roundtripped JSON
+    with byte-identical diffs. Suspected mechanism: re-save reorders/
+    rewires tap and shared-consumer shapes, which is exactly what the
+    open 65/71 advance-order cluster is sensitive to — the repro
+    patches are diff-prone BY NATURE. Diagnose alongside 65/71; until
+    then, don't UI-re-save the repro baselines.
 
 ## Design questions
 
