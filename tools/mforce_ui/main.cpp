@@ -265,6 +265,14 @@ struct GraphNode {
 
     // PatchOutput-specific
     int polyphony{4};
+    // Instrument declarations the panel owns (spec 2026-09-20-note-onsets-v2
+    // §8). `sustaining`: does this instrument hold a note past its written
+    // end — the fact that decides whether phrasing applies at all, which
+    // only the patch's author knows. `onsetsBuf`: the comma-separated
+    // vocabulary of onset names this patch answers to. Teaching a patch
+    // must not require a text editor.
+    bool sustaining{false};
+    char onsetsBuf[128]{};
 
     // Verbatim "seed" param from the loaded JSON. The UI does not model seeds
     // as pins/configs, but the engine loader uses them for reproducible
@@ -2110,6 +2118,19 @@ static void load_graph_from_path(const std::string& path) {
         GraphNode& outNode = s_nodes.back();
         if (root["instrument"].contains("polyphony"))
             outNode.polyphony = root["instrument"]["polyphony"].get<int>();
+        // Instrument declarations the panel owns (spec §8).
+        outNode.sustaining = root["instrument"].value("sustaining", false);
+        if (root["instrument"].contains("onsets") &&
+            root["instrument"]["onsets"].is_array()) {
+            std::string joined;
+            for (const auto& o : root["instrument"]["onsets"]) {
+                if (!o.is_string()) continue;
+                if (!joined.empty()) joined += ", ";
+                joined += o.get<std::string>();
+            }
+            std::snprintf(outNode.onsetsBuf, sizeof(outNode.onsetsBuf), "%s",
+                          joined.c_str());
+        }
 
         // Wire output node's source to the graph output
         auto outIt = outputPinMap.find(outputId);
@@ -3116,6 +3137,25 @@ static nlohmann::json serialize_patch_graph(
         if (tapOverride && s_listenTapNode >= 0)
             root["instrument"]["volume"] = 1.0f;
         root["instrument"]["polyphony"] = outputNode->polyphony;
+        // Instrument declarations the panel owns (spec §8). Both override
+        // the pass-through extras, exactly as polyphony does — but write
+        // only when set, so unchecking really removes the key and the
+        // hundred patches that declare nothing keep their JSON unchanged.
+        if (outputNode->sustaining) root["instrument"]["sustaining"] = true;
+        else                        root["instrument"].erase("sustaining");
+        {
+            nlohmann::json onsets = nlohmann::json::array();
+            std::string s(outputNode->onsetsBuf), tok;
+            std::stringstream ss(s);
+            while (std::getline(ss, tok, ',')) {
+                size_t a = tok.find_first_not_of(" \t");
+                size_t b = tok.find_last_not_of(" \t");
+                if (a == std::string::npos) continue;      // blank entry
+                onsets.push_back(tok.substr(a, b - a + 1));
+            }
+            if (onsets.empty()) root["instrument"].erase("onsets");
+            else                root["instrument"]["onsets"] = onsets;
+        }
         if (!paramMap.empty())
             root["instrument"]["paramMap"] = paramMap;
     }
@@ -4243,10 +4283,13 @@ struct SchedNote {
 };
 
 // Is the loaded patch's instrument declared sustaining (spec §2)? Only a
-// sustaining instrument receives hold or continuation onsets.
+// sustaining instrument receives hold or continuation onsets. The Patch
+// Output node owns the declaration, so an unsaved checkbox change takes
+// effect on the next Generate.
 static bool patch_is_sustaining() {
-    return s_loadedInstrumentExtras.is_object() &&
-           s_loadedInstrumentExtras.value("sustaining", false);
+    for (const auto& n : s_nodes)
+        if (n.typeName == NT_PATCH_OUTPUT) return n.sustaining;
+    return false;
 }
 
 // Performer emission (spec §3): phrase marks + sustaining -> per-note
@@ -10038,11 +10081,40 @@ static void draw_properties_panel() {
     // PatchOutput: polyphony
     if (node->typeName == NT_PATCH_OUTPUT) {
         ImGui::Spacing(); ImGui::Separator(); ImGui::Spacing();
+        // Labels drawn AS TEXT before each widget. PushItemWidth(-1) makes
+        // a widget fill the line, and ImGui then suppresses its label —
+        // which is why the polyphony spinner was a mystery number for as
+        // long as it has existed (Matt, 2026-09-20). The ## ids keep each
+        // widget's state distinct without drawing anything.
+        char lbl[48];
+        ImGui::Text("polyphony"); ImGui::SameLine();
         ImGui::PushItemWidth(-1);
-        char polyLabel[32];
-        snprintf(polyLabel, sizeof(polyLabel), "polyphony##ppoly%d", node->id);
-        ImGui::DragInt(polyLabel, &node->polyphony, 0.1f, 1, 32);
+        snprintf(lbl, sizeof(lbl), "##ppoly%d", node->id);
+        ImGui::DragInt(lbl, &node->polyphony, 0.1f, 1, 32);
         ImGui::PopItemWidth();
+
+        // Instrument declarations (spec 2026-09-20-note-onsets-v2 §8).
+        // A checkbox draws its own label to the RIGHT and is not
+        // width-stretched, so it needs no Text/SameLine dance.
+        snprintf(lbl, sizeof(lbl), "sustaining##psus%d", node->id);
+        if (ImGui::Checkbox(lbl, &node->sustaining)) mark_graph_dirty();
+        if (ImGui::IsItemHovered())
+            ImGui::SetTooltip("Does this instrument hold a note past its\n"
+                              "written end? Phrasing — held lines, onset\n"
+                              "gestures, legato glide — applies only when\n"
+                              "this is checked.");
+
+        ImGui::Text("onsets"); ImGui::SameLine();
+        ImGui::PushItemWidth(-1);
+        snprintf(lbl, sizeof(lbl), "##ponsets%d", node->id);
+        if (ImGui::InputText(lbl, node->onsetsBuf, sizeof(node->onsetsBuf)))
+            mark_graph_dirty();
+        ImGui::PopItemWidth();
+        if (ImGui::IsItemHovered())
+            ImGui::SetTooltip("Comma-separated onset names this patch\n"
+                              "answers to, e.g. \"tongue, slur\". A NameGate\n"
+                              "matches one of these; ids are 1-based in the\n"
+                              "order listed.");
     }
 
     // Parameter: editable name. NameGate: editable onset name (the
@@ -10091,7 +10163,11 @@ static nlohmann::json clip_node_state(const GraphNode& node) {
     json j;
     j["type"] = node.typeName;
     if (node.typeName == NT_PARAMETER)    j["paramName"] = node.paramName;
-    if (node.typeName == NT_PATCH_OUTPUT) j["polyphony"] = node.polyphony;
+    if (node.typeName == NT_PATCH_OUTPUT) {
+        j["polyphony"]  = node.polyphony;
+        j["sustaining"] = node.sustaining;
+        j["onsets"]     = std::string(node.onsetsBuf);
+    }
     if (node.jsonSeed >= 0)               j["seed"]      = node.jsonSeed;
 
     // Editable pin defaults. Mixer "ch N" pins carry no value — only their
@@ -10141,6 +10217,10 @@ static int clip_instantiate(const nlohmann::json& j) {
     GraphNode& gn = s_nodes.back();
 
     if (j.contains("polyphony")) gn.polyphony = j["polyphony"].get<int>();
+    if (j.contains("sustaining")) gn.sustaining = j["sustaining"].get<bool>();
+    if (j.contains("onsets") && j["onsets"].is_string())
+        std::snprintf(gn.onsetsBuf, sizeof(gn.onsetsBuf), "%s",
+                      j["onsets"].get<std::string>().c_str());
     if (j.contains("seed"))      gn.jsonSeed  = j["seed"].get<long long>();
 
     for (int c = 1; c < j.value("chPins", 1); ++c)
