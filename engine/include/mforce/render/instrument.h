@@ -365,17 +365,31 @@ struct PitchedInstrument final : Instrument {
              vg.advanceList };
   }
 
-  // One note of a phrase (spec 2026-09-19-note-transitions §4). The phrase
-  // is the unit that acquires a voice, prepares the graph and opens the
-  // envelope span — everything a note was; in-phrase notes re-drive the
-  // living voice. onset = a name from the instrument's onsets[]
-  // vocabulary ("" = none).
-  struct PhraseNote {
-    float noteNumber;
-    float velocity;
-    float durationSeconds;
-    std::string onset;
+  // A held line (spec 2026-09-20-note-onsets-v2 §4/§7). One monophonic
+  // line: the voice renders exactly each note's samples and then SUSPENDS
+  // WARM — graph state, envelope positions, capture offsets intact —
+  // instead of running release + tail. The next note on the line resumes
+  // the same voice at the boundary sample; release + tail + adaptive ring
+  // run only when a hold:false note ends it. Polyphonic phrasing is out
+  // of scope for v2, so one line per instrument is the whole model.
+  struct HeldLine {
+    bool  open{false};
+    int   vIdx{-1};
+    float startTime{0.0f};      // timeline seconds of line start
+    std::vector<float> buf;     // samples rendered since line start
+    float gain{1.0f};
+    float lastFreq{0.0f};
+    float lastNote{0.0f};       // containment report id
+    int   lastDurSamples{0};    // the RELEASING note's length (§5)
   };
+  HeldLine line_;
+
+  // Legato retune time, instrument block "glideMs" (spec §4.1). An
+  // instantaneous delay retarget puts a kink in a waveguide's stored wave
+  // — the measured retune tick; the glide is the waveguide-native fix and
+  // doubles as portamento later. 0 = retarget instantly.
+  float glideSec{0.015f};
+  bool  warnedNoEnvelopes_{false};
 
   // Trigger firing at Setup (spec §6): envelopes whose trigger input is
   // nonzero at this note's Setup restart from their current value. The
@@ -388,89 +402,172 @@ struct PitchedInstrument final : Instrument {
         env->retrigger();
   }
 
-  // Mid-phrase Setup: set_note + push bindings, NO graph prepare. Settings
-  // (isSetting) bindings are SKIPPED — set_setting rebuilds per-note state
-  // at prepare and must not run mid-render (v1 decision, spec verify-flag
-  // (b)); they hold their phrase-start value. Non-setting deliveries are
-  // pointer/value swaps and safe. Pull chains (noteFaces curves) need no
-  // delivery at all — they read the new NoteState live.
-  void advance_phrase_note(VoiceGraph& vg, const PhraseNote& p) {
-    float freq = note_to_freq(p.noteNumber);
-    int durS = int(p.durationSeconds * float(sampleRate));
-    if (vg.performSource)
-      vg.performSource->set_note(freq, p.velocity, durS, p.durationSeconds,
-                                 nullptr, onset_id(p.onset));
-    for (auto& b : vg.pushBindings) {
-      if (b.isSetting) continue;
-      b.chain->next();
-      float v = b.chain->current();
-      b.cs->set(v);
-      b.consumer->set_param(b.paramName, b.cs);
-      if (vg.topMultiplex && !b.targetNodeId.empty())
-        vg.topMultiplex->set_clone_param(b.targetNodeId, b.paramName, v);
+  // The legato glide as an ordinary bend (spec §4.1): semitones from the
+  // OLD pitch down to 0 over glideSec, then hold at 0. PerformSource's
+  // frequency() = base * 2^(bend/12) with base = the NEW pitch, so the
+  // ramp starts exactly on the old pitch and lands exactly on the new one
+  // — no PitchCurve compile needed, and every consumer of the frequency
+  // chain sees it. (A legacy paramMap patch delivers frequency by a push
+  // evaluated once at Setup, so its retune stays instantaneous; only
+  // pulled frequency chains glide.)
+  std::shared_ptr<Envelope> make_glide(float fromFreq, float toFreq,
+                                       int durSamples) {
+    auto g = std::make_shared<Envelope>(sampleRate);
+    g->absolute_time = true;
+    const float semis = 12.0f * std::log2(fromFreq / toFreq);
+    g->add_stage({{semis, 0.0f, RampType::Linear, 0.0f}, glideSec, 0.0f, 0.0f});
+    g->add_stage({{0.0f, 0.0f, RampType::Linear, 0.0f}, 0.0f, 0.0f, 0.0f});
+    g->prepare(RenderContext{sampleRate}, durSamples);
+    return g;
+  }
+
+  // The one sample loop (spec 2026-09-20-note-onsets-v2 §7). Appends n
+  // samples of vg to buf — perform tick, root pull, tap-only advance,
+  // per-node capture at the absolute timeline frame
+  // (startFrame + buf.size()) — and nothing else. Ring-out, tail, cap
+  // fade and containment belong to the CALLERS, which is what lets one
+  // voice be rendered in pieces across a held line. buf must be reserved
+  // by the caller: the resize below then allocates nothing.
+  void render_chunk(VoiceGraph& vg, std::vector<float>& buf, int vIdx,
+                    int startFrame, int n, float gain) {
+    const bool capturing = !capturePerVoice.empty();
+    const size_t base = buf.size();
+    buf.resize(base + size_t(n));
+    for (int k = 0; k < n; ++k) {
+      if (vg.performSource) vg.performSource->tick();   // P3 sample clock
+      buf[base + size_t(k)] = vg.source->next() * gain;
+      for (auto& a : vg.advanceList) a->next();         // tap-only loop tails
+      if (capturing) {
+        // Strips record raw current() — no velocity/volume gain — matching
+        // what the per-node display always showed.
+        int f = startFrame + int(base) + k;
+        for (auto& ce : capturePerVoice[size_t(vIdx)]) {
+          auto& dst = captureBuffers[size_t(ce.bufIdx)];
+          if (f >= 0 && f < int(dst.size()))
+            dst[size_t(f)] += ce.node->current();
+        }
+      }
     }
-    fire_triggers(vg);
   }
 
-  // The one delivery entry point (spec §1). `onsetId` and `hold` are
-  // carried but not yet acted on — v1's phrase-vector delivery still runs
-  // underneath, so this is a byte-neutral refactor; Task 4 replaces the
-  // body with per-note delivery against a possibly-living line voice.
+  // Per-note delivery against a possibly-living line voice (spec §4).
+  // Three cases, in order:
+  //   1. the line is open  -> CONTINUE it (no acquisition, no prepare);
+  //   2. fresh + hold:true -> open a line (envelopes gated before prepare);
+  //   3. fresh + hold:false-> the classic path, byte for byte.
+  // Whether a note continues is derived from engine state, never declared:
+  // the same test the live keyboard's key-overlap makes, against the same
+  // state, so offline and live are one mechanism and nothing anywhere
+  // looks ahead.
   void play_note(const PerformedNote& pn, float startTime) {
-    play_phrase({{pn.noteNumber, pn.velocity, pn.duration, {}}}, startTime,
-                pn.curve);
-  }
+    if (voicePool.empty()) return;
+    const float freq = note_to_freq(pn.noteNumber);
+    const int durSamples = int(pn.duration * float(sampleRate));
 
-  void play_phrase(const std::vector<PhraseNote>& pns, float startTime,
-                   const PitchCurve* curve = nullptr) {
-    if (pns.empty()) return;
+    // --- 1. Continuation -------------------------------------------------
+    if (line_.open) {
+      auto& vg = voicePool[size_t(line_.vIdx)];
+      std::shared_ptr<Envelope> glide;
+      if (glideSec > 0.0f && line_.lastFreq > 0.0f && freq != line_.lastFreq)
+        glide = make_glide(line_.lastFreq, freq, durSamples);
+      if (vg.performSource)
+        vg.performSource->set_note(freq, pn.velocity, durSamples, pn.duration,
+                                   std::move(glide), pn.onsetId);
+      // Non-setting push bindings re-push; isSetting bindings HOLD their
+      // line-start value — set_setting rebuilds per-note state at prepare
+      // and must not run mid-render (v1 decision, unchanged). Pull chains
+      // (noteFaces curves) need no delivery: they read the new NoteState.
+      for (auto& b : vg.pushBindings) {
+        if (b.isSetting) continue;
+        b.chain->next();
+        float v = b.chain->current();
+        b.cs->set(v);
+        b.consumer->set_param(b.paramName, b.cs);
+        if (vg.topMultiplex && !b.targetNodeId.empty())
+          vg.topMultiplex->set_clone_param(b.targetNodeId, b.paramName, v);
+      }
+      fire_triggers(vg);   // the onset gesture restarts from current value
+      line_.lastFreq = freq;
+      line_.lastNote = pn.noteNumber;
+      line_.lastDurSamples = durSamples;
+      render_chunk(vg, line_.buf, line_.vIdx,
+                   int(line_.startTime * float(sampleRate)), durSamples,
+                   line_.gain);
+      if (!pn.hold) finish_line();
+      return;
+    }
+
     int vIdx = int(nextVoice % int(voicePool.size()));
     auto& vg = voicePool[size_t(vIdx)];
     nextVoice++;
 
-    const float noteNumber = pns[0].noteNumber;   // containment report id
-    float freq = note_to_freq(noteNumber);
-    float totalSec = 0.0f;
-    for (auto& p : pns) totalSec += p.durationSeconds;
-    // The phrase is one long note to the graph: envelopes lay their
-    // stages over the PHRASE length (spec §4 — that is the one-breath
-    // model, and a one-note phrase is byte-identical to today's note).
-    const int durSamples = int(totalSec * float(sampleRate));
-
-    apply_note_bindings(vg, freq, pns[0].velocity,
-                        int(pns[0].durationSeconds * float(sampleRate)),
-                        pns[0].durationSeconds, curve,
-                        onset_id(pns[0].onset));
+    // Hold needs reachable envelopes to gate. A voice whose output is a
+    // MultiplexSource keeps its envelopes inside the clones, so
+    // allEnvelopes is empty — untested territory (spec/plan): say so once
+    // and deliver ordinary notes instead of guessing.
+    bool hold = pn.hold;
+    if (hold && vg.allEnvelopes.empty()) {
+      if (!warnedNoEnvelopes_) {
+        warnedNoEnvelopes_ = true;
+        std::fprintf(stderr, "[onset] hold requested but this voice has no "
+                     "reachable envelopes (Multiplex output?) — the line is "
+                     "delivered as ordinary notes\n");
+      }
+      hold = false;
+    }
 
     // Frequency-dependent brightness compensation. The voice-mix gain is
-    // per-voice and fixed for the phrase (note 1's velocity): it cannot
-    // change mid-buffer without a zipper. Mid-phrase velocity still
-    // reaches the graph through the velocity face for patches that wire
-    // it (the winds do — velocity IS the breath there).
+    // per-voice and fixed for the line (its first note's velocity): it
+    // cannot change mid-buffer without a zipper. Later notes' velocity
+    // still reaches the graph through the velocity face for patches that
+    // wire it (the winds do — velocity IS the breath there).
     float boost = hiBoost > 0.0f
         ? (std::log10(std::max(freq, 100.0f)) - 2.0f) * hiBoost
         : 0.0f;
-    float gain = pns[0].velocity * (1.0f + boost);
+    float gain = pn.velocity * (1.0f + boost);
+
+    // --- 2. Fresh held voice ---------------------------------------------
+    if (hold) {
+      apply_note_bindings(vg, freq, pn.velocity, durSamples, pn.duration,
+                          pn.curve, pn.onsetId);
+      // Gate BEFORE prepare: the envelopes must lay out a holdable expand
+      // stage and sit on it when this note's end arrives.
+      for (auto* e : vg.allEnvelopes) e->set_gated(true);
+      RenderContext ctx{ sampleRate };
+      vg.source->prepare(ctx, durSamples);
+      for (auto& a : vg.advanceList) a->prepare(ctx, durSamples);
+      fire_triggers(vg);
+
+      line_.open = true;
+      line_.vIdx = vIdx;
+      line_.startTime = startTime;
+      line_.gain = gain;
+      line_.lastFreq = freq;
+      line_.lastNote = pn.noteNumber;
+      line_.lastDurSamples = durSamples;
+      line_.buf.clear();
+      line_.buf.reserve(size_t(durSamples +
+                               int(kMaxRingSec * float(sampleRate))));
+      render_chunk(vg, line_.buf, vIdx, int(startTime * float(sampleRate)),
+                   durSamples, gain);
+      return;
+    }
+
+    // --- 3. Classic ------------------------------------------------------
+    // Envelopes ungated, release laid out INSIDE the note, one loop with
+    // tail + adaptive ring + cap fade + containment: the pre-v2 note path,
+    // which is what keeps every unphrased render byte-identical.
+    const float noteNumber = pn.noteNumber;      // containment report id
+
+    apply_note_bindings(vg, freq, pn.velocity, durSamples, pn.duration,
+                        pn.curve, pn.onsetId);
 
     RenderContext ctx{ sampleRate };
     vg.source->prepare(ctx, durSamples);
     for (auto& a : vg.advanceList) a->prepare(ctx, durSamples);
     fire_triggers(vg);
 
-    // In-phrase boundaries, in samples from phrase start. boundary[k] is
-    // where pns[k] begins (k >= 1).
-    std::vector<int> boundary(pns.size(), 0);
-    {
-      float acc = 0.0f;
-      for (size_t k = 1; k < pns.size(); ++k) {
-        acc += pns[k - 1].durationSeconds;
-        boundary[k] = int(acc * float(sampleRate));
-      }
-    }
-    size_t nextNote = 1;
-
     int startFrame = int(startTime * float(sampleRate));
-    const bool capturing = !capturePerVoice.empty();
     // Tail allowance (kVoiceTailSec): render past duration so in-voice
     // reverb/filter state rings out instead of being cut mid-sample.
     // Adaptive ring-out (backlog 63b, 2026-09-16): a voice still audible
@@ -482,40 +579,23 @@ struct PitchedInstrument final : Instrument {
     const int tailSamples = int(kVoiceTailSec * float(sampleRate));
     const int renderSamples = durSamples + tailSamples;
     const int maxSamples = durSamples + int(kMaxRingSec * float(sampleRate));
-    std::vector<float> buf(size_t(std::max(renderSamples, maxSamples)));
+    std::vector<float> buf;
+    buf.reserve(size_t(std::max(renderSamples, maxSamples)));
     float ringEnv = 0.0f;
     // ~50 ms decay follower: per-sample multiplier for the running peak.
     const float ringDecay = std::exp(-1.0f / (0.05f * float(sampleRate)));
     int rendered = 0;
     for (int i = 0; i < maxSamples; ++i) {
       if (i >= renderSamples && ringEnv < kRingFloor) break;
-      // In-phrase note boundary: re-drive the living voice BEFORE this
-      // sample's tick so the whole sample sees the new NoteState.
-      while (nextNote < pns.size() && i >= boundary[nextNote]) {
-        advance_phrase_note(vg, pns[nextNote]);
-        ++nextNote;
-      }
-      if (vg.performSource) vg.performSource->tick();   // P3 sample clock
-      buf[i] = vg.source->next() * gain;
-      for (auto& a : vg.advanceList) a->next();         // tap-only loop tails
-      ringEnv = std::max(std::fabs(buf[i]), ringEnv * ringDecay);
+      render_chunk(vg, buf, vIdx, startFrame, 1, gain);
+      ringEnv = std::max(std::fabs(buf[size_t(i)]), ringEnv * ringDecay);
       rendered = i + 1;
       // Cap fade: a voice that will still be audible at kMaxRingSec (a
       // near-lossless resonator — struck bowl class) gets an 80 ms ramp
       // to zero instead of a hard cut (Matt, REVIEW 09-16).
       const int fadeN = int(0.08f * float(sampleRate));
       if (i >= maxSamples - fadeN && ringEnv >= kRingFloor)
-        buf[i] *= float(maxSamples - i) / float(fadeN);
-      if (capturing) {
-        // Strips record raw current() — no velocity/volume gain — matching
-        // what the per-node display always showed.
-        int f = startFrame + i;
-        for (auto& ce : capturePerVoice[size_t(vIdx)]) {
-          auto& dst = captureBuffers[size_t(ce.bufIdx)];
-          if (f >= 0 && f < int(dst.size()))
-            dst[size_t(f)] += ce.node->current();
-        }
-      }
+        buf[size_t(i)] *= float(maxSamples - i) / float(fadeN);
     }
 
     // Note-contained-sound check (2026-08-13 spec): output must be at the
@@ -533,6 +613,66 @@ struct PitchedInstrument final : Instrument {
 
     add_rendered(startTime, buf.data(), rendered);
   }
+
+  // End of a held line (spec §4.2): the gate closes, the release runs —
+  // re-referenced to the RELEASING note's length, not the one that
+  // prepared the voice (§5) — and the voice rings out through the normal
+  // tail before its samples reach the timeline as one contiguous block.
+  void finish_line() {
+    if (!line_.open) return;
+    auto& vg = voicePool[size_t(line_.vIdx)];
+
+    int rem = 0;
+    for (auto* e : vg.allEnvelopes)
+      rem = std::max(rem, e->gate_release(line_.lastDurSamples));
+
+    auto& buf = line_.buf;
+    const int base = int(buf.size());
+    const int startFrame = int(line_.startTime * float(sampleRate));
+    const int tailSamples = int(kVoiceTailSec * float(sampleRate));
+    const int renderSamples = base + rem + tailSamples;
+    const int maxSamples = base + rem + int(kMaxRingSec * float(sampleRate));
+    buf.reserve(size_t(maxSamples));
+    const float ringDecay = std::exp(-1.0f / (0.05f * float(sampleRate)));
+    // Prime the ring follower over what the line already rendered, so the
+    // ring-out decision sees the same history a single-note render would.
+    float ringEnv = 0.0f;
+    for (int i = 0; i < base; ++i)
+      ringEnv = std::max(std::fabs(buf[size_t(i)]), ringEnv * ringDecay);
+    int rendered = base;
+    for (int i = base; i < maxSamples; ++i) {
+      if (i >= renderSamples && ringEnv < kRingFloor) break;
+      render_chunk(vg, buf, line_.vIdx, startFrame, 1, line_.gain);
+      ringEnv = std::max(std::fabs(buf[size_t(i)]), ringEnv * ringDecay);
+      rendered = i + 1;
+      const int fadeN = int(0.08f * float(sampleRate));
+      if (i >= maxSamples - fadeN && ringEnv >= kRingFloor)
+        buf[size_t(i)] *= float(maxSamples - i) / float(fadeN);
+    }
+
+    // Containment is checked once per LINE, at its end (spec §7).
+    int checkStart = std::max(0, rendered - sampleRate / 1000);
+    float tailPeak = 0.0f;
+    for (int i = checkStart; i < rendered; ++i)
+      tailPeak = std::max(tailPeak, std::fabs(buf[size_t(i)]));
+    if (tailPeak > 1e-4f)
+      std::fprintf(stderr,
+          "[containment] line ending on note %.1f (%.1f Hz) at t=%.2fs: "
+          "%.1f dBFS in final 1 ms\n",
+          line_.lastNote, line_.lastFreq, line_.startTime,
+          20.0f * std::log10(tailPeak));
+
+    add_rendered(line_.startTime, buf.data(), rendered);
+    // Hand the slot back the way the classic path leaves it — ungated —
+    // so the next note that lands on it lays out exactly as it always did.
+    for (auto* e : vg.allEnvelopes) e->set_gated(false);
+    line_ = HeldLine{};
+  }
+
+  // End-of-score safety (spec §4.3): a hold:true final note cannot leak an
+  // immortal voice. Score loader and UI generate both call this after
+  // their note loop.
+  void finish_open_lines() { if (line_.open) finish_line(); }
 };
 
 // ---------------------------------------------------------------------------

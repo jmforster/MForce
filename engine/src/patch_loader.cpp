@@ -1523,6 +1523,8 @@ Patch load_patch_file(const std::string& path)
         if (instJson.contains("onsets"))
             inst->onsetNames =
                 instJson["onsets"].get<std::vector<std::string>>();
+        // Legato retune time (spec 2026-09-20-note-onsets-v2 §4.1).
+        inst->glideSec = instJson.value("glideMs", 15.0f) / 1000.0f;
         if (instJson.value("release", 0.0f) != 0.0f)
             std::fprintf(stderr, "[loader] instrument.release retired "
                          "(note-contained sound 2026-08-13); ignored\n");
@@ -1595,10 +1597,20 @@ Patch load_patch_file(const std::string& path)
                 return i < score.size() &&
                        score[i].value("phrase", std::string()) == "cont";
             };
-            std::vector<PitchedInstrument::PhraseNote> phrase;
+            // Per-note delivery (spec 2026-09-20-note-onsets-v2 §4): the
+            // phrase is a notation grouping only — it reaches the engine
+            // as notes carrying hold (true on all but the last) and an
+            // onset name.
+            struct LineNote { float note, velocity, duration, onsetId; };
+            std::vector<LineNote> phrase;
             float phraseStart = 0.0f;
             auto flush = [&]() {
-                if (!phrase.empty()) inst->play_phrase(phrase, phraseStart);
+                for (size_t k = 0; k < phrase.size(); ++k)
+                    inst->play_note({phrase[k].note, phrase[k].velocity,
+                                     phrase[k].duration, phrase[k].onsetId,
+                                     k + 1 < phrase.size()},
+                                    phraseStart);
+                inst->finish_open_lines();
                 phrase.clear();
             };
             for (size_t i = 0; i < score.size(); ++i) {
@@ -1625,8 +1637,8 @@ Patch load_patch_file(const std::string& path)
                             "\"cont\" with no preceding note");
                     if (!cont) { flush(); phraseStart = start; }
                     phrase.push_back({note, velocity, duration,
-                        noteJson.value("onset",
-                            std::string(cont ? "tongue" : "breath"))});
+                        inst->onset_id(noteJson.value("onset",
+                            std::string(cont ? "tongue" : "breath")))});
                     continue;
                 }
                 flush();
@@ -1841,6 +1853,7 @@ InstrumentPatch load_instrument_patch_json(const std::string& jsonText,
     if (instJson.contains("onsets"))
         inst->onsetNames =
             instJson["onsets"].get<std::vector<std::string>>();
+    inst->glideSec = instJson.value("glideMs", 15.0f) / 1000.0f;
     if (instJson.value("release", 0.0f) != 0.0f)
         std::fprintf(stderr, "[loader] instrument.release retired "
                      "(note-contained sound 2026-08-13); ignored\n");

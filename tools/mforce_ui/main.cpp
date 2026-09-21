@@ -4293,25 +4293,18 @@ static bool generate_unified(const std::vector<SchedNote>& notes) {
         int frames = int(end * float(ip.sampleRate));
 
         pitched->capture_begin(capIds, frames);
-        // Group SchedNotes into phrases (spec 2026-09-19-note-transitions
-        // §4): consecutive !phraseStart notes ride the phrase opened by
-        // the last phraseStart note. Single notes are one-note phrases —
-        // play_note itself delegates to play_phrase, so this is the same
-        // path either way.
-        {
-            std::vector<PitchedInstrument::PhraseNote> phrase;
-            float phraseStart = 0.0f;
-            auto flush = [&]() {
-                if (!phrase.empty()) pitched->play_phrase(phrase, phraseStart);
-                phrase.clear();
-            };
-            for (const auto& sn : notes) {
-                if (sn.phraseStart) { flush(); phraseStart = sn.startSeconds; }
-                phrase.push_back({sn.noteNumber, sn.velocity,
-                                  sn.durationSeconds, sn.onset});
-            }
-            flush();
+        // Per-note delivery (spec 2026-09-20-note-onsets-v2 §4): a run of
+        // !phraseStart notes is delivered as notes carrying hold (true on
+        // all but the last of the run), which the engine turns into one
+        // resumable line voice. An unmarked note is hold:false = today.
+        for (size_t i = 0; i < notes.size(); ++i) {
+            const auto& sn = notes[i];
+            bool lastOfPhrase = (i + 1 >= notes.size()) || notes[i + 1].phraseStart;
+            pitched->play_note({sn.noteNumber, sn.velocity, sn.durationSeconds,
+                                pitched->onset_id(sn.onset), !lastOfPhrase},
+                               sn.startSeconds);
         }
+        pitched->finish_open_lines();
 
         buffer_playback_detach();   // it points into g_outputWaveform (3k)
         g_outputWaveform.assign(size_t(frames), 0.0f);

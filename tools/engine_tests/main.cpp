@@ -786,47 +786,197 @@ static InstrumentPatch load_scoreless(const char* path) {
     return load_instrument_patch_json(j.dump());
 }
 
-static void run_phrase_tests() {
-    const char* kPatch = "patches/baselines/BaselineSIN.json";
-    const int N = int(1.6f * 48000);
+// A minimal sustaining patch: percent-mode adsr (attack 5%, decay 10%,
+// expand, release 25%) into a sine whose frequency is WIRED to the Note
+// node. The wire matters: a legacy paramMap delivers frequency by a PUSH
+// evaluated once at Setup, which freezes a glide at its first value —
+// only pulled frequency chains (what every taught wind patch uses) see
+// the ramp. %s = the instrument block's glideMs.
+static std::string hold_patch_json(float glideMs) {
+    char buf[1400];
+    std::snprintf(buf, sizeof(buf), R"({
+      "sampleRate": 48000,
+      "instrument": { "polyphony": 2, "glideMs": %.1f },
+      "graph": {
+        "output": "sine1",
+        "nodes": [
+          { "id": "pf", "type": "PerformNode",
+            "params": { "field": "frequency" } },
+          { "id": "env1", "type": "Envelope",
+            "params": { "stages": [
+              { "startVal": 0.0, "endVal": 1.0, "type": "Linear", "percent": 0.05 },
+              { "startVal": 1.0, "endVal": 0.7, "type": "Linear", "percent": 0.10 },
+              { "startVal": 0.7, "endVal": 0.7, "type": "Linear", "percent": 0.0 },
+              { "startVal": 0.7, "endVal": 0.0, "type": "Linear", "percent": 0.25 }
+            ] } },
+          { "id": "sine1", "type": "SineSource",
+            "params": { "frequency": { "ref": "pf" },
+                        "amplitude": { "ref": "env1" }, "phase": 0.0 } }
+        ]
+      }
+    })", glideMs);
+    return std::string(buf);
+}
 
-    // Gate 2 (spec §7): a two-note phrase, same pitch/velocity, nothing
-    // wired to onset — byte-identical to one note of summed duration.
-    auto a = load_scoreless(kPatch);
-    auto* pa = dynamic_cast<PitchedInstrument*>(a.instrument.get());
-    CHECK(pa != nullptr);
-    pa->play_note({60.0f, 0.8f, 1.0f}, 0.0f);
-    std::vector<float> bufA(size_t(N), 0.0f);
-    RenderContext ctxA{a.sampleRate};
-    a.instrument->render(ctxA, bufA.data(), N);
-
-    auto b = load_scoreless(kPatch);
-    auto* pb = dynamic_cast<PitchedInstrument*>(b.instrument.get());
-    pb->play_phrase({{60.0f, 0.8f, 0.5f, ""}, {60.0f, 0.8f, 0.5f, ""}}, 0.0f);
-    std::vector<float> bufB(size_t(N), 0.0f);
-    RenderContext ctxB{b.sampleRate};
-    b.instrument->render(ctxB, bufB.data(), N);
-
-    CHECK(std::memcmp(bufA.data(), bufB.data(), size_t(N) * sizeof(float)) == 0);
-
-    // Mid-voice retune: second half of a C4->G4 phrase must oscillate
-    // ~1.5x faster (zero-crossing count), proving set_note re-drives the
-    // frequency chain on the living voice.
-    auto c = load_scoreless(kPatch);
-    auto* pc = dynamic_cast<PitchedInstrument*>(c.instrument.get());
-    pc->play_phrase({{60.0f, 0.8f, 0.5f, ""}, {67.0f, 0.8f, 0.5f, ""}}, 0.0f);
-    std::vector<float> bufC(size_t(N), 0.0f);
-    RenderContext ctxC{c.sampleRate};
-    c.instrument->render(ctxC, bufC.data(), N);
-    auto zc = [&](int from, int to) {
-        int n = 0;
-        for (int i = from + 1; i < to; ++i)
-            if ((bufC[size_t(i)] >= 0) != (bufC[size_t(i-1)] >= 0)) ++n;
-        return n;
+// Per-note delivery with hold (spec 2026-09-20-note-onsets-v2 §4/§5/§7).
+static void run_hold_delivery_tests() {
+    const int sr = 48000;
+    auto rms_of = [](const std::vector<float>& b, float fromSec, float toSec) {
+        int a = int(fromSec * 48000), z = int(toSec * 48000);
+        a = std::max(0, a); z = std::min(z, int(b.size()));
+        double s = 0.0;
+        for (int i = a; i < z; ++i) s += double(b[size_t(i)]) * b[size_t(i)];
+        return float(std::sqrt(s / double(std::max(1, z - a))));
     };
-    int half = 24000;
-    float ratio = float(zc(half, 2 * half)) / float(std::max(1, zc(0, half)));
-    CHECK(ratio > 1.35f && ratio < 1.65f);   // 392/261.6 = 1.498
+    auto render_all = [](InstrumentPatch& ip, int n) {
+        std::vector<float> b(size_t(n), 0.0f);
+        RenderContext ctx{ip.sampleRate};
+        ip.instrument->render(ctx, b.data(), n);
+        return b;
+    };
+
+    // (a) The classic path is deterministic and unchanged in shape: the
+    //     same hold:false PerformedNote renders the same bytes twice.
+    //     (The null gate over 79 patches is the real referee for "equals
+    //     yesterday".)
+    {
+        const int N = int(1.6f * sr);
+        auto a = load_scoreless("patches/baselines/BaselineSIN.json");
+        auto* pa = dynamic_cast<PitchedInstrument*>(a.instrument.get());
+        CHECK(pa != nullptr);
+        pa->play_note({60.0f, 0.8f, 1.0f}, 0.0f);
+        auto bufA = render_all(a, N);
+
+        auto b = load_scoreless("patches/baselines/BaselineSIN.json");
+        auto* pb = dynamic_cast<PitchedInstrument*>(b.instrument.get());
+        pb->play_note({60.0f, 0.8f, 1.0f, 0.0f, false}, 0.0f);
+        auto bufB = render_all(b, N);
+        CHECK(std::memcmp(bufA.data(), bufB.data(),
+                          size_t(N) * sizeof(float)) == 0);
+    }
+
+    // (b) Hold mechanics: quarter {hold:true} + quarter {hold:false},
+    //     same pitch. The gate stays open across 0.4 s — no release dip —
+    //     and the voice releases after 0.8 s.
+    {
+        const int N = int(2.0f * sr);
+        auto ip = load_instrument_patch_json(hold_patch_json(15.0f));
+        auto* pi = dynamic_cast<PitchedInstrument*>(ip.instrument.get());
+        CHECK(pi != nullptr);
+        pi->play_note({60.0f, 0.8f, 0.4f, 0.0f, true},  0.0f);
+        pi->play_note({60.0f, 0.8f, 0.4f, 0.0f, false}, 0.4f);
+        auto b = render_all(ip, N);
+        float sustain  = rms_of(b, 0.30f, 0.34f);
+        float boundary = rms_of(b, 0.38f, 0.42f);
+        CHECK(sustain > 0.1f);
+        CHECK(std::fabs(boundary - sustain) < 0.10f * sustain);
+        CHECK(rms_of(b, 0.70f, 0.78f) > 0.1f);        // still sounding
+        CHECK(rms_of(b, 1.10f, 1.40f) < 0.01f * sustain);  // and released
+    }
+
+    // (c) Release re-layout end to end (§5): quarter {hold:true} + half
+    //     {hold:false}. The release is 25% of the HALF note (0.2 s), not
+    //     of the quarter that prepared the voice (which would be 0.1 s).
+    {
+        const int N = int(2.4f * sr);
+        auto ip = load_instrument_patch_json(hold_patch_json(15.0f));
+        auto* pi = dynamic_cast<PitchedInstrument*>(ip.instrument.get());
+        pi->play_note({60.0f, 0.8f, 0.4f, 0.0f, true},  0.0f);
+        pi->play_note({60.0f, 0.8f, 0.8f, 0.0f, false}, 0.4f);
+        auto b = render_all(ip, N);
+        float peak = 0.0f;
+        for (float v : b) peak = std::max(peak, std::fabs(v));
+        const float thresh = peak * 0.01f;            // -40 dB below peak
+        int last = 0;
+        for (int i = 0; i < N; ++i)
+            if (std::fabs(b[size_t(i)]) > thresh) last = i;
+        float lastSec = float(last) / float(sr);
+        CHECK(lastSec > 1.34f && lastSec < 1.46f);    // 1.2 s + ~0.2 s
+    }
+
+    // (d) Glide (§4.1): C4 {hold:true} then G4 {hold:false} with
+    //     glideMs 15. The pitch ARRIVES at G4 within the glide, and the
+    //     boundary's per-sample step is smaller than an instant retarget's.
+    {
+        const int N = int(1.6f * sr);
+        auto glided = load_instrument_patch_json(hold_patch_json(15.0f));
+        auto* pg = dynamic_cast<PitchedInstrument*>(glided.instrument.get());
+        pg->play_note({60.0f, 0.8f, 0.4f, 0.0f, true},  0.0f);
+        pg->play_note({67.0f, 0.8f, 0.4f, 0.0f, false}, 0.4f);
+        auto bg = render_all(glided, N);
+
+        auto instant = load_instrument_patch_json(hold_patch_json(0.0f));
+        auto* pn = dynamic_cast<PitchedInstrument*>(instant.instrument.get());
+        pn->play_note({60.0f, 0.8f, 0.4f, 0.0f, true},  0.0f);
+        pn->play_note({67.0f, 0.8f, 0.4f, 0.0f, false}, 0.4f);
+        auto bn = render_all(instant, N);
+
+        // f0 from INTERPOLATED rising zero crossings (a raw crossing count
+        // over 30 ms quantizes to ~70 cents — far too coarse for a
+        // 30-cent gate).
+        auto f0 = [&](const std::vector<float>& b, float fromSec, float toSec) {
+            int a = int(fromSec * sr), z = int(toSec * sr);
+            double first = -1.0, last = -1.0;
+            int cycles = -1;
+            for (int i = a + 1; i < z; ++i) {
+                float p = b[size_t(i-1)], c = b[size_t(i)];
+                if (p < 0.0f && c >= 0.0f) {
+                    double t = double(i - 1) + double(-p) / double(c - p);
+                    if (first < 0.0) { first = t; cycles = 0; }
+                    else { last = t; ++cycles; }
+                }
+            }
+            if (cycles <= 0) return 0.0f;
+            return float(double(cycles) * double(sr) / (last - first));
+        };
+        const float g4 = 391.995f;
+        float cents = 1200.0f * std::log2(f0(bg, 0.415f, 0.445f) / g4);
+        CHECK(std::fabs(cents) < 30.0f);
+        // Boundary smoothness over the first 5 ms of the glide.
+        auto maxStep = [&](const std::vector<float>& b) {
+            float m = 0.0f;
+            for (int i = int(0.400f * sr) + 1; i < int(0.405f * sr); ++i)
+                m = std::max(m, std::fabs(b[size_t(i)] - b[size_t(i-1)]));
+            return m;
+        };
+        CHECK(maxStep(bg) < maxStep(bn));
+    }
+
+    // (e) finish_open_lines (§4.3): a line left open at score end is
+    //     released, not leaked — the output decays away.
+    {
+        const int N = int(2.0f * sr);
+        auto ip = load_instrument_patch_json(hold_patch_json(15.0f));
+        auto* pi = dynamic_cast<PitchedInstrument*>(ip.instrument.get());
+        pi->play_note({60.0f, 0.8f, 0.5f, 0.0f, true}, 0.0f);
+        pi->finish_open_lines();
+        auto b = render_all(ip, N);
+        float peak = 0.0f;
+        for (float v : b) peak = std::max(peak, std::fabs(v));
+        CHECK(peak > 0.1f);
+        CHECK(rms_of(b, 1.20f, 1.60f) < 0.001f * peak);   // < -60 dBFS
+    }
+
+    // (f) Mid-line retune still re-drives the living voice: the second
+    //     half of a C4 -> G4 line oscillates ~1.5x faster (the v1
+    //     assertion, re-expressed per note).
+    {
+        const int N = int(1.6f * sr);
+        auto c = load_scoreless("patches/baselines/BaselineSIN.json");
+        auto* pc = dynamic_cast<PitchedInstrument*>(c.instrument.get());
+        pc->play_note({60.0f, 0.8f, 0.5f, 0.0f, true},  0.0f);
+        pc->play_note({67.0f, 0.8f, 0.5f, 0.0f, false}, 0.5f);
+        auto bufC = render_all(c, N);
+        auto zc = [&](int from, int to) {
+            int n = 0;
+            for (int i = from + 1; i < to; ++i)
+                if ((bufC[size_t(i)] >= 0) != (bufC[size_t(i-1)] >= 0)) ++n;
+            return n;
+        };
+        int half = 24000;
+        float ratio = float(zc(half, 2 * half)) / float(std::max(1, zc(0, half)));
+        CHECK(ratio > 1.35f && ratio < 1.65f);   // 392/261.6 = 1.498
+    }
 }
 
 static void run_envelope_retrigger_tests() {
@@ -910,7 +1060,7 @@ static void run_name_gate_tests() {
     CHECK(ng->current() == 0.0f);
 }
 
-static void run_phrase_trigger_tests() {
+static void run_onset_trigger_tests() {
     // Minimal taught patch: sine * gesture envelope; gesture's trigger
     // wired Note.onset -> NameGate("tongue") -> Envelope.trigger.
     // Spec §6 end to end: the dip fires on the tongued note only.
@@ -941,8 +1091,8 @@ static void run_phrase_trigger_tests() {
     auto ip = load_instrument_patch_json(kJson);
     auto* pi = dynamic_cast<PitchedInstrument*>(ip.instrument.get());
     CHECK(pi != nullptr);
-    pi->play_phrase({{57.0f, 0.8f, 0.5f, ""}, {57.0f, 0.8f, 0.5f, "tongue"}},
-                    0.0f);
+    pi->play_note({57.0f, 0.8f, 0.5f, 0.0f, true}, 0.0f);
+    pi->play_note({57.0f, 0.8f, 0.5f, pi->onset_id("tongue"), false}, 0.5f);
     const int N = int(1.2f * 48000);
     std::vector<float> buf(size_t(N), 0.0f);
     RenderContext ctx{48000};
@@ -960,10 +1110,11 @@ static void run_phrase_trigger_tests() {
     float after  = rms(0.60f, 0.90f);          // recovered sustain
     CHECK(dip < 0.5f * before);                // the consonant fired
     CHECK(after > 0.9f * before);              // and got out of the way
-    // Control: same phrase, no onset name — no dip.
+    // Control: same line, no onset name — no dip.
     auto ip2 = load_instrument_patch_json(kJson);
     auto* pi2 = dynamic_cast<PitchedInstrument*>(ip2.instrument.get());
-    pi2->play_phrase({{57.0f, 0.8f, 0.5f, ""}, {57.0f, 0.8f, 0.5f, ""}}, 0.0f);
+    pi2->play_note({57.0f, 0.8f, 0.5f, 0.0f, true}, 0.0f);
+    pi2->play_note({57.0f, 0.8f, 0.5f, 0.0f, false}, 0.5f);
     std::vector<float> buf2(size_t(N), 0.0f);
     RenderContext ctx2{48000};
     ip2.instrument->render(ctx2, buf2.data(), N);
@@ -977,11 +1128,11 @@ static void run_phrase_trigger_tests() {
 int main() {
     run_passage_parse_tests();
     run_onset_field_tests();
-    run_phrase_tests();
+    run_hold_delivery_tests();
     run_envelope_retrigger_tests();
     run_release_relayout_tests();
     run_name_gate_tests();
-    run_phrase_trigger_tests();
+    run_onset_trigger_tests();
     run_curve_node_tests();
     run_curve_expr_tests();
     run_envelope_range_tests();
