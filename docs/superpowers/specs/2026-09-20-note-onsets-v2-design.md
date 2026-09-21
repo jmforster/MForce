@@ -38,7 +38,7 @@ the end; they consolidate:
 struct PerformedNote {
   float noteNumber;
   float velocity;
-  float durationSeconds;
+  float duration;          // seconds
   float onsetId{0};              // interned; 0 = none
   bool  hold{false};
   const PitchCurve* curve{nullptr};
