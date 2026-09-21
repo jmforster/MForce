@@ -1543,10 +1543,13 @@ Patch load_patch_file(const std::string& path)
 
             // Trigger bindings (spec 2026-09-20-note-onsets-v2 §6):
             // envelopes with a wired trigger restart at matching Setups.
+            // allEnvelopes (§4/§5): the whole population, for hold-gating
+            // and release re-layout.
             for (auto& [nid, src] : g.valueNodes)
-                if (auto* env = dynamic_cast<Envelope*>(src.get());
-                    env && env->trigger_)
-                    vg.triggerBindings.push_back(env);
+                if (auto* env = dynamic_cast<Envelope*>(src.get())) {
+                    vg.allEnvelopes.push_back(env);
+                    if (env->trigger_) vg.triggerBindings.push_back(env);
+                }
 
             // If the voice's output is a MultiplexSource, capture it so play_note
             // can fan paramMap changes into each clone.
@@ -1854,11 +1857,13 @@ InstrumentPatch load_instrument_patch_json(const std::string& jsonText,
             throw std::runtime_error("instrument: output node '" + outputId + "' not found");
         vg.source = srcIt->second;
 
-        // Trigger bindings (spec 2026-09-20-note-onsets-v2 §6).
+        // Trigger bindings (spec 2026-09-20-note-onsets-v2 §6) +
+        // allEnvelopes (§4/§5) — see the render-path twin above.
         for (auto& [nid, src] : g.valueNodes)
-            if (auto* env = dynamic_cast<Envelope*>(src.get());
-                env && env->trigger_)
-                vg.triggerBindings.push_back(env);
+            if (auto* env = dynamic_cast<Envelope*>(src.get())) {
+                vg.allEnvelopes.push_back(env);
+                if (env->trigger_) vg.triggerBindings.push_back(env);
+            }
 
         vg.topMultiplex = std::dynamic_pointer_cast<MultiplexSource>(vg.source);
 

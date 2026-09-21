@@ -858,6 +858,40 @@ static void run_envelope_retrigger_tests() {
     CHECK_NEAR(v, 1.0f, 1e-3f);
 }
 
+// Release re-layout (spec 2026-09-20-note-onsets-v2 §5): the release
+// stage's sample count was computed at voice birth against note 1's
+// duration; at gate_release the caller may re-reference it to the
+// RELEASING note's duration.
+static void run_release_relayout_tests() {
+    const int sr = 48000;
+    // adsr-ish: attack 10%, decay 10%, expand, release 25% (percent mode)
+    Envelope env(sr);
+    env.add_stage({{0.0f, 1.0f, RampType::Linear, 0.0f}, 0.10f, 0.0f, 0.0f});
+    env.add_stage({{1.0f, 0.7f, RampType::Linear, 0.0f}, 0.10f, 0.0f, 0.0f});
+    env.add_stage({{0.7f, 0.7f, RampType::Linear, 0.0f}, 0.0f,  0.0f, 0.0f});
+    env.add_stage({{0.7f, 0.0f, RampType::Linear, 0.0f}, 0.25f, 0.0f, 0.0f});
+    env.set_gated(true);
+    env.prepare(RenderContext{sr}, int(0.4f * sr));      // quarter note
+    for (int i = 0; i < int(0.35f * sr); ++i) env.next(); // into the hold
+    // Release re-referenced to a HALF note: 25% of 0.8 s = 0.2 s.
+    int rem = env.gate_release(int(0.8f * sr));
+    CHECK(std::abs(rem - int(0.25f * 0.8f * sr)) <= 2);
+    // Default arg keeps old behavior: fresh envelope, no ref. The
+    // prepare-time layout resolves percent against the LAYOUT window,
+    // i.e. the note minus the engine-wide reflection allowance — that
+    // 10 ms is why the expectation is not a flat 25% of 0.4 s.
+    Envelope e2(sr);
+    e2.add_stage({{0.0f, 1.0f, RampType::Linear, 0.0f}, 0.10f, 0.0f, 0.0f});
+    e2.add_stage({{1.0f, 1.0f, RampType::Linear, 0.0f}, 0.0f,  0.0f, 0.0f});
+    e2.add_stage({{1.0f, 0.0f, RampType::Linear, 0.0f}, 0.25f, 0.0f, 0.0f});
+    e2.set_gated(true);
+    e2.prepare(RenderContext{sr}, int(0.4f * sr));
+    for (int i = 0; i < int(0.2f * sr); ++i) e2.next();
+    int rem2 = e2.gate_release();
+    CHECK(std::abs(rem2 - int(0.25f * (0.4f - Envelope::kReflectionAllowanceSec)
+                              * sr)) <= 2);
+}
+
 #include "mforce/core/name_gate.h"
 
 static void run_name_gate_tests() {
@@ -945,6 +979,7 @@ int main() {
     run_onset_field_tests();
     run_phrase_tests();
     run_envelope_retrigger_tests();
+    run_release_relayout_tests();
     run_name_gate_tests();
     run_phrase_trigger_tests();
     run_curve_node_tests();

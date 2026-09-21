@@ -82,7 +82,17 @@ struct Envelope : ValueSource {
   // Returns the remaining release frames so the caller can bound the
   // voice's lifetime. Safe on the audio thread under the audio mutex — no
   // allocation.
-  int gate_release() {
+  //
+  // Release re-layout (spec 2026-09-20-note-onsets-v2 §5): the release
+  // stage's sample count was computed at voice birth, against the FIRST
+  // note's duration — so a line opening on a quarter and ending on a half
+  // released at the quarter's scale. Pass `releaseRefFrames` >= 0 to
+  // re-resolve the release stage (and any stage after it — the damper-
+  // choke class) against that reference instead, same percent/minSec/
+  // maxSec math. Seconds-mode (absolute_time) stages keep their literal
+  // length. The default -1 = no re-layout = today's behavior bit for bit,
+  // which is what the live path passes.
+  int gate_release(int releaseRefFrames = -1) {
     if (stages_.empty() || stageCounts_.empty()) return 0;
     int last = int(stages_.size()) - 1;
     // When the expand IS the last stage (make_adsr_abs release-0 quirk,
@@ -96,6 +106,16 @@ struct Envelope : ValueSource {
     if (expandIdx_ == last) return 0;
     int relStage = (expandIdx_ >= 0 && expandIdx_ < last) ? expandIdx_ + 1
                                                           : last;
+    if (releaseRefFrames >= 0 && !absolute_time) {
+      const float refSec = float(releaseRefFrames) / float(sampleRate_);
+      for (int i = relStage; i < int(stages_.size()); ++i) {
+        if (stages_[i].percent == 0.0f) continue;   // expand keeps its fill
+        float stgDur = refSec * stages_[i].percent * timeScale_;
+        stgDur = std::clamp(stgDur, stages_[i].minSec,
+                            stages_[i].maxSec > 0 ? stages_[i].maxSec : stgDur);
+        stageCounts_[i] = int(std::lround(stgDur * sampleRate_));
+      }
+    }
     if (currStage_ >= relStage) {
       int rem = std::max(0, stageEnd_ - ptr_);
       for (int i = currStage_ + 1; i < int(stageCounts_.size()); ++i)
