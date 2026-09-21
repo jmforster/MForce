@@ -9,6 +9,29 @@ the same evening. Awaiting = only what still needs Matt.
 **renders/dsp/audition/articulation1/** — 6 files, README inside.
 Regenerated; these replace yesterday's files of the same names.
 
+**** YOUR FIRST-PASS VERDICT (09-20 evening) + what shipped in response:
+"Re: goals of the round, 100% achieved. No clicks, clean and smooth
+articulations." Two unforeseen effects, both acted on the same evening,
+and the queue was REGENERATED AGAIN after — so the current files are
+one build newer than what you first heard:
+1. Oboe "trading licks" — each phrase had its own character (one blow =
+   one noise realization per line; backlog 72 unmasked). FIXED per your
+   option (a): every in-line note now re-anchors the random draws at its
+   start, so each note's character is pinned exactly like a fresh note's
+   always was. Cost stated up front: notes 5 and 7 get their overblow
+   back — that pinning is what hid the loop's sensitivity all along;
+   the real cure stays the operating-point campaign (backlog 72/r5c).
+2. Trombone: some slurs re-attack or struggle — you called it, and the
+   measurements agree it is most likely PARTIAL-CROSSING (the lip's
+   register mechanism dragged through no-man's-land mid-glide). Your two
+   experiments are now IN THE UI (relaunch first): the Passage tab has
+   an "Onsets" selector (auto / all tongue / all slur), and the Output
+   node's settings have a draggable "glide ms" (0 = old instant retune;
+   default 15). If struggles vanish under all-tongue and track glide
+   length, the fix is one emission rule: tongue across partial
+   boundaries, which is what real players do.
+****
+
 You listened to yesterday's phrased renders and told me what was wrong:
 a tick at every pitch change, nothing happening at all on repeated
 notes, and the envelopes stretched out of shape over a whole line. All

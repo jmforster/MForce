@@ -1,5 +1,42 @@
 # Status — session handoff (Claude reads this first; Matt's queue = */REVIEW.md)
 
+Updated: 2026-09-20 late (interactive with Matt, after the v2 Opus build
+below; session continuity save 09-21 morning).
+WORKING-TREE NOTE unchanged: docs/autonomy/GOALS.md is Matt's own
+uncommitted edit — never stage/commit/revert.
+**POST-V2 EVENING ROUND — Matt's first-pass 74 verdict ("goals 100%
+achieved. No clicks, clean and smooth articulations") + two unforeseen
+effects, both shipped same evening; articulation1 queue REGENERATED
+after, so his next listen is one build newer than his first.**
+(1) **Per-note draw re-anchoring** (his option (a)): ValueSource::reseed()
+no-op virtual; Randomizer stores seed + reanchor(); overrides across the
+noise family + Envelope draw rngs + Vibrato/LayeredRed forwards; the
+CONTINUATION Setup re-anchors every node (never fresh paths — prepare
+consumes layout draws, post-prepare reseed ≠ byte-neutral). Fixes the
+phrased-oboe "different oboeist per phrase" (backlog 72 unmasked by
+phrasing); pins notes 5/7's overblow back — r5c/72 remains the real
+cure. Null gate 79/79; engine_tests 508 incl. an exact-replay test.
+(2) **Trombone slur struggles = partial-crossing (diagnosis, Matt
+concurs by ear)**; his two experiment knobs shipped: transport "Onsets"
+combo (auto/all tongue/all slur — stamp_passage takes the mode; phrase
+starts stay breath) and Output-panel "glide ms" drag (write-only-when-
+touched; taught-patch + corpus roundtrip verified, 8 known findings, 0
+new). If his ears confirm, the likely fix = one emission rule (tongue
+across partial boundaries). (3) Onset vocabulary corrected to the
+approved [breath|tongue|slur] — breath was undeclared, interning to 0
+and false-positiving the vocab warn; now declared-but-unwired (the
+fresh-voice attack IS the breath; the glide IS the slur).
+OPEN ON MATT: 74 re-listen + his two trombone experiments; 72 formal
+verdict (informal: "velocity-linked brightness is there"); 62/65/38/39.
+OPEN ON DEV: partial-crossing emission rule (gated on Matt's
+experiments); backlog 75 passage-cutoff diagnosis (Matt: minor;
+UI-buffer half already fixed 09-20); backlog 79 roundtrip lossiness
+(with 65/71); 74a8 breath contour design (its Performer-side home =
+wheel/pressure inputs, per v2 spec §5); live legato = backlog 53 (pure
+wiring now). Specs: 2026-09-20-note-onsets-v2-design.md (+ plan) is
+CANON; the 09-19 v1 spec is history (§9 records the divergence).
+
+
 Updated: 2026-09-20 (onsets v2: Matt drove the redesign after auditioning
 73; brainstorm → spec → plan → Opus dispatch, coordinator re-verified).
 WORKING-TREE NOTE unchanged: docs/autonomy/GOALS.md carries Matt's own
