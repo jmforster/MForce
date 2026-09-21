@@ -510,7 +510,7 @@ static void wire_params_generic(
         static const std::unordered_set<std::string> kStructural = {
             // node/JSON structure
             "type", "id", "seed", "dynamicPins",
-            // NameGate's transition-name string (loader special case)
+            // NameGate's onset-name string (loader special case)
             "name",
             // envelope preset + stage vocabulary (envelope_from_preset_json)
             "preset", "stages", "attack", "decay", "release", "sustain",
@@ -584,7 +584,7 @@ static void add_formant(
 // would dangle.
 struct PerformContext {
     std::shared_ptr<ValueSource> freqOut, velOut, wheelOut, pressOut, durOut,
-                                 transOut;
+                                 onsetOut;
 };
 
 // Forward declarations for subgraph extraction / rebuild helpers (defined
@@ -607,11 +607,11 @@ static GraphResult build_graph(
     const std::vector<std::string>& nodeOrder,
     int sampleRate,
     const PerformContext* perf = nullptr,
-    // Instrument transition vocabulary (spec 2026-09-19-note-transitions
-    // §5) for NameGate name→id resolution. Null on non-instrument paths
+    // Instrument onset vocabulary (spec 2026-09-20-note-onsets-v2 §6/§8)
+    // for NameGate name→id resolution. Null on non-instrument paths
     // (and inside Multiplex subgraph rebuilds): an authored NameGate then
     // warns loudly instead of matching.
-    const std::vector<std::string>* transitions = nullptr)
+    const std::vector<std::string>* onsets = nullptr)
 {
     // Lazy init registry
     static bool registered = false;
@@ -780,21 +780,21 @@ static GraphResult build_graph(
             else if (field == "wheel")     valueNodes[id] = perf->wheelOut;
             else if (field == "pressure")  valueNodes[id] = perf->pressOut;
             else if (field == "duration")  valueNodes[id] = perf->durOut;
-            else if (field == "transition") valueNodes[id] = perf->transOut;
+            else if (field == "onset")     valueNodes[id] = perf->onsetOut;
             else throw std::runtime_error("PerformNode '" + id + "': unknown field '"
                 + field
-                + "' (expected frequency|velocity|wheel|pressure|duration|transition)");
+                + "' (expected frequency|velocity|wheel|pressure|duration|onset)");
         }
         else if (type == "NameGate") {
-            // Transition-name match (spec 2026-09-19-note-transitions §5).
+            // Onset-name match (spec 2026-09-20-note-onsets-v2 §6).
             // The `name` string resolves against the instrument's
-            // transitions[] vocabulary; ids are 1-based declaration order.
+            // onsets[] vocabulary; ids are 1-based declaration order.
             auto ng = std::make_shared<NameGate>(sampleRate);
             if (pp && pp->contains("name")) {
                 ng->name = (*pp)["name"].get<std::string>();
-                if (transitions)
-                    for (size_t k = 0; k < transitions->size(); ++k)
-                        if ((*transitions)[k] == ng->name) {
+                if (onsets)
+                    for (size_t k = 0; k < onsets->size(); ++k)
+                        if ((*onsets)[k] == ng->name) {
                             ng->targetId = float(k + 1);
                             break;
                         }
@@ -802,7 +802,7 @@ static GraphResult build_graph(
                     static std::unordered_set<std::string> warnedGates;
                     if (warnedGates.insert(ng->name).second)
                         std::fprintf(stderr, "[load] NameGate '%s': name "
-                            "'%s' is not in the instrument's transitions[] "
+                            "'%s' is not in the instrument's onsets[] "
                             "vocabulary — it will never fire\n",
                             id.c_str(), ng->name.c_str());
                 }
@@ -1460,10 +1460,10 @@ static PerformContext make_perform_context(PitchedInstrument::VoiceGraph& vg,
                                                PerformOut::Field::Pressure);
     vg.durOut   = std::make_shared<PerformOut>(vg.performSource,
                                                PerformOut::Field::Duration);
-    vg.transOut = std::make_shared<PerformOut>(vg.performSource,
-                                               PerformOut::Field::Transition);
+    vg.onsetOut = std::make_shared<PerformOut>(vg.performSource,
+                                               PerformOut::Field::Onset);
     return PerformContext{vg.freqOut, vg.velOut, vg.wheelOut, vg.pressOut,
-                          vg.durOut, vg.transOut};
+                          vg.durOut, vg.onsetOut};
 }
 
 // Convert the legacy paramMap, if the patch carries one. Runs after the graph
@@ -1520,9 +1520,9 @@ Patch load_patch_file(const std::string& path)
         // Pre-clip master gain (applied before the soft_clip peak guard, so it
         // is the right knob for keeping hot chains out of the clipper).
         inst->volume = instJson.value("volume", 1.0f);
-        if (instJson.contains("transitions"))
-            inst->transitionNames =
-                instJson["transitions"].get<std::vector<std::string>>();
+        if (instJson.contains("onsets"))
+            inst->onsetNames =
+                instJson["onsets"].get<std::vector<std::string>>();
         if (instJson.value("release", 0.0f) != 0.0f)
             std::fprintf(stderr, "[loader] instrument.release retired "
                          "(note-contained sound 2026-08-13); ignored\n");
@@ -1533,7 +1533,7 @@ Patch load_patch_file(const std::string& path)
             PerformContext perf = make_perform_context(
                 vg, inst->instrumentState, sampleRate);
             auto g = build_graph(nodeMap, nodeOrder, sampleRate, &perf,
-                                 &inst->transitionNames);
+                                 &inst->onsetNames);
 
             // Find the top-level source for this voice
             auto srcIt = g.valueNodes.find(outputId);
@@ -1541,7 +1541,7 @@ Patch load_patch_file(const std::string& path)
                 throw std::runtime_error("instrument: output node '" + outputId + "' not found");
             vg.source = srcIt->second;
 
-            // Trigger bindings (spec 2026-09-19-note-transitions §5):
+            // Trigger bindings (spec 2026-09-20-note-onsets-v2 §6):
             // envelopes with a wired trigger restart at matching Setups.
             for (auto& [nid, src] : g.valueNodes)
                 if (auto* env = dynamic_cast<Envelope*>(src.get());
@@ -1608,10 +1608,10 @@ Patch load_patch_file(const std::string& path)
                 const bool headsPhrase = !cont && is_cont(i + 1);
 
                 if (cont || headsPhrase) {
-                    // Transition emission — the Performer rule (spec §3
+                    // Onset emission — the Performer rule (spec §3
                     // seam, one function's worth of policy): first of
                     // phrase "breath", continuations "tongue"; an
-                    // explicit "transition" key overrides.
+                    // explicit "onset" key overrides.
                     if (noteJson.contains("articulation") ||
                         noteJson.contains("ornament"))
                         throw std::runtime_error("score: articulation/"
@@ -1622,7 +1622,7 @@ Patch load_patch_file(const std::string& path)
                             "\"cont\" with no preceding note");
                     if (!cont) { flush(); phraseStart = start; }
                     phrase.push_back({note, velocity, duration,
-                        noteJson.value("transition",
+                        noteJson.value("onset",
                             std::string(cont ? "tongue" : "breath"))});
                     continue;
                 }
@@ -1835,9 +1835,9 @@ InstrumentPatch load_instrument_patch_json(const std::string& jsonText,
     auto inst = std::make_unique<PitchedInstrument>();
     inst->sampleRate = sampleRate;
     inst->volume = instJson.value("volume", 1.0f);
-    if (instJson.contains("transitions"))
-        inst->transitionNames =
-            instJson["transitions"].get<std::vector<std::string>>();
+    if (instJson.contains("onsets"))
+        inst->onsetNames =
+            instJson["onsets"].get<std::vector<std::string>>();
     if (instJson.value("release", 0.0f) != 0.0f)
         std::fprintf(stderr, "[loader] instrument.release retired "
                      "(note-contained sound 2026-08-13); ignored\n");
@@ -1847,14 +1847,14 @@ InstrumentPatch load_instrument_patch_json(const std::string& jsonText,
         PerformContext perf = make_perform_context(
             vg, inst->instrumentState, sampleRate);
         auto g = build_graph(nodeMap, nodeOrder, sampleRate, &perf,
-                             &inst->transitionNames);
+                             &inst->onsetNames);
 
         auto srcIt = g.valueNodes.find(outputId);
         if (srcIt == g.valueNodes.end())
             throw std::runtime_error("instrument: output node '" + outputId + "' not found");
         vg.source = srcIt->second;
 
-        // Trigger bindings (spec 2026-09-19-note-transitions §5).
+        // Trigger bindings (spec 2026-09-20-note-onsets-v2 §6).
         for (auto& [nid, src] : g.valueNodes)
             if (auto* env = dynamic_cast<Envelope*>(src.get());
                 env && env->trigger_)

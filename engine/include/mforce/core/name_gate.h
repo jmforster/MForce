@@ -7,12 +7,12 @@
 namespace mforce {
 
 // ---------------------------------------------------------------------------
-// NameGate (spec 2026-09-19-note-transitions §5): the visible home of a
-// transition-name match. Input = the Note node's `transition` pin (the
+// NameGate (spec 2026-09-20-note-onsets-v2 §6): the visible home of an
+// onset-name match. Input = the Note node's `onset` pin (the
 // note's interned id, a held level); setting-of-sorts = one name string,
-// resolved to `targetId` against the instrument's transitions[] vocabulary
+// resolved to `targetId` against the instrument's onsets[] vocabulary
 // at load (strings are loader territory — SettingType has no string).
-// Output = 1.0 while the current note's transition matches, else 0.0.
+// Output = 1.0 while the current note's onset matches, else 0.0.
 //
 // Stateless and live: current() computes from in_->current() (the
 // PerformOut idiom — Setup-time reads and RefSource copies must see the

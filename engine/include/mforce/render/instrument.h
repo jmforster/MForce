@@ -128,7 +128,7 @@ struct PitchedInstrument final : Instrument {
     // the PitchBendSource graft and its BendSwap machinery are retired;
     // plan_perform_source_p3.md T1).
     std::shared_ptr<ValueSource>   freqOut, velOut, wheelOut, pressOut,
-                                   durOut, transOut;
+                                   durOut, onsetOut;
     std::vector<PushBinding>       pushBindings;
     // Loop tails consumed only by tap edges (feedback_loop_design.md §3.3):
     // never reached by the pull, ticked once per sample AFTER the root pull
@@ -141,7 +141,7 @@ struct PitchedInstrument final : Instrument {
     // the graph outlives them anyway). Empty for mixer-path instruments.
     std::unordered_map<std::string, std::shared_ptr<ValueSource>> nodesById;
     // Envelopes in this voice with a wired `trigger` input (spec
-    // 2026-09-19-note-transitions §5), collected at load. Raw pointers:
+    // 2026-09-20-note-onsets-v2 §6), collected at load. Raw pointers:
     // the voice's graph owns them (same lifetime rationale as
     // CaptureEntry). fire_triggers reads each trigger via current() at
     // note Setup — never in the sample loop.
@@ -250,24 +250,24 @@ struct PitchedInstrument final : Instrument {
   // write, push-binding evaluation (settings + Multiplex fans), and the P1
   // bend graft on the swap targets. Push deliveries happen BEFORE
   // vg.source->prepare — settings rebuild per-note state there.
-  // Transition vocabulary (spec 2026-09-19-note-transitions §5): the
-  // instrument block's "transitions" array, in declaration order. Interned
+  // Onset vocabulary (spec 2026-09-20-note-onsets-v2 §6/§8): the
+  // instrument block's "onsets" array, in declaration order. Interned
   // ids are 1-based; 0 = none/unknown. Stable, so ordinal use in a Curve
   // is dependable.
-  std::vector<std::string> transitionNames;
-  std::set<std::string> warnedTransitions_;   // once-per-name unknown warn
-  float transition_id(const std::string& name) {
+  std::vector<std::string> onsetNames;
+  std::set<std::string> warnedOnsets_;   // once-per-name unknown warn
+  float onset_id(const std::string& name) {
     if (name.empty()) return 0.0f;
     // Untaught instrument (no vocabulary): every name maps to 0,
-    // SILENTLY — phrases still phrase, gestures just don't exist here
-    // (the degradation contract, spec §5). The warn is for a taught
+    // SILENTLY — lines still play, gestures just don't exist here
+    // (the degradation contract, spec §6). The warn is for a taught
     // instrument receiving a name outside its vocabulary.
-    if (transitionNames.empty()) return 0.0f;
-    for (size_t k = 0; k < transitionNames.size(); ++k)
-      if (transitionNames[k] == name) return float(k + 1);
-    if (warnedTransitions_.insert(name).second)
-      std::fprintf(stderr, "[transition] name '%s' is not in this "
-                   "instrument's transitions[] vocabulary — it will never "
+    if (onsetNames.empty()) return 0.0f;
+    for (size_t k = 0; k < onsetNames.size(); ++k)
+      if (onsetNames[k] == name) return float(k + 1);
+    if (warnedOnsets_.insert(name).second)
+      std::fprintf(stderr, "[onset] name '%s' is not in this "
+                   "instrument's onsets[] vocabulary — it will never "
                    "fire\n", name.c_str());
     return 0.0f;
   }
@@ -275,7 +275,7 @@ struct PitchedInstrument final : Instrument {
   void apply_note_bindings(VoiceGraph& vg, float freq, float velocity,
                            int durSamples, float durSeconds,
                            const PitchCurve* curve,
-                           float transitionId = 0.0f) {
+                           float onsetId = 0.0f) {
     if (vg.performSource) {
       // P3: the bend rides the PerformSource itself — .frequency
       // articulates base * 2^(bend(t)/12), advanced by tick() from the
@@ -289,7 +289,7 @@ struct PitchedInstrument final : Instrument {
         bend->prepare(RenderContext{sampleRate}, durSamples);
       }
       vg.performSource->set_note(freq, velocity, durSamples, durSeconds,
-                                 std::move(bend), transitionId);
+                                 std::move(bend), onsetId);
     }
 
     // Push deliveries evaluate the chain ONCE at note-on (Setup), so a bend
@@ -338,19 +338,19 @@ struct PitchedInstrument final : Instrument {
   // One note of a phrase (spec 2026-09-19-note-transitions §4). The phrase
   // is the unit that acquires a voice, prepares the graph and opens the
   // envelope span — everything a note was; in-phrase notes re-drive the
-  // living voice. transition = a name from the instrument's transitions[]
+  // living voice. onset = a name from the instrument's onsets[]
   // vocabulary ("" = none).
   struct PhraseNote {
     float noteNumber;
     float velocity;
     float durationSeconds;
-    std::string transition;
+    std::string onset;
   };
 
-  // Trigger firing at Setup (spec §5): envelopes whose trigger input is
+  // Trigger firing at Setup (spec §6): envelopes whose trigger input is
   // nonzero at this note's Setup restart from their current value. The
   // bindings are collected at load; empty = no-op (feature at rest).
-  // Ordering contract: set_note FIRST (the new transitionId must be
+  // Ordering contract: set_note FIRST (the new onsetId must be
   // visible), push bindings second, fire_triggers LAST.
   void fire_triggers(VoiceGraph& vg) {
     for (auto* env : vg.triggerBindings)
@@ -369,7 +369,7 @@ struct PitchedInstrument final : Instrument {
     int durS = int(p.durationSeconds * float(sampleRate));
     if (vg.performSource)
       vg.performSource->set_note(freq, p.velocity, durS, p.durationSeconds,
-                                 nullptr, transition_id(p.transition));
+                                 nullptr, onset_id(p.onset));
     for (auto& b : vg.pushBindings) {
       if (b.isSetting) continue;
       b.chain->next();
@@ -406,7 +406,7 @@ struct PitchedInstrument final : Instrument {
     apply_note_bindings(vg, freq, pns[0].velocity,
                         int(pns[0].durationSeconds * float(sampleRate)),
                         pns[0].durationSeconds, curve,
-                        transition_id(pns[0].transition));
+                        onset_id(pns[0].onset));
 
     // Frequency-dependent brightness compensation. The voice-mix gain is
     // per-voice and fixed for the phrase (note 1's velocity): it cannot

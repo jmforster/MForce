@@ -29,11 +29,11 @@ struct NoteState {
   // frequency). Score playback = the note's actual length; live play =
   // the caller's nominal (the UI's fixed-duration header setting).
   float durSeconds{0.0f};
-  // Interned transition name (spec 2026-09-19-note-transitions §5):
-  // 0 = none/unknown; ids 1.. index the instrument's transitions[]
+  // Interned onset name (spec 2026-09-20-note-onsets-v2 §1/§8):
+  // 0 = none/unknown; ids 1.. index the instrument's onsets[]
   // vocabulary in declaration order (stable, so ordinal use in a Curve
   // is dependable). Held for the whole note, like velocity.
-  float transitionId{0.0f};
+  float onsetId{0.0f};
 };
 
 // P3 liveness: the voice owns an explicit per-sample clock. tick() advances
@@ -49,12 +49,12 @@ public:
   void set_note(float freqHz, float velocity, int durSamples,
                 float durSeconds = 0.0f,
                 std::shared_ptr<Envelope> bend = nullptr,
-                float transitionId = 0.0f) {
+                float onsetId = 0.0f) {
     note_.frequency    = freqHz;
     note_.velocity     = velocity;
     note_.durSamples   = durSamples;
     note_.durSeconds   = durSeconds;
-    note_.transitionId = transitionId;
+    note_.onsetId      = onsetId;
     bend_              = std::move(bend);
     bendSemis_         = 0.0f;
   }
@@ -104,7 +104,7 @@ private:
 // without RefSource wrapping.
 struct PerformOut final : ValueSource {
   enum class Field { Frequency, Velocity, Wheel, Pressure, Duration,
-                     Transition };
+                     Onset };
   PerformOut(std::shared_ptr<PerformSource> ps, Field f)
       : ps_(std::move(ps)), field_(f) {}
 
@@ -130,7 +130,7 @@ private:
       case Field::Wheel:     return ps_->wheel();
       case Field::Pressure:  return ps_->pressure();
       case Field::Duration:  return ps_->note().durSeconds;
-      case Field::Transition: return ps_->note().transitionId;
+      case Field::Onset:     return ps_->note().onsetId;
     }
     return 0.0f;
   }

@@ -757,9 +757,9 @@ static void run_passage_parse_tests() {
 
 #include "mforce/render/perform_source.h"
 
-static void run_transition_field_tests() {
+static void run_onset_field_tests() {
     auto ps = std::make_shared<PerformSource>();
-    PerformOut out(ps, PerformOut::Field::Transition);
+    PerformOut out(ps, PerformOut::Field::Onset);
     CHECK(out.current() == 0.0f);                          // no note yet
     ps->set_note(440.0f, 0.8f, 48000, 1.0f, nullptr, 2.0f);
     CHECK(out.current() == 2.0f);
@@ -791,7 +791,7 @@ static void run_phrase_tests() {
     const int N = int(1.6f * 48000);
 
     // Gate 2 (spec §7): a two-note phrase, same pitch/velocity, nothing
-    // wired to transition — byte-identical to one note of summed duration.
+    // wired to onset — byte-identical to one note of summed duration.
     auto a = load_scoreless(kPatch);
     auto* pa = dynamic_cast<PitchedInstrument*>(a.instrument.get());
     CHECK(pa != nullptr);
@@ -862,7 +862,7 @@ static void run_envelope_retrigger_tests() {
 
 static void run_name_gate_tests() {
     auto ps = std::make_shared<PerformSource>();
-    auto in = std::make_shared<PerformOut>(ps, PerformOut::Field::Transition);
+    auto in = std::make_shared<PerformOut>(ps, PerformOut::Field::Onset);
     auto ng = std::make_shared<NameGate>(48000);
     ng->set_param("in", in);
     ng->targetId = 2.0f;
@@ -878,16 +878,16 @@ static void run_name_gate_tests() {
 
 static void run_phrase_trigger_tests() {
     // Minimal taught patch: sine * gesture envelope; gesture's trigger
-    // wired Note.transition -> NameGate("tongue") -> Envelope.trigger.
-    // Spec §5 end to end: the dip fires on the tongued note only.
+    // wired Note.onset -> NameGate("tongue") -> Envelope.trigger.
+    // Spec §6 end to end: the dip fires on the tongued note only.
     const char* kJson = R"({
       "sampleRate": 48000,
-      "instrument": { "polyphony": 1, "transitions": ["tongue"] },
+      "instrument": { "polyphony": 1, "onsets": ["tongue"] },
       "graph": {
         "output": "sine1",
         "nodes": [
           { "id": "perf1", "type": "PerformNode",
-            "params": { "field": "transition" } },
+            "params": { "field": "onset" } },
           { "id": "ng1", "type": "NameGate",
             "params": { "name": "tongue", "in": { "ref": "perf1" } } },
           { "id": "gest1", "type": "Envelope",
@@ -926,7 +926,7 @@ static void run_phrase_trigger_tests() {
     float after  = rms(0.60f, 0.90f);          // recovered sustain
     CHECK(dip < 0.5f * before);                // the consonant fired
     CHECK(after > 0.9f * before);              // and got out of the way
-    // Control: same phrase, no transition name — no dip.
+    // Control: same phrase, no onset name — no dip.
     auto ip2 = load_instrument_patch_json(kJson);
     auto* pi2 = dynamic_cast<PitchedInstrument*>(ip2.instrument.get());
     pi2->play_phrase({{57.0f, 0.8f, 0.5f, ""}, {57.0f, 0.8f, 0.5f, ""}}, 0.0f);
@@ -942,7 +942,7 @@ static void run_phrase_trigger_tests() {
 
 int main() {
     run_passage_parse_tests();
-    run_transition_field_tests();
+    run_onset_field_tests();
     run_phrase_tests();
     run_envelope_retrigger_tests();
     run_name_gate_tests();

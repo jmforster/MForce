@@ -115,7 +115,7 @@ struct Envelope : ValueSource {
   }
 
   // Re-enter stage 0 NOW, anchored to the current output (click-free) —
-  // the transition-gesture restart (spec 2026-09-19-note-transitions §5).
+  // the onset-gesture restart (spec 2026-09-20-note-onsets-v2 §6).
   // Called at note Setup by the instrument's trigger bindings when this
   // envelope's `trigger` input is nonzero. Reuses the gate-anchor
   // machinery: the jumped-to stage interpolates from gateFrom_. The
@@ -132,7 +132,7 @@ struct Envelope : ValueSource {
     stageEnd_   = stageStart_ + stageCounts_[0];
   }
 
-  // Setup-sampled restart input (spec 2026-09-19-note-transitions §5).
+  // Setup-sampled restart input (spec 2026-09-20-note-onsets-v2 §6).
   // Read via current() at note Setup by the instrument's trigger
   // bindings; NEVER pulled in next() — keep trigger chains stateless
   // (NameGate / PerformOut), or their state freezes.

@@ -574,10 +574,10 @@ struct GraphNode {
             // note-on for score playback and fixed-duration live mode;
             // the patch reacts via curves/dynamicPins like any field.
             outputs.emplace_back("duration",  PinKind::Output, 1.0f);
-            // The note's interned transition id (spec 2026-09-19-note-
-            // transitions §5): 0 = none, 1.. = the instrument's
-            // transitions[] vocabulary. Held level, like velocity.
-            outputs.emplace_back("transition", PinKind::Output, 0.0f);
+            // The note's interned onset id (spec 2026-09-20-note-onsets-v2
+            // §6/§8): 0 = none, 1.. = the instrument's
+            // onsets[] vocabulary. Held level, like velocity.
+            outputs.emplace_back("onset", PinKind::Output, 0.0f);
             return;
         }
 
@@ -1768,8 +1768,8 @@ static void load_graph_from_path(const std::string& path) {
                 // refs handled in second pass
             }
 
-            // NameGate: restore the transition-name string (spec
-            // 2026-09-19 §5) — a string is outside the pin model, carried
+            // NameGate: restore the onset-name string (spec
+            // 2026-09-20 §6) — a string is outside the pin model, carried
             // in node.paramName like the Parameter node's name.
             if (gn.typeName == "NameGate" && params.contains("name") &&
                 params["name"].is_string()) {
@@ -3003,7 +3003,7 @@ static nlohmann::json serialize_patch_graph(
             }
         }
 
-        // NameGate: the transition-name string (spec 2026-09-19 §5).
+        // NameGate: the onset-name string (spec 2026-09-20 §6).
         if (node.typeName == "NameGate" && !node.paramName.empty()) {
             if (!jnode.contains("params")) jnode["params"] = json::object();
             jnode["params"]["name"] = node.paramName;
@@ -4238,7 +4238,7 @@ struct SchedNote {
     // !phraseStart notes extends the phrase of the last phraseStart note.
     // Defaults keep every existing call site a one-note phrase = today.
     bool phraseStart{true};
-    std::string transition;
+    std::string onset;
 };
 
 static bool generate_unified(const std::vector<SchedNote>& notes) {
@@ -4308,7 +4308,7 @@ static bool generate_unified(const std::vector<SchedNote>& notes) {
             for (const auto& sn : notes) {
                 if (sn.phraseStart) { flush(); phraseStart = sn.startSeconds; }
                 phrase.push_back({sn.noteNumber, sn.velocity,
-                                  sn.durationSeconds, sn.transition});
+                                  sn.durationSeconds, sn.onset});
             }
             flush();
         }
@@ -8194,8 +8194,8 @@ static void transport_generate() {
                     float cursor = 0.0f;
                     for (const auto& pn : notes) {
                         if (pn.noteNumber != kRestNote) {
-                            // Transition emission — the Performer rule
-                            // (spec 2026-09-19 §3 seam): first of phrase
+                            // Onset emission — the Performer rule
+                            // (spec 2026-09-20 §3 seam): first of phrase
                             // "breath", continuations "tongue". Untaught
                             // patches intern these to 0 silently.
                             sched.push_back({pn.noteNumber, pn.durationSeconds,
@@ -8731,9 +8731,9 @@ static void draw_node(GraphNode& node) {
     ImNodes::EndNodeTitleBar();
 
     // Parameter node: show param name in body. NameGate shows its
-    // transition name the same way — the string is the node's whole
+    // onset name the same way — the string is the node's whole
     // meaning, so it lives on the face, visible in the graph (spec
-    // 2026-09-19 §5: the name lives on a node you can see).
+    // 2026-09-20 §6: the name lives on a node you can see).
     if ((node.typeName == NT_PARAMETER || node.typeName == "NameGate")
         && !node.paramName.empty()) {
         ImGui::TextColored(ImVec4(0.9f, 0.7f, 0.9f, 1.0f), "%s", node.paramName.c_str());
@@ -10006,7 +10006,7 @@ static void draw_properties_panel() {
         ImGui::PopItemWidth();
     }
 
-    // Parameter: editable name. NameGate: editable transition name (the
+    // Parameter: editable name. NameGate: editable onset name (the
     // string the Performer's emitted names match against; graph dirties
     // so the next Generate/instrument reload re-resolves the id).
     if (node->typeName == NT_PARAMETER || node->typeName == "NameGate") {
@@ -12810,7 +12810,7 @@ int main(int argc, char** argv) {
             if (s_loadedScore.is_array()) {
                 // Mirrors the engine loader's score reading exactly,
                 // including phrase grouping and the Performer emission
-                // rule (spec 2026-09-19 §3) — gencheck parity depends on
+                // rule (spec 2026-09-20 §3) — gencheck parity depends on
                 // the two ends reading one score the same way.
                 const auto& sc = s_loadedScore;
                 float prevEnd = 0.0f;
@@ -12825,7 +12825,7 @@ int main(int argc, char** argv) {
                                     : heads ? "breath" : "";
                     notes.push_back({ev.value("note", 60.0f), dur, t,
                                      ev.value("velocity", 0.8f), !cont,
-                                     ev.value("transition", def)});
+                                     ev.value("onset", def)});
                     prevEnd = t + dur;
                 }
             }
