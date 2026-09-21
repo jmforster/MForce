@@ -795,7 +795,7 @@ static void run_phrase_tests() {
     auto a = load_scoreless(kPatch);
     auto* pa = dynamic_cast<PitchedInstrument*>(a.instrument.get());
     CHECK(pa != nullptr);
-    pa->play_note(60.0f, 0.8f, 1.0f, 0.0f);
+    pa->play_note({60.0f, 0.8f, 1.0f}, 0.0f);
     std::vector<float> bufA(size_t(N), 0.0f);
     RenderContext ctxA{a.sampleRate};
     a.instrument->render(ctxA, bufA.data(), N);

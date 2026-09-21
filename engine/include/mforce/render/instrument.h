@@ -18,6 +18,28 @@
 namespace mforce {
 
 // ---------------------------------------------------------------------------
+// PerformedNote — the Performance→Realization boundary object (spec
+// 2026-09-20-note-onsets-v2 §1). Every per-note decision the Performer
+// makes crosses here in ONE struct: pitch, velocity, length, how the note
+// begins (`onsetId`, already interned by the caller via onset_id()) and
+// whether the excitation continues past its end (`hold`). The loose
+// (noteNumber, velocity, duration, curve) argument list it replaces let
+// the PitchCurve dangle at the end and had nowhere to grow.
+//
+// Tier discipline: music::Note (Compose) gains NOTHING — onset and hold
+// are Interpretation products, the same category as PitchCurve, and live
+// only here. NoteState stays the render-side mirror the graph reads.
+// ---------------------------------------------------------------------------
+struct PerformedNote {
+  float noteNumber{60.0f};
+  float velocity{0.8f};
+  float duration{1.0f};          // seconds
+  float onsetId{0.0f};           // interned; 0 = none
+  bool  hold{false};
+  const PitchCurve* curve{nullptr};
+};
+
+// ---------------------------------------------------------------------------
 // Instrument — shared render infrastructure for pitched and percussion.
 // Pre-renders notes/hits into buffers, mixes them in render().
 // ---------------------------------------------------------------------------
@@ -382,9 +404,13 @@ struct PitchedInstrument final : Instrument {
     fire_triggers(vg);
   }
 
-  void play_note(float noteNumber, float velocity, float duration,
-                 float startTime, const PitchCurve* curve = nullptr) {
-    play_phrase({{noteNumber, velocity, duration, {}}}, startTime, curve);
+  // The one delivery entry point (spec §1). `onsetId` and `hold` are
+  // carried but not yet acted on — v1's phrase-vector delivery still runs
+  // underneath, so this is a byte-neutral refactor; Task 4 replaces the
+  // body with per-note delivery against a possibly-living line voice.
+  void play_note(const PerformedNote& pn, float startTime) {
+    play_phrase({{pn.noteNumber, pn.velocity, pn.duration, {}}}, startTime,
+                pn.curve);
   }
 
   void play_phrase(const std::vector<PhraseNote>& pns, float startTime,
