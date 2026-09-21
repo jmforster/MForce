@@ -64,7 +64,9 @@ DIP_STAGES = [
      "percent": 0.020},
     {"startVal": 1.0, "endVal": 1.0, "type": "Linear", "percent": 0.0},
 ]
-ONSETS = ["tongue", "slur"]
+ONSETS = ["breath", "tongue", "slur"]   # spec: Onset [breath|tongue|slur];
+# breath and slur are declared-but-unwired: the fresh-voice attack IS the
+# breath gesture (main envelope), and the glide IS the slur.
 
 # ---------------------------------------------------------------------------
 # wav helpers
