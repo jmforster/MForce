@@ -6,9 +6,10 @@ wiring), declares them `sustaining`, then renders Ode-to-Joy
 phrased-vs-flat A/B pairs plus a repeated-note hold cell per instrument.
 
 What changed from v1 (2026-09-19):
-  * instrument block declares "onsets": ["tongue","slur"] and
-    "sustaining": true. `slur` is declared but UNWIRED — under v2 the
-    legato glide IS the slur, so it needs no gesture.
+  * instrument block declares "onsets": ["breath","tongue","slur"] and
+    "sustaining": true. `breath` and `slur` are declared but UNWIRED —
+    the fresh-voice attack IS the breath gesture (main envelope), and
+    under v2 the legato glide IS the slur; neither needs a gesture.
   * score events carry the two per-note facts, "onset" and "hold",
     instead of the retired "phrase":"cont" grouping. Emission mirrors
     spec §3: hold on every note but a phrase's last; first note
