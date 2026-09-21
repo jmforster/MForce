@@ -1525,6 +1525,7 @@ Patch load_patch_file(const std::string& path)
                 instJson["onsets"].get<std::vector<std::string>>();
         // Legato retune time (spec 2026-09-20-note-onsets-v2 §4.1).
         inst->glideSec = instJson.value("glideMs", 15.0f) / 1000.0f;
+        inst->sustaining = instJson.value("sustaining", false);   // §2
         if (instJson.value("release", 0.0f) != 0.0f)
             std::fprintf(stderr, "[loader] instrument.release retired "
                          "(note-contained sound 2026-08-13); ignored\n");
@@ -1584,64 +1585,54 @@ Patch load_patch_file(const std::string& path)
         if (root.contains("score")) {
             NotePerformer performer;
             const float bpm = 60.0f;
-            // Phrase grouping (spec 2026-09-19-note-transitions §3): a
-            // note with "phrase":"cont" joins the previous note's phrase
-            // (its own "time" is ignored — it starts where its
-            // predecessor ends). Phrase notes go to play_phrase directly;
-            // everything else keeps the NotePerformer path verbatim.
-            // NOTE this is notation processing over a complete score
-            // array, not note delivery — scanning ahead here is reading
-            // the score, not lookahead in the spec's sense.
+            // v2 score keys (spec 2026-09-20-note-onsets-v2 §3): every
+            // note is atomic and carries its own two facts — "onset" (a
+            // name from the instrument's onsets[] vocabulary: how it
+            // begins) and "hold" (does the excitation continue past its
+            // end). There is no phrase object, no grouping pass and no
+            // lookahead: the engine derives continuation from its own
+            // state. A note with no "time" starts where its predecessor
+            // ended, which is what makes a held line sequential. These
+            // scores play Performer for themselves — a real Performer
+            // stamps the same two facts from phrase notation.
             const auto& score = root["score"];
-            auto is_cont = [&](size_t i) {
-                return i < score.size() &&
-                       score[i].value("phrase", std::string()) == "cont";
-            };
-            // Per-note delivery (spec 2026-09-20-note-onsets-v2 §4): the
-            // phrase is a notation grouping only — it reaches the engine
-            // as notes carrying hold (true on all but the last) and an
-            // onset name.
-            struct LineNote { float note, velocity, duration, onsetId; };
-            std::vector<LineNote> phrase;
-            float phraseStart = 0.0f;
-            auto flush = [&]() {
-                for (size_t k = 0; k < phrase.size(); ++k)
-                    inst->play_note({phrase[k].note, phrase[k].velocity,
-                                     phrase[k].duration, phrase[k].onsetId,
-                                     k + 1 < phrase.size()},
-                                    phraseStart);
-                inst->finish_open_lines();
-                phrase.clear();
-            };
+            bool lineOpen = false;
+            bool warnedNotSustaining = false;
+            float prevEnd = 0.0f;
             for (size_t i = 0; i < score.size(); ++i) {
                 const auto& noteJson = score[i];
                 float note     = noteJson.at("note").get<float>();
                 float velocity = noteJson.value("velocity", 0.8f);
                 float duration = noteJson.at("duration").get<float>();
-                float start    = noteJson.value("time", 0.0f);
-                const bool cont = is_cont(i);
-                const bool headsPhrase = !cont && is_cont(i + 1);
+                float start    = noteJson.contains("time")
+                               ? noteJson["time"].get<float>() : prevEnd;
+                bool hold = noteJson.value("hold", false);
+                std::string onset = noteJson.value("onset", std::string());
+                // The piano invariant (§2): a non-sustaining instrument
+                // never receives hold, so a phrase-marked score on it
+                // emits ordinary independent notes.
+                if (hold && !inst->sustaining) {
+                    if (!warnedNotSustaining) {
+                        warnedNotSustaining = true;
+                        std::fprintf(stderr, "[score] \"hold\" ignored: this "
+                            "patch's instrument block is not marked "
+                            "\"sustaining\"\n");
+                    }
+                    hold = false;
+                }
 
-                if (cont || headsPhrase) {
-                    // Onset emission — the Performer rule (spec §3
-                    // seam, one function's worth of policy): first of
-                    // phrase "breath", continuations "tongue"; an
-                    // explicit "onset" key overrides.
+                if (hold || lineOpen || !onset.empty()) {
                     if (noteJson.contains("articulation") ||
                         noteJson.contains("ornament"))
                         throw std::runtime_error("score: articulation/"
-                            "ornament are unsupported on phrase notes "
-                            "(spec 2026-09-19 §3)");
-                    if (cont && phrase.empty())
-                        throw std::runtime_error("score: \"phrase\":"
-                            "\"cont\" with no preceding note");
-                    if (!cont) { flush(); phraseStart = start; }
-                    phrase.push_back({note, velocity, duration,
-                        inst->onset_id(noteJson.value("onset",
-                            std::string(cont ? "tongue" : "breath")))});
+                            "ornament are unsupported on phrased notes "
+                            "(spec 2026-09-20 §3)");
+                    inst->play_note({note, velocity, duration,
+                                     inst->onset_id(onset), hold}, start);
+                    lineOpen = hold;
+                    prevEnd = start + duration;
                     continue;
                 }
-                flush();
 
                 Articulation art = articulations::Default{};
                 if (noteJson.contains("articulation"))
@@ -1653,21 +1644,23 @@ Patch load_patch_file(const std::string& path)
 
                 Note n{note, velocity, duration, art, orn};
                 performer.perform_note(n, start, bpm, *inst);
+                prevEnd = start + duration;
             }
-            flush();
+            inst->finish_open_lines();   // §4.3 end-of-score safety
             performer.conclude(bpm, *inst);
         }
 
-        // Compute total duration from score. Continuation notes start at
-        // their predecessor's end regardless of any "time" field.
+        // Compute total duration from score. A note with no "time" starts
+        // where its predecessor ended — the same rule the delivery loop
+        // above uses.
         if (root.contains("score")) {
             double maxEnd = 0;
             double prevEnd = 0;
             for (const auto& noteJson : root["score"]) {
                 double d = noteJson.at("duration").get<double>();
-                double t = noteJson.value("phrase", std::string()) == "cont"
-                    ? prevEnd
-                    : noteJson.value("time", 0.0);
+                double t = noteJson.contains("time")
+                    ? noteJson["time"].get<double>()
+                    : prevEnd;
                 prevEnd = t + d;
                 maxEnd = std::max(maxEnd, prevEnd);
             }
@@ -1854,6 +1847,7 @@ InstrumentPatch load_instrument_patch_json(const std::string& jsonText,
         inst->onsetNames =
             instJson["onsets"].get<std::vector<std::string>>();
     inst->glideSec = instJson.value("glideMs", 15.0f) / 1000.0f;
+    inst->sustaining = instJson.value("sustaining", false);
     if (instJson.value("release", 0.0f) != 0.0f)
         std::fprintf(stderr, "[loader] instrument.release retired "
                      "(note-contained sound 2026-08-13); ignored\n");

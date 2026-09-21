@@ -69,7 +69,8 @@
   "paramMap": {
    "frequency": "Sine1.frequency"
   },
-  "polyphony": 4
+  "polyphony": 4,
+  "sustaining": true
  },
  "sampleRate": 48000,
  "score": [
@@ -77,13 +78,13 @@
    "note": 60.0,
    "velocity": 0.8,
    "duration": 0.5,
-   "time": 0.0
+   "time": 0.0,
+   "hold": true
   },
   {
    "note": 60.0,
    "velocity": 0.8,
-   "duration": 0.5,
-   "phrase": "cont"
+   "duration": 0.5
   }
  ],
  "seconds": 3.0

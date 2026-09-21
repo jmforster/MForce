@@ -285,6 +285,13 @@ struct PitchedInstrument final : Instrument {
   // ids are 1-based; 0 = none/unknown. Stable, so ordinal use in a Curve
   // is dependable.
   std::vector<std::string> onsetNames;
+  // Does this instrument sustain? (spec §2, instrument block
+  // "sustaining"). DECLARED, never inferred — only the patch's author
+  // knows, and no envelope-shape test can tell a piano's long decay from
+  // a wind's hold. Phrasing (hold, onset gestures, glide) applies only
+  // when true, which is what makes the piano invariant hold by
+  // construction: a non-sustaining instrument never receives hold.
+  bool sustaining{false};
   std::set<std::string> warnedOnsets_;   // once-per-name unknown warn
   float onset_id(const std::string& name) {
     if (name.empty()) return 0.0f;
