@@ -81,12 +81,17 @@ Tags per WORKFLOW.md.
 
 53. **[build, unblocked 09-19] Live-keyboard mono mode + live legato — the
     delivery machinery LANDED** — note-transitions v1 (spec 2026-09-19)
-    shipped play_phrase / conditional release / transition triggers; the
-    live rule is designed and decided (spec §4: overlap = legato, gap =
-    detached, NO tolerance threshold — a gap tolerance delays every
-    detached release by the window; escape hatch if playing proves
-    sloppy = a latch/pedal, never a threshold). What remains is exactly
-    this item's original scope: the UI's pool floor, last-note steal,
+    shipped the delivery; onsets v2 (spec 2026-09-20) replaced it with
+    per-note onset/hold against a possibly-open line voice, which is the
+    SAME test live play makes (key overlap) against the same state — so
+    this item is now pure wiring, and the note below stands unchanged.
+    Adjacent, named in v2 spec §2: the live path's derived `gateable`
+    check could defer to the instrument's `sustaining` declaration in
+    this item's round. The live rule is designed and decided (v1 spec §4:
+    overlap = legato, gap = detached, NO tolerance threshold — a gap
+    tolerance delays every detached release by the window; escape hatch
+    if playing proves sloppy = a latch/pedal, never a threshold). What
+    remains is exactly this item's original scope: the UI's pool floor, last-note steal,
     key-overlap detection feeding phrase continuation, click-free cuts.
     Original item:
     **[build] Live-keyboard mono mode — patch polyphony must override the
@@ -378,7 +383,13 @@ Tags per WORKFLOW.md.
     that MOVES while a note sounds: a continuous controller (blocked on
     hardware, REVIEW 39), a per-note breath contour, or PerformSource
     carrying a performance curve. Design question, not a tweak — brainstorm
-    before any build. (a9) **pp is now 4.5 dB quieter** (rms 0.00212 →
+    before any build. POINTER (onsets v2 spec §5, 2026-09-20): this item
+    is now also the designated home for PHRASE-scale shape. v2 rejected
+    an envelope `scope: note|phrase` knob explicitly — patches own
+    note-scale character only, and a line's crescendo is the PERFORMER
+    varying breath, delivered through the perform inputs that already
+    exist for exactly this (wheel/pressure). Whatever a8 builds should
+    carry both. (a9) **pp is now 4.5 dB quieter** (rms 0.00212 →
     0.00126 on A#3, same pitch, same 1.00 periodicity) because the pp end
     of the new corner passes less energy. One constant (VOICE_PP) if Matt
     says it is too much. (a3) **the low register still does not open
@@ -457,6 +468,12 @@ Tags per WORKFLOW.md.
     separate: Matt added auto-grouping/auto-layout + a Patch node to
     GOALS himself (organization features); this item is the raw
     performance.
+    **CLOSED 2026-09-20** — root cause found and fixed: strip drawing was
+    O(all samples × strips) PER FRAME, so a 55-node graph redrew every
+    sample of every strip on every frame. Commit 030a4d5, "fix(ui): strip
+    drawing was O(all samples x strips) per frame — the real backlog 76
+    (perf)". Reopen only if Matt still reports sluggishness on a
+    trombone-scale patch after this.
 
 77. **[tool] Post-success patch audit — which knobs do anything, then
     strip the rest** — Matt 09-19, from hand-tweaking trombone_attempt3:
@@ -492,6 +509,20 @@ Tags per WORKFLOW.md.
     open 65/71 advance-order cluster is sensitive to — the repro
     patches are diff-prone BY NATURE. Diagnose alongside 65/71; until
     then, don't UI-re-save the repro baselines.
+
+80. **[lint, small] Warn when a `sustaining` patch has a shapeless
+    output-path envelope** — deferred from onsets v2 (spec §5,
+    2026-09-20). An envelope with no sustain/expand stage cannot hold: on
+    a held line it runs once from voice birth and then sits at its final
+    value, which for a decay-to-zero shape means the line goes silent
+    mid-phrase with nothing in the patch saying why. The rule is already
+    documented and implemented-by-omission (the boundary restarts nothing
+    except via triggers); what is missing is the warn. Backlog-31 family:
+    at load, if `instrument.sustaining` is true and an envelope on the
+    output path has no expand stage, say so once on stderr. Expected
+    population is near-empty — a decay-to-zero patch cannot sustain a
+    long note today either — so this is a guard against a future
+    mis-declaration, not a live bug.
 
 ## Design questions
 

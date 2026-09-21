@@ -5,43 +5,71 @@ the same evening. Awaiting = only what still needs Matt.
 
 ## Awaiting Matt
 
-### 73. One breath per line — phrasing lands [listen] (2026-09-19)
+### 74. One breath per line, done properly [listen] (2026-09-20)
 **renders/dsp/audition/articulation1/** — 6 files, README inside.
+Regenerated; these replace yesterday's files of the same names.
 
-The articulation design you brainstormed this morning is built, end to
-end: `|` phrase marks in passage strings, one voice living through a
-whole phrase instead of dying per note, and a per-note transition name
-the patch can wire. Zero behavior change anywhere you don't ask for it —
-the whole corpus renders byte-identical with the feature at rest, and a
-two-note phrase of the same pitch is PROVABLY the same file as one long
-note.
+You listened to yesterday's phrased renders and told me what was wrong:
+a tick at every pitch change, nothing happening at all on repeated
+notes, and the envelopes stretched out of shape over a whole line. All
+three had one cause. Yesterday a phrase became ONE LONG NOTE to the
+engine, so every envelope that measures itself as a percentage of "the
+note" was suddenly measuring itself against the whole line — oboe1's
+release, written as a quarter of a note, became a three-second die-off.
 
-What you can play with today, in the UI: type a passage with `|` marks
-and Generate — any patch phrases (in-phrase notes retune the living
-voice instead of restarting it). Two patches are also TAUGHT the tongue:
-`patches/audition/articulation1/{trombone,oboe}_tongue.json`. In those,
-a NameGate node ("tongue" written on its face) fires a little envelope
-called TDip that closes the breath for 30 ms and reopens it — that
-envelope is the whole consonant, ordinary stage editing if you want it
-harder or softer. Wiring pattern: Note node's new `transition` pin →
-NameGate → the envelope's new `trigger` pin.
+So we rebuilt it the way you described it this morning: a player never
+looks ahead, they just read each note's markings. Every note now carries
+two facts of its own — how it BEGINS, and whether the breath keeps going
+past its end. Nothing is a "phrase" to the engine any more. Envelopes are
+measured against their own note again, always.
 
-THE QUESTION: **play `otj_trombone_flat.wav` then
-`otj_trombone_phrased.wav` — does the phrased one sound like a player
-on one breath per line?** Same pair exists for the oboe. The
-`phrase_hold_*` files are the isolated consonant: one note eight times
-on one breath.
+What that buys, on these files:
 
-Known limits, stated up front: the tongue dent is modest (~13% of
-amplitude) because the bore's stored energy legitimately rings through
-a 30 ms breath interruption — if it reads as slurring rather than
-tonguing, TDip is the knob and your ears are the calibration. Live
-keyboard legato (overlap = same breath) is designed but NOT built —
-it needs the mono/steal work (backlog 53) and comes next. And nothing
-here gives within-note swell yet — that is 74a8, its own conversation.
+* **repeated notes get a tongue.** A player cannot slur a repeated note,
+  so the only way to say it twice is to articulate it. Dented about
+  11 dB on the oboe over roughly 50 ms — the middle of the range I
+  measured off a real player (7 to 23 dB).
+* **pitch changes get a slur instead.** The pitch slides to the new note
+  over about 15 ms rather than jumping. That slide IS the slur, and it
+  is also what removes the tick you heard: jumping the pitch instantly
+  puts a kink in the tube's stored wave.
+* **no dropouts.** Yesterday's oboe tongue throttled the air going INTO
+  the resonating tube, and on a loop that is already near its ignition
+  edge that killed the sound outright at 9 of 28 note boundaries (one
+  came back an octave up). The tongue now dents the sound AFTER the
+  tube, where it cannot put the fire out. Zero dropouts in both phrased
+  lines and both hold cells.
 
-Report: reports/2026-09-19-note-transitions.md; spec
-docs/superpowers/specs/2026-09-19-note-transitions-design.md.
+Also yours to use, in the UI: the Patch Output settings pane has a
+**sustaining** checkbox and an **onsets** field now, so teaching a patch
+no longer means editing JSON. Only a patch you have checked as
+sustaining will phrase at all — that is deliberate, it is what
+guarantees a piano still plays a phrase-marked passage as plain notes,
+provably, byte for byte. If you mark a passage with `|` on a patch that
+is not checked, the transport says so instead of quietly doing nothing.
+And the polyphony spinner finally has a visible label; it has been an
+unlabelled mystery number since it was added.
+
+THE QUESTION: **play `otj_oboe_phrased.wav` — does it sound like one
+breath per line, with tongues only on the repeated notes and clean slurs
+between pitches?** The `flat` file next to it is the before. Same pair
+for the trombone, and the `phrase_hold_*` files are the isolated
+consonant, the same note eight times on one breath.
+
+If you play only one file, play `otj_oboe_phrased.wav`.
+
+Known limits, stated up front: the trombone's tongue reads much gentler
+than the oboe's (about 1.4 dB at the output) because its bore rings
+straight through a breath interruption — if it reads as slurring rather
+than tonguing, the TDip envelope in that patch is the whole knob. Live
+keyboard phrasing is now pure wiring but still unbuilt (backlog 53).
+Within-note swell is still 74a8, its own conversation. And I could not
+drive the UI myself, so the `|`-passage behavior in the transport is
+covered by reasoning and by the score-side renders, not by my ears —
+that part is yours to confirm.
+
+Report: reports/2026-09-20-note-onsets-v2.md; spec
+docs/superpowers/specs/2026-09-20-note-onsets-v2-design.md.
 
 ### 72. Trombone, attempt 4 — the held note [listen] (2026-09-19)
 **renders/dsp/audition/trombone4/** — 8 files, README inside.
@@ -156,6 +184,19 @@ something audible and ride it, whenever hardware appears.
 
 Compact stubs only; full detail in run reports, STATUS digests, and the
 verdict logs cited. Newest first.
+
+- **73. One breath per line — phrasing lands** (auditioned 09-19,
+  SUPERSEDED by entry 74 the next day): Matt drove the v2 redesign the
+  morning after listening. His findings from that pass: a retune tick at
+  every pitch change; no articulation at all on repeated notes; and the
+  envelope-stretch symptoms (oboe1's quarter-of-a-note release becoming
+  a ~3 s die-off over a line, its attack stretching to about a second).
+  One cause under all three — v1 delivered a phrase as ONE LONG NOTE, so
+  every percent-mode stage re-scoped from the note to the whole line.
+  v2 makes the note the timebase again, gives every note its own
+  onset/hold, and replaces the instant retune with a glide. Report
+  reports/2026-09-20-note-onsets-v2.md; v1's divergence from its own
+  spec is on the record in the v2 spec §9.
 
 - **71. Trombone, attempt 3 — the blowing-harder round** (verdicted 09-19,
   SUPERSEDED by entry 72 the same day): the two-gain-stages fix landed, but

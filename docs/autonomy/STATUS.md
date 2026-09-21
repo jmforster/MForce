@@ -1,7 +1,67 @@
 # Status — session handoff (Claude reads this first; Matt's queue = */REVIEW.md)
 
-Updated: 2026-09-19 evening (articulation day: the note-transitions build,
-inline on Fable, same day as the brainstorm).
+Updated: 2026-09-20 (onsets v2: Matt drove the redesign after auditioning
+73; brainstorm → spec → plan → Opus dispatch, coordinator re-verified).
+WORKING-TREE NOTE unchanged: docs/autonomy/GOALS.md carries Matt's own
+uncommitted refresh — never stage, commit or revert it.
+**NOTE ONSETS v2 SHIPPED — REVIEW 74; v1 (REVIEW 73) folded to Resolved
+the day after it shipped.**
+Spec docs/superpowers/specs/2026-09-20-note-onsets-v2-design.md; plan
+docs/superpowers/plans/2026-09-20-note-onsets-v2.md; report
+reports/2026-09-20-note-onsets-v2.md.
+WHY v2 EXISTS: v1's spec described deadline-extension, but the build baked
+a phrase's TOTAL at prepare — so a phrase was one long note to every
+duration consumer and silently re-scoped every percent envelope (oboe1's
+25% release → a 3 s die-off over a line). Matt's audition named the
+symptoms: retune ticks, no repeated-note articulation, envelope stretch.
+THE SHAPE: every note is atomic and carries two facts — `onset`
+(breath|tongue|slur) and `hold` (does the excitation continue past its
+end). No phrase object reaches Render-land; continuation is DERIVED from
+engine state (is the line's voice open?), the same test live key-overlap
+makes. PerformedNote is the Performance→Realization boundary object and
+play_note's only argument; play_phrase / PhraseNote / prepare(total) are
+deleted. The offline render loop is now RESUMABLE: render_chunk is the
+one sample loop, a hold:true note suspends the voice warm, the next note
+resumes it at the boundary sample, release+tail run only at line end.
+Envelope timebase is the NOTE again, always; its companion is release
+re-layout — gate_release(releaseRefFrames) re-resolves the release stage
+against the RELEASING note. Pitch changes inside a line GLIDE over
+instrument-block glideMs (default 15 ms) via the existing bend machinery
+(note: a legacy paramMap patch pushes frequency once at Setup, so only
+pulled frequency chains glide — every taught wind patch does).
+`sustaining` is DECLARED in the instrument block, never inferred: a
+non-sustaining instrument never receives hold, so the piano invariant
+holds by construction. UI: Patch Output pane gained sustaining + onsets
+widgets (and visible labels — the polyphony spinner's was swallowed by
+PushItemWidth(-1) since it was added).
+GATES: null gate 79/79 after every engine-touching task, including the
+intermediate checkpoint that proved the render_chunk extraction byte-clean
+before any semantics changed; engine_tests 494→506; piano invariant
+md5-identical at CLI and through gencheck; gencheck parity scale
+1.000000 / 1 LSB; roundtrip corpus = the same 8 known findings (backlog
+79), 0 new; articulation1 v2 — oboe phrased 0 deep dropouts, dent
+−10.9 dB repeated / 0.0 dB slurred, trombone 0 dropouts, −1.4 / 0.0 dB;
+both instruments' flat renders byte-identical to a trigger-unwired
+control (dormancy).
+DEFERRED, on record: live keyboard phrasing is now pure wiring (backlog
+53); phrase-scale shape belongs to the Performer, pointer added to
+74a8; onset-keyed envelope variants (68); depth-as-expression;
+polyphonic phrasing; new backlog 80 = the sustaining/shapeless-envelope
+lint the spec defers. Backlog 76 CLOSED (strip drawing was O(all samples
+× strips) per frame, commit 030a4d5).
+NOT VERIFIED BY THIS RUN: the `|`-passage path in the running UI — there
+is no headless entry point for the transport's passage string, so the
+emission is covered by construction and by the score-side renders. Matt's
+UI pass confirms it.
+NOTED, not a regression: a phrased oboe1 line shows gencheck-vs-CLI scale
+1.002499 / 313 LSB because a held line renders ~7 dB hotter than four
+separate attacks (peak 0.98 vs 0.73) and enters the soft-clip knee, where
+the UI's direct-instrument render and the CLI's mixer path have always
+differed. Same patch at half gain: 1.000000 / 1 LSB.
+dsp REVIEW Awaiting: **74**, **72**, 62, 65, 38, 39.
+
+Previous update: 2026-09-19 evening (articulation day: the note-transitions
+build, inline on Fable, same day as the brainstorm).
 WORKING-TREE NOTE unchanged: docs/autonomy/GOALS.md carries Matt's own
 uncommitted refresh — never stage, commit or revert it.
 **NOTE TRANSITIONS v1 SHIPPED — brainstorm (Matt + Fable, this morning) →
