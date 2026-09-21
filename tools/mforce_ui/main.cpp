@@ -273,6 +273,11 @@ struct GraphNode {
     // must not require a text editor.
     bool sustaining{false};
     char onsetsBuf[128]{};
+    // Legato glide (instrument "glideMs"): value shown always; written to
+    // the file only once loaded-from or touched (glideMsSet), so patches
+    // that never declare it keep their JSON unchanged.
+    float glideMs{15.0f};
+    bool  glideMsSet{false};
 
     // Verbatim "seed" param from the loaded JSON. The UI does not model seeds
     // as pins/configs, but the engine loader uses them for reproducible
@@ -2131,6 +2136,11 @@ static void load_graph_from_path(const std::string& path) {
             std::snprintf(outNode.onsetsBuf, sizeof(outNode.onsetsBuf), "%s",
                           joined.c_str());
         }
+        if (root["instrument"].contains("glideMs") &&
+            root["instrument"]["glideMs"].is_number()) {
+            outNode.glideMs = root["instrument"]["glideMs"].get<float>();
+            outNode.glideMsSet = true;
+        }
 
         // Wire output node's source to the graph output
         auto outIt = outputPinMap.find(outputId);
@@ -3156,6 +3166,8 @@ static nlohmann::json serialize_patch_graph(
             if (onsets.empty()) root["instrument"].erase("onsets");
             else                root["instrument"]["onsets"] = onsets;
         }
+        if (outputNode->glideMsSet)
+            root["instrument"]["glideMs"] = outputNode->glideMs;
         if (!paramMap.empty())
             root["instrument"]["paramMap"] = paramMap;
     }
@@ -3596,6 +3608,9 @@ struct TransportState {
     char passageStr[1024] = "";
     int octave = 4;
     float bpm = 120.0f;
+    // In-phrase onset override: 0 auto (spec §3 rule), 1 all tongue,
+    // 2 all slur. Hand-experiment knob (Matt 2026-09-20).
+    int onsetMode = 0;
     // Chords mode
     char chordsStr[1024] = "";
     char defChordGrp[64] = "";
@@ -4298,7 +4313,13 @@ static bool patch_is_sustaining() {
 // `hold` is set by the caller from the parser's phrase grouping (true on
 // every note but a phrase's last), and is therefore also what marks where
 // a phrase begins: the note after a hold:false note.
-static void stamp_passage(std::vector<SchedNote>& sched, bool sustaining) {
+// onsetMode: the transport's hand-experiment override (Matt 2026-09-20 —
+// "a passage with all tongue" wasn't reachable without it). 0 = auto (the
+// spec §3 rule), 1 = every in-phrase onset "tongue", 2 = every in-phrase
+// onset "slur". Phrase-starting notes are always "breath" — the mode
+// picks the consonant, not whether the breath starts.
+static void stamp_passage(std::vector<SchedNote>& sched, bool sustaining,
+                          int onsetMode) {
     if (!sustaining) {
         for (auto& s : sched) { s.onset.clear(); s.hold = false; }
         transport_set_status("patch is not marked sustaining — phrase marks "
@@ -4309,6 +4330,8 @@ static void stamp_passage(std::vector<SchedNote>& sched, bool sustaining) {
         bool firstOfPhrase = (i == 0) || !sched[i - 1].hold;
         sched[i].onset =
             firstOfPhrase ? "breath"
+          : onsetMode == 1 ? "tongue"
+          : onsetMode == 2 ? "slur"
           : (sched[i - 1].noteNumber == sched[i].noteNumber ? "tongue"
                                                             : "slur");
     }
@@ -8282,7 +8305,8 @@ static void transport_generate() {
                     // {onset:"", hold:false} = exactly today's notes.
                     const bool phrased =
                         std::strchr(g_transport.passageStr, '|') != nullptr;
-                    if (phrased) stamp_passage(sched, patch_is_sustaining());
+                    if (phrased) stamp_passage(sched, patch_is_sustaining(),
+                                               g_transport.onsetMode);
                     if (sched.empty()) {
                         transport_set_status("Passage contains only rests", true);
                     } else if (generate_unified(sched)) {
@@ -8560,6 +8584,12 @@ static void draw_transport_panel() {
             transport_label_snug("Velocity");
             spinner_float("pvel", &g_transport.velocity, 0.05f, 0.0f, 1.0f,
                           "%.2f");
+            // In-phrase onset override (hand-experiment knob): applies
+            // only to `|`-marked passages on a sustaining patch.
+            transport_label_snug("Onsets");
+            ImGui::SetNextItemWidth(90);
+            ImGui::Combo("##onsetmode", &g_transport.onsetMode,
+                         "auto\0all tongue\0all slur\0");
             ImGui::SameLine(0, 12);
             if (ImGui::Button("Save Passage"))
                 transport_save_text("passage", kPassageFilter, "psg",
@@ -10115,6 +10145,20 @@ static void draw_properties_panel() {
                               "answers to, e.g. \"tongue, slur\". A NameGate\n"
                               "matches one of these; ids are 1-based in the\n"
                               "order listed.");
+
+        ImGui::Text("glide ms"); ImGui::SameLine();
+        snprintf(lbl, sizeof(lbl), "##pglide%d", node->id);
+        ImGui::SetNextItemWidth(80);
+        if (ImGui::DragFloat(lbl, &node->glideMs, 1.0f, 0.0f, 100.0f,
+                             "%.0f")) {
+            node->glideMsSet = true;
+            mark_graph_dirty();
+        }
+        if (ImGui::IsItemHovered())
+            ImGui::SetTooltip("Legato glide length for in-line pitch\n"
+                              "changes (the slur). 0 = no glide (the old\n"
+                              "instant retune). Engine default is 15 when\n"
+                              "the patch never sets it.");
     }
 
     // Parameter: editable name. NameGate: editable onset name (the
