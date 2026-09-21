@@ -30,7 +30,15 @@ inline uint32_t stream_seed(uint32_t baseSeed, uint32_t index, uint32_t layerId)
 }
 
 struct Randomizer {
-  explicit Randomizer(uint32_t seed = 0x12345678u) : rng(seed), uni01(0.0f, 1.0f) {}
+  explicit Randomizer(uint32_t seed = 0x12345678u)
+    : seed_(seed), rng(seed), uni01(0.0f, 1.0f) {}
+
+  // Re-anchor the draw stream to the construction seed (per-note
+  // determinism, onsets-v2 addendum 2026-09-20): an in-line note's Setup
+  // re-anchors so each note's realization is pinned the way a fresh
+  // voice's always was. Distribution reset for strict determinism.
+  void reanchor() { rng.seed(seed_); uni01.reset(); }
+  uint32_t seed_;
 
   float value() { return uni01(rng); }                 // [0,1]
   float valuePN() { return value() * 2.0f - 1.0f; }    // [-1,1]

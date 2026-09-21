@@ -140,6 +140,9 @@ private:
     lfo_->set_zeroCrossTendency(std::make_shared<ConstantSource>(zct_));
   }
 
+  // Per-note determinism (onsets-v2 addendum): forward to the LFO's rng.
+  void reseed() override { if (lfo_) lfo_->reseed(); }
+
   std::shared_ptr<ValueSource> frequency_;
   int sampleRate_;
   float speed_, depth_, attack_, threshold_;

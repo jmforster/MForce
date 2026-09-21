@@ -101,6 +101,8 @@ struct VioletNoiseSource final : ValueSource {
   float current() const override { return cur_; }
 
 private:
+  // Per-note determinism (onsets-v2 addendum): re-anchor draws.
+  void reseed() override { rng_.reanchor(); }
   Randomizer rng_;
   std::shared_ptr<ValueSource> amplitude_;
   float prev_{0.0f};
@@ -169,6 +171,8 @@ private:
   }
 
   int sampleRate_;
+  // Per-note determinism (onsets-v2 addendum): re-anchor draws.
+  void reseed() override { rng_.reanchor(); }
   Randomizer rng_;
   std::shared_ptr<ValueSource> density_;
   std::shared_ptr<ValueSource> amplitude_;
@@ -271,6 +275,8 @@ private:
   static float grad1d(int hash, float x) { return (hash & 1) ? x : -x; }
 
   int sampleRate_;
+  // Per-note determinism (onsets-v2 addendum): re-anchor draws.
+  void reseed() override { rng_.reanchor(); }
   Randomizer rng_;
   int perm_[512];
   double pos_{0.0};
@@ -330,6 +336,8 @@ struct CrackleNoiseSource final : ValueSource {
   float current() const override { return cur_; }
 
 private:
+  // Per-note determinism (onsets-v2 addendum): re-anchor draws.
+  void reseed() override { rng_.reanchor(); }
   Randomizer rng_;
   std::shared_ptr<ValueSource> chaos_;
   float y1_{0.0f};
@@ -511,6 +519,8 @@ private:
   };
 
   int sampleRate_;
+  // Per-note determinism (onsets-v2 addendum): re-anchor draws.
+  void reseed() override { rng_.reanchor(); }
   Randomizer rng_;
   Bird birds_[MAX_BIRDS];
 

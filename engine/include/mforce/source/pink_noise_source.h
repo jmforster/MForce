@@ -84,6 +84,8 @@ struct PinkNoiseSource final : ValueSource {
   float current() const override { return cur_; }
 
 private:
+  // Per-note determinism (onsets-v2 addendum): re-anchor draws.
+  void reseed() override { rng_.reanchor(); }
   Randomizer rng_;
   std::vector<int> rows_;
   std::shared_ptr<ValueSource> amplitude_;

@@ -110,6 +110,8 @@ private:
   std::shared_ptr<ValueSource> deltaSpeed_;
   std::shared_ptr<ValueSource> slopeLimit_;
   int sampleRate_;
+  // Per-note determinism (onsets-v2 addendum): re-anchor draws.
+  void reseed() override { rng_.reanchor(); }
   Randomizer rng_;
   float slope_{0.0f};
   float direction_{1.0f};
@@ -231,6 +233,8 @@ private:
   std::shared_ptr<ValueSource> retraceProb_;
   std::shared_ptr<ValueSource> retracePct_;
   int sampleRate_;
+  // Per-note determinism (onsets-v2 addendum): re-anchor draws.
+  void reseed() override { rng_.reanchor(); }
   Randomizer rng_;
   float direction_{1.0f};
   float value_{0.0f};

@@ -119,6 +119,13 @@ struct ValueSource {
   // FixedSpectrum/BandSpectrum gains). Grouped arrays (shared groupName) must be
   // kept equal length by the node's set_array() implementation.
   virtual std::span<const ArrayDescriptor> array_descriptors() const { return {}; }
+  // Per-note determinism (onsets-v2 addendum 2026-09-20): re-anchor this
+  // node's stochastic draw streams to their seeds. Called at an IN-LINE
+  // note's Setup only (never after a fresh prepare, which already seeds —
+  // and consumes layout draws, so a post-prepare call would NOT be
+  // byte-neutral). Default no-op; RNG-bearing sources override.
+  virtual void reseed() {}
+
   virtual void set_array(std::string_view /*name*/, std::vector<float> /*values*/) {}
   virtual std::vector<float> get_array(std::string_view /*name*/) const { return {}; }
 };

@@ -63,6 +63,9 @@ struct RedNoiseSource final : WaveSource {
 
   void prepare(const RenderContext& ctx, int frames) override;
 
+  // Per-note determinism (onsets-v2 addendum): re-anchor draws.
+  void reseed() override { rng_.reanchor(); }
+
 protected:
   float compute_wave_value() override;
 

@@ -124,6 +124,8 @@ struct WhiteNoiseSource final : ValueSource {
   float current() const override { return cur_; }
 
 private:
+  // Per-note determinism (onsets-v2 addendum): re-anchor draws.
+  void reseed() override { rng_.reanchor(); }
   Randomizer rng_;
   std::shared_ptr<ValueSource> amplitude_;
   std::shared_ptr<ValueSource> density_;

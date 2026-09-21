@@ -1125,10 +1125,57 @@ static void run_onset_trigger_tests() {
     CHECK(dip2 > 0.9f * before);
 }
 
+static void run_note_reseed_tests() {
+    // Per-note determinism (onsets-v2 addendum): an in-line note's Setup
+    // re-anchors stochastic draws, so a held-line note's noise realization
+    // equals a fresh note's. Patch: white noise * gated sustain envelope.
+    // Property: with reseed, note 2's samples in the flat-sustain window
+    // REPLAY note 1's (same draw index from anchor, same sustain level);
+    // free-running draws would diverge at every sample.
+    const char* kJson = R"({
+      "sampleRate": 48000,
+      "instrument": { "polyphony": 1, "sustaining": true },
+      "graph": {
+        "output": "wn1",
+        "nodes": [
+          { "id": "env1", "type": "Envelope",
+            "params": { "stages": [
+              { "startVal": 0.0, "endVal": 1.0, "type": "Linear", "percent": 0.10 },
+              { "startVal": 1.0, "endVal": 0.7, "type": "Linear", "percent": 0.10 },
+              { "startVal": 0.7, "endVal": 0.7, "type": "Linear", "percent": 0.0 },
+              { "startVal": 0.7, "endVal": 0.0, "type": "Linear", "percent": 0.15 }
+            ] } },
+          { "id": "wn1", "type": "WhiteNoiseSource",
+            "params": { "amplitude": { "ref": "env1" } } }
+        ]
+      }
+    })";
+    auto ip = load_instrument_patch_json(kJson);
+    auto* pi = dynamic_cast<PitchedInstrument*>(ip.instrument.get());
+    CHECK(pi != nullptr);
+    pi->play_note({57.0f, 0.8f, 0.5f, 0.0f, true,  nullptr}, 0.0f);
+    pi->play_note({57.0f, 0.8f, 0.5f, 0.0f, false, nullptr}, 0.5f);
+    const int N = int(0.5f * 48000);
+    std::vector<float> buf(size_t(int(1.6f * 48000)), 0.0f);
+    RenderContext ctx{48000};
+    ip.instrument->render(ctx, buf.data(), int(buf.size()));
+    // Flat-sustain overlap: note 1 is at sustain from 25% on; note 2 is
+    // HELD at sustain throughout (no re-attack). Skip the last 10% for
+    // note 2's release re-layout territory.
+    int from = int(0.25f * N), to = int(0.85f * N);
+    int same = 0, total = 0;
+    for (int k = from; k < to; ++k) {
+        ++total;
+        if (buf[size_t(k)] == buf[size_t(N + k)]) ++same;
+    }
+    CHECK(same == total);   // exact replay — draws re-anchored
+}
+
 int main() {
     run_passage_parse_tests();
     run_onset_field_tests();
     run_hold_delivery_tests();
+    run_note_reseed_tests();
     run_envelope_retrigger_tests();
     run_release_relayout_tests();
     run_name_gate_tests();

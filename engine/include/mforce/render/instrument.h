@@ -474,6 +474,17 @@ struct PitchedInstrument final : Instrument {
     // --- 1. Continuation -------------------------------------------------
     if (line_.open) {
       auto& vg = voicePool[size_t(line_.vIdx)];
+      // Per-note determinism (onsets-v2 addendum, Matt 2026-09-20):
+      // re-anchor every node's stochastic draw streams at this note's
+      // Setup, so an in-line note's realization is pinned exactly like a
+      // fresh note's always was — without this, the noise free-runs
+      // through the line and each phrase acquires its own holistic
+      // character ("a different oboeist per phrase"). Physical state
+      // (bore, filters, envelope positions) carries; only DRAWS anchor.
+      // Never called on the fresh path: prepare() already seeds AND
+      // consumes layout draws, so a post-prepare reseed would not be
+      // byte-neutral.
+      for (auto& [nid, src] : vg.nodesById) src->reseed();
       std::shared_ptr<Envelope> glide;
       if (glideSec > 0.0f && line_.lastFreq > 0.0f && freq != line_.lastFreq)
         glide = make_glide(line_.lastFreq, freq, durSamples);

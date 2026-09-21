@@ -285,6 +285,8 @@ private:
   bool pendingInit_{false};
   int currSeg_{0};
   int currSegCount_{0};
+  // Per-note determinism (onsets-v2 addendum): re-anchor draws.
+  void reseed() override { rng_.reanchor(); }
   Randomizer rng_;
   SmoothnessInterpolator interp_{0.0f, false};
   float cur_{0.0f};

@@ -82,6 +82,11 @@ struct LayeredRedNoiseSource final : ValueSource {
         for (auto& l : layers_) if (l) l->prepare(ctx, frames);
     }
 
+    // Per-note determinism (onsets-v2 addendum): forward to the layers.
+    void reseed() override {
+        for (auto& l : layers_) if (l) l->reseed();
+    }
+
     float next() override {
         float sum = 0.0f;
         for (auto& l : layers_) if (l) sum += l->next();

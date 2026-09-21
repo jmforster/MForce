@@ -161,6 +161,15 @@ struct Envelope : ValueSource {
   void set_seed(uint32_t s) { seed_ = s; }
   uint32_t get_seed() const { return seed_; }
 
+  // Per-note determinism (onsets-v2 addendum): re-anchor the accuracy
+  // jitter draws. The LFO PHASE is deliberately untouched — resetting it
+  // mid-note would step the ramp_accuracy modulation; only the draw
+  // streams re-anchor.
+  void reseed() override {
+    rng_.seed(seed_);
+    lfo_rng_.seed(seed_ ^ 0xDEADBEEFu);
+  }
+
   // Replace this envelope's stage layout with `fresh` while keeping every
   // knob that lives OUTSIDE the layout: the accuracy knobs, seed, timeScale,
   // the minValue/maxValue range params, and the live-gate flag. The preset
