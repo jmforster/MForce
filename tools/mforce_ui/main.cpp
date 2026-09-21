@@ -4234,12 +4234,42 @@ struct SchedNote {
     float durationSeconds;
     float startSeconds;
     float velocity;
-    // Phrase delivery (spec 2026-09-19-note-transitions §4): a run of
-    // !phraseStart notes extends the phrase of the last phraseStart note.
-    // Defaults keep every existing call site a one-note phrase = today.
-    bool phraseStart{true};
+    // The two per-note performance facts (spec 2026-09-20-note-onsets-v2
+    // §1): how this note begins, and whether the excitation continues past
+    // its end. Defaults = a plain note, which is what every call site
+    // outside the passage path wants.
     std::string onset;
+    bool hold{false};
 };
+
+// Is the loaded patch's instrument declared sustaining (spec §2)? Only a
+// sustaining instrument receives hold or continuation onsets.
+static bool patch_is_sustaining() {
+    return s_loadedInstrumentExtras.is_object() &&
+           s_loadedInstrumentExtras.value("sustaining", false);
+}
+
+// Performer emission (spec §3): phrase marks + sustaining -> per-note
+// onset/hold. Called only for a passage that actually carries `|`; a
+// `|`-free passage keeps {onset:"", hold:false} = classic notes.
+// `hold` is set by the caller from the parser's phrase grouping (true on
+// every note but a phrase's last), and is therefore also what marks where
+// a phrase begins: the note after a hold:false note.
+static void stamp_passage(std::vector<SchedNote>& sched, bool sustaining) {
+    if (!sustaining) {
+        for (auto& s : sched) { s.onset.clear(); s.hold = false; }
+        transport_set_status("patch is not marked sustaining — phrase marks "
+                             "ignored", false);
+        return;
+    }
+    for (size_t i = 0; i < sched.size(); ++i) {
+        bool firstOfPhrase = (i == 0) || !sched[i - 1].hold;
+        sched[i].onset =
+            firstOfPhrase ? "breath"
+          : (sched[i - 1].noteNumber == sched[i].noteNumber ? "tongue"
+                                                            : "slur");
+    }
+}
 
 static bool generate_unified(const std::vector<SchedNote>& notes) {
     if (notes.empty()) return false;
@@ -4293,18 +4323,20 @@ static bool generate_unified(const std::vector<SchedNote>& notes) {
         int frames = int(end * float(ip.sampleRate));
 
         pitched->capture_begin(capIds, frames);
-        // Per-note delivery (spec 2026-09-20-note-onsets-v2 §4): a run of
-        // !phraseStart notes is delivered as notes carrying hold (true on
-        // all but the last of the run), which the engine turns into one
-        // resumable line voice. An unmarked note is hold:false = today.
-        for (size_t i = 0; i < notes.size(); ++i) {
-            const auto& sn = notes[i];
-            bool lastOfPhrase = (i + 1 >= notes.size()) || notes[i + 1].phraseStart;
+        // Per-note delivery (spec 2026-09-20-note-onsets-v2 §4): each
+        // SchedNote carries its own onset/hold; a run of hold:true notes
+        // becomes one resumable line voice in the engine. The piano
+        // invariant is enforced at the source — a patch that is not
+        // declared sustaining never gets hold stamped on it.
+        const bool sustaining =
+            root.contains("instrument") &&
+            root["instrument"].value("sustaining", false);
+        for (const auto& sn : notes)
             pitched->play_note({sn.noteNumber, sn.velocity, sn.durationSeconds,
-                                pitched->onset_id(sn.onset), !lastOfPhrase},
+                                pitched->onset_id(sn.onset),
+                                sn.hold && sustaining},
                                sn.startSeconds);
-        }
-        pitched->finish_open_lines();
+        pitched->finish_open_lines();   // §4.3 end-of-score safety
 
         buffer_playback_detach();   // it points into g_outputWaveform (3k)
         g_outputWaveform.assign(size_t(frames), 0.0f);
@@ -8185,26 +8217,40 @@ static void transport_generate() {
                     // the cursor only, leaving a gap in the schedule.
                     std::vector<SchedNote> sched;
                     float cursor = 0.0f;
-                    for (const auto& pn : notes) {
+                    // hold carries the parser's phrase grouping across to
+                    // stamp_passage: true on every note but a phrase's
+                    // last. Rests end a phrase (parser rule), so the note
+                    // before one is already !hold.
+                    for (size_t i = 0; i < notes.size(); ++i) {
+                        const auto& pn = notes[i];
                         if (pn.noteNumber != kRestNote) {
-                            // Onset emission — the Performer rule
-                            // (spec 2026-09-20 §3 seam): first of phrase
-                            // "breath", continuations "tongue". Untaught
-                            // patches intern these to 0 silently.
+                            const bool lastOfPhrase =
+                                i + 1 >= notes.size() ||
+                                notes[i + 1].noteNumber == kRestNote ||
+                                notes[i + 1].phraseStart;
                             sched.push_back({pn.noteNumber, pn.durationSeconds,
                                              cursor, g_transport.velocity,
-                                             pn.phraseStart,
-                                             pn.phraseStart ? "breath"
-                                                            : "tongue"});
+                                             {}, !lastOfPhrase});
                         }
                         cursor += pn.durationSeconds;
                     }
+                    // Performer emission (spec §3). Only a `|`-marked
+                    // passage is stamped; without marks every note stays
+                    // {onset:"", hold:false} = exactly today's notes.
+                    const bool phrased =
+                        std::strchr(g_transport.passageStr, '|') != nullptr;
+                    if (phrased) stamp_passage(sched, patch_is_sustaining());
                     if (sched.empty()) {
                         transport_set_status("Passage contains only rests", true);
                     } else if (generate_unified(sched)) {
-                        char buf[128];
-                        snprintf(buf, sizeof(buf), "Generated %d notes", (int)sched.size());
-                        transport_set_status(buf, false);
+                        // The not-sustaining note (stamp_passage) is more
+                        // informative than the count — don't overwrite it.
+                        if (!phrased || patch_is_sustaining()) {
+                            char buf[128];
+                            snprintf(buf, sizeof(buf), "Generated %d notes",
+                                     (int)sched.size());
+                            transport_set_status(buf, false);
+                        }
                     }
                 }
             } catch (const std::exception& e) {
@@ -12801,24 +12847,22 @@ int main(int argc, char** argv) {
             load_graph_from_path(argv[2]);
             std::vector<SchedNote> notes;
             if (s_loadedScore.is_array()) {
-                // Mirrors the engine loader's score reading exactly,
-                // including phrase grouping and the Performer emission
-                // rule (spec 2026-09-20 §3) — gencheck parity depends on
-                // the two ends reading one score the same way.
+                // Mirrors the engine loader's v2 score reading exactly
+                // (spec 2026-09-20 §3): per-note "onset"/"hold", and a
+                // note with no "time" starts where its predecessor ended.
+                // gencheck parity depends on the two ends reading one
+                // score the same way.
                 const auto& sc = s_loadedScore;
                 float prevEnd = 0.0f;
                 for (size_t i = 0; i < sc.size(); ++i) {
                     const auto& ev = sc[i];
-                    bool cont = ev.value("phrase", std::string()) == "cont";
-                    bool heads = !cont && i + 1 < sc.size() &&
-                        sc[i+1].value("phrase", std::string()) == "cont";
                     float dur = ev.value("duration", 1.0f);
-                    float t   = cont ? prevEnd : ev.value("time", 0.0f);
-                    std::string def = cont ? "tongue"
-                                    : heads ? "breath" : "";
+                    float t   = ev.contains("time")
+                              ? ev["time"].get<float>() : prevEnd;
                     notes.push_back({ev.value("note", 60.0f), dur, t,
-                                     ev.value("velocity", 0.8f), !cont,
-                                     ev.value("onset", def)});
+                                     ev.value("velocity", 0.8f),
+                                     ev.value("onset", std::string()),
+                                     ev.value("hold", false)});
                     prevEnd = t + dur;
                 }
             }
