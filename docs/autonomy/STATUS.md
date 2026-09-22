@@ -1,5 +1,47 @@
 # Status — session handoff (Claude reads this first; Matt's queue = */REVIEW.md)
 
+Updated: 2026-09-21 (comp lane revived — brainstorm → spec → plan with
+Matt, then the build; Opus dispatch died twice on 529s, finished inline
+on Fable).
+**COMP CRAWL SHIPPED — REVIEW 20 (Mary, harmony-first, zero generation).**
+Matt's five ground rules are standing law (memory + spec §1): crawl
+before walk; harmony fully specified FIRST in the template; generated
+figures get FITTED to the underlying chord; model stack extends, never
+rebuilds; every generator except Markov Figure is shelved
+(comp/GENERATORS.md is the catalog). NEW INSTRUMENT RULE: melody oboe1,
+accompaniment piano_default (CLAUDE.md updated, supersedes 09-05
+all-piano). NEW CONVENTION: comp-purpose .psg saves use `|` as
+STRUCTURAL phrase boundary only.
+Spec docs/superpowers/specs/2026-09-21-comp-crawl-mary-design.md; plan
+docs/superpowers/plans/2026-09-21-comp-crawl-mary.md.
+WHAT LANDED: passage_melody.h (scale-grid math + passage-string →
+Locked-figure PhraseTemplates, engine_tests cover the full Mary oracle);
+PassageTemplate.melodyPassageFile/melodyOctave (round-trips);
+apply_passage_melodies at CLI template load; compose honors per-part
+instrumentPatch with one instance per unique path (template null gate
+27/27 byte-identical) + multi-instrument-only mix normalization (the
+first scoped-to-everything version moved 2 chord baselines — caught by
+the gate, rescoped); scores/baselines/template_mary_crawl.json + tracked
+Comp_Mary.psg (gitignore anchored: /passages/ not passages/); render
+verified event-exact (26 melody events == Matt's transcription, C-E-G /
+G-B-D-F root position at the right bars, peak 0.98) →
+renders/comp/audition/crawl1/, WAV sent to Matt. Backlog 21 done
+(zero-event = failure, rc-0 silent class proven live by positive
+control). Baseline template cull 27→19 by feature cover (Matt's
+directive; 9 subsets → scores/old/baselines_culled_2026-09-21/); the
+k467 family kept SIX not one — period/harmony/motifs/parallel/opening
+each carry unique loader features. TRAP for template authors:
+ScaleChord.degree is 0-BASED (tonic 0, dominant 4) — 1-based roman
+numerals render supertonic chords; first Mary render did exactly that.
+Old template_mary.json connectors ({"type":"Step","step":N}) parse as
+leadStep 0 — pre-existing, left as-is, loader-era artifact.
+OPEN ON MATT: **REVIEW 20** (the crawl verdict: "is this Mary,
+competently harmonized?") + the standing 18/17/16/13/14/9/10/11/12/19.
+OPEN ON DEV: on a YES — walk-stage brainstorm (the ground-rule-3 fit
+rule: generated figures onto a fully-specified chord timeline); on a NO
+— diagnosis round. Voicing-tier question (score vs lead-sheet) parked in
+IDEAS.md §comp.
+
 Updated: 2026-09-21 (autonomous dsp run, Fable inline; Matt brainstormed
 comp in a parallel session — comp GOALS deliberately untouched here).
 WORKING-TREE NOTE: docs/autonomy/GOALS.md is Matt's own uncommitted

@@ -11,21 +11,17 @@ reports + this file's git history. Tags per WORKFLOW.md.
 23. **[campaign] Comp restart — simple scale WITH harmony from bar one** —
     steering decision 2026-09-13 (4). Back to Mary-Had-a-Little-Lamb-class
     material, but harmonized from the first bar (the four-level harmony
-    model is the spine, not a later layer); piano_default is the comp
-    instrument (vanilla, non-fatiguing — CLAUDE.md 09-05 standing rule).
-    Campaign item: define its own stop conditions when scoped; existing
-    REVIEW queue verdicts (cadential arrival, section key, voicing A/Bs)
-    fold in as they arrive rather than blocking the restart.
-
-21. **[build] Zero-event renders are never treated as failures** —
-    building #9's harness found six of 38 committed templates rendering
-    pure silence (empty passage when no `startingPitch`, under a comment
-    claiming the loader refused those). The generator bug is FIXED (run
-    26: inherit first phrase's pitch, refuse by name when none), but
-    nothing in the batch/sweep path treats 0 events as a failure — which
-    is why it survived indefinitely and why run 17 hit the same class with
-    `wandering_24x`. Add a zero-event check to `null_test_templates.py`
-    and the strategy sweeps. Cheap; closes a whole class.
+    model is the spine, not a later layer). Instrument rule updated
+    2026-09-21: melody oboe1, accompaniment piano_default.
+    **2026-09-21: crawl SHIPPED** — Matt's five ground rules captured
+    (spec docs/superpowers/specs/2026-09-21-comp-crawl-mary-design.md);
+    melodyPassageFile schema + passage_melody.h derivation + per-part CLI
+    patches landed (null gate byte-identical); Mary render queued as
+    REVIEW 20; GENERATORS.md shelve catalog created; baseline templates
+    culled 27→19 by feature cover (9 archived to scores/old/).
+    NEXT on Matt's crawl verdict: walk-stage brainstorm — fitting
+    generated figures onto a fully-specified chord timeline (ground
+    rule 3's "musical fashion" fit rule).
 
 8. **[build] Voicing open items — register drift + selector** — register
     drift ("upward tendency") is back on the backlog after two failed
@@ -63,6 +59,11 @@ reports + this file's git history. Tags per WORKFLOW.md.
 ## Done ledger
 
 One line each; full text in run reports + this file's git history.
+
+- 21. Zero-event renders fail the null test — 2026-09-21 crawl round:
+  check + positive control in null_test_templates.py (rc-0 silent class
+  proven live); strategy-sweep half moot while strategies are shelved
+  (GENERATORS.md), revisit on recall.
 
 - 22. Purge-casualty re-renders — run 27: REVIEW 11/13/17 A/Bs re-rendered
   at HEAD, same seeds, under renders/comp/audition/; faithful to the
