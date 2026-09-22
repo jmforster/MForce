@@ -18,6 +18,7 @@ Typical sequence for an engine change:
 """
 import hashlib
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -63,6 +64,14 @@ def render_all(tag):
         if p.returncode != 0 or not wav.exists():
             err = (p.stderr or p.stdout).strip().splitlines()
             failed[name] = err[-1] if err else f"rc={p.returncode}"
+            continue
+        # Backlog 21: a zero-event render is a FAILURE, not a hash. Six
+        # committed templates once rendered pure silence for months because
+        # nothing here objected.
+        events = [int(x) for x in
+                  re.findall(r"Part '[^']+': (\d+) events", p.stdout)]
+        if events and sum(events) == 0:
+            failed[name] = "zero events (silent render)"
             continue
         hashes[name] = hashlib.sha256(wav.read_bytes()).hexdigest()
     (outdir / "_hashes.json").write_text(
