@@ -25,8 +25,9 @@ opus falls out of combining Figures with enough code is dead.
 
 **Goal (the crawl):** a fully-specified template — harmony first, melody as
 Matt's UI-verified passage string — renders through the existing model
-stack into a piano_default WAV that is unmistakably Mary Had a Little
-Lamb, competently harmonized. Zero generation anywhere in the pipeline.
+stack into a WAV (melody on oboe1, chords on piano_default — see §5)
+that is unmistakably Mary Had a Little Lamb, competently harmonized.
+Zero generation anywhere in the pipeline.
 
 This is where the lane started long ago and moved on without conquering
 it. Conquering it proves the template schema and the
@@ -113,9 +114,13 @@ fields, harmony FIRST in the file as a statement of ground rule 2:
   available behind a flag, not default. No accompaniment pattern
   language — whole-bar blocks.
 - **Melody part**: the derived phrases, exactly as authored.
-- Both parts on **piano_default**
-  (patches/library/keys/acoustic_piano/piano_default.json — the standing
-  comp instrument).
+- **Instruments — standing rule (Matt 2026-09-21, until otherwise
+  stated): melody on oboe1** (patches/library/winds/oboe1.json),
+  **accompaniment on piano_default**
+  (patches/library/keys/acoustic_piano/piano_default.json). This
+  supersedes the 2026-09-05 all-piano_default comp rule. Side benefit:
+  the melody rides the wind loop's onsets machinery, so the two breath
+  phrases are audible as breaths.
 
 ## 6. Provenance
 

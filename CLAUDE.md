@@ -69,9 +69,12 @@ Replicate legacy functionality of node-based UI to:
 - Build from repo root
 - Main executable: mforce_cli
 - Write renders into renders/
-- Comp-lane renders use patches/library/keys/acoustic_piano/piano_default.json
-  as the instrument unless otherwise indicated (Matt 2026-09-05); the
-  corpus/mtd_seg harnesses all point there via their PATCH constant
+- Comp-lane renders: MELODY on patches/library/winds/oboe1.json,
+  ACCOMPANIMENT on patches/library/keys/acoustic_piano/piano_default.json,
+  unless otherwise indicated (Matt 2026-09-21; supersedes the 09-05
+  all-piano rule). Single-line harnesses (corpus/mtd_seg PATCH constant)
+  are melody, so they repoint to oboe1 on next touch (constants still
+  say piano_default today).
 
 ## Patch/score/render organization
 A **patch** is an instrument (DSP graph + instrument block). A **score** is
