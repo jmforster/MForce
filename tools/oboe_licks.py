@@ -58,7 +58,8 @@ def stamp(phrases):
                         "velocity": 0.8, "onset": onset,
                         "hold": i < len(ph) - 1})
             t += b * QUARTER
-        t += QUARTER  # breath gap between phrases
+        # no inter-phrase gap: the transport renders lines abutting
+        # (Matt 09-21 — the gapped first staging read as "long rests")
     return out
 
 

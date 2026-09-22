@@ -29,15 +29,22 @@ SCRATCH = REPO / "renders/null_test_templates"
 
 
 def templates():
-    """A template is a JSON with both `sections` and `parts` at top level."""
+    """A template is a JSON with both `sections` and `parts` at top level.
+
+    Both roots are scanned: patches/ (historical home) and scores/baselines/
+    (where templates actually live since the 2026-08-10 patch/score split).
+    scores/pending/ is deliberately NOT scanned — it is Matt's live A/B
+    material, not a regression set.
+    """
     out = []
-    for p in sorted((REPO / "patches").rglob("*.json")):
-        try:
-            j = json.loads(p.read_text(encoding="utf-8"))
-        except Exception:
-            continue
-        if isinstance(j, dict) and "sections" in j and "parts" in j:
-            out.append(p)
+    for root in (REPO / "patches", REPO / "scores" / "baselines"):
+        for p in sorted(root.rglob("*.json")):
+            try:
+                j = json.loads(p.read_text(encoding="utf-8"))
+            except Exception:
+                continue
+            if isinstance(j, dict) and "sections" in j and "parts" in j:
+                out.append(p)
     return out
 
 
@@ -46,8 +53,9 @@ def render_all(tag):
     outdir.mkdir(parents=True, exist_ok=True)
     hashes, failed = {}, {}
     for t in templates():
-        name = t.stem
-        prefix = outdir / name
+        # Key by repo-relative path: two roots can hold same-stem templates.
+        name = t.relative_to(REPO).as_posix()
+        prefix = outdir / name.replace("/", "__")[:-len(".json")]
         p = subprocess.run([str(CLI), "--compose", str(PATCH), str(prefix),
                             "1", "--template", str(t)],
                            capture_output=True, text=True)
