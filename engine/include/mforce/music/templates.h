@@ -558,6 +558,14 @@ struct PassageTemplate {
     std::string melodyPassageFile;
     int melodyOctave{5};   // house octave anchor for octave-less note names
 
+    // Comp walk (spec 2026-09-21-comp-walk1 §3): ""/"authored" = phrase
+    // startingPitch + connectors are template data (default, byte-identical
+    // behavior); "harmonic" = anchor_selector.h derives them per phrase
+    // from the section chord timeline (rules R1-R3 + weighted chord-tone
+    // preference). Under harmonic mode the authored startingPitch anchors
+    // only the REGISTER window, not the pitch.
+    std::string anchorMode;
+
     // Anchor-driven passage configs (optional). Each is consumed by the
     // matching strategy; absent means "use that strategy's defaults".
     std::optional<PedalBuildupConfig> pedalBuildupConfig;

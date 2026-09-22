@@ -125,6 +125,7 @@ inline void to_json(json& j, TransformOp t) {
         case TransformOp::Replicate:        j = "replicate"; break;
         case TransformOp::TransformGeneral: j = "general"; break;
         case TransformOp::RhythmTail:       j = "rhythm_tail"; break;
+        case TransformOp::Complexify:       j = "complexify"; break;
     }
 }
 inline void from_json(const json& j, TransformOp& t) {
@@ -141,6 +142,7 @@ inline void from_json(const json& j, TransformOp& t) {
     else if (str == "replicate")     t = TransformOp::Replicate;
     else if (str == "general")       t = TransformOp::TransformGeneral;
     else if (str == "rhythm_tail")   t = TransformOp::RhythmTail;
+    else if (str == "complexify")    t = TransformOp::Complexify;
     else t = TransformOp::None;
 }
 
@@ -927,6 +929,7 @@ inline void to_json(json& j, const PassageTemplate& pt) {
         j["melodyPassageFile"] = pt.melodyPassageFile;
         j["melodyOctave"] = pt.melodyOctave;
     }
+    if (!pt.anchorMode.empty()) j["anchorMode"] = pt.anchorMode;
     if (pt.pedalBuildupConfig) {
         const auto& c = *pt.pedalBuildupConfig;
         j["pedalBuildupConfig"] = json{
@@ -1084,6 +1087,7 @@ inline void from_json(const json& j, PassageTemplate& pt) {
 
     pt.melodyPassageFile = j.value("melodyPassageFile", std::string(""));
     pt.melodyOctave = j.value("melodyOctave", 5);
+    pt.anchorMode = j.value("anchorMode", std::string(""));
 
     if (j.contains("pedalBuildupConfig")) {
         const auto& jc = j.at("pedalBuildupConfig");

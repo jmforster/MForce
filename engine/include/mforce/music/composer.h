@@ -25,6 +25,7 @@
 #include "mforce/music/scripted_voicing_profile_selector.h"
 #include "mforce/music/structure.h"
 #include "mforce/music/templates.h"
+#include "mforce/music/anchor_selector.h"
 #include "mforce/music/pitch_reader.h"
 #include "mforce/music/realization_strategy.h"
 #include "mforce/music/dynamic_state.h"
@@ -87,6 +88,9 @@ inline void realize_motifs(PieceTemplate& tmpl, Randomizer& rng) {
         tmpl.realizedContours[motif.name] = sgen.random_sequence(length);
       }
     } else {
+      // Content-less motifs that NAME a parent are derivations — resolved
+      // in phase 2 below, never random-generated.
+      if (motif.figure().units.empty() && motif.derivedFrom) continue;
       if (motif.userProvided || !motif.figure().units.empty()) {
         tmpl.realizedMotifs[motif.name] = motif.figure();
       } else {
@@ -96,6 +100,41 @@ inline void realize_motifs(PieceTemplate& tmpl, Randomizer& rng) {
         DefaultFigureStrategy figStrat;
         tmpl.realizedMotifs[motif.name] = figStrat.generate_figure(ft, s);
       }
+    }
+  }
+
+  // Phase 2 — synthesize DERIVED figure motifs (walk spec 2026-09-21 §2):
+  // a content-less motif with derivedFrom resolves through
+  // figure_transforms::apply once its parent is realized. Chains resolve
+  // over iterations; anything left standing (missing parent, cycle)
+  // throws by name rather than silently random-generating. Seed:
+  // generationSeed when authored, else drawn from the compose rng so
+  // masterSeed varies the derivation per batch member.
+  bool progress = true;
+  while (progress) {
+    progress = false;
+    for (auto& motif : tmpl.motifs) {
+      if (!(motif.is_figure() && motif.figure().units.empty()
+            && motif.derivedFrom))
+        continue;
+      if (tmpl.realizedMotifs.count(motif.name)) continue;
+      auto parentIt = tmpl.realizedMotifs.find(*motif.derivedFrom);
+      if (parentIt == tmpl.realizedMotifs.end()) continue;
+      const TransformOp op = motif.transform.value_or(TransformOp::None);
+      const uint32_t s =
+          motif.generationSeed ? motif.generationSeed : rng.rng();
+      tmpl.realizedMotifs[motif.name] = figure_transforms::apply(
+          parentIt->second, op, motif.transformParam, s);
+      progress = true;
+    }
+  }
+  for (const auto& motif : tmpl.motifs) {
+    if (motif.is_figure() && motif.figure().units.empty() && motif.derivedFrom
+        && !tmpl.realizedMotifs.count(motif.name)) {
+      throw std::runtime_error(
+          "realize_motifs: derived motif '" + motif.name +
+          "' unresolved (missing parent '" + *motif.derivedFrom +
+          "' or a derivation cycle)");
     }
   }
 }
@@ -1296,6 +1335,9 @@ inline Passage DefaultPassageStrategy::compose_passage(
         "' has no startingPitch and no phrase supplies one");
   }
 
+  float phraseBeatCursor = 0.0f;          // section beat at phrase start
+  std::optional<Pitch> lastChosenStart;   // harmonic mode: parallel pinning
+
   for (int i = 0; i < (int)passTmpl.phrases.size(); ++i) {
     const auto& phraseTmpl = passTmpl.phrases[i];
     if (phraseTmpl.locked) continue;
@@ -1334,6 +1376,46 @@ inline Passage DefaultPassageStrategy::compose_passage(
       localTmpl.startingPitch = reader.get_pitch();
     }
 
+    // Harmonic anchor mode (walk spec 2026-09-21 §3): derive this phrase's
+    // startingPitch + connectors from the chord timeline instead of the
+    // authored values. The authored pitch anchors only the REGISTER; a
+    // parallel phrase reuses the previous phrase's CHOSEN start (intent
+    // outranks R1).
+    if (passTmpl.anchorMode == "harmonic") {
+      const Section& sec = locus.piece->sections[locus.sectionIdx];
+      std::vector<const MelodicFigure*> figContents;
+      figContents.reserve(localTmpl.figures.size());
+      for (const auto& ft : localTmpl.figures) {
+        if (ft.source == FigureSource::Reference) {
+          const auto& rm = locus.pieceTemplate->realized_motifs();
+          auto rmIt = rm.find(ft.motifName);
+          if (rmIt == rm.end())
+            throw std::runtime_error(
+                "anchorMode harmonic: unresolved motif '" + ft.motifName +
+                "' (phrase '" + localTmpl.name + "')");
+          figContents.push_back(&rmIt->second);
+        } else if (ft.source == FigureSource::Locked && ft.lockedFigure) {
+          figContents.push_back(&*ft.lockedFigure);
+        } else {
+          throw std::runtime_error(
+              "anchorMode harmonic requires reference/locked figures "
+              "(phrase '" + localTmpl.name + "')");
+        }
+      }
+      const Pitch registerAnchor = localTmpl.startingPitch
+          ? *localTmpl.startingPitch : *passageStart;
+      std::optional<Pitch> pinned;
+      if (localTmpl.parallel && lastChosenStart) pinned = lastChosenStart;
+      Randomizer selRng(::mforce::rng::next());
+      select_anchors(localTmpl, figContents, sec.harmonyTimeline, sec.scale,
+                     phraseBeatCursor, float(sec.meter.beats_per_bar()),
+                     locus.pieceTemplate->defaultPulse > 0.0f
+                         ? locus.pieceTemplate->defaultPulse : 1.0f,
+                     i == (int)passTmpl.phrases.size() - 1,
+                     pinned, registerAnchor, selRng);
+      lastChosenStart = localTmpl.startingPitch;
+    }
+
     Locus phraseLocus = locus.with_phrase(i);
 
     std::string pn = phraseTmpl.strategy.empty() ? std::string("default_phrase") : phraseTmpl.strategy;
@@ -1344,6 +1426,8 @@ inline Passage DefaultPassageStrategy::compose_passage(
     }
     Phrase phrase = ps->compose_phrase(phraseLocus, localTmpl);
 
+    for (const auto& figPtr : phrase.figures)
+      phraseBeatCursor += figPtr->total_duration();
     passage.add_phrase(std::move(phrase));
   }
 

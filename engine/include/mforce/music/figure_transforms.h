@@ -23,6 +23,10 @@ enum class TransformOp {
                       // taking the rhythm tail (skip first N pulses).
                       // param = N. Plan B uses this for figures like
                       // K467's A_rhythm_tail.
+    Complexify,       // elaborate via split/neighbor/turn to a TARGET NOTE
+                      // COUNT (param; 0 = one extra unit). Length
+                      // preserved. Matt 2026-09-21: elaboration "reined in
+                      // via note count" — the walk-stage rep3_b op.
 };
 
 } // namespace mforce
@@ -459,6 +463,13 @@ inline MelodicFigure apply(const MelodicFigure& base, TransformOp op,
 
     case TransformOp::RhythmTail:
       return base;
+
+    case TransformOp::Complexify: {
+      int target = param > 0 ? param : base.note_count() + 1;
+      float amount = std::max(
+          0.0f, float(target) / float(std::max(1, base.note_count())) - 1.0f);
+      return complexify(base, rng, amount);
+    }
 
     case TransformOp::None:
     default:
