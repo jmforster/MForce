@@ -1,0 +1,75 @@
+s100: Eq Dq Cq Dq Gq Gq Gh Gq Gq Gh Gq Eq Eh | Eq Dq Cq Dq Cq Cq Cq Cq O- Bq Aq Bq O+ Cq Cw
+This is fine. One might argue it's super boring, ie lacking in melodic motion, but
+no rules violated. The D-G jump is unusual, but only slightly. The million repeats
+of G as the chord changes from C to G *and back again* is actually idiomatic, and
+the drop to E gives us respite at the end of phrase 1. I was expecting B-A-B-D-C at the
+end, but again, only to keep things interesting.
+
+s101: Gq Fq Eq Fq Gq Gq Gh Fq Fq Fh Fq Gq Gh | Gq Fq Eq Fq Eq Ee Fs Es Eh Aq Gq Fq Gq O+ Cw
+Not bad. And great, for ancillary rules definition. The F over G7 is fine. The F over
+C is a suspension, which I would have thot illegal (haven't gotten there yet). So,
+we need to know *why* it allowed that. More importantly, in holding over a 7th degree
+of V into the next bar, 96x out of 100 it will go to E, *not* up to G (not satisfying
+to the ear). It may go F E-F G, fine, but less likely than F E-D E or plain ole F E E.
+Which brings us to bar 6's Eq Ee Fs Es Eh
+- rule from global verdict - don't add movement to the *first* half of the bar and
+  then put the brakes on with the original half note filling the second half!
+- don't throw sixteenth notes into a single bar of a ditty with zero *eighth* notes!
+- while we're at it, just don't put *any* sixteenth notes in *any* kindergarten ditty!
+- absolute smell of computer-generated music - a repeated note in a fast run
+  there are exceptions to every rule but repeated notes are pure rhythmic sugar
+  taking the place of a long held note, in thematic statements, hammering a cadence
+  home (dun dun da dun dun DUN.... DUN!), etc. In a moving eighth note melody they
+  have *no place* and in a turnaround - yeah, it def exists but only with no other
+  longer repeats around it .. eg a playful C D E F G-A G G F G... Eq Ee Fs Es Eh
+  filling a bar = a computer did itb
+
+s102: Gq Fq Eq Fq Gq Gq Gh Dq Dq Dh Eq Cq Ch | Gq Fq Eq Fq Gq Gq Gq Gq Gq Eq Cq Dq Cw
+Totally fine.
+
+s103: Cq O- Bq Aq Bq O+ Cq Cq Ch O- Gq Gq Gh Bq O+ Cq Ch | Cq O- Bq Aq Bq O+ Cs Ds O- Bs O+ Cs Cq Ch Gq Fq Eq Fq O+ Cw
+This is the C-B-A-B-C guy. Another case of "how did it happen", but actually it's
+not that bad... redeemed, I think, by dropping to G (belatedly completing the I-V
+descent) in bar 3. Noted global problem in bar 6 - Cs Ds O- Bs O+ Cs Cq Ch = computer did it.
+Similarly G F E F ... a descending line, in a piece that has not gone *near* high
+C, suddenly jump from F to high C on the final note = computer. G F E F C would 
+already be unusual (F really, really wants to go to E).. C F E F E most idiomatic,
+despite being weak (and not possible with our hard end-on-root rule) C F E F G "ok"
+but quite unusual, *and* weak, *and* not allowed by our rule. So with our ruleset
+and 1 missing rule, it should have picked *low* C (return to a target note that's
+been visited by the piece, not a never-heard note a 4th above the peak of the piece (G).
+
+s104: Gq Fq Eq Fq Cq Cq Ch Fq Fq Fh Fq Eq Eh | Gq Fq Eq Fq Ee Fs Es Eq Eh Eq Gq Fq Gq O+ Cw
+First half good, F over G7 suspends but resolves to E.. same prob on bar 6, less
+egregious since it leaps from G, but still.. outta nowhere = computer.
+
+s105: Eq Dq Cq Dq Cq Cq Ch Dq Dq Dh Cq Eq Eh | Eq Dq Cq Dq Eq Eq Eq Eq Eq Eq Eq Fq Cw
+Fine, and very close to Mary, until the end. 7 Es in a row, 3 of them over G7. Mary's
+not ready for 13th chords yet. And another leap from F to C, better than up, but
+super weak conclusion.
+
+s106: Gq Fq Eq Fq Gq Gq Gh Fq Fq Fh Fq Gq Gh | Gq Fq Eq Fq Cq Cq Cq Cq O- Aq Bq Fq Gq O+ Cw
+First half identical to 101, so see above for F-G issue. And a leap from F down to C
+at bar 6.. atypical. The ending Aq Bq Fq Gq O+ Cw is quite nice and refreshing
+after so many Mary's, but.. A over G7. We got an implied 13th chord and now a 9th
+chord.. so, another "nice but why did it do it".
+
+s107: Gq Fq Eq Fq Gq Gq Gh Fq Fq Fh O+ Cq Eq Eh | O- Gq Fq Eq Fq Eq Es Ds Fs Es Eh Dq Cq O- Fq Gq Cw
+The craziest! Spanning 2 full octaves! No suspension of the F / G7 but jump up to
+C from F in bar 4 still "unexpected". Same sixteenth notes doing nothing useful in
+bar 6, creative (and legal) conclusion.
+ 
+s108: Eq Dq Cq Dq Cq Cq Ch O- Fq Fq Fh Aq Gq Gh | O+ Eq Dq Cq Dq Eq Eq Eq Eq O- Bq Aq Bq O+ Cq Cw
+The best of the bunch, breaking rules in all the right ways. Drop from C to F.. now
+that's unexpected in a good way, and its then countered by A G G.. together the leap
+down and then "overshooting" G in the other direction is sublime.. but, why did we
+"allow it"? G A B C C .. again expected G A B D C, but the former is fine, just not
+nursery stuff (anticipating the final note).
+
+s109: Eq Dq Cq Dq Eq Eq Eh Dq Dq Dh O- Aq Gq Gh | O+ Eq Dq Cq Dq Es Fs Ds Es Eq Eh Eq Dq Cq Dq Cw
+As if it heard me in the future, starts out with Mary then throws another A G G on
+the return to C. Eq Dq Cq Dq Cw very nice and conclusive end (see above 2-1, 7-1,
+5-1.. even 3-1 (13th chord) *all* beat 1-1 for "conclusiveness") .. but, the E *is*
+over G7, so a thirteenth again. Every one of these rule violations has been a good thing
+(especially for someone listening to a bunch of MHALLs) but we want to know cause
+and effect).
