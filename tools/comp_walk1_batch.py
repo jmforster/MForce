@@ -48,6 +48,32 @@ def melody_events(piece_json):
              float(e["data"]["duration"])) for e in part["events"]]
 
 
+# ---------------------------------------------------------------------------
+# Passage-string emission (STANDING ORDER, Matt 2026-09-22): every batch
+# writes its melodies as passage strings — the vocabulary Matt authors and
+# annotates in — both next to the renders and into docs/matt/ for him.
+# ---------------------------------------------------------------------------
+NOTE_NAMES = {0: "C", 1: "C#", 2: "D", 3: "Eb", 4: "E", 5: "F", 6: "F#",
+              7: "G", 8: "Ab", 9: "A", 10: "Bb", 11: "B"}
+DUR_TOKENS = {4.0: "w", 3.0: "h.", 2.0: "h", 1.5: "q.", 1.0: "q",
+              0.75: "e.", 0.5: "e", 0.375: "s.", 0.25: "s", 0.125: "t"}
+
+
+def passage_string(events):
+    toks, octv = [], 5
+    for i, (beat, nn, dur) in enumerate(events):
+        if i > 0 and beat >= PHRASE_STARTS[1] and events[i - 1][0] < PHRASE_STARTS[1]:
+            toks.append("|")
+        o = nn // 12
+        while o > octv:
+            toks.append("O+"); octv += 1
+        while o < octv:
+            toks.append("O-"); octv -= 1
+        toks.append(NOTE_NAMES[nn % 12]
+                    + DUR_TOKENS.get(round(dur, 3), f"({dur})"))
+    return " ".join(toks)
+
+
 def validate(events, label):
     problems = []
     for start in PHRASE_STARTS:                      # R1
@@ -130,7 +156,21 @@ def main():
         for pr in all_problems:
             print(" ", pr)
         sys.exit(1)
-    print(f"\n{count}/{count} renders pass R1-R3.")
+    print(f"\n{count}/{count} renders pass R1-R4 + rhythm rules.")
+
+    # Standing order: passage strings beside the renders AND in docs/matt/.
+    lines = []
+    for i in range(count):
+        seed = 100 + i
+        pj = json.loads(
+            (OUT / f"mary_walk_s{seed}_1.json").read_text(encoding="utf-8"))
+        lines.append(f"s{seed}: " + passage_string(melody_events(pj)))
+    text = "\n\n".join(lines) + "\n"
+    (OUT / f"{OUT.name}_passages.txt").write_text(text, encoding="utf-8")
+    matt = REPO / "docs/matt" / f"Comp_{OUT.name}_for_annotation.txt"
+    matt.parent.mkdir(parents=True, exist_ok=True)
+    matt.write_text(text, encoding="utf-8")
+    print(f"passage strings -> {matt.relative_to(REPO).as_posix()}")
 
 
 if __name__ == "__main__":
