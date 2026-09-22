@@ -155,4 +155,13 @@ might not decide to do it.")
 
 ## comp
 
-(nothing yet)
+- **Which tier owns voicing — score vs lead sheet** — 2026-09-21 (Matt,
+  during the comp-restart brainstorm). If the Compose tier's output is a
+  SCORE, voicing is pre-specified in Compose; if its output is a fake-book /
+  lead-sheet (chord symbols), the symbols get voiced in the Perform tier.
+  Today's answer is neither-yet: the restart's crawl templates carry chord
+  symbols and realization voices them (smooth path), which is de-facto
+  lead-sheet — but that's expedience, not the decision. Related: the
+  Composition→Performance→Realization boundary work
+  (docs/perform_source_design.md). **Decide when:** the comp lane is well
+  past walking and the Perform tier grows real interpretation duties.
