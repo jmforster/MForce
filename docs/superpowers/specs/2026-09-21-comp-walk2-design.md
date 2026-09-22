@@ -65,6 +65,12 @@ chain's realized (grid, beat, duration) track:
   penalty is halved (0.25/step) in the passage's first half and doubled
   (1.0/step) in its final quarter — leaps encouraged early, calmer late.
 
+- **Final-note regression to the mean** (Matt, mid-build: "a great phrase
+  for why that leap up to high C on the last note sounded like [Roy Kent
+  voice]"): the passage-final note pays −0.75 per grid step of distance
+  from the melody's running mean pitch beyond a slack of 2. The soft
+  companion to R4 below — Huron's empirical form of Meyer's gap-fill.
+
 **Register memory — the one new HARD rule (amendment 9, cadential target
 only):** the PASSAGE-final note must be a pitch (exact note number) the
 melody has already visited — earlier phrases or earlier in the final

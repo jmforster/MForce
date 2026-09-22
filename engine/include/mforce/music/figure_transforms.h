@@ -402,6 +402,100 @@ inline MelodicFigure embellish(const MelodicFigure& fig, Randomizer& rng,
 }
 
 // ---------------------------------------------------------------------------
+// split_moving_ — 2-way split where the SECOND piece moves (walk2 spec §2:
+// sub-beat repeated pitches are never emitted; "repeated note in a fast run
+// = computer did it"). The inserted motion is passing when the following
+// unit already moves (toward it), else a neighbor; the following unit's
+// step is compensated so every later absolute pitch is preserved. A split
+// at the figure's last unit uses a neighbor and changes the figure's net —
+// legal under harmonic anchorMode, where the selector sees realized nets.
+// ---------------------------------------------------------------------------
+inline MelodicFigure split_moving_(const MelodicFigure& fig, int at,
+                                   float frac0, Randomizer& rng) {
+  MelodicFigure out = fig;
+  const auto src = out.units[at];
+  FigureUnit p0 = src, p1 = src;
+  p0.duration = src.duration * frac0;
+  p1.duration = src.duration * (1.0f - frac0);
+  int n;
+  const bool hasNext = at + 1 < int(out.units.size());
+  if (hasNext && out.units[at + 1].step != 0) {
+    n = out.units[at + 1].step > 0 ? 1 : -1;      // passing toward next
+  } else {
+    n = rng.decide(0.5f) ? 1 : -1;                // neighbor
+  }
+  p1.step = n;
+  out.units[at] = p0;
+  out.units.insert(out.units.begin() + at + 1, p1);
+  if (hasNext) out.units[at + 2].step -= n;       // absolutes preserved
+  return out;
+}
+
+// ---------------------------------------------------------------------------
+// elaborate(fig, rng, targetCount) — walk2's Complexify (spec 2026-09-21
+// walk2 §2, from Matt's annotation ladder). Ladder-ordered, late-bar-
+// weighted, strictly additive:
+//   * while any unit >= 2 beats exists, split IT evenly first (h -> q q,
+//     Mary's own move; repeats are fine at quarter length);
+//   * further splits pick positions weighted toward the figure's END —
+//     "rhythmic speed-up belongs in the second half, leading into the
+//     concluding bit"; never lengthen anything (no accelerate-then-brake);
+//   * depth: sub-half-of-parent pieces RARELY (~20%), and of those ~80%
+//     are the dotted pattern (q -> e. + s); the default split is even;
+//   * pieces shorter than a beat always MOVE (split_moving_ / add_turn).
+// ---------------------------------------------------------------------------
+inline MelodicFigure elaborate(const MelodicFigure& fig, Randomizer& rng,
+                               int targetCount) {
+  MelodicFigure out = fig;
+  int safety = 0;
+  while (out.note_count() < targetCount && safety++ < 32) {
+    // Rung 1: the long note splits first.
+    int longAt = -1;
+    for (int i = 0; i < out.note_count(); ++i) {
+      if (out.units[i].duration >= 2.0f) { longAt = i; break; }
+    }
+    if (longAt >= 0) { out = split(out, longAt, 2); continue; }
+
+    // Late-weighted position choice among splittable units (>= an eighth).
+    const float total = out.total_duration();
+    std::vector<int> idxs;
+    std::vector<float> w;
+    float start = 0.0f, wsum = 0.0f;
+    for (int i = 0; i < out.note_count(); ++i) {
+      const float d = out.units[i].duration;
+      if (d >= 0.5f) {
+        const float wt = 0.2f + (start + 0.5f * d) / total;   // end ramp
+        idxs.push_back(i);
+        w.push_back(wt);
+        wsum += wt;
+      }
+      start += d;
+    }
+    if (idxs.empty()) break;
+    float draw = rng.value() * wsum;
+    int k = 0;
+    for (; k + 1 < int(idxs.size()); ++k) {
+      draw -= w[k];
+      if (draw <= 0.0f) break;
+    }
+    const int at = idxs[k];
+    const float d = out.units[at].duration;
+
+    const bool fine = (d >= 1.0f) && rng.decide(0.2f);
+    if (fine && rng.decide(0.8f)) {
+      out = split_moving_(out, at, 0.75f, rng);   // dotted: e. + s
+    } else if (fine) {
+      out = add_turn(out, at, rng.decide(0.5f));  // even fine, net-neutral
+    } else if (d * 0.5f < 1.0f) {
+      out = split_moving_(out, at, 0.5f, rng);    // fast halves must move
+    } else {
+      out = split(out, at, 2);                    // q q repeat is idiomatic
+    }
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------------
 // apply(base, op, param, seed) — TransformOp dispatch.
 // Shared by DefaultFigureStrategy::apply_transform and TwoFigurePhraseStrategy.
 // Behavior must stay bit-identical to the pre-refactor body — any change here
@@ -465,10 +559,10 @@ inline MelodicFigure apply(const MelodicFigure& base, TransformOp op,
       return base;
 
     case TransformOp::Complexify: {
-      int target = param > 0 ? param : base.note_count() + 1;
-      float amount = std::max(
-          0.0f, float(target) / float(std::max(1, base.note_count())) - 1.0f);
-      return complexify(base, rng, amount);
+      // walk2 (spec §2): ladder-ordered late-bar elaboration replaces the
+      // uniform-random complexify — param = target note count.
+      const int target = param > 0 ? param : base.note_count() + 1;
+      return elaborate(base, rng, target);
     }
 
     case TransformOp::None:

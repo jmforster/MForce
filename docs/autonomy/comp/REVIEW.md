@@ -2,6 +2,30 @@
 
 ## Awaiting Matt
 
+### 22. Walk round 2 — same ten seeds, your ruleset applied [listen] (2026-09-21)
+`renders/comp/audition/walk2/` — the annotation round built and re-run
+the same evening (spec 2026-09-21-comp-walk2-design.md). Everything you
+annotated in 21 became mechanism: the elaboration ladder (late-bar,
+additive, sub-half splits rare and mostly dotted, fast notes always
+move); seventh-of-V down 96:4; suspension discipline; long notes police
+extensions; repetition caps across harmony; penultimate≠final; gap-fill
+upvoted; leaps cheap early / dear late; final note must be an
+ALREADY-VISITED pitch (hard) and regresses toward the melody's mean
+(soft — your "regression to the mean" note, mid-build). 10/10 pass the
+full validator including your three rhythm rules; per-seed decision
+logs (`mary_walk_s<seed>.log`) answer "why did it do that" with score
+breakdowns. Side effect worth knowing: at rep3_b's target of 4 the
+ladder is deterministic (= Mary's own h→q q), so this batch has MARY'S
+RHYTHM everywhere — all variation is pitch, which isolates your pitch
+rules cleanly; rhythm variety returns by raising the target (one number)
+when you want it back.
+`walk2_passages.txt` inside for annotation, same vocabulary.
+**Score each seed against your own walk1 annotations: fixed / missed /
+new smells.** My own suspect for a new smell: early-register wandering
+(cheap early leaps) — s109 visits G3, s104 hits C6 in bar 2.
+Gates: engine_tests 3342; template null gate 20/20 byte-identical.
+
+
 ### 21. Walk round 1 — ten generated siblings [listen] (2026-09-21)
 `renders/comp/audition/walk1/mary_walk_s100..s109_1.wav` — the first
 GENERATED output of the reset. Same Mary harmony and figure slots, but:

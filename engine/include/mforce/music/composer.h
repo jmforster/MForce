@@ -1337,6 +1337,7 @@ inline Passage DefaultPassageStrategy::compose_passage(
 
   float phraseBeatCursor = 0.0f;          // section beat at phrase start
   std::optional<Pitch> lastChosenStart;   // harmonic mode: parallel pinning
+  std::vector<int> visitedGrids;          // harmonic mode: R4 + regression
 
   for (int i = 0; i < (int)passTmpl.phrases.size(); ++i) {
     const auto& phraseTmpl = passTmpl.phrases[i];
@@ -1412,7 +1413,8 @@ inline Passage DefaultPassageStrategy::compose_passage(
                      locus.pieceTemplate->defaultPulse > 0.0f
                          ? locus.pieceTemplate->defaultPulse : 1.0f,
                      i == (int)passTmpl.phrases.size() - 1,
-                     pinned, registerAnchor, selRng);
+                     pinned, registerAnchor, selRng,
+                     &visitedGrids, sec.beats);
       lastChosenStart = localTmpl.startingPitch;
     }
 
