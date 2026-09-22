@@ -11,7 +11,9 @@
 #include "mforce/music/parse_util.h"
 #include "mforce/music/templates.h"
 #include "mforce/music/templates_json.h"
+#include "mforce/music/passage_melody.h"
 #include "mforce/music/dun_parser.h"
+#include <map>
 #include <iostream>
 #include <fstream>
 #include <vector>
@@ -526,13 +528,27 @@ static int run_compose(int argc, char** argv) {
         std::ifstream tf(templatePath);
         json tj = json::parse(tf);
         from_json(tj, baseTmpl);
+        apply_passage_melodies(baseTmpl);   // comp crawl: .psg melody -> phrases
         std::cout << "Loaded template: " << templatePath << "\n";
     }
 
     for (int i = 0; i < count; ++i) {
-        auto ip = load_instrument_patch(patchPath);
-        ip.instrument->volume = 0.5f;
-        ip.instrument->hiBoost = 0.3f;
+        // Per-part instrument patches (comp rule 2026-09-21: melody oboe1,
+        // accompaniment piano_default — carried in instrumentPatch; the CLI
+        // patch argument is the fallback). One loaded instance per unique
+        // path, so single-patch templates render exactly as before.
+        std::map<std::string, InstrumentPatch> patchByPath;
+        auto patch_for = [&](const std::string& p) -> InstrumentPatch& {
+            const std::string& key = p.empty() ? patchPath : p;
+            auto it = patchByPath.find(key);
+            if (it == patchByPath.end()) {
+                auto loaded = load_instrument_patch(key);
+                loaded.instrument->volume = 0.5f;
+                loaded.instrument->hiBoost = 0.3f;
+                it = patchByPath.emplace(key, std::move(loaded)).first;
+            }
+            return it->second;
+        };
 
         // Use loaded template or build a default one
         PieceTemplate tmpl = baseTmpl;
@@ -554,21 +570,34 @@ static int run_compose(int argc, char** argv) {
         ClassicalComposer composer(tmpl.masterSeed);
         composer.compose(piece, tmpl);
 
-        // Perform via Conductor
+        // Perform via Conductor — lookup is by part.instrumentType, which
+        // the composer sets to the template part name (composer.h).
         Conductor conductor;
-        for (const auto& part : piece.parts) {
-          conductor.instruments[part.instrumentType] = ip.instrument.get();
+        std::vector<Instrument*> instruments;   // unique, in part order
+        for (const auto& partTmpl : tmpl.parts) {
+            auto& partPatch = patch_for(partTmpl.instrumentPatch);
+            conductor.instruments[partTmpl.name] = partPatch.instrument.get();
+            if (std::find(instruments.begin(), instruments.end(),
+                          partPatch.instrument.get()) == instruments.end())
+                instruments.push_back(partPatch.instrument.get());
         }
         conductor.perform(piece);
 
-        // Render
+        // Render each unique instrument and sum — with one instrument this
+        // is exactly the old single-buffer render.
         float totalBeats = 0;
         for (auto& sec : piece.sections) totalBeats += sec.beats;
         float bpm = piece.sections[0].tempo;
         float totalSeconds = totalBeats * 60.0f / bpm + 2.0f;
-        int frames = int(totalSeconds * float(ip.sampleRate));
+        int sampleRate = patchByPath.begin()->second.sampleRate;
+        int frames = int(totalSeconds * float(sampleRate));
         std::vector<float> mono(frames, 0.0f);
-        { RenderContext _ctx{ip.sampleRate}; ip.instrument->render(_ctx, mono.data(), frames); };
+        std::vector<float> buf(frames);
+        for (auto* inst : instruments) {
+            std::fill(buf.begin(), buf.end(), 0.0f);
+            { RenderContext _ctx{sampleRate}; inst->render(_ctx, buf.data(), frames); };
+            for (int k = 0; k < frames; ++k) mono[k] += buf[k];
+        }
 
         std::vector<float> stereo(frames * 2);
         for (int j = 0; j < frames; ++j) {
@@ -577,7 +606,7 @@ static int run_compose(int argc, char** argv) {
         }
 
         std::string outPath = outPrefix + "_" + std::to_string(i + 1) + ".wav";
-        if (!write_wav_16le_stereo(outPath, ip.sampleRate, stereo)) {
+        if (!write_wav_16le_stereo(outPath, sampleRate, stereo)) {
             std::cerr << "Failed to write: " << outPath << "\n";
             return 1;
         }
