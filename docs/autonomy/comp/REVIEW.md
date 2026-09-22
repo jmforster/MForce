@@ -24,6 +24,33 @@ fall down, and how do the falls sound?** Verdicts steer round 2 — keepers
 calibrate the weights, wincers name the next rule (the interior
 non-chord-tone hole and re-shape-to-fit are the queued suspects).
 
+**FIRST VERDICT (Matt, same day, overall): "almost brain-destroying to
+listen to because each is so close to Mary" — ear-known rules broken that
+the system lacks, some broken in a GOOD way. STANDING ORDER: the lane
+does not move off these ten until all ten are perfect; per-sibling
+annotations in progress (passage strings emitted to
+renders/comp/audition/walk1/walk1_passages.txt).**
+
+Transform-specific verdict, recorded verbatim-adjacent:
+- Transforms MOSTLY SUCCESSFUL except **head_a — the worst offender**
+  (vary_steps on the identity motif; his original intent was a
+  REARRANGEMENT of head's cell, not random perturbation).
+- **Non-idiomatic: super-fast-note injections in the FIRST half of a
+  bar.** Rhythmic speed-up idiomatically belongs in the SECOND half,
+  leading into the concluding bit.
+- His elaboration ladder, least→most altered (E E Eh family):
+  1. split the half into 2 quarters → E E E E (Mary's own move)
+  2. split a quarter into 2 eighths → E E-D E E — ADDITIVE: the last
+     quarter STAYS. Not E E-D E(h): "we accelerate then put the brakes
+     on, doesn't lead into the concluding bit."
+  3. split again, and again, LEAVING THE LAST MOD → E E-D E F-E (or
+     E E-F E E-D) — the newest subdivision rides the bar's end.
+- Derivable for round 2 (once annotations are in): elaboration placement
+  is late-bar-weighted, depth is progressive (quarters→eighths before
+  sixteenths anywhere), never lengthen after a split (no brakes), and
+  the ladder is one operator applied cumulatively — not complexify's
+  uniform-random placement.
+
 
 ### 20. The crawl: Mary from a fully-specified template [listen] (2026-09-21)
 `renders/comp/audition/crawl1/mary_crawl_1.wav` — the comp-restart campaign's
