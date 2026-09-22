@@ -14,6 +14,8 @@ block chords through the legacy root-position voicing path.
 | Generator | Where | Status | What it was |
 |---|---|---|---|
 | Markov Figure generator | tools/ + corpus/mtd_seg pipeline (order-2 joint model over MTD) | **LIVE** | The atom source — figure cells that "beat random out of the gate"; the walk stage builds on it |
+| Figure transform library (as FIT OPERATORS) | figure_transforms.h via derived motifs (`derivedFrom`+`transform`, walk1 spec §2) | **LIVE** (recalled 2026-09-21) | Recalled from the shelf for the walk: declared derivations with reasons (rep3_a/rep3_b/head_a), NOT random variation sprinkling — that failure mode stays shelved below |
+| Harmonic anchor selector | anchor_selector.h (opt-in `anchorMode: "harmonic"`) | **LIVE** (new 2026-09-21) | Walk round 1: figure starting degrees chosen against the chord timeline — R1-R3 hard, stacked chord-tone weights, seeded roulette |
 | RandomFigureBuilder path | `FigureSource::Generate` in composer.h | SHELVED | Constraint-driven random figure content |
 | AlternatingFigureStrategy | passage_strategies.h | SHELVED | ABAB chord-tone/scalar figures over a progression |
 | Wandering / Bruckner-pedal / sequence / connective passage strategies | passage_strategies.h + per-strategy configs in templates.h | SHELVED | Run 15-18 passage generation stages |

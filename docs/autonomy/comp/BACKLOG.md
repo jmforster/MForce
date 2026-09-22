@@ -19,9 +19,18 @@ reports + this file's git history. Tags per WORKFLOW.md.
     patches landed (null gate byte-identical); Mary render queued as
     REVIEW 20; GENERATORS.md shelve catalog created; baseline templates
     culled 27→19 by feature cover (9 archived to scores/old/).
-    NEXT on Matt's crawl verdict: walk-stage brainstorm — fitting
-    generated figures onto a fully-specified chord timeline (ground
-    rule 3's "musical fashion" fit rule).
+    **Same day, WALK ROUND 1 SHIPPED** (Matt's "spec/plan/build without
+    me"): structural template proven byte-identical (REVIEW 20 addendum,
+    connector dense-parallel convention pinned); then derived motifs
+    (2 atoms + declared transforms, new Complexify op) + harmonic anchor
+    selector (Matt's 3 edge rules hard, stacked chord-tone weights,
+    parallel-repeat intent) → 10-seed sibling batch, validator 10/10 =
+    **REVIEW 21**. Spec 2026-09-21-comp-walk1-design.md. Known accepted:
+    exact Mary out of support (final-step freedom = future thread);
+    interior NCT hole open by choice.
+    NEXT on Matt's walk verdicts: weight calibration or the next rule
+    (interior NCTs, re-shape-to-fit); then generated figure slots
+    (Markov proposes, fit disposes).
 
 8. **[build] Voicing open items — register drift + selector** — register
     drift ("upward tendency") is back on the backlog after two failed

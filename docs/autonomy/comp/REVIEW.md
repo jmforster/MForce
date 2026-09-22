@@ -2,6 +2,29 @@
 
 ## Awaiting Matt
 
+### 21. Walk round 1 — ten generated siblings [listen] (2026-09-21)
+`renders/comp/audition/walk1/mary_walk_s100..s109_1.wav` — the first
+GENERATED output of the reset. Same Mary harmony and figure slots, but:
+only `head`, `rep3` and the closing whole note are authored notes;
+`rep3_a`/`rep3_b`/`head_a` are synthesized from their parents by the
+declared transforms (your naming recipe, verbatim); and every figure's
+starting degree is chosen against the chords by the new anchor selector —
+your three rules hard (phrase-opening downbeat / phrase-final note =
+chord tone; passage-final = 1), chord-tone preference with the stacked
+bar-final/figure-final/long-note boosts, cursor proximity, and the
+parallel-repeat intent pinning the consequent's opening to the
+antecedent's. All ten passed the rules validator mechanically (10/10)
+before reaching you; engine gates: engine_tests 754, template null gate
+19/19 byte-identical (everything is opt-in).
+
+Known and accepted (spec §7): exact Mary is not in this batch's support.
+
+**The questions: legal nursery tunes? Which siblings please you, which
+fall down, and how do the falls sound?** Verdicts steer round 2 — keepers
+calibrate the weights, wincers name the next rule (the interior
+non-chord-tone hole and re-shape-to-fit are the queued suspects).
+
+
 ### 20. The crawl: Mary from a fully-specified template [listen] (2026-09-21)
 `renders/comp/audition/crawl1/mary_crawl_1.wav` — the comp-restart campaign's
 first artifact (backlog 23, your five ground rules from this morning).

@@ -35,12 +35,41 @@ ScaleChord.degree is 0-BASED (tonic 0, dominant 4) — 1-based roman
 numerals render supertonic chords; first Mary render did exactly that.
 Old template_mary.json connectors ({"type":"Step","step":N}) parse as
 leadStep 0 — pre-existing, left as-is, loader-era artifact.
-OPEN ON MATT: **REVIEW 20** (the crawl verdict: "is this Mary,
-competently harmonized?") + the standing 18/17/16/13/14/9/10/11/12/19.
-OPEN ON DEV: on a YES — walk-stage brainstorm (the ground-rule-3 fit
-rule: generated figures onto a fully-specified chord timeline); on a NO
-— diagnosis round. Voicing-tier question (score vs lead-sheet) parked in
-IDEAS.md §comp.
+SAME DAY, LATER: **STRUCTURAL TEMPLATE + WALK ROUND 1 SHIPPED** (Matt
+drove the brainstorms, then "spec/plan/build without me").
+(1) template_mary_structural.json — named motifs (family scheme
+head/rep3/rep3_a/rep3_b/head_a/close), references, parallel period —
+renders BYTE-IDENTICAL to the crawl; first-ever proof of the
+reference+connector path. TRAP PINNED at every authoring surface:
+template connectors are DENSE per figure ([i] = bridge INTO figure i,
+[0] null dummy), NOT an N-1 between-figures list — my plan had it wrong,
+the Opus agent silently built the derivation right, and the misauthored
+JSON shifted every figure by its connector.
+(2) Walk round 1 (spec/plan 2026-09-21-comp-walk1*): Complexify
+TransformOp (elaboration reined by target note count); derived-motif
+synthesis in realize_motifs (content-less derivedFrom declarations
+resolve through figure_transforms::apply, chains, throws by name);
+harmonic anchor selector (anchor_selector.h, opt-in
+PassageTemplate.anchorMode="harmonic") — Matt's 3 edge rules hard
+(phrase-opening downbeat + phrase-final = chord tone; passage-final =
+degree 1), chord-tone weights with stacked bar-final/figure-final/long
+boosts, cursor proximity, seeded roulette over the ENUMERATED legal
+chains, parallel intent pins the consequent opening. Gates: engine_tests
+557→754; template null gate 19/19 byte-identical (opt-in); batch
+validator 10/10. **REVIEW 21 = ten generated siblings**
+(renders/comp/audition/walk1/), first generated output of the reset —
+sibling melodies are already tune-shaped (s101 re-anchors head on the
+5th, uses F-over-G7 as the seventh, cadences to C).
+Known/accepted: exact Mary out of walk support (vary_steps is
+interior-only — final-step/cadential freedom is a named future thread);
+interior NCT hole open by choice (minor-Mary passes rules).
+OPEN ON MATT: **REVIEW 20** (crawl verdict — covers structural template
+too, byte-identical) + **REVIEW 21** (walk siblings: which please,
+which fall, how) + the standing 18/17/16/13/14/9/10/11/12/19.
+OPEN ON DEV: on walk verdicts — weight calibration or next rule
+(interior NCTs / re-shape-to-fit); then generated figure slots (Markov
+proposes, fit disposes). Voicing-tier question (score vs lead-sheet)
+parked in IDEAS.md §comp.
 
 Updated: 2026-09-21 (autonomous dsp run, Fable inline; Matt brainstormed
 comp in a parallel session — comp GOALS deliberately untouched here).
