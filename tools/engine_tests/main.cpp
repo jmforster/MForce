@@ -1171,7 +1171,32 @@ static void run_note_reseed_tests() {
     CHECK(same == total);   // exact replay — draws re-anchored
 }
 
+#include "mforce/music/passage_melody.h"
+
+static void run_passage_melody_tests() {
+    using namespace mforce;
+    Scale c = Scale::get("C", "Major");
+    // House convention: E5 = 64, D5 = 62, C5 = 60, G5 = 67.
+    CHECK(scale_steps_between(64.0f, 62.0f, c) == -1);   // E -> D
+    CHECK(scale_steps_between(62.0f, 60.0f, c) == -1);   // D -> C
+    CHECK(scale_steps_between(64.0f, 67.0f, c) ==  2);   // E -> G (E F G)
+    CHECK(scale_steps_between(64.0f, 64.0f, c) ==  0);
+    CHECK(scale_steps_between(60.0f, 72.0f, c) ==  7);   // C5 -> C6, full octave
+    CHECK(scale_steps_between(72.0f, 59.0f, c) == -8);   // C6 -> B4, crosses octave
+    // Non-scale tone throws (crawl material must be diatonic).
+    bool threw = false;
+    try { scale_steps_between(60.0f, 61.0f, c); } catch (const std::exception&) { threw = true; }
+    CHECK(threw);
+    // Non-C tonic: G Major, F#5 = 66 is a scale tone, F5 = 65 is not.
+    Scale g = Scale::get("G", "Major");
+    CHECK(scale_steps_between(67.0f, 66.0f, g) == -1);   // G -> F#
+    threw = false;
+    try { scale_grid_index(65.0f, g); } catch (const std::exception&) { threw = true; }
+    CHECK(threw);
+}
+
 int main() {
+    run_passage_melody_tests();
     run_passage_parse_tests();
     run_onset_field_tests();
     run_hold_delivery_tests();
