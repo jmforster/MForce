@@ -40,4 +40,97 @@ inline int scale_steps_between(float nnFrom, float nnTo, const Scale& scale) {
     return scale_grid_index(nnTo, scale) - scale_grid_index(nnFrom, scale);
 }
 
+// parse_passage sets phraseStart=true on EVERY note of a '|'-free string
+// (grouping only activates when a bar appears), so the derivation must
+// know whether '|' grouping was active at all.
+inline bool passage_has_bars_(const std::string& s) {
+    return s.find('|') != std::string::npos;
+}
+
+// Derive fully-specified PhraseTemplates from a comp-purpose passage string.
+// anchorOctave: house octave applied to octave-less note names (E -> E5).
+// Figure boundary = barline (a note STARTING on a bar multiple opens a new
+// figure); '|' = structural phrase boundary. No cadence fields are set —
+// fully-specified means there is nothing for cadence machinery to decide.
+//
+// Connectors are DENSE (one per figure, connectors[i] = the bridge INTO
+// figure i, [0] a zero dummy) — that is what composer.h:1471 and
+// realize_phrase_to_events_ read. The figures themselves are never mutated:
+// step[0] is 0 inside every figure, the bridge rides leadStep.
+inline std::vector<PhraseTemplate> phrases_from_passage(
+        const std::string& passageStr, int anchorOctave,
+        const Scale& scale, float beatsPerBar) {
+    // bpm 60 => ParsedNote.durationSeconds is BEATS.
+    auto notes = parse_passage(passageStr.c_str(), anchorOctave, 60.0f);
+    if (notes.empty())
+        throw std::runtime_error("passage melody: empty passage string");
+
+    const bool hasBars = passage_has_bars_(passageStr);
+
+    std::vector<PhraseTemplate> phrases;
+    PhraseTemplate cur;
+    MelodicFigure fig;
+    float passageBeat = 0.0f;   // absolute beat cursor (barlines are global)
+    int prevGrid = 0;           // grid index of the previous sounded note
+    int figLead = 0;            // bridge INTO the figure being accumulated
+    bool inPhrase = false;
+    bool firstNote = true;
+
+    auto flush_figure = [&]() {
+        if (fig.units.empty()) return;
+        FigureTemplate ft;
+        ft.source = FigureSource::Locked;
+        ft.lockedFigure = fig;
+        cur.figures.push_back(std::move(ft));
+        FigureConnector fc;
+        fc.leadStep = figLead;
+        cur.connectors.push_back(fc);
+        fig = MelodicFigure{};
+    };
+    auto flush_phrase = [&]() {
+        flush_figure();
+        if (!cur.figures.empty()) {
+            cur.name = "phrase" + std::to_string(phrases.size() + 1);
+            phrases.push_back(std::move(cur));
+        }
+        cur = PhraseTemplate{};
+    };
+
+    for (const auto& n : notes) {
+        if (n.noteNumber == kRestNote)
+            throw std::runtime_error(
+                "passage melody: rests are not supported by the crawl "
+                "derivation (parse's rest-ends-phrase rule would corrupt "
+                "structural phrases)");
+        const int grid = scale_grid_index(n.noteNumber, scale);
+        if (inPhrase && n.phraseStart && !firstNote && hasBars)
+            flush_phrase();
+
+        const bool phraseStartNow = cur.figures.empty() && fig.units.empty();
+        const float beatInBar = std::fmod(passageBeat, beatsPerBar);
+        if (phraseStartNow) {
+            figLead = 0;            // startingPitch anchors the phrase
+        } else if (beatInBar == 0.0f && !fig.units.empty()) {
+            // Barline: close the figure, bridge into the next one.
+            const int lead = grid - prevGrid;
+            flush_figure();
+            figLead = lead;
+        }
+
+        FigureUnit u;
+        u.duration = n.durationSeconds;    // == beats (bpm 60)
+        u.step = fig.units.empty() ? 0 : (grid - prevGrid);
+        fig.units.push_back(u);
+
+        if (phraseStartNow)
+            cur.startingPitch = Pitch::from_note_number(n.noteNumber);
+        prevGrid = grid;
+        passageBeat += n.durationSeconds;
+        inPhrase = true;
+        firstNote = false;
+    }
+    flush_phrase();
+    return phrases;
+}
+
 } // namespace mforce

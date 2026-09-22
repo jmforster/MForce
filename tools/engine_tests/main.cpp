@@ -1193,6 +1193,72 @@ static void run_passage_melody_tests() {
     threw = false;
     try { scale_grid_index(65.0f, g); } catch (const std::exception&) { threw = true; }
     CHECK(threw);
+
+    const std::string mary =
+        "Eq Dq Cq Dq Eq Eq Eh Dq Dq Dh Eq Gq Gh | "
+        "Eq Dq Cq Dq Eq Eq Eq Eq Dq Dq Eq Dq Cw";
+    auto phrases = phrases_from_passage(mary, 5, c, 4.0f);
+    CHECK(phrases.size() == 2);
+
+    // Phrase 1: 4 figures, DENSE connectors (one per figure, [0] a dummy —
+    // composer.h:1471 reads connectors[i] as the lead INTO figure i),
+    // starts E5.
+    const auto& p1 = phrases[0];
+    CHECK(p1.figures.size() == 4);
+    CHECK(p1.connectors.size() == 4);
+    CHECK(p1.startingPitch && int(p1.startingPitch->note_number()) == 64);
+    CHECK(p1.cadenceType == 0);
+    // Every figure Locked with a lockedFigure present.
+    for (const auto& ft : p1.figures) {
+        CHECK(ft.source == FigureSource::Locked);
+        CHECK(ft.lockedFigure.has_value());
+    }
+    // fig1 = E D C D: durations 1,1,1,1; steps 0,-1,-1,+1.
+    {
+        const auto& u = p1.figures[0].lockedFigure->units;
+        CHECK(u.size() == 4);
+        CHECK(u[0].duration == 1.0f && u[0].step == 0);
+        CHECK(u[1].step == -1 && u[2].step == -1 && u[3].step == 1);
+    }
+    // fig4 = E G Gh: durations 1,1,2; steps 0,+2,0.
+    {
+        const auto& u = p1.figures[3].lockedFigure->units;
+        CHECK(u.size() == 3);
+        CHECK(u[2].duration == 2.0f);
+        CHECK(u[0].step == 0 && u[1].step == 2 && u[2].step == 0);
+    }
+    // Connectors: [0] dummy 0, then +1 (D->E), -1 (E->D), +1 (D->E).
+    CHECK(p1.connectors[0] && p1.connectors[0]->leadStep == 0);
+    CHECK(p1.connectors[1] && p1.connectors[1]->leadStep == 1);
+    CHECK(p1.connectors[2] && p1.connectors[2]->leadStep == -1);
+    CHECK(p1.connectors[3] && p1.connectors[3]->leadStep == 1);
+
+    // Phrase 2: last figure is the whole-note C alone in its bar.
+    const auto& p2 = phrases[1];
+    CHECK(p2.figures.size() == 4);
+    CHECK(p2.connectors.size() == 4);
+    CHECK(p2.startingPitch && int(p2.startingPitch->note_number()) == 64);
+    {
+        const auto& u = p2.figures[3].lockedFigure->units;
+        CHECK(u.size() == 1 && u[0].duration == 4.0f && u[0].step == 0);
+    }
+    // fig3 = D D E D: steps 0,0,+1,-1; its lead connector is -1 (E->D).
+    CHECK(p2.figures[2].lockedFigure->units[2].step == 1);
+    CHECK(p2.connectors[2] && p2.connectors[2]->leadStep == -1);
+    // fig4's lead is -1 (D->C).
+    CHECK(p2.connectors[3] && p2.connectors[3]->leadStep == -1);
+
+    // A '|'-free string is one phrase (parse marks every note phraseStart
+    // only when grouping is active — verify we don't fragment).
+    auto one = phrases_from_passage("Cq Dq Eq Fq", 5, c, 4.0f);
+    CHECK(one.size() == 1 && one[0].figures.size() == 1);
+
+    // Rests refuse loudly (parse's rest-ends-phrase rule would corrupt
+    // structural grouping; revisit when a crawl tune needs rests).
+    threw = false;
+    try { phrases_from_passage("Cq Rq Eq", 5, c, 4.0f); }
+    catch (const std::exception&) { threw = true; }
+    CHECK(threw);
 }
 
 int main() {
