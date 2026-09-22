@@ -1,0 +1,68 @@
+Overall verdict: much improvement, especially with removal of nonsense in bar 6.
+Some of our "rules" "violated" (F-G over C vs. F-E), unless it was just some
+unlucky dice rolls.
+Some new "rules" surfaced:
+1. B wants to to to C (can leap to D first, but leaping down from leading tone weird
+2. Leaping to a non-chord tone (an appogiatura I guess) very unusual in this genre
+3. Leaping to a non-chord tone *and then leaping to another non-chord tone* - ditto, x 2
+
+The important point here is (as has been stated before) the rules we use are
+dependent on the genre. All of my "objections" are in the context of nursery
+rhyme songs.
+
+Annotated list:
+
+s100: Eq Dq Cq Dq Eq Eq Eh Fq Fq Fh Eq Cq Ch | Eq Dq Cq Dq Cq Cq Cq Cq Cq O- Bq O+ Cq Dq Cw
+Pass.
+
+s101: Gq Fq Eq Fq Eq Eq Eh Bq Bq Bh Fq Gq Gh | Gq Fq Eq Fq Gq Gq Gq Gq O+ Cq O- Bq Aq Bq O+ Cw
+Jump from E to B very unusual.
+I'd accept it if then did C (hi) O- G G. This would be a "compound melody" aka
+"implied polyphony" - advanced for kindergarten, but nice to listen to.
+Instead it jumps down to F ... which piles on 3 more departures from the idiomatic
+1. leading tone wants to lead to tonic, very unusual to have it leap down AND
+2. it leaps to F, a non-chord tone! unlike the F F F / F E E suspension this is
+   a leap to a note not in the chord AND
+3. it resolves the F to G which we allowed in 4% of cases or something
+Taken together, all these departures in a row, in a simple ditty = computer
+
+s102: Gq Fq Eq Fq Cq Cq Ch Fq Fq Fh Eq Cq Ch | Gq Fq Eq Fq Eq Eq Eq Eq Gq Eq Cq Dq Cw
+Cadential/concluding G E C D C - that E is the 13th of G7 again, another non-chord
+tone leaped to, and then instead of "resolving" to D it leaps down to another non-
+chord tone (C) ... the D - C sorts it out, and it doesn't sound *bad* but once
+again, not something you'd hear in a nursery rhyme song (NRS, hereafter).
+
+s103: Cq O- Bq Aq Bq O+ Cq Cq Ch O- Gq Gq Gh Fq Gq Gh | O+ Cq O- Bq Aq Bq Eq Eq Eq Eq Bq Aq Gq Aq O+ Cw
+This is the "minor" variation from before. Guess we didn't "disallow" that?
+F - G appogiatura again, but since preceded by the repeated Gs, less jarring
+Leap from B (leading tone) down to E - again, only in a compound melody and the
+note after E would be high C, instead we get 3 more Es and leap *back* up to B
+
+s104: Gq Fq Eq Fq O+ Cq Cq Ch O- Gq Gq Gh O+ Dq Cq Ch | O- Gq Fq Eq Fq Gq Gq Gq Gq Gq Bq Aq Bq O+ Cw
+Another leap from the 7th of 5, to high C, another "compound melody" implication
+G B A B C conclusion also non-idiomatic
+
+s105: Eq Dq Cq Dq O- Gq Gq Gh Fq Fq Fh Eq Gq Gh | O+ Eq Dq Cq Dq Cq Cq Cq Cq Dq Dq Dq Eq Cw
+Pass, until the end: D D D E C - E is a 13th and does not resolve to D, just jumps
+right to C.. if it did  D D E D C that would be perfectly acceptable, in fact, it's
+what Mary does! (so she does have at least an implied 13th chord!)
+
+s106: Gq Fq Eq Fq Gq Gq Gh Bq Bq Bh Fq Gq Gh | Gq Fq Eq Fq Cq Cq Cq Cq Cq Dq O- Aq Bq O+ Cw
+As in last round, first half identical to 101, so see all the complaints there.
+Second half:
+G F E F C - leap away from F, a non chord tone acceptable only in "passing"
+End - Cq Dq O- Aq Bq O+ Cw - C-D appog on V, followed by a leap to *another*
+appog - A - B
+
+s107: Gq Fq Eq Fq Cq Cq Ch O- Bq Bq Bh O+ Eq Gq Gh | Gq Fq Eq Fq Gq Gq Gq Gq Fq Eq O- Aq Bq O+ Cw
+Another leap from passing F. Another leap from leading tone (2 leaps).
+At end F E A B C (leap from passing tone 13th to 9th, another non-chord tone.
+
+108: Eq Dq Cq Dq Eq Eq Eh Dq Dq Dh Aq Gq Gh | Eq Dq Cq Dq Cq Cq Cq Cq Cq O- Bq O+ Cq Dq Cw
+First half: we got Mary!
+End: C B C D C - 2 appogiaturas over V, sounds fine, doesn't belong in nursery. 
+
+s109: Eq Dq Cq Dq O- Gq Gq Gh Dq Dq Dh O- Aq Gq Gh | O+ O+ Eq Dq Cq Dq Eq Eq Eq Eq Gq Fq Eq Fq Cw
+Ok, tho highly unusual in the range (as before).. until the end:
+G F E F C - leap from 7th of V again.. these variants would be acceptable:
+G F E D C .. G F E (O-) G (O+) C 
