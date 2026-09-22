@@ -1,0 +1,47 @@
+{
+  "keyName": "C",
+  "scaleName": "Major",
+  "bpm": 80.0,
+  "masterSeed": 100,
+  "sections": [
+    {
+      "name": "Main",
+      "beats": 32,
+      "chordProgression": [
+        {"degree": 0, "beats": 4},
+        {"degree": 0, "beats": 4},
+        {"degree": 4, "quality": "7", "beats": 4},
+        {"degree": 0, "beats": 4},
+        {"degree": 0, "beats": 4},
+        {"degree": 0, "beats": 4},
+        {"degree": 4, "quality": "7", "beats": 4},
+        {"degree": 0, "beats": 4}
+      ]
+    }
+  ],
+  "parts": [
+    {
+      "name": "melody",
+      "role": "melody",
+      "instrumentPatch": "patches/library/winds/oboe1.json",
+      "passages": {
+        "Main": {
+          "melodyPassageFile": "scores/baselines/passages/Comp_Mary.psg",
+          "melodyOctave": 5,
+          "phrases": []
+        }
+      }
+    },
+    {
+      "name": "chords",
+      "role": "harmony",
+      "instrumentPatch": "patches/library/keys/acoustic_piano/piano_default.json",
+      "passages": {
+        "Main": {
+          "phrases": [],
+          "chordConfig": {"octave": 3}
+        }
+      }
+    }
+  ]
+}

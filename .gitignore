@@ -153,6 +153,8 @@ docs/notes/
 
 ############################
 # UI save-load work areas (transport tab chords/passages saves, 2026-09-14)
+# Anchored to the repo root 2026-09-21: scores/baselines/passages/ holds
+# COMMITTED copies of .psg files that frozen templates reference.
 ############################
-chords/
-passages/
+/chords/
+/passages/

@@ -2,6 +2,29 @@
 
 ## Awaiting Matt
 
+### 20. The crawl: Mary from a fully-specified template [listen] (2026-09-21)
+`renders/comp/audition/crawl1/mary_crawl_1.wav` — the comp-restart campaign's
+first artifact (backlog 23, your five ground rules from this morning).
+Harmony went into the template first and fully specified (C | C | G7 | C,
+twice, root-position piano blocks at octave 3); the melody is your own
+UI-saved passage string (`scores/baselines/passages/Comp_Mary.psg`, your `|`
+between the two structural phrases) run through the new loader derivation —
+Locked figures split at barlines, connectors carrying the bridges. Melody on
+oboe1, chords on piano_default per the new instrument rule. No generation,
+no cadence machinery, nothing drawn from a seed.
+
+Verified mechanically before it reached you: all 26 melody events match the
+transcription beat-for-beat and pitch-for-pitch; the 8 chords are C-E-G and
+G-B-D-F at the right bars; the two-instrument mix is normalized (raw sum
+peaked 1.19, scaled to 0.98 — single-instrument renders untouched, null gate
+27/27 byte-identical).
+
+**The question: is this Mary, competently harmonized?**
+YES → template + passage + render freeze as the crawl baseline, and the walk
+stage (generated figures fitted onto a chord timeline) gets its brainstorm.
+NO → diagnosis round.
+
+
 ### 19. Octave naming convention — scientific or house? [decide] (2026-08-12)
 The music model's core (Pitch::note_number, parse_note_input, passage
 parser, pitch_reader) uses octave*12: "C4" = MIDI 48, one octave below

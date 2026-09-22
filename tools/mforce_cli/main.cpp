@@ -599,6 +599,20 @@ static int run_compose(int argc, char** argv) {
             for (int k = 0; k < frames; ++k) mono[k] += buf[k];
         }
 
+        // A multi-instrument sum can exceed full scale, and the 16-bit
+        // writer clamps — normalize the MULTI-instrument mix only. A
+        // single-patch render keeps its historical output bit-for-bit,
+        // including any clipping it always had.
+        float mixPeak = 0.0f;
+        for (int k = 0; k < frames; ++k)
+            mixPeak = std::max(mixPeak, std::fabs(mono[k]));
+        if (instruments.size() > 1 && mixPeak > 0.98f) {
+            const float g = 0.98f / mixPeak;
+            for (int k = 0; k < frames; ++k) mono[k] *= g;
+            std::cout << "  normalized: mix peak " << mixPeak
+                      << " scaled by " << g << "\n";
+        }
+
         std::vector<float> stereo(frames * 2);
         for (int j = 0; j < frames; ++j) {
             stereo[j * 2]     = mono[j];
