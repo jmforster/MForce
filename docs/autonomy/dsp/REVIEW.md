@@ -5,22 +5,78 @@ the same evening. Awaiting = only what still needs Matt.
 
 ## Awaiting Matt
 
+### 76. The oboe, split in two — trading licks solved [listen] (2026-09-21)
+**renders/dsp/audition/oboe_nasal1/** — 5 files, README inside (read it —
+it corrects a label mix-up from earlier in the day's session).
+
+The one-paragraph version: the wind loop has two stable ignition
+states. Fundamental-carried = your "nasal oboe target" (your phrases
+1/3, the quieter pair); 2nd-harmonic-carried = your "mellow
+flute/clarinet" (phrases 2/4, ~8 dB louder). A phrased line inherits
+whichever way its FIRST note's ignition lands, and D6 at your
+tempo/velocity is a ~3-in-8 coin flip while F#6 almost always lands
+oboe — which is exactly why your two D-lines traded against your two
+F#-lines. Deterministic, reproduced offline, seed/velocity/duration
+mapped. Your embedded question — "re-anchor doesn't impact the
+currently driven tube, right?" — correct, and that's also why it
+couldn't fix this: the character is set at the breath note, before
+per-note pinning matters.
+
+Both sounds are now patches, per your GOALS "should be 2 patches":
+- **oboe_steady.json** — Junction middle slope ×0.85; oboe state
+  unanimous (0 flips/16 seeds; 28/28 line notes at both tempos), tone
+  of the state unchanged (centroid identical, −1.6 dB).
+- **flute_sibling.json** — a −46 dB 2nd-harmonic whisper into the loop
+  input; flute state unanimous (8/8 everything).
+
+THE QUESTION: **play otj_oboe_steady.wav** — every phrase the oboe you
+meant, and no character cost from the slope change? Honest residual on
+record: 1/8 seeds still flips on 2-second HELD E6/F#6 (your OTJ lines
+are clean); the deeper cure is the operating-point campaign, now
+backlog 81.
+
+### 75. Live keyboard legato — overlap slurs, wind-mode mono [try] (2026-09-21)
+**Relaunch the UI first** (also picks up the "all breath" Onsets option
+you asked for, and it's in the same build). On a patch whose Output
+node has **sustaining** checked (your taught winds):
+
+- **Hold a key, press another** → the line SLURS to the new note (same
+  glide + re-anchor delivery the score path uses; no new attack).
+- **Release the new key while the old one is still down** → it slurs
+  BACK (last-note priority, like lifting the top finger on a real wind).
+- **Gap between keys** → detached, exactly as before; and a fresh
+  attack now CUTS a still-ringing release of the previous note (3 ms
+  fade — your 09-02 "fast flute lines" ask). If you hear a click on
+  that cut, tell me — it's on the watch list.
+- Piano and everything not marked sustaining: byte-for-byte unchanged
+  behavior (null gate 79/79 after the engine-side refactor;
+  engine_tests 508).
+
+Your tongue question, answered in chat and recorded here: key gestures
+alone can't say "tongue" (a repeated note forces a release = reads as a
+gap; no gap-tolerance window by design). The designed escape hatch is a
+LATCH — one binary control (a QWERTY key now, footswitch later): while
+latched, gap-then-press would become a tongue instead of a new breath.
+Cheap to wire now that the overlap plumbing exists — say the word.
+NOTE for later: nearly every patch declares polyphony 1 (authored for
+offline render, not live voice count — even piano_default), so "respect
+patch polyphony live" would have made the piano monophonic; mono-mode
+rides the sustaining flag instead. If you want a real live-voices
+field, that's a small separate decision.
+
 ### 74. One breath per line, done properly [listen] (2026-09-20)
 **renders/dsp/audition/articulation1/** — 6 files, README inside.
 Regenerated; these replace yesterday's files of the same names.
 
-**** YOUR FIRST-PASS VERDICT (09-20 evening) + what shipped in response:
-"Re: goals of the round, 100% achieved. No clicks, clean and smooth
-articulations." Two unforeseen effects, both acted on the same evening,
-and the queue was REGENERATED AGAIN after — so the current files are
-one build newer than what you first heard:
-1. Oboe "trading licks" — each phrase had its own character (one blow =
-   one noise realization per line; backlog 72 unmasked). FIXED per your
-   option (a): every in-line note now re-anchors the random draws at its
-   start, so each note's character is pinned exactly like a fresh note's
-   always was. Cost stated up front: notes 5 and 7 get their overblow
-   back — that pinning is what hid the loop's sensitivity all along;
-   the real cure stays the operating-point campaign (backlog 72/r5c).
+**** YOUR FIRST-PASS VERDICT (09-20 evening): "Re: goals of the round,
+100% achieved. No clicks, clean and smooth articulations." Two
+unforeseen effects followed:
+1. Oboe "trading licks" — your 09-21 note (with oboe_compare.wav)
+   ANSWERED AND ACTED ON: analysis + the two-patch fix are **REVIEW 76**
+   (oboe_nasal1 queue). Your question — re-anchor doesn't touch the
+   driven tube — confirmed correct there, and it's why re-anchor
+   couldn't fix this.
+
 2. Trombone: some slurs re-attack or struggle — you called it, and the
    measurements agree it is most likely PARTIAL-CROSSING (the lip's
    register mechanism dragged through no-man's-land mid-glide). Your two
@@ -30,7 +86,37 @@ one build newer than what you first heard:
    default 15). If struggles vanish under all-tongue and track glide
    length, the fix is one emission rule: tongue across partial
    boundaries, which is what real players do.
+
 ****
+
+MATT (09-21): squeak on every attack + "blending" (both notes briefly),
+worst F#5↔G5; all-tongue doesn't solve; slur ms down to 3-5 ms helps
+then gets strange; E5→A4 slide audible; patch unfinished, don't
+overspend; **please add "all breath" Onsets option**.
+
+ANSWERED 09-21 (measured on controlled two-note renders, time-boxed;
+full numbers in reports/2026-09-21-dsp-run.md):
+- **"All breath" is IN — relaunch the UI.** (Ignores phrase marks,
+  behaves exactly as pre-articulation.)
+- **The blend and the squeak are one mechanism, and it is not onsets.**
+  During a glide the bore spends 50–150 ms in no-man's-land between
+  partials: the oscillation COLLAPSES (−38 dB at glide 15 ms), then the
+  new note RE-IGNITES — and that re-ignition overshoots ~+2% (your
+  squeak, same signature as the 74a7 attack overshoot, which was only
+  ceiling-fixed for fresh attacks) while the old partial's residue
+  rises under it (your blend). The blend length IS re-ignition time,
+  not lip lag. Your knob findings reproduce exactly: glide 5 ms halves
+  the dip and locks faster; tongue doesn't help because pitch still
+  glides under the dent; glide 0 locks fastest and cleanest of all but
+  is the old instant-retune (the tick it was built to remove — your
+  "strange effects" at 1–5 ms are the kink coming back).
+- **E5→A4** is a genuine 140 ms glissando through the partial stack —
+  the audible slide. "Special handling for large intervals" =
+  candidates recorded, not built (questions aren't go-aheads): tongue
+  with instant retune under the dent for crossings above some interval,
+  or a brief breath KICK gated on "slur" (patch-only, NameGate→breath)
+  to shorten re-ignition. Both are one evening when the trombone
+  becomes current again; parked with the patch per your "unfinished".
 
 You listened to yesterday's phrased renders and told me what was wrong:
 a tick at every pitch change, nothing happening at all on repeated
@@ -94,6 +180,11 @@ that part is yours to confirm.
 Report: reports/2026-09-20-note-onsets-v2.md; spec
 docs/superpowers/specs/2026-09-20-note-onsets-v2-design.md.
 
+***
+
+MATT: Mostly covered above. TDip is ok on trombone, but more work to be done,
+TBD.
+
 ### 72. Trombone, attempt 4 — the held note [listen] (2026-09-19)
 **renders/dsp/audition/trombone4/** — 8 files, README inside.
 
@@ -156,15 +247,25 @@ while a note is sounding, which nothing in the current setup can do — that's
 a design conversation (a breath controller, or a per-note shape), not a tweak.
 Report: reports/2026-09-19-trombone4.md.
 
-### 62. bwg_perc2 — tuned percussion, decay fixed [listen — BLOCKED, re-render coming] (2026-09-16)
+***
+
+MATT: It worked. Most noticable at very high velocity, but tone definitely
+tracks now. Once gain, not a finished patch, but the feature worked.
+
+***
+
+### 62. bwg_perc2 — tuned percussion, RE-RENDERED at real loudness [listen] (2026-09-16, unblocked 2026-09-21)
 **renders/dsp/audition/bwg_perc2/** — marimba/xylo/vibes/chime/tom/
-woodblock/glass with realistic decay times (round 1's fault: everything
-rang like a gong; fixed). YOUR 09-16 NOTE: "so quiet I can barely hear
-it at 100%... everything sounds glassy." The quiet is a render-gain
-calibration bug on my side (queue cells rendered ~20 dB below library
-patches) — next run re-renders this queue at proper loudness; hold your
-verdict until then. "Glassy" is recorded as a first impression to
-re-test at real level.
+woodblock/glass, realistic decay times, and now calibrated to the
+library oboe's sounding level, BAKED INTO THE PATCHES so live play
+matches (worst cell 3.3 dB under reference, peak-capped; was ~20 dB
+under across the board — the round never had the loudness pass the
+trombone rounds get; my miss). Re-listen before any verdict — "glassy"
+was formed 20 dB down. ONE FLAG: tomdrum's raw output has been ~47 dB
+below its siblings since round 1 (the round-2 gate that passed it was
+measuring noise — gate bug on record); it is boosted to level now, but
+if it reads thin/noisy, the verdict "tomdrum is structurally wrong" is
+a legitimate answer and the cell gets rebuilt, not re-trimmed.
 
 ### 65. Metal plates & plucks, safe-filter retry [listen] (2026-09-16)
 Two folders. **renders/dsp/audition/mesh2d_ext2/**: 14 struck-plate
@@ -188,6 +289,18 @@ MATT (09-17, folded): "None of these track pitch" — mesh: correct and
 structural, see above; plucks: they should — flag if not. "What does
 'the passive round' mean" — jargon, retired; plain-language REVIEW
 entries from now on.
+
+PLUCK FLAG ANSWERED (09-21, measured): the plucks DO retune — solo
+note 2 lands exactly an octave up, and in the pair files the second
+pluck's full harmonic series is present and dominant. What your ear
+caught is real anyway: **the first pluck rings ~27 seconds** (loop
+gain 0.998), so the old pitch audibly continues under the new note —
+perc-round-1's gong disease in string clothing. Also real: every pluck
+sits ~38 cents flat (the damping filter + Pierce filter add loop delay
+the compensation doesn't know about). NEW FILES beside the pairs:
+`<cell>_scale.wav` — the same untouched patches playing a rising
+arpeggio; tracking is unmistakable there, harp-style. If these cells
+graduate, they need a decay-time knob + the flatness comp (backlog 89).
 
 ### 38. AF saxophone — build awaiting go [discuss] (2026-08-18)
 docs/research/af_sax/RECIPE.md: complete value table from the breakdown

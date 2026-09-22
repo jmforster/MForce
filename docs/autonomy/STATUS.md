@@ -1,6 +1,45 @@
 # Status — session handoff (Claude reads this first; Matt's queue = */REVIEW.md)
 
-Updated: 2026-09-20 late (interactive with Matt, after the v2 Opus build
+Updated: 2026-09-21 (autonomous dsp run, Fable inline; Matt brainstormed
+comp in a parallel session — comp GOALS deliberately untouched here).
+WORKING-TREE NOTE: docs/autonomy/GOALS.md is Matt's own uncommitted
+refresh — never stage/commit/revert (decomposed into backlog 81–89 this
+run, but the file itself stays his).
+**STACK RUN — full report reports/2026-09-21-dsp-run.md.** Shipped:
+(1) **Oboe trading licks SOLVED as two patches → REVIEW 76**
+(oboe_nasal1 queue): two ignition states (fundamental-carried = Matt's
+"nasal oboe"; H2-carried, +8 dB = his "flute/clarinet"), line inherits
+its breath note's ignition, D6 = the 3/8 coin-flip pitch; junction
+middle-slope ×0.85 makes the oboe state unanimous (tone preserved,
+−1.6 dB; 1/8 residual flip on 2 s held E6/F#6); −46 dB H2 bias into the
+loop makes the flute state unanimous. Tooling tools/oboe_licks.py.
+MID-RUN CORRECTION on record: Matt's oboe_compare.wav is the FULL psg
+at 120 bpm — first per-note grid of HIS file was mislabeled (2× tempo);
+corrected same day via his side-chat note; offline findings were
+self-consistent throughout. (2) **Live legato SHIPPED (backlog 53 v1) →
+REVIEW 75**: engine deliver_continuation()/continue_voice_live()
+extraction (null gate 79/79 byte-identical, engine_tests 508), UI
+overlap=slur / release-back / gap=detached / ring-cut on sustaining
+patches; tongue needs a latch (wire-ready, Matt's word); FLAG: patches
+declare polyphony 1 as offline semantics (even piano_default), so mono
+rides `sustaining`, not polyphony. (3) **"All breath" Onsets option**
+(mode 3 = pre-articulation) — relaunch picks up both UI items.
+(4) **Trombone transitions DIAGNOSED, folded into 74**: glide
+no-man's-land collapse → re-ignition overshoot (+2% = the squeak) over
+old-partial residue (= the blend); tongue can't fix (pitch still
+glides); candidates recorded not built (patch "unfinished" per Matt).
+(5) **62 UNBLOCKED**: bwg_perc2 recalibrated into the patches (0–3.3 dB
+from library reference, was −20); tomdrum ~47 dB structurally quiet
+since round 1, flagged. GREMLIN on record: ONE unreproducible loud
+render of identical tomdrum bytes (35 dB), evidence overwritten by my
+own stress test — offline-determinism watch, backlog 59 family.
+(6) **65 pluck flag ANSWERED**: plucks track; a 27 s ring masks it +
+38 c flat; scale demos staged; follow-ups backlog 89. (7) GOALS
+decomposed → backlog 81–89; junction periphery measured (−20 dB rel at
+±10%, second-order, not zero). dsp REVIEW Awaiting: **76**, **75**,
+**74**, **72**, 62 (re-listen), 65 (scales), 38, 39.
+
+Previous update: 2026-09-20 late (interactive with Matt, after the v2 Opus build
 below; session continuity save 09-21 morning).
 WORKING-TREE NOTE unchanged: docs/autonomy/GOALS.md is Matt's own
 uncommitted edit — never stage/commit/revert.

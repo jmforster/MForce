@@ -524,6 +524,88 @@ Tags per WORKFLOW.md.
     long note today either — so this is a guard against a future
     mis-declaration, not a live bug.
 
+81. **[campaign] Wind-loop operating point, octave-6 edition — the
+    always-nasal oboe (GOALS #2, Matt's 09-21 REVIEW 74 note)** — the
+    "trading licks" mechanism is MEASURED (run 2026-09-21): the loop has
+    two ignition outcomes — fundamental-dominant ("mellow",
+    clarinet/flute-ish) and H2-dominant ("nasal", the oboe target, 2-3x
+    louder); a phrased LINE inherits its breath note's outcome through
+    the holds, which is why the character splits along phrase lines
+    (phrasing exposed it, didn't cause it). The outcome is a
+    deterministic function of (pitch, duration, velocity, noise-draw
+    stream position): fresh D6 at v0.8/~1 s tips nasal ~3/8 seeds, E6
+    and F#6 ~1/8, G6/A6 0/8; v0.7 and v0.9 are all-mellow (narrow drive
+    window); warm-tube residue and 12 s gaps are measured IRRELEVANT.
+    72's re-anchor can't fix it: the breath note's draws are still
+    stream-position dependent, and the character is set at ignition
+    before pinning matters. TOOLING: tools/oboe_licks.py (phrase
+    stamper, render harness, nasal classifier — fmt ratio > 50 =
+    fundamental collapsed). GOAL: junction/breath settings where fresh
+    ignition lands nasal 8/8 seeds across the home register at playing
+    velocities — or the finding that the nasal state can't be made
+    dominant, in which case the patch SPLITS into oboe (nasal) + a
+    mellow sibling per GOALS #2. This is r5c/72 with a binary
+    classifier; junction middle-slope/asymmetry sweep results in the
+    2026-09-21 run report.
+
+82. **[design/tool] Junction shape tweaker (GOALS #2)** — Matt wants to
+    audition many junction shapes in rapid succession (fine-tuning OR
+    novelty-seeking). Design question first: live knot-dragging on the
+    Shaper face already exists — what's missing is shape PRESETS/
+    generation (parameterized families: slope, asymmetry, kink count,
+    smoothness) and one-keystroke stepping while a note loops. Sweep
+    fallback: gen script over shape families with the 81 classifier +
+    perceptual-distance dedup, render grid to an audition queue.
+    Periphery question answered 2026-09-21 (run report): see 81.
+
+83. **[design] Bandwidth / Shimmer as wired nodes (GOALS #3)** — move
+    the additive extensions out of the Partials settings pane into
+    nodes that wire into Partials the way Partials wires into Additive,
+    to keep the Settings pane manageable. Same registry/loader pattern;
+    migration stance needed (existing patches keep loading — settings
+    form stays legal or migrates at load, no compat shims per policy).
+
+84. **[research] Physical attack + additive sustain grafts (GOALS #3)**
+    — best-of-both-worlds patches: loop-family ignition transient
+    crossfaded into an additive sustain. Zero-code probe first: render
+    a loop attack, splice-audition against additive sustains to find
+    whether the seam is audible before designing an in-graph mechanism
+    (gate/crossfade nodes exist).
+
+85. **[build, ui] Auto-layout / auto-grouping (GOALS UI-2)** — the
+    trombone patch (56 nodes) is unreadable without hand-grouping.
+    Auto-layout: topological rank -> columns, straighten the audio
+    spine, cluster per-note map curves. Auto-group candidates: the
+    excitation subgraph, the per-note map fan, post chain. Groups +
+    wormholes exist; this is about GENERATING them.
+
+86. **[design] Patch node (GOALS UI-2)** — a node whose output pin is a
+    whole pre-existing patch (file-picked). Reuse of structures (the
+    wind loop) and variants without wholesale copying. Questions: note
+    face / perform routing into the inner patch, parameter surfacing
+    (which inner knobs show on the outer face), save semantics (ref vs
+    snapshot), nesting depth, live cost. Related: 56 (node ids), 27
+    (group multi-output).
+
+87. **[design, someday] Node bypass (GOALS UI-3)** — per-node-type
+    bypass semantics (1-in/1-out = pass-through; leaf/combiner = N/A or
+    mute). Devil's in the details, Matt's words; needs a per-category
+    semantics table before any build.
+
+88. **[research, someday] UI toolkit evaluation (GOALS UI-6)** — can
+    ImGui deliver knob-on-node-face tweakability and a professional
+    look, or does gen-2 UI need JUCE/Qt/web-frontend? Deliverable: a
+    criteria table + one prototype spike per candidate, no migration
+    before a decision doc. "In it for the long haul."
+
+89. **[small] Pierce pluck follow-ups (REVIEW 65 measurement,
+    2026-09-21)** — plucks DO track pitch (proven solo + in-pair);
+    audibility was masked by a ~27 s ring (loop gain 0.998) — needs a
+    decay-time knob like the perc round (constant-T60 gain curve on
+    note frequency) before the cells are playable; and every pluck sits
+    ~38 c flat (SVF + PierceFilter loop delay uncompensated — same
+    class as the STK port comp tables; measure once, bake into ratio).
+
 ## Design questions
 
 78. **[design, someday] InstrumentClass — the principled home for

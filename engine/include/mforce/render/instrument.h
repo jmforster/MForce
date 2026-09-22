@@ -457,6 +457,58 @@ struct PitchedInstrument final : Instrument {
     }
   }
 
+  // The continuation delivery (spec §4), shared verbatim by the offline
+  // line and the live keyboard's legato (backlog 53).
+  // Per-note determinism (onsets-v2 addendum, Matt 2026-09-20):
+  // re-anchor every node's stochastic draw streams at this note's
+  // Setup, so an in-line note's realization is pinned exactly like a
+  // fresh note's always was — without this, the noise free-runs
+  // through the line and each phrase acquires its own holistic
+  // character ("a different oboeist per phrase"). Physical state
+  // (bore, filters, envelope positions) carries; only DRAWS anchor.
+  // Never called on the fresh path: prepare() already seeds AND
+  // consumes layout draws, so a post-prepare reseed would not be
+  // byte-neutral.
+  void deliver_continuation(VoiceGraph& vg, float freq, float velocity,
+                            int durSamples, float durSeconds,
+                            float fromFreq, float onsetId) {
+    for (auto& [nid, src] : vg.nodesById) src->reseed();
+    std::shared_ptr<Envelope> glide;
+    if (glideSec > 0.0f && fromFreq > 0.0f && freq != fromFreq)
+      glide = make_glide(fromFreq, freq, durSamples);
+    if (vg.performSource)
+      vg.performSource->set_note(freq, velocity, durSamples, durSeconds,
+                                 std::move(glide), onsetId);
+    // Non-setting push bindings re-push; isSetting bindings HOLD their
+    // line-start value — set_setting rebuilds per-note state at prepare
+    // and must not run mid-render (v1 decision, unchanged). Pull chains
+    // (noteFaces curves) need no delivery: they read the new NoteState.
+    for (auto& b : vg.pushBindings) {
+      if (b.isSetting) continue;
+      b.chain->next();
+      float v = b.chain->current();
+      b.cs->set(v);
+      b.consumer->set_param(b.paramName, b.cs);
+      if (vg.topMultiplex && !b.targetNodeId.empty())
+        vg.topMultiplex->set_clone_param(b.targetNodeId, b.paramName, v);
+    }
+    fire_triggers(vg);   // the onset gesture restarts from current value
+  }
+
+  // Live legato continuation (backlog 53): the same delivery applied to
+  // a pool voice the audio callback is pulling. The CALLER owns the
+  // threading (mforce_ui holds its audio mutex), knows which slot is the
+  // sounding line, and keeps its own envelopes gated — this only
+  // delivers the new note into the living graph.
+  void continue_voice_live(int slot, float noteNumber, float velocity,
+                           float duration, float fromFreq, float onsetId) {
+    if (slot < 0 || slot >= int(voicePool.size())) return;
+    const float freq = note_to_freq(noteNumber);
+    const int durSamples = int(duration * float(sampleRate));
+    deliver_continuation(voicePool[size_t(slot)], freq, velocity,
+                         durSamples, duration, fromFreq, onsetId);
+  }
+
   // Per-note delivery against a possibly-living line voice (spec §4).
   // Three cases, in order:
   //   1. the line is open  -> CONTINUE it (no acquisition, no prepare);
@@ -474,37 +526,8 @@ struct PitchedInstrument final : Instrument {
     // --- 1. Continuation -------------------------------------------------
     if (line_.open) {
       auto& vg = voicePool[size_t(line_.vIdx)];
-      // Per-note determinism (onsets-v2 addendum, Matt 2026-09-20):
-      // re-anchor every node's stochastic draw streams at this note's
-      // Setup, so an in-line note's realization is pinned exactly like a
-      // fresh note's always was — without this, the noise free-runs
-      // through the line and each phrase acquires its own holistic
-      // character ("a different oboeist per phrase"). Physical state
-      // (bore, filters, envelope positions) carries; only DRAWS anchor.
-      // Never called on the fresh path: prepare() already seeds AND
-      // consumes layout draws, so a post-prepare reseed would not be
-      // byte-neutral.
-      for (auto& [nid, src] : vg.nodesById) src->reseed();
-      std::shared_ptr<Envelope> glide;
-      if (glideSec > 0.0f && line_.lastFreq > 0.0f && freq != line_.lastFreq)
-        glide = make_glide(line_.lastFreq, freq, durSamples);
-      if (vg.performSource)
-        vg.performSource->set_note(freq, pn.velocity, durSamples, pn.duration,
-                                   std::move(glide), pn.onsetId);
-      // Non-setting push bindings re-push; isSetting bindings HOLD their
-      // line-start value — set_setting rebuilds per-note state at prepare
-      // and must not run mid-render (v1 decision, unchanged). Pull chains
-      // (noteFaces curves) need no delivery: they read the new NoteState.
-      for (auto& b : vg.pushBindings) {
-        if (b.isSetting) continue;
-        b.chain->next();
-        float v = b.chain->current();
-        b.cs->set(v);
-        b.consumer->set_param(b.paramName, b.cs);
-        if (vg.topMultiplex && !b.targetNodeId.empty())
-          vg.topMultiplex->set_clone_param(b.targetNodeId, b.paramName, v);
-      }
-      fire_triggers(vg);   // the onset gesture restarts from current value
+      deliver_continuation(vg, freq, pn.velocity, durSamples, pn.duration,
+                           line_.lastFreq, pn.onsetId);
       line_.lastFreq = freq;
       line_.lastNote = pn.noteNumber;
       line_.lastDurSamples = durSamples;

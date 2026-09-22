@@ -3609,7 +3609,8 @@ struct TransportState {
     int octave = 4;
     float bpm = 120.0f;
     // In-phrase onset override: 0 auto (spec §3 rule), 1 all tongue,
-    // 2 all slur. Hand-experiment knob (Matt 2026-09-20).
+    // 2 all slur, 3 all breath (ignore phrase marks entirely = the
+    // pre-articulation behavior; Matt 2026-09-21). Hand-experiment knob.
     int onsetMode = 0;
     // Chords mode
     char chordsStr[1024] = "";
@@ -4317,9 +4318,15 @@ static bool patch_is_sustaining() {
 // "a passage with all tongue" wasn't reachable without it). 0 = auto (the
 // spec §3 rule), 1 = every in-phrase onset "tongue", 2 = every in-phrase
 // onset "slur". Phrase-starting notes are always "breath" — the mode
-// picks the consonant, not whether the breath starts.
+// picks the consonant, not whether the breath starts. 3 = all breath:
+// phrase marks ignored, every note a fresh classic note (identical to
+// rendering the passage with no `|` at all).
 static void stamp_passage(std::vector<SchedNote>& sched, bool sustaining,
                           int onsetMode) {
+    if (onsetMode == 3) {
+        for (auto& s : sched) { s.onset.clear(); s.hold = false; }
+        return;
+    }
     if (!sustaining) {
         for (auto& s : sched) { s.onset.clear(); s.hold = false; }
         transport_set_status("patch is not marked sustaining — phrase marks "
@@ -4606,6 +4613,17 @@ static std::shared_ptr<InstrumentPatch> g_cachedInstrument;
 static uint64_t g_cachedEditCounter = ~0ull;
 static int      g_cachedTapNode     = -1;
 
+// Live legato state (backlog 53): the ordered stack of physically-held
+// keys, newest last, with the velocity each was struck at. Maintained
+// only while a SUSTAINING patch is loaded — on those, the keyboard is a
+// mono line: overlap = legato (slur), gap = detached, and lifting the
+// sounding key while an earlier key is still down slurs BACK to it
+// (last-note priority). No gap tolerance, by design (v1 spec §4): a
+// tolerance window would delay every detached release.
+struct LiveHeldKey { int key; float vel; };
+static std::vector<LiveHeldKey> g_liveHeldKeys;
+static float g_liveNominalSec = 2.0f;
+
 // Returns the cached instrument, rebuilding if the graph changed. Throws on
 // load failure (callers' try/catch reports). Null = no playable patch path.
 static std::shared_ptr<InstrumentPatch> get_cached_instrument() {
@@ -4627,6 +4645,9 @@ static std::shared_ptr<InstrumentPatch> get_cached_instrument() {
     g_cachedInstrument  = ip;
     g_cachedEditCounter = g_graphEditCounter;
     g_cachedTapNode     = s_listenTapNode;
+    g_liveHeldKeys.clear();   // keys held across a rebuild belong to the
+                              // OLD instrument's line — never slur back
+                              // to them on the new one
     int ms = int(std::chrono::duration_cast<std::chrono::milliseconds>(
                      std::chrono::steady_clock::now() - t0).count());
     char buf[128];
@@ -4723,6 +4744,43 @@ static void play_note_held(float noteNum, float velocity, float nominalSeconds) 
         if (!ip) return;
         auto* pitched = ip->instrument.get();
 
+        if (pitched->sustaining) {
+            g_liveNominalSec = nominalSeconds;
+            std::lock_guard<std::mutex> lock(g_audioMutex);
+            // Overlap = legato: a key pressed while another key holds
+            // the line continues the LIVING voice as a slur — the same
+            // continuation delivery the offline line makes (reseed,
+            // glide, set_note, push bindings, triggers), no new attack.
+            for (int v = 0; v < MAX_VOICES; ++v) {
+                auto& voice = g_voices[v];
+                if (!voice.active || !voice.held || voice.poolSlot < 0
+                    || voice.patch.get() != ip.get()) continue;
+                float fromFreq =
+                    mforce::note_to_freq(float(voice.midiNote));
+                pitched->continue_voice_live(
+                    voice.poolSlot, noteNum, velocity, nominalSeconds,
+                    fromFreq, pitched->onset_id("slur"));
+                voice.midiNote = int(noteNum);
+                g_liveHeldKeys.push_back({int(noteNum), velocity});
+                note_played(noteNum, velocity);
+                return;
+            }
+            // Gap = detached, and on a mono wind the fresh attack CUTS
+            // any still-ringing release of the previous note (fast
+            // lines, Matt 2026-09-02) — 3 ms fade rather than a hard
+            // cut; if a click survives this, it goes on the record.
+            for (int v = 0; v < MAX_VOICES; ++v) {
+                auto& voice = g_voices[v];
+                if (voice.active && !voice.held
+                    && voice.patch.get() == ip.get()
+                    && voice.fadeStep <= 0.0f) {
+                    voice.fadeGain = 1.0f;
+                    voice.fadeStep =
+                        1.0f / (0.003f * float(AUDIO_SAMPLE_RATE));
+                }
+            }
+        }
+
         {
             // Slot acquire, gating, prepare and schedule under one lock — see
             // play_note. Scoped so the non-gateable fallback below can call
@@ -4745,6 +4803,8 @@ static void play_note_held(float noteNum, float velocity, float nominalSeconds) 
                 voice_schedule_unlocked(ip, sv.source, INT_MAX / 2, sv.gain,
                                         int(noteNum), true, std::move(envs),
                                         slot, sv.performSource, sv.advanceList);
+                if (pitched->sustaining)
+                    g_liveHeldKeys.push_back({int(noteNum), velocity});
                 return;
             }
             // Not gateable: hand the acquired slot back before falling
@@ -4761,11 +4821,32 @@ static void play_note_held(float noteNum, float velocity, float nominalSeconds) 
 
 // Key-up: gate the matching held voice's envelopes and bound its life to
 // the longest release + the reflection allowance.
+// Legato bookkeeping first (backlog 53): the key leaves the held stack
+// whatever happens. A superseded key (its voice slurred onward) matches
+// no voice and does nothing — the line belongs to the newest key. If
+// the SOUNDING key lifts while an earlier key is still physically down,
+// the line slurs back to that key instead of releasing.
 static void release_note_held(int midiNote) {
     std::lock_guard<std::mutex> lock(g_audioMutex);
+    for (auto it = g_liveHeldKeys.begin(); it != g_liveHeldKeys.end();)
+        it = (it->key == midiNote) ? g_liveHeldKeys.erase(it) : it + 1;
     for (int v = 0; v < MAX_VOICES; ++v) {
         auto& voice = g_voices[v];
         if (!voice.active || !voice.held || voice.midiNote != midiNote) continue;
+        if (!g_liveHeldKeys.empty() && voice.patch && voice.poolSlot >= 0) {
+            auto* pitched = voice.patch->instrument.get();
+            if (pitched && pitched->sustaining) {
+                const auto& back = g_liveHeldKeys.back();
+                float fromFreq =
+                    mforce::note_to_freq(float(voice.midiNote));
+                pitched->continue_voice_live(
+                    voice.poolSlot, float(back.key), back.vel,
+                    g_liveNominalSec, fromFreq,
+                    pitched->onset_id("slur"));
+                voice.midiNote = back.key;
+                return;
+            }
+        }
         int maxRel = 0;
         for (auto* e : voice.envs) maxRel = std::max(maxRel, e->gate_release());
         int allow = int(mforce::Envelope::kReflectionAllowanceSec
@@ -8589,7 +8670,7 @@ static void draw_transport_panel() {
             transport_label_snug("Onsets");
             ImGui::SetNextItemWidth(90);
             ImGui::Combo("##onsetmode", &g_transport.onsetMode,
-                         "auto\0all tongue\0all slur\0");
+                         "auto\0all tongue\0all slur\0all breath\0");
             ImGui::SameLine(0, 12);
             if (ImGui::Button("Save Passage"))
                 transport_save_text("passage", kPassageFilter, "psg",
