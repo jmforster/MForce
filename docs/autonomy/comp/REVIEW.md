@@ -24,6 +24,16 @@ YES → template + passage + render freeze as the crawl baseline, and the walk
 stage (generated figures fitted onto a chord timeline) gets its brainstorm.
 NO → diagnosis round.
 
+Round-2 addendum (same day, no new listen needed): the STRUCTURAL template
+(`scores/baselines/template_mary_structural.json` — named motifs, `head`
+referenced by both phrases = the parallel period as data, connectors
+carrying the bridges, zero spelled-out notes) renders **byte-identical**
+audio to this WAV. Your verdict on the sound covers both templates. En
+route it proved the reference+connector path correct for the first time
+(the old template_mary's connectors never parsed) and pinned the authoring
+convention: template connectors are dense per figure, `connectors[i]` =
+bridge INTO figure i, `[0]` null/dummy — not "between figures".
+
 
 ### 19. Octave naming convention — scientific or house? [decide] (2026-08-12)
 The music model's core (Pitch::note_number, parse_note_input, passage

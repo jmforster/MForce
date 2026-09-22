@@ -1,0 +1,125 @@
+{
+  "keyName": "C",
+  "scaleName": "Major",
+  "bpm": 80.0,
+  "masterSeed": 100,
+  "sections": [
+    {
+      "name": "Main",
+      "beats": 32,
+      "chordProgression": [
+        {"degree": 0, "beats": 4},
+        {"degree": 0, "beats": 4},
+        {"degree": 4, "quality": "7", "beats": 4},
+        {"degree": 0, "beats": 4},
+        {"degree": 0, "beats": 4},
+        {"degree": 0, "beats": 4},
+        {"degree": 4, "quality": "7", "beats": 4},
+        {"degree": 0, "beats": 4}
+      ]
+    }
+  ],
+  "motifs": [
+    {
+      "name": "head",
+      "userProvided": true,
+      "figure": {"units": [
+        {"duration": 1.0, "step": 0},
+        {"duration": 1.0, "step": -1},
+        {"duration": 1.0, "step": -1},
+        {"duration": 1.0, "step": 1}
+      ]}
+    },
+    {
+      "name": "rep3",
+      "userProvided": true,
+      "figure": {"units": [
+        {"duration": 1.0, "step": 0},
+        {"duration": 1.0, "step": 0},
+        {"duration": 2.0, "step": 0}
+      ]}
+    },
+    {
+      "name": "egg",
+      "userProvided": true,
+      "figure": {"units": [
+        {"duration": 1.0, "step": 0},
+        {"duration": 1.0, "step": 2},
+        {"duration": 2.0, "step": 0}
+      ]}
+    },
+    {
+      "name": "rep4",
+      "userProvided": true,
+      "figure": {"units": [
+        {"duration": 1.0, "step": 0},
+        {"duration": 1.0, "step": 0},
+        {"duration": 1.0, "step": 0},
+        {"duration": 1.0, "step": 0}
+      ]}
+    },
+    {
+      "name": "turn",
+      "userProvided": true,
+      "figure": {"units": [
+        {"duration": 1.0, "step": 0},
+        {"duration": 1.0, "step": 0},
+        {"duration": 1.0, "step": 1},
+        {"duration": 1.0, "step": -1}
+      ]}
+    },
+    {
+      "name": "close",
+      "userProvided": true,
+      "figure": {"units": [
+        {"duration": 4.0, "step": 0}
+      ]}
+    }
+  ],
+  "parts": [
+    {
+      "name": "melody",
+      "role": "melody",
+      "instrumentPatch": "patches/library/winds/oboe1.json",
+      "passages": {
+        "Main": {
+          "phrases": [
+            {
+              "name": "antecedent",
+              "startingPitch": {"octave": 5, "pitch": "E"},
+              "figures": [
+                {"source": "reference", "motifName": "head"},
+                {"source": "reference", "motifName": "rep3"},
+                {"source": "reference", "motifName": "rep3"},
+                {"source": "reference", "motifName": "egg"}
+              ],
+              "connectors": [null, 1, -1, 1]
+            },
+            {
+              "name": "consequent",
+              "startingPitch": {"octave": 5, "pitch": "E"},
+              "figures": [
+                {"source": "reference", "motifName": "head"},
+                {"source": "reference", "motifName": "rep4"},
+                {"source": "reference", "motifName": "turn"},
+                {"source": "reference", "motifName": "close"}
+              ],
+              "connectors": [null, 1, -1, -1]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "chords",
+      "role": "harmony",
+      "instrumentPatch": "patches/library/keys/acoustic_piano/piano_default.json",
+      "passages": {
+        "Main": {
+          "phrases": [],
+          "chordConfig": {"octave": 3}
+        }
+      }
+    }
+  ]
+}
