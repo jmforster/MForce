@@ -2,7 +2,27 @@
 
 ## Awaiting Matt
 
-### 22. Walk round 2 — same ten seeds, your ruleset applied [listen] (2026-09-21)
+### 22. Walk round 2 — ANNOTATED; two design forks await your call [decide] (2026-09-22)
+Your annotations are in (docs/matt/comp_walk2_annotated.txt) and
+distilled: the round's complaints are one missing grammar — non-chord
+tones need stepwise approach AND departure (appoggiatura ban, no
+leap-from-passing-tone, extensions like the 13th are NCT-class and fine
+only when they step down — Mary's own E-over-G7 proves it), plus the
+leading-tone tendency (B→C, B-D-C ok, no downward leaps), plus
+compounding ("taken together = computer"). Your F-G-over-C question:
+not dice — that case was genuinely uncovered (suspension term needs a
+chord change, 96:4 needs V; a fresh NCT left upward in-bar scored zero).
+**Before walk3 is specced, two forks need your word:**
+(a) Compounding: hard per-phrase departure BUDGET (my lean — one
+    licensed oddity per phrase, rest eliminated) or super-additive
+    penalties (each further violation costs more)?
+(b) Genre profile as DATA now ("NRS v1" ruleset file the template names;
+    compound-melody = a future profile level) or keep constants in code
+    until the ruleset stabilizes? My lean: data now.
+Build will be an OPUS DISPATCH (quota). Original round-2 entry below for
+the record.
+
+### (superseded same-day by the annotations above) Walk round 2 — same ten seeds, your ruleset applied [listen] (2026-09-21)
 `renders/comp/audition/walk2/` — the annotation round built and re-run
 the same evening (spec 2026-09-21-comp-walk2-design.md). Everything you
 annotated in 21 became mechanism: the elaboration ladder (late-bar,

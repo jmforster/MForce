@@ -1,5 +1,42 @@
 # Status — session handoff (Claude reads this first; Matt's queue = */REVIEW.md)
 
+Updated: 2026-09-22 (comp walk2 annotated; session ended on QUOTA: 75% of
+Matt's weekly Fable limit burned by Tuesday — NEXT SESSION RUNS THE
+QUOTA PATTERN: Fable coordinates thin, every heavy build/spec-execution
+DISPATCHES TO OPUS. Walk1 was built inline on Fable only because Opus
+529'd twice that night; that exception is over.)
+**WALK2 ANNOTATED (docs/matt/comp_walk2_annotated.txt, committed) —
+DISCUSSION OPEN, NOTHING BUILT (Matt: "don't go off half cocked").**
+Verdict: much improved, bar-6 nonsense gone; s108's antecedent came out
+as LITERAL Mary; s100 a clean Pass. The distilled finding: walk2's
+complaints are ONE missing grammar — NCT approach/departure rules with
+leaps as the violation vector: (a) leap-TO-an-NCT (appoggiatura) out of
+genre; (b) leap-FROM-a-passing-tone breaks its license; (c) chord
+EXTENSIONS are NCT-class (Mary's own E-over-G7 13th is fine BECAUSE it
+steps down — the rule was never "no 13ths"); (d) leading tone B wants C,
+may detour B-D-C, never leaps down (first scale-degree tendency); (e)
+departures COMPOUND ("taken together = computer"). Answered Matt's dice
+question: F-G over C was NOT dice — suspension term only fires across
+chord changes, 96:4 only over V; fresh-struck NCT left upward inside a
+bar was scored zero. AWAITING MATT, the two design forks before any
+build: (1) compounding = hard per-phrase departure BUDGET (my lean —
+matches his judging) vs super-additive penalties; (2) genre profile
+becomes DATA now ("NRS v1" — his "rules are genre-dependent" point;
+compound-melody exception = a future profile level) vs constants until
+the ruleset stabilizes (my lean: data now). Context-priming (s103 "less
+jarring after repeated Gs") deliberately deferred.
+Standing order (in batch script): every batch emits passage strings to
+docs/matt/Comp_<batch>_for_annotation.txt. False alarm resolved: walk1/
+walk2 same-named WAVs — Matt played walk1 s105 by accident; chain
+verified byte-exact end-to-end (template==JSON==WAV==strings), spectrum
+confirmed. Matt declined filename stamping.
+comp REVIEW Awaiting: **22** (walk2 — annotations IN, forks OPEN),
+**20** (crawl verdict, formally), 19, 18, 17, 16, 14, 13, 12, 11, 10, 9.
+NEXT SESSION: read comp_walk2_annotated.txt + REVIEW 22 fold, get
+Matt's fork answers, THEN spec walk3 (NCT grammar + leading-tone
+tendency + compounding + possibly profile-as-data) and DISPATCH THE
+BUILD TO OPUS. head_a permutation fix still queued behind it.
+
 Updated: 2026-09-21 (comp lane revived — brainstorm → spec → plan with
 Matt, then the build; Opus dispatch died twice on 529s, finished inline
 on Fable).
