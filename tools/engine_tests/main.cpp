@@ -1172,6 +1172,8 @@ static void run_note_reseed_tests() {
 }
 
 #include "mforce/music/passage_melody.h"
+#include "mforce/music/templates_json.h"
+#include <filesystem>
 
 static void run_passage_melody_tests() {
     using namespace mforce;
@@ -1259,6 +1261,53 @@ static void run_passage_melody_tests() {
     try { phrases_from_passage("Cq Rq Eq", 5, c, 4.0f); }
     catch (const std::exception&) { threw = true; }
     CHECK(threw);
+
+    // Schema + apply: template with a melodyPassageFile gets its phrases
+    // derived; the two new fields round-trip; a missing file throws.
+    {
+        // Write a scratch .psg next to the test's CWD-independent temp dir.
+        const std::string psgPath = "renders/scratch/_pm_test.psg";
+        std::filesystem::create_directories("renders/scratch");
+        { std::ofstream f(psgPath); f << "Eq Dq Cq Dq | Cq Cq Ch"; }
+
+        json tj = json::parse(R"({
+          "keyName": "C", "scaleName": "Major", "bpm": 80,
+          "sections": [{"name": "Main", "beats": 8}],
+          "parts": [{
+            "name": "melody", "role": "melody",
+            "passages": { "Main": {
+              "melodyPassageFile": "renders/scratch/_pm_test.psg",
+              "melodyOctave": 5, "phrases": [] } }
+          }]
+        })");
+        PieceTemplate tmpl;
+        from_json(tj, tmpl);
+        CHECK(tmpl.parts[0].passages.at("Main").melodyPassageFile
+              == "renders/scratch/_pm_test.psg");
+        CHECK(tmpl.parts[0].passages.at("Main").melodyOctave == 5);
+
+        apply_passage_melodies(tmpl);
+        const auto& pass = tmpl.parts[0].passages.at("Main");
+        CHECK(pass.phrases.size() == 2);
+        CHECK(pass.phrases[0].figures.size() == 1);   // one bar
+        CHECK(pass.phrases[1].figures.size() == 1);
+
+        // Round-trip keeps the fields.
+        json out; to_json(out, tmpl.parts[0].passages.at("Main"));
+        CHECK(out.value("melodyPassageFile", std::string())
+              == "renders/scratch/_pm_test.psg");
+        CHECK(out.value("melodyOctave", 0) == 5);
+
+        // Missing file names the path.
+        tmpl.parts[0].passages.at("Main").melodyPassageFile = "no/such.psg";
+        threw = false;
+        try { apply_passage_melodies(tmpl); }
+        catch (const std::exception& e) {
+            threw = std::string(e.what()).find("no/such.psg") != std::string::npos;
+        }
+        CHECK(threw);
+        std::filesystem::remove(psgPath);
+    }
 }
 
 int main() {

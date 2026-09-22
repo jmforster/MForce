@@ -920,6 +920,10 @@ inline void to_json(json& j, const PassageTemplate& pt) {
         if (pt.libraryConfig->seed != 0) jlc["seed"] = pt.libraryConfig->seed;
         j["libraryConfig"] = jlc;
     }
+    if (!pt.melodyPassageFile.empty()) {
+        j["melodyPassageFile"] = pt.melodyPassageFile;
+        j["melodyOctave"] = pt.melodyOctave;
+    }
     if (pt.pedalBuildupConfig) {
         const auto& c = *pt.pedalBuildupConfig;
         j["pedalBuildupConfig"] = json{
@@ -1074,6 +1078,9 @@ inline void from_json(const json& j, PassageTemplate& pt) {
         lc.seed        = jlc.value("seed", 0u);
         pt.libraryConfig = lc;
     }
+
+    pt.melodyPassageFile = j.value("melodyPassageFile", std::string(""));
+    pt.melodyOctave = j.value("melodyOctave", 5);
 
     if (j.contains("pedalBuildupConfig")) {
         const auto& jc = j.at("pedalBuildupConfig");

@@ -548,6 +548,12 @@ struct PassageTemplate {
     // Library-passage config (optional). Consumed by LibraryPassageStrategy.
     std::optional<LibraryPassageConfig> libraryConfig;
 
+    // Comp crawl (spec 2026-09-21): melody authored as a passage string in
+    // a .psg file ('|' = structural phrase boundary). When set,
+    // apply_passage_melodies() derives phrases from it, replacing phrases[].
+    std::string melodyPassageFile;
+    int melodyOctave{5};   // house octave anchor for octave-less note names
+
     // Anchor-driven passage configs (optional). Each is consumed by the
     // matching strategy; absent means "use that strategy's defaults".
     std::optional<PedalBuildupConfig> pedalBuildupConfig;

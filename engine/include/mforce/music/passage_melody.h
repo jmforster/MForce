@@ -133,4 +133,25 @@ inline std::vector<PhraseTemplate> phrases_from_passage(
     return phrases;
 }
 
+// Resolve every melodyPassageFile in the template: read the .psg, derive
+// phrases, replace passages.phrases wholesale (idempotent). Paths resolve
+// against the CWD — the repo root by standing convention.
+inline void apply_passage_melodies(PieceTemplate& tmpl) {
+    const Scale scale = Scale::get(tmpl.keyName, tmpl.scaleName);
+    const float beatsPerBar = float(tmpl.meter.beats_per_bar());
+    for (auto& part : tmpl.parts) {
+        for (auto& entry : part.passages) {
+            auto& pass = entry.second;
+            if (pass.melodyPassageFile.empty()) continue;
+            std::ifstream f(pass.melodyPassageFile);
+            if (!f)
+                throw std::runtime_error(
+                    "melodyPassageFile not found: " + pass.melodyPassageFile);
+            std::stringstream ss; ss << f.rdbuf();
+            pass.phrases = phrases_from_passage(
+                ss.str(), pass.melodyOctave, scale, beatsPerBar);
+        }
+    }
+}
+
 } // namespace mforce
