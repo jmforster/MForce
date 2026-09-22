@@ -730,9 +730,12 @@ inline void from_json(const json& j, PhraseTemplate& pt) {
         pt.elaboratedConfig = c;
     }
 
-    // Connectors: optional parallel vector; when absent, leave empty.
-    // Accepts null (default connector), an integer (bare leadStep shorthand),
-    // or a full object with elide/adjust/leadStep fields.
+    // Connectors: DENSE array, same length as figures — connectors[i] is
+    // the bridge INTO figures[i], so element 0 is a dummy (write null).
+    // NOT an N-1 "between figures" list: [1,-1] for three figures shifts
+    // figure 0 by +1 (bit the 2026-09-21 structural-Mary round).
+    // Each entry accepts null (dummy/default), an integer (bare leadStep
+    // shorthand), or a full object with elide/adjust/leadStep fields.
     if (j.contains("connectors")) {
         pt.connectors.clear();
         for (const auto& cj : j.at("connectors")) {

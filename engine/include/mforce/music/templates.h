@@ -287,10 +287,14 @@ struct PhraseTemplate {
                                                // from the running pitch
     std::vector<FigureTemplate> figures;
 
-    // Optional per-adjacency connectors. If non-empty, size must equal
-    // figures.size(); connectors[0] is unused; connectors[i] for i>0
-    // describes the join between figures[i-1] and figures[i]. Empty vector
-    // means "no connectors anywhere" (pure append).
+    // DENSE array, same length as figures: connectors[i] is the bridge
+    // INTO figures[i], so element 0 is a dummy (author it null). Empty
+    // vector means "no connectors anywhere" (pure append).
+    //   JSON:  "figures": [A, B, C],  "connectors": [null, 1, -1]
+    // REPEAT-OFFENDER WARNING (bit the 2026-09-21 structural-Mary round):
+    // this is NOT an N-1 "between figures" list. Authoring [1, -1] for
+    // three figures shifts figure 0 by +1 — realize_phrase_to_events_
+    // applies connectors[f].leadStep to figure f's FIRST note.
     std::vector<std::optional<FigureConnector>> connectors;
 
     // Phrase-level constraints

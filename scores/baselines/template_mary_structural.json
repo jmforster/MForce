@@ -8,14 +8,40 @@
       "name": "Main",
       "beats": 32,
       "chordProgression": [
-        {"degree": 0, "beats": 4},
-        {"degree": 0, "beats": 4},
-        {"degree": 4, "quality": "7", "beats": 4},
-        {"degree": 0, "beats": 4},
-        {"degree": 0, "beats": 4},
-        {"degree": 0, "beats": 4},
-        {"degree": 4, "quality": "7", "beats": 4},
-        {"degree": 0, "beats": 4}
+        {
+          "degree": 0,
+          "beats": 4
+        },
+        {
+          "degree": 0,
+          "beats": 4
+        },
+        {
+          "degree": 4,
+          "quality": "7",
+          "beats": 4
+        },
+        {
+          "degree": 0,
+          "beats": 4
+        },
+        {
+          "degree": 0,
+          "beats": 4
+        },
+        {
+          "degree": 0,
+          "beats": 4
+        },
+        {
+          "degree": 4,
+          "quality": "7",
+          "beats": 4
+        },
+        {
+          "degree": 0,
+          "beats": 4
+        }
       ]
     }
   ],
@@ -23,57 +49,126 @@
     {
       "name": "head",
       "userProvided": true,
-      "figure": {"units": [
-        {"duration": 1.0, "step": 0},
-        {"duration": 1.0, "step": -1},
-        {"duration": 1.0, "step": -1},
-        {"duration": 1.0, "step": 1}
-      ]}
+      "figure": {
+        "units": [
+          {
+            "duration": 1.0,
+            "step": 0
+          },
+          {
+            "duration": 1.0,
+            "step": -1
+          },
+          {
+            "duration": 1.0,
+            "step": -1
+          },
+          {
+            "duration": 1.0,
+            "step": 1
+          }
+        ]
+      }
     },
     {
       "name": "rep3",
       "userProvided": true,
-      "figure": {"units": [
-        {"duration": 1.0, "step": 0},
-        {"duration": 1.0, "step": 0},
-        {"duration": 2.0, "step": 0}
-      ]}
+      "figure": {
+        "units": [
+          {
+            "duration": 1.0,
+            "step": 0
+          },
+          {
+            "duration": 1.0,
+            "step": 0
+          },
+          {
+            "duration": 2.0,
+            "step": 0
+          }
+        ]
+      }
     },
     {
-      "name": "egg",
+      "name": "rep3_a",
       "userProvided": true,
-      "figure": {"units": [
-        {"duration": 1.0, "step": 0},
-        {"duration": 1.0, "step": 2},
-        {"duration": 2.0, "step": 0}
-      ]}
+      "figure": {
+        "units": [
+          {
+            "duration": 1.0,
+            "step": 0
+          },
+          {
+            "duration": 1.0,
+            "step": 2
+          },
+          {
+            "duration": 2.0,
+            "step": 0
+          }
+        ]
+      }
     },
     {
-      "name": "rep4",
+      "name": "rep3_b",
       "userProvided": true,
-      "figure": {"units": [
-        {"duration": 1.0, "step": 0},
-        {"duration": 1.0, "step": 0},
-        {"duration": 1.0, "step": 0},
-        {"duration": 1.0, "step": 0}
-      ]}
+      "figure": {
+        "units": [
+          {
+            "duration": 1.0,
+            "step": 0
+          },
+          {
+            "duration": 1.0,
+            "step": 0
+          },
+          {
+            "duration": 1.0,
+            "step": 0
+          },
+          {
+            "duration": 1.0,
+            "step": 0
+          }
+        ]
+      }
     },
     {
-      "name": "turn",
+      "name": "head_a",
       "userProvided": true,
-      "figure": {"units": [
-        {"duration": 1.0, "step": 0},
-        {"duration": 1.0, "step": 0},
-        {"duration": 1.0, "step": 1},
-        {"duration": 1.0, "step": -1}
-      ]}
+      "figure": {
+        "units": [
+          {
+            "duration": 1.0,
+            "step": 0
+          },
+          {
+            "duration": 1.0,
+            "step": 0
+          },
+          {
+            "duration": 1.0,
+            "step": 1
+          },
+          {
+            "duration": 1.0,
+            "step": -1
+          }
+        ]
+      }
     },
     {
       "name": "close",
       "userProvided": true,
-      "figure": {"units": [
-        {"duration": 4.0, "step": 0}
-      ]}
+      "figure": {
+        "units": [
+          {
+            "duration": 4.0,
+            "step": 0
+          }
+        ]
+      }
     }
   ],
   "parts": [
@@ -86,25 +181,65 @@
           "phrases": [
             {
               "name": "antecedent",
-              "startingPitch": {"octave": 5, "pitch": "E"},
+              "startingPitch": {
+                "octave": 5,
+                "pitch": "E"
+              },
               "figures": [
-                {"source": "reference", "motifName": "head"},
-                {"source": "reference", "motifName": "rep3"},
-                {"source": "reference", "motifName": "rep3"},
-                {"source": "reference", "motifName": "egg"}
+                {
+                  "source": "reference",
+                  "motifName": "head"
+                },
+                {
+                  "source": "reference",
+                  "motifName": "rep3"
+                },
+                {
+                  "source": "reference",
+                  "motifName": "rep3"
+                },
+                {
+                  "source": "reference",
+                  "motifName": "rep3_a"
+                }
               ],
-              "connectors": [null, 1, -1, 1]
+              "connectors": [
+                null,
+                1,
+                -1,
+                1
+              ]
             },
             {
               "name": "consequent",
-              "startingPitch": {"octave": 5, "pitch": "E"},
+              "startingPitch": {
+                "octave": 5,
+                "pitch": "E"
+              },
               "figures": [
-                {"source": "reference", "motifName": "head"},
-                {"source": "reference", "motifName": "rep4"},
-                {"source": "reference", "motifName": "turn"},
-                {"source": "reference", "motifName": "close"}
+                {
+                  "source": "reference",
+                  "motifName": "head"
+                },
+                {
+                  "source": "reference",
+                  "motifName": "rep3_b"
+                },
+                {
+                  "source": "reference",
+                  "motifName": "head_a"
+                },
+                {
+                  "source": "reference",
+                  "motifName": "close"
+                }
               ],
-              "connectors": [null, 1, -1, -1]
+              "connectors": [
+                null,
+                1,
+                -1,
+                -1
+              ]
             }
           ]
         }
@@ -117,7 +252,9 @@
       "passages": {
         "Main": {
           "phrases": [],
-          "chordConfig": {"octave": 3}
+          "chordConfig": {
+            "octave": 3
+          }
         }
       }
     }
