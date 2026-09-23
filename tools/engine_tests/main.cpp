@@ -1614,6 +1614,7 @@ static void run_walk2_tests() {
 
 #include "mforce/music/melody_profile.h"
 #include "mforce/music/style_table.h"
+#include "mforce/music/note_map.h"
 
 static void run_walk3_tests() {
     using namespace mforce;
@@ -1664,6 +1665,120 @@ static void run_walk3_tests() {
         json pj; to_json(pj, pt);
         PassageTemplate back; from_json(pj, back);
         CHECK(back.melodyProfile == "nursery_v1");
+    }
+
+    // --- note_map: classification cases from Matt's annotations.
+    {
+        Scale c = Scale::get("C", "Major");
+        MelodyProfile prof = MelodyProfile::load_by_name("nursery_v1");
+        ScaleChord cI;  cI.degree = 0; cI.quality = &ChordDef::get("Major");
+        ScaleChord g7;  g7.degree = 4; g7.quality = &ChordDef::get("7");
+        auto timeline = [&](std::vector<std::pair<ScaleChord, float>> segs) {
+            HarmonyTimeline tl; ChordProgression pr; float tot = 0;
+            for (auto& [sc, b] : segs) { pr.add(sc, b); tot += b; }
+            tl.set_segment(0.0f, tot, pr, "t");
+            return tl;
+        };
+        auto G = [&](float nn) { return scale_grid_index(nn, c); };
+        // Quarter-note track from note numbers, starting at beat 0.
+        auto track = [&](std::vector<float> nns) {
+            std::vector<TrackNote> t; float b = 0;
+            for (float nn : nns) { t.push_back({G(nn), b, 1.0f}); b += 1.0f; }
+            return t;
+        };
+        auto kinds = [&](const NoteMapResult& r) {
+            std::vector<std::string> k;
+            for (auto& v : r.verdicts) k.push_back(v.kind);
+            return k;
+        };
+        // Mary bar 7 over G7 then C: D D E D | C -> E is an upper NEIGHBOR (licensed).
+        {
+            HarmonyTimeline tl = timeline({{g7, 4}, {cI, 4}});
+            ChordLookup cl(tl, c);
+            auto r = evaluate_note_map(track({74, 74, 76, 74, 72}), 0, cl, c, 4.0f, prof, true);
+            auto k = kinds(r);
+            CHECK(std::find(k.begin(), k.end(), "neighbor") != k.end());
+            CHECK(r.departures == 0);
+        }
+        // D D D E | C -> E leaves by leap: ESCAPE tone (departure).
+        {
+            HarmonyTimeline tl = timeline({{g7, 4}, {cI, 4}});
+            ChordLookup cl(tl, c);
+            auto r = evaluate_note_map(track({74, 74, 74, 76, 72}), 0, cl, c, 4.0f, prof, true);
+            auto k = kinds(r);
+            CHECK(std::find(k.begin(), k.end(), "escape") != k.end());
+            CHECK(r.departures == 1);
+        }
+        // Passing tone: E D C over C -> D passing, odds 100, contributes 0.
+        {
+            HarmonyTimeline tl = timeline({{cI, 4}});
+            ChordLookup cl(tl, c);
+            auto r = evaluate_note_map(track({76, 74, 72, 72}), 0, cl, c, 4.0f, prof, true);
+            CHECK(kinds(r).size() >= 1 && kinds(r)[0] == "passing");
+            CHECK(std::fabs(r.logScore) < 1e-9);
+        }
+        // Suspension (walk1 s101): F F F F over G7 | F E over C -> F held into C,
+        // resolves down by step = suspension; F G instead = unresolved (departure).
+        {
+            HarmonyTimeline tl = timeline({{g7, 4}, {cI, 4}});
+            ChordLookup cl(tl, c);
+            auto good = evaluate_note_map(track({77, 77, 77, 77, 77, 76, 76, 76}), 0, cl, c, 4.0f, prof, true);
+            auto kg = kinds(good);
+            CHECK(std::find(kg.begin(), kg.end(), "suspension") != kg.end());
+            CHECK(good.departures == 0);
+            auto bad = evaluate_note_map(track({77, 77, 77, 77, 77, 79, 79, 79}), 0, cl, c, 4.0f, prof, true);
+            auto kb = kinds(bad);
+            CHECK(std::find(kb.begin(), kb.end(), "unresolvedSuspension") != kb.end());
+            CHECK(bad.departures == 1);
+        }
+        // Tendency: 7th of V7 (F) stepping down vs up -> 96:4 = ln ratio ln(24).
+        {
+            HarmonyTimeline tl = timeline({{g7, 4}});
+            ChordLookup cl(tl, c);
+            auto down = evaluate_note_map(track({77, 76}), 0, cl, c, 4.0f, prof, true);
+            auto up   = evaluate_note_map(track({77, 79}), 0, cl, c, 4.0f, prof, true);
+            // F->E: E is an NCT over G7 left with no next -> unscored; only F's
+            // tendency differs between the two tracks.
+            CHECK(std::fabs((down.logScore - up.logScore) - std::log(24.0)) < 1e-6);
+            CHECK(up.departures == 1 && down.departures == 0);
+        }
+        // Leading tone B over G7 leaping down to F (walk2 s101): tendency
+        // "other" (1/100) -> departure.
+        {
+            HarmonyTimeline tl = timeline({{g7, 4}, {cI, 4}});
+            ChordLookup cl(tl, c);
+            auto r = evaluate_note_map(track({71, 71, 71, 71, 77, 79}), 0, cl, c, 4.0f, prof, true);
+            CHECK(r.departures >= 2);   // B leap-down + F appoggiatura over C
+        }
+        // Accented modifier: neighbor on the bar downbeat.
+        {
+            HarmonyTimeline tl = timeline({{cI, 4}, {cI, 4}});
+            ChordLookup cl(tl, c);
+            // beats 0..: C E G G | A G ... -> A at beat 4 (downbeat), step in, step out opposite
+            auto r = evaluate_note_map(track({72, 76, 79, 79, 81, 79}), 0, cl, c, 4.0f, prof, true);
+            bool found = false;
+            for (auto& v : r.verdicts)
+                if (v.kind == "neighbor" && std::fabs(v.odds - 30.0) < 1e-9) found = true;
+            CHECK(found);
+        }
+        // Long NCT: E held 2 beats over G7 -> odds 1.
+        {
+            HarmonyTimeline tl = timeline({{g7, 4}, {cI, 4}});
+            ChordLookup cl(tl, c);
+            std::vector<TrackNote> t = {{G(74), 0, 1}, {G(76), 1, 2}, {G(74), 3, 1}, {G(72), 4, 4}};
+            auto r = evaluate_note_map(t, 0, cl, c, 4.0f, prof, true);
+            bool found = false;
+            for (auto& v : r.verdicts) if (std::fabs(v.odds - 1.0) < 1e-9) found = true;
+            CHECK(found);
+        }
+        // Scope: firstScoredNote excludes earlier fully-determined events.
+        {
+            HarmonyTimeline tl = timeline({{cI, 8}});
+            ChordLookup cl(tl, c);
+            auto all  = evaluate_note_map(track({76, 74, 72, 74, 76, 74, 72}), 0, cl, c, 4.0f, prof, true);
+            auto tail = evaluate_note_map(track({76, 74, 72, 74, 76, 74, 72}), 4, cl, c, 4.0f, prof, true);
+            CHECK(all.verdicts.size() > tail.verdicts.size());
+        }
     }
 }
 

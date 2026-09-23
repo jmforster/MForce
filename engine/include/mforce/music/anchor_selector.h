@@ -30,6 +30,7 @@
 #include "mforce/music/basics.h"
 #include "mforce/music/figures.h"
 #include "mforce/music/harmony_timeline.h"
+#include "mforce/music/note_map.h"         // note_number_of_grid
 #include "mforce/music/passage_melody.h"   // scale_grid_index
 #include "mforce/music/templates.h"
 #include "mforce/core/randomizer.h"
@@ -45,17 +46,6 @@
 #include <vector>
 
 namespace mforce {
-
-// Inverse of scale_grid_index: diatonic grid index -> note number.
-inline float note_number_of_grid(int gridIdx, const Scale& scale) {
-    const int len = scale.length();
-    const int oct = gridIdx >= 0 ? gridIdx / len
-                                 : -((-gridIdx + len - 1) / len);
-    const int d = gridIdx - oct * len;
-    float acc = 0.0f;
-    for (int i = 0; i < d; ++i) acc += scale.ascending_step(i);
-    return float(scale.offset() + 12 * oct + int(acc + 0.5f));
-}
 
 namespace detail_anchor {
 
