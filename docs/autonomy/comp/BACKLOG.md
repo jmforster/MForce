@@ -28,9 +28,32 @@ reports + this file's git history. Tags per WORKFLOW.md.
     **REVIEW 21**. Spec 2026-09-21-comp-walk1-design.md. Known accepted:
     exact Mary out of support (final-step freedom = future thread);
     interior NCT hole open by choice.
+    2026-09-22 (Matt): vary_steps may perturb the FINAL step too (the
+    interior-only restriction was unexplained legacy) — makes exact
+    head_a reachable; goes in the walk3 build. "Scramble" = permute the
+    existing steps 1..n-1 unchanged (step 0 stays the dummy) — Matt's
+    definition of the queued permutation transform; not needed now.
     NEXT on Matt's walk verdicts: weight calibration or the next rule
     (interior NCTs, re-shape-to-fit); then generated figure slots
     (Markov proposes, fit disposes).
+
+24. **[design] Figure-fit rules beyond the start pitch** — FUTURE round,
+    explicitly NOT the next one (Matt 2026-09-22). Hybrid model: the
+    figure is king but must be FIT to the harmony, and fitting can
+    constrain more than where it starts. Example rule: a figure's peak and
+    nadir must both be chord tones (kills walk1 s103's C-B-A-B over C —
+    nadir A). Figures with no contour (0 0 step sequence, the "little
+    lamb" repeat) are exempt. Unfittable figures need a policy — options
+    named: "try your best, then punt" vs "adjust the steps if necessary"
+    (the latter = walk1 spec's re-shape-to-fit operator).
+
+25. **[experiment] Melody-first harmonization test** — DEFERRED (Matt
+    2026-09-22), gated on the ten Mary seeds passing. Take Mary's
+    figures without her chords, let ChordWalker (chord_walker.h,
+    MelodySpan input, StyleTable map) harmonize them under the NRS
+    profile, judge by ear. Purpose: evidence for the melody-first vs
+    harmony-first question (Matt: "I don't know") — the chord-role map
+    being built for harmony-first scores chords in the reverse direction.
 
 8. **[build] Voicing open items — register drift + selector** — register
     drift ("upward tendency") is back on the backlog after two failed

@@ -2,7 +2,18 @@
 
 ## Awaiting Matt
 
-### 22. Walk round 2 — ANNOTATED; two design forks await your call [decide] (2026-09-22)
+### 22. Walk round 2 — forks ANSWERED; walk3 spec awaits your read [read] (2026-09-22)
+**Update 2026-09-22 (brainstorm with Matt):** both forks resolved.
+(a) is a budget, but over-budget candidates are ranked last, never
+eliminated. (b) is data now: `styles/nursery_v1.json`. The design grew:
+the rules become readable odds in the genre file, a phrase critic is
+added, and best-of-N runs at phrase and passage level. vary_steps may
+now change the final step. **Read
+`docs/superpowers/specs/2026-09-22-comp-walk3-design.md` and say go or
+change.** Deferred: figure-fit rules (backlog 24), melody-first test
+(backlog 25). Original entry below.
+
+#### (original) Walk round 2 — ANNOTATED; two design forks await your call [decide] (2026-09-22)
 Your annotations are in (docs/matt/comp_walk2_annotated.txt) and
 distilled: the round's complaints are one missing grammar — non-chord
 tones need stepwise approach AND departure (appoggiatura ban, no
