@@ -1618,6 +1618,7 @@ static void run_walk2_tests() {
 #include "mforce/music/style_table.h"
 #include "mforce/music/note_map.h"
 #include "mforce/music/phrase_critic.h"
+#include <set>
 
 static void run_walk3_tests() {
     using namespace mforce;
@@ -1847,6 +1848,32 @@ static void run_walk3_tests() {
             if (lead > 0) ++up;
         }
         CHECK(down > up);     // the 96-row dominates; exact ratio is mixed with placement
+    }
+
+    // --- best-of-N end to end on the Mary walk template: deterministic per
+    //     seed; legality (R3); variety across seeds.
+    {
+        std::ifstream f("scores/baselines/template_mary_walk.json");
+        json base = json::parse(f);
+        auto melody = [&](uint32_t seed) {
+            json tj = base; tj["masterSeed"] = seed;
+            PieceTemplate tmpl; from_json(tj, tmpl);
+            Piece piece; ClassicalComposer composer(tmpl.masterSeed);
+            composer.compose(piece, tmpl);
+            std::vector<int> nns;
+            for (auto& part : piece.parts) {
+                if (part.name != "melody") continue;
+                for (auto& el : part.elementSequence.elements)
+                    nns.push_back(int(el.note().noteNumber));
+            }
+            return nns;
+        };
+        auto a = melody(100), b = melody(100);
+        CHECK(a == b);                          // deterministic
+        CHECK(!a.empty() && (a.back() % 12) == 0);   // R3
+        std::set<std::vector<int>> distinct;
+        for (uint32_t s = 100; s < 110; ++s) distinct.insert(melody(s));
+        CHECK(distinct.size() >= 3);            // search didn't collapse to one tune
     }
 }
 
