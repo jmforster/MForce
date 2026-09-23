@@ -1615,6 +1615,7 @@ static void run_walk2_tests() {
 #include "mforce/music/melody_profile.h"
 #include "mforce/music/style_table.h"
 #include "mforce/music/note_map.h"
+#include "mforce/music/phrase_critic.h"
 
 static void run_walk3_tests() {
     using namespace mforce;
@@ -1779,6 +1780,42 @@ static void run_walk3_tests() {
             auto tail = evaluate_note_map(track({76, 74, 72, 74, 76, 74, 72}), 4, cl, c, 4.0f, prof, true);
             CHECK(all.verdicts.size() > tail.verdicts.size());
         }
+    }
+
+    // --- phrase critic + top-k.
+    {
+        Scale c = Scale::get("C", "Major");
+        MelodyProfile prof = MelodyProfile::load_by_name("nursery_v1");
+        ScaleChord cI; cI.degree = 0; cI.quality = &ChordDef::get("Major");
+        HarmonyTimeline tl; ChordProgression pr; pr.add(cI, 16.0f);
+        tl.set_segment(0.0f, 16.0f, pr, "t");
+        ChordLookup cl(tl, c);
+        auto ph = [&](std::vector<int> grids) {
+            std::vector<PhraseNote> v; float b = 0;
+            for (int g : grids) { v.push_back({g, b, 1.0f, 0}); b += 1.0f; }
+            return v;
+        };
+        // Range: span 4 costs nothing; span 10 costs 1.5 * 3.
+        auto small = score_phrase_critic(ph({35, 36, 37, 38, 39}), {}, {}, false, 0.0f, cl, prof.critic);
+        auto wide  = score_phrase_critic(ph({30, 32, 34, 36, 38, 40}), {}, {}, false, 0.0f, cl, prof.critic);
+        CHECK(std::fabs(small.range) < 1e-9);
+        CHECK(std::fabs(wide.range - (-4.5)) < 1e-9);
+        // Motion: 3 repeats of 4 moves (0.75) -> -4 * 0.25 = -1.
+        auto rep = score_phrase_critic(ph({35, 35, 35, 35, 36}), {}, {}, false, 0.0f, cl, prof.critic);
+        CHECK(std::fabs(rep.motion - (-1.0)) < 1e-9);
+        // Gap-fill: leap up 3 then step down -> +1.5.
+        auto gap = score_phrase_critic(ph({35, 38, 37}), {}, {}, false, 0.0f, cl, prof.critic);
+        CHECK(std::fabs(gap.gap - 1.5) < 1e-9);
+        // pick_top_k: in-budget always outranks over-budget; k bounds the pool.
+        std::vector<RankItem> items = {{false, 100.0}, {true, 1.0}, {true, 0.5}, {true, -50.0}};
+        for (uint32_t s = 1; s <= 200; ++s) {
+            Randomizer r(s);
+            size_t p = pick_top_k(items, 2, r);
+            CHECK(p == 1 || p == 2);
+        }
+        std::vector<RankItem> none = {{false, 3.0}, {false, 1.0}};
+        Randomizer r1(1u);
+        CHECK(pick_top_k(none, 1, r1) == 0);
     }
 }
 
