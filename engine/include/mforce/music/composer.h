@@ -1337,7 +1337,18 @@ inline Passage DefaultPassageStrategy::compose_passage(
 
   float phraseBeatCursor = 0.0f;          // section beat at phrase start
   std::optional<Pitch> lastChosenStart;   // harmonic mode: parallel pinning
-  std::vector<int> visitedGrids;          // harmonic mode: R4 + regression
+  std::vector<TrackNote> priorTrack;      // harmonic mode: passage so far
+  const bool harmonicMode = passTmpl.anchorMode == "harmonic";
+  const bool wantAnchorLog =
+      harmonicMode && std::getenv("MFORCE_ANCHOR_LOG") != nullptr;
+  MelodyProfile melodyProfile;
+  if (harmonicMode) {
+    if (passTmpl.melodyProfile.empty())
+      throw std::runtime_error(
+          "anchorMode harmonic requires melodyProfile (passage '" +
+          passTmpl.name + "')");
+    melodyProfile = MelodyProfile::load_by_name(passTmpl.melodyProfile);
+  }
 
   for (int i = 0; i < (int)passTmpl.phrases.size(); ++i) {
     const auto& phraseTmpl = passTmpl.phrases[i];
@@ -1408,13 +1419,16 @@ inline Passage DefaultPassageStrategy::compose_passage(
       std::optional<Pitch> pinned;
       if (localTmpl.parallel && lastChosenStart) pinned = lastChosenStart;
       Randomizer selRng(::mforce::rng::next());
-      select_anchors(localTmpl, figContents, sec.harmonyTimeline, sec.scale,
-                     phraseBeatCursor, float(sec.meter.beats_per_bar()),
-                     locus.pieceTemplate->defaultPulse > 0.0f
-                         ? locus.pieceTemplate->defaultPulse : 1.0f,
-                     i == (int)passTmpl.phrases.size() - 1,
-                     pinned, registerAnchor, selRng,
-                     &visitedGrids, sec.beats);
+      AnchorResult res = select_anchors(
+          localTmpl, figContents, sec.harmonyTimeline, sec.scale,
+          phraseBeatCursor, float(sec.meter.beats_per_bar()),
+          locus.pieceTemplate->defaultPulse > 0.0f
+              ? locus.pieceTemplate->defaultPulse : 1.0f,
+          i == (int)passTmpl.phrases.size() - 1,
+          pinned, registerAnchor, selRng,
+          melodyProfile, priorTrack, sec.beats, wantAnchorLog);
+      if (wantAnchorLog) std::cerr << res.log;
+      priorTrack.insert(priorTrack.end(), res.notes.begin(), res.notes.end());
       lastChosenStart = localTmpl.startingPitch;
     }
 

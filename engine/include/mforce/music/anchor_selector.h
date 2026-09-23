@@ -1,7 +1,8 @@
 #pragma once
-// Harmonic anchor selection (comp walk, specs
-// docs/superpowers/specs/2026-09-21-comp-walk1-design.md §3 and
-// docs/superpowers/specs/2026-09-21-comp-walk2-design.md §3).
+// Harmonic anchor selection (comp walk). Specs:
+//   docs/superpowers/specs/2026-09-21-comp-walk1-design.md §3
+//   docs/superpowers/specs/2026-09-21-comp-walk2-design.md §3
+//   docs/superpowers/specs/2026-09-22-comp-walk3-design.md §1-3
 //
 // Given a phrase's figures (contents already realized) and the section's
 // chord timeline, choose the phrase's starting pitch and its dense
@@ -10,35 +11,30 @@
 //   R1  phrase-opening downbeat is a chord tone (no member weighting)
 //   R2  a phrase's last note is a chord tone
 //   R3  the PASSAGE's last note is scale degree 1, period
-//   R4  (walk2) the passage's last note is a PITCH THE MELODY HAS ALREADY
-//       VISITED — cadential register memory; leaps stay free elsewhere
-// and the walk2 sequential preferences from Matt's walk1 annotations:
-// chord-tone base score with stacked bar-final/figure-final/long boosts;
-// seventh-of-V resolves down (96:4); suspensions must resolve down by
-// step; long notes police extensions hard; repetition across a harmony
-// change caps; penultimate != final; gap-fill bonus (post-leap stepwise
-// reversal); leap proximity cost scaled by position (cheap early, dear
-// late); final-note regression toward the melody's mean.
+//   R4  the passage's last note is a PITCH THE MELODY HAS ALREADY VISITED
 //
-// Choice among legal chains is a seeded roulette with weight exp(score).
-// Intents outrank local rules: a pinned start (parallel-period literal
-// repeat) bypasses the R1 candidate enumeration outright.
+// Every legal chain is scored from the genre profile (walk3): note map
+// (tendency odds + NCT licenses, note_map.h) + chord-tone placement +
+// phrase critic (phrase_critic.h). Choice is a seeded roulette with weight
+// exp(score), restricted to chains within the departure budget when any
+// exist. A pinned start (parallel-period literal repeat) bypasses the R1
+// candidate enumeration outright.
 //
-// Cause and effect: set env MFORCE_ANCHOR_LOG to any value and each
-// phrase prints its chosen chain with a per-term score breakdown plus the
-// top runners-up and per-rule elimination counts, to stderr.
+// Cause and effect: with wantLog the result carries the chosen chain and
+// top runners-up with a per-category breakdown plus every named departure.
+// select_anchors prints nothing itself; the caller emits the log.
 #include "mforce/music/basics.h"
 #include "mforce/music/figures.h"
 #include "mforce/music/harmony_timeline.h"
-#include "mforce/music/note_map.h"         // note_number_of_grid
+#include "mforce/music/melody_profile.h"
+#include "mforce/music/note_map.h"         // note_number_of_grid, TrackNote
+#include "mforce/music/phrase_critic.h"
 #include "mforce/music/passage_melody.h"   // scale_grid_index
 #include "mforce/music/templates.h"
 #include "mforce/core/randomizer.h"
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
-#include <cstdlib>
-#include <iostream>
 #include <map>
 #include <optional>
 #include <stdexcept>
@@ -69,44 +65,51 @@ inline bool chord_tone(float nn, const Chord& chord) {
     return false;
 }
 
-// Per-term score breakdown, kept per legal chain for the decision log.
-struct Terms {
-    double ct{0}, seventh{0}, susp{0}, longNct{0}, rep{0},
-           penult{0}, gap{0}, leap{0}, regress{0};
-    double total() const {
-        return ct + seventh + susp + longNct + rep + penult + gap + leap
-             + regress;
-    }
+// Per-category score breakdown, kept per legal chain for the decision log.
+struct Breakdown {
+    double map{0}, place{0};
+    CriticTerms critic;
+    double total() const { return map + place + critic.total(); }
 };
 
 } // namespace detail_anchor
 
+struct AnchorResult {
+    double score{0};
+    int departures{0};
+    bool inBudget{true};
+    std::vector<TrackNote> notes;   // the chosen chain's notes, for the prior track
+    std::string log;                // filled only when wantLog
+};
+
 // Selects and WRITES localTmpl.startingPitch + localTmpl.connectors
 // (dense convention: [0] = disengaged optional, the dummy).
 // `figures` are the phrase's realized figure contents, one per template
-// figure slot, in order. `visitedGrids` (optional, in/out): grid indices
-// of every melody note composed so far in this passage — read for the R4
-// cadential register-memory rule and the mean-regression term, and
-// APPENDED with the chosen chain's notes on return. `passageTotalBeats`
-// scales the leap-timing cost (0 = flat). Throws (naming the phrase)
-// when no legal chain exists.
-inline void select_anchors(PhraseTemplate& localTmpl,
-                           const std::vector<const MelodicFigure*>& figures,
-                           const HarmonyTimeline& timeline,
-                           const Scale& scale,
-                           float phraseStartBeat,
-                           float beatsPerBar,
-                           float defaultPulse,
-                           bool isPassageFinal,
-                           std::optional<Pitch> pinnedStart,
-                           const Pitch& registerAnchor,
-                           Randomizer& rng,
-                           std::vector<int>* visitedGrids = nullptr,
-                           float passageTotalBeats = 0.0f) {
+// figure slot, in order. `priorTrack` = every melody note composed so far in
+// this passage (read for R4, the note map's approach context and the
+// regression mean); the caller appends result.notes to it. `passageTotalBeats`
+// scales the leap-timing cost (0 = flat). Throws (naming the phrase) when no
+// legal chain exists.
+inline AnchorResult select_anchors(PhraseTemplate& localTmpl,
+                                   const std::vector<const MelodicFigure*>& figures,
+                                   const HarmonyTimeline& timeline,
+                                   const Scale& scale,
+                                   float phraseStartBeat,
+                                   float beatsPerBar,
+                                   float defaultPulse,
+                                   bool isPassageFinal,
+                                   std::optional<Pitch> pinnedStart,
+                                   const Pitch& registerAnchor,
+                                   Randomizer& rng,
+                                   const MelodyProfile& profile,
+                                   const std::vector<TrackNote>& priorTrack,
+                                   float passageTotalBeats,
+                                   bool wantLog) {
     using detail_anchor::NoteMeta;
-    using detail_anchor::Terms;
+    using detail_anchor::Breakdown;
+    AnchorResult result;
     const int F = int(figures.size());
-    if (F == 0) return;
+    if (F == 0) return result;
     const int len = scale.length();
 
     // ---- Rhythm-derived note metadata (chain-independent). ----
@@ -138,27 +141,10 @@ inline void select_anchors(PhraseTemplate& localTmpl,
             notes[i].barFinal = lastInBar;
         }
     }
-    if (notes.empty()) return;
+    if (notes.empty()) return result;
     const int N = int(notes.size());
 
-    // ---- Chord lookups: raw ScaleChord* for change detection, resolved
-    //      Chord for pitch-class membership. ----
-    std::map<const ScaleChord*, Chord> resolved;
-    auto raw_chord = [&](float beat) { return timeline.chord_at(beat); };
-    auto chord_for_beat = [&](float beat) -> const Chord* {
-        const ScaleChord* sc = timeline.chord_at(beat);
-        if (!sc) return nullptr;
-        auto it = resolved.find(sc);
-        if (it == resolved.end()) {
-            it = resolved.emplace(sc, sc->resolve(scale, 4)).first;
-        }
-        return &it->second;
-    };
-    // Pitch class of a chord's 7th (4th stacked pitch), or -1.
-    auto seventh_pc = [&](const Chord* c) -> int {
-        if (!c || int(c->pitches.size()) < 4) return -1;
-        return detail_anchor::pc_of(c->pitches[3].note_number());
-    };
+    ChordLookup chords(timeline, scale);
 
     // ---- A0 candidates. ----
     std::vector<int> a0Candidates;
@@ -166,7 +152,7 @@ inline void select_anchors(PhraseTemplate& localTmpl,
         a0Candidates.push_back(scale_grid_index(
             pinnedStart->note_number(), scale));
     } else {
-        const Chord* c0 = chord_for_beat(phraseStartBeat);
+        const Chord* c0 = chords.resolved(phraseStartBeat);
         if (!c0)
             throw std::runtime_error(
                 "select_anchors: phrase '" + localTmpl.name +
@@ -186,17 +172,26 @@ inline void select_anchors(PhraseTemplate& localTmpl,
     std::vector<int> figNet(F, 0);
     for (int f = 0; f < F; ++f) figNet[f] = figures[f]->net_step();
 
-    // Prior-visited stats for R4 + regression.
-    const bool haveVisited = visitedGrids && !visitedGrids->empty();
-    double visitedSum = 0.0;
-    if (haveVisited)
-        for (int g : *visitedGrids) visitedSum += g;
+    const bool haveVisited = !priorTrack.empty();
+    const int P = int(priorTrack.size());
+
+    // Chain-independent placement weight per note (applied iff chord tone).
+    std::vector<double> placeW(N);
+    for (int i = 0; i < N; ++i) {
+        const auto& m = notes[i];
+        placeW[i] = profile.placement.chordTone
+                  + (m.barFinal ? profile.placement.barFinal : 0.0)
+                  + (m.figureFinal ? profile.placement.figureFinal : 0.0)
+                  + (m.longNote ? profile.placement.longNote : 0.0);
+    }
 
     struct Chain {
         int a0;
         std::vector<int> leads;   // size F-1
-        Terms terms;
+        Breakdown terms;
         double score;
+        int departures;
+        bool inBudget;
     };
     std::vector<Chain> legal;
     long long r2Fail = 0, r3Fail = 0, r4Fail = 0;
@@ -207,6 +202,10 @@ inline void select_anchors(PhraseTemplate& localTmpl,
 
     std::vector<int> grids(N);
     std::vector<int> figAnchor(F);
+    // Reused per chain: prior track + chain notes, and the phrase view.
+    std::vector<TrackNote> track(priorTrack);
+    track.resize(size_t(P + N));
+    std::vector<PhraseNote> ph(N);
 
     for (int a0 : a0Candidates) {
         for (long long ci = 0; ci < combos; ++ci) {
@@ -227,7 +226,7 @@ inline void select_anchors(PhraseTemplate& localTmpl,
             // ---- Hard rules. ----
             {   // R2
                 const float nn = note_number_of_grid(grids[N - 1], scale);
-                const Chord* c = chord_for_beat(notes[N - 1].beat);
+                const Chord* c = chords.resolved(notes[N - 1].beat);
                 if (!(c && detail_anchor::chord_tone(nn, *c))) {
                     ++r2Fail;
                     continue;
@@ -238,106 +237,35 @@ inline void select_anchors(PhraseTemplate& localTmpl,
                 if (deg != 0) { ++r3Fail; continue; }        // R3
                 if (haveVisited || N > 1) {                  // R4
                     bool seen = false;
-                    if (visitedGrids)
-                        for (int g : *visitedGrids)
-                            if (g == grids[N - 1]) { seen = true; break; }
+                    for (const auto& pn : priorTrack)
+                        if (pn.grid == grids[N - 1]) { seen = true; break; }
                     for (int i = 0; !seen && i < N - 1; ++i)
                         if (grids[i] == grids[N - 1]) seen = true;
                     if (!seen) { ++r4Fail; continue; }
                 }
             }
 
-            // ---- Soft terms. ----
-            Terms t;
+            // ---- Profile scoring. ----
             for (int i = 0; i < N; ++i) {
-                const auto& m = notes[i];
+                track[size_t(P + i)] = {grids[i], notes[i].beat, notes[i].duration};
+                ph[size_t(i)] = {grids[i], notes[i].beat, notes[i].duration, notes[i].fig};
+            }
+            Breakdown t;
+            const NoteMapResult map = evaluate_note_map(
+                track, P, chords, scale, beatsPerBar, profile, false);
+            t.map = map.logScore;
+            for (int i = 0; i < N; ++i) {
                 const float nn = note_number_of_grid(grids[i], scale);
-                const Chord* c = chord_for_beat(m.beat);
-                const bool ct = c && detail_anchor::chord_tone(nn, *c);
-                if (ct) {
-                    t.ct += 1.0 + (m.barFinal ? 1.0 : 0.0)
-                                + (m.figureFinal ? 1.0 : 0.0)
-                                + (m.longNote ? 1.0 : 0.0);
-                }
-                // Long notes police extensions hard.
-                if (!ct && m.duration >= 2.0f) t.longNct -= 4.0;
-                // Seventh of the active chord resolves down (96:4).
-                if (c && i + 1 < N
-                    && detail_anchor::pc_of(nn) == seventh_pc(c)) {
-                    if (grids[i + 1] == grids[i] - 1)     t.seventh += 3.0;
-                    else if (grids[i + 1] > grids[i])     t.seventh -= 3.0;
-                }
-                // Suspension: NCT of the chord this note RINGS INTO must
-                // resolve down by step.
-                const ScaleChord* rawStart = raw_chord(m.beat);
-                const ScaleChord* rawEnd =
-                    raw_chord(m.beat + m.duration - 1e-3f);
-                if (rawEnd && rawEnd != rawStart) {
-                    const Chord* cEnd =
-                        chord_for_beat(m.beat + m.duration - 1e-3f);
-                    if (cEnd && !detail_anchor::chord_tone(nn, *cEnd)) {
-                        if (i + 1 < N && grids[i + 1] == grids[i] - 1)
-                            t.susp += 2.0;
-                        else
-                            t.susp -= 4.0;
-                    }
-                }
+                const Chord* c = chords.resolved(notes[i].beat);
+                if (c && detail_anchor::chord_tone(nn, *c)) t.place += placeW[i];
             }
-            // Repetition across a harmony change (> 4 beats of one pitch).
-            {
-                int runStart = 0;
-                for (int i = 1; i <= N; ++i) {
-                    if (i == N || grids[i] != grids[runStart]) {
-                        float runDur = 0.0f;
-                        for (int k = runStart; k < i; ++k)
-                            runDur += notes[k].duration;
-                        if (runDur > 4.0f
-                            && raw_chord(notes[runStart].beat)
-                               != raw_chord(notes[i - 1].beat
-                                            + notes[i - 1].duration - 1e-3f))
-                            t.rep -= 3.0;
-                        runStart = i;
-                    }
-                }
-            }
-            // Penultimate != final (passage end only, light).
-            if (isPassageFinal && N >= 2 && grids[N - 1] == grids[N - 2])
-                t.penult -= 1.5;
-            // Gap-fill: leap then stepwise reversal.
-            for (int i = 1; i + 1 < N; ++i) {
-                const int d1 = grids[i] - grids[i - 1];
-                const int d2 = grids[i + 1] - grids[i];
-                if (std::abs(d1) >= 3 && d1 * d2 < 0 && std::abs(d2) <= 2)
-                    t.gap += 1.5;
-            }
-            // Leap timing: cheap early, dear late.
-            for (int f = 1; f < F; ++f) {
-                const float b = notes[0].beat;   // fallback
-                float figBeat = b;
-                for (int i = 0; i < N; ++i)
-                    if (notes[i].fig == f) { figBeat = notes[i].beat; break; }
-                double factor = 0.5;
-                if (passageTotalBeats > 0.0f) {
-                    if (figBeat < 0.5f * passageTotalBeats)       factor = 0.25;
-                    else if (figBeat >= 0.75f * passageTotalBeats) factor = 1.0;
-                }
-                t.leap -= factor * std::abs(ch.leads[f - 1]);
-            }
-            // Final-note regression toward the melody's mean (Matt: the
-            // high-C ending; Huron: extremes regress).
-            if (isPassageFinal) {
-                double sum = visitedSum;
-                long long cnt = haveVisited ? (long long)visitedGrids->size() : 0;
-                for (int i = 0; i < N - 1; ++i) { sum += grids[i]; ++cnt; }
-                if (cnt > 0) {
-                    const double mean = sum / double(cnt);
-                    const double dist = std::abs(double(grids[N - 1]) - mean);
-                    t.regress -= 0.75 * std::max(0.0, dist - 2.0);
-                }
-            }
-
+            t.critic = score_phrase_critic(ph, ch.leads, priorTrack,
+                                           isPassageFinal, passageTotalBeats,
+                                           chords, profile.critic);
             ch.terms = t;
             ch.score = t.total();
+            ch.departures = map.departures;
+            ch.inBudget = map.departures <= profile.critic.departureBudget;
             legal.push_back(std::move(ch));
         }
     }
@@ -350,25 +278,47 @@ inline void select_anchors(PhraseTemplate& localTmpl,
             ", R3 fails " + std::to_string(r3Fail) +
             ", R4 fails " + std::to_string(r4Fail) + ")");
 
-    // ---- Seeded roulette, weight = exp(score - max). ----
-    double maxScore = legal.front().score;
-    for (const auto& ch : legal) maxScore = std::max(maxScore, ch.score);
+    // ---- Seeded roulette, weight = exp(score - max), restricted to
+    //      in-budget chains when any exist. ----
+    bool anyIn = false;
+    for (const auto& ch : legal) if (ch.inBudget) { anyIn = true; break; }
+    auto eligible = [&](const Chain& ch) { return !anyIn || ch.inBudget; };
+    double maxScore = -1e300;
+    for (const auto& ch : legal)
+        if (eligible(ch)) maxScore = std::max(maxScore, ch.score);
     double total = 0.0;
-    std::vector<double> w(legal.size());
+    std::vector<double> w(legal.size(), 0.0);
     for (size_t i = 0; i < legal.size(); ++i) {
+        if (!eligible(legal[i])) continue;
         w[i] = std::exp(legal[i].score - maxScore);
         total += w[i];
     }
     double draw = double(rng.value()) * total;
-    size_t pick = 0;
-    for (; pick + 1 < legal.size(); ++pick) {
-        draw -= w[pick];
-        if (draw <= 0.0) break;
+    size_t pick = legal.size();
+    size_t lastEligible = 0;
+    for (size_t i = 0; i < legal.size(); ++i) {
+        if (!eligible(legal[i])) continue;
+        lastEligible = i;
+        draw -= w[i];
+        if (draw <= 0.0) { pick = i; break; }
     }
+    if (pick == legal.size()) pick = lastEligible;
     const Chain chosen = legal[pick];
 
-    // ---- Decision log (env-gated): cause and effect on demand. ----
-    if (std::getenv("MFORCE_ANCHOR_LOG")) {
+    // ---- Chosen chain's notes. ----
+    figAnchor[0] = chosen.a0;
+    for (int f = 1; f < F; ++f)
+        figAnchor[f] = figAnchor[f - 1] + figNet[f - 1] + chosen.leads[f - 1];
+    for (int i = 0; i < N; ++i) {
+        const int g = figAnchor[notes[i].fig] + notes[i].relGrid;
+        result.notes.push_back({g, notes[i].beat, notes[i].duration});
+    }
+    result.score = chosen.score;
+    result.departures = chosen.departures;
+    result.inBudget = chosen.inBudget;
+
+    // ---- Decision log (on request): cause and effect. ----
+    if (wantLog) {
         auto describe = [&](const Chain& ch) {
             std::string s = "start nn "
                 + std::to_string(int(note_number_of_grid(ch.a0, scale)))
@@ -376,12 +326,15 @@ inline void select_anchors(PhraseTemplate& localTmpl,
             for (size_t k = 0; k < ch.leads.size(); ++k)
                 s += (k ? "," : "") + std::to_string(ch.leads[k]);
             const auto& t = ch.terms;
-            char buf[256];
+            char buf[320];
             std::snprintf(buf, sizeof buf,
-                "] score %.2f (ct %.1f 7th %.1f susp %.1f longNCT %.1f "
-                "rep %.1f penult %.1f gap %.1f leap %.2f regress %.2f)",
-                ch.score, t.ct, t.seventh, t.susp, t.longNct, t.rep,
-                t.penult, t.gap, t.leap, t.regress);
+                "] score %.2f (map %.2f place %.1f rep %.1f motion %.2f "
+                "range %.1f gap %.1f leap %.2f regress %.2f penult %.1f "
+                "dep %d%s)",
+                ch.score, t.map, t.place, t.critic.rep, t.critic.motion,
+                t.critic.range, t.critic.gap, t.critic.leap,
+                t.critic.regress, t.critic.penult, ch.departures,
+                ch.inBudget ? "" : " OVER");
             return s + buf;
         };
         std::vector<size_t> order(legal.size());
@@ -392,20 +345,39 @@ inline void select_anchors(PhraseTemplate& localTmpl,
                           [&](size_t a, size_t b) {
                               return legal[a].score > legal[b].score;
                           });
-        std::cerr << "[anchor] phrase '" << localTmpl.name << "': "
-                  << legal.size() << " legal chains (eliminated R2 "
-                  << r2Fail << ", R3 " << r3Fail << ", R4 " << r4Fail
-                  << ")\n[anchor]   CHOSEN " << describe(chosen) << "\n";
+        std::string& L = result.log;
+        L += "[anchor] phrase '" + localTmpl.name + "': "
+           + std::to_string(legal.size()) + " legal chains (eliminated R2 "
+           + std::to_string(r2Fail) + ", R3 " + std::to_string(r3Fail)
+           + ", R4 " + std::to_string(r4Fail) + ")"
+           + (anyIn ? "" : " — NO chain within the departure budget")
+           + "\n[anchor]   CHOSEN " + describe(chosen) + "\n";
         int shown = 0;
         for (size_t oi = 0; oi < order.size() && shown < 3; ++oi) {
-            if (&legal[order[oi]] == &legal[pick]) continue;
-            std::cerr << "[anchor]   alt    " << describe(legal[order[oi]])
-                      << "\n";
+            if (order[oi] == pick) continue;
+            L += "[anchor]   alt    " + describe(legal[order[oi]]) + "\n";
             ++shown;
+        }
+        // Named departures of the chosen chain.
+        std::vector<TrackNote> chosenTrack(priorTrack);
+        chosenTrack.insert(chosenTrack.end(), result.notes.begin(), result.notes.end());
+        const NoteMapResult vm = evaluate_note_map(
+            chosenTrack, P, chords, scale, beatsPerBar, profile, true);
+        for (const auto& v : vm.verdicts) {
+            if (!v.departure) continue;
+            const int bar = int(std::floor(v.onset / beatsPerBar)) + 1;
+            const float beatInBar = v.onset - float(bar - 1) * beatsPerBar + 1.0f;
+            char buf[256];
+            std::snprintf(buf, sizeof buf,
+                "[departure] phrase '%s' bar %d beat %g nn %d: %s odds %.1f\n",
+                localTmpl.name.c_str(), bar, double(beatInBar),
+                int(note_number_of_grid(v.grid, scale)), v.kind.c_str(),
+                v.odds);
+            L += buf;
         }
     }
 
-    // ---- Write the decision; publish visited notes. ----
+    // ---- Write the decision. ----
     localTmpl.startingPitch =
         Pitch::from_note_number(note_number_of_grid(chosen.a0, scale));
     localTmpl.connectors.clear();
@@ -415,15 +387,7 @@ inline void select_anchors(PhraseTemplate& localTmpl,
         fc.leadStep = l;
         localTmpl.connectors.push_back(fc);
     }
-    if (visitedGrids) {
-        figAnchor[0] = chosen.a0;
-        for (int f = 1; f < F; ++f)
-            figAnchor[f] = figAnchor[f - 1] + figNet[f - 1]
-                         + chosen.leads[f - 1];
-        for (int i = 0; i < N; ++i)
-            visitedGrids->push_back(figAnchor[notes[i].fig]
-                                    + notes[i].relGrid);
-    }
+    return result;
 }
 
 } // namespace mforce

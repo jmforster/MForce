@@ -1316,6 +1316,7 @@ static void run_passage_melody_tests() {
 static void run_walk1_tests() {
     using namespace mforce;
     Scale c = Scale::get("C", "Major");
+    MelodyProfile prof = MelodyProfile::load_by_name("nursery_v1");
 
     // --- Complexify: target note count, duration preserved, deterministic,
     //     JSON name round-trips.
@@ -1413,7 +1414,7 @@ static void run_walk1_tests() {
             Randomizer r(s);
             PhraseTemplate local; local.name = "t";
             select_anchors(local, figs, tl, c, 0.0f, 4.0f, 1.0f,
-                           /*isPassageFinal*/ true, std::nullopt, reg, r);
+                           /*isPassageFinal*/ true, std::nullopt, reg, r, prof, {}, 0.0f, false);
             CHECK(local.startingPitch.has_value());
             CHECK(local.connectors.size() == 2);
             CHECK(!local.connectors[0].has_value());
@@ -1433,7 +1434,7 @@ static void run_walk1_tests() {
             Randomizer r(5u);
             PhraseTemplate local; local.name = "t2";
             select_anchors(local, figs, tl, c, 0.0f, 4.0f, 1.0f, true,
-                           Pitch::from_note_number(67.0f), reg, r);
+                           Pitch::from_note_number(67.0f), reg, r, prof, {}, 0.0f, false);
             CHECK(local.startingPitch
                   && int(local.startingPitch->note_number()) == 67);
         }
@@ -1451,7 +1452,7 @@ static void run_walk1_tests() {
                 Randomizer r(s);
                 PhraseTemplate local; local.name = "w";
                 select_anchors(local, one, tl, c, 0.0f, 4.0f, 1.0f,
-                               /*isPassageFinal*/ false, std::nullopt, reg, r);
+                               /*isPassageFinal*/ false, std::nullopt, reg, r, prof, {}, 0.0f, false);
                 const int pc0 =
                     ((int(local.startingPitch->note_number()) % 12) + 12) % 12;
                 if (pc0 == 0) ++cPicks;
@@ -1472,7 +1473,7 @@ static void run_walk1_tests() {
             bool threw = false;
             try {
                 select_anchors(local, figs, tl2, c, 0.0f, 4.0f, 1.0f,
-                               true, std::nullopt, reg, r);
+                               true, std::nullopt, reg, r, prof, {}, 0.0f, false);
             } catch (const std::exception& e) {
                 threw = std::string(e.what()).find("impossible")
                         != std::string::npos;
@@ -1499,7 +1500,7 @@ static void run_walk1_tests() {
               {"duration": 2.0, "step": 0}]}}
           ],
           "parts": [{"name": "melody", "role": "melody", "passages": {
-            "Main": {"anchorMode": "harmonic",
+            "Main": {"anchorMode": "harmonic", "melodyProfile": "nursery_v1",
                      "startingPitch": {"octave": 5, "pitch": "E"},
                      "phrases": [{
                         "name": "p1",
@@ -1584,16 +1585,17 @@ static void run_walk2_tests() {
         whole.units.push_back({4.0f, 0});
         std::vector<const MelodicFigure*> figs = {&whole};
         const Pitch reg = Pitch::from_note_number(64.0f);
-        std::vector<int> visited = {scale_grid_index(60.0f, c)};   // C5 only
+        MelodyProfile prof = MelodyProfile::load_by_name("nursery_v1");
+        // Prior track: C5 only (a whole note in the bar before).
+        const std::vector<TrackNote> prior = {{scale_grid_index(60.0f, c), -4.0f, 4.0f}};
         for (uint32_t s = 1; s <= 20; ++s) {
             Randomizer r(s);
             PhraseTemplate local; local.name = "r4";
-            std::vector<int> vg = visited;
-            select_anchors(local, figs, tl, c, 0.0f, 4.0f, 1.0f,
-                           true, std::nullopt, reg, r, &vg, 4.0f);
+            auto res = select_anchors(local, figs, tl, c, 0.0f, 4.0f, 1.0f,
+                           true, std::nullopt, reg, r, prof, prior, 4.0f, false);
             CHECK(local.startingPitch
                   && int(local.startingPitch->note_number()) == 60);
-            CHECK(vg.size() == 2);             // chain notes appended
+            CHECK(res.notes.size() == 1);      // the chain's notes, returned
         }
         // Without any visited set, C5 and C6 both stay legal (guard).
         bool saw60 = false, saw72 = false;
@@ -1601,7 +1603,7 @@ static void run_walk2_tests() {
             Randomizer r(s);
             PhraseTemplate local; local.name = "r4b";
             select_anchors(local, figs, tl, c, 0.0f, 4.0f, 1.0f,
-                           true, std::nullopt, reg, r);
+                           true, std::nullopt, reg, r, prof, {}, 0.0f, false);
             const int nn = int(local.startingPitch->note_number());
             CHECK(nn == 60 || nn == 72);
             if (nn == 60) saw60 = true;
@@ -1816,6 +1818,35 @@ static void run_walk3_tests() {
         std::vector<RankItem> none = {{false, 3.0}, {false, 1.0}};
         Randomizer r1(1u);
         CHECK(pick_top_k(none, 1, r1) == 0);
+    }
+
+    // --- select_anchors: the 7th of V7 now resolves down ~24:1 (was ~400:1),
+    //     measured end to end on a 2-figure phrase over G7 -> C.
+    {
+        Scale c = Scale::get("C", "Major");
+        MelodyProfile prof = MelodyProfile::load_by_name("nursery_v1");
+        ScaleChord cI; cI.degree = 0; cI.quality = &ChordDef::get("Major");
+        ScaleChord g7; g7.degree = 4; g7.quality = &ChordDef::get("7");
+        HarmonyTimeline tl; ChordProgression pr;
+        pr.add(g7, 2.0f); pr.add(cI, 2.0f);
+        tl.set_segment(0.0f, 4.0f, pr, "t");
+        MelodicFigure a; a.units.push_back({2.0f, 0});          // over G7
+        MelodicFigure b; b.units.push_back({2.0f, 0});          // over C
+        std::vector<const MelodicFigure*> figs = {&a, &b};
+        const Pitch reg = Pitch::from_note_number(77.0f);       // F5
+        int down = 0, up = 0;
+        for (uint32_t s = 1; s <= 400; ++s) {
+            Randomizer r(s);
+            PhraseTemplate local; local.name = "sev";
+            auto res = select_anchors(local, figs, tl, c, 0.0f, 4.0f, 1.0f, false,
+                                      Pitch::from_note_number(77.0f), reg, r,
+                                      prof, {}, 0.0f, false);
+            (void)res;
+            const int lead = local.connectors[1]->leadStep;
+            if (lead == -1) ++down;
+            if (lead > 0) ++up;
+        }
+        CHECK(down > up);     // the 96-row dominates; exact ratio is mixed with placement
     }
 }
 
