@@ -930,6 +930,7 @@ inline void to_json(json& j, const PassageTemplate& pt) {
         j["melodyOctave"] = pt.melodyOctave;
     }
     if (!pt.anchorMode.empty()) j["anchorMode"] = pt.anchorMode;
+    if (!pt.melodyProfile.empty()) j["melodyProfile"] = pt.melodyProfile;
     if (pt.pedalBuildupConfig) {
         const auto& c = *pt.pedalBuildupConfig;
         j["pedalBuildupConfig"] = json{
@@ -1088,6 +1089,7 @@ inline void from_json(const json& j, PassageTemplate& pt) {
     pt.melodyPassageFile = j.value("melodyPassageFile", std::string(""));
     pt.melodyOctave = j.value("melodyOctave", 5);
     pt.anchorMode = j.value("anchorMode", std::string(""));
+    pt.melodyProfile = j.value("melodyProfile", std::string(""));
 
     if (j.contains("pedalBuildupConfig")) {
         const auto& jc = j.at("pedalBuildupConfig");

@@ -565,6 +565,8 @@ struct PassageTemplate {
     // preference). Under harmonic mode the authored startingPitch anchors
     // only the REGISTER window, not the pitch.
     std::string anchorMode;
+    // genre profile name (styles/<name>.json "melody" block); required when anchorMode == "harmonic"
+    std::string melodyProfile;
 
     // Anchor-driven passage configs (optional). Each is consumed by the
     // matching strategy; absent means "use that strategy's defaults".

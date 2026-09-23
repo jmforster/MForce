@@ -1,0 +1,34 @@
+{
+  "name": "nursery_v1",
+  "description": "Nursery-rhyme song (NRS) profile v1, Matt's walk1/walk2 annotations (spec 2026-09-22-comp-walk3-design.md). Chord transitions are Matt's list (equal weights, unused until backlog 25). Melody odds are per 100 occurrences; the engine uses their logs.",
+  "transitions": {
+    "I":  [["IV", 1], ["V", 1]],
+    "IV": [["V", 1], ["I", 1]],
+    "V":  [["I", 1]]
+  },
+  "melody": {
+    "tendencies": {
+      "V7:7": {"step_down": 96, "other": 4},
+      "V7:3": {"step_up": 88, "third_down": 7, "third_up": 4, "other": 1},
+      "V:3":  {"step_up": 88, "third_down": 7, "third_up": 4, "other": 1}
+    },
+    "nct": {
+      "passing": 100, "neighbor": 100, "suspension": 50, "anticipation": 30,
+      "unresolvedSuspension": 2, "appoggiatura": 3, "escape": 3, "free": 1,
+      "accentedFactor": 0.3, "long": 1
+    },
+    "placement": {"chordTone": 1, "barFinal": 1, "figureFinal": 1, "long": 1},
+    "departureBelow": 25,
+    "critic": {
+      "departureBudget": 1,
+      "rangeMaxSteps": 7, "rangeCostPerStep": 1.5,
+      "repAcrossHarmony": -3, "repMaxBeats": 4,
+      "motionRepeatFrac": 0.5, "motionCost": 4,
+      "gapFill": 1.5,
+      "leapEarly": 0.25, "leapMid": 0.5, "leapLate": 1.0,
+      "regressSlack": 2, "regressPerStep": 0.75,
+      "penultEqualsFinal": -1.5
+    },
+    "search": {"phraseCandidates": 10, "topK": 3, "passageCandidates": 10}
+  }
+}

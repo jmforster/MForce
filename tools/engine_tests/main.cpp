@@ -1612,6 +1612,9 @@ static void run_walk2_tests() {
     }
 }
 
+#include "mforce/music/melody_profile.h"
+#include "mforce/music/style_table.h"
+
 static void run_walk3_tests() {
     using namespace mforce;
     // --- vary_steps reaches Mary's exact head_a from head ([0,-1,-1,+1] ->
@@ -1632,6 +1635,35 @@ static void run_walk3_tests() {
         }
         CHECK(reached);
         CHECK(!step0Touched);
+    }
+
+    // --- MelodyProfile: strict parse of the shipped NRS v1 file.
+    {
+        MelodyProfile p = MelodyProfile::load_by_name("nursery_v1");
+        CHECK(p.name == "nursery_v1");
+        CHECK(p.tendencies.count("V7:7") == 1);
+        CHECK(std::fabs(p.tendencies.at("V7:7").odds_per_100("step_down") - 96.0) < 1e-9);
+        CHECK(std::fabs(p.tendencies.at("V7:7").odds_per_100("leap_up") - 4.0) < 1e-9); // "other"
+        CHECK(std::fabs(p.nct.appoggiatura - 3.0) < 1e-9);
+        CHECK(p.critic.departureBudget == 1);
+        CHECK(p.search.phraseCandidates == 10 && p.search.topK == 3
+              && p.search.passageCandidates == 10);
+        // Missing key -> throws naming it.
+        json j = json::parse(R"({"melody": {"tendencies": {}}})");
+        bool threw = false;
+        try { MelodyProfile::parse_json(j); }
+        catch (const std::exception& e) {
+            threw = std::string(e.what()).find("nct") != std::string::npos;
+        }
+        CHECK(threw);
+        // StyleTable still parses a file carrying a "melody" block.
+        StyleTable st = StyleTable::load_by_name("nursery_v1");
+        CHECK(st.transitions.count("I") == 1);
+        // Template round trip keeps melodyProfile.
+        PassageTemplate pt; pt.melodyProfile = "nursery_v1";
+        json pj; to_json(pj, pt);
+        PassageTemplate back; from_json(pj, back);
+        CHECK(back.melodyProfile == "nursery_v1");
     }
 }
 

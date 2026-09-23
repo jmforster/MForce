@@ -73,6 +73,7 @@
       "passages": {
         "Main": {
           "anchorMode": "harmonic",
+          "melodyProfile": "nursery_v1",
           "startingPitch": {"octave": 5, "pitch": "E"},
           "phrases": [
             {
