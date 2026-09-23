@@ -2,59 +2,32 @@
 
 ## Awaiting Matt
 
-### 22. Walk round 2 — forks ANSWERED; walk3 spec awaits your read [read] (2026-09-22)
-**Update 2026-09-22 (brainstorm with Matt):** both forks resolved.
-(a) is a budget, but over-budget candidates are ranked last, never
-eliminated. (b) is data now: `styles/nursery_v1.json`. The design grew:
-the rules become readable odds in the genre file, a phrase critic is
-added, and best-of-N runs at phrase and passage level. vary_steps may
-now change the final step. **Read
-`docs/superpowers/specs/2026-09-22-comp-walk3-design.md` and say go or
-change.** Deferred: figure-fit rules (backlog 24), melody-first test
-(backlog 25). Original entry below.
+### 23. Walk round 3 — ten seeds, rules as genre odds, best-of-N [listen] (2026-09-22)
+**What changed** (spec `docs/superpowers/specs/2026-09-22-comp-walk3-design.md`):
+your rules now live in one file, `styles/nursery_v1.json`, as odds you
+can read ("the 7th of V7 steps down 96 times in 100"). The engine checks
+every note against the chord: passing and neighbor tones are fine,
+leaps into or out of a non-chord tone are "departures", and B over G
+wants to go up to C. A phrase may have at most one departure; a phrase
+that goes over that limit is only picked when nothing better exists. Each
+phrase is now the best pick of 10 tries (the varied figures rep3_a,
+rep3_b and head_a are re-rolled on every try), and the whole tune is the
+best pick of 10 tries. vary_steps can now change a figure's last note,
+so Mary's exact D D E D is reachable.
+**Where:** `renders/comp/audition/walk3/` (same seeds 100-109; README.md
+there lists departures per seed). Walk2's audio is untouched.
+**Annotate:** `docs/matt/Comp_walk3_for_annotation.txt`, phrase by
+phrase as before.
+**Over budget:** 0 phrases. None of the ten chosen tunes has any
+departure (the rejected tries did have some).
+**Null gate:** every other template renders byte-identical. The only
+changed template is `template_mary_walk` (expected: it is the walk).
+`test_k467_walker` already failed to load before this build. The crawl
+still renders exact Mary.
+**The odds in `styles/nursery_v1.json` are yours to edit directly.**
+Change a number and re-run `python tools/comp_walk1_batch.py 10 walk3`.
 
-#### (original) Walk round 2 — ANNOTATED; two design forks await your call [decide] (2026-09-22)
-Your annotations are in (docs/matt/comp_walk2_annotated.txt) and
-distilled: the round's complaints are one missing grammar — non-chord
-tones need stepwise approach AND departure (appoggiatura ban, no
-leap-from-passing-tone, extensions like the 13th are NCT-class and fine
-only when they step down — Mary's own E-over-G7 proves it), plus the
-leading-tone tendency (B→C, B-D-C ok, no downward leaps), plus
-compounding ("taken together = computer"). Your F-G-over-C question:
-not dice — that case was genuinely uncovered (suspension term needs a
-chord change, 96:4 needs V; a fresh NCT left upward in-bar scored zero).
-**Before walk3 is specced, two forks need your word:**
-(a) Compounding: hard per-phrase departure BUDGET (my lean — one
-    licensed oddity per phrase, rest eliminated) or super-additive
-    penalties (each further violation costs more)?
-(b) Genre profile as DATA now ("NRS v1" ruleset file the template names;
-    compound-melody = a future profile level) or keep constants in code
-    until the ruleset stabilizes? My lean: data now.
-Build will be an OPUS DISPATCH (quota). Original round-2 entry below for
-the record.
-
-### (superseded same-day by the annotations above) Walk round 2 — same ten seeds, your ruleset applied [listen] (2026-09-21)
-`renders/comp/audition/walk2/` — the annotation round built and re-run
-the same evening (spec 2026-09-21-comp-walk2-design.md). Everything you
-annotated in 21 became mechanism: the elaboration ladder (late-bar,
-additive, sub-half splits rare and mostly dotted, fast notes always
-move); seventh-of-V down 96:4; suspension discipline; long notes police
-extensions; repetition caps across harmony; penultimate≠final; gap-fill
-upvoted; leaps cheap early / dear late; final note must be an
-ALREADY-VISITED pitch (hard) and regresses toward the melody's mean
-(soft — your "regression to the mean" note, mid-build). 10/10 pass the
-full validator including your three rhythm rules; per-seed decision
-logs (`mary_walk_s<seed>.log`) answer "why did it do that" with score
-breakdowns. Side effect worth knowing: at rep3_b's target of 4 the
-ladder is deterministic (= Mary's own h→q q), so this batch has MARY'S
-RHYTHM everywhere — all variation is pitch, which isolates your pitch
-rules cleanly; rhythm variety returns by raising the target (one number)
-when you want it back.
-`walk2_passages.txt` inside for annotation, same vocabulary.
-**Score each seed against your own walk1 annotations: fixed / missed /
-new smells.** My own suspect for a new smell: early-register wandering
-(cheap early leaps) — s109 visits G3, s104 hits C6 in bar 2.
-Gates: engine_tests 3342; template null gate 20/20 byte-identical.
+### 22. Walk round 2 → superseded by 23 (forks answered 2026-09-22; walk3 built). Walk2 audio stays at `renders/comp/audition/walk2/`.
 
 
 ### 21. Walk round 1 — ten generated siblings [listen] (2026-09-21)

@@ -1,0 +1,19 @@
+s100: Gq Fq Eq Fq Eq Eq Eh Gq Gq Gh Cq Eq Eh | Gq Fq Eq Fq Eq Eq Eq Eq Dq Dq Dq Dq Cw
+
+s101: Gq Fq Eq Fq Gq Gq Gh Dq Dq Dh Gq Eq Eh | Gq Fq Eq Fq Eq Eq Eq Eq Dq O- Bq O+ Cq O- Bq O+ Cw
+
+s102: Gq Fq Eq Fq Eq Eq Eh Dq Dq Dh Gq Eq Eh | Gq Fq Eq Fq Eq Eq Eq Eq Dq Dq Cq Dq Cw
+
+s103: Gq Fq Eq Fq Eq Eq Eh Gq Gq Gh Cq Eq Eh | Gq Fq Eq Fq Eq Eq Eq Eq Dq Dq O- Bq Bq O+ Cw
+
+s104: Gq Fq Eq Fq Eq Eq Eh Dq Dq Dh Gq Eq Eh | Gq Fq Eq Fq Eq Eq Eq Eq Dq O- Bq O+ Cq Dq Cw
+
+s105: Eq Dq Cq Dq Eq Eq Eh Dq Dq Dh Eq Eq Ch | Eq Dq Cq Dq Eq Eq Eq Eq Gq Dq Eq Dq Cw
+
+s106: Gq Fq Eq Fq Gq Gq Gh Fq Fq Fh Eq Eq Ch | Gq Fq Eq Fq Eq Eq Eq Eq Dq Cq Dq Dq Cw
+
+s107: Eq Dq Cq Dq Eq Eq Eh Dq Dq Dh Cq Cq Eh | Eq Dq Cq Dq Eq Eq Eq Eq Dq Dq Cq O- Bq O+ Cw
+
+s108: Eq Dq Cq Dq Cq Cq Ch Dq Dq Dh Gq Eq Eh | Eq Dq Cq Dq Eq Eq Eq Eq Gq Dq Dq Dq Cw
+
+s109: Eq Dq Cq Dq Eq Eq Eh Gq Gq Gh Cq Eq Eh | Eq Dq Cq Dq Cq Cq Cq Cq Dq Cq O- Bq Bq O+ Cw

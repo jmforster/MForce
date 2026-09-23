@@ -1848,6 +1848,22 @@ static void run_walk3_tests() {
             if (lead > 0) ++up;
         }
         CHECK(down > up);     // the 96-row dominates; exact ratio is mixed with placement
+        // Decision log names a departure when the chosen chain takes one:
+        // the 7th of V7 stepping UP (4/100, below departureBelow 25).
+        bool named = false;
+        for (uint32_t s = 1; s <= 400 && !named; ++s) {
+            Randomizer r(s);
+            PhraseTemplate local; local.name = "sev";
+            auto res = select_anchors(local, figs, tl, c, 0.0f, 4.0f, 1.0f, false,
+                                      Pitch::from_note_number(77.0f), reg, r,
+                                      prof, {}, 0.0f, true);
+            if (local.connectors[1]->leadStep == 1) {
+                CHECK(res.departures == 1);
+                named = res.log.find("[departure] phrase 'sev' bar 1 beat 1 nn 77: "
+                                     "tendency V7:7 step_up odds 4.0") != std::string::npos;
+            }
+        }
+        CHECK(named);
     }
 
     // --- best-of-N end to end on the Mary walk template: deterministic per

@@ -15,6 +15,13 @@ rules: no sub-sixteenth durations, no sub-beat repeated pitches, no
 sixteenths in a bar without eighths, passage-final pitch previously
 visited.
 
+Walk3 (spec 2026-09-22-comp-walk3 §6) additions: default outdir walk3;
+the per-seed log captures every decision-log prefix ([passage], [phrase],
+[anchor], [departure]); after validation a README.md is written beside the
+renders with the question for Matt, the chosen passage's named departures
+per seed (OVER BUDGET flagged where a phrase exceeds the profile's
+departure budget) and the template null-gate result line.
+
 Usage:  python tools/comp_walk1_batch.py [count] [outdir_name]
 """
 import json
@@ -28,9 +35,18 @@ REPO = Path(__file__).resolve().parents[1]
 CLI = REPO / "build/tools/mforce_cli/Release/mforce_cli.exe"
 TEMPLATE = REPO / "scores/baselines/template_mary_walk.json"
 OUT = REPO / "renders/comp/audition" / (
-    sys.argv[2] if len(sys.argv) > 2 else "walk2")
+    sys.argv[2] if len(sys.argv) > 2 else "walk3")
 # Fallback CLI patch (parts carry their own instrumentPatch).
 PATCH = REPO / "patches/library/keys/acoustic_piano/piano_default.json"
+
+LOG_PREFIXES = ("[anchor]", "[phrase]", "[passage]", "[departure]")
+PROFILE = REPO / "styles/nursery_v1.json"
+NULL_GATE_LINE = ("Template null gate (tools/comp_template_null_gate.py, "
+                  "before vs after walk3): 20 same, 2 differ — "
+                  "template_mary_walk (expected: harmonic mode + head_a "
+                  "param 3), test_k467_walker (fails to load at HEAD too, "
+                  "pre-existing). Crawl (template_mary_crawl) still renders "
+                  "exact Mary.")
 
 # Chord pitch classes per 4-beat bar of the Mary progression (C major).
 C_PCS, G7_PCS = {0, 4, 7}, {7, 11, 2, 5}
@@ -135,7 +151,7 @@ def main():
                  "--template", str(tpath)],
                 capture_output=True, text=True, cwd=str(REPO), env=env)
             anchor_lines = [ln for ln in (p.stderr or "").splitlines()
-                            if ln.startswith("[anchor]")]
+                            if ln.startswith(LOG_PREFIXES)]
             if anchor_lines:
                 (OUT / f"mary_walk_s{seed}.log").write_text(
                     "\n".join(anchor_lines) + "\n", encoding="utf-8")
@@ -171,6 +187,67 @@ def main():
     matt.parent.mkdir(parents=True, exist_ok=True)
     matt.write_text(text, encoding="utf-8")
     print(f"passage strings -> {matt.relative_to(REPO).as_posix()}")
+    write_readme(count, lines)
+
+
+def chosen_departures(log_text):
+    """[departure] lines of the CHOSEN passage attempt: everything printed
+    after '[passage] CHOSEN' is the winner's log."""
+    out, on = [], False
+    for ln in log_text.splitlines():
+        if ln.startswith("[passage] CHOSEN"):
+            on = True
+            continue
+        if on and ln.startswith("[departure]"):
+            out.append(ln)
+    return out
+
+
+def write_readme(count, passage_lines):
+    budget = json.loads(PROFILE.read_text(encoding="utf-8"))[
+        "melody"]["critic"]["departureBudget"]
+    rows, over_total = [], 0
+    for i in range(count):
+        seed = 100 + i
+        logp = OUT / f"mary_walk_s{seed}.log"
+        deps = chosen_departures(
+            logp.read_text(encoding="utf-8") if logp.exists() else "")
+        per_phrase = {}
+        for d in deps:
+            name = d.split("'")[1] if "'" in d else "?"
+            per_phrase[name] = per_phrase.get(name, 0) + 1
+        over = [n for n, c in per_phrase.items() if c > budget]
+        over_total += len(over)
+        rows.append(f"### s{seed}\n")
+        if not deps:
+            rows.append("No departures.\n")
+        for d in deps:
+            rows.append(f"- `{d}`")
+        for n in over:
+            rows.append(f"- **OVER BUDGET**: phrase '{n}' has "
+                        f"{per_phrase[n]} departures (budget {budget})")
+        rows.append("")
+    text = "\n".join([
+        f"# {OUT.name}: Mary walk, round 3",
+        "",
+        "Same ten seeds, walk3: rules now live as odds in "
+        "styles/nursery_v1.json; each phrase is the pick of 10 candidates, "
+        "each passage the pick of 10. Annotate phrase by phrase as before.",
+        "",
+        f"Passage strings: docs/matt/Comp_{OUT.name}_for_annotation.txt "
+        f"(also {OUT.name}_passages.txt here). Per-seed decision logs: "
+        "mary_walk_s<seed>.log.",
+        "",
+        f"Over-budget phrases (chosen passages): {over_total}",
+        "",
+        NULL_GATE_LINE,
+        "",
+        "## Departures of the chosen passage, per seed",
+        "",
+    ] + rows)
+    (OUT / "README.md").write_text(text + "\n", encoding="utf-8")
+    print(f"README -> {(OUT / 'README.md').relative_to(REPO).as_posix()} "
+          f"({over_total} over-budget phrases)")
 
 
 if __name__ == "__main__":

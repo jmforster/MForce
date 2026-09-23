@@ -33,6 +33,10 @@ reports + this file's git history. Tags per WORKFLOW.md.
     head_a reachable; goes in the walk3 build. "Scramble" = permute the
     existing steps 1..n-1 unchanged (step 0 stays the dummy) — Matt's
     definition of the queued permutation transform; not needed now.
+    2026-09-22: **WALK ROUND 3 SHIPPED** (spec 2026-09-22-comp-walk3-design.md)
+    — NRS v1 rules as odds in styles/nursery_v1.json, NCT grammar +
+    tendency rows, phrase critic, nested best-of-N (10 phrase candidates x
+    10 passages, top-3 dice), vary_steps final step → **REVIEW 23**.
     NEXT on Matt's walk verdicts: weight calibration or the next rule
     (interior NCTs, re-shape-to-fit); then generated figure slots
     (Markov proposes, fit disposes).

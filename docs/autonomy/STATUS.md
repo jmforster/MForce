@@ -1,5 +1,22 @@
 # Status — session handoff (Claude reads this first; Matt's queue = */REVIEW.md)
 
+Updated: 2026-09-22 (comp walk3 BUILT via Opus dispatch; plan
+docs/superpowers/plans/2026-09-22-comp-walk3.md T1-T8 done.)
+State: NRS v1 profile = styles/nursery_v1.json (tendency rows, NCT
+license odds, placement, critic, search sizes); note_map.h +
+phrase_critic.h + melody_profile.h; select_anchors scores from the
+profile and returns AnchorResult; DefaultPassageStrategy harmonic mode
+runs nested best-of-N (10 phrase candidates rerolling first-referenced
+derived motifs, 10 passage attempts, top-3 dice). Harmonic mode requires
+passage melodyProfile. Batch: renders/comp/audition/walk3/, 10/10
+validator, 0 over-budget phrases; strings in
+docs/matt/Comp_walk3_for_annotation.txt. Null gate: only
+template_mary_walk differs (test_k467_walker fails at HEAD, pre-existing).
+Known: ChordLabel::to_string labels G7 "V" (compares ChordDef name, not
+shortName); note_map uses its own label function; chord_walker untouched.
+comp REVIEW Awaiting: **23** (walk3 listen/annotate); 22 folded into 23.
+NEXT: Matt's walk3 annotations → next profile edit or rule round.
+
 Updated: 2026-09-22 (comp walk2 annotated; session ended on QUOTA: 75% of
 Matt's weekly Fable limit burned by Tuesday — NEXT SESSION RUNS THE
 QUOTA PATTERN: Fable coordinates thin, every heavy build/spec-execution
