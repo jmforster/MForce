@@ -1612,8 +1612,32 @@ static void run_walk2_tests() {
     }
 }
 
+static void run_walk3_tests() {
+    using namespace mforce;
+    // --- vary_steps reaches Mary's exact head_a from head ([0,-1,-1,+1] ->
+    //     [0,0,+1,-1]) once the final step is perturbable (spec §4).
+    {
+        MelodicFigure head;
+        head.units.push_back({1.0f, 0});
+        head.units.push_back({1.0f, -1});
+        head.units.push_back({1.0f, -1});
+        head.units.push_back({1.0f, 1});
+        bool reached = false;
+        bool step0Touched = false;
+        for (uint32_t s = 1; s <= 20000 && !reached; ++s) {
+            auto f = figure_transforms::apply(head, TransformOp::VarySteps, 3, s);
+            if (f.units[0].step != 0) step0Touched = true;
+            if (f.units[1].step == 0 && f.units[2].step == 1
+                && f.units[3].step == -1) reached = true;
+        }
+        CHECK(reached);
+        CHECK(!step0Touched);
+    }
+}
+
 int main() {
     run_walk2_tests();
+    run_walk3_tests();
     run_walk1_tests();
     run_passage_melody_tests();
     run_passage_parse_tests();

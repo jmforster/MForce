@@ -326,14 +326,16 @@ inline MelodicFigure vary_rhythm(const MelodicFigure& fig, Randomizer& rng) {
   return out;
 }
 
-// vary_steps(fig, rng, variations): perturb `variations` interior steps.
-// Each perturbation picks an interior index and adds a random int in
-// [-2,+2] (guaranteed non-zero). Legacy from FigureBuilder::vary_steps.
+// vary_steps(fig, rng, variations): perturb `variations` steps. Any step
+// but step[0] (the dummy by convention; the connector carries the entry)
+// may move, including the final one (walk3 spec §4: the interior-only
+// restriction was unexplained legacy). Each perturbation adds a random int
+// in [-2,+2] (guaranteed non-zero). Legacy from FigureBuilder::vary_steps.
 inline MelodicFigure vary_steps(const MelodicFigure& fig, Randomizer& rng,
                                 int variations = 1) {
   MelodicFigure out = fig;
   for (int i = 0; i < variations && out.note_count() > 1; ++i) {
-    int idx = rng.int_range(1, out.note_count() - 2);
+    int idx = rng.int_range(1, out.note_count() - 1);
     int delta = rng.int_range(-2, 2);
     if (delta == 0) delta = (rng.int_range(0, 1) == 0) ? -1 : 1;
     out.units[idx].step += delta;

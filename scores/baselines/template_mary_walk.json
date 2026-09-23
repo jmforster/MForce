@@ -55,7 +55,7 @@
       "name": "head_a",
       "derivedFrom": "head",
       "transform": "vary_steps",
-      "transformParam": 2
+      "transformParam": 3
     },
     {
       "name": "close",
