@@ -509,6 +509,15 @@ Tags per WORKFLOW.md.
     open 65/71 advance-order cluster is sensitive to — the repro
     patches are diff-prone BY NATURE. Diagnose alongside 65/71; until
     then, don't UI-re-save the repro baselines.
+    UPDATE 10-04: the id loss is fixed (70ae4c9, the 09-05 fix that had
+    never reached main). Harness now reads 134 patches, 0 id changes, 8
+    render diffs: the same seven plus wiring_smoke, whose render
+    comparison used to be skipped because the id check failed first. Its
+    roundtripped file keeps every id and the node order; what changes is
+    re-serialization (the adsr preset rewritten as explicit stages, curve
+    knots written at 32-bit precision, `seconds` added). This whole class
+    goes away with the single patch codec in the refactor
+    (docs/architecture/target-architecture.md section 3.3).
 
 80. **[lint, small] Warn when a `sustaining` patch has a shapeless
     output-path envelope** — deferred from onsets v2 (spec §5,
