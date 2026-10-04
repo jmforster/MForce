@@ -1,0 +1,273 @@
+{
+ "overview": "tools/mforce_ui/main.cpp is a single 14,658-line translation unit holding the entire ImGui/imnodes patch-editor application: data model, JSON load/save, audio engine bridge, every panel, and main(). It is organized top-down by banner comments (`// ====`): (1) the editor model \u2014 Pin, GraphNode (which owns its mforce ValueSource via create_dsp/build_pins), Link, NodeGroup \u2014 and the flat global graph (s_nodes/s_links/s_groups) plus document-level stash globals (passthrough paramMap/score/seconds JSON, conversion stash, dirty/close flags); (2) file I/O \u2014 Win32 dialogs, legacy paramMap->wiring conversion, an 800-line load_graph_from_path, recents/settings persistence, serialize_patch_graph and the node-graph saver; (3) the audio bridge \u2014 RtAudio globals, a 16-slot Voice pool, continuous stream channels, buffer playback, generate_unified (offline render that fills the waveform buffers and per-node strips), and the live path (cached InstrumentPatch, held-note/legato, play_continuous); (4) UI panels in roughly the order they were added \u2014 Keyboard/MIDI, Audition, Shape editor, paramMap curves + CurveNode editor, Parameter-mapping dialog, Transport, node/group rendering, Properties, clipboard, graph-mode conversion, context menus, waveform/spectrum/strip drawing; (5) crash logging and a 1,711-line main() that first dispatches ~11 headless CLI modes (--roundtrip-style load/save, gating walk, generate check, rename/replace/paste/convert/dump-playback/dump-layout/dump-stream) and then runs the GLFW/ImGui frame loop containing the menu bar, the Node Editor window (breadcrumb, drill camera, link projection through collapsed groups and wormholes, selection, shortcuts), the panel draw calls, and the save-prompt modal.\n\nThreading: the UI thread owns the graph and all s_/g_ state. RtAudio runs audio_callback (3857) on its own thread; it reads g_voices, g_streamSource/g_streamChannels and g_bufferPlayback, and the UI thread serializes mutation of those (and graph rewiring in update_node_dsp/dsp_rewire_link) through g_audioMutex (933). Meters, heartbeat and restart requests cross threads via std::atomic (3653-3667); audio_watchdog (4084) and voice_gc (4151) run on the UI thread each frame, voice_gc existing so DSP shared_ptrs are released off the audio thread. RtMidi is polled on the UI thread (pump_midi, 5080). Headless modes set s_headless (721) and never create a GL window or audio stream. Forward declarations are scattered rather than grouped (transport_set_status is declared at 1392, 4077 and 4279 before its definition at 8295; stop_streams/stop_playback/buffer_playback_detach at 1111-1191; note_played at 4595; collect_envelopes at 4596; paste_clipboard at 10942). Note for the section-11 reviewer: the banner at 3541-3545 still describes the retired waveOut polling design; the code below it is the RtAudio callback design described at 3642-3646.",
+ "globals": [
+  "72 s_nextId \u2014 monotonically increasing imnodes/pin/link id counter (next_id at 73)",
+  "79 s_graphMode \u2014 current GraphMode (NodeGraph vs PatchGraph)",
+  "649 s_nodes / 650 s_links \u2014 THE graph (std::vector<GraphNode>, std::vector<Link>); every lookup helper and panel indexes these",
+  "668 s_groups / 671 s_groupPath / 675 s_listenTapNode / 681 s_groupListen \u2014 group membership, current drill path, listen tap node, per-group listen toggles",
+  "721 s_headless \u2014 set by headless CLI modes; gates GL/audio-dependent paths",
+  "737 s_loadedParamMap, 745 s_loadedScore, 750 s_loadedScoreAbsent, 754 s_loadedInstrumentExtras, 755 s_loadedSeconds \u2014 verbatim passthrough JSON stash from the loaded file, re-emitted on save",
+  "763-767 s_convParamMap / s_convScore / s_convSeconds / s_convPolyphony / s_convStashValid \u2014 stash for Patch->Node->Patch conversion round-trip (conv_stash_clear at 769)",
+  "780 s_currentFilePath, 784 s_graphDirty, 790 g_graphEditCounter \u2014 document identity, dirty flag, edit counter that keys the live instrument cache (mark_graph_dirty 791, invalidate_instrument_cache 797)",
+  "802-804 s_closeRequested / s_showCloseConfirm / s_closeApproved \u2014 deferred-close state machine for the save-prompt modal",
+  "933 g_audioMutex \u2014 std::mutex serializing UI-thread mutation of voices/streams/graph DSP against the RtAudio callback",
+  "1095 g_selectedNodeId \u2014 selected node for the Properties panel; 1185 s_needsLayout \u2014 grid-layout request flag",
+  "2365 g_recentFiles (RECENTS_PATH 2366) \u2014 persisted recent-files list; 2443 g_settings (UiSettings, SETTINGS_PATH 2444) \u2014 persisted feature directories etc.",
+  "3490-3491 per-node evo snapshot map (unordered_map<int, unordered_map<string, vector<float>>>) and 3496 g_scrubberPos \u2014 Partials evolution snapshots for the scrubber",
+  "3556-3562 g_outputWaveform, g_waveformSamples, g_waveZoom, g_waveScrollPos, g_waveViewInited, g_waveColumns \u2014 offline waveform display buffers/view; 3574 g_showEnvelopes; 3585 g_wavePopouts; 3590-3592 g_outputSpectrumDb / N / SR",
+  "3632 g_transport (TransportState: mode, note/passage/chords/drums text buffers, status message); 3640 s_genState \u2014 3-phase Generate state machine",
+  "3647 g_audio (unique_ptr<RtAudio>); 3653-3655 g_audioPeakPre/Post, g_audioActiveVoices (atomics, audio->UI); 3660 g_audioHeartbeat (atomic); 3667 g_audioRestartRequest (atomic); 3669-3670 g_audioErrMutex / g_lastAudioError",
+  "3676-3678 g_streamSource / g_streamRemaining / g_streamVelocity \u2014 mono continuous stream; 3692-3694 g_streamChannels / g_streamGainL / g_streamGainR \u2014 node-graph stereo stream mixdown; 3697-3699 g_bufferPlayback / Pos / Len \u2014 raw pointer replay of the generated buffer (all read on the audio thread)",
+  "3741 g_voices[MAX_VOICES=16] \u2014 fixed Voice pool shared with the audio callback (voice_schedule_unlocked 3755, voice_gc 4151)",
+  "4239 g_streamEnvHolds \u2014 envelope hold/restore list for continuous streaming",
+  "4612-4614 g_cachedInstrument / g_cachedEditCounter / g_cachedTapNode \u2014 live-playback InstrumentPatch cache keyed on edit counter + tap; 4624-4625 g_liveHeldKeys / g_liveNominalSec \u2014 legato held-key stack",
+  "5021 g_keyboard (KeyboardState.live); 5030-5032 g_midiIn / g_midiPort / g_midiPortName \u2014 RtMidi input",
+  "5288 g_audition (AuditionState) \u2014 sweep-folder WAV walker state",
+  "5788 s_shapeEd (ShapeEditorState), 5809 s_shapeEdGen (ShapeEdGenState) \u2014 shape editor target node, points, generator settings",
+  "7531 s_mappingsOpen \u2014 Parameter-mapping dialog visibility",
+  "8288-8289 g_lastNoteMidi / g_lastNoteVel; 8321-8326 g_noteGenSnap (anonymous struct) \u2014 transport settings captured at last Note-mode Generate for staleness detection",
+  "9050 s_groupProj (GroupProjection) \u2014 per-frame collapsed-group pin/link projection rebuilt in the Node Editor",
+  "10276-10277 s_clipboard (nlohmann::json) / s_clipPasteCount \u2014 in-process node clipboard",
+  "10734-10737 s_wantCreateMenu / s_wantNodeMenu / s_createMenuPos / s_contextNodeId; 10742 s_menuSourceAction (std::function) \u2014 context-menu request state and the action the family menus invoke",
+  "12892 s_bottomPaneSavedH \u2014 collapsed bottom-pane restore height",
+  "12929-12940 stamp::s_stale / s_dismissed / s_exeTime / s_newestFile \u2014 engine-stamp staleness state (defined in build_stamp.h, included at 67; only draw_banner lives in main.cpp)",
+  "Function-local statics: 4085-4087 lastBeat/lastBeatTime/lastAttempt (audio_watchdog); 5209 buf[8] (qwerty_label_for_offset returns pointer to it); 9242 groupBuf[64], 9276 renameBuf[64] (draw_properties_panel edit buffers); 11739 s_waveMips (unordered_map<const float*, WaveMip> mip cache in draw_waveform, keyed on raw buffer pointer); 12863 symInited (seh_crash_filter); 13573 unfocusedAt; 13913-13914 prevPath / panStack (drill camera); 14185 prevSelection (ctrl-click deselect) \u2014 the last four are statics inside main()'s loop body",
+  "13558 s_dockLayoutInitialized \u2014 a plain local in main() despite the s_ prefix"
+ ],
+ "sections": [
+  {
+   "name": "Includes, ID generation, GraphMode, Pin, node-type constants, colors",
+   "start": 1,
+   "end": 244,
+   "note": "Headers (ImGui/imnodes/GLFW, Win32, RtAudio/RtMidi, nlohmann, mforce engine), next_id(), GraphMode, PinKind/Pin (87), NT_* type-name constants (115-126), is_special_ui_type/node_display_name/is_noise_type/is_wavetable_type, node_title_color/node_bg_color/lighten, DSP_SAMPLE_RATE, FormantRow (233), forward decl unique_node_label."
+  },
+  {
+   "name": "GraphNode struct and Link",
+   "start": 245,
+   "end": 645,
+   "note": "GraphNode (245-634): fields, dyn_attr_id/dyn_link_id (356), create_dsp (385) which instantiates the engine ValueSource from SourceRegistry, wire_pin, find_input/find_output, init_config/init_arrays/push_array, rebuild_formant_spectrum, apply_config, build_pins (535), add_channel_input (624). Link (636)."
+  },
+  {
+   "name": "Graph state, groups, document stash, lookup helpers, DSP wiring",
+   "start": 646,
+   "end": 1091,
+   "note": "s_nodes/s_links; NodeGroup (659) + s_groups/s_groupPath/listen state + group_by_name/group_of/visible_at_path/unique_node_label; s_headless; passthrough JSON stash + conversion stash + conv_stash_clear; s_currentFilePath/s_graphDirty/g_graphEditCounter; close flags; find_pin/find_node_for_pin; wormhole helpers (825-856); pin_type_compat_error (874); dsp_rewire_link (910); g_audioMutex; update_node_dsp(_unlocked); would_close_normal_cycle; update_all_dsp (1022); is_pin_connected."
+  },
+  {
+   "name": "Selection, delete/new graph, Win32 file dialogs",
+   "start": 1092,
+   "end": 1328,
+   "note": "g_selectedNodeId/find_selected_node; delete_node (1114) and delete_link; s_needsLayout; new_graph (1193); settings_dir_slot/remember_feature_dir/feature_initial_dir; save_file_dialog/open_file_dialog (GetSaveFileName/GetOpenFileName), text_save_dialog/text_open_dialog."
+  },
+  {
+   "name": "JSON import helpers and legacy paramMap conversion",
+   "start": 1329,
+   "end": 1560,
+   "note": "envelope_stages_to_json/from_json (1338/1368); forward decl transport_set_status; convert_parammap_to_wiring (1413) which rewrites legacy paramMap entries into real nodes/refs in the JSON before the graph is built."
+  },
+  {
+   "name": "load_graph_from_path",
+   "start": 1561,
+   "end": 2360,
+   "note": "One 800-line function: paramMap conversion, score/seconds preservation + apply_score_defaults, id/pin maps, formant-consumption pre-scan (1621-1704), PerformNode->Note-face consumption, first pass node creation (1705-1995), Note faces (1996), second pass ref links (2046), PatchGraph Output/Parameter synthesis (2119), groups (2158), position restore / grid layout (2194), pan restore, update_all_dsp, unknown-type reporting."
+  },
+  {
+   "name": "Recent files and persisted UI settings",
+   "start": 2361,
+   "end": 2488,
+   "note": "g_recentFiles + recents_save/normalize_path/recents_load/recents_push; load_graph() dialog wrapper (2419); UiSettings struct (2431), g_settings, settings_load/settings_dir_slot/settings_save."
+  },
+  {
+   "name": "Export helpers: topo sort, source lookup, group boundary, rename",
+   "start": 2489,
+   "end": 2805,
+   "note": "topo_sort (2499); find_source_pin/find_source_node/find_source_out_pin; sanitize_unique_id; collect_member_labels; group_boundary (2634) derives a group's interface; group_output_node; rewrite_label_refs (2700); rename_node/rename_group."
+  },
+  {
+   "name": "serialize_patch_graph",
+   "start": 2806,
+   "end": 3267,
+   "note": "Single 462-line function producing the patch JSON: nodes, params/refs, dynamic pins, formant inline rows, Note faces, groups, ui.positions/pan, passthrough stash re-emission, tap override."
+  },
+  {
+   "name": "Save paths, type predicates, evo snapshots, playback patch path",
+   "start": 3268,
+   "end": 3540,
+   "note": "save_patch_graph; save_node_graph (3275, node-graph JSON form); save_to_path; is_partials_type/is_formant_type; EVO_SNAP_COUNT + snapshot map + g_scrubberPos; get_playback_patch_path (3502, serialize-if-dirty temp path); save_graph_as/save_graph."
+  },
+  {
+   "name": "Audio constants, display buffers, TransportState, RtAudio globals, Voice pool",
+   "start": 3541,
+   "end": 3856,
+   "note": "AUDIO_SAMPLE_RATE/AUDIO_BUF_FRAMES; waveform/zoom/popout/spectrum display globals; WavePopout (3578); PlayMode/TransportState (3599-3632); s_genState; RtAudio handle + atomics + error hook; stream globals + StreamChannel (3687); buffer playback; Voice (3703) + g_voices; voice_deactivate_unlocked/voice_schedule(_unlocked)/acquire_pool_slot/any_voice_active/is_playing. Banner text at 3541 is stale (waveOut)."
+  },
+  {
+   "name": "audio_callback, audio init/shutdown, watchdog, voice_gc, prepare_graph",
+   "start": 3857,
+   "end": 4207,
+   "note": "audio_callback (3857-4003) mixes voices + streams + buffer replay with soft_clip under g_audioMutex; audio_init_error; init_audio (4013); shutdown_audio; audio_watchdog (4084, heartbeat/zombie-stream restart); voice_gc (4151); find_output_source; prepare_graph."
+  },
+  {
+   "name": "Stream envelope holds, SchedNote, generate_unified, param-map application",
+   "start": 4208,
+   "end": 4599,
+   "note": "STREAM_PREP_SECONDS, StreamEnvHold + stream_envelopes_restore/hold; SchedNote (4288); patch_is_sustaining; stamp_passage; generate_unified (4347, the one offline render that fills output + per-node strips); eval_map_curve/eval_map_vcurve; apply_perform_nodes; apply_param_map; forward decls note_played/collect_envelopes."
+  },
+  {
+   "name": "Live playback: instrument cache, note/held/continuous play, stop",
+   "start": 4600,
+   "end": 5005,
+   "note": "g_cachedInstrument + get_cached_instrument (4629); LiveHeldKey stack; play_note (4660); collect_envelopes (4716); play_note_held (4740) / release_note_held (4829) legato logic; play_continuous (4866); stop_streams/stop_playback/buffer_playback_detach/play_buffer."
+  },
+  {
+   "name": "Keyboard state, MIDI input, score defaults, QWERTY map, spinners",
+   "start": 5006,
+   "end": 5257,
+   "note": "KeyboardState/g_keyboard; RtMidi globals, midi_close/midi_open_port/init_midi/shutdown_midi/pump_midi (5080); apply_score_defaults (5130); QwertyMapping table s_qwertyMap (5162) + qwerty_label_for_offset; spinner_int/spinner_float widgets."
+  },
+  {
+   "name": "Audition window",
+   "start": 5258,
+   "end": 5752,
+   "note": "AuditionState/g_audition; audition_refresh_target_list/load_folder; pick_folder_dialog (IFileOpenDialog, 5333); audition_load_at/stop/play_current/next/prev/tick; audition_save_current_patch; draw_audition_window (5514, ImGui window 'Audition' with 'Delete curated patch' / 'Save curated patch' modals)."
+  },
+  {
+   "name": "Shape editor state, presets, open/load/apply helpers",
+   "start": 5753,
+   "end": 6099,
+   "note": "ShapeEditorState/s_shapeEd, kShapeEdMaxPoints, ShapeEdGenState/s_shapeEdGen, shape_ed_gen_pulse_train; ShaperPreset table kShaperPresets (5863); shape_ed_node; shape_editor_open_curve/segment/shaper; segment/shaper/array/segs load+apply helpers; shape_ed_set_time_mode; shape_editor_apply_segment/apply_curve."
+  },
+  {
+   "name": "draw_shape_editor",
+   "start": 6100,
+   "end": 7052,
+   "note": "Single 950-line window function: breakpoint canvas with engine-evaluated overlay for CurveNode / SegmentSource / Shaper clients, generators, morph handling, 'Remove morph?' / 'Clear curve?' / 'Clear segment overrides?' modals. Ends at the 7051 banner closing the curve-format comment."
+  },
+  {
+   "name": "paramMap curve helpers, CurveNode editor, target options",
+   "start": 7053,
+   "end": 7525,
+   "note": "curve_eval/curve_sort/curve_exists_for/curves_add_entry; draw_one_curve (7126, legacy stash-based curve editor); curve_node_destination (7228); draw_curve_expr_rows; draw_curve_node (7356, real CurveNode editor); TargetOpt + eligible_targets/target_exists_for."
+  },
+  {
+   "name": "Parameter-mappings dialog",
+   "start": 7526,
+   "end": 7825,
+   "note": "s_mappingsOpen; draw_mappings_dialog (7533, ImGui window 'Parameter mapping'): one table of every binding (paramMap entries + shapes), add/remove, 'already bound' guards."
+  },
+  {
+   "name": "draw_keyboard_panel",
+   "start": 7826,
+   "end": 8088,
+   "note": "ImGui window 'Keyboard': on-screen piano, QWERTY key handling routed through play_note / play_note_held / release_note_held depending on g_keyboard.live and patch_is_sustaining."
+  },
+  {
+   "name": "Transport generate actions",
+   "start": 8089,
+   "end": 8544,
+   "note": "render_chords_waveforms (8098); parse_drum_map; render_drums_waveforms; g_lastNote*/note_played; transport_set_status (8295, definition); transport_can_generate; g_noteGenSnap; transport_generate (8328, Note/Passage/Chords/Drums dispatch); transport_play (8450); save_wav_dialog/transport_save_wav."
+  },
+  {
+   "name": "Transport panel UI",
+   "start": 8545,
+   "end": 8849,
+   "note": "transport_label*/transport_save_text/transport_load_text helpers; kPassageFilter/kChordsFilter; draw_transport_panel (8601, ImGui window 'Transport' with Note/Passage/Chords/Drums tabs, Generate/Play/Stop/Save WAV, status line)."
+  },
+  {
+   "name": "Node rendering and collapsed-group projection",
+   "start": 8850,
+   "end": 9195,
+   "note": "draw_wormhole_node; draw_node (8893, imnodes node body incl. pins, dyn pins, strips); forward decl draw_formant_strip; GroupProjection/s_groupProj; draw_group_node (9052, collapsed face); project_pin (9122); route_link_through_wormhole."
+  },
+  {
+   "name": "Properties panel",
+   "start": 9196,
+   "end": 10262,
+   "note": "mapping_badge; draw_properties_panel (9227-10262, ImGui window 'Properties'): group/rename edit buffers, per-descriptor param widgets, arrays, formant rows, envelope presets, dynamic-pin promotion, shape previews that open the shape editor."
+  },
+  {
+   "name": "In-process node clipboard (Edit menu Cut/Copy/Paste)",
+   "start": 10263,
+   "end": 10546,
+   "note": "s_clipboard JSON + s_clipPasteCount; find_node_by_id; clip_node_state (10286); clip_instantiate (10336); clipboard_has_content/copy/paste/cut."
+  },
+  {
+   "name": "Graph-mode conversion",
+   "start": 10547,
+   "end": 10728,
+   "note": "convert_patch_to_node_graph (10565, stash-restore path); convert_node_to_patch_graph (10617, instrument-synthesis heuristic); convert_graph_mode dispatcher."
+  },
+  {
+   "name": "Context menus: create menu, source family menus, group/ungroup/replace",
+   "start": 10729,
+   "end": 11257,
+   "note": "menu request flags + s_menuSourceAction; create_source_at_menu/menu_source/menu_sep/menu_placeholder; source_family_menus (10787: Generators/Noise/Wavetable/Additive/Envelopes/Filters/Combiners/Loop); experimental_family_menu; show_create_menu (10944, incl. Output submenu); group_selection (11052); ungroup; replace_node_with (11156)."
+  },
+  {
+   "name": "OS-clipboard fragment copy/paste and node context menu",
+   "start": 11258,
+   "end": 11693,
+   "note": "clip_stage_path; copy_selection_to_clipboard (11273, JSON fragment to system clipboard); paste_fragment_text (11325, parse + instantiate + remap); paste_clipboard; show_node_context_menu (11478, incl. 'Replace with' submenu, group open/ungroup, wormhole, delete)."
+  },
+  {
+   "name": "draw_waveform",
+   "start": 11694,
+   "end": 11827,
+   "note": "WAVE_MARGIN_W; draw_waveform (11702): mip-mapped min/max strip renderer with s_waveMips cache, zoom/scroll, peak labels, popout button hook."
+  },
+  {
+   "name": "Output spectrum compute and Spectrum window",
+   "start": 11828,
+   "end": 12025,
+   "note": "compute_output_spectrum (11836, uses mforce/util/fft.h) into g_outputSpectrumDb; draw_spectrum_window (11881, ImGui window 'Spectrum') with log-frequency plot and hover readout."
+  },
+  {
+   "name": "Partials and Formant strip drawing",
+   "start": 12026,
+   "end": 12459,
+   "note": "draw_strip_popout_button; draw_partials_strip (12041, live Partials array view with evo scrubber snapshots); draw_formant_strip (12241, definition of the 9032 forward decl)."
+  },
+  {
+   "name": "Waveform window and pop-outs",
+   "start": 12460,
+   "end": 12775,
+   "note": "draw_waveform_window (12464, ImGui window 'Waveforms'): output strip + per-node strips tiled by g_waveColumns, envelope toggle, zoom/scroll controls; draw_wave_popouts (12683) per-strip floating windows."
+  },
+  {
+   "name": "Crash logging, bottom-pane toggle, stale-build banner",
+   "start": 12776,
+   "end": 12947,
+   "note": "'Main' banner; CRASH_LOG_PATH, crash_log_timestamp/stack/write, seh_crash_filter (12841, DbgHelp symbolization); s_bottomPaneSavedH + draw_bottom_pane_toggle (DockBuilder resize); namespace stamp::draw_banner (12926, '##stalebanner')."
+  },
+  {
+   "name": "main(): console attach and headless CLI modes",
+   "start": 12948,
+   "end": 13441,
+   "note": "Denormal flush, SEH filter, stamp::init; conditional AttachConsole; headless modes gated on argv: load/re-save round-trip (12970), stamp readout (13008), gating walk (13014), unified-generate check (13041), rename (13119), replace (13144), boundary dump (13167), paste (13196), conversion round-trip (13220), playback dump (13246), layout dump (13325), continuous-stream dump (13358). Each returns before GL init."
+  },
+  {
+   "name": "main(): GLFW/ImGui/ImNodes init, audio/MIDI/registry/settings, initial load",
+   "start": 13442,
+   "end": 13559,
+   "note": "try { glfwInit, window create + monitor anchoring, close callback deferral, ImGui/ImNodes contexts, docking config, Alt-drag pan, init_audio (non-fatal), init_midi, SourceRegistry init, recents_load, settings_load, new_graph(PatchGraph) + optional argv patch load with status reporting; s_dockLayoutInitialized local."
+  },
+  {
+   "name": "main loop head: close handling, focus/audio restart, generate state, title, master window + menu bar",
+   "start": 13560,
+   "end": 13843,
+   "note": "while(true): glfwPollEvents; close-intent + dirty check; focus-loss audio restart; audio_watchdog; s_genState 1->2 transition; grid layout when s_needsLayout; window title + stamp suffix; fullscreen 'MForce' master window with File (New/Open/Open Recent/Save/Save As/Quit) and Edit (undo-less Cut/Copy/Paste, Group/Ungroup, Convert, mappings) menus, DockSpace + first-run dock layout, global shortcuts, continuous-play toggle. Ends at ImGui::End() of the master window (13843)."
+  },
+  {
+   "name": "Node Editor window",
+   "start": 13844,
+   "end": 14506,
+   "note": "ImGui window 'Node Editor': focus gate; breadcrumb bar with Listen toggle; drill-transition camera (prevPath/panStack statics); s_groupProj rebuild; draw visible nodes / collapsed groups / wormholes; links projected to drill level (13989); dynamic-pin gold wires (14035); minimap stub; wormhole hover/ghost/jump (14071); wheel pan; ctrl-click deselect (prevSelection); double-click drill; selection tracking; Ctrl-chord copy/paste; link create/rewire with pin-compat check (14259); link destroy; right-click create/node context menus (14383); fit helper; F/arrow/Delete/Ctrl+Shift+A shortcuts."
+  },
+  {
+   "name": "Status bar, panel draws, voice gc, save-prompt modal, render, shutdown",
+   "start": 14507,
+   "end": 14658,
+   "note": "Status bar (mode/nodes/links/audio stats); ImGui::End of Node Editor; draw_transport_panel, draw_properties_panel, draw_mappings_dialog, draw_shape_editor, draw_waveform_window, draw_spectrum_window, draw_keyboard_panel, draw_audition_window, bottom-pane toggle, stamp banner; voice_gc; 'Save changes?##closeConfirm' modal (14577); ImGui render + glfwSwapBuffers; s_genState==2 blocking transport_generate; shutdown_midi/shutdown_audio/ImGui/ImNodes/GLFW teardown; catch blocks writing the crash log."
+  }
+ ]
+}

@@ -1,0 +1,182 @@
+{
+ "unit": "filters",
+ "assessment": {
+  "health": 3,
+  "summary": "The unit is the engine's filter/effect node set (raw/resonant biquad, Butterworth LP/HP/BP cascades, delay, Chamberlin hammer bank, lookahead limiter, Freeverb reverb, ZDF state-variable filter, RedNoise vibrato) plus the offline StereoMixer and its soft_clip safety belt. The DSP itself is sound: I re-derived the bilinear Butterworth coefficients, the Cytomic SVF taps, and every phase_delay_at branch (including the polarity fold and the leaky-integrator 1P forms) and they are correct; all next() paths are allocation-free with state in fixed arrays or construction-time buffers. The dominant problems are (1) one memory-unsafe path \u2014 DelayFilter never clamps delayTime, so a modulated or over-range delay reads buffer_[negative]; (2) the mixer: master gainL/gainR are advanced once per channel per frame, and the UI carries a hand-copied per-sample mirror of StereoMixer::render that has already diverged from the engine's 2026-09-14 unity-center pan law; (3) copy-paste structure \u2014 BWLowpass/BWHighpass/BWBandpass and their two section structs are near-identical, and every node carries a dead set_X/get_X accessor API beside set_param/get_param; (4) the unit's own tan()-guard convention is not applied uniformly (SVF 1P tan, Limiter exp, mixer cos/sin per sample). The two limiter.h files are unrelated by design (a configurable graph node vs. a fixed free-function clipper used by the mixer and instrument), documented in filter/limiter.h, but the name collision and a dead HARD clamp remain. First change: the one-line DelayFilter clamp; then collapse the BW classes to one template + one section; then factor the per-sample stereo mix law so the engine and UI share it (which also fixes the gain-advance bug).",
+  "strengths": [
+   "No heap allocation or unbounded work in any next(): HammerBank, Reverb, Limiter, SVF, Biquad all keep state in fixed arrays or buffers sized at construction, and HammerBank documents the guarantee explicitly.",
+   "Coefficient-change guards (BW cutoff, SVF fc/res, Biquad resonance f/r) correctly implement the 2026-08-12 CPU-audit convention where they exist.",
+   "Closed-form phase_delay_at in BiquadSource and SVFSource is mathematically correct for all branches (verified LP/HP/BP denominators, BP/HP constant-phase offsets, the +-pi polarity fold, and the non-TPT 1P transfer functions) and is cached on its inputs so per-sample callers pay one comparison.",
+   "Reverb is a faithful Freeverb port with tunings scaled to the running sample rate; Limiter applies the gain derived from the incoming sample to the delayed sample, so the 5 ms lookahead genuinely precedes the peak.",
+   "Self-describing descriptors (params/inputs/settings) are complete and consistent across every node; registry wiring in source_registrations.cpp is one line per type with the JSON 'cutoff' alias handled in a configurator rather than in the node.",
+   "Design comments cite specs and provenance (STK/Maestre, Alpha Forever, Freeverb) and state the per-note lazy-init contracts clearly."
+  ],
+  "files_read": [
+   "C:/@dev/repos/mforce/engine/include/mforce/filter/biquad_source.h",
+   "C:/@dev/repos/mforce/engine/include/mforce/filter/filters.h",
+   "C:/@dev/repos/mforce/engine/include/mforce/filter/hammer_bank.h",
+   "C:/@dev/repos/mforce/engine/include/mforce/filter/limiter.h",
+   "C:/@dev/repos/mforce/engine/include/mforce/filter/reverb.h",
+   "C:/@dev/repos/mforce/engine/include/mforce/filter/svf_source.h",
+   "C:/@dev/repos/mforce/engine/include/mforce/filter/vibrato.h",
+   "C:/@dev/repos/mforce/engine/include/mforce/render/limiter.h",
+   "C:/@dev/repos/mforce/engine/include/mforce/render/mixer.h",
+   "C:/@dev/repos/mforce/engine/src/mixer.cpp"
+  ]
+ },
+ "findings": [
+  {
+   "file": "engine/include/mforce/filter/filters.h",
+   "line": 427,
+   "line_end": 434,
+   "category": "soundness",
+   "severity": "high",
+   "title": "DelayFilter never clamps delayTime; a delay longer than the 1 s buffer indexes buffer_[negative]",
+   "evidence": "float delaySamples = dt * float(sampleRate_);\nfloat readPos = float(ptr_) - delaySamples;\nif (readPos < 0.0f) readPos += float(buffer_.size());\nint s1 = int(readPos) % int(buffer_.size());\n...\nfloat delayVal = (buffer_[s1] + (buffer_[s2] - buffer_[s1]) * frac) * dl;",
+   "why": "dt comes from delayTime_->current() with no clamp; the descriptor max (1.0 s) is a UI hint only \u2014 resolve_param (patch_loader.cpp:105) wires any node, so an envelope/range/LFO can exceed it. With dt = 1.5 s at 48 kHz and ptr_ = 100: readPos = 100 - 72000 + 48000 = -23900; C++ truncating % keeps it negative; buffer_[-23900] is an out-of-bounds read inside the per-sample render path (UB, garbage audio or a crash). Every sibling node in the unit clamps its modulated params (BW cutoff at 164/242/326, SVF at 102-103, Limiter at 85-86, Reverb at 102-105); DelayFilter is the one omission.",
+   "recommendation": "Clamp once per sample: delaySamples = std::clamp(dt * float(sampleRate_), 1.0f, float(buffer_.size() - 2)); then the single '+= size' wrap is sufficient and s1/s2 are always in range (also removes the need for the two % operations on s1/s2).",
+   "confidence": 0.9
+  },
+  {
+   "file": "engine/src/mixer.cpp",
+   "line": 28,
+   "line_end": 31,
+   "category": "soundness",
+   "severity": "high",
+   "title": "StereoMixer advances master gainL/gainR once per channel per frame, so with 2+ channels a modulated master gain runs N\u00d7 too fast and channels see different gain samples",
+   "evidence": "for (auto& ch : channels) {\n  ...\n  for (int i = 0; i < frames; ++i) {\n    float gl = gainL->next();\n    float gr = gainR->next();",
+   "why": "gainL/gainR are prepared once (lines 15-16) but next() is called channels.size() * frames times. They are arbitrary ValueSources (patch_loader.cpp:1701-1702 and 1765-1766 resolve them via resolve_param_or, which accepts any node ref), so an envelope or LFO on the master gain would be consumed at N\u00d7 rate and channel k would be scaled by a different sample than channel 1 \u2014 a silent audio-corruption bug in the engine's only mixer. The UI's hand copy (tools/mforce_ui/main.cpp:3958-3959) gets the ordering right, evaluating gl/gr once per frame outside the channel loop. Latent today because every current patch leaves the master gains constant, but the structure is wrong.",
+   "recommendation": "Invert the loops (frames outer, channels inner) or pre-evaluate gainL/gainR into a per-frame scratch before the channel loop; render each channel's mono block first, then do one per-frame pass that reads gl/gr once and accumulates all channels.",
+   "confidence": 0.85
+  },
+  {
+   "file": "engine/src/mixer.cpp",
+   "line": 36,
+   "line_end": 46,
+   "category": "duplication",
+   "severity": "high",
+   "title": "StereoMixer::render is hand-duplicated per-sample in mforce_ui and the two copies have already diverged (engine unity-at-center pan vs UI's old -3 dB-center law)",
+   "evidence": "mixer.cpp:40-42: constexpr float kRoot2 = 1.41421356237309504880f; float aL = kRoot2 * std::cos(t * 0.5f * pi); float aR = kRoot2 * std::sin(...)\ntools/mforce_ui/main.cpp:3953-3967: \"per-sample mirror of the engine's StereoMixer::render (mixer.cpp)\" ... float aL = std::cos(t * 0.5f * 3.14159265358979323846f); float aR = std::sin(t * 0.5f * ...);",
+   "why": "The engine law was changed 2026-09-14 (comment at mixer.cpp:36-39) so that center-panned channels write x1.0 and 'WAV loudness == UI's unity-mono monitoring'. The UI mirror was not updated, so a center-panned Channel\u2192Mixer node graph monitors at 0.707 (-3 dB) in the UI while the CLI WAV renders it at 1.0 \u2014 exactly the mismatch that change was meant to remove. The copy exists because StereoMixer takes unique_ptr<MonoSource> block renderers and allocates per call (line 18), so the per-sample audio callback cannot reuse it. Second location named: tools/mforce_ui/main.cpp:3957-3971.",
+   "recommendation": "Factor the per-sample law into a tiny inline helper in render/mixer.h (e.g. pan_gains(p, aL, aR) returning the unity-center equal-power pair, plus the gl/gr/soft_clip combine) and call it from both StereoMixer::render and the UI's fill_audio_buffer; or give StereoMixer a per-sample pull API the UI can drive. Either removes the drift and the gain-advance bug in one change.",
+   "confidence": 0.9
+  },
+  {
+   "file": "engine/include/mforce/filter/svf_source.h",
+   "line": 119,
+   "line_end": 120,
+   "category": "performance",
+   "severity": "medium",
+   "title": "Per-sample transcendental recompute of slowly-varying coefficients in three nodes, contradicting the unit's own tan()-guard convention",
+   "evidence": "svf_source.h:119 (every sample in 1P modes): const float g1 = std::tan(3.14159265358979323846f * lastFc_ / float(sampleRate_));\nlimiter.h:90 (every sample): float releaseCoef = std::exp(-1.0f / std::max(1.0f, relSec * float(sampleRate_)));\nmixer.cpp:41-42 (every sample, every channel): float aL = kRoot2 * std::cos(t * 0.5f * pi); float aR = kRoot2 * std::sin(...);",
+   "why": "filters.h:166-168 records that per-sample tan() made each BW node ~10x costlier than its filtering (2026-08-12 audit) and svf_source.h:25-27 claims 'tan() only re-runs when cutoff or resonance actually move' \u2014 but the 1P branch computes tan from lastFc_ every sample even though lastFc_ only changes inside the guarded block two lines above. Limiter pays an exp per sample for a release that is a constant in every patch; the mixer pays cos+sin per sample per channel for a pan that is almost always constant.",
+   "recommendation": "SVF: compute a1p_ = g/(1+g) inside the `if (fc != lastFc_ || res != lastRes_)` block and use it in the 1P branch. Limiter: cache releaseCoef keyed on relSec (same guard idiom). Mixer: cache aL/aR keyed on p (or fold into the shared pan helper from the duplication finding).",
+   "confidence": 0.95
+  },
+  {
+   "file": "engine/include/mforce/filter/filters.h",
+   "line": 194,
+   "line_end": 264,
+   "category": "duplication",
+   "severity": "medium",
+   "title": "BWLowpassFilter, BWHighpassFilter (and BWBandpassFilter) are copy-pasted; BWLPSection/BWHPSection likewise differ only in update()",
+   "evidence": "filters.h:116-189 BWLowpassFilter and 194-264 BWHighpassFilter are identical line-for-line except `type_name()` and `std::vector<BWLPSection>` vs `std::vector<BWHPSection>`; BWLPSection (54-80) and BWHPSection (85-111) share constructor, zeta, fir/iir members and process() and differ only in the body of update(); BWBandpassFilter (269-352) repeats the descriptor/set_param/get_param/prepare/next scaffold a third time.",
+   "why": "~150 duplicated lines in one header; any fix (e.g. the guard convention, a null-check, a descriptor hint) must be applied three times and has already been applied unevenly \u2014 only the LP copy carries the 2026-08-12 audit comment (166-168). The registry (source_registrations.cpp:417-434) already instantiates them with identical lambdas apart from the type.",
+   "recommendation": "One `template <class Section> struct BWFilter final : ValueSource` parameterised on the section type and a `static constexpr const char* kName`, registered under the three names; one `BWSection` struct with `enum class Kind { Lowpass, Highpass }` selecting the update() formula (or two free functions computing coefficients into the same struct). Bandpass becomes two BWFilter instances in series or a thin wrapper over two section vectors.",
+   "confidence": 0.95
+  },
+  {
+   "file": "engine/include/mforce/filter/filters.h",
+   "line": 13,
+   "line_end": 49,
+   "category": "smell",
+   "severity": "medium",
+   "title": "Two biquad kernels in one unit with opposite a/b naming; the BW one is a generic shift-register FIR+IIR with a redundant, bounds-unsafe `n` parameter",
+   "evidence": "filters.h:18 `float process(float input, const float* a, int n)` shifts `vals` (a std::vector) with two loops and `value += a[i] * vals[i]`; BWLPSection stores feedforward in `float a[3]` and feedback in `float b[2]` (lines 57, 68-73) and runs `iir.process(fir.process(gain * input, a, 3), b, 2)`; BiquadSource (biquad_source.h:114) is the textbook form `y = b0 x + b1 x1 + b2 x2 - a1 y1 - a2 y2`.",
+   "why": "Readability cost: a/b mean feedforward/feedback in biquad_source.h and the reverse in filters.h, in the same directory. Performance cost: per section per sample the BW path does two O(n) shift loops over heap-backed vectors plus two indirections versus five MACs and four scalar moves; a 2-section BW node is four such sections. Safety cost: `n` duplicates `vals.size()` and nothing checks n <= order, so a future caller passing n > order reads past the vector. FIRFilter/IIRFilter have no consumers outside the BW sections (grep), and fm_source.h:176 consumes BWLPSection only for decimation.",
+   "recommendation": "Express a BW section as a plain 5-coefficient struct with the same DF-I/TDF-II kernel and naming as BiquadSource (or literally reuse a shared `BiquadKernel` struct that BiquadSource also wraps), and delete FIRFilter/IIRFilter.",
+   "confidence": 0.85
+  },
+  {
+   "file": "engine/include/mforce/filter/vibrato.h",
+   "line": 97,
+   "line_end": 100,
+   "category": "efficiency",
+   "severity": "medium",
+   "title": "Vibrato::prepare() rebuilds its entire LFO sub-graph (~10 make_shared) on every note-on, although the graph depends only on edit-time settings",
+   "evidence": "if (enabled_) {\n  build_lfo();           // rebuild from current config scalars\n  lfo_->prepare(ctx, frames);\n}\n... build_lfo(): auto speedRamp = std::make_shared<ASEnvelope>(sampleRate_); ... std::make_shared<RangeSource>(std::make_shared<ConstantSource>(1.0f), std::make_shared<ConstantSource>(speed_), speedRamp, true); ... lfo_ = std::make_shared<RedNoiseSource>(sampleRate_, seed_); lfo_->set_smoothness(std::make_shared<ConstantSource>(1.0f)); ...",
+   "why": "prepare() runs per note from Instrument::prepare_voice_at (instrument.h:578/607), which the UI calls from the keyboard/MIDI handling path (main.cpp:4691, 4801) \u2014 not the audio callback, so this is not an RT violation, but it is a burst of ~10 heap allocations (plus shared_ptr control blocks and the old graph's destruction) on every live note in five library patches (oboe1, oboe2, bassoon1, viola_default, cello_full_range \u2014 grep patches/library). The settings it reads (speed_, depth_, attack_, speedVar_, depthVar_, zct_, seed_) only change through set_setting at edit time; ASEnvelope lays its ramp out from `frames` in its own prepare(), so re-preparing the existing graph is sufficient.",
+   "recommendation": "Build the LFO once in the constructor and mark it dirty in set_setting(); prepare() rebuilds only when dirty, otherwise just forwards prepare to lfo_. Keep the per-note reseed() path as is (it forwards to the existing lfo_).",
+   "confidence": 0.9
+  },
+  {
+   "file": "engine/src/mixer.cpp",
+   "line": 18,
+   "category": "rt-safety",
+   "severity": "medium",
+   "title": "StereoMixer::render allocates a scratch vector on every call",
+   "evidence": "std::vector<float> mono(frames);",
+   "why": "render(ctx, out, frames) is the block-render API, and the allocation is inside it. Today the only callers are offline (tools/mforce_cli/main.cpp:775, explore.cpp:376 \u2014 verified by grep), so no audio thread is hit, but it is one of the two reasons the UI could not drive StereoMixer live and copied it instead (see duplication finding), and it violates the project's render-path rule by shape even if not by current use.",
+   "recommendation": "Keep a `std::vector<float> scratch_` member grown in a prepare()/reserve step (or on first call outside the audio thread) and reuse it; or accept a caller-supplied scratch span.",
+   "confidence": 0.9
+  },
+  {
+   "file": "engine/include/mforce/filter/filters.h",
+   "line": 117,
+   "line_end": 120,
+   "category": "smell",
+   "severity": "low",
+   "title": "Dead parallel accessor API (set_source/get_source/set_cutoffFreq/...) duplicated on every node beside set_param/get_param, with zero callers",
+   "evidence": "filters.h:117-120, 195-198, 270-275, 358-366; limiter.h:24-30; reverb.h:21-31; vibrato.h:35-36 \u2014 e.g. `void set_source(std::shared_ptr<ValueSource> s) { source_ = std::move(s); }` immediately followed by `set_param(\"source\", ...)` doing the same thing.",
+   "why": "Grep across engine/ and tools/ finds no call to any of these on a filter node (the only set_frequency/get_frequency hits are on RedNoiseSource/WaveSource/FormantSource). Two ways to wire the same pin means two places to keep in sync and ~45 lines of noise; BiquadSource, SVFSource and HammerBank already omit them and are the cleaner model.",
+   "recommendation": "Delete the typed accessors on BWLowpass/BWHighpass/BWBandpass/DelayFilter/Limiter/Reverb/Vibrato; set_param/get_param are the registry-driven path and the only one used.",
+   "confidence": 0.95
+  },
+  {
+   "file": "engine/include/mforce/filter/hammer_bank.h",
+   "line": 128,
+   "category": "modern-cpp",
+   "severity": "low",
+   "title": "Hand-written pi literals of differing precision instead of C++20 std::numbers::pi_v<float>",
+   "evidence": "hammer_bank.h:128 `2.0f * std::sin(3.14159265f * fc / float(sampleRate_))`; biquad_source.h:104,130 and svf_source.h:106,119,155 `3.14159265358979323846f`; filters.h:63,67,94,98 `3.14159265358979` (double); mixer.cpp:41-42 inline literal.",
+   "why": "The project targets C++20 and nothing in the repo includes <numbers> (grep: zero hits; 30 literal occurrences across 20 engine files). Within this unit alone three spellings coexist, one of them 9 digits (hammer_bank) next to 21-digit neighbours \u2014 a per-file constant that should be one named value.",
+   "recommendation": "`#include <numbers>` and use `std::numbers::pi_v<float>` / `std::numbers::pi` (or a single `mforce::kPi` in core if a float/double pair is wanted); drop the local `constexpr float pi` copies in biquad_source.h:130 and svf_source.h:155.",
+   "confidence": 1
+  },
+  {
+   "file": "engine/include/mforce/filter/reverb.h",
+   "line": 118,
+   "category": "performance",
+   "severity": "low",
+   "title": "Ring-buffer wrap via integer modulo per sample (12 idivs/sample in Reverb, 3 in DelayFilter, 1 in Limiter)",
+   "evidence": "reverb.h:118 `c.idx = (c.idx + 1) % int(c.buffer.size());` and :128 `a.idx = (a.idx + 1) % int(a.buffer.size());` (8 combs + 4 allpass); filters.h:415 `ptr_ = (ptr_ + 1) % int(buffer_.size());`, :431-432 `int s1 = int(readPos) % ...; int s2 = (s1 + 1) % ...;`; limiter.h:105 `int read = (write_ + 1) % lookaheadSamples_;`",
+   "why": "Integer division is ~20-40 cycles and the divisor is a runtime value (vector size), so it cannot be strength-reduced; Reverb pays ~12 of them per sample, roughly the cost of the filtering itself. The index is known to be in [0, size) so a compare-and-reset is exact.",
+   "recommendation": "`if (++c.idx == size) c.idx = 0;` (store size as an int member once at construction); in DelayFilter, after the clamp from the OOB finding, s1 is in range and s2 needs only `if (s2 == size) s2 = 0`.",
+   "confidence": 0.9
+  },
+  {
+   "file": "engine/include/mforce/render/limiter.h",
+   "line": 23,
+   "line_end": 24,
+   "category": "smell",
+   "severity": "low",
+   "title": "soft_clip's HARD clamp is unreachable, the mixer comment states the wrong ceiling, and the file shares its name with an unrelated filter/limiter.h",
+   "evidence": "render/limiter.h:19-24: `float room = CEIL - THR; float shaped = THR + room * std::tanh(over / room); float y = sign * shaped; if (y > HARD) y = HARD; if (y < -HARD) y = -HARD;` with THR=0.95, CEIL=0.99, HARD=0.999; mixer.cpp:49 `// Peak guard: bound mix output to \u00b10.999.`",
+   "why": "tanh < 1 so |shaped| < THR + room = CEIL = 0.99 < HARD; the 'belt-and-suspenders' lines can never fire (NaN also passes through untouched since the comparisons are false). The mixer comment documents 0.999 while the real bound is 0.99. Relationship of the two limiter.h files is clear once read (filter/limiter.h:16-18 explains it: configurable lookahead graph node vs. fixed free-function safety clip used by mixer.cpp:51 and instrument.h:82), but two headers named limiter.h with unrelated contents is a navigation trap in a header-heavy codebase.",
+   "recommendation": "Rename render/limiter.h to soft_clip.h (one include line in mixer.cpp, instrument.h, mforce_ui/main.cpp, explore.cpp); delete the dead HARD clamp or make it meaningful (e.g. CEIL = HARD); fix the mixer.cpp:49 comment to \u00b10.99.",
+   "confidence": 0.95
+  },
+  {
+   "file": "engine/include/mforce/filter/biquad_source.h",
+   "line": 104,
+   "line_end": 106,
+   "category": "smell",
+   "severity": "low",
+   "title": "Resonance mode overwrites the a1/a2 *settings*, so get_setting reports derived coefficients and a mode flip back to Raw inherits them",
+   "evidence": "a1_ = -2.0f * r * std::cos(2.0f * pi * f / float(sampleRate_));\na2_ = r * r;\n... get_setting: if (name == \"a1\") return a1_; if (name == \"a2\") return a2_;",
+   "why": "a1_/a2_ are user-facing settings (setting_descriptors 51-52) and also the live resonance-mode state. After any resonance-mode render, a patch save via get_setting persists the last computed cos/r\u00b2 values instead of the authored ones, and switching mode to Raw keeps filtering with them until the user retypes a1/a2. Minor because resonance patches rarely flip modes, but it is state aliasing of a settings field.",
+   "recommendation": "Keep the derived pair in separate members (e.g. ra1_, ra2_) selected in next(), leaving the b/a settings untouched by rendering.",
+   "confidence": 0.85
+  }
+ ]
+}

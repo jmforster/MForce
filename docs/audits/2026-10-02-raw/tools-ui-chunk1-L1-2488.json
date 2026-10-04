@@ -1,0 +1,193 @@
+{
+ "unit": "tools-ui-chunk1-L1-2488",
+ "assessment": {
+  "health": 2,
+  "summary": "This range is the editor's data model (Pin/GraphNode/Link/NodeGroup over flat globals), the DSP wiring layer (update_node_dsp/update_all_dsp under g_audioMutex), Win32 dialogs, the legacy paramMap-to-wiring converter and an ~800-line load_graph_from_path, plus recents/settings persistence. The logic is careful and unusually well-annotated with provenance, and several real bugs have been closed with explicit guards (corrupt coordinates, verbatim passthrough of unmodeled JSON, shared envelope preset dispatch with the engine loader). The dominant problems are structural: GraphNode is a tagged-union-by-convention god struct dispatched by string if-chains, load_graph_from_path is a nine-phase god function with dead state and an embedded layout algorithm, and the UI-side wiring work (allocating, graph-size-proportional) runs while holding the mutex the RtAudio callback blocks on. There is also one user-facing crash: File > Open / Ctrl+O has no exception boundary, so opening any non-patch or malformed JSON exits the process, and a structural failure after state teardown leaves an empty graph pointed at the bad file. Two binding models (paramMap stash vs wiring/dynamicPins) coexist with contradictory comments about which is canonical.",
+  "strengths": [
+   "Extensive provenance comments tie every guard to the bug it closed (e.g. 93-97 hasConstant, 2208-2218 corrupt-coordinate guard, 1846-1866 preset restore).",
+   "Pin-type compatibility check (874-907) and normal-cycle refusal (992-1018) keep structurally invalid wires out of the model instead of letting the loader silently drop them.",
+   "Unmodeled JSON is carried verbatim (jsonExtras 296, jsonSeed 288, s_loadedInstrumentExtras 754) so UI round-trips do not strip engine data; seeds-in-JSON rule honored.",
+   "Envelope preset restore reuses the engine's envelope_from_preset_json (1864) rather than a hand copy, so UI and CLI loaders cannot drift.",
+   "paramMap conversion is done in JSON space (1394-1412) to stay byte-identical with the gated Python converter.",
+   "Link creation always normalizes to (output, input) at every creation site, so Link direction is in fact an invariant.",
+   "Explicit registry use (SourceRegistry) throughout; no reflection-style tricks.",
+   "Headless CLI modes reuse the same load/save path with s_headless gating ImNodes calls (2224, 2326)."
+  ],
+  "files_read": [
+   "C:/@dev/repos/mforce/tools/mforce_ui/main.cpp (lines 1-2488 in full; targeted reads at 3534-3551, 3853-3874, 4030-4049, 4174-4206, 4862-4891, 7082-7121, 9326-9347, 11560-11571, 12970-12989, 13533-13550, 13655-13666, 13684-13697, 13824-13833, 14258-14348, 14488-14507, 14644-14658 to trace call paths)",
+   "C:/@dev/repos/mforce/engine/include/mforce/core/source_registry.h",
+   "C:/@dev/repos/mforce/engine/include/mforce/filter/svf_source.h (grep only: input_descriptors/set_param)",
+   "C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.41.34120/include/xtree (grep only: _Tree move ctor)"
+  ]
+ },
+ "findings": [
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 1561,
+   "line_end": 1610,
+   "category": "soundness",
+   "severity": "high",
+   "title": "File > Open / Ctrl+O has no exception boundary: a malformed or non-patch JSON exits the process; a structural failure leaves an empty graph aimed at the bad file",
+   "evidence": "1568: `json root = json::parse(f);` (throws parse_error) ... 1576-1588: `s_nodes.clear(); s_links.clear(); ... s_nextId = 1;` ... 1610: `std::string outputId = root[\"graph\"][\"output\"].get<std::string>();` (throws type_error when absent). 2419-2424 `load_graph()` calls it bare; callers 13664 (`if (ImGui::MenuItem(\"Open\", \"Ctrl+O\")) { load_graph(); }`) and 13829 have no try; the only catch is main()'s outer one at 14649 which `return 1`s.",
+   "why": "Opening a scores/*.json, mforce_ui_settings.json or any truncated file from the File menu terminates the editor and loses unsaved work \u2014 a public-release embarrassment. Even where a caller does catch (Open Recent, 13691; CLI arg, 13538), the function has already torn down the graph (1576-1588) and set `s_currentFilePath = path; s_graphDirty = false;` (1573-1574) before validating structure at 1609-1610, so the user is left with an empty canvas whose Ctrl+S (`save_graph` 3534-3538 writes `s_currentFilePath` unconditionally) overwrites the file they tried to open.",
+   "recommendation": "Validate the document fully (parse, `graph.nodes` array, `graph.output` string) into locals BEFORE touching any s_/g_ state, then commit; wrap `load_graph()` (and the two menu/shortcut callers) in the same try/catch + transport_set_status pattern the recents path already uses. Consider making load_graph_from_path return bool/expected instead of throwing through UI code.",
+   "confidence": 0.9
+  },
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 1022,
+   "line_end": 1084,
+   "category": "rt-safety",
+   "severity": "high",
+   "title": "update_all_dsp / update_node_dsp do allocating, graph-size-proportional work while holding the mutex the RtAudio callback blocks on",
+   "evidence": "1023: `std::lock_guard<std::mutex> lock(g_audioMutex);` then 1032: `std::unordered_map<int, std::vector<Consumer>> consumers;`, 1059: `consumers[outPinId].push_back(...)`, 1077: `auto ref = std::make_shared<RefSource>(srcNode->dspSource);`, 968: `src = std::make_shared<RefSource>(src, true);`, and per pin per link linear scans 948-957 (`for (auto& pin : node.inputs) for (auto& link : s_links) ... find_node_for_pin(otherPinId); find_pin(otherPinId)`), 1034-1057 (five linear find_pin/find_node_for_pin per link). The callback takes the same lock blocking: 3864 `std::lock_guard<std::mutex> lock(g_audioMutex);` (AUDIO_BUF_FRAMES = 512 at 3551, ~10.7 ms budget).",
+   "why": "Every link create/delete (1179, 14354, 14377), every Properties pin edit (9345 calls `update_node_dsp(*node)` even though 9343 already did `pin.constantSrc->set(...)`), and every paste/convert re-wires under the lock while the stream is live; the audio thread stalls for the full duration, which grows with nodes x pins x links and includes heap allocation and every node's set_param/apply_config. This is the UI-side half of a per-block render path that locks and does unbounded work \u2014 the project's own hard rule.",
+   "recommendation": "Build the new wiring off-lock (compute the consumer map and RefSource wrappers into a staged structure, or into a cloned DSP graph), then swap pointers under the lock in O(1); or stop the streams before structural rewires exactly as delete_node already does via stop_streams(). Drop the redundant update_node_dsp on constant-value edits (the ConstantSource is already updated in place). Pair with a try_lock-and-output-silence policy in the callback (section 3).",
+   "confidence": 0.7
+  },
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 1561,
+   "line_end": 2359,
+   "category": "god-class",
+   "severity": "high",
+   "title": "load_graph_from_path is a ~800-line, nine-phase god function with dead state and an embedded layout algorithm",
+   "evidence": "1561 `static void load_graph_from_path(const std::string& path) {` ... 2359 `}`. Phases: formant pre-scan 1621-1687, perf-node consumption 1696-1703, node creation + six type-specific param branches 1705-1994, Note-face assembly 1996-2044, link pass 2046-2117, output/instrument block 2119-2156, groups 2158-2192, position restore 2194-2227, 100-line control-strip layout 2228-2329, panning 2338-2345. Dead: 1613 `std::unordered_map<std::string, GraphNode*> nodeMap;` is written at 1751 `nodeMap[id] = &gn;` and never read. 1643 `std::unordered_map<std::string, bool> ownedFormants;` duplicates the 1443 `std::unordered_set<std::string> ownedFormants;` scan in convert_parammap_to_wiring with different criteria.",
+   "why": "No phase can be tested, reused (the clipboard/paste and replace paths re-implement pieces) or reasoned about in isolation; the function mixes document validation, model construction, DSP configuration and canvas layout, and dead locals like nodeMap (which would dangle on s_nodes reallocation if ever used) accumulate because nothing is small enough to notice.",
+   "recommendation": "Split into pure phase functions over a parsed document: `consume_owned_formants(doc)`, `build_nodes(doc)`, `restore_node_params(GraphNode&, const json&)` (with per-type hooks for Envelope/CurveNode/FormantSpectrum/NameGate), `build_links(doc, pinMaps)`, `restore_groups`, `restore_positions`, `layout_control_strip(unplaced)`. Delete nodeMap. Share one owned-formant predicate with convert_parammap_to_wiring.",
+   "confidence": 0.95
+  },
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 1114,
+   "line_end": 1171,
+   "category": "soundness",
+   "severity": "medium",
+   "title": "delete_node removes links and the node but never re-wires DSP, so consumers keep pulling the deleted node's dspSource; the continuous stream then plays a graph the canvas no longer shows",
+   "evidence": "1120-1129 `s_links.erase(std::remove_if(...))`, 1167-1170 `s_nodes.erase(...)` \u2014 no update_all_dsp, unlike delete_link at 1179 `update_all_dsp();`. Consumers were wired by 472 `dspSource->set_param(pinName, src);` holding a shared_ptr, so the deleted source stays alive and connected. Callers 14501 `for (int nid : sel) delete_node(nid);` and 11567 `delete_node(s_contextNodeId);` do not re-wire either; play_continuous (4873 `find_output_source()`, 4878 `prepare_graph(samples)` which only calls prepare at 4204) streams the raw dspSource graph. Also: comment 1140-1146 says the dynamic-pin entry 'is dropped' but 1157 does `it.value() = nullptr;  // pin stays promoted, unwired`, inside an erase-shaped loop (1149-1162) whose both branches `++it`.",
+   "why": "After Delete on, e.g., an LFO feeding a filter, the Properties pane shows the pin unconnected at its constant while the live stream still hears the LFO until some unrelated link edit or load happens to call update_all_dsp \u2014 a UI/DSP divergence of exactly the 'lying wire' kind the pin_type_compat_error comment says the UI must prevent. The vestigial loop shape and contradicting comment make the function's intent unreadable.",
+   "recommendation": "Call update_all_dsp() at the end of delete_node (or make the Delete callers do it once per batch); collapse the two sequential `for (auto& node : s_nodes) { if (node.id != nodeId) continue; ... break; }` lookups (1118, 1134) into one find; rewrite 1149-1162 as a plain range-for and fix the comment to match the 'unwired, still promoted' behavior.",
+   "confidence": 0.8
+  },
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 245,
+   "line_end": 634,
+   "category": "god-class",
+   "severity": "medium",
+   "title": "GraphNode is a tagged-union-by-convention god struct: every node carries every node type's fields, dispatch is typeName string if-chains, and the constructor reads global s_nodes during its own emplace_back",
+   "evidence": "PatchOutput-only: 267 `int polyphony{4};`, 274-275 `bool sustaining{false}; char onsetsBuf[128]{};`, 279-280 glideMs; Parameter/NameGate-only: 311-312 `std::string paramName; char paramNameBuf[32]{};`; Perform-only: 324 `int performField{0};` (never referenced anywhere else in the file), 332 perfFieldIds; Curve-only: 336-341; FormantSpectrum-only: 264; display: 299 `std::vector<float> waveformData;`. Dispatch: create_dsp 386-466 and build_pins 536-622 are `if (typeName == NT_...)` chains. 369 `GraphNode(const std::string& type) : id(next_id()), typeName(type), label(unique_node_label(type))` where 707-718 unique_node_label iterates `s_nodes` \u2014 the container the node is being emplaced into (1733 `s_nodes.emplace_back(type);`), requiring the forward declaration at 243.",
+   "why": "Adding a node kind means touching five hand-maintained lists (see separate finding) and growing every node; type-specific invariants (e.g. perfFieldIds only meaningful on Note faces) are enforced nowhere. The ctor's dependence on the global container makes GraphNode unconstructible outside the editor (tests, headless tools) and relies on the container's unspecified mid-insertion state. The load path immediately overwrites the computed label (1735 `gn.label = id;`), so the O(N) uniqueness scan per node is wasted on every load.",
+   "recommendation": "Keep the shared core (id, typeName, label, pins, dspSource, settings/arrays, gridPos) and move per-kind payload into a `std::variant<Monostate, PatchOutputData, ParameterData, NoteFaceData, CurveData, FormantTableData>` or small per-kind structs; take the label as a ctor argument (caller computes uniqueness) so the ctor is pure; delete performField; replace the fixed char buffers with std::string + ImGui string callbacks.",
+   "confidence": 0.85
+  },
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 132,
+   "line_end": 202,
+   "category": "smell",
+   "severity": "medium",
+   "title": "No single source of truth for UI-special node types: five hand-maintained lists that have already drifted once",
+   "evidence": "132-135 `is_special_ui_type` lists SoundChannel/StereoMixer/PatchOutput/Parameter only; 1721-1731 unknown-type test must therefore spell `!is_special_ui_type(type) && type != NT_ENVELOPE && type != NT_PERFORM && ... type != \"FormantSpectrum\" && !SourceRegistry::instance().has(type)`, with comment 1724-1728: 'The exemption list predates PerformNode and fired a false \"loaded inert\" on every converted patch's first human load'. The same set is re-enumerated in node_display_name 137-143, node_title_color 168-180, create_dsp 386-456, build_pins 536-595. 166 `kDynPinGold = IM_COL32(205, 170, 60, 255)` is re-spelled literally at 178 `return IM_COL32(205, 170, 60, 255);` despite the comment that it must 'read as one color'.",
+   "why": "The recorded bug is the predictable cost: each new editor-only type (Wormhole, NameGate, PerformNode were all added this way) must be added to every list by hand, and a miss produces a silent misclassification (inert node, wrong color, wrong pins).",
+   "recommendation": "One table `struct UiTypeInfo { const char* name; const char* display; ImU32 color; bool hasEngineObject; ... }` keyed by type name, with `is_known_type(t) = ui_table.contains(t) || registry.has(t)`; derive display name, color and the unknown-type check from it; use kDynPinGold at 178.",
+   "confidence": 0.85
+  },
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 722,
+   "line_end": 737,
+   "category": "workaround-hack",
+   "severity": "medium",
+   "title": "s_loadedParamMap is documented as dead residue but is still a live, edited binding model; two contradictory comments in this range",
+   "evidence": "722-725: 'paramMap RESIDUE \u2014 the entries convert_parammap_to_wiring could NOT turn into graph nodes. No longer the model (P2b, 2026-08-19) ... the curve editors and Mappings dialog derive from the graph, not from here.' 734: 'this is expected to be EMPTY for most patches'. Versus 2150-2155: 'paramMap: the stash IS the model (2026-08-14 spec \u00a72) ... bindings live as data, are edited in the Mappings dialog / Curve Properties' followed by `s_loadedParamMap = root[\"instrument\"][\"paramMap\"];`. Writers elsewhere: 7110-7119 `s_loadedParamMap[paramName] = json::array(); ... e.push_back(std::move(curveObj));` (curves_add_entry), 10708-10709 `s_loadedParamMap[\"frequency\"] = n.label + \".frequency\";`.",
+   "why": "Two binding mechanisms (paramMap stash applied per note vs. PerformNode/CurveNode wiring + dynamicPins) coexist, and the declaration lies about which is canonical. Anyone reading 722-737 would conclude the Mappings-dialog writes are dead code and remove them, or conversely keep extending a model the design says is retired. This is the kind of half-migration the review brief calls a workaround.",
+   "recommendation": "Decide: either finish P2b (convert owned-formant targets by letting FormantRow carry a driven ref, then delete the stash and the Mappings-dialog writers) or retitle the stash as a first-class model and delete the 'residue' narrative. Until then, make 722-737 state the truth: 'still written by curves_add_entry / convert paths; applied per note by apply_param_map'.",
+   "confidence": 0.85
+  },
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 1258,
+   "line_end": 1327,
+   "category": "duplication",
+   "severity": "medium",
+   "title": "save_file_dialog / open_file_dialog are verbatim specializations of text_save_dialog / text_open_dialog \u2014 four copies of the OPENFILENAMEA setup",
+   "evidence": "1258-1273 `save_file_dialog()`: `char filename[MAX_PATH] = \"patch.json\"; OPENFILENAMEA ofn{}; ... ofn.lpstrFilter = \"JSON Files\\0*.json\\0All Files\\0*.*\\0\"; ... ofn.Flags = OFN_OVERWRITEPROMPT | OFN_NOCHANGEDIR; ofn.lpstrDefExt = \"json\"; if (GetSaveFileNameA(&ofn)) { remember_feature_dir(\"save\", filename); return filename; }` is byte-for-byte `text_save_dialog(\"save\", jsonFilter, \"json\", \"patch.json\")` (1294-1311). Likewise 1275-1289 `open_file_dialog()` == `text_open_dialog(\"open\", jsonFilter)` (1313-1327).",
+   "why": "70 lines where 10 would do; the two JSON dialogs cannot pick up a fix made to the generic ones (e.g. a future switch to IFileDialog, which the file already uses for folders per line 14).",
+   "recommendation": "`static constexpr const char* kJsonFilter = \"JSON Files\\0*.json\\0All Files\\0*.*\\0\"; static std::string save_file_dialog() { return text_save_dialog(\"save\", kJsonFilter, \"json\", \"patch.json\"); } static std::string open_file_dialog() { return text_open_dialog(\"open\", kJsonFilter); }` and make the feature key an enum rather than a string (settings_dir_slot 2465-2474 returns nullptr silently on a typo).",
+   "confidence": 0.95
+  },
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 649,
+   "line_end": 650,
+   "category": "efficiency",
+   "severity": "medium",
+   "title": "std::vector<GraphNode> with a non-noexcept move: every reallocation deep-copies all nodes, and GraphNode* handles are invalidated by any emplace_back",
+   "evidence": "649 `static std::vector<GraphNode> s_nodes;` GraphNode holds 332 `std::map<std::string, std::string> perfFieldIds;` and 354-355 two `std::unordered_map<std::string, int>`; MSVC xtree 902-907: `_Tree(_Tree&& _Right) ... { _Alloc_sentinel_and_proxy(); ... }` (no noexcept, allocates), so GraphNode's implicit move is not noexcept and vector growth uses the copy ctor: three nlohmann::json members (296, 348 plus pins' shared_ptrs), 299 `std::vector<float> waveformData;`, strings and maps are copied per node per reallocation. Pointers are handed out freely: 814-819 find_node_for_pin, 1751 `nodeMap[id] = &gn;` (dead, but exactly the pattern that dangles), 2307-2309 `std::vector<GraphNode*> strip`.",
+   "why": "Loading or pasting N nodes copies ~2N full nodes including their waveform strips; worse, correctness of every `GraphNode*` in the file depends on no emplace_back happening while it is held \u2014 a hazard with no compiler help, in a 14k-line TU that stores such pointers in lambdas and locals.",
+   "recommendation": "Use a stable-address container (`std::deque<GraphNode>` or `std::vector<std::unique_ptr<GraphNode>>`) so node pointers are stable for the node's lifetime and growth never copies; or at minimum give GraphNode an explicit `noexcept` move ctor/assign (MSVC map move will still allocate \u2014 the stable container is the real fix).",
+   "confidence": 0.75
+  },
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 1081,
+   "line_end": 1083,
+   "category": "workaround-hack",
+   "severity": "medium",
+   "title": "update_all_dsp swallows every exception, silently accepting a half-wired graph",
+   "evidence": "1024 `try {` ... 1081-1083 `} catch (...) {\\n        // Don't crash the UI on DSP wiring errors\\n    }`. The wiring inside is set_param/add_param/clear_param on engine objects (941, 970, 972, 1078) plus Envelope apply_config (979).",
+   "why": "If any node's set_param throws partway, the graph is left with some consumers wired and others at their constants, no status message, no log \u2014 exactly the 'lying wire' state the UI's own comment at 868-873 says it exists to prevent; and the catch(...) also hides programming errors (bad_alloc, logic_error) during development.",
+   "recommendation": "Catch `std::exception` only, report via transport_set_status(..., true) and stderr with the node/pin, and leave the graph in a defined state (re-run the first pass to constants on failure). Better: make engine set_param non-throwing for unknown names (it already is for svf_source.h 65-69) and remove the try entirely.",
+   "confidence": 0.8
+  },
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 636,
+   "line_end": 641,
+   "category": "elegance",
+   "severity": "low",
+   "title": "Link direction is an enforced invariant (start = output, end = input) that is undocumented and re-checked in both orientations at three sites",
+   "evidence": "636-641 `struct Link { int id; int startPinId; int endPinId; ...}` with no comment. Every creation site stores (output, input): 2062/2067/2081/2090/2100/2113/2148 (`s_links.emplace_back(outIt->second, inIt->second)`), editor 14303-14304 `int outPin = (startPin->kind == PinKind::Output) ? startAttr : endAttr; int inPin = ...` then 14342 `s_links.emplace_back(outPin, inPin);`, 9189-9191, 10521, 10608-10609, 10671. Yet 950-952 `if (link.endPinId == pin.id) otherPinId = link.startPinId; if (link.startPinId == pin.id) otherPinId = link.endPinId;`, 1007-1008, and 1042-1046 (`else if (endPin->kind == PinKind::Output && startPin->kind == PinKind::Input)`) each handle a reversed link that cannot exist.",
+   "why": "Dead branches cost reading time and imply a flexibility that is not there; a future reader may 'fix' one site to accept reversed links and break the others.",
+   "recommendation": "Rename the fields `outPinId`/`inPinId`, assert the kinds in the Link ctor, and delete the reversed-orientation branches at 952, 1008 and 1044-1046.",
+   "confidence": 0.85
+  },
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 910,
+   "line_end": 924,
+   "category": "smell",
+   "severity": "low",
+   "title": "Dead code in this range: dsp_rewire_link, GraphNode::performField, load's nodeMap, and the waveOut-era <mmsystem.h> include",
+   "evidence": "910 `static void dsp_rewire_link(int outputPinId, int inputPinId, bool connect) {` \u2014 no call site in the file (grep: definition only). 324 `int performField{0};` \u2014 only occurrence in the file. 1613/1751 nodeMap written, never read. 12 `#include <mmsystem.h>` \u2014 the only other mentions of waveOut are comments (3542, 14565); the RtAudio design replaced it.",
+   "why": "Each is a small trap: dsp_rewire_link looks like the per-link rewire entry point but is not (update_all_dsp is), performField is documented as the field selector but is ignored, and the stale include drags in the multimedia API for nothing.",
+   "recommendation": "Delete all four.",
+   "confidence": 0.9
+  },
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 611,
+   "line_end": 611,
+   "category": "efficiency",
+   "severity": "low",
+   "title": "Instantiate-to-introspect: every node creation constructs its DSP object twice, and the paramMap converter constructs one per entry, because descriptors are only reachable through an instance",
+   "evidence": "611 `auto tmp = reg.create(typeName, DSP_SAMPLE_RATE);` (build_pins, discarded after reading descriptors), then 462 `dspSource = reg.create(typeName, DSP_SAMPLE_RATE);` (create_dsp); 565 `Envelope tmp(DSP_SAMPLE_RATE);` for the same purpose; 1488-1495 `is_setting` does `auto probe = reg.create(type, DSP_SAMPLE_RATE);` per paramMap entry. source_registry.h (28-59) exposes only `create`, `has`, `get_category`, `registered_types` \u2014 no descriptor-only path.",
+   "why": "Load-time only, so not a release blocker, but it doubles construction cost for sources whose constructors allocate sample-rate-sized state and makes 'what pins does type X have' impossible to answer without building X. The fix is cross-unit (registry), which is why it keeps being worked around here.",
+   "recommendation": "Register descriptor spans alongside the factory (`register_type(name, category, factory, descriptors, configurator)`) and add `SourceRegistry::descriptors(type)`; build_pins and is_setting then need no instance.",
+   "confidence": 0.7
+  },
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 2366,
+   "line_end": 2444,
+   "category": "smell",
+   "severity": "low",
+   "title": "Recents/settings are persisted CWD-relative although documented as 'next to the exe', and recent-path dedupe is case-sensitive on a case-insensitive filesystem",
+   "evidence": "2366 `static const char* RECENTS_PATH = \"mforce_recents.json\";`, 2444 `static const char* SETTINGS_PATH = \"mforce_ui_settings.json\";` vs 2428 comment 'Tiny JSON next to the exe'. 2378-2388 normalize_path only swaps '\\\\' for '/', then 2401/2412 use `std::find` equality.",
+   "why": "Launching from a different working directory (a worktree, a shortcut, the CLI harness) silently starts with empty recents and forgotten folders; `C:/x/a.json` and `c:/x/a.json` appear as two recent entries.",
+   "recommendation": "Resolve both paths against the executable directory (GetModuleFileNameA \u2192 parent_path) or %LOCALAPPDATA%/MForce; lowercase (or use std::filesystem::equivalent) for dedupe.",
+   "confidence": 0.8
+  }
+ ]
+}

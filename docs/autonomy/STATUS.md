@@ -1,5 +1,61 @@
 # Status — session handoff (Claude reads this first; Matt's queue = */REVIEW.md)
 
+Updated: 2026-10-04 later (refactor session I with Matt; no code changed).
+DECIDED: no restart. Engine is refactored under its existing gates; the UI
+is rebuilt module by module out of main.cpp. Goal = go public to attract
+developer collaborators, code near pristine (CLAUDE.md "Design principles",
+recorded at Matt's request). AGREED, NOT BUILT: enforcement goes in BEFORE
+campaign 1 — ratcheted structure-budget script (CTest + pre-commit + Claude
+Code edit hook), a design section in every spec for Matt's sign-off, a
+module map, an independent refuter with a principles checklist (separation
+of concerns etc.), and an "architecture delta" report in REVIEW per
+campaign (moderately verbose, script-generated metrics, 1-2 C++ lessons).
+C++ primer for Matt: docs/matt/cpp_primer_10000ft.md. Measured from git:
+mforce_ui/main.cpp = 196 commits, only 3 of them >=500 lines, never a
+second source file; Fable 5 53% of added lines, Opus 4.6/4.7 37% — not a
+model problem. NEXT: campaign-by-campaign discussion with Matt (my read:
+gates first, then campaign 1 = engine RT safety with the allocation test
+first and CTest registration pulled forward); spec at xhigh.
+SAME DAY, LATER — PLAN CHANGED TO TWO PHASES (Matt: major surgery first,
+"extra latitude to slash n burn"; gates only after). Spec:
+docs/superpowers/specs/2026-10-04-refactor-gates-design.md, section 0.
+**FEATURE FREEZE: no feature work in any lane, no "go" runs, until Matt
+lifts it** (CLAUDE.md "Scope right now"). Phase 1 = surgery: latitude on
+the route (delete, rewrite, break internal interfaces, big commits, no
+hooks/ratchet, areas a goal not a rule); fixed = ONE signed
+target-architecture doc for the whole codebase incl. deletion list,
+behaviour gates before/after every cut, checkpoints ending in commit +
+independent review + architecture report. Checker is built now only as a
+meter. Phase 2 (ratchet, hooks, per-change sign-off) switches on when
+surgery ends; its five open decisions (spec section 5: limits 600/80,
+`lizard` NOT installed, source/filter peers, default-proceed, third REVIEW
+file) still need Matt.
+PRE-SURGERY STATE OF GIT (checked 10-04): main had no uncommitted code;
+docs checkpoint committed. main is 657 commits ahead of origin (last push
+07-03) — push is Matt's call. Two September commits never reached main:
+138598f (UI fix: duplicate same-field PerformNode ids survive roundtrip,
+branch claude/magical-snyder-27b31f) and 8b20ab2 (repair FormantSequence1
+baseline, retire NATest1, branch claude/amazing-lederberg-ad2a53). April
+branches/worktrees (chord-walker, harmony-first, agent-*) are old
+experiments; agent-a57ee260 holds a 27-line uncommitted edit to
+music/structure.h from 04-12. GOALS.md stays Matt's uncommitted edit.
+NEXT: the target-architecture document (xhigh; max for the per-tick memo
+and lock-free publish calls), then Matt's sign-off, then the meter, then
+cutting.
+
+Updated: 2026-10-04 (full architecture/code review DELIVERED 10-03;
+no code changed). Report: docs/audits/2026-10-02-architecture-code-review.md
+(+ 2026-10-02-raw/). 474 findings, 123 skeptic-verified, 17 confirmed by
+hand, rest marked unverified. Headline bugs REPRODUCED: Conductor replays
+every part once per section; --dun renders silence; dictionary chord
+voicings spin to int overflow. Campaign order in report §8 (RT safety ->
+comp spine bugs -> lock-free voice publish -> registry-first loader ->
+per-tick memo -> UI split -> build/test hygiene). Effort scheme: xhigh for
+specs/reviews, high for executing plans, max for single hard turns,
+ultracode keyword per fan-out turn only (5-hour window ~60 agents).
+NEXT: priorities discussion with Matt (he is re-reading the report), then
+a short xhigh spec for campaign 1. Nothing committed; audits/ untracked.
+
 Updated: 2026-09-22 (comp walk3 BUILT via Opus dispatch; plan
 docs/superpowers/plans/2026-09-22-comp-walk3.md T1-T8 done.)
 State: NRS v1 profile = styles/nursery_v1.json (tendency rows, NCT

@@ -1,0 +1,197 @@
+{
+ "unit": "tools-tests",
+ "assessment": {
+  "health": 3,
+  "summary": "Two hand-rolled assert harnesses (engine_tests: 1930-line single TU, 754 checks grown by appending over 39 commits; test_figures: 1212 lines, early-return EXPECT_* + RUN_TEST), a headless exerciser for the UI build-stamp guard (stamp_test), and an orphan 16-bit WAV stats utility (wav_check.cpp) that no CMakeLists builds. engine_tests is a genuine asset: it pins sample-exact DSP invariants (delay-line latency, tap z^-1, loop pitch compensation via normalized autocorrelation, SVF closed-form vs measured phase delay, a 48-combination Pierce passivity energy gate, hold/glide/release delivery) and every stochastic test is explicitly seeded. The dominant problems are structural: neither binary is registered with CTest and both silently require CWD = repo root; a failed CHECK keeps running and then dereferences the null it just reported (crash, not a report), and main() has no exception capture so a missing styles/ file aborts the whole run before any DSP test executes; the two harnesses have divergent macro sets; test_figures repeats the PieceTemplate scaffold six times; stamp_test re-implements build_stamp.h's tlog dependency walk. Coverage is narrow relative to the engine: ~14 of ~85 ValueSource/WaveSource/Instrument types are touched, the additive/formant family, every oscillator except SineSource, KSString/Mesh2D/AllpassResonator, all 14 EvolutionSources, all filters except SVF/Pierce, and DrumKit have no tests, there are no golden checksums (the in-process byte-identity check at engine_tests:838-856 admits the external Python null gate is the real referee), and the project's non-negotiable no-heap-allocation rule for render loops is asserted nowhere. First change: one shared test_harness.h (named tests, per-test try/catch, CHECK that records the current test, --filter), enable_testing()/add_test with WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}, then a registry-walk smoke + allocation-count guard over the baseline patches.",
+  "strengths": [
+   "engine_tests pins real DSP invariants sample-exactly rather than vibes: 100-sample impulse through DelayLineSource (226-262), self-referencing counter proving the tap z^-1 (203-222), loop period on-pitch to 0.5 samples with/without compensation (322-409), closed-form phase_delay_at within 0.15 samples of the measured I/Q projection (269-320), Pierce passivity worst-ratio <= 1+1e-6 over 6 probes x 8 coefficient pairs (675-732).",
+   "Determinism is disciplined: every stochastic test seeds explicitly (Randomizer(s) loops, std::mt19937 rng(7)), the best-of-N test asserts melody(100)==melody(100) (1887-1888), and the reseed test asserts exact sample replay (1167-1171).",
+   "Tests carry their rationale: comments cite spec sections and plan tasks (e.g. 'spec 2026-09-20-note-onsets-v2 \u00a74/\u00a75/\u00a77', 'curve-morph plan Task 5'), and explain non-obvious choices like why autocorrelation replaces threshold crossings (376-378) and why fc=300 was chosen (361-367).",
+   "test_figures prints a per-test name with PASS/FAIL (RUN_TEST, 54-59) and ships a --render listening mode (1075-1199) so composer changes can be auditioned, not just asserted.",
+   "stamp_test links nothing by design and includes build_stamp.h directly (19), so the guard stays checkable while a running mforce_ui.exe holds its own binary locked; the reason is documented in both the source header and the CMakeLists.",
+   "Tests land with features: engine_tests grew 22 -> 754 checks across 39 commits (2026-08-18 to 2026-09-22), each feature commit adding its own checks."
+  ],
+  "files_read": [
+   "C:/@dev/repos/mforce/tools/engine_tests/main.cpp",
+   "C:/@dev/repos/mforce/tools/test_figures/main.cpp",
+   "C:/@dev/repos/mforce/tools/stamp_test/main.cpp",
+   "C:/@dev/repos/mforce/tools/wav_check.cpp",
+   "C:/@dev/repos/mforce/tools/engine_tests/CMakeLists.txt",
+   "C:/@dev/repos/mforce/tools/test_figures/CMakeLists.txt",
+   "C:/@dev/repos/mforce/CMakeLists.txt",
+   "C:/@dev/repos/mforce/tools/stamp_test/CMakeLists.txt",
+   "C:/@dev/repos/mforce/tools/mforce_ui/build_stamp.h (lines 130-209, for duplication cross-check)",
+   "C:/@dev/repos/mforce/engine/include/mforce/music/melody_profile.h (lines 114-120, path resolution)"
+  ]
+ },
+ "findings": [
+  {
+   "file": "tools/engine_tests/main.cpp",
+   "line": 1896,
+   "line_end": 1929,
+   "category": "testing",
+   "severity": "high",
+   "title": "Coverage: ~14 of ~85 engine source/instrument types are exercised; the synthesis core has no tests and no golden checksums",
+   "evidence": "int main() {\n    run_walk2_tests();\n    run_walk3_tests();\n    ... run_pierce_passivity_tests();",
+   "why": "Grepping engine/include for ': ValueSource' / ': WaveSource' / ': Instrument' yields ~85 concrete types. engine_tests instantiates 14 (ConstantSource, RefSource, CurveNode, Envelope, PerformSource/PerformOut, CombinedSource, DelayLineSource, SVFSource, ShaperSource, WormholeSource, PierceFilterSource, NameGate, plus SineSource and WhiteNoiseSource via JSON). Untested: the additive family (Partials, CompositePartials, ExpandRuleNode, Formant/FixedSpectrum/BandSpectrum/FormantSequence, Full/Basic/AdditiveSource2) which is the project's first pillar; every oscillator except Sine (Saw, Triangle, Pulse, FM, Wavetable, HybridKS, RedNoise); physical models (KSString, Mesh2DSource, AllpassResonator, BowTableSource, HammerBank); all 14 EvolutionSources; all noise sources except WhiteNoise; BW*/Biquad/DelayFilter/Reverb/Limiter/Vibrato; Range/Multi/Multiplex/Var/Crossfade/Distorted/Phased/Repeating/Segment sources; DrumKit; SourceRegistry; wav_writer; Randomizer stream stability. The only 'regression' check (838-856) compares two renders in the same process and its own comment says 'The null gate over 79 patches is the real referee' \u2014 so this unit cannot catch a hot-path regression on its own.",
+   "recommendation": "Add (1) a SourceRegistry walk: instantiate every registered type, set defaults, prepare(), next() 4096 samples, assert finite and bounded \u2014 one loop covers all ~85 types for NaN/inf/blow-up regressions; (2) a committed golden table (patch path -> hash of the first N render samples at a fixed seed) for patches/baselines/*.json so engine_tests alone flags a byte change; (3) a Randomizer golden (first 16 draws for a fixed seed) since every seeded comp assertion silently depends on it.",
+   "confidence": 0.95
+  },
+  {
+   "file": "tools/engine_tests/main.cpp",
+   "line": 831,
+   "line_end": 836,
+   "category": "rt-safety",
+   "severity": "high",
+   "title": "The non-negotiable 'no heap allocation in hot render loops' rule is asserted by no test anywhere in the repo",
+   "evidence": "auto render_all = [](InstrumentPatch& ip, int n) {\n        std::vector<float> b(size_t(n), 0.0f);\n        RenderContext ctx{ip.sampleRate};\n        ip.instrument->render(ctx, b.data(), n);",
+   "why": "A grep for 'operator new', '_CrtSetAllocHook', 'alloc_count', 'AllocGuard' across *.h/*.cpp/CMakeLists returns nothing. The rule is enforced only by review, and the live RtAudio callback path (arch_rtaudio_live_audio) would glitch on a single std::vector growth inside next(). render_all already renders every baseline patch through Instrument::render, the exact place to count allocations.",
+   "recommendation": "Add a replaceable global operator new/delete pair in engine_tests (or _CrtSetAllocHook under MSVC) with a thread-local counter; wrap the render() call in render_all with a scope guard that asserts the counter did not move after prepare()/the first block. Run it over every patches/baselines/*.json and patches/library/**. This turns the project's top rule into a one-line regression gate.",
+   "confidence": 0.9
+  },
+  {
+   "file": "tools/engine_tests/CMakeLists.txt",
+   "line": 1,
+   "line_end": 2,
+   "category": "build",
+   "severity": "high",
+   "title": "Neither test executable is registered with CTest; both silently depend on CWD = repo root; engine_tests has no warning flags",
+   "evidence": "add_executable(engine_tests main.cpp)\ntarget_link_libraries(engine_tests PRIVATE mforce_engine)",
+   "why": "A grep for enable_testing/add_test/ctest across every CMakeLists.txt returns nothing, so 'ctest' runs zero tests and nothing in the build can gate on them; they are run by hand (STATUS.md cites counts). engine_tests reads 'patches/baselines/BaselineSIN.json' (844), 'scores/baselines/template_mary_walk.json' (1872) and, via MelodyProfile::load_by_name, 'styles/nursery_v1.json' (melody_profile.h:115) relative to CWD, with only a comment ('Run engine_tests from the repo root', 779) as protection. test_figures/CMakeLists.txt sets '/W4 /permissive-' (line 5) to match mforce_engine (engine/CMakeLists.txt:23) but engine_tests sets nothing, so test code compiles at a lower warning level than the engine it tests.",
+   "recommendation": "enable_testing() in the root CMakeLists; add_test(NAME engine_tests COMMAND engine_tests WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}) and the same for test_figures; give engine_tests the same /W4 /permissive- block test_figures has. Then 'ctest -C Release' is the pre-commit gate instead of a hand-run.",
+   "confidence": 0.95
+  },
+  {
+   "file": "tools/engine_tests/main.cpp",
+   "line": 847,
+   "line_end": 852,
+   "category": "soundness",
+   "severity": "medium",
+   "title": "Harness failure modes are crashes, not reports: CHECK continues after a failed null-check and the pointer is dereferenced; main() catches nothing; load_scoreless parses a possibly-unopened file",
+   "evidence": "CHECK(pa != nullptr);\n        pa->play_note({60.0f, 0.8f, 1.0f}, 0.0f);\n ...\n        auto* pb = dynamic_cast<PitchedInstrument*>(b.instrument.get());\n        pb->play_note({60.0f, 0.8f, 1.0f, 0.0f, false}, 0.4f);",
+   "why": "The CHECK macro (9-10) increments g_fails and keeps going by design, so a failed 'pa != nullptr' is immediately followed by a null dereference: the run dies with an access violation and the summary line never prints. The same pattern recurs at 883-884, 903-904, 909-910, 950-951, 966-967 and 1115-1116 (pb, pi, pg, pn, pi2 are never checked at all). main() (1896-1929) has no try/catch, so a throw from MelodyProfile::load_by_name (runs first, 1897) or nlohmann::json::parse on an unreadable file in load_scoreless (780-787, no is_open() check) aborts the process with no indication of which test was running. When the harness fails, it fails without diagnostics.",
+   "recommendation": "Add a REQUIRE(cond) that returns from the test function on failure (the test_figures EXPECT_* early-return already does this); run each test through a wrapper that catches std::exception and reports the test name; have load_scoreless check is_open() and throw with the path. Fold both into the shared harness header recommended below.",
+   "confidence": 0.95
+  },
+  {
+   "file": "tools/engine_tests/main.cpp",
+   "line": 144,
+   "line_end": 1930,
+   "category": "god-class",
+   "severity": "medium",
+   "title": "engine_tests/main.cpp is a 1930-line append-only single TU: 20 mid-file #includes, one header included twice, headers used before they are included, arbitrary run order",
+   "evidence": "#include \"mforce/render/perform_source.h\"   // line 144\n...\n#include \"mforce/render/perform_source.h\"   // line 758\n...\nstd::vector<float> tail(4800);               // line 380, <vector> first included at 620",
+   "why": "39 commits of appending (22 -> 754 checks) produced a file where each feature's tests arrive with their own #include block mid-file (15, 88, 144, 201, 224, 264, 411, 456, 493, 619-621, 734, 758, 771-776, 1045, 1174-1176, 1313-1314, 1617-1621). <algorithm> is never included although std::max (826), std::min (1001) and std::find (1704) are used; <utility> is not included for std::pair (344); <vector> is used at 380 and included at 620 \u2014 all rely on transitive includes from engine headers, so any header-hygiene change in the engine breaks the test build. main() runs walk2, walk3, walk1 then the DSP tests (1897-1925), an order no one chose. There is no way to run one test or one subsystem, so a 2.3M-sample Pierce sweep and a 20000-seed vary_steps search run every time someone checks a CurveNode tweak.",
+   "recommendation": "Split into per-subsystem TUs (test_curve.cpp, test_envelope.cpp, test_delay_loop.cpp, test_shaper.cpp, test_pierce.cpp, test_perform.cpp, test_comp_walk.cpp, ...) each self-registering via a static TestCase{name, fn} list in a shared test_harness.h, with main() supporting --filter <substr>. Every TU includes what it uses; the duplicate perform_source.h include and the pre-include std::vector use disappear by construction.",
+   "confidence": 0.9
+  },
+  {
+   "file": "tools/engine_tests/main.cpp",
+   "line": 9,
+   "line_end": 13,
+   "category": "duplication",
+   "severity": "medium",
+   "title": "Two divergent hand-rolled test harnesses with different failure semantics and output",
+   "evidence": "#define CHECK(cond) do { ++g_checks; if (!(cond)) { ++g_fails; \\\n  std::printf(\"FAIL %s:%d  %s\\n\", __FILE__, __LINE__, #cond); } } while (0)",
+   "why": "engine_tests (9-13) counts checks, continues on failure and prints only file:line (never which test). test_figures (36-59) uses EXPECT_EQ/EXPECT_NEAR that 'return 1' from the test function, evaluates its arguments twice, and RUN_TEST prints a named PASS/FAIL per test. Same repo, two incompatible idioms: a contributor adding a test must first learn which binary's dialect applies, and neither harness has per-test exception capture or a filter. The better properties are split between them (named tests in test_figures, check counting and NEAR tolerance printing in engine_tests).",
+   "recommendation": "One tools/tests/test_harness.h shared by both executables: TEST(name) registration, CHECK (continue) + REQUIRE (bail), CHECK_NEAR with values printed, per-test try/catch, --filter, and a final named summary. If a third-party single header is acceptable under engine/third_party, doctest.h delivers all of this in one file; otherwise ~80 lines hand-rolled once.",
+   "confidence": 0.9
+  },
+  {
+   "file": "tools/test_figures/main.cpp",
+   "line": 73,
+   "line_end": 104,
+   "category": "duplication",
+   "severity": "medium",
+   "title": "PieceTemplate scaffold copied six times, three identical Result early-return ladders, eight identical integ_* wrappers, and a local total_duration() duplicating MelodicFigure::total_duration()",
+   "evidence": "PieceTemplate tmpl;\n    tmpl.keyName = \"C\";\n    tmpl.scaleName = \"Major\";\n    tmpl.bpm = 100.0f;\n    tmpl.masterSeed = 0xABCDu;\n    PieceTemplate::SectionTemplate sec;\n    sec.name = \"Main\";",
+   "why": "The same 30-line C-Major/bpm-100/'Main'/'melody'/C4 template is built at 73-104 (compose_locked), 154-185 (test_smoke_round_trip), 712-743 (integ_pitch_realization), 783-810 (compose_two_figure), 910-937 (compose_elaborated) and 1126-1154 (run_render), differing only in section beats and the phrase payload. The 'if (piece.parts.size() != 1) return {false,...}' extraction ladder is repeated at 110-118, 816-825 and 943-955. integ_invert..integ_stretch (636-694) are eight 5-line functions differing only in the transform call and tag. float total_duration(const MelodicFigure&) at 419-421 reimplements MelodicFigure::total_duration() (engine/include/mforce/music/figures.h:541). A change to PieceTemplate field defaults or to the Piece/Passage/Phrase shape has to be made in six places.",
+   "recommendation": "One make_single_phrase_template(PhraseTemplate, float sectionBeats) and one extract_phrase(const Piece&) -> const Phrase*; table-drive the integ_* set as {tag, std::function<MelodicFigure()>}; delete the local total_duration.",
+   "confidence": 0.95
+  },
+  {
+   "file": "tools/stamp_test/main.cpp",
+   "line": 42,
+   "line_end": 79,
+   "category": "duplication",
+   "severity": "medium",
+   "title": "stamp_test --deps re-implements build_stamp.h's newest_from_tlogs dependency walk line for line; header comment is stale (claims no CMake target, C++17)",
+   "evidence": "stamp::read_tlog(uiDir + \"\\\\mforce_ui.dir\\\\\" + config +\n                         \"\\\\mforce_ui.tlog\\\\CL.read.1.tlog\", files);\n        stamp::read_tlog(buildDir + \"\\\\engine\\\\mforce_engine.dir\\\\\" + config +\n                         \"\\\\mforce_engine.tlog\\\\CL.read.1.tlog\", files);",
+   "why": "tools/mforce_ui/build_stamp.h:151-192 (newest_from_tlogs) contains the same s1/s2/s3 find_last_of path slicing (154-162 vs stamp_test 53-58), the same two tlog paths (166-169 vs 61-64), and the same ROOT/BUILD/THIRD_PARTY/seen/file_time filter (172-183 vs 66-77). The only difference is keep-all vs keep-newest. The comment at stamp_test:5-6 says the tool runs 'the same detection code ... not a copy', but the --deps path IS a copy, so a fix to the tlog path layout or the filter in build_stamp.h silently leaves --deps reporting a different dependency set than the guard uses. The header comment (16-17) says 'Build (no CMake target needed ...): cl /std:c++17' while tools/stamp_test/CMakeLists.txt:5 defines the target and the project is C++20; the usage string (25) omits --scan (handled at 33); the root-search loop returns rc silently (47) so --deps can print nothing with no message.",
+   "recommendation": "Refactor build_stamp.h to a for_each_dependency(root, exeDir, callback) visitor; newest_from_tlogs and stamp_test --deps both call it. Replace the find_last_of slicing with std::filesystem::path parent_path()/filename(). Fix the header comment and usage string; print a message when the repo root is not found.",
+   "confidence": 0.95
+  },
+  {
+   "file": "tools/engine_tests/main.cpp",
+   "line": 824,
+   "line_end": 830,
+   "category": "smell",
+   "severity": "low",
+   "title": "Signal-measurement helpers (RMS, peak, zero-crossing f0) are re-written inline per test with inconsistent conventions",
+   "evidence": "auto rms_of = [](const std::vector<float>& b, float fromSec, float toSec) {\n        int a = int(fromSec * 48000), z = int(toSec * 48000);",
+   "why": "rms_of (824-830, hard-codes 48000 although 'sr' is in scope) is re-written as rms (1101-1106, different clamping) and again inline (1121-1124); peak-finding loops at 887-888 and 954-955; zero-crossing counting at 970-975 next to the interpolated f0 estimator at 917-931. The loop-compensation test's normalized autocorrelation (385-403) is another reusable measurement. Each copy carries its own off-by-one and clamping decisions, so the same quantity measured in two tests can differ.",
+   "recommendation": "tools/tests/test_signal.h with rms(buf, sr, from, to), peak(buf), f0_zero_crossing(buf, sr, from, to), period_autocorr(buf, minLag, maxLag). These are the same primitives the CMA-ES/refmetrics side needs in Python; keeping one C++ copy makes the WAV-gate and in-process assertions agree.",
+   "confidence": 0.85
+  },
+  {
+   "file": "tools/wav_check.cpp",
+   "line": 13,
+   "line_end": 28,
+   "category": "build",
+   "severity": "low",
+   "title": "wav_check.cpp is an orphan (not built by any CMakeLists, untouched since the 2026-03-29 port) and its header handling is wrong for anything but a canonical 44-byte 16-bit file",
+   "evidence": "fseek(f, 44, SEEK_SET); // skip WAV header\n    long nSamples = (fsize - 44) / 2;\n ...\n        fread(&s, 2, 1, f);\n ...\n    rms = sqrt(rms / nSamples);",
+   "why": "Root CMakeLists.txt (43-50) adds engine, mforce_cli, mforce_ui, durn_converter, test_figures, ppl_to_json, stamp_test, engine_tests \u2014 no wav_check; no other reference exists in the repo. If it were built: it assumes a 44-byte header (any LIST/INFO chunk or 24-bit/float data is misread as samples), ignores fread's return, divides by zero on a header-only file (28), and reports interleaved sample count as 'samples' (the engine's write_wav_16le_stereo writes stereo, so it is 2x frames). Dead code in tools/ that reviewers still have to read.",
+   "recommendation": "Delete it (mforce_cli --gatecheck and the Python refmetrics already cover WAV inspection). If a C++ checker is wanted, build it from CMake, walk RIFF chunks to the 'data' chunk, read fmt, and report per-channel frames.",
+   "confidence": 0.95
+  },
+  {
+   "file": "tools/test_figures/main.cpp",
+   "line": 773,
+   "line_end": 1072,
+   "category": "smell",
+   "severity": "low",
+   "title": "~300 lines pin the behavior of strategies Matt flags as probably-obsolete, including one assertion already weakened to pass",
+   "evidence": "// RFB's shape selection (arc/run/zigzag/...) may produce slightly fewer\n    // units than `count` depending on which shape is chosen; only assert\n    // a non-empty figure and that invert preserves the unit count.",
+   "why": "integ_two_figure_* (828-897) and integ_elab_* (958-1052) exercise TwoFigurePhraseStrategy and ElaboratedPhraseStrategy; test_build_approach_steps/test_settle_tail (547-598) exercise DefaultPhraseStrategy \u2014 all on the review's known-unfinished/awaiting-purge list. integ_two_figure_count_invert (836-839) no longer asserts the count it was written to assert. When the strategies are purged these tests break the build; until then they cost compile time and give false confidence in code slated for removal.",
+   "recommendation": "Record in the purge plan that tools/test_figures/main.cpp 547-598 and 773-1072 go with the strategies; keep the figure_transforms unit tests (214-496) and the Locked-figure integ tests (636-770), which test surviving code.",
+   "confidence": 0.85
+  },
+  {
+   "file": "tools/engine_tests/main.cpp",
+   "line": 1268,
+   "line_end": 1271,
+   "category": "smell",
+   "severity": "low",
+   "title": "Test writes a scratch file into renders/scratch/, a directory CLAUDE.md reserves for manual material, and creates it in whatever CWD it runs from",
+   "evidence": "const std::string psgPath = \"renders/scratch/_pm_test.psg\";\n        std::filesystem::create_directories(\"renders/scratch\");\n        { std::ofstream f(psgPath); f << \"Eq Dq Cq Dq | Cq Cq Ch\"; }",
+   "why": "CLAUDE.md: 'renders/scratch/ for manual material'. A test leaving (on a failed run, before line 1309's remove) a .psg in Matt's manual area, or creating a renders/scratch tree inside build/ when run from the wrong directory, is a small but real rules collision; the comment at 1268 ('CWD-independent temp dir') describes the opposite of what the code does.",
+   "recommendation": "std::filesystem::temp_directory_path() / \"mforce_pm_test.psg\", removed in a scope guard so it is cleaned up even when a CHECK throws.",
+   "confidence": 0.9
+  },
+  {
+   "file": "tools/engine_tests/main.cpp",
+   "line": 796,
+   "line_end": 818,
+   "category": "modern-cpp",
+   "severity": "low",
+   "title": "hold_patch_json builds JSON with snprintf into a fixed char[1400]; truncation would be silent and surface as a parse exception",
+   "evidence": "char buf[1400];\n    std::snprintf(buf, sizeof(buf), R\"({\n      \"sampleRate\": 48000,\n      \"instrument\": { \"polyphony\": 2, \"glideMs\": %.1f },",
+   "why": "The literal is ~1000 bytes today; the next added node pushes it past 1400 and snprintf truncates silently, producing invalid JSON that nlohmann rejects with an unrelated-looking error in a test far from the edit. C++20 std::format (or nlohmann::json construction with j[\"instrument\"][\"glideMs\"] = glideMs then dump()) has no length ceiling and keeps the patch as data.",
+   "recommendation": "Build the patch as an nlohmann::json object and set glideMs on it; or std::format with {:.1f}.",
+   "confidence": 0.85
+  },
+  {
+   "file": "tools/engine_tests/main.cpp",
+   "line": 1551,
+   "line_end": 1573,
+   "category": "testing",
+   "severity": "low",
+   "title": "Statistical assertions are pinned to the exact Randomizer draw order; any refactor that changes draw sequence flips them without a behavioral regression",
+   "evidence": "CHECK(fineCount > 20 && fineCount < 160);\n        // Dotted dominates fine (~80%).\n        CHECK(dottedCount * 2 > fineCount);\n ...\n        CHECK(smallCount > 0 && smallStartSum / smallCount > 1.6);",
+   "why": "walk2 (1551-1573), walk1 'cPicks < 15' over 100 seeds (1451-1460), walk3 'down > up' over 400 seeds (1839-1850) and 'distinct.size() >= 3' over 10 seeds (1891-1892), and test_figures 'anyDiff' on a single seed (446-449) all assert on counts from a specific RNG stream. They are deterministic, but a change in how many draws elaborate() or select_anchors() consume (or a Randomizer change) moves the counts with no change in the distribution being tested, and the failure message is a bare file:line with no observed count. Seeded-but-brittle.",
+   "recommendation": "Print the observed statistic in the CHECK message (a CHECK_MSG variant), widen N where cheap so the margin is several sigma, and note in each block what distributional property is being asserted so a future failure can be judged as regression vs. stream shift.",
+   "confidence": 0.8
+  }
+ ]
+}

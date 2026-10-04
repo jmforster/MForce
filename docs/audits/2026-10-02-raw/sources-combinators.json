@@ -1,0 +1,179 @@
+{
+ "unit": "sources-combinators",
+ "assessment": {
+  "health": 3,
+  "summary": "Five headers covering two-input combiners (CombinedSource, CrossfadeSource), a waveshaper pair (ShaperSource, DistortedSource), FM synthesis, an N-stage granular crossfader (PhasedValueSource), a template fan-out (MultiplexSource) and two draw-once constants. FMSource, ShaperSource and MultiplexSource are sound: per-sample paths are allocation-free (Curve::eval_core is a template, the FM decimator and Multiplex rebuild happen in prepare), and the legacy-parity and lifetime hazards are documented where they bite. The dominant problem is the C# ports in combined_source.h / phased_value_source.h: PhasedValueSource restarts its crossfade at every stage boundary (a port divergence from the legacy single Fade object) producing a discontinuity in a baseline-exercised node, CrossfadeSource and PhasedValueSource crash or hit UB on an incompletely wired graph, and three nodes bypass the self-describing contract via registry configurators that poke public fields. Secondary debt: three hand-rolled linear crossfades, per-note heap work in FMSource::prepare and MultiplexSource::set_clone_param on the note-on path the audio callback is serialized against, and the reseed() determinism contract not honored by Multiplex clones or DistortedSource. First change: fix the Phased crossfade timing and collapse the three crossfades onto one helper (CrossfadeSource is the two-stage special case of Phased).",
+  "strengths": [
+   "Hot loops are heap-free: ShaperSource::map's lambdas feed a templated Curve::eval_core (curve.h:45-47), FMSource builds its decimation sections in prepare() (fm_source.h:70-82) and MultiplexSource only rebuilds when dirty (multiplex_source.h:106).",
+   "FMSource documents every legacy-parity decision (float accumulator precision wall, unbounded_pos single-step wrap, phase as PM offset not integrated) and keeps M==1 byte-identical (fm_source.h:119-124, 133-136).",
+   "ShaperSource delegates evaluation to the shared Curve evaluator rather than carrying its own interpolation; the Expo/InverseExpo signed-log-power morph (shaper_source.h:227-239) and the last-nonzero-sign hysteresis test (173-179) are both well reasoned and explained.",
+   "MultiplexSource's builder-outlives-loader hazard is recognized and fixed at both ends (multiplex_source.h:80-88, patch_loader.cpp:1022-1031).",
+   "CombinedSource, DistortedSource, ShaperSource, FMSource and MultiplexSource expose a consistent descriptor/set/get surface, and DistortedSource null-checks every optional pin."
+  ],
+  "files_read": [
+   "C:/@dev/repos/mforce/engine/include/mforce/source/combined_source.h",
+   "C:/@dev/repos/mforce/engine/include/mforce/source/shaper_source.h",
+   "C:/@dev/repos/mforce/engine/include/mforce/source/fm_source.h",
+   "C:/@dev/repos/mforce/engine/include/mforce/source/phased_value_source.h",
+   "C:/@dev/repos/mforce/engine/include/mforce/source/multiplex_source.h",
+   "C:/@dev/repos/mforce/engine/include/mforce/core/dsp_value_source.h",
+   "C:/@dev/repos/mforce/engine/include/mforce/core/dsp_wave_source.h",
+   "C:/@dev/repos/mforce/engine/include/mforce/core/curve.h",
+   "C:/@dev/repos/mforce/engine/include/mforce/filter/filters.h (lines 1-94)",
+   "C:/@dev/repos/mforce/engine/include/mforce/core/randomizer.h (lines 1-65)",
+   "C:/@dev/repos/mforce/engine/src/source_registrations.cpp (lines 255-424, 595-609)",
+   "C:/@dev/repos/mforce/engine/include/mforce/render/instrument.h (lines 300-359, 460-509)",
+   "C:/@dev/repos/mforce/engine/src/patch_loader.cpp (lines 575-599, 1015-1044)",
+   "C:/@dev/repos/mforce/tools/mforce_ui/main.cpp (lines 410-475, 609-622, 4655-4704, 4725-4740; mutex grep)",
+   "C:/@dev/repos/mforce/docs/plan_perform_source_p2a.md (lines 360-389)",
+   "C:/@dev/repos/mforce/patches/baselines/phased_test.json",
+   "C:/@dev/repos/mforce-legacy/MForce/Sound/Source/PhasedValueSource.cs"
+  ]
+ },
+ "findings": [
+  {
+   "file": "engine/include/mforce/source/phased_value_source.h",
+   "line": 135,
+   "line_end": 146,
+   "category": "soundness",
+   "severity": "critical",
+   "title": "Stage crossfade is run twice with a restart at every boundary, producing a discontinuity",
+   "evidence": "line 139: `float t = float(posInStage) / float(halfOl);`  line 145: `float t = float(halfOl - (stageLen - posInStage)) / float(halfOl);`",
+   "why": "Traced: on the last sample of stage i the transToNext branch has t=(halfOl-1)/halfOl so cur_ is almost entirely stage i+1; on the very next sample (stageIdx=i+1, posInStage=0) the transFromPrev branch has t=0 so cur_ is entirely stage i again, then fades to i+1 a second time. The output jumps back to the previous stage's signal at every boundary (a click) and the transition takes two half-overlap fades instead of one. The legacy source this was ported from drives both halves from ONE CombinedSource(Fade) whose counter runs continuously across the boundary (PhasedValueSource.cs:67-80 use Transitions[index-1]/Transitions[index], built at :152-161 with count=OverlapCount), so this is a port divergence, not legacy behavior. patches/baselines/phased_test.json (overlap 0.15, three stages) exercises exactly this path. Secondary divergence verified: line 95 folds the overlap allowance into stageCounts_[expandIdx] and lines 109-110 accumulate it into boundaries_, whereas legacy excludes it from the boundary (PhasedValueSource.cs:44 `- OverlapCount / (...)`), so a middle expand stage pushes every later boundary late by overlapSamples_.",
+   "recommendation": "Parametrize t over the whole overlap window: transToNext t = (halfOl - (stageLen - posInStage)) / (2*halfOl); transFromPrev t = (halfOl + posInStage) / (2*halfOl), so the two zones are the two halves of one monotonic fade. Exclude the overlap allowance from boundaries_ (compute boundaries from the un-padded stage lengths). Re-render phased_test.json and diff against the pre-fix WAV to confirm the boundary clicks disappear.",
+   "confidence": 0.92
+  },
+  {
+   "file": "engine/include/mforce/source/combined_source.h",
+   "line": 198,
+   "line_end": 199,
+   "category": "soundness",
+   "severity": "high",
+   "title": "CrossfadeSource and PhasedValueSource crash/UB on an incompletely wired graph; siblings guard",
+   "evidence": "combined_source.h:198 `source1_->prepare(ctx, s1Count + overlapCount_);` with members at 222-223 `std::shared_ptr<ValueSource> source1_; std::shared_ptr<ValueSource> source2_;` (no initializer, no ctor). phased_value_source.h:128 `int stageLen = boundaries_[stageIdx] - prevBound;` with no empty check.",
+   "why": "CrossfadeSource is created bare by the registry (source_registrations.cpp:304 `std::make_shared<CrossfadeSource>()`) and by the UI (main.cpp:462 `reg.create(typeName, ...)`), and the UI only calls set_param for pins that carry a constantSrc (main.cpp:463-466) or on connect (wire_pin, :470-473) \u2014 InputDescriptor pins such as source1/source2 are left null. A Crossfade node reachable from the output with one source unwired null-derefs in prepare()/next(). PhasedValueSource has the same exposure in the other direction: the UI menu offers it (main.cpp:10800) but the class exposes no InputDescriptor(multi)/add_param for stages, so a UI-made instance has zero stages and next() indexes boundaries_[0]/stages_[0] on empty vectors (UB) on the first sample. Compare the conventions right beside them: CombinedSource is registered with ConstantSource placeholders (source_registrations.cpp:262-265) and DistortedSource null-checks every pin (combined_source.h:286-305).",
+   "recommendation": "Give CrossfadeSource a default constructor seeding source1_/source2_ with ConstantSource(0) (as CombinedSource's registration does) or null-check in prepare/next; have PhasedValueSource::next() return 0 when stages_ is empty, and expose stages through the multi-input contract (see the self-description finding) so a UI instance can actually be completed.",
+   "confidence": 0.85
+  },
+  {
+   "file": "engine/include/mforce/source/multiplex_source.h",
+   "line": 97,
+   "line_end": 103,
+   "category": "rt-safety",
+   "severity": "medium",
+   "title": "set_clone_param allocates strings and a map node on every note-on, under the audio mutex",
+   "evidence": "lines 100-101: `pendingCloneParams_[nodeId + \".\" + paramName] = std::make_tuple(nodeId, paramName, value);`  line 164: `auto cs = std::dynamic_pointer_cast<ConstantSource>(cur);`",
+   "why": "Called per push binding on every note from instrument.h:344 (apply_note_bindings, via prepare_voice_at) and :493 (deliver_continuation, whose caller continue_voice_live is documented at :498-502 as acting on 'a pool voice the audio callback is pulling'). mforce_ui runs that path while holding g_audioMutex (main.cpp:4676), the same mutex fill_audio_buffer takes (main.cpp:3864), so each note-on does at least three heap allocations (temporary key string, two std::string copies into the tuple, map node on first use) plus an RTTI cast per clone while the callback is blocked. Not the per-sample loop, so not a rule violation, but it is avoidable work on the path that gates audio delivery. The key also duplicates the tuple's own nodeId/paramName.",
+   "recommendation": "Resolve each push binding once at load (or at rebuild_) into a per-clone vector of ConstantSource* and keep pending values as floats indexed by binding; set_clone_param then becomes a loop over raw pointers with no strings, and rebuild_ replays by re-resolving once. That also removes the duplicated key/tuple storage.",
+   "confidence": 0.85
+  },
+  {
+   "file": "engine/include/mforce/source/fm_source.h",
+   "line": 74,
+   "line_end": 82,
+   "category": "rt-safety",
+   "severity": "medium",
+   "title": "Oversampled FM rebuilds its decimation filter bank with heap allocations on every prepare (per note)",
+   "evidence": "line 74 `decimSections_.clear();` lines 79-80 `for (int i = 0; i < nSec; ++i) decimSections_.emplace_back(float(i + 1), float(nSec * 2), subRate);`",
+   "why": "BWLPSection owns FIRFilter fir{3} and IIRFilter iir{2}, each a std::vector (filters.h:14,16,34,36), so every prepare() with oversample>1 performs the vector growth plus eight vector allocations, per voice per note. The section count is a compile-time constant (line 78 `const int nSec = 4;`) so none of this needs to be dynamic. Secondary: set_setting(\"oversample\") (lines 95-98) changes M immediately but the bank is only rebuilt at the next prepare, so a live change 1->4 runs the M>1 loop (line 160-161) over an empty bank, i.e. oversampled but unfiltered, until the next note.",
+   "recommendation": "Hold `std::array<BWLPSection, 4>` (or a fixed-capacity member) constructed once; in prepare() call update(cutoff) and reset the FIR/IIR state (add a reset() to those filters \u2014 filters unit). Rebuild/refresh the bank in set_setting(\"oversample\") as well, or mark dirty and refresh at the top of compute_wave_value when M changed.",
+   "confidence": 0.9
+  },
+  {
+   "file": "engine/include/mforce/source/multiplex_source.h",
+   "line": 26,
+   "line_end": 184,
+   "category": "soundness",
+   "severity": "medium",
+   "title": "reseed() per-note determinism contract not honored by MultiplexSource clones or DistortedSource",
+   "evidence": "multiplex_source.h has no `reseed()` override (struct spans 26-184); combined_source.h:307 `if (rng_.decide(d)) {` with no reseed override in DistortedSource (234-327).",
+   "why": "dsp_value_source.h:122-127 defines reseed() as the in-line-note re-anchor and says RNG-bearing sources override it; fourteen sibling sources do (white/red/pink/wander noise, segment_source, envelope, noise_sources, layered_red_noise), and Vibrato forwards to its contained LFO (vibrato.h:144), establishing the container convention. deliver_continuation reseeds only vg.nodesById (instrument.h:475); the loader registers the mux itself there (patch_loader.cpp:1044 `valueNodes[id] = mux`) while the clone node maps live privately in instanceValueNodes_, so every stochastic node inside the N clones free-runs across in-line notes \u2014 exactly the 'different oboeist per phrase' drift the 09-20 addendum was written to stop. DistortedSource draws per sample and also never re-anchors. (StaticVar/StaticRange draw only in prepare, so their omission is moot.)",
+   "recommendation": "Add `void reseed() override { for (auto& m : instanceValueNodes_) for (auto& [_, n] : m) n->reseed(); }` to MultiplexSource and `void reseed() override { rng_.reanchor(); }` to DistortedSource.",
+   "confidence": 0.8
+  },
+  {
+   "file": "engine/include/mforce/source/combined_source.h",
+   "line": 101,
+   "line_end": 104,
+   "category": "duplication",
+   "severity": "medium",
+   "title": "Three hand-rolled linear crossfades; CrossfadeSource is the two-stage case of PhasedValueSource",
+   "evidence": "combined_source.h:103 `cur_ = v1 * (1.0f - t) + v2 * (1.0f + gainAdj) * t;` combined_source.h:214 `cur_ = (v1 * (1.0f - t) + v2 * (1.0f + gainAdj) * t) * amp;` phased_value_source.h:140 `cur_ = (vPrev * (1.0f - t) + vCurr * stages_[stageIdx].gainAdj * t) * amp;`",
+   "why": "CombinedSource::Fade (101-104), CrossfadeSource::next (206-215) and PhasedValueSource::next (135-150) each implement the same fade with their own zone arithmetic and their own gain convention ((1+gainAdj) in the first two, a raw multiplier in Phased). CrossfadeSource (ratio + overlap, two sources) is structurally a two-stage PhasedValueSource; the legacy code composed Phased FROM CombinedSource(Fade) (PhasedValueSource.cs:154-158), and inlining it in the port is where the boundary-restart bug above was introduced. Three copies means three places to get the boundary math right and three gain semantics for the UI to explain.",
+   "recommendation": "One inline helper `crossfade(a, b, t, gainB)` shared by all three, and either express CrossfadeSource as PhasedValueSource with two stages or retire it (no patch back-compat rule) after migrating the handful of patches that use it.",
+   "confidence": 0.85
+  },
+  {
+   "file": "engine/include/mforce/source/combined_source.h",
+   "line": 331,
+   "line_end": 376,
+   "category": "smell",
+   "severity": "medium",
+   "title": "StaticVar/StaticRange/PhasedValueSource bypass the self-describing contract via registry configurators poking public fields",
+   "evidence": "combined_source.h:332-334 `float baseValue{1.0f}; float varPct{0.0f}; float bias{0.0f};` with no setting_descriptors/set_setting; phased_value_source.h:44-49 declares only `{\"amplitude\", ...}`; source_registrations.cpp:326-328 `sv.baseValue = p.value(\"baseValue\", 1.0f); ...`, :399-409 builds stages ad hoc.",
+   "why": "The architecture is explicit registry + self-describing nodes (type_name/descriptors/set_param/set_setting) so the UI, serializer and loader share one surface. These three nodes carry their real configuration (baseValue/varPct/bias, min/max/bias, overlap/stages/percent/min/max/gain) only in loader-side lambdas, so the UI cannot edit or wire them (docs/config_pin_census.md:127,138-139 show empty columns), generic save cannot round-trip them, and the UI can create an unusable Phased node (see the crash finding). CombinedSource/CrossfadeSource show the intended pattern right above them.",
+   "recommendation": "Give StaticVarSource and StaticRangeSource SettingDescriptors + set/get_setting (and a default ctor); give PhasedValueSource a SettingDescriptor for overlap and a multi InputDescriptor 'stages' with add_param/clear_param, moving the per-stage scalars to either an ArrayDescriptor group or per-stage sub-settings; shrink the configurators to pure JSON-shape adapters.",
+   "confidence": 0.85
+  },
+  {
+   "file": "engine/include/mforce/source/combined_source.h",
+   "line": 59,
+   "line_end": 70,
+   "category": "duplication",
+   "severity": "low",
+   "title": "CombineOp ordinal/label/string mapping maintained in three places that 'must stay in step'",
+   "evidence": "combined_source.h:59-61 `kOpLabels[] = { \"Mix\", \"Multiply\", \"Fade\", \"Sum\", nullptr };` :70 `op = static_cast<CombineOp>(int(value));` source_registrations.cpp:278-282 (ordinal switch) and :291-294 (string chain), with the admission at :274-275 'Ordinals must stay in step with CombineOp and the kOpLabels dropdown'.",
+   "why": "The configurator sets `cs.op`/`cs.gainAdj` directly instead of going through set_setting, so the enum appears as a label table, an unchecked cast, an ordinal switch and a string chain; adding an op means editing four spots and the cast at :70 accepts any int the UI sends.",
+   "recommendation": "Make the label table the single source of truth: expose it (or iterate setting_descriptors().enum_labels) and have the configurator map string->index->set_setting; range-check the cast in set_setting against the descriptor max.",
+   "confidence": 0.8
+  },
+  {
+   "file": "engine/include/mforce/source/combined_source.h",
+   "line": 17,
+   "line_end": 376,
+   "category": "smell",
+   "severity": "low",
+   "title": "combined_source.h is a grab-bag of five unrelated nodes",
+   "evidence": "`struct CombinedSource` (17), `struct CrossfadeSource` (121), `struct DistortedSource` (234), `struct StaticVarSource` (331), `struct StaticRangeSource` (357)",
+   "why": "Only the first two are combiners; DistortedSource is a Modulator waveshaper (the natural sibling of ShaperSource in shaper_source.h) and the Static* pair are Utility constants. The UI menu labels 'Distortion'/'Crossfade'/'Phased' (main.cpp:10874/10886/10800) and the baseline distortion_test.json resolve to classes a reader cannot find by file name, and the file carries three unrelated include sets.",
+   "recommendation": "Split: distorted_source.h next to shaper_source.h; static_sources.h (or fold into a utility header beside ConstantSource); leave combined_source.h for Combined + Crossfade until Crossfade is retired.",
+   "confidence": 0.75
+  },
+  {
+   "file": "engine/include/mforce/source/multiplex_source.h",
+   "line": 84,
+   "line_end": 85,
+   "category": "smell",
+   "severity": "low",
+   "title": "templateJson_/baseSeed_ are write-only state and the header comment describes an access path that does not exist",
+   "evidence": "lines 84-85 `templateJson_ = std::move(json); baseSeed_ = baseSeed;` are the only writes; declarations at 170-171; repo-wide grep finds no read. Lines 19-20: 'external code updates templateJson_ to the current UI serialization' \u2014 the member is private with no accessor.",
+   "why": "Dead members that copy the whole subtree JSON per node, and a comment that will send the next maintainer looking for a UI path that was never built. Also the redundant guard at line 122 `cur_ = (n > 0) ? sum / float(n) : 0.0f;` inside `if (!instances_.empty())`.",
+   "recommendation": "Drop templateJson_/baseSeed_ (the builder closure already captures both) and rewrite the comment to describe mark_dirty()+set_template as the actual rebuild path; remove the n>0 guard.",
+   "confidence": 0.9
+  },
+  {
+   "file": "engine/include/mforce/source/phased_value_source.h",
+   "line": 108,
+   "line_end": 108,
+   "category": "build",
+   "severity": "low",
+   "title": "Unused variable, unused member, and three unused includes in phased_value_source.h; shaper_source.h relies on a transitive <cmath>",
+   "evidence": "phased_value_source.h:108 `int olAdj = overlapSamples_ / (...);` never read; :3-4,9 include smoothness_interpolator.h, randomizer.h, <stdexcept> with no use; :63/:162 `totalFrames_` written, never read. shaper_source.h:1-6 has no <cmath> yet uses std::fabs/log2/pow (172, 233, 239).",
+   "why": "C4189 warning noise on every TU that includes Phased; the includes pull mt19937 and interpolator code into TUs that do not need them; the Shaper include works only because curve.h happens to include <cmath>.",
+   "recommendation": "Delete olAdj, totalFrames_ and the three includes; add <cmath> to shaper_source.h.",
+   "confidence": 0.95
+  },
+  {
+   "file": "engine/include/mforce/source/fm_source.h",
+   "line": 110,
+   "line_end": 117,
+   "category": "efficiency",
+   "severity": "low",
+   "title": "Per-sample double virtual call (next() result discarded, current() re-read) and unused base-class phase bookkeeping",
+   "evidence": "fm_source.h:110-117 `carrierRatio_->next(); modRatio_->next(); depth_->next(); ... carrierRatio_->current(); ... modRatio_->current(); ... depth_->current();` combined_source.h:89-93 and 295-305 same shape; shaper_source.h:163-164 `smoothness_->next(); smoothCur_ = smoothness_->current();`; comma idiom at combined_source.h:204 and phased_value_source.h:116 `(amplitude_->next(), amplitude_->current())`.",
+   "why": "ValueSource::next() returns the new value (dsp_value_source.h:78; ConstantSource::next at :136), so each parameter costs two virtual calls per sample instead of one: DistortedSource pays five extra, FM three. Separately, FMSource keeps its own carrierPhase_ (line 152-153) and never reads currPos_, yet WaveSource::next() still runs the fmod/phaseDelta accumulator for it every sample (dsp_wave_source.h:56-60). This is an engine-wide convention (WaveSource::next does the same at :33-47), so the fix is a one-time sweep, not a unit patch.",
+   "recommendation": "Adopt `const float v = src->next();` throughout; for FM, either make the base-class phase accumulation opt-out for subclasses that own their phase, or drop FM's private accumulator and consume currPos_.",
+   "confidence": 0.85
+  }
+ ]
+}

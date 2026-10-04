@@ -1,0 +1,152 @@
+{
+ "unit": "tools-cli",
+ "assessment": {
+  "health": 3,
+  "summary": "mforce_cli is an eleven-mode command multiplexer (patch render, chords, melody, josie, compose, play, dun, explore, explore-filter, lint-template, dump-descriptors) plus a parameter-sweep explorer in explore.cpp. The live modes are sound: file-existence checks, a top-level catch, buffers allocated before per-sample loops, and the registry/round-trip tools (--dump-descriptors, --lint-template) use the engine as the single source of truth. The dominant problem is copy-paste: the beats\u2192seconds\u2192frames\u2192render\u2192mono\u2192stereo\u2192peak/rms pipeline is hand-rolled six to seven times in main.cpp (and again in tools/mforce_ui/main.cpp) while engine/util/signal_stats.h already provides the stats, and every copy hard-codes a single bpm although Conductor::perform honours per-section tempo. One correctness flaw stands out: explore.cpp's instrument-mode per-sample pull ignores the StreamingVoice contract (no performSource->tick(), no advanceList advance) that the UI's identical loop and the engine's own render path both honour, so tap-closed feedback-loop patches (the current best-sounding family) sweep silent/wrong. Three modes (--test-ornaments, --josie, --melody) are unrunnable against the current patches tree or orphaned dev harnesses and should be moved to engine_tests or deleted. First change: a single render_to_wav(instruments, seconds, path)->SignalStats helper with correct per-section timing, then fix the explore streaming loop by sharing one pull helper with the UI.",
+  "strengths": [
+   "explore.cpp spec parser throws on every missing/typo'd key (parse_axis, set_patch_param) instead of silently defaulting; manifest records params + SignalStats so --explore-filter can rank variants without re-rendering",
+   "--lint-template's four-way DROPPED/DEFAULTED/FORM/CHANGED classification with the reasoning documented inline is a well-designed, low-noise round-trip linter",
+   "--dump-descriptors derives accepted keys from SourceRegistry instances rather than a hand-maintained list, consistent with the explicit-registry rule",
+   "No heap allocation or unbounded work inside any per-sample loop in this unit; all buffers are sized before the pull loops",
+   "run_patch separates load timing from render timing and documents why (pre-rendered voices), avoiding a known phantom-speedup trap",
+   "Single top-level try/catch in main() plus per-mode usage strings keeps error paths uniform"
+  ],
+  "files_read": [
+   "C:/@dev/repos/mforce/tools/mforce_cli/main.cpp",
+   "C:/@dev/repos/mforce/tools/mforce_cli/explore.cpp",
+   "C:/@dev/repos/mforce/tools/mforce_cli/explore.h",
+   "C:/@dev/repos/mforce/tools/mforce_cli/CMakeLists.txt",
+   "C:/@dev/repos/mforce/tools/mforce_ui/main.cpp (lines 8100-8139, 8520-8539, 13010-13094, 13250-13323, 13395-13440 + grep)",
+   "C:/@dev/repos/mforce/engine/include/mforce/render/instrument.h (lines 238-277, 345-377 + grep)",
+   "C:/@dev/repos/mforce/engine/include/mforce/music/conductor.h (lines 538-587)",
+   "C:/@dev/repos/mforce/engine/include/mforce/music/dun_parser.h (lines 326-385)",
+   "C:/@dev/repos/mforce/engine/include/mforce/music/templates.h (lines 620-649 + grep)",
+   "C:/@dev/repos/mforce/engine/include/mforce/render/patch_loader.h (grep)",
+   "C:/@dev/repos/mforce/engine/src/patch_loader.cpp (grep)",
+   "C:/@dev/repos/mforce/engine/include/mforce/util/signal_stats.h (grep)",
+   "C:/@dev/repos/mforce/engine/include/mforce/music/structure.h (grep)",
+   "C:/@dev/repos/mforce/engine/include/mforce/music/music_json.h (grep)",
+   "C:/@dev/repos/mforce/CMakeLists.txt (grep)"
+  ]
+ },
+ "findings": [
+  {
+   "file": "tools/mforce_cli/explore.cpp",
+   "line": 361,
+   "line_end": 362,
+   "category": "soundness",
+   "severity": "critical",
+   "title": "Explore instrument-mode pull loop violates the StreamingVoice contract: no performSource->tick(), no advanceList advance",
+   "evidence": "for (int i = 0; i < frames; ++i)\n    mono[size_t(i)] = soft_clip(sv.source->next() * sv.gain);\n-- vs instrument.h:254-263: \"Streaming callers MUST call performSource->tick() once per sample before source->next() ... MUST tick each [advanceList] entry once per sample AFTER source->next(), or tap-closed feedback loops fall silent\"",
+   "why": "The comment at 358-360 claims this \"matches mforce_ui's live audio path\", but the UI loop (tools/mforce_ui/main.cpp:13286-13290) and the engine's own render (instrument.h:444-446) both do tick \u2192 next \u2192 advance. prepare_voice_at returns vg.advanceList (instrument.h:371-372) precisely so callers advance tap-only loop tails. Sweeping any tap-closed feedback-loop patch (flute_default/oboe_default family) in --explore instrument mode therefore renders silence or a wrong signal, and any bend/wheel binding freezes at note-on. The manifest stats then rank garbage. Verified by reading the contract, the engine render loop, and the UI loop; not executed.",
+   "recommendation": "Add one engine helper, e.g. `void pull_streaming_voice(const PitchedInstrument::StreamingVoice& sv, float* out, int n)` in instrument.h that does tick/next/advance, and use it from both explore.cpp and tools/mforce_ui/main.cpp:13286-13290 so the contract lives in one place. Until then, replicate the three-step loop here.",
+   "confidence": 0.9
+  },
+  {
+   "file": "tools/mforce_cli/main.cpp",
+   "line": 116,
+   "line_end": 125,
+   "category": "duplication",
+   "severity": "high",
+   "title": "beats\u2192frames\u2192render\u2192stereo\u2192peak/rms pipeline hand-rolled 6-7 times in main.cpp, again in explore.cpp and the UI, while engine signal_stats.h already provides the stats",
+   "evidence": "float peak = 0.0f; double rms = 0.0; ... for (auto s : stereo) { float a = std::fabs(s); if (a > peak) peak = a; rms += double(s) * double(s); } rms = std::sqrt(rms / stereo.size());\n-- identical at main.cpp 194-201, 335-342, 628-635, 731-738, 791-800, mforce_ui/main.cpp:13311-13313; engine/include/mforce/util/signal_stats.h:21-40 compute_time_stats does exactly this and explore.cpp:369 already calls compute_all_stats",
+   "why": "Three blocks are copied verbatim: (a) peak/rms (6\u00d7 main.cpp + UI), (b) mono\u2192stereo interleave `stereo[i*2] = mono[i]; stereo[i*2+1] = mono[i];` at main.cpp 105-108, 186-189, 326-329, 617-620, 721-724, 887-890, 1005-1008, explore.cpp:365-368, mforce_ui/main.cpp:8528-8532, 13081-13083, 13303-13307, (c) `totalSeconds = totalBeats*60/bpm + 2; frames; mono; RenderContext; render` at main.cpp 178-181, 310-319, 591-600, 715-718, 877-880, 987-990 and mforce_ui/main.cpp:8129-8133. Each copy has drifted (+1s vs +2s tail, nonzero count in two of them, preroll in one, normalize in one), so a fix to one (e.g. the tempo bug below) must be applied in six places and will be missed.",
+   "recommendation": "One helper in the engine (render/ or util/): `SignalStats render_mix_to_wav(std::span<Instrument*> insts, int sampleRate, float seconds, const std::string& path, float prerollSec = 0)` that renders/sums, interleaves and calls compute_time_stats; plus `write_wav_16le_mono_as_stereo(path, sr, mono)` so no caller interleaves by hand. Then run_chords/render_piece_to_wav/render_and_write/run_compose/run_play/run_dun/test_ornaments and the three UI sites collapse to one call each.",
+   "confidence": 0.95
+  },
+  {
+   "file": "tools/mforce_cli/main.cpp",
+   "line": 709,
+   "line_end": 716,
+   "category": "soundness",
+   "severity": "medium",
+   "title": "Output buffer length uses a single section's bpm while Conductor::perform honours per-section tempo and truncation",
+   "evidence": "float bpm = 120.0f; for (auto& s : piece.sections) { totalBeats += s.beats; bpm = s.tempo; } float totalSeconds = totalBeats * 60.0f / bpm + 2.0f;\n-- conductor.h:548-553: `for (const auto& section : piece.sections) { float bpm = section.tempo; ... float effectiveBeats = section.beats - section.truncateTailBeats;`",
+   "why": "run_play (709-716) and render_piece_to_wav (173-178) use the LAST section's tempo; run_compose (590) and run_dun (876) use the FIRST. music_json.h:551/558 round-trips per-section `tempo`, so a --play piece with sections at e.g. 60 then 180 bpm is scheduled correctly by the Conductor but rendered into a buffer sized for the wrong tempo \u2014 truncating the tail or padding seconds of silence. truncateTailBeats is subtracted only in run_dun (874) although the Conductor subtracts it for every piece (553). Composed/DUN pieces are single-tempo today, so this is latent, but it is reachable via --play and will bite the moment the comp lane adds a tempo change.",
+   "recommendation": "Add `float Piece::total_seconds(float tailSec) const` (or a free function next to Conductor) = \u03a3 max(0, beats \u2212 truncateTailBeats) \u00d7 60 / section.tempo, and use it from every CLI mode and the UI chord path. Remove the four ad-hoc loops.",
+   "confidence": 0.8
+  },
+  {
+   "file": "tools/mforce_cli/main.cpp",
+   "line": 968,
+   "line_end": 971,
+   "category": "smell",
+   "severity": "medium",
+   "title": "--test-ornaments, --josie and --melody are unrunnable or orphaned dev harnesses carrying hard-coded paths and song data",
+   "evidence": "auto ip = load_instrument_patch(\"patches/PluckU.json\"); if (!ip.instrument) { std::cerr << \"ERROR: could not load PluckU.json\\n\"; return 1; }\n-- PluckU.json exists only at patches/old/PluckU.json; load_instrument_patch throws on a missing file (engine/src/patch_loader.cpp:48-50 `throw std::runtime_error(\"Cannot open patch file: \"...)`), so the null check is dead.",
+   "why": "`--test-ornaments` cannot run from the repo root (file moved to old/), and its only guard is unreachable. `--josie` (398-401) requires `<dir>/guitar_pluck.json`, `fm_bass.json`, `kick_drum.json`, `snare_drum.json`, none of which exist under patches/ (only in stale .claude/worktrees), and embeds a 12-line chord chart for one song (363-374) plus per-instrument mix levels. `--melody` (213-302) builds a fixed three-figure phrase and is referenced nowhere outside main.cpp. These three modes are ~300 lines (24% of the file) that cannot be exercised, yet sit beside the live modes and are dispatched from main() 1221-1227 as if supported.",
+   "recommendation": "Move --test-ornaments into tools/engine_tests with a fixture patch under patches/baselines/ (per the regression-scope rule); delete --josie and --melody (git history keeps them) or, if the josie chord chart is still wanted, make it a score file under scores/ and a generic --score mode. Then run_chords is the only hand-built-Part mode left.",
+   "confidence": 0.9
+  },
+  {
+   "file": "tools/mforce_cli/explore.cpp",
+   "line": 313,
+   "line_end": 426,
+   "category": "elegance",
+   "severity": "medium",
+   "title": "run_explore's 110-line while(true) with three goto next_variant and a double parse of the base patch",
+   "evidence": "goto next_variant; (lines 324, 386, 391) ... next_variant:\n        // Advance odometer-style across all axes\n-- and the base patch is read twice: 262-264 `std::ifstream bf(basePatchPath); json basePatchPeek; if (bf) bf >> basePatchPeek;` then 282-284 `std::ifstream f(basePatchPath); ... f >> basePatch;`",
+   "why": "The gotos exist only because the variant body is inlined into the odometer loop; extracting it makes the three failure exits plain `continue`s and the success path a value return. The 2nd parse exists only to check `contains(\"instrument\")` which the already-loaded `basePatch` answers. The comment at 334-336 (\"load_patch_file currently takes a path, not an in-memory JSON tree\") is half stale: `load_instrument_patch_json` exists (patch_loader.h:33) for the instrument branch; the on-disk write is still needed because the variant patch is a manifest deliverable, so only the comment needs correcting.",
+   "recommendation": "Extract `std::optional<json> render_variant(const json& variantPatch, const std::filesystem::path& outDir, const std::string& id, const ExploreCfg&)` returning the manifest entry; the loop becomes build \u2192 render_variant \u2192 push/record-failure \u2192 advance. Peek `basePatch.contains(\"instrument\")` after the single load. Use load_instrument_patch_json for the instrument branch and fix the comment.",
+   "confidence": 0.85
+  },
+  {
+   "file": "tools/mforce_cli/main.cpp",
+   "line": 592,
+   "line_end": 598,
+   "category": "soundness",
+   "severity": "low",
+   "title": "run_compose mixes all instruments at the alphabetically-first patch's sampleRate with no equality check",
+   "evidence": "int sampleRate = patchByPath.begin()->second.sampleRate; ... for (auto* inst : instruments) { ... RenderContext _ctx{sampleRate}; inst->render(_ctx, buf.data(), frames); ... }",
+   "why": "patchByPath is a std::map keyed by path, so begin() is whichever path sorts first, not the CLI patch. Instrument::render ignores ctx (instrument.h:62 `render(const RenderContext& /*ctx*/, ...)`) and voices were pre-rendered at each instrument's own rate, so a melody patch at 44100 summed with an accompaniment at 48000 would play at the wrong speed/pitch silently and be written with the wrong header. Both default comp patches are 48000 today (oboe1.json:446, piano_default.json:1084), so no observable bug yet.",
+   "recommendation": "After loading, assert every InstrumentPatch.sampleRate equals the first and fail with a clear message otherwise; take the rate from the CLI patch, not map order.",
+   "confidence": 0.75
+  },
+  {
+   "file": "tools/mforce_cli/explore.cpp",
+   "line": 507,
+   "category": "soundness",
+   "severity": "low",
+   "title": "--explore-filter parses the next argv as float before validating the flag, so unknown flags die with 'ERROR: stof'",
+   "evidence": "if (i + 1 < argc && parse_stat_flag(a, std::stof(argv[i + 1]))) { ++i; continue; }\nstd::cerr << \"Unknown flag: \" << a << \"\\n\";",
+   "why": "Function arguments are evaluated before the call, so `--explore-filter m.json --bogus --json` throws std::invalid_argument from stof and reaches main's catch as \"ERROR: stof\" instead of the intended \"Unknown flag: --bogus\" (and `--peak-min abc` gives the same unhelpful message). The usage text and the Unknown-flag branch are therefore only reachable when the bad flag is last.",
+   "recommendation": "Split parse_stat_flag into name validation (returns the StatBound* or nullptr) and then parse the value with std::from_chars / a try-catch that names the flag.",
+   "confidence": 0.85
+  },
+  {
+   "file": "tools/mforce_cli/main.cpp",
+   "line": 141,
+   "line_end": 159,
+   "category": "smell",
+   "severity": "low",
+   "title": "build_descending_phrase: unused stepDown parameter, misleading name, redundant first-iteration unroll",
+   "evidence": "static Phrase build_descending_phrase(Pitch startPitch, const MelodicFigure& repFig, int reps, int /*stepDown*/, const MelodicFigure& tailFig) { ... phrase.add_melodic_figure(repFig); for (int i = 1; i < reps; ++i) { phrase.add_melodic_figure(repFig); }",
+   "why": "Nothing descends and the step argument is ignored at all three call sites (262-264 pass -2). The unrolled first add plus a loop from 1 is just `for (i < reps)`. It only serves the orphaned --melody mode (see the dead-modes finding) and misleads a reader into thinking the phrase steps down.",
+   "recommendation": "Delete with --melody; if kept, rename to build_repeated_phrase(start, fig, reps, tail) and drop the dead parameter.",
+   "confidence": 0.9
+  },
+  {
+   "file": "tools/mforce_cli/main.cpp",
+   "line": 1217,
+   "line_end": 1240,
+   "category": "smell",
+   "severity": "low",
+   "title": "Eleven copy-pasted dispatch ifs; unknown --flags fall through to run_patch and report 'Patch file not found: --flag'",
+   "evidence": "if (argc >= 2 && std::string(argv[1]) == \"--dump-descriptors\") return run_dump_descriptors(argc, argv); ... (11 lines) ... return run_patch(argc, argv);\n-- run_patch 759-761: `if (!std::filesystem::exists(patchPath)) { std::cerr << \"Patch file not found: \" << patchPath`",
+   "why": "Each new mode adds another near-identical line and there is no central usage listing; a typo such as `--explor` is reported as a missing patch file rather than an unknown mode, which has already cost debugging time in agent runs that drive this binary.",
+   "recommendation": "A constexpr/static table `{const char* flag; int (*fn)(int, char**); const char* usage;}` looped once; if argv[1] starts with \"--\" and matches nothing, print the table and return 1.",
+   "confidence": 0.8
+  },
+  {
+   "file": "tools/mforce_cli/explore.cpp",
+   "line": 158,
+   "category": "build",
+   "severity": "low",
+   "title": "Relies on transitive includes for <cctype> and <stdexcept>",
+   "evidence": "std::all_of(t.begin(), t.end(), [](char c){ return std::isdigit((unsigned char)c); })  -- no #include <cctype>; std::runtime_error thrown at 83, 94, 100, 105 ... with no #include <stdexcept>",
+   "why": "Both currently arrive via nlohmann/json.hpp; a future bump of that header or an include-what-you-use pass breaks the build with no code change. main.cpp has the same pattern for std::runtime_error (332) and the `json` alias (529, via music_json.h).",
+   "recommendation": "Add <cctype> and <stdexcept> to explore.cpp; add <stdexcept> and <nlohmann/json.hpp> to main.cpp.",
+   "confidence": 0.9
+  }
+ ]
+}

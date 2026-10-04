@@ -51,6 +51,9 @@ Replicate legacy functionality of node-based UI to:
 - Allow triggering of discrete notes via UI keyboard (replacing QWERTY harness already implemented)
 
 ## Scope right now
+- REFACTOR ONLY (Matt 2026-10-04): "Absolutely no feature work for awhile", in
+  any lane, including autonomous "go" runs, until Matt lifts it. Protocol:
+  docs/superpowers/specs/2026-10-04-refactor-gates-design.md
 - Windows-only is fine for now, but plan for future cross-platform
 
 ## Non-negotiables
@@ -58,12 +61,36 @@ Replicate legacy functionality of node-based UI to:
 - Avoid reflection-like designs; prefer explicit registries
 - Seeds: random at creation time, stored in JSON for reproducibility. Not user-facing.
 
+## Design principles (Matt 2026-10-04, recorded at his request)
+- Matt is NOT a "just land it" owner — the polar opposite. Speed is never a
+  reason to skip design.
+- Correct abstractions and design patterns are crucial, not just important,
+  including inheritance where it is powerful (exhibit A: ValueSource).
+  Inheritance vs composition is a design decision, never dictated by the language.
+- Goal: go public to attract a community of developers to collaborate (not a
+  commercial product). When that day arrives the code must be as close to
+  pristine as we can get it.
+- Git holds the full history: no dated changelog in code comments.
+- If the refactor protocol (gates, independent review, architecture reports)
+  exhausts the weekly quota by Wednesday, that is acceptable. Do not thin the
+  protocol to save quota.
+- C++ boot camp is part of the work: primer at docs/matt/cpp_primer_10000ft.md,
+  then a lesson or two in every architecture report (the idiom used and its
+  alternative, the C#/Java analogue, why the name was chosen).
+- Architecture reports err on moderately verbose.
+
 ## Architecture direction
 - ValueSource graph model is fundamental for DSP
 - Keep the code real-time safe where practical
 - Maintain compatibility with future use of JUCE or other frameworks
 
 ## Build and run
+- Session start (hard rule, Matt 2026-10-02): FIRST line of the first reply states
+  the model and effort level (verify with get_session self) and flags any change
+  from the last session's recorded value (~/.claude/projects/C---dev-repos-mforce/
+  last_model.txt, written by the SessionStart hook flow). Expected: Fable 5.x, High
+  or above. Never Opus 5/5.5; fallback is claude-opus-4-8. Offer xhigh/max before
+  design or review work.
 - Session start: sweep stale renamed UI exes (build/tools/mforce_ui/Release/
   mforce_ui_*.exe — rename-then-link leftovers; skip any still locked/running)
 - Build from repo root

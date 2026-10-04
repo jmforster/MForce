@@ -1,0 +1,211 @@
+{
+ "unit": "render-instrument",
+ "assessment": {
+  "health": 3,
+  "summary": "This unit is the Performance\u2192Realization boundary: PerformedNote crosses into PitchedInstrument, which owns a pre-cloned voice pool, delivers per-note state through PerformSource (an explicit once-per-sample clock with stateless PerformOut views), and either pre-renders notes offline into per-note buffers summed by Instrument::render, or hands a prepared voice to a streaming caller. The core model is sound and unusually well-reasoned: the explicit tick() clock fixes the shared-consumer double-advance problem, InstrumentState is atomic, offline capture pre-allocates everything, and the held-line state machine is derived from engine state with end-of-score safety. The dominant problem is PitchedInstrument itself: a 620-line all-public struct that has accreted a dozen policies (pool rotation, live slot ledger, capture, streaming handoff, push bindings, onset vocabulary, held-line, ring-out/containment, glide) with the ring-out/containment block copy-pasted between play_note and finish_line (and mirrored a third time in the UI callback). Its live-path entry points are not real-time safe by construction (they allocate and mutate the live graph in place), so the only possible caller discipline is a mutex that the audio callback also takes; and the StreamingVoice per-sample protocol is enforced by comment only and is already violated by mforce_cli --explore, which silently renders loop/bend patches wrong. WAV I/O is minimal, per-sample, and the writer reports success without checking the stream.",
+  "strengths": [
+   "PerformSource/PerformOut: explicit per-voice sample clock advanced once by the render driver, with idempotent stateless adapters (perform_source.h 47-139) \u2014 a clean solution to the per-consumer double-advance bug it replaced.",
+   "InstrumentState uses std::atomic<float> with relaxed loads for the UI/MIDI\u2192audio handoff (perform_source.h 14-17, 73-76); no locks in tick().",
+   "Offline per-node capture pre-allocates all buffers in capture_begin and the hot loop pays one branch (instrument.h 225-240, 440).",
+   "Held-line continuation is derived from engine state rather than lookahead, with finish_open_lines() end-of-score safety and per-note reseed for determinism (instrument.h 472-496, 716).",
+   "Deliberate byte-identical preservation of the classic note path and documented provenance (backlog ids, spec sections) for every policy change \u2014 makes the de-duplication refactor safe to do.",
+   "wav_writer/wav_reader are endian-explicit and header-correct for the declared 16-bit stereo PCM subset; the reader validates fmt before touching data."
+  ],
+  "files_read": [
+   "C:/@dev/repos/mforce/engine/include/mforce/render/instrument.h",
+   "C:/@dev/repos/mforce/engine/include/mforce/render/perform_source.h",
+   "C:/@dev/repos/mforce/engine/include/mforce/render/wav_reader.h",
+   "C:/@dev/repos/mforce/engine/include/mforce/render/wav_writer.h",
+   "C:/@dev/repos/mforce/engine/include/mforce/util/fft.h",
+   "C:/@dev/repos/mforce/engine/include/mforce/util/signal_stats.h",
+   "C:/@dev/repos/mforce/engine/src/wav_reader.cpp",
+   "C:/@dev/repos/mforce/engine/src/wav_writer.cpp",
+   "C:/@dev/repos/mforce/engine/include/mforce/core/envelope.h (partial, cross-ref)",
+   "C:/@dev/repos/mforce/engine/include/mforce/render/mixer.h (cross-ref)",
+   "C:/@dev/repos/mforce/engine/src/mixer.cpp (cross-ref)",
+   "C:/@dev/repos/mforce/engine/include/mforce/music/pitch_bend.h (cross-ref)",
+   "C:/@dev/repos/mforce/engine/include/mforce/source/multiplex_source.h (partial, cross-ref)",
+   "C:/@dev/repos/mforce/engine/src/patch_loader.cpp (partial, cross-ref)",
+   "C:/@dev/repos/mforce/tools/mforce_ui/main.cpp (partial, cross-ref)",
+   "C:/@dev/repos/mforce/tools/mforce_cli/explore.cpp (partial, cross-ref)"
+  ]
+ },
+ "findings": [
+  {
+   "file": "engine/include/mforce/render/instrument.h",
+   "line": 193,
+   "line_end": 214,
+   "category": "rt-safety",
+   "severity": "high",
+   "title": "Live-path API (prepare_voice_at / continue_voice_live / acquire_voice) allocates and mutates the live graph in place, so the only valid caller discipline is a mutex the audio callback also takes",
+   "evidence": "\"serialize these under their audio mutex \u2014 not internally synchronized\" (193-194); `return { vg.source, durSamples + tailSamples, gain, vg.performSource, vg.advanceList };` (371-372, copies a vector<shared_ptr>); `auto g = std::make_shared<Envelope>(sampleRate); ... g->add_stage(...)` (422-426, reached from continue_voice_live 508\u2192478); `if (int(slotInUse.size()) != n) slotInUse.assign(size_t(n), 0);` (201); `b.consumer->set_param(b.paramName, b.cs);` (342); `vg.topMultiplex->set_clone_param(...)` (344, builds `nodeId + \".\" + paramName` and map-inserts, multiplex_source.h 100-101)",
+   "why": "Verified in mforce_ui/main.cpp: audio_callback holds `std::lock_guard<std::mutex> lock(g_audioMutex);` (3864) and the UI holds the same mutex around prepare_voice_at (4676, 4788) and continue_voice_live (4749, 4830). Every heap allocation, string-keyed set_param and map insert in these entry points therefore runs while the audio thread is blocked on the lock \u2014 a priority-inversion dropout source on every key-down/legato, and a direct violation of the no-locks/no-allocation render-path rule, forced by this unit's design rather than by the UI.",
+   "recommendation": "Make the live delivery allocation-free and double-buffered so the callback can drop the mutex: pre-allocate one glide Envelope and one bend Envelope per VoiceGraph at load and reset them in place (Envelope already has replace_stages/prepare); resolve PushBinding to a pre-bound slot (store the param's shared_ptr target or an index instead of a string name) at load; have StreamingVoice reference the VoiceGraph (pointer/span) instead of copying advanceList; size slotInUse at pool build. Then expose an SPSC command queue (note-on/legato/note-off) consumed at the top of the callback, which lets mforce_ui remove the lock from audio_callback.",
+   "confidence": 0.85
+  },
+  {
+   "file": "engine/include/mforce/render/instrument.h",
+   "line": 246,
+   "line_end": 264,
+   "category": "soundness",
+   "severity": "high",
+   "title": "StreamingVoice's per-sample protocol (tick \u2192 next \u2192 advance) is enforced by comment only and is already violated by mforce_cli --explore, which renders bend/loop patches wrong",
+   "evidence": "\"Streaming callers MUST call performSource->tick() once per sample before source->next()\" (254-256); \"Streaming callers MUST tick each entry once per sample AFTER source->next(), or tap-closed feedback loops fall silent\" (259-261). Consumer tools/mforce_cli/explore.cpp 355-362: `auto sv = pitched->prepare_voice(...); ... mono[size_t(i)] = soft_clip(sv.source->next() * sv.gain);` \u2014 no tick(), no advanceList.",
+   "why": "Traced all three streaming consumers: the UI audio callback (main.cpp 3889, 3899) and the UI keyboard CLI path (13287-13289) honor the contract; explore.cpp does not. By the header's own words, --explore renders of any patch with a tap-closed feedback loop (the flute/oboe loop family, the project's best sounds) are silent or wrong, and bend/wheel freeze at note-on. Explore is the batch sound-search pillar, so sweeps are being scored on incorrect audio. A contract that three callers must each reimplement per sample is a design defect, not a caller bug.",
+   "recommendation": "Give StreamingVoice a `float next()` that performs tick \u2192 source->next() * gain \u2192 advanceList ticks, make `source`, `performSource` and `advanceList` private, and switch all three consumers to it. Fix explore.cpp in the same change.",
+   "confidence": 0.9
+  },
+  {
+   "file": "engine/include/mforce/render/instrument.h",
+   "line": 620,
+   "line_end": 706,
+   "category": "duplication",
+   "severity": "high",
+   "title": "Ring-out / cap-fade / containment block is copy-pasted between play_note (classic) and finish_line, and mirrored a third time in the UI audio callback",
+   "evidence": "play_note 620-655: `const float ringDecay = std::exp(-1.0f / (0.05f * float(sampleRate)));` ... `if (i >= renderSamples && ringEnv < kRingFloor) break; render_chunk(vg, buf, vIdx, startFrame, 1, gain); ringEnv = std::max(std::fabs(buf[size_t(i)]), ringEnv * ringDecay);` ... `[containment] note %.1f`; finish_line 673-704 repeats the same ringDecay/loop/fadeN/containment nearly verbatim (`[containment] line ending on note`). Boost/gain formula also duplicated: 359-362 vs 565-568 `(std::log10(std::max(freq, 100.0f)) - 2.0f) * hiBoost`. mforce_ui/main.cpp 3900-3917 is a third hand-copy (\"mirrors PitchedInstrument::play_note\") with ringDecay baked as 0.99958 for 48 kHz.",
+   "why": "This policy has already changed three times by the comments' own record (backlog 63, 63b, REVIEW 09-16); each change had to be applied in three places and the UI copy has already drifted (hard-coded sample rate, 100 ms chunking). The next tweak will desynchronize offline vs live ring-out audibly.",
+   "recommendation": "Extract `int ring_out(VoiceGraph&, std::vector<float>& buf, int vIdx, int startFrame, int base, int releaseRem, float gain)` returning the rendered count, and `void containment_check(const float*, int rendered, ...)`; call both from play_note and finish_line. Extract `float voice_gain(float freq, float velocity) const` for the boost formula. Expose a small incremental RingFollower struct so the UI callback can reuse the same constants instead of a hand-mirror.",
+   "confidence": 0.95
+  },
+  {
+   "file": "engine/include/mforce/render/instrument.h",
+   "line": 99,
+   "line_end": 717,
+   "category": "god-class",
+   "severity": "high",
+   "title": "PitchedInstrument is a 620-line all-public header struct carrying ~10 unrelated responsibilities, with trailing-underscore 'private' state that callers reach into",
+   "evidence": "One struct owns: pool rotation (187-188), live slot ledger (197-215), offline capture (225-240), streaming handoff (246-373), onset vocabulary (287-310), push-binding delivery (312-347), held-line state machine (382-392, 521-716), ring-out/containment (620-655), glide synthesis (420-429). All members public, including `std::set<std::string> warnedOnsets_;` (295), `HeldLine line_;` (392), `bool warnedNoEnvelopes_{false};` (399). UI reaches into internals: main.cpp 4685 `collect_envelopes(pitched->voicePool[slot].source.get(), ...)`. Same pattern on the collaborator it drives: `std::shared_ptr<ValueSource> trigger_;` is public in envelope.h 159 and read directly at instrument.h 408 `env->trigger_->current()`.",
+   "why": "Every one of the other findings in this unit (lock-forced live path, duplicated ring-out, contract-by-comment streaming, silent continuation drops) is a symptom of one struct absorbing every new spec section as more public members and more branches in play_note. Header-only is fine, but a 620-line header of policy code is recompiled by every translation unit that includes instrument.h (patch_loader, conductor, three tools) and cannot be unit-tested in isolation.",
+   "recommendation": "Split by responsibility, keeping Instrument as the thin MonoSource: (1) VoicePool \u2014 voicePool, nextVoice, slotInUse, acquire/release; (2) NoteDelivery \u2014 apply_note_bindings, deliver_continuation, fire_triggers, make_glide, onset vocabulary (pure functions over VoiceGraph); (3) OfflineRenderer \u2014 play_note/finish_line/capture/ring_out writing into Instrument::renderedNotes; (4) LiveVoice \u2014 the StreamingVoice handoff. Make state private with narrow accessors; add Envelope::trigger() accessor and drop the public trigger_. Move method bodies to instrument.cpp.",
+   "confidence": 0.8
+  },
+  {
+   "file": "engine/include/mforce/render/instrument.h",
+   "line": 527,
+   "line_end": 539,
+   "category": "soundness",
+   "severity": "medium",
+   "title": "Continuation branch silently ignores the note's startTime and its PitchCurve",
+   "evidence": "`if (line_.open) { auto& vg = voicePool[size_t(line_.vIdx)]; deliver_continuation(vg, freq, pn.velocity, durSamples, pn.duration, line_.lastFreq, pn.onsetId); ... render_chunk(vg, line_.buf, line_.vIdx, int(line_.startTime * float(sampleRate)), durSamples, line_.gain); if (!pn.hold) finish_line(); return; }` \u2014 `startTime` and `pn.curve` are never referenced; `deliver_continuation(VoiceGraph&, float freq, float velocity, int durSamples, float durSeconds, float fromFreq, float onsetId)` (472-474) has no curve parameter.",
+   "why": "The score loader passes an explicit `time` when present (patch_loader.cpp 1607-1608 `noteJson.contains(\"time\") ? noteJson[\"time\"].get<float>() : prevEnd`), so a hold:true note followed by a note with a later `time` has its rest swallowed and every subsequent onset in the line lands early with no warning. A PitchCurve on a continued note is dropped (latent today \u2014 conductor.h never sets hold \u2014 but PerformedNote carries both fields, so nothing stops a future Performer from doing it).",
+   "recommendation": "In the continuation branch compare `startTime` to `line_.startTime + buf.size()/sampleRate`; if it deviates by more than one sample either close the line first (finish_line then fresh note) or warn. Either reject `pn.curve` on a continued note with a stderr/diagnostic, or compose it with the glide (PerformSource holds a single `bend_` slot, so composition needs a design decision).",
+   "confidence": 0.8
+  },
+  {
+   "file": "engine/include/mforce/render/instrument.h",
+   "line": 609,
+   "category": "soundness",
+   "severity": "medium",
+   "title": "fire_triggers after prepare on the fresh offline path re-anchors stage 0 at the slot's stale cur_, and the live path never fires triggers at all \u2014 fresh notes diverge offline vs live",
+   "evidence": "Fresh paths: `vg.source->prepare(ctx, durSamples); ... fire_triggers(vg);` (578-580 and 607-609). Live path prepare_voice_at (349-373) calls apply_note_bindings + prepare and never fire_triggers. envelope.h: prepare() resets `gateActive_ = false; ptr_ = -1; currStage_ = 0; stageStart_ = 0;` (362-366) but never cur_; retrigger() does `gateFrom_ = cur_; gateActive_ = true; gateStage_ = 0;` (147-149) and next_raw_ then evaluates `cur_ = gateFrom_ + (r.endVal - gateFrom_) * shape;` (433) instead of the ramp's own startVal.",
+   "why": "Traced: after any completed offline note the envelope sits at cur_ = 0 (envelope.h 418-421), so a triggered envelope whose stage 0 starts at a nonzero value (a pitch-offset or 'from 1 decay' onset gesture) begins its fresh note at 0 rather than its authored start \u2014 and only offline. The header's design claim at 517-520 is that offline and live are \"one mechanism\"; here they are not. On the live path a trigger-wired envelope never fires on a fresh key-down.",
+   "recommendation": "Decide the fresh-note semantics once: either skip fire_triggers on fresh paths (prepare already places the envelope at stage 0 with its authored startVal) or have retrigger take an explicit anchor and pass the stage-0 startVal on fresh notes. Then route prepare_voice_at through the same post-prepare sequence as play_note so live and offline fresh notes are byte-identical, and add an engine_tests case for a trigger envelope with nonzero startVal on both paths.",
+   "confidence": 0.65
+  },
+  {
+   "file": "engine/include/mforce/render/instrument.h",
+   "line": 624,
+   "line_end": 655,
+   "category": "efficiency",
+   "severity": "medium",
+   "title": "Per-note 8-second transient reserve plus a second full copy in add_rendered, and a per-sample render_chunk call that resizes on every sample",
+   "evidence": "`buf.reserve(size_t(std::max(renderSamples, maxSamples)));` (624) where `maxSamples = durSamples + int(kMaxRingSec * float(sampleRate))` (622); `render_chunk(vg, buf, vIdx, startFrame, 1, gain);` (631, and 686) with `buf.resize(base + size_t(n));` inside (442); `rn.samples.assign(data, data + count);` (90) copies the whole buffer again; DrumKit does the same (741 `std::vector<float> buf(durSamples);` \u2192 745 add_rendered). Line path: 590-591 reserves durSamples + 8 s; 676 re-reserves.",
+   "why": "At 48 kHz every note allocates and frees ~1.5 MB+ of capacity it almost never uses, then memcpys the rendered portion into a second vector \u2014 for a 1000-note piece that is ~1.5 GB of allocator churn and a full extra pass over all audio. The main offline sample loop pays a function call, a resize, a capture branch and an advanceList range-for setup per sample instead of per note. Not real-time, but this is the whole-piece render path the comp lane waits on.",
+   "recommendation": "`add_rendered(float startTime, std::vector<float>&& samples)` to move instead of copy; reserve `renderSamples` and let the ring extension grow the vector only when it actually extends; have ring_out call render_chunk with n = the chunk size and hoist the capture/advanceList checks out of the k-loop (or have render_chunk write into a pre-sized span).",
+   "confidence": 0.85
+  },
+  {
+   "file": "engine/src/wav_writer.cpp",
+   "line": 56,
+   "line_end": 62,
+   "category": "soundness",
+   "severity": "medium",
+   "title": "write_wav_16le_stereo returns true without ever checking the stream after writing",
+   "evidence": "`for (float s : interleavedLR) { int16_t v = clip(s); f.put(char(v & 0xFF)); f.put(char((v >> 8) & 0xFF)); } return true;` \u2014 the only failure check is `if (!f) return false;` at open (30).",
+   "why": "A disk-full, quota or sharing-violation error mid-write leaves a truncated WAV while every CLI/UI caller (mforce_cli main.cpp 110/191/331/623/726/786/892/1010, explore.cpp 383, mforce_ui 8534/13084/13308/13432) reports success. Renders are the product; a 'render succeeded' that is silently truncated is a release-embarrassing failure mode.",
+   "recommendation": "Write the sample block from a packed buffer with one `f.write`, then `f.flush(); return f.good();` (or `return static_cast<bool>(f);`).",
+   "confidence": 0.9
+  },
+  {
+   "file": "engine/src/wav_reader.cpp",
+   "line": 96,
+   "line_end": 99,
+   "category": "efficiency",
+   "severity": "medium",
+   "title": "Reader and writer both do per-sample 2-byte stream I/O instead of one bulk transfer",
+   "evidence": "wav_reader.cpp 96-99: `for (int i = 0; i < numSamples; ++i) { uint8_t b[2]; f.read(reinterpret_cast<char*>(b), 2); ...` ; wav_writer.cpp 56-60: `for (float s : interleavedLR) { ... f.put(char(v & 0xFF)); f.put(char((v >> 8) & 0xFF)); }`",
+   "why": "A 60 s stereo file is 5.76 M `read`/`put` calls, each paying the iostream sentry/locale path \u2014 the writer runs on every render and the reader on every audition-folder load in the UI (main.cpp 5392), where it stalls the UI thread.",
+   "recommendation": "Reader: `std::vector<uint8_t> raw(dataBytes); f.read(raw.data(), dataBytes);` then convert with `std::bit_cast`/shift. Writer: pack into `std::vector<int16_t>` (little-endian host, or byte-pack explicitly) and issue one `f.write`.",
+   "confidence": 0.9
+  },
+  {
+   "file": "engine/src/wav_reader.cpp",
+   "line": 74,
+   "line_end": 95,
+   "category": "soundness",
+   "severity": "medium",
+   "title": "Chunk walk mis-handles data-before-fmt, odd-length chunk padding, and the 0xFFFFFFFF data size used by streaming-written WAVs (bad_alloc out of a bool API)",
+   "evidence": "`} else if (std::strcmp(tag, \"data\") == 0) { dataBytes = chunkSize; dataStart = f.tellg(); gotData = true; }` (74-77) \u2014 loop continues without skipping the payload, so if fmt follows data the next tag read lands in sample bytes; `f.seekg(chunkSize, std::ios::cur);` (81) ignores the RIFF word-alignment pad byte for odd-sized chunks; `int numSamples = int(dataBytes / 2); out.resize(size_t(numSamples));` (94-95) \u2014 dataBytes = 0xFFFFFFFF gives numSamples = 2147483647 and an ~8 GB resize that throws std::bad_alloc from a function whose contract is 'returns false on any parse error'. Caller audition_load_at (main.cpp 5392) has no try/catch.",
+   "why": "The header limits the contract to files written by write_wav_16le_stereo, but the UI exposes a folder browser over renders/ and Matt's archaeology WAVs (SAVIHost/AF captures) carry LIST/INFO chunks and, for streaming captures, the 0xFFFFFFFF placeholder size. The odd-pad case silently fails to parse; the placeholder case terminates the UI.",
+   "recommendation": "In the data branch `f.seekg(dataBytes + (dataBytes & 1), cur)` when fmt is not yet seen (and keep dataStart); pad unknown-chunk skips by `(chunkSize & 1)`; clamp dataBytes to the remaining file size (seek to end once to get it) so the resize is bounded and the function returns false instead of throwing.",
+   "confidence": 0.75
+  },
+  {
+   "file": "engine/include/mforce/render/instrument.h",
+   "line": 475,
+   "category": "soundness",
+   "severity": "low",
+   "title": "Continuation reseed and offline capture both depend on nodesById, which the render-path loader never fills \u2014 determinism and capture silently no-op for mixer-path instruments",
+   "evidence": "`for (auto& [nid, src] : vg.nodesById) src->reseed();` (475) and `voicePool[v].nodesById.find(ids[k])` (235); the field is documented \"Empty for mixer-path instruments.\" (163). patch_loader.cpp assigns `vg.nodesById = std::move(g.valueNodes);` only at 1886 (instrument-path loader); the render-path pool build at 1534-1579 never sets it.",
+   "why": "A render-path patch with a hold line gets the glide, set_note and push bindings but not the per-note draw re-anchoring the comment calls out as required ('a different oboeist per phrase'), with no diagnostic. The capture_begin path likewise captures nothing for such instruments.",
+   "recommendation": "Fill nodesById in the render-path loader too (it already has g.valueNodes in scope), or make deliver_continuation reseed via vg.source->reseed() recursively so determinism does not depend on a side table.",
+   "confidence": 0.7
+  },
+  {
+   "file": "engine/include/mforce/render/instrument.h",
+   "line": 268,
+   "category": "soundness",
+   "severity": "low",
+   "title": "prepare_voice has no empty-pool guard while play_note does; a patch with \"polyphony\": 0 is a modulo-by-zero on the render-path loader",
+   "evidence": "`int slot = int(nextVoice % int(voicePool.size()));` (268) vs `if (voicePool.empty()) return;` (522). patch_loader.cpp 1516 `int polyphony = instJson.value(\"polyphony\", 4);` with no floor (the instrument-path loader at 1841 does apply `std::max(..., minPolyphony)`).",
+   "why": "Undefined behavior (integer division by zero) reachable from explore.cpp 355 and the UI keyboard CLI 13284 with a degenerate but loadable patch.",
+   "recommendation": "Return an empty StreamingVoice (null source) when the pool is empty, and floor polyphony at 1 in both loaders.",
+   "confidence": 0.7
+  },
+  {
+   "file": "engine/include/mforce/render/instrument.h",
+   "line": 651,
+   "category": "smell",
+   "severity": "low",
+   "title": "Engine render path writes diagnostics straight to stderr, which the WIN32 UI build cannot display",
+   "evidence": "`std::fprintf(stderr, \"[containment] note %.1f ...\"` (651-653), `\"[containment] line ending on note\"` (700-704), `\"[onset] name '%s' is not in this instrument's onsets[] vocabulary\"` (306-308), `\"[onset] hold requested but this voice has no reachable envelopes\"` (553-555). mforce_ui/main.cpp 4001-4003: \"fprintf(stderr) is invisible in a WIN32_EXECUTABLE build\".",
+   "why": "The containment check is the engine's one objective 'this note clicks' detector and the UI user never sees it; the engine has no diagnostics sink the tools can route to a status line or log.",
+   "recommendation": "Add a minimal engine diagnostics hook (`void (*g_diag)(std::string_view)` or a std::function set by the tool) with a default to stderr; route these four sites through it.",
+   "confidence": 0.8
+  },
+  {
+   "file": "engine/include/mforce/render/instrument.h",
+   "line": 62,
+   "line_end": 93,
+   "category": "smell",
+   "severity": "low",
+   "title": "Instrument::render ignores ctx, re-tests bounds per sample, and implements a whole-timeline render behind a block-shaped MonoSource interface",
+   "evidence": "`void render(const RenderContext& /*ctx*/, float* out, int frames) override` (62) while `int sampleRate{48000};` is a separate member (53); `for (int i = 0; i < len; ++i) { int outIdx = start + i; if (outIdx >= 0 && outIdx < frames) out[outIdx] += rn.samples[i]; }` (68-72); `void add_rendered(float startTime, float* data, int count)` (87) takes a non-const pointer.",
+   "why": "StereoMixer::render calls this exactly once with the full frame count (mixer.cpp 25), so it works, but any block-wise driver (the obvious future JUCE/PortAudio path) would silently misplace every note because there is no running position; and a ctx.sampleRate that differs from the member is silently ignored.",
+   "recommendation": "Either assert/clamp on ctx.sampleRate == sampleRate, or drop the member and read ctx. Compute the overlap range `[max(0,start), min(frames, start+len))` once per note. Take `const float*` (or move a vector) in add_rendered. Document on MonoSource that render is whole-timeline, or add a cursor.",
+   "confidence": 0.8
+  },
+  {
+   "file": "engine/include/mforce/util/fft.h",
+   "line": 11,
+   "line_end": 31,
+   "category": "modern-cpp",
+   "severity": "low",
+   "title": "util nits: C-cast and hand-typed pi in fft.h; dead counter and always-true branch in signal_stats.h; raw pointer+length instead of std::span",
+   "evidence": "fft.h: `inline void fft_inplace(std::vector<std::complex<float>>& x)` (11), `int n = (int)x.size();` (12), `float ang = -2.0f * 3.14159265358979f / float(len);` (22), float twiddle recurrence `w *= wlen;` (31). signal_stats.h: `int nonzero = 0;` incremented unconditionally after the floor clamp (70, 78) so it always equals Nover2-1; `if (magSum > 0.0)` (80) is unconditionally true because every mag is floored to 1e-12f (74); `compute_time_stats(const float* samples, int n, ...)` (21).",
+   "why": "Cheap readability/correctness-of-intent debt in C++20 code: `std::numbers::pi_v<float>` and `std::span` are the idioms; the misnamed `nonzero` and dead branch mislead a reader into thinking zero bins are excluded from the flatness geomean. The float twiddle recurrence accumulates error across 8192-point stages \u2014 acceptable for stats, worth a comment so no one reuses it for analysis that needs precision.",
+   "recommendation": "Take `std::span<std::complex<float>>` / `std::span<const float>`; use `std::numbers::pi_v<float>`; rename `nonzero` to `bins` and drop the `magSum > 0.0` guard (or genuinely exclude floored bins if that was the intent); recompute twiddles per stage from `std::polar` with double accumulation if precision ever matters.",
+   "confidence": 0.9
+  }
+ ]
+}

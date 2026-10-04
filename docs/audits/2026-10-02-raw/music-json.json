@@ -1,0 +1,211 @@
+{
+ "unit": "music-json",
+ "assessment": {
+  "health": 3,
+  "summary": "This unit is the template data model (templates.h), its JSON serializer (templates_json.h), the score/music-model serializer (music_json.h), the DURN scale-degree text parser (dun_parser.h) and the chord/passage/drum string parsers (parse_util.h). The model structs are plain aggregates with sensible defaults and unusually good comments on authoring traps; the serializers are complete enough that several past round-trip bugs have been found and fixed with the history recorded inline. The dominant problem is hand-rolled per-field serialization that has already drifted: a 42-line copy of from_json(PhraseTemplate) inside from_json(PeriodSpec) silently drops strategy configs, parse_chord_progression re-implements from_json(ScaleChord), ten enums are serialized as paired switch/if-chains with an inconsistent unknown-value contract (six silently default, four throw), four passage config structs are field-listed inline in both directions, and the file mixes `.at()` with const `operator[]` on keys that are not guaranteed present (UB in release). There are also verified lossy spots: to_json(SectionTemplate) omits the live styleName field, to_json(Phrase) drops connectors and the Figure subtype, to_json(Section) drops truncateTailBeats/keyContexts. The DURN tokenizer is compact and handles ties/triplets/sections cleanly but never checks that a token was fully consumed, so authoring typos such as `qn.` or a bar glued to a note parse silently. No real-time code lives here, so nothing is RT-safety relevant. First change: delete the loadPhrase lambda, move all enums to NLOHMANN_JSON_SERIALIZE_ENUM with throwing unknowns, and replace the inline config field-lists with NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (nlohmann 3.12 is vendored, so both macros are available).",
+  "strengths": [
+   "ADL to_json/from_json organization in namespace mforce; nlohmann get<T>()/value() used idiomatically for optional fields with defaults, producing terse output that omits defaults",
+   "Round-trip failures discovered in the past are fixed and annotated with the reason (chordConfig at templates_json.h:871-878, canonical-vs-flat chord progression at 15-26, endGrid always-written at 865-867), so the serializer explains its own quirks",
+   "templates.h documents authoring traps precisely (dense connectors array at 290-298, cadentialArrival semantics at 305-317, section key desugaring at 627-631)",
+   "dun_parser.h handles ties including cross-bar (278-293), triplets, dotted values, ornament suffixes and `//` section breaks in ~100 lines with a clear flush model",
+   "parse_util.h error messages carry the token number for every hand-written throw, which makes authoring failures locatable",
+   "Motif variant content with typed accessors (templates.h:186-206) and PieceTemplate::add_derived_motif idempotency by (parent, transform, param) are clean, testable designs"
+  ],
+  "files_read": [
+   "C:/@dev/repos/mforce/engine/include/mforce/music/templates.h",
+   "C:/@dev/repos/mforce/engine/include/mforce/music/templates_json.h",
+   "C:/@dev/repos/mforce/engine/include/mforce/music/music_json.h",
+   "C:/@dev/repos/mforce/engine/include/mforce/music/parse_util.h",
+   "C:/@dev/repos/mforce/engine/include/mforce/music/dun_parser.h",
+   "C:/@dev/repos/mforce/engine/include/mforce/music/voicing_profile.h (lines 14-38, cross-ref)",
+   "C:/@dev/repos/mforce/engine/include/mforce/music/figures.h (lines 513-662, cross-ref)",
+   "C:/@dev/repos/mforce/engine/include/mforce/music/structure.h (lines 18-35, 124-262, cross-ref)",
+   "C:/@dev/repos/mforce/engine/include/mforce/music/composer.h (lines 55-69, 873, 1057, cross-ref)",
+   "C:/@dev/repos/mforce/engine/src/chord.cpp (lines 12-13, 46-52, cross-ref)",
+   "C:/@dev/repos/mforce/engine/third_party/nlohmann/json.hpp (lines 68-70, 22182-22193, cross-ref only)",
+   "C:/@dev/repos/mforce/scores/baselines/test_period_sentence.json, test_elaborated.json (grep, cross-ref)"
+  ]
+ },
+ "findings": [
+  {
+   "file": "engine/include/mforce/music/templates_json.h",
+   "line": 799,
+   "line_end": 842,
+   "category": "duplication",
+   "severity": "high",
+   "title": "from_json(PeriodSpec) carries a 42-line copy of from_json(PhraseTemplate) that has already drifted and silently drops strategy configs",
+   "evidence": "// instead we read each phrase's fields manually here.\n    auto loadPhrase = [](const json& pj) {\n        PhraseTemplate ph;\n        ...\n        if (pj.contains(\"connectors\")) { ... }   // 821-838 == 741-758 verbatim\n        return ph;\n    };",
+   "why": "The justifying comment at 794-798 says from_json(PhraseTemplate) 'enforces startingPitch', but line 700 reads `if (j.contains(\"startingPitch\"))` \u2014 it is optional there, so the stated reason is stale and the lambda is pure duplication. It has drifted: the copy never reads periodConfig/sentenceConfig/twoFigureConfig/elaboratedConfig (692-733 does), so a period antecedent/consequent authored with a phrase strategy config loses it on load with no error; the copy makes \"figures\" optional while the real function requires it (`j.at(\"figures\")` at 694 \u2014 which is why baseline scores write `\"figures\": []` boilerplate, test_period_sentence.json:23,58). The connectors block (741-758 vs 821-838) is a second verbatim copy including the dense-array warning comment.",
+   "recommendation": "Delete loadPhrase; write `from_json(j.at(\"antecedent\"), ps.antecedent); from_json(j.at(\"consequent\"), ps.consequent);`. If figures should be optional for strategy-driven phrases, make that change once in from_json(PhraseTemplate) (`if (j.contains(\"figures\"))`). Extract the connectors parse into `from_json(const json&, std::optional<FigureConnector>&)`.",
+   "confidence": 0.95
+  },
+  {
+   "file": "engine/include/mforce/music/templates_json.h",
+   "line": 111,
+   "line_end": 307,
+   "category": "soundness",
+   "severity": "high",
+   "title": "Six enum loaders silently map unknown strings to a default while four throw \u2014 a typo in an authored template changes the composition instead of failing the load",
+   "evidence": "else s = FigureSource::Generate;        // 111\nelse t = TransformOp::None;             // 146\nelse r = PartRole::Melody;              // 208\nelse f = MelodicFunction::Free;         // 230\nelse s = FigureShape::Free;             // 276\nelse d = FigureDirection::Ascending;    // 307\nvs.\nelse throw std::runtime_error(\"Unknown MotifRole: \" + s);  // 170 (also 187, 605, 621, 777)",
+   "why": "`\"shape\": \"scalar_rum\"` or `\"transform\": \"invert \"` loads as Free/None and the piece renders differently with no diagnostic; the same pattern exists for stepMode (430: anything but \"chordTone\" is Scale), TwoFigurePhraseConfig::Method (579), Articulation type (music_json.h:66 -> Default) and Ornament type (music_json.h:144 -> none). The file has no single contract for bad input, so an author cannot know whether a mistake will be caught. Given the project history of template-authoring traps (connectors note at templates.h:294-297), silent acceptance is the expensive failure mode.",
+   "recommendation": "Throw on unknown strings everywhere, including the offending value and the enum name in the message. Doing this via one table per enum (see the NLOHMANN_JSON_SERIALIZE_ENUM finding) makes the contract uniform by construction; if a lenient path is wanted for legacy files, make it an explicit opt-in, not the default.",
+   "confidence": 0.95
+  },
+  {
+   "file": "engine/include/mforce/music/templates_json.h",
+   "line": 1035,
+   "line_end": 1036,
+   "category": "soundness",
+   "severity": "medium",
+   "title": "const json::operator[] used on keys that are not checked \u2014 JSON_ASSERT in debug, end-iterator dereference (UB) in release on malformed input",
+   "evidence": "for (auto& b : ov[\"bars\"]) bo.bars.push_back(b.get<int>());        // 1035\nfor (auto& v : ov[\"pattern\"]) bo.pattern.push_back(v.get<float>()); // 1036\nctx.beat = kc[\"beat\"].get<float>();                                 // 1219\nstd::string keyName = kc[\"key\"].get<std::string>();                 // 1220",
+   "why": "`ov` and `kc` are `const json&` (loops at 1033 and 1217 over const containers). nlohmann 3.12 json.hpp:22182-22189 implements const operator[] as `JSON_ASSERT(it != end()); return it->second;` \u2014 a rhythmPattern override missing \"bars\", or a keyContext missing \"beat\"/\"key\", is an assert in debug and undefined behaviour in a release build instead of a `json::out_of_range` naming the key. The same file uses `.at()` for the identical purpose two lines away (1030 `jrp[\"defaultPattern\"]` is guarded, 1055 uses `.at`), and mixes guarded `j[\"x\"]` (1012, 1019, 1024, 1027, 1207, 1212, 1232) with `.at()` throughout, so there is no rule a reader can rely on.",
+   "recommendation": "Use `.at(\"key\")` for every required key and `.value(\"key\", default)` / `contains` for optional ones; never const `operator[]` in a loader. A one-line clang-tidy-style grep for `\\[\"` in the two *_json.h files finds all sites.",
+   "confidence": 0.9
+  },
+  {
+   "file": "engine/include/mforce/music/templates_json.h",
+   "line": 1179,
+   "line_end": 1198,
+   "category": "soundness",
+   "severity": "medium",
+   "title": "to_json(SectionTemplate) omits styleName, which from_json reads and Composer consumes \u2014 engine round trip drops the style table",
+   "evidence": "inline void to_json(json& j, const PieceTemplate::SectionTemplate& sd) {\n    j = json{{\"name\", sd.name}, {\"beats\", sd.beats}};\n    if (!sd.keyName.empty()) ...\n    if (!sd.progressionName.empty()) ...\n    if (sd.chordProgression) ...\n    if (!sd.keyContexts.empty()) { ... }\n}                                   // no styleName\n...\nif (j.contains(\"styleName\")) { sd.styleName = j[\"styleName\"]...   // 1231",
+   "why": "styleName is live: composer.h:873-874 and period_passage_strategy.h:340-342 call `StyleTable::load_by_name(sd->styleName)`. A template that goes through the engine and is written back (the `--lint-template` path that caught the identical chordConfig omission, per the comment at 871-873) comes out without its ChordWalker style, exactly the class of bug the file already documents having fixed once. PieceTemplate::defaultPulse (templates.h:654, consumed at composer.h:63) is the mirror case: serialized in neither direction, so it is unreachable from any authored template and the random-pulse fallback always runs.",
+   "recommendation": "Add `if (!sd.styleName.empty()) j[\"styleName\"] = sd.styleName;`. Decide defaultPulse: serialize it or delete the field. A unit test that round-trips every baseline score (`from_json -> to_json -> from_json`, compare dumps) would have caught both and the chordConfig case.",
+   "confidence": 0.95
+  },
+  {
+   "file": "engine/include/mforce/music/templates_json.h",
+   "line": 95,
+   "line_end": 308,
+   "category": "duplication",
+   "severity": "medium",
+   "title": "Ten enums hand-serialized as paired switch + if/else chains (~250 lines) when the vendored nlohmann 3.12 generates both directions from one table",
+   "evidence": "inline void to_json(json& j, FigureShape s) { switch (s) { case FigureShape::Free: j = \"free\"; ... 17 cases } }\ninline void from_json(const json& j, FigureShape& s) { if (str == \"scalar_run\") ... 16 else-ifs ... }\n// same shape for FigureSource 95-112, TransformOp 114-147, MotifRole 150-171, MotifOrigin 173-188, PartRole 190-209, MelodicFunction 215-231, FigureDirection 283-308, Method/ChoiceMode 592-622, PeriodVariant 765-778; music_json.h Articulation 19-67 (17 branches x2), Dynamic 147-159, PitchSelectionType 162-187",
+   "why": "Every enum value is spelled in two places that must agree; the string table is the only thing that matters and it is duplicated. This is the structural cause of the inconsistent unknown-value handling (previous finding) and of the inline one-offs like stepMode (368/427-431) and TwoFigurePhraseConfig::Method (561-579) that did not even get their own functions. music_json.h:148/163 index `names[int(d)]` with no static_assert on array size vs enum count (currently 8/8 and 18/18 \u2014 verified, but unguarded).",
+   "recommendation": "`NLOHMANN_JSON_SERIALIZE_ENUM(FigureShape, {{FigureShape::Free, \"free\"}, ...})` per enum \u2014 one table, both directions, and unknown input maps to the first entry which can be a sentinel you then reject. Keep a static_assert(std::size(names) == N) wherever an indexed table remains.",
+   "confidence": 0.9
+  },
+  {
+   "file": "engine/include/mforce/music/templates_json.h",
+   "line": 934,
+   "line_end": 964,
+   "category": "duplication",
+   "severity": "medium",
+   "title": "Passage config structs are field-listed inline in both directions of PassageTemplate (~110 lines) instead of having their own serializers",
+   "evidence": "j[\"pedalBuildupConfig\"] = json{{\"levels\", c.levels}, {\"climbStep\", c.climbStep}, {\"cellBeats\", c.cellBeats}, ...};   // 936-940\n...\nc.levels    = jc.value(\"levels\", c.levels);\nc.climbStep = jc.value(\"climbStep\", c.climbStep);   // 1097-1103, repeated for sequence 1110-1116, connective 1123-1130, wandering 1137-1143",
+   "why": "PedalBuildupConfig/SequencePassageConfig/ConnectivePassageConfig/WanderingPassageConfig (plus LibraryPassageConfig 921-927/1080-1087 and RhythmPattern 881-895/1025-1041) are serialized by hand inside to_json/from_json(PassageTemplate), making those two functions 110 and 172 lines and putting rangeCap/maxTries/seed/cellBeats in eight places. ChordAccompanimentConfig (58-62, 967-973) shows the file's own better convention. The `c.x = jc.value(\"x\", c.x)` idiom is exactly what NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT (3.11+; 3.12 vendored) generates. Adding a field to any config today means editing templates.h plus two blocks here.",
+   "recommendation": "One `NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(PedalBuildupConfig, levels, climbStep, cellBeats, holdBeats, rangeCap, maxTries, seed)` per config next to the struct (or hand-written to_json/from_json pairs if terse-omit-defaults output is required), then `if (pt.pedalBuildupConfig) j[\"pedalBuildupConfig\"] = *pt.pedalBuildupConfig;` in PassageTemplate. Same for RhythmPattern and LibraryPassageConfig.",
+   "confidence": 0.9
+  },
+  {
+   "file": "engine/include/mforce/music/templates_json.h",
+   "line": 33,
+   "line_end": 52,
+   "category": "duplication",
+   "severity": "medium",
+   "title": "parse_chord_progression re-implements from_json(ScaleChord) including the VoicingPin block, with a different spelling of the quality default",
+   "evidence": "sc.quality = &ChordDef::get(entry.value(\"quality\", std::string(\"Major\")));   // templates_json.h:37\nif (entry.contains(\"pin\")) { ... pin.inversion = jp.value(\"inversion\", 0); pin.spread = ...; pin.topTone = jp.value(\"topTone\", -1); }  // 42-50\n--- music_json.h:289-298 ---\nstd::string q = j.value(\"quality\", std::string(\"M\"));\nsc.quality = &ChordDef::get(q);\nif (j.contains(\"pin\")) { ... identical 7 lines ... }",
+   "why": "Two copies of the per-chord parse; the flat form is just an array of ScaleChord objects plus a \"beats\" field. \"Major\" and \"M\" both resolve to the same ChordDef (chord.cpp:46-51 matches `name` as well as `shortName`), so this is not a bug today, but the next pin field or quality alias has to be added twice and the two defaults will drift.",
+   "recommendation": "`for (const auto& entry : j) { ScaleChord sc; from_json(entry, sc); prog.add(sc, entry.at(\"beats\").get<float>()); }`.",
+   "confidence": 0.95
+  },
+  {
+   "file": "engine/include/mforce/music/music_json.h",
+   "line": 504,
+   "line_end": 522,
+   "category": "soundness",
+   "severity": "medium",
+   "title": "to_json(Phrase) drops Phrase::connectors and the Figure subtype; to_json(Section) drops truncateTailBeats and keyContexts \u2014 score round trip is lossy",
+   "evidence": "inline void to_json(json& j, const Phrase& ph) {\n  j[\"startingPitch\"] = ph.startingPitch;\n  j[\"figures\"] = json::array();\n  for (const auto& fig : ph.figures) { json fj; fj[\"units\"] = fig->units; ... }   // no connectors\n}\ninline void from_json(const json& j, Phrase& ph) { ... MelodicFigure f; ... ph.add_melodic_figure(std::move(f)); }   // ChordFigure -> MelodicFigure\n...\ninline void to_json(json& j, const Section& s) { j = json{{\"name\", s.name}, {\"beats\", s.beats}, {\"tempo\", s.tempo}, {\"meter\", s.meter}, {\"scale\", s.scale}}; }   // 550-553",
+   "why": "structure.h:133 `std::vector<FigureConnector> connectors;` is the dense leadStep vector that positions every figure after the first; it is written nowhere and read nowhere here, so a reloaded Phrase re-realizes with every inter-figure step at 0. structure.h:610 ChordFigure is a distinct type the comment at 508 acknowledges collapsing. Section::truncateTailBeats (structure.h:207, set by dun_to_piece at dun_parser.h:376) and keyContexts (structure.h:214) are absent from both directions. Mitigation: Part.passages is documented as Composer scratch and elementSequence is authoritative (structure.h:236-241), so rendered output is unaffected \u2014 the cost lands on anyone debugging a saved score or round-tripping a DURN-built Piece.",
+   "recommendation": "Either serialize connectors (reuse the templates_json.h connector form), a \"kind\" tag per figure, truncateTailBeats and keyContexts \u2014 or stop serializing Passage/Phrase entirely and state in the header that only elementSequence is persisted. Half-serializing scratch state is the worst of both.",
+   "confidence": 0.85
+  },
+  {
+   "file": "engine/include/mforce/music/templates.h",
+   "line": 110,
+   "line_end": 174,
+   "category": "god-class",
+   "severity": "medium",
+   "title": "FigureTemplate is a union-of-modes struct; PhraseTemplate/PassageTemplate pair a strategy string with 4 and 5 'only one populated' optional configs \u2014 hand-rolled tagged unions",
+   "evidence": "FigureSource source{FigureSource::Generate};\n// --- For Generate: constraints --- ... // --- For Reference / Transform --- ... // --- For shape-based generation --- ... // --- For Locked --- ... // --- For Literal ---\nint shapeDirection{1};         // +1 = ascending, -1 = descending   (129)\nFigureDirection direction{FigureDirection::Ascending};               (132)\nstd::string rhythmTransform;   // \"retrograde\", \"stretch\", \"compress\"   (155)\nint figureCadenceType{0};      // 0=none, 1=half, 2=full               (168)\n...\n// Only one is populated at a time (matching the selected strategy).  (327-332)",
+   "why": "~30 fields of which only a `source`-dependent subset is meaningful; three overlapping direction/shape notions (shapeDirection int, direction enum, shape enum) that different consumers read (composer.h:1057 reads shapeDirection); stringly-typed rhythmTransform/contourTransform next to the TransformOp enum they duplicate; cadence type as magic int in two structs (168, 302). The serializer pays for it directly: to_json(FigureTemplate) 314-376 must guard field groups by source and still emits shape/motif-atom fields regardless of source, and nothing stops a template from authoring periodConfig and twoFigureConfig together. The comp lane is explicitly in flux (phrase/passage strategies exempted), so this is design debt to schedule, not a defect to patch now.",
+   "recommendation": "When the strategy set settles: `std::variant<GenerateSpec, ReferenceSpec, TransformSpec, LockedSpec, LiteralSpec>` for FigureTemplate content; `std::variant<std::monostate, PeriodPhraseConfig, SentencePhraseConfig, TwoFigurePhraseConfig, ElaboratedPhraseConfig>` keyed by strategy; `enum class CadenceType { None, Half, Full }` shared by figure and phrase; TransformOp for rhythm/contour transforms. Serialization then collapses to a `type` tag + per-alternative object.",
+   "confidence": 0.8
+  },
+  {
+   "file": "engine/include/mforce/music/dun_parser.h",
+   "line": 147,
+   "line_end": 164,
+   "category": "soundness",
+   "severity": "medium",
+   "title": "DURN parse_token never verifies the token was fully consumed; trailing characters, misplaced dots and glued `|` separators are silently accepted",
+   "evidence": "  Ornament ornament{};\n  if (pos < int(tok.size())) {\n    if (tok[pos] == '~') { ... }\n    else if (pos + 1 < int(tok.size())) { ... recognised pairs only ... }\n  }\n  DunToken t{dur, step, isRest, accidental, tied};   // pos may be < tok.size() here, nothing checks",
+   "why": "`qn.` (dot after the direction) parses as a plain quarter because the dotted check at 87 only looks immediately after the duration letter; `qu2x`, `qn|` and `qn/` parse as valid notes, and because `|`, `/` and `//` are only recognised as standalone tokens (264-268) a bar glued to a note silently loses the figure boundary. Downstream, dun_to_piece 336-338 maps any scale other than Minor/NaturalMinor to Major (`scale:Dorian` -> Major, no message) and the meter if-chain 341-349 maps unknown meters to 4/4; parse_header 169-199 ignores unknown keys and `meter:3` without a slash. std::stoi/stof exceptions at 183-198 and 275 surface as \"invalid stoi\" with no line context, unlike the hand-written throws. This is the corpus-ingest path (MTD/DURN work), where a silently wrong note is the expensive failure.",
+   "recommendation": "End parse_token with `if (pos != int(tok.size())) throw std::runtime_error(\"Trailing characters in DUN token: \" + tok);`. Throw on unknown scaleName/meter in dun_to_piece and on unknown header keys. Wrap stoi/stof in a helper that rethrows with the token/line.",
+   "confidence": 0.9
+  },
+  {
+   "file": "engine/include/mforce/music/parse_util.h",
+   "line": 183,
+   "line_end": 219,
+   "category": "duplication",
+   "severity": "medium",
+   "title": "Note-letter parsing duplicated between parse_note_input and parse_passage; DunToken->FigureUnit copy repeated three times in dun_to_piece; two identical drum structs",
+   "evidence": "static const int noteMap[] = { 9, 11, 0, 2, 4, 5, 7 };   // parse_util.h:183-191\n... if (str[pos] == '#') { semitone += 1; pos++; } else if (str[pos] == 'b') { semitone -= 1; pos++; }  semitone = ((semitone % 12) + 12) % 12;   // 201-210\nstatic const int letterSemitone[] = { 9, 11, 0, 2, 4, 5, 7 };   // parse_util.h:249-257, same accidental/wrap block at 306-315\n--- dun_parser.h ---\nu.duration = figDun[0].duration; u.step = 0; u.rest = figDun[0].rest; u.accidental = ...; u.ornament = ...;   // 402-408, again 416-422, again 429-435\n--- parse_util.h ---\nstruct ParsedDrumPattern { DrumFigure figure; int repeats{1}; };   // 364-367\nstruct DrumToken        { DrumFigure figure; int repeats{1}; };   // 371-374",
+   "why": "Three copies of the same semitone table/accidental logic across the two parsers (parse_util.h 183-210, 249-315) and three copies of the five-field unit copy in dun_to_piece (both branches of `if (fi == 0)` at 395-424 are the same code with `startIdx = 1` on each side, differing only in the step value). Any change to accidental handling or a new FigureUnit field must be made in every copy; the dun_to_piece triplication is where a new unit field (e.g. articulation) would be missed.",
+   "recommendation": "`parse_pitch_class(std::string_view, size_t& pos) -> int` shared by both parsers; `FigureUnit unit_from_token(const DunToken&, int step)` in dun_parser.h and collapse the fi==0/else branches to computing `step` only. Merge DrumToken into ParsedDrumPattern.",
+   "confidence": 0.85
+  },
+  {
+   "file": "engine/include/mforce/music/parse_util.h",
+   "line": 115,
+   "line_end": 120,
+   "category": "soundness",
+   "severity": "low",
+   "title": "Dead branch with wrong error message in parse_chord_string; parse_duration treats any non-dot second char as x1.25",
+   "evidence": "} else {\n    throw std::runtime_error(\"Chord token missing duration (use Root_dur or Root_group_dur): \" + token ...);   // 115-117 fires for size 1 AND size > 3\n}\nif (parts.size() > 3)\n    throw std::runtime_error(\"Too many '_' segments in chord token: \" ...);   // 119-120 unreachable\n--- 30-32 ---\nif (durStr.size() >= 2) { beats *= (durStr[1] == '.') ? 1.5f : 1.25f; }",
+   "why": "A four-segment token reports \"missing duration\" and the intended \"too many segments\" message can never fire. In parse_duration, `qq`, `q,` or `q5` all silently become 1.25 beats (the comment at 17 documents it, which does not make a typo channel a feature). std::stof at 179/393/416 and std::stoi at 360/394 throw library messages with no token number, unlike the hand-written throws beside them.",
+   "recommendation": "Reorder: check `parts.size() > 3` before the 2/3 dispatch. Make the second duration char an explicit set (`.` = 1.5, a named char for 1.25, anything else throws). Wrap stof/stoi in a helper that adds the token number.",
+   "confidence": 0.95
+  },
+  {
+   "file": "engine/include/mforce/music/music_json.h",
+   "line": 368,
+   "line_end": 374,
+   "category": "smell",
+   "severity": "low",
+   "title": "from_json loaders are split between 'clear then fill' and 'append to whatever is there' with no rule",
+   "evidence": "inline void from_json(const json& j, MelodicFigure& f) {\n  for (auto& uj : j.at(\"units\")) { ... f.units.push_back(u); }   // no clear\n}\n// same: Phrase 515-522, Passage 530-548, ChordRealization 405-411, Part 571-594, Piece 600-612; templates_json.h SectionTemplate keyContexts 1216-1229\n// vs clear-first: PulseSequence 351-354, StepSequence 359-362, ChordProgression 310-319, DrumFigure 627-635; templates_json.h PhraseTemplate 693, PassageTemplate 983, PieceTemplate 1258/1265/1275; PeriodSpec resets whole object at 791",
+   "why": "Through `j.get<T>()` the target is fresh so both work, but these headers overwhelmingly call `from_json(j, existing)` directly, and the append loaders double content if the target was ever non-empty. Only from_json(PeriodSpec) (`ps = PeriodSpec{};`) does the obviously correct thing.",
+   "recommendation": "Adopt one convention: every from_json(T&) begins with `t = T{};` (or clears each container it fills). Cheap, mechanical, removes a class of surprise.",
+   "confidence": 0.85
+  },
+  {
+   "file": "engine/include/mforce/music/dun_parser.h",
+   "line": 11,
+   "line_end": 11,
+   "category": "build",
+   "severity": "low",
+   "title": "Missing direct includes and an unused <iostream> in headers that fan out through templates.h to 19 TUs",
+   "evidence": "#include <iostream>            // dun_parser.h:11 \u2014 no std::cout/cerr/cin in the file\nstd::unordered_map<std::string, Ornament> legacy = ...   // music_json.h:117, 153, 174 \u2014 no <unordered_map>\nint(std::lround(p.note_number()))                        // music_json.h:244 \u2014 no <cmath>\nsnprintf(durBuf, sizeof(durBuf), \"%g\", dur);              // parse_util.h:158 \u2014 no <cstdio>\nstd::string_view(str).find('|')                           // parse_util.h:272 \u2014 no <string_view>\nusing json = nlohmann::json;   // namespace-scope alias in BOTH templates_json.h:9 and music_json.h:13",
+   "why": "All compile today only via transitive includes from nlohmann/json.hpp and <string>; the next include reshuffle breaks them with non-local errors. <iostream> drags its static-init object and compile time into every TU that includes dun_parser.h for nothing. The `using json` alias is a public-namespace symbol leaked from two headers (harmless duplicate today, a collision waiting for any other `json` in mforce).",
+   "recommendation": "Add the five direct includes, drop <iostream>, and make the alias `namespace mforce::detail { using json = nlohmann::json; }` or spell nlohmann::json in signatures.",
+   "confidence": 0.9
+  },
+  {
+   "file": "engine/include/mforce/music/templates.h",
+   "line": 732,
+   "line_end": 735,
+   "category": "smell",
+   "severity": "low",
+   "title": "add_derived_motif re-implements find_motif inline and carries stale plan-step comments that contradict the code",
+   "evidence": "const Motif* parent = nullptr;\nfor (const auto& m : motifs) { if (m.name == parentName) { parent = &m; break; } }   // 732-735, == find_motif() at 658-661\n// Synthesize content per transform. Task 7's skeletal coverage: Invert,\n// Reverse only. Other transforms throw; Task 10 extends.   // 751-752, while the switch handles VarySteps/VaryRhythm/RhythmTail at 773-802",
+   "why": "The helper exists ten lines above and is not used; the comments (also 705-707) describe an intermediate plan state, so a reader is told the function supports two ops when it supports five. Low cost, but it is the kind of drift that makes the header untrustworthy as documentation \u2014 and this header's comments are otherwise one of its strengths.",
+   "recommendation": "`const Motif* parent = find_motif(parentName);` and rewrite the two comments to describe the current switch.",
+   "confidence": 0.9
+  }
+ ]
+}

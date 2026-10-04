@@ -1,0 +1,206 @@
+{
+ "unit": "tools-durn",
+ "assessment": {
+  "health": 2,
+  "summary": "durn_converter is an offline CLI that walks a directory and converts ABC, Humdrum **kern, Standard MIDI and MusicXML files into the engine's DURN scale-degree text format. Structurally it is four independent header-only parsers (each with its own FigureUnit struct, its own ScaleMap/pitch-to-degree math, its own tie merger and its own letter-to-semitone table) plus a main.cpp that bypasses most of the parsers' own conversion layers and re-derives steps/accidentals through four hand-written adapters into a fifth struct (GenericUnit) before a single emitter. The dominant problem is the absence of a shared intermediate representation: the per-parser to_figure_units layers are dead (MIDI, MusicXML), discarded (kern, which is parsed twice per file) or lossy (ABC, whose FigureUnit drops accidentals so chromatic notes are silently re-pitched). The MusicXML path is non-functional today: nothing ever calls convert_to_figure_units, so every .xml throws 'No notes found'. The emitter also silently quantizes durations to ten tokens even though DURN itself supports triplets and ties, and re-synthesizes bar/phrase structure from accumulated beats because every parser discards barlines. The MIDI binary reader is the best-engineered piece (bounds-checked Reader, running status, note-on-vel-0, pending-note stacks). What I would change first: give the parsers one job (emit absolute pitch + beats + rest flag + metadata, keeping source bar boundaries), move all degree/accidental/step math into one shared ScaleMap used by one adapter, and delete the four dead/duplicated conversion layers.",
+  "strengths": [
+   "Parsers are genuinely self-contained (std-only, no engine dependency), so the tool builds in isolation and the headers are individually testable.",
+   "midi_parser.h's detail::Reader is consistently bounds-checked (has()/skip()/sub()), handles running status, SysEx skipping, note-on-with-velocity-0 as note-off, SMPTE rejection and per-(channel,pitch) pending-note stacks, so malformed MIDI cannot read out of bounds.",
+   "kern_parser.h handles the format's real complexities for monophonic extraction: multi-stop sub-token selection, grace-note skipping, tie start/continue/end, reference records and tandem key/meter interpretations.",
+   "A single emit_durn() over a format-neutral GenericUnit is the right final shape; the adapters that feed it are the problem, not the emitter boundary.",
+   "CLI workflow (--new skip-if-exists default, --all, per-file try/catch with a summary count) is sensible for batch corpus conversion."
+  ],
+  "files_read": [
+   "C:/@dev/repos/mforce/tools/durn_converter/main.cpp",
+   "C:/@dev/repos/mforce/tools/durn_converter/parsers/abc_parser.h",
+   "C:/@dev/repos/mforce/tools/durn_converter/parsers/kern_parser.h",
+   "C:/@dev/repos/mforce/tools/durn_converter/parsers/midi_parser.h",
+   "C:/@dev/repos/mforce/tools/durn_converter/parsers/musicxml_parser.h",
+   "C:/@dev/repos/mforce/tools/durn_converter/CMakeLists.txt",
+   "C:/@dev/repos/mforce/CMakeLists.txt",
+   "C:/@dev/repos/mforce/engine/include/mforce/music/dun_parser.h"
+  ]
+ },
+ "findings": [
+  {
+   "file": "tools/durn_converter/main.cpp",
+   "line": 449,
+   "line_end": 487,
+   "category": "soundness",
+   "severity": "high",
+   "title": "MusicXML conversion is dead: figureUnits is never populated, so every .xml file throws 'No notes found'",
+   "evidence": "main.cpp:450-453 `auto result = mxml::parse_file(path); if (result.figureUnits.empty()) throw std::runtime_error(\"No notes found in MusicXML file\");` \u2014 mxml::parse() (musicxml_parser.h:452-521) only fills result.notes; mxml::parse_file (527-537) just calls parse(). The only function that fills figureUnits, `inline void convert_to_figure_units(ParseResult& result)` (musicxml_parser.h:578), has zero call sites repo-wide (grep). Even if wired, main.cpp:484 `gunits.push_back({fu.duration, fu.step, false});` marks every unit non-rest with no accidental, so rests would emit as 'n' repeats.",
+   "why": "One of the four advertised input formats cannot produce a single DURN file; the usage text and the dispatch at main.cpp:603 claim support. A corpus run over .xml silently reports every file as FAIL with a misleading message, and an unopenable file is reported the same way because mxml signals open errors via a sentinel title (musicxml_parser.h:531) that main never inspects.",
+   "recommendation": "Have mxml::parse_file (or the main adapter) call convert_to_figure_units, or better, drop mxml::FigureUnit and build GenericUnit directly from the merged MxmlNote list so is_rest and accidental are preserved (see the shared-IR finding). Make parse_file report open failure as an error, not a title string.",
+   "confidence": 0.95
+  },
+  {
+   "file": "tools/durn_converter/main.cpp",
+   "line": 211,
+   "line_end": 216,
+   "category": "soundness",
+   "severity": "high",
+   "title": "ABC chromatic notes are silently re-pitched to the nearest diatonic degree with no accidental emitted",
+   "evidence": "main.cpp:213-215 `for (...) { bool rest = ...; units.push_back({float(seq.units[i].duration), seq.units[i].step, rest}); }` \u2014 GenericUnit.accidental is left at 0. abc::FigureUnit (abc_parser.h:154-157) has only {duration, step}; abc::to_figure_units (abc_parser.h:526-530) folds the accidental into abs_semi and then `key.semitone_to_scale_degree(rel_semi)` (abc_parser.h:124-138) snaps to the nearest degree with ties resolved to the lower index. So in C major `_B` (semitone 10, equidistant from A=9 and B=11) becomes degree A with no '-' suffix, and `^F` becomes F natural. The kern (main.cpp:284-287) and MIDI (main.cpp:398-407) adapters do emit accidentals via step_suffix (main.cpp:51-52), and dun_parser.h:161 consumes them.",
+   "why": "Every chromatic note in every ABC source is written to the corpus at a different pitch than the source, with no warning. For a melody corpus feeding Markov/figure generation this is silent data corruption of exactly the notes (leading tones, blue notes, modal mixture) that carry stylistic signal.",
+   "recommendation": "Compute the chromatic remainder for ABC the same way the kern/MIDI adapters do (abs_semi minus the semitone of the chosen degree) and pass it as GenericUnit.accidental. Long-term this disappears when one shared ScaleMap produces (degree, accidental) for all four formats.",
+   "confidence": 0.9
+  },
+  {
+   "file": "tools/durn_converter/main.cpp",
+   "line": 59,
+   "line_end": 64,
+   "category": "duplication",
+   "severity": "high",
+   "title": "No common intermediate representation: four parsers each own a FigureUnit, a ScaleMap, a tie-merger and a letter table; their conversion layers are dead, discarded or lossy, and main.cpp re-derives everything in four bespoke adapters",
+   "evidence": "Five unit structs: `struct GenericUnit { float duration; int step; bool is_rest; int accidental{0}; }` (main.cpp:59-64), abc::FigureUnit (abc_parser.h:154, double), kern::FigureUnit (kern_parser.h:40, float), midi::FigureUnit (midi_parser.h:56), mxml::FigureUnit (musicxml_parser.h:262). Four pitch\u2192degree implementations each with its own floor-division: abc::KeySignature::semitone_to_scale_degree + octave fixup (abc_parser.h:124-138, 533-535), kern::ScaleMap::pitch_to_degree while-loops (kern_parser.h:95-96), midi::ScaleMap::pitch_to_degree `octave = -(((-semi - 1) / span) + 1)` (midi_parser.h:87), mxml::ScaleMap::midi_to_degree `octave = (semitones_from_root - 11) / 12` (musicxml_parser.h:319). Three letter\u2192semitone switches (abc_parser.h:21-32, kern_parser.h:141-152, musicxml_parser.h:238-247). Three tie mergers (abc merge_tied 465-492, kern merge_ties 530-544, mxml merge_ties 545-572). Four pitch-class name tables in main.cpp alone (372, 456, 457, 533-537). Of the parsers' own conversion layers: midi::to_figure_units (midi_parser.h:507) and mxml::convert_to_figure_units (578) have no callers; kern's `cr.units` from convert_file (main.cpp:225) is never read; abc's is used but lossy (previous finding).",
+   "why": "Every bug fix (accidental handling, octave wrap, tie semantics, rest representation) must be made four times and currently is not: ABC drops accidentals, MusicXML drops rests, kern reports a chromatic remainder that is always non-negative (kern_parser.h:107, so Eb is spelled D+ while ABC would spell it D natural). The 'FigureUnit' abstraction in each parser does not earn its keep because it throws away is_rest and accidental, forcing main.cpp to reach back into format-specific note lists by parallel index (main.cpp:214 `tune.notes[i].is_rest`).",
+   "recommendation": "Define one `durn::SourceNote { double beats; int midi; bool rest; }` plus `SourceScore { key_root_pc, minor/mode, meter, bpm, notes, bar_boundaries }`. Each parser emits only that (absolute pitch, no degree math). One shared ScaleMap (take midi_parser's as the base, add a signed chromatic_remainder) and one adapter compute step/accidental/start-degree for all formats, then emit_durn. Delete the four per-parser FigureUnit/to_figure_units layers and the dead ScaleMap factories.",
+   "confidence": 0.95
+  },
+  {
+   "file": "tools/durn_converter/main.cpp",
+   "line": 224,
+   "line_end": 254,
+   "category": "efficiency",
+   "severity": "medium",
+   "title": "kern path parses and tie-merges every file twice; the first conversion's output is thrown away",
+   "evidence": "main.cpp:225 `auto cr = kern::convert_file(path, kern::VoiceSelect::Last, kern::RestHandling::AsZeroStep);` (which internally runs parse_file + merge_ties + to_figure_units, kern_parser.h:638-644) \u2014 only `cr.metadata` is read (main.cpp:232-248). Then main.cpp:251-252 `auto kf = kern::parse_file(path, kern::VoiceSelect::Last); auto merged = kern::merge_ties(kf.melody);` repeats the parse and merge, and `kf.metadata` carries the same key/meter as `cr.metadata`.",
+   "why": "Double file I/O and double parse per .krn file, plus a dead FigureUnit conversion, purely because main.cpp needs is_rest/accidental that kern::FigureUnit does not carry. It is the clearest symptom of the missing shared IR.",
+   "recommendation": "Call parse_file once, use kf.metadata for the header, and delete the convert_file call (and, once the shared adapter exists, kern::to_figure_units/ConversionResult entirely).",
+   "confidence": 1
+  },
+  {
+   "file": "tools/durn_converter/main.cpp",
+   "line": 25,
+   "line_end": 118,
+   "category": "soundness",
+   "severity": "medium",
+   "title": "emit_durn silently quantizes durations to ten tokens and re-synthesizes bar/phrase structure from accumulated beats, although DURN supports triplets and ties and the sources carry real barlines",
+   "evidence": "main.cpp:28-42 `static const DurMap map[] = { {\"w.\", 6.0}, ... {\"s\", 0.25} }; ... if (diff < best_diff) { best_diff = diff; best = d.tok; }` with no threshold or warning, so a triplet eighth (0.333) emits as 's' (0.25) and any merged tie > 6 beats emits as 'w.'. The engine reader accepts a `3` triplet prefix (dun_parser.h:66-70, 94) and `T`/`t` tie tokens (dun_parser.h:114-116, 278-291) that this emitter never produces. Bars are then inferred: main.cpp:98-102 `beat_in_bar += u.duration; if (beat_in_bar >= beats_per_bar - 0.01) { bar_count++; beat_in_bar = std::fmod(beat_in_bar, beats_per_bar);` and phrases hard-coded every four bars at :104 `(bar_count % 4 == 0)`. All parsers discard source barlines: abc_parser.h:306-310 skips '|', kern_parser.h:437 `if (line[0] == '=') continue;`, mxml flattens <measure>s (musicxml_parser.h:473-518).",
+   "why": "Quantization error compounds through the bar accumulator, so after one triplet group or one cross-bar tie every subsequent '|' and '/' lands in the wrong place, and the corpus's figure/phrase segmentation (the thing the Markov work consumes) is wrong from that point on with no diagnostic.",
+   "recommendation": "Emit the `3` prefix when a duration is within epsilon of 2/3 of a token value; split durations longer than the longest token into tied tokens; emit a stderr warning (or fail) when the residual exceeds epsilon. Keep source bar indices in the IR and place '|' from them rather than from accumulated beats; make the 4-bar phrase rule a CLI option rather than a constant.",
+   "confidence": 0.9
+  },
+  {
+   "file": "tools/durn_converter/main.cpp",
+   "line": 176,
+   "line_end": 203,
+   "category": "workaround-hack",
+   "severity": "medium",
+   "title": "ABC pickup detection re-scans the raw text behind the parser's back and miscounts chord symbols and grace notes",
+   "evidence": "main.cpp:189-196 `int notesBeforeBar = 0; for (size_t p = bodyStart; p < rawText.size(); ++p) { char ch = rawText[p]; if (ch == '|') break; if ((ch >= 'a' && ch <= 'g') || (ch >= 'A' && ch <= 'G') || ch == 'z' || ch == 'Z') notesBeforeBar++; }` then :199-200 sums `tune.notes[i].duration_beats` for the first notesBeforeBar parsed notes. The scan has no awareness of `\"...\"` chord annotations or `{...}` grace groups, which parse_body explicitly skips (abc_parser.h:313-325), so a leading `\"Am\"` or `{g}` before the first barline adds phantom letters and the pickup sum absorbs one or two extra real notes.",
+   "why": "Wrong pickup length shifts the first '|' and therefore every bar boundary of the tune (emit_durn, main.cpp:87-96). The need for this hack exists only because the parser discards barlines; fixing it in place keeps two notion of 'note' in sync by hand.",
+   "recommendation": "Record barline positions (or a per-note bar index) in AbcTune during parse_body and derive pickup as the beat sum before the first barline; delete the raw-text rescan.",
+   "confidence": 0.85
+  },
+  {
+   "file": "tools/durn_converter/main.cpp",
+   "line": 391,
+   "line_end": 432,
+   "category": "duplication",
+   "severity": "medium",
+   "title": "midi_to_durn copy-pastes a 14-line accidental block into both branches and re-implements ScaleMap's nearest-degree search",
+   "evidence": "main.cpp:393-407 and :417-430 are character-identical: `int semiInOctave = ((n.pitch - rootPitch) % 12 + 12) % 12; bool isDiatonic = false; for (int s : scale.semitone_offsets) { if (s == semiInOctave) { isDiatonic = true; break; } } int acc = 0; if (!isDiatonic) { int nearestSemi = scale.semitone_offsets[0]; for (int s : scale.semitone_offsets) { if (std::abs(s - semiInOctave) < std::abs(nearestSemi - semiInOctave)) nearestSemi = s; } acc = semiInOctave - nearestSemi; }`. The nearest search duplicates midi::ScaleMap::pitch_to_degree (midi_parser.h:92-100), which already finds best_idx but discards the remainder.",
+   "why": "Two copies of non-trivial logic inside one function invite divergence; the only difference between the branches is `step = 0` vs `curDeg - prevDeg`.",
+   "recommendation": "Hoist the accidental computation into a helper (or return the signed remainder from ScaleMap::pitch_to_degree) and collapse the if/else to `int step = first ? 0 : curDeg - prevDeg;`.",
+   "confidence": 1
+  },
+  {
+   "file": "tools/durn_converter/parsers/musicxml_parser.h",
+   "line": 578,
+   "line_end": 606,
+   "category": "soundness",
+   "severity": "medium",
+   "title": "MusicXML durations are divided by the last <divisions> value seen, not the one in force when each note was parsed",
+   "evidence": "parse() overwrites a single field per measure: musicxml_parser.h:481 `result.divisions = std::stoi(div_str);` while notes store raw counts (:400 `note.duration = std::stoi(dur_str);`). convert_to_figure_units then applies the final value to every note: :604-605 `fu.duration = static_cast<float>(note.duration) / static_cast<float>(result.divisions);`.",
+   "why": "MusicXML allows <divisions> to change at any <attributes>; any such file gets every earlier note scaled wrong. Latent today because the function is dead, but it must be fixed before the MusicXML path can be wired up.",
+   "recommendation": "Store beats (duration / divisions-in-force) on MxmlNote at parse time, or carry a per-note divisions value.",
+   "confidence": 0.8
+  },
+  {
+   "file": "tools/durn_converter/parsers/kern_parser.h",
+   "line": 452,
+   "line_end": 479,
+   "category": "soundness",
+   "severity": "medium",
+   "title": "Spine manipulators (*^ *v *- *x) are not handled, so chosen_spine indexes the wrong column after any spine split",
+   "evidence": "chosen_spine is fixed once at kern_parser.h:452-455 `if (voice == VoiceSelect::First) chosen_spine = kern_spines.front(); else chosen_spine = kern_spines.back();`. Every later interpretation line is consumed by :461-479 `if (line[0] == '*') { ... parse_key_interp / *M ... continue; }` with no branch for '^', 'v', '-' or 'x'; data lines are then read at :484-487 `auto cols = detail::split_tabs(line); ... std::string cell = detail::trim(cols[chosen_spine]);`.",
+   "why": "Polyphonic kern (Bach chorales, keyboard works) routinely splits spines; after `*^` the column count changes and the extractor silently reads a different voice (or a `.` null column) for the rest of the piece with no diagnostic.",
+   "recommendation": "Track a per-column spine map and update it on `*^`/`*v`/`*-`/`*x` lines (or at minimum detect them and throw), so VoiceSelect::Last keeps following the same logical spine.",
+   "confidence": 0.8
+  },
+  {
+   "file": "tools/durn_converter/parsers/musicxml_parser.h",
+   "line": 527,
+   "line_end": 537,
+   "category": "smell",
+   "severity": "medium",
+   "title": "Four different error conventions across the four parsers; one (MusicXML) uses a sentinel title string main.cpp never inspects",
+   "evidence": "mxml: musicxml_parser.h:530-531 `ParseResult empty; empty.title = \"[Error: could not open \" + filepath + \"]\"; return empty;`. midi: `std::string error; // empty on success` (midi_parser.h:53) checked at main.cpp:302. kern: `throw std::runtime_error(\"kern::parse_file: cannot open \" + path);` (kern_parser.h:404). abc: no open check at all and unguarded `std::stoi` (abc_parser.h:252, 221-223) propagates std::invalid_argument on a malformed X:/M:/L: header.",
+   "why": "main.cpp's single try/catch (main.cpp:583-615) only sees two of the four conventions; an unopenable .xml is reported as 'No notes found', and a bad ABC header surfaces as the std library's 'stoi' message with no file context.",
+   "recommendation": "Pick one convention for the unit (exceptions are simplest for an offline tool) and apply it in all four parsers; wrap stoi in a helper that names the field.",
+   "confidence": 1
+  },
+  {
+   "file": "tools/durn_converter/parsers/musicxml_parser.h",
+   "line": 26,
+   "line_end": 210,
+   "category": "workaround-hack",
+   "severity": "medium",
+   "title": "Hand-rolled XML by substring search, with a dead get_attribute whose logic is re-implemented inline",
+   "evidence": "find_element (musicxml_parser.h:26-59) returns the slice between the first `<tag` and the first following `</tag>` with no nesting, comment, CDATA or entity handling; `auto content_start = xml.find('>', pos);` (:35) breaks on any attribute value containing '>'. `inline std::string get_attribute(...)` (:132-180) has no call sites (grep), while parse_note_element re-implements attribute extraction by hand: :433-438 `auto type_pos = t.find(\"type=\\\"\"); ... auto val_start = type_pos + 6; auto val_end = t.find('\"', val_start);` and only handles double quotes.",
+   "why": "The approach is brittle against real exporter output (comments, single-quoted attributes, entities in titles) and the dead helper is 50 lines of maintenance surface. No XML library exists in engine/third_party today, so this is also a dependency decision rather than an oversight.",
+   "recommendation": "Either vendor a tiny XML reader (pugixml is header-plus-one-cpp and MIT) or, if staying hand-rolled, delete get_attribute or use it from parse_note_element, and document the subset of MusicXML the scanner is guaranteed to handle.",
+   "confidence": 0.9
+  },
+  {
+   "file": "tools/durn_converter/parsers/abc_parser.h",
+   "line": 302,
+   "line_end": 310,
+   "category": "soundness",
+   "severity": "low",
+   "title": "ABC inline fields and chord brackets are not parsed: `[K:G]` emits a spurious G note, `[CEG]` emits three sequential notes",
+   "evidence": "abc_parser.h:306-310 `if (c == ' ' || ... || c == '|' || c == ':' || c == '[' || c == ']') { ++i; continue; }` skips the delimiters individually; 'K' is then dropped at :374-377 as an unrecognized character, ':' is skipped, and 'G' reaches the note path at :379 with the full default duration. The comment at :308 (\"Handle [| |] || etc. -- just skip\") shows only barline variants were considered.",
+   "why": "Inline key/meter changes and chord brackets are common in real-world ABC; each produces phantom notes that also shift the bar accumulator in emit_durn.",
+   "recommendation": "Treat `[X:...]` as an inline field (apply K:/M:/L: changes) and `[...]` chord groups as a single event (take top or bottom note).",
+   "confidence": 0.75
+  },
+  {
+   "file": "tools/durn_converter/CMakeLists.txt",
+   "line": 4,
+   "line_end": 10,
+   "category": "build",
+   "severity": "low",
+   "title": "Target pins C++17 under a C++20 project and adds an engine include directory nothing uses",
+   "evidence": "CMakeLists.txt:10 `set_target_properties(durn_converter PROPERTIES CXX_STANDARD 17)` versus root CMakeLists.txt:4-5 `set(CMAKE_CXX_STANDARD 20) set(CMAKE_CXX_STANDARD_REQUIRED ON)`. CMakeLists.txt:4 `target_include_directories(durn_converter PRIVATE ${CMAKE_SOURCE_DIR}/engine/include)` while line 3 says \"Header-only \u2014 no library dependency needed\" and no file in the unit includes anything outside parsers/ and the standard library (all four headers state \"no engine dependencies\").",
+   "why": "The tool cannot use C++20 facilities the rest of the codebase uses (std::span, designated initializers, ranges) and the stray include path is a dormant coupling that will surprise whoever adds an engine include later.",
+   "recommendation": "Drop the CXX_STANDARD override (inherit 20) and remove the unused include directory; if the engine's dun_parser.h is ever shared for round-trip validation, add it then.",
+   "confidence": 1
+  },
+  {
+   "file": "tools/durn_converter/parsers/midi_parser.h",
+   "line": 505,
+   "line_end": 542,
+   "category": "smell",
+   "severity": "low",
+   "title": "Dead code and stale comments across the parsers",
+   "evidence": "midi_parser.h:507 `inline std::vector<FigureUnit> to_figure_units(...)` \u2014 no callers; its header comment :505 says \"step = -1 (sentinel for rest)\" but :529 pushes `{static_cast<float>(gap), 0}`. midi_parser.h:120-128 harmonic_minor/chromatic/pentatonic_major \u2014 no callers. musicxml_parser.h:353-378 keyDescription/timeDescription \u2014 no callers (main.cpp has its own tables at 456-457). kern_parser.h:126-133 ConversionResult counters: `rests_skipped` is incremented for AsZeroStep too (:603 `++cr.rests_skipped;` after pushing the unit). musicxml_parser.h:272 `int rootMidi{0}; // MIDI note of the scale root (e.g. 60 for C4)` but from_key stores a pitch class (:293 `sm.rootMidi = root_pc; // pitch class only (0-11)`). midi_parser.h:258-268 and :358-368 are the same 10-line pending-note flush, with a third near-copy at :333-339.",
+   "why": "Roughly 150 lines that cannot be exercised, plus comments that contradict the code they annotate, raise the cost of the shared-IR refactor and mislead readers about what is live.",
+   "recommendation": "Delete the uncalled functions and factories (they return once a shared ScaleMap exists), fix or remove the stale comments, and factor the pending-note flush into a lambda.",
+   "confidence": 0.95
+  },
+  {
+   "file": "tools/durn_converter/main.cpp",
+   "line": 569,
+   "line_end": 620,
+   "category": "modern-cpp",
+   "severity": "low",
+   "title": "Grouped nits: unsafe ::tolower, redundant whole-file read, unchecked ofstream, exit code ignores failures, raw FILE*, mixed include guards, uninitialized struct members",
+   "evidence": "main.cpp:569 `std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);` on signed char (abc::detail::to_lower at abc_parser.h:178-183 does the unsigned-char cast correctly). main.cpp:584-587 reads every file into `content` under the comment \"Read ABC file\" though kern/MIDI/MusicXML then reopen by path (:600-604). main.cpp:607-608 `std::ofstream of(outFile); of << durn;` with no is_open check. main.cpp:620 `return 0;` after counting `failed`. main.cpp:389 `gunits.push_back({float(gap), 0, true, false});` passes bool for the int accidental field. midi_parser.h:383-401 raw `std::FILE* f = std::fopen(...)` with three manual fclose paths and a `std::vector<uint8_t> buf(...)` allocation between open and close. midi_parser.h:1,5 and musicxml_parser.h:1,8 use both `#pragma once` and an include guard. abc_parser.h:38-45 AbcNote has no default member initializers (KernNote at kern_parser.h:21-30 does). abc_parser.h:329-340 dead `if (c == '!' || c == 'H' || c == 'L' || c == 'T')` whose H/L/T arms do nothing and whose comment ends \"Actually only process A-G/a-g\". kern_parser.h:245 `if ((lower && ch == letter) || (!lower && ch == letter))` is `ch == letter`. kern_parser.h:282-291 a ~40-character whitelist deciding when to stop the accidental scan.",
+   "why": "Individually trivial; together they signal the unit was assembled quickly and never passed a cleanup pass, and two of them (exit code, unchecked ofstream) can hide failures in batch runs.",
+   "recommendation": "Fix in one pass: lambda with unsigned char for tolower, read the file only in the ABC branch, check the ofstream, return non-zero when failed > 0, RAII the FILE* (or use ifstream like the other three), one include-guard style, default-initialize AbcNote, delete the dead H/L/T arm, simplify the kern letter test and replace the blacklist with a positive 'is accidental char' test.",
+   "confidence": 0.95
+  }
+ ]
+}

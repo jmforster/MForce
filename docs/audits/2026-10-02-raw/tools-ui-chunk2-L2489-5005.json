@@ -1,0 +1,203 @@
+{
+ "unit": "tools-ui-chunk2-L2489-5005",
+ "assessment": {
+  "health": 3,
+  "summary": "This range is the save/serialize layer plus the whole live-audio bridge of the ImGui patch editor: topo sort and group-interface derivation, rename/ref rewriting, the 460-line serialize_patch_graph and a second copy-pasted node-graph saver, the RtAudio callback with a 16-slot voice pool, the UI-thread watchdog/gc, the unified Generate (serialize -> load -> engine render with capture), and the live keyboard paths (cached instrument, held/legato notes, continuous streams). The callback body itself is disciplined (no allocation, flag-only deactivation, destruction deferred to voice_gc, buffer-detach invariant honored at every resize site) and Generate is the engine render by construction. The dominant problem is that the callback takes a blocking std::mutex that the UI thread holds across whole-graph prepare, envelope walks, make_shared glide envelopes and shared_ptr destruction, so the 10.7 ms buffer budget is at the mercy of patch size. Second-tier issues: group_output_node runs a quintuple-nested topo_sort every frame for every drawn group; ~130 lines of node emission are duplicated between the two savers; ~150 lines of retired render-path code are still compiled; the streaming-envelope hack predates an engine gated mode that now exists; save failures are silent and clear the dirty flag; the watchdog never retries after a failed init despite status text promising it will.",
+  "strengths": [
+   "audio_callback (3857-3999) allocates nothing, deactivates by flag only, and defers shared_ptr destruction to voice_gc on the UI thread (3919-3924, 4146-4171) \u2014 the right discipline for a DSP graph owned by shared_ptr",
+   "g_bufferPlayback points into g_outputWaveform and every resize/assign/clear site calls buffer_playback_detach first (4414, 8156, 13596) \u2014 the documented invariant is actually held",
+   "One render path: generate_unified serializes the live graph and loads it through the same loader the CLI uses, capturing per-node strips from the engine's own voices (4347-4470); there is no second renderer to drift",
+   "stop_streams releases the audio thread's raw pointers under the lock BEFORE stream_envelopes_restore mutates envelopes (4964-4975) \u2014 ordering is correct",
+   "rewrite_label_refs covers paramMap targets, extras refs, tap refs, dynamic pins and group membership in one function shared by rename and replace (2700-2751)",
+   "Comments carry bug provenance (dates, backlog ids, the exact symptom) for nearly every non-obvious line, which makes the file reviewable despite its size"
+  ],
+  "files_read": [
+   "C:/@dev/repos/mforce/tools/mforce_ui/main.cpp (lines 2489-5005 in full; cross-reference reads at 784-801, 806-820, 1086-1090, 8150-8161, 8268-8277, 8286-8305, 8748-8755, 9046-9061, 9336-9381, 13506-13517, 13590-13599, 13868-13879)",
+   "C:/@dev/repos/mforce/engine/include/mforce/render/instrument.h (190-269, 280-373, 405-569)",
+   "C:/@dev/repos/mforce/engine/include/mforce/core/envelope.h (70-109, 386-401)",
+   "C:/@dev/repos/mforce/engine/src/patch_loader.cpp (1195-1234)"
+  ]
+ },
+ "findings": [
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 3864,
+   "line_end": 3864,
+   "category": "rt-safety",
+   "severity": "high",
+   "title": "Audio callback blocks on g_audioMutex while the UI thread holds it across whole-graph prepare, heap allocation and shared_ptr destruction",
+   "evidence": "3864: `std::lock_guard<std::mutex> lock(g_audioMutex);` inside audio_callback. UI-side holders: play_note 4676-4699 locks then `collect_envelopes(pitched->voicePool[slot].source.get(), envs, seen)` (vector push_backs, 4683-4685), `pitched->prepare_voice_at(...)` (4691 -> instrument.h 365 `vg.source->prepare(ctx, durSamples)` over the whole voice graph; partials.h prepare does `.assign(n, ...)`), then voice_schedule_unlocked 3792-3801 overwrites `patch`/`source`/`envs`/`advanceList` of a stolen voice, freeing or destructing the old graph under the lock. play_note_held 4749-4767 and release_note_held 4830-4847 call `pitched->continue_voice_live(...)` under the lock -> deliver_continuation (instrument.h 472-496) reseeds every node and `make_glide` does `std::make_shared<Envelope>` + add_stage. voice_gc 4155-4168 push_backs into dyingSources under the lock.",
+   "why": "512 frames at 48 kHz gives the callback 10.7 ms. Any note-on on a heavy patch (the cache comment at 4602-4604 cites 0.6-1.3 s rebuilds; prepare over a large additive graph is the same order of work) stalls the callback for the duration of the critical section -> dropout/underrun exactly when the user presses a key. This is a lock inside the per-block render path, which the project's RT rule forbids; the engine's own comment on gate_release ('Safe on the audio thread under the audio mutex \u2014 no allocation', envelope.h 83-84) shows the intended discipline, but prepare/continue/steal do not meet it.",
+   "recommendation": "Do all preparation outside the lock and make the locked region pointer swaps only: prepare the pool voice (prepare_voice_at / continue_voice_live) with the slot marked 'reserved' so the callback skips it, then take the lock just to publish the Voice fields; move stolen voices' old shared_ptrs into a UI-side 'dying' list under the lock and drop them after unlocking (the voice_gc pattern already does this). Longer term replace the mutex with an SPSC command queue (schedule/deactivate/stream-set) drained at the top of the callback, or at minimum use try_lock in the callback and output silence on contention so the stream never blocks.",
+   "confidence": 0.9
+  },
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 2499,
+   "line_end": 2541,
+   "category": "performance",
+   "severity": "high",
+   "title": "topo_sort is a 5-deep nested scan and runs every frame per drawn group via group_output_node",
+   "evidence": "2502-2519: `for (auto& node : s_nodes) { ... for (auto& pin : node.inputs) { for (auto& link : s_links) { ... for (auto& srcNode : s_nodes) { for (auto& sp : srcNode.outputs) {` \u2014 O(N\u00b7Pin\u00b7L\u00b7N\u00b7Pout); 2533-2534 the visit lambda re-scans s_nodes per node. group_output_node 2691 `for (auto* n : topo_sort())` is called from draw_group_node 9056 (every frame, every visible group, right after draw_group_node already ran group_boundary itself at 9055 \u2014 group_output_node runs it again at 2685) and from the breadcrumb at 13876 every frame. group_boundary 2645-2649 does four linear `find_node_for_pin`/`find_pin` lookups per link (each O(N\u00b7P), 806-820).",
+   "why": "Per-frame cost scales roughly quadratically in nodes and pins times links. The library patches already have ~27 nodes with multi-pin nodes (Mixer/Partials); grouped patches are the direction the editor is going (oboe_grouped, clarinet_attempt cited at 3237). This is UI-thread time stolen from the frame loop that also services voice_gc and the audio watchdog, and it grows with exactly the patches the editor exists for.",
+   "recommendation": "Build a pin->node/pin index (unordered_map<int, {GraphNode*, Pin*}>) once per graph edit (key on g_graphEditCounter, which already exists for the instrument cache) and use it in topo_sort, group_boundary and all find_source_* helpers. Cache the sorted order and each group's boundary/output node on the same key so draw_group_node and the breadcrumb pay a map lookup per frame instead of a full sort.",
+   "confidence": 0.85
+  },
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 3024,
+   "line_end": 3112,
+   "category": "duplication",
+   "severity": "medium",
+   "title": "~130 lines of per-node emission copy-pasted between serialize_patch_graph and save_node_graph",
+   "evidence": "Patch saver vs node saver, verbatim: multi-pin ref collection 2946-2969 vs 3314-3327; Envelope stages/timeMode 3024-3035 vs 3346-3356 (including the identical 4-line 2026-08-10 comment); FormantSpectrum child synthesis 3043-3069 vs 3358-3381; settingValues with the sustainLevel exclusion and its 5-line comment 3071-3088 vs 3383-3399; arrayValues 3090-3095 vs 3401-3406; seed 3097-3102 vs 3408-3412; jsonExtras 3104-3112 vs 3414-3422; groups block 3201-3213 vs 3433-3444; positions 3221-3233 vs 3446-3453.",
+   "why": "Every emission rule fixed in one saver (sustainLevel exclusion, timeMode, extras-win-over-modeled) had to be re-applied by hand to the other; the file's own history (3n, 2026-08-10) shows these rules change. NodeGraph mode is still live (5 GraphMode::NodeGraph sites), so the copy is not dead, and a future divergence silently produces a node-graph file the loader rejects.",
+   "recommendation": "Extract `emit_node_body(GraphNode&, const IdMap&, UsedIds&, json& nodesOut) -> json` covering refs/envelope/formants/settings/arrays/seed/extras, plus `emit_groups()` and `emit_positions(sorted, ids)`. The two savers then differ only in the id exclusion set, the output/channel handling and the instrument/score block.",
+   "confidence": 0.95
+  },
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 3502,
+   "line_end": 3526,
+   "category": "smell",
+   "severity": "medium",
+   "title": "~150 lines of retired render-path code still compiled: get_playback_patch_path, voice_schedule, apply_perform_nodes, apply_param_map, eval_map_curve/vcurve",
+   "evidence": "get_playback_patch_path 3502-3526 (writes a temp JSON on every call) has no callers \u2014 grep shows only the definition; the 2026-09-13 unification comment at 4282-4284 says 'no temp file'. voice_schedule 3812-3820: definition only. apply_perform_nodes 4527-4538, apply_param_map 4540-4582, eval_map_curve 4484-4503, eval_map_vcurve 4505-4519: no callers; the comment at 4584-4585 says their consumer render_waveforms was deleted 2026-09-13. The stale comment at 8304 still describes get_playback_patch_path as the authoritative route.",
+   "why": "eval_map_curve is a hand-rolled mirror of the loader's CurveNode chain semantics (patch_loader.cpp 1197-1218) with its own loglog branch \u2014 the file's comment at 4476-4479 even promises it 'mirrors the engine exactly'; dead mirrors of engine logic are the kind of thing that gets revived and then drifts. The temp-file writer also writes to a fixed `mforce_playback.json` name that two running UIs would clobber.",
+   "recommendation": "Delete all six functions and fix the 8304 comment; the unified Generate and the cached-instrument path are the only routes that should exist.",
+   "confidence": 0.95
+  },
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 4103,
+   "line_end": 4115,
+   "category": "soundness",
+   "severity": "medium",
+   "title": "audio_watchdog never retries once init_audio has failed, although its status messages promise it will",
+   "evidence": "4103-4111: `if (beat != lastBeat || !g_audio) { lastBeat = beat; lastBeatTime = now; ... if (g_audio) return; }` followed by 4114 `if (now - lastBeatTime < 1.0) return;`. With g_audio null (every init_audio failure path resets it: 4030, 4050, 4062; shutdown_audio 4073) lastBeatTime is refreshed every frame, so the 1-second dead test can never pass. Yet 4097 reports 'watchdog will retry' and 4140 'Audio reopen FAILED ... \u2014 retrying...'. Startup failure at 13510-13512 is non-fatal and lands in the same state.",
+   "why": "After a transient device failure (the exact WASAPI scenario the watchdog was written for) one failed reopen leaves the app permanently silent while the status bar says it is retrying; the user has no reason to restart.",
+   "recommendation": "Treat `!g_audio` as 'dead' rather than 'alive': only refresh lastBeatTime when the heartbeat moved, and let the backoff branch call init_audio when g_audio is null (keep the 2 s backoff so a missing device doesn't spin). Or, if no-retry is intended, remove the two 'retrying' strings.",
+   "confidence": 0.9
+  },
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 4232,
+   "line_end": 4272,
+   "category": "workaround-hack",
+   "severity": "medium",
+   "title": "Streaming envelope hold is a 2-hour prepare + absolute_time flip + stage-list surgery, written around an engine gap the engine has since closed",
+   "evidence": "4232 `STREAM_PREP_SECONDS = 7200`; 4261 `env->absolute_time = true;`; 4267 `env->add_stage({{endV, endV, RampType::Linear, 0.0f}, 0.0f, 0.0f, 0.0f});`; restore relies on a heuristic 4248-4249 `h.addedStageIdx == h.env->stage_count() - 1 && h.env->stage(h.addedStageIdx).percent == 0.0f`. The header comment 4228-4230 states the reason: 'needs an engine-side Envelope hold/loop mode \u2014 engine is owned by another agent this run'. The engine now has `set_gated` (envelope.h 75) which 'sits on the expand stage until gate_release()' regardless of prepared length (envelope.h 393-400), and this file already uses it for held notes at 4800.",
+   "why": "Streams silently stop after 2 h; every stream flips the semantics of every envelope in the graph and mutates stage lists, and the restore can leave a user-added stage in place or remove the wrong one if the user edits stages mid-stream (the comment admits the ambiguity). Two mechanisms now exist for 'hold an envelope open', one of them a hack.",
+   "recommendation": "Stream with `set_gated(true)` on the graph's envelopes and a normal-length prepare (the transport duration), restoring with set_gated(false); keep only the no-expand-stage case (or add an explicit engine hold mode for it) and delete STREAM_PREP_SECONDS and the absolute_time flip.",
+   "confidence": 0.8
+  },
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 3268,
+   "line_end": 3273,
+   "category": "soundness",
+   "severity": "medium",
+   "title": "Save ignores write failure and then clears the dirty flag",
+   "evidence": "3270-3272 `std::ofstream f(path); f << root.dump(2); f.close();` (same at 3460-3462) \u2014 no is_open()/good() check, void return; save_to_path 3470-3472 then does `s_currentFilePath = path; s_graphDirty = false; recents_push(path);` unconditionally.",
+   "why": "A locked file, read-only folder or bad dialog path produces no file, marks the document clean (so the close-prompt state machine at 802-804 lets the window close) and adds a non-existent path to recents. That is silent data loss on the one operation that must not fail silently.",
+   "recommendation": "Return bool from save_patch_graph/save_node_graph (check `f` after the write), keep s_graphDirty on failure, and report via transport_set_status; only push recents on success.",
+   "confidence": 0.9
+  },
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 4629,
+   "line_end": 4634,
+   "category": "performance",
+   "severity": "medium",
+   "title": "Instrument cache key is 'any edit', so every Properties value tweak forces a full serialize->parse->polyphony\u00d7build on the next key press",
+   "evidence": "4630-4632 `if (g_cachedInstrument && g_cachedEditCounter == g_graphEditCounter && g_cachedTapNode == s_listenTapNode) return g_cachedInstrument;` \u2014 g_graphEditCounter is bumped by mark_graph_dirty (791-794), which every Properties InputFloat edit calls (9343-9346, 9375-9378). The rebuild is `serialize_patch_graph(...).dump()` -> `load_instrument_patch_json(..., LIVE_MIN_POLYPHONY)` (4638-4643), the '~0.6-1.3 s on heavy patches' cost the cache comment at 4602-4604 was introduced to remove.",
+   "why": "The mission statement is 'tweak parameter, hear the results'; with the keyboard path the first note after each slider move pays the full rebuild, and get_cached_instrument also clears g_liveHeldKeys (4648), so a held legato line is dropped by a value edit. Only structural edits need a rebuild \u2014 the engine voices already expose set_param/set_setting by node id (used by push bindings, instrument.h 335-345).",
+   "recommendation": "Split the counter: structural edits (add/delete/link/type change) bump a rebuild key; value edits push the new constant/setting into every pool voice's nodesById entry for that node (and the Multiplex clones via set_clone_param) under the audio lock, leaving the cached instrument intact.",
+   "confidence": 0.8
+  },
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 2806,
+   "line_end": 3266,
+   "category": "god-class",
+   "severity": "medium",
+   "title": "serialize_patch_graph is 460 lines with eight phases and a side effect on the model",
+   "evidence": "2806-3266 one function: id assignment (2811-2819), Note-face synthesis (2821-2848), output resolution (2850-2860), paramMap remap closures (2862-2899), node emission with CurveNode/Envelope/NameGate/FormantSpectrum special cases (2901-3115), instrument block (3136-3173), score (3175-3199), groups (3201-3213), ui layout + noteFaces (3215-3262). 2843 `node.perfFieldIds[p.name] = fid;   // stable on the next save` mutates the GraphNode from inside the serializer, which is also invoked from get_cached_instrument (4638) and generate_unified (4351).",
+   "why": "The function is the file format; every format change lands here, and the per-type `if (node.typeName == \"X\")` ladder (2921, 3025, 3038, 3046) grows with each node kind. Mutating perfFieldIds during a playback-cache rebuild means 'play a note' can change what the next Save writes, which is surprising for anyone debugging round-trip diffs.",
+   "recommendation": "Split into phase helpers (assign_ids, emit_perf_faces, emit_nodes, emit_instrument, emit_score, emit_ui) sharing a small SerializeContext; move the perfFieldIds assignment into an explicit `assign_perf_field_ids()` step so the serializer is const over s_nodes; consider a per-type emit hook on the registry entry instead of the typeName ladder.",
+   "confidence": 0.85
+  },
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 2547,
+   "line_end": 2589,
+   "category": "duplication",
+   "severity": "low",
+   "title": "Six copies of the same input-pin -> source-output link walk",
+   "evidence": "find_source_pin 2547-2557, find_source_node 2559-2574 (== find_source_pin(id).first), find_source_out_pin 2578-2589, inline in topo_sort 2505-2519, inline in both multi-pin loops 2949-2957 and 3316-3325, and find_output_source 4185-4194 \u2014 all `if (link.endPinId == X) other = link.startPinId; if (link.startPinId == X) other = link.endPinId;` followed by a scan of s_nodes/outputs.",
+   "why": "Each copy is O(L\u00b7N\u00b7P) and each re-derives the 'links may be stored in either direction' rule; a fix to one (e.g. the isTap exclusion only topo_sort knows about, 2517) does not reach the others.",
+   "recommendation": "One `resolve_source(int inputPinId) -> std::pair<GraphNode*, Pin*>` over the per-edit pin index from the topo_sort finding; derive the three helpers from it or delete them.",
+   "confidence": 0.9
+  },
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 3842,
+   "line_end": 3851,
+   "category": "rt-safety",
+   "severity": "low",
+   "title": "UI thread reads audio-thread-written non-atomics without the lock (is_playing, any_voice_active)",
+   "evidence": "3849-3850 `return g_streamSource != nullptr || !g_streamChannels.empty() || g_bufferPlayback != nullptr || any_voice_active();` and 3844 `if (g_voices[i].active)` read on the UI thread (callers 8753, 13770, 13831, 13837, none under g_audioMutex) while the callback writes `g_bufferPlayback = nullptr` (3935), `g_streamSource = nullptr` (3944) and `v.active = false` (3749 via 3924).",
+   "why": "Formally a data race (UB); benign on x86 for pointer/bool-sized values today, but it is the kind of thing a sanitizer or a future ARM build will flag, and `!g_streamChannels.empty()` reads a std::vector's size while the UI thread may be moving into it (4954) \u2014 acceptable only because both writers are the UI thread.",
+   "recommendation": "Make g_bufferPlayback, g_streamSource and Voice::active std::atomic with relaxed loads/stores (the callback already uses atomics for the meters), or expose a `playback_snapshot()` that copies the flags under the lock once per frame.",
+   "confidence": 0.85
+  },
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 3755,
+   "line_end": 3764,
+   "category": "elegance",
+   "severity": "low",
+   "title": "voice_schedule_unlocked takes 10 positional parameters (6 defaulted) for data the engine already packages as StreamingVoice",
+   "evidence": "3755-3764 signature `(patch, source, totalSamples, gain, midiNote, bool held = false, envs = {}, int poolSlot = -1, performSource = nullptr, advanceList = {})`; call sites pass `ip, sv.source, sv.durSamples, sv.gain, int(noteNum), false, {}, slot, sv.performSource, sv.advanceList` (4697-4699) and `..., INT_MAX / 2, sv.gain, int(noteNum), true, std::move(envs), slot, sv.performSource, sv.advanceList` (4803-4805). instrument.h 246-264 StreamingVoice already carries source/durSamples/gain/performSource/advanceList.",
+   "why": "Positional bool/int/empty-brace arguments are easy to transpose (held vs poolSlot) and the two call sites copy the advanceList vector instead of moving it.",
+   "recommendation": "`voice_schedule_unlocked(std::shared_ptr<InstrumentPatch>, PitchedInstrument::StreamingVoice&&, int poolSlot, int midiNote, HeldState{bool held; std::vector<Envelope*> envs})` \u2014 move the StreamingVoice in.",
+   "confidence": 0.8
+  },
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 3125,
+   "line_end": 3125,
+   "category": "modern-cpp",
+   "severity": "low",
+   "title": "Sample-rate and pi literals duplicated where named constants exist; two names for one sample rate",
+   "evidence": "3125 and 3428 `root[\"sampleRate\"] = 48000;`, 3592 `g_outputSpectrumSR = 48000`, 3806 `kMaxRingSec * 48000.0f` while AUDIO_SAMPLE_RATE (3547) and DSP_SAMPLE_RATE (230) both exist and are used interchangeably (4202 vs 4877); 3966-3967 `std::cos(t * 0.5f * 3.14159265358979323846f)` instead of std::numbers::pi_v<float>, recomputed per sample per channel even when pan is a constant.",
+   "why": "The rate-bake audit the callback comment cites (3902, backlog 69) is exactly the class of bug duplicated literals cause; two constants for one value invites the UI and engine rates to drift apart silently.",
+   "recommendation": "One `kSampleRate` used by both savers and the ring budget; `std::numbers::pi_v<float>`; compute the pan gains only when the pan source changed (or accept the trig and note it).",
+   "confidence": 0.85
+  },
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 3541,
+   "line_end": 3545,
+   "category": "smell",
+   "severity": "low",
+   "title": "Stale banner describes the retired waveOut design; forward declarations scattered; dead default drum-map path",
+   "evidence": "3541-3545 banner: 'Audio: poll-driven streaming via waveOut ... no callbacks, no threading issues' directly above the RtAudio callback design (3642-3646). transport_set_status is forward-declared three times (1392, 4077, 4279); init_audio is declared at 4011 and defined two lines later at 4013. TransportState 3624 default `drumMap[512] = \"KK=patches/kick_drum.json;SN=patches/snare_drum.json\"` names files that do not exist (patches/ was reorganized into library/<family>/; glob finds no patches/kick_drum.json).",
+   "why": "The banner says the opposite of the threading model a reader must understand before touching anything in this range; the default drum map fails on first use of Drums mode.",
+   "recommendation": "Replace the banner with the 3642-3646 text, collect forward declarations in one block at the top of the audio section, and either point the default at a library path or leave it empty.",
+   "confidence": 0.9
+  },
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 2759,
+   "line_end": 2786,
+   "category": "duplication",
+   "severity": "low",
+   "title": "rename_node and rename_group duplicate the identifier validation rules",
+   "evidence": "2759-2762 and 2778-2781 both check empty / contains '.' / starts with \"__\" with the same error strings; 2763-2766 vs 2782-2786 both scan s_nodes and s_groups for collisions with the self-exclusion differing only in which container holds `this`.",
+   "why": "sanitize_unique_id (2595-2610) encodes the same rules a third way (replace '.', strip '__'); three encodings of the id grammar will diverge when the next reserved prefix is added.",
+   "recommendation": "One `validate_identifier(name, err)` plus one `name_in_use(name, excludeNode, excludeGroup)`; have sanitize_unique_id call the same predicate.",
+   "confidence": 0.85
+  }
+ ]
+}

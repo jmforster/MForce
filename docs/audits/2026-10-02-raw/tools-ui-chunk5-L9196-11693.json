@@ -1,0 +1,190 @@
+{
+ "unit": "tools-ui-chunk5-L9196-11693",
+ "assessment": {
+  "health": 2,
+  "summary": "This range holds the Properties panel (one 1,035-line function), two coexisting node-clipboard implementations, Patch<->Node graph conversion, and the create/node context menus with group and replace-with handling. The individual features work and several hard-won lessons are recorded in comments (reallocation after emplace_back, json find() vs operator[], stowed scalars on demotion), but the unit has accreted rather than consolidated: an in-process JSON clipboard (10264-10545) and an OS-clipboard save/merge/reload path (11258-11475) are both live and both bound to Ctrl+C/Ctrl+V in main(), so one keypress runs both pastes. The node context menu keeps a GraphNode* across emplace_back/delete_node and reads it afterwards (use-after-realloc/erase). The Properties panel mutates live Envelope stage vectors, arrays and formant lists without g_audioMutex while the continuous streams hold raw pointers into the same objects, even though the same function locks for set_setting with a comment explaining exactly that hazard. Node-state copying exists in four divergent forms (Duplicate, clip_instantiate, replace_node_with, saver/loader fragment), and the ~75-entry source menu is a hand-maintained second registry. First change: delete one clipboard (keep the fragment format, drop the file round-trip by reusing serialize_patch_graph and a direct node-instantiation path), then make the context menu return after any mutating item, then route every DSP mutation in the panel through one locked helper.",
+  "strengths": [
+   "Reallocation hazards are explicitly handled in convert_patch_to_node_graph, convert_node_to_patch_graph and replace_node_with (ids captured before emplace_back, pointer re-found after delete_node).",
+   "Group semantics are enforced consistently: the two-output rule is checked on a trial membership before Add-to-group moves anything (11637-11651) and group_selection refuses with offender names.",
+   "replace_node_with keeps wiring by pin name and reports dropped wires in the status line instead of silently losing them.",
+   "paste_fragment_text restores the pre-merge graph on a failed load and preserves file path and drill path.",
+   "Promotion/demotion keeps the stowed scalar separate from the dynamic pin, and the find()-not-operator[] json lesson is captured at the site (9464-9466).",
+   "Design rationale is dated and attributed in banner comments, making intent recoverable."
+  ],
+  "files_read": [
+   "C:/@dev/repos/mforce/tools/mforce_ui/main.cpp",
+   "C:/@dev/repos/mforce/engine/include/mforce/core/envelope.h",
+   "C:/@dev/repos/mforce/engine/include/mforce/core/source_registry.h"
+  ]
+ },
+ "findings": [
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 11258,
+   "line_end": 11475,
+   "category": "soundness",
+   "severity": "critical",
+   "title": "Two live clipboard implementations are both bound to Ctrl+C/Ctrl+V, so one Ctrl+V pastes twice",
+   "evidence": "10264: \"Node clipboard \u2014 Edit > Cut/Copy/Paste, Ctrl+X/C/V\" (clipboard_copy/clipboard_paste/clipboard_cut, s_clipboard json) vs 11259: \"Copy/paste (Matt 2026-09-07). The clipboard carries a JSON fragment ... rides the OS clipboard\" (copy_selection_to_clipboard/paste_fragment_text/paste_clipboard). Traced wiring in main(): 14255-14256 `if (editorHovered && KeyCtrl ...) { IsKeyPressed(ImGuiKey_C) copy_selection_to_clipboard(); IsKeyPressed(ImGuiKey_V) paste_clipboard(); }` and 14462-14464 `if (editorFocused && ... KeyCtrl) { X clipboard_cut(); C clipboard_copy(); V clipboard_paste(); }` \u2014 both blocks run in the same frame; Edit menu 13738-13743 calls the in-process set, create menu 10948 and node menu 11542 call the OS set.",
+   "why": "With the editor hovered and focused (the normal state after clicking in it), Ctrl+C fills both clipboards and the next Ctrl+V runs paste_clipboard() (full save/merge/reload of the graph) AND clipboard_paste() (fresh nodes from the in-process JSON), producing two copies of the selection. The two paths also differ in coverage (in-process carries Output/Parameter/Mixer/Channel but not dynamicPins/curveKnots/jsonExtras/group membership; the fragment path is the inverse), so Edit-menu paste and Ctrl+V paste give different results. This is a user-visible correctness defect and ~500 lines of parallel code.",
+   "recommendation": "Keep one clipboard. The fragment format (saved form, OS clipboard, cross-instance) is the better contract; drop clipboard_copy/clipboard_paste/clipboard_cut and the 14462-14464 binding, bind Cut to the fragment path, and update the Edit menu to call copy_selection_to_clipboard/paste_clipboard. Then fix the fragment path's file round-trip (see the workaround finding).",
+   "confidence": 0.9
+  },
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 11481,
+   "line_end": 11669,
+   "category": "soundness",
+   "severity": "high",
+   "title": "show_node_context_menu reads a GraphNode* after emplace_back/delete_node invalidated it (use-after-realloc / use-after-erase)",
+   "evidence": "11481-11482 `GraphNode* node = nullptr; for (auto& n : s_nodes) if (n.id == s_contextNodeId) { node = &n; break; }`; Duplicate: 11513 `s_nodes.emplace_back(node->typeName);` then 11518-11519 `node->inputs[i].defaultValue`, 11525 `node->settingValues`, 11532 `GetNodeScreenSpacePos(node->id)`; Replace-with 11553 `replace_node_with(targetId, t)` (emplace_back + delete_node) and Delete 11567 `delete_node(s_contextNodeId)` are followed in the same frame by 11575-11576 `node->id == s_listenTapNode; !node->outputs.empty() && node->typeName`, 11611 `sel[i] == node->id`, 11669 `group_of(node->label)`. delete_node erases via remove_if (1167-1170); s_nodes is a std::vector with no reserve.",
+   "why": "After emplace_back reallocates, `node` points into freed storage (use-after-free read); after delete_node, it points at a moved-from successor or past the live range. ImGui::MenuItem closes the popup but the rest of the function still executes this frame, so every mutating item (Duplicate, Replace with, Delete) is followed by reads through the stale pointer. The same file documents this exact hazard three times (10580, 10687, 11164, 11239) but this function was not given the same treatment.",
+   "recommendation": "After any mutating MenuItem (Duplicate, Replace-with action, Delete, Ungroup), `ImGui::EndPopup(); return;` immediately; or re-find `node` by id after each mutation. Longer term, make Duplicate a call into the single node-copy routine (see duplication finding) so the context menu never touches s_nodes directly.",
+   "confidence": 0.9
+  },
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 10029,
+   "line_end": 10121,
+   "category": "rt-safety",
+   "severity": "high",
+   "title": "Properties panel mutates live DSP objects (Envelope stage vector, arrays, formant list) without g_audioMutex while the continuous streams read them on the audio thread",
+   "evidence": "10082-10109 DragFloat directly on `env->stage(i)` fields (`&s.percent`, `&s.ramp.startVal`, `s.ramp.type = RampType(curType)`, `&s.minSec`); 10036 `env->absolute_time = absTime;`; 10120 `env->remove_stage(removeIdx)`; 10121 `env->add_stage_default()` \u2014 stages_ is `std::vector<Stage>` (envelope.h:536). Also unlocked: 9826/9857/9934 `node->push_array(d.name)` \u2192 set_array (main.cpp 504-512), 10014 `node->rebuild_formant_spectrum()` which does `spec->formants.clear(); ... push_back` (515-526), 9446 `node->apply_config()`. The streams point at these objects: 4883 `g_streamSource = src;` and 4925 `sc.source = sn->dspSource.get();`, and 1103-1105 states the streams \"hold raw pointers into node dspSources\". Contrast 9517-9522 in the same function: \"Under the audio lock: set_setting can rebuild internal arrays ... while a stream tap is mid-next() on the same object (3k audit residual)\" `std::lock_guard<std::mutex> lock(g_audioMutex); node->dspSource->set_setting(...)`.",
+   "why": "remove_stage/add_stage_default can reallocate or shrink stages_ while audio_callback is iterating it through g_streamSource \u2014 a read of freed memory on the audio thread (the same class of bug as backlog 3k). set_array/formants rebuild have the same shape. The panel already knows the rule for set_setting; the other mutation paths were added without it.",
+   "recommendation": "Route every DSP mutation from the panel through one helper that takes g_audioMutex (e.g. `with_audio_lock([&]{ ... })`), and for structural changes (add/remove stage, rebuild formants, set_array with a size change) call stop_streams() first as delete_node does (1115). Make GraphNode::push_array/apply_config/rebuild_formant_spectrum lock internally so no caller can forget.",
+   "confidence": 0.85
+  },
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 9227,
+   "line_end": 10261,
+   "category": "god-class",
+   "severity": "high",
+   "title": "draw_properties_panel is a 1,035-line function dispatching on typeName strings with three nested lambdas and function-local statics",
+   "evidence": "9227 `static void draw_properties_panel() {` ... 10261 `}`; per-type branches: 9296 `if (node->typeName == \"CurveNode\")`, 9632 `== \"SegmentSource\"`, 9694 `== \"Shaper\"`, 9753 `== \"ExplicitPartials\"`, 9764 `== \"SegmentSource\"` again, 9944 `== \"FormantSpectrum\"`, 10031 `== NT_ENVELOPE`, 10193 `== NT_PATCH_OUTPUT`, 10248 `== NT_PARAMETER || == \"NameGate\"`; lambdas apply_setting_value 9406, render_setting_row 9418 (113 lines); statics 9241-9243 and 9275-9277 for rename buffers.",
+   "why": "Every node type's property UI lives in one scope; adding a type or changing the settings layout means editing inside a kilo-line function whose locals (labelW, widgetW, hasParams, isEnvNode) are shared across unrelated sections. The length is also why the lock discipline (previous finding) and the duplicated edit blocks (next finding) went unnoticed.",
+   "recommendation": "Split into draw_group_properties, draw_node_header_rename, draw_pin_rows, draw_settings (with render_setting_row as a static function), draw_array_tables, draw_segment_preview, draw_shaper_preview, draw_formant_table, draw_envelope_stages, draw_output_props; dispatch per-type sections through a small table keyed by typeName. Keep the rename edit state in a tiny struct instead of function-local statics.",
+   "confidence": 0.95
+  },
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 11507,
+   "line_end": 11534,
+   "category": "duplication",
+   "severity": "high",
+   "title": "Four divergent implementations of 'copy a node's state' (Duplicate, clip_instantiate, replace_node_with, saver/loader fragment)",
+   "evidence": "(a) 11517-11529 Duplicate copies pins and settings BY INDEX only: `for (int i = 0; i < node->inputs.size() && i < dup.inputs.size(); ++i) dup.inputs[i].defaultValue = ...` \u2014 no arrays, formantRows, Envelope stages, dynamicPins, curveKnots, jsonExtras, no update_node_dsp, no group membership; (b) 10286-10404 clip_node_state/clip_instantiate: pins, settings, arrays, formants, stages, seed, polyphony, chPins; (c) 11178-11191 replace_node_with: pins, settings, dynamicPins by name; (d) 11273-11471 serialize whole graph \u2192 fragment \u2192 merge \u2192 load_graph_from_path.",
+   "why": "Duplicate of an ExplicitPartials, FormantSpectrum, Envelope or Curve node silently produces a node missing its arrays/formants/stages/knots \u2014 a different result from Copy/Paste of the same node. Each new node field (sustaining/onsets/glideMs were added recently) must be remembered in up to four places; today clip_node_state carries sustaining/onsets but Duplicate and replace_node_with do not.",
+   "recommendation": "Implement one `GraphNode::copy_state_from(const GraphNode& src, MatchBy by)` (by name) that covers every serialized field, and make Duplicate, clip_instantiate and replace_node_with call it. Better still, express Duplicate as 'copy selection to fragment + paste' once the single clipboard exists.",
+   "confidence": 0.9
+  },
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 11269,
+   "line_end": 11457,
+   "category": "workaround-hack",
+   "severity": "medium",
+   "title": "OS-clipboard copy/paste round-trips the whole graph through temp files and a full reload",
+   "evidence": "11270 `return (std::filesystem::temp_directory_path() / name).string();`; copy 11296-11300 `save_patch_graph(tmp)` ... `std::ifstream f(tmp); f >> doc;` just to pick out `labels.count(jn[\"id\"])` at 11310, although `serialize_patch_graph` (2806) returns the json in memory and save_patch_graph (3268-3273) is a four-line wrapper over it; paste 11349-11357 stages again, 11442 `{ std::ofstream f(merged); f << doc.dump(2); }` unchecked, 11444 `load_graph_from_path(merged);` rebuilds every node, then 11449/11455-11457 hand-restore s_currentFilePath and s_groupPath.",
+   "why": "A paste of two nodes writes two files to %TEMP%, destroys and recreates every DSP object in the graph (stopping live audio, resetting selection, listen tap, camera and any state load_graph_from_path clears but the paste does not restore), and depends on filesystem success for an in-memory operation (temp_directory_path can throw; neither ofstream is checked). The stated rationale (fragment format cannot drift from file format) is achievable without the disk and without the reload.",
+   "recommendation": "Add `serialize_node_graph()` beside serialize_patch_graph so both savers are pure, build the fragment from the in-memory json, and add a loader entry point that instantiates only the fragment's nodes into the live graph (the loader's per-node construction already exists; the in-process clip_instantiate shows the shape). Delete the temp-file staging and the restore-on-failure double load.",
+   "confidence": 0.85
+  },
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 10787,
+   "line_end": 10939,
+   "category": "duplication",
+   "severity": "medium",
+   "title": "source_family_menus/experimental_family_menu are a hand-maintained second registry of ~75 (label, type) pairs",
+   "evidence": "10790 `menu_source(\"Sine\", \"SineSource\");` ... 10930 `menu_source(\"Bit Rotate (glitch)\", \"BitRotateEvolution\");` \u2014 every registered type is listed by hand with a hand-written label; SourceRegistry already has `SourceCategory get_category(const std::string&)` and 'all registered types, sorted by category then name' (source_registry.h:43-49); `node_display_name(typeName)` (main.cpp:137, used at 9271) is a third naming table.",
+   "why": "A type registered in the engine but not added here is unreachable from the create menu and from Replace-with; a label changed in one table but not the other shows two names for one node. Explicit registries are the project rule \u2014 this is a manual duplicate of the registry rather than a use of it.",
+   "recommendation": "Carry the menu label and an optional ordering/experimental flag on the registration (one place), and generate the family menus from SourceRegistry::get_category + that metadata; keep menu_sep groupings via an explicit sort key. At minimum add a startup check that every registered type appears in the menu table.",
+   "confidence": 0.8
+  },
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 9337,
+   "line_end": 10187,
+   "category": "duplication",
+   "severity": "medium",
+   "title": "Repeated blocks inside draw_properties_panel: pin-edit apply, setting apply, centered table header, preview plotting",
+   "evidence": "(a) 9337-9348 and 9370-9380 are the same `PushItemWidth; snprintf(\"##prop..\"); step = max(0.001f, |defaultValue|*0.01f); InputFloat; constantSrc->set; jsonExtras.erase; update_node_dsp; mark_graph_dirty; PopItemWidth` block; (b) 9516-9530 `if (changed && node->dspSource) { lock; set_setting; jsonExtras.erase; for arrayValues v = get_array; mark_graph_dirty; }` re-implements the `apply_setting_value` lambda at 9406-9416 fifteen lines above (which already does lock/set_setting/erase/get_array/dirty); (c) centered header rows 9961-9972 and 10061-10074 are verbatim copies; (d) three N=256 sample\u2192min/max\u2192pad\u2192PlotLines previews at 9651-9681, 9710-9718, 10130-10187 with 9670-9676 and 10176-10182 identical.",
+   "why": "The duplicated apply blocks are where the lock discipline diverged (9521 locks, 9343/9375 do not); the preview trio is the kind of copy that drifts (segment and envelope use vmin/vmax padding, shaper uses fixed -1.6..1.6).",
+   "recommendation": "Extract `edit_pin_constant(GraphNode&, Pin&, float widgetW)`, make render_setting_row call apply_setting_value, add `table_centered_header(const char* const*, int)` and `plot_preview(const char* id, float* v, int n, float h)`.",
+   "confidence": 0.95
+  },
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 10974,
+   "line_end": 11040,
+   "category": "duplication",
+   "severity": "medium",
+   "title": "show_create_menu creates Output in two places with different side effects; special-node items skip the group/dirty handling the generic path does",
+   "evidence": "10978-10981 `if (ImGui::MenuItem(\"Output\")) { s_nodes.emplace_back(NT_PATCH_OUTPUT); SetNodeScreenSpacePos(...); }` (no mark_graph_dirty) vs 11012-11016 same item inside the Output submenu with `mark_graph_dirty();`; 10989-10992 Parameter and 11024-11034 Channel/Mixer also skip the drilled-group membership (`g->members.push_back(n.label)`) and update_node_dsp that create_source_at_menu does at 10753-10756; 10957-10965 Note re-implements create_source_at_menu's body inline.",
+   "why": "Creating Output from the top-level item leaves the document clean (no save prompt on close); a Channel created while drilled into a group lands outside it. Two menu entries for one action is also a UX inconsistency.",
+   "recommendation": "Route every creation through create_source_at_menu (or a `create_node_at_menu(type, paramName)` that handles the special types), and delete the duplicate top-level Output item.",
+   "confidence": 0.9
+  },
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 10279,
+   "line_end": 11615,
+   "category": "smell",
+   "severity": "low",
+   "title": "find_node_by_id exists but the range re-rolls the id loop seven times and queries the imnodes selection three times in one menu",
+   "evidence": "10279 `static GraphNode* find_node_by_id(int nodeId)`; inline copies at 10706-10712 `for (auto& n : s_nodes) { if (n.id == freqNodeId ...`, 11158 `for (auto& n : s_nodes) if (n.id == nodeId) { oldN = &n; break; }`, 11169-11172, 11240, 11282, 11482, 11614-11615; `ImNodes::NumSelectedNodes()` + GetSelectedNodes repeated at 11539, 11585, 11606-11608 in show_node_context_menu; `find_selected_node` (1097) is the same loop keyed on g_selectedNodeId.",
+   "why": "Eight hand-written lookups for one query hide the one place a node-id index could live, and the repeated selection reads make the menu's targets/labels depend on call order.",
+   "recommendation": "Use find_node_by_id everywhere (declare it with the other lookup helpers near 814) and read the selection once at the top of show_node_context_menu into a local vector.",
+   "confidence": 0.9
+  },
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 10688,
+   "line_end": 10713,
+   "category": "smell",
+   "severity": "low",
+   "title": "Dead leftovers in convert_node_to_patch_graph and clipboard_copy",
+   "evidence": "10689 `float freqDefault = 440.0f;` ... 10697 `freqDefault = p.defaultValue;` ... 10705 `(void)freqDefault;`; freqPinId (10688) is only ever tested `>= 0`; 10445-10446 `Pin* outPin = find_pin(outPinId); Pin* inPin = find_pin(inPinId);` re-looks up pins that `a`/`b` (10434-10435) already hold.",
+   "why": "A silenced unused variable is a half-finished thought; the redundant find_pin calls are two extra linear scans per link per copy.",
+   "recommendation": "Drop freqDefault and freqPinId (keep freqNodeId as the flag), and pick out/in from a/b by kind.",
+   "confidence": 0.9
+  },
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 9316,
+   "line_end": 10303,
+   "category": "modern-cpp",
+   "severity": "low",
+   "title": "substr-based prefix/suffix tests allocate per pin per frame where C++20 starts_with/ends_with are free",
+   "evidence": "9316 `if (pin.name.substr(0, 3) == \"ch \") continue;` (per pin, per frame); 10303 `if (p.name.substr(0, 3) == \"ch \")`; 9566 `n.size() <= 5 || n.substr(n.size() - 5) != \"Curve\"` re-implements the `is_env_shape` lambda at 9402 and `ends_with`.",
+   "why": "Each substr constructs a std::string; in the Properties loop it runs for every input pin every frame. Trivial per call but pure waste, and the suffix test is a second copy of logic already present ten lines up.",
+   "recommendation": "`pin.name.starts_with(\"ch \")`, `n.ends_with(\"Curve\")`, and reuse is_env_shape at 9566.",
+   "confidence": 0.95
+  },
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 9699,
+   "line_end": 9709,
+   "category": "efficiency",
+   "severity": "low",
+   "title": "Per-frame heap work in previews and mapping_badge while a node is selected",
+   "evidence": "9699-9709 `ShaperSource probe; probe.set_array(\"values\", *vals); ... probe.set_param(\"smoothness\", std::make_shared<ConstantSource>(smooth)); probe.next();` every frame the Shaper is selected; 10136 `std::vector<float> widths(nStages, 0.0f);` every frame; 9205-9225 mapping_badge builds `std::string target = nodeLabel + \".\" + name` and walks all of s_loadedParamMap, called per pin (9328) and per setting (9480).",
+   "why": "UI thread only, so not an RT violation, but it is O(pins \u00d7 paramMap) string work plus a full DSP object construction per frame for a static picture that only changes on edit.",
+   "recommendation": "Cache the preview samples and badge results keyed on g_graphEditCounter (already maintained for the instrument cache) and recompute on change.",
+   "confidence": 0.9
+  },
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 10742,
+   "line_end": 10765,
+   "category": "smell",
+   "severity": "low",
+   "title": "s_menuSourceAction is a global std::function side-channel set by whichever popup draws; menu_source throws if a caller forgets",
+   "evidence": "10742 `static std::function<void(const char*)> s_menuSourceAction;` 10764 `s_menuSourceAction(typeName);` with setters at 10946 `s_menuSourceAction = create_source_at_menu;` and 11552 `s_menuSourceAction = [targetId](const char* t) { replace_node_with(targetId, t); };`.",
+   "why": "The menu tree's behaviour depends on a global assigned earlier in the same frame; a third caller of source_family_menus that forgets the assignment gets std::bad_function_call at the first click. The comment at 10741 ('Set by whichever popup is drawing the tree, every frame it draws') documents the invariant instead of removing it.",
+   "recommendation": "Pass the action as a parameter: `source_family_menus(const std::function<void(const char*)>& on_pick)` (or a function_ref), and drop the global.",
+   "confidence": 0.8
+  }
+ ]
+}

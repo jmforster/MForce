@@ -1,0 +1,205 @@
+{
+ "unit": "render-loader",
+ "assessment": {
+  "health": 3,
+  "summary": "The unit is the JSON patch loader (patch_loader.cpp, 1900 lines), the explicit SourceRegistry (header + 57-line impl + 630-line registration table) and the ValueSource base interface. The foundations are sound: the descriptor-driven generic wiring pass plus registry factory/configurator hook is the right abstraction, error messages are specific, the ValueSource interface is small and RT-clean, and the subtle rules (first-wired advancer, starved-ref promotion, tap binding) are documented with dated provenance. The dominant problem is that the generic path has not been allowed to win: build_graph carries a 17-branch special-case chain of which at least six branches re-implement wiring that the types' own ParamDescriptors/SettingDescriptors already provide (VarSource, RangeSource, Vibrato, HybridKS, Wavetable.interpolate, AdditiveSource2.partialCount), the registry's BW-filter configurators are dead because the loader intercepts those types first, and default seeds are duplicated between the two files. Second, the instrument-assembly block is copy-pasted between load_patch_file and load_instrument_patch_json and has already drifted (nodesById is only populated on one path, so per-note reseed and capture silently do nothing for CLI patch-file renders). Third, there is a class of silent no-ops (void set_param defaults, skipped string params, ignored bad expandRule refs, duplicate node ids) that the loader cannot see. What I would change first: collapse the two instrument loaders into one function, then widen JsonConfigurator's context so the special cases migrate next to their factories and the registry becomes the single table.",
+  "strengths": [
+   "wire_params_generic (patch_loader.cpp:349-425) is a genuine generic path: input/param/setting/array descriptors drive wiring with zero per-type code for most of the ~75 registered types.",
+   "SourceRegistry (source_registry.h/.cpp) is minimal, explicit (no reflection), and the JsonConfigurator hook is exactly the right extension point for per-type JSON quirks.",
+   "Error reporting is specific and actionable where it exists: unresolved refs/taps throw with the id, enum-string misses are loud (410-413), CombinedSource rejects unknown ordinals instead of defaulting (source_registrations.cpp:283-298), paramMap targets are validated.",
+   "Subtle correctness rules (RefSource advancer semantics, JSON-side starvation proof, tap z-1 preservation in promote_starved_refs:308-316) are documented with the bug history that motivated them, including the 56-patch regression the first cut caused.",
+   "ValueSource/ConstantSource/RefSource (dsp_value_source.h) are RT-clean: next()/current() allocate nothing; RefSource's guard is two branches; descriptors are constexpr static spans.",
+   "Unknown-key warning (502-554) with per-process dedup turns engine-older-than-patch into a visible log line instead of a silent downgrade."
+  ],
+  "files_read": [
+   "C:/@dev/repos/mforce/engine/src/patch_loader.cpp",
+   "C:/@dev/repos/mforce/engine/src/source_registrations.cpp",
+   "C:/@dev/repos/mforce/engine/include/mforce/render/patch_loader.h",
+   "C:/@dev/repos/mforce/engine/include/mforce/core/source_registry.h",
+   "C:/@dev/repos/mforce/engine/include/mforce/core/dsp_value_source.h",
+   "C:/@dev/repos/mforce/engine/src/source_registry.cpp",
+   "C:/@dev/repos/mforce/engine/include/mforce/source/multiplex_source.h",
+   "C:/@dev/repos/mforce/engine/include/mforce/render/instrument.h (lines 150-179, 225-244, 349-352, 462-481)",
+   "C:/@dev/repos/mforce/engine/include/mforce/core/envelope.h (lines 140-164)",
+   "C:/@dev/repos/mforce/engine/include/mforce/core/var_source.h (lines 50-84)",
+   "C:/@dev/repos/mforce/tools/mforce_ui/main.cpp (lines 1062-1083, 1366-1387, 3857-3916, 4515-4574, 4655-4724)",
+   "C:/@dev/repos/mforce/docs/Parked.txt (item 5)"
+  ]
+ },
+ "findings": [
+  {
+   "file": "engine/src/patch_loader.cpp",
+   "line": 1514,
+   "line_end": 1580,
+   "category": "duplication",
+   "severity": "high",
+   "title": "Instrument assembly is copy-pasted between load_patch_file and load_instrument_patch_json and has already drifted: nodesById is only set on the JSON path, so per-note reseed and capture are silently inert for CLI patch-file renders",
+   "evidence": "1514-1580 and 1840-1889 both do: polyphony, make_unique<PitchedInstrument>, volume/onsets/glideSec/sustaining, the 'instrument.release retired' fprintf, then per voice make_perform_context / build_graph / output lookup / Envelope collection / topMultiplex / attach_perform_source / bind_wiring / promote_starved_refs / advanceList. Only 1886 has `vg.nodesById = std::move(g.valueNodes);`. instrument.h:475 `for (auto& [nid, src] : vg.nodesById) src->reseed();` and instrument.h:235 `voicePool[v].nodesById.find(ids[k])` therefore iterate an empty map for instruments built by load_patch_file. Node indexing 1503-1509 vs 1832-1838 is a third copy.",
+   "why": "A 50-line block duplicated once has already produced a behavioral divergence: the same patch rendered via `mforce_cli` patch-file mode gets no per-note draw re-anchoring (onsets-v2 addendum) while the UI/Generate path does. Every future voice-assembly rule (the advance list and allEnvelopes were each added to both copies by hand) doubles the edit and the drift risk.",
+   "recommendation": "Extract `static std::unique_ptr<PitchedInstrument> build_instrument(const json& root, const NodeIndex& idx, int minPolyphony)` containing the whole 1514-1580 body (including nodesById); load_patch_file calls it then does score + mixer; load_instrument_patch_json calls it and returns. Also factor the nodeMap/nodeOrder indexing into one `index_nodes(const json& graph)` that throws on duplicate ids.",
+   "confidence": 0.95
+  },
+  {
+   "file": "engine/src/patch_loader.cpp",
+   "line": 656,
+   "line_end": 1046,
+   "category": "workaround-hack",
+   "severity": "high",
+   "title": "build_graph's special-case chain re-implements wiring that the types' own descriptors already provide, bypasses reg.create so default seeds and constructor defaults are triplicated, and leaves the registry's BW-filter configurators dead",
+   "evidence": "VarSource 656-665 / RangeSource 666-675 hand-resolve val/var/varPct and min/max/var and never call wire_params_generic, although var_source.h:50-63 and range_source.h:53-60 declare exactly those ParamDescriptors with set_param, and 'absolute'/'normalized' are SettingDescriptors (var_source.h:72-81, range_source.h:75-87); registry factories 178-192 already construct them. Vibrato 829-834 passes 7 p.value() ctor args then 835 `wire_params_generic(*vib, ...)` re-applies the same 7 SettingDescriptors (vibrato.h:57-68); defaults live in vibrato.h, loader, and registrations.cpp:459-461. HybridKS 986-988 `hks->set_hold_cycles(p.value(\"holdCycles\", 5))` etc. after 985 already applied them via hybrid_ks_source.h:62-74. 939 `wt->set_interpolate(p.value(\"interpolate\", false))` after 938 applied the 'interpolate' setting (wavetable_source.h:67-76). 898 `as2->set_default_partials(p.value(\"partialCount\", 500))` after 895 applied 'partialCount' (additive_source2.h:99-108), and registrations.cpp:471 calls set_default_partials(500) a third time. Seeds duplicated loader/registry: SegmentSource 0x5E6A'0000u (821/376), Vibrato 0xF1B0'0000u (834/461), AdditiveSource2 0xADD3'0000u (892/470), WavetableSource 0xC0FFEEu (935/524), HybridKS 0xBEEF'C0DEu (982/573). 'cutoff' alias at 850-851 duplicates registrations.cpp:420-431, and those BWLowpass/BWHighpass configurators can never run because 838 intercepts the type before `reg.has(type)` at 1050.",
+   "why": "The generic path is the design (CLAUDE.md: explicit registries, self-describing nodes) but the loader does not trust it: the 470-line build_graph is a god-function whose branches silently skip the unknown-key warning (VarSource/RangeSource never reach 502-554) and ignore any descriptor added later. Three sources of truth for defaults and seeds guarantee drift; the dead configurators mislead the next reader into editing the wrong place.",
+   "recommendation": "(1) Widen JsonConfigurator to take a `LoadContext&` (sampleRate, valueNodes, usage, formantNodes, perf, onsets, nodeMap) so every branch except PerformNode/NameGate/Multiplex (which need loader-level state) moves next to its factory in source_registrations.cpp. (2) Delete the lines that duplicate descriptor-driven settings (656-675 entirely; 829-834 ctor args to defaults; 939; 986-988; 898). (3) Add ArrayDescriptors for SegmentSource.values, HybridKS.targetPartials, FixedSpectrum/BandSpectrum.gains so the generic array pass handles them. (4) Every remaining special case calls `reg.create(type, sampleRate, seed)` first so seeds live only in the registry. (5) Replace the global kStructural allowlist (510-530) with per-type consumed-key lists declared by each configurator, so a typo'd 'attack' on a non-envelope node is warned.",
+   "confidence": 0.9
+  },
+  {
+   "file": "engine/include/mforce/core/dsp_value_source.h",
+   "line": 103,
+   "category": "soundness",
+   "severity": "medium",
+   "title": "Silent-no-op class: void set_param/add_param defaults mean the loader cannot detect a rejected wire; three further loader paths swallow bad input silently (Parked.txt item 5)",
+   "evidence": "dsp_value_source.h:103 `virtual void set_param(std::string_view, std::shared_ptr<ValueSource>) {}` and 107 add_param \u2014 no acceptance signal. Consumers silently drop wrong-typed wires: full_additive_source.h:49-50 `auto fmt = std::dynamic_pointer_cast<IFormant>(src); if (fmt) formant_ = ...`, formant.h:320-321/328-329, additive_source2.h:82-83. In the loader: 362-367/379 `skip_unresolvable` drops any string in a KNOWN pin slot with no message (the unknown-key pass 546-553 does not fire because the key is known); 478-482 an expandRule {\"ref\"} to a missing id or non-ExpandRuleNode is ignored (contrast resolve_param 116-117 which throws); 1507 `nodeMap.emplace(id, n)` keeps the FIRST duplicate id silently while 1159 `nodeMap[id] = perturbed` keeps the LAST.",
+   "why": "docs/Parked.txt item 5 names exactly this: the UI shows a wire but the DSP has no connection. The loader is the one place every edge passes through, yet it has no way to know a set_param was refused, so a mis-typed pin or a typo'd string value renders a silently different patch \u2014 the failure mode the file's own comments call 'exactly the failure mode this loader is full of'.",
+   "recommendation": "Change the base interface to `virtual bool set_param(...) { return false; }` / `virtual bool add_param(...) { return false; }` (overriders return true on the matching branch, false at the fall-through); wire_params_generic warns `[load] <type>.<pin>: wire refused` on false. Throw on duplicate node ids in both index sites. Warn on skipped strings unless the (type,key) pair is in the legacy-string list the configurator declares. Throw on an unresolved or wrong-typed expandRule ref.",
+   "confidence": 0.9
+  },
+  {
+   "file": "engine/src/patch_loader.cpp",
+   "line": 1783,
+   "category": "soundness",
+   "severity": "medium",
+   "title": "Mixer/channel params resolved after build_graph bypass the usage counter, so a source shared between a graph pin and a channel volume/pan or mixer gain is advanced twice per sample",
+   "evidence": "635 `std::unordered_map<std::string, int> usage;` is local to build_graph and not returned in GraphResult. 1783-1784 `ch.volume = resolve_param_or(p, \"volume\", 1.0f, valueNodes); ch.pan = resolve_param_or(p, \"pan\", 0.0f, valueNodes);`, 1765-1766 and 1701-1702 (gainL/gainR) all pass usage=nullptr, so resolve_param 118-121 never wraps in RefSource. mixer.cpp:28-31 pulls `gainL->next()`, `ch.volume->next()`, `ch.pan->next()` every sample. The comment at 1806-1807 only acknowledges the cross-channel case.",
+   "why": "This is the same bug the usage counter was introduced to fix (98-103: an envelope wired to N consumers exhausts in 1/N of the note). Any mixer-mode patch that drives a channel volume from an envelope or LFO that also feeds a graph pin renders with that modulator running at double rate.",
+   "recommendation": "Return `usage` in GraphResult (or keep a `WireContext{valueNodes, usage, tapBinds}` struct that resolve_param takes by reference \u2014 this also retires the thread_local t_tapBinds at 89) and pass it to every post-build resolve_param_or call.",
+   "confidence": 0.85
+  },
+  {
+   "file": "engine/src/patch_loader.cpp",
+   "line": 1041,
+   "category": "rt-safety",
+   "severity": "medium",
+   "title": "Multiplex instances are built lazily on first prepare(): JSON parse plus count\u00d7 build_graph runs inside the audio-mutex critical section on each voice's first note in the live UI",
+   "evidence": "1041 `mux->set_template(subtreeStr, baseSeed, std::move(builder));` \u2014 multiplex_source.h:83-88 sets templateDirty_=true and 105-106 `void prepare(...) { if (templateDirty_) rebuild_();` so the loader never forces the build. rebuild_ (134-151) calls builder_ \u2192 loader 1036-1038 build_subgraph_with_seed_perturbation \u2192 1143 `json::parse(subtreeJsonStr)` + 1163 build_graph. UI path: mforce_ui/main.cpp:4676 `std::lock_guard<std::mutex> lock(g_audioMutex);` then 4691 `pitched->prepare_voice_at(...)` \u2192 instrument.h:349+ `vg.source->prepare(...)`; audio_callback takes the same mutex at 3864.",
+   "why": "Unbounded, allocating work (JSON parse, string copies, ~count\u00d7nodes shared_ptr constructions, fprintf) happens while the RtAudio callback is blocked on g_audioMutex \u2014 an underrun source on the first note of every voice of a Multiplex patch. The loader already has all the information to build at load time. No patches/library patch uses MultiplexSource today, which is why this is medium rather than high.",
+   "recommendation": "Build eagerly: after set_template, call a new `mux->build_now()` (rebuild_ made public, or have set_template build immediately) so prepare() only propagates. For UI mark_dirty rebuilds, rebuild into a staging vector on the UI thread outside the lock and swap under it.",
+   "confidence": 0.85
+  },
+  {
+   "file": "engine/src/patch_loader.cpp",
+   "line": 190,
+   "category": "duplication",
+   "severity": "medium",
+   "title": "Four hand-rolled recursive JSON edge scanners with diverging semantics (ref / inputs / tap coverage differs per copy)",
+   "evidence": "190-214 collect_advance_ids (`scan` handles ref+tap, `scanIds` handles inputs); 235-255 promote_starved_refs::node_refs (`scanRefs` handles ref only, `scanIds` inputs); 1104-1113 extract_subgraph_json::scanRefs (ref only \u2014 ignores plain-string 'inputs' ids and 'tap'); 1358-1390 bind_wiring::reaches_freq (one level of object/array under params, no nested recursion). Each is a `std::function<void(const json&)>` recursive lambda.",
+   "why": "When the tap edge form was added it reached two of the four scanners; extract_subgraph_json would drop a template node referenced only through 'inputs'. Four places to keep in step for every new edge form, and the mismatch is invisible until a patch happens to use the uncovered form inside a Multiplex template or a reaches_freq chain.",
+   "recommendation": "One `template<class F> void for_each_edge(const json& node, F&& fn)` yielding `(EdgeKind{Ref, Input, Tap}, const std::string& id)` over params+inputs; implement collect_advance_ids, advancer/reachable, extract_subgraph_json and reaches_freq on it.",
+   "confidence": 0.9
+  },
+  {
+   "file": "engine/src/patch_loader.cpp",
+   "line": 680,
+   "line_end": 699,
+   "category": "duplication",
+   "severity": "medium",
+   "title": "Envelope stage-form parser and the RefSource first-consumer-advances rule are each duplicated in mforce_ui/main.cpp; the loader's own comment says only the preset form was shared",
+   "evidence": "680-699 (startVal/endVal/power/type ladder/percent/minSec/maxSec/nominal \u2192 add_stage) is field-for-field identical to tools/mforce_ui/main.cpp:1368-1387 `envelope_stages_from_json`. Loader 713-715: 'Shared preset dispatch (envelope_json.h) \u2014 the UI graph loader calls the same function, so the two cannot drift' \u2014 the stage form got no such treatment. Loader 98-124 usage-counter\u2192RefSource vs UI main.cpp:1062-1080 consumers\u2192`std::make_shared<RefSource>(srcNode->dspSource)`; loader 104 admits 'Mirrors the auto-wrap logic in mforce_ui/main.cpp::update_all_dsp()'.",
+   "why": "Two parsers of the same JSON shape means the UI and CLI can accept different stage keys (the UI copy lacks seed/stage_accuracy/ramp_accuracy/timeMode handling at 702-711, so a UI round-trip of a stage-form envelope silently loses those). The RefSource rule is correctness-critical (double-advance) and the two implementations have different exemptions (UI skips NT_PERFORM at 1072; loader has no such rule).",
+   "recommendation": "Move stage parsing into envelope_json.h as `envelope_from_stages_json(const json&, int sampleRate)` beside envelope_from_preset_json and call it from both. For the advancer rule, expose a small `AdvancerTracker` helper in core that both the loader's resolve_param and the UI's update_all_dsp use.",
+   "confidence": 0.95
+  },
+  {
+   "file": "engine/src/patch_loader.cpp",
+   "line": 1534,
+   "line_end": 1580,
+   "category": "efficiency",
+   "severity": "medium",
+   "title": "JSON-only analyses are recomputed once per voice (and the advance list twice per voice) although they depend only on the patch JSON",
+   "evidence": "Per voice iteration at 1534-1580 (and 1855-1888): 1571 promote_starved_refs rebuilds advancer (259-264) and reachable (271-282) from JSON and calls collect_advance_ids at 273; 1576 calls collect_advance_ids again; 1567 bind_wiring rebuilds the reaches_freq memo (1357); the Multiplex branch re-extracts and re-dumps the subtree per voice (1008-1009 `extract_subgraph_json(...); subtree.dump()`); the unknown-key pass allocates `std::string(src.type_name()) + \".\" + it.key()` (548-549) per key per node per voice.",
+   "why": "Load time is user-visible on the UI Generate path (load_instrument_patch_json per Generate, main.cpp:4352/4643) and live pools use LIVE_MIN_POLYPHONY-sized voice counts, so this is O(polyphony \u00d7 nodes \u00d7 keys) string/map work repeated for identical input. The 466 ms per-note reload that was previously killed shows load latency matters here.",
+   "recommendation": "Compute a `GraphAnalysis{advancer, reachable, advanceIds, bendInertIds, muxSubtreeStr}` once per load from nodeMap/nodeOrder and pass it into each voice build; keep the built-graph walk (293-323) per voice since it operates on per-voice objects.",
+   "confidence": 0.8
+  },
+  {
+   "file": "engine/src/patch_loader.cpp",
+   "line": 432,
+   "line_end": 500,
+   "category": "smell",
+   "severity": "medium",
+   "title": "wire_params_generic contains type-specific blocks dispatched by dynamic_cast (Shaper invariants, Partials expandRule) although the registry provides a per-type configurator hook for exactly this",
+   "evidence": "432 `if (dynamic_cast<ShaperSource*>(&src)) {` ... 470 (values2/segs2 length and type checks, hysteresis warnings); 475-500 `if (params.contains(\"expandRule\")) { if (auto* host = dynamic_cast<Partials*>(&src)) {` with an inline 12-field ExpandRule parse. source_registry.h:23-26 JsonConfigurator exists and is used for CombinedSource/MultiSource/PhasedValueSource etc.",
+   "why": "The 'generic' function now has to include shaper_source.h and partials.h and grows a branch per type that needs validation; the configurator table is the one place a reader looks for per-type JSON handling and finds neither of these.",
+   "recommendation": "Register a 'Shaper' configurator carrying 432-470 and a shared `partials_expand_rule_configurator` attached to FullPartials/SequencePartials/ExplicitPartials/CompositePartials carrying 475-500; wire_params_generic then needs no concrete-type includes.",
+   "confidence": 0.85
+  },
+  {
+   "file": "engine/src/patch_loader.cpp",
+   "line": 617,
+   "category": "smell",
+   "severity": "medium",
+   "title": "Registry population is ad hoc: a check-then-set static bool in build_graph plus 14 explicit register_all_sources() calls in the tools; register_type silently overwrites duplicates",
+   "evidence": "617-618 `static bool registered = false; if (!registered) { register_all_sources(); registered = true; }`; source_registry.h:61-62 'Call once at startup'; tools/mforce_ui/main.cpp calls register_all_sources() at 13 sites (12981\u202613518) and mforce_cli/main.cpp:1027 once; source_registry.cpp:16 `entries_[type_name] = Entry{...}` overwrites without complaint.",
+   "why": "Three initialization conventions for one singleton; each UI call site rebuilds ~75 std::function entries. The plain bool is not a thread-safe once (no concurrent loading exists today, so this is latent). Silent overwrite means a mistyped alias (e.g. registering 'KSPianoString' twice) is never noticed.",
+   "recommendation": "Make `SourceRegistry::instance()` self-populating (`static SourceRegistry reg = []{ SourceRegistry r; populate(r); return r; }();` \u2014 a C++11 magic static, thread-safe), remove register_all_sources() from the public header and all 15 call sites, and make register_type throw on a duplicate name.",
+   "confidence": 0.85
+  },
+  {
+   "file": "engine/src/patch_loader.cpp",
+   "line": 58,
+   "line_end": 74,
+   "category": "duplication",
+   "severity": "low",
+   "title": "WaveSourceMono and ValueSourceMono are identical; add_mono's dynamic_pointer_cast chooses between two copies of the same class",
+   "evidence": "58-65 and 67-74 have the same body (`src->prepare(ctx, frames); for (...) out[i] = src->next();`); dsp_wave_source.h:9 `struct WaveSource : ValueSource` so a shared_ptr<WaveSource> converts to shared_ptr<ValueSource>. 561-563 `auto ws = std::dynamic_pointer_cast<WaveSource>(src); if (ws) ... WaveSourceMono ... else ... ValueSourceMono`.",
+   "why": "Dead distinction that costs an RTTI cast per node at load and invites the reader to look for a behavioral difference that does not exist.",
+   "recommendation": "Delete WaveSourceMono and the cast; add_mono becomes one make_unique<ValueSourceMono>.",
+   "confidence": 0.95
+  },
+  {
+   "file": "engine/src/source_registrations.cpp",
+   "line": 64,
+   "line_end": 630,
+   "category": "elegance",
+   "severity": "low",
+   "title": "~75 factory lambdas are one of four shapes and could be a table; source_registry.h pulls the full nlohmann/json.hpp into a core header",
+   "evidence": "Shapes: `[](int sr, auto) { return std::make_shared<T>(sr); }` (64-77, 418-453\u2026), `[](int, auto) { ... <T>(); }` (95-96, 194-195\u2026), `[](int, auto seed) { ... <T>(seed.value_or(K)); }` (110-154\u2026), `[](int sr, auto seed) { ... <T>(sr, seed.value_or(K)); }` (121-129\u2026). source_registry.h:3 `#include <nlohmann/json.hpp>`.",
+   "why": "Not a reflection concern \u2014 the list stays explicit \u2014 but 400 lines of near-identical lambdas hide the 10 registrations that actually carry a configurator. json.hpp in a core header is ~25k lines for every TU that only needs the registry's create/has.",
+   "recommendation": "Add `template<class T> SourceFactory factory_for(uint32_t defaultSeed = 0)` using `if constexpr (std::is_constructible_v<T, int, uint32_t>)` / `(int)` / `(uint32_t)` / `()` and reduce plain registrations to `reg.register_type(\"SineSource\", Oscillator, factory_for<SineSource>());`. Include <nlohmann/json_fwd.hpp> in source_registry.h.",
+   "confidence": 0.7
+  },
+  {
+   "file": "engine/src/patch_loader.cpp",
+   "line": 1687,
+   "line_end": 1703,
+   "category": "workaround-hack",
+   "severity": "low",
+   "title": "Instrument-mode mixer gain override builds a throwaway copy of the entire graph, keyed on the magic node id \"mix\", with a PerformSource holding a null InstrumentState",
+   "evidence": "1687 `auto mixIt = nodeMap.find(\"mix\");` 1696-1699 `PitchedInstrument::VoiceGraph mixThrowaway; PerformContext mixPerf = make_perform_context(mixThrowaway, nullptr, sampleRate); auto gMix = build_graph(nodeMap, nodeOrder, sampleRate, &mixPerf);` then only gainL/gainR are read (1701-1702). The comment itself calls it a 'throwaway' that exists because the full rebuild 'throws no voice context'.",
+   "why": "A full extra graph build (including Multiplex template extraction) to read two numbers, kept alive by the mixer's gain shared_ptrs; the id convention is undocumented in the format and a mixer node with any other id is silently ignored.",
+   "recommendation": "Locate the mixer node by `type == \"StereoMixer\"` rather than id, and resolve gainL/gainR either as numbers only or by building just their ref subtrees via extract_subgraph_json (no PerformContext needed).",
+   "confidence": 0.8
+  },
+  {
+   "file": "engine/src/patch_loader.cpp",
+   "line": 1585,
+   "line_end": 1676,
+   "category": "smell",
+   "severity": "low",
+   "title": "load_patch_file (330 lines) embeds score scheduling and then a second pass that re-implements the same 'time defaults to prevEnd' rule to compute duration",
+   "evidence": "1602-1648 schedules notes with `float start = noteJson.contains(\"time\") ? noteJson[\"time\"].get<float>() : prevEnd;` and 1659-1665 loops the same array again with `double t = noteJson.contains(\"time\") ? noteJson[\"time\"].get<double>() : prevEnd;` to find maxEnd. CLAUDE.md: the embedded score block is 'a smoke-test convenience only'.",
+   "why": "The loader's job is the graph and instrument; performer logic and two divergent copies of the timing rule (float vs double) are debt for a smoke-test path. Also contributes to load_patch_file being a second god-function next to build_graph.",
+   "recommendation": "Fold maxEnd tracking into the scheduling loop (one pass) and move the block to `schedule_embedded_score(PitchedInstrument&, const json& score)` in the render layer; load_patch_file then reads as index \u2192 build_instrument \u2192 schedule \u2192 mixer.",
+   "confidence": 0.8
+  },
+  {
+   "file": "engine/src/patch_loader.cpp",
+   "line": 398,
+   "category": "build",
+   "severity": "low",
+   "title": "Standard-library symbols used without their headers; compiles on MSVC only via transitive includes",
+   "evidence": "398 `std::strlen` (<cstring>), 401 `std::tolower` (<cctype>), 399 `std::equal` / 705 `std::clamp` / 968 `std::max` (<algorithm>), 1493 `std::lround` / 965 `std::sin` (<cmath>, reached only via dsp_value_source.h), 648 `std::optional` (via source_registry.h). The include list 33-40 has none of <cstring>, <cctype>, <algorithm>, <cmath>.",
+   "why": "CLAUDE.md plans cross-platform; libstdc++/libc++ transitive includes differ and this is the first file that breaks when they do.",
+   "recommendation": "Add the four headers.",
+   "confidence": 0.75
+  }
+ ]
+}

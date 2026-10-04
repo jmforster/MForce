@@ -1,0 +1,155 @@
+{
+ "unit": "tools-ui-chunk3-L5006-7525",
+ "assessment": {
+  "health": 3,
+  "summary": "This range holds the Keyboard/MIDI input path, the Audition WAV walker, the Shape editor (Curve/Segment/Shaper clients with morph), and the three curve table editors feeding CurveNode and the paramMap stash. The sections are contiguous, banner-delimited, state-struct based and unusually well commented with dated rationale; the engine is used as the source of truth for curve previews in most places. Two real-time-safety defects undercut it: audition_load_at resizes and refills the vector that g_bufferPlayback points into before taking g_audioMutex (use-after-free on the audio thread via the Repeat/Prev/Next/list-click paths while playing), and every shape/knot push into a live DSP object in this unit (cn->knots assignment, push_array -> set_array) happens without the lock while the node-graph continuous stream pulls those same objects by raw pointer on the audio thread, inconsistent with shape_ed_set_time_mode and the Properties pane which do lock. Structurally the dominant problem is draw_shape_editor: ~930 lines with the client type-switch repeated more than a dozen times, i.e. a missing client adapter; the curve editors also carry three copies of the row-table + log-spaced PlotLines idiom and a UI-side re-implementation of CurveNode::map. First change: fix the two lock-discipline defects (small, mechanical), then extract the shape-editor client/canvas abstractions and fold draw_one_curve into the engine-probe path.",
+  "strengths": [
+   "Each concern (MIDI, Audition, Shape editor, curve editors) lives in a contiguous banner section with a dedicated state struct (KeyboardState, AuditionState, ShapeEditorState, ShapeEdGenState) rather than loose globals.",
+   "draw_curve_node (7462-7478) and draw_curve_expr_rows (7336-7345) plot through the engine's own CurveNode::map so UI preview cannot drift from render; the shape editor overlays the engine-evaluated curve on the editing skeleton so authored shape and rendered shape stay distinguishable.",
+   "Row sort deferred to IsItemDeactivatedAfterEdit (7159, 7265, 7418) avoids the row-jumps-under-cursor bug and is documented with the date it was hit.",
+   "pump_midi handles the 2-byte channel-pressure message before the 3-byte guard, running-status note-off, and makes every MIDI failure non-fatal; CC/pressure land in atomics on InstrumentState rather than touching voices.",
+   "pick_folder_dialog correctly distinguishes S_OK/S_FALSE (needs CoUninitialize) from RPC_E_CHANGED_MODE (must not), and releases every COM object on every path.",
+   "Shape-editor structural edits (insert/delete/override) are bounds-checked and mirrored onto the morph twin at the same segment fraction, with clamps against neighbors so dragIdx never aliases after the stable_sort in apply."
+  ],
+  "files_read": [
+   "C:/@dev/repos/mforce/tools/mforce_ui/main.cpp (lines 5006-7525 in full; traced 504-532, 806-820, 1086-1090, 3842-3969, 4629-4658, 4900-5003, 9406-9412, 9518-9524, 9822-9934)",
+   "C:/@dev/repos/mforce/engine/include/mforce/core/curve_node.h",
+   "C:/@dev/repos/mforce/engine/include/mforce/source/shaper_source.h (set_array, 128-140)",
+   "C:/@dev/repos/mforce/engine/include/mforce/source/segment_source.h (set_array, 118-130)"
+  ]
+ },
+ "findings": [
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 5401,
+   "line_end": 5411,
+   "category": "rt-safety",
+   "severity": "critical",
+   "title": "audition_load_at resizes/refills the buffer g_bufferPlayback points into before taking g_audioMutex (audio-thread use-after-free)",
+   "evidence": "5401: g_audition.currentBuffer.resize(size_t(frames));\n5402-5403: for (...) g_audition.currentBuffer[size_t(i)] = interleaved[size_t(i) * 2];\n5406-5408: { std::lock_guard<std::mutex> lock(g_audioMutex); g_bufferPlayback = g_audition.currentBuffer.data(); ...\n3933 (callback, under lock taken at 3864): s += g_bufferPlayback[g_bufferPlaybackPos++];",
+   "why": "While a WAV is playing, g_bufferPlayback already equals currentBuffer.data(). Repeat (5574: audition_load_at(g_audition.currentIdx)), Prev (5566), Next (5576) and a list click (5605) call audition_load_at without stopping first; the resize at 5401 can reallocate and free the storage the audio callback is indexing, and the fill loop writes into it concurrently even when capacity suffices. The identical hazard for g_outputWaveform was recognised and solved with buffer_playback_detach (4987-4993, 'detach it (under the audio lock) before that vector is resized or cleared'), but the audition path never adopted it.",
+   "recommendation": "At the top of audition_load_at call audition_stop() (or buffer_playback_detach()) before touching currentBuffer; or decode into a fresh local vector and std::swap it into g_audition.currentBuffer inside the same lock_guard that publishes g_bufferPlayback. Audition's save/cancel resume paths (5733, 5746) are already safe because they stop first.",
+   "confidence": 0.9
+  },
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 6093,
+   "line_end": 6096,
+   "category": "rt-safety",
+   "severity": "high",
+   "title": "Live shape/knot data replaced on DSP objects without g_audioMutex while the node-graph stream may be pulling them on the audio thread",
+   "evidence": "6094: cn->knots  = node.curveKnots;   (shape_editor_apply_curve, no lock)\n7456: cn->knots = sortedKnots;        (draw_curve_node, no lock)\n7327: cn->exprKnots = sorted;         (draw_curve_expr_rows, no lock)\n6009 / 6030 / 6081: node.push_array(...) -> 508: dspSource->set_array(name, v) -> shaper_source.h:130 values_ = std::move(v); segment_source.h:120 values_ = std::move(v);\nContrast 6051: std::lock_guard<std::mutex> lock(g_audioMutex); node.dspSource->set_setting(\"timeMode\", ...)",
+   "why": "play_continuous captures node dspSources by raw pointer (4925: sc.source = sn->dspSource.get()) and the callback calls next() on them under the lock (3961). CurveNode::next() -> map() -> Curve::eval(knots) (curve_node.h 50-54, 87-93) and ShaperSource/SegmentSource read values_/segs_ in next(). A vector reassignment on the UI thread frees the old buffer mid-read on the audio thread (UAF / torn size-vs-data). The file already treats set_setting this way (6051, 9409, 9521 with the 9518 comment naming exactly this hazard), so these sites are an inconsistency, not a design choice. The same gap exists at the Properties-pane push_array sites 9826/9857/9934 (outside this unit).",
+   "recommendation": "Prepare the new vector outside the lock, then take g_audioMutex only for the swap: wrap the three knot assignments and GraphNode::push_array (line 504) in a lock_guard. Because the audio callback holds the mutex for a whole block, keep the critical section to the pointer/vector swap only.",
+   "confidence": 0.8
+  },
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 6100,
+   "line_end": 7029,
+   "category": "god-class",
+   "severity": "high",
+   "title": "draw_shape_editor is a ~930-line function with the Curve/Segment/Shaper client switch repeated more than a dozen times",
+   "evidence": "6103-6104: const bool isSeg = ...; const bool isShaper = ...;\nclient branches at 6105-6108, 6123-6137, 6142, 6167, 6174/6185, 6362, 6419-6420, 6492, 6542/6580/6597, 6636, 6643, 6652, 6694, 6751, 6782, 6788-6796, 6808, 6869-6898, 6966-6974, 6992, 7014-7021;\nsmoothness pin lookup copy-pasted 3x: 6504-6508, 6553-6557, 6599-6603;\nclamp rules duplicated at 6788-6796 and 6966-6974.",
+   "why": "Load/apply/clamp/evaluate/axis-default rules for each client are scattered across the function instead of living in one adapter, so adding a fourth client (or changing Shaper's clamp range, currently a literal -2..2 at 6792 and 6970) means touching ~15 sites; morph mirroring (6810-6862) is interleaved with the generic insert path, which is why that block needed three bounds-guarded index dances. The function also mixes view math (tx/ty/fx/fy, grid, zoom/pan), rendering and interaction, so none of it is testable without ImGui.",
+   "recommendation": "Introduce a ShapeClient interface {load(node)->pts, apply(node, pts), clamp(x,y), eval(x), axisDefaults, supportsLogX, supportsSegs} with Curve/Segment/Shaper implementations; a CanvasView struct holding xMin..yMax + tx/ty/fx/fy + grid/zoom/pan; and split the body into draw_toolbar, draw_overlays, hit_test, apply_edits. The morph-twin mirroring becomes one helper taking (pts, segs, otherPts, otherSegs, k).",
+   "confidence": 0.9
+  },
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 7054,
+   "line_end": 7068,
+   "category": "duplication",
+   "severity": "medium",
+   "title": "curve_eval re-implements CurveNode::map (LogX) in the UI while the sibling editor already evaluates through the engine",
+   "evidence": "7053-7054: // Mirror of CurveNode::map (LogX/LogLog) for the plot preview.\nstatic float curve_eval(const nlohmann::json& curve, float freq) { ... lf = std::log(freq / hz(i - 1)) / std::log(hz(i) / hz(i - 1)); ...}\nengine curve_node.h 87-93: float map(float x) const { ... return Curve::eval(knots, {}, d, 0.5f, x); }\n7462-7467 (draw_curve_node): // Plot, evaluated through the ENGINE's own map() rather than a mirror of it ... CurveNode probe;",
+   "why": "Two evaluators for the same breakpoint semantics; the mirror only does LogX (not LogLog despite its comment) and will silently diverge from Curve::eval_core's smoothness/domain handling the next time the engine changes. The file itself states the policy at 7462.",
+   "recommendation": "Delete curve_eval; in draw_one_curve build a CurveNode probe from the JSON rows (interp LogX) exactly as draw_curve_node does at 7465-7467, and share one plot helper (see the table/plot duplication finding).",
+   "confidence": 0.9
+  },
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 7142,
+   "line_end": 7486,
+   "category": "duplication",
+   "severity": "medium",
+   "title": "Three copies of the breakpoint-table + log-spaced PlotLines editor idiom",
+   "evidence": "draw_one_curve 7142-7211, draw_curve_expr_rows 7253-7350, draw_curve_node 7403-7478. Identical plot block in each:\n7205: float f = lo * std::pow(hi / lo, float(i) / float(N - 1));\n7345: samples[i] = probe.map(lo * std::pow(hi / lo, float(i) / float(N - 1)));\n7474: samples[i] = probe.map(lo * std::pow(hi / lo, float(i) / float(N - 1)));\nand the same row pattern (InputFloat x with floor clamp, IsItemDeactivatedAfterEdit->needSort, y, 'x' remove button gated on min count, '+ point' doubling last x, stable_sort, mark_graph_dirty).",
+   "why": "The 2026-08-22 commit-time-sort fix had to be applied to each copy; the min-knot guards differ (2 vs >1) by copy rather than by intent; ~120 lines of near-identical widget code to keep in sync. The 7219-7223 comment calls the duplication deliberate, but the stated reason (keep the table idiom) is satisfied by a shared helper.",
+   "recommendation": "Extract plot_log_x(const char* id, float lo, float hi, const char* overlay, auto&& f) for the 128-sample PlotLines and a knot_table(rows, minRows, xFloor, onRemove) helper; have draw_one_curve delegate to the same helpers over a temporary CurveNode built from the stash rows.",
+   "confidence": 0.85
+  },
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 7228,
+   "line_end": 7244,
+   "category": "efficiency",
+   "severity": "medium",
+   "title": "curve_node_destination is O(nodes x links x nodes x pins) and runs every frame to build a header string",
+   "evidence": "7229: for (const auto& n : s_nodes) {\n7233:     for (const auto& link : s_links) {\n7234-7238:   const Pin* src = find_pin(link.startPinId); const Pin* dst = find_pin(link.endPinId); ... find_node_for_pin(link.startPinId); find_node_for_pin(link.endPinId);\n7239:     if (srcNode && dstNode && srcNode->id == curve.id && dstNode->id == n.id)\n(find_pin / find_node_for_pin at 806-820 scan every pin of every node)\n7359-7360: snprintf(header, ..., curve_node_destination(node).c_str(), ...) called from draw_curve_node each frame (9301).",
+   "why": "For a 60-node/80-link patch this is ~10^7 pin comparisons per frame whenever a CurveNode is selected in Properties, plus a JSON items() walk over dynamicPins per node. The outer node loop is unnecessary: the answer only depends on links whose start pin belongs to the curve node.",
+   "recommendation": "Iterate s_links once, test link.startPinId against the curve node's own output pin ids, resolve the destination node once with find_node_for_pin; or cache the destination string keyed on g_graphEditCounter.",
+   "confidence": 0.85
+  },
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 5139,
+   "line_end": 5145,
+   "category": "smell",
+   "severity": "low",
+   "title": "apply_score_defaults has duplicated assignments and a leftover (void)0; from an incomplete edit",
+   "evidence": "5140: g_transport.velocity = vel;\n5141: g_transport.duration = dur;\n5142: \n5143: g_transport.velocity = vel;\n5144: g_transport.duration = std::clamp(dur, 0.05f, 30.0f);\n5145: (void)0;",
+   "why": "Lines 5140-5141 are dead (overwritten immediately), and the unclamped write at 5141 reads as if duration is intentionally stored raw; the stray (void)0 is edit residue. Harmless at runtime but it is exactly the kind of leftover that embarrasses a public read.",
+   "recommendation": "Keep only lines 5143-5144; delete 5140-5142 and 5145.",
+   "confidence": 1
+  },
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 5941,
+   "line_end": 7524,
+   "category": "duplication",
+   "severity": "low",
+   "title": "Cluster of small duplicated helpers and one dead wrapper in the shape/audition/curve sections",
+   "evidence": "5941-5945 shape_ed_segment_values == shape_ed_array(node, \"values\") at 5970-5974;\n5961-5964 shape_editor_apply_shaper is defined (and forward-declared at 5957) but never called;\n5908-5937 shape_editor_open_curve/_segment/_shaper differ only in client and logX;\n5300-5307 and 5321-5328 identical directory_iterator + lowercase-extension scan loops;\n7085-7097 curve_exists_for vs 7512-7524 target_exists_for (same stash walk, one extra predicate);\n5221-5256 spinner_int / spinner_float duplicate the width-sizing logic;\n5479 and 5592 both do wav.substr(0, wav.size() - 4).",
+   "why": "Each pair is small, but together they are ~90 lines of parallel code whose behaviour can drift (e.g. the two directory scans would need the same fix if extension matching changes), and the dead wrapper misleads a reader into thinking there is a plain-'values' apply path distinct from the named one.",
+   "recommendation": "Delete shape_editor_apply_shaper and shape_ed_segment_values (use shape_ed_array); fold the three open_* into shape_editor_open(node, Client, logX); add list_files_with_ext(folder, ext); make target_exists_for take a 'requireCurve' flag and drop curve_exists_for; template spinner<T>; strip_ext helper.",
+   "confidence": 0.9
+  },
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 6543,
+   "line_end": 6559,
+   "category": "workaround-hack",
+   "severity": "low",
+   "title": "Shaper overlay instantiates a ShaperSource per frame and calls next() purely for its side effect of loading smoothness",
+   "evidence": "6543: ShaperSource probe;\n6550-6551: probe.set_array(\"values\", std::move(flat)); probe.set_array(\"segs\", ShaperSource::encode_segs(segs));\n6558-6559: probe.set_param(\"smoothness\", std::make_shared<ConstantSource>(smooth));\n           probe.next();  // loads smoothness into the interpolator",
+   "why": "Relies on an undocumented ordering inside ShaperSource::next() to prime static evaluation; if the engine ever defers that load or makes next() advance state, the preview silently changes. Also two vector copies, a decode_segs and a heap-allocated ConstantSource per frame on the UI thread, whereas the morph overlay at 6681 already evaluates statically through Curve::eval_seg(..., smoothness).",
+   "recommendation": "Expose a static ShaperSource::eval(values, segs, smoothness, x) (or reuse Curve::eval with the shaper domain) and call it from the overlay; drop the probe object and the next() call.",
+   "confidence": 0.7
+  },
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 5095,
+   "line_end": 5109,
+   "category": "efficiency",
+   "severity": "low",
+   "title": "Mod-wheel / channel-pressure MIDI messages can trigger a full instrument rebuild on the UI thread",
+   "evidence": "5096: if (auto ip = get_cached_instrument(); ip && ip->instrument)\n5105: if (auto ip = get_cached_instrument(); ip && ip->instrument)\nget_cached_instrument 4634-4656: when the cache is stale it does serialize_patch_graph(...) + load_instrument_patch_json(liveRoot.dump(), ...) and reports 'Instrument rebuilt: %d voices, %d ms'.",
+   "why": "After any graph edit, the first wheel or aftertouch message (not a note) pays the full serialize->load rebuild (hundreds of ms historically) as a UI stall, and the value lands on the NEW instrument's InstrumentState while any still-sounding voices belong to the previous instrument, so the gesture is lost for them.",
+   "recommendation": "For CC1/0xD0 read g_cachedInstrument directly (no rebuild side effect) and skip when null; let note-on remain the only rebuild trigger.",
+   "confidence": 0.6
+  },
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 5333,
+   "line_end": 5382,
+   "category": "modern-cpp",
+   "severity": "low",
+   "title": "pick_folder_dialog uses raw COM pointers and CP_ACP conversions; non-ANSI folder names are mangled and the dialog has no owner window",
+   "evidence": "5339: IFileOpenDialog* dlg = nullptr; ... 5355 folder->Release(); 5375 item->Release(); 5378 dlg->Release();\n5359: if (SUCCEEDED(dlg->Show(nullptr)))\n5367-5370: int len = WideCharToMultiByte(CP_ACP, 0, wpath, -1, nullptr, 0, nullptr, nullptr); ... WideCharToMultiByte(CP_ACP, 0, wpath, -1, buf.data(), len, nullptr, nullptr);",
+   "why": "A sweep or curated folder whose name has characters outside the system code page converts lossily to '?' and then fails std::filesystem::exists at 5320/5299, so Audition silently shows '(no .wav files)'. Show(nullptr) leaves the GLFW main window interactive behind a supposedly modal picker. The manual Release chain is correct today only because there are no early returns.",
+   "recommendation": "Wrap the COM interfaces in a small unique_ptr-with-Release deleter (or wil::com_ptr), pass glfwGetWin32Window(window) as the owner, and when the cross-platform pass comes, carry paths as std::filesystem::path built from the wide string instead of narrowing to ACP.",
+   "confidence": 0.7
+  }
+ ]
+}

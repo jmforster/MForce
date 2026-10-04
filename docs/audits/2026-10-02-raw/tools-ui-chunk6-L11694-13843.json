@@ -1,0 +1,204 @@
+{
+ "unit": "tools-ui-chunk6-L11694-13843",
+ "assessment": {
+  "health": 2,
+  "summary": "This range holds the waveform/spectrum/partials/formant strip renderers, the crash logger, the bottom-pane and stale-build chrome, and the first ~900 lines of a 1,711-line main() (12948-14658) that inlines twelve hand-rolled headless CLI modes before a zero-indented 1,200-line try block containing the whole GUI. The drawing code is individually competent (the per-buffer min/max mipmap, log-axis spectrum with per-pixel max-bin reduction, snapshot-driven formant overlays) but is copy-pasted across the three strip kinds and between the main Waveforms window and its pop-outs. The dominant structural problem is main(): the CLI modes repeat the same context/registry/try-catch scaffold ten times and two of them re-implement the RtAudio callback's mixing arithmetic by hand while claiming parity with it. Two real correctness issues were traced: draw_formant_strip calls fmt_next() on a live node DSP object from the UI thread (no lock) while play_continuous hands that same object to the audio thread, and the waveform mip cache is keyed on a buffer pointer plus a three-sample fingerprint that a deterministic regenerate can leave unchanged, freezing the display after a parameter tweak. Scroll-range math also ignores the strip margin and column width, so the tail of every buffer is unreachable.",
+  "strengths": [
+   "draw_waveform's fingerprinted 64-sample min/max mipmap (11725-11764) is the right fix for the former O(samples x strips) per-frame scan and is clearly documented with the measured cost it removed.",
+   "draw_spectrum_window does per-pixel max-bin reduction on a log axis (11965-11984) so dense high-frequency bins never alias into gaps, and keeps hover labels in-bounds.",
+   "draw_formant_strip's snapshot path reproduces Formant::get_gain math locally (12290-12296) and overlays start/end/scrub curves without mutating the live object; only the fallback path has the race.",
+   "Generate is deferred one frame (13594-13600) with buffer_playback_detach() before the vector is cleared, which shows the audio-thread aliasing hazard was understood.",
+   "The console-attach logic (12958-12968) correctly refuses to reopen CONOUT$ when stdout is already a file or pipe, so redirected headless output survives.",
+   "Headless modes make load/save/convert/paste/layout/gating verifiable from a terminal while a running UI holds the exe locked; the intent (testability without GL) is sound even if the implementation is duplicated."
+  ],
+  "files_read": [
+   "C:/@dev/repos/mforce/tools/mforce_ui/main.cpp (lines 11694-13843 in full; cross-reference reads at 3574-3593, 3857-3986, 4013-4153, 4866-5025, 14636-14658)",
+   "C:/@dev/repos/mforce/engine/include/mforce/source/additive/formant.h (60-100)",
+   "C:/@dev/repos/mforce/engine/include/mforce/render/patch_loader.h (15-37)",
+   "C:/@dev/repos/mforce/engine/include/mforce/render/instrument.h (255-275)",
+   "C:/@dev/repos/mforce/engine/src/patch_loader.cpp (1585-1629)"
+  ]
+ },
+ "findings": [
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 12342,
+   "line_end": 12347,
+   "category": "rt-safety",
+   "severity": "high",
+   "title": "draw_formant_strip advances the live node's formant from the UI thread while the audio thread may be pulling the same object",
+   "evidence": "12342: `ifp->fmt_next();` on `node->dspSource.get()` (12256). formant.h:82 `fmt_next()` does `frequency_->next(); gain_->next(); width_->next(); power_->next();` and rewrites loFreq_/hiFreq_. play_continuous 4925: `sc.source = sn->dspSource.get();` hands the same node objects to audio_callback (3961 `ch.source->next()`), and full_additive_source.cpp:51 `formant_->fmt_next()` ticks the formant per sample on that thread.",
+   "why": "Every frame the Waveforms window is visible, each FormantSpectrum/FormantSequence node (fp is null for those, so they always take the fallback branch) and every un-snapshotted Formant has its parameter ValueSources advanced once per UI frame with no g_audioMutex. During node-graph (or patch-graph g_streamSource) streaming this is a cross-thread write of ValueSource state and the formant's cached band edges against concurrent audio-thread reads: a data race that can glitch audio and, independent of streaming, drives any envelope/LFO wired to a formant forward at UI frame rate.",
+   "recommendation": "Never call next()/fmt_next() from draw code. Compute the fallback curve from the formant's current() values via the same local formant_gain_at used by the snapshot path (for FormantSpectrum, iterate its child formants' current cf/gn/wd/pw), or have generate_unified capture a gain-curve snapshot per formant node like it does for evo snapshots. If the live state must be read, take g_audioMutex and read only.",
+   "confidence": 0.75
+  },
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 11739,
+   "line_end": 11744,
+   "category": "soundness",
+   "severity": "high",
+   "title": "Waveform mip cache keyed on buffer pointer + 3-sample fingerprint can serve a stale display after a regenerate",
+   "evidence": "11739-11744: `static std::unordered_map<const float*, WaveMip> s_waveMips; const float f0 = buf[0], f1 = buf[sampleCount / 2], f2 = buf[sampleCount - 1]; ... if (mip.count != sampleCount || mip.fp[0] != f0 || mip.fp[1] != f1 || mip.fp[2] != f2)`. The Output buffer is refilled in place: 13597 `g_outputWaveform.clear();` then 4415 `g_outputWaveform.assign(size_t(frames), 0.0f);` reuses capacity, so the pointer key is identical across renders.",
+   "why": "Renders are deterministic (seeds live in JSON). buf[0] is the first attack sample (0) and buf[N-1] the release tail (~0) for essentially every note, so the fingerprint reduces to one mid-buffer sample plus length. Tweak a parameter that only affects the attack (envelope attack time, onset noise) and regenerate the same note/duration: steady-state sample at N/2 is bit-identical, the cache hit stands, and both the peak labels and every column at zoom >= 64 (which Fit selects for any multi-second buffer) draw the OLD waveform. That silently breaks the project's core 'tweak parameter, see updated waveform' loop for exactly the edits a user is most likely auditioning.",
+   "recommendation": "Drop content fingerprinting. Have the producer own the mip: generate_unified builds a WaveMip next to g_outputWaveform and per GraphNode::waveformData when it writes them (or bump a global g_waveGeneration counter there and key the cache on {buf, generation}). The renderer then never guesses whether data changed.",
+   "confidence": 0.6
+  },
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 12948,
+   "line_end": 13843,
+   "category": "god-class",
+   "severity": "high",
+   "title": "main() is a 1,711-line function: 12 inline headless CLI modes, GLFW/ImGui/audio/MIDI init, dock layout, menu bar and the whole frame loop in one body inside a zero-indented 1,200-line try",
+   "evidence": "12948 `int main(int argc, char** argv) {` ... 13442 `    try {` followed by 13443 `    if (!glfwInit()) return 1;` at the same indentation, closed only at 14649 `    } catch (const std::exception& e) {`. Headless dispatch occupies 12977-13440 as a chain of `if (argc >= N && std::string(argv[1]) == \"--mode\")` blocks (12977, 13010, 13018, 13046, 13103, 13121, 13146, 13171, 13199, 13224, 13255, 13332, 13365).",
+   "why": "Nothing in main() can be unit-tested or reasoned about in isolation; the headless harness that exists to verify engine behaviour is welded to GUI boot code, so adding a mode means editing the GUI entry point. The unindented try block hides the function's real nesting and makes the catch at 14649 easy to miss. Function-local statics inside the loop body (13572-13573) are the symptom of state that has no home.",
+   "recommendation": "Split into (a) `headless.cpp` with a `struct HeadlessMode { const char* flag; int minArgc; int (*run)(int, char**); }` table and `int run_headless(int argc, char** argv)` returning -1 when no flag matched; (b) `app_init()` / `app_frame()` / `app_shutdown()` for the GUI; (c) a `MenuBarActions` drawer. main() becomes ~30 lines: console attach, headless dispatch, GUI run under one try.",
+   "confidence": 0.95
+  },
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 13284,
+   "line_end": 13421,
+   "category": "duplication",
+   "severity": "high",
+   "title": "--dump-playback and --dump-stream hand-copy the audio callback's mixing arithmetic (and use a different voice entry point than the live path) while documenting themselves as exact replicas",
+   "evidence": "13358-13359 comment: `run the exact play_continuous + audio_callback stream mixdown offline`; 13389-13421 re-types the per-sample mono stream, gainL/gainR, equal-power pan `std::cos(t * 0.5f * PI)` / `std::sin(...)`, and `soft_clip` that audio_callback already has at 3939-3971. 13286-13290 re-types the voice loop `performSource->tick(); ... sv.source->next() * sv.gain; for (auto& a : sv.advanceList) a->next();` from 3889-3899 but omits the fade/ring-out logic (3894-3917) and calls `pitched->prepare_voice(noteNum, vel, dur)` (13284) whereas the real live keyboard path uses `prepare_voice_at(slot, ...)` (4691, 4801).",
+   "why": "These modes exist for UI-vs-CLI mismatch debugging; their only value is bit-parity with what the callback does. Any change to the callback (a new gain stage, pan law, ring-out) silently diverges the dump, and the keyboard dump already differs from the live path it claims to reproduce (round-robin slot selection, no cap fade). Conclusions drawn from the dumps can be wrong without any warning.",
+   "recommendation": "Factor the callback body into RT-safe inline helpers it and the dumps both call: `static inline float voice_render_sample(Voice&)` and `static inline void mix_stream_sample(float& sL, float& sR)` (no allocation, no locks; the callback keeps the lock around the loop). The dump modes then drive the same code offline. Have --dump-playback --keyboard call the same note-on helper the keyboard panel uses so slot selection and fade are shared.",
+   "confidence": 0.85
+  },
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 12978,
+   "line_end": 13440,
+   "category": "duplication",
+   "severity": "medium",
+   "title": "Ten headless modes repeat the identical context/registry prologue and try/catch-print-return epilogue; mono-to-stereo widening copied twice",
+   "evidence": "Prologue `s_headless = true; ImGui::CreateContext(); ImNodes::CreateContext(); register_all_sources();` at 12978-12981, 13047-13050, 13104-13107, 13122-13125, 13147-13150, 13172-13175, 13200-13203, 13225-13228, 13256-13259, 13333-13336, 13366-13369. Epilogue `} catch (const std::exception& e) { fprintf(stderr, \"<mode> failed: %s\\n\", e.what()); return 1; }` at 13111-13114, 13136-13139, 13158-13161, 13211-13214, 13238-13241, 13318-13321, 13351-13354, 13435-13438. Stereo widening 13080-13083 `stereo[size_t(i)*2] = stereo[size_t(i)*2+1] = g_outputWaveform[size_t(i)];` duplicated at 13303-13307. Also 12975 `// TEMP DEBUG:` mode shipped in main.",
+   "why": "~465 lines where ~150 would do; every new harness copies the scaffold and the ad-hoc `argc >= N` guards, and the `--dump-curve-opts` TEMP DEBUG mode (12975-13006) has become permanent. Error-handling behaviour (what is printed, which exit code) is only consistent by copy discipline.",
+   "recommendation": "Table-driven dispatch (see the god-class finding): one `headless_begin()`, one wrapper that catches and prints `<flag> failed: ...`, each mode a small function taking a parsed `HeadlessArgs`. Add `static std::vector<float> widen_mono(const std::vector<float>&)` or make write_wav accept mono. Delete or promote the TEMP DEBUG mode.",
+   "confidence": 0.95
+  },
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 13054,
+   "line_end": 13073,
+   "category": "duplication",
+   "severity": "medium",
+   "title": "--gencheck re-implements the engine's v2 score parsing instead of calling it",
+   "evidence": "13055-13059 comment: `Mirrors the engine loader's v2 score reading exactly ... gencheck parity depends on the two ends reading one score the same way.` 13061-13072 re-types prevEnd/time/onset/hold reading. The engine's version is engine/src/patch_loader.cpp:1601-1610 (`float prevEnd = 0.0f; ... noteJson.contains(\"time\") ? ... : prevEnd; bool hold = noteJson.value(\"hold\", false); std::string onset = noteJson.value(\"onset\", std::string());`) and already diverges: the engine uses `.at(\"note\")`/`.at(\"duration\")` (throws on absence) while the UI copy defaults to 60/1.0.",
+   "why": "The comment itself names the hazard: the acceptance check for render-capture unification only means something if both ends parse identically, and they already do not (missing-field behaviour differs). The next score-schema change (the spec is dated 2026-09-20 and evolving) has to be made twice.",
+   "recommendation": "Expose `std::vector<ScoreEvent> parse_score_events(const nlohmann::json&)` from the engine (patch_loader) and have both the loader and --gencheck (and any UI Note-tab path that builds SchedNote from s_loadedScore) call it.",
+   "confidence": 0.9
+  },
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 12503,
+   "line_end": 12504,
+   "category": "soundness",
+   "severity": "medium",
+   "title": "Scroll range and Fit zoom ignore the strip margin and column width, so the tail of every buffer is unreachable (and Fit cuts it off)",
+   "evidence": "12503: `int maxScroll = std::max(0, g_waveformSamples - (int)(waveAreaW) * g_waveZoom);` and 12484/12669: `g_waveZoom = std::max(1, g_waveformSamples / (int)waveAreaW);` but the drawn width is `colW - WAVE_MARGIN_W` where 12571 `colW = (waveAreaW - (N - 1) * gap) / float(N)` and 11715 `drawW = width - WAVE_MARGIN_W` (45 px), 11780 `pixelCount = (int)drawW`. Pop-outs repeat it: 12737 `maxScroll = std::max(0, count - (int)waveW * p.zoom)` vs the same 45 px margin, and 12731 Fit divides by `innerW` (width remaining after the Zoom widgets) rather than `waveW`.",
+   "why": "At max scroll the last visible sample is `samples - (waveAreaW - drawW) * zoom`. With one column that is 45*zoom samples (184k samples, ~3.8 s, at zoom 4096); with Columns=2 roughly half the buffer can never be scrolled into view, and Fit shows only the first half. The scroll slider, wheel, End key and Fit all share the wrong bound.",
+   "recommendation": "Compute the visible sample width once from the actual strip draw width: `int visiblePx = int(colW - WAVE_MARGIN_W); maxScroll = max(0, samples - visiblePx * zoom); fitZoom = max(1, samples / visiblePx)`; pass that into both the main window and pop-outs via the shared view helper suggested in the controls-duplication finding.",
+   "confidence": 0.85
+  },
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 12472,
+   "line_end": 12512,
+   "category": "duplication",
+   "severity": "medium",
+   "title": "Zoom/Fit/scrollbar/wheel/ctrl-wheel handling is copied between draw_waveform_window and draw_wave_popouts",
+   "evidence": "12472-12512 (Zoom arrows `g_waveZoom = std::max(1, g_waveZoom / 2)` ... `std::min(4096, g_waveZoom * 2)`, Fit, `SliderInt(\"##hscroll\"`) and 12616-12632 (wheel: `if (ImGui::GetIO().KeyCtrl) { if (wheel > 0.0f && g_waveZoom > 1) ...`) versus 12719-12744 (`p.zoom = std::max(1, p.zoom / 2)` ... `SliderInt(\"##pop_hscroll\"`) and 12755-12769 (identical wheel block on `p.zoom`/`p.scroll`). The pop-out already has the right shape (`WavePopout{zoom, scroll}` at 3578) but the main window keeps the same two fields as the globals g_waveZoom/g_waveScrollPos.",
+   "why": "Two copies of the zoom clamps (1..4096), step math and wheel semantics have already drifted (main window has keyboard shortcuts and click-drag at 12634-12674, pop-outs do not; Fit width differs). The scroll-range bug above had to be fixed in two places and was not.",
+   "recommendation": "Introduce `struct WaveView { int zoom{1}; int scroll{0}; }`, make the main window's view a `static WaveView g_mainWave` (replacing g_waveZoom/g_waveScrollPos), and write `wave_view_controls(WaveView&, int sampleCount, int visiblePx)` and `wave_view_handle_input(WaveView&, ...)` used by both call sites.",
+   "confidence": 0.9
+  },
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 11922,
+   "line_end": 11955,
+   "category": "duplication",
+   "severity": "medium",
+   "title": "Log-frequency axis, freq<->x mapping, hover readout box, pop-out button and early-return blocks are duplicated across spectrum, partials and formant drawers",
+   "evidence": "freq_to_x/x_to_freq lambdas 11922-11933 == 12356-12367; decade grid loop with `static const float decMul[] = {1.0f, 2.0f, 5.0f};` 11939-11955 == 12370-12386; hover label box (`CalcTextSize` ... `AddRectFilled(ImVec2(lblX - 3, lblY - 1) ... IM_COL32(0, 0, 0, 200)` ... `AddText(... IM_COL32(255, 255, 200, 255)`) at 12004-12017, 12222-12228, 12445-12451; pop-out ArrowButton block 11815-11824 is the body of draw_strip_popout_button 12026-12036 which draw_waveform does not call; `(node not initialized)` early-return 12057-12064 == 12257-12264 and `(empty)` 12087-12094.",
+   "why": "Roughly 120 lines of triplicated plot chrome; the formant grid already differs from the spectrum grid (labels on 1x only vs 1x and 2x) with no stated reason, and the three hover boxes clamp differently (spectrum flips the label left of the cursor, the others clamp). Each new strip kind copies the set again.",
+   "recommendation": "A small `LogAxis { float x0, x1, fMin, fMax; float to_x(float f) const; float to_f(float x) const; void draw_grid(ImDrawList*, float y0, float y1, bool label2x) const; }`, a `draw_hover_box(ImDrawList*, ImVec2 mouse, const char* text, ImVec2 plotMin, ImVec2 plotMax)`, and a `draw_strip_frame(...)` for background/label/border/early-return. Have draw_waveform call draw_strip_popout_button.",
+   "confidence": 0.9
+  },
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 13571,
+   "line_end": 13579,
+   "category": "workaround-hack",
+   "severity": "medium",
+   "title": "Audio device is torn down and reopened on every window refocus after >2 s away, plus a manual 'Restart audio' menu item, as substitutes for device-change notification",
+   "evidence": "13576-13577: `if (!wasFocused && focused && glfwGetTime() - unfocusedAt > 2.0) g_audioRestartRequest.store(true);` 13755-13760 comment: `Manual escape hatch for Bluetooth endpoints ... Automatic layers (watchdog, refocus restart) can't time that; the user can.` audio_watchdog 4092-4094 services the request with `shutdown_audio(); if (init_audio(/*quiet=*/true))`, i.e. stopStream/closeStream/RtAudio destruct (4069-4075) then a new RtAudio + openStream + startStream (4015-4054).",
+   "why": "A healthy stream is reopened every time the user alt-tabs back after two seconds, whether or not anything changed; if a continuous stream or held notes are sounding, output drops for the reopen duration and the transport status flashes 'restarted'. Three layers (heartbeat watchdog, refocus heuristic, manual menu) are stacked to guess at an event the OS will deliver: WASAPI publishes default-device and device-state changes via IMMNotificationClient, and RtAudio has an error callback already registered (4026).",
+   "recommendation": "Subscribe to IMMNotificationClient::OnDefaultDeviceChanged/OnDeviceStateChanged (Windows-only is in scope) and set g_audioRestartRequest from that; keep the heartbeat watchdog for silent death and the menu item as the explicit fallback, and delete the refocus heuristic. If the BT profile-transition case cannot be observed, restart on refocus only when a stream is NOT currently sounding.",
+   "confidence": 0.6
+  },
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 12649,
+   "line_end": 12674,
+   "category": "soundness",
+   "severity": "low",
+   "title": "Waveform-window keyboard shortcuts fire while a text input in the same window is active",
+   "evidence": "12649: `if (ImGui::IsWindowFocused() || ImGui::IsWindowHovered()) {` followed by `IsKeyPressed(ImGuiKey_Minus ...)`, `IsKeyPressed(ImGuiKey_0 ...)`, `IsKeyPressed(ImGuiKey_Equal ...)` with no `WantTextInput` check, whereas the global shortcuts at 13830/13836 guard with `!ImGui::GetIO().WantTextInput`. 13481 enables `io.ConfigDragClickToInputText = true`, so a click on the Scrub slider (12500) or the scroll slider (12508) enters text entry.",
+   "why": "Typing '0', '-' or '=' into the scrub value while the mouse hovers the window also fits/zooms the view; '0' additionally resets scroll.",
+   "recommendation": "Add `&& !ImGui::GetIO().WantTextInput` to the condition at 12649 (and to the pop-out wheel handling if it gains shortcuts).",
+   "confidence": 0.6
+  },
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 11874,
+   "line_end": 11874,
+   "category": "smell",
+   "severity": "low",
+   "title": "Spectrum sample rate hard-coded to 48000 instead of AUDIO_SAMPLE_RATE",
+   "evidence": "11874: `g_outputSpectrumSR = 48000;  // matches the offline-render SR convention` and 3592 `static int g_outputSpectrumSR = 48000;` while 3547 defines `static constexpr int AUDIO_SAMPLE_RATE = 48000;` and --gencheck/--dump-playback write WAVs with it (13084, 13308).",
+   "why": "The frequency axis (11916, 11969, 11976) is derived from this value; a future rate change (the memory notes a 'rate-bake audit') silently mislabels every spectrum peak.",
+   "recommendation": "Use AUDIO_SAMPLE_RATE (or the render context's rate from generate_unified) and drop the separate global.",
+   "confidence": 0.9
+  },
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 12168,
+   "line_end": 12183,
+   "category": "workaround-hack",
+   "severity": "low",
+   "title": "Partials scrubber undoes rolloff with pow() to recover weights it discarded ten lines earlier",
+   "evidence": "12168-12172 comment: `We need the ORIGINAL ampl (pre-rolloff) ... The cheap workaround: undo rolloff with the per-column rolloff exponent`; 12177-12178 `float w1 = ampl1[i] * std::pow(pmult1, ro1); float w2 = ampl2[i] * std::pow(pmult2, ro2);` after apply_rolloff mutated ampl1/ampl2 in place at 12084-12085.",
+   "why": "Self-described workaround: two extra pow() per partial per frame and a float round-trip that reintroduces error, purely because the raw arrays were overwritten instead of kept.",
+   "recommendation": "Keep `rawAmpl1/rawAmpl2` (the get_array results) and compute `dispAmpl` separately; the scrub path reads the raw arrays directly.",
+   "confidence": 0.9
+  },
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 12801,
+   "line_end": 12868,
+   "category": "duplication",
+   "severity": "low",
+   "title": "Crash logger duplicates DbgHelp initialisation and the log header between crash_log_stack and seh_crash_filter",
+   "evidence": "12801-12806 `static bool symInited = false; if (!symInited) { SymSetOptions(...); SymInitialize(proc, NULL, TRUE); symInited = true; }` repeated verbatim at 12863-12868 with a second, independent static; header `fprintf(f, \"\\n========================================\\n\"); crash_log_timestamp(f);` at 12834-12835 and 12845-12846.",
+   "why": "Two statics means SymInitialize can be called twice in one process (second call fails with ERROR_INVALID_PARAMETER, harmlessly today); the symbol-buffer setup (12808-12811 vs 12869-12872) is also copied, so a MaxNameLen change must be made twice.",
+   "recommendation": "One `static void ensure_sym_init()` and one `static void crash_log_open_header(FILE*, const char* kind)`; seh_crash_filter then only adds the exception-record lines.",
+   "confidence": 0.9
+  },
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 12469,
+   "line_end": 13630,
+   "category": "smell",
+   "severity": "low",
+   "title": "Assorted nits in the range: unused local, misnamed local, comment drift, triplicated basename extraction, no-op dynamic_cast, shared_ptr copied per call, triple map lookup",
+   "evidence": "12469 `float waveAreaH = ImGui::GetContentRegionAvail().y;` never read (MSVC C4189). 13558 `bool s_dockLayoutInitialized = false;` is a plain local with the static prefix. 12970-12976 comment describes `Headless round-trip` but sits above --dump-curve-opts; the real --roundtrip at 13103 has no comment. Basename by `strrchr(..., '/')`/`strrchr(..., '\\\\')` at 13626-13630, 13670-13673 and 14582-14583 instead of std::filesystem::path::filename(). 13023 `dynamic_cast<PitchedInstrument*>(ip.instrument.get())` on a `std::unique_ptr<PitchedInstrument>` (patch_loader.h:20) is a no-op, and 13283's `throw std::runtime_error(\"not a PitchedInstrument\")` is a mislabeled null check. 12300-12301 `get_at` takes `std::shared_ptr<ValueSource> fallback` by value (four refcount round-trips per formant strip per frame). 11742/11750/11765 look up `s_waveMips[buf]` three times.",
+   "why": "Each is small, but together they are the kind of residue a public release review flags: compiler warnings, misleading names/comments, and copy-pasted path handling where the standard library already does it.",
+   "recommendation": "Delete waveAreaH; rename to dockLayoutInitialized; move the comment to --roundtrip; replace the three strrchr blocks with `std::filesystem::path(p).filename().string()`; drop the no-op cast and fix the error text; take `fallback` by const reference; hoist one `WaveMip& m = s_waveMips[buf]` reference.",
+   "confidence": 0.9
+  }
+ ]
+}

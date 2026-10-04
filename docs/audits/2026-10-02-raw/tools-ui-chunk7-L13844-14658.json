@@ -1,0 +1,178 @@
+{
+ "unit": "tools-ui-chunk7-L13844-14658",
+ "assessment": {
+  "health": 2,
+  "summary": "This range is the Node Editor window body (breadcrumb, drill camera, collapsed-group link projection, wormhole overlay, selection/shortcut handling, link create/destroy, context menus, status bar) followed by the panel draw calls, per-frame housekeeping (voice_gc/watchdog/midi), the save-prompt modal, GL present, the deferred blocking Generate, and shutdown/catch. The intent is well documented with dated rationale, destructive shortcuts are correctly focus-gated, and link acceptance validates pin type compatibility and cycle legality before touching the DSP. Soundness is nonetheless weak: Fit (F key / status-bar button) reads imnodes positions for nodes hidden inside collapsed groups whose pool entries imnodes has already freed (assert in Debug, Pool[-1] read in Release); Ctrl+C/Ctrl+V are bound twice to two separate clipboard subsystems so a paste lands twice; the Delete-key path removes nodes without rewiring DSP so a deleted node keeps sounding in continuous play until some other edit rebuilds the graph; and the wormhole double-click jump's centering is overwritten by the drill camera the next frame. Structurally, the ~675-line window body lives inline in main()'s frame loop with hidden function-local statics and lambdas while every sibling panel is a draw_* function, and the 'visible representative at this drill level' walk is written four times (one copy dead). The dominant problem is that the window body is a bag of per-feature patches accreted in place rather than a module, which is exactly how the duplicate bindings and the unrewired delete path slipped in.",
+  "strengths": [
+   "Destructive and clipboard shortcuts are gated on editor focus/hover and WantTextInput so they cannot fire from other windows or text fields (13851-13854, 14253-14257, 14474-14475).",
+   "Link creation validates structural pin-type compatibility and normal-wire cycle legality before accepting, and single-input pins auto-replace their existing link (14311-14342).",
+   "Collapsed-group link projection keeps the real link id so IsLinkDestroyed works unchanged, and a drag onto a projected pin is translated back to the real pin (13989-13993, 14262-14272).",
+   "Save-prompt modal handles a cancelled file dialog correctly by keeping the modal open until s_graphDirty actually clears (14589-14600).",
+   "voice_gc runs on the UI thread each frame so DSP shared_ptrs are never released on the audio thread; shutdown order (midi, audio, ImGui, GLFW) is correct on the normal exit path (14564-14570, 14639-14646).",
+   "Comments carry decision provenance (dates, REVIEW item numbers, spec sections), which makes the behaviour auditable."
+  ],
+  "files_read": [
+   "C:/@dev/repos/mforce/tools/mforce_ui/main.cpp (lines 13844-14658 in full; traced 683-721, 806-870, 935-980, 1022-1051, 1114-1193, 3640-3647, 3715-3741, 4347-4407, 4866-4911, 4951-4967, 8328-8342, 9122-9141, 10380-10545, 11228-11345, 11473-11502, 11556-11577, 13618-13633)",
+   "C:/@dev/repos/mforce/engine/third_party/imnodes/imnodes.cpp (2409-2426, 2783-2789, trace only)",
+   "C:/@dev/repos/mforce/engine/third_party/imnodes/imnodes_internal.h (375-413, trace only)"
+  ]
+ },
+ "findings": [
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 14427,
+   "line_end": 14442,
+   "category": "soundness",
+   "severity": "high",
+   "title": "Fit (F key / status-bar Fit) queries imnodes positions for nodes hidden in collapsed groups, hitting imnodes' assert / Pool[-1] read",
+   "evidence": "14430-14431: `for (auto& node : s_nodes) { ImVec2 pos = ImNodes::GetNodeGridSpacePos(node.id);` \u2014 iterates ALL s_nodes, not only those drawn this frame. imnodes.cpp:2786-2788: `const int node_idx = ObjectPoolFind(editor.Nodes, node_id); IM_ASSERT(node_idx != -1); ImNodeData& node = editor.Nodes.Pool[node_idx];` and imnodes_internal.h:403-413 frees the pool slot of any node not submitted (`nodes.IdMap.SetInt(id, -1); nodes.FreeList.push_back(i);`). The file already knows this: 13974-13977 `// Returning from hiding: imnodes forgot this node's origin (pool entry destroyed)`. Nodes inside a collapsed group are not passed to draw_node (13972-13981), so after one hidden frame their pool entry is gone.",
+   "why": "With any collapsed group present, pressing F or clicking Fit asserts in a Debug build and reads editor.Nodes.Pool[-1] in Release (IM_ASSERT compiles out), feeding garbage into the pan computation. The 14151-14153 fallback `: ImNodes::GetNodeGridSpacePos(twin->id)` for a twin with !gridPosKnown has the same hazard. The fit also hardcodes 200x100 node extents (14433-14434) instead of ImNodes::GetNodeDimensions and duplicates the bounds pass that frame_level (13916-13934) already does correctly with the visible_at_path && gridPosKnown filter.",
+   "recommendation": "Make fitAllNodes a sibling of frame_level: iterate only `visible_at_path(n.label) && n.gridPosKnown` nodes using the app-tracked n.gridPos (plus visible groups' g.pos), and use ImNodes::GetNodeDimensions for extents of nodes drawn this frame. Remove the GetNodeGridSpacePos fallback at 14153 (gridPosKnown is false exactly when imnodes has nothing to return). Better: one `level_bounds()` helper feeding both frame_level and fit.",
+   "confidence": 0.85
+  },
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 14253,
+   "line_end": 14257,
+   "category": "duplication",
+   "severity": "high",
+   "title": "Ctrl+C / Ctrl+V are bound twice to two separate clipboard subsystems; a single Ctrl+V pastes the selection twice",
+   "evidence": "14253-14256: `if (editorHovered && ImGui::GetIO().KeyCtrl && !ImGui::GetIO().WantTextInput) { if (ImGui::IsKeyPressed(ImGuiKey_C, false)) copy_selection_to_clipboard(); if (ImGui::IsKeyPressed(ImGuiKey_V, false)) paste_clipboard();` and 14461-14464: `if (editorFocused && !ImGui::GetIO().WantTextInput && ImGui::GetIO().KeyCtrl) { if (ImGui::IsKeyPressed(ImGuiKey_X)) clipboard_cut(); if (ImGui::IsKeyPressed(ImGuiKey_C)) clipboard_copy(); if (ImGui::IsKeyPressed(ImGuiKey_V)) clipboard_paste();`. The first pair is the 2026-09-07 OS-clipboard design (11258-11267 banner; 11317 `ImGui::SetClipboardText(frag.dump().c_str())`; 11473-11474 `paste_fragment_text(ImGui::GetClipboardText())`). The second pair is the older in-process `s_clipboard` json (10406-10545; 10455 `s_clipboard = json{...}`; 10463 `if (!clipboard_has_content()) return;`). A hovered editor is normally also the focused window, so both conditions hold on the same frame.",
+   "why": "On Ctrl+C both copies run (the OS-clipboard one re-serializes the whole graph to a temp file, 11296-11300, and each overwrites the other's status message). On Ctrl+V paste_clipboard merges-then-reloads the graph from the OS fragment, then clipboard_paste instantiates the same nodes again from s_clipboard: the user gets two copies of every pasted node, offset differently, and two update_all_dsp rebuilds. Two complete clipboard implementations (~140 + ~200 lines) are also pure redundancy; the 09-07 banner states the OS-clipboard one is the design.",
+   "recommendation": "Keep one binding block. Delete the in-process subsystem (clipboard_has_content/clipboard_copy/clipboard_paste/clipboard_cut, s_clipboard, s_clipPasteCount, clip_node_state/clip_instantiate if unused elsewhere) and implement Cut as copy_selection_to_clipboard + delete of the selection + update_all_dsp. Gate the surviving block on editorFocused (the stricter of the two) and use the no-repeat IsKeyPressed(key, false) form.",
+   "confidence": 0.9
+  },
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 14498,
+   "line_end": 14505,
+   "category": "soundness",
+   "severity": "high",
+   "title": "Delete-key node deletion never rewires DSP: consumers keep the deleted node's ValueSource and continuous play still hears it",
+   "evidence": "14498-14501: `if (numNodes > 0) { ... for (int nid : sel) delete_node(nid); }` with no update_all_dsp afterwards. delete_node (1114-1171) only calls stop_streams(), mark_graph_dirty(), erases s_links/s_nodes entries and fixes group/dyn-pin bookkeeping \u2014 it never touches the consumer's wired param. The reset lives only in update_node_dsp_unlocked 938-944: `// First pass: wire all pins to their ConstantSource defaults ... node.wire_pin(pin.name, pin.constantSrc);`. Compare clipboard_cut 10541-10544: `for (int id : sel) delete_node(id); ... update_all_dsp();`. Context-menu Delete 11566-11569 (`if (ImGui::MenuItem(\"Delete\")) { delete_node(s_contextNodeId); g_selectedNodeId = -1; }`) has the same gap. play_continuous reads the live wiring: 4873 `ValueSource* src = find_output_source();` and 4907-4908 `GraphNode* src = find_source_node(pin.id); if (src && src->dspSource) return src->dspSource.get();`.",
+   "why": "The consumer's set_param holds its own shared_ptr to the deleted node's DSP object, so after Delete the UI shows the node gone but the DSP graph is unchanged: pressing Play (continuous, either graph mode) still renders the deleted LFO/filter/etc. until some unrelated edit (link add/remove, paste, load) happens to call update_all_dsp. Generate is unaffected only because generate_unified re-serializes from s_nodes/s_links (4351-4352). Two of the three user-facing delete paths are inconsistent with the third.",
+   "recommendation": "Call update_all_dsp() inside delete_node (after the s_nodes erase) so every caller is covered, and drop the now-redundant call from clipboard_cut. Alternatively have the Delete-key handler and the context-menu item share one `delete_selection()` that ends with update_all_dsp().",
+   "confidence": 0.8
+  },
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 13848,
+   "line_end": 14522,
+   "category": "god-class",
+   "severity": "high",
+   "title": "The entire Node Editor window (~675 lines) is inline in main()'s frame loop while every sibling panel is a draw_* function",
+   "evidence": "13848 `ImGui::Begin(\"Node Editor\", nullptr, ...` through 14522 `ImGui::End(); // Node Editor` sits directly in the loop body, immediately followed by 14527 `draw_transport_panel();`, 14532 `draw_properties_panel();`, 14537 `draw_mappings_dialog();`, 14540 `draw_shape_editor();`, 14545-14561 draw_waveform_window/draw_wave_popouts/draw_spectrum_window/draw_keyboard_panel/draw_audition_window. Inside the inline body: hidden state as function-local statics (13913-13914 `static std::vector<std::string> prevPath; static std::vector<ImVec2> panStack;`, 14185 `static std::unordered_set<int> prevSelection;`), six lambdas (frame_level 13916, project_entity 13997, draw_span_for 14080, translate 14264, fitAllNodes 14427), and at least nine independent concerns (breadcrumb, drill camera, node/group draw, link projection, dyn-pin wires, wormhole overlay, wheel/arrow/F/Ctrl-click input, link create/destroy, context menus, delete, status bar).",
+   "why": "main() is already 1,711 lines; this block is the largest single reason. State hidden in loop-body statics cannot be reset on New/Load (prevPath/panStack survive a file load, so the first path change after a load may restore a pan from the previous document), cannot be unit-tested, and is invisible to the headless CLI modes. The accretion pattern is also how the duplicate shortcut bindings (14253 vs 14461) and the missing DSP rewire on Delete escaped notice: there is no single place that owns 'editor input'.",
+   "recommendation": "Extract `draw_node_editor()` with a small `NodeEditorState` struct (prevPath, panStack, prevSelection, s_groupProj) owned at file scope and reset by new_graph/load. Inside it, split into draw_breadcrumb(), update_drill_camera(), draw_projected_links(), draw_wormhole_overlay(), handle_editor_input() (all keyboard/mouse chords in one place), handle_link_events(), draw_editor_status_bar(). This also removes the need for the function-local statics.",
+   "confidence": 0.9
+  },
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 14145,
+   "line_end": 14158,
+   "category": "soundness",
+   "severity": "medium",
+   "title": "Wormhole double-click 'jump to twin' centering is overwritten by the drill camera on the next frame whenever the twin is at a different drill level",
+   "evidence": "14150 `s_groupPath.assign(chain.rbegin(), chain.rend());` then 14154-14157 `ImNodes::EditorContextResetPanning(ImVec2(ImGui::GetWindowWidth() * 0.5f - gp.x, ...))`. Next frame, 13915 `if (prevPath != s_groupPath) {` fires and every branch resets panning: 13945 `frame_level();` (deeper), 13947-13948 `ImNodes::EditorContextResetPanning(panStack[s_groupPath.size()]);` (shallower), 13951 `frame_level();` (else). frame_level pans to top-left-of-content (13932-13933), not to the twin.",
+   "why": "The jump only centers on the twin when the twin is at the same level as the hovered half (then prevPath == s_groupPath and the detector is silent). In the common case (twin inside another group, which is what wormholes are for) the user lands on a top-left framing of the twin's level and must hunt for the twin \u2014 the exact 'F-and-hunt' the drill camera was added to remove (13904-13906).",
+   "recommendation": "Give the drill camera an explicit override: e.g. a file-scope `std::optional<ImVec2> s_pendingPan` set by the jump; the detector applies it (and still maintains panStack) instead of frame_level when present. Or route all path changes through one `set_group_path(path, CameraIntent)` function so the jump's intent survives.",
+   "confidence": 0.85
+  },
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 13997,
+   "line_end": 14004,
+   "category": "duplication",
+   "severity": "medium",
+   "title": "'Visible representative at this drill level' ancestor walk is written four times (one copy dead) and the wormhole ghost overlay is written twice",
+   "evidence": "Ancestor walk: 13997-14004 lambda `project_entity` (`while (g && !visible_at_path(g->name)) g = group_of(g->name); return g ? g->editorId : -1;`) is defined and never called (grep: only the definition); identical logic at 14082-14088 inside draw_span_for, at 14123-14129 inline in the hover branch, and at 9122-9128 in project_pin. Overlay: draw_span_for 14090-14099 (`dl->AddLine(ImVec2(p0.x + d0.x * 0.5f, ...), IM_COL32(140, 170, 200, 110), 2.0f); dl->AddRect(p1, ..., IM_COL32(140, 170, 200, 200), 6.0f, 0, 2.0f);`) is repeated verbatim at 14131-14143 instead of calling `draw_span_for(*hn, *twin)`.",
+   "why": "Dead code in the hottest UI function misleads readers (it looks like the link loop's projector), and four copies of the walk mean the next change to group visibility semantics (e.g. nested-group rules) must be found and applied in four places; the overlay copy is already 14 lines of pure redundancy.",
+   "recommendation": "Add a file-scope `static int visible_entity_for(const GraphNode& n)` (node id when visible, else nearest visible ancestor group's editorId, else -1) used by project_pin, draw_span_for and the hover branch; delete project_entity. Replace 14130-14144 with `draw_span_for(*hn, *twin);`.",
+   "confidence": 0.95
+  },
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 14005,
+   "line_end": 14033,
+   "category": "efficiency",
+   "severity": "medium",
+   "title": "Per-frame link/visibility pass is O(links x nodes x pins) plus string-keyed group lookups, and redoes lookups it already has",
+   "evidence": "Per link per frame: 14006 `Pin* sp = find_pin(link.startPinId);`, 14009 `find_pin(link.endPinId)`, 14015-14016 two `find_node_for_pin(...)`, 14019-14020 two `project_pin(...)` each doing another find_node_for_pin + visible_at_path + group_of walk (9122-9128). find_pin/find_node_for_pin are linear over every node's inputs and outputs (806-820); visible_at_path -> group_of is a linear string-compare scan over every group's member list (689-702) and is also called per node (13972), per group (13985) and per dynamic pin (14043). 14045-14049 iterates nlohmann::json per frame with `val.value(\"ref\", std::string())` and a label string scan of s_nodes. 14101-14104 calls wormhole_twin (831-840, itself O(links x nodes x pins)) for each selected wormhole every frame. One-shot redundancy in the link-created handler: 14334 `Pin* inPinObj = find_pin(inPin);` repeats inPinDesc from 14313; 14347-14348 repeat outNode/inNode from 14311-14312.",
+   "why": "Every frame, for a 100-node/150-link patch, this is on the order of 10^6 integer compares and 10^4-10^5 std::string compares before any drawing happens, scaling quadratically with graph size \u2014 the UI frame budget is being spent on index lookups that a pin->node map and a label->group map would make O(1). UI-thread only, so not an RT-safety violation, but the editor is the one window that is always open.",
+   "recommendation": "Maintain `std::unordered_map<int, GraphNode*> s_pinOwner` and `std::unordered_map<std::string, NodeGroup*> s_groupOfLabel` rebuilt on graph mutation (there are only ~10 mutation sites, all already calling mark_graph_dirty/update_all_dsp), and compute each node's `visible` flag once per frame in the 13971 loop, reusing it for links. Reuse inPinDesc/outNode/inNode in the create handler.",
+   "confidence": 0.8
+  },
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 14630,
+   "line_end": 14636,
+   "category": "workaround-hack",
+   "severity": "medium",
+   "title": "Generate is a blocking render on the UI thread sequenced by a magic-int state machine so one 'Generating...' frame gets drawn first",
+   "evidence": "14630-14636: `// Generate state machine: this frame drew \"Generating...\" with the waveform cleared. Now run the blocking generation. UI freezes until it completes; the frozen screen still shows \"Generating...\". if (s_genState == 2) { transport_generate(); s_genState = 0; }`. The phases are bare ints spread over 3640 `static int s_genState = 0;`, 8739/8748 (`s_genState >= 1` / `= 1`), 13594-13595 (`== 1` -> `= 2`), and here.",
+   "why": "The comment itself labels this a freeze. While transport_generate runs, voice_gc (14568), audio_watchdog (14569) and pump_midi (14570) do not run, the window cannot repaint or close, and Windows will flag it 'Not Responding' for renders longer than ~5 s (phrase/passage renders with kVoiceTailSec headroom routinely are). Magic ints 0/1/2 with cross-file-section meaning are a readability hazard.",
+   "recommendation": "Run generate_unified on a worker std::thread (it already builds its own InstrumentPatch from a serialized copy, 4351-4352, so it does not touch live graph state) and poll a std::future/atomic each frame to swap the result buffers in; replace s_genState with an `enum class GenPhase { Idle, Requested, Drawn, Running }`.",
+   "confidence": 0.8
+  },
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 14649,
+   "line_end": 14657,
+   "category": "soundness",
+   "severity": "medium",
+   "title": "Exception exit path skips shutdown_audio/shutdown_midi, so static teardown destroys g_voices while the RtAudio callback thread may still run",
+   "evidence": "14649-14657: `} catch (const std::exception& e) { ... crash_log_write(buf); return 1; } catch (...) { crash_log_write(...); return 1; }` \u2014 no shutdown_audio()/shutdown_midi() (those are only on the normal path at 14639-14640). Static definition order: 3647 `static std::unique_ptr<RtAudio> g_audio;` precedes 3741 `static Voice g_voices[MAX_VOICES];` (Voice holds `std::shared_ptr<mforce::PerformSource> performSource;` and `std::vector<std::shared_ptr<mforce::ValueSource>> advanceList;`, 3726-3729), so at exit g_voices (and g_streamChannels, the graph in s_nodes) are destroyed BEFORE g_audio's destructor stops the stream.",
+   "why": "Any std::exception escaping the frame loop (nlohmann::json throws on a malformed patch opened from the menu are the obvious source; several load paths are wrapped but not all UI handlers are) returns from main with the audio thread still inside audio_callback reading g_voices/g_streamSource. The static-destruction window is short but real, and it is precisely the crash-on-crash case the crash log exists to diagnose. Verified: definition order and the absence of shutdown calls in the catch; not verified: whether the callback dereferences a voice during the window on a given run.",
+   "recommendation": "Call shutdown_midi(); shutdown_audio(); (both already safe to call unconditionally) at the top of both catch blocks before crash_log_write, or hold the RtAudio/RtMidi objects in a RAII guard declared inside main's try so unwinding stops the stream before any static is torn down.",
+   "confidence": 0.6
+  },
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 14365,
+   "line_end": 14371,
+   "category": "duplication",
+   "severity": "low",
+   "title": "Gold-wire 'unwire dynamic pin' block duplicated between IsLinkDestroyed and the Delete-key handler",
+   "evidence": "14365-14371: `if (GraphNode* dn = find_node_for_dyn_link(destroyedLinkId, &setting)) { dn->dynamicPins[setting] = nullptr; dn->apply_config(); mark_graph_dirty(); }` and 14489-14494: `if (GraphNode* dn = find_node_for_dyn_link(lid, &setting)) { dn->dynamicPins[setting] = nullptr; dn->apply_config(); mark_graph_dirty(); continue; }`.",
+   "why": "The semantics ('pin stays promoted, stowed scalar takes over') are documented at both sites and must be kept in sync by hand; delete_node's demotion path at 1147-1163 is a third variant of the same operation with a different outcome (ref dropped), which is exactly the kind of drift a helper prevents.",
+   "recommendation": "Add `static bool unwire_dyn_link(int linkId)` returning whether the id was a dynamic-pin wire; both sites become `if (unwire_dyn_link(id)) ...`.",
+   "confidence": 0.95
+  },
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 14580,
+   "line_end": 14586,
+   "category": "duplication",
+   "severity": "low",
+   "title": "Three different hand-rolled basename extractions of s_currentFilePath in the same function",
+   "evidence": "14582-14585: `const char* slash = strrchr(s_currentFilePath.c_str(), '/'); const char* bs = strrchr(s_currentFilePath.c_str(), '\\\\'); fname = (bs && (!slash || bs > slash)) ? bs + 1 : slash ? slash + 1 : s_currentFilePath.c_str();`; 13626-13630 the same strrchr dance for the window title; 13859-13860 `std::filesystem::path(s_currentFilePath).stem().string()` for the breadcrumb.",
+   "why": "Two copies of manual separator parsing next to a std::filesystem call that already does it; <filesystem> is already included and used, so the manual versions are just surface area.",
+   "recommendation": "One `static std::string current_file_display_name()` returning `std::filesystem::path(s_currentFilePath).filename().string()` (or '(unsaved patch)'), used by title, breadcrumb and modal.",
+   "confidence": 0.95
+  },
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 14400,
+   "line_end": 14413,
+   "category": "smell",
+   "severity": "low",
+   "title": "Right-click handler has an empty if-branch with collapsed indentation and a loop whose body does not depend on the loop variable",
+   "evidence": "14400-14401: `if (linkRouted) { } else {` with the else body un-indented to the outer level; 14403-14406: `int hoveredNode = -1; for (auto& n : s_nodes) { if (ImNodes::IsNodeHovered(&hoveredNode)) break; }` \u2014 IsNodeHovered does not use n, so the loop is either one call or an N-fold repeat of the same call (and on an empty graph is never evaluated at all).",
+   "why": "Reads as unfinished code; the loop suggests a per-node check that is not happening, and the empty-then branch inverts the natural condition purely to avoid re-indenting. Harmless at runtime (IsNodeHovered is idempotent), but it is the kind of residue that hides real bugs nearby.",
+   "recommendation": "`if (!linkRouted) { int hoveredNode = -1; if (ImNodes::IsNodeHovered(&hoveredNode)) { s_contextNodeId = hoveredNode; s_wantNodeMenu = true; } else { s_wantCreateMenu = true; } }`.",
+   "confidence": 0.95
+  },
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 13939,
+   "line_end": 13952,
+   "category": "soundness",
+   "severity": "low",
+   "title": "Drill camera panStack goes stale after a non-prefix path change (wormhole jump), and the deeper branch fills then overwrites the same slot",
+   "evidence": "13941-13944: `panStack.resize(prevPath.size() + 1, ImNodes::EditorContextGetPanning()); panStack[prevPath.size()] = ImNodes::EditorContextGetPanning();` (resize-with-fill followed by assignment of the same value to the same slot). 13950-13952: the `else { frame_level(); }` branch for a non-prefix move leaves panStack untouched, although the comment at 13910-13911 assumes 'Breadcrumb-only moves are always prefix moves, so the two cases cover everything' \u2014 the wormhole jump at 14150 `s_groupPath.assign(chain.rbegin(), chain.rend());` is not a breadcrumb move.",
+   "why": "After jumping from [A,B] to [C,D] via a wormhole, backing out to [C] restores panStack[1], which is the pan recorded inside A, not anything related to C \u2014 a visible 'blank pane' regression of the exact symptom the camera was built for. The double GetPanning call is a nit.",
+   "recommendation": "In the non-prefix branch, `panStack.clear()` (or truncate to the common-prefix length) before frame_level(); replace the resize+assign pair with a single `panStack.resize(prevPath.size()); panStack.push_back(pan);`.",
+   "confidence": 0.75
+  }
+ ]
+}

@@ -1,0 +1,232 @@
+{
+ "unit": "tools-ui-chunk4-L7526-9195",
+ "assessment": {
+  "health": 3,
+  "summary": "This slice holds the Parameter-mapping dialog, the Keyboard panel (QWERTY + on-screen keys), the Transport generate/play actions and panel, and node/group/wormhole rendering with the collapsed-group pin projection. The node-rendering half (draw_node, draw_wormhole_node, draw_group_node, project_pin, route_link_through_wormhole) is cohesive and careful (balanced push/pop, per-frame projection rebuilt at 13970, reallocation-safe wormhole insertion). The transport half is where the debt sits: Note/Passage go through the engine-authoritative generate_unified, but Chords and Drums still run two bespoke render_*_waveforms pipelines that duplicate post-processing with different normalization thresholds, skip the spectrum recompute (so the Spectrum window shows the previous render), and discard their own error status because the callers unconditionally write 'Generated N'. The live keyboard path has a real stuck-note bug: QWERTY key-up handling sits inside the same gate as key-down, so releasing a key while Ctrl is held, a text field is focused, or PC Keyboard was toggled off never fires release_note_held on a held voice. Smaller but user-visible: Inversion/Spread spinners that nothing reads, octave kept in two unsynchronized places, and an on-screen keyboard that cannot show the lower QWERTY zone since it moved an octave down. No real-time-safety violations in anything the audio callback touches from this range; offline renders are UI-thread and the buffer-detach invariant is honored except in render_drums_waveforms (currently masked by callers).",
+  "strengths": [
+   "Generate is a 3-phase state machine (8739-8750, 13594-13598, 14633-14636) so the user sees 'Generating...' and a cleared waveform before the blocking render; the detach-before-resize invariant for g_bufferPlayback is documented and followed by generate_unified and render_chords_waveforms.",
+   "Note/Passage generation goes through one engine-authoritative in-memory serialize->load path (generate_unified) with no temp files; transport_can_generate (8307-8317) gives precise, non-misleading refusal messages.",
+   "Node drawing is tidy: draw_node / draw_wormhole_node / draw_group_node keep ImNodes push/pop balanced with each pop annotated, dynamic pins are visually distinct (gold quad, hollow when unwired) and tooltips explain the pin model.",
+   "GroupProjection + project_pin (9040-9135) is a small, clear abstraction for drawing boundary links through collapsed groups; it is reset every frame (13970) so there is no stale-id risk.",
+   "route_link_through_wormhole (9141-9194) handles std::vector reallocation correctly (captures ids and labels before emplace_back, re-finds pointers after) and preserves tap-pin semantics.",
+   "Keyboard octave auto-fit (7920-7927) is stateless and the comment documents the band tuning history and the known 1->2 octave edge case rather than hiding it.",
+   "Comments consistently carry decision provenance (date + who), which makes the many behavioral special cases auditable."
+  ],
+  "files_read": [
+   "C:/@dev/repos/mforce/tools/mforce_ui/main.cpp (lines 7526-9195 in full; traced helpers at 689-702, 806-827, 1086-1090, 1250-1327, 2559-2571, 2634-2694, 3568-3573, 3599-3632, 3696-3741, 3842-3851, 4305-4309, 4347-4470, 4829-4854, 4964-5004, 5150-5217, 13590-13598, 13760-13840, 14630-14636)"
+  ]
+ },
+ "findings": [
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 7858,
+   "line_end": 7902,
+   "category": "soundness",
+   "severity": "high",
+   "title": "QWERTY key-up handling is inside the key-down gate, so a held live note can be stranded (stuck voice)",
+   "evidence": "if (g_transport.noteMode && !kbDisabled && !ImGui::GetIO().WantTextInput &&\n    !ImGui::GetIO().KeyCtrl) { ... if (ImGui::IsKeyReleased(s_qwertyMap[i].key) && s_qwertyHeldNote[i] >= 0) { release_note_held(s_qwertyHeldNote[i]); s_qwertyHeldNote[i] = -1; } }",
+   "why": "In Live mode a voice sustains until release_note_held fires gate_release (Voice.held comment 3711-3713, release_note_held 4829). If the key is released while Ctrl is down, while a text field has focus, or after PC Keyboard/graph mode flips kbDisabled, the release branch never runs: s_qwertyHeldNote[i] stays set, the voice keeps sounding, is_playing() stays true (Play button shows Stop), and the next press of that key only re-arms it. The mouse path explicitly avoids this (8025-8031: release on mouse-up anywhere); the QWERTY path does not. Audible stuck notes are the kind of defect that embarrasses a release.",
+   "recommendation": "Hoist the release loop out of the gate: for every i with s_qwertyHeldNote[i] >= 0, call release_note_held on IsKeyReleased regardless of noteMode/WantTextInput/KeyCtrl; additionally release all held QWERTY notes when noteMode turns off or kbDisabled becomes true. While there, replace the lazy-init pair s_qwertyHeldNote/s_qwertyHeldInit (7864-7869) with a file-scope std::array<int, QWERTY_MAP_COUNT> initialized to -1 via an immediately-invoked lambda or fill.",
+   "confidence": 0.85
+  },
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 8098,
+   "line_end": 8283,
+   "category": "duplication",
+   "severity": "high",
+   "title": "Chords and Drums keep a second render pipeline beside generate_unified, duplicating post-processing and skipping the spectrum/evo updates",
+   "evidence": "8093: // (render_passage_waveforms deleted 2026-09-13: generate_unified renders passages through the engine ...)\n8139-8148: float peak = 0.0f; ... if (peak > 0.95f) { float scale = 0.95f / peak; ...\n8265-8273: float peak = 0.0f; ... if (peak > 1.0f) { float scale = 0.95f / peak; ...\n8159 / 8277: for (auto& node : s_nodes) node.waveformData.clear();",
+   "why": "generate_unified (4347-4470) is the engine-authoritative render: it fills g_outputWaveform, captures per-node strips, rebuilds evo snapshots and calls compute_output_spectrum (the only call site, 4462). render_chords_waveforms and render_drums_waveforms re-implement the UI publish step by hand with inconsistent rules (peak-normalize threshold 0.95 vs 1.0; generate_unified does not normalize at all), clear every node strip instead of capturing, never call compute_output_spectrum or clear g_evoSnapshots (so after a Chords/Drums Generate the Spectrum window and scrubber still show the previous Note/Passage render), and chords adds a nearest-neighbour resample hack (8164-8171) for a sample-rate mismatch generate_unified simply ignores. Three ways to get a buffer onto the screen is exactly the second-renderer debt the 2026-09-13 deletion note says was retired.",
+   "recommendation": "Route Chords through generate_unified by turning the Conductor's performed notes into std::vector<SchedNote> (the Part/Conductor already produces timed notes); for Drums either give generate_unified a kit variant or, at minimum, extract one publish_render(std::vector<float>&& mono, int sampleRate) helper that performs detach -> assign -> g_waveformSamples -> strip clear -> wave_view_after_render -> compute_output_spectrum -> g_evoSnapshots.clear() so every pipeline ends identically. Decide once whether normalization belongs in the UI (it does not for Note/Passage today) and apply it uniformly.",
+   "confidence": 0.85
+  },
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 8420,
+   "line_end": 8423,
+   "category": "soundness",
+   "severity": "medium",
+   "title": "transport_generate overwrites the renderers' error status with 'Generated N ...', and transport_play plays after a failed regenerate",
+   "evidence": "render_chords_waveforms(chords, g_transport.bpm, fig, spreadMs);\nchar buf[128];\nsnprintf(buf, sizeof(buf), \"Generated %d chords\", (int)chords.size());\ntransport_set_status(buf, false);",
+   "why": "render_chords_waveforms returns void and can bail with transport_set_status(\"No patch file loaded ...\", true) (8101-8104) or swallow an exception to stderr (8174-8176); the caller then reports success anyway. Same shape for Drums: errors set at 8206-8209, 8229-8230, 8240-8243, 8280-8282 are clobbered by 8437-8440. In transport_play's Note case (8471-8473) `if (stale) transport_generate(); play_buffer();` replays whatever buffer exists even when generate_unified returned false, because transport_generate is void. The user is told a render succeeded when it did not.",
+   "recommendation": "Make render_chords_waveforms / render_drums_waveforms return bool (mirroring generate_unified), have transport_generate return bool and set the success status only on true, and in transport_play skip play_buffer when the regenerate failed.",
+   "confidence": 0.95
+  },
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 8275,
+   "category": "rt-safety",
+   "severity": "medium",
+   "title": "render_drums_waveforms resizes g_outputWaveform without buffer_playback_detach(), violating the documented invariant",
+   "evidence": "g_outputWaveform.assign(mono.begin(), mono.end());\ng_waveformSamples = frames;",
+   "why": "4987-4988 states: g_bufferPlayback points INTO g_outputWaveform, detach it (under the audio lock) before that vector is resized or cleared. generate_unified (4414) and render_chords_waveforms (8156) do; the drums path does not. It is currently masked because every caller either detaches first (Generate state machine, 13596) or runs only when !is_playing() (8754, 13771, 13831), but the function itself hands the audio thread a dangling pointer if any future caller (MIDI-triggered generate, a headless/scripted path) invokes it during playback.",
+   "recommendation": "Add buffer_playback_detach() immediately before the assign at 8275 (or fold into the shared publish_render helper recommended above so the invariant lives in one place).",
+   "confidence": 0.9
+  },
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 7955,
+   "line_end": 8017,
+   "category": "soundness",
+   "severity": "medium",
+   "title": "On-screen keyboard still assumes the single-zone QWERTY map: lower-zone keys (offsets -12..-1) play below the drawn range and get no label or highlight",
+   "evidence": "int baseNote = g_transport.octave * 12;\n...\nint chromOffset = oct * 12 + whiteOffsets[w];\nif (chromOffset < 20) {\n    const char* ql = qwerty_label_for_offset(chromOffset);",
+   "why": "s_qwertyMap (5162-5202) now has a lower zone at offsets -12..-1 (\"1 octave down\", Matt 2026-09-13) and an upper zone 0..19. The keyboard draws from baseNote upward and only looks up labels for 0..19, so the twelve Z/S/X/D/C/V/G/B/H/N/J/M keys fire notes that are never drawn, never labelled, and never highlighted by isNoteActive. The literal 20 is a stale coupling to the old map extent.",
+   "recommendation": "Derive the label range from the map (min/max of s_qwertyMap[].offset, computed once as constexpr or a static) and start the drawn keyboard at baseNote + minOffset (one octave below) when noteMode is on, so both zones are visible and highlightable.",
+   "confidence": 0.85
+  },
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 8037,
+   "line_end": 8070,
+   "category": "duplication",
+   "severity": "medium",
+   "title": "Key rectangle geometry is computed twice: once in the draw loops and again, verbatim, in the hit-test loops",
+   "evidence": "8039-8043: int whiteIdx = oct * WHITE_KEYS_PER_OCT + blackKeys[b].afterWhite; float x0 = origin.x + (whiteIdx + 1) * keyW - blackW * 0.5f; ... (identical to 7994-7998)\n8056-8061: int oct = idx / WHITE_KEYS_PER_OCT; int w = idx % WHITE_KEYS_PER_OCT; float x0 = origin.x + idx * keyW; ... float x1 = x0 + keyW - 1.0f; (identical to 7959-7964)",
+   "why": "Four copies of the same rect math (white draw 7958-7964, black draw 7992-7998, black hit 8037-8043, white hit 8055-8061) is the main reason draw_keyboard_panel is 260 lines, and any geometry tweak (the 1 px gap, blackW ratio) must be made in two places or hit-testing silently diverges from what is drawn.",
+   "recommendation": "One pass builds a small fixed-capacity array of {ImRect, midiNote, isBlack} (max 10 octaves -> 121 entries, stack or static), then draw iterates it and the click handler iterates it in reverse (black first) with ImGui::IsMouseHoveringRect / rect.Contains(mousePos). Velocity-from-y and the Live/fixed dispatch (8072-8082) then exist once.",
+   "confidence": 0.95
+  },
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 8712,
+   "line_end": 8715,
+   "category": "smell",
+   "severity": "medium",
+   "title": "Inversion and Spread spinners on the Chords tab write fields nothing reads",
+   "evidence": "transport_label_snug(\"Inversion\");\nspinner_int(\"inv\", &g_transport.inversion, 1, 0, 4);\ntransport_label_snug(\"Spread\");\nspinner_int(\"sprd\", &g_transport.spread, 1, 0, 4);",
+   "why": "A grep for g_transport.inversion / .spread hits only these two lines; parse_chord_string and render_chords_waveforms (8414-8420) never receive them. The UI presents live controls that have no effect, which is the kind of lie a user discovers by ear and then distrusts every other knob.",
+   "recommendation": "Either plumb them into the chord path (parse_chord_string / ChordPerformer) or delete the two spinners and the TransportState fields (3619-3620); g_transport.repeats (3625) is likewise never read.",
+   "confidence": 0.9
+  },
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 8625,
+   "line_end": 8638,
+   "category": "soundness",
+   "severity": "medium",
+   "title": "Octave has two sources of truth (noteStr vs g_transport.octave) that only sync in one direction",
+   "evidence": "int noteNum = int(parse_note_input(g_transport.noteStr));\nint pc = ((noteNum % 12) + 12) % 12;\nint oct = std::clamp(noteNum / 12, 0, 8);\n...\nif (nchg) { snprintf(g_transport.noteStr, ..., \"%s%d\", kPitch[pc], oct); g_transport.octave = oct; }",
+   "why": "The Note tab derives its Octave spinner from noteStr and pushes to g_transport.octave only on change; the Passage tab (8662), Chords tab (8709) and the keyboard arrow keys (7894-7897) edit g_transport.octave directly and never touch noteStr. After pressing Up on the keyboard or changing octave on another tab, the Note tab shows one octave while QWERTY/on-screen keys play another, and the next Note-tab edit snaps g_transport.octave back.",
+   "recommendation": "Pick one storage. Simplest: g_transport.octave and a pitch-class int are the state; noteStr is composed from them whenever parse_note_input needs it (or keep noteStr as storage and make every other octave writer go through one set_octave() that rewrites noteStr).",
+   "confidence": 0.8
+  },
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 7552,
+   "line_end": 7616,
+   "category": "efficiency",
+   "severity": "medium",
+   "title": "Mappings table rebuilds a perform-rooted ancestry walk per pin per frame using linear scans (O(nodes x pins x links x depth) with std::function recursion)",
+   "evidence": "std::function<const GraphNode*(const GraphNode*, int, bool&)> root_perform = [&](...) { ... for (const auto& link : s_links) { const GraphNode* dst = find_node_for_pin(link.endPinId); ... const GraphNode* src = find_node_for_pin(link.startPinId); if (const GraphNode* r = root_perform(src, depth + 1, viaCurve)) return r; } ... };\n7582: for (auto& c : s_nodes) if (c.label == ref) { srcNode = &c; break; }\n7598-7602: for (const auto& pin : n.inputs) { const GraphNode* src = find_source_node(pin.id); ... root_perform(src, 0, viaCurve);",
+   "why": "find_node_for_pin (814-820) and find_source_node (2559-2571) are linear over every node and pin; root_perform calls find_node_for_pin twice per link per recursion level, and it is invoked for every input pin of every node every frame the dialog is open. The comment defends the depth limit, but the cost is the per-level full-link scan, not the depth: a 100-node/200-link patch is on the order of 10^7-10^8 compares per frame. The dialog is modeless, so this runs continuously.",
+   "recommendation": "Build a reverse adjacency once per frame (or cache keyed on g_graphEditCounter): unordered_map<int inputPinId, const GraphNode* src> and unordered_map<const GraphNode*, small vector of upstream nodes>; root_perform then walks pointers. Replace the std::function with a plain recursive static function taking the index. The same index would serve draw_node's is_pin_connected calls (8944, linear over s_links per pin per frame).",
+   "confidence": 0.75
+  },
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 7796,
+   "line_end": 7815,
+   "category": "workaround-hack",
+   "severity": "medium",
+   "title": "Mappings dialog carries two binding models at once: wires are declared canonical, but Add still creates legacy paramMap stash entries",
+   "evidence": "7544: // A binding is now a wire, so this table is a VIEW\n7625: ImGui::TextDisabled(\"Legacy paramMap entries (not convertible to nodes)\");\n7796-7799: if (ImGui::Button(\"Add (follows note)##mapbare\")) { ... s_loadedParamMap[\"frequency\"] = target; ...\n7812-7813: if (ImGui::Button(\"Add with curve##mapcurve\")) { curves_add_entry(\"frequency\", target, opts[selTarget].current);",
+   "why": "The dialog's own text says bindings are wires and labels the stash as legacy/not-convertible, yet its only creation path appends to that legacy stash, and every non-frequency row is flagged \"(inert)\" (7644-7648). New patches therefore accumulate data the UI itself calls legacy. Add-path UI state also lives in function statics (selNode/selTarget/lastEditorSel, 7747-7749) indexing a vector rebuilt every frame, so the selection silently retargets when nodes are added or removed.",
+   "recommendation": "Make Add create the canonical form (a PerformNode output -> optional CurveNode -> target pin wire, the same objects the top table already reads) and reduce the stash section to a delete-only migration view. Move the add-form selection to a small struct keyed by node id rather than vector index.",
+   "confidence": 0.7
+  },
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 8500,
+   "line_end": 8516,
+   "category": "duplication",
+   "severity": "low",
+   "title": "save_wav_dialog is a copy of text_save_dialog",
+   "evidence": "char filename[MAX_PATH] = \"output.wav\"; OPENFILENAMEA ofn{}; ofn.lStructSize = sizeof(ofn); ofn.lpstrFilter = \"WAV Files\\0*.wav\\0All Files\\0*.*\\0\"; ... ofn.Flags = OFN_OVERWRITEPROMPT | OFN_NOCHANGEDIR; ofn.lpstrDefExt = \"wav\"; if (GetSaveFileNameA(&ofn)) { remember_feature_dir(\"wav\", filename); return filename; }",
+   "why": "Lines 8500-8516 duplicate text_save_dialog at 1294-1311 field for field; the only difference is the \"renders\" fallback when no directory is remembered. Two copies of Win32 OPENFILENAME setup is one more place to miss when the dialog code is eventually made cross-platform.",
+   "recommendation": "Replace with `return text_save_dialog(\"wav\", \"WAV Files\\0*.wav\\0All Files\\0*.*\\0\", \"wav\", \"output.wav\");` after giving text_save_dialog an optional default-directory argument (or letting feature_initial_dir take a fallback).",
+   "confidence": 0.95
+  },
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 8550,
+   "line_end": 8559,
+   "category": "smell",
+   "severity": "low",
+   "title": "Dead code: transport_label, transport_label_inline, and the unused figurePrefix parameter",
+   "evidence": "static void transport_label(const char* label, float labelW) { ... }\nstatic void transport_label_inline(const char* label) { ... }\n8099: const std::string& figurePrefix, float spreadMs) {   // figurePrefix never referenced in the body",
+   "why": "A grep shows transport_label and transport_label_inline are defined and never called (only transport_label_snug is used); render_chords_waveforms takes figurePrefix (passed `fig` at 8420) and never uses it, so the Figure field's effect on chords is only via parse_chord_string, which the signature obscures. `float lw = 70.0f; // label width` at 8604 is likewise unused.",
+   "recommendation": "Delete the two helpers, the lw local, and the figurePrefix parameter (and its argument at 8420); MSVC /W4 with -Wunused-parameter equivalents would flag the parameter.",
+   "confidence": 0.95
+  },
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 7556,
+   "category": "soundness",
+   "severity": "low",
+   "title": "root_perform's viaCurve flag is never cleared on a dead-end branch, so a direct perform link can be reported as 'curve'",
+   "evidence": "if (n->typeName == \"CurveNode\") viaCurve = true;\nfor (const auto& link : s_links) { ... if (const GraphNode* r = root_perform(src, depth + 1, viaCurve)) return r; }",
+   "why": "viaCurve is a by-reference accumulator. For a node fed by a CurveNode that is NOT perform-rooted and separately by a PerformNode directly, the first (failing) branch sets viaCurve = true and the second branch returns the PerformNode; the Shape column then says 'curve' for a direct binding.",
+   "recommendation": "Return the flag with the result (e.g. std::pair<const GraphNode*, bool>) or pass viaCurve by value down the recursion so only the successful path's value propagates.",
+   "confidence": 0.8
+  },
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 7941,
+   "line_end": 7945,
+   "category": "rt-safety",
+   "severity": "low",
+   "title": "Keyboard highlight reads Voice.active / midiNote from the UI thread without the audio mutex (formal data race)",
+   "evidence": "auto isNoteActive = [](int midi) {\n    for (int vi = 0; vi < MAX_VOICES; ++vi)\n        if (g_voices[vi].active && g_voices[vi].midiNote == midi) return true;",
+   "why": "Voice::active and midiNote are plain bool/int (3717-3718) written by the audio callback under g_audioMutex (3864) and here read with no synchronization; any_voice_active (3842-3846) has the same pattern, so this follows precedent, but it is undefined behaviour by the standard and only benign because of x86/MSVC's strong memory model. Not an audio-thread cost; the fix must not add a lock to the callback.",
+   "recommendation": "Have the callback publish what the UI needs atomically, as it already does for g_audioActiveVoices (3876): e.g. a std::atomic<uint32_t> active-voice bitmask plus std::atomic<int> midiNote per voice with relaxed ordering; the UI reads those.",
+   "confidence": 0.85
+  },
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 9055,
+   "line_end": 9056,
+   "category": "efficiency",
+   "severity": "low",
+   "title": "draw_group_node computes the group boundary twice per group per frame (group_output_node repeats group_boundary and may topo_sort)",
+   "evidence": "group_boundary(g, ins, outs);\nGraphNode* outNode = group_output_node(g);",
+   "why": "group_output_node (2682-2694) calls group_boundary again on the same group and, when there is no explicit boundary output, runs collect_member_labels + topo_sort(). group_boundary itself is O(links x node-lookups). The `outs` vector just computed at 9055 is discarded. Also pin ids are minted inside the draw function (9058 `g.inPinIds.push_back(next_id())`), mixing model mutation into rendering.",
+   "recommendation": "Give group_output_node an overload taking the already-computed `outs` (or return {ins, outs, outNode} from one call), and mint synthetic pin ids where the group is created/edited rather than during draw.",
+   "confidence": 0.9
+  },
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 9008,
+   "category": "smell",
+   "severity": "low",
+   "title": "Node face width 150.0f and the right-align formula are hardcoded in three places",
+   "evidence": "9008: ImGui::Indent(150.0f - textWidth - 20);\n9016-9018: float nodeWidth = 150.0f; float textWidth = ...; ImGui::Indent(nodeWidth - textWidth - 20);\n9101: ImGui::Indent(150.0f - textWidth - 20);",
+   "why": "The same magic width and padding (20) is repeated for tap pins, regular output pins and group output pins; changing node width means editing three sites and the strips/other panels that assume it.",
+   "recommendation": "constexpr float kNodeFaceWidth = 150.0f; constexpr float kPinLabelPad = 20.0f; and a static right_aligned_pin_label(const char*) helper used by all three.",
+   "confidence": 0.9
+  },
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 8947,
+   "category": "modern-cpp",
+   "severity": "low",
+   "title": "Per-pin per-frame std::string allocation for a prefix test",
+   "evidence": "} else if (pin.inputOnly || pin.name.substr(0, 3) == \"ch \") {",
+   "why": "substr materialises a temporary std::string for every unconnected input pin every frame; C++20 has starts_with. Minor, but it is in the hottest UI loop (every node, every pin) and the fix is a one-token change.",
+   "recommendation": "pin.name.starts_with(\"ch \"). The same applies to val.value(\"ref\", std::string(\"?\")) at 8968, which constructs two strings per dynamic pin per frame; read the ref once when the pin is promoted and cache it on the Pin.",
+   "confidence": 0.9
+  },
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 8623,
+   "category": "duplication",
+   "severity": "low",
+   "title": "Duplicated literal tables inside draw_transport_panel: note names (x2) and the two-line text-box height (x2)",
+   "evidence": "8623: static const char* kPitch[12] = {\"C\",\"C#\",\"D\",\"D#\",\"E\",\"F\", ...\n8834: static const char* kNames[12] = {\"C\",\"C#\",\"D\",\"D#\",\"E\",\"F\", ...\n8656-8657 and 8688-8689: const float twoLine = ImGui::GetTextLineHeight() * 2.0f + ImGui::GetStyle().FramePadding.y * 2.0f + 6.0f;",
+   "why": "Two identical pitch-class tables live 200 lines apart in the same function (one in a case block, one at the bottom), and the multiline-field height formula is pasted into both the Passage and Chords cases. Low cost today, but the engine's music layer is where a note-name table belongs (durn_converter carries a third copy at tools/durn_converter/main.cpp:456).",
+   "recommendation": "One file-scope `static constexpr const char* kNoteNames[12]` (or expose one from engine/include/mforce/music) and a `static float two_line_box_height()` helper.",
+   "confidence": 0.95
+  }
+ ]
+}

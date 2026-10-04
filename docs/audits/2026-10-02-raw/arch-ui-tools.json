@@ -1,0 +1,176 @@
+{
+ "unit": "arch-ui-tools",
+ "assessment": {
+  "health": 2,
+  "summary": "The tools layer is one 14,658-line ImGui translation unit (tools/mforce_ui/main.cpp) in which the editor model (GraphNode/Pin/Link), a UI-built preview DSP graph, the engine-built InstrumentPatch, the RtAudio thread, four hand-written JSON codecs, Win32 glue and ten headless test modes all share 88 file-scope mutable statics; main() alone is 1,711 lines. It works, and the Sept-2026 unification correctly made Generate the engine render path by construction, but the UI's own preview DSP graph is still a second renderer that Stream/Listen pull on the audio thread, guarded by a std::mutex the UI holds while allocating and preparing voices; the two real-time-safety findings follow directly from that. The patch JSON format is parsed/written in four places (engine loader, UI loader, two UI savers) plus a third ad-hoc clipboard schema, and two independent clipboard subsystems are bound to the same Ctrl+C/Ctrl+V keys so a paste fires twice. There is no undo/redo and dirty/cache invalidation is by convention at ~65 call sites with at least one miss. The dominant problem is the absence of a document model between UI and engine: JSON text is the only bridge, so every concern re-implements the format and every parameter edit round-trips through serialize->parse->N-voice rebuild. mforce_cli is a simple run_* switchboard with copy-pasted render epilogues; explore.cpp is the only tool code with a real module boundary.",
+  "strengths": [
+   "generate_unified (main.cpp 4347-4470) serializes the live graph and loads it through load_instrument_patch_json so Generate IS the engine render; per-node strips are captured from the clones that actually play rather than from a second UI-side render.",
+   "Audio-thread hygiene where it exists is careful: no shared_ptr destruction on the callback (3919-3924), voice_gc releases on the UI thread (4151-4171), denormal flush per callback (3862), heartbeat watchdog + focus-regain restart for WASAPI zombie streams (4084-4144).",
+   "Instrument cache keyed on g_graphEditCounter + listen tap (4629-4658) removes the per-keypress rebuild; the serialize->load bridge is in-memory, not a temp file.",
+   "Ten headless modes (--roundtrip, --gencheck, --dump-playback, --dump-stream, --rename, --replace, --paste-frag, --convert-roundtrip, --dump-layout, --gatecheck) make UI behaviors verifiable from a terminal.",
+   "Shared code with the CLI happened where it was planned: parse_util.h (ui_phase2and4.md 77-88) is included by both tools; envelope_from_preset_json is the single preset dispatch for both loaders (main.cpp 1864, patch_loader.cpp 716).",
+   "explore.cpp is a clean, self-contained module (anonymous namespace, single entry points run_explore / run_explore_filter) and is the one piece of tool code with a boundary.",
+   "Comments consistently record invariants and the bug that motivated each one, which made this review tractable."
+  ],
+  "files_read": [
+   "C:/@dev/repos/mforce/tools/mforce_ui/main.cpp",
+   "C:/@dev/repos/mforce/tools/mforce_ui/CMakeLists.txt",
+   "C:/@dev/repos/mforce/tools/mforce_cli/main.cpp",
+   "C:/@dev/repos/mforce/tools/mforce_cli/explore.cpp",
+   "C:/@dev/repos/mforce/docs/mforce_ui.md",
+   "C:/@dev/repos/mforce/docs/ui_plan.md",
+   "C:/@dev/repos/mforce/docs/ui_phase2and4.md",
+   "C:/@dev/repos/mforce/engine/include/mforce/render/patch_loader.h",
+   "C:/@dev/repos/mforce/engine/src/patch_loader.cpp",
+   "C:/@dev/repos/mforce/engine/include/mforce/core/dsp_value_source.h",
+   "C:/@dev/repos/mforce/engine/include/mforce/core/envelope_json.h",
+   "C:/@dev/repos/mforce/engine/include/mforce/source/additive/partials.h"
+  ]
+ },
+ "findings": [
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 3864,
+   "line_end": 3864,
+   "category": "rt-safety",
+   "severity": "high",
+   "title": "Audio callback blocks on a std::mutex that the UI thread holds during heap allocation and voice preparation",
+   "evidence": "audio_callback: `std::lock_guard<std::mutex> lock(g_audioMutex);` (3864). Same mutex held by update_all_dsp (1023) across `auto ref = std::make_shared<RefSource>(srcNode->dspSource);` (1077) and `std::make_shared<RefSource>(src, true)` (968); by play_note (4676) across collect_envelopes (4685, recursive dynamic_cast walk + vector push_back) and `pitched->prepare_voice_at(...)` (4691); by play_note_held (4788-4805); and by every Properties-panel pin edit via update_node_dsp (9345, 9377 -> 984).",
+   "why": "The RtAudio thread stalls for as long as the UI holds the lock: a full graph rewire (O(nodes x pins x links) with allocations) on every link change, or a voice prepare on every note-on, lands inside the callback's deadline. On heavy patches (comment 4603-4604: 0.6-1.3 s rebuilds) this is audible as dropouts exactly when the user is editing or playing. CLAUDE.md rule: no locks/unbounded work in render paths.",
+   "recommendation": "Replace g_audioMutex with a lock-free SPSC command queue consumed at the top of audio_callback (schedule voice, deactivate voice, swap stream source/buffer pointer, swap parameter). Prepare voices and rewire graphs entirely on the UI thread on objects the callback is not yet reading, then publish by pointer swap. Keep the mutex, if at all, only for non-RT paths (watchdog/init).",
+   "confidence": 0.9
+  },
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 9826,
+   "line_end": 9857,
+   "category": "rt-safety",
+   "severity": "high",
+   "title": "Array/formant/constant edits mutate DSP objects the audio thread is streaming without the audio lock",
+   "evidence": "`if (changed) { node->push_array(d.name); mark_graph_dirty(); }` (9826, 9857, 9934; also 6009, 6030, 6081) -> push_array -> `dspSource->set_array(name, v)` (508) -> partials.h 1336-1343 `mult1Stat_ = std::move(v); ... init_arrays();`. `if (changed) { node->rebuild_formant_spectrum(); ... }` (10014) -> `spec->formants.clear()` (518). `pin.constantSrc->set(pin.defaultValue)` (9343, 9375) is a plain store (dsp_value_source.h:135 `void set(float v) { v_ = v; }`). Meanwhile play_continuous installs `g_streamSource = src;` (4883) pointing at these same objects, pulled per sample at 3940. Contrast 9517-9523, where set_setting IS locked with the comment 'set_setting can rebuild internal arrays (ExplicitPartials) while a stream tap is mid-next() on the same object (3k audit residual)'.",
+   "why": "Replacing a std::vector or shared_ptr vector while the audio thread iterates it is a use-after-free on the audio thread (crash or garbage audio) during Stream/Listen; the unlocked float store is a formal data race. The 3k audit fixed set_setting but left set_array, rebuild_formant_spectrum and constantSrc->set with identical exposure.",
+   "recommendation": "Short term: route push_array / rebuild_formant_spectrum / constantSrc->set through the same guard as set_setting. Real fix: stop streaming the UI preview graph (see dual-representation finding) and make parameter publication an atomic slot or queued command on the engine-owned instrument.",
+   "confidence": 0.85
+  },
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 4872,
+   "line_end": 4884,
+   "category": "soundness",
+   "severity": "high",
+   "title": "Dual DSP representation: the UI builds and streams its own DSP graph while Play/Generate use the engine-built instrument, so Stream and Play can render the same patch differently",
+   "evidence": "play_continuous: `ValueSource* src = find_output_source(); ... g_streamSource = src;` (4873-4883) streams the UI graph built by GraphNode::create_dsp (385-467: Envelope defaults to `Envelope::make_adsr(...)` 411, PerformNode is a stand-in `ConstantSource(440.0f)` 404-406) and wired by update_all_dsp (1022-1084, its own policy: 'first consumer keeps real source, rest get RefSource wrappers' 1062-1079). Play/keyboard/Generate instead use `load_instrument_patch_json(liveRoot.dump(), ...)` (4642-4643, 4352), whose wiring policy lives in patch_loader.cpp (promote_starved_refs 223/326, collect_advance_ids 184, tap binds 89-131). apply_param_map (4540-4582) and apply_perform_nodes (4527-4538) exist only to re-implement engine note-on semantics on the preview graph ('mirroring the engine's note-on application exactly (instrument.h map/vmap)' 4476-4477). A headless `--dump-playback` mode exists 'for numeric comparison against the CLI render of the same file (UI-vs-CLI sound-mismatch debugging)' (13246-13248).",
+   "why": "Two renderers of one patch is the root of the recurring UI-vs-CLI sound-mismatch class the repo's own tooling is built to chase, and the UI-side graph is also the surface exposed to the RT races above. It also forces every edit to invalidate the engine instrument (serialize->parse->N-voice rebuild, 0.6-1.3 s on heavy patches per 4603-4604) because the UI cannot address the engine's objects directly.",
+   "recommendation": "Make the engine loader the sole DSP builder. Stream = a held voice (envelopes held as stream_envelopes_hold does today) of the cached engine instrument, exactly as Generate already uses the engine. Strip dspSource from GraphNode (keep descriptors + pin constants for the editor) and forward parameter edits by node id to the engine instrument's ConstantSources/settings (patch_loader.cpp already keys nodes by id in valueNodes, 674/712). This deletes create_dsp/update_all_dsp/apply_param_map/apply_perform_nodes/stream_envelopes_* (~450 lines) and closes the streaming race surface.",
+   "confidence": 0.85
+  },
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 1368,
+   "line_end": 1387,
+   "category": "duplication",
+   "severity": "high",
+   "title": "The patch JSON format has four hand-maintained codecs (engine loader, UI loader, two UI savers) plus a third clipboard schema; jsonExtras carry-through is the symptom",
+   "evidence": "UI envelope_stages_from_json (1368-1387) is line-for-line the engine's stage parse (patch_loader.cpp 680-699: `s.ramp.startVal = sj.value(\"startVal\", 0.0f); ... s.nominal = sj.value(\"nominal\", 0.0f); env->add_stage(s);`). UI enum-label matching 1892-1912 vs engine 389-415 (same 'enum string matches no label; keeping default' message). UI CurveNode knots/interp/mode/exprKnots 1794-1821 vs engine 732-751. UI instrument block 2124-2143 vs engine 1516-1528 and again 1841-1850. UI ref/tap/multi link building 2051-2092 vs engine resolve_param 105-139. Writers: serialize_patch_graph (2806-3268) and save_node_graph (3275-3463) are twins \u2014 save_node_graph 3408 'Re-emit the loaded seed (see save_patch_graph)', 3433 'Groups \u2014 same engine-blind section as the patch save'. clip_node_state/clip_instantiate (10286-10404) is a third node schema ('pins', 'settings', 'arrays', 'formants' as 4-tuples, 'chPins'). GraphNode::jsonExtras (296, 1937-1981, 3414-3422) exists to carry 'params the UI does not model' so save cannot drop them.",
+   "why": "Every new JSON key must be taught to four parsers/writers or it is silently dropped \u2014 the repo's own history (backlog 3n, the 2026-08-10 damper/gain loss, the 2026-08-13 volume-drop bug, all cited in comments) is a list of exactly that failure. jsonExtras is a workaround for not having one codec.",
+   "recommendation": "Introduce one typed patch document (e.g. mforce/render/patch_json.h: NodeSpec{id,type,params,dynamicPins,seed,...}, InstrumentSpec, GroupSpec, UiLayout) with a single from_json/to_json used by the engine loader, the UI loader, both UI savers and the clipboard. The UI then holds NodeSpec + editor decorations and never re-interprets JSON keys; jsonExtras disappears because unmodeled keys stay in the typed document.",
+   "confidence": 0.9
+  },
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 14253,
+   "line_end": 14257,
+   "category": "soundness",
+   "severity": "high",
+   "title": "Two independent clipboard subsystems are both bound to Ctrl+C/Ctrl+V in the same frame, so a paste fires twice",
+   "evidence": "14253-14257: `if (editorHovered && ImGui::GetIO().KeyCtrl && !ImGui::GetIO().WantTextInput) { if (ImGui::IsKeyPressed(ImGuiKey_C, false)) copy_selection_to_clipboard(); if (ImGui::IsKeyPressed(ImGuiKey_V, false)) paste_clipboard(); }` and 14461-14465: `if (editorFocused && !ImGui::GetIO().WantTextInput && ImGui::GetIO().KeyCtrl) { if (ImGui::IsKeyPressed(ImGuiKey_X)) clipboard_cut(); if (ImGui::IsKeyPressed(ImGuiKey_C)) clipboard_copy(); if (ImGui::IsKeyPressed(ImGuiKey_V)) clipboard_paste(); }`. editorFocused (13854) and editorHovered (14063) are both true when the mouse is over the focused editor. copy_selection_to_clipboard fills the OS clipboard (11317) and clipboard_copy fills s_clipboard (10455); paste_clipboard -> paste_fragment_text does a temp-file merge + `load_graph_from_path(merged)` (11442-11444) while clipboard_paste instantiates from s_clipboard (10463-10533) with no cross-check. The Edit menu (13738-13743) reaches only the in-memory system.",
+   "why": "Ctrl+V pastes the selection twice (once via full-graph reload, once via clip_instantiate, at different offsets); menu Paste and keyboard Paste behave differently; and two ~300-line subsystems with different node schemas must be kept in sync. Traced by reading, not executed.",
+   "recommendation": "Keep exactly one clipboard (the file-format fragment at 11273-11475 is the better design since it cannot drift from the saved form, once it merges in memory instead of via temp files); delete 10276-10545 and the second key binding; make the Edit menu call the surviving functions.",
+   "confidence": 0.8
+  },
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 12948,
+   "line_end": 14658,
+   "category": "god-class",
+   "severity": "high",
+   "title": "Single 14,658-line TU with 88 file-scope mutable statics; main() is 1,711 lines holding ten headless modes and the whole node-editor interaction loop",
+   "evidence": "`int main(int argc, char** argv) {` 12948 \u2026 14658; headless mode dispatch inline 12977-13440 (--dump-curve-opts, --stamp, --gatecheck, --gencheck, --roundtrip, --rename, --replace, --dump-boundary, --paste-frag, --convert-roundtrip, --dump-playback, --dump-layout, --dump-stream); node-editor logic inline 13968-14522 (link creation 14261-14358, destroy 14363-14381, context menus 14384-14424, delete 14474-14505, wormhole hover 14076-14162). Other giants: draw_properties_panel 9227-10276, draw_shape_editor 6100-7054, load_graph_from_path 1561-2360, serialize_patch_graph 2806-3268. transport_set_status is forward-declared three times (1392, 4077, 4279) and 777-779 reads 'Defined after g_transport/g_keyboard (declaration-order constraint)'. Win32 code (OPENFILENAMEA 1258-1330, IFileOpenDialog 5333-5383, MessageBoxA 4005, SEH filter 12841, AttachConsole 12958-12967) sits in the same TU as the graph model. ui_plan.md 146-155 planned TransportPanel/PropertiesPanel/KeyboardPanel/WaveformWindow structs 'with a render() method' \u2014 none exist. CMakeLists.txt compiles the one main.cpp.",
+   "why": "Every one-line change recompiles 14.6k lines plus ImGui/imnodes/nlohmann headers; nothing is unit-testable without ImGui/ImNodes contexts (--roundtrip must CreateContext at 13105-13106 just to serialize); declaration order dictates code order; cross-platform (CLAUDE.md direction) is blocked by platform calls woven through model code; and reviewers cannot find the audio/model/view boundaries because there are none.",
+   "recommendation": "Decompose into: graph_model (Pin/GraphNode/Link/NodeGroup + GraphDocument owning s_nodes/s_links/s_groups/loaded-json/dirty/edit-counter, id->index maps, delete/rename/replace/group ops; no ImGui, no DSP objects), patch_io (load/serialize/convert_parammap, built on the shared codec), audio_engine (RtAudio, voices, callback, watchdog, instrument cache, play/held/continuous, MIDI; command-queue API), transport (TransportState, generate_unified, chords/drums, play), node_editor (the 13848-14522 block + context menus), panels/{properties,shape_editor,mappings,waveform,spectrum,keyboard,audition}, platform_win (dialogs, MessageBox, console, crash log), headless_modes, app (main loop, docking, menus). Ranked first three extractions by payoff: (1) audio_engine \u2014 isolates the entire RT-safety surface so the mutex/race findings are fixed in one place behind a queue; (2) graph_model + patch_io \u2014 removes the ImGui dependency from ~2,500 lines, lets headless modes and tests run without ImGui contexts, and gives clipboard/paste an in-memory merge; (3) node_editor + headless_modes out of main() \u2014 main() drops to ~300 lines and editor interaction becomes a function over an explicit state struct.",
+   "confidence": 0.95
+  },
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 8920,
+   "line_end": 8921,
+   "category": "smell",
+   "severity": "medium",
+   "title": "No undo/redo and no edit abstraction: dirty flag and instrument-cache invalidation are maintained by convention at ~65 call sites, with misses",
+   "evidence": "mark_graph_dirty (791-794) is the only edit primitive; grep shows ~65 call sites in widget callbacks that mutate s_nodes/s_links/dspSource directly. Miss: draw_node mixer '+' button `if (ImGui::SmallButton(btnLabel)) node.add_channel_input();` (8920-8921) adds a pin without mark_graph_dirty or invalidate_instrument_cache. ui_plan.md:165: 'Undo/Redo \u2014 not yet, but the architecture supports it (command pattern on graph edits)' \u2014 no command type exists anywhere in the file.",
+   "why": "A missed mark means the Save-on-close prompt is skipped and, because get_cached_instrument keys on g_graphEditCounter (4630-4632), the live keyboard plays a stale instrument after the edit. Undo cannot be added without first funnelling edits through one place.",
+   "recommendation": "Route every mutation through GraphDocument::apply(Edit) which marks dirty, bumps the edit counter, and pushes the inverse onto an undo stack; widgets only construct Edit values.",
+   "confidence": 0.85
+  },
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 11442,
+   "line_end": 11448,
+   "category": "workaround-hack",
+   "severity": "medium",
+   "title": "Temp files on disk are the graph-merge mechanism for paste/copy, and a dead temp-file playback path plus stale comments survive the 2026-09-13 unification",
+   "evidence": "paste_fragment_text: `{ std::ofstream f(merged); f << doc.dump(2); } try { load_graph_from_path(merged); } catch (...) { try { load_graph_from_path(stage); } ...` (11442-11448) after staging the whole graph to %TEMP% (11349-11357); copy_selection_to_clipboard saves the entire graph to a temp file and re-reads it to pick out nodes (11296-11303). get_playback_patch_path (3502-3526) still writes %TEMP%/mforce_playback.json but has no callers (grep: definition only). Stale: 3542 '// Audio: poll-driven streaming via waveOut', 4590-4591 'Audio path routes through load_instrument_patch(temp)', 8301-8306 'via get_playback_patch_path'.",
+   "why": "Merging via the filesystem is slow, non-atomic, resets editor identity (load_graph_from_path sets s_nextId = 1 at 1588 and rebuilds every node), and exists only because there is no in-memory document model with a merge operation. Dead code and stale comments mislead the next reader about where audio actually comes from.",
+   "recommendation": "In-memory merge on the typed document (from the shared-codec finding); delete get_playback_patch_path and the three stale comments.",
+   "confidence": 0.9
+  },
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 806,
+   "line_end": 820,
+   "category": "efficiency",
+   "severity": "medium",
+   "title": "Linear-scan pin/node lookups nested inside per-frame and per-edit loops; vector<GraphNode> hands out raw pointers that emplace_back invalidates",
+   "evidence": "find_pin (806-812) and find_node_for_pin (814-820) scan all nodes x pins. Nested uses: update_node_dsp_unlocked `for (auto& pin : node.inputs) { for (auto& link : s_links) { ... find_node_for_pin(otherPinId); ... find_pin(otherPinId);` (948-956) called for every node by update_all_dsp (1026); per link per frame in link drawing 14006-14016 plus two more find_node_for_pin at 14015-14016; per dynamic pin per frame `for (auto& c : s_nodes) if (c.label == ref)` (14049); wormhole_twin (831-840) per selected wormhole per frame (14101-14104). `static std::vector<GraphNode> s_nodes;` (649) with GraphNode a ~30-member struct (245-634: two nlohmann::json, two unordered_maps, a std::map, 128+32-byte buffers) forces 'emplace_back may reallocate s_nodes \u2014 re-find both after' rituals (11164-11173, 11239-11240, 10580, 10687) and left a write-only pointer map `nodeMap[id] = &gn;` (1613, 1751, never read).",
+   "why": "update_all_dsp is roughly O(N\u00b7P\u00b7L\u00b7N\u00b7P) and runs on every link change under the audio lock (compounding the RT finding); frame cost grows quadratically with patch size; and pointer invalidation is a standing UAF hazard that is currently avoided only by discipline.",
+   "recommendation": "Stable node storage (vector<unique_ptr<GraphNode>> or slot map) plus pin->node and label->node indexes rebuilt on structural change; make find_pin/find_node_for_pin O(1).",
+   "confidence": 0.85
+  },
+  {
+   "file": "tools/mforce_cli/main.cpp",
+   "line": 103,
+   "line_end": 133,
+   "category": "duplication",
+   "severity": "medium",
+   "title": "CLI render epilogue (mono->stereo, peak/rms, 'Wrote:' report) is copy-pasted seven times; UI chord render duplicates CLI run_chords",
+   "evidence": "tools/mforce_cli/main.cpp `std::vector<float> stereo(frames * 2); for (int i = 0; i < frames; ++i) { stereo[i * 2] = mono[i]; stereo[i * 2 + 1] = mono[i]; } ... float peak = 0.0f; double rms = 0.0;` at 103-133, 185-206, 324-347, 616-639, 720-742, 886-900, 1004-1008 (explore.cpp 364-368 an eighth interleave). tools/mforce_ui/main.cpp render_chords_waveforms 8098-8177 repeats run_chords 79-101: Part from ParsedChord, `conductor.chordPerformer.defaultSpreadMs = ...; conductor.perform(part, bpm, *ip.instrument); float totalSeconds = part.totalBeats() * 60.0f / bpm + 1.0f;` and a peak-normalize that run_compose also carries (606-614).",
+   "why": "Seven copies of the same 25 lines diverge (some print nonzero, some add 1 s tail, some 2 s, drums use 0.95/1.0 thresholds vs chords 0.95/0.95); a change to the stereo writer or stats has to be made in eight places.",
+   "recommendation": "Engine helpers in mforce/render: render_part_mono(part, bpm, instrument, tailSec) and write_stereo_wav_report(path, mono, sr) returning stats; CLI modes and the UI chord/drum paths call them.",
+   "confidence": 0.9
+  },
+  {
+   "file": "tools/mforce_ui/main.cpp",
+   "line": 8275,
+   "line_end": 8275,
+   "category": "rt-safety",
+   "severity": "medium",
+   "title": "g_bufferPlayback raw-pointer-into-vector invariant is enforced by convention at four sites and the drums path omits the required detach",
+   "evidence": "`static const float* g_bufferPlayback = nullptr;` (3697) points into g_outputWaveform; 1106-1110: 'any resize/clear of that vector must call buffer_playback_detach() first (backlog 3k: a reallocation mid-playback was an audio-thread read of freed memory)'. Detach present at 4414-4415, 8156-8157, 13596-13597; absent at render_drums_waveforms `g_outputWaveform.assign(mono.begin(), mono.end());` (8275). Reachability: every transport_play entry is gated on !is_playing() (8753-8757, 13771-13773, 13830-13835) and Generate goes through the s_genState detach (13594-13600), so the drums miss is latent today, not live.",
+   "why": "The invariant is one unguarded entry point away from the exact audio-thread use-after-free backlog 3k already recorded; the fix was applied per-site rather than structurally.",
+   "recommendation": "Have the audio engine own the playback buffer as shared_ptr<const std::vector<float>> swapped through the command queue; the display buffer then has no aliasing relationship with the callback.",
+   "confidence": 0.8
+  },
+  {
+   "file": "tools/mforce_cli/main.cpp",
+   "line": 968,
+   "line_end": 968,
+   "category": "smell",
+   "severity": "low",
+   "title": "Stale/dead items: --test-ornaments loads a patch that does not exist; write-only nodeMap; local with static-prefix name; per-sample cos/sin for constant pan",
+   "evidence": "mforce_cli/main.cpp 968 `auto ip = load_instrument_patch(\"patches/PluckU.json\");` \u2014 no such file (patches/PluckU.json absent), so --test-ornaments always fails at 969-971. mforce_ui/main.cpp 1613 `std::unordered_map<std::string, GraphNode*> nodeMap;` written at 1751, never read. 13558 `bool s_dockLayoutInitialized = false;` is a local inside main() using the file-static prefix. audio_callback 3966-3967 `float aL = std::cos(t * 0.5f * 3.14159265358979323846f); float aR = std::sin(...)` recomputed per sample per channel even when pan is a pin constant.",
+   "why": "A permanently failing test mode gives false confidence that it is covered; the dead map is a dangling-pointer trap for the next reader; the naming nit misleads about scope; the trig is wasted RT work.",
+   "recommendation": "Point test_ornaments at a tracked library patch or delete the mode; delete nodeMap; rename the local; cache pan gains and recompute only when the pan source is non-constant.",
+   "confidence": 0.9
+  }
+ ]
+}
