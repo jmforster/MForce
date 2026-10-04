@@ -30,18 +30,26 @@ meter. Phase 2 (ratchet, hooks, per-change sign-off) switches on when
 surgery ends; its five open decisions (spec section 5: limits 600/80,
 `lizard` NOT installed, source/filter peers, default-proceed, third REVIEW
 file) still need Matt.
-PRE-SURGERY STATE OF GIT (checked 10-04): main had no uncommitted code;
-docs checkpoint committed. main is 657 commits ahead of origin (last push
-07-03) — push is Matt's call. Two September commits never reached main:
-138598f (UI fix: duplicate same-field PerformNode ids survive roundtrip,
-branch claude/magical-snyder-27b31f) and 8b20ab2 (repair FormantSequence1
-baseline, retire NATest1, branch claude/amazing-lederberg-ad2a53). April
+PRE-SURGERY STATE OF GIT (10-04): main had no uncommitted code. Docs
+checkpoint 93a8633 PUSHED (Matt approved; origin had been 658 commits
+behind since 07-03; the repo is public and he is fine with that; push
+only when he asks). The two September commits that never reached main
+are now on it: 70ae4c9 (UI fix, duplicate same-field PerformNode ids
+survive roundtrip) and f684b47 (FormantSequence1 repaired, NATest1
+retired). Validation after a full rebuild: engine_tests ALL PASS (3581
+checks), test_figures 43/43, UI stamp clean, null gate 77/79 identical
+with exactly the two expected differences, roundtrip 134 patches 0 id
+changes + 8 render diffs (backlog 79 updated). Manifest refrozen for
+those entries plus the two phrase_smoke baselines: 80 entries. April
 branches/worktrees (chord-walker, harmony-first, agent-*) are old
-experiments; agent-a57ee260 holds a 27-line uncommitted edit to
-music/structure.h from 04-12. GOALS.md stays Matt's uncommitted edit.
-NEXT: the target-architecture document (xhigh; max for the per-tick memo
-and lock-free publish calls), then Matt's sign-off, then the meter, then
-cutting.
+experiments, left alone; agent-a57ee260 holds a 27-line uncommitted edit
+to music/structure.h from 04-12. GOALS.md stays Matt's uncommitted edit.
+TARGET ARCHITECTURE PART 1 DRAFTED: docs/architecture/target-architecture.md
+(layers, UI modules vs his Unity project, deletion list, bug list, which
+parts get max effort). Five "(ask)" items in its section 5 need Matt.
+NEXT: Matt's read of Part 1 and his answers; then Part 2 = the ValueSource
+contract (per-tick memo etc.) at MAX effort; Parts 4 and 5 also at max,
+the rest at xhigh; then sign-off, the meter, cutting.
 
 Updated: 2026-10-04 (full architecture/code review DELIVERED 10-03;
 no code changed). Report: docs/audits/2026-10-02-architecture-code-review.md
