@@ -47,9 +47,44 @@ to music/structure.h from 04-12. GOALS.md stays Matt's uncommitted edit.
 TARGET ARCHITECTURE PART 1 DRAFTED: docs/architecture/target-architecture.md
 (layers, UI modules vs his Unity project, deletion list, bug list, which
 parts get max effort). Five "(ask)" items in its section 5 need Matt.
-NEXT: Matt's read of Part 1 and his answers; then Part 2 = the ValueSource
-contract (per-tick memo etc.) at MAX effort; Parts 4 and 5 also at max,
-the rest at xhigh; then sign-off, the meter, cutting.
+10-05: MATT ANNOTATED PART 1 (17 `MATT:` notes in the doc); we debate and
+decide ONE TOPIC AT A TIME AT MAX EFFORT, and each decision is written
+into the doc in place of his note (remaining `MATT:` lines = still open).
+DECIDED so far: (1) tiers are joined by DATA, not calls — Performance
+returns a list of performed notes, knows an instrument only by its
+InstrumentClass; render knows nothing about music; new modules contract /
+voicing / play (doc sections 3, 3.7, 3.9-3.11); (2) InstrumentClass is a
+real type now in seed form (sustaining + onset vocabulary), named classes
+stay backlog 78; (3) converters stay; (4) RenderContext guide written
+(doc 3.1) — its fate is a Part 2 decision. Found while reading: performer
+logic lives in FOUR places (conductor.h, patch_loader embedded-score
+path, UI stamp_passage, UI live keys) and pitch_bend.h is a misnamed
+two-tier file, not a type.
+ALL 17 NOTES DECIDED 10-05 (every decision is in the doc, dated): Source
+vs Filter = one layer, one classification, family list in Part 3; names =
+Patch/Graph/Node (description) vs ValueSource/voice/Instrument (live),
+patch_json functions not a codec class, build_instrument a function,
+OpenPatch in the UI (no "*Document"), Transport not Generator; Theme from
+JSON, constants per module, one home for the default sample rate; capture
+= per-node strips (not live play); live hand-off = ownership passed by
+two queues, agreed in principle, details Part 5; templates + strategy
+settings move to compose (form in Part 6; strategies are an open set so
+each owns its settings); Composer's writes-to-template = request+record,
+Part 6 decides in/out vs separate record; paramMap retired entirely (list
+docs/matt/parammap_patches.md; convert library+baselines+audition+the 9
+PENDING ones — Matt's one-time exception; wiring gate 80/80 identical);
+Mappings dialog reduced to its read-only view; TargetEvolution kept as a
+node, string evolution form deleted; IComposer/Genre/ClassicalComposer,
+SectionStrategy, 3 Composer members, one mono wrapper deleted;
+realization strategies are half-finished NOT dead — finish in Part 6;
+node-graph FORM stays (1,048 files), MODE goes, convert = two Patch
+operations; pattern library moves to an optional shelved target
+(mechanism fits all shelved generators); hiBoost DELETED outright (comp
+renders change, listed as expected diffs; curves added by ear later).
+NEXT: Part 2 = the ValueSource contract at MAX (per-tick memo, prepare
+split, sample-rate truth/RenderContext fate, no-throw, rejected wires,
+pins declared once); then Parts 3-8 per doc section 7; then the meter,
+cutting.
 
 Updated: 2026-10-04 (full architecture/code review DELIVERED 10-03;
 no code changed). Report: docs/audits/2026-10-02-architecture-code-review.md
