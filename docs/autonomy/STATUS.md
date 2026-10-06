@@ -103,7 +103,24 @@ order: Part 3 spec (xhigh) -> meter + CTest + one gate command (lizard
 question returns) -> plan+cut Parts 2 and 3 -> Part 4 spec (max) ->
 plan+cut -> Part 5 spec (max) -> plan+cut -> Parts 7, 6, 8 (xhigh).
 Effort switches are Matt's (I cannot change my own session's effort).
-NEXT: Part 3 (nodes) at xhigh — family list from today's menu, shared DSP
+PART 3 DECIDED 10-05 (docs/architecture/part3-nodes.md): Component is
+the ROOT (Matt's MComponent); ValueSource (Generator/Processor) is one
+branch, the structural parts (evolutions, partials, formants, spectra,
+expand rule) the other — no fake next(); the 13 evolution WRAPPERS go
+(each evolution is a Component implementing WaveEvolution; TargetEvolution
+registered; string form deleted); family table accepted as a living list;
+core/dsp primitives (7, copies compared before merge); 6 envelope preset
+classes collapse into Envelope's preset setting (176 nodes migrate);
+KSPianoString alias migrates (116 nodes); one type per file; RT fixes per
+node; 8 checkpoints all byte-identical by design.
+NEXT (sequence agreed 10-05): (a) the METER + CTest registration + one
+gate command — the gates spec's "built now" set; needs Matt's OK to pip
+install `lizard` (function length) or the hand-written fallback; (b) the
+implementation plan for Parts 2+3 (writing-plans), executed at HIGH with
+checkpoints 2.1-2.6 then 3.1-3.8, each ending in gates green + commit +
+independent review + architecture report (first report = 2.1); the two
+measurements (wiring-order lag list, same-tick tap list) taken first.
+(was: NEXT: Part 3 (nodes) at xhigh — family list from today's menu, shared DSP
 primitives (BLEP/Thiran/DC blocker/friction/biquad coefficients), the 13
 evolution holders -> one, additive classes, TargetEvolution node, file
 splits (wave_evolution.h 1552, partials.h 1486), RT fixes per node.

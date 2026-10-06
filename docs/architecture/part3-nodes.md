@@ -1,14 +1,16 @@
 # Part 3: nodes
 
-Status: **draft for Matt, 2026-10-05.** Written at extra-high effort.
-Nothing here is built. Parent: `target-architecture.md`, section 7.
+Status: **decided with Matt, 2026-10-05.** `Component` is the root; the
+family table stands as proposed and is a living list ("semi-arbitrary
+decisions, tweak later"). Written at extra-high effort. Nothing here is
+built. Parent: `target-architecture.md`, section 7.
 Builds on Part 2 (the contract, the bases, the pins).
 
 Sections:
 
 1. Today, from the code
-2. The root: `Component` (proposed)
-3. The families (proposed; the table is Matt's to edit)
+2. The root: `Component` (decided)
+3. The families (accepted; a living list)
 4. Shared DSP primitives in `core/dsp`
 5. The evolution holders disappear
 6. The envelope presets become one type; the `KSPianoString` alias goes
@@ -63,7 +65,7 @@ Sections:
 
 ## 2. The root: `Component`
 
-**Proposed.** Part 2 gave signal nodes two bases, Generator and
+**Decided 2026-10-05.** Part 2 gave signal nodes two bases, Generator and
 Processor. The twenty-four structural types fit neither: a `Partials`
 or an evolution is a part that plugs into a slot, not a signal. Today
 they fake being signals.
@@ -96,7 +98,7 @@ the C# comes back unchanged.
 
 ## 3. The families
 
-**Proposed; the table is yours to edit in place.** One classification,
+**Accepted as proposed 2026-10-05; a living list, edited in place whenever.** One classification,
 declared where a type is registered; folder, colour and the create menu
 follow from it (target architecture, section 3.2).
 
