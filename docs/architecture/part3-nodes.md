@@ -10,7 +10,7 @@ Sections:
 2. The root: `Component` (proposed)
 3. The families (proposed; the table is Matt's to edit)
 4. Shared DSP primitives in `core/dsp`
-5. The evolution holders become one template
+5. The evolution holders disappear
 6. The envelope presets become one type; the `KSPianoString` alias goes
 7. The additive classes
 8. One type per file
@@ -30,7 +30,8 @@ Sections:
   and spectrum types, and `CompositePartials` all return 0 from `next()`
   ("exists for graph wiring only") and are ValueSources only so that the
   graph and the UI can hold them.
-- **The thirteen evolution holders** are copies of one forty-line shell:
+- **The thirteen evolution holders** (wrappers that make an evolution
+  algorithm wireable as a node) are copies of one forty-line shell:
   type name, category, `get_evolution`, a settings table, `set_setting`
   that rebuilds the evolution object, `get_setting`, and three no-op
   overrides. About 950 of `wave_evolution.h`'s 1,552 lines.
@@ -147,25 +148,40 @@ two copies compute the same formula the merge is exact. Where they differ
 a parameter, so each node keeps its number, and the report says so. No
 node changes sound in this section.
 
-## 5. The evolution holders become one template
+## 5. The evolution holders disappear
 
-```cpp
-template <class Evolution>
-struct EvolutionNode final : Component, IEvolutionHolder {
-  typename Evolution::Settings settings;   // declared once, as Part 2's Setting members
-  Evolution evo;                           // rebuilt from settings when one changes
-  WaveEvolution* get_evolution() override { return &evo; }
-};
-```
+**Why they are called holders.** An evolution (`PluckEvolution` and the
+rest) is the algorithm: a `WaveEvolution` whose `evolve(table, index)`
+the wavetable calls every sample. It has no pins and no descriptors; it
+is not a node. To wire one in the editor, each was wrapped in a second
+class (`PluckEvolutionSource`) whose only job is to hold the evolution
+and show its settings as a node; the wavetable `dynamic_cast`s its
+`evolution` input to `IEvolutionHolder` and asks the wrapper for the
+object. Two classes per evolution.
 
-Thirteen classes become thirteen one-line registrations of the template.
-`TargetEvolution` gets the fourteenth, which is what makes it reachable
-once the string-typed form is deleted (target architecture, section 5).
+The wrapper exists because the only kind of node was ValueSource and
+nobody wanted `next()` and `prepare()` on an algorithm object. With
+`Component` as the root (section 2) that reason is gone:
 
-The C# analogue is a generic class, `EvolutionNode<T>`; the difference is
-that each instantiation is its own type at compile time, so
-`EvolutionNode<PluckEvolution>` and `EvolutionNode<EKSEvolution>` share
-no code at run time and cost no indirection.
+- Each evolution is a `Component` that implements the `WaveEvolution`
+  interface directly. Its settings are declared once as Part 2's
+  members and read where they are used; today they are baked in at
+  construction and the wrapper rebuilds the object on every change.
+- `IEvolutionHolder` and the cast are deleted. The wavetable holds a
+  `Slot<WaveEvolution>`, type-checked at wiring.
+- The string-typed loader path was the only other place that built an
+  evolution directly, and it is deleted (target architecture, section 5).
+- `TargetEvolution` is registered like the others, which is what makes
+  it reachable.
+
+Thirteen classes replace twenty-six. (An earlier draft proposed a
+template over the wrapper; that would have kept both layers and only
+removed the copies.)
+
+Lesson for a Java / C# reader: wrapping an object to give it an
+interface it was never written for is the Adapter pattern, and it earns
+its place when you cannot change the wrapped class. Here we own both
+classes, so the adapter is a layer with no job.
 
 ## 6. The envelope presets become one type; the alias goes
 
@@ -231,7 +247,7 @@ None of these changes a sample. The allocation test is what proves it.
 | 3.1 | `Component` root; the parts leave `ValueSource` | none |
 | 3.2 | Families declared at registration; folders; the create menu generated; colours through `Theme` | none |
 | 3.3 | `core/dsp` primitives, merged one at a time with the copies compared first | none; a differing copy becomes a parameter |
-| 3.4 | `EvolutionNode<E>`; the `TargetEvolution` node; the string-typed form deleted and two patches converted | none |
+| 3.4 | Each evolution becomes a `Component`; the thirteen wrappers and `IEvolutionHolder` deleted; `TargetEvolution` registered; the string-typed form deleted and two patches converted | none |
 | 3.5 | Envelope presets collapsed; `KSPianoString` migrated | none; type names change on disk |
 | 3.6 | One type per file | none |
 | 3.7 | The real-time fixes | none; the allocation test goes green for these nodes |
