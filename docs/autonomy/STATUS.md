@@ -81,10 +81,21 @@ node-graph FORM stays (1,048 files), MODE goes, convert = two Patch
 operations; pattern library moves to an optional shelved target
 (mechanism fits all shelved generators); hiBoost DELETED outright (comp
 renders change, listed as expected diffs; curves added by ear later).
-NEXT: Part 2 = the ValueSource contract at MAX (per-tick memo, prepare
-split, sample-rate truth/RenderContext fate, no-throw, rejected wires,
-pins declared once); then Parts 3-8 per doc section 7; then the meter,
-cutting.
+ALSO 10-05: standing CLOSE-OUT RULE (CLAUDE.md): when Matt closes a
+session, ask whether to push the unpushed commits. Matt's universal-
+parameter idea (min/max/density on the base) QUEUED in IDEAS.md §dsp as
+a feature for later (freeze); its structure lands in Part 2: a
+Generator / Processor level under ValueSource (Matt's shape; Envelope
+joins Generator; three pin kinds param / signal input / structural
+input; pins declared once).
+PART 2 IN PROGRESS = the ValueSource contract at MAX (per-tick memo,
+Generator/Processor bases, pin kinds, prepare split, sample-rate truth/
+RenderContext fate, no-throw, rejected wires). Reading list: envelope.h,
+patch_loader's RefSource auto-wrap + collect_advance_ids + starved-ref
+promotion, feedback_loop_design.md §3.3 (tap z^-1), engine_tests tap/loop
+tests, perform_source.h, repeating/multiplex/vibrato prepare paths. The
+spec goes in docs/architecture/ as its own part file. Then Parts 3-8 per
+doc section 7; then the meter, cutting.
 
 Updated: 2026-10-04 (full architecture/code review DELIVERED 10-03;
 no code changed). Report: docs/audits/2026-10-02-architecture-code-review.md

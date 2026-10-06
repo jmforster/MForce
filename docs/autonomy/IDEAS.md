@@ -153,6 +153,40 @@ might not decide to do it.")
   Standing input to the steering decision that ML-ears/comp scorers get
   cheap discrimination backtests before trust.
 
+- **Universal node parameters: promote min/max/density (and friends) to
+  the generator base** — Matt 2026-10-05, raised during the refactor
+  debate and QUEUED by him as a feature for a later discussion (feature
+  freeze; "adding features thru the back door"). The structure that
+  makes it cheap lands in the refactor (Part 2: per-tick memo gives the
+  base class a post step; Generator / Processor bases); the features do
+  not. Detail from the 10-05 discussion:
+  - **min/max** on generators with a declared unit range (oscillators,
+    noise, envelopes, curves): map the unit range to [min,max], defaults
+    = the unit range (identity). Makes RangeSource obsolete (today's
+    live uses: library 7 nodes in 4 patches, baselines 5, pending 8,
+    audition 78) and removes its `normalized` flag, which has three
+    disagreeing defaults. Not offered on nodes with no fixed output range
+    (filters, delays, combiners, physical models): one meaning only, no
+    clamp alias. Precedence on oscillators: `amplitude` inside the
+    generator, min/max map the unit range after.
+  - **density**: with probability `density` the sample passes, else 0 —
+    DistortedSource's semantic (combined_source.h). A pure output
+    transform, meaningful on anything; one seeded draw per sample when
+    active (per-note reseed keeps determinism).
+  - Other candidates named: **trigger** (restart from prepared state on a
+    rising edge; belongs on ValueSource, not Generator — processors can
+    reset too; Envelope has it via NameGate today, onsets spec parked
+    "trigger pins on non-Envelope nodes"); **gain** everywhere; **hold**
+    (repeat each sample N times) and **bits** (quantize) as density's
+    deterministic cousins; **smooth** (one-pole output slew);
+    **enabled** (mute). Not candidates: delay, phase/frequency, time
+    scaling, the tap clamp.
+  - Cost: one flag check per node per sample when unused; constants must
+    not cost a virtual call. UI: a collapsed "Common" group in
+    Properties, promotable to pins via the dynamic-pin mechanism.
+  - Byte-identity for RangeSource conversion: same expression
+    `min + v*(max-min)`; null gate decides.
+
 ## comp
 
 - **Which tier owns voicing — score vs lead sheet** — 2026-09-21 (Matt,

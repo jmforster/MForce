@@ -7,6 +7,11 @@
   decides himself when a day ends — sometimes that's noon, sometimes not.
 - Reports state results and the next live threads, then stop. Summarize
   STATE, never elapsed time or the session as an arc.
+- Close-out rule (Matt 2026-10-05): when Matt closes out a session
+  ("anything to save?", "starting a new session"), check `git status -sb`
+  live and, if main is ahead of origin, ask in one line whether to push the
+  commits since the last push. Push only on his yes. (main sat 658 commits
+  unpushed from 07-03 to 10-04 because nothing ever said to.)
 
 ## Commands
 - Use literal paths, not shell variables ($CMAKE, $p, etc.)

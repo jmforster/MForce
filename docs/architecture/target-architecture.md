@@ -83,6 +83,37 @@ sheet stays parked in IDEAS.md.
   registry stops including JSON; per-type JSON quirks move to the patch
   module.
 
+**Type hierarchy (decided 2026-10-05, Matt's shape)**
+
+```
+                 ValueSource          the contract: next(tick), prepare/reset,
+                      │               descriptors, pins declared once, reseed
+          ┌───────────┴───────────┐
+      Generator               Processor
+      declares its unit       owns its signal input(s) and the
+      range; home of the      plumbing for them; phase_delay_at;
+      post step (min/max,     filters, shapers, delays, combiners,
+      density, gain: queued   and the resonators (KS string, mesh,
+      in IDEAS.md)            delay line), which process an
+          │                   excitation and have a frequency param
+      WaveSource
+      phase accumulator;
+      frequency, amplitude, phase
+```
+
+- Envelope, `PhasedValueSource`, segments and curves are Generators: they
+  produce a signal from time and parameters alone, with a declared
+  range. (This revises the March note that an envelope is not a
+  generator.)
+- Pins come in three kinds: a **param** (a value with a default, pulled),
+  a **signal input** (a stream to process; `source`, `source1`, `bow`,
+  `breath`, `inX`), and a **structural input** (a part plugged in:
+  `partials`, `spectra`, `formant`, `evolution`). Processor means "has a
+  signal input". Each pin is declared once; today every pin is written
+  in five places (descriptor table, set, get, prepare, advance).
+- `trigger`, when it comes, belongs on ValueSource: a processor's state
+  can be reset too.
+
 **RenderContext today** (guide, 2026-10-05)
 
 - It is a struct with one field: the sample rate.
@@ -620,7 +651,7 @@ renders listed:
 
 | Part | Decision | Effort |
 |---|---|---|
-| 2 | **The ValueSource contract.** Your per-tick memo (`next(tick)`, each node remembers its last tick and value); splitting "reset for a new note" from "here is the note length" in `prepare`; one source of truth for sample rate and the fate of `RenderContext`; no throw on a render path; a wire that is rejected says so; pins declared once instead of in five places. | maximum |
+| 2 | **The ValueSource contract.** Your per-tick memo (`next(tick)`, each node remembers its last tick and value); the Generator / Processor bases and the three pin kinds (section 3.1); pins declared once instead of in five places; splitting "reset for a new note" from "here is the note length" in `prepare`; one source of truth for sample rate and the fate of `RenderContext`; no throw on a render path; a wire that is rejected says so. The universal parameters queued in IDEAS.md are designed for, not built. | maximum |
 | 3 | nodes: the family list and its membership (starting from today's menu), shared primitives, the evolution holders, a node for `TargetEvolution`, the additive classes, whether input-taking nodes share a base. | extra-high |
 | 4 | **`Patch`, its JSON functions and `build_instrument`**, the edit operations including make-instrument and make-plain-sound, and how the UI's `OpenPatch` sits on top. | maximum |
 | 5 | **Render:** the instrument split, the entry point that takes a part's performed notes, and the lock-free live hand-off (message set, pool size, steal policy). | maximum |
