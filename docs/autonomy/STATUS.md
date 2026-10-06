@@ -130,8 +130,18 @@ perform/wiring_setting.json — a pre-existing backlog-79 roundtrip render
 diff (reproduced on the committed tree), left visible; Part 4's single
 codec fixes it. Matt's R1 verdict on the report FORMAT comes before
 checkpoint 2.1 produces the next one.
-NEXT: the implementation plan for Parts 2+3 (writing-plans), then
-checkpoints 2.1-2.6 and 3.1-3.8 at HIGH.
+PLAN FOR CHECKPOINT 2.1 WRITTEN + COMMITTED (280713f):
+docs/superpowers/plans/2026-10-05-part2-checkpoint-2.1.md — 13 tasks:
+T0 the two measurements (lag reads / same-tick taps, instrumented
+loader + tools/measure_sharing.py), T1-2 pin types + Component +
+Generator/Processor, T3 WaveSource prototype, T4-11 one family per task
+with generated pin tables, T12 close (gates, delta, refuter, report R2).
+Later checkpoints (2.2-2.6, Part 3) get their own plans against the then
+-current code. AWAITING MATT (asked, unanswered at session end 10-05):
+(1) R1 verdict on the report FORMAT (docs/autonomy/refactor/REVIEW.md)
+— gate for cutting 2.1; (2) execution approach: subagent-driven per task
+(my rec for T4-11) vs inline (my rec for T0-3). Session ended at 92%
+context; next session starts at HIGH for execution.
 (was: NEXT (sequence agreed 10-05): (a) the METER + CTest registration + one
 gate command — the gates spec's "built now" set; needs Matt's OK to pip
 install `lizard` (function length) or the hand-written fallback; (b) the
