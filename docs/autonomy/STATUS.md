@@ -88,7 +88,26 @@ a feature for later (freeze); its structure lands in Part 2: a
 Generator / Processor level under ValueSource (Matt's shape; Envelope
 joins Generator; three pin kinds param / signal input / structural
 input; pins declared once).
-PART 2 IN PROGRESS = the ValueSource contract at MAX (per-tick memo,
+PART 2 SIGNED OFF 10-05 (docs/architecture/part2-valuesource-contract.md,
+7 sections): per-tick memo (taps reading A first, then B as its own
+checkpoint), Generator/Processor bases + five self-registering member
+kinds (Param/Input/Slot<T>/Setting/Array), prepare(ctx) may allocate vs
+start(frames) may not, rate only through prepare(ctx) (file rate = render
+default; RenderContext stays), no throw on render paths + fault flags,
+rejected wires fail the load; §7 = six checkpoints with expected diffs.
+THE PLAN HAS THREE LAYERS (explained to Matt 10-05): destination doc
+(signed) -> per-area design specs Parts 2-8 (what/why, decided section
+by section) -> per-part implementation plan (writing-plans skill) + cut
+at high with gates/review/report per checkpoint. INTERLEAVED, in §8
+order: Part 3 spec (xhigh) -> meter + CTest + one gate command (lizard
+question returns) -> plan+cut Parts 2 and 3 -> Part 4 spec (max) ->
+plan+cut -> Part 5 spec (max) -> plan+cut -> Parts 7, 6, 8 (xhigh).
+Effort switches are Matt's (I cannot change my own session's effort).
+NEXT: Part 3 (nodes) at xhigh — family list from today's menu, shared DSP
+primitives (BLEP/Thiran/DC blocker/friction/biquad coefficients), the 13
+evolution holders -> one, additive classes, TargetEvolution node, file
+splits (wave_evolution.h 1552, partials.h 1486), RT fixes per node.
+(Was: PART 2 IN PROGRESS = the ValueSource contract at MAX (per-tick memo,
 Generator/Processor bases, pin kinds, prepare split, sample-rate truth/
 RenderContext fate, no-throw, rejected wires). Reading list: envelope.h,
 patch_loader's RefSource auto-wrap + collect_advance_ids + starved-ref
