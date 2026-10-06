@@ -113,7 +113,26 @@ core/dsp primitives (7, copies compared before merge); 6 envelope preset
 classes collapse into Envelope's preset setting (176 nodes migrate);
 KSPianoString alias migrates (116 nodes); one type per file; RT fixes per
 node; 8 checkpoints all byte-identical by design.
-NEXT (sequence agreed 10-05): (a) the METER + CTest registration + one
+CHECKPOINT 0 LANDED 10-05 (commit 637207a, Matt at HIGH, lizard
+installed): tools/structure/ meter (phase 1 = reports, never blocks;
+lizard for function lengths + token duplicates; numbers match the audit's
+known answers), tools/structure/metrics.json tracked snapshot,
+docs/architecture/MODULES.md generated, CTest registers engine_tests /
+test_figures / meter (4/4 pass), tools/gates.py one-command gate runner
+(--fast green). NEW LANE docs/autonomy/refactor/ (REVIEW.md, BACKLOG.md,
+reports/) — report R1 = reports/2026-10-05-checkpoint0-meter.md, the
+FIRST architecture report. The independent refuter found 7 FAILs (rule
+evaluation spread out, line count +1, wrapped-return-type false positive,
+map errors, gates missing, tests missing); all fixed same day in a
+fix-up commit and answered in the report section 8. KNOWN: gates.py
+--fast now runs tools/rt_smoke.py, which FAILS on
+perform/wiring_setting.json — a pre-existing backlog-79 roundtrip render
+diff (reproduced on the committed tree), left visible; Part 4's single
+codec fixes it. Matt's R1 verdict on the report FORMAT comes before
+checkpoint 2.1 produces the next one.
+NEXT: the implementation plan for Parts 2+3 (writing-plans), then
+checkpoints 2.1-2.6 and 3.1-3.8 at HIGH.
+(was: NEXT (sequence agreed 10-05): (a) the METER + CTest registration + one
 gate command — the gates spec's "built now" set; needs Matt's OK to pip
 install `lizard` (function length) or the hand-written fallback; (b) the
 implementation plan for Parts 2+3 (writing-plans), executed at HIGH with

@@ -1051,7 +1051,7 @@
    "changelog_comments": 1,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 91,
+   "lines": 90,
    "longest_function": [
     22,
     "mforce::Curve::eval_core"
@@ -1066,7 +1066,7 @@
    "changelog_comments": 1,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 120,
+   "lines": 119,
    "longest_function": [
     22,
     "mforce::CurveNode::map_expr"
@@ -1081,7 +1081,7 @@
    "changelog_comments": 1,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 22,
+   "lines": 21,
    "longest_function": [
     6,
     "mforce::enable_flush_denormals"
@@ -1094,7 +1094,7 @@
    "changelog_comments": 3,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 179,
+   "lines": 178,
    "longest_function": [
     6,
     "mforce::RefSource::read"
@@ -1117,7 +1117,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 113,
+   "lines": 112,
    "longest_function": [
     34,
     "mforce::WaveSource::next"
@@ -1132,7 +1132,7 @@
    "changelog_comments": 12,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 563,
+   "lines": 562,
    "longest_function": [
     74,
     "mforce::Envelope::prepare"
@@ -1147,7 +1147,7 @@
    "changelog_comments": 3,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 60,
+   "lines": 59,
    "longest_function": [
     41,
     "mforce::envelope_from_preset_json"
@@ -1160,7 +1160,7 @@
    "changelog_comments": 3,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 407,
+   "lines": 406,
    "longest_function": [
     20,
     "mforce::ADSREnvelope::setting_descriptors"
@@ -1180,7 +1180,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 13,
+   "lines": 12,
    "longest_function": [
     3,
     "mforce::note_to_freq"
@@ -1193,7 +1193,7 @@
    "changelog_comments": 1,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 118,
+   "lines": 117,
    "longest_function": [
     32,
     "mforce::fast_exp2"
@@ -1206,7 +1206,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 76,
+   "lines": 75,
    "longest_function": [
     12,
     "mforce::MultiSource::next"
@@ -1221,7 +1221,7 @@
    "changelog_comments": 1,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 63,
+   "lines": 62,
    "longest_function": [
     6,
     "mforce::NameGate::param_descriptors"
@@ -1236,7 +1236,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 95,
+   "lines": 94,
    "longest_function": [
     13,
     "mforce::PierceAllpass::tick"
@@ -1251,7 +1251,7 @@
    "changelog_comments": 1,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 64,
+   "lines": 63,
    "longest_function": [
     41,
     "mforce::Ramp::value"
@@ -1267,7 +1267,7 @@
    "changelog_comments": 1,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 106,
+   "lines": 105,
    "longest_function": [
     9,
     "mforce::Randomizer::select_int"
@@ -1282,7 +1282,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 104,
+   "lines": 103,
    "longest_function": [
     14,
     "mforce::RangeSource::next"
@@ -1297,7 +1297,7 @@
    "changelog_comments": 1,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 16,
+   "lines": 15,
    "longest_function": [
     0,
     ""
@@ -1312,7 +1312,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 79,
+   "lines": 78,
    "longest_function": [
     12,
     "mforce::CompositeSequence::get_next"
@@ -1329,7 +1329,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 53,
+   "lines": 52,
    "longest_function": [
     27,
     "mforce::SmoothnessInterpolator::interpolate"
@@ -1344,7 +1344,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 65,
+   "lines": 64,
    "longest_function": [
     0,
     ""
@@ -1359,7 +1359,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 98,
+   "lines": 97,
    "longest_function": [
     15,
     "mforce::VarSource::next"
@@ -1374,7 +1374,7 @@
    "changelog_comments": 1,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 158,
+   "lines": 157,
    "longest_function": [
     24,
     "mforce::BiquadSource::next"
@@ -1389,7 +1389,7 @@
    "changelog_comments": 1,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 458,
+   "lines": 457,
    "longest_function": [
     29,
     "mforce::DelayFilter::next"
@@ -1411,7 +1411,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 187,
+   "lines": 186,
    "longest_function": [
     39,
     "mforce::HammerBank::next"
@@ -1426,7 +1426,7 @@
    "changelog_comments": 1,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 131,
+   "lines": 130,
    "longest_function": [
     32,
     "mforce::Limiter::next"
@@ -1441,7 +1441,7 @@
    "changelog_comments": 1,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 179,
+   "lines": 178,
    "longest_function": [
     41,
     "mforce::Reverb::next"
@@ -1456,7 +1456,7 @@
    "changelog_comments": 1,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 200,
+   "lines": 199,
    "longest_function": [
     44,
     "mforce::SVFSource::next"
@@ -1471,7 +1471,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 158,
+   "lines": 157,
    "longest_function": [
     21,
     "mforce::Vibrato::build_lfo"
@@ -1486,7 +1486,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 35,
+   "lines": 34,
    "longest_function": [
     1,
     "mforce::AlternatingFigureStrategy::name"
@@ -1501,7 +1501,7 @@
    "changelog_comments": 3,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 394,
+   "lines": 393,
    "longest_function": [
     299,
     "mforce::select_anchors"
@@ -1518,7 +1518,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 432,
+   "lines": 431,
    "longest_function": [
     29,
     "mforce::Scale::get_passing_tone"
@@ -1554,7 +1554,7 @@
    "changelog_comments": 1,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 110,
+   "lines": 109,
    "longest_function": [
     55,
     "mforce::ChordProgressionBuilder::progressions"
@@ -1569,7 +1569,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 336,
+   "lines": 335,
    "longest_function": [
     94,
     "mforce::ChordWalker::harmonize"
@@ -1586,7 +1586,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 52,
+   "lines": 51,
    "longest_function": [
     6,
     "mforce::ClassicalComposer::compose"
@@ -1601,7 +1601,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 54,
+   "lines": 53,
    "longest_function": [
     5,
     "mforce::Genre::get_composer"
@@ -1614,10 +1614,10 @@
    ]
   },
   "engine/include/mforce/music/composer.h": {
-   "changelog_comments": 3,
+   "changelog_comments": 4,
    "const_cast": 7,
    "dynamic_cast": 2,
-   "lines": 2082,
+   "lines": 2081,
    "longest_function": [
     320,
     "mforce::DefaultPassageStrategy::compose_passage"
@@ -1632,7 +1632,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 2,
-   "lines": 617,
+   "lines": 616,
    "longest_function": [
     56,
     "mforce::ChordPerformer::get_pitch_indices"
@@ -1650,7 +1650,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 433,
+   "lines": 432,
    "longest_function": [
     72,
     "mforce::DefaultFigureStrategy::generate_figure"
@@ -1667,7 +1667,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 112,
+   "lines": 111,
    "longest_function": [
     27,
     "mforce::DriftVoicingProfileSelector::profile_for_chord"
@@ -1682,7 +1682,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 454,
+   "lines": 453,
    "longest_function": [
     126,
     "mforce::dun_to_piece"
@@ -1700,7 +1700,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 46,
+   "lines": 45,
    "longest_function": [
     11,
     "mforce::DynamicState::set_marking"
@@ -1715,7 +1715,7 @@
    "changelog_comments": 1,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 150,
+   "lines": 149,
    "longest_function": [
     114,
     "mforce::ElaboratedPhraseStrategy::compose_phrase"
@@ -1730,7 +1730,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 49,
+   "lines": 48,
    "longest_function": [
     10,
     "mforce::to_string"
@@ -1746,7 +1746,7 @@
    "changelog_comments": 2,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 577,
+   "lines": 576,
    "longest_function": [
     69,
     "mforce::figure_transforms::apply"
@@ -1761,7 +1761,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 765,
+   "lines": 764,
    "longest_function": [
     127,
     "mforce::StepGenerator::random_sequence"
@@ -1790,7 +1790,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 81,
+   "lines": 80,
    "longest_function": [
     19,
     "mforce::HarmonyTimeline::slice"
@@ -1806,7 +1806,7 @@
    "changelog_comments": 1,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 247,
+   "lines": 246,
    "longest_function": [
     186,
     "mforce::LibraryPassageStrategy::compose_passage"
@@ -1821,7 +1821,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 31,
+   "lines": 30,
    "longest_function": [
     1,
     "mforce::Locus::with_phrase"
@@ -1836,7 +1836,7 @@
    "changelog_comments": 1,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 124,
+   "lines": 123,
    "longest_function": [
     54,
     "mforce::MelodyProfile::parse_json"
@@ -1856,7 +1856,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 638,
+   "lines": 637,
    "longest_function": [
     32,
     "mforce::from_json"
@@ -1869,7 +1869,7 @@
    "changelog_comments": 1,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 210,
+   "lines": 209,
    "longest_function": [
     81,
     "mforce::evaluate_note_map"
@@ -1888,7 +1888,7 @@
    "changelog_comments": 2,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 462,
+   "lines": 461,
    "longest_function": [
     90,
     "mforce::parse_chord_string"
@@ -1906,7 +1906,7 @@
    "changelog_comments": 1,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 158,
+   "lines": 157,
    "longest_function": [
     75,
     "mforce::phrases_from_passage"
@@ -1916,10 +1916,10 @@
    "types": []
   },
   "engine/include/mforce/music/passage_strategies.h": {
-   "changelog_comments": 1,
+   "changelog_comments": 2,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 721,
+   "lines": 720,
    "longest_function": [
     105,
     "mforce::PedalBuildupStrategy::compose_passage"
@@ -1937,7 +1937,7 @@
    "changelog_comments": 1,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 198,
+   "lines": 197,
    "longest_function": [
     19,
     "mforce::pattern_library::load_libraries"
@@ -1957,7 +1957,7 @@
    "changelog_comments": 0,
    "const_cast": 2,
    "dynamic_cast": 0,
-   "lines": 408,
+   "lines": 407,
    "longest_function": [
     166,
     "mforce::PeriodPassageStrategy::plan_passage"
@@ -1969,10 +1969,10 @@
    ]
   },
   "engine/include/mforce/music/phrase_aware_figure_strategy.h": {
-   "changelog_comments": 1,
+   "changelog_comments": 2,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 115,
+   "lines": 114,
    "longest_function": [
     50,
     "mforce::PhraseAwareFigureStrategy::partition_chords"
@@ -1987,7 +1987,7 @@
    "changelog_comments": 1,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 131,
+   "lines": 130,
    "longest_function": [
     69,
     "mforce::score_phrase_critic"
@@ -2004,7 +2004,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 126,
+   "lines": 125,
    "longest_function": [
     52,
     "mforce::PeriodPhraseStrategy::compose_phrase"
@@ -2020,7 +2020,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 235,
+   "lines": 234,
    "longest_function": [
     57,
     "mforce::piece_utils::pitch_before"
@@ -2035,7 +2035,7 @@
    "changelog_comments": 1,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 132,
+   "lines": 131,
    "longest_function": [
     35,
     "mforce::compile_pitch_curve"
@@ -2050,7 +2050,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 92,
+   "lines": 91,
    "longest_function": [
     53,
     "mforce::PitchCurve::validate"
@@ -2065,7 +2065,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 116,
+   "lines": 115,
    "longest_function": [
     13,
     "mforce::PitchReader::set_pitch"
@@ -2080,7 +2080,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 112,
+   "lines": 111,
    "longest_function": [
     35,
     "mforce::step_note"
@@ -2093,7 +2093,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 89,
+   "lines": 88,
    "longest_function": [
     21,
     "mforce::PoolFigureBuilder::select_"
@@ -2109,7 +2109,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 236,
+   "lines": 235,
    "longest_function": [
     34,
     "mforce::RandomFigureBuilder::build"
@@ -2124,7 +2124,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 79,
+   "lines": 78,
    "longest_function": [
     25,
     "mforce::RandomVoicingProfileSelector::configure_from_json"
@@ -2139,7 +2139,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 126,
+   "lines": 125,
    "longest_function": [
     22,
     "mforce::RhythmPatternRealizationStrategy::realize"
@@ -2159,7 +2159,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 99,
+   "lines": 98,
    "longest_function": [
     44,
     "mforce::generate_musical_rhythm"
@@ -2172,7 +2172,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 33,
+   "lines": 32,
    "longest_function": [
     3,
     "mforce::rng::Scope::Scope"
@@ -2187,7 +2187,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 62,
+   "lines": 61,
    "longest_function": [
     19,
     "mforce::ScriptedVoicingProfileSelector::configure_from_json"
@@ -2202,7 +2202,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 96,
+   "lines": 95,
    "longest_function": [
     13,
     "mforce::shape_figures::zigzag"
@@ -2215,7 +2215,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 55,
+   "lines": 54,
    "longest_function": [
     1,
     "mforce::ShapeSteppingStrategy::name"
@@ -2232,7 +2232,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 226,
+   "lines": 225,
    "longest_function": [
     128,
     "mforce::SmoothVoicingSelector::select"
@@ -2247,7 +2247,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 29,
+   "lines": 28,
    "longest_function": [
     5,
     "mforce::StaticVoicingProfileSelector::profile_for_chord"
@@ -2262,7 +2262,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 69,
+   "lines": 68,
    "longest_function": [
     4,
     "mforce::SectionStrategy::plan_section"
@@ -2281,7 +2281,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 31,
+   "lines": 30,
    "longest_function": [
     4,
     "mforce::StrategyRegistry::instance"
@@ -2296,7 +2296,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 292,
+   "lines": 291,
    "longest_function": [
     9,
     "mforce::Phrase::operator ="
@@ -2323,7 +2323,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 191,
+   "lines": 190,
    "longest_function": [
     59,
     "mforce::ChordLabel::parse"
@@ -2336,10 +2336,10 @@
    ]
   },
   "engine/include/mforce/music/templates.h": {
-   "changelog_comments": 6,
+   "changelog_comments": 7,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 814,
+   "lines": 813,
    "longest_function": [
     96,
     "mforce::PieceTemplate::add_derived_motif"
@@ -2379,7 +2379,7 @@
    "changelog_comments": 3,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 1292,
+   "lines": 1291,
    "longest_function": [
     172,
     "mforce::from_json"
@@ -2392,7 +2392,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 75,
+   "lines": 74,
    "longest_function": [
     48,
     "mforce::TwoFigurePhraseStrategy::compose_phrase"
@@ -2404,10 +2404,10 @@
    ]
   },
   "engine/include/mforce/music/voicing_profile.h": {
-   "changelog_comments": 1,
+   "changelog_comments": 2,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 42,
+   "lines": 41,
    "longest_function": [
     0,
     ""
@@ -2422,7 +2422,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 66,
+   "lines": 65,
    "longest_function": [
     5,
     "mforce::VoicingProfileSelectorRegistry::create"
@@ -2438,7 +2438,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 64,
+   "lines": 63,
    "longest_function": [
     4,
     "mforce::VoicingSelectorRegistry::resolve"
@@ -2455,7 +2455,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 58,
+   "lines": 57,
    "longest_function": [
     31,
     "mforce::WrapperPhraseStrategy::compose_phrase"
@@ -2470,7 +2470,7 @@
    "changelog_comments": 20,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 750,
+   "lines": 749,
    "longest_function": [
     136,
     "mforce::PitchedInstrument::play_note"
@@ -2488,7 +2488,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 29,
+   "lines": 28,
    "longest_function": [
     18,
     "mforce::soft_clip"
@@ -2501,7 +2501,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 29,
+   "lines": 28,
    "longest_function": [
     0,
     ""
@@ -2518,7 +2518,7 @@
    "changelog_comments": 1,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 37,
+   "lines": 36,
    "longest_function": [
     0,
     ""
@@ -2534,7 +2534,7 @@
    "changelog_comments": 2,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 142,
+   "lines": 141,
    "longest_function": [
     12,
     "mforce::PerformSource::set_note"
@@ -2552,7 +2552,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 19,
+   "lines": 18,
    "longest_function": [
     0,
     ""
@@ -2565,7 +2565,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 8,
+   "lines": 7,
    "longest_function": [
     0,
     ""
@@ -2578,7 +2578,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 12,
+   "lines": 11,
    "longest_function": [
     0,
     ""
@@ -2591,7 +2591,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 168,
+   "lines": 167,
    "longest_function": [
     13,
     "mforce::AdditiveSource2::set_param"
@@ -2606,7 +2606,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 192,
+   "lines": 191,
    "longest_function": [
     76,
     "mforce::BasicAdditiveSource::compute_wave_value"
@@ -2621,7 +2621,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 388,
+   "lines": 387,
    "longest_function": [
     12,
     "mforce::BandSpectrum::get_gain"
@@ -2641,7 +2641,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 151,
+   "lines": 150,
    "longest_function": [
     15,
     "mforce::FullAdditiveSource::set_param"
@@ -2656,7 +2656,7 @@
    "changelog_comments": 0,
    "const_cast": 1,
    "dynamic_cast": 1,
-   "lines": 1487,
+   "lines": 1486,
    "longest_function": [
     149,
     "mforce::Partials::partial_value_impl"
@@ -2679,7 +2679,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 257,
+   "lines": 256,
    "longest_function": [
     45,
     "mforce::AllpassResonator::next"
@@ -2694,7 +2694,7 @@
    "changelog_comments": 1,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 95,
+   "lines": 94,
    "longest_function": [
     10,
     "mforce::BowTableSource::next"
@@ -2709,7 +2709,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 379,
+   "lines": 378,
    "longest_function": [
     22,
     "mforce::DistortedSource::next"
@@ -2729,7 +2729,7 @@
    "changelog_comments": 2,
    "const_cast": 0,
    "dynamic_cast": 1,
-   "lines": 182,
+   "lines": 181,
    "longest_function": [
     26,
     "mforce::DelayLineSource::next"
@@ -2744,7 +2744,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 180,
+   "lines": 179,
    "longest_function": [
     58,
     "mforce::FMSource::compute_wave_value"
@@ -2759,7 +2759,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 120,
+   "lines": 119,
    "longest_function": [
     8,
     "mforce::HybridKSSource::setting_descriptors"
@@ -2774,7 +2774,7 @@
    "changelog_comments": 10,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 639,
+   "lines": 638,
    "longest_function": [
     155,
     "mforce::KSString::next"
@@ -2789,7 +2789,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 151,
+   "lines": 150,
    "longest_function": [
     19,
     "mforce::LayeredRedNoiseSource::rebuild_layers_"
@@ -2804,7 +2804,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 395,
+   "lines": 394,
    "longest_function": [
     41,
     "mforce::Mesh2DSource::next"
@@ -2819,7 +2819,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 187,
+   "lines": 186,
    "longest_function": [
     18,
     "mforce::MultiplexSource::rebuild_"
@@ -2834,7 +2834,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 537,
+   "lines": 536,
    "longest_function": [
     89,
     "mforce::MurmurationNoiseSource::next"
@@ -2854,7 +2854,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 169,
+   "lines": 168,
    "longest_function": [
     51,
     "mforce::PhasedValueSource::prepare"
@@ -2869,7 +2869,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 96,
+   "lines": 95,
    "longest_function": [
     9,
     "mforce::PierceFilterSource::param_descriptors"
@@ -2884,7 +2884,7 @@
    "changelog_comments": 1,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 100,
+   "lines": 99,
    "longest_function": [
     26,
     "mforce::PinkNoiseSource::next"
@@ -2899,7 +2899,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 90,
+   "lines": 89,
    "longest_function": [
     17,
     "mforce::PulseSource::compute_wave_value"
@@ -2914,7 +2914,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 91,
+   "lines": 90,
    "longest_function": [
     14,
     "mforce::RedNoiseSource::param_descriptors"
@@ -2929,7 +2929,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 127,
+   "lines": 126,
    "longest_function": [
     21,
     "mforce::RepeatingSource::next"
@@ -2944,7 +2944,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 32,
+   "lines": 31,
    "longest_function": [
     14,
     "mforce::SawSource::compute_wave_value"
@@ -2959,7 +2959,7 @@
    "changelog_comments": 5,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 296,
+   "lines": 295,
    "longest_function": [
     62,
     "mforce::SegmentSource::update_segments"
@@ -2974,7 +2974,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 265,
+   "lines": 264,
    "longest_function": [
     42,
     "mforce::ShaperSource::map"
@@ -2989,7 +2989,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 20,
+   "lines": 19,
    "longest_function": [
     3,
     "mforce::SineSource::compute_wave_value"
@@ -3004,7 +3004,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 128,
+   "lines": 127,
    "longest_function": [
     31,
     "mforce::TriangleSource::compute_wave_value"
@@ -3019,7 +3019,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 362,
+   "lines": 361,
    "longest_function": [
     41,
     "mforce::WanderNoise3Source::next"
@@ -3036,7 +3036,7 @@
    "changelog_comments": 1,
    "const_cast": 0,
    "dynamic_cast": 1,
-   "lines": 1553,
+   "lines": 1552,
    "longest_function": [
     47,
     "mforce::BowedStringEvolution::evolve"
@@ -3077,7 +3077,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 1,
-   "lines": 116,
+   "lines": 115,
    "longest_function": [
     11,
     "mforce::WavetableSource::set_param"
@@ -3092,7 +3092,7 @@
    "changelog_comments": 1,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 141,
+   "lines": 140,
    "longest_function": [
     48,
     "mforce::WhiteNoiseSource::next"
@@ -3107,7 +3107,7 @@
    "changelog_comments": 2,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 53,
+   "lines": 52,
    "longest_function": [
     6,
     "mforce::WormholeSource::input_descriptors"
@@ -3122,7 +3122,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 38,
+   "lines": 37,
    "longest_function": [
     25,
     "mforce::fft_inplace"
@@ -3135,7 +3135,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 98,
+   "lines": 97,
    "longest_function": [
     42,
     "mforce::compute_spectral_stats"
@@ -3150,12 +3150,12 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 196,
+   "lines": 195,
    "longest_function": [
     67,
     "mforce::AdditiveSource2::compute_wave_value"
    ],
-   "module": "source_impl",
+   "module": "source",
    "mutable_vars": 0,
    "types": []
   },
@@ -3163,7 +3163,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 283,
+   "lines": 282,
    "longest_function": [
     80,
     "mforce::ChordDictionary::init_all"
@@ -3176,12 +3176,12 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 107,
+   "lines": 106,
    "longest_function": [
     63,
     "mforce::FullAdditiveSource::compute_wave_value"
    ],
-   "module": "source_impl",
+   "module": "source",
    "mutable_vars": 0,
    "types": []
   },
@@ -3189,12 +3189,12 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 159,
+   "lines": 158,
    "longest_function": [
     37,
     "mforce::HybridKSSource::extract_partials"
    ],
-   "module": "source_impl",
+   "module": "source",
    "mutable_vars": 0,
    "types": []
   },
@@ -3202,7 +3202,7 @@
    "changelog_comments": 1,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 55,
+   "lines": 54,
    "longest_function": [
     41,
     "mforce::StereoMixer::render"
@@ -3215,7 +3215,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 167,
+   "lines": 166,
    "longest_function": [
     26,
     "mforce::init_keys"
@@ -3228,13 +3228,13 @@
    "changelog_comments": 14,
    "const_cast": 0,
    "dynamic_cast": 6,
-   "lines": 1901,
+   "lines": 1900,
    "longest_function": [
     473,
     "mforce::build_graph"
    ],
    "module": "render",
-   "mutable_vars": 3,
+   "mutable_vars": 1,
    "types": [
     "WaveSourceMono",
     "ValueSourceMono",
@@ -3248,12 +3248,12 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 117,
+   "lines": 116,
    "longest_function": [
     85,
     "mforce::RedNoiseSource::compute_wave_value"
    ],
-   "module": "source_impl",
+   "module": "source",
    "mutable_vars": 0,
    "types": []
   },
@@ -3261,12 +3261,12 @@
    "changelog_comments": 3,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 633,
+   "lines": 632,
    "longest_function": [
     574,
     "mforce::register_all_sources"
    ],
-   "module": "render",
+   "module": "source",
    "mutable_vars": 0,
    "types": []
   },
@@ -3274,12 +3274,12 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 58,
+   "lines": 57,
    "longest_function": [
     11,
     "mforce::SourceRegistry::registered_types"
    ],
-   "module": "render",
+   "module": "core",
    "mutable_vars": 0,
    "types": []
   },
@@ -3287,7 +3287,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 110,
+   "lines": 109,
    "longest_function": [
     77,
     "mforce::read_wav_16le_stereo"
@@ -3300,7 +3300,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 66,
+   "lines": 65,
    "longest_function": [
     44,
     "mforce::write_wav_16le_stereo"
@@ -3313,12 +3313,12 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 146,
+   "lines": 145,
    "longest_function": [
     56,
     "mforce::WavetableSource::compute_raw"
    ],
-   "module": "source_impl",
+   "module": "source",
    "mutable_vars": 0,
    "types": []
   },
@@ -3326,7 +3326,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 622,
+   "lines": 621,
    "longest_function": [
     147,
     "midi_to_durn"
@@ -3341,7 +3341,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 553,
+   "lines": 552,
    "longest_function": [
     115,
     "abc::AbcParser::parse_body"
@@ -3361,7 +3361,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 648,
+   "lines": 647,
    "longest_function": [
     127,
     "kern::parse_file"
@@ -3384,7 +3384,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 547,
+   "lines": 546,
    "longest_function": [
     159,
     "midi::detail::parse_track"
@@ -3407,7 +3407,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 629,
+   "lines": 628,
    "longest_function": [
     70,
     "mxml::parse"
@@ -3428,7 +3428,7 @@
    "changelog_comments": 4,
    "const_cast": 0,
    "dynamic_cast": 11,
-   "lines": 1930,
+   "lines": 1929,
    "longest_function": [
     272,
     "run_walk3_tests"
@@ -3443,7 +3443,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 1,
-   "lines": 603,
+   "lines": 602,
    "longest_function": [
     207,
     "mforce::run_explore"
@@ -3459,7 +3459,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 31,
+   "lines": 30,
    "longest_function": [
     0,
     ""
@@ -3472,7 +3472,7 @@
    "changelog_comments": 1,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 1247,
+   "lines": 1246,
    "longest_function": [
     174,
     "run_compose"
@@ -3487,7 +3487,7 @@
    "changelog_comments": 2,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 286,
+   "lines": 285,
    "longest_function": [
     65,
     "stamp::init"
@@ -3500,13 +3500,13 @@
    "changelog_comments": 126,
    "const_cast": 0,
    "dynamic_cast": 20,
-   "lines": 14679,
+   "lines": 14678,
    "longest_function": [
     1711,
     "main"
    ],
    "module": "ui",
-   "mutable_vars": 87,
+   "mutable_vars": 85,
    "types": [
     "GraphMode",
     "PinKind",
@@ -3539,7 +3539,7 @@
    "changelog_comments": 1,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 408,
+   "lines": 407,
    "longest_function": [
     62,
     "parse_phrase_defs"
@@ -3552,7 +3552,7 @@
    "changelog_comments": 1,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 89,
+   "lines": 88,
    "longest_function": [
     66,
     "main"
@@ -3565,7 +3565,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 113,
+   "lines": 112,
    "longest_function": [
     42,
     "main"
@@ -3580,7 +3580,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 108,
+   "lines": 107,
    "longest_function": [
     35,
     "main"
@@ -3595,7 +3595,7 @@
    "changelog_comments": 1,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 134,
+   "lines": 133,
    "longest_function": [
     51,
     "main"
@@ -3610,7 +3610,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 100,
+   "lines": 99,
    "longest_function": [
     34,
     "main"
@@ -3625,7 +3625,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 103,
+   "lines": 102,
    "longest_function": [
     34,
     "main"
@@ -3640,7 +3640,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 100,
+   "lines": 99,
    "longest_function": [
     34,
     "main"
@@ -3655,7 +3655,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 307,
+   "lines": 306,
    "longest_function": [
     46,
     "main"
@@ -3671,7 +3671,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 111,
+   "lines": 110,
    "longest_function": [
     36,
     "main"
@@ -3686,7 +3686,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 5,
-   "lines": 1212,
+   "lines": 1211,
    "longest_function": [
     125,
     "run_render"
@@ -3703,7 +3703,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 35,
+   "lines": 34,
    "longest_function": [
     29,
     "main"
@@ -3714,6 +3714,42 @@
   }
  },
  "include_violations": [
+  {
+   "file": "engine/include/mforce/music/melody_profile.h",
+   "include": "nlohmann/json.hpp",
+   "module": "music",
+   "target": "json"
+  },
+  {
+   "file": "engine/include/mforce/music/pattern_library.h",
+   "include": "nlohmann/json.hpp",
+   "module": "music",
+   "target": "json"
+  },
+  {
+   "file": "engine/include/mforce/music/pool_figure_builder.h",
+   "include": "nlohmann/json.hpp",
+   "module": "music",
+   "target": "json"
+  },
+  {
+   "file": "engine/include/mforce/music/style_table.h",
+   "include": "nlohmann/json.hpp",
+   "module": "music",
+   "target": "json"
+  },
+  {
+   "file": "engine/include/mforce/music/templates.h",
+   "include": "nlohmann/json.hpp",
+   "module": "music",
+   "target": "json"
+  },
+  {
+   "file": "engine/include/mforce/music/voicing_profile_selector.h",
+   "include": "nlohmann/json.hpp",
+   "module": "music",
+   "target": "json"
+  },
   {
    "file": "engine/include/mforce/render/instrument.h",
    "include": "mforce/music/pitch_bend.h",
@@ -3758,16 +3794,16 @@
   }
  ],
  "summary": {
-  "changelog_comments": 265,
+  "changelog_comments": 270,
   "const_cast": 10,
   "duplicate_blocks": 208,
   "dynamic_cast": 51,
-  "file_level_mutable_vars": 116,
+  "file_level_mutable_vars": 112,
   "files": 164,
   "files_over_limit": 21,
   "functions_over_limit": 100,
-  "include_violations": 7,
-  "lines": 58037,
+  "include_violations": 13,
+  "lines": 57873,
   "unmapped_files": 0
  }
 }

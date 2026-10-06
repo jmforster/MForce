@@ -1,24 +1,25 @@
-"""Render measurements as Markdown, and compare two snapshots."""
+"""Render measurements as Markdown, build and compare snapshots, and render
+the module map. Rendering only; the rules live in rules.py."""
 import json
+
+import rules
 
 
 def snapshot(files, limits, dup_blocks, violations):
-    """Build the JSON-able snapshot the meter records."""
+    """The JSON-able snapshot the meter records (also metrics.json's format)."""
+    s = {"files": len(files), "lines": sum(f["lines"] for f in files)}
+    s.update(rules.over_limits(files, limits))
+    s.update({
+        "file_level_mutable_vars": sum(f["mutable_vars"] for f in files),
+        "const_cast": sum(f["flags"]["const_cast"] for f in files),
+        "dynamic_cast": sum(f["flags"]["dynamic_cast"] for f in files),
+        "changelog_comments": sum(f["flags"]["changelog_comments"] for f in files),
+        "duplicate_blocks": len(dup_blocks),
+        "include_violations": len(violations),
+        "unmapped_files": sum(f["module"] is None for f in files),
+    })
     return {
-        "summary": {
-            "files": len(files),
-            "lines": sum(f["lines"] for f in files),
-            "files_over_limit": sum(f["lines"] > limits["file_lines"] for f in files),
-            "functions_over_limit": sum(
-                1 for f in files for (_, _, n) in f["functions"] if n > limits["function_lines"]),
-            "file_level_mutable_vars": sum(f["mutable_vars"] for f in files),
-            "const_cast": sum(f["flags"]["const_cast"] for f in files),
-            "dynamic_cast": sum(f["flags"]["dynamic_cast"] for f in files),
-            "changelog_comments": sum(f["flags"]["changelog_comments"] for f in files),
-            "duplicate_blocks": len(dup_blocks),
-            "include_violations": len(violations),
-            "unmapped_files": sum(f["module"] is None for f in files),
-        },
+        "summary": s,
         "files": {f["path"]: {
             "module": f["module"], "lines": f["lines"],
             "longest_function": max([(n, name) for (name, _, n) in f["functions"]] or [(0, "")]),
@@ -51,7 +52,8 @@ def render(snap, limits):
         lf = snap["files"][p]["longest_function"]
         out.append(f"| {n:,} | `{p}` | {lf[1]} ({lf[0]}) |")
     out += ["", "## Include edges outside the map", ""]
-    out += [f"- `{v['file']}` ({v['module']}) includes `{v['include']}` ({v['target']})" for v in snap["include_violations"]] or ["- none"]
+    out += [f"- `{v['file']}` ({v['module']}) includes `{v['include']}` ({v['target']})"
+            for v in snap["include_violations"]] or ["- none"]
     out += ["", "## Largest duplicated blocks", ""]
     for n, places in snap["duplicate_blocks"][:15]:
         out.append(f"- {n} lines: " + ", ".join(f"`{p}:{s}-{e}`" for p, s, e in places))
@@ -63,32 +65,35 @@ def delta(old, new):
     out = ["# Structure delta", "", "| Measure | Before | After | Change |", "|---|---|---|---|"]
     for k in new["summary"]:
         a, b = old["summary"].get(k), new["summary"][k]
-        if a is None:
-            continue
-        out.append(f"| {k} | {a:,} | {b:,} | {b - a:+,} |")
+        if a is not None:
+            out.append(f"| {k} | {a:,} | {b:,} | {b - a:+,} |")
     of, nf = old["files"], new["files"]
-    added = sorted(set(nf) - set(of))
-    removed = sorted(set(of) - set(nf))
-    out += ["", "## Files added", ""] + ([f"- `{p}` ({nf[p]['lines']} lines)" for p in added] or ["- none"])
-    out += ["", "## Files removed", ""] + ([f"- `{p}`" for p in removed] or ["- none"])
-    out += ["", "## Types added or removed", ""]
+    out += ["", "## Files added", ""] + ([f"- `{p}` ({nf[p]['lines']} lines)" for p in sorted(set(nf) - set(of))] or ["- none"])
+    out += ["", "## Files removed", ""] + ([f"- `{p}`" for p in sorted(set(of) - set(nf))] or ["- none"])
     rows = []
     for p in sorted(set(of) | set(nf)):
-        a = set(of.get(p, {}).get("types", []))
-        b = set(nf.get(p, {}).get("types", []))
-        for t in sorted(b - a):
-            rows.append(f"- NEW `{t}` in `{p}`")
-        for t in sorted(a - b):
-            rows.append(f"- REMOVED `{t}` from `{p}`")
-    out += rows or ["- none"]
-    out += ["", "## Files that grew or shrank", ""]
-    rows = []
-    for p in sorted(set(of) & set(nf)):
-        d = nf[p]["lines"] - of[p]["lines"]
-        if d:
-            rows.append(f"- `{p}`: {of[p]['lines']} -> {nf[p]['lines']} ({d:+})")
-    out += rows or ["- none"]
+        a, b = set(of.get(p, {}).get("types", [])), set(nf.get(p, {}).get("types", []))
+        rows += [f"- NEW `{t}` in `{p}`" for t in sorted(b - a)]
+        rows += [f"- REMOVED `{t}` from `{p}`" for t in sorted(a - b)]
+    out += ["", "## Types added or removed", ""] + (rows or ["- none"])
+    rows = [f"- `{p}`: {of[p]['lines']} -> {nf[p]['lines']} ({nf[p]['lines'] - of[p]['lines']:+})"
+            for p in sorted(set(of) & set(nf)) if nf[p]["lines"] != of[p]["lines"]]
+    out += ["", "## Files that grew or shrank", ""] + (rows or ["- none"])
     return "\n".join(out) + "\n"
+
+
+def render_modules(module_map):
+    out = ["# Modules", "",
+           "Generated from `tools/structure/modules.json` by `tools/structure/check.py`.",
+           "Phase 1: describes today's layout. Do not edit by hand.", "",
+           "| Module | Purpose | Paths | May include |", "|---|---|---|---|"]
+    for m in module_map.modules:
+        out.append(f"| {m['name']} | {m['purpose']} | {', '.join('`' + p + '`' for p in m['paths'])} | "
+                   f"{', '.join(m['may_include']) or 'nothing'} |")
+    out += ["", "Third-party families: " + ", ".join(f"`{k}`" for k in module_map.third_party) + ".", ""]
+    for lib, paths in module_map.file_allowed.items():
+        out += [f"`{lib}` is allowed only in: " + ", ".join(f"`{p}`" for p in paths) + ".", ""]
+    return "\n".join(out)
 
 
 def dump(snap):
