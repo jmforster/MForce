@@ -48,3 +48,23 @@ add_subdirectory(tools/test_figures)
 add_subdirectory(tools/ppl_to_json)
 add_subdirectory(tools/stamp_test)
 add_subdirectory(tools/engine_tests)
+
+# Tests. Every test runs from the repo root: the test programs load patches
+# and scores by repo-relative path.
+enable_testing()
+add_test(NAME engine_tests COMMAND engine_tests WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+add_test(NAME test_figures COMMAND test_figures WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+# The interpreter on PATH (where lizard is installed), not the newest one in the Windows registry.
+set(Python3_FIND_STRATEGY LOCATION)
+set(Python3_FIND_REGISTRY NEVER)
+find_package(Python3 COMPONENTS Interpreter)
+if(Python3_Interpreter_FOUND)
+    add_test(NAME structure_meter_tests
+             COMMAND ${Python3_EXECUTABLE} -m unittest discover -s tools/structure/tests -p "test_*.py"
+             WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+    add_test(NAME structure_meter
+             COMMAND ${Python3_EXECUTABLE} tools/structure/check.py
+             WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+else()
+    message(WARNING "Python3 not found: the structure meter tests are not registered")
+endif()

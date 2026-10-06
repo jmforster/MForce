@@ -1,0 +1,38 @@
+{
+  "_comment": "Module map, phase 1 (describes today's layout). Every tracked C++ source file must belong to exactly one module. 'may_include' lists modules and third-party families a module may include; anything else is reported.",
+  "third_party": {
+    "json":    ["nlohmann/", "json.hpp"],
+    "imgui":   ["imgui", "imnodes"],
+    "rtaudio": ["rtaudio"],
+    "rtmidi":  ["rtmidi"],
+    "glfw":    ["glfw", "gl/"]
+  },
+  "modules": [
+    {"name": "core",   "purpose": "The ValueSource contract and the primitives every node shares.",
+     "paths": ["engine/include/mforce/core/"], "may_include": ["json"]},
+    {"name": "source", "purpose": "Nodes that produce sound (one layer with filter).",
+     "paths": ["engine/include/mforce/source/"], "may_include": ["core", "filter"]},
+    {"name": "filter", "purpose": "Nodes that process a signal (one layer with source).",
+     "paths": ["engine/include/mforce/filter/"], "may_include": ["core", "source"]},
+    {"name": "render", "purpose": "Instruments, voices, mixing, patch loading, WAV I/O.",
+     "paths": ["engine/include/mforce/render/", "engine/src/patch_loader.cpp", "engine/src/mixer.cpp", "engine/src/wav_writer.cpp", "engine/src/wav_reader.cpp", "engine/src/source_registry.cpp", "engine/src/source_registrations.cpp"],
+     "may_include": ["core", "source", "filter", "json"]},
+    {"name": "music",  "purpose": "The music model and composition.",
+     "paths": ["engine/include/mforce/music/", "engine/src/music.cpp", "engine/src/chord.cpp"], "may_include": ["core", "render", "json"]},
+    {"name": "util",   "purpose": "Stand-alone analysis helpers (FFT, signal statistics).",
+     "paths": ["engine/include/mforce/util/"], "may_include": []},
+    {"name": "source_impl", "purpose": "Out-of-line bodies of source nodes.",
+     "paths": ["engine/src/red_noise_source.cpp", "engine/src/wavetable_source.cpp", "engine/src/full_additive_source.cpp", "engine/src/additive_source2.cpp", "engine/src/hybrid_ks_source.cpp"],
+     "may_include": ["core", "source", "filter"]},
+    {"name": "cli",    "purpose": "mforce_cli, the command-line renderer.",
+     "paths": ["tools/mforce_cli/"], "may_include": ["core", "source", "filter", "render", "music", "util", "json"]},
+    {"name": "ui",     "purpose": "mforce_ui, the patch editor.",
+     "paths": ["tools/mforce_ui/"], "may_include": ["core", "source", "filter", "render", "music", "util", "json", "imgui", "rtaudio", "rtmidi", "glfw"]},
+    {"name": "tests",  "purpose": "engine_tests and test_figures.",
+     "paths": ["tools/engine_tests/", "tools/test_figures/"], "may_include": ["core", "source", "filter", "render", "music", "util", "json"]},
+    {"name": "durn",   "purpose": "durn_converter: notation formats to DURN.",
+     "paths": ["tools/durn_converter/"], "may_include": ["music", "json"]},
+    {"name": "misc_tools", "purpose": "ppl_to_json, stamp_test, stk_ref, wav_check.",
+     "paths": ["tools/ppl_to_json/", "tools/stamp_test/", "tools/stk_ref/", "tools/wav_check.cpp", "tools/wav_check.c"], "may_include": ["core", "source", "filter", "render", "music", "util", "json"]}
+  ]
+}

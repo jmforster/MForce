@@ -1,0 +1,6 @@
+{
+  "_comment": "Budgets for new code (phase 2 gates). In phase 1 the meter only reports against them.",
+  "file_lines": 600,
+  "function_lines": 80,
+  "file_level_mutable_vars": 0
+}
