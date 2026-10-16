@@ -31,7 +31,6 @@ struct PinBase {
   PinBase(const PinBase&) = delete;               // a copy would not be registered
   PinBase& operator=(const PinBase&) = default;   // assigning a node assigns its pins' values
   virtual void prepare(const RenderContext&, int) {}
-  virtual void advance() {}
 protected:
   PinBase(const char* n, PinKind k) : name(n), kind(k) {}
   void attach(Component* owner);                  // component.h
@@ -52,7 +51,6 @@ struct Param final : PinBase {
   std::shared_ptr<ValueSource> get() const { return source; }
   ParamDescriptor descriptor() const { return {name, constant, min, max, hint}; }
   void prepare(const RenderContext& ctx, int frames) override;
-  void advance() override;
 };
 
 // A signal input: a source, required or optional; reads 0 when unwired.
@@ -72,7 +70,6 @@ struct Input final : PinBase {
   std::shared_ptr<ValueSource> get() const { return source; }
   InputDescriptor descriptor() const { return {name, multi, hint}; }
   void prepare(const RenderContext& ctx, int frames) override;
-  void advance() override;
 };
 
 // A scalar configuration value (float, int or bool), not connectable. The

@@ -51,12 +51,14 @@ struct ValueSource : Component {
   }
   virtual void on_prepare(const RenderContext&, int) {}
 
-  // Advance every pin in declaration order, then compute. A node's work is
-  // compute(). Virtual, with a default compute(), only while the node
-  // families migrate: the close of checkpoint 2.1 seals next() and makes
-  // compute() pure, so the compiler proves no override remains.
+  // Advance every wired Auto pin in declaration order, then compute. A
+  // node's work is compute(). Virtual, with a default compute(), only
+  // while the node families migrate: the close of checkpoint 2.1 seals
+  // next() and makes compute() pure, so the compiler proves no override
+  // remains.
   virtual float next() {
-    for (auto* pin : pins()) pin->advance();
+    for (auto* s : pulled())
+      if (*s) (*s)->advance();
     cur_ = compute();
     return cur_;
   }
@@ -157,15 +159,9 @@ inline float Param::current() const { return source ? source->current() : consta
 inline void Param::prepare(const RenderContext& ctx, int frames) {
   if (source && pull == Pull::Auto) source->prepare(ctx, frames);
 }
-inline void Param::advance() {
-  if (source && pull == Pull::Auto) source->advance();
-}
 inline float Input::current() const { return source ? source->current() : 0.0f; }
 inline void Input::prepare(const RenderContext& ctx, int frames) {
   if (source && pull == Pull::Auto) source->prepare(ctx, frames);
-}
-inline void Input::advance() {
-  if (source && pull == Pull::Auto) source->advance();
 }
 
 } // namespace mforce

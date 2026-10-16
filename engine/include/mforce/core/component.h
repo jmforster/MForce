@@ -59,13 +59,28 @@ struct Component {
   virtual void on_array_changed(std::string_view) {}
 
   const std::vector<PinBase*>& pins() const { return pins_; }
+  // The sources the per-sample sweep advances: every Auto Param and Input,
+  // in declaration order, as pointers to the pins' source members (a pin
+  // is a member of its node, so the address is stable). Cached here so the
+  // sweep costs one indirect call per wired pin and nothing per setting.
+  const std::vector<std::shared_ptr<ValueSource>*>& pulled() const { return pulled_; }
 
   // Called by a pin's constructor; builds the descriptor tables as it goes.
   void register_pin(PinBase* pin) {
     pins_.push_back(pin);
     switch (pin->kind) {
-      case PinKind::Param:   paramDescs_.push_back(static_cast<Param*>(pin)->descriptor()); break;
-      case PinKind::Input:   inputDescs_.push_back(static_cast<Input*>(pin)->descriptor()); break;
+      case PinKind::Param: {
+        auto* p = static_cast<Param*>(pin);
+        paramDescs_.push_back(p->descriptor());
+        if (p->pull == Pull::Auto) pulled_.push_back(&p->source);
+        break;
+      }
+      case PinKind::Input: {
+        auto* i = static_cast<Input*>(pin);
+        inputDescs_.push_back(i->descriptor());
+        if (i->pull == Pull::Auto) pulled_.push_back(&i->source);
+        break;
+      }
       case PinKind::Slot:    inputDescs_.push_back(static_cast<SlotBase*>(pin)->descriptor()); break;
       case PinKind::Setting: settingDescs_.push_back(static_cast<SettingBase*>(pin)->descriptor()); break;
       case PinKind::Array:   arrayDescs_.push_back(static_cast<Array*>(pin)->descriptor()); break;
@@ -79,6 +94,7 @@ private:
     return nullptr;
   }
   std::vector<PinBase*> pins_;
+  std::vector<std::shared_ptr<ValueSource>*> pulled_;
   std::vector<ParamDescriptor> paramDescs_;
   std::vector<InputDescriptor> inputDescs_;
   std::vector<SettingDescriptor> settingDescs_;
