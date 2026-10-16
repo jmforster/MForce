@@ -96,7 +96,7 @@ SPEC = {
         "ranges": {"cr": {"lo": (1.55, 2.95), "hi": (0.1, 4.4)}},
         "drivers": ["mod"],
     },
-    # t1_07_phase_audiorate_pm: SKIPPED. FMSource::compute_wave_value uses its
+    # t1_07_phase_audiorate_pm: SKIPPED. FMSource::wave uses its
     # own carrierPhase_/modPhase_ accumulators and never reads the WaveSource
     # phase_ param — the wired "ph" modulation is dead, all variants render
     # byte-identical (verified by md5). The sound Matt marked Y is plain 1:1
