@@ -702,9 +702,9 @@ static GraphResult build_graph(
                 if (p.contains("seed") && p["seed"].is_number())
                     env->set_seed(uint32_t(p["seed"].get<int64_t>()));
                 if (p.contains("stage_accuracy") && p["stage_accuracy"].is_number())
-                    env->stage_accuracy = std::clamp(p["stage_accuracy"].get<float>(), 0.0f, 1.0f);
+                    env->stage_accuracy.value = std::clamp(p["stage_accuracy"].get<float>(), 0.0f, 1.0f);
                 if (p.contains("ramp_accuracy") && p["ramp_accuracy"].is_number())
-                    env->ramp_accuracy = std::clamp(p["ramp_accuracy"].get<float>(), 0.0f, 1.0f);
+                    env->ramp_accuracy.value = std::clamp(p["ramp_accuracy"].get<float>(), 0.0f, 1.0f);
                 // Literal-seconds stage times (percent = seconds; see envelope.h
                 // absolute_time). Same key as the adsr preset form.
                 if (p.value("timeMode", std::string("fraction")) == "seconds")
@@ -1550,7 +1550,7 @@ Patch load_patch_file(const std::string& path)
             for (auto& [nid, src] : g.valueNodes)
                 if (auto* env = dynamic_cast<Envelope*>(src.get())) {
                     vg.allEnvelopes.push_back(env);
-                    if (env->trigger_) vg.triggerBindings.push_back(env);
+                    if (env->trigger.source) vg.triggerBindings.push_back(env);
                 }
 
             // If the voice's output is a MultiplexSource, capture it so play_note
@@ -1868,7 +1868,7 @@ InstrumentPatch load_instrument_patch_json(const std::string& jsonText,
         for (auto& [nid, src] : g.valueNodes)
             if (auto* env = dynamic_cast<Envelope*>(src.get())) {
                 vg.allEnvelopes.push_back(env);
-                if (env->trigger_) vg.triggerBindings.push_back(env);
+                if (env->trigger.source) vg.triggerBindings.push_back(env);
             }
 
         vg.topMultiplex = std::dynamic_pointer_cast<MultiplexSource>(vg.source);

@@ -8,7 +8,12 @@ namespace mforce {
 // Ported from C# MForce.Sound.Source.MultiSource
 // Weighted sum of ValueSources with optional per-source sample delay.
 // Used for polyphony (overlapping notes) and composite instruments (WTString).
-struct MultiSource final : ValueSource {
+//
+// The `source` input is a list, held in `entries` with its weights and
+// delays, not a single pin: the inherited primary input stays unwired, and
+// this node serves the list by name until list pins arrive. It advances the
+// entries itself because each is read once per sample at its own delay.
+struct MultiSource final : Processor {
   struct Entry {
     std::shared_ptr<ValueSource> source;
     float weight{1.0f};
@@ -27,29 +32,28 @@ struct MultiSource final : ValueSource {
     return descs;
   }
 
+  // Wiring `source` appends (add_param routes here through the base).
   void set_param(std::string_view name, std::shared_ptr<ValueSource> src) override {
     if (name == "source") add(std::move(src));
-  }
-
-  void add_param(std::string_view name, std::shared_ptr<ValueSource> src) override {
-    if (name == "source") add(std::move(src));
+    else Processor::set_param(name, std::move(src));
   }
 
   void clear_param(std::string_view name) override {
     if (name == "source") entries.clear();
+    else Processor::clear_param(name);
   }
 
   void add(std::shared_ptr<ValueSource> src, float weight = 1.0f, int delay = 0) {
     entries.push_back({std::move(src), weight, delay});
   }
 
-  void prepare(const RenderContext& ctx, int frames) override {
+  void on_prepare(const RenderContext& ctx, int frames) override {
     ptr_ = -1;
     for (auto& e : entries)
       e.source->prepare(ctx, frames + e.delaySamples);
   }
 
-  float next() override {
+  float compute() override {
     ++ptr_;
     float sum = 0.0f;
     for (auto& e : entries) {
@@ -58,18 +62,11 @@ struct MultiSource final : ValueSource {
         sum += v * e.weight;
       }
     }
-    cur_ = sum;
-    return cur_;
+    return sum;
   }
-
-  float current() const override { return cur_; }
-
-  void set_weight(int index, float w) { entries[index].weight = w; }
-  float get_weight(int index) const { return entries[index].weight; }
 
 private:
   int ptr_{-1};
-  float cur_{0.0f};
 };
 
 } // namespace mforce

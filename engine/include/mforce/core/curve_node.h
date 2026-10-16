@@ -27,7 +27,9 @@ namespace mforce {
 // curve is global keytrack and the old always-end-at-16000 convention is
 // unnecessary. For literal values extrapolation equals the old clamp, which
 // is why points mode is byte-identical and stays the default.
-struct CurveNode final : ValueSource {
+struct CurveNode final : Generator {
+  Param source{this, "source", 0.0f, -1.0e9f, 1.0e9f, "x"};
+
   enum class CurveInterp { Linear, LogX, LogLog };
   enum class KnotForm { Linear, Power };  // a*x + b  |  a*x^p
   struct ExprKnot {
@@ -42,17 +44,16 @@ struct CurveNode final : ValueSource {
   bool exprMode{false};
   CurveInterp interp{CurveInterp::Linear};
 
-  void prepare(const RenderContext& ctx, int frames) override {
-    if (source_) source_->prepare(ctx, frames);
+  void on_prepare(const RenderContext&, int) override {
     lastX_ = std::numeric_limits<float>::quiet_NaN();  // force re-eval
   }
 
-  float next() override {
-    float x = source_ ? (source_->advance(), source_->current()) : 0.0f;
+  // Re-evaluates only when x moves; otherwise the held output stands.
+  float compute() override {
+    const float x = source.current();
     if (x != lastX_) { lastX_ = x; cur_ = map(x); }
     return cur_;
   }
-  float current() const override { return cur_; }
 
   static float eval_expr(const ExprKnot& k, float x) {
     return k.form == KnotForm::Power ? k.a * std::pow(x, k.b)
@@ -96,23 +97,7 @@ struct CurveNode final : ValueSource {
   const char* type_name() const override { return "CurveNode"; }
   SourceCategory category() const override { return SourceCategory::Modulator; }
 
-  std::span<const ParamDescriptor> param_descriptors() const override {
-    static constexpr ParamDescriptor descs[] = {
-      {"source", 0.0f, -1.0e9f, 1.0e9f, "x"},
-    };
-    return descs;
-  }
-  void set_param(std::string_view name, std::shared_ptr<ValueSource> src) override {
-    if (name == "source") source_ = std::move(src);
-  }
-  std::shared_ptr<ValueSource> get_param(std::string_view name) const override {
-    if (name == "source") return source_;
-    return nullptr;
-  }
-
 private:
-  std::shared_ptr<ValueSource> source_;
-  float cur_{0.0f};
   float lastX_{std::numeric_limits<float>::quiet_NaN()};
 };
 

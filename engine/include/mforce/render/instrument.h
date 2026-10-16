@@ -405,7 +405,7 @@ struct PitchedInstrument final : Instrument {
   // visible), push bindings second, fire_triggers LAST.
   void fire_triggers(VoiceGraph& vg) {
     for (auto* env : vg.triggerBindings)
-      if (env->trigger_ && env->trigger_->current() != 0.0f)
+      if (env->trigger.source && env->trigger.current() != 0.0f)
         env->retrigger();
   }
 

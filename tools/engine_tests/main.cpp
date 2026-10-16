@@ -2042,10 +2042,215 @@ static void run_sharing_trace_tests() {
     SharingTrace::enabled = false;
 }
 
+// Checkpoint 2.1: the core family (envelopes, range/var, multi, name gate)
+// under Generator/Processor with its pins declared once.
+#include "mforce/core/envelope_presets.h"
+#include "mforce/core/multi_source.h"
+#include "mforce/core/range_source.h"
+#include "mforce/core/var_source.h"
+
+namespace {
+// Counts how often a pin's owner prepared and advanced it.
+struct PinCounter final : mforce::Generator {
+  int prepares{0}, advances{0};
+  float level{1.0f};
+  void on_prepare(const mforce::RenderContext&, int) override { ++prepares; }
+  float compute() override { ++advances; return level; }
+  const char* type_name() const override { return "PinCounter"; }
+};
+
+bool has_name(std::span<const SettingDescriptor> d, const char* n) {
+  for (const auto& x : d) if (std::string(x.name) == n) return true;
+  return false;
+}
+}
+
+static void run_range_var_tests() {
+    RenderContext ctx{48000};
+
+    // RangeSource: the declared default of `normalized` is false, whichever
+    // constructor builds it; the 4-argument form sets it explicitly.
+    {
+        auto zero = std::make_shared<ConstantSource>(0.0f);
+        RangeSource a(std::make_shared<ConstantSource>(10.0f),
+                      std::make_shared<ConstantSource>(20.0f), zero);
+        CHECK(a.normalized.value == false);
+        CHECK(!a.setting_descriptors().empty());
+        CHECK_NEAR(a.setting_descriptors()[0].default_value, 0.0f, 1e-6f);
+        a.prepare(ctx, 16);
+        CHECK_NEAR(a.next(), 15.0f, 1e-5f);        // var 0 remapped (0+1)/2
+        RangeSource b(std::make_shared<ConstantSource>(10.0f),
+                      std::make_shared<ConstantSource>(20.0f), zero, true);
+        b.prepare(ctx, 16);
+        CHECK_NEAR(b.next(), 10.0f, 1e-5f);        // already normalized
+        CHECK(a.param_descriptors().size() == 3);
+        CHECK(std::string(a.param_descriptors()[2].name) == "var");
+        CHECK(a.get_param("max") != nullptr);
+        for (int i = 0; i < 10; ++i) CHECK(std::isfinite(a.next()));
+    }
+
+    // VarSource: absolute and relative modes; wired through the 3-argument
+    // constructor, default absolute.
+    {
+        VarSource v(std::make_shared<ConstantSource>(2.0f),
+                    std::make_shared<ConstantSource>(0.5f),
+                    std::make_shared<ConstantSource>(0.5f));
+        CHECK(v.absolute.value == true);
+        v.prepare(ctx, 16);
+        CHECK_NEAR(v.next(), 2.5f, 1e-5f);         // 2 * (1 + 0.5 * 0.5)
+        v.set_setting("absolute", 0.0f);
+        CHECK_NEAR(v.next(), 2.5f + (2.0f - 2.5f) * 1.25f, 1e-5f);
+        for (int i = 0; i < 10; ++i) CHECK(std::isfinite(v.next()));
+        CHECK(v.param_descriptors().size() == 3);
+    }
+}
+
+static void run_multi_name_gate_tests() {
+    RenderContext ctx{48000};
+
+    // MultiSource: `source` is a list served by name; weights and delays
+    // apply; clear_param empties it.
+    {
+        MultiSource m;
+        m.set_param("source", std::make_shared<ConstantSource>(1.0f));
+        m.add_param("source", std::make_shared<ConstantSource>(2.0f));
+        CHECK(m.entries.size() == 2);
+        CHECK(m.input_descriptors().size() == 1);
+        CHECK(m.input_descriptors()[0].multi);
+        CHECK(m.category() == SourceCategory::Combiner);
+        m.entries[1].weight = 0.5f;
+        m.entries[1].delaySamples = 1;
+        m.prepare(ctx, 16);
+        CHECK_NEAR(m.next(), 1.0f, 1e-6f);         // the delayed entry is not yet in
+        CHECK_NEAR(m.next(), 2.0f, 1e-6f);         // 1 + 2 * 0.5
+        m.clear_param("source");
+        CHECK(m.entries.empty());
+    }
+
+    // NameGate: `in` is an optional signal input, advanced once per sample.
+    {
+        NameGate ng(48000);
+        CHECK(ng.param_descriptors().empty());
+        CHECK(ng.input_descriptors().size() == 1);
+        CHECK(std::string(ng.input_descriptors()[0].name) == "in");
+        ng.targetId = 0.0f;
+        CHECK(ng.next() == 0.0f);                  // unwired never matches, even id 0
+        auto c = std::make_shared<PinCounter>();
+        c->level = 3.0f;
+        ng.set_param("in", c);
+        ng.targetId = 3.0f;
+        ng.prepare(ctx, 16);
+        CHECK(c->prepares == 1);
+        CHECK(ng.next() == 1.0f);
+        CHECK(ng.next() == 1.0f);
+        CHECK(c->advances == 2);
+    }
+}
+
+static void run_envelope_pin_tests() {
+    RenderContext ctx{48000};
+
+    // Envelope: minValue/maxValue are pulled and prepared by the base;
+    // `trigger` is Manual, so it is never prepared or advanced.
+    {
+        auto env = std::make_shared<Envelope>(48000);
+        env->add_stage({{0.0f, 1.0f, RampType::Linear, 0.0f}, 0.5f, 0.0f, 0.0f});
+        env->add_stage({{1.0f, 1.0f, RampType::Linear, 0.0f}, 0.5f, 0.0f, 0.0f});
+        auto lo = std::make_shared<PinCounter>();
+        auto hi = std::make_shared<PinCounter>();
+        auto trig = std::make_shared<PinCounter>();
+        env->set_param("minValue", lo);
+        env->set_param("maxValue", hi);
+        env->set_param("trigger", trig);
+        env->prepare(ctx, 4800);
+        for (int i = 0; i < 5; ++i) env->next();
+        CHECK(lo->prepares == 1 && hi->prepares == 1 && trig->prepares == 0);
+        CHECK(lo->advances == 5 && hi->advances == 5 && trig->advances == 0);
+        CHECK(env->trigger.source == trig);
+        CHECK(env->range() == Generator::Range::Unipolar);
+        CHECK(env->param_descriptors().size() == 3);
+        CHECK(std::string(env->param_descriptors()[2].name) == "trigger");
+    }
+
+    // Envelope settings: the knobs clamp; sustainLevel is a live view of the
+    // four-slot ADSR shape and reads 0 on any other layout.
+    {
+        auto adsr = Envelope::make_adsr(48000, 0.1f, 0.1f, 0.4f, 0.2f);
+        CHECK_NEAR(adsr->get_setting("sustainLevel"), 0.4f, 1e-6f);
+        adsr->set_setting("sustainLevel", 0.2f);
+        CHECK_NEAR(adsr->get_setting("sustainLevel"), 0.2f, 1e-6f);
+        CHECK_NEAR(adsr->stage(3).ramp.startVal, 0.2f, 1e-6f);
+        adsr->set_setting("stage_accuracy", 7.0f);
+        CHECK_NEAR(adsr->get_setting("stage_accuracy"), 1.0f, 1e-6f);
+        adsr->set_setting("timeScale", 0.0f);
+        CHECK_NEAR(adsr->get_setting("timeScale"), 0.01f, 1e-6f);
+        auto ar = Envelope::make_ar(48000, 0.2f);
+        ar->set_setting("sustainLevel", 0.9f);
+        CHECK_NEAR(ar->get_setting("sustainLevel"), 0.0f, 1e-6f);
+        CHECK_NEAR(ar->stage(1).ramp.startVal, 1.0f, 1e-6f);   // not rewritten
+    }
+}
+
+static void run_envelope_preset_tests() {
+    RenderContext ctx{48000};
+
+    // The six presets: each declares its own settings after the base's,
+    // renders finite values, and keeps the range params and the stored
+    // sustain level across a rebuild.
+    {
+        auto smoke = [&](Envelope& e) {
+            e.prepare(ctx, 4800);
+            for (int i = 0; i < 10; ++i) CHECK(std::isfinite(e.next()));
+        };
+        AREnvelope ar(48000);    smoke(ar);
+        ASEnvelope as(48000);    smoke(as);
+        ASREnvelope asr(48000);  smoke(asr);
+        ADSEnvelope ads(48000);  smoke(ads);
+        ADREnvelope adr(48000);  smoke(adr);
+        ADSREnvelope adsr(48000); smoke(adsr);
+        CHECK(has_name(ar.setting_descriptors(), "releaseCurve"));
+        CHECK(has_name(adr.setting_descriptors(), "decayLevel"));
+        CHECK(has_name(as.setting_descriptors(), "reverse"));
+        CHECK(!has_name(ar.setting_descriptors(), "attackLevel"));
+
+        // the declared default of sustainLevel is each preset's own
+        auto sustainDefault = [](Envelope& e) {
+            for (const auto& d : e.setting_descriptors())
+                if (std::string(d.name) == "sustainLevel") return d.default_value;
+            return -1.0f;
+        };
+        CHECK_NEAR(sustainDefault(as), 1.0f, 1e-6f);
+        CHECK_NEAR(sustainDefault(asr), 1.0f, 1e-6f);
+        CHECK_NEAR(sustainDefault(ads), 0.0f, 1e-6f);
+        CHECK_NEAR(sustainDefault(adsr), 0.7f, 1e-6f);
+        CHECK_NEAR(as.get_setting("sustainLevel"), 1.0f, 1e-6f);
+        CHECK_NEAR(ads.get_setting("sustainLevel"), 0.0f, 1e-6f);
+
+        // a rebuild keeps wired range params, the accuracy knobs and the level
+        adsr.set_param("maxValue", std::make_shared<ConstantSource>(5.0f));
+        adsr.set_setting("stage_accuracy", 0.5f);
+        adsr.set_setting("sustainLevel", 0.3f);
+        adsr.set_setting("release", 0.25f);        // triggers a rebuild
+        CHECK(adsr.get_param("maxValue") != nullptr);
+        CHECK_NEAR(adsr.get_setting("stage_accuracy"), 0.5f, 1e-6f);
+        CHECK_NEAR(adsr.get_setting("sustainLevel"), 0.3f, 1e-6f);
+        CHECK_NEAR(adsr.get_setting("release"), 0.25f, 1e-6f);
+        CHECK_NEAR(adsr.stage(1).ramp.endVal, 0.3f, 1e-6f);
+        CHECK_NEAR(asr.get_setting("sustainLevel"), 1.0f, 1e-6f);
+        asr.set_setting("sustainLevel", 0.6f);     // a preset's level rebuilds its layout
+        CHECK_NEAR(asr.get_setting("sustainLevel"), 0.6f, 1e-6f);
+        CHECK_NEAR(asr.stage(0).ramp.endVal, 0.6f, 1e-6f);
+    }
+}
+
 int main() {
     run_pin_tests();
     run_base_tests();
     run_wave_source_tests();
+    run_range_var_tests();
+    run_multi_name_gate_tests();
+    run_envelope_pin_tests();
+    run_envelope_preset_tests();
     run_sharing_trace_tests();
     run_walk2_tests();
     run_walk3_tests();

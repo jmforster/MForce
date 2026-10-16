@@ -13,7 +13,7 @@ namespace mforce {
 // Ported from C# StagedValueSource + MEnvelope + preset subclasses.
 // A multi-stage envelope where each stage is a Ramp with timing controls.
 // ---------------------------------------------------------------------------
-struct Envelope : ValueSource {
+struct Envelope : Generator {
 
   struct Stage {
     Ramp ramp;
@@ -29,10 +29,21 @@ struct Envelope : ValueSource {
     float nominal{0.0f};
   };
 
-  explicit Envelope(int sampleRate) : sampleRate_(sampleRate) {}
+  // Output range mapping (PerformSource P1, perform_source_design.md §2.4):
+  // returned value = lo + (hi - lo) * raw, raw being the 0..1-domain stage
+  // value. Unwired = 0/1 = identity (bit-compatible). Pullable params per the
+  // credo — velocity→maxValue is the garden velocity wiring once
+  // PerformSource lands. ALL internal state (gate anchor, sustain rewrite)
+  // stays in the raw domain; only compute()/current() report mapped values.
+  Param minValue{this, "minValue", 0.0f, -100000.0f, 100000.0f};
+  Param maxValue{this, "maxValue", 1.0f, -100000.0f, 100000.0f};
 
-  const char* type_name() const override { return "Envelope"; }
-  SourceCategory category() const override { return SourceCategory::Envelope; }
+  // Setup-sampled restart input (spec 2026-09-20-note-onsets-v2 §6).
+  // Read via current() at note Setup by the instrument's trigger
+  // bindings; NEVER pulled per sample — keep trigger chains stateless
+  // (NameGate / PerformOut), or their state freezes. Manual: the base
+  // neither prepares nor advances it.
+  Param trigger{this, "trigger", 0.0f, 0.0f, 1.0f, nullptr, Pull::Manual};
 
   // Per-instance decorrelation knobs (multiplex / sound-design). Defaults
   // reproduce pre-2026-05-06 behavior.
@@ -40,18 +51,22 @@ struct Envelope : ValueSource {
   //   stage's duration is scaled by a random factor in [stage_accuracy, 1].
   // ramp_accuracy:  1.0 = unmodulated; <1.0 = output multiplied by
   //   1 + (1 - ramp_accuracy) * lfo, lfo in [-1, 1].
-  float stage_accuracy{1.0f};
-  float timeScale_{1.0f};
-  float ramp_accuracy{1.0f};
+  Setting<float> stage_accuracy{this, "stage_accuracy", 1.0f, 0.0f, 1.0f};
+  Setting<float> ramp_accuracy {this, "ramp_accuracy",  1.0f, 0.0f, 1.0f};
+  // Live sustain rewrite (see on_setting_changed): decay end, expand and
+  // release start all carry this value when the stage list has the four-slot
+  // ADSR shape; a no-op on any other shape.
+  Setting<float> sustainLevel  {this, "sustainLevel",   0.7f, 0.0f, 1.0f};
+  // Keyboard tracking of envelope times (classic synth env-KBD-track):
+  // multiplies every stage duration. paramMap-able per note, so a hit
+  // envelope can shorten with pitch (treble hammers contact shorter).
+  Setting<float> timeScale     {this, "timeScale",      1.0f, 0.01f, 10.0f};
 
-  // Output range mapping (PerformSource P1, perform_source_design.md §2.4):
-  // returned value = lo + (hi - lo) * raw, raw being the 0..1-domain stage
-  // value. Null = 0/1 = identity (bit-compatible). Pullable params per the
-  // credo — velocity→maxValue is the garden velocity wiring once
-  // PerformSource lands. ALL internal state (gate anchor, sustain rewrite)
-  // stays in the raw domain; only next()/current() report mapped values.
-  std::shared_ptr<ValueSource> minValue_;
-  std::shared_ptr<ValueSource> maxValue_;
+  explicit Envelope(int sampleRate) : sampleRate_(sampleRate) {}
+
+  Range range() const override { return Range::Unipolar; }
+  const char* type_name() const override { return "Envelope"; }
+  SourceCategory category() const override { return SourceCategory::Envelope; }
 
   // Stage-timing semantics (2026-08-06, piano-chuff fix). Default false:
   // Stage.percent is a FRACTION of note duration, clamped to
@@ -110,7 +125,7 @@ struct Envelope : ValueSource {
       const float refSec = float(releaseRefFrames) / float(sampleRate_);
       for (int i = relStage; i < int(stages_.size()); ++i) {
         if (stages_[i].percent == 0.0f) continue;   // expand keeps its fill
-        float stgDur = refSec * stages_[i].percent * timeScale_;
+        float stgDur = refSec * stages_[i].percent * timeScale.value;
         stgDur = std::clamp(stgDur, stages_[i].minSec,
                             stages_[i].maxSec > 0 ? stages_[i].maxSec : stgDur);
         stageCounts_[i] = int(std::lround(stgDur * sampleRate_));
@@ -122,7 +137,7 @@ struct Envelope : ValueSource {
         rem += stageCounts_[i];
       return rem;
     }
-    gateFrom_ = cur_;
+    gateFrom_ = raw_;
     gateActive_ = true;
     gateStage_ = relStage;
     stageStart_ = ptr_ + 1;
@@ -144,19 +159,13 @@ struct Envelope : ValueSource {
   // trailing silence is masked by the voice's own amp envelope.
   void retrigger() {
     if (stages_.empty() || stageCounts_.empty()) return;
-    gateFrom_   = cur_;
+    gateFrom_   = raw_;
     gateActive_ = true;
     gateStage_  = 0;
     stageStart_ = ptr_ + 1;
     currStage_  = 0;
     stageEnd_   = stageStart_ + stageCounts_[0];
   }
-
-  // Setup-sampled restart input (spec 2026-09-20-note-onsets-v2 §6).
-  // Read via current() at note Setup by the instrument's trigger
-  // bindings; NEVER pulled in next() — keep trigger chains stateless
-  // (NameGate / PerformOut), or their state freezes.
-  std::shared_ptr<ValueSource> trigger_;
 
   void set_seed(uint32_t s) { seed_ = s; }
   uint32_t get_seed() const { return seed_; }
@@ -172,57 +181,49 @@ struct Envelope : ValueSource {
 
   // Replace this envelope's stage layout with `fresh` while keeping every
   // knob that lives OUTSIDE the layout: the accuracy knobs, seed, timeScale,
-  // the minValue/maxValue range params, and the live-gate flag. The preset
-  // subclasses' rebuild() used to hand-restore only accuracy + seed, so a
-  // JSON load — which wires params BEFORE settings — lost minValue/maxValue
-  // the moment any setting triggered a rebuild (TriPower.json: the ADSR
-  // driving TriangleSource.power collapsed to raw 0..1, inside the
-  // triangle's neutral band).
+  // the sustain level a preset stores, the minValue/maxValue range params,
+  // and the live-gate flag. The preset subclasses' rebuild() used to
+  // hand-restore only accuracy + seed, so a JSON load — which wires params
+  // BEFORE settings — lost minValue/maxValue the moment any setting
+  // triggered a rebuild (TriPower.json: the ADSR driving TriangleSource.power
+  // collapsed to raw 0..1, inside the triangle's neutral band).
   void replace_stages(Envelope&& fresh) {
-    fresh.stage_accuracy = stage_accuracy;
-    fresh.ramp_accuracy  = ramp_accuracy;
-    fresh.timeScale_     = timeScale_;
-    fresh.minValue_      = std::move(minValue_);
-    fresh.maxValue_      = std::move(maxValue_);
-    fresh.gated_         = gated_;
-    fresh.seed_          = seed_;
-    fresh.trigger_       = std::move(trigger_);
+    fresh.stage_accuracy.value = stage_accuracy.value;
+    fresh.ramp_accuracy.value  = ramp_accuracy.value;
+    fresh.timeScale.value      = timeScale.value;
+    fresh.sustainLevel.value   = sustainLevel.value;
+    fresh.minValue.source      = std::move(minValue.source);
+    fresh.maxValue.source      = std::move(maxValue.source);
+    fresh.trigger.source       = std::move(trigger.source);
+    fresh.gated_               = gated_;
+    fresh.seed_                = seed_;
     *this = std::move(fresh);
   }
 
-  std::span<const SettingDescriptor> setting_descriptors() const override {
-    static constexpr SettingDescriptor descs[] = {
-      {"stage_accuracy", SettingType::Float, 1.0f, 0.0f, 1.0f},
-      {"ramp_accuracy",  SettingType::Float, 1.0f, 0.0f, 1.0f},
-      {"sustainLevel",   SettingType::Float, 0.7f, 0.0f, 1.0f},
-      // Keyboard tracking of envelope times (classic synth env-KBD-track):
-      // multiplies every stage duration. paramMap-able per note, so a hit
-      // envelope can shorten with pitch (treble hammers contact shorter).
-      {"timeScale",      SettingType::Float, 1.0f, 0.01f, 10.0f},
-    };
-    return descs;
-  }
-
-  void set_setting(std::string_view name, float value) override {
-    if (name == "stage_accuracy") { stage_accuracy = std::clamp(value, 0.0f, 1.0f); return; }
-    if (name == "ramp_accuracy")  { ramp_accuracy  = std::clamp(value, 0.0f, 1.0f); return; }
-    if (name == "timeScale")      { timeScale_ = std::clamp(value, 0.01f, 10.0f); return; }
-    // Live sustain rewrite (decay endVal, expand start/end, release startVal
-    // all carry the sustain value). Lets paramMap drive sustainLevel per
-    // note (frequency curves). Accepted for adsr-preset envelopes AND for
-    // stage-form envelopes whose shape satisfies the exact invariant the
-    // rewrite relies on — a preset adsr re-saved as stages (UI roundtrip)
-    // must not silently kill its residue curve (3n, v6 res_curve patches:
-    // stage-loaded envelopes no-opped the per-note sustain).
-    if (name == "sustainLevel" && has_adsr_shape_()) {
+  // The knobs clamp to their declared range; sustainLevel is the live
+  // rewrite: decay endVal, expand start/end and release startVal all carry
+  // the sustain value, so paramMap can drive sustainLevel per note
+  // (frequency curves). Accepted for adsr-preset envelopes AND for
+  // stage-form envelopes whose shape satisfies the exact invariant the
+  // rewrite relies on — a preset adsr re-saved as stages (UI roundtrip)
+  // must not silently kill its residue curve (3n, v6 res_curve patches:
+  // stage-loaded envelopes no-opped the per-note sustain).
+  void on_setting_changed(std::string_view name) override {
+    if (name == "stage_accuracy")
+      stage_accuracy.value = std::clamp(stage_accuracy.value, stage_accuracy.min, stage_accuracy.max);
+    else if (name == "ramp_accuracy")
+      ramp_accuracy.value = std::clamp(ramp_accuracy.value, ramp_accuracy.min, ramp_accuracy.max);
+    else if (name == "timeScale")
+      timeScale.value = std::clamp(timeScale.value, timeScale.min, timeScale.max);
+    else if (name == "sustainLevel" && has_adsr_shape_()) {
       // No [0,1] clamp: sustain is a ramp amplitude and legitimately
       // exceeds 1 in test envelopes (_envacc_test holds 2.6); the old
       // clamp corrupted them the moment anything pushed the value back.
+      const float value = sustainLevel.value;
       stages_[1].ramp.endVal   = value;
       stages_[2].ramp.startVal = value;
       stages_[2].ramp.endVal   = value;
       stages_[3].ramp.startVal = value;
-      return;
     }
   }
 
@@ -239,13 +240,12 @@ struct Envelope : ValueSource {
            stages_[2].ramp.endVal   == stages_[3].ramp.startVal;
   }
 
+  // sustainLevel reads back through sustain_level(), not from the stored
+  // setting: a stage-form envelope has no stored sustain, so the setting is
+  // a view of the live slots.
   float get_setting(std::string_view name) const override {
-    if (name == "stage_accuracy") return stage_accuracy;
-    if (name == "ramp_accuracy")  return ramp_accuracy;
-    if (name == "timeScale")      return timeScale_;
-    if (name == "sustainLevel")
-      return has_adsr_shape_() ? stages_[2].ramp.startVal : 0.0f;
-    return 0.0f;
+    if (name == "sustainLevel") return sustain_level();
+    return Component::get_setting(name);
   }
 
   void add_stage(Stage s) { stages_.push_back(s); }
@@ -272,29 +272,7 @@ struct Envelope : ValueSource {
     if (i >= 0 && i < int(stages_.size())) stages_.erase(stages_.begin() + i);
   }
 
-  std::span<const ParamDescriptor> param_descriptors() const override {
-    static constexpr ParamDescriptor descs[] = {
-      {"minValue", 0.0f, -100000.0f, 100000.0f},
-      {"maxValue", 1.0f, -100000.0f, 100000.0f},
-      {"trigger",  0.0f, 0.0f, 1.0f},
-    };
-    return descs;
-  }
-  void set_param(std::string_view name, std::shared_ptr<ValueSource> src) override {
-    if (name == "minValue") { minValue_ = std::move(src); return; }
-    if (name == "maxValue") { maxValue_ = std::move(src); return; }
-    if (name == "trigger")  { trigger_  = std::move(src); return; }
-  }
-  std::shared_ptr<ValueSource> get_param(std::string_view name) const override {
-    if (name == "minValue") return minValue_;
-    if (name == "maxValue") return maxValue_;
-    if (name == "trigger")  return trigger_;
-    return nullptr;
-  }
-
-  void prepare(const RenderContext& ctx, int frames) override {
-    if (minValue_) minValue_->prepare(ctx, frames);
-    if (maxValue_) maxValue_->prepare(ctx, frames);
+  void on_prepare(const RenderContext&, int frames) override {
     totalFrames_ = frames;
     // Note-contained sound (2026-08-13): stages lay out over the layout
     // window; the trailing allowance stays programmatically silent so
@@ -331,11 +309,11 @@ struct Envelope : ValueSource {
       // stage (percent == 0) never reaches here.
       if (gated_ && stages_[i].nominal > 0.0f)
         stgDur = stages_[i].nominal;
-      stgDur *= timeScale_;
+      stgDur *= timeScale.value;
       // Apply stage_accuracy: multiply by a random factor in [stage_accuracy, 1]
       // so multiplex clones get jittered ramp lengths. No-op when == 1.
-      if (stage_accuracy < 1.0f) {
-        std::uniform_real_distribution<float> dist(stage_accuracy, 1.0f);
+      if (stage_accuracy.value < 1.0f) {
+        std::uniform_real_distribution<float> dist(stage_accuracy.value, 1.0f);
         stgDur *= dist(rng_);
       }
       stgDur = absolute_time
@@ -367,36 +345,32 @@ struct Envelope : ValueSource {
     stageEnd_ = stageCounts_.empty() ? 0 : stageCounts_[0];
   }
 
-  float next() override {
-    float raw = next_raw_();
-    if (minValue_ || maxValue_) {
-      if (minValue_) minValue_->advance();
-      if (maxValue_) maxValue_->advance();
-      const float lo = minValue_ ? minValue_->current() : 0.0f;
-      const float hi = maxValue_ ? maxValue_->current() : 1.0f;
-      mapped_ = lo + (hi - lo) * raw;
-    } else {
-      mapped_ = raw;
+  float compute() override {
+    const float raw = next_raw_();
+    if (minValue.source || maxValue.source) {
+      const float lo = minValue.current();
+      const float hi = maxValue.current();
+      return lo + (hi - lo) * raw;
     }
-    return mapped_;
+    return raw;
   }
 
-  // Raw 0..1-domain stage evaluation. cur_ and the gate anchor live HERE,
+  // Raw 0..1-domain stage evaluation. raw_ and the gate anchor live HERE,
   // in the raw domain — the range mapping applies strictly on the way out.
   float next_raw_() {
     // Pre-prepare safety: stageCounts_ is sized in prepare(); without it,
     // stageCounts_[currStage_] indexes a null buffer. Reachable when UI
     // display paths (e.g. draw_formant_strip) cascade next() through a
     // ValueSource chain that includes an unprepared Envelope.
-    if (stageCounts_.empty()) { cur_ = 0.0f; return cur_; }
+    if (stageCounts_.empty()) { raw_ = 0.0f; return raw_; }
 
     if (gated_ && currStage_ == expandIdx_ && expandIdx_ >= 0 &&
         ptr_ + 1 >= stageEnd_) {
       // Held note: sit on the expand stage until gate_release().
-      cur_ = stages_[currStage_].ramp.value(1.0f);
-      if (ramp_accuracy < 1.0f)
-        cur_ *= 1.0f + (1.0f - ramp_accuracy) * lfo_next_();
-      return cur_;
+      raw_ = stages_[currStage_].ramp.value(1.0f);
+      if (ramp_accuracy.value < 1.0f)
+        raw_ *= 1.0f + (1.0f - ramp_accuracy.value) * lfo_next_();
+      return raw_;
     }
 
     ++ptr_;
@@ -406,7 +380,7 @@ struct Envelope : ValueSource {
       stageStart_ = stageEnd_;
       ++currStage_;
       if (currStage_ >= int(stageCounts_.size())) {
-        cur_ = 0.0f; return cur_;
+        raw_ = 0.0f; return raw_;
       }
       stageEnd_ += stageCounts_[currStage_];
     }
@@ -416,31 +390,29 @@ struct Envelope : ValueSource {
     // env emitting 0 = lifted for those last 10 ms is inaudible — the
     // string residual is already at the containment floor.)
     if (ptr_ >= stageEnd_ && currStage_ == int(stages_.size()) - 1) {
-      cur_ = 0.0f;
-      return cur_;
+      raw_ = 0.0f;
+      return raw_;
     }
 
     int count = stageCounts_[currStage_];
     float pos = (count > 0) ? float(ptr_ - stageStart_) / float(count) : 1.0f;
-    cur_ = stages_[currStage_].ramp.value(pos);
+    raw_ = stages_[currStage_].ramp.value(pos);
     if (gateActive_ && currStage_ == gateStage_) {
       // Jumped-to stage re-anchored to the value at gate_release() so a
       // mid-attack key-up releases from where it was, click-free.
       const Ramp& r = stages_[currStage_].ramp;
       float denom = r.endVal - r.startVal;
-      float shape = (std::fabs(denom) > 1e-9f) ? (cur_ - r.startVal) / denom
+      float shape = (std::fabs(denom) > 1e-9f) ? (raw_ - r.startVal) / denom
                                                : pos;
-      cur_ = gateFrom_ + (r.endVal - gateFrom_) * shape;
+      raw_ = gateFrom_ + (r.endVal - gateFrom_) * shape;
     }
 
     // ramp_accuracy: multiply by 1 + (1 - ramp_accuracy) * lfo, lfo in [-1,1].
-    if (ramp_accuracy < 1.0f) {
-      cur_ *= 1.0f + (1.0f - ramp_accuracy) * lfo_next_();
+    if (ramp_accuracy.value < 1.0f) {
+      raw_ *= 1.0f + (1.0f - ramp_accuracy.value) * lfo_next_();
     }
-    return cur_;
+    return raw_;
   }
-
-  float current() const override { return mapped_; }
 
   // ----- Preset factories -----
 
@@ -503,6 +475,27 @@ struct Envelope : ValueSource {
   // for a single patch duplicated dispatch across both loaders (the exact
   // drift bug class the patch linter exists for). See gen_v6m.py.
 
+protected:
+  // For a preset that stores its own sustain level and whose default is not
+  // the plain envelope's 0.7: the setting is declared once, here, with the
+  // preset's default, so the descriptor and the node agree.
+  Envelope(int sampleRate, float sustainDefault)
+    : sustainLevel{this, "sustainLevel", sustainDefault, 0.0f, 1.0f},
+      sampleRate_(sampleRate) {}
+
+  // What the settings surface reports as sustainLevel: the stage list's
+  // four-slot value, 0 when the list is not that shape. A preset that
+  // stores its level reports the stored one.
+  virtual float sustain_level() const {
+    return has_adsr_shape_() ? stages_[2].ramp.startVal : 0.0f;
+  }
+
+  // The knobs every Envelope owns besides sustainLevel; a preset rebuilds
+  // its stage layout for any other setting.
+  static bool is_common_knob_(std::string_view name) {
+    return name == "stage_accuracy" || name == "ramp_accuracy" || name == "timeScale";
+  }
+
 private:
   // Smoothed-random LFO for ramp_accuracy. Cosine interpolation between
   // random ±1 targets; per-segment period jitters ±50% around base = N/10.
@@ -531,8 +524,7 @@ private:
   int currStage_{0};
   int stageStart_{0};
   int stageEnd_{0};
-  float cur_{0.0f};      // raw 0..1-domain stage value (gate anchor domain)
-  float mapped_{0.0f};   // range-mapped output — what next()/current() report
+  float raw_{0.0f};      // raw 0..1-domain stage value (gate anchor domain)
   std::vector<Stage> stages_;
   // True when stages were built by make_adsr — the fixed 4-stage layout that
   // sustainLevel set_setting knows how to rewrite.

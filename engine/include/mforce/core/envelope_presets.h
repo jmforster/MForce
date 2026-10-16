@@ -4,9 +4,11 @@
 namespace mforce {
 
 // ---------------------------------------------------------------------------
-// Convenience envelope classes — thin wrappers around Envelope with
-// setting_descriptors() for the relevant params. Each rebuilds its stages
-// when a config value changes.
+// Convenience envelope classes — thin wrappers around Envelope that declare
+// the settings of one stage layout. Each rebuilds its stages when one of
+// its own settings changes; the knobs every Envelope owns (stage_accuracy,
+// ramp_accuracy, timeScale) are the base's, and so is sustainLevel, which a
+// preset with a sustain stage stores and rebuilds from.
 //
 // Stage min/max timing constraints use sensible defaults internally;
 // they're not exposed to the UI (too confusing for interactive use).
@@ -27,95 +29,55 @@ inline constexpr const char* kRampCurveLabels[] = {
 // Attack → Release (expand). 0→1→0 shape.
 // Use for: amplitude envelopes, simple modulation.
 struct AREnvelope final : Envelope {
+  Setting<float> attack      {this, "attack",       0.2f, 0.0f, 1.0f};
+  Setting<int>   attackCurve {this, "attackCurve",  0,    0,    3, kRampCurveLabels};
+  Setting<float> attackPower {this, "attackPower",  0.0f, 0.0f, 10.0f};
+  Setting<int>   releaseCurve{this, "releaseCurve", 3,    0,    3, kRampCurveLabels};
+  Setting<float> releasePower{this, "releasePower", 0.0f, 0.0f, 10.0f};
+
   AREnvelope(int sampleRate) : Envelope(sampleRate), sr_(sampleRate) { rebuild(); }
 
   const char* type_name() const override { return "AREnvelope"; }
 
-  std::span<const SettingDescriptor> setting_descriptors() const override {
-    static constexpr SettingDescriptor descs[] = {
-      {"attack",         SettingType::Float, 0.2f, 0.0f, 1.0f},
-      {"attackCurve",    SettingType::Int,   0.0f, 0.0f, 3.0f, kRampCurveLabels},
-      {"attackPower",    SettingType::Float, 0.0f, 0.0f, 10.0f},
-      {"releaseCurve",   SettingType::Int,   3.0f, 0.0f, 3.0f, kRampCurveLabels},
-      {"releasePower",   SettingType::Float, 0.0f, 0.0f, 10.0f},
-      {"stage_accuracy", SettingType::Float, 1.0f, 0.0f, 1.0f},
-      {"ramp_accuracy",  SettingType::Float, 1.0f, 0.0f, 1.0f},
-    };
-    return descs;
-  }
-
-  void set_setting(std::string_view name, float value) override {
-    if (name == "attack")       { attack_ = value; rebuild(); return; }
-    if (name == "attackCurve")  { attackCurve_ = std::clamp(int(value), 0, 3); rebuild(); return; }
-    if (name == "attackPower")  { attackPower_ = value; rebuild(); return; }
-    if (name == "releaseCurve") { releaseCurve_ = std::clamp(int(value), 0, 3); rebuild(); return; }
-    if (name == "releasePower") { releasePower_ = value; rebuild(); return; }
-    Envelope::set_setting(name, value);
-  }
-
-  float get_setting(std::string_view name) const override {
-    if (name == "attack")       return attack_;
-    if (name == "attackCurve")  return float(attackCurve_);
-    if (name == "attackPower")  return attackPower_;
-    if (name == "releaseCurve") return float(releaseCurve_);
-    if (name == "releasePower") return releasePower_;
-    return Envelope::get_setting(name);
+  void on_setting_changed(std::string_view name) override {
+    attackCurve.value  = std::clamp(attackCurve.value, 0, 3);
+    releaseCurve.value = std::clamp(releaseCurve.value, 0, 3);
+    if (is_common_knob_(name) || name == "sustainLevel") Envelope::on_setting_changed(name);
+    else rebuild();
   }
 
 private:
   void rebuild() {
-    auto env = Envelope::make_ar(sr_, attack_);
-    env->stage(0).ramp.type  = RampType(attackCurve_);
-    env->stage(0).ramp.power = attackPower_;
-    env->stage(1).ramp.type  = RampType(releaseCurve_);
-    env->stage(1).ramp.power = releasePower_;
+    auto env = Envelope::make_ar(sr_, attack.value);
+    env->stage(0).ramp.type  = RampType(attackCurve.value);
+    env->stage(0).ramp.power = attackPower.value;
+    env->stage(1).ramp.type  = RampType(releaseCurve.value);
+    env->stage(1).ramp.power = releasePower.value;
     replace_stages(std::move(*env));
   }
   int sr_;
-  float attack_{0.2f};
-  int   attackCurve_{0};
-  float attackPower_{0.0f};
-  int   releaseCurve_{3};
-  float releasePower_{0.0f};
 };
 
 // Attack → Sustain (expand). 0→level, holds at level.
 // Use for: timbral shifts during attack, modulation that ramps then holds.
 struct ASEnvelope final : Envelope {
-  ASEnvelope(int sampleRate) : Envelope(sampleRate), sr_(sampleRate) { rebuild(); }
+  Setting<float> attack      {this, "attack",      0.2f, 0.0f, 1.0f};
+  Setting<int>   attackCurve {this, "attackCurve", 0,    0,    3, kRampCurveLabels};
+  Setting<float> attackPower {this, "attackPower", 0.0f, 0.0f, 10.0f};
+  Setting<bool>  reverse     {this, "reverse",     false, false, true};
+
+  ASEnvelope(int sampleRate) : Envelope(sampleRate, 1.0f), sr_(sampleRate) { rebuild(); }
 
   const char* type_name() const override { return "ASEnvelope"; }
 
-  std::span<const SettingDescriptor> setting_descriptors() const override {
-    static constexpr SettingDescriptor descs[] = {
-      {"attack",         SettingType::Float, 0.2f, 0.0f, 1.0f},
-      {"attackCurve",    SettingType::Int,   0.0f, 0.0f, 3.0f, kRampCurveLabels},
-      {"attackPower",    SettingType::Float, 0.0f, 0.0f, 10.0f},
-      {"sustainLevel",   SettingType::Float, 1.0f, 0.0f, 1.0f},
-      {"reverse",        SettingType::Bool,  0.0f, 0.0f, 1.0f},
-      {"stage_accuracy", SettingType::Float, 1.0f, 0.0f, 1.0f},
-      {"ramp_accuracy",  SettingType::Float, 1.0f, 0.0f, 1.0f},
-    };
-    return descs;
+  void on_setting_changed(std::string_view name) override {
+    attackCurve.value = std::clamp(attackCurve.value, 0, 3);
+    if (is_common_knob_(name)) Envelope::on_setting_changed(name);
+    else rebuild();
   }
 
-  void set_setting(std::string_view name, float value) override {
-    if (name == "attack")       { attack_ = value; rebuild(); return; }
-    if (name == "attackCurve")  { attackCurve_ = std::clamp(int(value), 0, 3); rebuild(); return; }
-    if (name == "attackPower")  { attackPower_ = value; rebuild(); return; }
-    if (name == "sustainLevel") { sustainLevel_ = value; rebuild(); return; }
-    if (name == "reverse")      { reverse_ = (value != 0.0f); rebuild(); return; }
-    Envelope::set_setting(name, value);
-  }
-
-  float get_setting(std::string_view name) const override {
-    if (name == "attack")       return attack_;
-    if (name == "attackCurve")  return float(attackCurve_);
-    if (name == "attackPower")  return attackPower_;
-    if (name == "sustainLevel") return sustainLevel_;
-    if (name == "reverse")      return reverse_ ? 1.0f : 0.0f;
-    return Envelope::get_setting(name);
-  }
+protected:
+  float sustain_level() const override { return sustainLevel.value; }
 
 private:
   void rebuild() {
@@ -123,284 +85,168 @@ private:
     // Reverse: sustainLevel → 0 → 0           (fall from peak, then hold at 0)
     // The reverse shape replaces the usual "Range[min=1,max=0] around an
     // ASEnvelope" pattern for "peak at attack, zero at sustain" curves.
-    const float startV = reverse_ ? sustainLevel_ : 0.0f;
-    const float endV   = reverse_ ? 0.0f          : sustainLevel_;
+    const float startV = reverse.value ? sustainLevel.value : 0.0f;
+    const float endV   = reverse.value ? 0.0f               : sustainLevel.value;
     Envelope env(sr_);
-    env.add_stage({{startV, endV, RampType(attackCurve_), attackPower_}, attack_, 0.0f, 1.0f});
+    env.add_stage({{startV, endV, RampType(attackCurve.value), attackPower.value}, attack.value, 0.0f, 1.0f});
     env.add_stage({{endV, endV, RampType::Linear, 0.0f}, 0.0f, 0.0f, 0.0f});
     replace_stages(std::move(env));
   }
   int sr_;
-  float attack_{0.2f}, sustainLevel_{1.0f};
-  bool  reverse_{false};
-  int   attackCurve_{0};
-  float attackPower_{0.0f};
 };
 
 // Attack → Sustain (expand) → Release. 0→level→level→0.
 // Use for: amplitude with sustain and release.
 struct ASREnvelope final : Envelope {
-  ASREnvelope(int sampleRate) : Envelope(sampleRate), sr_(sampleRate) { rebuild(); }
+  Setting<float> attack      {this, "attack",       0.2f, 0.0f, 1.0f};
+  Setting<int>   attackCurve {this, "attackCurve",  0,    0,    3, kRampCurveLabels};
+  Setting<float> attackPower {this, "attackPower",  0.0f, 0.0f, 10.0f};
+  Setting<float> release     {this, "release",      0.1f, 0.0f, 1.0f};
+  Setting<int>   releaseCurve{this, "releaseCurve", 3,    0,    3, kRampCurveLabels};
+  Setting<float> releasePower{this, "releasePower", 0.0f, 0.0f, 10.0f};
+
+  ASREnvelope(int sampleRate) : Envelope(sampleRate, 1.0f), sr_(sampleRate) { rebuild(); }
 
   const char* type_name() const override { return "ASREnvelope"; }
 
-  std::span<const SettingDescriptor> setting_descriptors() const override {
-    static constexpr SettingDescriptor descs[] = {
-      {"attack",         SettingType::Float, 0.2f, 0.0f, 1.0f},
-      {"attackCurve",    SettingType::Int,   0.0f, 0.0f, 3.0f, kRampCurveLabels},
-      {"attackPower",    SettingType::Float, 0.0f, 0.0f, 10.0f},
-      {"sustainLevel",   SettingType::Float, 1.0f, 0.0f, 1.0f},
-      {"release",        SettingType::Float, 0.1f, 0.0f, 1.0f},
-      {"releaseCurve",   SettingType::Int,   3.0f, 0.0f, 3.0f, kRampCurveLabels},
-      {"releasePower",   SettingType::Float, 0.0f, 0.0f, 10.0f},
-      {"stage_accuracy", SettingType::Float, 1.0f, 0.0f, 1.0f},
-      {"ramp_accuracy",  SettingType::Float, 1.0f, 0.0f, 1.0f},
-    };
-    return descs;
+  void on_setting_changed(std::string_view name) override {
+    attackCurve.value  = std::clamp(attackCurve.value, 0, 3);
+    releaseCurve.value = std::clamp(releaseCurve.value, 0, 3);
+    if (is_common_knob_(name)) Envelope::on_setting_changed(name);
+    else rebuild();
   }
 
-  void set_setting(std::string_view name, float value) override {
-    if (name == "attack")       { attack_ = value; rebuild(); return; }
-    if (name == "attackCurve")  { attackCurve_ = std::clamp(int(value), 0, 3); rebuild(); return; }
-    if (name == "attackPower")  { attackPower_ = value; rebuild(); return; }
-    if (name == "sustainLevel") { sustainLevel_ = value; rebuild(); return; }
-    if (name == "release")      { release_ = value; rebuild(); return; }
-    if (name == "releaseCurve") { releaseCurve_ = std::clamp(int(value), 0, 3); rebuild(); return; }
-    if (name == "releasePower") { releasePower_ = value; rebuild(); return; }
-    Envelope::set_setting(name, value);
-  }
-
-  float get_setting(std::string_view name) const override {
-    if (name == "attack")       return attack_;
-    if (name == "attackCurve")  return float(attackCurve_);
-    if (name == "attackPower")  return attackPower_;
-    if (name == "sustainLevel") return sustainLevel_;
-    if (name == "release")      return release_;
-    if (name == "releaseCurve") return float(releaseCurve_);
-    if (name == "releasePower") return releasePower_;
-    return Envelope::get_setting(name);
-  }
+protected:
+  float sustain_level() const override { return sustainLevel.value; }
 
 private:
   void rebuild() {
+    const float level = sustainLevel.value;
     Envelope env(sr_);
-    env.add_stage({{0.0f, sustainLevel_, RampType(attackCurve_), attackPower_}, attack_, 0.0f, 1.0f});
-    env.add_stage({{sustainLevel_, sustainLevel_, RampType::Linear, 0.0f}, 0.0f, 0.0f, 0.0f});
-    env.add_stage({{sustainLevel_, 0.0f, RampType(releaseCurve_), releasePower_}, release_, 0.0f, 0.0f});
+    env.add_stage({{0.0f, level, RampType(attackCurve.value), attackPower.value}, attack.value, 0.0f, 1.0f});
+    env.add_stage({{level, level, RampType::Linear, 0.0f}, 0.0f, 0.0f, 0.0f});
+    env.add_stage({{level, 0.0f, RampType(releaseCurve.value), releasePower.value}, release.value, 0.0f, 0.0f});
     replace_stages(std::move(env));
   }
   int sr_;
-  float attack_{0.2f}, sustainLevel_{1.0f}, release_{0.1f};
-  int   attackCurve_{0};
-  float attackPower_{0.0f};
-  int   releaseCurve_{3};
-  float releasePower_{0.0f};
 };
 
 // Attack → Decay → Sustain (expand). 0→1→level, holds.
 // Use for: timbral attack transient that decays to a steady value.
 struct ADSEnvelope final : Envelope {
-  ADSEnvelope(int sampleRate) : Envelope(sampleRate), sr_(sampleRate) { rebuild(); }
+  Setting<float> attack     {this, "attack",      0.2f, 0.0f, 1.0f};
+  Setting<int>   attackCurve{this, "attackCurve", 0,    0,    3, kRampCurveLabels};
+  Setting<float> attackPower{this, "attackPower", 0.0f, 0.0f, 10.0f};
+  Setting<float> decay      {this, "decay",       0.1f, 0.0f, 1.0f};
+  Setting<int>   decayCurve {this, "decayCurve",  0,    0,    3, kRampCurveLabels};
+  Setting<float> decayPower {this, "decayPower",  0.0f, 0.0f, 10.0f};
+
+  ADSEnvelope(int sampleRate) : Envelope(sampleRate, 0.0f), sr_(sampleRate) { rebuild(); }
 
   const char* type_name() const override { return "ADSEnvelope"; }
 
-  std::span<const SettingDescriptor> setting_descriptors() const override {
-    static constexpr SettingDescriptor descs[] = {
-      {"attack",         SettingType::Float, 0.2f, 0.0f, 1.0f},
-      {"attackCurve",    SettingType::Int,   0.0f, 0.0f, 3.0f, kRampCurveLabels},
-      {"attackPower",    SettingType::Float, 0.0f, 0.0f, 10.0f},
-      {"decay",          SettingType::Float, 0.1f, 0.0f, 1.0f},
-      {"decayCurve",     SettingType::Int,   0.0f, 0.0f, 3.0f, kRampCurveLabels},
-      {"decayPower",     SettingType::Float, 0.0f, 0.0f, 10.0f},
-      {"sustainLevel",   SettingType::Float, 0.0f, 0.0f, 1.0f},
-      {"stage_accuracy", SettingType::Float, 1.0f, 0.0f, 1.0f},
-      {"ramp_accuracy",  SettingType::Float, 1.0f, 0.0f, 1.0f},
-    };
-    return descs;
+  void on_setting_changed(std::string_view name) override {
+    attackCurve.value = std::clamp(attackCurve.value, 0, 3);
+    decayCurve.value  = std::clamp(decayCurve.value, 0, 3);
+    if (is_common_knob_(name)) Envelope::on_setting_changed(name);
+    else rebuild();
   }
 
-  void set_setting(std::string_view name, float value) override {
-    if (name == "attack")       { attack_ = value; rebuild(); return; }
-    if (name == "attackCurve")  { attackCurve_ = std::clamp(int(value), 0, 3); rebuild(); return; }
-    if (name == "attackPower")  { attackPower_ = value; rebuild(); return; }
-    if (name == "decay")        { decay_ = value; rebuild(); return; }
-    if (name == "decayCurve")   { decayCurve_ = std::clamp(int(value), 0, 3); rebuild(); return; }
-    if (name == "decayPower")   { decayPower_ = value; rebuild(); return; }
-    if (name == "sustainLevel") { sustainLevel_ = value; rebuild(); return; }
-    Envelope::set_setting(name, value);
-  }
-
-  float get_setting(std::string_view name) const override {
-    if (name == "attack")       return attack_;
-    if (name == "attackCurve")  return float(attackCurve_);
-    if (name == "attackPower")  return attackPower_;
-    if (name == "decay")        return decay_;
-    if (name == "decayCurve")   return float(decayCurve_);
-    if (name == "decayPower")   return decayPower_;
-    if (name == "sustainLevel") return sustainLevel_;
-    return Envelope::get_setting(name);
-  }
+protected:
+  float sustain_level() const override { return sustainLevel.value; }
 
 private:
   void rebuild() {
+    const float level = sustainLevel.value;
     Envelope env(sr_);
-    env.add_stage({{0.0f, 1.0f, RampType(attackCurve_), attackPower_}, attack_, 0.0f, 1.0f});
-    env.add_stage({{1.0f, sustainLevel_, RampType(decayCurve_), decayPower_}, decay_, 0.0f, 0.5f});
-    env.add_stage({{sustainLevel_, sustainLevel_, RampType::Linear, 0.0f}, 0.0f, 0.0f, 0.0f});
+    env.add_stage({{0.0f, 1.0f, RampType(attackCurve.value), attackPower.value}, attack.value, 0.0f, 1.0f});
+    env.add_stage({{1.0f, level, RampType(decayCurve.value), decayPower.value}, decay.value, 0.0f, 0.5f});
+    env.add_stage({{level, level, RampType::Linear, 0.0f}, 0.0f, 0.0f, 0.0f});
     replace_stages(std::move(env));
   }
   int sr_;
-  float attack_{0.2f}, decay_{0.1f}, sustainLevel_{0.0f};
-  int   attackCurve_{0};
-  float attackPower_{0.0f};
-  int   decayCurve_{0};
-  float decayPower_{0.0f};
 };
 
 // Attack → Decay → Release (expand). 0→1→level→0.
 // Use for: percussive sounds with sustain body.
 struct ADREnvelope final : Envelope {
+  Setting<float> attack      {this, "attack",       0.2f, 0.0f, 1.0f};
+  Setting<int>   attackCurve {this, "attackCurve",  0,    0,    3, kRampCurveLabels};
+  Setting<float> attackPower {this, "attackPower",  0.0f, 0.0f, 10.0f};
+  Setting<float> decay       {this, "decay",        0.1f, 0.0f, 1.0f};
+  Setting<int>   decayCurve  {this, "decayCurve",   0,    0,    3, kRampCurveLabels};
+  Setting<float> decayPower  {this, "decayPower",   0.0f, 0.0f, 10.0f};
+  Setting<float> decayLevel  {this, "decayLevel",   0.7f, 0.0f, 1.0f};
+  Setting<int>   releaseCurve{this, "releaseCurve", 3,    0,    3, kRampCurveLabels};
+  Setting<float> releasePower{this, "releasePower", 0.0f, 0.0f, 10.0f};
+
   ADREnvelope(int sampleRate) : Envelope(sampleRate), sr_(sampleRate) { rebuild(); }
 
   const char* type_name() const override { return "ADREnvelope"; }
 
-  std::span<const SettingDescriptor> setting_descriptors() const override {
-    static constexpr SettingDescriptor descs[] = {
-      {"attack",         SettingType::Float, 0.2f, 0.0f, 1.0f},
-      {"attackCurve",    SettingType::Int,   0.0f, 0.0f, 3.0f, kRampCurveLabels},
-      {"attackPower",    SettingType::Float, 0.0f, 0.0f, 10.0f},
-      {"decay",          SettingType::Float, 0.1f, 0.0f, 1.0f},
-      {"decayCurve",     SettingType::Int,   0.0f, 0.0f, 3.0f, kRampCurveLabels},
-      {"decayPower",     SettingType::Float, 0.0f, 0.0f, 10.0f},
-      {"decayLevel",     SettingType::Float, 0.7f, 0.0f, 1.0f},
-      {"releaseCurve",   SettingType::Int,   3.0f, 0.0f, 3.0f, kRampCurveLabels},
-      {"releasePower",   SettingType::Float, 0.0f, 0.0f, 10.0f},
-      {"stage_accuracy", SettingType::Float, 1.0f, 0.0f, 1.0f},
-      {"ramp_accuracy",  SettingType::Float, 1.0f, 0.0f, 1.0f},
-    };
-    return descs;
-  }
-
-  void set_setting(std::string_view name, float value) override {
-    if (name == "attack")       { attack_ = value; rebuild(); return; }
-    if (name == "attackCurve")  { attackCurve_ = std::clamp(int(value), 0, 3); rebuild(); return; }
-    if (name == "attackPower")  { attackPower_ = value; rebuild(); return; }
-    if (name == "decay")        { decay_ = value; rebuild(); return; }
-    if (name == "decayCurve")   { decayCurve_ = std::clamp(int(value), 0, 3); rebuild(); return; }
-    if (name == "decayPower")   { decayPower_ = value; rebuild(); return; }
-    if (name == "decayLevel")   { decayLevel_ = value; rebuild(); return; }
-    if (name == "releaseCurve") { releaseCurve_ = std::clamp(int(value), 0, 3); rebuild(); return; }
-    if (name == "releasePower") { releasePower_ = value; rebuild(); return; }
-    Envelope::set_setting(name, value);
-  }
-
-  float get_setting(std::string_view name) const override {
-    if (name == "attack")       return attack_;
-    if (name == "attackCurve")  return float(attackCurve_);
-    if (name == "attackPower")  return attackPower_;
-    if (name == "decay")        return decay_;
-    if (name == "decayCurve")   return float(decayCurve_);
-    if (name == "decayPower")   return decayPower_;
-    if (name == "decayLevel")   return decayLevel_;
-    if (name == "releaseCurve") return float(releaseCurve_);
-    if (name == "releasePower") return releasePower_;
-    return Envelope::get_setting(name);
+  void on_setting_changed(std::string_view name) override {
+    attackCurve.value  = std::clamp(attackCurve.value, 0, 3);
+    decayCurve.value   = std::clamp(decayCurve.value, 0, 3);
+    releaseCurve.value = std::clamp(releaseCurve.value, 0, 3);
+    if (is_common_knob_(name) || name == "sustainLevel") Envelope::on_setting_changed(name);
+    else rebuild();
   }
 
 private:
   void rebuild() {
     Envelope env(sr_);
-    env.add_stage({{0.0f, 1.0f, RampType(attackCurve_), attackPower_}, attack_, 0.0f, 1.0f});
-    env.add_stage({{1.0f, decayLevel_, RampType(decayCurve_), decayPower_}, decay_, 0.0f, 0.5f});
-    env.add_stage({{decayLevel_, 0.0f, RampType(releaseCurve_), releasePower_}, 0.0f, 0.0f, 0.0f});
+    env.add_stage({{0.0f, 1.0f, RampType(attackCurve.value), attackPower.value}, attack.value, 0.0f, 1.0f});
+    env.add_stage({{1.0f, decayLevel.value, RampType(decayCurve.value), decayPower.value}, decay.value, 0.0f, 0.5f});
+    env.add_stage({{decayLevel.value, 0.0f, RampType(releaseCurve.value), releasePower.value}, 0.0f, 0.0f, 0.0f});
     replace_stages(std::move(env));
   }
   int sr_;
-  float attack_{0.2f}, decay_{0.1f}, decayLevel_{0.7f};
-  int   attackCurve_{0};
-  float attackPower_{0.0f};
-  int   decayCurve_{0};
-  float decayPower_{0.0f};
-  int   releaseCurve_{3};
-  float releasePower_{0.0f};
 };
 
 // Attack → Decay → Sustain (expand) → Release. Full ADSR.
 // Use for: standard amplitude envelopes.
 struct ADSREnvelope final : Envelope {
-  ADSREnvelope(int sampleRate) : Envelope(sampleRate), sr_(sampleRate) { rebuild(); }
+  Setting<float> attack      {this, "attack",       0.2f, 0.0f, 1.0f};
+  Setting<int>   attackCurve {this, "attackCurve",  0,    0,    3, kRampCurveLabels};
+  Setting<float> attackPower {this, "attackPower",  0.0f, 0.0f, 10.0f};
+  Setting<float> decay       {this, "decay",        0.1f, 0.0f, 1.0f};
+  Setting<int>   decayCurve  {this, "decayCurve",   0,    0,    3, kRampCurveLabels};
+  Setting<float> decayPower  {this, "decayPower",   0.0f, 0.0f, 10.0f};
+  // Default 0.1 (was 0 — Matt 2026-08-29): a fresh ADSR should release,
+  // not hard-cut. All corpus patches set release explicitly (verified
+  // 2026-08-29), so the default change moves no existing render.
+  Setting<float> release     {this, "release",      0.1f, 0.0f, 1.0f};
+  Setting<int>   releaseCurve{this, "releaseCurve", 3,    0,    3, kRampCurveLabels};
+  Setting<float> releasePower{this, "releasePower", 0.0f, 0.0f, 10.0f};
+
+  ADSREnvelope(int sampleRate) : Envelope(sampleRate, 0.7f), sr_(sampleRate) { rebuild(); }
 
   const char* type_name() const override { return "ADSREnvelope"; }
 
-  std::span<const SettingDescriptor> setting_descriptors() const override {
-    static constexpr SettingDescriptor descs[] = {
-      {"attack",         SettingType::Float, 0.2f, 0.0f, 1.0f},
-      {"attackCurve",    SettingType::Int,   0.0f, 0.0f, 3.0f, kRampCurveLabels},
-      {"attackPower",    SettingType::Float, 0.0f, 0.0f, 10.0f},
-      {"decay",          SettingType::Float, 0.1f, 0.0f, 1.0f},
-      {"decayCurve",     SettingType::Int,   0.0f, 0.0f, 3.0f, kRampCurveLabels},
-      {"decayPower",     SettingType::Float, 0.0f, 0.0f, 10.0f},
-      {"sustainLevel",   SettingType::Float, 0.7f, 0.0f, 1.0f},
-      // Default 0.1 (was 0 — Matt 2026-08-29): a fresh ADSR should release,
-      // not hard-cut. All corpus patches set release explicitly (verified
-      // 2026-08-29), so the default change moves no existing render.
-      {"release",        SettingType::Float, 0.1f, 0.0f, 1.0f},
-      {"releaseCurve",   SettingType::Int,   3.0f, 0.0f, 3.0f, kRampCurveLabels},
-      {"releasePower",   SettingType::Float, 0.0f, 0.0f, 10.0f},
-      {"stage_accuracy", SettingType::Float, 1.0f, 0.0f, 1.0f},
-      {"ramp_accuracy",  SettingType::Float, 1.0f, 0.0f, 1.0f},
-    };
-    return descs;
+  void on_setting_changed(std::string_view name) override {
+    attackCurve.value  = std::clamp(attackCurve.value, 0, 3);
+    decayCurve.value   = std::clamp(decayCurve.value, 0, 3);
+    releaseCurve.value = std::clamp(releaseCurve.value, 0, 3);
+    if (is_common_knob_(name)) Envelope::on_setting_changed(name);
+    else rebuild();
   }
 
-  void set_setting(std::string_view name, float value) override {
-    if (name == "attack")       { attack_ = value; rebuild(); return; }
-    if (name == "attackCurve")  { attackCurve_ = std::clamp(int(value), 0, 3); rebuild(); return; }
-    if (name == "attackPower")  { attackPower_ = value; rebuild(); return; }
-    if (name == "decay")        { decay_ = value; rebuild(); return; }
-    if (name == "decayCurve")   { decayCurve_ = std::clamp(int(value), 0, 3); rebuild(); return; }
-    if (name == "decayPower")   { decayPower_ = value; rebuild(); return; }
-    if (name == "sustainLevel") { sustainLevel_ = value; rebuild(); return; }
-    if (name == "release")      { release_ = value; rebuild(); return; }
-    if (name == "releaseCurve") { releaseCurve_ = std::clamp(int(value), 0, 3); rebuild(); return; }
-    if (name == "releasePower") { releasePower_ = value; rebuild(); return; }
-    Envelope::set_setting(name, value);
-  }
-
-  float get_setting(std::string_view name) const override {
-    if (name == "attack")       return attack_;
-    if (name == "attackCurve")  return float(attackCurve_);
-    if (name == "attackPower")  return attackPower_;
-    if (name == "decay")        return decay_;
-    if (name == "decayCurve")   return float(decayCurve_);
-    if (name == "decayPower")   return decayPower_;
-    if (name == "sustainLevel") return sustainLevel_;
-    if (name == "release")      return release_;
-    if (name == "releaseCurve") return float(releaseCurve_);
-    if (name == "releasePower") return releasePower_;
-    return Envelope::get_setting(name);
-  }
+protected:
+  float sustain_level() const override { return sustainLevel.value; }
 
 private:
   void rebuild() {
     auto env = Envelope::make_adsr(sr_,
-        attack_, decay_, sustainLevel_, release_);
-    env->stage(0).ramp.type  = RampType(attackCurve_);
-    env->stage(0).ramp.power = attackPower_;
-    env->stage(1).ramp.type  = RampType(decayCurve_);
-    env->stage(1).ramp.power = decayPower_;
-    env->stage(3).ramp.type  = RampType(releaseCurve_);
-    env->stage(3).ramp.power = releasePower_;
+        attack.value, decay.value, sustainLevel.value, release.value);
+    env->stage(0).ramp.type  = RampType(attackCurve.value);
+    env->stage(0).ramp.power = attackPower.value;
+    env->stage(1).ramp.type  = RampType(decayCurve.value);
+    env->stage(1).ramp.power = decayPower.value;
+    env->stage(3).ramp.type  = RampType(releaseCurve.value);
+    env->stage(3).ramp.power = releasePower.value;
     replace_stages(std::move(*env));
   }
   int sr_;
-  float attack_{0.2f}, decay_{0.1f}, sustainLevel_{0.7f}, release_{0.1f};
-  int   attackCurve_{0};
-  float attackPower_{0.0f};
-  int   decayCurve_{0};
-  float decayPower_{0.0f};
-  int   releaseCurve_{3};
-  float releasePower_{0.0f};
 };
 
 } // namespace mforce
