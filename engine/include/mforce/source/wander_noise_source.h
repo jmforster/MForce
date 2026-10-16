@@ -64,9 +64,9 @@ struct WanderNoiseSource final : ValueSource {
   }
 
   float next() override {
-    if (speed_)      speed_->next();
-    if (deltaSpeed_) deltaSpeed_->next();
-    if (slopeLimit_) slopeLimit_->next();
+    if (speed_)      speed_->advance();
+    if (deltaSpeed_) deltaSpeed_->advance();
+    if (slopeLimit_) slopeLimit_->advance();
 
     float ds = deltaSpeed_ ? deltaSpeed_->current() : 1.0f;
     float sl = slopeLimit_ ? slopeLimit_->current() : 1.0f;
@@ -189,11 +189,11 @@ struct WanderNoise2Source final : ValueSource {
   }
 
   float next() override {
-    if (minSpeed_)    minSpeed_->next();
-    if (maxSpeed_)    maxSpeed_->next();
-    if (reverseProb_) reverseProb_->next();
-    if (retraceProb_) retraceProb_->next();
-    if (retracePct_)  retracePct_->next();
+    if (minSpeed_)    minSpeed_->advance();
+    if (maxSpeed_)    maxSpeed_->advance();
+    if (reverseProb_) reverseProb_->advance();
+    if (retraceProb_) retraceProb_->advance();
+    if (retracePct_)  retracePct_->advance();
 
     float mnSpd = minSpeed_    ? minSpeed_->current()    : 1.0f;
     float mxSpd = maxSpeed_    ? maxSpeed_->current()    : 1.0f;
@@ -303,10 +303,10 @@ struct WanderNoise3Source final : ValueSource {
   }
 
   float next() override {
-    if (amplitude_)  amplitude_->next();
-    if (speed_)      speed_->next();
-    if (deltaSpeed_) deltaSpeed_->next();
-    if (slopeLimit_) slopeLimit_->next();
+    if (amplitude_)  amplitude_->advance();
+    if (speed_)      speed_->advance();
+    if (deltaSpeed_) deltaSpeed_->advance();
+    if (slopeLimit_) slopeLimit_->advance();
 
     float sp = speed_      ? speed_->current()      : 1.0f;
     float ds = deltaSpeed_ ? deltaSpeed_->current() : 1.0f;

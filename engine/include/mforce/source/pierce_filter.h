@@ -78,9 +78,9 @@ struct PierceFilterSource final : ValueSource {
   }
 
   float next() override {
-    const float x = source_ ? source_->next() : 0.0f;
-    coefNeg_->next();
-    coefPos_->next();
+    const float x = source_ ? source_->advance() : 0.0f;
+    coefNeg_->advance();
+    coefPos_->advance();
     cur_ = ap_.tick(x, coefNeg_->current(), coefPos_->current());
     return cur_;
   }

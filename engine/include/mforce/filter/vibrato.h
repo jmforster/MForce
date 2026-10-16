@@ -101,10 +101,10 @@ struct Vibrato final : ValueSource {
   }
 
   float next() override {
-    float freq = frequency_ ? (frequency_->next(), frequency_->current()) : 440.0f;
+    float freq = frequency_ ? (frequency_->advance(), frequency_->current()) : 440.0f;
 
     if (enabled_) {
-      float mod = lfo_->next();
+      float mod = lfo_->advance();
       cur_ = freq * std::max(0.01f, 1.0f + mod);
     } else {
       cur_ = freq;

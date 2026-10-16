@@ -204,9 +204,9 @@ struct Mesh2DSource final : ValueSource {
   }
 
   float next() override {
-    const float in = source_ ? source_->next() : 0.0f;
-    inX_->next(); inY_->next(); outX_->next(); outY_->next(); decay_->next();
-    edgeFc_->next(); edgeR_->next(); coefNeg_->next(); coefPos_->next();
+    const float in = source_ ? source_->advance() : 0.0f;
+    inX_->advance(); inY_->advance(); outX_->advance(); outY_->advance(); decay_->advance();
+    edgeFc_->advance(); edgeR_->advance(); coefNeg_->advance(); coefPos_->advance();
     const int xi = junction(inX_->current(),  NX_);
     const int yi = junction(inY_->current(),  NY_);
     const int xo = junction(outX_->current(), NX_);

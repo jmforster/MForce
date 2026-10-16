@@ -333,7 +333,7 @@ struct PitchedInstrument final : Instrument {
     // never reaches a setting — dynamic pins stay frozen for the note by
     // definition (pin_model_design.md §5).
     for (auto& b : vg.pushBindings) {
-      b.chain->next();
+      b.chain->advance();
       float v = b.chain->current();
       if (b.isSetting) {
         b.consumer->set_setting(b.paramName, v);
@@ -441,9 +441,10 @@ struct PitchedInstrument final : Instrument {
     const size_t base = buf.size();
     buf.resize(base + size_t(n));
     for (int k = 0; k < n; ++k) {
+      ++SharingTrace::sample;
       if (vg.performSource) vg.performSource->tick();   // P3 sample clock
-      buf[base + size_t(k)] = vg.source->next() * gain;
-      for (auto& a : vg.advanceList) a->next();         // tap-only loop tails
+      buf[base + size_t(k)] = vg.source->advance() * gain;
+      for (auto& a : vg.advanceList) a->advance();         // tap-only loop tails
       if (capturing) {
         // Strips record raw current() — no velocity/volume gain — matching
         // what the per-node display always showed.
@@ -485,7 +486,7 @@ struct PitchedInstrument final : Instrument {
     // (noteFaces curves) need no delivery: they read the new NoteState.
     for (auto& b : vg.pushBindings) {
       if (b.isSetting) continue;
-      b.chain->next();
+      b.chain->advance();
       float v = b.chain->current();
       b.cs->set(v);
       b.consumer->set_param(b.paramName, b.cs);
@@ -739,8 +740,10 @@ struct DrumKit final : Instrument {
     ds.source->prepare(ctx, durSamples);
 
     std::vector<float> buf(durSamples);
-    for (int i = 0; i < durSamples; ++i)
-      buf[i] = ds.source->next() * velocity;
+    for (int i = 0; i < durSamples; ++i) {
+      ++SharingTrace::sample;
+      buf[i] = ds.source->advance() * velocity;
+    }
 
     add_rendered(startTime, buf.data(), durSamples);
   }

@@ -123,10 +123,10 @@ struct AllpassResonator final : ValueSource {
   }
 
   float next() override {
-    if (frequency_) frequency_->next();
-    if (amplitude_) amplitude_->next();
+    if (frequency_) frequency_->advance();
+    if (amplitude_) amplitude_->advance();
     float exc = 0.0f;
-    if (source_) { source_->next(); exc = source_->current(); }
+    if (source_) { source_->advance(); exc = source_->current(); }
 
     if (!initialized_) init_note();
 

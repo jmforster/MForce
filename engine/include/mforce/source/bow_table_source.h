@@ -74,9 +74,9 @@ struct BowTableSource final : ValueSource {
   }
 
   float next() override {
-    const float dv = source_ ? source_->next() : 0.0f;
-    slope_->next();
-    offset_->next();
+    const float dv = source_ ? source_->advance() : 0.0f;
+    slope_->advance();
+    offset_->advance();
     float s = std::fabs((dv + offset_->current()) * slope_->current()) + 0.75f;
     float rc = std::pow(s, -4.0f);
     rc = std::clamp(rc, minOut_, maxOut_);

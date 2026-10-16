@@ -82,7 +82,7 @@ struct RepeatingSource final : ValueSource {
       // Playing source
       if (srcRemaining_ > 0) {
         srcRemaining_--;
-        cur_ = source_ ? source_->next() : 0.0f;
+        cur_ = source_ ? source_->advance() : 0.0f;
       } else {
         // Source finished — enter gap
         gapCount_ = int(std::round(currGap_ * float(sampleRate)));

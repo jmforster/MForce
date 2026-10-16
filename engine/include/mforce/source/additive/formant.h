@@ -79,7 +79,7 @@ struct Formant final : ValueSource, IFormant {
   }
 
   void fmt_next() override {
-    frequency_->next(); gain_->next(); width_->next(); power_->next();
+    frequency_->advance(); gain_->advance(); width_->advance(); power_->advance();
     currFreq_ = frequency_->current();
     currGain_ = gain_->current();
     float w   = width_->current();
@@ -241,8 +241,8 @@ struct BandSpectrum final : ValueSource, IFormant {
   }
 
   void fmt_next() override {
-    startFreq_->next();
-    freqIncrement_->next();
+    startFreq_->advance();
+    freqIncrement_->advance();
   }
 
   bool contains(float freq) const override {
@@ -349,7 +349,7 @@ struct FormantSequence final : ValueSource, IFormant {
   }
 
   void fmt_next() override {
-    blend_->next();
+    blend_->advance();
     for (auto& f : formants) f->fmt_next();
 
     int n = int(formants.size());

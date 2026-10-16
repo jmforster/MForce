@@ -77,7 +77,7 @@ struct PinkNoiseSource final : ValueSource {
     int extra = int(rng_.rng()) >> RANDOM_SHIFT;
     int sum = runningSum_ + extra;
 
-    cur_ = float(scaleFactor_ * double(sum)) * amplitude_->next();
+    cur_ = float(scaleFactor_ * double(sum)) * amplitude_->advance();
     return cur_;
   }
 

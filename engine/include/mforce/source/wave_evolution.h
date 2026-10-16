@@ -373,10 +373,10 @@ struct ReedEvolution final : WaveEvolution {
     lpState_ = loopFilter * avg + (1.0f - loopFilter) * lpState_;
     float loopOut = lpState_ * (1.0f - tubeLoss);
 
-    float drive = reedStiffness ? reedStiffness->next() : 0.0f;
+    float drive = reedStiffness ? reedStiffness->advance() : 0.0f;
     if (drive > 0.0f) loopOut = std::tanh(drive * loopOut);
 
-    float b = breath ? breath->next() : 0.0f;
+    float b = breath ? breath->advance() : 0.0f;
     float noise = rng_.valuePN();
     values[index] = loopOut + b * noise;
   }
@@ -455,8 +455,8 @@ struct BowedStringEvolution final : WaveEvolution {
 
     float vString = bridgeIn + neckIn;
 
-    float pressure = bow ? bow->next() : 0.0f;
-    float gain = frictionGain ? frictionGain->next() : 4.0f;
+    float pressure = bow ? bow->advance() : 0.0f;
+    float gain = frictionGain ? frictionGain->advance() : 4.0f;
 
     float vBow = bowSpeed * pressure;
     float vRel = vBow - vString;
@@ -561,10 +561,10 @@ struct BrassEvolution final : WaveEvolution {
     lipState_ = (1.0f - lipTension) * avg + lipTension * lipState_;
     float loopOut = lipState_ * (1.0f - tubeLoss);
 
-    float drive = brassiness ? brassiness->next() : 0.0f;
+    float drive = brassiness ? brassiness->advance() : 0.0f;
     if (drive > 0.0f) loopOut = std::tanh(drive * loopOut);
 
-    float b = breath ? breath->next() : 0.0f;
+    float b = breath ? breath->advance() : 0.0f;
     float noise = rng_.valuePN();
     rawLoop_[index] = loopOut + b * noise;
 
@@ -1480,8 +1480,8 @@ struct BitRotateEvolution final : WaveEvolution {
   }
 
   void evolve(std::vector<float>& values, int index) override {
-    const int step = stepEvery ? std::max(1, int(stepEvery->next())) : 4;
-    const int bits = shiftBits ? int(shiftBits->next()) : 3;
+    const int step = stepEvery ? std::max(1, int(stepEvery->advance())) : 4;
+    const int bits = shiftBits ? int(shiftBits->advance()) : 3;
     ctr_++;
     if (ctr_ < step) return;
     ctr_ = 0;

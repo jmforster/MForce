@@ -118,10 +118,10 @@ struct MultiplexSource final : ValueSource {
             float sum = 0.0f;
             int n = int(instances_.size());
             for (auto& inst : instances_)
-                if (inst) sum += inst->next();
+                if (inst) sum += inst->advance();
             cur_ = (n > 0) ? sum / float(n) : 0.0f;
         } else if (uiSource_) {
-            cur_ = uiSource_->next();  // solo passthrough (UI preview)
+            cur_ = uiSource_->advance();  // solo passthrough (UI preview)
         } else {
             cur_ = 0.0f;
         }

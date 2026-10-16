@@ -370,8 +370,8 @@ struct Envelope : ValueSource {
   float next() override {
     float raw = next_raw_();
     if (minValue_ || maxValue_) {
-      if (minValue_) minValue_->next();
-      if (maxValue_) maxValue_->next();
+      if (minValue_) minValue_->advance();
+      if (maxValue_) maxValue_->advance();
       const float lo = minValue_ ? minValue_->current() : 0.0f;
       const float hi = maxValue_ ? maxValue_->current() : 1.0f;
       mapped_ = lo + (hi - lo) * raw;

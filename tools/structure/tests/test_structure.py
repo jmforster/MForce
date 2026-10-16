@@ -132,10 +132,18 @@ class KnownAnswerTests(unittest.TestCase):
         self.assertEqual(lengths["draw_properties_panel"], 1035)
 
     def test_instrument_ring_out_duplicate_is_found(self):
-        blocks = measure.token_duplicates(["engine/include/mforce/render/instrument.h"], ROOT)
-        spans = [(s, e) for _, places in blocks for _, s, e in places]
-        self.assertIn((631, 649), spans)
-        self.assertIn((686, 698), spans)
+        # The audit's known duplicate: the ring-out loop of the fresh voice and
+        # of the held line. Anchored on their one-sample render_chunk calls,
+        # not on line numbers, which move with every edit above them.
+        path = "engine/include/mforce/render/instrument.h"
+        lines = (ROOT / path).read_text(encoding="utf-8").splitlines()
+        anchors = [i + 1 for i, l in enumerate(lines) if "render_chunk(vg, buf, " in l and ", 1, " in l]
+        self.assertEqual(len(anchors), 2)
+        blocks = measure.token_duplicates([path], ROOT)
+        spans = {s: e for _, places in blocks for _, s, e in places}
+        for a in anchors:
+            self.assertIn(a, spans)
+            self.assertGreaterEqual(spans[a] - a, 12)
 
     def test_every_tracked_source_is_on_a_module(self):
         import subprocess

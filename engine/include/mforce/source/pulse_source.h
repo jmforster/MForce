@@ -51,8 +51,8 @@ struct PulseSource final : WaveSource {
 
 protected:
   float compute_wave_value() override {
-    float duty = dutyCycle_->next();
-    float bend = bend_->next();
+    float duty = dutyCycle_->advance();
+    float bend = bend_->advance();
 
     // Use current() after next() — matches legacy GetNext() pattern
     duty = dutyCycle_->current();

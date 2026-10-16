@@ -125,11 +125,11 @@ void AdditiveSource2::prepare(const RenderContext& ctx, int frames) {
 }
 
 float AdditiveSource2::compute_wave_value() {
-  phaseOffset_->next();
-  freqVarDepth_->next();
-  freqVarSpeed_->next();
-  amplVarDepth_->next();
-  amplVarSpeed_->next();
+  phaseOffset_->advance();
+  freqVarDepth_->advance();
+  freqVarSpeed_->advance();
+  amplVarDepth_->advance();
+  amplVarSpeed_->advance();
 
   float po  = phaseOffset_->current();
   float fvp = freqVarDepth_->current();
@@ -138,8 +138,8 @@ float AdditiveSource2::compute_wave_value() {
   float avs = amplVarSpeed_->current() / float(sampleRate_);
 
   // Advance all unique envelopes once per sample
-  for (auto& e : freqEnvs_) e->next();
-  for (auto& e : amplEnvs_) e->next();
+  for (auto& e : freqEnvs_) e->advance();
+  for (auto& e : amplEnvs_) e->advance();
 
   constexpr float TAU = 2.0f * 3.14159265358979323846f;
   float val = 0.0f;

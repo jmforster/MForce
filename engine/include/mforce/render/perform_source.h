@@ -68,7 +68,7 @@ public:
 
   // Once per sample, from the render driver — never from a consumer pull.
   void tick() {
-    if (bend_) bendSemis_ = bend_->next();
+    if (bend_) bendSemis_ = bend_->advance();
     if (inst_) {
       wheelSm_ += smoothA_ * (inst_->wheel.load(std::memory_order_relaxed)
                               - wheelSm_);

@@ -93,11 +93,11 @@ struct Reverb final : ValueSource {
 
   float next() override {
     float in = 0.0f;
-    if (source_)   { source_->next();   in       = source_->current(); }
-    if (roomSize_) { roomSize_->next(); }
-    if (damping_)  { damping_->next();  }
-    if (wet_)      { wet_->next();      }
-    if (dry_)      { dry_->next();      }
+    if (source_)   { source_->advance();   in       = source_->current(); }
+    if (roomSize_) { roomSize_->advance(); }
+    if (damping_)  { damping_->advance();  }
+    if (wet_)      { wet_->advance();      }
+    if (dry_)      { dry_->advance();      }
 
     float room = roomSize_ ? std::clamp(roomSize_->current(), 0.0f, 1.0f) : 0.5f;
     float damp = damping_  ? std::clamp(damping_->current(),  0.0f, 1.0f) : 0.5f;

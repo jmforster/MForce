@@ -99,10 +99,10 @@ struct DelayLineSource final : ValueSource {
   }
 
   float next() override {
-    const float in = source_ ? source_->next() : 0.0f;
-    frequency_->next();
-    ratio_->next();
-    amplitude_->next();
+    const float in = source_ ? source_->advance() : 0.0f;
+    frequency_->advance();
+    ratio_->advance();
+    amplitude_->advance();
     const float f = std::max(frequency_->current(), 20.0f);
     float comp = 0.0f;
     if (cycleFound_) {

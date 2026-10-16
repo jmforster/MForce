@@ -1893,7 +1893,54 @@ static void run_walk3_tests() {
     }
 }
 
+#include "mforce/source/sine_source.h"
+
+// Checkpoint 2.1 Task 0: the sharing trace. A wrapped (RefSource) consumer
+// that reads a shared source before its primary consumer advanced it this
+// sample is a lag read; a guarded tap that reads after the advance is a
+// same-tick tap. Both counters feed the measured lists for checkpoints
+// 2.3 and 2.4; the instrumentation goes with the memo.
+static void run_sharing_trace_tests() {
+    RenderContext ctx{48000};
+    auto shared = std::make_shared<ConstantSource>(0.5f);
+    auto sine = std::make_shared<SineSource>(48000);
+    sine->set_param("amplitude", shared);            // the primary consumer
+    auto ref = std::make_shared<RefSource>(shared, false);
+    auto tap = std::make_shared<RefSource>(shared, true);
+    sine->prepare(ctx, 16);
+    SharingTrace::enabled = true;
+    SharingTrace::lagReads = 0;
+    SharingTrace::sameTickTaps = 0;
+    ++SharingTrace::sample;
+    ref->next();                  // before the primary advanced: a lag read
+    CHECK(SharingTrace::lagReads == 1);
+    sine->next();                 // advances `shared` through the amplitude pin
+    ref->next();                  // same sample, after the advance: not a lag
+    CHECK(SharingTrace::lagReads == 1);
+    tap->next();                  // a tap seeing this sample's value
+    CHECK(SharingTrace::sameTickTaps == 1);
+    ++SharingTrace::sample;
+    tap->next();                  // next sample, before the advance: the z^-1 a tap should see
+    CHECK(SharingTrace::sameTickTaps == 1);
+    CHECK(SharingTrace::lagReads == 1);
+    // A tap read from inside its source's own pull (a loop: the sine's
+    // amplitude is a tap on the sine) sees the previous sample's value even
+    // though the source is being advanced this sample: not a same-tick tap.
+    auto loop = std::make_shared<SineSource>(48000);
+    loop->set_param("amplitude", std::make_shared<RefSource>(loop, true));
+    loop->prepare(ctx, 16);
+    SharingTrace::sameTickTaps = 0;
+    ++SharingTrace::sample;
+    loop->advance();              // the driver's pull: the tap reads mid-advance
+    CHECK(SharingTrace::sameTickTaps == 0);
+    ++SharingTrace::sample;
+    loop->advance();
+    CHECK(SharingTrace::sameTickTaps == 0);
+    SharingTrace::enabled = false;
+}
+
 int main() {
+    run_sharing_trace_tests();
     run_walk2_tests();
     run_walk3_tests();
     run_walk1_tests();

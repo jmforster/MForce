@@ -44,7 +44,7 @@ struct BlueNoiseSource final : ValueSource {
 
   float next() override {
     float p = pink_.next();
-    cur_ = (p - prev_) * amplitude_->next();
+    cur_ = (p - prev_) * amplitude_->advance();
     prev_ = p;
     return cur_;
   }
@@ -94,7 +94,7 @@ struct VioletNoiseSource final : ValueSource {
     float w = rng_.valuePN();
     cur_ = w - prev_;
     prev_ = w;
-    cur_ *= 0.5f * amplitude_->next();
+    cur_ *= 0.5f * amplitude_->advance();
     return cur_;
   }
 
@@ -149,8 +149,8 @@ struct VelvetNoiseSource final : ValueSource {
   }
 
   float next() override {
-    float d = density_->next();
-    float a = amplitude_->next();
+    float d = density_->advance();
+    float a = amplitude_->advance();
     cur_ = 0.0f;
     if (counter_ >= nextImpulse_) {
       cur_ = (rng_.value() < 0.5f ? a : -a);
@@ -233,10 +233,10 @@ struct PerlinNoiseSource final : ValueSource {
   }
 
   float next() override {
-    float spd = speed_->next();
-    int oct = std::clamp(int(octaves_->next()), 1, 8);
-    float pers = persistence_->next();
-    float lac = lacunarity_->next();
+    float spd = speed_->advance();
+    int oct = std::clamp(int(octaves_->advance()), 1, 8);
+    float pers = persistence_->advance();
+    float lac = lacunarity_->advance();
 
     pos_ += double(spd) / double(sampleRate_);
 
@@ -324,7 +324,7 @@ struct CrackleNoiseSource final : ValueSource {
   }
 
   float next() override {
-    float c = chaos_->next();
+    float c = chaos_->advance();
     float y0 = std::fabs(c * y1_ - y2_ - 0.05f);
     y0 = std::clamp(y0, -1.0f, 1.0f);
     y2_ = y1_;
@@ -420,12 +420,12 @@ struct MurmurationNoiseSource final : ValueSource {
   }
 
   float next() override {
-    int n = std::clamp(int(count_->next()), 2, MAX_BIRDS);
-    float coh = cohesion_->next();
-    float ali = alignment_->next();
-    float sep = separation_->next();
-    float cha = chaos_->next();
-    float centerFreq = speed_->next();
+    int n = std::clamp(int(count_->advance()), 2, MAX_BIRDS);
+    float coh = cohesion_->advance();
+    float ali = alignment_->advance();
+    float sep = separation_->advance();
+    float cha = chaos_->advance();
+    float centerFreq = speed_->advance();
 
     // --- Flocking update (runs at audio rate, scaled by frequency) ---
     float dt = centerFreq / float(sampleRate_);  // scale forces by base period

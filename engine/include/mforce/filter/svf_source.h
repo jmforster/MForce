@@ -96,9 +96,9 @@ struct SVFSource final : ValueSource {
   }
 
   float next() override {
-    float in  = source_ ? (source_->next(), source_->current()) : 0.0f;
-    float fc  = cutoffFreq_ ? (cutoffFreq_->next(), cutoffFreq_->current()) : 1000.0f;
-    float res = resonance_ ? (resonance_->next(), resonance_->current()) : 1.0f;
+    float in  = source_ ? (source_->advance(), source_->current()) : 0.0f;
+    float fc  = cutoffFreq_ ? (cutoffFreq_->advance(), cutoffFreq_->current()) : 1000.0f;
+    float res = resonance_ ? (resonance_->advance(), resonance_->current()) : 1.0f;
     fc  = std::clamp(fc, 1.0f, float(sampleRate_) * 0.49f);
     res = std::clamp(res, 0.5f, 40.0f);
 

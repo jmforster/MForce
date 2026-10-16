@@ -60,7 +60,7 @@ struct WaveSourceMono final : MonoSource {
     explicit WaveSourceMono(std::shared_ptr<WaveSource> s) : src(std::move(s)) {}
     void render(const RenderContext& ctx, float* out, int frames) override {
         src->prepare(ctx, frames);
-        for (int i = 0; i < frames; ++i) out[i] = src->next();
+        for (int i = 0; i < frames; ++i) { ++SharingTrace::sample; out[i] = src->advance(); }
     }
 };
 
@@ -69,7 +69,7 @@ struct ValueSourceMono final : MonoSource {
     explicit ValueSourceMono(std::shared_ptr<ValueSource> s) : src(std::move(s)) {}
     void render(const RenderContext& ctx, float* out, int frames) override {
         src->prepare(ctx, frames);
-        for (int i = 0; i < frames; ++i) out[i] = src->next();
+        for (int i = 0; i < frames; ++i) { ++SharingTrace::sample; out[i] = src->advance(); }
     }
 };
 

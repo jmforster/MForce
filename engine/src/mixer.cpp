@@ -25,10 +25,10 @@ void StereoMixer::render(const RenderContext& ctx, float* outLR, int frames) {
     ch.source->render(ctx, mono.data(), frames);
 
     for (int i = 0; i < frames; ++i) {
-      float gl = gainL->next();
-      float gr = gainR->next();
-      float v = ch.volume->next();
-      float p = ch.pan->next();               // [-1,1]
+      float gl = gainL->advance();
+      float gr = gainR->advance();
+      float v = ch.volume->advance();
+      float p = ch.pan->advance();               // [-1,1]
       p = std::clamp(p, -1.0f, 1.0f);
 
       // Equal-power panning: map [-1,1] -> [0,1], normalized to UNITY at

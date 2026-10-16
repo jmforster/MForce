@@ -78,9 +78,9 @@ struct Limiter final : ValueSource {
 
   float next() override {
     float in = 0.0f;
-    if (source_)    { source_->next();    in = source_->current(); }
-    if (threshold_) { threshold_->next(); }
-    if (release_)   { release_->next();   }
+    if (source_)    { source_->advance();    in = source_->current(); }
+    if (threshold_) { threshold_->advance(); }
+    if (release_)   { release_->advance();   }
 
     float thr     = threshold_ ? std::clamp(threshold_->current(), 1e-4f, 1.0f) : 0.95f;
     float relSec  = release_   ? std::max(0.001f, release_->current())          : 0.05f;

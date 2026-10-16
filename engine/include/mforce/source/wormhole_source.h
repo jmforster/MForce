@@ -39,7 +39,7 @@ struct WormholeSource final : ValueSource {
   }
 
   float next() override {
-    cur_ = source_ ? source_->next() : 0.0f;
+    cur_ = source_ ? source_->advance() : 0.0f;
     return cur_;
   }
   float current() const override { return cur_; }

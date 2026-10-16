@@ -94,10 +94,10 @@ struct BiquadSource final : ValueSource {
   }
 
   float next() override {
-    const float x = source_ ? source_->next() : 0.0f;
+    const float x = source_ ? source_->advance() : 0.0f;
     if (resonanceMode_) {
-      frequency_->next();
-      radius_->next();
+      frequency_->advance();
+      radius_->advance();
       const float f = frequency_->current(), r = radius_->current();
       if (f != resFreq_ || r != resRad_) {
         resFreq_ = f; resRad_ = r;

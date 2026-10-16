@@ -48,7 +48,7 @@ struct CurveNode final : ValueSource {
   }
 
   float next() override {
-    float x = source_ ? (source_->next(), source_->current()) : 0.0f;
+    float x = source_ ? (source_->advance(), source_->current()) : 0.0f;
     if (x != lastX_) { lastX_ = x; cur_ = map(x); }
     return cur_;
   }

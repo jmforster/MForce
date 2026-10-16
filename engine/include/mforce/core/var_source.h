@@ -23,9 +23,9 @@ struct VarSource final : ValueSource {
   }
 
   float next() override {
-    val_->next();
-    var_->next();
-    varPct_->next();
+    val_->advance();
+    var_->advance();
+    varPct_->advance();
 
     if (absolute_) {
       cur_ = val_->current() * (1.0f + var_->current() * varPct_->current());

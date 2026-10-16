@@ -159,8 +159,8 @@ struct BWLowpassFilter final : ValueSource {
   }
 
   float next() override {
-    float val = source_ ? (source_->next(), source_->current()) : 0.0f;
-    float cutoff = cutoffFreq_ ? (cutoffFreq_->next(), cutoffFreq_->current()) : 1000.0f;
+    float val = source_ ? (source_->advance(), source_->current()) : 0.0f;
+    float cutoff = cutoffFreq_ ? (cutoffFreq_->advance(), cutoffFreq_->current()) : 1000.0f;
     cutoff = std::clamp(cutoff, 1.0f, float(sampleRate_) * 0.49f);
 
     // Coefficients only when the cutoff moves — update() runs a tan() per
@@ -237,8 +237,8 @@ struct BWHighpassFilter final : ValueSource {
   }
 
   float next() override {
-    float val = source_ ? (source_->next(), source_->current()) : 0.0f;
-    float cutoff = cutoffFreq_ ? (cutoffFreq_->next(), cutoffFreq_->current()) : 1000.0f;
+    float val = source_ ? (source_->advance(), source_->current()) : 0.0f;
+    float cutoff = cutoffFreq_ ? (cutoffFreq_->advance(), cutoffFreq_->current()) : 1000.0f;
     cutoff = std::clamp(cutoff, 1.0f, float(sampleRate_) * 0.49f);
 
     if (cutoff != lastCutoff_) {
@@ -320,9 +320,9 @@ struct BWBandpassFilter final : ValueSource {
   }
 
   float next() override {
-    float val = source_ ? (source_->next(), source_->current()) : 0.0f;
-    float lo = lowCutoff_ ? (lowCutoff_->next(), lowCutoff_->current()) : 100.0f;
-    float hi = highCutoff_ ? (highCutoff_->next(), highCutoff_->current()) : 5000.0f;
+    float val = source_ ? (source_->advance(), source_->current()) : 0.0f;
+    float lo = lowCutoff_ ? (lowCutoff_->advance(), lowCutoff_->current()) : 100.0f;
+    float hi = highCutoff_ ? (highCutoff_->advance(), highCutoff_->current()) : 5000.0f;
     lo = std::clamp(lo, 1.0f, float(sampleRate_) * 0.49f);
     hi = std::clamp(hi, 1.0f, float(sampleRate_) * 0.49f);
 
@@ -414,11 +414,11 @@ struct DelayFilter final : ValueSource {
   float next() override {
     ptr_ = (ptr_ + 1) % int(buffer_.size());
 
-    if (delayTime_) delayTime_->next();
-    if (delayLevel_) delayLevel_->next();
-    if (feedback_) feedback_->next();
+    if (delayTime_) delayTime_->advance();
+    if (delayLevel_) delayLevel_->advance();
+    if (feedback_) feedback_->advance();
 
-    float val = source_ ? (source_->next(), source_->current()) : 0.0f;
+    float val = source_ ? (source_->advance(), source_->current()) : 0.0f;
     float dt = delayTime_ ? delayTime_->current() : 0.01f;
     float dl = delayLevel_ ? delayLevel_->current() : 0.5f;
     float fb = feedback_ ? feedback_->current() : 0.3f;

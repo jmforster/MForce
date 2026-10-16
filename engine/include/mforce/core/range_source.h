@@ -27,9 +27,9 @@ struct RangeSource final : ValueSource {
   }
 
   float next() override {
-    min_->next();
-    max_->next();
-    var_->next();
+    min_->advance();
+    max_->advance();
+    var_->advance();
 
     float v = var_->current();
     if (!varNormalized_) {

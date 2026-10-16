@@ -69,11 +69,39 @@ struct ArrayDescriptor {
 };
 
 // ---------------------------------------------------------------------------
+// Temporary instrumentation for the per-tick-memo migration; it goes with
+// the memo. The render driver bumps `sample` once per pulled sample; a
+// consumer advances a pin through ValueSource::advance(), which stamps the
+// source with the sample; RefSource::read() compares the stamp with the
+// current sample to tell a previous-sample read from a same-sample read.
+// Off unless mforce_cli sees MFORCE_TRACE_SHARING; plain statics because
+// the engine renders on one thread.
+// ---------------------------------------------------------------------------
+
+struct SharingTrace {
+  static inline long long sample = 0;
+  static inline long long lagReads = 0;       // wrapped consumer read a previous-sample value
+  static inline long long sameTickTaps = 0;   // guarded (tap) read saw this sample's value
+  static inline bool enabled = false;
+};
+
+// ---------------------------------------------------------------------------
 // Base interface for all DSP value sources
 // ---------------------------------------------------------------------------
 
 struct ValueSource {
   virtual ~ValueSource() = default;
+
+  // Consumers advance a pin through advance(), never next() directly, so
+  // the SharingTrace knows at which sample this node last advanced. The
+  // stamp is set after next() returns: a read that happens during this
+  // node's own pull (a tap closing a loop) sees the previous sample.
+  float advance() {
+    const float v = next();
+    if (SharingTrace::enabled) lastAdvancedSample_ = SharingTrace::sample;
+    return v;
+  }
+  long long lastAdvancedSample_{-1};
   virtual void prepare(const RenderContext& /*ctx*/, int /*frames*/) {}
   virtual float next() = 0;
   virtual float current() const = 0;
@@ -169,6 +197,11 @@ struct RefSource final : ValueSource {
 private:
   float read() const {
     float v = source ? source->current() : 0.0f;
+    if (SharingTrace::enabled && source) {
+      const bool advancedThisSample = source->lastAdvancedSample_ == SharingTrace::sample;
+      if (guard && advancedThisSample) ++SharingTrace::sameTickTaps;
+      if (!guard && !advancedThisSample) ++SharingTrace::lagReads;
+    }
     if (!guard) return v;
     if (!std::isfinite(v)) return 0.0f;
     return v < -8.0f ? -8.0f : (v > 8.0f ? 8.0f : v);

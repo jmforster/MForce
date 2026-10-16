@@ -87,8 +87,8 @@ protected:
   }
 
   float compute_wave_value() override {
-    bias_->next();
-    power_->next();
+    bias_->advance();
+    power_->advance();
     const float b = bias_->current();
     const float p = power_->current();
 

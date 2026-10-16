@@ -107,9 +107,9 @@ struct FMSource final : WaveSource {
 
 protected:
   float compute_wave_value() override {
-    carrierRatio_->next();
-    modRatio_->next();
-    depth_->next();
+    carrierRatio_->advance();
+    modRatio_->advance();
+    depth_->advance();
 
     const float baseFreq = currFreq_;
     const float cRatio   = carrierRatio_->current();

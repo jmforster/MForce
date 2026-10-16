@@ -89,7 +89,7 @@ struct LayeredRedNoiseSource final : ValueSource {
 
     float next() override {
         float sum = 0.0f;
-        for (auto& l : layers_) if (l) sum += l->next();
+        for (auto& l : layers_) if (l) sum += l->advance();
         cur_ = sum;
         return cur_;
     }

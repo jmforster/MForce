@@ -113,7 +113,7 @@ struct PhasedValueSource final : ValueSource {
 
   float next() override {
     ++ptr_;
-    float amp = amplitude_ ? (amplitude_->next(), amplitude_->current()) : 1.0f;
+    float amp = amplitude_ ? (amplitude_->advance(), amplitude_->current()) : 1.0f;
 
     // Find current stage
     int stageIdx = 0;
@@ -134,19 +134,19 @@ struct PhasedValueSource final : ValueSource {
 
     if (transFromPrev) {
       // Crossfade from previous stage to current
-      float vPrev = stages_[stageIdx - 1].source->next();
-      float vCurr = stages_[stageIdx].source->next();
+      float vPrev = stages_[stageIdx - 1].source->advance();
+      float vCurr = stages_[stageIdx].source->advance();
       float t = float(posInStage) / float(halfOl);
       cur_ = (vPrev * (1.0f - t) + vCurr * stages_[stageIdx].gainAdj * t) * amp;
     } else if (transToNext) {
       // Crossfade from current to next stage
-      float vCurr = stages_[stageIdx].source->next();
-      float vNext = stages_[stageIdx + 1].source->next();
+      float vCurr = stages_[stageIdx].source->advance();
+      float vNext = stages_[stageIdx + 1].source->advance();
       float t = float(halfOl - (stageLen - posInStage)) / float(halfOl);
       cur_ = (vCurr * (1.0f - t) + vNext * stages_[stageIdx + 1].gainAdj * t) * amp;
     } else {
       // Not in transition
-      cur_ = stages_[stageIdx].source->next() * stages_[stageIdx].gainAdj * amp;
+      cur_ = stages_[stageIdx].source->advance() * stages_[stageIdx].gainAdj * amp;
     }
 
     return cur_;

@@ -114,9 +114,9 @@ struct HammerBank final : ValueSource {
   }
 
   float next() override {
-    if (frequency_) frequency_->next();
+    if (frequency_) frequency_->advance();
     float x = 0.0f;
-    if (source_) { source_->next(); x = source_->current(); }
+    if (source_) { source_->advance(); x = source_->current(); }
 
     if (!initialized_) {
       float f0 = frequency_ ? frequency_->current() : 220.0f;

@@ -50,11 +50,11 @@ float FullAdditiveSource::compute_wave_value() {
   if (formant_) {
     formant_->fmt_next();
     if (formantWeight_) {
-      formantWeight_->next();
+      formantWeight_->advance();
       fmtWt = formantWeight_->current();
     }
     if (formantFloor_) {
-      formantFloor_->next();
+      formantFloor_->advance();
       fmtFloor = formantFloor_->current();
     }
   }

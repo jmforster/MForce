@@ -23,6 +23,8 @@
 #include <string>
 #include <sstream>
 #include <chrono>
+#include <cstdio>
+#include <cstdlib>
 
 using namespace mforce;
 
@@ -1213,6 +1215,12 @@ static int run_lint_template(int argc, char** argv)
 int main(int argc, char** argv)
 {
     mforce::enable_flush_denormals();
+    mforce::SharingTrace::enabled = std::getenv("MFORCE_TRACE_SHARING") != nullptr;
+    if (mforce::SharingTrace::enabled)
+        std::atexit([] {
+            std::fprintf(stderr, "[sharing] lagReads=%lld sameTickTaps=%lld\n",
+                         mforce::SharingTrace::lagReads, mforce::SharingTrace::sameTickTaps);
+        });
     try {
         if (argc >= 2 && std::string(argv[1]) == "--dump-descriptors")
             return run_dump_descriptors(argc, argv);

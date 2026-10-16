@@ -220,10 +220,10 @@ struct KSString final : ValueSource {
   }
 
   float next() override {
-    if (frequency_) frequency_->next();
-    if (amplitude_) amplitude_->next();
+    if (frequency_) frequency_->advance();
+    if (amplitude_) amplitude_->advance();
     float exc = 0.0f;
-    if (source_) { source_->next(); exc = source_->current(); }
+    if (source_) { source_->advance(); exc = source_->current(); }
 
     if (!initialized_) init_note();
 
@@ -233,7 +233,7 @@ struct KSString final : ValueSource {
     // (half-pedaling). Driven by a damper-preset Envelope whose final
     // stage IS the note's release phase (note-contained sound, 2026-08-13).
     float d = 0.0f;
-    if (damper_) { damper_->next(); d = std::clamp(damper_->current(), 0.0f, 1.0f); }
+    if (damper_) { damper_->advance(); d = std::clamp(damper_->current(), 0.0f, 1.0f); }
     float damp = 1.0f - d * (1.0f - releaseFb_);
     // Damper-contact noise: each time the felt LANDS (rising threshold
     // crossing), capture the ring level and ring a short burst through the
@@ -303,7 +303,7 @@ struct KSString final : ValueSource {
     // by the damper like every other loop input.
     float bowF = 0.0f;
     if (bow_) {
-      bow_->next();
+      bow_->advance();
       float pressure = bow_->current();
       float vRel = bowSpeed_ * pressure - lastOut_;
       float bt = std::fabs(frictionGain_ * vRel) + 0.75f;

@@ -86,8 +86,8 @@ struct CombinedSource final : ValueSource {
 
   float next() override {
     ++ptr_;
-    source1_->next();
-    source2_->next();
+    source1_->advance();
+    source2_->advance();
 
     float v1 = source1_->current();
     float v2 = source2_->current();
@@ -201,15 +201,15 @@ struct CrossfadeSource final : ValueSource {
 
   float next() override {
     ++ptr_;
-    float amp = amplitude_ ? (amplitude_->next(), amplitude_->current()) : 1.0f;
+    float amp = amplitude_ ? (amplitude_->advance(), amplitude_->current()) : 1.0f;
 
     if (ptr_ < s2Start_) {
-      cur_ = source1_->next() * amp;
+      cur_ = source1_->advance() * amp;
     } else if (ptr_ >= s1End_) {
-      cur_ = source2_->next() * amp * (1.0f + gainAdj);
+      cur_ = source2_->advance() * amp * (1.0f + gainAdj);
     } else {
-      float v1 = source1_->next();
-      float v2 = source2_->next();
+      float v1 = source1_->advance();
+      float v2 = source2_->advance();
       float t = float(ptr_ - s2Start_) / float(s1End_ - s2Start_);
       cur_ = (v1 * (1.0f - t) + v2 * (1.0f + gainAdj) * t) * amp;
     }
@@ -292,11 +292,11 @@ struct DistortedSource final : ValueSource {
   }
 
   float next() override {
-    if (source_) source_->next();
-    if (density_) density_->next();
-    if (gain_) gain_->next();
-    if (shift_) shift_->next();
-    if (amplitude_) amplitude_->next();
+    if (source_) source_->advance();
+    if (density_) density_->advance();
+    if (gain_) gain_->advance();
+    if (shift_) shift_->advance();
+    if (amplitude_) amplitude_->advance();
 
     float s = source_ ? source_->current() : 0.0f;
     float d = density_ ? density_->current() : 1.0f;

@@ -73,11 +73,11 @@ struct WhiteNoiseSource final : ValueSource {
   }
 
   float next() override {
-    amplitude_->next();
-    density_->next();
-    boost_->next();
-    continuity_->next();
-    zeroCrossTendency_->next();
+    amplitude_->advance();
+    density_->advance();
+    boost_->advance();
+    continuity_->advance();
+    zeroCrossTendency_->advance();
 
     const float amp = amplitude_->current();
     const float dens = density_->current();

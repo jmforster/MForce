@@ -159,13 +159,13 @@ struct ShaperSource final : ValueSource {
   }
 
   float next() override {
-    const float x = (source_ ? source_->next() : 0.0f) * drive_->next();
-    smoothness_->next();
+    const float x = (source_ ? source_->advance() : 0.0f) * drive_->advance();
+    smoothness_->advance();
     smoothCur_ = smoothness_->current();
-    if (morph_) { morph_->next(); morphCur_ = morph_->current(); }
+    if (morph_) { morph_->advance(); morphCur_ = morph_->current(); }
     if (hysteresis_) {
-      breakaway_->next();
-      capture_->next();
+      breakaway_->advance();
+      capture_->advance();
       const float ba = breakaway_->current();
       const float cap = capture_->current();
       if (stuck_) {

@@ -94,13 +94,13 @@ struct BasicAdditiveSource final : WaveSource {
 
 protected:
   float compute_wave_value() override {
-    float ew  = evenWeight_->next();
-    float ow  = oddWeight_->next();
-    float ro  = rolloff_->next();
-    float fvp = freqVarPct_->next();
-    float fvs = freqVarSpeed_->next() / float(sampleRate_);
-    float avp = amplVarPct_->next();
-    float avs = amplVarSpeed_->next() / float(sampleRate_);
+    float ew  = evenWeight_->advance();
+    float ow  = oddWeight_->advance();
+    float ro  = rolloff_->advance();
+    float fvp = freqVarPct_->advance();
+    float fvs = freqVarSpeed_->advance() / float(sampleRate_);
+    float avp = amplVarPct_->advance();
+    float avs = amplVarSpeed_->advance() / float(sampleRate_);
 
     ew  = evenWeight_->current();
     ow  = oddWeight_->current();

@@ -47,7 +47,7 @@ struct NameGate final : ValueSource {
     if (in_) in_->prepare(ctx, frames);
   }
   float next() override {
-    if (in_) in_->next();
+    if (in_) in_->advance();
     return match_();
   }
   float current() const override { return match_(); }

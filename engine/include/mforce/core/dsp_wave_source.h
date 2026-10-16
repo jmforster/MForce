@@ -30,9 +30,9 @@ struct WaveSource : ValueSource {
   float next() override {
     ++ptr_;
 
-    amplitude_->next();
-    frequency_->next();
-    phase_->next();
+    amplitude_->advance();
+    frequency_->advance();
+    phase_->advance();
 
     const float f = frequency_->current();
     if (f <= 0.0f) throw std::runtime_error("WaveSource: non-positive frequency");

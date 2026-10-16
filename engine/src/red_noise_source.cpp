@@ -29,12 +29,12 @@ void RedNoiseSource::prepare(const RenderContext& ctx, int frames) {
 
 float RedNoiseSource::compute_wave_value() {
   // Legacy advances these every sample
-  density_->next();
-  smoothness_->next();
-  rampVariation_->next();
-  boost_->next();
-  continuity_->next();
-  zeroCrossTendency_->next();
+  density_->advance();
+  smoothness_->advance();
+  rampVariation_->advance();
+  boost_->advance();
+  continuity_->advance();
+  zeroCrossTendency_->advance();
 
   interp_.setSmoothness(smoothness_->current());
 

@@ -161,13 +161,13 @@ struct SegmentSource final : ValueSource {
   }
 
   float next() override {
-    amplitude_->next();
-    smoothness_->next();
-    if (width_) width_->next();
-    gap_->next();
-    gapVarPct_->next();
-    widthVarPct_->next();
-    valVarPct_->next();
+    amplitude_->advance();
+    smoothness_->advance();
+    if (width_) width_->advance();
+    gap_->advance();
+    gapVarPct_->advance();
+    widthVarPct_->advance();
+    valVarPct_->advance();
 
     interp_.setSmoothness(smoothness_->current());
 
