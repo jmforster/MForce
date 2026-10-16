@@ -8,7 +8,11 @@ checkpoints wait for Matt's read.
 
 ## Awaiting
 
-**R1 — checkpoint 0: the structure meter** (2026-10-05, commit `637207a`)
+(none)
+
+## Resolved
+
+**R1 — checkpoint 0: the structure meter** (2026-10-05, commit `637207a`) — VERDICT 2026-10-16: format accepted; R2 (checkpoint 2.1) uses it unchanged.
 - Read: `docs/autonomy/refactor/reports/2026-10-05-checkpoint0-meter.md`
   (the first architecture report in the agreed format; ten minutes via
   its reading guide).
@@ -20,6 +24,3 @@ checkpoints wait for Matt's read.
   metrics; decisions; debt; the independent review; a reading guide; a
   C++ lesson), before checkpoint 2.1 produces the next one.
 
-## Resolved
-
-(none yet)
