@@ -4,69 +4,10 @@
 #include <span>
 #include <string_view>
 #include <vector>
+#include "mforce/core/component.h"
 #include "mforce/core/render_context.h"
 
 namespace mforce {
-
-// ---------------------------------------------------------------------------
-// Self-description types for generic UI and serialization
-// ---------------------------------------------------------------------------
-
-enum class SourceCategory {
-  Oscillator,   // SineSource, SawSource, PulseSource, FMSource, WavetableSource, HybridKS...
-  Generator,    // RedNoiseSource, WanderNoise*, WhiteNoise, SegmentSource...
-  Modulator,    // VarSource, RangeSource, RepeatingSource, Vibrato...
-  Envelope,     // Envelope, PhasedValueSource
-  Filter,       // BWLowpass, BWHighpass, BWBandpass, Delay
-  Combiner,     // CombinedSource, CrossfadeSource, MultiSource
-  Additive,     // AdditiveSource, FullAdditiveSource, Formant...
-  Utility       // ConstantSource, StaticVarSource, StaticRangeSource
-};
-
-struct ParamDescriptor {
-  const char* name;
-  float default_value;
-  float min_value;
-  float max_value;
-  // Optional UI advisory tag. Short, shown dim next to the pin name in the
-  // inspector (e.g. "hz", "0-1", "semi", "cycles"). Advisory only — no
-  // enforcement at connect-time. Leave null when the param's name already
-  // tells you the expected range.
-  const char* hint = nullptr;
-};
-
-struct InputDescriptor {
-  const char* name;
-  bool multi{false};  // true = accepts multiple connections (e.g. spectra, stages)
-  // Optional UI advisory tag — same semantics as ParamDescriptor::hint.
-  const char* hint = nullptr;
-};
-
-enum class SettingType { Float, Int, Bool };
-
-struct SettingDescriptor {
-  const char* name;
-  SettingType type;
-  float default_value;
-  float min_value;
-  float max_value;   // for Float/Int; ignored for Bool
-  // Optional: null-terminated array of display labels for Int settings that
-  // represent an enum. When set, the UI renders a dropdown instead of a
-  // numeric input. The stored value remains the integer index.
-  const char* const* enum_labels = nullptr;
-};
-
-// Array-of-floats params. The UI groups arrays sharing a non-null groupName
-// into a single parallel-columns table (e.g. ExplicitPartials has four arrays
-// — mult1/mult2/ampl1/ampl2 — all grouped as "partials" and kept equal length).
-// Standalone arrays (groupName == nullptr) render as a single editable list.
-struct ArrayDescriptor {
-  const char* name;
-  const char* groupName;      // nullptr = standalone; non-null = table group key
-  float default_value;        // value for newly appended rows
-  float min_value;
-  float max_value;
-};
 
 // ---------------------------------------------------------------------------
 // Temporary instrumentation for the per-tick-memo migration; it goes with
@@ -86,12 +27,12 @@ struct SharingTrace {
 };
 
 // ---------------------------------------------------------------------------
-// Base interface for all DSP value sources
+// ValueSource: the signal contract. A node declares its pins as members
+// (pins.h) and writes compute(); the base advances every pin in declaration
+// order, then computes.
 // ---------------------------------------------------------------------------
 
-struct ValueSource {
-  virtual ~ValueSource() = default;
-
+struct ValueSource : Component {
   // Consumers advance a pin through advance(), never next() directly, so
   // the SharingTrace knows at which sample this node last advanced. The
   // stamp is set after next() returns: a read that happens during this
@@ -102,73 +43,76 @@ struct ValueSource {
     return v;
   }
   long long lastAdvancedSample_{-1};
-  virtual void prepare(const RenderContext& /*ctx*/, int /*frames*/) {}
-  virtual float next() = 0;
-  virtual float current() const = 0;
 
-  // Self-description — defaults allow incremental adoption
-  virtual const char* type_name() const { return "Unknown"; }
-  virtual SourceCategory category() const { return SourceCategory::Utility; }
+  // Forwards to every pin, then to the node's own reset.
+  virtual void prepare(const RenderContext& ctx, int frames) {
+    for (auto* pin : pins()) pin->prepare(ctx, frames);
+    on_prepare(ctx, frames);
+  }
+  virtual void on_prepare(const RenderContext&, int) {}
+
+  // Advance every pin in declaration order, then compute. A node's work is
+  // compute(). Virtual, with a default compute(), only while the node
+  // families migrate: the close of checkpoint 2.1 seals next() and makes
+  // compute() pure, so the compiler proves no override remains.
+  virtual float next() {
+    for (auto* pin : pins()) pin->advance();
+    cur_ = compute();
+    return cur_;
+  }
+  virtual float compute() { return cur_; }
+  virtual float current() const { return cur_; }
 
   // False when this node reads its `frequency` pin ONCE at note start and
   // never again (KSPianoString: init_note), so an articulated/bent frequency
-  // is silently inert on it. The loader uses this to warn by name at load —
-  // backlog 26a made loud (plan_perform_source_p3.md T2). Default true:
-  // ordinary pulled-per-sample consumption tracks a moving frequency.
+  // is silently inert on it. The loader uses this to warn by name at load.
+  // Default true: ordinary pulled-per-sample consumption tracks a moving
+  // frequency.
   virtual bool tracks_frequency_live() const { return true; }
 
   // Phase delay, in samples, that this node's processing imposes on a signal
   // at `hz` passing THROUGH it, from its current parameter state. DelayLine
   // sums this over its loop members to keep a tap-closed feedback loop on
-  // pitch while in-loop filters move (feedback_loop_design.md §5 revisited,
-  // 2026-09-01). Memoryless nodes (shapers, gains, combiners) and generators
-  // keep the default 0; only stateful in-loop processors override. Negative
-  // = phase lead (highpass/bandpass below cutoff). Non-const so overrides
-  // may cache the atan2 work behind a same-inputs guard.
+  // pitch while in-loop filters move (feedback_loop_design.md §5).
+  // Memoryless nodes (shapers, gains, combiners) and generators keep the
+  // default 0; only stateful in-loop processors override. Negative = phase
+  // lead (highpass/bandpass below cutoff). Non-const so overrides may cache
+  // the atan2 work behind a same-inputs guard.
   virtual float phase_delay_at(float /*hz*/) { return 0.0f; }
 
-  virtual std::span<const ParamDescriptor> param_descriptors() const { return {}; }
-  virtual void set_param(std::string_view /*name*/, std::shared_ptr<ValueSource> /*src*/) {}
-  virtual std::shared_ptr<ValueSource> get_param(std::string_view /*name*/) const { return nullptr; }
-
-  // Multi-input support: add/clear for pins that accept multiple connections
-  virtual void add_param(std::string_view /*name*/, std::shared_ptr<ValueSource> /*src*/) {}
-  virtual void clear_param(std::string_view /*name*/) {}
-
-  // Input-only pins — connectable but no editable value (formant, partials, source on filters)
-  virtual std::span<const InputDescriptor> input_descriptors() const { return {}; }
-
-  // Config params — non-connectable scalars (int, float, bool)
-  virtual std::span<const SettingDescriptor> setting_descriptors() const { return {}; }
-  virtual void set_setting(std::string_view /*name*/, float /*value*/) {}
-  virtual float get_setting(std::string_view /*name*/) const { return 0.0f; }
-
-  // Array params — user-editable float vectors (e.g. ExplicitPartials multipliers,
-  // FixedSpectrum/BandSpectrum gains). Grouped arrays (shared groupName) must be
-  // kept equal length by the node's set_array() implementation.
-  virtual std::span<const ArrayDescriptor> array_descriptors() const { return {}; }
-  // Per-note determinism (onsets-v2 addendum 2026-09-20): re-anchor this
-  // node's stochastic draw streams to their seeds. Called at an IN-LINE
-  // note's Setup only (never after a fresh prepare, which already seeds —
-  // and consumes layout draws, so a post-prepare call would NOT be
-  // byte-neutral). Default no-op; RNG-bearing sources override.
+  // Per-note determinism: re-anchor this node's stochastic draw streams to
+  // their seeds. Called at an IN-LINE note's Setup only (never after a
+  // fresh prepare, which already seeds — and consumes layout draws, so a
+  // post-prepare call would NOT be byte-neutral). Default no-op;
+  // RNG-bearing sources override.
   virtual void reseed() {}
 
-  virtual void set_array(std::string_view /*name*/, std::vector<float> /*values*/) {}
-  virtual std::vector<float> get_array(std::string_view /*name*/) const { return {}; }
+protected:
+  float cur_{0.0f};
 };
 
-struct ConstantSource final : ValueSource {
-  explicit ConstantSource(float v) : v_(v), cur_(v) {}
-  void set(float v) { v_ = v; }
-  float next() override { cur_ = v_; return cur_; }
-  float current() const override { return cur_; }
+// A node that produces a signal from time and its parameters alone.
+struct Generator : ValueSource {
+  // The unit range of the output, for the UI and the queued universal
+  // parameters: None when the output is not a signal in [-1,1] or [0,1].
+  enum class Range { Bipolar, Unipolar, None };
+  virtual Range range() const { return Range::None; }
+};
 
+// A node that processes a signal: it owns the primary input. Further inputs
+// are declared by the subclass.
+struct Processor : ValueSource {
+  Input input{this, "source"};
+  SourceCategory category() const override { return SourceCategory::Filter; }
+};
+
+struct ConstantSource final : Generator {
+  explicit ConstantSource(float v) : v_(v) { cur_ = v; }
+  void set(float v) { v_ = v; }
+  float compute() override { return v_; }
   const char* type_name() const override { return "Constant"; }
-  SourceCategory category() const override { return SourceCategory::Utility; }
 private:
   float v_{0.0f};
-  float cur_{0.0f};
 };
 
 // Transparent wrapper for shared sources with multiple consumers.
@@ -188,11 +132,10 @@ struct RefSource final : ValueSource {
     : source(std::move(src)), guard(g) {}
 
   void prepare(const RenderContext& /*ctx*/, int /*frames*/) override {} // primary consumer prepares the real source
-  float next() override { return read(); }
+  float compute() override { return read(); }
   float current() const override { return read(); }
 
   const char* type_name() const override { return "RefSource"; }
-  SourceCategory category() const override { return SourceCategory::Utility; }
 
 private:
   float read() const {
@@ -207,5 +150,22 @@ private:
     return v < -8.0f ? -8.0f : (v > 8.0f ? 8.0f : v);
   }
 };
+
+// The pin bodies that need ValueSource complete. A Manual pin is driven by
+// its node: the base neither prepares nor advances it.
+inline float Param::current() const { return source ? source->current() : constant; }
+inline void Param::prepare(const RenderContext& ctx, int frames) {
+  if (source && pull == Pull::Auto) source->prepare(ctx, frames);
+}
+inline void Param::advance() {
+  if (source && pull == Pull::Auto) source->advance();
+}
+inline float Input::current() const { return source ? source->current() : 0.0f; }
+inline void Input::prepare(const RenderContext& ctx, int frames) {
+  if (source && pull == Pull::Auto) source->prepare(ctx, frames);
+}
+inline void Input::advance() {
+  if (source && pull == Pull::Auto) source->advance();
+}
 
 } // namespace mforce

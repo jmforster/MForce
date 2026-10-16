@@ -39,7 +39,7 @@ void FullAdditiveSource::prepare(const RenderContext& ctx, int frames) {
   }
 }
 
-float FullAdditiveSource::compute_wave_value() {
+float FullAdditiveSource::wave() {
   if (!partials_) return 0.0f;
 
   // Advance partials envelopes

@@ -206,7 +206,7 @@ void register_all_sources() {
 
     reg.register_type("Envelope", SourceCategory::Envelope,
         [](int sr, auto seed) {
-            auto e = std::make_shared<Envelope>(Envelope::make_ar(sr, 0.2f));
+            auto e = Envelope::make_ar(sr, 0.2f);
             if (seed) e->set_seed(*seed);
             return e;
         });

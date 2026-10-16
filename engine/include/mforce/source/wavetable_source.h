@@ -83,7 +83,7 @@ struct WavetableSource final : WaveSource {
   void prepare(const RenderContext& ctx, int frames) override;
 
 protected:
-  float compute_wave_value() override;
+  float wave() override;
 
 private:
   void fill_table();

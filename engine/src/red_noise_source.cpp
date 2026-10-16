@@ -27,7 +27,7 @@ void RedNoiseSource::prepare(const RenderContext& ctx, int frames) {
   zeroCrossTendency_->prepare(ctx, frames);
 }
 
-float RedNoiseSource::compute_wave_value() {
+float RedNoiseSource::wave() {
   // Legacy advances these every sample
   density_->advance();
   smoothness_->advance();

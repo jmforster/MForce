@@ -93,7 +93,7 @@ struct BasicAdditiveSource final : WaveSource {
   }
 
 protected:
-  float compute_wave_value() override {
+  float wave() override {
     float ew  = evenWeight_->advance();
     float ow  = oddWeight_->advance();
     float ro  = rolloff_->advance();

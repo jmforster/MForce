@@ -713,8 +713,7 @@ static GraphResult build_graph(
             } else {
                 // Shared preset dispatch (envelope_json.h) — the UI graph
                 // loader calls the same function, so the two cannot drift.
-                valueNodes[id] = std::make_shared<Envelope>(
-                    envelope_from_preset_json(p, sampleRate));
+                valueNodes[id] = envelope_from_preset_json(p, sampleRate);
             }
             // Pullable range params (minValue / maxValue, PerformSource P1,
             // envelope.h param_descriptors). This explicit branch never ran

@@ -2,7 +2,7 @@
 #include "mforce/core/dsp_wave_source.h"
 #include "mforce/filter/filters.h"
 #include <cmath>
-#include <memory>
+#include <string_view>
 #include <vector>
 
 namespace mforce {
@@ -20,49 +20,22 @@ namespace mforce {
 // Both carrier and modulator are sine oscillators (matching legacy practice).
 // depth may be a constant or an envelope for time-varying timbre.
 struct FMSource final : WaveSource {
-  explicit FMSource(int sampleRate)
-  : WaveSource(sampleRate)
-  , carrierRatio_(std::make_shared<ConstantSource>(1.0f))
-  , modRatio_(std::make_shared<ConstantSource>(1.0f))
-  , depth_(std::make_shared<ConstantSource>(1.0f)) {}
+  Param carrierRatio{this, "carrierRatio", 1.0f, 0.01f, 32.0f,  "ratio"};
+  Param modRatio    {this, "modRatio",     1.0f, 0.01f, 32.0f,  "ratio"};
+  Param depth       {this, "depth",        1.0f, 0.0f,  100.0f, "index"};
+  Setting<bool> unboundedPos{this, "unbounded_pos", false, false, true};
+  Setting<int>  oversample  {this, "oversample", 1, 1, 16};
 
-  void set_carrier_ratio(std::shared_ptr<ValueSource> r) { carrierRatio_ = std::move(r); }
-  void set_mod_ratio(std::shared_ptr<ValueSource> r)     { modRatio_ = std::move(r); }
-  void set_depth(std::shared_ptr<ValueSource> d)         { depth_ = std::move(d); }
-
+  explicit FMSource(int sampleRate) : WaveSource(sampleRate) {}
   const char* type_name() const override { return "FMSource"; }
 
-  std::span<const ParamDescriptor> param_descriptors() const override {
-    static constexpr ParamDescriptor descs[] = {
-      {"frequency",     440.0f, 0.01f, 20000.0f, "hz"},
-      {"amplitude",     1.0f,   0.0f,  10.0f,    "0-1"},
-      {"phase",         0.0f,  -1.0f,  1.0f,     "cycles"},
-      {"carrierRatio",  1.0f,   0.01f, 32.0f,    "ratio"},
-      {"modRatio",      1.0f,   0.01f, 32.0f,    "ratio"},
-      {"depth",         1.0f,   0.0f,  100.0f,   "index"},
-    };
-    return descs;
+  void on_setting_changed(std::string_view name) override {
+    if (name == "oversample")
+      oversample.value = oversample.value < 1 ? 1 : (oversample.value > 16 ? 16 : oversample.value);
   }
 
-  void set_param(std::string_view name, std::shared_ptr<ValueSource> src) override {
-    if (name == "carrierRatio") { set_carrier_ratio(std::move(src)); return; }
-    if (name == "modRatio")     { set_mod_ratio(std::move(src)); return; }
-    if (name == "depth")        { set_depth(std::move(src)); return; }
-    WaveSource::set_param(name, std::move(src));
-  }
-
-  std::shared_ptr<ValueSource> get_param(std::string_view name) const override {
-    if (name == "carrierRatio") return carrierRatio_;
-    if (name == "modRatio")     return modRatio_;
-    if (name == "depth")        return depth_;
-    return WaveSource::get_param(name);
-  }
-
-  void prepare(const RenderContext& ctx, int frames) override {
-    WaveSource::prepare(ctx, frames);
-    carrierRatio_->prepare(ctx, frames);
-    modRatio_->prepare(ctx, frames);
-    depth_->prepare(ctx, frames);
+  void on_prepare(const RenderContext& ctx, int frames) override {
+    WaveSource::on_prepare(ctx, frames);
 
     carrierPhase_ = 0.0f;
     modPhase_ = 0.0f;
@@ -72,8 +45,8 @@ struct FMSource final : WaveSource {
     // Nyquist) removes folded content before decimate-by-M. Built here (per
     // note), never in the hot loop. M==1 uses no filter (identity path).
     decimSections_.clear();
-    if (oversample_ > 1) {
-      const float subRate = float(sampleRate_) * float(oversample_);
+    if (oversample.value > 1) {
+      const float subRate = float(sampleRate_) * float(oversample.value);
       const float cutoff  = 0.45f * float(sampleRate_);
       const int   nSec    = 4;  // 8th-order Butterworth, ~48 dB/oct
       for (int i = 0; i < nSec; ++i)
@@ -82,42 +55,15 @@ struct FMSource final : WaveSource {
     }
   }
 
-  std::span<const SettingDescriptor> setting_descriptors() const override {
-    static constexpr SettingDescriptor descs[] = {
-      {"unbounded_pos", SettingType::Bool, 0.0f, 0.0f, 1.0f},
-      {"oversample",    SettingType::Int,  1.0f, 1.0f, 16.0f},
-    };
-    return descs;
-  }
-
-  void set_setting(std::string_view name, float value) override {
-    if (name == "unbounded_pos") { unboundedPos_ = (value != 0.0f); return; }
-    if (name == "oversample") {
-      int m = int(value + 0.5f);
-      oversample_ = m < 1 ? 1 : (m > 16 ? 16 : m);
-      return;
-    }
-  }
-
-  float get_setting(std::string_view name) const override {
-    if (name == "unbounded_pos") return unboundedPos_ ? 1.0f : 0.0f;
-    if (name == "oversample")    return float(oversample_);
-    return 0.0f;
-  }
-
 protected:
-  float compute_wave_value() override {
-    carrierRatio_->advance();
-    modRatio_->advance();
-    depth_->advance();
-
+  float wave() override {
     const float baseFreq = currFreq_;
-    const float cRatio   = carrierRatio_->current();
-    const float mRatio   = modRatio_->current();
-    const float d        = depth_->current();
+    const float cRatio   = carrierRatio.current();
+    const float mRatio   = modRatio.current();
+    const float d        = depth.current();
 
     // Carrier phase offset — this is what makes `phase` true PM rather than a
-    // dead param. Matches the base-class contract: WaveSource::next() keeps
+    // dead param. Matches the base-class contract: WaveSource keeps
     // currPos_ = phase_current + sum(incr), i.e. phase is an OFFSET, not an
     // integrated delta. Offset only; never added into carrierPhase_, which
     // would integrate the modulator twice and turn PM back into FM. Constant
@@ -127,7 +73,7 @@ protected:
     constexpr double TAU_D = 2.0 * 3.14159265358979323846;
 
     const float modFreq = baseFreq * mRatio;
-    const int   M       = oversample_;
+    const int   M       = oversample.value;
     const float subRate = float(sampleRate_) * float(M);
 
     // Oversample the sin() nonlinearity: run carrier+modulator at M*SR, filter,
@@ -141,7 +87,7 @@ protected:
       // the float-mantissa exhaustion at ~8s is part of the spacy character)
       float modVal = float(std::sin(double(modPhase_) * TAU_D));
       modPhase_ += modFreq / subRate;
-      if (unboundedPos_) {
+      if (unboundedPos.value) {
         if (modPhase_ > 1.0f) modPhase_ -= 1.0f;  // legacy: single-step, no neg wrap, accumulates
       } else {
         modPhase_ -= std::floor(modPhase_);
@@ -151,7 +97,7 @@ protected:
       float carrierFreq = baseFreq * cRatio * (1.0f + modVal * d);
       float s = float(std::sin((double(carrierPhase_) + double(phOffset)) * TAU_D));
       carrierPhase_ += carrierFreq / subRate;
-      if (unboundedPos_) {
+      if (unboundedPos.value) {
         if (carrierPhase_ > 1.0f) carrierPhase_ -= 1.0f;
       } else {
         carrierPhase_ -= std::floor(carrierPhase_);
@@ -166,14 +112,9 @@ protected:
   }
 
 private:
-  std::shared_ptr<ValueSource> carrierRatio_;
-  std::shared_ptr<ValueSource> modRatio_;
-  std::shared_ptr<ValueSource> depth_;
   float carrierPhase_{0.0f};
   float modPhase_{0.0f};
-  bool  unboundedPos_{false};
-  int   oversample_{1};
-  std::vector<BWLPSection> decimSections_;  // built in prepare() when oversample_>1
+  std::vector<BWLPSection> decimSections_;  // built in on_prepare() when oversample > 1
 };
 
 } // namespace mforce

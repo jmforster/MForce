@@ -14,7 +14,7 @@ namespace mforce {
 // unknown presets/timeModes and on key combinations that would otherwise
 // be silently dead knobs. Stage-list form ({"stages": [...]}) is handled
 // by the callers, not here.
-inline Envelope envelope_from_preset_json(const nlohmann::json& p,
+inline std::shared_ptr<Envelope> envelope_from_preset_json(const nlohmann::json& p,
                                           int sampleRate) {
   const std::string preset = p.value("preset", std::string("ar"));
   if (preset == "ar") {

@@ -147,7 +147,7 @@ float HybridKSSource::compute_additive() {
   return val;
 }
 
-float HybridKSSource::compute_wave_value() {
+float HybridKSSource::wave() {
   if (!inAdditive_) {
     return compute_ks();
   } else {

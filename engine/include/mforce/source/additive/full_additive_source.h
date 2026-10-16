@@ -114,7 +114,7 @@ struct FullAdditiveSource final : WaveSource {
   void prepare(const RenderContext& ctx, int frames) override;
 
 protected:
-  float compute_wave_value() override;
+  float wave() override;
 
 private:
   // Partials (required — does all the per-partial math)

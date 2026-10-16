@@ -12,7 +12,7 @@ struct SawSource final : WaveSource {
   const char* type_name() const override { return "SawSource"; }
 
 protected:
-  float compute_wave_value() override {
+  float wave() override {
     float val = 2.0f * currPos_ - 1.0f;
 
     float blep = 0.0f;

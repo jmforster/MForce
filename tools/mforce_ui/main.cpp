@@ -82,12 +82,12 @@ static GraphMode s_graphMode = GraphMode::PatchGraph;
 // Pin / Node / Link
 // ===========================================================================
 
-enum class PinKind { Input, Output };
+enum class UiPinKind { Input, Output };
 
 struct Pin {
     int id;
     std::string name;
-    PinKind kind;
+    UiPinKind kind;
     float defaultValue{0.0f};
     bool inputOnly{false};  // true for input_descriptors pins (no editable value)
     // True when the loaded JSON supplied a scalar CONSTANT in this slot
@@ -104,7 +104,7 @@ struct Pin {
     std::string hint;       // optional advisory tag (e.g. "hz", "0-1"); empty = none
     std::shared_ptr<ConstantSource> constantSrc;  // holds editable value for unconnected pins
 
-    Pin(const std::string& n, PinKind k, float def = 0.0f, bool inOnly = false, bool isMulti = false,
+    Pin(const std::string& n, UiPinKind k, float def = 0.0f, bool inOnly = false, bool isMulti = false,
         const char* hintStr = nullptr)
         : id(next_id()), name(n), kind(k), defaultValue(def), inputOnly(inOnly), multi(isMulti)
         , hint(hintStr ? hintStr : "")
@@ -408,8 +408,7 @@ struct GraphNode {
         }
 
         if (typeName == NT_ENVELOPE) {
-            dspSource = std::make_shared<Envelope>(Envelope::make_adsr(DSP_SAMPLE_RATE,
-                0.05f, 0.1f, 0.7f, 0.2f));
+            dspSource = Envelope::make_adsr(DSP_SAMPLE_RATE, 0.05f, 0.1f, 0.7f, 0.2f);
             for (auto& pin : inputs)
                 if (pin.constantSrc) dspSource->set_param(pin.name, pin.constantSrc);
             return;
@@ -536,21 +535,21 @@ struct GraphNode {
         if (is_special_ui_type(typeName)) {
             // Special UI-only nodes with hand-crafted pins
             if (typeName == NT_SOUND_CHANNEL) {
-                inputs.emplace_back("source", PinKind::Input, 0.0f);
-                inputs.emplace_back("volume", PinKind::Input, 1.0f);
-                inputs.emplace_back("pan",    PinKind::Input, 0.0f);
-                outputs.emplace_back("out", PinKind::Output);
+                inputs.emplace_back("source", UiPinKind::Input, 0.0f);
+                inputs.emplace_back("volume", UiPinKind::Input, 1.0f);
+                inputs.emplace_back("pan",    UiPinKind::Input, 0.0f);
+                outputs.emplace_back("out", UiPinKind::Output);
             } else if (typeName == NT_STEREO_MIXER) {
-                inputs.emplace_back("ch 1", PinKind::Input, 0.0f);
-                inputs.emplace_back("gainL", PinKind::Input, 1.0f);
-                inputs.emplace_back("gainR", PinKind::Input, 1.0f);
-                outputs.emplace_back("outL", PinKind::Output);
-                outputs.emplace_back("outR", PinKind::Output);
+                inputs.emplace_back("ch 1", UiPinKind::Input, 0.0f);
+                inputs.emplace_back("gainL", UiPinKind::Input, 1.0f);
+                inputs.emplace_back("gainR", UiPinKind::Input, 1.0f);
+                outputs.emplace_back("outL", UiPinKind::Output);
+                outputs.emplace_back("outR", UiPinKind::Output);
             } else if (typeName == NT_PATCH_OUTPUT) {
-                inputs.emplace_back("source", PinKind::Input, 0.0f);
+                inputs.emplace_back("source", UiPinKind::Input, 0.0f);
             } else if (typeName == NT_PARAMETER) {
-                inputs.emplace_back("default", PinKind::Input, 440.0f);
-                outputs.emplace_back("out", PinKind::Output);
+                inputs.emplace_back("default", UiPinKind::Input, 440.0f);
+                outputs.emplace_back("out", UiPinKind::Output);
             }
             return;
         }
@@ -564,10 +563,10 @@ struct GraphNode {
         if (typeName == NT_ENVELOPE) {
             Envelope tmp(DSP_SAMPLE_RATE);
             for (const auto& desc : tmp.param_descriptors())
-                inputs.emplace_back(desc.name, PinKind::Input, desc.default_value,
+                inputs.emplace_back(desc.name, UiPinKind::Input, desc.default_value,
                                     false, false, desc.hint);
-            outputs.emplace_back("out", PinKind::Output);
-            outputs.emplace_back("tap", PinKind::Output);
+            outputs.emplace_back("out", UiPinKind::Output);
+            outputs.emplace_back("tap", UiPinKind::Output);
             outputs.back().isTap = true;
             return;
         }
@@ -579,18 +578,18 @@ struct GraphNode {
         // shape (which stays one node per field, invisible here). Each
         // output pin's constantSrc is that field's preview stand-in.
         if (typeName == NT_PERFORM) {
-            outputs.emplace_back("frequency", PinKind::Output, 440.0f);
-            outputs.emplace_back("velocity",  PinKind::Output, 0.8f);
-            outputs.emplace_back("wheel",     PinKind::Output, 0.0f);
-            outputs.emplace_back("pressure",  PinKind::Output, 0.0f);
+            outputs.emplace_back("frequency", UiPinKind::Output, 440.0f);
+            outputs.emplace_back("velocity",  UiPinKind::Output, 0.8f);
+            outputs.emplace_back("wheel",     UiPinKind::Output, 0.0f);
+            outputs.emplace_back("pressure",  UiPinKind::Output, 0.0f);
             // Backlog 64 Tier 1: the note's length in SECONDS, known at
             // note-on for score playback and fixed-duration live mode;
             // the patch reacts via curves/dynamicPins like any field.
-            outputs.emplace_back("duration",  PinKind::Output, 1.0f);
+            outputs.emplace_back("duration",  UiPinKind::Output, 1.0f);
             // The note's interned onset id (spec 2026-09-20-note-onsets-v2
             // §6/§8): 0 = none, 1.. = the instrument's
             // onsets[] vocabulary. Held level, like velocity.
-            outputs.emplace_back("onset", PinKind::Output, 0.0f);
+            outputs.emplace_back("onset", UiPinKind::Output, 0.0f);
             return;
         }
 
@@ -604,20 +603,20 @@ struct GraphNode {
             // ("SetCursorPos() to extend parent boundaries" tooltip in the
             // node-editor scrolling region). The node stays inert (no
             // dspSource), but draws cleanly and keeps its place in the graph.
-            outputs.emplace_back("out", PinKind::Output);
+            outputs.emplace_back("out", UiPinKind::Output);
             return;
         }
 
         auto tmp = reg.create(typeName, DSP_SAMPLE_RATE);
         for (const auto& desc : tmp->input_descriptors())
-            inputs.emplace_back(desc.name, PinKind::Input, 0.0f, true, desc.multi, desc.hint);
+            inputs.emplace_back(desc.name, UiPinKind::Input, 0.0f, true, desc.multi, desc.hint);
         for (const auto& desc : tmp->param_descriptors())
-            inputs.emplace_back(desc.name, PinKind::Input, desc.default_value, false, false, desc.hint);
-        outputs.emplace_back("out", PinKind::Output);
+            inputs.emplace_back(desc.name, UiPinKind::Input, desc.default_value, false, false, desc.hint);
+        outputs.emplace_back("out", UiPinKind::Output);
         // Wormhole: no tap pin (backlog 55) — tapping pure glass == tapping
         // its source, and the mini face is just the in/out pair.
         if (typeName == "Wormhole") return;
-        outputs.emplace_back("tap", PinKind::Output);
+        outputs.emplace_back("tap", UiPinKind::Output);
         outputs.back().isTap = true;
     }
 
@@ -629,7 +628,7 @@ struct GraphNode {
         char name[16];
         snprintf(name, sizeof(name), "ch %d", chNum + 1);
         auto pos = inputs.end() - 2;
-        inputs.insert(pos, Pin(name, PinKind::Input, 0.0f));
+        inputs.insert(pos, Pin(name, UiPinKind::Input, 0.0f));
     }
 };
 
@@ -913,7 +912,7 @@ static void dsp_rewire_link(int outputPinId, int inputPinId, bool connect) {
     Pin* dstPin = find_pin(inputPinId);
 
     if (!srcNode || !dstNode || !dstPin) return;
-    if (dstPin->kind != PinKind::Input) return;
+    if (dstPin->kind != UiPinKind::Input) return;
 
     if (connect && srcNode->dspSource) {
         dstNode->wire_pin(dstPin->name, srcNode->dspSource);
@@ -939,7 +938,7 @@ static void update_node_dsp_unlocked(GraphNode& node) {
     for (auto& pin : node.inputs) {
         if (pin.multi && node.dspSource) {
             node.dspSource->clear_param(pin.name);
-        } else if (pin.kind == PinKind::Input && pin.constantSrc) {
+        } else if (pin.kind == UiPinKind::Input && pin.constantSrc) {
             node.wire_pin(pin.name, pin.constantSrc);
         }
     }
@@ -954,7 +953,7 @@ static void update_node_dsp_unlocked(GraphNode& node) {
 
             GraphNode* srcNode = find_node_for_pin(otherPinId);
             Pin* otherPin = find_pin(otherPinId);
-            if (srcNode && otherPin && otherPin->kind == PinKind::Output && srcNode->dspSource) {
+            if (srcNode && otherPin && otherPin->kind == UiPinKind::Output && srcNode->dspSource) {
                 // A Note face has one output PER FIELD — the source is the
                 // PIN's stand-in constant, not the node-level dspSource
                 // (which is just the frequency pin's constant).
@@ -1008,7 +1007,7 @@ static bool would_close_normal_cycle(GraphNode* srcNode, GraphNode* dstNode) {
                 else if (link.endPinId == out.id) other = link.startPinId;
                 if (other < 0) continue;
                 Pin* op = find_pin(other);
-                if (!op || op->kind != PinKind::Input) continue;
+                if (!op || op->kind != UiPinKind::Input) continue;
                 if (GraphNode* consumer = find_node_for_pin(other))
                     stack.push_back(consumer);
             }
@@ -1039,9 +1038,9 @@ static void update_all_dsp() {
 
             int outPinId = -1;
             int inPinId = -1;
-            if (startPin->kind == PinKind::Output && endPin->kind == PinKind::Input) {
+            if (startPin->kind == UiPinKind::Output && endPin->kind == UiPinKind::Input) {
                 outPinId = link.startPinId; inPinId = link.endPinId;
-            } else if (endPin->kind == PinKind::Output && startPin->kind == PinKind::Input) {
+            } else if (endPin->kind == UiPinKind::Output && startPin->kind == UiPinKind::Input) {
                 outPinId = link.endPinId; inPinId = link.startPinId;
             }
             if (outPinId < 0) continue;
@@ -1861,7 +1860,7 @@ static void load_graph_from_path(const std::string& path) {
                     // silently kept the default ADSR for unknown presets
                     // — the 2026-08-13 damper-fires-on-attack bug — and
                     // dropped the fraction-adsr min/max jitter args.)
-                    *env = envelope_from_preset_json(params, DSP_SAMPLE_RATE);
+                    *env = std::move(*envelope_from_preset_json(params, DSP_SAMPLE_RATE));
                 }
             }
 
@@ -2674,10 +2673,10 @@ static void group_boundary(const NodeGroup& g,
         // configuration wormholes exist for — Matt 09-06) nor creates a
         // face input pin.
         if (is_wormhole(a) && is_wormhole(b)) continue;
-        GraphNode* srcN = pa->kind == PinKind::Output ? a : b;
-        GraphNode* dstN = pa->kind == PinKind::Output ? b : a;
-        int srcPin = pa->kind == PinKind::Output ? link.startPinId : link.endPinId;
-        int dstPin = pa->kind == PinKind::Output ? link.endPinId : link.startPinId;
+        GraphNode* srcN = pa->kind == UiPinKind::Output ? a : b;
+        GraphNode* dstN = pa->kind == UiPinKind::Output ? b : a;
+        int srcPin = pa->kind == UiPinKind::Output ? link.startPinId : link.endPinId;
+        int dstPin = pa->kind == UiPinKind::Output ? link.endPinId : link.startPinId;
         if (!is_inside(srcN) && is_inside(dstN)) {
             Pin* dp = find_pin(dstPin);
             ins.push_back({srcPin, dstPin,
@@ -2973,7 +2972,7 @@ static nlohmann::json serialize_patch_graph(
                     if (outPinId < 0) continue;
                     GraphNode* srcNode = find_node_for_pin(outPinId);
                     Pin* srcPin = find_pin(outPinId);
-                    if (!srcNode || !srcPin || srcPin->kind != PinKind::Output)
+                    if (!srcNode || !srcPin || srcPin->kind != UiPinKind::Output)
                         continue;
                     if (srcNode->typeName == NT_PERFORM) {
                         if (auto pr = perfPinRef.find(srcPin->id);
@@ -3340,7 +3339,7 @@ static void save_node_graph(const std::string& path) {
                     if (outPinId < 0) continue;
                     GraphNode* srcNode = find_node_for_pin(outPinId);
                     Pin* srcPin = find_pin(outPinId);
-                    if (srcNode && srcPin && srcPin->kind == PinKind::Output)
+                    if (srcNode && srcPin && srcPin->kind == UiPinKind::Output)
                         refs.push_back(json{{srcPin->isTap ? "tap" : "ref",
                                              nodeIds[srcNode->id]}});
                 }
@@ -7517,7 +7516,7 @@ struct TargetOpt { std::string name; float current; bool isSetting; };
 static std::vector<TargetOpt> eligible_targets(GraphNode* tn) {
     std::vector<TargetOpt> opts;
     for (auto& pin : tn->inputs) {
-        if (pin.inputOnly || pin.kind != PinKind::Input) continue;
+        if (pin.inputOnly || pin.kind != UiPinKind::Input) continue;
         if (pin.name.substr(0, 3) == "ch ") continue;
         if (is_pin_connected(pin.id)) continue;  // loader rejects ref-wired targets
         opts.push_back({pin.name, pin.defaultValue, false});
@@ -9165,7 +9164,7 @@ static void route_link_through_wormhole(int linkId) {
     const Link link = *it;
     Pin* sp = find_pin(link.startPinId);
     if (!sp) return;
-    const bool startIsSource = sp->kind == PinKind::Output;
+    const bool startIsSource = sp->kind == UiPinKind::Output;
     const int outPin = startIsSource ? link.startPinId : link.endPinId;
     const int inPin  = startIsSource ? link.endPinId   : link.startPinId;
     GraphNode* srcN = find_node_for_pin(outPin);
@@ -10454,8 +10453,8 @@ static void clipboard_copy() {
         Pin* a = find_pin(link.startPinId);
         Pin* b = find_pin(link.endPinId);
         if (!a || !b || a->kind == b->kind) continue;
-        int outPinId = (a->kind == PinKind::Output) ? link.startPinId : link.endPinId;
-        int inPinId  = (a->kind == PinKind::Input)  ? link.startPinId : link.endPinId;
+        int outPinId = (a->kind == UiPinKind::Output) ? link.startPinId : link.endPinId;
+        int inPinId  = (a->kind == UiPinKind::Input)  ? link.startPinId : link.endPinId;
         GraphNode* outNode = find_node_for_pin(outPinId);
         GraphNode* inNode  = find_node_for_pin(inPinId);
         if (!outNode || !inNode) continue;
@@ -13012,7 +13011,7 @@ int main(int argc, char** argv) {
                    n.dspSource ? n.dspSource->type_name() : "NULL",
                    n.settingValues.size());
             for (auto& pin : n.inputs) {
-                if (pin.inputOnly || pin.kind != PinKind::Input) continue;
+                if (pin.inputOnly || pin.kind != UiPinKind::Input) continue;
                 if (pin.name.substr(0, 3) == "ch ") continue;
                 if (is_pin_connected(pin.id)) { printf("    [pin skipped: connected] %s\n", pin.name.c_str()); continue; }
                 printf("    pin  %s = %g%s\n", pin.name.c_str(), pin.defaultValue,
@@ -14025,7 +14024,7 @@ int main(int argc, char** argv) {
         for (auto& link : s_links) {
             Pin* sp = find_pin(link.startPinId);
             if (!sp) continue;
-            bool startIsSource = sp->kind == PinKind::Output;
+            bool startIsSource = sp->kind == UiPinKind::Output;
             Pin* ep = find_pin(link.endPinId);
             bool isTap = (sp->isTap) || (ep && ep->isTap);
             // Wormhole pairs: the wire between two Wormhole nodes is the
@@ -14306,7 +14305,7 @@ int main(int argc, char** argv) {
             if (dynNode) {
                 GraphNode* srcNode = find_node_for_pin(otherAttr);
                 Pin* srcPin = find_pin(otherAttr);
-                if (srcNode && srcPin && srcPin->kind == PinKind::Output &&
+                if (srcNode && srcPin && srcPin->kind == UiPinKind::Output &&
                     srcNode->typeName == "CurveNode") {
                     dynNode->dynamicPins[dynSetting] = {{"ref", srcNode->label}};
                     char msg[128];
@@ -14320,8 +14319,8 @@ int main(int argc, char** argv) {
                         "Only a Curve may feed a dynamic pin", true);
                 }
             } else if (startPin && endPin && startPin->kind != endPin->kind) {
-                int outPin = (startPin->kind == PinKind::Output) ? startAttr : endAttr;
-                int inPin  = (startPin->kind == PinKind::Input)  ? startAttr : endAttr;
+                int outPin = (startPin->kind == UiPinKind::Output) ? startAttr : endAttr;
+                int inPin  = (startPin->kind == UiPinKind::Input)  ? startAttr : endAttr;
 
                 // Reject structurally incompatible links. Target pins that
                 // expect IFormant / IPartials can't accept arbitrary sources

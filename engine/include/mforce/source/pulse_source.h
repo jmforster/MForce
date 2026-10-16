@@ -1,7 +1,6 @@
 #pragma once
 #include "mforce/core/dsp_wave_source.h"
 #include <cmath>
-#include <memory>
 
 namespace mforce {
 
@@ -10,59 +9,22 @@ namespace mforce {
 // dutyCycle: fraction of period spent "high" (0..1)
 // bend: 0 = square wave, 1 = sawtooth-like slope on top
 struct PulseSource final : WaveSource {
-  explicit PulseSource(int sampleRate)
-  : WaveSource(sampleRate)
-  , dutyCycle_(std::make_shared<ConstantSource>(0.5f))
-  , bend_(std::make_shared<ConstantSource>(0.0f)) {}
+  Param dutyCycle{this, "dutyCycle", 0.5f,  0.01f, 0.99f, "0-1"};
+  Param bend     {this, "bend",      0.0f, -1.0f,  1.0f,  "±1"};
 
-  void set_duty_cycle(std::shared_ptr<ValueSource> d) { dutyCycle_ = std::move(d); }
-  void set_bend(std::shared_ptr<ValueSource> b) { bend_ = std::move(b); }
-
+  explicit PulseSource(int sampleRate) : WaveSource(sampleRate) {}
   const char* type_name() const override { return "PulseSource"; }
 
-  std::span<const ParamDescriptor> param_descriptors() const override {
-    static constexpr ParamDescriptor descs[] = {
-      {"frequency",  440.0f, 0.01f, 20000.0f, "hz"},
-      {"amplitude",  1.0f,   0.0f,  10.0f,    "0-1"},
-      {"phase",      0.0f,  -1.0f,  1.0f,     "cycles"},
-      {"dutyCycle",  0.5f,   0.01f, 0.99f,    "0-1"},
-      {"bend",       0.0f,  -1.0f,  1.0f,     "±1"},
-    };
-    return descs;
-  }
-
-  void set_param(std::string_view name, std::shared_ptr<ValueSource> src) override {
-    if (name == "dutyCycle") { set_duty_cycle(std::move(src)); return; }
-    if (name == "bend")     { set_bend(std::move(src)); return; }
-    WaveSource::set_param(name, std::move(src));
-  }
-
-  std::shared_ptr<ValueSource> get_param(std::string_view name) const override {
-    if (name == "dutyCycle") return dutyCycle_;
-    if (name == "bend")     return bend_;
-    return WaveSource::get_param(name);
-  }
-
-  void prepare(const RenderContext& ctx, int frames) override {
-    WaveSource::prepare(ctx, frames);
-    dutyCycle_->prepare(ctx, frames);
-    bend_->prepare(ctx, frames);
-  }
-
 protected:
-  float compute_wave_value() override {
-    float duty = dutyCycle_->advance();
-    float bend = bend_->advance();
-
-    // Use current() after next() — matches legacy GetNext() pattern
-    duty = dutyCycle_->current();
-    bend = bend_->current();
+  float wave() override {
+    const float duty = dutyCycle.current();
+    const float b    = bend.current();
 
     float val = 0.0f;
     if (currPos_ < duty) {
-      val = 1.0f - (1.0f - currPos_ / duty) * bend;
+      val = 1.0f - (1.0f - currPos_ / duty) * b;
     } else {
-      val = -1.0f - (duty - currPos_) * 2.0f * bend;
+      val = -1.0f - (duty - currPos_) * 2.0f * b;
     }
 
     return val + get_blep(currPos_) - get_blep(std::fmod(currPos_ + (1.0f - duty), 1.0f));
@@ -81,9 +43,6 @@ private:
   }
 
   float get_blep(float pos) const { return get_blep(pos, currPhaseIncr_); }
-
-  std::shared_ptr<ValueSource> dutyCycle_;
-  std::shared_ptr<ValueSource> bend_;
 };
 
 } // namespace mforce

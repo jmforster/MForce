@@ -445,10 +445,10 @@ struct Envelope : ValueSource {
   // ----- Preset factories -----
 
   // Attack → Release (expand)
-  static Envelope make_ar(int sampleRate, float attackPct, float attackMin = 0.0f, float attackMax = 1.0f) {
-    Envelope env(sampleRate);
-    env.add_stage({{0.0f, 1.0f, RampType::Linear, 0.0f}, attackPct, attackMin, attackMax});
-    env.add_stage({{1.0f, 0.0f, RampType::Sine,   0.0f}, 0.0f, 0.0f, 0.0f});  // expand
+  static std::shared_ptr<Envelope> make_ar(int sampleRate, float attackPct, float attackMin = 0.0f, float attackMax = 1.0f) {
+    auto env = std::make_shared<Envelope>(sampleRate);
+    env->add_stage({{0.0f, 1.0f, RampType::Linear, 0.0f}, attackPct, attackMin, attackMax});
+    env->add_stage({{1.0f, 0.0f, RampType::Sine,   0.0f}, 0.0f, 0.0f, 0.0f});  // expand
     return env;
   }
 
@@ -460,17 +460,17 @@ struct Envelope : ValueSource {
   // (the run-22 piano chuff, third strike). Explicit *Min JSON keys still
   // clamp for patches that want it; max caps unchanged (backlog 36 owns
   // any further dialect cleanup).
-  static Envelope make_adsr(int sampleRate,
+  static std::shared_ptr<Envelope> make_adsr(int sampleRate,
                             float attackPct, float decayPct, float sustainLevel, float releasePct,
                             float attackMin = 0.0f, float attackMax = 1.0f,
                             float decayMin = 0.0f, float decayMax = 0.5f,
                             float releaseMin = 0.0f, float releaseMax = 0.0f) {
-    Envelope env(sampleRate);
-    env.add_stage({{0.0f, 1.0f, RampType::Linear, 0.0f}, attackPct, attackMin, attackMax});
-    env.add_stage({{1.0f, sustainLevel, RampType::Linear, 0.0f}, decayPct, decayMin, decayMax});
-    env.add_stage({{sustainLevel, sustainLevel, RampType::Linear, 0.0f}, 0.0f, 0.0f, 0.0f}); // expand
-    env.add_stage({{sustainLevel, 0.0f, RampType::Sine, 0.0f}, releasePct, releaseMin, releaseMax});
-    env.adsrLayout_ = true;  // enables live sustainLevel rewrites via set_setting
+    auto env = std::make_shared<Envelope>(sampleRate);
+    env->add_stage({{0.0f, 1.0f, RampType::Linear, 0.0f}, attackPct, attackMin, attackMax});
+    env->add_stage({{1.0f, sustainLevel, RampType::Linear, 0.0f}, decayPct, decayMin, decayMax});
+    env->add_stage({{sustainLevel, sustainLevel, RampType::Linear, 0.0f}, 0.0f, 0.0f, 0.0f}); // expand
+    env->add_stage({{sustainLevel, 0.0f, RampType::Sine, 0.0f}, releasePct, releaseMin, releaseMax});
+    env->adsrLayout_ = true;  // enables live sustainLevel rewrites via set_setting
     return env;
   }
 
@@ -482,16 +482,16 @@ struct Envelope : ValueSource {
   // stage renders as 0 frames (percent == 0 keeps its expand meaning, so
   // decay 0 simply vanishes and sustain expands; release 0 keeps the
   // documented "release fills the sustain region" quirk).
-  static Envelope make_adsr_abs(int sampleRate,
+  static std::shared_ptr<Envelope> make_adsr_abs(int sampleRate,
                                 float attackSec, float decaySec,
                                 float sustainLevel, float releaseSec) {
-    Envelope env(sampleRate);
-    env.add_stage({{0.0f, 1.0f, RampType::Linear, 0.0f}, attackSec, 0.0f, 0.0f});
-    env.add_stage({{1.0f, sustainLevel, RampType::Linear, 0.0f}, decaySec, 0.0f, 0.0f});
-    env.add_stage({{sustainLevel, sustainLevel, RampType::Linear, 0.0f}, 0.0f, 0.0f, 0.0f}); // expand
-    env.add_stage({{sustainLevel, 0.0f, RampType::Sine, 0.0f}, releaseSec, 0.0f, 0.0f});
-    env.adsrLayout_ = true;
-    env.absolute_time = true;
+    auto env = std::make_shared<Envelope>(sampleRate);
+    env->add_stage({{0.0f, 1.0f, RampType::Linear, 0.0f}, attackSec, 0.0f, 0.0f});
+    env->add_stage({{1.0f, sustainLevel, RampType::Linear, 0.0f}, decaySec, 0.0f, 0.0f});
+    env->add_stage({{sustainLevel, sustainLevel, RampType::Linear, 0.0f}, 0.0f, 0.0f, 0.0f}); // expand
+    env->add_stage({{sustainLevel, 0.0f, RampType::Sine, 0.0f}, releaseSec, 0.0f, 0.0f});
+    env->adsrLayout_ = true;
+    env->absolute_time = true;
     return env;
   }
 

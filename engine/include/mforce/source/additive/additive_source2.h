@@ -129,7 +129,7 @@ struct AdditiveSource2 final : WaveSource {
   void prepare(const RenderContext& ctx, int frames) override;
 
 protected:
-  float compute_wave_value() override;
+  float wave() override;
 
 private:
   bool matches_filter(PartialFilter f, int partialNum) const;

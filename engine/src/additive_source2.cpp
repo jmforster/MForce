@@ -124,7 +124,7 @@ void AdditiveSource2::prepare(const RenderContext& ctx, int frames) {
   }
 }
 
-float AdditiveSource2::compute_wave_value() {
+float AdditiveSource2::wave() {
   phaseOffset_->advance();
   freqVarDepth_->advance();
   freqVarSpeed_->advance();

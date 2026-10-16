@@ -31,7 +31,7 @@ void WavetableSource::fill_table() {
   }
 }
 
-float WavetableSource::compute_wave_value() {
+float WavetableSource::wave() {
   if (!interpolate_) {
     return compute_raw();
   } else {

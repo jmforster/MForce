@@ -11,7 +11,7 @@ struct SineSource final : WaveSource {
   const char* type_name() const override { return "SineSource"; }
 
 protected:
-  float compute_wave_value() override {
+  float wave() override {
     return std::sin(currPos_ * 2.0f * 3.14159265358979323846f);
   }
 };

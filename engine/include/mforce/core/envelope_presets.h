@@ -64,12 +64,12 @@ struct AREnvelope final : Envelope {
 
 private:
   void rebuild() {
-    Envelope env = Envelope::make_ar(sr_, attack_);
-    env.stage(0).ramp.type  = RampType(attackCurve_);
-    env.stage(0).ramp.power = attackPower_;
-    env.stage(1).ramp.type  = RampType(releaseCurve_);
-    env.stage(1).ramp.power = releasePower_;
-    replace_stages(std::move(env));
+    auto env = Envelope::make_ar(sr_, attack_);
+    env->stage(0).ramp.type  = RampType(attackCurve_);
+    env->stage(0).ramp.power = attackPower_;
+    env->stage(1).ramp.type  = RampType(releaseCurve_);
+    env->stage(1).ramp.power = releasePower_;
+    replace_stages(std::move(*env));
   }
   int sr_;
   float attack_{0.2f};
@@ -383,15 +383,15 @@ struct ADSREnvelope final : Envelope {
 
 private:
   void rebuild() {
-    Envelope env = Envelope::make_adsr(sr_,
+    auto env = Envelope::make_adsr(sr_,
         attack_, decay_, sustainLevel_, release_);
-    env.stage(0).ramp.type  = RampType(attackCurve_);
-    env.stage(0).ramp.power = attackPower_;
-    env.stage(1).ramp.type  = RampType(decayCurve_);
-    env.stage(1).ramp.power = decayPower_;
-    env.stage(3).ramp.type  = RampType(releaseCurve_);
-    env.stage(3).ramp.power = releasePower_;
-    replace_stages(std::move(env));
+    env->stage(0).ramp.type  = RampType(attackCurve_);
+    env->stage(0).ramp.power = attackPower_;
+    env->stage(1).ramp.type  = RampType(decayCurve_);
+    env->stage(1).ramp.power = decayPower_;
+    env->stage(3).ramp.type  = RampType(releaseCurve_);
+    env->stage(3).ramp.power = releasePower_;
+    replace_stages(std::move(*env));
   }
   int sr_;
   float attack_{0.2f}, decay_{0.1f}, sustainLevel_{0.7f}, release_{0.1f};

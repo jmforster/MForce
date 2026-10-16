@@ -1,55 +1,47 @@
 #pragma once
 #include "mforce/core/dsp_value_source.h"
-#include <memory>
 #include <cmath>
 #include <stdexcept>
 
 namespace mforce {
 
-struct WaveSource : ValueSource {
-  explicit WaveSource(int sampleRate)
-  : sampleRate_(sampleRate)
-  , amplitude_(std::make_shared<ConstantSource>(1.0f))
-  , frequency_(std::make_shared<ConstantSource>(440.0f))
-  , phase_(std::make_shared<ConstantSource>(0.0f)) {}
+// The phase-accumulating oscillator base (ported from the C# WaveSource).
+// The base owns the three pins and the accumulator; a subclass supplies
+// wave(), its value at the current position.
+struct WaveSource : Generator {
+  // Declared in the order the old next() advanced them: amplitude,
+  // frequency, phase. Declaration order is the advance order until the
+  // per-tick memo lands.
+  Param amplitude{this, "amplitude", 1.0f,   0.0f,  10.0f,    "0-1"};
+  Param frequency{this, "frequency", 440.0f, 0.01f, 20000.0f, "hz"};
+  Param phase    {this, "phase",     0.0f,  -1.0f,  1.0f,     "cycles"};
 
-  void set_amplitude(std::shared_ptr<ValueSource> s) { amplitude_ = std::move(s); }
-  void set_frequency(std::shared_ptr<ValueSource> s) { frequency_ = std::move(s); }
-  void set_phase(std::shared_ptr<ValueSource> s) { phase_ = std::move(s); }
+  explicit WaveSource(int sampleRate) : sampleRate_(sampleRate) {}
 
-  void prepare(const RenderContext& ctx, int frames) override {
-    ValueSource::prepare(ctx, frames);
-    amplitude_->prepare(ctx, frames);
-    frequency_->prepare(ctx, frames);
-    phase_->prepare(ctx, frames);
+  Range range() const override { return Range::Bipolar; }
+  SourceCategory category() const override { return SourceCategory::Oscillator; }
 
-    // Mirror legacy: ptr starts at -1, Next() increments to 0 on first sample.
-    ptr_ = -1;
-  }
+  // Mirror legacy: ptr starts at -1, the first compute() increments to 0.
+  void on_prepare(const RenderContext&, int) override { ptr_ = -1; }
 
-  float next() override {
+  float compute() override {
     ++ptr_;
 
-    amplitude_->advance();
-    frequency_->advance();
-    phase_->advance();
-
-    const float f = frequency_->current();
+    const float f = frequency.current();
     if (f <= 0.0f) throw std::runtime_error("WaveSource: non-positive frequency");
 
     if (ptr_ == 0) {
-      currPos_   = phase_->current();   // legacy: init pos = phase (cycles)
-      lastPhase_ = phase_->current();
+      currPos_   = phase.current();   // legacy: init pos = phase (cycles)
+      lastPhase_ = phase.current();
     }
 
-    currAmpl_ = amplitude_->current();
-    currFreq_ = f;
-    currPhase_ = phase_->current();
+    currAmpl_  = amplitude.current();
+    currFreq_  = f;
+    currPhase_ = phase.current();
 
     currPhaseIncr_ = currFreq_ / float(sampleRate_);
 
-    float w = compute_wave_value(); // subclass
-    cur_ = w * currAmpl_;
+    const float out = wave() * currAmpl_;
 
     // legacy:
     // CurrPos = (CurrPos + CurrPhaseIncr + (CurrPhase - LastPhase)) % 1;
@@ -59,54 +51,17 @@ struct WaveSource : ValueSource {
     currPos_ = std::fmod(currPos_ + currPhaseIncr_ + phaseDelta, 1.0f);
     if (currPos_ < 0.0f) currPos_ += 1.0f;
 
-    return cur_;
-  }
-
-  float current() const override { return cur_; }
-
-  // Accessors for param map resolution
-  std::shared_ptr<ValueSource> get_amplitude() const { return amplitude_; }
-  std::shared_ptr<ValueSource> get_frequency() const { return frequency_; }
-  std::shared_ptr<ValueSource> get_phase()     const { return phase_; }
-
-  // Self-description — base params shared by all WaveSource subclasses
-  SourceCategory category() const override { return SourceCategory::Oscillator; }
-
-  std::span<const ParamDescriptor> param_descriptors() const override {
-    static constexpr ParamDescriptor descs[] = {
-      {"frequency", 440.0f, 0.01f, 20000.0f, "hz"},
-      {"amplitude", 1.0f,   0.0f,  10.0f,    "0-1"},
-      {"phase",     0.0f,  -1.0f,  1.0f,     "cycles"},
-    };
-    return descs;
-  }
-
-  void set_param(std::string_view name, std::shared_ptr<ValueSource> src) override {
-    if (name == "frequency") { set_frequency(std::move(src)); return; }
-    if (name == "amplitude") { set_amplitude(std::move(src)); return; }
-    if (name == "phase")     { set_phase(std::move(src)); return; }
-  }
-
-  std::shared_ptr<ValueSource> get_param(std::string_view name) const override {
-    if (name == "frequency") return frequency_;
-    if (name == "amplitude") return amplitude_;
-    if (name == "phase")     return phase_;
-    return nullptr;
+    return out;
   }
 
 protected:
-  virtual float compute_wave_value() = 0;
+  virtual float wave() = 0;   // the subclass's value at currPos_
 
-  int sampleRate_;
-  std::shared_ptr<ValueSource> amplitude_;
-  std::shared_ptr<ValueSource> frequency_;
-  std::shared_ptr<ValueSource> phase_;
-
+  int   sampleRate_;
   int   ptr_{-1};
   float currAmpl_{1.0f}, currFreq_{440.0f}, currPhase_{0.0f};
   float currPos_{0.0f}, currPhaseIncr_{0.0f};
   float lastPhase_{0.0f};
-  float cur_{0.0f};
 };
 
 } // namespace mforce

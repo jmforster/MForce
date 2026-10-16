@@ -635,20 +635,15 @@ static void run_curve_shared_tests() {
 // ---------------------------------------------------------------------------
 namespace {
 
-struct Playback final : mforce::ValueSource {
+struct Playback final : mforce::Generator {
     const std::vector<float>* buf{nullptr};
     size_t i{0};
-    float v{0.0f};
     const char* type_name() const override { return "Playback"; }
     mforce::SourceCategory category() const override {
         return mforce::SourceCategory::Modulator;
     }
-    void prepare(const mforce::RenderContext&, int) override { i = 0; v = 0.0f; }
-    float next() override {
-        v = (buf && i < buf->size()) ? (*buf)[i++] : 0.0f;
-        return v;
-    }
-    float current() const override { return v; }
+    void on_prepare(const mforce::RenderContext&, int) override { i = 0; }
+    float compute() override { return (buf && i < buf->size()) ? (*buf)[i++] : 0.0f; }
 };
 
 double worst_energy_ratio(const std::vector<float>& x, float aNeg, float aPos) {
@@ -1893,7 +1888,115 @@ static void run_walk3_tests() {
     }
 }
 
+#include "mforce/core/component.h"
+#include <string>
+
+// Checkpoint 2.1: a pin is a self-registering member. Declaration order is
+// registry order; the base serves descriptors and by-name access from it.
+namespace {
+struct PinProbe : mforce::Component {
+  mforce::Param freq{this, "frequency", 440.0f, 0.01f, 20000.0f, "hz"};
+  mforce::Param amp{this, "amplitude", 1.0f, 0.0f, 10.0f};
+  mforce::Input in{this, "source", mforce::Input::Optional};
+  mforce::Setting<int> mode{this, "mode", 2, 0, 3};
+  mforce::Array table{this, "weights", nullptr, 0.5f, 0.0f, 1.0f};
+  const char* type_name() const override { return "PinProbe"; }
+};
+}
+
+static void run_pin_tests() {
+    PinProbe p;
+    auto pd = p.param_descriptors();
+    CHECK(pd.size() == 2);
+    CHECK(std::string(pd[0].name) == "frequency");
+    CHECK_NEAR(pd[0].default_value, 440.0f, 1e-6f);
+    CHECK(std::string(pd[0].hint) == "hz");
+    CHECK(p.input_descriptors().size() == 1);
+    CHECK(p.setting_descriptors().size() == 1);
+    CHECK(p.array_descriptors().size() == 1);
+    CHECK(p.pins().size() == 5);
+    // an unwired param reads its constant; a wired one reads the source
+    CHECK_NEAR(p.freq.current(), 440.0f, 1e-6f);
+    CHECK(p.get_param("frequency") == nullptr);
+    p.set_param("frequency", std::make_shared<mforce::ConstantSource>(220.0f));
+    p.freq.source->next();
+    CHECK_NEAR(p.freq.current(), 220.0f, 1e-6f);
+    CHECK(p.get_param("frequency") != nullptr);
+    CHECK(p.get_param("nosuch") == nullptr);
+    p.clear_param("frequency");
+    CHECK_NEAR(p.freq.current(), 440.0f, 1e-6f);
+    // settings and arrays by name; the descriptor keeps the declared default
+    p.set_setting("mode", 3.0f);
+    CHECK(p.mode.value == 3);
+    CHECK_NEAR(p.get_setting("mode"), 3.0f, 1e-6f);
+    CHECK_NEAR(p.setting_descriptors()[0].default_value, 2.0f, 1e-6f);
+    CHECK(p.setting_descriptors()[0].type == mforce::SettingType::Int);
+    CHECK_NEAR(p.get_setting("nosuch"), 0.0f, 1e-6f);
+    p.set_array("weights", {0.1f, 0.2f});
+    CHECK(p.get_array("weights").size() == 2);
+    CHECK(p.table.values.size() == 2);
+    // an optional input unwired reads 0; an input is reachable by name too
+    CHECK_NEAR(p.in.current(), 0.0f, 1e-6f);
+    p.set_param("source", std::make_shared<mforce::ConstantSource>(3.0f));
+    CHECK(p.get_param("source") != nullptr);
+    CHECK(p.in.source != nullptr);
+}
+
+// Checkpoint 2.1: Generator and Processor under ValueSource. next() advances
+// every pin in declaration order, then compute() does the node's work.
+namespace {
+struct Doubler final : mforce::Processor {
+  float compute() override { return 2.0f * input.current(); }
+  const char* type_name() const override { return "Doubler"; }
+};
+struct UnitRamp final : mforce::Generator {
+  float v_{0.0f};
+  float compute() override { return v_ += 1.0f; }
+  Range range() const override { return Range::Unipolar; }
+  const char* type_name() const override { return "UnitRamp"; }
+};
+}
+
+static void run_base_tests() {
+    auto ramp = std::make_shared<UnitRamp>();
+    Doubler d;
+    d.set_param("source", ramp);              // Processor's input is the pin named "source"
+    CHECK(d.input_descriptors().size() == 1);
+    CHECK(d.category() == mforce::SourceCategory::Filter);
+    mforce::RenderContext ctx{48000};
+    d.prepare(ctx, 100);
+    CHECK_NEAR(d.next(), 2.0f, 1e-6f);        // the input advanced (ramp -> 1), then 2 * 1
+    CHECK_NEAR(d.next(), 4.0f, 1e-6f);
+    CHECK_NEAR(d.current(), 4.0f, 1e-6f);
+    CHECK(ramp->range() == mforce::Generator::Range::Unipolar);
+    // a constant is a Generator that computes its value
+    mforce::ConstantSource c(0.25f);
+    CHECK_NEAR(c.current(), 0.25f, 1e-6f);
+    c.set(0.5f);
+    CHECK_NEAR(c.next(), 0.5f, 1e-6f);
+}
+
 #include "mforce/source/sine_source.h"
+
+// Checkpoint 2.1: WaveSource under Generator with its three pins declared
+// once, in the order the old next() advanced them (amplitude, frequency,
+// phase); an unwired pin reads its constant and has no source.
+static void run_wave_source_tests() {
+    SineSource s(48000);
+    auto pd = s.param_descriptors();
+    CHECK(pd.size() == 3);
+    CHECK(std::string(pd[0].name) == "amplitude");
+    CHECK(std::string(pd[1].name) == "frequency");
+    CHECK(std::string(pd[2].name) == "phase");
+    CHECK(s.get_param("phase") == nullptr);
+    CHECK(s.range() == mforce::Generator::Range::Bipolar);
+    CHECK(s.category() == mforce::SourceCategory::Oscillator);
+    s.set_param("frequency", std::make_shared<ConstantSource>(12000.0f));
+    s.prepare(RenderContext{48000}, 8);
+    CHECK_NEAR(s.next(), 0.0f, 1e-6f);           // pos 0 -> sin(0)
+    CHECK_NEAR(s.next(), 1.0f, 1e-6f);           // a quarter cycle later
+    CHECK(s.get_param("frequency") != nullptr);
+}
 
 // Checkpoint 2.1 Task 0: the sharing trace. A wrapped (RefSource) consumer
 // that reads a shared source before its primary consumer advanced it this
@@ -1940,6 +2043,9 @@ static void run_sharing_trace_tests() {
 }
 
 int main() {
+    run_pin_tests();
+    run_base_tests();
+    run_wave_source_tests();
     run_sharing_trace_tests();
     run_walk2_tests();
     run_walk3_tests();

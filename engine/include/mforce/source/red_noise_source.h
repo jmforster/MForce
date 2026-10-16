@@ -67,7 +67,7 @@ struct RedNoiseSource final : WaveSource {
   void reseed() override { rng_.reanchor(); }
 
 protected:
-  float compute_wave_value() override;
+  float wave() override;
 
 private:
   std::shared_ptr<ValueSource> density_;
