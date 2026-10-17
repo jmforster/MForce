@@ -2008,6 +2008,31 @@ static void run_setting_clamp_tests() {
     CHECK(p.mode.value == 1);
 }
 
+// A Processor may own its primary input: Processor(Pull::Manual) keeps
+// `source` out of the sweep so the node pulls it where the old code did.
+namespace {
+struct ManualDoubler final : mforce::Processor {
+  ManualDoubler() : Processor(mforce::Pull::Manual) {}
+  float compute() override { return 2.0f * input.advance(); }
+  const char* type_name() const override { return "ManualDoubler"; }
+};
+}
+
+static void run_processor_manual_input_tests() {
+    auto ramp = std::make_shared<UnitRamp>();
+    ManualDoubler d;
+    d.set_param("source", ramp);
+    CHECK(d.pulled().empty());                 // the base advances nothing
+    CHECK(d.input_descriptors().size() == 1);  // the pin is still declared
+    mforce::RenderContext ctx{48000};
+    d.prepare(ctx, 100);
+    CHECK_NEAR(d.next(), 2.0f, 1e-6f);         // one pull per sample, by the node
+    CHECK_NEAR(d.next(), 4.0f, 1e-6f);
+    Doubler a;
+    a.set_param("source", ramp);
+    CHECK(a.pulled().size() == 1);             // the default stays Auto
+}
+
 // Checkpoint 2.1: WaveSource under Generator with its three pins declared
 // once, in the order the old next() advanced them (amplitude, frequency,
 // phase); an unwired pin reads its constant and has no source.
@@ -4322,6 +4347,7 @@ int main() {
     run_base_tests();
     run_manual_pin_advance_tests();
     run_setting_clamp_tests();
+    run_processor_manual_input_tests();
     run_wave_source_tests();
     run_range_var_tests();
     run_multi_name_gate_tests();

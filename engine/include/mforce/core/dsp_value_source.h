@@ -102,9 +102,13 @@ struct Generator : ValueSource {
 };
 
 // A node that processes a signal: it owns the primary input. Further inputs
-// are declared by the subclass.
+// are declared by the subclass. A node that must pull its input itself (only
+// between gaps, once per clone, at the moment the old code read it)
+// constructs with Pull::Manual and reads input.advance() in compute().
 struct Processor : ValueSource {
-  Input input{this, "source"};
+  Input input;
+  explicit Processor(Pull inputPull = Pull::Auto)
+    : input{this, "source", Input::RequiredInput, nullptr, false, inputPull} {}
   SourceCategory category() const override { return SourceCategory::Filter; }
 };
 
