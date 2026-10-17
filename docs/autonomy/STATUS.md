@@ -1,5 +1,44 @@
 # Status — session handoff (Claude reads this first; Matt's queue = */REVIEW.md)
 
+Updated: 2026-10-17 (refactor session II, Fable 5.1 xhigh). CHECKPOINT 2.1
+LANDED on main: 1b9b69f..9f2b4a8 (23 commits) — every pin on every node
+declared once (Component root; pins.h / component.h / descriptors.h;
+Generator / Processor; next() sealed non-virtual, compute() pure; 109
+accessors gone; -3,064 engine lines). Executed per the plan: T0-T3 inline
+(the measurement doc docs/architecture/measurements/2026-10-16-sharing-lag.md
+= 13 lag patches, 0 same-tick taps), T4-T11 one sonnet implementer + one
+reviewer per family, fix rounds where needed; final whole-checkpoint
+review on Fable with the fixed refuter brief (docs/architecture/REVIEW_BRIEF.md,
+written this session — the spec named it, it did not exist); fix wave in
+two rounds (97c5da1, e29b29c, 091e924), re-reviewed clean. Byte-identity:
+null gate 80/80 after every commit; whole-tree A/B against a binary built
+from 1b4fe1b = 885/885 over library+baselines+audition+pending, sweep
+455/455 sampled; 8 patches (2 baselines committed in 8f640e6, 6
+gitignored audition fm_matrix2 ones) now state the RedNoise defaults
+they relied on. Full gates: all pass except the two roundtrip gates on
+exactly the backlog-79 set (8, unchanged). REPORT R2:
+docs/autonomy/refactor/reports/2026-10-16-checkpoint-2.1.md (ten
+sections, refutation verbatim in §8, rulings in §6, debt in §7, three
+C++ lessons in §10). REVIEW.md R2 AWAITING MATT with FOUR verdict items —
+item 0 is the one that matters: RENDER TIME REGRESSED (oboe1 +27-40%,
+piano +23-44%, viola +2-9%; 40-cheap-node chains +50-75%): a few ns per
+node per sample from the generic next() that the hand-written bodies
+did not pay; bisected (grows with every family), experimented (noinline,
+forceinline: nothing; inline sweep list 9f2b4a8: kept, 10-15 points on
+chains), asm read (lean). Carried to 2.3 (the memo rewrites the
+per-sample path) unless Matt wants it recovered first. Debt list §7
+(paramMap-on-Input narrowing, Pluck seed, WanderNoise inert amplitude,
+three additive bugs, PhasedValueSource stage-less crash, remaining dated
+comments, the 4,448-line test file). KNOWN: tools/structure/metrics.json
+snapshot refreshed in the close commit; the pre-checkpoint CLI and the
+per-commit CLIs are kept under renders/scratch/ab_tree/cli_<sha>.exe
+with the micro patches for re-timing (gitignored). The base21 worktree
+is removed. GOALS.md stays Matt's uncommitted edit. NEXT: Matt's R2
+verdict (REVIEW.md), then checkpoint 2.2 (prepare/start split; the
+plan gets written against the then-current code) — or a performance
+pass first if item 0 says so. Nothing pushed; main is 23+ commits ahead
+of origin (ask at close-out).
+
 Updated: 2026-10-04 later (refactor session I with Matt; no code changed).
 DECIDED: no restart. Engine is refactored under its existing gates; the UI
 is rebuilt module by module out of main.cpp. Goal = go public to attract

@@ -5,13 +5,13 @@
    [
     [
      "tools/mforce_ui/main.cpp",
-     3061,
-     3135
+     3060,
+     3134
     ],
     [
      "tools/mforce_ui/main.cpp",
-     3376,
-     3445
+     3375,
+     3444
     ]
    ]
   ],
@@ -20,13 +20,13 @@
    [
     [
      "engine/src/patch_loader.cpp",
-     1516,
-     1577
+     1510,
+     1571
     ],
     [
      "engine/src/patch_loader.cpp",
-     1841,
-     1884
+     1835,
+     1878
     ]
    ]
   ],
@@ -96,21 +96,6 @@
    ]
   ],
   [
-   31,
-   [
-    [
-     "engine/include/mforce/core/range_source.h",
-     2,
-     32
-    ],
-    [
-     "engine/include/mforce/core/var_source.h",
-     2,
-     28
-    ]
-   ]
-  ],
-  [
    29,
    [
     [
@@ -122,21 +107,6 @@
      "tools/stk_ref/mesh2d_ref.cpp",
      138,
      166
-    ]
-   ]
-  ],
-  [
-   27,
-   [
-    [
-     "engine/include/mforce/source/wander_noise_source.h",
-     37,
-     63
-    ],
-    [
-     "engine/include/mforce/source/wander_noise_source.h",
-     272,
-     298
     ]
    ]
   ],
@@ -162,66 +132,6 @@
      "tools/stk_ref/brass_ref.cpp",
      5,
      30
-    ]
-   ]
-  ],
-  [
-   25,
-   [
-    [
-     "engine/include/mforce/source/wander_noise_source.h",
-     39,
-     63
-    ],
-    [
-     "engine/include/mforce/source/wander_noise_source.h",
-     274,
-     298
-    ]
-   ]
-  ],
-  [
-   23,
-   [
-    [
-     "engine/include/mforce/filter/limiter.h",
-     4,
-     26
-    ],
-    [
-     "engine/include/mforce/filter/reverb.h",
-     5,
-     23
-    ]
-   ]
-  ],
-  [
-   23,
-   [
-    [
-     "engine/include/mforce/source/pulse_source.h",
-     6,
-     28
-    ],
-    [
-     "engine/include/mforce/source/triangle_source.h",
-     7,
-     39
-    ]
-   ]
-  ],
-  [
-   22,
-   [
-    [
-     "engine/include/mforce/source/noise_sources.h",
-     18,
-     39
-    ],
-    [
-     "engine/include/mforce/source/noise_sources.h",
-     68,
-     88
     ]
    ]
   ],
@@ -261,52 +171,42 @@
    ]
   ],
   [
-   21,
-   [
-    [
-     "engine/include/mforce/filter/filters.h",
-     120,
-     140
-    ],
-    [
-     "engine/include/mforce/filter/filters.h",
-     198,
-     218
-    ]
-   ]
-  ],
-  [
    19,
    [
     [
-     "engine/include/mforce/render/instrument.h",
-     631,
-     649
+     "engine/include/mforce/filter/limiter.h",
+     6,
+     24
     ],
     [
-     "engine/include/mforce/render/instrument.h",
-     686,
-     698
-    ]
-   ]
-  ],
-  [
-   19,
-   [
+     "engine/include/mforce/filter/reverb.h",
+     7,
+     21
+    ],
+    [
+     "engine/include/mforce/source/additive/basic_additive_source.h",
+     6,
+     19
+    ],
     [
      "engine/include/mforce/source/fm_source.h",
-     8,
-     26
-    ],
-    [
-     "engine/include/mforce/source/pulse_source.h",
      6,
-     16
+     24
+    ]
+   ]
+  ],
+  [
+   19,
+   [
+    [
+     "engine/include/mforce/render/instrument.h",
+     632,
+     650
     ],
     [
-     "engine/include/mforce/source/triangle_source.h",
-     7,
-     27
+     "engine/include/mforce/render/instrument.h",
+     687,
+     699
     ]
    ]
   ],
@@ -359,29 +259,14 @@
    18,
    [
     [
-     "engine/include/mforce/source/additive/partials.h",
-     1084,
-     1101
-    ],
-    [
-     "engine/include/mforce/source/additive/partials.h",
-     1186,
-     1203
-    ]
-   ]
-  ],
-  [
-   18,
-   [
-    [
      "engine/src/patch_loader.cpp",
      682,
      699
     ],
     [
      "tools/mforce_ui/main.cpp",
-     1370,
-     1385
+     1369,
+     1384
     ]
    ]
   ],
@@ -390,13 +275,13 @@
    [
     [
      "tools/mforce_ui/main.cpp",
-     12244,
-     12261
+     12243,
+     12260
     ],
     [
      "tools/mforce_ui/main.cpp",
-     12467,
-     12484
+     12465,
+     12482
     ]
    ]
   ],
@@ -404,14 +289,24 @@
    17,
    [
     [
-     "engine/include/mforce/core/envelope_presets.h",
-     275,
-     291
+     "engine/include/mforce/filter/limiter.h",
+     8,
+     24
     ],
     [
-     "engine/include/mforce/core/envelope_presets.h",
-     347,
-     363
+     "engine/include/mforce/filter/reverb.h",
+     9,
+     21
+    ],
+    [
+     "engine/include/mforce/source/additive/basic_additive_source.h",
+     8,
+     19
+    ],
+    [
+     "engine/include/mforce/source/allpass_resonator.h",
+     7,
+     43
     ]
    ]
   ],
@@ -427,56 +322,6 @@
      "engine/include/mforce/music/two_figure_phrase_strategy.h",
      19,
      35
-    ]
-   ]
-  ],
-  [
-   17,
-   [
-    [
-     "engine/include/mforce/source/additive/formant.h",
-     178,
-     194
-    ],
-    [
-     "engine/include/mforce/source/additive/formant.h",
-     263,
-     279
-    ]
-   ]
-  ],
-  [
-   17,
-   [
-    [
-     "engine/include/mforce/source/additive/partials.h",
-     1084,
-     1100
-    ],
-    [
-     "engine/include/mforce/source/additive/partials.h",
-     1186,
-     1202
-    ],
-    [
-     "engine/include/mforce/source/additive/partials.h",
-     1267,
-     1283
-    ]
-   ]
-  ],
-  [
-   17,
-   [
-    [
-     "engine/include/mforce/source/wave_evolution.h",
-     763,
-     779
-    ],
-    [
-     "engine/include/mforce/source/wave_evolution.h",
-     923,
-     939
     ]
    ]
   ],
@@ -509,21 +354,6 @@
    16,
    [
     [
-     "engine/include/mforce/core/range_source.h",
-     41,
-     56
-    ],
-    [
-     "engine/include/mforce/core/var_source.h",
-     38,
-     53
-    ]
-   ]
-  ],
-  [
-   16,
-   [
-    [
      "engine/include/mforce/music/composer.h",
      1223,
      1238
@@ -539,36 +369,6 @@
    16,
    [
     [
-     "engine/include/mforce/source/additive/formant.h",
-     179,
-     194
-    ],
-    [
-     "engine/include/mforce/source/additive/formant.h",
-     264,
-     279
-    ]
-   ]
-  ],
-  [
-   16,
-   [
-    [
-     "engine/include/mforce/source/wander_noise_source.h",
-     48,
-     63
-    ],
-    [
-     "engine/include/mforce/source/wander_noise_source.h",
-     283,
-     298
-    ]
-   ]
-  ],
-  [
-   16,
-   [
-    [
      "tools/durn_converter/main.cpp",
      393,
      408
@@ -577,6 +377,21 @@
      "tools/durn_converter/main.cpp",
      417,
      431
+    ]
+   ]
+  ],
+  [
+   16,
+   [
+    [
+     "tools/engine_tests/main.cpp",
+     3434,
+     3449
+    ],
+    [
+     "tools/engine_tests/main.cpp",
+     3728,
+     3743
     ]
    ]
   ],
@@ -610,18 +425,18 @@
    [
     [
      "engine/include/mforce/core/envelope_presets.h",
-     215,
-     229
+     74,
+     88
     ],
     [
      "engine/include/mforce/core/envelope_presets.h",
-     277,
-     291
+     114,
+     124
     ],
     [
      "engine/include/mforce/core/envelope_presets.h",
-     349,
-     363
+     150,
+     160
     ]
    ]
   ],
@@ -629,264 +444,119 @@
    15,
    [
     [
-     "engine/include/mforce/core/envelope_presets.h",
-     215,
-     229
+     "tools/mforce_cli/main.cpp",
+     625,
+     639
     ],
     [
-     "engine/include/mforce/core/envelope_presets.h",
-     349,
-     363
+     "tools/mforce_cli/main.cpp",
+     728,
+     742
     ]
    ]
   ],
   [
    15,
+   [
+    [
+     "tools/mforce_ui/main.cpp",
+     12061,
+     12075
+    ],
+    [
+     "tools/mforce_ui/main.cpp",
+     12261,
+     12275
+    ]
+   ]
+  ],
+  [
+   15,
+   [
+    [
+     "tools/test_figures/main.cpp",
+     806,
+     820
+    ],
+    [
+     "tools/test_figures/main.cpp",
+     933,
+     947
+    ]
+   ]
+  ],
+  [
+   15,
+   [
+    [
+     "tools/test_figures/main.cpp",
+     806,
+     820
+    ],
+    [
+     "tools/test_figures/main.cpp",
+     933,
+     947
+    ]
+   ]
+  ],
+  [
+   14,
    [
     [
      "engine/include/mforce/filter/filters.h",
-     375,
-     389
+     122,
+     135
     ],
-    [
-     "engine/include/mforce/filter/reverb.h",
-     41,
-     55
-    ]
-   ]
-  ],
-  [
-   15,
-   [
     [
      "engine/include/mforce/filter/filters.h",
-     375,
-     389
-    ],
-    [
-     "engine/include/mforce/filter/reverb.h",
-     41,
-     55
-    ],
-    [
-     "engine/include/mforce/source/combined_source.h",
-     257,
-     271
+     160,
+     170
     ]
    ]
   ],
   [
-   15,
+   14,
    [
     [
-     "engine/include/mforce/source/additive/partials.h",
-     1087,
-     1101
+     "tools/mforce_cli/main.cpp",
+     100,
+     113
     ],
     [
-     "engine/include/mforce/source/additive/partials.h",
-     1189,
-     1203
+     "tools/mforce_cli/main.cpp",
+     717,
+     729
     ]
    ]
   ],
   [
-   15,
+   14,
    [
     [
-     "engine/include/mforce/source/bow_table_source.h",
-     7,
-     21
+     "tools/mforce_ui/main.cpp",
+     3044,
+     3057
     ],
     [
-     "engine/include/mforce/source/pierce_filter.h",
-     6,
-     38
-    ],
-    [
-     "engine/include/mforce/source/shaper_source.h",
-     8,
-     20
+     "tools/mforce_ui/main.cpp",
+     3365,
+     3377
     ]
    ]
   ],
   [
-   15,
-   [
-    [
-     "engine/include/mforce/source/bow_table_source.h",
-     21,
-     35
-    ],
-    [
-     "engine/include/mforce/source/pierce_filter.h",
-     38,
-     52
-    ]
-   ]
-  ],
-  [
-   15,
-   [
-    [
-     "engine/include/mforce/source/pulse_source.h",
-     14,
-     28
-    ],
-    [
-     "engine/include/mforce/source/triangle_source.h",
-     25,
-     39
-    ]
-   ]
-  ],
-  [
-   15,
+   14,
    [
     [
      "tools/mforce_ui/main.cpp",
      12062,
-     12076
+     12075
     ],
     [
      "tools/mforce_ui/main.cpp",
      12262,
-     12276
-    ]
-   ]
-  ],
-  [
-   15,
-   [
-    [
-     "tools/test_figures/main.cpp",
-     806,
-     820
-    ],
-    [
-     "tools/test_figures/main.cpp",
-     933,
-     947
-    ]
-   ]
-  ],
-  [
-   15,
-   [
-    [
-     "tools/test_figures/main.cpp",
-     806,
-     820
-    ],
-    [
-     "tools/test_figures/main.cpp",
-     933,
-     947
-    ]
-   ]
-  ],
-  [
-   14,
-   [
-    [
-     "engine/include/mforce/core/envelope_presets.h",
-     38,
-     51
-    ],
-    [
-     "engine/include/mforce/core/envelope_presets.h",
-     153,
-     166
-    ],
-    [
-     "engine/include/mforce/core/envelope_presets.h",
-     275,
-     288
-    ],
-    [
-     "engine/include/mforce/core/envelope_presets.h",
-     347,
-     360
-    ]
-   ]
-  ],
-  [
-   14,
-   [
-    [
-     "engine/include/mforce/core/envelope_presets.h",
-     291,
-     304
-    ],
-    [
-     "engine/include/mforce/core/envelope_presets.h",
-     364,
-     377
-    ]
-   ]
-  ],
-  [
-   14,
-   [
-    [
-     "engine/include/mforce/source/additive/partials.h",
-     1087,
-     1100
-    ],
-    [
-     "engine/include/mforce/source/additive/partials.h",
-     1189,
-     1202
-    ],
-    [
-     "engine/include/mforce/source/additive/partials.h",
-     1270,
-     1283
-    ]
-   ]
-  ],
-  [
-   14,
-   [
-    [
-     "tools/mforce_cli/main.cpp",
-     98,
-     111
-    ],
-    [
-     "tools/mforce_cli/main.cpp",
-     715,
-     727
-    ]
-   ]
-  ],
-  [
-   14,
-   [
-    [
-     "tools/mforce_ui/main.cpp",
-     3045,
-     3058
-    ],
-    [
-     "tools/mforce_ui/main.cpp",
-     3366,
-     3378
-    ]
-   ]
-  ],
-  [
-   14,
-   [
-    [
-     "tools/mforce_ui/main.cpp",
-     12063,
-     12076
-    ],
-    [
-     "tools/mforce_ui/main.cpp",
-     12263,
-     12276
+     12275
     ]
    ]
   ],
@@ -895,13 +565,13 @@
    [
     [
      "engine/include/mforce/core/envelope_presets.h",
-     95,
-     107
+     114,
+     126
     ],
     [
      "engine/include/mforce/core/envelope_presets.h",
-     155,
-     167
+     150,
+     162
     ]
    ]
   ],
@@ -939,24 +609,14 @@
    13,
    [
     [
-     "engine/include/mforce/source/additive/partials.h",
-     307,
-     319
+     "engine/src/additive_source2.cpp",
+     59,
+     71
     ],
     [
-     "engine/include/mforce/source/additive/partials.h",
-     1087,
-     1099
-    ],
-    [
-     "engine/include/mforce/source/additive/partials.h",
-     1189,
-     1201
-    ],
-    [
-     "engine/include/mforce/source/additive/partials.h",
-     1270,
-     1282
+     "engine/src/additive_source2.cpp",
+     71,
+     83
     ]
    ]
   ],
@@ -964,14 +624,19 @@
    13,
    [
     [
-     "engine/src/additive_source2.cpp",
-     64,
-     76
+     "tools/mforce_cli/main.cpp",
+     334,
+     346
     ],
     [
-     "engine/src/additive_source2.cpp",
-     76,
-     88
+     "tools/mforce_cli/main.cpp",
+     627,
+     639
+    ],
+    [
+     "tools/mforce_cli/main.cpp",
+     730,
+     742
     ]
    ]
   ],
@@ -1004,24 +669,14 @@
    12,
    [
     [
-     "engine/include/mforce/core/envelope_presets.h",
-     40,
-     51
+     "engine/include/mforce/music/figures.h",
+     579,
+     590
     ],
     [
-     "engine/include/mforce/core/envelope_presets.h",
-     95,
-     106
-    ],
-    [
-     "engine/include/mforce/core/envelope_presets.h",
-     155,
-     166
-    ],
-    [
-     "engine/include/mforce/core/envelope_presets.h",
-     215,
-     226
+     "engine/include/mforce/music/figures.h",
+     613,
+     624
     ]
    ]
   ],
@@ -1029,24 +684,394 @@
    12,
    [
     [
+     "engine/include/mforce/source/additive/basic_additive_source.h",
+     8,
+     19
+    ],
+    [
+     "engine/include/mforce/source/allpass_resonator.h",
+     7,
+     43
+    ],
+    [
+     "engine/include/mforce/source/fm_source.h",
+     8,
+     24
+    ],
+    [
+     "engine/include/mforce/source/ks_string.h",
+     8,
+     58
+    ]
+   ]
+  ],
+  [
+   12,
+   [
+    [
+     "engine/src/patch_loader.cpp",
+     1492,
+     1503
+    ],
+    [
+     "engine/src/patch_loader.cpp",
+     1822,
+     1832
+    ]
+   ]
+  ],
+  [
+   12,
+   [
+    [
+     "tools/durn_converter/parsers/abc_parser.h",
+     427,
+     438
+    ],
+    [
+     "tools/durn_converter/parsers/abc_parser.h",
+     442,
+     454
+    ]
+   ]
+  ],
+  [
+   12,
+   [
+    [
+     "tools/mforce_ui/main.cpp",
+     12818,
+     12829
+    ],
+    [
+     "tools/mforce_ui/main.cpp",
+     12880,
+     12890
+    ]
+   ]
+  ],
+  [
+   12,
+   [
+    [
+     "tools/stk_ref/bandedwg_ref.cpp",
+     68,
+     79
+    ],
+    [
+     "tools/stk_ref/blowhole_ref.cpp",
+     70,
+     81
+    ],
+    [
+     "tools/stk_ref/bowed_ref.cpp",
+     80,
+     91
+    ],
+    [
+     "tools/stk_ref/brass_ref.cpp",
+     63,
+     74
+    ]
+   ]
+  ],
+  [
+   11,
+   [
+    [
+     "engine/include/mforce/music/composer.h",
+     1891,
+     1901
+    ],
+    [
+     "engine/include/mforce/music/composer.h",
+     2057,
+     2067
+    ]
+   ]
+  ],
+  [
+   11,
+   [
+    [
+     "engine/include/mforce/music/figure_transforms.h",
+     251,
+     261
+    ],
+    [
+     "engine/include/mforce/music/figure_transforms.h",
+     278,
+     288
+    ]
+   ]
+  ],
+  [
+   11,
+   [
+    [
+     "engine/include/mforce/music/period_passage_strategy.h",
+     234,
+     244
+    ],
+    [
+     "engine/include/mforce/music/period_passage_strategy.h",
+     265,
+     277
+    ]
+   ]
+  ],
+  [
+   11,
+   [
+    [
+     "tools/engine_tests/main.cpp",
+     3436,
+     3446
+    ],
+    [
+     "tools/engine_tests/main.cpp",
+     3730,
+     3740
+    ],
+    [
+     "tools/engine_tests/main.cpp",
+     4265,
+     4275
+    ]
+   ]
+  ],
+  [
+   11,
+   [
+    [
+     "tools/mforce_ui/main.cpp",
+     2965,
+     2975
+    ],
+    [
+     "tools/mforce_ui/main.cpp",
+     3333,
+     3342
+    ]
+   ]
+  ],
+  [
+   11,
+   [
+    [
+     "tools/mforce_ui/main.cpp",
+     3222,
+     3232
+    ],
+    [
+     "tools/mforce_ui/main.cpp",
+     3453,
+     3463
+    ]
+   ]
+  ],
+  [
+   11,
+   [
+    [
+     "tools/mforce_ui/main.cpp",
+     9358,
+     9368
+    ],
+    [
+     "tools/mforce_ui/main.cpp",
+     9391,
+     9400
+    ]
+   ]
+  ],
+  [
+   11,
+   [
+    [
+     "tools/mforce_ui/main.cpp",
+     9983,
+     9993
+    ],
+    [
+     "tools/mforce_ui/main.cpp",
+     10085,
+     10095
+    ]
+   ]
+  ],
+  [
+   11,
+   [
+    [
+     "tools/test_figures/main.cpp",
+     100,
+     110
+    ],
+    [
+     "tools/test_figures/main.cpp",
+     806,
+     816
+    ],
+    [
+     "tools/test_figures/main.cpp",
+     933,
+     943
+    ]
+   ]
+  ],
+  [
+   10,
+   [
+    [
      "engine/include/mforce/core/envelope_presets.h",
-     229,
-     240
+     74,
+     83
     ],
     [
      "engine/include/mforce/core/envelope_presets.h",
-     293,
-     304
+     114,
+     123
     ],
     [
      "engine/include/mforce/core/envelope_presets.h",
-     366,
-     377
+     150,
+     159
+    ],
+    [
+     "engine/include/mforce/core/envelope_presets.h",
+     227,
+     236
+    ]
+   ]
+  ],
+  [
+   10,
+   [
+    [
+     "engine/include/mforce/music/figure_transforms.h",
+     252,
+     261
+    ],
+    [
+     "engine/include/mforce/music/figure_transforms.h",
+     279,
+     288
+    ]
+   ]
+  ],
+  [
+   10,
+   [
+    [
+     "engine/include/mforce/music/pitch_walker.h",
+     46,
+     55
+    ],
+    [
+     "engine/include/mforce/music/pitch_walker.h",
+     59,
+     68
+    ]
+   ]
+  ],
+  [
+   10,
+   [
+    [
+     "tools/engine_tests/main.cpp",
+     3069,
+     3078
+    ],
+    [
+     "tools/engine_tests/main.cpp",
+     3398,
+     3407
+    ]
+   ]
+  ],
+  [
+   10,
+   [
+    [
+     "tools/mforce_cli/main.cpp",
+     103,
+     112
+    ],
+    [
+     "tools/mforce_cli/main.cpp",
+     185,
+     193
+    ],
+    [
+     "tools/mforce_cli/main.cpp",
+     720,
+     728
+    ]
+   ]
+  ],
+  [
+   10,
+   [
+    [
+     "tools/mforce_cli/main.cpp",
+     199,
+     208
+    ],
+    [
+     "tools/mforce_cli/main.cpp",
+     340,
+     349
+    ]
+   ]
+  ],
+  [
+   10,
+   [
+    [
+     "tools/mforce_ui/main.cpp",
+     6806,
+     6815
+    ],
+    [
+     "tools/mforce_ui/main.cpp",
+     6984,
+     6993
+    ]
+   ]
+  ],
+  [
+   10,
+   [
+    [
+     "tools/mforce_ui/main.cpp",
+     13139,
+     13148
+    ],
+    [
+     "tools/mforce_ui/main.cpp",
+     13164,
+     13173
     ]
    ]
   ]
  ],
  "files": {
+  "engine/include/mforce/core/component.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 1,
+   "lines": 137,
+   "longest_function": [
+    20,
+    "mforce::Component::register_pin"
+   ],
+   "module": "core",
+   "mutable_vars": 0,
+   "types": [
+    "Component"
+   ]
+  },
   "engine/include/mforce/core/curve.h": {
    "changelog_comments": 1,
    "const_cast": 0,
@@ -1066,7 +1091,7 @@
    "changelog_comments": 1,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 119,
+   "lines": 104,
    "longest_function": [
     22,
     "mforce::CurveNode::map_expr"
@@ -1090,14 +1115,14 @@
    "mutable_vars": 0,
    "types": []
   },
-  "engine/include/mforce/core/dsp_value_source.h": {
-   "changelog_comments": 3,
+  "engine/include/mforce/core/descriptors.h": {
+   "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 178,
+   "lines": 66,
    "longest_function": [
-    6,
-    "mforce::RefSource::read"
+    0,
+    ""
    ],
    "module": "core",
    "mutable_vars": 0,
@@ -1107,8 +1132,25 @@
     "InputDescriptor",
     "SettingType",
     "SettingDescriptor",
-    "ArrayDescriptor",
+    "ArrayDescriptor"
+   ]
+  },
+  "engine/include/mforce/core/dsp_value_source.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 183,
+   "longest_function": [
+    11,
+    "mforce::RefSource::read"
+   ],
+   "module": "core",
+   "mutable_vars": 0,
+   "types": [
+    "SharingTrace",
     "ValueSource",
+    "Generator",
+    "Processor",
     "ConstantSource",
     "RefSource"
    ]
@@ -1117,10 +1159,10 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 112,
+   "lines": 67,
    "longest_function": [
-    34,
-    "mforce::WaveSource::next"
+    29,
+    "mforce::WaveSource::compute"
    ],
    "module": "core",
    "mutable_vars": 0,
@@ -1129,13 +1171,13 @@
    ]
   },
   "engine/include/mforce/core/envelope.h": {
-   "changelog_comments": 12,
+   "changelog_comments": 11,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 562,
+   "lines": 553,
    "longest_function": [
-    74,
-    "mforce::Envelope::prepare"
+    72,
+    "mforce::Envelope::on_prepare"
    ],
    "module": "core",
    "mutable_vars": 0,
@@ -1157,13 +1199,13 @@
    "types": []
   },
   "engine/include/mforce/core/envelope_presets.h": {
-   "changelog_comments": 3,
+   "changelog_comments": 1,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 406,
+   "lines": 250,
    "longest_function": [
-    20,
-    "mforce::ADSREnvelope::setting_descriptors"
+    12,
+    "mforce::ASEnvelope::rebuild"
    ],
    "module": "core",
    "mutable_vars": 0,
@@ -1206,10 +1248,10 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 75,
+   "lines": 72,
    "longest_function": [
-    12,
-    "mforce::MultiSource::next"
+    11,
+    "mforce::MultiSource::compute"
    ],
    "module": "core",
    "mutable_vars": 0,
@@ -1221,10 +1263,10 @@
    "changelog_comments": 1,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 62,
+   "lines": 45,
    "longest_function": [
-    6,
-    "mforce::NameGate::param_descriptors"
+    4,
+    "mforce::NameGate::match_"
    ],
    "module": "core",
    "mutable_vars": 0,
@@ -1245,6 +1287,30 @@
    "mutable_vars": 0,
    "types": [
     "PierceAllpass"
+   ]
+  },
+  "engine/include/mforce/core/pins.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 1,
+   "lines": 156,
+   "longest_function": [
+    5,
+    "mforce::Setting::descriptor"
+   ],
+   "module": "core",
+   "mutable_vars": 0,
+   "types": [
+    "PinKind",
+    "Pull",
+    "PinBase",
+    "Param",
+    "Input",
+    "SettingBase",
+    "Setting",
+    "Array",
+    "SlotBase",
+    "Slot"
    ]
   },
   "engine/include/mforce/core/ramp.h": {
@@ -1282,10 +1348,10 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 103,
+   "lines": 51,
    "longest_function": [
-    14,
-    "mforce::RangeSource::next"
+    8,
+    "mforce::RangeSource::compute"
    ],
    "module": "core",
    "mutable_vars": 0,
@@ -1359,10 +1425,10 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 97,
+   "lines": 51,
    "longest_function": [
-    15,
-    "mforce::VarSource::next"
+    11,
+    "mforce::VarSource::compute"
    ],
    "module": "core",
    "mutable_vars": 0,
@@ -1374,10 +1440,10 @@
    "changelog_comments": 1,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 157,
+   "lines": 103,
    "longest_function": [
-    24,
-    "mforce::BiquadSource::next"
+    23,
+    "mforce::BiquadSource::compute"
    ],
    "module": "filter",
    "mutable_vars": 0,
@@ -1389,10 +1455,10 @@
    "changelog_comments": 1,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 457,
+   "lines": 277,
    "longest_function": [
-    29,
-    "mforce::DelayFilter::next"
+    24,
+    "mforce::DelayFilter::compute"
    ],
    "module": "filter",
    "mutable_vars": 0,
@@ -1411,10 +1477,10 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 186,
+   "lines": 113,
    "longest_function": [
-    39,
-    "mforce::HammerBank::next"
+    37,
+    "mforce::HammerBank::compute"
    ],
    "module": "filter",
    "mutable_vars": 0,
@@ -1426,10 +1492,10 @@
    "changelog_comments": 1,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 130,
+   "lines": 81,
    "longest_function": [
-    32,
-    "mforce::Limiter::next"
+    29,
+    "mforce::Limiter::compute"
    ],
    "module": "filter",
    "mutable_vars": 0,
@@ -1441,10 +1507,10 @@
    "changelog_comments": 1,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 178,
+   "lines": 114,
    "longest_function": [
-    41,
-    "mforce::Reverb::next"
+    35,
+    "mforce::Reverb::compute"
    ],
    "module": "filter",
    "mutable_vars": 0,
@@ -1456,10 +1522,10 @@
    "changelog_comments": 1,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 199,
+   "lines": 147,
    "longest_function": [
-    44,
-    "mforce::SVFSource::next"
+    42,
+    "mforce::SVFSource::compute"
    ],
    "module": "filter",
    "mutable_vars": 0,
@@ -1471,9 +1537,9 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 157,
+   "lines": 110,
    "longest_function": [
-    21,
+    22,
     "mforce::Vibrato::build_lfo"
    ],
    "module": "filter",
@@ -2470,7 +2536,7 @@
    "changelog_comments": 20,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 749,
+   "lines": 752,
    "longest_function": [
     136,
     "mforce::PitchedInstrument::play_note"
@@ -2534,7 +2600,7 @@
    "changelog_comments": 2,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 141,
+   "lines": 138,
    "longest_function": [
     12,
     "mforce::PerformSource::set_note"
@@ -2591,10 +2657,10 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 167,
+   "lines": 118,
    "longest_function": [
-    13,
-    "mforce::AdditiveSource2::set_param"
+    12,
+    "mforce::AdditiveSource2::apply_partials"
    ],
    "module": "source",
    "mutable_vars": 0,
@@ -2606,10 +2672,10 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 191,
+   "lines": 125,
    "longest_function": [
-    76,
-    "mforce::BasicAdditiveSource::compute_wave_value"
+    68,
+    "mforce::BasicAdditiveSource::wave"
    ],
    "module": "source",
    "mutable_vars": 0,
@@ -2621,7 +2687,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 387,
+   "lines": 273,
    "longest_function": [
     12,
     "mforce::BandSpectrum::get_gain"
@@ -2641,9 +2707,9 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 150,
+   "lines": 90,
    "longest_function": [
-    15,
+    11,
     "mforce::FullAdditiveSource::set_param"
    ],
    "module": "source",
@@ -2656,7 +2722,7 @@
    "changelog_comments": 0,
    "const_cast": 1,
    "dynamic_cast": 1,
-   "lines": 1486,
+   "lines": 1134,
    "longest_function": [
     149,
     "mforce::Partials::partial_value_impl"
@@ -2679,10 +2745,10 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 256,
+   "lines": 194,
    "longest_function": [
-    45,
-    "mforce::AllpassResonator::next"
+    43,
+    "mforce::AllpassResonator::init_note"
    ],
    "module": "source",
    "mutable_vars": 0,
@@ -2694,10 +2760,10 @@
    "changelog_comments": 1,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 94,
+   "lines": 36,
    "longest_function": [
-    10,
-    "mforce::BowTableSource::next"
+    7,
+    "mforce::BowTableSource::compute"
    ],
    "module": "source",
    "mutable_vars": 0,
@@ -2709,10 +2775,10 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 378,
+   "lines": 207,
    "longest_function": [
-    22,
-    "mforce::DistortedSource::next"
+    17,
+    "mforce::CombinedSource::compute"
    ],
    "module": "source",
    "mutable_vars": 0,
@@ -2729,10 +2795,10 @@
    "changelog_comments": 2,
    "const_cast": 0,
    "dynamic_cast": 1,
-   "lines": 181,
+   "lines": 127,
    "longest_function": [
-    26,
-    "mforce::DelayLineSource::next"
+    23,
+    "mforce::DelayLineSource::compute"
    ],
    "module": "source",
    "mutable_vars": 0,
@@ -2744,10 +2810,10 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 179,
+   "lines": 119,
    "longest_function": [
-    58,
-    "mforce::FMSource::compute_wave_value"
+    54,
+    "mforce::FMSource::wave"
    ],
    "module": "source",
    "mutable_vars": 0,
@@ -2759,10 +2825,10 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 119,
+   "lines": 70,
    "longest_function": [
-    8,
-    "mforce::HybridKSSource::setting_descriptors"
+    1,
+    "mforce::HybridKSSource::type_name"
    ],
    "module": "source",
    "mutable_vars": 0,
@@ -2771,13 +2837,13 @@
    ]
   },
   "engine/include/mforce/source/ks_string.h": {
-   "changelog_comments": 10,
+   "changelog_comments": 6,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 638,
+   "lines": 530,
    "longest_function": [
-    155,
-    "mforce::KSString::next"
+    148,
+    "mforce::KSString::compute"
    ],
    "module": "source",
    "mutable_vars": 0,
@@ -2789,7 +2855,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 150,
+   "lines": 127,
    "longest_function": [
     19,
     "mforce::LayeredRedNoiseSource::rebuild_layers_"
@@ -2804,10 +2870,10 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 394,
+   "lines": 324,
    "longest_function": [
-    41,
-    "mforce::Mesh2DSource::next"
+    42,
+    "mforce::Mesh2DSource::compute"
    ],
    "module": "source",
    "mutable_vars": 0,
@@ -2819,7 +2885,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 186,
+   "lines": 153,
    "longest_function": [
     18,
     "mforce::MultiplexSource::rebuild_"
@@ -2834,10 +2900,10 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 536,
+   "lines": 371,
    "longest_function": [
-    89,
-    "mforce::MurmurationNoiseSource::next"
+    87,
+    "mforce::MurmurationNoiseSource::compute"
    ],
    "module": "source",
    "mutable_vars": 0,
@@ -2854,10 +2920,10 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 168,
+   "lines": 144,
    "longest_function": [
-    51,
-    "mforce::PhasedValueSource::prepare"
+    48,
+    "mforce::PhasedValueSource::on_prepare"
    ],
    "module": "source",
    "mutable_vars": 0,
@@ -2869,10 +2935,10 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 95,
+   "lines": 54,
    "longest_function": [
-    9,
-    "mforce::PierceFilterSource::param_descriptors"
+    4,
+    "mforce::PierceFilterSource::on_prepare"
    ],
    "module": "source",
    "mutable_vars": 0,
@@ -2881,13 +2947,13 @@
    ]
   },
   "engine/include/mforce/source/pink_noise_source.h": {
-   "changelog_comments": 1,
+   "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 99,
+   "lines": 79,
    "longest_function": [
-    26,
-    "mforce::PinkNoiseSource::next"
+    25,
+    "mforce::PinkNoiseSource::compute"
    ],
    "module": "source",
    "mutable_vars": 0,
@@ -2899,10 +2965,10 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 89,
+   "lines": 48,
    "longest_function": [
-    17,
-    "mforce::PulseSource::compute_wave_value"
+    13,
+    "mforce::PulseSource::wave"
    ],
    "module": "source",
    "mutable_vars": 0,
@@ -2914,10 +2980,10 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 90,
+   "lines": 40,
    "longest_function": [
-    14,
-    "mforce::RedNoiseSource::param_descriptors"
+    1,
+    "mforce::RedNoiseSource::type_name"
    ],
    "module": "source",
    "mutable_vars": 0,
@@ -2929,10 +2995,10 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 126,
+   "lines": 76,
    "longest_function": [
-    21,
-    "mforce::RepeatingSource::next"
+    18,
+    "mforce::RepeatingSource::compute"
    ],
    "module": "source",
    "mutable_vars": 0,
@@ -2947,7 +3013,7 @@
    "lines": 31,
    "longest_function": [
     14,
-    "mforce::SawSource::compute_wave_value"
+    "mforce::SawSource::wave"
    ],
    "module": "source",
    "mutable_vars": 0,
@@ -2956,12 +3022,12 @@
    ]
   },
   "engine/include/mforce/source/segment_source.h": {
-   "changelog_comments": 5,
+   "changelog_comments": 1,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 295,
+   "lines": 194,
    "longest_function": [
-    62,
+    63,
     "mforce::SegmentSource::update_segments"
    ],
    "module": "source",
@@ -2974,7 +3040,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 264,
+   "lines": 216,
    "longest_function": [
     42,
     "mforce::ShaperSource::map"
@@ -2992,7 +3058,7 @@
    "lines": 19,
    "longest_function": [
     3,
-    "mforce::SineSource::compute_wave_value"
+    "mforce::SineSource::wave"
    ],
    "module": "source",
    "mutable_vars": 0,
@@ -3004,10 +3070,10 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 127,
+   "lines": 71,
    "longest_function": [
-    31,
-    "mforce::TriangleSource::compute_wave_value"
+    29,
+    "mforce::TriangleSource::wave"
    ],
    "module": "source",
    "mutable_vars": 0,
@@ -3019,10 +3085,10 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 361,
+   "lines": 218,
    "longest_function": [
-    41,
-    "mforce::WanderNoise3Source::next"
+    35,
+    "mforce::WanderNoise3Source::compute"
    ],
    "module": "source",
    "mutable_vars": 0,
@@ -3036,7 +3102,7 @@
    "changelog_comments": 1,
    "const_cast": 0,
    "dynamic_cast": 1,
-   "lines": 1552,
+   "lines": 1291,
    "longest_function": [
     47,
     "mforce::BowedStringEvolution::evolve"
@@ -3077,9 +3143,9 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 1,
-   "lines": 115,
+   "lines": 73,
    "longest_function": [
-    11,
+    7,
     "mforce::WavetableSource::set_param"
    ],
    "module": "source",
@@ -3092,10 +3158,10 @@
    "changelog_comments": 1,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 140,
+   "lines": 91,
    "longest_function": [
-    48,
-    "mforce::WhiteNoiseSource::next"
+    42,
+    "mforce::WhiteNoiseSource::compute"
    ],
    "module": "source",
    "mutable_vars": 0,
@@ -3107,10 +3173,10 @@
    "changelog_comments": 2,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 52,
+   "lines": 26,
    "longest_function": [
-    6,
-    "mforce::WormholeSource::input_descriptors"
+    1,
+    "mforce::WormholeSource::type_name"
    ],
    "module": "source",
    "mutable_vars": 0,
@@ -3150,10 +3216,10 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 195,
+   "lines": 179,
    "longest_function": [
-    67,
-    "mforce::AdditiveSource2::compute_wave_value"
+    61,
+    "mforce::AdditiveSource2::wave"
    ],
    "module": "source",
    "mutable_vars": 0,
@@ -3176,10 +3242,10 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 106,
+   "lines": 100,
    "longest_function": [
-    63,
-    "mforce::FullAdditiveSource::compute_wave_value"
+    59,
+    "mforce::FullAdditiveSource::wave"
    ],
    "module": "source",
    "mutable_vars": 0,
@@ -3189,7 +3255,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 158,
+   "lines": 159,
    "longest_function": [
     37,
     "mforce::HybridKSSource::extract_partials"
@@ -3228,9 +3294,9 @@
    "changelog_comments": 14,
    "const_cast": 0,
    "dynamic_cast": 6,
-   "lines": 1900,
+   "lines": 1894,
    "longest_function": [
-    473,
+    468,
     "mforce::build_graph"
    ],
    "module": "render",
@@ -3248,10 +3314,10 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 116,
+   "lines": 91,
    "longest_function": [
-    85,
-    "mforce::RedNoiseSource::compute_wave_value"
+    77,
+    "mforce::RedNoiseSource::wave"
    ],
    "module": "source",
    "mutable_vars": 0,
@@ -3427,8 +3493,8 @@
   "tools/engine_tests/main.cpp": {
    "changelog_comments": 4,
    "const_cast": 0,
-   "dynamic_cast": 11,
-   "lines": 1929,
+   "dynamic_cast": 12,
+   "lines": 4585,
    "longest_function": [
     272,
     "run_walk3_tests"
@@ -3436,7 +3502,17 @@
    "module": "tests",
    "mutable_vars": 1,
    "types": [
-    "Playback"
+    "Playback",
+    "PinProbe",
+    "Doubler",
+    "UnitRamp",
+    "PrepCounter",
+    "ManualHolder",
+    "ManualDoubler",
+    "ManualIdle",
+    "PinCounter",
+    "OrderProbe",
+    "LengthProbe"
    ]
   },
   "tools/mforce_cli/explore.cpp": {
@@ -3472,7 +3548,7 @@
    "changelog_comments": 1,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 1246,
+   "lines": 1254,
    "longest_function": [
     174,
     "run_compose"
@@ -3500,7 +3576,7 @@
    "changelog_comments": 126,
    "const_cast": 0,
    "dynamic_cast": 20,
-   "lines": 14678,
+   "lines": 14676,
    "longest_function": [
     1711,
     "main"
@@ -3509,7 +3585,7 @@
    "mutable_vars": 85,
    "types": [
     "GraphMode",
-    "PinKind",
+    "UiPinKind",
     "Pin",
     "FormantRow",
     "GraphNode",
@@ -3794,16 +3870,16 @@
   }
  ],
  "summary": {
-  "changelog_comments": 270,
+  "changelog_comments": 255,
   "const_cast": 10,
-  "duplicate_blocks": 208,
-  "dynamic_cast": 51,
+  "duplicate_blocks": 147,
+  "dynamic_cast": 54,
   "file_level_mutable_vars": 112,
-  "files": 164,
-  "files_over_limit": 21,
-  "functions_over_limit": 100,
+  "files": 167,
+  "files_over_limit": 20,
+  "functions_over_limit": 99,
   "include_violations": 13,
-  "lines": 57873,
+  "lines": 57539,
   "unmapped_files": 0
  }
 }

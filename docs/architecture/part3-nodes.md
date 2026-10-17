@@ -22,17 +22,17 @@ Sections:
 ## 1. Today, from the code
 
 - **85 registered types** in eight categories, and the categories are
-  wrong in places: ten of the thirteen evolution holders are registered
+  wrong in places: ten of the twelve evolution holders are registered
   as Combiners and two as Generators; `KSString`, the delay line, the
   allpass resonator and the mesh are Oscillators. The create menu is a
   separate hand-written list that disagrees with the categories
   (section 3.2 of the target architecture).
-- **Twenty-four types produce no signal.** The thirteen evolution
+- **Twenty-four types produce no signal.** The twelve evolution
   holders, the four `Partials` types and `ExpandRule`, the five formant
   and spectrum types, and `CompositePartials` all return 0 from `next()`
   ("exists for graph wiring only") and are ValueSources only so that the
   graph and the UI can hold them.
-- **The thirteen evolution holders** (wrappers that make an evolution
+- **The twelve evolution holders** (wrappers that make an evolution
   algorithm wireable as a node) are copies of one forty-line shell:
   type name, category, `get_evolution`, a settings table, `set_setting`
   that rebuilds the evolution object, `get_setting`, and three no-op
@@ -249,7 +249,7 @@ None of these changes a sample. The allocation test is what proves it.
 | 3.1 | `Component` root; the parts leave `ValueSource` | none |
 | 3.2 | Families declared at registration; folders; the create menu generated; colours through `Theme` | none |
 | 3.3 | `core/dsp` primitives, merged one at a time with the copies compared first | none; a differing copy becomes a parameter |
-| 3.4 | Each evolution becomes a `Component`; the thirteen wrappers and `IEvolutionHolder` deleted; `TargetEvolution` registered; the string-typed form deleted and two patches converted | none |
+| 3.4 | Each evolution becomes a `Component`; the twelve wrappers and `IEvolutionHolder` deleted; `TargetEvolution` registered; the string-typed form deleted and two patches converted | none |
 | 3.5 | Envelope presets collapsed; `KSPianoString` migrated | none; type names change on disk |
 | 3.6 | One type per file | none |
 | 3.7 | The real-time fixes | none; the allocation test goes green for these nodes |
