@@ -1,4 +1,6 @@
 #pragma once
+#include <array>
+#include <cassert>
 #include <memory>
 #include <span>
 #include <string_view>
@@ -71,7 +73,9 @@ protected:
   // in declaration order, as pointers to the pins' source members (a pin
   // is a member of its node, so the address is stable). Cached here so the
   // sweep costs one indirect call per wired pin and nothing per setting.
-  const std::vector<std::shared_ptr<ValueSource>*>& auto_sources() const { return autoSources_; }
+  std::span<std::shared_ptr<ValueSource>* const> auto_sources() const {
+    return {autoSources_.data(), size_t(autoCount_)};
+  }
 
 private:
   friend struct PinBase;
@@ -82,13 +86,13 @@ private:
       case PinKind::Param: {
         auto* p = static_cast<Param*>(pin);
         paramDescs_.push_back(p->descriptor());
-        if (p->pull == Pull::Auto) autoSources_.push_back(&p->source);
+        if (p->pull == Pull::Auto) add_auto_source(&p->source);
         break;
       }
       case PinKind::Input: {
         auto* i = static_cast<Input*>(pin);
         inputDescs_.push_back(i->descriptor());
-        if (i->pull == Pull::Auto) autoSources_.push_back(&i->source);
+        if (i->pull == Pull::Auto) add_auto_source(&i->source);
         break;
       }
       case PinKind::Slot:    inputDescs_.push_back(static_cast<SlotBase*>(pin)->descriptor()); break;
@@ -101,8 +105,17 @@ private:
       if (pin->kind == P::kKind && name == pin->name) return static_cast<P*>(pin);
     return nullptr;
   }
+  // The sweep list lives inside the node, not on the heap, so the
+  // per-sample walk touches no extra cache line. No node declares more
+  // than ten connectable pins today; the assert says when one does.
+  static constexpr int kMaxAutoSources = 16;
+  void add_auto_source(std::shared_ptr<ValueSource>* s) {
+    assert(autoCount_ < kMaxAutoSources && "a node declares more Auto pins than Component::kMaxAutoSources");
+    autoSources_[size_t(autoCount_++)] = s;
+  }
   std::vector<PinBase*> pins_;
-  std::vector<std::shared_ptr<ValueSource>*> autoSources_;
+  std::array<std::shared_ptr<ValueSource>*, kMaxAutoSources> autoSources_{};
+  int autoCount_{0};
   std::vector<ParamDescriptor> paramDescs_;
   std::vector<InputDescriptor> inputDescs_;
   std::vector<SettingDescriptor> settingDescs_;
