@@ -38,7 +38,7 @@ struct Envelope : Generator {
   Param minValue{this, "minValue", 0.0f, -100000.0f, 100000.0f};
   Param maxValue{this, "maxValue", 1.0f, -100000.0f, 100000.0f};
 
-  // Setup-sampled restart input (spec 2026-09-20-note-onsets-v2 §6).
+  // Setup-sampled restart input.
   // Read via current() at note Setup by the instrument's trigger
   // bindings; NEVER pulled per sample — keep trigger chains stateless
   // (NameGate / PerformOut), or their state freezes. Manual: the base
@@ -181,12 +181,11 @@ struct Envelope : Generator {
 
   // Replace this envelope's stage layout with `fresh` while keeping every
   // knob that lives OUTSIDE the layout: the accuracy knobs, seed, timeScale,
-  // the sustain level a preset stores, the minValue/maxValue range params,
-  // and the live-gate flag. The preset subclasses' rebuild() used to
-  // hand-restore only accuracy + seed, so a JSON load — which wires params
-  // BEFORE settings — lost minValue/maxValue the moment any setting
-  // triggered a rebuild (TriPower.json: the ADSR driving TriangleSource.power
-  // collapsed to raw 0..1, inside the triangle's neutral band).
+  // the sustain level a preset stores, the minValue/maxValue/trigger wires,
+  // and the live-gate flag. A preset's rebuild() calls this whenever a
+  // layout setting changes, and a JSON load wires params BEFORE settings, so
+  // the wires have to outlive the rebuild: without them the envelope falls
+  // back to its raw 0..1 range.
   void replace_stages(Envelope&& fresh) {
     fresh.stage_accuracy.value = stage_accuracy.value;
     fresh.ramp_accuracy.value  = ramp_accuracy.value;
@@ -210,11 +209,11 @@ struct Envelope : Generator {
   // stage-loaded envelopes no-opped the per-note sustain).
   void on_setting_changed(std::string_view name) override {
     if (name == "stage_accuracy")
-      stage_accuracy.value = std::clamp(stage_accuracy.value, stage_accuracy.min, stage_accuracy.max);
+      stage_accuracy.clamp();
     else if (name == "ramp_accuracy")
-      ramp_accuracy.value = std::clamp(ramp_accuracy.value, ramp_accuracy.min, ramp_accuracy.max);
+      ramp_accuracy.clamp();
     else if (name == "timeScale")
-      timeScale.value = std::clamp(timeScale.value, timeScale.min, timeScale.max);
+      timeScale.clamp();
     else if (name == "sustainLevel" && has_adsr_shape_()) {
       // No [0,1] clamp: sustain is a ramp amplitude and legitimately
       // exceeds 1 in test envelopes (_envacc_test holds 2.6); the old

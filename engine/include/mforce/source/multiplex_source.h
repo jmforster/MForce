@@ -31,13 +31,13 @@ struct MultiplexSource final : Processor {
     using InstanceBuilder = std::function<
         std::pair<std::shared_ptr<ValueSource>, ValueNodeMap>(int instanceIdx)>;
 
-    // UI wiring path: the wired `source` (the inherited input) is a solo
-    // preview. Without clones (the CLI loader's set_template path is the one
-    // that produces real N-instance fan-out) the node passes it through so
-    // the UI isn't silent, and only then does it prepare and advance it, so
-    // the input is Manual.
     Setting<int> count{this, "count", 10, 1, 50};
 
+    // The wired `source` (the inherited input) is a solo preview for the UI.
+    // Without clones (the CLI loader's set_template path is the one that
+    // produces real N-instance fan-out) the node passes it through so the UI
+    // isn't silent, and only then does it prepare and advance it, so the
+    // input is Manual.
     MultiplexSource() : Processor(Pull::Manual) {}
 
     const char* type_name() const override { return "MultiplexSource"; }
@@ -84,9 +84,8 @@ struct MultiplexSource final : Processor {
         if (!instances_.empty()) {
             for (auto& inst : instances_)
                 if (inst) inst->prepare(ctx, frames);
-        } else if (input.source) {
-            // UI solo-preview fallback
-            input.source->prepare(ctx, frames);
+        } else {
+            input.prepare(ctx, frames);   // UI solo-preview fallback
         }
     }
 

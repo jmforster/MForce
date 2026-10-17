@@ -12,9 +12,9 @@ WavetableSource::WavetableSource(int sampleRate, uint32_t inputSeed)
 
 void WavetableSource::on_prepare(const RenderContext& ctx, int frames) {
   WaveSource::on_prepare(ctx, frames);
-  if (speedFactor.source) speedFactor.source->prepare(ctx, frames);
-  if (inputSource.source) inputSource.source->prepare(ctx, frames);
-  if (evolution.source) evolution.source->prepare(ctx, frames);
+  speedFactor.prepare(ctx, frames);
+  inputSource.prepare(ctx, frames);
+  evolution.prepare(ctx, frames);
   if (evolution_) evolution_->on_prepare(ctx);
 }
 
@@ -27,7 +27,7 @@ void WavetableSource::fill_table() {
   values_.resize(len);
 
   for (int i = 0; i < len; ++i) {
-    values_[i] = inputSource.source ? inputSource.source->advance() : 0.0f;
+    values_[i] = inputSource.advance();
   }
 }
 
@@ -115,7 +115,7 @@ float WavetableSource::compute_interpolated() {
   }
 
   int len = int(values_.size());
-  float sf = speedFactor.source ? speedFactor.source->advance() : speedFactor.constant;
+  float sf = speedFactor.advance();
 
   float tablePtr = float(len) * currPos_ * sf;
   int samp1 = int(std::floor(tablePtr));

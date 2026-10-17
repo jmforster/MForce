@@ -13,8 +13,8 @@ void FullAdditiveSource::on_prepare(const RenderContext& ctx, int frames) {
 
   if (partials_) partials_->partials_prepare(ctx, frames);
   if (formant_) formant_->fmt_prepare(ctx, frames);
-  if (formantWeight.source) formantWeight.source->prepare(ctx, frames);
-  if (formantFloor.source) formantFloor.source->prepare(ctx, frames);
+  formantWeight.prepare(ctx, frames);
+  formantFloor.prepare(ctx, frames);
 
   // --- NoiseBed per-note state. The noise runs from sample 0 of the note;
   // it's the TONE that is delayed (bedDelaySamples_) and then faded in.

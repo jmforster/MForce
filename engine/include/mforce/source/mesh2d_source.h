@@ -122,7 +122,7 @@ struct Mesh2DSource final : Processor {
   // change clears the mesh.
   void on_setting_changed(std::string_view name) override {
     auto fit = [&](Setting<int>& s) {
-      if (name == s.name) { s.value = std::clamp(s.value, s.min, s.max); clear_mesh(); }
+      if (name == s.name) { s.clamp(); clear_mesh(); }
     };
     fit(cols);
     fit(rows);

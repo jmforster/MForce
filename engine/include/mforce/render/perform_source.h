@@ -108,15 +108,13 @@ struct PerformOut final : Generator {
   PerformOut(std::shared_ptr<PerformSource> ps, Field f)
       : ps_(std::move(ps)), field_(f) {}
 
-  // Stateless view — there is nothing to cache, because the value only
-  // moves on tick(). current() must read live, NOT the cur_ that advance()
-  // stashed: RefSource reads source->current() WITHOUT pulling the source
-  // (it assumes the primary consumer already did), so a cached cur_ made
-  // every RefSource-wrapped copy report 0 until the primary happened to
-  // pull. That surfaced as "WaveSource: non-positive frequency" the first
-  // time one PerformNode fed two consumers — which is the normal case for
-  // a converted patch, where one node feeds many pins.
   float compute() override { return read_(); }
+  // A stateless view: the value only moves on tick(), so there is nothing to
+  // cache. current() reads live, NOT the cur_ that advance() stashes:
+  // RefSource reads source->current() WITHOUT pulling the source (it assumes
+  // the primary consumer already did), so a cached cur_ would make every
+  // RefSource-wrapped copy report 0 until the primary happened to pull. One
+  // PerformNode feeding several pins is the normal case.
   float current() const override { return read_(); }
   const char* type_name() const override { return "PerformOut"; }
   SourceCategory category() const override { return SourceCategory::Modulator; }

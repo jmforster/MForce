@@ -138,7 +138,7 @@ enum PartialsRngLayer : uint32_t {
 // Partials — abstract base class implementing the per-partial rendering
 // engine. Ported faithfully from legacy Partials.cs GetPartialValue().
 //
-// Owns 5 envelope inputs, rolloff/detune params, expand rule, and all
+// Owns eight envelope pins, rolloff/detune params, expand rule, and all
 // static + runtime arrays. Subclasses only implement init_arrays() to
 // populate the static arrays (mult1_, mult2_, ampl1_, ampl2_, po1_, po2_).
 // ---------------------------------------------------------------------------
@@ -246,14 +246,14 @@ struct Partials : ValueSource, IPartials {
       update_arrays();
     }
 
-    if (multEnv.source)    multEnv.source->prepare(ctx, frames);
-    if (amplEnv.source)    amplEnv.source->prepare(ctx, frames);
-    if (poEnv.source)      poEnv.source->prepare(ctx, frames);
-    if (roEnv.source)      roEnv.source->prepare(ctx, frames);
-    if (dtEnv.source)      dtEnv.source->prepare(ctx, frames);
-    if (bwEnv.source)      bwEnv.source->prepare(ctx, frames);
-    if (motionEnv.source)  motionEnv.source->prepare(ctx, frames);
-    if (shimmerEnv.source) shimmerEnv.source->prepare(ctx, frames);
+    multEnv.prepare(ctx, frames);
+    amplEnv.prepare(ctx, frames);
+    poEnv.prepare(ctx, frames);
+    roEnv.prepare(ctx, frames);
+    dtEnv.prepare(ctx, frames);
+    bwEnv.prepare(ctx, frames);
+    motionEnv.prepare(ctx, frames);
+    shimmerEnv.prepare(ctx, frames);
 
     // Expand partials if rule is set
     if (hasExpand_) {
@@ -666,7 +666,7 @@ private:
 public:
   // Read-only access to the live partial arrays. Subclasses (FullPartials,
   // SequencePartials) populate these via init_arrays(). ExplicitPartials
-  // overrides to prefer its user-edited Stat_ copies. Used by the UI's
+  // overrides to prefer the user's Array values. Used by the UI's
   // partials strip view to render the bar chart.
   //
   // Triggers an array rebuild if a config change marked them dirty — without

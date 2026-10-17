@@ -53,11 +53,6 @@ namespace mforce {
 // nothing.
 // ---------------------------------------------------------------------------
 struct KSString final : Processor {
-  // Dense detuned-unison territory: 12-string, dulcimer, cimbalom, cluster
-  // mass at large detunes. Even-spread offsets reproduce the 1/2/3-comb
-  // layouts exactly.
-  static constexpr int kMaxCombs = 10;
-
   // `source` (inherited) is the hammer chain output.
   Param frequency{this, "frequency", 220.0f, 12.0f, 8000.0f, "hz"};
   Param amplitude{this, "amplitude", 1.0f,   0.0f,  10.0f,   "0-1"};
@@ -116,7 +111,7 @@ struct KSString final : Processor {
   // floor; the rest are unbounded).
   void on_setting_changed(std::string_view name) override {
     auto fit = [&](auto& s) {
-      if (name == s.name) s.value = std::clamp(s.value, s.min, s.max);
+      if (name == s.name) s.clamp();
     };
     fit(numCombs);
     fit(spreadJitter);
@@ -129,7 +124,7 @@ struct KSString final : Processor {
     fit(ap3);
     fit(releaseFb);
     fit(damperNoise);
-    if (name == "t60") t60.value = std::max(t60.value, t60.min);
+    if (name == t60.name) t60.value = std::max(t60.value, t60.min);   // floor only
   }
 
   void on_prepare(const RenderContext&, int) override {
@@ -198,7 +193,7 @@ struct KSString final : Processor {
     if (inharmGain.value > 0.0001f) {
       int rd = wpos_ - dispLen_;
       if (rd < 0) rd += kBufLen;
-      float d = disp_.buf[rd];
+      float combRead = disp_.buf[rd];
       // 3-times nested first-order allpasses (Schroeder lattice, unit inner
       // delays; each inner network sits in the delay branch of its outer).
       // State: d1 = delayed v1 (outer), d2 = delayed v2 (middle),
@@ -211,14 +206,14 @@ struct KSString final : Processor {
       float v2 = disp_.d1 + ap2.value * y3;    // middle: input = delayed v1
       float y2 = -ap2.value * v2 + y3;
       disp_.d2 = v2;
-      float v1 = d + ap1.value * y2;           // outer: input = comb read
+      float v1 = combRead + ap1.value * y2;    // outer: input = comb read
       float y1 = -ap1.value * v1 + y2;
       disp_.d1 = v1;
       // One-pole highpass in the loop
       float hp = hpR_ * (disp_.hpY + y1 - disp_.hpX);
       disp_.hpX = y1; disp_.hpY = hp;
       disp_.buf[wpos_] = xin + inharmFb.value * damp * hp;
-      inh = d;
+      inh = combRead;
     } else {
       disp_.buf[wpos_] = 0.0f;
     }
@@ -304,6 +299,10 @@ struct KSString final : Processor {
 
 private:
   static constexpr int kBufLen   = 4096;  // >= sr/12Hz at 48k
+  // Dense detuned-unison territory: 12-string, dulcimer, cimbalom, cluster
+  // mass at large detunes. Even-spread offsets reproduce the 1/2/3-comb
+  // layouts exactly.
+  static constexpr int kMaxCombs = 10;
   // Minimum comb delay the dispersion-shedding guard preserves (samples).
   static constexpr float kMinCombLen = 4.0f;
   // Above this angular frequency the comb uses the allpass fractional

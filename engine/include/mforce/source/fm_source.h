@@ -30,8 +30,7 @@ struct FMSource final : WaveSource {
   const char* type_name() const override { return "FMSource"; }
 
   void on_setting_changed(std::string_view name) override {
-    if (name == "oversample")
-      oversample.value = oversample.value < 1 ? 1 : (oversample.value > 16 ? 16 : oversample.value);
+    if (name == "oversample") oversample.clamp();
   }
 
   void on_prepare(const RenderContext& ctx, int frames) override {

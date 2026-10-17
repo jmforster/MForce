@@ -13,15 +13,15 @@ namespace mforce {
 // Each repetition: prepare source for duration seconds, play it, then
 // silence for gap seconds. Both duration and gap are randomized by varPct.
 struct RepeatingSource final : Processor {
-  // The node pulls the inherited `source` only while a repetition plays,
-  // never during a gap, and prepares it for each repetition's own length at
-  // the start of that repetition, so the input is Manual.
   Setting<float> duration   {this, "duration",    0.5f, 0.001f, 10.0f};   // seconds per repetition
   Setting<float> durVarPct  {this, "durVarPct",   0.0f, 0.0f,   1.0f};    // random variation of duration
   Setting<float> gapDuration{this, "gapDuration", 0.2f, 0.0f,   10.0f};   // seconds of silence between repetitions
   Setting<float> gapVarPct  {this, "gapVarPct",   0.0f, 0.0f,   1.0f};    // random variation of gap
   int sampleRate{48000};
 
+  // The node pulls the inherited `source` only while a repetition plays,
+  // never during a gap, and prepares it for each repetition's own length at
+  // the start of that repetition, so the input is Manual.
   RepeatingSource(int sr, uint32_t seed = 0xAEAE'0000u)
   : Processor(Pull::Manual), sampleRate(sr), rng_(seed) {}
 
@@ -61,7 +61,7 @@ private:
     if (currGap_ < 0.0f) currGap_ = 0.0f;
 
     int samples = int(std::round(d * float(sampleRate)));
-    if (input.source) input.source->prepare(ctx_, samples);
+    input.prepare(ctx_, samples);
     srcRemaining_ = samples;
     gapCount_ = 0;
   }

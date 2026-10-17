@@ -212,14 +212,12 @@ struct ADSREnvelope final : Envelope {
   Setting<float> decay       {this, "decay",        0.1f, 0.0f, 1.0f};
   Setting<int>   decayCurve  {this, "decayCurve",   0,    0,    3, kRampCurveLabels};
   Setting<float> decayPower  {this, "decayPower",   0.0f, 0.0f, 10.0f};
-  // Default 0.1 (was 0 — Matt 2026-08-29): a fresh ADSR should release,
-  // not hard-cut. All corpus patches set release explicitly (verified
-  // 2026-08-29), so the default change moves no existing render.
+  // A fresh ADSR releases rather than hard-cuts, so the default is 0.1.
   Setting<float> release     {this, "release",      0.1f, 0.0f, 1.0f};
   Setting<int>   releaseCurve{this, "releaseCurve", 3,    0,    3, kRampCurveLabels};
   Setting<float> releasePower{this, "releasePower", 0.0f, 0.0f, 10.0f};
 
-  ADSREnvelope(int sampleRate) : Envelope(sampleRate, 0.7f), sr_(sampleRate) { rebuild(); }
+  ADSREnvelope(int sampleRate) : Envelope(sampleRate), sr_(sampleRate) { rebuild(); }
 
   const char* type_name() const override { return "ADSREnvelope"; }
 

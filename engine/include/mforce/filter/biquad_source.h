@@ -17,11 +17,13 @@ namespace mforce {
 // a1 = -2 r cos(2 pi f / sr), a2 = r^2 — while b0 stays the gain and
 // b1/b2 are ignored. Keytrackable two-pole resonator.
 struct BiquadSource final : Processor {
+  enum Mode { kRaw = 0, kResonance = 1 };
+
   // frequency and radius are read only in resonance mode, so the node pulls
   // them itself (Manual): the base neither prepares nor advances a Manual pin.
   Param frequency{this, "frequency", 220.0f,  1.0f, 20000.0f, "hz",  Pull::Manual};
   Param radius   {this, "radius",    0.997f,  0.0f, 0.99999f, "0-1", Pull::Manual};
-  Setting<int>   mode{this, "mode", 0, 0, 1, kModeLabels};
+  Setting<int>   mode{this, "mode", kRaw, kRaw, kResonance, kModeLabels};
   Setting<float> b0{this, "b0", 1.0f, -10.0f, 10.0f};
   Setting<float> b1{this, "b1", 0.0f, -10.0f, 10.0f};
   Setting<float> b2{this, "b2", 0.0f, -10.0f, 10.0f};
@@ -33,8 +35,8 @@ struct BiquadSource final : Processor {
   const char* type_name() const override { return "Biquad"; }
 
   void on_prepare(const RenderContext& ctx, int frames) override {
-    if (frequency.source) frequency.source->prepare(ctx, frames);
-    if (radius.source)    radius.source->prepare(ctx, frames);
+    frequency.prepare(ctx, frames);
+    radius.prepare(ctx, frames);
     x1_ = x2_ = y1_ = y2_ = 0.0f;
     cur_ = 0.0f;
     pdHz_ = -1.0f;
@@ -43,7 +45,7 @@ struct BiquadSource final : Processor {
 
   float compute() override {
     const float x = input.current();
-    if (mode.value == 1) {
+    if (mode.value == kResonance) {
       frequency.advance();
       radius.advance();
       const float f = frequency.current(), r = radius.current();

@@ -38,10 +38,10 @@ struct Formant final : ValueSource, IFormant {
   float compute() override { fmt_next(); return 0.0f; }
 
   void fmt_prepare(const RenderContext& ctx, int frames) override {
-    if (frequency.source) frequency.source->prepare(ctx, frames);
-    if (gain.source)      gain.source->prepare(ctx, frames);
-    if (width.source)     width.source->prepare(ctx, frames);
-    if (power.source)     power.source->prepare(ctx, frames);
+    frequency.prepare(ctx, frames);
+    gain.prepare(ctx, frames);
+    width.prepare(ctx, frames);
+    power.prepare(ctx, frames);
   }
 
   void fmt_next() override {
@@ -156,8 +156,8 @@ struct BandSpectrum final : ValueSource, IFormant {
   float compute() override { fmt_next(); return 0.0f; }
 
   void fmt_prepare(const RenderContext& ctx, int frames) override {
-    if (startFreq.source)     startFreq.source->prepare(ctx, frames);
-    if (freqIncrement.source) freqIncrement.source->prepare(ctx, frames);
+    startFreq.prepare(ctx, frames);
+    freqIncrement.prepare(ctx, frames);
   }
 
   void fmt_next() override {
@@ -231,7 +231,7 @@ struct FormantSequence final : ValueSource, IFormant {
   float compute() override { fmt_next(); return 0.0f; }
 
   void fmt_prepare(const RenderContext& ctx, int frames) override {
-    if (blend.source) blend.source->prepare(ctx, frames);
+    blend.prepare(ctx, frames);
     for (auto& f : formants) f->fmt_prepare(ctx, frames);
   }
 

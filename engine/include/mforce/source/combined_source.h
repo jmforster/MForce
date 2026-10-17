@@ -99,8 +99,8 @@ struct CrossfadeSource final : ValueSource {
     s1End_ = s1Count + overlapCount_;
     s2Start_ = s1Count - overlapCount_;
 
-    if (source1.source) source1.source->prepare(ctx, s1Count + overlapCount_);
-    if (source2.source) source2.source->prepare(ctx, s2Count + overlapCount_);
+    source1.prepare(ctx, s1Count + overlapCount_);
+    source2.prepare(ctx, s2Count + overlapCount_);
   }
 
   float compute() override {
@@ -168,7 +168,6 @@ struct StaticVarSource final : Generator {
   : baseValue(base), varPct(pct), bias(b), rng_(seed) {}
 
   const char* type_name() const override { return "StaticVarSource"; }
-  SourceCategory category() const override { return SourceCategory::Utility; }
 
   void on_prepare(const RenderContext& /*ctx*/, int /*frames*/) override {
     float r = rng_.valuePN() * varPct;
@@ -192,7 +191,6 @@ struct StaticRangeSource final : Generator {
   : min(mn), max(mx), bias(b), rng_(seed) {}
 
   const char* type_name() const override { return "StaticRangeSource"; }
-  SourceCategory category() const override { return SourceCategory::Utility; }
 
   void on_prepare(const RenderContext& /*ctx*/, int /*frames*/) override {
     value_ = rng_.range(min, max, bias);

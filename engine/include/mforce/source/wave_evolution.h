@@ -353,7 +353,7 @@ private:
 // ---------------------------------------------------------------------------
 struct ReedEvolution final : WaveEvolution {
   ReedEvolution(uint32_t seed, const Setting<float>& tubeLoss, const Setting<float>& loopFilter,
-                const Param& reedStiffness, const Input& breath)
+                Param& reedStiffness, Input& breath)
   : tubeLoss(tubeLoss), loopFilter(loopFilter), reedStiffness(reedStiffness), breath(breath),
     rng_(seed) {}
 
@@ -362,8 +362,8 @@ struct ReedEvolution final : WaveEvolution {
   // once per evolve() so a wired source moves on the note's sample clock.
   const Setting<float>& tubeLoss;      // per-sample loop loss
   const Setting<float>& loopFilter;    // one-pole loop lowpass coefficient (0..1; higher = brighter)
-  const Param& reedStiffness;          // tanh drive on bore signal (0 = linear tube)
-  const Input& breath;
+  Param& reedStiffness;                // tanh drive on bore signal (0 = linear tube)
+  Input& breath;
 
   float adjust(float /*frequency*/) override {
     lpState_ = 0.0f;
@@ -384,10 +384,10 @@ struct ReedEvolution final : WaveEvolution {
     lpState_ = loopFilter.value * avg + (1.0f - loopFilter.value) * lpState_;
     float loopOut = lpState_ * (1.0f - tubeLoss.value);
 
-    float drive = reedStiffness.source ? reedStiffness.source->advance() : reedStiffness.constant;
+    float drive = reedStiffness.advance();
     if (drive > 0.0f) loopOut = std::tanh(drive * loopOut);
 
-    float b = breath.source ? breath.source->advance() : 0.0f;
+    float b = breath.advance();
     float noise = rng_.valuePN();
     values[index] = loopOut + b * noise;
   }
@@ -407,13 +407,15 @@ private:
 struct BowedStringEvolution final : WaveEvolution {
   BowedStringEvolution(const Setting<float>& tubeLoss, const Setting<float>& bowSpeed,
                        const Setting<float>& bowPosition, const Setting<float>& brightness,
-                       const Input& bow, const Param& frictionGain)
+                       Input& bow, Param& frictionGain)
   : tubeLoss(tubeLoss), bowSpeed(bowSpeed), bowPosition(bowPosition), brightness(brightness),
     bow(bow), frictionGain(frictionGain) {}
 
   // The settings and pins of the holder node that owns this evolution. The
   // settings are read as they stand; the two pins are Manual, advanced here
-  // once per evolve() so a wired source moves on the note's sample clock.
+  // once per evolve() that runs the lines (an evolve() before adjust() has
+  // sized them returns early and advances nothing), so a wired source moves
+  // on the note's sample clock.
 
   // Dual-waveguide bowed string (Smith/Serafin).
   //   bridgeLine: carries signal through the round trip bow→bridge→bow
@@ -436,8 +438,8 @@ struct BowedStringEvolution final : WaveEvolution {
   // discovery patch's sound is locked to that). Applied per line write, so
   // the loop sees it twice per round trip.
   const Setting<float>& brightness;
-  const Input& bow;                    // bow pressure envelope (0..1)
-  const Param& frictionGain;           // slope of Friedlander bow table
+  Input& bow;                          // bow pressure envelope (0..1)
+  Param& frictionGain;                 // slope of Friedlander bow table
 
   void on_prepare(const RenderContext& ctx) override { sampleRate_ = ctx.sampleRate; }
 
@@ -474,8 +476,8 @@ struct BowedStringEvolution final : WaveEvolution {
 
     float vString = bridgeIn + neckIn;
 
-    float pressure = bow.source ? bow.source->advance() : 0.0f;
-    float gain = frictionGain.source ? frictionGain.source->advance() : frictionGain.constant;
+    float pressure = bow.advance();
+    float gain = frictionGain.advance();
 
     float vBow = bowSpeed.value * pressure;
     float vRel = vBow - vString;
@@ -531,19 +533,20 @@ private:
 struct BrassEvolution final : WaveEvolution {
   BrassEvolution(uint32_t seed, const Setting<float>& tubeLoss, const Setting<float>& lipTension,
                  const Setting<float>& lipFreqRatio, const Setting<float>& lipQ,
-                 const Param& brassiness, const Input& breath)
+                 Param& brassiness, Input& breath)
   : tubeLoss(tubeLoss), lipTension(lipTension), lipFreqRatio(lipFreqRatio), lipQ(lipQ),
     brassiness(brassiness), breath(breath), rng_(seed) {}
 
   // The settings and pins of the holder node that owns this evolution. The
   // settings are read as they stand; the two pins are Manual, advanced here
-  // once per evolve() so a wired source moves on the note's sample clock.
+  // once per evolve() that has a loop to run (an empty loop returns early and
+  // advances nothing), so a wired source moves on the note's sample clock.
   const Setting<float>& tubeLoss;      // per-sample loop loss
   const Setting<float>& lipTension;    // in-loop one-pole lowpass (0..0.99, high = dark)
   const Setting<float>& lipFreqRatio;  // out-of-loop biquad resonance, as multiple of played freq
   const Setting<float>& lipQ;          // biquad Q (higher = sharper resonance peak)
-  const Param& brassiness;             // tanh drive → wave-steepening harmonics
-  const Input& breath;
+  Param& brassiness;                   // tanh drive → wave-steepening harmonics
+  Input& breath;
 
   void on_prepare(const RenderContext& ctx) override { sampleRate_ = ctx.sampleRate; }
 
@@ -587,10 +590,10 @@ struct BrassEvolution final : WaveEvolution {
     lipState_ = (1.0f - lipTension.value) * avg + lipTension.value * lipState_;
     float loopOut = lipState_ * (1.0f - tubeLoss.value);
 
-    float drive = brassiness.source ? brassiness.source->advance() : brassiness.constant;
+    float drive = brassiness.advance();
     if (drive > 0.0f) loopOut = std::tanh(drive * loopOut);
 
-    float b = breath.source ? breath.source->advance() : 0.0f;
+    float b = breath.advance();
     float noise = rng_.valuePN();
     rawLoop_[index] = loopOut + b * noise;
 
@@ -729,8 +732,8 @@ struct ReedEvolutionSource final : ValueSource, IEvolutionHolder {
   WaveEvolution* get_evolution() override { return &evo_; }
 
   void on_prepare(const RenderContext& ctx, int frames) override {
-    if (breath.source) breath.source->prepare(ctx, frames);
-    if (reedStiffness.source) reedStiffness.source->prepare(ctx, frames);
+    breath.prepare(ctx, frames);
+    reedStiffness.prepare(ctx, frames);
   }
   float compute() override { return 0.0f; }
 
@@ -742,8 +745,8 @@ private:
 // BowedStringEvolutionSource — graph node holding a BowedStringEvolution.
 // ---------------------------------------------------------------------------
 struct BowedStringEvolutionSource final : ValueSource, IEvolutionHolder {
-  // The two pins are advanced by the evolution, once per evolve(), so they are
-  // Manual; this node prepares them.
+  // The two pins are advanced by the evolution, once per evolve() that runs
+  // its loop, so they are Manual; this node prepares them.
   Input bow         {this, "bow", Input::Optional, "0-1", false, Pull::Manual};
   Param frictionGain{this, "frictionGain", 4.0f, 0.0f, 20.0f, "gain", Pull::Manual};
   Setting<float> tubeLoss   {this, "tubeLoss",    0.005f, 0.0f,  0.5f};
@@ -760,8 +763,8 @@ struct BowedStringEvolutionSource final : ValueSource, IEvolutionHolder {
   WaveEvolution* get_evolution() override { return &evo_; }
 
   void on_prepare(const RenderContext& ctx, int frames) override {
-    if (bow.source) bow.source->prepare(ctx, frames);
-    if (frictionGain.source) frictionGain.source->prepare(ctx, frames);
+    bow.prepare(ctx, frames);
+    frictionGain.prepare(ctx, frames);
   }
   float compute() override { return 0.0f; }
 
@@ -773,8 +776,8 @@ private:
 // BrassEvolutionSource — graph node holding a BrassEvolution.
 // ---------------------------------------------------------------------------
 struct BrassEvolutionSource final : ValueSource, IEvolutionHolder {
-  // The two pins are advanced by the evolution, once per evolve(), so they are
-  // Manual; this node prepares them.
+  // The two pins are advanced by the evolution, once per evolve() that runs
+  // its loop, so they are Manual; this node prepares them.
   Param brassiness{this, "brassiness", 1.5f, 0.0f, 10.0f, "exp", Pull::Manual};
   Input breath    {this, "breath", Input::Optional, "0-1", false, Pull::Manual};
   Setting<float> tubeLoss    {this, "tubeLoss",     0.01f, 0.0f, 0.5f};
@@ -791,8 +794,8 @@ struct BrassEvolutionSource final : ValueSource, IEvolutionHolder {
   WaveEvolution* get_evolution() override { return &evo_; }
 
   void on_prepare(const RenderContext& ctx, int frames) override {
-    if (breath.source) breath.source->prepare(ctx, frames);
-    if (brassiness.source) brassiness.source->prepare(ctx, frames);
+    breath.prepare(ctx, frames);
+    brassiness.prepare(ctx, frames);
   }
   float compute() override { return 0.0f; }
 
@@ -1225,14 +1228,14 @@ private:
 // scramble of the original — aliasing-laden, hard-edged.
 // ---------------------------------------------------------------------------
 struct BitRotateEvolution final : WaveEvolution {
-  BitRotateEvolution(const Param& shiftBits, const Param& stepEvery)
+  BitRotateEvolution(Param& shiftBits, Param& stepEvery)
   : shiftBits(shiftBits), stepEvery(stepEvery) {}
 
   // The holder node's Manual pins, advanced every evolve() call (= once per
   // output sample, stepEvery first) so a wired envelope advances on the
   // note's sample clock even between rotations.
-  const Param& shiftBits;  // rotation depth, int 0..31
-  const Param& stepEvery;  // samples between rotations, int >= 1
+  Param& shiftBits;  // rotation depth, int 0..31
+  Param& stepEvery;  // samples between rotations, int >= 1
 
   float adjust(float /*frequency*/) override {
     ctr_ = 0;
@@ -1240,8 +1243,8 @@ struct BitRotateEvolution final : WaveEvolution {
   }
 
   void evolve(std::vector<float>& values, int index) override {
-    const int step = std::max(1, int(stepEvery.source ? stepEvery.source->advance() : stepEvery.constant));
-    const int bits = int(shiftBits.source ? shiftBits.source->advance() : shiftBits.constant);
+    const int step = std::max(1, int(stepEvery.advance()));
+    const int bits = int(shiftBits.advance());
     ctr_++;
     if (ctr_ < step) return;
     ctr_ = 0;
@@ -1276,8 +1279,8 @@ struct BitRotateEvolutionSource final : ValueSource, IEvolutionHolder {
   WaveEvolution* get_evolution() override { return &evo_; }
 
   void on_prepare(const RenderContext& ctx, int frames) override {
-    if (shiftBits.source) shiftBits.source->prepare(ctx, frames);
-    if (stepEvery.source) stepEvery.source->prepare(ctx, frames);
+    shiftBits.prepare(ctx, frames);
+    stepEvery.prepare(ctx, frames);
   }
   float compute() override { return 0.0f; }
 

@@ -15,17 +15,18 @@ namespace mforce {
 // to the end values outside the drawn range. Default = identity.
 struct ShaperSource final : Processor {
   // Every connectable pin, the inherited source included, is Manual, in
-  // descriptor order: the node reads source and drive as it pulls them, and smoothness and morph right
-  // after their own pull, not after a sweep of all the pins. The two differ
-  // when a pin's source is a shared reference whose real source a later pin
-  // drives (the Junction of a feedback valve: source refs a node that the
-  // drive chain advances), and the stored patches that do that render the
-  // old timing. breakaway and capture are also pulled only in hysteresis
-  // mode. The base neither prepares nor advances a Manual pin.
+  // descriptor order: the node reads source and drive as it pulls them, and
+  // smoothness and morph right after their own pull, not after a sweep of
+  // all the pins. The two differ when a pin's source is a shared reference
+  // whose real source a later pin drives (the Junction of a feedback valve:
+  // source refs a node that the drive chain advances), and the stored
+  // patches that do that depend on this timing. breakaway and capture are
+  // also pulled only in hysteresis mode. The base neither prepares nor
+  // advances a Manual pin.
   Param drive     {this, "drive",      1.0f, 0.0f, 20.0f, "ratio", Pull::Manual};
   Param smoothness{this, "smoothness", 0.5f, 0.0f, 1.0f,  "0-1",   Pull::Manual};
-  // Point-space blend toward curve B (values2/segs2); 0 = pure A =
-  // byte-identical legacy path. Curve-morph spec §5.
+  // Point-space blend toward curve B (values2/segs2); 0 = pure curve A, the
+  // single-curve shaper. Curve-morph spec §5.
   Param morph     {this, "morph",      0.0f, 0.0f, 1.0f,  "0-1",   Pull::Manual};
   // Hysteresis thresholds, in post-drive curve-x units (hysteresis spec §2).
   // breakaway ~ bow pressure; capture 0 = zero-cross-only recapture.
@@ -100,12 +101,12 @@ struct ShaperSource final : Processor {
   }
 
   void on_prepare(const RenderContext& ctx, int frames) override {
-    if (input.source)      input.source->prepare(ctx, frames);
-    if (drive.source)      drive.source->prepare(ctx, frames);
-    if (smoothness.source) smoothness.source->prepare(ctx, frames);
-    if (morph.source)      morph.source->prepare(ctx, frames);
-    if (breakaway.source)  breakaway.source->prepare(ctx, frames);
-    if (capture.source)    capture.source->prepare(ctx, frames);
+    input.prepare(ctx, frames);
+    drive.prepare(ctx, frames);
+    smoothness.prepare(ctx, frames);
+    morph.prepare(ctx, frames);
+    breakaway.prepare(ctx, frames);
+    capture.prepare(ctx, frames);
     stuck_ = true;      // bow resting on the string at note start
     lastSign_ = 0;
     cur_ = 0.0f;

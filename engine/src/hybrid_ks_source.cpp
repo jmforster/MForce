@@ -14,7 +14,7 @@ HybridKSSource::HybridKSSource(int sampleRate, uint32_t seed)
 
 void HybridKSSource::on_prepare(const RenderContext& ctx, int frames) {
   WaveSource::on_prepare(ctx, frames);
-  if (inputSource.source) inputSource.source->prepare(ctx, frames);
+  inputSource.prepare(ctx, frames);
 
   table_.clear();
   tablePtr_ = -1;
@@ -36,7 +36,7 @@ void HybridKSSource::fill_table() {
   table_.resize(len);
 
   for (int i = 0; i < len; ++i)
-    table_[i] = inputSource.source ? inputSource.source->advance() : 0.0f;
+    table_[i] = inputSource.advance();
 
 }
 
@@ -68,11 +68,11 @@ void HybridKSSource::extract_partials() {
     im *= 2.0f / float(N);
 
     float ampl = std::sqrt(re * re + im * im);
-    float partial = std::atan2(im, re) / TAU; // normalize to [0,1) cycles
-    if (partial < 0.0f) partial += 1.0f;
+    float phaseCycles = std::atan2(im, re) / TAU; // normalize to [0,1) cycles
+    if (phaseCycles < 0.0f) phaseCycles += 1.0f;
 
     partialAmpl_[k] = ampl;
-    partialPhase_[k] = partial;
+    partialPhase_[k] = phaseCycles;
     startAmpl_[k] = ampl;
   }
 

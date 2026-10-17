@@ -31,7 +31,7 @@ struct WanderNoiseSource final : Generator {
   SourceCategory category() const override { return SourceCategory::Generator; }
 
   void prepare(const RenderContext& ctx, int frames) override {
-    if (amplitude.source) amplitude.source->prepare(ctx, frames);
+    amplitude.prepare(ctx, frames);
     ValueSource::prepare(ctx, frames);
   }
 
@@ -105,7 +105,7 @@ struct WanderNoise2Source final : Generator {
   SourceCategory category() const override { return SourceCategory::Generator; }
 
   void prepare(const RenderContext& ctx, int frames) override {
-    if (amplitude.source) amplitude.source->prepare(ctx, frames);
+    amplitude.prepare(ctx, frames);
     ValueSource::prepare(ctx, frames);
   }
 

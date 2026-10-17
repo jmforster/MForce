@@ -88,7 +88,6 @@ struct PhasedValueSource final : Generator {
     boundaries_.resize(stages_.size());
     int cum = 0;
     for (int i = 0; i < int(stages_.size()); ++i) {
-      int olAdj = overlapSamples_ / (i == 0 || i == int(stages_.size()) - 1 ? 2 : 1);
       cum += stageCounts_[i];
       boundaries_[i] = cum;
     }

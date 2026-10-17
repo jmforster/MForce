@@ -974,6 +974,46 @@ static void run_hold_delivery_tests() {
     }
 }
 
+// A paramMap target on a param the patch leaves unwired loads and binds: the
+// loader gives the pin a constant to drive, and the note's pitch reaches it.
+static void run_param_map_unwired_pin_tests() {
+    const std::string patch = R"({
+      "sampleRate": 48000,
+      "instrument": { "polyphony": 2, "paramMap": { "frequency": "osc.frequency" } },
+      "graph": { "output": "osc",
+        "nodes": [ { "id": "osc", "type": "SineSource", "params": { "phase": 0.0 } } ] }
+    })";
+    const int n = 12000;
+    auto render = [&](float midi) {
+        auto ip = load_instrument_patch_json(patch);
+        auto* pi = dynamic_cast<PitchedInstrument*>(ip.instrument.get());
+        pi->play_note({midi, 0.8f, 0.4f}, 0.0f);
+        std::vector<float> b(size_t(n), 0.0f);
+        RenderContext ctx{ip.sampleRate};
+        ip.instrument->render(ctx, b.data(), n);
+        return b;
+    };
+    std::vector<float> lo, hi;
+    bool loaded = true;
+    try { lo = render(60.0f); hi = render(72.0f); }
+    catch (const std::exception&) { loaded = false; }
+    CHECK(loaded);
+    if (!loaded) return;
+
+    bool finite = true;
+    float peak = 0.0f;
+    for (float v : lo) { finite = finite && std::isfinite(v); peak = std::max(peak, std::fabs(v)); }
+    CHECK(finite);
+    CHECK(peak > 0.1f);
+    auto crossings = [](const std::vector<float>& b) {
+        int c = 0;
+        for (size_t i = 1; i < b.size(); ++i) c += (b[i] >= 0.0f) != (b[i - 1] >= 0.0f);
+        return c;
+    };
+    const float ratio = float(crossings(hi)) / float(std::max(1, crossings(lo)));
+    CHECK(ratio > 1.8f && ratio < 2.2f);       // an octave up doubles the frequency
+}
+
 static void run_envelope_retrigger_tests() {
     // Seconds-mode gesture: 10ms 1.0->0.2, 20ms 0.2->1.0, expand@1.0.
     const int sr = 48000;
@@ -2346,6 +2386,31 @@ static void run_envelope_preset_tests() {
     }
 }
 
+// A preset rebuilds by assigning a freshly laid-out envelope over itself
+// (replace_stages). The pin registry belongs to the object, not to the
+// assignment, so the pins stay the same and a wired one is still prepared
+// and advanced after the rebuilds.
+static void run_envelope_rebuild_pin_tests() {
+    RenderContext ctx{48000};
+    ADSREnvelope adsr(48000);
+    const std::vector<PinBase*> pinsBefore = adsr.pins();
+    auto lo = std::make_shared<PinCounter>();
+    auto hi = std::make_shared<PinCounter>();
+    adsr.set_param("minValue", lo);
+    adsr.set_param("maxValue", hi);
+    adsr.set_setting("release", 0.25f);          // each of these rebuilds the layout
+    adsr.set_setting("attack", 0.05f);
+    adsr.set_setting("decayCurve", 1.0f);
+    CHECK(adsr.pins() == pinsBefore);
+    CHECK(adsr.get_param("minValue") == lo && adsr.get_param("maxValue") == hi);
+
+    adsr.prepare(ctx, 4800);
+    const int n = 25;
+    for (int i = 0; i < n; ++i) adsr.next();
+    CHECK(lo->prepares == 1 && hi->prepares == 1);
+    CHECK(lo->advances == n && hi->advances == n);
+}
+
 // Checkpoint 2.1: the noise family with its pins declared once.
 #include "mforce/source/layered_red_noise_source.h"
 #include "mforce/source/noise_sources.h"
@@ -2435,8 +2500,8 @@ static void run_noise_white_tests() {
     CHECK(w.get_param("boost") == nullptr);
 }
 
-// The three declared defaults the constructors used to contradict. An
-// unwired node reads the descriptor's value, so the CLI and the UI agree.
+// Three declared defaults: an unwired node reads the descriptor's value, so
+// the CLI and the UI agree.
 static void run_noise_default_tests() {
     RenderContext ctx{48000};
 
@@ -3537,8 +3602,8 @@ static void run_filter_pin_shape_tests() {
     CHECK(vib.range() == Generator::Range::None);
 }
 
-// A declared default is what an unwired pin reads; the enum settings keep
-// their labels and their types.
+// The descriptors declare each filter's documented defaults, and the enum
+// settings keep their labels and their types.
 static void run_filter_default_tests() {
     BiquadSource bq(48000);
     CHECK_NEAR(param_default(bq, "frequency"), 220.0f, 1e-6f);
@@ -3639,8 +3704,7 @@ static void run_filter_auto_pin_tests() {
 }
 
 // The base advances the pins in declaration order, the inherited `source`
-// first. DelayFilter and HammerBank used to advance `source` last; the biquad
-// pulls frequency then radius itself, in resonance mode.
+// first; the biquad pulls frequency then radius itself, in resonance mode.
 static void run_filter_advance_order_tests() {
     RenderContext ctx{48000};
     auto order = [&](ValueSource& s, std::initializer_list<const char*> names) {
@@ -3669,8 +3733,8 @@ static void run_filter_advance_order_tests() {
     order(bq, {"source", "frequency", "radius"});
 }
 
-// The setting hooks keep the old clamps: the hammer bank's band count and
-// resonance floors, the SVF's mode range. The others are not clamped.
+// The setting hooks clamp the hammer bank's band count and resonance floors
+// and the SVF's mode range. The others are not clamped.
 static void run_filter_setting_hook_tests() {
     HammerBank hb(48000);
     hb.set_setting("numBands", 9.0f);   CHECK_NEAR(hb.get_setting("numBands"), 4.0f, 1e-6f);
@@ -3821,11 +3885,13 @@ static void run_vibrato_tests() {
     on.set_param("frequency", std::make_shared<ConstantSource>(300.0f));
     on.prepare(ctx, 48000);
     float lo = 1e9f, hi = -1e9f, y = 0.0f;
+    bool finite = true;
     for (int i = 0; i < 48000; ++i) {
         y = on.next();
-        CHECK(std::isfinite(y));
+        finite = finite && std::isfinite(y);
         lo = std::min(lo, y); hi = std::max(hi, y);
     }
+    CHECK(finite);
     CHECK(hi - lo > 1.0f && lo > 300.0f * 0.9f && hi < 300.0f * 1.1f);
     CHECK(on.current() == y);
 }
@@ -3844,8 +3910,9 @@ static void run_filter_tests() {
 
 // Checkpoint 2.1: the combiners, modulators and the other sources in source/.
 // The distorted source, the shaper, the wormhole, the multiplex and the
-// repeating source have one signal input and are Processors (the last three
-// pull it themselves: Processor(Pull::Manual)); the phased, segment and
+// repeating source have one signal input and are Processors (the shaper, the
+// multiplex and the repeating source pull it themselves:
+// Processor(Pull::Manual)); the phased, segment and
 // static sources have none and are Generators. The combiners have two signal
 // inputs and no `source`, and stay ValueSources with their categories.
 #include "mforce/core/source_registry.h"
@@ -4169,10 +4236,10 @@ static void run_combine_mod_shaper_timing_tests() {
     CHECK(each);
 }
 
-// The base advances the pins in declaration order. The distorted source and
-// the segment source used to advance in an order that differed from their
-// descriptor order; the shaper pulls its six pins itself, in that order; a
-// source wired to both inputs of a combiner is advanced once, by the first.
+// The base advances the pins in declaration order, which is the order the
+// descriptors list them in; the shaper pulls its six pins itself, in that
+// order; a source wired to both inputs of a combiner is advanced once, by the
+// first.
 static void run_combine_mod_advance_order_tests() {
     RenderContext ctx{48000};
     auto order = [&](ValueSource& s, std::initializer_list<const char*> names, int skip = 0) {
@@ -4211,10 +4278,10 @@ static void run_combine_mod_advance_order_tests() {
     CHECK_NEAR(sq.next(), 9.0f, 1e-6f);
 }
 
-// The setting and array hooks keep the old behaviour: the multiplex count is
-// clamped and rebuilds the clones only when it changes; the segment source
-// re-derives its units from its time mode and its first width; the shaper
-// refuses a malformed curve and keeps its segment arrays normalised.
+// The setting and array hooks: the multiplex count is clamped and rebuilds
+// the clones only when it changes; the segment source re-derives its units
+// from its time mode and its first width; the shaper refuses a malformed
+// curve and keeps its segment arrays normalised.
 static void run_combine_mod_setting_hook_tests() {
     RenderContext ctx{48000};
     MultiplexSource mux;
@@ -4429,6 +4496,7 @@ int main() {
     run_multi_name_gate_tests();
     run_envelope_pin_tests();
     run_envelope_preset_tests();
+    run_envelope_rebuild_pin_tests();
     run_noise_pin_tests();
     run_noise_white_tests();
     run_noise_default_tests();
@@ -4467,6 +4535,7 @@ int main() {
     run_passage_parse_tests();
     run_onset_field_tests();
     run_hold_delivery_tests();
+    run_param_map_unwired_pin_tests();
     run_note_reseed_tests();
     run_envelope_retrigger_tests();
     run_release_relayout_tests();

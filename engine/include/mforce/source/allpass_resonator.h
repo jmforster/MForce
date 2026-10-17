@@ -59,7 +59,7 @@ struct AllpassResonator final : Processor {
   // The four loop knobs are clamped to their declared ranges.
   void on_setting_changed(std::string_view name) override {
     auto fit = [&](Setting<float>& s) {
-      if (name == s.name) s.value = std::clamp(s.value, s.min, s.max);
+      if (name == s.name) s.clamp();
     };
     fit(feedback);
     fit(damping);
