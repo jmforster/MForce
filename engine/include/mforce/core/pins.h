@@ -47,6 +47,7 @@ struct Param final : PinBase {
         const char* h = nullptr, Pull p = Pull::Auto)
     : PinBase(n, kKind), constant(def), min(mn), max(mx), hint(h), pull(p) { attach(owner); }
   float current() const;                          // the source's value, or the constant
+  float advance();                                // Manual pins only: pull the source, return its value or the constant
   void set(std::shared_ptr<ValueSource> s) { source = std::move(s); }
   std::shared_ptr<ValueSource> get() const { return source; }
   ParamDescriptor descriptor() const { return {name, constant, min, max, hint}; }
@@ -66,6 +67,7 @@ struct Input final : PinBase {
         const char* h = nullptr, bool m = false, Pull p = Pull::Auto)
     : PinBase(n, kKind), required(r), hint(h), multi(m), pull(p) { attach(owner); }
   float current() const;
+  float advance();                                // Manual pins only: pull the source, return its value or 0
   void set(std::shared_ptr<ValueSource> s) { source = std::move(s); }
   std::shared_ptr<ValueSource> get() const { return source; }
   InputDescriptor descriptor() const { return {name, multi, hint}; }

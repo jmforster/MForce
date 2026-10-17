@@ -1978,6 +1978,20 @@ static void run_base_tests() {
 
 #include "mforce/source/sine_source.h"
 
+// A Manual pin is driven by its node: advance() pulls the source and returns
+// its value, or the pin's fallback (the constant; 0 for an input) unwired.
+static void run_manual_pin_advance_tests() {
+    PinProbe p;
+    CHECK_NEAR(p.freq.advance(), 440.0f, 1e-6f);        // unwired: the constant
+    CHECK_NEAR(p.in.advance(), 0.0f, 1e-6f);            // unwired input: 0
+    auto ramp = std::make_shared<UnitRamp>();
+    p.set_param("frequency", ramp);
+    p.set_param("source", ramp);
+    CHECK_NEAR(p.freq.advance(), 1.0f, 1e-6f);          // pulls the source once
+    CHECK_NEAR(p.in.advance(), 2.0f, 1e-6f);            // the same source, pulled again
+    CHECK_NEAR(p.freq.current(), 2.0f, 1e-6f);          // current() does not pull
+}
+
 // Checkpoint 2.1: WaveSource under Generator with its three pins declared
 // once, in the order the old next() advanced them (amplitude, frequency,
 // phase); an unwired pin reads its constant and has no source.
@@ -2710,6 +2724,7 @@ static void run_evolution_manual_pin_tests() {
 int main() {
     run_pin_tests();
     run_base_tests();
+    run_manual_pin_advance_tests();
     run_wave_source_tests();
     run_range_var_tests();
     run_multi_name_gate_tests();

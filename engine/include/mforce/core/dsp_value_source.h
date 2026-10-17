@@ -154,12 +154,15 @@ private:
 };
 
 // The pin bodies that need ValueSource complete. A Manual pin is driven by
-// its node: the base neither prepares nor advances it.
+// its node: the base neither prepares nor advances it, and the node pulls
+// it through advance() where and when it needs the value.
 inline float Param::current() const { return source ? source->current() : constant; }
+inline float Param::advance() { return source ? source->advance() : constant; }
 inline void Param::prepare(const RenderContext& ctx, int frames) {
   if (source && pull == Pull::Auto) source->prepare(ctx, frames);
 }
 inline float Input::current() const { return source ? source->current() : 0.0f; }
+inline float Input::advance() { return source ? source->advance() : 0.0f; }
 inline void Input::prepare(const RenderContext& ctx, int frames) {
   if (source && pull == Pull::Auto) source->prepare(ctx, frames);
 }
