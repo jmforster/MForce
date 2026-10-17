@@ -20,110 +20,57 @@ namespace mforce {
 // name is kept as an alias in the registry.
 // ---------------------------------------------------------------------------
 struct FullAdditiveSource final : WaveSource {
+  // After WaveSource's three. The formant weight and floor are read only
+  // while a formant is wired, and `formant` and `partials` are structural
+  // inputs the node calls into rather than values, so all four are Manual:
+  // the node prepares them and advances them in wave(), in this order. The
+  // two structural wires are type-checked in set_param, which keeps a typed
+  // view of the part it holds.
+  Param formantWeight{this, "formantWeight", 0.0f, 0.0f, 1.0f, "0-1", Pull::Manual};
+  Param formantFloor {this, "formantFloor",  1.0f, 0.0f, 1.0f, "0-1", Pull::Manual};  // out-of-band suppression, 1.0 = no cut
+  Input formant {this, "formant",  Input::Optional, nullptr, false, Pull::Manual};
+  Input partials{this, "partials", Input::Optional, nullptr, false, Pull::Manual};
+
+  // --- NoiseBed configs (scalar so paramMap frequency-curves can drive them
+  // per register — e.g. the clarinet noise-lead law 0.15/0.10/0.04 s by f0
+  // is expressed as a patch-side curve on noiseBedDelay, never hardcoded).
+  Setting<float> noiseBedLevel  {this, "noiseBedLevel",   0.0f,    0.0f,   1.0f};      // linear, rel tone; 0 = inert
+  Setting<float> noiseBedFreq   {this, "noiseBedFreq",    2900.0f, 20.0f,  16000.0f};  // bandpass center Hz
+  Setting<float> noiseBedWidth  {this, "noiseBedWidth",   1500.0f, 10.0f,  12000.0f};  // bandpass width Hz (Q = freq/width)
+  Setting<float> noiseBedDelay  {this, "noiseBedDelay",   0.0f,    0.0f,   2.0f};      // TONE delay sec (noise runs from t=0)
+  Setting<float> noiseBedFadePow{this, "noiseBedFadePow", 1.0f,    0.25f,  8.0f};
+  Setting<float> noiseBedFade   {this, "noiseBedFade",    0.05f,   0.001f, 2.0f};      // tone fade-in sec after the delay
+
   explicit FullAdditiveSource(int sampleRate, uint32_t seed = 0xADD2'0000u);
 
   const char* type_name() const override { return "AdditiveSource"; }
   SourceCategory category() const override { return SourceCategory::Additive; }
 
-  std::span<const ParamDescriptor> param_descriptors() const override {
-    static constexpr ParamDescriptor descs[] = {
-      {"frequency",     440.0f, 0.01f, 20000.0f, "hz"},
-      {"amplitude",     1.0f,   0.0f,  10.0f,    "0-1"},
-      {"phase",         0.0f,  -1.0f,  1.0f,     "cycles"},
-      {"formantWeight", 0.0f,   0.0f,  1.0f,     "0-1"},
-      {"formantFloor",  1.0f,   0.0f,  1.0f,     "0-1"},
-    };
-    return descs;
-  }
-
-  std::span<const InputDescriptor> input_descriptors() const override {
-    static constexpr InputDescriptor descs[] = {
-      {"formant"},
-      {"partials"},
-    };
-    return descs;
-  }
-
+  // Wiring `formant` or `partials` takes the part's interface; a source that
+  // does not implement it is ignored.
   void set_param(std::string_view name, std::shared_ptr<ValueSource> src) override {
     if (name == "formant") {
-      auto fmt = std::dynamic_pointer_cast<IFormant>(src);
-      if (fmt) formant_ = std::move(fmt);
+      if (auto f = std::dynamic_pointer_cast<IFormant>(src)) { formant_ = std::move(f); formant.set(std::move(src)); }
       return;
     }
-    if (name == "formantWeight") { formantWeight_ = std::move(src); return; }
-    if (name == "formantFloor")  { formantFloor_ = std::move(src); return; }
     if (name == "partials") {
-      auto p = std::dynamic_pointer_cast<IPartials>(src);
-      if (p) partials_ = std::move(p);
+      if (auto p = std::dynamic_pointer_cast<IPartials>(src)) { partials_ = std::move(p); partials.set(std::move(src)); }
       return;
     }
     WaveSource::set_param(name, std::move(src));
   }
 
-  std::shared_ptr<ValueSource> get_param(std::string_view name) const override {
-    if (name == "formant")       return std::dynamic_pointer_cast<ValueSource>(formant_);
-    if (name == "formantWeight") return formantWeight_;
-    if (name == "formantFloor")  return formantFloor_;
-    if (name == "partials")      return std::dynamic_pointer_cast<ValueSource>(partials_);
-    return WaveSource::get_param(name);
-  }
-
-  // --- NoiseBed configs (scalar so paramMap frequency-curves can drive them
-  // per register — e.g. the clarinet noise-lead law 0.15/0.10/0.04 s by f0
-  // is expressed as a patch-side curve on noiseBedDelay, never hardcoded).
-  std::span<const SettingDescriptor> setting_descriptors() const override {
-    static constexpr SettingDescriptor descs[] = {
-      {"noiseBedLevel", SettingType::Float, 0.0f,    0.0f,   1.0f},     // linear, rel tone; 0 = inert
-      {"noiseBedFreq",  SettingType::Float, 2900.0f, 20.0f,  16000.0f}, // bandpass center Hz
-      {"noiseBedWidth", SettingType::Float, 1500.0f, 10.0f,  12000.0f}, // bandpass width Hz (Q = freq/width)
-      {"noiseBedDelay", SettingType::Float, 0.0f,    0.0f,   2.0f},     // TONE delay sec (noise runs from t=0)
-      {"noiseBedFadePow", SettingType::Float, 1.0f, 0.25f, 8.0f},
-      {"noiseBedFade",  SettingType::Float, 0.05f,   0.001f, 2.0f},     // tone fade-in sec after the delay
-    };
-    return descs;
-  }
-
-  void set_setting(std::string_view name, float value) override {
-    if (name == "noiseBedLevel") { noiseBedLevel_ = value; return; }
-    if (name == "noiseBedFreq")  { noiseBedFreq_  = value; return; }
-    if (name == "noiseBedWidth") { noiseBedWidth_ = value; return; }
-    if (name == "noiseBedDelay") { noiseBedDelay_ = value; return; }
-    if (name == "noiseBedFadePow") { noiseBedFadePow_ = value; return; }
-    if (name == "noiseBedFade")  { noiseBedFade_  = value; return; }
-  }
-
-  float get_setting(std::string_view name) const override {
-    if (name == "noiseBedLevel") return noiseBedLevel_;
-    if (name == "noiseBedFreq")  return noiseBedFreq_;
-    if (name == "noiseBedWidth") return noiseBedWidth_;
-    if (name == "noiseBedDelay") return noiseBedDelay_;
-    if (name == "noiseBedFade")  return noiseBedFade_;
-    if (name == "noiseBedFadePow") return noiseBedFadePow_;
-    return 0.0f;
-  }
-
-  // --- Formant ---
-  void set_formant(std::shared_ptr<IFormant> f, std::shared_ptr<ValueSource> weight) {
-    formant_ = std::move(f); formantWeight_ = std::move(weight);
-  }
-
-  // --- Partials ---
-  void set_partials(std::shared_ptr<IPartials> p) { partials_ = std::move(p); }
-  std::shared_ptr<IPartials> get_partials() const { return partials_; }
-
-  void prepare(const RenderContext& ctx, int frames) override;
+  void on_prepare(const RenderContext& ctx, int frames) override;
 
 protected:
   float wave() override;
 
 private:
-  // Partials (required — does all the per-partial math)
+  // The parts the `partials` and `formant` inputs hold, as the interfaces the
+  // node calls. Partials do all the per-partial math and are required; a
+  // formant is optional.
   std::shared_ptr<IPartials> partials_;
-
-  // Formant (optional)
-  std::shared_ptr<IFormant> formant_;
-  std::shared_ptr<ValueSource> formantWeight_;
-  std::shared_ptr<ValueSource> formantFloor_;  // out-of-band suppression, default 1.0 (= no cut)
+  std::shared_ptr<IFormant>  formant_;
 
   // --- NoiseBed (clarinet-analysis breath bed; inert at noiseBedLevel 0) ---
   // v1 simplification of the report's "formant-shaped" bed: the measured
@@ -131,13 +78,6 @@ private:
   // single 2nd-order bandpass at (noiseBedFreq, Q = freq/width) stands in for
   // sharing the formant/BandSpectrum path. Deviation is deliberate; revisit
   // if the bed should track a patch's formant stack.
-  float noiseBedLevel_{0.0f};
-  float noiseBedFreq_{2900.0f};
-  float noiseBedWidth_{1500.0f};
-  float noiseBedDelay_{0.0f};
-  float noiseBedFade_{0.05f};
-  float noiseBedFadePow_{1.0f};
-
   Randomizer noiseRng_;  // seeded from the AdditiveSource seed (reproducible)
 
   // Per-note state (set in prepare)

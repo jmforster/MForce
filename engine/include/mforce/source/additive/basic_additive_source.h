@@ -14,74 +14,23 @@ namespace mforce {
 //   freqVarPct/freqVarSpeed: per-partial frequency wander (triangle-wave modulation)
 //   amplVarPct/amplVarSpeed: per-partial amplitude wander
 struct BasicAdditiveSource final : WaveSource {
-  BasicAdditiveSource(int sampleRate, uint32_t seed = 0xADD1'0000u)
-  : WaveSource(sampleRate), rng_(seed)
-  , evenWeight_(std::make_shared<ConstantSource>(1.0f))
-  , oddWeight_(std::make_shared<ConstantSource>(1.0f))
-  , rolloff_(std::make_shared<ConstantSource>(1.0f))
-  , freqVarPct_(std::make_shared<ConstantSource>(0.0f))
-  , freqVarSpeed_(std::make_shared<ConstantSource>(0.0f))
-  , amplVarPct_(std::make_shared<ConstantSource>(0.0f))
-  , amplVarSpeed_(std::make_shared<ConstantSource>(0.0f)) {}
+  // After WaveSource's three, in the order wave() advanced them.
+  Param evenWeight  {this, "evenWeight",   1.0f, 0.0f, 10.0f,  "gain"};
+  Param oddWeight   {this, "oddWeight",    1.0f, 0.0f, 10.0f,  "gain"};
+  Param rolloff     {this, "rolloff",      1.0f, 0.0f, 10.0f,  "exp"};
+  Param freqVarPct  {this, "freqVarPct",   0.0f, 0.0f, 1.0f,   "0-1"};
+  Param freqVarSpeed{this, "freqVarSpeed", 0.0f, 0.0f, 100.0f, "hz"};
+  Param amplVarPct  {this, "amplVarPct",   0.0f, 0.0f, 1.0f,   "0-1"};
+  Param amplVarSpeed{this, "amplVarSpeed", 0.0f, 0.0f, 100.0f, "hz"};
 
-  void set_even_weight(std::shared_ptr<ValueSource> v)   { evenWeight_ = std::move(v); }
-  void set_odd_weight(std::shared_ptr<ValueSource> v)    { oddWeight_ = std::move(v); }
-  void set_rolloff(std::shared_ptr<ValueSource> v)       { rolloff_ = std::move(v); }
-  void set_freq_var_pct(std::shared_ptr<ValueSource> v)  { freqVarPct_ = std::move(v); }
-  void set_freq_var_speed(std::shared_ptr<ValueSource> v){ freqVarSpeed_ = std::move(v); }
-  void set_ampl_var_pct(std::shared_ptr<ValueSource> v)  { amplVarPct_ = std::move(v); }
-  void set_ampl_var_speed(std::shared_ptr<ValueSource> v){ amplVarSpeed_ = std::move(v); }
+  BasicAdditiveSource(int sampleRate, uint32_t seed = 0xADD1'0000u)
+  : WaveSource(sampleRate), rng_(seed) {}
 
   const char* type_name() const override { return "BasicAdditiveSource"; }
   SourceCategory category() const override { return SourceCategory::Additive; }
 
-  std::span<const ParamDescriptor> param_descriptors() const override {
-    static constexpr ParamDescriptor descs[] = {
-      {"frequency",    440.0f, 0.01f, 20000.0f, "hz"},
-      {"amplitude",    1.0f,   0.0f,  10.0f,    "0-1"},
-      {"phase",        0.0f,  -1.0f,  1.0f,     "cycles"},
-      {"evenWeight",   1.0f,   0.0f,  10.0f,    "gain"},
-      {"oddWeight",    1.0f,   0.0f,  10.0f,    "gain"},
-      {"rolloff",      1.0f,   0.0f,  10.0f,    "exp"},
-      {"freqVarPct",   0.0f,   0.0f,  1.0f,     "0-1"},
-      {"freqVarSpeed", 0.0f,   0.0f,  100.0f,   "hz"},
-      {"amplVarPct",   0.0f,   0.0f,  1.0f,     "0-1"},
-      {"amplVarSpeed", 0.0f,   0.0f,  100.0f,   "hz"},
-    };
-    return descs;
-  }
-
-  void set_param(std::string_view name, std::shared_ptr<ValueSource> src) override {
-    if (name == "evenWeight")   { set_even_weight(std::move(src)); return; }
-    if (name == "oddWeight")    { set_odd_weight(std::move(src)); return; }
-    if (name == "rolloff")      { set_rolloff(std::move(src)); return; }
-    if (name == "freqVarPct")   { set_freq_var_pct(std::move(src)); return; }
-    if (name == "freqVarSpeed") { set_freq_var_speed(std::move(src)); return; }
-    if (name == "amplVarPct")   { set_ampl_var_pct(std::move(src)); return; }
-    if (name == "amplVarSpeed") { set_ampl_var_speed(std::move(src)); return; }
-    WaveSource::set_param(name, std::move(src));
-  }
-
-  std::shared_ptr<ValueSource> get_param(std::string_view name) const override {
-    if (name == "evenWeight")   return evenWeight_;
-    if (name == "oddWeight")    return oddWeight_;
-    if (name == "rolloff")      return rolloff_;
-    if (name == "freqVarPct")   return freqVarPct_;
-    if (name == "freqVarSpeed") return freqVarSpeed_;
-    if (name == "amplVarPct")   return amplVarPct_;
-    if (name == "amplVarSpeed") return amplVarSpeed_;
-    return WaveSource::get_param(name);
-  }
-
-  void prepare(const RenderContext& ctx, int frames) override {
-    WaveSource::prepare(ctx, frames);
-    evenWeight_->prepare(ctx, frames);
-    oddWeight_->prepare(ctx, frames);
-    rolloff_->prepare(ctx, frames);
-    freqVarPct_->prepare(ctx, frames);
-    freqVarSpeed_->prepare(ctx, frames);
-    amplVarPct_->prepare(ctx, frames);
-    amplVarSpeed_->prepare(ctx, frames);
+  void on_prepare(const RenderContext& ctx, int frames) override {
+    WaveSource::on_prepare(ctx, frames);
 
     // Reset arrays — will be initialized on first sample
     partialCount_ = 0;
@@ -94,21 +43,13 @@ struct BasicAdditiveSource final : WaveSource {
 
 protected:
   float wave() override {
-    float ew  = evenWeight_->advance();
-    float ow  = oddWeight_->advance();
-    float ro  = rolloff_->advance();
-    float fvp = freqVarPct_->advance();
-    float fvs = freqVarSpeed_->advance() / float(sampleRate_);
-    float avp = amplVarPct_->advance();
-    float avs = amplVarSpeed_->advance() / float(sampleRate_);
-
-    ew  = evenWeight_->current();
-    ow  = oddWeight_->current();
-    ro  = rolloff_->current();
-    fvp = freqVarPct_->current();
-    fvs = freqVarSpeed_->current() / float(sampleRate_);
-    avp = amplVarPct_->current();
-    avs = amplVarSpeed_->current() / float(sampleRate_);
+    float ew  = evenWeight.current();
+    float ow  = oddWeight.current();
+    float ro  = rolloff.current();
+    float fvp = freqVarPct.current();
+    float fvs = freqVarSpeed.current() / float(sampleRate_);
+    float avp = amplVarPct.current();
+    float avs = amplVarSpeed.current() / float(sampleRate_);
 
     // Compute partial count up to ~12 kHz
     int count = (currFreq_ > 0.0f) ? int(12000.0f / currFreq_) : 0;
@@ -172,13 +113,6 @@ protected:
 
 private:
   Randomizer rng_;
-  std::shared_ptr<ValueSource> evenWeight_;
-  std::shared_ptr<ValueSource> oddWeight_;
-  std::shared_ptr<ValueSource> rolloff_;
-  std::shared_ptr<ValueSource> freqVarPct_;
-  std::shared_ptr<ValueSource> freqVarSpeed_;
-  std::shared_ptr<ValueSource> amplVarPct_;
-  std::shared_ptr<ValueSource> amplVarSpeed_;
 
   int partialCount_{0};
   std::vector<float> partialPos_;

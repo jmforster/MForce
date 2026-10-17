@@ -32,167 +32,47 @@ struct ExpandRule {
 // output of its own. The host snapshots fields at load/prepare time
 // via to_struct().
 struct ExpandRuleNode final : ValueSource {
-  ExpandRuleNode()
-  : spacing1_(std::make_shared<ConstantSource>(0.5f))
-  , spacing2_(std::make_shared<ConstantSource>(0.5f))
-  , dt1_(std::make_shared<ConstantSource>(0.01f))
-  , dt2_(std::make_shared<ConstantSource>(0.01f))
-  , loPct1_(std::make_shared<ConstantSource>(0.1f))
-  , loPct2_(std::make_shared<ConstantSource>(0.1f))
-  , power1_(std::make_shared<ConstantSource>(1.0f))
-  , power2_(std::make_shared<ConstantSource>(1.0f))
-  , po1_(std::make_shared<ConstantSource>(0.0f))
-  , po2_(std::make_shared<ConstantSource>(0.0f)) {}
-
-  int count{2};
-  int recurse{0};
-
-  // Field accessors for set_param / get_param wiring.
-  void set_spacing1(std::shared_ptr<ValueSource> s) { spacing1_ = std::move(s); }
-  void set_spacing2(std::shared_ptr<ValueSource> s) { spacing2_ = std::move(s); }
-  void set_dt1(std::shared_ptr<ValueSource> s)      { dt1_      = std::move(s); }
-  void set_dt2(std::shared_ptr<ValueSource> s)      { dt2_      = std::move(s); }
-  void set_loPct1(std::shared_ptr<ValueSource> s)   { loPct1_   = std::move(s); }
-  void set_loPct2(std::shared_ptr<ValueSource> s)   { loPct2_   = std::move(s); }
-  void set_power1(std::shared_ptr<ValueSource> s)   { power1_   = std::move(s); }
-  void set_power2(std::shared_ptr<ValueSource> s)   { power2_   = std::move(s); }
-  void set_po1(std::shared_ptr<ValueSource> s)      { po1_      = std::move(s); }
-  void set_po2(std::shared_ptr<ValueSource> s)      { po2_      = std::move(s); }
+  // The host reads the pins with to_struct(); nothing pulls them per sample,
+  // so all ten are Manual and this node never prepares or advances them.
+  Param spacing1{this, "spacing1", 0.5f,  0.0f, 24.0f, "semis",  Pull::Manual};
+  Param spacing2{this, "spacing2", 0.5f,  0.0f, 24.0f, "semis",  Pull::Manual};
+  Param dt1     {this, "dt1",      0.01f, 0.0f, 1.0f,  "0-1",    Pull::Manual};
+  Param dt2     {this, "dt2",      0.01f, 0.0f, 1.0f,  "0-1",    Pull::Manual};
+  Param loPct1  {this, "loPct1",   0.1f,  0.0f, 1.0f,  "0-1",    Pull::Manual};
+  Param loPct2  {this, "loPct2",   0.1f,  0.0f, 1.0f,  "0-1",    Pull::Manual};
+  Param power1  {this, "power1",   1.0f,  0.0f, 10.0f, "",       Pull::Manual};
+  Param power2  {this, "power2",   1.0f,  0.0f, 10.0f, "",       Pull::Manual};
+  Param po1     {this, "po1",      0.0f,  0.0f, 1.0f,  "cycles", Pull::Manual};
+  Param po2     {this, "po2",      0.0f,  0.0f, 1.0f,  "cycles", Pull::Manual};
+  Setting<int> count  {this, "count",   2, 0, 16};
+  Setting<int> recurse{this, "recurse", 0, 0, 4};
 
   // Snapshot to a plain ExpandRule for consumption by Partials. Reads the
   // current() of each field — at load time these are ConstantSource values,
   // at prepare time they could be the current value of a wired envelope.
   ExpandRule to_struct() const {
     ExpandRule r;
-    r.count = count;
-    r.recurse = recurse;
-    r.spacing1 = spacing1_->current();
-    r.spacing2 = spacing2_->current();
-    r.dt1 = dt1_->current();
-    r.dt2 = dt2_->current();
-    r.loPct1 = loPct1_->current();
-    r.loPct2 = loPct2_->current();
-    r.power1 = power1_->current();
-    r.power2 = power2_->current();
-    r.po1 = po1_->current();
-    r.po2 = po2_->current();
+    r.count = count.value;
+    r.recurse = recurse.value;
+    r.spacing1 = spacing1.current();
+    r.spacing2 = spacing2.current();
+    r.dt1 = dt1.current();
+    r.dt2 = dt2.current();
+    r.loPct1 = loPct1.current();
+    r.loPct2 = loPct2.current();
+    r.power1 = power1.current();
+    r.power2 = power2.current();
+    r.po1 = po1.current();
+    r.po2 = po2.current();
     return r;
   }
 
   const char* type_name() const override { return "ExpandRule"; }
   SourceCategory category() const override { return SourceCategory::Additive; }
 
-  std::span<const ParamDescriptor> param_descriptors() const override {
-    static constexpr ParamDescriptor descs[] = {
-      {"spacing1", 0.5f,  0.0f, 24.0f, "semis"},
-      {"spacing2", 0.5f,  0.0f, 24.0f, "semis"},
-      {"dt1",      0.01f, 0.0f, 1.0f,  "0-1"},
-      {"dt2",      0.01f, 0.0f, 1.0f,  "0-1"},
-      {"loPct1",   0.1f,  0.0f, 1.0f,  "0-1"},
-      {"loPct2",   0.1f,  0.0f, 1.0f,  "0-1"},
-      {"power1",   1.0f,  0.0f, 10.0f, ""},
-      {"power2",   1.0f,  0.0f, 10.0f, ""},
-      {"po1",      0.0f,  0.0f, 1.0f,  "cycles"},
-      {"po2",      0.0f,  0.0f, 1.0f,  "cycles"},
-    };
-    return descs;
-  }
-
-  void set_param(std::string_view name, std::shared_ptr<ValueSource> src) override {
-    if (name == "spacing1") { set_spacing1(std::move(src)); return; }
-    if (name == "spacing2") { set_spacing2(std::move(src)); return; }
-    if (name == "dt1")      { set_dt1(std::move(src));      return; }
-    if (name == "dt2")      { set_dt2(std::move(src));      return; }
-    if (name == "loPct1")   { set_loPct1(std::move(src));   return; }
-    if (name == "loPct2")   { set_loPct2(std::move(src));   return; }
-    if (name == "power1")   { set_power1(std::move(src));   return; }
-    if (name == "power2")   { set_power2(std::move(src));   return; }
-    if (name == "po1")      { set_po1(std::move(src));      return; }
-    if (name == "po2")      { set_po2(std::move(src));      return; }
-  }
-
-  std::shared_ptr<ValueSource> get_param(std::string_view name) const override {
-    if (name == "spacing1") return spacing1_;
-    if (name == "spacing2") return spacing2_;
-    if (name == "dt1")      return dt1_;
-    if (name == "dt2")      return dt2_;
-    if (name == "loPct1")   return loPct1_;
-    if (name == "loPct2")   return loPct2_;
-    if (name == "power1")   return power1_;
-    if (name == "power2")   return power2_;
-    if (name == "po1")      return po1_;
-    if (name == "po2")      return po2_;
-    return nullptr;
-  }
-
-  std::span<const SettingDescriptor> setting_descriptors() const override {
-    static constexpr SettingDescriptor descs[] = {
-      {"count",   SettingType::Int, 2.0f, 0.0f, 16.0f},
-      {"recurse", SettingType::Int, 0.0f, 0.0f, 4.0f},
-    };
-    return descs;
-  }
-
-  void set_setting(std::string_view name, float value) override {
-    if (name == "count")   { count = int(value);   return; }
-    if (name == "recurse") { recurse = int(value); return; }
-  }
-
-  float get_setting(std::string_view name) const override {
-    if (name == "count")   return float(count);
-    if (name == "recurse") return float(recurse);
-    return 0.0f;
-  }
-
-  void prepare(const RenderContext& /*ctx*/, int /*frames*/) override {}
   float next() override { return 0.0f; }
   float current() const override { return 0.0f; }
-
-private:
-  std::shared_ptr<ValueSource> spacing1_, spacing2_;
-  std::shared_ptr<ValueSource> dt1_, dt2_;
-  std::shared_ptr<ValueSource> loPct1_, loPct2_;
-  std::shared_ptr<ValueSource> power1_, power2_;
-  std::shared_ptr<ValueSource> po1_, po2_;
 };
-
-// Shared config descriptor entries (motion layer + per-partial decay +
-// inharmonicity) for Partials and its subclasses. Subclasses override
-// setting_descriptors() wholesale (each list re-declares the base entries —
-// established pattern), so this block is spliced into every list via this
-// macro to keep them in sync.
-//
-// decayRate/decayExp — per-partial exponential decay law (piano):
-//   rate_i = decayRate * pmult_i^decayExp   [dB/s]
-// i.e. decayRate is the decay rate in dB PER SECOND of a partial at
-// pmult == 1 (the fundamental), and decayExp tilts the law across the
-// spectrum (measured piano within-note exponent ~0.6: high partials die
-// faster). Default 0 = feature off (no per-sample multiply).
-//
-// inharmonicity — stiff-string stretch coefficient B: at prepare/note-on the
-// effective multiplier becomes m*sqrt(1 + B*m^2). Per-note B arrives via a
-// paramMap frequency->curve config entry. Default 0 = off (bit-exact).
-#define MFORCE_PARTIALS_MOTION_CONFIG_DESCS \
-      {"motionDepth1",     SettingType::Float, 0.0f,  0.0f,  400.0f}, \
-      {"motionDepth2",     SettingType::Float, 0.0f,  0.0f,  400.0f}, \
-      {"motionHz",         SettingType::Float, 4.0f,  0.01f, 200.0f}, \
-      {"motionCoherence",  SettingType::Float, 1.0f,  0.0f,  1.0f},   \
-      {"motionEvolve",     SettingType::Float, 0.0f,  0.0f,  1.0f},   \
-      {"motionScale",      SettingType::Float, 0.0f, -2.0f,  2.0f},   \
-      {"shimmerDepth1",    SettingType::Float, 0.0f,  0.0f,  1.0f},   \
-      {"shimmerDepth2",    SettingType::Float, 0.0f,  0.0f,  1.0f},   \
-      {"shimmerHz",        SettingType::Float, 3.0f,  0.01f, 200.0f}, \
-      {"shimmerCoherence", SettingType::Float, 0.0f,  0.0f,  1.0f},   \
-      {"shimmerEvolve",    SettingType::Float, 0.0f,  0.0f,  1.0f},   \
-      {"shimmerFloor",     SettingType::Float, 0.0f,  0.0f,  1.0f},   \
-      {"tradeDepth",       SettingType::Float, 0.0f,  0.0f,  1.0f},   \
-      {"tradeHz",          SettingType::Float, 2.0f,  0.01f, 50.0f},  \
-      {"onsetSpread",      SettingType::Float, 0.0f,  0.0f,  2.0f},   \
-      {"onsetTilt",        SettingType::Float, 0.0f, -1.0f,  1.0f},   \
-      {"onsetFade",        SettingType::Float, 0.03f, 0.001f, 1.0f},  \
-      {"decayRate",        SettingType::Float, 0.0f,  0.0f,  400.0f}, \
-      {"decayExp",         SettingType::Float, 0.0f, -2.0f,  4.0f},   \
-      {"inharmonicity",    SettingType::Float, 0.0f,  0.0f,  0.1f},
 
 // ---------------------------------------------------------------------------
 // IPartials — interface for partial rendering engines.
@@ -264,140 +144,81 @@ enum PartialsRngLayer : uint32_t {
 // populate the static arrays (mult1_, mult2_, ampl1_, ampl2_, po1_, po2_).
 // ---------------------------------------------------------------------------
 struct Partials : ValueSource, IPartials {
-  Partials(uint32_t seed = 0xADD2'0000u)
-  : baseSeed_(seed)
-  , multEnv_(std::make_shared<ConstantSource>(0.0f))
-  , amplEnv_(std::make_shared<ConstantSource>(0.0f))
-  , poEnv_(std::make_shared<ConstantSource>(0.0f))
-  , roEnv_(std::make_shared<ConstantSource>(0.0f))
-  , dtEnv_(std::make_shared<ConstantSource>(0.0f))
-  , bwEnv_(std::make_shared<ConstantSource>(0.0f))
-  , motionEnv_(std::make_shared<ConstantSource>(0.0f))
-  , shimmerEnv_(std::make_shared<ConstantSource>(0.0f)) {}
+  // The additive source drives a Partials through partials_prepare() and
+  // partials_next(), never through next(), so the eight envelope pins are
+  // Manual: partials_prepare() prepares them and partials_next() advances
+  // them, in this order. All are unipolar 0-1 blend factors driving a lerp
+  // between _1 and _2 endpoints (e.g. roEnv blends rolloff1 -> rolloff2).
+  // Wire an Envelope or RangeSource; a bipolar oscillator won't blend right.
+  Param multEnv   {this, "multEnv",    0.0f, 0.0f, 1.0f, "0-1", Pull::Manual};
+  Param amplEnv   {this, "amplEnv",    0.0f, 0.0f, 1.0f, "0-1", Pull::Manual};
+  Param poEnv     {this, "poEnv",      0.0f, 0.0f, 1.0f, "0-1", Pull::Manual};
+  Param roEnv     {this, "roEnv",      0.0f, 0.0f, 1.0f, "0-1", Pull::Manual};
+  Param dtEnv     {this, "dtEnv",      0.0f, 0.0f, 1.0f, "0-1", Pull::Manual};
+  Param bwEnv     {this, "bwEnv",      0.0f, 0.0f, 1.0f, "0-1", Pull::Manual};  // blends bandwidth1 -> bandwidth2
+  Param motionEnv {this, "motionEnv",  0.0f, 0.0f, 1.0f, "0-1", Pull::Manual};  // blends motionDepth1 -> motionDepth2
+  Param shimmerEnv{this, "shimmerEnv", 0.0f, 0.0f, 1.0f, "0-1", Pull::Manual};  // blends shimmerDepth1 -> shimmerDepth2
+
+  // Global rolloff/detune ranges
+  Setting<float> rolloff1{this, "rolloff1", 1.0f, 0.0f, 10.0f};
+  Setting<float> rolloff2{this, "rolloff2", 1.0f, 0.0f, 10.0f};
+  Setting<float> detune1 {this, "detune1",  0.0f, 0.0f, 1.0f};
+  Setting<float> detune2 {this, "detune2",  0.0f, 0.0f, 1.0f};
+
+  // Bandwidth enhancement: bandwidth1 -> bandwidth2 mix amount (blended by
+  // bwEnv), bandwidthHz band width. Default 0 -> feature inert (no change to
+  // existing patches).
+  Setting<float> bandwidth1 {this, "bandwidth1",  0.0f,  0.0f, 1.0f};
+  Setting<float> bandwidth2 {this, "bandwidth2",  0.0f,  0.0f, 1.0f};
+  Setting<float> bandwidthHz{this, "bandwidthHz", 30.0f, 1.0f, 2000.0f};
+
+  // Motion layer configs (all default-inert; see partial-motion design spec)
+  Setting<float> motionDepth1    {this, "motionDepth1",     0.0f,  0.0f,  400.0f};
+  Setting<float> motionDepth2    {this, "motionDepth2",     0.0f,  0.0f,  400.0f};
+  Setting<float> motionHz        {this, "motionHz",         4.0f,  0.01f, 200.0f};
+  Setting<float> motionCoherence {this, "motionCoherence",  1.0f,  0.0f,  1.0f};
+  Setting<float> motionEvolve    {this, "motionEvolve",     0.0f,  0.0f,  1.0f};
+  Setting<float> motionScale     {this, "motionScale",      0.0f, -2.0f,  2.0f};
+  Setting<float> shimmerDepth1   {this, "shimmerDepth1",    0.0f,  0.0f,  1.0f};
+  Setting<float> shimmerDepth2   {this, "shimmerDepth2",    0.0f,  0.0f,  1.0f};
+  Setting<float> shimmerHz       {this, "shimmerHz",        3.0f,  0.01f, 200.0f};
+  Setting<float> shimmerCoherence{this, "shimmerCoherence", 0.0f,  0.0f,  1.0f};
+  Setting<float> shimmerEvolve   {this, "shimmerEvolve",    0.0f,  0.0f,  1.0f};
+  Setting<float> shimmerFloor    {this, "shimmerFloor",     0.0f,  0.0f,  1.0f};
+  Setting<float> tradeDepth      {this, "tradeDepth",       0.0f,  0.0f,  1.0f};
+  Setting<float> tradeHz         {this, "tradeHz",          2.0f,  0.01f, 50.0f};
+  Setting<float> onsetSpread     {this, "onsetSpread",      0.0f,  0.0f,  2.0f};
+  Setting<float> onsetTilt       {this, "onsetTilt",        0.0f, -1.0f,  1.0f};
+  Setting<float> onsetFade       {this, "onsetFade",        0.03f, 0.001f, 1.0f};
+
+  // decayRate/decayExp — per-partial exponential decay law (piano):
+  //   rate_i = decayRate * pmult_i^decayExp   [dB/s]
+  // i.e. decayRate is the decay rate in dB PER SECOND of a partial at
+  // pmult == 1 (the fundamental), and decayExp tilts the law across the
+  // spectrum (measured piano within-note exponent ~0.6: high partials die
+  // faster). Default 0 = feature off (no per-sample multiply).
+  //
+  // inharmonicity — stiff-string stretch coefficient B: at prepare/note-on the
+  // effective multiplier becomes m*sqrt(1 + B*m^2). Per-note B arrives via a
+  // paramMap frequency->curve config entry. Default 0 = off (bit-exact).
+  Setting<float> decayRate    {this, "decayRate",     0.0f,  0.0f, 400.0f};
+  Setting<float> decayExp     {this, "decayExp",      0.0f, -2.0f, 4.0f};
+  Setting<float> inharmonicity{this, "inharmonicity", 0.0f,  0.0f, 0.1f};
+
+  Partials(uint32_t seed = 0xADD2'0000u) : baseSeed_(seed) {}
 
   // --- ValueSource interface ---
   // Partials is a ValueSource for graph wiring, but doesn't produce audio.
   // Prepare/next delegate to partials_prepare/partials_next.
-  void prepare(const RenderContext& ctx, int frames) override { partials_prepare(ctx, frames); }
+  void on_prepare(const RenderContext& ctx, int frames) override { partials_prepare(ctx, frames); }
   float next() override { partials_next(); return 0.0f; }
   float current() const override { return 0.0f; }
 
   const char* type_name() const override { return "Partials"; }
   SourceCategory category() const override { return SourceCategory::Additive; }
 
-  std::span<const ParamDescriptor> param_descriptors() const override {
-    // All five "Env" params are unipolar 0-1 blend factors driving a lerp
-    // between _1 and _2 endpoints (e.g. roEnv blends rolloff1 → rolloff2).
-    // Wire an Envelope or RangeSource; a bipolar oscillator won't blend right.
-    static constexpr ParamDescriptor descs[] = {
-      {"multEnv", 0.0f, 0.0f, 1.0f, "0-1"},
-      {"amplEnv", 0.0f, 0.0f, 1.0f, "0-1"},
-      {"poEnv",   0.0f, 0.0f, 1.0f, "0-1"},
-      {"roEnv",   0.0f, 0.0f, 1.0f, "0-1"},
-      {"dtEnv",   0.0f, 0.0f, 1.0f, "0-1"},
-      {"bwEnv",   0.0f, 0.0f, 1.0f, "0-1"},  // blends bandwidth1 → bandwidth2
-      {"motionEnv",  0.0f, 0.0f, 1.0f, "0-1"},  // blends motionDepth1 → motionDepth2
-      {"shimmerEnv", 0.0f, 0.0f, 1.0f, "0-1"},  // blends shimmerDepth1 → shimmerDepth2
-    };
-    return descs;
-  }
-
-  std::span<const SettingDescriptor> setting_descriptors() const override {
-    static constexpr SettingDescriptor descs[] = {
-      {"rolloff1", SettingType::Float, 1.0f, 0.0f, 10.0f},
-      {"rolloff2", SettingType::Float, 1.0f, 0.0f, 10.0f},
-      {"detune1",  SettingType::Float, 0.0f, 0.0f, 1.0f},
-      {"detune2",  SettingType::Float, 0.0f, 0.0f, 1.0f},
-      {"bandwidth1",  SettingType::Float, 0.0f, 0.0f, 1.0f},
-      {"bandwidth2",  SettingType::Float, 0.0f, 0.0f, 1.0f},
-      {"bandwidthHz", SettingType::Float, 30.0f, 1.0f, 2000.0f},
-      MFORCE_PARTIALS_MOTION_CONFIG_DESCS
-    };
-    return descs;
-  }
-
-  void set_param(std::string_view name, std::shared_ptr<ValueSource> src) override {
-    if (name == "multEnv") { multEnv_ = std::move(src); return; }
-    if (name == "amplEnv") { amplEnv_ = std::move(src); return; }
-    if (name == "poEnv")   { poEnv_ = std::move(src); return; }
-    if (name == "roEnv")   { roEnv_ = std::move(src); return; }
-    if (name == "dtEnv")   { dtEnv_ = std::move(src); return; }
-    if (name == "bwEnv")   { bwEnv_ = std::move(src); return; }
-    if (name == "motionEnv")  { motionEnv_ = std::move(src); return; }
-    if (name == "shimmerEnv") { shimmerEnv_ = std::move(src); return; }
-  }
-
-  std::shared_ptr<ValueSource> get_param(std::string_view name) const override {
-    if (name == "multEnv") return multEnv_;
-    if (name == "amplEnv") return amplEnv_;
-    if (name == "poEnv")   return poEnv_;
-    if (name == "roEnv")   return roEnv_;
-    if (name == "dtEnv")   return dtEnv_;
-    if (name == "bwEnv")   return bwEnv_;
-    if (name == "motionEnv")  return motionEnv_;
-    if (name == "shimmerEnv") return shimmerEnv_;
-    return nullptr;
-  }
-
-  void set_setting(std::string_view name, float value) override {
-    if (name == "rolloff1")   { ro1_ = value; return; }
-    if (name == "rolloff2")   { ro2_ = value; return; }
-    if (name == "detune1")    { dt1_ = value; return; }
-    if (name == "detune2")    { dt2_ = value; return; }
-    if (name == "bandwidth1")  { bw1_ = value; return; }
-    if (name == "bandwidth2")  { bw2_ = value; return; }
-    if (name == "bandwidthHz") { bwHz_ = (value < 1.0f ? 1.0f : value); return; }
-    if (name == "motionDepth1")     { moDepth1_ = value; return; }
-    if (name == "motionDepth2")     { moDepth2_ = value; return; }
-    if (name == "motionHz")         { moHz_ = value; return; }
-    if (name == "motionCoherence")  { moCoherence_ = value; return; }
-    if (name == "motionEvolve")     { moEvolve_ = value; return; }
-    if (name == "motionScale")      { moScale_ = value; return; }
-    if (name == "shimmerDepth1")    { shDepth1_ = value; return; }
-    if (name == "shimmerDepth2")    { shDepth2_ = value; return; }
-    if (name == "shimmerHz")        { shHz_ = value; return; }
-    if (name == "shimmerCoherence") { shCoherence_ = value; return; }
-    if (name == "shimmerEvolve")    { shEvolve_ = value; return; }
-    if (name == "shimmerFloor")     { shFloor_ = value; return; }
-    if (name == "tradeDepth")       { trDepth_ = value; return; }
-    if (name == "tradeHz")          { trHz_ = value; return; }
-    if (name == "onsetSpread")      { onsetSpread_ = value; return; }
-    if (name == "onsetTilt")        { onsetTilt_ = value; return; }
-    if (name == "onsetFade")        { onsetFade_ = value; return; }
-    if (name == "decayRate")        { decayRate_ = value; return; }
-    if (name == "decayExp")         { decayExp_ = value; return; }
-    if (name == "inharmonicity")    { inharmB_ = value; return; }
-  }
-
-  float get_setting(std::string_view name) const override {
-    if (name == "rolloff1")   return ro1_;
-    if (name == "rolloff2")   return ro2_;
-    if (name == "detune1")    return dt1_;
-    if (name == "detune2")    return dt2_;
-    if (name == "bandwidth1")  return bw1_;
-    if (name == "bandwidth2")  return bw2_;
-    if (name == "bandwidthHz") return bwHz_;
-    if (name == "motionDepth1")     return moDepth1_;
-    if (name == "motionDepth2")     return moDepth2_;
-    if (name == "motionHz")         return moHz_;
-    if (name == "motionCoherence")  return moCoherence_;
-    if (name == "motionEvolve")     return moEvolve_;
-    if (name == "motionScale")      return moScale_;
-    if (name == "shimmerDepth1")    return shDepth1_;
-    if (name == "shimmerDepth2")    return shDepth2_;
-    if (name == "shimmerHz")        return shHz_;
-    if (name == "shimmerCoherence") return shCoherence_;
-    if (name == "shimmerEvolve")    return shEvolve_;
-    if (name == "shimmerFloor")     return shFloor_;
-    if (name == "tradeDepth")       return trDepth_;
-    if (name == "tradeHz")          return trHz_;
-    if (name == "onsetSpread")      return onsetSpread_;
-    if (name == "onsetTilt")        return onsetTilt_;
-    if (name == "onsetFade")        return onsetFade_;
-    if (name == "decayRate")        return decayRate_;
-    if (name == "decayExp")         return decayExp_;
-    if (name == "inharmonicity")    return inharmB_;
-    return 0.0f;
+  void on_setting_changed(std::string_view name) override {
+    if (name == "bandwidthHz" && bandwidthHz.value < 1.0f) bandwidthHz.value = 1.0f;
   }
 
   // --- Array accessors (for AdditiveSource2 compat) ---
@@ -406,9 +227,7 @@ struct Partials : ValueSource, IPartials {
   const std::vector<float>& get_ampl1() const { return ampl1_; }
   const std::vector<float>& get_ampl2() const { return ampl2_; }
 
-  // --- Setters for backward compat / programmatic use ---
-  void set_ro(float ro1, float ro2) { ro1_ = ro1; ro2_ = ro2; }
-  void set_dt(float dt1, float dt2) { dt1_ = dt1; dt2_ = dt2; }
+  // --- Set by the patch loader from an "expandRule" block ---
   void set_expand_rule(ExpandRule rule) { expandRule_ = rule; hasExpand_ = true; }
 
   // --- IPartials interface ---
@@ -429,14 +248,14 @@ struct Partials : ValueSource, IPartials {
       update_arrays();
     }
 
-    multEnv_->prepare(ctx, frames);
-    amplEnv_->prepare(ctx, frames);
-    poEnv_->prepare(ctx, frames);
-    roEnv_->prepare(ctx, frames);
-    dtEnv_->prepare(ctx, frames);
-    bwEnv_->prepare(ctx, frames);
-    motionEnv_->prepare(ctx, frames);
-    shimmerEnv_->prepare(ctx, frames);
+    if (multEnv.source)    multEnv.source->prepare(ctx, frames);
+    if (amplEnv.source)    amplEnv.source->prepare(ctx, frames);
+    if (poEnv.source)      poEnv.source->prepare(ctx, frames);
+    if (roEnv.source)      roEnv.source->prepare(ctx, frames);
+    if (dtEnv.source)      dtEnv.source->prepare(ctx, frames);
+    if (bwEnv.source)      bwEnv.source->prepare(ctx, frames);
+    if (motionEnv.source)  motionEnv.source->prepare(ctx, frames);
+    if (shimmerEnv.source) shimmerEnv.source->prepare(ctx, frames);
 
     // Expand partials if rule is set
     if (hasExpand_) {
@@ -471,7 +290,7 @@ struct Partials : ValueSource, IPartials {
     // decayGain_ (the per-sample factor) is filled by ensure_partial_cache
     // alongside pmultCache_ — it depends on the effective (possibly
     // inharmonicity-stretched) multiplier. Sized here; render never allocates.
-    decayActive_ = (decayRate_ != 0.0f);
+    decayActive_ = (decayRate.value != 0.0f);
     if (decayActive_) {
       decayGain_.assign(n, 1.0f);
       decayState_.assign(n, 1.0f);
@@ -480,7 +299,7 @@ struct Partials : ValueSource, IPartials {
     // Per-partial bandwidth-noise state. Each partial gets an INDEPENDENT
     // smoothed random walk (decorrelated start phase + targets) so the bands
     // fill in rather than wobbling in unison. Segment length = rate/bandwidthHz.
-    bwLen_ = std::max(1, int(rate_ / (bwHz_ < 1.0f ? 1.0f : bwHz_)));
+    bwLen_ = std::max(1, int(rate_ / (bandwidthHz.value < 1.0f ? 1.0f : bandwidthHz.value)));
     bwCur_.assign(n, 0.0f);
     bwTarget_.assign(n, 0.0f);
     bwPos_.assign(n, 0);
@@ -496,54 +315,54 @@ struct Partials : ValueSource, IPartials {
     // every note-on) and inert unless configured. Allocation happens here,
     // never in the per-sample path.
     sampleIdx_ = 0;
-    motionActive_ = (moDepth1_ != 0.0f || moDepth2_ != 0.0f);
+    motionActive_ = (motionDepth1.value != 0.0f || motionDepth2.value != 0.0f);
     if (motionActive_) {
-      moLen_ = std::max(1, int(rate_ / std::max(0.01f, moHz_)));
+      moLen_ = std::max(1, int(rate_ / std::max(0.01f, motionHz.value)));
       moSharedRng_ = Randomizer(stream_seed(noteBase_, 0, kRngMotionShared));
-      walk_init(moShared_, moLen_, moEvolve_, moSharedRng_);
+      walk_init(moShared_, moLen_, motionEvolve.value, moSharedRng_);
       moWalks_.assign(n, MotionWalk{});
       if (int(moRng_.size()) != n) moRng_.resize(n, Randomizer(0u));
       for (int i = 0; i < n; ++i) {
         moRng_[i] = Randomizer(stream_seed(noteBase_, uint32_t(i), kRngMotionInd));
-        walk_init(moWalks_[i], moLen_, moEvolve_, moRng_[i]);
+        walk_init(moWalks_[i], moLen_, motionEvolve.value, moRng_[i]);
       }
       moVals_.assign(n, 0.0f);
     }
-    shimmerActive_ = (shDepth1_ != 0.0f || shDepth2_ != 0.0f);
+    shimmerActive_ = (shimmerDepth1.value != 0.0f || shimmerDepth2.value != 0.0f);
     if (shimmerActive_) {
-      shLen_ = std::max(1, int(rate_ / std::max(0.01f, shHz_)));
+      shLen_ = std::max(1, int(rate_ / std::max(0.01f, shimmerHz.value)));
       shSharedRng_ = Randomizer(stream_seed(noteBase_, 0, kRngShimmerShared));
-      walk_init(shShared_, shLen_, shEvolve_, shSharedRng_);
+      walk_init(shShared_, shLen_, shimmerEvolve.value, shSharedRng_);
       shWalks_.assign(n, MotionWalk{});
       if (int(shRng_.size()) != n) shRng_.resize(n, Randomizer(0u));
       for (int i = 0; i < n; ++i) {
         shRng_[i] = Randomizer(stream_seed(noteBase_, uint32_t(i), kRngShimmerInd));
-        walk_init(shWalks_[i], shLen_, shEvolve_, shRng_[i]);
+        walk_init(shWalks_[i], shLen_, shimmerEvolve.value, shRng_[i]);
       }
       shVals_.assign(n, 0.0f);
     }
-    tradeActive_ = (trDepth_ != 0.0f);
+    tradeActive_ = (tradeDepth.value != 0.0f);
     if (tradeActive_) {
-      trLen_ = std::max(1, int(rate_ / std::max(0.01f, trHz_)));
+      trLen_ = std::max(1, int(rate_ / std::max(0.01f, tradeHz.value)));
       trRng_ = Randomizer(stream_seed(noteBase_, 0, kRngTrade));
       trWalks_.assign((n + 1) / 2, MotionWalk{});
       for (auto& w : trWalks_) walk_init(w, trLen_, 0.0f, trRng_);
       trVals_.assign((n + 1) / 2, 0.0f);
     }
-    onsetActive_ = (onsetSpread_ > 0.0f);
+    onsetActive_ = (onsetSpread.value > 0.0f);
     if (onsetActive_) {
       // Per-partial onset delay: tilt orders delays by partial height
       // (+1 low-first / high partials bloom later, -1 reverse, 0 random).
       Randomizer onsetRng(stream_seed(noteBase_, 0, kRngOnset));
       onsetDelay_.resize(n);
-      float at = std::fabs(onsetTilt_);
+      float at = std::fabs(onsetTilt.value);
       for (int i = 0; i < n; ++i) {
         float u = onsetRng.value();
         float r = (n > 1) ? float(i) / float(n - 1) : 0.0f;
-        float ordered = (onsetTilt_ >= 0.0f) ? r : 1.0f - r;
-        onsetDelay_[i] = ((1.0f - at) * u + at * ordered) * onsetSpread_ * rate_;
+        float ordered = (onsetTilt.value >= 0.0f) ? r : 1.0f - r;
+        onsetDelay_[i] = ((1.0f - at) * u + at * ordered) * onsetSpread.value * rate_;
       }
-      onsetFadeSamples_ = std::max(1.0f, onsetFade_ * rate_);
+      onsetFadeSamples_ = std::max(1.0f, onsetFade.value * rate_);
     }
 
     init_detune_values();
@@ -554,31 +373,31 @@ struct Partials : ValueSource, IPartials {
   }
 
   void partials_next() override {
-    multEnv_->advance();
-    amplEnv_->advance();
-    poEnv_->advance();
-    roEnv_->advance();
-    dtEnv_->advance();
-    bwEnv_->advance();
-    motionEnv_->advance();
-    shimmerEnv_->advance();
+    multEnv.advance();
+    amplEnv.advance();
+    poEnv.advance();
+    roEnv.advance();
+    dtEnv.advance();
+    bwEnv.advance();
+    motionEnv.advance();
+    shimmerEnv.advance();
 
     refresh_sample_scalars();
 
     ++sampleIdx_;
     if (motionActive_) {
-      float shared = walk_advance(moShared_, moLen_, moEvolve_, moSharedRng_);
-      float coh = moCoherence_;
+      float shared = walk_advance(moShared_, moLen_, motionEvolve.value, moSharedRng_);
+      float coh = motionCoherence.value;
       for (size_t i = 0; i < moWalks_.size(); ++i) {
-        float ind = walk_advance(moWalks_[i], moLen_, moEvolve_, moRng_[i]);
+        float ind = walk_advance(moWalks_[i], moLen_, motionEvolve.value, moRng_[i]);
         moVals_[i] = coh * shared + (1.0f - coh) * ind;
       }
     }
     if (shimmerActive_) {
-      float shared = walk_advance(shShared_, shLen_, shEvolve_, shSharedRng_);
-      float coh = shCoherence_;
+      float shared = walk_advance(shShared_, shLen_, shimmerEvolve.value, shSharedRng_);
+      float coh = shimmerCoherence.value;
       for (size_t i = 0; i < shWalks_.size(); ++i) {
-        float ind = walk_advance(shWalks_[i], shLen_, shEvolve_, shRng_[i]);
+        float ind = walk_advance(shWalks_[i], shLen_, shimmerEvolve.value, shRng_[i]);
         shVals_[i] = coh * shared + (1.0f - coh) * ind;
       }
     }
@@ -654,7 +473,7 @@ private:
     if (motionActive_) {
       if (sMd_ != 0.0f) {
         float cents = sMd_ * moVals_[index];
-        if (moScale_ != 0.0f) cents *= moScaleCache_[index];
+        if (motionScale.value != 0.0f) cents *= moScaleCache_[index];
         // fast_exp2, not std::exp2: this is a CRT call executed once per
         // partial per sample, and it measured at 65.6% of viola_default's
         // entire loop cost (tools/ablate_layers.py). The replacement is
@@ -760,13 +579,13 @@ private:
     // default 0 reproduces the old max(0, g) exactly.
     if (shimmerActive_) {
       float g = 1.0f + sSd_ * shVals_[index];
-      pampl *= (g < shFloor_ ? shFloor_ : g);
+      pampl *= (g < shimmerFloor.value ? shimmerFloor.value : g);
     }
 
     // Energy trading: adjacent pairs share one walk with opposite signs, so
     // energy sloshes between neighbors while the pair sum stays ~constant.
     if (tradeActive_) {
-      float g = 1.0f + ((index & 1) ? -trDepth_ : trDepth_) * trVals_[index >> 1];
+      float g = 1.0f + ((index & 1) ? -tradeDepth.value : tradeDepth.value) * trVals_[index >> 1];
       pampl *= (g < 0.0f ? 0.0f : g);
     }
 
@@ -790,17 +609,17 @@ private:
   // Expressions and operand order match the originals exactly, so the values
   // are bit-identical to what the inline versions produced.
   void refresh_sample_scalars() {
-    sMultE_ = multEnv_->current();
-    sAmplE_ = amplEnv_->current();
-    sPoE_   = poEnv_->current();
-    sRoE_   = roEnv_->current();
-    sDtE_   = dtEnv_->current();
+    sMultE_ = multEnv.current();
+    sAmplE_ = amplEnv.current();
+    sPoE_   = poEnv.current();
+    sRoE_   = roEnv.current();
+    sDtE_   = dtEnv.current();
 
-    sDt_ = dt1_ + (dt2_ - dt1_) * sDtE_;
-    sMd_ = moDepth1_ + (moDepth2_ - moDepth1_) * motionEnv_->current();
-    sSd_ = shDepth1_ + (shDepth2_ - shDepth1_) * shimmerEnv_->current();
+    sDt_ = detune1.value + (detune2.value - detune1.value) * sDtE_;
+    sMd_ = motionDepth1.value + (motionDepth2.value - motionDepth1.value) * motionEnv.current();
+    sSd_ = shimmerDepth1.value + (shimmerDepth2.value - shimmerDepth1.value) * shimmerEnv.current();
 
-    float bw = bw1_ + (bw2_ - bw1_) * bwEnv_->current();
+    float bw = bandwidth1.value + (bandwidth2.value - bandwidth1.value) * bwEnv.current();
     sBwActive_ = (bw > 0.0f);
     if (sBwActive_) {
       if (bw > 1.0f) bw = 1.0f;
@@ -819,25 +638,25 @@ private:
     if (partialCacheValid_ && sMultE_ == cachedMultE_ && sRoE_ == cachedRoE_)
       return;
     const int n = int(mult1_.size());
-    const float ro = ro1_ + (ro2_ - ro1_) * sRoE_;
-    const bool scale = (moScale_ != 0.0f);
-    const bool inharm = (inharmB_ != 0.0f);
+    const float ro = rolloff1.value + (rolloff2.value - rolloff1.value) * sRoE_;
+    const bool scale = (motionScale.value != 0.0f);
+    const bool inharm = (inharmonicity.value != 0.0f);
     for (int i = 0; i < n; ++i) {
       float pmult = mult1_[i] + (mult2_[i] - mult1_[i]) * sMultE_;
       // Stiff-string stretch: m -> m*sqrt(1 + B*m^2). Applied to the
       // effective multiplier so frequency, rolloff and the decay law all see
       // the stretched partial. Branch keeps B == 0 bit-exact.
-      if (inharm) pmult *= std::sqrt(1.0f + inharmB_ * pmult * pmult);
+      if (inharm) pmult *= std::sqrt(1.0f + inharmonicity.value * pmult * pmult);
       pmultCache_[i]   = pmult;
       rolloffCache_[i] = (ro == 0.0f) ? 1.0f : (1.0f / std::pow(pmult, ro));
-      if (scale) moScaleCache_[i] = std::pow(pmult, moScale_);
+      if (scale) moScaleCache_[i] = std::pow(pmult, motionScale.value);
       if (decayActive_) {
         // rate_i = decayRate * pmult^decayExp dB/s -> per-sample amplitude
         // factor 10^(-rate_i / (20*sr)). Double intermediates: the factor is
         // within ~1e-7 of 1, where float pow quantisation would bias the
         // long-run decay audibly.
-        const double rate = double(decayRate_) *
-                            std::pow(double(pmult), double(decayExp_));
+        const double rate = double(decayRate.value) *
+                            std::pow(double(pmult), double(decayExp.value));
         decayGain_[i] = float(std::pow(10.0, -rate / (20.0 * double(rate_))));
       }
     }
@@ -986,37 +805,8 @@ protected:
   Randomizer moSharedRng_{0u}, shSharedRng_{0u}, trRng_{0u}, expandRng_{0u};
   std::vector<Randomizer> bwRng_, moRng_, shRng_;  // per-partial streams
 
-  // Envelopes
-  std::shared_ptr<ValueSource> multEnv_;
-  std::shared_ptr<ValueSource> amplEnv_;
-  std::shared_ptr<ValueSource> poEnv_;
-  std::shared_ptr<ValueSource> roEnv_;
-  std::shared_ptr<ValueSource> dtEnv_;
-  std::shared_ptr<ValueSource> bwEnv_;
-  std::shared_ptr<ValueSource> motionEnv_;
-  std::shared_ptr<ValueSource> shimmerEnv_;
-
-  // Global rolloff/detune ranges
-  float ro1_{1.0f}, ro2_{1.0f};
-  float dt1_{0.0f}, dt2_{0.0f};
-
-  // Bandwidth enhancement: bw1_→bw2_ mix amount (blended by bwEnv_), bwHz_ band
-  // width. Default 0 → feature inert (no change to existing patches).
-  float bw1_{0.0f}, bw2_{0.0f}, bwHz_{30.0f};
+  // Bandwidth-noise segment length in samples (derived from bandwidthHz at prepare)
   int   bwLen_{1600};
-
-  // Motion layer configs (all default-inert; see partial-motion design spec)
-  float moDepth1_{0.0f}, moDepth2_{0.0f}, moHz_{4.0f};
-  float moCoherence_{1.0f}, moEvolve_{0.0f}, moScale_{0.0f};
-  float shDepth1_{0.0f}, shDepth2_{0.0f}, shHz_{3.0f};
-  float shCoherence_{0.0f}, shEvolve_{0.0f}, shFloor_{0.0f};
-  float trDepth_{0.0f}, trHz_{2.0f};
-  float onsetSpread_{0.0f}, onsetTilt_{0.0f}, onsetFade_{0.03f};
-
-  // Per-partial decay + inharmonicity configs (piano; defaults inert)
-  float decayRate_{0.0f};   // dB/s at pmult == 1
-  float decayExp_{0.0f};    // rate_i = decayRate * pmult_i^decayExp
-  float inharmB_{0.0f};     // stiff-string B: m -> m*sqrt(1 + B*m^2)
 
   // Motion layer runtime state (allocated in partials_prepare)
   bool motionActive_{false}, shimmerActive_{false};
@@ -1070,102 +860,57 @@ protected:
 // Ported from legacy FullPartials.cs InitArrays.
 // ---------------------------------------------------------------------------
 struct FullPartials final : Partials {
+  Setting<int>   maxPartials{this, "maxPartials", 30, 1, 200};
+  Setting<int>   minMult    {this, "minMult",     1,  1, 100};
+  Setting<float> evenWeight1{this, "evenWeight1", 1.0f, 0.0f, 10.0f};
+  Setting<float> evenWeight2{this, "evenWeight2", 1.0f, 0.0f, 10.0f};
+  Setting<float> oddWeight1 {this, "oddWeight1",  1.0f, 0.0f, 10.0f};
+  Setting<float> oddWeight2 {this, "oddWeight2",  1.0f, 0.0f, 10.0f};
+  Setting<float> unitPO1    {this, "unitPO1",     0.0f, 0.0f, 1.0f};
+  Setting<float> unitPO2    {this, "unitPO2",     0.0f, 0.0f, 1.0f};
+
   FullPartials(uint32_t seed = 0xADD2'0000u) : Partials(seed) { init_arrays(); }
 
   const char* type_name() const override { return "FullPartials"; }
 
-  std::span<const SettingDescriptor> setting_descriptors() const override {
-    static constexpr SettingDescriptor descs[] = {
-      {"maxPartials",  SettingType::Int,   30.0f, 1.0f, 200.0f},
-      {"minMult",      SettingType::Int,   1.0f,  1.0f, 100.0f},
-      {"evenWeight1",  SettingType::Float, 1.0f,  0.0f, 10.0f},
-      {"evenWeight2",  SettingType::Float, 1.0f,  0.0f, 10.0f},
-      {"oddWeight1",   SettingType::Float, 1.0f,  0.0f, 10.0f},
-      {"oddWeight2",   SettingType::Float, 1.0f,  0.0f, 10.0f},
-      {"unitPO1",      SettingType::Float, 0.0f,  0.0f, 1.0f},
-      {"unitPO2",      SettingType::Float, 0.0f,  0.0f, 1.0f},
-      {"rolloff1",     SettingType::Float, 1.0f,  0.0f, 10.0f},
-      {"rolloff2",     SettingType::Float, 1.0f,  0.0f, 10.0f},
-      {"detune1",      SettingType::Float, 0.0f,  0.0f, 1.0f},
-      {"detune2",      SettingType::Float, 0.0f,  0.0f, 1.0f},
-      {"bandwidth1",   SettingType::Float, 0.0f,  0.0f, 1.0f},
-      {"bandwidth2",   SettingType::Float, 0.0f,  0.0f, 1.0f},
-      {"bandwidthHz",  SettingType::Float, 30.0f, 1.0f, 2000.0f},
-      MFORCE_PARTIALS_MOTION_CONFIG_DESCS
-    };
-    return descs;
-  }
-
-  void set_setting(std::string_view name, float value) override {
-    if (name == "maxPartials")  { maxPartials_ = std::max(1, int(value)); arrayUpdateReq_ = true; return; }
-    if (name == "minMult")      { minMult_ = std::max(1, int(value)); arrayUpdateReq_ = true; return; }
-    if (name == "evenWeight1")  { evenWeight1_ = value; arrayUpdateReq_ = true; return; }
-    if (name == "evenWeight2")  { evenWeight2_ = value; arrayUpdateReq_ = true; return; }
-    if (name == "oddWeight1")   { oddWeight1_ = value; arrayUpdateReq_ = true; return; }
-    if (name == "oddWeight2")   { oddWeight2_ = value; arrayUpdateReq_ = true; return; }
-    if (name == "unitPO1")      { unitPO1_ = value; arrayUpdateReq_ = true; return; }
-    if (name == "unitPO2")      { unitPO2_ = value; arrayUpdateReq_ = true; return; }
-    Partials::set_setting(name, value);
-  }
-
-  float get_setting(std::string_view name) const override {
-    if (name == "maxPartials")  return float(maxPartials_);
-    if (name == "minMult")      return float(minMult_);
-    if (name == "evenWeight1")  return evenWeight1_;
-    if (name == "evenWeight2")  return evenWeight2_;
-    if (name == "oddWeight1")   return oddWeight1_;
-    if (name == "oddWeight2")   return oddWeight2_;
-    if (name == "unitPO1")      return unitPO1_;
-    if (name == "unitPO2")      return unitPO2_;
-    return Partials::get_setting(name);
-  }
-
-  // Programmatic setup (backward compat with old FullAdditiveSource::init_full_partials)
-  void setup(int maxPartials, int minMult,
-             float ew1, float ew2, float ow1, float ow2,
-             float unitPO1, float unitPO2) {
-    maxPartials_ = maxPartials; minMult_ = minMult;
-    evenWeight1_ = ew1; evenWeight2_ = ew2;
-    oddWeight1_ = ow1; oddWeight2_ = ow2;
-    unitPO1_ = unitPO1; unitPO2_ = unitPO2;
-    init_arrays();
+  // Each of these settings reshapes the arrays, which are rebuilt at the next prepare.
+  void on_setting_changed(std::string_view name) override {
+    Partials::on_setting_changed(name);
+    if (name == "maxPartials") maxPartials.value = std::max(1, maxPartials.value);
+    if (name == "minMult")     minMult.value = std::max(1, minMult.value);
+    for (const char* own : {"maxPartials", "minMult", "evenWeight1", "evenWeight2",
+                            "oddWeight1", "oddWeight2", "unitPO1", "unitPO2"})
+      if (name == own) arrayUpdateReq_ = true;
   }
 
 protected:
   void init_arrays() override {
-    int n = maxPartials_;
+    int n = maxPartials.value;
     mult1_.resize(n); mult2_.resize(n);
     ampl1_.resize(n); ampl2_.resize(n);
     po1_.resize(n);   po2_.resize(n);
 
     for (int i = 0; i < n; ++i) {
-      float m = float(minMult_ + i);
+      float m = float(minMult.value + i);
       mult1_[i] = m;
 
       // Even/odd amplitude weights (fundamental always 1) — legacy FullPartials.cs
       if (int(std::trunc(m)) % 2 == 0) {
-        ampl1_[i] = evenWeight1_;
-        ampl2_[i] = evenWeight2_;
+        ampl1_[i] = evenWeight1.value;
+        ampl2_[i] = evenWeight2.value;
       } else {
-        ampl1_[i] = (m == 1.0f) ? 1.0f : oddWeight1_;
-        ampl2_[i] = (m == 1.0f) ? 1.0f : oddWeight2_;
+        ampl1_[i] = (m == 1.0f) ? 1.0f : oddWeight1.value;
+        ampl2_[i] = (m == 1.0f) ? 1.0f : oddWeight2.value;
       }
 
       // Phase offsets: (mult - 1) * unitPO
-      po1_[i] = std::fmod((m - 1.0f) * unitPO1_, 1.0f);
-      po2_[i] = std::fmod((m - 1.0f) * unitPO2_, 1.0f);
+      po1_[i] = std::fmod((m - 1.0f) * unitPO1.value, 1.0f);
+      po2_[i] = std::fmod((m - 1.0f) * unitPO2.value, 1.0f);
     }
 
     // No multiplier evolution for FullPartials
     mult2_ = mult1_;
   }
-
-private:
-  int maxPartials_{30};
-  int minMult_{1};
-  float evenWeight1_{1.0f}, evenWeight2_{1.0f};
-  float oddWeight1_{1.0f}, oddWeight2_{1.0f};
-  float unitPO1_{0.0f}, unitPO2_{0.0f};
 };
 
 // ---------------------------------------------------------------------------
@@ -1173,83 +918,41 @@ private:
 // Ported from legacy SequencePartials.cs InitArrays.
 // ---------------------------------------------------------------------------
 struct SequencePartials final : Partials {
+  Setting<int>   maxPartials{this, "maxPartials", 30, 1, 200};
+  Setting<float> minMult1   {this, "minMult1",    1.0f, 0.01f, 100.0f};
+  Setting<float> minMult2   {this, "minMult2",    1.0f, 0.01f, 100.0f};
+  Setting<float> incr1      {this, "incr1",       1.0f, 0.01f, 100.0f};
+  Setting<float> incr2      {this, "incr2",       1.0f, 0.01f, 100.0f};
+  Setting<float> unitPO1    {this, "unitPO1",     0.0f, 0.0f,  1.0f};
+  Setting<float> unitPO2    {this, "unitPO2",     0.0f, 0.0f,  1.0f};
+
   SequencePartials(uint32_t seed = 0xADD2'0000u) : Partials(seed) { init_arrays(); }
 
   const char* type_name() const override { return "SequencePartials"; }
 
-  std::span<const SettingDescriptor> setting_descriptors() const override {
-    static constexpr SettingDescriptor descs[] = {
-      {"maxPartials", SettingType::Int,   30.0f, 1.0f, 200.0f},
-      {"minMult1",    SettingType::Float, 1.0f,  0.01f, 100.0f},
-      {"minMult2",    SettingType::Float, 1.0f,  0.01f, 100.0f},
-      {"incr1",       SettingType::Float, 1.0f,  0.01f, 100.0f},
-      {"incr2",       SettingType::Float, 1.0f,  0.01f, 100.0f},
-      {"unitPO1",     SettingType::Float, 0.0f,  0.0f, 1.0f},
-      {"unitPO2",     SettingType::Float, 0.0f,  0.0f, 1.0f},
-      {"rolloff1",    SettingType::Float, 1.0f,  0.0f, 10.0f},
-      {"rolloff2",    SettingType::Float, 1.0f,  0.0f, 10.0f},
-      {"detune1",     SettingType::Float, 0.0f,  0.0f, 1.0f},
-      {"detune2",     SettingType::Float, 0.0f,  0.0f, 1.0f},
-      {"bandwidth1",  SettingType::Float, 0.0f,  0.0f, 1.0f},
-      {"bandwidth2",  SettingType::Float, 0.0f,  0.0f, 1.0f},
-      {"bandwidthHz", SettingType::Float, 30.0f, 1.0f, 2000.0f},
-      MFORCE_PARTIALS_MOTION_CONFIG_DESCS
-    };
-    return descs;
-  }
-
-  void set_setting(std::string_view name, float value) override {
-    if (name == "maxPartials") { maxPartials_ = std::max(1, int(value)); arrayUpdateReq_ = true; return; }
-    if (name == "minMult1")    { minMult1_ = value; arrayUpdateReq_ = true; return; }
-    if (name == "minMult2")    { minMult2_ = value; arrayUpdateReq_ = true; return; }
-    if (name == "incr1")       { incr1_ = value; arrayUpdateReq_ = true; return; }
-    if (name == "incr2")       { incr2_ = value; arrayUpdateReq_ = true; return; }
-    if (name == "unitPO1")     { unitPO1_ = value; arrayUpdateReq_ = true; return; }
-    if (name == "unitPO2")     { unitPO2_ = value; arrayUpdateReq_ = true; return; }
-    Partials::set_setting(name, value);
-  }
-
-  float get_setting(std::string_view name) const override {
-    if (name == "maxPartials") return float(maxPartials_);
-    if (name == "minMult1")    return minMult1_;
-    if (name == "minMult2")    return minMult2_;
-    if (name == "incr1")       return incr1_;
-    if (name == "incr2")       return incr2_;
-    if (name == "unitPO1")     return unitPO1_;
-    if (name == "unitPO2")     return unitPO2_;
-    return Partials::get_setting(name);
-  }
-
-  // Programmatic setup
-  void setup(int maxPartials, float minMult1, float minMult2,
-             float incr1, float incr2, float unitPO1, float unitPO2) {
-    maxPartials_ = maxPartials;
-    minMult1_ = minMult1; minMult2_ = minMult2;
-    incr1_ = incr1; incr2_ = incr2;
-    unitPO1_ = unitPO1; unitPO2_ = unitPO2;
-    init_arrays();
+  // Each of these settings reshapes the arrays, which are rebuilt at the next prepare.
+  void on_setting_changed(std::string_view name) override {
+    Partials::on_setting_changed(name);
+    if (name == "maxPartials") maxPartials.value = std::max(1, maxPartials.value);
+    for (const char* own : {"maxPartials", "minMult1", "minMult2", "incr1", "incr2",
+                            "unitPO1", "unitPO2"})
+      if (name == own) arrayUpdateReq_ = true;
   }
 
 protected:
   void init_arrays() override {
-    int n = maxPartials_;
+    int n = maxPartials.value;
     mult1_.resize(n); mult2_.resize(n);
     ampl1_.assign(n, 1.0f); ampl2_.assign(n, 1.0f);
     po1_.resize(n); po2_.resize(n);
 
     for (int i = 0; i < n; ++i) {
-      mult1_[i] = minMult1_ + float(i) * incr1_;
-      mult2_[i] = minMult2_ + float(i) * incr2_;
-      po1_[i] = std::fmod((mult1_[i] - 1.0f) * unitPO1_, 1.0f);
-      po2_[i] = std::fmod((mult2_[i] - 1.0f) * unitPO2_, 1.0f);
+      mult1_[i] = minMult1.value + float(i) * incr1.value;
+      mult2_[i] = minMult2.value + float(i) * incr2.value;
+      po1_[i] = std::fmod((mult1_[i] - 1.0f) * unitPO1.value, 1.0f);
+      po2_[i] = std::fmod((mult2_[i] - 1.0f) * unitPO2.value, 1.0f);
     }
   }
-
-private:
-  int maxPartials_{30};
-  float minMult1_{1.0f}, minMult2_{1.0f};
-  float incr1_{1.0f}, incr2_{1.0f};
-  float unitPO1_{0.0f}, unitPO2_{0.0f};
 };
 
 // ---------------------------------------------------------------------------
@@ -1257,124 +960,80 @@ private:
 // Ported from legacy ExplicitPartials.cs InitArrays.
 // ---------------------------------------------------------------------------
 struct ExplicitPartials final : Partials {
+  Setting<int>   maxPartials{this, "maxPartials", 16, 1, 200};
+  Setting<bool>  evolve     {this, "evolve",      true, false, true};
+  Setting<float> unitPO1    {this, "unitPO1",     0.0f, 0.0f, 1.0f};
+  Setting<float> unitPO2    {this, "unitPO2",     0.0f, 0.0f, 1.0f};
+
+  // Four parallel arrays grouped as "partials" — the UI table keeps them equal
+  // length. Column order pairs start/end per partial: Mult1, Ampl1, Mult2, Ampl2.
+  // When evolve=false, _2 columns are kept mirrored from _1 (UI disables them).
+  // These are the user's copies; init_arrays() derives the working arrays (and
+  // the phase offsets) from them, and again after an expansion.
+  Array mult1{this, "mult1", "partials", 1.0f, 0.0f, 200.0f};
+  Array ampl1{this, "ampl1", "partials", 1.0f, 0.0f, 10.0f};
+  Array mult2{this, "mult2", "partials", 1.0f, 0.0f, 200.0f};
+  Array ampl2{this, "ampl2", "partials", 1.0f, 0.0f, 10.0f};
+
   ExplicitPartials(uint32_t seed = 0xADD2'0000u) : Partials(seed) { init_arrays_defaults(); }
 
   const char* type_name() const override { return "ExplicitPartials"; }
 
-  std::span<const SettingDescriptor> setting_descriptors() const override {
-    static constexpr SettingDescriptor descs[] = {
-      {"maxPartials", SettingType::Int,   16.0f, 1.0f, 200.0f},
-      {"evolve",      SettingType::Bool,  1.0f,  0.0f, 1.0f},
-      {"unitPO1",     SettingType::Float, 0.0f,  0.0f, 1.0f},
-      {"unitPO2",     SettingType::Float, 0.0f,  0.0f, 1.0f},
-      {"rolloff1",    SettingType::Float, 1.0f,  0.0f, 10.0f},
-      {"rolloff2",    SettingType::Float, 1.0f,  0.0f, 10.0f},
-      {"detune1",     SettingType::Float, 0.0f,  0.0f, 1.0f},
-      {"detune2",     SettingType::Float, 0.0f,  0.0f, 1.0f},
-      {"bandwidth1",  SettingType::Float, 0.0f,  0.0f, 1.0f},
-      {"bandwidth2",  SettingType::Float, 0.0f,  0.0f, 1.0f},
-      {"bandwidthHz", SettingType::Float, 30.0f, 1.0f, 2000.0f},
-      MFORCE_PARTIALS_MOTION_CONFIG_DESCS
-    };
-    return descs;
-  }
-
-  void set_setting(std::string_view name, float value) override {
-    if (name == "maxPartials") { maxPartials_ = std::max(1, int(value)); init_arrays_defaults(); return; }
-    if (name == "evolve") {
-      evolve_ = (value != 0.0f);
-      // When turning evolve off, mirror _1 → _2 so rendering stops drifting.
-      if (!evolve_) {
-        mult2Stat_ = mult1Stat_;
-        ampl2Stat_ = ampl1Stat_;
-        init_arrays();
-      }
-      return;
+  void on_setting_changed(std::string_view name) override {
+    Partials::on_setting_changed(name);
+    if (name == "maxPartials") {
+      maxPartials.value = std::max(1, maxPartials.value);
+      init_arrays_defaults();
+    } else if (name == "evolve" && !evolve.value) {
+      // When turning evolve off, mirror _1 -> _2 so rendering stops drifting.
+      mult2.values = mult1.values;
+      ampl2.values = ampl1.values;
+      init_arrays();
     }
-    if (name == "unitPO1")     { unitPO1_ = value; return; }
-    if (name == "unitPO2")     { unitPO2_ = value; return; }
-    Partials::set_setting(name, value);
   }
 
-  float get_setting(std::string_view name) const override {
-    if (name == "maxPartials") return float(maxPartials_);
-    if (name == "evolve")      return evolve_ ? 1.0f : 0.0f;
-    if (name == "unitPO1")     return unitPO1_;
-    if (name == "unitPO2")     return unitPO2_;
-    return Partials::get_setting(name);
-  }
-
-  // Direct array setters for patch_loader / programmatic use
-  void set_arrays(std::vector<float> m1, std::vector<float> m2,
-                  std::vector<float> a1, std::vector<float> a2) {
-    mult1Stat_ = std::move(m1); mult2Stat_ = std::move(m2);
-    ampl1Stat_ = std::move(a1); ampl2Stat_ = std::move(a2);
-    maxPartials_ = int(mult1Stat_.size());
+  void on_array_changed(std::string_view name) override {
+    if (!evolve.value) {
+      if (name == "mult1") mult2.values = mult1.values;
+      if (name == "ampl1") ampl2.values = ampl1.values;
+    }
+    maxPartials.value = int(mult1.values.size());
     init_arrays();
   }
 
-  // Programmatic setup (backward compat)
-  void setup(std::vector<float> m1, std::vector<float> m2,
-             std::vector<float> a1, std::vector<float> a2,
-             float unitPO1, float unitPO2) {
-    unitPO1_ = unitPO1; unitPO2_ = unitPO2;
-    set_arrays(std::move(m1), std::move(m2), std::move(a1), std::move(a2));
-  }
-
-  // Four parallel arrays grouped as "partials" — UI table keeps them equal
-  // length. Column order pairs start/end per partial: Mult1, Ampl1, Mult2, Ampl2.
-  // When evolve=false, _2 columns are kept mirrored from _1 (UI disables them).
-  std::span<const ArrayDescriptor> array_descriptors() const override {
-    static constexpr ArrayDescriptor descs[] = {
-      {"mult1", "partials", 1.0f, 0.0f, 200.0f},
-      {"ampl1", "partials", 1.0f, 0.0f, 10.0f},
-      {"mult2", "partials", 1.0f, 0.0f, 200.0f},
-      {"ampl2", "partials", 1.0f, 0.0f, 10.0f},
-    };
-    return descs;
-  }
-  void set_array(std::string_view name, std::vector<float> v) override {
-    if      (name == "mult1") { mult1Stat_ = std::move(v); if (!evolve_) mult2Stat_ = mult1Stat_; }
-    else if (name == "mult2") { mult2Stat_ = std::move(v); }
-    else if (name == "ampl1") { ampl1Stat_ = std::move(v); if (!evolve_) ampl2Stat_ = ampl1Stat_; }
-    else if (name == "ampl2") { ampl2Stat_ = std::move(v); }
-    else return;
-    maxPartials_ = int(mult1Stat_.size());
-    init_arrays();
-  }
+  // Falls back to the working arrays (init_arrays_defaults populates mult1_
+  // etc., not the user's copies) so the UI sees current effective values.
   std::vector<float> get_array(std::string_view name) const override {
-    // Fall back to the working arrays (init_arrays_defaults populates mult1_
-    // etc., not the Stat_ copies) so the UI sees current effective values.
-    if (name == "mult1") return mult1Stat_.empty() ? mult1_ : mult1Stat_;
-    if (name == "mult2") return mult2Stat_.empty() ? mult2_ : mult2Stat_;
-    if (name == "ampl1") return ampl1Stat_.empty() ? ampl1_ : ampl1Stat_;
-    if (name == "ampl2") return ampl2Stat_.empty() ? ampl2_ : ampl2Stat_;
+    if (name == "mult1") return mult1.values.empty() ? mult1_ : mult1.values;
+    if (name == "mult2") return mult2.values.empty() ? mult2_ : mult2.values;
+    if (name == "ampl1") return ampl1.values.empty() ? ampl1_ : ampl1.values;
+    if (name == "ampl2") return ampl2.values.empty() ? ampl2_ : ampl2.values;
     return {};
   }
 
 protected:
   void init_arrays() override {
-    if (mult1Stat_.empty()) {
+    if (mult1.values.empty()) {
       init_arrays_defaults();
       return;
     }
-    mult1_ = mult1Stat_;
-    mult2_ = mult2Stat_;
-    ampl1_ = ampl1Stat_;
-    ampl2_ = ampl2Stat_;
+    mult1_ = mult1.values;
+    mult2_ = mult2.values;
+    ampl1_ = ampl1.values;
+    ampl2_ = ampl2.values;
 
     int n = int(mult1_.size());
     po1_.resize(n);
     po2_.resize(n);
     for (int i = 0; i < n; ++i) {
-      po1_[i] = std::fmod((mult1_[i] - 1.0f) * unitPO1_, 1.0f);
-      po2_[i] = std::fmod((mult2_[i] - 1.0f) * unitPO2_, 1.0f);
+      po1_[i] = std::fmod((mult1_[i] - 1.0f) * unitPO1.value, 1.0f);
+      po2_[i] = std::fmod((mult2_[i] - 1.0f) * unitPO2.value, 1.0f);
     }
   }
 
 private:
   void init_arrays_defaults() {
-    int n = maxPartials_;
+    int n = maxPartials.value;
     mult1_.resize(n); mult2_.resize(n);
     ampl1_.resize(n); ampl2_.resize(n);
     po1_.resize(n);   po2_.resize(n);
@@ -1385,12 +1044,6 @@ private:
       po1_[i] = 0.0f; po2_[i] = 0.0f;
     }
   }
-
-  int maxPartials_{16};
-  bool evolve_{true};
-  float unitPO1_{0.0f}, unitPO2_{0.0f};
-  // Static copies for re-init after expansion
-  std::vector<float> mult1Stat_, mult2Stat_, ampl1Stat_, ampl2Stat_;
 };
 
 // ---------------------------------------------------------------------------
@@ -1404,6 +1057,8 @@ struct CompositePartials final : ValueSource, IPartials {
   const char* type_name() const override { return "CompositePartials"; }
   SourceCategory category() const override { return SourceCategory::Additive; }
 
+  // The `partials` input is a list, held in `sets_`, not a pin: it is served
+  // by name here, and wiring it appends (add_param routes here through the base).
   std::span<const InputDescriptor> input_descriptors() const override {
     static constexpr InputDescriptor descs[] = {
       {"partials", true},  // multi-input: wire multiple Partials sources
@@ -1412,22 +1067,18 @@ struct CompositePartials final : ValueSource, IPartials {
   }
 
   void set_param(std::string_view name, std::shared_ptr<ValueSource> src) override {
-    if (name == "partials") {
-      auto* p = dynamic_cast<IPartials*>(src.get());
-      if (p) sets_.push_back({std::move(src), p});
-    }
-  }
-
-  void add_param(std::string_view name, std::shared_ptr<ValueSource> src) override {
-    set_param(name, std::move(src));
+    if (name != "partials") { ValueSource::set_param(name, std::move(src)); return; }
+    auto* p = dynamic_cast<IPartials*>(src.get());
+    if (p) sets_.push_back({std::move(src), p});
   }
 
   void clear_param(std::string_view name) override {
     if (name == "partials") sets_.clear();
+    else ValueSource::clear_param(name);
   }
 
   // --- ValueSource interface (not an audio source itself) ---
-  void prepare(const RenderContext& ctx, int frames) override { partials_prepare(ctx, frames); }
+  void on_prepare(const RenderContext& ctx, int frames) override { partials_prepare(ctx, frames); }
   float next() override { partials_next(); return 0.0f; }
   float current() const override { return 0.0f; }
 

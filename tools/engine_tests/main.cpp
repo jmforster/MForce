@@ -2721,6 +2721,426 @@ static void run_evolution_manual_pin_tests() {
     run(std::make_shared<BitRotateEvolutionSource>(), "stepEvery", "shiftBits");
 }
 
+// Checkpoint 2.1: the additive family (sources, partials, formants).
+#include "mforce/source/additive/additive_source2.h"
+#include "mforce/source/additive/basic_additive_source.h"
+#include "mforce/source/additive/formant.h"
+#include "mforce/source/additive/full_additive_source.h"
+#include "mforce/source/additive/partials.h"
+
+namespace {
+std::string array_names(const mforce::Component& c) {
+    std::string out;
+    for (const auto& d : c.array_descriptors()) { out += d.name; out += ','; }
+    return out;
+}
+// The eight envelope pins of every Partials, in the order partials_next() advances them.
+const char* const kPartialsEnvNames[8] = {"multEnv", "amplEnv", "poEnv", "roEnv",
+                                          "dtEnv", "bwEnv", "motionEnv", "shimmerEnv"};
+}
+
+// The three sources declare the WaveSource trio and then their own pins, in
+// the order wave() advanced them; the structural inputs are named but never
+// pulled.
+static void run_additive_source_pin_tests() {
+    AdditiveSource2 a2(48000);
+    CHECK(param_names(a2) == "amplitude,frequency,phase,phaseOffset,freqVarDepth,freqVarSpeed,"
+                             "amplVarDepth,amplVarSpeed,");
+    CHECK(input_names(a2) == "partials,");
+    CHECK(setting_names(a2) == "partialCount,");
+    CHECK(a2.setting_descriptors()[0].type == SettingType::Int);
+    CHECK(a2.range() == Generator::Range::Bipolar);
+    CHECK(a2.category() == SourceCategory::Additive);
+
+    BasicAdditiveSource basic(48000);
+    CHECK(param_names(basic) == "amplitude,frequency,phase,evenWeight,oddWeight,rolloff,"
+                                "freqVarPct,freqVarSpeed,amplVarPct,amplVarSpeed,");
+    CHECK(input_names(basic).empty());
+    CHECK(setting_names(basic).empty());
+    CHECK_NEAR(param_default(basic, "rolloff"), 1.0f, 1e-6f);
+    CHECK_NEAR(param_default(basic, "evenWeight"), 1.0f, 1e-6f);
+
+    FullAdditiveSource full(48000);
+    CHECK(param_names(full) == "amplitude,frequency,phase,formantWeight,formantFloor,");
+    CHECK(input_names(full) == "formant,partials,");
+    CHECK(setting_names(full) == "noiseBedLevel,noiseBedFreq,noiseBedWidth,noiseBedDelay,"
+                                 "noiseBedFadePow,noiseBedFade,");
+    CHECK_NEAR(param_default(full, "formantWeight"), 0.0f, 1e-6f);
+    CHECK_NEAR(param_default(full, "formantFloor"), 1.0f, 1e-6f);
+    CHECK_NEAR(full.get_setting("noiseBedFreq"), 2900.0f, 1e-3f);
+    CHECK_NEAR(full.get_setting("noiseBedFade"), 0.05f, 1e-6f);
+    CHECK(std::string(full.type_name()) == "AdditiveSource");
+    CHECK(full.get_param("formantFloor") == nullptr);
+    CHECK(full.get_param("formant") == nullptr);
+}
+
+// The structural types: the pins they declare, in descriptor order.
+static void run_additive_structural_pin_tests() {
+    Formant f;
+    CHECK(param_names(f) == "frequency,gain,width,power,");
+    CHECK_NEAR(param_default(f, "frequency"), 1000.0f, 1e-3f);
+    CHECK_NEAR(param_default(f, "width"), 500.0f, 1e-3f);
+    CHECK_NEAR(param_default(f, "power"), 2.0f, 1e-6f);
+    CHECK_NEAR(f.width.current(), 500.0f, 1e-3f);
+
+    BandSpectrum band;
+    CHECK(param_names(band) == "startFreq,freqIncrement,");
+    CHECK(array_names(band) == "gains,");
+    FixedSpectrum fixed({0.0f, 1.0f, 0.0f});
+    CHECK(param_names(fixed).empty());
+    CHECK(array_names(fixed) == "gains,");
+    CHECK(fixed.get_array("gains") == std::vector<float>({0.0f, 1.0f, 0.0f}));
+    CHECK_NEAR(fixed.get_gain(1.0f), 1.0f, 1e-6f);
+    band.set_array("gains", {0.0f, 1.0f, 0.0f});
+    CHECK_NEAR(band.get_gain(1.0f), 1.0f, 1e-6f);
+    CHECK(band.contains(1.5f) && !band.contains(2.5f));
+
+    FormantSequence seq;
+    CHECK(param_names(seq) == "blend,");
+    CHECK(input_names(seq) == "spectra,");
+    CHECK(seq.input_descriptors()[0].multi);
+    FormantSpectrum spec;
+    CHECK(param_names(spec).empty() && input_names(spec).empty());
+
+    CompositePartials comp;
+    CHECK(param_names(comp).empty());
+    CHECK(input_names(comp) == "partials,");
+    CHECK(comp.input_descriptors()[0].multi);
+
+    ExpandRuleNode rule;
+    CHECK(param_names(rule) == "spacing1,spacing2,dt1,dt2,loPct1,loPct2,power1,power2,po1,po2,");
+    CHECK(setting_names(rule) == "count,recurse,");
+    CHECK(rule.to_struct().count == 2 && rule.to_struct().recurse == 0);
+    CHECK_NEAR(rule.to_struct().spacing1, 0.5f, 1e-6f);
+    CHECK_NEAR(rule.to_struct().dt2, 0.01f, 1e-6f);
+    rule.set_setting("count", 4.0f);
+    rule.set_param("po2", std::make_shared<ConstantSource>(0.25f));
+    CHECK(rule.to_struct().count == 4);
+    CHECK_NEAR(rule.to_struct().po2, 0.25f, 1e-6f);
+}
+
+// Every Partials declares the same eight envelope pins and the shared
+// settings; a subclass adds its own settings after them.
+static void run_additive_partials_pin_tests() {
+    FullPartials full;
+    SequencePartials seq;
+    ExplicitPartials expl;
+    std::string envs = "multEnv,amplEnv,poEnv,roEnv,dtEnv,bwEnv,motionEnv,shimmerEnv,";
+    CHECK(param_names(full) == envs);
+    CHECK(param_names(seq) == envs);
+    CHECK(param_names(expl) == envs);
+    CHECK(input_names(full).empty());
+    CHECK(array_names(full).empty() && array_names(seq).empty());
+    CHECK(array_names(expl) == "mult1,ampl1,mult2,ampl2,");
+    for (const auto& d : expl.array_descriptors()) CHECK(std::string(d.groupName) == "partials");
+
+    const std::string shared = "rolloff1,rolloff2,detune1,detune2,bandwidth1,bandwidth2,bandwidthHz,";
+    CHECK(setting_names(full).rfind(shared, 0) == 0);
+    CHECK(setting_names(full).find("maxPartials,minMult,evenWeight1,evenWeight2,oddWeight1,oddWeight2,"
+                                   "unitPO1,unitPO2,") != std::string::npos);
+    CHECK(setting_names(seq).find("maxPartials,minMult1,minMult2,incr1,incr2,unitPO1,unitPO2,")
+          != std::string::npos);
+    CHECK(setting_names(expl).find("maxPartials,evolve,unitPO1,unitPO2,") != std::string::npos);
+    CHECK(has_name(full.setting_descriptors(), "inharmonicity"));
+    CHECK(has_name(seq.setting_descriptors(), "onsetFade"));
+    CHECK_NEAR(full.get_setting("maxPartials"), 30.0f, 1e-6f);
+    CHECK_NEAR(seq.get_setting("maxPartials"), 30.0f, 1e-6f);
+    CHECK_NEAR(expl.get_setting("maxPartials"), 16.0f, 1e-6f);
+    CHECK_NEAR(full.get_setting("motionHz"), 4.0f, 1e-6f);
+    CHECK_NEAR(full.get_setting("onsetFade"), 0.03f, 1e-6f);
+    CHECK_NEAR(full.get_setting("bandwidthHz"), 30.0f, 1e-6f);
+    CHECK(expl.get_setting("evolve") == 1.0f);
+    for (const auto& d : expl.setting_descriptors())
+        if (std::string(d.name) == "evolve") CHECK(d.type == SettingType::Bool);
+    CHECK(full.partial_count() == 30 && seq.partial_count() == 30 && expl.partial_count() == 16);
+}
+
+// Every type prepares and renders finite values; a wired source plays.
+static void run_additive_smoke_tests() {
+    RenderContext ctx{48000};
+    auto smoke = [&](ValueSource& s) {
+        s.prepare(ctx, 4800);
+        for (int i = 0; i < 10; ++i) CHECK(std::isfinite(s.next()));
+    };
+    AdditiveSource2 a2(48000);          a2.set_default_partials(40); smoke(a2);
+    BasicAdditiveSource basic(48000);   smoke(basic);
+    FullAdditiveSource bare(48000);     smoke(bare);                 // no partials: silent
+    Formant formant;                    smoke(formant);
+    FormantSpectrum spectrum;           spectrum.formants.push_back(std::make_shared<Formant>()); smoke(spectrum);
+    FixedSpectrum fixed({0.0f, 1.0f});  smoke(fixed);
+    BandSpectrum band;                  smoke(band);
+    FormantSequence seq;                smoke(seq);
+    CompositePartials comp;             smoke(comp);
+    ExpandRuleNode rule;                smoke(rule);
+    FullPartials full;                  smoke(full);
+    SequencePartials sequence;          smoke(sequence);
+    ExplicitPartials expl;              smoke(expl);
+
+    FullAdditiveSource f(48000);
+    f.set_param("partials", std::make_shared<FullPartials>());
+    f.set_param("formant", std::make_shared<Formant>());
+    f.set_param("formantWeight", std::make_shared<ConstantSource>(0.5f));
+    f.prepare(ctx, 4800);
+    float sum = 0.0f;
+    for (int i = 0; i < 400; ++i) sum += std::fabs(f.next());
+    CHECK(sum > 0.0f);
+
+    basic.set_param("frequency", std::make_shared<ConstantSource>(220.0f));
+    basic.prepare(ctx, 4800);
+    sum = 0.0f;
+    for (int i = 0; i < 400; ++i) sum += std::fabs(basic.next());
+    CHECK(sum > 0.0f);
+}
+
+// AdditiveSource2 and BasicAdditiveSource pull their own pins once per
+// sample and prepare them once per note.
+static void run_additive_auto_pin_tests() {
+    RenderContext ctx{48000};
+    auto count = [&](ValueSource& s, std::initializer_list<const char*> names) {
+        std::vector<std::shared_ptr<PinCounter>> probes;
+        for (const char* n : names) {
+            probes.push_back(std::make_shared<PinCounter>());
+            s.set_param(n, probes.back());
+        }
+        s.prepare(ctx, 4800);
+        for (int i = 0; i < 7; ++i) s.next();
+        for (const auto& p : probes) CHECK(p->prepares == 1 && p->advances == 7);
+    };
+    AdditiveSource2 a2(48000);
+    a2.set_default_partials(10);
+    count(a2, {"phaseOffset", "freqVarDepth", "freqVarSpeed", "amplVarDepth", "amplVarSpeed"});
+    BasicAdditiveSource basic(48000);
+    count(basic, {"evenWeight", "oddWeight", "rolloff", "freqVarPct", "freqVarSpeed",
+                  "amplVarPct", "amplVarSpeed"});
+
+    // the envelopes assigned to partials are not pins: pulled once per sample
+    AdditiveSource2 b(48000);
+    b.set_default_partials(10);
+    auto env = std::make_shared<PinCounter>();
+    b.assign_ampl_envelope(env, AdditiveSource2::PartialFilter::All, 1, 10);
+    b.prepare(ctx, 4800);
+    for (int i = 0; i < 7; ++i) b.next();
+    CHECK(env->prepares == 1 && env->advances == 7);
+}
+
+// The pins the additive source drives through the partials and formant
+// interfaces are Manual: prepared where the old code prepared them, advanced
+// once per call, in declaration order, and not at all by next() on the part.
+static void run_additive_manual_pin_tests() {
+    RenderContext ctx{48000};
+
+    std::vector<int> log;
+    std::vector<std::shared_ptr<OrderProbe>> probes;
+    FullPartials fp;
+    for (int i = 0; i < 8; ++i) {
+        probes.push_back(std::make_shared<OrderProbe>(&log, i + 1));
+        fp.set_param(kPartialsEnvNames[i], probes.back());
+    }
+    fp.partials_prepare(ctx, 4800);
+    CHECK(log.empty());
+    for (const auto& p : probes) CHECK(p->prepares == 1);
+    fp.partials_next();
+    CHECK(log == std::vector<int>({1, 2, 3, 4, 5, 6, 7, 8}));
+    log.clear();
+    fp.next();                                             // the fake next() is partials_next()
+    CHECK(log.size() == 8);
+    fp.prepare(ctx, 4800);                                 // the base prepare reaches partials_prepare once
+    for (const auto& p : probes) CHECK(p->prepares == 2);
+
+    Formant fm;
+    auto c1 = std::make_shared<PinCounter>(), c2 = std::make_shared<PinCounter>();
+    fm.set_param("frequency", c1);
+    fm.set_param("power", c2);
+    fm.prepare(ctx, 4800);
+    fm.next();
+    fm.fmt_next();
+    CHECK(c1->prepares == 1 && c2->prepares == 1);
+    CHECK(c1->advances == 2 && c2->advances == 2);
+
+    BandSpectrum band;
+    FormantSequence seq;
+    auto b1 = std::make_shared<PinCounter>(), b2 = std::make_shared<PinCounter>();
+    band.set_param("startFreq", b1);
+    seq.set_param("blend", b2);
+    band.fmt_prepare(ctx, 4800); band.fmt_next();
+    seq.fmt_prepare(ctx, 4800);  seq.fmt_next();
+    CHECK(b1->prepares == 1 && b1->advances == 1);
+    CHECK(b2->prepares == 1 && b2->advances == 1);
+
+    ExpandRuleNode rule;                                   // nothing pulls its pins
+    auto r1 = std::make_shared<PinCounter>();
+    rule.set_param("spacing1", r1);
+    rule.prepare(ctx, 4800);
+    for (int i = 0; i < 3; ++i) rule.next();
+    CHECK(r1->prepares == 0 && r1->advances == 0);
+}
+
+// FullAdditiveSource reads the formant weight and floor only while a formant
+// is wired and partials are set, and prepares them either way.
+static void run_additive_formant_pin_tests() {
+    RenderContext ctx{48000};
+    FullAdditiveSource f(48000);
+    auto w = std::make_shared<PinCounter>(), fl = std::make_shared<PinCounter>();
+    f.set_param("formantWeight", w);
+    f.set_param("formantFloor", fl);
+    f.set_param("partials", std::make_shared<FullPartials>());
+    f.prepare(ctx, 4800);
+    for (int i = 0; i < 5; ++i) f.next();
+    CHECK(w->prepares == 1 && fl->prepares == 1);
+    CHECK(w->advances == 0 && fl->advances == 0);          // no formant: never advanced
+
+    auto formant = std::make_shared<Formant>();
+    auto freq = std::make_shared<PinCounter>();
+    formant->set_param("frequency", freq);
+    f.set_param("formant", formant);
+    f.prepare(ctx, 4800);
+    for (int i = 0; i < 5; ++i) f.next();
+    CHECK(w->prepares == 2 && fl->prepares == 2 && freq->prepares == 1);
+    CHECK(w->advances == 5 && fl->advances == 5 && freq->advances == 5);
+
+    FullAdditiveSource g(48000);                           // no partials: nothing advances
+    auto gw = std::make_shared<PinCounter>();
+    g.set_param("formantWeight", gw);
+    g.set_param("formant", formant);
+    g.prepare(ctx, 4800);
+    for (int i = 0; i < 5; ++i) g.next();
+    CHECK(gw->prepares == 1 && gw->advances == 0);
+}
+
+// The structural inputs are type-checked when wired and keep a typed view.
+static void run_additive_wiring_tests() {
+    FullAdditiveSource f(48000);
+    auto fp = std::make_shared<FullPartials>();
+    auto fm = std::make_shared<Formant>();
+    auto other = std::make_shared<ConstantSource>(1.0f);
+    f.set_param("partials", fp);
+    f.set_param("formant", fm);
+    CHECK(f.get_param("partials") == fp && f.get_param("formant") == fm);
+    f.set_param("partials", other);                        // not an IPartials: ignored
+    f.set_param("formant", other);
+    f.set_param("formant", nullptr);
+    CHECK(f.get_param("partials") == fp && f.get_param("formant") == fm);
+
+    AdditiveSource2 a2(48000);
+    auto sp = std::make_shared<SequencePartials>();
+    sp->set_setting("maxPartials", 12.0f);
+    sp->get_array("mult1");                                // rebuild the arrays before they are copied
+    a2.set_param("partials", sp);
+    CHECK(a2.get_param("partials") == sp);
+    CHECK_NEAR(a2.get_setting("partialCount"), 12.0f, 1e-6f);
+    a2.set_param("partials", other);                       // not a Partials: ignored
+    CHECK(a2.get_param("partials") == sp);
+
+    FormantSequence seq;
+    auto s1 = std::make_shared<FormantSpectrum>(), s2 = std::make_shared<FormantSpectrum>();
+    seq.set_param("spectra", s1);
+    CHECK(seq.formants.size() == 1);
+    seq.add_param("spectra", s2);
+    CHECK(seq.formants.size() == 2);
+    seq.set_param("spectra", s2);                          // set replaces, add appends
+    CHECK(seq.formants.size() == 1);
+    seq.add_param("spectra", other);                       // not an IFormant: ignored
+    CHECK(seq.formants.size() == 1);
+    seq.clear_param("spectra");
+    CHECK(seq.formants.empty());
+    seq.set_param("blend", other);                         // the pin is served by the base
+    CHECK(seq.get_param("blend") == other && seq.get_param("spectra") == nullptr);
+
+    CompositePartials comp;
+    auto p2 = std::make_shared<ExplicitPartials>();
+    comp.add_param("partials", fp);
+    comp.set_param("partials", p2);                        // wiring appends
+    comp.set_param("partials", other);                     // not an IPartials: ignored
+    CHECK(comp.partial_count() == 30 + 16);
+    comp.clear_param("partials");
+    CHECK(comp.partial_count() == 0);
+}
+
+// The settings that reshape the arrays rebuild them; the clamps hold.
+static void run_additive_setting_hook_tests() {
+    FullPartials full;
+    full.set_setting("maxPartials", 12.0f);
+    CHECK(full.get_array("mult1").size() == 12);           // get_array rebuilds a dirty set
+    full.set_setting("minMult", 3.0f);
+    CHECK_NEAR(full.get_array("mult1")[0], 3.0f, 1e-6f);
+    full.set_setting("maxPartials", 0.0f);
+    CHECK_NEAR(full.get_setting("maxPartials"), 1.0f, 1e-6f);
+    full.set_setting("minMult", -4.0f);
+    CHECK_NEAR(full.get_setting("minMult"), 1.0f, 1e-6f);
+    full.set_setting("bandwidthHz", 0.2f);
+    CHECK_NEAR(full.get_setting("bandwidthHz"), 1.0f, 1e-6f);
+    full.set_setting("maxPartials", 4.0f);
+    full.set_setting("evenWeight1", 0.25f);
+    CHECK_NEAR(full.get_array("ampl1")[1], 0.25f, 1e-6f);  // partial 2 is even
+
+    SequencePartials seq;
+    seq.set_setting("maxPartials", 5.0f);
+    seq.set_setting("incr1", 2.0f);
+    auto m1 = seq.get_array("mult1");
+    CHECK(m1.size() == 5);
+    CHECK_NEAR(m1[2], 5.0f, 1e-6f);                        // 1 + 2 * 2
+    seq.set_setting("maxPartials", -3.0f);
+    CHECK_NEAR(seq.get_setting("maxPartials"), 1.0f, 1e-6f);
+
+    ExplicitPartials expl;
+    expl.set_setting("maxPartials", 5.0f);
+    CHECK(expl.get_array("mult1").size() == 5);            // the working defaults
+    CHECK_NEAR(expl.get_array("mult1")[4], 5.0f, 1e-6f);
+    expl.set_setting("maxPartials", 0.0f);
+    CHECK_NEAR(expl.get_setting("maxPartials"), 1.0f, 1e-6f);
+
+    AdditiveSource2 a2(48000);
+    a2.set_setting("partialCount", 50.0f);                 // rebuilds the default partials
+    CHECK_NEAR(a2.get_setting("partialCount"), 50.0f, 1e-6f);
+    RenderContext ctx{48000};
+    a2.prepare(ctx, 4800);
+    for (int i = 0; i < 10; ++i) CHECK(std::isfinite(a2.next()));
+    CHECK_NEAR(a2.get_setting("partialCount"), 50.0f, 1e-6f);   // prepare does not rewrite it
+}
+
+// ExplicitPartials keeps the four user arrays equal and in step with
+// maxPartials, and mirrors _1 into _2 while evolve is off.
+static void run_additive_explicit_array_tests() {
+    // The user's copies arrive in any order; mult1 last keeps each rebuild in range.
+    ExplicitPartials e;
+    e.set_array("mult2", {1.0f, 2.1f, 3.2f});
+    e.set_array("ampl2", {0.5f, 0.4f, 0.3f});
+    e.set_array("ampl1", {1.0f, 0.5f, 0.25f});
+    e.set_array("mult1", {1.0f, 2.0f, 3.0f});
+    CHECK(e.get_array("mult2") == std::vector<float>({1.0f, 2.1f, 3.2f}));
+    CHECK(e.get_array("ampl1") == std::vector<float>({1.0f, 0.5f, 0.25f}));
+    CHECK_NEAR(e.get_setting("maxPartials"), 3.0f, 1e-6f);
+    CHECK(e.partial_count() == 3);
+
+    e.set_setting("evolve", 0.0f);                         // turning evolve off mirrors _1 into _2
+    CHECK(e.get_array("mult2") == e.get_array("mult1"));
+    CHECK(e.get_array("ampl2") == e.get_array("ampl1"));
+    e.set_array("mult1", {4.0f, 5.0f});
+    CHECK(e.get_array("mult2") == std::vector<float>({4.0f, 5.0f}));
+    CHECK_NEAR(e.get_setting("maxPartials"), 2.0f, 1e-6f);
+    e.set_array("ampl1", {0.3f, 0.2f});
+    CHECK(e.get_array("ampl2") == std::vector<float>({0.3f, 0.2f}));
+    CHECK(e.get_array("nosuch").empty());
+
+    ExplicitPartials fresh;                                // nothing set: the working defaults
+    CHECK(fresh.get_array("mult1").size() == 16);
+    CHECK(fresh.get_array("ampl2").size() == 16);
+    CHECK(fresh.mult1.values.empty());
+
+    RenderContext ctx{48000};
+    auto g = std::make_shared<ExplicitPartials>();
+    g->set_array("mult2", {1.0f, 2.0f, 3.1f});
+    g->set_array("ampl2", {1.0f, 0.5f, 0.2f});
+    g->set_array("ampl1", {1.0f, 0.4f, 0.3f});
+    g->set_array("mult1", {1.0f, 2.0f, 3.0f});
+    FullAdditiveSource f(48000);
+    f.set_param("partials", g);
+    f.prepare(ctx, 4800);
+    float sum = 0.0f;
+    for (int i = 0; i < 400; ++i) { float v = f.next(); CHECK(std::isfinite(v)); sum += std::fabs(v); }
+    CHECK(sum > 0.0f);
+}
+
 int main() {
     run_pin_tests();
     run_base_tests();
@@ -2742,6 +3162,16 @@ int main() {
     run_evolution_holder_shape_tests();
     run_evolution_holder_setting_tests();
     run_evolution_manual_pin_tests();
+    run_additive_source_pin_tests();
+    run_additive_structural_pin_tests();
+    run_additive_partials_pin_tests();
+    run_additive_smoke_tests();
+    run_additive_auto_pin_tests();
+    run_additive_manual_pin_tests();
+    run_additive_formant_pin_tests();
+    run_additive_wiring_tests();
+    run_additive_setting_hook_tests();
+    run_additive_explicit_array_tests();
     run_sharing_trace_tests();
     run_walk2_tests();
     run_walk3_tests();

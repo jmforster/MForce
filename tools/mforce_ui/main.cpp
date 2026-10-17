@@ -517,10 +517,10 @@ struct GraphNode {
         spec->formants.clear();
         for (auto& row : formantRows) {
             auto f = std::make_shared<Formant>();
-            f->set_frequency(std::make_shared<ConstantSource>(row.frequency));
-            f->set_gain(std::make_shared<ConstantSource>(row.gain));
-            f->set_width(std::make_shared<ConstantSource>(row.width));
-            f->set_power(std::make_shared<ConstantSource>(row.power));
+            f->frequency.set(std::make_shared<ConstantSource>(row.frequency));
+            f->gain.set(std::make_shared<ConstantSource>(row.gain));
+            f->width.set(std::make_shared<ConstantSource>(row.width));
+            f->power.set(std::make_shared<ConstantSource>(row.power));
             spec->formants.push_back(f);
         }
     }
@@ -12314,10 +12314,9 @@ static bool draw_formant_strip(GraphNode* node, ImU32 color,
         return std::pow((hi - f) / std::max(hi - cf, 1e-6f), pw) * gn;
     };
 
-    // Read pin value at snapshot index. Fall back to the formant's input
-    // ValueSource current() — handles unsnapshotted (constant) pins.
-    auto get_at = [&](const std::string& pin,
-                      std::shared_ptr<ValueSource> fallback, int idx) {
+    // Read pin value at snapshot index. Fall back to the pin's current
+    // value (its constant when unwired) — handles unsnapshotted pins.
+    auto get_at = [&](const std::string& pin, float fallback, int idx) {
         if (haveSnaps) {
             auto pIt = sIt->second.find(pin);
             if (pIt != sIt->second.end() && !pIt->second.empty()) {
@@ -12325,14 +12324,14 @@ static bool draw_formant_strip(GraphNode* node, ImU32 color,
                 return pIt->second[i];
             }
         }
-        return fallback ? fallback->current() : 0.0f;
+        return fallback;
     };
 
     auto sample_curve = [&](int snapIdx, std::vector<float>& out) {
-        float cf = get_at("frequency", fp ? fp->get_frequency() : nullptr, snapIdx);
-        float gn = get_at("gain",      fp ? fp->get_gain()      : nullptr, snapIdx);
-        float wd = get_at("width",     fp ? fp->get_width()     : nullptr, snapIdx);
-        float pw = get_at("power",     fp ? fp->get_power()     : nullptr, snapIdx);
+        float cf = get_at("frequency", fp ? fp->frequency.current() : 0.0f, snapIdx);
+        float gn = get_at("gain",      fp ? fp->gain.current()      : 0.0f, snapIdx);
+        float wd = get_at("width",     fp ? fp->width.current()     : 0.0f, snapIdx);
+        float pw = get_at("power",     fp ? fp->power.current()     : 0.0f, snapIdx);
         out.resize(samples);
         for (int i = 0; i < samples; ++i) {
             float t = float(i) / float(samples - 1);

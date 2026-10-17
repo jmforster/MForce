@@ -5,12 +5,7 @@
 namespace mforce {
 
 AdditiveSource2::AdditiveSource2(int sampleRate, uint32_t seed)
-: WaveSource(sampleRate), rng_(seed)
-, phaseOffset_(std::make_shared<ConstantSource>(0.0f))
-, freqVarDepth_(std::make_shared<ConstantSource>(0.0f))
-, freqVarSpeed_(std::make_shared<ConstantSource>(0.0f))
-, amplVarDepth_(std::make_shared<ConstantSource>(0.0f))
-, amplVarSpeed_(std::make_shared<ConstantSource>(0.0f)) {}
+: WaveSource(sampleRate), rng_(seed) {}
 
 void AdditiveSource2::set_partials(std::vector<float> idx, std::vector<float> ampl) {
   hasStart_ = false;
@@ -37,7 +32,7 @@ void AdditiveSource2::set_partials(
 }
 
 void AdditiveSource2::set_default_partials(int count) {
-  partialCount_ = count;
+  partialCount.value = count;
   hasStart_ = false;
   endIdx_.resize(count);
   endAmpl_.resize(count);
@@ -85,38 +80,33 @@ void AdditiveSource2::assign_ampl_envelope(
   }
 }
 
-void AdditiveSource2::prepare(const RenderContext& ctx, int frames) {
-  WaveSource::prepare(ctx, frames);
-  phaseOffset_->prepare(ctx, frames);
-  freqVarDepth_->prepare(ctx, frames);
-  freqVarSpeed_->prepare(ctx, frames);
-  amplVarDepth_->prepare(ctx, frames);
-  amplVarSpeed_->prepare(ctx, frames);
+void AdditiveSource2::on_prepare(const RenderContext& ctx, int frames) {
+  WaveSource::on_prepare(ctx, frames);
 
   for (auto& e : freqEnvs_) e->prepare(ctx, frames);
   for (auto& e : amplEnvs_) e->prepare(ctx, frames);
 
   int n = int(endIdx_.size());
-  partialCount_ = std::min(n, int(12000.0f / std::max(currFreq_, 1.0f)));
+  activeCount_ = std::min(n, int(12000.0f / std::max(currFreq_, 1.0f)));
 
-  endFreq_.resize(partialCount_);
-  if (hasStart_) startFreq_.resize(partialCount_);
+  endFreq_.resize(activeCount_);
+  if (hasStart_) startFreq_.resize(activeCount_);
 
-  for (int i = 0; i < partialCount_; ++i) {
+  for (int i = 0; i < activeCount_; ++i) {
     endFreq_[i] = currFreq_ * endIdx_[i];
     if (hasStart_) startFreq_[i] = currFreq_ * startIdx_[i];
   }
 
-  partialPos_.assign(partialCount_, 0.0f);
+  partialPos_.assign(activeCount_, 0.0f);
 
   // Init random walk state
-  float fvp = freqVarDepth_->current();
-  float avp = amplVarDepth_->current();
-  freqOffset_.resize(partialCount_);
-  amplOffset_.resize(partialCount_);
-  freqVarDir_.resize(partialCount_);
-  amplVarDir_.resize(partialCount_);
-  for (int i = 0; i < partialCount_; ++i) {
+  float fvp = freqVarDepth.current();
+  float avp = amplVarDepth.current();
+  freqOffset_.resize(activeCount_);
+  amplOffset_.resize(activeCount_);
+  freqVarDir_.resize(activeCount_);
+  amplVarDir_.resize(activeCount_);
+  for (int i = 0; i < activeCount_; ++i) {
     freqOffset_[i] = rng_.valuePN() * fvp;
     freqVarDir_[i] = (rng_.valuePN() >= 0.0f) ? 1 : -1;
     amplOffset_[i] = rng_.valuePN() * avp;
@@ -125,17 +115,11 @@ void AdditiveSource2::prepare(const RenderContext& ctx, int frames) {
 }
 
 float AdditiveSource2::wave() {
-  phaseOffset_->advance();
-  freqVarDepth_->advance();
-  freqVarSpeed_->advance();
-  amplVarDepth_->advance();
-  amplVarSpeed_->advance();
-
-  float po  = phaseOffset_->current();
-  float fvp = freqVarDepth_->current();
-  float fvs = freqVarSpeed_->current() / float(sampleRate_);
-  float avp = amplVarDepth_->current();
-  float avs = amplVarSpeed_->current() / float(sampleRate_);
+  float po  = phaseOffset.current();
+  float fvp = freqVarDepth.current();
+  float fvs = freqVarSpeed.current() / float(sampleRate_);
+  float avp = amplVarDepth.current();
+  float avs = amplVarSpeed.current() / float(sampleRate_);
 
   // Advance all unique envelopes once per sample
   for (auto& e : freqEnvs_) e->advance();
@@ -144,7 +128,7 @@ float AdditiveSource2::wave() {
   constexpr float TAU = 2.0f * 3.14159265358979323846f;
   float val = 0.0f;
 
-  for (int i = 0; i < partialCount_; ++i) {
+  for (int i = 0; i < activeCount_; ++i) {
     // Frequency variation (random walk)
     if (fvp > 0.0f) {
       freqOffset_[i] += fvp * 2.0f * fvs * float(freqVarDir_[i]);

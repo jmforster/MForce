@@ -6,28 +6,26 @@
 namespace mforce {
 
 FullAdditiveSource::FullAdditiveSource(int sampleRate, uint32_t seed)
-: WaveSource(sampleRate)
-, formantFloor_(std::make_shared<ConstantSource>(1.0f))
-, noiseRng_(seed) {}
+: WaveSource(sampleRate), noiseRng_(seed) {}
 
-void FullAdditiveSource::prepare(const RenderContext& ctx, int frames) {
-  WaveSource::prepare(ctx, frames);
+void FullAdditiveSource::on_prepare(const RenderContext& ctx, int frames) {
+  WaveSource::on_prepare(ctx, frames);
 
   if (partials_) partials_->partials_prepare(ctx, frames);
   if (formant_) formant_->fmt_prepare(ctx, frames);
-  if (formantWeight_) formantWeight_->prepare(ctx, frames);
-  if (formantFloor_) formantFloor_->prepare(ctx, frames);
+  if (formantWeight.source) formantWeight.source->prepare(ctx, frames);
+  if (formantFloor.source) formantFloor.source->prepare(ctx, frames);
 
   // --- NoiseBed per-note state. The noise runs from sample 0 of the note;
   // it's the TONE that is delayed (bedDelaySamples_) and then faded in.
   const float rate = float(ctx.sampleRate);
-  bedDelaySamples_ = noiseBedDelay_ * rate;
-  bedFadeSamples_  = std::max(1.0f, noiseBedFade_ * rate);
+  bedDelaySamples_ = noiseBedDelay.value * rate;
+  bedFadeSamples_  = std::max(1.0f, noiseBedFade.value * rate);
   bedZ1_ = bedZ2_ = 0.0f;
-  if (noiseBedLevel_ > 0.0f) {
+  if (noiseBedLevel.value > 0.0f) {
     // RBJ constant-peak-gain bandpass, Q = center / width.
-    const float f  = std::clamp(noiseBedFreq_, 10.0f, 0.45f * rate);
-    const float q  = std::max(0.05f, f / std::max(1.0f, noiseBedWidth_));
+    const float f  = std::clamp(noiseBedFreq.value, 10.0f, 0.45f * rate);
+    const float q  = std::max(0.05f, f / std::max(1.0f, noiseBedWidth.value));
     const float w0 = 2.0f * 3.14159265358979323846f * f / rate;
     const float sn = std::sin(w0), cs = std::cos(w0);
     const float alpha = sn / (2.0f * q);
@@ -49,14 +47,10 @@ float FullAdditiveSource::wave() {
   float fmtFloor = 1.0f;
   if (formant_) {
     formant_->fmt_next();
-    if (formantWeight_) {
-      formantWeight_->advance();
-      fmtWt = formantWeight_->current();
-    }
-    if (formantFloor_) {
-      formantFloor_->advance();
-      fmtFloor = formantFloor_->current();
-    }
+    formantWeight.advance();
+    fmtWt = formantWeight.current();
+    formantFloor.advance();
+    fmtFloor = formantFloor.current();
   }
 
   float phaseDiff = currPhase_ - lastPhase_;
@@ -80,7 +74,7 @@ float FullAdditiveSource::wave() {
       // fadePow shapes PERCEIVED attack: smoothstep rises fast early, so
       // even long fades sound quick. pow > 1 keeps the tone low longer
       // (time-to-audible scales with the exponent), same total fade length.
-      if (noiseBedFadePow_ != 1.0f) s = std::pow(s, noiseBedFadePow_);
+      if (noiseBedFadePow.value != 1.0f) s = std::pow(s, noiseBedFadePow.value);
       val *= s;
     }
   }
@@ -92,12 +86,12 @@ float FullAdditiveSource::wave() {
   // noiseBedLevel * the amplitude param's current value (tone-referenced
   // level — the same amplitude factor the partial sum carries, so the bed
   // tracks the tone's level law rather than being an independent hiss).
-  if (noiseBedLevel_ > 0.0f) {
+  if (noiseBedLevel.value > 0.0f) {
     float white = noiseRng_.valuePN();
     float y = bedB0_ * white + bedZ1_;
     bedZ1_ = bedZ2_ - bedA1_ * y;          // b1 == 0
     bedZ2_ = bedB2_ * white - bedA2_ * y;
-    out += y * noiseBedLevel_ * currAmpl_;
+    out += y * noiseBedLevel.value * currAmpl_;
   }
 
   return out;

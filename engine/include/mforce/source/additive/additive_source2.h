@@ -23,6 +23,21 @@ namespace mforce {
 struct AdditiveSource2 final : WaveSource {
   enum class PartialFilter { All, Even, Odd, Mult3, NonMult3 };
 
+  // After WaveSource's three, in the order wave() advanced them. `partials`
+  // is a structural input: the node copies the arrays of the Partials it is
+  // wired to (apply_partials) and never prepares or advances it, so it is
+  // Manual and the wire is type-checked in set_param.
+  Param phaseOffset {this, "phaseOffset",  0.0f, 0.0f, 1.0f,   "cycles"};
+  Param freqVarDepth{this, "freqVarDepth", 0.0f, 0.0f, 1.0f,   "0-1"};
+  Param freqVarSpeed{this, "freqVarSpeed", 0.0f, 0.0f, 100.0f, "hz"};
+  Param amplVarDepth{this, "amplVarDepth", 0.0f, 0.0f, 1.0f,   "0-1"};
+  Param amplVarSpeed{this, "amplVarSpeed", 0.0f, 0.0f, 100.0f, "hz"};
+  Input partials{this, "partials", Input::Optional, nullptr, false, Pull::Manual};
+
+  // The number of partials in the current definition; changing it rebuilds
+  // the default partials (set_default_partials).
+  Setting<int> partialCount{this, "partialCount", 500, 1, 2000};
+
   explicit AdditiveSource2(int sampleRate, uint32_t seed = 0xADD3'0000u);
 
   // --- Partial definition ---
@@ -41,81 +56,27 @@ struct AdditiveSource2 final : WaveSource {
   void assign_ampl_envelope(std::shared_ptr<ValueSource> env,
                             PartialFilter filter, int from, int to);
 
-  // --- Variation params ---
-  void set_phase_offset(std::shared_ptr<ValueSource> v)   { phaseOffset_ = std::move(v); }
-  void set_freq_var_depth(std::shared_ptr<ValueSource> v) { freqVarDepth_ = std::move(v); }
-  void set_freq_var_speed(std::shared_ptr<ValueSource> v) { freqVarSpeed_ = std::move(v); }
-  void set_ampl_var_depth(std::shared_ptr<ValueSource> v) { amplVarDepth_ = std::move(v); }
-  void set_ampl_var_speed(std::shared_ptr<ValueSource> v) { amplVarSpeed_ = std::move(v); }
-
   const char* type_name() const override { return "AdditiveSource2"; }
   SourceCategory category() const override { return SourceCategory::Additive; }
 
-  std::span<const ParamDescriptor> param_descriptors() const override {
-    static constexpr ParamDescriptor descs[] = {
-      {"frequency",    440.0f, 0.01f, 20000.0f, "hz"},
-      {"amplitude",    1.0f,   0.0f,  10.0f,    "0-1"},
-      {"phase",        0.0f,  -1.0f,  1.0f,     "cycles"},
-      {"phaseOffset",  0.0f,   0.0f,  1.0f,     "cycles"},
-      {"freqVarDepth", 0.0f,   0.0f,  1.0f,     "0-1"},
-      {"freqVarSpeed", 0.0f,   0.0f,  100.0f,   "hz"},
-      {"amplVarDepth", 0.0f,   0.0f,  1.0f,     "0-1"},
-      {"amplVarSpeed", 0.0f,   0.0f,  100.0f,   "hz"},
-    };
-    return descs;
-  }
-
-  std::span<const InputDescriptor> input_descriptors() const override {
-    static constexpr InputDescriptor descs[] = {
-      {"partials"},
-    };
-    return descs;
-  }
-
+  // Wiring `partials` takes the Partials' arrays; a source that is not a
+  // Partials is ignored.
   void set_param(std::string_view name, std::shared_ptr<ValueSource> src) override {
-    if (name == "phaseOffset")  { set_phase_offset(std::move(src)); return; }
-    if (name == "freqVarDepth") { set_freq_var_depth(std::move(src)); return; }
-    if (name == "freqVarSpeed") { set_freq_var_speed(std::move(src)); return; }
-    if (name == "amplVarDepth") { set_ampl_var_depth(std::move(src)); return; }
-    if (name == "amplVarSpeed") { set_ampl_var_speed(std::move(src)); return; }
-    if (name == "partials") {
-      auto p = std::dynamic_pointer_cast<Partials>(src);
-      if (p) { partialsRef_ = p; apply_partials(*p); }
-      return;
-    }
-    WaveSource::set_param(name, std::move(src));
+    if (name != "partials") { WaveSource::set_param(name, std::move(src)); return; }
+    auto p = std::dynamic_pointer_cast<Partials>(src);
+    if (!p) return;
+    partials.set(std::move(src));
+    apply_partials(*p);
   }
 
-  std::shared_ptr<ValueSource> get_param(std::string_view name) const override {
-    if (name == "phaseOffset")  return phaseOffset_;
-    if (name == "freqVarDepth") return freqVarDepth_;
-    if (name == "freqVarSpeed") return freqVarSpeed_;
-    if (name == "amplVarDepth") return amplVarDepth_;
-    if (name == "amplVarSpeed") return amplVarSpeed_;
-    if (name == "partials")    return partialsRef_;
-    return WaveSource::get_param(name);
-  }
-
-  std::span<const SettingDescriptor> setting_descriptors() const override {
-    static constexpr SettingDescriptor descs[] = {
-      {"partialCount", SettingType::Int, 500.0f, 1.0f, 2000.0f},
-    };
-    return descs;
-  }
-
-  void set_setting(std::string_view name, float value) override {
-    if (name == "partialCount") { set_default_partials(int(value)); return; }
-  }
-
-  float get_setting(std::string_view name) const override {
-    if (name == "partialCount") return float(partialCount_);
-    return 0.0f;
+  void on_setting_changed(std::string_view name) override {
+    if (name == "partialCount") set_default_partials(partialCount.value);
   }
 
   // Apply partials from a Partials base class (used by the "partials" pin)
   void apply_partials(const Partials& p) {
     int n = p.partial_count();
-    partialCount_ = n;
+    partialCount.value = n;
     hasStart_ = true;
     startIdx_  = p.get_mult1();
     endIdx_    = p.get_mult2();
@@ -126,7 +87,7 @@ struct AdditiveSource2 final : WaveSource {
     amplEnvRef_.assign(n, -1);
   }
 
-  void prepare(const RenderContext& ctx, int frames) override;
+  void on_prepare(const RenderContext& ctx, int frames) override;
 
 protected:
   float wave() override;
@@ -135,9 +96,6 @@ private:
   bool matches_filter(PartialFilter f, int partialNum) const;
 
   Randomizer rng_;
-
-  // Partials reference (for get_param round-trip)
-  std::shared_ptr<Partials> partialsRef_;
 
   // Partial definition arrays
   std::vector<float> startIdx_, startAmpl_, endIdx_, endAmpl_;
@@ -148,15 +106,8 @@ private:
   std::vector<std::shared_ptr<ValueSource>> freqEnvs_, amplEnvs_;
   std::vector<int> freqEnvRef_, amplEnvRef_;  // -1 = no envelope
 
-  // Variation params
-  std::shared_ptr<ValueSource> phaseOffset_;
-  std::shared_ptr<ValueSource> freqVarDepth_;
-  std::shared_ptr<ValueSource> freqVarSpeed_;
-  std::shared_ptr<ValueSource> amplVarDepth_;
-  std::shared_ptr<ValueSource> amplVarSpeed_;
-
   // Runtime state
-  int partialCount_{0};
+  int activeCount_{0};   // partials rendered: those below ~12 kHz at the note's frequency
   std::vector<float> startFreq_, endFreq_;
   std::vector<float> partialPos_;
   // Lightweight per-partial random walk (replaces legacy per-partial RedNoiseSource)

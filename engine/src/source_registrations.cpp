@@ -100,7 +100,7 @@ void register_all_sources() {
         // Configurator: gains array
         [](ValueSource& src, const nlohmann::json& p, const ResolveParamFn&) {
             auto& bs = static_cast<BandSpectrum&>(src);
-            if (p.contains("gains")) bs.gainValues = p["gains"].get<std::vector<float>>();
+            if (p.contains("gains")) bs.gains.values = p["gains"].get<std::vector<float>>();
         });
 
     // -----------------------------------------------------------------------
