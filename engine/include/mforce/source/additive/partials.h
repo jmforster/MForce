@@ -70,8 +70,7 @@ struct ExpandRuleNode final : ValueSource {
   const char* type_name() const override { return "ExpandRule"; }
   SourceCategory category() const override { return SourceCategory::Additive; }
 
-  float next() override { return 0.0f; }
-  float current() const override { return 0.0f; }
+  float compute() override { return 0.0f; }
 };
 
 // ---------------------------------------------------------------------------
@@ -211,8 +210,7 @@ struct Partials : ValueSource, IPartials {
   // Partials is a ValueSource for graph wiring, but doesn't produce audio.
   // Prepare/next delegate to partials_prepare/partials_next.
   void on_prepare(const RenderContext& ctx, int frames) override { partials_prepare(ctx, frames); }
-  float next() override { partials_next(); return 0.0f; }
-  float current() const override { return 0.0f; }
+  float compute() override { partials_next(); return 0.0f; }
 
   const char* type_name() const override { return "Partials"; }
   SourceCategory category() const override { return SourceCategory::Additive; }
@@ -1079,8 +1077,7 @@ struct CompositePartials final : ValueSource, IPartials {
 
   // --- ValueSource interface (not an audio source itself) ---
   void on_prepare(const RenderContext& ctx, int frames) override { partials_prepare(ctx, frames); }
-  float next() override { partials_next(); return 0.0f; }
-  float current() const override { return 0.0f; }
+  float compute() override { partials_next(); return 0.0f; }
 
   // --- IPartials interface ---
   void partials_prepare(const RenderContext& ctx, int frames) override {

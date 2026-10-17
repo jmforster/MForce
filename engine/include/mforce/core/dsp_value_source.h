@@ -52,17 +52,14 @@ struct ValueSource : Component {
   virtual void on_prepare(const RenderContext&, int) {}
 
   // Advance every wired Auto pin in declaration order, then compute. A
-  // node's work is compute(). Virtual, with a default compute(), only
-  // while the node families migrate: the close of checkpoint 2.1 seals
-  // next() and makes compute() pure, so the compiler proves no override
-  // remains.
-  virtual float next() {
+  // node's work is compute(); next() is the same for every node.
+  float next() {
     for (auto* s : pulled())
       if (*s) (*s)->advance();
     cur_ = compute();
     return cur_;
   }
-  virtual float compute() { return cur_; }
+  virtual float compute() = 0;
   virtual float current() const { return cur_; }
 
   // False when this node reads its `frequency` pin ONCE at note start and

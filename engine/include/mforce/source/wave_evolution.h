@@ -641,8 +641,7 @@ struct PluckEvolutionSource final : ValueSource, IEvolutionHolder {
   void on_setting_changed(std::string_view) override { evo_ = PluckEvolution(muting.value, seed_); }
 
   // Not an audio source — exists for graph wiring only
-  float next() override { return 0.0f; }
-  float current() const override { return 0.0f; }
+  float compute() override { return 0.0f; }
 
 private:
   PluckEvolution evo_;
@@ -673,8 +672,7 @@ struct AveragingEvolutionSource final : ValueSource, IEvolutionHolder {
   void on_setting_changed(std::string_view) override { rebuild(); }
 
   // Not an audio source — exists for graph wiring only
-  float next() override { return 0.0f; }
-  float current() const override { return 0.0f; }
+  float compute() override { return 0.0f; }
 
 private:
   void rebuild() {
@@ -705,8 +703,7 @@ struct EKSEvolutionSource final : ValueSource, IEvolutionHolder {
   WaveEvolution* get_evolution() override { return &evo_; }
 
   // Not an audio source — exists for graph wiring only
-  float next() override { return 0.0f; }
-  float current() const override { return 0.0f; }
+  float compute() override { return 0.0f; }
 
 private:
   EKSEvolution evo_;
@@ -735,8 +732,7 @@ struct ReedEvolutionSource final : ValueSource, IEvolutionHolder {
     if (breath.source) breath.source->prepare(ctx, frames);
     if (reedStiffness.source) reedStiffness.source->prepare(ctx, frames);
   }
-  float next() override { return 0.0f; }
-  float current() const override { return 0.0f; }
+  float compute() override { return 0.0f; }
 
 private:
   ReedEvolution evo_;
@@ -767,8 +763,7 @@ struct BowedStringEvolutionSource final : ValueSource, IEvolutionHolder {
     if (bow.source) bow.source->prepare(ctx, frames);
     if (frictionGain.source) frictionGain.source->prepare(ctx, frames);
   }
-  float next() override { return 0.0f; }
-  float current() const override { return 0.0f; }
+  float compute() override { return 0.0f; }
 
 private:
   BowedStringEvolution evo_;
@@ -799,8 +794,7 @@ struct BrassEvolutionSource final : ValueSource, IEvolutionHolder {
     if (breath.source) breath.source->prepare(ctx, frames);
     if (brassiness.source) brassiness.source->prepare(ctx, frames);
   }
-  float next() override { return 0.0f; }
-  float current() const override { return 0.0f; }
+  float compute() override { return 0.0f; }
 
 private:
   BrassEvolution evo_;
@@ -914,8 +908,7 @@ struct ReactionDiffusionEvolutionSource final : ValueSource, IEvolutionHolder {
   }
 
   // Not an audio source — exists for graph wiring only
-  float next() override { return 0.0f; }
-  float current() const override { return 0.0f; }
+  float compute() override { return 0.0f; }
 
 private:
   ReactionDiffusionEvolution evo_;
@@ -975,8 +968,7 @@ struct SortErosionEvolutionSource final : ValueSource, IEvolutionHolder {
   }
 
   // Not an audio source — exists for graph wiring only
-  float next() override { return 0.0f; }
-  float current() const override { return 0.0f; }
+  float compute() override { return 0.0f; }
 
 private:
   SortErosionEvolution evo_;
@@ -1069,8 +1061,7 @@ struct CellularAutomatonEvolutionSource final : ValueSource, IEvolutionHolder {
   }
 
   // Not an audio source — exists for graph wiring only
-  float next() override { return 0.0f; }
-  float current() const override { return 0.0f; }
+  float compute() override { return 0.0f; }
 
 private:
   CellularAutomatonEvolution evo_;
@@ -1149,8 +1140,7 @@ struct HistogramEqualizeEvolutionSource final : ValueSource, IEvolutionHolder {
   }
 
   // Not an audio source — exists for graph wiring only
-  float next() override { return 0.0f; }
-  float current() const override { return 0.0f; }
+  float compute() override { return 0.0f; }
 
 private:
   HistogramEqualizeEvolution evo_;
@@ -1221,8 +1211,7 @@ struct BezierPullEvolutionSource final : ValueSource, IEvolutionHolder {
   WaveEvolution* get_evolution() override { return &evo_; }
 
   // Not an audio source — exists for graph wiring only
-  float next() override { return 0.0f; }
-  float current() const override { return 0.0f; }
+  float compute() override { return 0.0f; }
 
 private:
   BezierPullEvolution evo_;
@@ -1290,8 +1279,7 @@ struct BitRotateEvolutionSource final : ValueSource, IEvolutionHolder {
     if (shiftBits.source) shiftBits.source->prepare(ctx, frames);
     if (stepEvery.source) stepEvery.source->prepare(ctx, frames);
   }
-  float next() override { return 0.0f; }
-  float current() const override { return 0.0f; }
+  float compute() override { return 0.0f; }
 
 private:
   BitRotateEvolution evo_;
