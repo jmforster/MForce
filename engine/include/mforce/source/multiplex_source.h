@@ -31,50 +31,27 @@ struct MultiplexSource final : ValueSource {
     using InstanceBuilder = std::function<
         std::pair<std::shared_ptr<ValueSource>, ValueNodeMap>(int instanceIdx)>;
 
+    // UI wiring path: the wired `source` is a solo preview. Without clones
+    // (the CLI loader's set_template path is the one that produces real
+    // N-instance fan-out) the node passes it through so the UI isn't silent,
+    // and only then does it prepare and advance it, so the pin is Manual. A
+    // Processor's inherited input is always pulled, so this node derives
+    // from ValueSource, keeping its Combiner category.
+    Input source{this, "source", Input::Optional, nullptr, false, Pull::Manual};
+    Setting<int> count{this, "count", 10, 1, 50};
+
     const char* type_name() const override { return "MultiplexSource"; }
     SourceCategory category() const override { return SourceCategory::Combiner; }
 
-    std::span<const InputDescriptor> input_descriptors() const override {
-        static constexpr InputDescriptor descs[] = {
-            {"source", false},  // single template source
-        };
-        return descs;
-    }
-
-    std::span<const SettingDescriptor> setting_descriptors() const override {
-        static constexpr SettingDescriptor descs[] = {
-            {"count", SettingType::Int, 10.0f, 1.0f, 50.0f},
-        };
-        return descs;
-    }
-
-    void set_setting(std::string_view name, float value) override {
-        if (name == "count") {
-            int newCount = std::max(1, std::min(50, int(value)));
-            if (newCount != count_) {
-                count_ = newCount;
-                templateDirty_ = true;
-            }
+    // The base stores `count` before this runs; appliedCount_ is the count the
+    // clones were last sized to, so only a real change forces a rebuild.
+    void on_setting_changed(std::string_view name) override {
+        if (name != "count") return;
+        count.clamp();
+        if (count.value != appliedCount_) {
+            appliedCount_ = count.value;
+            templateDirty_ = true;
         }
-    }
-
-    float get_setting(std::string_view name) const override {
-        if (name == "count") return float(count_);
-        return 0.0f;
-    }
-
-    // UI wiring path: when the user connects a source to the "source" pin,
-    // store it so next() can fall back to passing it through solo. The CLI
-    // loader's set_template path is the one that produces real N-instance
-    // fan-out; without that, we pass the wired source through as a solo
-    // preview so the UI isn't silent.
-    void set_param(std::string_view name, std::shared_ptr<ValueSource> src) override {
-        if (name == "source") uiSource_ = std::move(src);
-    }
-
-    std::shared_ptr<ValueSource> get_param(std::string_view name) const override {
-        if (name == "source") return uiSource_;
-        return nullptr;
     }
 
     // Loader hook. The builder closure captures everything needed (subtree
@@ -102,42 +79,36 @@ struct MultiplexSource final : ValueSource {
         apply_clone_param_to_all_(nodeId, paramName, value);
     }
 
-    void prepare(const RenderContext& ctx, int frames) override {
+    void on_prepare(const RenderContext& ctx, int frames) override {
         if (templateDirty_) rebuild_();
         if (!instances_.empty()) {
             for (auto& inst : instances_)
                 if (inst) inst->prepare(ctx, frames);
-        } else if (uiSource_) {
+        } else if (source.source) {
             // UI solo-preview fallback
-            uiSource_->prepare(ctx, frames);
+            source.source->prepare(ctx, frames);
         }
     }
 
-    float next() override {
+    float compute() override {
         if (!instances_.empty()) {
             float sum = 0.0f;
             int n = int(instances_.size());
             for (auto& inst : instances_)
                 if (inst) sum += inst->advance();
-            cur_ = (n > 0) ? sum / float(n) : 0.0f;
-        } else if (uiSource_) {
-            cur_ = uiSource_->advance();  // solo passthrough (UI preview)
-        } else {
-            cur_ = 0.0f;
+            return (n > 0) ? sum / float(n) : 0.0f;
         }
-        return cur_;
+        return source.advance();  // solo passthrough (UI preview); 0 when unwired
     }
-
-    float current() const override { return cur_; }
 
 private:
     void rebuild_() {
         instances_.clear();
         instanceValueNodes_.clear();
         if (!builder_) { templateDirty_ = false; return; }
-        instances_.reserve(count_);
-        instanceValueNodes_.reserve(count_);
-        for (int i = 0; i < count_; ++i) {
+        instances_.reserve(count.value);
+        instanceValueNodes_.reserve(count.value);
+        for (int i = 0; i < count.value; ++i) {
             auto pair = builder_(i);
             instances_.push_back(std::move(pair.first));
             instanceValueNodes_.push_back(std::move(pair.second));
@@ -166,7 +137,7 @@ private:
         }
     }
 
-    int count_{10};
+    int appliedCount_{10};
     uint32_t baseSeed_{0};
     std::string templateJson_;
     InstanceBuilder builder_;
@@ -178,9 +149,7 @@ private:
     std::unordered_map<std::string,
                        std::tuple<std::string, std::string, float>>
         pendingCloneParams_;
-    std::shared_ptr<ValueSource> uiSource_;  // UI-wired source for solo preview
     bool templateDirty_{true};
-    float cur_{0.0f};
 };
 
 } // namespace mforce

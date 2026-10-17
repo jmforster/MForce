@@ -18,7 +18,7 @@ namespace mforce {
 // Each stage has: source (ValueSource), percent of total duration, min/max seconds.
 // A stage with percent=0 is the "expand" stage (gets remaining duration).
 // Overlap is specified in seconds and converted to samples.
-struct PhasedValueSource final : ValueSource {
+struct PhasedValueSource final : Generator {
 
   struct Stage {
     std::shared_ptr<ValueSource> source;
@@ -28,43 +28,26 @@ struct PhasedValueSource final : ValueSource {
     float gainAdj{1.0f};
   };
 
+  Param amplitude{this, "amplitude", 1.0f, 0.0f, 10.0f, "0-1"};
+
   float overlapSeconds{0.05f};
   int sampleRate{48000};
 
   PhasedValueSource(int sr, float overlap)
-  : amplitude_(std::make_shared<ConstantSource>(1.0f)),
-    overlapSeconds(overlap), sampleRate(sr) {}
-
-  void set_amplitude(std::shared_ptr<ValueSource> s) { amplitude_ = std::move(s); }
-  std::shared_ptr<ValueSource> get_amplitude() const { return amplitude_; }
+  : overlapSeconds(overlap), sampleRate(sr) {}
 
   const char* type_name() const override { return "PhasedValueSource"; }
   SourceCategory category() const override { return SourceCategory::Envelope; }
 
-  std::span<const ParamDescriptor> param_descriptors() const override {
-    static constexpr ParamDescriptor descs[] = {
-      {"amplitude", 1.0f, 0.0f, 10.0f, "0-1"},
-    };
-    return descs;
-  }
-
-  void set_param(std::string_view name, std::shared_ptr<ValueSource> src) override {
-    if (name == "amplitude") { amplitude_ = std::move(src); return; }
-  }
-
-  std::shared_ptr<ValueSource> get_param(std::string_view name) const override {
-    if (name == "amplitude") return amplitude_;
-    return nullptr;
-  }
-
+  // The stages are a list the loader's configurator feeds, not a wired pin
+  // yet; only the stage or stages in play are pulled each sample, so they
+  // are the node's own business.
   void add_stage(Stage s) { stages_.push_back(std::move(s)); }
 
-  void prepare(const RenderContext& ctx, int frames) override {
+  void on_prepare(const RenderContext& ctx, int frames) override {
     totalFrames_ = frames;
     ptr_ = -1;
     overlapSamples_ = int(overlapSeconds * float(sampleRate));
-
-    if (amplitude_) amplitude_->prepare(ctx, frames);
 
     // Calculate per-stage sample counts
     int expandIdx = -1;
@@ -111,9 +94,9 @@ struct PhasedValueSource final : ValueSource {
     }
   }
 
-  float next() override {
+  float compute() override {
     ++ptr_;
-    float amp = amplitude_ ? (amplitude_->advance(), amplitude_->current()) : 1.0f;
+    float amp = amplitude.current();
 
     // Find current stage
     int stageIdx = 0;
@@ -137,32 +120,26 @@ struct PhasedValueSource final : ValueSource {
       float vPrev = stages_[stageIdx - 1].source->advance();
       float vCurr = stages_[stageIdx].source->advance();
       float t = float(posInStage) / float(halfOl);
-      cur_ = (vPrev * (1.0f - t) + vCurr * stages_[stageIdx].gainAdj * t) * amp;
+      return (vPrev * (1.0f - t) + vCurr * stages_[stageIdx].gainAdj * t) * amp;
     } else if (transToNext) {
       // Crossfade from current to next stage
       float vCurr = stages_[stageIdx].source->advance();
       float vNext = stages_[stageIdx + 1].source->advance();
       float t = float(halfOl - (stageLen - posInStage)) / float(halfOl);
-      cur_ = (vCurr * (1.0f - t) + vNext * stages_[stageIdx + 1].gainAdj * t) * amp;
+      return (vCurr * (1.0f - t) + vNext * stages_[stageIdx + 1].gainAdj * t) * amp;
     } else {
       // Not in transition
-      cur_ = stages_[stageIdx].source->advance() * stages_[stageIdx].gainAdj * amp;
+      return stages_[stageIdx].source->advance() * stages_[stageIdx].gainAdj * amp;
     }
-
-    return cur_;
   }
 
-  float current() const override { return cur_; }
-
 private:
-  std::shared_ptr<ValueSource> amplitude_;
   std::vector<Stage> stages_;
   std::vector<int> stageCounts_;
   std::vector<int> boundaries_;
   int totalFrames_{0};
   int overlapSamples_{0};
   int ptr_{-1};
-  float cur_{0.0f};
 };
 
 } // namespace mforce

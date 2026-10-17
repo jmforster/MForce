@@ -3759,6 +3759,564 @@ static void run_vibrato_tests() {
     CHECK(on.current() == y);
 }
 
+// The filter family, in registration order.
+static void run_filter_tests() {
+    run_filter_pin_shape_tests();
+    run_filter_default_tests();
+    run_filter_auto_pin_tests();
+    run_filter_advance_order_tests();
+    run_filter_setting_hook_tests();
+    run_filter_behavior_tests();
+    run_filter_butterworth_tests();
+    run_vibrato_tests();
+}
+
+// Checkpoint 2.1: the combiners, modulators and the other sources in source/.
+// The distorted source, the shaper and the wormhole have one signal input and
+// are Processors; the phased, segment and static sources have none and are
+// Generators. The combiners have two signal inputs and no `source`, and the
+// multiplex and repeating sources pull their primary input themselves
+// (Manual), which a Processor's inherited input cannot be: those four stay
+// ValueSources with their categories.
+#include "mforce/core/source_registry.h"
+#include "mforce/source/multiplex_source.h"
+#include "mforce/source/phased_value_source.h"
+#include "mforce/source/repeating_source.h"
+#include "mforce/source/segment_source.h"
+
+static_assert(std::is_base_of_v<Processor, DistortedSource> &&
+              std::is_base_of_v<Processor, ShaperSource> &&
+              std::is_base_of_v<Processor, WormholeSource>);
+static_assert(std::is_base_of_v<Generator, PhasedValueSource> &&
+              std::is_base_of_v<Generator, SegmentSource> &&
+              std::is_base_of_v<Generator, StaticVarSource> &&
+              std::is_base_of_v<Generator, StaticRangeSource>);
+static_assert(!std::is_base_of_v<Processor, CombinedSource> &&
+              !std::is_base_of_v<Processor, CrossfadeSource> &&
+              !std::is_base_of_v<Processor, MultiplexSource> &&
+              !std::is_base_of_v<Processor, RepeatingSource> &&
+              !std::is_base_of_v<Generator, CombinedSource> &&
+              !std::is_base_of_v<Generator, CrossfadeSource> &&
+              !std::is_base_of_v<Generator, MultiplexSource> &&
+              !std::is_base_of_v<Generator, RepeatingSource>);
+
+namespace {
+const SettingDescriptor* find_setting(const Component& c, const char* name) {
+    for (const auto& d : c.setting_descriptors())
+        if (std::string(d.name) == name) return &d;
+    return nullptr;
+}
+// Counts prepares and advances and remembers the length it was last prepared for.
+struct LengthProbe final : Generator {
+    int prepares{0}, advances{0}, lastFrames{0};
+    void on_prepare(const RenderContext&, int frames) override { ++prepares; lastFrames = frames; }
+    float compute() override { ++advances; return 1.0f; }
+    const char* type_name() const override { return "LengthProbe"; }
+};
+std::shared_ptr<ConstantSource> konst(float v) { return std::make_shared<ConstantSource>(v); }
+}
+
+// Every type prepares and renders finite values, and declares its pins in the
+// order they are advanced.
+static void run_combine_mod_pin_shape_tests() {
+    RenderContext ctx{48000};
+    auto smoke = [&](ValueSource& s) {
+        s.prepare(ctx, 4800);
+        bool finite = true;
+        for (int i = 0; i < 10; ++i) finite = finite && std::isfinite(s.next());
+        CHECK(finite);
+    };
+    CombinedSource comb(konst(1.0f), konst(2.0f), CombineOp::Add);   smoke(comb);
+    CrossfadeSource xfade;
+    xfade.set_param("source1", konst(1.0f));
+    xfade.set_param("source2", konst(2.0f));                     smoke(xfade);
+    DistortedSource dist;                                    smoke(dist);
+    StaticVarSource sv(1.0f, 0.1f);                          smoke(sv);
+    StaticRangeSource sr(0.0f, 1.0f);                        smoke(sr);
+    MultiplexSource mux;                                     smoke(mux);
+    PhasedValueSource phased(48000, 0.05f);
+    phased.add_stage({konst(1.0f), 0.5f, 0.0f, 0.0f, 1.0f});
+    phased.add_stage({konst(2.0f), 0.0f, 0.0f, 0.0f, 1.0f});     smoke(phased);
+    RepeatingSource rep(48000);
+    rep.set_param("source", konst(1.0f));                        smoke(rep);
+    SegmentSource seg(std::vector<float>{2.0f, 1.0f, 2.0f, -1.0f}, 48000);  smoke(seg);
+    ShaperSource shaper;                                     smoke(shaper);
+    WormholeSource wh;                                       smoke(wh);
+
+    CHECK(pin_order(comb) == "source1,source2,");
+    CHECK(pin_order(xfade) == "amplitude,source1,source2,");
+    CHECK(pin_order(dist) == "source,density,gain,shift,amplitude,");
+    CHECK(pin_order(sv).empty() && pin_order(sr).empty());
+    CHECK(pin_order(mux) == "source," && pin_order(rep) == "source,");
+    CHECK(pin_order(phased) == "amplitude,");
+    CHECK(pin_order(seg) == "amplitude,smoothness,width,gap,gapVarPct,widthVarPct,valVarPct,");
+    CHECK(pin_order(shaper) == "source,drive,smoothness,morph,breakaway,capture,");
+    CHECK(pin_order(wh) == "source,");
+
+    CHECK(input_names(comb) == "source1,source2," && input_names(xfade) == "source1,source2,");
+    CHECK(input_names(dist) == "source," && input_names(mux) == "source,");
+    CHECK(input_names(phased).empty() && input_names(seg).empty());
+    CHECK(param_names(comb).empty() && param_names(xfade) == "amplitude,");
+    CHECK(param_names(dist) == "density,gain,shift,amplitude,");
+    CHECK(param_names(shaper) == "drive,smoothness,morph,breakaway,capture,");
+    CHECK(param_names(seg) == "amplitude,smoothness,width,gap,gapVarPct,widthVarPct,valVarPct,");
+    CHECK(setting_names(comb) == "operation,gainAdj," && setting_names(xfade) == "ratio,overlap,gainAdj,");
+    CHECK(setting_names(mux) == "count," && setting_names(shaper) == "hysteresis,");
+    CHECK(setting_names(rep) == "duration,durVarPct,gapDuration,gapVarPct,");
+    CHECK(setting_names(seg) == "oneShot,timeMode,");
+    CHECK(setting_names(dist).empty() && setting_names(wh).empty() && setting_names(phased).empty());
+    CHECK(array_names(seg) == "values," && array_names(shaper) == "values,segs,values2,segs2,");
+    CHECK(array_names(comb).empty() && array_names(mux).empty());
+}
+
+// Each node keeps its place in the UI menu: the Processors' Filter default is
+// overridden where the node was not a filter.
+static void run_combine_mod_category_tests() {
+    CombinedSource comb(nullptr, nullptr, CombineOp::Add);
+    CrossfadeSource xfade;
+    MultiplexSource mux;
+    CHECK(comb.category() == SourceCategory::Combiner && xfade.category() == SourceCategory::Combiner);
+    CHECK(mux.category() == SourceCategory::Combiner);
+    DistortedSource dist;
+    RepeatingSource rep(48000);
+    ShaperSource shaper;
+    WormholeSource wh;
+    CHECK(dist.category() == SourceCategory::Modulator && rep.category() == SourceCategory::Modulator);
+    CHECK(shaper.category() == SourceCategory::Modulator && wh.category() == SourceCategory::Modulator);
+    PhasedValueSource phased(48000, 0.05f);
+    SegmentSource seg(std::vector<float>{}, 48000);
+    StaticVarSource sv(1.0f, 0.0f);
+    StaticRangeSource sr(0.0f, 1.0f);
+    CHECK(phased.category() == SourceCategory::Envelope && seg.category() == SourceCategory::Generator);
+    CHECK(sv.category() == SourceCategory::Utility && sr.category() == SourceCategory::Utility);
+    CHECK(phased.range() == Generator::Range::None && seg.range() == Generator::Range::None);
+}
+
+// A declared default is what an unwired pin reads; the enum settings keep
+// their labels and their types; constructor arguments set values, not the
+// declared defaults.
+static void run_combine_mod_default_tests() {
+    CrossfadeSource xf;
+    CHECK_NEAR(param_default(xf, "amplitude"), 1.0f, 1e-6f);
+    CHECK_NEAR(xf.get_setting("ratio"), 0.5f, 1e-6f);
+    CHECK_NEAR(xf.get_setting("overlap"), 0.1f, 1e-6f);
+    CHECK_NEAR(xf.get_setting("gainAdj"), 0.0f, 1e-6f);
+    DistortedSource dist;
+    CHECK_NEAR(param_default(dist, "amplitude"), 1.0f, 1e-6f);
+    CHECK_NEAR(param_default(dist, "density"), 1.0f, 1e-6f);
+    CHECK_NEAR(param_default(dist, "gain"), 1.0f, 1e-6f);
+    CHECK_NEAR(param_default(dist, "shift"), 0.0f, 1e-6f);
+    ShaperSource sh;
+    CHECK_NEAR(param_default(sh, "drive"), 1.0f, 1e-6f);
+    CHECK_NEAR(param_default(sh, "smoothness"), 0.5f, 1e-6f);
+    CHECK_NEAR(param_default(sh, "morph"), 0.0f, 1e-6f);
+    CHECK_NEAR(param_default(sh, "breakaway"), 0.6f, 1e-6f);
+    CHECK_NEAR(param_default(sh, "capture"), 0.0f, 1e-6f);
+    SegmentSource seg(std::vector<float>{}, 48000);
+    CHECK_NEAR(param_default(seg, "smoothness"), 0.5f, 1e-6f);
+    CHECK_NEAR(param_default(seg, "width"), 1.0f, 1e-6f);
+    CHECK_NEAR(param_default(seg, "gap"), 0.0f, 1e-6f);
+    PhasedValueSource phased(48000, 0.05f);
+    CHECK_NEAR(param_default(phased, "amplitude"), 1.0f, 1e-6f);
+    MultiplexSource mux;
+    CHECK_NEAR(mux.get_setting("count"), 10.0f, 1e-6f);
+    RepeatingSource rep(48000);
+    CHECK_NEAR(rep.get_setting("duration"), 0.5f, 1e-6f);
+    CHECK_NEAR(rep.get_setting("gapDuration"), 0.2f, 1e-6f);
+
+    CombinedSource comb(nullptr, nullptr, CombineOp::Multiply, 0.5f);
+    CHECK_NEAR(comb.get_setting("operation"), 1.0f, 1e-6f);
+    CHECK_NEAR(comb.get_setting("gainAdj"), 0.5f, 1e-6f);
+    CHECK_NEAR(find_setting(comb, "operation")->default_value, 0.0f, 1e-6f);
+    CHECK_NEAR(find_setting(comb, "gainAdj")->default_value, 0.0f, 1e-6f);
+    SegmentSource once(std::vector<float>{4.0f, 1.0f}, 48000, true);
+    CHECK_NEAR(once.get_setting("oneShot"), 1.0f, 1e-6f);
+    CHECK_NEAR(find_setting(once, "oneShot")->default_value, 0.0f, 1e-6f);
+
+    const auto* op = find_setting(comb, "operation");
+    CHECK(op->type == SettingType::Int && op->enum_labels != nullptr && op->max_value == 3.0f);
+    CHECK(std::string(op->enum_labels[0]) == "Mix" && std::string(op->enum_labels[3]) == "Sum");
+    CHECK(std::string(op->enum_labels[1]) == "Multiply" && std::string(op->enum_labels[2]) == "Fade");
+    CHECK(op->enum_labels[4] == nullptr);
+    const auto* tm = find_setting(seg, "timeMode");
+    CHECK(tm->type == SettingType::Int && tm->max_value == 2.0f);
+    CHECK(std::string(tm->enum_labels[0]) == "auto" && std::string(tm->enum_labels[2]) == "seconds");
+    CHECK(tm->enum_labels[3] == nullptr);
+    CHECK(find_setting(seg, "oneShot")->type == SettingType::Bool);
+    CHECK(find_setting(sh, "hysteresis")->type == SettingType::Bool);
+    CHECK(find_setting(mux, "count")->type == SettingType::Int);
+    CHECK(find_setting(rep, "duration")->type == SettingType::Float);
+
+    // a fresh shaper is the identity curve with no segment overrides
+    CHECK((sh.get_array("values") == std::vector<float>{-1.0f, -1.0f, 1.0f, 1.0f}));
+    CHECK(sh.get_array("segs").empty() && sh.get_array("values2").empty());
+    CHECK(sh.get_array("segs2").empty() && seg.get_array("values").empty());
+}
+
+// The base prepares and advances every wired Auto pin once per note and once
+// per sample.
+static void run_combine_mod_auto_pin_tests() {
+    RenderContext ctx{48000};
+    auto count = [&](ValueSource& s, std::initializer_list<const char*> names) {
+        std::vector<std::shared_ptr<PinCounter>> probes;
+        for (const char* n : names) {
+            probes.push_back(std::make_shared<PinCounter>());
+            s.set_param(n, probes.back());
+        }
+        s.prepare(ctx, 4800);
+        bool finite = true;
+        for (int i = 0; i < 7; ++i) finite = finite && std::isfinite(s.next());
+        bool each = true;
+        for (const auto& p : probes) each = each && p->prepares == 1 && p->advances == 7;
+        CHECK(finite && each);
+    };
+    CombinedSource comb(nullptr, nullptr, CombineOp::Add);
+    count(comb, {"source1", "source2"});
+    CrossfadeSource xfade;
+    count(xfade, {"amplitude"});
+    DistortedSource dist;
+    count(dist, {"source", "density", "gain", "shift", "amplitude"});
+    PhasedValueSource phased(48000, 0.05f);
+    phased.add_stage({konst(1.0f), 0.5f, 0.0f, 0.0f, 1.0f});
+    phased.add_stage({konst(2.0f), 0.0f, 0.0f, 0.0f, 1.0f});
+    count(phased, {"amplitude"});
+    SegmentSource seg(std::vector<float>{2.0f, 1.0f}, 48000);
+    count(seg, {"amplitude", "smoothness", "width", "gap", "gapVarPct", "widthVarPct", "valVarPct"});
+    ShaperSource shaper;
+    count(shaper, {"source", "drive", "smoothness", "morph"});
+    WormholeSource wh;
+    count(wh, {"source"});
+
+    // an unwired pin reads its declared constant and is not a source
+    CHECK(dist.get_param("source") != nullptr && dist.get_param("nosuch") == nullptr);
+    DistortedSource bare;
+    CHECK(bare.get_param("source") == nullptr && bare.get_param("gain") == nullptr);
+    bare.clear_param("nosuch");
+    CHECK(bare.get_param("nosuch") == nullptr);
+}
+
+// The Manual pins are the node's: the crossfade's sources are prepared for
+// their own part of the note and pulled only in it; the shaper's breakaway
+// and capture only in hysteresis mode; the repeating source only while a
+// repetition plays; the multiplex source only while there are no clones.
+static void run_combine_mod_manual_pin_tests() {
+    RenderContext ctx{48000};
+    // crossfade: 100 samples at ratio 0.5, overlap 0.1 -> each source is
+    // prepared for 55 samples and pulled for 55 (45 alone + the 10 overlap)
+    CrossfadeSource xf;
+    auto s1 = std::make_shared<LengthProbe>(), s2 = std::make_shared<LengthProbe>();
+    auto amp = std::make_shared<PinCounter>();
+    xf.set_param("source1", s1);
+    xf.set_param("source2", s2);
+    xf.set_param("amplitude", amp);
+    xf.prepare(ctx, 100);
+    for (int i = 0; i < 100; ++i) xf.next();
+    CHECK(amp->prepares == 1 && amp->advances == 100);
+    CHECK(s1->prepares == 1 && s1->lastFrames == 55 && s1->advances == 55);
+    CHECK(s2->prepares == 1 && s2->lastFrames == 55 && s2->advances == 55);
+
+    // shaper: breakaway and capture are prepared every note, pulled only
+    // while hysteresis is on
+    auto probesFor = [&](ShaperSource& s) {
+        auto ba = std::make_shared<PinCounter>(), cap = std::make_shared<PinCounter>();
+        s.set_param("breakaway", ba);
+        s.set_param("capture", cap);
+        s.prepare(ctx, 100);
+        for (int i = 0; i < 7; ++i) s.next();
+        return std::pair(ba, cap);
+    };
+    ShaperSource plain;
+    auto [pba, pcap] = probesFor(plain);
+    CHECK(pba->prepares == 1 && pba->advances == 0 && pcap->prepares == 1 && pcap->advances == 0);
+    ShaperSource hyst;
+    hyst.set_setting("hysteresis", 1.0f);
+    auto [hba, hcap] = probesFor(hyst);
+    CHECK(hba->prepares == 1 && hba->advances == 7 && hcap->prepares == 1 && hcap->advances == 7);
+
+    // repeating: 10 samples of source, 6 of silence, per cycle (sr 1000);
+    // the source is prepared again for each repetition and not pulled in a gap
+    RepeatingSource rep(1000);
+    auto rsrc = std::make_shared<LengthProbe>();
+    rep.set_param("source", rsrc);
+    rep.set_setting("duration", 0.01f);
+    rep.set_setting("gapDuration", 0.005f);
+    rep.prepare(ctx, 100);
+    CHECK(rsrc->prepares == 1 && rsrc->lastFrames == 10);
+    std::vector<float> out;
+    for (int i = 0; i < 32; ++i) out.push_back(rep.next());
+    bool pattern = true;
+    for (int i = 0; i < 32; ++i) pattern = pattern && (out[i] == ((i % 16) < 10 ? 1.0f : 0.0f));
+    CHECK(pattern);
+    CHECK(rsrc->advances == 20 && rsrc->prepares == 3 && rsrc->lastFrames == 10);
+
+    // multiplex: the wired source plays solo until the clones exist
+    MultiplexSource solo;
+    auto wired = std::make_shared<LengthProbe>();
+    solo.set_param("source", wired);
+    solo.prepare(ctx, 100);
+    for (int i = 0; i < 5; ++i) solo.next();
+    CHECK(wired->prepares == 1 && wired->advances == 5);
+    CHECK_NEAR(solo.current(), 1.0f, 1e-6f);
+    MultiplexSource cloned;
+    auto unused = std::make_shared<LengthProbe>();
+    cloned.set_param("source", unused);
+    cloned.set_setting("count", 3.0f);
+    cloned.set_template("{}", 0, [](int) {
+        return std::make_pair(std::shared_ptr<ValueSource>(konst(2.0f)), MultiplexSource::ValueNodeMap{});
+    });
+    cloned.prepare(ctx, 100);
+    for (int i = 0; i < 5; ++i) cloned.next();
+    CHECK(unused->prepares == 0 && unused->advances == 0);
+    CHECK_NEAR(cloned.current(), 2.0f, 1e-6f);        // the mean of the three clones
+}
+
+// The base advances the pins in declaration order. The distorted source and
+// the segment source used to advance in an order that differed from their
+// descriptor order; the shaper's Manual pins follow its Auto pins; a source
+// wired to both inputs of a combiner is advanced once, by the first.
+static void run_combine_mod_advance_order_tests() {
+    RenderContext ctx{48000};
+    auto order = [&](ValueSource& s, std::initializer_list<const char*> names, int skip = 0) {
+        std::vector<int> log;
+        std::vector<std::shared_ptr<OrderProbe>> probes;
+        std::vector<int> expect;
+        int id = 0;
+        for (const char* n : names) {
+            probes.push_back(std::make_shared<OrderProbe>(&log, ++id));
+            s.set_param(n, probes.back());
+            expect.push_back(id);
+        }
+        s.prepare(ctx, 100);
+        for (int i = 0; i < skip; ++i) s.next();
+        log.clear();
+        s.next();
+        CHECK(log == expect);
+    };
+    CombinedSource comb(nullptr, nullptr, CombineOp::Add);
+    order(comb, {"source1", "source2"});
+    DistortedSource dist;
+    order(dist, {"source", "density", "gain", "shift", "amplitude"});
+    SegmentSource seg(std::vector<float>{2.0f, 1.0f}, 48000);
+    order(seg, {"amplitude", "smoothness", "width", "gap", "gapVarPct", "widthVarPct", "valVarPct"});
+    ShaperSource shaper;
+    shaper.set_setting("hysteresis", 1.0f);
+    order(shaper, {"source", "drive", "smoothness", "morph", "breakaway", "capture"});
+    CrossfadeSource xfade;           // sample 45 of 100 is in the overlap: both sources play
+    order(xfade, {"amplitude", "source1", "source2"}, 45);
+
+    auto ramp = std::make_shared<UnitRamp>();
+    CombinedSource sq(ramp, std::make_shared<RefSource>(ramp), CombineOp::Multiply);
+    sq.prepare(ctx, 100);
+    CHECK_NEAR(sq.next(), 1.0f, 1e-6f);
+    CHECK_NEAR(sq.next(), 4.0f, 1e-6f);
+    CHECK_NEAR(sq.next(), 9.0f, 1e-6f);
+}
+
+// The setting and array hooks keep the old behaviour: the multiplex count is
+// clamped and rebuilds the clones only when it changes; the segment source
+// re-derives its units from its time mode and its first width; the shaper
+// refuses a malformed curve and keeps its segment arrays normalised.
+static void run_combine_mod_setting_hook_tests() {
+    RenderContext ctx{48000};
+    MultiplexSource mux;
+    mux.set_setting("count", 99.0f);  CHECK_NEAR(mux.get_setting("count"), 50.0f, 1e-6f);
+    mux.set_setting("count", 0.0f);   CHECK_NEAR(mux.get_setting("count"), 1.0f, 1e-6f);
+    mux.set_setting("count", 4.0f);   CHECK_NEAR(mux.get_setting("count"), 4.0f, 1e-6f);
+    int builds = 0;
+    mux.set_template("{}", 0, [&builds](int) {
+        ++builds;
+        return std::make_pair(std::shared_ptr<ValueSource>(konst(1.0f)), MultiplexSource::ValueNodeMap{});
+    });
+    mux.prepare(ctx, 8);                                   CHECK(builds == 4);
+    mux.prepare(ctx, 8);                                   CHECK(builds == 4);
+    mux.set_setting("count", 4.0f);  mux.prepare(ctx, 8);  CHECK(builds == 4);
+    mux.set_setting("count", 6.0f);  mux.prepare(ctx, 8);  CHECK(builds == 10);
+    mux.mark_dirty();                mux.prepare(ctx, 8);  CHECK(builds == 16);
+
+    // a 4-sample ramp: the first width is inferred to be seconds (< 1) at sr 1000
+    auto ramp4 = [&](SegmentSource& s) {
+        s.prepare(ctx, 100);
+        std::vector<float> out;
+        for (int i = 0; i < 6; ++i) out.push_back(s.next());
+        return out;
+    };
+    SegmentSource seg(std::vector<float>{4.0f, 1.0f}, 1000, true);
+    seg.set_array("values", {0.004f, 1.0f});
+    auto secs = ramp4(seg);
+    CHECK_NEAR(secs[0], 0.25f, 1e-5f);
+    CHECK_NEAR(secs[3], 1.0f, 1e-5f);
+    CHECK(secs[4] == 0.0f && secs[5] == 0.0f);
+    seg.set_setting("timeMode", 1.0f);                     // samples: 0.004 rounds to no width
+    auto samples = ramp4(seg);
+    CHECK(samples[0] == 0.0f && samples[3] == 0.0f);
+    seg.set_setting("timeMode", 2.0f);
+    CHECK_NEAR(ramp4(seg)[3], 1.0f, 1e-5f);
+    seg.set_setting("timeMode", 9.0f);  CHECK_NEAR(seg.get_setting("timeMode"), 2.0f, 1e-6f);
+    seg.set_setting("timeMode", -3.0f); CHECK_NEAR(seg.get_setting("timeMode"), 0.0f, 1e-6f);
+    seg.set_setting("oneShot", 0.0f);
+    CHECK(seg.get_array("values").size() == 2);            // a setting edit keeps the shape
+
+    ShaperSource sh;
+    const std::vector<float> identity{-1.0f, -1.0f, 1.0f, 1.0f};
+    sh.set_array("values", {0.0f, 0.0f, 1.0f});            // odd length: refused
+    CHECK(sh.get_array("values") == identity);
+    sh.set_array("values", {0.0f, 0.0f});                  // under two points: refused
+    CHECK(sh.get_array("values") == identity);
+    sh.set_array("values", {0.0f, 0.0f, 1.0f, 2.0f});
+    CHECK(sh.get_array("values").size() == 4 && sh.get_array("values")[3] == 2.0f);
+    sh.set_array("values2", {0.0f, 0.0f, 1.0f, 1.0f});
+    sh.set_array("values2", {1.0f, 2.0f, 3.0f});           // refused: curve B stays
+    CHECK(sh.get_array("values2").size() == 4);
+    sh.set_array("values2", {});                           // empty clears curve B
+    CHECK(sh.get_array("values2").empty());
+    sh.set_array("segs", {0.0f, 0.0f, 9.0f, 5.0f});        // no valid override: normalises to empty
+    CHECK(sh.get_array("segs").empty());
+    sh.set_array("segs2", {0.0f, 0.0f, 2.0f, 2.0f});
+    CHECK(sh.get_array("segs2").size() == 4);
+}
+
+// The pins are read in compute(): the combiner's four operations, the
+// crossfade's three regions, the distortion's clip and density, the static
+// sources' held value, the one-shot segment, the phased first stage.
+static void run_combine_mod_behavior_tests() {
+    RenderContext ctx{48000};
+    CombinedSource c(konst(0.5f), konst(0.25f), CombineOp::Add, 0.2f);
+    c.prepare(ctx, 100);
+    CHECK_NEAR(c.next(), (0.5f + 0.25f * 1.2f) * 0.5f, 1e-6f);
+    c.set_setting("operation", 1.0f);
+    CHECK_NEAR(c.next(), 0.5f * 0.25f * 1.2f, 1e-6f);
+    c.set_setting("operation", 3.0f);
+    CHECK_NEAR(c.next(), 0.5f + 0.25f * 1.2f, 1e-6f);
+    c.set_setting("operation", 2.0f);
+    c.prepare(ctx, 100);
+    CHECK_NEAR(c.next(), 0.5f, 1e-6f);                                     // fade starts at source1
+    CHECK_NEAR(c.next(), 0.5f * 0.99f + 0.25f * 1.2f * 0.01f, 1e-6f);
+
+    // crossfade: source1 alone, an overlap where both play, source2 alone
+    CrossfadeSource xf;
+    xf.set_param("source1", konst(1.0f));
+    xf.set_param("source2", konst(2.0f));
+    xf.set_param("amplitude", konst(0.5f));
+    xf.prepare(ctx, 100);
+    std::vector<float> out;
+    for (int i = 0; i < 100; ++i) out.push_back(xf.next());
+    CHECK_NEAR(out[0], 0.5f, 1e-6f);
+    CHECK_NEAR(out[50], 0.75f, 1e-6f);
+    CHECK_NEAR(out[99], 1.0f, 1e-6f);
+
+    // distortion: gain scales and clips; density 0 is silence
+    auto in = konst(0.3f);
+    DistortedSource d;
+    d.set_param("source", in);
+    d.set_param("gain", konst(0.0f));
+    CHECK_NEAR(d.next(), 0.3f, 1e-6f);
+    d.set_param("gain", konst(1.0f));
+    CHECK_NEAR(d.next(), 0.6f, 1e-6f);
+    in->set(-0.8f);
+    CHECK_NEAR(d.next(), -1.0f, 1e-6f);
+    d.set_param("density", konst(0.0f));
+    bool silent = true;
+    for (int i = 0; i < 20; ++i) silent = silent && d.next() == 0.0f;
+    CHECK(silent);
+
+    // the static sources hold one value per note, from prepare on
+    StaticVarSource sv(2.0f, 0.0f);
+    sv.prepare(ctx, 10);
+    CHECK_NEAR(sv.current(), 2.0f, 1e-6f);
+    CHECK_NEAR(sv.next(), 2.0f, 1e-6f);
+    StaticRangeSource sr(0.2f, 0.4f, 0.3f);
+    sr.prepare(ctx, 10);
+    const float held = sr.current();
+    CHECK(held >= 0.2f && held <= 0.4f && sr.next() == held && sr.next() == held);
+
+    // a one-shot segment ramps over its width, scaled by amplitude, then stops
+    SegmentSource once(std::vector<float>{4.0f, 1.0f}, 48000, true);
+    once.set_param("amplitude", konst(2.0f));
+    once.prepare(ctx, 100);
+    CHECK_NEAR(once.next(), 0.5f, 1e-5f);
+    CHECK_NEAR(once.next(), 1.0f, 1e-5f);
+    CHECK_NEAR(once.next(), 1.5f, 1e-5f);
+    CHECK_NEAR(once.next(), 2.0f, 1e-5f);
+    CHECK(once.next() == 0.0f);
+
+    // the phased source plays its first stage at its gain and amplitude
+    PhasedValueSource phased(48000, 0.05f);
+    phased.add_stage({konst(1.0f), 0.5f, 0.0f, 0.0f, 1.0f});
+    phased.add_stage({konst(2.0f), 0.0f, 0.0f, 0.0f, 1.0f});
+    phased.set_param("amplitude", konst(0.5f));
+    phased.prepare(ctx, 4800);
+    CHECK_NEAR(phased.next(), 0.5f, 1e-6f);
+}
+
+// The shaper sticks until the input passes the breakaway, slips along the
+// second curve, and sticks again on a sign reversal.
+static void run_combine_mod_hysteresis_tests() {
+    RenderContext ctx{48000};
+    ShaperSource sh;
+    auto in = konst(0.2f);
+    sh.set_param("source", in);
+    sh.set_array("values2", {-1.0f, 0.0f, 1.0f, 0.0f});    // the slip curve: flat zero
+    sh.set_setting("hysteresis", 1.0f);
+    sh.prepare(ctx, 100);
+    CHECK_NEAR(sh.next(), 0.2f, 1e-5f);                    // under the 0.6 breakaway: curve A
+    in->set(0.9f);
+    CHECK_NEAR(sh.next(), 0.0f, 1e-5f);                    // past it: curve B
+    in->set(0.5f);
+    CHECK_NEAR(sh.next(), 0.0f, 1e-5f);                    // still slipping
+    in->set(-0.5f);
+    CHECK_NEAR(sh.next(), -0.5f, 1e-5f);                   // sign reversal: stuck again
+}
+
+// The configurators set the migrated settings from the patch JSON, in the
+// forms the loader accepts.
+static void run_combine_mod_configurator_tests() {
+    register_all_sources();
+    auto& reg = SourceRegistry::instance();
+    const ResolveParamFn none = [](const nlohmann::json&) { return std::shared_ptr<ValueSource>(); };
+    auto configure = [&](const char* type, const char* json) {
+        auto src = reg.create(type, 48000);
+        (*reg.get_configurator(type))(*src, nlohmann::json::parse(json), none);
+        return src;
+    };
+    auto comb = configure("CombinedSource", R"({"operation":"multiply","gainAdj":0.5})");
+    CHECK_NEAR(comb->get_setting("operation"), 1.0f, 1e-6f);
+    CHECK_NEAR(comb->get_setting("gainAdj"), 0.5f, 1e-6f);
+    comb = configure("CombinedSource", R"({"operation":3})");
+    CHECK_NEAR(comb->get_setting("operation"), 3.0f, 1e-6f);
+    CHECK_NEAR(comb->get_setting("gainAdj"), 0.0f, 1e-6f);
+    comb = configure("CombinedSource", R"({"operation":"mix"})");
+    CHECK_NEAR(comb->get_setting("operation"), 0.0f, 1e-6f);
+    bool threw = false;
+    try { configure("CombinedSource", R"({"operation":9})"); }
+    catch (const std::runtime_error&) { threw = true; }
+    CHECK(threw);
+
+    auto xf = configure("CrossfadeSource", R"({"ratio":0.7,"overlap":0.2,"gainAdj":0.1})");
+    CHECK_NEAR(xf->get_setting("ratio"), 0.7f, 1e-6f);
+    CHECK_NEAR(xf->get_setting("overlap"), 0.2f, 1e-6f);
+    CHECK_NEAR(xf->get_setting("gainAdj"), 0.1f, 1e-6f);
+
+    auto rep = configure("RepeatingSource", R"({"duration":0.25,"durVarPct":0.1,"gap":0.4,"gapVarPct":0.3})");
+    CHECK_NEAR(rep->get_setting("duration"), 0.25f, 1e-6f);
+    CHECK_NEAR(rep->get_setting("durVarPct"), 0.1f, 1e-6f);
+    CHECK_NEAR(rep->get_setting("gapDuration"), 0.4f, 1e-6f);
+    CHECK_NEAR(rep->get_setting("gapVarPct"), 0.3f, 1e-6f);
+}
+
+// The combiner/modulator family, in registration order.
+static void run_combine_mod_tests() {
+    run_combine_mod_pin_shape_tests();
+    run_combine_mod_category_tests();
+    run_combine_mod_default_tests();
+    run_combine_mod_auto_pin_tests();
+    run_combine_mod_manual_pin_tests();
+    run_combine_mod_advance_order_tests();
+    run_combine_mod_setting_hook_tests();
+    run_combine_mod_behavior_tests();
+    run_combine_mod_hysteresis_tests();
+    run_combine_mod_configurator_tests();
+}
+
 int main() {
     run_pin_tests();
     run_base_tests();
@@ -3797,14 +4355,8 @@ int main() {
     run_physical_setting_hook_tests();
     run_physical_mesh_hook_tests();
     run_physical_behavior_tests();
-    run_filter_pin_shape_tests();
-    run_filter_default_tests();
-    run_filter_auto_pin_tests();
-    run_filter_advance_order_tests();
-    run_filter_setting_hook_tests();
-    run_filter_behavior_tests();
-    run_filter_butterworth_tests();
-    run_vibrato_tests();
+    run_filter_tests();
+    run_combine_mod_tests();
     run_sharing_trace_tests();
     run_walk2_tests();
     run_walk3_tests();

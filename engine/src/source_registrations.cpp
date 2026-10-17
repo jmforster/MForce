@@ -276,10 +276,10 @@ void register_all_sources() {
             if (p.contains("operation") && p.at("operation").is_number()) {
                 int op = p.at("operation").get<int>();
                 switch (op) {
-                    case 0: cs.op = CombineOp::Add;      break;
-                    case 1: cs.op = CombineOp::Multiply; break;
-                    case 2: cs.op = CombineOp::Fade;     break;
-                    case 3: cs.op = CombineOp::Sum;      break;
+                    case 0: cs.operation.value = int(CombineOp::Add);      break;
+                    case 1: cs.operation.value = int(CombineOp::Multiply); break;
+                    case 2: cs.operation.value = int(CombineOp::Fade);     break;
+                    case 3: cs.operation.value = int(CombineOp::Sum);      break;
                     default:
                         throw std::runtime_error(
                             "CombinedSource 'operation': ordinal " + std::to_string(op) +
@@ -288,16 +288,16 @@ void register_all_sources() {
                 }
             } else {
                 std::string opStr = p.value("operation", std::string("add"));
-                if      (opStr == "add" || opStr == "mix") cs.op = CombineOp::Add;
-                else if (opStr == "multiply")              cs.op = CombineOp::Multiply;
-                else if (opStr == "fade")                  cs.op = CombineOp::Fade;
-                else if (opStr == "sum")                   cs.op = CombineOp::Sum;
+                if      (opStr == "add" || opStr == "mix") cs.operation.value = int(CombineOp::Add);
+                else if (opStr == "multiply")              cs.operation.value = int(CombineOp::Multiply);
+                else if (opStr == "fade")                  cs.operation.value = int(CombineOp::Fade);
+                else if (opStr == "sum")                   cs.operation.value = int(CombineOp::Sum);
                 else
                     throw std::runtime_error(
                         "CombinedSource 'operation': unknown value \"" + opStr +
                         "\" (expected add|mix|multiply|fade|sum).");
             }
-            cs.gainAdj = p.value("gainAdj", 0.0f);
+            cs.gainAdj.value = p.value("gainAdj", 0.0f);
         });
 
     reg.register_type("CrossfadeSource", SourceCategory::Combiner,
@@ -305,9 +305,9 @@ void register_all_sources() {
         // Configurator: ratio, overlap, gainAdj
         [](ValueSource& src, const nlohmann::json& p, const ResolveParamFn&) {
             auto& cs = static_cast<CrossfadeSource&>(src);
-            cs.ratio   = p.value("ratio", 0.5f);
-            cs.overlap = p.value("overlap", 0.1f);
-            cs.gainAdj = p.value("gainAdj", 0.0f);
+            cs.ratio.value   = p.value("ratio", 0.5f);
+            cs.overlap.value = p.value("overlap", 0.1f);
+            cs.gainAdj.value = p.value("gainAdj", 0.0f);
         });
 
     reg.register_type("DistortedSource", SourceCategory::Modulator,
@@ -383,10 +383,10 @@ void register_all_sources() {
         // Configurator: duration, gap (plain floats)
         [](ValueSource& src, const nlohmann::json& p, const ResolveParamFn&) {
             auto& rep = static_cast<RepeatingSource&>(src);
-            rep.duration    = p.value("duration", 0.5f);
-            rep.durVarPct   = p.value("durVarPct", 0.0f);
-            rep.gapDuration = p.value("gap", 0.2f);
-            rep.gapVarPct   = p.value("gapVarPct", 0.0f);
+            rep.duration.value    = p.value("duration", 0.5f);
+            rep.durVarPct.value   = p.value("durVarPct", 0.0f);
+            rep.gapDuration.value = p.value("gap", 0.2f);
+            rep.gapVarPct.value   = p.value("gapVarPct", 0.0f);
         });
 
     reg.register_type("PhasedValueSource", SourceCategory::Envelope,

@@ -17,169 +17,76 @@ namespace mforce {
 // Each cycle, widths and values are randomized by varPct.
 // Optional gap (silence) appended to each cycle.
 // OneShot mode plays once and stops.
-struct SegmentSource final : ValueSource {
-  bool oneShot{false};
+struct SegmentSource final : Generator {
+  // In the order they are advanced.
+  Param amplitude  {this, "amplitude",   1.0f, 0.0f,  10.0f, "0-1"};
+  Param smoothness {this, "smoothness",  0.5f, 0.0f,  1.0f,  "0-1"};
+  // Global time-scale of the whole shape: 1 = as drawn, <1 narrower, >1
+  // wider — every segment width multiplied, read once per cycle. Gap is NOT
+  // scaled (it's its own knob).
+  Param width      {this, "width",       1.0f, 0.05f, 20.0f, "ratio"};
+  Param gap        {this, "gap",         0.0f, 0.0f,  10.0f, "sec"};
+  Param gapVarPct  {this, "gapVarPct",   0.0f, 0.0f,  1.0f,  "0-1"};
+  Param widthVarPct{this, "widthVarPct", 0.0f, 0.0f,  1.0f,  "0-1"};
+  Param valVarPct  {this, "valVarPct",   0.0f, 0.0f,  1.0f,  "0-1"};
+  Setting<bool> oneShot{this, "oneShot", false, false, true};
+  // timeMode (shape_editor_design.md): explicit units for the widths.
+  // "auto" keeps the legacy first-width inference (values[0] < 1 =>
+  // seconds) so patches without the setting are byte-identical; the
+  // shape editor always writes samples/seconds explicitly.
+  Setting<int> timeMode{this, "timeMode", 0, 0, 2, kTimeModeLabels};
+  // values[] is the [width0, val0, width1, val1, ...] segment table. The
+  // patch loader's generic set_array path uses this to wire arbitrary
+  // shapes from JSON. widthIsSecs_ is re-derived from values[0] each time.
+  Array values{this, "values", nullptr, 0.0f, -10.0f, 10.0f};
   int sampleRate{48000};
 
-  void set_amplitude(std::shared_ptr<ValueSource> s)   { amplitude_ = std::move(s); }
-  void set_smoothness(std::shared_ptr<ValueSource> s)  { smoothness_ = std::move(s); }
-  void set_widthVarPct(std::shared_ptr<ValueSource> s) { widthVarPct_ = std::move(s); }
-  void set_valVarPct(std::shared_ptr<ValueSource> s)   { valVarPct_ = std::move(s); }
-  void set_gap(std::shared_ptr<ValueSource> s)         { gap_ = std::move(s); }
-  void set_gapVarPct(std::shared_ptr<ValueSource> s)   { gapVarPct_ = std::move(s); }
-
-  std::shared_ptr<ValueSource> get_amplitude() const   { return amplitude_; }
-  std::shared_ptr<ValueSource> get_smoothness() const  { return smoothness_; }
-  std::shared_ptr<ValueSource> get_widthVarPct() const { return widthVarPct_; }
-  std::shared_ptr<ValueSource> get_valVarPct() const   { return valVarPct_; }
-  std::shared_ptr<ValueSource> get_gap() const         { return gap_; }
-  std::shared_ptr<ValueSource> get_gapVarPct() const   { return gapVarPct_; }
+  SegmentSource(std::vector<float> initial, int sr, bool os = false,
+                uint32_t seed = 0x5E6A'0000u)
+  : sampleRate(sr), rng_(seed)
+  {
+    values.values = std::move(initial);
+    oneShot.value = os;
+    refresh_units_();
+  }
 
   const char* type_name() const override { return "SegmentSource"; }
   SourceCategory category() const override { return SourceCategory::Generator; }
 
-  std::span<const ParamDescriptor> param_descriptors() const override {
-    static constexpr ParamDescriptor descs[] = {
-      {"amplitude",   1.0f, 0.0f, 10.0f, "0-1"},
-      {"smoothness",  0.5f, 0.0f, 1.0f,  "0-1"},
-      // Global time-scale of the whole shape (Matt 2026-08-29): 1 = as
-      // drawn, <1 narrower, >1 wider — every segment width multiplied,
-      // read once per cycle. Gap is NOT scaled (it's its own knob).
-      {"width",       1.0f, 0.05f, 20.0f, "ratio"},
-      {"widthVarPct", 0.0f, 0.0f, 1.0f,  "0-1"},
-      {"valVarPct",   0.0f, 0.0f, 1.0f,  "0-1"},
-      {"gap",         0.0f, 0.0f, 10.0f, "sec"},
-      {"gapVarPct",   0.0f, 0.0f, 1.0f,  "0-1"},
-    };
-    return descs;
-  }
-
-  void set_param(std::string_view name, std::shared_ptr<ValueSource> src) override {
-    if (name == "amplitude")   { amplitude_ = std::move(src); return; }
-    if (name == "smoothness")  { smoothness_ = std::move(src); return; }
-    if (name == "width")       { width_ = std::move(src); return; }
-    if (name == "widthVarPct") { widthVarPct_ = std::move(src); return; }
-    if (name == "valVarPct")   { valVarPct_ = std::move(src); return; }
-    if (name == "gap")         { gap_ = std::move(src); return; }
-    if (name == "gapVarPct")   { gapVarPct_ = std::move(src); return; }
-  }
-
-  std::shared_ptr<ValueSource> get_param(std::string_view name) const override {
-    if (name == "amplitude")   return amplitude_;
-    if (name == "smoothness")  return smoothness_;
-    if (name == "width")       return width_;
-    if (name == "widthVarPct") return widthVarPct_;
-    if (name == "valVarPct")   return valVarPct_;
-    if (name == "gap")         return gap_;
-    if (name == "gapVarPct")   return gapVarPct_;
-    return nullptr;
-  }
-
-  std::span<const SettingDescriptor> setting_descriptors() const override {
-    // timeMode (shape_editor_design.md): explicit units for the widths.
-    // "auto" keeps the legacy first-width inference (values[0] < 1 =>
-    // seconds) so patches without the setting are byte-identical; the
-    // shape editor always writes samples/seconds explicitly.
-    static constexpr const char* kTimeModeLabels[] = {
-      "auto", "samples", "seconds", nullptr
-    };
-    static constexpr SettingDescriptor descs[] = {
-      {"oneShot",  SettingType::Bool, 0.0f, 0.0f, 1.0f},
-      {"timeMode", SettingType::Int,  0.0f, 0.0f, 2.0f, kTimeModeLabels},
-    };
-    return descs;
-  }
-
-  void set_setting(std::string_view name, float value) override {
-    if (name == "oneShot") { oneShot = (value != 0.0f); return; }
+  void on_setting_changed(std::string_view name) override {
     if (name == "timeMode") {
-      timeMode_ = std::clamp(int(value), 0, 2);
-      refresh_units_();
-      return;
-    }
-  }
-
-  float get_setting(std::string_view name) const override {
-    if (name == "oneShot") return oneShot ? 1.0f : 0.0f;
-    if (name == "timeMode") return float(timeMode_);
-    return 0.0f;
-  }
-
-  // values[] is the [width0, val0, width1, val1, ...] segment table. The
-  // patch loader's generic set_array path uses this to wire arbitrary
-  // shapes from JSON. widthIsSecs_ is re-derived from values[0] each time.
-  std::span<const ArrayDescriptor> array_descriptors() const override {
-    static constexpr ArrayDescriptor descs[] = {
-      {"values", nullptr, 0.0f, -10.0f, 10.0f},
-    };
-    return descs;
-  }
-
-  void set_array(std::string_view name, std::vector<float> v) override {
-    if (name == "values") {
-      values_ = std::move(v);
+      timeMode.clamp();
       refresh_units_();
     }
   }
-  // Missing until 2026-08-23: the UI re-pulls every array from the DSP object
-  // after ANY setting edit, so toggling oneShot replaced the cached shape with
-  // the base class's empty vector and the save then dropped it.
-  std::vector<float> get_array(std::string_view name) const override {
-    if (name == "values") return values_;
-    return {};
+
+  void on_array_changed(std::string_view name) override {
+    if (name == "values") refresh_units_();
   }
 
-  SegmentSource(std::vector<float> values, int sr, bool os = false,
-                uint32_t seed = 0x5E6A'0000u)
-  : values_(std::move(values)), sampleRate(sr), oneShot(os), rng_(seed),
-    amplitude_(std::make_shared<ConstantSource>(1.0f)),
-    smoothness_(std::make_shared<ConstantSource>(0.5f)),
-    width_(std::make_shared<ConstantSource>(1.0f)),
-    widthVarPct_(std::make_shared<ConstantSource>(0.0f)),
-    valVarPct_(std::make_shared<ConstantSource>(0.0f)),
-    gap_(std::make_shared<ConstantSource>(0.0f)),
-    gapVarPct_(std::make_shared<ConstantSource>(0.0f))
-  {
-    refresh_units_();
-  }
-
-  void prepare(const RenderContext& ctx, int frames) override {
-    if (amplitude_) amplitude_->prepare(ctx, frames);
-    if (smoothness_) smoothness_->prepare(ctx, frames);
-    if (width_) width_->prepare(ctx, frames);
-    if (widthVarPct_) widthVarPct_->prepare(ctx, frames);
-    if (valVarPct_) valVarPct_->prepare(ctx, frames);
-    if (gap_) gap_->prepare(ctx, frames);
-    if (gapVarPct_) gapVarPct_->prepare(ctx, frames);
+  void on_prepare(const RenderContext&, int) override {
     done_ = false;
-    // Deferred to the first next() (2026-08-29): update_segments() reads
-    // the width/var/gap pins via current(), and at prepare() time a wired
+    // Deferred to the first compute(): update_segments() reads the
+    // width/var/gap pins via current(), and at prepare() time a wired
     // chain (e.g. Note→Curve→width) still holds the PREVIOUS note's value
     // on a reused voice — Matt heard it as nondeterministic clicks/thumps
-    // per keypress. First-next() runs after the pins advance for THIS note.
+    // per keypress. The first compute() runs after the pins advance for
+    // THIS note.
     pendingInit_ = true;
   }
 
-  float next() override {
-    amplitude_->advance();
-    smoothness_->advance();
-    if (width_) width_->advance();
-    gap_->advance();
-    gapVarPct_->advance();
-    widthVarPct_->advance();
-    valVarPct_->advance();
-
-    interp_.setSmoothness(smoothness_->current());
+  float compute() override {
+    interp_.setSmoothness(smoothness.current());
 
     if (pendingInit_) { pendingInit_ = false; update_segments(); }
 
     // Empty shape (a node fresh from the menu, or values cleared) used to
-    // index currVals_[0] out of bounds on the first sample (2026-08-23).
-    if (done_ || currVals_.size() < 2) { cur_ = 0.0f; return cur_; }
+    // index currVals_[0] out of bounds on the first sample.
+    if (done_ || currVals_.size() < 2) return 0.0f;
 
     if (currSegCount_ >= int(currVals_[currSeg_ * 2])) {
       if (currSeg_ >= int(currVals_.size()) / 2 - 1) {
-        if (oneShot) { done_ = true; cur_ = 0.0f; return cur_; }
+        if (oneShot.value) { done_ = true; return 0.0f; }
         else update_segments();
       } else {
         currSeg_++;
@@ -191,33 +98,35 @@ struct SegmentSource final : ValueSource {
 
     float prevVal = (currSeg_ == 0) ? 0.0f : currVals_[currSeg_ * 2 - 1];
     float nextVal = currVals_[currSeg_ * 2 + 1];
-    float width = currVals_[currSeg_ * 2];
-    float pos = (width > 0.0f) ? float(currSegCount_) / width : 1.0f;
+    float segWidth = currVals_[currSeg_ * 2];
+    float pos = (segWidth > 0.0f) ? float(currSegCount_) / segWidth : 1.0f;
 
-    cur_ = interp_.interpolate(prevVal, nextVal, pos) * amplitude_->current();
-    return cur_;
+    return interp_.interpolate(prevVal, nextVal, pos) * amplitude.current();
   }
 
-  float current() const override { return cur_; }
-
 private:
+  static constexpr const char* kTimeModeLabels[] = {
+    "auto", "samples", "seconds", nullptr
+  };
+
   void refresh_units_() {
-    if (timeMode_ == 1)      widthIsSecs_ = false;
-    else if (timeMode_ == 2) widthIsSecs_ = true;
-    else widthIsSecs_ = !values_.empty() && values_[0] < 1.0f;  // legacy auto
+    if (timeMode.value == 1)      widthIsSecs_ = false;
+    else if (timeMode.value == 2) widthIsSecs_ = true;
+    else widthIsSecs_ = !values.values.empty() && values.values[0] < 1.0f;  // legacy auto
   }
 
   void update_segments() {
+    const std::vector<float>& shape = values.values;
     float gapSamples = std::round(
-        rng_.range(gap_->current() * (1.0f - gapVarPct_->current()),
-                   gap_->current() * (1.0f + gapVarPct_->current()))
+        rng_.range(gap.current() * (1.0f - gapVarPct.current()),
+                   gap.current() * (1.0f + gapVarPct.current()))
         * (widthIsSecs_ ? float(sampleRate) : 1.0f));
     int gapInt = int(gapSamples);
 
-    int pairCount = int(values_.size()) / 2;
-    float wvp = widthVarPct_->current();
-    float vvp = valVarPct_->current();
-    float wscale = width_ ? width_->current() : 1.0f;
+    int pairCount = int(shape.size()) / 2;
+    float wvp = widthVarPct.current();
+    float vvp = valVarPct.current();
+    float wscale = width.current();
     float rate = widthIsSecs_ ? float(sampleRate) : 1.0f;
 
     currVals_.clear();
@@ -226,9 +135,9 @@ private:
       // Exact legacy path — byte-identical at the default width.
       for (int i = 0; i < pairCount; ++i) {
         currVals_.push_back(std::round(rng_.range(
-            values_[i * 2] * (1.0f - wvp), values_[i * 2] * (1.0f + wvp)) * rate));
+            shape[i * 2] * (1.0f - wvp), shape[i * 2] * (1.0f + wvp)) * rate));
         currVals_.push_back(rng_.range(
-            values_[i * 2 + 1] * (1.0f - vvp), values_[i * 2 + 1] * (1.0f + vvp)));
+            shape[i * 2 + 1] * (1.0f - vvp), shape[i * 2 + 1] * (1.0f + vvp)));
       }
     } else {
       // Error-diffused width scaling (2026-08-30): per-segment rounding
@@ -242,10 +151,10 @@ private:
       long long emitted = 0;
       for (int i = 0; i < pairCount; ++i) {
         const float w = rng_.range(
-            values_[i * 2] * (1.0f - wvp), values_[i * 2] * (1.0f + wvp))
+            shape[i * 2] * (1.0f - wvp), shape[i * 2] * (1.0f + wvp))
             * rate * wscale;
         const float v = rng_.range(
-            values_[i * 2 + 1] * (1.0f - vvp), values_[i * 2 + 1] * (1.0f + vvp));
+            shape[i * 2 + 1] * (1.0f - vvp), shape[i * 2 + 1] * (1.0f + vvp));
         accExact += std::max(0.0f, w);
         const long long target = (long long)std::llround(accExact);
         const long long wi = target - emitted;
@@ -257,7 +166,7 @@ private:
       if (currVals_.empty() && pairCount > 0) {
         // Degenerate scale: keep one segment so the shape isn't silence.
         currVals_.push_back(1.0f);
-        currVals_.push_back(values_[pairCount * 2 - 1]);
+        currVals_.push_back(shape[pairCount * 2 - 1]);
       }
     }
 
@@ -270,17 +179,8 @@ private:
     currSegCount_ = 0;
   }
 
-  std::shared_ptr<ValueSource> amplitude_;
-  std::shared_ptr<ValueSource> smoothness_;
-  std::shared_ptr<ValueSource> width_;
-  std::shared_ptr<ValueSource> widthVarPct_;
-  std::shared_ptr<ValueSource> valVarPct_;
-  std::shared_ptr<ValueSource> gap_;
-  std::shared_ptr<ValueSource> gapVarPct_;
-  std::vector<float> values_;
   std::vector<float> currVals_;
   bool widthIsSecs_{false};
-  int  timeMode_{0};  // 0=auto (legacy inference), 1=samples, 2=seconds
   bool done_{false};
   bool pendingInit_{false};
   int currSeg_{0};
@@ -289,7 +189,6 @@ private:
   void reseed() override { rng_.reanchor(); }
   Randomizer rng_;
   SmoothnessInterpolator interp_{0.0f, false};
-  float cur_{0.0f};
 };
 
 } // namespace mforce

@@ -13,90 +13,37 @@ namespace mforce {
 // ascending in x (NOT the SegmentSource delta form); evaluation is
 // piecewise between breakpoints through SmoothnessInterpolator, clamped
 // to the end values outside the drawn range. Default = identity.
-struct ShaperSource final : ValueSource {
-  ShaperSource()
-    : source_(std::make_shared<ConstantSource>(0.0f)),
-      drive_(std::make_shared<ConstantSource>(1.0f)),
-      smoothness_(std::make_shared<ConstantSource>(0.5f)),
-      breakaway_(std::make_shared<ConstantSource>(0.6f)),
-      capture_(std::make_shared<ConstantSource>(0.0f)),
-      values_{-1.0f, -1.0f, 1.0f, 1.0f} {}
+struct ShaperSource final : Processor {
+  Param drive     {this, "drive",      1.0f, 0.0f, 20.0f, "ratio"};
+  Param smoothness{this, "smoothness", 0.5f, 0.0f, 1.0f,  "0-1"};
+  // Point-space blend toward curve B (values2/segs2); 0 = pure A =
+  // byte-identical legacy path. Curve-morph spec §5.
+  Param morph     {this, "morph",      0.0f, 0.0f, 1.0f,  "0-1"};
+  // Hysteresis thresholds, in post-drive curve-x units (hysteresis spec §2).
+  // breakaway ~ bow pressure; capture 0 = zero-cross-only recapture. Read
+  // only in hysteresis mode, so the node pulls them itself (Manual): the
+  // base neither prepares nor advances a Manual pin.
+  Param breakaway {this, "breakaway",  0.6f, 0.0f, 2.0f,  "curve-x", Pull::Manual};
+  Param capture   {this, "capture",    0.0f, 0.0f, 2.0f,  "curve-x", Pull::Manual};
+  // Stick/slip junction mode (hysteresis spec §3): curve A = stick, curve B
+  // = slip, one bit of state. Mutually exclusive with morph (morph is
+  // ignored while on; loader warns).
+  Setting<bool> hysteresis{this, "hysteresis", false, false, true};
+  Array values {this, "values",  nullptr, 0.0f, -2.0f, 2.0f};
+  // Per-segment overrides (curve-morph spec §3): flat [typeIdx, power]
+  // per segment; typeIdx 0 = default (smoothness pin), else
+  // 1 + int(RampType) (1 Linear, 2 Expo, 3 InverseExpo, 4 Sine,
+  // 5 Hold). Empty = all default (existing patches untouched).
+  Array segs   {this, "segs",    nullptr, 0.0f, 0.0f,  40.0f};
+  // Morph curve B (spec §5): same shapes as values/segs; empty =
+  // single-curve Shaper. Inert until the morph pin lands.
+  Array values2{this, "values2", nullptr, 0.0f, -2.0f, 2.0f};
+  Array segs2  {this, "segs2",   nullptr, 0.0f, 0.0f,  40.0f};
+
+  ShaperSource() : values_{-1.0f, -1.0f, 1.0f, 1.0f} { values.values = values_; }
 
   const char* type_name() const override { return "Shaper"; }
   SourceCategory category() const override { return SourceCategory::Modulator; }
-
-  std::span<const InputDescriptor> input_descriptors() const override {
-    static constexpr InputDescriptor descs[] = {
-      {"source"},
-    };
-    return descs;
-  }
-
-  std::span<const ParamDescriptor> param_descriptors() const override {
-    static constexpr ParamDescriptor descs[] = {
-      {"drive",      1.0f, 0.0f, 20.0f, "ratio"},
-      {"smoothness", 0.5f, 0.0f, 1.0f, "0-1"},
-      // Point-space blend toward curve B (values2/segs2); 0 = pure A =
-      // byte-identical legacy path. Curve-morph spec §5.
-      {"morph",      0.0f, 0.0f, 1.0f, "0-1"},
-      // Hysteresis thresholds, in post-drive curve-x units (hysteresis
-      // spec §2). breakaway ~ bow pressure; capture 0 = zero-cross-only
-      // recapture.
-      {"breakaway",  0.6f, 0.0f, 2.0f, "curve-x"},
-      {"capture",    0.0f, 0.0f, 2.0f, "curve-x"},
-    };
-    return descs;
-  }
-
-  void set_param(std::string_view name, std::shared_ptr<ValueSource> src) override {
-    if (name == "source")     { source_ = std::move(src); return; }
-    if (name == "drive")      { drive_ = std::move(src); return; }
-    if (name == "smoothness") { smoothness_ = std::move(src); return; }
-    if (name == "morph")      { morph_ = std::move(src); return; }
-    if (name == "breakaway")  { breakaway_ = std::move(src); return; }
-    if (name == "capture")    { capture_ = std::move(src); return; }
-  }
-  std::shared_ptr<ValueSource> get_param(std::string_view name) const override {
-    if (name == "source")     return source_;
-    if (name == "drive")      return drive_;
-    if (name == "smoothness") return smoothness_;
-    if (name == "morph")      return morph_;
-    if (name == "breakaway")  return breakaway_;
-    if (name == "capture")    return capture_;
-    return nullptr;
-  }
-
-  std::span<const SettingDescriptor> setting_descriptors() const override {
-    // Stick/slip junction mode (hysteresis spec §3): curve A = stick,
-    // curve B = slip, one bit of state. Mutually exclusive with morph
-    // (morph is ignored while on; loader warns).
-    static constexpr SettingDescriptor descs[] = {
-      {"hysteresis", SettingType::Bool, 0.0f, 0.0f, 1.0f},
-    };
-    return descs;
-  }
-  void set_setting(std::string_view name, float v) override {
-    if (name == "hysteresis") hysteresis_ = (v != 0.0f);
-  }
-  float get_setting(std::string_view name) const override {
-    return (name == "hysteresis" && hysteresis_) ? 1.0f : 0.0f;
-  }
-
-  std::span<const ArrayDescriptor> array_descriptors() const override {
-    static constexpr ArrayDescriptor descs[] = {
-      {"values",  nullptr, 0.0f, -2.0f, 2.0f},
-      // Per-segment overrides (curve-morph spec §3): flat [typeIdx, power]
-      // per segment; typeIdx 0 = default (smoothness pin), else
-      // 1 + int(RampType) (1 Linear, 2 Expo, 3 InverseExpo, 4 Sine,
-      // 5 Hold). Empty = all default (existing patches untouched).
-      {"segs",    nullptr, 0.0f,  0.0f, 40.0f},
-      // Morph curve B (spec §5): same shapes as values/segs; empty =
-      // single-curve Shaper. Inert until the morph pin lands.
-      {"values2", nullptr, 0.0f, -2.0f, 2.0f},
-      {"segs2",   nullptr, 0.0f,  0.0f, 40.0f},
-    };
-    return descs;
-  }
 
   static std::vector<Curve::Seg> decode_segs(const std::vector<float>& v) {
     std::vector<Curve::Seg> out;
@@ -112,62 +59,55 @@ struct ShaperSource final : ValueSource {
     }
     return out;
   }
-  static std::vector<float> encode_segs(const std::vector<Curve::Seg>& segs) {
+  static std::vector<float> encode_segs(const std::vector<Curve::Seg>& decoded) {
     bool any = false;
-    for (const auto& s : segs) any |= s.overridden;
+    for (const auto& s : decoded) any |= s.overridden;
     if (!any) return {};
     std::vector<float> v;
-    v.reserve(segs.size() * 2);
-    for (const auto& s : segs) {
+    v.reserve(decoded.size() * 2);
+    for (const auto& s : decoded) {
       v.push_back(s.overridden ? float(1 + int(s.type)) : 0.0f);
       v.push_back(s.power);
     }
     return v;
   }
 
-  void set_array(std::string_view name, std::vector<float> v) override {
-    if (name == "values" && v.size() >= 4 && v.size() % 2 == 0) {
-      values_ = std::move(v);
-      return;
+  // A curve of fewer than two points, or one with an odd number of floats,
+  // is refused: the array is rolled back to the previous curve. The segment
+  // arrays are held normalised, as encode_segs writes them.
+  void on_array_changed(std::string_view name) override {
+    if (name == "values") {
+      if (accepts_curve(values.values)) values_ = values.values;
+      else values.values = values_;
+    } else if (name == "segs") {
+      segs_ = decode_segs(segs.values);
+      segs.values = encode_segs(segs_);
+    } else if (name == "values2") {
+      if (values2.values.empty() || accepts_curve(values2.values)) valuesB_ = values2.values;
+      else values2.values = valuesB_;
+    } else if (name == "segs2") {
+      segsB_ = decode_segs(segs2.values);
+      segs2.values = encode_segs(segsB_);
     }
-    if (name == "segs")    { segs_  = decode_segs(v); return; }
-    if (name == "values2") {
-      if (v.empty() || (v.size() >= 4 && v.size() % 2 == 0))
-        valuesB_ = std::move(v);
-      return;
-    }
-    if (name == "segs2")   { segsB_ = decode_segs(v); return; }
-  }
-  std::vector<float> get_array(std::string_view name) const override {
-    if (name == "values")  return values_;
-    if (name == "segs")    return encode_segs(segs_);
-    if (name == "values2") return valuesB_;
-    if (name == "segs2")   return encode_segs(segsB_);
-    return {};
   }
 
-  void prepare(const RenderContext& ctx, int frames) override {
-    if (source_) source_->prepare(ctx, frames);
-    drive_->prepare(ctx, frames);
-    smoothness_->prepare(ctx, frames);
-    if (morph_) morph_->prepare(ctx, frames);
-    breakaway_->prepare(ctx, frames);
-    capture_->prepare(ctx, frames);
+  void on_prepare(const RenderContext& ctx, int frames) override {
+    if (breakaway.source) breakaway.source->prepare(ctx, frames);
+    if (capture.source)   capture.source->prepare(ctx, frames);
     stuck_ = true;      // bow resting on the string at note start
     lastSign_ = 0;
     cur_ = 0.0f;
   }
 
-  float next() override {
-    const float x = (source_ ? source_->advance() : 0.0f) * drive_->advance();
-    smoothness_->advance();
-    smoothCur_ = smoothness_->current();
-    if (morph_) { morph_->advance(); morphCur_ = morph_->current(); }
-    if (hysteresis_) {
-      breakaway_->advance();
-      capture_->advance();
-      const float ba = breakaway_->current();
-      const float cap = capture_->current();
+  float compute() override {
+    const float x = input.current() * drive.current();
+    smoothCur_ = smoothness.current();
+    morphCur_ = morph.current();
+    if (hysteresis.value) {
+      breakaway.advance();
+      capture.advance();
+      const float ba = breakaway.current();
+      const float cap = capture.current();
       if (stuck_) {
         if (std::fabs(x) > ba) stuck_ = false;
       } else if ((lastSign_ != 0 && x != 0.0f
@@ -183,18 +123,14 @@ struct ShaperSource final : ValueSource {
       // Slip curve = values2; absent/short values2 leaves the mode inert
       // (loader warns at load).
       const bool useB = !stuck_ && valuesB_.size() >= 4;
-      cur_ = useB
+      return useB
         ? Curve::eval_flat(valuesB_, segsB_, Curve::Domain::Linear,
                            smoothCur_, x)
         : Curve::eval_flat(values_, segs_, Curve::Domain::Linear,
                            smoothCur_, x);
-      return cur_;
     }
-    cur_ = map(x);
-    return cur_;
+    return map(x);
   }
-
-  float current() const override { return cur_; }
 
   // Public for the UI preview/editor overlay. Delegates to the shared
   // evaluator (curve.h). With curve B present and morph in (0,1], the
@@ -247,9 +183,10 @@ struct ShaperSource final : ValueSource {
   }
 
 private:
-  std::shared_ptr<ValueSource> source_, drive_, smoothness_, morph_;
-  std::shared_ptr<ValueSource> breakaway_, capture_;
-  bool hysteresis_{false};
+  static bool accepts_curve(const std::vector<float>& v) {
+    return v.size() >= 4 && v.size() % 2 == 0;
+  }
+
   bool stuck_{true};
   int lastSign_{0};
   float morphCur_{0.0f};
@@ -258,7 +195,6 @@ private:
   std::vector<float> valuesB_;        // morph curve B points (empty = none)
   std::vector<Curve::Seg> segsB_;     // morph curve B segment powers
   float smoothCur_{0.5f};
-  float cur_{0.0f};
 };
 
 } // namespace mforce
