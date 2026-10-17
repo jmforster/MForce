@@ -23,7 +23,7 @@ namespace mforce {
 // top-level node whose counterpart exists in each clone. set_clone_param()
 // stores a pending value + applies it immediately to any live clone, so
 // frequency (etc.) updates propagate into all N instances.
-struct MultiplexSource final : ValueSource {
+struct MultiplexSource final : Processor {
     // Builder returns {root source, valueNodes map by id}. The map gives
     // external code (paramMap fan-out) the handle to reach into each
     // clone's internals.
@@ -31,14 +31,14 @@ struct MultiplexSource final : ValueSource {
     using InstanceBuilder = std::function<
         std::pair<std::shared_ptr<ValueSource>, ValueNodeMap>(int instanceIdx)>;
 
-    // UI wiring path: the wired `source` is a solo preview. Without clones
-    // (the CLI loader's set_template path is the one that produces real
-    // N-instance fan-out) the node passes it through so the UI isn't silent,
-    // and only then does it prepare and advance it, so the pin is Manual. A
-    // Processor's inherited input is always pulled, so this node derives
-    // from ValueSource, keeping its Combiner category.
-    Input source{this, "source", Input::Optional, nullptr, false, Pull::Manual};
+    // UI wiring path: the wired `source` (the inherited input) is a solo
+    // preview. Without clones (the CLI loader's set_template path is the one
+    // that produces real N-instance fan-out) the node passes it through so
+    // the UI isn't silent, and only then does it prepare and advance it, so
+    // the input is Manual.
     Setting<int> count{this, "count", 10, 1, 50};
+
+    MultiplexSource() : Processor(Pull::Manual) {}
 
     const char* type_name() const override { return "MultiplexSource"; }
     SourceCategory category() const override { return SourceCategory::Combiner; }
@@ -84,9 +84,9 @@ struct MultiplexSource final : ValueSource {
         if (!instances_.empty()) {
             for (auto& inst : instances_)
                 if (inst) inst->prepare(ctx, frames);
-        } else if (source.source) {
+        } else if (input.source) {
             // UI solo-preview fallback
-            source.source->prepare(ctx, frames);
+            input.source->prepare(ctx, frames);
         }
     }
 
@@ -98,7 +98,7 @@ struct MultiplexSource final : ValueSource {
                 if (inst) sum += inst->advance();
             return (n > 0) ? sum / float(n) : 0.0f;
         }
-        return source.advance();  // solo passthrough (UI preview); 0 when unwired
+        return input.advance();  // solo passthrough (UI preview); 0 when unwired
     }
 
 private:

@@ -14,15 +14,21 @@ namespace mforce {
 // piecewise between breakpoints through SmoothnessInterpolator, clamped
 // to the end values outside the drawn range. Default = identity.
 struct ShaperSource final : Processor {
-  Param drive     {this, "drive",      1.0f, 0.0f, 20.0f, "ratio"};
-  Param smoothness{this, "smoothness", 0.5f, 0.0f, 1.0f,  "0-1"};
+  // Every connectable pin, the inherited source included, is Manual, in
+  // descriptor order: the node reads source and drive as it pulls them, and smoothness and morph right
+  // after their own pull, not after a sweep of all the pins. The two differ
+  // when a pin's source is a shared reference whose real source a later pin
+  // drives (the Junction of a feedback valve: source refs a node that the
+  // drive chain advances), and the stored patches that do that render the
+  // old timing. breakaway and capture are also pulled only in hysteresis
+  // mode. The base neither prepares nor advances a Manual pin.
+  Param drive     {this, "drive",      1.0f, 0.0f, 20.0f, "ratio", Pull::Manual};
+  Param smoothness{this, "smoothness", 0.5f, 0.0f, 1.0f,  "0-1",   Pull::Manual};
   // Point-space blend toward curve B (values2/segs2); 0 = pure A =
   // byte-identical legacy path. Curve-morph spec §5.
-  Param morph     {this, "morph",      0.0f, 0.0f, 1.0f,  "0-1"};
+  Param morph     {this, "morph",      0.0f, 0.0f, 1.0f,  "0-1",   Pull::Manual};
   // Hysteresis thresholds, in post-drive curve-x units (hysteresis spec §2).
-  // breakaway ~ bow pressure; capture 0 = zero-cross-only recapture. Read
-  // only in hysteresis mode, so the node pulls them itself (Manual): the
-  // base neither prepares nor advances a Manual pin.
+  // breakaway ~ bow pressure; capture 0 = zero-cross-only recapture.
   Param breakaway {this, "breakaway",  0.6f, 0.0f, 2.0f,  "curve-x", Pull::Manual};
   Param capture   {this, "capture",    0.0f, 0.0f, 2.0f,  "curve-x", Pull::Manual};
   // Stick/slip junction mode (hysteresis spec §3): curve A = stick, curve B
@@ -40,7 +46,9 @@ struct ShaperSource final : Processor {
   Array values2{this, "values2", nullptr, 0.0f, -2.0f, 2.0f};
   Array segs2  {this, "segs2",   nullptr, 0.0f, 0.0f,  40.0f};
 
-  ShaperSource() : values_{-1.0f, -1.0f, 1.0f, 1.0f} { values.values = values_; }
+  ShaperSource() : Processor(Pull::Manual), values_{-1.0f, -1.0f, 1.0f, 1.0f} {
+    values.values = values_;
+  }
 
   const char* type_name() const override { return "Shaper"; }
   SourceCategory category() const override { return SourceCategory::Modulator; }
@@ -92,16 +100,23 @@ struct ShaperSource final : Processor {
   }
 
   void on_prepare(const RenderContext& ctx, int frames) override {
-    if (breakaway.source) breakaway.source->prepare(ctx, frames);
-    if (capture.source)   capture.source->prepare(ctx, frames);
+    if (input.source)      input.source->prepare(ctx, frames);
+    if (drive.source)      drive.source->prepare(ctx, frames);
+    if (smoothness.source) smoothness.source->prepare(ctx, frames);
+    if (morph.source)      morph.source->prepare(ctx, frames);
+    if (breakaway.source)  breakaway.source->prepare(ctx, frames);
+    if (capture.source)    capture.source->prepare(ctx, frames);
     stuck_ = true;      // bow resting on the string at note start
     lastSign_ = 0;
     cur_ = 0.0f;
   }
 
   float compute() override {
-    const float x = input.current() * drive.current();
+    const float in = input.advance();
+    const float x = in * drive.advance();
+    smoothness.advance();
     smoothCur_ = smoothness.current();
+    morph.advance();
     morphCur_ = morph.current();
     if (hysteresis.value) {
       breakaway.advance();

@@ -12,13 +12,10 @@ namespace mforce {
 //
 // Each repetition: prepare source for duration seconds, play it, then
 // silence for gap seconds. Both duration and gap are randomized by varPct.
-struct RepeatingSource final : ValueSource {
-  // The node pulls `source` only while a repetition plays, never during a
-  // gap, and prepares it for each repetition's own length at the start of
-  // that repetition, so the pin is Manual. A Processor's inherited input is
-  // always pulled, so this node derives from ValueSource, keeping its
-  // Modulator category.
-  Input source{this, "source", Input::Optional, nullptr, false, Pull::Manual};
+struct RepeatingSource final : Processor {
+  // The node pulls the inherited `source` only while a repetition plays,
+  // never during a gap, and prepares it for each repetition's own length at
+  // the start of that repetition, so the input is Manual.
   Setting<float> duration   {this, "duration",    0.5f, 0.001f, 10.0f};   // seconds per repetition
   Setting<float> durVarPct  {this, "durVarPct",   0.0f, 0.0f,   1.0f};    // random variation of duration
   Setting<float> gapDuration{this, "gapDuration", 0.2f, 0.0f,   10.0f};   // seconds of silence between repetitions
@@ -26,7 +23,7 @@ struct RepeatingSource final : ValueSource {
   int sampleRate{48000};
 
   RepeatingSource(int sr, uint32_t seed = 0xAEAE'0000u)
-  : sampleRate(sr), rng_(seed) {}
+  : Processor(Pull::Manual), sampleRate(sr), rng_(seed) {}
 
   const char* type_name() const override { return "RepeatingSource"; }
   SourceCategory category() const override { return SourceCategory::Modulator; }
@@ -42,7 +39,7 @@ struct RepeatingSource final : ValueSource {
       // Playing source
       if (srcRemaining_ > 0) {
         srcRemaining_--;
-        return source.advance();
+        return input.advance();
       }
       // Source finished — enter gap
       gapCount_ = int(std::round(currGap_ * float(sampleRate)));
@@ -64,7 +61,7 @@ private:
     if (currGap_ < 0.0f) currGap_ = 0.0f;
 
     int samples = int(std::round(d * float(sampleRate)));
-    if (source.source) source.source->prepare(ctx_, samples);
+    if (input.source) input.source->prepare(ctx_, samples);
     srcRemaining_ = samples;
     gapCount_ = 0;
   }

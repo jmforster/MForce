@@ -3797,12 +3797,11 @@ static void run_filter_tests() {
 }
 
 // Checkpoint 2.1: the combiners, modulators and the other sources in source/.
-// The distorted source, the shaper and the wormhole have one signal input and
-// are Processors; the phased, segment and static sources have none and are
-// Generators. The combiners have two signal inputs and no `source`, and the
-// multiplex and repeating sources pull their primary input themselves
-// (Manual), which a Processor's inherited input cannot be: those four stay
-// ValueSources with their categories.
+// The distorted source, the shaper, the wormhole, the multiplex and the
+// repeating source have one signal input and are Processors (the last three
+// pull it themselves: Processor(Pull::Manual)); the phased, segment and
+// static sources have none and are Generators. The combiners have two signal
+// inputs and no `source`, and stay ValueSources with their categories.
 #include "mforce/core/source_registry.h"
 #include "mforce/source/multiplex_source.h"
 #include "mforce/source/phased_value_source.h"
@@ -3811,19 +3810,17 @@ static void run_filter_tests() {
 
 static_assert(std::is_base_of_v<Processor, DistortedSource> &&
               std::is_base_of_v<Processor, ShaperSource> &&
-              std::is_base_of_v<Processor, WormholeSource>);
+              std::is_base_of_v<Processor, WormholeSource> &&
+              std::is_base_of_v<Processor, MultiplexSource> &&
+              std::is_base_of_v<Processor, RepeatingSource>);
 static_assert(std::is_base_of_v<Generator, PhasedValueSource> &&
               std::is_base_of_v<Generator, SegmentSource> &&
               std::is_base_of_v<Generator, StaticVarSource> &&
               std::is_base_of_v<Generator, StaticRangeSource>);
 static_assert(!std::is_base_of_v<Processor, CombinedSource> &&
               !std::is_base_of_v<Processor, CrossfadeSource> &&
-              !std::is_base_of_v<Processor, MultiplexSource> &&
-              !std::is_base_of_v<Processor, RepeatingSource> &&
               !std::is_base_of_v<Generator, CombinedSource> &&
-              !std::is_base_of_v<Generator, CrossfadeSource> &&
-              !std::is_base_of_v<Generator, MultiplexSource> &&
-              !std::is_base_of_v<Generator, RepeatingSource>);
+              !std::is_base_of_v<Generator, CrossfadeSource>);
 
 namespace {
 const SettingDescriptor* find_setting(const Component& c, const char* name) {
@@ -4007,8 +4004,6 @@ static void run_combine_mod_auto_pin_tests() {
     count(phased, {"amplitude"});
     SegmentSource seg(std::vector<float>{2.0f, 1.0f}, 48000);
     count(seg, {"amplitude", "smoothness", "width", "gap", "gapVarPct", "widthVarPct", "valVarPct"});
-    ShaperSource shaper;
-    count(shaper, {"source", "drive", "smoothness", "morph"});
     WormholeSource wh;
     count(wh, {"source"});
 
@@ -4022,8 +4017,9 @@ static void run_combine_mod_auto_pin_tests() {
 
 // The Manual pins are the node's: the crossfade's sources are prepared for
 // their own part of the note and pulled only in it; the shaper's breakaway
-// and capture only in hysteresis mode; the repeating source only while a
-// repetition plays; the multiplex source only while there are no clones.
+// and capture only in hysteresis mode; the repeating source (its inherited
+// input) only while a repetition plays; the multiplex source (likewise) only
+// while there are no clones.
 static void run_combine_mod_manual_pin_tests() {
     RenderContext ctx{48000};
     // crossfade: 100 samples at ratio 0.5, overlap 0.1 -> each source is
@@ -4095,10 +4091,42 @@ static void run_combine_mod_manual_pin_tests() {
     CHECK_NEAR(cloned.current(), 2.0f, 1e-6f);        // the mean of the three clones
 }
 
+// The shaper pulls every pin itself, in descriptor order, and reads source and
+// drive as it pulls them. With a source that is a reference to a node the
+// drive chain advances, the source is therefore the previous sample's value;
+// stored feedback patches (the valve family's Junction) render that timing.
+static void run_combine_mod_shaper_timing_tests() {
+    RenderContext ctx{48000};
+    auto ramp = std::make_shared<UnitRamp>();
+    auto doubled = std::make_shared<Doubler>();
+    doubled->set_param("source", ramp);                   // the drive chain advances the ramp
+    ShaperSource sh;
+    sh.set_array("values", {-100.0f, -100.0f, 100.0f, 100.0f});   // identity over the test range
+    sh.set_param("source", std::make_shared<RefSource>(ramp));
+    sh.set_param("drive", doubled);
+    sh.prepare(ctx, 100);
+    CHECK_NEAR(sh.next(), 0.0f, 1e-3f);                   // 0 * 2: the ramp before this sample
+    CHECK_NEAR(sh.next(), 4.0f, 1e-3f);                   // 1 * 4
+    CHECK_NEAR(sh.next(), 12.0f, 1e-3f);                  // 2 * 6
+
+    // every pin is prepared once per note and pulled once per sample
+    ShaperSource full;
+    std::vector<std::shared_ptr<PinCounter>> probes;
+    for (const char* n : {"source", "drive", "smoothness", "morph"}) {
+        probes.push_back(std::make_shared<PinCounter>());
+        full.set_param(n, probes.back());
+    }
+    full.prepare(ctx, 100);
+    for (int i = 0; i < 7; ++i) full.next();
+    bool each = true;
+    for (const auto& p : probes) each = each && p->prepares == 1 && p->advances == 7;
+    CHECK(each);
+}
+
 // The base advances the pins in declaration order. The distorted source and
 // the segment source used to advance in an order that differed from their
-// descriptor order; the shaper's Manual pins follow its Auto pins; a source
-// wired to both inputs of a combiner is advanced once, by the first.
+// descriptor order; the shaper pulls its six pins itself, in that order; a
+// source wired to both inputs of a combiner is advanced once, by the first.
 static void run_combine_mod_advance_order_tests() {
     RenderContext ctx{48000};
     auto order = [&](ValueSource& s, std::initializer_list<const char*> names, int skip = 0) {
@@ -4335,6 +4363,7 @@ static void run_combine_mod_tests() {
     run_combine_mod_default_tests();
     run_combine_mod_auto_pin_tests();
     run_combine_mod_manual_pin_tests();
+    run_combine_mod_shaper_timing_tests();
     run_combine_mod_advance_order_tests();
     run_combine_mod_setting_hook_tests();
     run_combine_mod_behavior_tests();
