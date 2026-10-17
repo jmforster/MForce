@@ -113,39 +113,8 @@ struct BWHPSection {
 // ---------------------------------------------------------------------------
 // BWLowpassFilter — Butterworth lowpass with cascaded sections.
 // ---------------------------------------------------------------------------
-struct BWLowpassFilter final : ValueSource {
-  void set_source(std::shared_ptr<ValueSource> s)     { source_ = std::move(s); }
-  void set_cutoffFreq(std::shared_ptr<ValueSource> s) { cutoffFreq_ = std::move(s); }
-  std::shared_ptr<ValueSource> get_source() const     { return source_; }
-  std::shared_ptr<ValueSource> get_cutoffFreq() const { return cutoffFreq_; }
-
-  const char* type_name() const override { return "BWLowpassFilter"; }
-  SourceCategory category() const override { return SourceCategory::Filter; }
-
-  std::span<const ParamDescriptor> param_descriptors() const override {
-    static constexpr ParamDescriptor descs[] = {
-      {"cutoffFreq", 1000.0f, 1.0f,   24000.0f, "hz"},
-    };
-    return descs;
-  }
-
-  std::span<const InputDescriptor> input_descriptors() const override {
-    static constexpr InputDescriptor descs[] = {
-      {"source"},
-    };
-    return descs;
-  }
-
-  void set_param(std::string_view name, std::shared_ptr<ValueSource> src) override {
-    if (name == "source")     { source_ = std::move(src); return; }
-    if (name == "cutoffFreq") { cutoffFreq_ = std::move(src); return; }
-  }
-
-  std::shared_ptr<ValueSource> get_param(std::string_view name) const override {
-    if (name == "source")     return source_;
-    if (name == "cutoffFreq") return cutoffFreq_;
-    return nullptr;
-  }
+struct BWLowpassFilter final : Processor {
+  Param cutoffFreq{this, "cutoffFreq", 1000.0f, 1.0f, 24000.0f, "hz"};
 
   BWLowpassFilter(int sampleRate, int sectionCount)
   : sampleRate_(sampleRate) {
@@ -153,14 +122,11 @@ struct BWLowpassFilter final : ValueSource {
       sections_.emplace_back(float(i + 1), float(sectionCount * 2), float(sampleRate));
   }
 
-  void prepare(const RenderContext& ctx, int frames) override {
-    if (source_) source_->prepare(ctx, frames);
-    if (cutoffFreq_) cutoffFreq_->prepare(ctx, frames);
-  }
+  const char* type_name() const override { return "BWLowpassFilter"; }
 
-  float next() override {
-    float val = source_ ? (source_->advance(), source_->current()) : 0.0f;
-    float cutoff = cutoffFreq_ ? (cutoffFreq_->advance(), cutoffFreq_->current()) : 1000.0f;
+  float compute() override {
+    float val = input.current();
+    float cutoff = cutoffFreq.current();
     cutoff = std::clamp(cutoff, 1.0f, float(sampleRate_) * 0.49f);
 
     // Coefficients only when the cutoff moves — update() runs a tan() per
@@ -173,57 +139,20 @@ struct BWLowpassFilter final : ValueSource {
     for (auto& s : sections_) {
       val = s.process(val);
     }
-    cur_ = val;
-    return cur_;
+    return val;
   }
 
-  float current() const override { return cur_; }
-
 private:
-  std::shared_ptr<ValueSource> source_;
-  std::shared_ptr<ValueSource> cutoffFreq_;
   int sampleRate_;
   std::vector<BWLPSection> sections_;
   float lastCutoff_{-1.0f};
-  float cur_{0.0f};
 };
 
 // ---------------------------------------------------------------------------
 // BWHighpassFilter — Butterworth highpass with cascaded sections.
 // ---------------------------------------------------------------------------
-struct BWHighpassFilter final : ValueSource {
-  void set_source(std::shared_ptr<ValueSource> s)     { source_ = std::move(s); }
-  void set_cutoffFreq(std::shared_ptr<ValueSource> s) { cutoffFreq_ = std::move(s); }
-  std::shared_ptr<ValueSource> get_source() const     { return source_; }
-  std::shared_ptr<ValueSource> get_cutoffFreq() const { return cutoffFreq_; }
-
-  const char* type_name() const override { return "BWHighpassFilter"; }
-  SourceCategory category() const override { return SourceCategory::Filter; }
-
-  std::span<const ParamDescriptor> param_descriptors() const override {
-    static constexpr ParamDescriptor descs[] = {
-      {"cutoffFreq", 1000.0f, 1.0f,   24000.0f, "hz"},
-    };
-    return descs;
-  }
-
-  std::span<const InputDescriptor> input_descriptors() const override {
-    static constexpr InputDescriptor descs[] = {
-      {"source"},
-    };
-    return descs;
-  }
-
-  void set_param(std::string_view name, std::shared_ptr<ValueSource> src) override {
-    if (name == "source")     { source_ = std::move(src); return; }
-    if (name == "cutoffFreq") { cutoffFreq_ = std::move(src); return; }
-  }
-
-  std::shared_ptr<ValueSource> get_param(std::string_view name) const override {
-    if (name == "source")     return source_;
-    if (name == "cutoffFreq") return cutoffFreq_;
-    return nullptr;
-  }
+struct BWHighpassFilter final : Processor {
+  Param cutoffFreq{this, "cutoffFreq", 1000.0f, 1.0f, 24000.0f, "hz"};
 
   BWHighpassFilter(int sampleRate, int sectionCount)
   : sampleRate_(sampleRate) {
@@ -231,14 +160,11 @@ struct BWHighpassFilter final : ValueSource {
       sections_.emplace_back(float(i + 1), float(sectionCount * 2), float(sampleRate));
   }
 
-  void prepare(const RenderContext& ctx, int frames) override {
-    if (source_) source_->prepare(ctx, frames);
-    if (cutoffFreq_) cutoffFreq_->prepare(ctx, frames);
-  }
+  const char* type_name() const override { return "BWHighpassFilter"; }
 
-  float next() override {
-    float val = source_ ? (source_->advance(), source_->current()) : 0.0f;
-    float cutoff = cutoffFreq_ ? (cutoffFreq_->advance(), cutoffFreq_->current()) : 1000.0f;
+  float compute() override {
+    float val = input.current();
+    float cutoff = cutoffFreq.current();
     cutoff = std::clamp(cutoff, 1.0f, float(sampleRate_) * 0.49f);
 
     if (cutoff != lastCutoff_) {
@@ -248,62 +174,21 @@ struct BWHighpassFilter final : ValueSource {
     for (auto& s : sections_) {
       val = s.process(val);
     }
-    cur_ = val;
-    return cur_;
+    return val;
   }
 
-  float current() const override { return cur_; }
-
 private:
-  std::shared_ptr<ValueSource> source_;
-  std::shared_ptr<ValueSource> cutoffFreq_;
   int sampleRate_;
   std::vector<BWHPSection> sections_;
   float lastCutoff_{-1.0f};
-  float cur_{0.0f};
 };
 
 // ---------------------------------------------------------------------------
 // BWBandpassFilter — highpass then lowpass in series.
 // ---------------------------------------------------------------------------
-struct BWBandpassFilter final : ValueSource {
-  void set_source(std::shared_ptr<ValueSource> s)     { source_ = std::move(s); }
-  void set_lowCutoff(std::shared_ptr<ValueSource> s)  { lowCutoff_ = std::move(s); }
-  void set_highCutoff(std::shared_ptr<ValueSource> s) { highCutoff_ = std::move(s); }
-  std::shared_ptr<ValueSource> get_source() const     { return source_; }
-  std::shared_ptr<ValueSource> get_lowCutoff() const  { return lowCutoff_; }
-  std::shared_ptr<ValueSource> get_highCutoff() const { return highCutoff_; }
-
-  const char* type_name() const override { return "BWBandpassFilter"; }
-  SourceCategory category() const override { return SourceCategory::Filter; }
-
-  std::span<const ParamDescriptor> param_descriptors() const override {
-    static constexpr ParamDescriptor descs[] = {
-      {"lowCutoff",  100.0f, 1.0f,    24000.0f, "hz"},
-      {"highCutoff", 5000.0f, 1.0f,   24000.0f, "hz"},
-    };
-    return descs;
-  }
-
-  std::span<const InputDescriptor> input_descriptors() const override {
-    static constexpr InputDescriptor descs[] = {
-      {"source"},
-    };
-    return descs;
-  }
-
-  void set_param(std::string_view name, std::shared_ptr<ValueSource> src) override {
-    if (name == "source")     { source_ = std::move(src); return; }
-    if (name == "lowCutoff")  { lowCutoff_ = std::move(src); return; }
-    if (name == "highCutoff") { highCutoff_ = std::move(src); return; }
-  }
-
-  std::shared_ptr<ValueSource> get_param(std::string_view name) const override {
-    if (name == "source")     return source_;
-    if (name == "lowCutoff")  return lowCutoff_;
-    if (name == "highCutoff") return highCutoff_;
-    return nullptr;
-  }
+struct BWBandpassFilter final : Processor {
+  Param lowCutoff {this, "lowCutoff",  100.0f,  1.0f, 24000.0f, "hz"};
+  Param highCutoff{this, "highCutoff", 5000.0f, 1.0f, 24000.0f, "hz"};
 
   BWBandpassFilter(int sampleRate, int sectionsPerFilter)
   : sampleRate_(sampleRate) {
@@ -313,16 +198,12 @@ struct BWBandpassFilter final : ValueSource {
     }
   }
 
-  void prepare(const RenderContext& ctx, int frames) override {
-    if (source_) source_->prepare(ctx, frames);
-    if (lowCutoff_) lowCutoff_->prepare(ctx, frames);
-    if (highCutoff_) highCutoff_->prepare(ctx, frames);
-  }
+  const char* type_name() const override { return "BWBandpassFilter"; }
 
-  float next() override {
-    float val = source_ ? (source_->advance(), source_->current()) : 0.0f;
-    float lo = lowCutoff_ ? (lowCutoff_->advance(), lowCutoff_->current()) : 100.0f;
-    float hi = highCutoff_ ? (highCutoff_->advance(), highCutoff_->current()) : 5000.0f;
+  float compute() override {
+    float val = input.current();
+    float lo = lowCutoff.current();
+    float hi = highCutoff.current();
     lo = std::clamp(lo, 1.0f, float(sampleRate_) * 0.49f);
     hi = std::clamp(hi, 1.0f, float(sampleRate_) * 0.49f);
 
@@ -334,94 +215,41 @@ struct BWBandpassFilter final : ValueSource {
     for (auto& s : hpSections_) { val = s.process(val); }
     for (auto& s : lpSections_) { val = s.process(val); }
 
-    cur_ = val;
-    return cur_;
+    return val;
   }
 
-  float current() const override { return cur_; }
-
 private:
-  std::shared_ptr<ValueSource> source_;
-  std::shared_ptr<ValueSource> lowCutoff_;
-  std::shared_ptr<ValueSource> highCutoff_;
   int sampleRate_;
   float lastLo_{-1.0f}, lastHi_{-1.0f};
   std::vector<BWHPSection> hpSections_;
   std::vector<BWLPSection> lpSections_;
-  float cur_{0.0f};
 };
 
 // ---------------------------------------------------------------------------
 // DelayFilter — simple delay with feedback and level control.
 // ---------------------------------------------------------------------------
-struct DelayFilter final : ValueSource {
-  void set_source(std::shared_ptr<ValueSource> s)     { source_ = std::move(s); }
-  void set_delayTime(std::shared_ptr<ValueSource> s)  { delayTime_ = std::move(s); }
-  void set_delayLevel(std::shared_ptr<ValueSource> s) { delayLevel_ = std::move(s); }
-  void set_feedback(std::shared_ptr<ValueSource> s)   { feedback_ = std::move(s); }
-
-  std::shared_ptr<ValueSource> get_source() const     { return source_; }
-  std::shared_ptr<ValueSource> get_delayTime() const  { return delayTime_; }
-  std::shared_ptr<ValueSource> get_delayLevel() const { return delayLevel_; }
-  std::shared_ptr<ValueSource> get_feedback() const   { return feedback_; }
-
-  const char* type_name() const override { return "DelayFilter"; }
-  SourceCategory category() const override { return SourceCategory::Filter; }
-
-  std::span<const ParamDescriptor> param_descriptors() const override {
-    static constexpr ParamDescriptor descs[] = {
-      {"delayTime",  0.01f, 0.001f,    1.0f, "sec"},
-      {"delayLevel", 0.5f,  0.0f,      1.0f, "0-1"},
-      {"feedback",   0.3f,  0.0f,      1.0f, "0-1"},
-    };
-    return descs;
-  }
-
-  std::span<const InputDescriptor> input_descriptors() const override {
-    static constexpr InputDescriptor descs[] = {
-      {"source"},
-    };
-    return descs;
-  }
-
-  void set_param(std::string_view name, std::shared_ptr<ValueSource> src) override {
-    if (name == "source")     { source_ = std::move(src); return; }
-    if (name == "delayTime")  { delayTime_ = std::move(src); return; }
-    if (name == "delayLevel") { delayLevel_ = std::move(src); return; }
-    if (name == "feedback")   { feedback_ = std::move(src); return; }
-  }
-
-  std::shared_ptr<ValueSource> get_param(std::string_view name) const override {
-    if (name == "source")     return source_;
-    if (name == "delayTime")  return delayTime_;
-    if (name == "delayLevel") return delayLevel_;
-    if (name == "feedback")   return feedback_;
-    return nullptr;
-  }
+struct DelayFilter final : Processor {
+  Param delayTime {this, "delayTime",  0.01f, 0.001f, 1.0f, "sec"};
+  Param delayLevel{this, "delayLevel", 0.5f,  0.0f,   1.0f, "0-1"};
+  Param feedback  {this, "feedback",   0.3f,  0.0f,   1.0f, "0-1"};
 
   explicit DelayFilter(int sampleRate)
   : sampleRate_(sampleRate), buffer_(sampleRate, 0.0f) {}  // 1 second max delay
 
-  void prepare(const RenderContext& ctx, int frames) override {
-    if (source_) source_->prepare(ctx, frames);
-    if (delayTime_) delayTime_->prepare(ctx, frames);
-    if (delayLevel_) delayLevel_->prepare(ctx, frames);
-    if (feedback_) feedback_->prepare(ctx, frames);
+  const char* type_name() const override { return "DelayFilter"; }
+
+  void on_prepare(const RenderContext&, int) override {
     std::fill(buffer_.begin(), buffer_.end(), 0.0f);
     ptr_ = -1;
   }
 
-  float next() override {
+  float compute() override {
     ptr_ = (ptr_ + 1) % int(buffer_.size());
 
-    if (delayTime_) delayTime_->advance();
-    if (delayLevel_) delayLevel_->advance();
-    if (feedback_) feedback_->advance();
-
-    float val = source_ ? (source_->advance(), source_->current()) : 0.0f;
-    float dt = delayTime_ ? delayTime_->current() : 0.01f;
-    float dl = delayLevel_ ? delayLevel_->current() : 0.5f;
-    float fb = feedback_ ? feedback_->current() : 0.3f;
+    float val = input.current();
+    float dt = delayTime.current();
+    float dl = delayLevel.current();
+    float fb = feedback.current();
 
     // Read delayed sample with interpolation
     float delaySamples = dt * float(sampleRate_);
@@ -437,21 +265,13 @@ struct DelayFilter final : ValueSource {
     float denom = 1.0f + dl * fb;
     buffer_[ptr_] = (val + delayVal * fb) / (denom > 0.0f ? denom : 1.0f);
 
-    cur_ = (val + delayVal) / (1.0f + dl);
-    return cur_;
+    return (val + delayVal) / (1.0f + dl);
   }
 
-  float current() const override { return cur_; }
-
 private:
-  std::shared_ptr<ValueSource> source_;
-  std::shared_ptr<ValueSource> delayTime_;
-  std::shared_ptr<ValueSource> delayLevel_;
-  std::shared_ptr<ValueSource> feedback_;
   int sampleRate_;
   std::vector<float> buffer_;
   int ptr_{-1};
-  float cur_{0.0f};
 };
 
 } // namespace mforce

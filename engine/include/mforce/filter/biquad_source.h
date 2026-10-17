@@ -16,108 +16,54 @@ namespace mforce {
 // a1/a2 derive per sample from the frequency/radius pins —
 // a1 = -2 r cos(2 pi f / sr), a2 = r^2 — while b0 stays the gain and
 // b1/b2 are ignored. Keytrackable two-pole resonator.
-struct BiquadSource final : ValueSource {
-  BiquadSource(int sampleRate)
-    : sampleRate_(sampleRate),
-      source_(std::make_shared<ConstantSource>(0.0f)),
-      frequency_(std::make_shared<ConstantSource>(220.0f)),
-      radius_(std::make_shared<ConstantSource>(0.997f)) {}
+struct BiquadSource final : Processor {
+  // frequency and radius are read only in resonance mode, so the node pulls
+  // them itself (Manual): the base neither prepares nor advances a Manual pin.
+  Param frequency{this, "frequency", 220.0f,  1.0f, 20000.0f, "hz",  Pull::Manual};
+  Param radius   {this, "radius",    0.997f,  0.0f, 0.99999f, "0-1", Pull::Manual};
+  Setting<int>   mode{this, "mode", 0, 0, 1, kModeLabels};
+  Setting<float> b0{this, "b0", 1.0f, -10.0f, 10.0f};
+  Setting<float> b1{this, "b1", 0.0f, -10.0f, 10.0f};
+  Setting<float> b2{this, "b2", 0.0f, -10.0f, 10.0f};
+  Setting<float> a1{this, "a1", 0.0f,  -2.0f,  2.0f};
+  Setting<float> a2{this, "a2", 0.0f,  -1.0f,  1.0f};
+
+  BiquadSource(int sampleRate) : sampleRate_(sampleRate) {}
 
   const char* type_name() const override { return "Biquad"; }
-  SourceCategory category() const override { return SourceCategory::Filter; }
 
-  std::span<const InputDescriptor> input_descriptors() const override {
-    static constexpr InputDescriptor descs[] = {
-      {"source"},
-    };
-    return descs;
-  }
-
-  std::span<const ParamDescriptor> param_descriptors() const override {
-    static constexpr ParamDescriptor descs[] = {
-      {"frequency", 220.0f, 1.0f, 20000.0f, "hz"},
-      {"radius",    0.997f, 0.0f, 0.99999f, "0-1"},
-    };
-    return descs;
-  }
-
-  std::span<const SettingDescriptor> setting_descriptors() const override {
-    static constexpr const char* kModeLabels[] = {"Raw", "Resonance", nullptr};
-    static constexpr SettingDescriptor descs[] = {
-      {"mode", SettingType::Int, 0.0f, 0.0f, 1.0f, kModeLabels},
-      {"b0", SettingType::Float, 1.0f, -10.0f, 10.0f},
-      {"b1", SettingType::Float, 0.0f, -10.0f, 10.0f},
-      {"b2", SettingType::Float, 0.0f, -10.0f, 10.0f},
-      {"a1", SettingType::Float, 0.0f, -2.0f, 2.0f},
-      {"a2", SettingType::Float, 0.0f, -1.0f, 1.0f},
-    };
-    return descs;
-  }
-  void set_setting(std::string_view name, float v) override {
-    if      (name == "mode") resonanceMode_ = (int(v) == 1);
-    else if (name == "b0") b0_ = v;
-    else if (name == "b1") b1_ = v;
-    else if (name == "b2") b2_ = v;
-    else if (name == "a1") a1_ = v;
-    else if (name == "a2") a2_ = v;
-  }
-  float get_setting(std::string_view name) const override {
-    if (name == "mode") return resonanceMode_ ? 1.0f : 0.0f;
-    if (name == "b0") return b0_;
-    if (name == "b1") return b1_;
-    if (name == "b2") return b2_;
-    if (name == "a1") return a1_;
-    if (name == "a2") return a2_;
-    return 0.0f;
-  }
-
-  void set_param(std::string_view name, std::shared_ptr<ValueSource> src) override {
-    if (name == "source")    source_ = std::move(src);
-    else if (name == "frequency") frequency_ = std::move(src);
-    else if (name == "radius")    radius_ = std::move(src);
-  }
-  std::shared_ptr<ValueSource> get_param(std::string_view name) const override {
-    if (name == "source")    return source_;
-    if (name == "frequency") return frequency_;
-    if (name == "radius")    return radius_;
-    return nullptr;
-  }
-
-  void prepare(const RenderContext& ctx, int frames) override {
-    if (source_) source_->prepare(ctx, frames);
-    frequency_->prepare(ctx, frames);
-    radius_->prepare(ctx, frames);
+  void on_prepare(const RenderContext& ctx, int frames) override {
+    if (frequency.source) frequency.source->prepare(ctx, frames);
+    if (radius.source)    radius.source->prepare(ctx, frames);
     x1_ = x2_ = y1_ = y2_ = 0.0f;
     cur_ = 0.0f;
     pdHz_ = -1.0f;
     resFreq_ = resRad_ = -1.0f;
   }
 
-  float next() override {
-    const float x = source_ ? source_->advance() : 0.0f;
-    if (resonanceMode_) {
-      frequency_->advance();
-      radius_->advance();
-      const float f = frequency_->current(), r = radius_->current();
+  float compute() override {
+    const float x = input.current();
+    if (mode.value == 1) {
+      frequency.advance();
+      radius.advance();
+      const float f = frequency.current(), r = radius.current();
       if (f != resFreq_ || r != resRad_) {
         resFreq_ = f; resRad_ = r;
-        a1_ = -2.0f * r * std::cos(2.0f * 3.14159265358979323846f
-                                   * f / float(sampleRate_));
-        a2_ = r * r;
+        a1.value = -2.0f * r * std::cos(2.0f * 3.14159265358979323846f
+                                        * f / float(sampleRate_));
+        a2.value = r * r;
         pdHz_ = -1.0f;
       }
-      const float y = b0_ * x - a1_ * y1_ - a2_ * y2_;
+      const float y = b0.value * x - a1.value * y1_ - a2.value * y2_;
       y2_ = y1_; y1_ = y;
-      cur_ = y;
-      return cur_;
+      return y;
     }
-    const float y = b0_ * x + b1_ * x1_ + b2_ * x2_ - a1_ * y1_ - a2_ * y2_;
+    const float y = b0.value * x + b1.value * x1_ + b2.value * x2_
+                  - a1.value * y1_ - a2.value * y2_;
     x2_ = x1_; x1_ = x;
     y2_ = y1_; y1_ = y;
-    cur_ = y;
-    return cur_;
+    return y;
   }
-  float current() const override { return cur_; }
 
   // Phase delay in samples at `hz`, from the closed-form H(e^{jw}). A
   // net sign inversion (e.g. negative b0 folding a reflection) contributes
@@ -131,10 +77,10 @@ struct BiquadSource final : ValueSource {
     const float w = 2.0f * pi * hz / float(sampleRate_);
     const float c1 = std::cos(w), s1 = std::sin(w);
     const float c2 = std::cos(2.0f * w), s2 = std::sin(2.0f * w);
-    const float nr = b0_ + b1_ * c1 + b2_ * c2;
-    const float ni = -(b1_ * s1 + b2_ * s2);
-    const float dr = 1.0f + a1_ * c1 + a2_ * c2;
-    const float di = -(a1_ * s1 + a2_ * s2);
+    const float nr = b0.value + b1.value * c1 + b2.value * c2;
+    const float ni = -(b1.value * s1 + b2.value * s2);
+    const float dr = 1.0f + a1.value * c1 + a2.value * c2;
+    const float di = -(a1.value * s1 + a2.value * s2);
     float ph = std::atan2(ni, nr) - std::atan2(di, dr);
     while (ph >  0.5f * pi) ph -= pi;   // polarity fold (see above)
     while (ph <= -0.5f * pi) ph += pi;
@@ -144,12 +90,10 @@ struct BiquadSource final : ValueSource {
   }
 
 private:
+  static constexpr const char* kModeLabels[] = {"Raw", "Resonance", nullptr};
+
   int sampleRate_;
-  std::shared_ptr<ValueSource> source_, frequency_, radius_;
-  bool resonanceMode_{false};
-  float b0_{1.0f}, b1_{0.0f}, b2_{0.0f}, a1_{0.0f}, a2_{0.0f};
   float x1_{0.0f}, x2_{0.0f}, y1_{0.0f}, y2_{0.0f};
-  float cur_{0.0f};
   float resFreq_{-1.0f}, resRad_{-1.0f};
   float pdHz_{-1.0f}, pd_{0.0f};
 };

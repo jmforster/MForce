@@ -25,152 +25,80 @@ namespace mforce {
 // "frequency" retunes the bank per note. Real-time safe: no heap after
 // construction, all state in fixed arrays.
 // ---------------------------------------------------------------------------
-struct HammerBank final : ValueSource {
+struct HammerBank final : Processor {
+  Param frequency{this, "frequency", 220.0f, 10.0f, 8000.0f, "hz"};
+  Setting<int>   numBands{this, "numBands", 4, 1, kMaxBands};
+  Setting<float> harm1   {this, "harm1",    1.0f,   0.1f,    32.0f};
+  Setting<float> harm2   {this, "harm2",    2.0f,   0.1f,    32.0f};
+  Setting<float> harm3   {this, "harm3",    3.0f,   0.1f,    32.0f};
+  Setting<float> harm4   {this, "harm4",    4.0f,   0.1f,    32.0f};
+  Setting<float> resStart{this, "resStart", 20.0f,  0.5f,    200.0f};
+  Setting<float> resEnd  {this, "resEnd",   1.5f,   0.5f,    50.0f};
+  Setting<float> resDecay{this, "resDecay", 0.010f, 0.0005f, 0.5f};
+  Setting<float> bandTilt{this, "bandTilt", -0.5f,  -3.0f,   3.0f};
+  Setting<float> direct  {this, "direct",   0.0f,   0.0f,    1.0f};
+  Setting<float> gain    {this, "gain",     1.0f,   0.0f,    8.0f};
 
-  explicit HammerBank(int sampleRate) : sampleRate_(sampleRate) {
-    frequency_ = std::make_shared<ConstantSource>(220.0f);
-  }
+  explicit HammerBank(int sampleRate) : sampleRate_(sampleRate) {}
 
   const char* type_name() const override { return "HammerBank"; }
-  SourceCategory category() const override { return SourceCategory::Filter; }
 
-  std::span<const ParamDescriptor> param_descriptors() const override {
-    static constexpr ParamDescriptor descs[] = {
-      {"frequency", 220.0f, 10.0f, 8000.0f, "hz"},
-    };
-    return descs;
+  // numBands is clamped to the bank size; resEnd and resDecay are floored
+  // (they have no ceiling).
+  void on_setting_changed(std::string_view name) override {
+    if      (name == "numBands") numBands.clamp();
+    else if (name == "resEnd")   resEnd.value   = std::max(resEnd.value, 0.5f);
+    else if (name == "resDecay") resDecay.value = std::max(resDecay.value, 1e-4f);
   }
 
-  std::span<const InputDescriptor> input_descriptors() const override {
-    static constexpr InputDescriptor descs[] = {
-      {"source"},
-    };
-    return descs;
-  }
-
-  std::span<const SettingDescriptor> setting_descriptors() const override {
-    static constexpr SettingDescriptor descs[] = {
-      {"numBands",  SettingType::Int,   4.0f,   1.0f,  4.0f},
-      {"harm1",     SettingType::Float, 1.0f,   0.1f,  32.0f},
-      {"harm2",     SettingType::Float, 2.0f,   0.1f,  32.0f},
-      {"harm3",     SettingType::Float, 3.0f,   0.1f,  32.0f},
-      {"harm4",     SettingType::Float, 4.0f,   0.1f,  32.0f},
-      {"resStart",  SettingType::Float, 20.0f,  0.5f,  200.0f},
-      {"resEnd",    SettingType::Float, 1.5f,   0.5f,  50.0f},
-      {"resDecay",  SettingType::Float, 0.010f, 0.0005f, 0.5f},
-      {"bandTilt",  SettingType::Float, -0.5f,  -3.0f, 3.0f},
-      {"direct",    SettingType::Float, 0.0f,   0.0f,  1.0f},
-      {"gain",      SettingType::Float, 1.0f,   0.0f,  8.0f},
-    };
-    return descs;
-  }
-
-  void set_param(std::string_view name, std::shared_ptr<ValueSource> src) override {
-    if (name == "source")    { source_    = std::move(src); return; }
-    if (name == "frequency") { frequency_ = std::move(src); return; }
-  }
-
-  std::shared_ptr<ValueSource> get_param(std::string_view name) const override {
-    if (name == "source")    return source_;
-    if (name == "frequency") return frequency_;
-    return nullptr;
-  }
-
-  void set_setting(std::string_view name, float v) override {
-    if (name == "numBands") { numBands_ = std::clamp(int(v), 1, kMaxBands); return; }
-    if (name == "harm1")    { harm_[0] = v; return; }
-    if (name == "harm2")    { harm_[1] = v; return; }
-    if (name == "harm3")    { harm_[2] = v; return; }
-    if (name == "harm4")    { harm_[3] = v; return; }
-    if (name == "resStart") { resStart_ = v; return; }
-    if (name == "resEnd")   { resEnd_   = std::max(v, 0.5f); return; }
-    if (name == "resDecay") { resDecay_ = std::max(v, 1e-4f); return; }
-    if (name == "bandTilt") { bandTilt_ = v; return; }
-    if (name == "direct")   { direct_   = v; return; }
-    if (name == "gain")     { gain_     = v; return; }
-  }
-
-  float get_setting(std::string_view name) const override {
-    if (name == "numBands") return float(numBands_);
-    if (name == "harm1")    return harm_[0];
-    if (name == "harm2")    return harm_[1];
-    if (name == "harm3")    return harm_[2];
-    if (name == "harm4")    return harm_[3];
-    if (name == "resStart") return resStart_;
-    if (name == "resEnd")   return resEnd_;
-    if (name == "resDecay") return resDecay_;
-    if (name == "bandTilt") return bandTilt_;
-    if (name == "direct")   return direct_;
-    if (name == "gain")     return gain_;
-    return 0.0f;
-  }
-
-  void prepare(const RenderContext& ctx, int frames) override {
-    if (source_)    source_->prepare(ctx, frames);
-    if (frequency_) frequency_->prepare(ctx, frames);
+  void on_prepare(const RenderContext&, int) override {
     for (int i = 0; i < kMaxBands; ++i) { low_[i] = 0.0f; band_[i] = 0.0f; }
     initialized_ = false;
     cur_ = 0.0f;
   }
 
-  float next() override {
-    if (frequency_) frequency_->advance();
-    float x = 0.0f;
-    if (source_) { source_->advance(); x = source_->current(); }
+  float compute() override {
+    const float x = input.current();
 
     if (!initialized_) {
-      float f0 = frequency_ ? frequency_->current() : 220.0f;
+      const float harm[kMaxBands] = {harm1.value, harm2.value, harm3.value, harm4.value};
+      float f0 = frequency.current();
       f0 = std::clamp(f0, 10.0f, float(sampleRate_) * 0.45f);
       const float fMax = float(sampleRate_) * 0.16f;  // Chamberlin stability
       float norm = 0.0f;
-      for (int i = 0; i < numBands_; ++i) {
-        float fc = std::clamp(harm_[i] * f0, 10.0f, fMax);
+      for (int i = 0; i < numBands.value; ++i) {
+        float fc = std::clamp(harm[i] * f0, 10.0f, fMax);
         fCoeff_[i] = 2.0f * std::sin(3.14159265f * fc / float(sampleRate_));
-        bandGain_[i] = std::pow(std::max(harm_[i], 0.1f), bandTilt_);
+        bandGain_[i] = std::pow(std::max(harm[i], 0.1f), bandTilt.value);
         norm += bandGain_[i];
       }
       if (norm > 0.0f)
-        for (int i = 0; i < numBands_; ++i) bandGain_[i] /= norm;
-      qDelta_ = std::max(resStart_ - resEnd_, 0.0f);
-      qDecayMul_ = std::exp(-1.0f / (resDecay_ * float(sampleRate_)));
+        for (int i = 0; i < numBands.value; ++i) bandGain_[i] /= norm;
+      qDelta_ = std::max(resStart.value - resEnd.value, 0.0f);
+      qDecayMul_ = std::exp(-1.0f / (resDecay.value * float(sampleRate_)));
       initialized_ = true;
     }
 
     // Decaying resonance: Q(t) = resEnd + (resStart - resEnd) * exp(-t/tau)
-    float q = resEnd_ + qDelta_;
+    float q = resEnd.value + qDelta_;
     qDelta_ *= qDecayMul_;
     float damp = 1.0f / q;
 
     float sum = 0.0f;
-    for (int i = 0; i < numBands_; ++i) {
+    for (int i = 0; i < numBands.value; ++i) {
       low_[i]  += fCoeff_[i] * band_[i];
       float high = x - low_[i] - damp * band_[i];
       band_[i] += fCoeff_[i] * high;
       sum += band_[i] * bandGain_[i];
     }
 
-    cur_ = gain_ * sum + direct_ * x;
-    return cur_;
+    return gain.value * sum + direct.value * x;
   }
-
-  float current() const override { return cur_; }
 
 private:
   static constexpr int kMaxBands = 4;
 
-  std::shared_ptr<ValueSource> source_;
-  std::shared_ptr<ValueSource> frequency_;
   int sampleRate_;
-
-  // Config
-  int   numBands_{4};
-  float harm_[kMaxBands]{1.0f, 2.0f, 3.0f, 4.0f};
-  float resStart_{20.0f};
-  float resEnd_{1.5f};
-  float resDecay_{0.010f};
-  float bandTilt_{-0.5f};
-  float direct_{0.0f};
-  float gain_{1.0f};
 
   // Per-note state
   bool  initialized_{false};
@@ -180,7 +108,6 @@ private:
   float qDecayMul_{1.0f};
   float low_[kMaxBands]{};
   float band_[kMaxBands]{};
-  float cur_{0.0f};
 };
 
 } // namespace mforce

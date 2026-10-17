@@ -16,56 +16,11 @@ namespace mforce {
 // Mono output. The ValueSource graph's pan/mix happens at SoundChannel.
 // Spec: docs/superpowers/specs/2026-05-06-reverb-limiter-effects-design.md
 // ---------------------------------------------------------------------------
-struct Reverb final : ValueSource {
-
-  void set_source(std::shared_ptr<ValueSource> s)   { source_   = std::move(s); }
-  void set_roomSize(std::shared_ptr<ValueSource> s) { roomSize_ = std::move(s); }
-  void set_damping(std::shared_ptr<ValueSource> s)  { damping_  = std::move(s); }
-  void set_wet(std::shared_ptr<ValueSource> s)      { wet_      = std::move(s); }
-  void set_dry(std::shared_ptr<ValueSource> s)      { dry_      = std::move(s); }
-
-  std::shared_ptr<ValueSource> get_source() const   { return source_; }
-  std::shared_ptr<ValueSource> get_roomSize() const { return roomSize_; }
-  std::shared_ptr<ValueSource> get_damping() const  { return damping_; }
-  std::shared_ptr<ValueSource> get_wet() const      { return wet_; }
-  std::shared_ptr<ValueSource> get_dry() const      { return dry_; }
-
-  const char* type_name() const override { return "Reverb"; }
-  SourceCategory category() const override { return SourceCategory::Filter; }
-
-  std::span<const ParamDescriptor> param_descriptors() const override {
-    static constexpr ParamDescriptor descs[] = {
-      {"roomSize", 0.5f,  0.0f, 1.0f, "0-1"},
-      {"damping",  0.5f,  0.0f, 1.0f, "0-1"},
-      {"wet",      0.33f, 0.0f, 1.0f, "0-1"},
-      {"dry",      0.4f,  0.0f, 1.0f, "0-1"},
-    };
-    return descs;
-  }
-
-  std::span<const InputDescriptor> input_descriptors() const override {
-    static constexpr InputDescriptor descs[] = {
-      {"source"},
-    };
-    return descs;
-  }
-
-  void set_param(std::string_view name, std::shared_ptr<ValueSource> src) override {
-    if (name == "source")   { source_   = std::move(src); return; }
-    if (name == "roomSize") { roomSize_ = std::move(src); return; }
-    if (name == "damping")  { damping_  = std::move(src); return; }
-    if (name == "wet")      { wet_      = std::move(src); return; }
-    if (name == "dry")      { dry_      = std::move(src); return; }
-  }
-
-  std::shared_ptr<ValueSource> get_param(std::string_view name) const override {
-    if (name == "source")   return source_;
-    if (name == "roomSize") return roomSize_;
-    if (name == "damping")  return damping_;
-    if (name == "wet")      return wet_;
-    if (name == "dry")      return dry_;
-    return nullptr;
-  }
+struct Reverb final : Processor {
+  Param roomSize{this, "roomSize", 0.5f,  0.0f, 1.0f, "0-1"};
+  Param damping {this, "damping",  0.5f,  0.0f, 1.0f, "0-1"};
+  Param wet     {this, "wet",      0.33f, 0.0f, 1.0f, "0-1"};
+  Param dry     {this, "dry",      0.4f,  0.0f, 1.0f, "0-1"};
 
   explicit Reverb(int sampleRate) : sampleRate_(sampleRate) {
     // Allocate comb + allpass buffers sized to the current sample rate.
@@ -80,29 +35,20 @@ struct Reverb final : ValueSource {
     }
   }
 
-  void prepare(const RenderContext& ctx, int frames) override {
-    if (source_)   source_->prepare(ctx, frames);
-    if (roomSize_) roomSize_->prepare(ctx, frames);
-    if (damping_)  damping_->prepare(ctx, frames);
-    if (wet_)      wet_->prepare(ctx, frames);
-    if (dry_)      dry_->prepare(ctx, frames);
+  const char* type_name() const override { return "Reverb"; }
 
+  void on_prepare(const RenderContext&, int) override {
     for (auto& c : combs_)   { std::fill(c.buffer.begin(), c.buffer.end(), 0.0f); c.idx = 0; c.filt = 0.0f; }
     for (auto& a : allpass_) { std::fill(a.buffer.begin(), a.buffer.end(), 0.0f); a.idx = 0; }
   }
 
-  float next() override {
-    float in = 0.0f;
-    if (source_)   { source_->advance();   in       = source_->current(); }
-    if (roomSize_) { roomSize_->advance(); }
-    if (damping_)  { damping_->advance();  }
-    if (wet_)      { wet_->advance();      }
-    if (dry_)      { dry_->advance();      }
+  float compute() override {
+    float in = input.current();
 
-    float room = roomSize_ ? std::clamp(roomSize_->current(), 0.0f, 1.0f) : 0.5f;
-    float damp = damping_  ? std::clamp(damping_->current(),  0.0f, 1.0f) : 0.5f;
-    float wet  = wet_      ? std::clamp(wet_->current(),      0.0f, 1.0f) : 0.33f;
-    float dry  = dry_      ? std::clamp(dry_->current(),      0.0f, 1.0f) : 0.4f;
+    float room   = std::clamp(roomSize.current(), 0.0f, 1.0f);
+    float damp   = std::clamp(damping.current(),  0.0f, 1.0f);
+    float wetAmt = std::clamp(wet.current(),      0.0f, 1.0f);
+    float dryAmt = std::clamp(dry.current(),      0.0f, 1.0f);
 
     float feedback = room * kRoomScale + kRoomOffset;  // 0.7 .. 0.98
     float damp1    = damp * kDampScale;
@@ -129,11 +75,8 @@ struct Reverb final : ValueSource {
       ap_out = out;
     }
 
-    cur_ = ap_out * wet + in * dry;
-    return cur_;
+    return ap_out * wetAmt + in * dryAmt;
   }
-
-  float current() const override { return cur_; }
 
 private:
   // Freeverb tunings at 44.1 kHz (samples). Scaled to running sample rate
@@ -163,16 +106,9 @@ private:
     int idx{0};
   };
 
-  std::shared_ptr<ValueSource> source_;
-  std::shared_ptr<ValueSource> roomSize_;
-  std::shared_ptr<ValueSource> damping_;
-  std::shared_ptr<ValueSource> wet_;
-  std::shared_ptr<ValueSource> dry_;
-
   int sampleRate_;
   std::array<Comb,    kNumCombs>   combs_;
   std::array<Allpass, kNumAllpass> allpass_;
-  float cur_{0.0f};
 };
 
 } // namespace mforce

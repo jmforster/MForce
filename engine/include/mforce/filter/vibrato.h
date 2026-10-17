@@ -24,75 +24,35 @@ namespace mforce {
 //   depthVar:           per-half-cycle depth jitter (0=constant, →RedNoise boost=1-depthVar)
 //   zeroCrossTendency:  1=strict alternation (regular wobble, legacy default),
 //                       0=organic sign wander. Legacy Vibrato hardcoded 1.0.
-struct Vibrato final : ValueSource {
-  Vibrato(int sampleRate, float speed = 5.0f, float depth = 0.02f, float attack = 0.3f,
-          float threshold = 0.0f, float speedVar = 0.0f, float depthVar = 0.0f,
-          float zeroCrossTendency = 1.0f, uint32_t seed = 0xF1B0'0000u)
-  : sampleRate_(sampleRate), speed_(speed), depth_(depth), attack_(attack),
-    threshold_(threshold), speedVar_(speedVar), depthVar_(depthVar),
-    zct_(zeroCrossTendency), seed_(seed) {}
+struct Vibrato final : Generator {
+  Param frequency{this, "frequency", 440.0f, 0.01f, 20000.0f, "hz"};
+  Setting<float> speed            {this, "speed",             5.0f,  0.01f, 20.0f};
+  Setting<float> depth            {this, "depth",             0.02f, 0.0f,  1.0f};
+  Setting<float> attack           {this, "attack",            0.3f,  0.0f,  1.0f};
+  Setting<float> threshold        {this, "threshold",         0.0f,  0.0f,  10.0f};
+  Setting<float> speedVar         {this, "speedVar",          0.0f,  0.0f,  1.0f};
+  Setting<float> depthVar         {this, "depthVar",          0.0f,  0.0f,  1.0f};
+  Setting<float> zeroCrossTendency{this, "zeroCrossTendency", 1.0f, 0.0f,  1.0f};
 
-  void set_frequency(std::shared_ptr<ValueSource> s) { frequency_ = std::move(s); }
-  std::shared_ptr<ValueSource> get_frequency() const { return frequency_; }
+  Vibrato(int sampleRate, float speedHz = 5.0f, float depthFrac = 0.02f, float attackFrac = 0.3f,
+          float thresholdSec = 0.0f, float speedVarFrac = 0.0f, float depthVarFrac = 0.0f,
+          float zeroCrossTend = 1.0f, uint32_t seed = 0xF1B0'0000u)
+  : sampleRate_(sampleRate), seed_(seed) {
+    speed.value = speedHz;
+    depth.value = depthFrac;
+    attack.value = attackFrac;
+    threshold.value = thresholdSec;
+    speedVar.value = speedVarFrac;
+    depthVar.value = depthVarFrac;
+    zeroCrossTendency.value = zeroCrossTend;
+  }
 
   const char* type_name() const override { return "Vibrato"; }
   SourceCategory category() const override { return SourceCategory::Modulator; }
 
-  std::span<const ParamDescriptor> param_descriptors() const override {
-    static constexpr ParamDescriptor descs[] = {
-      {"frequency", 440.0f, 0.01f, 20000.0f, "hz"},
-    };
-    return descs;
-  }
-
-  void set_param(std::string_view name, std::shared_ptr<ValueSource> src) override {
-    if (name == "frequency") { frequency_ = std::move(src); return; }
-  }
-
-  std::shared_ptr<ValueSource> get_param(std::string_view name) const override {
-    if (name == "frequency") return frequency_;
-    return nullptr;
-  }
-
-  std::span<const SettingDescriptor> setting_descriptors() const override {
-    static constexpr SettingDescriptor descs[] = {
-      {"speed",             SettingType::Float, 5.0f,   0.01f, 20.0f},
-      {"depth",             SettingType::Float, 0.02f,  0.0f,  1.0f},
-      {"attack",            SettingType::Float, 0.3f,   0.0f,  1.0f},
-      {"threshold",         SettingType::Float, 0.0f,   0.0f,  10.0f},
-      {"speedVar",          SettingType::Float, 0.0f,   0.0f,  1.0f},
-      {"depthVar",          SettingType::Float, 0.0f,   0.0f,  1.0f},
-      {"zeroCrossTendency", SettingType::Float, 1.0f,   0.0f,  1.0f},
-    };
-    return descs;
-  }
-
-  void set_setting(std::string_view name, float v) override {
-    if      (name == "speed")             speed_ = v;
-    else if (name == "depth")             depth_ = v;
-    else if (name == "attack")            attack_ = v;
-    else if (name == "threshold")         threshold_ = v;
-    else if (name == "speedVar")          speedVar_ = v;
-    else if (name == "depthVar")          depthVar_ = v;
-    else if (name == "zeroCrossTendency") zct_ = v;
-  }
-
-  float get_setting(std::string_view name) const override {
-    if (name == "speed")             return speed_;
-    if (name == "depth")             return depth_;
-    if (name == "attack")            return attack_;
-    if (name == "threshold")         return threshold_;
-    if (name == "speedVar")          return speedVar_;
-    if (name == "depthVar")          return depthVar_;
-    if (name == "zeroCrossTendency") return zct_;
-    return 0.0f;
-  }
-
-  void prepare(const RenderContext& ctx, int frames) override {
+  void on_prepare(const RenderContext& ctx, int frames) override {
     float duration = float(frames) / float(sampleRate_);
-    enabled_ = duration > threshold_;
-
-    if (frequency_) frequency_->prepare(ctx, frames);
+    enabled_ = duration > threshold.value;
 
     if (enabled_) {
       build_lfo();           // rebuild from current config scalars
@@ -100,19 +60,15 @@ struct Vibrato final : ValueSource {
     }
   }
 
-  float next() override {
-    float freq = frequency_ ? (frequency_->advance(), frequency_->current()) : 440.0f;
+  float compute() override {
+    float freq = frequency.current();
 
     if (enabled_) {
       float mod = lfo_->advance();
-      cur_ = freq * std::max(0.01f, 1.0f + mod);
-    } else {
-      cur_ = freq;
+      return freq * std::max(0.01f, 1.0f + mod);
     }
-    return cur_;
+    return freq;
   }
-
-  float current() const override { return cur_; }
 
 private:
   // Build the RedNoise LFO chain from the current scalar config. Speed ramps
@@ -120,39 +76,35 @@ private:
   // the rest of the note — that's an ASEnvelope (attack→sustain).
   void build_lfo() {
     auto speedRamp = std::make_shared<ASEnvelope>(sampleRate_);
-    speedRamp->set_setting("attack", attack_);
+    speedRamp->set_setting("attack", attack.value);
     auto speedRange = std::make_shared<RangeSource>(
         std::make_shared<ConstantSource>(1.0f),
-        std::make_shared<ConstantSource>(speed_), speedRamp, true);
+        std::make_shared<ConstantSource>(speed.value), speedRamp, true);
 
     auto depthRamp = std::make_shared<ASEnvelope>(sampleRate_);
-    depthRamp->set_setting("attack", attack_);
+    depthRamp->set_setting("attack", attack.value);
     auto depthRange = std::make_shared<RangeSource>(
         std::make_shared<ConstantSource>(0.0f),
-        std::make_shared<ConstantSource>(depth_), depthRamp, true);
+        std::make_shared<ConstantSource>(depth.value), depthRamp, true);
 
     lfo_ = std::make_shared<RedNoiseSource>(sampleRate_, seed_);
     lfo_->frequency.set(speedRange);
     lfo_->amplitude.set(depthRange);
     lfo_->density.set(std::make_shared<ConstantSource>(1.0f));   // every ramp carries a value
     lfo_->smoothness.set(std::make_shared<ConstantSource>(1.0f));
-    lfo_->rampVariation.set(std::make_shared<ConstantSource>(speedVar_));
-    lfo_->boost.set(std::make_shared<ConstantSource>(std::clamp(1.0f - depthVar_, 0.0f, 1.0f)));
-    lfo_->zeroCrossTendency.set(std::make_shared<ConstantSource>(zct_));
+    lfo_->rampVariation.set(std::make_shared<ConstantSource>(speedVar.value));
+    lfo_->boost.set(std::make_shared<ConstantSource>(std::clamp(1.0f - depthVar.value, 0.0f, 1.0f)));
+    lfo_->zeroCrossTendency.set(std::make_shared<ConstantSource>(zeroCrossTendency.value));
   }
 
   // Per-note determinism (onsets-v2 addendum): forward to the LFO's rng.
   void reseed() override { if (lfo_) lfo_->reseed(); }
 
-  std::shared_ptr<ValueSource> frequency_;
   int sampleRate_;
-  float speed_, depth_, attack_, threshold_;
-  float speedVar_, depthVar_, zct_;
   uint32_t seed_;
   bool enabled_{false};
 
   std::shared_ptr<RedNoiseSource> lfo_;
-  float cur_{0.0f};
 };
 
 } // namespace mforce

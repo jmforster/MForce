@@ -19,71 +19,29 @@ namespace mforce {
 //
 // Spec: docs/superpowers/specs/2026-05-06-reverb-limiter-effects-design.md
 // ---------------------------------------------------------------------------
-struct Limiter final : ValueSource {
-
-  void set_source(std::shared_ptr<ValueSource> s)    { source_    = std::move(s); }
-  void set_threshold(std::shared_ptr<ValueSource> s) { threshold_ = std::move(s); }
-  void set_release(std::shared_ptr<ValueSource> s)   { release_   = std::move(s); }
-
-  std::shared_ptr<ValueSource> get_source() const    { return source_; }
-  std::shared_ptr<ValueSource> get_threshold() const { return threshold_; }
-  std::shared_ptr<ValueSource> get_release() const   { return release_; }
-
-  const char* type_name() const override { return "Limiter"; }
-  SourceCategory category() const override { return SourceCategory::Filter; }
-
-  std::span<const ParamDescriptor> param_descriptors() const override {
-    static constexpr ParamDescriptor descs[] = {
-      {"threshold", 0.95f, 0.0f,   1.0f, "0-1"},
-      {"release",   0.05f, 0.001f, 1.0f, "sec"},
-    };
-    return descs;
-  }
-
-  std::span<const InputDescriptor> input_descriptors() const override {
-    static constexpr InputDescriptor descs[] = {
-      {"source"},
-    };
-    return descs;
-  }
-
-  void set_param(std::string_view name, std::shared_ptr<ValueSource> src) override {
-    if (name == "source")    { source_    = std::move(src); return; }
-    if (name == "threshold") { threshold_ = std::move(src); return; }
-    if (name == "release")   { release_   = std::move(src); return; }
-  }
-
-  std::shared_ptr<ValueSource> get_param(std::string_view name) const override {
-    if (name == "source")    return source_;
-    if (name == "threshold") return threshold_;
-    if (name == "release")   return release_;
-    return nullptr;
-  }
+struct Limiter final : Processor {
+  Param threshold{this, "threshold", 0.95f, 0.0f,   1.0f, "0-1"};
+  Param release  {this, "release",   0.05f, 0.001f, 1.0f, "sec"};
 
   explicit Limiter(int sampleRate)
   : sampleRate_(sampleRate),
     lookaheadSamples_(std::max(1, int(std::lround(sampleRate * kLookaheadSec)))),
     lookahead_(lookaheadSamples_, 0.0f) {}
 
-  void prepare(const RenderContext& ctx, int frames) override {
-    if (source_)    source_->prepare(ctx, frames);
-    if (threshold_) threshold_->prepare(ctx, frames);
-    if (release_)   release_->prepare(ctx, frames);
+  const char* type_name() const override { return "Limiter"; }
 
+  void on_prepare(const RenderContext&, int) override {
     std::fill(lookahead_.begin(), lookahead_.end(), 0.0f);
     write_ = 0;
     peak_  = 0.0f;
     gain_  = 1.0f;
   }
 
-  float next() override {
-    float in = 0.0f;
-    if (source_)    { source_->advance();    in = source_->current(); }
-    if (threshold_) { threshold_->advance(); }
-    if (release_)   { release_->advance();   }
+  float compute() override {
+    float in = input.current();
 
-    float thr     = threshold_ ? std::clamp(threshold_->current(), 1e-4f, 1.0f) : 0.95f;
-    float relSec  = release_   ? std::max(0.001f, release_->current())          : 0.05f;
+    float thr     = std::clamp(threshold.current(), 1e-4f, 1.0f);
+    float relSec  = std::max(0.001f, release.current());
 
     // Per-sample release coefficient: peak decays from 1.0 to ~e^-1 in
     // relSec seconds. release_smooth governs the gain-recovery envelope.
@@ -103,20 +61,14 @@ struct Limiter final : ValueSource {
 
     // Lookahead: write current input, output the sample from N samples ago.
     int read = (write_ + 1) % lookaheadSamples_;
-    cur_ = lookahead_[read] * gain_;
+    const float out = lookahead_[read] * gain_;
     lookahead_[write_] = in;
     write_ = read;
-    return cur_;
+    return out;
   }
-
-  float current() const override { return cur_; }
 
 private:
   static constexpr float kLookaheadSec = 0.005f;  // 5 ms
-
-  std::shared_ptr<ValueSource> source_;
-  std::shared_ptr<ValueSource> threshold_;
-  std::shared_ptr<ValueSource> release_;
 
   int   sampleRate_;
   int   lookaheadSamples_;
@@ -124,7 +76,6 @@ private:
   int   write_{0};
   float peak_{0.0f};
   float gain_{1.0f};
-  float cur_{0.0f};
 };
 
 } // namespace mforce
