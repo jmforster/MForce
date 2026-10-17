@@ -100,6 +100,9 @@ struct Setting final : SettingBase {
   }
   void set_from_float(float v) override { value = from_float(v); }
   float as_float() const override { return float(value); }
+  // The base does not clamp (min/max are advisory); a node that enforces
+  // its declared range calls this from on_setting_changed.
+  void clamp() { value = value < min ? min : (value > max ? max : value); }
 private:
   static T from_float(float v) {
     if constexpr (std::is_same_v<T, bool>) return v != 0.0f;

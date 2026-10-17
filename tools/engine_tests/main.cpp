@@ -1992,6 +1992,22 @@ static void run_manual_pin_advance_tests() {
     CHECK_NEAR(p.freq.current(), 2.0f, 1e-6f);          // current() does not pull
 }
 
+// The base does not clamp a setting (min/max are advisory); a node that
+// enforces its declared range calls clamp() in on_setting_changed.
+static void run_setting_clamp_tests() {
+    PinProbe p;
+    p.set_setting("mode", 7.0f);
+    CHECK(p.mode.value == 7);
+    p.mode.clamp();
+    CHECK(p.mode.value == 3);
+    p.set_setting("mode", -5.0f);
+    p.mode.clamp();
+    CHECK(p.mode.value == 0);
+    p.set_setting("mode", 1.0f);
+    p.mode.clamp();
+    CHECK(p.mode.value == 1);
+}
+
 // Checkpoint 2.1: WaveSource under Generator with its three pins declared
 // once, in the order the old next() advanced them (amplitude, frequency,
 // phase); an unwired pin reads its constant and has no source.
@@ -3380,6 +3396,7 @@ int main() {
     run_pin_tests();
     run_base_tests();
     run_manual_pin_advance_tests();
+    run_setting_clamp_tests();
     run_wave_source_tests();
     run_range_var_tests();
     run_multi_name_gate_tests();
