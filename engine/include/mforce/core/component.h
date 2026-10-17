@@ -16,7 +16,6 @@ struct Component {
   Component() = default;
   virtual ~Component() = default;
   Component(const Component&) = delete;                      // a copy's pins would not register
-  Component& operator=(const Component&) { return *this; }   // the registry is per object; a node assigns its own members
 
   virtual const char* type_name() const { return "Unknown"; }
   virtual SourceCategory category() const { return SourceCategory::Utility; }
@@ -59,12 +58,19 @@ struct Component {
   virtual void on_array_changed(std::string_view) {}
 
   const std::vector<PinBase*>& pins() const { return pins_; }
+
+protected:
+  // A node assigning itself (Envelope rebuilding its stages) assigns its
+  // own members; the registry is per object and is left alone.
+  Component& operator=(const Component&) { return *this; }
   // The sources the per-sample sweep advances: every Auto Param and Input,
   // in declaration order, as pointers to the pins' source members (a pin
   // is a member of its node, so the address is stable). Cached here so the
   // sweep costs one indirect call per wired pin and nothing per setting.
-  const std::vector<std::shared_ptr<ValueSource>*>& pulled() const { return pulled_; }
+  const std::vector<std::shared_ptr<ValueSource>*>& auto_sources() const { return autoSources_; }
 
+private:
+  friend struct PinBase;
   // Called by a pin's constructor; builds the descriptor tables as it goes.
   void register_pin(PinBase* pin) {
     pins_.push_back(pin);
@@ -72,13 +78,13 @@ struct Component {
       case PinKind::Param: {
         auto* p = static_cast<Param*>(pin);
         paramDescs_.push_back(p->descriptor());
-        if (p->pull == Pull::Auto) pulled_.push_back(&p->source);
+        if (p->pull == Pull::Auto) autoSources_.push_back(&p->source);
         break;
       }
       case PinKind::Input: {
         auto* i = static_cast<Input*>(pin);
         inputDescs_.push_back(i->descriptor());
-        if (i->pull == Pull::Auto) pulled_.push_back(&i->source);
+        if (i->pull == Pull::Auto) autoSources_.push_back(&i->source);
         break;
       }
       case PinKind::Slot:    inputDescs_.push_back(static_cast<SlotBase*>(pin)->descriptor()); break;
@@ -86,15 +92,13 @@ struct Component {
       case PinKind::Array:   arrayDescs_.push_back(static_cast<Array*>(pin)->descriptor()); break;
     }
   }
-
-private:
   template <class P> P* find(std::string_view name) const {
     for (auto* pin : pins_)
       if (pin->kind == P::kKind && name == pin->name) return static_cast<P*>(pin);
     return nullptr;
   }
   std::vector<PinBase*> pins_;
-  std::vector<std::shared_ptr<ValueSource>*> pulled_;
+  std::vector<std::shared_ptr<ValueSource>*> autoSources_;
   std::vector<ParamDescriptor> paramDescs_;
   std::vector<InputDescriptor> inputDescs_;
   std::vector<SettingDescriptor> settingDescs_;

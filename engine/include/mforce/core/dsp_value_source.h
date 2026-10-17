@@ -44,9 +44,11 @@ struct ValueSource : Component {
   }
   long long lastAdvancedSample_{-1};
 
-  // Forwards to every pin, then to the node's own reset.
+  // Prepares every Auto pin's source, then the node's own state. A Manual
+  // pin is prepared by the node, in on_prepare or wherever it chooses.
   virtual void prepare(const RenderContext& ctx, int frames) {
-    for (auto* pin : pins()) pin->prepare(ctx, frames);
+    for (auto* pin : pins())
+      if (pin->pull == Pull::Auto) pin->prepare(ctx, frames);
     on_prepare(ctx, frames);
   }
   virtual void on_prepare(const RenderContext&, int) {}
@@ -54,7 +56,7 @@ struct ValueSource : Component {
   // Advance every wired Auto pin in declaration order, then compute. A
   // node's work is compute(); next() is the same for every node.
   float next() {
-    for (auto* s : pulled())
+    for (auto* s : auto_sources())
       if (*s) (*s)->advance();
     cur_ = compute();
     return cur_;
@@ -99,9 +101,9 @@ struct Generator : ValueSource {
 };
 
 // A node that processes a signal: it owns the primary input. Further inputs
-// are declared by the subclass. A node that must pull its input itself (only
-// between gaps, once per clone, at the moment the old code read it)
-// constructs with Pull::Manual and reads input.advance() in compute().
+// are declared by the subclass. A node that pulls its input itself (only
+// between gaps, once per clone, or at a fixed point of its own compute())
+// constructs with Pull::Manual and reads input.advance() there.
 struct Processor : ValueSource {
   Input input;
   explicit Processor(Pull inputPull = Pull::Auto)
@@ -154,18 +156,18 @@ private:
   }
 };
 
-// The pin bodies that need ValueSource complete. A Manual pin is driven by
-// its node: the base neither prepares nor advances it, and the node pulls
-// it through advance() where and when it needs the value.
+// The pin bodies that need ValueSource complete. prepare() and advance()
+// act on the source if there is one; the base calls them for Auto pins,
+// the node calls them for its Manual pins.
 inline float Param::current() const { return source ? source->current() : constant; }
 inline float Param::advance() { return source ? source->advance() : constant; }
 inline void Param::prepare(const RenderContext& ctx, int frames) {
-  if (source && pull == Pull::Auto) source->prepare(ctx, frames);
+  if (source) source->prepare(ctx, frames);
 }
 inline float Input::current() const { return source ? source->current() : 0.0f; }
 inline float Input::advance() { return source ? source->advance() : 0.0f; }
 inline void Input::prepare(const RenderContext& ctx, int frames) {
-  if (source && pull == Pull::Auto) source->prepare(ctx, frames);
+  if (source) source->prepare(ctx, frames);
 }
 
 } // namespace mforce

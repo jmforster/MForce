@@ -2006,6 +2006,40 @@ static void run_setting_clamp_tests() {
     p.set_setting("mode", 1.0f);
     p.mode.clamp();
     CHECK(p.mode.value == 1);
+    p.set_setting("mode", 2.7f);                  // an int setting truncates, as the old set_setting did
+    CHECK(p.mode.value == 2);
+}
+
+// A Manual pin is prepared by its node, not by the base: the base's
+// prepare skips it, and the node calls the pin's own prepare where the
+// old code prepared the source.
+namespace {
+struct PrepCounter final : mforce::Generator {
+  int prepares{0};
+  void on_prepare(const mforce::RenderContext&, int) override { ++prepares; }
+  float compute() override { return 0.0f; }
+  const char* type_name() const override { return "PrepCounter"; }
+};
+struct ManualHolder final : mforce::Generator {
+  mforce::Param gate{this, "gate", 0.0f, 0.0f, 1.0f, nullptr, mforce::Pull::Manual};
+  mforce::Param gain{this, "gain", 1.0f, 0.0f, 1.0f};
+  float compute() override { return gain.current(); }
+  const char* type_name() const override { return "ManualHolder"; }
+};
+}
+
+static void run_manual_pin_prepare_tests() {
+    auto a = std::make_shared<PrepCounter>();
+    auto b = std::make_shared<PrepCounter>();
+    ManualHolder h;
+    h.set_param("gate", a);
+    h.set_param("gain", b);
+    mforce::RenderContext ctx{48000};
+    h.prepare(ctx, 8);
+    CHECK(a->prepares == 0);                      // Manual: the base leaves it alone
+    CHECK(b->prepares == 1);                      // Auto: the base prepared it
+    h.gate.prepare(ctx, 8);                       // the node prepares it where it chooses
+    CHECK(a->prepares == 1);
 }
 
 // A Processor may own its primary input: Processor(Pull::Manual) keeps
@@ -2018,19 +2052,31 @@ struct ManualDoubler final : mforce::Processor {
 };
 }
 
+namespace {
+struct ManualIdle final : mforce::Processor {  // owns its input and never pulls it
+  ManualIdle() : Processor(mforce::Pull::Manual) {}
+  float compute() override { return 0.0f; }
+  const char* type_name() const override { return "ManualIdle"; }
+};
+}
+
 static void run_processor_manual_input_tests() {
     auto ramp = std::make_shared<UnitRamp>();
     ManualDoubler d;
     d.set_param("source", ramp);
-    CHECK(d.pulled().empty());                 // the base advances nothing
     CHECK(d.input_descriptors().size() == 1);  // the pin is still declared
     mforce::RenderContext ctx{48000};
     d.prepare(ctx, 100);
     CHECK_NEAR(d.next(), 2.0f, 1e-6f);         // one pull per sample, by the node
     CHECK_NEAR(d.next(), 4.0f, 1e-6f);
+    ManualIdle idle;
+    idle.set_param("source", ramp);
+    idle.next();
+    CHECK_NEAR(ramp->current(), 2.0f, 1e-6f);  // the base advanced nothing
     Doubler a;
     a.set_param("source", ramp);
-    CHECK(a.pulled().size() == 1);             // the default stays Auto
+    a.next();
+    CHECK_NEAR(ramp->current(), 3.0f, 1e-6f);  // the default stays Auto
 }
 
 // Checkpoint 2.1: WaveSource under Generator with its three pins declared
@@ -4376,6 +4422,7 @@ int main() {
     run_base_tests();
     run_manual_pin_advance_tests();
     run_setting_clamp_tests();
+    run_manual_pin_prepare_tests();
     run_processor_manual_input_tests();
     run_wave_source_tests();
     run_range_var_tests();

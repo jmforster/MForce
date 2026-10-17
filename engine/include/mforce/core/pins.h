@@ -1,4 +1,7 @@
 #pragma once
+// The pin kinds a node declares its members with. Complete only through
+// dsp_value_source.h, which defines the pin methods that need ValueSource;
+// include that header, not this one.
 #include <memory>
 #include <type_traits>
 #include <vector>
@@ -12,10 +15,13 @@ struct RenderContext;
 
 enum class PinKind { Param, Input, Slot, Setting, Array };
 
-// Who advances a connectable pin's source each sample: the owning node's
-// next() (the rule), or the node itself. A trigger chain is evaluated at
-// note setup and never per sample; such a pin is Manual, and the node then
-// owns its prepare as well.
+// Who prepares and advances a connectable pin's source: the node's base,
+// every sample in declaration order (Auto, the rule), or the node itself
+// (Manual). A pin is Manual when the base's sweep cannot express how the
+// node uses it: pulled only in one mode or only between gaps, pulled once
+// per table entry at note start, read at a fixed point of its own
+// compute(), or a trigger chain evaluated at note setup and never per
+// sample. The node then calls the pin's prepare() and advance() itself.
 enum class Pull { Auto, Manual };
 
 // A pin is a member of a node that registers itself with the node while
@@ -27,12 +33,13 @@ enum class Pull { Auto, Manual };
 struct PinBase {
   const char* name;
   PinKind kind;
+  Pull pull;
   virtual ~PinBase() = default;
   PinBase(const PinBase&) = delete;               // a copy would not be registered
-  PinBase& operator=(const PinBase&) = default;   // assigning a node assigns its pins' values
   virtual void prepare(const RenderContext&, int) {}
 protected:
-  PinBase(const char* n, PinKind k) : name(n), kind(k) {}
+  PinBase(const char* n, PinKind k, Pull p = Pull::Auto) : name(n), kind(k), pull(p) {}
+  PinBase& operator=(const PinBase&) = default;   // a node assigning itself assigns its pins' values
   void attach(Component* owner);                  // component.h
 };
 
@@ -41,11 +48,10 @@ struct Param final : PinBase {
   static constexpr PinKind kKind = PinKind::Param;
   float constant, min, max;
   const char* hint;
-  Pull pull;
   std::shared_ptr<ValueSource> source;            // null = the constant
   Param(Component* owner, const char* n, float def, float mn, float mx,
         const char* h = nullptr, Pull p = Pull::Auto)
-    : PinBase(n, kKind), constant(def), min(mn), max(mx), hint(h), pull(p) { attach(owner); }
+    : PinBase(n, kKind, p), constant(def), min(mn), max(mx), hint(h) { attach(owner); }
   float current() const;                          // the source's value, or the constant
   float advance();                                // Manual pins only: pull the source, return its value or the constant
   void set(std::shared_ptr<ValueSource> s) { source = std::move(s); }
@@ -61,11 +67,10 @@ struct Input final : PinBase {
   Required required;
   const char* hint;
   bool multi;
-  Pull pull;
   std::shared_ptr<ValueSource> source;
   Input(Component* owner, const char* n, Required r = RequiredInput,
         const char* h = nullptr, bool m = false, Pull p = Pull::Auto)
-    : PinBase(n, kKind), required(r), hint(h), multi(m), pull(p) { attach(owner); }
+    : PinBase(n, kKind, p), required(r), hint(h), multi(m) { attach(owner); }
   float current() const;
   float advance();                                // Manual pins only: pull the source, return its value or 0
   void set(std::shared_ptr<ValueSource> s) { source = std::move(s); }
@@ -104,10 +109,9 @@ struct Setting final : SettingBase {
   // its declared range calls this from on_setting_changed.
   void clamp() { value = value < min ? min : (value > max ? max : value); }
 private:
-  static T from_float(float v) {
+  static T from_float(float v) {                 // bool: nonzero; int: truncated, as set_setting always did
     if constexpr (std::is_same_v<T, bool>) return v != 0.0f;
-    else if constexpr (std::is_same_v<T, int>) return int(v + (v < 0.0f ? -0.5f : 0.5f));
-    else return v;
+    else return T(v);
   }
   T default_;                                     // what the descriptor reports after a change
 };
