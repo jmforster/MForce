@@ -100,24 +100,23 @@ private:
 };
 
 // Leaf adapter: pulls nothing, reports one PerformSource output. Constant
-// between tick() calls. Idempotent next() — safe for many consumers
+// between tick() calls. Idempotent compute() — safe for many consumers
 // without RefSource wrapping.
-struct PerformOut final : ValueSource {
+struct PerformOut final : Generator {
   enum class Field { Frequency, Velocity, Wheel, Pressure, Duration,
                      Onset };
   PerformOut(std::shared_ptr<PerformSource> ps, Field f)
       : ps_(std::move(ps)), field_(f) {}
 
-  void prepare(const RenderContext&, int) override {}
   // Stateless view — there is nothing to cache, because the value only
-  // moves on tick(). current() must read live, NOT a value stashed by
-  // next(): RefSource::next() returns source->current() WITHOUT pulling
-  // the source (it assumes the primary consumer already did), so a cached
-  // cur_ made every RefSource-wrapped copy report 0 until the primary
-  // happened to pull. That surfaced as "WaveSource: non-positive
-  // frequency" the first time one PerformNode fed two consumers — which is
-  // the normal case for a converted patch, where one node feeds many pins.
-  float next() override { return read_(); }
+  // moves on tick(). current() must read live, NOT the cur_ that advance()
+  // stashed: RefSource reads source->current() WITHOUT pulling the source
+  // (it assumes the primary consumer already did), so a cached cur_ made
+  // every RefSource-wrapped copy report 0 until the primary happened to
+  // pull. That surfaced as "WaveSource: non-positive frequency" the first
+  // time one PerformNode fed two consumers — which is the normal case for
+  // a converted patch, where one node feeds many pins.
+  float compute() override { return read_(); }
   float current() const override { return read_(); }
   const char* type_name() const override { return "PerformOut"; }
   SourceCategory category() const override { return SourceCategory::Modulator; }
