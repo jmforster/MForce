@@ -14,63 +14,31 @@ namespace mforce {
 //   deltaSpeed: max random change to slope per sample
 //   slopeLimit: max absolute slope before direction reverses
 // ---------------------------------------------------------------------------
-struct WanderNoiseSource final : ValueSource {
+struct WanderNoiseSource final : Generator {
+  // `amplitude` is accepted and prepared, but the walk never applies it, so
+  // the node leaves it unpulled (Manual): the base neither prepares nor
+  // advances a Manual pin.
+  Param amplitude {this, "amplitude",  1.0f, 0.0f, 10.0f, nullptr, Pull::Manual};
+  Param speed     {this, "speed",      1.0f, 0.0f, 100.0f};
+  Param deltaSpeed{this, "deltaSpeed", 1.0f, 0.0f, 100.0f};
+  Param slopeLimit{this, "slopeLimit", 1.0f, 0.0f, 10.0f};
+
   WanderNoiseSource(int sampleRate, uint32_t seed = 0xFA0D'0001u)
   : sampleRate_(sampleRate), rng_(seed) {}
 
-  void set_amplitude(std::shared_ptr<ValueSource> s)  { amplitude_ = std::move(s); }
-  void set_speed(std::shared_ptr<ValueSource> s)      { speed_ = std::move(s); }
-  void set_deltaSpeed(std::shared_ptr<ValueSource> s) { deltaSpeed_ = std::move(s); }
-  void set_slopeLimit(std::shared_ptr<ValueSource> s) { slopeLimit_ = std::move(s); }
-
-  std::shared_ptr<ValueSource> get_amplitude() const  { return amplitude_; }
-  std::shared_ptr<ValueSource> get_speed() const      { return speed_; }
-  std::shared_ptr<ValueSource> get_deltaSpeed() const { return deltaSpeed_; }
-  std::shared_ptr<ValueSource> get_slopeLimit() const { return slopeLimit_; }
-
+  Range range() const override { return Range::Bipolar; }
   const char* type_name() const override { return "WanderNoiseSource"; }
   SourceCategory category() const override { return SourceCategory::Generator; }
 
-  std::span<const ParamDescriptor> param_descriptors() const override {
-    static constexpr ParamDescriptor descs[] = {
-      {"amplitude",  1.0f,  0.0f, 10.0f},
-      {"speed",      1.0f,  0.0f, 100.0f},
-      {"deltaSpeed", 1.0f,  0.0f, 100.0f},
-      {"slopeLimit", 1.0f,  0.0f, 10.0f},
-    };
-    return descs;
-  }
-
-  void set_param(std::string_view name, std::shared_ptr<ValueSource> src) override {
-    if (name == "amplitude")  { amplitude_ = std::move(src); return; }
-    if (name == "speed")      { speed_ = std::move(src); return; }
-    if (name == "deltaSpeed") { deltaSpeed_ = std::move(src); return; }
-    if (name == "slopeLimit") { slopeLimit_ = std::move(src); return; }
-  }
-
-  std::shared_ptr<ValueSource> get_param(std::string_view name) const override {
-    if (name == "amplitude")  return amplitude_;
-    if (name == "speed")      return speed_;
-    if (name == "deltaSpeed") return deltaSpeed_;
-    if (name == "slopeLimit") return slopeLimit_;
-    return nullptr;
-  }
-
   void prepare(const RenderContext& ctx, int frames) override {
-    if (amplitude_)  amplitude_->prepare(ctx, frames);
-    if (speed_)      speed_->prepare(ctx, frames);
-    if (deltaSpeed_) deltaSpeed_->prepare(ctx, frames);
-    if (slopeLimit_) slopeLimit_->prepare(ctx, frames);
+    if (amplitude.source) amplitude.source->prepare(ctx, frames);
+    ValueSource::prepare(ctx, frames);
   }
 
-  float next() override {
-    if (speed_)      speed_->advance();
-    if (deltaSpeed_) deltaSpeed_->advance();
-    if (slopeLimit_) slopeLimit_->advance();
-
-    float ds = deltaSpeed_ ? deltaSpeed_->current() : 1.0f;
-    float sl = slopeLimit_ ? slopeLimit_->current() : 1.0f;
-    float sp = speed_      ? speed_->current()      : 1.0f;
+  float compute() override {
+    const float ds = deltaSpeed.current();
+    const float sl = slopeLimit.current();
+    const float sp = speed.current();
 
     // Random slope delta
     float delta = rng_.range(0.0f, ds);
@@ -97,18 +65,12 @@ struct WanderNoiseSource final : ValueSource {
       direction_ = 1.0f;
     }
 
-    cur_ = localVal * 2.0f - 1.0f;
-    lastVal_ = cur_;
-    return cur_;
+    const float out = localVal * 2.0f - 1.0f;
+    lastVal_ = out;
+    return out;
   }
 
-  float current() const override { return cur_; }
-
 private:
-  std::shared_ptr<ValueSource> amplitude_;
-  std::shared_ptr<ValueSource> speed_;
-  std::shared_ptr<ValueSource> deltaSpeed_;
-  std::shared_ptr<ValueSource> slopeLimit_;
   int sampleRate_;
   // Per-note determinism (onsets-v2 addendum): re-anchor draws.
   void reseed() override { rng_.reanchor(); }
@@ -116,7 +78,6 @@ private:
   float slope_{0.0f};
   float direction_{1.0f};
   float lastVal_{0.5f};   // legacy init
-  float cur_{0.0f};
 };
 
 // ---------------------------------------------------------------------------
@@ -127,79 +88,33 @@ private:
 //   retraceProb:       probability of a retrace step
 //   retracePct:        size of retrace step
 // ---------------------------------------------------------------------------
-struct WanderNoise2Source final : ValueSource {
+struct WanderNoise2Source final : Generator {
+  // `amplitude`: unpulled, as in WanderNoiseSource.
+  Param amplitude  {this, "amplitude",   1.0f,  0.0f, 10.0f, nullptr, Pull::Manual};
+  Param minSpeed   {this, "minSpeed",    0.01f, 0.0f, 10.0f};
+  Param maxSpeed   {this, "maxSpeed",    0.1f,  0.0f, 10.0f};
+  Param reverseProb{this, "reverseProb", 0.0f,  0.0f, 1.0f};
+  Param retraceProb{this, "retraceProb", 0.0f,  0.0f, 1.0f};
+  Param retracePct {this, "retracePct",  0.0f,  0.0f, 1.0f};
+
   WanderNoise2Source(int sampleRate, uint32_t seed = 0xFA0D'0002u)
   : sampleRate_(sampleRate), rng_(seed) {}
 
-  void set_amplitude(std::shared_ptr<ValueSource> s)   { amplitude_ = std::move(s); }
-  void set_minSpeed(std::shared_ptr<ValueSource> s)    { minSpeed_ = std::move(s); }
-  void set_maxSpeed(std::shared_ptr<ValueSource> s)    { maxSpeed_ = std::move(s); }
-  void set_reverseProb(std::shared_ptr<ValueSource> s) { reverseProb_ = std::move(s); }
-  void set_retraceProb(std::shared_ptr<ValueSource> s) { retraceProb_ = std::move(s); }
-  void set_retracePct(std::shared_ptr<ValueSource> s)  { retracePct_ = std::move(s); }
-
-  std::shared_ptr<ValueSource> get_amplitude() const   { return amplitude_; }
-  std::shared_ptr<ValueSource> get_minSpeed() const    { return minSpeed_; }
-  std::shared_ptr<ValueSource> get_maxSpeed() const    { return maxSpeed_; }
-  std::shared_ptr<ValueSource> get_reverseProb() const { return reverseProb_; }
-  std::shared_ptr<ValueSource> get_retraceProb() const { return retraceProb_; }
-  std::shared_ptr<ValueSource> get_retracePct() const  { return retracePct_; }
-
+  Range range() const override { return Range::Bipolar; }
   const char* type_name() const override { return "WanderNoise2Source"; }
   SourceCategory category() const override { return SourceCategory::Generator; }
 
-  std::span<const ParamDescriptor> param_descriptors() const override {
-    static constexpr ParamDescriptor descs[] = {
-      {"amplitude",   1.0f,  0.0f, 10.0f},
-      {"minSpeed",    0.01f, 0.0f, 10.0f},
-      {"maxSpeed",    0.1f,  0.0f, 10.0f},
-      {"reverseProb", 0.0f,  0.0f, 1.0f},
-      {"retraceProb", 0.0f,  0.0f, 1.0f},
-      {"retracePct",  0.0f,  0.0f, 1.0f},
-    };
-    return descs;
-  }
-
-  void set_param(std::string_view name, std::shared_ptr<ValueSource> src) override {
-    if (name == "amplitude")   { amplitude_ = std::move(src); return; }
-    if (name == "minSpeed")    { minSpeed_ = std::move(src); return; }
-    if (name == "maxSpeed")    { maxSpeed_ = std::move(src); return; }
-    if (name == "reverseProb") { reverseProb_ = std::move(src); return; }
-    if (name == "retraceProb") { retraceProb_ = std::move(src); return; }
-    if (name == "retracePct")  { retracePct_ = std::move(src); return; }
-  }
-
-  std::shared_ptr<ValueSource> get_param(std::string_view name) const override {
-    if (name == "amplitude")   return amplitude_;
-    if (name == "minSpeed")    return minSpeed_;
-    if (name == "maxSpeed")    return maxSpeed_;
-    if (name == "reverseProb") return reverseProb_;
-    if (name == "retraceProb") return retraceProb_;
-    if (name == "retracePct")  return retracePct_;
-    return nullptr;
-  }
-
   void prepare(const RenderContext& ctx, int frames) override {
-    if (amplitude_)   amplitude_->prepare(ctx, frames);
-    if (minSpeed_)    minSpeed_->prepare(ctx, frames);
-    if (maxSpeed_)    maxSpeed_->prepare(ctx, frames);
-    if (reverseProb_) reverseProb_->prepare(ctx, frames);
-    if (retraceProb_) retraceProb_->prepare(ctx, frames);
-    if (retracePct_)  retracePct_->prepare(ctx, frames);
+    if (amplitude.source) amplitude.source->prepare(ctx, frames);
+    ValueSource::prepare(ctx, frames);
   }
 
-  float next() override {
-    if (minSpeed_)    minSpeed_->advance();
-    if (maxSpeed_)    maxSpeed_->advance();
-    if (reverseProb_) reverseProb_->advance();
-    if (retraceProb_) retraceProb_->advance();
-    if (retracePct_)  retracePct_->advance();
-
-    float mnSpd = minSpeed_    ? minSpeed_->current()    : 1.0f;
-    float mxSpd = maxSpeed_    ? maxSpeed_->current()    : 1.0f;
-    float rProb = reverseProb_ ? reverseProb_->current() : 0.0f;
-    float tProb = retraceProb_ ? retraceProb_->current() : 0.0f;
-    float tPct  = retracePct_  ? retracePct_->current()  : 0.0f;
+  float compute() override {
+    const float mnSpd = minSpeed.current();
+    const float mxSpd = maxSpeed.current();
+    const float rProb = reverseProb.current();
+    const float tProb = retraceProb.current();
+    const float tPct  = retracePct.current();
 
     float delta;
 
@@ -219,26 +134,16 @@ struct WanderNoise2Source final : ValueSource {
       direction_ = -direction_;
     }
 
-    cur_ = value_;
-    return cur_;
+    return value_;
   }
 
-  float current() const override { return cur_; }
-
 private:
-  std::shared_ptr<ValueSource> amplitude_;
-  std::shared_ptr<ValueSource> minSpeed_;
-  std::shared_ptr<ValueSource> maxSpeed_;
-  std::shared_ptr<ValueSource> reverseProb_;
-  std::shared_ptr<ValueSource> retraceProb_;
-  std::shared_ptr<ValueSource> retracePct_;
   int sampleRate_;
   // Per-note determinism (onsets-v2 addendum): re-anchor draws.
   void reseed() override { rng_.reanchor(); }
   Randomizer rng_;
   float direction_{1.0f};
   float value_{0.0f};
-  float cur_{0.0f};
 };
 
 // ---------------------------------------------------------------------------
@@ -249,69 +154,29 @@ private:
 // Fix: legacy had value starting at -1 with [0,1] mapping, causing -3 output.
 // Corrected to start at 0 and clamp at 0 (not -1).
 // ---------------------------------------------------------------------------
-struct WanderNoise3Source final : ValueSource {
-  WanderNoise3Source(int sampleRate)
-  : sampleRate_(sampleRate) {}
+struct WanderNoise3Source final : Generator {
+  Param amplitude {this, "amplitude",  1.0f, 0.0f, 10.0f};
+  Param speed     {this, "speed",      1.0f, 0.0f, 100.0f};
+  Param deltaSpeed{this, "deltaSpeed", 1.0f, 0.0f, 100.0f};
+  Param slopeLimit{this, "slopeLimit", 1.0f, 0.0f, 10.0f};
 
-  void set_amplitude(std::shared_ptr<ValueSource> s)  { amplitude_ = std::move(s); }
-  void set_speed(std::shared_ptr<ValueSource> s)      { speed_ = std::move(s); }
-  void set_deltaSpeed(std::shared_ptr<ValueSource> s) { deltaSpeed_ = std::move(s); }
-  void set_slopeLimit(std::shared_ptr<ValueSource> s) { slopeLimit_ = std::move(s); }
+  explicit WanderNoise3Source(int sampleRate) : sampleRate_(sampleRate) {}
 
-  std::shared_ptr<ValueSource> get_amplitude() const  { return amplitude_; }
-  std::shared_ptr<ValueSource> get_speed() const      { return speed_; }
-  std::shared_ptr<ValueSource> get_deltaSpeed() const { return deltaSpeed_; }
-  std::shared_ptr<ValueSource> get_slopeLimit() const { return slopeLimit_; }
-
+  Range range() const override { return Range::Bipolar; }
   const char* type_name() const override { return "WanderNoise3Source"; }
   SourceCategory category() const override { return SourceCategory::Generator; }
 
-  std::span<const ParamDescriptor> param_descriptors() const override {
-    static constexpr ParamDescriptor descs[] = {
-      {"amplitude",  1.0f,  0.0f, 10.0f},
-      {"speed",      1.0f,  0.0f, 100.0f},
-      {"deltaSpeed", 1.0f,  0.0f, 100.0f},
-      {"slopeLimit", 1.0f,  0.0f, 10.0f},
-    };
-    return descs;
-  }
-
-  void set_param(std::string_view name, std::shared_ptr<ValueSource> src) override {
-    if (name == "amplitude")  { amplitude_ = std::move(src); return; }
-    if (name == "speed")      { speed_ = std::move(src); return; }
-    if (name == "deltaSpeed") { deltaSpeed_ = std::move(src); return; }
-    if (name == "slopeLimit") { slopeLimit_ = std::move(src); return; }
-  }
-
-  std::shared_ptr<ValueSource> get_param(std::string_view name) const override {
-    if (name == "amplitude")  return amplitude_;
-    if (name == "speed")      return speed_;
-    if (name == "deltaSpeed") return deltaSpeed_;
-    if (name == "slopeLimit") return slopeLimit_;
-    return nullptr;
-  }
-
-  void prepare(const RenderContext& ctx, int frames) override {
-    if (amplitude_)  amplitude_->prepare(ctx, frames);
-    if (speed_)      speed_->prepare(ctx, frames);
-    if (deltaSpeed_) deltaSpeed_->prepare(ctx, frames);
-    if (slopeLimit_) slopeLimit_->prepare(ctx, frames);
-
+  void on_prepare(const RenderContext&, int) override {
     value_ = 0.0f;
     slope_ = 0.0f;
     slopeChgDir_ = 1.0f;
   }
 
-  float next() override {
-    if (amplitude_)  amplitude_->advance();
-    if (speed_)      speed_->advance();
-    if (deltaSpeed_) deltaSpeed_->advance();
-    if (slopeLimit_) slopeLimit_->advance();
-
-    float sp = speed_      ? speed_->current()      : 1.0f;
-    float ds = deltaSpeed_ ? deltaSpeed_->current() : 1.0f;
-    float sl = slopeLimit_ ? slopeLimit_->current() : 1.0f;
-    float amp = amplitude_ ? amplitude_->current()  : 1.0f;
+  float compute() override {
+    const float sp = speed.current();
+    const float ds = deltaSpeed.current();
+    const float sl = slopeLimit.current();
+    const float amp = amplitude.current();
 
     float lastVal = value_;
 
@@ -340,22 +205,14 @@ struct WanderNoise3Source final : ValueSource {
     }
 
     // Legacy output mapping: (value*2-1)*amplitude
-    cur_ = (value_ * 2.0f - 1.0f) * amp;
-    return cur_;
+    return (value_ * 2.0f - 1.0f) * amp;
   }
 
-  float current() const override { return cur_; }
-
 private:
-  std::shared_ptr<ValueSource> amplitude_;
-  std::shared_ptr<ValueSource> speed_;
-  std::shared_ptr<ValueSource> deltaSpeed_;
-  std::shared_ptr<ValueSource> slopeLimit_;
   int sampleRate_;
   float value_{0.0f};
   float slope_{0.0f};
   float slopeChgDir_{1.0f};
-  float cur_{0.0f};
 };
 
 } // namespace mforce

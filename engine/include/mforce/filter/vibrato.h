@@ -134,10 +134,11 @@ private:
     lfo_ = std::make_shared<RedNoiseSource>(sampleRate_, seed_);
     lfo_->frequency.set(speedRange);
     lfo_->amplitude.set(depthRange);
-    lfo_->set_smoothness(std::make_shared<ConstantSource>(1.0f));
-    lfo_->set_rampVariation(std::make_shared<ConstantSource>(speedVar_));
-    lfo_->set_boost(std::make_shared<ConstantSource>(std::clamp(1.0f - depthVar_, 0.0f, 1.0f)));
-    lfo_->set_zeroCrossTendency(std::make_shared<ConstantSource>(zct_));
+    lfo_->density.set(std::make_shared<ConstantSource>(1.0f));   // every ramp carries a value
+    lfo_->smoothness.set(std::make_shared<ConstantSource>(1.0f));
+    lfo_->rampVariation.set(std::make_shared<ConstantSource>(speedVar_));
+    lfo_->boost.set(std::make_shared<ConstantSource>(std::clamp(1.0f - depthVar_, 0.0f, 1.0f)));
+    lfo_->zeroCrossTendency.set(std::make_shared<ConstantSource>(zct_));
   }
 
   // Per-note determinism (onsets-v2 addendum): forward to the LFO's rng.

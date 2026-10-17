@@ -7,36 +7,11 @@ namespace mforce {
 
 RedNoiseSource::RedNoiseSource(int sampleRate, uint32_t seed)
 : WaveSource(sampleRate), rng_(seed), interp_(0.0f, false) {
-  density_           = std::make_shared<ConstantSource>(1.0f);
-  smoothness_        = std::make_shared<ConstantSource>(1.0f);
-  rampVariation_     = std::make_shared<ConstantSource>(1.0f);
-  boost_             = std::make_shared<ConstantSource>(0.0f);
-  continuity_        = std::make_shared<ConstantSource>(0.0f);
-  zeroCrossTendency_ = std::make_shared<ConstantSource>(0.0f);
-
   // Phase is meaningless; legacy passes phase=0 via base(ampl,freq,0).
 }
 
-void RedNoiseSource::prepare(const RenderContext& ctx, int frames) {
-  WaveSource::prepare(ctx, frames);
-  density_->prepare(ctx, frames);
-  smoothness_->prepare(ctx, frames);
-  rampVariation_->prepare(ctx, frames);
-  boost_->prepare(ctx, frames);
-  continuity_->prepare(ctx, frames);
-  zeroCrossTendency_->prepare(ctx, frames);
-}
-
 float RedNoiseSource::wave() {
-  // Legacy advances these every sample
-  density_->advance();
-  smoothness_->advance();
-  rampVariation_->advance();
-  boost_->advance();
-  continuity_->advance();
-  zeroCrossTendency_->advance();
-
-  interp_.setSmoothness(smoothness_->current());
+  interp_.setSmoothness(smoothness.current());
 
   // "Check if done with current ramp, due to either normal completion or significant frequency increase"
   // if (SampleCount >= RampSize || RampSize > Rate / CurrFreq)
@@ -46,7 +21,7 @@ float RedNoiseSource::wave() {
     // Legacy has a weird SampleCount > -RampSize branch; SampleCount is never negative in practice.
     lastValue_ = nextValue_;
 
-    const float rv = rampVariation_->current();
+    const float rv = rampVariation.current();
 
     // RampSize calculation:
     // RampSize = Round( Rate / Rand.Range(CurrFreq*(1-rv), CurrFreq*(1+rv)) / 2 )
@@ -74,10 +49,10 @@ float RedNoiseSource::wave() {
       lastValue_ = 0.0f;
       nextValue_ = 0.0f;
       zeroRamp_ = false;
-    } else if (rng_.decide(density_->current())) {
+    } else if (rng_.decide(density.current())) {
 
       // LastSign = Decide(ZCT) ? -LastSign : Rand.Sign()
-      if (rng_.decide(zeroCrossTendency_->current())) {
+      if (rng_.decide(zeroCrossTendency.current())) {
         lastSign_ = -lastSign_;
       } else {
         lastSign_ = float(rng_.sign());
@@ -85,12 +60,12 @@ float RedNoiseSource::wave() {
       }
 
       // NextValue = Rand.Range(Boost, 1.0) * LastSign
-      float b = boost_->current();
+      float b = boost.current();
       b = std::clamp(b, 0.0f, 1.0f);
       nextValue_ = rng_.range(b, 1.0f) * lastSign_;
 
       // Continuity: NextValue = Rand.Range(LastVal, NextValue, min(cont,0.999))
-      float cont = continuity_->current();
+      float cont = continuity.current();
       if (cont != 0.0f) {
         float influence = std::min(cont, 0.999f);
         // NOTE: legacy uses LastVal from SingleValueSource (previous output sample).

@@ -1,7 +1,6 @@
 #pragma once
 #include "mforce/core/dsp_value_source.h"
 #include "mforce/core/randomizer.h"
-#include <memory>
 #include <algorithm>
 
 namespace mforce {
@@ -25,72 +24,32 @@ namespace mforce {
 // EXACTLY — same rng_ draw, same sequence — so every existing patch (none set
 // these keys) renders bit-for-bit unchanged. The shaping logic only engages when
 // a param leaves its inert default, which changes the draw structure by design.
-struct WhiteNoiseSource final : ValueSource {
-  explicit WhiteNoiseSource(uint32_t seed = 0x12345678u)
-  : rng_(seed)
-  , amplitude_(std::make_shared<ConstantSource>(1.0f))
-  , density_(std::make_shared<ConstantSource>(1.0f))
-  , boost_(std::make_shared<ConstantSource>(0.0f))
-  , continuity_(std::make_shared<ConstantSource>(0.0f))
-  , zeroCrossTendency_(std::make_shared<ConstantSource>(0.0f)) {}
+struct WhiteNoiseSource final : Generator {
+  Param amplitude        {this, "amplitude",         1.0f, 0.0f, 10.0f, "0-1"};
+  Param density          {this, "density",           1.0f, 0.0f, 1.0f,  "0-1"};
+  Param boost            {this, "boost",             0.0f, 0.0f, 1.0f,  "0-1"};
+  Param continuity       {this, "continuity",        0.0f, 0.0f, 1.0f,  "0-1"};
+  Param zeroCrossTendency{this, "zeroCrossTendency", 0.0f, 0.0f, 1.0f,  "0-1"};
 
+  explicit WhiteNoiseSource(uint32_t seed = 0x12345678u) : rng_(seed) {}
+
+  Range range() const override { return Range::Bipolar; }
   const char* type_name() const override { return "WhiteNoiseSource"; }
   SourceCategory category() const override { return SourceCategory::Generator; }
 
-  std::span<const ParamDescriptor> param_descriptors() const override {
-    static constexpr ParamDescriptor descs[] = {
-      {"amplitude",         1.0f, 0.0f, 10.0f, "0-1"},
-      {"density",           1.0f, 0.0f, 1.0f,  "0-1"},
-      {"boost",             0.0f, 0.0f, 1.0f,  "0-1"},
-      {"continuity",        0.0f, 0.0f, 1.0f,  "0-1"},
-      {"zeroCrossTendency", 0.0f, 0.0f, 1.0f,  "0-1"},
-    };
-    return descs;
-  }
-
-  void set_param(std::string_view name, std::shared_ptr<ValueSource> src) override {
-    if (name == "amplitude")         { amplitude_ = std::move(src); return; }
-    if (name == "density")           { density_ = std::move(src); return; }
-    if (name == "boost")             { boost_ = std::move(src); return; }
-    if (name == "continuity")        { continuity_ = std::move(src); return; }
-    if (name == "zeroCrossTendency") { zeroCrossTendency_ = std::move(src); return; }
-  }
-  std::shared_ptr<ValueSource> get_param(std::string_view name) const override {
-    if (name == "amplitude")         return amplitude_;
-    if (name == "density")           return density_;
-    if (name == "boost")             return boost_;
-    if (name == "continuity")        return continuity_;
-    if (name == "zeroCrossTendency") return zeroCrossTendency_;
-    return nullptr;
-  }
-
-  void prepare(const RenderContext& ctx, int frames) override {
-    amplitude_->prepare(ctx, frames);
-    density_->prepare(ctx, frames);
-    boost_->prepare(ctx, frames);
-    continuity_->prepare(ctx, frames);
-    zeroCrossTendency_->prepare(ctx, frames);
-  }
-
-  float next() override {
-    amplitude_->advance();
-    density_->advance();
-    boost_->advance();
-    continuity_->advance();
-    zeroCrossTendency_->advance();
-
-    const float amp = amplitude_->current();
-    const float dens = density_->current();
-    const float bst  = boost_->current();
-    const float cont = continuity_->current();
-    const float zct  = zeroCrossTendency_->current();
+  float compute() override {
+    const float amp  = amplitude.current();
+    const float dens = density.current();
+    const float bst  = boost.current();
+    const float cont = continuity.current();
+    const float zct  = zeroCrossTendency.current();
 
     // Fast path — reproduce the historical output byte-for-byte when nothing
     // is shaping the noise. One rng_ draw, exactly as before.
     if (dens >= 1.0f && bst <= 0.0f && cont <= 0.0f && zct <= 0.0f) {
-      cur_ = rng_.valuePN() * amp;
-      lastVal_ = cur_;
-      return cur_;
+      const float out = rng_.valuePN() * amp;
+      lastVal_ = out;
+      return out;
     }
 
     // Legacy-shaped path.
@@ -116,23 +75,15 @@ struct WhiteNoiseSource final : ValueSource {
       v = 0.0f;
     }
 
-    cur_ = v * amp;
-    lastVal_ = cur_;
-    return cur_;
+    const float out = v * amp;
+    lastVal_ = out;
+    return out;
   }
-
-  float current() const override { return cur_; }
 
 private:
   // Per-note determinism (onsets-v2 addendum): re-anchor draws.
   void reseed() override { rng_.reanchor(); }
   Randomizer rng_;
-  std::shared_ptr<ValueSource> amplitude_;
-  std::shared_ptr<ValueSource> density_;
-  std::shared_ptr<ValueSource> boost_;
-  std::shared_ptr<ValueSource> continuity_;
-  std::shared_ptr<ValueSource> zeroCrossTendency_;
-  float cur_{0.0f};
   float lastVal_{0.0f};
   float lastSign_{-1.0f};   // legacy starts non-zero to "get going"
 };

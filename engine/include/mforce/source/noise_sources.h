@@ -13,49 +13,31 @@ namespace mforce {
 // Differentiated pink noise: output = current_pink - previous_pink.
 // Spectral SHAPE is fixed by definition; only level is modulatable.
 // ---------------------------------------------------------------------------
-struct BlueNoiseSource final : ValueSource {
-  explicit BlueNoiseSource(uint32_t seed = 0xB100'0001u)
-  : pink_(PinkNoiseSource::DEFAULT_ROWS, seed)
-  , amplitude_(std::make_shared<ConstantSource>(1.0f)) {}
+struct BlueNoiseSource final : Generator {
+  Param amplitude{this, "amplitude", 1.0f, 0.0f, 10.0f};
 
+  explicit BlueNoiseSource(uint32_t seed = 0xB100'0001u)
+  : pink_(PinkNoiseSource::DEFAULT_ROWS, seed) {}
+
+  // No unit range: the difference of two pink samples can reach +-2.
   const char* type_name() const override { return "BlueNoiseSource"; }
   SourceCategory category() const override { return SourceCategory::Generator; }
 
-  std::span<const ParamDescriptor> param_descriptors() const override {
-    static constexpr ParamDescriptor descs[] = {
-      {"amplitude", 1.0f, 0.0f, 10.0f},
-    };
-    return descs;
-  }
-
-  void set_param(std::string_view name, std::shared_ptr<ValueSource> src) override {
-    if (name == "amplitude") amplitude_ = std::move(src);
-  }
-  std::shared_ptr<ValueSource> get_param(std::string_view name) const override {
-    if (name == "amplitude") return amplitude_;
-    return nullptr;
-  }
-
-  void prepare(const RenderContext& ctx, int frames) override {
+  void on_prepare(const RenderContext& ctx, int frames) override {
     pink_.prepare(ctx, frames);
-    amplitude_->prepare(ctx, frames);
     prev_ = 0.0f;
   }
 
-  float next() override {
-    float p = pink_.next();
-    cur_ = (p - prev_) * amplitude_->advance();
+  float compute() override {
+    const float p = pink_.next();
+    const float out = (p - prev_) * amplitude.current();
     prev_ = p;
-    return cur_;
+    return out;
   }
-
-  float current() const override { return cur_; }
 
 private:
   PinkNoiseSource pink_;
-  std::shared_ptr<ValueSource> amplitude_;
   float prev_{0.0f};
-  float cur_{0.0f};
 };
 
 // ---------------------------------------------------------------------------
@@ -63,50 +45,30 @@ private:
 // Differentiated white noise: output = current_white - previous_white.
 // Spectral SHAPE is fixed by definition; only level is modulatable.
 // ---------------------------------------------------------------------------
-struct VioletNoiseSource final : ValueSource {
-  explicit VioletNoiseSource(uint32_t seed = 0xF100'0001u)
-  : rng_(seed), amplitude_(std::make_shared<ConstantSource>(1.0f)) {}
+struct VioletNoiseSource final : Generator {
+  Param amplitude{this, "amplitude", 1.0f, 0.0f, 10.0f};
 
+  explicit VioletNoiseSource(uint32_t seed = 0xF100'0001u) : rng_(seed) {}
+
+  Range range() const override { return Range::Bipolar; }
   const char* type_name() const override { return "VioletNoiseSource"; }
   SourceCategory category() const override { return SourceCategory::Generator; }
 
-  std::span<const ParamDescriptor> param_descriptors() const override {
-    static constexpr ParamDescriptor descs[] = {
-      {"amplitude", 1.0f, 0.0f, 10.0f},
-    };
-    return descs;
-  }
+  void on_prepare(const RenderContext&, int) override { prev_ = 0.0f; }
 
-  void set_param(std::string_view name, std::shared_ptr<ValueSource> src) override {
-    if (name == "amplitude") amplitude_ = std::move(src);
-  }
-  std::shared_ptr<ValueSource> get_param(std::string_view name) const override {
-    if (name == "amplitude") return amplitude_;
-    return nullptr;
-  }
-
-  void prepare(const RenderContext& ctx, int frames) override {
-    prev_ = 0.0f;
-    amplitude_->prepare(ctx, frames);
-  }
-
-  float next() override {
-    float w = rng_.valuePN();
-    cur_ = w - prev_;
+  float compute() override {
+    const float w = rng_.valuePN();
+    float out = w - prev_;
     prev_ = w;
-    cur_ *= 0.5f * amplitude_->advance();
-    return cur_;
+    out *= 0.5f * amplitude.current();
+    return out;
   }
-
-  float current() const override { return cur_; }
 
 private:
   // Per-note determinism (onsets-v2 addendum): re-anchor draws.
   void reseed() override { rng_.reanchor(); }
   Randomizer rng_;
-  std::shared_ptr<ValueSource> amplitude_;
   float prev_{0.0f};
-  float cur_{0.0f};
 };
 
 // ---------------------------------------------------------------------------
@@ -114,56 +76,36 @@ private:
 // Only occasional samples are non-zero (±1), rest are zero.
 // Useful as KS excitation or for reverb-like textures.
 // ---------------------------------------------------------------------------
-struct VelvetNoiseSource final : ValueSource {
-  explicit VelvetNoiseSource(int sampleRate = 48000, uint32_t seed = 0xFE17'0001u)
-  : sampleRate_(sampleRate), rng_(seed),
-    density_(std::make_shared<ConstantSource>(2000.0f)),
-    amplitude_(std::make_shared<ConstantSource>(1.0f)) {}
+struct VelvetNoiseSource final : Generator {
+  Param density  {this, "density",   2000.0f, 1.0f, 48000.0f};
+  Param amplitude{this, "amplitude", 1.0f,    0.0f, 10.0f};
 
+  explicit VelvetNoiseSource(int sampleRate = 48000, uint32_t seed = 0xFE17'0001u)
+  : sampleRate_(sampleRate), rng_(seed) {}
+
+  Range range() const override { return Range::Bipolar; }
   const char* type_name() const override { return "VelvetNoiseSource"; }
   SourceCategory category() const override { return SourceCategory::Generator; }
 
-  std::span<const ParamDescriptor> param_descriptors() const override {
-    static constexpr ParamDescriptor descs[] = {
-      {"density",   2000.0f, 1.0f, 48000.0f},
-      {"amplitude", 1.0f,    0.0f, 10.0f},
-    };
-    return descs;
-  }
-
-  void set_param(std::string_view name, std::shared_ptr<ValueSource> src) override {
-    if (name == "density")   density_ = std::move(src);
-    if (name == "amplitude") amplitude_ = std::move(src);
-  }
-  std::shared_ptr<ValueSource> get_param(std::string_view name) const override {
-    if (name == "density")   return density_;
-    if (name == "amplitude") return amplitude_;
-    return nullptr;
-  }
-
-  void prepare(const RenderContext& ctx, int frames) override {
+  void on_prepare(const RenderContext&, int) override {
     counter_ = 0;
-    density_->prepare(ctx, frames);
-    amplitude_->prepare(ctx, frames);
     recompute_gap();
   }
 
-  float next() override {
-    float d = density_->advance();
-    float a = amplitude_->advance();
-    cur_ = 0.0f;
+  float compute() override {
+    const float d = density.current();
+    const float a = amplitude.current();
+    float out = 0.0f;
     if (counter_ >= nextImpulse_) {
-      cur_ = (rng_.value() < 0.5f ? a : -a);
+      out = (rng_.value() < 0.5f ? a : -a);
       counter_ = 0;
       // Recompute gap from current density
       float avgGap = (d > 0.0f) ? float(sampleRate_) / d : float(sampleRate_);
       nextImpulse_ = std::max(1, int(avgGap * (0.5f + rng_.value())));
     }
     counter_++;
-    return cur_;
+    return out;
   }
-
-  float current() const override { return cur_; }
 
 private:
   void recompute_gap() {
@@ -174,11 +116,8 @@ private:
   // Per-note determinism (onsets-v2 addendum): re-anchor draws.
   void reseed() override { rng_.reanchor(); }
   Randomizer rng_;
-  std::shared_ptr<ValueSource> density_;
-  std::shared_ptr<ValueSource> amplitude_;
   int counter_{0};
   int nextImpulse_{0};
-  float cur_{0.0f};
 };
 
 // ---------------------------------------------------------------------------
@@ -187,56 +126,28 @@ private:
 // At low speed = organic modulation source.
 // At high speed = noise with controllable smoothness.
 // ---------------------------------------------------------------------------
-struct PerlinNoiseSource final : ValueSource {
+struct PerlinNoiseSource final : Generator {
+  Param speed      {this, "speed",       440.0f, 0.01f, 20000.0f};
+  Param octaves    {this, "octaves",     4.0f,   1.0f,  8.0f};
+  Param persistence{this, "persistence", 0.5f,   0.0f,  1.0f};
+  Param lacunarity {this, "lacunarity",  2.0f,   1.0f,  4.0f};
+
   explicit PerlinNoiseSource(int sampleRate = 48000, uint32_t seed = 0xAE21'0001u)
-  : sampleRate_(sampleRate), rng_(seed),
-    speed_(std::make_shared<ConstantSource>(440.0f)),
-    octaves_(std::make_shared<ConstantSource>(4.0f)),
-    persistence_(std::make_shared<ConstantSource>(0.5f)),
-    lacunarity_(std::make_shared<ConstantSource>(2.0f)) {
+  : sampleRate_(sampleRate), rng_(seed) {
     for (int i = 0; i < 512; ++i) perm_[i] = int(rng_.value() * 256.0f) & 255;
   }
 
+  Range range() const override { return Range::Bipolar; }
   const char* type_name() const override { return "PerlinNoiseSource"; }
   SourceCategory category() const override { return SourceCategory::Generator; }
 
-  std::span<const ParamDescriptor> param_descriptors() const override {
-    static constexpr ParamDescriptor descs[] = {
-      {"speed",       440.0f, 0.01f, 20000.0f},
-      {"octaves",     4.0f,   1.0f,  8.0f},
-      {"persistence", 0.5f,   0.0f,  1.0f},
-      {"lacunarity",  2.0f,   1.0f,  4.0f},
-    };
-    return descs;
-  }
+  void on_prepare(const RenderContext&, int) override { pos_ = 0.0; }
 
-  void set_param(std::string_view name, std::shared_ptr<ValueSource> src) override {
-    if (name == "speed")       speed_ = std::move(src);
-    if (name == "octaves")     octaves_ = std::move(src);
-    if (name == "persistence") persistence_ = std::move(src);
-    if (name == "lacunarity")  lacunarity_ = std::move(src);
-  }
-  std::shared_ptr<ValueSource> get_param(std::string_view name) const override {
-    if (name == "speed")       return speed_;
-    if (name == "octaves")     return octaves_;
-    if (name == "persistence") return persistence_;
-    if (name == "lacunarity")  return lacunarity_;
-    return nullptr;
-  }
-
-  void prepare(const RenderContext& ctx, int frames) override {
-    pos_ = 0.0;
-    speed_->prepare(ctx, frames);
-    octaves_->prepare(ctx, frames);
-    persistence_->prepare(ctx, frames);
-    lacunarity_->prepare(ctx, frames);
-  }
-
-  float next() override {
-    float spd = speed_->advance();
-    int oct = std::clamp(int(octaves_->advance()), 1, 8);
-    float pers = persistence_->advance();
-    float lac = lacunarity_->advance();
+  float compute() override {
+    const float spd = speed.current();
+    const int oct = std::clamp(int(octaves.current()), 1, 8);
+    const float pers = persistence.current();
+    const float lac = lacunarity.current();
 
     pos_ += double(spd) / double(sampleRate_);
 
@@ -252,11 +163,8 @@ struct PerlinNoiseSource final : ValueSource {
       freq *= double(lac);
     }
 
-    cur_ = (maxAmp > 0.0f) ? total / maxAmp : 0.0f;
-    return cur_;
+    return (maxAmp > 0.0f) ? total / maxAmp : 0.0f;
   }
-
-  float current() const override { return cur_; }
 
 private:
   float noise1d(float x) const {
@@ -280,11 +188,6 @@ private:
   Randomizer rng_;
   int perm_[512];
   double pos_{0.0};
-  std::shared_ptr<ValueSource> speed_;
-  std::shared_ptr<ValueSource> octaves_;
-  std::shared_ptr<ValueSource> persistence_;
-  std::shared_ptr<ValueSource> lacunarity_;
-  float cur_{0.0f};
 };
 
 // ---------------------------------------------------------------------------
@@ -294,55 +197,35 @@ private:
 //   chaos near 1.5 = aggressive crackle
 //   chaos near 2.0 = chaotic noise
 // ---------------------------------------------------------------------------
-struct CrackleNoiseSource final : ValueSource {
-  explicit CrackleNoiseSource(uint32_t seed = 0xC8AC'0001u)
-  : rng_(seed),
-    chaos_(std::make_shared<ConstantSource>(1.5f)) {}
+struct CrackleNoiseSource final : Generator {
+  Param chaos{this, "chaos", 1.5f, 1.0f, 2.0f};
 
+  explicit CrackleNoiseSource(uint32_t seed = 0xC8AC'0001u) : rng_(seed) {}
+
+  Range range() const override { return Range::Bipolar; }
   const char* type_name() const override { return "CrackleNoiseSource"; }
   SourceCategory category() const override { return SourceCategory::Generator; }
 
-  std::span<const ParamDescriptor> param_descriptors() const override {
-    static constexpr ParamDescriptor descs[] = {
-      {"chaos", 1.5f, 1.0f, 2.0f},
-    };
-    return descs;
-  }
-
-  void set_param(std::string_view name, std::shared_ptr<ValueSource> src) override {
-    if (name == "chaos") chaos_ = std::move(src);
-  }
-  std::shared_ptr<ValueSource> get_param(std::string_view name) const override {
-    if (name == "chaos") return chaos_;
-    return nullptr;
-  }
-
-  void prepare(const RenderContext& ctx, int frames) override {
+  void on_prepare(const RenderContext&, int) override {
     y1_ = rng_.value() * 0.1f;
     y2_ = rng_.value() * 0.1f;
-    chaos_->prepare(ctx, frames);
   }
 
-  float next() override {
-    float c = chaos_->advance();
+  float compute() override {
+    const float c = chaos.current();
     float y0 = std::fabs(c * y1_ - y2_ - 0.05f);
     y0 = std::clamp(y0, -1.0f, 1.0f);
     y2_ = y1_;
     y1_ = y0;
-    cur_ = y0 * 2.0f - 1.0f;
-    return cur_;
+    return y0 * 2.0f - 1.0f;
   }
-
-  float current() const override { return cur_; }
 
 private:
   // Per-note determinism (onsets-v2 addendum): re-anchor draws.
   void reseed() override { rng_.reanchor(); }
   Randomizer rng_;
-  std::shared_ptr<ValueSource> chaos_;
   float y1_{0.0f};
   float y2_{0.0f};
-  float cur_{0.0f};
 };
 
 // ---------------------------------------------------------------------------
@@ -357,60 +240,24 @@ private:
 //
 // All parameters are modulatable (connectable pins).
 // ---------------------------------------------------------------------------
-struct MurmurationNoiseSource final : ValueSource {
+struct MurmurationNoiseSource final : Generator {
   static constexpr int MAX_BIRDS = 64;
 
-  explicit MurmurationNoiseSource(int sampleRate = 48000, uint32_t seed = 0xB18D'0001u)
-  : sampleRate_(sampleRate), rng_(seed),
-    count_(std::make_shared<ConstantSource>(16.0f)),
-    cohesion_(std::make_shared<ConstantSource>(0.3f)),
-    alignment_(std::make_shared<ConstantSource>(0.5f)),
-    separation_(std::make_shared<ConstantSource>(0.02f)),
-    chaos_(std::make_shared<ConstantSource>(0.1f)),
-    speed_(std::make_shared<ConstantSource>(440.0f)) {}
+  Param count     {this, "count",      16.0f,  2.0f,  64.0f};
+  Param cohesion  {this, "cohesion",   0.3f,   0.0f,  1.0f};
+  Param alignment {this, "alignment",  0.5f,   0.0f,  1.0f};
+  Param separation{this, "separation", 0.02f,  0.0f,  0.2f};
+  Param chaos     {this, "chaos",      0.1f,   0.0f,  1.0f};
+  Param speed     {this, "speed",      440.0f, 0.01f, 20000.0f};
 
+  explicit MurmurationNoiseSource(int sampleRate = 48000, uint32_t seed = 0xB18D'0001u)
+  : sampleRate_(sampleRate), rng_(seed) {}
+
+  // No unit range: the flock sum is scaled by 1/sqrt(n), so it exceeds 1.
   const char* type_name() const override { return "MurmurationNoiseSource"; }
   SourceCategory category() const override { return SourceCategory::Generator; }
 
-  std::span<const ParamDescriptor> param_descriptors() const override {
-    static constexpr ParamDescriptor descs[] = {
-      {"count",      16.0f, 2.0f,  64.0f},
-      {"cohesion",   0.3f,  0.0f,  1.0f},
-      {"alignment",  0.5f,  0.0f,  1.0f},
-      {"separation", 0.02f, 0.0f,  0.2f},
-      {"chaos",      0.1f,  0.0f,  1.0f},
-      {"speed",      440.0f, 0.01f, 20000.0f},
-    };
-    return descs;
-  }
-
-  void set_param(std::string_view name, std::shared_ptr<ValueSource> src) override {
-    if (name == "count")      count_ = std::move(src);
-    if (name == "cohesion")   cohesion_ = std::move(src);
-    if (name == "alignment")  alignment_ = std::move(src);
-    if (name == "separation") separation_ = std::move(src);
-    if (name == "chaos")      chaos_ = std::move(src);
-    if (name == "speed")      speed_ = std::move(src);
-  }
-
-  std::shared_ptr<ValueSource> get_param(std::string_view name) const override {
-    if (name == "count")      return count_;
-    if (name == "cohesion")   return cohesion_;
-    if (name == "alignment")  return alignment_;
-    if (name == "separation") return separation_;
-    if (name == "chaos")      return chaos_;
-    if (name == "speed")      return speed_;
-    return nullptr;
-  }
-
-  void prepare(const RenderContext& ctx, int frames) override {
-    count_->prepare(ctx, frames);
-    cohesion_->prepare(ctx, frames);
-    alignment_->prepare(ctx, frames);
-    separation_->prepare(ctx, frames);
-    chaos_->prepare(ctx, frames);
-    speed_->prepare(ctx, frames);
-
+  void on_prepare(const RenderContext&, int) override {
     // Initialize birds with scattered frequencies around center
     for (int i = 0; i < MAX_BIRDS; ++i) {
       birds_[i].phase = rng_.value();              // random starting phase
@@ -419,13 +266,13 @@ struct MurmurationNoiseSource final : ValueSource {
     }
   }
 
-  float next() override {
-    int n = std::clamp(int(count_->advance()), 2, MAX_BIRDS);
-    float coh = cohesion_->advance();
-    float ali = alignment_->advance();
-    float sep = separation_->advance();
-    float cha = chaos_->advance();
-    float centerFreq = speed_->advance();
+  float compute() override {
+    const int n = std::clamp(int(count.current()), 2, MAX_BIRDS);
+    const float coh = cohesion.current();
+    const float ali = alignment.current();
+    const float sep = separation.current();
+    const float cha = chaos.current();
+    const float centerFreq = speed.current();
 
     // --- Flocking update (runs at audio rate, scaled by frequency) ---
     float dt = centerFreq / float(sampleRate_);  // scale forces by base period
@@ -504,12 +351,8 @@ struct MurmurationNoiseSource final : ValueSource {
 
     // Normalize by sqrt(n) for consistent amplitude across flock sizes
     // (sqrt because uncorrelated signals add in quadrature)
-    cur_ = sum / std::sqrt(float(n));
-
-    return cur_;
+    return sum / std::sqrt(float(n));
   }
-
-  float current() const override { return cur_; }
 
 private:
   struct Bird {
@@ -523,14 +366,6 @@ private:
   void reseed() override { rng_.reanchor(); }
   Randomizer rng_;
   Bird birds_[MAX_BIRDS];
-
-  std::shared_ptr<ValueSource> count_;
-  std::shared_ptr<ValueSource> cohesion_;
-  std::shared_ptr<ValueSource> alignment_;
-  std::shared_ptr<ValueSource> separation_;
-  std::shared_ptr<ValueSource> chaos_;
-  std::shared_ptr<ValueSource> speed_;
-  float cur_{0.0f};
 };
 
 } // namespace mforce
