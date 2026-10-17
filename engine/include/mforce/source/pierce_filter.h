@@ -1,7 +1,6 @@
 #pragma once
 #include "mforce/core/dsp_value_source.h"
 #include "mforce/core/pierce_allpass.h"
-#include <memory>
 
 namespace mforce {
 
@@ -31,65 +30,25 @@ namespace mforce {
 // Passive for every coefficient pair, so it can run at full drive in a
 // feedback loop without a level clamp.
 // ---------------------------------------------------------------------------
-struct PierceFilterSource final : ValueSource {
-  PierceFilterSource()
-    : source_(std::make_shared<ConstantSource>(0.0f)),
-      coefNeg_(std::make_shared<ConstantSource>(0.5f)),
-      coefPos_(std::make_shared<ConstantSource>(-0.5f)) {}
+struct PierceFilterSource final : Processor {
+  Param coefNeg{this, "coefNeg",  0.5f, -PierceAllpass::kCoefMax, PierceAllpass::kCoefMax,
+                "stiffness"};
+  Param coefPos{this, "coefPos", -0.5f, -PierceAllpass::kCoefMax, PierceAllpass::kCoefMax,
+                "stiffness"};
 
   const char* type_name() const override { return "PierceFilter"; }
-  SourceCategory category() const override { return SourceCategory::Filter; }
 
-  std::span<const InputDescriptor> input_descriptors() const override {
-    static constexpr InputDescriptor descs[] = {
-      {"source"},
-    };
-    return descs;
-  }
-
-  std::span<const ParamDescriptor> param_descriptors() const override {
-    static constexpr ParamDescriptor descs[] = {
-      {"coefNeg",  0.5f, -PierceAllpass::kCoefMax, PierceAllpass::kCoefMax,
-       "stiffness"},
-      {"coefPos", -0.5f, -PierceAllpass::kCoefMax, PierceAllpass::kCoefMax,
-       "stiffness"},
-    };
-    return descs;
-  }
-
-  void set_param(std::string_view name, std::shared_ptr<ValueSource> src) override {
-    if (name == "source")  { source_  = std::move(src); return; }
-    if (name == "coefNeg") { coefNeg_ = std::move(src); return; }
-    if (name == "coefPos") { coefPos_ = std::move(src); return; }
-  }
-  std::shared_ptr<ValueSource> get_param(std::string_view name) const override {
-    if (name == "source")  return source_;
-    if (name == "coefNeg") return coefNeg_;
-    if (name == "coefPos") return coefPos_;
-    return nullptr;
-  }
-
-  void prepare(const RenderContext& ctx, int frames) override {
-    if (source_) source_->prepare(ctx, frames);
-    coefNeg_->prepare(ctx, frames);
-    coefPos_->prepare(ctx, frames);
-    ap_.reset(coefPos_->current());
+  void on_prepare(const RenderContext&, int) override {
+    ap_.reset(coefPos.current());
     cur_ = 0.0f;
   }
 
-  float next() override {
-    const float x = source_ ? source_->advance() : 0.0f;
-    coefNeg_->advance();
-    coefPos_->advance();
-    cur_ = ap_.tick(x, coefNeg_->current(), coefPos_->current());
-    return cur_;
+  float compute() override {
+    return ap_.tick(input.current(), coefNeg.current(), coefPos.current());
   }
-  float current() const override { return cur_; }
 
 private:
-  std::shared_ptr<ValueSource> source_, coefNeg_, coefPos_;
   PierceAllpass ap_;
-  float cur_{0.0f};
 };
 
 } // namespace mforce

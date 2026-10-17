@@ -1,6 +1,5 @@
 #pragma once
 #include "mforce/core/dsp_value_source.h"
-#include <memory>
 #include <vector>
 #include <cmath>
 #include <algorithm>
@@ -37,80 +36,38 @@ namespace mforce {
 // Real-time safe: buffer allocated at construction (sized for ~12 Hz at
 // 48k); prepare() zero-fills only; next() allocates nothing.
 // ---------------------------------------------------------------------------
-struct AllpassResonator final : ValueSource {
+struct AllpassResonator final : Processor {
+  // `source` (inherited) is the excitation; the four AF knobs and the I/O
+  // trim are settings.
+  Param frequency{this, "frequency", 220.0f, 12.0f, 8000.0f, "hz"};
+  Param amplitude{this, "amplitude", 1.0f,   0.0f,  10.0f,   "0-1"};
+
+  Setting<float> feedback  {this, "feedback",   0.995f, 0.0f,  0.9999f};
+  Setting<float> damping   {this, "damping",    0.6f,   0.05f, 1.0f};   // LP coeff
+  Setting<float> stiffness {this, "stiffness",  0.15f,  0.0f,  0.95f};  // AP pole
+  Setting<float> tension   {this, "tension",    0.35f,  0.0f,  0.95f};  // diffuser fb
+  Setting<float> exciteGain{this, "exciteGain", 1.0f,   0.0f,  8.0f};
+  Setting<float> direct    {this, "direct",     0.2f,   0.0f,  1.0f};
 
   explicit AllpassResonator(int sampleRate) : sampleRate_(sampleRate) {
-    frequency_ = std::make_shared<ConstantSource>(220.0f);
-    amplitude_ = std::make_shared<ConstantSource>(1.0f);
     buf_.assign(kBufLen, 0.0f);
   }
 
   const char* type_name() const override { return "AllpassResonator"; }
   SourceCategory category() const override { return SourceCategory::Oscillator; }
 
-  std::span<const ParamDescriptor> param_descriptors() const override {
-    static constexpr ParamDescriptor descs[] = {
-      {"frequency", 220.0f, 12.0f, 8000.0f, "hz"},
-      {"amplitude", 1.0f,   0.0f,  10.0f,   "0-1"},
+  // The four loop knobs are clamped to their declared ranges.
+  void on_setting_changed(std::string_view name) override {
+    auto fit = [&](Setting<float>& s) {
+      if (name == s.name) s.value = std::clamp(s.value, s.min, s.max);
     };
-    return descs;
+    fit(feedback);
+    fit(damping);
+    fit(stiffness);
+    fit(tension);
   }
 
-  std::span<const InputDescriptor> input_descriptors() const override {
-    static constexpr InputDescriptor descs[] = {
-      {"source"},
-    };
-    return descs;
-  }
-
-  std::span<const SettingDescriptor> setting_descriptors() const override {
-    static constexpr SettingDescriptor descs[] = {
-      {"feedback",   SettingType::Float, 0.995f, 0.0f, 0.9999f},
-      {"damping",    SettingType::Float, 0.6f,   0.05f, 1.0f},   // LP coeff
-      {"stiffness",  SettingType::Float, 0.15f,  0.0f, 0.95f},   // AP pole
-      {"tension",    SettingType::Float, 0.35f,  0.0f, 0.95f},   // diffuser fb
-      {"exciteGain", SettingType::Float, 1.0f,   0.0f, 8.0f},
-      {"direct",     SettingType::Float, 0.2f,   0.0f, 1.0f},
-    };
-    return descs;
-  }
-
-  void set_param(std::string_view name, std::shared_ptr<ValueSource> src) override {
-    if (name == "source")    { source_    = std::move(src); return; }
-    if (name == "frequency") { frequency_ = std::move(src); return; }
-    if (name == "amplitude") { amplitude_ = std::move(src); return; }
-  }
-
-  std::shared_ptr<ValueSource> get_param(std::string_view name) const override {
-    if (name == "source")    return source_;
-    if (name == "frequency") return frequency_;
-    if (name == "amplitude") return amplitude_;
-    return nullptr;
-  }
-
-  void set_setting(std::string_view name, float v) override {
-    if (name == "feedback")   { feedback_   = std::clamp(v, 0.0f, 0.9999f); return; }
-    if (name == "damping")    { damping_    = std::clamp(v, 0.05f, 1.0f); return; }
-    if (name == "stiffness")  { stiffness_  = std::clamp(v, 0.0f, 0.95f); return; }
-    if (name == "tension")    { tension_    = std::clamp(v, 0.0f, 0.95f); return; }
-    if (name == "exciteGain") { exciteGain_ = v; return; }
-    if (name == "direct")     { direct_     = v; return; }
-  }
-
-  float get_setting(std::string_view name) const override {
-    if (name == "feedback")   return feedback_;
-    if (name == "damping")    return damping_;
-    if (name == "stiffness")  return stiffness_;
-    if (name == "tension")    return tension_;
-    if (name == "exciteGain") return exciteGain_;
-    if (name == "direct")     return direct_;
-    return 0.0f;
-  }
-
-  void prepare(const RenderContext& ctx, int frames) override {
-    if (source_)    source_->prepare(ctx, frames);
-    if (frequency_) frequency_->prepare(ctx, frames);
-    if (amplitude_) amplitude_->prepare(ctx, frames);
+  void on_prepare(const RenderContext&, int) override {
     std::fill(buf_.begin(), buf_.end(), 0.0f);
     wpos_ = 0;
     bq_ = BiquadState{};
@@ -122,26 +79,23 @@ struct AllpassResonator final : ValueSource {
     cur_ = 0.0f;
   }
 
-  float next() override {
-    if (frequency_) frequency_->advance();
-    if (amplitude_) amplitude_->advance();
-    float exc = 0.0f;
-    if (source_) { source_->advance(); exc = source_->current(); }
+  float compute() override {
+    const float exc = input.current();
 
     if (!initialized_) init_note();
 
     // DC blocker on excitation
     float x = dcR_ * dcY_ + exc - dcX_;
     dcX_ = exc; dcY_ = x;
-    x *= exciteGain_;
+    x *= exciteGain.value;
 
     // Diffuser: Schroeder allpass of length loopLen_, feedback = tension.
     float in = x + fbSample_;
     int rd = wpos_ - loopLen_;
     if (rd < 0) rd += kBufLen;
     float dOut = buf_[rd];
-    float v = in + tension_ * dOut;
-    float y = -tension_ * v + dOut;
+    float v = in + tension.value * dOut;
+    float y = -tension.value * v + dOut;
     buf_[wpos_] = v;
     wpos_ = (wpos_ + 1) % kBufLen;
 
@@ -151,8 +105,8 @@ struct AllpassResonator final : ValueSource {
 
     // Stiffness allpass (double-real-pole biquad)
     float ys = yt;
-    if (stiffness_ > 0.001f) {
-      const float a = stiffness_;
+    if (stiffness.value > 0.001f) {
+      const float a = stiffness.value;
       ys = a * a * yt - 2.0f * a * bq_.x1 + bq_.x2
          + 2.0f * a * bq_.y1 - a * a * bq_.y2;
       bq_.x2 = bq_.x1; bq_.x1 = yt;
@@ -160,15 +114,11 @@ struct AllpassResonator final : ValueSource {
     }
 
     // Damping lowpass + decay feedback (applied next sample)
-    lp_ += damping_ * (ys - lp_);
-    fbSample_ = feedback_ * lp_;
+    lp_ += damping.value * (ys - lp_);
+    fbSample_ = feedback.value * lp_;
 
-    float ampl = amplitude_ ? amplitude_->current() : 1.0f;
-    cur_ = (yt + direct_ * x) * ampl;
-    return cur_;
+    return (yt + direct.value * x) * amplitude.current();
   }
-
-  float current() const override { return cur_; }
 
 private:
   static constexpr int kBufLen = 4096;
@@ -182,7 +132,7 @@ private:
   }
 
   void init_note() {
-    float f0 = frequency_ ? frequency_->current() : 220.0f;
+    float f0 = frequency.current();
     f0 = std::clamp(f0, 12.0f, float(sampleRate_) * 0.4f);
     const float sr = float(sampleRate_);
     const float period = sr / f0;
@@ -196,11 +146,11 @@ private:
     // so M is found by fixed-point iteration (converges in a few steps for
     // the tensions in range).
     // One biquad = 2 first-order allpass sections at pole `stiffness`.
-    float apDelay = stiffness_ > 0.001f
-        ? 2.0f * ap1_phase_delay(stiffness_, w0) : 0.0f;
+    float apDelay = stiffness.value > 0.001f
+        ? 2.0f * ap1_phase_delay(stiffness.value, w0) : 0.0f;
     float lpDelay;
     {
-      float b = 1.0f - damping_;
+      float b = 1.0f - damping.value;
       float cw = std::cos(w0), sw = std::sin(w0);
       lpDelay = std::atan2(b * sw, 1.0f - b * cw) / w0;
     }
@@ -208,7 +158,7 @@ private:
     // Damped fixed point: the warp derivative can exceed 1 near the grid
     // (slope up to 2g/(1-g)), so undamped iteration diverges there. Damping
     // lambda = (1-g)/(1+g) makes the worst-case slope ~0.
-    const float g = tension_;
+    const float g = tension.value;
     const float lam = (1.0f - g) / (1.0f + g);
     float M = target;
     for (int it = 0; it < 80; ++it) {
@@ -225,18 +175,7 @@ private:
     initialized_ = true;
   }
 
-  std::shared_ptr<ValueSource> source_;
-  std::shared_ptr<ValueSource> frequency_;
-  std::shared_ptr<ValueSource> amplitude_;
   int sampleRate_;
-
-  // Config (the four AF knobs + I/O trim)
-  float feedback_{0.995f};
-  float damping_{0.6f};
-  float stiffness_{0.15f};
-  float tension_{0.35f};
-  float exciteGain_{1.0f};
-  float direct_{0.2f};
 
   // Per-note state
   bool  initialized_{false};
@@ -250,7 +189,6 @@ private:
   float fbSample_{0.0f};
   float dcR_{0.997f};
   float dcX_{0.0f}, dcY_{0.0f};
-  float cur_{0.0f};
 };
 
 } // namespace mforce

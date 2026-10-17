@@ -2,7 +2,6 @@
 #include "mforce/core/dsp_value_source.h"
 #include <algorithm>
 #include <cmath>
-#include <memory>
 
 namespace mforce {
 
@@ -14,81 +13,24 @@ namespace mforce {
 // slope is the bow-pressure knob (STK: 5 - 4*pressure, i.e. high pressure
 // = low slope = wide friction pulse); offset skews stick/slip asymmetry.
 // Both are pins so pressure is playable per note or mid-note.
-struct BowTableSource final : ValueSource {
-  BowTableSource()
-    : source_(std::make_shared<ConstantSource>(0.0f)),
-      slope_(std::make_shared<ConstantSource>(3.0f)),
-      offset_(std::make_shared<ConstantSource>(0.0f)) {}
+struct BowTableSource final : Processor {
+  Param slope {this, "slope",  3.0f, 0.05f, 10.0f, "pressure"};
+  Param offset{this, "offset", 0.0f, -1.0f, 1.0f};
+  Setting<float> minOutput{this, "minOutput", 0.01f, 0.0f, 1.0f};
+  Setting<float> maxOutput{this, "maxOutput", 0.98f, 0.0f, 1.0f};
 
   const char* type_name() const override { return "BowTable"; }
   SourceCategory category() const override { return SourceCategory::Modulator; }
 
-  std::span<const InputDescriptor> input_descriptors() const override {
-    static constexpr InputDescriptor descs[] = {
-      {"source"},
-    };
-    return descs;
-  }
+  void on_prepare(const RenderContext&, int) override { cur_ = 0.0f; }
 
-  std::span<const ParamDescriptor> param_descriptors() const override {
-    static constexpr ParamDescriptor descs[] = {
-      {"slope",  3.0f, 0.05f, 10.0f, "pressure"},
-      {"offset", 0.0f, -1.0f, 1.0f},
-    };
-    return descs;
-  }
-  void set_param(std::string_view name, std::shared_ptr<ValueSource> src) override {
-    if (name == "source") { source_ = std::move(src); return; }
-    if (name == "slope")  { slope_  = std::move(src); return; }
-    if (name == "offset") { offset_ = std::move(src); return; }
-  }
-  std::shared_ptr<ValueSource> get_param(std::string_view name) const override {
-    if (name == "source") return source_;
-    if (name == "slope")  return slope_;
-    if (name == "offset") return offset_;
-    return nullptr;
-  }
-
-  std::span<const SettingDescriptor> setting_descriptors() const override {
-    static constexpr SettingDescriptor descs[] = {
-      {"minOutput", SettingType::Float, 0.01f, 0.0f, 1.0f},
-      {"maxOutput", SettingType::Float, 0.98f, 0.0f, 1.0f},
-    };
-    return descs;
-  }
-  void set_setting(std::string_view name, float v) override {
-    if (name == "minOutput") minOut_ = v;
-    else if (name == "maxOutput") maxOut_ = v;
-  }
-  float get_setting(std::string_view name) const override {
-    if (name == "minOutput") return minOut_;
-    if (name == "maxOutput") return maxOut_;
-    return 0.0f;
-  }
-
-  void prepare(const RenderContext& ctx, int frames) override {
-    if (source_) source_->prepare(ctx, frames);
-    slope_->prepare(ctx, frames);
-    offset_->prepare(ctx, frames);
-    cur_ = 0.0f;
-  }
-
-  float next() override {
-    const float dv = source_ ? source_->advance() : 0.0f;
-    slope_->advance();
-    offset_->advance();
-    float s = std::fabs((dv + offset_->current()) * slope_->current()) + 0.75f;
+  float compute() override {
+    const float dv = input.current();
+    const float s = std::fabs((dv + offset.current()) * slope.current()) + 0.75f;
     float rc = std::pow(s, -4.0f);
-    rc = std::clamp(rc, minOut_, maxOut_);
-    cur_ = dv * rc;
-    return cur_;
+    rc = std::clamp(rc, minOutput.value, maxOutput.value);
+    return dv * rc;
   }
-  float current() const override { return cur_; }
-
-private:
-  std::shared_ptr<ValueSource> source_, slope_, offset_;
-  float minOut_{0.01f}, maxOut_{0.98f};
-  float cur_{0.0f};
 };
 
 } // namespace mforce

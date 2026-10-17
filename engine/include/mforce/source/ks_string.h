@@ -1,7 +1,6 @@
 #pragma once
 #include "mforce/core/dsp_value_source.h"
 #include "mforce/core/randomizer.h"
-#include <memory>
 #include <vector>
 #include <cmath>
 #include <algorithm>
@@ -53,12 +52,55 @@ namespace mforce {
 // ~12 Hz at 48k (kBufLen); prepare() only zero-fills; next() allocates
 // nothing.
 // ---------------------------------------------------------------------------
-struct KSString final : ValueSource {
+struct KSString final : Processor {
+  // Dense detuned-unison territory: 12-string, dulcimer, cimbalom, cluster
+  // mass at large detunes. Even-spread offsets reproduce the 1/2/3-comb
+  // layouts exactly.
+  static constexpr int kMaxCombs = 10;
+
+  // `source` (inherited) is the hammer chain output.
+  Param frequency{this, "frequency", 220.0f, 12.0f, 8000.0f, "hz"};
+  Param amplitude{this, "amplitude", 1.0f,   0.0f,  10.0f,   "0-1"};
+  Input damper   {this, "damper", Input::Optional};
+  Input bow      {this, "bow",    Input::Optional, "0-1"};
+
+  Setting<int>   numCombs     {this, "numCombs",     3,      1,      kMaxCombs};
+  // Cents PER SIDE, AF semantics (outer combs at +/-detune; 600 = tritones,
+  // 1200 = octaves).
+  Setting<float> detune       {this, "detune",       0.75f,  0.0f,   7200.0f};
+  // Decoherence pair: the even offset spread + shared excitation make the
+  // descending decoherence front audible at high comb counts (partial n
+  // re-phases at t ∝ 1/n). spreadJitter breaks the ordered beat ladder
+  // (offsets perturbed up to ±half the comb spacing at 1.0); excStagger
+  // breaks the coherent onset (per-comb random excitation delay, seconds).
+  // Both deterministic per comb index; defaults 0 = byte-identical.
+  Setting<float> spreadJitter {this, "spreadJitter", 0.0f,   0.0f,   1.0f};
+  Setting<float> excStagger   {this, "excStagger",   0.0f,   0.0f,   0.02f};   // sec
+  Setting<float> t60          {this, "t60",          6.0f,   0.05f,  60.0f};   // sec at f0
+  Setting<float> brightness   {this, "brightness",   0.6f,   0.05f,  1.0f};    // loop LP coeff
+  Setting<float> dispersion   {this, "dispersion",   0.12f,  0.0f,   0.95f};   // biquad AP pole
+  Setting<float> inharmGain   {this, "inharmGain",   0.25f,  0.0f,   4.0f};
+  Setting<float> inharmFb     {this, "inharmFb",     0.90f,  0.0f,   0.995f};
+  Setting<float> inharmHp     {this, "inharmHp",     150.0f, 10.0f,  5000.0f}; // hz
+  Setting<float> ap1          {this, "ap1",          0.55f,  -0.95f, 0.95f};
+  Setting<float> ap2          {this, "ap2",          0.35f,  -0.95f, 0.95f};
+  Setting<float> ap3          {this, "ap3",          0.20f,  -0.95f, 0.95f};
+  Setting<float> fbCoeff      {this, "fbCoeff",      0.2f,   0.0f,   0.9f};    // global neg fb (headroom-normalized)
+  Setting<float> releaseFb    {this, "releaseFb",    1.0f,   0.0f,   1.0f};    // loop-gain mult after note-off (damper; 1 = off)
+  Setting<float> damperNoise  {this, "damperNoise",  0.0f,   0.0f,   2.0f};    // felt-contact noise at note-off, scaled by ring level
+  Setting<float> exciteGain   {this, "exciteGain",   1.0f,   0.0f,   8.0f};
+  Setting<float> direct       {this, "direct",       0.2f,   0.0f,   1.0f};    // dry strike tap
+  // Bow mode (MSW junction): active when the `bow` pin is wired.
+  // Friedlander friction against the loop's own velocity —
+  // vRel = bowSpeed*pressure - lastOut — injected into the comb input,
+  // so the sustain is coupled feedback (the BowedStringEvolution
+  // character) inside THIS node's damped, keytracked, tuned loop.
+  Setting<float> bowSpeed     {this, "bowSpeed",     0.3f,   0.0f,   2.0f};
+  Setting<float> frictionGain {this, "frictionGain", 4.0f,   0.0f,   20.0f};
+  Setting<float> bowGain      {this, "bowGain",      1.0f,   0.0f,   8.0f};
 
   explicit KSString(int sampleRate)
   : sampleRate_(sampleRate) {
-    frequency_ = std::make_shared<ConstantSource>(220.0f);
-    amplitude_ = std::make_shared<ConstantSource>(1.0f);
     for (int i = 0; i < kMaxCombs; ++i) comb_[i].buf.assign(kBufLen, 0.0f);
     disp_.buf.assign(kBufLen, 0.0f);
   }
@@ -70,135 +112,27 @@ struct KSString final : ValueSource {
   bool tracks_frequency_live() const override { return false; }
   SourceCategory category() const override { return SourceCategory::Oscillator; }
 
-  std::span<const ParamDescriptor> param_descriptors() const override {
-    static constexpr ParamDescriptor descs[] = {
-      {"frequency", 220.0f, 12.0f, 8000.0f, "hz"},
-      {"amplitude", 1.0f,   0.0f,  10.0f,   "0-1"},
+  // Most settings are clamped to their declared ranges (t60 only has a
+  // floor; the rest are unbounded).
+  void on_setting_changed(std::string_view name) override {
+    auto fit = [&](auto& s) {
+      if (name == s.name) s.value = std::clamp(s.value, s.min, s.max);
     };
-    return descs;
+    fit(numCombs);
+    fit(spreadJitter);
+    fit(excStagger);
+    fit(brightness);
+    fit(dispersion);
+    fit(inharmFb);
+    fit(ap1);
+    fit(ap2);
+    fit(ap3);
+    fit(releaseFb);
+    fit(damperNoise);
+    if (name == "t60") t60.value = std::max(t60.value, t60.min);
   }
 
-  std::span<const InputDescriptor> input_descriptors() const override {
-    static constexpr InputDescriptor descs[] = {
-      {"source"},
-      {"damper"},
-      {"bow", false, "0-1"},
-    };
-    return descs;
-  }
-
-  std::span<const SettingDescriptor> setting_descriptors() const override {
-    static constexpr SettingDescriptor descs[] = {
-      {"numCombs",   SettingType::Int,   3.0f,    1.0f,   10.0f},
-      {"detune",     SettingType::Float, 0.75f,   0.0f,   7200.0f}, // cents PER SIDE, AF semantics (outer combs at +/-detune; 600 = tritones, 1200 = octaves). 2026-08-18: was total-spread — all stored patches halved to compensate, bit-exact.
-      // Decoherence pair (Matt 2026-08-29): the even offset spread + shared
-      // excitation make the descending decoherence front audible at high
-      // comb counts (partial n re-phases at t ∝ 1/n). spreadJitter breaks
-      // the ordered beat ladder (offsets perturbed up to ±half the comb
-      // spacing at 1.0); excStagger breaks the coherent onset (per-comb
-      // random excitation delay, seconds). Both deterministic per comb
-      // index; defaults 0 = byte-identical.
-      {"spreadJitter", SettingType::Float, 0.0f,  0.0f,   1.0f},
-      {"excStagger",   SettingType::Float, 0.0f,  0.0f,   0.02f},  // sec
-      {"t60",        SettingType::Float, 6.0f,    0.05f,  60.0f},   // sec at f0
-      {"brightness", SettingType::Float, 0.6f,    0.05f,  1.0f},    // loop LP coeff
-      {"dispersion", SettingType::Float, 0.12f,   0.0f,   0.95f},   // biquad AP pole
-      {"inharmGain", SettingType::Float, 0.25f,   0.0f,   4.0f},
-      {"inharmFb",   SettingType::Float, 0.90f,   0.0f,   0.995f},
-      {"inharmHp",   SettingType::Float, 150.0f,  10.0f,  5000.0f}, // hz
-      {"ap1",        SettingType::Float, 0.55f,  -0.95f,  0.95f},
-      {"ap2",        SettingType::Float, 0.35f,  -0.95f,  0.95f},
-      {"ap3",        SettingType::Float, 0.20f,  -0.95f,  0.95f},
-      {"fbCoeff",    SettingType::Float, 0.2f,    0.0f,   0.9f},    // global neg fb (headroom-normalized)
-      {"releaseFb",  SettingType::Float, 1.0f,    0.0f,   1.0f},    // loop-gain mult after note-off (damper; 1 = off)
-      {"damperNoise", SettingType::Float, 0.0f,   0.0f,   2.0f},    // felt-contact noise at note-off, scaled by ring level
-      {"exciteGain", SettingType::Float, 1.0f,    0.0f,   8.0f},
-      {"direct",     SettingType::Float, 0.2f,    0.0f,   1.0f},    // dry strike tap
-      // Bow mode (2026-08-24, MSW junction): active when the `bow` pin is
-      // wired. Friedlander friction against the loop's own velocity —
-      // vRel = bowSpeed*pressure - lastOut — injected into the comb input,
-      // so the sustain is coupled feedback (the BowedStringEvolution
-      // character) inside THIS node's damped, keytracked, tuned loop.
-      {"bowSpeed",     SettingType::Float, 0.3f, 0.0f, 2.0f},
-      {"frictionGain", SettingType::Float, 4.0f, 0.0f, 20.0f},
-      {"bowGain",      SettingType::Float, 1.0f, 0.0f, 8.0f},
-    };
-    return descs;
-  }
-
-  void set_param(std::string_view name, std::shared_ptr<ValueSource> src) override {
-    if (name == "source")    { source_    = std::move(src); return; }
-    if (name == "damper")    { damper_    = std::move(src); return; }
-    if (name == "bow")       { bow_       = std::move(src); return; }
-    if (name == "frequency") { frequency_ = std::move(src); return; }
-    if (name == "amplitude") { amplitude_ = std::move(src); return; }
-  }
-
-  std::shared_ptr<ValueSource> get_param(std::string_view name) const override {
-    if (name == "source")    return source_;
-    if (name == "damper")    return damper_;
-    if (name == "bow")       return bow_;
-    if (name == "frequency") return frequency_;
-    if (name == "amplitude") return amplitude_;
-    return nullptr;
-  }
-
-  void set_setting(std::string_view name, float v) override {
-    if (name == "numCombs")   { numCombs_   = std::clamp(int(v), 1, kMaxCombs); return; }
-    if (name == "detune")     { detune_     = v; return; }
-    if (name == "spreadJitter") { spreadJitter_ = std::clamp(v, 0.0f, 1.0f); return; }
-    if (name == "excStagger")   { excStagger_   = std::clamp(v, 0.0f, 0.02f); return; }
-    if (name == "t60")        { t60_        = std::max(v, 0.05f); return; }
-    if (name == "brightness") { brightness_ = std::clamp(v, 0.05f, 1.0f); return; }
-    if (name == "dispersion") { dispersion_ = std::clamp(v, 0.0f, 0.95f); return; }
-    if (name == "inharmGain") { inharmGain_ = v; return; }
-    if (name == "inharmFb")   { inharmFb_   = std::clamp(v, 0.0f, 0.995f); return; }
-    if (name == "inharmHp")   { inharmHp_   = v; return; }
-    if (name == "ap1")        { ap_[0]      = std::clamp(v, -0.95f, 0.95f); return; }
-    if (name == "ap2")        { ap_[1]      = std::clamp(v, -0.95f, 0.95f); return; }
-    if (name == "ap3")        { ap_[2]      = std::clamp(v, -0.95f, 0.95f); return; }
-    if (name == "fbCoeff")    { fbCoeff_    = v; return; }
-    if (name == "releaseFb")  { releaseFb_  = std::clamp(v, 0.0f, 1.0f); return; }
-    if (name == "damperNoise") { damperNoise_ = std::clamp(v, 0.0f, 2.0f); return; }
-    if (name == "exciteGain") { exciteGain_ = v; return; }
-    if (name == "direct")     { direct_     = v; return; }
-    if (name == "bowSpeed")     { bowSpeed_     = v; return; }
-    if (name == "frictionGain") { frictionGain_ = v; return; }
-    if (name == "bowGain")      { bowGain_      = v; return; }
-  }
-
-  float get_setting(std::string_view name) const override {
-    if (name == "numCombs")   return float(numCombs_);
-    if (name == "spreadJitter") return spreadJitter_;
-    if (name == "excStagger")   return excStagger_;
-    if (name == "detune")     return detune_;
-    if (name == "t60")        return t60_;
-    if (name == "brightness") return brightness_;
-    if (name == "dispersion") return dispersion_;
-    if (name == "inharmGain") return inharmGain_;
-    if (name == "inharmFb")   return inharmFb_;
-    if (name == "inharmHp")   return inharmHp_;
-    if (name == "ap1")        return ap_[0];
-    if (name == "ap2")        return ap_[1];
-    if (name == "ap3")        return ap_[2];
-    if (name == "fbCoeff")    return fbCoeff_;
-    if (name == "releaseFb")  return releaseFb_;
-    if (name == "damperNoise") return damperNoise_;
-    if (name == "exciteGain") return exciteGain_;
-    if (name == "direct")     return direct_;
-    if (name == "bowSpeed")     return bowSpeed_;
-    if (name == "frictionGain") return frictionGain_;
-    if (name == "bowGain")      return bowGain_;
-    return 0.0f;
-  }
-
-  void prepare(const RenderContext& ctx, int frames) override {
-    if (source_)    source_->prepare(ctx, frames);
-    if (damper_)    damper_->prepare(ctx, frames);
-    if (bow_)       bow_->prepare(ctx, frames);
-    if (frequency_) frequency_->prepare(ctx, frames);
-    if (amplitude_) amplitude_->prepare(ctx, frames);
-
+  void on_prepare(const RenderContext&, int) override {
     for (int i = 0; i < kMaxCombs; ++i) {
       std::fill(comb_[i].buf.begin(), comb_[i].buf.end(), 0.0f);
       comb_[i].lp = 0.0f;
@@ -219,11 +153,8 @@ struct KSString final : ValueSource {
     dnAmp_ = 0.0f;
   }
 
-  float next() override {
-    if (frequency_) frequency_->advance();
-    if (amplitude_) amplitude_->advance();
-    float exc = 0.0f;
-    if (source_) { source_->advance(); exc = source_->current(); }
+  float compute() override {
+    const float exc = input.current();
 
     if (!initialized_) init_note();
 
@@ -232,9 +163,8 @@ struct KSString final : ValueSource {
     // post-note-off choke, in between it's a partially lifted damper
     // (half-pedaling). Driven by a damper-preset Envelope whose final
     // stage IS the note's release phase (note-contained sound, 2026-08-13).
-    float d = 0.0f;
-    if (damper_) { damper_->advance(); d = std::clamp(damper_->current(), 0.0f, 1.0f); }
-    float damp = 1.0f - d * (1.0f - releaseFb_);
+    float d = std::clamp(damper.current(), 0.0f, 1.0f);
+    float damp = 1.0f - d * (1.0f - releaseFb.value);
     // Damper-contact noise: each time the felt LANDS (rising threshold
     // crossing), capture the ring level and ring a short burst through the
     // now-damped string — injected into the loop input below, so the burst
@@ -242,8 +172,8 @@ struct KSString final : ValueSource {
     // the damper lifts: a re-dropped damper on a still-ringing string thuds
     // again, scaled by whatever ring is left.
     float dnoise = 0.0f;
-    if (damperNoise_ > 0.0001f) {
-      if (d >= 0.05f && lastD_ < 0.05f) dnAmp_ = damperNoise_ * envFollow_;
+    if (damperNoise.value > 0.0001f) {
+      if (d >= 0.05f && lastD_ < 0.05f) dnAmp_ = damperNoise.value * envFollow_;
       // Contact noise exists only while the felt is touching the string —
       // without the d-gate, a burst not yet decayed out kept injecting
       // into the RE-OPENED string after the damper env ended (live
@@ -258,14 +188,14 @@ struct KSString final : ValueSource {
     // DC blocker on excitation (envelope input is unipolar)
     float x = dcR_ * dcY_ + exc - dcX_;
     dcX_ = exc; dcY_ = x;
-    x *= exciteGain_;
+    x *= exciteGain.value;
 
     // Global negative feedback around inharmonics + resonators
     float xin = x - fbScale_ * lastOut_;
 
     // ---- Inharmonics: nested-allpass HP-filtered feedback comb ----
     float inh = 0.0f;
-    if (inharmGain_ > 0.0001f) {
+    if (inharmGain.value > 0.0001f) {
       int rd = wpos_ - dispLen_;
       if (rd < 0) rd += kBufLen;
       float d = disp_.buf[rd];
@@ -275,19 +205,19 @@ struct KSString final : ValueSource {
       // d3 = delayed v3 (innermost). Each old state is consumed before its
       // slot is overwritten, so no temporaries are needed.
       float t3 = disp_.d3;
-      float v3 = disp_.d2 + ap_[2] * t3;          // innermost: input = delayed v2
-      float y3 = -ap_[2] * v3 + t3;
+      float v3 = disp_.d2 + ap3.value * t3;    // innermost: input = delayed v2
+      float y3 = -ap3.value * v3 + t3;
       disp_.d3 = v3;
-      float v2 = disp_.d1 + ap_[1] * y3;          // middle: input = delayed v1
-      float y2 = -ap_[1] * v2 + y3;
+      float v2 = disp_.d1 + ap2.value * y3;    // middle: input = delayed v1
+      float y2 = -ap2.value * v2 + y3;
       disp_.d2 = v2;
-      float v1 = d + ap_[0] * y2;                  // outer: input = comb read
-      float y1 = -ap_[0] * v1 + y2;
+      float v1 = d + ap1.value * y2;           // outer: input = comb read
+      float y1 = -ap1.value * v1 + y2;
       disp_.d1 = v1;
       // One-pole highpass in the loop
       float hp = hpR_ * (disp_.hpY + y1 - disp_.hpX);
       disp_.hpX = y1; disp_.hpY = hp;
-      disp_.buf[wpos_] = xin + inharmFb_ * damp * hp;
+      disp_.buf[wpos_] = xin + inharmFb.value * damp * hp;
       inh = d;
     } else {
       disp_.buf[wpos_] = 0.0f;
@@ -302,24 +232,23 @@ struct KSString final : ValueSource {
     // DC-blocked (pressure is unipolar; a comb resonates at DC) and damped
     // by the damper like every other loop input.
     float bowF = 0.0f;
-    if (bow_) {
-      bow_->advance();
-      float pressure = bow_->current();
-      float vRel = bowSpeed_ * pressure - lastOut_;
-      float bt = std::fabs(frictionGain_ * vRel) + 0.75f;
+    if (bow.source) {
+      float pressure = bow.current();
+      float vRel = bowSpeed.value * pressure - lastOut_;
+      float bt = std::fabs(frictionGain.value * vRel) + 0.75f;
       float fricCoef = std::pow(bt, -4.0f);
       if (fricCoef > 0.98f) fricCoef = 0.98f;
-      float f = fricCoef * vRel * pressure * bowGain_;
+      float f = fricCoef * vRel * pressure * bowGain.value;
       float fb = dcR_ * dcBY_ + f - dcBX_;
       dcBX_ = f; dcBY_ = fb;
       bowF = fb;
     }
 
     // ---- Main resonators: detuned combs with biquad allpasses ----
-    float s = xin + inharmGain_ * inh + dnoise + bowF;
+    float s = xin + inharmGain.value * inh + dnoise + bowF;
     if (staggerActive_) inHist_[inPos_] = s;
     float sum = 0.0f;
-    for (int i = 0; i < numCombs_; ++i) {
+    for (int i = 0; i < numCombs.value; ++i) {
       Comb& c = comb_[i];
       // Per-comb staggered excitation (0 when excStagger is off: si == s
       // exactly — the default path is byte-identical).
@@ -355,13 +284,13 @@ struct KSString final : ValueSource {
         v = biquad_ap(v, c.bq[0]);
         v = biquad_ap(v, c.bq[1]);
       }
-      c.lp += brightness_ * (v - c.lp);
+      c.lp += brightness.value * (v - c.lp);
       c.buf[wpos_] = si + c.gain * damp * c.lp;
 
       sum += r;
     }
     if (staggerActive_) inPos_ = (inPos_ + 1) % kInHist;
-    float combMix = sum / float(numCombs_);
+    float combMix = sum / float(numCombs.value);
     lastOut_ = combMix;
     // Ring-level follower for the damper-contact noise (fast attack, slow
     // decay; frozen into dnAmp_ at note-off).
@@ -370,19 +299,10 @@ struct KSString final : ValueSource {
 
     wpos_ = (wpos_ + 1) % kBufLen;
 
-    float ampl = amplitude_ ? amplitude_->current() : 1.0f;
-    cur_ = (combMix + direct_ * s) * ampl;
-    return cur_;
+    return (combMix + direct.value * s) * amplitude.current();
   }
 
-  float current() const override { return cur_; }
-
 private:
-  // Raised 3 → 10 (Matt 2026-08-29, "outside the Steinway"): dense detuned
-  // unison territory — 12-string / dulcimer / cimbalom / cluster mass at
-  // large detunes. Even-spread offsets reproduce the old 1/2/3 layouts
-  // exactly, so existing patches are byte-identical.
-  static constexpr int kMaxCombs = 10;
   static constexpr int kBufLen   = 4096;  // >= sr/12Hz at 48k
   // Minimum comb delay the dispersion-shedding guard preserves (samples).
   static constexpr float kMinCombLen = 4.0f;
@@ -393,8 +313,6 @@ private:
 
   struct BiquadState { float x1{0}, x2{0}, y1{0}, y2{0}; };
 
-  float releaseFb_{1.0f};
-  float damperNoise_{0.0f};
   float lastD_{0.0f};
   float envFollow_{0.0f};
   float dnAmp_{0.0f};
@@ -455,14 +373,14 @@ private:
   }
 
   void init_note() {
-    float f0 = frequency_ ? frequency_->current() : 220.0f;
+    float f0 = frequency.current();
     f0 = std::clamp(f0, 12.0f, float(sampleRate_) * 0.4f);
     const float sr = float(sampleRate_);
     const float period = sr / f0;
     const float w0 = 2.0f * 3.14159265f * f0 / sr;
 
-    dispActive_ = dispersion_ > 0.001f;
-    dispEff_ = dispersion_;
+    dispActive_ = dispersion.value > 0.001f;
+    dispEff_ = dispersion.value;
 
     // Phase delay of the loop filters at f0:
     // 2 biquads = 4 first-order sections at pole `dispersion`
@@ -478,7 +396,7 @@ private:
     // strings are effectively dispersion-free (stretched partials sit
     // above Nyquist). Notes with room to spare are untouched.
     {
-      const float maxDet = std::pow(2.0f, detune_ / 1200.0f);
+      const float maxDet = std::pow(2.0f, detune.value / 1200.0f);
       const float minPeriod = period / maxDet;
       if (dispActive_ && minPeriod - apDelay - lpDelay_ < kMinCombLen) {
         float lo = 0.0f, hi = dispEff_;
@@ -494,7 +412,7 @@ private:
     }
     // damping one-pole y += c(x-y): H = c / (1-(1-c)z^-1); phase delay at w0
     {
-      float b = 1.0f - brightness_;
+      float b = 1.0f - brightness.value;
       float cw = std::cos(w0), sw = std::sin(w0);
       float argH = -std::atan2(b * sw, 1.0f - b * cw);
       lpDelay_ = -argH / w0;
@@ -505,39 +423,39 @@ private:
     // Even spread from -1 to +1 — for N=2 (-1,+1) and N=3 (-1,0,+1) this
     // is bit-exact with the old hardcoded layouts; N=1 stays centered.
     float off[kMaxCombs] = {};
-    if (numCombs_ > 1)
-      for (int i = 0; i < numCombs_; ++i)
-        off[i] = -1.0f + 2.0f * float(i) / float(numCombs_ - 1);
+    if (numCombs.value > 1)
+      for (int i = 0; i < numCombs.value; ++i)
+        off[i] = -1.0f + 2.0f * float(i) / float(numCombs.value - 1);
 
     // spreadJitter: perturb the even offsets by up to ±half the comb
     // spacing (at 1.0). Deterministic per comb index — same layout every
     // note and every render.
-    if (spreadJitter_ > 0.0f && numCombs_ > 1) {
-      const float spacing = 2.0f / float(numCombs_ - 1);
-      for (int i = 0; i < numCombs_; ++i)
-        off[i] += spreadJitter_ * spacing *
+    if (spreadJitter.value > 0.0f && numCombs.value > 1) {
+      const float spacing = 2.0f / float(numCombs.value - 1);
+      for (int i = 0; i < numCombs.value; ++i)
+        off[i] += spreadJitter.value * spacing *
                   (hash01_(0x5EED0000u + uint32_t(i)) - 0.5f);
     }
 
     // excStagger: per-comb random excitation onset delay (breaks the
     // coherent start). History ring is zeroed so pre-note input is silence.
-    staggerActive_ = excStagger_ > 0.0f;
-    for (int i = 0; i < numCombs_; ++i)
+    staggerActive_ = excStagger.value > 0.0f;
+    for (int i = 0; i < numCombs.value; ++i)
       staggerSamp_[i] = staggerActive_
           ? std::min(kInHist - 1,
-                     int(hash01_(0xACC0FFEEu + uint32_t(i)) * excStagger_ * sr))
+                     int(hash01_(0xACC0FFEEu + uint32_t(i)) * excStagger.value * sr))
           : 0;
     if (staggerActive_) {
       for (int i = 0; i < kInHist; ++i) inHist_[i] = 0.0f;
       inPos_ = 0;
     }
 
-    for (int i = 0; i < numCombs_; ++i) {
-      float det = std::pow(2.0f, (off[i] * detune_) / 1200.0f);
+    for (int i = 0; i < numCombs.value; ++i) {
+      float det = std::pow(2.0f, (off[i] * detune.value) / 1200.0f);
       float len = period / det - apDelay - lpDelay_;
       comb_[i].len = std::clamp(len, 2.0f, float(kBufLen - 4));
       // Loop gain for t60 seconds of 60 dB decay at the fundamental
-      comb_[i].gain = std::pow(10.0f, -3.0f * comb_[i].len / (sr * t60_));
+      comb_[i].gain = std::pow(10.0f, -3.0f * comb_[i].len / (sr * t60.value));
       // Fractional-delay realization (2026-08-13): the linear-interp read
       // attenuates by |1-frac+frac*e^{-jw0}| per period — negligible low,
       // but at short delays the frac-dependent loss swamps t60 (measured
@@ -570,39 +488,17 @@ private:
     // a feedback comb is ~1/(1 - loopGain), so a raw coefficient would blow
     // up as soon as t60 grows. fbScale keeps open-loop gain ~= fbCoeff.
     float gmax = 0.0f;
-    for (int i = 0; i < numCombs_; ++i) gmax = std::max(gmax, comb_[i].gain);
-    fbScale_ = fbCoeff_ * (1.0f - gmax);
+    for (int i = 0; i < numCombs.value; ++i) gmax = std::max(gmax, comb_[i].gain);
+    fbScale_ = fbCoeff.value * (1.0f - gmax);
 
     dispLen_ = std::clamp(int(std::lround(period)), 2, kBufLen - 4);
-    hpR_ = std::exp(-2.0f * 3.14159265f * inharmHp_ / sr);
+    hpR_ = std::exp(-2.0f * 3.14159265f * inharmHp.value / sr);
     dcR_ = 1.0f - 2.0f * 3.14159265f * 20.0f / sr;  // 20 Hz DC blocker
 
     initialized_ = true;
   }
 
-  std::shared_ptr<ValueSource> source_;
-  std::shared_ptr<ValueSource> damper_;
-  std::shared_ptr<ValueSource> bow_;
-  std::shared_ptr<ValueSource> frequency_;
-  std::shared_ptr<ValueSource> amplitude_;
   int sampleRate_;
-
-  // Config
-  int   numCombs_{3};
-  float detune_{1.5f};
-  float t60_{6.0f};
-  float brightness_{0.6f};
-  float dispersion_{0.12f};
-  float inharmGain_{0.25f};
-  float inharmFb_{0.90f};
-  float inharmHp_{150.0f};
-  float ap_[3]{0.55f, 0.35f, 0.20f};
-  float fbCoeff_{0.2f};
-  float exciteGain_{1.0f};
-  float direct_{0.2f};
-  float bowSpeed_{0.3f};
-  float frictionGain_{4.0f};
-  float bowGain_{1.0f};
 
   // Per-note state
   bool  initialized_{false};
@@ -616,8 +512,6 @@ private:
     return float(x) * (1.0f / 4294967296.0f);
   }
   static constexpr int kInHist = 1024;  // 21 ms @ 48k >= max stagger 20 ms
-  float spreadJitter_{0.0f};
-  float excStagger_{0.0f};
   bool  staggerActive_{false};
   int   staggerSamp_[kMaxCombs] = {};
   float inHist_[kInHist] = {};
@@ -632,7 +526,6 @@ private:
   float dcX_{0.0f}, dcY_{0.0f};
   float dcBX_{0.0f}, dcBY_{0.0f};
   float lastOut_{0.0f};
-  float cur_{0.0f};
 };
 
 } // namespace mforce

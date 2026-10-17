@@ -94,157 +94,89 @@ namespace mforce {
 // the whole boundary instead of each node driving its own.  That is a global
 // approximation of a per-node rule, accepted for this round; per-node x would
 // need the excitation-side signal broadcast into the node, not a pin.
-struct Mesh2DSource final : ValueSource {
+struct Mesh2DSource final : Processor {
   static constexpr int kMaxN = 64;
 
-  Mesh2DSource()
-    : source_(std::make_shared<ConstantSource>(0.0f)),
-      inX_(std::make_shared<ConstantSource>(0.0f)),
-      inY_(std::make_shared<ConstantSource>(0.0f)),
-      outX_(std::make_shared<ConstantSource>(1.0f)),
-      outY_(std::make_shared<ConstantSource>(1.0f)),
-      decay_(std::make_shared<ConstantSource>(0.99f)),
-      edgeFc_(std::make_shared<ConstantSource>(kChafeFc)),
-      edgeR_(std::make_shared<ConstantSource>(kChafeR)),
-      coefNeg_(std::make_shared<ConstantSource>(kPierceNeg)),
-      coefPos_(std::make_shared<ConstantSource>(kPiercePos)) {}
+  Param inX   {this, "inX",   0.0f,  0.0f, 1.0f, "0-1"};
+  Param inY   {this, "inY",   0.0f,  0.0f, 1.0f, "0-1"};
+  Param outX  {this, "outX",  1.0f,  0.0f, 1.0f, "0-1"};
+  Param outY  {this, "outY",  1.0f,  0.0f, 1.0f, "0-1"};
+  Param decay {this, "decay", 0.99f, 0.0f, 1.0f, "0-1"};
+  // Read per sample in edgeMode 1 only; ignored in mode 0.
+  Param edgeFc{this, "edgeFc", kChafeFc, 0.0f, 20000.0f, "Hz"};
+  Param edgeR {this, "edgeR",  kChafeR,  0.0f, kRMax,    "0-1"};
+  // Read per sample in edgeMode 2 only; ignored in modes 0 and 1.
+  Param coefNeg{this, "coefNeg", kPierceNeg, -PierceAllpass::kCoefMax,
+                PierceAllpass::kCoefMax, "stiffness"};
+  Param coefPos{this, "coefPos", kPiercePos, -PierceAllpass::kCoefMax,
+                PierceAllpass::kCoefMax, "stiffness"};
+
+  Setting<int> cols    {this, "cols", 12, 2, kMaxN};
+  Setting<int> rows    {this, "rows", 12, 2, kMaxN};
+  Setting<int> edgeMode{this, "edgeMode", 0, 0, 2, kEdgeModes};
 
   const char* type_name() const override { return "Mesh2D"; }
   SourceCategory category() const override { return SourceCategory::Oscillator; }
 
-  std::span<const InputDescriptor> input_descriptors() const override {
-    static constexpr InputDescriptor descs[] = {
-      {"source"},
+  // The size and the edge mode are clamped to their declared ranges; each
+  // change clears the mesh.
+  void on_setting_changed(std::string_view name) override {
+    auto fit = [&](Setting<int>& s) {
+      if (name == s.name) { s.value = std::clamp(s.value, s.min, s.max); clear_mesh(); }
     };
-    return descs;
+    fit(cols);
+    fit(rows);
+    fit(edgeMode);
   }
 
-  std::span<const ParamDescriptor> param_descriptors() const override {
-    static constexpr ParamDescriptor descs[] = {
-      {"inX",   0.0f, 0.0f, 1.0f, "0-1"},
-      {"inY",   0.0f, 0.0f, 1.0f, "0-1"},
-      {"outX",  1.0f, 0.0f, 1.0f, "0-1"},
-      {"outY",  1.0f, 0.0f, 1.0f, "0-1"},
-      {"decay", 0.99f, 0.0f, 1.0f, "0-1"},
-      // Read per sample in edgeMode 1 only; ignored in mode 0.
-      {"edgeFc", kChafeFc, 0.0f, 20000.0f, "Hz"},
-      {"edgeR",  kChafeR,  0.0f, kRMax,    "0-1"},
-      // Read per sample in edgeMode 2 only; ignored in modes 0 and 1.
-      {"coefNeg", kPierceNeg, -PierceAllpass::kCoefMax,
-                              PierceAllpass::kCoefMax, "stiffness"},
-      {"coefPos", kPiercePos, -PierceAllpass::kCoefMax,
-                              PierceAllpass::kCoefMax, "stiffness"},
-    };
-    return descs;
-  }
-
-  std::span<const SettingDescriptor> setting_descriptors() const override {
-    static constexpr const char* kEdgeModes[] = {"stk", "chafe", "pierce",
-                                                 nullptr};
-    static constexpr SettingDescriptor descs[] = {
-      {"cols", SettingType::Int, 12.0f, 2.0f, float(kMaxN)},
-      {"rows", SettingType::Int, 12.0f, 2.0f, float(kMaxN)},
-      {"edgeMode", SettingType::Int, 0.0f, 0.0f, 2.0f, kEdgeModes},
-    };
-    return descs;
-  }
-  void set_setting(std::string_view name, float v) override {
-    if (name == "edgeMode") { edgeMode_ = std::clamp(int(v), 0, 2); clear_mesh(); return; }
-    const int n = std::clamp(int(v), 2, kMaxN);
-    if      (name == "cols") { NX_ = n; clear_mesh(); }
-    else if (name == "rows") { NY_ = n; clear_mesh(); }
-  }
-  float get_setting(std::string_view name) const override {
-    if (name == "cols")     return float(NX_);
-    if (name == "rows")     return float(NY_);
-    if (name == "edgeMode") return float(edgeMode_);
-    return 0.0f;
-  }
-
-  void set_param(std::string_view name, std::shared_ptr<ValueSource> src) override {
-    if (name == "source")     { source_ = std::move(src); return; }
-    if (name == "inX")        { inX_    = std::move(src); return; }
-    if (name == "inY")        { inY_    = std::move(src); return; }
-    if (name == "outX")       { outX_   = std::move(src); return; }
-    if (name == "outY")       { outY_   = std::move(src); return; }
-    if (name == "decay")      { decay_  = std::move(src); return; }
-    if (name == "edgeFc")     { edgeFc_ = std::move(src); return; }
-    if (name == "edgeR")      { edgeR_  = std::move(src); return; }
-    if (name == "coefNeg")    { coefNeg_ = std::move(src); return; }
-    if (name == "coefPos")    { coefPos_ = std::move(src); return; }
-  }
-  std::shared_ptr<ValueSource> get_param(std::string_view name) const override {
-    if (name == "source") return source_;
-    if (name == "inX")    return inX_;
-    if (name == "inY")    return inY_;
-    if (name == "outX")   return outX_;
-    if (name == "outY")   return outY_;
-    if (name == "decay")  return decay_;
-    if (name == "edgeFc") return edgeFc_;
-    if (name == "edgeR")  return edgeR_;
-    if (name == "coefNeg") return coefNeg_;
-    if (name == "coefPos") return coefPos_;
-    return nullptr;
-  }
-
-  void prepare(const RenderContext& ctx, int frames) override {
-    if (source_) source_->prepare(ctx, frames);
-    inX_->prepare(ctx, frames);
-    inY_->prepare(ctx, frames);
-    outX_->prepare(ctx, frames);
-    outY_->prepare(ctx, frames);
-    decay_->prepare(ctx, frames);
-    edgeFc_->prepare(ctx, frames);
-    edgeR_->prepare(ctx, frames);
-    coefNeg_->prepare(ctx, frames);
-    coefPos_->prepare(ctx, frames);
+  void on_prepare(const RenderContext& ctx, int) override {
     sr_ = float(ctx.sampleRate > 0 ? ctx.sampleRate : 48000);
     clear_mesh();
     cur_ = 0.0f;
   }
 
-  float next() override {
-    const float in = source_ ? source_->advance() : 0.0f;
-    inX_->advance(); inY_->advance(); outX_->advance(); outY_->advance(); decay_->advance();
-    edgeFc_->advance(); edgeR_->advance(); coefNeg_->advance(); coefPos_->advance();
-    const int xi = junction(inX_->current(),  NX_);
-    const int yi = junction(inY_->current(),  NY_);
-    const int xo = junction(outX_->current(), NX_);
-    const int yo = junction(outY_->current(), NY_);
-    gain_ = std::clamp(decay_->current(), 0.0f, 1.0f);
+  float compute() override {
+    const float in = input.current();
+    const int nx = cols.value, ny = rows.value;
+    const int xi = junction(inX.current(),  nx);
+    const int yi = junction(inY.current(),  ny);
+    const int xo = junction(outX.current(), nx);
+    const int yo = junction(outY.current(), ny);
+    gain_ = std::clamp(decay.current(), 0.0f, 1.0f);
 
-    if (edgeMode_ == 1) {
+    if (edgeMode.value == 1) {
       // One cos() per sample for the whole boundary, not one per edge node:
-      // edgeFc/edgeR are global pins, so all NX_+NY_ allpasses share these two
-      // coefficients.  A trig call per sample is affordable at this node's
-      // cost (the scattering loop is O(NX*NY) multiply-adds) and it is what
-      // makes the pins continuously modulatable — which is the whole point of
-      // the Chafe dynamic-R variants.
-      const float R  = std::clamp(edgeR_->current(), 0.0f, kRMax);
-      const float fc = std::clamp(edgeFc_->current(), 0.0f, 0.49f * sr_);
+      // edgeFc/edgeR are global pins, so all the edge allpasses (cols + rows
+      // of them) share these two coefficients.  A trig call per sample is
+      // affordable at this node's cost (the scattering loop is O(cols*rows)
+      // multiply-adds) and it is what makes the pins continuously
+      // modulatable — which is the whole point of the Chafe dynamic-R
+      // variants.
+      const float R  = std::clamp(edgeR.current(), 0.0f, kRMax);
+      const float fc = std::clamp(edgeFc.current(), 0.0f, 0.49f * sr_);
       a1_ = -2.0f * R * std::cos(6.28318530717958647692f * fc / sr_);
       a2_ = R * R;
-    } else if (edgeMode_ == 2) {
+    } else if (edgeMode.value == 2) {
       // Latched once per sample and shared by every edge node, like the mode
       // 1 coefficients — but unlike mode 1 the STATE that selects between
       // them is each node's own, so the nonlinearity is genuinely per-node.
-      cNeg_ = PierceAllpass::clamp_coef(coefNeg_->current());
-      cPos_ = PierceAllpass::clamp_coef(coefPos_->current());
+      cNeg_ = PierceAllpass::clamp_coef(coefNeg.current());
+      cPos_ = PierceAllpass::clamp_coef(coefPos.current());
     }
 
+    float out;
     if (counter_ & 1) {
       vxp1_[xi][yi] += in;
       vyp1_[xi][yi] += in;
-      cur_ = tick1(xo, yo);
+      out = tick1(xo, yo);
     } else {
       vxp_[xi][yi] += in;
       vyp_[xi][yi] += in;
-      cur_ = tick0(xo, yo);
+      out = tick0(xo, yo);
     }
     ++counter_;
-    return cur_;
+    return out;
   }
-  float current() const override { return cur_; }
 
 private:
   static constexpr float kVScale = 0.5f;
@@ -258,6 +190,7 @@ private:
   // to the paper's literal recurrence.
   static constexpr float kPierceNeg =  0.5f;
   static constexpr float kPiercePos = -0.5f;
+  static constexpr const char* kEdgeModes[] = {"stk", "chafe", "pierce", nullptr};
 
   // STK truncates the 0..1 factor to a junction index; see the header note.
   static int junction(float f, int n) {
@@ -275,28 +208,29 @@ private:
   }
 
   float edge_x(int i, float x) {   // filterX_ — the y = 0 face
-    if (edgeMode_ == 1) return allpass(fxAp_[i], gain_ * x);
-    if (edgeMode_ == 2) return fxPc_[i].tick(gain_ * x, cNeg_, cPos_);
+    if (edgeMode.value == 1) return allpass(fxAp_[i], gain_ * x);
+    if (edgeMode.value == 2) return fxPc_[i].tick(gain_ * x, cNeg_, cPos_);
     const float y = kEdgeB0 * (gain_ * x) + kPole * fxState_[i];
     fxState_[i] = y;
     return y;
   }
   float edge_y(int i, float x) {   // filterY_ — the x = 0 face
-    if (edgeMode_ == 1) return allpass(fyAp_[i], gain_ * x);
-    if (edgeMode_ == 2) return fyPc_[i].tick(gain_ * x, cNeg_, cPos_);
+    if (edgeMode.value == 1) return allpass(fyAp_[i], gain_ * x);
+    if (edgeMode.value == 2) return fyPc_[i].tick(gain_ * x, cNeg_, cPos_);
     const float y = kEdgeB0 * (gain_ * x) + kPole * fyState_[i];
     fyState_[i] = y;
     return y;
   }
 
   float tick0(int xo, int yo) {
-    for (int x = 0; x < NX_ - 1; ++x)
-      for (int y = 0; y < NY_ - 1; ++y)
+    const int nx = cols.value, ny = rows.value;
+    for (int x = 0; x < nx - 1; ++x)
+      for (int y = 0; y < ny - 1; ++y)
         v_[x][y] = (vxp_[x][y] + vxm_[x + 1][y] +
                     vyp_[x][y] + vym_[x][y + 1]) * kVScale;
 
-    for (int x = 0; x < NX_ - 1; ++x) {
-      for (int y = 0; y < NY_ - 1; ++y) {
+    for (int x = 0; x < nx - 1; ++x) {
+      for (int y = 0; y < ny - 1; ++y) {
         const float vxy = v_[x][y];
         vxp1_[x + 1][y] = vxy - vxm_[x + 1][y];
         vyp1_[x][y + 1] = vxy - vym_[x][y + 1];
@@ -305,26 +239,27 @@ private:
       }
     }
 
-    for (int y = 0; y < NY_ - 1; ++y) {
+    for (int y = 0; y < ny - 1; ++y) {
       vxp1_[0][y]        = edge_y(y, vxm_[0][y]);
-      vxm1_[NX_ - 1][y]  = vxp_[NX_ - 1][y];
+      vxm1_[nx - 1][y]  = vxp_[nx - 1][y];
     }
-    for (int x = 0; x < NX_ - 1; ++x) {
+    for (int x = 0; x < nx - 1; ++x) {
       vyp1_[x][0]        = edge_x(x, vym_[x][0]);
-      vym1_[x][NY_ - 1]  = vyp_[x][NY_ - 1];
+      vym1_[x][ny - 1]  = vyp_[x][ny - 1];
     }
 
     return vxp_[xo][yo > 0 ? yo - 1 : 0] + vyp_[xo > 0 ? xo - 1 : 0][yo];
   }
 
   float tick1(int xo, int yo) {
-    for (int x = 0; x < NX_ - 1; ++x)
-      for (int y = 0; y < NY_ - 1; ++y)
+    const int nx = cols.value, ny = rows.value;
+    for (int x = 0; x < nx - 1; ++x)
+      for (int y = 0; y < ny - 1; ++y)
         v_[x][y] = (vxp1_[x][y] + vxm1_[x + 1][y] +
                     vyp1_[x][y] + vym1_[x][y + 1]) * kVScale;
 
-    for (int x = 0; x < NX_ - 1; ++x) {
-      for (int y = 0; y < NY_ - 1; ++y) {
+    for (int x = 0; x < nx - 1; ++x) {
+      for (int y = 0; y < ny - 1; ++y) {
         const float vxy = v_[x][y];
         vxp_[x + 1][y] = vxy - vxm1_[x + 1][y];
         vyp_[x][y + 1] = vxy - vym1_[x][y + 1];
@@ -333,13 +268,13 @@ private:
       }
     }
 
-    for (int y = 0; y < NY_ - 1; ++y) {
+    for (int y = 0; y < ny - 1; ++y) {
       vxp_[0][y]        = edge_y(y, vxm1_[0][y]);
-      vxm_[NX_ - 1][y]  = vxp1_[NX_ - 1][y];
+      vxm_[nx - 1][y]  = vxp1_[nx - 1][y];
     }
-    for (int x = 0; x < NX_ - 1; ++x) {
+    for (int x = 0; x < nx - 1; ++x) {
       vyp_[x][0]        = edge_x(x, vym1_[x][0]);
-      vym_[x][NY_ - 1]  = vyp1_[x][NY_ - 1];
+      vym_[x][ny - 1]  = vyp1_[x][ny - 1];
     }
 
     return vxp1_[xo][yo > 0 ? yo - 1 : 0] + vyp1_[xo > 0 ? xo - 1 : 0][yo];
@@ -353,7 +288,7 @@ private:
         if (x < kMaxN - 1 && y < kMaxN - 1) v_[x][y] = 0.0f;
       }
     }
-    const float p0 = coefPos_ ? coefPos_->current() : kPiercePos;
+    const float p0 = coefPos.current();
     for (int i = 0; i < kMaxN; ++i) {
       fxState_[i] = fyState_[i] = 0.0f;
       for (int k = 0; k < 4; ++k) fxAp_[i][k] = fyAp_[i][k] = 0.0f;
@@ -363,16 +298,11 @@ private:
     counter_ = 0;
   }
 
-  std::shared_ptr<ValueSource> source_, inX_, inY_, outX_, outY_, decay_,
-      edgeFc_, edgeR_, coefNeg_, coefPos_;
-  int NX_{12}, NY_{12};
-  int edgeMode_{0};
   int counter_{0};
   float gain_{0.99f};
   float sr_{48000.0f};
   float a1_{0.0f}, a2_{0.0f};   // edgeMode 1 allpass coefficients, per sample
   float cNeg_{kPierceNeg}, cPos_{kPiercePos};  // edgeMode 2, per sample
-  float cur_{0.0f};
 
   // Sized for the 64x64 cap at construction — set_setting/prepare never
   // resize, so next() cannot allocate.
