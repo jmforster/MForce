@@ -2118,6 +2118,8 @@ static void run_multi_name_gate_tests() {
         CHECK(m.input_descriptors().size() == 1);
         CHECK(m.input_descriptors()[0].multi);
         CHECK(m.category() == SourceCategory::Combiner);
+        CHECK(m.pins().empty());                   // the list is not a registry pin
+        CHECK(m.get_param("source") == nullptr);
         m.entries[1].weight = 0.5f;
         m.entries[1].delaySamples = 1;
         m.prepare(ctx, 16);

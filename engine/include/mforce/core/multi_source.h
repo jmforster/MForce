@@ -10,10 +10,10 @@ namespace mforce {
 // Used for polyphony (overlapping notes) and composite instruments (WTString).
 //
 // The `source` input is a list, held in `entries` with its weights and
-// delays, not a single pin: the inherited primary input stays unwired, and
-// this node serves the list by name until list pins arrive. It advances the
-// entries itself because each is read once per sample at its own delay.
-struct MultiSource final : Processor {
+// delays, not a pin: this node serves the list by name and advances the
+// entries itself, because each is read once per sample at its own delay.
+// It becomes a Processor when the list pin kind arrives (checkpoint 3.1).
+struct MultiSource final : ValueSource {
   struct Entry {
     std::shared_ptr<ValueSource> source;
     float weight{1.0f};
@@ -35,12 +35,12 @@ struct MultiSource final : Processor {
   // Wiring `source` appends (add_param routes here through the base).
   void set_param(std::string_view name, std::shared_ptr<ValueSource> src) override {
     if (name == "source") add(std::move(src));
-    else Processor::set_param(name, std::move(src));
+    else ValueSource::set_param(name, std::move(src));
   }
 
   void clear_param(std::string_view name) override {
     if (name == "source") entries.clear();
-    else Processor::clear_param(name);
+    else ValueSource::clear_param(name);
   }
 
   void add(std::shared_ptr<ValueSource> src, float weight = 1.0f, int delay = 0) {
