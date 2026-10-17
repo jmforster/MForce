@@ -2444,6 +2444,269 @@ static void run_noise_layered_tests() {
     CHECK(sum > 0.0f);
 }
 
+// Checkpoint 2.1: the wavetable, the hybrid KS and the evolution holders.
+#include "mforce/source/hybrid_ks_source.h"
+#include "mforce/source/wavetable_source.h"
+
+namespace {
+std::string input_names(const mforce::Component& c) {
+    std::string out;
+    for (const auto& d : c.input_descriptors()) { out += d.name; out += ','; }
+    return out;
+}
+std::string setting_names(const mforce::Component& c) {
+    std::string out;
+    for (const auto& d : c.setting_descriptors()) { out += d.name; out += ','; }
+    return out;
+}
+// Logs the order in which its consumers advance it, and counts prepares.
+struct OrderProbe final : mforce::Generator {
+    OrderProbe(std::vector<int>* l, int i) : log(l), id(i) {}
+    std::vector<int>* log;
+    int id;
+    int prepares{0};
+    void on_prepare(const mforce::RenderContext&, int) override { ++prepares; }
+    float compute() override { log->push_back(id); return 1.0f; }
+    const char* type_name() const override { return "OrderProbe"; }
+};
+}
+
+// WavetableSource: WaveSource's three pins, then speedFactor, inputSource and
+// evolution, which the node advances itself (Manual): inputSource while a
+// note's table is filled, speedFactor only in the interpolating read.
+static void run_wavetable_pin_tests() {
+    RenderContext ctx{48000};
+
+    WavetableSource w(48000);
+    CHECK(param_names(w) == "amplitude,frequency,phase,speedFactor,");
+    CHECK(input_names(w) == "inputSource,evolution,");
+    CHECK(setting_names(w) == "interpolate,");
+    CHECK(w.setting_descriptors()[0].type == SettingType::Bool);
+    CHECK(w.range() == Generator::Range::Bipolar);
+    CHECK(w.category() == SourceCategory::Oscillator);
+    CHECK(w.get_param("inputSource") != nullptr);          // the seed noise
+    CHECK(w.get_param("evolution") == nullptr);
+    CHECK(w.get_param("speedFactor") == nullptr);
+    CHECK_NEAR(w.speedFactor.current(), 1.0f, 1e-6f);
+    w.prepare(ctx, 4800);
+    for (int i = 0; i < 10; ++i) CHECK(std::isfinite(w.next()));
+
+    WavetableSource f(48000);                              // 480 Hz: a table of 100
+    auto seed = std::make_shared<PinCounter>();
+    f.set_param("inputSource", seed);
+    f.set_param("frequency", std::make_shared<ConstantSource>(480.0f));
+    f.prepare(ctx, 4800);
+    for (int i = 0; i < 250; ++i) f.next();
+    CHECK(seed->prepares == 1 && seed->advances == 100);
+
+    for (bool interp : {false, true}) {
+        WavetableSource s(48000);
+        auto sf = std::make_shared<PinCounter>();
+        s.set_param("speedFactor", sf);
+        s.set_setting("interpolate", interp ? 1.0f : 0.0f);
+        CHECK(s.get_setting("interpolate") == (interp ? 1.0f : 0.0f));
+        s.prepare(ctx, 4800);
+        for (int i = 0; i < 20; ++i) CHECK(std::isfinite(s.next()));
+        CHECK(sf->prepares == 1);
+        CHECK(sf->advances == (interp ? 20 : 0));
+    }
+}
+
+// The evolution input holds the node and keeps a typed view of the evolution
+// it carries; the node prepares the holder and evolves once per sample.
+static void run_wavetable_evolution_tests() {
+    RenderContext ctx{48000};
+
+    WavetableSource w(48000);
+    auto reed = std::make_shared<ReedEvolutionSource>();
+    auto breath = std::make_shared<PinCounter>();
+    reed->set_param("breath", breath);
+    w.set_param("evolution", reed);
+    CHECK(w.get_param("evolution") == reed);
+    CHECK(w.evolution.source == reed);
+    w.prepare(ctx, 4800);
+    CHECK(breath->prepares == 1);                          // wavetable -> holder -> pin
+    for (int i = 0; i < 10; ++i) CHECK(std::isfinite(w.next()));
+    CHECK(breath->advances == 10);
+    w.clear_param("evolution");                            // no evolution, no more pulls
+    CHECK(w.get_param("evolution") == nullptr);
+    for (int i = 0; i < 10; ++i) w.next();
+    CHECK(breath->advances == 10);
+
+    WavetableSource n(48000);                              // wired, but not a holder
+    n.set_param("evolution", std::make_shared<ConstantSource>(0.5f));
+    CHECK(n.get_param("evolution") != nullptr);
+    n.prepare(ctx, 4800);
+    for (int i = 0; i < 10; ++i) CHECK(std::isfinite(n.next()));
+
+    WavetableSource o(48000);                              // the loader's direct-ownership path
+    o.set_evolution(std::make_unique<PluckEvolution>(0.0f, 1u));
+    o.prepare(ctx, 4800);
+    float peak = 0.0f;
+    for (int i = 0; i < 2000; ++i) peak = std::max(peak, std::fabs(o.next()));
+    CHECK(peak > 0.0f);
+}
+
+// HybridKSSource: WaveSource's three pins, the seed waveform (Manual: pulled
+// while a note's table is filled) and three settings.
+static void run_hybrid_ks_tests() {
+    RenderContext ctx{48000};
+
+    HybridKSSource h(48000);
+    CHECK(param_names(h) == "amplitude,frequency,phase,");
+    CHECK(input_names(h) == "inputSource,");
+    CHECK(setting_names(h) == "holdCycles,morphDuration,numPartials,");
+    CHECK_NEAR(h.get_setting("holdCycles"), 5.0f, 1e-6f);
+    CHECK_NEAR(h.get_setting("morphDuration"), 0.5f, 1e-6f);
+    CHECK_NEAR(h.get_setting("numPartials"), 30.0f, 1e-6f);
+    CHECK(h.range() == Generator::Range::Bipolar);
+    CHECK(h.get_param("inputSource") != nullptr);
+    h.prepare(ctx, 4800);
+    for (int i = 0; i < 10; ++i) CHECK(std::isfinite(h.next()));
+
+    HybridKSSource k(48000);                               // 480 Hz: a table of 100
+    auto seed = std::make_shared<PinCounter>();
+    k.set_param("inputSource", seed);
+    k.set_param("frequency", std::make_shared<ConstantSource>(480.0f));
+    k.set_setting("holdCycles", 2.0f);
+    k.set_setting("numPartials", 4.0f);
+    k.set_setting("morphDuration", 0.01f);
+    CHECK_NEAR(k.get_setting("holdCycles"), 2.0f, 1e-6f);
+    k.prepare(ctx, 4800);
+    bool finite = true;
+    for (int i = 0; i < 1000; ++i) finite = finite && std::isfinite(k.next());   // through the switch
+    CHECK(finite);
+    CHECK(seed->prepares == 1 && seed->advances == 100);
+}
+
+// All twelve holders: the settings (and pins) each declares, in order, and
+// the declared default is what an untouched holder reports.
+static void run_evolution_holder_shape_tests() {
+    PluckEvolutionSource pluck;
+    AveragingEvolutionSource avg;
+    EKSEvolutionSource eks;
+    ReedEvolutionSource reed;
+    BowedStringEvolutionSource bowed;
+    BrassEvolutionSource brass;
+    ReactionDiffusionEvolutionSource rd;
+    SortErosionEvolutionSource sort;
+    CellularAutomatonEvolutionSource ca;
+    HistogramEqualizeEvolutionSource he;
+    BezierPullEvolutionSource bez;
+    BitRotateEvolutionSource rot;
+
+    CHECK(setting_names(pluck) == "muting,");
+    CHECK(setting_names(avg) == "sampleCount,speed,decayFactor,leading,autoAdjust,");
+    CHECK(setting_names(eks) == "pickPosition,pickDirection,stiffness,decayStretch,drumBlend,");
+    CHECK(setting_names(reed) == "tubeLoss,loopFilter,");
+    CHECK(setting_names(bowed) == "tubeLoss,bowSpeed,bowPosition,brightness,");
+    CHECK(setting_names(brass) == "tubeLoss,lipTension,lipFreqRatio,lipQ,");
+    CHECK(setting_names(rd) == "feed,kill,diffU,diffV,dt,subSteps,");
+    CHECK(setting_names(sort) == "swapsPerSample,descending,");
+    CHECK(setting_names(ca) == "rule,threshold,levelHi,levelLo,stepEvery,");
+    CHECK(setting_names(he) == "bins,rate,");
+    CHECK(setting_names(bez) == "p0,p1,p2,p3,rate,");
+    CHECK(setting_names(rot).empty());
+
+    CHECK(param_names(reed) == "reedStiffness," && input_names(reed) == "breath,");
+    CHECK(param_names(bowed) == "frictionGain," && input_names(bowed) == "bow,");
+    CHECK(param_names(brass) == "brassiness," && input_names(brass) == "breath,");
+    CHECK(param_names(rot) == "shiftBits,stepEvery," && input_names(rot).empty());
+    CHECK_NEAR(param_default(reed, "reedStiffness"), 1.5f, 1e-6f);
+    CHECK_NEAR(param_default(bowed, "frictionGain"), 4.0f, 1e-6f);
+    CHECK_NEAR(param_default(brass, "brassiness"), 1.5f, 1e-6f);
+    CHECK_NEAR(param_default(rot, "shiftBits"), 3.0f, 1e-6f);
+    CHECK_NEAR(param_default(rot, "stepEvery"), 4.0f, 1e-6f);
+    CHECK(param_names(pluck).empty() && input_names(pluck).empty());
+
+    const mforce::Component* all[] = {&pluck, &avg, &eks, &reed, &bowed, &brass, &rd, &sort, &ca, &he, &bez, &rot};
+    for (const auto* c : all)
+        for (const auto& d : c->setting_descriptors())
+            CHECK_NEAR(c->get_setting(d.name), d.default_value, 1e-9f);
+    CHECK(reed.category() == SourceCategory::Combiner);
+    CHECK(pluck.category() == SourceCategory::Generator);
+    CHECK(avg.get_evolution() != nullptr);
+}
+
+// The settings the holders clamped when they were set keep clamping, the
+// evolution reads the holder's live value, and a rebuilt evolution still
+// reports the setting that rebuilt it.
+static void run_evolution_holder_setting_tests() {
+    ReactionDiffusionEvolutionSource rd;
+    rd.set_setting("subSteps", 0.0f);
+    CHECK_NEAR(rd.get_setting("subSteps"), 1.0f, 1e-6f);
+    rd.set_setting("subSteps", 3.0f);
+    CHECK_NEAR(rd.get_setting("subSteps"), 3.0f, 1e-6f);
+
+    SortErosionEvolutionSource sort;
+    sort.set_setting("swapsPerSample", -4.0f);
+    CHECK_NEAR(sort.get_setting("swapsPerSample"), 1.0f, 1e-6f);
+    sort.set_setting("descending", 1.0f);
+    CHECK_NEAR(sort.get_setting("descending"), 1.0f, 1e-6f);
+
+    HistogramEqualizeEvolutionSource he;
+    he.set_setting("bins", 1000.0f);
+    CHECK_NEAR(he.get_setting("bins"), 256.0f, 1e-6f);
+    he.set_setting("bins", 2.0f);
+    CHECK_NEAR(he.get_setting("bins"), 4.0f, 1e-6f);
+
+    CellularAutomatonEvolutionSource ca;
+    ca.set_setting("rule", 999.0f);
+    CHECK_NEAR(ca.get_setting("rule"), 255.0f, 1e-6f);
+    ca.set_setting("rule", -5.0f);
+    CHECK_NEAR(ca.get_setting("rule"), 0.0f, 1e-6f);
+    ca.set_setting("stepEvery", 0.0f);
+    CHECK_NEAR(ca.get_setting("stepEvery"), 1.0f, 1e-6f);
+
+    ca.set_setting("stepEvery", 8.0f);                     // the evolution reads the live level
+    std::vector<float> table(8, 0.5f);
+    WaveEvolution* evo = ca.get_evolution();
+    evo->shape_excitation(table);
+    evo->evolve(table, 0);
+    CHECK_NEAR(table[0], 0.8f, 1e-6f);
+    ca.set_setting("levelHi", 0.3f);
+    evo->evolve(table, 0);
+    CHECK_NEAR(table[0], 0.3f, 1e-6f);
+
+    PluckEvolutionSource pluck;
+    pluck.set_setting("muting", 0.5f);
+    CHECK_NEAR(pluck.get_setting("muting"), 0.5f, 1e-6f);
+    AveragingEvolutionSource avg;
+    avg.set_setting("leading", 1.0f);
+    avg.set_setting("speed", 2.5f);
+    CHECK_NEAR(avg.get_setting("leading"), 1.0f, 1e-6f);
+    CHECK_NEAR(avg.get_setting("speed"), 2.5f, 1e-6f);
+    CHECK_NEAR(avg.get_setting("decayFactor"), 0.999f, 1e-6f);
+}
+
+// The four holders with wired pins (reed, bowed, brass, bit rotate): the pins
+// are Manual. The wavetable prepares them once, the evolution advances each
+// once per sample in the order the old evolve() did, and the holder's own
+// next() advances nothing.
+static void run_evolution_manual_pin_tests() {
+    RenderContext ctx{48000};
+
+    auto run = [&](std::shared_ptr<ValueSource> holder, const char* first, const char* second) {
+        std::vector<int> log;
+        auto a = std::make_shared<OrderProbe>(&log, 1);
+        auto b = std::make_shared<OrderProbe>(&log, 2);
+        holder->set_param(first, a);
+        holder->set_param(second, b);
+        WavetableSource w(48000);
+        w.set_param("evolution", holder);
+        w.prepare(ctx, 4800);
+        for (int i = 0; i < 4; ++i) CHECK(std::isfinite(w.next()));
+        CHECK(a->prepares == 1 && b->prepares == 1);
+        CHECK(log == std::vector<int>({1, 2, 1, 2, 1, 2, 1, 2}));
+        for (int i = 0; i < 5; ++i) holder->next();
+        CHECK(log.size() == 8);
+    };
+    run(std::make_shared<ReedEvolutionSource>(), "reedStiffness", "breath");
+    run(std::make_shared<BowedStringEvolutionSource>(), "bow", "frictionGain");
+    run(std::make_shared<BrassEvolutionSource>(), "brassiness", "breath");
+    run(std::make_shared<BitRotateEvolutionSource>(), "stepEvery", "shiftBits");
+}
+
 int main() {
     run_pin_tests();
     run_base_tests();
@@ -2458,6 +2721,12 @@ int main() {
     run_noise_red_pin_tests();
     run_noise_manual_amplitude_tests();
     run_noise_layered_tests();
+    run_wavetable_pin_tests();
+    run_wavetable_evolution_tests();
+    run_hybrid_ks_tests();
+    run_evolution_holder_shape_tests();
+    run_evolution_holder_setting_tests();
+    run_evolution_manual_pin_tests();
     run_sharing_trace_tests();
     run_walk2_tests();
     run_walk3_tests();

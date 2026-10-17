@@ -246,23 +246,28 @@ private:
 // and drum blend to the basic KS averaging loop.
 // ---------------------------------------------------------------------------
 struct EKSEvolution final : WaveEvolution {
-  // Configurable parameters
-  float pickPosition{0.0f};    // 0=bridge, 0.5=middle (removes even harmonics), 1=nut
-  float pickDirection{0.0f};   // 0=down, higher=more up-pick filtering
-  float stiffness{0.0f};      // string inharmonicity (allpass dispersion)
-  float decayStretch{0.5f};   // 0..1, 0.5=standard KS averaging
-  float drumBlend{1.0f};      // 1=string, 0.5=snare, 0=pure drum
+  EKSEvolution(uint32_t seed,
+               const Setting<float>& pickPosition, const Setting<float>& pickDirection,
+               const Setting<float>& stiffness, const Setting<float>& decayStretch,
+               const Setting<float>& drumBlend)
+  : pickPosition(pickPosition), pickDirection(pickDirection), stiffness(stiffness),
+    decayStretch(decayStretch), drumBlend(drumBlend), rng_(seed) {}
 
-  explicit EKSEvolution(uint32_t seed = 0xEE45'0000u) : rng_(seed) {}
+  // The settings of the holder node that owns this evolution, read as they stand.
+  const Setting<float>& pickPosition;    // 0=bridge, 0.5=middle (removes even harmonics), 1=nut
+  const Setting<float>& pickDirection;   // 0=down, higher=more up-pick filtering
+  const Setting<float>& stiffness;       // string inharmonicity (allpass dispersion)
+  const Setting<float>& decayStretch;    // 0..1, 0.5=standard KS averaging
+  const Setting<float>& drumBlend;       // 1=string, 0.5=snare, 0=pure drum
 
   float adjust(float frequency) override {
     freq_ = frequency;
 
     // Stiffness allpass coefficient: higher frequency = more dispersion
-    if (stiffness > 0.0f) {
+    if (stiffness.value > 0.0f) {
       // Approximate: coefficient grows with harmonic number
       // Use a simple model: C = stiffness * (freq/1000)^0.5
-      stiffnessCoeff_ = stiffness * std::sqrt(freq_ / 1000.0f);
+      stiffnessCoeff_ = stiffness.value * std::sqrt(freq_ / 1000.0f);
       stiffnessCoeff_ = std::clamp(stiffnessCoeff_, 0.0f, 0.9f);
     } else {
       stiffnessCoeff_ = 0.0f;
@@ -278,8 +283,8 @@ struct EKSEvolution final : WaveEvolution {
 
     // Pick-position comb filter: H(z) = 1 - z^(-floor(beta*N + 0.5))
     // Removes harmonics at multiples of 1/beta
-    if (pickPosition > 0.001f && pickPosition < 0.999f) {
-      int delay = int(std::floor(pickPosition * float(len) + 0.5f));
+    if (pickPosition.value > 0.001f && pickPosition.value < 0.999f) {
+      int delay = int(std::floor(pickPosition.value * float(len) + 0.5f));
       if (delay >= 1 && delay < len) {
         std::vector<float> filtered(len);
         for (int i = 0; i < len; ++i) {
@@ -292,8 +297,8 @@ struct EKSEvolution final : WaveEvolution {
     }
 
     // Pick-direction lowpass: H(z) = (1-p) / (1 - p*z^-1)
-    if (pickDirection > 0.001f) {
-      float p = std::clamp(pickDirection, 0.0f, 0.95f);
+    if (pickDirection.value > 0.001f) {
+      float p = std::clamp(pickDirection.value, 0.0f, 0.95f);
       float g = 1.0f - p;
       float prev = 0.0f;
       for (int i = 0; i < len; ++i) {
@@ -311,11 +316,11 @@ struct EKSEvolution final : WaveEvolution {
     int next = (index + 1) % len;
 
     // Weighted average (decay stretch): y = (1-S)*v[n] + S*v[n+1]
-    float avg = (1.0f - decayStretch) * values[index] + decayStretch * values[next];
+    float avg = (1.0f - decayStretch.value) * values[index] + decayStretch.value * values[next];
 
     // Drum blend: with probability (1-drumBlend)/2, flip sign
-    if (drumBlend < 1.0f) {
-      float flipProb = (1.0f - drumBlend) * 0.5f;
+    if (drumBlend.value < 1.0f) {
+      float flipProb = (1.0f - drumBlend.value) * 0.5f;
       if (rng_.value() < flipProb) {
         avg = -avg;
       }
@@ -347,12 +352,18 @@ private:
 // is injected via a zero-mean noise term that seeds and sustains oscillation.
 // ---------------------------------------------------------------------------
 struct ReedEvolution final : WaveEvolution {
-  explicit ReedEvolution(uint32_t seed = 0xBEED'BEEDu) : rng_(seed) {}
+  ReedEvolution(uint32_t seed, const Setting<float>& tubeLoss, const Setting<float>& loopFilter,
+                const Param& reedStiffness, const Input& breath)
+  : tubeLoss(tubeLoss), loopFilter(loopFilter), reedStiffness(reedStiffness), breath(breath),
+    rng_(seed) {}
 
-  float tubeLoss{0.02f};             // per-sample loop loss
-  float loopFilter{0.5f};            // one-pole loop lowpass coefficient (0..1; higher = brighter)
-  ValueSource* reedStiffness{nullptr}; // tanh drive on bore signal (0 = linear tube)
-  ValueSource* breath{nullptr};
+  // The settings and pins of the holder node that owns this evolution. The
+  // settings are read as they stand; the two pins are Manual, advanced here
+  // once per evolve() so a wired source moves on the note's sample clock.
+  const Setting<float>& tubeLoss;      // per-sample loop loss
+  const Setting<float>& loopFilter;    // one-pole loop lowpass coefficient (0..1; higher = brighter)
+  const Param& reedStiffness;          // tanh drive on bore signal (0 = linear tube)
+  const Input& breath;
 
   float adjust(float /*frequency*/) override {
     lpState_ = 0.0f;
@@ -370,13 +381,13 @@ struct ReedEvolution final : WaveEvolution {
     float avg = (values[index] + values[next]) * 0.5f;
 
     // One-pole lowpass on the loop; kills the square-wave buzz that tanh alone produces.
-    lpState_ = loopFilter * avg + (1.0f - loopFilter) * lpState_;
-    float loopOut = lpState_ * (1.0f - tubeLoss);
+    lpState_ = loopFilter.value * avg + (1.0f - loopFilter.value) * lpState_;
+    float loopOut = lpState_ * (1.0f - tubeLoss.value);
 
-    float drive = reedStiffness ? reedStiffness->advance() : 0.0f;
+    float drive = reedStiffness.source ? reedStiffness.source->advance() : reedStiffness.constant;
     if (drive > 0.0f) loopOut = std::tanh(drive * loopOut);
 
-    float b = breath ? breath->advance() : 0.0f;
+    float b = breath.source ? breath.source->advance() : 0.0f;
     float noise = rng_.valuePN();
     values[index] = loopOut + b * noise;
   }
@@ -394,7 +405,15 @@ private:
 // This produces the characteristic Helmholtz-motion sawtooth of bowed strings.
 // ---------------------------------------------------------------------------
 struct BowedStringEvolution final : WaveEvolution {
-  explicit BowedStringEvolution(uint32_t /*seed*/ = 0xB0ED'0000u) {}
+  BowedStringEvolution(const Setting<float>& tubeLoss, const Setting<float>& bowSpeed,
+                       const Setting<float>& bowPosition, const Setting<float>& brightness,
+                       const Input& bow, const Param& frictionGain)
+  : tubeLoss(tubeLoss), bowSpeed(bowSpeed), bowPosition(bowPosition), brightness(brightness),
+    bow(bow), frictionGain(frictionGain) {}
+
+  // The settings and pins of the holder node that owns this evolution. The
+  // settings are read as they stand; the two pins are Manual, advanced here
+  // once per evolve() so a wired source moves on the note's sample clock.
 
   // Dual-waveguide bowed string (Smith/Serafin).
   //   bridgeLine: carries signal through the round trip bow→bridge→bow
@@ -404,9 +423,9 @@ struct BowedStringEvolution final : WaveEvolution {
   // lines cross-couple at the bow junction (pass-through + bow impulse), which
   // is what ties the combined oscillation to the fundamental period
   // 2(Lb+Ln) = sampleRate / frequency.
-  float tubeLoss{0.005f};              // per-sample loop loss on each line
-  float bowSpeed{0.3f};                // bow velocity scale
-  float bowPosition{0.14f};            // bow along string (0=bridge, 0.5=middle)
+  const Setting<float>& tubeLoss;      // per-sample loop loss on each line
+  const Setting<float>& bowSpeed;      // bow velocity scale
+  const Setting<float>& bowPosition;   // bow along string (0=bridge, 0.5=middle)
   // In-loop damping: one-pole lowpass on each line's write (y += b*(x-y)),
   // the string/bridge loss filter of the reference model. Flat tubeLoss alone
   // recirculates 12 kHz as long as the fundamental, which measured as an
@@ -416,9 +435,9 @@ struct BowedStringEvolution final : WaveEvolution {
   // bypassed entirely, byte-identical to the pre-brightness node (the
   // discovery patch's sound is locked to that). Applied per line write, so
   // the loop sees it twice per round trip.
-  float brightness{1.0f};
-  ValueSource* frictionGain{nullptr};  // slope of Friedlander bow table
-  ValueSource* bow{nullptr};           // bow pressure envelope (0..1)
+  const Setting<float>& brightness;
+  const Input& bow;                    // bow pressure envelope (0..1)
+  const Param& frictionGain;           // slope of Friedlander bow table
 
   void on_prepare(const RenderContext& ctx) override { sampleRate_ = ctx.sampleRate; }
 
@@ -426,7 +445,7 @@ struct BowedStringEvolution final : WaveEvolution {
     int totalLen = int(std::lround(float(sampleRate_) / std::max(20.0f, frequency)));
     if (totalLen < 4) totalLen = 4;
     int halfLen = std::max(2, totalLen / 2);
-    int Lb = std::max(1, int(std::round(bowPosition * float(halfLen))));
+    int Lb = std::max(1, int(std::round(bowPosition.value * float(halfLen))));
     if (Lb >= halfLen) Lb = halfLen - 1;
     int Ln = halfLen - Lb;
     // Round-trip ring: size = 2 * one-way length.
@@ -455,10 +474,10 @@ struct BowedStringEvolution final : WaveEvolution {
 
     float vString = bridgeIn + neckIn;
 
-    float pressure = bow ? bow->advance() : 0.0f;
-    float gain = frictionGain ? frictionGain->advance() : 4.0f;
+    float pressure = bow.source ? bow.source->advance() : 0.0f;
+    float gain = frictionGain.source ? frictionGain.source->advance() : frictionGain.constant;
 
-    float vBow = bowSpeed * pressure;
+    float vBow = bowSpeed.value * pressure;
     float vRel = vBow - vString;
 
     // Friedlander friction table.
@@ -472,13 +491,13 @@ struct BowedStringEvolution final : WaveEvolution {
     // Scattering at bow: wave from neck side passes through to bridge side (and
     // vice versa), each receives the bow kick. Cross-coupling couples the two
     // lines so they resonate as one string at the fundamental.
-    float outBridge = (neckIn   + bowImpulse) * (1.0f - tubeLoss);
-    float outNeck   = (bridgeIn + bowImpulse) * (1.0f - tubeLoss);
+    float outBridge = (neckIn   + bowImpulse) * (1.0f - tubeLoss.value);
+    float outNeck   = (bridgeIn + bowImpulse) * (1.0f - tubeLoss.value);
 
-    if (brightness < 1.0f) {
-      bridgeLp_ += brightness * (outBridge - bridgeLp_);
+    if (brightness.value < 1.0f) {
+      bridgeLp_ += brightness.value * (outBridge - bridgeLp_);
       outBridge = bridgeLp_;
-      neckLp_ += brightness * (outNeck - neckLp_);
+      neckLp_ += brightness.value * (outNeck - neckLp_);
       outNeck = neckLp_;
     }
 
@@ -510,14 +529,21 @@ private:
 // of the characteristic "brassy" bite at loud dynamics.
 // ---------------------------------------------------------------------------
 struct BrassEvolution final : WaveEvolution {
-  explicit BrassEvolution(uint32_t seed = 0xB8A5'5000u) : rng_(seed) {}
+  BrassEvolution(uint32_t seed, const Setting<float>& tubeLoss, const Setting<float>& lipTension,
+                 const Setting<float>& lipFreqRatio, const Setting<float>& lipQ,
+                 const Param& brassiness, const Input& breath)
+  : tubeLoss(tubeLoss), lipTension(lipTension), lipFreqRatio(lipFreqRatio), lipQ(lipQ),
+    brassiness(brassiness), breath(breath), rng_(seed) {}
 
-  float tubeLoss{0.01f};             // per-sample loop loss
-  float lipTension{0.92f};           // in-loop one-pole lowpass (0..0.99, high = dark)
-  float lipFreqRatio{1.2f};          // out-of-loop biquad resonance, as multiple of played freq
-  float lipQ{3.0f};                  // biquad Q (higher = sharper resonance peak)
-  ValueSource* brassiness{nullptr};  // tanh drive → wave-steepening harmonics
-  ValueSource* breath{nullptr};
+  // The settings and pins of the holder node that owns this evolution. The
+  // settings are read as they stand; the two pins are Manual, advanced here
+  // once per evolve() so a wired source moves on the note's sample clock.
+  const Setting<float>& tubeLoss;      // per-sample loop loss
+  const Setting<float>& lipTension;    // in-loop one-pole lowpass (0..0.99, high = dark)
+  const Setting<float>& lipFreqRatio;  // out-of-loop biquad resonance, as multiple of played freq
+  const Setting<float>& lipQ;          // biquad Q (higher = sharper resonance peak)
+  const Param& brassiness;             // tanh drive → wave-steepening harmonics
+  const Input& breath;
 
   void on_prepare(const RenderContext& ctx) override { sampleRate_ = ctx.sampleRate; }
 
@@ -526,10 +552,10 @@ struct BrassEvolution final : WaveEvolution {
     // Compute RBJ resonant lowpass coefficients for the out-of-loop biquad.
     // Out-of-loop means no feedback through it → no pitch detune.
     x1_ = x2_ = y1_ = y2_ = 0.0f;
-    float cutoff = std::max(20.0f, frequency * lipFreqRatio);
+    float cutoff = std::max(20.0f, frequency * lipFreqRatio.value);
     float omega = 2.0f * 3.1415926536f * cutoff / float(sampleRate_);
     if (omega > 3.0f) omega = 3.0f;
-    float q = std::max(0.5f, lipQ);
+    float q = std::max(0.5f, lipQ.value);
     float alpha = std::sin(omega) / (2.0f * q);
     float cosOm = std::cos(omega);
     float a0 = 1.0f + alpha;
@@ -558,13 +584,13 @@ struct BrassEvolution final : WaveEvolution {
 
     // Loop runs on internal rawLoop_; output buffer `values` is the biquad-filtered view.
     float avg = (rawLoop_[index] + rawLoop_[next]) * 0.5f;
-    lipState_ = (1.0f - lipTension) * avg + lipTension * lipState_;
-    float loopOut = lipState_ * (1.0f - tubeLoss);
+    lipState_ = (1.0f - lipTension.value) * avg + lipTension.value * lipState_;
+    float loopOut = lipState_ * (1.0f - tubeLoss.value);
 
-    float drive = brassiness ? brassiness->advance() : 0.0f;
+    float drive = brassiness.source ? brassiness.source->advance() : brassiness.constant;
     if (drive > 0.0f) loopOut = std::tanh(drive * loopOut);
 
-    float b = breath ? breath->advance() : 0.0f;
+    float b = breath.source ? breath.source->advance() : 0.0f;
     float noise = rng_.valuePN();
     rawLoop_[index] = loopOut + b * noise;
 
@@ -601,37 +627,25 @@ struct IEvolutionHolder {
 // Wire to WavetableSource's "evolution" input.
 // ---------------------------------------------------------------------------
 struct PluckEvolutionSource final : ValueSource, IEvolutionHolder {
+  Setting<float> muting{this, "muting", 0.0f, 0.0f, 1.0f};
+
   explicit PluckEvolutionSource(uint32_t seed = 0xDEAD'BEEFu)
-  : evo_(0.0f, seed) {}
+  : evo_(muting.value, seed) {}
 
   const char* type_name() const override { return "PluckEvolution"; }
   SourceCategory category() const override { return SourceCategory::Generator; }
 
   WaveEvolution* get_evolution() override { return &evo_; }
 
-  std::span<const SettingDescriptor> setting_descriptors() const override {
-    static constexpr SettingDescriptor descs[] = {
-      {"muting", SettingType::Float, 0.0f, 0.0f, 1.0f},
-    };
-    return descs;
-  }
-
-  void set_setting(std::string_view name, float value) override {
-    if (name == "muting") { muting_ = value; evo_ = PluckEvolution(muting_, seed_); }
-  }
-  float get_setting(std::string_view name) const override {
-    if (name == "muting") return muting_;
-    return 0.0f;
-  }
+  // The evolution is rebuilt from its setting, which restarts its draw stream.
+  void on_setting_changed(std::string_view) override { evo_ = PluckEvolution(muting.value, seed_); }
 
   // Not an audio source — exists for graph wiring only
-  void prepare(const RenderContext&, int) override {}
   float next() override { return 0.0f; }
   float current() const override { return 0.0f; }
 
 private:
   PluckEvolution evo_;
-  float muting_{0.0f};
   uint32_t seed_{0xDEAD'BEEFu};
 };
 
@@ -640,102 +654,57 @@ private:
 // Wire to WavetableSource's "evolution" input.
 // ---------------------------------------------------------------------------
 struct AveragingEvolutionSource final : ValueSource, IEvolutionHolder {
+  Setting<float> sampleCount{this, "sampleCount", 4.0f,   1.0f, 48.0f};
+  Setting<float> speed      {this, "speed",       1.0f,   0.1f, 20.0f};
+  Setting<float> decayFactor{this, "decayFactor", 0.999f, 0.9f, 1.0f};
+  Setting<bool>  leading    {this, "leading",     false,  false, true};
+  Setting<bool>  autoAdjust {this, "autoAdjust",  false,  false, true};
+
   explicit AveragingEvolutionSource(uint32_t seed = 0xCAFE'BABEu)
-  : evo_(4.0f, 1.0f, 0.999f, false, false, seed), seed_(seed) {}
+  : evo_(sampleCount.value, speed.value, decayFactor.value, leading.value, autoAdjust.value, seed),
+    seed_(seed) {}
 
   const char* type_name() const override { return "AveragingEvolution"; }
   SourceCategory category() const override { return SourceCategory::Generator; }
 
   WaveEvolution* get_evolution() override { return &evo_; }
 
-  std::span<const SettingDescriptor> setting_descriptors() const override {
-    static constexpr SettingDescriptor descs[] = {
-      {"sampleCount", SettingType::Float, 4.0f, 1.0f, 48.0f},
-      {"speed",       SettingType::Float, 1.0f, 0.1f, 20.0f},
-      {"decayFactor", SettingType::Float, 0.999f, 0.9f, 1.0f},
-      {"leading",     SettingType::Bool,  0.0f, 0.0f, 1.0f},
-      {"autoAdjust",  SettingType::Bool,  0.0f, 0.0f, 1.0f},
-    };
-    return descs;
-  }
-
-  void set_setting(std::string_view name, float value) override {
-    if (name == "sampleCount") { sampleCount_ = value; rebuild(); }
-    else if (name == "speed")       { speed_ = value; rebuild(); }
-    else if (name == "decayFactor") { decayFactor_ = value; rebuild(); }
-    else if (name == "leading")     { leading_ = (value != 0.0f); rebuild(); }
-    else if (name == "autoAdjust")  { autoAdjust_ = (value != 0.0f); rebuild(); }
-  }
-
-  float get_setting(std::string_view name) const override {
-    if (name == "sampleCount") return sampleCount_;
-    if (name == "speed")       return speed_;
-    if (name == "decayFactor") return decayFactor_;
-    if (name == "leading")     return leading_ ? 1.0f : 0.0f;
-    if (name == "autoAdjust")  return autoAdjust_ ? 1.0f : 0.0f;
-    return 0.0f;
-  }
+  // The evolution is rebuilt from its settings, which restarts its draw stream.
+  void on_setting_changed(std::string_view) override { rebuild(); }
 
   // Not an audio source — exists for graph wiring only
-  void prepare(const RenderContext&, int) override {}
   float next() override { return 0.0f; }
   float current() const override { return 0.0f; }
 
 private:
   void rebuild() {
-    evo_ = AveragingEvolution(sampleCount_, speed_, decayFactor_, leading_, autoAdjust_, seed_);
+    evo_ = AveragingEvolution(sampleCount.value, speed.value, decayFactor.value,
+                              leading.value, autoAdjust.value, seed_);
   }
 
   AveragingEvolution evo_;
   uint32_t seed_;
-  float sampleCount_{4.0f};
-  float speed_{1.0f};
-  float decayFactor_{0.999f};
-  bool  leading_{false};
-  bool  autoAdjust_{false};
 };
 
 // ---------------------------------------------------------------------------
 // EKSEvolutionSource — graph node holding an EKSEvolution.
 // ---------------------------------------------------------------------------
 struct EKSEvolutionSource final : ValueSource, IEvolutionHolder {
+  Setting<float> pickPosition {this, "pickPosition",  0.0f, 0.0f, 1.0f};
+  Setting<float> pickDirection{this, "pickDirection", 0.0f, 0.0f, 0.95f};
+  Setting<float> stiffness    {this, "stiffness",     0.0f, 0.0f, 0.1f};
+  Setting<float> decayStretch {this, "decayStretch",  0.5f, 0.0f, 1.0f};
+  Setting<float> drumBlend    {this, "drumBlend",     1.0f, 0.0f, 1.0f};
+
   explicit EKSEvolutionSource(uint32_t seed = 0xEE45'0000u)
-  : evo_(seed) {}
+  : evo_(seed, pickPosition, pickDirection, stiffness, decayStretch, drumBlend) {}
 
   const char* type_name() const override { return "EKSEvolution"; }
   SourceCategory category() const override { return SourceCategory::Combiner; }
 
   WaveEvolution* get_evolution() override { return &evo_; }
 
-  std::span<const SettingDescriptor> setting_descriptors() const override {
-    static constexpr SettingDescriptor descs[] = {
-      {"pickPosition",  SettingType::Float, 0.0f, 0.0f, 1.0f},
-      {"pickDirection", SettingType::Float, 0.0f, 0.0f, 0.95f},
-      {"stiffness",     SettingType::Float, 0.0f, 0.0f, 0.1f},
-      {"decayStretch",  SettingType::Float, 0.5f, 0.0f, 1.0f},
-      {"drumBlend",     SettingType::Float, 1.0f, 0.0f, 1.0f},
-    };
-    return descs;
-  }
-
-  void set_setting(std::string_view name, float value) override {
-    if (name == "pickPosition")  evo_.pickPosition = value;
-    else if (name == "pickDirection") evo_.pickDirection = value;
-    else if (name == "stiffness")     evo_.stiffness = value;
-    else if (name == "decayStretch")  evo_.decayStretch = value;
-    else if (name == "drumBlend")     evo_.drumBlend = value;
-  }
-
-  float get_setting(std::string_view name) const override {
-    if (name == "pickPosition")  return evo_.pickPosition;
-    if (name == "pickDirection") return evo_.pickDirection;
-    if (name == "stiffness")     return evo_.stiffness;
-    if (name == "decayStretch")  return evo_.decayStretch;
-    if (name == "drumBlend")     return evo_.drumBlend;
-    return 0.0f;
-  }
-
-  void prepare(const RenderContext&, int) override {}
+  // Not an audio source — exists for graph wiring only
   float next() override { return 0.0f; }
   float current() const override { return 0.0f; }
 
@@ -747,243 +716,94 @@ private:
 // ReedEvolutionSource — graph node holding a ReedEvolution.
 // ---------------------------------------------------------------------------
 struct ReedEvolutionSource final : ValueSource, IEvolutionHolder {
+  // The two pins are advanced by the evolution, once per evolve(), so they are
+  // Manual; this node prepares them.
+  Param reedStiffness{this, "reedStiffness", 1.5f, 0.0f, 8.0f, "exp", Pull::Manual};
+  Input breath       {this, "breath", Input::Optional, "0-1", false, Pull::Manual};
+  Setting<float> tubeLoss  {this, "tubeLoss",   0.02f, 0.0f,  0.5f};
+  Setting<float> loopFilter{this, "loopFilter", 0.5f,  0.05f, 1.0f};
+
   explicit ReedEvolutionSource(uint32_t seed = 0xBEED'BEEDu)
-  : evo_(seed)
-  , reedStiffnessSrc_(std::make_shared<ConstantSource>(1.5f)) {
-    evo_.reedStiffness = reedStiffnessSrc_.get();
-  }
+  : evo_(seed, tubeLoss, loopFilter, reedStiffness, breath) {}
 
   const char* type_name() const override { return "ReedEvolution"; }
   SourceCategory category() const override { return SourceCategory::Combiner; }
 
   WaveEvolution* get_evolution() override { return &evo_; }
 
-  std::span<const ParamDescriptor> param_descriptors() const override {
-    static constexpr ParamDescriptor descs[] = {
-      {"reedStiffness", 1.5f, 0.0f, 8.0f, "exp"},
-    };
-    return descs;
-  }
-
-  std::span<const InputDescriptor> input_descriptors() const override {
-    static constexpr InputDescriptor descs[] = {
-      {"breath", false, "0-1"},
-    };
-    return descs;
-  }
-
-  void set_param(std::string_view name, std::shared_ptr<ValueSource> src) override {
-    if (name == "breath") {
-      breathSrc_ = std::move(src);
-      evo_.breath = breathSrc_.get();
-    } else if (name == "reedStiffness") {
-      reedStiffnessSrc_ = std::move(src);
-      evo_.reedStiffness = reedStiffnessSrc_.get();
-    }
-  }
-
-  std::shared_ptr<ValueSource> get_param(std::string_view name) const override {
-    if (name == "breath") return breathSrc_;
-    if (name == "reedStiffness") return reedStiffnessSrc_;
-    return {};
-  }
-
-  std::span<const SettingDescriptor> setting_descriptors() const override {
-    static constexpr SettingDescriptor descs[] = {
-      {"tubeLoss",   SettingType::Float, 0.02f, 0.0f, 0.5f},
-      {"loopFilter", SettingType::Float, 0.5f,  0.05f, 1.0f},
-    };
-    return descs;
-  }
-
-  void set_setting(std::string_view name, float value) override {
-    if (name == "tubeLoss")        evo_.tubeLoss = value;
-    else if (name == "loopFilter") evo_.loopFilter = value;
-  }
-
-  float get_setting(std::string_view name) const override {
-    if (name == "tubeLoss")   return evo_.tubeLoss;
-    if (name == "loopFilter") return evo_.loopFilter;
-    return 0.0f;
-  }
-
-  void prepare(const RenderContext& ctx, int frames) override {
-    if (breathSrc_) breathSrc_->prepare(ctx, frames);
-    if (reedStiffnessSrc_) reedStiffnessSrc_->prepare(ctx, frames);
+  void on_prepare(const RenderContext& ctx, int frames) override {
+    if (breath.source) breath.source->prepare(ctx, frames);
+    if (reedStiffness.source) reedStiffness.source->prepare(ctx, frames);
   }
   float next() override { return 0.0f; }
   float current() const override { return 0.0f; }
 
 private:
   ReedEvolution evo_;
-  std::shared_ptr<ValueSource> breathSrc_;
-  std::shared_ptr<ValueSource> reedStiffnessSrc_;
 };
 
 // ---------------------------------------------------------------------------
 // BowedStringEvolutionSource — graph node holding a BowedStringEvolution.
 // ---------------------------------------------------------------------------
 struct BowedStringEvolutionSource final : ValueSource, IEvolutionHolder {
-  explicit BowedStringEvolutionSource(uint32_t seed = 0xB0ED'0000u)
-  : evo_(seed)
-  , frictionGainSrc_(std::make_shared<ConstantSource>(4.0f)) {
-    evo_.frictionGain = frictionGainSrc_.get();
-  }
+  // The two pins are advanced by the evolution, once per evolve(), so they are
+  // Manual; this node prepares them.
+  Input bow         {this, "bow", Input::Optional, "0-1", false, Pull::Manual};
+  Param frictionGain{this, "frictionGain", 4.0f, 0.0f, 20.0f, "gain", Pull::Manual};
+  Setting<float> tubeLoss   {this, "tubeLoss",    0.005f, 0.0f,  0.5f};
+  Setting<float> bowSpeed   {this, "bowSpeed",    0.3f,   0.01f, 1.0f};
+  Setting<float> bowPosition{this, "bowPosition", 0.14f,  0.02f, 0.5f};
+  Setting<float> brightness {this, "brightness",  1.0f,   0.05f, 1.0f};
+
+  explicit BowedStringEvolutionSource(uint32_t /*seed*/ = 0xB0ED'0000u)
+  : evo_(tubeLoss, bowSpeed, bowPosition, brightness, bow, frictionGain) {}
 
   const char* type_name() const override { return "BowedStringEvolution"; }
   SourceCategory category() const override { return SourceCategory::Combiner; }
 
   WaveEvolution* get_evolution() override { return &evo_; }
 
-  std::span<const ParamDescriptor> param_descriptors() const override {
-    static constexpr ParamDescriptor descs[] = {
-      {"frictionGain", 4.0f, 0.0f, 20.0f, "gain"},
-    };
-    return descs;
-  }
-
-  std::span<const InputDescriptor> input_descriptors() const override {
-    static constexpr InputDescriptor descs[] = {
-      {"bow", false, "0-1"},
-    };
-    return descs;
-  }
-
-  void set_param(std::string_view name, std::shared_ptr<ValueSource> src) override {
-    if (name == "bow") {
-      bowSrc_ = std::move(src);
-      evo_.bow = bowSrc_.get();
-    } else if (name == "frictionGain") {
-      frictionGainSrc_ = std::move(src);
-      evo_.frictionGain = frictionGainSrc_.get();
-    }
-  }
-
-  std::shared_ptr<ValueSource> get_param(std::string_view name) const override {
-    if (name == "bow") return bowSrc_;
-    if (name == "frictionGain") return frictionGainSrc_;
-    return {};
-  }
-
-  std::span<const SettingDescriptor> setting_descriptors() const override {
-    static constexpr SettingDescriptor descs[] = {
-      {"tubeLoss",    SettingType::Float, 0.005f, 0.0f,  0.5f},
-      {"bowSpeed",    SettingType::Float, 0.3f,   0.01f, 1.0f},
-      {"bowPosition", SettingType::Float, 0.14f,  0.02f, 0.5f},
-      {"brightness",  SettingType::Float, 1.0f,   0.05f, 1.0f},
-    };
-    return descs;
-  }
-
-  void set_setting(std::string_view name, float value) override {
-    if (name == "tubeLoss")         evo_.tubeLoss = value;
-    else if (name == "bowSpeed")    evo_.bowSpeed = value;
-    else if (name == "bowPosition") evo_.bowPosition = value;
-    else if (name == "brightness")  evo_.brightness = value;
-  }
-
-  float get_setting(std::string_view name) const override {
-    if (name == "tubeLoss")    return evo_.tubeLoss;
-    if (name == "bowSpeed")    return evo_.bowSpeed;
-    if (name == "bowPosition") return evo_.bowPosition;
-    if (name == "brightness")  return evo_.brightness;
-    return 0.0f;
-  }
-
-  void prepare(const RenderContext& ctx, int frames) override {
-    if (bowSrc_) bowSrc_->prepare(ctx, frames);
-    if (frictionGainSrc_) frictionGainSrc_->prepare(ctx, frames);
+  void on_prepare(const RenderContext& ctx, int frames) override {
+    if (bow.source) bow.source->prepare(ctx, frames);
+    if (frictionGain.source) frictionGain.source->prepare(ctx, frames);
   }
   float next() override { return 0.0f; }
   float current() const override { return 0.0f; }
 
 private:
   BowedStringEvolution evo_;
-  std::shared_ptr<ValueSource> bowSrc_;
-  std::shared_ptr<ValueSource> frictionGainSrc_;
 };
 
 // ---------------------------------------------------------------------------
 // BrassEvolutionSource — graph node holding a BrassEvolution.
 // ---------------------------------------------------------------------------
 struct BrassEvolutionSource final : ValueSource, IEvolutionHolder {
+  // The two pins are advanced by the evolution, once per evolve(), so they are
+  // Manual; this node prepares them.
+  Param brassiness{this, "brassiness", 1.5f, 0.0f, 10.0f, "exp", Pull::Manual};
+  Input breath    {this, "breath", Input::Optional, "0-1", false, Pull::Manual};
+  Setting<float> tubeLoss    {this, "tubeLoss",     0.01f, 0.0f, 0.5f};
+  Setting<float> lipTension  {this, "lipTension",   0.92f, 0.0f, 0.99f};
+  Setting<float> lipFreqRatio{this, "lipFreqRatio", 1.2f,  0.5f, 4.0f};
+  Setting<float> lipQ        {this, "lipQ",         3.0f,  0.5f, 15.0f};
+
   explicit BrassEvolutionSource(uint32_t seed = 0xB8A5'5000u)
-  : evo_(seed)
-  , brassinessSrc_(std::make_shared<ConstantSource>(1.5f)) {
-    evo_.brassiness = brassinessSrc_.get();
-  }
+  : evo_(seed, tubeLoss, lipTension, lipFreqRatio, lipQ, brassiness, breath) {}
 
   const char* type_name() const override { return "BrassEvolution"; }
   SourceCategory category() const override { return SourceCategory::Combiner; }
 
   WaveEvolution* get_evolution() override { return &evo_; }
 
-  std::span<const ParamDescriptor> param_descriptors() const override {
-    static constexpr ParamDescriptor descs[] = {
-      {"brassiness", 1.5f, 0.0f, 10.0f, "exp"},
-    };
-    return descs;
-  }
-
-  std::span<const InputDescriptor> input_descriptors() const override {
-    static constexpr InputDescriptor descs[] = {
-      {"breath", false, "0-1"},
-    };
-    return descs;
-  }
-
-  void set_param(std::string_view name, std::shared_ptr<ValueSource> src) override {
-    if (name == "breath") {
-      breathSrc_ = std::move(src);
-      evo_.breath = breathSrc_.get();
-    } else if (name == "brassiness") {
-      brassinessSrc_ = std::move(src);
-      evo_.brassiness = brassinessSrc_.get();
-    }
-  }
-
-  std::shared_ptr<ValueSource> get_param(std::string_view name) const override {
-    if (name == "breath") return breathSrc_;
-    if (name == "brassiness") return brassinessSrc_;
-    return {};
-  }
-
-  std::span<const SettingDescriptor> setting_descriptors() const override {
-    static constexpr SettingDescriptor descs[] = {
-      {"tubeLoss",     SettingType::Float, 0.01f, 0.0f,  0.5f},
-      {"lipTension",   SettingType::Float, 0.92f, 0.0f,  0.99f},
-      {"lipFreqRatio", SettingType::Float, 1.2f,  0.5f,  4.0f},
-      {"lipQ",         SettingType::Float, 3.0f,  0.5f,  15.0f},
-    };
-    return descs;
-  }
-
-  void set_setting(std::string_view name, float value) override {
-    if (name == "tubeLoss")          evo_.tubeLoss = value;
-    else if (name == "lipTension")   evo_.lipTension = value;
-    else if (name == "lipFreqRatio") evo_.lipFreqRatio = value;
-    else if (name == "lipQ")         evo_.lipQ = value;
-  }
-
-  float get_setting(std::string_view name) const override {
-    if (name == "tubeLoss")     return evo_.tubeLoss;
-    if (name == "lipTension")   return evo_.lipTension;
-    if (name == "lipFreqRatio") return evo_.lipFreqRatio;
-    if (name == "lipQ")         return evo_.lipQ;
-    return 0.0f;
-  }
-
-  void prepare(const RenderContext& ctx, int frames) override {
-    if (breathSrc_) breathSrc_->prepare(ctx, frames);
-    if (brassinessSrc_) brassinessSrc_->prepare(ctx, frames);
+  void on_prepare(const RenderContext& ctx, int frames) override {
+    if (breath.source) breath.source->prepare(ctx, frames);
+    if (brassiness.source) brassiness.source->prepare(ctx, frames);
   }
   float next() override { return 0.0f; }
   float current() const override { return 0.0f; }
 
 private:
   BrassEvolution evo_;
-  std::shared_ptr<ValueSource> breathSrc_;
-  std::shared_ptr<ValueSource> brassinessSrc_;
 };
 
 // ===========================================================================
@@ -1004,12 +824,18 @@ private:
 // dynamics behave like proper synchronous RD rather than a propagating wave.
 // ---------------------------------------------------------------------------
 struct ReactionDiffusionEvolution final : WaveEvolution {
-  float feed{0.0367f};       // canonical "mitosis": 0.0367 / 0.0649
-  float kill{0.0649f};
-  float diffU{0.16f};
-  float diffV{0.08f};
-  float dt{1.0f};            // integration step
-  int   subSteps{1};         // RD iterations per audio sample (>=1)
+  ReactionDiffusionEvolution(const Setting<float>& feed, const Setting<float>& kill,
+                             const Setting<float>& diffU, const Setting<float>& diffV,
+                             const Setting<float>& dt, const Setting<int>& subSteps)
+  : feed(feed), kill(kill), diffU(diffU), diffV(diffV), dt(dt), subSteps(subSteps) {}
+
+  // The settings of the holder node that owns this evolution, read as they stand.
+  const Setting<float>& feed;     // canonical "mitosis": 0.0367 / 0.0649
+  const Setting<float>& kill;
+  const Setting<float>& diffU;
+  const Setting<float>& diffV;
+  const Setting<float>& dt;       // integration step
+  const Setting<int>&   subSteps; // RD iterations per audio sample (>=1)
 
   float adjust(float /*frequency*/) override { return 0.0f; }
 
@@ -1042,12 +868,12 @@ struct ReactionDiffusionEvolution final : WaveEvolution {
 
     float u = u_[index];
     float v = v_[index];
-    for (int s = 0; s < subSteps; ++s) {
+    for (int s = 0; s < subSteps.value; ++s) {
       const float lapU = uPrev_[im] - 2.0f * u + uPrev_[ip];
       const float lapV = vPrev_[im] - 2.0f * v + vPrev_[ip];
       const float uvv  = u * v * v;
-      u += dt * (diffU * lapU - uvv + feed * (1.0f - u));
-      v += dt * (diffV * lapV + uvv - (feed + kill) * v);
+      u += dt.value * (diffU.value * lapU - uvv + feed.value * (1.0f - u));
+      v += dt.value * (diffV.value * lapV + uvv - (feed.value + kill.value) * v);
     }
     u = std::clamp(u, 0.0f, 1.0f);
     v = std::clamp(v, 0.0f, 1.0f);
@@ -1068,45 +894,26 @@ private:
 };
 
 struct ReactionDiffusionEvolutionSource final : ValueSource, IEvolutionHolder {
-  explicit ReactionDiffusionEvolutionSource(uint32_t /*seed*/ = 0u) {}
+  Setting<float> feed    {this, "feed",     0.0367f, 0.0f,  0.1f};
+  Setting<float> kill    {this, "kill",     0.0649f, 0.0f,  0.1f};
+  Setting<float> diffU   {this, "diffU",    0.16f,   0.0f,  1.0f};
+  Setting<float> diffV   {this, "diffV",    0.08f,   0.0f,  1.0f};
+  Setting<float> dt      {this, "dt",       1.0f,    0.05f, 2.0f};
+  Setting<int>   subSteps{this, "subSteps", 1,       1,     8};
+
+  explicit ReactionDiffusionEvolutionSource(uint32_t /*seed*/ = 0u)
+  : evo_(feed, kill, diffU, diffV, dt, subSteps) {}
 
   const char* type_name() const override { return "ReactionDiffusionEvolution"; }
   SourceCategory category() const override { return SourceCategory::Combiner; }
 
   WaveEvolution* get_evolution() override { return &evo_; }
 
-  std::span<const SettingDescriptor> setting_descriptors() const override {
-    static constexpr SettingDescriptor descs[] = {
-      {"feed",     SettingType::Float, 0.0367f, 0.0f,  0.1f},
-      {"kill",     SettingType::Float, 0.0649f, 0.0f,  0.1f},
-      {"diffU",    SettingType::Float, 0.16f,   0.0f,  1.0f},
-      {"diffV",    SettingType::Float, 0.08f,   0.0f,  1.0f},
-      {"dt",       SettingType::Float, 1.0f,    0.05f, 2.0f},
-      {"subSteps", SettingType::Int,   1.0f,    1.0f,  8.0f},
-    };
-    return descs;
+  void on_setting_changed(std::string_view name) override {
+    if (name == "subSteps") subSteps.value = std::max(1, subSteps.value);
   }
 
-  void set_setting(std::string_view name, float value) override {
-    if (name == "feed")          evo_.feed = value;
-    else if (name == "kill")     evo_.kill = value;
-    else if (name == "diffU")    evo_.diffU = value;
-    else if (name == "diffV")    evo_.diffV = value;
-    else if (name == "dt")       evo_.dt = value;
-    else if (name == "subSteps") evo_.subSteps = std::max(1, int(value));
-  }
-
-  float get_setting(std::string_view name) const override {
-    if (name == "feed")     return evo_.feed;
-    if (name == "kill")     return evo_.kill;
-    if (name == "diffU")    return evo_.diffU;
-    if (name == "diffV")    return evo_.diffV;
-    if (name == "dt")       return evo_.dt;
-    if (name == "subSteps") return float(evo_.subSteps);
-    return 0.0f;
-  }
-
-  void prepare(const RenderContext&, int) override {}
+  // Not an audio source — exists for graph wiring only
   float next() override { return 0.0f; }
   float current() const override { return 0.0f; }
 
@@ -1121,8 +928,12 @@ private:
 // `descending` flips the sort direction.
 // ---------------------------------------------------------------------------
 struct SortErosionEvolution final : WaveEvolution {
-  int  swapsPerSample{4};
-  bool descending{false};
+  SortErosionEvolution(const Setting<int>& swapsPerSample, const Setting<bool>& descending)
+  : swapsPerSample(swapsPerSample), descending(descending) {}
+
+  // The settings of the holder node that owns this evolution, read as they stand.
+  const Setting<int>&  swapsPerSample;
+  const Setting<bool>& descending;
 
   float adjust(float /*frequency*/) override {
     pos_ = 0;
@@ -1132,11 +943,11 @@ struct SortErosionEvolution final : WaveEvolution {
   void evolve(std::vector<float>& values, int index) override {
     const int len = int(values.size());
     if (len < 2) return;
-    for (int s = 0; s < swapsPerSample; ++s) {
+    for (int s = 0; s < swapsPerSample.value; ++s) {
       const int a = pos_;
       const int b = (pos_ + 1) % len;
       const bool out_of_order =
-        descending ? (values[a] < values[b]) : (values[a] > values[b]);
+        descending.value ? (values[a] < values[b]) : (values[a] > values[b]);
       if (out_of_order) std::swap(values[a], values[b]);
       pos_ = (pos_ + 1) % len;
     }
@@ -1148,33 +959,22 @@ private:
 };
 
 struct SortErosionEvolutionSource final : ValueSource, IEvolutionHolder {
-  explicit SortErosionEvolutionSource(uint32_t /*seed*/ = 0u) {}
+  Setting<int>  swapsPerSample{this, "swapsPerSample", 4, 1, 32};
+  Setting<bool> descending    {this, "descending", false, false, true};
+
+  explicit SortErosionEvolutionSource(uint32_t /*seed*/ = 0u)
+  : evo_(swapsPerSample, descending) {}
 
   const char* type_name() const override { return "SortErosionEvolution"; }
   SourceCategory category() const override { return SourceCategory::Combiner; }
 
   WaveEvolution* get_evolution() override { return &evo_; }
 
-  std::span<const SettingDescriptor> setting_descriptors() const override {
-    static constexpr SettingDescriptor descs[] = {
-      {"swapsPerSample", SettingType::Int,  4.0f, 1.0f, 32.0f},
-      {"descending",     SettingType::Bool, 0.0f, 0.0f, 1.0f},
-    };
-    return descs;
+  void on_setting_changed(std::string_view name) override {
+    if (name == "swapsPerSample") swapsPerSample.value = std::max(1, swapsPerSample.value);
   }
 
-  void set_setting(std::string_view name, float value) override {
-    if (name == "swapsPerSample") evo_.swapsPerSample = std::max(1, int(value));
-    else if (name == "descending") evo_.descending = (value != 0.0f);
-  }
-
-  float get_setting(std::string_view name) const override {
-    if (name == "swapsPerSample") return float(evo_.swapsPerSample);
-    if (name == "descending")     return evo_.descending ? 1.0f : 0.0f;
-    return 0.0f;
-  }
-
-  void prepare(const RenderContext&, int) override {}
+  // Not an audio source — exists for graph wiring only
   float next() override { return 0.0f; }
   float current() const override { return 0.0f; }
 
@@ -1190,11 +990,17 @@ private:
 // 30 (chaotic), 90 (Sierpinski), 110 (edge-of-chaos), 184 (traffic).
 // ---------------------------------------------------------------------------
 struct CellularAutomatonEvolution final : WaveEvolution {
-  int   rule{110};
-  float threshold{0.0f};   // discretization threshold (sample > threshold → 1)
-  float levelHi{0.8f};
-  float levelLo{-0.8f};
-  int   stepEvery{8};      // do one CA step every Nth sample (slow tempo)
+  CellularAutomatonEvolution(const Setting<int>& rule, const Setting<float>& threshold,
+                             const Setting<float>& levelHi, const Setting<float>& levelLo,
+                             const Setting<int>& stepEvery)
+  : rule(rule), threshold(threshold), levelHi(levelHi), levelLo(levelLo), stepEvery(stepEvery) {}
+
+  // The settings of the holder node that owns this evolution, read as they stand.
+  const Setting<int>&   rule;
+  const Setting<float>& threshold;   // discretization threshold (sample > threshold → 1)
+  const Setting<float>& levelHi;
+  const Setting<float>& levelLo;
+  const Setting<int>&   stepEvery;   // do one CA step every Nth sample (slow tempo)
 
   float adjust(float /*frequency*/) override {
     sampleCtr_ = 0;
@@ -1205,7 +1011,7 @@ struct CellularAutomatonEvolution final : WaveEvolution {
     const int len = int(values.size());
     state_.assign(len, 0);
     snapshot_.assign(len, 0);
-    for (int i = 0; i < len; ++i) state_[i] = (values[i] > threshold) ? 1 : 0;
+    for (int i = 0; i < len; ++i) state_[i] = (values[i] > threshold.value) ? 1 : 0;
   }
 
   void evolve(std::vector<float>& values, int index) override {
@@ -1215,7 +1021,7 @@ struct CellularAutomatonEvolution final : WaveEvolution {
     if (state_.size() != size_t(len)) {
       state_.assign(len, 0);
       snapshot_.assign(len, 0);
-      for (int i = 0; i < len; ++i) state_[i] = (values[i] > threshold) ? 1 : 0;
+      for (int i = 0; i < len; ++i) state_[i] = (values[i] > threshold.value) ? 1 : 0;
     }
 
     // Snapshot at cycle boundary so neighbours are read from the
@@ -1226,14 +1032,14 @@ struct CellularAutomatonEvolution final : WaveEvolution {
 
     // Tempo control: only do CA work every Nth sample.
     sampleCtr_++;
-    if (sampleCtr_ >= stepEvery) {
+    if (sampleCtr_ >= stepEvery.value) {
       sampleCtr_ = 0;
       const int im = (index - 1 + len) % len;
       const int ip = (index + 1) % len;
       const uint8_t pat = uint8_t((snapshot_[im] << 2) | (snapshot_[index] << 1) | snapshot_[ip]);
-      state_[index] = uint8_t((rule >> pat) & 1u);
+      state_[index] = uint8_t((rule.value >> pat) & 1u);
     }
-    values[index] = state_[index] ? levelHi : levelLo;
+    values[index] = state_[index] ? levelHi.value : levelLo.value;
   }
 
 private:
@@ -1243,42 +1049,26 @@ private:
 };
 
 struct CellularAutomatonEvolutionSource final : ValueSource, IEvolutionHolder {
-  explicit CellularAutomatonEvolutionSource(uint32_t /*seed*/ = 0u) {}
+  Setting<int>   rule     {this, "rule",      110,   0,     255};
+  Setting<float> threshold{this, "threshold", 0.0f,  -1.0f, 1.0f};
+  Setting<float> levelHi  {this, "levelHi",   0.8f,  0.0f,  1.0f};
+  Setting<float> levelLo  {this, "levelLo",   -0.8f, -1.0f, 0.0f};
+  Setting<int>   stepEvery{this, "stepEvery", 8,     1,     256};
+
+  explicit CellularAutomatonEvolutionSource(uint32_t /*seed*/ = 0u)
+  : evo_(rule, threshold, levelHi, levelLo, stepEvery) {}
 
   const char* type_name() const override { return "CellularAutomatonEvolution"; }
   SourceCategory category() const override { return SourceCategory::Combiner; }
 
   WaveEvolution* get_evolution() override { return &evo_; }
 
-  std::span<const SettingDescriptor> setting_descriptors() const override {
-    static constexpr SettingDescriptor descs[] = {
-      {"rule",       SettingType::Int,   110.0f, 0.0f,  255.0f},
-      {"threshold",  SettingType::Float, 0.0f,  -1.0f,  1.0f},
-      {"levelHi",    SettingType::Float, 0.8f,   0.0f,  1.0f},
-      {"levelLo",    SettingType::Float,-0.8f,  -1.0f,  0.0f},
-      {"stepEvery",  SettingType::Int,   8.0f,   1.0f,  256.0f},
-    };
-    return descs;
+  void on_setting_changed(std::string_view name) override {
+    if (name == "rule")           rule.value = std::clamp(rule.value, 0, 255);
+    else if (name == "stepEvery") stepEvery.value = std::max(1, stepEvery.value);
   }
 
-  void set_setting(std::string_view name, float value) override {
-    if (name == "rule")            evo_.rule = std::clamp(int(value), 0, 255);
-    else if (name == "threshold")  evo_.threshold = value;
-    else if (name == "levelHi")    evo_.levelHi = value;
-    else if (name == "levelLo")    evo_.levelLo = value;
-    else if (name == "stepEvery")  evo_.stepEvery = std::max(1, int(value));
-  }
-
-  float get_setting(std::string_view name) const override {
-    if (name == "rule")       return float(evo_.rule);
-    if (name == "threshold")  return evo_.threshold;
-    if (name == "levelHi")    return evo_.levelHi;
-    if (name == "levelLo")    return evo_.levelLo;
-    if (name == "stepEvery")  return float(evo_.stepEvery);
-    return 0.0f;
-  }
-
-  void prepare(const RenderContext&, int) override {}
+  // Not an audio source — exists for graph wiring only
   float next() override { return 0.0f; }
   float current() const override { return 0.0f; }
 
@@ -1294,17 +1084,21 @@ private:
 // noise → roughly uniformly distributed waveform.
 // ---------------------------------------------------------------------------
 struct HistogramEqualizeEvolution final : WaveEvolution {
-  int   bins{64};
-  float rate{0.00005f};
+  HistogramEqualizeEvolution(const Setting<int>& bins, const Setting<float>& rate)
+  : bins(bins), rate(rate) {}
+
+  // The settings of the holder node that owns this evolution, read as they stand.
+  const Setting<int>&   bins;
+  const Setting<float>& rate;
 
   float adjust(float /*frequency*/) override {
-    cdf_.assign(std::max(2, bins), 0.0f);
+    cdf_.assign(std::max(2, bins.value), 0.0f);
     return 0.0f;
   }
 
   void evolve(std::vector<float>& values, int index) override {
     const int len = int(values.size());
-    if (len < 2 || bins < 2) return;
+    if (len < 2 || bins.value < 2) return;
 
     // Rebuild CDF at the start of each cycle.
     if (index == 0) rebuild_cdf(values);
@@ -1312,24 +1106,24 @@ struct HistogramEqualizeEvolution final : WaveEvolution {
     // Map current sample value to a bin and look up its CDF target.
     const int b = sample_to_bin(values[index]);
     const float target = cdf_[b] * 2.0f - 1.0f;
-    values[index] += rate * (target - values[index]);
+    values[index] += rate.value * (target - values[index]);
   }
 
 private:
   int sample_to_bin(float v) const {
     const float t = (std::clamp(v, -1.0f, 1.0f) + 1.0f) * 0.5f; // 0..1
-    int b = int(t * float(bins));
-    if (b >= bins) b = bins - 1;
+    int b = int(t * float(bins.value));
+    if (b >= bins.value) b = bins.value - 1;
     return b;
   }
 
   void rebuild_cdf(const std::vector<float>& values) {
-    if (int(cdf_.size()) != bins) cdf_.assign(bins, 0.0f);
-    std::vector<int> counts(bins, 0);
+    if (int(cdf_.size()) != bins.value) cdf_.assign(bins.value, 0.0f);
+    std::vector<int> counts(bins.value, 0);
     for (float v : values) counts[sample_to_bin(v)]++;
     const float invN = 1.0f / float(values.size());
     float running = 0.0f;
-    for (int i = 0; i < bins; ++i) {
+    for (int i = 0; i < bins.value; ++i) {
       running += float(counts[i]) * invN;
       cdf_[i] = running;
     }
@@ -1339,33 +1133,22 @@ private:
 };
 
 struct HistogramEqualizeEvolutionSource final : ValueSource, IEvolutionHolder {
-  explicit HistogramEqualizeEvolutionSource(uint32_t /*seed*/ = 0u) {}
+  Setting<int>   bins{this, "bins", 64,       4,    256};
+  Setting<float> rate{this, "rate", 0.00005f, 0.0f, 0.1f};
+
+  explicit HistogramEqualizeEvolutionSource(uint32_t /*seed*/ = 0u)
+  : evo_(bins, rate) {}
 
   const char* type_name() const override { return "HistogramEqualizeEvolution"; }
   SourceCategory category() const override { return SourceCategory::Combiner; }
 
   WaveEvolution* get_evolution() override { return &evo_; }
 
-  std::span<const SettingDescriptor> setting_descriptors() const override {
-    static constexpr SettingDescriptor descs[] = {
-      {"bins", SettingType::Int,   64.0f,    4.0f,   256.0f},
-      {"rate", SettingType::Float, 0.00005f, 0.0f,   0.1f},
-    };
-    return descs;
+  void on_setting_changed(std::string_view name) override {
+    if (name == "bins") bins.value = std::clamp(bins.value, 4, 256);
   }
 
-  void set_setting(std::string_view name, float value) override {
-    if (name == "bins")      evo_.bins = std::clamp(int(value), 4, 256);
-    else if (name == "rate") evo_.rate = value;
-  }
-
-  float get_setting(std::string_view name) const override {
-    if (name == "bins") return float(evo_.bins);
-    if (name == "rate") return evo_.rate;
-    return 0.0f;
-  }
-
-  void prepare(const RenderContext&, int) override {}
+  // Not an audio source — exists for graph wiring only
   float next() override { return 0.0f; }
   float current() const override { return 0.0f; }
 
@@ -1380,11 +1163,16 @@ private:
 // toward its target by `rate`. Endpoint: the table becomes the Bezier shape.
 // ---------------------------------------------------------------------------
 struct BezierPullEvolution final : WaveEvolution {
-  float p0{-1.0f};
-  float p1{ 0.5f};
-  float p2{-0.5f};
-  float p3{ 1.0f};
-  float rate{0.00005f};
+  BezierPullEvolution(const Setting<float>& p0, const Setting<float>& p1, const Setting<float>& p2,
+                      const Setting<float>& p3, const Setting<float>& rate)
+  : p0(p0), p1(p1), p2(p2), p3(p3), rate(rate) {}
+
+  // The settings of the holder node that owns this evolution, read as they stand.
+  const Setting<float>& p0;
+  const Setting<float>& p1;
+  const Setting<float>& p2;
+  const Setting<float>& p3;
+  const Setting<float>& rate;
 
   float adjust(float /*frequency*/) override {
     needsRebuild_ = true;
@@ -1399,7 +1187,7 @@ struct BezierPullEvolution final : WaveEvolution {
     const int len = int(values.size());
     if (len < 2) return;
     if (needsRebuild_ || int(target_.size()) != len) rebuild_target(len);
-    values[index] += rate * (target_[index] - values[index]);
+    values[index] += rate.value * (target_[index] - values[index]);
   }
 
 private:
@@ -1408,7 +1196,7 @@ private:
     for (int i = 0; i < len; ++i) {
       const float t = float(i) / float(len);
       const float u = 1.0f - t;
-      target_[i] = u*u*u*p0 + 3.0f*u*u*t*p1 + 3.0f*u*t*t*p2 + t*t*t*p3;
+      target_[i] = u*u*u*p0.value + 3.0f*u*u*t*p1.value + 3.0f*u*t*t*p2.value + t*t*t*p3.value;
     }
     needsRebuild_ = false;
   }
@@ -1418,42 +1206,21 @@ private:
 };
 
 struct BezierPullEvolutionSource final : ValueSource, IEvolutionHolder {
-  explicit BezierPullEvolutionSource(uint32_t /*seed*/ = 0u) {}
+  Setting<float> p0  {this, "p0",   -1.0f,    -2.0f, 2.0f};
+  Setting<float> p1  {this, "p1",    0.5f,    -2.0f, 2.0f};
+  Setting<float> p2  {this, "p2",   -0.5f,    -2.0f, 2.0f};
+  Setting<float> p3  {this, "p3",    1.0f,    -2.0f, 2.0f};
+  Setting<float> rate{this, "rate",  0.00005f, 0.0f, 0.1f};
+
+  explicit BezierPullEvolutionSource(uint32_t /*seed*/ = 0u)
+  : evo_(p0, p1, p2, p3, rate) {}
 
   const char* type_name() const override { return "BezierPullEvolution"; }
   SourceCategory category() const override { return SourceCategory::Combiner; }
 
   WaveEvolution* get_evolution() override { return &evo_; }
 
-  std::span<const SettingDescriptor> setting_descriptors() const override {
-    static constexpr SettingDescriptor descs[] = {
-      {"p0",   SettingType::Float, -1.0f,    -2.0f, 2.0f},
-      {"p1",   SettingType::Float,  0.5f,    -2.0f, 2.0f},
-      {"p2",   SettingType::Float, -0.5f,    -2.0f, 2.0f},
-      {"p3",   SettingType::Float,  1.0f,    -2.0f, 2.0f},
-      {"rate", SettingType::Float,  0.00005f, 0.0f, 0.1f},
-    };
-    return descs;
-  }
-
-  void set_setting(std::string_view name, float value) override {
-    if (name == "p0") evo_.p0 = value;
-    else if (name == "p1") evo_.p1 = value;
-    else if (name == "p2") evo_.p2 = value;
-    else if (name == "p3") evo_.p3 = value;
-    else if (name == "rate") evo_.rate = value;
-  }
-
-  float get_setting(std::string_view name) const override {
-    if (name == "p0") return evo_.p0;
-    if (name == "p1") return evo_.p1;
-    if (name == "p2") return evo_.p2;
-    if (name == "p3") return evo_.p3;
-    if (name == "rate") return evo_.rate;
-    return 0.0f;
-  }
-
-  void prepare(const RenderContext&, int) override {}
+  // Not an audio source — exists for graph wiring only
   float next() override { return 0.0f; }
   float current() const override { return 0.0f; }
 
@@ -1469,10 +1236,14 @@ private:
 // scramble of the original — aliasing-laden, hard-edged.
 // ---------------------------------------------------------------------------
 struct BitRotateEvolution final : WaveEvolution {
-  // Pins, read every evolve() call (= once per output sample) so a wired
-  // envelope advances on the note's sample clock even between rotations.
-  ValueSource* shiftBits{nullptr};  // rotation depth, int 0..31
-  ValueSource* stepEvery{nullptr};  // samples between rotations, int >= 1
+  BitRotateEvolution(const Param& shiftBits, const Param& stepEvery)
+  : shiftBits(shiftBits), stepEvery(stepEvery) {}
+
+  // The holder node's Manual pins, advanced every evolve() call (= once per
+  // output sample, stepEvery first) so a wired envelope advances on the
+  // note's sample clock even between rotations.
+  const Param& shiftBits;  // rotation depth, int 0..31
+  const Param& stepEvery;  // samples between rotations, int >= 1
 
   float adjust(float /*frequency*/) override {
     ctr_ = 0;
@@ -1480,8 +1251,8 @@ struct BitRotateEvolution final : WaveEvolution {
   }
 
   void evolve(std::vector<float>& values, int index) override {
-    const int step = stepEvery ? std::max(1, int(stepEvery->advance())) : 4;
-    const int bits = shiftBits ? int(shiftBits->advance()) : 3;
+    const int step = std::max(1, int(stepEvery.source ? stepEvery.source->advance() : stepEvery.constant));
+    const int bits = int(shiftBits.source ? shiftBits.source->advance() : shiftBits.constant);
     ctr_++;
     if (ctr_ < step) return;
     ctr_ = 0;
@@ -1500,53 +1271,30 @@ private:
 };
 
 struct BitRotateEvolutionSource final : ValueSource, IEvolutionHolder {
+  // The two pins are advanced by the evolution, once per evolve() (stepEvery
+  // first), so they are Manual; this node prepares them. They are declared in
+  // the order the loader wires them, which decides which consumer of a shared
+  // source advances it and which reads it.
+  Param shiftBits{this, "shiftBits", 3.0f, 0.0f, 31.0f,  "int", Pull::Manual};
+  Param stepEvery{this, "stepEvery", 4.0f, 1.0f, 256.0f, "int", Pull::Manual};
+
   explicit BitRotateEvolutionSource(uint32_t /*seed*/ = 0u)
-  : shiftBitsSrc_(std::make_shared<ConstantSource>(3.0f))
-  , stepEverySrc_(std::make_shared<ConstantSource>(4.0f)) {
-    evo_.shiftBits = shiftBitsSrc_.get();
-    evo_.stepEvery = stepEverySrc_.get();
-  }
+  : evo_(shiftBits, stepEvery) {}
 
   const char* type_name() const override { return "BitRotateEvolution"; }
   SourceCategory category() const override { return SourceCategory::Combiner; }
 
   WaveEvolution* get_evolution() override { return &evo_; }
 
-  std::span<const ParamDescriptor> param_descriptors() const override {
-    static constexpr ParamDescriptor descs[] = {
-      {"shiftBits", 3.0f, 0.0f, 31.0f, "int"},
-      {"stepEvery", 4.0f, 1.0f, 256.0f, "int"},
-    };
-    return descs;
-  }
-
-  void set_param(std::string_view name, std::shared_ptr<ValueSource> src) override {
-    if (name == "shiftBits") {
-      shiftBitsSrc_ = std::move(src);
-      evo_.shiftBits = shiftBitsSrc_.get();
-    } else if (name == "stepEvery") {
-      stepEverySrc_ = std::move(src);
-      evo_.stepEvery = stepEverySrc_.get();
-    }
-  }
-
-  std::shared_ptr<ValueSource> get_param(std::string_view name) const override {
-    if (name == "shiftBits") return shiftBitsSrc_;
-    if (name == "stepEvery") return stepEverySrc_;
-    return {};
-  }
-
-  void prepare(const RenderContext& ctx, int frames) override {
-    if (shiftBitsSrc_) shiftBitsSrc_->prepare(ctx, frames);
-    if (stepEverySrc_) stepEverySrc_->prepare(ctx, frames);
+  void on_prepare(const RenderContext& ctx, int frames) override {
+    if (shiftBits.source) shiftBits.source->prepare(ctx, frames);
+    if (stepEvery.source) stepEvery.source->prepare(ctx, frames);
   }
   float next() override { return 0.0f; }
   float current() const override { return 0.0f; }
 
 private:
   BitRotateEvolution evo_;
-  std::shared_ptr<ValueSource> shiftBitsSrc_;
-  std::shared_ptr<ValueSource> stepEverySrc_;
 };
 
 } // namespace mforce

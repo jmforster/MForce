@@ -8,12 +8,13 @@ static constexpr float TAU = 2.0f * 3.14159265358979323846f;
 
 HybridKSSource::HybridKSSource(int sampleRate, uint32_t seed)
 : WaveSource(sampleRate)
-, inputSource_(std::make_shared<WhiteNoiseSource>(seed))
-, rng_(seed) {}
+, rng_(seed) {
+  inputSource.source = std::make_shared<WhiteNoiseSource>(seed);
+}
 
-void HybridKSSource::prepare(const RenderContext& ctx, int frames) {
-  WaveSource::prepare(ctx, frames);
-  if (inputSource_) inputSource_->prepare(ctx, frames);
+void HybridKSSource::on_prepare(const RenderContext& ctx, int frames) {
+  WaveSource::on_prepare(ctx, frames);
+  if (inputSource.source) inputSource.source->prepare(ctx, frames);
 
   table_.clear();
   tablePtr_ = -1;
@@ -22,11 +23,11 @@ void HybridKSSource::prepare(const RenderContext& ctx, int frames) {
   inAdditive_ = false;
   additiveSample_ = 0;
 
-  morphSamples_ = int(morphSeconds_ * float(sampleRate_));
+  morphSamples_ = int(morphDuration.value * float(sampleRate_));
 
   // Ensure target has enough entries
-  if (int(targetAmpl_.size()) < numPartials_)
-    targetAmpl_.resize(numPartials_, 0.0f);
+  if (int(targetAmpl_.size()) < numPartials.value)
+    targetAmpl_.resize(numPartials.value, 0.0f);
 }
 
 void HybridKSSource::fill_table() {
@@ -35,7 +36,7 @@ void HybridKSSource::fill_table() {
   table_.resize(len);
 
   for (int i = 0; i < len; ++i)
-    table_[i] = inputSource_->advance();
+    table_[i] = inputSource.source ? inputSource.source->advance() : 0.0f;
 
 }
 
@@ -49,11 +50,11 @@ void HybridKSSource::ks_evolve(int index) {
 void HybridKSSource::extract_partials() {
   // Per-harmonic DFT: extract amplitude and phase of each partial
   int N = int(table_.size());
-  partialAmpl_.resize(numPartials_);
-  partialPhase_.resize(numPartials_);
-  startAmpl_.resize(numPartials_);
+  partialAmpl_.resize(numPartials.value);
+  partialPhase_.resize(numPartials.value);
+  startAmpl_.resize(numPartials.value);
 
-  for (int k = 0; k < numPartials_; ++k) {
+  for (int k = 0; k < numPartials.value; ++k) {
     float re = 0.0f, im = 0.0f;
     int harmonic = k + 1;
 
@@ -67,18 +68,18 @@ void HybridKSSource::extract_partials() {
     im *= 2.0f / float(N);
 
     float ampl = std::sqrt(re * re + im * im);
-    float phase = std::atan2(im, re) / TAU; // normalize to [0,1) cycles
-    if (phase < 0.0f) phase += 1.0f;
+    float partial = std::atan2(im, re) / TAU; // normalize to [0,1) cycles
+    if (partial < 0.0f) partial += 1.0f;
 
     partialAmpl_[k] = ampl;
-    partialPhase_[k] = phase;
+    partialPhase_[k] = partial;
     startAmpl_[k] = ampl;
   }
 
   // Advance phases to account for current position in the cycle
   // (the DFT extracted phases at table start; we're at tablePtr_ in the cycle)
   float cyclePos = float(tablePtr_) / float(N);
-  for (int k = 0; k < numPartials_; ++k) {
+  for (int k = 0; k < numPartials.value; ++k) {
     partialPhase_[k] += cyclePos * float(k + 1);
     partialPhase_[k] -= std::floor(partialPhase_[k]);
   }
@@ -103,7 +104,7 @@ float HybridKSSource::compute_ks() {
     cycleCount_++;
 
     // Check if hold phase is over
-    if (cycleCount_ >= holdCycles_) {
+    if (cycleCount_ >= holdCycles.value) {
       // Debug: table energy before extraction
       float tblPeak = 0;
       for (float v : table_) if (std::fabs(v) > tblPeak) tblPeak = std::fabs(v);
@@ -113,7 +114,7 @@ float HybridKSSource::compute_ks() {
       additiveSample_ = 0;
 
       float maxA = 0;
-      for (int k = 0; k < numPartials_; ++k)
+      for (int k = 0; k < numPartials.value; ++k)
         if (partialAmpl_[k] > maxA) maxA = partialAmpl_[k];
     }
   }
@@ -129,7 +130,7 @@ float HybridKSSource::compute_additive() {
 
   float val = 0.0f;
 
-  for (int k = 0; k < numPartials_; ++k) {
+  for (int k = 0; k < numPartials.value; ++k) {
     // Amplitude: interpolate from extracted KS amplitude toward target
     float ampl = startAmpl_[k] + (targetAmpl_[k] - startAmpl_[k]) * t;
 

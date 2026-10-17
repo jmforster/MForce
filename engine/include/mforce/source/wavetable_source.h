@@ -13,74 +13,36 @@ namespace mforce {
 // Each sample: reads from table; if evolution is set, modifies table in-place.
 // With PluckEvolution this implements Karplus-Strong plucked string synthesis.
 struct WavetableSource final : WaveSource {
+  // After WaveSource's three. The wavetable advances speedFactor only in the
+  // interpolating read and inputSource only while it fills the table, and
+  // never advances `evolution`, so all three are Manual; this node prepares
+  // them. `evolution` is a structural input: the wire is type-checked in
+  // set_param, which keeps a typed pointer to the evolution it holds.
+  Param speedFactor{this, "speedFactor", 1.0f, 0.01f, 10.0f, "ratio", Pull::Manual};
+  Input inputSource{this, "inputSource", Input::Optional, nullptr, false, Pull::Manual};
+  Input evolution  {this, "evolution",   Input::Optional, nullptr, false, Pull::Manual};
+  Setting<bool> interpolate{this, "interpolate", false, false, true};
+
   explicit WavetableSource(int sampleRate, uint32_t inputSeed = 0xC0FFEEu);
 
-  void set_input_source(std::shared_ptr<ValueSource> src) { inputSource_ = std::move(src); }
   // Evolution via graph: wire an IEvolutionHolder node to the "evolution" input
   // Evolution via patch_loader: direct ownership for JSON-loaded patches
   void set_evolution(std::unique_ptr<WaveEvolution> evo) {
     ownedEvolution_ = std::move(evo);
     evolution_ = ownedEvolution_.get();
   }
-  void set_interpolate(bool interp) { interpolate_ = interp; }
-  void set_speed_factor(std::shared_ptr<ValueSource> sf) { speedFactor_ = std::move(sf); }
 
   const char* type_name() const override { return "WavetableSource"; }
 
-  std::span<const ParamDescriptor> param_descriptors() const override {
-    static constexpr ParamDescriptor descs[] = {
-      {"frequency",    440.0f, 0.01f, 20000.0f, "hz"},
-      {"amplitude",    1.0f,   0.0f,  10.0f,    "0-1"},
-      {"phase",        0.0f,  -1.0f,  1.0f,     "cycles"},
-      {"speedFactor",  1.0f,   0.01f, 10.0f,    "ratio"},
-    };
-    return descs;
-  }
-
-  std::span<const InputDescriptor> input_descriptors() const override {
-    static constexpr InputDescriptor descs[] = {
-      {"inputSource"},
-      {"evolution"},
-    };
-    return descs;
-  }
-
   void set_param(std::string_view name, std::shared_ptr<ValueSource> src) override {
-    if (name == "inputSource") { set_input_source(std::move(src)); return; }
-    if (name == "speedFactor") { set_speed_factor(std::move(src)); return; }
-    if (name == "evolution") {
-      evolutionSrc_ = std::move(src);
-      auto* holder = dynamic_cast<IEvolutionHolder*>(evolutionSrc_.get());
-      evolution_ = holder ? holder->get_evolution() : nullptr;
-      return;
-    }
     WaveSource::set_param(name, std::move(src));
+    if (name == "evolution") {
+      auto* holder = dynamic_cast<IEvolutionHolder*>(evolution.source.get());
+      evolution_ = holder ? holder->get_evolution() : nullptr;
+    }
   }
 
-  std::shared_ptr<ValueSource> get_param(std::string_view name) const override {
-    if (name == "inputSource") return inputSource_;
-    if (name == "speedFactor") return speedFactor_;
-    if (name == "evolution") return evolutionSrc_;
-    return WaveSource::get_param(name);
-  }
-
-  std::span<const SettingDescriptor> setting_descriptors() const override {
-    static constexpr SettingDescriptor descs[] = {
-      {"interpolate", SettingType::Bool, 0.0f, 0.0f, 1.0f},
-    };
-    return descs;
-  }
-
-  void set_setting(std::string_view name, float value) override {
-    if (name == "interpolate") { set_interpolate(value != 0.0f); return; }
-  }
-
-  float get_setting(std::string_view name) const override {
-    if (name == "interpolate") return interpolate_ ? 1.0f : 0.0f;
-    return 0.0f;
-  }
-
-  void prepare(const RenderContext& ctx, int frames) override;
+  void on_prepare(const RenderContext& ctx, int frames) override;
 
 protected:
   float wave() override;
@@ -90,14 +52,10 @@ private:
   float compute_raw();
   float compute_interpolated();
 
-  std::shared_ptr<ValueSource>    inputSource_;
-  std::shared_ptr<ValueSource>    speedFactor_;
-  std::shared_ptr<ValueSource>    evolutionSrc_;  // keeps the evolution node alive
   std::unique_ptr<WaveEvolution>  ownedEvolution_;      // for patch_loader path
-  WaveEvolution*                  evolution_{nullptr};  // raw ptr (from holder or owned)
+  WaveEvolution*                  evolution_{nullptr};  // raw ptr: into the holder `evolution` keeps alive, or ownedEvolution_
   std::vector<float>              values_;
   int   tablePtr2_{-1};
-  bool  interpolate_{false};
   // Tuning allpass state
   float tuningCoeff_{0.0f};
   float tuningState_{0.0f};

@@ -6,15 +6,15 @@
 namespace mforce {
 
 WavetableSource::WavetableSource(int sampleRate, uint32_t inputSeed)
-: WaveSource(sampleRate)
-, inputSource_(std::make_shared<WhiteNoiseSource>(inputSeed))
-, speedFactor_(std::make_shared<ConstantSource>(1.0f)) {}
+: WaveSource(sampleRate) {
+  inputSource.source = std::make_shared<WhiteNoiseSource>(inputSeed);
+}
 
-void WavetableSource::prepare(const RenderContext& ctx, int frames) {
-  WaveSource::prepare(ctx, frames);
-  speedFactor_->prepare(ctx, frames);
-  inputSource_->prepare(ctx, frames);
-  if (evolutionSrc_) evolutionSrc_->prepare(ctx, frames);
+void WavetableSource::on_prepare(const RenderContext& ctx, int frames) {
+  WaveSource::on_prepare(ctx, frames);
+  if (speedFactor.source) speedFactor.source->prepare(ctx, frames);
+  if (inputSource.source) inputSource.source->prepare(ctx, frames);
+  if (evolution.source) evolution.source->prepare(ctx, frames);
   if (evolution_) evolution_->on_prepare(ctx);
 }
 
@@ -27,12 +27,12 @@ void WavetableSource::fill_table() {
   values_.resize(len);
 
   for (int i = 0; i < len; ++i) {
-    values_[i] = inputSource_->advance();
+    values_[i] = inputSource.source ? inputSource.source->advance() : 0.0f;
   }
 }
 
 float WavetableSource::wave() {
-  if (!interpolate_) {
+  if (!interpolate.value) {
     return compute_raw();
   } else {
     return compute_interpolated();
@@ -115,7 +115,7 @@ float WavetableSource::compute_interpolated() {
   }
 
   int len = int(values_.size());
-  float sf = speedFactor_->advance();
+  float sf = speedFactor.source ? speedFactor.source->advance() : speedFactor.constant;
 
   float tablePtr = float(len) * currPos_ * sf;
   int samp1 = int(std::floor(tablePtr));

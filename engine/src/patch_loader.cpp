@@ -935,7 +935,6 @@ static GraphResult build_graph(
             if (pp) {
                 const auto& p = *pp;
                 wire_params_generic(*wt, p, valueNodes, &usage);
-                wt->set_interpolate(p.value("interpolate", false));
                 // Legacy patches have evolution as a string ("pluck", "averaging", "target").
                 // New UI patches wire evolution as a ref (handled by wire_params_generic above).
                 std::string evoType = "none";
@@ -982,9 +981,6 @@ static GraphResult build_graph(
             if (pp) {
                 const auto& p = *pp;
                 wire_params_generic(*hks, p, valueNodes, &usage);
-                hks->set_hold_cycles(p.value("holdCycles", 5));
-                hks->set_morph_duration(p.value("morphDuration", 0.5f));
-                hks->set_num_partials(p.value("numPartials", 30));
                 if (p.contains("targetPartials"))
                     hks->set_target_partials(p["targetPartials"].get<std::vector<float>>());
             }
