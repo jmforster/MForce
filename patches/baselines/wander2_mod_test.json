@@ -6,27 +6,27 @@
       {
         "id": "rn_minSpd",
         "type": "RedNoiseSource",
-        "params": { "seed": 101, "frequency": 2.0, "smoothness": 0.8, "amplitude": 1.0 }
+        "params": { "seed": 101, "frequency": 2.0, "smoothness": 0.8, "amplitude": 1.0, "density": 1.0, "rampVariation": 1.0 }
       },
       {
         "id": "rn_maxSpd",
         "type": "RedNoiseSource",
-        "params": { "seed": 102, "frequency": 2.5, "smoothness": 0.8, "amplitude": 1.0 }
+        "params": { "seed": 102, "frequency": 2.5, "smoothness": 0.8, "amplitude": 1.0, "density": 1.0, "rampVariation": 1.0 }
       },
       {
         "id": "rn_revProb",
         "type": "RedNoiseSource",
-        "params": { "seed": 103, "frequency": 3.0, "smoothness": 0.8, "amplitude": 1.0 }
+        "params": { "seed": 103, "frequency": 3.0, "smoothness": 0.8, "amplitude": 1.0, "density": 1.0, "rampVariation": 1.0 }
       },
       {
         "id": "rn_retProb",
         "type": "RedNoiseSource",
-        "params": { "seed": 104, "frequency": 3.5, "smoothness": 0.8, "amplitude": 1.0 }
+        "params": { "seed": 104, "frequency": 3.5, "smoothness": 0.8, "amplitude": 1.0, "density": 1.0, "rampVariation": 1.0 }
       },
       {
         "id": "rn_retPct",
         "type": "RedNoiseSource",
-        "params": { "seed": 105, "frequency": 4.0, "smoothness": 0.8, "amplitude": 1.0 }
+        "params": { "seed": 105, "frequency": 4.0, "smoothness": 0.8, "amplitude": 1.0, "density": 1.0, "rampVariation": 1.0 }
       },
       {
         "id": "var_minSpd",

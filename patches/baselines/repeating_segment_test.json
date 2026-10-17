@@ -6,7 +6,7 @@
       {
         "id": "widthLfo",
         "type": "RedNoiseSource",
-        "params": { "seed": 101, "frequency": 0.5, "amplitude": 1.0, "smoothness": 0.8 }
+        "params": { "seed": 101, "frequency": 0.5, "amplitude": 1.0, "smoothness": 0.8, "density": 1.0, "rampVariation": 1.0 }
       },
       {
         "id": "widthVar",
@@ -16,7 +16,7 @@
       {
         "id": "valLfo",
         "type": "RedNoiseSource",
-        "params": { "seed": 102, "frequency": 0.3, "amplitude": 1.0, "smoothness": 0.7 }
+        "params": { "seed": 102, "frequency": 0.3, "amplitude": 1.0, "smoothness": 0.7, "density": 1.0, "rampVariation": 1.0 }
       },
       {
         "id": "valVar",
