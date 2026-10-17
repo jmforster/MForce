@@ -974,15 +974,10 @@ static void run_hold_delivery_tests() {
     }
 }
 
-// A paramMap target on a param the patch leaves unwired loads and binds: the
-// loader gives the pin a constant to drive, and the note's pitch reaches it.
-static void run_param_map_unwired_pin_tests() {
-    const std::string patch = R"({
-      "sampleRate": 48000,
-      "instrument": { "polyphony": 2, "paramMap": { "frequency": "osc.frequency" } },
-      "graph": { "output": "osc",
-        "nodes": [ { "id": "osc", "type": "SineSource", "params": { "phase": 0.0 } } ] }
-    })";
+// Renders notes 60 and 72 of an instrument patch whose paramMap drives `osc`'s
+// frequency: the load must succeed, the output be finite and audible, and the
+// octave double the zero crossings, so the note's pitch reached the oscillator.
+static void check_param_map_pitch_reaches_osc(const std::string& patch) {
     const int n = 12000;
     auto render = [&](float midi) {
         auto ip = load_instrument_patch_json(patch);
@@ -1012,6 +1007,31 @@ static void run_param_map_unwired_pin_tests() {
     };
     const float ratio = float(crossings(hi)) / float(std::max(1, crossings(lo)));
     CHECK(ratio > 1.8f && ratio < 2.2f);       // an octave up doubles the frequency
+}
+
+// A paramMap target on a param the patch leaves unwired loads and binds: the
+// loader gives the pin a constant to drive, and the note's pitch reaches it.
+static void run_param_map_unwired_pin_tests() {
+    check_param_map_pitch_reaches_osc(R"({
+      "sampleRate": 48000,
+      "instrument": { "polyphony": 2, "paramMap": { "frequency": "osc.frequency" } },
+      "graph": { "output": "osc",
+        "nodes": [ { "id": "osc", "type": "SineSource", "params": { "phase": 0.0 } } ] }
+    })");
+}
+
+// The same target under a MultiplexSource: the clones are built from the
+// template JSON, so each clone's unwired pin gets its constant when the
+// per-note push fans out, and the pitch reaches every clone.
+static void run_param_map_unwired_multiplex_tests() {
+    check_param_map_pitch_reaches_osc(R"({
+      "sampleRate": 48000,
+      "instrument": { "polyphony": 2, "paramMap": { "frequency": "osc.frequency" } },
+      "graph": { "output": "mux", "nodes": [
+        { "id": "osc", "type": "SineSource", "params": { "phase": 0.0 } },
+        { "id": "mux", "type": "MultiplexSource",
+          "params": { "count": 3, "source": { "ref": "osc" } } } ] }
+    })");
 }
 
 static void run_envelope_retrigger_tests() {
@@ -2046,13 +2066,13 @@ static void run_setting_clamp_tests() {
     p.set_setting("mode", 1.0f);
     p.mode.clamp();
     CHECK(p.mode.value == 1);
-    p.set_setting("mode", 2.7f);                  // an int setting truncates, as the old set_setting did
+    p.set_setting("mode", 2.7f);                  // an int setting truncates
     CHECK(p.mode.value == 2);
 }
 
 // A Manual pin is prepared by its node, not by the base: the base's
-// prepare skips it, and the node calls the pin's own prepare where the
-// old code prepared the source.
+// prepare skips it, and the node calls the pin's own prepare at the point
+// it chooses.
 namespace {
 struct PrepCounter final : mforce::Generator {
   int prepares{0};
@@ -4536,6 +4556,7 @@ int main() {
     run_onset_field_tests();
     run_hold_delivery_tests();
     run_param_map_unwired_pin_tests();
+    run_param_map_unwired_multiplex_tests();
     run_note_reseed_tests();
     run_envelope_retrigger_tests();
     run_release_relayout_tests();

@@ -39,7 +39,8 @@ struct PinBase {
   virtual void prepare(const RenderContext&, int) {}
 protected:
   PinBase(const char* n, PinKind k, Pull p = Pull::Auto) : name(n), kind(k), pull(p) {}
-  PinBase& operator=(const PinBase&) = default;   // a node assigning itself assigns its pins' values
+  // A node assigning itself assigns its pins' values.
+  PinBase& operator=(const PinBase&) = default;
   void attach(Component* owner);                  // component.h
 };
 
@@ -109,7 +110,8 @@ struct Setting final : SettingBase {
   // its declared range calls this from on_setting_changed.
   void clamp() { value = value < min ? min : (value > max ? max : value); }
 private:
-  static T from_float(float v) {                 // bool: nonzero; int: truncated, as set_setting always did
+  // bool: nonzero; int: truncated toward zero; float: as is.
+  static T from_float(float v) {
     if constexpr (std::is_same_v<T, bool>) return v != 0.0f;
     else return T(v);
   }

@@ -120,6 +120,16 @@ private:
   float v_{0.0f};
 };
 
+// A per-note push needs a constant to write into. Returns the Param's source
+// as a ConstantSource, first giving an unwired pin one at the pin's constant;
+// nullptr when the node has no such Param or the pin is wired to another source.
+inline std::shared_ptr<ConstantSource> ensure_constant(Component& node, std::string_view name) {
+  Param* pin = node.param(name);
+  if (!pin) return nullptr;
+  if (!pin->source) pin->source = std::make_shared<ConstantSource>(pin->constant);
+  return std::dynamic_pointer_cast<ConstantSource>(pin->source);
+}
+
 // Transparent wrapper for shared sources with multiple consumers.
 // The primary consumer calls next() on the real source; secondary consumers
 // use a RefSource which just reads current() without advancing.

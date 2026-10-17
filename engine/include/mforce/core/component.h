@@ -36,7 +36,11 @@ struct Component {
     if (auto* i = find<Input>(name)) return i->get();
     return nullptr;
   }
-  virtual void add_param(std::string_view name, std::shared_ptr<ValueSource> src) { set_param(name, std::move(src)); }
+  virtual void add_param(std::string_view name, std::shared_ptr<ValueSource> src) {
+    set_param(name, std::move(src));
+  }
+  // The Param pin of that name, or nullptr when the node has none.
+  Param* param(std::string_view name) { return find<Param>(name); }
   virtual void clear_param(std::string_view name) { set_param(name, nullptr); }
 
   virtual void set_setting(std::string_view name, float v) {

@@ -121,18 +121,17 @@ private:
     }
 
     // For each live clone, find the node with the given id and set the named
-    // param's ConstantSource to `value`. Silently no-ops when the node or
-    // param isn't found (e.g. paramMap points to something outside the
-    // template subgraph).
+    // param's ConstantSource to `value` (an unwired pin gets one). Silently
+    // no-ops when the node or param isn't found (e.g. paramMap points to
+    // something outside the template subgraph) or the pin is wired to a
+    // source other than a constant.
     void apply_clone_param_to_all_(const std::string& nodeId,
                                    const std::string& paramName,
                                    float value) {
         for (auto& instMap : instanceValueNodes_) {
             auto it = instMap.find(nodeId);
             if (it == instMap.end()) continue;
-            auto cur = it->second->get_param(paramName);
-            auto cs = std::dynamic_pointer_cast<ConstantSource>(cur);
-            if (cs) cs->set(value);
+            if (auto cs = ensure_constant(*it->second, paramName)) cs->set(value);
         }
     }
 

@@ -1165,21 +1165,6 @@ build_subgraph_with_seed_perturbation(
     return {it->second, std::move(g.valueNodes)};
 }
 
-// A param the patch leaves unwired reads its declared constant. A paramMap
-// binding needs a ConstantSource to drive, so wire one carrying that default;
-// null when `name` is not a param of `node`.
-static std::shared_ptr<ValueSource> wire_default_constant(ValueSource& node,
-                                                          const std::string& name)
-{
-    for (const auto& desc : node.param_descriptors()) {
-        if (name != desc.name) continue;
-        auto cs = std::make_shared<ConstantSource>(desc.default_value);
-        node.set_param(name, cs);
-        return cs;
-    }
-    return nullptr;
-}
-
 // ---------------------------------------------------------------------------
 // Convert paramMap JSON into PerformSource bindings (perform_source_design.md
 // §5; replaces resolve_param_map as the runtime model — the JSON stays the
@@ -1250,7 +1235,7 @@ static void build_bindings(const json& paramMapJson, const GraphResult& g,
             throw std::runtime_error("paramMap: unknown node '" + nodeId + "'");
 
         auto paramSrc = nodeIt->second->get_param(paramName);
-        if (!paramSrc) paramSrc = wire_default_constant(*nodeIt->second, paramName);
+        if (!paramSrc) paramSrc = ensure_constant(*nodeIt->second, paramName);
         if (paramSrc) {
             // 26a made loud (P3 T2), legacy path: a bend articulated onto a
             // node that reads its frequency pin once is silently inert.
