@@ -1,5 +1,43 @@
 # Status — session handoff (Claude reads this first; Matt's queue = */REVIEW.md)
 
+Updated: 2026-10-18 (refactor session III, Fable 5.1 xhigh). R2 ACCEPTED by
+Matt (all four items; render cost carried to 2.3). CHECKPOINT 2.2 LANDED
+on main: 7e20e5f..5980873 (ten code commits + the docs commit) — one
+call became two: prepare(ctx) once per build (the only way a node learns
+the rate; may allocate) and start(frames) per note (may not); 45 rate
+constructors gone, 44 per-node rate copies gone (sample_rate() from the
+base's one context), RenderContext made only where the loader finishes a
+patch, the factory takes the seed alone, Instrument holds the context,
+MonoSource::render lost it, the UI has one context from its opened stream.
+Executed per the plan docs/superpowers/plans/2026-10-17-part2-checkpoint-2.2.md
+(its Ledger = every ruling): T1 inline (contract + shim + registry-wide
+split-equivalence sweep), T2-T8 one Sonnet implementer + one Sonnet
+reviewer per family (reviewers mutation-tested; four vacuous tests
+replaced), T9 hosts inline, T10 close: Fable refutation (16 items, six
+fixes: UI rate sites, Vibrato pending-chain swap, BWSection base,
+Instrument ctx protected, test gaps, comments) + the same refuter's second
+pass (two more small fixes), all in 5980873. Byte-identity: null gate
+80/80 after every commit; whole-tree A/B vs cli_pre22.exe (the tree at
+1145a52) 1,458/1,458 identical; family A/Bs 1007/701/68/96/747/679/1070,
+0 differ. Timing neutral (within 3%). FOUND: DelayLineSource read one past
+its ring (kept byte-identical via a zero slot; wrap = listed render change
+for 2.5/Part 3); stage-less PhasedValueSource crash (R2 debt, excluded
+from the sweep). REPORT R3: docs/autonomy/refactor/reports/2026-10-17-checkpoint-2.2.md
+(ten sections, both refutation passes verbatim in §8). REVIEW.md R3
+AWAITING MATT, four verdict items (0: the DelayLine slot vs the wrap; 1:
+the UI re-preparing at every play; 2: the start() allocation list for
+2.6; 3: render_context()/prepared() public). Debt in §7 (the allocating
+start bodies with file:line; the Setup-path group; unprepared-node
+Release silence until 2.5's fault flag; g_renderContext as the UI's
+113th global; the 5,700-line test file). NEXT: Matt's R3 verdict, then
+checkpoint 2.3 (the per-tick memo, taps reading A; RefSource, the usage
+counter, starved-ref promotion and SharingTrace deleted; expected diffs =
+the 13 lag patches in docs/architecture/measurements/2026-10-16-sharing-lag.md
++ double_advance_bug) — plan written against the then-current code; it
+is also where the 2.1 render-time cost is recovered or the design
+revisited. Nothing pushed since Matt's push after session II (main is
+~12 commits ahead; ask at close-out). GOALS.md stays Matt's uncommitted edit.
+
 Updated: 2026-10-17 (refactor session III, Fable 5.1 xhigh). R2 ACCEPTED by
 Matt (all four items; render cost carried to 2.3). CHECKPOINT 2.2 IN
 PROGRESS on main: plan docs/superpowers/plans/2026-10-17-part2-checkpoint-2.2.md

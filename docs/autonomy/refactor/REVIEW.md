@@ -8,7 +8,27 @@ checkpoints wait for Matt's read.
 
 ## Awaiting
 
-(nothing — checkpoint 2.2 is being planned)
+**R3 — checkpoint 2.2: prepare(ctx) / start(frames)** (2026-10-18, commits
+`7e20e5f`..`5980873`)
+- Read: `docs/autonomy/refactor/reports/2026-10-17-checkpoint-2.2.md`
+  (its reading guide is ten minutes; section 6 holds the decisions taken
+  on your behalf, section 7 the debt, section 8 the refutation and the
+  seven per-task reviews, section 10 three C++ lessons).
+- Try: `python tools/null_gate_perform_source.py --jobs 3`; open the UI,
+  play a key, Generate — every node is now prepared once by the loader
+  and only started per note; a patch saved from the UI records the rate
+  the audio stream actually opened with.
+- A verdict decides: (0) **DelayLineSource's stray read** (section 7,
+  first item): a pre-existing one-past-the-end read is kept byte-identical
+  through an extra always-zero ring slot; the correct fix (wrap to slot 0)
+  changes the bytes of at least one baseline — leave it listed for
+  checkpoint 2.5, or take the render change now with that baseline
+  refrozen; (1) whether the UI preparing its editor graph again at every
+  play (not per note; idempotent) is the behaviour you want, or whether a
+  node should be prepared once when it is created; (2) the list of
+  `start()` bodies that still allocate (section 7) as the starting list
+  for checkpoint 2.6's test; (3) `render_context()` and `prepared()` as
+  public read-only getters on every node (section 6, item 13).
 
 ## Resolved
 
