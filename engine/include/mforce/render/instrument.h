@@ -50,9 +50,6 @@ struct Instrument : MonoSource {
     int startSample{0};
   };
 
-  // The host's facts, set once by prepare(); every per-note length is
-  // computed from it and every per-note envelope is prepared with it.
-  RenderContext ctx{};
   float volume{1.0f};
   // When true (default), render() applies soft_clip per sample as a peak
   // guard. Set false when the caller will peak-normalize the raw sum itself
@@ -61,7 +58,10 @@ struct Instrument : MonoSource {
   bool peakGuard{true};
   std::vector<RenderedNote> renderedNotes;
 
-  void prepare(const RenderContext& c) override { ctx = c; }
+  // The host's facts arrive here, once; every per-note length is computed
+  // from them and every per-note envelope is prepared with them.
+  void prepare(const RenderContext& c) override { ctx_ = c; }
+  const RenderContext& render_context() const { return ctx_; }
 
   void render(float* out, int frames) override {
     std::fill(out, out + frames, 0.0f);
@@ -88,9 +88,11 @@ struct Instrument : MonoSource {
   }
 
 protected:
+  RenderContext ctx_{};
+
   void add_rendered(float startTime, float* data, int count) {
     RenderedNote rn;
-    rn.startSample = int(startTime * float(ctx.sampleRate));
+    rn.startSample = int(startTime * float(ctx_.sampleRate));
     rn.samples.assign(data, data + count);
     renderedNotes.push_back(std::move(rn));
   }
@@ -339,7 +341,7 @@ struct PitchedInstrument final : Instrument {
       std::shared_ptr<Envelope> bend;
       if (curve) {
         bend = compile_pitch_curve(*curve);
-        bend->prepare(ctx);
+        bend->prepare(ctx_);
         bend->start(durSamples);
       }
       vg.performSource->set_note(freq, velocity, durSamples, durSeconds,
@@ -369,7 +371,7 @@ struct PitchedInstrument final : Instrument {
     auto& vg = voicePool[slot];
 
     float freq = note_to_freq(noteNumber);
-    int durSamples = int(duration * float(ctx.sampleRate));
+    int durSamples = int(duration * float(ctx_.sampleRate));
 
     apply_note_bindings(vg, freq, velocity, durSamples, duration, curve);
 
@@ -383,7 +385,7 @@ struct PitchedInstrument final : Instrument {
 
     // Tail allowance: the returned life length includes the ring-out
     // window; musical prep above used the un-extended duration.
-    const int tailSamples = int(kVoiceTailSec * float(ctx.sampleRate));
+    const int tailSamples = int(kVoiceTailSec * float(ctx_.sampleRate));
     return { vg.source, durSamples + tailSamples, gain, vg.performSource,
              vg.advanceList };
   }
@@ -440,7 +442,7 @@ struct PitchedInstrument final : Instrument {
     const float semis = 12.0f * std::log2(fromFreq / toFreq);
     g->add_stage({{semis, 0.0f, RampType::Linear, 0.0f}, glideSec, 0.0f, 0.0f});
     g->add_stage({{0.0f, 0.0f, RampType::Linear, 0.0f}, 0.0f, 0.0f, 0.0f});
-    g->prepare(ctx);
+    g->prepare(ctx_);
     g->start(durSamples);
     return g;
   }
@@ -522,7 +524,7 @@ struct PitchedInstrument final : Instrument {
                            float duration, float fromFreq, float onsetId) {
     if (slot < 0 || slot >= int(voicePool.size())) return;
     const float freq = note_to_freq(noteNumber);
-    const int durSamples = int(duration * float(ctx.sampleRate));
+    const int durSamples = int(duration * float(ctx_.sampleRate));
     deliver_continuation(voicePool[size_t(slot)], freq, velocity,
                          durSamples, duration, fromFreq, onsetId);
   }
@@ -539,7 +541,7 @@ struct PitchedInstrument final : Instrument {
   void play_note(const PerformedNote& pn, float startTime) {
     if (voicePool.empty()) return;
     const float freq = note_to_freq(pn.noteNumber);
-    const int durSamples = int(pn.duration * float(ctx.sampleRate));
+    const int durSamples = int(pn.duration * float(ctx_.sampleRate));
 
     // --- 1. Continuation -------------------------------------------------
     if (line_.open) {
@@ -550,7 +552,7 @@ struct PitchedInstrument final : Instrument {
       line_.lastNote = pn.noteNumber;
       line_.lastDurSamples = durSamples;
       render_chunk(vg, line_.buf, line_.vIdx,
-                   int(line_.startTime * float(ctx.sampleRate)), durSamples,
+                   int(line_.startTime * float(ctx_.sampleRate)), durSamples,
                    line_.gain);
       if (!pn.hold) finish_line();
       return;
@@ -605,8 +607,8 @@ struct PitchedInstrument final : Instrument {
       line_.lastDurSamples = durSamples;
       line_.buf.clear();
       line_.buf.reserve(size_t(durSamples +
-                               int(kMaxRingSec * float(ctx.sampleRate))));
-      render_chunk(vg, line_.buf, vIdx, int(startTime * float(ctx.sampleRate)),
+                               int(kMaxRingSec * float(ctx_.sampleRate))));
+      render_chunk(vg, line_.buf, vIdx, int(startTime * float(ctx_.sampleRate)),
                    durSamples, gain);
       return;
     }
@@ -624,7 +626,7 @@ struct PitchedInstrument final : Instrument {
     for (auto& a : vg.advanceList) a->start(durSamples);
     fire_triggers(vg);
 
-    int startFrame = int(startTime * float(ctx.sampleRate));
+    int startFrame = int(startTime * float(ctx_.sampleRate));
     // Tail allowance (kVoiceTailSec): render past duration so in-voice
     // reverb/filter state rings out instead of being cut mid-sample.
     // Adaptive ring-out (backlog 63b, 2026-09-16): a voice still audible
@@ -633,14 +635,14 @@ struct PitchedInstrument final : Instrument {
     // for seconds and the fixed 0.4 s window cut them mid-ring with a
     // click. Voices already quiet at the tail end stop exactly where
     // they always did, so their renders stay byte-identical.
-    const int tailSamples = int(kVoiceTailSec * float(ctx.sampleRate));
+    const int tailSamples = int(kVoiceTailSec * float(ctx_.sampleRate));
     const int renderSamples = durSamples + tailSamples;
-    const int maxSamples = durSamples + int(kMaxRingSec * float(ctx.sampleRate));
+    const int maxSamples = durSamples + int(kMaxRingSec * float(ctx_.sampleRate));
     std::vector<float> buf;
     buf.reserve(size_t(std::max(renderSamples, maxSamples)));
     float ringEnv = 0.0f;
     // ~50 ms decay follower: per-sample multiplier for the running peak.
-    const float ringDecay = std::exp(-1.0f / (0.05f * float(ctx.sampleRate)));
+    const float ringDecay = std::exp(-1.0f / (0.05f * float(ctx_.sampleRate)));
     int rendered = 0;
     for (int i = 0; i < maxSamples; ++i) {
       if (i >= renderSamples && ringEnv < kRingFloor) break;
@@ -650,7 +652,7 @@ struct PitchedInstrument final : Instrument {
       // Cap fade: a voice that will still be audible at kMaxRingSec (a
       // near-lossless resonator — struck bowl class) gets an 80 ms ramp
       // to zero instead of a hard cut (Matt, REVIEW 09-16).
-      const int fadeN = int(0.08f * float(ctx.sampleRate));
+      const int fadeN = int(0.08f * float(ctx_.sampleRate));
       if (i >= maxSamples - fadeN && ringEnv >= kRingFloor)
         buf[size_t(i)] *= float(maxSamples - i) / float(fadeN);
     }
@@ -659,7 +661,7 @@ struct PitchedInstrument final : Instrument {
     // audibility floor by the end of the voice — now measured at the end
     // of the (possibly ring-extended) window. A voice that hits the
     // kMaxRingSec cap still audible is exactly what this warns about.
-    int checkStart = std::max(0, rendered - ctx.sampleRate / 1000);
+    int checkStart = std::max(0, rendered - ctx_.sampleRate / 1000);
     float tailPeak = 0.0f;
     for (int i = checkStart; i < rendered; ++i)
       tailPeak = std::max(tailPeak, std::fabs(buf[i]));
@@ -685,12 +687,12 @@ struct PitchedInstrument final : Instrument {
 
     auto& buf = line_.buf;
     const int base = int(buf.size());
-    const int startFrame = int(line_.startTime * float(ctx.sampleRate));
-    const int tailSamples = int(kVoiceTailSec * float(ctx.sampleRate));
+    const int startFrame = int(line_.startTime * float(ctx_.sampleRate));
+    const int tailSamples = int(kVoiceTailSec * float(ctx_.sampleRate));
     const int renderSamples = base + rem + tailSamples;
-    const int maxSamples = base + rem + int(kMaxRingSec * float(ctx.sampleRate));
+    const int maxSamples = base + rem + int(kMaxRingSec * float(ctx_.sampleRate));
     buf.reserve(size_t(maxSamples));
-    const float ringDecay = std::exp(-1.0f / (0.05f * float(ctx.sampleRate)));
+    const float ringDecay = std::exp(-1.0f / (0.05f * float(ctx_.sampleRate)));
     // Prime the ring follower over what the line already rendered, so the
     // ring-out decision sees the same history a single-note render would.
     float ringEnv = 0.0f;
@@ -702,13 +704,13 @@ struct PitchedInstrument final : Instrument {
       render_chunk(vg, buf, line_.vIdx, startFrame, 1, line_.gain);
       ringEnv = std::max(std::fabs(buf[size_t(i)]), ringEnv * ringDecay);
       rendered = i + 1;
-      const int fadeN = int(0.08f * float(ctx.sampleRate));
+      const int fadeN = int(0.08f * float(ctx_.sampleRate));
       if (i >= maxSamples - fadeN && ringEnv >= kRingFloor)
         buf[size_t(i)] *= float(maxSamples - i) / float(fadeN);
     }
 
     // Containment is checked once per LINE, at its end (spec §7).
-    int checkStart = std::max(0, rendered - ctx.sampleRate / 1000);
+    int checkStart = std::max(0, rendered - ctx_.sampleRate / 1000);
     float tailPeak = 0.0f;
     for (int i = checkStart; i < rendered; ++i)
       tailPeak = std::max(tailPeak, std::fabs(buf[size_t(i)]));
@@ -754,7 +756,7 @@ struct DrumKit final : Instrument {
       return;  // silently ignore out-of-range
 
     auto& ds = sources[drumNumber];
-    int durSamples = int(duration * float(ctx.sampleRate));
+    int durSamples = int(duration * float(ctx_.sampleRate));
 
     ds.source->start(durSamples);
 

@@ -75,8 +75,9 @@ struct DelayLineSource final : Processor {
     float rp = float(writeIdx_) - len;
     if (rp < 0.0f) rp += float(ring_);
     // A read position a hair under the write index wraps to exactly ring_
-    // in float: i0 is then the slot past the ring, which is never written
-    // and reads as silence.
+    // in float: i0 is then the slot past the ring. The correct read is slot
+    // 0 (the wrap); the slot stands in for what the old out-of-range read
+    // returned in practice, silence, until that render change is taken.
     const int i0 = int(rp);
     const int i1 = (i0 + 1) % ring_;
     const float frac = rp - float(i0);

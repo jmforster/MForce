@@ -4516,15 +4516,19 @@ static void run_combine_mod_tests() {
 }
 
 // ---------------------------------------------------------------------------
-// prepare(ctx) / start(frames) (Part 2 §4-5, checkpoint 2.2)
+// prepare(ctx) / start(frames): the two host calls
 // ---------------------------------------------------------------------------
 #include <functional>
 
 // The split is exact when a node that is prepared once and started per note
 // renders the same bytes as one that is prepared and started before every
-// note (what the old prepare(ctx, frames) did). Both arms throw or neither.
-static bool split_equivalent(const std::function<std::shared_ptr<ValueSource>()>& make,
-                             int frames = 2048, int notes = 3, int sampleRate = 48000) {
+// note (what the old prepare(ctx, frames) did). Both arms throw or neither;
+// a comparison of silence proves nothing, so the result says whether the
+// render had any signal in it.
+struct SplitResult { bool equal; bool threw; bool nonzero; };
+
+static SplitResult split_compare(const std::function<std::shared_ptr<ValueSource>()>& make,
+                                 int frames = 2048, int notes = 3, int sampleRate = 48000) {
     RenderContext ctx{sampleRate};
     auto a = make(), b = make();
     std::vector<float> ra, rb;
@@ -4539,26 +4543,47 @@ static bool split_equivalent(const std::function<std::shared_ptr<ValueSource>()>
     bool threwA = false, threwB = false;
     try { render(*a, ra, true);  } catch (...) { threwA = true; }
     try { render(*b, rb, false); } catch (...) { threwB = true; }
-    if (threwA || threwB) return threwA == threwB;
-    return ra.size() == rb.size() &&
-           std::memcmp(ra.data(), rb.data(), ra.size() * sizeof(float)) == 0;
+    if (threwA || threwB) return {threwA == threwB, true, false};
+    const bool equal = ra.size() == rb.size() &&
+                       std::memcmp(ra.data(), rb.data(), ra.size() * sizeof(float)) == 0;
+    const bool nonzero = std::any_of(rb.begin(), rb.end(), [](float v) { return v != 0.0f; });
+    return {equal, false, nonzero};
+}
+
+static bool split_equivalent(const std::function<std::shared_ptr<ValueSource>()>& make,
+                             int frames = 2048, int notes = 3, int sampleRate = 48000) {
+    return split_compare(make, frames, notes, sampleRate).equal;
 }
 
 static void run_split_equivalence_tests() {
     register_all_sources();
     auto& reg = SourceRegistry::instance();
     // Types that cannot render at their registry defaults at all (they
-    // index an empty part): pre-existing, listed in report R2 section 7 and
-    // fixed by Part 3. Their wired cases live in their family's tests.
+    // index an empty part). Their wired cases live in their family's tests.
     static const std::set<std::string> kNotRenderableUnwired = {
         "PhasedValueSource",   // stage-less: compute() indexes an empty boundaries_
     };
     for (auto& [name, cat] : reg.registered_types()) {
         const std::string n = name;
         if (kNotRenderableUnwired.count(n)) continue;
-        bool ok = split_equivalent([&] { return reg.create(n); });
-        if (!ok) std::printf("  split differs: %s\n", n.c_str());
-        CHECK(ok);
+        const SplitResult r = split_compare([&] { return reg.create(n); });
+        if (!r.equal) std::printf("  split differs: %s\n", n.c_str());
+        CHECK(r.equal);
+        if (r.threw) std::printf("  (both arms threw at the defaults: %s)\n", n.c_str());
+        // A sound source at its defaults makes sound; the comparison above
+        // was of a real signal for these. Processors and parts read 0 unwired,
+        // and so do the sources that need an excitation, a part or a shape
+        // wired in; those have wired cases in their family's tests.
+        static const std::set<std::string> kSilentUntilWired = {
+            "KSString", "KSPianoString", "AllpassResonator", "DelayLine", "Mesh2D",   // excited by `source`
+            "PluckEvolution", "AveragingEvolution",                                   // parts read by WavetableSource
+            "SegmentSource",                                                          // an empty shape
+        };
+        if ((cat == SourceCategory::Oscillator || cat == SourceCategory::Generator)
+            && !kSilentUntilWired.count(n)) {
+            if (!r.threw && !r.nonzero) std::printf("  silent at its defaults: %s\n", n.c_str());
+            CHECK(r.threw || r.nonzero);
+        }
     }
     // A node knows no rate until a host prepares it.
     struct Probe final : Generator {
@@ -5023,6 +5048,14 @@ static void run_physical_split_tests() {
         k->set_param("source", noise());
         return k;
     }));
+    {   // the loading alias builds the same type; excited, it sounds
+        const SplitResult r = split_compare([&] {
+            auto k = SourceRegistry::instance().create("KSPianoString");
+            k->set_param("source", noise());
+            return k;
+        });
+        CHECK(r.equal && r.nonzero);
+    }
     CHECK(split_equivalent([&] {
         auto a = std::make_shared<AllpassResonator>();
         a->set_param("source", noise());
@@ -5481,7 +5514,90 @@ static void run_combine_mod_split_tests() {
     run_repeating_restart_tests();
 }
 
-// The hosts after checkpoint 2.2: a loaded instrument is prepared by the
+// Wired cases for the types whose defaults read 0: a brass evolution under a
+// wavetable (its rate capture), a distorter with a signal, a sequence of
+// partials in an additive source.
+static void run_wired_split_tests() {
+    CHECK(split_equivalent([] {
+        auto w = std::make_shared<WavetableSource>();
+        auto brass = std::make_shared<BrassEvolutionSource>();
+        brass->set_param("breath", std::make_shared<ConstantSource>(0.6f));
+        w->set_param("evolution", brass);
+        w->set_param("inputSource", std::make_shared<WhiteNoiseSource>(0x8Au));
+        return w;
+    }, 2048, 3));
+    {
+        auto brass_at = [](int rate) {
+            WavetableSource w;
+            auto brass = std::make_shared<BrassEvolutionSource>();
+            brass->set_param("breath", std::make_shared<ConstantSource>(0.6f));
+            w.set_param("evolution", brass);
+            w.set_param("inputSource", std::make_shared<WhiteNoiseSource>(0x8Au));
+            w.prepare(RenderContext{rate});
+            w.start(2048);
+            return render_samples(w, 2048);
+        };
+        CHECK(!same_bits(brass_at(24000), brass_at(48000)));   // the lip filter is laid out from the rate
+    }
+    {   // an averaging evolution is a part: it sounds under a wavetable
+        const SplitResult r = split_compare([] {
+            auto w = std::make_shared<WavetableSource>();
+            w->set_param("evolution", std::make_shared<AveragingEvolutionSource>());
+            w->set_param("inputSource", std::make_shared<WhiteNoiseSource>(0x5A5Au));
+            return w;
+        });
+        CHECK(r.equal && r.nonzero);
+    }
+    {
+        const SplitResult r = split_compare([] {
+            auto d = std::make_shared<DistortedSource>(0x51u);
+            d->set_param("source", std::make_shared<SineSource>());
+            d->set_param("density", std::make_shared<ConstantSource>(0.5f));
+            return d;
+        });
+        CHECK(r.equal && r.nonzero);
+    }
+    {
+        const SplitResult r = split_compare([] {
+            auto f = std::make_shared<FullAdditiveSource>();
+            auto seq = std::make_shared<SequencePartials>();
+            seq->set_setting("maxPartials", 12.0f);
+            seq->set_setting("unitPO1", 0.3f);
+            f->set_param("partials", seq);
+            return f;
+        }, 2048, 4);
+        CHECK(r.equal && r.nonzero);
+    }
+}
+
+// A setting changed on a Vibrato that is playing a note: the note keeps the
+// chain it started with, and the next start plays the new one.
+static void run_vibrato_late_setting_tests() {
+    auto make = [] {
+        auto v = std::make_shared<Vibrato>();
+        v->set_param("frequency", std::make_shared<ConstantSource>(440.0f));
+        v->set_setting("depth", 0.1f);
+        v->set_setting("speed", 6.0f);
+        v->prepare(RenderContext{48000});
+        return v;
+    };
+    auto edited = make(), control = make();
+    edited->start(4096); control->start(4096);
+    const auto e1 = render_samples(*edited, 1000), c1 = render_samples(*control, 1000);
+    edited->set_setting("speed", 7.0f);                 // mid-note
+    const auto e2 = render_samples(*edited, 1000), c2 = render_samples(*control, 1000);
+    CHECK(same_bits(e1, c1) && same_bits(e2, c2));      // the playing note is untouched
+    edited->start(4096);
+    auto fresh = std::make_shared<Vibrato>();
+    fresh->set_param("frequency", std::make_shared<ConstantSource>(440.0f));
+    fresh->set_setting("depth", 0.1f);
+    fresh->set_setting("speed", 7.0f);
+    fresh->prepare(RenderContext{48000});
+    fresh->start(4096);
+    CHECK(same_bits(render_samples(*edited, 4096), render_samples(*fresh, 4096)));   // the next note is the new chain
+}
+
+// The hosts: a loaded instrument is prepared by the
 // loader and only started per note; render takes no context.
 static void run_host_split_tests() {
     const int n = 48000;
@@ -5513,7 +5629,7 @@ static void run_host_split_tests() {
     }
 }
 
-// Checkpoint 2.2: the contract's sweep, then the families as they are cut.
+// The two-call contract: the sweep over every type, then one group per family.
 static void run_prepare_start_tests() {
     run_split_equivalence_tests();
     run_core_split_tests();
@@ -5525,6 +5641,8 @@ static void run_prepare_start_tests() {
     run_filter_split_tests();
     run_vibrato_split_tests();
     run_combine_mod_split_tests();
+    run_wired_split_tests();
+    run_vibrato_late_setting_tests();
     run_host_split_tests();
 }
 

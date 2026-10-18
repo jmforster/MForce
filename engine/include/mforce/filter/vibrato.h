@@ -40,25 +40,34 @@ struct Vibrato final : Generator {
   const char* type_name() const override { return "Vibrato"; }
   SourceCategory category() const override { return SourceCategory::Modulator; }
 
-  // The LFO chain is built from the settings once, and again only when a
-  // setting that shapes it has changed; the chain is prepared at every call so
-  // it follows the host's rate.
+  // The LFO chain is built from the settings at the first prepare; the chain
+  // (and a pending one) is prepared at every call so it follows the host's
+  // rate.
   void on_prepare(const RenderContext& ctx) override {
-    if (!lfo_ || lfoDirty_) {
-      build_lfo();
-      lfoDirty_ = false;
-    }
+    if (!lfo_) lfo_ = build_lfo();
     lfo_->prepare(ctx);
+    if (pending_) pending_->prepare(ctx);
   }
 
+  // A setting that shapes the chain builds the NEXT chain here, on the
+  // thread that changed the setting (a note's Setup, the UI); the note that
+  // is playing keeps its chain, as it always did, and the next start swaps
+  // the pending one in. The chain retired at the last swap is released
+  // here too, so the audio thread neither allocates nor frees.
   void on_setting_changed(std::string_view) override {
-    lfoDirty_ = true;
-    if (prepared()) on_prepare(render_context());
+    if (!prepared()) return;          // the first prepare builds from the settings
+    retired_.reset();
+    pending_ = build_lfo();
+    pending_->prepare(render_context());
   }
 
   // A note starts with the chain a freshly built one would have: the noise
   // back at its seed and the ramps laid out over this note.
   void on_start(int frames) override {
+    if (pending_) {
+      retired_ = std::move(lfo_);
+      lfo_ = std::move(pending_);
+    }
     enabled_ = float(frames) / float(sample_rate()) > threshold.value;
     if (enabled_) {
       lfo_->reset();
@@ -77,10 +86,10 @@ struct Vibrato final : Generator {
   }
 
 private:
-  // Build the RedNoise LFO chain from the current scalar config. Speed ramps
+  // Build a RedNoise LFO chain from the current scalar config. Speed ramps
   // 1 Hz → speed and depth ramps 0 → depth over the attack, then both HOLD for
   // the rest of the note — that's an ASEnvelope (attack→sustain).
-  void build_lfo() {
+  std::shared_ptr<RedNoiseSource> build_lfo() const {
     auto speedRamp = std::make_shared<ASEnvelope>();
     speedRamp->set_setting("attack", attack.value);
     auto speedRange = std::make_shared<RangeSource>(
@@ -93,14 +102,15 @@ private:
         std::make_shared<ConstantSource>(0.0f),
         std::make_shared<ConstantSource>(depth.value), depthRamp, true);
 
-    lfo_ = std::make_shared<RedNoiseSource>(seed_);
-    lfo_->frequency.set(speedRange);
-    lfo_->amplitude.set(depthRange);
-    lfo_->density.set(std::make_shared<ConstantSource>(1.0f));   // every ramp carries a value
-    lfo_->smoothness.set(std::make_shared<ConstantSource>(1.0f));
-    lfo_->rampVariation.set(std::make_shared<ConstantSource>(speedVar.value));
-    lfo_->boost.set(std::make_shared<ConstantSource>(std::clamp(1.0f - depthVar.value, 0.0f, 1.0f)));
-    lfo_->zeroCrossTendency.set(std::make_shared<ConstantSource>(zeroCrossTendency.value));
+    auto lfo = std::make_shared<RedNoiseSource>(seed_);
+    lfo->frequency.set(speedRange);
+    lfo->amplitude.set(depthRange);
+    lfo->density.set(std::make_shared<ConstantSource>(1.0f));   // every ramp carries a value
+    lfo->smoothness.set(std::make_shared<ConstantSource>(1.0f));
+    lfo->rampVariation.set(std::make_shared<ConstantSource>(speedVar.value));
+    lfo->boost.set(std::make_shared<ConstantSource>(std::clamp(1.0f - depthVar.value, 0.0f, 1.0f)));
+    lfo->zeroCrossTendency.set(std::make_shared<ConstantSource>(zeroCrossTendency.value));
+    return lfo;
   }
 
   // Per-note determinism (onsets-v2 addendum): forward to the LFO's rng.
@@ -108,9 +118,10 @@ private:
 
   uint32_t seed_;
   bool enabled_{false};
-  bool lfoDirty_{true};
 
-  std::shared_ptr<RedNoiseSource> lfo_;
+  std::shared_ptr<RedNoiseSource> lfo_;        // the chain the current note plays
+  std::shared_ptr<RedNoiseSource> pending_;    // built on a setting change; swapped in at the next start
+  std::shared_ptr<RedNoiseSource> retired_;    // the chain the last swap replaced; freed on the next setting change
 };
 
 } // namespace mforce

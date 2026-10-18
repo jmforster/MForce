@@ -227,8 +227,10 @@ static ImU32 lighten(ImU32 col, int pct) {
     return IM_COL32(r, g, b, 255);
 }
 
-// The rate the audio device is asked for, and the one context every node
-// the editor builds is prepared with (its rate follows the opened stream).
+// The rate the audio device is asked for, and the one context the engine
+// runs at in this process: every node the editor builds is prepared with it,
+// every frame count and WAV header is computed from it, and its rate follows
+// the stream the device actually opened.
 static constexpr int AUDIO_SAMPLE_RATE = 48000;
 static mforce::RenderContext g_renderContext{AUDIO_SAMPLE_RATE};
 
@@ -3824,7 +3826,7 @@ static void voice_schedule_unlocked(std::shared_ptr<InstrumentPatch> patch,
     // kMaxRingSec window past the scheduled life.
     g_voices[slot].ringEnv = 0.0f;
     g_voices[slot].ringBudget =
-        int(mforce::PitchedInstrument::kMaxRingSec * 48000.0f);
+        int(mforce::PitchedInstrument::kMaxRingSec * float(g_renderContext.sampleRate));
     g_voices[slot].fadeGain = 0.0f;
     g_voices[slot].fadeStep = 0.0f;
     g_voices[slot].active = true;
@@ -4801,7 +4803,7 @@ static void play_note_held(float noteNum, float velocity, float nominalSeconds) 
                     && voice.fadeStep <= 0.0f) {
                     voice.fadeGain = 1.0f;
                     voice.fadeStep =
-                        1.0f / (0.003f * float(AUDIO_SAMPLE_RATE));
+                        1.0f / (0.003f * float(g_renderContext.sampleRate));
                 }
             }
         }
@@ -4875,7 +4877,7 @@ static void release_note_held(int midiNote) {
         int maxRel = 0;
         for (auto* e : voice.envs) maxRel = std::max(maxRel, e->gate_release());
         int allow = int(mforce::Envelope::kReflectionAllowanceSec
-                        * float(AUDIO_SAMPLE_RATE));
+                        * float(g_renderContext.sampleRate));
         voice.samplesRemaining = maxRel + allow + 1;
         voice.held = false;
         return;
@@ -4899,7 +4901,7 @@ static void play_continuous(float velocity) {
         if (!src) return;
 
         stream_envelopes_hold();
-        int samples = AUDIO_SAMPLE_RATE * STREAM_PREP_SECONDS;
+        int samples = g_renderContext.sampleRate * STREAM_PREP_SECONDS;
         prepare_graph(samples);
 
         std::lock_guard<std::mutex> lock(g_audioMutex);
@@ -4966,7 +4968,7 @@ static void play_continuous(float velocity) {
     ValueSource* gainR = resolve_pin(*mixer, "gainR");
 
     stream_envelopes_hold();
-    int samples = AUDIO_SAMPLE_RATE * STREAM_PREP_SECONDS;
+    int samples = g_renderContext.sampleRate * STREAM_PREP_SECONDS;
     prepare_graph(samples);
     for (auto* vs : prepExtra) {
         if (!vs) continue;
@@ -8175,8 +8177,8 @@ static void render_chords_waveforms(const std::vector<ParsedChord>& chords, floa
 
         // Copy into UI waveform buffers (resample if needed, but likely same rate)
         int uiFrames = frames;
-        if (ip.sampleRate != AUDIO_SAMPLE_RATE) {
-            uiFrames = int(totalSeconds * float(AUDIO_SAMPLE_RATE));
+        if (ip.sampleRate != g_renderContext.sampleRate) {
+            uiFrames = int(totalSeconds * float(g_renderContext.sampleRate));
         }
 
         buffer_playback_detach();  // it points into this vector (3k)
@@ -8184,12 +8186,12 @@ static void render_chords_waveforms(const std::vector<ParsedChord>& chords, floa
         g_waveformSamples = uiFrames;
         for (auto& node : s_nodes) node.waveformData.clear();
 
-        if (ip.sampleRate == AUDIO_SAMPLE_RATE) {
+        if (ip.sampleRate == g_renderContext.sampleRate) {
             for (int i = 0; i < uiFrames; ++i)
                 g_outputWaveform[i] = (i < frames) ? mono[i] : 0.0f;
         } else {
             // Simple nearest-neighbor resampling
-            float ratio = float(ip.sampleRate) / float(AUDIO_SAMPLE_RATE);
+            float ratio = float(ip.sampleRate) / float(g_renderContext.sampleRate);
             for (int i = 0; i < uiFrames; ++i) {
                 int srcIdx = int(float(i) * ratio);
                 g_outputWaveform[i] = (srcIdx < frames) ? mono[srcIdx] : 0.0f;
@@ -8282,7 +8284,7 @@ static void render_drums_waveforms(const ParsedDrumPattern& pat, float bpm, cons
         }
 
         float totalSeconds = pat.figure.totalTime * 60.0f / bpm * float(pat.repeats) + 1.0f;
-        int frames = int(totalSeconds * float(AUDIO_SAMPLE_RATE));
+        int frames = int(totalSeconds * float(g_renderContext.sampleRate));
         std::vector<float> mono(frames, 0.0f);
         kit.render(mono.data(), frames);
 
@@ -8556,7 +8558,7 @@ static void transport_save_wav() {
         stereo[i * 2 + 1] = g_outputWaveform[i];
     }
 
-    if (write_wav_16le_stereo(path, AUDIO_SAMPLE_RATE, stereo)) {
+    if (write_wav_16le_stereo(path, g_renderContext.sampleRate, stereo)) {
         char buf[320];
         snprintf(buf, sizeof(buf), "Saved: %s (%d frames)", path.c_str(), (int)g_outputWaveform.size());
         transport_set_status(buf, false);
@@ -13105,7 +13107,7 @@ int main(int argc, char** argv) {
             for (int i = 0; i < g_waveformSamples; ++i)
                 stereo[size_t(i)*2] = stereo[size_t(i)*2+1] =
                     g_outputWaveform[size_t(i)];
-            if (!write_wav_16le_stereo(argv[3], AUDIO_SAMPLE_RATE, stereo)) {
+            if (!write_wav_16le_stereo(argv[3], g_renderContext.sampleRate, stereo)) {
                 fprintf(stderr, "gencheck: wav write failed\n");
                 return 1;
             }
@@ -13329,7 +13331,7 @@ int main(int argc, char** argv) {
                 stereo[i * 2]     = mono[i];
                 stereo[i * 2 + 1] = mono[i];
             }
-            if (!write_wav_16le_stereo(argv[3], AUDIO_SAMPLE_RATE, stereo))
+            if (!write_wav_16le_stereo(argv[3], g_renderContext.sampleRate, stereo))
                 throw std::runtime_error(std::string("wav write failed: ") + argv[3]);
 
             float peak = 0.0f; double rms = 0.0;
@@ -13405,12 +13407,12 @@ int main(int argc, char** argv) {
                                          g_transport.statusMsg);
 
             constexpr float PI = 3.14159265358979323846f;
-            std::vector<float> stereo(size_t(secs) * AUDIO_SAMPLE_RATE * 2);
+            std::vector<float> stereo(size_t(secs) * g_renderContext.sampleRate * 2);
             for (int sec = 0; sec < secs; ++sec) {
                 double rmsL = 0.0, rmsR = 0.0, panSum = 0.0;
                 float panMin = 1e9f, panMax = -1e9f;
                 bool havePan = false;
-                for (int i = 0; i < AUDIO_SAMPLE_RATE; ++i) {
+                for (int i = 0; i < g_renderContext.sampleRate; ++i) {
                     float sL = 0.0f, sR = 0.0f;
                     if (g_streamSource) {
                         float m = g_streamSource->next() * g_streamVelocity;
@@ -13437,23 +13439,23 @@ int main(int argc, char** argv) {
                     }
                     sL = soft_clip(sL);
                     sR = soft_clip(sR);
-                    size_t idx = (size_t(sec) * AUDIO_SAMPLE_RATE + i) * 2;
+                    size_t idx = (size_t(sec) * g_renderContext.sampleRate + i) * 2;
                     stereo[idx] = sL;
                     stereo[idx + 1] = sR;
                     rmsL += double(sL) * sL;
                     rmsR += double(sR) * sR;
                 }
-                rmsL = std::sqrt(rmsL / AUDIO_SAMPLE_RATE);
-                rmsR = std::sqrt(rmsR / AUDIO_SAMPLE_RATE);
+                rmsL = std::sqrt(rmsL / g_renderContext.sampleRate);
+                rmsR = std::sqrt(rmsR / g_renderContext.sampleRate);
                 if (havePan)
                     printf("t=%3d rmsL=%.4f rmsR=%.4f pan[min=%+.3f max=%+.3f mean=%+.3f]\n",
                            sec, rmsL, rmsR, panMin, panMax,
-                           panSum / double(AUDIO_SAMPLE_RATE));
+                           panSum / double(g_renderContext.sampleRate));
                 else
                     printf("t=%3d rmsL=%.4f rmsR=%.4f\n", sec, rmsL, rmsR);
             }
             stop_playback();
-            if (!write_wav_16le_stereo(argv[3], AUDIO_SAMPLE_RATE, stereo))
+            if (!write_wav_16le_stereo(argv[3], g_renderContext.sampleRate, stereo))
                 throw std::runtime_error(std::string("wav write failed: ") + argv[3]);
             printf("dump-stream ok: %s -> %s\n", argv[2], argv[3]);
         } catch (const std::exception& e) {
