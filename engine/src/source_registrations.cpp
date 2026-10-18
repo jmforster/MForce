@@ -371,14 +371,14 @@ void register_all_sources() {
         [](int, auto) { return std::make_shared<MultiplexSource>(); });
 
     reg.register_type("SegmentSource", SourceCategory::Generator,
-        [](int sr, auto seed) {
+        [](int, auto seed) {
             return std::make_shared<SegmentSource>(
-                std::vector<float>{}, sr, false, seed.value_or(0x5E6A'0000u));
+                std::vector<float>{}, false, seed.value_or(0x5E6A'0000u));
         });
 
     reg.register_type("RepeatingSource", SourceCategory::Modulator,
-        [](int sr, auto seed) {
-            return std::make_shared<RepeatingSource>(sr, seed.value_or(0xAEAE'0000u));
+        [](int, auto seed) {
+            return std::make_shared<RepeatingSource>(seed.value_or(0xAEAE'0000u));
         },
         // Configurator: duration, gap (plain floats)
         [](ValueSource& src, const nlohmann::json& p, const ResolveParamFn&) {
@@ -390,8 +390,8 @@ void register_all_sources() {
         });
 
     reg.register_type("PhasedValueSource", SourceCategory::Envelope,
-        [](int sr, auto) {
-            return std::make_shared<PhasedValueSource>(sr, 0.05f);
+        [](int, auto) {
+            return std::make_shared<PhasedValueSource>(0.05f);
         },
         // Configurator: overlap, stages
         [](ValueSource& src, const nlohmann::json& p, const ResolveParamFn& resolve) {

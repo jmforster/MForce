@@ -2214,9 +2214,9 @@ static void run_sharing_trace_tests() {
 namespace {
 // Counts how often a pin's owner prepared and advanced it.
 struct PinCounter final : mforce::Generator {
-  int prepares{0}, advances{0}, rate{0};
+  int prepares{0}, advances{0}, rate{0}, ctxPrepares{0};
   float level{1.0f};
-  void on_prepare(const mforce::RenderContext& c) override { rate = c.sampleRate; }
+  void on_prepare(const mforce::RenderContext& c) override { rate = c.sampleRate; ++ctxPrepares; }
   void on_prepare(const mforce::RenderContext&, int) override { ++prepares; }
   float compute() override { ++advances; return level; }
   const char* type_name() const override { return "PinCounter"; }
@@ -4003,12 +4003,12 @@ static void run_combine_mod_pin_shape_tests() {
     StaticVarSource sv(1.0f, 0.1f);                          smoke(sv);
     StaticRangeSource sr(0.0f, 1.0f);                        smoke(sr);
     MultiplexSource mux;                                     smoke(mux);
-    PhasedValueSource phased(48000, 0.05f);
+    PhasedValueSource phased(0.05f);
     phased.add_stage({konst(1.0f), 0.5f, 0.0f, 0.0f, 1.0f});
     phased.add_stage({konst(2.0f), 0.0f, 0.0f, 0.0f, 1.0f});     smoke(phased);
-    RepeatingSource rep(48000);
+    RepeatingSource rep;
     rep.set_param("source", konst(1.0f));                        smoke(rep);
-    SegmentSource seg(std::vector<float>{2.0f, 1.0f, 2.0f, -1.0f}, 48000);  smoke(seg);
+    SegmentSource seg(std::vector<float>{2.0f, 1.0f, 2.0f, -1.0f});  smoke(seg);
     ShaperSource shaper;                                     smoke(shaper);
     WormholeSource wh;                                       smoke(wh);
 
@@ -4047,13 +4047,13 @@ static void run_combine_mod_category_tests() {
     CHECK(comb.category() == SourceCategory::Combiner && xfade.category() == SourceCategory::Combiner);
     CHECK(mux.category() == SourceCategory::Combiner);
     DistortedSource dist;
-    RepeatingSource rep(48000);
+    RepeatingSource rep;
     ShaperSource shaper;
     WormholeSource wh;
     CHECK(dist.category() == SourceCategory::Modulator && rep.category() == SourceCategory::Modulator);
     CHECK(shaper.category() == SourceCategory::Modulator && wh.category() == SourceCategory::Modulator);
-    PhasedValueSource phased(48000, 0.05f);
-    SegmentSource seg(std::vector<float>{}, 48000);
+    PhasedValueSource phased(0.05f);
+    SegmentSource seg(std::vector<float>{});
     StaticVarSource sv(1.0f, 0.0f);
     StaticRangeSource sr(0.0f, 1.0f);
     CHECK(phased.category() == SourceCategory::Envelope && seg.category() == SourceCategory::Generator);
@@ -4081,15 +4081,15 @@ static void run_combine_mod_default_tests() {
     CHECK_NEAR(param_default(sh, "morph"), 0.0f, 1e-6f);
     CHECK_NEAR(param_default(sh, "breakaway"), 0.6f, 1e-6f);
     CHECK_NEAR(param_default(sh, "capture"), 0.0f, 1e-6f);
-    SegmentSource seg(std::vector<float>{}, 48000);
+    SegmentSource seg(std::vector<float>{});
     CHECK_NEAR(param_default(seg, "smoothness"), 0.5f, 1e-6f);
     CHECK_NEAR(param_default(seg, "width"), 1.0f, 1e-6f);
     CHECK_NEAR(param_default(seg, "gap"), 0.0f, 1e-6f);
-    PhasedValueSource phased(48000, 0.05f);
+    PhasedValueSource phased(0.05f);
     CHECK_NEAR(param_default(phased, "amplitude"), 1.0f, 1e-6f);
     MultiplexSource mux;
     CHECK_NEAR(mux.get_setting("count"), 10.0f, 1e-6f);
-    RepeatingSource rep(48000);
+    RepeatingSource rep;
     CHECK_NEAR(rep.get_setting("duration"), 0.5f, 1e-6f);
     CHECK_NEAR(rep.get_setting("gapDuration"), 0.2f, 1e-6f);
 
@@ -4098,7 +4098,7 @@ static void run_combine_mod_default_tests() {
     CHECK_NEAR(comb.get_setting("gainAdj"), 0.5f, 1e-6f);
     CHECK_NEAR(find_setting(comb, "operation")->default_value, 0.0f, 1e-6f);
     CHECK_NEAR(find_setting(comb, "gainAdj")->default_value, 0.0f, 1e-6f);
-    SegmentSource once(std::vector<float>{4.0f, 1.0f}, 48000, true);
+    SegmentSource once(std::vector<float>{4.0f, 1.0f}, true);
     CHECK_NEAR(once.get_setting("oneShot"), 1.0f, 1e-6f);
     CHECK_NEAR(find_setting(once, "oneShot")->default_value, 0.0f, 1e-6f);
 
@@ -4145,11 +4145,11 @@ static void run_combine_mod_auto_pin_tests() {
     count(xfade, {"amplitude"});
     DistortedSource dist;
     count(dist, {"source", "density", "gain", "shift", "amplitude"});
-    PhasedValueSource phased(48000, 0.05f);
+    PhasedValueSource phased(0.05f);
     phased.add_stage({konst(1.0f), 0.5f, 0.0f, 0.0f, 1.0f});
     phased.add_stage({konst(2.0f), 0.0f, 0.0f, 0.0f, 1.0f});
     count(phased, {"amplitude"});
-    SegmentSource seg(std::vector<float>{2.0f, 1.0f}, 48000);
+    SegmentSource seg(std::vector<float>{2.0f, 1.0f});
     count(seg, {"amplitude", "smoothness", "width", "gap", "gapVarPct", "widthVarPct", "valVarPct"});
     WormholeSource wh;
     count(wh, {"source"});
@@ -4203,12 +4203,12 @@ static void run_combine_mod_manual_pin_tests() {
 
     // repeating: 10 samples of source, 6 of silence, per cycle (sr 1000);
     // the source is prepared again for each repetition and not pulled in a gap
-    RepeatingSource rep(1000);
+    RepeatingSource rep;
     auto rsrc = std::make_shared<LengthProbe>();
     rep.set_param("source", rsrc);
     rep.set_setting("duration", 0.01f);
     rep.set_setting("gapDuration", 0.005f);
-    rep.prepare(ctx, 100);
+    rep.prepare(RenderContext{1000}, 100);
     CHECK(rsrc->prepares == 1 && rsrc->lastFrames == 10);
     std::vector<float> out;
     for (int i = 0; i < 32; ++i) out.push_back(rep.next());
@@ -4296,7 +4296,7 @@ static void run_combine_mod_advance_order_tests() {
     order(comb, {"source1", "source2"});
     DistortedSource dist;
     order(dist, {"source", "density", "gain", "shift", "amplitude"});
-    SegmentSource seg(std::vector<float>{2.0f, 1.0f}, 48000);
+    SegmentSource seg(std::vector<float>{2.0f, 1.0f});
     order(seg, {"amplitude", "smoothness", "width", "gap", "gapVarPct", "widthVarPct", "valVarPct"});
     ShaperSource shaper;
     shaper.set_setting("hysteresis", 1.0f);
@@ -4335,12 +4335,12 @@ static void run_combine_mod_setting_hook_tests() {
 
     // a 4-sample ramp: the first width is inferred to be seconds (< 1) at sr 1000
     auto ramp4 = [&](SegmentSource& s) {
-        s.prepare(ctx, 100);
+        s.prepare(RenderContext{1000}, 100);
         std::vector<float> out;
         for (int i = 0; i < 6; ++i) out.push_back(s.next());
         return out;
     };
-    SegmentSource seg(std::vector<float>{4.0f, 1.0f}, 1000, true);
+    SegmentSource seg(std::vector<float>{4.0f, 1.0f}, true);
     seg.set_array("values", {0.004f, 1.0f});
     auto secs = ramp4(seg);
     CHECK_NEAR(secs[0], 0.25f, 1e-5f);
@@ -4430,7 +4430,7 @@ static void run_combine_mod_behavior_tests() {
     CHECK(held >= 0.2f && held <= 0.4f && sr.next() == held && sr.next() == held);
 
     // a one-shot segment ramps over its width, scaled by amplitude, then stops
-    SegmentSource once(std::vector<float>{4.0f, 1.0f}, 48000, true);
+    SegmentSource once(std::vector<float>{4.0f, 1.0f}, true);
     once.set_param("amplitude", konst(2.0f));
     once.prepare(ctx, 100);
     CHECK_NEAR(once.next(), 0.5f, 1e-5f);
@@ -4440,7 +4440,7 @@ static void run_combine_mod_behavior_tests() {
     CHECK(once.next() == 0.0f);
 
     // the phased source plays its first stage at its gain and amplitude
-    PhasedValueSource phased(48000, 0.05f);
+    PhasedValueSource phased(0.05f);
     phased.add_stage({konst(1.0f), 0.5f, 0.0f, 0.0f, 1.0f});
     phased.add_stage({konst(2.0f), 0.0f, 0.0f, 0.0f, 1.0f});
     phased.set_param("amplitude", konst(0.5f));
@@ -5301,6 +5301,189 @@ static void run_vibrato_split_tests() {
     CHECK(follows_rate([] { return make_vibrato(6.0f); }, 24000, 48000));
 }
 
+// ---------------------------------------------------------------------------
+// Combiners and modulators: the rate arrives through prepare(ctx), the note
+// through start(frames). The crossfade, repeating and phased sources own their
+// sub-sources and prepare and start each themselves, and the multiplex
+// prepares its clones; a constant on a pin or a stage cannot show a missing
+// call, so those are PinCounters that record the rate and the calls.
+// ---------------------------------------------------------------------------
+static std::shared_ptr<SineSource> sine_at(float hz) {
+    auto s = std::make_shared<SineSource>();
+    s->set_param("frequency", std::make_shared<ConstantSource>(hz));
+    return s;
+}
+
+// The voice source of a loaded patch whose output is a three-clone multiplex
+// over a two-node template (a sine under an AR envelope).
+static std::shared_ptr<ValueSource> make_multiplex_voice() {
+    auto ip = load_instrument_patch_json(R"({
+      "sampleRate": 48000,
+      "instrument": { "polyphony": 1 },
+      "graph": { "output": "mux", "nodes": [
+        { "id": "env", "type": "AREnvelope", "params": { "attack": 0.2 } },
+        { "id": "osc", "type": "SineSource",
+          "params": { "frequency": 220.0, "amplitude": { "ref": "env" } } },
+        { "id": "mux", "type": "MultiplexSource",
+          "params": { "count": 3, "source": { "ref": "osc" } } } ] }
+    })");
+    auto* pi = dynamic_cast<PitchedInstrument*>(ip.instrument.get());
+    return pi->voicePool.at(0).source;
+}
+
+static void run_combine_mod_pin_split_tests() {
+    const RenderContext ctx{48000};
+
+    CrossfadeSource xf;
+    auto s1 = std::make_shared<PinCounter>(), s2 = std::make_shared<PinCounter>();
+    xf.set_param("source1", s1);
+    xf.set_param("source2", s2);
+    xf.prepare(ctx);
+    CHECK(s1->rate == 48000 && s2->rate == 48000);
+    CHECK(s1->prepares == 0 && s2->prepares == 0);           // prepared, not started
+    xf.start(100);
+    CHECK(s1->prepares == 1 && s2->prepares == 1);           // started once
+    CHECK(s1->ctxPrepares == 1 && s2->ctxPrepares == 1);
+
+    RepeatingSource rep;
+    rep.set_setting("duration", 0.05f);
+    rep.set_setting("gapDuration", 0.01f);
+    auto kid = std::make_shared<PinCounter>();
+    rep.set_param("source", kid);
+    rep.prepare(ctx);
+    CHECK(kid->rate == 48000 && kid->prepares == 0);
+    rep.start(9600);
+    CHECK(kid->prepares == 1);                               // the first repetition
+    render_samples(rep, 9600);
+    // A repetition boundary starts the child and never prepares it.
+    CHECK(kid->ctxPrepares == 1);
+    CHECK(kid->prepares == 4);
+    CHECK(kid->advances > 3 * 2400 && kid->advances < 4 * 2400);
+
+    PhasedValueSource ph(0.05f);
+    auto st1 = std::make_shared<PinCounter>(), st2 = std::make_shared<PinCounter>();
+    ph.add_stage({st1, 0.5f, 0.0f, 0.0f, 1.0f});
+    ph.add_stage({st2, 0.0f, 0.0f, 0.0f, 1.0f});
+    ph.prepare(ctx);
+    CHECK(st1->rate == 48000 && st2->rate == 48000);
+    CHECK(st1->prepares == 0 && st2->prepares == 0);
+    ph.start(4800);
+    CHECK(st1->prepares == 1 && st2->prepares == 1);
+    CHECK(st1->ctxPrepares == 1 && st2->ctxPrepares == 1);
+
+    // The multiplex prepares the clones its builder returns unprepared, builds
+    // them once, and starts them per note; unbuilt, it prepares its input.
+    MultiplexSource mux;
+    mux.set_setting("count", 3.0f);
+    std::vector<std::shared_ptr<PinCounter>> clones;
+    mux.set_template("{}", 0, [&clones](int) {
+        clones.push_back(std::make_shared<PinCounter>());
+        return std::make_pair(std::shared_ptr<ValueSource>(clones.back()), MultiplexSource::ValueNodeMap{});
+    });
+    mux.prepare(ctx);
+    CHECK(clones.size() == 3);
+    for (const auto& c : clones) CHECK(c->rate == 48000 && c->prepares == 0);
+    mux.start(64);
+    mux.prepare(ctx);
+    mux.start(64);
+    CHECK(clones.size() == 3);
+    for (const auto& c : clones) CHECK(c->prepares == 2);
+    MultiplexSource solo;
+    auto wired = std::make_shared<PinCounter>();
+    solo.set_param("source", wired);
+    solo.prepare(ctx);
+    CHECK(wired->rate == 48000 && wired->prepares == 0);
+    solo.start(64);
+    CHECK(wired->prepares == 1);
+}
+
+// Each repetition restarts the child by start(); the repeater's output is the
+// child's own note, over and over, with the gap between.
+static void run_repeating_restart_tests() {
+    const RenderContext ctx{48000};
+    const auto make = [] {
+        auto r = std::make_shared<RepeatingSource>();
+        r->set_setting("duration", 0.05f);
+        r->set_setting("gapDuration", 0.01f);
+        r->set_param("source", Envelope::make_ar(0.3f));
+        return r;
+    };
+    auto once = make(), shim = make();
+    once->prepare(ctx);
+    once->start(4800);
+    shim->prepare(ctx, 4800);
+    const auto out = render_samples(*once, 9600);
+    CHECK(same_bits(out, render_samples(*shim, 9600)));
+
+    auto ref = Envelope::make_ar(0.3f);
+    ref->prepare(ctx);
+    ref->start(2400);
+    const auto note = render_samples(*ref, 2400);
+    constexpr int kPeriod = 2400 + 1 + 480;                  // the note, then the gap
+    CHECK(std::equal(note.begin(), note.end(), out.begin()));
+    CHECK(std::all_of(out.begin() + 2400, out.begin() + kPeriod, [](float v) { return v == 0.0f; }));
+    CHECK(std::equal(note.begin(), note.end(), out.begin() + kPeriod));
+    CHECK(std::equal(note.begin(), note.end(), out.begin() + 2 * kPeriod));
+    CHECK(*std::max_element(note.begin(), note.end()) > 0.5f);   // the envelope is audible
+}
+
+static std::shared_ptr<RepeatingSource> make_repeater(float varPct = 0.3f) {
+    auto r = std::make_shared<RepeatingSource>();
+    r->set_setting("duration", 0.02f);
+    r->set_setting("durVarPct", varPct);
+    r->set_setting("gapDuration", 0.01f);
+    r->set_setting("gapVarPct", varPct);
+    r->set_param("source", Envelope::make_ar(0.3f));
+    return r;
+}
+
+static std::shared_ptr<PhasedValueSource> make_phased() {
+    auto p = std::make_shared<PhasedValueSource>(0.01f);
+    p->add_stage({sine_at(220.0f), 0.5f, 0.0f, 0.0f, 1.0f});
+    p->add_stage({sine_at(330.0f), 0.0f, 0.0f, 0.0f, 1.0f});
+    return p;
+}
+
+static std::shared_ptr<SegmentSource> make_segment(bool seconds, float varPct = 0.2f) {
+    auto g = std::make_shared<SegmentSource>(
+        seconds ? std::vector<float>{0.0004f, 1.0f, 0.0006f, -1.0f}
+                : std::vector<float>{40.0f, 1.0f, 60.0f, -1.0f});
+    g->set_param("widthVarPct", std::make_shared<ConstantSource>(varPct));
+    g->set_param("valVarPct", std::make_shared<ConstantSource>(varPct / 2.0f));
+    return g;
+}
+
+static void run_combine_mod_split_tests() {
+    CHECK(split_equivalent([] { return make_repeater(); }));
+    CHECK(split_equivalent([] {
+        auto x = std::make_shared<CrossfadeSource>();
+        x->set_param("source1", sine_at(220.0f));
+        x->set_param("source2", sine_at(330.0f));
+        return x;
+    }));
+    CHECK(split_equivalent([] { return make_phased(); }));
+    CHECK(split_equivalent([] { return make_segment(false); }));
+    CHECK(split_equivalent([] { return make_segment(true); }));
+    CHECK(split_equivalent([] { return make_multiplex_voice(); }));
+    CHECK(split_equivalent([] {
+        return std::make_shared<CombinedSource>(sine_at(220.0f), sine_at(330.0f), CombineOp::Fade);
+    }));
+    CHECK(split_equivalent([] { return std::make_shared<StaticVarSource>(2.0f, 0.5f, 0.1f); }));
+    CHECK(split_equivalent([] { return std::make_shared<StaticRangeSource>(0.2f, 0.4f, 0.3f); }));
+
+    // The rate is the host's: a node prepared at one rate and then another is
+    // the node prepared at the second. Both draw from a stream that runs on
+    // across notes, so the comparison leaves the variation out.
+    CHECK(follows_rate([] { return make_repeater(0.0f); }, 48000, 22050));
+    CHECK(follows_rate([] { return make_repeater(0.0f); }, 22050, 48000));
+    CHECK(follows_rate([] { return make_segment(true, 0.0f); }, 48000, 22050));
+    CHECK(follows_rate([] { return make_segment(true, 0.0f); }, 22050, 48000));
+    CHECK(follows_rate([] { return make_phased(); }, 48000, 22050));
+    CHECK(follows_rate([] { return make_phased(); }, 22050, 48000));
+    run_combine_mod_pin_split_tests();
+    run_repeating_restart_tests();
+}
+
 // Checkpoint 2.2: the contract's sweep, then the families as they are cut.
 static void run_prepare_start_tests() {
     run_split_equivalence_tests();
@@ -5312,6 +5495,7 @@ static void run_prepare_start_tests() {
     run_physical_split_tests();
     run_filter_split_tests();
     run_vibrato_split_tests();
+    run_combine_mod_split_tests();
 }
 
 int main() {

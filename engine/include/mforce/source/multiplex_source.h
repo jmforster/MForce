@@ -14,7 +14,8 @@ namespace mforce {
 // each built with a perturbed seed, and emits sum(instances) / N per sample.
 // The loader special-cases this node to populate instances_ at build time
 // from an extracted JSON subtree (stored in templateJson_) via an
-// InstanceBuilder closure that encodes seed-perturbation + sampleRate.
+// InstanceBuilder closure that encodes seed-perturbation. The builder
+// returns unprepared clones; the multiplex prepares and starts them.
 //
 // Live-edit rebuild (UI path): external code updates templateJson_ to the
 // current UI serialization and sets templateDirty_; next prepare() rebuilds.
@@ -55,7 +56,7 @@ struct MultiplexSource final : Processor {
     }
 
     // Loader hook. The builder closure captures everything needed (subtree
-    // JSON, base seed, sample rate) to produce a freshly built root source
+    // JSON, base seed) to produce a freshly built root source
     // plus valueNodes map for a given instance index.
     void set_template(std::string json, uint32_t baseSeed, InstanceBuilder builder) {
         templateJson_ = std::move(json);
@@ -79,13 +80,22 @@ struct MultiplexSource final : Processor {
         apply_clone_param_to_all_(nodeId, paramName, value);
     }
 
-    void on_prepare(const RenderContext& ctx, int frames) override {
+    void on_prepare(const RenderContext& ctx) override {
         if (templateDirty_) rebuild_();
         if (!instances_.empty()) {
             for (auto& inst : instances_)
-                if (inst) inst->prepare(ctx, frames);
+                if (inst) inst->prepare(ctx);
         } else {
-            input.prepare(ctx, frames);   // UI solo-preview fallback
+            input.prepare(ctx);   // UI solo-preview fallback
+        }
+    }
+
+    void on_start(int frames) override {
+        if (!instances_.empty()) {
+            for (auto& inst : instances_)
+                if (inst) inst->start(frames);
+        } else {
+            input.start(frames);   // UI solo-preview fallback
         }
     }
 

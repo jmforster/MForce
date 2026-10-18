@@ -31,10 +31,8 @@ struct PhasedValueSource final : Generator {
   Param amplitude{this, "amplitude", 1.0f, 0.0f, 10.0f, "0-1"};
 
   float overlapSeconds{0.05f};
-  int sampleRate{48000};
 
-  PhasedValueSource(int sr, float overlap)
-  : overlapSeconds(overlap), sampleRate(sr) {}
+  explicit PhasedValueSource(float overlap) : overlapSeconds(overlap) {}
 
   const char* type_name() const override { return "PhasedValueSource"; }
   SourceCategory category() const override { return SourceCategory::Envelope; }
@@ -44,17 +42,21 @@ struct PhasedValueSource final : Generator {
   // are the node's own business.
   void add_stage(Stage s) { stages_.push_back(std::move(s)); }
 
-  void on_prepare(const RenderContext& ctx, int frames) override {
+  void on_prepare(const RenderContext& ctx) override {
+    for (auto& s : stages_) s.source->prepare(ctx);
+  }
+
+  void on_start(int frames) override {
     totalFrames_ = frames;
     ptr_ = -1;
-    overlapSamples_ = int(overlapSeconds * float(sampleRate));
+    overlapSamples_ = int(overlapSeconds * float(sample_rate()));
 
     // Calculate per-stage sample counts
     int expandIdx = -1;
     int totCount = 0;
     stageCounts_.resize(stages_.size(), 0);
 
-    float duration = float(frames) / float(sampleRate);
+    float duration = float(frames) / float(sample_rate());
 
     for (int i = 0; i < int(stages_.size()); ++i) {
       if (stages_[i].percent == 0.0f) {
@@ -65,7 +67,7 @@ struct PhasedValueSource final : Generator {
       float stgDur = stages_[i].percent * duration;
       if (stages_[i].maxSec > 0)
         stgDur = std::min(stages_[i].maxSec, std::max(stages_[i].minSec, stgDur));
-      stageCounts_[i] = int(std::lround(stgDur * sampleRate));
+      stageCounts_[i] = int(std::lround(stgDur * sample_rate()));
 
       if (i == int(stages_.size()) - 1 && expandIdx < 0)
         stageCounts_[i] = frames - totCount;
@@ -78,10 +80,10 @@ struct PhasedValueSource final : Generator {
       stageCounts_[expandIdx] = std::max(0, frames - totCount + halfOl);
     }
 
-    // Prepare each stage source with its count + overlap
+    // Start each stage source with its count + overlap
     for (int i = 0; i < int(stages_.size()); ++i) {
       int extra = overlapSamples_ / (i == 0 || i == int(stages_.size()) - 1 ? 2 : 1);
-      stages_[i].source->prepare(ctx, stageCounts_[i] + extra);
+      stages_[i].source->start(stageCounts_[i] + extra);
     }
 
     // Precompute cumulative boundaries (excluding overlap)

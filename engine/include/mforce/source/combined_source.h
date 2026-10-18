@@ -11,7 +11,7 @@ namespace mforce {
 // Fade, or Sum. Add averages (v1+v2)/2 to preserve headroom; Sum is a
 // no-halving variant that's correct when callers want raw addition
 // (e.g. modulator layering where amplitudes are chosen to stay bounded).
-// Fade: linear crossfade from source1 to source2 over the prepare'd duration.
+// Fade: linear crossfade from source1 to source2 over the started span.
 enum class CombineOp { Add, Multiply, Fade, Sum };
 
 // A combiner has two signal inputs and no `source`, so the inherited input of
@@ -35,7 +35,7 @@ struct CombinedSource final : ValueSource {
   const char* type_name() const override { return "CombinedSource"; }
   SourceCategory category() const override { return SourceCategory::Combiner; }
 
-  void on_prepare(const RenderContext&, int frames) override {
+  void on_start(int frames) override {
     totalFrames_ = frames;
     ptr_ = -1;
   }
@@ -77,7 +77,7 @@ private:
 //
 // Two signal inputs and no `source`: a ValueSource for the reason CombinedSource
 // is. The sources are Manual: each plays only in its own part of the note and
-// is prepared for that part's length, so the node prepares and pulls them.
+// is started for that part's length, so the node prepares, starts and pulls them.
 struct CrossfadeSource final : ValueSource {
   Param amplitude{this, "amplitude", 1.0f, 0.0f, 10.0f, "0-1"};
   Input source1{this, "source1", Input::RequiredInput, nullptr, false, Pull::Manual};
@@ -89,7 +89,12 @@ struct CrossfadeSource final : ValueSource {
   const char* type_name() const override { return "CrossfadeSource"; }
   SourceCategory category() const override { return SourceCategory::Combiner; }
 
-  void on_prepare(const RenderContext& ctx, int frames) override {
+  void on_prepare(const RenderContext& ctx) override {
+    source1.prepare(ctx);
+    source2.prepare(ctx);
+  }
+
+  void on_start(int frames) override {
     ptr_ = -1;
 
     int s1Count = int(std::lround(double(frames) * ratio.value));
@@ -99,8 +104,8 @@ struct CrossfadeSource final : ValueSource {
     s1End_ = s1Count + overlapCount_;
     s2Start_ = s1Count - overlapCount_;
 
-    source1.prepare(ctx, s1Count + overlapCount_);
-    source2.prepare(ctx, s2Count + overlapCount_);
+    source1.start(s1Count + overlapCount_);
+    source2.start(s2Count + overlapCount_);
   }
 
   float compute() override {
@@ -157,7 +162,7 @@ private:
   Randomizer rng_;
 };
 
-// Ported from C# StaticVarSource — random value set once on prepare().
+// Ported from C# StaticVarSource — random value drawn once per note, at start().
 // value = baseValue * (1 + random * varPct), optionally biased.
 struct StaticVarSource final : Generator {
   float baseValue{1.0f};
@@ -169,7 +174,7 @@ struct StaticVarSource final : Generator {
 
   const char* type_name() const override { return "StaticVarSource"; }
 
-  void on_prepare(const RenderContext& /*ctx*/, int /*frames*/) override {
+  void on_start(int /*frames*/) override {
     float r = rng_.valuePN() * varPct;
     if (bias != 0.0f) r = r * (1.0f - std::fabs(bias)) + bias * varPct;
     value_ = baseValue * (1.0f + r);
@@ -183,7 +188,7 @@ private:
   float value_{0.0f};
 };
 
-// Ported from C# StaticRangeSource — random value in [min,max] set once on prepare().
+// Ported from C# StaticRangeSource — random value in [min,max] drawn once per note, at start().
 struct StaticRangeSource final : Generator {
   float min{0.0f}, max{1.0f}, bias{0.0f};
 
@@ -192,7 +197,7 @@ struct StaticRangeSource final : Generator {
 
   const char* type_name() const override { return "StaticRangeSource"; }
 
-  void on_prepare(const RenderContext& /*ctx*/, int /*frames*/) override {
+  void on_start(int /*frames*/) override {
     value_ = rng_.range(min, max, bias);
     cur_ = value_;
   }

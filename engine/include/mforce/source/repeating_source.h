@@ -10,29 +10,26 @@ namespace mforce {
 // Repeats a source with variable duration and gaps between repetitions.
 // Good for sound effects (footsteps, dripping, rhythmic textures).
 //
-// Each repetition: prepare source for duration seconds, play it, then
+// Each repetition: start source for duration seconds, play it, then
 // silence for gap seconds. Both duration and gap are randomized by varPct.
 struct RepeatingSource final : Processor {
   Setting<float> duration   {this, "duration",    0.5f, 0.001f, 10.0f};   // seconds per repetition
   Setting<float> durVarPct  {this, "durVarPct",   0.0f, 0.0f,   1.0f};    // random variation of duration
   Setting<float> gapDuration{this, "gapDuration", 0.2f, 0.0f,   10.0f};   // seconds of silence between repetitions
   Setting<float> gapVarPct  {this, "gapVarPct",   0.0f, 0.0f,   1.0f};    // random variation of gap
-  int sampleRate{48000};
 
   // The node pulls the inherited `source` only while a repetition plays,
-  // never during a gap, and prepares it for each repetition's own length at
+  // never during a gap, and starts it for each repetition's own length at
   // the start of that repetition, so the input is Manual.
-  RepeatingSource(int sr, uint32_t seed = 0xAEAE'0000u)
-  : Processor(Pull::Manual), sampleRate(sr), rng_(seed) {}
+  explicit RepeatingSource(uint32_t seed = 0xAEAE'0000u)
+  : Processor(Pull::Manual), rng_(seed) {}
 
   const char* type_name() const override { return "RepeatingSource"; }
   SourceCategory category() const override { return SourceCategory::Modulator; }
 
-  void on_prepare(const RenderContext& ctx, int frames) override {
-    (void)frames;
-    ctx_ = ctx;
-    prepare_repetition();
-  }
+  void on_prepare(const RenderContext& ctx) override { input.prepare(ctx); }
+
+  void on_start(int /*frames*/) override { start_repetition(); }
 
   float compute() override {
     if (gapCount_ == 0) {
@@ -42,32 +39,31 @@ struct RepeatingSource final : Processor {
         return input.advance();
       }
       // Source finished — enter gap
-      gapCount_ = int(std::round(currGap_ * float(sampleRate)));
+      gapCount_ = int(std::round(currGap_ * float(sample_rate())));
       return 0.0f;
     }
     // In gap
     gapCount_--;
     if (gapCount_ == 0) {
-      prepare_repetition();
+      start_repetition();
     }
     return 0.0f;
   }
 
 private:
-  void prepare_repetition() {
+  void start_repetition() {
     float d = duration.value * (1.0f + rng_.valuePN() * durVarPct.value);
     if (d < 0.001f) d = 0.001f;
     currGap_ = gapDuration.value * (1.0f + rng_.valuePN() * gapVarPct.value);
     if (currGap_ < 0.0f) currGap_ = 0.0f;
 
-    int samples = int(std::round(d * float(sampleRate)));
-    input.prepare(ctx_, samples);
+    int samples = int(std::round(d * float(sample_rate())));
+    input.start(samples);
     srcRemaining_ = samples;
     gapCount_ = 0;
   }
 
   Randomizer rng_;
-  RenderContext ctx_{48000};  // captured at prepare() for use by prepare_repetition() during playback
   float currGap_{0.0f};
   int srcRemaining_{0};
   int gapCount_{0};

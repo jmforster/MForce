@@ -599,7 +599,6 @@ static std::pair<std::shared_ptr<ValueSource>,
 build_subgraph_with_seed_perturbation(
     const std::string& subtreeJsonStr,
     uint32_t seedPerturbation,
-    int sampleRate,
     const PerformContext* perf);
 
 static GraphResult build_graph(
@@ -817,7 +816,7 @@ static GraphResult build_graph(
                 oneShot = pp->value("oneShot", false);
             }
             auto src = std::make_shared<SegmentSource>(
-                std::move(values), sampleRate, oneShot, seed.value_or(0x5E6A'0000u));
+                std::move(values), oneShot, seed.value_or(0x5E6A'0000u));
             if (pp) wire_params_generic(*src, *pp, valueNodes, &usage);
             valueNodes[id] = src;
             add_mono(g, id, src);
@@ -1020,15 +1019,14 @@ static GraphResult build_graph(
                     // caller's context would dangle. The copy holds shared_ptrs
                     // to the very same adapters, so clones still share the
                     // voice's one PerformSource.
-                    int sr = sampleRate;
                     const bool hasPerf = (perf != nullptr);
                     PerformContext perfCopy = hasPerf ? *perf : PerformContext{};
                     MultiplexSource::InstanceBuilder builder =
-                        [subtreeStr, baseSeed, sr, hasPerf, perfCopy](int instanceIdx) {
+                        [subtreeStr, baseSeed, hasPerf, perfCopy](int instanceIdx) {
                             uint32_t perturbation =
                                 baseSeed ^ (uint32_t(instanceIdx) * 0x9E3779B9u);
                             return build_subgraph_with_seed_perturbation(
-                                subtreeStr, perturbation, sr,
+                                subtreeStr, perturbation,
                                 hasPerf ? &perfCopy : nullptr);
                         };
 
@@ -1131,7 +1129,6 @@ static std::pair<std::shared_ptr<ValueSource>,
 build_subgraph_with_seed_perturbation(
     const std::string& subtreeJsonStr,
     uint32_t seedPerturbation,
-    int sampleRate,
     const PerformContext* perf)
 {
     json subtree = json::parse(subtreeJsonStr);
@@ -1154,7 +1151,9 @@ build_subgraph_with_seed_perturbation(
         nodeOrder.push_back(id);
     }
 
-    auto g = build_graph(nodeMap, nodeOrder, sampleRate, perf);
+    // build_graph's rate parameter is dead (no node reads it); deleted at the
+    // close of checkpoint 2.2.
+    auto g = build_graph(nodeMap, nodeOrder, 0, perf);
 
     std::string outputId = subtree["output"].get<std::string>();
     auto it = g.valueNodes.find(outputId);

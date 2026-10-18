@@ -39,11 +39,10 @@ struct SegmentSource final : Generator {
   // patch loader's generic set_array path uses this to wire arbitrary
   // shapes from JSON. widthIsSecs_ is re-derived from values[0] each time.
   Array values{this, "values", nullptr, 0.0f, -10.0f, 10.0f};
-  int sampleRate{48000};
 
-  SegmentSource(std::vector<float> initial, int sr, bool os = false,
-                uint32_t seed = 0x5E6A'0000u)
-  : sampleRate(sr), rng_(seed)
+  explicit SegmentSource(std::vector<float> initial, bool os = false,
+                         uint32_t seed = 0x5E6A'0000u)
+  : rng_(seed)
   {
     values.values = std::move(initial);
     oneShot.value = os;
@@ -64,10 +63,10 @@ struct SegmentSource final : Generator {
     if (name == "values") refresh_units_();
   }
 
-  void on_prepare(const RenderContext&, int) override {
+  void on_start(int) override {
     done_ = false;
     // Deferred to the first compute(): update_segments() reads the
-    // width/var/gap pins via current(), and at prepare() time a wired
+    // width/var/gap pins via current(), and at start() time a wired
     // chain (e.g. Note→Curve→width) still holds the PREVIOUS note's value
     // on a reused voice — Matt heard it as nondeterministic clicks/thumps
     // per keypress. The first compute() runs after the pins advance for
@@ -120,14 +119,14 @@ private:
     float gapSamples = std::round(
         rng_.range(gap.current() * (1.0f - gapVarPct.current()),
                    gap.current() * (1.0f + gapVarPct.current()))
-        * (widthIsSecs_ ? float(sampleRate) : 1.0f));
+        * (widthIsSecs_ ? float(sample_rate()) : 1.0f));
     int gapInt = int(gapSamples);
 
     int pairCount = int(shape.size()) / 2;
     float wvp = widthVarPct.current();
     float vvp = valVarPct.current();
     float wscale = width.current();
-    float rate = widthIsSecs_ ? float(sampleRate) : 1.0f;
+    float rate = widthIsSecs_ ? float(sample_rate()) : 1.0f;
 
     currVals_.clear();
     currVals_.reserve((pairCount + 1) * 2);

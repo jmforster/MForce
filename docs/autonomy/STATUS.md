@@ -6,14 +6,20 @@ PROGRESS on main: plan docs/superpowers/plans/2026-10-17-part2-checkpoint-2.2.md
 (ten tasks, per-type tables, Ledger of rulings; the A/B base is
 renders/scratch/ab_tree/cli_pre22.exe = the tree at 1145a52). Landed:
 T1 contract + shim + registry-wide split-equivalence sweep (7e20e5f),
-T2 core (1a55d88), T3 noise (b03a259); each family = one Sonnet
-implementer + one Sonnet reviewer + controller null-gate rerun, fixes
-applied inline before the commit. Null gate 80/80 after every commit;
-family A/Bs 1007 and 701 patches, 0 differ. NEXT: T4 wavetable/evolutions
-(dispatched), T5 additive, T6 physical, T7 filters+Vibrato, T8 combiners,
-then T9 hosts (shim deleted, factory loses the rate, UI's one
-RenderContext), T10 close (whole-tree A/B, refuter, report R3). Nothing
-pushed since Matt's push after session II; GOALS.md stays his edit.
+T2 core (1a55d88), T3 noise (b03a259), T4 wavetable/evolutions (44b9fba),
+T5 additive (0dc8f04), T6 physical (da75aa1), T7 filters+Vibrato
+(72fa01e); each family = one Sonnet implementer + one Sonnet reviewer +
+controller null-gate rerun, fixes applied inline before the commit. Null
+gate 80/80 after every commit; family A/Bs 1007/701/68/96/747/679
+patches, 0 differ. FOUND on the way (Ledger in the plan): DelayLineSource
+read one past its ring (kept byte-identical via a zero slot; real fix =
+listed behaviour change for later); the sweep excludes a stage-less
+PhasedValueSource (pre-existing crash). NEXT: T8 combiners (dispatched),
+then T9 hosts inline (shim deleted, factory loses the rate, Instrument
+holds the RenderContext, UI's one context from the stream; PinCounter
+gets a start counter), T10 close (whole-tree A/B vs cli_pre22.exe,
+timing, refuter, report R3). Nothing pushed since Matt's push after
+session II; GOALS.md stays his edit.
 
 Updated: 2026-10-17 (refactor session II, Fable 5.1 xhigh). CHECKPOINT 2.1
 LANDED on main: 1b9b69f..9f2b4a8 (23 commits) — every pin on every node
