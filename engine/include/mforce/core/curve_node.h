@@ -44,7 +44,7 @@ struct CurveNode final : Generator {
   bool exprMode{false};
   CurveInterp interp{CurveInterp::Linear};
 
-  void on_prepare(const RenderContext&, int) override {
+  void on_start(int) override {
     lastX_ = std::numeric_limits<float>::quiet_NaN();  // force re-eval
   }
 

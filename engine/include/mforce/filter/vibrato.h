@@ -75,13 +75,13 @@ private:
   // 1 Hz → speed and depth ramps 0 → depth over the attack, then both HOLD for
   // the rest of the note — that's an ASEnvelope (attack→sustain).
   void build_lfo() {
-    auto speedRamp = std::make_shared<ASEnvelope>(sampleRate_);
+    auto speedRamp = std::make_shared<ASEnvelope>();
     speedRamp->set_setting("attack", attack.value);
     auto speedRange = std::make_shared<RangeSource>(
         std::make_shared<ConstantSource>(1.0f),
         std::make_shared<ConstantSource>(speed.value), speedRamp, true);
 
-    auto depthRamp = std::make_shared<ASEnvelope>(sampleRate_);
+    auto depthRamp = std::make_shared<ASEnvelope>();
     depthRamp->set_setting("attack", attack.value);
     auto depthRange = std::make_shared<RangeSource>(
         std::make_shared<ConstantSource>(0.0f),

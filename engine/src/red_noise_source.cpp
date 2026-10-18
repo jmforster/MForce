@@ -5,8 +5,8 @@
 
 namespace mforce {
 
-RedNoiseSource::RedNoiseSource(int sampleRate, uint32_t seed)
-: WaveSource(sampleRate), rng_(seed), interp_(0.0f, false) {
+RedNoiseSource::RedNoiseSource(int, uint32_t seed)
+: rng_(seed), interp_(0.0f, false) {
   // Phase is meaningless; legacy passes phase=0 via base(ampl,freq,0).
 }
 
@@ -15,7 +15,7 @@ float RedNoiseSource::wave() {
 
   // "Check if done with current ramp, due to either normal completion or significant frequency increase"
   // if (SampleCount >= RampSize || RampSize > Rate / CurrFreq)
-  if (sampleCount_ >= rampSize_ || float(rampSize_) > float(sampleRate_) / currFreq_) {
+  if (sampleCount_ >= rampSize_ || float(rampSize_) > float(sample_rate()) / currFreq_) {
 
     // Set up for next ramp
     // Legacy has a weird SampleCount > -RampSize branch; SampleCount is never negative in practice.
@@ -33,7 +33,7 @@ float RedNoiseSource::wave() {
 
     float denom = rng_.range(fmin, fmax);
 
-    float rsFloat = (float(sampleRate_) / denom) / 2.0f;   // = Rate / (2*denom)
+    float rsFloat = (float(sample_rate()) / denom) / 2.0f;   // = Rate / (2*denom)
 
     if (currFreq_ > 500.0f) {
       // high freq: biased floor/ceiling to reduce pitch quantization

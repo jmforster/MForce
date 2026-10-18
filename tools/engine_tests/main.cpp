@@ -90,7 +90,7 @@ static void run_curve_expr_tests() {
 static void run_envelope_range_tests() {
     RenderContext ctx{48000};
     auto mk = []() {
-        auto env = std::make_shared<Envelope>(48000);
+        auto env = std::make_shared<Envelope>();
         env->add_stage({{0.0f, 1.0f, RampType::Linear, 0.0f}, 0.5f, 0.0f, 0.0f});
         env->add_stage({{1.0f, 1.0f, RampType::Linear, 0.0f}, 0.5f, 0.0f, 0.0f});
         return env;
@@ -117,7 +117,7 @@ static void run_envelope_range_tests() {
 
 static void run_stage_nominal_tests() {
     RenderContext ctx{48000};
-    auto env = std::make_shared<Envelope>(48000);
+    auto env = std::make_shared<Envelope>();
     // 0->1 attack with nominal 0.25 s (percent tiny), then gated expand hold.
     Envelope::Stage a{{0.0f, 1.0f, RampType::Linear, 0.0f}, 0.001f, 0.0f, 0.0f};
     a.nominal = 0.25f;
@@ -131,7 +131,7 @@ static void run_stage_nominal_tests() {
     CHECK(v > 0.3f && v < 0.7f);
 
     // NOT gated: nominal ignored, tiny attack — value ~1.0 by sample 6000.
-    auto env2 = std::make_shared<Envelope>(48000);
+    auto env2 = std::make_shared<Envelope>();
     Envelope::Stage a2{{0.0f, 1.0f, RampType::Linear, 0.0f}, 0.001f, 0.0f, 0.0f};
     a2.nominal = 0.25f;
     env2->add_stage(a2);
@@ -1037,7 +1037,7 @@ static void run_param_map_unwired_multiplex_tests() {
 static void run_envelope_retrigger_tests() {
     // Seconds-mode gesture: 10ms 1.0->0.2, 20ms 0.2->1.0, expand@1.0.
     const int sr = 48000;
-    Envelope env(sr);
+    Envelope env;
     env.absolute_time = true;
     env.add_stage({{1.0f, 0.2f, RampType::Linear, 0.0f}, 0.010f, 0.0f, 0.0f});
     env.add_stage({{0.2f, 1.0f, RampType::Linear, 0.0f}, 0.020f, 0.0f, 0.0f});
@@ -1070,7 +1070,7 @@ static void run_envelope_retrigger_tests() {
 static void run_release_relayout_tests() {
     const int sr = 48000;
     // adsr-ish: attack 10%, decay 10%, expand, release 25% (percent mode)
-    Envelope env(sr);
+    Envelope env;
     env.add_stage({{0.0f, 1.0f, RampType::Linear, 0.0f}, 0.10f, 0.0f, 0.0f});
     env.add_stage({{1.0f, 0.7f, RampType::Linear, 0.0f}, 0.10f, 0.0f, 0.0f});
     env.add_stage({{0.7f, 0.7f, RampType::Linear, 0.0f}, 0.0f,  0.0f, 0.0f});
@@ -1085,7 +1085,7 @@ static void run_release_relayout_tests() {
     // prepare-time layout resolves percent against the LAYOUT window,
     // i.e. the note minus the engine-wide reflection allowance — that
     // 10 ms is why the expectation is not a flat 25% of 0.4 s.
-    Envelope e2(sr);
+    Envelope e2;
     e2.add_stage({{0.0f, 1.0f, RampType::Linear, 0.0f}, 0.10f, 0.0f, 0.0f});
     e2.add_stage({{1.0f, 1.0f, RampType::Linear, 0.0f}, 0.0f,  0.0f, 0.0f});
     e2.add_stage({{1.0f, 0.0f, RampType::Linear, 0.0f}, 0.25f, 0.0f, 0.0f});
@@ -1102,7 +1102,7 @@ static void run_release_relayout_tests() {
 static void run_name_gate_tests() {
     auto ps = std::make_shared<PerformSource>();
     auto in = std::make_shared<PerformOut>(ps, PerformOut::Field::Onset);
-    auto ng = std::make_shared<NameGate>(48000);
+    auto ng = std::make_shared<NameGate>();
     ng->set_param("in", in);
     ng->targetId = 2.0f;
     ps->set_note(440.0f, 0.8f, 100, 0.0f, nullptr, 2.0f);
@@ -2037,6 +2037,7 @@ static void run_base_tests() {
 }
 
 #include "mforce/source/sine_source.h"
+#include "mforce/source/fm_source.h"
 
 // A Manual pin is driven by its node: advance() pulls the source and returns
 // its value, or the pin's fallback (the constant; 0 for an input) unwired.
@@ -2143,7 +2144,7 @@ static void run_processor_manual_input_tests() {
 // once, in the order the old next() advanced them (amplitude, frequency,
 // phase); an unwired pin reads its constant and has no source.
 static void run_wave_source_tests() {
-    SineSource s(48000);
+    SineSource s;
     auto pd = s.param_descriptors();
     CHECK(pd.size() == 3);
     CHECK(std::string(pd[0].name) == "amplitude");
@@ -2167,7 +2168,7 @@ static void run_wave_source_tests() {
 static void run_sharing_trace_tests() {
     RenderContext ctx{48000};
     auto shared = std::make_shared<ConstantSource>(0.5f);
-    auto sine = std::make_shared<SineSource>(48000);
+    auto sine = std::make_shared<SineSource>();
     sine->set_param("amplitude", shared);            // the primary consumer
     auto ref = std::make_shared<RefSource>(shared, false);
     auto tap = std::make_shared<RefSource>(shared, true);
@@ -2190,7 +2191,7 @@ static void run_sharing_trace_tests() {
     // A tap read from inside its source's own pull (a loop: the sine's
     // amplitude is a tap on the sine) sees the previous sample's value even
     // though the source is being advanced this sample: not a same-tick tap.
-    auto loop = std::make_shared<SineSource>(48000);
+    auto loop = std::make_shared<SineSource>();
     loop->set_param("amplitude", std::make_shared<RefSource>(loop, true));
     loop->prepare(ctx, 16);
     SharingTrace::sameTickTaps = 0;
@@ -2292,7 +2293,7 @@ static void run_multi_name_gate_tests() {
 
     // NameGate: `in` is an optional signal input, advanced once per sample.
     {
-        NameGate ng(48000);
+        NameGate ng;
         CHECK(ng.param_descriptors().empty());
         CHECK(ng.input_descriptors().size() == 1);
         CHECK(std::string(ng.input_descriptors()[0].name) == "in");
@@ -2316,7 +2317,7 @@ static void run_envelope_pin_tests() {
     // Envelope: minValue/maxValue are pulled and prepared by the base;
     // `trigger` is Manual, so it is never prepared or advanced.
     {
-        auto env = std::make_shared<Envelope>(48000);
+        auto env = std::make_shared<Envelope>();
         env->add_stage({{0.0f, 1.0f, RampType::Linear, 0.0f}, 0.5f, 0.0f, 0.0f});
         env->add_stage({{1.0f, 1.0f, RampType::Linear, 0.0f}, 0.5f, 0.0f, 0.0f});
         auto lo = std::make_shared<PinCounter>();
@@ -2338,7 +2339,7 @@ static void run_envelope_pin_tests() {
     // Envelope settings: the knobs clamp; sustainLevel is a live view of the
     // four-slot ADSR shape and reads 0 on any other layout.
     {
-        auto adsr = Envelope::make_adsr(48000, 0.1f, 0.1f, 0.4f, 0.2f);
+        auto adsr = Envelope::make_adsr(0.1f, 0.1f, 0.4f, 0.2f);
         CHECK_NEAR(adsr->get_setting("sustainLevel"), 0.4f, 1e-6f);
         adsr->set_setting("sustainLevel", 0.2f);
         CHECK_NEAR(adsr->get_setting("sustainLevel"), 0.2f, 1e-6f);
@@ -2347,7 +2348,7 @@ static void run_envelope_pin_tests() {
         CHECK_NEAR(adsr->get_setting("stage_accuracy"), 1.0f, 1e-6f);
         adsr->set_setting("timeScale", 0.0f);
         CHECK_NEAR(adsr->get_setting("timeScale"), 0.01f, 1e-6f);
-        auto ar = Envelope::make_ar(48000, 0.2f);
+        auto ar = Envelope::make_ar(0.2f);
         ar->set_setting("sustainLevel", 0.9f);
         CHECK_NEAR(ar->get_setting("sustainLevel"), 0.0f, 1e-6f);
         CHECK_NEAR(ar->stage(1).ramp.startVal, 1.0f, 1e-6f);   // not rewritten
@@ -2365,12 +2366,12 @@ static void run_envelope_preset_tests() {
             e.prepare(ctx, 4800);
             for (int i = 0; i < 10; ++i) CHECK(std::isfinite(e.next()));
         };
-        AREnvelope ar(48000);    smoke(ar);
-        ASEnvelope as(48000);    smoke(as);
-        ASREnvelope asr(48000);  smoke(asr);
-        ADSEnvelope ads(48000);  smoke(ads);
-        ADREnvelope adr(48000);  smoke(adr);
-        ADSREnvelope adsr(48000); smoke(adsr);
+        AREnvelope ar;    smoke(ar);
+        ASEnvelope as;    smoke(as);
+        ASREnvelope asr;  smoke(asr);
+        ADSEnvelope ads;  smoke(ads);
+        ADREnvelope adr;  smoke(adr);
+        ADSREnvelope adsr; smoke(adsr);
         CHECK(has_name(ar.setting_descriptors(), "releaseCurve"));
         CHECK(has_name(adr.setting_descriptors(), "decayLevel"));
         CHECK(has_name(as.setting_descriptors(), "reverse"));
@@ -2412,7 +2413,7 @@ static void run_envelope_preset_tests() {
 // and advanced after the rebuilds.
 static void run_envelope_rebuild_pin_tests() {
     RenderContext ctx{48000};
-    ADSREnvelope adsr(48000);
+    ADSREnvelope adsr;
     const std::vector<PinBase*> pinsBefore = adsr.pins();
     auto lo = std::make_shared<PinCounter>();
     auto hi = std::make_shared<PinCounter>();
@@ -4570,10 +4571,154 @@ static void run_split_equivalence_tests() {
     CHECK(p.r() == 22050);
 }
 
+// ---------------------------------------------------------------------------
+// Core family: the rate arrives through prepare(ctx), the note through
+// start(frames) (WaveSource, Envelope and presets, FM, Multi).
+// ---------------------------------------------------------------------------
+static std::vector<float> render_samples(ValueSource& s, int n) {
+    std::vector<float> out;
+    out.reserve(size_t(n));
+    for (int i = 0; i < n; ++i) out.push_back(s.advance());
+    return out;
+}
+
+static bool same_bits(const std::vector<float>& a, const std::vector<float>& b) {
+    return a.size() == b.size() &&
+           std::memcmp(a.data(), b.data(), a.size() * sizeof(float)) == 0;
+}
+
+static void run_core_split_envelope_tests() {
+    // A preset keeps the context it was prepared with through a setting
+    // change: the rebuild assigns a fresh, unprepared envelope over it.
+    {
+        AREnvelope e;
+        e.prepare(RenderContext{22050});
+        e.set_setting("attack", 0.5f);
+        e.start(22050);
+        AREnvelope f;
+        f.set_setting("attack", 0.5f);
+        f.prepare(RenderContext{22050});
+        f.start(22050);
+        const auto ra = render_samples(e, 22050), rb = render_samples(f, 22050);
+        CHECK(same_bits(ra, rb));
+        CHECK(ra[5000] > 0.0f);                      // rendered, not the silent unprepared path
+    }
+    // prepare(ctx) twice with the same context changes nothing a render sees.
+    {
+        auto a = Envelope::make_adsr(0.2f, 0.1f, 0.7f, 0.0f);
+        auto b = Envelope::make_adsr(0.2f, 0.1f, 0.7f, 0.0f);
+        a->prepare(RenderContext{48000});
+        a->prepare(RenderContext{48000});
+        a->start(4800);
+        b->prepare(RenderContext{48000});
+        b->start(4800);
+        CHECK(same_bits(render_samples(*a, 4800), render_samples(*b, 4800)));
+    }
+    // A stage added after prepare is counted by the next start with no
+    // second prepare; a removed one is dropped from the counts.
+    {
+        auto grown = std::make_shared<Envelope>();
+        grown->add_stage({{0.0f, 1.0f, RampType::Linear, 0.0f}, 0.5f, 0.0f, 0.0f});
+        grown->prepare(RenderContext{48000});
+        grown->add_stage({{1.0f, 0.0f, RampType::Linear, 0.0f}, 0.0f, 0.0f, 0.0f});
+        grown->start(2400);
+        auto fresh = std::make_shared<Envelope>();
+        fresh->add_stage({{0.0f, 1.0f, RampType::Linear, 0.0f}, 0.5f, 0.0f, 0.0f});
+        fresh->add_stage({{1.0f, 0.0f, RampType::Linear, 0.0f}, 0.0f, 0.0f, 0.0f});
+        fresh->prepare(RenderContext{48000});
+        fresh->start(2400);
+        CHECK(same_bits(render_samples(*grown, 2400), render_samples(*fresh, 2400)));
+        grown->remove_stage(1);
+        grown->start(2400);
+        auto one = std::make_shared<Envelope>();
+        one->add_stage({{0.0f, 1.0f, RampType::Linear, 0.0f}, 0.5f, 0.0f, 0.0f});
+        one->prepare(RenderContext{48000});
+        one->start(2400);
+        CHECK(same_bits(render_samples(*grown, 2400), render_samples(*one, 2400)));
+    }
+    // prepare(ctx) again on a node that has already played a note leaves its
+    // next note as it would have been: nothing per-note lives in on_prepare.
+    {
+        auto a = Envelope::make_adsr(0.2f, 0.1f, 0.7f, 0.0f);
+        auto b = Envelope::make_adsr(0.2f, 0.1f, 0.7f, 0.0f);
+        a->prepare(RenderContext{48000});
+        b->prepare(RenderContext{48000});
+        a->start(4800); render_samples(*a, 1000);
+        b->start(4800); render_samples(*b, 1000);
+        a->prepare(RenderContext{48000});
+        a->start(4800);
+        b->start(4800);
+        CHECK(same_bits(render_samples(*a, 4800), render_samples(*b, 4800)));
+    }
+}
+
+static void run_core_split_tests() {
+    run_core_split_envelope_tests();
+    // FM with oversampling: the decimation sections are built at prepare and
+    // reset per note; the sweep covers the default (oversample 1).
+    CHECK(split_equivalent([] {
+        auto f = std::make_shared<FMSource>();
+        f->set_setting("oversample", 2.0f);
+        return f;
+    }));
+    // The sections are fresh at every note, as the per-note rebuild left
+    // them: a reused node's second note is a fresh node's first note.
+    {
+        FMSource reused, fresh;
+        reused.set_setting("oversample", 2.0f);
+        fresh.set_setting("oversample", 2.0f);
+        reused.prepare(RenderContext{48000});
+        fresh.prepare(RenderContext{48000});
+        reused.start(1024); render_samples(reused, 777);
+        reused.start(1024);
+        fresh.start(1024);
+        CHECK(same_bits(render_samples(reused, 1024), render_samples(fresh, 1024)));
+    }
+    // A setting changed after prepare rebuilds the sections; the node keeps
+    // its context.
+    {
+        FMSource a;
+        a.prepare(RenderContext{48000});
+        a.set_setting("oversample", 4.0f);
+        a.start(1024);
+        FMSource b;
+        b.set_setting("oversample", 4.0f);
+        b.prepare(RenderContext{48000});
+        b.start(1024);
+        CHECK(same_bits(render_samples(a, 1024), render_samples(b, 1024)));
+    }
+    // MultiSource: an oscillator and an envelope, one delayed.
+    CHECK(split_equivalent([] {
+        auto m = std::make_shared<MultiSource>();
+        m->add(std::make_shared<SineSource>(), 1.0f, 0);
+        m->add(Envelope::make_ar(0.3f), 0.5f, 100);
+        return m;
+    }));
+    // The oscillators read the rate from the context: the same frequency at
+    // half the rate advances the phase twice as far per sample.
+    {
+        SineSource lo, hi;
+        lo.prepare(RenderContext{24000});
+        hi.prepare(RenderContext{48000});
+        lo.start(8);
+        hi.start(8);
+        const auto a = render_samples(lo, 8), b = render_samples(hi, 8);
+        CHECK(!same_bits(a, b));
+        CHECK_NEAR(a[1], std::sin(2.0f * 3.14159265358979f * 440.0f / 24000.0f), 1e-4f);
+        CHECK_NEAR(b[1], std::sin(2.0f * 3.14159265358979f * 440.0f / 48000.0f), 1e-4f);
+    }
+}
+
+// Checkpoint 2.2: the contract's sweep, then the families as they are cut.
+static void run_prepare_start_tests() {
+    run_split_equivalence_tests();
+    run_core_split_tests();
+}
+
 int main() {
     run_pin_tests();
     run_base_tests();
-    run_split_equivalence_tests();
+    run_prepare_start_tests();
     run_manual_pin_advance_tests();
     run_setting_clamp_tests();
     run_manual_pin_prepare_tests();

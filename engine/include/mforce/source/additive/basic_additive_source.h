@@ -23,14 +23,14 @@ struct BasicAdditiveSource final : WaveSource {
   Param amplVarPct  {this, "amplVarPct",   0.0f, 0.0f, 1.0f,   "0-1"};
   Param amplVarSpeed{this, "amplVarSpeed", 0.0f, 0.0f, 100.0f, "hz"};
 
-  BasicAdditiveSource(int sampleRate, uint32_t seed = 0xADD1'0000u)
-  : WaveSource(sampleRate), rng_(seed) {}
+  BasicAdditiveSource(int, uint32_t seed = 0xADD1'0000u)
+  : rng_(seed) {}
 
   const char* type_name() const override { return "BasicAdditiveSource"; }
   SourceCategory category() const override { return SourceCategory::Additive; }
 
   void on_prepare(const RenderContext& ctx, int frames) override {
-    WaveSource::on_prepare(ctx, frames);
+    WaveSource::on_start(frames);
 
     // Reset arrays — will be initialized on first sample
     partialCount_ = 0;
@@ -47,9 +47,9 @@ protected:
     float ow  = oddWeight.current();
     float ro  = rolloff.current();
     float fvp = freqVarPct.current();
-    float fvs = freqVarSpeed.current() / float(sampleRate_);
+    float fvs = freqVarSpeed.current() / float(sample_rate());
     float avp = amplVarPct.current();
-    float avs = amplVarSpeed.current() / float(sampleRate_);
+    float avs = amplVarSpeed.current() / float(sample_rate());
 
     // Compute partial count up to ~12 kHz
     int count = (currFreq_ > 0.0f) ? int(12000.0f / currFreq_) : 0;
@@ -101,7 +101,7 @@ protected:
       }
 
       // Advance phase
-      partialPos_[i] += freq * (1.0f + freqOffset_[i]) / float(sampleRate_);
+      partialPos_[i] += freq * (1.0f + freqOffset_[i]) / float(sample_rate());
       partialPos_[i] -= std::floor(partialPos_[i]);
 
       val += std::sin(partialPos_[i] * TAU) * ampl * (1.0f + amplOffset_[i]);

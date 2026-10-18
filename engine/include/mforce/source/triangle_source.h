@@ -26,7 +26,6 @@ struct TriangleSource final : WaveSource {
   // per-leg warp, which bends the two sides oppositely ("shark fin").
   Setting<bool> asymmetric{this, "asymmetric", false, false, true};
 
-  explicit TriangleSource(int sampleRate) : WaveSource(sampleRate) {}
   const char* type_name() const override { return "TriangleSource"; }
 
 protected:

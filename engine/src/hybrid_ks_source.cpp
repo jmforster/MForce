@@ -6,14 +6,13 @@ namespace mforce {
 
 static constexpr float TAU = 2.0f * 3.14159265358979323846f;
 
-HybridKSSource::HybridKSSource(int sampleRate, uint32_t seed)
-: WaveSource(sampleRate)
-, rng_(seed) {
+HybridKSSource::HybridKSSource(int, uint32_t seed)
+: rng_(seed) {
   inputSource.source = std::make_shared<WhiteNoiseSource>(seed);
 }
 
 void HybridKSSource::on_prepare(const RenderContext& ctx, int frames) {
-  WaveSource::on_prepare(ctx, frames);
+  WaveSource::on_start(frames);
   inputSource.prepare(ctx, frames);
 
   table_.clear();
@@ -23,7 +22,7 @@ void HybridKSSource::on_prepare(const RenderContext& ctx, int frames) {
   inAdditive_ = false;
   additiveSample_ = 0;
 
-  morphSamples_ = int(morphDuration.value * float(sampleRate_));
+  morphSamples_ = int(morphDuration.value * float(sample_rate()));
 
   // Ensure target has enough entries
   if (int(targetAmpl_.size()) < numPartials.value)
@@ -31,7 +30,7 @@ void HybridKSSource::on_prepare(const RenderContext& ctx, int frames) {
 }
 
 void HybridKSSource::fill_table() {
-  int len = int(std::lround(float(sampleRate_) / currFreq_));
+  int len = int(std::lround(float(sample_rate()) / currFreq_));
   if (len < 1) len = 1;
   table_.resize(len);
 
@@ -136,7 +135,7 @@ float HybridKSSource::compute_additive() {
 
     // Phase: advance naturally at harmonic frequency
     float freq = currFreq_ * float(k + 1);
-    partialPhase_[k] += freq / float(sampleRate_);
+    partialPhase_[k] += freq / float(sample_rate());
     partialPhase_[k] -= std::floor(partialPhase_[k]);
 
     val += std::sin(partialPhase_[k] * TAU) * ampl;

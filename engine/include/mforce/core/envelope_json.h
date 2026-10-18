@@ -14,11 +14,10 @@ namespace mforce {
 // unknown presets/timeModes and on key combinations that would otherwise
 // be silently dead knobs. Stage-list form ({"stages": [...]}) is handled
 // by the callers, not here.
-inline std::shared_ptr<Envelope> envelope_from_preset_json(const nlohmann::json& p,
-                                          int sampleRate) {
+inline std::shared_ptr<Envelope> envelope_from_preset_json(const nlohmann::json& p) {
   const std::string preset = p.value("preset", std::string("ar"));
   if (preset == "ar") {
-    return Envelope::make_ar(sampleRate,
+    return Envelope::make_ar(
         p.value("attack", 0.2f),
         p.value("attackMin", 0.0f), p.value("attackMax", 1.0f));
   }
@@ -36,7 +35,7 @@ inline std::shared_ptr<Envelope> envelope_from_preset_json(const nlohmann::json&
         if (p.contains(k))
           throw std::runtime_error(
               std::string("adsr timeMode=seconds does not take ") + k);
-      return Envelope::make_adsr_abs(sampleRate,
+      return Envelope::make_adsr_abs(
           p.value("attack", 0.2f), p.value("decay", 0.1f),
           p.value("sustainLevel", 0.7f), p.value("release", 0.0f));
     }
@@ -46,7 +45,7 @@ inline std::shared_ptr<Envelope> envelope_from_preset_json(const nlohmann::json&
     // drop on the floor, so an adsr preset could not express stage jitter
     // at all (found 2026-08-04 by tools/lint_patches.py). Defaults are
     // make_adsr's own, so patches that omit the keys are unchanged.
-    return Envelope::make_adsr(sampleRate,
+    return Envelope::make_adsr(
         p.value("attack", 0.2f), p.value("decay", 0.1f),
         p.value("sustainLevel", 0.7f), p.value("release", 0.0f),
         p.value("attackMin",  0.0f),   p.value("attackMax",  1.0f),

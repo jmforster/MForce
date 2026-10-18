@@ -23,8 +23,6 @@ namespace mforce {
 struct NameGate final : Generator {
   Input in{this, "in", Input::Optional};
 
-  explicit NameGate(int) {}
-
   float targetId{-1.0f};   // resolved at load; -1 (unresolved) never matches
   std::string name;        // the authored string, kept for save/lint
 

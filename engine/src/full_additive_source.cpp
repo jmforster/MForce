@@ -5,11 +5,11 @@
 
 namespace mforce {
 
-FullAdditiveSource::FullAdditiveSource(int sampleRate, uint32_t seed)
-: WaveSource(sampleRate), noiseRng_(seed) {}
+FullAdditiveSource::FullAdditiveSource(int, uint32_t seed)
+: noiseRng_(seed) {}
 
 void FullAdditiveSource::on_prepare(const RenderContext& ctx, int frames) {
-  WaveSource::on_prepare(ctx, frames);
+  WaveSource::on_start(frames);
 
   if (partials_) partials_->partials_prepare(ctx, frames);
   if (formant_) formant_->fmt_prepare(ctx, frames);

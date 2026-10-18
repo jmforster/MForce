@@ -12,7 +12,6 @@ struct PulseSource final : WaveSource {
   Param dutyCycle{this, "dutyCycle", 0.5f,  0.01f, 0.99f, "0-1"};
   Param bend     {this, "bend",      0.0f, -1.0f,  1.0f,  "±1"};
 
-  explicit PulseSource(int sampleRate) : WaveSource(sampleRate) {}
   const char* type_name() const override { return "PulseSource"; }
 
 protected:

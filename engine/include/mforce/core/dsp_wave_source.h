@@ -16,13 +16,11 @@ struct WaveSource : Generator {
   Param frequency{this, "frequency", 440.0f, 0.01f, 20000.0f, "hz"};
   Param phase    {this, "phase",     0.0f,  -1.0f,  1.0f,     "cycles"};
 
-  explicit WaveSource(int sampleRate) : sampleRate_(sampleRate) {}
-
   Range range() const override { return Range::Bipolar; }
   SourceCategory category() const override { return SourceCategory::Oscillator; }
 
   // Mirror legacy: ptr starts at -1, the first compute() increments to 0.
-  void on_prepare(const RenderContext&, int) override { ptr_ = -1; }
+  void on_start(int) override { ptr_ = -1; }
 
   float compute() override {
     ++ptr_;
@@ -39,7 +37,7 @@ struct WaveSource : Generator {
     currFreq_  = f;
     currPhase_ = phase.current();
 
-    currPhaseIncr_ = currFreq_ / float(sampleRate_);
+    currPhaseIncr_ = currFreq_ / float(sample_rate());
 
     const float out = wave() * currAmpl_;
 
@@ -57,7 +55,6 @@ struct WaveSource : Generator {
 protected:
   virtual float wave() = 0;   // the subclass's value at currPos_
 
-  int   sampleRate_;
   int   ptr_{-1};
   float currAmpl_{1.0f}, currFreq_{440.0f}, currPhase_{0.0f};
   float currPos_{0.0f}, currPhaseIncr_{0.0f};

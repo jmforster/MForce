@@ -62,19 +62,19 @@ void register_all_sources() {
     // -----------------------------------------------------------------------
 
     reg.register_type("SineSource", SourceCategory::Oscillator,
-        [](int sr, auto) { return std::make_shared<SineSource>(sr); });
+        [](int, auto) { return std::make_shared<SineSource>(); });
 
     reg.register_type("SawSource", SourceCategory::Oscillator,
-        [](int sr, auto) { return std::make_shared<SawSource>(sr); });
+        [](int, auto) { return std::make_shared<SawSource>(); });
 
     reg.register_type("TriangleSource", SourceCategory::Oscillator,
-        [](int sr, auto) { return std::make_shared<TriangleSource>(sr); });
+        [](int, auto) { return std::make_shared<TriangleSource>(); });
 
     reg.register_type("PulseSource", SourceCategory::Oscillator,
-        [](int sr, auto) { return std::make_shared<PulseSource>(sr); });
+        [](int, auto) { return std::make_shared<PulseSource>(); });
 
     reg.register_type("FMSource", SourceCategory::Oscillator,
-        [](int sr, auto) { return std::make_shared<FMSource>(sr); });
+        [](int, auto) { return std::make_shared<FMSource>(); });
 
     // -----------------------------------------------------------------------
     // Additive — BasicAdditiveSource (simple), AdditiveSource (full via Partials)
@@ -198,57 +198,57 @@ void register_all_sources() {
     // `name` string and its vocabulary resolution are a loader special
     // case (SettingType has no string).
     reg.register_type("NameGate", SourceCategory::Modulator,
-        [](int sr, auto) { return std::make_shared<NameGate>(sr); });
+        [](int, auto) { return std::make_shared<NameGate>(); });
 
     // -----------------------------------------------------------------------
     // Envelope
     // -----------------------------------------------------------------------
 
     reg.register_type("Envelope", SourceCategory::Envelope,
-        [](int sr, auto seed) {
-            auto e = Envelope::make_ar(sr, 0.2f);
+        [](int, auto seed) {
+            auto e = Envelope::make_ar(0.2f);
             if (seed) e->set_seed(*seed);
             return e;
         });
 
     reg.register_type("AREnvelope", SourceCategory::Envelope,
-        [](int sr, auto seed) {
-            auto e = std::make_shared<AREnvelope>(sr);
+        [](int, auto seed) {
+            auto e = std::make_shared<AREnvelope>();
             if (seed) e->set_seed(*seed);
             return e;
         });
 
     reg.register_type("ASEnvelope", SourceCategory::Envelope,
-        [](int sr, auto seed) {
-            auto e = std::make_shared<ASEnvelope>(sr);
+        [](int, auto seed) {
+            auto e = std::make_shared<ASEnvelope>();
             if (seed) e->set_seed(*seed);
             return e;
         });
 
     reg.register_type("ASREnvelope", SourceCategory::Envelope,
-        [](int sr, auto seed) {
-            auto e = std::make_shared<ASREnvelope>(sr);
+        [](int, auto seed) {
+            auto e = std::make_shared<ASREnvelope>();
             if (seed) e->set_seed(*seed);
             return e;
         });
 
     reg.register_type("ADSEnvelope", SourceCategory::Envelope,
-        [](int sr, auto seed) {
-            auto e = std::make_shared<ADSEnvelope>(sr);
+        [](int, auto seed) {
+            auto e = std::make_shared<ADSEnvelope>();
             if (seed) e->set_seed(*seed);
             return e;
         });
 
     reg.register_type("ADREnvelope", SourceCategory::Envelope,
-        [](int sr, auto seed) {
-            auto e = std::make_shared<ADREnvelope>(sr);
+        [](int, auto seed) {
+            auto e = std::make_shared<ADREnvelope>();
             if (seed) e->set_seed(*seed);
             return e;
         });
 
     reg.register_type("ADSREnvelope", SourceCategory::Envelope,
-        [](int sr, auto seed) {
-            auto e = std::make_shared<ADSREnvelope>(sr);
+        [](int, auto seed) {
+            auto e = std::make_shared<ADSREnvelope>();
             if (seed) e->set_seed(*seed);
             return e;
         });

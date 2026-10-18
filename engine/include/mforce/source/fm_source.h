@@ -26,32 +26,25 @@ struct FMSource final : WaveSource {
   Setting<bool> unboundedPos{this, "unbounded_pos", false, false, true};
   Setting<int>  oversample  {this, "oversample", 1, 1, 16};
 
-  explicit FMSource(int sampleRate) : WaveSource(sampleRate) {}
   const char* type_name() const override { return "FMSource"; }
 
   void on_setting_changed(std::string_view name) override {
-    if (name == "oversample") oversample.clamp();
+    if (name != "oversample") return;
+    oversample.clamp();
+    if (prepared()) build_decimation();
   }
 
-  void on_prepare(const RenderContext& ctx, int frames) override {
-    WaveSource::on_prepare(ctx, frames);
+  void on_prepare(const RenderContext&) override {
+    if (decimSections_.empty() || builtOversample_ != oversample.value || builtRate_ != sample_rate())
+      build_decimation();
+  }
+
+  void on_start(int frames) override {
+    WaveSource::on_start(frames);
 
     carrierPhase_ = 0.0f;
     modPhase_ = 0.0f;
-
-    // Build the decimation lowpass for oversampled rendering. Runs at the
-    // oversampled rate (M*SR); fixed cutoff at 0.45*SR (just under the base
-    // Nyquist) removes folded content before decimate-by-M. Built here (per
-    // note), never in the hot loop. M==1 uses no filter (identity path).
-    decimSections_.clear();
-    if (oversample.value > 1) {
-      const float subRate = float(sampleRate_) * float(oversample.value);
-      const float cutoff  = 0.45f * float(sampleRate_);
-      const int   nSec    = 4;  // 8th-order Butterworth, ~48 dB/oct
-      for (int i = 0; i < nSec; ++i)
-        decimSections_.emplace_back(float(i + 1), float(nSec * 2), subRate);
-      for (auto& s : decimSections_) s.update(cutoff);
-    }
+    for (auto& s : decimSections_) s.reset();
   }
 
 protected:
@@ -73,7 +66,7 @@ protected:
 
     const float modFreq = baseFreq * mRatio;
     const int   M       = oversample.value;
-    const float subRate = float(sampleRate_) * float(M);
+    const float subRate = float(sample_rate()) * float(M);
 
     // Oversample the sin() nonlinearity: run carrier+modulator at M*SR, filter,
     // keep the last of each group of M (decimate). M==1 is the original
@@ -111,9 +104,30 @@ protected:
   }
 
 private:
+  // The decimation lowpass for oversampled rendering. Runs at the
+  // oversampled rate (M*SR); fixed cutoff at 0.45*SR (just under the base
+  // Nyquist) removes folded content before decimate-by-M. Built at prepare
+  // and on an oversample change, never in the hot loop. M==1 uses no filter
+  // (identity path).
+  void build_decimation() {
+    decimSections_.clear();
+    builtOversample_ = oversample.value;
+    builtRate_ = sample_rate();
+    if (oversample.value > 1) {
+      const float subRate = float(sample_rate()) * float(oversample.value);
+      const float cutoff  = 0.45f * float(sample_rate());
+      const int   nSec    = 4;  // 8th-order Butterworth, ~48 dB/oct
+      for (int i = 0; i < nSec; ++i)
+        decimSections_.emplace_back(float(i + 1), float(nSec * 2), subRate);
+      for (auto& s : decimSections_) s.update(cutoff);
+    }
+  }
+
   float carrierPhase_{0.0f};
   float modPhase_{0.0f};
-  std::vector<BWLPSection> decimSections_;  // built in on_prepare() when oversample > 1
+  std::vector<BWLPSection> decimSections_;  // built when oversample > 1
+  int builtOversample_{0};
+  int builtRate_{0};
 };
 
 } // namespace mforce

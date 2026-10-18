@@ -5,13 +5,12 @@
 
 namespace mforce {
 
-WavetableSource::WavetableSource(int sampleRate, uint32_t inputSeed)
-: WaveSource(sampleRate) {
+WavetableSource::WavetableSource(int, uint32_t inputSeed) {
   inputSource.source = std::make_shared<WhiteNoiseSource>(inputSeed);
 }
 
 void WavetableSource::on_prepare(const RenderContext& ctx, int frames) {
-  WaveSource::on_prepare(ctx, frames);
+  WaveSource::on_start(frames);
   speedFactor.prepare(ctx, frames);
   inputSource.prepare(ctx, frames);
   evolution.prepare(ctx, frames);
@@ -19,11 +18,11 @@ void WavetableSource::on_prepare(const RenderContext& ctx, int frames) {
 }
 
 void WavetableSource::fill_table() {
-  if (currFreq_ <= 0.0f || float(sampleRate_) / currFreq_ < 1.0f) {
+  if (currFreq_ <= 0.0f || float(sample_rate()) / currFreq_ < 1.0f) {
     throw std::runtime_error("WavetableSource: invalid frequency for table fill");
   }
 
-  int len = int(std::lround(float(sampleRate_) / currFreq_));
+  int len = int(std::lround(float(sample_rate()) / currFreq_));
   values_.resize(len);
 
   for (int i = 0; i < len; ++i) {
@@ -49,7 +48,7 @@ float WavetableSource::compute_raw() {
       evolution_->shape_excitation(values_);
     }
     // Tuning allpass: fractional delay for sub-sample pitch accuracy
-    float idealLen = float(sampleRate_) / currFreq_;
+    float idealLen = float(sample_rate()) / currFreq_;
     float frac = idealLen - float(int(values_.size()));
     if (frac > 0.001f && frac < 0.999f) {
       tuningCoeff_ = (1.0f - frac) / (1.0f + frac);
@@ -103,7 +102,7 @@ float WavetableSource::compute_interpolated() {
       evolution_->adjust(currFreq_);
       evolution_->shape_excitation(values_);
     }
-    float idealLen = float(sampleRate_) / currFreq_;
+    float idealLen = float(sample_rate()) / currFreq_;
     float frac = idealLen - float(int(values_.size()));
     if (frac > 0.001f && frac < 0.999f) {
       tuningCoeff_ = (1.0f - frac) / (1.0f + frac);

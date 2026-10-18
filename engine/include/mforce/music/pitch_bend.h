@@ -22,11 +22,10 @@ namespace mforce {
 // Each hold takes (dur[i] - trans/2 for interior, - trans on one side for
 // endpoints). Each ramp takes trans of total duration. Last hold may be
 // the "fill" stage (percent=0, expand to remainder).
-inline std::shared_ptr<Envelope> compile_pitch_curve(const PitchCurve& curve,
-                                                     int sampleRate) {
+inline std::shared_ptr<Envelope> compile_pitch_curve(const PitchCurve& curve) {
   curve.validate();
   const size_t n = curve.semi.size();
-  auto env = std::make_shared<Envelope>(sampleRate);
+  auto env = std::make_shared<Envelope>();
 
   // Fill-last detection: zero dur at last index means expand.
   bool fillLast = (curve.dur.back() == 0.0f);

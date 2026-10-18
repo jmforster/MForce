@@ -678,7 +678,7 @@ static GraphResult build_graph(
             const auto& p = *pp;
 
             if (p.contains("stages")) {
-                auto env = std::make_shared<Envelope>(sampleRate);
+                auto env = std::make_shared<Envelope>();
                 for (const auto& sj : p["stages"]) {
                     Envelope::Stage s;
                     s.ramp.startVal = sj.value("startVal", 0.0f);
@@ -713,7 +713,7 @@ static GraphResult build_graph(
             } else {
                 // Shared preset dispatch (envelope_json.h) — the UI graph
                 // loader calls the same function, so the two cannot drift.
-                valueNodes[id] = envelope_from_preset_json(p, sampleRate);
+                valueNodes[id] = envelope_from_preset_json(p);
             }
             // Pullable range params (minValue / maxValue, PerformSource P1,
             // envelope.h param_descriptors). This explicit branch never ran
@@ -788,7 +788,7 @@ static GraphResult build_graph(
             // Onset-name match (spec 2026-09-20-note-onsets-v2 §6).
             // The `name` string resolves against the instrument's
             // onsets[] vocabulary; ids are 1-based declaration order.
-            auto ng = std::make_shared<NameGate>(sampleRate);
+            auto ng = std::make_shared<NameGate>();
             if (pp && pp->contains("name")) {
                 ng->name = (*pp)["name"].get<std::string>();
                 if (onsets)

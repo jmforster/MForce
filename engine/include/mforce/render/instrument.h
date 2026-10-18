@@ -322,7 +322,7 @@ struct PitchedInstrument final : Instrument {
       // (re-listen item, plan_perform_source_p3.md T1).
       std::shared_ptr<Envelope> bend;
       if (curve) {
-        bend = compile_pitch_curve(*curve, sampleRate);
+        bend = compile_pitch_curve(*curve);
         bend->prepare(RenderContext{sampleRate}, durSamples);
       }
       vg.performSource->set_note(freq, velocity, durSamples, durSeconds,
@@ -419,7 +419,7 @@ struct PitchedInstrument final : Instrument {
   // pulled frequency chains glide.)
   std::shared_ptr<Envelope> make_glide(float fromFreq, float toFreq,
                                        int durSamples) {
-    auto g = std::make_shared<Envelope>(sampleRate);
+    auto g = std::make_shared<Envelope>();
     g->absolute_time = true;
     const float semis = 12.0f * std::log2(fromFreq / toFreq);
     g->add_stage({{semis, 0.0f, RampType::Linear, 0.0f}, glideSec, 0.0f, 0.0f});

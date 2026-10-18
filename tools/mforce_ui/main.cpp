@@ -408,7 +408,7 @@ struct GraphNode {
         }
 
         if (typeName == NT_ENVELOPE) {
-            dspSource = Envelope::make_adsr(DSP_SAMPLE_RATE, 0.05f, 0.1f, 0.7f, 0.2f);
+            dspSource = Envelope::make_adsr(0.05f, 0.1f, 0.7f, 0.2f);
             for (auto& pin : inputs)
                 if (pin.constantSrc) dspSource->set_param(pin.name, pin.constantSrc);
             return;
@@ -561,7 +561,7 @@ struct GraphNode {
         // P1 params were unreachable from the editor on the stage-form type
         // (Matt: "I don't see maxValue anywhere in the properties").
         if (typeName == NT_ENVELOPE) {
-            Envelope tmp(DSP_SAMPLE_RATE);
+            Envelope tmp;
             for (const auto& desc : tmp.param_descriptors())
                 inputs.emplace_back(desc.name, UiPinKind::Input, desc.default_value,
                                     false, false, desc.hint);
@@ -1365,7 +1365,7 @@ static nlohmann::json envelope_stages_to_json(const Envelope& env) {
 
 // Replaces env's stage list with the one described by `stages`.
 static void envelope_stages_from_json(Envelope& env, const nlohmann::json& stages) {
-    env = Envelope(DSP_SAMPLE_RATE);
+    env = Envelope();
     for (const auto& sj : stages) {
         Envelope::Stage s;
         s.ramp.startVal = sj.value("startVal", 0.0f);
@@ -1860,7 +1860,7 @@ static void load_graph_from_path(const std::string& path) {
                     // silently kept the default ADSR for unknown presets
                     // — the 2026-08-13 damper-fires-on-attack bug — and
                     // dropped the fraction-adsr min/max jitter args.)
-                    *env = std::move(*envelope_from_preset_json(params, DSP_SAMPLE_RATE));
+                    *env = std::move(*envelope_from_preset_json(params));
                 }
             }
 

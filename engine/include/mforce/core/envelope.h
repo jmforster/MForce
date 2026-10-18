@@ -62,7 +62,7 @@ struct Envelope : Generator {
   // envelope can shorten with pitch (treble hammers contact shorter).
   Setting<float> timeScale     {this, "timeScale",      1.0f, 0.01f, 10.0f};
 
-  explicit Envelope(int sampleRate) : sampleRate_(sampleRate) {}
+  Envelope() = default;
 
   Range range() const override { return Range::Unipolar; }
   const char* type_name() const override { return "Envelope"; }
@@ -86,6 +86,10 @@ struct Envelope : Generator {
   // INSIDE the note. Flipped 0 -> 10 ms 2026-08-13 after the corpus null
   // test passed at 0 — an intentional corpus-wide 10 ms layout shift.
   static constexpr float kReflectionAllowanceSec = 0.010f;
+
+  // Names the sustain level a preset declares as its own default, so the
+  // protected constructor cannot be reached by a stray number.
+  struct SustainDefault { float level; };
 
   void set_gated(bool g) { gated_ = g; }
 
@@ -122,13 +126,13 @@ struct Envelope : Generator {
     int relStage = (expandIdx_ >= 0 && expandIdx_ < last) ? expandIdx_ + 1
                                                           : last;
     if (releaseRefFrames >= 0 && !absolute_time) {
-      const float refSec = float(releaseRefFrames) / float(sampleRate_);
+      const float refSec = float(releaseRefFrames) / float(sample_rate());
       for (int i = relStage; i < int(stages_.size()); ++i) {
         if (stages_[i].percent == 0.0f) continue;   // expand keeps its fill
         float stgDur = refSec * stages_[i].percent * timeScale.value;
         stgDur = std::clamp(stgDur, stages_[i].minSec,
                             stages_[i].maxSec > 0 ? stages_[i].maxSec : stgDur);
-        stageCounts_[i] = int(std::lround(stgDur * sampleRate_));
+        stageCounts_[i] = int(std::lround(stgDur * sample_rate()));
       }
     }
     if (currStage_ >= relStage) {
@@ -197,6 +201,7 @@ struct Envelope : Generator {
     fresh.gated_               = gated_;
     fresh.seed_                = seed_;
     *this = std::move(fresh);
+    stageCounts_.assign(stages_.size(), 0);
   }
 
   // The knobs clamp to their declared range; sustainLevel is the live
@@ -247,7 +252,7 @@ struct Envelope : Generator {
     return Component::get_setting(name);
   }
 
-  void add_stage(Stage s) { stages_.push_back(s); }
+  void add_stage(Stage s) { stages_.push_back(s); stageCounts_.push_back(0); }
 
   int stage_count() const { return int(stages_.size()); }
   Stage&       stage(int i)       { return stages_[i]; }
@@ -265,22 +270,30 @@ struct Envelope : Generator {
     s.minSec  = 0.0f;
     s.maxSec  = 0.0f;  // 0 = unbounded (engine sentinel)
     stages_.push_back(s);
+    stageCounts_.push_back(0);
   }
 
   void remove_stage(int i) {
-    if (i >= 0 && i < int(stages_.size())) stages_.erase(stages_.begin() + i);
+    if (i < 0 || i >= int(stages_.size())) return;
+    stages_.erase(stages_.begin() + i);
+    if (i < int(stageCounts_.size())) stageCounts_.erase(stageCounts_.begin() + i);
   }
 
-  void on_prepare(const RenderContext&, int frames) override {
+  // Sized to the stage list; on_start writes the counts.
+  void on_prepare(const RenderContext&) override {
+    stageCounts_.resize(stages_.size(), 0);
+  }
+
+  void on_start(int frames) override {
     totalFrames_ = frames;
     // Note-contained sound (2026-08-13): stages lay out over the layout
     // window; the trailing allowance stays programmatically silent so
     // bounded reflection dispersal can finish inside the note.
-    const int allowFrames = int(kReflectionAllowanceSec * float(sampleRate_));
+    const int allowFrames = int(kReflectionAllowanceSec * float(sample_rate()));
     const int layoutFrames = std::max(0, frames - allowFrames);
-    float duration = float(layoutFrames) / float(sampleRate_);
+    float duration = float(layoutFrames) / float(sample_rate());
 
-    // Reseed both RNGs from seed_ each prepare so renders are deterministic
+    // Reseed both RNGs from seed_ at every start so renders are deterministic
     // for a given (seed, frames) pair. Multiplex perturbs seed_ per instance.
     rng_.seed(seed_);
     lfo_rng_.seed(seed_ ^ 0xDEADBEEFu);
@@ -288,8 +301,6 @@ struct Envelope : Generator {
     lfo_period_frames_ = 0;
     lfo_from_ = 0.0f;
     lfo_to_   = 0.0f;
-
-    stageCounts_.resize(stages_.size(), 0);
 
     int expandIdx = -1;
     int totCount = 0;
@@ -318,7 +329,7 @@ struct Envelope : Generator {
       stgDur = absolute_time
         ? std::clamp(stgDur, 0.0f, duration)                     // physical clamp only
         : std::clamp(stgDur, stages_[i].minSec, stages_[i].maxSec > 0 ? stages_[i].maxSec : stgDur);
-      stageCounts_[i] = int(std::lround(stgDur * sampleRate_));
+      stageCounts_[i] = int(std::lround(stgDur * sample_rate()));
 
       // Rounding fix for last non-expand stage
       if (i == int(stages_.size()) - 1 && expandIdx < 0) {
@@ -357,10 +368,10 @@ struct Envelope : Generator {
   // Raw 0..1-domain stage evaluation. raw_ and the gate anchor live HERE,
   // in the raw domain — the range mapping applies strictly on the way out.
   float next_raw_() {
-    // Pre-prepare safety: stageCounts_ is sized in prepare(); without it,
-    // stageCounts_[currStage_] indexes a null buffer. Reachable when UI
-    // display paths (e.g. draw_formant_strip) cascade next() through a
-    // ValueSource chain that includes an unprepared Envelope.
+    // An envelope with no stages has nothing to index; it reads 0. (A
+    // never-started one has zero counts for every stage and also reads 0,
+    // through the stage walk below — the UI's display paths cascade next()
+    // through chains that include such envelopes.)
     if (stageCounts_.empty()) { raw_ = 0.0f; return raw_; }
 
     if (gated_ && currStage_ == expandIdx_ && expandIdx_ >= 0 &&
@@ -416,8 +427,8 @@ struct Envelope : Generator {
   // ----- Preset factories -----
 
   // Attack → Release (expand)
-  static std::shared_ptr<Envelope> make_ar(int sampleRate, float attackPct, float attackMin = 0.0f, float attackMax = 1.0f) {
-    auto env = std::make_shared<Envelope>(sampleRate);
+  static std::shared_ptr<Envelope> make_ar(float attackPct, float attackMin = 0.0f, float attackMax = 1.0f) {
+    auto env = std::make_shared<Envelope>();
     env->add_stage({{0.0f, 1.0f, RampType::Linear, 0.0f}, attackPct, attackMin, attackMax});
     env->add_stage({{1.0f, 0.0f, RampType::Sine,   0.0f}, 0.0f, 0.0f, 0.0f});  // expand
     return env;
@@ -431,12 +442,12 @@ struct Envelope : Generator {
   // (the run-22 piano chuff, third strike). Explicit *Min JSON keys still
   // clamp for patches that want it; max caps unchanged (backlog 36 owns
   // any further dialect cleanup).
-  static std::shared_ptr<Envelope> make_adsr(int sampleRate,
+  static std::shared_ptr<Envelope> make_adsr(
                             float attackPct, float decayPct, float sustainLevel, float releasePct,
                             float attackMin = 0.0f, float attackMax = 1.0f,
                             float decayMin = 0.0f, float decayMax = 0.5f,
                             float releaseMin = 0.0f, float releaseMax = 0.0f) {
-    auto env = std::make_shared<Envelope>(sampleRate);
+    auto env = std::make_shared<Envelope>();
     env->add_stage({{0.0f, 1.0f, RampType::Linear, 0.0f}, attackPct, attackMin, attackMax});
     env->add_stage({{1.0f, sustainLevel, RampType::Linear, 0.0f}, decayPct, decayMin, decayMax});
     env->add_stage({{sustainLevel, sustainLevel, RampType::Linear, 0.0f}, 0.0f, 0.0f, 0.0f}); // expand
@@ -453,10 +464,10 @@ struct Envelope : Generator {
   // stage renders as 0 frames (percent == 0 keeps its expand meaning, so
   // decay 0 simply vanishes and sustain expands; release 0 keeps the
   // documented "release fills the sustain region" quirk).
-  static std::shared_ptr<Envelope> make_adsr_abs(int sampleRate,
+  static std::shared_ptr<Envelope> make_adsr_abs(
                                 float attackSec, float decaySec,
                                 float sustainLevel, float releaseSec) {
-    auto env = std::make_shared<Envelope>(sampleRate);
+    auto env = std::make_shared<Envelope>();
     env->add_stage({{0.0f, 1.0f, RampType::Linear, 0.0f}, attackSec, 0.0f, 0.0f});
     env->add_stage({{1.0f, sustainLevel, RampType::Linear, 0.0f}, decaySec, 0.0f, 0.0f});
     env->add_stage({{sustainLevel, sustainLevel, RampType::Linear, 0.0f}, 0.0f, 0.0f, 0.0f}); // expand
@@ -478,9 +489,8 @@ protected:
   // For a preset that stores its own sustain level and whose default is not
   // the plain envelope's 0.7: the setting is declared once, here, with the
   // preset's default, so the descriptor and the node agree.
-  Envelope(int sampleRate, float sustainDefault)
-    : sustainLevel{this, "sustainLevel", sustainDefault, 0.0f, 1.0f},
-      sampleRate_(sampleRate) {}
+  explicit Envelope(SustainDefault s)
+    : sustainLevel{this, "sustainLevel", s.level, 0.0f, 1.0f} {}
 
   // What the settings surface reports as sustainLevel: the stage list's
   // four-slot value, 0 when the list is not that shape. A preset that
@@ -517,7 +527,6 @@ private:
     return lfo_from_ + (lfo_to_ - lfo_from_) * smooth;
   }
 
-  int sampleRate_;
   int totalFrames_{0};
   int ptr_{-1};
   int currStage_{0};

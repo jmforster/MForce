@@ -4,8 +4,8 @@
 
 namespace mforce {
 
-AdditiveSource2::AdditiveSource2(int sampleRate, uint32_t seed)
-: WaveSource(sampleRate), rng_(seed) {}
+AdditiveSource2::AdditiveSource2(int, uint32_t seed)
+: rng_(seed) {}
 
 void AdditiveSource2::set_partials(std::vector<float> idx, std::vector<float> ampl) {
   hasStart_ = false;
@@ -81,7 +81,7 @@ void AdditiveSource2::assign_ampl_envelope(
 }
 
 void AdditiveSource2::on_prepare(const RenderContext& ctx, int frames) {
-  WaveSource::on_prepare(ctx, frames);
+  WaveSource::on_start(frames);
 
   for (auto& e : freqEnvs_) e->prepare(ctx, frames);
   for (auto& e : amplEnvs_) e->prepare(ctx, frames);
@@ -117,9 +117,9 @@ void AdditiveSource2::on_prepare(const RenderContext& ctx, int frames) {
 float AdditiveSource2::wave() {
   float po  = phaseOffset.current();
   float fvp = freqVarDepth.current();
-  float fvs = freqVarSpeed.current() / float(sampleRate_);
+  float fvs = freqVarSpeed.current() / float(sample_rate());
   float avp = amplVarDepth.current();
-  float avs = amplVarSpeed.current() / float(sampleRate_);
+  float avs = amplVarSpeed.current() / float(sample_rate());
 
   // Advance all unique envelopes once per sample
   for (auto& e : freqEnvs_) e->advance();
@@ -168,7 +168,7 @@ float AdditiveSource2::wave() {
     }
 
     // Phase advancement with per-partial offset
-    partialPos_[i] += pFreq / float(sampleRate_) + float(i) * 0.00001f * std::fmod(po, 1.0f);
+    partialPos_[i] += pFreq / float(sample_rate()) + float(i) * 0.00001f * std::fmod(po, 1.0f);
 
     val += std::sin(partialPos_[i] * TAU) * pAmpl;
   }

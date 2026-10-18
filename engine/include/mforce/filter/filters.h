@@ -77,6 +77,12 @@ struct BWLPSection {
   float process(float input) {
     return iir.process(fir.process(gain * input, a, 3), b, 2);
   }
+
+  // Zero the filter history; the coefficients stay.
+  void reset() {
+    std::fill(fir.vals.begin(), fir.vals.end(), 0.0f);
+    std::fill(iir.vals.begin(), iir.vals.end(), 0.0f);
+  }
 };
 
 // ---------------------------------------------------------------------------
@@ -107,6 +113,12 @@ struct BWHPSection {
 
   float process(float input) {
     return iir.process(fir.process(gain * input, a, 3), b, 2);
+  }
+
+  // Zero the filter history; the coefficients stay.
+  void reset() {
+    std::fill(fir.vals.begin(), fir.vals.end(), 0.0f);
+    std::fill(iir.vals.begin(), iir.vals.end(), 0.0f);
   }
 };
 

@@ -35,7 +35,7 @@ struct AREnvelope final : Envelope {
   Setting<int>   releaseCurve{this, "releaseCurve", 3,    0,    3, kRampCurveLabels};
   Setting<float> releasePower{this, "releasePower", 0.0f, 0.0f, 10.0f};
 
-  AREnvelope(int sampleRate) : Envelope(sampleRate), sr_(sampleRate) { rebuild(); }
+  AREnvelope() { rebuild(); }
 
   const char* type_name() const override { return "AREnvelope"; }
 
@@ -48,14 +48,13 @@ struct AREnvelope final : Envelope {
 
 private:
   void rebuild() {
-    auto env = Envelope::make_ar(sr_, attack.value);
+    auto env = Envelope::make_ar(attack.value);
     env->stage(0).ramp.type  = RampType(attackCurve.value);
     env->stage(0).ramp.power = attackPower.value;
     env->stage(1).ramp.type  = RampType(releaseCurve.value);
     env->stage(1).ramp.power = releasePower.value;
     replace_stages(std::move(*env));
   }
-  int sr_;
 };
 
 // Attack → Sustain (expand). 0→level, holds at level.
@@ -66,7 +65,7 @@ struct ASEnvelope final : Envelope {
   Setting<float> attackPower {this, "attackPower", 0.0f, 0.0f, 10.0f};
   Setting<bool>  reverse     {this, "reverse",     false, false, true};
 
-  ASEnvelope(int sampleRate) : Envelope(sampleRate, 1.0f), sr_(sampleRate) { rebuild(); }
+  ASEnvelope() : Envelope(SustainDefault{1.0f}) { rebuild(); }
 
   const char* type_name() const override { return "ASEnvelope"; }
 
@@ -87,12 +86,11 @@ private:
     // ASEnvelope" pattern for "peak at attack, zero at sustain" curves.
     const float startV = reverse.value ? sustainLevel.value : 0.0f;
     const float endV   = reverse.value ? 0.0f               : sustainLevel.value;
-    Envelope env(sr_);
+    Envelope env;
     env.add_stage({{startV, endV, RampType(attackCurve.value), attackPower.value}, attack.value, 0.0f, 1.0f});
     env.add_stage({{endV, endV, RampType::Linear, 0.0f}, 0.0f, 0.0f, 0.0f});
     replace_stages(std::move(env));
   }
-  int sr_;
 };
 
 // Attack → Sustain (expand) → Release. 0→level→level→0.
@@ -105,7 +103,7 @@ struct ASREnvelope final : Envelope {
   Setting<int>   releaseCurve{this, "releaseCurve", 3,    0,    3, kRampCurveLabels};
   Setting<float> releasePower{this, "releasePower", 0.0f, 0.0f, 10.0f};
 
-  ASREnvelope(int sampleRate) : Envelope(sampleRate, 1.0f), sr_(sampleRate) { rebuild(); }
+  ASREnvelope() : Envelope(SustainDefault{1.0f}) { rebuild(); }
 
   const char* type_name() const override { return "ASREnvelope"; }
 
@@ -122,13 +120,12 @@ protected:
 private:
   void rebuild() {
     const float level = sustainLevel.value;
-    Envelope env(sr_);
+    Envelope env;
     env.add_stage({{0.0f, level, RampType(attackCurve.value), attackPower.value}, attack.value, 0.0f, 1.0f});
     env.add_stage({{level, level, RampType::Linear, 0.0f}, 0.0f, 0.0f, 0.0f});
     env.add_stage({{level, 0.0f, RampType(releaseCurve.value), releasePower.value}, release.value, 0.0f, 0.0f});
     replace_stages(std::move(env));
   }
-  int sr_;
 };
 
 // Attack → Decay → Sustain (expand). 0→1→level, holds.
@@ -141,7 +138,7 @@ struct ADSEnvelope final : Envelope {
   Setting<int>   decayCurve {this, "decayCurve",  0,    0,    3, kRampCurveLabels};
   Setting<float> decayPower {this, "decayPower",  0.0f, 0.0f, 10.0f};
 
-  ADSEnvelope(int sampleRate) : Envelope(sampleRate, 0.0f), sr_(sampleRate) { rebuild(); }
+  ADSEnvelope() : Envelope(SustainDefault{0.0f}) { rebuild(); }
 
   const char* type_name() const override { return "ADSEnvelope"; }
 
@@ -158,13 +155,12 @@ protected:
 private:
   void rebuild() {
     const float level = sustainLevel.value;
-    Envelope env(sr_);
+    Envelope env;
     env.add_stage({{0.0f, 1.0f, RampType(attackCurve.value), attackPower.value}, attack.value, 0.0f, 1.0f});
     env.add_stage({{1.0f, level, RampType(decayCurve.value), decayPower.value}, decay.value, 0.0f, 0.5f});
     env.add_stage({{level, level, RampType::Linear, 0.0f}, 0.0f, 0.0f, 0.0f});
     replace_stages(std::move(env));
   }
-  int sr_;
 };
 
 // Attack → Decay → Release (expand). 0→1→level→0.
@@ -180,7 +176,7 @@ struct ADREnvelope final : Envelope {
   Setting<int>   releaseCurve{this, "releaseCurve", 3,    0,    3, kRampCurveLabels};
   Setting<float> releasePower{this, "releasePower", 0.0f, 0.0f, 10.0f};
 
-  ADREnvelope(int sampleRate) : Envelope(sampleRate), sr_(sampleRate) { rebuild(); }
+  ADREnvelope() { rebuild(); }
 
   const char* type_name() const override { return "ADREnvelope"; }
 
@@ -194,13 +190,12 @@ struct ADREnvelope final : Envelope {
 
 private:
   void rebuild() {
-    Envelope env(sr_);
+    Envelope env;
     env.add_stage({{0.0f, 1.0f, RampType(attackCurve.value), attackPower.value}, attack.value, 0.0f, 1.0f});
     env.add_stage({{1.0f, decayLevel.value, RampType(decayCurve.value), decayPower.value}, decay.value, 0.0f, 0.5f});
     env.add_stage({{decayLevel.value, 0.0f, RampType(releaseCurve.value), releasePower.value}, 0.0f, 0.0f, 0.0f});
     replace_stages(std::move(env));
   }
-  int sr_;
 };
 
 // Attack → Decay → Sustain (expand) → Release. Full ADSR.
@@ -217,7 +212,7 @@ struct ADSREnvelope final : Envelope {
   Setting<int>   releaseCurve{this, "releaseCurve", 3,    0,    3, kRampCurveLabels};
   Setting<float> releasePower{this, "releasePower", 0.0f, 0.0f, 10.0f};
 
-  ADSREnvelope(int sampleRate) : Envelope(sampleRate), sr_(sampleRate) { rebuild(); }
+  ADSREnvelope() { rebuild(); }
 
   const char* type_name() const override { return "ADSREnvelope"; }
 
@@ -234,7 +229,7 @@ protected:
 
 private:
   void rebuild() {
-    auto env = Envelope::make_adsr(sr_,
+    auto env = Envelope::make_adsr(
         attack.value, decay.value, sustainLevel.value, release.value);
     env->stage(0).ramp.type  = RampType(attackCurve.value);
     env->stage(0).ramp.power = attackPower.value;
@@ -244,7 +239,6 @@ private:
     env->stage(3).ramp.power = releasePower.value;
     replace_stages(std::move(*env));
   }
-  int sr_;
 };
 
 } // namespace mforce
