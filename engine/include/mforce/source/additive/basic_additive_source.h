@@ -23,13 +23,13 @@ struct BasicAdditiveSource final : WaveSource {
   Param amplVarPct  {this, "amplVarPct",   0.0f, 0.0f, 1.0f,   "0-1"};
   Param amplVarSpeed{this, "amplVarSpeed", 0.0f, 0.0f, 100.0f, "hz"};
 
-  BasicAdditiveSource(int, uint32_t seed = 0xADD1'0000u)
+  explicit BasicAdditiveSource(uint32_t seed = 0xADD1'0000u)
   : rng_(seed) {}
 
   const char* type_name() const override { return "BasicAdditiveSource"; }
   SourceCategory category() const override { return SourceCategory::Additive; }
 
-  void on_prepare(const RenderContext& ctx, int frames) override {
+  void on_start(int frames) override {
     WaveSource::on_start(frames);
 
     // Reset arrays — will be initialized on first sample

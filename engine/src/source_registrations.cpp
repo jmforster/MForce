@@ -82,14 +82,14 @@ void register_all_sources() {
 
     // BasicAdditiveSource (was "AdditiveSource" — alias kept for backward compat)
     reg.register_type("BasicAdditiveSource", SourceCategory::Additive,
-        [](int sr, auto seed) {
-            return std::make_shared<BasicAdditiveSource>(sr, seed.value_or(0xADD1'0000u));
+        [](int, auto seed) {
+            return std::make_shared<BasicAdditiveSource>(seed.value_or(0xADD1'0000u));
         });
 
     // The real AdditiveSource (thin loop over Partials, was FullAdditiveSource)
     reg.register_type("AdditiveSource", SourceCategory::Additive,
-        [](int sr, auto seed) {
-            return std::make_shared<FullAdditiveSource>(sr, seed.value_or(0xADD2'0000u));
+        [](int, auto seed) {
+            return std::make_shared<FullAdditiveSource>(seed.value_or(0xADD2'0000u));
         });
 
     reg.register_type("Formant", SourceCategory::Additive,
@@ -466,8 +466,8 @@ void register_all_sources() {
     // -----------------------------------------------------------------------
 
     reg.register_type("AdditiveSource2", SourceCategory::Additive,
-        [](int sr, auto seed) {
-            auto as2 = std::make_shared<AdditiveSource2>(sr, seed.value_or(0xADD3'0000u));
+        [](int, auto seed) {
+            auto as2 = std::make_shared<AdditiveSource2>(seed.value_or(0xADD3'0000u));
             as2->set_default_partials(500);
             return as2;
         });

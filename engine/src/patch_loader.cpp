@@ -888,7 +888,7 @@ static GraphResult build_graph(
         }
         // ---- AdditiveSource2 (partial modes + per-partial envelopes) ----
         else if (type == "AdditiveSource2") {
-            auto as2 = std::make_shared<AdditiveSource2>(sampleRate, seed.value_or(0xADD3'0000u));
+            auto as2 = std::make_shared<AdditiveSource2>(seed.value_or(0xADD3'0000u));
             if (pp) {
                 const auto& p = *pp;
                 wire_params_generic(*as2, p, valueNodes, &usage);

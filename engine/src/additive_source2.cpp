@@ -4,7 +4,7 @@
 
 namespace mforce {
 
-AdditiveSource2::AdditiveSource2(int, uint32_t seed)
+AdditiveSource2::AdditiveSource2(uint32_t seed)
 : rng_(seed) {}
 
 void AdditiveSource2::set_partials(std::vector<float> idx, std::vector<float> ampl) {
@@ -15,6 +15,7 @@ void AdditiveSource2::set_partials(std::vector<float> idx, std::vector<float> am
   absAmpl_.assign(n, true);
   freqEnvRef_.assign(n, -1);
   amplEnvRef_.assign(n, -1);
+  if (prepared()) reserve_note_arrays();
 }
 
 void AdditiveSource2::set_partials(
@@ -29,6 +30,7 @@ void AdditiveSource2::set_partials(
   absAmpl_.assign(n, true);
   freqEnvRef_.assign(n, -1);
   amplEnvRef_.assign(n, -1);
+  if (prepared()) reserve_note_arrays();
 }
 
 void AdditiveSource2::set_default_partials(int count) {
@@ -43,6 +45,7 @@ void AdditiveSource2::set_default_partials(int count) {
   }
   freqEnvRef_.assign(count, -1);
   amplEnvRef_.assign(count, -1);
+  if (prepared()) reserve_note_arrays();
 }
 
 bool AdditiveSource2::matches_filter(PartialFilter f, int pnum) const {
@@ -59,6 +62,7 @@ bool AdditiveSource2::matches_filter(PartialFilter f, int pnum) const {
 void AdditiveSource2::assign_freq_envelope(
     std::shared_ptr<ValueSource> env, PartialFilter filter, int from, int to) {
   int idx = int(freqEnvs_.size());
+  if (prepared()) env->prepare(render_context());   // assigned after the host prepared
   freqEnvs_.push_back(std::move(env));
   int n = int(endIdx_.size());
   for (int i = 0; i < n; ++i) {
@@ -71,6 +75,7 @@ void AdditiveSource2::assign_freq_envelope(
 void AdditiveSource2::assign_ampl_envelope(
     std::shared_ptr<ValueSource> env, PartialFilter filter, int from, int to) {
   int idx = int(amplEnvs_.size());
+  if (prepared()) env->prepare(render_context());   // assigned after the host prepared
   amplEnvs_.push_back(std::move(env));
   int n = int(endIdx_.size());
   for (int i = 0; i < n; ++i) {
@@ -80,11 +85,33 @@ void AdditiveSource2::assign_ampl_envelope(
   }
 }
 
-void AdditiveSource2::on_prepare(const RenderContext& ctx, int frames) {
+// The envelopes learn the rate, and the per-note arrays get their capacity,
+// so the note's resize to activeCount_ (never more than the definition's
+// size) allocates nothing. A setter that changes the definition after
+// prepare re-reserves (reserve_note_arrays) and an envelope assigned after
+// prepare is prepared on assignment, so neither needs a second prepare.
+void AdditiveSource2::on_prepare(const RenderContext& ctx) {
+  for (auto& e : freqEnvs_) e->prepare(ctx);
+  for (auto& e : amplEnvs_) e->prepare(ctx);
+  reserve_note_arrays();
+}
+
+void AdditiveSource2::reserve_note_arrays() {
+  const size_t cap = endIdx_.size();
+  endFreq_.reserve(cap);
+  startFreq_.reserve(cap);
+  partialPos_.reserve(cap);
+  freqOffset_.reserve(cap);
+  amplOffset_.reserve(cap);
+  freqVarDir_.reserve(cap);
+  amplVarDir_.reserve(cap);
+}
+
+void AdditiveSource2::on_start(int frames) {
   WaveSource::on_start(frames);
 
-  for (auto& e : freqEnvs_) e->prepare(ctx, frames);
-  for (auto& e : amplEnvs_) e->prepare(ctx, frames);
+  for (auto& e : freqEnvs_) e->start(frames);
+  for (auto& e : amplEnvs_) e->start(frames);
 
   int n = int(endIdx_.size());
   activeCount_ = std::min(n, int(12000.0f / std::max(currFreq_, 1.0f)));

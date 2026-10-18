@@ -13,7 +13,8 @@ namespace mforce {
 // ---------------------------------------------------------------------------
 struct IFormant {
   virtual ~IFormant() = default;
-  virtual void fmt_prepare(const RenderContext& ctx, int frames) = 0;
+  virtual void fmt_prepare(const RenderContext& ctx) = 0;
+  virtual void fmt_start(int frames) = 0;
   virtual void fmt_next() = 0;
   virtual bool contains(float freq) const = 0;
   virtual float get_gain(float freq) const = 0;
@@ -23,9 +24,9 @@ struct IFormant {
 // Ported from C# Formant — spectral peak with evolving params.
 // ---------------------------------------------------------------------------
 struct Formant final : ValueSource, IFormant {
-  // The additive source drives a Formant through fmt_prepare() and fmt_next(),
-  // never through next(), so the four pins are Manual: this node prepares
-  // them and advances them there.
+  // The additive source drives a Formant through fmt_prepare(), fmt_start()
+  // and fmt_next(), never through next(), so the four pins are Manual: this
+  // node prepares, starts and advances them there.
   Param frequency{this, "frequency", 1000.0f, 1.0f,  20000.0f, "hz",  Pull::Manual};
   Param gain     {this, "gain",      1.0f,    0.0f,  10.0f,    "0-1", Pull::Manual};
   Param width    {this, "width",     500.0f,  1.0f,  10000.0f, "hz",  Pull::Manual};
@@ -34,14 +35,22 @@ struct Formant final : ValueSource, IFormant {
   const char* type_name() const override { return "Formant"; }
   SourceCategory category() const override { return SourceCategory::Additive; }
 
-  void on_prepare(const RenderContext& ctx, int frames) override { fmt_prepare(ctx, frames); }
+  void on_prepare(const RenderContext& ctx) override { fmt_prepare(ctx); }
+  void on_start(int frames) override { fmt_start(frames); }
   float compute() override { fmt_next(); return 0.0f; }
 
-  void fmt_prepare(const RenderContext& ctx, int frames) override {
-    frequency.prepare(ctx, frames);
-    gain.prepare(ctx, frames);
-    width.prepare(ctx, frames);
-    power.prepare(ctx, frames);
+  void fmt_prepare(const RenderContext& ctx) override {
+    frequency.prepare(ctx);
+    gain.prepare(ctx);
+    width.prepare(ctx);
+    power.prepare(ctx);
+  }
+
+  void fmt_start(int frames) override {
+    frequency.start(frames);
+    gain.start(frames);
+    width.start(frames);
+    power.start(frames);
   }
 
   void fmt_next() override {
@@ -87,11 +96,16 @@ struct FormantSpectrum : ValueSource, IFormant {
   const char* type_name() const override { return "FormantSpectrum"; }
   SourceCategory category() const override { return SourceCategory::Additive; }
 
-  void on_prepare(const RenderContext& ctx, int frames) override { fmt_prepare(ctx, frames); }
+  void on_prepare(const RenderContext& ctx) override { fmt_prepare(ctx); }
+  void on_start(int frames) override { fmt_start(frames); }
   float compute() override { fmt_next(); return 0.0f; }
 
-  void fmt_prepare(const RenderContext& ctx, int frames) override {
-    for (auto& f : formants) f->fmt_prepare(ctx, frames);
+  void fmt_prepare(const RenderContext& ctx) override {
+    for (auto& f : formants) f->fmt_prepare(ctx);
+  }
+
+  void fmt_start(int frames) override {
+    for (auto& f : formants) f->fmt_start(frames);
   }
 
   void fmt_next() override {
@@ -126,7 +140,8 @@ struct FixedSpectrum final : ValueSource, IFormant {
 
   float compute() override { return 0.0f; }
 
-  void fmt_prepare(const RenderContext& /*ctx*/, int /*frames*/) override {}
+  void fmt_prepare(const RenderContext& /*ctx*/) override {}
+  void fmt_start(int /*frames*/) override {}
   void fmt_next() override {}
 
   bool contains(float /*freq*/) const override { return true; }
@@ -143,8 +158,9 @@ struct FixedSpectrum final : ValueSource, IFormant {
 // Ported from C# BandSpectrum — frequency-band gain lookup.
 // ---------------------------------------------------------------------------
 struct BandSpectrum final : ValueSource, IFormant {
-  // Driven through fmt_prepare() and fmt_next() by the additive source, never
-  // through next(), so both pins are Manual: this node prepares and advances them.
+  // Driven through fmt_prepare(), fmt_start() and fmt_next() by the additive
+  // source, never through next(), so both pins are Manual: this node
+  // prepares, starts and advances them.
   Param startFreq    {this, "startFreq",     0.0f, 0.0f,  20000.0f, nullptr, Pull::Manual};
   Param freqIncrement{this, "freqIncrement", 1.0f, 0.01f, 1000.0f,  nullptr, Pull::Manual};
   Array gains{this, "gains", nullptr, 0.0f, 0.0f, 1.0f};
@@ -152,12 +168,18 @@ struct BandSpectrum final : ValueSource, IFormant {
   const char* type_name() const override { return "BandSpectrum"; }
   SourceCategory category() const override { return SourceCategory::Additive; }
 
-  void on_prepare(const RenderContext& ctx, int frames) override { fmt_prepare(ctx, frames); }
+  void on_prepare(const RenderContext& ctx) override { fmt_prepare(ctx); }
+  void on_start(int frames) override { fmt_start(frames); }
   float compute() override { fmt_next(); return 0.0f; }
 
-  void fmt_prepare(const RenderContext& ctx, int frames) override {
-    startFreq.prepare(ctx, frames);
-    freqIncrement.prepare(ctx, frames);
+  void fmt_prepare(const RenderContext& ctx) override {
+    startFreq.prepare(ctx);
+    freqIncrement.prepare(ctx);
+  }
+
+  void fmt_start(int frames) override {
+    startFreq.start(frames);
+    freqIncrement.start(frames);
   }
 
   void fmt_next() override {
@@ -191,8 +213,9 @@ struct BandSpectrum final : ValueSource, IFormant {
 // With N formants, blend=0 → formant[0], blend=1 → formant[N-1].
 // ---------------------------------------------------------------------------
 struct FormantSequence final : ValueSource, IFormant {
-  // Driven through fmt_prepare() and fmt_next() by the additive source, never
-  // through next(), so `blend` is Manual: this node prepares and advances it.
+  // Driven through fmt_prepare(), fmt_start() and fmt_next() by the additive
+  // source, never through next(), so `blend` is Manual: this node prepares,
+  // starts and advances it.
   Param blend{this, "blend", 0.0f, 0.0f, 1.0f, nullptr, Pull::Manual};
 
   // `spectra` is a list, held in `formants`, not a pin: it is served by name
@@ -227,12 +250,18 @@ struct FormantSequence final : ValueSource, IFormant {
     else ValueSource::clear_param(name);
   }
 
-  void on_prepare(const RenderContext& ctx, int frames) override { fmt_prepare(ctx, frames); }
+  void on_prepare(const RenderContext& ctx) override { fmt_prepare(ctx); }
+  void on_start(int frames) override { fmt_start(frames); }
   float compute() override { fmt_next(); return 0.0f; }
 
-  void fmt_prepare(const RenderContext& ctx, int frames) override {
-    blend.prepare(ctx, frames);
-    for (auto& f : formants) f->fmt_prepare(ctx, frames);
+  void fmt_prepare(const RenderContext& ctx) override {
+    blend.prepare(ctx);
+    for (auto& f : formants) f->fmt_prepare(ctx);
+  }
+
+  void fmt_start(int frames) override {
+    blend.start(frames);
+    for (auto& f : formants) f->fmt_start(frames);
   }
 
   void fmt_next() override {

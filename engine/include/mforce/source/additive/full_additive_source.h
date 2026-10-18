@@ -41,7 +41,7 @@ struct FullAdditiveSource final : WaveSource {
   Setting<float> noiseBedFadePow{this, "noiseBedFadePow", 1.0f,    0.25f,  8.0f};
   Setting<float> noiseBedFade   {this, "noiseBedFade",    0.05f,   0.001f, 2.0f};      // tone fade-in sec after the delay
 
-  explicit FullAdditiveSource(int sampleRate, uint32_t seed = 0xADD2'0000u);
+  explicit FullAdditiveSource(uint32_t seed = 0xADD2'0000u);
 
   const char* type_name() const override { return "AdditiveSource"; }
   SourceCategory category() const override { return SourceCategory::Additive; }
@@ -60,7 +60,8 @@ struct FullAdditiveSource final : WaveSource {
     WaveSource::set_param(name, std::move(src));
   }
 
-  void on_prepare(const RenderContext& ctx, int frames) override;
+  void on_prepare(const RenderContext& ctx) override;
+  void on_start(int frames) override;
 
 protected:
   float wave() override;
@@ -80,7 +81,7 @@ private:
   // if the bed should track a patch's formant stack.
   Randomizer noiseRng_;  // seeded from the AdditiveSource seed (reproducible)
 
-  // Per-note state (set in prepare)
+  // Per-note state (set in start)
   float bedB0_{0.0f}, bedB2_{0.0f}, bedA1_{0.0f}, bedA2_{0.0f};  // RBJ bandpass (b1 = 0)
   float bedZ1_{0.0f}, bedZ2_{0.0f};                              // transposed DF2 state
   float bedDelaySamples_{0.0f};

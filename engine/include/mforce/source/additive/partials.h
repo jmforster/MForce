@@ -29,8 +29,8 @@ struct ExpandRule {
 // declare an ExpandRule as a top-level node and reference it from a
 // Partials host via { "ref": "..." }. Mirrors the role of Formant —
 // a parametric building block consumed by a host node, with no audio
-// output of its own. The host snapshots fields at load/prepare time
-// via to_struct().
+// output of its own. The host snapshots fields at load time and at every
+// start via to_struct().
 struct ExpandRuleNode final : ValueSource {
   // The host reads the pins with to_struct(); nothing pulls them per sample,
   // so all ten are Manual and this node never prepares or advances them.
@@ -49,7 +49,7 @@ struct ExpandRuleNode final : ValueSource {
 
   // Snapshot to a plain ExpandRule for consumption by Partials. Reads the
   // current() of each field — at load time these are ConstantSource values,
-  // at prepare time they could be the current value of a wired envelope.
+  // at start time they could be the current value of a wired envelope.
   ExpandRule to_struct() const {
     ExpandRule r;
     r.count = count.value;
@@ -75,12 +75,13 @@ struct ExpandRuleNode final : ValueSource {
 
 // ---------------------------------------------------------------------------
 // IPartials — interface for partial rendering engines.
-// Uses partials_prepare / partials_next to avoid collision with
-// ValueSource::prepare / ValueSource::next.
+// Uses partials_prepare / partials_start / partials_next to avoid collision
+// with ValueSource::prepare / ValueSource::start / ValueSource::next.
 // ---------------------------------------------------------------------------
 struct IPartials {
   virtual ~IPartials() = default;
-  virtual void partials_prepare(const RenderContext& ctx, int frames) = 0;
+  virtual void partials_prepare(const RenderContext& ctx) = 0;
+  virtual void partials_start(int frames) = 0;
   virtual void partials_next() = 0;
   virtual int partial_count() const = 0;
   virtual float get_partial_value(float amplitude, float frequency, float phaseDiff,
@@ -129,9 +130,9 @@ enum PartialsRngLayer : uint32_t {
   kRngShimmerShared = 4,  // single
   kRngShimmerInd    = 5,  // per-partial
   kRngTrade         = 6,  // single (draw order over pair-walks is stable)
-  kRngOnset         = 7,  // single (prepare-time only)
-  kRngDetune        = 8,  // single (prepare-time only)
-  kRngExpand        = 9,  // single (prepare-time only)
+  kRngOnset         = 7,  // single (start-time only)
+  kRngDetune        = 8,  // single (start-time only)
+  kRngExpand        = 9,  // single (start-time only)
 };
 
 // ---------------------------------------------------------------------------
@@ -143,10 +144,11 @@ enum PartialsRngLayer : uint32_t {
 // populate the static arrays (mult1_, mult2_, ampl1_, ampl2_, po1_, po2_).
 // ---------------------------------------------------------------------------
 struct Partials : ValueSource, IPartials {
-  // The additive source drives a Partials through partials_prepare() and
-  // partials_next(), never through next(), so the eight envelope pins are
-  // Manual: partials_prepare() prepares them and partials_next() advances
-  // them, in this order. All are unipolar 0-1 blend factors driving a lerp
+  // The additive source drives a Partials through partials_prepare(),
+  // partials_start() and partials_next(), never through next(), so the eight
+  // envelope pins are Manual: partials_prepare() prepares them,
+  // partials_start() starts them and partials_next() advances them, in this
+  // order. All are unipolar 0-1 blend factors driving a lerp
   // between _1 and _2 endpoints (e.g. roEnv blends rolloff1 -> rolloff2).
   // Wire an Envelope or RangeSource; a bipolar oscillator won't blend right.
   Param multEnv   {this, "multEnv",    0.0f, 0.0f, 1.0f, "0-1", Pull::Manual};
@@ -197,7 +199,7 @@ struct Partials : ValueSource, IPartials {
   // spectrum (measured piano within-note exponent ~0.6: high partials die
   // faster). Default 0 = feature off (no per-sample multiply).
   //
-  // inharmonicity — stiff-string stretch coefficient B: at prepare/note-on the
+  // inharmonicity — stiff-string stretch coefficient B: at note-on the
   // effective multiplier becomes m*sqrt(1 + B*m^2). Per-note B arrives via a
   // paramMap frequency->curve config entry. Default 0 = off (bit-exact).
   Setting<float> decayRate    {this, "decayRate",     0.0f,  0.0f, 400.0f};
@@ -208,8 +210,9 @@ struct Partials : ValueSource, IPartials {
 
   // --- ValueSource interface ---
   // Partials is a ValueSource for graph wiring, but doesn't produce audio.
-  // Prepare/next delegate to partials_prepare/partials_next.
-  void on_prepare(const RenderContext& ctx, int frames) override { partials_prepare(ctx, frames); }
+  // Prepare/start/next delegate to partials_prepare/partials_start/partials_next.
+  void on_prepare(const RenderContext& ctx) override { partials_prepare(ctx); }
+  void on_start(int frames) override { partials_start(frames); }
   float compute() override { partials_next(); return 0.0f; }
 
   const char* type_name() const override { return "Partials"; }
@@ -230,9 +233,21 @@ struct Partials : ValueSource, IPartials {
 
   // --- IPartials interface ---
 
-  void partials_prepare(const RenderContext& ctx, int frames) override {
+  // The rate and the envelope pins' sources: once per build, idempotent.
+  void partials_prepare(const RenderContext& ctx) override {
     rate_ = float(ctx.sampleRate);
 
+    multEnv.prepare(ctx);
+    amplEnv.prepare(ctx);
+    poEnv.prepare(ctx);
+    roEnv.prepare(ctx);
+    dtEnv.prepare(ctx);
+    bwEnv.prepare(ctx);
+    motionEnv.prepare(ctx);
+    shimmerEnv.prepare(ctx);
+  }
+
+  void partials_start(int frames) override {
     // Per-note stream base: baseSeed_ hashed with a note counter. Every rng
     // stream below reseeds from this, so a note's randomness depends only on
     // (baseSeed, note ordinal, partial, layer) — never on how many draws any
@@ -246,14 +261,14 @@ struct Partials : ValueSource, IPartials {
       update_arrays();
     }
 
-    multEnv.prepare(ctx, frames);
-    amplEnv.prepare(ctx, frames);
-    poEnv.prepare(ctx, frames);
-    roEnv.prepare(ctx, frames);
-    dtEnv.prepare(ctx, frames);
-    bwEnv.prepare(ctx, frames);
-    motionEnv.prepare(ctx, frames);
-    shimmerEnv.prepare(ctx, frames);
+    multEnv.start(frames);
+    amplEnv.start(frames);
+    poEnv.start(frames);
+    roEnv.start(frames);
+    dtEnv.start(frames);
+    bwEnv.start(frames);
+    motionEnv.start(frames);
+    shimmerEnv.start(frames);
 
     // Expand partials if rule is set
     if (hasExpand_) {
@@ -309,7 +324,7 @@ struct Partials : ValueSource, IPartials {
       bwPos_[i]    = int(bwRng_[i].range(0.0f, float(bwLen_)));  // stagger phase
     }
 
-    // Motion / shimmer / trade / onset state. All per-note (prepare fires at
+    // Motion / shimmer / trade / onset state. All per-note (partials_start fires at
     // every note-on) and inert unless configured. Allocation happens here,
     // never in the per-sample path.
     sampleIdx_ = 0;
@@ -671,7 +686,7 @@ public:
   //
   // Triggers an array rebuild if a config change marked them dirty — without
   // this, configs set after construction (e.g. evenWeight2=0 from JSON load)
-  // wouldn't take effect until the first render call partials_prepare().
+  // wouldn't take effect until the first render call partials_start().
   std::vector<float> get_array(std::string_view name) const override {
     if (arrayUpdateReq_) const_cast<Partials*>(this)->update_arrays();
     if (name == "mult1") return mult1_;
@@ -794,7 +809,7 @@ protected:
   }
 
   // Rng streams — one per (partial, layer) for the layers with per-partial
-  // state, one per layer otherwise. All reseeded per note in partials_prepare
+  // state, one per layer otherwise. All reseeded per note in partials_start
   // from stream_seed(noteBase_, index, layerId); nothing in the render path
   // shares a stream. baseSeed_ comes from the node's JSON "seed".
   uint32_t baseSeed_;
@@ -803,10 +818,10 @@ protected:
   Randomizer moSharedRng_{0u}, shSharedRng_{0u}, trRng_{0u}, expandRng_{0u};
   std::vector<Randomizer> bwRng_, moRng_, shRng_;  // per-partial streams
 
-  // Bandwidth-noise segment length in samples (derived from bandwidthHz at prepare)
+  // Bandwidth-noise segment length in samples (derived from bandwidthHz at start)
   int   bwLen_{1600};
 
-  // Motion layer runtime state (allocated in partials_prepare)
+  // Motion layer runtime state (allocated in partials_start)
   bool motionActive_{false}, shimmerActive_{false};
   bool tradeActive_{false}, onsetActive_{false};
   bool decayActive_{false};
@@ -847,7 +862,7 @@ protected:
   bool arrayUpdateReq_{true};
 
   // Sample rate captured from ctx at partials_prepare(); drives partial phase
-  // advance in get_partial_value(). Previously a hardcoded 48000 constexpr.
+  // advance in get_partial_value(). Derived from the context, not a second copy of it.
   float rate_{48000.0f};
 
   static constexpr float CUTOFF = 16000.0f;
@@ -871,7 +886,7 @@ struct FullPartials final : Partials {
 
   const char* type_name() const override { return "FullPartials"; }
 
-  // Each of these settings reshapes the arrays, which are rebuilt at the next prepare.
+  // Each of these settings reshapes the arrays, which are rebuilt at the next start.
   void on_setting_changed(std::string_view name) override {
     Partials::on_setting_changed(name);
     if (name == "maxPartials") maxPartials.value = std::max(1, maxPartials.value);
@@ -928,7 +943,7 @@ struct SequencePartials final : Partials {
 
   const char* type_name() const override { return "SequencePartials"; }
 
-  // Each of these settings reshapes the arrays, which are rebuilt at the next prepare.
+  // Each of these settings reshapes the arrays, which are rebuilt at the next start.
   void on_setting_changed(std::string_view name) override {
     Partials::on_setting_changed(name);
     if (name == "maxPartials") maxPartials.value = std::max(1, maxPartials.value);
@@ -1076,12 +1091,17 @@ struct CompositePartials final : ValueSource, IPartials {
   }
 
   // --- ValueSource interface (not an audio source itself) ---
-  void on_prepare(const RenderContext& ctx, int frames) override { partials_prepare(ctx, frames); }
+  void on_prepare(const RenderContext& ctx) override { partials_prepare(ctx); }
+  void on_start(int frames) override { partials_start(frames); }
   float compute() override { partials_next(); return 0.0f; }
 
   // --- IPartials interface ---
-  void partials_prepare(const RenderContext& ctx, int frames) override {
-    for (auto& e : sets_) e.ipartials->partials_prepare(ctx, frames);
+  void partials_prepare(const RenderContext& ctx) override {
+    for (auto& e : sets_) e.ipartials->partials_prepare(ctx);
+  }
+
+  void partials_start(int frames) override {
+    for (auto& e : sets_) e.ipartials->partials_start(frames);
   }
 
   void partials_next() override {

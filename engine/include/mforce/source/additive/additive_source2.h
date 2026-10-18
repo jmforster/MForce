@@ -38,7 +38,7 @@ struct AdditiveSource2 final : WaveSource {
   // the default partials (set_default_partials).
   Setting<int> partialCount{this, "partialCount", 500, 1, 2000};
 
-  explicit AdditiveSource2(int sampleRate, uint32_t seed = 0xADD3'0000u);
+  explicit AdditiveSource2(uint32_t seed = 0xADD3'0000u);
 
   // --- Partial definition ---
   // Static partials (no start/end evolution):
@@ -85,15 +85,18 @@ struct AdditiveSource2 final : WaveSource {
     absAmpl_.assign(n, true);
     freqEnvRef_.assign(n, -1);
     amplEnvRef_.assign(n, -1);
+    if (prepared()) reserve_note_arrays();
   }
 
-  void on_prepare(const RenderContext& ctx, int frames) override;
+  void on_prepare(const RenderContext& ctx) override;
+  void on_start(int frames) override;
 
 protected:
   float wave() override;
 
 private:
   bool matches_filter(PartialFilter f, int partialNum) const;
+  void reserve_note_arrays();   // capacity for the per-note arrays from the definition's size
 
   Randomizer rng_;
 

@@ -5,20 +5,27 @@
 
 namespace mforce {
 
-FullAdditiveSource::FullAdditiveSource(int, uint32_t seed)
+FullAdditiveSource::FullAdditiveSource(uint32_t seed)
 : noiseRng_(seed) {}
 
-void FullAdditiveSource::on_prepare(const RenderContext& ctx, int frames) {
+void FullAdditiveSource::on_prepare(const RenderContext& ctx) {
+  if (partials_) partials_->partials_prepare(ctx);
+  if (formant_) formant_->fmt_prepare(ctx);
+  formantWeight.prepare(ctx);
+  formantFloor.prepare(ctx);
+}
+
+void FullAdditiveSource::on_start(int frames) {
   WaveSource::on_start(frames);
 
-  if (partials_) partials_->partials_prepare(ctx, frames);
-  if (formant_) formant_->fmt_prepare(ctx, frames);
-  formantWeight.prepare(ctx, frames);
-  formantFloor.prepare(ctx, frames);
+  if (partials_) partials_->partials_start(frames);
+  if (formant_) formant_->fmt_start(frames);
+  formantWeight.start(frames);
+  formantFloor.start(frames);
 
   // --- NoiseBed per-note state. The noise runs from sample 0 of the note;
   // it's the TONE that is delayed (bedDelaySamples_) and then faded in.
-  const float rate = float(ctx.sampleRate);
+  const float rate = float(sample_rate());
   bedDelaySamples_ = noiseBedDelay.value * rate;
   bedFadeSamples_  = std::max(1.0f, noiseBedFade.value * rate);
   bedZ1_ = bedZ2_ = 0.0f;
