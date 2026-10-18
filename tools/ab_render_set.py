@@ -7,8 +7,12 @@ patches moved. Use when an engine change is claimed bit-exact for some subset:
 build arm A, change the engine, build arm B, compare.
 
 Usage:
-  python tools/ab_render_set.py render <set.txt> <outdir> <armname>
+  python tools/ab_render_set.py render <set.txt> <outdir> <armname> [--cli <exe>]
   python tools/ab_render_set.py compare <outdir> <armA> <armB>
+
+--cli names the mforce_cli binary that renders the arm (default: the build's),
+so an old binary kept under renders/scratch/ can be an arm without being
+copied over the build.
 """
 import hashlib
 import os
@@ -19,7 +23,7 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 CLI = os.path.join(ROOT, "build", "tools", "mforce_cli", "Release", "mforce_cli.exe")
 
 
-def render(setfile, outdir, arm):
+def render(setfile, outdir, arm, cli=CLI):
     paths = [l.strip() for l in open(setfile, encoding="utf-8") if l.strip()]
     armdir = os.path.join(outdir, arm)
     os.makedirs(armdir, exist_ok=True)
@@ -27,7 +31,7 @@ def render(setfile, outdir, arm):
     for i, rel in enumerate(paths):
         src = os.path.join(ROOT, rel)
         wav = os.path.join(armdir, "_tmp.wav")
-        r = subprocess.run([CLI, src, wav], capture_output=True, text=True)
+        r = subprocess.run([cli, src, wav], capture_output=True, text=True)
         if r.returncode != 0 or not os.path.exists(wav):
             failed.append(rel)
             continue
@@ -75,7 +79,10 @@ def main():
     if len(sys.argv) < 2:
         raise SystemExit(__doc__)
     if sys.argv[1] == "render":
-        return render(sys.argv[2], sys.argv[3], sys.argv[4])
+        cli = CLI
+        if "--cli" in sys.argv:
+            cli = os.path.abspath(sys.argv[sys.argv.index("--cli") + 1])
+        return render(sys.argv[2], sys.argv[3], sys.argv[4], cli)
     if sys.argv[1] == "compare":
         return compare(sys.argv[2], sys.argv[3], sys.argv[4])
     raise SystemExit(__doc__)

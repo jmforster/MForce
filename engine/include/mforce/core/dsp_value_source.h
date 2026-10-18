@@ -1,4 +1,5 @@
 #pragma once
+#include <cassert>
 #include <cmath>
 #include <memory>
 #include <span>
@@ -44,14 +45,39 @@ struct ValueSource : Component {
   }
   long long lastAdvancedSample_{-1};
 
-  // Prepares every Auto pin's source, then the node's own state. A Manual
-  // pin is prepared by the node, in on_prepare or wherever it chooses.
-  virtual void prepare(const RenderContext& ctx, int frames) {
+  // The two host calls (Part 2 §4-5). Neither is virtual: the base owns the
+  // sweep, a node writes the hooks, the same shape as next()/compute().
+  //
+  // prepare(ctx): once per build, from the host, never per note and never on
+  // the audio thread; again only when the host changes the rate or has
+  // rebuilt the graph. The only way a node learns the sample rate. May
+  // allocate. Calling it twice with the same context changes nothing a
+  // render can see. Forwards to every Auto pin's source, then on_prepare;
+  // a Manual pin is prepared by the node in on_prepare.
+  void prepare(const RenderContext& ctx) {
+    ctx_ = ctx;
     for (auto* pin : pins())
-      if (pin->pull == Pull::Auto) pin->prepare(ctx, frames);
-    on_prepare(ctx, frames);
+      if (pin->pull == Pull::Auto) pin->prepare(ctx);
+    on_prepare(ctx);
   }
-  virtual void on_prepare(const RenderContext&, int) {}
+  // start(frames): a span of `frames` samples begins now — reset per-note
+  // state and lay out anything that depends on the length. May not
+  // allocate. Forwards to every Auto pin's source, then on_start; a Manual
+  // pin is started by the node in on_start.
+  void start(int frames) {
+    assert(prepared() && "start() before prepare(ctx)");
+    for (auto* pin : pins())
+      if (pin->pull == Pull::Auto) pin->start(frames);
+    on_prepare(ctx_, frames);   // migration shim: the old hook, until every family is cut
+    on_start(frames);
+  }
+  // Migration shim: the old one call as the two. Deleted at the close of
+  // checkpoint 2.2, together with the two-argument on_prepare below.
+  void prepare(const RenderContext& ctx, int frames) { prepare(ctx); start(frames); }
+
+  virtual void on_prepare(const RenderContext&) {}
+  virtual void on_start(int) {}
+  virtual void on_prepare(const RenderContext&, int) {}   // the old hook; migration shim
 
   // Advance every wired Auto pin in declaration order, then compute. A
   // node's work is compute(); next() is the same for every node.
@@ -89,7 +115,24 @@ struct ValueSource : Component {
   virtual void reseed() {}
 
 protected:
+  // The host's facts, as prepare(ctx) left them. A node reads its rate here
+  // and keeps no copy of its own.
+  int sample_rate() const { return ctx_.sampleRate; }
+  const RenderContext& render_context() const { return ctx_; }
+  bool prepared() const { return ctx_.sampleRate > 0; }
+
+  // A node assigning itself (Envelope::replace_stages) assigns its own
+  // state; the context the host gave this object stays, like the registry.
+  ValueSource& operator=(const ValueSource& o) {
+    Component::operator=(o);
+    cur_ = o.cur_;
+    return *this;
+  }
+
   float cur_{0.0f};
+
+private:
+  RenderContext ctx_{};
 };
 
 // A node that produces a signal from time and its parameters alone.
@@ -146,7 +189,8 @@ struct RefSource final : ValueSource {
   explicit RefSource(std::shared_ptr<ValueSource> src, bool g = false)
     : source(std::move(src)), guard(g) {}
 
-  void prepare(const RenderContext& /*ctx*/, int /*frames*/) override {} // primary consumer prepares the real source
+  // No pins and no hooks: prepare and start reach nothing here. The
+  // primary consumer prepares and starts the real source.
   float compute() override { return read(); }
   float current() const override { return read(); }
 
@@ -166,18 +210,16 @@ private:
   }
 };
 
-// The pin bodies that need ValueSource complete. prepare() and advance()
-// act on the source if there is one; the base calls them for Auto pins,
-// the node calls them for its Manual pins.
+// The pin bodies that need ValueSource complete. prepare(), start() and
+// advance() act on the source if there is one; the base calls them for
+// Auto pins, the node calls them for its Manual pins.
 inline float Param::current() const { return source ? source->current() : constant; }
 inline float Param::advance() { return source ? source->advance() : constant; }
-inline void Param::prepare(const RenderContext& ctx, int frames) {
-  if (source) source->prepare(ctx, frames);
-}
+inline void Param::prepare(const RenderContext& ctx) { if (source) source->prepare(ctx); }
+inline void Param::start(int frames) { if (source) source->start(frames); }
 inline float Input::current() const { return source ? source->current() : 0.0f; }
 inline float Input::advance() { return source ? source->advance() : 0.0f; }
-inline void Input::prepare(const RenderContext& ctx, int frames) {
-  if (source) source->prepare(ctx, frames);
-}
+inline void Input::prepare(const RenderContext& ctx) { if (source) source->prepare(ctx); }
+inline void Input::start(int frames) { if (source) source->start(frames); }
 
 } // namespace mforce

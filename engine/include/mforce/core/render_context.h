@@ -2,14 +2,13 @@
 
 namespace mforce {
 
-// Ambient render state propagated top-down through ValueSource::prepare.
-// Intentionally minimal; add fields only when a consumer needs one.
-// noteOffFrame was removed 2026-08-13 (note-contained sound): release is
-// the final stage of an Envelope inside the note's duration, so no node
-// needs to know where the gate ends (KSPianoString's damper is a
-// ValueSource input now).
+// The host's facts, handed to a node once through ValueSource::prepare(ctx):
+// the only way a node learns the sample rate. One field today; a host's
+// other facts (a block size, say) join here rather than on every prepare
+// signature. A default-constructed context (rate 0) means "no host has
+// prepared this node yet".
 struct RenderContext {
-    int sampleRate;
+    int sampleRate{0};
 };
 
 } // namespace mforce

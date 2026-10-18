@@ -36,7 +36,10 @@ struct PinBase {
   Pull pull;
   virtual ~PinBase() = default;
   PinBase(const PinBase&) = delete;               // a copy would not be registered
-  virtual void prepare(const RenderContext&, int) {}
+  // A connectable pin forwards both host calls to its source; a setting or
+  // an array has nothing to forward.
+  virtual void prepare(const RenderContext&) {}
+  virtual void start(int) {}
 protected:
   PinBase(const char* n, PinKind k, Pull p = Pull::Auto) : name(n), kind(k), pull(p) {}
   // A node assigning itself assigns its pins' values.
@@ -58,7 +61,12 @@ struct Param final : PinBase {
   void set(std::shared_ptr<ValueSource> s) { source = std::move(s); }
   std::shared_ptr<ValueSource> get() const { return source; }
   ParamDescriptor descriptor() const { return {name, constant, min, max, hint}; }
-  void prepare(const RenderContext& ctx, int frames) override;
+  void prepare(const RenderContext& ctx) override;
+  void start(int frames) override;
+  // Migration shim: the old one call as the two. Deleted at the close of
+  // checkpoint 2.2. It lives here and not on PinBase because a class that
+  // declares prepare(ctx) hides every base overload of that name.
+  void prepare(const RenderContext& ctx, int frames) { prepare(ctx); start(frames); }
 };
 
 // A signal input: a source, required or optional; reads 0 when unwired.
@@ -77,7 +85,10 @@ struct Input final : PinBase {
   void set(std::shared_ptr<ValueSource> s) { source = std::move(s); }
   std::shared_ptr<ValueSource> get() const { return source; }
   InputDescriptor descriptor() const { return {name, multi, hint}; }
-  void prepare(const RenderContext& ctx, int frames) override;
+  void prepare(const RenderContext& ctx) override;
+  void start(int frames) override;
+  // Migration shim, as on Param; deleted at the close of checkpoint 2.2.
+  void prepare(const RenderContext& ctx, int frames) { prepare(ctx); start(frames); }
 };
 
 // A scalar configuration value (float, int or bool), not connectable. The

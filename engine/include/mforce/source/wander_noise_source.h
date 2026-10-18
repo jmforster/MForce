@@ -30,9 +30,10 @@ struct WanderNoiseSource final : Generator {
   const char* type_name() const override { return "WanderNoiseSource"; }
   SourceCategory category() const override { return SourceCategory::Generator; }
 
-  void prepare(const RenderContext& ctx, int frames) override {
+  // The Manual amplitude pin is prepared by the node (migration form; the
+  // noise family's task splits this into the two hooks).
+  void on_prepare(const RenderContext& ctx, int frames) override {
     amplitude.prepare(ctx, frames);
-    ValueSource::prepare(ctx, frames);
   }
 
   float compute() override {
@@ -104,9 +105,9 @@ struct WanderNoise2Source final : Generator {
   const char* type_name() const override { return "WanderNoise2Source"; }
   SourceCategory category() const override { return SourceCategory::Generator; }
 
-  void prepare(const RenderContext& ctx, int frames) override {
+  // As WanderNoiseSource: the Manual amplitude pin, migration form.
+  void on_prepare(const RenderContext& ctx, int frames) override {
     amplitude.prepare(ctx, frames);
-    ValueSource::prepare(ctx, frames);
   }
 
   float compute() override {

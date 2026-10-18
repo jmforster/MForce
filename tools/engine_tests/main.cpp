@@ -4504,9 +4504,76 @@ static void run_combine_mod_tests() {
     run_combine_mod_configurator_tests();
 }
 
+// ---------------------------------------------------------------------------
+// prepare(ctx) / start(frames) (Part 2 §4-5, checkpoint 2.2)
+// ---------------------------------------------------------------------------
+#include <functional>
+
+// The split is exact when a node that is prepared once and started per note
+// renders the same bytes as one that is prepared and started before every
+// note (what the old prepare(ctx, frames) did). Both arms throw or neither.
+static bool split_equivalent(const std::function<std::shared_ptr<ValueSource>()>& make,
+                             int frames = 2048, int notes = 3, int sampleRate = 48000) {
+    RenderContext ctx{sampleRate};
+    auto a = make(), b = make();
+    std::vector<float> ra, rb;
+    auto render = [&](ValueSource& s, std::vector<float>& out, bool prepareEachNote) {
+        if (!prepareEachNote) s.prepare(ctx);
+        for (int n = 0; n < notes; ++n) {
+            if (prepareEachNote) s.prepare(ctx);
+            s.start(frames);
+            for (int i = 0; i < frames; ++i) out.push_back(s.advance());
+        }
+    };
+    bool threwA = false, threwB = false;
+    try { render(*a, ra, true);  } catch (...) { threwA = true; }
+    try { render(*b, rb, false); } catch (...) { threwB = true; }
+    if (threwA || threwB) return threwA == threwB;
+    return ra.size() == rb.size() &&
+           std::memcmp(ra.data(), rb.data(), ra.size() * sizeof(float)) == 0;
+}
+
+static void run_split_equivalence_tests() {
+    register_all_sources();
+    auto& reg = SourceRegistry::instance();
+    // Types that cannot render at their registry defaults at all (they
+    // index an empty part): pre-existing, listed in report R2 section 7 and
+    // fixed by Part 3. Their wired cases live in their family's tests.
+    static const std::set<std::string> kNotRenderableUnwired = {
+        "PhasedValueSource",   // stage-less: compute() indexes an empty boundaries_
+    };
+    for (auto& [name, cat] : reg.registered_types()) {
+        const std::string n = name;
+        if (kNotRenderableUnwired.count(n)) continue;
+        bool ok = split_equivalent([&] { return reg.create(n, 48000); });
+        if (!ok) std::printf("  split differs: %s\n", n.c_str());
+        CHECK(ok);
+    }
+    // A node knows no rate until a host prepares it.
+    struct Probe final : Generator {
+        float compute() override { return 0.0f; }
+        bool p() const { return prepared(); }
+        int  r() const { return sample_rate(); }
+    };
+    Probe p;
+    CHECK(!p.p());
+    CHECK(p.r() == 0);
+    p.prepare(RenderContext{22050});
+    CHECK(p.p());
+    CHECK(p.r() == 22050);
+    // The context the host gave an object survives assignment, like the
+    // registry: a node assigning itself assigns its own state only.
+    Probe q;
+    q = p;
+    CHECK(q.r() == 0);
+    p = q;
+    CHECK(p.r() == 22050);
+}
+
 int main() {
     run_pin_tests();
     run_base_tests();
+    run_split_equivalence_tests();
     run_manual_pin_advance_tests();
     run_setting_clamp_tests();
     run_manual_pin_prepare_tests();

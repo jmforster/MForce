@@ -422,6 +422,8 @@ Rulings made while planning (each becomes a line in the report's section 6; the 
 
 (Execution rulings follow here.)
 
+- **A/B base (Task 1 step 0):** `renders/scratch/ab_tree/cli_pre22.exe` is the CLI built from the tree at `1145a52` (engine last changed at `9f2b4a8`; the UI stamp read "stale: no" before the copy). Every family A/B and the close's whole-tree A/B compare against it.
+
 ## Self-review notes
 
 - **Spec coverage.** Part 2 §4 "the split": Task 1 (the two calls, the hooks, the non-allocating `start`), Tasks 2-8 (every node), Task 9 (block streaming becomes possible: `StereoMixer::render` no longer re-prepares; RepeatingSource restarts its child with `start`; Vibrato's rebuild moves to `prepare`). §4 "byte-identity": the registry sweep (Task 1) plus the per-family and whole-tree A/B; the one class the spec names (fresh draws in a per-note rebuild) is Vibrato, handled by ruling 4. §5 "the rule": constructors and the factory lose the rate (Tasks 2-9), `RenderContext` stays and is created in the loader (Task 9 step 5), the file's rate is the CLI's render default (unchanged), the UI tells the engine the stream's rate (Task 9 step 7). §5 "backlog 69 stays a list": no 48k-baked constant is touched. §7's 2.2 row: expected render changes none; the close lists any.
