@@ -36,15 +36,23 @@ struct SVFSource final : Processor {
   // resonance shapes color while the level stays put).
   Setting<bool> normalize{this, "normalize", false, false, true};
 
-  explicit SVFSource(int sampleRate) : sampleRate_(sampleRate) {}
-
   const char* type_name() const override { return "SVFSource"; }
 
   void on_setting_changed(std::string_view name) override {
     if (name == "mode") mode.clamp();
   }
 
-  void on_prepare(const RenderContext&, int) override {
+  // The cached coefficients and phase delay derive from the rate; a new rate
+  // drops them. A repeat prepare at the same rate keeps them: they carry
+  // across notes.
+  void on_prepare(const RenderContext&) override {
+    if (builtRate_ == sample_rate()) return;
+    builtRate_ = sample_rate();
+    lastFc_ = lastRes_ = -1.0f;
+    pdHz_ = pdFc_ = pdRes_ = -1.0f;
+  }
+
+  void on_start(int) override {
     ic1eq_ = 0.0f;
     ic2eq_ = 0.0f;
     lp1_ = 0.0f;
@@ -54,11 +62,11 @@ struct SVFSource final : Processor {
     float in  = input.current();
     float fc  = cutoffFreq.current();
     float res = resonance.current();
-    fc  = std::clamp(fc, 1.0f, float(sampleRate_) * 0.49f);
+    fc  = std::clamp(fc, 1.0f, float(sample_rate()) * 0.49f);
     res = std::clamp(res, 0.5f, 40.0f);
 
     if (fc != lastFc_ || res != lastRes_) {
-      const float g = std::tan(3.14159265358979323846f * fc / float(sampleRate_));
+      const float g = std::tan(3.14159265358979323846f * fc / float(sample_rate()));
       const float k = 1.0f / res;
       a1_ = 1.0f / (1.0f + g * (g + k));
       a2_ = g * a1_;
@@ -71,7 +79,7 @@ struct SVFSource final : Processor {
     // 1-pole modes (AF "Filter 1P": 6 dB/oct, no resonance) share the
     // cutoff smoothing but bypass the 2-pole core.
     if (mode.value == kLowpass1P || mode.value == kHighpass1P) {
-      const float g1 = std::tan(3.14159265358979323846f * lastFc_ / float(sampleRate_));
+      const float g1 = std::tan(3.14159265358979323846f * lastFc_ / float(sample_rate()));
       const float a = g1 / (1.0f + g1);
       lp1_ += a * (in - lp1_);
       return (mode.value == kLowpass1P) ? lp1_ : in - lp1_;
@@ -104,7 +112,7 @@ struct SVFSource final : Processor {
     if (hz == pdHz_ && lastFc_ == pdFc_ && lastRes_ == pdRes_ && mode.value == pdMode_)
       return pd_;
     constexpr float pi = 3.14159265358979323846f;
-    const float w = 2.0f * pi * hz / float(sampleRate_);
+    const float w = 2.0f * pi * hz / float(sample_rate());
     const float tw = std::tan(std::min(0.5f * w, 0.49f * pi));
     float d;
     if (mode.value == kLowpass1P || mode.value == kHighpass1P) {
@@ -112,14 +120,14 @@ struct SVFSource final : Processor {
       // H_lp = a/(1 - b z^-1), b = 1-a. Its phase differs from the bilinear
       // form (measured: 7.15 vs 3.75 samples at fc=2k, hz=400), so use the
       // difference equation's own transfer function.
-      const float g1 = std::tan(pi * lastFc_ / float(sampleRate_));
+      const float g1 = std::tan(pi * lastFc_ / float(sample_rate()));
       const float b = 1.0f - g1 / (1.0f + g1);
       const float argDen = std::atan2(b * std::sin(w), 1.0f - b * std::cos(w));
       d = (mode.value == kLowpass1P)
           ? argDen / w
           : argDen / w - 0.5f * pi / w + 0.5f;  // hp = b(1-z^-1)/(1-b z^-1)
     } else {
-      const float o = tw / std::tan(pi * lastFc_ / float(sampleRate_));
+      const float o = tw / std::tan(pi * lastFc_ / float(sample_rate()));
       // Denominator 1 - O^2 + j*k*O shared by all three taps; numerators
       // contribute 0 (LP), +90 deg (BP), or 180 deg (HP) of constant phase.
       const float argD = std::atan2(k_ * o, 1.0f - o * o);
@@ -135,7 +143,7 @@ private:
   static constexpr const char* kModeLabels[] = {"Lowpass", "Highpass", "Bandpass",
                                                 "Lowpass1P", "Highpass1P", nullptr};
 
-  int sampleRate_;
+  int builtRate_{0};
   float a1_{0.0f}, a2_{0.0f}, a3_{0.0f}, k_{1.0f};
   float lastFc_{-1.0f}, lastRes_{-1.0f};
   float pdHz_{-1.0f}, pdFc_{-1.0f}, pdRes_{-1.0f}, pd_{0.0f};

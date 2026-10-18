@@ -128,18 +128,26 @@ struct BWHPSection {
 struct BWLowpassFilter final : Processor {
   Param cutoffFreq{this, "cutoffFreq", 1000.0f, 1.0f, 24000.0f, "hz"};
 
-  BWLowpassFilter(int sampleRate, int sectionCount)
-  : sampleRate_(sampleRate) {
-    for (int i = 0; i < sectionCount; ++i)
-      sections_.emplace_back(float(i + 1), float(sectionCount * 2), float(sampleRate));
-  }
+  explicit BWLowpassFilter(int sectionCount) : sectionCount_(sectionCount) {}
 
   const char* type_name() const override { return "BWLowpassFilter"; }
+
+  // The sections take the rate at construction, so they are built here, and
+  // rebuilt only when the host's rate has changed since. A repeat prepare at
+  // the same rate leaves the histories alone: they carry across notes.
+  void on_prepare(const RenderContext&) override {
+    if (!sections_.empty() && builtRate_ == sample_rate()) return;
+    sections_.clear();
+    for (int i = 0; i < sectionCount_; ++i)
+      sections_.emplace_back(float(i + 1), float(sectionCount_ * 2), float(sample_rate()));
+    builtRate_ = sample_rate();
+    lastCutoff_ = -1.0f;
+  }
 
   float compute() override {
     float val = input.current();
     float cutoff = cutoffFreq.current();
-    cutoff = std::clamp(cutoff, 1.0f, float(sampleRate_) * 0.49f);
+    cutoff = std::clamp(cutoff, 1.0f, float(sample_rate()) * 0.49f);
 
     // Coefficients only when the cutoff moves — update() runs a tan() per
     // section, and doing that per sample made each BW node ~10x costlier
@@ -155,7 +163,8 @@ struct BWLowpassFilter final : Processor {
   }
 
 private:
-  int sampleRate_;
+  int sectionCount_;
+  int builtRate_{0};
   std::vector<BWLPSection> sections_;
   float lastCutoff_{-1.0f};
 };
@@ -166,18 +175,24 @@ private:
 struct BWHighpassFilter final : Processor {
   Param cutoffFreq{this, "cutoffFreq", 1000.0f, 1.0f, 24000.0f, "hz"};
 
-  BWHighpassFilter(int sampleRate, int sectionCount)
-  : sampleRate_(sampleRate) {
-    for (int i = 0; i < sectionCount; ++i)
-      sections_.emplace_back(float(i + 1), float(sectionCount * 2), float(sampleRate));
-  }
+  explicit BWHighpassFilter(int sectionCount) : sectionCount_(sectionCount) {}
 
   const char* type_name() const override { return "BWHighpassFilter"; }
+
+  // Built and rebuilt as BWLowpassFilter's sections are.
+  void on_prepare(const RenderContext&) override {
+    if (!sections_.empty() && builtRate_ == sample_rate()) return;
+    sections_.clear();
+    for (int i = 0; i < sectionCount_; ++i)
+      sections_.emplace_back(float(i + 1), float(sectionCount_ * 2), float(sample_rate()));
+    builtRate_ = sample_rate();
+    lastCutoff_ = -1.0f;
+  }
 
   float compute() override {
     float val = input.current();
     float cutoff = cutoffFreq.current();
-    cutoff = std::clamp(cutoff, 1.0f, float(sampleRate_) * 0.49f);
+    cutoff = std::clamp(cutoff, 1.0f, float(sample_rate()) * 0.49f);
 
     if (cutoff != lastCutoff_) {
       for (auto& s : sections_) s.update(cutoff);
@@ -190,7 +205,8 @@ struct BWHighpassFilter final : Processor {
   }
 
 private:
-  int sampleRate_;
+  int sectionCount_;
+  int builtRate_{0};
   std::vector<BWHPSection> sections_;
   float lastCutoff_{-1.0f};
 };
@@ -202,22 +218,29 @@ struct BWBandpassFilter final : Processor {
   Param lowCutoff {this, "lowCutoff",  100.0f,  1.0f, 24000.0f, "hz"};
   Param highCutoff{this, "highCutoff", 5000.0f, 1.0f, 24000.0f, "hz"};
 
-  BWBandpassFilter(int sampleRate, int sectionsPerFilter)
-  : sampleRate_(sampleRate) {
-    for (int i = 0; i < sectionsPerFilter; ++i) {
-      hpSections_.emplace_back(float(i + 1), float(sectionsPerFilter * 2), float(sampleRate));
-      lpSections_.emplace_back(float(i + 1), float(sectionsPerFilter * 2), float(sampleRate));
-    }
-  }
+  explicit BWBandpassFilter(int sectionsPerFilter) : sectionsPerFilter_(sectionsPerFilter) {}
 
   const char* type_name() const override { return "BWBandpassFilter"; }
+
+  // Built and rebuilt as BWLowpassFilter's sections are.
+  void on_prepare(const RenderContext&) override {
+    if (!hpSections_.empty() && builtRate_ == sample_rate()) return;
+    hpSections_.clear();
+    lpSections_.clear();
+    for (int i = 0; i < sectionsPerFilter_; ++i) {
+      hpSections_.emplace_back(float(i + 1), float(sectionsPerFilter_ * 2), float(sample_rate()));
+      lpSections_.emplace_back(float(i + 1), float(sectionsPerFilter_ * 2), float(sample_rate()));
+    }
+    builtRate_ = sample_rate();
+    lastLo_ = lastHi_ = -1.0f;
+  }
 
   float compute() override {
     float val = input.current();
     float lo = lowCutoff.current();
     float hi = highCutoff.current();
-    lo = std::clamp(lo, 1.0f, float(sampleRate_) * 0.49f);
-    hi = std::clamp(hi, 1.0f, float(sampleRate_) * 0.49f);
+    lo = std::clamp(lo, 1.0f, float(sample_rate()) * 0.49f);
+    hi = std::clamp(hi, 1.0f, float(sample_rate()) * 0.49f);
 
     if (lo != lastLo_ || hi != lastHi_) {
       for (auto& s : hpSections_) s.update(lo);
@@ -231,7 +254,8 @@ struct BWBandpassFilter final : Processor {
   }
 
 private:
-  int sampleRate_;
+  int sectionsPerFilter_;
+  int builtRate_{0};
   float lastLo_{-1.0f}, lastHi_{-1.0f};
   std::vector<BWHPSection> hpSections_;
   std::vector<BWLPSection> lpSections_;
@@ -245,15 +269,21 @@ struct DelayFilter final : Processor {
   Param delayLevel{this, "delayLevel", 0.5f,  0.0f,   1.0f, "0-1"};
   Param feedback  {this, "feedback",   0.3f,  0.0f,   1.0f, "0-1"};
 
-  explicit DelayFilter(int sampleRate)
-  : sampleRate_(sampleRate), buffer_(sampleRate, 0.0f) {}  // 1 second max delay
-
   const char* type_name() const override { return "DelayFilter"; }
 
-  void on_prepare(const RenderContext&, int) override {
+  // One second of delay at the host's rate; a repeat prepare at the same
+  // rate leaves the buffer alone.
+  void on_prepare(const RenderContext&) override {
+    if (int(buffer_.size()) != sample_rate()) buffer_.assign(size_t(sample_rate()), 0.0f);
+  }
+
+  void on_start(int) override {
     std::fill(buffer_.begin(), buffer_.end(), 0.0f);
     ptr_ = -1;
   }
+
+  // Diagnostic: the delay buffer's length in samples.
+  int capacity() const { return int(buffer_.size()); }
 
   float compute() override {
     ptr_ = (ptr_ + 1) % int(buffer_.size());
@@ -264,7 +294,7 @@ struct DelayFilter final : Processor {
     float fb = feedback.current();
 
     // Read delayed sample with interpolation
-    float delaySamples = dt * float(sampleRate_);
+    float delaySamples = dt * float(sample_rate());
     float readPos = float(ptr_) - delaySamples;
     if (readPos < 0.0f) readPos += float(buffer_.size());
 
@@ -281,7 +311,6 @@ struct DelayFilter final : Processor {
   }
 
 private:
-  int sampleRate_;
   std::vector<float> buffer_;
   int ptr_{-1};
 };

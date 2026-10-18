@@ -825,12 +825,11 @@ static GraphResult build_graph(
         else if (type == "Vibrato") {
             if (!pp) throw std::runtime_error("Vibrato requires params");
             const auto& p = *pp;
-            auto vib = std::make_shared<Vibrato>(sampleRate,
-                p.value("speed", 5.0f), p.value("depth", 0.02f),
-                p.value("attack", 0.3f), p.value("threshold", 0.0f),
-                p.value("speedVar", 0.0f), p.value("depthVar", 0.0f),
-                p.value("zeroCrossTendency", 1.0f),
-                seed.value_or(0xF1B0'0000u));
+            auto vib = std::make_shared<Vibrato>(seed.value_or(0xF1B0'0000u));
+            for (const auto& [key, dflt] : std::initializer_list<std::pair<const char*, float>>{
+                     {"speed", 5.0f}, {"depth", 0.02f}, {"attack", 0.3f}, {"threshold", 0.0f},
+                     {"speedVar", 0.0f}, {"depthVar", 0.0f}, {"zeroCrossTendency", 1.0f}})
+                vib->set_setting(key, p.value(key, dflt));
             wire_params_generic(*vib, p, valueNodes, &usage);
             valueNodes[id] = vib;
         }
@@ -838,11 +837,11 @@ static GraphResult build_graph(
             int sections = pp ? pp->value("sections", 2) : 2;
             std::shared_ptr<ValueSource> src;
             if (type == "BWLowpassFilter")
-                src = std::make_shared<BWLowpassFilter>(sampleRate, sections);
+                src = std::make_shared<BWLowpassFilter>(sections);
             else if (type == "BWHighpassFilter")
-                src = std::make_shared<BWHighpassFilter>(sampleRate, sections);
+                src = std::make_shared<BWHighpassFilter>(sections);
             else
-                src = std::make_shared<BWBandpassFilter>(sampleRate, sections);
+                src = std::make_shared<BWBandpassFilter>(sections);
             if (pp) {
                 wire_params_generic(*src, *pp, valueNodes, &usage);
                 // JSON uses "cutoff" alias for single-band filters

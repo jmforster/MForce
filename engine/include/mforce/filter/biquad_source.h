@@ -30,13 +30,16 @@ struct BiquadSource final : Processor {
   Setting<float> a1{this, "a1", 0.0f,  -2.0f,  2.0f};
   Setting<float> a2{this, "a2", 0.0f,  -1.0f,  1.0f};
 
-  BiquadSource(int sampleRate) : sampleRate_(sampleRate) {}
-
   const char* type_name() const override { return "Biquad"; }
 
-  void on_prepare(const RenderContext& ctx, int frames) override {
-    frequency.prepare(ctx, frames);
-    radius.prepare(ctx, frames);
+  void on_prepare(const RenderContext& ctx) override {
+    frequency.prepare(ctx);
+    radius.prepare(ctx);
+  }
+
+  void on_start(int frames) override {
+    frequency.start(frames);
+    radius.start(frames);
     x1_ = x2_ = y1_ = y2_ = 0.0f;
     cur_ = 0.0f;
     pdHz_ = -1.0f;
@@ -52,7 +55,7 @@ struct BiquadSource final : Processor {
       if (f != resFreq_ || r != resRad_) {
         resFreq_ = f; resRad_ = r;
         a1.value = -2.0f * r * std::cos(2.0f * 3.14159265358979323846f
-                                        * f / float(sampleRate_));
+                                        * f / float(sample_rate()));
         a2.value = r * r;
         pdHz_ = -1.0f;
       }
@@ -76,7 +79,7 @@ struct BiquadSource final : Processor {
     if (hz <= 0.0f) return 0.0f;
     if (hz == pdHz_) return pd_;
     constexpr float pi = 3.14159265358979323846f;
-    const float w = 2.0f * pi * hz / float(sampleRate_);
+    const float w = 2.0f * pi * hz / float(sample_rate());
     const float c1 = std::cos(w), s1 = std::sin(w);
     const float c2 = std::cos(2.0f * w), s2 = std::sin(2.0f * w);
     const float nr = b0.value + b1.value * c1 + b2.value * c2;
@@ -94,7 +97,6 @@ struct BiquadSource final : Processor {
 private:
   static constexpr const char* kModeLabels[] = {"Raw", "Resonance", nullptr};
 
-  int sampleRate_;
   float x1_{0.0f}, x2_{0.0f}, y1_{0.0f}, y2_{0.0f};
   float resFreq_{-1.0f}, resRad_{-1.0f};
   float pdHz_{-1.0f}, pd_{0.0f};

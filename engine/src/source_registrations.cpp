@@ -415,7 +415,7 @@ void register_all_sources() {
     // -----------------------------------------------------------------------
 
     reg.register_type("BWLowpassFilter", SourceCategory::Filter,
-        [](int sr, auto) { return std::make_shared<BWLowpassFilter>(sr, 2); },
+        [](int, auto) { return std::make_shared<BWLowpassFilter>(2); },
         // Configurator: section count, "cutoff" alias
         [](ValueSource& src, const nlohmann::json& p, const ResolveParamFn& resolve) {
             // JSON uses "cutoff" but param descriptor uses "cutoffFreq"
@@ -424,41 +424,40 @@ void register_all_sources() {
         });
 
     reg.register_type("BWHighpassFilter", SourceCategory::Filter,
-        [](int sr, auto) { return std::make_shared<BWHighpassFilter>(sr, 2); },
+        [](int, auto) { return std::make_shared<BWHighpassFilter>(2); },
         [](ValueSource& src, const nlohmann::json& p, const ResolveParamFn& resolve) {
             if (p.contains("cutoff"))
                 src.set_param("cutoffFreq", resolve(p.at("cutoff")));
         });
 
     reg.register_type("BWBandpassFilter", SourceCategory::Filter,
-        [](int sr, auto) { return std::make_shared<BWBandpassFilter>(sr, 2); });
+        [](int, auto) { return std::make_shared<BWBandpassFilter>(2); });
 
     // 2-pole state-variable filter (AFNoding-031 rebuild): selectable
     // LP/HP/BP tap, modulatable resonance, optional divide-by-res
     // normalization. "cutoff" JSON alias matches the BW filters.
     reg.register_type("SVFSource", SourceCategory::Filter,
-        [](int sr, auto) { return std::make_shared<SVFSource>(sr); },
+        [](int, auto) { return std::make_shared<SVFSource>(); },
         [](ValueSource& src, const nlohmann::json& p, const ResolveParamFn& resolve) {
             if (p.contains("cutoff"))
                 src.set_param("cutoffFreq", resolve(p.at("cutoff")));
         });
 
     reg.register_type("DelayFilter", SourceCategory::Filter,
-        [](int sr, auto) { return std::make_shared<DelayFilter>(sr); });
+        [](int, auto) { return std::make_shared<DelayFilter>(); });
 
     reg.register_type("Reverb", SourceCategory::Filter,
-        [](int sr, auto) { return std::make_shared<Reverb>(sr); });
+        [](int, auto) { return std::make_shared<Reverb>(); });
 
     reg.register_type("Limiter", SourceCategory::Filter,
-        [](int sr, auto) { return std::make_shared<Limiter>(sr); });
+        [](int, auto) { return std::make_shared<Limiter>(); });
 
     reg.register_type("Vibrato", SourceCategory::Modulator,
-        [](int sr, auto seed) {
-            // Defaults; configs (speed/depth/attack/...) are set after creation
-            // via set_setting (UI) or the patch_loader special case (JSON).
-            return std::make_shared<Vibrato>(
-                sr, 5.0f, 0.02f, 0.3f, 0.0f, 0.0f, 0.0f, 1.0f,
-                seed.value_or(0xF1B0'0000u));
+        [](int, auto seed) {
+            // Settings (speed/depth/attack/...) keep their declared defaults;
+            // they are set after creation via set_setting (UI) or the
+            // patch_loader special case (JSON).
+            return std::make_shared<Vibrato>(seed.value_or(0xF1B0'0000u));
         });
 
     // -----------------------------------------------------------------------
@@ -579,7 +578,7 @@ void register_all_sources() {
     // -----------------------------------------------------------------------
 
     reg.register_type("HammerBank", SourceCategory::Filter,
-        [](int sr, auto) { return std::make_shared<HammerBank>(sr); });
+        [](int, auto) { return std::make_shared<HammerBank>(); });
 
     reg.register_type("KSString", SourceCategory::Oscillator,
         [](int, auto) { return std::make_shared<KSString>(); });
@@ -613,7 +612,7 @@ void register_all_sources() {
     // -----------------------------------------------------------------------
 
     reg.register_type("Biquad", SourceCategory::Filter,
-        [](int sr, auto) { return std::make_shared<BiquadSource>(sr); });
+        [](int, auto) { return std::make_shared<BiquadSource>(); });
 
     reg.register_type("BowTable", SourceCategory::Modulator,
         [](int, auto) { return std::make_shared<BowTableSource>(); });

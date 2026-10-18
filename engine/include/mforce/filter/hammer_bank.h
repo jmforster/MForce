@@ -21,7 +21,7 @@ namespace mforce {
 // pitched hammer strike. Per-band gain follows harm^bandTilt.
 //
 // Per-note behavior: frequency is captured at the first next() after
-// prepare() (same lazy-init convention as WavetableSource), so paramMap
+// start() (same lazy-init convention as WavetableSource), so paramMap
 // "frequency" retunes the bank per note. Real-time safe: no heap after
 // construction, all state in fixed arrays.
 // ---------------------------------------------------------------------------
@@ -39,8 +39,6 @@ struct HammerBank final : Processor {
   Setting<float> direct  {this, "direct",   0.0f,   0.0f,    1.0f};
   Setting<float> gain    {this, "gain",     1.0f,   0.0f,    8.0f};
 
-  explicit HammerBank(int sampleRate) : sampleRate_(sampleRate) {}
-
   const char* type_name() const override { return "HammerBank"; }
 
   // numBands is clamped to the bank size; resEnd and resDecay are floored
@@ -51,7 +49,7 @@ struct HammerBank final : Processor {
     else if (name == "resDecay") resDecay.value = std::max(resDecay.value, 1e-4f);
   }
 
-  void on_prepare(const RenderContext&, int) override {
+  void on_start(int) override {
     for (int i = 0; i < kMaxBands; ++i) { low_[i] = 0.0f; band_[i] = 0.0f; }
     initialized_ = false;
     cur_ = 0.0f;
@@ -63,19 +61,19 @@ struct HammerBank final : Processor {
     if (!initialized_) {
       const float harm[kMaxBands] = {harm1.value, harm2.value, harm3.value, harm4.value};
       float f0 = frequency.current();
-      f0 = std::clamp(f0, 10.0f, float(sampleRate_) * 0.45f);
-      const float fMax = float(sampleRate_) * 0.16f;  // Chamberlin stability
+      f0 = std::clamp(f0, 10.0f, float(sample_rate()) * 0.45f);
+      const float fMax = float(sample_rate()) * 0.16f;  // Chamberlin stability
       float norm = 0.0f;
       for (int i = 0; i < numBands.value; ++i) {
         float fc = std::clamp(harm[i] * f0, 10.0f, fMax);
-        fCoeff_[i] = 2.0f * std::sin(3.14159265f * fc / float(sampleRate_));
+        fCoeff_[i] = 2.0f * std::sin(3.14159265f * fc / float(sample_rate()));
         bandGain_[i] = std::pow(std::max(harm[i], 0.1f), bandTilt.value);
         norm += bandGain_[i];
       }
       if (norm > 0.0f)
         for (int i = 0; i < numBands.value; ++i) bandGain_[i] /= norm;
       qDelta_ = std::max(resStart.value - resEnd.value, 0.0f);
-      qDecayMul_ = std::exp(-1.0f / (resDecay.value * float(sampleRate_)));
+      qDecayMul_ = std::exp(-1.0f / (resDecay.value * float(sample_rate())));
       initialized_ = true;
     }
 
@@ -97,8 +95,6 @@ struct HammerBank final : Processor {
 
 private:
   static constexpr int kMaxBands = 4;
-
-  int sampleRate_;
 
   // Per-note state
   bool  initialized_{false};

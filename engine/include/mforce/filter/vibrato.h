@@ -3,8 +3,9 @@
 #include "mforce/source/red_noise_source.h"
 #include "mforce/core/envelope_presets.h"   // ASEnvelope (attack→sustain ramp)
 #include "mforce/core/range_source.h"
-#include <memory>
 #include <algorithm>
+#include <memory>
+#include <string_view>
 
 namespace mforce {
 
@@ -34,29 +35,34 @@ struct Vibrato final : Generator {
   Setting<float> depthVar         {this, "depthVar",          0.0f,  0.0f,  1.0f};
   Setting<float> zeroCrossTendency{this, "zeroCrossTendency", 1.0f, 0.0f,  1.0f};
 
-  Vibrato(int sampleRate, float speedHz = 5.0f, float depthFrac = 0.02f, float attackFrac = 0.3f,
-          float thresholdSec = 0.0f, float speedVarFrac = 0.0f, float depthVarFrac = 0.0f,
-          float zeroCrossTend = 1.0f, uint32_t seed = 0xF1B0'0000u)
-  : sampleRate_(sampleRate), seed_(seed) {
-    speed.value = speedHz;
-    depth.value = depthFrac;
-    attack.value = attackFrac;
-    threshold.value = thresholdSec;
-    speedVar.value = speedVarFrac;
-    depthVar.value = depthVarFrac;
-    zeroCrossTendency.value = zeroCrossTend;
-  }
+  explicit Vibrato(uint32_t seed = 0xF1B0'0000u) : seed_(seed) {}
 
   const char* type_name() const override { return "Vibrato"; }
   SourceCategory category() const override { return SourceCategory::Modulator; }
 
-  void on_prepare(const RenderContext& ctx, int frames) override {
-    float duration = float(frames) / float(sampleRate_);
-    enabled_ = duration > threshold.value;
+  // The LFO chain is built from the settings once, and again only when a
+  // setting that shapes it has changed; the chain is prepared at every call so
+  // it follows the host's rate.
+  void on_prepare(const RenderContext& ctx) override {
+    if (!lfo_ || lfoDirty_) {
+      build_lfo();
+      lfoDirty_ = false;
+    }
+    lfo_->prepare(ctx);
+  }
 
+  void on_setting_changed(std::string_view) override {
+    lfoDirty_ = true;
+    if (prepared()) on_prepare(render_context());
+  }
+
+  // A note starts with the chain a freshly built one would have: the noise
+  // back at its seed and the ramps laid out over this note.
+  void on_start(int frames) override {
+    enabled_ = float(frames) / float(sample_rate()) > threshold.value;
     if (enabled_) {
-      build_lfo();           // rebuild from current config scalars
-      lfo_->prepare(ctx, frames);
+      lfo_->reset();
+      lfo_->start(frames);
     }
   }
 
@@ -100,9 +106,9 @@ private:
   // Per-note determinism (onsets-v2 addendum): forward to the LFO's rng.
   void reseed() override { if (lfo_) lfo_->reseed(); }
 
-  int sampleRate_;
   uint32_t seed_;
   bool enabled_{false};
+  bool lfoDirty_{true};
 
   std::shared_ptr<RedNoiseSource> lfo_;
 };

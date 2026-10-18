@@ -22,22 +22,19 @@ struct Reverb final : Processor {
   Param wet     {this, "wet",      0.33f, 0.0f, 1.0f, "0-1"};
   Param dry     {this, "dry",      0.4f,  0.0f, 1.0f, "0-1"};
 
-  explicit Reverb(int sampleRate) : sampleRate_(sampleRate) {
-    // Allocate comb + allpass buffers sized to the current sample rate.
-    float sr_ratio = float(sampleRate_) / 44100.0f;
-    for (int i = 0; i < kNumCombs; ++i) {
-      int size = std::max(1, int(std::lround(kCombTunings[i] * sr_ratio)));
-      combs_[i].buffer.assign(size, 0.0f);
-    }
-    for (int i = 0; i < kNumAllpass; ++i) {
-      int size = std::max(1, int(std::lround(kAllpassTunings[i] * sr_ratio)));
-      allpass_[i].buffer.assign(size, 0.0f);
-    }
+  // Freeverb's tunings are for 44.1 kHz; the buffers are scaled to the host's
+  // rate, and a repeat prepare at the same rate leaves them alone.
+  void on_prepare(const RenderContext&) override {
+    const float sr_ratio = float(sample_rate()) / 44100.0f;
+    for (int i = 0; i < kNumCombs; ++i)
+      size_buffer(combs_[i].buffer, kCombTunings[i], sr_ratio);
+    for (int i = 0; i < kNumAllpass; ++i)
+      size_buffer(allpass_[i].buffer, kAllpassTunings[i], sr_ratio);
   }
 
   const char* type_name() const override { return "Reverb"; }
 
-  void on_prepare(const RenderContext&, int) override {
+  void on_start(int) override {
     for (auto& c : combs_)   { std::fill(c.buffer.begin(), c.buffer.end(), 0.0f); c.idx = 0; c.filt = 0.0f; }
     for (auto& a : allpass_) { std::fill(a.buffer.begin(), a.buffer.end(), 0.0f); a.idx = 0; }
   }
@@ -79,8 +76,8 @@ struct Reverb final : Processor {
   }
 
 private:
-  // Freeverb tunings at 44.1 kHz (samples). Scaled to running sample rate
-  // in the constructor.
+  // Freeverb tunings at 44.1 kHz (samples). Scaled to the host's sample rate
+  // in on_prepare.
   static constexpr int kNumCombs = 8;
   static constexpr int kNumAllpass = 4;
   static constexpr int kCombTunings[kNumCombs] = {
@@ -106,7 +103,11 @@ private:
     int idx{0};
   };
 
-  int sampleRate_;
+  static void size_buffer(std::vector<float>& buf, int tuning, float ratio) {
+    const size_t size = size_t(std::max(1, int(std::lround(tuning * ratio))));
+    if (buf.size() != size) buf.assign(size, 0.0f);
+  }
+
   std::array<Comb,    kNumCombs>   combs_;
   std::array<Allpass, kNumAllpass> allpass_;
 };

@@ -23,14 +23,19 @@ struct Limiter final : Processor {
   Param threshold{this, "threshold", 0.95f, 0.0f,   1.0f, "0-1"};
   Param release  {this, "release",   0.05f, 0.001f, 1.0f, "sec"};
 
-  explicit Limiter(int sampleRate)
-  : sampleRate_(sampleRate),
-    lookaheadSamples_(std::max(1, int(std::lround(sampleRate * kLookaheadSec)))),
-    lookahead_(lookaheadSamples_, 0.0f) {}
-
   const char* type_name() const override { return "Limiter"; }
 
-  void on_prepare(const RenderContext&, int) override {
+  // The lookahead buffer is sized for the host's rate; a repeat prepare at
+  // the same rate leaves it alone.
+  void on_prepare(const RenderContext&) override {
+    lookaheadSamples_ = std::max(1, int(std::lround(sample_rate() * kLookaheadSec)));
+    if (int(lookahead_.size()) != lookaheadSamples_) lookahead_.assign(size_t(lookaheadSamples_), 0.0f);
+  }
+
+  // Diagnostic: the lookahead in samples.
+  int capacity() const { return lookaheadSamples_; }
+
+  void on_start(int) override {
     std::fill(lookahead_.begin(), lookahead_.end(), 0.0f);
     write_ = 0;
     peak_  = 0.0f;
@@ -45,7 +50,7 @@ struct Limiter final : Processor {
 
     // Per-sample release coefficient: peak decays from 1.0 to ~e^-1 in
     // relSec seconds. release_smooth governs the gain-recovery envelope.
-    float releaseCoef = std::exp(-1.0f / std::max(1.0f, relSec * float(sampleRate_)));
+    float releaseCoef = std::exp(-1.0f / std::max(1.0f, relSec * float(sample_rate())));
 
     float abs_in = std::fabs(in);
 
@@ -70,8 +75,7 @@ struct Limiter final : Processor {
 private:
   static constexpr float kLookaheadSec = 0.005f;  // 5 ms
 
-  int   sampleRate_;
-  int   lookaheadSamples_;
+  int   lookaheadSamples_{1};
   std::vector<float> lookahead_;
   int   write_{0};
   float peak_{0.0f};

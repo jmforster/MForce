@@ -296,7 +296,7 @@ static void run_phase_delay_tests() {
     };
     for (const auto& c : cases) {
         auto in = std::make_shared<ConstantSource>(0.0f);
-        SVFSource f(48000);
+        SVFSource f;
         f.set_setting("mode", float(c.mode));
         f.set_param("source", in);
         f.set_param("cutoffFreq", std::make_shared<ConstantSource>(c.fc));
@@ -309,7 +309,7 @@ static void run_phase_delay_tests() {
     // At fc the 2-pole LP delay is exactly (pi/2)/w regardless of res.
     {
         auto in = std::make_shared<ConstantSource>(0.0f);
-        SVFSource f(48000);
+        SVFSource f;
         f.set_param("source", in);
         f.set_param("cutoffFreq", std::make_shared<ConstantSource>(1000.0f));
         f.prepare(ctx, 8);
@@ -365,7 +365,7 @@ static void run_loop_compensation_tests() {
         // lag varies with frequency, exactly like KS partials — dominate
         // the autocorrelation.) fc 300 also makes the lag big: ~33 samples,
         // 14% of the period, so uncompensated flatness is unmistakable.
-        auto svf = std::make_shared<SVFSource>(48000);
+        auto svf = std::make_shared<SVFSource>();
         svf->set_param("source", sum);
         svf->set_param("cutoffFreq", std::make_shared<ConstantSource>(300.0f));
         svf->set_param("resonance", std::make_shared<ConstantSource>(1.0f));
@@ -3587,16 +3587,16 @@ static void run_filter_pin_shape_tests() {
         s.prepare(ctx, 4800);
         for (int i = 0; i < 10; ++i) CHECK(std::isfinite(s.next()));
     };
-    BiquadSource bq(48000);         smoke(bq);
-    BWLowpassFilter lp(48000, 2);   smoke(lp);
-    BWHighpassFilter hp(48000, 2);  smoke(hp);
-    BWBandpassFilter bp(48000, 2);  smoke(bp);
-    DelayFilter dly(48000);         smoke(dly);
-    HammerBank hammer(48000);       smoke(hammer);
-    Limiter lim(48000);             smoke(lim);
-    Reverb rev(48000);              smoke(rev);
-    SVFSource svf(48000);           smoke(svf);
-    Vibrato vib(48000);             smoke(vib);
+    BiquadSource bq;         smoke(bq);
+    BWLowpassFilter lp(2);   smoke(lp);
+    BWHighpassFilter hp(2);  smoke(hp);
+    BWBandpassFilter bp(2);  smoke(bp);
+    DelayFilter dly;         smoke(dly);
+    HammerBank hammer;       smoke(hammer);
+    Limiter lim;             smoke(lim);
+    Reverb rev;              smoke(rev);
+    SVFSource svf;           smoke(svf);
+    Vibrato vib;             smoke(vib);
 
     CHECK(pin_order(bq) == "source,frequency,radius,");
     CHECK(pin_order(lp) == "source,cutoffFreq,");
@@ -3634,34 +3634,37 @@ static void run_filter_pin_shape_tests() {
 // The descriptors declare each filter's documented defaults, and the enum
 // settings keep their labels and their types.
 static void run_filter_default_tests() {
-    BiquadSource bq(48000);
+    BiquadSource bq;
     CHECK_NEAR(param_default(bq, "frequency"), 220.0f, 1e-6f);
     CHECK_NEAR(param_default(bq, "radius"), 0.997f, 1e-6f);
     CHECK_NEAR(bq.get_setting("b0"), 1.0f, 1e-6f);
     CHECK_NEAR(bq.get_setting("a1"), 0.0f, 1e-6f);
-    BWBandpassFilter bp(48000, 2);
+    BWBandpassFilter bp(2);
     CHECK_NEAR(param_default(bp, "lowCutoff"), 100.0f, 1e-6f);
     CHECK_NEAR(param_default(bp, "highCutoff"), 5000.0f, 1e-6f);
-    DelayFilter dly(48000);
+    DelayFilter dly;
     CHECK_NEAR(param_default(dly, "delayTime"), 0.01f, 1e-6f);
     CHECK_NEAR(param_default(dly, "delayLevel"), 0.5f, 1e-6f);
     CHECK_NEAR(param_default(dly, "feedback"), 0.3f, 1e-6f);
-    Limiter lim(48000);
+    Limiter lim;
     CHECK_NEAR(param_default(lim, "threshold"), 0.95f, 1e-6f);
     CHECK_NEAR(param_default(lim, "release"), 0.05f, 1e-6f);
-    Reverb rev(48000);
+    Reverb rev;
     CHECK_NEAR(param_default(rev, "wet"), 0.33f, 1e-6f);
     CHECK_NEAR(param_default(rev, "dry"), 0.4f, 1e-6f);
-    HammerBank hammer(48000);
+    HammerBank hammer;
     CHECK_NEAR(hammer.get_setting("numBands"), 4.0f, 1e-6f);
     CHECK_NEAR(hammer.get_setting("resDecay"), 0.010f, 1e-6f);
     CHECK_NEAR(hammer.get_setting("bandTilt"), -0.5f, 1e-6f);
-    Vibrato vib(48000);
+    Vibrato vib;
     CHECK_NEAR(param_default(vib, "frequency"), 440.0f, 1e-6f);
     CHECK_NEAR(vib.get_setting("speed"), 5.0f, 1e-6f);
     CHECK_NEAR(vib.get_setting("zeroCrossTendency"), 1.0f, 1e-6f);
-    // constructor arguments set the setting values, not the declared defaults
-    Vibrato custom(48000, 6.5f, 0.1f, 0.5f, 0.2f, 0.3f, 0.4f, 0.0f);
+    // set_setting moves the value, not the declared default
+    Vibrato custom;
+    custom.set_setting("speed", 6.5f);
+    custom.set_setting("depthVar", 0.4f);
+    custom.set_setting("zeroCrossTendency", 0.0f);
     CHECK_NEAR(custom.get_setting("speed"), 6.5f, 1e-6f);
     CHECK_NEAR(custom.get_setting("depthVar"), 0.4f, 1e-6f);
     CHECK_NEAR(custom.get_setting("zeroCrossTendency"), 0.0f, 1e-6f);
@@ -3674,7 +3677,7 @@ static void run_filter_default_tests() {
             CHECK(std::string(d.enum_labels[0]) == "Raw");
             CHECK(std::string(d.enum_labels[1]) == "Resonance" && d.enum_labels[2] == nullptr);
         }
-    SVFSource svf(48000);
+    SVFSource svf;
     for (const auto& d : svf.setting_descriptors()) {
         if (std::string(d.name) == "mode") {
             CHECK(d.type == SettingType::Int && d.enum_labels != nullptr);
@@ -3704,29 +3707,29 @@ static void run_filter_auto_pin_tests() {
     auto count = [&](ValueSource& s, std::initializer_list<const char*> names) {
         for (const auto& p : wire(s, names)) CHECK(p->prepares == 1 && p->advances == 7);
     };
-    BWLowpassFilter lp(48000, 2);   count(lp, {"source", "cutoffFreq"});
-    BWHighpassFilter hp(48000, 2);  count(hp, {"source", "cutoffFreq"});
-    BWBandpassFilter bp(48000, 2);  count(bp, {"source", "lowCutoff", "highCutoff"});
-    DelayFilter dly(48000);         count(dly, {"source", "delayTime", "delayLevel", "feedback"});
-    HammerBank hammer(48000);       count(hammer, {"source", "frequency"});
-    Limiter lim(48000);             count(lim, {"source", "threshold", "release"});
-    Reverb rev(48000);              count(rev, {"source", "roomSize", "damping", "wet", "dry"});
-    SVFSource svf(48000);           count(svf, {"source", "cutoffFreq", "resonance"});
-    Vibrato vib(48000);             count(vib, {"frequency"});
+    BWLowpassFilter lp(2);   count(lp, {"source", "cutoffFreq"});
+    BWHighpassFilter hp(2);  count(hp, {"source", "cutoffFreq"});
+    BWBandpassFilter bp(2);  count(bp, {"source", "lowCutoff", "highCutoff"});
+    DelayFilter dly;         count(dly, {"source", "delayTime", "delayLevel", "feedback"});
+    HammerBank hammer;       count(hammer, {"source", "frequency"});
+    Limiter lim;             count(lim, {"source", "threshold", "release"});
+    Reverb rev;              count(rev, {"source", "roomSize", "damping", "wet", "dry"});
+    SVFSource svf;           count(svf, {"source", "cutoffFreq", "resonance"});
+    Vibrato vib;             count(vib, {"frequency"});
 
-    BiquadSource raw(48000);
+    BiquadSource raw;
     auto rp = wire(raw, {"source", "frequency", "radius"});
     CHECK(rp[0]->prepares == 1 && rp[0]->advances == 7);
     CHECK(rp[1]->prepares == 1 && rp[1]->advances == 0);
     CHECK(rp[2]->prepares == 1 && rp[2]->advances == 0);
-    BiquadSource res(48000);
+    BiquadSource res;
     res.set_setting("mode", 1.0f);
     auto sp = wire(res, {"source", "frequency", "radius"});
     for (const auto& p : sp) CHECK(p->prepares == 1 && p->advances == 7);
 
     // an unwired pin reads its declared constant and is not a source
     CHECK(lp.get_param("source") != nullptr && lp.get_param("nosuch") == nullptr);
-    DelayFilter bare(48000);
+    DelayFilter bare;
     CHECK(bare.get_param("source") == nullptr && bare.get_param("delayTime") == nullptr);
     bare.clear_param("nosuch");
     CHECK(bare.get_param("nosuch") == nullptr);
@@ -3750,14 +3753,14 @@ static void run_filter_advance_order_tests() {
         s.next();
         CHECK(log == expect);
     };
-    BWLowpassFilter lp(48000, 2);   order(lp, {"source", "cutoffFreq"});
-    BWBandpassFilter bp(48000, 2);  order(bp, {"source", "lowCutoff", "highCutoff"});
-    DelayFilter dly(48000);         order(dly, {"source", "delayTime", "delayLevel", "feedback"});
-    HammerBank hammer(48000);       order(hammer, {"source", "frequency"});
-    Limiter lim(48000);             order(lim, {"source", "threshold", "release"});
-    Reverb rev(48000);              order(rev, {"source", "roomSize", "damping", "wet", "dry"});
-    SVFSource svf(48000);           order(svf, {"source", "cutoffFreq", "resonance"});
-    BiquadSource bq(48000);
+    BWLowpassFilter lp(2);   order(lp, {"source", "cutoffFreq"});
+    BWBandpassFilter bp(2);  order(bp, {"source", "lowCutoff", "highCutoff"});
+    DelayFilter dly;         order(dly, {"source", "delayTime", "delayLevel", "feedback"});
+    HammerBank hammer;       order(hammer, {"source", "frequency"});
+    Limiter lim;             order(lim, {"source", "threshold", "release"});
+    Reverb rev;              order(rev, {"source", "roomSize", "damping", "wet", "dry"});
+    SVFSource svf;           order(svf, {"source", "cutoffFreq", "resonance"});
+    BiquadSource bq;
     bq.set_setting("mode", 1.0f);
     order(bq, {"source", "frequency", "radius"});
 }
@@ -3765,7 +3768,7 @@ static void run_filter_advance_order_tests() {
 // The setting hooks clamp the hammer bank's band count and resonance floors
 // and the SVF's mode range. The others are not clamped.
 static void run_filter_setting_hook_tests() {
-    HammerBank hb(48000);
+    HammerBank hb;
     hb.set_setting("numBands", 9.0f);   CHECK_NEAR(hb.get_setting("numBands"), 4.0f, 1e-6f);
     hb.set_setting("numBands", 0.0f);   CHECK_NEAR(hb.get_setting("numBands"), 1.0f, 1e-6f);
     hb.set_setting("numBands", 2.0f);   CHECK_NEAR(hb.get_setting("numBands"), 2.0f, 1e-6f);
@@ -3777,20 +3780,20 @@ static void run_filter_setting_hook_tests() {
     hb.set_setting("gain", 20.0f);      CHECK_NEAR(hb.get_setting("gain"), 20.0f, 1e-6f);
     hb.set_setting("nosuch", 1.0f);     CHECK_NEAR(hb.get_setting("nosuch"), 0.0f, 1e-6f);
 
-    SVFSource svf(48000);
+    SVFSource svf;
     svf.set_setting("mode", 9.0f);      CHECK_NEAR(svf.get_setting("mode"), 4.0f, 1e-6f);
     svf.set_setting("mode", -3.0f);     CHECK_NEAR(svf.get_setting("mode"), 0.0f, 1e-6f);
     svf.set_setting("mode", 2.0f);      CHECK_NEAR(svf.get_setting("mode"), 2.0f, 1e-6f);
     svf.set_setting("normalize", 0.4f); CHECK_NEAR(svf.get_setting("normalize"), 1.0f, 1e-6f);
     svf.set_setting("normalize", 0.0f); CHECK_NEAR(svf.get_setting("normalize"), 0.0f, 1e-6f);
 
-    BiquadSource bq(48000);
+    BiquadSource bq;
     bq.set_setting("mode", 1.0f);       CHECK_NEAR(bq.get_setting("mode"), 1.0f, 1e-6f);
     bq.set_setting("b0", 99.0f);        CHECK_NEAR(bq.get_setting("b0"), 99.0f, 1e-6f);
     bq.set_setting("a2", -5.0f);        CHECK_NEAR(bq.get_setting("a2"), -5.0f, 1e-6f);
 
     // the vibrato rebuilds its LFO at prepare from whatever the settings hold
-    Vibrato vib(48000);
+    Vibrato vib;
     vib.set_setting("threshold", 0.5f); CHECK_NEAR(vib.get_setting("threshold"), 0.5f, 1e-6f);
     vib.set_setting("depth", 0.3f);     CHECK_NEAR(vib.get_setting("depth"), 0.3f, 1e-6f);
 }
@@ -3802,7 +3805,7 @@ static void run_filter_behavior_tests() {
     auto in = std::make_shared<ConstantSource>(1.0f);
 
     // raw mode: y = b0 x on the first sample (no history)
-    BiquadSource raw(48000);
+    BiquadSource raw;
     raw.set_param("source", in);
     raw.set_setting("b0", 0.5f);
     raw.prepare(ctx, 4800);
@@ -3810,7 +3813,7 @@ static void run_filter_behavior_tests() {
 
     // resonance mode derives a1/a2 from the frequency and radius pins, and
     // reads their declared constants when nothing is wired
-    BiquadSource res(48000);
+    BiquadSource res;
     res.set_param("source", in);
     res.set_setting("mode", 1.0f);
     res.set_param("frequency", std::make_shared<ConstantSource>(1000.0f));
@@ -3820,7 +3823,7 @@ static void run_filter_behavior_tests() {
     CHECK_NEAR(res.get_setting("a2"), 0.81f, 1e-6f);
     CHECK_NEAR(res.get_setting("a1"),
                -2.0f * 0.9f * std::cos(2.0f * 3.14159265f * 1000.0f / 48000.0f), 1e-5f);
-    BiquadSource dflt(48000);
+    BiquadSource dflt;
     dflt.set_param("source", in);
     dflt.set_setting("mode", 1.0f);
     dflt.prepare(ctx, 4800);
@@ -3829,7 +3832,7 @@ static void run_filter_behavior_tests() {
 
     // delay: an impulse comes back 0.01 s later at level/(1+level)
     auto imp = std::make_shared<ConstantSource>(1.0f);
-    DelayFilter dly(48000);
+    DelayFilter dly;
     dly.set_param("source", imp);
     dly.prepare(ctx, 4800);
     CHECK_NEAR(dly.next(), 1.0f / 1.5f, 1e-5f);
@@ -3840,7 +3843,7 @@ static void run_filter_behavior_tests() {
 
     // limiter: a constant 2.0 settles at the threshold once the lookahead fills
     auto loud = std::make_shared<ConstantSource>(2.0f);
-    Limiter lim(48000);
+    Limiter lim;
     lim.set_param("source", loud);
     lim.set_param("threshold", std::make_shared<ConstantSource>(0.5f));
     lim.prepare(ctx, 4800);
@@ -3849,7 +3852,7 @@ static void run_filter_behavior_tests() {
     CHECK_NEAR(last, 0.5f, 1e-3f);
 
     // reverb: wet 0, dry 1 passes the input through
-    Reverb rev(48000);
+    Reverb rev;
     rev.set_param("source", in);
     rev.set_param("wet", std::make_shared<ConstantSource>(0.0f));
     rev.set_param("dry", std::make_shared<ConstantSource>(1.0f));
@@ -3857,7 +3860,7 @@ static void run_filter_behavior_tests() {
     CHECK_NEAR(rev.next(), 1.0f, 1e-6f);
 
     // hammer bank: gain 0 and direct 1 leaves the input
-    HammerBank hammer(48000);
+    HammerBank hammer;
     hammer.set_param("source", std::make_shared<ConstantSource>(0.7f));
     hammer.set_setting("gain", 0.0f);
     hammer.set_setting("direct", 1.0f);
@@ -3870,9 +3873,9 @@ static void run_filter_behavior_tests() {
 static void run_filter_butterworth_tests() {
     RenderContext ctx{48000};
     auto dc = std::make_shared<ConstantSource>(1.0f);
-    BWLowpassFilter lp(48000, 2);
-    BWHighpassFilter hp(48000, 2);
-    BWBandpassFilter bp(48000, 2);
+    BWLowpassFilter lp(2);
+    BWHighpassFilter hp(2);
+    BWBandpassFilter bp(2);
     lp.set_param("source", dc);
     hp.set_param("source", dc);
     bp.set_param("source", dc);
@@ -3887,7 +3890,7 @@ static void run_filter_butterworth_tests() {
 
     // the cutoff pin moves the corner: a 100 Hz lowpass blocks a 5 kHz tone
     auto tone = std::make_shared<ConstantSource>(0.0f);
-    BWLowpassFilter low(48000, 2);
+    BWLowpassFilter low(2);
     low.set_param("source", tone);
     low.set_param("cutoffFreq", std::make_shared<ConstantSource>(100.0f));
     low.prepare(ctx, 48000);
@@ -3904,13 +3907,15 @@ static void run_filter_butterworth_tests() {
 // threshold, and wobbles it when the note is long enough.
 static void run_vibrato_tests() {
     RenderContext ctx{48000};
-    Vibrato off(48000);
+    Vibrato off;
     off.set_param("frequency", std::make_shared<ConstantSource>(300.0f));
     off.set_setting("threshold", 1.0f);
     off.prepare(ctx, 4800);                          // 0.1 s: below the threshold
     for (int i = 0; i < 200; ++i) CHECK_NEAR(off.next(), 300.0f, 1e-6f);
 
-    Vibrato on(48000, 5.0f, 0.05f, 0.1f);
+    Vibrato on;
+    on.set_setting("depth", 0.05f);
+    on.set_setting("attack", 0.1f);
     on.set_param("frequency", std::make_shared<ConstantSource>(300.0f));
     on.prepare(ctx, 48000);
     float lo = 1e9f, hi = -1e9f, y = 0.0f;
@@ -5083,6 +5088,219 @@ static void run_physical_split_tests() {
     CHECK(!same_bits(at(24000, mesh), at(48000, mesh)));
 }
 
+// ---------------------------------------------------------------------------
+// Filters and Vibrato: the rate arrives through prepare(ctx), the note through
+// start(frames). Every filter is built here by name with `in` on its input.
+// A rate-dependence check feeds DC, because a Sine would differ between two
+// rates by itself and hide a coefficient that ignored the rate.
+// ---------------------------------------------------------------------------
+static const char* const kFilterNames[] = {
+    "BWLowpass", "BWHighpass", "BWBandpass", "SVF", "SVF1P", "Delay", "Limiter",
+    "Reverb", "Hammer", "BiquadRes", "BiquadRaw"};
+
+static std::shared_ptr<ValueSource> make_filter(const std::string& name,
+                                                std::shared_ptr<ValueSource> in) {
+    std::shared_ptr<ValueSource> n;
+    if (name == "BWLowpass")       n = std::make_shared<BWLowpassFilter>(2);
+    else if (name == "BWHighpass") n = std::make_shared<BWHighpassFilter>(2);
+    else if (name == "BWBandpass") n = std::make_shared<BWBandpassFilter>(2);
+    else if (name == "Delay")      n = std::make_shared<DelayFilter>();
+    else if (name == "Limiter")    n = std::make_shared<Limiter>();
+    else if (name == "Reverb")     n = std::make_shared<Reverb>();
+    else if (name == "Hammer")     n = std::make_shared<HammerBank>();
+    else if (name == "SVF" || name == "SVF1P") {
+        n = std::make_shared<SVFSource>();
+        if (name == "SVF1P") n->set_setting("mode", float(SVFSource::kLowpass1P));
+    } else {
+        n = std::make_shared<BiquadSource>();
+        if (name == "BiquadRes") {
+            n->set_setting("mode", float(BiquadSource::kResonance));
+            n->set_param("frequency", std::make_shared<ConstantSource>(1000.0f));
+            n->set_param("radius", std::make_shared<ConstantSource>(0.9f));
+        } else {
+            n->set_setting("b0", 0.5f);
+            n->set_setting("b1", 0.3f);
+            n->set_setting("a1", -0.2f);
+        }
+    }
+    n->set_param("source", std::move(in));
+    return n;
+}
+
+// Rendered at `rate` with DC in: whatever differs between two rates came from
+// the node's own use of the rate.
+static std::vector<float> filter_at(const std::string& name, int rate) {
+    auto f = make_filter(name, std::make_shared<ConstantSource>(1.0f));
+    f->prepare(RenderContext{rate});
+    f->start(4096);
+    return render_samples(*f, 4096);
+}
+
+// A node used at one rate and then prepared at another renders what a node
+// prepared at the second rate renders: nothing sized or derived from the
+// first rate survives.
+static bool follows_rate(const std::function<std::shared_ptr<ValueSource>()>& make,
+                         int first, int second) {
+    auto used = make(), fresh = make();
+    used->prepare(RenderContext{first});
+    used->start(4096);
+    render_samples(*used, 500);
+    used->prepare(RenderContext{second});
+    used->start(4096);
+    fresh->prepare(RenderContext{second});
+    fresh->start(4096);
+    return same_bits(render_samples(*used, 4096), render_samples(*fresh, 4096));
+}
+
+static void run_filter_rate_tests() {
+    for (const std::string name : kFilterNames) {
+        if (name != "BiquadRaw") {   // a raw biquad's coefficients are settings, not the rate
+            const auto lo = filter_at(name, 24000), hi = filter_at(name, 48000);
+            if (same_bits(lo, hi)) std::printf("  rate ignored: %s\n", name.c_str());
+            CHECK(!same_bits(lo, hi));
+            CHECK(std::all_of(hi.begin(), hi.end(), [](float v) { return std::isfinite(v); }));
+            CHECK(std::any_of(hi.begin(), hi.end(), [](float v) { return v != 0.0f; }));
+        }
+        const auto make = [&] { return make_filter(name, std::make_shared<ConstantSource>(1.0f)); };
+        const bool down = follows_rate(make, 48000, 22050), up = follows_rate(make, 22050, 48000);
+        if (!down || !up) std::printf("  rate not followed: %s\n", name.c_str());
+        CHECK(down);
+        CHECK(up);
+    }
+}
+
+// The pins the node prepares and starts itself, the buffers the rate sizes,
+// and the filters whose history is not a per-note state.
+static void run_filter_pin_split_tests() {
+    BiquadSource bq;
+    bq.set_setting("mode", float(BiquadSource::kResonance));
+    auto freq = std::make_shared<PinCounter>(), rad = std::make_shared<PinCounter>();
+    bq.set_param("frequency", freq);
+    bq.set_param("radius", rad);
+    bq.prepare(RenderContext{48000});
+    CHECK(freq->rate == 48000 && rad->rate == 48000);
+    CHECK(freq->prepares == 0 && rad->prepares == 0);        // prepared, not started
+    bq.start(64);
+    CHECK(freq->prepares == 1 && rad->prepares == 1);        // started once
+    bq.prepare(RenderContext{48000});
+    bq.start(64);
+    CHECK(freq->prepares == 2 && rad->prepares == 2);
+
+    DelayFilter dly;
+    dly.prepare(RenderContext{22050});
+    CHECK(dly.capacity() == 22050);
+    dly.prepare(RenderContext{22050});
+    CHECK(dly.capacity() == 22050);
+    dly.prepare(RenderContext{48000});
+    CHECK(dly.capacity() == 48000);
+    Limiter lim;
+    lim.prepare(RenderContext{22050});
+    CHECK(lim.capacity() == 110);
+    lim.prepare(RenderContext{22050});
+    CHECK(lim.capacity() == 110);
+    lim.prepare(RenderContext{48000});
+    CHECK(lim.capacity() == 240);
+
+    // The Butterworth histories carry across notes (no per-note reset): after
+    // a settled DC note, the next note's first sample is still on the plateau.
+    for (const char* name : {"BWLowpass", "BWHighpass"}) {
+        auto f = make_filter(name, std::make_shared<ConstantSource>(1.0f));
+        f->prepare(RenderContext{48000});
+        f->start(4800);
+        const float settled = render_samples(*f, 4800).back();
+        f->start(4800);
+        const float firstOfNext = f->advance();
+        CHECK_NEAR(firstOfNext, settled, 1e-3f);
+    }
+}
+
+// A started note carries nothing of the note before it: the second note of a
+// used node renders what a fresh node's first note renders. (The Butterworth
+// filters are the exception: their histories run on across notes.)
+static bool restarts_clean(const std::string& name) {
+    const auto make = [&] { return make_filter(name, std::make_shared<SineSource>()); };
+    auto used = make(), fresh = make();
+    used->prepare(RenderContext{48000});
+    used->start(50000);
+    render_samples(*used, 49000);          // past one lap of the longest buffer (the delay's, one second)
+    used->start(4096);
+    fresh->prepare(RenderContext{48000});
+    fresh->start(4096);
+    return same_bits(render_samples(*used, 4096), render_samples(*fresh, 4096));
+}
+
+static void run_filter_split_tests() {
+    for (const std::string name : kFilterNames) {
+        const bool ok = split_equivalent(
+            [&] { return make_filter(name, std::make_shared<SineSource>()); });
+        if (!ok) std::printf("  split differs: %s\n", name.c_str());
+        CHECK(ok);
+        if (name.compare(0, 2, "BW") == 0) continue;
+        const bool clean = restarts_clean(name);
+        if (!clean) std::printf("  note not clean: %s\n", name.c_str());
+        CHECK(clean);
+    }
+    run_filter_rate_tests();
+    run_filter_pin_split_tests();
+}
+
+static std::shared_ptr<Vibrato> make_vibrato(float speed) {
+    auto v = std::make_shared<Vibrato>();
+    v->set_param("frequency", std::make_shared<ConstantSource>(440.0f));
+    v->set_setting("depth", 0.1f);
+    v->set_setting("speed", speed);
+    return v;
+}
+
+// A Vibrato builds its LFO once and resets it per note, which has to be the
+// chain a note used to get by building it fresh.
+static void run_vibrato_split_tests() {
+    constexpr int kNote = 24000;
+    {
+        auto reused = make_vibrato(6.0f), fresh = make_vibrato(6.0f);
+        reused->prepare(RenderContext{48000});
+        reused->start(kNote);
+        render_samples(*reused, 1000);        // mid-ramp: the noise has drawn, the envelopes have moved
+        reused->start(kNote);
+        fresh->prepare(RenderContext{48000});
+        fresh->start(kNote);
+        const auto a = render_samples(*reused, kNote), b = render_samples(*fresh, kNote);
+        CHECK(same_bits(a, b));
+        const auto [lo, hi] = std::minmax_element(b.begin(), b.end());
+        CHECK(*hi - *lo > 1.0f);              // the LFO is audible, so the comparison means something
+    }
+    CHECK(split_equivalent([] { return make_vibrato(6.0f); }, kNote, 5));
+
+    // A setting changed after prepare rebuilds the chain under the context
+    // the node holds: the same bytes as the setting made before prepare.
+    {
+        auto late = make_vibrato(6.0f), early = make_vibrato(7.0f);
+        late->prepare(RenderContext{48000});
+        late->set_setting("speed", 7.0f);
+        late->start(kNote);
+        early->prepare(RenderContext{48000});
+        early->start(kNote);
+        CHECK(same_bits(render_samples(*late, kNote), render_samples(*early, kNote)));
+    }
+
+    // A note below the threshold passes the frequency through and leaves the
+    // chain alone; the next long note is a fresh-chain note.
+    {
+        auto v = make_vibrato(6.0f), fresh = make_vibrato(6.0f);
+        v->set_setting("threshold", 0.2f);
+        fresh->set_setting("threshold", 0.2f);
+        v->prepare(RenderContext{48000});
+        v->start(4800);                       // 0.1 s: off
+        for (float y : render_samples(*v, 200)) CHECK(y == 440.0f);
+        v->start(kNote);
+        fresh->prepare(RenderContext{48000});
+        fresh->start(kNote);
+        CHECK(same_bits(render_samples(*v, kNote), render_samples(*fresh, kNote)));
+    }
+    CHECK(follows_rate([] { return make_vibrato(6.0f); }, 48000, 24000));
+    CHECK(follows_rate([] { return make_vibrato(6.0f); }, 24000, 48000));
+}
+
 // Checkpoint 2.2: the contract's sweep, then the families as they are cut.
 static void run_prepare_start_tests() {
     run_split_equivalence_tests();
@@ -5092,6 +5310,8 @@ static void run_prepare_start_tests() {
     run_hybrid_ks_split_tests();
     run_additive_split_tests();
     run_physical_split_tests();
+    run_filter_split_tests();
+    run_vibrato_split_tests();
 }
 
 int main() {
