@@ -35,8 +35,8 @@ counter, starved-ref promotion and SharingTrace deleted; expected diffs =
 the 13 lag patches in docs/architecture/measurements/2026-10-16-sharing-lag.md
 + double_advance_bug) — plan written against the then-current code; it
 is also where the 2.1 render-time cost is recovered or the design
-revisited. Nothing pushed since Matt's push after session II (main is
-~12 commits ahead; ask at close-out). GOALS.md stays Matt's uncommitted edit.
+revisited. PUSHED 2026-10-18 on Matt's word (99f5d1d..60060c0 + this
+line); main level with origin. GOALS.md stays Matt's uncommitted edit.
 
 Updated: 2026-10-17 (refactor session III, Fable 5.1 xhigh). R2 ACCEPTED by
 Matt (all four items; render cost carried to 2.3). CHECKPOINT 2.2 IN
