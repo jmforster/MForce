@@ -5,9 +5,12 @@
 
 namespace mforce {
 
+// A mono producer the mixer owns. prepare(ctx) once, from the host that
+// built it; render() as often as the host wants frames.
 struct MonoSource {
   virtual ~MonoSource() = default;
-  virtual void render(const RenderContext& ctx, float* out, int frames) = 0;
+  virtual void prepare(const RenderContext& ctx) = 0;
+  virtual void render(float* out, int frames) = 0;
 };
 
 struct Channel {
@@ -22,7 +25,12 @@ struct StereoMixer {
   std::shared_ptr<ValueSource> gainR;
 
   StereoMixer();
-  void render(const RenderContext& ctx, float* outLR, int frames);
+  // Once, after the channels are assembled: the gains, volumes, pans and
+  // sources learn the rate.
+  void prepare(const RenderContext& ctx);
+  // One span of `frames`: the gains, volumes and pans start over it, each
+  // channel renders into it.
+  void render(float* outLR, int frames);
 };
 
 } // namespace mforce

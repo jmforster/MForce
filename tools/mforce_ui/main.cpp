@@ -227,7 +227,10 @@ static ImU32 lighten(ImU32 col, int pct) {
     return IM_COL32(r, g, b, 255);
 }
 
-static constexpr int DSP_SAMPLE_RATE = 48000;
+// The rate the audio device is asked for, and the one context every node
+// the editor builds is prepared with (its rate follows the opened stream).
+static constexpr int AUDIO_SAMPLE_RATE = 48000;
+static mforce::RenderContext g_renderContext{AUDIO_SAMPLE_RATE};
 
 // Row data for inline formant table (FormantSpectrum node)
 struct FormantRow {
@@ -458,7 +461,7 @@ struct GraphNode {
         auto& reg = SourceRegistry::instance();
         if (!reg.has(typeName)) return;
 
-        dspSource = reg.create(typeName, DSP_SAMPLE_RATE);
+        dspSource = reg.create(typeName);
         for (auto& pin : inputs) {
             if (pin.constantSrc)
                 dspSource->set_param(pin.name, pin.constantSrc);
@@ -607,7 +610,7 @@ struct GraphNode {
             return;
         }
 
-        auto tmp = reg.create(typeName, DSP_SAMPLE_RATE);
+        auto tmp = reg.create(typeName);
         for (const auto& desc : tmp->input_descriptors())
             inputs.emplace_back(desc.name, UiPinKind::Input, 0.0f, true, desc.multi, desc.hint);
         for (const auto& desc : tmp->param_descriptors())
@@ -1486,7 +1489,7 @@ static bool convert_parammap_to_wiring(nlohmann::json& root) {
     auto& reg = SourceRegistry::instance();
     auto is_setting = [&](const std::string& type, const std::string& key) {
         if (!reg.has(type)) return false;
-        auto probe = reg.create(type, DSP_SAMPLE_RATE);
+        auto probe = reg.create(type);
         if (!probe) return false;
         for (const auto& d : probe->setting_descriptors())
             if (key == d.name) return true;
@@ -3141,7 +3144,7 @@ static nlohmann::json serialize_patch_graph(
 
     // Build final JSON
     json root;
-    root["sampleRate"] = 48000;
+    root["sampleRate"] = g_renderContext.sampleRate;
     // Per-field PerformNode file nodes PREPENDED — refs must resolve
     // against earlier nodes (same rule as the converter).
     if (!perfNodes.empty()) {
@@ -3444,7 +3447,7 @@ static void save_node_graph(const std::string& path) {
     }
 
     json root;
-    root["sampleRate"] = 48000;
+    root["sampleRate"] = g_renderContext.sampleRate;
     root["seconds"] = 5;
     root["graph"]["nodes"] = nodes;
     root["graph"]["output"] = outputId;
@@ -3563,7 +3566,6 @@ static void save_graph() {
 // no threading issues, no deadlocks on quit.
 // ===========================================================================
 
-static constexpr int AUDIO_SAMPLE_RATE = 48000;
 // RtAudio buffer size — smaller = lower latency but more callback overhead.
 // 512 @ 48k = ~10.7ms. Matches typical WASAPI shared-mode period, giving
 // the audio callback enough cushion for occasional jitter without underrun.
@@ -3608,7 +3610,7 @@ static std::vector<WavePopout> g_wavePopouts;
 // the number of magnitude bins (= FFT size / 2). Empty when no render yet.
 static std::vector<float> g_outputSpectrumDb;
 static int                g_outputSpectrumN  = 0;
-static int                g_outputSpectrumSR = 48000;
+static int                g_outputSpectrumSR = AUDIO_SAMPLE_RATE;
 // Forward decl — defined alongside draw_spectrum_window below.
 static void compute_output_spectrum();
 
@@ -4069,6 +4071,8 @@ static bool init_audio(bool quiet) {
         g_audio.reset();
         return false;
     }
+    // The engine renders at the rate the device actually opened with.
+    g_renderContext.sampleRate = int(g_audio->getStreamSampleRate());
 
     err = g_audio->startStream();
     if (err != RTAUDIO_NO_ERROR) {
@@ -4218,9 +4222,12 @@ static ValueSource* find_output_source() {
 // Prepare the whole DSP graph for a given duration
 static void prepare_graph(int samples) {
     // Prepare all nodes' DSP sources (order doesn't matter for prepare)
-    RenderContext ctx{DSP_SAMPLE_RATE};
+    // A play is not a note: the editor graph may have been re-wired since
+    // the last one, so every node is prepared again (idempotent) and started.
     for (auto& n : s_nodes) {
-        if (n.dspSource) n.dspSource->prepare(ctx, samples);
+        if (!n.dspSource) continue;
+        n.dspSource->prepare(g_renderContext);
+        n.dspSource->start(samples);
     }
 }
 
@@ -4433,8 +4440,7 @@ static bool generate_unified(const std::vector<SchedNote>& notes) {
         buffer_playback_detach();   // it points into g_outputWaveform (3k)
         g_outputWaveform.assign(size_t(frames), 0.0f);
         g_waveformSamples = frames;
-        RenderContext ctx{ip.sampleRate};
-        ip.instrument->render(ctx, g_outputWaveform.data(), frames);
+        ip.instrument->render(g_outputWaveform.data(), frames);
 
         for (size_t k = 0; k < capNodes.size(); ++k)
             capNodes[k]->waveformData = std::move(pitched->captureBuffers[k]);
@@ -4962,9 +4968,11 @@ static void play_continuous(float velocity) {
     stream_envelopes_hold();
     int samples = AUDIO_SAMPLE_RATE * STREAM_PREP_SECONDS;
     prepare_graph(samples);
-    RenderContext ctx{DSP_SAMPLE_RATE};
-    for (auto* vs : prepExtra)
-        if (vs) vs->prepare(ctx, samples);
+    for (auto* vs : prepExtra) {
+        if (!vs) continue;
+        vs->prepare(g_renderContext);
+        vs->start(samples);
+    }
 
     {
         std::lock_guard<std::mutex> lock(g_audioMutex);
@@ -8148,8 +8156,7 @@ static void render_chords_waveforms(const std::vector<ParsedChord>& chords, floa
         float totalSeconds = part.totalBeats() * 60.0f / bpm + 1.0f;
         int frames = int(totalSeconds * float(ip.sampleRate));
         std::vector<float> mono(frames, 0.0f);
-        RenderContext _ctx{ip.sampleRate};
-        ip.instrument->render(_ctx, mono.data(), frames);
+        ip.instrument->render(mono.data(), frames);
 
         // Peak-normalize to prevent distortion from overlapping notes.
         // With peakGuard disabled above, mono contains the un-clipped sum, so
@@ -8236,7 +8243,6 @@ static void render_drums_waveforms(const ParsedDrumPattern& pat, float bpm, cons
             maxDrum = std::max(maxDrum, hit.drumNumber);
 
         DrumKit kit;
-        kit.sampleRate = AUDIO_SAMPLE_RATE;
         kit.sources.resize(maxDrum + 1);
 
         int loadedCount = 0;
@@ -8260,6 +8266,7 @@ static void render_drums_waveforms(const ParsedDrumPattern& pat, float bpm, cons
             transport_set_status("No drum patches could be loaded", true);
             return;
         }
+        kit.prepare(g_renderContext);
 
         // Perform all hits
         for (int rep = 0; rep < pat.repeats; ++rep) {
@@ -8277,8 +8284,7 @@ static void render_drums_waveforms(const ParsedDrumPattern& pat, float bpm, cons
         float totalSeconds = pat.figure.totalTime * 60.0f / bpm * float(pat.repeats) + 1.0f;
         int frames = int(totalSeconds * float(AUDIO_SAMPLE_RATE));
         std::vector<float> mono(frames, 0.0f);
-        RenderContext _ctx{AUDIO_SAMPLE_RATE};
-        kit.render(_ctx, mono.data(), frames);
+        kit.render(mono.data(), frames);
 
         // Peak-normalize
         float peak = 0.0f;
@@ -11890,7 +11896,7 @@ static void compute_output_spectrum() {
         g_outputSpectrumDb[k] = (mag > 1e-6f) ? 20.0f * std::log10(mag) : floorDb;
     }
     g_outputSpectrumN  = Nover2;
-    g_outputSpectrumSR = 48000;  // matches the offline-render SR convention
+    g_outputSpectrumSR = g_renderContext.sampleRate;
 }
 
 // ===========================================================================

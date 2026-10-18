@@ -62,19 +62,19 @@ void register_all_sources() {
     // -----------------------------------------------------------------------
 
     reg.register_type("SineSource", SourceCategory::Oscillator,
-        [](int, auto) { return std::make_shared<SineSource>(); });
+        [](auto) { return std::make_shared<SineSource>(); });
 
     reg.register_type("SawSource", SourceCategory::Oscillator,
-        [](int, auto) { return std::make_shared<SawSource>(); });
+        [](auto) { return std::make_shared<SawSource>(); });
 
     reg.register_type("TriangleSource", SourceCategory::Oscillator,
-        [](int, auto) { return std::make_shared<TriangleSource>(); });
+        [](auto) { return std::make_shared<TriangleSource>(); });
 
     reg.register_type("PulseSource", SourceCategory::Oscillator,
-        [](int, auto) { return std::make_shared<PulseSource>(); });
+        [](auto) { return std::make_shared<PulseSource>(); });
 
     reg.register_type("FMSource", SourceCategory::Oscillator,
-        [](int, auto) { return std::make_shared<FMSource>(); });
+        [](auto) { return std::make_shared<FMSource>(); });
 
     // -----------------------------------------------------------------------
     // Additive — BasicAdditiveSource (simple), AdditiveSource (full via Partials)
@@ -82,21 +82,21 @@ void register_all_sources() {
 
     // BasicAdditiveSource (was "AdditiveSource" — alias kept for backward compat)
     reg.register_type("BasicAdditiveSource", SourceCategory::Additive,
-        [](int, auto seed) {
+        [](auto seed) {
             return std::make_shared<BasicAdditiveSource>(seed.value_or(0xADD1'0000u));
         });
 
     // The real AdditiveSource (thin loop over Partials, was FullAdditiveSource)
     reg.register_type("AdditiveSource", SourceCategory::Additive,
-        [](int, auto seed) {
+        [](auto seed) {
             return std::make_shared<FullAdditiveSource>(seed.value_or(0xADD2'0000u));
         });
 
     reg.register_type("Formant", SourceCategory::Additive,
-        [](int, auto) { return std::make_shared<Formant>(); });
+        [](auto) { return std::make_shared<Formant>(); });
 
     reg.register_type("BandSpectrum", SourceCategory::Additive,
-        [](int, auto) { return std::make_shared<BandSpectrum>(); },
+        [](auto) { return std::make_shared<BandSpectrum>(); },
         // Configurator: gains array
         [](ValueSource& src, const nlohmann::json& p, const ResolveParamFn&) {
             auto& bs = static_cast<BandSpectrum&>(src);
@@ -108,75 +108,75 @@ void register_all_sources() {
     // -----------------------------------------------------------------------
 
     reg.register_type("WhiteNoiseSource", SourceCategory::Generator,
-        [](int, auto seed) {
+        [](auto seed) {
             return std::make_shared<WhiteNoiseSource>(seed.value_or(0x12345678u));
         });
 
     reg.register_type("PinkNoiseSource", SourceCategory::Generator,
-        [](int, auto seed) {
+        [](auto seed) {
             return std::make_shared<PinkNoiseSource>(PinkNoiseSource::DEFAULT_ROWS,
                 seed.value_or(0xF10C'0001u));
         });
 
     reg.register_type("RedNoiseSource", SourceCategory::Generator,
-        [](int, auto seed) {
+        [](auto seed) {
             return std::make_shared<RedNoiseSource>(seed.value_or(0xBADC0DEu));
         });
 
     reg.register_type("LayeredRedNoiseSource", SourceCategory::Generator,
-        [](int, auto seed) {
+        [](auto seed) {
             return std::make_shared<LayeredRedNoiseSource>(seed.value_or(0x1A4E4EDDu));
         });
 
     reg.register_type("BlueNoiseSource", SourceCategory::Generator,
-        [](int, auto seed) {
+        [](auto seed) {
             return std::make_shared<BlueNoiseSource>(seed.value_or(0xB100'0001u));
         });
 
     reg.register_type("VioletNoiseSource", SourceCategory::Generator,
-        [](int, auto seed) {
+        [](auto seed) {
             return std::make_shared<VioletNoiseSource>(seed.value_or(0xF100'0001u));
         });
 
     reg.register_type("VelvetNoiseSource", SourceCategory::Generator,
-        [](int, auto seed) {
+        [](auto seed) {
             return std::make_shared<VelvetNoiseSource>(seed.value_or(0xFE17'0001u));
         });
 
     reg.register_type("PerlinNoiseSource", SourceCategory::Generator,
-        [](int, auto seed) {
+        [](auto seed) {
             return std::make_shared<PerlinNoiseSource>(seed.value_or(0xAE21'0001u));
         });
 
     reg.register_type("CrackleNoiseSource", SourceCategory::Generator,
-        [](int, auto seed) {
+        [](auto seed) {
             return std::make_shared<CrackleNoiseSource>(seed.value_or(0xC8AC'0001u));
         });
 
     reg.register_type("MurmurationNoiseSource", SourceCategory::Generator,
-        [](int, auto seed) {
+        [](auto seed) {
             return std::make_shared<MurmurationNoiseSource>(seed.value_or(0xB18D'0001u));
         });
 
     reg.register_type("WanderNoiseSource", SourceCategory::Generator,
-        [](int, auto seed) {
+        [](auto seed) {
             return std::make_shared<WanderNoiseSource>(seed.value_or(0xFA0D'0001u));
         });
 
     reg.register_type("WanderNoise2Source", SourceCategory::Generator,
-        [](int, auto seed) {
+        [](auto seed) {
             return std::make_shared<WanderNoise2Source>(seed.value_or(0xFA0D'0002u));
         });
 
     reg.register_type("WanderNoise3Source", SourceCategory::Generator,
-        [](int, auto) { return std::make_shared<WanderNoise3Source>(); });
+        [](auto) { return std::make_shared<WanderNoise3Source>(); });
 
     // -----------------------------------------------------------------------
     // Modulators / Utilities
     // -----------------------------------------------------------------------
 
     reg.register_type("VarSource", SourceCategory::Modulator,
-        [](int, auto) {
+        [](auto) {
             return std::make_shared<VarSource>(
                 std::make_shared<ConstantSource>(0.0f),
                 std::make_shared<ConstantSource>(0.0f),
@@ -184,7 +184,7 @@ void register_all_sources() {
         });
 
     reg.register_type("RangeSource", SourceCategory::Modulator,
-        [](int, auto) {
+        [](auto) {
             return std::make_shared<RangeSource>(
                 std::make_shared<ConstantSource>(0.0f),
                 std::make_shared<ConstantSource>(1.0f),
@@ -192,62 +192,62 @@ void register_all_sources() {
         });
 
     reg.register_type("CurveNode", SourceCategory::Modulator,
-        [](int, auto) { return std::make_shared<CurveNode>(); });
+        [](auto) { return std::make_shared<CurveNode>(); });
 
     // Transition-name match (spec 2026-09-19-note-transitions §5). The
     // `name` string and its vocabulary resolution are a loader special
     // case (SettingType has no string).
     reg.register_type("NameGate", SourceCategory::Modulator,
-        [](int, auto) { return std::make_shared<NameGate>(); });
+        [](auto) { return std::make_shared<NameGate>(); });
 
     // -----------------------------------------------------------------------
     // Envelope
     // -----------------------------------------------------------------------
 
     reg.register_type("Envelope", SourceCategory::Envelope,
-        [](int, auto seed) {
+        [](auto seed) {
             auto e = Envelope::make_ar(0.2f);
             if (seed) e->set_seed(*seed);
             return e;
         });
 
     reg.register_type("AREnvelope", SourceCategory::Envelope,
-        [](int, auto seed) {
+        [](auto seed) {
             auto e = std::make_shared<AREnvelope>();
             if (seed) e->set_seed(*seed);
             return e;
         });
 
     reg.register_type("ASEnvelope", SourceCategory::Envelope,
-        [](int, auto seed) {
+        [](auto seed) {
             auto e = std::make_shared<ASEnvelope>();
             if (seed) e->set_seed(*seed);
             return e;
         });
 
     reg.register_type("ASREnvelope", SourceCategory::Envelope,
-        [](int, auto seed) {
+        [](auto seed) {
             auto e = std::make_shared<ASREnvelope>();
             if (seed) e->set_seed(*seed);
             return e;
         });
 
     reg.register_type("ADSEnvelope", SourceCategory::Envelope,
-        [](int, auto seed) {
+        [](auto seed) {
             auto e = std::make_shared<ADSEnvelope>();
             if (seed) e->set_seed(*seed);
             return e;
         });
 
     reg.register_type("ADREnvelope", SourceCategory::Envelope,
-        [](int, auto seed) {
+        [](auto seed) {
             auto e = std::make_shared<ADREnvelope>();
             if (seed) e->set_seed(*seed);
             return e;
         });
 
     reg.register_type("ADSREnvelope", SourceCategory::Envelope,
-        [](int, auto seed) {
+        [](auto seed) {
             auto e = std::make_shared<ADSREnvelope>();
             if (seed) e->set_seed(*seed);
             return e;
@@ -258,7 +258,7 @@ void register_all_sources() {
     // -----------------------------------------------------------------------
 
     reg.register_type("CombinedSource", SourceCategory::Combiner,
-        [](int, auto) {
+        [](auto) {
             return std::make_shared<CombinedSource>(
                 std::make_shared<ConstantSource>(0.0f),
                 std::make_shared<ConstantSource>(0.0f),
@@ -301,7 +301,7 @@ void register_all_sources() {
         });
 
     reg.register_type("CrossfadeSource", SourceCategory::Combiner,
-        [](int, auto) { return std::make_shared<CrossfadeSource>(); },
+        [](auto) { return std::make_shared<CrossfadeSource>(); },
         // Configurator: ratio, overlap, gainAdj
         [](ValueSource& src, const nlohmann::json& p, const ResolveParamFn&) {
             auto& cs = static_cast<CrossfadeSource&>(src);
@@ -311,12 +311,12 @@ void register_all_sources() {
         });
 
     reg.register_type("DistortedSource", SourceCategory::Modulator,
-        [](int, auto seed) {
+        [](auto seed) {
             return std::make_shared<DistortedSource>(seed.value_or(0xD157'0000u));
         });
 
     reg.register_type("StaticVarSource", SourceCategory::Utility,
-        [](int, auto seed) {
+        [](auto seed) {
             // Needs all config from JSON — use default, configurator sets it
             return std::make_shared<StaticVarSource>(1.0f, 0.0f, 0.0f,
                 seed.value_or(0x57A7'0001u));
@@ -329,7 +329,7 @@ void register_all_sources() {
         });
 
     reg.register_type("StaticRangeSource", SourceCategory::Utility,
-        [](int, auto seed) {
+        [](auto seed) {
             return std::make_shared<StaticRangeSource>(0.0f, 1.0f, 0.0f,
                 seed.value_or(0x57A7'0002u));
         },
@@ -345,7 +345,7 @@ void register_all_sources() {
     // -----------------------------------------------------------------------
 
     reg.register_type("MultiSource", SourceCategory::Combiner,
-        [](int, auto) { return std::make_shared<MultiSource>(); },
+        [](auto) { return std::make_shared<MultiSource>(); },
         // Configurator: per-source weights. Array items can be either a
         // plain ref ({"ref":"id"}) → weight 1.0, OR an object with both ref
         // and weight ({"ref":"id", "weight": 0.5}). The generic wire_params
@@ -368,16 +368,16 @@ void register_all_sources() {
         });
 
     reg.register_type("MultiplexSource", SourceCategory::Combiner,
-        [](int, auto) { return std::make_shared<MultiplexSource>(); });
+        [](auto) { return std::make_shared<MultiplexSource>(); });
 
     reg.register_type("SegmentSource", SourceCategory::Generator,
-        [](int, auto seed) {
+        [](auto seed) {
             return std::make_shared<SegmentSource>(
                 std::vector<float>{}, false, seed.value_or(0x5E6A'0000u));
         });
 
     reg.register_type("RepeatingSource", SourceCategory::Modulator,
-        [](int, auto seed) {
+        [](auto seed) {
             return std::make_shared<RepeatingSource>(seed.value_or(0xAEAE'0000u));
         },
         // Configurator: duration, gap (plain floats)
@@ -390,7 +390,7 @@ void register_all_sources() {
         });
 
     reg.register_type("PhasedValueSource", SourceCategory::Envelope,
-        [](int, auto) {
+        [](auto) {
             return std::make_shared<PhasedValueSource>(0.05f);
         },
         // Configurator: overlap, stages
@@ -415,7 +415,7 @@ void register_all_sources() {
     // -----------------------------------------------------------------------
 
     reg.register_type("BWLowpassFilter", SourceCategory::Filter,
-        [](int, auto) { return std::make_shared<BWLowpassFilter>(2); },
+        [](auto) { return std::make_shared<BWLowpassFilter>(2); },
         // Configurator: section count, "cutoff" alias
         [](ValueSource& src, const nlohmann::json& p, const ResolveParamFn& resolve) {
             // JSON uses "cutoff" but param descriptor uses "cutoffFreq"
@@ -424,36 +424,36 @@ void register_all_sources() {
         });
 
     reg.register_type("BWHighpassFilter", SourceCategory::Filter,
-        [](int, auto) { return std::make_shared<BWHighpassFilter>(2); },
+        [](auto) { return std::make_shared<BWHighpassFilter>(2); },
         [](ValueSource& src, const nlohmann::json& p, const ResolveParamFn& resolve) {
             if (p.contains("cutoff"))
                 src.set_param("cutoffFreq", resolve(p.at("cutoff")));
         });
 
     reg.register_type("BWBandpassFilter", SourceCategory::Filter,
-        [](int, auto) { return std::make_shared<BWBandpassFilter>(2); });
+        [](auto) { return std::make_shared<BWBandpassFilter>(2); });
 
     // 2-pole state-variable filter (AFNoding-031 rebuild): selectable
     // LP/HP/BP tap, modulatable resonance, optional divide-by-res
     // normalization. "cutoff" JSON alias matches the BW filters.
     reg.register_type("SVFSource", SourceCategory::Filter,
-        [](int, auto) { return std::make_shared<SVFSource>(); },
+        [](auto) { return std::make_shared<SVFSource>(); },
         [](ValueSource& src, const nlohmann::json& p, const ResolveParamFn& resolve) {
             if (p.contains("cutoff"))
                 src.set_param("cutoffFreq", resolve(p.at("cutoff")));
         });
 
     reg.register_type("DelayFilter", SourceCategory::Filter,
-        [](int, auto) { return std::make_shared<DelayFilter>(); });
+        [](auto) { return std::make_shared<DelayFilter>(); });
 
     reg.register_type("Reverb", SourceCategory::Filter,
-        [](int, auto) { return std::make_shared<Reverb>(); });
+        [](auto) { return std::make_shared<Reverb>(); });
 
     reg.register_type("Limiter", SourceCategory::Filter,
-        [](int, auto) { return std::make_shared<Limiter>(); });
+        [](auto) { return std::make_shared<Limiter>(); });
 
     reg.register_type("Vibrato", SourceCategory::Modulator,
-        [](int, auto seed) {
+        [](auto seed) {
             // Settings (speed/depth/attack/...) keep their declared defaults;
             // they are set after creation via set_setting (UI) or the
             // patch_loader special case (JSON).
@@ -465,7 +465,7 @@ void register_all_sources() {
     // -----------------------------------------------------------------------
 
     reg.register_type("AdditiveSource2", SourceCategory::Additive,
-        [](int, auto seed) {
+        [](auto seed) {
             auto as2 = std::make_shared<AdditiveSource2>(seed.value_or(0xADD3'0000u));
             as2->set_default_partials(500);
             return as2;
@@ -476,41 +476,41 @@ void register_all_sources() {
     // -----------------------------------------------------------------------
 
     reg.register_type("FormantSpectrum", SourceCategory::Additive,
-        [](int, auto) { return std::make_shared<FormantSpectrum>(); });
+        [](auto) { return std::make_shared<FormantSpectrum>(); });
 
     reg.register_type("FixedSpectrum", SourceCategory::Additive,
-        [](int, auto) {
+        [](auto) {
             // Needs gains from JSON — create empty, configurator fills
             return std::make_shared<FixedSpectrum>(std::vector<float>{});
         });
 
     reg.register_type("FormantSequence", SourceCategory::Additive,
-        [](int, auto) { return std::make_shared<FormantSequence>(); });
+        [](auto) { return std::make_shared<FormantSequence>(); });
 
     // ExpandRule node — parametric block consumed by Partials hosts via
     // a "expandRule": {"ref": "..."} field. Mirrors the Formant pattern.
     reg.register_type("ExpandRule", SourceCategory::Additive,
-        [](int, auto) { return std::make_shared<ExpandRuleNode>(); });
+        [](auto) { return std::make_shared<ExpandRuleNode>(); });
 
     reg.register_type("CompositePartials", SourceCategory::Additive,
-        [](int, auto) { return std::make_shared<CompositePartials>(); });
+        [](auto) { return std::make_shared<CompositePartials>(); });
 
     // -----------------------------------------------------------------------
     // Partial specification types (new architecture — these are the renderers)
     // -----------------------------------------------------------------------
 
     reg.register_type("FullPartials", SourceCategory::Additive,
-        [](int, auto seed) {
+        [](auto seed) {
             return std::make_shared<FullPartials>(seed.value_or(0xADD2'0000u));
         });
 
     reg.register_type("SequencePartials", SourceCategory::Additive,
-        [](int, auto seed) {
+        [](auto seed) {
             return std::make_shared<SequencePartials>(seed.value_or(0xADD2'0000u));
         });
 
     reg.register_type("ExplicitPartials", SourceCategory::Additive,
-        [](int, auto seed) {
+        [](auto seed) {
             return std::make_shared<ExplicitPartials>(seed.value_or(0xADD2'0000u));
         });
 
@@ -519,56 +519,56 @@ void register_all_sources() {
     // -----------------------------------------------------------------------
 
     reg.register_type("WavetableSource", SourceCategory::Oscillator,
-        [](int, auto seed) {
+        [](auto seed) {
             return std::make_shared<WavetableSource>(seed.value_or(0xC0FFEEu));
         });
 
     reg.register_type("PluckEvolution", SourceCategory::Generator,
-        [](int, auto seed) {
+        [](auto seed) {
             return std::make_shared<PluckEvolutionSource>(seed.value_or(0xDEAD'BEEFu));
         });
 
     reg.register_type("AveragingEvolution", SourceCategory::Generator,
-        [](int, auto seed) {
+        [](auto seed) {
             return std::make_shared<AveragingEvolutionSource>(seed.value_or(0xCAFE'BABEu));
         });
 
     reg.register_type("EKSEvolution", SourceCategory::Combiner,
-        [](int, auto seed) {
+        [](auto seed) {
             return std::make_shared<EKSEvolutionSource>(seed.value_or(0xEE45'0000u));
         });
 
     reg.register_type("ReedEvolution", SourceCategory::Combiner,
-        [](int, auto seed) {
+        [](auto seed) {
             return std::make_shared<ReedEvolutionSource>(seed.value_or(0xBEED'BEEDu));
         });
 
     reg.register_type("BowedStringEvolution", SourceCategory::Combiner,
-        [](int, auto seed) {
+        [](auto seed) {
             return std::make_shared<BowedStringEvolutionSource>(seed.value_or(0xB0ED'0000u));
         });
 
     reg.register_type("BrassEvolution", SourceCategory::Combiner,
-        [](int, auto seed) {
+        [](auto seed) {
             return std::make_shared<BrassEvolutionSource>(seed.value_or(0xB8A5'5000u));
         });
 
     // Algorithmic evolutions (abstract transforms, not physical models).
     reg.register_type("ReactionDiffusionEvolution", SourceCategory::Combiner,
-        [](int, auto) { return std::make_shared<ReactionDiffusionEvolutionSource>(); });
+        [](auto) { return std::make_shared<ReactionDiffusionEvolutionSource>(); });
     reg.register_type("SortErosionEvolution", SourceCategory::Combiner,
-        [](int, auto) { return std::make_shared<SortErosionEvolutionSource>(); });
+        [](auto) { return std::make_shared<SortErosionEvolutionSource>(); });
     reg.register_type("CellularAutomatonEvolution", SourceCategory::Combiner,
-        [](int, auto) { return std::make_shared<CellularAutomatonEvolutionSource>(); });
+        [](auto) { return std::make_shared<CellularAutomatonEvolutionSource>(); });
     reg.register_type("HistogramEqualizeEvolution", SourceCategory::Combiner,
-        [](int, auto) { return std::make_shared<HistogramEqualizeEvolutionSource>(); });
+        [](auto) { return std::make_shared<HistogramEqualizeEvolutionSource>(); });
     reg.register_type("BezierPullEvolution", SourceCategory::Combiner,
-        [](int, auto) { return std::make_shared<BezierPullEvolutionSource>(); });
+        [](auto) { return std::make_shared<BezierPullEvolutionSource>(); });
     reg.register_type("BitRotateEvolution", SourceCategory::Combiner,
-        [](int, auto) { return std::make_shared<BitRotateEvolutionSource>(); });
+        [](auto) { return std::make_shared<BitRotateEvolutionSource>(); });
 
     reg.register_type("HybridKSSource", SourceCategory::Oscillator,
-        [](int, auto seed) {
+        [](auto seed) {
             return std::make_shared<HybridKSSource>(seed.value_or(0xBEEF'C0DEu));
         });
 
@@ -578,17 +578,17 @@ void register_all_sources() {
     // -----------------------------------------------------------------------
 
     reg.register_type("HammerBank", SourceCategory::Filter,
-        [](int, auto) { return std::make_shared<HammerBank>(); });
+        [](auto) { return std::make_shared<HammerBank>(); });
 
     reg.register_type("KSString", SourceCategory::Oscillator,
-        [](int, auto) { return std::make_shared<KSString>(); });
+        [](auto) { return std::make_shared<KSString>(); });
     // Loading alias — the node was KSPianoString until 2026-08-24 (bow mode
     // made the name wrong); library piano patches still say so on disk.
     reg.register_type("KSPianoString", SourceCategory::Oscillator,
-        [](int, auto) { return std::make_shared<KSString>(); });
+        [](auto) { return std::make_shared<KSString>(); });
 
     reg.register_type("AllpassResonator", SourceCategory::Oscillator,
-        [](int, auto) { return std::make_shared<AllpassResonator>(); });
+        [](auto) { return std::make_shared<AllpassResonator>(); });
 
     // -----------------------------------------------------------------------
     // Feedback loop blocks (docs/feedback_loop_design.md) — the resonator
@@ -596,15 +596,15 @@ void register_all_sources() {
     // -----------------------------------------------------------------------
 
     reg.register_type("DelayLine", SourceCategory::Oscillator,
-        [](int, auto) { return std::make_shared<DelayLineSource>(); });
+        [](auto) { return std::make_shared<DelayLineSource>(); });
 
     reg.register_type("Shaper", SourceCategory::Modulator,
-        [](int, auto) { return std::make_shared<ShaperSource>(); });
+        [](auto) { return std::make_shared<ShaperSource>(); });
 
     // Pure pass-through; UI draws wormhole pairs with the connecting wire
     // hidden (wormhole_source.h).
     reg.register_type("Wormhole", SourceCategory::Modulator,
-        [](int, auto) { return std::make_shared<WormholeSource>(); });
+        [](auto) { return std::make_shared<WormholeSource>(); });
 
     // -----------------------------------------------------------------------
     // Reference-port blocks (steal-first campaign, first use: STK Bowed —
@@ -612,20 +612,20 @@ void register_all_sources() {
     // -----------------------------------------------------------------------
 
     reg.register_type("Biquad", SourceCategory::Filter,
-        [](int, auto) { return std::make_shared<BiquadSource>(); });
+        [](auto) { return std::make_shared<BiquadSource>(); });
 
     reg.register_type("BowTable", SourceCategory::Modulator,
-        [](int, auto) { return std::make_shared<BowTableSource>(); });
+        [](auto) { return std::make_shared<BowTableSource>(); });
 
     reg.register_type("Mesh2D", SourceCategory::Oscillator,
-        [](int, auto) { return std::make_shared<Mesh2DSource>(); });
+        [](auto) { return std::make_shared<Mesh2DSource>(); });
 
     // Pierce/Van Duyne passive nonlinear allpass (JASA 101(2), 1997) — the
     // same filter Mesh2D edgeMode 2 puts on its boundary, exposed on its own
     // so it can terminate a 1D loop.  See pierce_filter.h for why it is a
     // node rather than a mode on Shaper or Biquad.
     reg.register_type("PierceFilter", SourceCategory::Filter,
-        [](int, auto) { return std::make_shared<PierceFilterSource>(); });
+        [](auto) { return std::make_shared<PierceFilterSource>(); });
 }
 
 } // namespace mforce

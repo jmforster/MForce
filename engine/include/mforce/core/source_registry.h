@@ -14,9 +14,10 @@ namespace mforce {
 using ResolveParamFn = std::function<std::shared_ptr<ValueSource>(
     const nlohmann::json& val)>;
 
-// Factory: creates a default-initialized source. Caller wires params via set_param().
+// Factory: creates a default-initialized, unprepared source. The caller wires
+// params via set_param(); the host hands it the rate through prepare(ctx).
 using SourceFactory = std::function<std::shared_ptr<ValueSource>(
-    int sampleRate, std::optional<uint32_t> seed)>;
+    std::optional<uint32_t> seed)>;
 
 // Optional hook for types that need JSON-level config beyond connectable params
 // (e.g. Envelope presets, SegmentSource values[], filter section counts).
@@ -35,7 +36,6 @@ public:
                      JsonConfigurator configurator = nullptr);
 
   std::shared_ptr<ValueSource> create(const std::string& type_name,
-                                      int sampleRate,
                                       std::optional<uint32_t> seed = {}) const;
 
   const JsonConfigurator* get_configurator(const std::string& type_name) const;

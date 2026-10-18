@@ -17,12 +17,11 @@ void SourceRegistry::register_type(const std::string& type_name,
 }
 
 std::shared_ptr<ValueSource> SourceRegistry::create(const std::string& type_name,
-                                                    int sampleRate,
                                                     std::optional<uint32_t> seed) const {
   auto it = entries_.find(type_name);
   if (it == entries_.end())
     throw std::runtime_error("SourceRegistry: unknown type '" + type_name + "'");
-  return it->second.factory(sampleRate, seed);
+  return it->second.factory(seed);
 }
 
 const JsonConfigurator* SourceRegistry::get_configurator(const std::string& type_name) const {

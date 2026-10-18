@@ -373,7 +373,7 @@ int run_explore(int argc, char** argv) {
                     sr     = p.sampleRate;
                     frames = p.frames;
                     out.resize(size_t(frames) * 2);
-                    { RenderContext ctx{sr}; p.mixer->render(ctx, out.data(), frames); }
+                    { p.mixer->render(out.data(), frames); }
                     std::vector<float> mono(size_t(frames), 0.0f);
                     for (int i = 0; i < frames; ++i)
                         mono[size_t(i)] = out[size_t(i * 2)];

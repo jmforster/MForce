@@ -59,11 +59,15 @@ public:
     bendSemis_         = 0.0f;
   }
 
-  void set_instrument_state(std::shared_ptr<InstrumentState> is,
-                            int sampleRate) {
+  void set_instrument_state(std::shared_ptr<InstrumentState> is) {
     inst_ = std::move(is);
-    // One-pole smoother, ~10 ms tau: y += a * (target - y).
-    smoothA_ = 1.0f - std::exp(-1.0f / (0.010f * float(sampleRate)));
+  }
+
+  // Once per build, from the instrument: the wheel and pressure smoothers
+  // take their coefficient from the rate (one-pole, ~10 ms tau:
+  // y += a * (target - y)).
+  void prepare(const RenderContext& ctx) {
+    smoothA_ = 1.0f - std::exp(-1.0f / (0.010f * float(ctx.sampleRate)));
   }
 
   // Once per sample, from the render driver — never from a consumer pull.

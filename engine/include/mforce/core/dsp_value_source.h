@@ -68,16 +68,16 @@ struct ValueSource : Component {
     assert(prepared() && "start() before prepare(ctx)");
     for (auto* pin : pins())
       if (pin->pull == Pull::Auto) pin->start(frames);
-    on_prepare(ctx_, frames);   // migration shim: the old hook, until every family is cut
     on_start(frames);
   }
-  // Migration shim: the old one call as the two. Deleted at the close of
-  // checkpoint 2.2, together with the two-argument on_prepare below.
-  void prepare(const RenderContext& ctx, int frames) { prepare(ctx); start(frames); }
 
   virtual void on_prepare(const RenderContext&) {}
   virtual void on_start(int) {}
-  virtual void on_prepare(const RenderContext&, int) {}   // the old hook; migration shim
+
+  // The host's facts, as prepare(ctx) left them: readable by anyone (a host
+  // handing a late-made node the same context), written only by prepare.
+  const RenderContext& render_context() const { return ctx_; }
+  bool prepared() const { return ctx_.sampleRate > 0; }
 
   // Advance every wired Auto pin in declaration order, then compute. A
   // node's work is compute(); next() is the same for every node.
@@ -115,11 +115,8 @@ struct ValueSource : Component {
   virtual void reseed() {}
 
 protected:
-  // The host's facts, as prepare(ctx) left them. A node reads its rate here
-  // and keeps no copy of its own.
+  // A node reads its rate here and keeps no copy of its own.
   int sample_rate() const { return ctx_.sampleRate; }
-  const RenderContext& render_context() const { return ctx_; }
-  bool prepared() const { return ctx_.sampleRate > 0; }
 
   // A node assigning itself (Envelope::replace_stages) assigns its own
   // state; the context the host gave this object stays, like the registry.
@@ -165,11 +162,17 @@ private:
 
 // A per-note push needs a constant to write into. Returns the Param's source
 // as a ConstantSource, first giving an unwired pin one at the pin's constant;
-// nullptr when the node has no such Param or the pin is wired to another source.
-inline std::shared_ptr<ConstantSource> ensure_constant(Component& node, std::string_view name) {
+// nullptr when the node has no such Param or the pin is wired to another
+// source. A constant made for a node the host has already prepared is
+// prepared with the node's own context, so start() never meets an
+// unprepared node.
+inline std::shared_ptr<ConstantSource> ensure_constant(ValueSource& node, std::string_view name) {
   Param* pin = node.param(name);
   if (!pin) return nullptr;
-  if (!pin->source) pin->source = std::make_shared<ConstantSource>(pin->constant);
+  if (!pin->source) {
+    pin->source = std::make_shared<ConstantSource>(pin->constant);
+    if (node.prepared()) pin->source->prepare(node.render_context());
+  }
   return std::dynamic_pointer_cast<ConstantSource>(pin->source);
 }
 

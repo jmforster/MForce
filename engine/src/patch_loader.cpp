@@ -58,8 +58,9 @@ static std::string slurp(const std::string& path)
 struct WaveSourceMono final : MonoSource {
     std::shared_ptr<WaveSource> src;
     explicit WaveSourceMono(std::shared_ptr<WaveSource> s) : src(std::move(s)) {}
-    void render(const RenderContext& ctx, float* out, int frames) override {
-        src->prepare(ctx, frames);
+    void prepare(const RenderContext& ctx) override { src->prepare(ctx); }
+    void render(float* out, int frames) override {
+        src->start(frames);
         for (int i = 0; i < frames; ++i) { ++SharingTrace::sample; out[i] = src->advance(); }
     }
 };
@@ -67,8 +68,9 @@ struct WaveSourceMono final : MonoSource {
 struct ValueSourceMono final : MonoSource {
     std::shared_ptr<ValueSource> src;
     explicit ValueSourceMono(std::shared_ptr<ValueSource> s) : src(std::move(s)) {}
-    void render(const RenderContext& ctx, float* out, int frames) override {
-        src->prepare(ctx, frames);
+    void prepare(const RenderContext& ctx) override { src->prepare(ctx); }
+    void render(float* out, int frames) override {
+        src->start(frames);
         for (int i = 0; i < frames; ++i) { ++SharingTrace::sample; out[i] = src->advance(); }
     }
 };
@@ -604,7 +606,6 @@ build_subgraph_with_seed_perturbation(
 static GraphResult build_graph(
     const std::unordered_map<std::string, json>& nodeMap,
     const std::vector<std::string>& nodeOrder,
-    int sampleRate,
     const PerformContext* perf = nullptr,
     // Instrument onset vocabulary (spec 2026-09-20-note-onsets-v2 §6/§8)
     // for NameGate name→id resolution. Null on non-instrument paths
@@ -1040,7 +1041,7 @@ static GraphResult build_graph(
         // Generic path: registry create + set_param + optional configurator
         // =================================================================
         else if (reg.has(type)) {
-            auto src = reg.create(type, sampleRate, seed);
+            auto src = reg.create(type, seed);
             if (pp) {
                 wire_params_generic(*src, *pp, valueNodes, &usage);
                 auto* configurator = reg.get_configurator(type);
@@ -1151,9 +1152,7 @@ build_subgraph_with_seed_perturbation(
         nodeOrder.push_back(id);
     }
 
-    // build_graph's rate parameter is dead (no node reads it); deleted at the
-    // close of checkpoint 2.2.
-    auto g = build_graph(nodeMap, nodeOrder, 0, perf);
+    auto g = build_graph(nodeMap, nodeOrder, perf);
 
     std::string outputId = subtree["output"].get<std::string>();
     auto it = g.valueNodes.find(outputId);
@@ -1437,11 +1436,10 @@ static void bind_wiring(const std::unordered_map<std::string, json>& nodeMap,
 // a PerformNode in the JSON resolves to these adapters during construction,
 // so they cannot be created afterwards.
 static PerformContext make_perform_context(PitchedInstrument::VoiceGraph& vg,
-                                           std::shared_ptr<InstrumentState> is,
-                                           int sampleRate)
+                                           std::shared_ptr<InstrumentState> is)
 {
     vg.performSource = std::make_shared<PerformSource>();
-    vg.performSource->set_instrument_state(std::move(is), sampleRate);
+    vg.performSource->set_instrument_state(std::move(is));
     vg.freqOut  = std::make_shared<PerformOut>(vg.performSource,
                                                PerformOut::Field::Frequency);
     vg.velOut   = std::make_shared<PerformOut>(vg.performSource,
@@ -1508,7 +1506,6 @@ Patch load_patch_file(const std::string& path)
         int polyphony = instJson.value("polyphony", 4);
 
         auto inst = std::make_unique<PitchedInstrument>();
-        inst->sampleRate = sampleRate;
         // Pre-clip master gain (applied before the soft_clip peak guard, so it
         // is the right knob for keeping hot chains out of the clipper).
         inst->volume = instJson.value("volume", 1.0f);
@@ -1526,8 +1523,8 @@ Patch load_patch_file(const std::string& path)
         for (int v = 0; v < polyphony; ++v) {
             PitchedInstrument::VoiceGraph vg;
             PerformContext perf = make_perform_context(
-                vg, inst->instrumentState, sampleRate);
-            auto g = build_graph(nodeMap, nodeOrder, sampleRate, &perf,
+                vg, inst->instrumentState);
+            auto g = build_graph(nodeMap, nodeOrder, &perf,
                                  &inst->onsetNames);
 
             // Find the top-level source for this voice
@@ -1570,6 +1567,9 @@ Patch load_patch_file(const std::string& path)
 
             inst->voicePool.push_back(std::move(vg));
         }
+        // The one place this patch's render context is made: the voices learn
+        // the rate here, before the embedded score plays a note.
+        inst->prepare(RenderContext{sampleRate});
 
         // Schedule notes from score section. Route through NotePerformer so
         // slide-run bundling works. BPM=60 makes beats == seconds, matching
@@ -1687,14 +1687,15 @@ Patch load_patch_file(const std::string& path)
             // state, so nothing here is ever read per note.
             PitchedInstrument::VoiceGraph mixThrowaway;
             PerformContext mixPerf = make_perform_context(
-                mixThrowaway, nullptr, sampleRate);
-            auto gMix = build_graph(nodeMap, nodeOrder, sampleRate, &mixPerf);
+                mixThrowaway, nullptr);
+            auto gMix = build_graph(nodeMap, nodeOrder, &mixPerf);
             const auto& mp = mixIt->second["params"];
             mixer->gainL = resolve_param_or(mp, "gainL", 1.0f, gMix.valueNodes);
             mixer->gainR = resolve_param_or(mp, "gainR", 1.0f, gMix.valueNodes);
         }
 
         mixer->channels.push_back(std::move(ch));
+        mixer->prepare(RenderContext{sampleRate});
         patch.mixer = std::move(mixer);
         return patch;
     }
@@ -1702,7 +1703,7 @@ Patch load_patch_file(const std::string& path)
     // -------------------------------------------------------------------
     // Standard mode (no instrument): single graph instance
     // -------------------------------------------------------------------
-    auto g = build_graph(nodeMap, nodeOrder, sampleRate);
+    auto g = build_graph(nodeMap, nodeOrder);
     auto& valueNodes = g.valueNodes;
     auto& monoNodes  = g.monoNodes;
 
@@ -1742,6 +1743,7 @@ Patch load_patch_file(const std::string& path)
         ch.pan    = std::make_shared<ConstantSource>(0.0f);
         ch.source = std::move(monoIt->second);
         mixer->channels.push_back(std::move(ch));
+        mixer->prepare(RenderContext{sampleRate});
         patch.mixer = std::move(mixer);
         {
             auto vIt = valueNodes.find(outputId);
@@ -1799,6 +1801,7 @@ Patch load_patch_file(const std::string& path)
     // channels is advanced by whichever channel holds it unwrapped.
     promote_starved_refs(coneRoots, nodeMap, nodeOrder, outputId, valueNodes);
 
+    mixer->prepare(RenderContext{sampleRate});
     patch.mixer = std::move(mixer);
     return patch;
 }
@@ -1833,7 +1836,6 @@ InstrumentPatch load_instrument_patch_json(const std::string& jsonText,
     int polyphony = std::max(instJson.value("polyphony", 4), minPolyphony);
 
     auto inst = std::make_unique<PitchedInstrument>();
-    inst->sampleRate = sampleRate;
     inst->volume = instJson.value("volume", 1.0f);
     if (instJson.contains("onsets"))
         inst->onsetNames =
@@ -1847,8 +1849,8 @@ InstrumentPatch load_instrument_patch_json(const std::string& jsonText,
     for (int v = 0; v < polyphony; ++v) {
         PitchedInstrument::VoiceGraph vg;
         PerformContext perf = make_perform_context(
-            vg, inst->instrumentState, sampleRate);
-        auto g = build_graph(nodeMap, nodeOrder, sampleRate, &perf,
+            vg, inst->instrumentState);
+        auto g = build_graph(nodeMap, nodeOrder, &perf,
                              &inst->onsetNames);
 
         auto srcIt = g.valueNodes.find(outputId);
@@ -1879,6 +1881,7 @@ InstrumentPatch load_instrument_patch_json(const std::string& jsonText,
 
         inst->voicePool.push_back(std::move(vg));
     }
+    inst->prepare(RenderContext{sampleRate});   // the voices learn the rate once, here
 
     return {std::move(inst), sampleRate};
 }

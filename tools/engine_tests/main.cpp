@@ -96,7 +96,7 @@ static void run_envelope_range_tests() {
         return env;
     };
     // Default (no min/max): final value 1.0 — unchanged behavior
-    auto e1 = mk(); e1->prepare(ctx, 4800);
+    auto e1 = mk(); e1->prepare(ctx); e1->start(4800);
     float last = 0; for (int i = 0; i < 4300; ++i) last = e1->next();
     CHECK_NEAR(last, 1.0f, 1e-3f);
 
@@ -104,7 +104,7 @@ static void run_envelope_range_tests() {
     auto e2 = mk();
     e2->set_param("minValue", std::make_shared<ConstantSource>(80.0f));
     e2->set_param("maxValue", std::make_shared<ConstantSource>(500.0f));
-    e2->prepare(ctx, 4800);
+    e2->prepare(ctx); e2->start(4800);
     float first = e2->next();
     CHECK(first < 120.0f && first >= 80.0f);
     for (int i = 1; i < 4300; ++i) last = e2->next();
@@ -124,7 +124,7 @@ static void run_stage_nominal_tests() {
     env->add_stage(a);
     env->add_stage({{1.0f, 1.0f, RampType::Linear, 0.0f}, 0.0f, 0.0f, 0.0f});
     env->set_gated(true);
-    env->prepare(ctx, 48000);  // nominal note duration 1 s
+    env->prepare(ctx); env->start(48000);  // nominal note duration 1 s
     // Nominal honored: attack = 12000 samples; value at sample 6000 ~ 0.5.
     // Without nominal the 0.001-pct attack finishes in ~48 samples.
     float v = 0; for (int i = 0; i < 6000; ++i) v = env->next();
@@ -136,7 +136,7 @@ static void run_stage_nominal_tests() {
     a2.nominal = 0.25f;
     env2->add_stage(a2);
     env2->add_stage({{1.0f, 1.0f, RampType::Linear, 0.0f}, 0.0f, 0.0f, 0.0f});
-    env2->prepare(ctx, 48000);
+    env2->prepare(ctx); env2->start(48000);
     float v2 = 0; for (int i = 0; i < 6000; ++i) v2 = env2->next();
     CHECK_NEAR(v2, 1.0f, 1e-3f);
 }
@@ -230,7 +230,7 @@ static void run_delay_line_tests() {
     dl->set_param("frequency", std::make_shared<ConstantSource>(480.0f));
     auto in = std::make_shared<ConstantSource>(0.0f);
     dl->set_param("source", in);
-    dl->prepare(ctx, 48000);
+    dl->prepare(ctx); dl->start(48000);
 
     in->set(1.0f);
     float first = dl->next();          // impulse enters at tick 1
@@ -250,14 +250,14 @@ static void run_delay_line_tests() {
     dl2->set_param("ratio", std::make_shared<ConstantSource>(2.0f));
     auto in2 = std::make_shared<ConstantSource>(0.0f);
     dl2->set_param("source", in2);
-    dl2->prepare(ctx, 48000);
+    dl2->prepare(ctx); dl2->start(48000);
     in2->set(1.0f); dl2->next(); in2->set(0.0f);
     for (int i = 0; i < 199; ++i) out = dl2->next();
     out = dl2->next();
     CHECK_NEAR(out, 1.0f, 1e-3f);
 
     // prepare() clears the line: no ring-over between notes
-    dl2->prepare(ctx, 48000);
+    dl2->prepare(ctx); dl2->start(48000);
     for (int i = 0; i < 300; ++i) CHECK(dl2->next() == 0.0f);
 }
 
@@ -301,7 +301,7 @@ static void run_phase_delay_tests() {
         f.set_param("source", in);
         f.set_param("cutoffFreq", std::make_shared<ConstantSource>(c.fc));
         f.set_param("resonance", std::make_shared<ConstantSource>(c.res));
-        f.prepare(ctx, 48000);
+        f.prepare(ctx); f.start(48000);
         const float meas = measure_phase_delay(f, *in, c.hz, 48000);
         const float pred = f.phase_delay_at(c.hz);
         CHECK_NEAR(pred, meas, 0.15f);
@@ -312,7 +312,7 @@ static void run_phase_delay_tests() {
         SVFSource f;
         f.set_param("source", in);
         f.set_param("cutoffFreq", std::make_shared<ConstantSource>(1000.0f));
-        f.prepare(ctx, 8);
+        f.prepare(ctx); f.start(8);
         f.next();
         const float w = 2.0f * 3.14159265f * 1000.0f / 48000.0f;
         CHECK_NEAR(f.phase_delay_at(1000.0f), (0.5f * 3.14159265f) / w, 1e-2f);
@@ -333,7 +333,7 @@ static void run_loop_compensation_tests() {
         sum->set_param("source2", std::make_shared<RefSource>(dl, true));
         dl->set_param("source", sum);
         if (comp) dl->set_setting("compensate", 1.0f);
-        dl->prepare(ctx, 48000);
+        dl->prepare(ctx); dl->start(48000);
         ex->set(1.0f); dl->next(); ex->set(0.0f);
         int first = 0, second = 0;
         for (int t = 2; t <= 400 && !second; ++t) {
@@ -371,7 +371,7 @@ static void run_loop_compensation_tests() {
         svf->set_param("resonance", std::make_shared<ConstantSource>(1.0f));
         dl->set_param("source", svf);
         if (comp) dl->set_setting("compensate", 1.0f);
-        dl->prepare(ctx, 48000);
+        dl->prepare(ctx); dl->start(48000);
         ex->set(1.0f); dl->next(); ex->set(0.0f);
         // The recirculating impulse smears into a multi-harmonic tone, so
         // measure the loop period by autocorrelation of the settled tail
@@ -416,7 +416,7 @@ static void run_shaper_tests() {
     auto sh = std::make_shared<ShaperSource>();
     auto in = std::make_shared<ConstantSource>(0.5f);
     sh->set_param("source", in);
-    sh->prepare(ctx, 100);
+    sh->prepare(ctx); sh->start(100);
     CHECK_NEAR(sh->next(), 0.5f, 1e-3f);
 
     // Clamp past the drawn ends
@@ -437,7 +437,7 @@ static void run_shaper_tests() {
     dz->set_param("smoothness", std::make_shared<ConstantSource>(0.5f));
     auto in2 = std::make_shared<ConstantSource>(0.2f);
     dz->set_param("source", in2);
-    dz->prepare(ctx, 100);
+    dz->prepare(ctx); dz->start(100);
     float mid = dz->next();
     CHECK(std::fabs(mid) < 0.05f);           // inside the dead zone
     in2->set(0.75f); in2->next();
@@ -465,7 +465,7 @@ static void run_shaper_seg_tests() {
     sh.set_param("smoothness", std::make_shared<ConstantSource>(0.5f));
     sh.set_param("drive", std::make_shared<ConstantSource>(1.0f));
     sh.set_param("source", std::make_shared<ConstantSource>(0.0f));
-    sh.prepare(ctx, 8);
+    sh.prepare(ctx); sh.start(8);
     sh.next();
     // Segment 1 (0->1) overridden to Hold (typeIdx 5): y stays 0 across it.
     sh.set_array("segs", {0.0f,0.0f, 5.0f,0.0f});
@@ -499,17 +499,17 @@ static void run_wormhole_tests() {
     auto in = std::make_shared<ConstantSource>(0.42f);
     WormholeSource wh;
     wh.set_param("source", in);
-    wh.prepare(ctx, 8);
+    wh.prepare(ctx); wh.start(8);
     CHECK_NEAR(wh.next(), 0.42f, 1e-9f);
     auto whIn = std::make_shared<WormholeSource>();
     whIn->set_param("source", in);
     WormholeSource whOut;
     whOut.set_param("source", whIn);
-    whOut.prepare(ctx, 8);
+    whOut.prepare(ctx); whOut.start(8);
     CHECK_NEAR(whOut.next(), 0.42f, 1e-9f);
     // Unwired = silence, not garbage
     WormholeSource bare;
-    bare.prepare(ctx, 8);
+    bare.prepare(ctx); bare.start(8);
     CHECK_NEAR(bare.next(), 0.0f, 1e-9f);
 }
 
@@ -524,7 +524,7 @@ static void run_shaper_morph_tests() {
     sh.set_param("source", std::make_shared<ConstantSource>(0.0f));
     sh.set_param("drive", std::make_shared<ConstantSource>(1.0f));
     sh.set_param("smoothness", std::make_shared<ConstantSource>(0.5f));
-    sh.prepare(ctx, 8);
+    sh.prepare(ctx); sh.start(8);
     sh.next();
     // m=0: exactly curve A (knee at 0.4)
     CHECK_NEAR(sh.map(0.4f), 0.2f, 1e-7f);
@@ -604,7 +604,7 @@ static void run_curve_shared_tests() {
     sh.set_param("smoothness", std::make_shared<ConstantSource>(0.6f));
     sh.set_param("drive", std::make_shared<ConstantSource>(1.0f));
     sh.set_param("source", std::make_shared<ConstantSource>(0.0f));
-    sh.prepare(ctx, 8);
+    sh.prepare(ctx); sh.start(8);
     sh.next();  // latches smoothness into the evaluator
     auto vals = sh.get_array("values");
     for (float x : {-1.5f, -0.9f, -0.3f, 0.0f, 0.05f, 0.5f, 0.9f, 1.5f})
@@ -642,7 +642,7 @@ struct Playback final : mforce::Generator {
     mforce::SourceCategory category() const override {
         return mforce::SourceCategory::Modulator;
     }
-    void on_prepare(const mforce::RenderContext&, int) override { i = 0; }
+    void on_start(int) override { i = 0; }
     float compute() override { return (buf && i < buf->size()) ? (*buf)[i++] : 0.0f; }
 };
 
@@ -654,7 +654,7 @@ double worst_energy_ratio(const std::vector<float>& x, float aNeg, float aPos) {
     f.set_param("source", src);
     f.set_param("coefNeg", std::make_shared<ConstantSource>(aNeg));
     f.set_param("coefPos", std::make_shared<ConstantSource>(aPos));
-    f.prepare(ctx, int(x.size()));
+    f.prepare(ctx); f.start(int(x.size()));
     double cx = 0.0, cy = 0.0, worst = 0.0;
     for (float s : x) {
         const double y = f.next();
@@ -825,8 +825,7 @@ static void run_hold_delivery_tests() {
     };
     auto render_all = [](InstrumentPatch& ip, int n) {
         std::vector<float> b(size_t(n), 0.0f);
-        RenderContext ctx{ip.sampleRate};
-        ip.instrument->render(ctx, b.data(), n);
+        ip.instrument->render(b.data(), n);
         return b;
     };
 
@@ -984,8 +983,7 @@ static void check_param_map_pitch_reaches_osc(const std::string& patch) {
         auto* pi = dynamic_cast<PitchedInstrument*>(ip.instrument.get());
         pi->play_note({midi, 0.8f, 0.4f}, 0.0f);
         std::vector<float> b(size_t(n), 0.0f);
-        RenderContext ctx{ip.sampleRate};
-        ip.instrument->render(ctx, b.data(), n);
+        ip.instrument->render(b.data(), n);
         return b;
     };
     std::vector<float> lo, hi;
@@ -1042,7 +1040,7 @@ static void run_envelope_retrigger_tests() {
     env.add_stage({{1.0f, 0.2f, RampType::Linear, 0.0f}, 0.010f, 0.0f, 0.0f});
     env.add_stage({{0.2f, 1.0f, RampType::Linear, 0.0f}, 0.020f, 0.0f, 0.0f});
     env.add_stage({{1.0f, 1.0f, RampType::Linear, 0.0f}, 0.0f,   0.0f, 0.0f});
-    env.prepare(RenderContext{sr}, sr);   // 1.0 s
+    env.prepare(RenderContext{sr}); env.start(sr);   // 1.0 s
 
     float last = 0.0f;
     for (int i = 0; i < sr / 2; ++i) last = env.next();
@@ -1076,7 +1074,7 @@ static void run_release_relayout_tests() {
     env.add_stage({{0.7f, 0.7f, RampType::Linear, 0.0f}, 0.0f,  0.0f, 0.0f});
     env.add_stage({{0.7f, 0.0f, RampType::Linear, 0.0f}, 0.25f, 0.0f, 0.0f});
     env.set_gated(true);
-    env.prepare(RenderContext{sr}, int(0.4f * sr));      // quarter note
+    env.prepare(RenderContext{sr}); env.start(int(0.4f * sr));      // quarter note
     for (int i = 0; i < int(0.35f * sr); ++i) env.next(); // into the hold
     // Release re-referenced to a HALF note: 25% of 0.8 s = 0.2 s.
     int rem = env.gate_release(int(0.8f * sr));
@@ -1090,7 +1088,7 @@ static void run_release_relayout_tests() {
     e2.add_stage({{1.0f, 1.0f, RampType::Linear, 0.0f}, 0.0f,  0.0f, 0.0f});
     e2.add_stage({{1.0f, 0.0f, RampType::Linear, 0.0f}, 0.25f, 0.0f, 0.0f});
     e2.set_gated(true);
-    e2.prepare(RenderContext{sr}, int(0.4f * sr));
+    e2.prepare(RenderContext{sr}); e2.start(int(0.4f * sr));
     for (int i = 0; i < int(0.2f * sr); ++i) e2.next();
     int rem2 = e2.gate_release();
     CHECK(std::abs(rem2 - int(0.25f * (0.4f - Envelope::kReflectionAllowanceSec)
@@ -1151,7 +1149,7 @@ static void run_onset_trigger_tests() {
     const int N = int(1.2f * 48000);
     std::vector<float> buf(size_t(N), 0.0f);
     RenderContext ctx{48000};
-    ip.instrument->render(ctx, buf.data(), N);
+    ip.instrument->render(buf.data(), N);
 
     auto rms = [&](float fromSec, float toSec) {
         int a = int(fromSec * 48000), b = int(toSec * 48000);
@@ -1171,8 +1169,7 @@ static void run_onset_trigger_tests() {
     pi2->play_note({57.0f, 0.8f, 0.5f, 0.0f, true}, 0.0f);
     pi2->play_note({57.0f, 0.8f, 0.5f, 0.0f, false}, 0.5f);
     std::vector<float> buf2(size_t(N), 0.0f);
-    RenderContext ctx2{48000};
-    ip2.instrument->render(ctx2, buf2.data(), N);
+    ip2.instrument->render(buf2.data(), N);
     double s = 0.0;
     int a = int(0.500f * 48000), b = int(0.508f * 48000);
     for (int i = a; i < b; ++i) s += double(buf2[size_t(i)]) * buf2[size_t(i)];
@@ -1213,7 +1210,7 @@ static void run_note_reseed_tests() {
     const int N = int(0.5f * 48000);
     std::vector<float> buf(size_t(int(1.6f * 48000)), 0.0f);
     RenderContext ctx{48000};
-    ip.instrument->render(ctx, buf.data(), int(buf.size()));
+    ip.instrument->render(buf.data(), int(buf.size()));
     // Flat-sustain overlap: note 1 is at sustain from 25% on; note 2 is
     // HELD at sustain throughout (no re-attack). Skip the last 10% for
     // note 2's release re-layout territory.
@@ -2024,7 +2021,7 @@ static void run_base_tests() {
     CHECK(d.input_descriptors().size() == 1);
     CHECK(d.category() == mforce::SourceCategory::Filter);
     mforce::RenderContext ctx{48000};
-    d.prepare(ctx, 100);
+    d.prepare(ctx); d.start(100);
     CHECK_NEAR(d.next(), 2.0f, 1e-6f);        // the input advanced (ramp -> 1), then 2 * 1
     CHECK_NEAR(d.next(), 4.0f, 1e-6f);
     CHECK_NEAR(d.current(), 4.0f, 1e-6f);
@@ -2076,8 +2073,8 @@ static void run_setting_clamp_tests() {
 // it chooses.
 namespace {
 struct PrepCounter final : mforce::Generator {
-  int prepares{0};
-  void on_prepare(const mforce::RenderContext&, int) override { ++prepares; }
+  int starts{0};
+  void on_start(int) override { ++starts; }
   float compute() override { return 0.0f; }
   const char* type_name() const override { return "PrepCounter"; }
 };
@@ -2096,11 +2093,11 @@ static void run_manual_pin_prepare_tests() {
     h.set_param("gate", a);
     h.set_param("gain", b);
     mforce::RenderContext ctx{48000};
-    h.prepare(ctx, 8);
-    CHECK(a->prepares == 0);                      // Manual: the base leaves it alone
-    CHECK(b->prepares == 1);                      // Auto: the base prepared it
-    h.gate.prepare(ctx, 8);                       // the node prepares it where it chooses
-    CHECK(a->prepares == 1);
+    h.prepare(ctx); h.start(8);
+    CHECK(a->starts == 0);                      // Manual: the base leaves it alone
+    CHECK(b->starts == 1);                      // Auto: the base prepared it
+    h.gate.prepare(ctx); h.gate.start(8);                       // the node prepares it where it chooses
+    CHECK(a->starts == 1);
 }
 
 // A Processor may own its primary input: Processor(Pull::Manual) keeps
@@ -2127,7 +2124,7 @@ static void run_processor_manual_input_tests() {
     d.set_param("source", ramp);
     CHECK(d.input_descriptors().size() == 1);  // the pin is still declared
     mforce::RenderContext ctx{48000};
-    d.prepare(ctx, 100);
+    d.prepare(ctx); d.start(100);
     CHECK_NEAR(d.next(), 2.0f, 1e-6f);         // one pull per sample, by the node
     CHECK_NEAR(d.next(), 4.0f, 1e-6f);
     ManualIdle idle;
@@ -2154,7 +2151,7 @@ static void run_wave_source_tests() {
     CHECK(s.range() == mforce::Generator::Range::Bipolar);
     CHECK(s.category() == mforce::SourceCategory::Oscillator);
     s.set_param("frequency", std::make_shared<ConstantSource>(12000.0f));
-    s.prepare(RenderContext{48000}, 8);
+    s.prepare(RenderContext{48000}); s.start(8);
     CHECK_NEAR(s.next(), 0.0f, 1e-6f);           // pos 0 -> sin(0)
     CHECK_NEAR(s.next(), 1.0f, 1e-6f);           // a quarter cycle later
     CHECK(s.get_param("frequency") != nullptr);
@@ -2172,7 +2169,7 @@ static void run_sharing_trace_tests() {
     sine->set_param("amplitude", shared);            // the primary consumer
     auto ref = std::make_shared<RefSource>(shared, false);
     auto tap = std::make_shared<RefSource>(shared, true);
-    sine->prepare(ctx, 16);
+    sine->prepare(ctx); sine->start(16);
     SharingTrace::enabled = true;
     SharingTrace::lagReads = 0;
     SharingTrace::sameTickTaps = 0;
@@ -2193,7 +2190,7 @@ static void run_sharing_trace_tests() {
     // though the source is being advanced this sample: not a same-tick tap.
     auto loop = std::make_shared<SineSource>();
     loop->set_param("amplitude", std::make_shared<RefSource>(loop, true));
-    loop->prepare(ctx, 16);
+    loop->prepare(ctx); loop->start(16);
     SharingTrace::sameTickTaps = 0;
     ++SharingTrace::sample;
     loop->advance();              // the driver's pull: the tap reads mid-advance
@@ -2214,10 +2211,10 @@ static void run_sharing_trace_tests() {
 namespace {
 // Counts how often a pin's owner prepared and advanced it.
 struct PinCounter final : mforce::Generator {
-  int prepares{0}, advances{0}, rate{0}, ctxPrepares{0};
+  int starts{0}, advances{0}, rate{0}, ctxPrepares{0};
   float level{1.0f};
   void on_prepare(const mforce::RenderContext& c) override { rate = c.sampleRate; ++ctxPrepares; }
-  void on_prepare(const mforce::RenderContext&, int) override { ++prepares; }
+  void on_start(int) override { ++starts; }
   float compute() override { ++advances; return level; }
   const char* type_name() const override { return "PinCounter"; }
 };
@@ -2240,11 +2237,11 @@ static void run_range_var_tests() {
         CHECK(a.normalized.value == false);
         CHECK(!a.setting_descriptors().empty());
         CHECK_NEAR(a.setting_descriptors()[0].default_value, 0.0f, 1e-6f);
-        a.prepare(ctx, 16);
+        a.prepare(ctx); a.start(16);
         CHECK_NEAR(a.next(), 15.0f, 1e-5f);        // var 0 remapped (0+1)/2
         RangeSource b(std::make_shared<ConstantSource>(10.0f),
                       std::make_shared<ConstantSource>(20.0f), zero, true);
-        b.prepare(ctx, 16);
+        b.prepare(ctx); b.start(16);
         CHECK_NEAR(b.next(), 10.0f, 1e-5f);        // already normalized
         CHECK(a.param_descriptors().size() == 3);
         CHECK(std::string(a.param_descriptors()[2].name) == "var");
@@ -2259,7 +2256,7 @@ static void run_range_var_tests() {
                     std::make_shared<ConstantSource>(0.5f),
                     std::make_shared<ConstantSource>(0.5f));
         CHECK(v.absolute.value == true);
-        v.prepare(ctx, 16);
+        v.prepare(ctx); v.start(16);
         CHECK_NEAR(v.next(), 2.5f, 1e-5f);         // 2 * (1 + 0.5 * 0.5)
         v.set_setting("absolute", 0.0f);
         CHECK_NEAR(v.next(), 2.5f + (2.0f - 2.5f) * 1.25f, 1e-5f);
@@ -2285,7 +2282,7 @@ static void run_multi_name_gate_tests() {
         CHECK(m.get_param("source") == nullptr);
         m.entries[1].weight = 0.5f;
         m.entries[1].delaySamples = 1;
-        m.prepare(ctx, 16);
+        m.prepare(ctx); m.start(16);
         CHECK_NEAR(m.next(), 1.0f, 1e-6f);         // the delayed entry is not yet in
         CHECK_NEAR(m.next(), 2.0f, 1e-6f);         // 1 + 2 * 0.5
         m.clear_param("source");
@@ -2304,8 +2301,8 @@ static void run_multi_name_gate_tests() {
         c->level = 3.0f;
         ng.set_param("in", c);
         ng.targetId = 3.0f;
-        ng.prepare(ctx, 16);
-        CHECK(c->prepares == 1);
+        ng.prepare(ctx); ng.start(16);
+        CHECK(c->starts == 1);
         CHECK(ng.next() == 1.0f);
         CHECK(ng.next() == 1.0f);
         CHECK(c->advances == 2);
@@ -2327,9 +2324,9 @@ static void run_envelope_pin_tests() {
         env->set_param("minValue", lo);
         env->set_param("maxValue", hi);
         env->set_param("trigger", trig);
-        env->prepare(ctx, 4800);
+        env->prepare(ctx); env->start(4800);
         for (int i = 0; i < 5; ++i) env->next();
-        CHECK(lo->prepares == 1 && hi->prepares == 1 && trig->prepares == 0);
+        CHECK(lo->starts == 1 && hi->starts == 1 && trig->starts == 0);
         CHECK(lo->advances == 5 && hi->advances == 5 && trig->advances == 0);
         CHECK(env->trigger.source == trig);
         CHECK(env->range() == Generator::Range::Unipolar);
@@ -2364,7 +2361,7 @@ static void run_envelope_preset_tests() {
     // sustain level across a rebuild.
     {
         auto smoke = [&](Envelope& e) {
-            e.prepare(ctx, 4800);
+            e.prepare(ctx); e.start(4800);
             for (int i = 0; i < 10; ++i) CHECK(std::isfinite(e.next()));
         };
         AREnvelope ar;    smoke(ar);
@@ -2426,10 +2423,10 @@ static void run_envelope_rebuild_pin_tests() {
     CHECK(adsr.pins() == pinsBefore);
     CHECK(adsr.get_param("minValue") == lo && adsr.get_param("maxValue") == hi);
 
-    adsr.prepare(ctx, 4800);
+    adsr.prepare(ctx); adsr.start(4800);
     const int n = 25;
     for (int i = 0; i < n; ++i) adsr.next();
-    CHECK(lo->prepares == 1 && hi->prepares == 1);
+    CHECK(lo->starts == 1 && hi->starts == 1);
     CHECK(lo->advances == n && hi->advances == n);
 }
 
@@ -2460,7 +2457,7 @@ static void run_noise_pin_tests() {
     RenderContext ctx{48000};
 
     auto smoke = [&](ValueSource& s) {
-        s.prepare(ctx, 4800);
+        s.prepare(ctx); s.start(4800);
         for (int i = 0; i < 10; ++i) CHECK(std::isfinite(s.next()));
     };
     WhiteNoiseSource white;           smoke(white);
@@ -2510,14 +2507,14 @@ static void run_noise_white_tests() {
 
     WhiteNoiseSource w(777u);
     Randomizer ref(777u);
-    w.prepare(ctx, 16);
+    w.prepare(ctx); w.start(16);
     for (int i = 0; i < 5; ++i) CHECK(w.next() == ref.valuePN());
     auto dens = std::make_shared<PinCounter>();
     dens->level = 1.0f;
     w.set_param("density", dens);
-    w.prepare(ctx, 16);
+    w.prepare(ctx); w.start(16);
     for (int i = 0; i < 5; ++i) w.next();
-    CHECK(dens->prepares == 1 && dens->advances == 5);
+    CHECK(dens->starts == 1 && dens->advances == 5);
     CHECK(w.get_param("density") == dens);
     CHECK(w.get_param("boost") == nullptr);
 }
@@ -2537,7 +2534,7 @@ static void run_noise_default_tests() {
     WanderNoise2Source w2;
     CHECK_NEAR(w2.minSpeed.current(), 0.01f, 1e-6f);
     CHECK_NEAR(w2.maxSpeed.current(), 0.1f, 1e-6f);
-    w2.prepare(ctx, 4800);
+    w2.prepare(ctx); w2.start(4800);
     float last = w2.next();
     bool steady = true;
     for (int i = 0; i < 2000; ++i) {              // a walk, not rail to rail
@@ -2561,10 +2558,10 @@ static void run_noise_red_pin_tests() {
     CHECK(red.amplitude.source == lfoDepth);
     CHECK(red.zeroCrossTendency.source == zct);
     red.set_param("frequency", std::make_shared<ConstantSource>(100.0f));
-    red.prepare(ctx, 4800);
+    red.prepare(ctx); red.start(4800);
     for (int i = 0; i < 7; ++i) red.next();
-    CHECK(lfoDepth->prepares == 1 && lfoDepth->advances == 7);
-    CHECK(zct->prepares == 1 && zct->advances == 7);
+    CHECK(lfoDepth->starts == 1 && lfoDepth->advances == 7);
+    CHECK(zct->starts == 1 && zct->advances == 7);
     red.clear_param("zeroCrossTendency");
     CHECK(red.get_param("zeroCrossTendency") == nullptr);
 }
@@ -2585,14 +2582,14 @@ static void run_noise_manual_amplitude_tests() {
     w1.set_param("speed", spd);
     w2.set_param("amplitude", amp2);
     w3.set_param("amplitude", amp3);
-    w1.prepare(ctx, 4800);
-    w2.prepare(ctx, 4800);
-    w3.prepare(ctx, 4800);
+    w1.prepare(ctx); w1.start(4800);
+    w2.prepare(ctx); w2.start(4800);
+    w3.prepare(ctx); w3.start(4800);
     for (int i = 0; i < 5; ++i) { w1.next(); w2.next(); w3.next(); }
-    CHECK(amp1->prepares == 1 && amp1->advances == 0);
-    CHECK(amp2->prepares == 1 && amp2->advances == 0);
-    CHECK(amp3->prepares == 1 && amp3->advances == 5);
-    CHECK(spd->prepares == 1 && spd->advances == 5);
+    CHECK(amp1->starts == 1 && amp1->advances == 0);
+    CHECK(amp2->starts == 1 && amp2->advances == 0);
+    CHECK(amp3->starts == 1 && amp3->advances == 5);
+    CHECK(spd->starts == 1 && spd->advances == 5);
     // The Manual pins were prepared, not only started: they know the rate.
     CHECK(amp1->rate == 48000 && amp2->rate == 48000);
     CHECK(amp3->rate == 48000 && spd->rate == 48000);
@@ -2629,7 +2626,7 @@ static void run_noise_layered_tests() {
     l.set_array("amplitude", {0.5f, 0.25f});
     CHECK_NEAR(l.get_setting("count"), 2.0f, 1e-6f);
     CHECK(l.get_array("amplitude") == std::vector<float>({0.5f, 0.25f}));
-    l.prepare(ctx, 4800);                           // the dirty layers rebuild here
+    l.prepare(ctx); l.start(4800);                           // the dirty layers rebuild here
     float sum = 0.0f;
     for (int i = 0; i < 2000; ++i) sum += std::fabs(l.next());
     CHECK(sum > 0.0f);
@@ -2655,8 +2652,8 @@ struct OrderProbe final : mforce::Generator {
     OrderProbe(std::vector<int>* l, int i) : log(l), id(i) {}
     std::vector<int>* log;
     int id;
-    int prepares{0};
-    void on_prepare(const mforce::RenderContext&, int) override { ++prepares; }
+    int starts{0};
+    void on_start(int) override { ++starts; }
     float compute() override { log->push_back(id); return 1.0f; }
     const char* type_name() const override { return "OrderProbe"; }
 };
@@ -2679,16 +2676,16 @@ static void run_wavetable_pin_tests() {
     CHECK(w.get_param("evolution") == nullptr);
     CHECK(w.get_param("speedFactor") == nullptr);
     CHECK_NEAR(w.speedFactor.current(), 1.0f, 1e-6f);
-    w.prepare(ctx, 4800);
+    w.prepare(ctx); w.start(4800);
     for (int i = 0; i < 10; ++i) CHECK(std::isfinite(w.next()));
 
     WavetableSource f;  // 480 Hz: a table of 100
     auto seed = std::make_shared<PinCounter>();
     f.set_param("inputSource", seed);
     f.set_param("frequency", std::make_shared<ConstantSource>(480.0f));
-    f.prepare(ctx, 4800);
+    f.prepare(ctx); f.start(4800);
     for (int i = 0; i < 250; ++i) f.next();
-    CHECK(seed->prepares == 1 && seed->advances == 100);
+    CHECK(seed->starts == 1 && seed->advances == 100);
     CHECK(seed->rate == 48000);                      // prepared, not only started
 
     for (bool interp : {false, true}) {
@@ -2697,9 +2694,9 @@ static void run_wavetable_pin_tests() {
         s.set_param("speedFactor", sf);
         s.set_setting("interpolate", interp ? 1.0f : 0.0f);
         CHECK(s.get_setting("interpolate") == (interp ? 1.0f : 0.0f));
-        s.prepare(ctx, 4800);
+        s.prepare(ctx); s.start(4800);
         for (int i = 0; i < 20; ++i) CHECK(std::isfinite(s.next()));
-        CHECK(sf->prepares == 1);
+        CHECK(sf->starts == 1);
         CHECK(sf->rate == 48000);
         CHECK(sf->advances == (interp ? 20 : 0));
     }
@@ -2717,8 +2714,8 @@ static void run_wavetable_evolution_tests() {
     w.set_param("evolution", reed);
     CHECK(w.get_param("evolution") == reed);
     CHECK(w.evolution.source == reed);
-    w.prepare(ctx, 4800);
-    CHECK(breath->prepares == 1);                          // wavetable -> holder -> pin
+    w.prepare(ctx); w.start(4800);
+    CHECK(breath->starts == 1);                          // wavetable -> holder -> pin
     for (int i = 0; i < 10; ++i) CHECK(std::isfinite(w.next()));
     CHECK(breath->advances == 10);
     w.clear_param("evolution");                            // no evolution, no more pulls
@@ -2729,12 +2726,12 @@ static void run_wavetable_evolution_tests() {
     WavetableSource n;  // wired, but not a holder
     n.set_param("evolution", std::make_shared<ConstantSource>(0.5f));
     CHECK(n.get_param("evolution") != nullptr);
-    n.prepare(ctx, 4800);
+    n.prepare(ctx); n.start(4800);
     for (int i = 0; i < 10; ++i) CHECK(std::isfinite(n.next()));
 
     WavetableSource o;  // the loader's direct-ownership path
     o.set_evolution(std::make_unique<PluckEvolution>(0.0f, 1u));
-    o.prepare(ctx, 4800);
+    o.prepare(ctx); o.start(4800);
     float peak = 0.0f;
     for (int i = 0; i < 2000; ++i) peak = std::max(peak, std::fabs(o.next()));
     CHECK(peak > 0.0f);
@@ -2754,7 +2751,7 @@ static void run_hybrid_ks_tests() {
     CHECK_NEAR(h.get_setting("numPartials"), 30.0f, 1e-6f);
     CHECK(h.range() == Generator::Range::Bipolar);
     CHECK(h.get_param("inputSource") != nullptr);
-    h.prepare(ctx, 4800);
+    h.prepare(ctx); h.start(4800);
     for (int i = 0; i < 10; ++i) CHECK(std::isfinite(h.next()));
 
     HybridKSSource k;  // 480 Hz: a table of 100
@@ -2765,11 +2762,11 @@ static void run_hybrid_ks_tests() {
     k.set_setting("numPartials", 4.0f);
     k.set_setting("morphDuration", 0.01f);
     CHECK_NEAR(k.get_setting("holdCycles"), 2.0f, 1e-6f);
-    k.prepare(ctx, 4800);
+    k.prepare(ctx); k.start(4800);
     bool finite = true;
     for (int i = 0; i < 1000; ++i) finite = finite && std::isfinite(k.next());   // through the switch
     CHECK(finite);
-    CHECK(seed->prepares == 1 && seed->advances == 100);
+    CHECK(seed->starts == 1 && seed->advances == 100);
 }
 
 // All twelve holders: the settings (and pins) each declares, in order, and
@@ -2887,9 +2884,9 @@ static void run_evolution_manual_pin_tests() {
         holder->set_param(second, b);
         WavetableSource w;
         w.set_param("evolution", holder);
-        w.prepare(ctx, 4800);
+        w.prepare(ctx); w.start(4800);
         for (int i = 0; i < 4; ++i) CHECK(std::isfinite(w.next()));
-        CHECK(a->prepares == 1 && b->prepares == 1);
+        CHECK(a->starts == 1 && b->starts == 1);
         CHECK(log == std::vector<int>({1, 2, 1, 2, 1, 2, 1, 2}));
         for (int i = 0; i < 5; ++i) holder->next();
         CHECK(log.size() == 8);
@@ -3038,7 +3035,7 @@ static void run_additive_partials_pin_tests() {
 static void run_additive_smoke_tests() {
     RenderContext ctx{48000};
     auto smoke = [&](ValueSource& s) {
-        s.prepare(ctx, 4800);
+        s.prepare(ctx); s.start(4800);
         for (int i = 0; i < 10; ++i) CHECK(std::isfinite(s.next()));
     };
     AdditiveSource2 a2;          a2.set_default_partials(40); smoke(a2);
@@ -3059,13 +3056,13 @@ static void run_additive_smoke_tests() {
     f.set_param("partials", std::make_shared<FullPartials>());
     f.set_param("formant", std::make_shared<Formant>());
     f.set_param("formantWeight", std::make_shared<ConstantSource>(0.5f));
-    f.prepare(ctx, 4800);
+    f.prepare(ctx); f.start(4800);
     float sum = 0.0f;
     for (int i = 0; i < 400; ++i) sum += std::fabs(f.next());
     CHECK(sum > 0.0f);
 
     basic.set_param("frequency", std::make_shared<ConstantSource>(220.0f));
-    basic.prepare(ctx, 4800);
+    basic.prepare(ctx); basic.start(4800);
     sum = 0.0f;
     for (int i = 0; i < 400; ++i) sum += std::fabs(basic.next());
     CHECK(sum > 0.0f);
@@ -3081,9 +3078,9 @@ static void run_additive_auto_pin_tests() {
             probes.push_back(std::make_shared<PinCounter>());
             s.set_param(n, probes.back());
         }
-        s.prepare(ctx, 4800);
+        s.prepare(ctx); s.start(4800);
         for (int i = 0; i < 7; ++i) s.next();
-        for (const auto& p : probes) CHECK(p->prepares == 1 && p->advances == 7);
+        for (const auto& p : probes) CHECK(p->starts == 1 && p->advances == 7);
     };
     AdditiveSource2 a2;
     a2.set_default_partials(10);
@@ -3097,9 +3094,9 @@ static void run_additive_auto_pin_tests() {
     b.set_default_partials(10);
     auto env = std::make_shared<PinCounter>();
     b.assign_ampl_envelope(env, AdditiveSource2::PartialFilter::All, 1, 10);
-    b.prepare(ctx, 4800);
+    b.prepare(ctx); b.start(4800);
     for (int i = 0; i < 7; ++i) b.next();
-    CHECK(env->prepares == 1 && env->advances == 7);
+    CHECK(env->starts == 1 && env->advances == 7);
 }
 
 // The pins the additive source drives through the partials and formant
@@ -3118,23 +3115,23 @@ static void run_additive_manual_pin_tests() {
     fp.partials_prepare(ctx);
     fp.partials_start(4800);
     CHECK(log.empty());
-    for (const auto& p : probes) CHECK(p->prepares == 1);
+    for (const auto& p : probes) CHECK(p->starts == 1);
     fp.partials_next();
     CHECK(log == std::vector<int>({1, 2, 3, 4, 5, 6, 7, 8}));
     log.clear();
     fp.next();                                             // the fake next() is partials_next()
     CHECK(log.size() == 8);
-    fp.prepare(ctx, 4800);                                 // the base prepare reaches partials_prepare once
-    for (const auto& p : probes) CHECK(p->prepares == 2);
+    fp.prepare(ctx); fp.start(4800);                                 // the base prepare reaches partials_prepare once
+    for (const auto& p : probes) CHECK(p->starts == 2);
 
     Formant fm;
     auto c1 = std::make_shared<PinCounter>(), c2 = std::make_shared<PinCounter>();
     fm.set_param("frequency", c1);
     fm.set_param("power", c2);
-    fm.prepare(ctx, 4800);
+    fm.prepare(ctx); fm.start(4800);
     fm.next();
     fm.fmt_next();
-    CHECK(c1->prepares == 1 && c2->prepares == 1);
+    CHECK(c1->starts == 1 && c2->starts == 1);
     CHECK(c1->rate == 48000 && c2->rate == 48000);     // fmt_prepare reached the pins
     CHECK(c1->advances == 2 && c2->advances == 2);
 
@@ -3145,15 +3142,15 @@ static void run_additive_manual_pin_tests() {
     seq.set_param("blend", b2);
     band.fmt_prepare(ctx); band.fmt_start(4800); band.fmt_next();
     seq.fmt_prepare(ctx);  seq.fmt_start(4800);  seq.fmt_next();
-    CHECK(b1->prepares == 1 && b1->advances == 1);
-    CHECK(b2->prepares == 1 && b2->advances == 1);
+    CHECK(b1->starts == 1 && b1->advances == 1);
+    CHECK(b2->starts == 1 && b2->advances == 1);
 
     ExpandRuleNode rule;                                   // nothing pulls its pins
     auto r1 = std::make_shared<PinCounter>();
     rule.set_param("spacing1", r1);
-    rule.prepare(ctx, 4800);
+    rule.prepare(ctx); rule.start(4800);
     for (int i = 0; i < 3; ++i) rule.next();
-    CHECK(r1->prepares == 0 && r1->advances == 0);
+    CHECK(r1->starts == 0 && r1->advances == 0);
 }
 
 // FullAdditiveSource reads the formant weight and floor only while a formant
@@ -3165,27 +3162,27 @@ static void run_additive_formant_pin_tests() {
     f.set_param("formantWeight", w);
     f.set_param("formantFloor", fl);
     f.set_param("partials", std::make_shared<FullPartials>());
-    f.prepare(ctx, 4800);
+    f.prepare(ctx); f.start(4800);
     for (int i = 0; i < 5; ++i) f.next();
-    CHECK(w->prepares == 1 && fl->prepares == 1);
+    CHECK(w->starts == 1 && fl->starts == 1);
     CHECK(w->advances == 0 && fl->advances == 0);          // no formant: never advanced
 
     auto formant = std::make_shared<Formant>();
     auto freq = std::make_shared<PinCounter>();
     formant->set_param("frequency", freq);
     f.set_param("formant", formant);
-    f.prepare(ctx, 4800);
+    f.prepare(ctx); f.start(4800);
     for (int i = 0; i < 5; ++i) f.next();
-    CHECK(w->prepares == 2 && fl->prepares == 2 && freq->prepares == 1);
+    CHECK(w->starts == 2 && fl->starts == 2 && freq->starts == 1);
     CHECK(w->advances == 5 && fl->advances == 5 && freq->advances == 5);
 
     FullAdditiveSource g;                           // no partials: nothing advances
     auto gw = std::make_shared<PinCounter>();
     g.set_param("formantWeight", gw);
     g.set_param("formant", formant);
-    g.prepare(ctx, 4800);
+    g.prepare(ctx); g.start(4800);
     for (int i = 0; i < 5; ++i) g.next();
-    CHECK(gw->prepares == 1 && gw->advances == 0);
+    CHECK(gw->starts == 1 && gw->advances == 0);
 }
 
 // The structural inputs are type-checked when wired and keep a typed view.
@@ -3274,7 +3271,7 @@ static void run_additive_setting_hook_tests() {
     a2.set_setting("partialCount", 50.0f);                 // rebuilds the default partials
     CHECK_NEAR(a2.get_setting("partialCount"), 50.0f, 1e-6f);
     RenderContext ctx{48000};
-    a2.prepare(ctx, 4800);
+    a2.prepare(ctx); a2.start(4800);
     for (int i = 0; i < 10; ++i) CHECK(std::isfinite(a2.next()));
     CHECK_NEAR(a2.get_setting("partialCount"), 50.0f, 1e-6f);   // prepare does not rewrite it
 }
@@ -3316,7 +3313,7 @@ static void run_additive_explicit_array_tests() {
     g->set_array("mult1", {1.0f, 2.0f, 3.0f});
     FullAdditiveSource f;
     f.set_param("partials", g);
-    f.prepare(ctx, 4800);
+    f.prepare(ctx); f.start(4800);
     float sum = 0.0f;
     for (int i = 0; i < 400; ++i) { float v = f.next(); CHECK(std::isfinite(v)); sum += std::fabs(v); }
     CHECK(sum > 0.0f);
@@ -3349,7 +3346,7 @@ std::string pin_order(const mforce::Component& c) {
 static void run_physical_pin_shape_tests() {
     RenderContext ctx{48000};
     auto smoke = [&](ValueSource& s) {
-        s.prepare(ctx, 4800);
+        s.prepare(ctx); s.start(4800);
         for (int i = 0; i < 10; ++i) CHECK(std::isfinite(s.next()));
     };
     AllpassResonator ar;          smoke(ar);
@@ -3412,9 +3409,9 @@ static void run_physical_auto_pin_tests() {
             probes.push_back(std::make_shared<PinCounter>());
             s.set_param(n, probes.back());
         }
-        s.prepare(ctx, 4800);
+        s.prepare(ctx); s.start(4800);
         for (int i = 0; i < 7; ++i) CHECK(std::isfinite(s.next()));
-        for (const auto& p : probes) CHECK(p->prepares == 1 && p->advances == 7);
+        for (const auto& p : probes) CHECK(p->starts == 1 && p->advances == 7);
     };
     AllpassResonator ar;
     count(ar, {"source", "frequency", "amplitude"});
@@ -3452,7 +3449,7 @@ static void run_physical_advance_order_tests() {
             s.set_param(n, probes.back());
             expect.push_back(id);
         }
-        s.prepare(ctx, 4800);
+        s.prepare(ctx); s.start(4800);
         s.next();
         CHECK(log == expect);
     };
@@ -3519,7 +3516,7 @@ static void run_physical_mesh_hook_tests() {
     ring.set_param("source", in);
     ring.set_setting("cols", 8.0f);
     ring.set_setting("rows", 6.0f);
-    ring.prepare(ctx, 4800);
+    ring.prepare(ctx); ring.start(4800);
     in->set(1.0f); ring.next(); in->set(0.0f);
     float energy = 0.0f;
     for (int i = 0; i < 60; ++i) energy += std::fabs(ring.next());
@@ -3533,7 +3530,7 @@ static void run_physical_behavior_tests() {
     RenderContext ctx{48000};
     BowTableSource bt;
     bt.set_param("source", std::make_shared<ConstantSource>(1.0f));
-    bt.prepare(ctx, 4800);
+    bt.prepare(ctx); bt.start(4800);
     CHECK_NEAR(bt.next(), 0.01f, 1e-6f);           // rc clamped up to minOutput
     bt.set_param("slope", std::make_shared<ConstantSource>(0.5f));
     CHECK_NEAR(bt.next(), std::pow(1.25f, -4.0f), 1e-5f);
@@ -3546,7 +3543,7 @@ static void run_physical_behavior_tests() {
         KSString ks;
         ks.set_param("source", in);
         if (bowed) ks.set_param("bow", std::make_shared<ConstantSource>(0.8f));
-        ks.prepare(ctx, 4800);
+        ks.prepare(ctx); ks.start(4800);
         in->set(1.0f); ks.next(); in->set(0.0f);
         float sum = 0.0f;
         for (int i = 0; i < 2000; ++i) sum += ks.next();
@@ -3584,7 +3581,7 @@ static_assert(std::is_base_of_v<Generator, Vibrato> && !std::is_base_of_v<Proces
 static void run_filter_pin_shape_tests() {
     RenderContext ctx{48000};
     auto smoke = [&](ValueSource& s) {
-        s.prepare(ctx, 4800);
+        s.prepare(ctx); s.start(4800);
         for (int i = 0; i < 10; ++i) CHECK(std::isfinite(s.next()));
     };
     BiquadSource bq;         smoke(bq);
@@ -3700,12 +3697,12 @@ static void run_filter_auto_pin_tests() {
             probes.push_back(std::make_shared<PinCounter>());
             s.set_param(n, probes.back());
         }
-        s.prepare(ctx, 4800);
+        s.prepare(ctx); s.start(4800);
         for (int i = 0; i < 7; ++i) CHECK(std::isfinite(s.next()));
         return probes;
     };
     auto count = [&](ValueSource& s, std::initializer_list<const char*> names) {
-        for (const auto& p : wire(s, names)) CHECK(p->prepares == 1 && p->advances == 7);
+        for (const auto& p : wire(s, names)) CHECK(p->starts == 1 && p->advances == 7);
     };
     BWLowpassFilter lp(2);   count(lp, {"source", "cutoffFreq"});
     BWHighpassFilter hp(2);  count(hp, {"source", "cutoffFreq"});
@@ -3719,13 +3716,13 @@ static void run_filter_auto_pin_tests() {
 
     BiquadSource raw;
     auto rp = wire(raw, {"source", "frequency", "radius"});
-    CHECK(rp[0]->prepares == 1 && rp[0]->advances == 7);
-    CHECK(rp[1]->prepares == 1 && rp[1]->advances == 0);
-    CHECK(rp[2]->prepares == 1 && rp[2]->advances == 0);
+    CHECK(rp[0]->starts == 1 && rp[0]->advances == 7);
+    CHECK(rp[1]->starts == 1 && rp[1]->advances == 0);
+    CHECK(rp[2]->starts == 1 && rp[2]->advances == 0);
     BiquadSource res;
     res.set_setting("mode", 1.0f);
     auto sp = wire(res, {"source", "frequency", "radius"});
-    for (const auto& p : sp) CHECK(p->prepares == 1 && p->advances == 7);
+    for (const auto& p : sp) CHECK(p->starts == 1 && p->advances == 7);
 
     // an unwired pin reads its declared constant and is not a source
     CHECK(lp.get_param("source") != nullptr && lp.get_param("nosuch") == nullptr);
@@ -3749,7 +3746,7 @@ static void run_filter_advance_order_tests() {
             s.set_param(n, probes.back());
             expect.push_back(id);
         }
-        s.prepare(ctx, 4800);
+        s.prepare(ctx); s.start(4800);
         s.next();
         CHECK(log == expect);
     };
@@ -3808,7 +3805,7 @@ static void run_filter_behavior_tests() {
     BiquadSource raw;
     raw.set_param("source", in);
     raw.set_setting("b0", 0.5f);
-    raw.prepare(ctx, 4800);
+    raw.prepare(ctx); raw.start(4800);
     CHECK_NEAR(raw.next(), 0.5f, 1e-6f);
 
     // resonance mode derives a1/a2 from the frequency and radius pins, and
@@ -3818,7 +3815,7 @@ static void run_filter_behavior_tests() {
     res.set_setting("mode", 1.0f);
     res.set_param("frequency", std::make_shared<ConstantSource>(1000.0f));
     res.set_param("radius", std::make_shared<ConstantSource>(0.9f));
-    res.prepare(ctx, 4800);
+    res.prepare(ctx); res.start(4800);
     res.next();
     CHECK_NEAR(res.get_setting("a2"), 0.81f, 1e-6f);
     CHECK_NEAR(res.get_setting("a1"),
@@ -3826,7 +3823,7 @@ static void run_filter_behavior_tests() {
     BiquadSource dflt;
     dflt.set_param("source", in);
     dflt.set_setting("mode", 1.0f);
-    dflt.prepare(ctx, 4800);
+    dflt.prepare(ctx); dflt.start(4800);
     dflt.next();
     CHECK_NEAR(dflt.get_setting("a2"), 0.997f * 0.997f, 1e-6f);
 
@@ -3834,7 +3831,7 @@ static void run_filter_behavior_tests() {
     auto imp = std::make_shared<ConstantSource>(1.0f);
     DelayFilter dly;
     dly.set_param("source", imp);
-    dly.prepare(ctx, 4800);
+    dly.prepare(ctx); dly.start(4800);
     CHECK_NEAR(dly.next(), 1.0f / 1.5f, 1e-5f);
     imp->set(0.0f);
     float echo = 0.0f;
@@ -3846,7 +3843,7 @@ static void run_filter_behavior_tests() {
     Limiter lim;
     lim.set_param("source", loud);
     lim.set_param("threshold", std::make_shared<ConstantSource>(0.5f));
-    lim.prepare(ctx, 4800);
+    lim.prepare(ctx); lim.start(4800);
     float last = 0.0f;
     for (int i = 0; i < 1000; ++i) last = lim.next();
     CHECK_NEAR(last, 0.5f, 1e-3f);
@@ -3856,7 +3853,7 @@ static void run_filter_behavior_tests() {
     rev.set_param("source", in);
     rev.set_param("wet", std::make_shared<ConstantSource>(0.0f));
     rev.set_param("dry", std::make_shared<ConstantSource>(1.0f));
-    rev.prepare(ctx, 4800);
+    rev.prepare(ctx); rev.start(4800);
     CHECK_NEAR(rev.next(), 1.0f, 1e-6f);
 
     // hammer bank: gain 0 and direct 1 leaves the input
@@ -3864,7 +3861,7 @@ static void run_filter_behavior_tests() {
     hammer.set_param("source", std::make_shared<ConstantSource>(0.7f));
     hammer.set_setting("gain", 0.0f);
     hammer.set_setting("direct", 1.0f);
-    hammer.prepare(ctx, 4800);
+    hammer.prepare(ctx); hammer.start(4800);
     CHECK_NEAR(hammer.next(), 0.7f, 1e-6f);
 }
 
@@ -3879,9 +3876,9 @@ static void run_filter_butterworth_tests() {
     lp.set_param("source", dc);
     hp.set_param("source", dc);
     bp.set_param("source", dc);
-    lp.prepare(ctx, 48000);
-    hp.prepare(ctx, 48000);
-    bp.prepare(ctx, 48000);
+    lp.prepare(ctx); lp.start(48000);
+    hp.prepare(ctx); hp.start(48000);
+    bp.prepare(ctx); bp.start(48000);
     float l = 0.0f, h = 1.0f, b = 1.0f;
     for (int i = 0; i < 4800; ++i) { l = lp.next(); h = hp.next(); b = bp.next(); }
     CHECK_NEAR(l, 1.0f, 1e-2f);
@@ -3893,7 +3890,7 @@ static void run_filter_butterworth_tests() {
     BWLowpassFilter low(2);
     low.set_param("source", tone);
     low.set_param("cutoffFreq", std::make_shared<ConstantSource>(100.0f));
-    low.prepare(ctx, 48000);
+    low.prepare(ctx); low.start(48000);
     float peak = 0.0f;
     for (int n = 0; n < 4800; ++n) {
         tone->set(std::sin(2.0f * 3.14159265f * 5000.0f * float(n) / 48000.0f));
@@ -3910,14 +3907,14 @@ static void run_vibrato_tests() {
     Vibrato off;
     off.set_param("frequency", std::make_shared<ConstantSource>(300.0f));
     off.set_setting("threshold", 1.0f);
-    off.prepare(ctx, 4800);                          // 0.1 s: below the threshold
+    off.prepare(ctx); off.start(4800);                          // 0.1 s: below the threshold
     for (int i = 0; i < 200; ++i) CHECK_NEAR(off.next(), 300.0f, 1e-6f);
 
     Vibrato on;
     on.set_setting("depth", 0.05f);
     on.set_setting("attack", 0.1f);
     on.set_param("frequency", std::make_shared<ConstantSource>(300.0f));
-    on.prepare(ctx, 48000);
+    on.prepare(ctx); on.start(48000);
     float lo = 1e9f, hi = -1e9f, y = 0.0f;
     bool finite = true;
     for (int i = 0; i < 48000; ++i) {
@@ -3977,8 +3974,8 @@ const SettingDescriptor* find_setting(const Component& c, const char* name) {
 }
 // Counts prepares and advances and remembers the length it was last prepared for.
 struct LengthProbe final : Generator {
-    int prepares{0}, advances{0}, lastFrames{0};
-    void on_prepare(const RenderContext&, int frames) override { ++prepares; lastFrames = frames; }
+    int starts{0}, advances{0}, lastFrames{0};
+    void on_start(int frames) override { ++starts; lastFrames = frames; }
     float compute() override { ++advances; return 1.0f; }
     const char* type_name() const override { return "LengthProbe"; }
 };
@@ -3990,7 +3987,7 @@ std::shared_ptr<ConstantSource> konst(float v) { return std::make_shared<Constan
 static void run_combine_mod_pin_shape_tests() {
     RenderContext ctx{48000};
     auto smoke = [&](ValueSource& s) {
-        s.prepare(ctx, 4800);
+        s.prepare(ctx); s.start(4800);
         bool finite = true;
         for (int i = 0; i < 10; ++i) finite = finite && std::isfinite(s.next());
         CHECK(finite);
@@ -4132,11 +4129,11 @@ static void run_combine_mod_auto_pin_tests() {
             probes.push_back(std::make_shared<PinCounter>());
             s.set_param(n, probes.back());
         }
-        s.prepare(ctx, 4800);
+        s.prepare(ctx); s.start(4800);
         bool finite = true;
         for (int i = 0; i < 7; ++i) finite = finite && std::isfinite(s.next());
         bool each = true;
-        for (const auto& p : probes) each = each && p->prepares == 1 && p->advances == 7;
+        for (const auto& p : probes) each = each && p->starts == 1 && p->advances == 7;
         CHECK(finite && each);
     };
     CombinedSource comb(nullptr, nullptr, CombineOp::Add);
@@ -4177,11 +4174,11 @@ static void run_combine_mod_manual_pin_tests() {
     xf.set_param("source1", s1);
     xf.set_param("source2", s2);
     xf.set_param("amplitude", amp);
-    xf.prepare(ctx, 100);
+    xf.prepare(ctx); xf.start(100);
     for (int i = 0; i < 100; ++i) xf.next();
-    CHECK(amp->prepares == 1 && amp->advances == 100);
-    CHECK(s1->prepares == 1 && s1->lastFrames == 55 && s1->advances == 55);
-    CHECK(s2->prepares == 1 && s2->lastFrames == 55 && s2->advances == 55);
+    CHECK(amp->starts == 1 && amp->advances == 100);
+    CHECK(s1->starts == 1 && s1->lastFrames == 55 && s1->advances == 55);
+    CHECK(s2->starts == 1 && s2->lastFrames == 55 && s2->advances == 55);
 
     // shaper: breakaway and capture are prepared every note, pulled only
     // while hysteresis is on
@@ -4189,17 +4186,17 @@ static void run_combine_mod_manual_pin_tests() {
         auto ba = std::make_shared<PinCounter>(), cap = std::make_shared<PinCounter>();
         s.set_param("breakaway", ba);
         s.set_param("capture", cap);
-        s.prepare(ctx, 100);
+        s.prepare(ctx); s.start(100);
         for (int i = 0; i < 7; ++i) s.next();
         return std::pair(ba, cap);
     };
     ShaperSource plain;
     auto [pba, pcap] = probesFor(plain);
-    CHECK(pba->prepares == 1 && pba->advances == 0 && pcap->prepares == 1 && pcap->advances == 0);
+    CHECK(pba->starts == 1 && pba->advances == 0 && pcap->starts == 1 && pcap->advances == 0);
     ShaperSource hyst;
     hyst.set_setting("hysteresis", 1.0f);
     auto [hba, hcap] = probesFor(hyst);
-    CHECK(hba->prepares == 1 && hba->advances == 7 && hcap->prepares == 1 && hcap->advances == 7);
+    CHECK(hba->starts == 1 && hba->advances == 7 && hcap->starts == 1 && hcap->advances == 7);
 
     // repeating: 10 samples of source, 6 of silence, per cycle (sr 1000);
     // the source is prepared again for each repetition and not pulled in a gap
@@ -4208,22 +4205,22 @@ static void run_combine_mod_manual_pin_tests() {
     rep.set_param("source", rsrc);
     rep.set_setting("duration", 0.01f);
     rep.set_setting("gapDuration", 0.005f);
-    rep.prepare(RenderContext{1000}, 100);
-    CHECK(rsrc->prepares == 1 && rsrc->lastFrames == 10);
+    rep.prepare(RenderContext{1000}); rep.start(100);
+    CHECK(rsrc->starts == 1 && rsrc->lastFrames == 10);
     std::vector<float> out;
     for (int i = 0; i < 32; ++i) out.push_back(rep.next());
     bool pattern = true;
     for (int i = 0; i < 32; ++i) pattern = pattern && (out[i] == ((i % 16) < 10 ? 1.0f : 0.0f));
     CHECK(pattern);
-    CHECK(rsrc->advances == 20 && rsrc->prepares == 3 && rsrc->lastFrames == 10);
+    CHECK(rsrc->advances == 20 && rsrc->starts == 3 && rsrc->lastFrames == 10);
 
     // multiplex: the wired source plays solo until the clones exist
     MultiplexSource solo;
     auto wired = std::make_shared<LengthProbe>();
     solo.set_param("source", wired);
-    solo.prepare(ctx, 100);
+    solo.prepare(ctx); solo.start(100);
     for (int i = 0; i < 5; ++i) solo.next();
-    CHECK(wired->prepares == 1 && wired->advances == 5);
+    CHECK(wired->starts == 1 && wired->advances == 5);
     CHECK_NEAR(solo.current(), 1.0f, 1e-6f);
     MultiplexSource cloned;
     auto unused = std::make_shared<LengthProbe>();
@@ -4232,9 +4229,9 @@ static void run_combine_mod_manual_pin_tests() {
     cloned.set_template("{}", 0, [](int) {
         return std::make_pair(std::shared_ptr<ValueSource>(konst(2.0f)), MultiplexSource::ValueNodeMap{});
     });
-    cloned.prepare(ctx, 100);
+    cloned.prepare(ctx); cloned.start(100);
     for (int i = 0; i < 5; ++i) cloned.next();
-    CHECK(unused->prepares == 0 && unused->advances == 0);
+    CHECK(unused->starts == 0 && unused->advances == 0);
     CHECK_NEAR(cloned.current(), 2.0f, 1e-6f);        // the mean of the three clones
 }
 
@@ -4251,7 +4248,7 @@ static void run_combine_mod_shaper_timing_tests() {
     sh.set_array("values", {-100.0f, -100.0f, 100.0f, 100.0f});   // identity over the test range
     sh.set_param("source", std::make_shared<RefSource>(ramp));
     sh.set_param("drive", doubled);
-    sh.prepare(ctx, 100);
+    sh.prepare(ctx); sh.start(100);
     CHECK_NEAR(sh.next(), 0.0f, 1e-3f);                   // 0 * 2: the ramp before this sample
     CHECK_NEAR(sh.next(), 4.0f, 1e-3f);                   // 1 * 4
     CHECK_NEAR(sh.next(), 12.0f, 1e-3f);                  // 2 * 6
@@ -4263,10 +4260,10 @@ static void run_combine_mod_shaper_timing_tests() {
         probes.push_back(std::make_shared<PinCounter>());
         full.set_param(n, probes.back());
     }
-    full.prepare(ctx, 100);
+    full.prepare(ctx); full.start(100);
     for (int i = 0; i < 7; ++i) full.next();
     bool each = true;
-    for (const auto& p : probes) each = each && p->prepares == 1 && p->advances == 7;
+    for (const auto& p : probes) each = each && p->starts == 1 && p->advances == 7;
     CHECK(each);
 }
 
@@ -4286,7 +4283,7 @@ static void run_combine_mod_advance_order_tests() {
             s.set_param(n, probes.back());
             expect.push_back(id);
         }
-        s.prepare(ctx, 100);
+        s.prepare(ctx); s.start(100);
         for (int i = 0; i < skip; ++i) s.next();
         log.clear();
         s.next();
@@ -4306,7 +4303,7 @@ static void run_combine_mod_advance_order_tests() {
 
     auto ramp = std::make_shared<UnitRamp>();
     CombinedSource sq(ramp, std::make_shared<RefSource>(ramp), CombineOp::Multiply);
-    sq.prepare(ctx, 100);
+    sq.prepare(ctx); sq.start(100);
     CHECK_NEAR(sq.next(), 1.0f, 1e-6f);
     CHECK_NEAR(sq.next(), 4.0f, 1e-6f);
     CHECK_NEAR(sq.next(), 9.0f, 1e-6f);
@@ -4327,15 +4324,15 @@ static void run_combine_mod_setting_hook_tests() {
         ++builds;
         return std::make_pair(std::shared_ptr<ValueSource>(konst(1.0f)), MultiplexSource::ValueNodeMap{});
     });
-    mux.prepare(ctx, 8);                                   CHECK(builds == 4);
-    mux.prepare(ctx, 8);                                   CHECK(builds == 4);
-    mux.set_setting("count", 4.0f);  mux.prepare(ctx, 8);  CHECK(builds == 4);
-    mux.set_setting("count", 6.0f);  mux.prepare(ctx, 8);  CHECK(builds == 10);
-    mux.mark_dirty();                mux.prepare(ctx, 8);  CHECK(builds == 16);
+    mux.prepare(ctx); mux.start(8);                                   CHECK(builds == 4);
+    mux.prepare(ctx); mux.start(8);                                   CHECK(builds == 4);
+    mux.set_setting("count", 4.0f);  mux.prepare(ctx); mux.start(8);  CHECK(builds == 4);
+    mux.set_setting("count", 6.0f);  mux.prepare(ctx); mux.start(8);  CHECK(builds == 10);
+    mux.mark_dirty();                mux.prepare(ctx); mux.start(8);  CHECK(builds == 16);
 
     // a 4-sample ramp: the first width is inferred to be seconds (< 1) at sr 1000
     auto ramp4 = [&](SegmentSource& s) {
-        s.prepare(RenderContext{1000}, 100);
+        s.prepare(RenderContext{1000}); s.start(100);
         std::vector<float> out;
         for (int i = 0; i < 6; ++i) out.push_back(s.next());
         return out;
@@ -4381,14 +4378,14 @@ static void run_combine_mod_setting_hook_tests() {
 static void run_combine_mod_behavior_tests() {
     RenderContext ctx{48000};
     CombinedSource c(konst(0.5f), konst(0.25f), CombineOp::Add, 0.2f);
-    c.prepare(ctx, 100);
+    c.prepare(ctx); c.start(100);
     CHECK_NEAR(c.next(), (0.5f + 0.25f * 1.2f) * 0.5f, 1e-6f);
     c.set_setting("operation", 1.0f);
     CHECK_NEAR(c.next(), 0.5f * 0.25f * 1.2f, 1e-6f);
     c.set_setting("operation", 3.0f);
     CHECK_NEAR(c.next(), 0.5f + 0.25f * 1.2f, 1e-6f);
     c.set_setting("operation", 2.0f);
-    c.prepare(ctx, 100);
+    c.prepare(ctx); c.start(100);
     CHECK_NEAR(c.next(), 0.5f, 1e-6f);                                     // fade starts at source1
     CHECK_NEAR(c.next(), 0.5f * 0.99f + 0.25f * 1.2f * 0.01f, 1e-6f);
 
@@ -4397,7 +4394,7 @@ static void run_combine_mod_behavior_tests() {
     xf.set_param("source1", konst(1.0f));
     xf.set_param("source2", konst(2.0f));
     xf.set_param("amplitude", konst(0.5f));
-    xf.prepare(ctx, 100);
+    xf.prepare(ctx); xf.start(100);
     std::vector<float> out;
     for (int i = 0; i < 100; ++i) out.push_back(xf.next());
     CHECK_NEAR(out[0], 0.5f, 1e-6f);
@@ -4421,18 +4418,18 @@ static void run_combine_mod_behavior_tests() {
 
     // the static sources hold one value per note, from prepare on
     StaticVarSource sv(2.0f, 0.0f);
-    sv.prepare(ctx, 10);
+    sv.prepare(ctx); sv.start(10);
     CHECK_NEAR(sv.current(), 2.0f, 1e-6f);
     CHECK_NEAR(sv.next(), 2.0f, 1e-6f);
     StaticRangeSource sr(0.2f, 0.4f, 0.3f);
-    sr.prepare(ctx, 10);
+    sr.prepare(ctx); sr.start(10);
     const float held = sr.current();
     CHECK(held >= 0.2f && held <= 0.4f && sr.next() == held && sr.next() == held);
 
     // a one-shot segment ramps over its width, scaled by amplitude, then stops
     SegmentSource once(std::vector<float>{4.0f, 1.0f}, true);
     once.set_param("amplitude", konst(2.0f));
-    once.prepare(ctx, 100);
+    once.prepare(ctx); once.start(100);
     CHECK_NEAR(once.next(), 0.5f, 1e-5f);
     CHECK_NEAR(once.next(), 1.0f, 1e-5f);
     CHECK_NEAR(once.next(), 1.5f, 1e-5f);
@@ -4444,7 +4441,7 @@ static void run_combine_mod_behavior_tests() {
     phased.add_stage({konst(1.0f), 0.5f, 0.0f, 0.0f, 1.0f});
     phased.add_stage({konst(2.0f), 0.0f, 0.0f, 0.0f, 1.0f});
     phased.set_param("amplitude", konst(0.5f));
-    phased.prepare(ctx, 4800);
+    phased.prepare(ctx); phased.start(4800);
     CHECK_NEAR(phased.next(), 0.5f, 1e-6f);
 }
 
@@ -4457,7 +4454,7 @@ static void run_combine_mod_hysteresis_tests() {
     sh.set_param("source", in);
     sh.set_array("values2", {-1.0f, 0.0f, 1.0f, 0.0f});    // the slip curve: flat zero
     sh.set_setting("hysteresis", 1.0f);
-    sh.prepare(ctx, 100);
+    sh.prepare(ctx); sh.start(100);
     CHECK_NEAR(sh.next(), 0.2f, 1e-5f);                    // under the 0.6 breakaway: curve A
     in->set(0.9f);
     CHECK_NEAR(sh.next(), 0.0f, 1e-5f);                    // past it: curve B
@@ -4474,7 +4471,7 @@ static void run_combine_mod_configurator_tests() {
     auto& reg = SourceRegistry::instance();
     const ResolveParamFn none = [](const nlohmann::json&) { return std::shared_ptr<ValueSource>(); };
     auto configure = [&](const char* type, const char* json) {
-        auto src = reg.create(type, 48000);
+        auto src = reg.create(type);
         (*reg.get_configurator(type))(*src, nlohmann::json::parse(json), none);
         return src;
     };
@@ -4559,7 +4556,7 @@ static void run_split_equivalence_tests() {
     for (auto& [name, cat] : reg.registered_types()) {
         const std::string n = name;
         if (kNotRenderableUnwired.count(n)) continue;
-        bool ok = split_equivalent([&] { return reg.create(n, 48000); });
+        bool ok = split_equivalent([&] { return reg.create(n); });
         if (!ok) std::printf("  split differs: %s\n", n.c_str());
         CHECK(ok);
     }
@@ -4981,13 +4978,13 @@ static void run_shaper_pin_split_tests() {
         sh.set_param(n, pins.back());
     }
     sh.prepare(RenderContext{48000});
-    for (const auto& p : pins) CHECK(p->rate == 48000 && p->prepares == 0);   // prepared, not started
+    for (const auto& p : pins) CHECK(p->rate == 48000 && p->starts == 0);   // prepared, not started
     sh.start(64);
-    for (const auto& p : pins) CHECK(p->rate == 48000 && p->prepares == 1);   // started once
+    for (const auto& p : pins) CHECK(p->rate == 48000 && p->starts == 1);   // started once
     // A second prepare is idempotent and starts nothing; each start reaches each pin.
     sh.prepare(RenderContext{48000});
     sh.start(64);
-    for (const auto& p : pins) CHECK(p->rate == 48000 && p->prepares == 2);
+    for (const auto& p : pins) CHECK(p->rate == 48000 && p->starts == 2);
     // The shaper itself: read timing is untouched, so the split is exact
     // with the drive and the input wired to real sources.
     CHECK(split_equivalent([] {
@@ -5044,7 +5041,7 @@ static void run_physical_split_tests() {
     }));
     for (const char* type : {"PierceFilter", "BowTable", "Wormhole"}) {
         CHECK(split_equivalent([&] {
-            auto s = SourceRegistry::instance().create(type, 48000);
+            auto s = SourceRegistry::instance().create(type);
             s->set_param("source", std::make_shared<SineSource>());
             return s;
         }));
@@ -5179,12 +5176,12 @@ static void run_filter_pin_split_tests() {
     bq.set_param("radius", rad);
     bq.prepare(RenderContext{48000});
     CHECK(freq->rate == 48000 && rad->rate == 48000);
-    CHECK(freq->prepares == 0 && rad->prepares == 0);        // prepared, not started
+    CHECK(freq->starts == 0 && rad->starts == 0);        // prepared, not started
     bq.start(64);
-    CHECK(freq->prepares == 1 && rad->prepares == 1);        // started once
+    CHECK(freq->starts == 1 && rad->starts == 1);        // started once
     bq.prepare(RenderContext{48000});
     bq.start(64);
-    CHECK(freq->prepares == 2 && rad->prepares == 2);
+    CHECK(freq->starts == 2 && rad->starts == 2);
 
     DelayFilter dly;
     dly.prepare(RenderContext{22050});
@@ -5340,9 +5337,9 @@ static void run_combine_mod_pin_split_tests() {
     xf.set_param("source2", s2);
     xf.prepare(ctx);
     CHECK(s1->rate == 48000 && s2->rate == 48000);
-    CHECK(s1->prepares == 0 && s2->prepares == 0);           // prepared, not started
+    CHECK(s1->starts == 0 && s2->starts == 0);           // prepared, not started
     xf.start(100);
-    CHECK(s1->prepares == 1 && s2->prepares == 1);           // started once
+    CHECK(s1->starts == 1 && s2->starts == 1);           // started once
     CHECK(s1->ctxPrepares == 1 && s2->ctxPrepares == 1);
 
     RepeatingSource rep;
@@ -5351,13 +5348,13 @@ static void run_combine_mod_pin_split_tests() {
     auto kid = std::make_shared<PinCounter>();
     rep.set_param("source", kid);
     rep.prepare(ctx);
-    CHECK(kid->rate == 48000 && kid->prepares == 0);
+    CHECK(kid->rate == 48000 && kid->starts == 0);
     rep.start(9600);
-    CHECK(kid->prepares == 1);                               // the first repetition
+    CHECK(kid->starts == 1);                               // the first repetition
     render_samples(rep, 9600);
     // A repetition boundary starts the child and never prepares it.
     CHECK(kid->ctxPrepares == 1);
-    CHECK(kid->prepares == 4);
+    CHECK(kid->starts == 4);
     CHECK(kid->advances > 3 * 2400 && kid->advances < 4 * 2400);
 
     PhasedValueSource ph(0.05f);
@@ -5366,9 +5363,9 @@ static void run_combine_mod_pin_split_tests() {
     ph.add_stage({st2, 0.0f, 0.0f, 0.0f, 1.0f});
     ph.prepare(ctx);
     CHECK(st1->rate == 48000 && st2->rate == 48000);
-    CHECK(st1->prepares == 0 && st2->prepares == 0);
+    CHECK(st1->starts == 0 && st2->starts == 0);
     ph.start(4800);
-    CHECK(st1->prepares == 1 && st2->prepares == 1);
+    CHECK(st1->starts == 1 && st2->starts == 1);
     CHECK(st1->ctxPrepares == 1 && st2->ctxPrepares == 1);
 
     // The multiplex prepares the clones its builder returns unprepared, builds
@@ -5382,19 +5379,19 @@ static void run_combine_mod_pin_split_tests() {
     });
     mux.prepare(ctx);
     CHECK(clones.size() == 3);
-    for (const auto& c : clones) CHECK(c->rate == 48000 && c->prepares == 0);
+    for (const auto& c : clones) CHECK(c->rate == 48000 && c->starts == 0);
     mux.start(64);
     mux.prepare(ctx);
     mux.start(64);
     CHECK(clones.size() == 3);
-    for (const auto& c : clones) CHECK(c->prepares == 2);
+    for (const auto& c : clones) CHECK(c->starts == 2);
     MultiplexSource solo;
     auto wired = std::make_shared<PinCounter>();
     solo.set_param("source", wired);
     solo.prepare(ctx);
-    CHECK(wired->rate == 48000 && wired->prepares == 0);
+    CHECK(wired->rate == 48000 && wired->starts == 0);
     solo.start(64);
-    CHECK(wired->prepares == 1);
+    CHECK(wired->starts == 1);
 }
 
 // Each repetition restarts the child by start(); the repeater's output is the
@@ -5411,7 +5408,7 @@ static void run_repeating_restart_tests() {
     auto once = make(), shim = make();
     once->prepare(ctx);
     once->start(4800);
-    shim->prepare(ctx, 4800);
+    shim->prepare(ctx); shim->start(4800);
     const auto out = render_samples(*once, 9600);
     CHECK(same_bits(out, render_samples(*shim, 9600)));
 
@@ -5484,6 +5481,38 @@ static void run_combine_mod_split_tests() {
     run_repeating_restart_tests();
 }
 
+// The hosts after checkpoint 2.2: a loaded instrument is prepared by the
+// loader and only started per note; render takes no context.
+static void run_host_split_tests() {
+    const int n = 48000;
+    auto render_twice = [&](const char* path) {
+        std::vector<float> a(size_t(n), 0.0f), b(size_t(n), 0.0f);
+        for (auto* out : {&a, &b}) {
+            auto ip = load_scoreless(path);
+            auto* inst = dynamic_cast<PitchedInstrument*>(ip.instrument.get());
+            inst->play_note({60.0f, 0.8f, 0.4f, 0.0f, false, nullptr}, 0.0f);
+            inst->play_note({64.0f, 0.8f, 0.4f, 0.0f, false, nullptr}, 0.5f);
+            ip.instrument->render(out->data(), n);
+        }
+        CHECK(same_bits(a, b));
+        float peak = 0.0f;
+        for (float v : a) peak = std::max(peak, std::fabs(v));
+        CHECK(peak > 0.01f);
+    };
+    render_twice("patches/baselines/BaselineSIN.json");
+    // PerformSource learns the rate through prepare: the wheel smoother's
+    // first step is 1 - exp(-1 / (0.010 s * rate)).
+    {
+        PerformSource ps;
+        auto is = std::make_shared<InstrumentState>();
+        is->wheel.store(1.0f);
+        ps.set_instrument_state(is);
+        ps.prepare(RenderContext{48000});
+        ps.tick();
+        CHECK_NEAR(ps.wheel(), 1.0f - std::exp(-1.0f / (0.010f * 48000.0f)), 1e-6f);
+    }
+}
+
 // Checkpoint 2.2: the contract's sweep, then the families as they are cut.
 static void run_prepare_start_tests() {
     run_split_equivalence_tests();
@@ -5496,6 +5525,7 @@ static void run_prepare_start_tests() {
     run_filter_split_tests();
     run_vibrato_split_tests();
     run_combine_mod_split_tests();
+    run_host_split_tests();
 }
 
 int main() {

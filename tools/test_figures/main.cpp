@@ -1173,7 +1173,7 @@ int run_render(int argc, char** argv) {
     float totalSeconds = totalBeats * 60.0f / bpm + 2.0f;
     int frames = int(totalSeconds * float(ip.sampleRate));
     std::vector<float> mono(frames, 0.0f);
-    { RenderContext ctx{ip.sampleRate}; ip.instrument->render(ctx, mono.data(), frames); }
+    { ip.instrument->render(mono.data(), frames); }
     std::vector<float> stereo(frames * 2);
     for (int j = 0; j < frames; ++j) { stereo[j*2] = mono[j]; stereo[j*2+1] = mono[j]; }
 

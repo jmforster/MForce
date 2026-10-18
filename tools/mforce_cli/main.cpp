@@ -100,7 +100,7 @@ static int run_chords(int argc, char** argv) {
     float totalSeconds = part.totalBeats() * 60.0f / bpm + 1.0f; // +1s tail
     int frames = int(totalSeconds * float(ip.sampleRate));
     std::vector<float> mono(frames, 0.0f);
-    { RenderContext _ctx{ip.sampleRate}; ip.instrument->render(_ctx, mono.data(), frames); };
+    { ip.instrument->render(mono.data(), frames); };
 
     // Convert mono to stereo
     std::vector<float> stereo(frames * 2);
@@ -180,7 +180,7 @@ static bool render_piece_to_wav(Piece& piece, const std::string& instrumentType,
     float totalSeconds = totalBeats * 60.0f / bpm + 2.0f;
     int frames = int(totalSeconds * float(sampleRate));
     std::vector<float> mono(frames, 0.0f);
-    { RenderContext _ctx{sampleRate}; instrument.render(_ctx, mono.data(), frames); };
+    { instrument.render(mono.data(), frames); };
 
     instrument.renderedNotes.clear();
 
@@ -318,7 +318,7 @@ static void render_and_write(const std::vector<Instrument*>& instruments,
 
     for (auto* inst : instruments) {
         std::fill(buf.begin(), buf.end(), 0.0f);
-        { RenderContext _ctx{sampleRate}; inst->render(_ctx, buf.data(), frames); };
+        { inst->render(buf.data(), frames); };
         for (int i = 0; i < frames; ++i)
             mix[i] += buf[i];
     }
@@ -597,7 +597,7 @@ static int run_compose(int argc, char** argv) {
         std::vector<float> buf(frames);
         for (auto* inst : instruments) {
             std::fill(buf.begin(), buf.end(), 0.0f);
-            { RenderContext _ctx{sampleRate}; inst->render(_ctx, buf.data(), frames); };
+            { inst->render(buf.data(), frames); };
             for (int k = 0; k < frames; ++k) mono[k] += buf[k];
         }
 
@@ -717,7 +717,7 @@ static int run_play(int argc, char** argv) {
     float totalSeconds = totalBeats * 60.0f / bpm + 2.0f;
     int frames = int(totalSeconds * float(ip.sampleRate));
     std::vector<float> mono(frames, 0.0f);
-    { RenderContext _ctx{ip.sampleRate}; ip.instrument->render(_ctx, mono.data(), frames); };
+    { ip.instrument->render(mono.data(), frames); };
 
     std::vector<float> stereo(frames * 2);
     for (int i = 0; i < frames; ++i) {
@@ -774,7 +774,7 @@ static int run_patch(int argc, char** argv) {
 
     std::vector<float> out((size_t)p.frames * 2);
     auto _t0 = std::chrono::steady_clock::now();
-    { RenderContext _ctx{p.sampleRate}; p.mixer->render(_ctx, out.data(), p.frames); };
+    { p.mixer->render(out.data(), p.frames); };
     auto _t1 = std::chrono::steady_clock::now();
     double _ms = std::chrono::duration<double, std::milli>(_t1 - _t0).count();
     double _audioMs = 1000.0 * double(p.frames) / double(p.sampleRate);
@@ -879,7 +879,7 @@ static int run_dun(int argc, char** argv) {
     float totalSeconds = totalBeats * 60.0f / bpm + 2.0f;
     int frames = int(totalSeconds * float(ip.sampleRate));
     std::vector<float> mono(frames, 0.0f);
-    { RenderContext _ctx{ip.sampleRate}; ip.instrument->render(_ctx, mono.data(), frames); };
+    { ip.instrument->render(mono.data(), frames); };
 
     // Leading silence (pre-roll) so Windows audio output priming doesn't
     // eat the first note. 1s is comfortable for most drivers.
@@ -989,7 +989,7 @@ static int test_ornaments(int /*argc*/, char** /*argv*/) {
         float totalSeconds = part.totalBeats() * 60.0f / bpm + 2.0f;
         int frames = int(totalSeconds * float(ip.sampleRate));
         std::vector<float> mono(frames, 0.0f);
-        { RenderContext _ctx{ip.sampleRate}; ip.instrument->render(_ctx, mono.data(), frames); };
+        { ip.instrument->render(mono.data(), frames); };
 
         float peak = 0.0f;
         for (auto s : mono) {
@@ -1034,7 +1034,7 @@ static int run_dump_descriptors(int argc, char** argv)
         // Instantiating is the only way to reach the virtual descriptor sets;
         // a default-constructed instance is thrown away immediately.
         std::shared_ptr<ValueSource> s;
-        try { s = reg.create(name, 48000); }
+        try { s = reg.create(name); }
         catch (const std::exception&) { continue; }
         if (!s) continue;
 

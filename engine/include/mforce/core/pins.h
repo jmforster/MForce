@@ -63,10 +63,6 @@ struct Param final : PinBase {
   ParamDescriptor descriptor() const { return {name, constant, min, max, hint}; }
   void prepare(const RenderContext& ctx) override;
   void start(int frames) override;
-  // Migration shim: the old one call as the two. Deleted at the close of
-  // checkpoint 2.2. It lives here and not on PinBase because a class that
-  // declares prepare(ctx) hides every base overload of that name.
-  void prepare(const RenderContext& ctx, int frames) { prepare(ctx); start(frames); }
 };
 
 // A signal input: a source, required or optional; reads 0 when unwired.
@@ -87,8 +83,6 @@ struct Input final : PinBase {
   InputDescriptor descriptor() const { return {name, multi, hint}; }
   void prepare(const RenderContext& ctx) override;
   void start(int frames) override;
-  // Migration shim, as on Param; deleted at the close of checkpoint 2.2.
-  void prepare(const RenderContext& ctx, int frames) { prepare(ctx); start(frames); }
 };
 
 // A scalar configuration value (float, int or bool), not connectable. The
