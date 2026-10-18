@@ -8,6 +8,10 @@ checkpoints wait for Matt's read.
 
 ## Awaiting
 
+(nothing — checkpoint 2.2 is being planned)
+
+## Resolved
+
 **R2 — checkpoint 2.1: pins declared once** (2026-10-17, commits
 `1b9b69f`..`5f9aeea` plus the close)
 - Read: `docs/autonomy/refactor/reports/2026-10-16-checkpoint-2.1.md`
@@ -28,8 +32,6 @@ checkpoints wait for Matt's read.
   (they do today); (3) the descriptor-order changes the UI shows
   (WaveSource's amplitude first; the presets' and Partials subclasses'
   inherited settings first).
-
-## Resolved
 
 **R1 — checkpoint 0: the structure meter** (2026-10-05, commit `637207a`) — VERDICT 2026-10-16: format accepted; R2 (checkpoint 2.1) uses it unchanged.
 - Read: `docs/autonomy/refactor/reports/2026-10-05-checkpoint0-meter.md`
