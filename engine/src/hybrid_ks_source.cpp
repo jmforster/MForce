@@ -6,14 +6,29 @@ namespace mforce {
 
 static constexpr float TAU = 2.0f * 3.14159265358979323846f;
 
-HybridKSSource::HybridKSSource(int, uint32_t seed)
+HybridKSSource::HybridKSSource(uint32_t seed)
 : rng_(seed) {
   inputSource.source = std::make_shared<WhiteNoiseSource>(seed);
 }
 
-void HybridKSSource::on_prepare(const RenderContext& ctx, int frames) {
+// The target array holds an entry per partial the additive phase reads.
+void HybridKSSource::size_targets() {
+  if (int(targetAmpl_.size()) < numPartials.value)
+    targetAmpl_.resize(numPartials.value, 0.0f);
+}
+
+void HybridKSSource::on_prepare(const RenderContext& ctx) {
+  inputSource.prepare(ctx);
+  size_targets();
+}
+
+void HybridKSSource::on_setting_changed(std::string_view name) {
+  if (name == "numPartials" && prepared()) size_targets();
+}
+
+void HybridKSSource::on_start(int frames) {
   WaveSource::on_start(frames);
-  inputSource.prepare(ctx, frames);
+  inputSource.start(frames);
 
   table_.clear();
   tablePtr_ = -1;
@@ -23,10 +38,6 @@ void HybridKSSource::on_prepare(const RenderContext& ctx, int frames) {
   additiveSample_ = 0;
 
   morphSamples_ = int(morphDuration.value * float(sample_rate()));
-
-  // Ensure target has enough entries
-  if (int(targetAmpl_.size()) < numPartials.value)
-    targetAmpl_.resize(numPartials.value, 0.0f);
 }
 
 void HybridKSSource::fill_table() {

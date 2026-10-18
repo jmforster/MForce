@@ -23,12 +23,11 @@ struct WaveEvolution {
   // Called each sample — modify the wavetable in-place.
   virtual void evolve(std::vector<float>& values, int index) = 0;
 
-  // Called by the holder during prepare(). SR-sensitive subclasses override
-  // to capture ctx.sampleRate for use by adjust()/evolve(). Was previously
-  // set_sample_rate(int), called once from WavetableSource::prepare; now
-  // receives the full RenderContext so future fields (block size, etc.)
-  // propagate without another API change.
-  virtual void on_prepare(const RenderContext& /*ctx*/) {}
+  // Called by WavetableSource::on_prepare. SR-sensitive subclasses override
+  // to capture ctx.sampleRate for use by adjust()/evolve(). Receives the
+  // full RenderContext so future fields (block size, etc.) propagate without
+  // another API change.
+  virtual void prepare(const RenderContext& /*ctx*/) {}
 };
 
 // ---------------------------------------------------------------------------
@@ -441,7 +440,7 @@ struct BowedStringEvolution final : WaveEvolution {
   Input& bow;                          // bow pressure envelope (0..1)
   Param& frictionGain;                 // slope of Friedlander bow table
 
-  void on_prepare(const RenderContext& ctx) override { sampleRate_ = ctx.sampleRate; }
+  void prepare(const RenderContext& ctx) override { sampleRate_ = ctx.sampleRate; }
 
   float adjust(float frequency) override {
     int totalLen = int(std::lround(float(sampleRate_) / std::max(20.0f, frequency)));
@@ -548,7 +547,7 @@ struct BrassEvolution final : WaveEvolution {
   Param& brassiness;                   // tanh drive → wave-steepening harmonics
   Input& breath;
 
-  void on_prepare(const RenderContext& ctx) override { sampleRate_ = ctx.sampleRate; }
+  void prepare(const RenderContext& ctx) override { sampleRate_ = ctx.sampleRate; }
 
   float adjust(float frequency) override {
     lipState_ = 0.0f;
@@ -731,9 +730,13 @@ struct ReedEvolutionSource final : ValueSource, IEvolutionHolder {
 
   WaveEvolution* get_evolution() override { return &evo_; }
 
-  void on_prepare(const RenderContext& ctx, int frames) override {
-    breath.prepare(ctx, frames);
-    reedStiffness.prepare(ctx, frames);
+  void on_prepare(const RenderContext& ctx) override {
+    breath.prepare(ctx);
+    reedStiffness.prepare(ctx);
+  }
+  void on_start(int frames) override {
+    breath.start(frames);
+    reedStiffness.start(frames);
   }
   float compute() override { return 0.0f; }
 
@@ -762,9 +765,13 @@ struct BowedStringEvolutionSource final : ValueSource, IEvolutionHolder {
 
   WaveEvolution* get_evolution() override { return &evo_; }
 
-  void on_prepare(const RenderContext& ctx, int frames) override {
-    bow.prepare(ctx, frames);
-    frictionGain.prepare(ctx, frames);
+  void on_prepare(const RenderContext& ctx) override {
+    bow.prepare(ctx);
+    frictionGain.prepare(ctx);
+  }
+  void on_start(int frames) override {
+    bow.start(frames);
+    frictionGain.start(frames);
   }
   float compute() override { return 0.0f; }
 
@@ -793,9 +800,13 @@ struct BrassEvolutionSource final : ValueSource, IEvolutionHolder {
 
   WaveEvolution* get_evolution() override { return &evo_; }
 
-  void on_prepare(const RenderContext& ctx, int frames) override {
-    breath.prepare(ctx, frames);
-    brassiness.prepare(ctx, frames);
+  void on_prepare(const RenderContext& ctx) override {
+    breath.prepare(ctx);
+    brassiness.prepare(ctx);
+  }
+  void on_start(int frames) override {
+    breath.start(frames);
+    brassiness.start(frames);
   }
   float compute() override { return 0.0f; }
 
@@ -1278,9 +1289,13 @@ struct BitRotateEvolutionSource final : ValueSource, IEvolutionHolder {
 
   WaveEvolution* get_evolution() override { return &evo_; }
 
-  void on_prepare(const RenderContext& ctx, int frames) override {
-    shiftBits.prepare(ctx, frames);
-    stepEvery.prepare(ctx, frames);
+  void on_prepare(const RenderContext& ctx) override {
+    shiftBits.prepare(ctx);
+    stepEvery.prepare(ctx);
+  }
+  void on_start(int frames) override {
+    shiftBits.start(frames);
+    stepEvery.start(frames);
   }
   float compute() override { return 0.0f; }
 

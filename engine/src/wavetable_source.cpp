@@ -5,16 +5,22 @@
 
 namespace mforce {
 
-WavetableSource::WavetableSource(int, uint32_t inputSeed) {
+WavetableSource::WavetableSource(uint32_t inputSeed) {
   inputSource.source = std::make_shared<WhiteNoiseSource>(inputSeed);
 }
 
-void WavetableSource::on_prepare(const RenderContext& ctx, int frames) {
+void WavetableSource::on_prepare(const RenderContext& ctx) {
+  speedFactor.prepare(ctx);
+  inputSource.prepare(ctx);
+  evolution.prepare(ctx);
+  if (evolution_) evolution_->prepare(ctx);
+}
+
+void WavetableSource::on_start(int frames) {
   WaveSource::on_start(frames);
-  speedFactor.prepare(ctx, frames);
-  inputSource.prepare(ctx, frames);
-  evolution.prepare(ctx, frames);
-  if (evolution_) evolution_->on_prepare(ctx);
+  speedFactor.start(frames);
+  inputSource.start(frames);
+  evolution.start(frames);
 }
 
 void WavetableSource::fill_table() {

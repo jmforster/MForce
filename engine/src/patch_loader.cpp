@@ -931,7 +931,7 @@ static GraphResult build_graph(
         }
         // ---- WavetableSource (evolution types) ----
         else if (type == "WavetableSource") {
-            auto wt = std::make_shared<WavetableSource>(sampleRate, seed.value_or(0xC0FFEEu));
+            auto wt = std::make_shared<WavetableSource>(seed.value_or(0xC0FFEEu));
             if (pp) {
                 const auto& p = *pp;
                 wire_params_generic(*wt, p, valueNodes, &usage);
@@ -977,7 +977,7 @@ static GraphResult build_graph(
         }
         // ---- HybridKSSource (setting params) ----
         else if (type == "HybridKSSource") {
-            auto hks = std::make_shared<HybridKSSource>(sampleRate, seed.value_or(0xBEEF'C0DEu));
+            auto hks = std::make_shared<HybridKSSource>(seed.value_or(0xBEEF'C0DEu));
             if (pp) {
                 const auto& p = *pp;
                 wire_params_generic(*hks, p, valueNodes, &usage);

@@ -30,19 +30,28 @@ struct HybridKSSource final : WaveSource {
   Setting<float> morphDuration{this, "morphDuration", 0.5f, 0.01f, 5.0f};
   Setting<int>   numPartials  {this, "numPartials",   30,   1,     200};
 
-  explicit HybridKSSource(int sampleRate, uint32_t seed = 0xBEEF'C0DEu);
+  explicit HybridKSSource(uint32_t seed = 0xBEEF'C0DEu);
 
-  void set_target_partials(std::vector<float> t) { targetAmpl_ = std::move(t); }
+  // How many targets the node holds (at least numPartials once prepared); a
+  // diagnostic for tests, like tracks_frequency_live().
+  int target_count() const { return int(targetAmpl_.size()); }
+  void set_target_partials(std::vector<float> t) {
+    targetAmpl_ = std::move(t);
+    if (prepared()) size_targets();
+  }
 
   const char* type_name() const override { return "HybridKSSource"; }
 
-  void on_prepare(const RenderContext& ctx, int frames) override;
+  void on_prepare(const RenderContext& ctx) override;
+  void on_start(int frames) override;
+  void on_setting_changed(std::string_view name) override;
 
 protected:
   float wave() override;
 
 private:
   void fill_table();
+  void size_targets();
   void ks_evolve(int index);
   void extract_partials();   // DFT at transition point
   float compute_ks();

@@ -2668,7 +2668,7 @@ struct OrderProbe final : mforce::Generator {
 static void run_wavetable_pin_tests() {
     RenderContext ctx{48000};
 
-    WavetableSource w(48000);
+    WavetableSource w;
     CHECK(param_names(w) == "amplitude,frequency,phase,speedFactor,");
     CHECK(input_names(w) == "inputSource,evolution,");
     CHECK(setting_names(w) == "interpolate,");
@@ -2682,16 +2682,17 @@ static void run_wavetable_pin_tests() {
     w.prepare(ctx, 4800);
     for (int i = 0; i < 10; ++i) CHECK(std::isfinite(w.next()));
 
-    WavetableSource f(48000);                              // 480 Hz: a table of 100
+    WavetableSource f;  // 480 Hz: a table of 100
     auto seed = std::make_shared<PinCounter>();
     f.set_param("inputSource", seed);
     f.set_param("frequency", std::make_shared<ConstantSource>(480.0f));
     f.prepare(ctx, 4800);
     for (int i = 0; i < 250; ++i) f.next();
     CHECK(seed->prepares == 1 && seed->advances == 100);
+    CHECK(seed->rate == 48000);                      // prepared, not only started
 
     for (bool interp : {false, true}) {
-        WavetableSource s(48000);
+        WavetableSource s;
         auto sf = std::make_shared<PinCounter>();
         s.set_param("speedFactor", sf);
         s.set_setting("interpolate", interp ? 1.0f : 0.0f);
@@ -2699,6 +2700,7 @@ static void run_wavetable_pin_tests() {
         s.prepare(ctx, 4800);
         for (int i = 0; i < 20; ++i) CHECK(std::isfinite(s.next()));
         CHECK(sf->prepares == 1);
+        CHECK(sf->rate == 48000);
         CHECK(sf->advances == (interp ? 20 : 0));
     }
 }
@@ -2708,7 +2710,7 @@ static void run_wavetable_pin_tests() {
 static void run_wavetable_evolution_tests() {
     RenderContext ctx{48000};
 
-    WavetableSource w(48000);
+    WavetableSource w;
     auto reed = std::make_shared<ReedEvolutionSource>();
     auto breath = std::make_shared<PinCounter>();
     reed->set_param("breath", breath);
@@ -2724,13 +2726,13 @@ static void run_wavetable_evolution_tests() {
     for (int i = 0; i < 10; ++i) w.next();
     CHECK(breath->advances == 10);
 
-    WavetableSource n(48000);                              // wired, but not a holder
+    WavetableSource n;  // wired, but not a holder
     n.set_param("evolution", std::make_shared<ConstantSource>(0.5f));
     CHECK(n.get_param("evolution") != nullptr);
     n.prepare(ctx, 4800);
     for (int i = 0; i < 10; ++i) CHECK(std::isfinite(n.next()));
 
-    WavetableSource o(48000);                              // the loader's direct-ownership path
+    WavetableSource o;  // the loader's direct-ownership path
     o.set_evolution(std::make_unique<PluckEvolution>(0.0f, 1u));
     o.prepare(ctx, 4800);
     float peak = 0.0f;
@@ -2743,7 +2745,7 @@ static void run_wavetable_evolution_tests() {
 static void run_hybrid_ks_tests() {
     RenderContext ctx{48000};
 
-    HybridKSSource h(48000);
+    HybridKSSource h;
     CHECK(param_names(h) == "amplitude,frequency,phase,");
     CHECK(input_names(h) == "inputSource,");
     CHECK(setting_names(h) == "holdCycles,morphDuration,numPartials,");
@@ -2755,7 +2757,7 @@ static void run_hybrid_ks_tests() {
     h.prepare(ctx, 4800);
     for (int i = 0; i < 10; ++i) CHECK(std::isfinite(h.next()));
 
-    HybridKSSource k(48000);                               // 480 Hz: a table of 100
+    HybridKSSource k;  // 480 Hz: a table of 100
     auto seed = std::make_shared<PinCounter>();
     k.set_param("inputSource", seed);
     k.set_param("frequency", std::make_shared<ConstantSource>(480.0f));
@@ -2883,7 +2885,7 @@ static void run_evolution_manual_pin_tests() {
         auto b = std::make_shared<OrderProbe>(&log, 2);
         holder->set_param(first, a);
         holder->set_param(second, b);
-        WavetableSource w(48000);
+        WavetableSource w;
         w.set_param("evolution", holder);
         w.prepare(ctx, 4800);
         for (int i = 0; i < 4; ++i) CHECK(std::isfinite(w.next()));
@@ -4759,11 +4761,102 @@ static void run_noise_split_tests() {
     }));
 }
 
+// ---------------------------------------------------------------------------
+// Wavetable family: the seed noise, the evolution and the speed pin are
+// Manual, so the node prepares and starts them; HybridKS sizes its target
+// array in prepare and again when numPartials changes afterwards.
+// ---------------------------------------------------------------------------
+static void run_wavetable_split_tests() {
+    // The loader's shape: seed noise in inputSource, an evolution holder in
+    // evolution; then the interpolating read; then holders with Manual pins.
+    for (bool interp : {false, true}) {
+        CHECK(split_equivalent([interp] {
+            auto w = std::make_shared<WavetableSource>();
+            w->set_param("inputSource", std::make_shared<WhiteNoiseSource>(0x1234u));
+            w->set_param("evolution", std::make_shared<PluckEvolutionSource>());
+            w->set_setting("interpolate", interp ? 1.0f : 0.0f);
+            return w;
+        }));
+    }
+    CHECK(split_equivalent([] {
+        auto w = std::make_shared<WavetableSource>();
+        auto reed = std::make_shared<ReedEvolutionSource>();
+        reed->set_param("breath", std::make_shared<ConstantSource>(0.6f));
+        w->set_param("evolution", reed);
+        w->set_param("speedFactor", std::make_shared<ConstantSource>(1.5f));
+        return w;
+    }));
+    CHECK(split_equivalent([] {
+        auto w = std::make_shared<WavetableSource>();
+        auto bit = std::make_shared<BitRotateEvolutionSource>();
+        bit->set_param("shiftBits", std::make_shared<ConstantSource>(2.0f));
+        w->set_param("evolution", bit);
+        return w;
+    }));
+    // An evolution that sizes its lines from the rate learns it through the
+    // node's prepare: the same patch at half the rate is a different render.
+    {
+        auto bowed_at = [](int rate) {
+            WavetableSource w;
+            auto bow = std::make_shared<BowedStringEvolutionSource>();
+            bow->set_param("bow", std::make_shared<ConstantSource>(0.5f));
+            w.set_param("evolution", bow);
+            w.set_param("inputSource", std::make_shared<WhiteNoiseSource>(0x77u));
+            w.prepare(RenderContext{rate});
+            w.start(2048);
+            return render_samples(w, 2048);
+        };
+        const auto lo = bowed_at(24000), hi = bowed_at(48000);
+        CHECK(!same_bits(lo, hi));
+        CHECK(std::all_of(hi.begin(), hi.end(), [](float v) { return std::isfinite(v); }));
+    }
+}
+
+static void run_hybrid_ks_split_tests() {
+    // HybridKS: numPartials changed after prepare must reach the target array
+    // (12 shrinks the loop; 40 outgrows the 20 targets set below).
+    for (float partials : {12.0f, 40.0f}) {
+        auto make = [] {
+            auto h = std::make_shared<HybridKSSource>();
+            h->set_setting("holdCycles", 2.0f);
+            h->set_setting("morphDuration", 0.02f);
+            h->set_target_partials(std::vector<float>(20, 0.05f));
+            return h;
+        };
+        const RenderContext ctx{48000};
+        auto late = make();
+        late->prepare(ctx);
+        late->set_setting("numPartials", partials);
+        CHECK(late->target_count() >= int(partials));   // the setting hook grew the array
+        auto early = make();
+        early->set_setting("numPartials", partials);
+        early->prepare(ctx);
+        std::vector<float> ra, rb;
+        for (int note = 0; note < 2; ++note) {
+            late->start(4800);
+            early->start(4800);
+            const auto a = render_samples(*late, 4800), b = render_samples(*early, 4800);
+            ra.insert(ra.end(), a.begin(), a.end());
+            rb.insert(rb.end(), b.begin(), b.end());
+        }
+        CHECK(same_bits(ra, rb));
+        CHECK(std::all_of(ra.begin(), ra.end(), [](float v) { return std::isfinite(v); }));
+    }
+    // And the plain split, with the default numPartials.
+    CHECK(split_equivalent([] {
+        auto h = std::make_shared<HybridKSSource>();
+        h->set_setting("holdCycles", 2.0f);
+        return h;
+    }));
+}
+
 // Checkpoint 2.2: the contract's sweep, then the families as they are cut.
 static void run_prepare_start_tests() {
     run_split_equivalence_tests();
     run_core_split_tests();
     run_noise_split_tests();
+    run_wavetable_split_tests();
+    run_hybrid_ks_split_tests();
 }
 
 int main() {

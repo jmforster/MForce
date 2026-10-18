@@ -23,7 +23,7 @@ struct WavetableSource final : WaveSource {
   Input evolution  {this, "evolution",   Input::Optional, nullptr, false, Pull::Manual};
   Setting<bool> interpolate{this, "interpolate", false, false, true};
 
-  explicit WavetableSource(int sampleRate, uint32_t inputSeed = 0xC0FFEEu);
+  explicit WavetableSource(uint32_t inputSeed = 0xC0FFEEu);
 
   // Evolution via graph: wire an IEvolutionHolder node to the "evolution" input
   // Evolution via patch_loader: direct ownership for JSON-loaded patches
@@ -42,7 +42,8 @@ struct WavetableSource final : WaveSource {
     }
   }
 
-  void on_prepare(const RenderContext& ctx, int frames) override;
+  void on_prepare(const RenderContext& ctx) override;
+  void on_start(int frames) override;
 
 protected:
   float wave() override;

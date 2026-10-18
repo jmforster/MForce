@@ -520,8 +520,8 @@ void register_all_sources() {
     // -----------------------------------------------------------------------
 
     reg.register_type("WavetableSource", SourceCategory::Oscillator,
-        [](int sr, auto seed) {
-            return std::make_shared<WavetableSource>(sr, seed.value_or(0xC0FFEEu));
+        [](int, auto seed) {
+            return std::make_shared<WavetableSource>(seed.value_or(0xC0FFEEu));
         });
 
     reg.register_type("PluckEvolution", SourceCategory::Generator,
@@ -569,8 +569,8 @@ void register_all_sources() {
         [](int, auto) { return std::make_shared<BitRotateEvolutionSource>(); });
 
     reg.register_type("HybridKSSource", SourceCategory::Oscillator,
-        [](int sr, auto seed) {
-            return std::make_shared<HybridKSSource>(sr, seed.value_or(0xBEEF'C0DEu));
+        [](int, auto seed) {
+            return std::make_shared<HybridKSSource>(seed.value_or(0xBEEF'C0DEu));
         });
 
     // -----------------------------------------------------------------------
