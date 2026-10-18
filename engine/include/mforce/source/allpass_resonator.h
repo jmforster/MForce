@@ -30,11 +30,11 @@ namespace mforce {
 // first-order Thiran-style tuning allpass absorbs the fractional part of
 // the loop delay.
 //
-// Per-note behavior: frequency captured at first next() after prepare()
+// Per-note behavior: frequency captured at first next() after start()
 // (lazy init, WavetableSource convention); paramMap can retune `frequency`
 // and drive any config per note via frequency->curve entries.
 // Real-time safe: buffer allocated at construction (sized for ~12 Hz at
-// 48k); prepare() zero-fills only; next() allocates nothing.
+// 48k); start() zero-fills only; next() allocates nothing.
 // ---------------------------------------------------------------------------
 struct AllpassResonator final : Processor {
   // `source` (inherited) is the excitation; the four AF knobs and the I/O
@@ -49,9 +49,7 @@ struct AllpassResonator final : Processor {
   Setting<float> exciteGain{this, "exciteGain", 1.0f,   0.0f,  8.0f};
   Setting<float> direct    {this, "direct",     0.2f,   0.0f,  1.0f};
 
-  explicit AllpassResonator(int sampleRate) : sampleRate_(sampleRate) {
-    buf_.assign(kBufLen, 0.0f);
-  }
+  AllpassResonator() { buf_.assign(kBufLen, 0.0f); }
 
   const char* type_name() const override { return "AllpassResonator"; }
   SourceCategory category() const override { return SourceCategory::Oscillator; }
@@ -67,7 +65,7 @@ struct AllpassResonator final : Processor {
     fit(tension);
   }
 
-  void on_prepare(const RenderContext&, int) override {
+  void on_start(int) override {
     std::fill(buf_.begin(), buf_.end(), 0.0f);
     wpos_ = 0;
     bq_ = BiquadState{};
@@ -133,8 +131,8 @@ private:
 
   void init_note() {
     float f0 = frequency.current();
-    f0 = std::clamp(f0, 12.0f, float(sampleRate_) * 0.4f);
-    const float sr = float(sampleRate_);
+    f0 = std::clamp(f0, 12.0f, float(sample_rate()) * 0.4f);
+    const float sr = float(sample_rate());
     const float period = sr / f0;
     const float w0 = 2.0f * 3.14159265f * f0 / sr;
 
@@ -174,8 +172,6 @@ private:
     dcR_ = 1.0f - 2.0f * 3.14159265f * 20.0f / sr;
     initialized_ = true;
   }
-
-  int sampleRate_;
 
   // Per-note state
   bool  initialized_{false};

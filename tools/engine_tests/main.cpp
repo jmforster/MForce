@@ -226,7 +226,7 @@ static void run_tap_cycle_tests() {
 static void run_delay_line_tests() {
     RenderContext ctx{48000};
     // sr 48000, freq 480 -> exactly 100 samples of delay
-    auto dl = std::make_shared<DelayLineSource>(48000);
+    auto dl = std::make_shared<DelayLineSource>();
     dl->set_param("frequency", std::make_shared<ConstantSource>(480.0f));
     auto in = std::make_shared<ConstantSource>(0.0f);
     dl->set_param("source", in);
@@ -245,7 +245,7 @@ static void run_delay_line_tests() {
     CHECK_NEAR(out, 0.0f, 1e-3f);      // and passes
 
     // ratio doubles the period: 200 samples
-    auto dl2 = std::make_shared<DelayLineSource>(48000);
+    auto dl2 = std::make_shared<DelayLineSource>();
     dl2->set_param("frequency", std::make_shared<ConstantSource>(480.0f));
     dl2->set_param("ratio", std::make_shared<ConstantSource>(2.0f));
     auto in2 = std::make_shared<ConstantSource>(0.0f);
@@ -325,7 +325,7 @@ static void run_loop_compensation_tests() {
     // len + 1 ticks (the tap's positional z^-1); compensate shortens len so
     // the cycle lands exactly on sr/f.
     auto run_bare = [&](bool comp) {
-        auto dl = std::make_shared<DelayLineSource>(48000);
+        auto dl = std::make_shared<DelayLineSource>();
         dl->set_param("frequency", std::make_shared<ConstantSource>(480.0f));
         auto ex = std::make_shared<ConstantSource>(0.0f);
         auto sum = std::make_shared<CombinedSource>(
@@ -352,7 +352,7 @@ static void run_loop_compensation_tests() {
     // filter and subtract its (current) phase delay; the echo period lands
     // on sr/f instead of sr/f + 1 + ~7.8 samples of filter lag.
     auto run_svf = [&](bool comp) {
-        auto dl = std::make_shared<DelayLineSource>(48000);
+        auto dl = std::make_shared<DelayLineSource>();
         dl->set_param("frequency", std::make_shared<ConstantSource>(200.0f));
         auto ex = std::make_shared<ConstantSource>(0.0f);
         auto sum = std::make_shared<CombinedSource>(
@@ -3352,10 +3352,10 @@ static void run_physical_pin_shape_tests() {
         s.prepare(ctx, 4800);
         for (int i = 0; i < 10; ++i) CHECK(std::isfinite(s.next()));
     };
-    AllpassResonator ar(48000);   smoke(ar);
+    AllpassResonator ar;          smoke(ar);
     BowTableSource bt;            smoke(bt);
-    DelayLineSource dl(48000);    smoke(dl);
-    KSString ks(48000);           smoke(ks);
+    DelayLineSource dl;           smoke(dl);
+    KSString ks;                  smoke(ks);
     Mesh2DSource mesh;            smoke(mesh);
     PierceFilterSource pierce;    smoke(pierce);
 
@@ -3416,13 +3416,13 @@ static void run_physical_auto_pin_tests() {
         for (int i = 0; i < 7; ++i) CHECK(std::isfinite(s.next()));
         for (const auto& p : probes) CHECK(p->prepares == 1 && p->advances == 7);
     };
-    AllpassResonator ar(48000);
+    AllpassResonator ar;
     count(ar, {"source", "frequency", "amplitude"});
     BowTableSource bt;
     count(bt, {"source", "slope", "offset"});
-    DelayLineSource dl(48000);
+    DelayLineSource dl;
     count(dl, {"source", "frequency", "ratio", "amplitude"});
-    KSString ks(48000);
+    KSString ks;
     count(ks, {"source", "frequency", "amplitude", "damper", "bow"});
     Mesh2DSource mesh;
     count(mesh, {"source", "inX", "inY", "outX", "outY", "decay", "edgeFc", "edgeR",
@@ -3432,7 +3432,7 @@ static void run_physical_auto_pin_tests() {
 
     // an unwired pin reads its declared constant and is not a source
     CHECK(ks.get_param("damper") != nullptr && ks.get_param("bow") != nullptr);
-    KSString bare(48000);
+    KSString bare;
     CHECK(bare.get_param("source") == nullptr && bare.get_param("frequency") == nullptr);
     bare.clear_param("nosuch");
     CHECK(bare.get_param("nosuch") == nullptr);
@@ -3456,13 +3456,13 @@ static void run_physical_advance_order_tests() {
         s.next();
         CHECK(log == expect);
     };
-    AllpassResonator ar(48000);
+    AllpassResonator ar;
     order(ar, {"source", "frequency", "amplitude"});
     BowTableSource bt;
     order(bt, {"source", "slope", "offset"});
-    DelayLineSource dl(48000);
+    DelayLineSource dl;
     order(dl, {"source", "frequency", "ratio", "amplitude"});
-    KSString ks(48000);
+    KSString ks;
     order(ks, {"source", "frequency", "amplitude", "damper", "bow"});
     Mesh2DSource mesh;
     order(mesh, {"source", "inX", "inY", "outX", "outY", "decay", "edgeFc", "edgeR",
@@ -3473,7 +3473,7 @@ static void run_physical_advance_order_tests() {
 
 // Settings the old set_setting clamped are still clamped; the others are not.
 static void run_physical_setting_hook_tests() {
-    KSString ks(48000);
+    KSString ks;
     ks.set_setting("numCombs", 40.0f);   CHECK_NEAR(ks.get_setting("numCombs"), 10.0f, 1e-6f);
     ks.set_setting("numCombs", 0.0f);    CHECK_NEAR(ks.get_setting("numCombs"), 1.0f, 1e-6f);
     ks.set_setting("t60", 0.001f);       CHECK_NEAR(ks.get_setting("t60"), 0.05f, 1e-6f);
@@ -3488,14 +3488,14 @@ static void run_physical_setting_hook_tests() {
     ks.set_setting("inharmGain", -3.0f); CHECK_NEAR(ks.get_setting("inharmGain"), -3.0f, 1e-6f);
     ks.set_setting("nosuch", 1.0f);      CHECK_NEAR(ks.get_setting("nosuch"), 0.0f, 1e-6f);
 
-    AllpassResonator ar(48000);
+    AllpassResonator ar;
     ar.set_setting("feedback", 5.0f);    CHECK_NEAR(ar.get_setting("feedback"), 0.9999f, 1e-6f);
     ar.set_setting("damping", -1.0f);    CHECK_NEAR(ar.get_setting("damping"), 0.05f, 1e-6f);
     ar.set_setting("stiffness", 9.0f);   CHECK_NEAR(ar.get_setting("stiffness"), 0.95f, 1e-6f);
     ar.set_setting("tension", -2.0f);    CHECK_NEAR(ar.get_setting("tension"), 0.0f, 1e-6f);
     ar.set_setting("direct", 7.0f);      CHECK_NEAR(ar.get_setting("direct"), 7.0f, 1e-6f);
 
-    DelayLineSource dl(48000);
+    DelayLineSource dl;
     dl.set_setting("compensate", 0.4f);  CHECK_NEAR(dl.get_setting("compensate"), 1.0f, 1e-6f);
     dl.set_setting("compensate", 0.0f);  CHECK_NEAR(dl.get_setting("compensate"), 0.0f, 1e-6f);
 
@@ -3543,7 +3543,7 @@ static void run_physical_behavior_tests() {
     // the bow pin switches the bow junction on only while it is wired
     auto strike = [&](bool bowed) {
         auto in = std::make_shared<ConstantSource>(0.0f);
-        KSString ks(48000);
+        KSString ks;
         ks.set_param("source", in);
         if (bowed) ks.set_param("bow", std::make_shared<ConstantSource>(0.8f));
         ks.prepare(ctx, 4800);
@@ -4961,6 +4961,128 @@ static void run_additive_split_tests() {
     CHECK(std::any_of(hi.begin(), hi.end(), [](float v) { return v != 0.0f; }));
 }
 
+// ---------------------------------------------------------------------------
+// Physical models: the rate arrives through prepare(ctx), the note through
+// start(frames). ShaperSource owns six Manual pins and prepares and starts
+// each itself; a constant on a pin cannot show a missing call, so the pins
+// here are PinCounters that record the rate and the starts they were given.
+// ---------------------------------------------------------------------------
+static void run_shaper_pin_split_tests() {
+    ShaperSource sh;
+    const char* names[] = {"source", "drive", "smoothness", "morph", "breakaway", "capture"};
+    std::vector<std::shared_ptr<PinCounter>> pins;
+    for (const char* n : names) {
+        pins.push_back(std::make_shared<PinCounter>());
+        sh.set_param(n, pins.back());
+    }
+    sh.prepare(RenderContext{48000});
+    for (const auto& p : pins) CHECK(p->rate == 48000 && p->prepares == 0);   // prepared, not started
+    sh.start(64);
+    for (const auto& p : pins) CHECK(p->rate == 48000 && p->prepares == 1);   // started once
+    // A second prepare is idempotent and starts nothing; each start reaches each pin.
+    sh.prepare(RenderContext{48000});
+    sh.start(64);
+    for (const auto& p : pins) CHECK(p->rate == 48000 && p->prepares == 2);
+    // The shaper itself: read timing is untouched, so the split is exact
+    // with the drive and the input wired to real sources.
+    CHECK(split_equivalent([] {
+        auto s = std::make_shared<ShaperSource>();
+        s->set_param("source", std::make_shared<SineSource>());
+        s->set_param("drive", std::make_shared<ConstantSource>(2.0f));
+        return s;
+    }));
+}
+
+// A read position a hair under the write index rounds up to the ring length
+// in float: the tap lands on the one slot past the ring, which stays zero.
+static void run_delay_line_zero_slot_tests() {
+    DelayLineSource dl;
+    dl.set_param("source", std::make_shared<ConstantSource>(1.0f));
+    dl.set_param("frequency", std::make_shared<ConstantSource>(std::nextafter(1470.0f, 0.0f)));
+    dl.prepare(RenderContext{22050});
+    dl.start(64);
+    const auto out = render_samples(dl, 32);
+    CHECK(out[15] == 0.0f);              // write index 15, delay 15.000001: the zero slot
+    CHECK(out[14] == 0.0f);              // still the empty ring
+    CHECK_NEAR(out[16], 1.0f, 1e-4f);    // the ring's own sample again
+    CHECK(std::all_of(out.begin(), out.end(), [](float v) { return std::isfinite(v); }));
+    // Past one full ring the write index has wrapped: the slot was not
+    // written, so the stray read at the same phase is still silence.
+    const int ring = dl.capacity();
+    const auto more = render_samples(dl, ring);      // samples 32 .. 32 + ring
+    CHECK(more[size_t(ring + 15 - 32)] == 0.0f);     // write index 15 of the second lap
+    CHECK_NEAR(more[size_t(ring + 16 - 32)], 1.0f, 1e-4f);
+}
+
+static void run_physical_split_tests() {
+    const auto noise = [] { return std::make_shared<WhiteNoiseSource>(0x5EEDu); };
+    CHECK(split_equivalent([&] {
+        auto k = std::make_shared<KSString>();
+        k->set_param("source", noise());
+        return k;
+    }));
+    CHECK(split_equivalent([&] {
+        auto a = std::make_shared<AllpassResonator>();
+        a->set_param("source", noise());
+        return a;
+    }));
+    CHECK(split_equivalent([] {
+        auto d = std::make_shared<DelayLineSource>();
+        d->set_param("source", std::make_shared<SineSource>());
+        return d;
+    }));
+    CHECK(split_equivalent([] {
+        auto m = std::make_shared<Mesh2DSource>();
+        m->set_param("source", std::make_shared<SineSource>());
+        m->set_setting("edgeMode", 1.0f);
+        return m;
+    }));
+    for (const char* type : {"PierceFilter", "BowTable", "Wormhole"}) {
+        CHECK(split_equivalent([&] {
+            auto s = SourceRegistry::instance().create(type, 48000);
+            s->set_param("source", std::make_shared<SineSource>());
+            return s;
+        }));
+    }
+    run_shaper_pin_split_tests();
+    run_delay_line_zero_slot_tests();
+
+    // The delay line follows the rate its host prepared it at: the same
+    // rate again changes nothing, a new rate re-sizes it.
+    DelayLineSource dl;
+    dl.prepare(RenderContext{22050});
+    CHECK(dl.capacity() == 22050 / 20 + 4);
+    dl.prepare(RenderContext{22050});
+    CHECK(dl.capacity() == 22050 / 20 + 4);
+    dl.prepare(RenderContext{48000});
+    CHECK(dl.capacity() == 48000 / 20 + 4);
+
+    // The strings' comb lengths come from the rate in init_note; Mesh2D's
+    // boundary filter from the rate it was prepared with.
+    auto at = [&](int rate, auto make) {
+        auto s = make();
+        s->prepare(RenderContext{rate});
+        s->start(2048);
+        return render_samples(*s, 2048);
+    };
+    const auto ks = [&] {
+        auto k = std::make_shared<KSString>();
+        k->set_param("source", noise());
+        return k;
+    };
+    const auto lo = at(24000, ks), hi = at(48000, ks);
+    CHECK(!same_bits(lo, hi));
+    CHECK(std::all_of(hi.begin(), hi.end(), [](float v) { return std::isfinite(v); }));
+    CHECK(std::any_of(hi.begin(), hi.end(), [](float v) { return v != 0.0f; }));
+    const auto mesh = [] {
+        auto m = std::make_shared<Mesh2DSource>();
+        m->set_param("source", std::make_shared<SineSource>());
+        m->set_setting("edgeMode", 1.0f);
+        return m;
+    };
+    CHECK(!same_bits(at(24000, mesh), at(48000, mesh)));
+}
+
 // Checkpoint 2.2: the contract's sweep, then the families as they are cut.
 static void run_prepare_start_tests() {
     run_split_equivalence_tests();
@@ -4969,6 +5091,7 @@ static void run_prepare_start_tests() {
     run_wavetable_split_tests();
     run_hybrid_ks_split_tests();
     run_additive_split_tests();
+    run_physical_split_tests();
 }
 
 int main() {

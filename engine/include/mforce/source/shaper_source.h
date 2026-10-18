@@ -21,8 +21,8 @@ struct ShaperSource final : Processor {
   // whose real source a later pin drives (the Junction of a feedback valve:
   // source refs a node that the drive chain advances), and the stored
   // patches that do that depend on this timing. breakaway and capture are
-  // also pulled only in hysteresis mode. The base neither prepares nor
-  // advances a Manual pin.
+  // also pulled only in hysteresis mode. The base neither prepares, starts
+  // nor advances a Manual pin.
   Param drive     {this, "drive",      1.0f, 0.0f, 20.0f, "ratio", Pull::Manual};
   Param smoothness{this, "smoothness", 0.5f, 0.0f, 1.0f,  "0-1",   Pull::Manual};
   // Point-space blend toward curve B (values2/segs2); 0 = pure curve A, the
@@ -100,13 +100,22 @@ struct ShaperSource final : Processor {
     }
   }
 
-  void on_prepare(const RenderContext& ctx, int frames) override {
-    input.prepare(ctx, frames);
-    drive.prepare(ctx, frames);
-    smoothness.prepare(ctx, frames);
-    morph.prepare(ctx, frames);
-    breakaway.prepare(ctx, frames);
-    capture.prepare(ctx, frames);
+  void on_prepare(const RenderContext& ctx) override {
+    input.prepare(ctx);
+    drive.prepare(ctx);
+    smoothness.prepare(ctx);
+    morph.prepare(ctx);
+    breakaway.prepare(ctx);
+    capture.prepare(ctx);
+  }
+
+  void on_start(int frames) override {
+    input.start(frames);
+    drive.start(frames);
+    smoothness.start(frames);
+    morph.start(frames);
+    breakaway.start(frames);
+    capture.start(frames);
     stuck_ = true;      // bow resting on the string at note start
     lastSign_ = 0;
     cur_ = 0.0f;

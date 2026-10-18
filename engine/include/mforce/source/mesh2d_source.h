@@ -129,8 +129,11 @@ struct Mesh2DSource final : Processor {
     fit(edgeMode);
   }
 
-  void on_prepare(const RenderContext& ctx, int) override {
+  void on_prepare(const RenderContext& ctx) override {
     sr_ = float(ctx.sampleRate > 0 ? ctx.sampleRate : 48000);
+  }
+
+  void on_start(int) override {
     clear_mesh();
     cur_ = 0.0f;
   }
@@ -304,7 +307,7 @@ private:
   float a1_{0.0f}, a2_{0.0f};   // edgeMode 1 allpass coefficients, per sample
   float cNeg_{kPierceNeg}, cPos_{kPiercePos};  // edgeMode 2, per sample
 
-  // Sized for the 64x64 cap at construction — set_setting/prepare never
+  // Sized for the 64x64 cap at construction — set_setting/prepare/start never
   // resize, so next() cannot allocate.
   float v_[kMaxN - 1][kMaxN - 1]{};
   float vxp_[kMaxN][kMaxN]{}, vxm_[kMaxN][kMaxN]{};

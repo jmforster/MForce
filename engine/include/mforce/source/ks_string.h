@@ -43,13 +43,13 @@ namespace mforce {
 //
 // Tuning: comb delay = period - phase delay of the in-loop filters at f0
 // (computed analytically at note init), fractional part via linear-interp
-// read. Frequency is captured at the first next() after prepare() (per-note
+// read. Frequency is captured at the first next() after start() (per-note
 // lazy init, same convention as WavetableSource); paramMap "frequency"
 // retunes, and paramMap frequency->curve entries can drive the scalar
 // configs (dispersion, t60, brightness, inharmGain, ...) per note.
 //
 // Real-time safe: delay buffers allocated once at construction, sized for
-// ~12 Hz at 48k (kBufLen); prepare() only zero-fills; next() allocates
+// ~12 Hz at 48k (kBufLen); start() only zero-fills; next() allocates
 // nothing.
 // ---------------------------------------------------------------------------
 struct KSString final : Processor {
@@ -94,8 +94,7 @@ struct KSString final : Processor {
   Setting<float> frictionGain {this, "frictionGain", 4.0f,   0.0f,   20.0f};
   Setting<float> bowGain      {this, "bowGain",      1.0f,   0.0f,   8.0f};
 
-  explicit KSString(int sampleRate)
-  : sampleRate_(sampleRate) {
+  KSString() {
     for (int i = 0; i < kMaxCombs; ++i) comb_[i].buf.assign(kBufLen, 0.0f);
     disp_.buf.assign(kBufLen, 0.0f);
   }
@@ -127,7 +126,7 @@ struct KSString final : Processor {
     if (name == t60.name) t60.value = std::max(t60.value, t60.min);   // floor only
   }
 
-  void on_prepare(const RenderContext&, int) override {
+  void on_start(int) override {
     for (int i = 0; i < kMaxCombs; ++i) {
       std::fill(comb_[i].buf.begin(), comb_[i].buf.end(), 0.0f);
       comb_[i].lp = 0.0f;
@@ -373,8 +372,8 @@ private:
 
   void init_note() {
     float f0 = frequency.current();
-    f0 = std::clamp(f0, 12.0f, float(sampleRate_) * 0.4f);
-    const float sr = float(sampleRate_);
+    f0 = std::clamp(f0, 12.0f, float(sample_rate()) * 0.4f);
+    const float sr = float(sample_rate());
     const float period = sr / f0;
     const float w0 = 2.0f * 3.14159265f * f0 / sr;
 
@@ -496,8 +495,6 @@ private:
 
     initialized_ = true;
   }
-
-  int sampleRate_;
 
   // Per-note state
   bool  initialized_{false};

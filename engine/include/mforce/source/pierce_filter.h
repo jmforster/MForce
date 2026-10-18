@@ -38,7 +38,7 @@ struct PierceFilterSource final : Processor {
 
   const char* type_name() const override { return "PierceFilter"; }
 
-  void on_prepare(const RenderContext&, int) override {
+  void on_start(int) override {
     ap_.reset(coefPos.current());
     cur_ = 0.0f;
   }

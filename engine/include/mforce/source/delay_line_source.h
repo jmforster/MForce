@@ -9,13 +9,11 @@ namespace mforce {
 // Pitch-tracked delay line — the resonator backbone for feedback loops
 // (feedback_loop_design.md §3.4). No internal feedback; `amplitude` is a
 // read-side loop-gain control (the KS loss factor — decays without the
-// pitch bend cutoff modulation causes). Length = sampleRate/frequency*ratio
-// samples, fractional read (linear interp), modulatable per sample (mild
-// artifacts accepted in v1). Buffer sized at construction for a 20 Hz
+// pitch bend cutoff modulation causes). Length = sample rate / frequency *
+// ratio samples, fractional read (linear interp), modulatable per sample
+// (mild artifacts accepted in v1). Buffer sized in prepare(ctx) for a 20 Hz
 // floor — no heap in the render loop; frequencies below floor clamp.
 struct DelayLineSource final : Processor {
-  int sampleRate{48000};
-
   Param frequency{this, "frequency", 440.0f, 20.0f, 20000.0f, "hz"};
   Param ratio    {this, "ratio",     1.0f,   0.05f, 20.0f,    "ratio"};
   Param amplitude{this, "amplitude", 1.0f,   0.0f,  2.0f,     "gain"};
@@ -29,19 +27,30 @@ struct DelayLineSource final : Processor {
   // sum their reported lags, which is only meaningful for a single path.
   Setting<bool> compensate{this, "compensate", false, false, true};
 
-  explicit DelayLineSource(int sr)
-    : sampleRate(sr), buf_(size_t(sr / 20 + 4), 0.0f) {}
-
   const char* type_name() const override { return "DelayLine"; }
   SourceCategory category() const override { return SourceCategory::Oscillator; }
 
-  void on_prepare(const RenderContext&, int) override {
+  // Sized for the 20 Hz floor at the host's rate; a repeat prepare at the
+  // same rate leaves the buffer alone, a new rate re-sizes it. One slot
+  // past the ring stays zero (see compute()).
+  void on_prepare(const RenderContext&) override {
+    const int want = sample_rate() / 20 + 4;
+    if (ring_ != want) {
+      buf_.assign(size_t(want) + 1, 0.0f);
+      ring_ = want;
+    }
+  }
+
+  // Diagnostic: the delay ring's length in samples.
+  int capacity() const { return ring_; }
+
+  void on_start(int) override {
     std::fill(buf_.begin(), buf_.end(), 0.0f);
     writeIdx_ = 0;
     cur_ = 0.0f;
     // Re-discover loop membership each note so live rewiring is picked up.
     // The walk is heap-free (fixed visited/member arrays, graph-depth
-    // recursion) — prepare() may run at note-on in the audio callback.
+    // recursion) — start() may run at note-on in the audio callback.
     for (auto& m : members_) m.reset();
     nMembers_ = 0;
     cycleFound_ = false;
@@ -60,19 +69,22 @@ struct DelayLineSource final : Processor {
       comp = 1.0f;  // the closing tap's positional z^-1
       for (int i = 0; i < nMembers_; ++i) comp += members_[i]->phase_delay_at(f);
     }
-    const float len = std::clamp(float(sampleRate) / f * ratio.current() - comp,
-                                 1.0f, float(buf_.size()) - 2.0f);
+    const float len = std::clamp(float(sample_rate()) / f * ratio.current() - comp,
+                                 1.0f, float(ring_) - 2.0f);
     buf_[size_t(writeIdx_)] = in;
     float rp = float(writeIdx_) - len;
-    if (rp < 0.0f) rp += float(buf_.size());
+    if (rp < 0.0f) rp += float(ring_);
+    // A read position a hair under the write index wraps to exactly ring_
+    // in float: i0 is then the slot past the ring, which is never written
+    // and reads as silence.
     const int i0 = int(rp);
-    const int i1 = (i0 + 1) % int(buf_.size());
+    const int i1 = (i0 + 1) % ring_;
     const float frac = rp - float(i0);
     // Read-side gain: the loop (and the listener) feel a closing envelope
     // immediately, not one recirculation later as a write-side gain would.
     const float out = (buf_[size_t(i0)] * (1.0f - frac) + buf_[size_t(i1)] * frac)
                       * amplitude.current();
-    writeIdx_ = (writeIdx_ + 1) % int(buf_.size());
+    writeIdx_ = (writeIdx_ + 1) % ring_;
     return out;
   }
 
@@ -117,7 +129,8 @@ private:
     return found;
   }
 
-  std::vector<float> buf_;
+  std::vector<float> buf_;   // the ring, then one extra slot that stays zero
+  int ring_{0};              // length of the ring in samples; buf_.size() is ring_ + 1
   int writeIdx_{0};
   bool cycleFound_{false};
   std::shared_ptr<ValueSource> members_[kMaxMembers];

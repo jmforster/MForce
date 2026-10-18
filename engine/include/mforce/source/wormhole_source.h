@@ -18,7 +18,7 @@ struct WormholeSource final : Processor {
   const char* type_name() const override { return "Wormhole"; }
   SourceCategory category() const override { return SourceCategory::Modulator; }
 
-  void on_prepare(const RenderContext&, int) override { cur_ = 0.0f; }
+  void on_start(int) override { cur_ = 0.0f; }
 
   float compute() override { return input.current(); }
 };

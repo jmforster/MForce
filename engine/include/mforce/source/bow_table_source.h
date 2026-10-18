@@ -22,7 +22,7 @@ struct BowTableSource final : Processor {
   const char* type_name() const override { return "BowTable"; }
   SourceCategory category() const override { return SourceCategory::Modulator; }
 
-  void on_prepare(const RenderContext&, int) override { cur_ = 0.0f; }
+  void on_start(int) override { cur_ = 0.0f; }
 
   float compute() override {
     const float dv = input.current();
