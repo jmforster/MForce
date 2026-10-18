@@ -14,13 +14,17 @@ struct RedNoiseSource final : WaveSource {
   Param continuity       {this, "continuity",        0.0f, 0.0f, 1.0f, "0-1"};
   Param zeroCrossTendency{this, "zeroCrossTendency", 0.0f, 0.0f, 1.0f, "0-1"};
 
-  explicit RedNoiseSource(int sampleRate, uint32_t seed = 0xC0FFEEu);
+  explicit RedNoiseSource(uint32_t seed = 0xC0FFEEu);
 
   const char* type_name() const override { return "RedNoiseSource"; }
   SourceCategory category() const override { return SourceCategory::Generator; }
 
   // Per-note determinism (onsets-v2 addendum): re-anchor draws.
   void reseed() override { rng_.reanchor(); }
+
+  // Back to the constructed state: the ramp, the last values, the draw
+  // stream. The per-note start() leaves all of these running on.
+  void reset();
 
 protected:
   float wave() override;

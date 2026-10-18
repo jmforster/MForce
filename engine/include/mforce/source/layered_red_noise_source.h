@@ -22,8 +22,7 @@ struct LayeredRedNoiseSource final : Generator {
     Array frequency{this, "frequency", "layers", 7.0f,  0.01f, 100.0f};
     Array amplitude{this, "amplitude", "layers", 0.05f, 0.0f,  10.0f};
 
-    explicit LayeredRedNoiseSource(int sampleRate, uint32_t seed = 0x1A4E4EDDu)
-    : sampleRate_(sampleRate), baseSeed_(seed) {
+    explicit LayeredRedNoiseSource(uint32_t seed = 0x1A4E4EDDu) : baseSeed_(seed) {
         // Default 3 rows: slow drift + medium wobble + fast flutter.
         frequency.values = {0.5f, 2.0f, 8.0f};
         amplitude.values = {1.0f, 1.0f, 1.0f};
@@ -60,9 +59,13 @@ struct LayeredRedNoiseSource final : Generator {
         count.value = layerCount_;
     }
 
-    void on_prepare(const RenderContext& ctx, int frames) override {
-        if (layersDirty_) rebuild_layers_(ctx);
-        for (auto& l : layers_) if (l) l->prepare(ctx, frames);
+    void on_prepare(const RenderContext& ctx) override {
+        if (layersDirty_) rebuild_layers_();
+        for (auto& l : layers_) if (l) l->prepare(ctx);
+    }
+
+    void on_start(int frames) override {
+        for (auto& l : layers_) if (l) l->start(frames);
     }
 
     // Per-note determinism (onsets-v2 addendum): forward to the layers.
@@ -97,13 +100,13 @@ private:
         if (int(frequency.values.size()) < n) frequency.values.resize(n, frequency.def);
     }
 
-    void rebuild_layers_(const RenderContext& /*ctx*/) {
+    void rebuild_layers_() {
         layers_.clear();
         int n = int(frequency.values.size());
         layers_.reserve(n);
         for (int i = 0; i < n; ++i) {
             uint32_t layerSeed = baseSeed_ ^ (uint32_t(i) * 0x9E3779B9u);
-            auto rn = std::make_shared<RedNoiseSource>(sampleRate_, layerSeed);
+            auto rn = std::make_shared<RedNoiseSource>(layerSeed);
             rn->frequency.set(std::make_shared<ConstantSource>(frequency.values[i]));
             rn->amplitude.set(std::make_shared<ConstantSource>(amplitude.values[i]));
             rn->density.set(std::make_shared<ConstantSource>(LAYER_DENSITY));
@@ -117,7 +120,6 @@ private:
         layersDirty_ = false;
     }
 
-    int sampleRate_;
     uint32_t baseSeed_;
     int layerCount_{3};
     std::vector<std::shared_ptr<RedNoiseSource>> layers_;

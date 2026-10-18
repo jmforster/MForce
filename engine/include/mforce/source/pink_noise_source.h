@@ -32,7 +32,7 @@ struct PinkNoiseSource final : Generator {
   const char* type_name() const override { return "PinkNoiseSource"; }
   SourceCategory category() const override { return SourceCategory::Generator; }
 
-  void on_prepare(const RenderContext&, int) override {
+  void on_start(int) override {
     // Reset state for a fresh render
     index_ = 0;
     runningSum_ = 0;

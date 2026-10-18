@@ -2214,8 +2214,9 @@ static void run_sharing_trace_tests() {
 namespace {
 // Counts how often a pin's owner prepared and advanced it.
 struct PinCounter final : mforce::Generator {
-  int prepares{0}, advances{0};
+  int prepares{0}, advances{0}, rate{0};
   float level{1.0f};
+  void on_prepare(const mforce::RenderContext& c) override { rate = c.sampleRate; }
   void on_prepare(const mforce::RenderContext&, int) override { ++prepares; }
   float compute() override { ++advances; return level; }
   const char* type_name() const override { return "PinCounter"; }
@@ -2470,11 +2471,11 @@ static void run_noise_pin_tests() {
     PerlinNoiseSource perlin;         smoke(perlin);
     CrackleNoiseSource crackle;       smoke(crackle);
     MurmurationNoiseSource murmur;    smoke(murmur);
-    WanderNoiseSource wander(48000);  smoke(wander);
-    WanderNoise2Source wander2(48000); smoke(wander2);
-    WanderNoise3Source wander3(48000); smoke(wander3);
-    RedNoiseSource red(48000);        smoke(red);
-    LayeredRedNoiseSource layered(48000); smoke(layered);
+    WanderNoiseSource wander;     smoke(wander);
+    WanderNoise2Source wander2;   smoke(wander2);
+    WanderNoise3Source wander3;   smoke(wander3);
+    RedNoiseSource red;           smoke(red);
+    LayeredRedNoiseSource layered; smoke(layered);
 
     CHECK(param_names(white) == "amplitude,density,boost,continuity,zeroCrossTendency,");
     CHECK(param_names(pink) == "amplitude,");
@@ -2526,14 +2527,14 @@ static void run_noise_white_tests() {
 static void run_noise_default_tests() {
     RenderContext ctx{48000};
 
-    RedNoiseSource red(48000);
+    RedNoiseSource red;
     CHECK_NEAR(red.density.current(), 0.5f, 1e-6f);
     CHECK_NEAR(red.smoothness.current(), 0.5f, 1e-6f);
     CHECK_NEAR(red.rampVariation.current(), 0.0f, 1e-6f);
     CHECK_NEAR(param_default(red, "density"), 0.5f, 1e-6f);
     CHECK_NEAR(param_default(red, "rampVariation"), 0.0f, 1e-6f);
 
-    WanderNoise2Source w2(48000);
+    WanderNoise2Source w2;
     CHECK_NEAR(w2.minSpeed.current(), 0.01f, 1e-6f);
     CHECK_NEAR(w2.maxSpeed.current(), 0.1f, 1e-6f);
     w2.prepare(ctx, 4800);
@@ -2552,7 +2553,7 @@ static void run_noise_default_tests() {
 static void run_noise_red_pin_tests() {
     RenderContext ctx{48000};
 
-    RedNoiseSource red(48000, 99u);
+    RedNoiseSource red(99u);
     auto lfoDepth = std::make_shared<PinCounter>();
     auto zct = std::make_shared<PinCounter>();
     red.set_param("amplitude", lfoDepth);
@@ -2577,9 +2578,9 @@ static void run_noise_manual_amplitude_tests() {
     auto amp2 = std::make_shared<PinCounter>();
     auto amp3 = std::make_shared<PinCounter>();
     auto spd = std::make_shared<PinCounter>();
-    WanderNoiseSource w1(48000);
-    WanderNoise2Source w2(48000);
-    WanderNoise3Source w3(48000);
+    WanderNoiseSource w1;
+    WanderNoise2Source w2;
+    WanderNoise3Source w3;
     w1.set_param("amplitude", amp1);
     w1.set_param("speed", spd);
     w2.set_param("amplitude", amp2);
@@ -2592,6 +2593,9 @@ static void run_noise_manual_amplitude_tests() {
     CHECK(amp2->prepares == 1 && amp2->advances == 0);
     CHECK(amp3->prepares == 1 && amp3->advances == 5);
     CHECK(spd->prepares == 1 && spd->advances == 5);
+    // The Manual pins were prepared, not only started: they know the rate.
+    CHECK(amp1->rate == 48000 && amp2->rate == 48000);
+    CHECK(amp3->rate == 48000 && spd->rate == 48000);
 }
 
 // LayeredRedNoiseSource: the layer table is two arrays, the layer count a
@@ -2599,7 +2603,7 @@ static void run_noise_manual_amplitude_tests() {
 static void run_noise_layered_tests() {
     RenderContext ctx{48000};
 
-    LayeredRedNoiseSource l(48000);
+    LayeredRedNoiseSource l;
     CHECK(l.setting_descriptors().size() == 1);
     CHECK_NEAR(l.setting_descriptors()[0].default_value, 3.0f, 1e-6f);
     CHECK(l.array_descriptors().size() == 2);
@@ -4709,10 +4713,57 @@ static void run_core_split_tests() {
     }
 }
 
+// ---------------------------------------------------------------------------
+// Noise family: constructors lose the rate; RedNoise::reset() is the
+// constructed state (Vibrato's per-note fresh chain).
+// ---------------------------------------------------------------------------
+static void run_noise_split_tests() {
+    // reset() returns a played RedNoise to the state of a new one, draw
+    // stream included. Every ramp carries a value and the continuity and
+    // sign rules are live, so each field reset() touches reaches the output;
+    // two rounds at different play lengths so the state exposed differs.
+    {
+        auto make_red = [] {
+            auto r = std::make_shared<RedNoiseSource>(0x51EEDu);
+            r->density.set(std::make_shared<ConstantSource>(1.0f));
+            r->zeroCrossTendency.set(std::make_shared<ConstantSource>(0.5f));
+            r->continuity.set(std::make_shared<ConstantSource>(0.5f));
+            r->prepare(RenderContext{48000});
+            return r;
+        };
+        auto used = make_red();
+        for (int played : {50, 173}) {
+            used->start(100);
+            render_samples(*used, played);
+            used->reset();
+            used->start(100);
+            auto fresh = make_red();
+            fresh->start(100);
+            const auto a = render_samples(*used, 400), b = render_samples(*fresh, 400);
+            CHECK(same_bits(a, b));
+            int nonzero = 0;
+            for (float v : a) nonzero += (v != 0.0f);
+            CHECK(nonzero > 300);                 // the comparison is of a real signal
+        }
+    }
+    // The walks leave `amplitude` Manual: the node prepares and starts it.
+    CHECK(split_equivalent([] {
+        auto w = std::make_shared<WanderNoiseSource>();
+        w->amplitude.set(std::make_shared<ConstantSource>(0.5f));
+        return w;
+    }));
+    CHECK(split_equivalent([] {
+        auto w = std::make_shared<WanderNoise2Source>();
+        w->amplitude.set(std::make_shared<ConstantSource>(0.5f));
+        return w;
+    }));
+}
+
 // Checkpoint 2.2: the contract's sweep, then the families as they are cut.
 static void run_prepare_start_tests() {
     run_split_equivalence_tests();
     run_core_split_tests();
+    run_noise_split_tests();
 }
 
 int main() {

@@ -231,7 +231,7 @@ Call it from `main()` with the others.
 ### Task 3: The noise family
 
 **Files:**
-- Modify: `source/red_noise_source.h`, `engine/src/red_noise_source.cpp`, `source/white_noise_source.h`, `source/pink_noise_source.h`, `source/noise_sources.h` (Brown, Violet, Velvet, Perlin, Crackle, Murmuration), `source/wander_noise_source.h` (three types), `source/layered_red_noise_source.h`; `engine/src/source_registrations.cpp` lines 123-168 lambdas; tests constructing these.
+- Modify: `source/red_noise_source.h`, `engine/src/red_noise_source.cpp`, `source/white_noise_source.h`, `source/pink_noise_source.h`, `source/noise_sources.h` (Blue, Violet, Velvet, Perlin, Crackle, Murmuration), `source/wander_noise_source.h` (three types), `source/layered_red_noise_source.h`; `engine/src/source_registrations.cpp` lines 123-168 lambdas; tests constructing these.
 
 **Interfaces:**
 - Produces: `RedNoiseSource(uint32_t seed = 0xC0FFEEu)`; `RedNoiseSource::reset()` — the constructed state: `rampSize_ = 1, sampleCount_ = 0, lastValue_ = 0, lastSign_ = -1, nextValue_ = 0, zeroRamp_ = false, rng_.reanchor()` (Task 7's Vibrato is its only caller); `VelvetNoiseSource(uint32_t seed = …)`, `PerlinNoiseSource(uint32_t seed = …)`, `MurmurationNoiseSource(uint32_t seed = …)`, `WanderNoiseSource(uint32_t seed = …)`, `WanderNoise2Source(uint32_t seed = …)`, `WanderNoise3Source()`, `LayeredRedNoiseSource(uint32_t seed = …)`.
@@ -240,7 +240,7 @@ Call it from `main()` with the others.
 |---|---|---|---|---|
 | RedNoise | `(seed)` | — | — (WaveSource's `ptr_`) | add `reset()`; no reseed in start (recipe step 4) |
 | White, Crackle | unchanged | — | Crackle: today's draws | |
-| Pink, Brown, Violet | unchanged | Brown: `pink_.prepare(ctx)` | Pink, Violet: today's; Brown: `pink_.start(frames); prev_ = 0` | Brown owns a Pink by value and drives it with `next()` |
+| Pink, Blue, Violet | unchanged | Blue: `pink_.prepare(ctx)` | Pink, Violet: today's; Blue: `pink_.start(frames); prev_ = 0` | Blue owns a Pink by value and drives it with `next()` |
 | Velvet | `(seed)` | — | `counter_ = 0; recompute_gap()` | `recompute_gap` uses `sample_rate()` |
 | Perlin | `(seed)` | — | `pos_ = 0` | the `perm_` table stays in the constructor (seed only) |
 | Murmuration | `(seed)` | — | today's | |
@@ -422,6 +422,7 @@ Rulings made while planning (each becomes a line in the report's section 6; the 
 
 (Execution rulings follow here.)
 
+- **Task 2 (`1a55d88`), from its review:** an Envelope's stage counts are now sized as stages are added, so a never-started envelope holds zero counts rather than an empty vector; `next_raw_` reaches 0 through the stage walk instead of the early return, and `retrigger` / `gate_release` no longer early-return on one. Output is 0 either way and nothing in the engine starts without `start`; the UI's display cascade still reads 0. Recorded, not changed. FMSource also rebuilds its sections when the rate changes (recipe step 3), which the table did not spell out.
 - **A/B base (Task 1 step 0):** `renders/scratch/ab_tree/cli_pre22.exe` is the CLI built from the tree at `1145a52` (engine last changed at `9f2b4a8`; the UI stamp read "stale: no" before the copy). Every family A/B and the close's whole-tree A/B compare against it.
 
 ## Self-review notes

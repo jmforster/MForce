@@ -5,9 +5,19 @@
 
 namespace mforce {
 
-RedNoiseSource::RedNoiseSource(int, uint32_t seed)
+RedNoiseSource::RedNoiseSource(uint32_t seed)
 : rng_(seed), interp_(0.0f, false) {
   // Phase is meaningless; legacy passes phase=0 via base(ampl,freq,0).
+}
+
+void RedNoiseSource::reset() {
+  rampSize_ = 1;
+  sampleCount_ = 0;
+  lastValue_ = 0.0f;
+  lastSign_ = -1.0f;
+  nextValue_ = 0.0f;
+  zeroRamp_ = false;
+  rng_.reanchor();
 }
 
 float RedNoiseSource::wave() {

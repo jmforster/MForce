@@ -87,7 +87,7 @@ private:
         std::make_shared<ConstantSource>(0.0f),
         std::make_shared<ConstantSource>(depth.value), depthRamp, true);
 
-    lfo_ = std::make_shared<RedNoiseSource>(sampleRate_, seed_);
+    lfo_ = std::make_shared<RedNoiseSource>(seed_);
     lfo_->frequency.set(speedRange);
     lfo_->amplitude.set(depthRange);
     lfo_->density.set(std::make_shared<ConstantSource>(1.0f));   // every ramp carries a value

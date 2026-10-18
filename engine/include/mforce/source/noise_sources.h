@@ -23,8 +23,10 @@ struct BlueNoiseSource final : Generator {
   const char* type_name() const override { return "BlueNoiseSource"; }
   SourceCategory category() const override { return SourceCategory::Generator; }
 
-  void on_prepare(const RenderContext& ctx, int frames) override {
-    pink_.prepare(ctx, frames);
+  void on_prepare(const RenderContext& ctx) override { pink_.prepare(ctx); }
+
+  void on_start(int frames) override {
+    pink_.start(frames);
     prev_ = 0.0f;
   }
 
@@ -54,7 +56,7 @@ struct VioletNoiseSource final : Generator {
   const char* type_name() const override { return "VioletNoiseSource"; }
   SourceCategory category() const override { return SourceCategory::Generator; }
 
-  void on_prepare(const RenderContext&, int) override { prev_ = 0.0f; }
+  void on_start(int) override { prev_ = 0.0f; }
 
   float compute() override {
     const float w = rng_.valuePN();
@@ -80,14 +82,13 @@ struct VelvetNoiseSource final : Generator {
   Param density  {this, "density",   2000.0f, 1.0f, 48000.0f};
   Param amplitude{this, "amplitude", 1.0f,    0.0f, 10.0f};
 
-  explicit VelvetNoiseSource(int sampleRate = 48000, uint32_t seed = 0xFE17'0001u)
-  : sampleRate_(sampleRate), rng_(seed) {}
+  explicit VelvetNoiseSource(uint32_t seed = 0xFE17'0001u) : rng_(seed) {}
 
   Range range() const override { return Range::Bipolar; }
   const char* type_name() const override { return "VelvetNoiseSource"; }
   SourceCategory category() const override { return SourceCategory::Generator; }
 
-  void on_prepare(const RenderContext&, int) override {
+  void on_start(int) override {
     counter_ = 0;
     recompute_gap();
   }
@@ -100,7 +101,7 @@ struct VelvetNoiseSource final : Generator {
       out = (rng_.value() < 0.5f ? a : -a);
       counter_ = 0;
       // Recompute gap from current density
-      float avgGap = (d > 0.0f) ? float(sampleRate_) / d : float(sampleRate_);
+      float avgGap = (d > 0.0f) ? float(sample_rate()) / d : float(sample_rate());
       nextImpulse_ = std::max(1, int(avgGap * (0.5f + rng_.value())));
     }
     counter_++;
@@ -109,10 +110,9 @@ struct VelvetNoiseSource final : Generator {
 
 private:
   void recompute_gap() {
-    nextImpulse_ = std::max(1, sampleRate_ / 2000);
+    nextImpulse_ = std::max(1, sample_rate() / 2000);
   }
 
-  int sampleRate_;
   // Per-note determinism (onsets-v2 addendum): re-anchor draws.
   void reseed() override { rng_.reanchor(); }
   Randomizer rng_;
@@ -132,8 +132,7 @@ struct PerlinNoiseSource final : Generator {
   Param persistence{this, "persistence", 0.5f,   0.0f,  1.0f};
   Param lacunarity {this, "lacunarity",  2.0f,   1.0f,  4.0f};
 
-  explicit PerlinNoiseSource(int sampleRate = 48000, uint32_t seed = 0xAE21'0001u)
-  : sampleRate_(sampleRate), rng_(seed) {
+  explicit PerlinNoiseSource(uint32_t seed = 0xAE21'0001u) : rng_(seed) {
     for (int i = 0; i < 512; ++i) perm_[i] = int(rng_.value() * 256.0f) & 255;
   }
 
@@ -141,7 +140,7 @@ struct PerlinNoiseSource final : Generator {
   const char* type_name() const override { return "PerlinNoiseSource"; }
   SourceCategory category() const override { return SourceCategory::Generator; }
 
-  void on_prepare(const RenderContext&, int) override { pos_ = 0.0; }
+  void on_start(int) override { pos_ = 0.0; }
 
   float compute() override {
     const float spd = speed.current();
@@ -149,7 +148,7 @@ struct PerlinNoiseSource final : Generator {
     const float pers = persistence.current();
     const float lac = lacunarity.current();
 
-    pos_ += double(spd) / double(sampleRate_);
+    pos_ += double(spd) / double(sample_rate());
 
     float total = 0.0f;
     float amplitude = 1.0f;
@@ -182,7 +181,6 @@ private:
   static float lerp(float a, float b, float t) { return a + t * (b - a); }
   static float grad1d(int hash, float x) { return (hash & 1) ? x : -x; }
 
-  int sampleRate_;
   // Per-note determinism (onsets-v2 addendum): re-anchor draws.
   void reseed() override { rng_.reanchor(); }
   Randomizer rng_;
@@ -206,7 +204,7 @@ struct CrackleNoiseSource final : Generator {
   const char* type_name() const override { return "CrackleNoiseSource"; }
   SourceCategory category() const override { return SourceCategory::Generator; }
 
-  void on_prepare(const RenderContext&, int) override {
+  void on_start(int) override {
     y1_ = rng_.value() * 0.1f;
     y2_ = rng_.value() * 0.1f;
   }
@@ -250,14 +248,13 @@ struct MurmurationNoiseSource final : Generator {
   Param chaos     {this, "chaos",      0.1f,   0.0f,  1.0f};
   Param speed     {this, "speed",      440.0f, 0.01f, 20000.0f};
 
-  explicit MurmurationNoiseSource(int sampleRate = 48000, uint32_t seed = 0xB18D'0001u)
-  : sampleRate_(sampleRate), rng_(seed) {}
+  explicit MurmurationNoiseSource(uint32_t seed = 0xB18D'0001u) : rng_(seed) {}
 
   // No unit range: the flock sum is scaled by 1/sqrt(n), so it exceeds 1.
   const char* type_name() const override { return "MurmurationNoiseSource"; }
   SourceCategory category() const override { return SourceCategory::Generator; }
 
-  void on_prepare(const RenderContext&, int) override {
+  void on_start(int) override {
     // Initialize birds with scattered frequencies around center
     for (int i = 0; i < MAX_BIRDS; ++i) {
       birds_[i].phase = rng_.value();              // random starting phase
@@ -275,7 +272,7 @@ struct MurmurationNoiseSource final : Generator {
     const float centerFreq = speed.current();
 
     // --- Flocking update (runs at audio rate, scaled by frequency) ---
-    float dt = centerFreq / float(sampleRate_);  // scale forces by base period
+    float dt = centerFreq / float(sample_rate());  // scale forces by base period
 
     // Compute flock center and average velocity
     float avgOffset = 0.0f;
@@ -340,7 +337,7 @@ struct MurmurationNoiseSource final : Generator {
 
       // Bird frequency = center * 2^offset (offset in octaves)
       float freq = centerFreq * std::pow(2.0f, b.freqOffset);
-      float phaseInc = freq / float(sampleRate_);
+      float phaseInc = freq / float(sample_rate());
 
       b.phase += phaseInc;
       if (b.phase >= 1.0f) b.phase -= 1.0f;
@@ -361,7 +358,6 @@ private:
     float velocity{0.0f};    // rate of frequency drift
   };
 
-  int sampleRate_;
   // Per-note determinism (onsets-v2 addendum): re-anchor draws.
   void reseed() override { rng_.reanchor(); }
   Randomizer rng_;

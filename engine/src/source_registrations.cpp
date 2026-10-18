@@ -119,13 +119,13 @@ void register_all_sources() {
         });
 
     reg.register_type("RedNoiseSource", SourceCategory::Generator,
-        [](int sr, auto seed) {
-            return std::make_shared<RedNoiseSource>(sr, seed.value_or(0xBADC0DEu));
+        [](int, auto seed) {
+            return std::make_shared<RedNoiseSource>(seed.value_or(0xBADC0DEu));
         });
 
     reg.register_type("LayeredRedNoiseSource", SourceCategory::Generator,
-        [](int sr, auto seed) {
-            return std::make_shared<LayeredRedNoiseSource>(sr, seed.value_or(0x1A4E4EDDu));
+        [](int, auto seed) {
+            return std::make_shared<LayeredRedNoiseSource>(seed.value_or(0x1A4E4EDDu));
         });
 
     reg.register_type("BlueNoiseSource", SourceCategory::Generator,
@@ -139,13 +139,13 @@ void register_all_sources() {
         });
 
     reg.register_type("VelvetNoiseSource", SourceCategory::Generator,
-        [](int sr, auto seed) {
-            return std::make_shared<VelvetNoiseSource>(sr, seed.value_or(0xFE17'0001u));
+        [](int, auto seed) {
+            return std::make_shared<VelvetNoiseSource>(seed.value_or(0xFE17'0001u));
         });
 
     reg.register_type("PerlinNoiseSource", SourceCategory::Generator,
-        [](int sr, auto seed) {
-            return std::make_shared<PerlinNoiseSource>(sr, seed.value_or(0xAE21'0001u));
+        [](int, auto seed) {
+            return std::make_shared<PerlinNoiseSource>(seed.value_or(0xAE21'0001u));
         });
 
     reg.register_type("CrackleNoiseSource", SourceCategory::Generator,
@@ -154,22 +154,22 @@ void register_all_sources() {
         });
 
     reg.register_type("MurmurationNoiseSource", SourceCategory::Generator,
-        [](int sr, auto seed) {
-            return std::make_shared<MurmurationNoiseSource>(sr, seed.value_or(0xB18D'0001u));
+        [](int, auto seed) {
+            return std::make_shared<MurmurationNoiseSource>(seed.value_or(0xB18D'0001u));
         });
 
     reg.register_type("WanderNoiseSource", SourceCategory::Generator,
-        [](int sr, auto seed) {
-            return std::make_shared<WanderNoiseSource>(sr, seed.value_or(0xFA0D'0001u));
+        [](int, auto seed) {
+            return std::make_shared<WanderNoiseSource>(seed.value_or(0xFA0D'0001u));
         });
 
     reg.register_type("WanderNoise2Source", SourceCategory::Generator,
-        [](int sr, auto seed) {
-            return std::make_shared<WanderNoise2Source>(sr, seed.value_or(0xFA0D'0002u));
+        [](int, auto seed) {
+            return std::make_shared<WanderNoise2Source>(seed.value_or(0xFA0D'0002u));
         });
 
     reg.register_type("WanderNoise3Source", SourceCategory::Generator,
-        [](int sr, auto) { return std::make_shared<WanderNoise3Source>(sr); });
+        [](int, auto) { return std::make_shared<WanderNoise3Source>(); });
 
     // -----------------------------------------------------------------------
     // Modulators / Utilities

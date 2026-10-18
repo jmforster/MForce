@@ -23,18 +23,15 @@ struct WanderNoiseSource final : Generator {
   Param deltaSpeed{this, "deltaSpeed", 1.0f, 0.0f, 100.0f};
   Param slopeLimit{this, "slopeLimit", 1.0f, 0.0f, 10.0f};
 
-  WanderNoiseSource(int sampleRate, uint32_t seed = 0xFA0D'0001u)
-  : sampleRate_(sampleRate), rng_(seed) {}
+  explicit WanderNoiseSource(uint32_t seed = 0xFA0D'0001u) : rng_(seed) {}
 
   Range range() const override { return Range::Bipolar; }
   const char* type_name() const override { return "WanderNoiseSource"; }
   SourceCategory category() const override { return SourceCategory::Generator; }
 
-  // The Manual amplitude pin is prepared by the node (migration form; the
-  // noise family's task splits this into the two hooks).
-  void on_prepare(const RenderContext& ctx, int frames) override {
-    amplitude.prepare(ctx, frames);
-  }
+  // The Manual amplitude pin is prepared and started by the node.
+  void on_prepare(const RenderContext& ctx) override { amplitude.prepare(ctx); }
+  void on_start(int frames) override { amplitude.start(frames); }
 
   float compute() override {
     const float ds = deltaSpeed.current();
@@ -53,7 +50,7 @@ struct WanderNoiseSource final : Generator {
 
     // Legacy: works in [0,1] internal space
     // localVal = (lastVal+1)/2 + speed/Rate * slope
-    float localVal = (lastVal_ + 1.0f) * 0.5f + sp / float(sampleRate_) * slope_;
+    float localVal = (lastVal_ + 1.0f) * 0.5f + sp / float(sample_rate()) * slope_;
 
     if (localVal > 1.0f) {
       localVal = 1.0f;
@@ -72,7 +69,6 @@ struct WanderNoiseSource final : Generator {
   }
 
 private:
-  int sampleRate_;
   // Per-note determinism (onsets-v2 addendum): re-anchor draws.
   void reseed() override { rng_.reanchor(); }
   Randomizer rng_;
@@ -98,17 +94,15 @@ struct WanderNoise2Source final : Generator {
   Param retraceProb{this, "retraceProb", 0.0f,  0.0f, 1.0f};
   Param retracePct {this, "retracePct",  0.0f,  0.0f, 1.0f};
 
-  WanderNoise2Source(int sampleRate, uint32_t seed = 0xFA0D'0002u)
-  : sampleRate_(sampleRate), rng_(seed) {}
+  explicit WanderNoise2Source(uint32_t seed = 0xFA0D'0002u) : rng_(seed) {}
 
   Range range() const override { return Range::Bipolar; }
   const char* type_name() const override { return "WanderNoise2Source"; }
   SourceCategory category() const override { return SourceCategory::Generator; }
 
-  // As WanderNoiseSource: the Manual amplitude pin, migration form.
-  void on_prepare(const RenderContext& ctx, int frames) override {
-    amplitude.prepare(ctx, frames);
-  }
+  // As WanderNoiseSource: the Manual amplitude pin.
+  void on_prepare(const RenderContext& ctx) override { amplitude.prepare(ctx); }
+  void on_start(int frames) override { amplitude.start(frames); }
 
   float compute() override {
     const float mnSpd = minSpeed.current();
@@ -139,7 +133,6 @@ struct WanderNoise2Source final : Generator {
   }
 
 private:
-  int sampleRate_;
   // Per-note determinism (onsets-v2 addendum): re-anchor draws.
   void reseed() override { rng_.reanchor(); }
   Randomizer rng_;
@@ -161,13 +154,11 @@ struct WanderNoise3Source final : Generator {
   Param deltaSpeed{this, "deltaSpeed", 1.0f, 0.0f, 100.0f};
   Param slopeLimit{this, "slopeLimit", 1.0f, 0.0f, 10.0f};
 
-  explicit WanderNoise3Source(int sampleRate) : sampleRate_(sampleRate) {}
-
   Range range() const override { return Range::Bipolar; }
   const char* type_name() const override { return "WanderNoise3Source"; }
   SourceCategory category() const override { return SourceCategory::Generator; }
 
-  void on_prepare(const RenderContext&, int) override {
+  void on_start(int) override {
     value_ = 0.0f;
     slope_ = 0.0f;
     slopeChgDir_ = 1.0f;
@@ -182,7 +173,7 @@ struct WanderNoise3Source final : Generator {
     float lastVal = value_;
 
     // Deterministic slope change
-    float slopeChgAmt = ds / float(sampleRate_);
+    float slopeChgAmt = ds / float(sample_rate());
 
     // Bounce slope change direction if limit exceeded
     if (std::fabs(slope_ + slopeChgAmt * slopeChgDir_) > sl) {
@@ -191,7 +182,7 @@ struct WanderNoise3Source final : Generator {
 
     slope_ += slopeChgAmt * slopeChgDir_;
 
-    value_ = lastVal + sp / float(sampleRate_) * slope_;
+    value_ = lastVal + sp / float(sample_rate()) * slope_;
 
     // Boundary clamp with state reset (legacy behavior)
     if (value_ > 1.0f) {
@@ -210,7 +201,6 @@ struct WanderNoise3Source final : Generator {
   }
 
 private:
-  int sampleRate_;
   float value_{0.0f};
   float slope_{0.0f};
   float slopeChgDir_{1.0f};
