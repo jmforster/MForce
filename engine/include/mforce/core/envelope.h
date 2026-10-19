@@ -195,12 +195,19 @@ struct Envelope : Generator {
     fresh.ramp_accuracy.value  = ramp_accuracy.value;
     fresh.timeScale.value      = timeScale.value;
     fresh.sustainLevel.value   = sustainLevel.value;
-    fresh.minValue.source      = std::move(minValue.source);
-    fresh.maxValue.source      = std::move(maxValue.source);
-    fresh.trigger.source       = std::move(trigger.source);
     fresh.gated_               = gated_;
     fresh.seed_                = seed_;
+    // The wires are this object's, not the fresh layout's: keep them aside
+    // over the assignment and put them back through the setter, which
+    // refreshes the sweep (the assignment itself cannot: the base runs
+    // before the pins are assigned).
+    auto minSrc = std::move(minValue.source);
+    auto maxSrc = std::move(maxValue.source);
+    auto trigSrc = std::move(trigger.source);
     *this = std::move(fresh);
+    minValue.set(std::move(minSrc));
+    maxValue.set(std::move(maxSrc));
+    trigger.set(std::move(trigSrc));
     stageCounts_.assign(stages_.size(), 0);
   }
 

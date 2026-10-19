@@ -2034,7 +2034,7 @@ static void run_base_tests() {
 
 // A Manual pin is driven by its node: next() pulls the source and returns
 // its value, or the pin's fallback (the constant; 0 for an input) unwired.
-static void run_manual_pin_advance_tests() {
+static void run_manual_pin_next_tests() {
     PinProbe p;
     CHECK_NEAR(p.freq.next(), 440.0f, 1e-6f);        // unwired: the constant
     CHECK_NEAR(p.in.next(), 0.0f, 1e-6f);            // unwired input: 0
@@ -2214,6 +2214,8 @@ static void run_memo_tests() {
     loop->clear_param("source2");             // break the ownership cycle
 }
 
+#include "mforce/core/envelope_presets.h"
+
 // The sweep follows every door that changes a pin's source: a source wired
 // after prepare and start is pulled on the next tick, and one cleared is
 // not.
@@ -2233,11 +2235,43 @@ static void run_sweep_follows_wiring_tests() {
     CHECK_NEAR(p->next(), 1.0f, 1e-6f);
     CHECK(c->computes == 1);                  // not pulled any more
     auto d = std::make_shared<Counter>();
-    p->param("source1");                      // no Param of that name: source1 is an Input
+    CHECK(p->param("source1") == nullptr);    // no Param of that name: source1 is an Input
     p->set_param("source1", d);
     h.clock.tick();
     CHECK_NEAR(p->next(), 1.0f, 1e-6f);       // d's first value + 0
     CHECK(d->computes == 1);
+
+    // A node assigning itself (a preset envelope rebuilding its stages) keeps
+    // its wires in the sweep: the range source is still pulled afterwards.
+    auto r = std::make_shared<Counter>();
+    AREnvelope env;
+    env.set_param("maxValue", r);
+    env.prepare(h.ctx); env.start(4800);
+    for (int i = 0; i < 3; ++i) { h.clock.tick(); env.next(); }
+    CHECK(r->computes == 3);
+    env.set_setting("attack", 0.3f);          // rebuild(): the stages are replaced, the wire must stay swept
+    for (int i = 0; i < 3; ++i) { h.clock.tick(); env.next(); }
+    CHECK(r->computes == 6);
+    CHECK(env.get_param("maxValue").get() == r.get());
+}
+
+// The tap edge reads its source's memo live: a Setup-time read between
+// ticks sees the source's present value without the tap being pulled.
+static void run_tap_reads_live_tests() {
+    TestHost h;
+    auto c = std::make_shared<Counter>();
+    auto tap = std::make_shared<TapSource>(c);
+    c->prepare(h.ctx); c->start(16);
+    tap->prepare(h.ctx); tap->start(16);
+    h.clock.tick(); c->next();
+    CHECK_NEAR(tap->current(), 1.0f, 1e-6f);  // never pulled, reads live
+    h.clock.tick(); c->next();
+    CHECK_NEAR(tap->current(), 2.0f, 1e-6f);
+    CHECK_NEAR(tap->next(), 2.0f, 1e-6f);     // pulled: this tick's read of the memo
+    h.clock.tick();
+    CHECK_NEAR(tap->next(), 2.0f, 1e-6f);     // the source not yet computed this tick: last tick's value (reading A)
+    c->next();
+    CHECK_NEAR(tap->current(), 3.0f, 1e-6f);  // live again
 }
 
 // A source wired to two pins is the same object on both pins: no wrapper, no
@@ -2314,11 +2348,11 @@ static void run_shared_source_tests() {
 namespace {
 // Counts how often a pin's owner prepared and advanced it.
 struct PinCounter final : mforce::Generator {
-  int starts{0}, advances{0}, rate{0}, ctxPrepares{0};
+  int starts{0}, nexts{0}, rate{0}, ctxPrepares{0};
   float level{1.0f};
   void on_prepare(const mforce::RenderContext& c) override { rate = c.sampleRate; ++ctxPrepares; }
   void on_start(int) override { ++starts; }
-  float compute() override { ++advances; return level; }
+  float compute() override { ++nexts; return level; }
   const char* type_name() const override { return "PinCounter"; }
 };
 
@@ -2408,7 +2442,7 @@ static void run_multi_name_gate_tests() {
         CHECK(c->starts == 1);
         CHECK(ng.next() == 1.0f);
         CHECK(ng.next() == 1.0f);
-        CHECK(c->advances == 2);
+        CHECK(c->nexts == 2);
     }
 }
 
@@ -2430,7 +2464,7 @@ static void run_envelope_pin_tests() {
         env->prepare(ctx); env->start(4800);
         for (int i = 0; i < 5; ++i) env->next();
         CHECK(lo->starts == 1 && hi->starts == 1 && trig->starts == 0);
-        CHECK(lo->advances == 5 && hi->advances == 5 && trig->advances == 0);
+        CHECK(lo->nexts == 5 && hi->nexts == 5 && trig->nexts == 0);
         CHECK(env->trigger.source == trig);
         CHECK(env->range() == Generator::Range::Unipolar);
         CHECK(env->param_descriptors().size() == 3);
@@ -2530,7 +2564,7 @@ static void run_envelope_rebuild_pin_tests() {
     const int n = 25;
     for (int i = 0; i < n; ++i) adsr.next();
     CHECK(lo->starts == 1 && hi->starts == 1);
-    CHECK(lo->advances == n && hi->advances == n);
+    CHECK(lo->nexts == n && hi->nexts == n);
 }
 
 // Checkpoint 2.1: the noise family with its pins declared once.
@@ -2617,7 +2651,7 @@ static void run_noise_white_tests() {
     w.set_param("density", dens);
     w.prepare(ctx); w.start(16);
     for (int i = 0; i < 5; ++i) w.next();
-    CHECK(dens->starts == 1 && dens->advances == 5);
+    CHECK(dens->starts == 1 && dens->nexts == 5);
     CHECK(w.get_param("density") == dens);
     CHECK(w.get_param("boost") == nullptr);
 }
@@ -2663,8 +2697,8 @@ static void run_noise_red_pin_tests() {
     red.set_param("frequency", std::make_shared<ConstantSource>(100.0f));
     red.prepare(ctx); red.start(4800);
     for (int i = 0; i < 7; ++i) red.next();
-    CHECK(lfoDepth->starts == 1 && lfoDepth->advances == 7);
-    CHECK(zct->starts == 1 && zct->advances == 7);
+    CHECK(lfoDepth->starts == 1 && lfoDepth->nexts == 7);
+    CHECK(zct->starts == 1 && zct->nexts == 7);
     red.clear_param("zeroCrossTendency");
     CHECK(red.get_param("zeroCrossTendency") == nullptr);
 }
@@ -2689,10 +2723,10 @@ static void run_noise_manual_amplitude_tests() {
     w2.prepare(ctx); w2.start(4800);
     w3.prepare(ctx); w3.start(4800);
     for (int i = 0; i < 5; ++i) { w1.next(); w2.next(); w3.next(); }
-    CHECK(amp1->starts == 1 && amp1->advances == 0);
-    CHECK(amp2->starts == 1 && amp2->advances == 0);
-    CHECK(amp3->starts == 1 && amp3->advances == 5);
-    CHECK(spd->starts == 1 && spd->advances == 5);
+    CHECK(amp1->starts == 1 && amp1->nexts == 0);
+    CHECK(amp2->starts == 1 && amp2->nexts == 0);
+    CHECK(amp3->starts == 1 && amp3->nexts == 5);
+    CHECK(spd->starts == 1 && spd->nexts == 5);
     // The Manual pins were prepared, not only started: they know the rate.
     CHECK(amp1->rate == 48000 && amp2->rate == 48000);
     CHECK(amp3->rate == 48000 && spd->rate == 48000);
@@ -2788,7 +2822,7 @@ static void run_wavetable_pin_tests() {
     f.set_param("frequency", std::make_shared<ConstantSource>(480.0f));
     f.prepare(ctx); f.start(4800);
     for (int i = 0; i < 250; ++i) f.next();
-    CHECK(seed->starts == 1 && seed->advances == 100);
+    CHECK(seed->starts == 1 && seed->nexts == 100);
     CHECK(seed->rate == 48000);                      // prepared, not only started
 
     for (bool interp : {false, true}) {
@@ -2801,7 +2835,7 @@ static void run_wavetable_pin_tests() {
         for (int i = 0; i < 20; ++i) CHECK(std::isfinite(s.next()));
         CHECK(sf->starts == 1);
         CHECK(sf->rate == 48000);
-        CHECK(sf->advances == (interp ? 20 : 0));
+        CHECK(sf->nexts == (interp ? 20 : 0));
     }
 }
 
@@ -2820,11 +2854,11 @@ static void run_wavetable_evolution_tests() {
     w.prepare(ctx); w.start(4800);
     CHECK(breath->starts == 1);                          // wavetable -> holder -> pin
     for (int i = 0; i < 10; ++i) CHECK(std::isfinite(w.next()));
-    CHECK(breath->advances == 10);
+    CHECK(breath->nexts == 10);
     w.clear_param("evolution");                            // no evolution, no more pulls
     CHECK(w.get_param("evolution") == nullptr);
     for (int i = 0; i < 10; ++i) w.next();
-    CHECK(breath->advances == 10);
+    CHECK(breath->nexts == 10);
 
     WavetableSource n;  // wired, but not a holder
     n.set_param("evolution", std::make_shared<ConstantSource>(0.5f));
@@ -2869,7 +2903,7 @@ static void run_hybrid_ks_tests() {
     bool finite = true;
     for (int i = 0; i < 1000; ++i) finite = finite && std::isfinite(k.next());   // through the switch
     CHECK(finite);
-    CHECK(seed->starts == 1 && seed->advances == 100);
+    CHECK(seed->starts == 1 && seed->nexts == 100);
 }
 
 // All twelve holders: the settings (and pins) each declares, in order, and
@@ -3183,7 +3217,7 @@ static void run_additive_auto_pin_tests() {
         }
         s.prepare(ctx); s.start(4800);
         for (int i = 0; i < 7; ++i) s.next();
-        for (const auto& p : probes) CHECK(p->starts == 1 && p->advances == 7);
+        for (const auto& p : probes) CHECK(p->starts == 1 && p->nexts == 7);
     };
     AdditiveSource2 a2;
     a2.set_default_partials(10);
@@ -3199,7 +3233,7 @@ static void run_additive_auto_pin_tests() {
     b.assign_ampl_envelope(env, AdditiveSource2::PartialFilter::All, 1, 10);
     b.prepare(ctx); b.start(4800);
     for (int i = 0; i < 7; ++i) b.next();
-    CHECK(env->starts == 1 && env->advances == 7);
+    CHECK(env->starts == 1 && env->nexts == 7);
 }
 
 // The pins the additive source drives through the partials and formant
@@ -3236,7 +3270,7 @@ static void run_additive_manual_pin_tests() {
     fm.fmt_next();
     CHECK(c1->starts == 1 && c2->starts == 1);
     CHECK(c1->rate == 48000 && c2->rate == 48000);     // fmt_prepare reached the pins
-    CHECK(c1->advances == 2 && c2->advances == 2);
+    CHECK(c1->nexts == 2 && c2->nexts == 2);
 
     BandSpectrum band;
     FormantSequence seq;
@@ -3245,15 +3279,15 @@ static void run_additive_manual_pin_tests() {
     seq.set_param("blend", b2);
     band.fmt_prepare(ctx); band.fmt_start(4800); band.fmt_next();
     seq.fmt_prepare(ctx);  seq.fmt_start(4800);  seq.fmt_next();
-    CHECK(b1->starts == 1 && b1->advances == 1);
-    CHECK(b2->starts == 1 && b2->advances == 1);
+    CHECK(b1->starts == 1 && b1->nexts == 1);
+    CHECK(b2->starts == 1 && b2->nexts == 1);
 
     ExpandRuleNode rule;                                   // nothing pulls its pins
     auto r1 = std::make_shared<PinCounter>();
     rule.set_param("spacing1", r1);
     rule.prepare(ctx); rule.start(4800);
     for (int i = 0; i < 3; ++i) rule.next();
-    CHECK(r1->starts == 0 && r1->advances == 0);
+    CHECK(r1->starts == 0 && r1->nexts == 0);
 }
 
 // FullAdditiveSource reads the formant weight and floor only while a formant
@@ -3268,7 +3302,7 @@ static void run_additive_formant_pin_tests() {
     f.prepare(ctx); f.start(4800);
     for (int i = 0; i < 5; ++i) f.next();
     CHECK(w->starts == 1 && fl->starts == 1);
-    CHECK(w->advances == 0 && fl->advances == 0);          // no formant: never advanced
+    CHECK(w->nexts == 0 && fl->nexts == 0);          // no formant: never advanced
 
     auto formant = std::make_shared<Formant>();
     auto freq = std::make_shared<PinCounter>();
@@ -3277,7 +3311,7 @@ static void run_additive_formant_pin_tests() {
     f.prepare(ctx); f.start(4800);
     for (int i = 0; i < 5; ++i) f.next();
     CHECK(w->starts == 2 && fl->starts == 2 && freq->starts == 1);
-    CHECK(w->advances == 5 && fl->advances == 5 && freq->advances == 5);
+    CHECK(w->nexts == 5 && fl->nexts == 5 && freq->nexts == 5);
 
     FullAdditiveSource g;                           // no partials: nothing advances
     auto gw = std::make_shared<PinCounter>();
@@ -3285,7 +3319,7 @@ static void run_additive_formant_pin_tests() {
     g.set_param("formant", formant);
     g.prepare(ctx); g.start(4800);
     for (int i = 0; i < 5; ++i) g.next();
-    CHECK(gw->starts == 1 && gw->advances == 0);
+    CHECK(gw->starts == 1 && gw->nexts == 0);
 }
 
 // The structural inputs are type-checked when wired and keep a typed view.
@@ -3514,7 +3548,7 @@ static void run_physical_auto_pin_tests() {
         }
         s.prepare(ctx); s.start(4800);
         for (int i = 0; i < 7; ++i) CHECK(std::isfinite(s.next()));
-        for (const auto& p : probes) CHECK(p->starts == 1 && p->advances == 7);
+        for (const auto& p : probes) CHECK(p->starts == 1 && p->nexts == 7);
     };
     AllpassResonator ar;
     count(ar, {"source", "frequency", "amplitude"});
@@ -3805,7 +3839,7 @@ static void run_filter_auto_pin_tests() {
         return probes;
     };
     auto count = [&](ValueSource& s, std::initializer_list<const char*> names) {
-        for (const auto& p : wire(s, names)) CHECK(p->starts == 1 && p->advances == 7);
+        for (const auto& p : wire(s, names)) CHECK(p->starts == 1 && p->nexts == 7);
     };
     BWLowpassFilter lp(2);   count(lp, {"source", "cutoffFreq"});
     BWHighpassFilter hp(2);  count(hp, {"source", "cutoffFreq"});
@@ -3819,13 +3853,13 @@ static void run_filter_auto_pin_tests() {
 
     BiquadSource raw;
     auto rp = wire(raw, {"source", "frequency", "radius"});
-    CHECK(rp[0]->starts == 1 && rp[0]->advances == 7);
-    CHECK(rp[1]->starts == 1 && rp[1]->advances == 0);
-    CHECK(rp[2]->starts == 1 && rp[2]->advances == 0);
+    CHECK(rp[0]->starts == 1 && rp[0]->nexts == 7);
+    CHECK(rp[1]->starts == 1 && rp[1]->nexts == 0);
+    CHECK(rp[2]->starts == 1 && rp[2]->nexts == 0);
     BiquadSource res;
     res.set_setting("mode", 1.0f);
     auto sp = wire(res, {"source", "frequency", "radius"});
-    for (const auto& p : sp) CHECK(p->starts == 1 && p->advances == 7);
+    for (const auto& p : sp) CHECK(p->starts == 1 && p->nexts == 7);
 
     // an unwired pin reads its declared constant and is not a source
     CHECK(lp.get_param("source") != nullptr && lp.get_param("nosuch") == nullptr);
@@ -4077,9 +4111,9 @@ const SettingDescriptor* find_setting(const Component& c, const char* name) {
 }
 // Counts prepares and advances and remembers the length it was last prepared for.
 struct LengthProbe final : Generator {
-    int starts{0}, advances{0}, lastFrames{0};
+    int starts{0}, nexts{0}, lastFrames{0};
     void on_start(int frames) override { ++starts; lastFrames = frames; }
-    float compute() override { ++advances; return 1.0f; }
+    float compute() override { ++nexts; return 1.0f; }
     const char* type_name() const override { return "LengthProbe"; }
 };
 std::shared_ptr<ConstantSource> konst(float v) { return std::make_shared<ConstantSource>(v); }
@@ -4236,7 +4270,7 @@ static void run_combine_mod_auto_pin_tests() {
         bool finite = true;
         for (int i = 0; i < 7; ++i) finite = finite && std::isfinite(s.next());
         bool each = true;
-        for (const auto& p : probes) each = each && p->starts == 1 && p->advances == 7;
+        for (const auto& p : probes) each = each && p->starts == 1 && p->nexts == 7;
         CHECK(finite && each);
     };
     CombinedSource comb(nullptr, nullptr, CombineOp::Add);
@@ -4286,9 +4320,9 @@ static void run_combine_mod_manual_pin_tests() {
     xf.set_param("amplitude", amp);
     xf.prepare(ctx); xf.start(100);
     for (int i = 0; i < 100; ++i) xf.next();
-    CHECK(amp->starts == 1 && amp->advances == 100);
-    CHECK(s1->starts == 1 && s1->lastFrames == 55 && s1->advances == 55);
-    CHECK(s2->starts == 1 && s2->lastFrames == 55 && s2->advances == 55);
+    CHECK(amp->starts == 1 && amp->nexts == 100);
+    CHECK(s1->starts == 1 && s1->lastFrames == 55 && s1->nexts == 55);
+    CHECK(s2->starts == 1 && s2->lastFrames == 55 && s2->nexts == 55);
 
     // repeating: 10 samples of source, 6 of silence, per cycle (sr 1000);
     // the source is prepared again for each repetition and not pulled in a gap
@@ -4304,7 +4338,7 @@ static void run_combine_mod_manual_pin_tests() {
     bool pattern = true;
     for (int i = 0; i < 32; ++i) pattern = pattern && (out[i] == ((i % 16) < 10 ? 1.0f : 0.0f));
     CHECK(pattern);
-    CHECK(rsrc->advances == 20 && rsrc->starts == 3 && rsrc->lastFrames == 10);
+    CHECK(rsrc->nexts == 20 && rsrc->starts == 3 && rsrc->lastFrames == 10);
 
     // multiplex: the wired source plays solo until the clones exist
     MultiplexSource solo;
@@ -4312,7 +4346,7 @@ static void run_combine_mod_manual_pin_tests() {
     solo.set_param("source", wired);
     solo.prepare(ctx); solo.start(100);
     for (int i = 0; i < 5; ++i) solo.next();
-    CHECK(wired->starts == 1 && wired->advances == 5);
+    CHECK(wired->starts == 1 && wired->nexts == 5);
     CHECK_NEAR(solo.current(), 1.0f, 1e-6f);
     MultiplexSource cloned;
     auto unused = std::make_shared<LengthProbe>();
@@ -4323,7 +4357,7 @@ static void run_combine_mod_manual_pin_tests() {
     });
     cloned.prepare(ctx); cloned.start(100);
     for (int i = 0; i < 5; ++i) cloned.next();
-    CHECK(unused->starts == 0 && unused->advances == 0);
+    CHECK(unused->starts == 0 && unused->nexts == 0);
     CHECK_NEAR(cloned.current(), 2.0f, 1e-6f);        // the mean of the three clones
 }
 
@@ -4345,7 +4379,8 @@ static void run_combine_mod_shaper_timing_tests() {
     h.clock.tick(); CHECK_NEAR(sh.next(), 8.0f, 1e-3f);   // 2 * 4
     h.clock.tick(); CHECK_NEAR(sh.next(), 18.0f, 1e-3f);  // 3 * 6
 
-    // every pin is prepared once per note and pulled once per sample
+    // every wired pin is prepared once per note and pulled once per sample
+    // (four of the six are wired here; the auto-pin test wires all six)
     ShaperSource full;
     std::vector<std::shared_ptr<PinCounter>> probes;
     for (const char* n : {"source", "drive", "smoothness", "morph"}) {
@@ -4355,7 +4390,7 @@ static void run_combine_mod_shaper_timing_tests() {
     full.prepare(ctx); full.start(100);
     for (int i = 0; i < 7; ++i) full.next();
     bool each = true;
-    for (const auto& p : probes) each = each && p->starts == 1 && p->advances == 7;
+    for (const auto& p : probes) each = each && p->starts == 1 && p->nexts == 7;
     CHECK(each);
 }
 
@@ -4387,7 +4422,6 @@ static void run_combine_mod_advance_order_tests() {
     SegmentSource seg(std::vector<float>{2.0f, 1.0f});
     order(seg, {"amplitude", "smoothness", "width", "gap", "gapVarPct", "widthVarPct", "valVarPct"});
     ShaperSource shaper;
-    shaper.set_setting("hysteresis", 1.0f);
     order(shaper, {"source", "drive", "smoothness", "morph", "breakaway", "capture"});
     CrossfadeSource xfade;           // sample 45 of 100 is in the overlap: both sources play
     order(xfade, {"amplitude", "source1", "source2"}, 45);
@@ -5479,7 +5513,7 @@ static void run_combine_mod_pin_split_tests() {
     // A repetition boundary starts the child and never prepares it.
     CHECK(kid->ctxPrepares == 1);
     CHECK(kid->starts == 4);
-    CHECK(kid->advances > 3 * 2400 && kid->advances < 4 * 2400);
+    CHECK(kid->nexts > 3 * 2400 && kid->nexts < 4 * 2400);
 
     PhasedValueSource ph(0.05f);
     auto st1 = std::make_shared<PinCounter>(), st2 = std::make_shared<PinCounter>();
@@ -5741,7 +5775,7 @@ int main() {
     run_pin_tests();
     run_base_tests();
     run_prepare_start_tests();
-    run_manual_pin_advance_tests();
+    run_manual_pin_next_tests();
     run_setting_clamp_tests();
     run_manual_pin_prepare_tests();
     run_processor_manual_input_tests();
@@ -5784,6 +5818,7 @@ int main() {
     run_memo_tests();
     run_shared_source_tests();
     run_sweep_follows_wiring_tests();
+    run_tap_reads_live_tests();
     run_walk2_tests();
     run_walk3_tests();
     run_walk1_tests();

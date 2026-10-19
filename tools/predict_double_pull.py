@@ -1,10 +1,12 @@
 """Predict, from a patch's JSON alone, whether a tail pull re-reaches the root
 cone: a node the root pull already computed this sample is pulled again by a
-tap-only tail's forward inputs. Today that is a direct double advance (no
-wrapper is involved, so the sharing trace never saw it); under the memo the
-second pull is served, so the render changes.
+tap-only tail's forward inputs. In the engine before the per-tick memo that
+was a direct double advance (no wrapper was involved, so the sharing trace
+never saw it); under the memo the second pull is served, so the render
+changes. This tool models that earlier engine on purpose: it is the record of
+how the one such patch in the tree was found.
 
-Rules mirror patch_loader.cpp: normal edges = {"ref": id} anywhere under
+Rules mirror the loader as it was then: normal edges = {"ref": id} anywhere under
 params and plain ids under "inputs"; a tap edge = {"tap": id}; the tail list =
 nodes with a tap consumer, no normal consumer, not the output (in nodeOrder);
 the first consumer of a shared source (wiring order) advances it, later ones

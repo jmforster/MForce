@@ -199,8 +199,7 @@ struct PitchedInstrument final : Instrument {
   void prepare(const RenderContext& c) override {
     Instrument::prepare(c);
     for (auto& vg : voicePool) {
-      vg.ctx = c;
-      vg.ctx.clock = vg.clock.get();
+      vg.ctx = c.with_clock(vg.clock.get());
       if (vg.source) vg.source->prepare(vg.ctx);
       for (auto& a : vg.advanceList) a->prepare(vg.ctx);
       if (vg.performSource) vg.performSource->prepare(vg.ctx);
@@ -755,10 +754,10 @@ struct DrumKit final : Instrument {
 
   struct DrumSource {
     std::shared_ptr<ValueSource> source;
-    // Each drum is its own pull loop: its clock, and the host's facts
-    // completed with it. `sources` is built before prepare and never grows
-    // after, so the context's pointer into it stays valid.
-    SampleClock clock;
+    // Each drum is its own pull loop: its clock (heap-owned, like a voice's,
+    // so the context's pointer survives the vector growing) and the host's
+    // facts completed with it.
+    std::unique_ptr<SampleClock> clock{std::make_unique<SampleClock>()};
     RenderContext ctx;
   };
 
@@ -767,8 +766,7 @@ struct DrumKit final : Instrument {
   void prepare(const RenderContext& c) override {
     Instrument::prepare(c);
     for (auto& ds : sources) {
-      ds.ctx = c;
-      ds.ctx.clock = &ds.clock;
+      ds.ctx = c.with_clock(ds.clock.get());
       if (ds.source) ds.source->prepare(ds.ctx);
     }
   }
@@ -784,7 +782,7 @@ struct DrumKit final : Instrument {
 
     std::vector<float> buf(durSamples);
     for (int i = 0; i < durSamples; ++i) {
-      ds.clock.tick();
+      ds.clock->tick();
       buf[i] = ds.source->next() * velocity;
     }
 

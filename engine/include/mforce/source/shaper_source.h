@@ -20,8 +20,9 @@ struct ShaperSource final : Processor {
   // single-curve shaper. Curve-morph spec §5.
   Param morph     {this, "morph",      0.0f, 0.0f, 1.0f,  "0-1"};
   // Hysteresis thresholds, in post-drive curve-x units (hysteresis spec §2).
-  // breakaway ~ bow pressure; capture 0 = zero-cross-only recapture. Read
-  // only in hysteresis mode.
+  // breakaway ~ bow pressure; capture 0 = zero-cross-only recapture.
+  // compute() reads them only in hysteresis mode; the base pulls them every
+  // sample regardless, so a modulator wired here runs from the note's start.
   Param breakaway {this, "breakaway",  0.6f, 0.0f, 2.0f,  "curve-x"};
   Param capture   {this, "capture",    0.0f, 0.0f, 2.0f,  "curve-x"};
   // Stick/slip junction mode (hysteresis spec §3): curve A = stick, curve B

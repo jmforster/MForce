@@ -10,8 +10,7 @@ StereoMixer::StereoMixer()
 , gainR(std::make_shared<ConstantSource>(1.0f)) {}
 
 void StereoMixer::prepare(const RenderContext& ctx) {
-  ctx_ = ctx;
-  ctx_.clock = &clock_;
+  ctx_ = ctx.with_clock(&clock_);
   gainL->prepare(ctx_);
   gainR->prepare(ctx_);
   for (auto& ch : channels) {

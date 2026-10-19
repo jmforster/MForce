@@ -22,6 +22,14 @@ struct SampleClock {
 struct RenderContext {
     int sampleRate{0};
     const SampleClock* clock{nullptr};
+
+    // The same facts, driven by the given clock: what a pull loop makes of
+    // the context it was handed before it prepares its graph.
+    RenderContext with_clock(const SampleClock* c) const {
+        RenderContext r = *this;
+        r.clock = c;
+        return r;
+    }
 };
 
 } // namespace mforce

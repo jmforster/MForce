@@ -63,8 +63,7 @@ struct WaveSourceMono final : MonoSource {
     RenderContext ctx;
     explicit WaveSourceMono(std::shared_ptr<WaveSource> s) : src(std::move(s)) {}
     void prepare(const RenderContext& c) override {
-        ctx = c;
-        ctx.clock = &clock;
+        ctx = c.with_clock(&clock);
         src->prepare(ctx);
     }
     void render(float* out, int frames) override {
@@ -79,8 +78,7 @@ struct ValueSourceMono final : MonoSource {
     RenderContext ctx;
     explicit ValueSourceMono(std::shared_ptr<ValueSource> s) : src(std::move(s)) {}
     void prepare(const RenderContext& c) override {
-        ctx = c;
-        ctx.clock = &clock;
+        ctx = c.with_clock(&clock);
         src->prepare(ctx);
     }
     void render(float* out, int frames) override {

@@ -29,6 +29,7 @@ struct ValueSource : Component {
   // on_prepare; a Manual pin is prepared by the node in on_prepare.
   void prepare(const RenderContext& ctx) {
     ctx_ = ctx;
+    lastTick_ = -1;           // a tick means something only against this clock
     computing_ = false;
     refresh_auto_sources();
     for (auto* pin : pins())
@@ -73,7 +74,13 @@ struct ValueSource : Component {
   }
   // One sample now, whatever the tick, through every Auto pin: for a node
   // that drives a source at its own rate (a table fill draws N samples at a
-  // note's start). The memo holds the last stepped value.
+  // note's start). The memo holds the last stepped value. Two limits, by
+  // construction: a Manual pin or an owned sub-source inside the stepped
+  // subgraph is pulled by its node with next() and so serves the memo for
+  // the rest of the fill; and a node reached on two pins of the subgraph
+  // steps once per pin. The two callers (the table fills) drive a private
+  // excitation source; a shared or Manual-pulling excitation is not
+  // supported under step().
   float step() {
     if (ctx_.clock) lastTick_ = ctx_.clock->now;
     for (auto* s : auto_sources()) s->step();
@@ -122,10 +129,13 @@ protected:
 
   // A node assigning itself (Envelope::replace_stages) assigns its own
   // state; the context the host gave this object stays, like the registry.
+  // No sweep refresh here: a base's assignment runs before the derived
+  // members are assigned, so the pins still hold their old sources at this
+  // point. The node that assigns itself re-sets its wires afterwards
+  // (Envelope::replace_stages), and the setter refreshes the sweep.
   ValueSource& operator=(const ValueSource& o) {
     Component::operator=(o);
     cur_ = o.cur_;
-    refresh_auto_sources();   // the pins' sources were just assigned
     return *this;
   }
 
@@ -213,7 +223,8 @@ struct TapSource final : ValueSource {
     : source(std::move(src)) {}
 
   // No pins and no hooks: prepare and start reach nothing here. The source
-  // is prepared and started by the consumers that pull it.
+  // is prepared and started by whatever pulls it — its consumers, or the
+  // voice's tail list when only taps reach it.
   float compute() override { return read_(); }
   // The same read, live: a Setup-time read between ticks sees the source's
   // present value, not the memo of the tick before.

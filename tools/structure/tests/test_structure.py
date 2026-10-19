@@ -128,8 +128,8 @@ class KnownAnswerTests(unittest.TestCase):
 
     def test_ui_main_function_lengths(self):
         # The live file is the fixture, so these move with every edit inside
-        # the two functions (main() gained one line, the headless harness's
-        # per-sample clock tick, at checkpoint 2.3).
+        # the two functions (the headless harness, which ticks its clock once
+        # per sample, lives inside main()).
         lengths = {name: n for name, _, n in measure.function_lengths(str(ROOT / "tools/mforce_ui/main.cpp"))}
         self.assertEqual(lengths["main"], 1712)
         self.assertEqual(lengths["draw_properties_panel"], 1035)

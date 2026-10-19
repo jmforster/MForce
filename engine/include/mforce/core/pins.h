@@ -50,7 +50,6 @@ protected:
   void source_changed();                          // component.h
 private:
   Component* owner_{nullptr};
-  friend struct Component;
 };
 
 // A connectable parameter: a source, or a constant when nothing is wired.
