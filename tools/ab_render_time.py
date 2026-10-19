@@ -17,14 +17,22 @@ import time
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 WAV = os.path.join(ROOT, "renders", "nulltest", "_ab.wav")
 
+# The three library patches the refactor reports time, and the nine micro
+# patches that isolate one mechanism each (renders/scratch/ab_tree/micro,
+# kept from report R2's render-time investigation).
 PATCHES = [
-    ("prof 032p",      "patches/prof_additive/add_032p.json"),
-    ("prof 096p",      "patches/prof_additive/add_096p.json"),
-    ("prof 200p",      "patches/prof_additive/add_200p.json"),
-    ("viola_default",  "patches/viola_default.json"),
-    ("v6_cmaes_best",  "patches/fable1_v6/v6_05_cmaes_best.json"),
-    ("vowel_liar1320", "patches/vowel_baseline/liar_1320.json"),
-    ("expand_control", "patches/expand_sweep/control_noexpand.json"),
+    ("oboe1",          "patches/library/winds/oboe1.json"),
+    ("piano_default",  "patches/library/keys/acoustic_piano/piano_default.json"),
+    ("viola_default",  "patches/library/strings/viola_default.json"),
+    ("A sine",         "renders/scratch/ab_tree/micro/A_sine_unwired.json"),
+    ("B sine+env",     "renders/scratch/ab_tree/micro/B_sine_env.json"),
+    ("C filter x8",    "renders/scratch/ab_tree/micro/C_filter_chain8.json"),
+    ("D 8 sines",      "renders/scratch/ab_tree/micro/D_8sines_2wired_each.json"),
+    ("E shared ref",   "renders/scratch/ab_tree/micro/E_shared_env_ref.json"),
+    ("F 40 sines",     "renders/scratch/ab_tree/micro/F_40_unwired_sines.json"),
+    ("G 40 own env",   "renders/scratch/ab_tree/micro/G_40_sines_own_env.json"),
+    ("H 40 shared",    "renders/scratch/ab_tree/micro/H_40_sines_shared_env.json"),
+    ("I 40 envs",      "renders/scratch/ab_tree/micro/I_40_envelopes.json"),
 ]
 
 RE_RENDER = re.compile(r"render=([\d.]+)ms")

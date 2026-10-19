@@ -1,0 +1,597 @@
+# Sharing measurements (for the per-tick memo and the tap rule)
+
+Taken 2026-10-18 at engine commit `587b539` over the 1615 patches of the A/B set files library.txt, baselines.txt, audition.txt, pending.txt, sweep.txt, old.txt, with `MFORCE_TRACE_SHARING=1` (`python tools/measure_sharing.py`).
+A *lag read* is a wrapped consumer reading a shared source before its primary consumer advanced it that sample (it reads the previous sample's value). A *same-tick tap* is a guarded tap reading a source that had already advanced that sample.
+
+## 342 patches with wiring-order lag reads (expected to change under the memo)
+
+- `patches/audition/afks/afks_v1.json`: 2062110 lag reads
+- `patches/audition/bow_family/rnfreq_track.json`: 1123200 lag reads
+- `patches/audition/bwg_perc1/bwg_chime.json`: 53435712 lag reads
+- `patches/audition/bwg_perc1/bwg_glass_long.json`: 46560000 lag reads
+- `patches/audition/bwg_perc1/bwg_marimba.json`: 10924080 lag reads
+- `patches/audition/bwg_perc1/bwg_tomdrum.json`: 12684144 lag reads
+- `patches/audition/bwg_perc1/bwg_vibraphone.json`: 27635472 lag reads
+- `patches/audition/bwg_perc1/bwg_woodblock.json`: 6048000 lag reads
+- `patches/audition/bwg_perc1/bwg_xylophone.json`: 8102368 lag reads
+- `patches/audition/bwg_perc2/bwg2_chime.json`: 46481304 lag reads
+- `patches/audition/bwg_perc2/bwg2_glass_long.json`: 24174040 lag reads
+- `patches/audition/bwg_perc2/bwg2_marimba.json`: 10970912 lag reads
+- `patches/audition/bwg_perc2/bwg2_tomdrum.json`: 12096000 lag reads
+- `patches/audition/bwg_perc2/bwg2_vibraphone.json`: 21125268 lag reads
+- `patches/audition/bwg_perc2/bwg2_woodblock.json`: 6048000 lag reads
+- `patches/audition/bwg_perc2/bwg2_xylophone.json`: 8339200 lag reads
+- `patches/audition/curve_morph/oboe_morph_demo.json`: 576000 lag reads
+- `patches/audition/excite1/dots_halfhump_6k.json`: 1852800 lag reads
+- `patches/audition/excite1/piano_halfhump.json`: 8 lag reads
+- `patches/audition/feedback_valve2/fbv2_r090_q10_k025_h.json`: 1152000 lag reads
+- `patches/audition/feedback_valve2/fbv2_r090_q10_k025_s.json`: 1152000 lag reads
+- `patches/audition/feedback_valve2/fbv2_r090_q10_k050_h.json`: 1152000 lag reads
+- `patches/audition/feedback_valve2/fbv2_r090_q10_k050_s.json`: 1152000 lag reads
+- `patches/audition/feedback_valve2/fbv2_r090_q10_k100_h.json`: 1152000 lag reads
+- `patches/audition/feedback_valve2/fbv2_r090_q10_k100_s.json`: 1152000 lag reads
+- `patches/audition/feedback_valve2/fbv2_r090_q20_k025_h.json`: 1152000 lag reads
+- `patches/audition/feedback_valve2/fbv2_r090_q20_k025_s.json`: 1152000 lag reads
+- `patches/audition/feedback_valve2/fbv2_r090_q20_k050_h.json`: 1152000 lag reads
+- `patches/audition/feedback_valve2/fbv2_r090_q20_k050_s.json`: 1152000 lag reads
+- `patches/audition/feedback_valve2/fbv2_r090_q20_k100_h.json`: 1152000 lag reads
+- `patches/audition/feedback_valve2/fbv2_r090_q20_k100_s.json`: 1152000 lag reads
+- `patches/audition/feedback_valve2/fbv2_r100_q10_k025_h.json`: 1152000 lag reads
+- `patches/audition/feedback_valve2/fbv2_r100_q10_k025_s.json`: 1152000 lag reads
+- `patches/audition/feedback_valve2/fbv2_r100_q10_k050_h.json`: 1152000 lag reads
+- `patches/audition/feedback_valve2/fbv2_r100_q10_k050_s.json`: 1152000 lag reads
+- `patches/audition/feedback_valve2/fbv2_r100_q10_k100_h.json`: 1152000 lag reads
+- `patches/audition/feedback_valve2/fbv2_r100_q10_k100_s.json`: 1152000 lag reads
+- `patches/audition/feedback_valve2/fbv2_r100_q20_k025_h.json`: 1152000 lag reads
+- `patches/audition/feedback_valve2/fbv2_r100_q20_k025_s.json`: 1152000 lag reads
+- `patches/audition/feedback_valve2/fbv2_r100_q20_k050_h.json`: 1152000 lag reads
+- `patches/audition/feedback_valve2/fbv2_r100_q20_k050_s.json`: 1152000 lag reads
+- `patches/audition/feedback_valve2/fbv2_r100_q20_k100_h.json`: 1152000 lag reads
+- `patches/audition/feedback_valve2/fbv2_r100_q20_k100_s.json`: 1152000 lag reads
+- `patches/audition/hysteresis_bow1/hyb_b040_c000_h.json`: 577290 lag reads
+- `patches/audition/hysteresis_bow1/hyb_b040_c000_s.json`: 576000 lag reads
+- `patches/audition/hysteresis_bow1/hyb_b040_c030_h.json`: 578221 lag reads
+- `patches/audition/hysteresis_bow1/hyb_b040_c030_s.json`: 576000 lag reads
+- `patches/audition/hysteresis_bow1/hyb_b060_c000_h.json`: 581710 lag reads
+- `patches/audition/hysteresis_bow1/hyb_b060_c000_s.json`: 576870 lag reads
+- `patches/audition/hysteresis_bow1/hyb_b060_c030_h.json`: 576779 lag reads
+- `patches/audition/hysteresis_bow1/hyb_b060_c030_s.json`: 576000 lag reads
+- `patches/audition/hysteresis_bow1/hyb_b090_c000_h.json`: 579370 lag reads
+- `patches/audition/hysteresis_bow1/hyb_b090_c000_s.json`: 576000 lag reads
+- `patches/audition/hysteresis_bow1/hyb_b090_c030_h.json`: 579209 lag reads
+- `patches/audition/hysteresis_bow1/hyb_b090_c030_s.json`: 576000 lag reads
+- `patches/audition/hysteresis_bow1/x_memoryless.json`: 578020 lag reads
+- `patches/audition/hysteresis_bow2/hyb2_v060_dm2.json`: 576000 lag reads
+- `patches/audition/hysteresis_bow2/hyb2_v060_dm3.json`: 576000 lag reads
+- `patches/audition/hysteresis_bow2/hyb2_v060_dm3_r05_hi.json`: 576000 lag reads
+- `patches/audition/hysteresis_bow2/hyb2_v060_dm3_r05_lo.json`: 576000 lag reads
+- `patches/audition/hysteresis_bow2/hyb2_v060_hi_bq.json`: 576000 lag reads
+- `patches/audition/hysteresis_bow2/hyb2_v060_hi_bs.json`: 576000 lag reads
+- `patches/audition/hysteresis_bow2/hyb2_v060_lo_bq.json`: 576000 lag reads
+- `patches/audition/hysteresis_bow2/hyb2_v060_lo_bs.json`: 576000 lag reads
+- `patches/audition/hysteresis_bow2/hyb2_v090_dm2.json`: 576000 lag reads
+- `patches/audition/hysteresis_bow2/hyb2_v090_dm3.json`: 576000 lag reads
+- `patches/audition/hysteresis_bow2/hyb2_v090_dm3_r05_hi.json`: 576000 lag reads
+- `patches/audition/hysteresis_bow2/hyb2_v090_dm3_r05_lo.json`: 576000 lag reads
+- `patches/audition/hysteresis_bow2/hyb2_v090_hi_bq.json`: 576000 lag reads
+- `patches/audition/hysteresis_bow2/hyb2_v090_hi_bs.json`: 576000 lag reads
+- `patches/audition/hysteresis_bow2/hyb2_v090_lo_bq.json`: 576000 lag reads
+- `patches/audition/hysteresis_bow2/hyb2_v090_lo_bs.json`: 576000 lag reads
+- `patches/audition/hysteresis_bow2/x_nobias.json`: 576000 lag reads
+- `patches/audition/hysteresis_bow3/hyb3_e03_g102_b005.json`: 576000 lag reads
+- `patches/audition/hysteresis_bow3/hyb3_e03_g102_b025.json`: 576000 lag reads
+- `patches/audition/hysteresis_bow3/hyb3_e03_g102_b100.json`: 576000 lag reads
+- `patches/audition/hysteresis_bow3/hyb3_e03_g115_b005.json`: 576000 lag reads
+- `patches/audition/hysteresis_bow3/hyb3_e03_g115_b025.json`: 576000 lag reads
+- `patches/audition/hysteresis_bow3/hyb3_e03_g115_b100.json`: 576000 lag reads
+- `patches/audition/hysteresis_bow3/hyb3_e03_g140_b005.json`: 576000 lag reads
+- `patches/audition/hysteresis_bow3/hyb3_e03_g140_b025.json`: 576000 lag reads
+- `patches/audition/hysteresis_bow3/hyb3_e03_g140_b100.json`: 576000 lag reads
+- `patches/audition/hysteresis_bow3/hyb3_e15_g102_b005.json`: 576000 lag reads
+- `patches/audition/hysteresis_bow3/hyb3_e15_g102_b025.json`: 576000 lag reads
+- `patches/audition/hysteresis_bow3/hyb3_e15_g102_b100.json`: 576000 lag reads
+- `patches/audition/hysteresis_bow3/hyb3_e15_g115_b005.json`: 576000 lag reads
+- `patches/audition/hysteresis_bow3/hyb3_e15_g115_b025.json`: 576000 lag reads
+- `patches/audition/hysteresis_bow3/hyb3_e15_g115_b100.json`: 576000 lag reads
+- `patches/audition/hysteresis_bow3/hyb3_e15_g140_b005.json`: 576000 lag reads
+- `patches/audition/hysteresis_bow3/hyb3_e15_g140_b025.json`: 576000 lag reads
+- `patches/audition/hysteresis_bow3/hyb3_e15_g140_b100.json`: 576000 lag reads
+- `patches/audition/hysteresis_bow3/hyb3_e35_g102_b005.json`: 576000 lag reads
+- `patches/audition/hysteresis_bow3/hyb3_e35_g102_b025.json`: 576000 lag reads
+- `patches/audition/hysteresis_bow3/hyb3_e35_g102_b100.json`: 576000 lag reads
+- `patches/audition/hysteresis_bow3/hyb3_e35_g115_b005.json`: 576000 lag reads
+- `patches/audition/hysteresis_bow3/hyb3_e35_g115_b025.json`: 576000 lag reads
+- `patches/audition/hysteresis_bow3/hyb3_e35_g115_b100.json`: 576000 lag reads
+- `patches/audition/hysteresis_bow3/hyb3_e35_g140_b005.json`: 576000 lag reads
+- `patches/audition/hysteresis_bow3/hyb3_e35_g140_b025.json`: 576000 lag reads
+- `patches/audition/hysteresis_bow3/hyb3_e35_g140_b100.json`: 576000 lag reads
+- `patches/audition/hysteresis_bow4/hyb4_ga15_dc06.json`: 576000 lag reads
+- `patches/audition/hysteresis_bow4/hyb4_ga15_dc12.json`: 576000 lag reads
+- `patches/audition/hysteresis_bow4/hyb4_ga15_dc24.json`: 576000 lag reads
+- `patches/audition/hysteresis_bow4/hyb4_ga35_dc06.json`: 576000 lag reads
+- `patches/audition/hysteresis_bow4/hyb4_ga35_dc12.json`: 576000 lag reads
+- `patches/audition/hysteresis_bow4/hyb4_ga35_dc24.json`: 576000 lag reads
+- `patches/audition/hysteresis_bow4/hyb4_ga60_dc06.json`: 576000 lag reads
+- `patches/audition/hysteresis_bow4/hyb4_ga60_dc12.json`: 576000 lag reads
+- `patches/audition/hysteresis_bow4/hyb4_ga60_dc24.json`: 576000 lag reads
+- `patches/audition/hysteresis_bow4/x_r3ref.json`: 576000 lag reads
+- `patches/audition/hysteresis_bow5/hyb5_v060_c10.json`: 576000 lag reads
+- `patches/audition/hysteresis_bow5/hyb5_v060_c25.json`: 576000 lag reads
+- `patches/audition/hysteresis_bow5/hyb5_v060_c40.json`: 576000 lag reads
+- `patches/audition/hysteresis_bow5/hyb5_v090_c10.json`: 576000 lag reads
+- `patches/audition/hysteresis_bow5/hyb5_v090_c25.json`: 576000 lag reads
+- `patches/audition/hysteresis_bow5/hyb5_v090_c40.json`: 576000 lag reads
+- `patches/audition/string_harness1/str1_p112_c12_h0.json`: 1152510 lag reads
+- `patches/audition/string_harness1/str1_p112_c12_h05.json`: 1152180 lag reads
+- `patches/audition/string_harness1/str1_p112_c12_h12.json`: 1152920 lag reads
+- `patches/audition/string_harness1/str1_p112_c25_h0.json`: 1152000 lag reads
+- `patches/audition/string_harness1/str1_p112_c25_h05.json`: 1152000 lag reads
+- `patches/audition/string_harness1/str1_p112_c25_h12.json`: 1152000 lag reads
+- `patches/audition/string_harness1/str1_p16_c12_h0.json`: 1152244 lag reads
+- `patches/audition/string_harness1/str1_p16_c12_h05.json`: 1152604 lag reads
+- `patches/audition/string_harness1/str1_p16_c12_h12.json`: 1153016 lag reads
+- `patches/audition/string_harness1/str1_p16_c25_h0.json`: 1152000 lag reads
+- `patches/audition/string_harness1/str1_p16_c25_h05.json`: 1152000 lag reads
+- `patches/audition/string_harness1/str1_p16_c25_h12.json`: 1152000 lag reads
+- `patches/audition/string_harness1/str1_p18_c12_h0.json`: 1152312 lag reads
+- `patches/audition/string_harness1/str1_p18_c12_h05.json`: 1152426 lag reads
+- `patches/audition/string_harness1/str1_p18_c12_h12.json`: 1153184 lag reads
+- `patches/audition/string_harness1/str1_p18_c25_h0.json`: 1152000 lag reads
+- `patches/audition/string_harness1/str1_p18_c25_h05.json`: 1152000 lag reads
+- `patches/audition/string_harness1/str1_p18_c25_h12.json`: 1152000 lag reads
+- `patches/audition/string_harness2/str2_g12_b36_h0.json`: 1152000 lag reads
+- `patches/audition/string_harness2/str2_g12_b36_h05.json`: 1152000 lag reads
+- `patches/audition/string_harness2/str2_g12_b48_h0.json`: 1152000 lag reads
+- `patches/audition/string_harness2/str2_g12_b48_h05.json`: 1152000 lag reads
+- `patches/audition/string_harness2/str2_g16_b36_h0.json`: 1152000 lag reads
+- `patches/audition/string_harness2/str2_g16_b36_h05.json`: 1152000 lag reads
+- `patches/audition/string_harness2/str2_g16_b48_h0.json`: 1152000 lag reads
+- `patches/audition/string_harness2/str2_g16_b48_h05.json`: 1152000 lag reads
+- `patches/audition/string_harness2/str2_g22_b36_h0.json`: 1152000 lag reads
+- `patches/audition/string_harness2/str2_g22_b36_h05.json`: 1152000 lag reads
+- `patches/audition/string_harness2/str2_g22_b48_h0.json`: 1152000 lag reads
+- `patches/audition/string_harness2/str2_g22_b48_h05.json`: 1152000 lag reads
+- `patches/audition/string_harness2/str2_g26_b36_h0.json`: 1152000 lag reads
+- `patches/audition/string_harness2/str2_g26_b36_h05.json`: 1152000 lag reads
+- `patches/audition/string_harness2/str2_g32_b36_h0.json`: 1152000 lag reads
+- `patches/audition/string_harness2/str2_g32_b36_h05.json`: 1152000 lag reads
+- `patches/audition/string_harness2/str2_g40_b36_h0.json`: 1152078 lag reads
+- `patches/audition/string_harness2/str2_g40_b36_h05.json`: 1152000 lag reads
+- `patches/audition/trombone1/trombone_attempt1.json`: 1296000 lag reads
+- `patches/audition/trombone1/trombone_attempt2.json`: 1306540 lag reads
+- `patches/audition/trombone1/trombone_attempt3.json`: 3920934 lag reads
+- `patches/audition/trombone1/trombone_attempt4.json`: 3920928 lag reads
+- `patches/baselines/double_advance_bug.json`: 9183825 lag reads
+- `patches/baselines/double_advance_ok.json`: 8643600 lag reads
+- `patches/baselines/fadd_explicit_test.json`: 1 lag reads
+- `patches/baselines/fadd_sequence_test.json`: 1 lag reads
+- `patches/baselines/feedback/loop_hysteresis_bow.json`: 576870 lag reads
+- `patches/library/keys/acoustic_piano/piano_bright.json`: 776345 lag reads
+- `patches/library/keys/acoustic_piano/piano_dark.json`: 607740 lag reads
+- `patches/library/keys/acoustic_piano/piano_default.json`: 642641 lag reads
+- `patches/library/keys/acoustic_piano/piano_seg.json`: 3705606 lag reads
+- `patches/library/strings/viola_default.json`: 2 lag reads
+- `patches/library/winds/bassoon1.json`: 584047 lag reads
+- `patches/library/winds/oboe1.json`: 579198 lag reads
+- `patches/library/winds/oboe2.json`: 596060 lag reads
+- `patches/old/Additive4.json`: 26 lag reads
+- `patches/old/baselines_culled_2026-09-14/_envacc_test.json`: 100 lag reads
+- `patches/old/baselines_culled_2026-09-14/fadd_evolve_test.json`: 1 lag reads
+- `patches/old/fable1/09_bw_coupled_attack.json`: 1 lag reads
+- `patches/old/feedback_inloop1/fbin_hy_r16.json`: 576000 lag reads
+- `patches/old/feedback_inloop1/fbin_hy_r8.json`: 576000 lag reads
+- `patches/old/feedback_inloop1/x_control.json`: 576000 lag reads
+- `patches/old/nlbore_brass1/nlb_stk_bare.json`: 211200 lag reads
+- `patches/old/nlbore_brass1/nlb_stk_d030_bell.json`: 211200 lag reads
+- `patches/old/nlbore_brass1/nlb_stk_lad007.json`: 211200 lag reads
+- `patches/old/nlbore_brass1/nlb_stk_lad060.json`: 211200 lag reads
+- `patches/pending/bassoons/bassoon_attempt.json`: 576000 lag reads
+- `patches/pending/bassoons/bassoon_revised.json`: 576000 lag reads
+- `patches/pending/brass/Horny2.json`: 576000 lag reads
+- `patches/pending/brass/Horny_oboe.json`: 576000 lag reads
+- `patches/pending/brass/Trombone_att1.json`: 1451244 lag reads
+- `patches/pending/brass/Tubalike.json`: 576000 lag reads
+- `patches/pending/clarinets/c8_fast_breath_tweaked.json`: 576000 lag reads
+- `patches/pending/clarinets/c8_h130_v25_tweaked.json`: 576000 lag reads
+- `patches/pending/clarinets/clarinet_att2.json`: 576000 lag reads
+- `patches/pending/clarinets/clarinet_att3.json`: 576000 lag reads
+- `patches/pending/clarinets/clarinet_attempt.json`: 576000 lag reads
+- `patches/pending/exp_evolution.json`: 230400 lag reads
+- `patches/pending/oboes/bass_obe.json`: 587657 lag reads
+- `patches/pending/oboes/oboe_again.json`: 576000 lag reads
+- `patches/pending/oboes/oboe_bright.json`: 576000 lag reads
+- `patches/pending/oboes/oboe_default_old.json`: 576000 lag reads
+- `patches/pending/oboes/oboe_double_reed.json`: 576000 lag reads
+- `patches/pending/oboes/oboe_double_vib.json`: 576000 lag reads
+- `patches/pending/oboes/oboe_dur.json`: 576000 lag reads
+- `patches/pending/oboes/oboe_dv_junc_tweaked.json`: 576000 lag reads
+- `patches/pending/oboes/oboe_pumped.json`: 576000 lag reads
+- `patches/pending/piano_retire.json`: 8539685 lag reads
+- `patches/pending/pianos/piano_seg.json`: 666171 lag reads
+- `patches/pending/piccolos/Piccolo1.json`: 589210 lag reads
+- `patches/pending/saxes/Strugglin_sax.json`: 586625 lag reads
+- `patches/pending/strugglin_reed.json`: 576000 lag reads
+- `patches/sweep/bassoon_ref1/b0_headroom.json`: 576000 lag reads
+- `patches/sweep/bassoon_ref1/b3_fast.json`: 586272 lag reads
+- `patches/sweep/bassoon_ref1/r3_knot5_soft.json`: 586988 lag reads
+- `patches/sweep/bassoon_ref1/r5_drylp2000.json`: 1155078 lag reads
+- `patches/sweep/clar_ref1/c1_sym.json`: 576000 lag reads
+- `patches/sweep/clar_ref1/c4_sym_fmt_vib.json`: 576000 lag reads
+- `patches/sweep/clar_ref1/c7_fast.json`: 579029 lag reads
+- `patches/sweep/clar_ref1/c8_h110_v25.json`: 576000 lag reads
+- `patches/sweep/clar_ref1/c8_h130_v12.json`: 582218 lag reads
+- `patches/sweep/clar_ref1/c9_steep140.json`: 576186 lag reads
+- `patches/sweep/feedback_curves5a/fb5a_brass001_n00_r70.json`: 2 lag reads
+- `patches/sweep/feedback_curves5a/fb5a_brass001_n40_r00.json`: 2 lag reads
+- `patches/sweep/feedback_curves5a/fb5a_brass001_n80_r00.json`: 2 lag reads
+- `patches/sweep/feedback_curves5a/fb5a_brass001_n90_r00.json`: 2 lag reads
+- `patches/sweep/feedback_curves5a/fb5a_flute002_n00_r70.json`: 2 lag reads
+- `patches/sweep/feedback_curves5a/fb5a_flute002_n40_r00.json`: 2 lag reads
+- `patches/sweep/feedback_curves5a/fb5a_flute002_n80_r00.json`: 2 lag reads
+- `patches/sweep/feedback_curves5a/fb5a_flute002_n90_r00.json`: 2 lag reads
+- `patches/sweep/feedback_curves5a/fb5a_flute003_n00_r70.json`: 2 lag reads
+- `patches/sweep/feedback_curves5a/fb5a_flute003_n40_r00.json`: 2 lag reads
+- `patches/sweep/feedback_curves5a/fb5a_flute003_n80_r00.json`: 2 lag reads
+- `patches/sweep/feedback_curves5a/fb5a_flute003_n90_r00.json`: 2 lag reads
+- `patches/sweep/feedback_curves5a/fb5a_reed001a_n00_r70.json`: 2 lag reads
+- `patches/sweep/feedback_curves5a/fb5a_reed001a_n40_r00.json`: 2 lag reads
+- `patches/sweep/feedback_curves5a/fb5a_reed001a_n80_r00.json`: 2 lag reads
+- `patches/sweep/feedback_curves5a/fb5a_reed001a_n90_r00.json`: 2 lag reads
+- `patches/sweep/feedback_curves5a/fb5a_reed003_n00_r70.json`: 2 lag reads
+- `patches/sweep/feedback_curves5a/fb5a_reed003_n40_r00.json`: 2 lag reads
+- `patches/sweep/feedback_curves5a/fb5a_reed003_n80_r00.json`: 2 lag reads
+- `patches/sweep/feedback_curves5a/fb5a_reed003_n90_r00.json`: 2 lag reads
+- `patches/sweep/feedback_curves5a/fb5a_reed005_n00_r70.json`: 2 lag reads
+- `patches/sweep/feedback_curves5a/fb5a_reed005_n40_r00.json`: 2 lag reads
+- `patches/sweep/feedback_curves5a/fb5a_reed005_n80_r00.json`: 2 lag reads
+- `patches/sweep/feedback_curves5a/fb5a_reed005_n90_r00.json`: 2 lag reads
+- `patches/sweep/feedback_valve1/fbv_r050_q20.json`: 576000 lag reads
+- `patches/sweep/feedback_valve1/fbv_r075_q2.json`: 576000 lag reads
+- `patches/sweep/feedback_valve1/fbv_r090_q10.json`: 576000 lag reads
+- `patches/sweep/feedback_valve1/fbv_r090_q5.json`: 576000 lag reads
+- `patches/sweep/feedback_valve1/fbv_r100_q20.json`: 576000 lag reads
+- `patches/sweep/feedback_valve1/fbv_r125_q2.json`: 576000 lag reads
+- `patches/sweep/feedback_valve1/x_control.json`: 576000 lag reads
+- `patches/sweep/feedback_valve2/fbv2_r090_q10_k050_h.json`: 1152000 lag reads
+- `patches/sweep/feedback_valve2/fbv2_r090_q10_k100_s.json`: 1152000 lag reads
+- `patches/sweep/feedback_valve2/fbv2_r090_q20_k050_h.json`: 1152000 lag reads
+- `patches/sweep/feedback_valve2/fbv2_r090_q20_k100_s.json`: 1152000 lag reads
+- `patches/sweep/feedback_valve2/fbv2_r100_q10_k050_h.json`: 1152000 lag reads
+- `patches/sweep/feedback_valve2/fbv2_r100_q10_k100_s.json`: 1152000 lag reads
+- `patches/sweep/feedback_valve2/fbv2_r100_q20_k050_h.json`: 1152000 lag reads
+- `patches/sweep/feedback_valve2/fbv2_r100_q20_k100_s.json`: 1152000 lag reads
+- `patches/sweep/hysteresis_bow1/hyb_b040_c000_s.json`: 576000 lag reads
+- `patches/sweep/hysteresis_bow1/hyb_b060_c000_h.json`: 581710 lag reads
+- `patches/sweep/hysteresis_bow1/hyb_b060_c030_s.json`: 576000 lag reads
+- `patches/sweep/hysteresis_bow1/hyb_b090_c030_h.json`: 579209 lag reads
+- `patches/sweep/hysteresis_bow1/x_memoryless.json`: 578020 lag reads
+- `patches/sweep/hysteresis_bow2/hyb2_v060_dm3_r05_hi.json`: 576000 lag reads
+- `patches/sweep/hysteresis_bow2/hyb2_v060_hi_bs.json`: 576000 lag reads
+- `patches/sweep/hysteresis_bow2/hyb2_v090_dm2.json`: 576000 lag reads
+- `patches/sweep/hysteresis_bow2/hyb2_v090_dm3_r05_lo.json`: 576000 lag reads
+- `patches/sweep/hysteresis_bow2/hyb2_v090_lo_bq.json`: 576000 lag reads
+- `patches/sweep/hysteresis_bow2/x_nobias.json`: 576000 lag reads
+- `patches/sweep/hysteresis_bow3/hyb3_e03_g102_b100.json`: 576000 lag reads
+- `patches/sweep/hysteresis_bow3/hyb3_e03_g115_b100.json`: 576000 lag reads
+- `patches/sweep/hysteresis_bow3/hyb3_e03_g140_b100.json`: 576000 lag reads
+- `patches/sweep/hysteresis_bow3/hyb3_e15_g102_b100.json`: 576000 lag reads
+- `patches/sweep/hysteresis_bow3/hyb3_e15_g115_b100.json`: 576000 lag reads
+- `patches/sweep/hysteresis_bow3/hyb3_e15_g140_b100.json`: 576000 lag reads
+- `patches/sweep/hysteresis_bow3/hyb3_e35_g102_b100.json`: 576000 lag reads
+- `patches/sweep/hysteresis_bow3/hyb3_e35_g115_b100.json`: 576000 lag reads
+- `patches/sweep/hysteresis_bow3/hyb3_e35_g140_b100.json`: 576000 lag reads
+- `patches/sweep/hysteresis_bow4/hyb4_ga15_dc12.json`: 576000 lag reads
+- `patches/sweep/hysteresis_bow4/hyb4_ga35_dc12.json`: 576000 lag reads
+- `patches/sweep/hysteresis_bow4/hyb4_ga60_dc12.json`: 576000 lag reads
+- `patches/sweep/hysteresis_bow4/x_r3ref.json`: 576000 lag reads
+- `patches/sweep/hysteresis_bow5/hyb5_v060_c40.json`: 576000 lag reads
+- `patches/sweep/hysteresis_bow5/hyb5_v090_c40.json`: 576000 lag reads
+- `patches/sweep/nlbore_probe1/nlbore_oboe_ctl.json`: 576753 lag reads
+- `patches/sweep/nlbore_probe1/nlbore_oboe_soft_d030.json`: 576765 lag reads
+- `patches/sweep/onemass_lip1/flat_r080_loud_st1.json`: 1382400 lag reads
+- `patches/sweep/onemass_lip1/lip_r080_loud_st0.json`: 691200 lag reads
+- `patches/sweep/onemass_lip1/lip_r080_soft_st1.json`: 691200 lag reads
+- `patches/sweep/onemass_lip1/lip_r100_soft_st0.json`: 691200 lag reads
+- `patches/sweep/onemass_lip1/lip_r120_loud_st1.json`: 691200 lag reads
+- `patches/sweep/onemass_lip1/reed_r080_loud_st0.json`: 1382400 lag reads
+- `patches/sweep/onemass_lip1/reed_r080_soft_st1.json`: 1382400 lag reads
+- `patches/sweep/stk_bandedwg_port/stk_bandedwg_bowl_struck.json`: 43288560 lag reads
+- `patches/sweep/stk_bandedwg_port/stk_bandedwg_tbar_bowed.json`: 8643600 lag reads
+- `patches/sweep/stk_blowhole_port/stk_blowhole_default.json`: 793800 lag reads
+- `patches/sweep/stk_blowhole_port/stk_blowhole_reed_hard.json`: 793800 lag reads
+- `patches/sweep/stk_blowhole_port/stk_blowhole_th_half.json`: 793800 lag reads
+- `patches/sweep/stk_bowed_ext1/ext_tors_c10.json`: 1588530 lag reads
+- `patches/sweep/stk_bowed_ext2/ext2_larson_btd.json`: 5824610 lag reads
+- `patches/sweep/stk_brass_port/stk_brass_hard.json`: 576000 lag reads
+- `patches/sweep/stk_brass_port/stk_brass_lip_hi_canon.json`: 527540 lag reads
+- `patches/sweep/stk_brass_port/stk_brass_slide_short.json`: 576000 lag reads
+- `patches/sweep/stk_brass_port/stk_brass_soft_canon.json`: 527540 lag reads
+- `patches/sweep/stk_clarinet_port/stk_clarinet_default.json`: 1152000 lag reads
+- `patches/sweep/stk_clarinet_port/stk_clarinet_hard_canon.json`: 1040490 lag reads
+- `patches/sweep/stk_clarinet_port/stk_clarinet_noise_off.json`: 1152000 lag reads
+- `patches/sweep/stk_clarinet_port/stk_clarinet_reed_hard_canon.json`: 1040250 lag reads
+- `patches/sweep/stk_clarinet_port/stk_clarinet_soft.json`: 1152000 lag reads
+- `patches/sweep/stk_clarinet_port/stk_clarinet_vib_off_canon.json`: 1040250 lag reads
+- `patches/sweep/stk_flute_port/stk_flute_hard.json`: 623226 lag reads
+- `patches/sweep/stk_flute_port/stk_flute_jet_hi_canon.json`: 516860 lag reads
+- `patches/sweep/stk_flute_port/stk_flute_noise_hi.json`: 613789 lag reads
+- `patches/sweep/stk_flute_port/stk_flute_noise_off_canon.json`: 516860 lag reads
+- `patches/sweep/stk_flute_port/stk_flute_vib_off.json`: 606440 lag reads
+- `patches/sweep/stk_saxofony_port/stk_saxofony_default.json`: 1058400 lag reads
+- `patches/sweep/stk_saxofony_port/stk_saxofony_pos_35.json`: 1058400 lag reads
+- `patches/sweep/stk_saxofony_port/stk_saxofony_reed_hard.json`: 1058400 lag reads
+- `patches/sweep/string_harness1/str1_p112_c12_L12.json`: 1152510 lag reads
+- `patches/sweep/string_harness1/str1_p112_c12_h05.json`: 1152180 lag reads
+- `patches/sweep/string_harness1/str1_p112_c25_L8.json`: 1152000 lag reads
+- `patches/sweep/string_harness1/str1_p112_c25_h12.json`: 1152000 lag reads
+- `patches/sweep/string_harness1/str1_p16_c12_h0.json`: 1152244 lag reads
+- `patches/sweep/string_harness1/str1_p16_c25_L12.json`: 1152000 lag reads
+- `patches/sweep/string_harness1/str1_p16_c25_h05.json`: 1152000 lag reads
+- `patches/sweep/string_harness1/str1_p18_c12_L8.json`: 1153086 lag reads
+- `patches/sweep/string_harness1/str1_p18_c12_h12.json`: 1153184 lag reads
+- `patches/sweep/string_harness1/str1_p18_c25_h0.json`: 1152000 lag reads
+- `patches/sweep/string_harness2/str2_g12_b36_h0.json`: 1152000 lag reads
+- `patches/sweep/string_harness2/str2_g12_b48_h05.json`: 1152000 lag reads
+- `patches/sweep/string_harness2/str2_g16_b48_h0.json`: 1152000 lag reads
+- `patches/sweep/string_harness2/str2_g22_b36_h05.json`: 1152000 lag reads
+- `patches/sweep/string_harness2/str2_g26_b36_h0.json`: 1152000 lag reads
+- `patches/sweep/string_harness2/str2_g32_b36_h05.json`: 1152000 lag reads
+- `patches/sweep/trombone1/line_bell_off.json`: 1308770 lag reads
+- `patches/sweep/trombone1/loud.json`: 1296000 lag reads
+- `patches/sweep/trombone2/held_6s.json`: 614400 lag reads
+- `patches/sweep/trombone2/loud.json`: 1309134 lag reads
+- `patches/sweep/trombone2/parity_low.json`: 2617228 lag reads
+- `patches/sweep/trombone3/ab_attempt2_ff.json`: 1300418 lag reads
+- `patches/sweep/trombone3/ladder_low.json`: 1570734 lag reads
+- `patches/sweep/trombone3/line_soft.json`: 8004858 lag reads
+- `patches/sweep/trombone3/vc_on.json`: 3888000 lag reads
+- `patches/sweep/trombone4/hold_hard.json`: 1276680 lag reads
+- `patches/sweep/trombone4/ladder_mid.json`: 1490550 lag reads
+
+## 47 patches with same-tick tap reads (expected to change under the tap rule)
+
+- `patches/audition/pierce1d_1/pierce_ctl_s00.json`: 1992166 same-tick tap reads
+- `patches/audition/pierce1d_1/pierce_s12k.json`: 2183636 same-tick tap reads
+- `patches/audition/pierce1d_1/pierce_s1k.json`: 2039866 same-tick tap reads
+- `patches/audition/pierce1d_1/pierce_s3k.json`: 2100846 same-tick tap reads
+- `patches/audition/pierce1d_1/pierce_s5k.json`: 2138616 same-tick tap reads
+- `patches/audition/pierce1d_1/pierce_s8k.json`: 2170286 same-tick tap reads
+- `patches/audition/trombone1/trombone_attempt1.json`: 1296000 same-tick tap reads
+- `patches/audition/trombone1/trombone_attempt2.json`: 1306540 same-tick tap reads
+- `patches/audition/trombone1/trombone_attempt3.json`: 1306978 same-tick tap reads
+- `patches/audition/trombone1/trombone_attempt4.json`: 1306976 same-tick tap reads
+- `patches/old/nlbore_brass1/nlb_lip_lad000.json`: 2822400 same-tick tap reads
+- `patches/old/nlbore_brass1/nlb_lip_lad030.json`: 2822400 same-tick tap reads
+- `patches/old/nlbore_brass1/nlb_lip_loud_d030.json`: 2822400 same-tick tap reads
+- `patches/old/nlbore_brass1/nlb_stk_d030_bell.json`: 422400 same-tick tap reads
+- `patches/old/nlbore_brass1/nlb_stk_lad007.json`: 422400 same-tick tap reads
+- `patches/old/nlbore_brass1/nlb_stk_lad060.json`: 422400 same-tick tap reads
+- `patches/pending/brass/Trombone_att1.json`: 1451244 same-tick tap reads
+- `patches/sweep/nlbore_probe1/nlbore_flute_d030.json`: 633600 same-tick tap reads
+- `patches/sweep/nlbore_probe1/nlbore_oboe_ctl.json`: 1153506 same-tick tap reads
+- `patches/sweep/nlbore_probe1/nlbore_oboe_soft_d030.json`: 1153530 same-tick tap reads
+- `patches/sweep/nlbore_probe1/nlbore_sine_d005.json`: 1008000 same-tick tap reads
+- `patches/sweep/nlbore_probe1/nlbore_sine_d040.json`: 1008000 same-tick tap reads
+- `patches/sweep/nlbore_probe1/nlbore_sine_f0466_d040.json`: 1008000 same-tick tap reads
+- `patches/sweep/nlbore_probe1/nlbore_sine_neg040.json`: 1008000 same-tick tap reads
+- `patches/sweep/onemass_lip1/flat_r080_loud_st1.json`: 691200 same-tick tap reads
+- `patches/sweep/onemass_lip1/lip_r080_loud_st0.json`: 691200 same-tick tap reads
+- `patches/sweep/onemass_lip1/lip_r080_soft_st1.json`: 691200 same-tick tap reads
+- `patches/sweep/onemass_lip1/lip_r100_soft_st0.json`: 691200 same-tick tap reads
+- `patches/sweep/onemass_lip1/lip_r120_loud_st1.json`: 691200 same-tick tap reads
+- `patches/sweep/onemass_lip1/reed_r080_loud_st0.json`: 691200 same-tick tap reads
+- `patches/sweep/onemass_lip1/reed_r080_soft_st1.json`: 691200 same-tick tap reads
+- `patches/sweep/stk_blowhole_port/stk_blowhole_default.json`: 529200 same-tick tap reads
+- `patches/sweep/stk_blowhole_port/stk_blowhole_reed_hard.json`: 529200 same-tick tap reads
+- `patches/sweep/stk_blowhole_port/stk_blowhole_th_half.json`: 529200 same-tick tap reads
+- `patches/sweep/stk_bowed_ext1/ext_tors_c10.json`: 1059020 same-tick tap reads
+- `patches/sweep/stk_bowed_ext2/ext2_larson_btd.json`: 1059020 same-tick tap reads
+- `patches/sweep/trombone1/line_bell_off.json`: 1308770 same-tick tap reads
+- `patches/sweep/trombone1/loud.json`: 1296000 same-tick tap reads
+- `patches/sweep/trombone2/held_6s.json`: 614400 same-tick tap reads
+- `patches/sweep/trombone2/loud.json`: 1309134 same-tick tap reads
+- `patches/sweep/trombone2/parity_low.json`: 2617228 same-tick tap reads
+- `patches/sweep/trombone3/ab_attempt2_ff.json`: 1300418 same-tick tap reads
+- `patches/sweep/trombone3/ladder_low.json`: 523578 same-tick tap reads
+- `patches/sweep/trombone3/line_soft.json`: 2668286 same-tick tap reads
+- `patches/sweep/trombone3/vc_on.json`: 1296000 same-tick tap reads
+- `patches/sweep/trombone4/hold_hard.json`: 425560 same-tick tap reads
+- `patches/sweep/trombone4/ladder_mid.json`: 496850 same-tick tap reads
+
+## 157 patches that produced no trace line (they do not load; the same 157 were absent from checkpoint 2.2's A/B, which rendered 1,458 of these 1,615)
+
+- `patches/old/fhn/N16_e0.02_D0.0_I0.4_r80000_dt0.0.json`
+- `patches/old/fhn/N16_e0.02_D0.0_I0.6_r300000_dt0.15.json`
+- `patches/old/fhn/N16_e0.02_D0.0_I1.0_r300000_dt0.0.json`
+- `patches/old/fhn/N16_e0.02_D0.0_I1.0_r80000_dt0.15.json`
+- `patches/old/fhn/N16_e0.02_D0.3_I0.4_r80000_dt0.0.json`
+- `patches/old/fhn/N16_e0.02_D0.3_I0.6_r300000_dt0.15.json`
+- `patches/old/fhn/N16_e0.02_D0.3_I1.0_r300000_dt0.0.json`
+- `patches/old/fhn/N16_e0.02_D0.3_I1.0_r80000_dt0.15.json`
+- `patches/old/fhn/N16_e0.02_D1.5_I0.4_r80000_dt0.0.json`
+- `patches/old/fhn/N16_e0.02_D1.5_I0.6_r300000_dt0.15.json`
+- `patches/old/fhn/N16_e0.02_D1.5_I1.0_r300000_dt0.0.json`
+- `patches/old/fhn/N16_e0.02_D1.5_I1.0_r80000_dt0.15.json`
+- `patches/old/fhn/N16_e0.08_D0.0_I0.4_r80000_dt0.0.json`
+- `patches/old/fhn/N16_e0.08_D0.0_I0.6_r300000_dt0.15.json`
+- `patches/old/fhn/N16_e0.08_D0.0_I1.0_r300000_dt0.0.json`
+- `patches/old/fhn/N16_e0.08_D0.0_I1.0_r80000_dt0.15.json`
+- `patches/old/fhn/N16_e0.08_D0.3_I0.4_r80000_dt0.0.json`
+- `patches/old/fhn/N16_e0.08_D0.3_I0.6_r300000_dt0.15.json`
+- `patches/old/fhn/N16_e0.08_D0.3_I1.0_r300000_dt0.0.json`
+- `patches/old/fhn/N16_e0.08_D0.3_I1.0_r80000_dt0.15.json`
+- `patches/old/fhn/N16_e0.08_D1.5_I0.4_r80000_dt0.0.json`
+- `patches/old/fhn/N16_e0.08_D1.5_I0.6_r300000_dt0.15.json`
+- `patches/old/fhn/N16_e0.08_D1.5_I1.0_r300000_dt0.0.json`
+- `patches/old/fhn/N16_e0.08_D1.5_I1.0_r80000_dt0.15.json`
+- `patches/old/fhn/N16_e0.2_D0.0_I0.4_r80000_dt0.0.json`
+- `patches/old/fhn/N16_e0.2_D0.0_I0.6_r300000_dt0.15.json`
+- `patches/old/fhn/N16_e0.2_D0.0_I1.0_r300000_dt0.0.json`
+- `patches/old/fhn/N16_e0.2_D0.0_I1.0_r80000_dt0.15.json`
+- `patches/old/fhn/N16_e0.2_D0.3_I0.4_r80000_dt0.0.json`
+- `patches/old/fhn/N16_e0.2_D0.3_I0.6_r300000_dt0.15.json`
+- `patches/old/fhn/N16_e0.2_D0.3_I1.0_r300000_dt0.0.json`
+- `patches/old/fhn/N16_e0.2_D0.3_I1.0_r80000_dt0.15.json`
+- `patches/old/fhn/N16_e0.2_D1.5_I0.4_r80000_dt0.0.json`
+- `patches/old/fhn/N16_e0.2_D1.5_I0.6_r300000_dt0.15.json`
+- `patches/old/fhn/N16_e0.2_D1.5_I1.0_r300000_dt0.0.json`
+- `patches/old/fhn/N16_e0.2_D1.5_I1.0_r80000_dt0.15.json`
+- `patches/old/fhn/N1_e0.02_D0.0_I0.6_r300000_dt0.0.json`
+- `patches/old/fhn/N1_e0.02_D0.0_I1.0_r80000_dt0.0.json`
+- `patches/old/fhn/N1_e0.08_D0.0_I0.6_r300000_dt0.0.json`
+- `patches/old/fhn/N1_e0.08_D0.0_I1.0_r80000_dt0.0.json`
+- `patches/old/fhn/N1_e0.2_D0.0_I0.6_r300000_dt0.0.json`
+- `patches/old/fhn/N1_e0.2_D0.0_I1.0_r80000_dt0.0.json`
+- `patches/old/fhn/N4_e0.02_D0.0_I0.4_r80000_dt0.0.json`
+- `patches/old/fhn/N4_e0.02_D0.0_I0.6_r300000_dt0.15.json`
+- `patches/old/fhn/N4_e0.02_D0.0_I1.0_r300000_dt0.0.json`
+- `patches/old/fhn/N4_e0.02_D0.0_I1.0_r80000_dt0.15.json`
+- `patches/old/fhn/N4_e0.02_D0.3_I0.4_r80000_dt0.0.json`
+- `patches/old/fhn/N4_e0.02_D0.3_I0.6_r300000_dt0.15.json`
+- `patches/old/fhn/N4_e0.02_D0.3_I1.0_r300000_dt0.0.json`
+- `patches/old/fhn/N4_e0.02_D0.3_I1.0_r80000_dt0.15.json`
+- `patches/old/fhn/N4_e0.02_D1.5_I0.4_r80000_dt0.0.json`
+- `patches/old/fhn/N4_e0.02_D1.5_I0.6_r300000_dt0.15.json`
+- `patches/old/fhn/N4_e0.02_D1.5_I1.0_r300000_dt0.0.json`
+- `patches/old/fhn/N4_e0.02_D1.5_I1.0_r80000_dt0.15.json`
+- `patches/old/fhn/N4_e0.08_D0.0_I0.4_r80000_dt0.0.json`
+- `patches/old/fhn/N4_e0.08_D0.0_I0.6_r300000_dt0.15.json`
+- `patches/old/fhn/N4_e0.08_D0.0_I1.0_r300000_dt0.0.json`
+- `patches/old/fhn/N4_e0.08_D0.0_I1.0_r80000_dt0.15.json`
+- `patches/old/fhn/N4_e0.08_D0.3_I0.4_r80000_dt0.0.json`
+- `patches/old/fhn/N4_e0.08_D0.3_I0.6_r300000_dt0.15.json`
+- `patches/old/fhn/N4_e0.08_D0.3_I1.0_r300000_dt0.0.json`
+- `patches/old/fhn/N4_e0.08_D0.3_I1.0_r80000_dt0.15.json`
+- `patches/old/fhn/N4_e0.08_D1.5_I0.4_r80000_dt0.0.json`
+- `patches/old/fhn/N4_e0.08_D1.5_I0.6_r300000_dt0.15.json`
+- `patches/old/fhn/N4_e0.08_D1.5_I1.0_r300000_dt0.0.json`
+- `patches/old/fhn/N4_e0.08_D1.5_I1.0_r80000_dt0.15.json`
+- `patches/old/fhn/N4_e0.2_D0.0_I0.4_r80000_dt0.0.json`
+- `patches/old/fhn/N4_e0.2_D0.0_I0.6_r300000_dt0.15.json`
+- `patches/old/fhn/N4_e0.2_D0.0_I1.0_r300000_dt0.0.json`
+- `patches/old/fhn/N4_e0.2_D0.0_I1.0_r80000_dt0.15.json`
+- `patches/old/fhn/N4_e0.2_D0.3_I0.4_r80000_dt0.0.json`
+- `patches/old/fhn/N4_e0.2_D0.3_I0.6_r300000_dt0.15.json`
+- `patches/old/fhn/N4_e0.2_D0.3_I1.0_r300000_dt0.0.json`
+- `patches/old/fhn/N4_e0.2_D0.3_I1.0_r80000_dt0.15.json`
+- `patches/old/fhn/N4_e0.2_D1.5_I0.4_r80000_dt0.0.json`
+- `patches/old/fhn/N4_e0.2_D1.5_I0.6_r300000_dt0.15.json`
+- `patches/old/fhn/N4_e0.2_D1.5_I1.0_r300000_dt0.0.json`
+- `patches/old/fhn/N4_e0.2_D1.5_I1.0_r80000_dt0.15.json`
+- `patches/old/fhn/N64_e0.02_D0.0_I0.4_r80000_dt0.0.json`
+- `patches/old/fhn/N64_e0.02_D0.0_I0.6_r300000_dt0.15.json`
+- `patches/old/fhn/N64_e0.02_D0.0_I1.0_r300000_dt0.0.json`
+- `patches/old/fhn/N64_e0.02_D0.0_I1.0_r80000_dt0.15.json`
+- `patches/old/fhn/N64_e0.02_D0.3_I0.4_r80000_dt0.0.json`
+- `patches/old/fhn/N64_e0.02_D0.3_I0.6_r300000_dt0.15.json`
+- `patches/old/fhn/N64_e0.02_D0.3_I1.0_r300000_dt0.0.json`
+- `patches/old/fhn/N64_e0.02_D0.3_I1.0_r80000_dt0.15.json`
+- `patches/old/fhn/N64_e0.02_D1.5_I0.4_r80000_dt0.0.json`
+- `patches/old/fhn/N64_e0.02_D1.5_I0.6_r300000_dt0.15.json`
+- `patches/old/fhn/N64_e0.02_D1.5_I1.0_r300000_dt0.0.json`
+- `patches/old/fhn/N64_e0.02_D1.5_I1.0_r80000_dt0.15.json`
+- `patches/old/fhn/N64_e0.08_D0.0_I0.4_r80000_dt0.0.json`
+- `patches/old/fhn/N64_e0.08_D0.0_I0.6_r300000_dt0.15.json`
+- `patches/old/fhn/N64_e0.08_D0.0_I1.0_r300000_dt0.0.json`
+- `patches/old/fhn/N64_e0.08_D0.0_I1.0_r80000_dt0.15.json`
+- `patches/old/fhn/N64_e0.08_D0.3_I0.4_r80000_dt0.0.json`
+- `patches/old/fhn/N64_e0.08_D0.3_I0.6_r300000_dt0.15.json`
+- `patches/old/fhn/N64_e0.08_D0.3_I1.0_r300000_dt0.0.json`
+- `patches/old/fhn/N64_e0.08_D0.3_I1.0_r80000_dt0.15.json`
+- `patches/old/fhn/N64_e0.08_D1.5_I0.4_r80000_dt0.0.json`
+- `patches/old/fhn/N64_e0.08_D1.5_I0.6_r300000_dt0.15.json`
+- `patches/old/fhn/N64_e0.08_D1.5_I1.0_r300000_dt0.0.json`
+- `patches/old/fhn/N64_e0.08_D1.5_I1.0_r80000_dt0.15.json`
+- `patches/old/fhn/N64_e0.2_D0.0_I0.4_r80000_dt0.0.json`
+- `patches/old/fhn/N64_e0.2_D0.0_I0.6_r300000_dt0.15.json`
+- `patches/old/fhn/N64_e0.2_D0.0_I1.0_r300000_dt0.0.json`
+- `patches/old/fhn/N64_e0.2_D0.0_I1.0_r80000_dt0.15.json`
+- `patches/old/fhn/N64_e0.2_D0.3_I0.4_r80000_dt0.0.json`
+- `patches/old/fhn/N64_e0.2_D0.3_I0.6_r300000_dt0.15.json`
+- `patches/old/fhn/N64_e0.2_D0.3_I1.0_r300000_dt0.0.json`
+- `patches/old/fhn/N64_e0.2_D0.3_I1.0_r80000_dt0.15.json`
+- `patches/old/fhn/N64_e0.2_D1.5_I0.4_r80000_dt0.0.json`
+- `patches/old/fhn/N64_e0.2_D1.5_I0.6_r300000_dt0.15.json`
+- `patches/old/fhn/N64_e0.2_D1.5_I1.0_r300000_dt0.0.json`
+- `patches/old/fhn/N64_e0.2_D1.5_I1.0_r80000_dt0.15.json`
+- `patches/old/fhn_sub_bass.json`
+- `patches/old/sort_bubble_cursor.json`
+- `patches/pending/gs_chaotic.json`
+- `patches/pending/gs_spots.json`
+- `patches/pending/gs_waves.json`
+- `patches/sweep/F0.010_k0.030_r100000_N128.json`
+- `patches/sweep/F0.010_k0.030_r300000_N32.json`
+- `patches/sweep/F0.010_k0.045_r100000_N128.json`
+- `patches/sweep/F0.010_k0.045_r300000_N32.json`
+- `patches/sweep/F0.010_k0.055_r100000_N128.json`
+- `patches/sweep/F0.010_k0.055_r300000_N32.json`
+- `patches/sweep/F0.010_k0.065_r100000_N128.json`
+- `patches/sweep/F0.010_k0.065_r300000_N32.json`
+- `patches/sweep/F0.022_k0.030_r100000_N128.json`
+- `patches/sweep/F0.022_k0.030_r300000_N32.json`
+- `patches/sweep/F0.022_k0.045_r100000_N128.json`
+- `patches/sweep/F0.022_k0.045_r300000_N32.json`
+- `patches/sweep/F0.022_k0.055_r100000_N128.json`
+- `patches/sweep/F0.022_k0.055_r300000_N32.json`
+- `patches/sweep/F0.022_k0.065_r100000_N128.json`
+- `patches/sweep/F0.022_k0.065_r300000_N32.json`
+- `patches/sweep/F0.040_k0.030_r100000_N128.json`
+- `patches/sweep/F0.040_k0.030_r300000_N32.json`
+- `patches/sweep/F0.040_k0.045_r100000_N128.json`
+- `patches/sweep/F0.040_k0.045_r300000_N32.json`
+- `patches/sweep/F0.040_k0.055_r100000_N128.json`
+- `patches/sweep/F0.040_k0.055_r300000_N32.json`
+- `patches/sweep/F0.040_k0.065_r100000_N128.json`
+- `patches/sweep/F0.040_k0.065_r300000_N32.json`
+- `patches/sweep/F0.060_k0.030_r100000_N128.json`
+- `patches/sweep/F0.060_k0.030_r300000_N32.json`
+- `patches/sweep/F0.060_k0.045_r100000_N128.json`
+- `patches/sweep/F0.060_k0.045_r300000_N32.json`
+- `patches/sweep/F0.060_k0.055_r100000_N128.json`
+- `patches/sweep/F0.060_k0.055_r300000_N32.json`
+- `patches/sweep/F0.060_k0.065_r100000_N128.json`
+- `patches/sweep/F0.060_k0.065_r300000_N32.json`
+- `patches/sweep/feedback_curves1/manifest.json`
+- `patches/sweep/feedback_curves4_criticals.json`
+- `patches/sweep/sweep_F0.010_k0.030_r200000_N256.json`
+- `patches/sweep/sweep_F0.010_k0.030_r50000_N64.json`
+- `patches/sweep/sweep_F0.010_k0.050_r200000_N256.json`
+- `patches/sweep/sweep_F0.010_k0.050_r50000_N64.json`
+
+## 1 patch whose tail pull re-reaches the root cone (a direct double advance; the trace cannot see it)
+
+Predicted from the file alone by `python tools/predict_double_pull.py <set files>`
+(the tap-only tail list, then the first-consumer edges forward from each tail,
+intersected with the root pull's cone), over the same 1,615 patches; confirmed by
+the null gate at checkpoint 2.3 Task 1, which differed on exactly this entry.
+
+- `patches/baselines/feedback/loop_root_sensitivity_fires.json`: the output is
+  taken mid-loop at `Junction`; the tail `Delay_line`'s forward inputs walk back
+  through `Damp_lpf` and `DC_Block_hpf` into `Junction`, `Valve`, `Drive_inputs`,
+  `WhiteNoise`, `Drive_vib`, `Drive_env`, `Wormhole`, `Wormhole2`, which the root
+  pull had already computed that sample — every one advanced twice per sample.
+  Under the memo they advance once. Rendered with the pre-2.3 CLI: peak 0.146,
+  rms 0.078 (the loop fires). Rendered at Task 1: peak 0.00012, rms 0.000026 —
+  the loop no longer fires, and now matches its sibling
+  `loop_root_sensitivity_dead.json` (peak 0.00009 before and after). The
+  "root sensitivity" the pair was written to show was the double advance.
+
+## Render time before the cut (Task 0 step 4)
+
+`python tools/ab_render_time.py renders/scratch/ab_tree/cli_1b4fe1b.exe renders/scratch/ab_tree/cli_pre23.exe 7`
+(pre-2.1 against pre-2.3; MIN wall ms over 7 interleaved rounds; speedup = base/new):
+
+| patch | pre-2.1 wall | pre-2.3 wall | speedup |
+|---|---|---|---|
+| oboe1 | 697.6 | 1026.2 | 0.68x |
+| piano_default | 1003.6 | 1363.4 | 0.74x |
+| viola_default | 1302.1 | 1370.4 | 0.95x |
+| A sine | 461.2 | 502.9 | 0.92x |
+| B sine+env | 496.6 | 561.4 | 0.88x |
+| C filter x8 | 848.1 | 830.4 | 1.02x |
+| D 8 sines | 28.7 | 29.2 | 0.99x (fails to render in both arms) |
+| E shared ref | 580.6 | 559.2 | 1.04x |
+| F 40 sines | 2292.5 | 4405.5 | 0.52x |
+| G 40 own env | 2752.0 | 4864.1 | 0.57x |
+| H 40 shared | 2423.4 | 4153.0 | 0.58x |
+| I 40 envs | 1094.6 | 2326.5 | 0.47x |

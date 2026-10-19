@@ -66,7 +66,21 @@ def main():
         return 1 if lines else 0
     jobs = int(arg("--jobs", 3))
     out_path = ROOT / arg("--out", f"docs/architecture/measurements/{date.today().isoformat()}-sharing-lag.md")
-    keys = sorted(json.loads(MANIFEST.read_text()))
+    # --cli <exe>: measure with a kept binary (an A/B base) instead of the build's.
+    global CLI
+    CLI = Path(arg("--cli", str(CLI))).resolve()
+    # --set <file> (repeatable): measure the patches listed in set files (one
+    # repo-relative path per line, the A/B set files) instead of the manifest.
+    sets = [Path(sys.argv[i + 1]) for i, a in enumerate(sys.argv) if a == "--set"]
+    if sets:
+        keys = []
+        for s in sets:
+            keys += [l.strip() for l in s.read_text().splitlines() if l.strip()]
+        keys = sorted(set(keys))
+        scope = f"{len(keys)} patches of the A/B set files {', '.join(s.name for s in sets)}"
+    else:
+        keys = sorted(json.loads(MANIFEST.read_text()))
+        scope = f"{len(keys)} null-gate manifest patches"
     SCRATCH.mkdir(parents=True, exist_ok=True)
     with cf.ThreadPoolExecutor(max_workers=jobs) as ex:
         rows = list(ex.map(lambda ik: measure(ik[1], ik[0]), enumerate(keys)))
@@ -76,8 +90,8 @@ def main():
     commit = subprocess.run(["git", "rev-parse", "--short", "HEAD"], capture_output=True,
                             text=True, cwd=ROOT).stdout.strip()
     doc = ["# Sharing measurements (for the per-tick memo and the tap rule)", "",
-           f"Taken {date.today().isoformat()} at engine commit `{commit}` over the {len(keys)} null-gate "
-           "manifest patches, with `MFORCE_TRACE_SHARING=1` (`python tools/measure_sharing.py`).",
+           f"Taken {date.today().isoformat()} at engine commit `{commit}` over the {scope}, "
+           "with `MFORCE_TRACE_SHARING=1` (`python tools/measure_sharing.py`).",
            "A *lag read* is a wrapped consumer reading a shared source before its primary consumer advanced it "
            "that sample (it reads the previous sample's value). A *same-tick tap* is a guarded tap reading a "
            "source that had already advanced that sample.", "",
