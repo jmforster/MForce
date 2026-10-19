@@ -8,8 +8,21 @@ checkpoints wait for Matt's read.
 
 ## Awaiting
 
+Nothing. Checkpoint 2.3 (the per-tick memo) is being planned.
+
+## Resolved
+
 **R3 — checkpoint 2.2: prepare(ctx) / start(frames)** (2026-10-18, commits
-`7e20e5f`..`5980873`)
+`7e20e5f`..`5980873`) — VERDICT 2026-10-18: (0) the DelayLine zero slot
+stays listed for 2.5; (1) the UI preparing its editor graph at every
+play is fine; (2) the report's section-7 list is the work list for
+checkpoint 2.6's allocation test — every listed allocation moves into
+prepare within 2.6, the test lands with no tolerance list; (3)
+`render_context()` and `prepared()` become protected — a host that makes
+a node after prepare hands it the context it prepared the owner with
+(`ensure_constant`'s three-argument form), the node is not asked. Items
+2 and 3 are my recommendations, taken on Matt's "take your
+recommendations and proceed"; item 3 landed as a fix on top of 2.2.
 - Read: `docs/autonomy/refactor/reports/2026-10-17-checkpoint-2.2.md`
   (its reading guide is ten minutes; section 6 holds the decisions taken
   on your behalf, section 7 the debt, section 8 the refutation and the
@@ -29,8 +42,6 @@ checkpoints wait for Matt's read.
   `start()` bodies that still allocate (section 7) as the starting list
   for checkpoint 2.6's test; (3) `render_context()` and `prepared()` as
   public read-only getters on every node (section 6, item 13).
-
-## Resolved
 
 **R2 — checkpoint 2.1: pins declared once** (2026-10-17, commits
 `1b9b69f`..`5f9aeea` plus the close)

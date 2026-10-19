@@ -1,5 +1,47 @@
 # Status — session handoff (Claude reads this first; Matt's queue = */REVIEW.md)
 
+Updated: 2026-10-18 (refactor session IV, Fable 5.1 xhigh). R3 DECIDED by
+Matt: (0) DelayLine zero slot stays listed for 2.5; (1) UI re-prepare per
+play fine; (2) the section-7 allocation list is 2.6's work list, every item
+moves into prepare, NO tolerance list; (3) render_context()/prepared() made
+PROTECTED, ensure_constant gained a three-argument form taking the caller's
+context (Multiplex passes its own; the loader's call runs before any prepare
+and keeps the two-argument form) — items 2 and 3 were my recommendations,
+taken on Matt's "take your recommendations and proceed". Item 3 LANDED as
+6a32e55 on top of 2.2: engine_tests 6370 checks pass, null gate 80/80,
+gates --fast green except the known wiring_setting roundtrip diff (backlog
+79), UI rebuilt. REVIEW.md R3 moved to Resolved with the full verdict; the
+2.2 report's §6 item 13 carries a reversal note; Part 2 §4 records the 2.6
+ruling. ALSO THIS SESSION: Matt's "Ode to Joy sounds the same phrased or
+not, auto or all slur" diagnosed and reproduced headlessly (scratch script,
+15 variants, HEAD vs cli_pre22 byte-identical on all): phrasing is gated by
+the patch's instrument-block "sustaining": true (onsets v2 §2); NO library
+patch carries it (oboe1/oboe2/piano_default have only polyphony+volume);
+only the articulation1/oboe_nasal1 audition copies do. On oboe1 the UI's
+stamp_passage drops hold+onset for every note and says so only in the
+transport status line (normal colour); the Onsets combo stays enabled. With
+sustaining ticked but no onsets vocabulary: phrased ≠ flat, but auto == all
+slur == all tongue (degradation contract). Not a refactor issue; the quiet
+status + always-live combo are Part 7 usability points; whether the library
+oboes get the declaration is Matt's curation call (nothing changed).
+CHECKPOINT 2.3 PLAN WRITTEN (writing-plans, xhigh):
+docs/superpowers/plans/2026-10-18-part2-checkpoint-2.3.md — seven tasks
+(T0 whole-tree lag measurement + cli_pre23 + timing baseline; T1 the clock
+in RenderContext + memo next() + step() + every driver ticks + trace gone,
+byte-identical; T2 wrapping/promotion/UI-mirror deleted = the measured
+renders change, manifest refrozen; T3 TapSource; T4 Shaper pins Auto; T5
+render time vs pre-2.1 with one bounded experiment; T6 close + Fable
+refuter + report R4), 14 planning rulings in its Ledger (the tick is the
+host's clock reached through the context; no clock = every pull computes;
+two verbs next()/step() because the two table fills draw N samples in one
+tick; the spec's generalised sweep REJECTED — Manual-gated nodes must not
+be swept — the JSON tail list stays; landing order memo-first-then-unwrap
+keeps T1 byte-identical). AWAITING MATT: his read of the plan and the
+execution approach (my rec: inline T0-T2, T5-T6; Sonnet pairs for T3-T4;
+Fable refuter at close). GOALS.md stays Matt's uncommitted edit. Nothing
+pushed this session (6a32e55 + the docs commit ahead of origin — ask at
+close-out).
+
 Updated: 2026-10-18 (refactor session III, Fable 5.1 xhigh). R2 ACCEPTED by
 Matt (all four items; render cost carried to 2.3). CHECKPOINT 2.2 LANDED
 on main: 7e20e5f..5980873 (ten code commits + the docs commit) — one

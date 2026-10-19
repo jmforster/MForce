@@ -303,6 +303,14 @@ Each is a ruling in the plan's Ledger, in the order made.
     node was prepared (a Multiplex `set_clone_param` at note Setup); it
     now prepares that constant with the owner's context. The host's facts
     are not secret; only the field is.
+    *Reversed by the R3 verdict (2026-10-18, REVIEW.md R3 item 3), landed
+    as a fix on top of this checkpoint:* both getters are protected, for
+    the node's own use. `ensure_constant` gained a three-argument form
+    that takes the caller's context; the Multiplex passes its own, and
+    the loader's call, which runs before any prepare, keeps the
+    two-argument form. The one sentence this checkpoint was for, "the
+    rate reaches a node only through prepare(ctx)", holds without a
+    second door.
 14. **The test runners stay under 80 lines and `main()` at 80**: each
     family's tests hang off one `run_prepare_start_tests()`.
 

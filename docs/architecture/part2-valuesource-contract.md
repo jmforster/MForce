@@ -380,7 +380,10 @@ void start(int frames);                   // jobs 2 and 3: a span of `frames` sa
 - **Vibrato's rebuild moves to `prepare(ctx)`**, once.
 - **The allocation test asserts both:** no allocation in `start` or in
   `next`, over every baseline patch. That is campaign 1's test, with a
-  second entry point to cover.
+  second entry point to cover. R3 verdict 2026-10-18: the `start()` and
+  first-`compute()` allocations listed in the checkpoint 2.2 report's
+  section 7 are the work list; each moves into `prepare` within 2.6, and
+  the test lands with no tolerance list.
 
 ### Byte-identity
 
