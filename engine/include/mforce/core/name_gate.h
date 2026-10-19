@@ -15,7 +15,8 @@ namespace mforce {
 // Output = 1.0 while the current note's onset matches, else 0.0.
 //
 // Stateless and live: current() computes from `in` (the PerformOut
-// idiom — Setup-time reads and RefSource copies must see the live value).
+// idiom — a Setup-time read happens between ticks and must see the live
+// value, not the previous tick's memo).
 // Typical consumer is an Envelope's `trigger` input, which is read at note
 // Setup and never pulled per sample; NameGate also behaves when wired into
 // an audible path (the base pulls its input once per sample).

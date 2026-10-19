@@ -24,8 +24,8 @@ Mechanism notes:
     driver with amplitude w gives out = center + w*s*halfwidth. w=0 -> the
     exact range center. That is what makes the amplitude-envelope ramp a
     clean "effect off" switch.
-  - Shared rampEnv across several drivers is safe: the patch loader wraps
-    2nd+ consumers in RefSource (read-only, no double-advance).
+  - Shared rampEnv across several drivers is safe: it computes once per
+    tick however many drivers read it (no double-advance).
   - Envelope stage duration pinned with minSec == maxSec == T.
 
 Writes patches/fm_matrix2/{modulated,ramped}/. Render + verify via

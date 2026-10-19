@@ -96,11 +96,11 @@ private:
   static constexpr int kMaxMembers = 16;
 
   // DFS from a pin toward the tap that closes the cycle back to this node.
-  // Returns true when this subtree reaches such a tap; every non-Ref node on
-  // a reaching path records itself in members_ (shared_ptr, so a UI rewire
-  // between walks can't dangle the render thread). Plain RefSource wrappers
-  // (shared-consumer guards) are transparent: the wrapped node is walked and
-  // records itself.
+  // Returns true when this subtree reaches such a tap; every node on a
+  // reaching path records itself in members_ (shared_ptr, so a UI rewire
+  // between walks can't dangle the render thread). A tap is not a member: the
+  // tap that reads this node closes the loop, and any other tap is walked
+  // through to the node it reads.
   //
   // The walk follows INPUT pins only (backlog 66, 2026-09-08). Signal flows
   // through inputs; params (drive, morph, amplitude, cutoff…) are control.
@@ -113,9 +113,9 @@ private:
                    ValueSource** visited, int& nVisited) {
     ValueSource* n = sp.get();
     if (!n) return false;
-    if (auto* rs = dynamic_cast<RefSource*>(n)) {
-      if (rs->source.get() == this) return true;  // the closing tap
-      return walk_to_tap(rs->source, visited, nVisited);
+    if (auto* tap = dynamic_cast<TapSource*>(n)) {
+      if (tap->source.get() == this) return true;  // the closing tap
+      return walk_to_tap(tap->source, visited, nVisited);
     }
     for (int i = 0; i < nVisited; ++i)
       if (visited[i] == n) return false;

@@ -296,15 +296,13 @@ def flow_nodes(pminus_a, pminus_b, y_pin):
     pin values for p- (two taps, or two constants) - never a shared
     {"ref"}, because a tap never advances and a constant has no state.
 
-    NODE ORDER IS LOAD-BEARING.  A node referenced twice gets the raw
-    pointer on its FIRST mention in wiring order and a read-only RefSource
-    after that, so the raw consumer must also be the one the pull reaches
-    FIRST.  Reading the chain down from Pe:
+    A node referenced twice is the same object on each pin and computes
+    once per tick, at the first pull that reaches it; every later read
+    lands on the sample just computed, in whatever order the consumers pull.
+    Reading the chain down from Pe:
         Pe -> Xflow -> QWh -> W -> Sroot -> Rad -> Qsq -> Qn -> Lip -> Force
-    so Qsq holds the raw Qn and Force holds the raw Pm; AbsDp4 (reached on
-    Rad's second pin, still ahead of SgnDp) holds the raw Dp.  Every later
-    read lands on the sample just computed.  Gate 0 checks this against
-    the closed form and passes to int16 quantization.
+    Gate 0 checks the flow against the closed form and passes to int16
+    quantization.
     """
     return [
         # y>0 clamp, equilibrium offset and psi in ONE transfer:

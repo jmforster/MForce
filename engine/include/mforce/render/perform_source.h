@@ -104,8 +104,8 @@ private:
 };
 
 // Leaf adapter: pulls nothing, reports one PerformSource output. Constant
-// between tick() calls. Idempotent compute() — safe for many consumers
-// without RefSource wrapping.
+// between tick() calls, with an idempotent compute(), so any number of
+// consumers read the same value.
 struct PerformOut final : Generator {
   enum class Field { Frequency, Velocity, Wheel, Pressure, Duration,
                      Onset };

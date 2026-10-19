@@ -22,14 +22,15 @@ intermittent squeak at max velocity.
 THE MEASUREMENT TRAPS THIS ROUND HAD TO FIX FIRST
 -------------------------------------------------
 1. THE PROBE ITSELF CLAMPS.  gen_trombone3.probe_signal reads the probed node
-   through a TAP, and a tap is a GUARDED RefSource: engine/include/mforce/core/
-   dsp_value_source.h:164 scrubs non-finite and clamps to +-8 on every read.
+   through a TAP, and a tap is a GUARDED read (TapSource in engine/include/
+   mforce/core/dsp_value_source.h): it scrubs non-finite and clamps to +-8 on
+   every read.
    So attempt 3's "the lip displacement sits on the engine's +-8 clamp for
    53-69% of each cycle" was measured THROUGH a clamp - it could not have read
    anything else.  probe_signal(..., raw=True) here reads through a plain
-   second {"ref"} instead, which the loader resolves to an UNGUARDED RefSource
-   (patch_loader.cpp:105-122: only {"tap"} sets guard=true), so the number
-   comes back unclipped.  The guarded and unguarded probes agree exactly where
+   second {"ref"} instead, which the loader resolves to the probed node itself
+   (only {"tap"} makes a guarded TapSource), so the number comes back
+   unclipped.  The guarded and unguarded probes agree exactly where
    the signal is inside +-8, which is the check that they are the same tap.
 2. WHICH +-8 ACTUALLY BITES.  In this graph the lip is read by Qn through a
    plain {"ref"}, so the ENGINE clamp never touches it.  What does clamp it is
@@ -673,7 +674,7 @@ FF4_MAP = {29: 5.0549, 30: 4.8083, 31: 4.1383, 32: 4.1383, 33: 4.1383,
 # 6.2.  The knots go to +-8 at the IDENTICAL slope: inside +-4 the curve is
 # unchanged to the digit (so velocity 0.8 stays bit-identical, gated), and 8
 # is where the ENGINE's own tap clamp sits anyway - NL_curve reads NL_in
-# through a {"tap"}, which is a guarded RefSource clamping at +-8, so past
+# through a {"tap"}, which is a guarded TapSource clamping at +-8, so past
 # that point no curve of ours can see the difference regardless.
 DRIVE4_DOMAIN = 8.0
 

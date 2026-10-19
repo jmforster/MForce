@@ -198,33 +198,31 @@ inline std::shared_ptr<ConstantSource> ensure_constant(ValueSource& node, std::s
   return cs;
 }
 
-// Transparent wrapper for shared sources with multiple consumers.
-// The primary consumer calls next() on the real source; secondary consumers
-// use a RefSource which just reads current() without advancing.
-// Created automatically by the UI when multiple inputs wire to the same output.
-// guard=true is the TAP form (feedback_loop_design.md): reads are armored —
-// non-finite scrubbed to 0, clamped to +-8 — so a runaway loop saturates
-// audibly instead of poisoning the graph. The z-1 a tap provides is
-// positional (tap consumers evaluate before their source each tick), not
-// implemented here.
-struct RefSource final : ValueSource {
+// The tap edge (feedback_loop_design.md): a guarded read of another node's
+// memo, never a pull. The source is advanced by its own consumers (or by the
+// voice's advance list when only taps reach it), so a tap can close a
+// feedback cycle that a pull could not. The z-1 a tap provides is positional:
+// a tap evaluated before its source in a tick reads the source's previous
+// value. Reads are armored, non-finite scrubbed to 0 and clamped to +-8, so a
+// runaway loop saturates audibly instead of poisoning the graph.
+struct TapSource final : ValueSource {
   std::shared_ptr<ValueSource> source;
-  bool guard{false};
 
-  explicit RefSource(std::shared_ptr<ValueSource> src, bool g = false)
-    : source(std::move(src)), guard(g) {}
+  explicit TapSource(std::shared_ptr<ValueSource> src = nullptr)
+    : source(std::move(src)) {}
 
-  // No pins and no hooks: prepare and start reach nothing here. The
-  // primary consumer prepares and starts the real source.
-  float compute() override { return read(); }
-  float current() const override { return read(); }
+  // No pins and no hooks: prepare and start reach nothing here. The source
+  // is prepared and started by the consumers that pull it.
+  float compute() override { return read_(); }
+  // The same read, live: a Setup-time read between ticks sees the source's
+  // present value, not the memo of the tick before.
+  float current() const override { return read_(); }
 
-  const char* type_name() const override { return "RefSource"; }
+  const char* type_name() const override { return "Tap"; }
 
 private:
-  float read() const {
-    float v = source ? source->current() : 0.0f;
-    if (!guard) return v;
+  float read_() const {
+    const float v = source ? source->current() : 0.0f;
     if (!std::isfinite(v)) return 0.0f;
     return v < -8.0f ? -8.0f : (v > 8.0f ? 8.0f : v);
   }

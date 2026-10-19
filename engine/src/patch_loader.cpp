@@ -94,13 +94,13 @@ struct ValueSourceMono final : MonoSource {
 // ---------------------------------------------------------------------------
 
 // Tap edges (feedback_loop_design.md §3.2): {"tap": "<id>"} resolves to a
-// GUARDED RefSource and may point FORWARD in nodeOrder — that is its purpose
+// TapSource and may point FORWARD in nodeOrder — that is its purpose
 // (closing a feedback cycle) — so targets bind in a second pass at the end
 // of build_graph, once every node exists. The collector is build-scoped via
 // RAII rather than threaded through the ~40 resolve_param call sites; nested
 // builds (Multiplex subgraphs) save/restore so each binds within its own
 // graph. A tap never advances its source: it reads the source's memo.
-struct TapBind { std::shared_ptr<RefSource> ref; std::string targetId; };
+struct TapBind { std::shared_ptr<TapSource> tap; std::string targetId; };
 static thread_local std::vector<TapBind>* t_tapBinds = nullptr;
 struct TapBindScope {
     std::vector<TapBind>* prev;
@@ -133,9 +133,9 @@ static std::shared_ptr<ValueSource> resolve_param(
         if (!t_tapBinds)
             throw std::runtime_error(
                 "{\"tap\":...} not supported in this position");
-        auto rs = std::make_shared<RefSource>(nullptr, true);
-        t_tapBinds->push_back({rs, val.at("tap").get<std::string>()});
-        return rs;
+        auto tap = std::make_shared<TapSource>();
+        t_tapBinds->push_back({tap, val.at("tap").get<std::string>()});
+        return tap;
     }
 
     throw std::runtime_error(
@@ -921,7 +921,7 @@ static GraphResult build_graph(
         auto it = valueNodes.find(tb.targetId);
         if (it == valueNodes.end())
             throw std::runtime_error("Unresolved tap target: " + tb.targetId);
-        tb.ref->source = it->second;
+        tb.tap->source = it->second;
     }
 
     return g;

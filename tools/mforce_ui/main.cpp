@@ -98,7 +98,7 @@ struct Pin {
     bool hasConstant{false};
     bool multi{false};      // true = accepts multiple connections
     // Tap output pin (feedback_loop_design.md §4.1): wires from it read the
-    // node's PREVIOUS sample (guarded RefSource) instead of pulling — the
+    // node's PREVIOUS sample (a guarded TapSource) instead of pulling — the
     // only legal way to close a feedback cycle.
     bool isTap{false};
     std::string hint;       // optional advisory tag (e.g. "hz", "0-1"); empty = none
@@ -970,10 +970,10 @@ static void update_node_dsp_unlocked(GraphNode& node) {
                     (srcNode->typeName == NT_PERFORM && otherPin->constantSrc)
                         ? std::static_pointer_cast<ValueSource>(otherPin->constantSrc)
                         : srcNode->dspSource;
-                // Tap wire: previous-sample read through a guarded RefSource
+                // Tap wire: previous-sample read through a TapSource
                 // (feedback_loop_design.md §4.1) — never the raw source.
                 if (otherPin->isTap)
-                    src = std::make_shared<RefSource>(src, true);
+                    src = std::make_shared<TapSource>(src);
                 if (pin.multi && node.dspSource)
                     node.dspSource->add_param(pin.name, src);
                 else
@@ -2323,7 +2323,7 @@ static void load_graph_from_path(const std::string& path) {
     // (ui.tagLinks from the 09-05 net-label experiment is ignored: tags
     // were replaced by Wormhole node pairs; stale keys are harmless.)
 
-    // Wire all DSP connections (including RefSource for shared sources)
+    // Wire all DSP connections
     update_all_dsp();
 
     if (!unknownTypes.empty()) {
@@ -4698,19 +4698,19 @@ static void play_note(float noteNum, float velocity, float durationSeconds) {
 // Returns false if the graph contains a MultiplexSource — its internal
 // clones are not reachable by this walk, so gating the template would
 // silently do nothing; callers fall back to scheduled notes there.
-// RefSource (tap edges and secondary-consumer wrappers) exposes no
-// descriptors, so the walk follows its source pointer directly — without
-// this, an envelope inside a tap-closed loop (e.g. loop gain on a
-// tap-only delay) stays ungated and a self-oscillating loop ignores
-// key-up, sounding for the full scheduled duration.
+// A TapSource (the tap edge) exposes no descriptors, so the walk follows
+// its source pointer directly — without this, an envelope inside a
+// tap-closed loop (e.g. loop gain on a tap-only delay) stays ungated and
+// a self-oscillating loop ignores key-up, sounding for the full scheduled
+// duration.
 static bool collect_envelopes(mforce::ValueSource* vs,
                               std::vector<mforce::Envelope*>& out,
                               std::vector<mforce::ValueSource*>& seen) {
     if (!vs) return true;
     for (auto* s : seen) if (s == vs) return true;
     seen.push_back(vs);
-    if (auto* ref = dynamic_cast<mforce::RefSource*>(vs))
-        return collect_envelopes(ref->source.get(), out, seen);
+    if (auto* tap = dynamic_cast<mforce::TapSource*>(vs))
+        return collect_envelopes(tap->source.get(), out, seen);
     if (std::string_view(vs->type_name()).find("Multiplex") != std::string_view::npos)
         return false;
     if (auto* env = dynamic_cast<mforce::Envelope*>(vs)) out.push_back(env);
@@ -13003,8 +13003,8 @@ int main(int argc, char** argv) {
 
     // Headless gating-walk readout: which Envelope nodes can live gating
     // reach in this patch's voice graph? Regression harness for the
-    // 2026-09-13 tap-loop bug (envelopes behind RefSource/tap edges were
-    // invisible, so key-up couldn't stop a self-oscillating loop).
+    // tap-loop bug (envelopes behind tap edges were invisible, so key-up
+    // couldn't stop a self-oscillating loop).
     if (argc >= 3 && std::string(argv[1]) == "--gatecheck") {
         s_headless = true;
         register_all_sources();

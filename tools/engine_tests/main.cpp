@@ -173,28 +173,24 @@ static void run_perform_source_tests() {
 }
 
 static void run_tap_guard_tests() {
-    // Unguarded RefSource: passes values through untouched (existing behavior)
+    // Clamp to +-8
     auto c = std::make_shared<ConstantSource>(42.0f);
     c->next();
-    RefSource plain(c);
-    CHECK_NEAR(plain.next(), 42.0f, 1e-6f);
-
-    // Guarded: clamp to +-8
-    RefSource g1(c, true);
-    CHECK_NEAR(g1.next(), 8.0f, 1e-6f);
+    TapSource tap(c);
+    CHECK_NEAR(tap.next(), 8.0f, 1e-6f);
     c->set(-100.0f); c->next();
-    CHECK_NEAR(g1.next(), -8.0f, 1e-6f);
+    CHECK_NEAR(tap.next(), -8.0f, 1e-6f);
     c->set(3.5f); c->next();
-    CHECK_NEAR(g1.next(), 3.5f, 1e-6f);
+    CHECK_NEAR(tap.next(), 3.5f, 1e-6f);
 
-    // Guarded: NaN/inf scrub to 0
+    // NaN/inf scrub to 0
     c->set(std::nanf("")); c->next();
-    CHECK_NEAR(g1.next(), 0.0f, 1e-6f);
+    CHECK_NEAR(tap.next(), 0.0f, 1e-6f);
     c->set(INFINITY); c->next();
-    CHECK_NEAR(g1.next(), 0.0f, 1e-6f);
+    CHECK_NEAR(tap.next(), 0.0f, 1e-6f);
 
     // Null source still reads 0 (pass-2 placeholder state)
-    RefSource empty(nullptr, true);
+    TapSource empty;
     CHECK_NEAR(empty.next(), 0.0f, 1e-6f);
 }
 
@@ -209,7 +205,7 @@ static void run_tap_cycle_tests() {
         std::make_shared<ConstantSource>(1.0f),
         std::make_shared<ConstantSource>(0.0f),   // replaced by the tap below
         CombineOp::Sum, 0.0f);                    // Sum: true addition (Add averages)
-    auto tap = std::make_shared<RefSource>(counter, true);
+    auto tap = std::make_shared<TapSource>(counter);
     counter->set_param("source2", tap);
 
     CHECK_NEAR(counter->next(), 1.0f, 1e-6f);
@@ -330,7 +326,7 @@ static void run_loop_compensation_tests() {
         auto ex = std::make_shared<ConstantSource>(0.0f);
         auto sum = std::make_shared<CombinedSource>(
             ex, std::make_shared<ConstantSource>(0.0f), CombineOp::Sum, 0.0f);
-        sum->set_param("source2", std::make_shared<RefSource>(dl, true));
+        sum->set_param("source2", std::make_shared<TapSource>(dl));
         dl->set_param("source", sum);
         if (comp) dl->set_setting("compensate", 1.0f);
         dl->prepare(ctx); dl->start(48000);
@@ -357,7 +353,7 @@ static void run_loop_compensation_tests() {
         auto ex = std::make_shared<ConstantSource>(0.0f);
         auto sum = std::make_shared<CombinedSource>(
             ex, std::make_shared<ConstantSource>(0.0f), CombineOp::Sum, 0.0f);
-        sum->set_param("source2", std::make_shared<RefSource>(dl, true));
+        sum->set_param("source2", std::make_shared<TapSource>(dl));
         // fc between mode 1 (200 Hz) and mode 2 (~400 Hz): only the
         // fundamental sees |H| > 1 and grows, so the settled tail is a
         // near-sine at the loop's mode-1 frequency. (With a higher cutoff
@@ -4316,23 +4312,23 @@ static void run_combine_mod_manual_pin_tests() {
     CHECK_NEAR(cloned.current(), 2.0f, 1e-6f);        // the mean of the three clones
 }
 
-// The shaper pulls every pin itself, in descriptor order, and reads source and
-// drive as it pulls them. With a source that is a reference to a node the
-// drive chain advances, the source is therefore the previous sample's value;
-// stored feedback patches (the valve family's Junction) render that timing.
+// The shaper pulls every pin itself, in descriptor order. A node shared by
+// its source pin and its drive chain computes once per tick, so the source and
+// the drive chain read the same sample's value of it: nothing is a sample late.
 static void run_combine_mod_shaper_timing_tests() {
     RenderContext ctx{48000};
+    TestHost h;
     auto ramp = std::make_shared<UnitRamp>();
     auto doubled = std::make_shared<Doubler>();
-    doubled->set_param("source", ramp);                   // the drive chain advances the ramp
+    doubled->set_param("source", ramp);                   // the drive chain reads the ramp too
     ShaperSource sh;
     sh.set_array("values", {-100.0f, -100.0f, 100.0f, 100.0f});   // identity over the test range
-    sh.set_param("source", std::make_shared<RefSource>(ramp));
+    sh.set_param("source", ramp);
     sh.set_param("drive", doubled);
-    sh.prepare(ctx); sh.start(100);
-    CHECK_NEAR(sh.next(), 0.0f, 1e-3f);                   // 0 * 2: the ramp before this sample
-    CHECK_NEAR(sh.next(), 4.0f, 1e-3f);                   // 1 * 4
-    CHECK_NEAR(sh.next(), 12.0f, 1e-3f);                  // 2 * 6
+    sh.prepare(h.ctx); sh.start(100);
+    h.clock.tick(); CHECK_NEAR(sh.next(), 2.0f, 1e-3f);   // 1 * 2: this sample's ramp on both pins
+    h.clock.tick(); CHECK_NEAR(sh.next(), 8.0f, 1e-3f);   // 2 * 4
+    h.clock.tick(); CHECK_NEAR(sh.next(), 18.0f, 1e-3f);  // 3 * 6
 
     // every pin is prepared once per note and pulled once per sample
     ShaperSource full;
@@ -4383,11 +4379,12 @@ static void run_combine_mod_advance_order_tests() {
     order(xfade, {"amplitude", "source1", "source2"}, 45);
 
     auto ramp = std::make_shared<UnitRamp>();
-    CombinedSource sq(ramp, std::make_shared<RefSource>(ramp), CombineOp::Multiply);
-    sq.prepare(ctx); sq.start(100);
-    CHECK_NEAR(sq.next(), 1.0f, 1e-6f);
-    CHECK_NEAR(sq.next(), 4.0f, 1e-6f);
-    CHECK_NEAR(sq.next(), 9.0f, 1e-6f);
+    CombinedSource sq(ramp, ramp, CombineOp::Multiply);   // the square through sharing is the memo at work
+    TestHost h;
+    sq.prepare(h.ctx); sq.start(100);
+    h.clock.tick(); CHECK_NEAR(sq.next(), 1.0f, 1e-6f);
+    h.clock.tick(); CHECK_NEAR(sq.next(), 4.0f, 1e-6f);
+    h.clock.tick(); CHECK_NEAR(sq.next(), 9.0f, 1e-6f);
 }
 
 // The setting and array hooks: the multiplex count is clamped and rebuilds
