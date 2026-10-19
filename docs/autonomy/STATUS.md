@@ -54,10 +54,9 @@ the 47 same-tick-tap patches in docs/architecture/measurements/
 2026-10-18-sharing-lag-tree.md are its expected diffs) — plan written
 against the then-current code. Kept binaries for re-timing under
 renders/scratch/ab_tree/ (cli_pre23, cli_t1..t4, cli_exp1, cli_final);
-the A/B arms under renders/scratch/ab23_tree/ (gitignored). Nothing
-pushed this session: main is 10 commits ahead of origin after the seal
-(6a32e55, 587b539, the seven of 2.3, the docs seal f9abaa3) — ask at
-close-out.
+the A/B arms under renders/scratch/ab23_tree/ (gitignored). PUSHED
+2026-10-19 on Matt's word at close-out (6a32e55..30e6b44, twelve commits,
+plus this line); main level with origin.
 GOALS.md stays Matt's uncommitted edit.
 10-19: Matt asked whether the refactor grows as much compensating code as
 it removes (answer: some — the engine is 2,800 lines smaller than before
