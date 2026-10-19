@@ -15,6 +15,7 @@ have landed.
 | 5 | Part 7: UI | not yet written (xhigh) | — |
 | 6 | Part 6: music | not yet written (xhigh) | — |
 | 7 | Part 8: build, tests, shelved target; then phase 2 gates on | not yet written (xhigh) | — |
+| 8 | Workaround cleanup, after Part 8: re-ask "are we growing as much compensating code as we lose?" (asked 2026-10-19 at the 2.3 seal: the engine is 2,800 lines smaller than before 2.1, but about ninety guard sites exist that did not — byte-identity preservations, idempotence guards, `step()`; three section-7 lists of 14, 10 and 13 items) and retire what remains: every byte-identity preservation and until-X guard in the reports' section 7s. Renders MAY change there for engine improvement or simplification — byte-identity is the refactor's instrument, the patches are not gold (Matt, 2026-10-19) — except `patches/library/winds/oboe1.json`, which stays byte-identical or Matt re-listens before it moves. | this row | slated |
 
 Standing: no feature work in any lane until Matt lifts the freeze
 (CLAUDE.md, "Scope right now").

@@ -59,6 +59,14 @@ pushed this session: main is 10 commits ahead of origin after the seal
 (6a32e55, 587b539, the seven of 2.3, the docs seal f9abaa3) — ask at
 close-out.
 GOALS.md stays Matt's uncommitted edit.
+10-19: Matt asked whether the refactor grows as much compensating code as
+it removes (answer: some — the engine is 2,800 lines smaller than before
+2.1 but ~90 guard sites exist that did not: byte-identity preservations,
+idempotence guards, step(); section-7 lists 14/10/13). DECIDED: re-ask at
+the end of the refactor; a workaround-cleanup follow-on is SLATED after
+Part 8 (refactor BACKLOG row 8) where renders MAY change for engine
+improvement — byte-identity is the refactor's instrument, the patches are
+not gold — except oboe1 (target-architecture.md principle 6 note).
 
 Updated: 2026-10-18 (refactor session IV, Fable 5.1 xhigh). R3 DECIDED by
 Matt: (0) DelayLine zero slot stays listed for 2.5; (1) UI re-prepare per

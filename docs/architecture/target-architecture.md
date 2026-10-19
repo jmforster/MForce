@@ -35,6 +35,14 @@ what "arrived" means.
 6. **Structure and behaviour never change in the same checkpoint.** A
    move must render byte-identical. A bug fix lists the renders it is
    expected to change.
+   *Decided 2026-10-19 (Matt, at the checkpoint 2.3 seal):* byte-identity
+   is the refactor's instrument, not a property of the patches. Code kept
+   only to preserve today's bytes is a cost of surgery, listed in each
+   report's section 7 with its retirement point, and is retired in a
+   follow-on after Part 8 (refactor BACKLOG row 8), where renders may
+   change for engine improvement or simplification — the patches are not
+   gold. The one exception is `patches/library/winds/oboe1.json`, which
+   stays byte-identical or Matt re-listens before it moves.
 
 ## 3. The layers
 
