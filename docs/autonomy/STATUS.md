@@ -55,8 +55,9 @@ the 47 same-tick-tap patches in docs/architecture/measurements/
 against the then-current code. Kept binaries for re-timing under
 renders/scratch/ab_tree/ (cli_pre23, cli_t1..t4, cli_exp1, cli_final);
 the A/B arms under renders/scratch/ab23_tree/ (gitignored). Nothing
-pushed this session: main is 9 commits ahead of origin after the seal
-(6a32e55, 587b539, the seven of 2.3, the docs seal) — ask at close-out.
+pushed this session: main is 10 commits ahead of origin after the seal
+(6a32e55, 587b539, the seven of 2.3, the docs seal f9abaa3) — ask at
+close-out.
 GOALS.md stays Matt's uncommitted edit.
 
 Updated: 2026-10-18 (refactor session IV, Fable 5.1 xhigh). R3 DECIDED by
