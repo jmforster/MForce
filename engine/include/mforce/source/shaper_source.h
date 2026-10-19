@@ -122,15 +122,15 @@ struct ShaperSource final : Processor {
   }
 
   float compute() override {
-    const float in = input.advance();
-    const float x = in * drive.advance();
-    smoothness.advance();
+    const float in = input.next();
+    const float x = in * drive.next();
+    smoothness.next();
     smoothCur_ = smoothness.current();
-    morph.advance();
+    morph.next();
     morphCur_ = morph.current();
     if (hysteresis.value) {
-      breakaway.advance();
-      capture.advance();
+      breakaway.next();
+      capture.next();
       const float ba = breakaway.current();
       const float cap = capture.current();
       if (stuck_) {

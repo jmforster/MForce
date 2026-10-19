@@ -79,7 +79,7 @@ struct Vibrato final : Generator {
     float freq = frequency.current();
 
     if (enabled_) {
-      float mod = lfo_->advance();
+      float mod = lfo_->next();
       return freq * std::max(0.01f, 1.0f + mod);
     }
     return freq;

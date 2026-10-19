@@ -232,7 +232,11 @@ static ImU32 lighten(ImU32 col, int pct) {
 // every frame count and WAV header is computed from it, and its rate follows
 // the stream the device actually opened.
 static constexpr int AUDIO_SAMPLE_RATE = 48000;
-static mforce::RenderContext g_renderContext{AUDIO_SAMPLE_RATE};
+// The editor graph's pull loop is the audio callback's stream section (and
+// the headless harness's copy of it): one clock, ticked once per sample
+// there; the live voices from the loader tick their own.
+static mforce::SampleClock g_editorClock;
+static mforce::RenderContext g_renderContext{AUDIO_SAMPLE_RATE, &g_editorClock};
 
 // Row data for inline formant table (FormantSpectrum node)
 struct FormantRow {
@@ -3743,13 +3747,17 @@ struct Voice {
     // pool-backed. Deactivation must release it (voice_deactivate_unlocked /
     // the audio callback's finish path) or the slot leaks.
     int   poolSlot = -1;
-    // P3 sample clock: ticked once per sample by the audio callback before
-    // source->next(), so bend and wheel/pressure move during the note. Null
-    // for voices with no perform context.
+    // The voice's perform clock: bend and wheel/pressure move on tick().
+    // Null for voices with no perform context.
     std::shared_ptr<mforce::PerformSource> performSource;
-    // Tap-only loop tails (feedback_loop_design.md §3.3): ticked once per
+    // Tap-only loop tails (feedback_loop_design.md §3.3): pulled once per
     // sample AFTER source->next(), or tap-closed feedback loops fall silent.
     std::vector<std::shared_ptr<mforce::ValueSource>> advanceList;
+    // The voice's sample clock (the pool's, shared). A sample begins with
+    // tick(): the audio callback calls it once per sample before
+    // source->next(), the same contract as the engine's StreamingVoice.
+    std::shared_ptr<mforce::SampleClock> clock;
+    void tick() { if (clock) clock->tick(); if (performSource) performSource->tick(); }
     // Adaptive ring-out (backlog 63b, mirrors PitchedInstrument::play_note):
     // running-peak follower (~50 ms decay) over this voice's own output.
     // At samplesRemaining==0 the callback keeps a still-audible voice alive
@@ -3784,7 +3792,8 @@ static void voice_schedule_unlocked(std::shared_ptr<InstrumentPatch> patch,
                                     std::shared_ptr<mforce::PerformSource>
                                         performSource = nullptr,
                                     std::vector<std::shared_ptr<mforce::ValueSource>>
-                                        advanceList = {}) {
+                                        advanceList = {},
+                                    std::shared_ptr<mforce::SampleClock> clock = nullptr) {
     // Same-source steal: a note whose pool slot's previous note is still
     // sounding must replace that voice outright (two active entries pulling
     // one source would double-render it).
@@ -3822,6 +3831,7 @@ static void voice_schedule_unlocked(std::shared_ptr<InstrumentPatch> patch,
     g_voices[slot].poolSlot = poolSlot;
     g_voices[slot].performSource = std::move(performSource);
     g_voices[slot].advanceList = std::move(advanceList);
+    g_voices[slot].clock = std::move(clock);
     // Adaptive ring-out budget (backlog 63b): matches the engine's
     // kMaxRingSec window past the scheduled life.
     g_voices[slot].ringEnv = 0.0f;
@@ -3907,9 +3917,9 @@ static int audio_callback(void* outputBuffer, void* /*inputBuffer*/,
         for (int v = 0; v < MAX_VOICES; ++v) {
             auto& voice = g_voices[v];
             if (!voice.active) continue;
-            // P3 sample clock: bend + wheel/pressure smoothers advance here,
+            // A sample begins: the voice's clock, then bend + wheel/pressure,
             // exactly once per voice per sample, never inside consumer pulls.
-            if (voice.performSource) voice.performSource->tick();
+            voice.tick();
             float vs = voice.source->next() * voice.gain;
             // Cap fade (REVIEW 09-16): once the ring budget is spent, ramp
             // the final chunk to zero instead of hard-cutting a resonator
@@ -3957,6 +3967,10 @@ static int audio_callback(void* outputBuffer, void* /*inputBuffer*/,
             if (g_bufferPlaybackPos >= g_bufferPlaybackLen)
                 g_bufferPlayback = nullptr;
         }
+
+        // The editor graph's sample begins: one tick for the single-source
+        // stream and the node-graph stream below, which pull the same graph.
+        g_editorClock.tick();
 
         // Live DSP stream (continuous mode)
         if (g_streamSource && g_streamRemaining != 0) {
@@ -4185,6 +4199,7 @@ static void voice_gc() {
                 for (auto& a : v.advanceList)   // loop tails die off-thread too
                     dyingSources.push_back(std::move(a));
                 v.advanceList.clear();
+                v.clock.reset();   // the pool's VoiceGraph keeps the clock alive
                 v.performSource.reset();  // pool keeps its own ref; the bend
                                           // envelope dies off-thread with it
                 v.envs.clear();   // non-owning; graph dies with the patch
@@ -4723,7 +4738,7 @@ static void play_note(float noteNum, float velocity, float durationSeconds) {
         // the tail window lets in-voice reverb/filters ring out.
         voice_schedule_unlocked(ip, sv.source, sv.durSamples, sv.gain,
                                 int(noteNum), false, {}, slot,
-                                sv.performSource, sv.advanceList);
+                                sv.performSource, sv.advanceList, sv.clock);
     } catch (const std::exception& e) {
         char buf[256];
         std::snprintf(buf, sizeof(buf), "play_note failed: %s", e.what());
@@ -4829,7 +4844,8 @@ static void play_note_held(float noteNum, float velocity, float nominalSeconds) 
                                                     nominalSeconds);
                 voice_schedule_unlocked(ip, sv.source, INT_MAX / 2, sv.gain,
                                         int(noteNum), true, std::move(envs),
-                                        slot, sv.performSource, sv.advanceList);
+                                        slot, sv.performSource, sv.advanceList,
+                                        sv.clock);
                 if (pitched->sustaining)
                     g_liveHeldKeys.push_back({int(noteNum), velocity});
                 return;
@@ -13310,7 +13326,7 @@ int main(int argc, char** argv) {
                 auto sv = pitched->prepare_voice(noteNum, vel, dur);
                 mono.resize(sv.durSamples);
                 for (int i = 0; i < sv.durSamples; ++i) {
-                    if (sv.performSource) sv.performSource->tick();  // P3 clock
+                    sv.tick();
                     mono[i] = soft_clip(sv.source->next() * sv.gain);
                     for (auto& a : sv.advanceList) a->next();  // loop tails
                 }
@@ -13413,6 +13429,7 @@ int main(int argc, char** argv) {
                 float panMin = 1e9f, panMax = -1e9f;
                 bool havePan = false;
                 for (int i = 0; i < g_renderContext.sampleRate; ++i) {
+                    g_editorClock.tick();
                     float sL = 0.0f, sR = 0.0f;
                     if (g_streamSource) {
                         float m = g_streamSource->next() * g_streamVelocity;

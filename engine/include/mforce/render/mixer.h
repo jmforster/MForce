@@ -26,11 +26,18 @@ struct StereoMixer {
 
   StereoMixer();
   // Once, after the channels are assembled: the gains, volumes, pans and
-  // sources learn the rate.
+  // sources learn the rate; the gains, volumes and pans also learn this
+  // mixer's clock (a channel's source is its own pull loop and completes
+  // the host's facts with a clock of its own).
   void prepare(const RenderContext& ctx);
   // One span of `frames`: the gains, volumes and pans start over it, each
-  // channel renders into it.
+  // channel renders into it, and the mix loop pulls the gains, volumes and
+  // pans once per sample per channel on this mixer's clock.
   void render(float* outLR, int frames);
+
+private:
+  SampleClock clock_;
+  RenderContext ctx_;
 };
 
 } // namespace mforce

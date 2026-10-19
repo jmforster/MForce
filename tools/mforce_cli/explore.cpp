@@ -358,8 +358,10 @@ int run_explore(int argc, char** argv) {
                     // soft_clip after gain matches mforce_ui's live audio path —
                     // dual-stack / N-stack instruments that sum past ±1.0 get
                     // gracefully shaped instead of hard-clipped at the wav writer.
-                    for (int i = 0; i < frames; ++i)
+                    for (int i = 0; i < frames; ++i) {
+                        sv.tick();
                         mono[size_t(i)] = soft_clip(sv.source->next() * sv.gain);
+                    }
                     // Mirror mono to stereo for the wav writer
                     out.resize(size_t(frames) * 2);
                     for (int i = 0; i < frames; ++i) {

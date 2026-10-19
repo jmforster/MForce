@@ -383,10 +383,10 @@ struct ReedEvolution final : WaveEvolution {
     lpState_ = loopFilter.value * avg + (1.0f - loopFilter.value) * lpState_;
     float loopOut = lpState_ * (1.0f - tubeLoss.value);
 
-    float drive = reedStiffness.advance();
+    float drive = reedStiffness.next();
     if (drive > 0.0f) loopOut = std::tanh(drive * loopOut);
 
-    float b = breath.advance();
+    float b = breath.next();
     float noise = rng_.valuePN();
     values[index] = loopOut + b * noise;
   }
@@ -475,8 +475,8 @@ struct BowedStringEvolution final : WaveEvolution {
 
     float vString = bridgeIn + neckIn;
 
-    float pressure = bow.advance();
-    float gain = frictionGain.advance();
+    float pressure = bow.next();
+    float gain = frictionGain.next();
 
     float vBow = bowSpeed.value * pressure;
     float vRel = vBow - vString;
@@ -589,10 +589,10 @@ struct BrassEvolution final : WaveEvolution {
     lipState_ = (1.0f - lipTension.value) * avg + lipTension.value * lipState_;
     float loopOut = lipState_ * (1.0f - tubeLoss.value);
 
-    float drive = brassiness.advance();
+    float drive = brassiness.next();
     if (drive > 0.0f) loopOut = std::tanh(drive * loopOut);
 
-    float b = breath.advance();
+    float b = breath.next();
     float noise = rng_.valuePN();
     rawLoop_[index] = loopOut + b * noise;
 
@@ -1254,8 +1254,8 @@ struct BitRotateEvolution final : WaveEvolution {
   }
 
   void evolve(std::vector<float>& values, int index) override {
-    const int step = std::max(1, int(stepEvery.advance()));
-    const int bits = int(shiftBits.advance());
+    const int step = std::max(1, int(stepEvery.next()));
+    const int bits = int(shiftBits.next());
     ctr_++;
     if (ctr_ < step) return;
     ctr_ = 0;

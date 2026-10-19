@@ -104,10 +104,10 @@ struct MultiplexSource final : Processor {
             float sum = 0.0f;
             int n = int(instances_.size());
             for (auto& inst : instances_)
-                if (inst) sum += inst->advance();
+                if (inst) sum += inst->next();
             return (n > 0) ? sum / float(n) : 0.0f;
         }
-        return input.advance();  // solo passthrough (UI preview); 0 when unwired
+        return input.next();  // solo passthrough (UI preview); 0 when unwired
     }
 
 private:

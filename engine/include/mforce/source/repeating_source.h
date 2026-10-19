@@ -36,7 +36,7 @@ struct RepeatingSource final : Processor {
       // Playing source
       if (srcRemaining_ > 0) {
         srcRemaining_--;
-        return input.advance();
+        return input.next();
       }
       // Source finished — enter gap
       gapCount_ = int(std::round(currGap_ * float(sample_rate())));

@@ -2036,17 +2036,17 @@ static void run_base_tests() {
 #include "mforce/source/sine_source.h"
 #include "mforce/source/fm_source.h"
 
-// A Manual pin is driven by its node: advance() pulls the source and returns
+// A Manual pin is driven by its node: next() pulls the source and returns
 // its value, or the pin's fallback (the constant; 0 for an input) unwired.
 static void run_manual_pin_advance_tests() {
     PinProbe p;
-    CHECK_NEAR(p.freq.advance(), 440.0f, 1e-6f);        // unwired: the constant
-    CHECK_NEAR(p.in.advance(), 0.0f, 1e-6f);            // unwired input: 0
+    CHECK_NEAR(p.freq.next(), 440.0f, 1e-6f);        // unwired: the constant
+    CHECK_NEAR(p.in.next(), 0.0f, 1e-6f);            // unwired input: 0
     auto ramp = std::make_shared<UnitRamp>();
     p.set_param("frequency", ramp);
     p.set_param("source", ramp);
-    CHECK_NEAR(p.freq.advance(), 1.0f, 1e-6f);          // pulls the source once
-    CHECK_NEAR(p.in.advance(), 2.0f, 1e-6f);            // the same source, pulled again
+    CHECK_NEAR(p.freq.next(), 1.0f, 1e-6f);          // pulls the source once
+    CHECK_NEAR(p.in.next(), 2.0f, 1e-6f);            // the same source, pulled again
     CHECK_NEAR(p.freq.current(), 2.0f, 1e-6f);          // current() does not pull
 }
 
@@ -2105,7 +2105,7 @@ static void run_manual_pin_prepare_tests() {
 namespace {
 struct ManualDoubler final : mforce::Processor {
   ManualDoubler() : Processor(mforce::Pull::Manual) {}
-  float compute() override { return 2.0f * input.advance(); }
+  float compute() override { return 2.0f * input.next(); }
   const char* type_name() const override { return "ManualDoubler"; }
 };
 }
@@ -2157,48 +2157,65 @@ static void run_wave_source_tests() {
     CHECK(s.get_param("frequency") != nullptr);
 }
 
-// Checkpoint 2.1 Task 0: the sharing trace. A wrapped (RefSource) consumer
-// that reads a shared source before its primary consumer advanced it this
-// sample is a lag read; a guarded tap that reads after the advance is a
-// same-tick tap. Both counters feed the measured lists for checkpoints
-// 2.3 and 2.4; the instrumentation goes with the memo.
-static void run_sharing_trace_tests() {
-    RenderContext ctx{48000};
-    auto shared = std::make_shared<ConstantSource>(0.5f);
-    auto sine = std::make_shared<SineSource>();
-    sine->set_param("amplitude", shared);            // the primary consumer
-    auto ref = std::make_shared<RefSource>(shared, false);
-    auto tap = std::make_shared<RefSource>(shared, true);
-    sine->prepare(ctx); sine->start(16);
-    SharingTrace::enabled = true;
-    SharingTrace::lagReads = 0;
-    SharingTrace::sameTickTaps = 0;
-    ++SharingTrace::sample;
-    ref->next();                  // before the primary advanced: a lag read
-    CHECK(SharingTrace::lagReads == 1);
-    sine->next();                 // advances `shared` through the amplitude pin
-    ref->next();                  // same sample, after the advance: not a lag
-    CHECK(SharingTrace::lagReads == 1);
-    tap->next();                  // a tap seeing this sample's value
-    CHECK(SharingTrace::sameTickTaps == 1);
-    ++SharingTrace::sample;
-    tap->next();                  // next sample, before the advance: the z^-1 a tap should see
-    CHECK(SharingTrace::sameTickTaps == 1);
-    CHECK(SharingTrace::lagReads == 1);
-    // A tap read from inside its source's own pull (a loop: the sine's
-    // amplitude is a tap on the sine) sees the previous sample's value even
-    // though the source is being advanced this sample: not a same-tick tap.
-    auto loop = std::make_shared<SineSource>();
-    loop->set_param("amplitude", std::make_shared<RefSource>(loop, true));
-    loop->prepare(ctx); loop->start(16);
-    SharingTrace::sameTickTaps = 0;
-    ++SharingTrace::sample;
-    loop->advance();              // the driver's pull: the tap reads mid-advance
-    CHECK(SharingTrace::sameTickTaps == 0);
-    ++SharingTrace::sample;
-    loop->advance();
-    CHECK(SharingTrace::sameTickTaps == 0);
-    SharingTrace::enabled = false;
+// The per-tick memo: one compute per tick however many pulls, in whatever
+// order; step() advances now; no clock means every pull computes; a cycle
+// with no tap is finite.
+namespace {
+struct TestHost { SampleClock clock; RenderContext ctx{48000, &clock}; };
+struct Counter final : Generator {
+    int computes{0};
+    float compute() override { return float(++computes); }
+    const char* type_name() const override { return "Counter"; }
+};
+}
+
+static void run_memo_tests() {
+    TestHost h;
+    auto c = std::make_shared<Counter>();
+    auto sum = std::make_shared<CombinedSource>(c, c, CombineOp::Sum, 0.0f);   // one node on both pins, no wrapper
+    sum->prepare(h.ctx); sum->start(16);
+    h.clock.tick();
+    CHECK_NEAR(sum->next(), 2.0f, 1e-6f);     // computed once, served once
+    CHECK(c->computes == 1);
+    CHECK_NEAR(c->next(), 1.0f, 1e-6f);       // a third pull this tick: the memo
+    CHECK(c->computes == 1);
+    h.clock.tick();
+    CHECK_NEAR(sum->next(), 4.0f, 1e-6f);
+    CHECK(c->computes == 2);
+    h.clock.tick();                           // order independence: the leaf first
+    CHECK_NEAR(c->next(), 3.0f, 1e-6f);
+    CHECK_NEAR(sum->next(), 6.0f, 1e-6f);
+    CHECK(c->computes == 3);
+    h.clock.tick();                           // step(): one sample now, whatever the tick
+    CHECK_NEAR(c->step(), 4.0f, 1e-6f);
+    CHECK_NEAR(c->step(), 5.0f, 1e-6f);
+    CHECK_NEAR(c->next(), 5.0f, 1e-6f);       // the memo holds the last step
+    CHECK(c->computes == 5);
+    h.clock.tick();                           // step() is recursive through Auto pins
+    auto chain = std::make_shared<CombinedSource>(c, std::make_shared<ConstantSource>(0.0f),
+                                                  CombineOp::Sum, 0.0f);
+    chain->prepare(h.ctx); chain->start(16);
+    CHECK_NEAR(chain->step(), 6.0f, 1e-6f);
+    CHECK_NEAR(chain->step(), 7.0f, 1e-6f);
+    CHECK(c->computes == 7);
+    CHECK_NEAR(sum->step(), 18.0f, 1e-6f);    // a node on two pins of a stepped parent steps twice, and
+                                              // both pins read it after the sweep: 9 + 9
+    CHECK(c->computes == 9);
+    auto bare = std::make_shared<Counter>();  // no clock: every pull computes
+    bare->prepare(RenderContext{48000}); bare->start(16);
+    bare->next(); bare->next(); bare->next();
+    CHECK(bare->computes == 3);
+    auto loop = std::make_shared<CombinedSource>(std::make_shared<ConstantSource>(1.0f),
+                                                 std::make_shared<ConstantSource>(0.0f),
+                                                 CombineOp::Sum, 0.0f);
+    loop->prepare(h.ctx); loop->start(16);
+    loop->set_param("source2", loop);         // a cycle with no tap, wired after the host calls
+                                              // (which walk the pins): illegal, must be finite
+    h.clock.tick();
+    CHECK_NEAR(loop->next(), 1.0f, 1e-6f);    // 1 + the previous value (0)
+    h.clock.tick();
+    CHECK_NEAR(loop->next(), 2.0f, 1e-6f);    // 1 + 1
+    loop->clear_param("source2");             // break the ownership cycle
 }
 
 // Checkpoint 2.1: the core family (envelopes, range/var, multi, name gate)
@@ -4537,7 +4554,7 @@ static SplitResult split_compare(const std::function<std::shared_ptr<ValueSource
         for (int n = 0; n < notes; ++n) {
             if (prepareEachNote) s.prepare(ctx);
             s.start(frames);
-            for (int i = 0; i < frames; ++i) out.push_back(s.advance());
+            for (int i = 0; i < frames; ++i) out.push_back(s.next());
         }
     };
     bool threwA = false, threwB = false;
@@ -4613,7 +4630,7 @@ static void run_split_equivalence_tests() {
 static std::vector<float> render_samples(ValueSource& s, int n) {
     std::vector<float> out;
     out.reserve(size_t(n));
-    for (int i = 0; i < n; ++i) out.push_back(s.advance());
+    for (int i = 0; i < n; ++i) out.push_back(s.next());
     return out;
 }
 
@@ -5239,7 +5256,7 @@ static void run_filter_pin_split_tests() {
         f->start(4800);
         const float settled = render_samples(*f, 4800).back();
         f->start(4800);
-        const float firstOfNext = f->advance();
+        const float firstOfNext = f->next();
         CHECK_NEAR(firstOfNext, settled, 1e-3f);
     }
 }
@@ -5690,7 +5707,7 @@ int main() {
     run_physical_behavior_tests();
     run_filter_tests();
     run_combine_mod_tests();
-    run_sharing_trace_tests();
+    run_memo_tests();
     run_walk2_tests();
     run_walk3_tests();
     run_walk1_tests();

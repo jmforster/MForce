@@ -46,7 +46,7 @@ void HybridKSSource::fill_table() {
   table_.resize(len);
 
   for (int i = 0; i < len; ++i)
-    table_[i] = inputSource.advance();
+    table_[i] = inputSource.step();
 
 }
 

@@ -49,8 +49,8 @@ struct BiquadSource final : Processor {
   float compute() override {
     const float x = input.current();
     if (mode.value == kResonance) {
-      frequency.advance();
-      radius.advance();
+      frequency.next();
+      radius.next();
       const float f = frequency.current(), r = radius.current();
       if (f != resFreq_ || r != resRad_) {
         resFreq_ = f; resRad_ = r;

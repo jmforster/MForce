@@ -149,8 +149,8 @@ float AdditiveSource2::wave() {
   float avs = amplVarSpeed.current() / float(sample_rate());
 
   // Advance all unique envelopes once per sample
-  for (auto& e : freqEnvs_) e->advance();
-  for (auto& e : amplEnvs_) e->advance();
+  for (auto& e : freqEnvs_) e->next();
+  for (auto& e : amplEnvs_) e->next();
 
   constexpr float TAU = 2.0f * 3.14159265358979323846f;
   float val = 0.0f;

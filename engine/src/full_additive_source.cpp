@@ -54,9 +54,9 @@ float FullAdditiveSource::wave() {
   float fmtFloor = 1.0f;
   if (formant_) {
     formant_->fmt_next();
-    formantWeight.advance();
+    formantWeight.next();
     fmtWt = formantWeight.current();
-    formantFloor.advance();
+    formantFloor.next();
     fmtFloor = formantFloor.current();
   }
 

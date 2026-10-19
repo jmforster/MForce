@@ -62,7 +62,7 @@ struct MultiSource final : ValueSource {
     ++ptr_;
     float sum = 0.0f;
     for (auto& e : entries) {
-      float v = e.source->advance();
+      float v = e.source->next();
       if (ptr_ >= e.delaySamples) {
         sum += v * e.weight;
       }

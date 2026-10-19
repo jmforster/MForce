@@ -50,7 +50,7 @@
  "patches/baselines/feedback/loop_hysteresis_bow.json": "db1bac655270d5d3efd902f4cebe1932652345ee7d649cd9b0214a25c9e19a1a",
  "patches/baselines/feedback/loop_keytrack.json": "161ab96e25e3944eec6f32f3feccb15a63f23f940f947341646d5d206d33642e",
  "patches/baselines/feedback/loop_root_sensitivity_dead.json": "0170ab020fcc6ab06ea6acd76f837d63f99aa95f21a17548963b4dfe5aa4c09c",
- "patches/baselines/feedback/loop_root_sensitivity_fires.json": "83910e8a0e39e03eac6baad570760fdfe2dc07e4adad54022b83982106af06cd",
+ "patches/baselines/feedback/loop_root_sensitivity_fires.json": "931916d6fa2ed21e9d7cdf66569c9706f4a134dc36a35729d4cb8a7af80aed5f",
  "patches/baselines/feedback/loop_selfosc.json": "766240d80188bf5ac71389858529526fed32e48ad5fe488483ea963b40e28459",
  "patches/baselines/feedback/loop_tap_counter.json": "efd7d205a966bb4bddcc8e1bdcde2be39de4397c27019c59732fe9ca3bcbdf0c",
  "patches/baselines/feedback/loop_tap_starved.json": "db8586320846d7d2e1ef83a096f665613e79363ecd9c28d23463c1d71666dc4e",

@@ -75,7 +75,7 @@ struct LayeredRedNoiseSource final : Generator {
 
     float compute() override {
         float sum = 0.0f;
-        for (auto& l : layers_) if (l) sum += l->advance();
+        for (auto& l : layers_) if (l) sum += l->next();
         return sum;
     }
 

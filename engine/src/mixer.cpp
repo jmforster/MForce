@@ -10,11 +10,13 @@ StereoMixer::StereoMixer()
 , gainR(std::make_shared<ConstantSource>(1.0f)) {}
 
 void StereoMixer::prepare(const RenderContext& ctx) {
-  gainL->prepare(ctx);
-  gainR->prepare(ctx);
+  ctx_ = ctx;
+  ctx_.clock = &clock_;
+  gainL->prepare(ctx_);
+  gainR->prepare(ctx_);
   for (auto& ch : channels) {
-    ch.volume->prepare(ctx);
-    ch.pan->prepare(ctx);
+    ch.volume->prepare(ctx_);
+    ch.pan->prepare(ctx_);
     ch.source->prepare(ctx);
   }
 }
@@ -35,10 +37,11 @@ void StereoMixer::render(float* outLR, int frames) {
     ch.source->render(mono.data(), frames);
 
     for (int i = 0; i < frames; ++i) {
-      float gl = gainL->advance();
-      float gr = gainR->advance();
-      float v = ch.volume->advance();
-      float p = ch.pan->advance();               // [-1,1]
+      clock_.tick();
+      float gl = gainL->next();
+      float gr = gainR->next();
+      float v = ch.volume->next();
+      float p = ch.pan->next();                  // [-1,1]
       p = std::clamp(p, -1.0f, 1.0f);
 
       // Equal-power panning: map [-1,1] -> [0,1], normalized to UNITY at

@@ -118,19 +118,19 @@ struct PhasedValueSource final : Generator {
 
     if (transFromPrev) {
       // Crossfade from previous stage to current
-      float vPrev = stages_[stageIdx - 1].source->advance();
-      float vCurr = stages_[stageIdx].source->advance();
+      float vPrev = stages_[stageIdx - 1].source->next();
+      float vCurr = stages_[stageIdx].source->next();
       float t = float(posInStage) / float(halfOl);
       return (vPrev * (1.0f - t) + vCurr * stages_[stageIdx].gainAdj * t) * amp;
     } else if (transToNext) {
       // Crossfade from current to next stage
-      float vCurr = stages_[stageIdx].source->advance();
-      float vNext = stages_[stageIdx + 1].source->advance();
+      float vCurr = stages_[stageIdx].source->next();
+      float vNext = stages_[stageIdx + 1].source->next();
       float t = float(halfOl - (stageLen - posInStage)) / float(halfOl);
       return (vCurr * (1.0f - t) + vNext * stages_[stageIdx + 1].gainAdj * t) * amp;
     } else {
       // Not in transition
-      return stages_[stageIdx].source->advance() * stages_[stageIdx].gainAdj * amp;
+      return stages_[stageIdx].source->next() * stages_[stageIdx].gainAdj * amp;
     }
   }
 

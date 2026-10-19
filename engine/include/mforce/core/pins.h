@@ -21,7 +21,7 @@ enum class PinKind { Param, Input, Slot, Setting, Array };
 // node uses it: pulled only in one mode or only between gaps, pulled once
 // per table entry at note start, read at a fixed point of its own
 // compute(), or a trigger chain evaluated at note setup and never per
-// sample. The node then calls the pin's prepare() and advance() itself.
+// sample. The node then calls the pin's prepare() and next() itself.
 enum class Pull { Auto, Manual };
 
 // A pin is a member of a node that registers itself with the node while
@@ -57,7 +57,8 @@ struct Param final : PinBase {
         const char* h = nullptr, Pull p = Pull::Auto)
     : PinBase(n, kKind, p), constant(def), min(mn), max(mx), hint(h) { attach(owner); }
   float current() const;                          // the source's value, or the constant
-  float advance();                                // Manual pins only: pull the source, return its value or the constant
+  float next();                                   // Manual pins only: the source's value this tick, or the constant
+  float step();                                   // Manual pins only: one sample of the source now, or the constant
   void set(std::shared_ptr<ValueSource> s) { source = std::move(s); }
   std::shared_ptr<ValueSource> get() const { return source; }
   ParamDescriptor descriptor() const { return {name, constant, min, max, hint}; }
@@ -77,7 +78,8 @@ struct Input final : PinBase {
         const char* h = nullptr, bool m = false, Pull p = Pull::Auto)
     : PinBase(n, kKind, p), required(r), hint(h), multi(m) { attach(owner); }
   float current() const;
-  float advance();                                // Manual pins only: pull the source, return its value or 0
+  float next();                                   // Manual pins only: the source's value this tick, or 0
+  float step();                                   // Manual pins only: one sample of the source now, or 0
   void set(std::shared_ptr<ValueSource> s) { source = std::move(s); }
   std::shared_ptr<ValueSource> get() const { return source; }
   InputDescriptor descriptor() const { return {name, multi, hint}; }

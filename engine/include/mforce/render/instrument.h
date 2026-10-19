@@ -158,6 +158,14 @@ struct PitchedInstrument final : Instrument {
     std::shared_ptr<ValueSource>   freqOut, velOut, wheelOut, pressOut,
                                    durOut, onsetOut;
     std::vector<PushBinding>       pushBindings;
+    // The voice's clock and the host's facts completed with it: every node of
+    // this voice is prepared with `ctx` and computes once per tick of `clock`.
+    // Heap-owned so a StreamingVoice can hold it after the pool reallocates.
+    std::shared_ptr<SampleClock>   clock{std::make_shared<SampleClock>()};
+    RenderContext                  ctx;
+    // A sample begins: the clock, then the perform clock. Once per sample,
+    // before the root pull.
+    void tick() { clock->tick(); if (performSource) performSource->tick(); }
     // Loop tails consumed only by tap edges (feedback_loop_design.md §3.3):
     // never reached by the pull, ticked once per sample AFTER the root pull
     // (their tap consumers must read the previous value first; their own
@@ -191,9 +199,11 @@ struct PitchedInstrument final : Instrument {
   void prepare(const RenderContext& c) override {
     Instrument::prepare(c);
     for (auto& vg : voicePool) {
-      if (vg.source) vg.source->prepare(c);
-      for (auto& a : vg.advanceList) a->prepare(c);
-      if (vg.performSource) vg.performSource->prepare(c);
+      vg.ctx = c;
+      vg.ctx.clock = vg.clock.get();
+      if (vg.source) vg.source->prepare(vg.ctx);
+      for (auto& a : vg.advanceList) a->prepare(vg.ctx);
+      if (vg.performSource) vg.performSource->prepare(vg.ctx);
     }
   }
 
@@ -269,16 +279,20 @@ struct PitchedInstrument final : Instrument {
     // master gain must ride along here or hot chains hit the caller's
     // soft_clip raw (UI keyboard distortion, 2026-08-09).
     float gain{1.0f};
-    // P3: the voice's sample clock. Streaming callers MUST call
-    // performSource->tick() once per sample before source->next(), or bend
-    // and wheel/pressure freeze at their note-on values. Null for graphs
-    // with no perform context.
+    // The voice's perform clock: bend and wheel/pressure move on tick().
+    // Null for graphs with no perform context.
     std::shared_ptr<PerformSource> performSource;
-    // Loop tails consumed only by tap edges. Streaming callers MUST tick
+    // Loop tails consumed only by tap edges. Streaming callers MUST pull
     // each entry once per sample AFTER source->next(), or tap-closed
-    // feedback loops fall silent (same contract class as performSource).
-    // Empty for graphs with no tap-only tails.
+    // feedback loops fall silent. Empty for graphs with no tap-only tails.
     std::vector<std::shared_ptr<ValueSource>> advanceList;
+    // The voice's sample clock, shared with the pool's VoiceGraph.
+    std::shared_ptr<SampleClock> clock;
+    // A sample begins. Streaming callers MUST call this once per sample
+    // before source->next(): the nodes compute once per tick of the clock,
+    // and bend and wheel/pressure freeze at their note-on values without
+    // the perform tick.
+    void tick() { clock->tick(); if (performSource) performSource->tick(); }
   };
 
   StreamingVoice prepare_voice(float noteNumber, float velocity, float duration,
@@ -341,7 +355,7 @@ struct PitchedInstrument final : Instrument {
       std::shared_ptr<Envelope> bend;
       if (curve) {
         bend = compile_pitch_curve(*curve);
-        bend->prepare(ctx_);
+        bend->prepare(vg.ctx);
         bend->start(durSamples);
       }
       vg.performSource->set_note(freq, velocity, durSamples, durSeconds,
@@ -352,7 +366,7 @@ struct PitchedInstrument final : Instrument {
     // never reaches a setting — dynamic pins stay frozen for the note by
     // definition (pin_model_design.md §5).
     for (auto& b : vg.pushBindings) {
-      b.chain->advance();
+      b.chain->step();                 // a Setup-time evaluation, between ticks
       float v = b.chain->current();
       if (b.isSetting) {
         b.consumer->set_setting(b.paramName, v);
@@ -387,7 +401,7 @@ struct PitchedInstrument final : Instrument {
     // window; musical prep above used the un-extended duration.
     const int tailSamples = int(kVoiceTailSec * float(ctx_.sampleRate));
     return { vg.source, durSamples + tailSamples, gain, vg.performSource,
-             vg.advanceList };
+             vg.advanceList, vg.clock };
   }
 
   // A held line (spec 2026-09-20-note-onsets-v2 §4/§7). One monophonic
@@ -435,14 +449,14 @@ struct PitchedInstrument final : Instrument {
   // chain sees it. (A legacy paramMap patch delivers frequency by a push
   // evaluated once at Setup, so its retune stays instantaneous; only
   // pulled frequency chains glide.)
-  std::shared_ptr<Envelope> make_glide(float fromFreq, float toFreq,
-                                       int durSamples) {
+  std::shared_ptr<Envelope> make_glide(const VoiceGraph& vg, float fromFreq,
+                                       float toFreq, int durSamples) {
     auto g = std::make_shared<Envelope>();
     g->absolute_time = true;
     const float semis = 12.0f * std::log2(fromFreq / toFreq);
     g->add_stage({{semis, 0.0f, RampType::Linear, 0.0f}, glideSec, 0.0f, 0.0f});
     g->add_stage({{0.0f, 0.0f, RampType::Linear, 0.0f}, 0.0f, 0.0f, 0.0f});
-    g->prepare(ctx_);
+    g->prepare(vg.ctx);
     g->start(durSamples);
     return g;
   }
@@ -460,10 +474,9 @@ struct PitchedInstrument final : Instrument {
     const size_t base = buf.size();
     buf.resize(base + size_t(n));
     for (int k = 0; k < n; ++k) {
-      ++SharingTrace::sample;
-      if (vg.performSource) vg.performSource->tick();   // P3 sample clock
-      buf[base + size_t(k)] = vg.source->advance() * gain;
-      for (auto& a : vg.advanceList) a->advance();         // tap-only loop tails
+      vg.tick();
+      buf[base + size_t(k)] = vg.source->next() * gain;
+      for (auto& a : vg.advanceList) a->next();            // tap-only loop tails
       if (capturing) {
         // Strips record raw current() — no velocity/volume gain — matching
         // what the per-node display always showed.
@@ -495,7 +508,7 @@ struct PitchedInstrument final : Instrument {
     for (auto& [nid, src] : vg.nodesById) src->reseed();
     std::shared_ptr<Envelope> glide;
     if (glideSec > 0.0f && fromFreq > 0.0f && freq != fromFreq)
-      glide = make_glide(fromFreq, freq, durSamples);
+      glide = make_glide(vg, fromFreq, freq, durSamples);
     if (vg.performSource)
       vg.performSource->set_note(freq, velocity, durSamples, durSeconds,
                                  std::move(glide), onsetId);
@@ -505,7 +518,7 @@ struct PitchedInstrument final : Instrument {
     // (noteFaces curves) need no delivery: they read the new NoteState.
     for (auto& b : vg.pushBindings) {
       if (b.isSetting) continue;
-      b.chain->advance();
+      b.chain->step();                 // a Setup-time evaluation, between ticks
       float v = b.chain->current();
       b.cs->set(v);
       b.consumer->set_param(b.paramName, b.cs);
@@ -742,13 +755,22 @@ struct DrumKit final : Instrument {
 
   struct DrumSource {
     std::shared_ptr<ValueSource> source;
+    // Each drum is its own pull loop: its clock, and the host's facts
+    // completed with it. `sources` is built before prepare and never grows
+    // after, so the context's pointer into it stays valid.
+    SampleClock clock;
+    RenderContext ctx;
   };
 
   std::vector<DrumSource> sources;  // indexed by drum number
 
   void prepare(const RenderContext& c) override {
     Instrument::prepare(c);
-    for (auto& ds : sources) if (ds.source) ds.source->prepare(c);
+    for (auto& ds : sources) {
+      ds.ctx = c;
+      ds.ctx.clock = &ds.clock;
+      if (ds.source) ds.source->prepare(ds.ctx);
+    }
   }
 
   void play_hit(int drumNumber, float velocity, float duration, float startTime) {
@@ -762,8 +784,8 @@ struct DrumKit final : Instrument {
 
     std::vector<float> buf(durSamples);
     for (int i = 0; i < durSamples; ++i) {
-      ++SharingTrace::sample;
-      buf[i] = ds.source->advance() * velocity;
+      ds.clock.tick();
+      buf[i] = ds.source->next() * velocity;
     }
 
     add_rendered(startTime, buf.data(), durSamples);

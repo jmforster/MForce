@@ -1,6 +1,7 @@
 #pragma once
 #include <cassert>
 #include <cmath>
+#include <cstdio>
 #include <memory>
 #include <span>
 #include <string_view>
@@ -11,51 +12,24 @@
 namespace mforce {
 
 // ---------------------------------------------------------------------------
-// Temporary instrumentation for the per-tick-memo migration; it goes with
-// the memo. The render driver bumps `sample` once per pulled sample; a
-// consumer advances a pin through ValueSource::advance(), which stamps the
-// source with the sample; RefSource::read() compares the stamp with the
-// current sample to tell a previous-sample read from a same-sample read.
-// Off unless mforce_cli sees MFORCE_TRACE_SHARING; plain statics because
-// the engine renders on one thread.
-// ---------------------------------------------------------------------------
-
-struct SharingTrace {
-  static inline long long sample = 0;
-  static inline long long lagReads = 0;       // wrapped consumer read a previous-sample value
-  static inline long long sameTickTaps = 0;   // guarded (tap) read saw this sample's value
-  static inline bool enabled = false;
-};
-
-// ---------------------------------------------------------------------------
 // ValueSource: the signal contract. A node declares its pins as members
-// (pins.h) and writes compute(); the base advances every pin in declaration
-// order, then computes.
+// (pins.h) and writes compute(); the base pulls every pin in declaration
+// order, then computes — once per tick of the host's clock.
 // ---------------------------------------------------------------------------
 
 struct ValueSource : Component {
-  // Consumers advance a pin through advance(), never next() directly, so
-  // the SharingTrace knows at which sample this node last advanced. The
-  // stamp is set after next() returns: a read that happens during this
-  // node's own pull (a tap closing a loop) sees the previous sample.
-  float advance() {
-    const float v = next();
-    if (SharingTrace::enabled) lastAdvancedSample_ = SharingTrace::sample;
-    return v;
-  }
-  long long lastAdvancedSample_{-1};
-
   // The two host calls (Part 2 §4-5). Neither is virtual: the base owns the
   // sweep, a node writes the hooks, the same shape as next()/compute().
   //
   // prepare(ctx): once per build, from the host, never per note and never on
   // the audio thread; again only when the host changes the rate or has
-  // rebuilt the graph. The only way a node learns the sample rate. May
-  // allocate. Calling it twice with the same context changes nothing a
-  // render can see. Forwards to every Auto pin's source, then on_prepare;
-  // a Manual pin is prepared by the node in on_prepare.
+  // rebuilt the graph. The only way a node learns the sample rate and the
+  // clock. May allocate. Calling it twice with the same context changes
+  // nothing a render can see. Forwards to every Auto pin's source, then
+  // on_prepare; a Manual pin is prepared by the node in on_prepare.
   void prepare(const RenderContext& ctx) {
     ctx_ = ctx;
+    computing_ = false;
     for (auto* pin : pins())
       if (pin->pull == Pull::Auto) pin->prepare(ctx);
     on_prepare(ctx);
@@ -66,6 +40,7 @@ struct ValueSource : Component {
   // pin is started by the node in on_start.
   void start(int frames) {
     assert(prepared() && "start() before prepare(ctx)");
+    computing_ = false;
     for (auto* pin : pins())
       if (pin->pull == Pull::Auto) pin->start(frames);
     on_start(frames);
@@ -74,11 +49,34 @@ struct ValueSource : Component {
   virtual void on_prepare(const RenderContext&) {}
   virtual void on_start(int) {}
 
-  // Advance every wired Auto pin in declaration order, then compute. A
-  // node's work is compute(); next() is the same for every node.
+  // This tick's value. Computed once per tick of the host's clock — every
+  // wired Auto pin pulled in declaration order, then compute() — and served
+  // to every later pull in the same tick, whoever asks and in whatever
+  // order; a node pulled by several consumers advances once. With no host
+  // clock every pull computes. A node re-entered during its own compute (a
+  // cycle with no tap, which the builders refuse) gets the previous value,
+  // and the cycle is reported once.
   float next() {
+    if (computing_) { report_cycle_once_(); return cur_; }
+    if (ctx_.clock) {
+      const Tick t = ctx_.clock->now;
+      if (t == lastTick_) return cur_;
+      lastTick_ = t;
+    }
+    computing_ = true;
     for (auto* s : auto_sources())
-      if (*s) (*s)->advance();
+      if (*s) (*s)->next();
+    cur_ = compute();
+    computing_ = false;
+    return cur_;
+  }
+  // One sample now, whatever the tick, through every Auto pin: for a node
+  // that drives a source at its own rate (a table fill draws N samples at a
+  // note's start). The memo holds the last stepped value.
+  float step() {
+    if (ctx_.clock) lastTick_ = ctx_.clock->now;
+    for (auto* s : auto_sources())
+      if (*s) (*s)->step();
     cur_ = compute();
     return cur_;
   }
@@ -133,7 +131,17 @@ protected:
   float cur_{0.0f};
 
 private:
+  void report_cycle_once_() {
+    if (cycleReported_) return;
+    cycleReported_ = true;
+    std::fprintf(stderr, "[graph] cycle without a tap through %s: serving the previous value\n",
+                 type_name());
+  }
+
   RenderContext ctx_{};
+  Tick lastTick_{-1};
+  bool computing_{false};
+  bool cycleReported_{false};
 };
 
 // A node that produces a signal from time and its parameters alone.
@@ -147,7 +155,7 @@ struct Generator : ValueSource {
 // A node that processes a signal: it owns the primary input. Further inputs
 // are declared by the subclass. A node that pulls its input itself (only
 // between gaps, once per clone, or at a fixed point of its own compute())
-// constructs with Pull::Manual and reads input.advance() there.
+// constructs with Pull::Manual and reads input.next() there.
 struct Processor : ValueSource {
   Input input;
   explicit Processor(Pull inputPull = Pull::Auto)
@@ -216,26 +224,23 @@ struct RefSource final : ValueSource {
 private:
   float read() const {
     float v = source ? source->current() : 0.0f;
-    if (SharingTrace::enabled && source) {
-      const bool advancedThisSample = source->lastAdvancedSample_ == SharingTrace::sample;
-      if (guard && advancedThisSample) ++SharingTrace::sameTickTaps;
-      if (!guard && !advancedThisSample) ++SharingTrace::lagReads;
-    }
     if (!guard) return v;
     if (!std::isfinite(v)) return 0.0f;
     return v < -8.0f ? -8.0f : (v > 8.0f ? 8.0f : v);
   }
 };
 
-// The pin bodies that need ValueSource complete. prepare(), start() and
-// advance() act on the source if there is one; the base calls them for
+// The pin bodies that need ValueSource complete. prepare(), start(), next()
+// and step() act on the source if there is one; the base calls them for
 // Auto pins, the node calls them for its Manual pins.
 inline float Param::current() const { return source ? source->current() : constant; }
-inline float Param::advance() { return source ? source->advance() : constant; }
+inline float Param::next() { return source ? source->next() : constant; }
+inline float Param::step() { return source ? source->step() : constant; }
 inline void Param::prepare(const RenderContext& ctx) { if (source) source->prepare(ctx); }
 inline void Param::start(int frames) { if (source) source->start(frames); }
 inline float Input::current() const { return source ? source->current() : 0.0f; }
-inline float Input::advance() { return source ? source->advance() : 0.0f; }
+inline float Input::next() { return source ? source->next() : 0.0f; }
+inline float Input::step() { return source ? source->step() : 0.0f; }
 inline void Input::prepare(const RenderContext& ctx) { if (source) source->prepare(ctx); }
 inline void Input::start(int frames) { if (source) source->start(frames); }
 

@@ -113,12 +113,12 @@ struct CrossfadeSource final : ValueSource {
     const float amp = amplitude.current();
 
     if (ptr_ < s2Start_) {
-      return source1.advance() * amp;
+      return source1.next() * amp;
     } else if (ptr_ >= s1End_) {
-      return source2.advance() * amp * (1.0f + gainAdj.value);
+      return source2.next() * amp * (1.0f + gainAdj.value);
     }
-    float v1 = source1.advance();
-    float v2 = source2.advance();
+    float v1 = source1.next();
+    float v2 = source2.next();
     float t = float(ptr_ - s2Start_) / float(s1End_ - s2Start_);
     return (v1 * (1.0f - t) + v2 * (1.0f + gainAdj.value) * t) * amp;
   }

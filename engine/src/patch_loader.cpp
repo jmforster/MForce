@@ -54,24 +54,38 @@ static std::string slurp(const std::string& path)
     return ss.str();
 }
 
-// Adapters: WaveSource/ValueSource → MonoSource for channel rendering
+// Adapters: WaveSource/ValueSource → MonoSource for channel rendering. Each
+// is its own pull loop: it owns the clock its graph computes on and completes
+// the host's facts with it.
 struct WaveSourceMono final : MonoSource {
     std::shared_ptr<WaveSource> src;
+    SampleClock clock;
+    RenderContext ctx;
     explicit WaveSourceMono(std::shared_ptr<WaveSource> s) : src(std::move(s)) {}
-    void prepare(const RenderContext& ctx) override { src->prepare(ctx); }
+    void prepare(const RenderContext& c) override {
+        ctx = c;
+        ctx.clock = &clock;
+        src->prepare(ctx);
+    }
     void render(float* out, int frames) override {
         src->start(frames);
-        for (int i = 0; i < frames; ++i) { ++SharingTrace::sample; out[i] = src->advance(); }
+        for (int i = 0; i < frames; ++i) { clock.tick(); out[i] = src->next(); }
     }
 };
 
 struct ValueSourceMono final : MonoSource {
     std::shared_ptr<ValueSource> src;
+    SampleClock clock;
+    RenderContext ctx;
     explicit ValueSourceMono(std::shared_ptr<ValueSource> s) : src(std::move(s)) {}
-    void prepare(const RenderContext& ctx) override { src->prepare(ctx); }
+    void prepare(const RenderContext& c) override {
+        ctx = c;
+        ctx.clock = &clock;
+        src->prepare(ctx);
+    }
     void render(float* out, int frames) override {
         src->start(frames);
-        for (int i = 0; i < frames; ++i) { ++SharingTrace::sample; out[i] = src->advance(); }
+        for (int i = 0; i < frames; ++i) { clock.tick(); out[i] = src->next(); }
     }
 };
 

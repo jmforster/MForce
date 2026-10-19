@@ -32,7 +32,7 @@ void WavetableSource::fill_table() {
   values_.resize(len);
 
   for (int i = 0; i < len; ++i) {
-    values_[i] = inputSource.advance();
+    values_[i] = inputSource.step();
   }
 }
 
@@ -120,7 +120,7 @@ float WavetableSource::compute_interpolated() {
   }
 
   int len = int(values_.size());
-  float sf = speedFactor.advance();
+  float sf = speedFactor.next();
 
   float tablePtr = float(len) * currPos_ * sf;
   int samp1 = int(std::floor(tablePtr));

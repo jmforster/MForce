@@ -386,14 +386,14 @@ struct Partials : ValueSource, IPartials {
   }
 
   void partials_next() override {
-    multEnv.advance();
-    amplEnv.advance();
-    poEnv.advance();
-    roEnv.advance();
-    dtEnv.advance();
-    bwEnv.advance();
-    motionEnv.advance();
-    shimmerEnv.advance();
+    multEnv.next();
+    amplEnv.next();
+    poEnv.next();
+    roEnv.next();
+    dtEnv.next();
+    bwEnv.next();
+    motionEnv.next();
+    shimmerEnv.next();
 
     refresh_sample_scalars();
 

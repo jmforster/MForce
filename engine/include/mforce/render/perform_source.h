@@ -72,7 +72,7 @@ public:
 
   // Once per sample, from the render driver — never from a consumer pull.
   void tick() {
-    if (bend_) bendSemis_ = bend_->advance();
+    if (bend_) bendSemis_ = bend_->next();
     if (inst_) {
       wheelSm_ += smoothA_ * (inst_->wheel.load(std::memory_order_relaxed)
                               - wheelSm_);
@@ -114,11 +114,9 @@ struct PerformOut final : Generator {
 
   float compute() override { return read_(); }
   // A stateless view: the value only moves on tick(), so there is nothing to
-  // cache. current() reads live, NOT the cur_ that advance() stashes:
-  // RefSource reads source->current() WITHOUT pulling the source (it assumes
-  // the primary consumer already did), so a cached cur_ would make every
-  // RefSource-wrapped copy report 0 until the primary happened to pull. One
-  // PerformNode feeding several pins is the normal case.
+  // cache. current() reads live, NOT the cur_ that next() stashes: a
+  // Setup-time read (a trigger chain, a push binding) happens between ticks
+  // and must see the note just delivered, not the previous tick's memo.
   float current() const override { return read_(); }
   const char* type_name() const override { return "PerformOut"; }
   SourceCategory category() const override { return SourceCategory::Modulator; }
