@@ -134,14 +134,20 @@ private:
     // param's ConstantSource to `value` (an unwired pin gets one). Silently
     // no-ops when the node or param isn't found (e.g. paramMap points to
     // something outside the template subgraph) or the pin is wired to a
-    // source other than a constant.
+    // source other than a constant. A constant made after this node was
+    // prepared is handed the same context, so a note-Setup push never
+    // leaves a clone's pin unprepared; before prepare, the clones' own
+    // prepare reaches it.
     void apply_clone_param_to_all_(const std::string& nodeId,
                                    const std::string& paramName,
                                    float value) {
         for (auto& instMap : instanceValueNodes_) {
             auto it = instMap.find(nodeId);
             if (it == instMap.end()) continue;
-            if (auto cs = ensure_constant(*it->second, paramName)) cs->set(value);
+            auto cs = prepared()
+                ? ensure_constant(*it->second, paramName, render_context())
+                : ensure_constant(*it->second, paramName);
+            if (cs) cs->set(value);
         }
     }
 

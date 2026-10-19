@@ -74,11 +74,6 @@ struct ValueSource : Component {
   virtual void on_prepare(const RenderContext&) {}
   virtual void on_start(int) {}
 
-  // The host's facts, as prepare(ctx) left them: readable by anyone (a host
-  // handing a late-made node the same context), written only by prepare.
-  const RenderContext& render_context() const { return ctx_; }
-  bool prepared() const { return ctx_.sampleRate > 0; }
-
   // Advance every wired Auto pin in declaration order, then compute. A
   // node's work is compute(); next() is the same for every node.
   float next() {
@@ -117,6 +112,15 @@ struct ValueSource : Component {
 protected:
   // A node reads its rate here and keeps no copy of its own.
   int sample_rate() const { return ctx_.sampleRate; }
+
+  // The host's facts as prepare(ctx) left them, for the node's own use: a
+  // setter that rebuilds rate-derived state asks prepared() first, and a
+  // part a node makes after its prepare is prepared with render_context().
+  // Written only by prepare. Nobody outside reads them: the rate reaches a
+  // node only through prepare(ctx), and a host that makes a node late hands
+  // it the context it prepared the owner with (ensure_constant below).
+  const RenderContext& render_context() const { return ctx_; }
+  bool prepared() const { return ctx_.sampleRate > 0; }
 
   // A node assigning itself (Envelope::replace_stages) assigns its own
   // state; the context the host gave this object stays, like the registry.
@@ -163,17 +167,27 @@ private:
 // A per-note push needs a constant to write into. Returns the Param's source
 // as a ConstantSource, first giving an unwired pin one at the pin's constant;
 // nullptr when the node has no such Param or the pin is wired to another
-// source. A constant made for a node the host has already prepared is
-// prepared with the node's own context, so start() never meets an
-// unprepared node.
+// source. This form is for a node nobody has prepared yet (the loader,
+// building a graph): the constant learns the rate when the owner's prepare
+// forwards to its pins.
 inline std::shared_ptr<ConstantSource> ensure_constant(ValueSource& node, std::string_view name) {
   Param* pin = node.param(name);
   if (!pin) return nullptr;
-  if (!pin->source) {
-    pin->source = std::make_shared<ConstantSource>(pin->constant);
-    if (node.prepared()) pin->source->prepare(node.render_context());
-  }
+  if (!pin->source) pin->source = std::make_shared<ConstantSource>(pin->constant);
   return std::dynamic_pointer_cast<ConstantSource>(pin->source);
+}
+
+// The same, for a node the host has already prepared (a Multiplex pushing a
+// clone's setting at note Setup): the caller hands the context it prepared
+// the owner with, and a constant made now is ready before the next start().
+// The caller knows the context; the node is not asked for it.
+inline std::shared_ptr<ConstantSource> ensure_constant(ValueSource& node, std::string_view name,
+                                                       const RenderContext& ctx) {
+  Param* pin = node.param(name);
+  const bool madeNow = pin && !pin->source;
+  auto cs = ensure_constant(node, name);
+  if (cs && madeNow) cs->prepare(ctx);
+  return cs;
 }
 
 // Transparent wrapper for shared sources with multiple consumers.
