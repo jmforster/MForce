@@ -14,24 +14,16 @@ namespace mforce {
 // piecewise between breakpoints through SmoothnessInterpolator, clamped
 // to the end values outside the drawn range. Default = identity.
 struct ShaperSource final : Processor {
-  // Every connectable pin, the inherited source included, is Manual, in
-  // descriptor order: the node reads source and drive as it pulls them, and
-  // smoothness and morph right after their own pull, not after a sweep of
-  // all the pins. The two differ when a pin's source is a shared reference
-  // whose real source a later pin drives (the Junction of a feedback valve:
-  // source refs a node that the drive chain advances), and the stored
-  // patches that do that depend on this timing. breakaway and capture are
-  // also pulled only in hysteresis mode. The base neither prepares, starts
-  // nor advances a Manual pin.
-  Param drive     {this, "drive",      1.0f, 0.0f, 20.0f, "ratio", Pull::Manual};
-  Param smoothness{this, "smoothness", 0.5f, 0.0f, 1.0f,  "0-1",   Pull::Manual};
+  Param drive     {this, "drive",      1.0f, 0.0f, 20.0f, "ratio"};
+  Param smoothness{this, "smoothness", 0.5f, 0.0f, 1.0f,  "0-1"};
   // Point-space blend toward curve B (values2/segs2); 0 = pure curve A, the
   // single-curve shaper. Curve-morph spec §5.
-  Param morph     {this, "morph",      0.0f, 0.0f, 1.0f,  "0-1",   Pull::Manual};
+  Param morph     {this, "morph",      0.0f, 0.0f, 1.0f,  "0-1"};
   // Hysteresis thresholds, in post-drive curve-x units (hysteresis spec §2).
-  // breakaway ~ bow pressure; capture 0 = zero-cross-only recapture.
-  Param breakaway {this, "breakaway",  0.6f, 0.0f, 2.0f,  "curve-x", Pull::Manual};
-  Param capture   {this, "capture",    0.0f, 0.0f, 2.0f,  "curve-x", Pull::Manual};
+  // breakaway ~ bow pressure; capture 0 = zero-cross-only recapture. Read
+  // only in hysteresis mode.
+  Param breakaway {this, "breakaway",  0.6f, 0.0f, 2.0f,  "curve-x"};
+  Param capture   {this, "capture",    0.0f, 0.0f, 2.0f,  "curve-x"};
   // Stick/slip junction mode (hysteresis spec §3): curve A = stick, curve B
   // = slip, one bit of state. Mutually exclusive with morph (morph is
   // ignored while on; loader warns).
@@ -47,7 +39,7 @@ struct ShaperSource final : Processor {
   Array values2{this, "values2", nullptr, 0.0f, -2.0f, 2.0f};
   Array segs2  {this, "segs2",   nullptr, 0.0f, 0.0f,  40.0f};
 
-  ShaperSource() : Processor(Pull::Manual), values_{-1.0f, -1.0f, 1.0f, 1.0f} {
+  ShaperSource() : values_{-1.0f, -1.0f, 1.0f, 1.0f} {
     values.values = values_;
   }
 
@@ -100,37 +92,17 @@ struct ShaperSource final : Processor {
     }
   }
 
-  void on_prepare(const RenderContext& ctx) override {
-    input.prepare(ctx);
-    drive.prepare(ctx);
-    smoothness.prepare(ctx);
-    morph.prepare(ctx);
-    breakaway.prepare(ctx);
-    capture.prepare(ctx);
-  }
-
-  void on_start(int frames) override {
-    input.start(frames);
-    drive.start(frames);
-    smoothness.start(frames);
-    morph.start(frames);
-    breakaway.start(frames);
-    capture.start(frames);
+  void on_start(int) override {
     stuck_ = true;      // bow resting on the string at note start
     lastSign_ = 0;
     cur_ = 0.0f;
   }
 
   float compute() override {
-    const float in = input.next();
-    const float x = in * drive.next();
-    smoothness.next();
+    const float x = input.current() * drive.current();
     smoothCur_ = smoothness.current();
-    morph.next();
     morphCur_ = morph.current();
     if (hysteresis.value) {
-      breakaway.next();
-      capture.next();
       const float ba = breakaway.current();
       const float cap = capture.current();
       if (stuck_) {

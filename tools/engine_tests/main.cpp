@@ -4227,6 +4227,14 @@ static void run_combine_mod_auto_pin_tests() {
     count(seg, {"amplitude", "smoothness", "width", "gap", "gapVarPct", "widthVarPct", "valVarPct"});
     WormholeSource wh;
     count(wh, {"source"});
+    // breakaway and capture are read only in hysteresis mode, but the base
+    // pulls them in both
+    const auto shaperPins = {"source", "drive", "smoothness", "morph", "breakaway", "capture"};
+    ShaperSource shaper;
+    count(shaper, shaperPins);
+    ShaperSource hyst;
+    hyst.set_setting("hysteresis", 1.0f);
+    count(hyst, shaperPins);
 
     // an unwired pin reads its declared constant and is not a source
     CHECK(dist.get_param("source") != nullptr && dist.get_param("nosuch") == nullptr);
@@ -4237,10 +4245,9 @@ static void run_combine_mod_auto_pin_tests() {
 }
 
 // The Manual pins are the node's: the crossfade's sources are prepared for
-// their own part of the note and pulled only in it; the shaper's breakaway
-// and capture only in hysteresis mode; the repeating source (its inherited
-// input) only while a repetition plays; the multiplex source (likewise) only
-// while there are no clones.
+// their own part of the note and pulled only in it; the repeating source (its
+// inherited input) only while a repetition plays; the multiplex source
+// (likewise) only while there are no clones.
 static void run_combine_mod_manual_pin_tests() {
     RenderContext ctx{48000};
     // crossfade: 100 samples at ratio 0.5, overlap 0.1 -> each source is
@@ -4256,24 +4263,6 @@ static void run_combine_mod_manual_pin_tests() {
     CHECK(amp->starts == 1 && amp->advances == 100);
     CHECK(s1->starts == 1 && s1->lastFrames == 55 && s1->advances == 55);
     CHECK(s2->starts == 1 && s2->lastFrames == 55 && s2->advances == 55);
-
-    // shaper: breakaway and capture are prepared every note, pulled only
-    // while hysteresis is on
-    auto probesFor = [&](ShaperSource& s) {
-        auto ba = std::make_shared<PinCounter>(), cap = std::make_shared<PinCounter>();
-        s.set_param("breakaway", ba);
-        s.set_param("capture", cap);
-        s.prepare(ctx); s.start(100);
-        for (int i = 0; i < 7; ++i) s.next();
-        return std::pair(ba, cap);
-    };
-    ShaperSource plain;
-    auto [pba, pcap] = probesFor(plain);
-    CHECK(pba->starts == 1 && pba->advances == 0 && pcap->starts == 1 && pcap->advances == 0);
-    ShaperSource hyst;
-    hyst.set_setting("hysteresis", 1.0f);
-    auto [hba, hcap] = probesFor(hyst);
-    CHECK(hba->starts == 1 && hba->advances == 7 && hcap->starts == 1 && hcap->advances == 7);
 
     // repeating: 10 samples of source, 6 of silence, per cycle (sr 1000);
     // the source is prepared again for each repetition and not pulled in a gap
@@ -4312,9 +4301,9 @@ static void run_combine_mod_manual_pin_tests() {
     CHECK_NEAR(cloned.current(), 2.0f, 1e-6f);        // the mean of the three clones
 }
 
-// The shaper pulls every pin itself, in descriptor order. A node shared by
-// its source pin and its drive chain computes once per tick, so the source and
-// the drive chain read the same sample's value of it: nothing is a sample late.
+// A node shared by the shaper's source pin and its drive chain computes once
+// per tick, so the source and the drive chain read the same sample's value of
+// it: nothing is a sample late.
 static void run_combine_mod_shaper_timing_tests() {
     RenderContext ctx{48000};
     TestHost h;
@@ -4345,9 +4334,8 @@ static void run_combine_mod_shaper_timing_tests() {
 }
 
 // The base advances the pins in declaration order, which is the order the
-// descriptors list them in; the shaper pulls its six pins itself, in that
-// order; a source wired to both inputs of a combiner is advanced once, by the
-// first.
+// descriptors list them in, the shaper's six included; a source wired to both
+// inputs of a combiner is advanced once, by the first.
 static void run_combine_mod_advance_order_tests() {
     RenderContext ctx{48000};
     auto order = [&](ValueSource& s, std::initializer_list<const char*> names, int skip = 0) {
@@ -5068,9 +5056,9 @@ static void run_additive_split_tests() {
 
 // ---------------------------------------------------------------------------
 // Physical models: the rate arrives through prepare(ctx), the note through
-// start(frames). ShaperSource owns six Manual pins and prepares and starts
-// each itself; a constant on a pin cannot show a missing call, so the pins
-// here are PinCounters that record the rate and the starts they were given.
+// start(frames). A constant on a pin cannot show a missing call, so the
+// shaper's pins here are PinCounters that record the rate and the starts they
+// were given.
 // ---------------------------------------------------------------------------
 static void run_shaper_pin_split_tests() {
     ShaperSource sh;
@@ -5088,8 +5076,7 @@ static void run_shaper_pin_split_tests() {
     sh.prepare(RenderContext{48000});
     sh.start(64);
     for (const auto& p : pins) CHECK(p->rate == 48000 && p->starts == 2);
-    // The shaper itself: read timing is untouched, so the split is exact
-    // with the drive and the input wired to real sources.
+    // The shaper itself, with the drive and the input wired to real sources.
     CHECK(split_equivalent([] {
         auto s = std::make_shared<ShaperSource>();
         s->set_param("source", std::make_shared<SineSource>());
