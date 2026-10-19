@@ -99,8 +99,7 @@ struct ValueSourceMono final : MonoSource {
 // of build_graph, once every node exists. The collector is build-scoped via
 // RAII rather than threaded through the ~40 resolve_param call sites; nested
 // builds (Multiplex subgraphs) save/restore so each binds within its own
-// graph. Taps never touch the usage counter: a tap never advances, so it
-// must never claim the advancing-consumer role.
+// graph. A tap never advances its source: it reads the source's memo.
 struct TapBind { std::shared_ptr<RefSource> ref; std::string targetId; };
 static thread_local std::vector<TapBind>* t_tapBinds = nullptr;
 struct TapBindScope {
@@ -111,17 +110,13 @@ struct TapBindScope {
     ~TapBindScope() { t_tapBinds = prev; }
 };
 
-// Resolve a JSON ref/number into a ValueSource. When `usage` is non-null,
-// each resolved ref increments usage[refId]; on the SECOND+ resolve of the
-// same source, the returned shared_ptr wraps the source in a RefSource so
-// only the first consumer's next() advances the underlying state. Without
-// this, a single envelope wired to N consumer pins would be advanced N times
-// per audio sample, exhausting its timeline at 1/N of the note duration.
-// Mirrors the auto-wrap logic in mforce_ui/main.cpp::update_all_dsp().
+// Resolve a JSON ref/number into a ValueSource. A source referenced by
+// several pins is the same object on each: every consumer pulls it, and it
+// computes once per tick (ValueSource::next()), so a shared envelope advances
+// once per sample however many pins read it.
 static std::shared_ptr<ValueSource> resolve_param(
     const json& val,
-    const std::unordered_map<std::string, std::shared_ptr<ValueSource>>& valueNodes,
-    std::unordered_map<std::string, int>* usage = nullptr)
+    const std::unordered_map<std::string, std::shared_ptr<ValueSource>>& valueNodes)
 {
     if (val.is_number())
         return std::make_shared<ConstantSource>(val.get<float>());
@@ -131,11 +126,6 @@ static std::shared_ptr<ValueSource> resolve_param(
         auto it = valueNodes.find(refId);
         if (it == valueNodes.end())
             throw std::runtime_error("Unresolved node ref: " + refId);
-        if (usage) {
-            int& count = (*usage)[refId];
-            count++;
-            if (count > 1) return std::make_shared<RefSource>(it->second);
-        }
         return it->second;
     }
 
@@ -154,49 +144,24 @@ static std::shared_ptr<ValueSource> resolve_param(
 
 static std::shared_ptr<ValueSource> resolve_param_or(
     const json& params, const char* key, float defaultVal,
-    const std::unordered_map<std::string, std::shared_ptr<ValueSource>>& valueNodes,
-    std::unordered_map<std::string, int>* usage = nullptr)
+    const std::unordered_map<std::string, std::shared_ptr<ValueSource>>& valueNodes)
 {
     if (!params.contains(key))
         return std::make_shared<ConstantSource>(defaultVal);
-    return resolve_param(params.at(key), valueNodes, usage);
+    return resolve_param(params.at(key), valueNodes);
 }
 
 // ---------------------------------------------------------------------------
-// Starved-RefSource promotion. RefSource wrapping (resolve_param above) gives
-// the advancing role to the FIRST-WIRED consumer of a shared source — but
-// wiring order knows nothing about graph.output. When the render cone (the
-// nodes actually pulled from the output) contains only RefSource views of a
-// shared source and not its advancing consumer, the source never advances and
-// every view reads its initial value forever — an Envelope reads 0.0, which
-// mutes whatever it gates. That is exactly the UI Listen-tap case (backlog
-// 32): the tap re-roots the graph at a mid-chain node and the advancing
-// consumer of a shared envelope drops out of the cone.
-//
-// Starvation is decided from the JSON, where every ref edge is enumerable
-// (the built graph is NOT fully walkable: multi-input pins and hand-built
-// members like additive attack envelopes have no enumerating getter, and a
-// graph walk that misses an advancer would falsely promote — double-advancing
-// a shared envelope and changing locked patches; the 2026-08-24 first cut of
-// this fix did exactly that to all 56 library voice patches):
-//   advancer(refId) = first node in wiring order whose params mention refId
-//                     (wiring order across nodes IS nodeOrder, and within a
-//                     node it doesn't matter — the node advances the source).
-//   starved(refId)  = advancer(refId) is not JSON-reachable from the output.
-// Then the built cone is walked via the self-describing interface, and only
-// PROVEN-starved RefSources are promoted in place (the sighted consumer gets
-// the raw source, taking over next()/prepare()). Everything else — in
-// particular every full-graph render whose advancers are all in the cone —
-// is untouched. A starved sharing visible only through non-enumerable pins
-// cannot be promoted (no setter to reach it): the tap stays quiet there
-// rather than risking a wrong advance; conservative by design.
-// ---------------------------------------------------------------------------
 // Advance list (feedback_loop_design.md §3.3): a node consumed ONLY by tap
-// edges is never ticked by the pull — the loop tail is silently dead. Decide
-// membership from the JSON (the built graph is not fully walkable — same
-// evidence base as promote_starved_refs below): enumerate every {"ref":id},
-// plain-string "inputs" id, and {"tap":id} across all nodes; result = ids
-// with a tap consumer, no normal consumer, and != outputId, in nodeOrder.
+// edges is never reached by the root pull — the loop tail would be silently
+// dead — so the voice pulls it once per sample after the root. Membership is
+// decided from the file, where every edge is enumerable (a built graph hides
+// multi-input entries and setter-held envelopes): every {"ref":id},
+// plain-string "inputs" id and {"tap":id} across all nodes; result = ids with
+// a tap consumer, no normal consumer, and != outputId, in nodeOrder. A tail's
+// own forward inputs, if the root pull computed them this tick, are served
+// from the memo, so the extra pull advances nothing twice.
+// ---------------------------------------------------------------------------
 static std::vector<std::string> collect_advance_ids(
     const std::unordered_map<std::string, json>& nodeMap,
     const std::vector<std::string>& nodeOrder,
@@ -236,120 +201,6 @@ static std::vector<std::string> collect_advance_ids(
     return out;
 }
 
-static void promote_starved_refs(
-    const std::vector<std::shared_ptr<ValueSource>>& roots,
-    const std::unordered_map<std::string, json>& nodeMap,
-    const std::vector<std::string>& nodeOrder,
-    const std::string& outputId,
-    const std::unordered_map<std::string, std::shared_ptr<ValueSource>>& valueNodes)
-{
-    // --- JSON side: per-node ref edges (both wiring conventions: {"ref":id}
-    // anywhere under params, and plain-string ids under "inputs").
-    auto node_refs = [&](const std::string& id, std::vector<std::string>& out) {
-        auto it = nodeMap.find(id);
-        if (it == nodeMap.end()) return;
-        std::function<void(const json&)> scanRefs = [&](const json& v) {
-            if (v.is_object()) {
-                if (v.size() == 1 && v.contains("ref") && v["ref"].is_string())
-                    out.push_back(v["ref"].get<std::string>());
-                else
-                    for (auto pit = v.begin(); pit != v.end(); ++pit) scanRefs(pit.value());
-            } else if (v.is_array()) {
-                for (const auto& item : v) scanRefs(item);
-            }
-        };
-        if (it->second.contains("params")) scanRefs(it->second["params"]);
-        if (it->second.contains("inputs")) {
-            std::function<void(const json&)> scanIds = [&](const json& v) {
-                if (v.is_string()) out.push_back(v.get<std::string>());
-                else if (v.is_object())
-                    for (auto iit = v.begin(); iit != v.end(); ++iit) scanIds(iit.value());
-                else if (v.is_array())
-                    for (const auto& item : v) scanIds(item);
-            };
-            scanIds(it->second["inputs"]);
-        }
-    };
-
-    // advancer: refId -> first mentioning node in wiring order
-    std::unordered_map<std::string, std::string> advancer;
-    for (const auto& id : nodeOrder) {
-        std::vector<std::string> refs;
-        node_refs(id, refs);
-        for (const auto& r : refs) advancer.emplace(r, id);
-    }
-
-    // reachable node ids from the output — PLUS every advance-list node:
-    // those tick every sample (feedback_loop_design.md §3.3), so their
-    // advancing consumers are live even though no normal edge reaches them
-    // from the output; without this they'd look starved and get promoted
-    // into a double advance.
-    std::unordered_set<std::string> reachable;
-    std::vector<std::string> idStack{outputId};
-    for (const auto& id : collect_advance_ids(nodeMap, nodeOrder, outputId))
-        idStack.push_back(id);
-    while (!idStack.empty()) {
-        std::string id = std::move(idStack.back());
-        idStack.pop_back();
-        if (!reachable.insert(id).second) continue;
-        std::vector<std::string> refs;
-        node_refs(id, refs);
-        for (auto& r : refs) idStack.push_back(std::move(r));
-    }
-
-    // proven-starved shared sources, by built-graph identity
-    std::unordered_set<ValueSource*> starved;
-    for (const auto& [refId, advId] : advancer) {
-        if (reachable.count(advId)) continue;
-        auto vIt = valueNodes.find(refId);
-        if (vIt != valueNodes.end()) starved.insert(vIt->second.get());
-    }
-    if (starved.empty()) return;
-
-    // --- Built-graph side: walk the cone, promote the first sighting of each
-    // starved underlying source.
-    std::unordered_set<ValueSource*> visited;
-    std::vector<ValueSource*> stack;
-    auto push = [&](ValueSource* v) {
-        if (v && visited.insert(v).second) stack.push_back(v);
-    };
-    for (const auto& r : roots) push(r.get());
-
-    while (!stack.empty()) {
-        ValueSource* node = stack.back();
-        stack.pop_back();
-        auto see_param = [&](const char* name) {
-            auto child = node->get_param(name);
-            if (!child) return;
-            if (auto* rs = dynamic_cast<RefSource*>(child.get())) {
-                // NEVER promote a tap: swapping the guarded ref for the raw
-                // source would destroy the z-1 and leave an unbroken cycle
-                // (infinite recursion in next()). Walk through it only.
-                if (!rs->guard && rs->source && starved.count(rs->source.get())) {
-                    node->set_param(name, rs->source);
-                    starved.erase(rs->source.get());
-                }
-                if (rs->source) push(rs->source.get());
-            } else {
-                push(child.get());
-            }
-        };
-        for (const auto& d : node->param_descriptors()) see_param(d.name);
-        for (const auto& d : node->input_descriptors()) see_param(d.name);
-    }
-}
-
-static void promote_starved_refs(
-    const std::shared_ptr<ValueSource>& root,
-    const std::unordered_map<std::string, json>& nodeMap,
-    const std::vector<std::string>& nodeOrder,
-    const std::string& outputId,
-    const std::unordered_map<std::string, std::shared_ptr<ValueSource>>& valueNodes)
-{
-    promote_starved_refs(std::vector<std::shared_ptr<ValueSource>>{root},
-                         nodeMap, nodeOrder, outputId, valueNodes);
-}
-
 // ---------------------------------------------------------------------------
 // Graph building: creates all ValueSource/MonoSource nodes from JSON.
 // Extracted so it can be called once (normal mode) or N times (instrument voices).
@@ -365,8 +216,7 @@ struct GraphResult {
 static void wire_params_generic(
     ValueSource& src,
     const json& params,
-    const std::unordered_map<std::string, std::shared_ptr<ValueSource>>& valueNodes,
-    std::unordered_map<std::string, int>* usage = nullptr)
+    const std::unordered_map<std::string, std::shared_ptr<ValueSource>>& valueNodes)
 {
     // A STRING in a pin/param slot is always a legacy enum form consumed by a
     // hand-written branch further down (e.g. WavetableSource's
@@ -385,15 +235,15 @@ static void wire_params_generic(
             // Multi-input pin with array-of-refs JSON. Iterate and add each.
             src.clear_param(desc.name);
             for (const auto& item : v)
-                src.add_param(desc.name, resolve_param(item, valueNodes, usage));
+                src.add_param(desc.name, resolve_param(item, valueNodes));
         } else {
-            src.set_param(desc.name, resolve_param(v, valueNodes, usage));
+            src.set_param(desc.name, resolve_param(v, valueNodes));
         }
     }
     for (const auto& desc : src.param_descriptors()) {
         if (!params.contains(desc.name)) continue;
         if (skip_unresolvable(params.at(desc.name))) continue;
-        src.set_param(desc.name, resolve_param(params.at(desc.name), valueNodes, usage));
+        src.set_param(desc.name, resolve_param(params.at(desc.name), valueNodes));
     }
     // Scalar settings (int/float/bool) — apply if present in JSON.
     for (const auto& desc : src.setting_descriptors()) {
@@ -642,15 +492,9 @@ static GraphResult build_graph(
 
     auto& reg = SourceRegistry::instance();
 
-    // Tracks how many times each value source has been wired as a consumer
-    // input. The 2nd+ time, resolve_param wraps in RefSource so only one
-    // consumer drives next() — fixes the "envelope shared across multiple
-    // pins exhausts in 1/N duration" bug.
-    std::unordered_map<std::string, int> usage;
-
     // Resolve function for configurators
     ResolveParamFn resolveFn = [&](const json& val) {
-        return resolve_param(val, valueNodes, &usage);
+        return resolve_param(val, valueNodes);
     };
 
     for (const auto& id : nodeOrder) {
@@ -672,9 +516,9 @@ static GraphResult build_graph(
             const auto& p = *pp;
             bool absolute = p.value("absolute", true);
             auto src = std::make_shared<VarSource>(
-                resolve_param_or(p, "val",    0.0f, valueNodes, &usage),
-                resolve_param_or(p, "var",    0.0f, valueNodes, &usage),
-                resolve_param_or(p, "varPct", 0.0f, valueNodes, &usage), absolute);
+                resolve_param_or(p, "val",    0.0f, valueNodes),
+                resolve_param_or(p, "var",    0.0f, valueNodes),
+                resolve_param_or(p, "varPct", 0.0f, valueNodes), absolute);
             valueNodes[id] = src;
         }
         else if (type == "RangeSource") {
@@ -682,9 +526,9 @@ static GraphResult build_graph(
             const auto& p = *pp;
             bool normalized = p.value("normalized", false);
             auto src = std::make_shared<RangeSource>(
-                resolve_param_or(p, "min", 0.0f, valueNodes, &usage),
-                resolve_param_or(p, "max", 1.0f, valueNodes, &usage),
-                resolve_param_or(p, "var", 0.0f, valueNodes, &usage), normalized);
+                resolve_param_or(p, "min", 0.0f, valueNodes),
+                resolve_param_or(p, "max", 1.0f, valueNodes),
+                resolve_param_or(p, "var", 0.0f, valueNodes), normalized);
             valueNodes[id] = src;
         }
         else if (type == "Envelope") {
@@ -736,7 +580,7 @@ static GraphResult build_graph(
             // Envelope — proved by A/B, maxValue 0.25 rendered byte-identical
             // to the control. Registry-path envelope types (ADSREnvelope…)
             // were always wired. Null when absent → identity, unchanged.
-            wire_params_generic(*valueNodes[id], p, valueNodes, &usage);
+            wire_params_generic(*valueNodes[id], p, valueNodes);
         }
         else if (type == "CurveNode") {
             auto cn = std::make_shared<CurveNode>();
@@ -776,7 +620,7 @@ static GraphResult build_graph(
             // build_bindings, which calls set_param("source", …) directly —
             // no patch had ever loaded one from JSON, so the 196-patch gate
             // could not see it.
-            if (pp) wire_params_generic(*cn, *pp, valueNodes, &usage);
+            if (pp) wire_params_generic(*cn, *pp, valueNodes);
             valueNodes[id] = cn;
         }
         else if (type == "PerformNode") {
@@ -820,7 +664,7 @@ static GraphResult build_graph(
                             id.c_str(), ng->name.c_str());
                 }
             }
-            if (pp) wire_params_generic(*ng, *pp, valueNodes, &usage);
+            if (pp) wire_params_generic(*ng, *pp, valueNodes);
             valueNodes[id] = ng;
         }
         else if (type == "SegmentSource") {
@@ -832,7 +676,7 @@ static GraphResult build_graph(
             }
             auto src = std::make_shared<SegmentSource>(
                 std::move(values), oneShot, seed.value_or(0x5E6A'0000u));
-            if (pp) wire_params_generic(*src, *pp, valueNodes, &usage);
+            if (pp) wire_params_generic(*src, *pp, valueNodes);
             valueNodes[id] = src;
             add_mono(g, id, src);
         }
@@ -844,7 +688,7 @@ static GraphResult build_graph(
                      {"speed", 5.0f}, {"depth", 0.02f}, {"attack", 0.3f}, {"threshold", 0.0f},
                      {"speedVar", 0.0f}, {"depthVar", 0.0f}, {"zeroCrossTendency", 1.0f}})
                 vib->set_setting(key, p.value(key, dflt));
-            wire_params_generic(*vib, p, valueNodes, &usage);
+            wire_params_generic(*vib, p, valueNodes);
             valueNodes[id] = vib;
         }
         else if (type == "BWLowpassFilter" || type == "BWHighpassFilter" || type == "BWBandpassFilter") {
@@ -857,10 +701,10 @@ static GraphResult build_graph(
             else
                 src = std::make_shared<BWBandpassFilter>(sections);
             if (pp) {
-                wire_params_generic(*src, *pp, valueNodes, &usage);
+                wire_params_generic(*src, *pp, valueNodes);
                 // JSON uses "cutoff" alias for single-band filters
                 if (pp->contains("cutoff"))
-                    src->set_param("cutoffFreq", resolve_param(pp->at("cutoff"), valueNodes, &usage));
+                    src->set_param("cutoffFreq", resolve_param(pp->at("cutoff"), valueNodes));
             }
             valueNodes[id] = src;
             add_mono(g, id, src);
@@ -895,7 +739,7 @@ static GraphResult build_graph(
                         fseq->formants.push_back(it->second);
                     }
                 }
-                wire_params_generic(*fseq, *pp, valueNodes, &usage);
+                wire_params_generic(*fseq, *pp, valueNodes);
             }
             formantNodes[id] = fseq; valueNodes[id] = fseq;
         }
@@ -904,7 +748,7 @@ static GraphResult build_graph(
             auto as2 = std::make_shared<AdditiveSource2>(seed.value_or(0xADD3'0000u));
             if (pp) {
                 const auto& p = *pp;
-                wire_params_generic(*as2, p, valueNodes, &usage);
+                wire_params_generic(*as2, p, valueNodes);
                 std::string pMode = p.value("partialMode", std::string("default"));
                 if (pMode == "default") {
                     as2->set_default_partials(p.value("partialCount", 500));
@@ -928,7 +772,7 @@ static GraphResult build_graph(
                 for (const char* key : {"amplEnvelopes", "freqEnvelopes"}) {
                     if (p.contains(key)) {
                         for (const auto& ae : p[key]) {
-                            auto env = resolve_param(ae.at("envelope"), valueNodes, &usage);
+                            auto env = resolve_param(ae.at("envelope"), valueNodes);
                             auto filt = parse_filter(ae.value("filter", std::string("all")));
                             int from = ae.value("from", 1), to = ae.value("to", 500);
                             if (std::string(key) == "amplEnvelopes")
@@ -947,7 +791,7 @@ static GraphResult build_graph(
             auto wt = std::make_shared<WavetableSource>(seed.value_or(0xC0FFEEu));
             if (pp) {
                 const auto& p = *pp;
-                wire_params_generic(*wt, p, valueNodes, &usage);
+                wire_params_generic(*wt, p, valueNodes);
                 // Legacy patches have evolution as a string ("pluck", "averaging", "target").
                 // New UI patches wire evolution as a ref (handled by wire_params_generic above).
                 std::string evoType = "none";
@@ -993,7 +837,7 @@ static GraphResult build_graph(
             auto hks = std::make_shared<HybridKSSource>(seed.value_or(0xBEEF'C0DEu));
             if (pp) {
                 const auto& p = *pp;
-                wire_params_generic(*hks, p, valueNodes, &usage);
+                wire_params_generic(*hks, p, valueNodes);
                 if (p.contains("targetPartials"))
                     hks->set_target_partials(p["targetPartials"].get<std::vector<float>>());
             }
@@ -1005,7 +849,7 @@ static GraphResult build_graph(
             auto mux = std::make_shared<MultiplexSource>();
             if (pp) {
                 // Apply "count" setting via generic path.
-                wire_params_generic(*mux, *pp, valueNodes, &usage);
+                wire_params_generic(*mux, *pp, valueNodes);
 
                 // Resolve the "source" input to its template root node id.
                 if (pp->contains("source") && (*pp)["source"].is_object()
@@ -1057,7 +901,7 @@ static GraphResult build_graph(
         else if (reg.has(type)) {
             auto src = reg.create(type, seed);
             if (pp) {
-                wire_params_generic(*src, *pp, valueNodes, &usage);
+                wire_params_generic(*src, *pp, valueNodes);
                 auto* configurator = reg.get_configurator(type);
                 if (configurator) (*configurator)(*src, *pp, resolveFn);
             }
@@ -1172,7 +1016,6 @@ build_subgraph_with_seed_perturbation(
     auto it = g.valueNodes.find(outputId);
     if (it == g.valueNodes.end())
         throw std::runtime_error("build_subgraph: output '" + outputId + "' not found");
-    promote_starved_refs(it->second, nodeMap, nodeOrder, outputId, g.valueNodes);
     return {it->second, std::move(g.valueNodes)};
 }
 
@@ -1568,12 +1411,6 @@ Patch load_patch_file(const std::string& path)
             // appends. No gated patch carries both; the order is fixed so a
             // hybrid, if one ever appears, is deterministic.
             bind_wiring(nodeMap, nodeOrder, g, vg);
-            // After all wiring: fix shared sources whose advancing consumer
-            // fell outside this voice's render cone (Listen taps, re-rooted
-            // outputs). No-op for graphs where the cone covers all advancers.
-            promote_starved_refs(vg.source, nodeMap, nodeOrder, outputId,
-                                 g.valueNodes);
-
             // Loop tails consumed only by tap edges: the voice ticks these
             // after the root pull (feedback_loop_design.md §3.3).
             for (const auto& aid : collect_advance_ids(nodeMap, nodeOrder, outputId))
@@ -1759,12 +1596,6 @@ Patch load_patch_file(const std::string& path)
         mixer->channels.push_back(std::move(ch));
         mixer->prepare(RenderContext{sampleRate});
         patch.mixer = std::move(mixer);
-        {
-            auto vIt = valueNodes.find(outputId);
-            if (vIt != valueNodes.end())
-                promote_starved_refs(vIt->second, nodeMap, nodeOrder,
-                                     outputId, valueNodes);
-        }
         return patch;
     }
 
@@ -1776,7 +1607,6 @@ Patch load_patch_file(const std::string& path)
 
     const auto& chIds = outIt->second.at("inputs").at("channels");
 
-    std::vector<std::shared_ptr<ValueSource>> coneRoots;
     for (const auto& chIdVal : chIds) {
         std::string chId = chIdVal.get<std::string>();
         const auto& chNode = nodeMap.at(chId);
@@ -1802,18 +1632,9 @@ Patch load_patch_file(const std::string& path)
         if (monoIt == monoNodes.end())
             throw std::runtime_error("No mono source for: " + srcId);
 
-        auto vIt = valueNodes.find(srcId);
-        if (vIt != valueNodes.end()) coneRoots.push_back(vIt->second);
-        coneRoots.push_back(ch.volume);
-        coneRoots.push_back(ch.pan);
-
         ch.source = std::move(monoIt->second);
         mixer->channels.push_back(std::move(ch));
     }
-
-    // All channels render, so the cone is their union; a source shared across
-    // channels is advanced by whichever channel holds it unwrapped.
-    promote_starved_refs(coneRoots, nodeMap, nodeOrder, outputId, valueNodes);
 
     mixer->prepare(RenderContext{sampleRate});
     patch.mixer = std::move(mixer);
@@ -1884,9 +1705,6 @@ InstrumentPatch load_instrument_patch_json(const std::string& jsonText,
 
         attach_perform_source(instJson, g, vg);
         bind_wiring(nodeMap, nodeOrder, g, vg);
-        promote_starved_refs(vg.source, nodeMap, nodeOrder, outputId,
-                             g.valueNodes);  // see render-path twin above
-
         // Loop tails consumed only by tap edges (see render-path twin above).
         for (const auto& aid : collect_advance_ids(nodeMap, nodeOrder, outputId))
             vg.advanceList.push_back(g.valueNodes.at(aid));

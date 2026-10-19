@@ -5,6 +5,14 @@ A *lag read* is a wrapped consumer reading a shared source before its primary co
 
 ## 342 patches with wiring-order lag reads (expected to change under the memo)
 
+The count is an upper bound, found at checkpoint 2.3 Task 2: it counts every
+wrapper read made before the advancer, including the sweep-time read of a
+wrapper whose owner then reads its pins after its sweep through `current()`
+(checkpoint 2.1's read-after-sweep rule), which the wrapper served live. That
+consumer already used this sample's value, so its render does not move. The
+renders that change are the ones the null gate and the whole-tree A/B show,
+each of which is on this list or the double-pull list below.
+
 - `patches/audition/afks/afks_v1.json`: 2062110 lag reads
 - `patches/audition/bow_family/rnfreq_track.json`: 1123200 lag reads
 - `patches/audition/bwg_perc1/bwg_chime.json`: 53435712 lag reads

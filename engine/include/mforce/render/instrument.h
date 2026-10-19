@@ -167,10 +167,10 @@ struct PitchedInstrument final : Instrument {
     // before the root pull.
     void tick() { clock->tick(); if (performSource) performSource->tick(); }
     // Loop tails consumed only by tap edges (feedback_loop_design.md §3.3):
-    // never reached by the pull, ticked once per sample AFTER the root pull
-    // (their tap consumers must read the previous value first; their own
-    // forward inputs are reached through the normal multi-consumer
-    // RefSource wrap, so nothing double-advances).
+    // never reached by the root pull, pulled once per sample AFTER it (their
+    // tap consumers must read the previous value first; their own forward
+    // inputs, if the root pull computed them this tick, are served from the
+    // memo, so nothing double-advances).
     std::vector<std::shared_ptr<ValueSource>> advanceList;
     // JSON node id -> this voice's clone (retained from build_graph so
     // offline capture can resolve display ids; ~node-count shared_ptrs,

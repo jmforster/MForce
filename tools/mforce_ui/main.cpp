@@ -1025,67 +1025,15 @@ static bool would_close_normal_cycle(GraphNode* srcNode, GraphNode* dstNode) {
     return false;
 }
 
-// Update ALL nodes' DSP (call after link changes)
-// Automatically wraps shared sources in RefSource for secondary consumers.
+// Update ALL nodes' DSP (call after link changes). A source wired to several
+// pins is the same object on each: every consumer pulls it, and it computes
+// once per tick of the stream's clock (the engine's per-tick memo), so
+// nothing here needs to know which consumer came first.
 static void update_all_dsp() {
     std::lock_guard<std::mutex> lock(g_audioMutex);
     try {
-        // First: run standard per-node wiring (primary sources)
         for (auto& node : s_nodes)
             update_node_dsp_unlocked(node);
-
-        // Second: find sources with multiple consumers and wrap secondaries in RefSource.
-        // Build map: source node output pin → list of (dest node, dest pin name)
-        struct Consumer { GraphNode* node; std::string pinName; };
-        std::unordered_map<int, std::vector<Consumer>> consumers; // output pin id → consumers
-
-        for (auto& link : s_links) {
-            // Find which is output and which is input
-            Pin* startPin = find_pin(link.startPinId);
-            Pin* endPin = find_pin(link.endPinId);
-            if (!startPin || !endPin) continue;
-
-            int outPinId = -1;
-            int inPinId = -1;
-            if (startPin->kind == UiPinKind::Output && endPin->kind == UiPinKind::Input) {
-                outPinId = link.startPinId; inPinId = link.endPinId;
-            } else if (endPin->kind == UiPinKind::Output && startPin->kind == UiPinKind::Input) {
-                outPinId = link.endPinId; inPinId = link.startPinId;
-            }
-            if (outPinId < 0) continue;
-
-            // Tap wires never join the advancer bookkeeping: each tap
-            // consumer already holds its own guarded RefSource (idempotent
-            // previous-sample read — any number is safe), and wrapping here
-            // would replace it with an UNguarded live read.
-            Pin* outPinDesc = find_pin(outPinId);
-            if (outPinDesc && outPinDesc->isTap) continue;
-
-            GraphNode* dstNode = find_node_for_pin(inPinId);
-            Pin* dstPin = find_pin(inPinId);
-            if (dstNode && dstPin)
-                consumers[outPinId].push_back({dstNode, dstPin->name});
-        }
-
-        // For each output with >1 consumer, first consumer keeps real source,
-        // rest get RefSource wrappers
-        for (auto& [outPinId, consList] : consumers) {
-            if (consList.size() <= 1) continue;
-
-            GraphNode* srcNode = find_node_for_pin(outPinId);
-            if (!srcNode || !srcNode->dspSource) continue;
-            // Note-face pins are ConstantSources — idempotent, any number of
-            // direct consumers is safe, and a RefSource here would wrap the
-            // WRONG source (node-level dspSource = the frequency pin).
-            if (srcNode->typeName == NT_PERFORM) continue;
-
-            // First consumer already has the real source wired (from update_node_dsp).
-            // Wrap for subsequent consumers.
-            for (size_t i = 1; i < consList.size(); ++i) {
-                auto ref = std::make_shared<RefSource>(srcNode->dspSource);
-                consList[i].node->wire_pin(consList[i].pinName, ref);
-            }
-        }
     } catch (...) {
         // Don't crash the UI on DSP wiring errors
     }
