@@ -8,7 +8,39 @@ checkpoints wait for Matt's read.
 
 ## Awaiting
 
-Nothing. Checkpoint 2.3 (the per-tick memo) is being planned.
+**R4 — checkpoint 2.3: the per-tick memo** (2026-10-18, commits
+`22bf3be`..`fdf7536`)
+- Read: `docs/autonomy/refactor/reports/2026-10-18-checkpoint-2.3.md`
+  (its reading guide is ten minutes; section 5 holds the renders that
+  changed and the render-time tables, section 6 the decisions taken on
+  your behalf, section 7 the debt, section 8 the refutation, section 10
+  three C++ lessons).
+- Try: `python tools/null_gate_perform_source.py --jobs 3`; open the UI,
+  wire one envelope to two nodes' pins and play — both read it, in whatever
+  order you wired them; play `patches/baselines/feedback/loop_root_sensitivity_fires.json`
+  and its `_dead` sibling: they are the same sound now.
+- A verdict decides: (0) **render time** (section 5): the checkpoint itself
+  is neutral against the tree before it, and the sweep experiment bought
+  8 to 16 points where pins are wired, but the 2.1 cost stands — oboe1 at
+  0.73x, piano_default at 0.88x of the pre-2.1 binary. The rest is the
+  generic per-node `next()` (a call layer, a loop and a store per node
+  where the old bodies loaded their pins at fixed offsets). Accept it as
+  the price of one `next()` for every node, or let the hot leaf types pull
+  their own pins inside `compute()`, decided per family in Part 3's node
+  pass; (1) **the renders that changed** (section 5, Appendix A): the two
+  `double_advance` baselines, `loop_root_sensitivity_fires`, and 106
+  gitignored audition/sweep patches that share a stateful node — accepted
+  as the new frozen truth, or any you want re-listened first; (2)
+  **`loop_root_sensitivity_fires` / `_dead`**: the pair no longer shows
+  what it was written for (the "root sensitivity" was the double advance;
+  both are dead now) — keep them as the memo's regression pair, rename,
+  or retire; (3) **`step()`** as a permanent verb on `ValueSource` (one
+  sample now, whatever the tick; two callers, the table fills), or a
+  Part 3 item that gives those two nodes a private excitation source
+  instead; (4) **ShaperSource's `breakaway` and `capture`** are pulled
+  every sample with hysteresis off (Auto pins), where before they were
+  pulled only in hysteresis mode — stands (a threshold modulator switched
+  on mid-note has been running since the note began), or Manual again.
 
 ## Resolved
 

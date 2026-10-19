@@ -1,5 +1,64 @@
 # Status — session handoff (Claude reads this first; Matt's queue = */REVIEW.md)
 
+Updated: 2026-10-18, later (refactor session IV, Fable 5.1 xhigh).
+CHECKPOINT 2.3 LANDED on main: 22bf3be..fdf7536 (seven commits + the
+docs seal) — the per-tick memo. ValueSource::next() computes once per
+tick of the host's clock and serves cur_ to every later pull in that
+tick; RenderContext carries a SampleClock* (one clock per pull loop:
+voice, drum, mixer, adapter, the UI's editor stream, a test host; a null
+clock = every pull computes); step() = one sample now through Auto pins,
+for the two table fills; RefSource wrapping, the usage counter, both
+starved-ref promotion walks, the UI's wrap mirror and the sharing trace
+are GONE (the loader −170 lines); the tap edge is TapSource (always
+guarded, reading A); ShaperSource's pins are Auto again; the sweep reads a
+compacted array of raw pointers to the wired Auto sources, refreshed by
+the pins' setters (a pin knows its owner), prepare, start and a node's
+self-assignment. Executed per the plan
+docs/superpowers/plans/2026-10-18-part2-checkpoint-2.3.md (Ledger = every
+ruling, 24): T0-T2 and T5-T6 inline, T3-T4 Sonnet implementer+reviewer
+pairs, one Fable refuter (2 Important: the sweep refresh in the base's
+operator= ran before the derived pins were assigned — a preset rebuild
+dropped a wired range source from the sweep, live in the editor; step()'s
+two limits — fixed/ruled in ONE wave fdf7536, re-reviewed clean).
+RENDERS CHANGED, all measured: on the manifest double_advance_bug,
+double_advance_ok (the lag class) and loop_root_sensitivity_fires (a
+tail pull re-reached the root cone: the output sat mid-loop, so the
+whole cone advanced twice per sample; it no longer fires and matches its
+_dead sibling — the "root sensitivity" WAS the double advance); across
+the tree 109 of 1,458 (library 0, pending 0, old 0; audition 74, sweep
+32: feedback_valve2, string_harness1/2, bwg_perc1/2, a few stk ports),
+every one sharing a stateful node whose wrapped consumer read it a sample
+late. The trace's lag list (342) proved an UPPER BOUND: since 2.1 a node
+reads its pins after its sweep through a live current(), so most
+"lagging" consumers already used this sample's value. Manifest refrozen
+(3 entries). RENDER TIME: the checkpoint is neutral vs pre-2.3 (piano
+1.00x, viola 0.99x, oboe1 0.88x, the shared chain 1.12x); the sweep
+experiment bought 8-16 points where pins are wired; the 2.1 cost is NOT
+recovered (oboe1 0.73x, piano 0.88x of pre-2.1) → REVIEW R4 item 0 (the
+generic per-node next() vs compute()-pulls-its-pins per family in Part 3).
+Gates at the seal: ctest, stamp, null gate 80/80, wiring null gate 80/80;
+the two roundtrip gates fail on exactly the eight backlog-79 patches.
+REPORT R4: docs/autonomy/refactor/reports/2026-10-18-checkpoint-2.3.md
+(ten sections, the refutation and its re-review verbatim in §8, three
+C++ lessons in §10). REVIEW.md R4 AWAITING MATT, five verdict items (0
+render time; 1 the changed renders as frozen truth; 2 the
+loop_root_sensitivity pair's future; 3 step() as a verb or Part 3's
+private excitation; 4 Shaper's breakaway/capture pulled in both modes).
+Debt in §7 (a clockless host pull is silent until 2.5's flag; prepare/
+start on a hand-wired tap-free cycle overflow; step()'s limits; the
+fprintf on the cycle path; the public pin source member; shared Slot
+parts advance twice; mixer-mode cross-loop sharing; reading B = 2.4 with
+47 patches measured; advanceList keeps the old verb; the meter's live
+fixture). NEXT: Matt's R4 verdict, then checkpoint 2.4 (taps reading B;
+the 47 same-tick-tap patches in docs/architecture/measurements/
+2026-10-18-sharing-lag-tree.md are its expected diffs) — plan written
+against the then-current code. Kept binaries for re-timing under
+renders/scratch/ab_tree/ (cli_pre23, cli_t1..t4, cli_exp1, cli_final);
+the A/B arms under renders/scratch/ab23_tree/ (gitignored). Nothing
+pushed this session: main is 9 commits ahead of origin after the seal
+(6a32e55, 587b539, the seven of 2.3, the docs seal) — ask at close-out.
+GOALS.md stays Matt's uncommitted edit.
+
 Updated: 2026-10-18 (refactor session IV, Fable 5.1 xhigh). R3 DECIDED by
 Matt: (0) DelayLine zero slot stays listed for 2.5; (1) UI re-prepare per
 play fine; (2) the section-7 allocation list is 2.6's work list, every item
