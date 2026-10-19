@@ -2214,6 +2214,32 @@ static void run_memo_tests() {
     loop->clear_param("source2");             // break the ownership cycle
 }
 
+// The sweep follows every door that changes a pin's source: a source wired
+// after prepare and start is pulled on the next tick, and one cleared is
+// not.
+static void run_sweep_follows_wiring_tests() {
+    TestHost h;
+    auto c = std::make_shared<Counter>();
+    auto p = std::make_shared<CombinedSource>(std::make_shared<ConstantSource>(1.0f),
+                                              std::make_shared<ConstantSource>(0.0f),
+                                              CombineOp::Sum, 0.0f);
+    p->prepare(h.ctx); p->start(16);
+    p->set_param("source2", c);               // wired after the host calls
+    h.clock.tick();
+    CHECK_NEAR(p->next(), 2.0f, 1e-6f);       // 1 + the counter's first value
+    CHECK(c->computes == 1);
+    p->set_param("source2", nullptr);         // cleared: back to the pin's fallback (0)
+    h.clock.tick();
+    CHECK_NEAR(p->next(), 1.0f, 1e-6f);
+    CHECK(c->computes == 1);                  // not pulled any more
+    auto d = std::make_shared<Counter>();
+    p->param("source1");                      // no Param of that name: source1 is an Input
+    p->set_param("source1", d);
+    h.clock.tick();
+    CHECK_NEAR(p->next(), 1.0f, 1e-6f);       // d's first value + 0
+    CHECK(d->computes == 1);
+}
+
 // A source wired to two pins is the same object on both pins: no wrapper, no
 // advancer, no wiring order. A consumer the file lists before the advancer
 // used to read a wrapper a sample late; it reads this sample's value now, so
@@ -5757,6 +5783,7 @@ int main() {
     run_combine_mod_tests();
     run_memo_tests();
     run_shared_source_tests();
+    run_sweep_follows_wiring_tests();
     run_walk2_tests();
     run_walk3_tests();
     run_walk1_tests();

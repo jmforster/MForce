@@ -8,7 +8,7 @@ static constexpr float TAU = 2.0f * 3.14159265358979323846f;
 
 HybridKSSource::HybridKSSource(uint32_t seed)
 : rng_(seed) {
-  inputSource.source = std::make_shared<WhiteNoiseSource>(seed);
+  inputSource.set(std::make_shared<WhiteNoiseSource>(seed));
 }
 
 // The target array holds an entry per partial the additive phase reads.

@@ -69,12 +69,18 @@ protected:
   // A node assigning itself (Envelope rebuilding its stages) assigns its
   // own members; the registry is per object and is left alone.
   Component& operator=(const Component&) { return *this; }
-  // The sources the per-sample sweep advances: every Auto Param and Input,
-  // in declaration order, as pointers to the pins' source members (a pin
-  // is a member of its node, so the address is stable). Cached here so the
-  // sweep costs one indirect call per wired pin and nothing per setting.
-  std::span<std::shared_ptr<ValueSource>* const> auto_sources() const {
-    return {autoSources_.data(), size_t(autoCount_)};
+  // The sources the per-sample sweep pulls: every WIRED Auto Param and
+  // Input, in declaration order, as raw pointers. Refreshed by every door
+  // that changes a pin's source (the pin's setter, prepare, start, a node
+  // assigning itself), so the sweep costs one call per wired pin and
+  // nothing per unwired pin or setting.
+  std::span<ValueSource* const> auto_sources() const {
+    return {autoRaw_.data(), size_t(autoRawCount_)};
+  }
+  void refresh_auto_sources() {
+    autoRawCount_ = 0;
+    for (int i = 0; i < autoCount_; ++i)
+      if (auto* s = autoSources_[size_t(i)]->get()) autoRaw_[size_t(autoRawCount_++)] = s;
   }
 
 private:
@@ -114,15 +120,18 @@ private:
     autoSources_[size_t(autoCount_++)] = s;
   }
   std::vector<PinBase*> pins_;
-  std::array<std::shared_ptr<ValueSource>*, kMaxAutoSources> autoSources_{};
+  std::array<std::shared_ptr<ValueSource>*, kMaxAutoSources> autoSources_{};   // the Auto pins' source members
   int autoCount_{0};
+  std::array<ValueSource*, kMaxAutoSources> autoRaw_{};                        // the wired ones, as the sweep reads them
+  int autoRawCount_{0};
   std::vector<ParamDescriptor> paramDescs_;
   std::vector<InputDescriptor> inputDescs_;
   std::vector<SettingDescriptor> settingDescs_;
   std::vector<ArrayDescriptor> arrayDescs_;
 };
 
-inline void PinBase::attach(Component* owner) { owner->register_pin(this); }
+inline void PinBase::attach(Component* owner) { owner_ = owner; owner->register_pin(this); }
+inline void PinBase::source_changed() { if (owner_) owner_->refresh_auto_sources(); }
 
 template <class T>
 bool Slot<T>::set(std::shared_ptr<Component> part) {

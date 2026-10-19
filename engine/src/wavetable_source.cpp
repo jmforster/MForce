@@ -6,7 +6,7 @@
 namespace mforce {
 
 WavetableSource::WavetableSource(uint32_t inputSeed) {
-  inputSource.source = std::make_shared<WhiteNoiseSource>(inputSeed);
+  inputSource.set(std::make_shared<WhiteNoiseSource>(inputSeed));
 }
 
 void WavetableSource::on_prepare(const RenderContext& ctx) {

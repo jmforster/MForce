@@ -42,9 +42,15 @@ struct PinBase {
   virtual void start(int) {}
 protected:
   PinBase(const char* n, PinKind k, Pull p = Pull::Auto) : name(n), kind(k), pull(p) {}
-  // A node assigning itself assigns its pins' values.
-  PinBase& operator=(const PinBase&) = default;
+  // A node assigning itself assigns its pins' values (the owner is per
+  // object and is left alone).
+  PinBase& operator=(const PinBase&) { return *this; }
   void attach(Component* owner);                  // component.h
+  // A connectable pin's source changed: the owner's sweep list follows.
+  void source_changed();                          // component.h
+private:
+  Component* owner_{nullptr};
+  friend struct Component;
 };
 
 // A connectable parameter: a source, or a constant when nothing is wired.
@@ -59,7 +65,7 @@ struct Param final : PinBase {
   float current() const;                          // the source's value, or the constant
   float next();                                   // Manual pins only: the source's value this tick, or the constant
   float step();                                   // Manual pins only: one sample of the source now, or the constant
-  void set(std::shared_ptr<ValueSource> s) { source = std::move(s); }
+  void set(std::shared_ptr<ValueSource> s) { source = std::move(s); source_changed(); }
   std::shared_ptr<ValueSource> get() const { return source; }
   ParamDescriptor descriptor() const { return {name, constant, min, max, hint}; }
   void prepare(const RenderContext& ctx) override;
@@ -80,7 +86,7 @@ struct Input final : PinBase {
   float current() const;
   float next();                                   // Manual pins only: the source's value this tick, or 0
   float step();                                   // Manual pins only: one sample of the source now, or 0
-  void set(std::shared_ptr<ValueSource> s) { source = std::move(s); }
+  void set(std::shared_ptr<ValueSource> s) { source = std::move(s); source_changed(); }
   std::shared_ptr<ValueSource> get() const { return source; }
   InputDescriptor descriptor() const { return {name, multi, hint}; }
   void prepare(const RenderContext& ctx) override;

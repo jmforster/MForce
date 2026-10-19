@@ -30,6 +30,7 @@ struct ValueSource : Component {
   void prepare(const RenderContext& ctx) {
     ctx_ = ctx;
     computing_ = false;
+    refresh_auto_sources();
     for (auto* pin : pins())
       if (pin->pull == Pull::Auto) pin->prepare(ctx);
     on_prepare(ctx);
@@ -41,6 +42,7 @@ struct ValueSource : Component {
   void start(int frames) {
     assert(prepared() && "start() before prepare(ctx)");
     computing_ = false;
+    refresh_auto_sources();
     for (auto* pin : pins())
       if (pin->pull == Pull::Auto) pin->start(frames);
     on_start(frames);
@@ -64,8 +66,7 @@ struct ValueSource : Component {
       lastTick_ = t;
     }
     computing_ = true;
-    for (auto* s : auto_sources())
-      if (*s) (*s)->next();
+    for (auto* s : auto_sources()) s->next();
     cur_ = compute();
     computing_ = false;
     return cur_;
@@ -75,8 +76,7 @@ struct ValueSource : Component {
   // note's start). The memo holds the last stepped value.
   float step() {
     if (ctx_.clock) lastTick_ = ctx_.clock->now;
-    for (auto* s : auto_sources())
-      if (*s) (*s)->step();
+    for (auto* s : auto_sources()) s->step();
     cur_ = compute();
     return cur_;
   }
@@ -125,6 +125,7 @@ protected:
   ValueSource& operator=(const ValueSource& o) {
     Component::operator=(o);
     cur_ = o.cur_;
+    refresh_auto_sources();   // the pins' sources were just assigned
     return *this;
   }
 
@@ -181,7 +182,7 @@ private:
 inline std::shared_ptr<ConstantSource> ensure_constant(ValueSource& node, std::string_view name) {
   Param* pin = node.param(name);
   if (!pin) return nullptr;
-  if (!pin->source) pin->source = std::make_shared<ConstantSource>(pin->constant);
+  if (!pin->source) pin->set(std::make_shared<ConstantSource>(pin->constant));
   return std::dynamic_pointer_cast<ConstantSource>(pin->source);
 }
 
