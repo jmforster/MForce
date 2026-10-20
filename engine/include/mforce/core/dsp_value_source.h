@@ -55,10 +55,11 @@ struct ValueSource : Component {
   // This tick's value. Computed once per tick of the host's clock — every
   // wired Auto pin pulled in declaration order, then compute() — and served
   // to every later pull in the same tick, whoever asks and in whatever
-  // order; a node pulled by several consumers advances once. With no host
-  // clock every pull computes. A node re-entered during its own compute (a
-  // cycle with no tap, which the builders refuse) gets the previous value,
-  // and the cycle is reported once.
+  // order; a node pulled by several consumers advances once. The value it
+  // replaces is kept for the tap edge (previous()). With no host clock
+  // every pull computes. A node re-entered during its own compute (a cycle
+  // with no tap, which the builders refuse) gets the previous value, and
+  // the cycle is reported once.
   float next() {
     if (computing_) { report_cycle_once_(); return cur_; }
     if (ctx_.clock) {
@@ -66,6 +67,7 @@ struct ValueSource : Component {
       if (t == lastTick_) return cur_;
       lastTick_ = t;
     }
+    prev_ = cur_;             // the tick is claimed: what stood here is now the previous tick's
     computing_ = true;
     for (auto* s : auto_sources()) s->next();
     cur_ = compute();
@@ -83,16 +85,24 @@ struct ValueSource : Component {
   // supported under step().
   float step() {
     if (ctx_.clock) lastTick_ = ctx_.clock->now;
+    prev_ = cur_;
     for (auto* s : auto_sources()) s->step();
     cur_ = compute();
     return cur_;
   }
   virtual float compute() = 0;
   virtual float current() const { return cur_; }
-  // Measurement only: this node has claimed this tick and finished its
-  // compute, so a tap reading it now reads a same-tick value.
-  bool computed_this_tick() const {
-    return ctx_.clock && lastTick_ == ctx_.clock->now && !computing_;
+
+  // The value this node held at the end of the previous tick: cur_ until the
+  // node claims this tick, the value cur_ replaced from then on — the same
+  // number whether the asker comes before, during or after this node's
+  // compute. What the tap edge reads (feedback_loop_design.md): a tap is one
+  // sample late wherever it sits. With no host clock there is no "this
+  // tick" and the read is cur_, as every pull computes. Not virtual: a
+  // stateless view's live current() has no previous value but the one it
+  // computed last tick.
+  float previous() const {
+    return ctx_.clock && lastTick_ == ctx_.clock->now ? prev_ : cur_;
   }
 
   // False when this node reads its `frequency` pin ONCE at note start and
@@ -133,7 +143,8 @@ protected:
   bool prepared() const { return ctx_.sampleRate > 0; }
 
   // A node assigning itself (Envelope::replace_stages) assigns its own
-  // state; the context the host gave this object stays, like the registry.
+  // state, both ticks' values among it; the context the host gave this
+  // object stays, like the registry.
   // No sweep refresh here: a base's assignment runs before the derived
   // members are assigned, so the pins still hold their old sources at this
   // point. The node that assigns itself re-sets its wires afterwards
@@ -141,6 +152,7 @@ protected:
   ValueSource& operator=(const ValueSource& o) {
     Component::operator=(o);
     cur_ = o.cur_;
+    prev_ = o.prev_;
     return *this;
   }
 
@@ -156,6 +168,7 @@ private:
 
   RenderContext ctx_{};
   Tick lastTick_{-1};
+  float prev_{0.0f};        // what cur_ held before this tick's compute
   bool computing_{false};
   bool cycleReported_{false};
 };
@@ -227,27 +240,18 @@ struct TapSource final : ValueSource {
   explicit TapSource(std::shared_ptr<ValueSource> src = nullptr)
     : source(std::move(src)) {}
 
-  // Measurement only: same-tick reads, printed by mforce_cli at exit when
-  // MFORCE_TRACE_TAPS is set.
-  static inline bool      trace{false};
-  static inline long long sameTickReads{0};
-
   // No pins and no hooks: prepare and start reach nothing here. The source
   // is prepared and started by whatever pulls it — its consumers, or the
   // voice's tail list when only taps reach it.
-  float compute() override {
-    if (trace && source && source->computed_this_tick()) ++sameTickReads;
-    return read_();
-  }
+  float compute() override { return guard_(source ? source->current() : 0.0f); }
   // The same read, live: a Setup-time read between ticks sees the source's
   // present value, not the memo of the tick before.
-  float current() const override { return read_(); }
+  float current() const override { return guard_(source ? source->current() : 0.0f); }
 
   const char* type_name() const override { return "Tap"; }
 
 private:
-  float read_() const {
-    const float v = source ? source->current() : 0.0f;
+  static float guard_(float v) {
     if (!std::isfinite(v)) return 0.0f;
     return v < -8.0f ? -8.0f : (v > 8.0f ? 8.0f : v);
   }

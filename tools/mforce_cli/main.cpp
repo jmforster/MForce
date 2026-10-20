@@ -1215,14 +1215,6 @@ static int run_lint_template(int argc, char** argv)
 int main(int argc, char** argv)
 {
     mforce::enable_flush_denormals();
-    mforce::TapSource::trace = std::getenv("MFORCE_TRACE_TAPS") != nullptr;
-    struct TapTracePrint {
-        ~TapTracePrint() {
-            if (mforce::TapSource::trace)
-                std::fprintf(stderr, "[taps] sameTickReads=%lld\n",
-                             mforce::TapSource::sameTickReads);
-        }
-    } tapTracePrint;
     try {
         if (argc >= 2 && std::string(argv[1]) == "--dump-descriptors")
             return run_dump_descriptors(argc, argv);

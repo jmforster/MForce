@@ -2214,6 +2214,51 @@ static void run_memo_tests() {
     loop->clear_param("source2");             // break the ownership cycle
 }
 
+static void run_previous_tests() {
+    TestHost h;
+    auto c = std::make_shared<Counter>();
+    c->prepare(h.ctx); c->start(16);
+    CHECK_NEAR(c->previous(), 0.0f, 1e-6f);   // nothing computed yet: cur_
+    h.clock.tick();
+    CHECK_NEAR(c->previous(), 0.0f, 1e-6f);   // this tick not yet claimed: cur_, still last tick's
+    CHECK_NEAR(c->next(), 1.0f, 1e-6f);
+    CHECK_NEAR(c->previous(), 0.0f, 1e-6f);   // claimed and computed: what cur_ replaced
+    CHECK_NEAR(c->current(), 1.0f, 1e-6f);
+    h.clock.tick();
+    CHECK_NEAR(c->previous(), 1.0f, 1e-6f);   // a new tick, not yet claimed: cur_
+    CHECK_NEAR(c->next(), 2.0f, 1e-6f);
+    CHECK_NEAR(c->previous(), 1.0f, 1e-6f);
+    h.clock.tick();                           // step() moves the value the same way
+    CHECK_NEAR(c->step(), 3.0f, 1e-6f);
+    CHECK_NEAR(c->previous(), 2.0f, 1e-6f);
+    CHECK_NEAR(c->step(), 4.0f, 1e-6f);
+    CHECK_NEAR(c->previous(), 3.0f, 1e-6f);   // before the latest step
+    h.clock.tick(); h.clock.tick();           // not pulled for two ticks
+    CHECK_NEAR(c->previous(), 4.0f, 1e-6f);   // its last value
+    auto mid = std::make_shared<CombinedSource>(std::make_shared<ConstantSource>(1.0f),
+                                                std::make_shared<ConstantSource>(0.0f),
+                                                CombineOp::Sum, 0.0f);
+    struct Probe final : Generator {            // reads its target's previous() from inside the target's compute
+        ValueSource* target{nullptr};
+        float seen{-1.0f};
+        float compute() override { seen = target->previous(); return 0.0f; }
+        const char* type_name() const override { return "Probe"; }
+    };
+    auto probe = std::make_shared<Probe>(); probe->target = mid.get();
+    mid->prepare(h.ctx); mid->start(16); probe->prepare(h.ctx); probe->start(16);
+    mid->set_param("source2", probe);         // mid's sweep pulls the probe: a read mid-compute
+    h.clock.tick();
+    CHECK_NEAR(mid->next(), 1.0f, 1e-6f);
+    CHECK_NEAR(probe->seen, 0.0f, 1e-6f);     // mid-compute: last tick's value (0), not two ticks old
+    h.clock.tick();
+    CHECK_NEAR(mid->next(), 1.0f, 1e-6f);
+    CHECK_NEAR(probe->seen, 1.0f, 1e-6f);
+    auto bare = std::make_shared<Counter>();  // no clock: every pull computes, previous() is the present value
+    bare->prepare(RenderContext{48000}); bare->start(16);
+    bare->next(); bare->next();
+    CHECK_NEAR(bare->previous(), 2.0f, 1e-6f);
+}
+
 #include "mforce/core/envelope_presets.h"
 
 // The sweep follows every door that changes a pin's source: a source wired
@@ -5816,6 +5861,7 @@ int main() {
     run_filter_tests();
     run_combine_mod_tests();
     run_memo_tests();
+    run_previous_tests();
     run_shared_source_tests();
     run_sweep_follows_wiring_tests();
     run_tap_reads_live_tests();
