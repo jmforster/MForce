@@ -41,9 +41,22 @@ REVIEW.md R5 AWAITING MATT, three verdict items (0 the forty changed
 renders as frozen truth — his queues and sweeps, re-listen before
 accepting; 1 previous()/claimed_tick() public on every node for one reader;
 2 feedback_loop_design.md §2's positional paragraph: delta or rewrite).
-Debt in §7. NEXT: Matt's R5 verdict, then checkpoint 2.5 (no throw on a
-render path; fault flags; set_pin failures become load failures) — plan
-written against the then-current code. Kept binaries: cli_pre24.exe (=
+Debt in §7. CHECKPOINT 2.5 PLAN WRITTEN (2026-10-20, on Matt's "plan it
+now; I'll read R5 alongside"): docs/superpowers/plans/2026-10-20-part2-checkpoint-2.5.md
+— six tasks (T0 measure: the unknown-key list from the current loader's
+warnings, the 157 non-loaders classified by error, a DelayLine-wrap counter
+committed then deleted; T1 no throw: a per-node atomic fault byte, the two
+throws become clamp-and-fault with the narrowest clamp, prepare() throws on a
+zero rate, Mesh2D's 48000 fallback goes, a never-prepared node faults; T2 the
+bits reach the host: the cycle fprintf is a bit, prepare/start guard re-entry,
+a clockless pull faults, collect_faults on PitchedInstrument/DrumKit, the
+CLI's [faults] block and the UI's status line; T3 set_param returns bool and
+the loader fails a load with node/pin/reason, the load A/B lists what stops
+loading; T4 the DelayLine read wraps to slot 0, the extra slot goes, the
+manifest refrozen for the wrap list (double_advance_ok); T5 close with a
+Fable refuter and report R6), 13 planning rulings. AWAITING MATT: his R5
+verdict and his read of the 2.5 plan; execution approach my rec: inline,
+Fable refuter at close. Kept binaries: cli_pre24.exe (=
 2.3's cli_final), cli_t0 (the counter), cli_t2 (the seal's engine) under
 renders/scratch/ab_tree/; the arms under renders/scratch/ab24_tree/. Not
 pushed this session — ask at close-out. GOALS.md stays Matt's uncommitted
