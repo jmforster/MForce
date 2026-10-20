@@ -89,6 +89,11 @@ struct ValueSource : Component {
   }
   virtual float compute() = 0;
   virtual float current() const { return cur_; }
+  // Measurement only: this node has claimed this tick and finished its
+  // compute, so a tap reading it now reads a same-tick value.
+  bool computed_this_tick() const {
+    return ctx_.clock && lastTick_ == ctx_.clock->now && !computing_;
+  }
 
   // False when this node reads its `frequency` pin ONCE at note start and
   // never again (KSPianoString: init_note), so an articulated/bent frequency
@@ -222,10 +227,18 @@ struct TapSource final : ValueSource {
   explicit TapSource(std::shared_ptr<ValueSource> src = nullptr)
     : source(std::move(src)) {}
 
+  // Measurement only: same-tick reads, printed by mforce_cli at exit when
+  // MFORCE_TRACE_TAPS is set.
+  static inline bool      trace{false};
+  static inline long long sameTickReads{0};
+
   // No pins and no hooks: prepare and start reach nothing here. The source
   // is prepared and started by whatever pulls it — its consumers, or the
   // voice's tail list when only taps reach it.
-  float compute() override { return read_(); }
+  float compute() override {
+    if (trace && source && source->computed_this_tick()) ++sameTickReads;
+    return read_();
+  }
   // The same read, live: a Setup-time read between ticks sees the source's
   // present value, not the memo of the tick before.
   float current() const override { return read_(); }
