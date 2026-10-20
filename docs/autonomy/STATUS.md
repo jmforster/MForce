@@ -1,11 +1,60 @@
 # Status — session handoff (Claude reads this first; Matt's queue = */REVIEW.md)
 
-Updated: 2026-10-20 (refactor session V, Fable 5.1 xhigh — the session opened
+Updated: 2026-10-19, later (refactor session V, Fable 5.1 xhigh).
+CHECKPOINT 2.4 LANDED on main: a8d5aa9..403269f — taps reading B. Every
+node keeps the value it held at the end of the previous tick (prev_, moved
+when next()/step() claim the tick) and previous() reads it; TapSource::
+compute() reads previous(); TapSource::current() — the read that DELIVERS,
+since a node reads its pins after its sweep through current() (2.1's rule)
+— is the memo once the tap has claimed the tick and the live source value
+before (a Setup-time read between ticks), through a protected
+claimed_tick(). Executed inline per the plan
+docs/superpowers/plans/2026-10-19-part2-checkpoint-2.4.md (Ledger = every
+ruling): T0 re-measured the list with a committed-then-deleted counter
+(45; the 10-18 list's 47 at exactly half — the old trace counted the
+wrapper's read twice per sample — minus stk_bowed_ext1/2, whose same-tick
+position was an artifact of the old advancer placement); T1 the two-value
+memo unused, 78/78; T2 the tap's read — the plan's contract for current()
+(keep it live) DELIVERED NOTHING: the first A/B arm was byte-identical on
+all 47, because consumers read pins through current(); ruling 18 redesigned
+current() test-first (a CombinedSource summing c + tap(c) reads 1, 3, 5)
+and 2.3's live-read test moved its one post-pull assertion to B. RENDERS
+CHANGED: 40 patches tree-wide, every one on the measured list, none off it
+(audition/pierce1d_1 6, audition/trombone1 4, pending/brass 1, sweep
+trombone1-4 11, onemass_lip1 4, nlbore_probe1 6, stk_blowhole_port 3,
+old/nlbore_brass1 5) — in 37 a CONTROL read (NL_curve ← tap(NL_in) → NL_delay.ratio;
+pierce's SignCurve → Damp_lpf.cutoffFreq) now lags one sample, loop periods
+unchanged, compensate irrelevant; in stk_blowhole's 3 a signal-path tap
+(D1In ← tap(D2)) gains one sample — the refuter's C1 corrected my loop-
+period story; on disk the class is 116 patches (the A/B sample is 1,615,
+sweep/old every third; trombone_tongue in the audition queue has no score,
+so the CLI A/B never exercised it); library 0, baselines 0, the retired pair 0; five
+listed patches did not move (nonlinear-bore controls whose only same-tick
+tap feeds a flat NL_curve, knots all 1.0). Manifest NOT refrozen (78/78
+after every task). Timing neutral (oboe1 1.01x, piano 0.99x, viola 0.99x).
+Gates at the seal: ctest, stamp, null gate 78/78, wiring null gate 78/78;
+the two roundtrip gates fail on exactly the six backlog-79 patches.
+REFUTATION: one Critical (the report's loop-period mechanism was wrong for 37 of 40: the same-tick read is a control read, NL_curve/SignCurve; blowhole's is the one signal path), three Important (the sample called whole-tree; the counter's position vs the delivery position; the Setup-time/step() semantics misstated), six Minor (incl. every 10-20 date); assessment: ready to seal with documentation and test fixes only. FIX WAVE: all addressed in one wave (docs, comments, nine pinned limit assertions; no engine behaviour change), re-reviewed clean after three further text edits (the DelayLine sentence, the class count 116 with pierce1d_1 at 6, Lesson 2).
+REPORT R5: docs/autonomy/refactor/reports/2026-10-19-checkpoint-2.4.md
+(ten sections, the refutation verbatim in §8, three C++ lessons in §10).
+REVIEW.md R5 AWAITING MATT, three verdict items (0 the forty changed
+renders as frozen truth — his queues and sweeps, re-listen before
+accepting; 1 previous()/claimed_tick() public on every node for one reader;
+2 feedback_loop_design.md §2's positional paragraph: delta or rewrite).
+Debt in §7. NEXT: Matt's R5 verdict, then checkpoint 2.5 (no throw on a
+render path; fault flags; set_pin failures become load failures) — plan
+written against the then-current code. Kept binaries: cli_pre24.exe (=
+2.3's cli_final), cli_t0 (the counter), cli_t2 (the seal's engine) under
+renders/scratch/ab_tree/; the arms under renders/scratch/ab24_tree/. Not
+pushed this session — ask at close-out. GOALS.md stays Matt's uncommitted
+edit.
+
+Updated: 2026-10-19 (refactor session V, Fable 5.1 xhigh — the session opened
 at high; Matt bumped it before the verdict). R4 DECIDED by Matt: (0) render
 time ACCEPTED — the 2.1 cost (oboe1 0.73x, piano 0.88x of pre-2.1) stands as
 the price of one next() for every node; Part 3 is not asked to recover it;
 (1) the 109 changed renders are the frozen truth; (2) the
-loop_root_sensitivity pair RETIRED → patches/old/baselines_retired_2026-10-20/
+loop_root_sensitivity pair RETIRED → patches/old/baselines_retired_2026-10-19/
 (git mv, never deleted), its two manifest entries dropped by hand (the null
 gate is 78 entries; every other hash untouched), dsp backlog 65 (+66's
 residual) closed to that file's ledger — the root sensitivity was the double
@@ -13,7 +62,7 @@ advance — and 79's roundtrip set is six; (3) step() KEPT for now and (4)
 Shaper's Auto pins STAND for now, both carried as post-refactor revisits in
 refactor BACKLOG row 9 (a, b). REVIEW R4 → Resolved with the verdict; the 2.3
 report's §7 pair entry carries the verdict line. CHECKPOINT 2.4 PLAN WRITTEN
-(writing-plans, xhigh): docs/superpowers/plans/2026-10-20-part2-checkpoint-2.4.md
+(writing-plans, xhigh): docs/superpowers/plans/2026-10-19-part2-checkpoint-2.4.md
 — four tasks (T0 re-measure the same-tick tap list with the sealed binary
 through a counter committed then deleted, the old arms re-used from
 ab23_tree/*/final since the engine is unchanged since fdf7536, taps.txt = the

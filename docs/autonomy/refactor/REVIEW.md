@@ -8,18 +8,38 @@ checkpoints wait for Matt's read.
 
 ## Awaiting
 
-Nothing. Next up: checkpoint 2.4 (taps reading B), whose plan is
-`docs/superpowers/plans/2026-10-20-part2-checkpoint-2.4.md`; R5 lands here
-when it seals.
+**R5 — checkpoint 2.4: taps reading B** (2026-10-19, commits
+`a8d5aa9`..`403269f`)
+- Read: `docs/autonomy/refactor/reports/2026-10-19-checkpoint-2.4.md`
+  (its reading guide is ten minutes; section 5 holds the forty renders that
+  changed by family and the render-time table, section 6 the decisions taken
+  on your behalf — ruling 18 is the one that departed from the plan —
+  section 7 the debt, section 8 the refutation, section 10 three C++ lessons).
+- Try: `python tools/null_gate_perform_source.py --jobs 3` (78/78 — nothing in
+  library or baselines moved); open `patches/audition/trombone1/trombone_attempt4.json`
+  and play — the nonlinear bore's ratio modulation now follows the previous
+  sample (the loop period is unchanged); open
+  `patches/baselines/feedback/loop_hysteresis_bow.json` — unchanged, as every
+  loop closed through a tap on its forward path is.
+- A verdict decides: (0) **the forty changed renders** (section 5, Appendix
+  A) accepted as the frozen truth — they are your listening queues and sweeps
+  (`audition/trombone1` ×4, `audition/pierce1d_1` ×6, `pending/brass/Trombone_att1`,
+  the `sweep` trombone, onemass, nlbore and stk_blowhole families,
+  `old/nlbore_brass1` ×5), nothing in library or baselines, so no manifest was
+  refrozen; re-listen any before accepting; (1) **`previous()` and
+  `claimed_tick()` on every node** for the tap edge alone (section 7): leave
+  them until Part 3's pins narrow the door, or narrow it now; (2)
+  **`feedback_loop_design.md` section 2's "positional" paragraph**: left as the
+  08-31 design with the header delta (Task 2's choice), or rewritten.
 
 ## Resolved
 
 **R4 — checkpoint 2.3: the per-tick memo** (2026-10-18, commits
-`22bf3be`..`fdf7536`) — VERDICT 2026-10-20: (0) the render-time cost is
+`22bf3be`..`fdf7536`) — VERDICT 2026-10-19: (0) the render-time cost is
 accepted as the price of one `next()` for every node; Part 3's node pass
 is not asked to recover it; (1) the changed renders are the frozen
 truth; (2) the `loop_root_sensitivity` pair is retired — moved to
-`patches/old/baselines_retired_2026-10-20/` (never deleted), its two
+`patches/old/baselines_retired_2026-10-19/` (never deleted), its two
 manifest entries dropped (the null gate is 78 entries), dsp backlog 65
 closed to that file's ledger; (3) `step()` stays for now, with a
 post-refactor revisit listed (refactor BACKLOG row 9a); (4) ShaperSource's

@@ -410,13 +410,13 @@
    [
     [
      "tools/engine_tests/main.cpp",
-     3577,
-     3592
+     3699,
+     3714
     ],
     [
      "tools/engine_tests/main.cpp",
-     3874,
-     3889
+     3996,
+     4011
     ]
    ]
   ],
@@ -870,18 +870,18 @@
    [
     [
      "tools/engine_tests/main.cpp",
-     3579,
-     3589
+     3701,
+     3711
     ],
     [
      "tools/engine_tests/main.cpp",
-     3876,
-     3886
+     3998,
+     4008
     ],
     [
      "tools/engine_tests/main.cpp",
-     4402,
-     4412
+     4524,
+     4534
     ]
    ]
   ],
@@ -1025,13 +1025,13 @@
    [
     [
      "tools/engine_tests/main.cpp",
-     3210,
-     3219
+     3332,
+     3341
     ],
     [
      "tools/engine_tests/main.cpp",
-     3541,
-     3550
+     3663,
+     3672
     ]
    ]
   ],
@@ -1154,9 +1154,9 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 257,
+   "lines": 289,
    "longest_function": [
-    13,
+    14,
     "mforce::ValueSource::next"
    ],
    "module": "core",
@@ -2811,7 +2811,7 @@
    "changelog_comments": 2,
    "const_cast": 0,
    "dynamic_cast": 1,
-   "lines": 141,
+   "lines": 143,
    "longest_function": [
     27,
     "mforce::DelayLineSource::compute"
@@ -3510,7 +3510,7 @@
    "changelog_comments": 4,
    "const_cast": 0,
    "dynamic_cast": 16,
-   "lines": 5856,
+   "lines": 5980,
    "longest_function": [
     272,
     "run_walk3_tests"
@@ -3891,14 +3891,14 @@
  "summary": {
   "changelog_comments": 252,
   "const_cast": 10,
-  "duplicate_blocks": 156,
+  "duplicate_blocks": 157,
   "dynamic_cast": 57,
   "file_level_mutable_vars": 114,
   "files": 167,
   "files_over_limit": 20,
   "functions_over_limit": 99,
   "include_violations": 13,
-  "lines": 59011,
+  "lines": 59169,
   "unmapped_files": 0
  }
 }

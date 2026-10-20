@@ -499,7 +499,7 @@ Tags per WORKFLOW.md.
     knots written at 32-bit precision, `seconds` added). This whole class
     goes away with the single patch codec in the refactor
     (docs/architecture/target-architecture.md section 3.3).
-    UPDATE 10-20: loop_root_sensitivity_{fires,dead} retired to patches/old/
+    UPDATE 10-19: loop_root_sensitivity_{fires,dead} retired to patches/old/
     (refactor R4 verdict), so the roundtrip set is six: double_advance_{ok,
     bug}, loop_tap_{counter,starved}, perform/wiring_setting, wiring_smoke.
     65 is closed (ledger); the advance-order cluster it named is gone with
@@ -752,7 +752,7 @@ One line each; full text in run reports + this file's git history.
 Fall-cleaning moves (2026-09-14) are marked → IDEAS or → ledger.
 
 - 65 (with 66's residual). Loop behaviour depends on graph rooting — CLOSED
-  2026-10-20: the "root sensitivity" was the double advance. Rooted at
+  2026-10-19: the "root sensitivity" was the double advance. Rooted at
   Junction, the tap-only tail's pull of Damp_lpf/DC_Block_hpf walked back
   into the root cone and advanced Junction, Valve, Drive_inputs, WhiteNoise,
   Drive_vib, Drive_env and both Wormholes a second time per sample; the
@@ -763,7 +763,7 @@ Fall-cleaning moves (2026-09-14) are marked → IDEAS or → ledger.
   sample when the valve chain adds a second consumer) was the wiring-order
   lag class the same checkpoint removed (feedback_valve2's 24 audition + 8
   sweep renders changed). The repro pair is retired to
-  patches/old/baselines_retired_2026-10-20/ on Matt's R4 verdict; nothing is
+  patches/old/baselines_retired_2026-10-19/ on Matt's R4 verdict; nothing is
   left to diagnose.
 - Null-gate pre-existing FAIL pair (09-08, cited in item 66) — closed 09-08:
   FormantSequence1.json migrated from the inline-formant FormantSpectrum era

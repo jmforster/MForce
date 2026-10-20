@@ -494,7 +494,7 @@ Each is a ruling in the plan's Ledger, in the order made.
   patches it changes are measured.
 - **The `loop_root_sensitivity` baseline pair** no longer demonstrates what
   it was written for (section 5); REVIEW R4 asks what becomes of it.
-  VERDICT 2026-10-20: retired to `patches/old/baselines_retired_2026-10-20/`.
+  VERDICT 2026-10-19: retired to `patches/old/baselines_retired_2026-10-19/`.
 - **The meter's known-answer test pins `main()`'s length against the live
   file** (1712 now); a frozen fixture is Part 8's.
 - **The 2.1 render-time cost** stands at oboe1 0.73x, piano_default 0.88x
