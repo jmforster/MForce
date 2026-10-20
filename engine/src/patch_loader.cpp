@@ -1413,6 +1413,7 @@ Patch load_patch_file(const std::string& path)
             // after the root pull (feedback_loop_design.md §3.3).
             for (const auto& aid : collect_advance_ids(nodeMap, nodeOrder, outputId))
                 vg.advanceList.push_back(g.valueNodes.at(aid));
+            vg.nodesById = std::move(g.valueNodes);   // the host reports faults by these ids
 
             inst->voicePool.push_back(std::move(vg));
         }

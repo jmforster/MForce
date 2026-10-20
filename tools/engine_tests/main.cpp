@@ -5951,6 +5951,50 @@ static void run_no_throw_tests() {
     CHECK(std::string(fault_name(Fault::FrequencyClamped)) == "frequency clamped");
 }
 
+// Checkpoint 2.5: the fault bits reach the host. A cycle with no tap is a
+// bit, not a print, through next() and through the host calls; a clockless
+// pull reports; the instrument collects by node id and clears as it reads.
+static void run_fault_tests() {
+    TestHost h;
+    auto loop = std::make_shared<CombinedSource>(std::make_shared<ConstantSource>(1.0f),
+                                                 std::make_shared<ConstantSource>(0.0f),
+                                                 CombineOp::Sum, 0.0f);
+    loop->prepare(h.ctx); loop->start(16);
+    loop->set_param("source2", loop);                  // a cycle with no tap, wired after the host calls
+    h.clock.tick(); CHECK_NEAR(loop->next(), 1.0f, 1e-6f);
+    CHECK((loop->faults() & fault_bit(Fault::CycleWithoutTap)) != 0);
+    loop->clear_faults();
+    loop->prepare(h.ctx);                              // re-entered through the cycle: returns, no overflow
+    CHECK((loop->faults() & fault_bit(Fault::CycleWithoutTap)) != 0);
+    loop->clear_faults();
+    loop->start(16);
+    CHECK((loop->faults() & fault_bit(Fault::CycleWithoutTap)) != 0);
+    loop->clear_param("source2");
+    // A clockless pull on a prepared node reports; the host is the only reader.
+    auto bare = std::make_shared<Counter>();
+    bare->prepare(RenderContext{48000}); bare->start(16);
+    bare->next();
+    CHECK((bare->faults() & fault_bit(Fault::Clockless)) != 0);
+    // The host collects by node id, once per id across the pool, and clears.
+    const char* json = R"({"sampleRate":48000,"instrument":{"polyphony":2},
+      "graph":{"output":"osc","nodes":[
+        {"id":"osc","type":"SineSource","params":{"frequency":0.0,"amplitude":1.0}}]}})";
+    auto ip = load_instrument_patch_json(json);
+    auto* pi = dynamic_cast<PitchedInstrument*>(ip.instrument.get());
+    CHECK(pi != nullptr);
+    pi->play_note({60.0f, 0.8f, 0.1f, 0.0f, false}, 0.0f);
+    std::vector<float> out(4800);
+    ip.instrument->render(out.data(), int(out.size()));
+    std::vector<FaultReport> faults;
+    ip.instrument->collect_faults(faults);
+    CHECK(faults.size() == 1);
+    CHECK(faults.size() == 1 && faults[0].nodeId == "osc");
+    CHECK(faults.size() == 1 && (faults[0].faults & fault_bit(Fault::FrequencyClamped)) != 0);
+    faults.clear();
+    ip.instrument->collect_faults(faults);
+    CHECK(faults.empty());                             // cleared as read
+}
+
 int main() {
     run_pin_tests();
     run_base_tests();
@@ -5999,6 +6043,7 @@ int main() {
     run_previous_tests();
     run_tap_reading_tests();
     run_no_throw_tests();
+    run_fault_tests();
     run_shared_source_tests();
     run_sweep_follows_wiring_tests();
     run_tap_reads_live_tests();

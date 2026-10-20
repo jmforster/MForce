@@ -4335,6 +4335,17 @@ static void stamp_passage(std::vector<SchedNote>& sched, bool sustaining,
     }
 }
 
+// What the last Generate's nodes reported, for the status line: "faults:
+// osc (SineSource): frequency clamped; ...", or empty.
+static std::string g_genFaults;
+static std::string faults_text(const std::vector<mforce::FaultReport>& faults) {
+    if (faults.empty()) return {};
+    std::string s = "faults: ";
+    for (size_t i = 0; i < faults.size(); ++i)
+        s += (i ? "; " : "") + mforce::fault_report_text(faults[i]);
+    return s;
+}
+
 static bool generate_unified(const std::vector<SchedNote>& notes) {
     if (notes.empty()) return false;
     try {
@@ -4406,6 +4417,7 @@ static bool generate_unified(const std::vector<SchedNote>& notes) {
         g_outputWaveform.assign(size_t(frames), 0.0f);
         g_waveformSamples = frames;
         ip.instrument->render(g_outputWaveform.data(), frames);
+        { std::vector<mforce::FaultReport> f; ip.instrument->collect_faults(f); g_genFaults = faults_text(f); }
 
         for (size_t k = 0; k < capNodes.size(); ++k)
             capNodes[k]->waveformData = std::move(pitched->captureBuffers[k]);
@@ -8333,6 +8345,7 @@ static void transport_generate() {
                 {noteNum, g_transport.duration, 0.0f, g_transport.velocity}};
             if (generate_unified(sched)) {
                 transport_set_status("Generated note", false);
+                if (!g_genFaults.empty()) transport_set_status(g_genFaults.c_str(), true);
                 note_played(noteNum, g_transport.velocity);
                 std::snprintf(g_noteGenSnap.noteStr, sizeof(g_noteGenSnap.noteStr),
                               "%s", g_transport.noteStr);
@@ -8389,6 +8402,7 @@ static void transport_generate() {
                             snprintf(buf, sizeof(buf), "Generated %d notes",
                                      (int)sched.size());
                             transport_set_status(buf, false);
+                            if (!g_genFaults.empty()) transport_set_status(g_genFaults.c_str(), true);
                         }
                     }
                 }
@@ -8591,6 +8605,14 @@ static const char* kChordsFilter =
 
 static void draw_transport_panel() {
     ImGui::Begin("Transport", nullptr, ImGuiWindowFlags_NoCollapse);
+
+    // The live pool's faults since the last frame, said once in the status
+    // line (the bits are cleared as they are read).
+    if (g_cachedInstrument && g_cachedInstrument->instrument) {
+        std::vector<mforce::FaultReport> f;
+        g_cachedInstrument->instrument->collect_faults(f);
+        if (!f.empty()) transport_set_status(faults_text(f).c_str(), true);
+    }
 
     float lw = 70.0f; // label width
 
@@ -13082,6 +13104,7 @@ int main(int argc, char** argv) {
                 printf("strip %-24s rms %.6f\n", n.label.c_str(),
                        std::sqrt(acc / double(n.waveformData.size())));
             }
+            if (!g_genFaults.empty()) printf("%s\n", g_genFaults.c_str());
             printf("gencheck ok: %d frames\n", g_waveformSamples);
             return 0;
         } catch (const std::exception& e) {

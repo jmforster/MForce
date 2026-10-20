@@ -2,7 +2,6 @@
 #include <atomic>
 #include <cassert>
 #include <cmath>
-#include <cstdio>
 #include <memory>
 #include <stdexcept>
 #include <span>
@@ -54,17 +53,20 @@ struct ValueSource : Component {
   // nothing a render can see. Forwards to every Auto pin's source, then
   // on_prepare; a Manual pin is prepared by the node in on_prepare. A zero
   // rate is a host error and throws here, where throwing is allowed; a node
-  // never sees one.
+  // never sees one. Re-entered through a cycle with no tap (hand-wired
+  // before the host calls), it returns with the fault set instead of
+  // overflowing the stack.
   void prepare(const RenderContext& ctx) {
     if (ctx.sampleRate <= 0) throw std::invalid_argument("prepare: the context has no sample rate");
+    if (computing_) { fault(Fault::CycleWithoutTap); return; }
+    computing_ = true;
     ctx_ = ctx;
     lastTick_ = -1;           // a tick means something only against this clock
-    computing_ = false;
-    faults_.store(0, std::memory_order_relaxed);
-    refresh_auto_sources();
+    refresh_auto_sources();   // the faults stay: a host reads them, a second prepare does not
     for (auto* pin : pins())
       if (pin->pull == Pull::Auto) pin->prepare(ctx);
     on_prepare(ctx);
+    computing_ = false;
   }
   // start(frames): a span of `frames` samples begins now — reset per-note
   // state and lay out anything that depends on the length. May not
@@ -77,11 +79,13 @@ struct ValueSource : Component {
   void start(int frames) {
     assert(prepared() && "start() before prepare(ctx)");
     if (!prepared()) { fault(Fault::NeverPrepared); return; }
-    computing_ = false;
+    if (computing_) { fault(Fault::CycleWithoutTap); return; }
+    computing_ = true;
     refresh_auto_sources();
     for (auto* pin : pins())
       if (pin->pull == Pull::Auto) pin->start(frames);
     on_start(frames);
+    computing_ = false;
   }
 
   virtual void on_prepare(const RenderContext&) {}
@@ -92,17 +96,19 @@ struct ValueSource : Component {
   // to every later pull in the same tick, whoever asks and in whatever
   // order; a node pulled by several consumers advances once. The value it
   // replaces is kept for the tap edge (previous()). With no host clock
-  // every pull computes. A node re-entered during its own compute (a cycle
-  // with no tap, which the builders refuse) gets the previous value, and
-  // the cycle is reported once.
+  // every pull computes, and a prepared node says so with a fault the host
+  // reads. A node re-entered during its own compute (a cycle with no tap,
+  // which the builders refuse) gets the previous value and a fault.
   float next() {
-    if (computing_) { report_cycle_once_(); return cur_; }
+    if (computing_) { fault(Fault::CycleWithoutTap); return cur_; }
     if (ctx_.clock) {
       const Tick t = ctx_.clock->now;
       if (t == lastTick_) return cur_;
       lastTick_ = t;
-    } else if (!prepared()) {  // the cold branch: no host clock, no rate
-      fault(Fault::NeverPrepared);   // a bare node computes as it always has, and says so
+    } else if (!prepared()) {  // the cold branches: no host clock
+      fault(Fault::NeverPrepared);   // no rate: a bare node computes as it always has, and says so
+    } else {
+      fault(Fault::Clockless);       // a rate but no clock: a bare node in a test, or a host that forgot its clock
     }
     prev_ = cur_;             // the tick is claimed: what stood here is now the previous tick's
     computing_ = true;
@@ -215,19 +221,11 @@ protected:
   float cur_{0.0f};
 
 private:
-  void report_cycle_once_() {
-    if (cycleReported_) return;
-    cycleReported_ = true;
-    std::fprintf(stderr, "[graph] cycle without a tap through %s: serving the previous value\n",
-                 type_name());
-  }
-
   RenderContext ctx_{};
   Tick lastTick_{-1};
   float prev_{0.0f};        // what cur_ held before this tick's compute
   std::atomic<unsigned char> faults_{0};
   bool computing_{false};
-  bool cycleReported_{false};
 };
 
 // A node that produces a signal from time and its parameters alone.

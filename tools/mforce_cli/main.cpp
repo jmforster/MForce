@@ -26,6 +26,12 @@
 #include <cstdio>
 #include <cstdlib>
 
+// After a render: one line per node that reported a fault, or nothing.
+static void print_faults(const std::vector<mforce::FaultReport>& faults) {
+    for (const auto& f : faults)
+        std::cerr << "[faults] " << mforce::fault_report_text(f) << "\n";
+}
+
 using namespace mforce;
 
 // ---------------------------------------------------------------------------
@@ -133,6 +139,7 @@ static int run_chords(int argc, char** argv) {
     std::cerr << "  peak=" << peak
               << " rms=" << rms
               << " nonzero=" << nonzero << "/" << stereo.size() << "\n";
+    { std::vector<mforce::FaultReport> faults; ip.instrument->collect_faults(faults); print_faults(faults); }
 
     return 0;
 }
@@ -206,6 +213,7 @@ static bool render_piece_to_wav(Piece& piece, const std::string& instrumentType,
               << " (" << frames << " frames, "
               << totalBeats << " beats @ " << bpm << " bpm)\n";
     std::cerr << "  peak=" << peak << " rms=" << rms << "\n";
+    { std::vector<mforce::FaultReport> faults; instrument.collect_faults(faults); print_faults(faults); }
     return true;
 }
 
@@ -742,6 +750,7 @@ static int run_play(int argc, char** argv) {
     std::cout << "Played: " << outPath
               << " (" << totalBeats << " beats @ " << bpm << " bpm)\n";
     std::cerr << "  peak=" << peak << " rms=" << rms << "\n";
+    { std::vector<mforce::FaultReport> faults; ip.instrument->collect_faults(faults); print_faults(faults); }
 
     return 0;
 }
@@ -807,6 +816,7 @@ static int run_patch(int argc, char** argv) {
     std::cerr << "  peak=" << peak
               << " rms=" << rms
               << " nonzero=" << nonzero << "/" << out.size() << "\n";
+    { std::vector<mforce::FaultReport> faults; p.mixer->collect_faults(faults); print_faults(faults); }
 
     return 0;
 }

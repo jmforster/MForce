@@ -1,4 +1,5 @@
 #pragma once
+#include <algorithm>
 #include "mforce/render/mixer.h"
 #include "mforce/render/limiter.h"
 #include "mforce/core/dsp_value_source.h"
@@ -173,8 +174,9 @@ struct PitchedInstrument final : Instrument {
     // memo, so nothing double-advances).
     std::vector<std::shared_ptr<ValueSource>> advanceList;
     // JSON node id -> this voice's clone (retained from build_graph so
-    // offline capture can resolve display ids; ~node-count shared_ptrs,
-    // the graph outlives them anyway). Empty for mixer-path instruments.
+    // offline capture can resolve display ids and the host can report a
+    // fault by name; ~node-count shared_ptrs, the graph outlives them
+    // anyway). Filled on both loader paths.
     std::unordered_map<std::string, std::shared_ptr<ValueSource>> nodesById;
     // Envelopes in this voice with a wired `trigger` input (spec
     // 2026-09-20-note-onsets-v2 §6), collected at load. Raw pointers:
@@ -215,6 +217,20 @@ struct PitchedInstrument final : Instrument {
   std::shared_ptr<InstrumentState> instrumentState =
       std::make_shared<InstrumentState>();
   std::vector<VoiceGraph> voicePool;
+
+  // Every voice's clones of one file node report as that node, once.
+  void collect_faults(std::vector<FaultReport>& out) override {
+    for (auto& vg : voicePool)
+      for (auto& [id, node] : vg.nodesById) {
+        const unsigned char f = node->faults();
+        if (!f) continue;
+        node->clear_faults();
+        auto it = std::find_if(out.begin(), out.end(),
+                               [&](const FaultReport& r) { return r.nodeId == id; });
+        if (it == out.end()) out.push_back({id, node->type_name(), f});
+        else it->faults |= f;
+      }
+  }
   int nextVoice{0};
 
   // Live-voice slot accounting (legacy SourcePool semantics restored
@@ -765,6 +781,16 @@ struct DrumKit final : Instrument {
   };
 
   std::vector<DrumSource> sources;  // indexed by drum number
+
+  // Drum graphs have no file ids: a drum reports as "drum <number>".
+  void collect_faults(std::vector<FaultReport>& out) override {
+    for (size_t i = 0; i < sources.size(); ++i) {
+      auto& src = sources[i].source;
+      if (!src || !src->faults()) continue;
+      out.push_back({"drum " + std::to_string(i), src->type_name(), src->faults()});
+      src->clear_faults();
+    }
+  }
 
   void prepare(const RenderContext& c) override {
     Instrument::prepare(c);
