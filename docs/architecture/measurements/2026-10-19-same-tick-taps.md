@@ -386,7 +386,18 @@ included; a cone follows both kinds).
   `sweep/onemass_lip1` 7 / 7 / 0; `sweep/stk_blowhole_port` 3 / 0 / 3; `sweep/trombone1` 2 / 2 / 0;
   `sweep/trombone2` 3 / 3 / 0; `sweep/trombone3` 4 / 4 / 0; `sweep/trombone4` 2 / 2 / 0;
   (`sweep/stk_bowed_ext1` 1 / 0 / 1 and `sweep/stk_bowed_ext2` 1 / 0 / 1 are the two above that
-  no longer count). With `compensate` on, the DelayLine shortens its read by one sample for
-  the closing tap; under reading A that sample was not there in these patches (the tap read
-  was same-tick), so those loops ran one sample short of the length the setting computes.
+  no longer count). The `compensate` setting is irrelevant to the change — corrected after
+  the refutation of report R5 (C1): the same-tick read in these families is
+  `NL_curve ← tap(NL_in)` driving `NL_delay.ratio`, a control read (the closing taps on
+  `Bore` are mid-compute, where readings A and B agree); in `pierce1d_1` it is
+  `SignCurve ← tap(Delay_line)` driving `Damp_lpf.cutoffFreq` (the loop walk finds no
+  closing tap through input pins, so `compensate` is inert there); in `stk_blowhole_port`
+  it is `D1In ← tap(D2)`, a signal-path tap between two tail delay lines.
+
+The counter sits at the tap's `compute()` position, not the delivery position: a same-tick
+delivery created by a later pin of the same consumer's sweep (the source computed after the
+tap was pulled but before the post-sweep `current()` read) would count 0. The A/B over the
+same sample is the proof that none exists there. The sample is 1,615 patches (`sweep` and
+`old` every third); on disk the class is 116 patches (101 with `tap(NL_in)`, 6 `pierce1d_1`,
+9 `stk_blowhole_port`; `pierce1d_2`'s four tap `Pierce` mid-compute only and are not in it).
 

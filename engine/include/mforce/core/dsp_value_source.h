@@ -252,10 +252,13 @@ struct TapSource final : ValueSource {
   // voice's tail list when only taps reach it.
   float compute() override { return guard_(source ? source->previous() : 0.0f); }
   // The read that delivers: a consumer reads its pins after its sweep
-  // through current(), so once the tap has served this tick it answers
-  // with the memo. Before it is pulled — a Setup-time read between ticks —
-  // it answers live with the source's present value, which between ticks
-  // is what the coming tick's tap delivers.
+  // through current(), so once the tap has claimed this tick it answers
+  // with the memo; before it is pulled it answers live with the source's
+  // present value. Between ticks (a Setup-time read) the clock holds at the
+  // last rendered tick, so a never-pulled tap answers live — what the coming
+  // tick delivers — while a tap pulled in that tick still answers with its
+  // memo, one sample older; a step() through such a tap reads the same
+  // memo. Part 3's pins own the exact Setup-time read.
   float current() const override {
     return claimed_tick() ? cur_ : guard_(source ? source->current() : 0.0f);
   }

@@ -299,7 +299,7 @@ def flow_nodes(pminus_a, pminus_b, y_pin):
     A node referenced twice is the same object on each pin and computes
     once per tick, at the first pull that reaches it; every later read
     lands on the sample just computed, in whatever order the consumers pull
-    (ordinary edges; a tap still reads positionally).
+    (ordinary edges; a tap reads the previous tick).
     Reading the chain down from Pe:
         Pe -> Xflow -> QWh -> W -> Sroot -> Rad -> Qsq -> Qn -> Lip -> Force
     Gate 0 checks the flow against the closed form and passes to int16

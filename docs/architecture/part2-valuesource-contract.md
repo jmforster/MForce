@@ -122,9 +122,9 @@ Order of work: **the memo lands with A**, so the checkpoint is
 byte-identical by construction; **B follows as its own checkpoint** with
 the affected renders listed, if Matt wants the exact definition.
 
-Decided 2026-10-20: reading B landed as checkpoint 2.4 (`ValueSource::previous()`;
+Decided 2026-10-19: reading B landed as checkpoint 2.4 (`ValueSource::previous()`;
 the two-value memo, moved when the tick is claimed), plan
-`docs/superpowers/plans/2026-10-20-part2-checkpoint-2.4.md`.
+`docs/superpowers/plans/2026-10-19-part2-checkpoint-2.4.md`.
 
 ### The advance list, generalised
 
@@ -557,7 +557,7 @@ independent review and an architecture report with the meter's numbers.
 | 2.1 | The pin registry: five member kinds, descriptors and set/get from the registry, the 109 dead accessors deleted; `Generator`, `Processor`, `WaveSource` under `Generator` | none |
 | 2.2 | `prepare(ctx)` / `start(frames)` split; the rate arrives through `prepare` only; constructors and the factory lose it; `RenderContext` created in one place | none, unless a node that re-draws randomness in `prepare` per note turns out to differ from a reset; any such patch is listed |
 | 2.3 | The per-tick memo, taps reading A; `RefSource`, the usage counter, starved-ref promotion and the UI's wrap mirror deleted; the generalised advance sweep | the wiring-order lag patches, measured beforehand with the instrumented loader, and `double_advance_bug` |
-| 2.4 | Taps reading B | only patches where a tap today reads a same-tick value, measured beforehand; may be none — measured 2026-10-20: 45 (`docs/architecture/measurements/2026-10-20-same-tick-taps.md`), none in library or baselines; 40 differ in the whole-tree A/B |
+| 2.4 | Taps reading B | only patches where a tap today reads a same-tick value, measured beforehand; may be none — measured 2026-10-19: 45 (`docs/architecture/measurements/2026-10-19-same-tick-taps.md`), none in library or baselines; 40 differ in the whole-tree A/B |
 | 2.5 | No throw on a render path; fault flags; `set_pin` failures become load failures | none for valid patches; a zero-frequency patch renders instead of terminating; bad-wire patches fail to load, listed |
 | 2.6 | The allocation test over every baseline patch, wrapping `start` and `next` | none; the test is the new gate |
 

@@ -23,8 +23,10 @@ struct DelayLineSource final : Processor {
   // length by everything else the cycle delays — the closing tap's one
   // sample plus each loop member's phase_delay_at(f0), re-queried per sample so a
   // moving in-loop cutoff stays pitch-neutral. Requires the closing tap to
-  // target THIS node (true of the loop skeletons); parallel feedback paths
-  // sum their reported lags, which is only meaningful for a single path.
+  // target THIS node (true of the loop skeletons) and counts one tap on the
+  // cycle: a second tap on the same cycle is one more sample not subtracted.
+  // Parallel feedback paths sum their reported lags, which is only
+  // meaningful for a single path.
   Setting<bool> compensate{this, "compensate", false, false, true};
 
   const char* type_name() const override { return "DelayLine"; }

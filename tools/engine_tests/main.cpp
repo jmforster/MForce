@@ -197,9 +197,11 @@ static void run_tap_guard_tests() {
 #include "mforce/source/combined_source.h"
 
 static void run_tap_cycle_tests() {
-    // The positional z-1 the whole feedback subsystem rests on: a tap
-    // consumer evaluates before its source each tick, so reading current()
-    // yields last tick's value. Self-referencing counter: out = 1 + tap(out)
+    // The tap edge's one-sample delay with no host clock: every pull computes
+    // and the tap reads its source's present value, which for a tap evaluated
+    // before its source each tick is last tick's value (under a clock the
+    // delay is the rule: run_tap_reading_tests). Self-referencing counter:
+    // out = 1 + tap(out)
     // ramps 1, 2, 3... and the guard ceiling (not inf) catches the runaway.
     auto counter = std::make_shared<CombinedSource>(
         std::make_shared<ConstantSource>(1.0f),
@@ -318,8 +320,8 @@ static void run_phase_delay_tests() {
 static void run_loop_compensation_tests() {
     RenderContext ctx{48000};
     // Bare tap-closed loop: delay <- sum(excite, tap(delay)). The cycle is
-    // len + 1 ticks (the tap's positional z^-1); compensate shortens len so
-    // the cycle lands exactly on sr/f.
+    // len + 1 ticks (the closing tap's one sample); compensate shortens len
+    // so the cycle lands exactly on sr/f.
     auto run_bare = [&](bool comp) {
         auto dl = std::make_shared<DelayLineSource>();
         dl->set_param("frequency", std::make_shared<ConstantSource>(480.0f));
@@ -2295,6 +2297,24 @@ static void run_tap_reading_tests() {
     CHECK_NEAR(tap->step(), 4.0f, 1e-6f);
     h.clock.tick(); h.clock.tick();           // a source not pulled this tick: its last value
     CHECK_NEAR(tap->next(), 5.0f, 1e-6f);
+    // Between ticks (a Setup-time read) the clock holds at the last rendered
+    // tick: a tap pulled in that tick still answers with its memo — one sample
+    // older than what the coming tick delivers — and a Setup-time step()
+    // through it reads the same memo. A stated limit, not a goal.
+    h.clock.tick();
+    CHECK_NEAR(c->next(), 6.0f, 1e-6f);
+    CHECK_NEAR(tap->next(), 5.0f, 1e-6f);     // pulled this tick
+    CHECK_NEAR(tap->current(), 5.0f, 1e-6f);  // "between ticks" now: the memo, though the coming tick delivers 6
+    CHECK_NEAR(tap->step(), 5.0f, 1e-6f);     // a Setup-time step() through the pulled tap: the same memo
+    // Inside a fill, a tap stepped before its source reads two steps late: the
+    // source re-claims the same tick, so previous() cannot tell a fresh step
+    // from an earlier one. A stated limit of step().
+    h.clock.tick();
+    CHECK_NEAR(tap->step(), 6.0f, 1e-6f);     // draw 1: the source has not claimed this tick — its last value
+    CHECK_NEAR(c->step(), 7.0f, 1e-6f);
+    CHECK_NEAR(tap->step(), 6.0f, 1e-6f);     // draw 2: the value before the source's latest step, not the latest
+    CHECK_NEAR(c->step(), 8.0f, 1e-6f);
+    CHECK_NEAR(tap->step(), 7.0f, 1e-6f);     // draw 3: 7, not 8
     // The cycle skeleton under a clock: out = 1 + tap(out) counts 1, 2, 3 — the
     // tap reads its source mid-compute, and readings A and B agree there.
     auto counter = std::make_shared<CombinedSource>(std::make_shared<ConstantSource>(1.0f),

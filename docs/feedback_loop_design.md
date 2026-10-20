@@ -10,10 +10,10 @@ tap-only tails instead of hosting an advance list; topo_sort excludes
 tap edges from save ordering. Reference patches verified: selfosc
 blooms 0→limit-cycle in ~70 ms from a 0.001 noise seed; bowed
 sustains under drive and collapses on release.
-2026-10-20 (refactor checkpoint 2.4): the z⁻¹ is a rule, not a position —
+2026-10-19 (refactor checkpoint 2.4): the z⁻¹ is a rule, not a position —
 a tap reads the value its source held at the end of the previous tick
 (`ValueSource::previous()`) wherever it sits; §2's "positional" paragraph
-describes the 2026-08-31..2026-10-20 behaviour.
+describes the 2026-08-31..2026-10-19 behaviour.
 Lineage: KS-bow thread (backlog 34/34a), shape editor
 (docs/shape_editor_design.md), breath/tone coupling principle.
 
