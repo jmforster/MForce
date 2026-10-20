@@ -2259,6 +2259,63 @@ static void run_previous_tests() {
     CHECK_NEAR(bare->previous(), 2.0f, 1e-6f);
 }
 
+static void run_tap_reading_tests() {
+    TestHost h;
+    // What a consumer gets. A node reads its pins after its sweep through
+    // current(), so the tap's current() is the delivery: sum = c + tap(c),
+    // with c computed first in the tick, reads c's previous value through the
+    // tap — 1 + 0, 2 + 1, 3 + 2 (reading A gave 2, 4, 6).
+    auto c = std::make_shared<Counter>();
+    auto tap = std::make_shared<TapSource>(c);
+    auto sum = std::make_shared<CombinedSource>(c, tap, CombineOp::Sum, 0.0f);
+    sum->prepare(h.ctx); sum->start(16);
+    h.clock.tick(); CHECK_NEAR(sum->next(), 1.0f, 1e-6f);
+    h.clock.tick(); CHECK_NEAR(sum->next(), 3.0f, 1e-6f);
+    h.clock.tick(); CHECK_NEAR(sum->next(), 5.0f, 1e-6f);
+    // The tap alone, read position by read position.
+    c = std::make_shared<Counter>();
+    tap = std::make_shared<TapSource>(c);
+    c->prepare(h.ctx); c->start(16); tap->prepare(h.ctx); tap->start(16);
+    h.clock.tick();
+    CHECK_NEAR(c->next(), 1.0f, 1e-6f);       // the source computes first this tick
+    CHECK_NEAR(tap->next(), 0.0f, 1e-6f);     // the tap is one sample late anyway (reading A gave 1)
+    h.clock.tick();
+    CHECK_NEAR(tap->next(), 1.0f, 1e-6f);     // the tap first: the source has not claimed this tick
+    CHECK_NEAR(c->next(), 2.0f, 1e-6f);
+    CHECK_NEAR(tap->next(), 1.0f, 1e-6f);     // the tap's own memo: pulled again this tick, the same value
+    CHECK_NEAR(tap->current(), 1.0f, 1e-6f);  // pulled this tick: current() is the memo, what a consumer reads after its sweep
+    h.clock.tick();
+    CHECK_NEAR(c->next(), 3.0f, 1e-6f);
+    CHECK_NEAR(tap->current(), 3.0f, 1e-6f);  // not pulled this tick: live — between ticks, the value the next tick's tap delivers
+    CHECK_NEAR(tap->next(), 2.0f, 1e-6f);
+    CHECK_NEAR(tap->current(), 2.0f, 1e-6f);  // and the memo again once pulled
+    h.clock.tick();                           // inside a fill: one step late
+    CHECK_NEAR(c->step(), 4.0f, 1e-6f);
+    CHECK_NEAR(c->step(), 5.0f, 1e-6f);
+    CHECK_NEAR(tap->step(), 4.0f, 1e-6f);
+    h.clock.tick(); h.clock.tick();           // a source not pulled this tick: its last value
+    CHECK_NEAR(tap->next(), 5.0f, 1e-6f);
+    // The cycle skeleton under a clock: out = 1 + tap(out) counts 1, 2, 3 — the
+    // tap reads its source mid-compute, and readings A and B agree there.
+    auto counter = std::make_shared<CombinedSource>(std::make_shared<ConstantSource>(1.0f),
+                                                    std::make_shared<ConstantSource>(0.0f),
+                                                    CombineOp::Sum, 0.0f);
+    auto self = std::make_shared<TapSource>(counter);
+    counter->prepare(h.ctx); counter->start(16);
+    counter->set_param("source2", self);      // after the host calls, which walk the pins
+    self->prepare(h.ctx); self->start(16);
+    h.clock.tick(); CHECK_NEAR(counter->next(), 1.0f, 1e-6f);
+    h.clock.tick(); CHECK_NEAR(counter->next(), 2.0f, 1e-6f);
+    h.clock.tick(); CHECK_NEAR(counter->next(), 3.0f, 1e-6f);
+    counter->clear_param("source2");          // break the ownership cycle
+    auto bare = std::make_shared<Counter>();  // no clock: positional, as every pull computes
+    auto bareTap = std::make_shared<TapSource>(bare);
+    bare->prepare(RenderContext{48000}); bare->start(16);
+    bareTap->prepare(RenderContext{48000}); bareTap->start(16);
+    bare->next();
+    CHECK_NEAR(bareTap->next(), 1.0f, 1e-6f);
+}
+
 #include "mforce/core/envelope_presets.h"
 
 // The sweep follows every door that changes a pin's source: a source wired
@@ -2312,11 +2369,11 @@ static void run_tap_reads_live_tests() {
     CHECK_NEAR(tap->current(), 1.0f, 1e-6f);  // never pulled, reads live
     h.clock.tick(); c->next();
     CHECK_NEAR(tap->current(), 2.0f, 1e-6f);
-    CHECK_NEAR(tap->next(), 2.0f, 1e-6f);     // pulled: this tick's read of the memo
+    CHECK_NEAR(tap->next(), 1.0f, 1e-6f);     // pulled: the previous tick's value (the source computed this tick already)
     h.clock.tick();
-    CHECK_NEAR(tap->next(), 2.0f, 1e-6f);     // the source not yet computed this tick: last tick's value (reading A)
+    CHECK_NEAR(tap->next(), 2.0f, 1e-6f);     // the source not yet computed this tick: its value is still last tick's
     c->next();
-    CHECK_NEAR(tap->current(), 3.0f, 1e-6f);  // live again
+    CHECK_NEAR(tap->current(), 2.0f, 1e-6f);  // pulled this tick: the memo, not live — what a consumer reads after its sweep
 }
 
 // A source wired to two pins is the same object on both pins: no wrapper, no
@@ -5862,6 +5919,7 @@ int main() {
     run_combine_mod_tests();
     run_memo_tests();
     run_previous_tests();
+    run_tap_reading_tests();
     run_shared_source_tests();
     run_sweep_follows_wiring_tests();
     run_tap_reads_live_tests();

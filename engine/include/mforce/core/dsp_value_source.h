@@ -102,7 +102,7 @@ struct ValueSource : Component {
   // stateless view's live current() has no previous value but the one it
   // computed last tick.
   float previous() const {
-    return ctx_.clock && lastTick_ == ctx_.clock->now ? prev_ : cur_;
+    return claimed_tick() ? prev_ : cur_;
   }
 
   // False when this node reads its `frequency` pin ONCE at note start and
@@ -132,6 +132,12 @@ struct ValueSource : Component {
 protected:
   // A node reads its rate here and keeps no copy of its own.
   int sample_rate() const { return ctx_.sampleRate; }
+
+  // True once this node has claimed the host's current tick (it is
+  // computing, or has computed, this tick); false with no host clock. For a
+  // node whose live read must say something different between ticks and
+  // within one (TapSource).
+  bool claimed_tick() const { return ctx_.clock && lastTick_ == ctx_.clock->now; }
 
   // The host's facts as prepare(ctx) left them, for the node's own use: a
   // setter that rebuilds rate-derived state asks prepared() first, and a
@@ -229,11 +235,12 @@ inline std::shared_ptr<ConstantSource> ensure_constant(ValueSource& node, std::s
 
 // The tap edge (feedback_loop_design.md): a guarded read of another node's
 // memo, never a pull. The source is advanced by its own consumers (or by the
-// voice's advance list when only taps reach it), so a tap can close a
-// feedback cycle that a pull could not. The z-1 a tap provides is positional:
-// a tap evaluated before its source in a tick reads the source's previous
-// value. Reads are armored, non-finite scrubbed to 0 and clamped to +-8, so a
-// runaway loop saturates audibly instead of poisoning the graph.
+// voice's tail list when only taps reach it), so a tap can close a feedback
+// cycle that a pull could not. A tap is one sample late by rule: it reads
+// the value its source held at the end of the previous tick, wherever the
+// tap sits in the pull. Reads are armored, non-finite scrubbed to 0 and
+// clamped to +-8, so a runaway loop saturates audibly instead of poisoning
+// the graph.
 struct TapSource final : ValueSource {
   std::shared_ptr<ValueSource> source;
 
@@ -243,10 +250,15 @@ struct TapSource final : ValueSource {
   // No pins and no hooks: prepare and start reach nothing here. The source
   // is prepared and started by whatever pulls it — its consumers, or the
   // voice's tail list when only taps reach it.
-  float compute() override { return guard_(source ? source->current() : 0.0f); }
-  // The same read, live: a Setup-time read between ticks sees the source's
-  // present value, not the memo of the tick before.
-  float current() const override { return guard_(source ? source->current() : 0.0f); }
+  float compute() override { return guard_(source ? source->previous() : 0.0f); }
+  // The read that delivers: a consumer reads its pins after its sweep
+  // through current(), so once the tap has served this tick it answers
+  // with the memo. Before it is pulled — a Setup-time read between ticks —
+  // it answers live with the source's present value, which between ticks
+  // is what the coming tick's tap delivers.
+  float current() const override {
+    return claimed_tick() ? cur_ : guard_(source ? source->current() : 0.0f);
+  }
 
   const char* type_name() const override { return "Tap"; }
 

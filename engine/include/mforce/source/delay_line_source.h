@@ -20,8 +20,8 @@ struct DelayLineSource final : Processor {
 
   // compensate (off by default, so existing loops are byte-identical): keep
   // the tap-closed loop through this delay ON pitch by shortening the read
-  // length by everything else the cycle delays — the tap's positional z^-1
-  // plus each loop member's phase_delay_at(f0), re-queried per sample so a
+  // length by everything else the cycle delays — the closing tap's one
+  // sample plus each loop member's phase_delay_at(f0), re-queried per sample so a
   // moving in-loop cutoff stays pitch-neutral. Requires the closing tap to
   // target THIS node (true of the loop skeletons); parallel feedback paths
   // sum their reported lags, which is only meaningful for a single path.
@@ -66,7 +66,7 @@ struct DelayLineSource final : Processor {
     const float f = std::max(frequency.current(), 20.0f);
     float comp = 0.0f;
     if (cycleFound_) {
-      comp = 1.0f;  // the closing tap's positional z^-1
+      comp = 1.0f;  // the closing tap: one sample, by rule
       for (int i = 0; i < nMembers_; ++i) comp += members_[i]->phase_delay_at(f);
     }
     const float len = std::clamp(float(sample_rate()) / f * ratio.current() - comp,
