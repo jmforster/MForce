@@ -33,14 +33,16 @@ struct MultiSource final : ValueSource {
   }
 
   // Wiring `source` appends (add_param routes here through the base).
-  void set_param(std::string_view name, std::shared_ptr<ValueSource> src) override {
-    if (name == "source") add(std::move(src));
-    else ValueSource::set_param(name, std::move(src));
+  bool set_param(std::string_view name, std::shared_ptr<ValueSource> src) override {
+    if (name != "source") return ValueSource::set_param(name, std::move(src));
+    add(std::move(src));
+    return true;
   }
 
-  void clear_param(std::string_view name) override {
-    if (name == "source") entries.clear();
-    else ValueSource::clear_param(name);
+  bool clear_param(std::string_view name) override {
+    if (name != "source") return ValueSource::clear_param(name);
+    entries.clear();
+    return true;
   }
 
   void add(std::shared_ptr<ValueSource> src, float weight = 1.0f, int delay = 0) {

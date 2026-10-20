@@ -48,16 +48,20 @@ struct FullAdditiveSource final : WaveSource {
 
   // Wiring `formant` or `partials` takes the part's interface; a source that
   // does not implement it is ignored.
-  void set_param(std::string_view name, std::shared_ptr<ValueSource> src) override {
+  bool set_param(std::string_view name, std::shared_ptr<ValueSource> src) override {
     if (name == "formant") {
-      if (auto f = std::dynamic_pointer_cast<IFormant>(src)) { formant_ = std::move(f); formant.set(std::move(src)); }
-      return;
+      auto f = std::dynamic_pointer_cast<IFormant>(src);
+      if (!f) return false;                     // the wrong kind for the slot
+      formant_ = std::move(f); formant.set(std::move(src));
+      return true;
     }
     if (name == "partials") {
-      if (auto p = std::dynamic_pointer_cast<IPartials>(src)) { partials_ = std::move(p); partials.set(std::move(src)); }
-      return;
+      auto p = std::dynamic_pointer_cast<IPartials>(src);
+      if (!p) return false;
+      partials_ = std::move(p); partials.set(std::move(src));
+      return true;
     }
-    WaveSource::set_param(name, std::move(src));
+    return WaveSource::set_param(name, std::move(src));
   }
 
   void on_prepare(const RenderContext& ctx) override;

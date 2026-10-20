@@ -27,23 +27,25 @@ struct Component {
   virtual std::span<const SettingDescriptor> setting_descriptors() const { return settingDescs_; }
   virtual std::span<const ArrayDescriptor> array_descriptors() const { return arrayDescs_; }
 
-  // Unknown names are ignored for now; a rejected wire fails the load from
-  // checkpoint 2.5 on.
-  virtual void set_param(std::string_view name, std::shared_ptr<ValueSource> src) {
-    if (auto* p = find<Param>(name)) { p->set(std::move(src)); return; }
-    if (auto* i = find<Input>(name)) i->set(std::move(src));
+  // False when the node has no Param or Input of that name, or (in an
+  // override) the part is of the wrong kind for the slot. The builder turns
+  // false into a load failure; nothing is ignored.
+  virtual bool set_param(std::string_view name, std::shared_ptr<ValueSource> src) {
+    if (auto* p = find<Param>(name)) { p->set(std::move(src)); return true; }
+    if (auto* i = find<Input>(name)) { i->set(std::move(src)); return true; }
+    return false;
   }
   virtual std::shared_ptr<ValueSource> get_param(std::string_view name) const {
     if (auto* p = find<Param>(name)) return p->get();
     if (auto* i = find<Input>(name)) return i->get();
     return nullptr;
   }
-  virtual void add_param(std::string_view name, std::shared_ptr<ValueSource> src) {
-    set_param(name, std::move(src));
+  virtual bool add_param(std::string_view name, std::shared_ptr<ValueSource> src) {
+    return set_param(name, std::move(src));
   }
   // The Param pin of that name, or nullptr when the node has none.
   Param* param(std::string_view name) { return find<Param>(name); }
-  virtual void clear_param(std::string_view name) { set_param(name, nullptr); }
+  virtual bool clear_param(std::string_view name) { return set_param(name, nullptr); }
 
   virtual void set_setting(std::string_view name, float v) {
     if (auto* s = find<SettingBase>(name)) { s->set_from_float(v); on_setting_changed(name); }

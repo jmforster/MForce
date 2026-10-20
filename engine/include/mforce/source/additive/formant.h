@@ -232,22 +232,26 @@ struct FormantSequence final : ValueSource, IFormant {
     return descs;
   }
 
-  void set_param(std::string_view name, std::shared_ptr<ValueSource> src) override {
-    if (name != "spectra") { ValueSource::set_param(name, std::move(src)); return; }
+  bool set_param(std::string_view name, std::shared_ptr<ValueSource> src) override {
+    if (name != "spectra") return ValueSource::set_param(name, std::move(src));
     // Single-set: replace all with one (used by generic wiring path)
     auto fmt = std::dynamic_pointer_cast<IFormant>(src);
-    if (fmt) { formants.clear(); formants.push_back(std::move(fmt)); }
+    if (!fmt) return false;                     // the wrong kind for the slot
+    formants.clear(); formants.push_back(std::move(fmt));
+    return true;
   }
 
-  void add_param(std::string_view name, std::shared_ptr<ValueSource> src) override {
-    if (name != "spectra") { ValueSource::add_param(name, std::move(src)); return; }
+  bool add_param(std::string_view name, std::shared_ptr<ValueSource> src) override {
+    if (name != "spectra") return ValueSource::add_param(name, std::move(src));
     auto fmt = std::dynamic_pointer_cast<IFormant>(src);
-    if (fmt) formants.push_back(std::move(fmt));
+    if (!fmt) return false;
+    formants.push_back(std::move(fmt));
+    return true;
   }
 
-  void clear_param(std::string_view name) override {
-    if (name == "spectra") formants.clear();
-    else ValueSource::clear_param(name);
+  bool clear_param(std::string_view name) override {
+    if (name == "spectra") { formants.clear(); return true; }
+    return ValueSource::clear_param(name);
   }
 
   void on_prepare(const RenderContext& ctx) override { fmt_prepare(ctx); }

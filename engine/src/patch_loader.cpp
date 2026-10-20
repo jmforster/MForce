@@ -211,8 +211,79 @@ struct GraphResult {
 };
 
 // Wire all connectable params generically via param_descriptors + input_descriptors + set_param.
+// A wire the node will not take: a pin it does not have, or a part of the
+// wrong kind for a slot. The builder knows the id; the node knows the pin.
+[[noreturn]] static void reject_wire(const ValueSource& node, const std::string& id,
+                                     std::string_view pin, const ValueSource& part)
+{
+    throw std::runtime_error("node '" + id + "' (" + node.type_name() + "): '"
+                             + std::string(pin) + "' does not accept a " + part.type_name());
+}
+
+// Every key of a node's params is one the engine reads: a descriptor of
+// the node, or one of the keys the hand-written branches and configurators
+// consume (the allowlist below, grown until the whole gate corpus loads
+// clean). Any other key fails the load: a typo, or a patch newer than the
+// engine, must not render silently downgraded. Runs once per node after
+// whichever path built it.
+static void reject_unknown_keys(const ValueSource& src, const std::string& id,
+                                const json& params)
+{
+    // Every key a hand-written branch or a configurator reads, anywhere in
+    // the loader sources, plus the node/JSON structure keys: the union of
+    // the list the unknown-key warning grew against the gate corpus and the
+    // set tools/lint_patches.py scrapes from the sources. Global, not per
+    // type, like the lint's: a spurious entry can only hide a rejection,
+    // never invent one. The structure meter's tests fail when the scrape
+    // gains a key this list lacks.
+    static const std::unordered_set<std::string> kStructural = {
+        "a", "absolute", "amplEnvelopes", "amplitudes", "articulation",
+        "attack", "attackCurve", "attackMax", "attackMin", "attackPower",
+        "autoAdjust", "b", "baseValue", "bias", "channels", "count", "curve",
+        "cutoff", "decay", "decayFactor", "decayMax", "decayMin", "delay",
+        "dt1", "dt2", "durVarPct", "duration", "dynamicPins", "endAmplitudes",
+        "endPartials", "endVal", "envelope", "evolution", "evolutionSeed",
+        "expandRule", "exprKnots", "field", "filter", "form", "formants",
+        "frames", "freqEnvelopes", "frequency", "from", "gain", "gainAdj",
+        "gains", "gap", "gapVarPct", "glideMs", "graph", "hold", "holdCycles",
+        "id", "inputs", "instrument", "interp", "interpolate", "knots",
+        "leading", "loPct1", "loPct2", "max", "maxSec", "min", "minSec",
+        "mode", "morph", "morphRate", "muting", "name", "nodes", "nominal",
+        "normalized", "note", "oneShot", "onset", "onsets", "operation",
+        "ornament", "output", "overlap", "paramMap", "partialCount",
+        "partialMode", "partials", "percent", "po1", "po2", "polyphony",
+        "power", "power1", "power2", "powers", "powers2", "preset",
+        "ramp_accuracy", "ratio", "recurse", "ref", "release", "releaseCurve",
+        "releaseMax", "releaseMin", "releasePower", "sampleCount",
+        "sampleRate", "score", "seconds", "sections", "seed", "segs", "segs2",
+        "source", "spacing1", "spacing2", "spectra", "speed",
+        "stage_accuracy", "stages", "startAmplitudes", "startPartials",
+        "startVal", "sustain", "sustainLevel", "sustaining", "tap", "target",
+        "targetLength", "targetPartials", "targetWave", "time", "timeMode",
+        "to", "type", "values", "values2", "varPct", "vcurve", "velocity",
+        "volume", "weight", "x",
+    };
+    auto known = [&](const std::string& k) {
+        if (kStructural.count(k)) return true;
+        for (const auto& d : src.input_descriptors())
+            if (k == d.name) return true;
+        for (const auto& d : src.param_descriptors())
+            if (k == d.name) return true;
+        for (const auto& d : src.setting_descriptors())
+            if (k == d.name) return true;
+        for (const auto& d : src.array_descriptors())
+            if (k == d.name) return true;
+        return false;
+    };
+    for (auto it = params.begin(); it != params.end(); ++it)
+        if (!known(it.key()))
+            throw std::runtime_error("node '" + id + "' (" + src.type_name()
+                                     + "): unknown key '" + it.key() + "'");
+}
+
 static void wire_params_generic(
     ValueSource& src,
+    const std::string& id,
     const json& params,
     const std::unordered_map<std::string, std::shared_ptr<ValueSource>>& valueNodes)
 {
@@ -232,16 +303,20 @@ static void wire_params_generic(
         if (desc.multi && v.is_array()) {
             // Multi-input pin with array-of-refs JSON. Iterate and add each.
             src.clear_param(desc.name);
-            for (const auto& item : v)
-                src.add_param(desc.name, resolve_param(item, valueNodes));
+            for (const auto& item : v) {
+                auto part = resolve_param(item, valueNodes);
+                if (!src.add_param(desc.name, part)) reject_wire(src, id, desc.name, *part);
+            }
         } else {
-            src.set_param(desc.name, resolve_param(v, valueNodes));
+            auto part = resolve_param(v, valueNodes);
+            if (!src.set_param(desc.name, part)) reject_wire(src, id, desc.name, *part);
         }
     }
     for (const auto& desc : src.param_descriptors()) {
         if (!params.contains(desc.name)) continue;
         if (skip_unresolvable(params.at(desc.name))) continue;
-        src.set_param(desc.name, resolve_param(params.at(desc.name), valueNodes));
+        auto part = resolve_param(params.at(desc.name), valueNodes);
+        if (!src.set_param(desc.name, part)) reject_wire(src, id, desc.name, *part);
     }
     // Scalar settings (int/float/bool) — apply if present in JSON.
     for (const auto& desc : src.setting_descriptors()) {
@@ -363,59 +438,6 @@ static void wire_params_generic(
         }
     }
 
-    // Unknown-key warning (backlog 67): an OLD binary loading a NEWER
-    // patch silently ignores keys it has no descriptor for and plays a
-    // silently downgraded patch. One stderr line per unknown key turns
-    // that mystery into a log line. The allowlist below covers keys the
-    // hand-written branches consume outside the descriptor loops —
-    // grown empirically until the whole gate corpus loads warning-free,
-    // so a warning means a genuinely unrecognized key.
-    {
-        static const std::unordered_set<std::string> kStructural = {
-            // node/JSON structure
-            "type", "id", "seed", "dynamicPins",
-            // NameGate's onset-name string (loader special case)
-            "name",
-            // envelope preset + stage vocabulary (envelope_from_preset_json)
-            "preset", "stages", "attack", "decay", "release", "sustain",
-            "sustainLevel", "attackCurve", "attackPower", "releaseCurve",
-            "releasePower", "curve", "power",
-            // hand-written branch keys
-            "evolution", "expandRule", "spectra", "formants", "partials",
-            "values2", "segs", "segs2", "powers", "powers2",
-            // corpus-verified branch/configurator keys (2026-09-15 scan:
-            // every one is consumed by a special case; none were dead)
-            "interp", "knots", "exprKnots", "mode", "timeMode",
-            "attackMin", "attackMax", "decayMin", "decayMax",
-            "releaseMin", "releaseMax", "evolutionSeed", "muting",
-            "autoAdjust", "interpolate", "amplEnvelopes", "freqEnvelopes",
-            "partialMode", "targetPartials", "cutoff", "sections",
-            "overlap", "gap",
-        };
-        auto known = [&](const std::string& k) {
-            if (kStructural.count(k)) return true;
-            for (const auto& d : src.input_descriptors())
-                if (k == d.name) return true;
-            for (const auto& d : src.param_descriptors())
-                if (k == d.name) return true;
-            for (const auto& d : src.setting_descriptors())
-                if (k == d.name) return true;
-            for (const auto& d : src.array_descriptors())
-                if (k == d.name) return true;
-            return false;
-        };
-        // One line per (type, key) per process — voice pre-cloning would
-        // otherwise repeat every warning once per voice.
-        static std::unordered_set<std::string> warned;
-        for (auto it = params.begin(); it != params.end(); ++it)
-            if (!known(it.key()) &&
-                warned.insert(std::string(src.type_name()) + "."
-                              + it.key()).second)
-                std::fprintf(stderr,
-                    "[load] %s: unknown param '%s' — engine older than "
-                    "patch, or a typo? (value ignored)\n",
-                    src.type_name(), it.key().c_str());
-    }
 }
 
 // Register MonoSource wrapper (WaveSource → WaveSourceMono, else ValueSourceMono).
@@ -578,7 +600,7 @@ static GraphResult build_graph(
             // Envelope — proved by A/B, maxValue 0.25 rendered byte-identical
             // to the control. Registry-path envelope types (ADSREnvelope…)
             // were always wired. Null when absent → identity, unchanged.
-            wire_params_generic(*valueNodes[id], p, valueNodes);
+            wire_params_generic(*valueNodes[id], id, p, valueNodes);
         }
         else if (type == "CurveNode") {
             auto cn = std::make_shared<CurveNode>();
@@ -618,7 +640,7 @@ static GraphResult build_graph(
             // build_bindings, which calls set_param("source", …) directly —
             // no patch had ever loaded one from JSON, so the 196-patch gate
             // could not see it.
-            if (pp) wire_params_generic(*cn, *pp, valueNodes);
+            if (pp) wire_params_generic(*cn, id, *pp, valueNodes);
             valueNodes[id] = cn;
         }
         else if (type == "PerformNode") {
@@ -662,7 +684,7 @@ static GraphResult build_graph(
                             id.c_str(), ng->name.c_str());
                 }
             }
-            if (pp) wire_params_generic(*ng, *pp, valueNodes);
+            if (pp) wire_params_generic(*ng, id, *pp, valueNodes);
             valueNodes[id] = ng;
         }
         else if (type == "SegmentSource") {
@@ -674,7 +696,7 @@ static GraphResult build_graph(
             }
             auto src = std::make_shared<SegmentSource>(
                 std::move(values), oneShot, seed.value_or(0x5E6A'0000u));
-            if (pp) wire_params_generic(*src, *pp, valueNodes);
+            if (pp) wire_params_generic(*src, id, *pp, valueNodes);
             valueNodes[id] = src;
             add_mono(g, id, src);
         }
@@ -686,7 +708,7 @@ static GraphResult build_graph(
                      {"speed", 5.0f}, {"depth", 0.02f}, {"attack", 0.3f}, {"threshold", 0.0f},
                      {"speedVar", 0.0f}, {"depthVar", 0.0f}, {"zeroCrossTendency", 1.0f}})
                 vib->set_setting(key, p.value(key, dflt));
-            wire_params_generic(*vib, p, valueNodes);
+            wire_params_generic(*vib, id, p, valueNodes);
             valueNodes[id] = vib;
         }
         else if (type == "BWLowpassFilter" || type == "BWHighpassFilter" || type == "BWBandpassFilter") {
@@ -699,10 +721,13 @@ static GraphResult build_graph(
             else
                 src = std::make_shared<BWBandpassFilter>(sections);
             if (pp) {
-                wire_params_generic(*src, *pp, valueNodes);
+                wire_params_generic(*src, id, *pp, valueNodes);
                 // JSON uses "cutoff" alias for single-band filters
                 if (pp->contains("cutoff"))
-                    src->set_param("cutoffFreq", resolve_param(pp->at("cutoff"), valueNodes));
+                {
+                    auto part = resolve_param(pp->at("cutoff"), valueNodes);
+                    if (!src->set_param("cutoffFreq", part)) reject_wire(*src, id, "cutoffFreq", *part);
+                }
             }
             valueNodes[id] = src;
             add_mono(g, id, src);
@@ -737,7 +762,7 @@ static GraphResult build_graph(
                         fseq->formants.push_back(it->second);
                     }
                 }
-                wire_params_generic(*fseq, *pp, valueNodes);
+                wire_params_generic(*fseq, id, *pp, valueNodes);
             }
             formantNodes[id] = fseq; valueNodes[id] = fseq;
         }
@@ -746,7 +771,7 @@ static GraphResult build_graph(
             auto as2 = std::make_shared<AdditiveSource2>(seed.value_or(0xADD3'0000u));
             if (pp) {
                 const auto& p = *pp;
-                wire_params_generic(*as2, p, valueNodes);
+                wire_params_generic(*as2, id, p, valueNodes);
                 std::string pMode = p.value("partialMode", std::string("default"));
                 if (pMode == "default") {
                     as2->set_default_partials(p.value("partialCount", 500));
@@ -789,7 +814,7 @@ static GraphResult build_graph(
             auto wt = std::make_shared<WavetableSource>(seed.value_or(0xC0FFEEu));
             if (pp) {
                 const auto& p = *pp;
-                wire_params_generic(*wt, p, valueNodes);
+                wire_params_generic(*wt, id, p, valueNodes);
                 // Legacy patches have evolution as a string ("pluck", "averaging", "target").
                 // New UI patches wire evolution as a ref (handled by wire_params_generic above).
                 std::string evoType = "none";
@@ -835,7 +860,7 @@ static GraphResult build_graph(
             auto hks = std::make_shared<HybridKSSource>(seed.value_or(0xBEEF'C0DEu));
             if (pp) {
                 const auto& p = *pp;
-                wire_params_generic(*hks, p, valueNodes);
+                wire_params_generic(*hks, id, p, valueNodes);
                 if (p.contains("targetPartials"))
                     hks->set_target_partials(p["targetPartials"].get<std::vector<float>>());
             }
@@ -847,7 +872,7 @@ static GraphResult build_graph(
             auto mux = std::make_shared<MultiplexSource>();
             if (pp) {
                 // Apply "count" setting via generic path.
-                wire_params_generic(*mux, *pp, valueNodes);
+                wire_params_generic(*mux, id, *pp, valueNodes);
 
                 // Resolve the "source" input to its template root node id.
                 if (pp->contains("source") && (*pp)["source"].is_object()
@@ -899,7 +924,7 @@ static GraphResult build_graph(
         else if (reg.has(type)) {
             auto src = reg.create(type, seed);
             if (pp) {
-                wire_params_generic(*src, *pp, valueNodes);
+                wire_params_generic(*src, id, *pp, valueNodes);
                 auto* configurator = reg.get_configurator(type);
                 if (configurator) (*configurator)(*src, *pp, resolveFn);
             }
@@ -912,6 +937,9 @@ static GraphResult build_graph(
             throw std::runtime_error("Unknown node type: " + type);
         }
 
+        // Whichever path built the node, every key it was given is one the
+        // engine read; an unknown key fails the load.
+        if (pp && valueNodes.count(id)) reject_unknown_keys(*valueNodes[id], id, *pp);
     } // end for each node
 
     // Pass 2: bind tap targets (feedback_loop_design.md §3.2).
@@ -1118,7 +1146,9 @@ static void build_bindings(const json& paramMapJson, const GraphResult& g,
                 // rooted at it follows the bend (curve-fed ones included,
                 // which the retired graft deliberately skipped — the P3
                 // re-listen item).
-                nodeIt->second->set_param(paramName, chain);
+                if (!nodeIt->second->set_param(paramName, chain))
+                    throw std::runtime_error("paramMap: node '" + nodeId + "' ("
+                                             + nodeIt->second->type_name() + ") has no pin '" + paramName + "'");
             }
             return;
         }

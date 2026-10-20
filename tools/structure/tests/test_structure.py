@@ -126,6 +126,20 @@ class RulesAndReportTests(unittest.TestCase):
 class KnownAnswerTests(unittest.TestCase):
     """Spec 2026-10-04 §3.12: the meter must report what the audit measured."""
 
+    def test_loader_allowlist_covers_the_lint_scrape(self):
+        # The loader rejects a node key it does not know; what it knows is the
+        # union of its own list and every key tools/lint_patches.py scrapes
+        # from the hand-written loader code. The two drift apart silently
+        # unless something says so: this does.
+        import re, sys
+        sys.path.insert(0, str(ROOT / "tools"))
+        import lint_patches
+        src = (ROOT / "engine/src/patch_loader.cpp").read_text(encoding="utf-8")
+        a = src.index("kStructural = {"); b = src.index("};", a)
+        allow = set(re.findall(r'"([^"]+)"', src[a:b]))
+        missing = sorted(set(lint_patches.scrape_special_keys()) - allow)
+        self.assertEqual(missing, [], "keys the loader reads but its allowlist lacks")
+
     def test_ui_main_function_lengths(self):
         # The live file is the fixture, so these move with every edit inside
         # the two functions (the headless harness, which ticks its clock once

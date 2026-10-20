@@ -1079,15 +1079,18 @@ struct CompositePartials final : ValueSource, IPartials {
     return descs;
   }
 
-  void set_param(std::string_view name, std::shared_ptr<ValueSource> src) override {
-    if (name != "partials") { ValueSource::set_param(name, std::move(src)); return; }
+  bool set_param(std::string_view name, std::shared_ptr<ValueSource> src) override {
+    if (name != "partials") return ValueSource::set_param(name, std::move(src));
     auto* p = dynamic_cast<IPartials*>(src.get());
-    if (p) sets_.push_back({std::move(src), p});
+    if (!p) return false;                       // the wrong kind for the slot
+    sets_.push_back({std::move(src), p});
+    return true;
   }
 
-  void clear_param(std::string_view name) override {
-    if (name == "partials") sets_.clear();
-    else ValueSource::clear_param(name);
+  bool clear_param(std::string_view name) override {
+    if (name != "partials") return ValueSource::clear_param(name);
+    sets_.clear();
+    return true;
   }
 
   // --- ValueSource interface (not an audio source itself) ---

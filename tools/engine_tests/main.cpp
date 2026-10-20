@@ -5995,6 +5995,36 @@ static void run_fault_tests() {
     CHECK(faults.empty());                             // cleared as read
 }
 
+// Checkpoint 2.5: a rejected wire says so. set_param answers false for a pin
+// the node does not have or a part of the wrong kind; the loader turns that,
+// and an unknown key, into a load failure naming node, pin and reason.
+static void run_wire_rejection_tests() {
+    auto osc = std::make_shared<SineSource>();
+    CHECK(osc->set_param("frequency", std::make_shared<ConstantSource>(1.0f)));
+    CHECK(!osc->set_param("freq", std::make_shared<ConstantSource>(1.0f)));         // no such pin
+    auto add = std::make_shared<FullAdditiveSource>();                              // registry name "AdditiveSource"
+    CHECK(!add->set_param("partials", std::make_shared<SineSource>()));              // wrong kind for the slot
+    CHECK(add->set_param("partials", std::make_shared<FullPartials>()));
+    const char* bad_key = R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"osc","nodes":[
+        {"id":"osc","type":"SineSource","params":{"frequncy":440.0}}]}})";
+    std::string msg;
+    try { load_instrument_patch_json(bad_key); } catch (const std::runtime_error& e) { msg = e.what(); }
+    CHECK(msg.find("node 'osc' (SineSource): unknown key 'frequncy'") != std::string::npos);
+    const char* bad_kind = R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"add","nodes":[
+        {"id":"s","type":"SineSource","params":{"frequency":440.0}},
+        {"id":"add","type":"AdditiveSource","params":{"frequency":220.0,"partials":{"ref":"s"}}}]}})";
+    msg.clear();
+    try { load_instrument_patch_json(bad_kind); } catch (const std::runtime_error& e) { msg = e.what(); }
+    CHECK(msg.find("node 'add' (AdditiveSource): 'partials' does not accept a SineSource") != std::string::npos);
+    // A key a hand-built node's branch never read (the VarSource case the lint
+    // found in the bwg patches) fails the load too: the check runs per node.
+    const char* hand_built = R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"v","nodes":[
+        {"id":"v","type":"VarSource","params":{"value":0.0}}]}})";
+    msg.clear();
+    try { load_instrument_patch_json(hand_built); } catch (const std::runtime_error& e) { msg = e.what(); }
+    CHECK(msg.find("node 'v' (VarSource): unknown key 'value'") != std::string::npos);
+}
+
 int main() {
     run_pin_tests();
     run_base_tests();
@@ -6044,6 +6074,7 @@ int main() {
     run_tap_reading_tests();
     run_no_throw_tests();
     run_fault_tests();
+    run_wire_rejection_tests();
     run_shared_source_tests();
     run_sweep_follows_wiring_tests();
     run_tap_reads_live_tests();

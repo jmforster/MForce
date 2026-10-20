@@ -34,12 +34,13 @@ struct WavetableSource final : WaveSource {
 
   const char* type_name() const override { return "WavetableSource"; }
 
-  void set_param(std::string_view name, std::shared_ptr<ValueSource> src) override {
-    WaveSource::set_param(name, std::move(src));
+  bool set_param(std::string_view name, std::shared_ptr<ValueSource> src) override {
+    const bool ok = WaveSource::set_param(name, std::move(src));
     if (name == "evolution") {
       auto* holder = dynamic_cast<IEvolutionHolder*>(evolution.source.get());
       evolution_ = holder ? holder->get_evolution() : nullptr;
     }
+    return ok;
   }
 
   void on_prepare(const RenderContext& ctx) override;
