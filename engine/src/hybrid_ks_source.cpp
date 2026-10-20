@@ -41,8 +41,10 @@ void HybridKSSource::on_start(int frames) {
 }
 
 void HybridKSSource::fill_table() {
-  int len = int(std::lround(float(sample_rate()) / currFreq_));
-  if (len < 1) len = 1;
+  const float ratio = currFreq_ > 0.0f ? float(sample_rate()) / currFreq_ : 0.0f;
+  int len = 1;
+  if (ratio >= 1.0f) len = int(std::lround(ratio));
+  else fault(Fault::TableClamped);
   table_.resize(len);
 
   for (int i = 0; i < len; ++i)

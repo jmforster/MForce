@@ -25,8 +25,8 @@ struct WaveSource : Generator {
   float compute() override {
     ++ptr_;
 
-    const float f = frequency.current();
-    if (f <= 0.0f) throw std::runtime_error("WaveSource: non-positive frequency");
+    float f = frequency.current();
+    if (f <= 0.0f) { f = frequency.min; fault(Fault::FrequencyClamped); }   // never a throw on a render path
 
     if (ptr_ == 0) {
       currPos_   = phase.current();   // legacy: init pos = phase (cycles)

@@ -1,8 +1,10 @@
 #pragma once
+#include <atomic>
 #include <cassert>
 #include <cmath>
 #include <cstdio>
 #include <memory>
+#include <stdexcept>
 #include <span>
 #include <string_view>
 #include <vector>
@@ -10,6 +12,30 @@
 #include "mforce/core/render_context.h"
 
 namespace mforce {
+
+// What a node can report from a render path instead of throwing or
+// printing. One bit each; a node accumulates them until the host reads and
+// clears them after a render (Instrument::collect_faults).
+enum class Fault : unsigned char {
+  None             = 0,
+  FrequencyClamped = 1,    // a non-positive frequency was clamped to the pin's minimum
+  TableClamped     = 2,    // a table fill's length was clamped to one sample
+  NeverPrepared    = 4,    // start() or next() on a node no host prepared
+  Clockless        = 8,    // next() with a rate but no host clock: every pull computes
+  CycleWithoutTap  = 16,   // re-entered through a cycle with no tap; served the previous value
+};
+constexpr unsigned char fault_bit(Fault f) { return static_cast<unsigned char>(f); }
+inline const char* fault_name(Fault f) {
+  switch (f) {
+    case Fault::FrequencyClamped: return "frequency clamped";
+    case Fault::TableClamped:     return "table length clamped";
+    case Fault::NeverPrepared:    return "never prepared";
+    case Fault::Clockless:        return "pulled without a host clock";
+    case Fault::CycleWithoutTap:  return "cycle without a tap";
+    case Fault::None:             break;
+  }
+  return "none";
+}
 
 // ---------------------------------------------------------------------------
 // ValueSource: the signal contract. A node declares its pins as members
@@ -26,11 +52,15 @@ struct ValueSource : Component {
   // rebuilt the graph. The only way a node learns the sample rate and the
   // clock. May allocate. Calling it twice with the same context changes
   // nothing a render can see. Forwards to every Auto pin's source, then
-  // on_prepare; a Manual pin is prepared by the node in on_prepare.
+  // on_prepare; a Manual pin is prepared by the node in on_prepare. A zero
+  // rate is a host error and throws here, where throwing is allowed; a node
+  // never sees one.
   void prepare(const RenderContext& ctx) {
+    if (ctx.sampleRate <= 0) throw std::invalid_argument("prepare: the context has no sample rate");
     ctx_ = ctx;
     lastTick_ = -1;           // a tick means something only against this clock
     computing_ = false;
+    faults_.store(0, std::memory_order_relaxed);
     refresh_auto_sources();
     for (auto* pin : pins())
       if (pin->pull == Pull::Auto) pin->prepare(ctx);
@@ -40,8 +70,13 @@ struct ValueSource : Component {
   // state and lay out anything that depends on the length. May not
   // allocate. Forwards to every Auto pin's source, then on_start; a Manual
   // pin is started by the node in on_start.
+  // On a node no host prepared it sets the fault and does nothing else:
+  // the Debug assert stays the Debug contract, the Release build reports
+  // instead of dividing by zero in an on_start. (next() and step() on such
+  // a node compute as a bare node always has, and report the same fault.)
   void start(int frames) {
     assert(prepared() && "start() before prepare(ctx)");
+    if (!prepared()) { fault(Fault::NeverPrepared); return; }
     computing_ = false;
     refresh_auto_sources();
     for (auto* pin : pins())
@@ -66,6 +101,8 @@ struct ValueSource : Component {
       const Tick t = ctx_.clock->now;
       if (t == lastTick_) return cur_;
       lastTick_ = t;
+    } else if (!prepared()) {  // the cold branch: no host clock, no rate
+      fault(Fault::NeverPrepared);   // a bare node computes as it always has, and says so
     }
     prev_ = cur_;             // the tick is claimed: what stood here is now the previous tick's
     computing_ = true;
@@ -84,6 +121,7 @@ struct ValueSource : Component {
   // excitation source; a shared or Manual-pulling excitation is not
   // supported under step().
   float step() {
+    if (!prepared()) fault(Fault::NeverPrepared);
     if (ctx_.clock) lastTick_ = ctx_.clock->now;
     prev_ = cur_;
     for (auto* s : auto_sources()) s->step();
@@ -104,6 +142,12 @@ struct ValueSource : Component {
   float previous() const {
     return claimed_tick() ? prev_ : cur_;
   }
+
+  // The faults this node has reported since the host last cleared them.
+  // Read and cleared by the host after a render (Instrument::collect_faults),
+  // never on the audio thread.
+  unsigned char faults() const { return faults_.load(std::memory_order_relaxed); }
+  void clear_faults() { faults_.store(0, std::memory_order_relaxed); }
 
   // False when this node reads its `frequency` pin ONCE at note start and
   // never again (KSPianoString: init_note), so an articulated/bent frequency
@@ -139,6 +183,11 @@ protected:
   // within one (TapSource).
   bool claimed_tick() const { return ctx_.clock && lastTick_ == ctx_.clock->now; }
 
+  // Report from a render path. A relaxed OR on a lock-free byte: one writer
+  // per node on the audio thread, one reader after the render; no lock, and
+  // nothing on the common path.
+  void fault(Fault f) { faults_.fetch_or(fault_bit(f), std::memory_order_relaxed); }
+
   // The host's facts as prepare(ctx) left them, for the node's own use: a
   // setter that rebuilds rate-derived state asks prepared() first, and a
   // part a node makes after its prepare is prepared with render_context().
@@ -159,6 +208,7 @@ protected:
     Component::operator=(o);
     cur_ = o.cur_;
     prev_ = o.prev_;
+    faults_.store(o.faults_.load(std::memory_order_relaxed), std::memory_order_relaxed);
     return *this;
   }
 
@@ -175,6 +225,7 @@ private:
   RenderContext ctx_{};
   Tick lastTick_{-1};
   float prev_{0.0f};        // what cur_ held before this tick's compute
+  std::atomic<unsigned char> faults_{0};
   bool computing_{false};
   bool cycleReported_{false};
 };

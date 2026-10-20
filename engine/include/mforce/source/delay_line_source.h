@@ -29,11 +29,6 @@ struct DelayLineSource final : Processor {
   // meaningful for a single path.
   Setting<bool> compensate{this, "compensate", false, false, true};
 
-  // Measurement only: reads that land on the slot past the ring, printed by
-  // mforce_cli at exit when MFORCE_TRACE_WRAP is set.
-  static inline bool      trace{false};
-  static inline long long wraps{0};
-
   const char* type_name() const override { return "DelayLine"; }
   SourceCategory category() const override { return SourceCategory::Oscillator; }
 
@@ -86,7 +81,6 @@ struct DelayLineSource final : Processor {
     // 0 (the wrap); the slot stands in for what the old out-of-range read
     // returned in practice, silence, until that render change is taken.
     const int i0 = int(rp);
-    if (trace && i0 == ring_) ++wraps;
     const int i1 = (i0 + 1) % ring_;
     const float frac = rp - float(i0);
     // Read-side gain: the loop (and the listener) feel a closing envelope

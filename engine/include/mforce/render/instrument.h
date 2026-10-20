@@ -203,6 +203,9 @@ struct PitchedInstrument final : Instrument {
       if (vg.source) vg.source->prepare(vg.ctx);
       for (auto& a : vg.advanceList) a->prepare(vg.ctx);
       if (vg.performSource) vg.performSource->prepare(vg.ctx);
+      // The push-binding chains are nodes of this voice too: stepped at a
+      // note's Setup, never pulled by the root, so nothing else prepares them.
+      for (auto& b : vg.pushBindings) if (b.chain) b.chain->prepare(vg.ctx);
     }
   }
 

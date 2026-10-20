@@ -24,11 +24,12 @@ void WavetableSource::on_start(int frames) {
 }
 
 void WavetableSource::fill_table() {
-  if (currFreq_ <= 0.0f || float(sample_rate()) / currFreq_ < 1.0f) {
-    throw std::runtime_error("WavetableSource: invalid frequency for table fill");
-  }
-
-  int len = int(std::lround(float(sample_rate()) / currFreq_));
+  // A table shorter than one sample cannot be filled: the length is clamped
+  // to one and the node reports, never throws (a render path).
+  const float ratio = currFreq_ > 0.0f ? float(sample_rate()) / currFreq_ : 0.0f;
+  int len = 1;
+  if (ratio >= 1.0f) len = int(std::lround(ratio));
+  else fault(Fault::TableClamped);
   values_.resize(len);
 
   for (int i = 0; i < len; ++i) {

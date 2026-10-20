@@ -130,7 +130,7 @@ struct Mesh2DSource final : Processor {
   }
 
   void on_prepare(const RenderContext& ctx) override {
-    sr_ = float(ctx.sampleRate > 0 ? ctx.sampleRate : 48000);
+    sr_ = float(ctx.sampleRate);
   }
 
   void on_start(int) override {
