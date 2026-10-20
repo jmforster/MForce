@@ -8,8 +8,22 @@ checkpoints wait for Matt's read.
 
 ## Awaiting
 
+Nothing. Next up: checkpoint 2.4 (taps reading B), whose plan is
+`docs/superpowers/plans/2026-10-20-part2-checkpoint-2.4.md`; R5 lands here
+when it seals.
+
+## Resolved
+
 **R4 — checkpoint 2.3: the per-tick memo** (2026-10-18, commits
-`22bf3be`..`fdf7536`)
+`22bf3be`..`fdf7536`) — VERDICT 2026-10-20: (0) the render-time cost is
+accepted as the price of one `next()` for every node; Part 3's node pass
+is not asked to recover it; (1) the changed renders are the frozen
+truth; (2) the `loop_root_sensitivity` pair is retired — moved to
+`patches/old/baselines_retired_2026-10-20/` (never deleted), its two
+manifest entries dropped (the null gate is 78 entries), dsp backlog 65
+closed to that file's ledger; (3) `step()` stays for now, with a
+post-refactor revisit listed (refactor BACKLOG row 9a); (4) ShaperSource's
+Auto pins stand for now, with a post-refactor revisit listed (row 9b).
 - Read: `docs/autonomy/refactor/reports/2026-10-18-checkpoint-2.3.md`
   (its reading guide is ten minutes; section 5 holds the renders that
   changed and the render-time tables, section 6 the decisions taken on
@@ -41,8 +55,6 @@ checkpoints wait for Matt's read.
   every sample with hysteresis off (Auto pins), where before they were
   pulled only in hysteresis mode — stands (a threshold modulator switched
   on mid-note has been running since the note began), or Manual again.
-
-## Resolved
 
 **R3 — checkpoint 2.2: prepare(ctx) / start(frames)** (2026-10-18, commits
 `7e20e5f`..`5980873`) — VERDICT 2026-10-18: (0) the DelayLine zero slot

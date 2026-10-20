@@ -1,5 +1,22 @@
 # Status — session handoff (Claude reads this first; Matt's queue = */REVIEW.md)
 
+Updated: 2026-10-20 (refactor session V, Fable 5.1 xhigh — the session opened
+at high; Matt bumped it before the verdict). R4 DECIDED by Matt: (0) render
+time ACCEPTED — the 2.1 cost (oboe1 0.73x, piano 0.88x of pre-2.1) stands as
+the price of one next() for every node; Part 3 is not asked to recover it;
+(1) the 109 changed renders are the frozen truth; (2) the
+loop_root_sensitivity pair RETIRED → patches/old/baselines_retired_2026-10-20/
+(git mv, never deleted), its two manifest entries dropped by hand (the null
+gate is 78 entries; every other hash untouched), dsp backlog 65 (+66's
+residual) closed to that file's ledger — the root sensitivity was the double
+advance — and 79's roundtrip set is six; (3) step() KEPT for now and (4)
+Shaper's Auto pins STAND for now, both carried as post-refactor revisits in
+refactor BACKLOG row 9 (a, b). REVIEW R4 → Resolved with the verdict; the 2.3
+report's §7 pair entry carries the verdict line. NEXT: checkpoint 2.4 (taps
+reading B) — plan being written against the sealed code (engine unchanged
+since fdf7536: cli_final.exe is the pre-2.4 binary and ab23_tree/*/final are
+its arms). GOALS.md stays Matt's uncommitted edit.
+
 Updated: 2026-10-18, later (refactor session IV, Fable 5.1 xhigh).
 CHECKPOINT 2.3 LANDED on main: 22bf3be..fdf7536 (seven commits + the
 docs seal) — the per-tick memo. ValueSource::next() computes once per

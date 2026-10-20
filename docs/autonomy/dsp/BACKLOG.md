@@ -8,25 +8,6 @@ Tags per WORKFLOW.md.
 
 ## Active — engine/build
 
-65. **[build] Loop behavior depends on graph rooting — minimal repro
-    pair** (absorbs 66's residual — same suspected root, diagnose
-    together) — found 2026-09-08 (valve1 probe). Two patches identical
-    except `graph.output` (patches/baselines/feedback/
-    loop_root_sensitivity_{fires,dead}.json): rooted at Junction (delay
-    tap-only → §3.3 advance list) the loop ignites, RMS 0.064; rooted at
-    Delay_line (plain pull, the shipped shape) it is dead to the
-    quantization floor — same equations should hold both ways per
-    feedback_loop_design.md §3.2/3.3. Eliminated: compensation, reader
-    count, drive envelope, breath level. Firing mode sits at ~659 Hz ≈ 2×
-    valve center, not f0. Practical rule until diagnosed: probe/measure
-    loops ONLY at the shipped root. 66's residual, likely same mechanism:
-    every valve2 cell runs exactly ONE uncompensated sample of loop
-    latency when the valve chain adds a second consumer to Drive_inputs
-    (−11c at C4 → −74c at C7, precisely 1/period) — the shared-consumer
-    guard/advance ordering shifts the tap read by one sample; comp=1
-    assumes the tap is the only z⁻¹. Diagnose = trace one sample of each
-    rooting on the repro pair and find where state diverges.
-
 72. **[research] Loop-family ignition is duration-marginal and
     noise-realization-sensitive — fixed seeds mask it in every gate** —
     diagnosed 2026-09-16 from Matt's clarinet_att2 passage flutter (live
@@ -518,6 +499,11 @@ Tags per WORKFLOW.md.
     knots written at 32-bit precision, `seconds` added). This whole class
     goes away with the single patch codec in the refactor
     (docs/architecture/target-architecture.md section 3.3).
+    UPDATE 10-20: loop_root_sensitivity_{fires,dead} retired to patches/old/
+    (refactor R4 verdict), so the roundtrip set is six: double_advance_{ok,
+    bug}, loop_tap_{counter,starved}, perform/wiring_setting, wiring_smoke.
+    65 is closed (ledger); the advance-order cluster it named is gone with
+    the per-tick memo.
 
 80. **[lint, small] Warn when a `sustaining` patch has a shapeless
     output-path envelope** — deferred from onsets v2 (spec §5,
@@ -765,6 +751,20 @@ Tags per WORKFLOW.md.
 One line each; full text in run reports + this file's git history.
 Fall-cleaning moves (2026-09-14) are marked → IDEAS or → ledger.
 
+- 65 (with 66's residual). Loop behaviour depends on graph rooting — CLOSED
+  2026-10-20: the "root sensitivity" was the double advance. Rooted at
+  Junction, the tap-only tail's pull of Damp_lpf/DC_Block_hpf walked back
+  into the root cone and advanced Junction, Valve, Drive_inputs, WhiteNoise,
+  Drive_vib, Drive_env and both Wormholes a second time per sample; the
+  per-tick memo (refactor checkpoint 2.3, report
+  docs/autonomy/refactor/reports/2026-10-18-checkpoint-2.3.md §5) serves
+  the second pull, `loop_root_sensitivity_fires` no longer fires (peak
+  0.146 → 0.00012) and matches `_dead`. 66's residual (one uncompensated
+  sample when the valve chain adds a second consumer) was the wiring-order
+  lag class the same checkpoint removed (feedback_valve2's 24 audition + 8
+  sweep renders changed). The repro pair is retired to
+  patches/old/baselines_retired_2026-10-20/ on Matt's R4 verdict; nothing is
+  left to diagnose.
 - Null-gate pre-existing FAIL pair (09-08, cited in item 66) — closed 09-08:
   FormantSequence1.json migrated from the inline-formant FormantSpectrum era
   to Formant-node refs (FSTest pattern) + given the standard smoke-test score
