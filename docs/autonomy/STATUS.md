@@ -12,10 +12,24 @@ residual) closed to that file's ledger — the root sensitivity was the double
 advance — and 79's roundtrip set is six; (3) step() KEPT for now and (4)
 Shaper's Auto pins STAND for now, both carried as post-refactor revisits in
 refactor BACKLOG row 9 (a, b). REVIEW R4 → Resolved with the verdict; the 2.3
-report's §7 pair entry carries the verdict line. NEXT: checkpoint 2.4 (taps
-reading B) — plan being written against the sealed code (engine unchanged
-since fdf7536: cli_final.exe is the pre-2.4 binary and ab23_tree/*/final are
-its arms). GOALS.md stays Matt's uncommitted edit.
+report's §7 pair entry carries the verdict line. CHECKPOINT 2.4 PLAN WRITTEN
+(writing-plans, xhigh): docs/superpowers/plans/2026-10-20-part2-checkpoint-2.4.md
+— four tasks (T0 re-measure the same-tick tap list with the sealed binary
+through a counter committed then deleted, the old arms re-used from
+ab23_tree/*/final since the engine is unchanged since fdf7536, taps.txt = the
+47 in full; T1 the two-value memo prev_/previous(), written and never read,
+byte-identical 78/78; T2 TapSource::compute() reads previous() — the one
+commit whose renders change, whole-tree A/B ⊆ the list, the docs record the
+delta; T3 close: Fable refuter, report R5), 12 planning rulings in its Ledger
+(prev_ moves when the tick is claimed so a read before, during or after the
+source's compute agrees; previous() non-virtual; no clock = reading A; the
+tap's current() stays live; no manifest refreeze — none of the 47 is in
+library/baselines; DelayLine's comp=1 becomes true in every rooting).
+AWAITING MATT: his read of the plan and the execution approach (my rec:
+everything inline — about fifteen engine lines and two test sections — with
+one Fable refuter at close; no Sonnet pairs). Verdict commit 8523cb3 and the
+plan commit are ahead of origin — ask at close-out. GOALS.md stays Matt's
+uncommitted edit.
 
 Updated: 2026-10-18, later (refactor session IV, Fable 5.1 xhigh).
 CHECKPOINT 2.3 LANDED on main: 22bf3be..fdf7536 (seven commits + the
