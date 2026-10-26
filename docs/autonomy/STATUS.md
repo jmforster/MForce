@@ -1,5 +1,55 @@
 # Status — session handoff (Claude reads this first; Matt's queue = */REVIEW.md)
 
+Updated: 2026-10-26 (refactor session V, resumed after the Fable quota cut it
+mid-checkpoint on 10-20; Matt: "assess where things aborted, save state,
+restart plan"). CHECKPOINT 2.5 IS FOUR-FIFTHS LANDED on main, Tasks 0-4 of
+docs/superpowers/plans/2026-10-20-part2-checkpoint-2.5.md: T0 measure
+cb1b4ab; T1 no throw cc38e9f; T2 the bits reach the host 8dfa883; T3 a
+rejected wire says so b9b43d5; T4 the DelayLine wrap — COMMITTED fbfffe6 (resumed 2026-10-26 after the quota cut:
+the 2.2 zero-slot test restated as run_delay_line_wrap_tests, gates re-run).
+Every ruling is in the plan's Ledger (execution rulings appended through
+T4) and in the executing-plans ledger
+.superpowers/sdd/2026-10-20-part2-checkpoint-2.5/progress.md (gitignored;
+read it first on resume). Verified state: engine_tests ALL PASS (6480 at
+T3; T4 adds none net), null gate 78/78 on a manifest refrozen for exactly
+double_advance_bug and double_advance_ok, fast gates clean but the known
+roundtrip smoke; the A/B over the sample: T3 moved nothing (one sweep patch
+stopped loading, the bwg stale-key class), T4 moved 25, every one on the
+wrap list.
+WHAT THE FAULTS FOUND (all in the Ledger): the voice never prepared its
+push-binding chains (fixed: PitchedInstrument::prepare prepares them; the
+gate went 72/78 → 78/78); the mixer path's voices had no nodesById (filled);
+prepare() must not clear faults (a scored patch is pre-rendered at load);
+the never-prepared guard on next()/step() retired the bare-node idiom (29
+assertions) and was narrowed to start(); the loader was blind to stale keys
+on hand-built nodes (14 bwg queue patches repaired byte-identically before
+the cut; the allowlist is now the union with the lint's scrape, a meter
+test guards the drift); engine_tests needs /bigobj; the UI main() pin is
+1713.
+REMAINING = TASK 5 ONLY (the close), in the plan's order: step 1 the
+leftover-name greps; step 2 `python tools/gates.py` (all) + null_gate_wiring
+(expect the roundtrip gates to fail on the backlog-79 set, now with
+double_advance refrozen — record the set); step 3 the A/B is done (`old`
+vs `t3` vs `t4` under renders/scratch/ab25_tree/, cli_25_t3/t4 under
+renders/scratch/ab_tree/) unless the fix wave touches engine code; step 4
+timing `python tools/ab_render_time.py renders/scratch/ab_tree/cli_pre25.exe
+build/tools/mforce_cli/Release/mforce_cli.exe 7` on an idle machine; step 5
+meter snapshot + `--delta cb1b4ab`; step 6 the Fable refuter (read-only,
+REVIEW_BRIEF, Part 2 §6 as the signed design, the plan's Review Focus and
+Ledger, the report draft §1-7), fix wave, re-review; step 7 report R6 —
+the DRAFT is at docs/autonomy/refactor/reports/2026-10-20-checkpoint-2.5.md
+(untracked; §1-4, §6 rulings 1-22, §7, §9, §10, §5's three classes and
+Appendix A are written; placeholders remain for <<METER_TABLE>>,
+<<TIMING_*>>, <<ROUNDTRIP_SET>>, <<REFUTATION>>, <<SEALSHA>>) — add the
+T3/T4 rulings to §6 from the plan's Ledger; REVIEW R6 awaiting with its four
+verdict items (the patches that stop loading; the wrap list's renders as
+frozen truth; the fault reports' shape; prepare() throwing on a zero rate);
+BACKLOG row 1 2.5 DONE / 2.6 next; Part 2 §6 decision line and §7 row 2.5;
+this STATUS; step 8 the docs commit. R5 (checkpoint 2.4) STILL AWAITS
+MATT'S VERDICT. GOALS.md stays Matt's uncommitted edit. Main is ahead of
+origin by every commit since 30e6b44 (2.4 and 2.5) — ask about the push at
+close-out.
+
 Updated: 2026-10-19, later (refactor session V, Fable 5.1 xhigh).
 CHECKPOINT 2.4 LANDED on main: a8d5aa9..403269f — taps reading B. Every
 node keeps the value it held at the end of the previous tick (prev_, moved
