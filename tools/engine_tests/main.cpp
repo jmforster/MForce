@@ -5268,23 +5268,23 @@ static void run_shaper_pin_split_tests() {
 }
 
 // A read position a hair under the write index rounds up to the ring length
-// in float: the tap lands on the one slot past the ring, which stays zero.
-static void run_delay_line_zero_slot_tests() {
+// in float: the read wraps to slot 0, the ring's first write, on every lap.
+static void run_delay_line_wrap_tests() {
     DelayLineSource dl;
     dl.set_param("source", std::make_shared<ConstantSource>(1.0f));
     dl.set_param("frequency", std::make_shared<ConstantSource>(std::nextafter(1470.0f, 0.0f)));
     dl.prepare(RenderContext{22050});
     dl.start(64);
     const auto out = render_samples(dl, 32);
-    CHECK(out[15] == 0.0f);              // write index 15, delay 15.000001: the zero slot
+    CHECK_NEAR(out[15], 1.0f, 1e-4f);    // write index 15, delay 15.000001: slot 0, the first write
     CHECK(out[14] == 0.0f);              // still the empty ring
     CHECK_NEAR(out[16], 1.0f, 1e-4f);    // the ring's own sample again
     CHECK(std::all_of(out.begin(), out.end(), [](float v) { return std::isfinite(v); }));
-    // Past one full ring the write index has wrapped: the slot was not
-    // written, so the stray read at the same phase is still silence.
+    // Past one full ring the write index has wrapped; the read at the same
+    // phase wraps to slot 0 again, written on both laps.
     const int ring = dl.capacity();
     const auto more = render_samples(dl, ring);      // samples 32 .. 32 + ring
-    CHECK(more[size_t(ring + 15 - 32)] == 0.0f);     // write index 15 of the second lap
+    CHECK_NEAR(more[size_t(ring + 15 - 32)], 1.0f, 1e-4f);   // write index 15 of the second lap
     CHECK_NEAR(more[size_t(ring + 16 - 32)], 1.0f, 1e-4f);
 }
 
@@ -5327,7 +5327,7 @@ static void run_physical_split_tests() {
         }));
     }
     run_shaper_pin_split_tests();
-    run_delay_line_zero_slot_tests();
+    run_delay_line_wrap_tests();
 
     // The delay line follows the rate its host prepared it at: the same
     // rate again changes nothing, a new rate re-sizes it.

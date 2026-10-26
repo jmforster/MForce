@@ -33,12 +33,11 @@ struct DelayLineSource final : Processor {
   SourceCategory category() const override { return SourceCategory::Oscillator; }
 
   // Sized for the 20 Hz floor at the host's rate; a repeat prepare at the
-  // same rate leaves the buffer alone, a new rate re-sizes it. One slot
-  // past the ring stays zero (see compute()).
+  // same rate leaves the buffer alone, a new rate re-sizes it.
   void on_prepare(const RenderContext&) override {
     const int want = sample_rate() / 20 + 4;
     if (ring_ != want) {
-      buf_.assign(size_t(want) + 1, 0.0f);
+      buf_.assign(size_t(want), 0.0f);
       ring_ = want;
     }
   }
@@ -76,11 +75,10 @@ struct DelayLineSource final : Processor {
     buf_[size_t(writeIdx_)] = in;
     float rp = float(writeIdx_) - len;
     if (rp < 0.0f) rp += float(ring_);
-    // A read position a hair under the write index wraps to exactly ring_
-    // in float: i0 is then the slot past the ring. The correct read is slot
-    // 0 (the wrap); the slot stands in for what the old out-of-range read
-    // returned in practice, silence, until that render change is taken.
-    const int i0 = int(rp);
+    // A read position a hair under the write index rounds to exactly ring_
+    // in float; that read is slot 0, the wrap.
+    int i0 = int(rp);
+    if (i0 >= ring_) i0 -= ring_;
     const int i1 = (i0 + 1) % ring_;
     const float frac = rp - float(i0);
     // Read-side gain: the loop (and the listener) feel a closing envelope
@@ -132,8 +130,8 @@ private:
     return found;
   }
 
-  std::vector<float> buf_;   // the ring, then one extra slot that stays zero
-  int ring_{0};              // length of the ring in samples; buf_.size() is ring_ + 1
+  std::vector<float> buf_;   // the ring
+  int ring_{0};              // length of the ring in samples; buf_.size()
   int writeIdx_{0};
   bool cycleFound_{false};
   std::shared_ptr<ValueSource> members_[kMaxMembers];
