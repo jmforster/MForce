@@ -47,8 +47,9 @@ frozen truth; the fault reports' shape; prepare() throwing on a zero rate);
 BACKLOG row 1 2.5 DONE / 2.6 next; Part 2 §6 decision line and §7 row 2.5;
 this STATUS; step 8 the docs commit. R5 (checkpoint 2.4) STILL AWAITS
 MATT'S VERDICT. GOALS.md stays Matt's uncommitted edit. Main is ahead of
-origin by every commit since 30e6b44 (2.4 and 2.5) — ask about the push at
-close-out.
+origin by every commit since 30e6b44 (2.4 and 2.5). PUSHED 2026-10-26 on
+Matt's word at close-out (a3c7c2e..e383eee, fourteen commits, plus this
+line); main level with origin.
 
 Updated: 2026-10-19, later (refactor session V, Fable 5.1 xhigh).
 CHECKPOINT 2.4 LANDED on main: a8d5aa9..403269f — taps reading B. Every
