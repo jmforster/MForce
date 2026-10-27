@@ -14,7 +14,7 @@ namespace mforce {
 
 // What a node can report from a render path instead of throwing or
 // printing. One bit each; a node accumulates them until the host reads and
-// clears them after a render (Instrument::collect_faults).
+// clears them after a render (MonoSource::collect_faults).
 enum class Fault : unsigned char {
   None             = 0,
   FrequencyClamped = 1,    // a non-positive frequency was clamped to the pin's minimum
@@ -59,14 +59,15 @@ struct ValueSource : Component {
   void prepare(const RenderContext& ctx) {
     if (ctx.sampleRate <= 0) throw std::invalid_argument("prepare: the context has no sample rate");
     if (computing_) { fault(Fault::CycleWithoutTap); return; }
-    computing_ = true;
+    const ComputingScope scope{computing_};   // cleared on every exit, a throw out of on_prepare included
     ctx_ = ctx;
     lastTick_ = -1;           // a tick means something only against this clock
-    refresh_auto_sources();   // the faults stay: a host reads them, a second prepare does not
+    // The faults stay: a host reads them, and a second prepare must change
+    // nothing a host can see.
+    refresh_auto_sources();
     for (auto* pin : pins())
       if (pin->pull == Pull::Auto) pin->prepare(ctx);
     on_prepare(ctx);
-    computing_ = false;
   }
   // start(frames): a span of `frames` samples begins now — reset per-note
   // state and lay out anything that depends on the length. May not
@@ -80,12 +81,11 @@ struct ValueSource : Component {
     assert(prepared() && "start() before prepare(ctx)");
     if (!prepared()) { fault(Fault::NeverPrepared); return; }
     if (computing_) { fault(Fault::CycleWithoutTap); return; }
-    computing_ = true;
+    const ComputingScope scope{computing_};
     refresh_auto_sources();
     for (auto* pin : pins())
       if (pin->pull == Pull::Auto) pin->start(frames);
     on_start(frames);
-    computing_ = false;
   }
 
   virtual void on_prepare(const RenderContext&) {}
@@ -150,10 +150,13 @@ struct ValueSource : Component {
   }
 
   // The faults this node has reported since the host last cleared them.
-  // Read and cleared by the host after a render (Instrument::collect_faults),
+  // Read and cleared by the host after a render (MonoSource::collect_faults),
   // never on the audio thread.
   unsigned char faults() const { return faults_.load(std::memory_order_relaxed); }
   void clear_faults() { faults_.store(0, std::memory_order_relaxed); }
+  // Read and clear in one step: a bit the audio thread sets between a host's
+  // read and its clear would be lost; a host collects with this.
+  unsigned char take_faults() { return faults_.exchange(0, std::memory_order_relaxed); }
 
   // False when this node reads its `frequency` pin ONCE at note start and
   // never again (KSPianoString: init_note), so an articulated/bent frequency
@@ -221,6 +224,17 @@ protected:
   float cur_{0.0f};
 
 private:
+  // Marks the node as inside one of its own host calls for the scope of the
+  // mark and unmarks it however the scope ends: a throw out of on_prepare
+  // (prepare may throw) must not leave the node reporting a cycle forever.
+  struct ComputingScope {
+    bool& flag;
+    explicit ComputingScope(bool& f) : flag(f) { flag = true; }
+    ~ComputingScope() { flag = false; }
+    ComputingScope(const ComputingScope&) = delete;
+    ComputingScope& operator=(const ComputingScope&) = delete;
+  };
+
   RenderContext ctx_{};
   Tick lastTick_{-1};
   float prev_{0.0f};        // what cur_ held before this tick's compute

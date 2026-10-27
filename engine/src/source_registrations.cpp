@@ -419,15 +419,15 @@ void register_all_sources() {
         // Configurator: section count, "cutoff" alias
         [](ValueSource& src, const nlohmann::json& p, const ResolveParamFn& resolve) {
             // JSON uses "cutoff" but param descriptor uses "cutoffFreq"
-            if (p.contains("cutoff"))
-                src.set_param("cutoffFreq", resolve(p.at("cutoff")));
+            if (p.contains("cutoff") && !src.set_param("cutoffFreq", resolve(p.at("cutoff"))))
+                throw std::runtime_error("'cutoff' has no pin 'cutoffFreq' to land on");
         });
 
     reg.register_type("BWHighpassFilter", SourceCategory::Filter,
         [](auto) { return std::make_shared<BWHighpassFilter>(2); },
         [](ValueSource& src, const nlohmann::json& p, const ResolveParamFn& resolve) {
-            if (p.contains("cutoff"))
-                src.set_param("cutoffFreq", resolve(p.at("cutoff")));
+            if (p.contains("cutoff") && !src.set_param("cutoffFreq", resolve(p.at("cutoff"))))
+                throw std::runtime_error("'cutoff' has no pin 'cutoffFreq' to land on");
         });
 
     reg.register_type("BWBandpassFilter", SourceCategory::Filter,
@@ -439,8 +439,8 @@ void register_all_sources() {
     reg.register_type("SVFSource", SourceCategory::Filter,
         [](auto) { return std::make_shared<SVFSource>(); },
         [](ValueSource& src, const nlohmann::json& p, const ResolveParamFn& resolve) {
-            if (p.contains("cutoff"))
-                src.set_param("cutoffFreq", resolve(p.at("cutoff")));
+            if (p.contains("cutoff") && !src.set_param("cutoffFreq", resolve(p.at("cutoff"))))
+                throw std::runtime_error("'cutoff' has no pin 'cutoffFreq' to land on");
         });
 
     reg.register_type("DelayFilter", SourceCategory::Filter,

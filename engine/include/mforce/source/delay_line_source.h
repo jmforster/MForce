@@ -76,9 +76,11 @@ struct DelayLineSource final : Processor {
     float rp = float(writeIdx_) - len;
     if (rp < 0.0f) rp += float(ring_);
     // A read position a hair under the write index rounds to exactly ring_
-    // in float; that read is slot 0, the wrap.
-    int i0 = int(rp);
-    if (i0 >= ring_) i0 -= ring_;
+    // in float; that position is slot 0, the wrap. The position wraps, so
+    // the fraction wraps with it (an index that wrapped alone left a
+    // fraction of ring_ behind).
+    if (rp >= float(ring_)) rp -= float(ring_);
+    const int i0 = int(rp);
     const int i1 = (i0 + 1) % ring_;
     const float frac = rp - float(i0);
     // Read-side gain: the loop (and the listener) feel a closing envelope

@@ -33,6 +33,12 @@ def render_hash(patch: Path, out: Path) -> str:
                        capture_output=True, text=True, cwd=ROOT)
     if r.returncode != 0 or not out.exists():
         return f"RENDER_FAIL:{r.returncode}"
+    # A valid patch reports no faults: a [faults] line is a diff of its own,
+    # whatever the WAV hashed to (nothing else reads the CLI's stderr, so a
+    # false alarm on a baseline would otherwise pass unseen).
+    faults = [l for l in r.stderr.splitlines() if l.startswith("[faults]")]
+    if faults:
+        return "FAULTS:" + faults[0]
     h = hashlib.sha256(out.read_bytes()).hexdigest()
     out.unlink()
     return h

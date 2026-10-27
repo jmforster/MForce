@@ -1,7 +1,6 @@
 #pragma once
 #include "mforce/core/dsp_value_source.h"
 #include <cmath>
-#include <stdexcept>
 
 namespace mforce {
 

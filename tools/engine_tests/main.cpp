@@ -2167,6 +2167,17 @@ struct Counter final : Generator {
 };
 }
 
+// A cycle with no tap, wired after the host calls (which walk the pins):
+// illegal, and what the re-entry guards must keep finite.
+static std::shared_ptr<CombinedSource> tapless_cycle(TestHost& h) {
+    auto loop = std::make_shared<CombinedSource>(std::make_shared<ConstantSource>(1.0f),
+                                                 std::make_shared<ConstantSource>(0.0f),
+                                                 CombineOp::Sum, 0.0f);
+    loop->prepare(h.ctx); loop->start(16);
+    loop->set_param("source2", loop);
+    return loop;
+}
+
 static void run_memo_tests() {
     TestHost h;
     auto c = std::make_shared<Counter>();
@@ -2203,12 +2214,7 @@ static void run_memo_tests() {
     bare->prepare(RenderContext{48000}); bare->start(16);
     bare->next(); bare->next(); bare->next();
     CHECK(bare->computes == 3);
-    auto loop = std::make_shared<CombinedSource>(std::make_shared<ConstantSource>(1.0f),
-                                                 std::make_shared<ConstantSource>(0.0f),
-                                                 CombineOp::Sum, 0.0f);
-    loop->prepare(h.ctx); loop->start(16);
-    loop->set_param("source2", loop);         // a cycle with no tap, wired after the host calls
-                                              // (which walk the pins): illegal, must be finite
+    auto loop = tapless_cycle(h);             // illegal, must be finite
     h.clock.tick();
     CHECK_NEAR(loop->next(), 1.0f, 1e-6f);    // 1 + the previous value (0)
     h.clock.tick();
@@ -5271,21 +5277,22 @@ static void run_shaper_pin_split_tests() {
 // in float: the read wraps to slot 0, the ring's first write, on every lap.
 static void run_delay_line_wrap_tests() {
     DelayLineSource dl;
-    dl.set_param("source", std::make_shared<ConstantSource>(1.0f));
+    dl.set_param("source", std::make_shared<Counter>());   // 1, 2, 3, ...: consecutive samples differ, so a wrong fraction shows
     dl.set_param("frequency", std::make_shared<ConstantSource>(std::nextafter(1470.0f, 0.0f)));
     dl.prepare(RenderContext{22050});
     dl.start(64);
+    const int ring = dl.capacity();
     const auto out = render_samples(dl, 32);
-    CHECK_NEAR(out[15], 1.0f, 1e-4f);    // write index 15, delay 15.000001: slot 0, the first write
+    CHECK_NEAR(out[15], 1.0f, 1e-4f);    // write index 15, delay 15.000001: slot 0, the first write (1)
     CHECK(out[14] == 0.0f);              // still the empty ring
-    CHECK_NEAR(out[16], 1.0f, 1e-4f);    // the ring's own sample again
+    CHECK_NEAR(out[16], 2.0f, 1e-3f);    // one past the wrap: between slot 0 and slot 1, the second write (2)
     CHECK(std::all_of(out.begin(), out.end(), [](float v) { return std::isfinite(v); }));
     // Past one full ring the write index has wrapped; the read at the same
-    // phase wraps to slot 0 again, written on both laps.
-    const int ring = dl.capacity();
+    // phase wraps to slot 0 again, which now holds the second lap's first
+    // write (sample `ring`: the Counter at ring + 1).
     const auto more = render_samples(dl, ring);      // samples 32 .. 32 + ring
-    CHECK_NEAR(more[size_t(ring + 15 - 32)], 1.0f, 1e-4f);   // write index 15 of the second lap
-    CHECK_NEAR(more[size_t(ring + 16 - 32)], 1.0f, 1e-4f);
+    CHECK_NEAR(more[size_t(ring + 15 - 32)], float(ring + 1), 1e-2f);
+    CHECK_NEAR(more[size_t(ring + 16 - 32)], float(ring + 2), 1e-2f);
 }
 
 static void run_physical_split_tests() {
@@ -5893,7 +5900,7 @@ static void run_prepare_start_tests() {
     run_host_split_tests();
 }
 
-// Checkpoint 2.5: start() and next() never throw. An invalid runtime value
+// start() and next() never throw. An invalid runtime value
 // is clamped to the narrowest value that makes the old throw's condition
 // false and the node reports a fault bit; the host reads the bits after a
 // render. prepare() may throw, and does on a host error.
@@ -5951,16 +5958,12 @@ static void run_no_throw_tests() {
     CHECK(std::string(fault_name(Fault::FrequencyClamped)) == "frequency clamped");
 }
 
-// Checkpoint 2.5: the fault bits reach the host. A cycle with no tap is a
+// the fault bits reach the host. A cycle with no tap is a
 // bit, not a print, through next() and through the host calls; a clockless
 // pull reports; the instrument collects by node id and clears as it reads.
 static void run_fault_tests() {
     TestHost h;
-    auto loop = std::make_shared<CombinedSource>(std::make_shared<ConstantSource>(1.0f),
-                                                 std::make_shared<ConstantSource>(0.0f),
-                                                 CombineOp::Sum, 0.0f);
-    loop->prepare(h.ctx); loop->start(16);
-    loop->set_param("source2", loop);                  // a cycle with no tap, wired after the host calls
+    auto loop = tapless_cycle(h);
     h.clock.tick(); CHECK_NEAR(loop->next(), 1.0f, 1e-6f);
     CHECK((loop->faults() & fault_bit(Fault::CycleWithoutTap)) != 0);
     loop->clear_faults();
@@ -5975,27 +5978,55 @@ static void run_fault_tests() {
     bare->prepare(RenderContext{48000}); bare->start(16);
     bare->next();
     CHECK((bare->faults() & fault_bit(Fault::Clockless)) != 0);
-    // The host collects by node id, once per id across the pool, and clears.
+    CHECK(bare->take_faults() == fault_bit(Fault::Clockless));   // read and cleared in one step
+    CHECK(bare->faults() == 0);
+    // A throw out of on_prepare (prepare may throw) leaves the node usable:
+    // the next prepare runs on_prepare, and next() reports no cycle.
+    struct ThrowingPrepare final : Generator {
+        bool armed{true};
+        int prepares{0};
+        void on_prepare(const RenderContext&) override {
+            if (armed) { armed = false; throw std::runtime_error("on_prepare failed"); }
+            ++prepares;
+        }
+        float compute() override { return 1.0f; }
+        const char* type_name() const override { return "ThrowingPrepare"; }
+    };
+    auto tp = std::make_shared<ThrowingPrepare>();
+    bool threw = false;
+    try { tp->prepare(h.ctx); } catch (const std::runtime_error&) { threw = true; }
+    CHECK(threw);
+    tp->prepare(h.ctx);
+    CHECK(tp->prepares == 1);
+    tp->start(16); h.clock.tick();
+    CHECK_NEAR(tp->next(), 1.0f, 1e-6f);
+    CHECK((tp->faults() & fault_bit(Fault::CycleWithoutTap)) == 0);
+    // The host collects by node id, once per id across the pool, in id order,
+    // and clears as it reads; a prepare after the render clears nothing.
     const char* json = R"({"sampleRate":48000,"instrument":{"polyphony":2},
-      "graph":{"output":"osc","nodes":[
-        {"id":"osc","type":"SineSource","params":{"frequency":0.0,"amplitude":1.0}}]}})";
+      "graph":{"output":"sum","nodes":[
+        {"id":"b","type":"SineSource","params":{"frequency":0.0,"amplitude":1.0}},
+        {"id":"a","type":"SineSource","params":{"frequency":0.0,"amplitude":1.0}},
+        {"id":"sum","type":"CombinedSource","params":{"source1":{"ref":"b"},"source2":{"ref":"a"},"operation":3}}]}})";
     auto ip = load_instrument_patch_json(json);
     auto* pi = dynamic_cast<PitchedInstrument*>(ip.instrument.get());
     CHECK(pi != nullptr);
     pi->play_note({60.0f, 0.8f, 0.1f, 0.0f, false}, 0.0f);
     std::vector<float> out(4800);
     ip.instrument->render(out.data(), int(out.size()));
+    ip.instrument->prepare(RenderContext{48000});      // a scored patch is pre-rendered at load, then prepared again
     std::vector<FaultReport> faults;
     ip.instrument->collect_faults(faults);
-    CHECK(faults.size() == 1);
-    CHECK(faults.size() == 1 && faults[0].nodeId == "osc");
-    CHECK(faults.size() == 1 && (faults[0].faults & fault_bit(Fault::FrequencyClamped)) != 0);
+    CHECK(faults.size() == 2);
+    CHECK(faults.size() == 2 && faults[0].nodeId == "a" && faults[1].nodeId == "b");
+    CHECK(faults.size() == 2 && (faults[0].faults & fault_bit(Fault::FrequencyClamped)) != 0
+                             && (faults[1].faults & fault_bit(Fault::FrequencyClamped)) != 0);
     faults.clear();
     ip.instrument->collect_faults(faults);
     CHECK(faults.empty());                             // cleared as read
 }
 
-// Checkpoint 2.5: a rejected wire says so. set_param answers false for a pin
+// a rejected wire says so. set_param answers false for a pin
 // the node does not have or a part of the wrong kind; the loader turns that,
 // and an unknown key, into a load failure naming node, pin and reason.
 static void run_wire_rejection_tests() {

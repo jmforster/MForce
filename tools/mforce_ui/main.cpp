@@ -8135,6 +8135,7 @@ static void render_chords_waveforms(const std::vector<ParsedChord>& chords, floa
         int frames = int(totalSeconds * float(ip.sampleRate));
         std::vector<float> mono(frames, 0.0f);
         ip.instrument->render(mono.data(), frames);
+        { std::vector<mforce::FaultReport> f; ip.instrument->collect_faults(f); if (!f.empty()) transport_set_status(faults_text(f).c_str(), true); }
 
         // Peak-normalize to prevent distortion from overlapping notes.
         // With peakGuard disabled above, mono contains the un-clipped sum, so

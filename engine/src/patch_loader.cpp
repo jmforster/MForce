@@ -236,7 +236,7 @@ static void reject_unknown_keys(const ValueSource& src, const std::string& id,
     // type, like the lint's: a spurious entry can only hide a rejection,
     // never invent one. The structure meter's tests fail when the scrape
     // gains a key this list lacks.
-    static const std::unordered_set<std::string> kStructural = {
+    static const std::unordered_set<std::string> kBranchKeys = {
         "a", "absolute", "amplEnvelopes", "amplitudes", "articulation",
         "attack", "attackCurve", "attackMax", "attackMin", "attackPower",
         "autoAdjust", "b", "baseValue", "bias", "channels", "count", "curve",
@@ -264,7 +264,7 @@ static void reject_unknown_keys(const ValueSource& src, const std::string& id,
         "volume", "weight", "x",
     };
     auto known = [&](const std::string& k) {
-        if (kStructural.count(k)) return true;
+        if (kBranchKeys.count(k)) return true;
         for (const auto& d : src.input_descriptors())
             if (k == d.name) return true;
         for (const auto& d : src.param_descriptors())
@@ -926,7 +926,12 @@ static GraphResult build_graph(
             if (pp) {
                 wire_params_generic(*src, id, *pp, valueNodes);
                 auto* configurator = reg.get_configurator(type);
-                if (configurator) (*configurator)(*src, *pp, resolveFn);
+                if (configurator) {
+                    try { (*configurator)(*src, *pp, resolveFn); }
+                    catch (const std::runtime_error& e) {   // a configurator knows its keys, not its node
+                        throw std::runtime_error("node '" + id + "' (" + type + "): " + e.what());
+                    }
+                }
             }
             valueNodes[id] = src;
             add_formant(g, id, src);

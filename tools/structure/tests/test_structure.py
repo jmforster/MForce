@@ -135,7 +135,7 @@ class KnownAnswerTests(unittest.TestCase):
         sys.path.insert(0, str(ROOT / "tools"))
         import lint_patches
         src = (ROOT / "engine/src/patch_loader.cpp").read_text(encoding="utf-8")
-        a = src.index("kStructural = {"); b = src.index("};", a)
+        a = src.index("kBranchKeys = {"); b = src.index("};", a)
         allow = set(re.findall(r'"([^"]+)"', src[a:b]))
         missing = sorted(set(lint_patches.scrape_special_keys()) - allow)
         self.assertEqual(missing, [], "keys the loader reads but its allowlist lacks")

@@ -27,7 +27,12 @@
 #include <cstdlib>
 
 // After a render: one line per node that reported a fault, or nothing.
-static void print_faults(const std::vector<mforce::FaultReport>& faults) {
+// After a render: what the nodes reported, one line per node id, cleared as
+// read. The host is an Instrument or the patch's StereoMixer.
+template <class Host>
+static void report_faults(Host& host) {
+    std::vector<mforce::FaultReport> faults;
+    host.collect_faults(faults);
     for (const auto& f : faults)
         std::cerr << "[faults] " << mforce::fault_report_text(f) << "\n";
 }
@@ -139,7 +144,7 @@ static int run_chords(int argc, char** argv) {
     std::cerr << "  peak=" << peak
               << " rms=" << rms
               << " nonzero=" << nonzero << "/" << stereo.size() << "\n";
-    { std::vector<mforce::FaultReport> faults; ip.instrument->collect_faults(faults); print_faults(faults); }
+    report_faults(*ip.instrument);
 
     return 0;
 }
@@ -213,7 +218,7 @@ static bool render_piece_to_wav(Piece& piece, const std::string& instrumentType,
               << " (" << frames << " frames, "
               << totalBeats << " beats @ " << bpm << " bpm)\n";
     std::cerr << "  peak=" << peak << " rms=" << rms << "\n";
-    { std::vector<mforce::FaultReport> faults; instrument.collect_faults(faults); print_faults(faults); }
+    report_faults(instrument);
     return true;
 }
 
@@ -327,6 +332,7 @@ static void render_and_write(const std::vector<Instrument*>& instruments,
     for (auto* inst : instruments) {
         std::fill(buf.begin(), buf.end(), 0.0f);
         { inst->render(buf.data(), frames); };
+        report_faults(*inst);
         for (int i = 0; i < frames; ++i)
             mix[i] += buf[i];
     }
@@ -606,6 +612,7 @@ static int run_compose(int argc, char** argv) {
         for (auto* inst : instruments) {
             std::fill(buf.begin(), buf.end(), 0.0f);
             { inst->render(buf.data(), frames); };
+            report_faults(*inst);
             for (int k = 0; k < frames; ++k) mono[k] += buf[k];
         }
 
@@ -750,7 +757,7 @@ static int run_play(int argc, char** argv) {
     std::cout << "Played: " << outPath
               << " (" << totalBeats << " beats @ " << bpm << " bpm)\n";
     std::cerr << "  peak=" << peak << " rms=" << rms << "\n";
-    { std::vector<mforce::FaultReport> faults; ip.instrument->collect_faults(faults); print_faults(faults); }
+    report_faults(*ip.instrument);
 
     return 0;
 }
@@ -816,7 +823,7 @@ static int run_patch(int argc, char** argv) {
     std::cerr << "  peak=" << peak
               << " rms=" << rms
               << " nonzero=" << nonzero << "/" << out.size() << "\n";
-    { std::vector<mforce::FaultReport> faults; p.mixer->collect_faults(faults); print_faults(faults); }
+    report_faults(*p.mixer);
 
     return 0;
 }
@@ -890,6 +897,7 @@ static int run_dun(int argc, char** argv) {
     int frames = int(totalSeconds * float(ip.sampleRate));
     std::vector<float> mono(frames, 0.0f);
     { ip.instrument->render(mono.data(), frames); };
+    report_faults(*ip.instrument);
 
     // Leading silence (pre-roll) so Windows audio output priming doesn't
     // eat the first note. 1s is comfortable for most drivers.
@@ -1000,6 +1008,7 @@ static int test_ornaments(int /*argc*/, char** /*argv*/) {
         int frames = int(totalSeconds * float(ip.sampleRate));
         std::vector<float> mono(frames, 0.0f);
         { ip.instrument->render(mono.data(), frames); };
+        report_faults(*ip.instrument);
 
         float peak = 0.0f;
         for (auto s : mono) {

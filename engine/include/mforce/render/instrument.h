@@ -1,5 +1,6 @@
 #pragma once
 #include <algorithm>
+#include <cstddef>
 #include "mforce/render/mixer.h"
 #include "mforce/render/limiter.h"
 #include "mforce/core/dsp_value_source.h"
@@ -218,18 +219,21 @@ struct PitchedInstrument final : Instrument {
       std::make_shared<InstrumentState>();
   std::vector<VoiceGraph> voicePool;
 
-  // Every voice's clones of one file node report as that node, once.
+  // Every voice's clones of one file node report as that node, once, in id
+  // order (a hash-map walk has none of its own).
   void collect_faults(std::vector<FaultReport>& out) override {
+    const auto first = std::ptrdiff_t(out.size());
     for (auto& vg : voicePool)
       for (auto& [id, node] : vg.nodesById) {
-        const unsigned char f = node->faults();
+        const unsigned char f = node->take_faults();
         if (!f) continue;
-        node->clear_faults();
-        auto it = std::find_if(out.begin(), out.end(),
+        auto it = std::find_if(out.begin() + first, out.end(),
                                [&](const FaultReport& r) { return r.nodeId == id; });
         if (it == out.end()) out.push_back({id, node->type_name(), f});
         else it->faults |= f;
       }
+    std::sort(out.begin() + first, out.end(),
+              [](const FaultReport& a, const FaultReport& b) { return a.nodeId < b.nodeId; });
   }
   int nextVoice{0};
 
@@ -786,9 +790,9 @@ struct DrumKit final : Instrument {
   void collect_faults(std::vector<FaultReport>& out) override {
     for (size_t i = 0; i < sources.size(); ++i) {
       auto& src = sources[i].source;
-      if (!src || !src->faults()) continue;
-      out.push_back({"drum " + std::to_string(i), src->type_name(), src->faults()});
-      src->clear_faults();
+      if (!src) continue;
+      const unsigned char f = src->take_faults();
+      if (f) out.push_back({"drum " + std::to_string(i), src->type_name(), f});
     }
   }
 
