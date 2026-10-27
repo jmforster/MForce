@@ -16,17 +16,17 @@
    ]
   ],
   [
-   55,
+   62,
    [
     [
      "engine/src/patch_loader.cpp",
-     1361,
-     1415
+     1396,
+     1457
     ],
     [
      "engine/src/patch_loader.cpp",
-     1669,
-     1708
+     1705,
+     1750
     ]
    ]
   ],
@@ -225,13 +225,13 @@
    [
     [
      "engine/include/mforce/render/instrument.h",
-     661,
-     679
+     684,
+     702
     ],
     [
      "engine/include/mforce/render/instrument.h",
-     716,
-     728
+     739,
+     751
     ]
    ]
   ],
@@ -285,8 +285,8 @@
    [
     [
      "engine/src/patch_loader.cpp",
-     538,
-     555
+     560,
+     577
     ],
     [
      "tools/mforce_ui/main.cpp",
@@ -300,13 +300,13 @@
    [
     [
      "tools/mforce_ui/main.cpp",
-     12215,
-     12232
+     12238,
+     12255
     ],
     [
      "tools/mforce_ui/main.cpp",
-     12437,
-     12454
+     12460,
+     12477
     ]
    ]
   ],
@@ -410,13 +410,13 @@
    [
     [
      "tools/engine_tests/main.cpp",
-     3699,
-     3714
+     3705,
+     3720
     ],
     [
      "tools/engine_tests/main.cpp",
-     3996,
-     4011
+     4002,
+     4017
     ]
    ]
   ],
@@ -470,13 +470,13 @@
    [
     [
      "tools/mforce_cli/main.cpp",
-     625,
-     639
+     640,
+     654
     ],
     [
      "tools/mforce_cli/main.cpp",
-     728,
-     742
+     743,
+     757
     ]
    ]
   ],
@@ -485,13 +485,13 @@
    [
     [
      "tools/mforce_ui/main.cpp",
-     12033,
-     12047
+     12056,
+     12070
     ],
     [
      "tools/mforce_ui/main.cpp",
-     12233,
-     12247
+     12256,
+     12270
     ]
    ]
   ],
@@ -565,13 +565,13 @@
    [
     [
      "tools/mforce_cli/main.cpp",
-     100,
-     113
+     111,
+     124
     ],
     [
      "tools/mforce_cli/main.cpp",
-     717,
-     729
+     732,
+     744
     ]
    ]
   ],
@@ -595,13 +595,13 @@
    [
     [
      "tools/mforce_ui/main.cpp",
-     12034,
-     12047
+     12057,
+     12070
     ],
     [
      "tools/mforce_ui/main.cpp",
-     12234,
-     12247
+     12257,
+     12270
     ]
    ]
   ],
@@ -640,18 +640,18 @@
    [
     [
      "tools/mforce_cli/main.cpp",
-     334,
-     346
+     348,
+     360
     ],
     [
      "tools/mforce_cli/main.cpp",
-     627,
-     639
+     642,
+     654
     ],
     [
      "tools/mforce_cli/main.cpp",
-     730,
-     742
+     745,
+     757
     ]
    ]
   ],
@@ -755,13 +755,28 @@
    [
     [
      "engine/src/patch_loader.cpp",
-     1343,
-     1354
+     64,
+     75
     ],
     [
      "engine/src/patch_loader.cpp",
-     1656,
-     1666
+     79,
+     101
+    ]
+   ]
+  ],
+  [
+   12,
+   [
+    [
+     "engine/src/patch_loader.cpp",
+     1378,
+     1389
+    ],
+    [
+     "engine/src/patch_loader.cpp",
+     1692,
+     1702
     ]
    ]
   ],
@@ -785,13 +800,13 @@
    [
     [
      "tools/mforce_ui/main.cpp",
-     12790,
-     12801
+     12813,
+     12824
     ],
     [
      "tools/mforce_ui/main.cpp",
-     12852,
-     12862
+     12875,
+     12885
     ]
    ]
   ],
@@ -854,34 +869,19 @@
    11,
    [
     [
-     "engine/src/patch_loader.cpp",
-     65,
-     75
-    ],
-    [
-     "engine/src/patch_loader.cpp",
-     80,
-     101
-    ]
-   ]
-  ],
-  [
-   11,
-   [
-    [
      "tools/engine_tests/main.cpp",
-     3701,
-     3711
+     3707,
+     3717
     ],
     [
      "tools/engine_tests/main.cpp",
-     3998,
-     4008
+     4004,
+     4014
     ],
     [
      "tools/engine_tests/main.cpp",
-     4524,
-     4534
+     4530,
+     4540
     ]
    ]
   ],
@@ -920,13 +920,13 @@
    [
     [
      "tools/mforce_ui/main.cpp",
-     9330,
-     9340
+     9353,
+     9363
     ],
     [
      "tools/mforce_ui/main.cpp",
-     9363,
-     9372
+     9386,
+     9395
     ]
    ]
   ],
@@ -935,13 +935,13 @@
    [
     [
      "tools/mforce_ui/main.cpp",
-     9955,
-     9965
+     9978,
+     9988
     ],
     [
      "tools/mforce_ui/main.cpp",
-     10057,
-     10067
+     10080,
+     10090
     ]
    ]
   ],
@@ -1025,13 +1025,13 @@
    [
     [
      "tools/engine_tests/main.cpp",
-     3332,
-     3341
+     3338,
+     3347
     ],
     [
      "tools/engine_tests/main.cpp",
-     3663,
-     3672
+     3669,
+     3678
     ]
    ]
   ],
@@ -1040,18 +1040,18 @@
    [
     [
      "tools/mforce_cli/main.cpp",
-     103,
-     112
+     114,
+     123
     ],
     [
      "tools/mforce_cli/main.cpp",
-     185,
-     193
+     197,
+     205
     ],
     [
      "tools/mforce_cli/main.cpp",
-     720,
-     728
+     735,
+     743
     ]
    ]
   ],
@@ -1060,13 +1060,13 @@
    [
     [
      "tools/mforce_cli/main.cpp",
-     199,
-     208
+     211,
+     220
     ],
     [
      "tools/mforce_cli/main.cpp",
-     340,
-     349
+     354,
+     363
     ]
    ]
   ]
@@ -1076,7 +1076,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 1,
-   "lines": 146,
+   "lines": 148,
    "longest_function": [
     20,
     "mforce::Component::register_pin"
@@ -1154,14 +1154,15 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 289,
+   "lines": 352,
    "longest_function": [
-    14,
+    18,
     "mforce::ValueSource::next"
    ],
    "module": "core",
    "mutable_vars": 0,
    "types": [
+    "Fault",
     "ValueSource",
     "Generator",
     "Processor",
@@ -1173,7 +1174,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 64,
+   "lines": 63,
    "longest_function": [
     29,
     "mforce::WaveSource::compute"
@@ -1262,7 +1263,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 77,
+   "lines": 79,
    "longest_function": [
     11,
     "mforce::MultiSource::compute"
@@ -2552,7 +2553,7 @@
    "changelog_comments": 20,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 793,
+   "lines": 826,
    "longest_function": [
     134,
     "mforce::PitchedInstrument::play_note"
@@ -2583,14 +2584,15 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 43,
+   "lines": 75,
    "longest_function": [
-    0,
-    ""
+    11,
+    "mforce::fault_report_text"
    ],
    "module": "render",
    "mutable_vars": 0,
    "types": [
+    "FaultReport",
     "MonoSource",
     "Channel",
     "StereoMixer"
@@ -2673,7 +2675,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 121,
+   "lines": 122,
    "longest_function": [
     13,
     "mforce::AdditiveSource2::apply_partials"
@@ -2703,7 +2705,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 302,
+   "lines": 306,
    "longest_function": [
     12,
     "mforce::BandSpectrum::get_gain"
@@ -2723,9 +2725,9 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 91,
+   "lines": 95,
    "longest_function": [
-    11,
+    15,
     "mforce::FullAdditiveSource::set_param"
    ],
    "module": "source",
@@ -2738,7 +2740,7 @@
    "changelog_comments": 0,
    "const_cast": 1,
    "dynamic_cast": 1,
-   "lines": 1154,
+   "lines": 1157,
    "longest_function": [
     149,
     "mforce::Partials::partial_value_impl"
@@ -2813,7 +2815,7 @@
    "dynamic_cast": 1,
    "lines": 143,
    "longest_function": [
-    27,
+    28,
     "mforce::DelayLineSource::compute"
    ],
    "module": "source",
@@ -3159,9 +3161,9 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 1,
-   "lines": 74,
+   "lines": 75,
    "longest_function": [
-    7,
+    8,
     "mforce::WavetableSource::set_param"
    ],
    "module": "source",
@@ -3271,7 +3273,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 169,
+   "lines": 171,
    "longest_function": [
     37,
     "mforce::HybridKSSource::extract_partials"
@@ -3307,12 +3309,12 @@
    "types": []
   },
   "engine/src/patch_loader.cpp": {
-   "changelog_comments": 13,
+   "changelog_comments": 11,
    "const_cast": 0,
    "dynamic_cast": 5,
-   "lines": 1725,
+   "lines": 1761,
    "longest_function": [
-    459,
+    470,
     "mforce::build_graph"
    ],
    "module": "render",
@@ -3395,7 +3397,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 150,
+   "lines": 151,
    "longest_function": [
     56,
     "mforce::WavetableSource::compute_raw"
@@ -3509,8 +3511,8 @@
   "tools/engine_tests/main.cpp": {
    "changelog_comments": 4,
    "const_cast": 0,
-   "dynamic_cast": 16,
-   "lines": 5980,
+   "dynamic_cast": 17,
+   "lines": 6146,
    "longest_function": [
     272,
     "run_walk3_tests"
@@ -3567,9 +3569,9 @@
    "changelog_comments": 1,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 1248,
+   "lines": 1267,
    "longest_function": [
-    174,
+    175,
     "run_compose"
    ],
    "module": "cli",
@@ -3595,13 +3597,13 @@
    "changelog_comments": 125,
    "const_cast": 0,
    "dynamic_cast": 20,
-   "lines": 14649,
+   "lines": 14673,
    "longest_function": [
-    1712,
+    1713,
     "main"
    ],
    "module": "ui",
-   "mutable_vars": 87,
+   "mutable_vars": 88,
    "types": [
     "GraphMode",
     "UiPinKind",
@@ -3889,16 +3891,16 @@
   }
  ],
  "summary": {
-  "changelog_comments": 252,
+  "changelog_comments": 250,
   "const_cast": 10,
-  "duplicate_blocks": 157,
-  "dynamic_cast": 57,
-  "file_level_mutable_vars": 114,
+  "duplicate_blocks": 159,
+  "dynamic_cast": 58,
+  "file_level_mutable_vars": 115,
   "files": 167,
   "files_over_limit": 20,
   "functions_over_limit": 99,
   "include_violations": 13,
-  "lines": 59169,
+  "lines": 59561,
   "unmapped_files": 0
  }
 }

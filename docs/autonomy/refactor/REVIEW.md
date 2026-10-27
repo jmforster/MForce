@@ -8,8 +8,51 @@ checkpoints wait for Matt's read.
 
 ## Awaiting
 
+**R6 — checkpoint 2.5: no throw on a render path; fault flags; a rejected
+wire says so** (2026-10-26, commits `cb1b4ab`..`1481d15`)
+- Read: `docs/autonomy/refactor/reports/2026-10-20-checkpoint-2.5.md`
+  (its reading guide is ten minutes; section 1 names the three latent host
+  bugs the fault bits found on the way in, section 5 the patches that stop
+  loading and the twenty-five renders the DelayLine wrap moved, section 6
+  the decisions taken on your behalf — rulings 17, 20 and 25 are the ones
+  that departed from the plan or corrected the ledger — section 7 the debt,
+  section 8 the refutation, section 10 three C++ lessons).
+- Try: `python tools/null_gate_perform_source.py --jobs 3` (78/78; the two
+  `double_advance` baselines were refrozen for the wrap and nothing else
+  moved); render `renders/scratch/ab25_tree/zero_freq.json` with the CLI —
+  it used to terminate the process from the audio thread, now it renders
+  and prints `[faults] osc (SineSource): frequency clamped` after the
+  stats; copy any library patch, misspell one key on one node, and load it
+  — the load fails naming the node, the pin and the reason instead of
+  rendering wrong in silence.
+- A verdict decides: (0) **the patches that stop loading** (section 5):
+  four `sweep/stk_bandedwg_port/*_struck` and `old/Squeaker.json`, each a
+  stale key on a hand-built or legacy node, left as they are and listed
+  (`sweep/` is regenerable, `old/` is never deleted) — accepted, or any to
+  be repaired by hand; (1) **the wrap list's renders as the frozen truth**
+  (`double_advance_bug` and `double_advance_ok` refrozen; `Trombone_att1`,
+  the fourteen `bwg_perc1`/`bwg_perc2` queue patches and eight sweeps
+  changed — re-listen any before accepting); (2) **the fault reports'
+  shape**: the CLI's `[faults]` block after the stats and the UI's
+  transport status line — enough, or a fault count on the stamp too; (3)
+  **`prepare()` throwing on a zero rate** as the host contract (the host
+  that forgets the rate fails loudly at build, never on the audio thread);
+  (4) **ruling 2's narrowing of the signed text** (report section 6; the
+  refuter's I11): the clamp applies to a non-positive frequency only, a
+  positive frequency below the pin's minimum is left as it was, so no
+  non-terminating render moved — accept the narrower sentence into Part 2
+  §6, or schedule the wider clamp as a behaviour checkpoint with its own
+  measured list.
+
+## Resolved
+
 **R5 — checkpoint 2.4: taps reading B** (2026-10-19, commits
-`a8d5aa9`..`403269f`)
+`a8d5aa9`..`403269f`) — VERDICT 2026-10-26: (0) the forty changed renders
+are the frozen truth (Matt: the renders pointed out sound great, the
+trombone improved); (1) `previous()` and `claimed_tick()` stay public on
+every node until Part 3's pins narrow the door; (2) `feedback_loop_design.md`
+section 2's "positional" paragraph stays as the 08-31 design with the
+header delta.
 - Read: `docs/autonomy/refactor/reports/2026-10-19-checkpoint-2.4.md`
   (its reading guide is ten minutes; section 5 holds the forty renders that
   changed by family and the render-time table, section 6 the decisions taken
@@ -31,8 +74,6 @@ checkpoints wait for Matt's read.
   them until Part 3's pins narrow the door, or narrow it now; (2)
   **`feedback_loop_design.md` section 2's "positional" paragraph**: left as the
   08-31 design with the header delta (Task 2's choice), or rewritten.
-
-## Resolved
 
 **R4 — checkpoint 2.3: the per-tick memo** (2026-10-18, commits
 `22bf3be`..`fdf7536`) — VERDICT 2026-10-19: (0) the render-time cost is

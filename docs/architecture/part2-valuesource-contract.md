@@ -478,6 +478,14 @@ same coefficient in `prepare` from the same number.
 
 **Decided 2026-10-05**, with the sign-off of the whole part.
 
+Decided 2026-10-26: landed as checkpoint 2.5 (`Fault` bits, one atomic byte per
+node, set on the fault path and read by the host after a render; the two
+render-path throws became clamps; `prepare()` throws on a zero rate; the
+rejected wire reaches the loader through `set_param`'s `bool` — `set_pin` is
+Part 3's — and fails the load naming node, pin and reason; the DelayLine's
+one-past-the-end read wraps), plan
+`docs/superpowers/plans/2026-10-20-part2-checkpoint-2.5.md`.
+
 ### Throws today
 
 Exactly two are reachable from a render path:
@@ -558,7 +566,7 @@ independent review and an architecture report with the meter's numbers.
 | 2.2 | `prepare(ctx)` / `start(frames)` split; the rate arrives through `prepare` only; constructors and the factory lose it; `RenderContext` created in one place | none, unless a node that re-draws randomness in `prepare` per note turns out to differ from a reset; any such patch is listed |
 | 2.3 | The per-tick memo, taps reading A; `RefSource`, the usage counter, starved-ref promotion and the UI's wrap mirror deleted; the generalised advance sweep | the wiring-order lag patches, measured beforehand with the instrumented loader, and `double_advance_bug` |
 | 2.4 | Taps reading B | only patches where a tap today reads a same-tick value, measured beforehand; may be none — measured 2026-10-19: 45 (`docs/architecture/measurements/2026-10-19-same-tick-taps.md`), none in library or baselines; 40 differ in the whole-tree A/B |
-| 2.5 | No throw on a render path; fault flags; `set_pin` failures become load failures | none for valid patches; a zero-frequency patch renders instead of terminating; bad-wire patches fail to load, listed |
+| 2.5 | No throw on a render path; fault flags; `set_pin` failures become load failures | none for valid patches; a zero-frequency patch renders instead of terminating; bad-wire patches fail to load, listed — landed 2026-10-26: 0 valid renders moved (Tasks 1–3: 78/78 after each, the A/B 0 differ in every set); five patches stop loading (four `sweep/stk_bandedwg_port/*_struck`, `old/Squeaker`), each a stale key on a hand-built or legacy node; the DelayLine wrap routed here from 2.2 moved 25 of the sample, every one on the measured list of 28, `double_advance_{bug,ok}` refrozen |
 | 2.6 | The allocation test over every baseline patch, wrapping `start` and `next` | none; the test is the new gate |
 
 The order is chosen so that each behavioural change is isolated in its

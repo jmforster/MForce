@@ -1,5 +1,47 @@
 # Status — session handoff (Claude reads this first; Matt's queue = */REVIEW.md)
 
+Updated: 2026-10-26, later (refactor session VI, Fable 5.1 xhigh). CHECKPOINT
+2.5 LANDED on main: cb1b4ab..1481d15 — no throw on a render path (the two
+throws are clamps with a per-node atomic fault bit), the fault bits reach the
+host (CLI `[faults]` block after every render, UI transport status line,
+live pool polled), a rejected wire or unknown key fails the load naming
+node, pin and reason on every build path (allowlist kBranchKeys = the old
+list ∪ the lint's scrape, a meter test guards the drift), the DelayLine wrap
+reads slot 0 (the position wraps, not the index). Tasks 0–4 cb1b4ab..fbfffe6
+(session V); the close this session: the independent Fable refuter found
+the Task 4 wrap WRONG (index wrapped, fraction did not — an extrapolation
+once per lap a constant-source test could not see); fix wave 5a618cf
+(position wrap, Counter-source test RED 1107/2213 → GREEN; take_faults()
+exchange; ComputingScope guard in prepare/start; every CLI render + the UI
+chords render report, in id order; configurators' failed wires name their
+node; null gate reads stderr for [faults]; kStructural → kBranchKeys;
+fixture + CLI blocks collapsed); re-review closed all but I9's declared
+test debt and I11 (Matt's); second pass 1481d15 (freeze guard, catch
+std::exception, two headers). Verified at the seal: engine_tests ALL PASS
+(6486); ctest/stamp PASS; null gate 78/78 refrozen twice for exactly
+double_advance_bug/ok; wiring null gate 78/78; roundtrip gates fail on the
+known six (backlog 79). A/B over the 1,615-patch sample: old→t3 0 differ;
+t3→t4, t4→t5 and old→t5 the same 25 (every one on the wrap list); 5 patches
+stop loading (4 sweep bandedwg _struck + old/Squeaker), nothing tracked;
+the measurement's ks_morph_saw_test LOADS (a false positive of the old
+warning; the Ledger's "21 archive files" was a misread of the lint's total).
+Timing: the clean run (pre-wave engine) within noise; the three post-wave
+runs on a loaded machine, recorded not chased. Arms under
+renders/scratch/ab25_tree/<set>/{old,t3,t4,t5}; binaries
+renders/scratch/ab_tree/cli_pre25.exe, cli_25_t0/t3/t4/t5.exe. DOCS: report
+R6 docs/autonomy/refactor/reports/2026-10-20-checkpoint-2.5.md (§8 holds the
+refutation, the fix-wave outcomes and the re-review verbatim; §10 four
+lessons); REVIEW R6 AWAITING MATT with four verdict items (the five patches
+that stop loading; the wrap list's renders as frozen truth; the fault
+reports' shape; prepare() throwing on a zero rate) plus (4) ruling 2's
+narrowing of the signed clamp sentence; R5 (2.4) DECIDED 10-26 (the forty
+renders are the truth; previous()/positional paragraph left as they are);
+BACKLOG row 1: 2.5 DONE, 2.6 (the allocation test) next, plan to write;
+Part 2 §6 decided line + §7 row 2.5 filled; the plan's Ledger carries every
+ruling through the second pass. GOALS.md stays Matt's uncommitted edit. Main
+is ahead of origin (the two code commits and the docs commit that carries
+this line): ask at close-out whether to push. NEXT: checkpoint 2.6 plan.
+
 Updated: 2026-10-26 (refactor session V, resumed after the Fable quota cut it
 mid-checkpoint on 10-20; Matt: "assess where things aborted, save state,
 restart plan"). CHECKPOINT 2.5 IS FOUR-FIFTHS LANDED on main, Tasks 0-4 of
