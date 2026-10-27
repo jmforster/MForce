@@ -928,7 +928,7 @@ static GraphResult build_graph(
                 auto* configurator = reg.get_configurator(type);
                 if (configurator) {
                     try { (*configurator)(*src, *pp, resolveFn); }
-                    catch (const std::runtime_error& e) {   // a configurator knows its keys, not its node
+                    catch (const std::exception& e) {   // a configurator knows its keys, not its node; json's own errors included
                         throw std::runtime_error("node '" + id + "' (" + type + "): " + e.what());
                     }
                 }

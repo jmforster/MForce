@@ -5958,7 +5958,7 @@ static void run_no_throw_tests() {
     CHECK(std::string(fault_name(Fault::FrequencyClamped)) == "frequency clamped");
 }
 
-// the fault bits reach the host. A cycle with no tap is a
+// The fault bits reach the host. A cycle with no tap is a
 // bit, not a print, through next() and through the host calls; a clockless
 // pull reports; the instrument collects by node id and clears as it reads.
 static void run_fault_tests() {
@@ -6026,7 +6026,7 @@ static void run_fault_tests() {
     CHECK(faults.empty());                             // cleared as read
 }
 
-// a rejected wire says so. set_param answers false for a pin
+// A rejected wire says so. set_param answers false for a pin
 // the node does not have or a part of the wrong kind; the loader turns that,
 // and an unknown key, into a load failure naming node, pin and reason.
 static void run_wire_rejection_tests() {

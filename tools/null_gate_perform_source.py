@@ -12,7 +12,7 @@ Render failures are recorded and compared like hashes: a patch that failed
 before must fail identically after (no silent regressions either way).
 """
 import concurrent.futures as cf
-import hashlib, json, os, subprocess, sys
+import hashlib, json, os, re, subprocess, sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -38,6 +38,7 @@ def render_hash(patch: Path, out: Path) -> str:
     # false alarm on a baseline would otherwise pass unseen).
     faults = [l for l in r.stderr.splitlines() if l.startswith("[faults]")]
     if faults:
+        out.unlink()
         return "FAULTS:" + faults[0]
     h = hashlib.sha256(out.read_bytes()).hexdigest()
     out.unlink()
@@ -75,6 +76,15 @@ def main():
             key = str(p.relative_to(ROOT)).replace("\\", "/")
             manifest[key] = h
             print("froze", key, flush=True)
+        # A frozen value must be a hash: a patch that faulted or failed to
+        # render at freeze time would otherwise pass every later run that
+        # reproduces the same string.
+        bad = {k: v for k, v in manifest.items() if not re.fullmatch(r"[0-9a-f]{64}", v)}
+        if bad:
+            for k, v in bad.items():
+                print(f"REFUSED {k}: {v}", flush=True)
+            print(f"not frozen: {len(bad)} patch(es) rendered no clean hash", flush=True)
+            sys.exit(1)
         MANIFEST.write_text(json.dumps(manifest, indent=1))
         print(f"Manifest: {len(manifest)} entries")
         return
