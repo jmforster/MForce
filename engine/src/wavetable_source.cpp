@@ -13,7 +13,11 @@ void WavetableSource::on_prepare(const RenderContext& ctx) {
   speedFactor.prepare(ctx);
   inputSource.prepare(ctx);
   evolution.prepare(ctx);
-  if (evolution_) evolution_->prepare(ctx);
+  // The table and every evolution buffer are reserved here for the floor
+  // frequency, so a note fills them within capacity (Part 2 section 4).
+  maxLen_ = int(std::ceil(float(sample_rate()) / kMinTableHz)) + 1;
+  values_.reserve(size_t(maxLen_));
+  if (evolution_) evolution_->prepare(ctx, maxLen_);
 }
 
 void WavetableSource::on_start(int frames) {
@@ -30,7 +34,8 @@ void WavetableSource::fill_table() {
   int len = 1;
   if (ratio >= 1.0f) len = int(std::lround(ratio));
   else fault(Fault::TableClamped);
-  values_.resize(len);
+  if (len > maxLen_) len = maxLen_;   // a note below the floor gets the floor's length
+  values_.resize(len);                // within the capacity prepare reserved
 
   for (int i = 0; i < len; ++i) {
     values_[i] = inputSource.step();

@@ -6124,6 +6124,46 @@ static void run_allocation_tests() {
       {"id":"add","type":"AdditiveSource","params":{"frequency":220.0,"amplitude":0.5,"partials":{"ref":"parts"},"formantWeight":0.0}}]}})";
     CHECK(allocations_in_one_note(everything) == 0);
     CHECK(allocations_in_one_note(everything, 48.0f) == 0);
+
+    // WavetableSource: the table is reserved at prepare for the floor frequency
+    // (kMinTableHz); a note at the floor, below it, and at the pin's maximum
+    // fit, and each evolution's buffers are reserved with it.
+    const char* wavetable = R"({"sampleRate":48000,"instrument":{"polyphony":2},"graph":{"output":"src","nodes":[{"id":"__perf_frequency","type":"PerformNode","params":{"field":"frequency"}},
+      {"id":"src","type":"WavetableSource","params":{"seed":12345,"frequency":{"ref":"__perf_frequency"},"amplitude":0.5}}]}})";
+    CHECK(allocations_in_one_note(wavetable) == 0);
+    CHECK(allocations_in_one_note(wavetable, 15.49f) == 0);     // 20 Hz: the floor's length
+    CHECK(allocations_in_one_note(wavetable, 0.0f) == 0);       // 8 Hz: below the floor, the floor's length
+    CHECK(allocations_in_one_note(wavetable, 135.08f) == 0);    // 20 kHz: the pin's maximum, a two-sample table
+    const auto withEvolution = [](const char* evolutionNodes) {
+        return std::string(R"({"sampleRate":48000,"instrument":{"polyphony":2},"graph":{"output":"src","nodes":[{"id":"__perf_frequency","type":"PerformNode","params":{"field":"frequency"}},)")
+             + evolutionNodes
+             + R"(,{"id":"src","type":"WavetableSource","params":{"seed":12345,"frequency":{"ref":"__perf_frequency"},"amplitude":0.5,"evolution":{"ref":"ev"},"evolutionSeed":42}}]}})";
+    };
+    const char* evolutions[] = {
+        R"({"id":"ev","type":"HistogramEqualizeEvolution","params":{"bins":64,"rate":5e-05}})",
+        R"({"id":"ev","type":"ReactionDiffusionEvolution","params":{"feed":0.0367,"kill":0.0649,"diffU":0.16,"diffV":0.08,"dt":1.0,"subSteps":1}})",
+        R"({"id":"ev","type":"CellularAutomatonEvolution","params":{"rule":110,"threshold":0.0,"levelHi":0.6,"levelLo":-0.6,"stepEvery":12}})",
+        R"({"id":"ev","type":"BezierPullEvolution","params":{"p0":-1.0,"p1":0.8,"p2":-0.8,"p3":1.0,"rate":5e-05}})",
+        R"({"id":"ev","type":"SortErosionEvolution","params":{"swapsPerSample":4,"descending":0}})",
+        R"({"id":"bow","type":"RedNoiseSource","params":{"amplitude":1.0,"frequency":350.0,"density":0.5,"smoothness":0.5,"rampVariation":0.2}},
+      {"id":"ev","type":"BowedStringEvolution","params":{"bow":{"ref":"bow"},"bowPosition":0.14,"bowSpeed":0.3,"frictionGain":4.0,"tubeLoss":0.005}})",
+        R"({"id":"ev","type":"BrassEvolution","params":{"brassiness":1.5,"breath":0.8,"tubeLoss":0.01,"lipTension":0.92,"lipFreqRatio":1.2,"lipQ":3.0}})",
+        R"({"id":"ev","type":"ReedEvolution","params":{"breath":0.5,"reedStiffness":1.8,"tubeLoss":0.01,"loopFilter":0.35}})",
+    };
+    for (const char* ev : evolutions) {
+        const std::string json = withEvolution(ev);
+        CHECK(allocations_in_one_note(json.c_str()) == 0);
+        CHECK(allocations_in_one_note(json.c_str(), 36.0f) == 0);   // a second, lower pitch on the other voice
+    }
+    // The legacy string forms: "target" (the morph target resampled to the
+    // table's length) and "pluck".
+    const char* target = R"({"sampleRate":48000,"instrument":{"polyphony":2},"graph":{"output":"src","nodes":[{"id":"__perf_frequency","type":"PerformNode","params":{"field":"frequency"}},
+      {"id":"src","type":"WavetableSource","params":{"seed":12345,"frequency":{"ref":"__perf_frequency"},"amplitude":0.5,
+         "evolution":"target","morphRate":0.0005,"holdCycles":5,"decayFactor":0.999,"targetPartials":[1.0,0.5,0.33,0.25],"targetLength":2048}}]}})";
+    CHECK(allocations_in_one_note(target) == 0);
+    const char* pluck = R"({"sampleRate":48000,"instrument":{"polyphony":2},"graph":{"output":"src","nodes":[{"id":"__perf_frequency","type":"PerformNode","params":{"field":"frequency"}},
+      {"id":"src","type":"WavetableSource","params":{"seed":12345,"frequency":{"ref":"__perf_frequency"},"amplitude":0.5,"evolution":"pluck","muting":0.0}}]}})";
+    CHECK(allocations_in_one_note(pluck) == 0);
 }
 
 int main() {

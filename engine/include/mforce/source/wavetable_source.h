@@ -57,6 +57,7 @@ private:
   std::unique_ptr<WaveEvolution>  ownedEvolution_;      // for patch_loader path
   WaveEvolution*                  evolution_{nullptr};  // raw ptr: into the holder `evolution` keeps alive, or ownedEvolution_
   std::vector<float>              values_;
+  int                             maxLen_{0};   // values_ is reserved to this at prepare; fill_table never exceeds it
   int   tablePtr2_{-1};
   // Tuning allpass state
   float tuningCoeff_{0.0f};

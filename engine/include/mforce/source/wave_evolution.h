@@ -23,11 +23,12 @@ struct WaveEvolution {
   // Called each sample — modify the wavetable in-place.
   virtual void evolve(std::vector<float>& values, int index) = 0;
 
-  // Called by WavetableSource::on_prepare. SR-sensitive subclasses override
-  // to capture ctx.sampleRate for use by adjust()/evolve(). Receives the
-  // full RenderContext so future fields (block size, etc.) propagate without
-  // another API change.
-  virtual void prepare(const RenderContext& /*ctx*/) {}
+  // Called by WavetableSource::on_prepare, once, with the longest table the
+  // owner will ever fill (its floor frequency's length). An implementation
+  // captures ctx.sampleRate here if adjust()/evolve() need it, and reserves
+  // every buffer it sizes per note or per table to maxLen, so that adjust,
+  // shape_excitation and evolve fill within capacity and allocate nothing.
+  virtual void prepare(const RenderContext& /*ctx*/, int /*maxLen*/) {}
 };
 
 // ---------------------------------------------------------------------------
@@ -177,6 +178,7 @@ struct TargetEvolution final : WaveEvolution {
   : morphRate_(morphRate), holdCycles_(holdCycles), decayFactor_(decayFactor),
     target_(std::move(target)), rng_(seed) {}
 
+  void prepare(const RenderContext&, int maxLen) override { resampledTarget_.reserve(size_t(maxLen)); }
   float adjust(float frequency) override {
     sampleCount_ = 0;
     morphAmount_ = 0.0f;
@@ -440,7 +442,13 @@ struct BowedStringEvolution final : WaveEvolution {
   Input& bow;                          // bow pressure envelope (0..1)
   Param& frictionGain;                 // slope of Friedlander bow table
 
-  void prepare(const RenderContext& ctx) override { sampleRate_ = ctx.sampleRate; }
+  void prepare(const RenderContext& ctx, int maxLen) override {
+    sampleRate_ = ctx.sampleRate;
+    // Each line is twice its one-way length and the two one-way lengths sum to
+    // half the period, so neither buffer exceeds one period: maxLen.
+    bridgeLine_.reserve(size_t(maxLen) + 2);
+    neckLine_.reserve(size_t(maxLen) + 2);
+  }
 
   float adjust(float frequency) override {
     int totalLen = int(std::lround(float(sampleRate_) / std::max(20.0f, frequency)));
@@ -547,7 +555,10 @@ struct BrassEvolution final : WaveEvolution {
   Param& brassiness;                   // tanh drive → wave-steepening harmonics
   Input& breath;
 
-  void prepare(const RenderContext& ctx) override { sampleRate_ = ctx.sampleRate; }
+  void prepare(const RenderContext& ctx, int maxLen) override {
+    sampleRate_ = ctx.sampleRate;
+    rawLoop_.reserve(size_t(maxLen));
+  }
 
   float adjust(float frequency) override {
     lipState_ = 0.0f;
@@ -845,6 +856,9 @@ struct ReactionDiffusionEvolution final : WaveEvolution {
   const Setting<float>& dt;       // integration step
   const Setting<int>&   subSteps; // RD iterations per audio sample (>=1)
 
+  void prepare(const RenderContext&, int maxLen) override {
+    for (auto* v : {&u_, &v_, &uPrev_, &vPrev_}) v->reserve(size_t(maxLen));
+  }
   float adjust(float /*frequency*/) override { return 0.0f; }
 
   void shape_excitation(std::vector<float>& values) override {
@@ -1008,6 +1022,10 @@ struct CellularAutomatonEvolution final : WaveEvolution {
   const Setting<float>& levelLo;
   const Setting<int>&   stepEvery;   // do one CA step every Nth sample (slow tempo)
 
+  void prepare(const RenderContext&, int maxLen) override {
+    state_.reserve(size_t(maxLen));
+    snapshot_.reserve(size_t(maxLen));
+  }
   float adjust(float /*frequency*/) override {
     sampleCtr_ = 0;
     return 0.0f;
@@ -1096,6 +1114,10 @@ struct HistogramEqualizeEvolution final : WaveEvolution {
   const Setting<int>&   bins;
   const Setting<float>& rate;
 
+  void prepare(const RenderContext&, int) override {
+    cdf_.assign(size_t(std::max(2, bins.value)), 0.0f);
+    counts_.assign(size_t(std::max(2, bins.value)), 0);
+  }
   float adjust(float /*frequency*/) override {
     cdf_.assign(std::max(2, bins.value), 0.0f);
     return 0.0f;
@@ -1124,17 +1146,18 @@ private:
 
   void rebuild_cdf(const std::vector<float>& values) {
     if (int(cdf_.size()) != bins.value) cdf_.assign(bins.value, 0.0f);
-    std::vector<int> counts(bins.value, 0);
-    for (float v : values) counts[sample_to_bin(v)]++;
+    counts_.assign(size_t(bins.value), 0);   // within the capacity prepare reserved
+    for (float v : values) counts_[sample_to_bin(v)]++;
     const float invN = 1.0f / float(values.size());
     float running = 0.0f;
     for (int i = 0; i < bins.value; ++i) {
-      running += float(counts[i]) * invN;
+      running += float(counts_[i]) * invN;
       cdf_[i] = running;
     }
   }
 
   std::vector<float> cdf_;
+  std::vector<int>   counts_;   // rebuild_cdf's histogram, sized at prepare
 };
 
 struct HistogramEqualizeEvolutionSource final : ValueSource, IEvolutionHolder {
@@ -1178,6 +1201,7 @@ struct BezierPullEvolution final : WaveEvolution {
   const Setting<float>& p3;
   const Setting<float>& rate;
 
+  void prepare(const RenderContext&, int maxLen) override { target_.reserve(size_t(maxLen)); }
   float adjust(float /*frequency*/) override {
     needsRebuild_ = true;
     return 0.0f;
