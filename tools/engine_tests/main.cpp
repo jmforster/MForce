@@ -6107,7 +6107,7 @@ static std::size_t allocations_in_one_note(const char* patchJson, float noteNumb
     return alloc_probe::count();
 }
 
-static void run_allocation_tests() {
+static void run_allocation_tests_partials() {
     // Partials: a plain FullPartials, and one with every per-partial feature on
     // (decay, bandwidth noise, motion, shimmer, trade, onset spread, an expand
     // rule) so every array partials_start sizes is exercised; two pitches on
@@ -6124,7 +6124,10 @@ static void run_allocation_tests() {
       {"id":"add","type":"AdditiveSource","params":{"frequency":220.0,"amplitude":0.5,"partials":{"ref":"parts"},"formantWeight":0.0}}]}})";
     CHECK(allocations_in_one_note(everything) == 0);
     CHECK(allocations_in_one_note(everything, 48.0f) == 0);
+}
 
+// The frequency-dependent tables and their evolutions.
+static void run_allocation_tests_tables() {
     // WavetableSource: the table is reserved at prepare for the floor frequency
     // (kMinTableHz); a note at the floor, below it, and at the pin's maximum
     // fit, and each evolution's buffers are reserved with it.
@@ -6164,7 +6167,11 @@ static void run_allocation_tests() {
     const char* pluck = R"({"sampleRate":48000,"instrument":{"polyphony":2},"graph":{"output":"src","nodes":[{"id":"__perf_frequency","type":"PerformNode","params":{"field":"frequency"}},
       {"id":"src","type":"WavetableSource","params":{"seed":12345,"frequency":{"ref":"__perf_frequency"},"amplitude":0.5,"evolution":"pluck","muting":0.0}}]}})";
     CHECK(allocations_in_one_note(pluck) == 0);
+}
 
+// The remaining families: the hybrid table, the stage, segment and basic
+// additive nodes, the Multiplex push delivery.
+static void run_allocation_tests_nodes() {
     // HybridKSSource: the table is reserved at prepare for the floor, the
     // partial arrays sized with the targets; a short hold so the transition
     // (the DFT) happens inside the note's life.
@@ -6208,7 +6215,11 @@ static void run_allocation_tests() {
       {"id":"Multiplex1","type":"MultiplexSource","params":{"count":4,"source":{"ref":"Triangle1"}}}]}})";
     CHECK(allocations_in_one_note(multiplex) == 0);
     CHECK(allocations_in_one_note(multiplex, 48.0f) == 0);
+}
 
+// The paths no library or baselines patch drives: a repetition boundary, a
+// held note's release, a drum hit.
+static void run_allocation_tests_pins() {
     // A RepeatingSource boundary inside next() restarts its child — a
     // Partials-bearing one — and allocates nothing; the note's life holds
     // several repetitions.
@@ -6270,7 +6281,10 @@ static void run_allocation_tests() {
 
 int main() {
     run_alloc_probe_tests();
-    run_allocation_tests();
+    run_allocation_tests_partials();
+    run_allocation_tests_tables();
+    run_allocation_tests_nodes();
+    run_allocation_tests_pins();
     run_pin_tests();
     run_base_tests();
     run_prepare_start_tests();
