@@ -40,7 +40,18 @@ BACKLOG row 1: 2.5 DONE, 2.6 (the allocation test) next, plan to write;
 Part 2 §6 decided line + §7 row 2.5 filled; the plan's Ledger carries every
 ruling through the second pass. GOALS.md stays Matt's uncommitted edit. Main
 is ahead of origin (the two code commits and the docs commit that carries
-this line): ask at close-out whether to push. NEXT: checkpoint 2.6 plan.
+this line): ask at close-out whether to push. NEXT: checkpoint 2.6 — the
+plan is written (docs/superpowers/plans/2026-10-29-part2-checkpoint-2.6.md,
+10 tasks: the allocation probe (a replaced operator new in the test
+executables only), the loader's score delivery extracted for a second
+caller, the alloc_gate tool and its measurement, the families from the
+2.2 list (Partials; Wavetable + its evolutions; HybridKS; Phased, Segment,
+BasicAdditive), whatever the measurement adds, the Review Focus tests,
+the close with report R7). Decided with Matt 10-29: tool first, the gate
+is the tool over library and baselines, no probe in the UI or CLI. Open
+for his read: the 20 Hz table floor (the pin's 0.01 Hz minimum is no
+floor), REVIEW R7 item (3). Awaits Matt's read and his word on the
+execution method (2.5's was inline with the Fable refuter at the close).
 
 Updated: 2026-10-26 (refactor session V, resumed after the Fable quota cut it
 mid-checkpoint on 10-20; Matt: "assess where things aborted, save state,
