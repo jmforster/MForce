@@ -6156,6 +6156,28 @@ static void run_allocation_tests_partials() {
         const auto secondAfterPrepare = render_one_live_note(*again.instrument, 60.0f);
         CHECK(same_bits(second, secondAfterPrepare));
     }
+    // An ExplicitPartials row edited after the first prepare (the UI's path:
+    // set_array, then Play prepares again) sounds on the next note, expand
+    // rule or not: the originals the rule starts from follow every rebuild.
+    {
+        const char* rows = R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"add","nodes":[
+          {"id":"parts","type":"ExplicitPartials","params":{"mult1":[1.0,2.0,3.0,4.0],"ampl1":[1.0,0.5,0.25,0.125],"evolve":false,
+             "expandRule":{"count":1,"recurse":0,"spacing1":0.3,"spacing2":0.3}}},
+          {"id":"add","type":"AdditiveSource","params":{"frequency":220.0,"amplitude":0.5,"partials":{"ref":"parts"},"formantWeight":0.0}}]}})";
+        const char* editedRows = R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"add","nodes":[
+          {"id":"parts","type":"ExplicitPartials","params":{"mult1":[1.0,2.0,3.0,4.0],"ampl1":[1.0,0.1,0.1,0.1],"evolve":false,
+             "expandRule":{"count":1,"recurse":0,"spacing1":0.3,"spacing2":0.3}}},
+          {"id":"add","type":"AdditiveSource","params":{"frequency":220.0,"amplitude":0.5,"partials":{"ref":"parts"},"formantWeight":0.0}}]}})";
+        auto edited = load_instrument_patch_json(rows);
+        (void)render_one_live_note(*edited.instrument, 60.0f);
+        edited.instrument->voicePool[0].nodesById.at("parts")->set_array("ampl1", {1.0f, 0.1f, 0.1f, 0.1f});
+        edited.instrument->prepare(RenderContext{48000});
+        const auto afterEdit = render_one_live_note(*edited.instrument, 60.0f);
+        auto loaded = load_instrument_patch_json(editedRows);
+        (void)render_one_live_note(*loaded.instrument, 60.0f);
+        const auto asLoaded = render_one_live_note(*loaded.instrument, 60.0f);
+        CHECK(same_bits(afterEdit, asLoaded));
+    }
 }
 
 // The frequency-dependent tables and their evolutions.

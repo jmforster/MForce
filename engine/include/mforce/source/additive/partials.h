@@ -269,8 +269,8 @@ struct Partials : ValueSource, IPartials {
 
     // Expand partials if rule is set
     if (hasExpand_) {
-      // Back to the originals prepare kept, then this note's expansion; every
-      // assign below fits the capacity prepare reserved.
+      // Back to the originals the last rebuild kept, then this note's expansion;
+      // every assign below fits the capacity prepare reserved.
       mult1_.assign(origMult1_.begin(), origMult1_.end()); mult2_.assign(origMult2_.begin(), origMult2_.end());
       ampl1_.assign(origAmpl1_.begin(), origAmpl1_.end()); ampl2_.assign(origAmpl2_.begin(), origAmpl2_.end());
       po1_.assign(origPo1_.begin(), origPo1_.end());       po2_.assign(origPo2_.begin(), origPo2_.end());
@@ -697,12 +697,17 @@ protected:
 
   void update_arrays() {
     init_arrays();
-    // The originals the expand rule starts every note from: the arrays as
-    // init_arrays made them, before any expansion.
+    snapshot_originals();
+    arrayUpdateReq_ = false;
+  }
+  // The originals the expand rule starts every note from: the arrays as the
+  // last rebuild made them, before any expansion. Every rebuild — update_arrays
+  // here, a subclass's own rebuild on an edit — ends with this, so a note
+  // never starts from arrays an earlier note expanded.
+  void snapshot_originals() {
     origMult1_ = mult1_; origMult2_ = mult2_;
     origAmpl1_ = ampl1_; origAmpl2_ = ampl2_;
     origPo1_ = po1_;     origPo2_ = po2_;
-    arrayUpdateReq_ = false;
   }
 
   void init_detune_values() {
@@ -1028,11 +1033,13 @@ struct ExplicitPartials final : Partials {
     if (name == "maxPartials") {
       maxPartials.value = std::max(1, maxPartials.value);
       init_arrays_defaults();
+      snapshot_originals();
     } else if (name == "evolve" && !evolve.value) {
       // When turning evolve off, mirror _1 -> _2 so rendering stops drifting.
       mult2.values = mult1.values;
       ampl2.values = ampl1.values;
       init_arrays();
+      snapshot_originals();
     }
   }
 
@@ -1043,6 +1050,7 @@ struct ExplicitPartials final : Partials {
     }
     maxPartials.value = int(mult1.values.size());
     init_arrays();
+    snapshot_originals();
   }
 
   // Falls back to the working arrays (init_arrays_defaults populates mult1_
