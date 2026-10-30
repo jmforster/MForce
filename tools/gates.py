@@ -30,6 +30,8 @@ SLOW = [
     ("null gate (patches)", [PY, "tools/null_gate_perform_source.py", "--jobs", "3"]),
     ("roundtrip (UI save/load, whole corpus)", [PY, "tools/test_stable_roundtrip.py", "patches/baselines", "patches/library", "--jobs", "3"]),
     ("wiring null gate (paramMap conversion)", [PY, "tools/null_gate_wiring.py"]),
+    ("allocation gate (no allocation between note-on and the last sample)",
+     [str(ROOT / "build/tools/alloc_gate/Release/alloc_gate.exe"), "patches/library", "patches/baselines"]),
 ]
 # Not run here: tools/comp_template_null_gate.py needs a render/compare pair
 # of stages rather than one command; it joins this list when its driver is

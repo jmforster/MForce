@@ -279,6 +279,8 @@ struct Partials : ValueSource, IPartials {
         apply_expand_rule();
     }
 
+    // Every array below was sized in prepare (size_note_arrays): each assign
+    // and resize here fills within that capacity and allocates nothing.
     int n = int(mult1_.size());
     partialPos_.assign(n, 0.0f);
     partialPO_.assign(n, 0.0f);
