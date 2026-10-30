@@ -6164,6 +6164,16 @@ static void run_allocation_tests() {
     const char* pluck = R"({"sampleRate":48000,"instrument":{"polyphony":2},"graph":{"output":"src","nodes":[{"id":"__perf_frequency","type":"PerformNode","params":{"field":"frequency"}},
       {"id":"src","type":"WavetableSource","params":{"seed":12345,"frequency":{"ref":"__perf_frequency"},"amplitude":0.5,"evolution":"pluck","muting":0.0}}]}})";
     CHECK(allocations_in_one_note(pluck) == 0);
+
+    // HybridKSSource: the table is reserved at prepare for the floor, the
+    // partial arrays sized with the targets; a short hold so the transition
+    // (the DFT) happens inside the note's life.
+    const char* hybrid = R"({"sampleRate":48000,"instrument":{"polyphony":2},"graph":{"output":"hks","nodes":[{"id":"__perf_frequency","type":"PerformNode","params":{"field":"frequency"}},
+      {"id":"hks","type":"HybridKSSource","params":{"seed":12345,"frequency":{"ref":"__perf_frequency"},"amplitude":0.5,"holdCycles":2,"morphDuration":0.05,"numPartials":30,
+         "targetPartials":[0.4,1.0,0.75,0.45,0.28,0.15,0.1,0.05,0.02,0.01]}}]}})";
+    CHECK(allocations_in_one_note(hybrid) == 0);
+    CHECK(allocations_in_one_note(hybrid, 15.49f) == 0);    // the floor
+    CHECK(allocations_in_one_note(hybrid, 36.0f) == 0);     // a second pitch on the other voice
 }
 
 int main() {

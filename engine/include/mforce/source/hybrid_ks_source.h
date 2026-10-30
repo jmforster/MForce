@@ -63,6 +63,7 @@ private:
 
   // KS state
   std::vector<float> table_;
+  int maxLen_{0};   // table_ is reserved to this at prepare; fill_table never exceeds it
   int tablePtr_{-1};
   int sampleInCycle_{0};
   int cycleCount_{0};

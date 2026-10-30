@@ -12,14 +12,23 @@ HybridKSSource::HybridKSSource(uint32_t seed)
 }
 
 // The target array holds an entry per partial the additive phase reads.
+// The target amplitudes and the three partial arrays the transition fills,
+// sized for the partial count; extract_partials then fills within capacity.
 void HybridKSSource::size_targets() {
   if (int(targetAmpl_.size()) < numPartials.value)
     targetAmpl_.resize(numPartials.value, 0.0f);
+  partialAmpl_.resize(numPartials.value);
+  partialPhase_.resize(numPartials.value);
+  startAmpl_.resize(numPartials.value);
 }
 
 void HybridKSSource::on_prepare(const RenderContext& ctx) {
   inputSource.prepare(ctx);
   size_targets();
+  // The table is reserved here for the floor frequency, so a note fills it
+  // within capacity (Part 2 section 4).
+  maxLen_ = int(std::ceil(float(sample_rate()) / kMinTableHz)) + 1;
+  table_.reserve(size_t(maxLen_));
 }
 
 void HybridKSSource::on_setting_changed(std::string_view name) {
@@ -45,7 +54,8 @@ void HybridKSSource::fill_table() {
   int len = 1;
   if (ratio >= 1.0f) len = int(std::lround(ratio));
   else fault(Fault::TableClamped);
-  table_.resize(len);
+  if (len > maxLen_) len = maxLen_;   // a note below the floor gets the floor's length
+  table_.resize(len);                 // within the capacity prepare reserved
 
   for (int i = 0; i < len; ++i)
     table_[i] = inputSource.step();
@@ -62,10 +72,7 @@ void HybridKSSource::ks_evolve(int index) {
 void HybridKSSource::extract_partials() {
   // Per-harmonic DFT: extract amplitude and phase of each partial
   int N = int(table_.size());
-  partialAmpl_.resize(numPartials.value);
-  partialPhase_.resize(numPartials.value);
-  startAmpl_.resize(numPartials.value);
-
+  // partialAmpl_, partialPhase_ and startAmpl_ were sized with the targets.
   for (int k = 0; k < numPartials.value; ++k) {
     float re = 0.0f, im = 0.0f;
     int harmonic = k + 1;
