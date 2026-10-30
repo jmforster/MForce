@@ -4,6 +4,7 @@
 #include <cstdio>
 #include <cmath>
 #include <cstdlib>
+#include "alloc_probe.h"
 
 static int g_checks = 0, g_fails = 0;
 #define CHECK(cond) do { ++g_checks; if (!(cond)) { ++g_fails; \
@@ -6056,7 +6057,33 @@ static void run_wire_rejection_tests() {
     CHECK(msg.find("node 'v' (VarSource): unknown key 'value'") != std::string::npos);
 }
 
+// The allocation probe: counts only while armed, keeps the first armed
+// allocation's stack, and resets to nothing.
+static void run_alloc_probe_tests() {
+    alloc_probe::reset();
+    { std::vector<int> v(100); (void)v; }                 // unarmed: not counted
+    CHECK(alloc_probe::count() == 0);
+    alloc_probe::arm();
+    { std::vector<int> v(100); (void)v; }                 // one allocation of 400 bytes
+    alloc_probe::disarm();
+    CHECK(alloc_probe::count() == 1);
+    CHECK(alloc_probe::bytes() >= 400);
+    int depth = 0;
+    const void* const* stack = alloc_probe::first_stack(depth);
+    CHECK(stack != nullptr);
+#ifdef _WIN32
+    CHECK(depth > 0);
+#endif
+    { std::vector<int> w(10); (void)w; }                  // disarmed again: still 1
+    CHECK(alloc_probe::count() == 1);
+    alloc_probe::reset();
+    CHECK(alloc_probe::count() == 0 && alloc_probe::bytes() == 0);
+    alloc_probe::first_stack(depth);
+    CHECK(depth == 0);
+}
+
 int main() {
+    run_alloc_probe_tests();
     run_pin_tests();
     run_base_tests();
     run_prepare_start_tests();

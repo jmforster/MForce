@@ -48,6 +48,7 @@ add_subdirectory(tools/test_figures)
 add_subdirectory(tools/ppl_to_json)
 add_subdirectory(tools/stamp_test)
 add_subdirectory(tools/engine_tests)
+add_subdirectory(tools/alloc_probe)
 
 # Tests. Every test runs from the repo root: the test programs load patches
 # and scores by repo-relative path.
