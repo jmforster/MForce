@@ -6082,8 +6082,53 @@ static void run_alloc_probe_tests() {
     CHECK(depth == 0);
 }
 
+// Allocation-free start() and next(): one note through the real host's live
+// path — a pool slot, prepare_voice_at (the note's Setup, then start on the
+// voice and its tails), one pull per sample for the note's life — armed from
+// note-on to the last sample, must count nothing. Returns the count.
+static std::size_t allocations_in_one_note(const char* patchJson, float noteNumber = 60.0f) {
+    auto ip = load_instrument_patch_json(patchJson);
+    PitchedInstrument& inst = *ip.instrument;
+    inst.release_voice(inst.acquire_voice());        // the slot table is sized on first use
+    alloc_probe::reset();
+    alloc_probe::arm();
+    const int slot = std::max(0, inst.acquire_voice());
+    PitchedInstrument::StreamingVoice sv = inst.prepare_voice_at(slot, noteNumber, 0.8f, 0.1f);
+    for (int i = 0; i < sv.durSamples; ++i) {
+        sv.tick();
+        (void)sv.source->next();
+        for (auto& a : sv.advanceList) a->next();
+    }
+    inst.release_voice(slot);
+    alloc_probe::disarm();
+    if (alloc_probe::count())
+        std::printf("  [alloc] %zu allocation(s), %zu bytes, in one note of the patch beginning %.60s\n",
+                    alloc_probe::count(), alloc_probe::bytes(), patchJson);
+    return alloc_probe::count();
+}
+
+static void run_allocation_tests() {
+    // Partials: a plain FullPartials, and one with every per-partial feature on
+    // (decay, bandwidth noise, motion, shimmer, trade, onset spread, an expand
+    // rule) so every array partials_start sizes is exercised; two pitches on
+    // the pool's two voices.
+    const char* additive = R"({"sampleRate":48000,"instrument":{"polyphony":2},"graph":{"output":"add","nodes":[
+      {"id":"parts","type":"FullPartials","params":{"maxPartials":16}},
+      {"id":"add","type":"AdditiveSource","params":{"frequency":220.0,"amplitude":0.5,"partials":{"ref":"parts"},"formantWeight":0.0}}]}})";
+    CHECK(allocations_in_one_note(additive) == 0);
+    CHECK(allocations_in_one_note(additive, 72.0f) == 0);
+    const char* everything = R"({"sampleRate":48000,"instrument":{"polyphony":2},"graph":{"output":"add","nodes":[
+      {"id":"parts","type":"FullPartials","params":{"maxPartials":8,"decayRate":1.0,"bandwidthHz":30.0,
+         "motionDepth1":10.0,"shimmerDepth1":0.2,"tradeDepth":0.2,"onsetSpread":0.1,
+         "expandRule":{"count":1,"recurse":1,"spacing1":0.3,"spacing2":0.3}}},
+      {"id":"add","type":"AdditiveSource","params":{"frequency":220.0,"amplitude":0.5,"partials":{"ref":"parts"},"formantWeight":0.0}}]}})";
+    CHECK(allocations_in_one_note(everything) == 0);
+    CHECK(allocations_in_one_note(everything, 48.0f) == 0);
+}
+
 int main() {
     run_alloc_probe_tests();
+    run_allocation_tests();
     run_pin_tests();
     run_base_tests();
     run_prepare_start_tests();

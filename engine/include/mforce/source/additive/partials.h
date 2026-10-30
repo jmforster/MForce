@@ -245,6 +245,7 @@ struct Partials : ValueSource, IPartials {
     bwEnv.prepare(ctx);
     motionEnv.prepare(ctx);
     shimmerEnv.prepare(ctx);
+    size_note_arrays();
   }
 
   void partials_start(int frames) override {
@@ -257,10 +258,6 @@ struct Partials : ValueSource, IPartials {
     noteBase_ = uint32_t(splitmix64((uint64_t(baseSeed_) << 32) ^ uint64_t(noteSeq_)));
     ++noteSeq_;
 
-    if (arrayUpdateReq_) {
-      update_arrays();
-    }
-
     multEnv.start(frames);
     amplEnv.start(frames);
     poEnv.start(frames);
@@ -272,15 +269,11 @@ struct Partials : ValueSource, IPartials {
 
     // Expand partials if rule is set
     if (hasExpand_) {
-      if (origMult1_.empty()) {
-        origMult1_ = mult1_; origMult2_ = mult2_;
-        origAmpl1_ = ampl1_; origAmpl2_ = ampl2_;
-        origPo1_ = po1_; origPo2_ = po2_;
-      } else {
-        mult1_ = origMult1_; mult2_ = origMult2_;
-        ampl1_ = origAmpl1_; ampl2_ = origAmpl2_;
-        po1_ = origPo1_; po2_ = origPo2_;
-      }
+      // Back to the originals prepare kept, then this note's expansion; every
+      // assign below fits the capacity prepare reserved.
+      mult1_.assign(origMult1_.begin(), origMult1_.end()); mult2_.assign(origMult2_.begin(), origMult2_.end());
+      ampl1_.assign(origAmpl1_.begin(), origAmpl1_.end()); ampl2_.assign(origAmpl2_.begin(), origAmpl2_.end());
+      po1_.assign(origPo1_.begin(), origPo1_.end());       po2_.assign(origPo2_.begin(), origPo2_.end());
       expandRng_ = Randomizer(stream_seed(noteBase_, 0, kRngExpand));
       for (int r = 0; r <= expandRule_.recurse; ++r)
         apply_expand_rule();
@@ -719,8 +712,9 @@ protected:
     const auto& er = expandRule_;
     int origN = int(mult1_.size());
     int newN = origN * (er.count * 2 + 1);
-
-    std::vector<float> m1(newN), m2(newN), a1(newN), a2(newN), p1(newN), p2(newN);
+    auto& m1 = exM1_; auto& m2 = exM2_; auto& a1 = exA1_;
+    auto& a2 = exA2_; auto& p1 = exP1_; auto& p2 = exP2_;
+    for (auto* v : {&m1, &m2, &a1, &a2, &p1, &p2}) v->assign(size_t(newN), 0.0f);   // within capacity
 
     for (int i = 0; i < origN; ++i) {
       int base = i * (er.count * 2 + 1);
@@ -766,9 +760,40 @@ protected:
       }
     }
 
-    mult1_ = std::move(m1); mult2_ = std::move(m2);
-    ampl1_ = std::move(a1); ampl2_ = std::move(a2);
-    po1_   = std::move(p1); po2_   = std::move(p2);
+    mult1_.assign(m1.begin(), m1.end()); mult2_.assign(m2.begin(), m2.end());
+    ampl1_.assign(a1.begin(), a1.end()); ampl2_.assign(a2.begin(), a2.end());
+    po1_.assign(p1.begin(), p1.end());   po2_.assign(p2.begin(), p2.end());
+  }
+
+  // Every array a note fills, sized once here for the count prepare can see
+  // — the partial arrays after update_arrays, expanded by the rule if there
+  // is one — so partials_start fills within capacity and allocates nothing.
+  // A count changed after prepare is stale until the next prepare, as every
+  // setting is.
+  void size_note_arrays() {
+    if (arrayUpdateReq_) update_arrays();
+    int n = int(mult1_.size());
+    if (hasExpand_) {
+      origMult1_ = mult1_; origMult2_ = mult2_;
+      origAmpl1_ = ampl1_; origAmpl2_ = ampl2_;
+      origPo1_ = po1_;     origPo2_ = po2_;
+      for (int r = 0; r <= expandRule_.recurse; ++r) n *= expandRule_.count * 2 + 1;
+      for (auto* v : {&mult1_, &mult2_, &ampl1_, &ampl2_, &po1_, &po2_,
+                      &exM1_, &exM2_, &exA1_, &exA2_, &exP1_, &exP2_})
+        v->reserve(size_t(n));
+    }
+    for (auto* v : {&partialPos_, &partialPO_, &partialLPO_, &dtVals_, &pmultCache_,
+                    &rolloffCache_, &moScaleCache_, &decayGain_, &decayState_, &bwCur_,
+                    &bwTarget_, &moVals_, &shVals_, &onsetDelay_})
+      v->assign(size_t(n), 0.0f);
+    trVals_.assign(size_t((n + 1) / 2), 0.0f);
+    bwPos_.assign(size_t(n), 0);
+    bwRng_.assign(size_t(n), Randomizer(0u));
+    moRng_.assign(size_t(n), Randomizer(0u));
+    shRng_.assign(size_t(n), Randomizer(0u));
+    moWalks_.assign(size_t(n), MotionWalk{});
+    shWalks_.assign(size_t(n), MotionWalk{});
+    trWalks_.assign(size_t((n + 1) / 2), MotionWalk{});
   }
 
   // Smoothed random walk with meta-randomized segments — the primitive under
@@ -858,6 +883,7 @@ protected:
   ExpandRule expandRule_;
   bool hasExpand_{false};
   std::vector<float> origMult1_, origMult2_, origAmpl1_, origAmpl2_, origPo1_, origPo2_;
+  std::vector<float> exM1_, exM2_, exA1_, exA2_, exP1_, exP2_;   // the expand rule's scratch, reserved at prepare
 
   bool arrayUpdateReq_{true};
 
