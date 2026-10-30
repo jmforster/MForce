@@ -54,6 +54,7 @@ using namespace mforce;
 
 #include <tuple>
 #include <vector>
+#include <span>
 #include <string>
 #include <cstdint>
 #include <chrono>
@@ -3739,7 +3740,7 @@ static void voice_schedule_unlocked(std::shared_ptr<InstrumentPatch> patch,
                                     int poolSlot = -1,
                                     std::shared_ptr<mforce::PerformSource>
                                         performSource = nullptr,
-                                    std::vector<std::shared_ptr<mforce::ValueSource>>
+                                    std::span<const std::shared_ptr<mforce::ValueSource>>
                                         advanceList = {},
                                     std::shared_ptr<mforce::SampleClock> clock = nullptr) {
     // Same-source steal: a note whose pool slot's previous note is still
@@ -3778,7 +3779,7 @@ static void voice_schedule_unlocked(std::shared_ptr<InstrumentPatch> patch,
     g_voices[slot].midiNote = midiNote;
     g_voices[slot].poolSlot = poolSlot;
     g_voices[slot].performSource = std::move(performSource);
-    g_voices[slot].advanceList = std::move(advanceList);
+    g_voices[slot].advanceList.assign(advanceList.begin(), advanceList.end());   // the UI owns its copies: the tails die off-thread with the voice
     g_voices[slot].clock = std::move(clock);
     // Adaptive ring-out budget (backlog 63b): matches the engine's
     // kMaxRingSec window past the scheduled life.

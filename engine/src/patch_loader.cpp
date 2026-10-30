@@ -1429,12 +1429,6 @@ static void perform_score_json(PitchedInstrument& inst, const json& root)
     performer.conclude(bpm, inst);
 }
 
-void perform_embedded_score(PitchedInstrument& inst, const std::string& patchJsonText)
-{
-    const json root = json::parse(patchJsonText);
-    if (root.contains("score")) perform_score_json(inst, root);
-}
-
 // ---------------------------------------------------------------------------
 // Patch loading
 // ---------------------------------------------------------------------------

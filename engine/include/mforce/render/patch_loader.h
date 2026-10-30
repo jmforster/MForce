@@ -33,9 +33,4 @@ InstrumentPatch load_instrument_patch(const std::string& path,
 InstrumentPatch load_instrument_patch_json(const std::string& jsonText,
                                            int minPolyphony = 0);
 
-// Deliver the patch text's embedded "score" to an instrument loaded without
-// one (load_instrument_patch): the same walk load_patch_file performs when it
-// pre-renders a scored patch. A text with no score delivers nothing.
-void perform_embedded_score(PitchedInstrument& inst, const std::string& patchJsonText);
-
 } // namespace mforce

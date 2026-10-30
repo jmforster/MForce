@@ -6082,33 +6082,8 @@ static void run_alloc_probe_tests() {
     CHECK(depth == 0);
 }
 
-// Allocation-free start() and next(): one note through the real host, armed
-// from note-on to the last sample, must count nothing. The first case proves
-// the loader's embedded-score delivery as a function a host can call itself.
-static void run_allocation_tests() {
-    // A note scored at 0.5 s lands there; nothing sounds before it.
-    const char* scored = R"({"sampleRate":48000,"seconds":1,"instrument":{"polyphony":2},
-      "score":[{"note":60,"velocity":0.8,"duration":0.25,"time":0.5}],
-      "graph":{"output":"osc","nodes":[{"id":"osc","type":"SineSource","params":{"frequency":440.0,"amplitude":1.0}}]}})";
-    auto ip = load_instrument_patch_json(scored);
-    perform_embedded_score(*ip.instrument, scored);
-    std::vector<float> mono(48000, 0.0f);
-    ip.instrument->render(mono.data(), 48000);
-    CHECK(std::all_of(mono.begin(), mono.begin() + 20000, [](float v) { return v == 0.0f; }));
-    CHECK(std::any_of(mono.begin() + 24000, mono.begin() + 30000, [](float v) { return std::fabs(v) > 0.1f; }));
-    // No score: the delivery does nothing, and the instrument renders silence.
-    const char* unscored = R"({"sampleRate":48000,"seconds":1,"instrument":{"polyphony":2},
-      "graph":{"output":"osc","nodes":[{"id":"osc","type":"SineSource","params":{"frequency":440.0,"amplitude":1.0}}]}})";
-    auto ip2 = load_instrument_patch_json(unscored);
-    perform_embedded_score(*ip2.instrument, unscored);
-    std::fill(mono.begin(), mono.end(), 0.0f);
-    ip2.instrument->render(mono.data(), 48000);
-    CHECK(std::all_of(mono.begin(), mono.end(), [](float v) { return v == 0.0f; }));
-}
-
 int main() {
     run_alloc_probe_tests();
-    run_allocation_tests();
     run_pin_tests();
     run_base_tests();
     run_prepare_start_tests();

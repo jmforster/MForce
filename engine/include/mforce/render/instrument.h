@@ -1,6 +1,7 @@
 #pragma once
 #include <algorithm>
 #include <cstddef>
+#include <span>
 #include "mforce/render/mixer.h"
 #include "mforce/render/limiter.h"
 #include "mforce/core/dsp_value_source.h"
@@ -307,7 +308,9 @@ struct PitchedInstrument final : Instrument {
     // Loop tails consumed only by tap edges. Streaming callers MUST pull
     // each entry once per sample AFTER source->next(), or tap-closed
     // feedback loops fall silent. Empty for graphs with no tap-only tails.
-    std::vector<std::shared_ptr<ValueSource>> advanceList;
+    // A view of the pool voice's list, which outlives this handle: a
+    // live note-on copies nothing.
+    std::span<const std::shared_ptr<ValueSource>> advanceList;
     // The voice's sample clock, shared with the pool's VoiceGraph.
     std::shared_ptr<SampleClock> clock;
     // A sample begins. Streaming callers MUST call this once per sample
