@@ -6174,6 +6174,31 @@ static void run_allocation_tests() {
     CHECK(allocations_in_one_note(hybrid) == 0);
     CHECK(allocations_in_one_note(hybrid, 15.49f) == 0);    // the floor
     CHECK(allocations_in_one_note(hybrid, 36.0f) == 0);     // a second pitch on the other voice
+
+    // PhasedValueSource: the stage counters and boundaries are sized at prepare.
+    const char* phased = R"({"sampleRate":48000,"instrument":{"polyphony":2},"graph":{"output":"phased","nodes":[{"id":"__perf_frequency","type":"PerformNode","params":{"field":"frequency"}},
+      {"id":"saw","type":"SawSource","params":{"frequency":{"ref":"__perf_frequency"},"amplitude":1.0}},
+      {"id":"pulse","type":"PulseSource","params":{"frequency":{"ref":"__perf_frequency"},"amplitude":1.0,"dutyCycle":0.3,"bend":0.4}},
+      {"id":"sin","type":"SineSource","params":{"frequency":{"ref":"__perf_frequency"},"amplitude":1.0}},
+      {"id":"phased","type":"PhasedValueSource","params":{"overlap":0.15,"amplitude":0.8,"stages":[
+        {"source":{"ref":"saw"},"percent":0.33,"min":0.5,"max":3.0,"gain":1.0},
+        {"source":{"ref":"pulse"},"percent":0.33,"min":0.5,"max":3.0,"gain":1.0},
+        {"source":{"ref":"sin"},"percent":0,"min":0.0,"max":0.0,"gain":1.0}]}}]}})";
+    CHECK(allocations_in_one_note(phased) == 0);
+    CHECK(allocations_in_one_note(phased, 48.0f) == 0);
+    // SegmentSource: the segment list is reserved at prepare for the shape's size.
+    const char* segment = R"({"sampleRate":48000,"instrument":{"polyphony":2},"graph":{"output":"seg","nodes":[
+      {"id":"seg","type":"SegmentSource","params":{"values":[8.0,0.65,8.0,-0.54,8.0,0.74,9.0,0.2],"oneShot":false,"seed":42,"smoothness":0.5,"gap":0.0}}]}})";
+    CHECK(allocations_in_one_note(segment) == 0);
+    CHECK(allocations_in_one_note(segment, 48.0f) == 0);
+    // BasicAdditiveSource: the five per-partial arrays are reserved at prepare
+    // for the partial count at the floor frequency; a lower note gets that count.
+    const char* basic = R"({"sampleRate":48000,"instrument":{"polyphony":2},"graph":{"output":"src","nodes":[{"id":"__perf_frequency","type":"PerformNode","params":{"field":"frequency"}},
+      {"id":"src","type":"BasicAdditiveSource","params":{"frequency":{"ref":"__perf_frequency"},"amplitude":0.5}}]}})";
+    CHECK(allocations_in_one_note(basic) == 0);
+    CHECK(allocations_in_one_note(basic, 15.49f) == 0);     // the floor: 600 partials
+    CHECK(allocations_in_one_note(basic, 0.0f) == 0);       // below it: the floor's count
+    CHECK(allocations_in_one_note(basic, 36.0f) == 0);
 }
 
 int main() {

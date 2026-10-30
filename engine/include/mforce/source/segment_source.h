@@ -63,6 +63,12 @@ struct SegmentSource final : Generator {
     if (name == "values") refresh_units_();
   }
 
+  // The shape is fixed before prepare: the segment list update_segments
+  // builds — one pair per shape pair plus the gap — is reserved here and
+  // refilled within capacity on every rebuild.
+  void on_prepare(const RenderContext&) override {
+    currVals_.reserve((values.values.size() / 2 + 1) * 2);
+  }
   void on_start(int) override {
     done_ = false;
     // Deferred to the first compute(): update_segments() reads the

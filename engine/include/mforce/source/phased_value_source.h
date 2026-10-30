@@ -44,6 +44,10 @@ struct PhasedValueSource final : Generator {
 
   void on_prepare(const RenderContext& ctx) override {
     for (auto& s : stages_) s.source->prepare(ctx);
+    // The stage list is fixed before prepare: the counters and boundaries a
+    // note lays out are sized here and filled within capacity in on_start.
+    stageCounts_.assign(stages_.size(), 0);
+    boundaries_.assign(stages_.size(), 0);
   }
 
   void on_start(int frames) override {

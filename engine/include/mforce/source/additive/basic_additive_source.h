@@ -29,6 +29,16 @@ struct BasicAdditiveSource final : WaveSource {
   const char* type_name() const override { return "BasicAdditiveSource"; }
   SourceCategory category() const override { return SourceCategory::Additive; }
 
+  // The partial count is 12 kHz over the frequency; the five arrays are
+  // reserved here for the count at the floor frequency (kMinTableHz), so a
+  // note fills them within capacity, and a note below the floor gets the
+  // floor's count.
+  void on_prepare(const RenderContext&) override {
+    maxCount_ = int(12000.0f / kMinTableHz) + 1;
+    for (auto* v : {&partialPos_, &freqOffset_, &amplOffset_}) v->reserve(size_t(maxCount_));
+    freqVarDir_.reserve(size_t(maxCount_));
+    amplVarDir_.reserve(size_t(maxCount_));
+  }
   void on_start(int frames) override {
     WaveSource::on_start(frames);
 
@@ -54,6 +64,7 @@ protected:
     // Compute partial count up to ~12 kHz
     int count = (currFreq_ > 0.0f) ? int(12000.0f / currFreq_) : 0;
     if (count < 1) count = 1;
+    if (count > maxCount_) count = maxCount_;   // below the floor: the floor's count
 
     // Grow arrays if needed
     if (count > partialCount_) {
@@ -115,6 +126,7 @@ private:
   Randomizer rng_;
 
   int partialCount_{0};
+  int maxCount_{0};   // the arrays are reserved to this at prepare
   std::vector<float> partialPos_;
   std::vector<float> freqOffset_;
   std::vector<float> amplOffset_;
