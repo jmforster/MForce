@@ -1,5 +1,53 @@
 # Status — session handoff (Claude reads this first; Matt's queue = */REVIEW.md)
 
+Updated: 2026-10-30 (refactor session VI, Fable 5.1 xhigh). CHECKPOINT 2.6
+LANDED on main: 6a37849..d3df3ea — PART 2 COMPLETE. The allocation probe
+(tools/alloc_probe: a replaced global operator new, linked by alloc_gate and
+engine_tests only) and the gate (tools/alloc_gate: a patch or a folder, armed
+around the LIVE path — acquire_voice, prepare_voice_at, one pull per sample —
+per embedded-score note or one C4, and each channel source of a mixer-mode
+graph; count + symbolized first stack; exit 1 on any allocation) run in
+gates.py's SLOW list over library+baselines: 132 patches, 0 allocate (97 on the
+first run: Partials 75, Wavetable+evolutions 11, Segment 8, HybridKS, Phased,
+a Multiplex push). Every allocation moved to prepare by one rule: a
+setting-fixed count sized at prepare; a frequency-dependent length reserved for
+WaveSource::kMinTableHz = 20 Hz and fitted within capacity at start (a sub-floor
+note gets the floor's length — REVIEW item 3). Also: StreamingVoice::advanceList
+is a span (a live note-on copied a vector); the loader's score walk is a
+file-local step. The Fable refuter (report §8): two Majors fixed in the wave —
+the Partials originals snapshotted from arrays a note leaves expanded (a second
+prepare would double-expand) and EKSEvolution allocating a vector per note into
+the owner's table — then a second pass for ExplicitPartials' direct rebuilds
+(snapshot_originals); re-review and re-check: met as signed. Verified at the
+seal: engine_tests ALL PASS (6541); ctest/stamp PASS; null gate 78/78 after
+EVERY task (no manifest change); wiring null gate 78/78; allocation gate PASS
+(78–139 s); roundtrip gates the known six. A/B over the 1,615-patch sample
+(renders/scratch/ab26_tree, old = 2.5's seal cli_pre26.exe): 0 DIFFER in every
+set. Timing within noise (every row within 7 percent, F–I within 4). Meter
++809 lines (286 tests, 235 gate, 136 probe), mutable +5 (the probe's
+thread_locals), duplicates 159→158. Measurement:
+docs/architecture/measurements/2026-10-29-allocations.md; survey:
+tools/survey_table_frequencies.py (lowest table frequency in use 220 Hz). DOCS:
+report R7 docs/autonomy/refactor/reports/2026-10-30-checkpoint-2.6.md (§8 the
+refutation, the fix-wave outcomes, the re-review, the re-check; §10 four
+lessons); REVIEW R7 AWAITING MATT with four items: (0) the gate's place (slow
+list vs a ctest after a --jobs split), (1) the A/B (none moved — accept), (2)
+the queue folders (398 of 749 allocated on the first arming, not re-measured),
+(3) the 20 Hz floor, plus (4) a per-note push into a Partials shaping setting
+(honour within capacity, or refuse at load). R6 (2.5) still awaits Matt.
+BACKLOG row 1: Part 2 complete; row 2 (Part 3 nodes) NEXT — plan 3.1 to write.
+Part 2 §4 decided line + §7 row 2.6 filled; the plan's Ledger carries every
+execution ruling. Debt (report §7): the offline hosts' per-note buffers
+(play_note, play_hit, StereoMixer::render scratch — Part 5), the live legato
+Setup's glide allocation and the Setup-path group (Part 5), onsets/hold absent
+from the live path, the queues unmeasured after the fixes, the UI's own note-on
+copies (Part 7), WaveEvolution still a part (Part 3), the two fill_table twins,
+the pull step in five places, the probe's thread_locals in the meter, a `gap`
+key on a RepeatingSource baseline accepted and ignored (Part 4). GOALS.md stays
+Matt's uncommitted edit. Main is ahead of origin by every commit since the
+2.5 docs commit 88283c4 (the 2.6 plan, Tasks 0–9, two review passes, this
+docs commit): ask at close-out whether to push.
+
 Updated: 2026-10-26, later (refactor session VI, Fable 5.1 xhigh). CHECKPOINT
 2.5 LANDED on main: cb1b4ab..1481d15 — no throw on a render path (the two
 throws are clamps with a per-node atomic fault bit), the fault bits reach the

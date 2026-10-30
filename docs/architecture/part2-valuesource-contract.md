@@ -327,6 +327,17 @@ is byte-identical and the null gate proves it.
 **Decided 2026-10-05:** `prepare(ctx)` may allocate; `start(frames)` may
 not.
 
+Decided 2026-10-30: landed as checkpoint 2.6 — the allocation probe
+(`tools/alloc_probe`, a replaced global `operator new` in the test executables
+only) and the gate (`tools/alloc_gate`, armed around the live path: note-on
+through `prepare_voice_at`, one pull per sample, over every patch under
+`patches/library` and `patches/baselines`; 0 allocate, in `gates.py`'s slow
+list); every allocation it found moved to `prepare` by one rule — a
+setting-fixed count sized at prepare, a frequency-dependent length reserved
+for the floor `WaveSource::kMinTableHz` (20 Hz) and fitted within capacity at
+`start`. Part 2 is complete. Plan
+`docs/superpowers/plans/2026-10-29-part2-checkpoint-2.6.md`.
+
 ### What `prepare(ctx, frames)` does today
 
 One call, three jobs:
@@ -567,7 +578,7 @@ independent review and an architecture report with the meter's numbers.
 | 2.3 | The per-tick memo, taps reading A; `RefSource`, the usage counter, starved-ref promotion and the UI's wrap mirror deleted; the generalised advance sweep | the wiring-order lag patches, measured beforehand with the instrumented loader, and `double_advance_bug` |
 | 2.4 | Taps reading B | only patches where a tap today reads a same-tick value, measured beforehand; may be none — measured 2026-10-19: 45 (`docs/architecture/measurements/2026-10-19-same-tick-taps.md`), none in library or baselines; 40 differ in the whole-tree A/B |
 | 2.5 | No throw on a render path; fault flags; `set_pin` failures become load failures | none for valid patches; a zero-frequency patch renders instead of terminating; bad-wire patches fail to load, listed — landed 2026-10-26: 0 valid renders moved (Tasks 1–3: 78/78 after each, the A/B 0 differ in every set); five patches stop loading (four `sweep/stk_bandedwg_port/*_struck`, `old/Squeaker`), each a stale key on a hand-built or legacy node; the DelayLine wrap routed here from 2.2 moved 25 of the sample, every one on the measured list of 28, `double_advance_{bug,ok}` refrozen |
-| 2.6 | The allocation test over every baseline patch, wrapping `start` and `next` | none; the test is the new gate |
+| 2.6 | The allocation test over every baseline patch, wrapping `start` and `next` | none; the test is the new gate — landed 2026-10-30: 0 renders moved over the 1,615-patch sample; `alloc_gate` over library and baselines 132 patches, 0 allocate (97 before the moves: Partials, Wavetable and its evolutions, HybridKS, Phased, Segment, BasicAdditive, the Multiplex push delivery) |
 
 The order is chosen so that each behavioural change is isolated in its
 own checkpoint with its own measured list. 2.1, 2.2 and 2.6 are pure

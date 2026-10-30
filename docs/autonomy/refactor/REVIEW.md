@@ -8,6 +8,40 @@ checkpoints wait for Matt's read.
 
 ## Awaiting
 
+**R7 — checkpoint 2.6: the allocation test over every baseline patch**
+(2026-10-30, commits `6a37849`..`d3df3ea`)
+- Read: `docs/autonomy/refactor/reports/2026-10-30-checkpoint-2.6.md`
+  (its reading guide is ten minutes; section 1 names the one live-path fix
+  and the three offline-host allocations left to Part 5, section 5 the gate's
+  numbers — 97 allocating patches to 0 — and the A/B, section 6 the decisions
+  taken on your behalf — rulings 12, 15 and 18 departed from the plan —
+  section 7 the debt, section 8 the refutation, section 10 four C++ lessons).
+- Try: `build/tools/alloc_gate/Release/alloc_gate.exe patches/library patches/baselines`
+  (132 patches: 0 allocate; about four minutes); point it at any queue patch,
+  `alloc_gate.exe --verbose patches/audition/<family>/<patch>.json`, for its
+  count and the first allocation's call stack with file and line; play
+  `patches/baselines/double_advance_ok.json` and `feedback/loop_tap_starved.json`
+  on the keyboard — a live note-on on a loop patch no longer copies the
+  voice's tail list (nothing you can hear changed: the A/B is 0 moved).
+- A verdict decides: (0) **the gate's place**: `gates.py`'s slow list, where
+  its 78 to 230 seconds put it (78 at the seal with nothing to symbolize), or a ctest after a `--jobs` split across processes
+  (not done here); (1) **the A/B**: no render moved over the 1,615-patch
+  sample — accept the checkpoint as byte-identical; (2) **the queue folders**:
+  398 of 749 audition and pending patches allocated on the first arming, in
+  the same families, and are not re-measured after the fixes — left as
+  information, or a run over them worth doing now; (3) **the floor,
+  `WaveSource::kMinTableHz` = 20 Hz**, the length every frequency-dependent
+  table (and BasicAdditive's partial count) is reserved for: the survey found
+  220 Hz the lowest constant in use and A0 (27.5 Hz) the lowest key, and a
+  note below the floor gets the floor's length — keep, lower it, or make it a
+  setting; (4) **a per-note push into a Partials shaping setting** (`evenWeight`,
+  `minMult`, `incr`, `unitPO` through a paramMap or a dynamic pin): the array
+  rebuild moved from `start` to `prepare`, so such a push is now ignored until
+  the next prepare, where the old `start` honoured it (within capacity for a
+  value-only change). No patch outside `old/` carries one. Honour it at `start`
+  within capacity (size for the setting's declared maximum), or have the loader
+  refuse a push binding into a shaping setting (2.5's "a rejected wire says so").
+
 **R6 — checkpoint 2.5: no throw on a render path; fault flags; a rejected
 wire says so** (2026-10-26, commits `cb1b4ab`..`1481d15`)
 - Read: `docs/autonomy/refactor/reports/2026-10-20-checkpoint-2.5.md`

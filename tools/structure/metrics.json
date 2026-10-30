@@ -5,13 +5,13 @@
    [
     [
      "tools/mforce_ui/main.cpp",
-     3017,
-     3091
+     3018,
+     3092
     ],
     [
      "tools/mforce_ui/main.cpp",
-     3332,
-     3401
+     3333,
+     3402
     ]
    ]
   ],
@@ -20,13 +20,13 @@
    [
     [
      "engine/src/patch_loader.cpp",
-     1396,
-     1457
+     1470,
+     1531
     ],
     [
      "engine/src/patch_loader.cpp",
-     1705,
-     1750
+     1713,
+     1758
     ]
    ]
   ],
@@ -225,13 +225,13 @@
    [
     [
      "engine/include/mforce/render/instrument.h",
-     684,
-     702
+     692,
+     710
     ],
     [
      "engine/include/mforce/render/instrument.h",
-     739,
-     751
+     747,
+     759
     ]
    ]
   ],
@@ -290,8 +290,8 @@
     ],
     [
      "tools/mforce_ui/main.cpp",
-     1326,
-     1341
+     1327,
+     1342
     ]
    ]
   ],
@@ -300,13 +300,13 @@
    [
     [
      "tools/mforce_ui/main.cpp",
-     12238,
-     12255
+     12239,
+     12256
     ],
     [
      "tools/mforce_ui/main.cpp",
-     12460,
-     12477
+     12461,
+     12478
     ]
    ]
   ],
@@ -410,13 +410,13 @@
    [
     [
      "tools/engine_tests/main.cpp",
-     3705,
-     3720
+     3706,
+     3721
     ],
     [
      "tools/engine_tests/main.cpp",
-     4002,
-     4017
+     4003,
+     4018
     ]
    ]
   ],
@@ -485,13 +485,13 @@
    [
     [
      "tools/mforce_ui/main.cpp",
-     12056,
-     12070
+     12057,
+     12071
     ],
     [
      "tools/mforce_ui/main.cpp",
-     12256,
-     12270
+     12257,
+     12271
     ]
    ]
   ],
@@ -580,13 +580,13 @@
    [
     [
      "tools/mforce_ui/main.cpp",
-     3001,
-     3014
+     3002,
+     3015
     ],
     [
      "tools/mforce_ui/main.cpp",
-     3322,
-     3334
+     3323,
+     3335
     ]
    ]
   ],
@@ -595,13 +595,13 @@
    [
     [
      "tools/mforce_ui/main.cpp",
-     12057,
-     12070
+     12058,
+     12071
     ],
     [
      "tools/mforce_ui/main.cpp",
-     12257,
-     12270
+     12258,
+     12271
     ]
    ]
   ],
@@ -755,28 +755,13 @@
    [
     [
      "engine/src/patch_loader.cpp",
-     64,
-     75
+     1452,
+     1463
     ],
     [
      "engine/src/patch_loader.cpp",
-     79,
-     101
-    ]
-   ]
-  ],
-  [
-   12,
-   [
-    [
-     "engine/src/patch_loader.cpp",
-     1378,
-     1389
-    ],
-    [
-     "engine/src/patch_loader.cpp",
-     1692,
-     1702
+     1700,
+     1710
     ]
    ]
   ],
@@ -800,13 +785,13 @@
    [
     [
      "tools/mforce_ui/main.cpp",
-     12813,
-     12824
+     12814,
+     12825
     ],
     [
      "tools/mforce_ui/main.cpp",
-     12875,
-     12885
+     12876,
+     12886
     ]
    ]
   ],
@@ -870,18 +855,18 @@
    [
     [
      "tools/engine_tests/main.cpp",
-     3707,
-     3717
+     3708,
+     3718
     ],
     [
      "tools/engine_tests/main.cpp",
-     4004,
-     4014
+     4005,
+     4015
     ],
     [
      "tools/engine_tests/main.cpp",
-     4530,
-     4540
+     4531,
+     4541
     ]
    ]
   ],
@@ -890,13 +875,13 @@
    [
     [
      "tools/mforce_ui/main.cpp",
-     2922,
-     2932
+     2923,
+     2933
     ],
     [
      "tools/mforce_ui/main.cpp",
-     3290,
-     3299
+     3291,
+     3300
     ]
    ]
   ],
@@ -905,13 +890,13 @@
    [
     [
      "tools/mforce_ui/main.cpp",
-     3179,
-     3189
+     3180,
+     3190
     ],
     [
      "tools/mforce_ui/main.cpp",
-     3410,
-     3420
+     3411,
+     3421
     ]
    ]
   ],
@@ -920,13 +905,13 @@
    [
     [
      "tools/mforce_ui/main.cpp",
-     9353,
-     9363
+     9354,
+     9364
     ],
     [
      "tools/mforce_ui/main.cpp",
-     9386,
-     9395
+     9387,
+     9396
     ]
    ]
   ],
@@ -935,13 +920,13 @@
    [
     [
      "tools/mforce_ui/main.cpp",
-     9978,
-     9988
+     9979,
+     9989
     ],
     [
      "tools/mforce_ui/main.cpp",
-     10080,
-     10090
+     10081,
+     10091
     ]
    ]
   ],
@@ -1025,13 +1010,13 @@
    [
     [
      "tools/engine_tests/main.cpp",
-     3338,
-     3347
+     3339,
+     3348
     ],
     [
      "tools/engine_tests/main.cpp",
-     3669,
-     3678
+     3670,
+     3679
     ]
    ]
   ],
@@ -1067,6 +1052,21 @@
      "tools/mforce_cli/main.cpp",
      354,
      363
+    ]
+   ]
+  ],
+  [
+   10,
+   [
+    [
+     "tools/mforce_ui/main.cpp",
+     6793,
+     6802
+    ],
+    [
+     "tools/mforce_ui/main.cpp",
+     6971,
+     6980
     ]
    ]
   ]
@@ -1174,7 +1174,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 63,
+   "lines": 71,
    "longest_function": [
     29,
     "mforce::WaveSource::compute"
@@ -2553,7 +2553,7 @@
    "changelog_comments": 20,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 826,
+   "lines": 834,
    "longest_function": [
     134,
     "mforce::PitchedInstrument::play_note"
@@ -2690,9 +2690,9 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 125,
+   "lines": 137,
    "longest_function": [
-    68,
+    69,
     "mforce::BasicAdditiveSource::wave"
    ],
    "module": "source",
@@ -2740,7 +2740,7 @@
    "changelog_comments": 0,
    "const_cast": 1,
    "dynamic_cast": 1,
-   "lines": 1157,
+   "lines": 1196,
    "longest_function": [
     149,
     "mforce::Partials::partial_value_impl"
@@ -2843,7 +2843,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 79,
+   "lines": 80,
    "longest_function": [
     4,
     "mforce::HybridKSSource::set_target_partials"
@@ -2903,9 +2903,9 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 169,
+   "lines": 195,
    "longest_function": [
-    18,
+    19,
     "mforce::MultiplexSource::rebuild_"
    ],
    "module": "source",
@@ -2938,7 +2938,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 146,
+   "lines": 150,
    "longest_function": [
     48,
     "mforce::PhasedValueSource::on_start"
@@ -3043,7 +3043,7 @@
    "changelog_comments": 1,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 193,
+   "lines": 199,
    "longest_function": [
     63,
     "mforce::SegmentSource::update_segments"
@@ -3120,7 +3120,7 @@
    "changelog_comments": 1,
    "const_cast": 0,
    "dynamic_cast": 1,
-   "lines": 1306,
+   "lines": 1332,
    "longest_function": [
     47,
     "mforce::BowedStringEvolution::evolve"
@@ -3161,7 +3161,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 1,
-   "lines": 75,
+   "lines": 76,
    "longest_function": [
     8,
     "mforce::WavetableSource::set_param"
@@ -3273,10 +3273,10 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 171,
+   "lines": 178,
    "longest_function": [
-    37,
-    "mforce::HybridKSSource::extract_partials"
+    36,
+    "mforce::HybridKSSource::compute_ks"
    ],
    "module": "source",
    "mutable_vars": 0,
@@ -3312,7 +3312,7 @@
    "changelog_comments": 11,
    "const_cast": 0,
    "dynamic_cast": 5,
-   "lines": 1761,
+   "lines": 1769,
    "longest_function": [
     470,
     "mforce::build_graph"
@@ -3397,12 +3397,55 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 151,
+   "lines": 156,
    "longest_function": [
     56,
     "mforce::WavetableSource::compute_raw"
    ],
    "module": "source",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "tools/alloc_gate/main.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 235,
+   "longest_function": [
+    24,
+    "gate_instrument"
+   ],
+   "module": "tests",
+   "mutable_vars": 0,
+   "types": [
+    "Options",
+    "Result",
+    "Event"
+   ]
+  },
+  "tools/alloc_probe/alloc_probe.cpp": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 117,
+   "longest_function": [
+    12,
+    "record"
+   ],
+   "module": "tests",
+   "mutable_vars": 5,
+   "types": []
+  },
+  "tools/alloc_probe/alloc_probe.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 19,
+   "longest_function": [
+    0,
+    ""
+   ],
+   "module": "tests",
    "mutable_vars": 0,
    "types": []
   },
@@ -3512,7 +3555,7 @@
    "changelog_comments": 4,
    "const_cast": 0,
    "dynamic_cast": 17,
-   "lines": 6146,
+   "lines": 6432,
    "longest_function": [
     272,
     "run_walk3_tests"
@@ -3597,7 +3640,7 @@
    "changelog_comments": 125,
    "const_cast": 0,
    "dynamic_cast": 20,
-   "lines": 14673,
+   "lines": 14674,
    "longest_function": [
     1713,
     "main"
@@ -3893,14 +3936,14 @@
  "summary": {
   "changelog_comments": 250,
   "const_cast": 10,
-  "duplicate_blocks": 159,
+  "duplicate_blocks": 158,
   "dynamic_cast": 58,
-  "file_level_mutable_vars": 115,
-  "files": 167,
+  "file_level_mutable_vars": 120,
+  "files": 170,
   "files_over_limit": 20,
   "functions_over_limit": 99,
   "include_violations": 13,
-  "lines": 59561,
+  "lines": 60370,
   "unmapped_files": 0
  }
 }
