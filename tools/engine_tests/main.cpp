@@ -6157,8 +6157,8 @@ static void run_allocation_tests_partials() {
         CHECK(same_bits(second, secondAfterPrepare));
     }
     // An ExplicitPartials row edited after the first prepare (the UI's path:
-    // set_array, then Play prepares again) sounds on the next note, expand
-    // rule or not: the originals the rule starts from follow every rebuild.
+    // set_array, then Play prepares again) sounds on the next note with an
+    // expand rule: the originals the rule starts from follow every rebuild.
     {
         const char* rows = R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"add","nodes":[
           {"id":"parts","type":"ExplicitPartials","params":{"mult1":[1.0,2.0,3.0,4.0],"ampl1":[1.0,0.5,0.25,0.125],"evolve":false,
