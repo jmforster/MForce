@@ -143,6 +143,7 @@ struct PitchedInstrument final : Instrument {
     std::shared_ptr<ValueSource>     chain;
     std::shared_ptr<ConstantSource>  cs;            // non-setting delivery
     bool                             isSetting{false};
+    int                              cloneSlot{-1};  // the Multiplex fan-out's slot, registered at prepare
   };
 
   struct VoiceGraph {
@@ -209,7 +210,13 @@ struct PitchedInstrument final : Instrument {
       if (vg.performSource) vg.performSource->prepare(vg.ctx);
       // The push-binding chains are nodes of this voice too: stepped at a
       // note's Setup, never pulled by the root, so nothing else prepares them.
-      for (auto& b : vg.pushBindings) if (b.chain) b.chain->prepare(vg.ctx);
+      // A binding that fans into Multiplex clones registers its slot here, so
+      // the note's write allocates nothing.
+      for (auto& b : vg.pushBindings) {
+        if (b.chain) b.chain->prepare(vg.ctx);
+        if (vg.topMultiplex && !b.targetNodeId.empty())
+          b.cloneSlot = vg.topMultiplex->clone_param_slot(b.targetNodeId, b.paramName);
+      }
     }
   }
 
@@ -398,8 +405,7 @@ struct PitchedInstrument final : Instrument {
       } else {
         b.cs->set(v);
         b.consumer->set_param(b.paramName, b.cs);
-        if (vg.topMultiplex && !b.targetNodeId.empty())
-          vg.topMultiplex->set_clone_param(b.targetNodeId, b.paramName, v);
+        if (b.cloneSlot >= 0) vg.topMultiplex->set_clone_param(b.cloneSlot, v);
       }
     }
   }
@@ -547,8 +553,7 @@ struct PitchedInstrument final : Instrument {
       float v = b.chain->current();
       b.cs->set(v);
       b.consumer->set_param(b.paramName, b.cs);
-      if (vg.topMultiplex && !b.targetNodeId.empty())
-        vg.topMultiplex->set_clone_param(b.targetNodeId, b.paramName, v);
+      if (b.cloneSlot >= 0) vg.topMultiplex->set_clone_param(b.cloneSlot, v);
     }
     fire_triggers(vg);   // the onset gesture restarts from current value
   }

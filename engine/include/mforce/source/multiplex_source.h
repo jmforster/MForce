@@ -68,16 +68,25 @@ struct MultiplexSource final : Processor {
     // External dirty signal (UI sets this after editing template nodes).
     void mark_dirty() { templateDirty_ = true; }
 
-    // ParamMap fan-out: set a param on a node (by id) across every clone.
-    // Stores as pending so it applies to future rebuilds too. Called by
-    // PitchedInstrument::play_note after setting the top-level paramMap
-    // ConstantSource, so clones pick up the same note frequency.
-    void set_clone_param(const std::string& nodeId,
-                         const std::string& paramName,
-                         float value) {
-        pendingCloneParams_[nodeId + "." + paramName] =
-            std::make_tuple(nodeId, paramName, value);
-        apply_clone_param_to_all_(nodeId, paramName, value);
+    // ParamMap fan-out: a param on a node (by id) set across every clone at a
+    // note's Setup, so the clones pick up the same note frequency as the
+    // top-level node. The target is registered once, at prepare, as a slot:
+    // registration finds or appends the entry and gives every clone's pin a
+    // constant to write into, so the per-note write allocates nothing. The
+    // slot's last value is replayed onto freshly built clones.
+    int clone_param_slot(const std::string& nodeId, const std::string& paramName) {
+        for (int i = 0; i < int(cloneParams_.size()); ++i)
+            if (cloneParams_[size_t(i)].nodeId == nodeId && cloneParams_[size_t(i)].paramName == paramName)
+                return i;
+        cloneParams_.push_back({nodeId, paramName, 0.0f, false});
+        ensure_clone_param_sources_(nodeId, paramName);
+        return int(cloneParams_.size()) - 1;
+    }
+    void set_clone_param(int slot, float value) {
+        CloneParam& p = cloneParams_[size_t(slot)];
+        p.value = value;
+        p.delivered = true;
+        apply_clone_param_to_all_(p.nodeId, p.paramName, value);
     }
 
     void on_prepare(const RenderContext& ctx) override {
@@ -122,10 +131,11 @@ private:
             instances_.push_back(std::move(pair.first));
             instanceValueNodes_.push_back(std::move(pair.second));
         }
-        // Replay any pending paramMap fan-outs onto the freshly built clones.
-        for (auto& [_, entry] : pendingCloneParams_) {
-            const auto& [nodeId, paramName, value] = entry;
-            apply_clone_param_to_all_(nodeId, paramName, value);
+        // The fresh clones get a constant on every registered target's pin,
+        // and the last delivered value where there was one.
+        for (const CloneParam& p : cloneParams_) {
+            ensure_clone_param_sources_(p.nodeId, p.paramName);
+            if (p.delivered) apply_clone_param_to_all_(p.nodeId, p.paramName, p.value);
         }
         templateDirty_ = false;
     }
@@ -138,6 +148,16 @@ private:
     // prepared is handed the same context, so a note-Setup push never
     // leaves a clone's pin unprepared; before prepare, the clones' own
     // prepare reaches it.
+    // Every clone's pin for a registered target gets its constant now, so a
+    // later write finds one there. Control side (prepare, rebuild).
+    void ensure_clone_param_sources_(const std::string& nodeId, const std::string& paramName) {
+        for (auto& instMap : instanceValueNodes_) {
+            auto it = instMap.find(nodeId);
+            if (it == instMap.end()) continue;
+            if (prepared()) ensure_constant(*it->second, paramName, render_context());
+            else            ensure_constant(*it->second, paramName);
+        }
+    }
     void apply_clone_param_to_all_(const std::string& nodeId,
                                    const std::string& paramName,
                                    float value) {
@@ -157,12 +177,16 @@ private:
     InstanceBuilder builder_;
     std::vector<std::shared_ptr<ValueSource>> instances_;
     std::vector<ValueNodeMap> instanceValueNodes_;
-    // Pending paramMap fan-outs: keyed by "nodeId.paramName" so a repeated
-    // set overwrites. Value is {nodeId, paramName, value} for replay on
-    // rebuild (rebuilds discard live clones so pending needs to survive).
-    std::unordered_map<std::string,
-                       std::tuple<std::string, std::string, float>>
-        pendingCloneParams_;
+    // The registered paramMap fan-out targets, by slot: the last value
+    // delivered to each, replayed onto fresh clones (a rebuild discards the
+    // live ones).
+    struct CloneParam {
+        std::string nodeId;
+        std::string paramName;
+        float value{0.0f};
+        bool delivered{false};
+    };
+    std::vector<CloneParam> cloneParams_;
     bool templateDirty_{true};
 };
 

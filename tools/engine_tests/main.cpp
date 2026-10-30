@@ -6199,6 +6199,15 @@ static void run_allocation_tests() {
     CHECK(allocations_in_one_note(basic, 15.49f) == 0);     // the floor: 600 partials
     CHECK(allocations_in_one_note(basic, 0.0f) == 0);       // below it: the floor's count
     CHECK(allocations_in_one_note(basic, 36.0f) == 0);
+
+    // A Multiplex voice's push delivery: the paramMap fan-out into the clones
+    // at note-on writes a slot registered at prepare, allocating nothing.
+    const char* multiplex = R"({"sampleRate":48000,"instrument":{"paramMap":{"frequency":"Var1.val"},"polyphony":2},"graph":{"output":"Multiplex1","nodes":[
+      {"id":"Var1","type":"VarSource","params":{"absolute":true,"val":1.0,"varPct":0.0}},
+      {"id":"Triangle1","type":"TriangleSource","params":{"amplitude":0.5,"frequency":{"ref":"Var1"}}},
+      {"id":"Multiplex1","type":"MultiplexSource","params":{"count":4,"source":{"ref":"Triangle1"}}}]}})";
+    CHECK(allocations_in_one_note(multiplex) == 0);
+    CHECK(allocations_in_one_note(multiplex, 48.0f) == 0);
 }
 
 int main() {
