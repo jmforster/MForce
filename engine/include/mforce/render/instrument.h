@@ -214,7 +214,7 @@ struct PitchedInstrument final : Instrument {
       // the note's write allocates nothing.
       for (auto& b : vg.pushBindings) {
         if (b.chain) b.chain->prepare(vg.ctx);
-        if (vg.topMultiplex && !b.targetNodeId.empty())
+        if (vg.topMultiplex && !b.isSetting && !b.targetNodeId.empty())
           b.cloneSlot = vg.topMultiplex->clone_param_slot(b.targetNodeId, b.paramName);
       }
     }

@@ -261,6 +261,7 @@ struct EKSEvolution final : WaveEvolution {
   const Setting<float>& decayStretch;    // 0..1, 0.5=standard KS averaging
   const Setting<float>& drumBlend;       // 1=string, 0.5=snare, 0=pure drum
 
+  void prepare(const RenderContext&, int maxLen) override { filtered_.reserve(size_t(maxLen)); }
   float adjust(float frequency) override {
     freq_ = frequency;
 
@@ -287,13 +288,13 @@ struct EKSEvolution final : WaveEvolution {
     if (pickPosition.value > 0.001f && pickPosition.value < 0.999f) {
       int delay = int(std::floor(pickPosition.value * float(len) + 0.5f));
       if (delay >= 1 && delay < len) {
-        std::vector<float> filtered(len);
+        filtered_.assign(size_t(len), 0.0f);   // within the capacity prepare reserved
         for (int i = 0; i < len; ++i) {
           int di = i - delay;
           if (di < 0) di += len;
-          filtered[i] = values[i] - values[di];
+          filtered_[i] = values[i] - values[di];
         }
-        values = std::move(filtered);
+        std::copy(filtered_.begin(), filtered_.end(), values.begin());   // never a new buffer for the owner's table
       }
     }
 
@@ -340,6 +341,7 @@ struct EKSEvolution final : WaveEvolution {
 
 private:
   Randomizer rng_;
+  std::vector<float> filtered_;   // the pick-position comb's scratch, reserved at prepare
   float freq_{440.0f};
   float stiffnessCoeff_{0.0f};
   float stiffnessState_{0.0f};

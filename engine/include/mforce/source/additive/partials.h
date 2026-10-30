@@ -245,7 +245,7 @@ struct Partials : ValueSource, IPartials {
     bwEnv.prepare(ctx);
     motionEnv.prepare(ctx);
     shimmerEnv.prepare(ctx);
-    size_note_arrays();
+    prepare_note_arrays();
   }
 
   void partials_start(int frames) override {
@@ -279,7 +279,7 @@ struct Partials : ValueSource, IPartials {
         apply_expand_rule();
     }
 
-    // Every array below was sized in prepare (size_note_arrays): each assign
+    // Every array below was sized in prepare (prepare_note_arrays): each assign
     // and resize here fills within that capacity and allocates nothing.
     int n = int(mult1_.size());
     partialPos_.assign(n, 0.0f);
@@ -697,6 +697,11 @@ protected:
 
   void update_arrays() {
     init_arrays();
+    // The originals the expand rule starts every note from: the arrays as
+    // init_arrays made them, before any expansion.
+    origMult1_ = mult1_; origMult2_ = mult2_;
+    origAmpl1_ = ampl1_; origAmpl2_ = ampl2_;
+    origPo1_ = po1_;     origPo2_ = po2_;
     arrayUpdateReq_ = false;
   }
 
@@ -768,17 +773,15 @@ protected:
   }
 
   // Every array a note fills, sized once here for the count prepare can see
-  // — the partial arrays after update_arrays, expanded by the rule if there
-  // is one — so partials_start fills within capacity and allocates nothing.
-  // A count changed after prepare is stale until the next prepare, as every
-  // setting is.
-  void size_note_arrays() {
+  // — the partial arrays as update_arrays made them, expanded by the rule
+  // if there is one — so partials_start fills within capacity and allocates
+  // nothing; the rebuild on a changed setting happens here too. Idempotent:
+  // the count comes from the originals, never from arrays a note expanded,
+  // so a second prepare after a note changes nothing a render can see.
+  void prepare_note_arrays() {
     if (arrayUpdateReq_) update_arrays();
-    int n = int(mult1_.size());
+    int n = int(hasExpand_ ? origMult1_.size() : mult1_.size());
     if (hasExpand_) {
-      origMult1_ = mult1_; origMult2_ = mult2_;
-      origAmpl1_ = ampl1_; origAmpl2_ = ampl2_;
-      origPo1_ = po1_;     origPo2_ = po2_;
       for (int r = 0; r <= expandRule_.recurse; ++r) n *= expandRule_.count * 2 + 1;
       for (auto* v : {&mult1_, &mult2_, &ampl1_, &ampl2_, &po1_, &po2_,
                       &exM1_, &exM2_, &exA1_, &exA2_, &exP1_, &exP2_})

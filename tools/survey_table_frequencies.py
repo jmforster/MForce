@@ -2,7 +2,7 @@
 """The lowest frequency a frequency-dependent table is asked for.
 
 WavetableSource and HybridKSSource size a table by sample rate / frequency.
-Checkpoint 2.6 reserves that table once, at prepare, for a floor frequency;
+The engine reserves that table once, at prepare, for a floor frequency;
 this survey says how low the patches in a folder actually go, so the floor
 is chosen from use, not guessed.
 

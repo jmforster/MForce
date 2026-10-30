@@ -13,14 +13,15 @@ struct WaveSource : Generator {
   // per-tick memo lands.
   Param amplitude{this, "amplitude", 1.0f,   0.0f,  10.0f,    "0-1"};
   Param frequency{this, "frequency", 440.0f, 0.01f, 20000.0f, "hz"};
-  // The lowest frequency a frequency-dependent table (WavetableSource,
-  // HybridKSSource) is sized for: the table is reserved once, at prepare,
-  // for sample_rate() / kMinTableHz samples, and a note below the floor gets
-  // a table of the floor's length. The pin's own minimum (0.01 Hz) is no
-  // floor; 20 Hz is the DelayLine's since checkpoint 2.2, and nothing in
-  // use asks a table for less (the lowest keyboard note is 27.5 Hz).
-  static constexpr float kMinTableHz = 20.0f;
   Param phase    {this, "phase",     0.0f,  -1.0f,  1.0f,     "cycles"};
+
+  // The lowest frequency a frequency-dependent table (WavetableSource,
+  // HybridKSSource; BasicAdditiveSource's partial count too) is sized for:
+  // reserved once, at prepare, for sample_rate() / kMinTableHz samples, and a
+  // note below the floor gets the floor's length. The pin's own minimum
+  // (0.01 Hz) is no floor; 20 Hz is the DelayLine's floor as well, and nothing
+  // in use asks a table for less (the lowest keyboard note is 27.5 Hz).
+  static constexpr float kMinTableHz = 20.0f;
 
   Range range() const override { return Range::Bipolar; }
   SourceCategory category() const override { return SourceCategory::Oscillator; }

@@ -6107,6 +6107,21 @@ static std::size_t allocations_in_one_note(const char* patchJson, float noteNumb
     return alloc_probe::count();
 }
 
+// One note through the live path, its samples returned: what a listener gets.
+static std::vector<float> render_one_live_note(PitchedInstrument& inst, float noteNumber) {
+    inst.release_voice(inst.acquire_voice());
+    const int slot = std::max(0, inst.acquire_voice());
+    PitchedInstrument::StreamingVoice sv = inst.prepare_voice_at(slot, noteNumber, 0.8f, 0.1f);
+    std::vector<float> out(size_t(sv.durSamples), 0.0f);
+    for (int i = 0; i < sv.durSamples; ++i) {
+        sv.tick();
+        out[size_t(i)] = sv.source->next() * sv.gain;
+        for (auto& a : sv.advanceList) a->next();
+    }
+    inst.release_voice(slot);
+    return out;
+}
+
 static void run_allocation_tests_partials() {
     // Partials: a plain FullPartials, and one with every per-partial feature on
     // (decay, bandwidth noise, motion, shimmer, trade, onset spread, an expand
@@ -6124,6 +6139,23 @@ static void run_allocation_tests_partials() {
       {"id":"add","type":"AdditiveSource","params":{"frequency":220.0,"amplitude":0.5,"partials":{"ref":"parts"},"formantWeight":0.0}}]}})";
     CHECK(allocations_in_one_note(everything) == 0);
     CHECK(allocations_in_one_note(everything, 48.0f) == 0);
+    // A second prepare after a note — the UI prepares every node again at
+    // every Play — changes nothing a render can see: the expand rule starts
+    // each note from the same originals (one voice, so the second note lands
+    // on the voice the first note expanded).
+    {
+        const char* expanded = R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"add","nodes":[
+          {"id":"parts","type":"FullPartials","params":{"maxPartials":4,"expandRule":{"count":1,"recurse":0,"spacing1":0.3,"spacing2":0.3}}},
+          {"id":"add","type":"AdditiveSource","params":{"frequency":220.0,"amplitude":0.5,"partials":{"ref":"parts"},"formantWeight":0.0}}]}})";
+        auto once = load_instrument_patch_json(expanded);
+        (void)render_one_live_note(*once.instrument, 60.0f);
+        const auto second = render_one_live_note(*once.instrument, 60.0f);
+        auto again = load_instrument_patch_json(expanded);
+        (void)render_one_live_note(*again.instrument, 60.0f);
+        again.instrument->prepare(RenderContext{48000});
+        const auto secondAfterPrepare = render_one_live_note(*again.instrument, 60.0f);
+        CHECK(same_bits(second, secondAfterPrepare));
+    }
 }
 
 // The frequency-dependent tables and their evolutions.
@@ -6152,6 +6184,7 @@ static void run_allocation_tests_tables() {
       {"id":"ev","type":"BowedStringEvolution","params":{"bow":{"ref":"bow"},"bowPosition":0.14,"bowSpeed":0.3,"frictionGain":4.0,"tubeLoss":0.005}})",
         R"({"id":"ev","type":"BrassEvolution","params":{"brassiness":1.5,"breath":0.8,"tubeLoss":0.01,"lipTension":0.92,"lipFreqRatio":1.2,"lipQ":3.0}})",
         R"({"id":"ev","type":"ReedEvolution","params":{"breath":0.5,"reedStiffness":1.8,"tubeLoss":0.01,"loopFilter":0.35}})",
+        R"({"id":"ev","type":"EKSEvolution","params":{"pickPosition":0.5,"pickDirection":0.3,"stiffness":0.1,"decayStretch":0.5,"drumBlend":1.0}})",
     };
     for (const char* ev : evolutions) {
         const std::string json = withEvolution(ev);
@@ -6203,7 +6236,7 @@ static void run_allocation_tests_nodes() {
     const char* basic = R"({"sampleRate":48000,"instrument":{"polyphony":2},"graph":{"output":"src","nodes":[{"id":"__perf_frequency","type":"PerformNode","params":{"field":"frequency"}},
       {"id":"src","type":"BasicAdditiveSource","params":{"frequency":{"ref":"__perf_frequency"},"amplitude":0.5}}]}})";
     CHECK(allocations_in_one_note(basic) == 0);
-    CHECK(allocations_in_one_note(basic, 15.49f) == 0);     // the floor: 600 partials
+    CHECK(allocations_in_one_note(basic, 15.49f) == 0);     // the floor: 601 partials, the cap
     CHECK(allocations_in_one_note(basic, 0.0f) == 0);       // below it: the floor's count
     CHECK(allocations_in_one_note(basic, 36.0f) == 0);
 
@@ -6230,8 +6263,9 @@ static void run_allocation_tests_pins() {
     CHECK(allocations_in_one_note(repeating) == 0);
 
     // A held note's release — the envelopes gated at note-on, released
-    // mid-life as the keyboard's key-up does — re-lays the release and
-    // allocates nothing.
+    // mid-life with the releasing note's length as the reference, the way a
+    // line's end does — re-lays the release stage in place and allocates
+    // nothing.
     {
         const char* held = R"({"sampleRate":48000,"instrument":{"polyphony":2,"sustaining":true},"graph":{"output":"osc","nodes":[{"id":"__perf_frequency","type":"PerformNode","params":{"field":"frequency"}},
           {"id":"env","type":"Envelope","params":{"preset":"adsr","attack":0.05,"decay":0.1,"sustainLevel":0.8,"release":0.2}},
@@ -6250,15 +6284,17 @@ static void run_allocation_tests_pins() {
             for (int i = 0; i < n; ++i) { sv.tick(); (void)sv.source->next(); for (auto& a : sv.advanceList) a->next(); }
         };
         pull(sv.durSamples / 2);
-        for (auto* e : vg.allEnvelopes) e->gate_release();
+        for (auto* e : vg.allEnvelopes) e->gate_release(int(0.5f * 48000.0f));   // the releasing note's length: the release is re-laid against it
         pull(sv.durSamples / 2);
         alloc_probe::disarm();
         CHECK(alloc_probe::count() == 0);
         inst.release_voice(slot);
     }
 
-    // The drum kit has no library or baselines patch: one hit through a kit
-    // built by hand from a loaded voice, its start and every next armed.
+    // The drum kit has no library or baselines patch: one hit's engine path
+    // through a kit built by hand from a loaded voice — the drum source's
+    // start and every next on the kit's clock. The kit adds only play_hit's
+    // pre-render buffer, the offline host's, outside the arm.
     {
         const char* drum = R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"osc","nodes":[
           {"id":"env","type":"Envelope","params":{"preset":"adsr","attack":0.001,"decay":0.1,"sustainLevel":0.0,"release":0.05}},

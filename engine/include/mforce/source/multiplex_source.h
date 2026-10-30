@@ -5,6 +5,7 @@
 #include <memory>
 #include <string>
 #include <unordered_map>
+#include <cassert>
 #include <utility>
 #include <vector>
 
@@ -83,6 +84,7 @@ struct MultiplexSource final : Processor {
         return int(cloneParams_.size()) - 1;
     }
     void set_clone_param(int slot, float value) {
+        assert(slot >= 0 && slot < int(cloneParams_.size()) && "a slot clone_param_slot gave out");
         CloneParam& p = cloneParams_[size_t(slot)];
         p.value = value;
         p.delivered = true;
