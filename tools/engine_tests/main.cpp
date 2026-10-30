@@ -6208,6 +6208,64 @@ static void run_allocation_tests() {
       {"id":"Multiplex1","type":"MultiplexSource","params":{"count":4,"source":{"ref":"Triangle1"}}}]}})";
     CHECK(allocations_in_one_note(multiplex) == 0);
     CHECK(allocations_in_one_note(multiplex, 48.0f) == 0);
+
+    // A RepeatingSource boundary inside next() restarts its child — a
+    // Partials-bearing one — and allocates nothing; the note's life holds
+    // several repetitions.
+    const char* repeating = R"({"sampleRate":48000,"instrument":{"polyphony":2},"graph":{"output":"rep","nodes":[{"id":"__perf_frequency","type":"PerformNode","params":{"field":"frequency"}},
+      {"id":"parts","type":"FullPartials","params":{"maxPartials":8}},
+      {"id":"add","type":"AdditiveSource","params":{"frequency":{"ref":"__perf_frequency"},"amplitude":0.5,"partials":{"ref":"parts"},"formantWeight":0.0}},
+      {"id":"rep","type":"RepeatingSource","params":{"seed":77,"source":{"ref":"add"},"duration":0.05,"gapDuration":0.01}}]}})";
+    CHECK(allocations_in_one_note(repeating) == 0);
+
+    // A held note's release — the envelopes gated at note-on, released
+    // mid-life as the keyboard's key-up does — re-lays the release and
+    // allocates nothing.
+    {
+        const char* held = R"({"sampleRate":48000,"instrument":{"polyphony":2,"sustaining":true},"graph":{"output":"osc","nodes":[{"id":"__perf_frequency","type":"PerformNode","params":{"field":"frequency"}},
+          {"id":"env","type":"Envelope","params":{"preset":"adsr","attack":0.05,"decay":0.1,"sustainLevel":0.8,"release":0.2}},
+          {"id":"osc","type":"SineSource","params":{"frequency":{"ref":"__perf_frequency"},"amplitude":{"ref":"env"}}}]}})";
+        auto ip = load_instrument_patch_json(held);
+        PitchedInstrument& inst = *ip.instrument;
+        inst.release_voice(inst.acquire_voice());
+        const int slot = std::max(0, inst.acquire_voice());
+        auto& vg = inst.voicePool[size_t(slot)];
+        CHECK(!vg.allEnvelopes.empty());
+        for (auto* e : vg.allEnvelopes) e->set_gated(true);
+        alloc_probe::reset();
+        alloc_probe::arm();
+        PitchedInstrument::StreamingVoice sv = inst.prepare_voice_at(slot, 60.0f, 0.8f, 0.5f);
+        const auto pull = [&](int n) {
+            for (int i = 0; i < n; ++i) { sv.tick(); (void)sv.source->next(); for (auto& a : sv.advanceList) a->next(); }
+        };
+        pull(sv.durSamples / 2);
+        for (auto* e : vg.allEnvelopes) e->gate_release();
+        pull(sv.durSamples / 2);
+        alloc_probe::disarm();
+        CHECK(alloc_probe::count() == 0);
+        inst.release_voice(slot);
+    }
+
+    // The drum kit has no library or baselines patch: one hit through a kit
+    // built by hand from a loaded voice, its start and every next armed.
+    {
+        const char* drum = R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"osc","nodes":[
+          {"id":"env","type":"Envelope","params":{"preset":"adsr","attack":0.001,"decay":0.1,"sustainLevel":0.0,"release":0.05}},
+          {"id":"osc","type":"SineSource","params":{"frequency":180.0,"amplitude":{"ref":"env"}}}]}})";
+        auto ip = load_instrument_patch_json(drum);
+        DrumKit kit;
+        DrumKit::DrumSource ds;
+        ds.source = ip.instrument->voicePool[0].source;
+        kit.sources.push_back(std::move(ds));
+        kit.prepare(RenderContext{48000});
+        auto& d = kit.sources[0];
+        alloc_probe::reset();
+        alloc_probe::arm();
+        d.source->start(4800);
+        for (int i = 0; i < 4800; ++i) { d.clock->tick(); (void)d.source->next(); }
+        alloc_probe::disarm();
+        CHECK(alloc_probe::count() == 0);
+    }
 }
 
 int main() {
