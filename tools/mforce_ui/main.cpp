@@ -10774,176 +10774,42 @@ static void menu_source(const char* label, const char* typeName) {
         s_menuSourceAction(typeName);
 }
 
-// Helper: visible separator with vertical padding for submenus
-static void menu_sep() {
-    ImGui::Spacing();
-    ImVec2 pos = ImGui::GetCursorScreenPos();
-    float w = ImGui::GetContentRegionAvail().x;
-    ImGui::GetWindowDrawList()->AddLine(
-        ImVec2(pos.x, pos.y), ImVec2(pos.x + w, pos.y),
-        IM_COL32(140, 140, 140, 255), 1.5f);
-    ImGui::Dummy(ImVec2(0, 2));
-    ImGui::Spacing();
-}
-
 // Helper: grayed-out placeholder for unimplemented types
 static void menu_placeholder(const char* label) {
     ImGui::TextColored(ImVec4(0.4f, 0.4f, 0.4f, 1.0f), "%s", label);
 }
 
-// The registry-backed source families, shared by the create menu and the
-// node context menu's Replace-with. Actions route through
-// s_menuSourceAction, set by whichever popup draws the tree.
-static void source_family_menus() {
-    // --- Generators ---
-    if (ImGui::BeginMenu("Generators")) {
-        menu_source("Sine", "SineSource");
-        menu_source("Saw", "SawSource");
-        menu_source("Pulse", "PulseSource");
-        menu_source("Triangle", "TriangleSource");
-        menu_sep();
-        menu_source("FM", "FMSource");
-        menu_source("Hybrid KS", "HybridKSSource");
-        menu_source("KS String", "KSString");
-        menu_source("Allpass Resonator", "AllpassResonator");
-        menu_sep();
-        menu_source("Phased", "PhasedValueSource");
-        menu_source("Repeating", "RepeatingSource");
-        ImGui::EndMenu();
-    }
-
-    // --- Noise (mainstream set; the experimental noises live under
-    // Experimental > Noise) ---
-    if (ImGui::BeginMenu("Noise")) {
-        menu_source("Red", "RedNoiseSource");
-        menu_source("Pink", "PinkNoiseSource");
-        menu_source("White", "WhiteNoiseSource");
-        menu_source("Blue", "BlueNoiseSource");
-        menu_source("Violet", "VioletNoiseSource");
-        menu_sep();
-        menu_source("Segment", "SegmentSource");
-        menu_source("Velvet", "VelvetNoiseSource");
-        menu_source("Perlin", "PerlinNoiseSource");
-        menu_source("Crackle", "CrackleNoiseSource");
-        ImGui::EndMenu();
-    }
-
-    // --- Wavetable (physical + algorithmic evolutions live under
-    // Experimental) ---
-    if (ImGui::BeginMenu("Wavetable")) {
-        menu_source("Wavetable", "WavetableSource");
-        menu_sep();
-        menu_source("EKS Evolution", "EKSEvolution");
-        menu_source("Pluck Evolution", "PluckEvolution");
-        menu_source("Averaging Evolution", "AveragingEvolution");
-        ImGui::EndMenu();
-    }
-
-    // --- Additive ---
-    if (ImGui::BeginMenu("Additive")) {
-        menu_source("Full", "AdditiveSource");
-        menu_source("Basic", "BasicAdditiveSource");
-        menu_source("Alternate", "AdditiveSource2");
-        menu_sep();
-        menu_source("Full Partials", "FullPartials");
-        menu_source("Sequence Partials", "SequencePartials");
-        menu_source("Explicit Partials", "ExplicitPartials");
-        menu_source("Composite Partials", "CompositePartials");
-        menu_source("Partials Expand Rule", "ExpandRule");
-        menu_sep();
-        menu_source("Formant", "Formant");
-        menu_source("Formant Sequence", "FormantSequence");
-        menu_source("Formant Spectrum", "FormantSpectrum");
-        menu_source("Band Spectrum", "BandSpectrum");
-        menu_source("Fixed Spectrum", "FixedSpectrum");
-        ImGui::EndMenu();
-    }
-
-    ImGui::Separator();
-
-    // --- Envelopes ---
-    if (ImGui::BeginMenu("Envelopes")) {
-        menu_source("ADSR", "ADSREnvelope");
-        menu_source("ASR", "ASREnvelope");
-        menu_source("ADR", "ADREnvelope");
-        menu_source("AR", "AREnvelope");
-        menu_source("AS", "ASEnvelope");
-        menu_source("ADS", "ADSEnvelope");
-        menu_sep();
-        menu_source("Envelope", "Envelope");
-        menu_source("Vibrato", "Vibrato");
-        ImGui::EndMenu();
-    }
-
-    // --- Filters ---
-    if (ImGui::BeginMenu("Filters")) {
-        menu_source("Delay", "DelayFilter");
-        menu_source("Reverb", "Reverb");
-        menu_source("Limiter", "Limiter");
-        menu_source("Hammer Bank", "HammerBank");
-        menu_source("Distortion", "DistortedSource");
-        menu_sep();
-        menu_source("BW Bandpass", "BWBandpassFilter");
-        menu_source("BW Lowpass", "BWLowpassFilter");
-        menu_source("BW Highpass", "BWHighpassFilter");
-        menu_source("SVF (State Variable)", "SVFSource");
-        ImGui::EndMenu();
-    }
-
-    // --- Combiners ---
-    if (ImGui::BeginMenu("Combiners")) {
-        menu_source("Combined", "CombinedSource");
-        menu_source("Crossfade", "CrossfadeSource");
-        menu_source("Multi", "MultiSource");
-        menu_source("Multiplex", "MultiplexSource");
-        ImGui::EndMenu();
-    }
-
-    // --- Loop (feedback blocks; Wormhole is routing glass — right-click
-    // any wire to route it through a pair) ---
-    if (ImGui::BeginMenu("Loop")) {
-        menu_source("Delay Line", "DelayLine");
-        menu_source("Shaper", "Shaper");
-        menu_sep();
-        menu_source("Wormhole", "Wormhole");
-        ImGui::EndMenu();
+// The source families, generated from the registry: for each family in
+// menu order, the types on the given shelf in registration order, labelled as
+// the registry says. The create menu and the node context menu's Replace-with
+// both draw this; actions route through s_menuSourceAction, set by whichever
+// popup draws the tree. One separator divides the sound-making families
+// (the first four) from the shaping ones. A family with nothing on the shelf
+// is not drawn.
+static void shelf_menus(Shelf shelf) {
+    auto& reg = SourceRegistry::instance();
+    for (int i = 0; i < kFamilyCount; ++i) {
+        const Family f = kFamilyOrder[i];
+        const auto types = reg.types_in(f, shelf);
+        if (types.empty()) continue;
+        if (shelf == Shelf::Main && i == 4) ImGui::Separator();
+        if (ImGui::BeginMenu(family_name(f))) {
+            for (const auto& e : types) {
+                const std::string label = reg.label(e.name);
+                menu_source(label.c_str(), e.name.c_str());
+            }
+            ImGui::EndMenu();
+        }
     }
 }
 
-// --- Experimental: parked / in-progress node families, mirroring the
-// main category names (Matt 2026-08-26). Physical + Algorithmic
-// WaveEvolutions moved here from their own top-level menus.
+static void source_family_menus() { shelf_menus(Shelf::Main); }
+
+// Experimental: the parked and the not-yet-classified types, mirroring the
+// families (Matt 2026-08-26 and 2026-10-31).
 static void experimental_family_menu() {
     if (ImGui::BeginMenu("Experimental")) {
-        if (ImGui::BeginMenu("Generators")) {
-            menu_placeholder("(none yet)");
-            ImGui::EndMenu();
-        }
-        if (ImGui::BeginMenu("Noise")) {
-            menu_source("Layered Red", "LayeredRedNoiseSource");
-            menu_source("Murmuration", "MurmurationNoiseSource");
-            menu_source("Wander 1", "WanderNoiseSource");
-            menu_source("Wander 2", "WanderNoise2Source");
-            menu_source("Wander 3", "WanderNoise3Source");
-            ImGui::EndMenu();
-        }
-        if (ImGui::BeginMenu("Wavetable")) {
-            menu_source("Bowed String Evolution", "BowedStringEvolution");
-            menu_source("Reed Evolution", "ReedEvolution");
-            menu_source("Brass Evolution", "BrassEvolution");
-            menu_sep();
-            menu_source("Reaction-Diffusion (Gray-Scott)", "ReactionDiffusionEvolution");
-            menu_source("Sort Erosion (->saw)", "SortErosionEvolution");
-            menu_source("Cellular Automaton (Wolfram)", "CellularAutomatonEvolution");
-            menu_source("Histogram Equalize", "HistogramEqualizeEvolution");
-            menu_source("Bezier Pull (->curve)", "BezierPullEvolution");
-            menu_source("Bit Rotate (glitch)", "BitRotateEvolution");
-            ImGui::EndMenu();
-        }
-        if (ImGui::BeginMenu("Filters")) {
-            menu_placeholder("(none yet)");
-            ImGui::EndMenu();
-        }
+        shelf_menus(Shelf::Experimental);
         ImGui::EndMenu();
     }
 }

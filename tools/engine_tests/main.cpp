@@ -6786,6 +6786,50 @@ static void run_registry_family_tests() {
     CHECK(reg.family("NoSuchType") == Family::Utility);                        // unknown: what get_category answered
 }
 
+// The menu's content is the registry's: for each family and shelf, the types
+// in the order the menu lists them — today's menu order, which registration
+// order now carries. This is what both the create menu and the Replace-with
+// menu draw.
+struct MenuRow { Family family; Shelf shelf; std::vector<const char*> names; };
+static const MenuRow kMenuTable[] = {
+    {Family::Oscillator, Shelf::Main, {"SineSource", "SawSource", "PulseSource", "TriangleSource", "FMSource"}},
+    {Family::Noise, Shelf::Main, {"RedNoiseSource", "PinkNoiseSource", "WhiteNoiseSource", "BlueNoiseSource", "VioletNoiseSource", "VelvetNoiseSource", "PerlinNoiseSource", "CrackleNoiseSource"}},
+    {Family::Noise, Shelf::Experimental, {"LayeredRedNoiseSource", "MurmurationNoiseSource", "WanderNoiseSource", "WanderNoise2Source", "WanderNoise3Source"}},
+    {Family::Wavetable, Shelf::Main, {"WavetableSource", "HybridKSSource", "EKSEvolution", "PluckEvolution", "AveragingEvolution"}},
+    {Family::Wavetable, Shelf::Experimental, {"BowedStringEvolution", "ReedEvolution", "BrassEvolution", "ReactionDiffusionEvolution", "SortErosionEvolution", "CellularAutomatonEvolution", "HistogramEqualizeEvolution", "BezierPullEvolution", "BitRotateEvolution"}},
+    {Family::Additive, Shelf::Main, {"AdditiveSource", "BasicAdditiveSource", "AdditiveSource2", "FullPartials", "SequencePartials", "ExplicitPartials", "CompositePartials", "ExpandRule", "Formant", "FormantSequence", "FormantSpectrum", "BandSpectrum", "FixedSpectrum"}},
+    {Family::Physical, Shelf::Main, {"KSString", "AllpassResonator", "DelayLine"}},
+    {Family::Physical, Shelf::Experimental, {"KSPianoString", "Mesh2D", "PierceFilter", "BowTable"}},
+    {Family::Filter, Shelf::Main, {"DelayFilter", "Reverb", "Limiter", "HammerBank", "DistortedSource", "BWBandpassFilter", "BWLowpassFilter", "BWHighpassFilter", "SVFSource", "Shaper"}},
+    {Family::Filter, Shelf::Experimental, {"Biquad"}},
+    {Family::Envelope, Shelf::Main, {"ADSREnvelope", "ASREnvelope", "ADREnvelope", "AREnvelope", "ASEnvelope", "ADSEnvelope", "Envelope", "Vibrato", "PhasedValueSource", "SegmentSource"}},
+    {Family::Modulator, Shelf::Main, {"RepeatingSource", "VarSource", "RangeSource", "CurveNode"}},
+    {Family::Modulator, Shelf::Experimental, {"NameGate"}},
+    {Family::Combiner, Shelf::Main, {"CombinedSource", "CrossfadeSource", "MultiSource", "MultiplexSource"}},
+    {Family::Utility, Shelf::Main, {"Wormhole"}},
+    {Family::Utility, Shelf::Experimental, {"StaticVarSource", "StaticRangeSource"}},
+};
+
+static void run_menu_content_tests() {
+    std::printf("the menu: each family's types in menu order\n");
+    register_all_sources();
+    auto& reg = SourceRegistry::instance();
+    for (const auto& row : kMenuTable) {
+        std::vector<std::string> got;
+        for (const auto& e : reg.types_in(row.family, row.shelf)) got.push_back(e.name);
+        std::vector<std::string> want(row.names.begin(), row.names.end());
+        if (got != want) {
+            std::printf("  %s/%s: got", family_name(row.family), row.shelf == Shelf::Main ? "main" : "experimental");
+            for (const auto& n : got) std::printf(" %s", n.c_str());
+            std::printf("\n");
+        }
+        CHECK(got == want);
+    }
+    // a family with nothing on a shelf draws nothing: no placeholder
+    CHECK(reg.types_in(Family::Oscillator, Shelf::Experimental).empty());
+    CHECK(reg.types_in(Family::Additive, Shelf::Experimental).empty());
+}
+
 int main() {
     run_alloc_probe_tests();
     run_allocation_tests_partials();
@@ -6799,6 +6843,7 @@ int main() {
     run_partials_part_tests();
     run_component_root_tests();
     run_registry_family_tests();   // before the lifecycle test registers its probe
+    run_menu_content_tests();
     run_review_gap_tests();
     run_review_gap_lifecycle_tests();
     run_pin_tests();
