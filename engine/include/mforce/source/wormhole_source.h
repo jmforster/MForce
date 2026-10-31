@@ -16,7 +16,6 @@ namespace mforce {
 // compensation costs it nothing (default phase_delay_at = 0).
 struct WormholeSource final : Processor {
   const char* type_name() const override { return "Wormhole"; }
-  SourceCategory category() const override { return SourceCategory::Modulator; }
 
   void on_start(int) override { cur_ = 0.0f; }
 

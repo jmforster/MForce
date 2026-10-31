@@ -20,7 +20,6 @@ struct Component {
   Component(const Component&) = delete;                      // a copy's pins would not register
 
   virtual const char* type_name() const { return "Unknown"; }
-  virtual SourceCategory category() const { return SourceCategory::Utility; }
 
   virtual std::span<const ParamDescriptor> param_descriptors() const { return paramDescs_; }
   virtual std::span<const InputDescriptor> input_descriptors() const { return inputDescs_; }

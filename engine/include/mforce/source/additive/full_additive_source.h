@@ -42,7 +42,6 @@ struct FullAdditiveSource final : WaveSource {
   explicit FullAdditiveSource(uint32_t seed = 0xADD2'0000u);
 
   const char* type_name() const override { return "AdditiveSource"; }
-  SourceCategory category() const override { return SourceCategory::Additive; }
 
   void on_prepare(const RenderContext& ctx) override;
   void on_start(int frames) override;

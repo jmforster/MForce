@@ -95,7 +95,6 @@ struct CurveNode final : Generator {
   }
 
   const char* type_name() const override { return "CurveNode"; }
-  SourceCategory category() const override { return SourceCategory::Modulator; }
 
 private:
   float lastX_{std::numeric_limits<float>::quiet_NaN()};

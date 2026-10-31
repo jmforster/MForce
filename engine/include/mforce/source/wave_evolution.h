@@ -652,7 +652,6 @@ struct PluckEvolutionSource final : Component, IEvolutionHolder {
   : evo_(muting.value, seed) {}
 
   const char* type_name() const override { return "PluckEvolution"; }
-  SourceCategory category() const override { return SourceCategory::Generator; }
 
   WaveEvolution* get_evolution() override { return &evo_; }
 
@@ -681,7 +680,6 @@ struct AveragingEvolutionSource final : Component, IEvolutionHolder {
     seed_(seed) {}
 
   const char* type_name() const override { return "AveragingEvolution"; }
-  SourceCategory category() const override { return SourceCategory::Generator; }
 
   WaveEvolution* get_evolution() override { return &evo_; }
 
@@ -713,7 +711,6 @@ struct EKSEvolutionSource final : Component, IEvolutionHolder {
   : evo_(seed, pickPosition, pickDirection, stiffness, decayStretch, drumBlend) {}
 
   const char* type_name() const override { return "EKSEvolution"; }
-  SourceCategory category() const override { return SourceCategory::Combiner; }
 
   WaveEvolution* get_evolution() override { return &evo_; }
 
@@ -737,7 +734,6 @@ struct ReedEvolutionSource final : Component, IEvolutionHolder {
   : evo_(seed, tubeLoss, loopFilter, reedStiffness, breath) {}
 
   const char* type_name() const override { return "ReedEvolution"; }
-  SourceCategory category() const override { return SourceCategory::Combiner; }
 
   WaveEvolution* get_evolution() override { return &evo_; }
 
@@ -771,7 +767,6 @@ struct BowedStringEvolutionSource final : Component, IEvolutionHolder {
   : evo_(tubeLoss, bowSpeed, bowPosition, brightness, bow, frictionGain) {}
 
   const char* type_name() const override { return "BowedStringEvolution"; }
-  SourceCategory category() const override { return SourceCategory::Combiner; }
 
   WaveEvolution* get_evolution() override { return &evo_; }
 
@@ -805,7 +800,6 @@ struct BrassEvolutionSource final : Component, IEvolutionHolder {
   : evo_(seed, tubeLoss, lipTension, lipFreqRatio, lipQ, brassiness, breath) {}
 
   const char* type_name() const override { return "BrassEvolution"; }
-  SourceCategory category() const override { return SourceCategory::Combiner; }
 
   WaveEvolution* get_evolution() override { return &evo_; }
 
@@ -924,7 +918,6 @@ struct ReactionDiffusionEvolutionSource final : Component, IEvolutionHolder {
   : evo_(feed, kill, diffU, diffV, dt, subSteps) {}
 
   const char* type_name() const override { return "ReactionDiffusionEvolution"; }
-  SourceCategory category() const override { return SourceCategory::Combiner; }
 
   WaveEvolution* get_evolution() override { return &evo_; }
 
@@ -982,7 +975,6 @@ struct SortErosionEvolutionSource final : Component, IEvolutionHolder {
   : evo_(swapsPerSample, descending) {}
 
   const char* type_name() const override { return "SortErosionEvolution"; }
-  SourceCategory category() const override { return SourceCategory::Combiner; }
 
   WaveEvolution* get_evolution() override { return &evo_; }
 
@@ -1076,7 +1068,6 @@ struct CellularAutomatonEvolutionSource final : Component, IEvolutionHolder {
   : evo_(rule, threshold, levelHi, levelLo, stepEvery) {}
 
   const char* type_name() const override { return "CellularAutomatonEvolution"; }
-  SourceCategory category() const override { return SourceCategory::Combiner; }
 
   WaveEvolution* get_evolution() override { return &evo_; }
 
@@ -1159,7 +1150,6 @@ struct HistogramEqualizeEvolutionSource final : Component, IEvolutionHolder {
   : evo_(bins, rate) {}
 
   const char* type_name() const override { return "HistogramEqualizeEvolution"; }
-  SourceCategory category() const override { return SourceCategory::Combiner; }
 
   WaveEvolution* get_evolution() override { return &evo_; }
 
@@ -1233,7 +1223,6 @@ struct BezierPullEvolutionSource final : Component, IEvolutionHolder {
   : evo_(p0, p1, p2, p3, rate) {}
 
   const char* type_name() const override { return "BezierPullEvolution"; }
-  SourceCategory category() const override { return SourceCategory::Combiner; }
 
   WaveEvolution* get_evolution() override { return &evo_; }
 
@@ -1296,7 +1285,6 @@ struct BitRotateEvolutionSource final : Component, IEvolutionHolder {
   : evo_(shiftBits, stepEvery) {}
 
   const char* type_name() const override { return "BitRotateEvolution"; }
-  SourceCategory category() const override { return SourceCategory::Combiner; }
 
   WaveEvolution* get_evolution() override { return &evo_; }
 

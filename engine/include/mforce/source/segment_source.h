@@ -50,7 +50,6 @@ struct SegmentSource final : Generator {
   }
 
   const char* type_name() const override { return "SegmentSource"; }
-  SourceCategory category() const override { return SourceCategory::Generator; }
 
   void on_setting_changed(std::string_view name) override {
     if (name == "timeMode") {

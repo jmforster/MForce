@@ -29,7 +29,6 @@ struct NameGate final : Generator {
 
   Range range() const override { return Range::Unipolar; }
   const char* type_name() const override { return "NameGate"; }
-  SourceCategory category() const override { return SourceCategory::Modulator; }
 
   float compute() override { return match_(); }
   float current() const override { return match_(); }

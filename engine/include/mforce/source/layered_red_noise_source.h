@@ -30,7 +30,6 @@ struct LayeredRedNoiseSource final : Generator {
 
     // No unit range: the layers are summed.
     const char* type_name() const override { return "LayeredRedNoiseSource"; }
-    SourceCategory category() const override { return SourceCategory::Generator; }
 
     // The base stores `count` before this runs, so layerCount_ keeps the
     // count the arrays were last sized to.

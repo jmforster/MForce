@@ -17,7 +17,6 @@ struct RedNoiseSource final : WaveSource {
   explicit RedNoiseSource(uint32_t seed = 0xC0FFEEu);
 
   const char* type_name() const override { return "RedNoiseSource"; }
-  SourceCategory category() const override { return SourceCategory::Generator; }
 
   // Per-note determinism (onsets-v2 addendum): re-anchor draws.
   void reseed() override { rng_.reanchor(); }

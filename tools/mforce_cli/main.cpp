@@ -1049,7 +1049,8 @@ static int run_dump_descriptors(int argc, char** argv)
     auto& reg = SourceRegistry::instance();
 
     nlohmann::json out = nlohmann::json::object();
-    for (const auto& [name, cat] : reg.registered_types()) {
+    for (const auto& entry : reg.registered_types()) {
+        const std::string& name = entry.name;
         // Instantiating is the only way to reach the virtual descriptor sets;
         // a default-constructed instance is thrown away immediately.
         std::shared_ptr<Component> s;
@@ -1058,7 +1059,7 @@ static int run_dump_descriptors(int argc, char** argv)
         if (!s) continue;
 
         nlohmann::json e = nlohmann::json::object();
-        e["category"] = int(cat);
+        e["family"] = family_name(entry.tag.family);
         for (const char* key : {"inputs", "params", "settings", "arrays"})
             e[key] = nlohmann::json::array();
         for (const auto& d : s->input_descriptors())  e["inputs"].push_back(d.name);

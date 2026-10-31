@@ -35,7 +35,6 @@ struct WhiteNoiseSource final : Generator {
 
   Range range() const override { return Range::Bipolar; }
   const char* type_name() const override { return "WhiteNoiseSource"; }
-  SourceCategory category() const override { return SourceCategory::Generator; }
 
   float compute() override {
     const float amp  = amplitude.current();

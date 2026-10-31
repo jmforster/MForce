@@ -104,7 +104,6 @@ struct KSString final : Processor {
   // a bend articulated onto it moves a number nobody reads — backlog 26a.
   // The loader warns at load via this flag (plan_perform_source_p3.md T2).
   bool tracks_frequency_live() const override { return false; }
-  SourceCategory category() const override { return SourceCategory::Oscillator; }
 
   // Most settings are clamped to their declared ranges (t60 only has a
   // floor; the rest are unbounded).

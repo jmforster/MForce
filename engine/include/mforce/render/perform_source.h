@@ -119,7 +119,6 @@ struct PerformOut final : Generator {
   // and must see the note just delivered, not the previous tick's memo.
   float current() const override { return read_(); }
   const char* type_name() const override { return "PerformOut"; }
-  SourceCategory category() const override { return SourceCategory::Modulator; }
 
 private:
   float read_() const {

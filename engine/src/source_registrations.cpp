@@ -61,19 +61,19 @@ void register_all_sources() {
     // Simple oscillators — factory only, generic set_param handles all wiring
     // -----------------------------------------------------------------------
 
-    reg.register_type("SineSource", SourceCategory::Oscillator,
+    reg.register_type("SineSource", {.family = Family::Oscillator},
         [](auto) { return std::make_shared<SineSource>(); });
 
-    reg.register_type("SawSource", SourceCategory::Oscillator,
+    reg.register_type("SawSource", {.family = Family::Oscillator},
         [](auto) { return std::make_shared<SawSource>(); });
 
-    reg.register_type("TriangleSource", SourceCategory::Oscillator,
+    reg.register_type("TriangleSource", {.family = Family::Oscillator},
         [](auto) { return std::make_shared<TriangleSource>(); });
 
-    reg.register_type("PulseSource", SourceCategory::Oscillator,
+    reg.register_type("PulseSource", {.family = Family::Oscillator},
         [](auto) { return std::make_shared<PulseSource>(); });
 
-    reg.register_type("FMSource", SourceCategory::Oscillator,
+    reg.register_type("FMSource", {.family = Family::Oscillator},
         [](auto) { return std::make_shared<FMSource>(); });
 
     // -----------------------------------------------------------------------
@@ -81,21 +81,21 @@ void register_all_sources() {
     // -----------------------------------------------------------------------
 
     // BasicAdditiveSource (was "AdditiveSource" — alias kept for backward compat)
-    reg.register_type("BasicAdditiveSource", SourceCategory::Additive,
+    reg.register_type("BasicAdditiveSource", {.family = Family::Additive, .label = "Basic"},
         [](auto seed) {
             return std::make_shared<BasicAdditiveSource>(seed.value_or(0xADD1'0000u));
         });
 
     // The real AdditiveSource (thin loop over Partials, was FullAdditiveSource)
-    reg.register_type("AdditiveSource", SourceCategory::Additive,
+    reg.register_type("AdditiveSource", {.family = Family::Additive, .label = "Full"},
         [](auto seed) {
             return std::make_shared<FullAdditiveSource>(seed.value_or(0xADD2'0000u));
         });
 
-    reg.register_type("Formant", SourceCategory::Additive,
+    reg.register_type("Formant", {.family = Family::Additive},
         [](auto) { return std::make_shared<Formant>(); });
 
-    reg.register_type("BandSpectrum", SourceCategory::Additive,
+    reg.register_type("BandSpectrum", {.family = Family::Additive},
         [](auto) { return std::make_shared<BandSpectrum>(); },
         // Configurator: gains array
         [](Component& src, const nlohmann::json& p, const ResolveParamFn&) {
@@ -107,75 +107,75 @@ void register_all_sources() {
     // Noise generators
     // -----------------------------------------------------------------------
 
-    reg.register_type("WhiteNoiseSource", SourceCategory::Generator,
+    reg.register_type("WhiteNoiseSource", {.family = Family::Noise, .label = "White"},
         [](auto seed) {
             return std::make_shared<WhiteNoiseSource>(seed.value_or(0x12345678u));
         });
 
-    reg.register_type("PinkNoiseSource", SourceCategory::Generator,
+    reg.register_type("PinkNoiseSource", {.family = Family::Noise, .label = "Pink"},
         [](auto seed) {
             return std::make_shared<PinkNoiseSource>(PinkNoiseSource::DEFAULT_ROWS,
                 seed.value_or(0xF10C'0001u));
         });
 
-    reg.register_type("RedNoiseSource", SourceCategory::Generator,
+    reg.register_type("RedNoiseSource", {.family = Family::Noise, .label = "Red"},
         [](auto seed) {
             return std::make_shared<RedNoiseSource>(seed.value_or(0xBADC0DEu));
         });
 
-    reg.register_type("LayeredRedNoiseSource", SourceCategory::Generator,
+    reg.register_type("LayeredRedNoiseSource", {.family = Family::Noise, .label = "Layered Red", .shelf = Shelf::Experimental},
         [](auto seed) {
             return std::make_shared<LayeredRedNoiseSource>(seed.value_or(0x1A4E4EDDu));
         });
 
-    reg.register_type("BlueNoiseSource", SourceCategory::Generator,
+    reg.register_type("BlueNoiseSource", {.family = Family::Noise, .label = "Blue"},
         [](auto seed) {
             return std::make_shared<BlueNoiseSource>(seed.value_or(0xB100'0001u));
         });
 
-    reg.register_type("VioletNoiseSource", SourceCategory::Generator,
+    reg.register_type("VioletNoiseSource", {.family = Family::Noise, .label = "Violet"},
         [](auto seed) {
             return std::make_shared<VioletNoiseSource>(seed.value_or(0xF100'0001u));
         });
 
-    reg.register_type("VelvetNoiseSource", SourceCategory::Generator,
+    reg.register_type("VelvetNoiseSource", {.family = Family::Noise, .label = "Velvet"},
         [](auto seed) {
             return std::make_shared<VelvetNoiseSource>(seed.value_or(0xFE17'0001u));
         });
 
-    reg.register_type("PerlinNoiseSource", SourceCategory::Generator,
+    reg.register_type("PerlinNoiseSource", {.family = Family::Noise, .label = "Perlin"},
         [](auto seed) {
             return std::make_shared<PerlinNoiseSource>(seed.value_or(0xAE21'0001u));
         });
 
-    reg.register_type("CrackleNoiseSource", SourceCategory::Generator,
+    reg.register_type("CrackleNoiseSource", {.family = Family::Noise, .label = "Crackle"},
         [](auto seed) {
             return std::make_shared<CrackleNoiseSource>(seed.value_or(0xC8AC'0001u));
         });
 
-    reg.register_type("MurmurationNoiseSource", SourceCategory::Generator,
+    reg.register_type("MurmurationNoiseSource", {.family = Family::Noise, .label = "Murmuration", .shelf = Shelf::Experimental},
         [](auto seed) {
             return std::make_shared<MurmurationNoiseSource>(seed.value_or(0xB18D'0001u));
         });
 
-    reg.register_type("WanderNoiseSource", SourceCategory::Generator,
+    reg.register_type("WanderNoiseSource", {.family = Family::Noise, .label = "Wander 1", .shelf = Shelf::Experimental},
         [](auto seed) {
             return std::make_shared<WanderNoiseSource>(seed.value_or(0xFA0D'0001u));
         });
 
-    reg.register_type("WanderNoise2Source", SourceCategory::Generator,
+    reg.register_type("WanderNoise2Source", {.family = Family::Noise, .label = "Wander 2", .shelf = Shelf::Experimental},
         [](auto seed) {
             return std::make_shared<WanderNoise2Source>(seed.value_or(0xFA0D'0002u));
         });
 
-    reg.register_type("WanderNoise3Source", SourceCategory::Generator,
+    reg.register_type("WanderNoise3Source", {.family = Family::Noise, .label = "Wander 3", .shelf = Shelf::Experimental},
         [](auto) { return std::make_shared<WanderNoise3Source>(); });
 
     // -----------------------------------------------------------------------
     // Modulators / Utilities
     // -----------------------------------------------------------------------
 
-    reg.register_type("VarSource", SourceCategory::Modulator,
+    reg.register_type("VarSource", {.family = Family::Modulator},
         [](auto) {
             return std::make_shared<VarSource>(
                 std::make_shared<ConstantSource>(0.0f),
@@ -183,7 +183,7 @@ void register_all_sources() {
                 std::make_shared<ConstantSource>(0.0f), true);
         });
 
-    reg.register_type("RangeSource", SourceCategory::Modulator,
+    reg.register_type("RangeSource", {.family = Family::Modulator},
         [](auto) {
             return std::make_shared<RangeSource>(
                 std::make_shared<ConstantSource>(0.0f),
@@ -191,62 +191,62 @@ void register_all_sources() {
                 std::make_shared<ConstantSource>(0.0f), true);
         });
 
-    reg.register_type("CurveNode", SourceCategory::Modulator,
+    reg.register_type("CurveNode", {.family = Family::Modulator},
         [](auto) { return std::make_shared<CurveNode>(); });
 
     // Transition-name match (spec 2026-09-19-note-transitions §5). The
     // `name` string and its vocabulary resolution are a loader special
     // case (SettingType has no string).
-    reg.register_type("NameGate", SourceCategory::Modulator,
+    reg.register_type("NameGate", {.family = Family::Modulator, .shelf = Shelf::Experimental},
         [](auto) { return std::make_shared<NameGate>(); });
 
     // -----------------------------------------------------------------------
     // Envelope
     // -----------------------------------------------------------------------
 
-    reg.register_type("Envelope", SourceCategory::Envelope,
+    reg.register_type("Envelope", {.family = Family::Envelope},
         [](auto seed) {
             auto e = Envelope::make_ar(0.2f);
             if (seed) e->set_seed(*seed);
             return e;
         });
 
-    reg.register_type("AREnvelope", SourceCategory::Envelope,
+    reg.register_type("AREnvelope", {.family = Family::Envelope},
         [](auto seed) {
             auto e = std::make_shared<AREnvelope>();
             if (seed) e->set_seed(*seed);
             return e;
         });
 
-    reg.register_type("ASEnvelope", SourceCategory::Envelope,
+    reg.register_type("ASEnvelope", {.family = Family::Envelope},
         [](auto seed) {
             auto e = std::make_shared<ASEnvelope>();
             if (seed) e->set_seed(*seed);
             return e;
         });
 
-    reg.register_type("ASREnvelope", SourceCategory::Envelope,
+    reg.register_type("ASREnvelope", {.family = Family::Envelope},
         [](auto seed) {
             auto e = std::make_shared<ASREnvelope>();
             if (seed) e->set_seed(*seed);
             return e;
         });
 
-    reg.register_type("ADSEnvelope", SourceCategory::Envelope,
+    reg.register_type("ADSEnvelope", {.family = Family::Envelope},
         [](auto seed) {
             auto e = std::make_shared<ADSEnvelope>();
             if (seed) e->set_seed(*seed);
             return e;
         });
 
-    reg.register_type("ADREnvelope", SourceCategory::Envelope,
+    reg.register_type("ADREnvelope", {.family = Family::Envelope},
         [](auto seed) {
             auto e = std::make_shared<ADREnvelope>();
             if (seed) e->set_seed(*seed);
             return e;
         });
 
-    reg.register_type("ADSREnvelope", SourceCategory::Envelope,
+    reg.register_type("ADSREnvelope", {.family = Family::Envelope},
         [](auto seed) {
             auto e = std::make_shared<ADSREnvelope>();
             if (seed) e->set_seed(*seed);
@@ -257,7 +257,7 @@ void register_all_sources() {
     // Combiners
     // -----------------------------------------------------------------------
 
-    reg.register_type("CombinedSource", SourceCategory::Combiner,
+    reg.register_type("CombinedSource", {.family = Family::Combiner},
         [](auto) {
             return std::make_shared<CombinedSource>(
                 std::make_shared<ConstantSource>(0.0f),
@@ -300,7 +300,7 @@ void register_all_sources() {
             cs.gainAdj.value = p.value("gainAdj", 0.0f);
         });
 
-    reg.register_type("CrossfadeSource", SourceCategory::Combiner,
+    reg.register_type("CrossfadeSource", {.family = Family::Combiner},
         [](auto) { return std::make_shared<CrossfadeSource>(); },
         // Configurator: ratio, overlap, gainAdj
         [](Component& src, const nlohmann::json& p, const ResolveParamFn&) {
@@ -310,12 +310,12 @@ void register_all_sources() {
             cs.gainAdj.value = p.value("gainAdj", 0.0f);
         });
 
-    reg.register_type("DistortedSource", SourceCategory::Modulator,
+    reg.register_type("DistortedSource", {.family = Family::Filter, .label = "Distortion"},
         [](auto seed) {
             return std::make_shared<DistortedSource>(seed.value_or(0xD157'0000u));
         });
 
-    reg.register_type("StaticVarSource", SourceCategory::Utility,
+    reg.register_type("StaticVarSource", {.family = Family::Utility, .shelf = Shelf::Experimental},
         [](auto seed) {
             // Needs all config from JSON — use default, configurator sets it
             return std::make_shared<StaticVarSource>(1.0f, 0.0f, 0.0f,
@@ -328,7 +328,7 @@ void register_all_sources() {
             sv.bias      = p.value("bias", 0.0f);
         });
 
-    reg.register_type("StaticRangeSource", SourceCategory::Utility,
+    reg.register_type("StaticRangeSource", {.family = Family::Utility, .shelf = Shelf::Experimental},
         [](auto seed) {
             return std::make_shared<StaticRangeSource>(0.0f, 1.0f, 0.0f,
                 seed.value_or(0x57A7'0002u));
@@ -344,7 +344,7 @@ void register_all_sources() {
     // Generators with structural config
     // -----------------------------------------------------------------------
 
-    reg.register_type("MultiSource", SourceCategory::Combiner,
+    reg.register_type("MultiSource", {.family = Family::Combiner},
         [](auto) { return std::make_shared<MultiSource>(); },
         // Configurator: per-source weights. Array items can be either a
         // plain ref ({"ref":"id"}) → weight 1.0, OR an object with both ref
@@ -367,16 +367,16 @@ void register_all_sources() {
             }
         });
 
-    reg.register_type("MultiplexSource", SourceCategory::Combiner,
+    reg.register_type("MultiplexSource", {.family = Family::Combiner},
         [](auto) { return std::make_shared<MultiplexSource>(); });
 
-    reg.register_type("SegmentSource", SourceCategory::Generator,
+    reg.register_type("SegmentSource", {.family = Family::Envelope},
         [](auto seed) {
             return std::make_shared<SegmentSource>(
                 std::vector<float>{}, false, seed.value_or(0x5E6A'0000u));
         });
 
-    reg.register_type("RepeatingSource", SourceCategory::Modulator,
+    reg.register_type("RepeatingSource", {.family = Family::Modulator},
         [](auto seed) {
             return std::make_shared<RepeatingSource>(seed.value_or(0xAEAE'0000u));
         },
@@ -389,7 +389,7 @@ void register_all_sources() {
             rep.gapVarPct.value   = p.value("gapVarPct", 0.0f);
         });
 
-    reg.register_type("PhasedValueSource", SourceCategory::Envelope,
+    reg.register_type("PhasedValueSource", {.family = Family::Envelope, .label = "Phased"},
         [](auto) {
             return std::make_shared<PhasedValueSource>(0.05f);
         },
@@ -414,7 +414,7 @@ void register_all_sources() {
     // Filters
     // -----------------------------------------------------------------------
 
-    reg.register_type("BWLowpassFilter", SourceCategory::Filter,
+    reg.register_type("BWLowpassFilter", {.family = Family::Filter},
         [](auto) { return std::make_shared<BWLowpassFilter>(2); },
         // Configurator: section count, "cutoff" alias
         [](Component& src, const nlohmann::json& p, const ResolveParamFn& resolve) {
@@ -423,36 +423,36 @@ void register_all_sources() {
                 throw std::runtime_error("'cutoff' has no pin 'cutoffFreq' to land on");
         });
 
-    reg.register_type("BWHighpassFilter", SourceCategory::Filter,
+    reg.register_type("BWHighpassFilter", {.family = Family::Filter},
         [](auto) { return std::make_shared<BWHighpassFilter>(2); },
         [](Component& src, const nlohmann::json& p, const ResolveParamFn& resolve) {
             if (p.contains("cutoff") && !src.set_param("cutoffFreq", resolve(p.at("cutoff"))))
                 throw std::runtime_error("'cutoff' has no pin 'cutoffFreq' to land on");
         });
 
-    reg.register_type("BWBandpassFilter", SourceCategory::Filter,
+    reg.register_type("BWBandpassFilter", {.family = Family::Filter},
         [](auto) { return std::make_shared<BWBandpassFilter>(2); });
 
     // 2-pole state-variable filter (AFNoding-031 rebuild): selectable
     // LP/HP/BP tap, modulatable resonance, optional divide-by-res
     // normalization. "cutoff" JSON alias matches the BW filters.
-    reg.register_type("SVFSource", SourceCategory::Filter,
+    reg.register_type("SVFSource", {.family = Family::Filter, .label = "SVF (State Variable)"},
         [](auto) { return std::make_shared<SVFSource>(); },
         [](Component& src, const nlohmann::json& p, const ResolveParamFn& resolve) {
             if (p.contains("cutoff") && !src.set_param("cutoffFreq", resolve(p.at("cutoff"))))
                 throw std::runtime_error("'cutoff' has no pin 'cutoffFreq' to land on");
         });
 
-    reg.register_type("DelayFilter", SourceCategory::Filter,
+    reg.register_type("DelayFilter", {.family = Family::Filter},
         [](auto) { return std::make_shared<DelayFilter>(); });
 
-    reg.register_type("Reverb", SourceCategory::Filter,
+    reg.register_type("Reverb", {.family = Family::Filter},
         [](auto) { return std::make_shared<Reverb>(); });
 
-    reg.register_type("Limiter", SourceCategory::Filter,
+    reg.register_type("Limiter", {.family = Family::Filter},
         [](auto) { return std::make_shared<Limiter>(); });
 
-    reg.register_type("Vibrato", SourceCategory::Modulator,
+    reg.register_type("Vibrato", {.family = Family::Envelope},
         [](auto seed) {
             // Settings (speed/depth/attack/...) keep their declared defaults;
             // they are set after creation via set_setting (UI) or the
@@ -464,7 +464,7 @@ void register_all_sources() {
     // Complex additive types — AdditiveSource (thin) + Partials (rendering)
     // -----------------------------------------------------------------------
 
-    reg.register_type("AdditiveSource2", SourceCategory::Additive,
+    reg.register_type("AdditiveSource2", {.family = Family::Additive, .label = "Alternate"},
         [](auto seed) {
             auto as2 = std::make_shared<AdditiveSource2>(seed.value_or(0xADD3'0000u));
             as2->set_default_partials(500);
@@ -475,10 +475,10 @@ void register_all_sources() {
     // Formant collection types
     // -----------------------------------------------------------------------
 
-    reg.register_type("FormantSpectrum", SourceCategory::Additive,
+    reg.register_type("FormantSpectrum", {.family = Family::Additive},
         [](auto) { return std::make_shared<FormantSpectrum>(); });
 
-    reg.register_type("FixedSpectrum", SourceCategory::Additive,
+    reg.register_type("FixedSpectrum", {.family = Family::Additive},
         [](auto) { return std::make_shared<FixedSpectrum>(std::vector<float>{}); },
         // The gains arrive through the generic array pass; a spectrum without
         // them is an authoring error, not a silent zero.
@@ -486,7 +486,7 @@ void register_all_sources() {
             if (!p.contains("gains")) throw std::runtime_error("FixedSpectrum requires params.gains");
         });
 
-    reg.register_type("FormantSequence", SourceCategory::Additive,
+    reg.register_type("FormantSequence", {.family = Family::Additive},
         [](auto) { return std::make_shared<FormantSequence>(); },
         // The spectra arrive through the `spectra` slot; the old loader also
         // read them under "formants", and a patch still saying so must not
@@ -498,27 +498,27 @@ void register_all_sources() {
 
     // ExpandRule node — parametric block consumed by Partials hosts via
     // a "expandRule": {"ref": "..."} field. Mirrors the Formant pattern.
-    reg.register_type("ExpandRule", SourceCategory::Additive,
+    reg.register_type("ExpandRule", {.family = Family::Additive, .label = "Partials Expand Rule"},
         [](auto) { return std::make_shared<ExpandRuleNode>(); });
 
-    reg.register_type("CompositePartials", SourceCategory::Additive,
+    reg.register_type("CompositePartials", {.family = Family::Additive},
         [](auto) { return std::make_shared<CompositePartials>(); });
 
     // -----------------------------------------------------------------------
     // Partial specification types (new architecture — these are the renderers)
     // -----------------------------------------------------------------------
 
-    reg.register_type("FullPartials", SourceCategory::Additive,
+    reg.register_type("FullPartials", {.family = Family::Additive},
         [](auto seed) {
             return std::make_shared<FullPartials>(seed.value_or(0xADD2'0000u));
         });
 
-    reg.register_type("SequencePartials", SourceCategory::Additive,
+    reg.register_type("SequencePartials", {.family = Family::Additive},
         [](auto seed) {
             return std::make_shared<SequencePartials>(seed.value_or(0xADD2'0000u));
         });
 
-    reg.register_type("ExplicitPartials", SourceCategory::Additive,
+    reg.register_type("ExplicitPartials", {.family = Family::Additive},
         [](auto seed) {
             return std::make_shared<ExplicitPartials>(seed.value_or(0xADD2'0000u));
         });
@@ -527,56 +527,56 @@ void register_all_sources() {
     // Wavetable and Hybrid KS
     // -----------------------------------------------------------------------
 
-    reg.register_type("WavetableSource", SourceCategory::Oscillator,
+    reg.register_type("WavetableSource", {.family = Family::Wavetable},
         [](auto seed) {
             return std::make_shared<WavetableSource>(seed.value_or(0xC0FFEEu));
         });
 
-    reg.register_type("PluckEvolution", SourceCategory::Generator,
+    reg.register_type("PluckEvolution", {.family = Family::Wavetable},
         [](auto seed) {
             return std::make_shared<PluckEvolutionSource>(seed.value_or(0xDEAD'BEEFu));
         });
 
-    reg.register_type("AveragingEvolution", SourceCategory::Generator,
+    reg.register_type("AveragingEvolution", {.family = Family::Wavetable},
         [](auto seed) {
             return std::make_shared<AveragingEvolutionSource>(seed.value_or(0xCAFE'BABEu));
         });
 
-    reg.register_type("EKSEvolution", SourceCategory::Combiner,
+    reg.register_type("EKSEvolution", {.family = Family::Wavetable},
         [](auto seed) {
             return std::make_shared<EKSEvolutionSource>(seed.value_or(0xEE45'0000u));
         });
 
-    reg.register_type("ReedEvolution", SourceCategory::Combiner,
+    reg.register_type("ReedEvolution", {.family = Family::Wavetable, .shelf = Shelf::Experimental},
         [](auto seed) {
             return std::make_shared<ReedEvolutionSource>(seed.value_or(0xBEED'BEEDu));
         });
 
-    reg.register_type("BowedStringEvolution", SourceCategory::Combiner,
+    reg.register_type("BowedStringEvolution", {.family = Family::Wavetable, .shelf = Shelf::Experimental},
         [](auto seed) {
             return std::make_shared<BowedStringEvolutionSource>(seed.value_or(0xB0ED'0000u));
         });
 
-    reg.register_type("BrassEvolution", SourceCategory::Combiner,
+    reg.register_type("BrassEvolution", {.family = Family::Wavetable, .shelf = Shelf::Experimental},
         [](auto seed) {
             return std::make_shared<BrassEvolutionSource>(seed.value_or(0xB8A5'5000u));
         });
 
     // Algorithmic evolutions (abstract transforms, not physical models).
-    reg.register_type("ReactionDiffusionEvolution", SourceCategory::Combiner,
+    reg.register_type("ReactionDiffusionEvolution", {.family = Family::Wavetable, .label = "Reaction-Diffusion (Gray-Scott)", .shelf = Shelf::Experimental},
         [](auto) { return std::make_shared<ReactionDiffusionEvolutionSource>(); });
-    reg.register_type("SortErosionEvolution", SourceCategory::Combiner,
+    reg.register_type("SortErosionEvolution", {.family = Family::Wavetable, .label = "Sort Erosion (->saw)", .shelf = Shelf::Experimental},
         [](auto) { return std::make_shared<SortErosionEvolutionSource>(); });
-    reg.register_type("CellularAutomatonEvolution", SourceCategory::Combiner,
+    reg.register_type("CellularAutomatonEvolution", {.family = Family::Wavetable, .label = "Cellular Automaton (Wolfram)", .shelf = Shelf::Experimental},
         [](auto) { return std::make_shared<CellularAutomatonEvolutionSource>(); });
-    reg.register_type("HistogramEqualizeEvolution", SourceCategory::Combiner,
+    reg.register_type("HistogramEqualizeEvolution", {.family = Family::Wavetable, .label = "Histogram Equalize", .shelf = Shelf::Experimental},
         [](auto) { return std::make_shared<HistogramEqualizeEvolutionSource>(); });
-    reg.register_type("BezierPullEvolution", SourceCategory::Combiner,
+    reg.register_type("BezierPullEvolution", {.family = Family::Wavetable, .label = "Bezier Pull (->curve)", .shelf = Shelf::Experimental},
         [](auto) { return std::make_shared<BezierPullEvolutionSource>(); });
-    reg.register_type("BitRotateEvolution", SourceCategory::Combiner,
+    reg.register_type("BitRotateEvolution", {.family = Family::Wavetable, .label = "Bit Rotate (glitch)", .shelf = Shelf::Experimental},
         [](auto) { return std::make_shared<BitRotateEvolutionSource>(); });
 
-    reg.register_type("HybridKSSource", SourceCategory::Oscillator,
+    reg.register_type("HybridKSSource", {.family = Family::Wavetable},
         [](auto seed) {
             return std::make_shared<HybridKSSource>(seed.value_or(0xBEEF'C0DEu));
         });
@@ -586,17 +586,17 @@ void register_all_sources() {
     // wiring is generic (SettingDescriptors), no configurators needed.
     // -----------------------------------------------------------------------
 
-    reg.register_type("HammerBank", SourceCategory::Filter,
+    reg.register_type("HammerBank", {.family = Family::Filter},
         [](auto) { return std::make_shared<HammerBank>(); });
 
-    reg.register_type("KSString", SourceCategory::Oscillator,
+    reg.register_type("KSString", {.family = Family::Physical},
         [](auto) { return std::make_shared<KSString>(); });
     // Loading alias — the node was KSPianoString until 2026-08-24 (bow mode
     // made the name wrong); library piano patches still say so on disk.
-    reg.register_type("KSPianoString", SourceCategory::Oscillator,
+    reg.register_type("KSPianoString", {.family = Family::Physical, .shelf = Shelf::Experimental},
         [](auto) { return std::make_shared<KSString>(); });
 
-    reg.register_type("AllpassResonator", SourceCategory::Oscillator,
+    reg.register_type("AllpassResonator", {.family = Family::Physical},
         [](auto) { return std::make_shared<AllpassResonator>(); });
 
     // -----------------------------------------------------------------------
@@ -604,15 +604,15 @@ void register_all_sources() {
     // backbone and the drawn-junction nonlinearity for tap-closed loops.
     // -----------------------------------------------------------------------
 
-    reg.register_type("DelayLine", SourceCategory::Oscillator,
+    reg.register_type("DelayLine", {.family = Family::Physical},
         [](auto) { return std::make_shared<DelayLineSource>(); });
 
-    reg.register_type("Shaper", SourceCategory::Modulator,
+    reg.register_type("Shaper", {.family = Family::Filter},
         [](auto) { return std::make_shared<ShaperSource>(); });
 
     // Pure pass-through; UI draws wormhole pairs with the connecting wire
     // hidden (wormhole_source.h).
-    reg.register_type("Wormhole", SourceCategory::Modulator,
+    reg.register_type("Wormhole", {.family = Family::Utility},
         [](auto) { return std::make_shared<WormholeSource>(); });
 
     // -----------------------------------------------------------------------
@@ -620,20 +620,20 @@ void register_all_sources() {
     // docs/superpowers/specs/2026-09-13-stk-bowed-port-design.md).
     // -----------------------------------------------------------------------
 
-    reg.register_type("Biquad", SourceCategory::Filter,
+    reg.register_type("Biquad", {.family = Family::Filter, .shelf = Shelf::Experimental},
         [](auto) { return std::make_shared<BiquadSource>(); });
 
-    reg.register_type("BowTable", SourceCategory::Modulator,
+    reg.register_type("BowTable", {.family = Family::Physical, .shelf = Shelf::Experimental},
         [](auto) { return std::make_shared<BowTableSource>(); });
 
-    reg.register_type("Mesh2D", SourceCategory::Oscillator,
+    reg.register_type("Mesh2D", {.family = Family::Physical, .shelf = Shelf::Experimental},
         [](auto) { return std::make_shared<Mesh2DSource>(); });
 
     // Pierce/Van Duyne passive nonlinear allpass (JASA 101(2), 1997) — the
     // same filter Mesh2D edgeMode 2 puts on its boundary, exposed on its own
     // so it can terminate a 1D loop.  See pierce_filter.h for why it is a
     // node rather than a mode on Shaper or Biquad.
-    reg.register_type("PierceFilter", SourceCategory::Filter,
+    reg.register_type("PierceFilter", {.family = Family::Physical, .shelf = Shelf::Experimental},
         [](auto) { return std::make_shared<PierceFilterSource>(); });
 }
 

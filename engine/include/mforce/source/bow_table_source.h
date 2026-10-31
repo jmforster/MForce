@@ -20,7 +20,6 @@ struct BowTableSource final : Processor {
   Setting<float> maxOutput{this, "maxOutput", 0.98f, 0.0f, 1.0f};
 
   const char* type_name() const override { return "BowTable"; }
-  SourceCategory category() const override { return SourceCategory::Modulator; }
 
   void on_start(int) override { cur_ = 0.0f; }
 

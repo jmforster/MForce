@@ -7,17 +7,6 @@ namespace mforce {
 // patch codec. A node's pins build these from their declarations (pins.h).
 // ---------------------------------------------------------------------------
 
-enum class SourceCategory {
-  Oscillator,   // SineSource, SawSource, PulseSource, FMSource, WavetableSource, HybridKS...
-  Generator,    // RedNoiseSource, WanderNoise*, WhiteNoise, SegmentSource...
-  Modulator,    // VarSource, RangeSource, RepeatingSource, Vibrato...
-  Envelope,     // Envelope, PhasedValueSource
-  Filter,       // BWLowpass, BWHighpass, BWBandpass, Delay
-  Combiner,     // CombinedSource, CrossfadeSource, MultiSource
-  Additive,     // AdditiveSource, FullAdditiveSource, Formant...
-  Utility       // ConstantSource, StaticVarSource, StaticRangeSource
-};
-
 struct ParamDescriptor {
   const char* name;
   float default_value;

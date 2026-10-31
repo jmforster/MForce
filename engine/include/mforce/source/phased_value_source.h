@@ -35,7 +35,6 @@ struct PhasedValueSource final : Generator {
   explicit PhasedValueSource(float overlap) : overlapSeconds(overlap) {}
 
   const char* type_name() const override { return "PhasedValueSource"; }
-  SourceCategory category() const override { return SourceCategory::Envelope; }
 
   // The stages are a list the loader's configurator feeds, not a wired pin
   // yet; only the stage or stages in play are pulled each sample, so they

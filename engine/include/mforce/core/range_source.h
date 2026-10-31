@@ -45,7 +45,6 @@ struct RangeSource final : Generator {
   }
 
   const char* type_name() const override { return "RangeSource"; }
-  SourceCategory category() const override { return SourceCategory::Modulator; }
 };
 
 } // namespace mforce

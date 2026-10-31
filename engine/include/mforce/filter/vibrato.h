@@ -38,7 +38,6 @@ struct Vibrato final : Generator {
   explicit Vibrato(uint32_t seed = 0xF1B0'0000u) : seed_(seed) {}
 
   const char* type_name() const override { return "Vibrato"; }
-  SourceCategory category() const override { return SourceCategory::Modulator; }
 
   // The LFO chain is built from the settings at the first prepare; the chain
   // (and a pending one) is prepared at every call so it follows the host's

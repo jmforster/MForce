@@ -35,7 +35,6 @@ struct Formant final : Component, IFormant {
   Param power    {this, "power",     2.0f,    0.01f, 10.0f,    "exp", Pull::Manual};
 
   const char* type_name() const override { return "Formant"; }
-  SourceCategory category() const override { return SourceCategory::Additive; }
 
   void prepare(const RenderContext& ctx) override {
     frequency.prepare(ctx);
@@ -93,7 +92,6 @@ struct FormantSpectrum : Component, IFormant {
   Slot<IFormant> formants{this, "formants", "an IFormant part: a Formant or a spectrum", true};
 
   const char* type_name() const override { return "FormantSpectrum"; }
-  SourceCategory category() const override { return SourceCategory::Additive; }
 
   void prepare(const RenderContext& ctx) override {
     for (auto* f : formants.views) f->prepare(ctx);
@@ -131,7 +129,6 @@ struct FixedSpectrum final : Component, IFormant {
   explicit FixedSpectrum(std::vector<float> values) { gains.values = std::move(values); }
 
   const char* type_name() const override { return "FixedSpectrum"; }
-  SourceCategory category() const override { return SourceCategory::Additive; }
 
   void prepare(const RenderContext& /*ctx*/) override {}
   void start(int /*frames*/) override {}
@@ -158,7 +155,6 @@ struct BandSpectrum final : Component, IFormant {
   Array gains{this, "gains", nullptr, 0.0f, 0.0f, 1.0f};
 
   const char* type_name() const override { return "BandSpectrum"; }
-  SourceCategory category() const override { return SourceCategory::Additive; }
 
   void prepare(const RenderContext& ctx) override {
     startFreq.prepare(ctx);
@@ -208,7 +204,6 @@ struct FormantSequence final : Component, IFormant {
   Slot<IFormant> spectra{this, "spectra", "an IFormant part: a FormantSpectrum", true};
 
   const char* type_name() const override { return "FormantSequence"; }
-  SourceCategory category() const override { return SourceCategory::Additive; }
 
   void prepare(const RenderContext& ctx) override {
     blend.prepare(ctx);

@@ -27,7 +27,6 @@ struct WanderNoiseSource final : Generator {
 
   Range range() const override { return Range::Bipolar; }
   const char* type_name() const override { return "WanderNoiseSource"; }
-  SourceCategory category() const override { return SourceCategory::Generator; }
 
   // The Manual amplitude pin is prepared and started by the node.
   void on_prepare(const RenderContext& ctx) override { amplitude.prepare(ctx); }
@@ -98,7 +97,6 @@ struct WanderNoise2Source final : Generator {
 
   Range range() const override { return Range::Bipolar; }
   const char* type_name() const override { return "WanderNoise2Source"; }
-  SourceCategory category() const override { return SourceCategory::Generator; }
 
   // As WanderNoiseSource: the Manual amplitude pin.
   void on_prepare(const RenderContext& ctx) override { amplitude.prepare(ctx); }
@@ -156,7 +154,6 @@ struct WanderNoise3Source final : Generator {
 
   Range range() const override { return Range::Bipolar; }
   const char* type_name() const override { return "WanderNoise3Source"; }
-  SourceCategory category() const override { return SourceCategory::Generator; }
 
   void on_start(int) override {
     value_ = 0.0f;

@@ -116,7 +116,6 @@ struct Mesh2DSource final : Processor {
   Setting<int> edgeMode{this, "edgeMode", 0, 0, 2, kEdgeModes};
 
   const char* type_name() const override { return "Mesh2D"; }
-  SourceCategory category() const override { return SourceCategory::Oscillator; }
 
   // The size and the edge mode are clamped to their declared ranges; each
   // change clears the mesh.

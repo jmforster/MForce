@@ -30,7 +30,6 @@ struct PinkNoiseSource final : Generator {
 
   Range range() const override { return Range::Bipolar; }
   const char* type_name() const override { return "PinkNoiseSource"; }
-  SourceCategory category() const override { return SourceCategory::Generator; }
 
   void on_start(int) override {
     // Reset state for a fresh render

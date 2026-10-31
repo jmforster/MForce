@@ -24,7 +24,6 @@ struct WaveSource : Generator {
   static constexpr float kMinTableHz = 20.0f;
 
   Range range() const override { return Range::Bipolar; }
-  SourceCategory category() const override { return SourceCategory::Oscillator; }
 
   // Mirror legacy: ptr starts at -1, the first compute() increments to 0.
   void on_start(int) override { ptr_ = -1; }

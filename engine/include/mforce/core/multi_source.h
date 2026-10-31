@@ -23,7 +23,6 @@ struct MultiSource final : ValueSource {
   std::vector<Entry> entries;
 
   const char* type_name() const override { return "MultiSource"; }
-  SourceCategory category() const override { return SourceCategory::Combiner; }
 
   std::span<const InputDescriptor> input_descriptors() const override {
     static constexpr InputDescriptor descs[] = {

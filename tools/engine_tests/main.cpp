@@ -638,9 +638,6 @@ struct Playback final : mforce::Generator {
     const std::vector<float>* buf{nullptr};
     size_t i{0};
     const char* type_name() const override { return "Playback"; }
-    mforce::SourceCategory category() const override {
-        return mforce::SourceCategory::Modulator;
-    }
     void on_start(int) override { i = 0; }
     float compute() override { return (buf && i < buf->size()) ? (*buf)[i++] : 0.0f; }
 };
@@ -2018,7 +2015,6 @@ static void run_base_tests() {
     Doubler d;
     d.set_param("source", ramp);              // Processor's input is the pin named "source"
     CHECK(d.input_descriptors().size() == 1);
-    CHECK(d.category() == mforce::SourceCategory::Filter);
     mforce::RenderContext ctx{48000};
     d.prepare(ctx); d.start(100);
     CHECK_NEAR(d.next(), 2.0f, 1e-6f);        // the input advanced (ramp -> 1), then 2 * 1
@@ -2148,7 +2144,6 @@ static void run_wave_source_tests() {
     CHECK(std::string(pd[2].name) == "phase");
     CHECK(s.get_param("phase") == nullptr);
     CHECK(s.range() == mforce::Generator::Range::Bipolar);
-    CHECK(s.category() == mforce::SourceCategory::Oscillator);
     s.set_param("frequency", std::make_shared<ConstantSource>(12000.0f));
     s.prepare(RenderContext{48000}); s.start(8);
     CHECK_NEAR(s.next(), 0.0f, 1e-6f);           // pos 0 -> sin(0)
@@ -2543,7 +2538,6 @@ static void run_multi_name_gate_tests() {
         CHECK(m.entries.size() == 2);
         CHECK(m.input_descriptors().size() == 1);
         CHECK(m.input_descriptors()[0].multi);
-        CHECK(m.category() == SourceCategory::Combiner);
         CHECK(m.pins().empty());                   // the list is not a registry pin
         CHECK(m.get_param("source") == nullptr);
         m.entries[1].weight = 0.5f;
@@ -2761,8 +2755,6 @@ static void run_noise_pin_tests() {
     CHECK(blue.range() == Generator::Range::None);
     CHECK(murmur.range() == Generator::Range::None);
     CHECK(layered.range() == Generator::Range::None);
-    CHECK(white.category() == SourceCategory::Generator);
-    CHECK(red.category() == SourceCategory::Generator);
 }
 
 // WhiteNoiseSource: at the inert defaults one draw per sample, exactly
@@ -2937,7 +2929,6 @@ static void run_wavetable_pin_tests() {
     CHECK(setting_names(w) == "interpolate,");
     CHECK(w.setting_descriptors()[0].type == SettingType::Bool);
     CHECK(w.range() == Generator::Range::Bipolar);
-    CHECK(w.category() == SourceCategory::Oscillator);
     CHECK(w.get_param("inputSource") != nullptr);          // the seed noise
     CHECK(w.get_param("evolution") == nullptr);
     CHECK(w.get_param("speedFactor") == nullptr);
@@ -3079,8 +3070,6 @@ static void run_evolution_holder_shape_tests() {
     for (const auto* c : all)
         for (const auto& d : c->setting_descriptors())
             CHECK_NEAR(c->get_setting(d.name), d.default_value, 1e-9f);
-    CHECK(reed.category() == SourceCategory::Combiner);
-    CHECK(pluck.category() == SourceCategory::Generator);
     CHECK(avg.get_evolution() != nullptr);
 }
 
@@ -3189,7 +3178,6 @@ static void run_additive_source_pin_tests() {
     CHECK(setting_names(a2) == "partialCount,");
     CHECK(a2.setting_descriptors()[0].type == SettingType::Int);
     CHECK(a2.range() == Generator::Range::Bipolar);
-    CHECK(a2.category() == SourceCategory::Additive);
 
     BasicAdditiveSource basic;
     CHECK(param_names(basic) == "amplitude,frequency,phase,evenWeight,oddWeight,rolloff,"
@@ -3651,10 +3639,7 @@ static void run_physical_pin_shape_tests() {
           "inharmGain,inharmFb,inharmHp,ap1,ap2,ap3,fbCoeff,releaseFb,damperNoise,"
           "exciteGain,direct,bowSpeed,frictionGain,bowGain,");
 
-    CHECK(bt.category() == SourceCategory::Modulator);
-    CHECK(pierce.category() == SourceCategory::Filter);
-    CHECK(ar.category() == SourceCategory::Oscillator);
-    CHECK(ks.category() == SourceCategory::Oscillator && !ks.tracks_frequency_live());
+    CHECK(!ks.tracks_frequency_live());
     CHECK(dl.tracks_frequency_live() && mesh.tracks_frequency_live());
 
     // a declared default wins over anything the constructor once set
@@ -3892,12 +3877,6 @@ static void run_filter_pin_shape_tests() {
     CHECK(setting_names(lp).empty() && setting_names(bp).empty() && setting_names(dly).empty());
     CHECK(setting_names(lim).empty() && setting_names(rev).empty());
 
-    CHECK(bq.category() == SourceCategory::Filter && lp.category() == SourceCategory::Filter);
-    CHECK(hp.category() == SourceCategory::Filter && bp.category() == SourceCategory::Filter);
-    CHECK(dly.category() == SourceCategory::Filter && hammer.category() == SourceCategory::Filter);
-    CHECK(lim.category() == SourceCategory::Filter && rev.category() == SourceCategory::Filter);
-    CHECK(svf.category() == SourceCategory::Filter);
-    CHECK(vib.category() == SourceCategory::Modulator);
     CHECK(vib.range() == Generator::Range::None);
 }
 
@@ -4314,20 +4293,14 @@ static void run_combine_mod_category_tests() {
     CombinedSource comb(nullptr, nullptr, CombineOp::Add);
     CrossfadeSource xfade;
     MultiplexSource mux;
-    CHECK(comb.category() == SourceCategory::Combiner && xfade.category() == SourceCategory::Combiner);
-    CHECK(mux.category() == SourceCategory::Combiner);
     DistortedSource dist;
     RepeatingSource rep;
     ShaperSource shaper;
     WormholeSource wh;
-    CHECK(dist.category() == SourceCategory::Modulator && rep.category() == SourceCategory::Modulator);
-    CHECK(shaper.category() == SourceCategory::Modulator && wh.category() == SourceCategory::Modulator);
     PhasedValueSource phased(0.05f);
     SegmentSource seg(std::vector<float>{});
     StaticVarSource sv(1.0f, 0.0f);
     StaticRangeSource sr(0.0f, 1.0f);
-    CHECK(phased.category() == SourceCategory::Envelope && seg.category() == SourceCategory::Generator);
-    CHECK(sv.category() == SourceCategory::Utility && sr.category() == SourceCategory::Utility);
     CHECK(phased.range() == Generator::Range::None && seg.range() == Generator::Range::None);
 }
 
@@ -4837,24 +4810,20 @@ static void run_split_equivalence_tests() {
         "PhasedValueSource",   // stage-less: compute() indexes an empty boundaries_
     };
     std::set<std::string> parts;   // registered types that are not signals: the split has nothing to compare
-    for (auto& [name, cat] : reg.registered_types()) {
-        const std::string n = name;
+    for (const auto& entry : reg.registered_types()) {
+        const std::string n = entry.name;
         if (kNotRenderableUnwired.count(n)) continue;
         if (!std::dynamic_pointer_cast<ValueSource>(reg.create(n))) { parts.insert(n); continue; }
         const SplitResult r = split_compare([&] { return std::dynamic_pointer_cast<ValueSource>(reg.create(n)); });
         if (!r.equal) std::printf("  split differs: %s\n", n.c_str());
         CHECK(r.equal);
         if (r.threw) std::printf("  (both arms threw at the defaults: %s)\n", n.c_str());
-        // A sound source at its defaults makes sound; the comparison above
-        // was of a real signal for these. Processors and parts read 0 unwired,
-        // and so do the sources that need an excitation, a part or a shape
-        // wired in; those have wired cases in their family's tests.
-        static const std::set<std::string> kSilentUntilWired = {
-            "KSString", "KSPianoString", "AllpassResonator", "DelayLine", "Mesh2D",   // excited by `source`
-            "SegmentSource",                                                          // an empty shape
-        };
-        if ((cat == SourceCategory::Oscillator || cat == SourceCategory::Generator)
-            && !kSilentUntilWired.count(n)) {
+        // A sound-making type at its defaults makes sound; the comparison above
+        // was of a real signal for these. Processors and parts read 0 unwired;
+        // the physical models need an excitation and the envelopes a note, and
+        // those have wired cases in their family's tests.
+        const Family f = entry.tag.family;
+        if (f == Family::Oscillator || f == Family::Noise || f == Family::Wavetable) {
             if (!r.threw && !r.nonzero) std::printf("  silent at its defaults: %s\n", n.c_str());
             CHECK(r.threw || r.nonzero);
         }
@@ -6567,7 +6536,8 @@ static void run_component_root_tests() {
     auto& reg = SourceRegistry::instance();
     CHECK(kPartTypes.size() == 22);
     int seen = 0, parts = 0;
-    for (auto& [name, cat] : reg.registered_types()) {
+    for (const auto& entry : reg.registered_types()) {
+        const std::string& name = entry.name;
         auto c = reg.create(name);
         const bool isPart = std::dynamic_pointer_cast<ValueSource>(c) == nullptr;
         if (isPart != (kPartTypes.count(name) == 1))
@@ -6664,7 +6634,7 @@ static void run_review_gap_lifecycle_tests() {
         register_all_sources();
         auto& reg = SourceRegistry::instance();
         if (!reg.has("ReseedProbe"))
-            reg.register_type("ReseedProbe", SourceCategory::Generator, [](auto) { return std::make_shared<ReseedProbe>(); });
+            reg.register_type("ReseedProbe", {.family = Family::Utility, .shelf = Shelf::Experimental}, [](auto) { return std::make_shared<ReseedProbe>(); });
         const char* probed = R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"p","nodes":[
           {"id":"parts","type":"FullPartials","params":{"maxPartials":4}},
           {"id":"p","type":"ReseedProbe"}]}})";
@@ -6680,6 +6650,142 @@ static void run_review_gap_lifecycle_tests() {
     }
 }
 
+// The one classification, declared where a type is registered: every type's
+// family, label and shelf (Part 3 section 3's table; the shelf is today's
+// menu — everything not in a main family menu is Experimental), the label
+// derived from the type name where today's menu had none, the loading alias
+// still building its type, and labels unique within a family and shelf.
+struct FamilyRow { const char* name; Family family; const char* label; Shelf shelf; };
+static const FamilyRow kFamilyTable[] = {
+    {"SineSource", Family::Oscillator, "Sine", Shelf::Main},
+    {"SawSource", Family::Oscillator, "Saw", Shelf::Main},
+    {"PulseSource", Family::Oscillator, "Pulse", Shelf::Main},
+    {"TriangleSource", Family::Oscillator, "Triangle", Shelf::Main},
+    {"FMSource", Family::Oscillator, "FM", Shelf::Main},
+    {"RedNoiseSource", Family::Noise, "Red", Shelf::Main},
+    {"PinkNoiseSource", Family::Noise, "Pink", Shelf::Main},
+    {"WhiteNoiseSource", Family::Noise, "White", Shelf::Main},
+    {"BlueNoiseSource", Family::Noise, "Blue", Shelf::Main},
+    {"VioletNoiseSource", Family::Noise, "Violet", Shelf::Main},
+    {"VelvetNoiseSource", Family::Noise, "Velvet", Shelf::Main},
+    {"PerlinNoiseSource", Family::Noise, "Perlin", Shelf::Main},
+    {"CrackleNoiseSource", Family::Noise, "Crackle", Shelf::Main},
+    {"WavetableSource", Family::Wavetable, "Wavetable", Shelf::Main},
+    {"HybridKSSource", Family::Wavetable, "Hybrid KS", Shelf::Main},
+    {"EKSEvolution", Family::Wavetable, "EKS Evolution", Shelf::Main},
+    {"PluckEvolution", Family::Wavetable, "Pluck Evolution", Shelf::Main},
+    {"AveragingEvolution", Family::Wavetable, "Averaging Evolution", Shelf::Main},
+    {"AdditiveSource", Family::Additive, "Full", Shelf::Main},
+    {"BasicAdditiveSource", Family::Additive, "Basic", Shelf::Main},
+    {"AdditiveSource2", Family::Additive, "Alternate", Shelf::Main},
+    {"FullPartials", Family::Additive, "Full Partials", Shelf::Main},
+    {"SequencePartials", Family::Additive, "Sequence Partials", Shelf::Main},
+    {"ExplicitPartials", Family::Additive, "Explicit Partials", Shelf::Main},
+    {"CompositePartials", Family::Additive, "Composite Partials", Shelf::Main},
+    {"ExpandRule", Family::Additive, "Partials Expand Rule", Shelf::Main},
+    {"Formant", Family::Additive, "Formant", Shelf::Main},
+    {"FormantSequence", Family::Additive, "Formant Sequence", Shelf::Main},
+    {"FormantSpectrum", Family::Additive, "Formant Spectrum", Shelf::Main},
+    {"BandSpectrum", Family::Additive, "Band Spectrum", Shelf::Main},
+    {"FixedSpectrum", Family::Additive, "Fixed Spectrum", Shelf::Main},
+    {"KSString", Family::Physical, "KS String", Shelf::Main},
+    {"AllpassResonator", Family::Physical, "Allpass Resonator", Shelf::Main},
+    {"DelayLine", Family::Physical, "Delay Line", Shelf::Main},
+    {"DelayFilter", Family::Filter, "Delay", Shelf::Main},
+    {"Reverb", Family::Filter, "Reverb", Shelf::Main},
+    {"Limiter", Family::Filter, "Limiter", Shelf::Main},
+    {"HammerBank", Family::Filter, "Hammer Bank", Shelf::Main},
+    {"DistortedSource", Family::Filter, "Distortion", Shelf::Main},
+    {"BWBandpassFilter", Family::Filter, "BW Bandpass", Shelf::Main},
+    {"BWLowpassFilter", Family::Filter, "BW Lowpass", Shelf::Main},
+    {"BWHighpassFilter", Family::Filter, "BW Highpass", Shelf::Main},
+    {"SVFSource", Family::Filter, "SVF (State Variable)", Shelf::Main},
+    {"Shaper", Family::Filter, "Shaper", Shelf::Main},
+    {"ADSREnvelope", Family::Envelope, "ADSR", Shelf::Main},
+    {"ASREnvelope", Family::Envelope, "ASR", Shelf::Main},
+    {"ADREnvelope", Family::Envelope, "ADR", Shelf::Main},
+    {"AREnvelope", Family::Envelope, "AR", Shelf::Main},
+    {"ASEnvelope", Family::Envelope, "AS", Shelf::Main},
+    {"ADSEnvelope", Family::Envelope, "ADS", Shelf::Main},
+    {"Envelope", Family::Envelope, "Envelope", Shelf::Main},
+    {"Vibrato", Family::Envelope, "Vibrato", Shelf::Main},
+    {"PhasedValueSource", Family::Envelope, "Phased", Shelf::Main},
+    {"SegmentSource", Family::Envelope, "Segment", Shelf::Main},
+    {"RepeatingSource", Family::Modulator, "Repeating", Shelf::Main},
+    {"VarSource", Family::Modulator, "Var", Shelf::Main},
+    {"RangeSource", Family::Modulator, "Range", Shelf::Main},
+    {"CurveNode", Family::Modulator, "Curve", Shelf::Main},
+    {"CombinedSource", Family::Combiner, "Combined", Shelf::Main},
+    {"CrossfadeSource", Family::Combiner, "Crossfade", Shelf::Main},
+    {"MultiSource", Family::Combiner, "Multi", Shelf::Main},
+    {"MultiplexSource", Family::Combiner, "Multiplex", Shelf::Main},
+    {"Wormhole", Family::Utility, "Wormhole", Shelf::Main},
+    {"LayeredRedNoiseSource", Family::Noise, "Layered Red", Shelf::Experimental},
+    {"MurmurationNoiseSource", Family::Noise, "Murmuration", Shelf::Experimental},
+    {"WanderNoiseSource", Family::Noise, "Wander 1", Shelf::Experimental},
+    {"WanderNoise2Source", Family::Noise, "Wander 2", Shelf::Experimental},
+    {"WanderNoise3Source", Family::Noise, "Wander 3", Shelf::Experimental},
+    {"BowedStringEvolution", Family::Wavetable, "Bowed String Evolution", Shelf::Experimental},
+    {"ReedEvolution", Family::Wavetable, "Reed Evolution", Shelf::Experimental},
+    {"BrassEvolution", Family::Wavetable, "Brass Evolution", Shelf::Experimental},
+    {"ReactionDiffusionEvolution", Family::Wavetable, "Reaction-Diffusion (Gray-Scott)", Shelf::Experimental},
+    {"SortErosionEvolution", Family::Wavetable, "Sort Erosion (->saw)", Shelf::Experimental},
+    {"CellularAutomatonEvolution", Family::Wavetable, "Cellular Automaton (Wolfram)", Shelf::Experimental},
+    {"HistogramEqualizeEvolution", Family::Wavetable, "Histogram Equalize", Shelf::Experimental},
+    {"BezierPullEvolution", Family::Wavetable, "Bezier Pull (->curve)", Shelf::Experimental},
+    {"BitRotateEvolution", Family::Wavetable, "Bit Rotate (glitch)", Shelf::Experimental},
+    {"KSPianoString", Family::Physical, "KS Piano String", Shelf::Experimental},
+    {"Mesh2D", Family::Physical, "Mesh 2D", Shelf::Experimental},
+    {"PierceFilter", Family::Physical, "Pierce", Shelf::Experimental},
+    {"BowTable", Family::Physical, "Bow Table", Shelf::Experimental},
+    {"Biquad", Family::Filter, "Biquad", Shelf::Experimental},
+    {"NameGate", Family::Modulator, "Name Gate", Shelf::Experimental},
+    {"StaticVarSource", Family::Utility, "Static Var", Shelf::Experimental},
+    {"StaticRangeSource", Family::Utility, "Static Range", Shelf::Experimental},
+};
+
+static void run_registry_family_tests() {
+    std::printf("the registry: families, labels, shelves\n");
+    register_all_sources();
+    auto& reg = SourceRegistry::instance();
+    int main = 0, experimental = 0;
+    for (const auto& row : kFamilyTable) {
+        CHECK(reg.has(row.name));
+        if (reg.family(row.name) != row.family || reg.label(row.name) != row.label || reg.shelf(row.name) != row.shelf)
+            std::printf("  %s: %s / %s / %d\n", row.name, family_name(reg.family(row.name)), reg.label(row.name).c_str(), int(reg.shelf(row.name)));
+        CHECK(reg.family(row.name) == row.family);
+        CHECK(reg.label(row.name) == row.label);
+        CHECK(reg.shelf(row.name) == row.shelf);
+        (row.shelf == Shelf::Main ? main : experimental)++;
+    }
+    CHECK(main == 63 && experimental == 22);
+    CHECK(main + experimental == int(reg.registered_types().size()));         // every registered type is in the table
+    // the derivation: the suffix off, a space before each word, acronyms kept
+    CHECK(derived_label("HybridKSSource") == "Hybrid KS" && derived_label("BWLowpassFilter") == "BW Lowpass");
+    CHECK(derived_label("Mesh2D") == "Mesh 2D" && derived_label("KSPianoString") == "KS Piano String");
+    CHECK(derived_label("ADSREnvelope") == "ADSR" && derived_label("Envelope") == "Envelope" && derived_label("CurveNode") == "Curve");
+    CHECK(derived_label("WanderNoise2Source") == "Wander Noise 2" && derived_label("StaticVarSource") == "Static Var");
+    // the alias still builds its type, on the Experimental shelf of its family
+    CHECK(std::dynamic_pointer_cast<KSString>(reg.create("KSPianoString")) != nullptr);
+    CHECK(reg.family("KSPianoString") == Family::Physical && reg.shelf("KSPianoString") == Shelf::Experimental);
+    // labels are non-empty and unique within a family and shelf; types_in walks every type once
+    int walked = 0;
+    for (Family f : kFamilyOrder)
+        for (Shelf s : {Shelf::Main, Shelf::Experimental}) {
+            std::set<std::string> labels;
+            for (const auto& e : reg.types_in(f, s)) {
+                CHECK(e.tag.family == f);
+                CHECK(!reg.label(e.name).empty());
+                CHECK(labels.insert(reg.label(e.name)).second);
+                ++walked;
+            }
+        }
+    CHECK(walked == 85);
+    CHECK(std::string(family_name(Family::Oscillator)) == "Oscillators" && std::string(family_name(Family::Noise)) == "Noise"
+          && std::string(family_name(Family::Filter)) == "Filters" && std::string(family_name(Family::Utility)) == "Utility");
+    CHECK(reg.family("NoSuchType") == Family::Utility);                        // unknown: what get_category answered
+}
+
 int main() {
     run_alloc_probe_tests();
     run_allocation_tests_partials();
@@ -6692,6 +6798,7 @@ int main() {
     run_formant_part_tests();
     run_partials_part_tests();
     run_component_root_tests();
+    run_registry_family_tests();   // before the lifecycle test registers its probe
     run_review_gap_tests();
     run_review_gap_lifecycle_tests();
     run_pin_tests();

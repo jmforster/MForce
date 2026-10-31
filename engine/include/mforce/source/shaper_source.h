@@ -45,7 +45,6 @@ struct ShaperSource final : Processor {
   }
 
   const char* type_name() const override { return "Shaper"; }
-  SourceCategory category() const override { return SourceCategory::Modulator; }
 
   static std::vector<Curve::Seg> decode_segs(const std::vector<float>& v) {
     std::vector<Curve::Seg> out;

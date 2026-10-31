@@ -150,17 +150,6 @@ static std::string node_display_name(const std::string& typeName) {
 }
 
 // Check if a type name is a noise source
-static bool is_noise_type(const std::string& t) {
-    return t.find("Noise") != std::string::npos
-        || t == "SegmentSource";
-}
-
-// Check if a type name is a wavetable/evolution source
-static bool is_wavetable_type(const std::string& t) {
-    return t == "WavetableSource"
-        || t.find("Evolution") != std::string::npos;
-}
-
 // Gold = "set once at note-on, frozen for the note" — the performance
 // cadence. Shared by the Note node's title, the Settings-pane promotion UI
 // and the node-face dynamic pins so the meaning reads as one color.
@@ -183,21 +172,18 @@ static ImU32 node_title_color(const std::string& typeName) {
     auto& reg = SourceRegistry::instance();
     if (!reg.has(typeName)) return IM_COL32(128, 128, 128, 255);
 
-    // Noise and Wavetable override category-based coloring
-    if (is_noise_type(typeName))
-        return IM_COL32(185, 95, 85, 255);      // Reddish orange — Noise
-    if (is_wavetable_type(typeName))
-        return IM_COL32(155, 150, 110, 255);    // Olive-y tan — Wavetable
-
-    switch (reg.get_category(typeName)) {
-        case SourceCategory::Additive:  return IM_COL32(195, 145, 90, 255);  // Orange — Additive
-        case SourceCategory::Envelope:  return IM_COL32(200, 185, 110, 255); // Pale gold — Envelope
-        case SourceCategory::Oscillator:return IM_COL32(95, 165, 150, 255);  // Greenish teal — Generator
-        case SourceCategory::Generator: return IM_COL32(95, 165, 150, 255);  // Greenish teal — Generator
-        case SourceCategory::Modulator: return IM_COL32(95, 165, 150, 255);  // Greenish teal — Generator
-        case SourceCategory::Filter:    return IM_COL32(145, 130, 175, 255); // Dark lavender — Filter
-        case SourceCategory::Combiner:  return IM_COL32(95, 165, 150, 255);  // Greenish teal — Generator
-        case SourceCategory::Utility:   return IM_COL32(128, 128, 128, 255);
+    // The colour follows the family the registry declares.
+    switch (reg.family(typeName)) {
+        case Family::Additive:   return IM_COL32(195, 145, 90, 255);   // Orange — Additive
+        case Family::Envelope:   return IM_COL32(200, 185, 110, 255);  // Pale gold — Envelope
+        case Family::Noise:      return IM_COL32(185, 95, 85, 255);    // Reddish orange — Noise
+        case Family::Wavetable:  return IM_COL32(155, 150, 110, 255);  // Olive-y tan — Wavetable
+        case Family::Oscillator:
+        case Family::Physical:
+        case Family::Modulator:
+        case Family::Combiner:   return IM_COL32(95, 165, 150, 255);   // Greenish teal — Generator
+        case Family::Filter:     return IM_COL32(145, 130, 175, 255);  // Dark lavender — Filter
+        case Family::Utility:    return IM_COL32(128, 128, 128, 255);
     }
     return IM_COL32(128, 128, 128, 255);
 }
@@ -12559,8 +12545,7 @@ static void draw_waveform_window() {
 
     auto& reg = SourceRegistry::instance();
     for (auto& n : s_nodes) {
-        SourceCategory cat = reg.has(n.typeName) ? reg.get_category(n.typeName) : SourceCategory::Utility;
-        bool isEnvelope = (cat == SourceCategory::Envelope);
+        bool isEnvelope = reg.has(n.typeName) && reg.family(n.typeName) == Family::Envelope;
         if (isEnvelope && !g_showEnvelopes) continue;
 
         if (is_partials_type(n.typeName)) {
@@ -12725,8 +12710,7 @@ static void draw_wave_popouts() {
                 if (!n.waveformData.empty()) {
                     buf = n.waveformData.data();
                     count = (int)n.waveformData.size();
-                    SourceCategory cat = reg.has(n.typeName) ? reg.get_category(n.typeName) : SourceCategory::Utility;
-                    if (cat == SourceCategory::Envelope) color = envelopeColor;
+                    if (reg.has(n.typeName) && reg.family(n.typeName) == Family::Envelope) color = envelopeColor;
                 }
                 break;
             }

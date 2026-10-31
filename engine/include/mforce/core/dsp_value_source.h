@@ -258,7 +258,6 @@ struct Processor : ValueSource {
   Input input;
   explicit Processor(Pull inputPull = Pull::Auto)
     : input{this, "source", Input::RequiredInput, nullptr, false, inputPull} {}
-  SourceCategory category() const override { return SourceCategory::Filter; }
 };
 
 struct ConstantSource final : Generator {

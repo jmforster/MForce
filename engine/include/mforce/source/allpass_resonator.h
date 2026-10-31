@@ -52,7 +52,6 @@ struct AllpassResonator final : Processor {
   AllpassResonator() { buf_.assign(kBufLen, 0.0f); }
 
   const char* type_name() const override { return "AllpassResonator"; }
-  SourceCategory category() const override { return SourceCategory::Oscillator; }
 
   // The four loop knobs are clamped to their declared ranges.
   void on_setting_changed(std::string_view name) override {

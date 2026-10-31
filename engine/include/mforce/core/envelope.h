@@ -66,7 +66,6 @@ struct Envelope : Generator {
 
   Range range() const override { return Range::Unipolar; }
   const char* type_name() const override { return "Envelope"; }
-  SourceCategory category() const override { return SourceCategory::Envelope; }
 
   // Stage-timing semantics (2026-08-06, piano-chuff fix). Default false:
   // Stage.percent is a FRACTION of note duration, clamped to

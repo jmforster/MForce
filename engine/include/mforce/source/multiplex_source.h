@@ -43,7 +43,6 @@ struct MultiplexSource final : Processor {
     MultiplexSource() : Processor(Pull::Manual) {}
 
     const char* type_name() const override { return "MultiplexSource"; }
-    SourceCategory category() const override { return SourceCategory::Combiner; }
 
     // The base stores `count` before this runs; appliedCount_ is the count the
     // clones were last sized to, so only a real change forces a rebuild.

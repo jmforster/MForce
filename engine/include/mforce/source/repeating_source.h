@@ -25,7 +25,6 @@ struct RepeatingSource final : Processor {
   : Processor(Pull::Manual), rng_(seed) {}
 
   const char* type_name() const override { return "RepeatingSource"; }
-  SourceCategory category() const override { return SourceCategory::Modulator; }
 
   void on_prepare(const RenderContext& ctx) override { input.prepare(ctx); }
 

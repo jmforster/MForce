@@ -42,7 +42,6 @@ struct VarSource final : Generator {
   }
 
   const char* type_name() const override { return "VarSource"; }
-  SourceCategory category() const override { return SourceCategory::Modulator; }
 
 private:
   float lastVal_{0.0f};

@@ -56,7 +56,6 @@ struct AdditiveSource2 final : WaveSource {
                             PartialFilter filter, int from, int to);
 
   const char* type_name() const override { return "AdditiveSource2"; }
-  SourceCategory category() const override { return SourceCategory::Additive; }
 
   // Wiring `partials` copies the Partials' arrays the moment the slot takes
   // it; the base door does the type-check.

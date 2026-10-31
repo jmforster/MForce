@@ -4,6 +4,7 @@
 #include <functional>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <vector>
 
@@ -27,12 +28,48 @@ using JsonConfigurator = std::function<void(
     const nlohmann::json& params,
     const ResolveParamFn& resolve)>;
 
+// The one classification of a node type, declared where the type is
+// registered: its family (Part 3 section 3's table), the label the editor's
+// menus show (derived from the type name unless given) and the shelf it sits
+// on — Main for the create menu's family menus, Experimental for the parked
+// and the unclassified. The editor's menus, colours and the folder a type's
+// header lives in all follow from the family; nothing asks a node object.
+enum class Family { Oscillator, Noise, Wavetable, Additive, Physical, Filter, Envelope, Modulator, Combiner, Utility };
+constexpr int kFamilyCount = 10;
+// Menu order: the sound-making families, then the shaping ones.
+inline constexpr Family kFamilyOrder[kFamilyCount] = {
+  Family::Oscillator, Family::Noise, Family::Wavetable, Family::Additive, Family::Physical,
+  Family::Filter, Family::Envelope, Family::Modulator, Family::Combiner, Family::Utility,
+};
+const char* family_name(Family f);      // "Oscillators", "Noise", "Wavetable", "Additive", "Physical", "Filters", "Envelopes", "Modulators", "Combiners", "Utility"
+
+enum class Shelf { Main, Experimental };
+
+struct TypeTag {
+  Family family;
+  const char* label = nullptr;          // null: derived_label(type_name)
+  Shelf shelf = Shelf::Main;
+};
+
+struct TypeEntry {
+  std::string name;
+  TypeTag tag;
+};
+
+// The label a type name reads as when its registration gives none: one
+// trailing Source, Filter, Node or Envelope dropped (never the whole name),
+// then a space before each word — before a capital that follows a lower-case
+// letter, before the last capital of a run that a lower-case letter follows,
+// and before a digit that follows a letter: "HybridKSSource" -> "Hybrid KS",
+// "BWLowpassFilter" -> "BW Lowpass", "Mesh2D" -> "Mesh 2D", "ADSREnvelope" -> "ADSR".
+std::string derived_label(std::string_view type_name);
+
 class SourceRegistry {
 public:
   static SourceRegistry& instance();
 
   void register_type(const std::string& type_name,
-                     SourceCategory category,
+                     TypeTag tag,
                      SourceFactory factory,
                      JsonConfigurator configurator = nullptr);
 
@@ -41,22 +78,28 @@ public:
 
   const JsonConfigurator* get_configurator(const std::string& type_name) const;
 
-  // Returns all registered types, sorted by category then name.
-  std::vector<std::pair<std::string, SourceCategory>> registered_types() const;
+  // Every registered type, in registration order (which is the menus' order).
+  std::vector<TypeEntry> registered_types() const;
+  // The types of one family on one shelf, in registration order.
+  std::vector<TypeEntry> types_in(Family family, Shelf shelf) const;
 
   bool has(const std::string& type_name) const;
 
-  // Returns category for a registered type, or Utility if unknown.
-  SourceCategory get_category(const std::string& type_name) const;
+  // The tag's parts, by name. An unknown name is a Utility on the Main shelf
+  // with its name as its label.
+  Family      family(const std::string& type_name) const;
+  std::string label(const std::string& type_name) const;
+  Shelf       shelf(const std::string& type_name) const;
 
 private:
   struct Entry {
-    SourceCategory category;
+    TypeTag tag;
     SourceFactory factory;
     JsonConfigurator configurator;  // may be null
   };
 
   std::unordered_map<std::string, Entry> entries_;
+  std::vector<std::string> order_;    // registration order
 };
 
 // Call once at startup to populate the registry with all source types.

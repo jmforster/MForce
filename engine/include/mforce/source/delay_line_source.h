@@ -30,7 +30,6 @@ struct DelayLineSource final : Processor {
   Setting<bool> compensate{this, "compensate", false, false, true};
 
   const char* type_name() const override { return "DelayLine"; }
-  SourceCategory category() const override { return SourceCategory::Oscillator; }
 
   // Sized for the 20 Hz floor at the host's rate; a repeat prepare at the
   // same rate leaves the buffer alone, a new rate re-sizes it.

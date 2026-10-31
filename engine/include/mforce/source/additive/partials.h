@@ -67,7 +67,6 @@ struct ExpandRuleNode final : Component {
   }
 
   const char* type_name() const override { return "ExpandRule"; }
-  SourceCategory category() const override { return SourceCategory::Additive; }
 };
 
 // ---------------------------------------------------------------------------
@@ -206,7 +205,6 @@ struct Partials : Component, IPartials {
   Partials(uint32_t seed = 0xADD2'0000u) : baseSeed_(seed) {}
 
   const char* type_name() const override { return "Partials"; }
-  SourceCategory category() const override { return SourceCategory::Additive; }
 
   void on_setting_changed(std::string_view name) override {
     if (name == "bandwidthHz" && bandwidthHz.value < 1.0f) bandwidthHz.value = 1.0f;
@@ -1097,7 +1095,6 @@ struct CompositePartials final : Component, IPartials {
   Slot<IPartials> partials{this, "partials", "an IPartials part", true};
 
   const char* type_name() const override { return "CompositePartials"; }
-  SourceCategory category() const override { return SourceCategory::Additive; }
 
   // --- IPartials interface ---
   void prepare(const RenderContext& ctx) override {

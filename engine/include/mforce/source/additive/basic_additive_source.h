@@ -27,7 +27,6 @@ struct BasicAdditiveSource final : WaveSource {
   : rng_(seed) {}
 
   const char* type_name() const override { return "BasicAdditiveSource"; }
-  SourceCategory category() const override { return SourceCategory::Additive; }
 
   // The partial count is 12 kHz over the frequency; the five arrays are
   // reserved here for the count at the floor frequency (kMinTableHz), so a

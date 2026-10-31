@@ -21,7 +21,6 @@ struct BlueNoiseSource final : Generator {
 
   // No unit range: the difference of two pink samples can reach +-2.
   const char* type_name() const override { return "BlueNoiseSource"; }
-  SourceCategory category() const override { return SourceCategory::Generator; }
 
   void on_prepare(const RenderContext& ctx) override { pink_.prepare(ctx); }
 
@@ -54,7 +53,6 @@ struct VioletNoiseSource final : Generator {
 
   Range range() const override { return Range::Bipolar; }
   const char* type_name() const override { return "VioletNoiseSource"; }
-  SourceCategory category() const override { return SourceCategory::Generator; }
 
   void on_start(int) override { prev_ = 0.0f; }
 
@@ -86,7 +84,6 @@ struct VelvetNoiseSource final : Generator {
 
   Range range() const override { return Range::Bipolar; }
   const char* type_name() const override { return "VelvetNoiseSource"; }
-  SourceCategory category() const override { return SourceCategory::Generator; }
 
   void on_start(int) override {
     counter_ = 0;
@@ -138,7 +135,6 @@ struct PerlinNoiseSource final : Generator {
 
   Range range() const override { return Range::Bipolar; }
   const char* type_name() const override { return "PerlinNoiseSource"; }
-  SourceCategory category() const override { return SourceCategory::Generator; }
 
   void on_start(int) override { pos_ = 0.0; }
 
@@ -202,7 +198,6 @@ struct CrackleNoiseSource final : Generator {
 
   Range range() const override { return Range::Bipolar; }
   const char* type_name() const override { return "CrackleNoiseSource"; }
-  SourceCategory category() const override { return SourceCategory::Generator; }
 
   void on_start(int) override {
     y1_ = rng_.value() * 0.1f;
@@ -252,7 +247,6 @@ struct MurmurationNoiseSource final : Generator {
 
   // No unit range: the flock sum is scaled by 1/sqrt(n), so it exceeds 1.
   const char* type_name() const override { return "MurmurationNoiseSource"; }
-  SourceCategory category() const override { return SourceCategory::Generator; }
 
   void on_start(int) override {
     // Initialize birds with scattered frequencies around center

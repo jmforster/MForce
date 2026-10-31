@@ -33,7 +33,6 @@ struct CombinedSource final : ValueSource {
   }
 
   const char* type_name() const override { return "CombinedSource"; }
-  SourceCategory category() const override { return SourceCategory::Combiner; }
 
   void on_start(int frames) override {
     totalFrames_ = frames;
@@ -87,7 +86,6 @@ struct CrossfadeSource final : ValueSource {
   Setting<float> gainAdj{this, "gainAdj", 0.0f, -1.0f, 10.0f};
 
   const char* type_name() const override { return "CrossfadeSource"; }
-  SourceCategory category() const override { return SourceCategory::Combiner; }
 
   void on_prepare(const RenderContext& ctx) override {
     source1.prepare(ctx);
@@ -141,7 +139,6 @@ struct DistortedSource final : Processor {
   explicit DistortedSource(uint32_t seed = 0xD1570000u) : rng_(seed) {}
 
   const char* type_name() const override { return "DistortedSource"; }
-  SourceCategory category() const override { return SourceCategory::Modulator; }
 
   float compute() override {
     float s = input.current();
