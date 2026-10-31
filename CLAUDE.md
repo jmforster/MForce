@@ -146,6 +146,13 @@ After making code changes:
 3. Report exactly what changed
 4. If behavior differs, explain whether it is intentional or a bug
 
+## Measurement scope (Matt 2026-10-30)
+- patches/library + patches/baselines is the standard for every gate, A/B,
+  allocation measurement and regression check. Spend no checkpoint time on
+  audition/, pending/, sweep/ or old/ patches: working material that will
+  likely never be used. If Matt later loads an old patch with promise and it
+  is broken, say why; it gets figured out then.
+
 ## Near-term priorities
 1. Create json formats for the data classes in MForce/Music (eg RhythmicFigure)
 2. Determine best approach for UI for creating and modifying patches and hearing immediate results

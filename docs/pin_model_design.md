@@ -147,8 +147,12 @@ with a `<curve>` label and suppresses editing, because "the mapping stomps the
 scalar at every note-on." Promotion generalises that from a dialog-driven
 special case into the model.
 
-Structural settings (int, bool, enum) get no grey pin. `CombinedSource.operation`
-is a dropdown and stays one.
+Structural settings get no grey pin: every int, bool and enum, and a float its
+node declares so (`SettingRole::Structural` on the pin — the Partials shaping
+weights, multipliers and offsets, which size or reshape the arrays at prepare).
+The descriptor carries the mark; the loader refuses a wire into one, naming the
+node, the setting and the reason. `CombinedSource.operation` is a dropdown and
+stays one.
 
 Gold must be visibly distinct from fixed-pin styling. That is not decoration:
 it is what tells you the value is frozen for the note, and it is what will

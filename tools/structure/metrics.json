@@ -20,13 +20,13 @@
    [
     [
      "engine/src/patch_loader.cpp",
-     1470,
-     1531
+     1480,
+     1541
     ],
     [
      "engine/src/patch_loader.cpp",
-     1713,
-     1758
+     1723,
+     1768
     ]
    ]
   ],
@@ -755,13 +755,13 @@
    [
     [
      "engine/src/patch_loader.cpp",
-     1452,
-     1463
+     1462,
+     1473
     ],
     [
      "engine/src/patch_loader.cpp",
-     1700,
-     1710
+     1710,
+     1720
     ]
    ]
   ],
@@ -1076,7 +1076,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 1,
-   "lines": 148,
+   "lines": 153,
    "longest_function": [
     20,
     "mforce::Component::register_pin"
@@ -1134,7 +1134,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 66,
+   "lines": 70,
    "longest_function": [
     0,
     ""
@@ -1308,7 +1308,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 1,
-   "lines": 168,
+   "lines": 183,
    "longest_function": [
     5,
     "mforce::Setting::descriptor"
@@ -1318,6 +1318,7 @@
    "types": [
     "PinKind",
     "Pull",
+    "SettingRole",
     "PinBase",
     "Param",
     "Input",
@@ -2740,7 +2741,7 @@
    "changelog_comments": 0,
    "const_cast": 1,
    "dynamic_cast": 1,
-   "lines": 1196,
+   "lines": 1194,
    "longest_function": [
     149,
     "mforce::Partials::partial_value_impl"
@@ -3312,7 +3313,7 @@
    "changelog_comments": 11,
    "const_cast": 0,
    "dynamic_cast": 5,
-   "lines": 1769,
+   "lines": 1779,
    "longest_function": [
     470,
     "mforce::build_graph"
@@ -3555,7 +3556,7 @@
    "changelog_comments": 4,
    "const_cast": 0,
    "dynamic_cast": 17,
-   "lines": 6432,
+   "lines": 6530,
    "longest_function": [
     272,
     "run_walk3_tests"
@@ -3943,7 +3944,7 @@
   "files_over_limit": 20,
   "functions_over_limit": 99,
   "include_violations": 13,
-  "lines": 60370,
+  "lines": 60500,
   "unmapped_files": 0
  }
 }

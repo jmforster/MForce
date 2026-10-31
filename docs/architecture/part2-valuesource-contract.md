@@ -220,7 +220,7 @@ struct SVFSource final : Processor {
 | `Param` | a `ValueSource*` or a constant, plus default and range | the source's `next(t)`, or the constant with no virtual call | a `shared_ptr<ValueSource>` member defaulted to a `ConstantSource` |
 | `Input` | a signal input: a `ValueSource*`, required or optional | the source's `next(t)`, or 0 | `source_` on 21 types |
 | `Slot<T>` | a structural input: a part that implements interface `T` (`IPartials`, `IFormant`, an evolution holder) | not a value; the node calls `T`'s methods | `partials_`, `formant_`, `evolutionSrc_` with a `dynamic_cast` at wire time |
-| `Setting<T>` | a scalar configuration value (float, int, bool), not connectable | the value | `set_setting` chains |
+| `Setting<T>` | a scalar configuration value (float, int, bool), not connectable; a structural one (every int and bool, a float declared `SettingRole::Structural`) sizes or reshapes the node at prepare and takes no per-note push — the loader refuses the wire | the value | `set_setting` chains |
 | `Array` | a user-editable float vector | the vector | `set_array` chains |
 
 `Slot` may be a list (`Slots<T>`) for pins that accept several

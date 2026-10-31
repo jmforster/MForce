@@ -30,11 +30,14 @@ docs/architecture/measurements/2026-10-29-allocations.md; survey:
 tools/survey_table_frequencies.py (lowest table frequency in use 220 Hz). DOCS:
 report R7 docs/autonomy/refactor/reports/2026-10-30-checkpoint-2.6.md (§8 the
 refutation, the fix-wave outcomes, the re-review, the re-check; §10 four
-lessons); REVIEW R7 AWAITING MATT with four items: (0) the gate's place (slow
-list vs a ctest after a --jobs split), (1) the A/B (none moved — accept), (2)
-the queue folders (398 of 749 allocated on the first arming, not re-measured),
-(3) the 20 Hz floor, plus (4) a per-note push into a Partials shaping setting
-(honour within capacity, or refuse at load). R6 (2.5) still awaits Matt.
+lessons); REVIEW R7 DECIDED 2026-10-30 (all five as read: the gate stays
+slow-listed with a --jobs split as a plan 3.1 task; the A/B accepted; the
+queues measured clean once — 752 patches, 0 allocate — and never again; the
+20 Hz floor kept; a structural setting takes no per-note push, landed
+6007b29: SettingRole::Structural on the pin and its descriptor, the loader
+refuses the wire, the UI offers no pin). STANDING RULE from the verdict:
+library + baselines is the measurement scope for every gate, A/B and
+measurement (CLAUDE.md "Measurement scope"). R6 (2.5) still awaits Matt.
 BACKLOG row 1: Part 2 complete; row 2 (Part 3 nodes) NEXT — plan 3.1 to write.
 Part 2 §4 decided line + §7 row 2.6 filled; the plan's Ledger carries every
 execution ruling. Debt (report §7): the offline hosts' per-note buffers
