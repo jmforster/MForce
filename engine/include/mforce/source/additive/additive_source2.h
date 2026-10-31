@@ -60,11 +60,9 @@ struct AdditiveSource2 final : WaveSource {
 
   // Wiring `partials` copies the Partials' arrays the moment the slot takes
   // it; the base door does the type-check.
-  bool set_param(std::string_view name, std::shared_ptr<Component> part) override {
-    const bool ok = WaveSource::set_param(name, std::move(part));
-    if (ok && name == "partials")
+  void on_slot_changed(std::string_view name) override {
+    if (name == "partials")
       if (auto* p = partials.get()) apply_partials(*p);
-    return ok;
   }
 
   void on_setting_changed(std::string_view name) override {

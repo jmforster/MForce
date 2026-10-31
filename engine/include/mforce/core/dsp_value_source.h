@@ -289,8 +289,10 @@ inline bool Component::set_param(std::string_view name, std::shared_ptr<Componen
     return true;
   }
   if (auto* s = find<SlotBase>(name)) {
-    if (!part) { s->clear(); return true; }
-    return s->set(std::move(part));
+    if (!part) { s->clear(); on_slot_changed(name); return true; }
+    if (!s->set(std::move(part))) return false;
+    on_slot_changed(name);
+    return true;
   }
   return false;
 }

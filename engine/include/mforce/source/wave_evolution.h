@@ -633,8 +633,14 @@ private:
 // IEvolutionHolder — interface for graph nodes that hold a WaveEvolution.
 // WavetableSource dynamic_casts its "evolution" input to this.
 // ---------------------------------------------------------------------------
+// A part the wavetable holds in its `evolution` slot: it carries the evolution
+// algorithm and shows the algorithm's settings as a node. The owner drives it —
+// prepare once per build, start once per note — and a holder with pins of its
+// own prepares and starts them there; one without has nothing to do.
 struct IEvolutionHolder {
   virtual ~IEvolutionHolder() = default;
+  virtual void prepare(const RenderContext& /*ctx*/) {}
+  virtual void start(int /*frames*/) {}
   virtual WaveEvolution* get_evolution() = 0;
 };
 
@@ -642,7 +648,7 @@ struct IEvolutionHolder {
 // PluckEvolutionSource — graph node holding a PluckEvolution.
 // Wire to WavetableSource's "evolution" input.
 // ---------------------------------------------------------------------------
-struct PluckEvolutionSource final : ValueSource, IEvolutionHolder {
+struct PluckEvolutionSource final : Component, IEvolutionHolder {
   Setting<float> muting{this, "muting", 0.0f, 0.0f, 1.0f};
 
   explicit PluckEvolutionSource(uint32_t seed = 0xDEAD'BEEFu)
@@ -656,8 +662,6 @@ struct PluckEvolutionSource final : ValueSource, IEvolutionHolder {
   // The evolution is rebuilt from its setting, which restarts its draw stream.
   void on_setting_changed(std::string_view) override { evo_ = PluckEvolution(muting.value, seed_); }
 
-  // Not an audio source — exists for graph wiring only
-  float compute() override { return 0.0f; }
 
 private:
   PluckEvolution evo_;
@@ -668,7 +672,7 @@ private:
 // AveragingEvolutionSource — graph node holding an AveragingEvolution.
 // Wire to WavetableSource's "evolution" input.
 // ---------------------------------------------------------------------------
-struct AveragingEvolutionSource final : ValueSource, IEvolutionHolder {
+struct AveragingEvolutionSource final : Component, IEvolutionHolder {
   Setting<float> sampleCount{this, "sampleCount", 4.0f,   1.0f, 48.0f};
   Setting<float> speed      {this, "speed",       1.0f,   0.1f, 20.0f};
   Setting<float> decayFactor{this, "decayFactor", 0.999f, 0.9f, 1.0f};
@@ -687,8 +691,6 @@ struct AveragingEvolutionSource final : ValueSource, IEvolutionHolder {
   // The evolution is rebuilt from its settings, which restarts its draw stream.
   void on_setting_changed(std::string_view) override { rebuild(); }
 
-  // Not an audio source — exists for graph wiring only
-  float compute() override { return 0.0f; }
 
 private:
   void rebuild() {
@@ -703,7 +705,7 @@ private:
 // ---------------------------------------------------------------------------
 // EKSEvolutionSource — graph node holding an EKSEvolution.
 // ---------------------------------------------------------------------------
-struct EKSEvolutionSource final : ValueSource, IEvolutionHolder {
+struct EKSEvolutionSource final : Component, IEvolutionHolder {
   Setting<float> pickPosition {this, "pickPosition",  0.0f, 0.0f, 1.0f};
   Setting<float> pickDirection{this, "pickDirection", 0.0f, 0.0f, 0.95f};
   Setting<float> stiffness    {this, "stiffness",     0.0f, 0.0f, 0.1f};
@@ -718,8 +720,6 @@ struct EKSEvolutionSource final : ValueSource, IEvolutionHolder {
 
   WaveEvolution* get_evolution() override { return &evo_; }
 
-  // Not an audio source — exists for graph wiring only
-  float compute() override { return 0.0f; }
 
 private:
   EKSEvolution evo_;
@@ -728,7 +728,7 @@ private:
 // ---------------------------------------------------------------------------
 // ReedEvolutionSource — graph node holding a ReedEvolution.
 // ---------------------------------------------------------------------------
-struct ReedEvolutionSource final : ValueSource, IEvolutionHolder {
+struct ReedEvolutionSource final : Component, IEvolutionHolder {
   // The two pins are advanced by the evolution, once per evolve(), so they are
   // Manual; this node prepares them.
   Param reedStiffness{this, "reedStiffness", 1.5f, 0.0f, 8.0f, "exp", Pull::Manual};
@@ -744,15 +744,14 @@ struct ReedEvolutionSource final : ValueSource, IEvolutionHolder {
 
   WaveEvolution* get_evolution() override { return &evo_; }
 
-  void on_prepare(const RenderContext& ctx) override {
+  void prepare(const RenderContext& ctx) override {
     breath.prepare(ctx);
     reedStiffness.prepare(ctx);
   }
-  void on_start(int frames) override {
+  void start(int frames) override {
     breath.start(frames);
     reedStiffness.start(frames);
   }
-  float compute() override { return 0.0f; }
 
 private:
   ReedEvolution evo_;
@@ -761,7 +760,7 @@ private:
 // ---------------------------------------------------------------------------
 // BowedStringEvolutionSource — graph node holding a BowedStringEvolution.
 // ---------------------------------------------------------------------------
-struct BowedStringEvolutionSource final : ValueSource, IEvolutionHolder {
+struct BowedStringEvolutionSource final : Component, IEvolutionHolder {
   // The two pins are advanced by the evolution, once per evolve() that runs
   // its loop, so they are Manual; this node prepares them.
   Input bow         {this, "bow", Input::Optional, "0-1", false, Pull::Manual};
@@ -779,15 +778,14 @@ struct BowedStringEvolutionSource final : ValueSource, IEvolutionHolder {
 
   WaveEvolution* get_evolution() override { return &evo_; }
 
-  void on_prepare(const RenderContext& ctx) override {
+  void prepare(const RenderContext& ctx) override {
     bow.prepare(ctx);
     frictionGain.prepare(ctx);
   }
-  void on_start(int frames) override {
+  void start(int frames) override {
     bow.start(frames);
     frictionGain.start(frames);
   }
-  float compute() override { return 0.0f; }
 
 private:
   BowedStringEvolution evo_;
@@ -796,7 +794,7 @@ private:
 // ---------------------------------------------------------------------------
 // BrassEvolutionSource — graph node holding a BrassEvolution.
 // ---------------------------------------------------------------------------
-struct BrassEvolutionSource final : ValueSource, IEvolutionHolder {
+struct BrassEvolutionSource final : Component, IEvolutionHolder {
   // The two pins are advanced by the evolution, once per evolve() that runs
   // its loop, so they are Manual; this node prepares them.
   Param brassiness{this, "brassiness", 1.5f, 0.0f, 10.0f, "exp", Pull::Manual};
@@ -814,15 +812,14 @@ struct BrassEvolutionSource final : ValueSource, IEvolutionHolder {
 
   WaveEvolution* get_evolution() override { return &evo_; }
 
-  void on_prepare(const RenderContext& ctx) override {
+  void prepare(const RenderContext& ctx) override {
     breath.prepare(ctx);
     brassiness.prepare(ctx);
   }
-  void on_start(int frames) override {
+  void start(int frames) override {
     breath.start(frames);
     brassiness.start(frames);
   }
-  float compute() override { return 0.0f; }
 
 private:
   BrassEvolution evo_;
@@ -918,7 +915,7 @@ private:
   std::vector<float> vPrev_;
 };
 
-struct ReactionDiffusionEvolutionSource final : ValueSource, IEvolutionHolder {
+struct ReactionDiffusionEvolutionSource final : Component, IEvolutionHolder {
   Setting<float> feed    {this, "feed",     0.0367f, 0.0f,  0.1f};
   Setting<float> kill    {this, "kill",     0.0649f, 0.0f,  0.1f};
   Setting<float> diffU   {this, "diffU",    0.16f,   0.0f,  1.0f};
@@ -938,8 +935,6 @@ struct ReactionDiffusionEvolutionSource final : ValueSource, IEvolutionHolder {
     if (name == "subSteps") subSteps.value = std::max(1, subSteps.value);
   }
 
-  // Not an audio source — exists for graph wiring only
-  float compute() override { return 0.0f; }
 
 private:
   ReactionDiffusionEvolution evo_;
@@ -982,7 +977,7 @@ private:
   int pos_{0};
 };
 
-struct SortErosionEvolutionSource final : ValueSource, IEvolutionHolder {
+struct SortErosionEvolutionSource final : Component, IEvolutionHolder {
   Setting<int>  swapsPerSample{this, "swapsPerSample", 4, 1, 32};
   Setting<bool> descending    {this, "descending", false, false, true};
 
@@ -998,8 +993,6 @@ struct SortErosionEvolutionSource final : ValueSource, IEvolutionHolder {
     if (name == "swapsPerSample") swapsPerSample.value = std::max(1, swapsPerSample.value);
   }
 
-  // Not an audio source — exists for graph wiring only
-  float compute() override { return 0.0f; }
 
 private:
   SortErosionEvolution evo_;
@@ -1075,7 +1068,7 @@ private:
   int sampleCtr_{0};
 };
 
-struct CellularAutomatonEvolutionSource final : ValueSource, IEvolutionHolder {
+struct CellularAutomatonEvolutionSource final : Component, IEvolutionHolder {
   Setting<int>   rule     {this, "rule",      110,   0,     255};
   Setting<float> threshold{this, "threshold", 0.0f,  -1.0f, 1.0f};
   Setting<float> levelHi  {this, "levelHi",   0.8f,  0.0f,  1.0f};
@@ -1095,8 +1088,6 @@ struct CellularAutomatonEvolutionSource final : ValueSource, IEvolutionHolder {
     else if (name == "stepEvery") stepEvery.value = std::max(1, stepEvery.value);
   }
 
-  // Not an audio source — exists for graph wiring only
-  float compute() override { return 0.0f; }
 
 private:
   CellularAutomatonEvolution evo_;
@@ -1163,7 +1154,7 @@ private:
   std::vector<int>   counts_;   // rebuild_cdf's histogram, sized at prepare
 };
 
-struct HistogramEqualizeEvolutionSource final : ValueSource, IEvolutionHolder {
+struct HistogramEqualizeEvolutionSource final : Component, IEvolutionHolder {
   Setting<int>   bins{this, "bins", 64,       4,    256};
   Setting<float> rate{this, "rate", 0.00005f, 0.0f, 0.1f};
 
@@ -1179,8 +1170,6 @@ struct HistogramEqualizeEvolutionSource final : ValueSource, IEvolutionHolder {
     if (name == "bins") bins.value = std::clamp(bins.value, 4, 256);
   }
 
-  // Not an audio source — exists for graph wiring only
-  float compute() override { return 0.0f; }
 
 private:
   HistogramEqualizeEvolution evo_;
@@ -1236,7 +1225,7 @@ private:
   bool needsRebuild_{true};
 };
 
-struct BezierPullEvolutionSource final : ValueSource, IEvolutionHolder {
+struct BezierPullEvolutionSource final : Component, IEvolutionHolder {
   Setting<float> p0  {this, "p0",   -1.0f,    -2.0f, 2.0f};
   Setting<float> p1  {this, "p1",    0.5f,    -2.0f, 2.0f};
   Setting<float> p2  {this, "p2",   -0.5f,    -2.0f, 2.0f};
@@ -1251,8 +1240,6 @@ struct BezierPullEvolutionSource final : ValueSource, IEvolutionHolder {
 
   WaveEvolution* get_evolution() override { return &evo_; }
 
-  // Not an audio source — exists for graph wiring only
-  float compute() override { return 0.0f; }
 
 private:
   BezierPullEvolution evo_;
@@ -1300,7 +1287,7 @@ private:
   int ctr_{0};
 };
 
-struct BitRotateEvolutionSource final : ValueSource, IEvolutionHolder {
+struct BitRotateEvolutionSource final : Component, IEvolutionHolder {
   // The two pins are advanced by the evolution, once per evolve() (stepEvery
   // first), so they are Manual; this node prepares them. They are declared in
   // the order the loader wires them, which decides which consumer of a shared
@@ -1316,15 +1303,14 @@ struct BitRotateEvolutionSource final : ValueSource, IEvolutionHolder {
 
   WaveEvolution* get_evolution() override { return &evo_; }
 
-  void on_prepare(const RenderContext& ctx) override {
+  void prepare(const RenderContext& ctx) override {
     shiftBits.prepare(ctx);
     stepEvery.prepare(ctx);
   }
-  void on_start(int frames) override {
+  void start(int frames) override {
     shiftBits.start(frames);
     stepEvery.start(frames);
   }
-  float compute() override { return 0.0f; }
 
 private:
   BitRotateEvolution evo_;

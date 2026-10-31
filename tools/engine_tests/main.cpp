@@ -2978,20 +2978,20 @@ static void run_wavetable_evolution_tests() {
     auto breath = std::make_shared<PinCounter>();
     reed->set_param("breath", breath);
     w.set_param("evolution", reed);
-    CHECK(w.get_param("evolution") == reed);
-    CHECK(w.evolution.source == reed);
+    CHECK(w.get_part("evolution") == reed);
+    CHECK(w.evolution.get() == reed.get());
     w.prepare(ctx); w.start(4800);
     CHECK(breath->starts == 1);                          // wavetable -> holder -> pin
     for (int i = 0; i < 10; ++i) CHECK(std::isfinite(w.next()));
     CHECK(breath->nexts == 10);
     w.clear_param("evolution");                            // no evolution, no more pulls
-    CHECK(w.get_param("evolution") == nullptr);
+    CHECK(w.get_part("evolution") == nullptr);
     for (int i = 0; i < 10; ++i) w.next();
     CHECK(breath->nexts == 10);
 
-    WavetableSource n;  // wired, but not a holder
-    n.set_param("evolution", std::make_shared<ConstantSource>(0.5f));
-    CHECK(n.get_param("evolution") != nullptr);
+    WavetableSource n;  // a signal is not a holder: the slot refuses it, the node renders with no evolution
+    CHECK(!n.set_param("evolution", std::make_shared<ConstantSource>(0.5f)));
+    CHECK(n.get_part("evolution") == nullptr);
     n.prepare(ctx); n.start(4800);
     for (int i = 0; i < 10; ++i) CHECK(std::isfinite(n.next()));
 
@@ -3142,7 +3142,7 @@ static void run_evolution_holder_setting_tests() {
 static void run_evolution_manual_pin_tests() {
     RenderContext ctx{48000};
 
-    auto run = [&](std::shared_ptr<ValueSource> holder, const char* first, const char* second) {
+    auto run = [&](std::shared_ptr<Component> holder, const char* first, const char* second) {
         std::vector<int> log;
         auto a = std::make_shared<OrderProbe>(&log, 1);
         auto b = std::make_shared<OrderProbe>(&log, 2);
@@ -3154,8 +3154,6 @@ static void run_evolution_manual_pin_tests() {
         for (int i = 0; i < 4; ++i) CHECK(std::isfinite(w.next()));
         CHECK(a->starts == 1 && b->starts == 1);
         CHECK(log == std::vector<int>({1, 2, 1, 2, 1, 2, 1, 2}));
-        for (int i = 0; i < 5; ++i) holder->next();
-        CHECK(log.size() == 8);
     };
     run(std::make_shared<ReedEvolutionSource>(), "reedStiffness", "breath");
     run(std::make_shared<BowedStringEvolutionSource>(), "bow", "frictionGain");
@@ -4826,6 +4824,9 @@ static bool split_equivalent(const std::function<std::shared_ptr<ValueSource>()>
 static const std::set<std::string> kPartTypes = {
     "Formant", "FormantSpectrum", "FixedSpectrum", "BandSpectrum", "FormantSequence",
     "FullPartials", "SequencePartials", "ExplicitPartials", "CompositePartials", "ExpandRule",
+    "PluckEvolution", "AveragingEvolution", "EKSEvolution", "ReedEvolution", "BowedStringEvolution",
+    "BrassEvolution", "ReactionDiffusionEvolution", "SortErosionEvolution", "CellularAutomatonEvolution",
+    "HistogramEqualizeEvolution", "BezierPullEvolution", "BitRotateEvolution",
 };
 
 static void run_split_equivalence_tests() {
@@ -6552,6 +6553,9 @@ static void run_partials_part_tests() {
     CHECK(comp.partial_count() == 16 && comp.get_part("partials") == ep);
     register_all_sources();
     for (const char* type : {"FullPartials", "SequencePartials", "ExplicitPartials", "CompositePartials", "ExpandRule"})
+        CHECK(std::dynamic_pointer_cast<ValueSource>(SourceRegistry::instance().create(type)) == nullptr);
+    // the evolution holders are parts too
+    for (const char* type : {"PluckEvolution", "ReedEvolution", "BitRotateEvolution"})
         CHECK(std::dynamic_pointer_cast<ValueSource>(SourceRegistry::instance().create(type)) == nullptr);
 }
 

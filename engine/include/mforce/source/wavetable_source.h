@@ -14,13 +14,13 @@ namespace mforce {
 // With PluckEvolution this implements Karplus-Strong plucked string synthesis.
 struct WavetableSource final : WaveSource {
   // After WaveSource's three. The wavetable advances speedFactor only in the
-  // interpolating read and inputSource only while it fills the table, and
-  // never advances `evolution`, so all three are Manual; this node prepares
-  // them. `evolution` is a structural input: the wire is type-checked in
-  // set_param, which keeps a typed pointer to the evolution it holds.
+  // interpolating read and inputSource only while it fills the table, so
+  // both are Manual; this node prepares them. `evolution` is a slot: the
+  // holder it takes is driven through its interface, and the evolution the
+  // holder carries is read whenever the slot changes.
   Param speedFactor{this, "speedFactor", 1.0f, 0.01f, 10.0f, "ratio", Pull::Manual};
   Input inputSource{this, "inputSource", Input::Optional, nullptr, false, Pull::Manual};
-  Input evolution  {this, "evolution",   Input::Optional, nullptr, false, Pull::Manual};
+  Slot<IEvolutionHolder> evolution{this, "evolution"};
   Setting<bool> interpolate{this, "interpolate", false, false, true};
 
   explicit WavetableSource(uint32_t inputSeed = 0xC0FFEEu);
@@ -29,19 +29,14 @@ struct WavetableSource final : WaveSource {
   // Evolution via patch_loader: direct ownership for JSON-loaded patches
   void set_evolution(std::unique_ptr<WaveEvolution> evo) {
     ownedEvolution_ = std::move(evo);
-    evolution_ = ownedEvolution_.get();
+    refresh_evolution();
   }
 
   const char* type_name() const override { return "WavetableSource"; }
 
-  bool set_param(std::string_view name, std::shared_ptr<Component> src) override {
-    const bool ok = WaveSource::set_param(name, std::move(src));
-    if (name == "evolution") {
-      auto* holder = dynamic_cast<IEvolutionHolder*>(evolution.source.get());
-      evolution_ = holder ? holder->get_evolution() : nullptr;
-    }
-    return ok;
-  }
+  // The evolution read per sample: the holder's, or the one the loader's
+  // string form owns. Refreshed the moment the slot changes.
+  void on_slot_changed(std::string_view) override { refresh_evolution(); }
 
   void on_prepare(const RenderContext& ctx) override;
   void on_start(int frames) override;
@@ -50,12 +45,16 @@ protected:
   float wave() override;
 
 private:
+  void refresh_evolution() {
+    auto* holder = evolution.get();
+    evolution_ = holder ? holder->get_evolution() : ownedEvolution_.get();
+  }
   void fill_table();
   float compute_raw();
   float compute_interpolated();
 
   std::unique_ptr<WaveEvolution>  ownedEvolution_;      // for patch_loader path
-  WaveEvolution*                  evolution_{nullptr};  // raw ptr: into the holder `evolution` keeps alive, or ownedEvolution_
+  WaveEvolution*                  evolution_{nullptr};  // raw ptr: into the holder the slot keeps alive, or ownedEvolution_
   std::vector<float>              values_;
   int                             maxLen_{0};   // values_ is reserved to this at prepare; fill_table never exceeds it
   int   tablePtr2_{-1};

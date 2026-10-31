@@ -12,7 +12,8 @@ WavetableSource::WavetableSource(uint32_t inputSeed) {
 void WavetableSource::on_prepare(const RenderContext& ctx) {
   speedFactor.prepare(ctx);
   inputSource.prepare(ctx);
-  evolution.prepare(ctx);
+  if (auto* holder = evolution.get()) holder->prepare(ctx);
+  refresh_evolution();
   // The table and every evolution buffer are reserved here for the floor
   // frequency, so a note fills them within capacity (Part 2 section 4).
   maxLen_ = int(std::ceil(float(sample_rate()) / kMinTableHz)) + 1;
@@ -24,7 +25,7 @@ void WavetableSource::on_start(int frames) {
   WaveSource::on_start(frames);
   speedFactor.start(frames);
   inputSource.start(frames);
-  evolution.start(frames);
+  if (auto* holder = evolution.get()) holder->start(frames);
 }
 
 void WavetableSource::fill_table() {

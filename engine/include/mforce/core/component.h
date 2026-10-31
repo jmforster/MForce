@@ -48,15 +48,17 @@ struct Component {
   // Wiring one more: a multi slot appends, every other pin replaces.
   virtual bool add_param(std::string_view name, std::shared_ptr<Component> part) {
     if (auto* s = find<SlotBase>(name)) {
-      if (!part) { s->clear(); return true; }
-      return s->add(std::move(part));
+      if (!part) { s->clear(); on_slot_changed(name); return true; }
+      if (!s->add(std::move(part))) return false;
+      on_slot_changed(name);
+      return true;
     }
     return set_param(name, std::move(part));
   }
   // The Param pin of that name, or nullptr when the node has none.
   Param* param(std::string_view name) { return find<Param>(name); }
   virtual bool clear_param(std::string_view name) {
-    if (auto* s = find<SlotBase>(name)) { s->clear(); return true; }
+    if (auto* s = find<SlotBase>(name)) { s->clear(); on_slot_changed(name); return true; }
     return set_param(name, nullptr);
   }
 
@@ -79,9 +81,14 @@ struct Component {
     auto* a = find<Array>(name);
     return a ? a->values : std::vector<float>{};
   }
-  // Hooks for a node that derives state from a setting or an array.
+  // Hooks for a node that derives state from a setting, an array or a slot:
+  // called after the change, by name. A slot's owner that keeps a view into
+  // its part (the wavetable's evolution pointer, AdditiveSource2's copied
+  // arrays) refreshes it here, so a part wired or cleared after prepare is
+  // never read through a stale handle.
   virtual void on_setting_changed(std::string_view) {}
   virtual void on_array_changed(std::string_view) {}
+  virtual void on_slot_changed(std::string_view) {}
 
   const std::vector<PinBase*>& pins() const { return pins_; }
 
