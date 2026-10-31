@@ -1,0 +1,322 @@
+# Part 3, checkpoint 3.1: `Component` root; the parts leave `ValueSource` — Implementation Plan
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** The twenty-four parts — the four `Partials` types and `ExpandRule`, the five formant and spectrum types, the twelve evolution holders, and `CompositePartials` — derive from `Component` and their interface, not from `ValueSource`; the registry creates `Component`s and the graph holds them; every consumer holds its part through a `Slot<I>` type-checked once at wiring; no render changes.
+
+**Architecture:** `Component` (the pin registry, the descriptors, the by-name doors) is already the root and `ValueSource` already derives from it; `Slot<T>` already exists in `component.h` and nothing uses it. This checkpoint (1) widens the by-name wiring door so one call wires any pin kind — a `Param` or `Input` takes a signal, a `Slot<I>` takes its interface, anything else is refused with the reason — (2) makes the registry, the loader's graph, the instrument's voice graph and the UI's node handle hold `std::shared_ptr<Component>`, with the signal-only walks (faults, reseed, capture, the audio stream) reading a list of signals built once at load, (3) moves each part family off `ValueSource` in its own task, its consumers onto `Slot<I>` pins at the same time, the interface verbs losing the prefixes that avoided a collision with `ValueSource`'s. Pull all the way down (Matt, 2026-10-30): the owner calls into its part at prepare, at note start and per sample, exactly as today; a part prepares, starts and pulls its own pins inside those calls; nothing in the graph walks a part.
+
+**Tech Stack:** C++20 (MSVC, CMake 3.20+), the existing `engine_tests` harness, `python tools/gates.py`, `python tools/null_gate_perform_source.py`, `python tools/null_gate_wiring.py`, `python tools/test_stable_roundtrip.py`, `python tools/ab_render_set.py`, `python tools/ab_render_time.py`, `python tools/structure/check.py`.
+
+**Spec:** `docs/architecture/part3-nodes.md` section 2 ("The root: `Component`", decided 2026-10-05): "The registry creates `Component`s. The graph holds `Component`s. A wire into a `Slot<IPartials>` is type-checked against the interface, as Part 2 decided; whether the thing is also a ValueSource no longer matters, because it is not. The parts lose their fake `next`, `current`, `prepare` and `start`. `ValueSource` keeps exactly the signal contract." Section 10 row 3.1: "`Component` root; the parts leave `ValueSource` — none". Part 2 (`docs/architecture/part2-valuesource-contract.md` section 3): "A `Slot<T>` is type-checked when wired. Wiring a `WaveSource` into a `Slot<IPartials>` fails with the reason". Matt, 2026-10-30 (brainstorm): everything was pull — the owning node called down and the part answered; "do what's right, not what I did"; the playback of this plan's shape (owner-driven lifecycle, prefixes dropped, holders stay wrappers until 3.4, the UI's handle changed only as far as the roundtrip gate needs) was approved as it stood.
+
+## Global Constraints
+
+- **Byte-identity is total.** Part 3 section 10 row 3.1 says "none". `python tools/null_gate_perform_source.py --jobs 3` reports `78/78 manifest entries identical` after EVERY task; the A/B at the close (Task 5) over every patch under `patches/library` and `patches/baselines` reports 0 DIFFER. A render that moves is a finding, named in the Ledger with its cause, decided with Matt before any manifest moves.
+- **Measurement scope is `patches/library` + `patches/baselines`** (Matt, 2026-10-30, CLAUDE.md "Measurement scope"): the A/B set, the allocation gate, the roundtrip gate and every count in this plan. No audition, pending, sweep or old patch is measured or repaired.
+- **No `dynamic_cast` on a render path.** The type-check at wiring lives in `Component`'s by-name door (Task 1) and is paid at load or at a UI edit; the three host walks that need signals (faults, reseed, capture) read a list built at load. The loader's own control-side casts (the `expandRule` branch, the envelope collection) are Part 4's and stay.
+- **Pins are declared as members** (Part 2 section 3): a `Slot<I>` is a member of its owner, named as the JSON key it answers to; no hand-written `input_descriptors()` override survives where a `Slot` replaces the list it described.
+- **Explicit registries, no reflection** (CLAUDE.md). Every part stays a registered type with its descriptors; the UI builds a part's pins from them as it does today.
+- **No new file over 600 lines, no new function over 80** (`tools/structure/limits.json`); `python tools/structure/check.py --delta <Task 0 sha>` is pasted into the report. The structure meter's known-answer test pins `draw_properties_panel` at 1035 lines: a UI edit that changes a measured function's length updates that number in the same commit and says so.
+- **No dated changelog, backlog id, REVIEW or checkpoint number in code comments.**
+- **Commit after every task; `python tools/gates.py --fast` before every commit** (its roundtrip smoke fails on `perform/wiring_setting.json` for the pre-existing backlog-79 reason; every other gate passes). From Task 0 on, `python tools/alloc_gate.py --jobs 3 patches/library patches/baselines` is in `--fast` if it runs under 60 s (Task 0 step 4 decides), so it too passes before every later commit.
+- **Work on main, no worktree** (ruling 1 of checkpoint 2.1 stands). The in-tree build is `build/`.
+- **The A/B base** is `renders/scratch/ab_tree/cli_pre31.exe`: Task 0 copies the current build's CLI (its engine is the tree at `6007b29`, R7's last code commit) before any code moves; the set file is `renders/scratch/ab31/library_baselines.txt` (every patch under the two folders, 132 lines).
+- **Dates:** `date` first (the machine is HST); this plan is dated 2026-10-30.
+
+## Review Focus
+
+The five input classes the spec implies but no existing test exercises, most likely to bite first. Each line names the task whose tests pin it.
+
+1. **A part wired where a signal is expected** — `{"ref":"parts"}` into `AdditiveSource.frequency`, or a `FullPartials` named as `graph.output` or as a channel's `source`. Today the first is accepted and the part's `next()` returns 0 for ever, silently. Task 1 pins the door: `set_param` on a `Param` or `Input` with a part returns false, the loader's `reject_wire` names the node, the pin and "a FullPartials is a part, not a signal"; a part as output or channel source fails with the existing "must be a mono-renderable source" message (Task 1 test).
+2. **A signal wired into a slot** — a `ConstantSource` into `WavetableSource.evolution`, a `SineSource` into `partials`. Today `evolution` accepts the constant and renders with no evolution (`run_wavetable_evolution_tests`' "wired, but not a holder" case), the two additive slots return false already. After Task 1 every slot refuses with the reason; the existing test flips to `CHECK(!n.set_param("evolution", …))` and no patch in scope carries such a wire (the 2026-10-30 scan: every wire into a part lands in a slot-shaped pin, no part is a graph output or a value anywhere). Tasks 2–4.
+3. **A part edited in the UI, then Play** — today the UI's `prepare_graph` prepares every node directly, parts included, and the owner prepares them again through its pins; after this checkpoint only the owner does. The edit must still reach the render: Task 3 keeps 2.6's test (a `FullPartials` shaping float set after a note, then `prepare`, renders as a patch loaded with the value) and Task 2 adds the formant case (a `Formant.gain` constant changed on a loaded `AdditiveSource`, then `prepare`, changes the render). The UI path itself is exercised by the roundtrip gate at the close.
+4. **A multi slot cleared and refilled** — the UI rebuilds a `FormantSpectrum`'s rows (`rebuild_formant_spectrum`) and the loader's generic wiring does `clear_param` then `add_param` per ref. Task 2 pins it: after `clear_param("formants")` and two `add_param`s, `contains`/`get_gain` answer for exactly those two.
+5. **A live legato note-on on a voice with parts** — `deliver_continuation` reseeds every node of the voice on the audio thread. With parts no longer `ValueSource`s the walk must neither cast per node nor skip a signal: Task 1 builds `VoiceGraph::signals` once at load and pins it — a loaded additive patch's `signals` holds every signal node id of its JSON and none of its part ids.
+
+---
+
+## File structure
+
+| File | Responsibility after this checkpoint |
+|---|---|
+| `engine/include/mforce/core/component.h` (modify, Task 1) | the by-name door takes any `Component`: `set_param`, `add_param`, `clear_param` route by pin kind and type-check; `get_param` serves signals, `get_part` serves slots; `Slot<T>::get()` for a single slot. |
+| `engine/include/mforce/core/pins.h` (modify, Task 1) | `Slot<T>::get()`; the `Slot` comment names the door as the one type-check. |
+| `engine/include/mforce/core/source_registry.h`, `engine/src/source_registry.cpp`, `engine/src/source_registrations.cpp` (modify, Task 1) | `SourceFactory` and `create` return `std::shared_ptr<Component>`; `JsonConfigurator` takes `Component&`. |
+| `engine/include/mforce/core/dsp_value_source.h` (modify, Task 1) | `ensure_constant(Component&, …)` (it reads only the pin registry). |
+| `engine/src/patch_loader.cpp` (modify, Tasks 1–4) | `GraphResult::nodes` (one map of `Component`); `resolve_param` returns a `Component`, `resolve_signal` a `ValueSource` or throws; `wire_params_generic`, `reject_wire`, `reject_unknown_keys` take `Component`; `add_mono` wraps signals only; `formantNodes` and the three formant branches gone (Task 2); the voice's `signals` list filled where `nodesById` is. |
+| `engine/include/mforce/render/instrument.h` (modify, Task 1) | `PushBinding::consumer` and `VoiceGraph::nodesById` hold `Component`; `VoiceGraph::signals`; `collect_faults`, `capture_begin`, `deliver_continuation` walk `signals`. |
+| `engine/include/mforce/source/multiplex_source.h` (modify, Task 1) | `ValueNodeMap` holds `Component` (renamed `NodeMap`). |
+| `engine/include/mforce/source/additive/formant.h` (modify, Task 2) | `IFormant::{prepare, start, next, contains, get_gain}`; the five types derive from `Component, IFormant`; `FormantSpectrum::formants` and `FormantSequence::spectra` are multi `Slot<IFormant>` pins. |
+| `engine/include/mforce/source/additive/full_additive_source.h`, `engine/src/full_additive_source.cpp` (modify, Tasks 2, 3) | `Slot<IFormant> formant`, `Slot<IPartials> partials`; the `set_param` override and the two cached interface pointers gone. |
+| `engine/include/mforce/source/additive/partials.h` (modify, Task 3) | `IPartials::{prepare, start, next, …}`; `Partials`, `CompositePartials` (multi `Slot<IPartials> partials`) and `ExpandRuleNode` derive from `Component`. |
+| `engine/include/mforce/source/additive/additive_source2.h` (modify, Task 3) | `Slot<Partials> partials` (the concrete type: it reads the arrays). |
+| `engine/include/mforce/source/wave_evolution.h` (modify, Tasks 0, 4) | Bowed's literal floor → `WaveSource::kMinTableHz` (Task 0); `IEvolutionHolder::{prepare, start, get_evolution}`; the twelve holders derive from `Component, IEvolutionHolder` (Task 4). |
+| `engine/include/mforce/source/wavetable_source.h`, `engine/src/wavetable_source.cpp` (modify, Task 4) | `Slot<IEvolutionHolder> evolution`; the `set_param` override gone; the holder is prepared and started by the owner through the interface. |
+| `engine/include/mforce/source/segment_source.h` (modify, Task 0) | the redundant `reserve` removed. |
+| `engine/include/mforce/core/multi_source.h` (modify, Task 1) | `set_param(std::string_view, std::shared_ptr<Component>)`. |
+| `tools/mforce_ui/main.cpp` (modify, Tasks 1, 2) | `GraphNode::dspSource` is a `Component`; `GraphNode::signal()` for the output, the listen tap, the stream channels, the capture list and `prepare_graph`; `wire_pin` takes a `Component`; `rebuild_formant_spectrum` fills the slot. |
+| `tools/mforce_cli/main.cpp` (modify, Task 1) | `run_dump_descriptors` holds a `Component`. |
+| `tools/engine_tests/main.cpp` (modify, Tasks 1–5) | the door tests; the sweeps skip and count the parts; the family tests wire parts through the door; `run_component_root_tests` (Task 5). |
+| `tools/alloc_gate.py` (new, Task 0) | `--jobs N`: slices the folders' patches over N `alloc_gate.exe` processes, merges the counts and the exit code. |
+| `tools/gates.py` (modify, Task 0) | the allocation gate runs through the wrapper, in `FAST` if under 60 s. |
+| `tools/structure/modules.json` (modify, Task 0) | `tools/alloc_gate.py` under the tests module. |
+| `docs/architecture/part2-valuesource-contract.md`, `docs/architecture/part3-nodes.md` (modify, Task 5) | the pin table's `Slot` row says what holds it now; section 2's landed line; section 10 row 3.1's result. |
+
+---
+
+### Task 0: Tooling, and the two minors the 2.6 review left
+
+**Files:**
+- Create: `tools/alloc_gate.py`
+- Modify: `tools/gates.py:31-35` (the SLOW entry), `tools/structure/modules.json:40`, `engine/include/mforce/source/wave_evolution.h` (Bowed's `20.0f`, near line 454), `engine/include/mforce/source/segment_source.h:138` (the redundant `reserve`)
+- Test: the wrapper's merged line against the single-process run; `engine_tests`; the null gate
+
+**Interfaces:**
+- Produces: `python tools/alloc_gate.py [--jobs N] [--list] [--verbose] <patch|folder>...` — expands folders to `*.json` (sorted, recursive, as the exe does), splits the list into N contiguous slices, runs `build/tools/alloc_gate/Release/alloc_gate.exe` once per slice with the slice's paths as arguments, relays every child's lines, prints one merged `<n> patches: <a> allocate, <f> failed to load` line, exits 1 if any child exited 1, else 2 if any exited 2, else 0.
+
+- [ ] **Step 0: Date, base, set file** — `date`; `git rev-parse --short HEAD` (the plan expects `dba5946` or later with no engine change since `6007b29`); copy `build/tools/mforce_cli/Release/mforce_cli.exe` to `renders/scratch/ab_tree/cli_pre31.exe` (build it first if `gates.py --fast`'s stamp says the build is stale); write `renders/scratch/ab31/library_baselines.txt` with every `patches/library/**/*.json` and `patches/baselines/**/*.json` path, repo-relative, one per line (132 lines); render the old arm now — `python tools/ab_render_set.py render renders/scratch/ab31/library_baselines.txt renders/scratch/ab31 old --cli renders/scratch/ab_tree/cli_pre31.exe` — so Task 5 renders only the new arm.
+- [ ] **Step 1: Write the wrapper** — `tools/alloc_gate.py` as the Interfaces block says (the pattern is `tools/null_gate_perform_source.py --jobs`: `concurrent.futures`, one `subprocess.run` per slice, `capture_output=True`). Mapped in `modules.json` under `tests` in the same step (the meter counts an unmapped file the moment it exists).
+- [ ] **Step 2: Run it to see it agree with the exe** — `python tools/alloc_gate.py --jobs 3 patches/library patches/baselines` → `132 patches: 0 allocate, 0 failed to load`, exit 0, and the wall time printed by `gates.py`'s runner or `time`. Then one slice of one: `python tools/alloc_gate.py --jobs 1 patches/baselines/zero_freq.json` → the exe's own line for that patch, exit 0.
+- [ ] **Step 3: The two minors** — in `BowedStringEvolution` the lines' floor literal `20.0f` becomes `WaveSource::kMinTableHz` (`dsp_wave_source.h` is already included through the owner; add the include if the header does not see it); in `SegmentSource::on_prepare` the `reserve` that duplicates the `assign`/`resize` one line below is removed (read the two lines first: if they size different vectors, leave both and say so in the Ledger).
+- [ ] **Step 4: Gates and the placement decision** — `engine_tests` ALL PASS; null gate `78/78` (the two minors move no byte); `gates.py --fast`. If Step 2's wall time was under 60 s, move the allocation gate from `SLOW` to `FAST` in `gates.py`, as `[PY, "tools/alloc_gate.py", "--jobs", "3", "patches/library", "patches/baselines"]`; otherwise it stays in `SLOW` through the wrapper and the Ledger records the time.
+- [ ] **Step 5: Commit** — `git commit -m "tools: the allocation gate splits its patches over processes; Bowed's floor is the table floor; Segment's redundant reserve"`.
+
+---
+
+### Task 1: Components everywhere; nothing leaves yet
+
+**Files:**
+- Modify: `engine/include/mforce/core/component.h:33-48` (the doors), `engine/include/mforce/core/pins.h:160-176` (`Slot`), `engine/include/mforce/core/dsp_value_source.h:279-297` (`ensure_constant`), `engine/include/mforce/core/source_registry.h`, `engine/src/source_registry.cpp`, `engine/src/source_registrations.cpp` (the eleven `ValueSource& src` configurators), `engine/include/mforce/core/multi_source.h:36`, `engine/include/mforce/source/additive/additive_source2.h:64`, `engine/include/mforce/source/additive/formant.h:235-255`, `engine/include/mforce/source/additive/full_additive_source.h:51`, `engine/include/mforce/source/additive/partials.h:1119-1130`, `engine/include/mforce/source/wavetable_source.h:37`, `engine/include/mforce/source/multiplex_source.h:32-34`, `engine/src/patch_loader.cpp` (every `valueNodes`, 90 sites; `resolve_param`; `wire_params_generic`; `reject_wire`; `reject_unknown_keys`; `add_mono`; `build_subgraph_with_seed_perturbation`'s return; the `nodesById` fill at 1535), `engine/include/mforce/render/instrument.h:140-183, 228-245, 283-300, 539`, `tools/mforce_cli/main.cpp:1055`, `tools/mforce_ui/main.cpp:263, 402-480, 927-985, 4163-4200, 4371, 4912-4929`
+- Test: `tools/engine_tests/main.cpp` — `run_wiring_door_tests` (new), `run_split_equivalence_tests` (:4815), `run_combine_mod_configurator_tests` (:4722), `run_wavetable_evolution_tests` (:2973), the `set_param("evolution", …)` sites that compare `get_param`
+
+**Interfaces:**
+- Produces (every later task consumes these by these names):
+  ```cpp
+  // component.h — the by-name door. One call wires any pin kind; the pin
+  // decides what it takes: a Param or Input a signal, a Slot<T> a T.
+  virtual bool set_param(std::string_view name, std::shared_ptr<Component> part);
+  virtual bool add_param(std::string_view name, std::shared_ptr<Component> part);   // multi: appends
+  virtual bool clear_param(std::string_view name);
+  virtual std::shared_ptr<ValueSource> get_param(std::string_view name) const;      // Param or Input: the signal
+  std::shared_ptr<Component> get_part(std::string_view name) const;                // Slot: the part (a single slot's first)
+  // pins.h — Slot<T>
+  T* get() const;                                 // the single slot's part as T, or nullptr
+  // source_registry.h
+  using SourceFactory = std::function<std::shared_ptr<Component>(std::optional<uint32_t> seed)>;
+  using JsonConfigurator = std::function<void(Component& src, const nlohmann::json& params, const ResolveParamFn& resolve)>;
+  std::shared_ptr<Component> SourceRegistry::create(const std::string& type_name, std::optional<uint32_t> seed = {}) const;
+  // patch_loader.cpp
+  struct GraphResult { std::unordered_map<std::string, std::shared_ptr<Component>> nodes; /* formantNodes stays until Task 2 */ std::unordered_map<std::string, std::unique_ptr<MonoSource>> monoNodes; };
+  static std::shared_ptr<Component>   resolve_param (const json& val, const NodeMap& nodes);   // a number: a ConstantSource; a ref: the node; a tap: a TapSource
+  static std::shared_ptr<ValueSource> resolve_signal(const json& val, const NodeMap& nodes);   // the same, or throws "'<id>' is a <type>, a part, not a signal"
+  // instrument.h — VoiceGraph
+  std::unordered_map<std::string, std::shared_ptr<Component>> nodesById;      // every node, for the host's names and the tests' handles
+  struct Signal { std::string id; ValueSource* node; };
+  std::vector<Signal> signals;                                              // every signal node, id order, built once at load
+  // dsp_value_source.h
+  inline std::shared_ptr<ConstantSource> ensure_constant(Component& node, std::string_view name);
+  inline std::shared_ptr<ConstantSource> ensure_constant(Component& node, std::string_view name, const RenderContext& ctx);
+  ```
+  `ResolveParamFn` keeps returning `std::shared_ptr<ValueSource>` (its two users are configurators resolving signal params) and is built from `resolve_signal`.
+
+- [ ] **Step 1: Write the failing door tests** — `run_wiring_door_tests()`, after `run_structural_push_refusal_tests`:
+  ```cpp
+  SineSource sine; FullPartials parts; FullAdditiveSource add;
+  CHECK(add.set_param("frequency", std::make_shared<ConstantSource>(220.0f)));   // a signal into a Param
+  CHECK(!add.set_param("frequency", std::make_shared<FullPartials>()));          // a part into a Param: refused
+  CHECK(add.set_param("partials", std::make_shared<FullPartials>()));            // a part into its slot (today's override, tomorrow the door)
+  CHECK(!add.set_param("partials", std::make_shared<SineSource>()));             // a signal into a slot: refused
+  CHECK(add.get_part("partials") != nullptr);
+  CHECK(add.get_param("partials") == nullptr);                                   // a slot serves no signal
+  CHECK(add.get_part("frequency") == nullptr);                                   // a Param serves no part
+  // the registry hands out Components; a signal is one, so is a part
+  register_all_sources();
+  auto& reg = SourceRegistry::instance();
+  std::shared_ptr<Component> c = reg.create("SineSource");
+  CHECK(std::dynamic_pointer_cast<ValueSource>(c) != nullptr);
+  CHECK(std::dynamic_pointer_cast<ValueSource>(reg.create("FullPartials")) != nullptr);  // still true in this task; Task 3 flips it
+  ```
+  and the Review Focus 1 and 5 cases:
+  ```cpp
+  // a part where a signal is expected fails the load naming node, pin and kind
+  const char* partAsSignal = R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"add","nodes":[
+    {"id":"parts","type":"FullPartials","params":{"maxPartials":4}},
+    {"id":"add","type":"AdditiveSource","params":{"frequency":{"ref":"parts"},"amplitude":0.5,"partials":{"ref":"parts"}}}]}})";
+  CHECK(load_fails_naming(partAsSignal, "add"));            // the helper from run_structural_push_refusal_tests, hoisted to file scope
+  CHECK(load_fails_naming(partAsSignal, "frequency"));
+  CHECK(load_fails_naming(partAsSignal, "not a signal"));
+  // the voice's signal list: every signal id, no part id
+  auto ip = load_instrument_patch_json(/* the `additive` text of run_allocation_tests_partials */);
+  const auto& vg = ip.instrument->voicePool[0];
+  CHECK(vg.signals.size() == 1 && vg.signals[0].id == "add");
+  CHECK(vg.nodesById.count("parts") == 1 && vg.nodesById.count("add") == 1);
+  ```
+  (In this task `signals` excludes `parts` by the cast at load; `FullPartials` is still a `ValueSource` here, so expect `signals.size() == 2` until Task 3 — write the assertion as `== 2` now with a comment naming Task 3, and Task 3 flips it to `== 1`.)
+- [ ] **Step 2: Run them to see them fail** — `engine_tests` → `C2039 'get_part': is not a member of 'mforce::Component'` and the `shared_ptr<Component> c = reg.create(...)` conversion error.
+- [ ] **Step 3: The door** — in `component.h`: `set_param(name, std::shared_ptr<Component> part)`: `find<Param>` or `find<Input>` → `auto sig = std::dynamic_pointer_cast<ValueSource>(part); if (!sig && part) return false; pin->set(std::move(sig)); return true;` (a null `part` clears, as today); `find<SlotBase>` → `return slot->set(std::move(part));` (`SlotBase::set` is virtual already; a null part → `clear()` on the slot and true); else false. `add_param` default stays `return set_param(...)` (a multi `Slot::set` appends). `clear_param(name)`: a Slot → `clear()`, true; else `set_param(name, nullptr)`. `get_part(name)`: `find<SlotBase>` → its first part or nullptr (give `SlotBase` two pure virtuals the door needs, `std::shared_ptr<Component> first() const` and `void clear()`, both implemented by `Slot<T>` — `clear()` is the existing member, made an override). `Slot<T>::get()`: `views.empty() ? nullptr : views.front()`. `Slot<T>::set` with `multi == false` already clears first. Retype the six overrides (`multi_source.h`, `additive_source2.h`, `formant.h` ×3, `full_additive_source.h`, `partials.h` ×2, `wavetable_source.h`) to take `std::shared_ptr<Component>`; inside each, where the body needs a signal, `std::dynamic_pointer_cast<ValueSource>` once (MultiSource's `add`; AdditiveSource2 and the three part slots already cast to their interface — they keep doing so until Tasks 2–4 replace them with `Slot` pins). `ensure_constant` takes `Component&`.
+- [ ] **Step 4: The registry** — `source_registry.h`/`.cpp`: the three aliases and `create` as the Interfaces block says; the eighty-odd factory lambdas compile unchanged (a lambda returning `shared_ptr<SineSource>` converts); the eleven configurators' parameter becomes `Component& src` (each body uses `set_setting`, `set_array`, `set_param` or a cast to its own type — all on `Component`; where one calls a `ValueSource`-only method, cast once and say so in the Ledger). `tools/mforce_cli/main.cpp:1055`: `std::shared_ptr<Component> s`.
+- [ ] **Step 5: The loader's graph** — `GraphResult::nodes` replaces `valueNodes` (keep `formantNodes` for Task 2); `resolve_param` returns `std::shared_ptr<Component>` (its `ConstantSource` and `TapSource` cases return those, converted); `resolve_signal` wraps it with the cast and the throw; every constructor-argument site (`VarSource`, `RangeSource`, `AdditiveSource2`'s envelopes, the mixer's `gainL`/`gainR`, `resolve_param_or`) uses `resolve_signal`; `wire_params_generic(Component& src, …)` and `reject_wire(const Component&, …, const Component&)` with the message "'<pin>' does not accept a <type>" plus ", a part, not a signal" when the refused part is not a `ValueSource` (one cast, load time); `reject_unknown_keys(const Component&, …)`; `add_mono(g, id, src)` casts to `ValueSource` and returns without a mono for a part; `add_formant` unchanged; the tap pass binds `tb.tap->source` through `resolve_signal`'s cast (a tap into a part is an error named like the ref case); `build_subgraph_with_seed_perturbation` returns `{std::shared_ptr<ValueSource> root, NodeMap}` (the root through the cast; a part as a template root is an error); `bind_bindings`' `tracks_frequency_live()` and `bind_wiring`'s run only when the consumer casts to a `ValueSource` (a part has no live frequency to warn about); `PushBinding::consumer` is a `Component`. The `vg.nodesById = std::move(g.nodes)` site also fills `vg.signals` from the moved map, sorted by id, casting once per node. `MultiplexSource::ValueNodeMap` → `NodeMap` of `Component`; `clone_param_slot` and `set_clone_param` compile on `param(name)`/`ensure_constant` unchanged.
+- [ ] **Step 6: The instrument** — `nodesById` holds `Component`; `signals` as declared; `collect_faults` walks `signals` (already sorted by id, so the `find_if` merge stays as it is); `capture_begin` looks ids up in `signals`; `deliver_continuation`'s reseed loop walks `signals` (no cast on the audio thread).
+- [ ] **Step 7: The UI's handle** — `GraphNode::dspSource` is `std::shared_ptr<Component>`; add `ValueSource* signal() const { return dynamic_cast<ValueSource*>(dspSource.get()); }` beside it with the comment "the node as a signal, for the output, the tap, the stream and the capture; a part has none"; `wire_pin(const std::string&, std::shared_ptr<Component>)`; `find_output_source` returns `n.signal()`/`srcNode->signal()`; `prepare_graph` prepares and starts `n.signal()` only (a part is prepared by its owner — say so in the comment); the capture list at 4371 takes nodes whose `signal()` is non-null; the stream's `resolve_pin` and channel source read `signal()`; the `NT_PERFORM` cast at 971 becomes `std::static_pointer_cast<Component>`; every `set_setting`/`get_setting`/`set_array`/`get_array`/`set_param`/`add_param`/`clear_param`/descriptor call and every `dynamic_cast<X*>(dspSource.get())` compiles unchanged.
+- [ ] **Step 8: The tests** — `run_split_equivalence_tests` and the other sweeps over `registered_types()`: `auto c = reg.create(n); auto v = std::dynamic_pointer_cast<ValueSource>(c); if (!v) { parts.insert(n); continue; }` and at the end `CHECK(parts.empty())` (Task 5 replaces this with the named set of twenty-four); `run_combine_mod_configurator_tests`' `configure` returns a `Component` and the `get_setting` checks stand; `CHECK(w.get_param("evolution") == reed)` → `get_part`; `CHECK(w.evolution.source == reed)` → stays until Task 4 (the pin is still an `Input` here).
+- [ ] **Step 9: Build everything and run the gates** — `cmake --build build --config Release` (engine, CLI, gate, UI, tests); `engine_tests` ALL PASS; null gate `78/78`; `python tools/test_stable_roundtrip.py patches/baselines patches/library --jobs 3` (the UI's handle changed: the save/load path must round-trip every patch as before); `gates.py --fast`.
+- [ ] **Step 10: Commit** — `git commit -m "component: one wiring door for every pin kind; the registry, the graph, the voice and the UI hold Components"`.
+
+---
+
+### Task 2: The formant family leaves `ValueSource`
+
+**Files:**
+- Modify: `engine/include/mforce/source/additive/formant.h` (all five types, `IFormant`), `engine/include/mforce/source/additive/full_additive_source.h:28-62`, `engine/src/full_additive_source.cpp` (where `formant_`/`formant` are prepared, started and read), `engine/src/patch_loader.cpp:453-458` (`add_formant`), `:735-768` (the three branches), `GraphResult::formantNodes`, `tools/mforce_ui/main.cpp:523-535` (`rebuild_formant_spectrum`)
+- Test: `tools/engine_tests/main.cpp` — the formant tests near `:3322-3448`, `:5157-5209`; new cases in `run_wiring_door_tests`
+
+**Interfaces:**
+- Produces:
+  ```cpp
+  struct IFormant {
+    virtual ~IFormant() = default;
+    virtual void prepare(const RenderContext& ctx) = 0;   // was fmt_prepare
+    virtual void start(int frames) = 0;                   // was fmt_start
+    virtual void next() = 0;                              // was fmt_next
+    virtual bool contains(float freq) const = 0;
+    virtual float get_gain(float freq) const = 0;
+  };
+  struct Formant         final : Component, IFormant { … };    // its four Manual Params prepared, started and pulled in prepare/start/next
+  struct FormantSpectrum       : Component, IFormant { Slot<IFormant> formants{this, "formants", nullptr, true}; … };
+  struct FixedSpectrum   final : Component, IFormant { Array gains{…}; … };
+  struct BandSpectrum    final : Component, IFormant { … };
+  struct FormantSequence final : Component, IFormant { Param blend{…, Pull::Manual}; Slot<IFormant> spectra{this, "spectra", nullptr, true}; … };
+  // FullAdditiveSource
+  Slot<IFormant> formant{this, "formant"};          // replaces Input formant + shared_ptr<IFormant> formant_
+  ```
+
+- [ ] **Step 1: Write the failing tests** — in `run_wiring_door_tests` (Review Focus 2, 3, 4):
+  ```cpp
+  FormantSpectrum spec;
+  auto f1 = std::make_shared<Formant>(); f1->set_param("frequency", std::make_shared<ConstantSource>(500.0f));
+  auto f2 = std::make_shared<Formant>(); f2->set_param("frequency", std::make_shared<ConstantSource>(2000.0f));
+  CHECK(spec.add_param("formants", f1) && spec.add_param("formants", f2));
+  CHECK(spec.clear_param("formants"));
+  CHECK(spec.add_param("formants", f2));
+  spec.prepare(RenderContext{48000}); spec.start(4800); spec.next();
+  CHECK(!spec.contains(500.0f) && spec.contains(2000.0f));                     // exactly the refilled set
+  CHECK(!spec.add_param("formants", std::make_shared<SineSource>()));          // a signal into the slot: refused
+  CHECK(std::dynamic_pointer_cast<ValueSource>(SourceRegistry::instance().create("Formant")) == nullptr);   // left ValueSource
+  ```
+  and the edit-then-prepare case: load the `additive` text with a `Formant` wired to `add.formant` (`"formant":{"ref":"fm"}`, `{"id":"fm","type":"Formant","params":{"frequency":440.0,"gain":1.0,"width":300.0}}`, `formantWeight` 1.0); render one live note; `nodesById.at("fm")->set_param("gain", std::make_shared<ConstantSource>(0.0f))`; `prepare`; render again; `CHECK(!same_bits(before, after))`.
+- [ ] **Step 2: Run them to see them fail** — `engine_tests` → the `dynamic_pointer_cast<ValueSource>` check FAILs (a `Formant` is still a `ValueSource`), and `spec.prepare(ctx)` on a `FormantSpectrum` resolves to `ValueSource::prepare` (compiles; the `contains` check may pass through the old path — the cast check is the one that must fail).
+- [ ] **Step 3: The family** — rename the three verbs in `IFormant` and every implementer; the five types derive from `Component, IFormant`; delete each `on_prepare`/`on_start`/`compute` forwarder; `type_name()` and `category()` stay (`Component`'s); `FormantSpectrum::formants` and `FormantSequence::spectra` become the multi slots above, their `set_param`/`add_param`/`clear_param` overrides and `FormantSequence::input_descriptors()` deleted (the slot registers its own descriptor `{"spectra", true}`); their bodies iterate `formants.views`/`spectra.views`; `FixedSpectrum`'s constructor keeps its `gains` argument for the tests but the loader builds it through the registry (its `Array gains` pin takes the JSON array through generic wiring). `FullAdditiveSource`: `Slot<IFormant> formant`, the `formant_` member and the `formant` branch of `set_param` gone (the `partials` branch stays until Task 3); `on_prepare`/`on_start`/`wave` read `formant.get()`.
+- [ ] **Step 4: The loader and the UI** — delete the `FormantSpectrum`, `FixedSpectrum` and `FormantSequence` branches (the generic path builds them: registry create, `wire_params_generic` fills `formants`/`spectra`/`gains` through the door), `add_formant` and `GraphResult::formantNodes`; a `FormantSequence` keyed `"formants"` is no longer read (no patch in scope has one; the key stays in `kBranchKeys` because `FormantSpectrum` uses it). `rebuild_formant_spectrum`: `spec->clear_param("formants")` then `spec->add_param("formants", f)` per row, through `std::dynamic_pointer_cast<FormantSpectrum>(dspSource)` as today.
+- [ ] **Step 5: Gates** — `engine_tests` ALL PASS (the old formant tests wire parts through the door unchanged; the two "not an IFormant: ignored" cases stand); null gate `78/78` (the 57 `FormantSpectrum` wires, 335 `Formant` rows, 11 `FormantSequence` spectra and 3 `BandSpectrum` in scope move no byte); `python tools/alloc_gate.py --jobs 3 patches/library patches/baselines` → 0 allocate; `gates.py --fast`.
+- [ ] **Step 6: Commit** — `git commit -m "formants: the five formant parts are Components; the spectra hold their formants in slots"`.
+
+---
+
+### Task 3: The partials family leaves `ValueSource`
+
+**Files:**
+- Modify: `engine/include/mforce/source/additive/partials.h` (`IPartials:81-110`, `ExpandRuleNode:34-80`, `Partials:146-240`, `CompositePartials:1105-1190`), `engine/include/mforce/source/additive/full_additive_source.h`, `engine/src/full_additive_source.cpp` (the `partials_` reads), `engine/include/mforce/source/additive/additive_source2.h:64-72`, `engine/src/patch_loader.cpp:414-422` (the `expandRule` branch's map), `tools/mforce_ui/main.cpp:12071` (the strip's cast compiles unchanged)
+- Test: `tools/engine_tests/main.cpp` — `run_allocation_tests_partials` (the I1 and N1 cases stand), `run_structural_setting_tests`, the Partials tests near `:3322-3497`, `:3581`, `:5157`; the `signals.size()` assertion of Task 1 flips to `== 1`
+
+**Interfaces:**
+- Produces:
+  ```cpp
+  struct IPartials {
+    virtual void prepare(const RenderContext& ctx) = 0;   // was partials_prepare
+    virtual void start(int frames) = 0;                   // was partials_start
+    virtual void next() = 0;                              // was partials_next
+    virtual int partial_count() const = 0;
+    virtual float get_partial_value(…) = 0;               // unchanged
+    virtual float sum_partials(…) = 0;                    // unchanged
+  };
+  struct ExpandRuleNode    final : Component { … to_struct() … };
+  struct Partials                : Component, IPartials { … };
+  struct CompositePartials final : Component, IPartials { Slot<IPartials> partials{this, "partials", nullptr, true}; … };
+  // FullAdditiveSource
+  Slot<IPartials> partials{this, "partials"};       // replaces Input partials + shared_ptr<IPartials> partials_
+  // AdditiveSource2
+  Slot<Partials> partials{this, "partials"};        // the concrete type: apply_partials reads its arrays
+  ```
+
+- [ ] **Step 1: Write the failing tests** — in `run_wiring_door_tests`: `CHECK(std::dynamic_pointer_cast<ValueSource>(reg.create("FullPartials")) == nullptr)` (flip the Task 1 line), the same for `"ExpandRule"` and `"CompositePartials"`; `CompositePartials comp; CHECK(comp.add_param("partials", std::make_shared<FullPartials>())); CHECK(!comp.add_param("partials", std::make_shared<SineSource>()));`; the Task 1 `signals` assertion becomes `== 1` (`add` only).
+- [ ] **Step 2: Run them to see them fail** — `engine_tests` → the three cast checks FAIL.
+- [ ] **Step 3: The family** — rename the three verbs in `IPartials` and every implementer (`Partials`, `CompositePartials`; the free functions `partials_start`/`partials_next` in `Partials` keep their names as the methods' bodies or are renamed with them — one or the other, say which in the Ledger); `Partials`, `CompositePartials` and `ExpandRuleNode` derive from `Component`; delete the `on_prepare`/`on_start`/`compute` forwarders and `ExpandRuleNode::compute`; `CompositePartials::sets_` becomes the multi slot (its `set_param`/`clear_param` overrides and `input_descriptors()` deleted; the bodies iterate `partials.views`); `Partials` keeps `rate_` from `prepare(ctx)` as it does (it never read `sample_rate()`). `FullAdditiveSource`: `Slot<IPartials> partials`, `partials_` and the whole `set_param` override gone; `on_prepare`/`on_start`/`wave` read `partials.get()`. `AdditiveSource2`: `Slot<Partials> partials`; its override becomes an `on_part_wired` is NOT added — instead `apply_partials(*partials.get())` runs at the top of its `on_prepare` (the arrays are read at prepare, which the owner runs after wiring; say so in a comment). The loader's `expandRule` branch casts on the `Component` map (`dynamic_cast<ExpandRuleNode*>`), unchanged otherwise.
+- [ ] **Step 4: Gates** — `engine_tests` ALL PASS; null gate `78/78` (75 additive patches); `python tools/alloc_gate.py --jobs 3 patches/library patches/baselines` → 0 allocate (the sizing in `prepare` is the same code under its new name); `gates.py --fast`.
+- [ ] **Step 5: Commit** — `git commit -m "partials: the partials parts and the expand rule are Components; the additive sources hold them in slots"`.
+
+---
+
+### Task 4: The evolution holders leave `ValueSource`
+
+**Files:**
+- Modify: `engine/include/mforce/source/wave_evolution.h:635-1332` (`IEvolutionHolder`, the twelve holders), `engine/include/mforce/source/wavetable_source.h:22-45`, `engine/src/wavetable_source.cpp:15-27`
+- Test: `tools/engine_tests/main.cpp` — `run_wavetable_evolution_tests` (:2973), `run_evolution_holder_shape_tests` (:3040), `run_evolution_manual_pin_tests` (:3142), the holder cases near `:5060-5087`
+
+**Interfaces:**
+- Produces:
+  ```cpp
+  struct IEvolutionHolder {
+    virtual ~IEvolutionHolder() = default;
+    virtual void prepare(const RenderContext& ctx) = 0;   // the holder prepares its own pins (today's on_prepare body; empty for a pinless holder)
+    virtual void start(int frames) = 0;                   // likewise (today's on_start)
+    virtual WaveEvolution* get_evolution() = 0;
+  };
+  struct PluckEvolutionSource final : Component, IEvolutionHolder { … };   // and the eleven others
+  // WavetableSource
+  Slot<IEvolutionHolder> evolution{this, "evolution"};   // replaces Input evolution; evolution_ is resolved in on_prepare
+  ```
+
+- [ ] **Step 1: Write the failing tests** — `run_wavetable_evolution_tests`: the "wired, but not a holder" case becomes `CHECK(!n.set_param("evolution", std::make_shared<ConstantSource>(0.5f))); CHECK(n.get_part("evolution") == nullptr);` and the node renders finite with no evolution; `CHECK(w.get_part("evolution") == reed)` and `CHECK(w.evolution.get() == reed.get())` replace the `evolution.source` check; `run_evolution_manual_pin_tests`' lambda takes `std::shared_ptr<Component> holder`, the `holder->next()` loop is deleted, and the order check `log == {1,2,1,2,1,2,1,2}` stands (the evolution advances the pins, not the holder); in `run_wiring_door_tests`: `CHECK(std::dynamic_pointer_cast<ValueSource>(reg.create("PluckEvolution")) == nullptr)` and the same for `"ReedEvolution"`.
+- [ ] **Step 2: Run them to see them fail** — `engine_tests` → the cast checks FAIL; `get_part("evolution")` on the still-`Input` pin returns null and that check FAILs.
+- [ ] **Step 3: The holders and the owner** — `IEvolutionHolder` as above; the twelve holders derive from `Component, IEvolutionHolder`, their `on_prepare`/`on_start` bodies become `prepare`/`start` (a holder without pins gets empty bodies), `compute` deleted, `on_setting_changed` and `category` stay. `WavetableSource`: `Slot<IEvolutionHolder> evolution`; the `set_param` override deleted; `on_prepare` runs `if (auto* h = evolution.get()) { h->prepare(ctx); evolution_ = h->get_evolution(); } else evolution_ = ownedEvolution_.get();` before `evolution_->prepare(ctx, maxLen_)` (the same order as today's `evolution.prepare(ctx)` then `evolution_->prepare`); `on_start` runs `if (auto* h = evolution.get()) h->start(frames);` where `evolution.start(frames)` was. `set_evolution` (the loader's string-typed form) is unchanged — it dies in 3.4.
+- [ ] **Step 4: Gates** — `engine_tests` ALL PASS; null gate `78/78` (eleven wavetable patches, ten evolution wires in scope); `python tools/alloc_gate.py --jobs 3 patches/library patches/baselines` → 0 allocate; `gates.py --fast`.
+- [ ] **Step 5: Commit** — `git commit -m "evolutions: the twelve holders are Components; the wavetable holds its holder in a slot"`.
+
+---
+
+### Task 5: Close the checkpoint
+
+**Files:**
+- Modify: `tools/engine_tests/main.cpp` (`run_component_root_tests`, replacing Task 1's `CHECK(parts.empty())`), `docs/architecture/part2-valuesource-contract.md:222` (the `Slot` row), `docs/architecture/part3-nodes.md` (section 2 landed line, section 10 row 3.1), `docs/autonomy/refactor/REVIEW.md`, `BACKLOG.md`, `STATUS.md`, `tools/structure/metrics.json`
+- Create: `docs/autonomy/refactor/reports/<date>-checkpoint-3.1.md`
+
+- [ ] **Step 1: The audit test** — `run_component_root_tests()`: `register_all_sources()`; the named set of twenty-four part types (`FullPartials`, `SequencePartials`, `ExplicitPartials`, `CompositePartials`, `ExpandRule`, `Formant`, `FormantSpectrum`, `FixedSpectrum`, `BandSpectrum`, `FormantSequence`, the twelve `*Evolution` registry names) — for every registered type, `create` it and `CHECK((std::dynamic_pointer_cast<ValueSource>(c) == nullptr) == kParts.count(name))`; `CHECK(seen == 24)`. The sweeps' `parts` set from Task 1 becomes a check against the same named set (one constant, two users).
+- [ ] **Step 2: Every gate** — `python tools/gates.py` (all): ctest, stamp, roundtrip smoke (the known wiring diff), null gate `78/78`, roundtrip (whole corpus in scope), wiring null gate `78/78`, allocation gate PASS — paste the summary.
+- [ ] **Step 3: The A/B** — `python tools/ab_render_set.py render renders/scratch/ab31/library_baselines.txt renders/scratch/ab31 new` then `compare renders/scratch/ab31 old new` → `0 DIFFER` of 132. A DIFFER stops the close: Ledger the patch and the cause, decide with Matt.
+- [ ] **Step 4: Timing** — `python tools/ab_render_time.py` with the 2.6 set against `cli_pre31.exe` on an idle machine (base walls within 3 percent of 2.6's clean run or the run is discarded and repeated); every column within noise is the expectation (the owner called the interface before and after; a Component's virtual table is one pointer).
+- [ ] **Step 5: The meter** — `python tools/structure/check.py --delta <Task 0 sha>`: types removed (none yet — the holders go in 3.4), lines down (the forwarders, the overrides, the three branches), `dynamic_cast` count down (the five runtime casts in the consumers, `add_formant`, the UI's cast at 12271 stays); paste it. `python tools/structure/check.py --snapshot`.
+- [ ] **Step 6: The report** — `docs/autonomy/refactor/reports/<date>-checkpoint-3.1.md` in the ten-section format (2.6's as the model): section 1 what changed and the one behaviour change (a malformed wire — a signal into a slot, a part into a signal pin — now fails the load with the reason, where it rendered silently wrong before; no patch in scope had one); section 5 the gates, the A/B, the timing; section 6 the rulings from the Ledger; section 7 the debt (the holders as wrappers → 3.4; the string-typed evolution → 3.4; `AdditiveSource2` → 3.7; the UI's part strips capture nothing where they captured a zero line; `IEvolutionHolder::prepare` beside `WaveEvolution::prepare(ctx, maxLen)` → merged in 3.4; the loader's `expandRule` cast → Part 4); section 8 the refutation (Matt chooses the refuter); section 10 three C++ lessons (a virtual base with no data is an interface, and a struct that implements two is what a C# class with two interfaces is — plus why the parts carry no `ValueSource` state; `std::dynamic_pointer_cast` and where a design lets it live; `std::shared_ptr<Derived>` converting to `std::shared_ptr<Base>` at a call, and why the eighty factory lambdas needed no edit).
+- [ ] **Step 7: The docs** — Part 2 section 3's `Slot` row: "Today's equivalent" becomes "`Slot<IPartials>`, `Slot<IFormant>`, `Slot<IEvolutionHolder>` on their owners; the door type-checks"; Part 3 section 2 gains "Decided 2026-10-05; landed <date> as checkpoint 3.1 (`<first>`..`<last>`)" and section 10 row 3.1's result; REVIEW R8 awaiting (items: the behaviour change on malformed wires; the UI strips; whatever the A/B and the refuter raise); BACKLOG row 2: 3.1 DONE, 3.2 next; STATUS handoff.
+- [ ] **Step 8: Commit** — `git commit -m "docs: checkpoint 3.1 report (R8), REVIEW R8 awaiting, Part 3 landed line and row 3.1, Part 2 pin table, backlog, STATUS handoff, meter snapshot"`.
+
+---
+
+## Ledger
+
+Rulings made while planning (each becomes a line in the report's section 6; the controller appends rulings made during execution below them, dated by commit).
+
+1. **One wiring door for every pin kind.** `Component::set_param(name, std::shared_ptr<Component>)` routes by the pin's kind: a `Param` or `Input` takes a signal (`dynamic_pointer_cast<ValueSource>`, a part refused), a `Slot<T>` takes a `T` (`Slot::set`'s cast, anything else refused); `add_param` appends on a multi slot, `clear_param` empties one. Alternative, a second door (`set_part`) chosen by the caller: every caller — the loader's generic wiring, the UI's `wire_pin`, Multiplex's clone fan, forty test sites — would need to know a pin's kind before wiring it, which only the pin knows. Both casts live in the door and run at load or at a UI edit, never on a render path; Part 2's "the one place a `dynamic_cast` is kept" is this door. Cost if wrong: a caller holding a typed `shared_ptr<ValueSource>` pays an implicit upcast at the call — none at run time.
+2. **`get_param` keeps serving signals; `get_part` serves slots.** Widening `get_param` to `shared_ptr<Component>` would break every caller that reads `->current()` on the result (the UI's morph read, the bend tests) for the sake of three test sites that compare a wired holder. Two getters, each typed for what its pin holds.
+3. **The parts' interface verbs lose their prefixes** (`partials_prepare` → `prepare`, `fmt_start` → `start`, …). The prefixes existed, by their own comment, "to avoid collision with `ValueSource::prepare / start / next`"; a part no longer has those. `IEvolutionHolder` gains `prepare`/`start` for the holder's own pins, beside `WaveEvolution::prepare(ctx, maxLen)` for the evolution's buffers; 3.4 merges the two objects and the two prepares with them.
+4. **Pull all the way down** (Matt, 2026-10-30): the owner calls into its part at prepare, note start and per sample; the part prepares, starts and pulls its own pins there (every pin on every part is `Pull::Manual` today, so this is what already happens); a `Slot` forwards nothing, like a setting. The instrument prepares roots, tails, perform sources and chains as before and never a part; the UI's `prepare_graph` stops preparing parts directly (it prepared them twice: once itself, once through the owner — idempotent by contract, so no render moves).
+5. **The voice keeps one node table and one signal list.** `VoiceGraph::nodesById` holds every `Component` by id (the host names faults by id, the UI's capture resolves ids, the tests reach a part by id); `VoiceGraph::signals` is built once at load — every `ValueSource` of the voice in id order — for the three walks that need signals: `collect_faults` (control side), `capture_begin` (control side) and `deliver_continuation`'s reseed (the audio thread, under the mutex, where a `dynamic_cast` per node per note-on has no business). Alternative, casting in each walk: two of three are control-side, the third is not; one list serves all three. Cost if wrong: one vector of `{id, pointer}` per voice.
+6. **`resolve_param` returns a `Component`; `resolve_signal` a `ValueSource` or throws.** The generic wiring hands the door whatever a ref names and lets the pin decide (ruling 1); the hand-written sites that pass a source to a constructor (`VarSource`, `RangeSource`, the mixer gains, Multiplex's root, a tap's target, a configurator's resolve) need a signal and say so when given a part: "'<id>' is a <type>, a part, not a signal". A part as `graph.output` or a channel's `source` already fails through `add_mono` (a part gets no mono adapter) with the existing "must be a mono-renderable source" message.
+7. **Two malformed wires change behaviour, by design.** A signal into a slot (a `ConstantSource` into `evolution`) was accepted and inert; a part into a signal pin (`{"ref":"parts"}` into `frequency`) was accepted and read 0 for ever. Both now fail the load with the node, the pin and the reason — 2.5's "a rejected wire says so" applied to the two kinds. No patch in scope carries either (the 2026-10-30 scan over library and baselines: 494 wires into parts, every one into a slot-shaped pin; no part as output or value); the report's section 1 names the change and REVIEW R8 carries it.
+8. **The holders stay wrappers in 3.1.** Each becomes `Component, IEvolutionHolder` with its settings and pins as today; 3.4 makes each evolution a `Component` itself and deletes the wrapper and `IEvolutionHolder`. Folding 3.4 in would add twelve families' settings moving from constructor arguments to live members — a byte-identity question per family — on top of the root change; Part 3's table keeps them apart and so does this plan.
+9. **The three hand-written formant branches collapse into the generic path.** With `formants` and `spectra` as multi slots and `gains` as the `Array` pin it already is, the registry path builds all three types and `wire_params_generic` fills them; `GraphResult::formantNodes` and `add_formant` go. `FormantSequence`'s undocumented `"formants"` key (the branch read it beside the descriptor's `"spectra"`) is dropped: no patch in scope uses it, and a key the generic path does not read would be silently ignored — the `kBranchKeys` allowlist keeps `"formants"` for `FormantSpectrum`, so a `FormantSequence` carrying it would load without its spectra; the report lists this as the one key whose meaning narrows.
+10. **`AdditiveSource2` gets `Slot<Partials>`, the concrete type.** It reads the Partials' arrays (`apply_partials`), not the interface, and is deleted in 3.7 with its one baseline patch migrated; a slot over the concrete type is honest about what it reads and costs one line. `apply_partials` moves from the wire time to the top of `on_prepare`, where the owner reads its part under the contract.
+11. **`ExpandRule` stays a loader-cast part in 3.1.** `ExpandRuleNode` becomes a `Component`; the loader's `expandRule` branch casts on the `Component` map as it cast on the `ValueSource` map, and `set_expand_rule(node->to_struct())` at load is unchanged (its "at every start" comment is not what the code does — a wired envelope into an `ExpandRule` pin is frozen at load today; Part 4 owns the loader's shape and the fix, and the report's section 7 lists it).
+12. **The A/B set is library + baselines** (Matt, 2026-10-30): 132 patches, one set file, the old arm rendered at Task 0 from the current build (R7's last engine commit `6007b29`), the new arm at the close. No queue, sweep or old folder is rendered.
+13. **The allocation gate joins `--fast` through a Python wrapper**, not a `--jobs` inside the executable: the slicing and the process fan-out are what `null_gate_perform_source.py` already does in twenty lines, and the gate executable stays the single-process tool Matt asked for in 2.6. If the three-way split still runs over 60 s on this machine it stays in the slow list and the Ledger records the time (R7 item 0 named both outcomes).
+14. **Order of tasks:** tooling and the two minors first (they move no byte and the gate's speed is wanted for every later task), then the widening with nothing leaving (one commit: the UI must build for `gates.py --fast`, so the engine's and the UI's handle change together), then the families smallest consumer surface first (formants: one owner pin and two containers; partials: two owners and a container; holders: one owner, twelve types), then the close. Every task lands under the null gate.
+
+(Execution rulings, from the executing-plans ledger, by task.)
+
+## Self-review notes
+
+- **Spec coverage.** "The registry creates `Component`s" — Task 1 step 4; "The graph holds `Component`s" — Task 1 steps 5–6 (loader, voice, Multiplex) and step 7 (the UI's handle); "A wire into a `Slot<IPartials>` is type-checked against the interface" — Task 1 step 3 (the door), Tasks 2–4 (each consumer's slot), ruling 1; "The parts lose their fake `next`, `current`, `prepare` and `start`" — Tasks 2, 3, 4 step 3, Task 5 step 1 (the audit); "`ValueSource` keeps exactly the signal contract" — nothing is added to `ValueSource`; section 10 row 3.1 "none" — the Global Constraints, Task 5 steps 2–3; Matt's brainstorm (pull all the way down; prefixes dropped; holders stay wrappers; the UI changed only as far as the roundtrip needs) — rulings 3, 4, 8 and Task 1 step 7.
+- **Step scan.** Every code step names the file, the signature or the member and the rule; every test step carries its assertions; every verification step its command and expected output. Open by design: the exact JSON of the formant test patch (copy a library additive patch's `Formant` node) and which of `partials_start`/`partials_next` keep their names as bodies (Task 3 step 3 says to decide and ledger).
+- **Type consistency.** `set_param(std::string_view, std::shared_ptr<Component>)`, `get_part`, `Slot<T>::get()`, `resolve_signal`, `GraphResult::nodes`, `VoiceGraph::signals` / `Signal{id, node}`, `IFormant::{prepare,start,next}`, `IPartials::{prepare,start,next}`, `IEvolutionHolder::{prepare,start,get_evolution}`, `GraphNode::signal()`, `cli_pre31.exe`, `renders/scratch/ab31/{old,new}` are used with those names throughout.
+- **Review Focus.** 1 — Task 1 step 1 (`partAsSignal`) and ruling 6; 2 — Task 1 step 1 (`partials` refuses a `SineSource`), Task 2 step 1, Task 4 step 1; 3 — Task 2 step 1's edit-then-prepare and the 2.6 Partials test Task 3 keeps; 4 — Task 2 step 1's clear-and-refill; 5 — Task 1 step 1's `signals` check, flipped in Task 3.
+- **Proportion.** Code appears for the door's signatures, the three interfaces, the voice's two members and the test assertions; the rest is file, name and rule. The engine change is one door, three type aliases, one map type through the loader and the voice, three interfaces renamed and twenty-four base-class lists edited; the plan is mostly the order that keeps every commit byte-identical.
