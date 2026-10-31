@@ -6784,6 +6784,12 @@ static void run_registry_family_tests() {
     CHECK(std::string(family_name(Family::Oscillator)) == "Oscillators" && std::string(family_name(Family::Noise)) == "Noise"
           && std::string(family_name(Family::Filter)) == "Filters" && std::string(family_name(Family::Utility)) == "Utility");
     CHECK(reg.family("NoSuchType") == Family::Utility);                        // unknown: what get_category answered
+    // the Envelope family is what the editor's envelope views read: both shelves, exactly these
+    std::set<std::string> envelopes;
+    for (Shelf s : {Shelf::Main, Shelf::Experimental})
+        for (const auto& e : reg.types_in(Family::Envelope, s)) envelopes.insert(e.name);
+    CHECK((envelopes == std::set<std::string>{"Envelope", "AREnvelope", "ASEnvelope", "ASREnvelope", "ADSEnvelope", "ADREnvelope",
+                                              "ADSREnvelope", "PhasedValueSource", "SegmentSource", "Vibrato"}));
 }
 
 // The menu's content is the registry's: for each family and shelf, the types

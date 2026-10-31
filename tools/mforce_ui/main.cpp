@@ -4,6 +4,7 @@
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
 #include "imnodes.h"
+#include "theme.h"
 
 #include <GLFW/glfw3.h>
 
@@ -150,42 +151,20 @@ static std::string node_display_name(const std::string& typeName) {
 }
 
 // Check if a type name is a noise source
-// Gold = "set once at note-on, frozen for the note" — the performance
-// cadence. Shared by the Note node's title, the Settings-pane promotion UI
-// and the node-face dynamic pins so the meaning reads as one color.
-static constexpr ImU32 kDynPinGold = IM_COL32(205, 170, 60, 255);
-
+// A node's title colour: the editor's own nodes by name, every registered
+// type by the family the registry declares, through the theme.
 static ImU32 node_title_color(const std::string& typeName) {
-    if (typeName == NT_SOUND_CHANNEL || typeName == NT_STEREO_MIXER)
-        return IM_COL32(120, 130, 145, 255);    // Blue grey — Output
-    if (typeName == NT_PATCH_OUTPUT)
-        return IM_COL32(120, 130, 145, 255);    // Blue grey — Output
-    if (typeName == NT_PARAMETER)
-        return IM_COL32(190, 140, 170, 255);    // Pink — Parameter
+    const Theme& th = theme();
+    if (typeName == NT_SOUND_CHANNEL || typeName == NT_STEREO_MIXER || typeName == NT_PATCH_OUTPUT)
+        return th.output;
+    if (typeName == NT_PARAMETER) return th.parameter;
     // The performance family, deliberately its own colour: these are the only
     // nodes whose value comes from the NOTE rather than from the graph.
-    if (typeName == NT_PERFORM)
-        return IM_COL32(205, 170, 60, 255);     // Gold — Note (performance)
-    if (typeName == "CurveNode")
-        return IM_COL32(170, 145, 75, 255);     // Dark gold — Curve (transfer)
-
+    if (typeName == NT_PERFORM) return th.note;
+    if (typeName == "CurveNode") return th.curve;       // a transfer, before its family's colour
     auto& reg = SourceRegistry::instance();
-    if (!reg.has(typeName)) return IM_COL32(128, 128, 128, 255);
-
-    // The colour follows the family the registry declares.
-    switch (reg.family(typeName)) {
-        case Family::Additive:   return IM_COL32(195, 145, 90, 255);   // Orange — Additive
-        case Family::Envelope:   return IM_COL32(200, 185, 110, 255);  // Pale gold — Envelope
-        case Family::Noise:      return IM_COL32(185, 95, 85, 255);    // Reddish orange — Noise
-        case Family::Wavetable:  return IM_COL32(155, 150, 110, 255);  // Olive-y tan — Wavetable
-        case Family::Oscillator:
-        case Family::Physical:
-        case Family::Modulator:
-        case Family::Combiner:   return IM_COL32(95, 165, 150, 255);   // Greenish teal — Generator
-        case Family::Filter:     return IM_COL32(145, 130, 175, 255);  // Dark lavender — Filter
-        case Family::Utility:    return IM_COL32(128, 128, 128, 255);
-    }
-    return IM_COL32(128, 128, 128, 255);
+    if (!reg.has(typeName)) return th.unknown;
+    return th.family[int(reg.family(typeName))];
 }
 
 // Create a pale/desaturated version of a color for node backgrounds
@@ -8977,8 +8956,8 @@ static void draw_node(GraphNode& node) {
         const bool wired = val.is_object();
         const std::string ref = wired ? val.value("ref", std::string("?"))
                                       : std::string();
-        ImNodes::PushColorStyle(ImNodesCol_Pin, kDynPinGold);
-        ImNodes::PushColorStyle(ImNodesCol_PinHovered, lighten(kDynPinGold, 25));
+        ImNodes::PushColorStyle(ImNodesCol_Pin, theme().dynPinGold);
+        ImNodes::PushColorStyle(ImNodesCol_PinHovered, lighten(theme().dynPinGold, 25));
         // Same detach affordance as real pins: dragging the gold wire off
         // unwires (handled in the IsLinkDestroyed block).
         ImNodes::PushAttributeFlag(ImNodesAttributeFlags_EnableLinkDetachWithDragClick);
@@ -12401,7 +12380,7 @@ static void draw_waveform_window() {
     };
     std::vector<WaveStrip> strips;
     static const ImU32 audioColor    = IM_COL32(80, 220, 80, 255);   // bright green
-    static const ImU32 envelopeColor = IM_COL32(220, 220, 60, 255);  // yellow
+    const ImU32 envelopeColor = theme().envelopeStrip;
     static const ImU32 partialsColor = IM_COL32(60, 200, 200, 255);  // teal — matches spectrum
     static const ImU32 formantColor  = IM_COL32(60, 200, 200, 255);  // teal — matches spectrum
 
@@ -12556,7 +12535,7 @@ static void draw_waveform_window() {
 // popouts track live waveform updates after re-render.
 static void draw_wave_popouts() {
     static const ImU32 audioColor = IM_COL32(80, 220, 80, 255);
-    static const ImU32 envelopeColor = IM_COL32(220, 220, 60, 255);
+    const ImU32 envelopeColor = theme().envelopeStrip;
     auto& reg = SourceRegistry::instance();
 
     for (size_t i = 0; i < g_wavePopouts.size(); ) {
@@ -13925,9 +13904,9 @@ int main(int argc, char** argv) {
                 if (!src || src->outputs.empty()) continue;
                 int a = project_pin(src->outputs[0].id, true);
                 if (a < 0) continue;
-                ImNodes::PushColorStyle(ImNodesCol_Link, kDynPinGold);
-                ImNodes::PushColorStyle(ImNodesCol_LinkHovered, lighten(kDynPinGold, 25));
-                ImNodes::PushColorStyle(ImNodesCol_LinkSelected, lighten(kDynPinGold, 40));
+                ImNodes::PushColorStyle(ImNodesCol_Link, theme().dynPinGold);
+                ImNodes::PushColorStyle(ImNodesCol_LinkHovered, lighten(theme().dynPinGold, 25));
+                ImNodes::PushColorStyle(ImNodesCol_LinkSelected, lighten(theme().dynPinGold, 40));
                 ImNodes::Link(node.dyn_link_id(setting), a, node.dyn_attr_id(setting));
                 ImNodes::PopColorStyle();  // LinkSelected
                 ImNodes::PopColorStyle();  // LinkHovered
