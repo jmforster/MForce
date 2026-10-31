@@ -1,5 +1,61 @@
 # Status — session handoff (Claude reads this first; Matt's queue = */REVIEW.md)
 
+Updated: 2026-10-30 (refactor session VI, Fable 5.1 xhigh). CHECKPOINT 3.1
+LANDED on main: ba097f6..f1f8244 — the first of Part 3's eight. The twenty-two
+parts (four Partials types and ExpandRule, five formant types, twelve
+evolution holders) derive from Component and their interface, not
+ValueSource; the registry creates Components, the loader's graph, the voice
+and the editor's node handle hold them, every consumer holds its part in a
+Slot<I>. One wiring door for every pin kind (Component::set_param over a
+shared_ptr<Component>: a Param or Input takes a signal and refuses a part, a
+Slot takes its interface and refuses the rest; add_param appends on a multi
+slot; get_part serves slots), the type-check at wiring in that door, at load
+or at an editor change, never per sample. Component::on_slot_changed (third
+hook beside settings and arrays) exists because the wavetable's evolution
+pointer went stale after a rewire — a test caught what the plan's design
+would have shipped. VoiceGraph::signals lists the voice's signal nodes once
+at load for the fault, capture and reseed walks (the reseed on the audio
+thread, no cast). The interface verbs lost their prefixes (IFormant and
+IPartials prepare/start/next; IEvolutionHolder gains prepare/start). NO
+RENDER MOVED: null gate 78/78 after every commit, A/B 0 of 132 over library
++ baselines (the new scope), allocation gate clean. ONE BEHAVIOUR CHANGE by
+design: a malformed wire (a signal into a slot, a part into a signal pin, a
+part as output or channel source, a FormantSequence keyed 'formants') fails
+the load naming the node, the pin, what it offered and what the pin takes,
+where it rendered silently wrong before; no patch in scope carries one.
+TOOLING: tools/alloc_gate.py splits the allocation gate over three processes
+(46-50 s) — in gates.py's FAST list, run before every commit; its merge is
+unit-tested (ctest tool_tests). The refuter (section 8) graded three Majors,
+all fixed in one wave with tests first: the editor's unlink of a holder left
+the evolution in place (the rewire pass clears every pin first; REVIEW R8
+item 5 asks for the manual try), the FormantSequence 'formants' alias
+loaded 34 archived vowel patches without their spectra in silence (a
+configurator refuses it by name), the gate wrapper passed a crashed child
+(exit 3 now). Timing: three runs, see the report's section 5. Meter: lines
++106 at the first close (tests +152, engine smaller), dynamic_cast +2 (nine
+runtime casts gone, the door's and the loader's load-time casts in),
+duplicate blocks -5. DOCS: report R8
+docs/autonomy/refactor/reports/2026-10-30-checkpoint-3.1.md (§8 the
+refutation, the wave, the re-review); REVIEW R8 AWAITING MATT with six items
+(the malformed-wire behaviour change; the A/B; the dropped 'formants' alias;
+the editor's part strips; on_slot_changed as the third hook; the editor's
+unlink try + its hand lists); R6 (2.5) still awaits. BACKLOG row 2: 3.1
+DONE, 3.2 NEXT — plan 3.2 to write (families declared at registration;
+folders; the create menu generated; colours through Theme). Part 3 §2
+landed line + §10 row 3.1 filled; Part 2 §3's Slot row and door paragraph;
+the plan's Ledger carries every execution ruling. DEBT (report §7): the
+holders as wrappers and the two prepares (3.4), AdditiveSource2 (3.7), the
+three lifecycle trios (3.4/3.8), the editor's part strips, signal() casts,
+hand lists and silent tap-from-part (Part 7), the expandRule cast and the
+allowlist's descriptor keys (Part 4), MultiSource's hand-written list,
+Slot's public vectors, nodesById + signals as two structures. HARNESS NOTE:
+Bash heredocs halve backslashes even when quoted — three edits broke this
+session before the rule 'any backslash goes in a script file' was applied
+without exception (memory updated). Measurement scope rule (CLAUDE.md,
+Matt 2026-10-30) held: no queue, sweep or old patch measured. GOALS.md
+stays Matt's uncommitted edit. Main is ahead of origin by every commit since
+the 2.5 docs commit 88283c4: ask at close-out whether to push.
+
 Updated: 2026-10-30 (refactor session VI, Fable 5.1 xhigh). CHECKPOINT 2.6
 LANDED on main: 6a37849..d3df3ea — PART 2 COMPLETE. The allocation probe
 (tools/alloc_probe: a replaced global operator new, linked by alloc_gate and

@@ -65,7 +65,13 @@ Sections:
 
 ## 2. The root: `Component`
 
-**Decided 2026-10-05.** Part 2 gave signal nodes two bases, Generator and
+**Decided 2026-10-05; landed 2026-10-30 as checkpoint 3.1** (`ba097f6`..`f1f8244`,
+report R8): the twenty-two registered parts derive from `Component` and their
+interface, the registry creates `Component`s, the graph and the voice hold
+them, every consumer holds its part in a `Slot<I>` type-checked by the one
+wiring door, and no render moved.
+
+Part 2 gave signal nodes two bases, Generator and
 Processor. The twenty-four structural types fit neither: a `Partials`
 or an evolution is a part that plugs into a slot, not a signal. Today
 they fake being signals.
@@ -246,7 +252,7 @@ None of these changes a sample. The allocation test is what proves it.
 
 | Checkpoint | What lands | Expected render changes |
 |---|---|---|
-| 3.1 | `Component` root; the parts leave `ValueSource` | none |
+| 3.1 | `Component` root; the parts leave `ValueSource` | none — landed 2026-10-30 (`ba097f6`..`f1f8244`): 0 of 132 renders moved over library and baselines; a malformed wire (a signal into a slot, a part into a signal pin) now fails the load with the reason (REVIEW R8) |
 | 3.2 | Families declared at registration; folders; the create menu generated; colours through `Theme` | none |
 | 3.3 | `core/dsp` primitives, merged one at a time with the copies compared first | none; a differing copy becomes a parameter |
 | 3.4 | Each evolution becomes a `Component`; the twelve wrappers and `IEvolutionHolder` deleted; `TargetEvolution` registered; the string-typed form deleted and two patches converted | none |

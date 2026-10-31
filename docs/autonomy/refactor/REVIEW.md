@@ -8,6 +8,53 @@ checkpoints wait for Matt's read.
 
 ## Awaiting
 
+**R8 — checkpoint 3.1: `Component` root; the parts leave `ValueSource`**
+(2026-10-30, commits `ba097f6`..`f1f8244`)
+- Read: `docs/autonomy/refactor/reports/2026-10-30-checkpoint-3.1.md`
+  (its reading guide is ten minutes; section 1 names the one behaviour
+  change — a malformed wire now fails the load — and the hook the plan did
+  not foresee, section 5 the gates, the A/B and the timing, section 6 the
+  decisions taken on your behalf — rulings 27, 25, 19 and 29 departed from
+  the plan or corrected it — section 7 the debt, section 8 the refutation,
+  section 10 four C++ lessons).
+- Try: copy any library additive patch, point its AdditiveSource's
+  `frequency` at its FullPartials node (`"frequency": {"ref": "<parts id>"}`)
+  and load it — the load fails naming the node, the pin and "a part, not a
+  signal", where it used to render a silent zero; wire a constant into a
+  WavetableSource's `evolution` in the editor — the slot refuses it; play
+  `patches/library/winds/oboe1.json` and any formant patch on the keyboard —
+  nothing you can hear changed (the A/B is 0 moved over 132).
+- A verdict decides: (0) **the behaviour change on malformed wires** (a
+  signal into a slot, a part into a signal pin, a part as output or channel
+  source now fail the load with the reason; no patch in library or baselines
+  carries one) — accept as 2.5's "a rejected wire says so" applied to the two
+  kinds; (1) **the A/B**: 0 of 132 moved — accept the checkpoint as
+  byte-identical; (2) **`FormantSequence`'s undocumented `"formants"` key**
+  (read beside the descriptor's `"spectra"` by the deleted branch) is no
+  longer read: a `patches/old/` sequence carrying it loads without its
+  spectra — accept, or have the loader refuse the key by name; (3) **the
+  editor's part strips** capture nothing where they drew a flat zero line
+  (a part has no signal); the Partials and Formant spectra strips are
+  unaffected — accept for Part 7, or want the zero line back now; (4)
+  **`Component::on_slot_changed`** as the third hook beside
+  `on_setting_changed` and `on_array_changed` (section 6 ruling 27): the
+  design, or a different answer to an owner that keeps a view into its part.
+Two more from the refutation (section 8): (5) **the editor's unlink** —
+  before the wave, unlinking a holder from a WavetableSource (or a formant
+  from an AdditiveSource) left the part in place until reload, a regression
+  the roundtrip gate cannot see; the rewire pass now clears every pin first.
+  Try it: wire a PluckEvolution into a WavetableSource, play, delete the
+  link, play — the pluck must be gone; (6) **the editor's part-type lists**
+  (`pin_type_compat_error`, the strips' two predicates) are three hand
+  lists beside the registry, and a link the engine refuses is drawn and
+  inert — left for Part 7 (the editor asking the door), or wanted sooner.
+  And one from the close: (7) **the timing** — three runs of the
+  render-time A/B, none on a quiet machine (the base arm's own walls
+  spread 35 percent between runs of one binary; rows swing 0.83x to
+  1.31x); the mechanism argument stands (no per-sample path changed, the
+  refuter traced it) — accept it for a checkpoint that touched no render
+  path, or want a rerun on a quiet machine before Part 3 continues.
+
 **R6 — checkpoint 2.5: no throw on a render path; fault flags; a rejected
 wire says so** (2026-10-26, commits `cb1b4ab`..`1481d15`)
 - Read: `docs/autonomy/refactor/reports/2026-10-20-checkpoint-2.5.md`

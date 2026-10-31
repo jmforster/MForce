@@ -219,7 +219,7 @@ struct SVFSource final : Processor {
 |---|---|---|---|
 | `Param` | a `ValueSource*` or a constant, plus default and range | the source's `next(t)`, or the constant with no virtual call | a `shared_ptr<ValueSource>` member defaulted to a `ConstantSource` |
 | `Input` | a signal input: a `ValueSource*`, required or optional | the source's `next(t)`, or 0 | `source_` on 21 types |
-| `Slot<T>` | a structural input: a part that implements interface `T` (`IPartials`, `IFormant`, an evolution holder) | not a value; the node calls `T`'s methods | `partials_`, `formant_`, `evolutionSrc_` with a `dynamic_cast` at wire time |
+| `Slot<T>` | a structural input: a part that implements interface `T` (`IPartials`, `IFormant`, an evolution holder) | not a value; the node calls `T`'s methods | `Slot<IPartials>`, `Slot<IFormant>` and `Slot<IEvolutionHolder>` on their owners since checkpoint 3.1; the wiring door (`Component::set_param`) type-checks |
 | `Setting<T>` | a scalar configuration value (float, int, bool), not connectable; a structural one (every int and bool, a float declared `SettingRole::Structural`) sizes or reshapes the node at prepare and takes no per-note push — the loader refuses the wire | the value | `set_setting` chains |
 | `Array` | a user-editable float vector | the vector | `set_array` chains |
 
@@ -240,7 +240,13 @@ What the base class provides from the registry, with no per-node code:
 A `Slot<T>` is type-checked when wired. Wiring a `WaveSource` into a
 `Slot<IPartials>` fails with the reason ("partials expects a Partials
 node"); today the same wire is silently accepted and the pin stays empty
-(the review's F164, and `Parked.txt` item 5).
+(the review's F164, and `Parked.txt` item 5). Landed 2026-10-30 as
+checkpoint 3.1: the check is the one by-name door for every pin kind,
+`Component::set_param(name, std::shared_ptr<Component>)` — a Param or
+Input takes a signal and refuses a part, a Slot takes its interface and
+refuses the rest — and the loader turns a refusal into a load failure
+naming the node, the pin and the kind. `Component::on_slot_changed(name)`
+tells an owner that keeps a view into its part that the slot changed.
 
 ### The two bases
 
