@@ -1157,9 +1157,15 @@ static void build_bindings(const json& paramMapJson, const GraphResult& g,
             }
             return;
         }
-        // Config target (matrix case 1) — same scan as the old resolver.
+        // Config target (matrix case 1) — same scan as the old resolver. A
+        // structural setting is applied at prepare and never per note, so a
+        // push into it would be silently ignored: the load fails instead.
         for (const auto& desc : nodeIt->second->setting_descriptors()) {
             if (paramName == desc.name) {
+                if (desc.structural)
+                    throw std::runtime_error("paramMap: '" + target + "' is a structural setting on "
+                        + nodeIt->second->type_name() + " (it sizes or reshapes the node at prepare), "
+                        "so a per-note push cannot reach it; set it in the node's settings");
                 PitchedInstrument::PushBinding b;
                 b.consumer = nodeIt->second;
                 b.paramName = paramName;
@@ -1296,13 +1302,17 @@ static void bind_wiring(const std::unordered_map<std::string, json>& nodeMap,
             if (!v.is_object() || !v.contains("ref"))
                 throw std::runtime_error("wiring: '" + id + ".dynamicPins." + key +
                                          "' must be a {\"ref\": ...} object");
-            bool isSetting = false;
+            const SettingDescriptor* setting = nullptr;
             for (const auto& desc : consumer->setting_descriptors())
-                if (key == desc.name) { isSetting = true; break; }
-            if (!isSetting)
+                if (key == desc.name) { setting = &desc; break; }
+            if (!setting)
                 throw std::runtime_error("wiring: '" + id + ".dynamicPins." + key +
                     "' is not a setting on " + consumer->type_name() +
                     " (fixed pins belong in \"params\")");
+            if (setting->structural)
+                throw std::runtime_error("wiring: '" + id + ".dynamicPins." + key +
+                    "' is a structural setting on " + consumer->type_name() +
+                    " (it sizes or reshapes the node at prepare), so it takes no pin");
 
             const std::string srcId = v.at("ref").get<std::string>();
             auto srcIt = g.valueNodes.find(srcId);

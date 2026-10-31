@@ -9435,10 +9435,10 @@ static void draw_properties_panel() {
             ImGui::SameLine(labelW);
 
             // --- Promotion (pin_model_design.md §6) ---
-            // Float settings are eligible; int/bool/enum are structural and
-            // never get a pin. Promoted = a DYNAMIC PIN: evaluated once at
-            // note-on and frozen for the note.
-            const bool eligible = (desc.type == SettingType::Float) && !desc.enum_labels;
+            // A structural setting (every int, bool and enum; a float its node
+            // declares so) is applied at prepare and never gets a pin. Promoted
+            // = a DYNAMIC PIN: evaluated once at note-on and frozen for the note.
+            const bool eligible = !desc.structural;
             const bool promoted = node->dynamicPins.contains(desc.name);
             ImGui::PushID(desc.name);
 

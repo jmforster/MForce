@@ -24,6 +24,14 @@ enum class PinKind { Param, Input, Slot, Setting, Array };
 // sample. The node then calls the pin's prepare() and next() itself.
 enum class Pull { Auto, Manual };
 
+// What a change to a Setting does. A Value setting is read when the node
+// runs, so a push at note-on (a dynamic pin, a legacy paramMap entry) is
+// honoured for that note. A Structural setting sizes or reshapes the node —
+// a count, a mode, the shape of a table — and is applied by the next
+// prepare(), never per note: it takes no push. Every int and bool setting
+// is structural; a float is when its node declares it so.
+enum class SettingRole { Value, Structural };
+
 // A pin is a member of a node that registers itself with the node while
 // the node is constructed, so the member declarations are the node's pin
 // table: declaration order is registration order, which is the order the
@@ -96,11 +104,12 @@ struct Input final : PinBase {
 // base addresses every Setting<T> through SettingBase.
 struct SettingBase : PinBase {
   static constexpr PinKind kKind = PinKind::Setting;
+  bool structural;                                // SettingRole::Structural, or an int or bool; fixed at declaration
   virtual void set_from_float(float v) = 0;
   virtual float as_float() const = 0;
   virtual SettingDescriptor descriptor() const = 0;
 protected:
-  explicit SettingBase(const char* n) : PinBase(n, kKind) {}
+  SettingBase(const char* n, bool st) : PinBase(n, kKind), structural(st) {}
 };
 
 template <class T>
@@ -110,11 +119,14 @@ struct Setting final : SettingBase {
   T value, min, max;
   const char* const* labels;                      // enum labels for an int setting
   Setting(Component* owner, const char* n, T def, T mn, T mx, const char* const* lb = nullptr)
-    : SettingBase(n), value(def), min(mn), max(mx), labels(lb), default_(def) { attach(owner); }
+    : Setting(owner, n, def, mn, mx, lb, SettingRole::Value) {}
+  // A float the node declares structural (an int or a bool is one by type).
+  Setting(Component* owner, const char* n, T def, T mn, T mx, SettingRole role)
+    : Setting(owner, n, def, mn, mx, nullptr, role) {}
   SettingDescriptor descriptor() const override {
     constexpr SettingType t = std::is_same_v<T, bool> ? SettingType::Bool
                             : std::is_same_v<T, int>  ? SettingType::Int : SettingType::Float;
-    return {name, t, float(default_), float(min), float(max), labels};
+    return {name, t, float(default_), float(min), float(max), labels, structural};
   }
   void set_from_float(float v) override { value = from_float(v); }
   float as_float() const override { return float(value); }
@@ -127,6 +139,9 @@ private:
     if constexpr (std::is_same_v<T, bool>) return v != 0.0f;
     else return T(v);
   }
+  Setting(Component* owner, const char* n, T def, T mn, T mx, const char* const* lb, SettingRole role)
+    : SettingBase(n, !std::is_same_v<T, float> || role == SettingRole::Structural),
+      value(def), min(mn), max(mx), labels(lb), default_(def) { attach(owner); }
   T default_;                                     // what the descriptor reports after a change
 };
 

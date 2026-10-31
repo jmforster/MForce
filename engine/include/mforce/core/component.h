@@ -54,6 +54,11 @@ struct Component {
     auto* s = find<SettingBase>(name);
     return s ? s->as_float() : 0.0f;
   }
+  // True for a Setting the node sizes or reshapes itself by (SettingBase::structural).
+  bool structural_setting(std::string_view name) const {
+    auto* s = find<SettingBase>(name);
+    return s && s->structural;
+  }
   virtual void set_array(std::string_view name, std::vector<float> values) {
     if (auto* a = find<Array>(name)) { a->values = std::move(values); on_array_changed(name); }
   }

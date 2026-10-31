@@ -6337,12 +6337,110 @@ static void run_allocation_tests_pins() {
     }
 }
 
+// A structural setting — one the node sizes or reshapes itself by: every int
+// and bool, and a float the node declares so — takes no per-note push. The
+// pin and its descriptor say so, and one changed after a note is honoured by
+// the next prepare.
+static void run_structural_setting_tests() {
+    std::printf("structural settings: the mark, and the rebuild at prepare\n");
+    {
+        FullPartials full;
+        CHECK(full.structural_setting("maxPartials"));      // an int: structural by type
+        CHECK(full.structural_setting("evenWeight1"));      // a float the node declares
+        CHECK(!full.structural_setting("rolloff1"));        // a value setting
+        CHECK(!full.structural_setting("noSuchSetting"));
+        bool declared = false, plain = false;
+        for (const auto& d : full.setting_descriptors()) {
+            if (std::string_view(d.name) == "unitPO2")   declared = d.structural;
+            if (std::string_view(d.name) == "decayRate") plain = !d.structural;
+        }
+        CHECK(declared);
+        CHECK(plain);
+        SequencePartials seq;
+        CHECK(seq.structural_setting("incr1"));
+        CHECK(seq.structural_setting("minMult2"));
+        CHECK(!seq.structural_setting("rolloff2"));
+    }
+    // A shaping float set after a note (the UI's edit, then Play prepares
+    // again) rebuilds the arrays at that prepare: the next note is the one a
+    // patch loaded with the value renders.
+    {
+        const char* even = R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"add","nodes":[
+          {"id":"parts","type":"FullPartials","params":{"maxPartials":4}},
+          {"id":"add","type":"AdditiveSource","params":{"frequency":220.0,"amplitude":0.5,"partials":{"ref":"parts"},"formantWeight":0.0}}]}})";
+        const char* odd = R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"add","nodes":[
+          {"id":"parts","type":"FullPartials","params":{"maxPartials":4,"evenWeight1":0.0}},
+          {"id":"add","type":"AdditiveSource","params":{"frequency":220.0,"amplitude":0.5,"partials":{"ref":"parts"},"formantWeight":0.0}}]}})";
+        auto edited = load_instrument_patch_json(even);
+        const auto before = render_one_live_note(*edited.instrument, 60.0f);
+        edited.instrument->voicePool[0].nodesById.at("parts")->set_setting("evenWeight1", 0.0f);
+        edited.instrument->prepare(RenderContext{48000});
+        const auto after = render_one_live_note(*edited.instrument, 60.0f);
+        auto loaded = load_instrument_patch_json(odd);
+        (void)render_one_live_note(*loaded.instrument, 60.0f);
+        const auto asLoaded = render_one_live_note(*loaded.instrument, 60.0f);
+        CHECK(!same_bits(before, after));
+        CHECK(same_bits(after, asLoaded));
+    }
+}
+
+// The loader refuses a per-note push into a structural setting — the legacy
+// paramMap's and the wiring format's dynamic pin — naming the node, the
+// setting and the reason; a value setting still takes one.
+static void run_structural_push_refusal_tests() {
+    std::printf("structural settings: the loader refuses the wire\n");
+    auto load_fails_naming = [](const char* patch, const char* needle) {
+        try { (void)load_instrument_patch_json(patch); }
+        catch (const std::exception& e) {
+            const std::string msg = e.what();
+            if (msg.find(needle) == std::string::npos)
+                std::printf("  load failed for another reason: %s\n", msg.c_str());
+            return msg.find(needle) != std::string::npos;
+        }
+        return false;
+    };
+    auto loads = [](const char* patch) {
+        try { (void)load_instrument_patch_json(patch); return true; }
+        catch (const std::exception& e) { std::printf("  load failed: %s\n", e.what()); return false; }
+    };
+    // The legacy paramMap into a shaping float (refused) and a value float (taken).
+    const char* pushShaping = R"({"sampleRate":48000,"instrument":{"polyphony":1,"paramMap":{"frequency":["add.frequency","parts.evenWeight1"]}},"graph":{"output":"add","nodes":[
+      {"id":"parts","type":"FullPartials","params":{"maxPartials":4}},
+      {"id":"add","type":"AdditiveSource","params":{"frequency":220.0,"amplitude":0.5,"partials":{"ref":"parts"},"formantWeight":0.0}}]}})";
+    CHECK(load_fails_naming(pushShaping, "parts.evenWeight1"));
+    CHECK(load_fails_naming(pushShaping, "structural"));
+    const char* pushValue = R"({"sampleRate":48000,"instrument":{"polyphony":1,"paramMap":{"frequency":["add.frequency","parts.rolloff1"]}},"graph":{"output":"add","nodes":[
+      {"id":"parts","type":"FullPartials","params":{"maxPartials":4}},
+      {"id":"add","type":"AdditiveSource","params":{"frequency":220.0,"amplitude":0.5,"partials":{"ref":"parts"},"formantWeight":0.0}}]}})";
+    CHECK(loads(pushValue));
+    // The wiring format's dynamic pin into a shaping float (refused), an int
+    // (refused: structural by type) and a value float (taken).
+    const char* pinShaping = R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"add","nodes":[
+      {"id":"pf","type":"PerformNode","params":{"field":"frequency"}},
+      {"id":"parts","type":"SequencePartials","params":{"maxPartials":4},"dynamicPins":{"incr1":{"ref":"pf"}}},
+      {"id":"add","type":"AdditiveSource","params":{"frequency":{"ref":"pf"},"amplitude":0.5,"partials":{"ref":"parts"},"formantWeight":0.0}}]}})";
+    CHECK(load_fails_naming(pinShaping, "parts.dynamicPins.incr1"));
+    CHECK(load_fails_naming(pinShaping, "structural"));
+    const char* pinCount = R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"add","nodes":[
+      {"id":"pf","type":"PerformNode","params":{"field":"frequency"}},
+      {"id":"parts","type":"FullPartials","params":{"maxPartials":4},"dynamicPins":{"maxPartials":{"ref":"pf"}}},
+      {"id":"add","type":"AdditiveSource","params":{"frequency":{"ref":"pf"},"amplitude":0.5,"partials":{"ref":"parts"},"formantWeight":0.0}}]}})";
+    CHECK(load_fails_naming(pinCount, "structural"));
+    const char* pinValue = R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"add","nodes":[
+      {"id":"pf","type":"PerformNode","params":{"field":"frequency"}},
+      {"id":"parts","type":"FullPartials","params":{"maxPartials":4},"dynamicPins":{"decayRate":{"ref":"pf"}}},
+      {"id":"add","type":"AdditiveSource","params":{"frequency":{"ref":"pf"},"amplitude":0.5,"partials":{"ref":"parts"},"formantWeight":0.0}}]}})";
+    CHECK(loads(pinValue));
+}
+
 int main() {
     run_alloc_probe_tests();
     run_allocation_tests_partials();
     run_allocation_tests_tables();
     run_allocation_tests_nodes();
     run_allocation_tests_pins();
+    run_structural_setting_tests();
+    run_structural_push_refusal_tests();
     run_pin_tests();
     run_base_tests();
     run_prepare_start_tests();

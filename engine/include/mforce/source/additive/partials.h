@@ -909,27 +909,26 @@ protected:
 // Ported from legacy FullPartials.cs InitArrays.
 // ---------------------------------------------------------------------------
 struct FullPartials final : Partials {
+  // Every setting here shapes the partial arrays: structural, rebuilt at prepare.
   Setting<int>   maxPartials{this, "maxPartials", 30, 1, 200};
   Setting<int>   minMult    {this, "minMult",     1,  1, 100};
-  Setting<float> evenWeight1{this, "evenWeight1", 1.0f, 0.0f, 10.0f};
-  Setting<float> evenWeight2{this, "evenWeight2", 1.0f, 0.0f, 10.0f};
-  Setting<float> oddWeight1 {this, "oddWeight1",  1.0f, 0.0f, 10.0f};
-  Setting<float> oddWeight2 {this, "oddWeight2",  1.0f, 0.0f, 10.0f};
-  Setting<float> unitPO1    {this, "unitPO1",     0.0f, 0.0f, 1.0f};
-  Setting<float> unitPO2    {this, "unitPO2",     0.0f, 0.0f, 1.0f};
+  Setting<float> evenWeight1{this, "evenWeight1", 1.0f, 0.0f, 10.0f, SettingRole::Structural};
+  Setting<float> evenWeight2{this, "evenWeight2", 1.0f, 0.0f, 10.0f, SettingRole::Structural};
+  Setting<float> oddWeight1 {this, "oddWeight1",  1.0f, 0.0f, 10.0f, SettingRole::Structural};
+  Setting<float> oddWeight2 {this, "oddWeight2",  1.0f, 0.0f, 10.0f, SettingRole::Structural};
+  Setting<float> unitPO1    {this, "unitPO1",     0.0f, 0.0f, 1.0f,  SettingRole::Structural};
+  Setting<float> unitPO2    {this, "unitPO2",     0.0f, 0.0f, 1.0f,  SettingRole::Structural};
 
   FullPartials(uint32_t seed = 0xADD2'0000u) : Partials(seed) { init_arrays(); }
 
   const char* type_name() const override { return "FullPartials"; }
 
-  // Each of these settings reshapes the arrays, which are rebuilt at the next start.
+  // A structural setting reshapes the arrays, rebuilt at the next prepare.
   void on_setting_changed(std::string_view name) override {
     Partials::on_setting_changed(name);
     if (name == "maxPartials") maxPartials.value = std::max(1, maxPartials.value);
     if (name == "minMult")     minMult.value = std::max(1, minMult.value);
-    for (const char* own : {"maxPartials", "minMult", "evenWeight1", "evenWeight2",
-                            "oddWeight1", "oddWeight2", "unitPO1", "unitPO2"})
-      if (name == own) arrayUpdateReq_ = true;
+    if (structural_setting(name)) arrayUpdateReq_ = true;
   }
 
 protected:
@@ -967,25 +966,24 @@ protected:
 // Ported from legacy SequencePartials.cs InitArrays.
 // ---------------------------------------------------------------------------
 struct SequencePartials final : Partials {
+  // Every setting here shapes the partial arrays: structural, rebuilt at prepare.
   Setting<int>   maxPartials{this, "maxPartials", 30, 1, 200};
-  Setting<float> minMult1   {this, "minMult1",    1.0f, 0.01f, 100.0f};
-  Setting<float> minMult2   {this, "minMult2",    1.0f, 0.01f, 100.0f};
-  Setting<float> incr1      {this, "incr1",       1.0f, 0.01f, 100.0f};
-  Setting<float> incr2      {this, "incr2",       1.0f, 0.01f, 100.0f};
-  Setting<float> unitPO1    {this, "unitPO1",     0.0f, 0.0f,  1.0f};
-  Setting<float> unitPO2    {this, "unitPO2",     0.0f, 0.0f,  1.0f};
+  Setting<float> minMult1   {this, "minMult1",    1.0f, 0.01f, 100.0f, SettingRole::Structural};
+  Setting<float> minMult2   {this, "minMult2",    1.0f, 0.01f, 100.0f, SettingRole::Structural};
+  Setting<float> incr1      {this, "incr1",       1.0f, 0.01f, 100.0f, SettingRole::Structural};
+  Setting<float> incr2      {this, "incr2",       1.0f, 0.01f, 100.0f, SettingRole::Structural};
+  Setting<float> unitPO1    {this, "unitPO1",     0.0f, 0.0f,  1.0f,   SettingRole::Structural};
+  Setting<float> unitPO2    {this, "unitPO2",     0.0f, 0.0f,  1.0f,   SettingRole::Structural};
 
   SequencePartials(uint32_t seed = 0xADD2'0000u) : Partials(seed) { init_arrays(); }
 
   const char* type_name() const override { return "SequencePartials"; }
 
-  // Each of these settings reshapes the arrays, which are rebuilt at the next start.
+  // A structural setting reshapes the arrays, rebuilt at the next prepare.
   void on_setting_changed(std::string_view name) override {
     Partials::on_setting_changed(name);
     if (name == "maxPartials") maxPartials.value = std::max(1, maxPartials.value);
-    for (const char* own : {"maxPartials", "minMult1", "minMult2", "incr1", "incr2",
-                            "unitPO1", "unitPO2"})
-      if (name == own) arrayUpdateReq_ = true;
+    if (structural_setting(name)) arrayUpdateReq_ = true;
   }
 
 protected:

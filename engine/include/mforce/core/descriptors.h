@@ -49,6 +49,10 @@ struct SettingDescriptor {
   // represent an enum. When set, the UI renders a dropdown instead of a
   // numeric input. The stored value remains the integer index.
   const char* const* enum_labels = nullptr;
+  // The setting sizes or reshapes the node (SettingBase::structural): it
+  // takes no per-note push, so the UI offers it no pin and the loader
+  // refuses a wire into it.
+  bool structural = false;
 };
 
 // Array-of-floats params. The UI groups arrays sharing a non-null groupName
