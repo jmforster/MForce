@@ -6607,20 +6607,25 @@ static void run_review_gap_tests() {
       {"id":"spec","type":"FormantSpectrum","params":{"formants":[{"ref":"f1"}]}},
       {"id":"seq","type":"FormantSequence","params":{"blend":0.5,"formants":[{"ref":"spec"}]}},
       {"id":"add","type":"AdditiveSource","params":{"frequency":220.0,"amplitude":0.5,"partials":{"ref":"parts"},"formant":{"ref":"seq"},"formantWeight":1.0}}]}})";
-    CHECK(load_fails_naming(seqAlias, "spectra"));
+    CHECK(load_fails_naming(seqAlias, "not 'formants'"));
     // a part as the instrument's output, as a mixer-mode output, as a channel's source
     const char* partAsVoiceOutput = R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"parts","nodes":[
       {"id":"parts","type":"FullPartials","params":{"maxPartials":4}}]}})";
     CHECK(load_fails_naming(partAsVoiceOutput, "not a signal"));
+    // The standalone loader reads files only: each patch is written to the
+    // scratch folder (made here, since a fresh clone has none) and removed.
     auto file_fails_naming = [](const char* path, const char* text, const char* needle) {
+        std::filesystem::create_directories("renders/scratch");
         { std::ofstream f(path); f << text; }
+        bool named = false;
         try { (void)load_patch_file(path); }
         catch (const std::exception& e) {
             const std::string msg = e.what();
             if (msg.find(needle) == std::string::npos) std::printf("  load failed for another reason: %s\n", msg.c_str());
-            return msg.find(needle) != std::string::npos;
+            named = msg.find(needle) != std::string::npos;
         }
-        return false;
+        std::filesystem::remove(path);
+        return named;
     };
     CHECK(file_fails_naming("renders/scratch/_part_as_output.json",
         R"({"sampleRate":48000,"seconds":0.1,"graph":{"output":"parts","nodes":[{"id":"parts","type":"FullPartials","params":{"maxPartials":4}}]}})",
