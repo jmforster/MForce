@@ -1,4 +1,4 @@
-#include "mforce/source/wavetable_source.h"
+#include "mforce/source/wavetable/wavetable_source.h"
 #include <cmath>
 #include <algorithm>
 #include <stdexcept>

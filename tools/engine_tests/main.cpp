@@ -13,7 +13,7 @@ static int g_checks = 0, g_fails = 0;
   if (std::fabs(_a-_b) > (eps)) { ++g_fails; \
   std::printf("FAIL %s:%d  %s=%g vs %s=%g\n", __FILE__, __LINE__, #a, _a, #b, _b); } } while (0)
 
-#include "mforce/core/curve_node.h"
+#include "mforce/source/modulator/curve_node.h"
 #include <memory>
 using namespace mforce;
 
@@ -86,7 +86,7 @@ static void run_curve_expr_tests() {
     CHECK_NEAR(off.map(0.5f), 5.0f, 1e-6f);
 }
 
-#include "mforce/core/envelope.h"
+#include "mforce/source/envelope/envelope.h"
 
 static void run_envelope_range_tests() {
     RenderContext ctx{48000};
@@ -195,7 +195,7 @@ static void run_tap_guard_tests() {
     CHECK_NEAR(empty.next(), 0.0f, 1e-6f);
 }
 
-#include "mforce/source/combined_source.h"
+#include "mforce/source/combiner/combined_source.h"
 
 static void run_tap_cycle_tests() {
     // The tap edge's one-sample delay with no host clock: every pull computes
@@ -220,7 +220,7 @@ static void run_tap_cycle_tests() {
     CHECK_NEAR(counter->current(), 9.0f, 1e-6f);
 }
 
-#include "mforce/source/delay_line_source.h"
+#include "mforce/source/physical/delay_line_source.h"
 
 static void run_delay_line_tests() {
     RenderContext ctx{48000};
@@ -260,7 +260,7 @@ static void run_delay_line_tests() {
     for (int i = 0; i < 300; ++i) CHECK(dl2->next() == 0.0f);
 }
 
-#include "mforce/filter/svf_source.h"
+#include "mforce/source/filter/svf_source.h"
 
 // Measured phase delay: drive the filter with a unit sine at hz, project the
 // steady-state output onto sin/cos at the same index (I/Q). y = A sin(wn+p)
@@ -407,7 +407,7 @@ static void run_loop_compensation_tests() {
     CHECK_NEAR(periodOn, 240.0f, 0.5f);             // on pitch
 }
 
-#include "mforce/source/shaper_source.h"
+#include "mforce/source/filter/shaper_source.h"
 
 static void run_shaper_tests() {
     RenderContext ctx{48000};
@@ -489,7 +489,7 @@ static void run_shaper_seg_tests() {
     CHECK_NEAR(sh.map(0.5f), 0.5f, 1e-6f);
 }
 
-#include "mforce/source/wormhole_source.h"
+#include "mforce/source/utility/wormhole_source.h"
 
 // Wormhole: pure pass-through, including chained pairs (out-half refs
 // in-half — the hidden-wire configuration the UI creates).
@@ -615,7 +615,7 @@ static void run_curve_shared_tests() {
                123.0f, 1e-9f);
 }
 
-#include "mforce/source/pierce_filter.h"
+#include "mforce/source/physical/pierce_filter.h"
 #include <vector>
 #include <random>
 
@@ -1091,7 +1091,7 @@ static void run_release_relayout_tests() {
                               * sr)) <= 2);
 }
 
-#include "mforce/core/name_gate.h"
+#include "mforce/source/modulator/name_gate.h"
 
 static void run_name_gate_tests() {
     auto ps = std::make_shared<PerformSource>();
@@ -2028,8 +2028,8 @@ static void run_base_tests() {
     CHECK_NEAR(c.next(), 0.5f, 1e-6f);
 }
 
-#include "mforce/source/sine_source.h"
-#include "mforce/source/fm_source.h"
+#include "mforce/source/oscillator/sine_source.h"
+#include "mforce/source/oscillator/fm_source.h"
 
 // A Manual pin is driven by its node: next() pulls the source and returns
 // its value, or the pin's fallback (the constant; 0 for an input) unwired.
@@ -2338,7 +2338,7 @@ static void run_tap_reading_tests() {
     CHECK_NEAR(bareTap->next(), 1.0f, 1e-6f);
 }
 
-#include "mforce/core/envelope_presets.h"
+#include "mforce/source/envelope/envelope_presets.h"
 
 // The sweep follows every door that changes a pin's source: a source wired
 // after prepare and start is pulled on the next tick, and one cleared is
@@ -2464,10 +2464,10 @@ static void run_shared_source_tests() {
 
 // Checkpoint 2.1: the core family (envelopes, range/var, multi, name gate)
 // under Generator/Processor with its pins declared once.
-#include "mforce/core/envelope_presets.h"
-#include "mforce/core/multi_source.h"
-#include "mforce/core/range_source.h"
-#include "mforce/core/var_source.h"
+#include "mforce/source/envelope/envelope_presets.h"
+#include "mforce/source/combiner/multi_source.h"
+#include "mforce/source/modulator/range_source.h"
+#include "mforce/source/modulator/var_source.h"
 
 namespace {
 // Counts how often a pin's owner prepared and advanced it.
@@ -2691,12 +2691,12 @@ static void run_envelope_rebuild_pin_tests() {
 }
 
 // Checkpoint 2.1: the noise family with its pins declared once.
-#include "mforce/source/layered_red_noise_source.h"
-#include "mforce/source/noise_sources.h"
-#include "mforce/source/pink_noise_source.h"
-#include "mforce/source/red_noise_source.h"
-#include "mforce/source/wander_noise_source.h"
-#include "mforce/source/white_noise_source.h"
+#include "mforce/source/noise/layered_red_noise_source.h"
+#include "mforce/source/noise/noise_sources.h"
+#include "mforce/source/noise/pink_noise_source.h"
+#include "mforce/source/noise/red_noise_source.h"
+#include "mforce/source/noise/wander_noise_source.h"
+#include "mforce/source/noise/white_noise_source.h"
 
 namespace {
 std::string param_names(const mforce::Component& c) {
@@ -2891,8 +2891,8 @@ static void run_noise_layered_tests() {
 }
 
 // Checkpoint 2.1: the wavetable, the hybrid KS and the evolution holders.
-#include "mforce/source/hybrid_ks_source.h"
-#include "mforce/source/wavetable_source.h"
+#include "mforce/source/wavetable/hybrid_ks_source.h"
+#include "mforce/source/wavetable/wavetable_source.h"
 
 namespace {
 std::string input_names(const mforce::Component& c) {
@@ -3583,10 +3583,10 @@ static void run_additive_explicit_array_tests() {
 // Checkpoint 2.1: the physical models (delay line, KS string, allpass
 // resonator, bow table, 2D mesh, Pierce filter), all Processors: the signal
 // input is the inherited `source`, declared first.
-#include "mforce/source/allpass_resonator.h"
-#include "mforce/source/bow_table_source.h"
-#include "mforce/source/ks_string.h"
-#include "mforce/source/mesh2d_source.h"
+#include "mforce/source/physical/allpass_resonator.h"
+#include "mforce/source/physical/bow_table_source.h"
+#include "mforce/source/physical/ks_string.h"
+#include "mforce/source/physical/mesh2d_source.h"
 
 namespace {
 // The connectable pins of a node in registration order, which is the order
@@ -3816,12 +3816,12 @@ static void run_physical_behavior_tests() {
 // limiter, reverb, state-variable filter, biquad) and the vibrato modulator.
 // Every filter is a Processor: the signal input is the inherited `source`,
 // declared first. The vibrato has no signal input and is a Generator.
-#include "mforce/filter/biquad_source.h"
-#include "mforce/filter/filters.h"
-#include "mforce/filter/hammer_bank.h"
-#include "mforce/filter/limiter.h"
-#include "mforce/filter/reverb.h"
-#include "mforce/filter/vibrato.h"
+#include "mforce/source/filter/biquad_source.h"
+#include "mforce/source/filter/filters.h"
+#include "mforce/source/filter/hammer_bank.h"
+#include "mforce/source/filter/limiter.h"
+#include "mforce/source/filter/reverb.h"
+#include "mforce/source/envelope/vibrato.h"
 
 static_assert(std::is_base_of_v<Processor, BiquadSource> &&
               std::is_base_of_v<Processor, BWLowpassFilter> &&
@@ -4199,10 +4199,10 @@ static void run_filter_tests() {
 // static sources have none and are Generators. The combiners have two signal
 // inputs and no `source`, and stay ValueSources with their categories.
 #include "mforce/core/source_registry.h"
-#include "mforce/source/multiplex_source.h"
-#include "mforce/source/phased_value_source.h"
-#include "mforce/source/repeating_source.h"
-#include "mforce/source/segment_source.h"
+#include "mforce/source/combiner/multiplex_source.h"
+#include "mforce/source/envelope/phased_value_source.h"
+#include "mforce/source/modulator/repeating_source.h"
+#include "mforce/source/envelope/segment_source.h"
 
 static_assert(std::is_base_of_v<Processor, DistortedSource> &&
               std::is_base_of_v<Processor, ShaperSource> &&

@@ -9,7 +9,7 @@
   },
   "file_allowed": {
     "json": [
-      "engine/include/mforce/core/envelope_json.h",
+      "engine/include/mforce/source/envelope/envelope_json.h",
       "engine/include/mforce/core/source_registry.h",
       "engine/include/mforce/music/music_json.h",
       "engine/include/mforce/music/templates_json.h",
@@ -22,25 +22,23 @@
      "paths": ["engine/include/mforce/core/", "engine/src/component.cpp", "engine/src/source_registry.cpp"], "may_include": []},
     {"name": "source", "purpose": "Nodes that produce sound (one layer with filter), and the list that registers every node type.",
      "paths": ["engine/include/mforce/source/", "engine/src/source_registrations.cpp", "engine/src/red_noise_source.cpp", "engine/src/wavetable_source.cpp", "engine/src/full_additive_source.cpp", "engine/src/additive_source2.cpp", "engine/src/hybrid_ks_source.cpp"],
-     "may_include": ["core", "filter"]},
-    {"name": "filter", "purpose": "Nodes that process a signal (one layer with source).",
-     "paths": ["engine/include/mforce/filter/"], "may_include": ["core", "source"]},
+     "may_include": ["core"]},
     {"name": "render", "purpose": "Instruments, voices, mixing, patch loading, WAV I/O.",
      "paths": ["engine/include/mforce/render/", "engine/src/patch_loader.cpp", "engine/src/mixer.cpp", "engine/src/wav_writer.cpp", "engine/src/wav_reader.cpp"],
-     "may_include": ["core", "source", "filter"]},
+     "may_include": ["core", "source"]},
     {"name": "music",  "purpose": "The music model and composition.",
      "paths": ["engine/include/mforce/music/", "engine/src/music.cpp", "engine/src/chord.cpp"], "may_include": ["core", "render"]},
     {"name": "util",   "purpose": "Stand-alone analysis helpers (FFT, signal statistics).",
      "paths": ["engine/include/mforce/util/"], "may_include": []},
     {"name": "cli",    "purpose": "mforce_cli, the command-line renderer.",
-     "paths": ["tools/mforce_cli/"], "may_include": ["core", "source", "filter", "render", "music", "util"]},
+     "paths": ["tools/mforce_cli/"], "may_include": ["core", "source", "render", "music", "util"]},
     {"name": "ui",     "purpose": "mforce_ui, the patch editor.",
-     "paths": ["tools/mforce_ui/"], "may_include": ["core", "source", "filter", "render", "music", "util", "imgui", "rtaudio", "rtmidi", "glfw"]},
+     "paths": ["tools/mforce_ui/"], "may_include": ["core", "source", "render", "music", "util", "imgui", "rtaudio", "rtmidi", "glfw"]},
     {"name": "tests",  "purpose": "engine_tests and test_figures.",
-     "paths": ["tools/engine_tests/", "tools/test_figures/", "tools/alloc_probe/", "tools/alloc_gate/", "tools/alloc_gate.py", "tools/tests/"], "may_include": ["core", "source", "filter", "render", "music", "util"]},
+     "paths": ["tools/engine_tests/", "tools/test_figures/", "tools/alloc_probe/", "tools/alloc_gate/", "tools/alloc_gate.py", "tools/tests/"], "may_include": ["core", "source", "render", "music", "util"]},
     {"name": "durn",   "purpose": "durn_converter: notation formats to DURN.",
      "paths": ["tools/durn_converter/"], "may_include": ["music"]},
     {"name": "misc_tools", "purpose": "ppl_to_json, stamp_test, stk_ref, wav_check.",
-     "paths": ["tools/ppl_to_json/", "tools/stamp_test/", "tools/stk_ref/", "tools/wav_check.cpp", "tools/wav_check.c"], "may_include": ["core", "source", "filter", "render", "music", "util"]}
+     "paths": ["tools/ppl_to_json/", "tools/stamp_test/", "tools/stk_ref/", "tools/wav_check.cpp", "tools/wav_check.c"], "may_include": ["core", "source", "render", "music", "util"]}
   ]
 }

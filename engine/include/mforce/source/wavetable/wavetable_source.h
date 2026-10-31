@@ -1,7 +1,7 @@
 #pragma once
 #include "mforce/core/dsp_wave_source.h"
-#include "mforce/source/wave_evolution.h"
-#include "mforce/source/white_noise_source.h"
+#include "mforce/source/wavetable/wave_evolution.h"
+#include "mforce/source/noise/white_noise_source.h"
 #include "mforce/core/randomizer.h"
 #include <memory>
 #include <vector>

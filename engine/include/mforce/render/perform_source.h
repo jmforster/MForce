@@ -1,6 +1,6 @@
 #pragma once
 #include "mforce/core/dsp_value_source.h"
-#include "mforce/core/envelope.h"
+#include "mforce/source/envelope/envelope.h"
 #include <atomic>
 #include <cmath>
 #include <memory>

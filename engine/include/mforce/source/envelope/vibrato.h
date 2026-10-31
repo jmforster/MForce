@@ -1,8 +1,8 @@
 #pragma once
 #include "mforce/core/dsp_value_source.h"
-#include "mforce/source/red_noise_source.h"
-#include "mforce/core/envelope_presets.h"   // ASEnvelope (attack→sustain ramp)
-#include "mforce/core/range_source.h"
+#include "mforce/source/noise/red_noise_source.h"
+#include "mforce/source/envelope/envelope_presets.h"   // ASEnvelope (attack→sustain ramp)
+#include "mforce/source/modulator/range_source.h"
 #include <algorithm>
 #include <memory>
 #include <string_view>

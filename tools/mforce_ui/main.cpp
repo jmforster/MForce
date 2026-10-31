@@ -31,13 +31,13 @@
 #include "mforce/core/source_registry.h"
 #include "mforce/core/dsp_value_source.h"
 #include "mforce/core/dsp_wave_source.h"
-#include "mforce/core/envelope.h"      // needed for Envelope::make_adsr
-#include "mforce/core/envelope_json.h" // shared preset-form dispatch (both loaders)
-#include "mforce/core/envelope_presets.h" // ADSREnvelope for NT_ENVELOPE nodes
-#include "mforce/core/var_source.h"     // needed for VarSource constructor
-#include "mforce/core/range_source.h"   // needed for RangeSource constructor
-#include "mforce/core/curve_node.h"     // CurveNode knots/interp are modeled (P2b)
-#include "mforce/source/shaper_source.h" // shape editor Shaper client probe
+#include "mforce/source/envelope/envelope.h"      // needed for Envelope::make_adsr
+#include "mforce/source/envelope/envelope_json.h" // shared preset-form dispatch (both loaders)
+#include "mforce/source/envelope/envelope_presets.h" // ADSREnvelope for NT_ENVELOPE nodes
+#include "mforce/source/modulator/var_source.h"     // needed for VarSource constructor
+#include "mforce/source/modulator/range_source.h"   // needed for RangeSource constructor
+#include "mforce/source/modulator/curve_node.h"     // CurveNode knots/interp are modeled (P2b)
+#include "mforce/source/filter/shaper_source.h" // shape editor Shaper client probe
 #include "mforce/core/smoothness_interpolator.h"  // SegmentSource shape preview
 #include "mforce/source/additive/formant.h" // needed for FormantSpectrum inline table
 #include "mforce/source/additive/partials.h" // for Partials live array access in strip draw
@@ -7023,7 +7023,7 @@ static void draw_shape_editor() {
 // lands in the file on Save. All edits set s_graphDirty.
 //
 // Engine semantics (CurveNode::map, LogX/LogLog modes, in engine/include/
-// mforce/core/curve_node.h — ParamSlot retired 2026-08-18, PerformSource
+// mforce/source/modulator/curve_node.h — ParamSlot retired 2026-08-18, PerformSource
 // P1): breakpoints are ascending (hz, value) pairs, >= 2 of them;
 // evaluation is linear in log-frequency, clamped past the ends; curves are
 // evaluated per note-on from the note frequency, so only entries under the

@@ -9,7 +9,7 @@
 #include "mforce/music/pitch_bend.h"
 #include "mforce/music/pitch_curve.h"
 #include "mforce/render/perform_source.h"
-#include "mforce/source/multiplex_source.h"
+#include "mforce/source/combiner/multiplex_source.h"
 #include <cstdio>
 #include <memory>
 #include <set>

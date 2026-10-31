@@ -1,6 +1,6 @@
 #pragma once
 #include "mforce/core/dsp_value_source.h"
-#include "mforce/source/red_noise_source.h"
+#include "mforce/source/noise/red_noise_source.h"
 #include <algorithm>
 #include <memory>
 #include <string_view>

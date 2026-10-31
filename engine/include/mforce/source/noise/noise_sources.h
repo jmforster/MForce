@@ -1,7 +1,7 @@
 #pragma once
 #include "mforce/core/dsp_value_source.h"
-#include "mforce/source/pink_noise_source.h"
-#include "mforce/source/white_noise_source.h"
+#include "mforce/source/noise/pink_noise_source.h"
+#include "mforce/source/noise/white_noise_source.h"
 #include "mforce/core/randomizer.h"
 #include <cmath>
 #include <vector>

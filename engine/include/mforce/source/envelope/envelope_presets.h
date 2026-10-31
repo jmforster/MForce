@@ -1,5 +1,5 @@
 #pragma once
-#include "mforce/core/envelope.h"
+#include "mforce/source/envelope/envelope.h"
 
 namespace mforce {
 
