@@ -6559,6 +6559,28 @@ static void run_partials_part_tests() {
         CHECK(std::dynamic_pointer_cast<ValueSource>(SourceRegistry::instance().create(type)) == nullptr);
 }
 
+// The audit: every registered type is created once; exactly the named parts
+// are not signals, every other type is. The twenty-two parts are the four
+// Partials types and the expand rule, the five formant types and the twelve
+// evolution holders.
+static void run_component_root_tests() {
+    std::printf("the root: parts and signals\n");
+    register_all_sources();
+    auto& reg = SourceRegistry::instance();
+    CHECK(kPartTypes.size() == 22);
+    int seen = 0, parts = 0;
+    for (auto& [name, cat] : reg.registered_types()) {
+        auto c = reg.create(name);
+        const bool isPart = std::dynamic_pointer_cast<ValueSource>(c) == nullptr;
+        if (isPart != (kPartTypes.count(name) == 1))
+            std::printf("  %s: %s\n", name.c_str(), isPart ? "a part the list lacks" : "a signal the list names");
+        CHECK(isPart == (kPartTypes.count(name) == 1));
+        ++seen; parts += isPart;
+    }
+    CHECK(parts == 22);
+    CHECK(seen > 22);
+}
+
 int main() {
     run_alloc_probe_tests();
     run_allocation_tests_partials();
@@ -6570,6 +6592,7 @@ int main() {
     run_wiring_door_tests();
     run_formant_part_tests();
     run_partials_part_tests();
+    run_component_root_tests();
     run_pin_tests();
     run_base_tests();
     run_prepare_start_tests();
