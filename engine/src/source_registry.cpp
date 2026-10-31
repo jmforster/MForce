@@ -16,8 +16,8 @@ void SourceRegistry::register_type(const std::string& type_name,
   entries_[type_name] = Entry{category, std::move(factory), std::move(configurator)};
 }
 
-std::shared_ptr<ValueSource> SourceRegistry::create(const std::string& type_name,
-                                                    std::optional<uint32_t> seed) const {
+std::shared_ptr<Component> SourceRegistry::create(const std::string& type_name,
+                                                  std::optional<uint32_t> seed) const {
   auto it = entries_.find(type_name);
   if (it == entries_.end())
     throw std::runtime_error("SourceRegistry: unknown type '" + type_name + "'");

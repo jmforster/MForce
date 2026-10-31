@@ -259,8 +259,11 @@ struct GraphNode {
     std::vector<Pin> inputs;
     std::vector<Pin> outputs;
 
-    // Live DSP object
-    std::shared_ptr<ValueSource> dspSource;
+    // Live DSP object: a signal node or a part
+    std::shared_ptr<Component> dspSource;
+    // The node as a signal — for the output, the listen tap, the stream and
+    // the capture. A part has none: its owner drives it.
+    ValueSource* signal() const { return dynamic_cast<ValueSource*>(dspSource.get()); }
 
     // Config values (non-connectable params like holdCycles, absolute, etc.)
     std::vector<std::pair<SettingDescriptor, float>> settingValues;
@@ -476,7 +479,7 @@ struct GraphNode {
     }
 
     // Rewire a specific input pin's DSP connection
-    void wire_pin(const std::string& pinName, std::shared_ptr<ValueSource> src) {
+    void wire_pin(const std::string& pinName, std::shared_ptr<Component> src) {
         if (!src || !dspSource) return;
         dspSource->set_param(pinName, src);
     }
@@ -967,14 +970,16 @@ static void update_node_dsp_unlocked(GraphNode& node) {
                 // A Note face has one output PER FIELD — the source is the
                 // PIN's stand-in constant, not the node-level dspSource
                 // (which is just the frequency pin's constant).
-                std::shared_ptr<ValueSource> src =
+                std::shared_ptr<Component> src =
                     (srcNode->typeName == NT_PERFORM && otherPin->constantSrc)
-                        ? std::static_pointer_cast<ValueSource>(otherPin->constantSrc)
+                        ? std::static_pointer_cast<Component>(otherPin->constantSrc)
                         : srcNode->dspSource;
                 // Tap wire: previous-sample read through a TapSource
-                // (feedback_loop_design.md §4.1) — never the raw source.
+                // (feedback_loop_design.md §4.1) — never the raw source. Only
+                // a signal has a previous sample to tap.
                 if (otherPin->isTap)
-                    src = std::make_shared<TapSource>(src);
+                    if (auto sig = std::dynamic_pointer_cast<ValueSource>(src))
+                        src = std::make_shared<TapSource>(sig);
                 if (pin.multi && node.dspSource)
                     node.dspSource->add_param(pin.name, src);
                 else
@@ -4165,8 +4170,8 @@ static ValueSource* find_output_source() {
     // the graph runs exactly as wired, only the monitored signal moves.
     if (s_listenTapNode >= 0)
         for (auto& n : s_nodes)
-            if (n.id == s_listenTapNode && n.dspSource)
-                return n.dspSource.get();
+            if (n.id == s_listenTapNode && n.signal())
+                return n.signal();
     for (auto& n : s_nodes) {
         if (n.typeName != NT_PATCH_OUTPUT) continue;
         if (n.inputs.empty()) return nullptr;
@@ -4177,8 +4182,8 @@ static ValueSource* find_output_source() {
             if (link.startPinId == srcPinId) outPinId = link.endPinId;
             if (outPinId >= 0) {
                 GraphNode* srcNode = find_node_for_pin(outPinId);
-                if (srcNode && srcNode->dspSource)
-                    return srcNode->dspSource.get();
+                if (srcNode && srcNode->signal())
+                    return srcNode->signal();
             }
         }
     }
@@ -4191,9 +4196,10 @@ static void prepare_graph(int samples) {
     // A play is not a note: the editor graph may have been re-wired since
     // the last one, so every node is prepared again (idempotent) and started.
     for (auto& n : s_nodes) {
-        if (!n.dspSource) continue;
-        n.dspSource->prepare(g_renderContext);
-        n.dspSource->start(samples);
+        auto* s = n.signal();
+        if (!s) continue;                  // a part is prepared and started by its owner
+        s->prepare(g_renderContext);
+        s->start(samples);
     }
 }
 
@@ -4368,7 +4374,7 @@ static bool generate_unified(const std::vector<SchedNote>& notes) {
         std::vector<std::string> capIds;
         for (auto& n : s_nodes) {
             auto it = idMap.find(n.id);
-            if (n.dspSource && !is_special_ui_type(n.typeName)
+            if (n.signal() && !is_special_ui_type(n.typeName)
                 && n.typeName != NT_PERFORM && it != idMap.end()) {
                 capNodes.push_back(&n);
                 capIds.push_back(it->second);
@@ -4909,7 +4915,7 @@ static void play_continuous(float velocity) {
         for (auto& pin : node.inputs) {
             if (pin.name != name) continue;
             GraphNode* src = find_source_node(pin.id);
-            if (src && src->dspSource) return src->dspSource.get();
+            if (src && src->signal()) return src->signal();
             if (pin.constantSrc) prepExtra.push_back(pin.constantSrc.get());
             return pin.constantSrc.get();
         }
@@ -4926,7 +4932,7 @@ static void play_continuous(float velocity) {
         for (auto& cp : chNode->inputs) {
             if (cp.name != "source") continue;
             GraphNode* sn = find_source_node(cp.id);
-            if (sn && sn->dspSource) sc.source = sn->dspSource.get();
+            if (sn && sn->signal()) sc.source = sn->signal();
             break;
         }
         if (!sc.source) continue;  // channel with nothing wired in

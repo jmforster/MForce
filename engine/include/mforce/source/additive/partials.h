@@ -1116,7 +1116,7 @@ struct CompositePartials final : ValueSource, IPartials {
     return descs;
   }
 
-  bool set_param(std::string_view name, std::shared_ptr<ValueSource> src) override {
+  bool set_param(std::string_view name, std::shared_ptr<Component> src) override {
     if (name != "partials") return ValueSource::set_param(name, std::move(src));
     auto* p = dynamic_cast<IPartials*>(src.get());
     if (!p) return false;                       // the wrong kind for the slot
@@ -1185,7 +1185,7 @@ struct CompositePartials final : ValueSource, IPartials {
 
 private:
   struct Entry {
-    std::shared_ptr<ValueSource> source;  // prevents the shared_ptr from dying
+    std::shared_ptr<Component> source;    // prevents the shared_ptr from dying
     IPartials* ipartials;                  // fast pointer to the IPartials interface
   };
   std::vector<Entry> sets_;

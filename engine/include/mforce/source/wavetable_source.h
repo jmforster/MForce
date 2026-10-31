@@ -34,7 +34,7 @@ struct WavetableSource final : WaveSource {
 
   const char* type_name() const override { return "WavetableSource"; }
 
-  bool set_param(std::string_view name, std::shared_ptr<ValueSource> src) override {
+  bool set_param(std::string_view name, std::shared_ptr<Component> src) override {
     const bool ok = WaveSource::set_param(name, std::move(src));
     if (name == "evolution") {
       auto* holder = dynamic_cast<IEvolutionHolder*>(evolution.source.get());

@@ -1052,7 +1052,7 @@ static int run_dump_descriptors(int argc, char** argv)
     for (const auto& [name, cat] : reg.registered_types()) {
         // Instantiating is the only way to reach the virtual descriptor sets;
         // a default-constructed instance is thrown away immediately.
-        std::shared_ptr<ValueSource> s;
+        std::shared_ptr<Component> s;
         try { s = reg.create(name); }
         catch (const std::exception&) { continue; }
         if (!s) continue;

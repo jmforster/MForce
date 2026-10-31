@@ -157,12 +157,17 @@ struct Array final : PinBase {
 };
 
 // A structural input: a part that implements interface T (partials, a
-// formant, an evolution). Not a value; the node calls T's methods. The wire
-// is type-checked when set, which is the one place a dynamic_cast is kept.
+// formant, an evolution holder). Not a value; the node calls T's methods
+// and forwards it nothing — the owner prepares, starts and advances its
+// part through the interface. The wire is type-checked when set, from the
+// by-name door (Component::set_param), which is where every wire's check
+// lives.
 struct SlotBase : PinBase {
   static constexpr PinKind kKind = PinKind::Slot;
   virtual InputDescriptor descriptor() const = 0;
   virtual bool set(std::shared_ptr<Component> part) = 0;
+  virtual void clear() = 0;
+  virtual std::shared_ptr<Component> first() const = 0;   // the part a single slot holds, a multi slot's first
 protected:
   explicit SlotBase(const char* n) : PinBase(n, kKind) {}
 };
@@ -176,7 +181,9 @@ struct Slot final : SlotBase {
   Slot(Component* owner, const char* n, const char* h = nullptr, bool m = false)
     : SlotBase(n), hint(h), multi(m) { attach(owner); }
   bool set(std::shared_ptr<Component> part) override;   // component.h: false if part is not a T
-  void clear() { parts.clear(); views.clear(); }
+  void clear() override { parts.clear(); views.clear(); }
+  std::shared_ptr<Component> first() const override { return parts.empty() ? nullptr : parts.front(); }
+  T* get() const { return views.empty() ? nullptr : views.front(); }   // the single slot's part as a T
   InputDescriptor descriptor() const override { return {name, multi, hint}; }
 };
 

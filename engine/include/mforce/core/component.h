@@ -27,25 +27,34 @@ struct Component {
   virtual std::span<const SettingDescriptor> setting_descriptors() const { return settingDescs_; }
   virtual std::span<const ArrayDescriptor> array_descriptors() const { return arrayDescs_; }
 
-  // False when the node has no Param or Input of that name, or (in an
-  // override) the part is of the wrong kind for the slot. The builder turns
-  // false into a load failure; nothing is ignored.
-  virtual bool set_param(std::string_view name, std::shared_ptr<ValueSource> src) {
-    if (auto* p = find<Param>(name)) { p->set(std::move(src)); return true; }
-    if (auto* i = find<Input>(name)) { i->set(std::move(src)); return true; }
-    return false;
-  }
+  // The by-name wiring door, one for every pin kind: a Param or Input takes
+  // a signal, a Slot takes the interface it was declared for, and anything
+  // else is refused. This is the type-check at wiring, paid at load or at an
+  // editor change and never on a render path; the builder turns false into a
+  // load failure naming the node, the pin and the reason. A null part clears
+  // the pin. Defined in dsp_value_source.h, where ValueSource is complete.
+  virtual bool set_param(std::string_view name, std::shared_ptr<Component> part);
+  // The signal a Param or Input holds; nullptr for a slot or an unknown name.
   virtual std::shared_ptr<ValueSource> get_param(std::string_view name) const {
     if (auto* p = find<Param>(name)) return p->get();
     if (auto* i = find<Input>(name)) return i->get();
     return nullptr;
   }
-  virtual bool add_param(std::string_view name, std::shared_ptr<ValueSource> src) {
-    return set_param(name, std::move(src));
+  // The part a Slot holds (a multi slot's first); nullptr for a signal pin or an unknown name.
+  std::shared_ptr<Component> get_part(std::string_view name) const {
+    auto* s = find<SlotBase>(name);
+    return s ? s->first() : nullptr;
+  }
+  // A multi slot appends in set; a single pin replaces.
+  virtual bool add_param(std::string_view name, std::shared_ptr<Component> part) {
+    return set_param(name, std::move(part));
   }
   // The Param pin of that name, or nullptr when the node has none.
   Param* param(std::string_view name) { return find<Param>(name); }
-  virtual bool clear_param(std::string_view name) { return set_param(name, nullptr); }
+  virtual bool clear_param(std::string_view name) {
+    if (auto* s = find<SlotBase>(name)) { s->clear(); return true; }
+    return set_param(name, nullptr);
+  }
 
   virtual void set_setting(std::string_view name, float v) {
     if (auto* s = find<SettingBase>(name)) { s->set_from_float(v); on_setting_changed(name); }

@@ -61,11 +61,11 @@ struct AdditiveSource2 final : WaveSource {
 
   // Wiring `partials` takes the Partials' arrays; a source that is not a
   // Partials is ignored.
-  bool set_param(std::string_view name, std::shared_ptr<ValueSource> src) override {
-    if (name != "partials") return WaveSource::set_param(name, std::move(src));
-    auto p = std::dynamic_pointer_cast<Partials>(src);
+  bool set_param(std::string_view name, std::shared_ptr<Component> part) override {
+    if (name != "partials") return WaveSource::set_param(name, std::move(part));
+    auto p = std::dynamic_pointer_cast<Partials>(part);
     if (!p) return false;                       // the wrong kind for the slot
-    partials.set(std::move(src));
+    partials.set(p);
     apply_partials(*p);
     return true;
   }

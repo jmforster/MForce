@@ -112,17 +112,19 @@ struct TapBindScope {
 // several pins is the same object on each: every consumer pulls it, and it
 // computes once per tick (ValueSource::next()), so a shared envelope advances
 // once per sample however many pins read it.
-static std::shared_ptr<ValueSource> resolve_param(
+// A ref names any node, signal or part; the wiring door decides whether the
+// pin takes it. A number is a ConstantSource, a tap a TapSource.
+static std::shared_ptr<Component> resolve_param(
     const json& val,
-    const std::unordered_map<std::string, std::shared_ptr<ValueSource>>& valueNodes)
+    const std::unordered_map<std::string, std::shared_ptr<Component>>& graphNodes)
 {
     if (val.is_number())
         return std::make_shared<ConstantSource>(val.get<float>());
 
     if (val.is_object() && val.contains("ref")) {
         std::string refId = val.at("ref").get<std::string>();
-        auto it = valueNodes.find(refId);
-        if (it == valueNodes.end())
+        auto it = graphNodes.find(refId);
+        if (it == graphNodes.end())
             throw std::runtime_error("Unresolved node ref: " + refId);
         return it->second;
     }
@@ -140,13 +142,35 @@ static std::shared_ptr<ValueSource> resolve_param(
         "Param must be a number, {\"ref\":\"...\"} or {\"tap\":\"...\"}");
 }
 
+// A signal where one is required — a constructor argument, a tap's target, a
+// chain's root, a voice's output, a mixer gain. A part there is a rejected
+// wire that says so.
+static std::shared_ptr<ValueSource> as_signal(const std::shared_ptr<Component>& node,
+                                              const std::string& where)
+{
+    auto signal = std::dynamic_pointer_cast<ValueSource>(node);
+    if (!signal && node)
+        throw std::runtime_error("'" + where + "' is a " + std::string(node->type_name())
+                                 + ", a part, not a signal");
+    return signal;
+}
+
+static std::shared_ptr<ValueSource> resolve_signal(
+    const json& val,
+    const std::unordered_map<std::string, std::shared_ptr<Component>>& graphNodes)
+{
+    const std::string where = (val.is_object() && val.contains("ref")) ? val.at("ref").get<std::string>()
+                                                                        : std::string("param");
+    return as_signal(resolve_param(val, graphNodes), where);
+}
+
 static std::shared_ptr<ValueSource> resolve_param_or(
     const json& params, const char* key, float defaultVal,
-    const std::unordered_map<std::string, std::shared_ptr<ValueSource>>& valueNodes)
+    const std::unordered_map<std::string, std::shared_ptr<Component>>& graphNodes)
 {
     if (!params.contains(key))
         return std::make_shared<ConstantSource>(defaultVal);
-    return resolve_param(params.at(key), valueNodes);
+    return resolve_signal(params.at(key), graphNodes);
 }
 
 // ---------------------------------------------------------------------------
@@ -200,24 +224,26 @@ static std::vector<std::string> collect_advance_ids(
 }
 
 // ---------------------------------------------------------------------------
-// Graph building: creates all ValueSource/MonoSource nodes from JSON.
+// Graph building: creates every node from JSON — signals and parts — and the mono adapters for the signals.
 // Extracted so it can be called once (normal mode) or N times (instrument voices).
 // ---------------------------------------------------------------------------
 
 struct GraphResult {
-    std::unordered_map<std::string, std::shared_ptr<ValueSource>> valueNodes;
-    std::unordered_map<std::string, std::shared_ptr<IFormant>>    formantNodes;
+    std::unordered_map<std::string, std::shared_ptr<Component>> nodes;        // every node by id, signal or part
+    std::unordered_map<std::string, std::shared_ptr<IFormant>>  formantNodes;
     std::unordered_map<std::string, std::unique_ptr<MonoSource>>  monoNodes;
 };
 
 // Wire all connectable params generically via param_descriptors + input_descriptors + set_param.
 // A wire the node will not take: a pin it does not have, or a part of the
 // wrong kind for a slot. The builder knows the id; the node knows the pin.
-[[noreturn]] static void reject_wire(const ValueSource& node, const std::string& id,
-                                     std::string_view pin, const ValueSource& part)
+[[noreturn]] static void reject_wire(const Component& node, const std::string& id,
+                                     std::string_view pin, const Component& part)
 {
+    const bool isSignal = dynamic_cast<const ValueSource*>(&part) != nullptr;
     throw std::runtime_error("node '" + id + "' (" + node.type_name() + "): '"
-                             + std::string(pin) + "' does not accept a " + part.type_name());
+                             + std::string(pin) + "' does not accept a " + part.type_name()
+                             + (isSignal ? "" : ", a part, not a signal"));
 }
 
 // Every key of a node's params is one the engine reads: a descriptor of
@@ -226,7 +252,7 @@ struct GraphResult {
 // clean). Any other key fails the load: a typo, or a patch newer than the
 // engine, must not render silently downgraded. Runs once per node after
 // whichever path built it.
-static void reject_unknown_keys(const ValueSource& src, const std::string& id,
+static void reject_unknown_keys(const Component& src, const std::string& id,
                                 const json& params)
 {
     // Every key a hand-written branch or a configurator reads, anywhere in
@@ -282,10 +308,10 @@ static void reject_unknown_keys(const ValueSource& src, const std::string& id,
 }
 
 static void wire_params_generic(
-    ValueSource& src,
+    Component& src,
     const std::string& id,
     const json& params,
-    const std::unordered_map<std::string, std::shared_ptr<ValueSource>>& valueNodes)
+    const std::unordered_map<std::string, std::shared_ptr<Component>>& graphNodes)
 {
     // A STRING in a pin/param slot is always a legacy enum form consumed by a
     // hand-written branch further down (e.g. WavetableSource's
@@ -304,18 +330,18 @@ static void wire_params_generic(
             // Multi-input pin with array-of-refs JSON. Iterate and add each.
             src.clear_param(desc.name);
             for (const auto& item : v) {
-                auto part = resolve_param(item, valueNodes);
+                auto part = resolve_param(item, graphNodes);
                 if (!src.add_param(desc.name, part)) reject_wire(src, id, desc.name, *part);
             }
         } else {
-            auto part = resolve_param(v, valueNodes);
+            auto part = resolve_param(v, graphNodes);
             if (!src.set_param(desc.name, part)) reject_wire(src, id, desc.name, *part);
         }
     }
     for (const auto& desc : src.param_descriptors()) {
         if (!params.contains(desc.name)) continue;
         if (skip_unresolvable(params.at(desc.name))) continue;
-        auto part = resolve_param(params.at(desc.name), valueNodes);
+        auto part = resolve_param(params.at(desc.name), graphNodes);
         if (!src.set_param(desc.name, part)) reject_wire(src, id, desc.name, *part);
     }
     // Scalar settings (int/float/bool) — apply if present in JSON.
@@ -415,8 +441,8 @@ static void wire_params_generic(
         if (auto* host = dynamic_cast<Partials*>(&src)) {
             const auto& er = params.at("expandRule");
             if (er.contains("ref")) {
-                auto it = valueNodes.find(er.at("ref").get<std::string>());
-                if (it != valueNodes.end())
+                auto it = graphNodes.find(er.at("ref").get<std::string>());
+                if (it != graphNodes.end())
                     if (auto* node = dynamic_cast<ExpandRuleNode*>(it->second.get()))
                         host->set_expand_rule(node->to_struct());
             } else {
@@ -442,8 +468,10 @@ static void wire_params_generic(
 
 // Register MonoSource wrapper (WaveSource → WaveSourceMono, else ValueSourceMono).
 static void add_mono(
-    GraphResult& g, const std::string& id, std::shared_ptr<ValueSource> src)
+    GraphResult& g, const std::string& id, const std::shared_ptr<Component>& node)
 {
+    auto src = std::dynamic_pointer_cast<ValueSource>(node);
+    if (!src) return;                           // a part renders nothing by itself
     auto ws = std::dynamic_pointer_cast<WaveSource>(src);
     if (ws) g.monoNodes[id] = std::make_unique<WaveSourceMono>(ws);
     else    g.monoNodes[id] = std::make_unique<ValueSourceMono>(src);
@@ -451,7 +479,7 @@ static void add_mono(
 
 // Register IFormant if the source implements it.
 static void add_formant(
-    GraphResult& g, const std::string& id, std::shared_ptr<ValueSource> src)
+    GraphResult& g, const std::string& id, const std::shared_ptr<Component>& src)
 {
     auto fmt = std::dynamic_pointer_cast<IFormant>(src);
     if (fmt) g.formantNodes[id] = fmt;
@@ -478,10 +506,10 @@ struct PerformContext {
 static json extract_subgraph_json(
     const std::unordered_map<std::string, json>& nodeMap,
     const std::string& rootId);
-// Returns {root source, valueNodes by id} so callers (Multiplex's paramMap
+// Returns {root source, graphNodes by id} so callers (Multiplex's paramMap
 // fan-out) can reach into the built clone's internals by node id.
 static std::pair<std::shared_ptr<ValueSource>,
-                 std::unordered_map<std::string, std::shared_ptr<ValueSource>>>
+                 std::unordered_map<std::string, std::shared_ptr<Component>>>
 build_subgraph_with_seed_perturbation(
     const std::string& subtreeJsonStr,
     uint32_t seedPerturbation,
@@ -502,7 +530,7 @@ static GraphResult build_graph(
     if (!registered) { register_all_sources(); registered = true; }
 
     GraphResult g;
-    auto& valueNodes   = g.valueNodes;
+    auto& graphNodes   = g.nodes;
     auto& formantNodes = g.formantNodes;
 
     // Tap edges resolve to placeholders during the node loop; bound below
@@ -514,7 +542,7 @@ static GraphResult build_graph(
 
     // Resolve function for configurators
     ResolveParamFn resolveFn = [&](const json& val) {
-        return resolve_param(val, valueNodes);
+        return resolve_signal(val, graphNodes);
     };
 
     for (const auto& id : nodeOrder) {
@@ -536,20 +564,20 @@ static GraphResult build_graph(
             const auto& p = *pp;
             bool absolute = p.value("absolute", true);
             auto src = std::make_shared<VarSource>(
-                resolve_param_or(p, "val",    0.0f, valueNodes),
-                resolve_param_or(p, "var",    0.0f, valueNodes),
-                resolve_param_or(p, "varPct", 0.0f, valueNodes), absolute);
-            valueNodes[id] = src;
+                resolve_param_or(p, "val",    0.0f, graphNodes),
+                resolve_param_or(p, "var",    0.0f, graphNodes),
+                resolve_param_or(p, "varPct", 0.0f, graphNodes), absolute);
+            graphNodes[id] = src;
         }
         else if (type == "RangeSource") {
             if (!pp) throw std::runtime_error("RangeSource requires params");
             const auto& p = *pp;
             bool normalized = p.value("normalized", false);
             auto src = std::make_shared<RangeSource>(
-                resolve_param_or(p, "min", 0.0f, valueNodes),
-                resolve_param_or(p, "max", 1.0f, valueNodes),
-                resolve_param_or(p, "var", 0.0f, valueNodes), normalized);
-            valueNodes[id] = src;
+                resolve_param_or(p, "min", 0.0f, graphNodes),
+                resolve_param_or(p, "max", 1.0f, graphNodes),
+                resolve_param_or(p, "var", 0.0f, graphNodes), normalized);
+            graphNodes[id] = src;
         }
         else if (type == "Envelope") {
             if (!pp) throw std::runtime_error("Envelope requires params");
@@ -587,11 +615,11 @@ static GraphResult build_graph(
                 // absolute_time). Same key as the adsr preset form.
                 if (p.value("timeMode", std::string("fraction")) == "seconds")
                     env->absolute_time = true;
-                valueNodes[id] = env;
+                graphNodes[id] = env;
             } else {
                 // Shared preset dispatch (envelope_json.h) — the UI graph
                 // loader calls the same function, so the two cannot drift.
-                valueNodes[id] = envelope_from_preset_json(p);
+                graphNodes[id] = envelope_from_preset_json(p);
             }
             // Pullable range params (minValue / maxValue, PerformSource P1,
             // envelope.h param_descriptors). This explicit branch never ran
@@ -600,7 +628,7 @@ static GraphResult build_graph(
             // Envelope — proved by A/B, maxValue 0.25 rendered byte-identical
             // to the control. Registry-path envelope types (ADSREnvelope…)
             // were always wired. Null when absent → identity, unchanged.
-            wire_params_generic(*valueNodes[id], id, p, valueNodes);
+            wire_params_generic(*graphNodes[id], id, p, graphNodes);
         }
         else if (type == "CurveNode") {
             auto cn = std::make_shared<CurveNode>();
@@ -640,8 +668,8 @@ static GraphResult build_graph(
             // build_bindings, which calls set_param("source", …) directly —
             // no patch had ever loaded one from JSON, so the 196-patch gate
             // could not see it.
-            if (pp) wire_params_generic(*cn, id, *pp, valueNodes);
-            valueNodes[id] = cn;
+            if (pp) wire_params_generic(*cn, id, *pp, graphNodes);
+            graphNodes[id] = cn;
         }
         else if (type == "PerformNode") {
             // Leaf: resolves to the voice's shared PerformOut adapter. Several
@@ -652,12 +680,12 @@ static GraphResult build_graph(
                     "context (PerformNode is instrument/patch mode only)");
             const std::string field = pp ? pp->value("field", std::string("frequency"))
                                          : std::string("frequency");
-            if      (field == "frequency") valueNodes[id] = perf->freqOut;
-            else if (field == "velocity")  valueNodes[id] = perf->velOut;
-            else if (field == "wheel")     valueNodes[id] = perf->wheelOut;
-            else if (field == "pressure")  valueNodes[id] = perf->pressOut;
-            else if (field == "duration")  valueNodes[id] = perf->durOut;
-            else if (field == "onset")     valueNodes[id] = perf->onsetOut;
+            if      (field == "frequency") graphNodes[id] = perf->freqOut;
+            else if (field == "velocity")  graphNodes[id] = perf->velOut;
+            else if (field == "wheel")     graphNodes[id] = perf->wheelOut;
+            else if (field == "pressure")  graphNodes[id] = perf->pressOut;
+            else if (field == "duration")  graphNodes[id] = perf->durOut;
+            else if (field == "onset")     graphNodes[id] = perf->onsetOut;
             else throw std::runtime_error("PerformNode '" + id + "': unknown field '"
                 + field
                 + "' (expected frequency|velocity|wheel|pressure|duration|onset)");
@@ -684,8 +712,8 @@ static GraphResult build_graph(
                             id.c_str(), ng->name.c_str());
                 }
             }
-            if (pp) wire_params_generic(*ng, id, *pp, valueNodes);
-            valueNodes[id] = ng;
+            if (pp) wire_params_generic(*ng, id, *pp, graphNodes);
+            graphNodes[id] = ng;
         }
         else if (type == "SegmentSource") {
             std::vector<float> values;
@@ -696,8 +724,8 @@ static GraphResult build_graph(
             }
             auto src = std::make_shared<SegmentSource>(
                 std::move(values), oneShot, seed.value_or(0x5E6A'0000u));
-            if (pp) wire_params_generic(*src, id, *pp, valueNodes);
-            valueNodes[id] = src;
+            if (pp) wire_params_generic(*src, id, *pp, graphNodes);
+            graphNodes[id] = src;
             add_mono(g, id, src);
         }
         else if (type == "Vibrato") {
@@ -708,8 +736,8 @@ static GraphResult build_graph(
                      {"speed", 5.0f}, {"depth", 0.02f}, {"attack", 0.3f}, {"threshold", 0.0f},
                      {"speedVar", 0.0f}, {"depthVar", 0.0f}, {"zeroCrossTendency", 1.0f}})
                 vib->set_setting(key, p.value(key, dflt));
-            wire_params_generic(*vib, id, p, valueNodes);
-            valueNodes[id] = vib;
+            wire_params_generic(*vib, id, p, graphNodes);
+            graphNodes[id] = vib;
         }
         else if (type == "BWLowpassFilter" || type == "BWHighpassFilter" || type == "BWBandpassFilter") {
             int sections = pp ? pp->value("sections", 2) : 2;
@@ -721,15 +749,15 @@ static GraphResult build_graph(
             else
                 src = std::make_shared<BWBandpassFilter>(sections);
             if (pp) {
-                wire_params_generic(*src, id, *pp, valueNodes);
+                wire_params_generic(*src, id, *pp, graphNodes);
                 // JSON uses "cutoff" alias for single-band filters
                 if (pp->contains("cutoff"))
                 {
-                    auto part = resolve_param(pp->at("cutoff"), valueNodes);
+                    auto part = resolve_param(pp->at("cutoff"), graphNodes);
                     if (!src->set_param("cutoffFreq", part)) reject_wire(*src, id, "cutoffFreq", *part);
                 }
             }
-            valueNodes[id] = src;
+            graphNodes[id] = src;
             add_mono(g, id, src);
         }
         // ---- Formant collection types (need formantNodes map) ----
@@ -743,13 +771,13 @@ static GraphResult build_graph(
                     spec->formants.push_back(it->second);
                 }
             }
-            formantNodes[id] = spec; valueNodes[id] = spec;
+            formantNodes[id] = spec; graphNodes[id] = spec;
         }
         else if (type == "FixedSpectrum") {
             if (!pp || !pp->contains("gains"))
                 throw std::runtime_error("FixedSpectrum requires params.gains");
             auto fs = std::make_shared<FixedSpectrum>((*pp)["gains"].get<std::vector<float>>());
-            formantNodes[id] = fs; valueNodes[id] = fs;
+            formantNodes[id] = fs; graphNodes[id] = fs;
         }
         else if (type == "FormantSequence") {
             auto fseq = std::make_shared<FormantSequence>();
@@ -762,16 +790,16 @@ static GraphResult build_graph(
                         fseq->formants.push_back(it->second);
                     }
                 }
-                wire_params_generic(*fseq, id, *pp, valueNodes);
+                wire_params_generic(*fseq, id, *pp, graphNodes);
             }
-            formantNodes[id] = fseq; valueNodes[id] = fseq;
+            formantNodes[id] = fseq; graphNodes[id] = fseq;
         }
         // ---- AdditiveSource2 (partial modes + per-partial envelopes) ----
         else if (type == "AdditiveSource2") {
             auto as2 = std::make_shared<AdditiveSource2>(seed.value_or(0xADD3'0000u));
             if (pp) {
                 const auto& p = *pp;
-                wire_params_generic(*as2, id, p, valueNodes);
+                wire_params_generic(*as2, id, p, graphNodes);
                 std::string pMode = p.value("partialMode", std::string("default"));
                 if (pMode == "default") {
                     as2->set_default_partials(p.value("partialCount", 500));
@@ -795,7 +823,7 @@ static GraphResult build_graph(
                 for (const char* key : {"amplEnvelopes", "freqEnvelopes"}) {
                     if (p.contains(key)) {
                         for (const auto& ae : p[key]) {
-                            auto env = resolve_param(ae.at("envelope"), valueNodes);
+                            auto env = resolve_signal(ae.at("envelope"), graphNodes);
                             auto filt = parse_filter(ae.value("filter", std::string("all")));
                             int from = ae.value("from", 1), to = ae.value("to", 500);
                             if (std::string(key) == "amplEnvelopes")
@@ -806,7 +834,7 @@ static GraphResult build_graph(
                     }
                 }
             }
-            valueNodes[id] = as2;
+            graphNodes[id] = as2;
             add_mono(g, id, as2);
         }
         // ---- WavetableSource (evolution types) ----
@@ -814,7 +842,7 @@ static GraphResult build_graph(
             auto wt = std::make_shared<WavetableSource>(seed.value_or(0xC0FFEEu));
             if (pp) {
                 const auto& p = *pp;
-                wire_params_generic(*wt, id, p, valueNodes);
+                wire_params_generic(*wt, id, p, graphNodes);
                 // Legacy patches have evolution as a string ("pluck", "averaging", "target").
                 // New UI patches wire evolution as a ref (handled by wire_params_generic above).
                 std::string evoType = "none";
@@ -852,7 +880,7 @@ static GraphResult build_graph(
                         uint32_t(p.value("evolutionSeed", 42))));
                 }
             }
-            valueNodes[id] = wt;
+            graphNodes[id] = wt;
             add_mono(g, id, wt);
         }
         // ---- HybridKSSource (setting params) ----
@@ -860,11 +888,11 @@ static GraphResult build_graph(
             auto hks = std::make_shared<HybridKSSource>(seed.value_or(0xBEEF'C0DEu));
             if (pp) {
                 const auto& p = *pp;
-                wire_params_generic(*hks, id, p, valueNodes);
+                wire_params_generic(*hks, id, p, graphNodes);
                 if (p.contains("targetPartials"))
                     hks->set_target_partials(p["targetPartials"].get<std::vector<float>>());
             }
-            valueNodes[id] = hks;
+            graphNodes[id] = hks;
             add_mono(g, id, hks);
         }
         // ---- MultiplexSource: fan template subgraph into N instances ----
@@ -872,7 +900,7 @@ static GraphResult build_graph(
             auto mux = std::make_shared<MultiplexSource>();
             if (pp) {
                 // Apply "count" setting via generic path.
-                wire_params_generic(*mux, id, *pp, valueNodes);
+                wire_params_generic(*mux, id, *pp, graphNodes);
 
                 // Resolve the "source" input to its template root node id.
                 if (pp->contains("source") && (*pp)["source"].is_object()
@@ -915,7 +943,7 @@ static GraphResult build_graph(
                     mux->set_template(subtreeStr, baseSeed, std::move(builder));
                 }
             }
-            valueNodes[id] = mux;
+            graphNodes[id] = mux;
             add_mono(g, id, mux);
         }
         // =================================================================
@@ -924,7 +952,7 @@ static GraphResult build_graph(
         else if (reg.has(type)) {
             auto src = reg.create(type, seed);
             if (pp) {
-                wire_params_generic(*src, id, *pp, valueNodes);
+                wire_params_generic(*src, id, *pp, graphNodes);
                 auto* configurator = reg.get_configurator(type);
                 if (configurator) {
                     try { (*configurator)(*src, *pp, resolveFn); }
@@ -933,7 +961,7 @@ static GraphResult build_graph(
                     }
                 }
             }
-            valueNodes[id] = src;
+            graphNodes[id] = src;
             add_formant(g, id, src);
             add_mono(g, id, src);
         }
@@ -944,15 +972,15 @@ static GraphResult build_graph(
 
         // Whichever path built the node, every key it was given is one the
         // engine read; an unknown key fails the load.
-        if (pp && valueNodes.count(id)) reject_unknown_keys(*valueNodes[id], id, *pp);
+        if (pp && graphNodes.count(id)) reject_unknown_keys(*graphNodes[id], id, *pp);
     } // end for each node
 
     // Pass 2: bind tap targets (feedback_loop_design.md §3.2).
     for (auto& tb : tapBinds) {
-        auto it = valueNodes.find(tb.targetId);
-        if (it == valueNodes.end())
+        auto it = graphNodes.find(tb.targetId);
+        if (it == graphNodes.end())
             throw std::runtime_error("Unresolved tap target: " + tb.targetId);
-        tb.tap->source = it->second;
+        tb.tap->source = as_signal(it->second, tb.targetId);
     }
 
     return g;
@@ -1011,11 +1039,11 @@ static json extract_subgraph_json(
 
 // Build a fresh root source from a subtree JSON string, XOR'ing every
 // node's seed param by seedPerturbation so N instances diverge
-// deterministically from a shared base seed. Returns {root, valueNodes}
+// deterministically from a shared base seed. Returns {root, graphNodes}
 // so external paramMap fan-out code can reach into the clone's nodes
 // by id.
 static std::pair<std::shared_ptr<ValueSource>,
-                 std::unordered_map<std::string, std::shared_ptr<ValueSource>>>
+                 std::unordered_map<std::string, std::shared_ptr<Component>>>
 build_subgraph_with_seed_perturbation(
     const std::string& subtreeJsonStr,
     uint32_t seedPerturbation,
@@ -1044,13 +1072,21 @@ build_subgraph_with_seed_perturbation(
     auto g = build_graph(nodeMap, nodeOrder, perf);
 
     std::string outputId = subtree["output"].get<std::string>();
-    auto it = g.valueNodes.find(outputId);
-    if (it == g.valueNodes.end())
+    auto it = g.nodes.find(outputId);
+    if (it == g.nodes.end())
         throw std::runtime_error("build_subgraph: output '" + outputId + "' not found");
-    return {it->second, std::move(g.valueNodes)};
+    return {as_signal(it->second, outputId), std::move(g.nodes)};
 }
 
 // ---------------------------------------------------------------------------
+// Whether a node follows a moving frequency: a signal answers for itself; a
+// part has no frequency pin that a bend could leave inert.
+static bool tracks_frequency_live(const Component& node)
+{
+    auto* signal = dynamic_cast<const ValueSource*>(&node);
+    return !signal || signal->tracks_frequency_live();
+}
+
 // Convert paramMap JSON into PerformSource bindings (perform_source_design.md
 // §5; replaces resolve_param_map as the runtime model — the JSON stays the
 // supported legacy authoring format, converted here at load).
@@ -1115,8 +1151,8 @@ static void build_bindings(const json& paramMapJson, const GraphResult& g,
             nodeId = target;
             paramName = "frequency";  // default for backward compat
         }
-        auto nodeIt = g.valueNodes.find(nodeId);
-        if (nodeIt == g.valueNodes.end())
+        auto nodeIt = g.nodes.find(nodeId);
+        if (nodeIt == g.nodes.end())
             throw std::runtime_error("paramMap: unknown node '" + nodeId + "'");
 
         auto paramSrc = nodeIt->second->get_param(paramName);
@@ -1125,7 +1161,7 @@ static void build_bindings(const json& paramMapJson, const GraphResult& g,
             // 26a made loud (P3 T2), legacy path: a bend articulated onto a
             // node that reads its frequency pin once is silently inert.
             if (paramName == "frequency" &&
-                !nodeIt->second->tracks_frequency_live())
+                !tracks_frequency_live(*nodeIt->second))
                 std::fprintf(stderr,
                     "[loader] bend inert on '%s' (%s reads frequency once at "
                     "note start; backlog 26a)\n",
@@ -1278,9 +1314,9 @@ static void bind_wiring(const std::unordered_map<std::string, json>& nodeMap,
 
     for (const auto& id : nodeOrder) {
         const auto& node = nodeMap.at(id);
-        auto nIt = g.valueNodes.find(id);
-        if (nIt != g.valueNodes.end() && node.contains("params") &&
-            !nIt->second->tracks_frequency_live() &&
+        auto nIt = g.nodes.find(id);
+        if (nIt != g.nodes.end() && node.contains("params") &&
+            !tracks_frequency_live(*nIt->second) &&
             node["params"].contains("frequency")) {
             const auto& v = node["params"].at("frequency");
             if (v.is_object() && v.contains("ref") &&
@@ -1291,8 +1327,8 @@ static void bind_wiring(const std::unordered_map<std::string, json>& nodeMap,
                     id.c_str(), nIt->second->type_name());
         }
         if (!node.contains("dynamicPins")) continue;
-        auto nodeIt = g.valueNodes.find(id);
-        if (nodeIt == g.valueNodes.end()) continue;
+        auto nodeIt = g.nodes.find(id);
+        if (nodeIt == g.nodes.end()) continue;
         const auto& consumer = nodeIt->second;
 
         for (const auto& [key, v] : node["dynamicPins"].items()) {
@@ -1315,8 +1351,8 @@ static void bind_wiring(const std::unordered_map<std::string, json>& nodeMap,
                     " (it sizes or reshapes the node at prepare), so it takes no pin");
 
             const std::string srcId = v.at("ref").get<std::string>();
-            auto srcIt = g.valueNodes.find(srcId);
-            if (srcIt == g.valueNodes.end())
+            auto srcIt = g.nodes.find(srcId);
+            if (srcIt == g.nodes.end())
                 throw std::runtime_error("wiring: '" + id + "." + key +
                                          "' refs unknown node '" + srcId + "'");
 
@@ -1324,12 +1360,25 @@ static void bind_wiring(const std::unordered_map<std::string, json>& nodeMap,
             b.consumer     = consumer;
             b.paramName    = key;
             b.targetNodeId = id;
-            b.chain        = srcIt->second;
+            b.chain        = as_signal(srcIt->second, id + ".dynamicPins." + key);
             b.cs           = nullptr;
             b.isSetting    = true;
             vg.pushBindings.push_back(std::move(b));
         }
     }
+}
+
+// The voice takes the graph's nodes: every node by id, and the signals among
+// them in id order for the walks that need signals (VoiceGraph::signals).
+static void adopt_nodes(PitchedInstrument::VoiceGraph& vg, GraphResult& g)
+{
+    vg.nodesById = std::move(g.nodes);
+    vg.signals.clear();
+    for (auto& [id, node] : vg.nodesById)
+        if (auto* s = dynamic_cast<ValueSource*>(node.get()))
+            vg.signals.push_back({id, s});
+    std::sort(vg.signals.begin(), vg.signals.end(),
+              [](const auto& a, const auto& b) { return a.id < b.id; });
 }
 
 // Create the voice's performance objects. Must run BEFORE build_graph now:
@@ -1502,16 +1551,16 @@ Patch load_patch_file(const std::string& path)
                                  &inst->onsetNames);
 
             // Find the top-level source for this voice
-            auto srcIt = g.valueNodes.find(outputId);
-            if (srcIt == g.valueNodes.end())
+            auto srcIt = g.nodes.find(outputId);
+            if (srcIt == g.nodes.end())
                 throw std::runtime_error("instrument: output node '" + outputId + "' not found");
-            vg.source = srcIt->second;
+            vg.source = as_signal(srcIt->second, outputId);
 
             // Trigger bindings (spec 2026-09-20-note-onsets-v2 §6):
             // envelopes with a wired trigger restart at matching Setups.
             // allEnvelopes (§4/§5): the whole population, for hold-gating
             // and release re-layout.
-            for (auto& [nid, src] : g.valueNodes)
+            for (auto& [nid, src] : g.nodes)
                 if (auto* env = dynamic_cast<Envelope*>(src.get())) {
                     vg.allEnvelopes.push_back(env);
                     if (env->trigger.source) vg.triggerBindings.push_back(env);
@@ -1531,8 +1580,8 @@ Patch load_patch_file(const std::string& path)
             // Loop tails consumed only by tap edges: the voice ticks these
             // after the root pull (feedback_loop_design.md §3.3).
             for (const auto& aid : collect_advance_ids(nodeMap, nodeOrder, outputId))
-                vg.advanceList.push_back(g.valueNodes.at(aid));
-            vg.nodesById = std::move(g.valueNodes);   // the host reports faults by these ids
+                vg.advanceList.push_back(as_signal(g.nodes.at(aid), aid));
+            adopt_nodes(vg, g);
 
             inst->voicePool.push_back(std::move(vg));
         }
@@ -1593,8 +1642,8 @@ Patch load_patch_file(const std::string& path)
                 mixThrowaway, nullptr);
             auto gMix = build_graph(nodeMap, nodeOrder, &mixPerf);
             const auto& mp = mixIt->second["params"];
-            mixer->gainL = resolve_param_or(mp, "gainL", 1.0f, gMix.valueNodes);
-            mixer->gainR = resolve_param_or(mp, "gainR", 1.0f, gMix.valueNodes);
+            mixer->gainL = resolve_param_or(mp, "gainL", 1.0f, gMix.nodes);
+            mixer->gainR = resolve_param_or(mp, "gainR", 1.0f, gMix.nodes);
         }
 
         mixer->channels.push_back(std::move(ch));
@@ -1607,7 +1656,7 @@ Patch load_patch_file(const std::string& path)
     // Standard mode (no instrument): single graph instance
     // -------------------------------------------------------------------
     auto g = build_graph(nodeMap, nodeOrder);
-    auto& valueNodes = g.valueNodes;
+    auto& graphNodes = g.nodes;
     auto& monoNodes  = g.monoNodes;
 
     // Mixer-mode patches have no per-sample driver to tick tap-only loop
@@ -1653,8 +1702,8 @@ Patch load_patch_file(const std::string& path)
 
     if (outIt->second.contains("params")) {
         const auto& params = outIt->second["params"];
-        mixer->gainL = resolve_param_or(params, "gainL", 1.0f, valueNodes);
-        mixer->gainR = resolve_param_or(params, "gainR", 1.0f, valueNodes);
+        mixer->gainL = resolve_param_or(params, "gainL", 1.0f, graphNodes);
+        mixer->gainR = resolve_param_or(params, "gainR", 1.0f, graphNodes);
     }
 
     const auto& chIds = outIt->second.at("inputs").at("channels");
@@ -1670,8 +1719,8 @@ Patch load_patch_file(const std::string& path)
 
         if (chNode.contains("params")) {
             const auto& p = chNode["params"];
-            ch.volume = resolve_param_or(p, "volume", 1.0f, valueNodes);
-            ch.pan    = resolve_param_or(p, "pan",    0.0f, valueNodes);
+            ch.volume = resolve_param_or(p, "volume", 1.0f, graphNodes);
+            ch.pan    = resolve_param_or(p, "pan",    0.0f, graphNodes);
         } else {
             ch.volume = std::make_shared<ConstantSource>(1.0f);
             ch.pan    = std::make_shared<ConstantSource>(0.0f);
@@ -1740,14 +1789,14 @@ InstrumentPatch load_instrument_patch_json(const std::string& jsonText,
         auto g = build_graph(nodeMap, nodeOrder, &perf,
                              &inst->onsetNames);
 
-        auto srcIt = g.valueNodes.find(outputId);
-        if (srcIt == g.valueNodes.end())
+        auto srcIt = g.nodes.find(outputId);
+        if (srcIt == g.nodes.end())
             throw std::runtime_error("instrument: output node '" + outputId + "' not found");
-        vg.source = srcIt->second;
+        vg.source = as_signal(srcIt->second, outputId);
 
         // Trigger bindings (spec 2026-09-20-note-onsets-v2 §6) +
         // allEnvelopes (§4/§5) — see the render-path twin above.
-        for (auto& [nid, src] : g.valueNodes)
+        for (auto& [nid, src] : g.nodes)
             if (auto* env = dynamic_cast<Envelope*>(src.get())) {
                 vg.allEnvelopes.push_back(env);
                 if (env->trigger.source) vg.triggerBindings.push_back(env);
@@ -1759,9 +1808,9 @@ InstrumentPatch load_instrument_patch_json(const std::string& jsonText,
         bind_wiring(nodeMap, nodeOrder, g, vg);
         // Loop tails consumed only by tap edges (see render-path twin above).
         for (const auto& aid : collect_advance_ids(nodeMap, nodeOrder, outputId))
-            vg.advanceList.push_back(g.valueNodes.at(aid));
+            vg.advanceList.push_back(as_signal(g.nodes.at(aid), aid));
 
-        vg.nodesById = std::move(g.valueNodes);
+        adopt_nodes(vg, g);
 
         inst->voicePool.push_back(std::move(vg));
     }

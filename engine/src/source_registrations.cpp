@@ -98,7 +98,7 @@ void register_all_sources() {
     reg.register_type("BandSpectrum", SourceCategory::Additive,
         [](auto) { return std::make_shared<BandSpectrum>(); },
         // Configurator: gains array
-        [](ValueSource& src, const nlohmann::json& p, const ResolveParamFn&) {
+        [](Component& src, const nlohmann::json& p, const ResolveParamFn&) {
             auto& bs = static_cast<BandSpectrum&>(src);
             if (p.contains("gains")) bs.gains.values = p["gains"].get<std::vector<float>>();
         });
@@ -265,7 +265,7 @@ void register_all_sources() {
                 CombineOp::Add, 0.0f);
         },
         // Configurator: operation enum, gainAdj
-        [](ValueSource& src, const nlohmann::json& p, const ResolveParamFn&) {
+        [](Component& src, const nlohmann::json& p, const ResolveParamFn&) {
             auto& cs = static_cast<CombinedSource&>(src);
             // Legacy patches write `operation` as a NUMBER (a C# enum ordinal);
             // current ones write a string. Accept both, but do NOT quietly fall
@@ -303,7 +303,7 @@ void register_all_sources() {
     reg.register_type("CrossfadeSource", SourceCategory::Combiner,
         [](auto) { return std::make_shared<CrossfadeSource>(); },
         // Configurator: ratio, overlap, gainAdj
-        [](ValueSource& src, const nlohmann::json& p, const ResolveParamFn&) {
+        [](Component& src, const nlohmann::json& p, const ResolveParamFn&) {
             auto& cs = static_cast<CrossfadeSource&>(src);
             cs.ratio.value   = p.value("ratio", 0.5f);
             cs.overlap.value = p.value("overlap", 0.1f);
@@ -321,7 +321,7 @@ void register_all_sources() {
             return std::make_shared<StaticVarSource>(1.0f, 0.0f, 0.0f,
                 seed.value_or(0x57A7'0001u));
         },
-        [](ValueSource& src, const nlohmann::json& p, const ResolveParamFn&) {
+        [](Component& src, const nlohmann::json& p, const ResolveParamFn&) {
             auto& sv = static_cast<StaticVarSource&>(src);
             sv.baseValue = p.value("baseValue", 1.0f);
             sv.varPct    = p.value("varPct", 0.0f);
@@ -333,7 +333,7 @@ void register_all_sources() {
             return std::make_shared<StaticRangeSource>(0.0f, 1.0f, 0.0f,
                 seed.value_or(0x57A7'0002u));
         },
-        [](ValueSource& src, const nlohmann::json& p, const ResolveParamFn&) {
+        [](Component& src, const nlohmann::json& p, const ResolveParamFn&) {
             auto& sr = static_cast<StaticRangeSource&>(src);
             sr.min  = p.value("min", 0.0f);
             sr.max  = p.value("max", 1.0f);
@@ -351,7 +351,7 @@ void register_all_sources() {
         // and weight ({"ref":"id", "weight": 0.5}). The generic wire_params
         // pass has already added entries via add_param at weight 1.0; this
         // configurator overrides weights in-place where specified.
-        [](ValueSource& src, const nlohmann::json& p, const ResolveParamFn&) {
+        [](Component& src, const nlohmann::json& p, const ResolveParamFn&) {
             auto& ms = static_cast<MultiSource&>(src);
             if (!p.contains("source") || !p["source"].is_array()) return;
             const auto& arr = p["source"];
@@ -381,7 +381,7 @@ void register_all_sources() {
             return std::make_shared<RepeatingSource>(seed.value_or(0xAEAE'0000u));
         },
         // Configurator: duration, gap (plain floats)
-        [](ValueSource& src, const nlohmann::json& p, const ResolveParamFn&) {
+        [](Component& src, const nlohmann::json& p, const ResolveParamFn&) {
             auto& rep = static_cast<RepeatingSource&>(src);
             rep.duration.value    = p.value("duration", 0.5f);
             rep.durVarPct.value   = p.value("durVarPct", 0.0f);
@@ -394,7 +394,7 @@ void register_all_sources() {
             return std::make_shared<PhasedValueSource>(0.05f);
         },
         // Configurator: overlap, stages
-        [](ValueSource& src, const nlohmann::json& p, const ResolveParamFn& resolve) {
+        [](Component& src, const nlohmann::json& p, const ResolveParamFn& resolve) {
             auto& pvs = static_cast<PhasedValueSource&>(src);
             pvs.overlapSeconds = p.value("overlap", 0.05f);
             if (p.contains("stages")) {
@@ -417,7 +417,7 @@ void register_all_sources() {
     reg.register_type("BWLowpassFilter", SourceCategory::Filter,
         [](auto) { return std::make_shared<BWLowpassFilter>(2); },
         // Configurator: section count, "cutoff" alias
-        [](ValueSource& src, const nlohmann::json& p, const ResolveParamFn& resolve) {
+        [](Component& src, const nlohmann::json& p, const ResolveParamFn& resolve) {
             // JSON uses "cutoff" but param descriptor uses "cutoffFreq"
             if (p.contains("cutoff") && !src.set_param("cutoffFreq", resolve(p.at("cutoff"))))
                 throw std::runtime_error("'cutoff' has no pin 'cutoffFreq' to land on");
@@ -425,7 +425,7 @@ void register_all_sources() {
 
     reg.register_type("BWHighpassFilter", SourceCategory::Filter,
         [](auto) { return std::make_shared<BWHighpassFilter>(2); },
-        [](ValueSource& src, const nlohmann::json& p, const ResolveParamFn& resolve) {
+        [](Component& src, const nlohmann::json& p, const ResolveParamFn& resolve) {
             if (p.contains("cutoff") && !src.set_param("cutoffFreq", resolve(p.at("cutoff"))))
                 throw std::runtime_error("'cutoff' has no pin 'cutoffFreq' to land on");
         });
@@ -438,7 +438,7 @@ void register_all_sources() {
     // normalization. "cutoff" JSON alias matches the BW filters.
     reg.register_type("SVFSource", SourceCategory::Filter,
         [](auto) { return std::make_shared<SVFSource>(); },
-        [](ValueSource& src, const nlohmann::json& p, const ResolveParamFn& resolve) {
+        [](Component& src, const nlohmann::json& p, const ResolveParamFn& resolve) {
             if (p.contains("cutoff") && !src.set_param("cutoffFreq", resolve(p.at("cutoff"))))
                 throw std::runtime_error("'cutoff' has no pin 'cutoffFreq' to land on");
         });

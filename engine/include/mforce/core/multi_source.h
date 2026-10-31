@@ -33,8 +33,10 @@ struct MultiSource final : ValueSource {
   }
 
   // Wiring `source` appends (add_param routes here through the base).
-  bool set_param(std::string_view name, std::shared_ptr<ValueSource> src) override {
-    if (name != "source") return ValueSource::set_param(name, std::move(src));
+  bool set_param(std::string_view name, std::shared_ptr<Component> part) override {
+    if (name != "source") return ValueSource::set_param(name, std::move(part));
+    auto src = std::dynamic_pointer_cast<ValueSource>(std::move(part));
+    if (!src) return false;                     // a part, not a signal
     add(std::move(src));
     return true;
   }

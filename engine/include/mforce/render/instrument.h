@@ -137,7 +137,7 @@ struct PitchedInstrument final : Instrument {
   // `chain` is the transfer chain rooted at the voice's PerformOut
   // adapters; evaluated once per note at Realization/Setup.
   struct PushBinding {
-    std::shared_ptr<ValueSource>     consumer;
+    std::shared_ptr<Component>       consumer;
     std::string                      paramName;
     std::string                      targetNodeId;  // Multiplex clone fan
     std::shared_ptr<ValueSource>     chain;
@@ -176,11 +176,17 @@ struct PitchedInstrument final : Instrument {
     // inputs, if the root pull computed them this tick, are served from the
     // memo, so nothing double-advances).
     std::vector<std::shared_ptr<ValueSource>> advanceList;
-    // JSON node id -> this voice's clone (retained from build_graph so
-    // offline capture can resolve display ids and the host can report a
-    // fault by name; ~node-count shared_ptrs, the graph outlives them
+    // JSON node id -> this voice's clone of every node, signal or part
+    // (retained from build_graph so the host can name a node and an editor
+    // can reach one by id; ~node-count shared_ptrs, the graph outlives them
     // anyway). Filled on both loader paths.
-    std::unordered_map<std::string, std::shared_ptr<ValueSource>> nodesById;
+    std::unordered_map<std::string, std::shared_ptr<Component>> nodesById;
+    // The voice's signal nodes, in id order, built once at load for the
+    // walks that need signals and nothing else: the host's fault collection
+    // and capture, and the live note-on's reseed, which runs on the audio
+    // thread where a per-node cast has no business. A part is not here.
+    struct Signal { std::string id; ValueSource* node; };
+    std::vector<Signal> signals;
     // Envelopes in this voice with a wired `trigger` input (spec
     // 2026-09-20-note-onsets-v2 §6), collected at load. Raw pointers:
     // the voice's graph owns them (same lifetime rationale as
@@ -232,12 +238,12 @@ struct PitchedInstrument final : Instrument {
   void collect_faults(std::vector<FaultReport>& out) override {
     const auto first = std::ptrdiff_t(out.size());
     for (auto& vg : voicePool)
-      for (auto& [id, node] : vg.nodesById) {
-        const unsigned char f = node->take_faults();
+      for (auto& s : vg.signals) {
+        const unsigned char f = s.node->take_faults();
         if (!f) continue;
         auto it = std::find_if(out.begin() + first, out.end(),
-                               [&](const FaultReport& r) { return r.nodeId == id; });
-        if (it == out.end()) out.push_back({id, node->type_name(), f});
+                               [&](const FaultReport& r) { return r.nodeId == s.id; });
+        if (it == out.end()) out.push_back({s.id, s.node->type_name(), f});
         else it->faults |= f;
       }
     std::sort(out.begin() + first, out.end(),
@@ -290,9 +296,8 @@ struct PitchedInstrument final : Instrument {
     capturePerVoice.assign(voicePool.size(), {});
     for (size_t v = 0; v < voicePool.size(); ++v)
       for (size_t k = 0; k < ids.size(); ++k) {
-        auto it = voicePool[v].nodesById.find(ids[k]);
-        if (it != voicePool[v].nodesById.end())
-          capturePerVoice[v].push_back({it->second.get(), int(k)});
+        for (auto& s : voicePool[v].signals)
+          if (s.id == ids[k]) { capturePerVoice[v].push_back({s.node, int(k)}); break; }
       }
   }
   void capture_end() { capturePerVoice.clear(); }  // buffers stay for the caller
@@ -536,7 +541,7 @@ struct PitchedInstrument final : Instrument {
   void deliver_continuation(VoiceGraph& vg, float freq, float velocity,
                             int durSamples, float durSeconds,
                             float fromFreq, float onsetId) {
-    for (auto& [nid, src] : vg.nodesById) src->reseed();
+    for (auto& s : vg.signals) s.node->reseed();
     std::shared_ptr<Envelope> glide;
     if (glideSec > 0.0f && fromFreq > 0.0f && freq != fromFreq)
       glide = make_glide(vg, fromFreq, freq, durSamples);

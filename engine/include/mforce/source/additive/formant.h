@@ -232,7 +232,7 @@ struct FormantSequence final : ValueSource, IFormant {
     return descs;
   }
 
-  bool set_param(std::string_view name, std::shared_ptr<ValueSource> src) override {
+  bool set_param(std::string_view name, std::shared_ptr<Component> src) override {
     if (name != "spectra") return ValueSource::set_param(name, std::move(src));
     // Single-set: replace all with one (used by generic wiring path)
     auto fmt = std::dynamic_pointer_cast<IFormant>(src);
@@ -241,7 +241,7 @@ struct FormantSequence final : ValueSource, IFormant {
     return true;
   }
 
-  bool add_param(std::string_view name, std::shared_ptr<ValueSource> src) override {
+  bool add_param(std::string_view name, std::shared_ptr<Component> src) override {
     if (name != "spectra") return ValueSource::add_param(name, std::move(src));
     auto fmt = std::dynamic_pointer_cast<IFormant>(src);
     if (!fmt) return false;

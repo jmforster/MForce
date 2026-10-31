@@ -29,9 +29,9 @@ struct MultiplexSource final : Processor {
     // Builder returns {root source, valueNodes map by id}. The map gives
     // external code (paramMap fan-out) the handle to reach into each
     // clone's internals.
-    using ValueNodeMap = std::unordered_map<std::string, std::shared_ptr<ValueSource>>;
+    using NodeMap = std::unordered_map<std::string, std::shared_ptr<Component>>;
     using InstanceBuilder = std::function<
-        std::pair<std::shared_ptr<ValueSource>, ValueNodeMap>(int instanceIdx)>;
+        std::pair<std::shared_ptr<ValueSource>, NodeMap>(int instanceIdx)>;
 
     Setting<int> count{this, "count", 10, 1, 50};
 
@@ -178,7 +178,7 @@ private:
     std::string templateJson_;
     InstanceBuilder builder_;
     std::vector<std::shared_ptr<ValueSource>> instances_;
-    std::vector<ValueNodeMap> instanceValueNodes_;
+    std::vector<NodeMap> instanceValueNodes_;
     // The registered paramMap fan-out targets, by slot: the last value
     // delivered to each, replayed onto fresh clones (a rebuild discards the
     // live ones).

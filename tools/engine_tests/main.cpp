@@ -4482,7 +4482,7 @@ static void run_combine_mod_manual_pin_tests() {
     cloned.set_param("source", unused);
     cloned.set_setting("count", 3.0f);
     cloned.set_template("{}", 0, [](int) {
-        return std::make_pair(std::shared_ptr<ValueSource>(konst(2.0f)), MultiplexSource::ValueNodeMap{});
+        return std::make_pair(std::shared_ptr<ValueSource>(konst(2.0f)), MultiplexSource::NodeMap{});
     });
     cloned.prepare(ctx); cloned.start(100);
     for (int i = 0; i < 5; ++i) cloned.next();
@@ -4577,7 +4577,7 @@ static void run_combine_mod_setting_hook_tests() {
     int builds = 0;
     mux.set_template("{}", 0, [&builds](int) {
         ++builds;
-        return std::make_pair(std::shared_ptr<ValueSource>(konst(1.0f)), MultiplexSource::ValueNodeMap{});
+        return std::make_pair(std::shared_ptr<ValueSource>(konst(1.0f)), MultiplexSource::NodeMap{});
     });
     mux.prepare(ctx); mux.start(8);                                   CHECK(builds == 4);
     mux.prepare(ctx); mux.start(8);                                   CHECK(builds == 4);
@@ -4818,10 +4818,12 @@ static void run_split_equivalence_tests() {
     static const std::set<std::string> kNotRenderableUnwired = {
         "PhasedValueSource",   // stage-less: compute() indexes an empty boundaries_
     };
+    std::set<std::string> parts;   // registered types that are not signals: the split has nothing to compare
     for (auto& [name, cat] : reg.registered_types()) {
         const std::string n = name;
         if (kNotRenderableUnwired.count(n)) continue;
-        const SplitResult r = split_compare([&] { return reg.create(n); });
+        if (!std::dynamic_pointer_cast<ValueSource>(reg.create(n))) { parts.insert(n); continue; }
+        const SplitResult r = split_compare([&] { return std::dynamic_pointer_cast<ValueSource>(reg.create(n)); });
         if (!r.equal) std::printf("  split differs: %s\n", n.c_str());
         CHECK(r.equal);
         if (r.threw) std::printf("  (both arms threw at the defaults: %s)\n", n.c_str());
@@ -4840,6 +4842,7 @@ static void run_split_equivalence_tests() {
             CHECK(r.threw || r.nonzero);
         }
     }
+    CHECK(parts.empty());   // every registered type is a signal, until the parts leave ValueSource
     // A node knows no rate until a host prepares it.
     struct Probe final : Generator {
         float compute() override { return 0.0f; }
@@ -5305,7 +5308,7 @@ static void run_physical_split_tests() {
     }));
     {   // the loading alias builds the same type; excited, it sounds
         const SplitResult r = split_compare([&] {
-            auto k = SourceRegistry::instance().create("KSPianoString");
+            auto k = std::dynamic_pointer_cast<ValueSource>(SourceRegistry::instance().create("KSPianoString"));
             k->set_param("source", noise());
             return k;
         });
@@ -5329,7 +5332,7 @@ static void run_physical_split_tests() {
     }));
     for (const char* type : {"PierceFilter", "BowTable", "Wormhole"}) {
         CHECK(split_equivalent([&] {
-            auto s = SourceRegistry::instance().create(type);
+            auto s = std::dynamic_pointer_cast<ValueSource>(SourceRegistry::instance().create(type));
             s->set_param("source", std::make_shared<SineSource>());
             return s;
         }));
@@ -5663,7 +5666,7 @@ static void run_combine_mod_pin_split_tests() {
     std::vector<std::shared_ptr<PinCounter>> clones;
     mux.set_template("{}", 0, [&clones](int) {
         clones.push_back(std::make_shared<PinCounter>());
-        return std::make_pair(std::shared_ptr<ValueSource>(clones.back()), MultiplexSource::ValueNodeMap{});
+        return std::make_pair(std::shared_ptr<ValueSource>(clones.back()), MultiplexSource::NodeMap{});
     });
     mux.prepare(ctx);
     CHECK(clones.size() == 3);
@@ -6387,18 +6390,21 @@ static void run_structural_setting_tests() {
 // The loader refuses a per-note push into a structural setting — the legacy
 // paramMap's and the wiring format's dynamic pin — naming the node, the
 // setting and the reason; a value setting still takes one.
+// A load that fails for the reason the needle names; another reason is
+// printed, so a test that expected one refusal and got another says so.
+static bool load_fails_naming(const char* patch, const char* needle) {
+    try { (void)load_instrument_patch_json(patch); }
+    catch (const std::exception& e) {
+        const std::string msg = e.what();
+        if (msg.find(needle) == std::string::npos)
+            std::printf("  load failed for another reason: %s\n", msg.c_str());
+        return msg.find(needle) != std::string::npos;
+    }
+    return false;
+}
+
 static void run_structural_push_refusal_tests() {
     std::printf("structural settings: the loader refuses the wire\n");
-    auto load_fails_naming = [](const char* patch, const char* needle) {
-        try { (void)load_instrument_patch_json(patch); }
-        catch (const std::exception& e) {
-            const std::string msg = e.what();
-            if (msg.find(needle) == std::string::npos)
-                std::printf("  load failed for another reason: %s\n", msg.c_str());
-            return msg.find(needle) != std::string::npos;
-        }
-        return false;
-    };
     auto loads = [](const char* patch) {
         try { (void)load_instrument_patch_json(patch); return true; }
         catch (const std::exception& e) { std::printf("  load failed: %s\n", e.what()); return false; }
@@ -6433,6 +6439,51 @@ static void run_structural_push_refusal_tests() {
     CHECK(loads(pinValue));
 }
 
+// One wiring door for every pin kind: a Param or Input takes a signal and
+// refuses a part, a Slot takes its interface and refuses a signal; get_param
+// serves the signal pins, get_part the slots. The registry hands out
+// Components. A part named where a signal is expected fails the load naming
+// the node, the pin and the kind; the voice keeps a list of its signal nodes.
+struct Plug final : Component {   // a bare part: a Component that is no signal
+    const char* type_name() const override { return "Plug"; }
+};
+static void run_wiring_door_tests() {
+    std::printf("the wiring door: one call for every pin kind\n");
+    FullAdditiveSource add;
+    CHECK(add.set_param("frequency", std::make_shared<ConstantSource>(220.0f)));   // a signal into a Param
+    CHECK(!add.set_param("frequency", std::make_shared<Plug>()));                  // a part into a Param: refused
+    CHECK(add.set_param("partials", std::make_shared<FullPartials>()));            // a part into its slot
+    CHECK(!add.set_param("partials", std::make_shared<SineSource>()));             // a signal into a slot: refused
+    CHECK(!add.set_param("partials", std::make_shared<Plug>()));                   // the wrong part: refused
+    CHECK(add.get_part("frequency") == nullptr);                                   // a Param serves no part
+    CHECK(add.get_param("nothing") == nullptr && add.get_part("nothing") == nullptr);
+#if 0 // Task 3: the partials slot
+    CHECK(add.get_part("partials") != nullptr);
+    CHECK(add.get_param("partials") == nullptr);                                   // a slot serves no signal
+#endif
+    register_all_sources();
+    auto& reg = SourceRegistry::instance();
+    std::shared_ptr<Component> c = reg.create("SineSource");
+    CHECK(std::dynamic_pointer_cast<ValueSource>(c) != nullptr);
+    CHECK(std::dynamic_pointer_cast<ValueSource>(reg.create("FullPartials")) != nullptr);   // until the partials leave ValueSource
+#if 0 // Task 2: a part where a signal is expected fails the load naming node, pin and kind (a Formant is the first part)
+    const char* partAsSignal = R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"add","nodes":[
+      {"id":"parts","type":"FullPartials","params":{"maxPartials":4}},
+      {"id":"fm","type":"Formant","params":{"frequency":440.0}},
+      {"id":"add","type":"AdditiveSource","params":{"frequency":{"ref":"fm"},"amplitude":0.5,"partials":{"ref":"parts"}}}]}})";
+    CHECK(load_fails_naming(partAsSignal, "add"));
+    CHECK(load_fails_naming(partAsSignal, "frequency"));
+    CHECK(load_fails_naming(partAsSignal, "not a signal"));
+#endif
+    const char* additive = R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"add","nodes":[
+      {"id":"parts","type":"FullPartials","params":{"maxPartials":4}},
+      {"id":"add","type":"AdditiveSource","params":{"frequency":220.0,"amplitude":0.5,"partials":{"ref":"parts"},"formantWeight":0.0}}]}})";
+    auto ip = load_instrument_patch_json(additive);
+    const auto& vg = ip.instrument->voicePool[0];
+    CHECK(vg.signals.size() == 2);                       // Task 3 makes this 1: the part leaves ValueSource
+    CHECK(vg.nodesById.count("parts") == 1 && vg.nodesById.count("add") == 1);
+}
+
 int main() {
     run_alloc_probe_tests();
     run_allocation_tests_partials();
@@ -6441,6 +6492,7 @@ int main() {
     run_allocation_tests_pins();
     run_structural_setting_tests();
     run_structural_push_refusal_tests();
+    run_wiring_door_tests();
     run_pin_tests();
     run_base_tests();
     run_prepare_start_tests();
