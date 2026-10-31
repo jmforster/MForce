@@ -71,10 +71,7 @@ const SourceRegistry::Entry& SourceRegistry::entry(const std::string& type_name)
 
 std::shared_ptr<Component> SourceRegistry::create(const std::string& type_name,
                                                   std::optional<uint32_t> seed) const {
-  auto it = entries_.find(type_name);
-  if (it == entries_.end())
-    throw std::runtime_error("SourceRegistry: unknown type '" + type_name + "'");
-  return it->second.factory(seed);
+  return entry(type_name).factory(seed);
 }
 
 const JsonConfigurator* SourceRegistry::get_configurator(const std::string& type_name) const {

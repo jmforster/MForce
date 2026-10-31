@@ -6635,8 +6635,8 @@ static void run_review_gap_lifecycle_tests() {
 }
 
 // The one classification, declared where a type is registered: every type's
-// family, label and shelf (Part 3 section 3's table; the shelf is today's
-// menu — everything not in a main family menu is Experimental), the label
+// family, label and shelf (the families table in docs/architecture/part3-nodes.md;
+// the shelf is today's menu — everything not in a main family menu is Experimental), the label
 // derived from the type name where today's menu had none, the loading alias
 // still building its type, and labels unique within a family and shelf.
 struct FamilyRow { const char* name; Family family; const char* label; Shelf shelf; };
@@ -6728,6 +6728,8 @@ static const FamilyRow kFamilyTable[] = {
     {"StaticRangeSource", Family::Utility, "Static Range", Shelf::Experimental},
 };
 
+// The registry refuses a name it does not know, naming it; label() and shelf()
+// share family()'s lookup, so the one path stands for the three.
 static bool throws_with(const SourceRegistry& reg, const char* name) {
     try { (void)reg.family(name); } catch (const std::exception& e) {
         return std::string(e.what()).find(name) != std::string::npos;
@@ -6741,12 +6743,14 @@ static void run_registry_family_tests() {
     auto& reg = SourceRegistry::instance();
     int main = 0, experimental = 0;
     for (const auto& row : kFamilyTable) {
-        CHECK(reg.has(row.name));
-        if (reg.family(row.name) != row.family || reg.label(row.name) != row.label || reg.shelf(row.name) != row.shelf)
-            std::printf("  %s: %s / %s / %d\n", row.name, family_name(reg.family(row.name)), reg.label(row.name).c_str(), int(reg.shelf(row.name)));
-        CHECK(reg.family(row.name) == row.family);
-        CHECK(reg.label(row.name) == row.label);
-        CHECK(reg.shelf(row.name) == row.shelf);
+        const TypeTag* tag = reg.find(row.name);
+        if (!tag) { std::printf("  in kFamilyTable but not registered: %s\n", row.name); CHECK(tag != nullptr); continue; }
+        const std::string label = reg.label(row.name);
+        if (tag->family != row.family || label != row.label || tag->shelf != row.shelf)
+            std::printf("  %s: %s / %s / %d\n", row.name, family_name(tag->family), label.c_str(), int(tag->shelf));
+        CHECK(tag->family == row.family);
+        CHECK(label == row.label);
+        CHECK(tag->shelf == row.shelf);
         (row.shelf == Shelf::Main ? main : experimental)++;
     }
     CHECK(main == 63 && experimental == 22);

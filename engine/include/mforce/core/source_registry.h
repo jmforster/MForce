@@ -52,6 +52,8 @@ struct TypeTag {
   Shelf shelf = Shelf::Main;
 };
 
+// A registered type as the registry reports it. tag.label is the registry's
+// own copy of the label (or null): valid until that name is registered again.
 struct TypeEntry {
   std::string name;
   TypeTag tag;
@@ -85,7 +87,8 @@ public:
   std::vector<TypeEntry> types_in(Family family, Shelf shelf) const;
 
   bool has(const std::string& type_name) const;
-  // The tag of a registered type, or null for a name the registry does not know.
+  // The tag of a registered type, or null for a name the registry does not
+  // know; its label pointer is the registry's, valid until the name is registered again.
   const TypeTag* find(const std::string& type_name) const;
 
   // The tag's parts, by name; an unknown name throws (ask has() or find() first).
