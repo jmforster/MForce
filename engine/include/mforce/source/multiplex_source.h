@@ -26,7 +26,7 @@ namespace mforce {
 // stores a pending value + applies it immediately to any live clone, so
 // frequency (etc.) updates propagate into all N instances.
 struct MultiplexSource final : Processor {
-    // Builder returns {root source, valueNodes map by id}. The map gives
+    // Builder returns {root source, the clone's nodes by id}. The map gives
     // external code (paramMap fan-out) the handle to reach into each
     // clone's internals.
     using NodeMap = std::unordered_map<std::string, std::shared_ptr<Component>>;
@@ -58,7 +58,7 @@ struct MultiplexSource final : Processor {
 
     // Loader hook. The builder closure captures everything needed (subtree
     // JSON, base seed) to produce a freshly built root source
-    // plus valueNodes map for a given instance index.
+    // plus the clone's nodes by id for a given instance index.
     void set_template(std::string json, uint32_t baseSeed, InstanceBuilder builder) {
         templateJson_ = std::move(json);
         baseSeed_ = baseSeed;
@@ -124,14 +124,14 @@ struct MultiplexSource final : Processor {
 private:
     void rebuild_() {
         instances_.clear();
-        instanceValueNodes_.clear();
+        instanceNodes_.clear();
         if (!builder_) { templateDirty_ = false; return; }
         instances_.reserve(count.value);
-        instanceValueNodes_.reserve(count.value);
+        instanceNodes_.reserve(count.value);
         for (int i = 0; i < count.value; ++i) {
             auto pair = builder_(i);
             instances_.push_back(std::move(pair.first));
-            instanceValueNodes_.push_back(std::move(pair.second));
+            instanceNodes_.push_back(std::move(pair.second));
         }
         // The fresh clones get a constant on every registered target's pin,
         // and the last delivered value where there was one.
@@ -153,7 +153,7 @@ private:
     // Every clone's pin for a registered target gets its constant now, so a
     // later write finds one there. Control side (prepare, rebuild).
     void ensure_clone_param_sources_(const std::string& nodeId, const std::string& paramName) {
-        for (auto& instMap : instanceValueNodes_) {
+        for (auto& instMap : instanceNodes_) {
             auto it = instMap.find(nodeId);
             if (it == instMap.end()) continue;
             if (prepared()) ensure_constant(*it->second, paramName, render_context());
@@ -163,7 +163,7 @@ private:
     void apply_clone_param_to_all_(const std::string& nodeId,
                                    const std::string& paramName,
                                    float value) {
-        for (auto& instMap : instanceValueNodes_) {
+        for (auto& instMap : instanceNodes_) {
             auto it = instMap.find(nodeId);
             if (it == instMap.end()) continue;
             auto cs = prepared()
@@ -178,7 +178,7 @@ private:
     std::string templateJson_;
     InstanceBuilder builder_;
     std::vector<std::shared_ptr<ValueSource>> instances_;
-    std::vector<NodeMap> instanceValueNodes_;
+    std::vector<NodeMap> instanceNodes_;
     // The registered paramMap fan-out targets, by slot: the last value
     // delivered to each, replayed onto fresh clones (a rebuild discards the
     // live ones).

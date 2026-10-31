@@ -1094,7 +1094,7 @@ private:
 // ---------------------------------------------------------------------------
 struct CompositePartials final : Component, IPartials {
   // The sets it concatenates, in wiring order.
-  Slot<IPartials> partials{this, "partials", nullptr, true};
+  Slot<IPartials> partials{this, "partials", "an IPartials part", true};
 
   const char* type_name() const override { return "CompositePartials"; }
   SourceCategory category() const override { return SourceCategory::Additive; }

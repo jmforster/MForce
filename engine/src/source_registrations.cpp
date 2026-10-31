@@ -487,7 +487,14 @@ void register_all_sources() {
         });
 
     reg.register_type("FormantSequence", SourceCategory::Additive,
-        [](auto) { return std::make_shared<FormantSequence>(); });
+        [](auto) { return std::make_shared<FormantSequence>(); },
+        // The spectra arrive through the `spectra` slot; the old loader also
+        // read them under "formants", and a patch still saying so must not
+        // load without its spectra in silence.
+        [](Component&, const nlohmann::json& p, const ResolveParamFn&) {
+            if (p.contains("formants"))
+                throw std::runtime_error("FormantSequence takes its spectra under 'spectra', not 'formants'");
+        });
 
     // ExpandRule node — parametric block consumed by Partials hosts via
     // a "expandRule": {"ref": "..."} field. Mirrors the Formant pattern.

@@ -10,6 +10,7 @@ add_library(mforce_engine
   src/wav_writer.cpp
   src/wav_reader.cpp
   src/patch_loader.cpp
+  src/component.cpp
   src/source_registry.cpp
   src/source_registrations.cpp
 )

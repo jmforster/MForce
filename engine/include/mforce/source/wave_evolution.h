@@ -630,10 +630,7 @@ private:
 };
 
 // ---------------------------------------------------------------------------
-// IEvolutionHolder — interface for graph nodes that hold a WaveEvolution.
-// WavetableSource dynamic_casts its "evolution" input to this.
-// ---------------------------------------------------------------------------
-// A part the wavetable holds in its `evolution` slot: it carries the evolution
+// IEvolutionHolder — a part the wavetable holds in its `evolution` slot: it carries the evolution
 // algorithm and shows the algorithm's settings as a node. The owner drives it —
 // prepare once per build, start once per note — and a holder with pins of its
 // own prepares and starts them there; one without has nothing to do.
@@ -646,7 +643,7 @@ struct IEvolutionHolder {
 
 // ---------------------------------------------------------------------------
 // PluckEvolutionSource — graph node holding a PluckEvolution.
-// Wire to WavetableSource's "evolution" input.
+// Wire into WavetableSource's `evolution` slot.
 // ---------------------------------------------------------------------------
 struct PluckEvolutionSource final : Component, IEvolutionHolder {
   Setting<float> muting{this, "muting", 0.0f, 0.0f, 1.0f};
@@ -670,7 +667,7 @@ private:
 
 // ---------------------------------------------------------------------------
 // AveragingEvolutionSource — graph node holding an AveragingEvolution.
-// Wire to WavetableSource's "evolution" input.
+// Wire into WavetableSource's `evolution` slot.
 // ---------------------------------------------------------------------------
 struct AveragingEvolutionSource final : Component, IEvolutionHolder {
   Setting<float> sampleCount{this, "sampleCount", 4.0f,   1.0f, 48.0f};

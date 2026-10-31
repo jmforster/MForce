@@ -270,33 +270,6 @@ private:
   float v_{0.0f};
 };
 
-// The wiring door (component.h), here because it names ValueSource: a Param
-// or Input takes a signal and refuses a part; a Slot takes its interface and
-// refuses the rest (Slot<T>::set); a null part clears the pin.
-inline bool Component::set_param(std::string_view name, std::shared_ptr<Component> part) {
-  if (auto* p = find<Param>(name)) {
-    if (!part) { p->set(nullptr); return true; }
-    auto signal = std::dynamic_pointer_cast<ValueSource>(std::move(part));
-    if (!signal) return false;                   // a part, not a signal
-    p->set(std::move(signal));
-    return true;
-  }
-  if (auto* i = find<Input>(name)) {
-    if (!part) { i->set(nullptr); return true; }
-    auto signal = std::dynamic_pointer_cast<ValueSource>(std::move(part));
-    if (!signal) return false;
-    i->set(std::move(signal));
-    return true;
-  }
-  if (auto* s = find<SlotBase>(name)) {
-    if (!part) { s->clear(); on_slot_changed(name); return true; }
-    if (!s->set(std::move(part))) return false;
-    on_slot_changed(name);
-    return true;
-  }
-  return false;
-}
-
 // A per-note push needs a constant to write into. Returns the Param's source
 // as a ConstantSource, first giving an unwired pin one at the pin's constant;
 // nullptr when the node has no such Param or the pin is wired to another

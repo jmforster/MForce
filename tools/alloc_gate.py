@@ -14,7 +14,8 @@ Usage:
   python tools/alloc_gate.py [--jobs N] [--list] [--verbose] <patch.json | folder>...
 
 Exit: 1 if any child exited 1 (an allocation), else 2 if any exited 2 (a load
-failure), else 0.
+failure), else 3 if a child exited any other way (a crash) or the children's
+summaries do not account for every patch, else 0.
 """
 import concurrent.futures as cf
 import os
@@ -46,6 +47,38 @@ def run_slice(flags, paths):
     return r.returncode, r.stdout, r.stderr
 
 
+def merge(results, expected):
+    """Fold the children's (code, stdout, stderr) into (lines, summary, exit).
+
+    A child that exited with anything but 0, 1 or 2 crashed: its patches were
+    never checked, so the gate fails (3). The children's summaries must account
+    for every patch handed out; a short count fails the same way."""
+    total = allocate = failed = 0
+    lines, errs, exits = [], [], []
+    for code, out, err in results:
+        exits.append(code)
+        for line in out.splitlines():
+            m = SUMMARY.match(line)
+            if m:
+                total += int(m.group(1)); allocate += int(m.group(2)); failed += int(m.group(3))
+            else:
+                lines.append(line)
+        if err.strip():
+            errs.append(err.rstrip())
+    summary = f"{total} patches: {allocate} allocate, {failed} failed to load"
+    if any(c not in (0, 1, 2) for c in exits):
+        errs.append(f"a gate process crashed (exit {[c for c in exits if c not in (0, 1, 2)]}): its patches were not checked")
+        return lines, errs, summary, 3
+    if total != expected:
+        errs.append(f"the children reported {total} patches of {expected}")
+        return lines, errs, summary, 3
+    if 1 in exits:
+        return lines, errs, summary, 1
+    if 2 in exits:
+        return lines, errs, summary, 2
+    return lines, errs, summary, 0
+
+
 def main(argv):
     jobs, flags, targets = 1, [], []
     i = 0
@@ -69,25 +102,15 @@ def main(argv):
     size = -(-len(patches) // jobs)
     slices = [patches[k:k + size] for k in range(0, len(patches), size)]
 
-    total = allocate = failed = 0
-    exits = []
     with cf.ThreadPoolExecutor(max_workers=jobs) as ex:
-        for code, out, err in ex.map(lambda s: run_slice(flags, s), slices):
-            exits.append(code)
-            for line in out.splitlines():
-                m = SUMMARY.match(line)
-                if m:
-                    total += int(m.group(1)); allocate += int(m.group(2)); failed += int(m.group(3))
-                else:
-                    print(line)
-            if err.strip():
-                print(err.rstrip(), file=sys.stderr)
-    print(f"{total} patches: {allocate} allocate, {failed} failed to load")
-    if 1 in exits:
-        return 1
-    if 2 in exits:
-        return 2
-    return 0
+        results = list(ex.map(lambda s: run_slice(flags, s), slices))
+    lines, errs, summary, code = merge(results, len(patches))
+    for line in lines:
+        print(line)
+    for err in errs:
+        print(err, file=sys.stderr)
+    print(summary)
+    return code
 
 
 if __name__ == "__main__":

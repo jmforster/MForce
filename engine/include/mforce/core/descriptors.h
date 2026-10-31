@@ -33,8 +33,11 @@ struct ParamDescriptor {
 struct InputDescriptor {
   const char* name;
   bool multi{false};  // true = accepts multiple connections (e.g. spectra, stages)
-  // Optional UI advisory tag — same semantics as ParamDescriptor::hint.
+  // Optional UI advisory tag — same semantics as ParamDescriptor::hint. On a
+  // slot, what the slot takes ("an IFormant part"): the loader names it when
+  // it refuses a wire.
   const char* hint = nullptr;
+  bool slot = false;  // a structural input: a part, not a signal
 };
 
 enum class SettingType { Float, Int, Bool };

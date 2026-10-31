@@ -32,7 +32,7 @@ struct Component {
   // else is refused. This is the type-check at wiring, paid at load or at an
   // editor change and never on a render path; the builder turns false into a
   // load failure naming the node, the pin and the reason. A null part clears
-  // the pin. Defined in dsp_value_source.h, where ValueSource is complete.
+  // the pin. Defined in component.cpp, where ValueSource is complete.
   virtual bool set_param(std::string_view name, std::shared_ptr<Component> part);
   // The signal a Param or Input holds; nullptr for a slot or an unknown name.
   virtual std::shared_ptr<ValueSource> get_param(std::string_view name) const {
@@ -45,7 +45,8 @@ struct Component {
     auto* s = find<SlotBase>(name);
     return s ? s->first() : nullptr;
   }
-  // Wiring one more: a multi slot appends, every other pin replaces.
+  // Wiring one more: a multi slot appends; a single slot, a Param or an Input
+  // replaces (a node that keeps a hand-written list may append in its override).
   virtual bool add_param(std::string_view name, std::shared_ptr<Component> part) {
     if (auto* s = find<SlotBase>(name)) {
       if (!part) { s->clear(); on_slot_changed(name); return true; }
@@ -84,8 +85,8 @@ struct Component {
   // Hooks for a node that derives state from a setting, an array or a slot:
   // called after the change, by name. A slot's owner that keeps a view into
   // its part (the wavetable's evolution pointer, AdditiveSource2's copied
-  // arrays) refreshes it here, so a part wired or cleared after prepare is
-  // never read through a stale handle.
+  // arrays) refreshes it here, so a view into a part the slot no longer holds
+  // is never read.
   virtual void on_setting_changed(std::string_view) {}
   virtual void on_array_changed(std::string_view) {}
   virtual void on_slot_changed(std::string_view) {}
@@ -172,9 +173,12 @@ bool Slot<T>::add(std::shared_ptr<Component> part) {
 
 template <class T>
 bool Slot<T>::set(std::shared_ptr<Component> part) {
-  if (!dynamic_cast<T*>(part.get())) return false;
+  auto* view = dynamic_cast<T*>(part.get());
+  if (!view) return false;                       // the wrong kind: the slot keeps what it held
   clear();
-  return add(std::move(part));
+  views.push_back(view);
+  parts.push_back(std::move(part));
+  return true;
 }
 
 } // namespace mforce

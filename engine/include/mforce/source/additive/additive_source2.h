@@ -31,7 +31,7 @@ struct AdditiveSource2 final : WaveSource {
   Param freqVarSpeed{this, "freqVarSpeed", 0.0f, 0.0f, 100.0f, "hz"};
   Param amplVarDepth{this, "amplVarDepth", 0.0f, 0.0f, 1.0f,   "0-1"};
   Param amplVarSpeed{this, "amplVarSpeed", 0.0f, 0.0f, 100.0f, "hz"};
-  Slot<Partials> partials{this, "partials"};
+  Slot<Partials> partials{this, "partials", "a Partials part"};
 
   // The number of partials in the current definition; changing it rebuilds
   // the default partials (set_default_partials).

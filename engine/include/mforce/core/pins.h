@@ -186,7 +186,7 @@ struct Slot final : SlotBase {
   void clear() override { parts.clear(); views.clear(); }
   std::shared_ptr<Component> first() const override { return parts.empty() ? nullptr : parts.front(); }
   T* get() const { return views.empty() ? nullptr : views.front(); }   // the single slot's part as a T
-  InputDescriptor descriptor() const override { return {name, multi, hint}; }
+  InputDescriptor descriptor() const override { return {name, multi, hint, true}; }
 };
 
 } // namespace mforce

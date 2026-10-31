@@ -90,7 +90,7 @@ private:
 // ---------------------------------------------------------------------------
 struct FormantSpectrum : Component, IFormant {
   // The formants it spans: the JSON key "formants" is an array of refs.
-  Slot<IFormant> formants{this, "formants", nullptr, true};
+  Slot<IFormant> formants{this, "formants", "an IFormant part: a Formant or a spectrum", true};
 
   const char* type_name() const override { return "FormantSpectrum"; }
   SourceCategory category() const override { return SourceCategory::Additive; }
@@ -205,7 +205,7 @@ struct FormantSequence final : Component, IFormant {
   // Manual and this part prepares, starts and pulls it there.
   Param blend{this, "blend", 0.0f, 0.0f, 1.0f, nullptr, Pull::Manual};
   // The spectra it crossfades through, in wiring order.
-  Slot<IFormant> spectra{this, "spectra", nullptr, true};
+  Slot<IFormant> spectra{this, "spectra", "an IFormant part: a FormantSpectrum", true};
 
   const char* type_name() const override { return "FormantSequence"; }
   SourceCategory category() const override { return SourceCategory::Additive; }

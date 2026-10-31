@@ -240,9 +240,12 @@ struct GraphResult {
                                      std::string_view pin, const Component& part)
 {
     const bool isSignal = dynamic_cast<const ValueSource*>(&part) != nullptr;
+    std::string takes;
+    for (const auto& d : node.input_descriptors())
+        if (d.slot && d.hint && pin == d.name) takes = "; '" + std::string(pin) + "' takes " + d.hint;
     throw std::runtime_error("node '" + id + "' (" + node.type_name() + "): '"
                              + std::string(pin) + "' does not accept a " + part.type_name()
-                             + (isSignal ? "" : ", a part, not a signal"));
+                             + (isSignal ? "" : ", a part, not a signal") + takes);
 }
 
 // Every key of a node's params is one the engine reads: a descriptor of
@@ -281,7 +284,7 @@ static void reject_unknown_keys(const Component& src, const std::string& id,
         "ramp_accuracy", "ratio", "recurse", "ref", "release", "releaseCurve",
         "releaseMax", "releaseMin", "releasePower", "sampleCount",
         "sampleRate", "score", "seconds", "sections", "seed", "segs", "segs2",
-        "source", "spacing1", "spacing2", "spectra", "speed",
+        "source", "spacing1", "spacing2", "speed",
         "stage_accuracy", "stages", "startAmplitudes", "startPartials",
         "startVal", "sustain", "sustainLevel", "sustaining", "tap", "target",
         "targetLength", "targetPartials", "targetWave", "time", "timeMode",

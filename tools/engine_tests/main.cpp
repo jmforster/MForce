@@ -2968,8 +2968,8 @@ static void run_wavetable_pin_tests() {
     }
 }
 
-// The evolution input holds the node and keeps a typed view of the evolution
-// it carries; the node prepares the holder and evolves once per sample.
+// The evolution slot holds the holder; the node reads the evolution it
+// carries, prepares the holder and evolves once per sample.
 static void run_wavetable_evolution_tests() {
     RenderContext ctx{48000};
 
@@ -3137,8 +3137,7 @@ static void run_evolution_holder_setting_tests() {
 
 // The four holders with wired pins (reed, bowed, brass, bit rotate): the pins
 // are Manual. The wavetable prepares them once, the evolution advances each
-// once per sample in the order the old evolve() did, and the holder's own
-// next() advances nothing.
+// once per sample in the order the old evolve() did.
 static void run_evolution_manual_pin_tests() {
     RenderContext ctx{48000};
 
@@ -4852,7 +4851,6 @@ static void run_split_equivalence_tests() {
         // wired in; those have wired cases in their family's tests.
         static const std::set<std::string> kSilentUntilWired = {
             "KSString", "KSPianoString", "AllpassResonator", "DelayLine", "Mesh2D",   // excited by `source`
-            "PluckEvolution", "AveragingEvolution",                                   // parts read by WavetableSource
             "SegmentSource",                                                          // an empty shape
         };
         if ((cat == SourceCategory::Oscillator || cat == SourceCategory::Generator)
@@ -6578,7 +6576,98 @@ static void run_component_root_tests() {
         ++seen; parts += isPart;
     }
     CHECK(parts == 22);
-    CHECK(seen > 22);
+    CHECK(seen == int(reg.registered_types().size()));
+}
+
+// A node that counts the reseeds the live note-on delivers: the voice's reseed
+// walk must reach every signal, on the audio thread, with no cast.
+struct ReseedProbe final : Generator {
+    int reseeds{0};
+    float compute() override { return 1.0f; }
+    void reseed() override { ++reseeds; }
+    const char* type_name() const override { return "ReseedProbe"; }
+};
+
+// The review's gaps: a refused slot wire says what the slot takes; the deleted
+// branch's alias key is refused by name; a part in every signal position fails
+// the load with its path's message; parts nested three deep are prepared and
+// started through their owners; the live note-on's reseed reaches a signal.
+static void run_review_gap_tests() {
+    std::printf("the review's gaps: messages, aliases, nesting, the live reseed\n");
+    // a signal into a slot: the refusal names what the slot takes
+    const char* sineIntoPartials = R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"add","nodes":[
+      {"id":"osc","type":"SineSource","params":{"frequency":220.0}},
+      {"id":"add","type":"AdditiveSource","params":{"frequency":220.0,"amplitude":0.5,"partials":{"ref":"osc"}}}]}})";
+    CHECK(load_fails_naming(sineIntoPartials, "does not accept a SineSource"));
+    CHECK(load_fails_naming(sineIntoPartials, "takes an IPartials part"));
+    // a FormantSequence keyed "formants" (the alias the deleted branch read) is refused by name
+    const char* seqAlias = R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"add","nodes":[
+      {"id":"parts","type":"FullPartials","params":{"maxPartials":4}},
+      {"id":"f1","type":"Formant","params":{"frequency":500.0}},
+      {"id":"spec","type":"FormantSpectrum","params":{"formants":[{"ref":"f1"}]}},
+      {"id":"seq","type":"FormantSequence","params":{"blend":0.5,"formants":[{"ref":"spec"}]}},
+      {"id":"add","type":"AdditiveSource","params":{"frequency":220.0,"amplitude":0.5,"partials":{"ref":"parts"},"formant":{"ref":"seq"},"formantWeight":1.0}}]}})";
+    CHECK(load_fails_naming(seqAlias, "spectra"));
+    // a part as the instrument's output, as a mixer-mode output, as a channel's source
+    const char* partAsVoiceOutput = R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"parts","nodes":[
+      {"id":"parts","type":"FullPartials","params":{"maxPartials":4}}]}})";
+    CHECK(load_fails_naming(partAsVoiceOutput, "not a signal"));
+    auto file_fails_naming = [](const char* path, const char* text, const char* needle) {
+        { std::ofstream f(path); f << text; }
+        try { (void)load_patch_file(path); }
+        catch (const std::exception& e) {
+            const std::string msg = e.what();
+            if (msg.find(needle) == std::string::npos) std::printf("  load failed for another reason: %s\n", msg.c_str());
+            return msg.find(needle) != std::string::npos;
+        }
+        return false;
+    };
+    CHECK(file_fails_naming("renders/scratch/_part_as_output.json",
+        R"({"sampleRate":48000,"seconds":0.1,"graph":{"output":"parts","nodes":[{"id":"parts","type":"FullPartials","params":{"maxPartials":4}}]}})",
+        "mono-renderable"));
+    CHECK(file_fails_naming("renders/scratch/_part_as_channel.json",
+        R"({"sampleRate":48000,"seconds":0.1,"graph":{"output":"mix","nodes":[
+          {"id":"parts","type":"FullPartials","params":{"maxPartials":4}},
+          {"id":"ch1","type":"SoundChannel","inputs":{"source":"parts"},"params":{"volume":1.0,"pan":0.0}},
+          {"id":"mix","type":"StereoMixer","inputs":{"channels":["ch1"]},"params":{"gainL":1.0,"gainR":1.0}}]}})",
+        "No mono source"));
+    // parts three deep: the owner's prepare, start and next reach the innermost pins
+    {
+        RenderContext ctx{48000};
+        FullAdditiveSource f;
+        auto fm = std::make_shared<Formant>();
+        auto freq = std::make_shared<PinCounter>();
+        fm->set_param("frequency", freq);
+        auto spec = std::make_shared<FormantSpectrum>();
+        CHECK(spec->add_param("formants", fm));
+        auto seq = std::make_shared<FormantSequence>();
+        CHECK(seq->add_param("spectra", spec));
+        CHECK(f.set_param("partials", std::make_shared<FullPartials>()));
+        CHECK(f.set_param("formant", seq));
+        f.set_param("formantWeight", std::make_shared<ConstantSource>(1.0f));
+        f.prepare(ctx); f.start(4800);
+        for (int i = 0; i < 3; ++i) f.next();
+        CHECK(freq->rate == 48000 && freq->starts == 1 && freq->nexts == 3);
+    }
+    // the live note-on's reseed reaches the voice's signals
+    {
+        register_all_sources();
+        auto& reg = SourceRegistry::instance();
+        if (!reg.has("ReseedProbe"))
+            reg.register_type("ReseedProbe", SourceCategory::Generator, [](auto) { return std::make_shared<ReseedProbe>(); });
+        const char* probed = R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"p","nodes":[
+          {"id":"parts","type":"FullPartials","params":{"maxPartials":4}},
+          {"id":"p","type":"ReseedProbe"}]}})";
+        auto ip = load_instrument_patch_json(probed);
+        PitchedInstrument& inst = *ip.instrument;
+        inst.release_voice(inst.acquire_voice());
+        const int slot = std::max(0, inst.acquire_voice());
+        (void)inst.prepare_voice_at(slot, 60.0f, 0.8f, 0.1f);
+        inst.continue_voice_live(slot, 62.0f, 0.8f, 0.1f, 261.6f, 0.0f);
+        auto* probe = dynamic_cast<ReseedProbe*>(inst.voicePool[size_t(slot)].nodesById.at("p").get());
+        CHECK(probe != nullptr && probe->reseeds == 1);
+        inst.release_voice(slot);
+    }
 }
 
 int main() {
@@ -6593,6 +6682,7 @@ int main() {
     run_formant_part_tests();
     run_partials_part_tests();
     run_component_root_tests();
+    run_review_gap_tests();
     run_pin_tests();
     run_base_tests();
     run_prepare_start_tests();

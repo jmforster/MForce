@@ -950,13 +950,13 @@ static std::mutex g_audioMutex;
 static void update_node_dsp_unlocked(GraphNode& node) {
     if (!node.dspSource) return;
 
-    // First pass: wire all pins to their ConstantSource defaults, clear multi pins
+    // First pass: clear every pin, then wire the single ones to their
+    // ConstantSource defaults. The clear matters for a slot: a slot refuses a
+    // constant, so without it an unlinked part would stay in its owner.
     for (auto& pin : node.inputs) {
-        if (pin.multi && node.dspSource) {
-            node.dspSource->clear_param(pin.name);
-        } else if (pin.kind == UiPinKind::Input && pin.constantSrc) {
-            node.wire_pin(pin.name, pin.constantSrc);
-        }
+        if (pin.kind != UiPinKind::Input) continue;
+        node.dspSource->clear_param(pin.name);
+        if (!pin.multi && pin.constantSrc) node.wire_pin(pin.name, pin.constantSrc);
     }
 
     // Second pass: override with connected sources (multi pins use add_param)
@@ -12260,8 +12260,8 @@ static bool draw_partials_strip(GraphNode* node, ImU32 color,
 
 // Draw a Formant / FormantSpectrum / FormantSequence as a gain-vs-frequency curve.
 // Samples get_gain(f) at log-spaced frequencies across 20 Hz → ~Nyquist.
-// fmt_prepare/fmt_next must have been called for the formant to have valid
-// internal state — for a static node this happens at load time.
+// prepare/next must have been called for the formant to have valid internal
+// state — for a static node this happens at load time.
 static bool draw_formant_strip(GraphNode* node, ImU32 color,
                                float x, float y, float width, float height,
                                bool showPopoutBtn, int popoutBtnId) {

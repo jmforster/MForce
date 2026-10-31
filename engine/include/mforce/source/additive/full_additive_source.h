@@ -26,8 +26,8 @@ struct FullAdditiveSource final : WaveSource {
   // node drives through their interfaces, type-checked when wired.
   Param formantWeight{this, "formantWeight", 0.0f, 0.0f, 1.0f, "0-1", Pull::Manual};
   Param formantFloor {this, "formantFloor",  1.0f, 0.0f, 1.0f, "0-1", Pull::Manual};  // out-of-band suppression, 1.0 = no cut
-  Slot<IFormant> formant{this, "formant"};
-  Slot<IPartials> partials{this, "partials"};
+  Slot<IFormant> formant{this, "formant", "an IFormant part"};
+  Slot<IPartials> partials{this, "partials", "an IPartials part"};
 
   // --- NoiseBed configs (scalar so paramMap frequency-curves can drive them
   // per register — e.g. the clarinet noise-lead law 0.15/0.10/0.04 s by f0

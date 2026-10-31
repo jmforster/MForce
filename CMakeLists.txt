@@ -67,6 +67,9 @@ if(Python3_Interpreter_FOUND)
     add_test(NAME structure_meter
              COMMAND ${Python3_EXECUTABLE} tools/structure/check.py
              WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+    add_test(NAME tool_tests
+             COMMAND ${Python3_EXECUTABLE} -m unittest discover -s tools/tests -p "test_*.py"
+             WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 else()
     message(WARNING "Python3 not found: the structure meter tests are not registered")
 endif()

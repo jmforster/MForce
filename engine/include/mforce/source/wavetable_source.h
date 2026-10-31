@@ -20,12 +20,12 @@ struct WavetableSource final : WaveSource {
   // holder carries is read whenever the slot changes.
   Param speedFactor{this, "speedFactor", 1.0f, 0.01f, 10.0f, "ratio", Pull::Manual};
   Input inputSource{this, "inputSource", Input::Optional, nullptr, false, Pull::Manual};
-  Slot<IEvolutionHolder> evolution{this, "evolution"};
+  Slot<IEvolutionHolder> evolution{this, "evolution", "an evolution holder"};
   Setting<bool> interpolate{this, "interpolate", false, false, true};
 
   explicit WavetableSource(uint32_t inputSeed = 0xC0FFEEu);
 
-  // Evolution via graph: wire an IEvolutionHolder node to the "evolution" input
+  // Evolution via graph: wire an IEvolutionHolder node into the `evolution` slot
   // Evolution via patch_loader: direct ownership for JSON-loaded patches
   void set_evolution(std::unique_ptr<WaveEvolution> evo) {
     ownedEvolution_ = std::move(evo);
