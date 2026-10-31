@@ -37,7 +37,7 @@
     {"name": "ui",     "purpose": "mforce_ui, the patch editor.",
      "paths": ["tools/mforce_ui/"], "may_include": ["core", "source", "filter", "render", "music", "util", "imgui", "rtaudio", "rtmidi", "glfw"]},
     {"name": "tests",  "purpose": "engine_tests and test_figures.",
-     "paths": ["tools/engine_tests/", "tools/test_figures/", "tools/alloc_probe/", "tools/alloc_gate/"], "may_include": ["core", "source", "filter", "render", "music", "util"]},
+     "paths": ["tools/engine_tests/", "tools/test_figures/", "tools/alloc_probe/", "tools/alloc_gate/", "tools/alloc_gate.py"], "may_include": ["core", "source", "filter", "render", "music", "util"]},
     {"name": "durn",   "purpose": "durn_converter: notation formats to DURN.",
      "paths": ["tools/durn_converter/"], "may_include": ["music"]},
     {"name": "misc_tools", "purpose": "ppl_to_json, stamp_test, stk_ref, wav_check.",

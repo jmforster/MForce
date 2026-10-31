@@ -1,5 +1,6 @@
 #pragma once
 #include "mforce/core/dsp_value_source.h"
+#include "mforce/core/dsp_wave_source.h"
 #include "mforce/core/randomizer.h"
 #include <cmath>
 #include <algorithm>
@@ -453,7 +454,7 @@ struct BowedStringEvolution final : WaveEvolution {
   }
 
   float adjust(float frequency) override {
-    int totalLen = int(std::lround(float(sampleRate_) / std::max(20.0f, frequency)));
+    int totalLen = int(std::lround(float(sampleRate_) / std::max(WaveSource::kMinTableHz, frequency)));
     if (totalLen < 4) totalLen = 4;
     int halfLen = std::max(2, totalLen / 2);
     int Lb = std::max(1, int(std::round(bowPosition.value * float(halfLen))));

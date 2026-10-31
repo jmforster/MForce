@@ -134,8 +134,7 @@ private:
     float wscale = width.current();
     float rate = widthIsSecs_ ? float(sample_rate()) : 1.0f;
 
-    currVals_.clear();
-    currVals_.reserve((pairCount + 1) * 2);
+    currVals_.clear();   // within the capacity on_prepare reserved
     if (wscale == 1.0f) {
       // Exact legacy path — byte-identical at the default width.
       for (int i = 0; i < pairCount; ++i) {
