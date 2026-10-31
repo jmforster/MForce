@@ -96,7 +96,7 @@ The family of each type is Part 3 section 3's table applied to the registry's ei
 | Combiner | CombinedSource "Combined", CrossfadeSource "Crossfade", MultiSource "Multi", MultiplexSource "Multiplex" | — |
 | Utility | Wormhole "Wormhole" | StaticVarSource (derived), StaticRangeSource (derived) |
 
-(63 main, 22 experimental, 85 in all. VarSource, RangeSource and CurveNode appear in today's menu where the executor finds them — the function continues past line 10910 — with the labels there; if a label differs from this table, today's label wins and the Ledger says so. A type's position within a family follows today's menu order, top to bottom, main shelf first; Task 1 reorders the registrations file to match.)
+(63 main, 22 experimental, 85 in all. VarSource, RangeSource and CurveNode are not in a family menu today: they sit, with Envelope, in a hand-written block of four quick items at the top level of the create menu (`main.cpp:10993-10996`) and again in the Replace-with menu (`:11579-11582`); their labels are that block's — "Var", "Range", "Curve" — and the block itself stays (ruling 16). A type's position within a family follows today's menu order, top to bottom, main shelf first; the three quick items take the Modulator family's tail after Repeating; Task 1 reorders the registrations file to match.)
 
 - [ ] **Step 0: Date, base, old arm** — `date`; `git rev-parse --short HEAD`; copy `build/tools/mforce_cli/Release/mforce_cli.exe` to `renders/scratch/ab_tree/cli_pre32.exe` (the engine at `f1f8244`; build first if `gates.py --fast`'s stamp says the build is stale); `python tools/ab_render_set.py render renders/scratch/ab31/library_baselines.txt renders/scratch/ab32 old --cli renders/scratch/ab_tree/cli_pre32.exe` (132/132).
 - [ ] **Step 1: Write the failing tests** — `run_registry_family_tests()`:
@@ -235,6 +235,7 @@ Rulings made while planning (each becomes a line in the report's section 6; the 
 13. **The envelope headers leave `core`** (`envelope.h`, `envelope_presets.h`, `envelope_json.h`), with `var`, `range`, `curve`, `name_gate` and `multi`: `core` is "the contract and the primitives every node shares; the registry", and these are nodes. `render` includes `source/` already (`multiplex_source.h`), so `instrument.h`'s `#include "mforce/source/envelope/envelope.h"` is no new direction; `modules.json` says `render` may include `source`.
 14. **A/B set, base and scope as 3.1's**: library + baselines, the old arm from the build at `f1f8244`, 0 DIFFER expected; nothing in this checkpoint touches a render path.
 15. **Order of tasks**: the registry first (one classification exists before anything reads it), then the menu (the first reader), then the colours (the second), then the folders (no reader), then the close.
+16. **The four quick items stay hand-written.** Today's create menu and Replace-with menu each open with Curve, Envelope, Var and Range before the family menus — a convenience block of the four most-wired nodes, not a classification. It is kept as it is (eight `menu_source` lines in two places); Var, Range and Curve also appear under Modulators and Envelope under Envelopes, generated. Cost if wrong: eight lines, or Part 7's menu design removes them.
 
 (Execution rulings, from the executing-plans ledger, by task.)
 
