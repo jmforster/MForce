@@ -21,14 +21,14 @@ namespace mforce {
 // ---------------------------------------------------------------------------
 struct FullAdditiveSource final : WaveSource {
   // After WaveSource's three. The formant weight and floor are read only
-  // while a formant is wired, and `formant` and `partials` are structural
-  // inputs the node calls into rather than values, so all four are Manual:
-  // the node prepares them and advances them in wave(), in this order. The
-  // two structural wires are type-checked in set_param, which keeps a typed
-  // view of the part it holds.
+  // while a formant is wired, so both are Manual: the node prepares them and
+  // advances them in wave(). `formant` is a slot — a part the node drives
+  // through its interface, type-checked when wired; `partials` is a
+  // structural input the node calls into, type-checked in set_param, which
+  // keeps a typed view of the part it holds.
   Param formantWeight{this, "formantWeight", 0.0f, 0.0f, 1.0f, "0-1", Pull::Manual};
   Param formantFloor {this, "formantFloor",  1.0f, 0.0f, 1.0f, "0-1", Pull::Manual};  // out-of-band suppression, 1.0 = no cut
-  Input formant {this, "formant",  Input::Optional, nullptr, false, Pull::Manual};
+  Slot<IFormant> formant{this, "formant"};
   Input partials{this, "partials", Input::Optional, nullptr, false, Pull::Manual};
 
   // --- NoiseBed configs (scalar so paramMap frequency-curves can drive them
@@ -46,15 +46,9 @@ struct FullAdditiveSource final : WaveSource {
   const char* type_name() const override { return "AdditiveSource"; }
   SourceCategory category() const override { return SourceCategory::Additive; }
 
-  // Wiring `formant` or `partials` takes the part's interface; a source that
-  // does not implement it is ignored.
+  // Wiring `partials` takes the part's interface; a source that does not
+  // implement it is refused.
   bool set_param(std::string_view name, std::shared_ptr<Component> src) override {
-    if (name == "formant") {
-      auto f = std::dynamic_pointer_cast<IFormant>(src);
-      if (!f) return false;                     // the wrong kind for the slot
-      formant_ = std::move(f); formant.set(std::dynamic_pointer_cast<ValueSource>(src));
-      return true;
-    }
     if (name == "partials") {
       auto p = std::dynamic_pointer_cast<IPartials>(src);
       if (!p) return false;
@@ -71,11 +65,10 @@ protected:
   float wave() override;
 
 private:
-  // The parts the `partials` and `formant` inputs hold, as the interfaces the
-  // node calls. Partials do all the per-partial math and are required; a
-  // formant is optional.
+  // The part the `partials` input holds, as the interface the node calls.
+  // Partials do all the per-partial math and are required; the formant, read
+  // from its slot, is optional.
   std::shared_ptr<IPartials> partials_;
-  std::shared_ptr<IFormant>  formant_;
 
   // --- NoiseBed (clarinet-analysis breath bed; inert at noiseBedLevel 0) ---
   // v1 simplification of the report's "formant-shaped" bed: the measured

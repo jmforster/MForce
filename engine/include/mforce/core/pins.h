@@ -165,7 +165,8 @@ struct Array final : PinBase {
 struct SlotBase : PinBase {
   static constexpr PinKind kKind = PinKind::Slot;
   virtual InputDescriptor descriptor() const = 0;
-  virtual bool set(std::shared_ptr<Component> part) = 0;
+  virtual bool set(std::shared_ptr<Component> part) = 0;   // replaces what the slot holds
+  virtual bool add(std::shared_ptr<Component> part) = 0;   // appends on a multi slot, replaces on a single one
   virtual void clear() = 0;
   virtual std::shared_ptr<Component> first() const = 0;   // the part a single slot holds, a multi slot's first
 protected:
@@ -181,6 +182,7 @@ struct Slot final : SlotBase {
   Slot(Component* owner, const char* n, const char* h = nullptr, bool m = false)
     : SlotBase(n), hint(h), multi(m) { attach(owner); }
   bool set(std::shared_ptr<Component> part) override;   // component.h: false if part is not a T
+  bool add(std::shared_ptr<Component> part) override;
   void clear() override { parts.clear(); views.clear(); }
   std::shared_ptr<Component> first() const override { return parts.empty() ? nullptr : parts.front(); }
   T* get() const { return views.empty() ? nullptr : views.front(); }   // the single slot's part as a T

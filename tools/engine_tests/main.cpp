@@ -3242,7 +3242,7 @@ static void run_additive_structural_pin_tests() {
     CHECK(input_names(seq) == "spectra,");
     CHECK(seq.input_descriptors()[0].multi);
     FormantSpectrum spec;
-    CHECK(param_names(spec).empty() && input_names(spec).empty());
+    CHECK(param_names(spec).empty() && input_names(spec) == "formants,");
 
     CompositePartials comp;
     CHECK(param_names(comp).empty());
@@ -3307,11 +3307,16 @@ static void run_additive_smoke_tests() {
     AdditiveSource2 a2;          a2.set_default_partials(40); smoke(a2);
     BasicAdditiveSource basic;   smoke(basic);
     FullAdditiveSource bare;     smoke(bare);                 // no partials: silent
-    Formant formant;                    smoke(formant);
-    FormantSpectrum spectrum;           spectrum.formants.push_back(std::make_shared<Formant>()); smoke(spectrum);
-    FixedSpectrum fixed({0.0f, 1.0f});  smoke(fixed);
-    BandSpectrum band;                  smoke(band);
-    FormantSequence seq;                smoke(seq);
+    // A formant part is driven by its owner; its gain is what it answers.
+    auto smokeFormant = [&](IFormant& f) {
+        f.prepare(ctx); f.start(4800);
+        for (int i = 0; i < 10; ++i) { f.next(); CHECK(std::isfinite(f.get_gain(1000.0f))); }
+    };
+    Formant formant;                    smokeFormant(formant);
+    FormantSpectrum spectrum;           spectrum.add_param("formants", std::make_shared<Formant>()); smokeFormant(spectrum);
+    FixedSpectrum fixed({0.0f, 1.0f});  smokeFormant(fixed);
+    BandSpectrum band;                  smokeFormant(band);
+    FormantSequence seq;                smokeFormant(seq);
     CompositePartials comp;             smoke(comp);
     ExpandRuleNode rule;                smoke(rule);
     FullPartials full;                  smoke(full);
@@ -3396,9 +3401,9 @@ static void run_additive_manual_pin_tests() {
     fm.set_param("power", c2);
     fm.prepare(ctx); fm.start(4800);
     fm.next();
-    fm.fmt_next();
+    fm.next();
     CHECK(c1->starts == 1 && c2->starts == 1);
-    CHECK(c1->rate == 48000 && c2->rate == 48000);     // fmt_prepare reached the pins
+    CHECK(c1->rate == 48000 && c2->rate == 48000);     // prepare reached the pins
     CHECK(c1->nexts == 2 && c2->nexts == 2);
 
     BandSpectrum band;
@@ -3406,8 +3411,8 @@ static void run_additive_manual_pin_tests() {
     auto b1 = std::make_shared<PinCounter>(), b2 = std::make_shared<PinCounter>();
     band.set_param("startFreq", b1);
     seq.set_param("blend", b2);
-    band.fmt_prepare(ctx); band.fmt_start(4800); band.fmt_next();
-    seq.fmt_prepare(ctx);  seq.fmt_start(4800);  seq.fmt_next();
+    band.prepare(ctx); band.start(4800); band.next();
+    seq.prepare(ctx);  seq.start(4800);  seq.next();
     CHECK(b1->starts == 1 && b1->nexts == 1);
     CHECK(b2->starts == 1 && b2->nexts == 1);
 
@@ -3459,11 +3464,12 @@ static void run_additive_wiring_tests() {
     auto other = std::make_shared<ConstantSource>(1.0f);
     f.set_param("partials", fp);
     f.set_param("formant", fm);
-    CHECK(f.get_param("partials") == fp && f.get_param("formant") == fm);
-    f.set_param("partials", other);                        // not an IPartials: ignored
-    f.set_param("formant", other);
-    f.set_param("formant", nullptr);
-    CHECK(f.get_param("partials") == fp && f.get_param("formant") == fm);
+    CHECK(f.get_param("partials") == fp && f.get_part("formant") == fm);
+    CHECK(!f.set_param("partials", other));                // not an IPartials: refused
+    CHECK(!f.set_param("formant", other));                 // not an IFormant: refused, the slot keeps its part
+    CHECK(f.get_param("partials") == fp && f.get_part("formant") == fm);
+    f.set_param("formant", nullptr);                       // null clears the slot
+    CHECK(f.get_part("formant") == nullptr);
 
     AdditiveSource2 a2;
     auto sp = std::make_shared<SequencePartials>();
@@ -3478,15 +3484,15 @@ static void run_additive_wiring_tests() {
     FormantSequence seq;
     auto s1 = std::make_shared<FormantSpectrum>(), s2 = std::make_shared<FormantSpectrum>();
     seq.set_param("spectra", s1);
-    CHECK(seq.formants.size() == 1);
+    CHECK(seq.spectra.views.size() == 1);
     seq.add_param("spectra", s2);
-    CHECK(seq.formants.size() == 2);
+    CHECK(seq.spectra.views.size() == 2);
     seq.set_param("spectra", s2);                          // set replaces, add appends
-    CHECK(seq.formants.size() == 1);
-    seq.add_param("spectra", other);                       // not an IFormant: ignored
-    CHECK(seq.formants.size() == 1);
+    CHECK(seq.spectra.views.size() == 1);
+    seq.add_param("spectra", other);                       // not an IFormant: refused
+    CHECK(seq.spectra.views.size() == 1);
     seq.clear_param("spectra");
-    CHECK(seq.formants.empty());
+    CHECK(seq.spectra.views.empty());
     seq.set_param("blend", other);                         // the pin is served by the base
     CHECK(seq.get_param("blend") == other && seq.get_param("spectra") == nullptr);
 
@@ -4810,6 +4816,13 @@ static bool split_equivalent(const std::function<std::shared_ptr<ValueSource>()>
     return split_compare(make, frames, notes, sampleRate).equal;
 }
 
+// The registered types that are parts, not signals: each implements its
+// interface and nothing of ValueSource. The list grows as the families leave
+// ValueSource and is the audit's oracle at the close.
+static const std::set<std::string> kPartTypes = {
+    "Formant", "FormantSpectrum", "FixedSpectrum", "BandSpectrum", "FormantSequence",
+};
+
 static void run_split_equivalence_tests() {
     register_all_sources();
     auto& reg = SourceRegistry::instance();
@@ -4842,7 +4855,8 @@ static void run_split_equivalence_tests() {
             CHECK(r.threw || r.nonzero);
         }
     }
-    CHECK(parts.empty());   // every registered type is a signal, until the parts leave ValueSource
+    CHECK(parts == kPartTypes);   // exactly the parts are not signals
+    if (parts != kPartTypes) for (const auto& n : parts) std::printf("  not a signal: %s\n", n.c_str());
     // A node knows no rate until a host prepares it.
     struct Probe final : Generator {
         float compute() override { return 0.0f; }
@@ -5155,7 +5169,7 @@ static std::shared_ptr<ExplicitPartials> make_split_partials() {
     return p;
 }
 
-static std::shared_ptr<FullAdditiveSource> make_split_full(std::shared_ptr<ValueSource> formant) {
+static std::shared_ptr<FullAdditiveSource> make_split_full(std::shared_ptr<Component> formant) {
     auto f = std::make_shared<FullAdditiveSource>();
     f->set_param("partials", make_split_partials());
     if (formant) {
@@ -5199,8 +5213,8 @@ static void run_additive_split_tests() {
     CHECK(split_equivalent([] { return make_split_full(make_split_formant(800.0f)); }, 2048, 4));
     CHECK(split_equivalent([] {
         auto spec = std::make_shared<FormantSpectrum>();
-        spec->formants.push_back(make_split_formant(500.0f));
-        spec->formants.push_back(make_split_formant(1500.0f));
+        spec->add_param("formants", make_split_formant(500.0f));
+        spec->add_param("formants", make_split_formant(1500.0f));
         return make_split_full(spec);
     }, 2048, 4));
     CHECK(split_equivalent([] {
@@ -5208,7 +5222,7 @@ static void run_additive_split_tests() {
         seq->set_param("blend", Envelope::make_ar(0.5f));
         for (float hz : {400.0f, 1200.0f}) {
             auto spec = std::make_shared<FormantSpectrum>();
-            spec->formants.push_back(make_split_formant(hz));
+            spec->add_param("formants", make_split_formant(hz));
             seq->add_param("spectra", spec);
         }
         return make_split_full(seq);
@@ -6466,7 +6480,7 @@ static void run_wiring_door_tests() {
     std::shared_ptr<Component> c = reg.create("SineSource");
     CHECK(std::dynamic_pointer_cast<ValueSource>(c) != nullptr);
     CHECK(std::dynamic_pointer_cast<ValueSource>(reg.create("FullPartials")) != nullptr);   // until the partials leave ValueSource
-#if 0 // Task 2: a part where a signal is expected fails the load naming node, pin and kind (a Formant is the first part)
+    // a part where a signal is expected fails the load naming node, pin and kind
     const char* partAsSignal = R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"add","nodes":[
       {"id":"parts","type":"FullPartials","params":{"maxPartials":4}},
       {"id":"fm","type":"Formant","params":{"frequency":440.0}},
@@ -6474,7 +6488,6 @@ static void run_wiring_door_tests() {
     CHECK(load_fails_naming(partAsSignal, "add"));
     CHECK(load_fails_naming(partAsSignal, "frequency"));
     CHECK(load_fails_naming(partAsSignal, "not a signal"));
-#endif
     const char* additive = R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"add","nodes":[
       {"id":"parts","type":"FullPartials","params":{"maxPartials":4}},
       {"id":"add","type":"AdditiveSource","params":{"frequency":220.0,"amplitude":0.5,"partials":{"ref":"parts"},"formantWeight":0.0}}]}})";
@@ -6482,6 +6495,44 @@ static void run_wiring_door_tests() {
     const auto& vg = ip.instrument->voicePool[0];
     CHECK(vg.signals.size() == 2);                       // Task 3 makes this 1: the part leaves ValueSource
     CHECK(vg.nodesById.count("parts") == 1 && vg.nodesById.count("add") == 1);
+}
+
+// The formant family are parts: a FormantSpectrum holds its formants in a
+// multi slot that clears and refills, set replaces and add appends, a signal
+// is refused, a Formant is no longer a ValueSource, and a formant edited on a
+// loaded instrument reaches the next note through the owner's prepare.
+static void run_formant_part_tests() {
+    std::printf("formants: parts in slots\n");
+    {
+        FormantSpectrum spec;
+        auto f1 = std::make_shared<Formant>(); f1->set_param("frequency", std::make_shared<ConstantSource>(500.0f));
+        auto f2 = std::make_shared<Formant>(); f2->set_param("frequency", std::make_shared<ConstantSource>(2000.0f));
+        CHECK(spec.add_param("formants", f1) && spec.add_param("formants", f2));
+        CHECK(spec.clear_param("formants"));
+        CHECK(spec.add_param("formants", f2));
+        spec.prepare(RenderContext{48000}); spec.start(4800); spec.next();
+        CHECK(!spec.contains(500.0f) && spec.contains(2000.0f));                     // exactly the refilled set
+        CHECK(!spec.add_param("formants", std::make_shared<SineSource>()));          // a signal into the slot: refused
+        CHECK(spec.set_param("formants", f1));                                       // set replaces on a multi slot
+        CHECK(spec.get_part("formants") == f1);
+        CHECK(spec.formants.views.size() == 1);
+        register_all_sources();
+        CHECK(std::dynamic_pointer_cast<ValueSource>(SourceRegistry::instance().create("Formant")) == nullptr);
+        CHECK(std::dynamic_pointer_cast<ValueSource>(SourceRegistry::instance().create("FormantSequence")) == nullptr);
+    }
+    // a formant's gain changed on a loaded instrument, then prepare: the next note hears it
+    {
+        const char* shaped = R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"add","nodes":[
+          {"id":"parts","type":"FullPartials","params":{"maxPartials":8}},
+          {"id":"fm","type":"Formant","params":{"frequency":440.0,"gain":1.0,"width":300.0}},
+          {"id":"add","type":"AdditiveSource","params":{"frequency":220.0,"amplitude":0.5,"partials":{"ref":"parts"},"formant":{"ref":"fm"},"formantWeight":1.0}}]}})";
+        auto ip = load_instrument_patch_json(shaped);
+        const auto before = render_one_live_note(*ip.instrument, 60.0f);
+        ip.instrument->voicePool[0].nodesById.at("fm")->set_param("gain", std::make_shared<ConstantSource>(0.0f));
+        ip.instrument->prepare(RenderContext{48000});
+        const auto after = render_one_live_note(*ip.instrument, 60.0f);
+        CHECK(!same_bits(before, after));
+    }
 }
 
 int main() {
@@ -6493,6 +6544,7 @@ int main() {
     run_structural_setting_tests();
     run_structural_push_refusal_tests();
     run_wiring_door_tests();
+    run_formant_part_tests();
     run_pin_tests();
     run_base_tests();
     run_prepare_start_tests();

@@ -527,14 +527,14 @@ struct GraphNode {
     void rebuild_formant_spectrum() {
         auto spec = std::dynamic_pointer_cast<FormantSpectrum>(dspSource);
         if (!spec) return;
-        spec->formants.clear();
+        spec->clear_param("formants");
         for (auto& row : formantRows) {
             auto f = std::make_shared<Formant>();
             f->frequency.set(std::make_shared<ConstantSource>(row.frequency));
             f->gain.set(std::make_shared<ConstantSource>(row.gain));
             f->width.set(std::make_shared<ConstantSource>(row.width));
             f->power.set(std::make_shared<ConstantSource>(row.power));
-            spec->formants.push_back(f);
+            spec->add_param("formants", f);
         }
     }
 
@@ -621,8 +621,11 @@ struct GraphNode {
         }
 
         auto tmp = reg.create(typeName);
-        for (const auto& desc : tmp->input_descriptors())
+        for (const auto& desc : tmp->input_descriptors()) {
+            // A FormantSpectrum's formants are its inline table, not a face pin.
+            if (typeName == "FormantSpectrum" && std::string_view(desc.name) == "formants") continue;
             inputs.emplace_back(desc.name, UiPinKind::Input, 0.0f, true, desc.multi, desc.hint);
+        }
         for (const auto& desc : tmp->param_descriptors())
             inputs.emplace_back(desc.name, UiPinKind::Input, desc.default_value, false, false, desc.hint);
         outputs.emplace_back("out", UiPinKind::Output);
@@ -12359,7 +12362,7 @@ static bool draw_formant_strip(GraphNode* node, ImU32 color,
         gains = scrubCurve.empty() ? endCurve : scrubCurve;
     } else {
         // Fallback: single curve from cached formant state.
-        ifp->fmt_next();
+        ifp->next();
         for (int i = 0; i < samples; ++i) {
             float t = float(i) / float(samples - 1);
             float f = std::pow(10.0f, logFmin + t * (logFmax - logFmin));

@@ -479,9 +479,11 @@ void register_all_sources() {
         [](auto) { return std::make_shared<FormantSpectrum>(); });
 
     reg.register_type("FixedSpectrum", SourceCategory::Additive,
-        [](auto) {
-            // Needs gains from JSON — create empty, configurator fills
-            return std::make_shared<FixedSpectrum>(std::vector<float>{});
+        [](auto) { return std::make_shared<FixedSpectrum>(std::vector<float>{}); },
+        // The gains arrive through the generic array pass; a spectrum without
+        // them is an authoring error, not a silent zero.
+        [](Component&, const nlohmann::json& p, const ResolveParamFn&) {
+            if (!p.contains("gains")) throw std::runtime_error("FixedSpectrum requires params.gains");
         });
 
     reg.register_type("FormantSequence", SourceCategory::Additive,

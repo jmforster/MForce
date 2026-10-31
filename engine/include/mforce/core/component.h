@@ -45,8 +45,12 @@ struct Component {
     auto* s = find<SlotBase>(name);
     return s ? s->first() : nullptr;
   }
-  // A multi slot appends in set; a single pin replaces.
+  // Wiring one more: a multi slot appends, every other pin replaces.
   virtual bool add_param(std::string_view name, std::shared_ptr<Component> part) {
+    if (auto* s = find<SlotBase>(name)) {
+      if (!part) { s->clear(); return true; }
+      return s->add(std::move(part));
+    }
     return set_param(name, std::move(part));
   }
   // The Param pin of that name, or nullptr when the node has none.
@@ -150,13 +154,20 @@ inline void PinBase::attach(Component* owner) { owner_ = owner; owner->register_
 inline void PinBase::source_changed() { if (owner_) owner_->refresh_auto_sources(); }
 
 template <class T>
-bool Slot<T>::set(std::shared_ptr<Component> part) {
+bool Slot<T>::add(std::shared_ptr<Component> part) {
   auto* view = dynamic_cast<T*>(part.get());
-  if (!view) return false;
+  if (!view) return false;                       // the wrong kind: the slot keeps what it held
   if (!multi) clear();
   views.push_back(view);
   parts.push_back(std::move(part));
   return true;
+}
+
+template <class T>
+bool Slot<T>::set(std::shared_ptr<Component> part) {
+  if (!dynamic_cast<T*>(part.get())) return false;
+  clear();
+  return add(std::move(part));
 }
 
 } // namespace mforce

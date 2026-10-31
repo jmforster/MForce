@@ -230,7 +230,6 @@ static std::vector<std::string> collect_advance_ids(
 
 struct GraphResult {
     std::unordered_map<std::string, std::shared_ptr<Component>> nodes;        // every node by id, signal or part
-    std::unordered_map<std::string, std::shared_ptr<IFormant>>  formantNodes;
     std::unordered_map<std::string, std::unique_ptr<MonoSource>>  monoNodes;
 };
 
@@ -477,14 +476,6 @@ static void add_mono(
     else    g.monoNodes[id] = std::make_unique<ValueSourceMono>(src);
 }
 
-// Register IFormant if the source implements it.
-static void add_formant(
-    GraphResult& g, const std::string& id, const std::shared_ptr<Component>& src)
-{
-    auto fmt = std::dynamic_pointer_cast<IFormant>(src);
-    if (fmt) g.formantNodes[id] = fmt;
-}
-
 // Per-voice performance adapters, handed down so PerformNode instances all
 // resolve to the SAME objects (pin_model_design.md; perform_source_design.md
 // §2.3: "All instances render the same outputs"). Null in NodeGraph/standalone
@@ -531,7 +522,6 @@ static GraphResult build_graph(
 
     GraphResult g;
     auto& graphNodes   = g.nodes;
-    auto& formantNodes = g.formantNodes;
 
     // Tap edges resolve to placeholders during the node loop; bound below
     // once every node exists (they may point forward in nodeOrder).
@@ -760,40 +750,6 @@ static GraphResult build_graph(
             graphNodes[id] = src;
             add_mono(g, id, src);
         }
-        // ---- Formant collection types (need formantNodes map) ----
-        else if (type == "FormantSpectrum") {
-            auto spec = std::make_shared<FormantSpectrum>();
-            if (pp && pp->contains("formants")) {
-                for (auto& fref : (*pp)["formants"]) {
-                    std::string fid = fref.at("ref").get<std::string>();
-                    auto it = formantNodes.find(fid);
-                    if (it == formantNodes.end()) throw std::runtime_error("Unresolved formant ref: " + fid);
-                    spec->formants.push_back(it->second);
-                }
-            }
-            formantNodes[id] = spec; graphNodes[id] = spec;
-        }
-        else if (type == "FixedSpectrum") {
-            if (!pp || !pp->contains("gains"))
-                throw std::runtime_error("FixedSpectrum requires params.gains");
-            auto fs = std::make_shared<FixedSpectrum>((*pp)["gains"].get<std::vector<float>>());
-            formantNodes[id] = fs; graphNodes[id] = fs;
-        }
-        else if (type == "FormantSequence") {
-            auto fseq = std::make_shared<FormantSequence>();
-            if (pp) {
-                if (pp->contains("formants")) {
-                    for (auto& fref : (*pp)["formants"]) {
-                        std::string fid = fref.at("ref").get<std::string>();
-                        auto it = formantNodes.find(fid);
-                        if (it == formantNodes.end()) throw std::runtime_error("Unresolved formant ref: " + fid);
-                        fseq->formants.push_back(it->second);
-                    }
-                }
-                wire_params_generic(*fseq, id, *pp, graphNodes);
-            }
-            formantNodes[id] = fseq; graphNodes[id] = fseq;
-        }
         // ---- AdditiveSource2 (partial modes + per-partial envelopes) ----
         else if (type == "AdditiveSource2") {
             auto as2 = std::make_shared<AdditiveSource2>(seed.value_or(0xADD3'0000u));
@@ -962,7 +918,6 @@ static GraphResult build_graph(
                 }
             }
             graphNodes[id] = src;
-            add_formant(g, id, src);
             add_mono(g, id, src);
         }
         // SoundChannel and StereoMixer handled by caller

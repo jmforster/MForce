@@ -11,11 +11,14 @@ namespace mforce {
 // Ported from C# MForce.Sound.Source.Additive.IFormant
 // Interface for frequency-dependent gain shaping.
 // ---------------------------------------------------------------------------
+// A part: the additive source that holds one drives it — prepare once per
+// build, start once per note, next once per sample — and reads its gain per
+// partial. A formant prepares, starts and pulls its own pins in those calls.
 struct IFormant {
   virtual ~IFormant() = default;
-  virtual void fmt_prepare(const RenderContext& ctx) = 0;
-  virtual void fmt_start(int frames) = 0;
-  virtual void fmt_next() = 0;
+  virtual void prepare(const RenderContext& ctx) = 0;
+  virtual void start(int frames) = 0;
+  virtual void next() = 0;
   virtual bool contains(float freq) const = 0;
   virtual float get_gain(float freq) const = 0;
 };
@@ -23,10 +26,9 @@ struct IFormant {
 // ---------------------------------------------------------------------------
 // Ported from C# Formant — spectral peak with evolving params.
 // ---------------------------------------------------------------------------
-struct Formant final : ValueSource, IFormant {
-  // The additive source drives a Formant through fmt_prepare(), fmt_start()
-  // and fmt_next(), never through next(), so the four pins are Manual: this
-  // node prepares, starts and advances them there.
+struct Formant final : Component, IFormant {
+  // The owner drives a Formant through prepare(), start() and next(); the
+  // four pins are Manual and this part prepares, starts and pulls them there.
   Param frequency{this, "frequency", 1000.0f, 1.0f,  20000.0f, "hz",  Pull::Manual};
   Param gain     {this, "gain",      1.0f,    0.0f,  10.0f,    "0-1", Pull::Manual};
   Param width    {this, "width",     500.0f,  1.0f,  10000.0f, "hz",  Pull::Manual};
@@ -35,25 +37,21 @@ struct Formant final : ValueSource, IFormant {
   const char* type_name() const override { return "Formant"; }
   SourceCategory category() const override { return SourceCategory::Additive; }
 
-  void on_prepare(const RenderContext& ctx) override { fmt_prepare(ctx); }
-  void on_start(int frames) override { fmt_start(frames); }
-  float compute() override { fmt_next(); return 0.0f; }
-
-  void fmt_prepare(const RenderContext& ctx) override {
+  void prepare(const RenderContext& ctx) override {
     frequency.prepare(ctx);
     gain.prepare(ctx);
     width.prepare(ctx);
     power.prepare(ctx);
   }
 
-  void fmt_start(int frames) override {
+  void start(int frames) override {
     frequency.start(frames);
     gain.start(frames);
     width.start(frames);
     power.start(frames);
   }
 
-  void fmt_next() override {
+  void next() override {
     frequency.next(); gain.next(); width.next(); power.next();
     currFreq_ = frequency.current();
     currGain_ = gain.current();
@@ -90,37 +88,34 @@ private:
 // ---------------------------------------------------------------------------
 // Ported from C# FormantSpectrum — collection, max-gain across formants.
 // ---------------------------------------------------------------------------
-struct FormantSpectrum : ValueSource, IFormant {
-  std::vector<std::shared_ptr<IFormant>> formants;
+struct FormantSpectrum : Component, IFormant {
+  // The formants it spans: the JSON key "formants" is an array of refs.
+  Slot<IFormant> formants{this, "formants", nullptr, true};
 
   const char* type_name() const override { return "FormantSpectrum"; }
   SourceCategory category() const override { return SourceCategory::Additive; }
 
-  void on_prepare(const RenderContext& ctx) override { fmt_prepare(ctx); }
-  void on_start(int frames) override { fmt_start(frames); }
-  float compute() override { fmt_next(); return 0.0f; }
-
-  void fmt_prepare(const RenderContext& ctx) override {
-    for (auto& f : formants) f->fmt_prepare(ctx);
+  void prepare(const RenderContext& ctx) override {
+    for (auto* f : formants.views) f->prepare(ctx);
   }
 
-  void fmt_start(int frames) override {
-    for (auto& f : formants) f->fmt_start(frames);
+  void start(int frames) override {
+    for (auto* f : formants.views) f->start(frames);
   }
 
-  void fmt_next() override {
-    for (auto& f : formants) f->fmt_next();
+  void next() override {
+    for (auto* f : formants.views) f->next();
   }
 
   bool contains(float freq) const override {
-    for (auto& f : formants)
+    for (auto* f : formants.views)
       if (f->contains(freq)) return true;
     return false;
   }
 
   float get_gain(float freq) const override {
     float g = 0.0f;
-    for (auto& f : formants)
+    for (auto* f : formants.views)
       if (f->contains(freq))
         g = std::max(g, f->get_gain(freq));
     return g;
@@ -130,7 +125,7 @@ struct FormantSpectrum : ValueSource, IFormant {
 // ---------------------------------------------------------------------------
 // Ported from C# FixedSpectrum — full gain array indexed by integer frequency.
 // ---------------------------------------------------------------------------
-struct FixedSpectrum final : ValueSource, IFormant {
+struct FixedSpectrum final : Component, IFormant {
   Array gains{this, "gains", nullptr, 0.0f, 0.0f, 1.0f};
 
   explicit FixedSpectrum(std::vector<float> values) { gains.values = std::move(values); }
@@ -138,11 +133,9 @@ struct FixedSpectrum final : ValueSource, IFormant {
   const char* type_name() const override { return "FixedSpectrum"; }
   SourceCategory category() const override { return SourceCategory::Additive; }
 
-  float compute() override { return 0.0f; }
-
-  void fmt_prepare(const RenderContext& /*ctx*/) override {}
-  void fmt_start(int /*frames*/) override {}
-  void fmt_next() override {}
+  void prepare(const RenderContext& /*ctx*/) override {}
+  void start(int /*frames*/) override {}
+  void next() override {}
 
   bool contains(float /*freq*/) const override { return true; }
 
@@ -157,10 +150,9 @@ struct FixedSpectrum final : ValueSource, IFormant {
 // ---------------------------------------------------------------------------
 // Ported from C# BandSpectrum — frequency-band gain lookup.
 // ---------------------------------------------------------------------------
-struct BandSpectrum final : ValueSource, IFormant {
-  // Driven through fmt_prepare(), fmt_start() and fmt_next() by the additive
-  // source, never through next(), so both pins are Manual: this node
-  // prepares, starts and advances them.
+struct BandSpectrum final : Component, IFormant {
+  // The owner drives it through prepare(), start() and next(); both pins are
+  // Manual and this part prepares, starts and pulls them there.
   Param startFreq    {this, "startFreq",     0.0f, 0.0f,  20000.0f, nullptr, Pull::Manual};
   Param freqIncrement{this, "freqIncrement", 1.0f, 0.01f, 1000.0f,  nullptr, Pull::Manual};
   Array gains{this, "gains", nullptr, 0.0f, 0.0f, 1.0f};
@@ -168,21 +160,17 @@ struct BandSpectrum final : ValueSource, IFormant {
   const char* type_name() const override { return "BandSpectrum"; }
   SourceCategory category() const override { return SourceCategory::Additive; }
 
-  void on_prepare(const RenderContext& ctx) override { fmt_prepare(ctx); }
-  void on_start(int frames) override { fmt_start(frames); }
-  float compute() override { fmt_next(); return 0.0f; }
-
-  void fmt_prepare(const RenderContext& ctx) override {
+  void prepare(const RenderContext& ctx) override {
     startFreq.prepare(ctx);
     freqIncrement.prepare(ctx);
   }
 
-  void fmt_start(int frames) override {
+  void start(int frames) override {
     startFreq.start(frames);
     freqIncrement.start(frames);
   }
 
-  void fmt_next() override {
+  void next() override {
     startFreq.next();
     freqIncrement.next();
   }
@@ -212,67 +200,31 @@ struct BandSpectrum final : ValueSource, IFormant {
 // Driven by a blend ValueSource (0→1 morphs through all formants evenly).
 // With N formants, blend=0 → formant[0], blend=1 → formant[N-1].
 // ---------------------------------------------------------------------------
-struct FormantSequence final : ValueSource, IFormant {
-  // Driven through fmt_prepare(), fmt_start() and fmt_next() by the additive
-  // source, never through next(), so `blend` is Manual: this node prepares,
-  // starts and advances it.
+struct FormantSequence final : Component, IFormant {
+  // The owner drives it through prepare(), start() and next(); `blend` is
+  // Manual and this part prepares, starts and pulls it there.
   Param blend{this, "blend", 0.0f, 0.0f, 1.0f, nullptr, Pull::Manual};
-
-  // `spectra` is a list, held in `formants`, not a pin: it is served by name
-  // here, and wiring it by set_param replaces the list while add_param appends.
-  std::vector<std::shared_ptr<IFormant>> formants;
+  // The spectra it crossfades through, in wiring order.
+  Slot<IFormant> spectra{this, "spectra", nullptr, true};
 
   const char* type_name() const override { return "FormantSequence"; }
   SourceCategory category() const override { return SourceCategory::Additive; }
 
-  std::span<const InputDescriptor> input_descriptors() const override {
-    static constexpr InputDescriptor descs[] = {
-      {"spectra", true},  // multi-input: accepts multiple FormantSpectrum connections
-    };
-    return descs;
-  }
-
-  bool set_param(std::string_view name, std::shared_ptr<Component> src) override {
-    if (name != "spectra") return ValueSource::set_param(name, std::move(src));
-    // Single-set: replace all with one (used by generic wiring path)
-    auto fmt = std::dynamic_pointer_cast<IFormant>(src);
-    if (!fmt) return false;                     // the wrong kind for the slot
-    formants.clear(); formants.push_back(std::move(fmt));
-    return true;
-  }
-
-  bool add_param(std::string_view name, std::shared_ptr<Component> src) override {
-    if (name != "spectra") return ValueSource::add_param(name, std::move(src));
-    auto fmt = std::dynamic_pointer_cast<IFormant>(src);
-    if (!fmt) return false;
-    formants.push_back(std::move(fmt));
-    return true;
-  }
-
-  bool clear_param(std::string_view name) override {
-    if (name == "spectra") { formants.clear(); return true; }
-    return ValueSource::clear_param(name);
-  }
-
-  void on_prepare(const RenderContext& ctx) override { fmt_prepare(ctx); }
-  void on_start(int frames) override { fmt_start(frames); }
-  float compute() override { fmt_next(); return 0.0f; }
-
-  void fmt_prepare(const RenderContext& ctx) override {
+  void prepare(const RenderContext& ctx) override {
     blend.prepare(ctx);
-    for (auto& f : formants) f->fmt_prepare(ctx);
+    for (auto* f : spectra.views) f->prepare(ctx);
   }
 
-  void fmt_start(int frames) override {
+  void start(int frames) override {
     blend.start(frames);
-    for (auto& f : formants) f->fmt_start(frames);
+    for (auto* f : spectra.views) f->start(frames);
   }
 
-  void fmt_next() override {
+  void next() override {
     blend.next();
-    for (auto& f : formants) f->fmt_next();
+    for (auto* f : spectra.views) f->next();
 
-    int n = int(formants.size());
+    int n = int(spectra.views.size());
     if (n < 2) { fPtr_ = 0; fWeight_ = 0.0f; return; }
 
     float b = std::clamp(blend.current(), 0.0f, 1.0f) * float(n - 1);
@@ -281,19 +233,21 @@ struct FormantSequence final : ValueSource, IFormant {
   }
 
   bool contains(float freq) const override {
-    if (formants.empty()) return false;
-    int n = int(formants.size());
+    const auto& f = spectra.views;
+    if (f.empty()) return false;
+    int n = int(f.size());
     int hi = std::min(fPtr_ + 1, n - 1);
-    return formants[fPtr_]->contains(freq) || formants[hi]->contains(freq);
+    return f[fPtr_]->contains(freq) || f[hi]->contains(freq);
   }
 
   float get_gain(float freq) const override {
-    if (formants.empty()) return 0.0f;
-    int n = int(formants.size());
+    const auto& f = spectra.views;
+    if (f.empty()) return 0.0f;
+    int n = int(f.size());
     int hi = std::min(fPtr_ + 1, n - 1);
 
-    float g0 = formants[fPtr_]->contains(freq) ? formants[fPtr_]->get_gain(freq) : 0.0f;
-    float g1 = formants[hi]->contains(freq)    ? formants[hi]->get_gain(freq)    : 0.0f;
+    float g0 = f[fPtr_]->contains(freq) ? f[fPtr_]->get_gain(freq) : 0.0f;
+    float g1 = f[hi]->contains(freq)    ? f[hi]->get_gain(freq)    : 0.0f;
 
     return g0 * (1.0f - fWeight_) + g1 * fWeight_;
   }
