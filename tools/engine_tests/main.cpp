@@ -6588,12 +6588,11 @@ struct ReseedProbe final : Generator {
     const char* type_name() const override { return "ReseedProbe"; }
 };
 
-// The review's gaps: a refused slot wire says what the slot takes; the deleted
-// branch's alias key is refused by name; a part in every signal position fails
-// the load with its path's message; parts nested three deep are prepared and
-// started through their owners; the live note-on's reseed reaches a signal.
+// The review's gaps, the loader's: a refused slot wire says what the slot
+// takes; the deleted branch's alias key is refused by name; a part in every
+// signal position fails the load with its path's message.
 static void run_review_gap_tests() {
-    std::printf("the review's gaps: messages, aliases, nesting, the live reseed\n");
+    std::printf("the review's gaps: messages, the alias, the output positions\n");
     // a signal into a slot: the refusal names what the slot takes
     const char* sineIntoPartials = R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"add","nodes":[
       {"id":"osc","type":"SineSource","params":{"frequency":220.0}},
@@ -6636,6 +6635,12 @@ static void run_review_gap_tests() {
           {"id":"ch1","type":"SoundChannel","inputs":{"source":"parts"},"params":{"volume":1.0,"pan":0.0}},
           {"id":"mix","type":"StereoMixer","inputs":{"channels":["ch1"]},"params":{"gainL":1.0,"gainR":1.0}}]}})",
         "No mono source"));
+}
+
+// The review's gaps, the lifecycle's: parts nested three deep are prepared and
+// started through their owners; the live note-on's reseed reaches a signal.
+static void run_review_gap_lifecycle_tests() {
+    std::printf("the review's gaps: nesting, the live reseed\n");
     // parts three deep: the owner's prepare, start and next reach the innermost pins
     {
         RenderContext ctx{48000};
@@ -6688,6 +6693,7 @@ int main() {
     run_partials_part_tests();
     run_component_root_tests();
     run_review_gap_tests();
+    run_review_gap_lifecycle_tests();
     run_pin_tests();
     run_base_tests();
     run_prepare_start_tests();
