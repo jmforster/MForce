@@ -16,8 +16,7 @@ enum class CombineOp { Add, Multiply, Fade, Sum };
 
 // A combiner has two signal inputs and no `source`, so the inherited input of
 // a Processor would be a phantom pin next to them: it derives from ValueSource
-// with its Combiner category and becomes a Processor when the multi-input
-// shape is settled.
+// and becomes a Processor when the multi-input shape is settled.
 struct CombinedSource final : ValueSource {
   Input source1{this, "source1"};
   Input source2{this, "source2"};

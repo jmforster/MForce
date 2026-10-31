@@ -3520,7 +3520,7 @@ static void wave_view_after_render(int samples) {
     g_waveZoom = std::max(1, samples / 800);
     g_waveViewInited = true;
 }
-static bool g_showEnvelopes = true;  // header toggle — hide envelope-category strips
+static bool g_showEnvelopes = true;  // header toggle — hide the Envelope family's strips
 
 // Pop-out waveform: one independent ImGui window per entry, each with its own
 // zoom/scroll. nodeId == -1 means the main Output buffer; otherwise a GraphNode id.
@@ -10763,15 +10763,15 @@ static void menu_placeholder(const char* label) {
 // the registry says. The create menu and the node context menu's Replace-with
 // both draw this; actions route through s_menuSourceAction, set by whichever
 // popup draws the tree. One separator divides the sound-making families
-// (the first four) from the shaping ones. A family with nothing on the shelf
-// is not drawn.
+// from the shaping ones, before the first of those. A family with nothing on
+// the shelf is not drawn.
+static constexpr Family kFirstShapingFamily = Family::Physical;
 static void shelf_menus(Shelf shelf) {
     auto& reg = SourceRegistry::instance();
-    for (int i = 0; i < kFamilyCount; ++i) {
-        const Family f = kFamilyOrder[i];
+    for (Family f : kFamilyOrder) {
         const auto types = reg.types_in(f, shelf);
         if (types.empty()) continue;
-        if (shelf == Shelf::Main && i == 4) ImGui::Separator();
+        if (shelf == Shelf::Main && f == kFirstShapingFamily) ImGui::Separator();
         if (ImGui::BeginMenu(family_name(f))) {
             for (const auto& e : types) {
                 const std::string label = reg.label(e.name);

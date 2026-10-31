@@ -3603,7 +3603,7 @@ std::string pin_order(const mforce::Component& c) {
 }
 
 // Every type prepares and renders finite values, declares its pins in the
-// order they are advanced, and keeps its category and defaults.
+// order they are advanced, and keeps its defaults.
 static void run_physical_pin_shape_tests() {
     RenderContext ctx{48000};
     auto smoke = [&](ValueSource& s) {
@@ -3834,8 +3834,8 @@ static_assert(std::is_base_of_v<Processor, BiquadSource> &&
               std::is_base_of_v<Processor, SVFSource>);
 static_assert(std::is_base_of_v<Generator, Vibrato> && !std::is_base_of_v<Processor, Vibrato>);
 
-// Every type prepares and renders finite values, declares its pins in the
-// order they are advanced, and keeps its category.
+// Every type prepares and renders finite values, and declares its pins in
+// the order they are advanced.
 static void run_filter_pin_shape_tests() {
     RenderContext ctx{48000};
     auto smoke = [&](ValueSource& s) {
@@ -4285,22 +4285,7 @@ static void run_combine_mod_pin_shape_tests() {
     CHECK(setting_names(dist).empty() && setting_names(wh).empty() && setting_names(phased).empty());
     CHECK(array_names(seg) == "values," && array_names(shaper) == "values,segs,values2,segs2,");
     CHECK(array_names(comb).empty() && array_names(mux).empty());
-}
-
-// Each node keeps its place in the UI menu: the Processors' Filter default is
-// overridden where the node was not a filter.
-static void run_combine_mod_category_tests() {
-    CombinedSource comb(nullptr, nullptr, CombineOp::Add);
-    CrossfadeSource xfade;
-    MultiplexSource mux;
-    DistortedSource dist;
-    RepeatingSource rep;
-    ShaperSource shaper;
-    WormholeSource wh;
-    PhasedValueSource phased(0.05f);
-    SegmentSource seg(std::vector<float>{});
-    StaticVarSource sv(1.0f, 0.0f);
-    StaticRangeSource sr(0.0f, 1.0f);
+    // the two Generators among them declare no range: a shape, not a signal
     CHECK(phased.range() == Generator::Range::None && seg.range() == Generator::Range::None);
 }
 
@@ -4738,7 +4723,6 @@ static void run_combine_mod_configurator_tests() {
 // The combiner/modulator family, in registration order.
 static void run_combine_mod_tests() {
     run_combine_mod_pin_shape_tests();
-    run_combine_mod_category_tests();
     run_combine_mod_default_tests();
     run_combine_mod_auto_pin_tests();
     run_combine_mod_manual_pin_tests();
@@ -6736,13 +6720,20 @@ static const FamilyRow kFamilyTable[] = {
     {"BitRotateEvolution", Family::Wavetable, "Bit Rotate (glitch)", Shelf::Experimental},
     {"KSPianoString", Family::Physical, "KS Piano String", Shelf::Experimental},
     {"Mesh2D", Family::Physical, "Mesh 2D", Shelf::Experimental},
-    {"PierceFilter", Family::Physical, "Pierce", Shelf::Experimental},
+    {"PierceFilter", Family::Physical, "Pierce Filter", Shelf::Experimental},
     {"BowTable", Family::Physical, "Bow Table", Shelf::Experimental},
     {"Biquad", Family::Filter, "Biquad", Shelf::Experimental},
     {"NameGate", Family::Modulator, "Name Gate", Shelf::Experimental},
     {"StaticVarSource", Family::Utility, "Static Var", Shelf::Experimental},
     {"StaticRangeSource", Family::Utility, "Static Range", Shelf::Experimental},
 };
+
+static bool throws_with(const SourceRegistry& reg, const char* name) {
+    try { (void)reg.family(name); } catch (const std::exception& e) {
+        return std::string(e.what()).find(name) != std::string::npos;
+    }
+    return false;
+}
 
 static void run_registry_family_tests() {
     std::printf("the registry: families, labels, shelves\n");
@@ -6759,7 +6750,18 @@ static void run_registry_family_tests() {
         (row.shelf == Shelf::Main ? main : experimental)++;
     }
     CHECK(main == 63 && experimental == 22);
-    CHECK(main + experimental == int(reg.registered_types().size()));         // every registered type is in the table
+    for (const auto& e : reg.registered_types()) {                             // every registered type is in the table
+        bool inTable = false;
+        for (const auto& row : kFamilyTable) inTable = inTable || e.name == row.name;
+        if (!inTable) std::printf("  registered but not in kFamilyTable: %s\n", e.name.c_str());
+        CHECK(inTable);
+    }
+    // I11-style guard: a label is given only where it differs from the derivation
+    for (const auto& e : reg.registered_types()) {
+        if (e.tag.label && std::string(e.tag.label) == derived_label(e.name))
+            std::printf("  redundant label on %s: %s\n", e.name.c_str(), e.tag.label);
+        CHECK(!e.tag.label || std::string(e.tag.label) != derived_label(e.name));
+    }
     // the derivation: the suffix off, a space before each word, acronyms kept
     CHECK(derived_label("HybridKSSource") == "Hybrid KS" && derived_label("BWLowpassFilter") == "BW Lowpass");
     CHECK(derived_label("Mesh2D") == "Mesh 2D" && derived_label("KSPianoString") == "KS Piano String");
@@ -6783,7 +6785,9 @@ static void run_registry_family_tests() {
     CHECK(walked == 85);
     CHECK(std::string(family_name(Family::Oscillator)) == "Oscillators" && std::string(family_name(Family::Noise)) == "Noise"
           && std::string(family_name(Family::Filter)) == "Filters" && std::string(family_name(Family::Utility)) == "Utility");
-    CHECK(reg.family("NoSuchType") == Family::Utility);                        // unknown: what get_category answered
+    CHECK(reg.find("NoSuchType") == nullptr && reg.find("SineSource") != nullptr);
+    CHECK(reg.find("SineSource")->family == Family::Oscillator);
+    CHECK(throws_with(reg, "NoSuchType"));                                      // unknown: no invented answer
     // the Envelope family is what the editor's envelope views read: both shelves, exactly these
     std::set<std::string> envelopes;
     for (Shelf s : {Shelf::Main, Shelf::Experimental})

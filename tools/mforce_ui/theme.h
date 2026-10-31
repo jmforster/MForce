@@ -5,8 +5,8 @@
 // The editor's colours, keyed by family and by the editor's own nodes, with
 // built-in defaults. Node colours follow the family the registry declares; the
 // editor asks nothing else about a type to colour it. Loading a theme from
-// JSON and the rest of the editor's colours are Part 7's; this is the object
-// they land in.
+// JSON, and the editor's other colours, come here when the editor is rebuilt;
+// this is the object they land in.
 struct Theme {
     ImU32 family[mforce::kFamilyCount];   // indexed by int(mforce::Family)
     ImU32 output;          // the output, channel and mixer nodes
@@ -19,7 +19,7 @@ struct Theme {
 };
 
 inline constexpr Theme kDefaultTheme = {
-    {
+    .family = {
         IM_COL32(95, 165, 150, 255),    // Oscillator  — greenish teal
         IM_COL32(185, 95, 85, 255),     // Noise       — reddish orange
         IM_COL32(155, 150, 110, 255),   // Wavetable   — olive tan
@@ -31,14 +31,14 @@ inline constexpr Theme kDefaultTheme = {
         IM_COL32(95, 165, 150, 255),    // Combiner    — greenish teal
         IM_COL32(128, 128, 128, 255),   // Utility     — grey
     },
-    IM_COL32(120, 130, 145, 255),       // output     — blue grey
-    IM_COL32(190, 140, 170, 255),       // parameter  — pink
-    IM_COL32(205, 170, 60, 255),        // note       — gold
-    IM_COL32(170, 145, 75, 255),        // curve      — dark gold
-    IM_COL32(128, 128, 128, 255),       // unknown    — grey
-    IM_COL32(205, 170, 60, 255),        // dynPinGold — the performance cadence
-    IM_COL32(220, 220, 60, 255),        // envelopeStrip — yellow
+    .output        = IM_COL32(120, 130, 145, 255),   // blue grey
+    .parameter     = IM_COL32(190, 140, 170, 255),   // pink
+    .note          = IM_COL32(205, 170, 60, 255),    // gold
+    .curve         = IM_COL32(170, 145, 75, 255),    // dark gold
+    .unknown       = IM_COL32(128, 128, 128, 255),   // grey
+    .dynPinGold    = IM_COL32(205, 170, 60, 255),    // the performance cadence
+    .envelopeStrip = IM_COL32(220, 220, 60, 255),    // yellow
 };
 
-// The theme in force: the defaults until Part 7 loads one.
+// The theme in force: the defaults, until one is loaded from JSON.
 inline const Theme& theme() { return kDefaultTheme; }

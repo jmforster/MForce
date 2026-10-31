@@ -322,7 +322,7 @@ void register_all_sources() {
     // same filter Mesh2D edgeMode 2 puts on its boundary, exposed on its own
     // so it can terminate a 1D loop.  See pierce_filter.h for why it is a
     // node rather than a mode on Shaper or Biquad.
-    reg.register_type("PierceFilter", {.family = Family::Physical, .shelf = Shelf::Experimental},
+    reg.register_type("PierceFilter", {.family = Family::Physical, .label = "Pierce Filter", .shelf = Shelf::Experimental},
         [](auto) { return std::make_shared<PierceFilterSource>(); });
 
     reg.register_type("BowTable", {.family = Family::Physical, .shelf = Shelf::Experimental},

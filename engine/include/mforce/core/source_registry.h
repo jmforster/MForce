@@ -29,11 +29,12 @@ using JsonConfigurator = std::function<void(
     const ResolveParamFn& resolve)>;
 
 // The one classification of a node type, declared where the type is
-// registered: its family (Part 3 section 3's table), the label the editor's
-// menus show (derived from the type name unless given) and the shelf it sits
-// on — Main for the create menu's family menus, Experimental for the parked
-// and the unclassified. The editor's menus, colours and the folder a type's
-// header lives in all follow from the family; nothing asks a node object.
+// registered: its family (the families table in docs/architecture/part3-nodes.md),
+// the label the editor's menus show (derived from the type name unless given)
+// and the shelf it sits on — Main for the create menu's family menus,
+// Experimental for the parked and the unclassified. The editor's menus,
+// colours and the folder a type's header lives in all follow from the family;
+// nothing asks a node object.
 enum class Family { Oscillator, Noise, Wavetable, Additive, Physical, Filter, Envelope, Modulator, Combiner, Utility };
 constexpr int kFamilyCount = 10;
 // Menu order: the sound-making families, then the shaping ones.
@@ -47,7 +48,7 @@ enum class Shelf { Main, Experimental };
 
 struct TypeTag {
   Family family;
-  const char* label = nullptr;          // null: derived_label(type_name)
+  const char* label = nullptr;          // null: derived_label(type_name); copied at registration
   Shelf shelf = Shelf::Main;
 };
 
@@ -84,19 +85,22 @@ public:
   std::vector<TypeEntry> types_in(Family family, Shelf shelf) const;
 
   bool has(const std::string& type_name) const;
+  // The tag of a registered type, or null for a name the registry does not know.
+  const TypeTag* find(const std::string& type_name) const;
 
-  // The tag's parts, by name. An unknown name is a Utility on the Main shelf
-  // with its name as its label.
+  // The tag's parts, by name; an unknown name throws (ask has() or find() first).
   Family      family(const std::string& type_name) const;
-  std::string label(const std::string& type_name) const;
+  std::string label(const std::string& type_name) const;   // the given label, else derived_label
   Shelf       shelf(const std::string& type_name) const;
 
 private:
   struct Entry {
-    TypeTag tag;
+    TypeTag tag;                     // tag.label points into `label` below, or is null
+    std::string label;               // the registration's label, copied; empty when none was given
     SourceFactory factory;
-    JsonConfigurator configurator;  // may be null
+    JsonConfigurator configurator;   // may be null
   };
+  const Entry& entry(const std::string& type_name) const;   // throws on an unknown name
 
   std::unordered_map<std::string, Entry> entries_;
   std::vector<std::string> order_;    // registration order

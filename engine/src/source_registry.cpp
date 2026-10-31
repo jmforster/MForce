@@ -54,7 +54,19 @@ void SourceRegistry::register_type(const std::string& type_name,
                                    SourceFactory factory,
                                    JsonConfigurator configurator) {
   if (!entries_.count(type_name)) order_.push_back(type_name);
-  entries_[type_name] = Entry{tag, std::move(factory), std::move(configurator)};
+  Entry& e = entries_[type_name];
+  e.label = tag.label ? tag.label : "";
+  tag.label = e.label.empty() ? nullptr : e.label.c_str();   // the registry's own copy outlives any caller's
+  e.tag = tag;
+  e.factory = std::move(factory);
+  e.configurator = std::move(configurator);
+}
+
+const SourceRegistry::Entry& SourceRegistry::entry(const std::string& type_name) const {
+  auto it = entries_.find(type_name);
+  if (it == entries_.end())
+    throw std::runtime_error("SourceRegistry: unknown type '" + type_name + "'");
+  return it->second;
 }
 
 std::shared_ptr<Component> SourceRegistry::create(const std::string& type_name,
@@ -93,20 +105,22 @@ bool SourceRegistry::has(const std::string& type_name) const {
   return entries_.count(type_name) > 0;
 }
 
-Family SourceRegistry::family(const std::string& type_name) const {
+const TypeTag* SourceRegistry::find(const std::string& type_name) const {
   auto it = entries_.find(type_name);
-  return it == entries_.end() ? Family::Utility : it->second.tag.family;
+  return it == entries_.end() ? nullptr : &it->second.tag;
+}
+
+Family SourceRegistry::family(const std::string& type_name) const {
+  return entry(type_name).tag.family;
 }
 
 std::string SourceRegistry::label(const std::string& type_name) const {
-  auto it = entries_.find(type_name);
-  if (it == entries_.end()) return type_name;
-  return it->second.tag.label ? std::string(it->second.tag.label) : derived_label(type_name);
+  const Entry& e = entry(type_name);
+  return e.label.empty() ? derived_label(type_name) : e.label;
 }
 
 Shelf SourceRegistry::shelf(const std::string& type_name) const {
-  auto it = entries_.find(type_name);
-  return it == entries_.end() ? Shelf::Main : it->second.tag.shelf;
+  return entry(type_name).tag.shelf;
 }
 
 } // namespace mforce
