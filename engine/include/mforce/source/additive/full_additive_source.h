@@ -22,14 +22,12 @@ namespace mforce {
 struct FullAdditiveSource final : WaveSource {
   // After WaveSource's three. The formant weight and floor are read only
   // while a formant is wired, so both are Manual: the node prepares them and
-  // advances them in wave(). `formant` is a slot — a part the node drives
-  // through its interface, type-checked when wired; `partials` is a
-  // structural input the node calls into, type-checked in set_param, which
-  // keeps a typed view of the part it holds.
+  // advances them in wave(). `formant` and `partials` are slots — parts the
+  // node drives through their interfaces, type-checked when wired.
   Param formantWeight{this, "formantWeight", 0.0f, 0.0f, 1.0f, "0-1", Pull::Manual};
   Param formantFloor {this, "formantFloor",  1.0f, 0.0f, 1.0f, "0-1", Pull::Manual};  // out-of-band suppression, 1.0 = no cut
   Slot<IFormant> formant{this, "formant"};
-  Input partials{this, "partials", Input::Optional, nullptr, false, Pull::Manual};
+  Slot<IPartials> partials{this, "partials"};
 
   // --- NoiseBed configs (scalar so paramMap frequency-curves can drive them
   // per register — e.g. the clarinet noise-lead law 0.15/0.10/0.04 s by f0
@@ -46,18 +44,6 @@ struct FullAdditiveSource final : WaveSource {
   const char* type_name() const override { return "AdditiveSource"; }
   SourceCategory category() const override { return SourceCategory::Additive; }
 
-  // Wiring `partials` takes the part's interface; a source that does not
-  // implement it is refused.
-  bool set_param(std::string_view name, std::shared_ptr<Component> src) override {
-    if (name == "partials") {
-      auto p = std::dynamic_pointer_cast<IPartials>(src);
-      if (!p) return false;
-      partials_ = std::move(p); partials.set(std::dynamic_pointer_cast<ValueSource>(src));
-      return true;
-    }
-    return WaveSource::set_param(name, std::move(src));
-  }
-
   void on_prepare(const RenderContext& ctx) override;
   void on_start(int frames) override;
 
@@ -65,11 +51,6 @@ protected:
   float wave() override;
 
 private:
-  // The part the `partials` input holds, as the interface the node calls.
-  // Partials do all the per-partial math and are required; the formant, read
-  // from its slot, is optional.
-  std::shared_ptr<IPartials> partials_;
-
   // --- NoiseBed (clarinet-analysis breath bed; inert at noiseBedLevel 0) ---
   // v1 simplification of the report's "formant-shaped" bed: the measured
   // residual IS band-passed hiss (centroid ~2.9 kHz, band ~1.5-4 kHz), so a

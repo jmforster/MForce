@@ -3176,7 +3176,7 @@ std::string array_names(const mforce::Component& c) {
     for (const auto& d : c.array_descriptors()) { out += d.name; out += ','; }
     return out;
 }
-// The eight envelope pins of every Partials, in the order partials_next() advances them.
+// The eight envelope pins of every Partials, in the order next() advances them.
 const char* const kPartialsEnvNames[8] = {"multEnv", "amplEnv", "poEnv", "roEnv",
                                           "dtEnv", "bwEnv", "motionEnv", "shimmerEnv"};
 }
@@ -3317,11 +3317,16 @@ static void run_additive_smoke_tests() {
     FixedSpectrum fixed({0.0f, 1.0f});  smokeFormant(fixed);
     BandSpectrum band;                  smokeFormant(band);
     FormantSequence seq;                smokeFormant(seq);
-    CompositePartials comp;             smoke(comp);
-    ExpandRuleNode rule;                smoke(rule);
-    FullPartials full;                  smoke(full);
-    SequencePartials sequence;          smoke(sequence);
-    ExplicitPartials expl;              smoke(expl);
+    // A partials part is driven by its owner; its sum is what it answers.
+    auto smokePartials = [&](IPartials& p) {
+        p.prepare(ctx); p.start(4800);
+        for (int i = 0; i < 10; ++i) { p.next(); CHECK(std::isfinite(p.sum_partials(0.0f, 1.0f, 220.0f, 0.0f, nullptr, 0.0f, 1.0f))); }
+    };
+    CompositePartials comp;             smokePartials(comp);
+    ExpandRuleNode rule;                CHECK(rule.to_struct().count == 2);   // a block of fields, no lifecycle
+    FullPartials full;                  smokePartials(full);
+    SequencePartials sequence;          smokePartials(sequence);
+    ExplicitPartials expl;              smokePartials(expl);
 
     FullAdditiveSource f;
     f.set_param("partials", std::make_shared<FullPartials>());
@@ -3383,16 +3388,16 @@ static void run_additive_manual_pin_tests() {
         probes.push_back(std::make_shared<OrderProbe>(&log, i + 1));
         fp.set_param(kPartialsEnvNames[i], probes.back());
     }
-    fp.partials_prepare(ctx);
-    fp.partials_start(4800);
+    fp.prepare(ctx);
+    fp.start(4800);
     CHECK(log.empty());
     for (const auto& p : probes) CHECK(p->starts == 1);
-    fp.partials_next();
+    fp.next();
     CHECK(log == std::vector<int>({1, 2, 3, 4, 5, 6, 7, 8}));
     log.clear();
-    fp.next();                                             // the fake next() is partials_next()
+    fp.next();
     CHECK(log.size() == 8);
-    fp.prepare(ctx); fp.start(4800);                                 // the base prepare reaches partials_prepare once
+    fp.prepare(ctx); fp.start(4800);                                 // a second prepare and start: the pins start again
     for (const auto& p : probes) CHECK(p->starts == 2);
 
     Formant fm;
@@ -3416,11 +3421,10 @@ static void run_additive_manual_pin_tests() {
     CHECK(b1->starts == 1 && b1->nexts == 1);
     CHECK(b2->starts == 1 && b2->nexts == 1);
 
-    ExpandRuleNode rule;                                   // nothing pulls its pins
+    ExpandRuleNode rule;                                   // nothing pulls its pins: the host snapshots them
     auto r1 = std::make_shared<PinCounter>();
     rule.set_param("spacing1", r1);
-    rule.prepare(ctx); rule.start(4800);
-    for (int i = 0; i < 3; ++i) rule.next();
+    for (int i = 0; i < 3; ++i) (void)rule.to_struct();
     CHECK(r1->starts == 0 && r1->nexts == 0);
 }
 
@@ -3464,10 +3468,10 @@ static void run_additive_wiring_tests() {
     auto other = std::make_shared<ConstantSource>(1.0f);
     f.set_param("partials", fp);
     f.set_param("formant", fm);
-    CHECK(f.get_param("partials") == fp && f.get_part("formant") == fm);
+    CHECK(f.get_part("partials") == fp && f.get_part("formant") == fm);
     CHECK(!f.set_param("partials", other));                // not an IPartials: refused
     CHECK(!f.set_param("formant", other));                 // not an IFormant: refused, the slot keeps its part
-    CHECK(f.get_param("partials") == fp && f.get_part("formant") == fm);
+    CHECK(f.get_part("partials") == fp && f.get_part("formant") == fm);
     f.set_param("formant", nullptr);                       // null clears the slot
     CHECK(f.get_part("formant") == nullptr);
 
@@ -3476,10 +3480,10 @@ static void run_additive_wiring_tests() {
     sp->set_setting("maxPartials", 12.0f);
     sp->get_array("mult1");                                // rebuild the arrays before they are copied
     a2.set_param("partials", sp);
-    CHECK(a2.get_param("partials") == sp);
+    CHECK(a2.get_part("partials") == sp);
     CHECK_NEAR(a2.get_setting("partialCount"), 12.0f, 1e-6f);
-    a2.set_param("partials", other);                       // not a Partials: ignored
-    CHECK(a2.get_param("partials") == sp);
+    CHECK(!a2.set_param("partials", other));               // not a Partials: refused
+    CHECK(a2.get_part("partials") == sp);
 
     FormantSequence seq;
     auto s1 = std::make_shared<FormantSpectrum>(), s2 = std::make_shared<FormantSpectrum>();
@@ -3499,8 +3503,8 @@ static void run_additive_wiring_tests() {
     CompositePartials comp;
     auto p2 = std::make_shared<ExplicitPartials>();
     comp.add_param("partials", fp);
-    comp.set_param("partials", p2);                        // wiring appends
-    comp.set_param("partials", other);                     // not an IPartials: ignored
+    comp.add_param("partials", p2);                        // add appends
+    CHECK(!comp.set_param("partials", other));             // not an IPartials: refused, the slot keeps its parts
     CHECK(comp.partial_count() == 30 + 16);
     comp.clear_param("partials");
     CHECK(comp.partial_count() == 0);
@@ -4821,6 +4825,7 @@ static bool split_equivalent(const std::function<std::shared_ptr<ValueSource>()>
 // ValueSource and is the audit's oracle at the close.
 static const std::set<std::string> kPartTypes = {
     "Formant", "FormantSpectrum", "FixedSpectrum", "BandSpectrum", "FormantSequence",
+    "FullPartials", "SequencePartials", "ExplicitPartials", "CompositePartials", "ExpandRule",
 };
 
 static void run_split_equivalence_tests() {
@@ -5152,9 +5157,8 @@ static void run_hybrid_ks_split_tests() {
 }
 
 // ---------------------------------------------------------------------------
-// Additive family: the rate reaches the parts through partials_prepare and
-// fmt_prepare; the note counter, the per-note streams and the envelope
-// layouts run in partials_start and fmt_start.
+// Additive family: the rate reaches the parts through their prepare; the note
+// counter, the per-note streams and the envelope layouts run in their start.
 // ---------------------------------------------------------------------------
 static std::shared_ptr<ExplicitPartials> make_split_partials() {
     auto p = std::make_shared<ExplicitPartials>();
@@ -6142,7 +6146,7 @@ static std::vector<float> render_one_live_note(PitchedInstrument& inst, float no
 static void run_allocation_tests_partials() {
     // Partials: a plain FullPartials, and one with every per-partial feature on
     // (decay, bandwidth noise, motion, shimmer, trade, onset spread, an expand
-    // rule) so every array partials_start sizes is exercised; two pitches on
+    // rule) so every array the Partials' start sizes is exercised; two pitches on
     // the pool's two voices.
     const char* additive = R"({"sampleRate":48000,"instrument":{"polyphony":2},"graph":{"output":"add","nodes":[
       {"id":"parts","type":"FullPartials","params":{"maxPartials":16}},
@@ -6471,15 +6475,13 @@ static void run_wiring_door_tests() {
     CHECK(!add.set_param("partials", std::make_shared<Plug>()));                   // the wrong part: refused
     CHECK(add.get_part("frequency") == nullptr);                                   // a Param serves no part
     CHECK(add.get_param("nothing") == nullptr && add.get_part("nothing") == nullptr);
-#if 0 // Task 3: the partials slot
     CHECK(add.get_part("partials") != nullptr);
     CHECK(add.get_param("partials") == nullptr);                                   // a slot serves no signal
-#endif
     register_all_sources();
     auto& reg = SourceRegistry::instance();
     std::shared_ptr<Component> c = reg.create("SineSource");
     CHECK(std::dynamic_pointer_cast<ValueSource>(c) != nullptr);
-    CHECK(std::dynamic_pointer_cast<ValueSource>(reg.create("FullPartials")) != nullptr);   // until the partials leave ValueSource
+    CHECK(std::dynamic_pointer_cast<ValueSource>(reg.create("FullPartials")) == nullptr);   // a part
     // a part where a signal is expected fails the load naming node, pin and kind
     const char* partAsSignal = R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"add","nodes":[
       {"id":"parts","type":"FullPartials","params":{"maxPartials":4}},
@@ -6493,7 +6495,7 @@ static void run_wiring_door_tests() {
       {"id":"add","type":"AdditiveSource","params":{"frequency":220.0,"amplitude":0.5,"partials":{"ref":"parts"},"formantWeight":0.0}}]}})";
     auto ip = load_instrument_patch_json(additive);
     const auto& vg = ip.instrument->voicePool[0];
-    CHECK(vg.signals.size() == 2);                       // Task 3 makes this 1: the part leaves ValueSource
+    CHECK(vg.signals.size() == 1 && vg.signals[0].id == "add");   // the part is no signal
     CHECK(vg.nodesById.count("parts") == 1 && vg.nodesById.count("add") == 1);
 }
 
@@ -6535,6 +6537,24 @@ static void run_formant_part_tests() {
     }
 }
 
+// The partials family are parts: a CompositePartials holds its sets in a multi
+// slot (add appends, set replaces, a signal is refused) and no partials type
+// is a ValueSource.
+static void run_partials_part_tests() {
+    std::printf("partials: parts in slots\n");
+    CompositePartials comp;
+    auto fp = std::make_shared<FullPartials>();
+    auto ep = std::make_shared<ExplicitPartials>();
+    CHECK(comp.add_param("partials", fp) && comp.add_param("partials", ep));
+    CHECK(comp.partial_count() == 30 + 16);
+    CHECK(!comp.add_param("partials", std::make_shared<SineSource>()));          // a signal into the slot: refused
+    CHECK(comp.set_param("partials", ep));                                        // set replaces
+    CHECK(comp.partial_count() == 16 && comp.get_part("partials") == ep);
+    register_all_sources();
+    for (const char* type : {"FullPartials", "SequencePartials", "ExplicitPartials", "CompositePartials", "ExpandRule"})
+        CHECK(std::dynamic_pointer_cast<ValueSource>(SourceRegistry::instance().create(type)) == nullptr);
+}
+
 int main() {
     run_alloc_probe_tests();
     run_allocation_tests_partials();
@@ -6545,6 +6565,7 @@ int main() {
     run_structural_push_refusal_tests();
     run_wiring_door_tests();
     run_formant_part_tests();
+    run_partials_part_tests();
     run_pin_tests();
     run_base_tests();
     run_prepare_start_tests();

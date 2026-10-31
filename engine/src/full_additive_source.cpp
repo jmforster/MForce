@@ -9,7 +9,7 @@ FullAdditiveSource::FullAdditiveSource(uint32_t seed)
 : noiseRng_(seed) {}
 
 void FullAdditiveSource::on_prepare(const RenderContext& ctx) {
-  if (partials_) partials_->partials_prepare(ctx);
+  if (auto* p = partials.get()) p->prepare(ctx);
   if (auto* f = formant.get()) f->prepare(ctx);
   formantWeight.prepare(ctx);
   formantFloor.prepare(ctx);
@@ -18,7 +18,7 @@ void FullAdditiveSource::on_prepare(const RenderContext& ctx) {
 void FullAdditiveSource::on_start(int frames) {
   WaveSource::on_start(frames);
 
-  if (partials_) partials_->partials_start(frames);
+  if (auto* p = partials.get()) p->start(frames);
   if (auto* f = formant.get()) f->start(frames);
   formantWeight.start(frames);
   formantFloor.start(frames);
@@ -45,10 +45,11 @@ void FullAdditiveSource::on_start(int frames) {
 }
 
 float FullAdditiveSource::wave() {
-  if (!partials_) return 0.0f;
+  IPartials* parts = partials.get();
+  if (!parts) return 0.0f;
 
   // Advance partials envelopes
-  partials_->partials_next();
+  parts->next();
 
   float fmtWt = 0.0f;
   float fmtFloor = 1.0f;
@@ -67,8 +68,8 @@ float FullAdditiveSource::wave() {
   // it can inline and hoist. Partials past CUTOFF are gated individually
   // there (a jittering partial near cutoff must not kill everything above it —
   // the old `break` assumed static ascending frequencies and chattered).
-  float val = partials_->sum_partials(0.0f, currAmpl_, currFreq_, phaseDiff,
-                                      fmt, fmtWt, fmtFloor);
+  float val = parts->sum_partials(0.0f, currAmpl_, currFreq_, phaseDiff,
+                                  fmt, fmtWt, fmtFloor);
 
   // NoiseBed tone delay: gate the PARTIAL SUM (not the noise) until the
   // delay elapses, then smoothstep-fade over noiseBedFade. Partial phases

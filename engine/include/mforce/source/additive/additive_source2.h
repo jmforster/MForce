@@ -24,15 +24,14 @@ struct AdditiveSource2 final : WaveSource {
   enum class PartialFilter { All, Even, Odd, Mult3, NonMult3 };
 
   // After WaveSource's three, in the order wave() advanced them. `partials`
-  // is a structural input: the node copies the arrays of the Partials it is
-  // wired to (apply_partials) and never prepares or advances it, so it is
-  // Manual and the wire is type-checked in set_param.
+  // is a slot over the concrete Partials: the node copies the arrays of the
+  // part it is wired to (apply_partials) and never drives it.
   Param phaseOffset {this, "phaseOffset",  0.0f, 0.0f, 1.0f,   "cycles"};
   Param freqVarDepth{this, "freqVarDepth", 0.0f, 0.0f, 1.0f,   "0-1"};
   Param freqVarSpeed{this, "freqVarSpeed", 0.0f, 0.0f, 100.0f, "hz"};
   Param amplVarDepth{this, "amplVarDepth", 0.0f, 0.0f, 1.0f,   "0-1"};
   Param amplVarSpeed{this, "amplVarSpeed", 0.0f, 0.0f, 100.0f, "hz"};
-  Input partials{this, "partials", Input::Optional, nullptr, false, Pull::Manual};
+  Slot<Partials> partials{this, "partials"};
 
   // The number of partials in the current definition; changing it rebuilds
   // the default partials (set_default_partials).
@@ -59,15 +58,13 @@ struct AdditiveSource2 final : WaveSource {
   const char* type_name() const override { return "AdditiveSource2"; }
   SourceCategory category() const override { return SourceCategory::Additive; }
 
-  // Wiring `partials` takes the Partials' arrays; a source that is not a
-  // Partials is ignored.
+  // Wiring `partials` copies the Partials' arrays the moment the slot takes
+  // it; the base door does the type-check.
   bool set_param(std::string_view name, std::shared_ptr<Component> part) override {
-    if (name != "partials") return WaveSource::set_param(name, std::move(part));
-    auto p = std::dynamic_pointer_cast<Partials>(part);
-    if (!p) return false;                       // the wrong kind for the slot
-    partials.set(p);
-    apply_partials(*p);
-    return true;
+    const bool ok = WaveSource::set_param(name, std::move(part));
+    if (ok && name == "partials")
+      if (auto* p = partials.get()) apply_partials(*p);
+    return ok;
   }
 
   void on_setting_changed(std::string_view name) override {
