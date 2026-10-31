@@ -20,7 +20,7 @@
   "modules": [
     {"name": "core",   "purpose": "The ValueSource contract and the primitives every node shares; the node registry.",
      "paths": ["engine/include/mforce/core/", "engine/src/component.cpp", "engine/src/source_registry.cpp"], "may_include": []},
-    {"name": "source", "purpose": "Nodes that produce sound (one layer with filter), and the list that registers every node type.",
+    {"name": "source", "purpose": "Every node type, one folder per family (filter folded in), and the list that registers them.",
      "paths": ["engine/include/mforce/source/", "engine/src/source_registrations.cpp", "engine/src/red_noise_source.cpp", "engine/src/wavetable_source.cpp", "engine/src/full_additive_source.cpp", "engine/src/additive_source2.cpp", "engine/src/hybrid_ks_source.cpp"],
      "may_include": ["core"]},
     {"name": "render", "purpose": "Instruments, voices, mixing, patch loading, WAV I/O.",

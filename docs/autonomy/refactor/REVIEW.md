@@ -8,6 +8,65 @@ checkpoints wait for Matt's read.
 
 ## Awaiting
 
+**R9 — checkpoint 3.2: families at registration; the menu generated; `Theme`; folders by family**
+(2026-10-31, commits `67071f8`..`d5ebbf3`)
+- Read: `docs/autonomy/refactor/reports/2026-10-31-checkpoint-3.2.md`
+  (its reading guide is ten minutes; section 1 names the four things the
+  editor shows differently — seven colours, eight Experimental newcomers,
+  the lost dividers, two strips — and the meter's +1, section 5 the gates,
+  the A/B and the timing, section 6 the decisions taken on your behalf —
+  rulings 26 and 27 are the ones a verdict below decides — section 7 the
+  debt, section 8 the refutation and the wave, section 10 four C++ lessons).
+- Try: open the editor and right-click the canvas — the create menu reads
+  Curve, Envelope, Var, Range, then Oscillators, Noise, Wavetable, Additive,
+  a line, Physical, Filters, Envelopes, Modulators, Combiners, Utility, then
+  Experimental with the same families inside; every family is one flat list
+  (the dividers that used to sit inside Generators, Additive and the rest
+  are gone); create a Shaper (lavender now, was teal) and a Vibrato (pale
+  gold, was teal); load a patch with a SegmentSource and untick "Envelopes"
+  in the waveform header — its strip hides with the envelopes; play
+  `patches/library/winds/oboe1.json` on the keyboard — nothing you can hear
+  changed (the A/B is 0 moved over 132); `python tools/structure/check.py`
+  lists fourteen include edges outside the map, the new one
+  `music/pitch_bend.h` → `source/envelope/envelope.h`.
+- A verdict decides: (0) **the A/B**: 0 of 132 moved — accept the
+  checkpoint as byte-identical; (1) **the colours**: seven types changed
+  colour because colour follows the family now (HybridKS teal→tan,
+  PierceFilter lavender→teal, Distortion and Shaper teal→lavender, Vibrato
+  teal→pale gold, Segment reddish-orange→pale gold, Wormhole teal→grey) —
+  accept, or name one that belongs in another family (one word on its
+  registration moves it, colour, menu and folder together); (2) **the
+  menu**: generated from the registry — the families read as Part 3
+  section 3 says ("Generators" is Oscillators, "Loop" is Physical), each
+  family is one list without the ten dividers the hand-written menus drew
+  inside families, Experimental mirrors the families and lists eight types
+  no menu had, the Curve/Envelope/Var/Range quick block stays — accept, or
+  want the dividers back (a grouping fact on the registration, not added
+  unasked); (3) **the meter's +1**: `include_violations` 13 → 14 where the
+  plan said +0 — the new edge is `music/pitch_bend.h` compiling a PitchCurve
+  into an Envelope, which existed before and was hidden by the envelope
+  header's old address in `core/`; the map was not widened (the target says
+  music depends on core only) and the function was not moved early (the
+  target's 3.7 moves it to render when `pitch_bend.h` splits) — accept the
+  reading, with the edge carried visibly until Part 5, or want
+  `compile_pitch_curve` moved to render now; (4) **the `KSPianoString`
+  alias** is creatable from Experimental > Physical until 3.5 deletes it
+  (your "throw them all under experimental" swept it in; the refuter notes
+  an alias is not a type) — accept, 3.5 migrating any patch saved under it,
+  or want it hidden (a third shelf value, "registered, not offered"); (5)
+  **the Vibrato and Segment strips** draw in the envelope trace's yellow
+  and hide with the "Envelopes" toggle, being the Envelope family's (Segment
+  drew green as audio before) — accept, or want Segment drawn as audio,
+  which is a family exception the registry would have to carry; (6) **the
+  timing** — two runs of the
+  render-time A/B, neither on a quiet machine (the base arm's own walls
+  ran 9 to 25 percent above 3.1's clean run, higher on the second run
+  with nothing of this session's running; rows swing 0.87x to 1.10x); the
+  mechanism argument stands (no file on a render path changed except its
+  include lines; the refuter traced it) — accept it for a checkpoint that
+  touched no render path, or want a rerun on a quiet machine before Part 3
+  continues.
+
 **R8 — checkpoint 3.1: `Component` root; the parts leave `ValueSource`**
 (2026-10-30, commits `ba097f6`..`f1f8244`)
 - Read: `docs/autonomy/refactor/reports/2026-10-30-checkpoint-3.1.md`

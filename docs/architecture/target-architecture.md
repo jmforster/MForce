@@ -181,6 +181,12 @@ loader: a voice's note inputs as wireable sources) and `KeyContext`
   registered. Folder, colour and the create menu all follow from it; the
   menu is generated from the registry.
 - **"Filter" survives as a family name.**
+- **Landed 2026-10-31 as checkpoint 3.2** (`67071f8`..`d5ebbf3`): one layer
+  (`filter/` folded into `source/`, one folder per family under it, the node
+  headers out of `core/`); one classification at the registration (`TypeTag`:
+  family, label, shelf; `SourceCategory` and the per-node `category()` gone);
+  the create and Replace-with menus generated from the registry; node colours
+  through `Theme` (report `docs/autonomy/refactor/reports/2026-10-31-checkpoint-3.2.md`).
 - The family list and its membership are Matt's and are settled in Part
   3, starting from today's menu families (Generators, Noise, Wavetable,
   Additive, Envelopes, Filters, Combiners, Loop).

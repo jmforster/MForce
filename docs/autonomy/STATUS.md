@@ -1,5 +1,64 @@
 # Status — session handoff (Claude reads this first; Matt's queue = */REVIEW.md)
 
+Updated: 2026-10-31 (refactor session VI, Fable 5.1 xhigh). CHECKPOINT 3.2
+LANDED on main: 67071f8..d5ebbf3 — the second of Part 3's eight. ONE
+CLASSIFICATION: each registration carries a TypeTag {family, label, shelf}
+(designated initializers); Family is ten values in Part 3 section 3's order
+with family_name(); Shelf is Main or Experimental; registered_types() answers
+in registration order, which is menu order; types_in(family, shelf) is what a
+menu draws; find(name) returns the tag or null and family/label/shelf throw on
+an unknown name. SourceCategory, Component::category() and the fifty-nine
+per-node overrides are gone. 85 registrations: 63 main, 22 Experimental (today's
+Experimental sub-menu plus the eight no menu listed — NameGate, StaticVar,
+StaticRange, the KSPianoString alias, Biquad, BowTable, Mesh2D, PierceFilter;
+Matt: "just throw them all under experimental"); 27 labels where the menu's
+word differs from derived_label(); a test refuses a redundant one. THE MENUS
+(create and Replace-with) are one generated loop, shelf_menus(Shelf), over
+kFamilyOrder/types_in, one separator before kFirstShapingFamily (Physical),
+the four-item quick block kept by hand; THEME (tools/mforce_ui/theme.h): one
+colour per family plus output/parameter/note/curve/unknown/dynPinGold/
+envelopeStrip, defaults equal to the old literals, so seven types changed
+colour (HybridKS teal→tan, PierceFilter lavender→teal, Distortion and Shaper
+teal→lavender, Vibrato teal→pale gold, Segment reddish-orange→pale gold,
+Wormhole teal→grey); the ten intra-family menu dividers are gone; the Vibrato
+and Segment strips are the Envelope family's (yellow, hidden by the Envelopes
+toggle). FOLDERS: 42 headers git-mv'd into engine/include/mforce/source/
+{oscillator,noise,wavetable,physical,filter,envelope,modulator,combiner,
+utility}/; engine/include/mforce/filter/ gone; the envelope, Var, Range, Curve,
+NameGate and Multi headers left core/; modules.json folds filter into source.
+NO RENDER MOVED: null gate 78/78 after every commit, A/B 0 of 132 over library
++ baselines, allocation gate clean, wiring null gate 78/78. METER: files +1
+(theme.h), include_violations 13→14 — music/pitch_bend.h → the envelope
+header, a pre-existing edge made visible by the move; map NOT widened (the
+target says music depends on core only), function NOT moved (the target's 3.7
+moves compile_pitch_curve to render when pitch_bend.h splits) — REVIEW R9
+item 3 asks Matt. Refuter (report §8): no Critical, no Major; fourteen Minors
+and seven flags; the wave fixed the cheap right ones with tests first (find(),
+the registry owning its label copy, Pierce Filter's label, the named
+separator, designated initializers on the theme, two naming guards, stale
+comments, Part-number comments) and ruled on the alias (stays, 3.5 migrates)
+and MODULES.md (regenerated at the close). Timing: see the report's §5. DOCS:
+report R9 docs/autonomy/refactor/reports/2026-10-31-checkpoint-3.2.md; REVIEW
+R9 AWAITING MATT with seven items (A/B; the seven colours; the menu as
+generated and the lost dividers; the meter's +1; the alias on the shelf; the
+two strips; the timing); R8 (3.1) and R6 (2.5) still await. BACKLOG row 2:
+3.2 DONE, 3.3 NEXT — plan 3.3 to write (core/dsp primitives, merged one at a
+time with the copies compared first). Part 3 §3 landed line + Experimental
+note + §10 row 3.2; the target's §3.2 landed line; the plan's Ledger carries
+every execution ruling. DEBT (report §7): Theme's other literals and JSON
+loading, the untestable defaults, theme.h pulling the registry header (Part
+7); the six preset envelopes in the menu and the alias on the shelf (3.5);
+the .cpps outside family folders (3.6); the pitch_bend edge (Part 5); order
+as menu order; kFamilyOrder restating the enum; Shelf in the engine registry;
+types_in copying per frame; the UI's remaining name-matching classifiers;
+denormals.h in Windows-1252. HARNESS NOTES: the UI stamp gate failed twice on
+a stale UI exe (a comment-only edit after a build; the engine lib rebuilt
+under it by a mutation cycle) — relink before the gates; the heredoc rule
+(no backslash in a heredoc, scripts via the Write tool) held all session.
+Measurement scope (library + baselines) held. GOALS.md stays Matt's
+uncommitted edit. Main is ahead of origin by every commit since the 2.5 docs
+commit 88283c4: ask at close-out whether to push.
+
 Updated: 2026-10-30 (refactor session VI, Fable 5.1 xhigh). CHECKPOINT 3.1
 LANDED on main: ba097f6..f1f8244 — the first of Part 3's eight. The twenty-two
 parts (four Partials types and ExpandRule, five formant types, twelve

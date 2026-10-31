@@ -104,9 +104,10 @@ the C# comes back unchanged.
 
 ## 3. The families
 
-**Accepted as proposed 2026-10-05; a living list, edited in place whenever.** One classification,
-declared where a type is registered; folder, colour and the create menu
-follow from it (target architecture, section 3.2).
+**Accepted as proposed 2026-10-05; landed 2026-10-31 as checkpoint 3.2** (`67071f8`..`d5ebbf3`,
+report R9); **a living list, edited in place whenever.** One classification,
+declared where a type is registered (`TypeTag`: family, label, shelf); folder,
+colour and the create menu follow from it (target architecture, section 3.2).
 
 | Family | Base | Members |
 |---|---|---|
@@ -132,6 +133,16 @@ Notes on the placements that moved:
   modulation generator; say so if you want it under Modulators.
 - The six preset envelopes disappear from the menu as types and reappear
   as presets of Envelope (section 6).
+- The Experimental shelf (`Shelf::Experimental` on the registration, drawn
+  as the menu's Experimental sub-menu mirroring the families) holds the
+  types parked on 2026-08-26 and the eight no menu listed — Name Gate,
+  Static Var, Static Range, the `KSPianoString` alias, Biquad, Bow Table,
+  Mesh 2D, Pierce Filter — under their families (Matt, 2026-10-31: "just
+  throw them all under experimental, don't get slowed down by
+  classifications that can be decided later"). A type leaves the shelf by
+  one word on its registration. Labels are derived from the type name
+  unless the registration gives one (`.label`); the table above is the
+  reference for the words.
 
 ## 4. Shared DSP primitives in `core/dsp`
 
@@ -253,7 +264,7 @@ None of these changes a sample. The allocation test is what proves it.
 | Checkpoint | What lands | Expected render changes |
 |---|---|---|
 | 3.1 | `Component` root; the parts leave `ValueSource` | none — landed 2026-10-30 (`ba097f6`..`f1f8244`): 0 of 132 renders moved over library and baselines; a malformed wire (a signal into a slot, a part into a signal pin) now fails the load with the reason (REVIEW R8) |
-| 3.2 | Families declared at registration; folders; the create menu generated; colours through `Theme` | none |
+| 3.2 | Families declared at registration; folders; the create menu generated; colours through `Theme` | none — landed 2026-10-31 (`67071f8`..`d5ebbf3`): 0 of 132 renders moved over library and baselines; in the editor seven node colours follow their new family, the Experimental sub-menu lists eight types no menu had, the dividers inside a family are gone, and the Vibrato and Segment strips are the Envelope family's; the meter counts one more include edge, `music/pitch_bend.h` → the envelope header, visible since the header left `core` (REVIEW R9) |
 | 3.3 | `core/dsp` primitives, merged one at a time with the copies compared first | none; a differing copy becomes a parameter |
 | 3.4 | Each evolution becomes a `Component`; the twelve wrappers and `IEvolutionHolder` deleted; `TargetEvolution` registered; the string-typed form deleted and two patches converted | none |
 | 3.5 | Envelope presets collapsed; `KSPianoString` migrated | none; type names change on disk |
