@@ -555,8 +555,10 @@ kind, so:
 ### Byte-identity
 
 Unchanged for every valid patch. Two things differ, both improvements
-and both listed: a patch that today terminates the process on a zero
-frequency now renders with the frequency clamped and reports a fault;
+and both listed: a patch that today terminates the process on a
+non-positive frequency now renders with the frequency clamped to the pin's
+minimum and reports a fault (a positive frequency below the minimum is left
+as it was: 2.5's ruling 2, accepted into this section 2026-11-02);
 and a patch that today renders silently wrong because of a bad wire now
 fails to load with the reason. The null gate's own run finds the second
 set.

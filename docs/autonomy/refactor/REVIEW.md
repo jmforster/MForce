@@ -6,10 +6,25 @@ on the shape of the code happen in docs/architecture/ (the target
 architecture and the per-area parts); this file is where finished
 checkpoints wait for Matt's read.
 
+**Standing rule (Matt, 2026-11-02):** for the remainder of the refactor,
+easily-tweaked items (colours, menu dividers, labels, strip colours, any
+reversible presentation or grouping call) do not come here. If the cause is
+understood and the implication is not far-reaching, the session decides,
+records the decision in the report's section 6 and adds the item to
+`CLEANUP.md` (the post-refactor suggested cleanup master list). An item
+lands here only when it is far-reaching: an interface Matt should own, a
+render he should hear, a deletion. The oboe1 A/B at 0 moved is accepted
+standing. R6, R8 and R9 below were resolved under this rule the day it was
+given.
+
 ## Awaiting
 
+(none)
+
+## Resolved
+
 **R9 — checkpoint 3.2: families at registration; the menu generated; `Theme`; folders by family**
-(2026-10-31, commits `67071f8`..`d5ebbf3`)
+(2026-10-31, commits `67071f8`..`d5ebbf3`) — VERDICT 2026-11-02 (standing rule): (0) accepted, byte-identical; (1) the seven colours stand (CLEANUP: colour follows family, one Theme entry or one family word moves any); (2) the generated menu stands, the dividers are not restored (CLEANUP: a grouping fact on the tag if ever wanted); (3) the reading stands — the `music` → envelope edge is carried visibly until Part 5's split of `pitch_bend.h`, as the target's 3.7 already schedules; (4) the alias stays creatable until 3.5 deletes it; (5) the Vibrato and Segment strips stand as the Envelope family's (CLEANUP); (6) the timing is accepted on the mechanism (no render-path file changed except its include lines; the refuter traced it).
 - Read: `docs/autonomy/refactor/reports/2026-10-31-checkpoint-3.2.md`
   (its reading guide is ten minutes; section 1 names the four things the
   editor shows differently — seven colours, eight Experimental newcomers,
@@ -68,7 +83,7 @@ checkpoints wait for Matt's read.
   continues.
 
 **R8 — checkpoint 3.1: `Component` root; the parts leave `ValueSource`**
-(2026-10-30, commits `ba097f6`..`f1f8244`)
+(2026-10-30, commits `ba097f6`..`f1f8244`) — VERDICT 2026-11-02 (standing rule): (0) the malformed-wire refusal stands as 2.5's "a rejected wire says so" applied to the two kinds (no patch in scope carries one); (1) accepted, byte-identical; (2) the undocumented `"formants"` key stays unread (only `patches/old/` carries it, and the loader has refused it by name since the wave); (3) the part strips' empty capture stands for Part 7 (CLEANUP); (4) `Component::on_slot_changed` stands as the third hook — one owner today; a second owner that keeps a view into its part reuses it, and if the hook then wants a payload that is Part 7's design; (5) the unlink fix stands, pinned by its test; the manual try is not required; (6) the editor's hand lists are Part 7's (3.1 report section 7); (7) the timing is accepted on the mechanism.
 - Read: `docs/autonomy/refactor/reports/2026-10-30-checkpoint-3.1.md`
   (its reading guide is ten minutes; section 1 names the one behaviour
   change — a malformed wire now fails the load — and the hook the plan did
@@ -115,7 +130,7 @@ Two more from the refutation (section 8): (5) **the editor's unlink** —
   path, or want a rerun on a quiet machine before Part 3 continues.
 
 **R6 — checkpoint 2.5: no throw on a render path; fault flags; a rejected
-wire says so** (2026-10-26, commits `cb1b4ab`..`1481d15`)
+wire says so** (2026-10-26, commits `cb1b4ab`..`1481d15`) — VERDICT 2026-11-02 (standing rule): (0) the five patches that stop loading stay as listed (`sweep/` is regenerable, `old/` is never deleted; both outside the measurement scope); (1) the wrap list's renders are the frozen truth (the two `double_advance` baselines are regression fixtures, refrozen; the rest are queue and sweep patches outside the scope); (2) the fault reports' shape stands; a fault count on the UI stamp is a CLEANUP suggestion; (3) `prepare()` throwing on a zero rate stands as the host contract; (4) the narrower sentence is accepted into Part 2 section 6 (edited 2026-11-02): the clamp applies to a non-positive frequency only.
 - Read: `docs/autonomy/refactor/reports/2026-10-20-checkpoint-2.5.md`
   (its reading guide is ten minutes; section 1 names the three latent host
   bugs the fault bits found on the way in, section 5 the patches that stop
@@ -149,8 +164,6 @@ wire says so** (2026-10-26, commits `cb1b4ab`..`1481d15`)
   non-terminating render moved — accept the narrower sentence into Part 2
   §6, or schedule the wider clamp as a behaviour checkpoint with its own
   measured list.
-
-## Resolved
 
 **R7 — checkpoint 2.6: the allocation test over every baseline patch**
 (2026-10-30, commits `6a37849`..`d3df3ea`) — VERDICT 2026-10-30: (0) the gate stays in `gates.py`'s slow list; a `--jobs` split across processes is a plan 3.1 tooling task (Part 3 touches every node, so the gate runs per task there); (1) accepted — byte-identical over the sample; (2) the queues were measured once after the fixes (752 patches, 0 allocate, 3 fail to load: the GrayScott three) and are not measured again — library + baselines is the standard for every gate, A/B and measurement from here (Matt: too much time on patches that will likely never be used; a promising old patch that breaks is diagnosed when he loads it); (3) the 20 Hz floor stays; (4) a structural setting takes no per-note push: the mark is on the pin and its descriptor (`SettingRole::Structural`; every int and bool by type, as pin_model_design §6 already said; the Partials shaping floats declared), the loader refuses a paramMap or dynamicPins wire into one naming the node, the setting and the reason, the UI offers no pin for one, and the two Partials handlers read the mark instead of a name list — landed `6007b29`.

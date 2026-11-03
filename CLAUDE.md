@@ -60,6 +60,15 @@ Replicate legacy functionality of node-based UI to:
   any lane, including autonomous "go" runs, until Matt lifts it. Protocol:
   docs/superpowers/specs/2026-10-04-refactor-gates-design.md
 - Windows-only is fine for now, but plan for future cross-platform
+- Refactor verdicts (Matt 2026-11-02): for the remainder of the refactor do
+  NOT put Matt in the loop for easily-tweaked items (colours, menu dividers,
+  labels, strip colours, any reversible presentation or grouping call). If
+  the cause is understood and the implication is not far-reaching, decide
+  it, record the decision in the report's section 6, and add it to
+  docs/autonomy/refactor/CLEANUP.md (the post-refactor *suggested* cleanup
+  master list). REVIEW items are for far-reaching calls only: an interface
+  Matt should own, a render he should hear, a deletion. The oboe1 A/B at
+  0 moved is accepted standing ("oboe patch is fine").
 
 ## Non-negotiables
 - No heap allocation in hot render loops
