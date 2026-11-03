@@ -146,6 +146,23 @@ Notes on the placements that moved:
 
 ## 4. Shared DSP primitives in `core/dsp`
 
+**Landed 2026-11-02 as checkpoint 3.3** (`0d500fc`..`b3c6160`, report R10):
+nine headers under `engine/include/mforce/core/dsp/` in `namespace
+mforce::dsp` (the seven below, `constants.h` with the one `kPi`, and the
+Pierce allpass moved in); twenty-five sites in fifteen node and render files
+hold or call them; no render in library + baselines moved (0 of 132). Two
+shapes departed from the sentence below, each with a reason in the plan's
+Ledger: a primitive with no state and no stored coefficient is a function
+(`dsp::blep`, `dsp::bow_friction`), and the biquad is coefficients apart
+from state (`BiquadCoefficients::process(state, x)`, `Biquad` the pair)
+because the mesh runs 128 sections on one coefficient set per sample. The
+forms that differ from a primitive's (KSString's inharmonic highpass, nested
+allpasses and allpass fractional read; the Reed and Brass loop one-poles;
+the SVF's 1P path; the mesh's STK edge one-pole; the additive noise bed)
+were left, by the byte-identity rule below. One departure by construction
+is named in the report: EKS's stiffness allpass clears both memories at a
+note's start where it cleared one.
+
 Each primitive becomes a small struct with no virtual functions, held by
 value inside the nodes that use it, with `set(...)` for its coefficients
 and `process(x)` for one sample. Composition, not inheritance: a KS
@@ -265,7 +282,7 @@ None of these changes a sample. The allocation test is what proves it.
 |---|---|---|
 | 3.1 | `Component` root; the parts leave `ValueSource` | none — landed 2026-10-30 (`ba097f6`..`f1f8244`): 0 of 132 renders moved over library and baselines; a malformed wire (a signal into a slot, a part into a signal pin) now fails the load with the reason (REVIEW R8) |
 | 3.2 | Families declared at registration; folders; the create menu generated; colours through `Theme` | none — landed 2026-10-31 (`67071f8`..`d5ebbf3`): 0 of 132 renders moved over library and baselines; in the editor seven node colours follow their new family, the Experimental sub-menu lists eight types no menu had, the dividers inside a family are gone, and the Vibrato and Segment strips are the Envelope family's; the meter counts one more include edge, `music/pitch_bend.h` → the envelope header, visible since the header left `core` (REVIEW R9) |
-| 3.3 | `core/dsp` primitives, merged one at a time with the copies compared first | none; a differing copy becomes a parameter |
+| 3.3 | `core/dsp` primitives, merged one at a time with the copies compared first | none — landed 2026-11-02 (`0d500fc`..`b3c6160`): 0 of 132 renders moved over library and baselines; the copies that compute a different difference equation were left (report section 7); one departure by construction, EKS's stiffness allpass clearing both memories at a note's start (one LSB over a note's remainder with stiffness > 0; no such patch in scope) (REVIEW R10) |
 | 3.4 | Each evolution becomes a `Component`; the twelve wrappers and `IEvolutionHolder` deleted; `TargetEvolution` registered; the string-typed form deleted and two patches converted | none |
 | 3.5 | Envelope presets collapsed; `KSPianoString` migrated | none; type names change on disk |
 | 3.6 | One type per file | none |

@@ -1,5 +1,70 @@
 # Status — session handoff (Claude reads this first; Matt's queue = */REVIEW.md)
 
+Updated: 2026-11-02 (refactor session VII, Fable 5.1 xhigh). CHECKPOINT 3.3
+LANDED on main: 0d500fc..b3c6160 — the third of Part 3's eight. THE
+PRIMITIVES: engine/include/mforce/core/dsp/ holds nine headers in namespace
+mforce::dsp — constants.h (kPi: the nodes' three pi literals are one float),
+blep.h (dsp::blep, a function), dc_blocker.h (DcBlocker), tuning_allpass.h
+(TuningAllpass), one_pole.h (OnePole::process(x, a) with the coefficient per
+call, plus pole_for_samples/seconds/cutoff_hz), bow_friction.h
+(dsp::bow_friction, a function; kBowFrictionMax), biquad.h (BiquadState +
+BiquadCoefficients with five named recipes and the phase delay; Biquad the
+pair — split because the mesh runs 128 sections on one coefficient set per
+sample), butterworth_section.h (ButterworthSection with Kind; FIRFilter,
+IIRFilter, BWSection and the two subclasses are gone), pierce_allpass.h
+(moved in). Twenty-five sites in fifteen files hold or call them. METHOD: each
+merge keeps the deleted lines' float operations in the same order; a twin
+test per primitive retypes the deleted lines and compares bits over a
+deterministic signal with zeros of both signs; mutation-tested once each.
+NO RENDER MOVED: null gate 78/78 after every task and the wave; A/B 0 of 132
+(twice: at 2f0a755 and after the wave); a synthetic set of ten patches for
+the node types the scope lacks (resonator, mesh x3, brass, BW highpass,
+KSString bowed, Biquad raw/resonance, FM oversample 2) 0 DIFFER at every
+task. ONE DEPARTURE BY CONSTRUCTION, named: EKS's stiffness allpass clears
+both memories at a note's start (the old adjust() cleared y1 only); the
+refuter measured it — one LSB over the rest of every note after the first,
+stiffness > 0 only; the only EKS patch in scope (hi_hat1) has stiffness 0;
+kept as a one-entry departure set (1 DIFFER, listed); decided under Matt's
+11-02 rule. One bounded class: BiquadSource resonance mode as the general
+section (sign of a zero only). Forms with a different difference equation
+(KSString's inharmonic HP, nested allpasses, allpass read; Reed/Brass loop
+one-poles; SVF 1P; mesh STK edge; the additive bed) were NOT merged — Part 8
+or 3.8. REFUTER (report §8): no Critical; two Majors (the departure's extent
+misdescribed as "one sample"; phase_delay_at moved with a circular test),
+seven Minors, eight flags; the wave (b3c6160) fixed all the cheap right ones
+with tests first (the closed form retyped as a reference; reset twins; the
+performer's two smoothers merged into OnePole; kBowFrictionMax beside the
+curve; int k, n; every comb's dispersion sections set per note; a tautology
+dropped). Timing: one clean run, rows 0.96x–1.05x (noise). METER (--delta
+5a07eeb): files +8, lines +709 (tests +547), duplicate_blocks -1,
+include_violations +0 (14), functions_over_limit +0, unmapped 0. DOCS:
+report R10 docs/autonomy/refactor/reports/2026-11-02-checkpoint-3.3.md;
+REVIEW R10 under Resolved (nothing to decide; the departure named); Part 3
+§4 landed paragraph + §10 row 3.3; the target's 3.1 landed line; BACKLOG
+row 2: 3.3 DONE, 3.4 NEXT — plan 3.4 to write (each evolution a Component,
+the twelve wrappers and IEvolutionHolder deleted, TargetEvolution
+registered, the string-typed form deleted and two patches converted); the
+plan's Ledger carries every execution ruling; CLEANUP rows 15–16. SESSION
+RULES THAT CHANGED TODAY: (1) superpowers DISABLED for this project
+(.claude/settings.json, untracked; Matt: leave installed) — do not invoke
+its skills; the plan/Ledger/refuter protocol is the repo's own; (2) Matt's
+11-02 rule (CLAUDE.md "Refactor verdicts", REVIEW header): easily-tweaked
+items are the session's call, logged in docs/autonomy/refactor/CLEANUP.md
+(the master list); REVIEW only for far-reaching calls; the oboe1 A/B at 0
+moved is accepted standing; R6, R8, R9 were resolved under it. DEBT (report
+§7): the unmerged forms; kPiDesign (the Butterworth's own 15-digit pi); P1
+(Biquad writes derived a1/a2 into its settings) and P2 (the 0.0f accumulator
+start) on CLEANUP's preservation list; Biquad's per-sample set_raw and the
+resonator's per-sample set (no setting hooks); 23 pi literals outside
+core/dsp; FM's live-oversample allocation and the limiter's per-sample exp
+(pre-existing). HARNESS NOTES: two test-side C++ traps cost a cycle each —
+`std::vector<float> v(size_t(n))` is a function declaration; `vector<float>
+fir{3, 0.0f}` is two elements (exit 127, no FAIL line); an expectation written
+as arithmetic in a test rounds its own way (compare against the retyped
+line, never a re-derivation). GOALS.md stays Matt's uncommitted edit. Main
+is ahead of origin by every commit since 5a07eeb's predecessor: ask at
+close-out whether to push.
+
 Updated: 2026-10-31 (refactor session VI, Fable 5.1 xhigh). CHECKPOINT 3.2
 LANDED on main: 67071f8..d5ebbf3 — the second of Part 3's eight. ONE
 CLASSIFICATION: each registration carries a TypeTag {family, label, shelf}

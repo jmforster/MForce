@@ -23,6 +23,29 @@ given.
 
 ## Resolved
 
+**R10 — checkpoint 3.3: the shared DSP primitives in `core/dsp`**
+(2026-11-02, commits `0d500fc`..`b3c6160`) — under the standing rule,
+nothing to decide; listed so the chain of reports is unbroken.
+- Read: `docs/autonomy/refactor/reports/2026-11-02-checkpoint-3.3.md`
+  (its reading guide is ten minutes; section 1 names the one departure by
+  construction and the bounded sign-of-zero class, section 6 the seven
+  comparison tables — where "exact" needed an argument — section 8 the
+  refutation and the wave, section 10 four C++ lessons: value members, free
+  functions and `inline`, what float arithmetic promises, two initialisation
+  traps).
+- Try: `python tools/null_gate_perform_source.py --jobs 3` (78/78); play
+  `patches/library/winds/oboe1.json` and any KS piano patch on the keyboard —
+  nothing changed (the A/B is 0 moved over 132); open
+  `engine/include/mforce/core/dsp/` — nine headers, one primitive each.
+- Decided, named here and not asked: (0) the A/B, 0 of 132; (1) EKS's
+  stiffness allpass clears both memories at a note's start — a one-LSB
+  difference over the rest of every note after the first, only with
+  stiffness > 0, and no such patch in library or baselines (the alternative
+  was a method on a shared primitive for one caller's bytes); (2)
+  `BiquadSource`'s resonance mode runs the general section (the sign of a
+  zero only, which 16-bit renders cannot carry); (3) `TuningAllpass` keeps
+  the design table's name (CLEANUP row 15).
+
 **R9 — checkpoint 3.2: families at registration; the menu generated; `Theme`; folders by family**
 (2026-10-31, commits `67071f8`..`d5ebbf3`) — VERDICT 2026-11-02 (standing rule): (0) accepted, byte-identical; (1) the seven colours stand (CLEANUP: colour follows family, one Theme entry or one family word moves any); (2) the generated menu stands, the dividers are not restored (CLEANUP: a grouping fact on the tag if ever wanted); (3) the reading stands — the `music` → envelope edge is carried visibly until Part 5's split of `pitch_bend.h`, as the target's 3.7 already schedules; (4) the alias stays creatable until 3.5 deletes it; (5) the Vibrato and Segment strips stand as the Envelope family's (CLEANUP); (6) the timing is accepted on the mechanism (no render-path file changed except its include lines; the refuter traced it).
 - Read: `docs/autonomy/refactor/reports/2026-10-31-checkpoint-3.2.md`

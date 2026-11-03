@@ -136,21 +136,6 @@
    ]
   ],
   [
-   23,
-   [
-    [
-     "tools/test_figures/main.cpp",
-     158,
-     180
-    ],
-    [
-     "tools/test_figures/main.cpp",
-     716,
-     738
-    ]
-   ]
-  ],
-  [
    22,
    [
     [
@@ -190,13 +175,13 @@
    [
     [
      "engine/include/mforce/render/instrument.h",
-     697,
-     715
+     698,
+     716
     ],
     [
      "engine/include/mforce/render/instrument.h",
-     752,
-     764
+     753,
+     765
     ]
    ]
   ],
@@ -370,13 +355,13 @@
    [
     [
      "tools/engine_tests/main.cpp",
-     3698,
-     3713
+     4337,
+     4352
     ],
     [
      "tools/engine_tests/main.cpp",
-     3989,
-     4004
+     4628,
+     4643
     ]
    ]
   ],
@@ -415,8 +400,8 @@
     ],
     [
      "engine/include/mforce/source/filter/limiter.h",
-     5,
-     24
+     6,
+     25
     ],
     [
      "engine/include/mforce/source/filter/reverb.h",
@@ -520,8 +505,8 @@
     ],
     [
      "engine/include/mforce/source/filter/limiter.h",
-     6,
-     24
+     7,
+     25
     ],
     [
      "engine/include/mforce/source/filter/reverb.h",
@@ -700,8 +685,8 @@
     ],
     [
      "engine/include/mforce/source/filter/limiter.h",
-     8,
-     24
+     9,
+     25
     ],
     [
      "engine/include/mforce/source/filter/reverb.h",
@@ -720,8 +705,8 @@
     ],
     [
      "engine/include/mforce/source/oscillator/fm_source.h",
-     8,
-     24
+     9,
+     25
     ],
     [
      "engine/include/mforce/source/oscillator/triangle_source.h",
@@ -730,8 +715,8 @@
     ],
     [
      "engine/include/mforce/source/physical/allpass_resonator.h",
-     7,
-     43
+     11,
+     47
     ]
    ]
   ],
@@ -855,18 +840,18 @@
    [
     [
      "tools/engine_tests/main.cpp",
-     3700,
-     3710
+     4339,
+     4349
     ],
     [
      "tools/engine_tests/main.cpp",
-     3991,
-     4001
+     4630,
+     4640
     ],
     [
      "tools/engine_tests/main.cpp",
-     4496,
-     4506
+     5135,
+     5145
     ]
    ]
   ],
@@ -1010,13 +995,13 @@
    [
     [
      "tools/engine_tests/main.cpp",
-     3334,
-     3343
+     3973,
+     3982
     ],
     [
      "tools/engine_tests/main.cpp",
-     3662,
-     3671
+     4301,
+     4310
     ]
    ]
   ],
@@ -1067,6 +1052,21 @@
      "tools/mforce_ui/main.cpp",
      6945,
      6954
+    ]
+   ]
+  ],
+  [
+   10,
+   [
+    [
+     "tools/mforce_ui/main.cpp",
+     12974,
+     12983
+    ],
+    [
+     "tools/mforce_ui/main.cpp",
+     12999,
+     13008
     ]
    ]
   ]
@@ -1134,6 +1134,137 @@
     "ArrayDescriptor"
    ]
   },
+  "engine/include/mforce/core/dsp/biquad.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 117,
+   "longest_function": [
+    14,
+    "mforce::dsp::BiquadCoefficients::phase_delay_at"
+   ],
+   "module": "core",
+   "mutable_vars": 0,
+   "types": [
+    "BiquadState",
+    "BiquadCoefficients",
+    "Biquad"
+   ]
+  },
+  "engine/include/mforce/core/dsp/blep.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 24,
+   "longest_function": [
+    11,
+    "mforce::dsp::blep"
+   ],
+   "module": "core",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/include/mforce/core/dsp/bow_friction.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 25,
+   "longest_function": [
+    4,
+    "mforce::dsp::bow_friction"
+   ],
+   "module": "core",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/include/mforce/core/dsp/butterworth_section.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 90,
+   "longest_function": [
+    21,
+    "mforce::dsp::ButterworthSection::update"
+   ],
+   "module": "core",
+   "mutable_vars": 0,
+   "types": [
+    "ButterworthSection"
+   ]
+  },
+  "engine/include/mforce/core/dsp/constants.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 10,
+   "longest_function": [
+    0,
+    ""
+   ],
+   "module": "core",
+   "mutable_vars": 0,
+   "types": []
+  },
+  "engine/include/mforce/core/dsp/dc_blocker.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 27,
+   "longest_function": [
+    6,
+    "mforce::dsp::DcBlocker::process"
+   ],
+   "module": "core",
+   "mutable_vars": 0,
+   "types": [
+    "DcBlocker"
+   ]
+  },
+  "engine/include/mforce/core/dsp/one_pole.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 39,
+   "longest_function": [
+    4,
+    "mforce::dsp::OnePole::process"
+   ],
+   "module": "core",
+   "mutable_vars": 0,
+   "types": [
+    "OnePole"
+   ]
+  },
+  "engine/include/mforce/core/dsp/pierce_allpass.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 94,
+   "longest_function": [
+    13,
+    "mforce::dsp::PierceAllpass::tick"
+   ],
+   "module": "core",
+   "mutable_vars": 0,
+   "types": [
+    "PierceAllpass"
+   ]
+  },
+  "engine/include/mforce/core/dsp/tuning_allpass.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 29,
+   "longest_function": [
+    6,
+    "mforce::dsp::TuningAllpass::process"
+   ],
+   "module": "core",
+   "mutable_vars": 0,
+   "types": [
+    "TuningAllpass"
+   ]
+  },
   "engine/include/mforce/core/dsp_value_source.h": {
    "changelog_comments": 0,
    "const_cast": 0,
@@ -1194,21 +1325,6 @@
    "module": "core",
    "mutable_vars": 0,
    "types": []
-  },
-  "engine/include/mforce/core/pierce_allpass.h": {
-   "changelog_comments": 0,
-   "const_cast": 0,
-   "dynamic_cast": 0,
-   "lines": 94,
-   "longest_function": [
-    13,
-    "mforce::PierceAllpass::tick"
-   ],
-   "module": "core",
-   "mutable_vars": 0,
-   "types": [
-    "PierceAllpass"
-   ]
   },
   "engine/include/mforce/core/pins.h": {
    "changelog_comments": 0,
@@ -2321,7 +2437,7 @@
    "changelog_comments": 20,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 839,
+   "lines": 840,
    "longest_function": [
     134,
     "mforce::PitchedInstrument::play_note"
@@ -2386,7 +2502,7 @@
    "changelog_comments": 2,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 139,
+   "lines": 138,
    "longest_function": [
     12,
     "mforce::PerformSource::set_note"
@@ -2674,9 +2790,9 @@
    "changelog_comments": 1,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 105,
+   "lines": 95,
    "longest_function": [
-    23,
+    20,
     "mforce::BiquadSource::compute"
    ],
    "module": "source",
@@ -2689,7 +2805,7 @@
    "changelog_comments": 1,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 308,
+   "lines": 200,
    "longest_function": [
     24,
     "mforce::DelayFilter::compute"
@@ -2697,11 +2813,6 @@
    "module": "source",
    "mutable_vars": 0,
    "types": [
-    "FIRFilter",
-    "IIRFilter",
-    "BWSection",
-    "BWLPSection",
-    "BWHPSection",
     "BWLowpassFilter",
     "BWHighpassFilter",
     "BWBandpassFilter",
@@ -2712,7 +2823,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 109,
+   "lines": 110,
    "longest_function": [
     37,
     "mforce::HammerBank::compute"
@@ -2727,7 +2838,7 @@
    "changelog_comments": 1,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 85,
+   "lines": 86,
    "longest_function": [
     29,
     "mforce::Limiter::compute"
@@ -2959,7 +3070,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 133,
+   "lines": 135,
    "longest_function": [
     54,
     "mforce::FMSource::wave"
@@ -2974,9 +3085,9 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 47,
+   "lines": 36,
    "longest_function": [
-    13,
+    15,
     "mforce::PulseSource::wave"
    ],
    "module": "source",
@@ -2989,9 +3100,9 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 30,
+   "lines": 21,
    "longest_function": [
-    14,
+    4,
     "mforce::SawSource::wave"
    ],
    "module": "source",
@@ -3034,7 +3145,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 189,
+   "lines": 185,
    "longest_function": [
     43,
     "mforce::AllpassResonator::init_note"
@@ -3049,9 +3160,9 @@
    "changelog_comments": 1,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 35,
+   "lines": 34,
    "longest_function": [
-    7,
+    5,
     "mforce::BowTableSource::compute"
    ],
    "module": "source",
@@ -3079,9 +3190,9 @@
    "changelog_comments": 6,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 526,
+   "lines": 519,
    "longest_function": [
-    148,
+    142,
     "mforce::KSString::compute"
    ],
    "module": "source",
@@ -3094,9 +3205,9 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 326,
+   "lines": 318,
    "longest_function": [
-    42,
+    41,
     "mforce::Mesh2DSource::compute"
    ],
    "module": "source",
@@ -3154,9 +3265,9 @@
    "changelog_comments": 1,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 1304,
+   "lines": 1281,
    "longest_function": [
-    47,
+    42,
     "mforce::BowedStringEvolution::evolve"
    ],
    "module": "source",
@@ -3195,7 +3306,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 75,
+   "lines": 73,
    "longest_function": [
     4,
     "mforce::WavetableSource::set_evolution"
@@ -3414,9 +3525,9 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 157,
+   "lines": 139,
    "longest_function": [
-    56,
+    47,
     "mforce::WavetableSource::compute_raw"
    ],
    "module": "source",
@@ -3572,7 +3683,7 @@
    "changelog_comments": 4,
    "const_cast": 0,
    "dynamic_cast": 18,
-   "lines": 6949,
+   "lines": 7600,
    "longest_function": [
     272,
     "run_walk3_tests"
@@ -3580,6 +3691,11 @@
    "module": "tests",
    "mutable_vars": 1,
    "types": [
+    "RawRef",
+    "DoublePoleRef",
+    "ChafeRef",
+    "ResonanceRef",
+    "BwRef",
     "Playback",
     "PinProbe",
     "Doubler",
@@ -3978,14 +4094,14 @@
  "summary": {
   "changelog_comments": 249,
   "const_cast": 10,
-  "duplicate_blocks": 152,
+  "duplicate_blocks": 151,
   "dynamic_cast": 60,
   "file_level_mutable_vars": 120,
-  "files": 172,
+  "files": 180,
   "files_over_limit": 20,
   "functions_over_limit": 98,
   "include_violations": 14,
-  "lines": 60819,
+  "lines": 61634,
   "unmapped_files": 0
  }
 }

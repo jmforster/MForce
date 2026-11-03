@@ -25,6 +25,8 @@ full record of debt; this file is the short list of what is worth a look.
 | 12 | `engine/include/mforce/core/denormals.h` is Windows-1252 encoded (an em dash at byte 200); every other header is UTF-8. A one-byte fix. | 3.2 §7 | — |
 | 13 | The registrations file's banners name a family beside tags that already name it. Cheap, and a reader wants them; drop only if they drift. | 3.2 §7 | — |
 | 14 | The quick block (Curve, Envelope, Var, Range) is hand-written twice in the editor's menus. | 3.2 ruling 16 | — |
+| 15 | `dsp::TuningAllpass` is a first-order allpass that one of its four owners (EKS) uses as a dispersion filter; `FirstOrderAllpass` would name the thing rather than its first use. Part 3 §4's table chose the name; one rename. | 3.3 review F4 | stands, 2026-11-02 |
+| 16 | Twenty-three π literals remain outside `core/dsp` after `kPi`; each is a one-line change once checked to be the same float. | 3.3 §7 | — |
 
 ## Byte-identity preservations to retire after Part 8
 

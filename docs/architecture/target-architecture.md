@@ -86,6 +86,12 @@ sheet stays parked in IDEAS.md.
 - **New here:** one home for the DSP primitives that are currently
   re-typed per node (band-limited step, tuning allpass, DC blocker, bow
   friction, biquad coefficient formulas).
+- **Landed 2026-11-02 as checkpoint 3.3** (`0d500fc`..`b3c6160`):
+  `core/dsp/` holds the band-limited step, the tuning allpass, the DC
+  blocker, the bow friction curve, the biquad with its named recipes, the
+  one-pole and its pole formulas, the Butterworth section and the Pierce
+  allpass, in `namespace mforce::dsp`; the per-node copies are gone and no
+  render moved (report `docs/autonomy/refactor/reports/2026-11-02-checkpoint-3.3.md`).
 - **Depends on:** nothing.
 - **Changes from today:** the contract itself is revised (Part 2). The
   registry stops including JSON; per-type JSON quirks move to the patch
