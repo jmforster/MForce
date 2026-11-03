@@ -3872,6 +3872,20 @@ static void run_evolution_live_read_tests() {
     CHECK(!ap);
 }
 
+// One cycle at full morph over a zero table: the table becomes the target
+// resampled to `len`.
+static std::vector<float> target_one_cycle(const RenderContext& ctx, TargetEvolution& e, int len) {
+    e.set_setting("holdCycles", 0.0f);
+    e.set_setting("morphRate", 1.0f);
+    e.set_setting("decayFactor", 1.0f);
+    e.prepare(ctx, 64);
+    std::vector<float> v(size_t(len), 0.0f);
+    e.adjust(440.0f);
+    e.shape_excitation(v);
+    for (int i = 0; i < len; ++i) e.evolve(v, i);
+    return v;
+}
+
 // TargetEvolution: a registered part whose target is synthesised at prepare
 // from harmonic amplitudes and peak-normalised; with no hold and a full morph
 // step the table becomes the target in one cycle; an empty target keeps plain
@@ -3887,30 +3901,18 @@ static void run_target_evolution_tests() {
     CHECK_NEAR(t.get_setting("holdCycles"), 3.0f, 1e-6f);
     CHECK_NEAR(t.get_setting("decayFactor"), 0.998f, 1e-9f);
 
-    // one cycle at full morph over a zero table writes the resampled target
-    auto one_cycle = [&](TargetEvolution& e, int len) {
-        e.set_setting("holdCycles", 0.0f);
-        e.set_setting("morphRate", 1.0f);
-        e.set_setting("decayFactor", 1.0f);
-        e.prepare(ctx, 64);
-        std::vector<float> v(size_t(len), 0.0f);
-        e.adjust(440.0f);
-        e.shape_excitation(v);
-        for (int i = 0; i < len; ++i) e.evolve(v, i);
-        return v;
-    };
     t.set_setting("targetLength", 8.0f);
-    const auto sine = one_cycle(t, 8);
+    const auto sine = target_one_cycle(ctx, t, 8);
     CHECK_NEAR(sine[2], 1.0f, 1e-6f);  CHECK_NEAR(sine[6], -1.0f, 1e-6f);
     CHECK_NEAR(sine[0], 0.0f, 1e-6f);  CHECK_NEAR(sine[4], 0.0f, 1e-6f);
     TargetEvolution half;                                  // half amplitude in, unit peak out
     half.set_array("targetPartials", {0.5f});
     half.set_setting("targetLength", 8.0f);
-    CHECK_NEAR(one_cycle(half, 8)[2], 1.0f, 1e-6f);
+    CHECK_NEAR(target_one_cycle(ctx, half, 8)[2], 1.0f, 1e-6f);
     TargetEvolution two;                                   // two partials: a different shape, still a unit peak
     two.set_array("targetPartials", {1.0f, 0.5f});
     two.set_setting("targetLength", 64.0f);
-    const auto shape = one_cycle(two, 64);
+    const auto shape = target_one_cycle(ctx, two, 64);
     float peak = 0.0f; bool differs = false;
     for (int i = 0; i < 64; ++i) { peak = std::max(peak, std::fabs(shape[size_t(i)])); differs = differs || std::fabs(shape[size_t(i)] - std::sin(float(i) / 64.0f * 2.0f * 3.14159265f)) > 1e-3f; }
     CHECK_NEAR(peak, 1.0f, 1e-6f);
@@ -3926,6 +3928,19 @@ static void run_target_evolution_tests() {
     none.evolve(flat, 0);
     CHECK_NEAR(flat[0], 0.25f, 1e-6f);
 
+    WavetableSource w;                                     // under a wavetable: finite and sounding
+    w.set_param("evolution", std::make_shared<TargetEvolution>());
+    w.prepare(ctx); w.start(4800);
+    float wpeak = 0.0f; bool finite = true;
+    for (int i = 0; i < 4800; ++i) { const float s = w.next(); finite = finite && std::isfinite(s); wpeak = std::max(wpeak, std::fabs(s)); }
+    CHECK(finite && wpeak > 0.0f);
+}
+
+// TargetEvolution's morph over a non-zero table (half morphed and decayed in
+// one step, saturated the next) and its resample of an 8-sample target onto a
+// 12-sample table.
+static void run_target_evolution_morph_tests() {
+    RenderContext ctx{48000};
     // the morph over a non-zero table: one cycle at morphRate 0.5 and decay 0.9
     TargetEvolution morph;
     morph.set_setting("targetLength", 8.0f);
@@ -3944,18 +3959,11 @@ static void run_target_evolution_tests() {
     // the resample: a 12-sample table from an 8-sample target interpolates between neighbours
     TargetEvolution twelve;
     twelve.set_setting("targetLength", 8.0f);
-    const auto r = one_cycle(twelve, 12);
+    const auto r = target_one_cycle(ctx, twelve, 12);
     CHECK_NEAR(r[1], s * (2.0f / 3.0f), 1e-5f);           // position 2/3 of the way from t[0] = 0 to t[1] = s
     CHECK_NEAR(r[3], 1.0f, 1e-6f);                         // position 2: t[2]
     CHECK_NEAR(r[6], 0.0f, 1e-6f);                         // position 4: t[4]
     CHECK_NEAR(r[9], -1.0f, 1e-6f);                        // position 6: t[6]
-
-    WavetableSource w;                                     // under a wavetable: finite and sounding
-    w.set_param("evolution", std::make_shared<TargetEvolution>());
-    w.prepare(ctx); w.start(4800);
-    float wpeak = 0.0f; bool finite = true;
-    for (int i = 0; i < 4800; ++i) { const float s = w.next(); finite = finite && std::isfinite(s); wpeak = std::max(wpeak, std::fabs(s)); }
-    CHECK(finite && wpeak > 0.0f);
 }
 
 // Checkpoint 2.1: the additive family (sources, partials, formants).
@@ -7738,6 +7746,7 @@ int main() {
     run_evolution_lifecycle_tests();
     run_evolution_live_read_tests();
     run_target_evolution_tests();
+    run_target_evolution_morph_tests();
     run_additive_source_pin_tests();
     run_additive_structural_pin_tests();
     run_additive_partials_pin_tests();
