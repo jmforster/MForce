@@ -1,5 +1,6 @@
 #pragma once
 #include "mforce/core/dsp_wave_source.h"
+#include "mforce/core/dsp/tuning_allpass.h"
 #include "mforce/source/wavetable/wave_evolution.h"
 #include "mforce/source/noise/white_noise_source.h"
 #include "mforce/core/randomizer.h"
@@ -58,10 +59,7 @@ private:
   std::vector<float>              values_;
   int                             maxLen_{0};   // values_ is reserved to this at prepare; fill_table never exceeds it
   int   tablePtr2_{-1};
-  // Tuning allpass state
-  float tuningCoeff_{0.0f};
-  float tuningState_{0.0f};
-  float tuningPrevIn_{0.0f};
+  dsp::TuningAllpass tuning_;   // the fractional part of the loop length
   // Pitch-bend support: readout is a fractional head that advances by
   // currFreq_/baseFreq_ per sample. baseFreq_ is captured at sample 0 and
   // locked for the note — it defines the ring buffer length and evolution

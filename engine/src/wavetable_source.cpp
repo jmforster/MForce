@@ -63,13 +63,9 @@ float WavetableSource::compute_raw() {
     // Tuning allpass: fractional delay for sub-sample pitch accuracy
     float idealLen = float(sample_rate()) / currFreq_;
     float frac = idealLen - float(int(values_.size()));
-    if (frac > 0.001f && frac < 0.999f) {
-      tuningCoeff_ = (1.0f - frac) / (1.0f + frac);
-    } else {
-      tuningCoeff_ = 0.0f;
-    }
-    tuningState_ = 0.0f;
-    tuningPrevIn_ = 0.0f;
+    if (frac > 0.001f && frac < 0.999f) tuning_.set_fraction(frac);
+    else                                 tuning_.set_coefficient(0.0f);
+    tuning_.reset();
     tablePtr2_ = -1;
     readPos_ = -1.0f;  // advances to 0.0 on first step below
   }
@@ -98,12 +94,7 @@ float WavetableSource::compute_raw() {
   float out = values_[idx] + (values_[idx2] - values_[idx]) * fpos;
 
   // Tuning allpass: y[n] = C*x[n] + x[n-1] - C*y[n-1]
-  if (tuningCoeff_ != 0.0f) {
-    float y = tuningCoeff_ * out + tuningPrevIn_ - tuningCoeff_ * tuningState_;
-    tuningPrevIn_ = out;
-    tuningState_ = y;
-    out = y;
-  }
+  if (tuning_.coefficient() != 0.0f) out = tuning_.process(out);
 
   return out;
 }
@@ -117,13 +108,9 @@ float WavetableSource::compute_interpolated() {
     }
     float idealLen = float(sample_rate()) / currFreq_;
     float frac = idealLen - float(int(values_.size()));
-    if (frac > 0.001f && frac < 0.999f) {
-      tuningCoeff_ = (1.0f - frac) / (1.0f + frac);
-    } else {
-      tuningCoeff_ = 0.0f;
-    }
-    tuningState_ = 0.0f;
-    tuningPrevIn_ = 0.0f;
+    if (frac > 0.001f && frac < 0.999f) tuning_.set_fraction(frac);
+    else                                 tuning_.set_coefficient(0.0f);
+    tuning_.reset();
   }
 
   int len = int(values_.size());
@@ -144,12 +131,7 @@ float WavetableSource::compute_interpolated() {
   float out = values_[samp1] + (values_[samp2] - values_[samp1]) * frac2;
 
   // Tuning allpass
-  if (tuningCoeff_ != 0.0f) {
-    float y = tuningCoeff_ * out + tuningPrevIn_ - tuningCoeff_ * tuningState_;
-    tuningPrevIn_ = out;
-    tuningState_ = y;
-    out = y;
-  }
+  if (tuning_.coefficient() != 0.0f) out = tuning_.process(out);
 
   return out;
 }

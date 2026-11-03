@@ -1,6 +1,7 @@
 #pragma once
 #include "mforce/core/dsp_value_source.h"
 #include "mforce/core/dsp/dc_blocker.h"
+#include "mforce/core/dsp/tuning_allpass.h"
 #include <vector>
 #include <cmath>
 #include <algorithm>
@@ -70,7 +71,7 @@ struct AllpassResonator final : Processor {
     wpos_ = 0;
     bq_ = BiquadState{};
     lp_ = 0.0f;
-    tuneX_ = tuneY_ = 0.0f;
+    tuning_.reset();
     dc_.reset();
     fbSample_ = 0.0f;
     initialized_ = false;
@@ -97,8 +98,7 @@ struct AllpassResonator final : Processor {
     wpos_ = (wpos_ + 1) % kBufLen;
 
     // Fractional tuning allpass (Thiran 1st order)
-    float yt = tuneA_ * y + tuneX_ - tuneA_ * tuneY_;
-    tuneX_ = y; tuneY_ = yt;
+    float yt = tuning_.process(y);
 
     // Stiffness allpass (double-real-pole biquad)
     float ys = yt;
@@ -167,7 +167,7 @@ private:
     M = std::clamp(M, 2.0f, float(kBufLen - 4));
     loopLen_ = int(M);
     float frac = M - float(loopLen_);
-    tuneA_ = (1.0f - frac) / (1.0f + frac);
+    tuning_.set_fraction(frac);
 
     dc_.set(kDcCornerHz, sr);
     initialized_ = true;
@@ -178,8 +178,7 @@ private:
   std::vector<float> buf_;
   int   wpos_{0};
   int   loopLen_{100};
-  float tuneA_{0.0f};
-  float tuneX_{0.0f}, tuneY_{0.0f};
+  dsp::TuningAllpass tuning_;
   BiquadState bq_;
   float lp_{0.0f};
   float fbSample_{0.0f};

@@ -177,6 +177,81 @@ static void run_dsp_dc_blocker_tests() {
     CHECK(bad == 0);
 }
 
+// ---------------------------------------------------------------------------
+// TuningAllpass: the wavetable's, the resonator's and EKS's first-order
+// allpass, against the line they shared (y = C*x + x1 - C*y1).
+#include "mforce/core/dsp/tuning_allpass.h"
+
+static void run_dsp_tuning_allpass_tests() {
+    for (float C : {0.2f, 0.5f, 0.9f, 0.0f}) {
+        auto sig = twin_signal(0x7A11u + uint32_t(C * 100.0f), 10000);
+        float prevIn = 0.0f, state = 0.0f;
+        dsp::TuningAllpass ap;
+        ap.set_coefficient(C);
+        int bad = 0;
+        for (float x : sig) {
+            float y = C * x + prevIn - C * state;    // the deleted line
+            prevIn = x;
+            state = y;
+            if (!same_bits(ap.process(x), y)) ++bad;
+        }
+        CHECK(bad == 0);
+    }
+    // The fraction-to-coefficient line, as the wavetable and the resonator wrote it.
+    int badFrac = 0;
+    for (int i = 0; i < 20; ++i) {
+        const float frac = 0.05f * float(i) + 0.0137f;
+        dsp::TuningAllpass ap;
+        ap.set_fraction(frac);
+        if (!same_bits(ap.coefficient(), (1.0f - frac) / (1.0f + frac))) ++badFrac;
+    }
+    CHECK(badFrac == 0);
+}
+
+// Across a note boundary EKS cleared y1 and kept x1; reset() clears both. With
+// a coefficient the two runs differ from the first sample after the boundary
+// by a difference that never grows and dies away. With coefficient 0 the
+// section is a unit delay, which is why its owners skip it then (the
+// wavetable and EKS test the coefficient before calling it).
+static void run_dsp_tuning_allpass_boundary_tests() {
+    {
+        dsp::TuningAllpass unit;
+        unit.set_coefficient(0.0f);
+        CHECK(same_bits(unit.process(0.3f), 0.0f));
+        CHECK(same_bits(unit.process(0.1f), 0.3f));
+        CHECK(!(unit.coefficient() > 0.0f));      // EKS's guard
+        CHECK(!(unit.coefficient() != 0.0f));     // the wavetable's guard
+    }
+    for (float C : {0.6f, 0.25f}) {
+        auto sig = twin_signal(0xE45u, 400);
+        float prevIn = 0.0f, state = 0.0f;
+        dsp::TuningAllpass ap;
+        ap.set_coefficient(C);
+        for (int i = 0; i < 200; ++i) {           // the first note
+            float y = C * sig[i] + prevIn - C * state; prevIn = sig[i]; state = y;
+            ap.process(sig[i]);
+        }
+        state = 0.0f;                              // EKS's old adjust(): y1 only
+        ap.reset();                                // both
+        float lastDiff = 0.0f;
+        bool firstDiffers = false;
+        int grew = 0, same = 0;
+        for (int i = 200; i < 400; ++i) {
+            float y = C * sig[i] + prevIn - C * state; prevIn = sig[i]; state = y;
+            float yn = ap.process(sig[i]);
+            float diff = std::fabs(yn - y);
+            if (i == 200) firstDiffers = !same_bits(yn, y);
+            if (i > 200 && diff > lastDiff) ++grew;
+            if (same_bits(yn, y)) ++same;
+            lastDiff = diff;
+        }
+        CHECK(firstDiffers);
+        CHECK(grew == 0);
+        CHECK(lastDiff < 1e-6f);
+        CHECK(same < 200);
+    }
+}
+
 static void run_curve_node_tests() {
     // Linear (vcurve semantics): clamp + linear interp
     CurveNode lin;
@@ -7106,6 +7181,8 @@ int main() {
     run_dsp_scaffold_tests();
     run_dsp_blep_tests();
     run_dsp_dc_blocker_tests();
+    run_dsp_tuning_allpass_tests();
+    run_dsp_tuning_allpass_boundary_tests();
     if (g_fails) { std::printf("%d/%d FAILED\n", g_fails, g_checks); return 1; }
     std::printf("ALL PASS (%d checks)\n", g_checks);
     return 0;

@@ -1,4 +1,5 @@
 #pragma once
+#include "mforce/core/dsp/tuning_allpass.h"
 #include "mforce/core/dsp_value_source.h"
 #include "mforce/core/dsp_wave_source.h"
 #include "mforce/core/randomizer.h"
@@ -267,15 +268,15 @@ struct EKSEvolution final : WaveEvolution {
     freq_ = frequency;
 
     // Stiffness allpass coefficient: higher frequency = more dispersion
+    float coeff = 0.0f;
     if (stiffness.value > 0.0f) {
       // Approximate: coefficient grows with harmonic number
       // Use a simple model: C = stiffness * (freq/1000)^0.5
-      stiffnessCoeff_ = stiffness.value * std::sqrt(freq_ / 1000.0f);
-      stiffnessCoeff_ = std::clamp(stiffnessCoeff_, 0.0f, 0.9f);
-    } else {
-      stiffnessCoeff_ = 0.0f;
+      coeff = stiffness.value * std::sqrt(freq_ / 1000.0f);
+      coeff = std::clamp(coeff, 0.0f, 0.9f);
     }
-    stiffnessState_ = 0.0f;
+    stiffness_.set_coefficient(coeff);
+    stiffness_.reset();
 
     return 0.0f;  // tuning allpass handles pitch correction now
   }
@@ -330,12 +331,7 @@ struct EKSEvolution final : WaveEvolution {
     }
 
     // String stiffness allpass: y[n] = C*x[n] + x[n-1] - C*y[n-1]
-    if (stiffnessCoeff_ > 0.0f) {
-      float y = stiffnessCoeff_ * avg + stiffnessPrevIn_ - stiffnessCoeff_ * stiffnessState_;
-      stiffnessPrevIn_ = avg;
-      stiffnessState_ = y;
-      avg = y;
-    }
+    if (stiffness_.coefficient() > 0.0f) avg = stiffness_.process(avg);
 
     values[index] = avg;
   }
@@ -344,9 +340,7 @@ private:
   Randomizer rng_;
   std::vector<float> filtered_;   // the pick-position comb's scratch, reserved at prepare
   float freq_{440.0f};
-  float stiffnessCoeff_{0.0f};
-  float stiffnessState_{0.0f};
-  float stiffnessPrevIn_{0.0f};
+  dsp::TuningAllpass stiffness_;   // the string's dispersion
 };
 
 // ---------------------------------------------------------------------------
