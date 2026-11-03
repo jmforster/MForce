@@ -1,5 +1,6 @@
 #pragma once
 #include "mforce/core/dsp_wave_source.h"
+#include "mforce/core/dsp/blep.h"
 #include <cmath>
 
 namespace mforce {
@@ -26,22 +27,10 @@ protected:
       val = -1.0f - (duty - currPos_) * 2.0f * b;
     }
 
-    return val + get_blep(currPos_) - get_blep(std::fmod(currPos_ + (1.0f - duty), 1.0f));
+    // One step up at the wrap, one step down a duty cycle later.
+    return val + dsp::blep(currPos_, currPhaseIncr_)
+               - dsp::blep(std::fmod(currPos_ + (1.0f - duty), 1.0f), currPhaseIncr_);
   }
-
-private:
-  static float get_blep(float pos, float phaseIncr) {
-    if (pos < phaseIncr) {
-      float t = pos / phaseIncr;
-      return t + t - t * t - 1.0f;
-    } else if (pos > 1.0f - phaseIncr) {
-      float t = (pos - 1.0f) / phaseIncr;
-      return t * t + t + t + 1.0f;
-    }
-    return 0.0f;
-  }
-
-  float get_blep(float pos) const { return get_blep(pos, currPhaseIncr_); }
 };
 
 } // namespace mforce
