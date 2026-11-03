@@ -47,6 +47,11 @@ class ConvertTests(unittest.TestCase):
         conv.convert(pluck)
         self.assertEqual(pluck["graph"]["nodes"][1]["params"], {"seed": 42})
 
+    def test_a_bare_averaging_form_gets_both_branch_defaults(self):
+        doc = wavetable({"evolution": "averaging"})
+        conv.convert(doc)
+        self.assertEqual(doc["graph"]["nodes"][1]["params"], {"sampleCount": 2.0, "decayFactor": 0.996, "seed": 42})
+
     def test_seed_is_written_as_an_int(self):
         doc = wavetable({"evolution": "pluck", "evolutionSeed": 7.0})
         conv.convert(doc)
