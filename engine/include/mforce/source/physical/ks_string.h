@@ -1,5 +1,6 @@
 #pragma once
 #include "mforce/core/dsp_value_source.h"
+#include "mforce/core/dsp/dc_blocker.h"
 #include "mforce/core/randomizer.h"
 #include <vector>
 #include <cmath>
@@ -136,8 +137,8 @@ struct KSString final : Processor {
     disp_.d1 = disp_.d2 = disp_.d3 = 0.0f;
     disp_.hpY = disp_.hpX = 0.0f;
     wpos_ = 0;
-    dcX_ = dcY_ = 0.0f;
-    dcBX_ = dcBY_ = 0.0f;
+    dc_.reset();
+    bowDc_.reset();
     lastOut_ = 0.0f;
     initialized_ = false;
     cur_ = 0.0f;
@@ -179,8 +180,7 @@ struct KSString final : Processor {
     lastD_ = d;
 
     // DC blocker on excitation (envelope input is unipolar)
-    float x = dcR_ * dcY_ + exc - dcX_;
-    dcX_ = exc; dcY_ = x;
+    float x = dc_.process(exc);
     x *= exciteGain.value;
 
     // Global negative feedback around inharmonics + resonators
@@ -232,9 +232,7 @@ struct KSString final : Processor {
       float fricCoef = std::pow(bt, -4.0f);
       if (fricCoef > 0.98f) fricCoef = 0.98f;
       float f = fricCoef * vRel * pressure * bowGain.value;
-      float fb = dcR_ * dcBY_ + f - dcBX_;
-      dcBX_ = f; dcBY_ = fb;
-      bowF = fb;
+      bowF = bowDc_.process(f);
     }
 
     // ---- Main resonators: detuned combs with biquad allpasses ----
@@ -307,6 +305,7 @@ private:
   // read (linear-interp loss becomes material); below, linear interp is
   // kept so the approved low/mid keyboard is bit-identical.
   static constexpr float kApReadW0 = 0.1f;   // ~764 Hz at 48 kHz
+  static constexpr float kDcCornerHz = 20.0f;
 
   struct BiquadState { float x1{0}, x2{0}, y1{0}, y2{0}; };
 
@@ -490,7 +489,8 @@ private:
 
     dispLen_ = std::clamp(int(std::lround(period)), 2, kBufLen - 4);
     hpR_ = std::exp(-2.0f * 3.14159265f * inharmHp.value / sr);
-    dcR_ = 1.0f - 2.0f * 3.14159265f * 20.0f / sr;  // 20 Hz DC blocker
+    dc_.set(kDcCornerHz, sr);
+    bowDc_.set(kDcCornerHz, sr);
 
     initialized_ = true;
   }
@@ -516,10 +516,9 @@ private:
   float fbScale_{0.0f};
   int   wpos_{0};
   float hpR_{0.98f};
-  float dcR_{0.997f};
   float lpDelay_{0.0f};
-  float dcX_{0.0f}, dcY_{0.0f};
-  float dcBX_{0.0f}, dcBY_{0.0f};
+  dsp::DcBlocker dc_;      // on the excitation
+  dsp::DcBlocker bowDc_;   // on the bow impulse
   float lastOut_{0.0f};
 };
 

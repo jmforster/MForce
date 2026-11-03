@@ -1,5 +1,6 @@
 #pragma once
 #include "mforce/core/dsp_value_source.h"
+#include "mforce/core/dsp/dc_blocker.h"
 #include <vector>
 #include <cmath>
 #include <algorithm>
@@ -70,7 +71,7 @@ struct AllpassResonator final : Processor {
     bq_ = BiquadState{};
     lp_ = 0.0f;
     tuneX_ = tuneY_ = 0.0f;
-    dcX_ = dcY_ = 0.0f;
+    dc_.reset();
     fbSample_ = 0.0f;
     initialized_ = false;
     cur_ = 0.0f;
@@ -82,8 +83,7 @@ struct AllpassResonator final : Processor {
     if (!initialized_) init_note();
 
     // DC blocker on excitation
-    float x = dcR_ * dcY_ + exc - dcX_;
-    dcX_ = exc; dcY_ = x;
+    float x = dc_.process(exc);
     x *= exciteGain.value;
 
     // Diffuser: Schroeder allpass of length loopLen_, feedback = tension.
@@ -119,6 +119,7 @@ struct AllpassResonator final : Processor {
 
 private:
   static constexpr int kBufLen = 4096;
+  static constexpr float kDcCornerHz = 20.0f;
 
   struct BiquadState { float x1{0}, x2{0}, y1{0}, y2{0}; };
 
@@ -168,7 +169,7 @@ private:
     float frac = M - float(loopLen_);
     tuneA_ = (1.0f - frac) / (1.0f + frac);
 
-    dcR_ = 1.0f - 2.0f * 3.14159265f * 20.0f / sr;
+    dc_.set(kDcCornerHz, sr);
     initialized_ = true;
   }
 
@@ -182,8 +183,7 @@ private:
   BiquadState bq_;
   float lp_{0.0f};
   float fbSample_{0.0f};
-  float dcR_{0.997f};
-  float dcX_{0.0f}, dcY_{0.0f};
+  dsp::DcBlocker dc_;
 };
 
 } // namespace mforce

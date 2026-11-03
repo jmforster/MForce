@@ -143,6 +143,40 @@ static void run_dsp_blep_tests() {
     CHECK(wave_mismatches(pulse, pulse_reference, 4800) == 0);
 }
 
+// ---------------------------------------------------------------------------
+// DcBlocker: KSString's and the resonator's excitation blockers, against the
+// lines they replaced (r = 1 - 2*pi*20/sr; y = r*y1 + x - x1).
+#include "mforce/core/dsp/dc_blocker.h"
+
+static void run_dsp_dc_blocker_tests() {
+    for (float sr : {44100.0f, 48000.0f, 96000.0f}) {
+        auto sig = twin_signal(0xDC0u + uint32_t(sr), 10000);
+        float dcR = 1.0f - 2.0f * 3.14159265f * 20.0f / sr;   // the deleted line, 20 Hz
+        float dcX = 0.0f, dcY = 0.0f;
+        dsp::DcBlocker dc;
+        dc.set(20.0f, sr);
+        int bad = 0;
+        for (float exc : sig) {
+            float x = dcR * dcY + exc - dcX;                   // the deleted line
+            dcX = exc; dcY = x;
+            if (!same_bits(dc.process(exc), x)) ++bad;
+        }
+        CHECK(bad == 0);
+    }
+    dsp::DcBlocker dc;
+    dc.set(20.0f, 48000.0f);
+    dc.process(0.7f);
+    dc.process(-0.2f);
+    dc.reset();
+    CHECK(same_bits(dc.process(0.5f), 0.5f));   // r*0 + 0.5 - 0: both memories cleared
+    dsp::DcBlocker fresh;                        // a reset blocker is a fresh one from here on
+    fresh.set(20.0f, 48000.0f);
+    fresh.process(0.5f);
+    int bad = 0;
+    for (float x : twin_signal(0xDC1u, 200)) if (!same_bits(dc.process(x), fresh.process(x))) ++bad;
+    CHECK(bad == 0);
+}
+
 static void run_curve_node_tests() {
     // Linear (vcurve semantics): clamp + linear interp
     CurveNode lin;
@@ -7071,6 +7105,7 @@ int main() {
     run_pierce_passivity_tests();
     run_dsp_scaffold_tests();
     run_dsp_blep_tests();
+    run_dsp_dc_blocker_tests();
     if (g_fails) { std::printf("%d/%d FAILED\n", g_fails, g_checks); return 1; }
     std::printf("ALL PASS (%d checks)\n", g_checks);
     return 0;
