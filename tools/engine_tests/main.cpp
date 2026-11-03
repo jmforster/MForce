@@ -460,6 +460,100 @@ static void run_dsp_biquad_recipe_tests() {
     CHECK(same_bits(c.phase_delay_at(0.0f, 48000.0f), 0.0f));
 }
 
+// ---------------------------------------------------------------------------
+// ButterworthSection: the two section kinds of filters.h, against the
+// FIR/IIR-vector sections they replaced, with their operation order.
+#include "mforce/core/dsp/butterworth_section.h"
+#include "mforce/source/filter/filters.h"
+#include "mforce/source/noise/white_noise_source.h"
+
+namespace {
+// BWSection, BWLPSection and BWHPSection as they stood.
+struct BwRef {
+    std::vector<float> fir = std::vector<float>(3, 0.0f), iir = std::vector<float>(2, 0.0f);
+    float a[3]{}, b[2]{};
+    float gain{0.0f}, zeta{0.0f}, rate{48000.0f};
+    bool highpass{false};
+    BwRef(bool hp, float k, float n, float sampleRate) : rate(sampleRate), highpass(hp) {
+        zeta = float(-std::cos(3.14159265358979 * (2.0 * k + n - 1.0) / (2.0 * n)));
+    }
+    void update(float cutoff) {
+        if (!highpass) {
+            float omegac = float(2.0 * rate * std::tan(3.14159265358979 * cutoff / rate));
+            a[0] = omegac * omegac; a[1] = 2.0f * omegac * omegac; a[2] = omegac * omegac;
+            float b0 = (4.0f * rate * rate) + (4.0f * rate * zeta * omegac) + (omegac * omegac);
+            b[0] = ((2.0f * omegac * omegac) - (8.0f * rate * rate)) / (-b0);
+            b[1] = ((4.0f * rate * rate) - (4.0f * rate * zeta * omegac) + (omegac * omegac)) / (-b0);
+            gain = 1.0f / b0;
+        } else {
+            float omegac = float(1.0 / (2.0 * rate * std::tan(3.14159265358979 * cutoff / rate)));
+            a[0] = 4.0f * rate * rate; a[1] = -8.0f * rate * rate; a[2] = 4.0f * rate * rate;
+            float b0 = (4.0f * rate * rate) + (4.0f * rate * zeta / omegac) + (1.0f / (omegac * omegac));
+            b[0] = ((2.0f / (omegac * omegac)) - (8.0f * rate * rate)) / (-b0);
+            b[1] = ((4.0f * rate * rate) - (4.0f * rate * zeta / omegac) + (1.0f / (omegac * omegac))) / (-b0);
+            gain = 1.0f / b0;
+        }
+    }
+    float process(float input) {
+        float in = gain * input;
+        for (int i = 2; i > 0; --i) fir[i] = fir[i - 1];
+        fir[0] = in;
+        float value = 0.0f;
+        for (int i = 0; i < 3; ++i) value += a[i] * fir[i];
+        float out = value;
+        for (int i = 0; i < 2; ++i) out += b[i] * iir[i];
+        for (int i = 1; i > 0; --i) iir[i] = iir[i - 1];
+        iir[0] = out;
+        return out;
+    }
+};
+}
+
+static void run_dsp_butterworth_tests() {
+    auto sig = twin_signal(0xB077u, 10000);
+    for (bool hp : {false, true}) {
+        for (float cutoff : {100.0f, 1000.0f, 12000.0f}) {
+            for (int k = 1; k <= 2; ++k) {
+                BwRef ref(hp, float(k), 4.0f, 48000.0f);
+                ref.update(cutoff);
+                dsp::ButterworthSection sec(hp ? dsp::ButterworthSection::Kind::Highpass
+                                               : dsp::ButterworthSection::Kind::Lowpass,
+                                            float(k), 4.0f, 48000.0f);
+                sec.update(cutoff);
+                int bad = 0;
+                for (float x : sig) if (!same_bits(sec.process(x), ref.process(x))) ++bad;
+                CHECK(bad == 0);
+            }
+        }
+    }
+    // The two-section filters on white noise, against a cascade of the old sections.
+    for (bool hp : {false, true}) {
+        RenderContext ctx{48000};
+        auto white = std::make_shared<WhiteNoiseSource>(0xB0B1u);
+        auto whiteRef = std::make_shared<WhiteNoiseSource>(0xB0B1u);
+        std::unique_ptr<ValueSource> node;
+        if (hp) node = std::make_unique<BWHighpassFilter>(2); else node = std::make_unique<BWLowpassFilter>(2);
+        node->set_param("source", white);
+        node->prepare(ctx); node->start(4800);
+        whiteRef->prepare(ctx); whiteRef->start(4800);
+        BwRef s1(hp, 1.0f, 4.0f, 48000.0f), s2(hp, 2.0f, 4.0f, 48000.0f);
+        s1.update(1000.0f); s2.update(1000.0f);          // the pin's default cutoff
+        int bad = 0;
+        for (int i = 0; i < 4800; ++i) {
+            const float expect = s2.process(s1.process(whiteRef->next()));
+            if (!same_bits(node->next(), expect)) ++bad;
+        }
+        CHECK(bad == 0);
+    }
+    dsp::ButterworthSection sec(dsp::ButterworthSection::Kind::Lowpass, 1.0f, 2.0f, 48000.0f);
+    sec.update(500.0f);
+    sec.process(0.8f); sec.process(-0.3f);
+    sec.reset();
+    dsp::ButterworthSection fresh(dsp::ButterworthSection::Kind::Lowpass, 1.0f, 2.0f, 48000.0f);
+    fresh.update(500.0f);
+    CHECK(same_bits(sec.process(0.25f), fresh.process(0.25f)));
+}
+
 static void run_curve_node_tests() {
     // Linear (vcurve semantics): clamp + linear interp
     CurveNode lin;
@@ -7395,6 +7489,7 @@ int main() {
     run_dsp_bow_friction_tests();
     run_dsp_biquad_tests();
     run_dsp_biquad_recipe_tests();
+    run_dsp_butterworth_tests();
     if (g_fails) { std::printf("%d/%d FAILED\n", g_fails, g_checks); return 1; }
     std::printf("ALL PASS (%d checks)\n", g_checks);
     return 0;

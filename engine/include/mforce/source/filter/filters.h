@@ -1,124 +1,12 @@
 #pragma once
 #include "mforce/core/dsp_value_source.h"
+#include "mforce/core/dsp/butterworth_section.h"
 #include <memory>
 #include <vector>
 #include <cmath>
 #include <algorithm>
 
 namespace mforce {
-
-// ---------------------------------------------------------------------------
-// FIR filter: y(t) = a0*x(t) + a1*x(t-1) + ... + an*x(t-n)
-// ---------------------------------------------------------------------------
-struct FIRFilter {
-  std::vector<float> vals;
-
-  explicit FIRFilter(int order) : vals(order, 0.0f) {}
-
-  float process(float input, const float* a, int n) {
-    for (int i = n - 1; i > 0; --i)
-      vals[i] = vals[i - 1];
-    vals[0] = input;
-
-    float value = 0.0f;
-    for (int i = 0; i < n; ++i)
-      value += a[i] * vals[i];
-    return value;
-  }
-};
-
-// ---------------------------------------------------------------------------
-// IIR filter: y(t) = x(t) + a1*y(t-1) + a2*y(t-2) + ...
-// ---------------------------------------------------------------------------
-struct IIRFilter {
-  std::vector<float> vals;
-
-  explicit IIRFilter(int order) : vals(order, 0.0f) {}
-
-  float process(float input, const float* a, int n) {
-    float value = input;
-    for (int i = 0; i < n; ++i)
-      value += a[i] * vals[i];
-
-    for (int i = n - 1; i > 0; --i)
-      vals[i] = vals[i - 1];
-    vals[0] = value;
-
-    return value;
-  }
-};
-
-// ---------------------------------------------------------------------------
-// The state and the per-sample work the two Butterworth section kinds share;
-// each kind supplies its own coefficient formula in update(cutoff). A section
-// takes the rate at construction, so a filter builds its sections at prepare
-// (build_bw_sections) and again only when the host's rate has changed.
-// ---------------------------------------------------------------------------
-struct BWSection {
-  FIRFilter fir{3};
-  IIRFilter iir{2};
-  float a[3]{}, b[2]{};
-  float gain{0.0f}, zeta{0.0f};
-  float rate{48000.0f};
-
-  BWSection(float k, float n, float sampleRate)
-  : rate(sampleRate) {
-    zeta = float(-std::cos(3.14159265358979 * (2.0 * k + n - 1.0) / (2.0 * n)));
-  }
-
-  float process(float input) {
-    return iir.process(fir.process(gain * input, a, 3), b, 2);
-  }
-
-  // Zero the filter history; the coefficients stay.
-  void reset() {
-    std::fill(fir.vals.begin(), fir.vals.end(), 0.0f);
-    std::fill(iir.vals.begin(), iir.vals.end(), 0.0f);
-  }
-};
-
-template <class Section>
-void build_bw_sections(std::vector<Section>& sections, int count, float rate) {
-  sections.clear();
-  for (int i = 0; i < count; ++i)
-    sections.emplace_back(float(i + 1), float(count * 2), rate);
-}
-
-// ---------------------------------------------------------------------------
-// Butterworth lowpass filter section (2nd order)
-// ---------------------------------------------------------------------------
-struct BWLPSection : BWSection {
-  using BWSection::BWSection;
-
-  void update(float cutoff) {
-    float omegac = float(2.0 * rate * std::tan(3.14159265358979 * cutoff / rate));
-    a[0] = omegac * omegac;
-    a[1] = 2.0f * omegac * omegac;
-    a[2] = omegac * omegac;
-    float b0 = (4.0f * rate * rate) + (4.0f * rate * zeta * omegac) + (omegac * omegac);
-    b[0] = ((2.0f * omegac * omegac) - (8.0f * rate * rate)) / (-b0);
-    b[1] = ((4.0f * rate * rate) - (4.0f * rate * zeta * omegac) + (omegac * omegac)) / (-b0);
-    gain = 1.0f / b0;
-  }
-};
-
-// ---------------------------------------------------------------------------
-// Butterworth highpass filter section (2nd order)
-// ---------------------------------------------------------------------------
-struct BWHPSection : BWSection {
-  using BWSection::BWSection;
-
-  void update(float cutoff) {
-    float omegac = float(1.0 / (2.0 * rate * std::tan(3.14159265358979 * cutoff / rate)));
-    a[0] = 4.0f * rate * rate;
-    a[1] = -8.0f * rate * rate;
-    a[2] = 4.0f * rate * rate;
-    float b0 = (4.0f * rate * rate) + (4.0f * rate * zeta / omegac) + (1.0f / (omegac * omegac));
-    b[0] = ((2.0f / (omegac * omegac)) - (8.0f * rate * rate)) / (-b0);
-    b[1] = ((4.0f * rate * rate) - (4.0f * rate * zeta / omegac) + (1.0f / (omegac * omegac))) / (-b0);
-    gain = 1.0f / b0;
-  }
-};
 
 // ---------------------------------------------------------------------------
 // BWLowpassFilter — Butterworth lowpass with cascaded sections.
@@ -135,7 +23,8 @@ struct BWLowpassFilter final : Processor {
   // across notes.
   void on_prepare(const RenderContext&) override {
     if (!sections_.empty() && builtRate_ == sample_rate()) return;
-    build_bw_sections(sections_, sectionCount_, float(sample_rate()));
+    dsp::build_butterworth_sections(sections_, dsp::ButterworthSection::Kind::Lowpass,
+                                    sectionCount_, float(sample_rate()));
     builtRate_ = sample_rate();
     lastCutoff_ = -1.0f;
   }
@@ -161,7 +50,7 @@ struct BWLowpassFilter final : Processor {
 private:
   int sectionCount_;
   int builtRate_{0};
-  std::vector<BWLPSection> sections_;
+  std::vector<dsp::ButterworthSection> sections_;
   float lastCutoff_{-1.0f};
 };
 
@@ -178,7 +67,8 @@ struct BWHighpassFilter final : Processor {
   // Built and rebuilt as BWLowpassFilter's sections are.
   void on_prepare(const RenderContext&) override {
     if (!sections_.empty() && builtRate_ == sample_rate()) return;
-    build_bw_sections(sections_, sectionCount_, float(sample_rate()));
+    dsp::build_butterworth_sections(sections_, dsp::ButterworthSection::Kind::Highpass,
+                                    sectionCount_, float(sample_rate()));
     builtRate_ = sample_rate();
     lastCutoff_ = -1.0f;
   }
@@ -201,7 +91,7 @@ struct BWHighpassFilter final : Processor {
 private:
   int sectionCount_;
   int builtRate_{0};
-  std::vector<BWHPSection> sections_;
+  std::vector<dsp::ButterworthSection> sections_;
   float lastCutoff_{-1.0f};
 };
 
@@ -219,8 +109,10 @@ struct BWBandpassFilter final : Processor {
   // Built and rebuilt as BWLowpassFilter's sections are.
   void on_prepare(const RenderContext&) override {
     if (!hpSections_.empty() && builtRate_ == sample_rate()) return;
-    build_bw_sections(hpSections_, sectionsPerFilter_, float(sample_rate()));
-    build_bw_sections(lpSections_, sectionsPerFilter_, float(sample_rate()));
+    dsp::build_butterworth_sections(hpSections_, dsp::ButterworthSection::Kind::Highpass,
+                                    sectionsPerFilter_, float(sample_rate()));
+    dsp::build_butterworth_sections(lpSections_, dsp::ButterworthSection::Kind::Lowpass,
+                                    sectionsPerFilter_, float(sample_rate()));
     builtRate_ = sample_rate();
     lastLo_ = lastHi_ = -1.0f;
   }
@@ -247,8 +139,8 @@ private:
   int sectionsPerFilter_;
   int builtRate_{0};
   float lastLo_{-1.0f}, lastHi_{-1.0f};
-  std::vector<BWHPSection> hpSections_;
-  std::vector<BWLPSection> lpSections_;
+  std::vector<dsp::ButterworthSection> hpSections_;
+  std::vector<dsp::ButterworthSection> lpSections_;
 };
 
 // ---------------------------------------------------------------------------

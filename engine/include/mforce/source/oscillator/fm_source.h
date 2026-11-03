@@ -1,4 +1,5 @@
 #pragma once
+#include "mforce/core/dsp/butterworth_section.h"
 #include "mforce/core/dsp_wave_source.h"
 #include "mforce/source/filter/filters.h"
 #include <cmath>
@@ -118,14 +119,15 @@ private:
       const float cutoff  = 0.45f * float(sample_rate());
       const int   nSec    = 4;  // 8th-order Butterworth, ~48 dB/oct
       for (int i = 0; i < nSec; ++i)
-        decimSections_.emplace_back(float(i + 1), float(nSec * 2), subRate);
+        decimSections_.emplace_back(dsp::ButterworthSection::Kind::Lowpass,
+                                    float(i + 1), float(nSec * 2), subRate);
       for (auto& s : decimSections_) s.update(cutoff);
     }
   }
 
   float carrierPhase_{0.0f};
   float modPhase_{0.0f};
-  std::vector<BWLPSection> decimSections_;  // built when oversample > 1
+  std::vector<dsp::ButterworthSection> decimSections_;  // built when oversample > 1
   int builtOversample_{0};
   int builtRate_{0};
 };
