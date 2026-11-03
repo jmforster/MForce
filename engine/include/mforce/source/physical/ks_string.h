@@ -2,6 +2,7 @@
 #include "mforce/core/dsp_value_source.h"
 #include "mforce/core/dsp/dc_blocker.h"
 #include "mforce/core/dsp/one_pole.h"
+#include "mforce/core/dsp/bow_friction.h"
 #include "mforce/core/randomizer.h"
 #include <vector>
 #include <cmath>
@@ -229,9 +230,7 @@ struct KSString final : Processor {
     if (bow.source) {
       float pressure = bow.current();
       float vRel = bowSpeed.value * pressure - lastOut_;
-      float bt = std::fabs(frictionGain.value * vRel) + 0.75f;
-      float fricCoef = std::pow(bt, -4.0f);
-      if (fricCoef > 0.98f) fricCoef = 0.98f;
+      float fricCoef = dsp::bow_friction(vRel, frictionGain.value, 0.0f, 0.0f, kFrictionMax);
       float f = fricCoef * vRel * pressure * bowGain.value;
       bowF = bowDc_.process(f);
     }
@@ -306,6 +305,8 @@ private:
   // kept so the approved low/mid keyboard is bit-identical.
   static constexpr float kApReadW0 = 0.1f;   // ~764 Hz at 48 kHz
   static constexpr float kDcCornerHz = 20.0f;
+  // The friction curve's top: STK's BowTable maximum.
+  static constexpr float kFrictionMax = 0.98f;
 
   struct BiquadState { float x1{0}, x2{0}, y1{0}, y2{0}; };
 

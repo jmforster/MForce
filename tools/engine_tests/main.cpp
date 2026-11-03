@@ -293,6 +293,61 @@ static void run_dsp_one_pole_tests() {
     CHECK(same_bits(dsp::pole_for_cutoff_hz(5000.0f, 96000.0f), std::exp(-2.0f * 3.14159265f * 5000.0f / 96000.0f)));
 }
 
+// ---------------------------------------------------------------------------
+// bow_friction: the bow table's, KSString's and the bowed string's Friedlander
+// curves, against the three lines they replaced.
+#include "mforce/core/dsp/bow_friction.h"
+
+namespace {
+float bow_table_reference(float dv, float slope, float offset, float minOut, float maxOut) {
+    const float s = std::fabs((dv + offset) * slope) + 0.75f;
+    float rc = std::pow(s, -4.0f);
+    rc = std::clamp(rc, minOut, maxOut);
+    return rc;
+}
+float ks_string_reference(float vRel, float gain) {
+    float bt = std::fabs(gain * vRel) + 0.75f;
+    float fricCoef = std::pow(bt, -4.0f);
+    if (fricCoef > 0.98f) fricCoef = 0.98f;
+    return fricCoef;
+}
+float bowed_string_reference(float vRel, float gain) {
+    float bt = std::abs(gain * vRel) + 0.75f;
+    float fricCoef = std::pow(bt, -4.0f);
+    if (fricCoef > 0.98f) fricCoef = 0.98f;
+    else if (fricCoef < 0.0f) fricCoef = 0.0f;
+    return fricCoef;
+}
+}
+
+static void run_dsp_bow_friction_tests() {
+    auto sig = twin_signal(0xB0B0u, 6000);
+    int badTable = 0, badKs = 0, badBowed = 0, badProduct = 0;
+    for (float slope : {0.05f, 3.0f, 4.0f, 20.0f}) {
+        for (float offset : {0.0f, 0.3f}) {
+            for (float s : sig) {
+                const float dv = 3.0f * s;
+                const float t = bow_table_reference(dv, slope, offset, 0.01f, 0.98f);
+                if (!same_bits(dsp::bow_friction(dv, slope, offset, 0.01f, 0.98f), t)) ++badTable;
+                if (offset != 0.0f) continue;
+                const float k = ks_string_reference(dv, slope);
+                const float b = bowed_string_reference(dv, slope);
+                const float rc = dsp::bow_friction(dv, slope, 0.0f, 0.0f, 0.98f);
+                if (!same_bits(rc, k)) ++badKs;
+                if (!same_bits(rc, b)) ++badBowed;
+                if (!same_bits(rc * dv, dv * rc)) ++badProduct;   // the sites multiply in their own order
+            }
+        }
+    }
+    CHECK(badTable == 0);
+    CHECK(badKs == 0);
+    CHECK(badBowed == 0);
+    CHECK(badProduct == 0);
+    CHECK(same_bits(dsp::bow_friction(0.0f, 4.0f, 0.0f, 0.0f, 0.98f), 0.98f));     // stuck: the curve's top, clamped
+    CHECK(dsp::bow_friction(2.0f, 4.0f, 0.0f, 0.0f, 0.98f) < 0.001f);               // slipping: the curve's tail
+    CHECK(same_bits(dsp::bow_friction(2.0f, 4.0f, 0.0f, 0.01f, 0.98f), 0.01f));     // the table's floor
+}
+
 static void run_curve_node_tests() {
     // Linear (vcurve semantics): clamp + linear interp
     CurveNode lin;
@@ -7225,6 +7280,7 @@ int main() {
     run_dsp_tuning_allpass_tests();
     run_dsp_tuning_allpass_boundary_tests();
     run_dsp_one_pole_tests();
+    run_dsp_bow_friction_tests();
     if (g_fails) { std::printf("%d/%d FAILED\n", g_fails, g_checks); return 1; }
     std::printf("ALL PASS (%d checks)\n", g_checks);
     return 0;

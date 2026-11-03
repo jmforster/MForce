@@ -1,6 +1,7 @@
 #pragma once
 #include "mforce/core/dsp/tuning_allpass.h"
 #include "mforce/core/dsp/one_pole.h"
+#include "mforce/core/dsp/bow_friction.h"
 #include "mforce/core/dsp_value_source.h"
 #include "mforce/core/dsp_wave_source.h"
 #include "mforce/core/randomizer.h"
@@ -488,10 +489,7 @@ struct BowedStringEvolution final : WaveEvolution {
     float vRel = vBow - vString;
 
     // Friedlander friction table.
-    float bt = std::abs(gain * vRel) + 0.75f;
-    float fricCoef = std::pow(bt, -4.0f);
-    if (fricCoef > 0.98f) fricCoef = 0.98f;
-    else if (fricCoef < 0.0f) fricCoef = 0.0f;
+    float fricCoef = dsp::bow_friction(vRel, gain, 0.0f, 0.0f, kFrictionMax);
 
     float bowImpulse = fricCoef * vRel * pressure;
 
@@ -516,6 +514,8 @@ struct BowedStringEvolution final : WaveEvolution {
   }
 
 private:
+  static constexpr float kFrictionMax = 0.98f;   // the curve's top: STK's BowTable maximum
+
   int sampleRate_{48000};
   std::vector<float> bridgeLine_;
   std::vector<float> neckLine_;

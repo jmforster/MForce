@@ -1,5 +1,6 @@
 #pragma once
 #include "mforce/core/dsp_value_source.h"
+#include "mforce/core/dsp/bow_friction.h"
 #include <algorithm>
 #include <cmath>
 
@@ -25,10 +26,8 @@ struct BowTableSource final : Processor {
 
   float compute() override {
     const float dv = input.current();
-    const float s = std::fabs((dv + offset.current()) * slope.current()) + 0.75f;
-    float rc = std::pow(s, -4.0f);
-    rc = std::clamp(rc, minOutput.value, maxOutput.value);
-    return dv * rc;
+    return dv * dsp::bow_friction(dv, slope.current(), offset.current(),
+                                  minOutput.value, maxOutput.value);
   }
 };
 
