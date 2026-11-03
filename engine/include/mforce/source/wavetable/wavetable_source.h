@@ -4,33 +4,30 @@
 #include "mforce/source/wavetable/wave_evolution.h"
 #include "mforce/source/noise/white_noise_source.h"
 #include "mforce/core/randomizer.h"
-#include <memory>
 #include <vector>
 
 namespace mforce {
 
 // Ported from C# MForce.Sound.Source.WavetableSource
 // On first sample: fills a table (Rate/CurrFreq entries) from an input source.
-// Each sample: reads from table; if evolution is set, modifies table in-place.
-// With PluckEvolution this implements Karplus-Strong plucked string synthesis.
+// Each sample: reads from table; if an evolution is wired, it modifies the
+// table in-place. With PluckEvolution this implements Karplus-Strong plucked
+// string synthesis.
 struct WavetableSource final : WaveSource {
   // After WaveSource's three. The wavetable advances speedFactor only in the
   // interpolating read and inputSource only while it fills the table, so
   // both are Manual; this node prepares them. `evolution` is a slot: the
-  // holder it takes is driven through its interface, and the evolution the
-  // holder carries is read whenever the slot changes.
+  // evolution it takes is driven through the family's base — prepared with
+  // the table's reserve, started per note, adjusted at a note's first
+  // sample, evolved once per sample.
   Param speedFactor{this, "speedFactor", 1.0f, 0.01f, 10.0f, "ratio", Pull::Manual};
   Input inputSource{this, "inputSource", Input::Optional, nullptr, false, Pull::Manual};
-  Slot<IEvolutionHolder> evolution{this, "evolution", "an evolution holder"};
+  Slot<WaveEvolution> evolution{this, "evolution", "an evolution"};
   Setting<bool> interpolate{this, "interpolate", false, false, true};
 
   explicit WavetableSource(uint32_t inputSeed = 0xC0FFEEu);
 
   const char* type_name() const override { return "WavetableSource"; }
-
-  // The evolution read per sample is the holder's, refreshed the moment the
-  // slot changes.
-  void on_slot_changed(std::string_view) override { refresh_evolution(); }
 
   void on_prepare(const RenderContext& ctx) override;
   void on_start(int frames) override;
@@ -39,15 +36,10 @@ protected:
   float wave() override;
 
 private:
-  void refresh_evolution() {
-    auto* holder = evolution.get();
-    evolution_ = holder ? holder->get_evolution() : nullptr;
-  }
   void fill_table();
   float compute_raw();
   float compute_interpolated();
 
-  WaveEvolution*                  evolution_{nullptr};  // raw ptr: into the holder the slot keeps alive
   std::vector<float>              values_;
   int                             maxLen_{0};   // values_ is reserved to this at prepare; fill_table never exceeds it
   int   tablePtr2_{-1};

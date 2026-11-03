@@ -3598,20 +3598,20 @@ static void run_wavetable_pin_tests() {
     }
 }
 
-// The evolution slot holds the holder; the node reads the evolution it
-// carries, prepares the holder and evolves once per sample.
+// The evolution slot holds the evolution; the node prepares and starts it
+// through the family's base and evolves once per sample.
 static void run_wavetable_evolution_tests() {
     RenderContext ctx{48000};
 
     WavetableSource w;
-    auto reed = std::make_shared<ReedEvolutionSource>();
+    auto reed = std::make_shared<ReedEvolution>();
     auto breath = std::make_shared<PinCounter>();
     reed->set_param("breath", breath);
     w.set_param("evolution", reed);
     CHECK(w.get_part("evolution") == reed);
     CHECK(w.evolution.get() == reed.get());
     w.prepare(ctx); w.start(4800);
-    CHECK(breath->starts == 1);                          // wavetable -> holder -> pin
+    CHECK(breath->starts == 1);                          // wavetable -> evolution -> pin
     for (int i = 0; i < 10; ++i) CHECK(std::isfinite(w.next()));
     CHECK(breath->nexts == 10);
     w.clear_param("evolution");                            // no evolution, no more pulls
@@ -3619,14 +3619,14 @@ static void run_wavetable_evolution_tests() {
     for (int i = 0; i < 10; ++i) w.next();
     CHECK(breath->nexts == 10);
 
-    WavetableSource n;  // a signal is not a holder: the slot refuses it, the node renders with no evolution
+    WavetableSource n;  // a signal is not an evolution: the slot refuses it, the node renders with no evolution
     CHECK(!n.set_param("evolution", std::make_shared<ConstantSource>(0.5f)));
     CHECK(n.get_part("evolution") == nullptr);
     n.prepare(ctx); n.start(4800);
     for (int i = 0; i < 10; ++i) CHECK(std::isfinite(n.next()));
 
     WavetableSource o;  // a pluck in the slot renders a non-zero table
-    o.set_param("evolution", std::make_shared<PluckEvolutionSource>(1u));
+    o.set_param("evolution", std::make_shared<PluckEvolution>(1u));
     o.prepare(ctx); o.start(4800);
     float peak = 0.0f;
     for (int i = 0; i < 2000; ++i) peak = std::max(peak, std::fabs(o.next()));
@@ -3665,21 +3665,21 @@ static void run_hybrid_ks_tests() {
     CHECK(seed->starts == 1 && seed->nexts == 100);
 }
 
-// All twelve holders: the settings (and pins) each declares, in order, and
-// the declared default is what an untouched holder reports.
-static void run_evolution_holder_shape_tests() {
-    PluckEvolutionSource pluck;
-    AveragingEvolutionSource avg;
-    EKSEvolutionSource eks;
-    ReedEvolutionSource reed;
-    BowedStringEvolutionSource bowed;
-    BrassEvolutionSource brass;
-    ReactionDiffusionEvolutionSource rd;
-    SortErosionEvolutionSource sort;
-    CellularAutomatonEvolutionSource ca;
-    HistogramEqualizeEvolutionSource he;
-    BezierPullEvolutionSource bez;
-    BitRotateEvolutionSource rot;
+// All twelve evolutions: the settings (and pins) each declares, in order, and
+// the declared default is what an untouched evolution reports.
+static void run_evolution_shape_tests() {
+    PluckEvolution pluck;
+    AveragingEvolution avg;
+    EKSEvolution eks;
+    ReedEvolution reed;
+    BowedStringEvolution bowed;
+    BrassEvolution brass;
+    ReactionDiffusionEvolution rd;
+    SortErosionEvolution sort;
+    CellularAutomatonEvolution ca;
+    HistogramEqualizeEvolution he;
+    BezierPullEvolution bez;
+    BitRotateEvolution rot;
 
     CHECK(setting_names(pluck) == "muting,");
     CHECK(setting_names(avg) == "sampleCount,speed,decayFactor,leading,autoAdjust,");
@@ -3709,32 +3709,30 @@ static void run_evolution_holder_shape_tests() {
     for (const auto* c : all)
         for (const auto& d : c->setting_descriptors())
             CHECK_NEAR(c->get_setting(d.name), d.default_value, 1e-9f);
-    CHECK(avg.get_evolution() != nullptr);
 }
 
-// The settings the holders clamped when they were set keep clamping, the
-// evolution reads the holder's live value, and a rebuilt evolution still
-// reports the setting that rebuilt it.
-static void run_evolution_holder_setting_tests() {
-    ReactionDiffusionEvolutionSource rd;
+// The settings the evolutions clamp when they are set keep clamping, and an
+// evolution reads its own live value.
+static void run_evolution_setting_tests() {
+    ReactionDiffusionEvolution rd;
     rd.set_setting("subSteps", 0.0f);
     CHECK_NEAR(rd.get_setting("subSteps"), 1.0f, 1e-6f);
     rd.set_setting("subSteps", 3.0f);
     CHECK_NEAR(rd.get_setting("subSteps"), 3.0f, 1e-6f);
 
-    SortErosionEvolutionSource sort;
+    SortErosionEvolution sort;
     sort.set_setting("swapsPerSample", -4.0f);
     CHECK_NEAR(sort.get_setting("swapsPerSample"), 1.0f, 1e-6f);
     sort.set_setting("descending", 1.0f);
     CHECK_NEAR(sort.get_setting("descending"), 1.0f, 1e-6f);
 
-    HistogramEqualizeEvolutionSource he;
+    HistogramEqualizeEvolution he;
     he.set_setting("bins", 1000.0f);
     CHECK_NEAR(he.get_setting("bins"), 256.0f, 1e-6f);
     he.set_setting("bins", 2.0f);
     CHECK_NEAR(he.get_setting("bins"), 4.0f, 1e-6f);
 
-    CellularAutomatonEvolutionSource ca;
+    CellularAutomatonEvolution ca;
     ca.set_setting("rule", 999.0f);
     CHECK_NEAR(ca.get_setting("rule"), 255.0f, 1e-6f);
     ca.set_setting("rule", -5.0f);
@@ -3744,18 +3742,17 @@ static void run_evolution_holder_setting_tests() {
 
     ca.set_setting("stepEvery", 8.0f);                     // the evolution reads the live level
     std::vector<float> table(8, 0.5f);
-    WaveEvolution* evo = ca.get_evolution();
-    evo->shape_excitation(table);
-    evo->evolve(table, 0);
+    ca.shape_excitation(table);
+    ca.evolve(table, 0);
     CHECK_NEAR(table[0], 0.8f, 1e-6f);
     ca.set_setting("levelHi", 0.3f);
-    evo->evolve(table, 0);
+    ca.evolve(table, 0);
     CHECK_NEAR(table[0], 0.3f, 1e-6f);
 
-    PluckEvolutionSource pluck;
+    PluckEvolution pluck;
     pluck.set_setting("muting", 0.5f);
     CHECK_NEAR(pluck.get_setting("muting"), 0.5f, 1e-6f);
-    AveragingEvolutionSource avg;
+    AveragingEvolution avg;
     avg.set_setting("leading", 1.0f);
     avg.set_setting("speed", 2.5f);
     CHECK_NEAR(avg.get_setting("leading"), 1.0f, 1e-6f);
@@ -3763,29 +3760,92 @@ static void run_evolution_holder_setting_tests() {
     CHECK_NEAR(avg.get_setting("decayFactor"), 0.999f, 1e-6f);
 }
 
-// The four holders with wired pins (reed, bowed, brass, bit rotate): the pins
-// are Manual. The wavetable prepares them once, the evolution advances each
-// once per sample in the order the old evolve() did.
+// The four evolutions with wired pins (reed, bowed, brass, bit rotate): the
+// pins are Manual. The base prepares and starts them once; the evolution
+// advances each once per sample in its own order.
 static void run_evolution_manual_pin_tests() {
     RenderContext ctx{48000};
 
-    auto run = [&](std::shared_ptr<Component> holder, const char* first, const char* second) {
+    auto run = [&](std::shared_ptr<Component> evo, const char* first, const char* second) {
         std::vector<int> log;
         auto a = std::make_shared<OrderProbe>(&log, 1);
         auto b = std::make_shared<OrderProbe>(&log, 2);
-        holder->set_param(first, a);
-        holder->set_param(second, b);
+        evo->set_param(first, a);
+        evo->set_param(second, b);
         WavetableSource w;
-        w.set_param("evolution", holder);
+        w.set_param("evolution", evo);
         w.prepare(ctx); w.start(4800);
         for (int i = 0; i < 4; ++i) CHECK(std::isfinite(w.next()));
         CHECK(a->starts == 1 && b->starts == 1);
         CHECK(log == std::vector<int>({1, 2, 1, 2, 1, 2, 1, 2}));
     };
-    run(std::make_shared<ReedEvolutionSource>(), "reedStiffness", "breath");
-    run(std::make_shared<BowedStringEvolutionSource>(), "bow", "frictionGain");
-    run(std::make_shared<BrassEvolutionSource>(), "brassiness", "breath");
-    run(std::make_shared<BitRotateEvolutionSource>(), "stepEvery", "shiftBits");
+    run(std::make_shared<ReedEvolution>(), "reedStiffness", "breath");
+    run(std::make_shared<BowedStringEvolution>(), "bow", "frictionGain");
+    run(std::make_shared<BrassEvolution>(), "brassiness", "breath");
+    run(std::make_shared<BitRotateEvolution>(), "stepEvery", "shiftBits");
+}
+
+// The family's base prepares and starts every pin of an evolution once,
+// through the wavetable that holds it; a second prepare reaches the pins
+// again (prepare is idempotent) and a Manual pin is advanced only by evolve.
+static void run_evolution_lifecycle_tests() {
+    RenderContext ctx{48000};
+    auto run = [&](std::shared_ptr<WaveEvolution> evo, const char* pin) {
+        auto probe = std::make_shared<PinCounter>();
+        evo->set_param(pin, probe);
+        WavetableSource w;
+        w.set_param("evolution", evo);
+        CHECK(probe->ctxPrepares == 0 && probe->starts == 0);
+        w.prepare(ctx);
+        CHECK(probe->rate == 48000 && probe->ctxPrepares == 1 && probe->starts == 0);
+        w.start(4800);
+        CHECK(probe->starts == 1 && probe->nexts == 0);
+        bool finite = true;
+        for (int i = 0; i < 64; ++i) finite = finite && std::isfinite(w.next());
+        CHECK(finite);
+        w.prepare(ctx);
+        CHECK(probe->ctxPrepares == 2 && probe->starts == 1);
+    };
+    run(std::make_shared<ReedEvolution>(), "breath");
+    run(std::make_shared<BrassEvolution>(), "brassiness");
+    run(std::make_shared<BowedStringEvolution>(), "bow");
+    run(std::make_shared<BitRotateEvolution>(), "shiftBits");
+}
+
+// A setting is read where it is used, after construction: Averaging's
+// direction and window decide the next evolve; Pluck's draw stream is the
+// constructor's seed whatever settings are set afterwards.
+static void run_evolution_live_read_tests() {
+    auto averaged = [](bool leading) {
+        AveragingEvolution a;
+        a.set_setting("sampleCount", 2.0f);
+        a.set_setting("speed", 1.0f);
+        a.set_setting("decayFactor", 0.5f);
+        a.set_setting("leading", leading ? 1.0f : 0.0f);
+        std::vector<float> t = {1.0f, 2.0f, 3.0f, 4.0f};
+        a.adjust(440.0f);
+        a.evolve(t, 0);
+        return t[0];
+    };
+    CHECK_NEAR(averaged(false), 1.25f, 1e-6f);   // (1 + 4) / 2 * 0.5: trailing reads index 0 and the wrap
+    CHECK_NEAR(averaged(true), 0.75f, 1e-6f);    // (1 + 2) / 2 * 0.5
+
+    RenderContext ctx{48000};
+    auto render = [&](uint32_t seed, bool setMuting) {
+        auto p = std::make_shared<PluckEvolution>(seed);
+        if (setMuting) p->set_setting("muting", 0.0f);     // the default's value, set after construction
+        WavetableSource w;
+        w.set_param("evolution", p);
+        w.prepare(ctx); w.start(4800);
+        std::vector<float> out;
+        for (int i = 0; i < 2048; ++i) out.push_back(w.next());
+        return out;
+    };
+    const auto a = render(7u, true), b = render(7u, false), c = render(0xDEAD'BEEFu, false);
+    bool ab = true, bc = true;
+    for (size_t i = 0; i < a.size(); ++i) { ab = ab && same_bits(a[i], b[i]); bc = bc && same_bits(b[i], c[i]); }
+    CHECK(ab);                                            // setting muting did not restart or reseed the stream
+    CHECK(!bc);                                           // the seed is the stream
 }
 
 // Checkpoint 2.1: the additive family (sources, partials, formants).
@@ -5664,20 +5724,20 @@ static void run_noise_split_tests() {
 // array in prepare and again when numPartials changes afterwards.
 // ---------------------------------------------------------------------------
 static void run_wavetable_split_tests() {
-    // The loader's shape: seed noise in inputSource, an evolution holder in
-    // evolution; then the interpolating read; then holders with Manual pins.
+    // The loader's shape: seed noise in inputSource, an evolution in the
+    // evolution slot; then the interpolating read; then evolutions with Manual pins.
     for (bool interp : {false, true}) {
         CHECK(split_equivalent([interp] {
             auto w = std::make_shared<WavetableSource>();
             w->set_param("inputSource", std::make_shared<WhiteNoiseSource>(0x1234u));
-            w->set_param("evolution", std::make_shared<PluckEvolutionSource>());
+            w->set_param("evolution", std::make_shared<PluckEvolution>());
             w->set_setting("interpolate", interp ? 1.0f : 0.0f);
             return w;
         }));
     }
     CHECK(split_equivalent([] {
         auto w = std::make_shared<WavetableSource>();
-        auto reed = std::make_shared<ReedEvolutionSource>();
+        auto reed = std::make_shared<ReedEvolution>();
         reed->set_param("breath", std::make_shared<ConstantSource>(0.6f));
         w->set_param("evolution", reed);
         w->set_param("speedFactor", std::make_shared<ConstantSource>(1.5f));
@@ -5685,7 +5745,7 @@ static void run_wavetable_split_tests() {
     }));
     CHECK(split_equivalent([] {
         auto w = std::make_shared<WavetableSource>();
-        auto bit = std::make_shared<BitRotateEvolutionSource>();
+        auto bit = std::make_shared<BitRotateEvolution>();
         bit->set_param("shiftBits", std::make_shared<ConstantSource>(2.0f));
         w->set_param("evolution", bit);
         return w;
@@ -5695,7 +5755,7 @@ static void run_wavetable_split_tests() {
     {
         auto bowed_at = [](int rate) {
             WavetableSource w;
-            auto bow = std::make_shared<BowedStringEvolutionSource>();
+            auto bow = std::make_shared<BowedStringEvolution>();
             bow->set_param("bow", std::make_shared<ConstantSource>(0.5f));
             w.set_param("evolution", bow);
             w.set_param("inputSource", std::make_shared<WhiteNoiseSource>(0x77u));
@@ -6387,7 +6447,7 @@ static void run_combine_mod_split_tests() {
 static void run_wired_split_tests() {
     CHECK(split_equivalent([] {
         auto w = std::make_shared<WavetableSource>();
-        auto brass = std::make_shared<BrassEvolutionSource>();
+        auto brass = std::make_shared<BrassEvolution>();
         brass->set_param("breath", std::make_shared<ConstantSource>(0.6f));
         w->set_param("evolution", brass);
         w->set_param("inputSource", std::make_shared<WhiteNoiseSource>(0x8Au));
@@ -6396,7 +6456,7 @@ static void run_wired_split_tests() {
     {
         auto brass_at = [](int rate) {
             WavetableSource w;
-            auto brass = std::make_shared<BrassEvolutionSource>();
+            auto brass = std::make_shared<BrassEvolution>();
             brass->set_param("breath", std::make_shared<ConstantSource>(0.6f));
             w.set_param("evolution", brass);
             w.set_param("inputSource", std::make_shared<WhiteNoiseSource>(0x8Au));
@@ -6409,7 +6469,7 @@ static void run_wired_split_tests() {
     {   // an averaging evolution is a part: it sounds under a wavetable
         const SplitResult r = split_compare([] {
             auto w = std::make_shared<WavetableSource>();
-            w->set_param("evolution", std::make_shared<AveragingEvolutionSource>());
+            w->set_param("evolution", std::make_shared<AveragingEvolution>());
             w->set_param("inputSource", std::make_shared<WhiteNoiseSource>(0x5A5Au));
             return w;
         });
@@ -7163,7 +7223,7 @@ static void run_partials_part_tests() {
     register_all_sources();
     for (const char* type : {"FullPartials", "SequencePartials", "ExplicitPartials", "CompositePartials", "ExpandRule"})
         CHECK(std::dynamic_pointer_cast<ValueSource>(SourceRegistry::instance().create(type)) == nullptr);
-    // the evolution holders are parts too
+    // the evolutions are parts too
     for (const char* type : {"PluckEvolution", "ReedEvolution", "BitRotateEvolution"})
         CHECK(std::dynamic_pointer_cast<ValueSource>(SourceRegistry::instance().create(type)) == nullptr);
 }
@@ -7541,9 +7601,11 @@ int main() {
     run_wavetable_evolution_tests();
     run_string_pin_refusal_tests();
     run_hybrid_ks_tests();
-    run_evolution_holder_shape_tests();
-    run_evolution_holder_setting_tests();
+    run_evolution_shape_tests();
+    run_evolution_setting_tests();
     run_evolution_manual_pin_tests();
+    run_evolution_lifecycle_tests();
+    run_evolution_live_read_tests();
     run_additive_source_pin_tests();
     run_additive_structural_pin_tests();
     run_additive_partials_pin_tests();

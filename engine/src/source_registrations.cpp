@@ -164,17 +164,17 @@ void register_all_sources() {
 
     reg.register_type("EKSEvolution", {.family = Family::Wavetable},
         [](auto seed) {
-            return std::make_shared<EKSEvolutionSource>(seed.value_or(0xEE45'0000u));
+            return std::make_shared<EKSEvolution>(seed.value_or(0xEE45'0000u));
         });
 
     reg.register_type("PluckEvolution", {.family = Family::Wavetable},
         [](auto seed) {
-            return std::make_shared<PluckEvolutionSource>(seed.value_or(0xDEAD'BEEFu));
+            return std::make_shared<PluckEvolution>(seed.value_or(0xDEAD'BEEFu));
         });
 
     reg.register_type("AveragingEvolution", {.family = Family::Wavetable},
         [](auto seed) {
-            return std::make_shared<AveragingEvolutionSource>(seed.value_or(0xCAFE'BABEu));
+            return std::make_shared<AveragingEvolution>(seed.value_or(0xCAFE'BABEu));
         });
 
     // -----------------------------------------------------------------------
@@ -182,38 +182,36 @@ void register_all_sources() {
     // -----------------------------------------------------------------------
 
     reg.register_type("BowedStringEvolution", {.family = Family::Wavetable, .shelf = Shelf::Experimental},
-        [](auto seed) {
-            return std::make_shared<BowedStringEvolutionSource>(seed.value_or(0xB0ED'0000u));
-        });
+        [](auto) { return std::make_shared<BowedStringEvolution>(); });
 
     reg.register_type("ReedEvolution", {.family = Family::Wavetable, .shelf = Shelf::Experimental},
         [](auto seed) {
-            return std::make_shared<ReedEvolutionSource>(seed.value_or(0xBEED'BEEDu));
+            return std::make_shared<ReedEvolution>(seed.value_or(0xBEED'BEEDu));
         });
 
     reg.register_type("BrassEvolution", {.family = Family::Wavetable, .shelf = Shelf::Experimental},
         [](auto seed) {
-            return std::make_shared<BrassEvolutionSource>(seed.value_or(0xB8A5'5000u));
+            return std::make_shared<BrassEvolution>(seed.value_or(0xB8A5'5000u));
         });
 
     // Algorithmic evolutions (abstract transforms, not physical models).
     reg.register_type("ReactionDiffusionEvolution", {.family = Family::Wavetable, .label = "Reaction-Diffusion (Gray-Scott)", .shelf = Shelf::Experimental},
-        [](auto) { return std::make_shared<ReactionDiffusionEvolutionSource>(); });
+        [](auto) { return std::make_shared<ReactionDiffusionEvolution>(); });
 
     reg.register_type("SortErosionEvolution", {.family = Family::Wavetable, .label = "Sort Erosion (->saw)", .shelf = Shelf::Experimental},
-        [](auto) { return std::make_shared<SortErosionEvolutionSource>(); });
+        [](auto) { return std::make_shared<SortErosionEvolution>(); });
 
     reg.register_type("CellularAutomatonEvolution", {.family = Family::Wavetable, .label = "Cellular Automaton (Wolfram)", .shelf = Shelf::Experimental},
-        [](auto) { return std::make_shared<CellularAutomatonEvolutionSource>(); });
+        [](auto) { return std::make_shared<CellularAutomatonEvolution>(); });
 
     reg.register_type("HistogramEqualizeEvolution", {.family = Family::Wavetable, .label = "Histogram Equalize", .shelf = Shelf::Experimental},
-        [](auto) { return std::make_shared<HistogramEqualizeEvolutionSource>(); });
+        [](auto) { return std::make_shared<HistogramEqualizeEvolution>(); });
 
     reg.register_type("BezierPullEvolution", {.family = Family::Wavetable, .label = "Bezier Pull (->curve)", .shelf = Shelf::Experimental},
-        [](auto) { return std::make_shared<BezierPullEvolutionSource>(); });
+        [](auto) { return std::make_shared<BezierPullEvolution>(); });
 
     reg.register_type("BitRotateEvolution", {.family = Family::Wavetable, .label = "Bit Rotate (glitch)", .shelf = Shelf::Experimental},
-        [](auto) { return std::make_shared<BitRotateEvolutionSource>(); });
+        [](auto) { return std::make_shared<BitRotateEvolution>(); });
 
     // -----------------------------------------------------------------------
     // Additive

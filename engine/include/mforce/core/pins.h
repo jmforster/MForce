@@ -157,7 +157,7 @@ struct Array final : PinBase {
 };
 
 // A structural input: a part that implements interface T (partials, a
-// formant, an evolution holder). Not a value; the node calls T's methods
+// formant, an evolution). Not a value; the node calls T's methods
 // and forwards it nothing — the owner prepares, starts and advances its
 // part through the interface. The wire is type-checked when set, from the
 // by-name door (Component::set_param), which is where every wire's check

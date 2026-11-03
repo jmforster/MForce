@@ -12,20 +12,18 @@ WavetableSource::WavetableSource(uint32_t inputSeed) {
 void WavetableSource::on_prepare(const RenderContext& ctx) {
   speedFactor.prepare(ctx);
   inputSource.prepare(ctx);
-  if (auto* holder = evolution.get()) holder->prepare(ctx);
-  refresh_evolution();
   // The table and every evolution buffer are reserved here for the floor
-  // frequency, so a note fills them within capacity (Part 2 section 4).
+  // frequency, so a note fills them within capacity.
   maxLen_ = int(std::ceil(float(sample_rate()) / kMinTableHz)) + 1;
   values_.reserve(size_t(maxLen_));
-  if (evolution_) evolution_->prepare(ctx, maxLen_);
+  if (auto* e = evolution.get()) e->prepare(ctx, maxLen_);
 }
 
 void WavetableSource::on_start(int frames) {
   WaveSource::on_start(frames);
   speedFactor.start(frames);
   inputSource.start(frames);
-  if (auto* holder = evolution.get()) holder->start(frames);
+  if (auto* e = evolution.get()) e->start(frames);
 }
 
 void WavetableSource::fill_table() {
@@ -52,13 +50,14 @@ float WavetableSource::wave() {
 }
 
 float WavetableSource::compute_raw() {
+  auto* evo = evolution.get();
   // On first sample, fill table and let evolution adjust
   if (ptr_ == 0) {
     baseFreq_ = currFreq_;
     fill_table();
-    if (evolution_) {
-      evolution_->adjust(currFreq_);
-      evolution_->shape_excitation(values_);
+    if (evo) {
+      evo->adjust(currFreq_);
+      evo->shape_excitation(values_);
     }
     // Tuning allpass: fractional delay for sub-sample pitch accuracy
     float idealLen = float(sample_rate()) / currFreq_;
@@ -73,9 +72,7 @@ float WavetableSource::compute_raw() {
   int len = int(values_.size());
   tablePtr2_ = (tablePtr2_ + 1) % len;
 
-  if (evolution_) {
-    evolution_->evolve(values_, tablePtr2_);
-  }
+  if (evo) evo->evolve(values_, tablePtr2_);
 
   // Fractional read head — advance by currFreq_/baseFreq_ so pitch bends on
   // `frequency` bend the output. The loop itself runs at base pitch (above);
@@ -100,11 +97,12 @@ float WavetableSource::compute_raw() {
 }
 
 float WavetableSource::compute_interpolated() {
+  auto* evo = evolution.get();
   if (ptr_ == 0) {
     fill_table();
-    if (evolution_) {
-      evolution_->adjust(currFreq_);
-      evolution_->shape_excitation(values_);
+    if (evo) {
+      evo->adjust(currFreq_);
+      evo->shape_excitation(values_);
     }
     float idealLen = float(sample_rate()) / currFreq_;
     float frac = idealLen - float(int(values_.size()));
@@ -122,9 +120,7 @@ float WavetableSource::compute_interpolated() {
   if (samp1 < 0) samp1 += len;
   int samp2 = (samp1 + 1) % len;
 
-  if (evolution_) {
-    evolution_->evolve(values_, samp1);
-  }
+  if (evo) evo->evolve(values_, samp1);
 
   // Linear interpolation
   float frac2 = tablePtr - std::floor(tablePtr);
