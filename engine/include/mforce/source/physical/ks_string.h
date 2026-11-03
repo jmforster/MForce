@@ -231,7 +231,7 @@ struct KSString final : Processor {
     if (bow.source) {
       float pressure = bow.current();
       float vRel = bowSpeed.value * pressure - lastOut_;
-      float fricCoef = dsp::bow_friction(vRel, frictionGain.value, 0.0f, 0.0f, kFrictionMax);
+      float fricCoef = dsp::bow_friction(vRel, frictionGain.value, 0.0f, 0.0f, dsp::kBowFrictionMax);
       float f = fricCoef * vRel * pressure * bowGain.value;
       bowF = bowDc_.process(f);
     }
@@ -306,8 +306,6 @@ private:
   // kept so the approved low/mid keyboard is bit-identical.
   static constexpr float kApReadW0 = 0.1f;   // ~764 Hz at 48 kHz
   static constexpr float kDcCornerHz = 20.0f;
-  // The friction curve's top: STK's BowTable maximum.
-  static constexpr float kFrictionMax = 0.98f;
 
   float lastD_{0.0f};
   float envFollow_{0.0f};
@@ -433,13 +431,16 @@ private:
       inPos_ = 0;
     }
 
-    for (int i = 0; i < numCombs.value; ++i) {
-      // The dispersion allpasses: a double-real-pole biquad at the per-note
-      // pole, whose group delay falls with frequency, so the upper partials
-      // see a shorter loop and stretch sharp (the KS route to piano
-      // inharmonicity).
+    // The dispersion allpasses: a double-real-pole biquad at the per-note
+    // pole, whose group delay falls with frequency, so the upper partials see
+    // a shorter loop and stretch sharp (the KS route to piano inharmonicity).
+    // Every comb's, not only the live count's: numCombs is a live setting.
+    for (int i = 0; i < kMaxCombs; ++i) {
       comb_[i].bq[0].coefficients.set_allpass_double_pole(dispEff_);
       comb_[i].bq[1].coefficients.set_allpass_double_pole(dispEff_);
+    }
+
+    for (int i = 0; i < numCombs.value; ++i) {
       float det = std::pow(2.0f, (off[i] * detune.value) / 1200.0f);
       float len = period / det - apDelay - lpDelay_;
       comb_[i].len = std::clamp(len, 2.0f, float(kBufLen - 4));

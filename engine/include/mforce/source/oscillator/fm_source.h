@@ -120,7 +120,7 @@ private:
       const int   nSec    = 4;  // 8th-order Butterworth, ~48 dB/oct
       for (int i = 0; i < nSec; ++i)
         decimSections_.emplace_back(dsp::ButterworthSection::Kind::Lowpass,
-                                    float(i + 1), float(nSec * 2), subRate);
+                                    i + 1, nSec * 2, subRate);
       for (auto& s : decimSections_) s.update(cutoff);
     }
   }

@@ -18,7 +18,7 @@ struct BowTableSource final : Processor {
   Param slope {this, "slope",  3.0f, 0.05f, 10.0f, "pressure"};
   Param offset{this, "offset", 0.0f, -1.0f, 1.0f};
   Setting<float> minOutput{this, "minOutput", 0.01f, 0.0f, 1.0f};
-  Setting<float> maxOutput{this, "maxOutput", 0.98f, 0.0f, 1.0f};
+  Setting<float> maxOutput{this, "maxOutput", dsp::kBowFrictionMax, 0.0f, 1.0f};
 
   const char* type_name() const override { return "BowTable"; }
 

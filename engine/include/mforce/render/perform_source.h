@@ -75,10 +75,8 @@ public:
   void tick() {
     if (bend_) bendSemis_ = bend_->next();
     if (inst_) {
-      wheelSm_ += smoothA_ * (inst_->wheel.load(std::memory_order_relaxed)
-                              - wheelSm_);
-      pressSm_ += smoothA_ * (inst_->pressure.load(std::memory_order_relaxed)
-                              - pressSm_);
+      wheelSm_.process(inst_->wheel.load(std::memory_order_relaxed), smoothA_);
+      pressSm_.process(inst_->pressure.load(std::memory_order_relaxed), smoothA_);
     }
   }
 
@@ -90,8 +88,8 @@ public:
     return bend_ ? note_.frequency * std::exp2(bendSemis_ / 12.0f)
                  : note_.frequency;
   }
-  float wheel()    const { return wheelSm_; }
-  float pressure() const { return pressSm_; }
+  float wheel()    const { return wheelSm_.value(); }
+  float pressure() const { return pressSm_.value(); }
   bool  has_bend() const { return bend_ != nullptr; }
 
 private:
@@ -100,8 +98,8 @@ private:
   float bendSemis_{0.0f};
   std::shared_ptr<InstrumentState> inst_;
   float smoothA_{1.0f};      // no set_instrument_state = no smoothing state
-  float wheelSm_{0.0f};
-  float pressSm_{0.0f};
+  dsp::OnePole wheelSm_;
+  dsp::OnePole pressSm_;
 };
 
 // Leaf adapter: pulls nothing, reports one PerformSource output. Constant

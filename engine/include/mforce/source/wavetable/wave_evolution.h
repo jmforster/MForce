@@ -490,7 +490,7 @@ struct BowedStringEvolution final : WaveEvolution {
     float vRel = vBow - vString;
 
     // Friedlander friction table.
-    float fricCoef = dsp::bow_friction(vRel, gain, 0.0f, 0.0f, kFrictionMax);
+    float fricCoef = dsp::bow_friction(vRel, gain, 0.0f, 0.0f, dsp::kBowFrictionMax);
 
     float bowImpulse = fricCoef * vRel * pressure;
 
@@ -515,8 +515,6 @@ struct BowedStringEvolution final : WaveEvolution {
   }
 
 private:
-  static constexpr float kFrictionMax = 0.98f;   // the curve's top: STK's BowTable maximum
-
   int sampleRate_{48000};
   std::vector<float> bridgeLine_;
   std::vector<float> neckLine_;

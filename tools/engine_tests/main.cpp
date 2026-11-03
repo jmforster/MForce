@@ -322,7 +322,7 @@ float bowed_string_reference(float vRel, float gain) {
 
 static void run_dsp_bow_friction_tests() {
     auto sig = twin_signal(0xB0B0u, 6000);
-    int badTable = 0, badKs = 0, badBowed = 0, badProduct = 0;
+    int badTable = 0, badKs = 0, badBowed = 0;
     for (float slope : {0.05f, 3.0f, 4.0f, 20.0f}) {
         for (float offset : {0.0f, 0.3f}) {
             for (float s : sig) {
@@ -335,14 +335,12 @@ static void run_dsp_bow_friction_tests() {
                 const float rc = dsp::bow_friction(dv, slope, 0.0f, 0.0f, 0.98f);
                 if (!same_bits(rc, k)) ++badKs;
                 if (!same_bits(rc, b)) ++badBowed;
-                if (!same_bits(rc * dv, dv * rc)) ++badProduct;   // the sites multiply in their own order
             }
         }
     }
     CHECK(badTable == 0);
     CHECK(badKs == 0);
     CHECK(badBowed == 0);
-    CHECK(badProduct == 0);
     CHECK(same_bits(dsp::bow_friction(0.0f, 4.0f, 0.0f, 0.0f, 0.98f), 0.98f));     // stuck: the curve's top, clamped
     CHECK(dsp::bow_friction(2.0f, 4.0f, 0.0f, 0.0f, 0.98f) < 0.001f);               // slipping: the curve's tail
     CHECK(same_bits(dsp::bow_friction(2.0f, 4.0f, 0.0f, 0.01f, 0.98f), 0.01f));     // the table's floor
@@ -447,7 +445,30 @@ static void run_dsp_biquad_recipe_tests() {
             CHECK(same_bits(lip.a1(), -2.0f * cosOm / a0) && same_bits(lip.a2(), (1.0f - alpha) / a0));
         }
     }
-    // phase_delay_at: the closed form BiquadSource carried, now the coefficients'.
+    // phase_delay_at: the closed form BiquadSource carried, retyped, against the
+    // coefficients' — two sets, one with a negative b0 for the polarity fold.
+    auto reference = [](float b0, float b1, float b2, float a1, float a2, float hz, float sr) {
+        if (hz <= 0.0f) return 0.0f;
+        constexpr float pi = 3.14159265358979323846f;
+        const float w = 2.0f * pi * hz / sr;
+        const float c1 = std::cos(w), s1 = std::sin(w);
+        const float c2 = std::cos(2.0f * w), s2 = std::sin(2.0f * w);
+        const float nr = b0 + b1 * c1 + b2 * c2;
+        const float ni = -(b1 * s1 + b2 * s2);
+        const float dr = 1.0f + a1 * c1 + a2 * c2;
+        const float di = -(a1 * s1 + a2 * s2);
+        float ph = std::atan2(ni, nr) - std::atan2(di, dr);
+        while (ph >  0.5f * pi) ph -= pi;
+        while (ph <= -0.5f * pi) ph += pi;
+        return -ph / w;
+    };
+    const float sets[2][5] = {{0.3f, -0.6f, 0.3f, -1.7f, 0.8f}, {-0.4f, 0.2f, 0.1f, -0.5f, 0.3f}};
+    for (const auto& k : sets) {
+        dsp::BiquadCoefficients cc;
+        cc.set_raw(k[0], k[1], k[2], k[3], k[4]);
+        for (float hz : {55.0f, 440.0f, 3000.0f, 12000.0f})
+            CHECK(same_bits(cc.phase_delay_at(hz, 48000.0f), reference(k[0], k[1], k[2], k[3], k[4], hz, 48000.0f)));
+    }
     BiquadSource node;
     node.b0.value = 0.3f; node.b1.value = -0.6f; node.b2.value = 0.3f; node.a1.value = -1.7f; node.a2.value = 0.8f;
     RenderContext ctx{48000};
@@ -518,7 +539,7 @@ static void run_dsp_butterworth_tests() {
                 ref.update(cutoff);
                 dsp::ButterworthSection sec(hp ? dsp::ButterworthSection::Kind::Highpass
                                                : dsp::ButterworthSection::Kind::Lowpass,
-                                            float(k), 4.0f, 48000.0f);
+                                            k, 4, 48000.0f);
                 sec.update(cutoff);
                 int bad = 0;
                 for (float x : sig) if (!same_bits(sec.process(x), ref.process(x))) ++bad;
@@ -545,13 +566,94 @@ static void run_dsp_butterworth_tests() {
         }
         CHECK(bad == 0);
     }
-    dsp::ButterworthSection sec(dsp::ButterworthSection::Kind::Lowpass, 1.0f, 2.0f, 48000.0f);
+    dsp::ButterworthSection sec(dsp::ButterworthSection::Kind::Lowpass, 1, 2, 48000.0f);
     sec.update(500.0f);
     sec.process(0.8f); sec.process(-0.3f);
     sec.reset();
-    dsp::ButterworthSection fresh(dsp::ButterworthSection::Kind::Lowpass, 1.0f, 2.0f, 48000.0f);
+    dsp::ButterworthSection fresh(dsp::ButterworthSection::Kind::Lowpass, 1, 2, 48000.0f);
     fresh.update(500.0f);
     CHECK(same_bits(sec.process(0.25f), fresh.process(0.25f)));
+}
+
+// ---------------------------------------------------------------------------
+// A reset primitive is a fresh one: each stateful primitive driven past its
+// memory depth, reset, and compared with a fresh instance over 200 samples.
+// DcBlocker::set at a second corner against its formula.
+#include "mforce/render/perform_source.h"
+
+namespace {
+template <class P>
+int reset_mismatches(P& used, P& fresh, const std::vector<float>& sig) {
+    for (int i = 0; i < 5; ++i) used.process(sig[size_t(i)]);
+    used.reset();
+    int bad = 0;
+    for (size_t i = 5; i < sig.size(); ++i)
+        if (!same_bits(used.process(sig[i]), fresh.process(sig[i]))) ++bad;
+    return bad;
+}
+}
+
+static void run_dsp_reset_tests() {
+    auto sig = twin_signal(0x2E5E7u, 205);
+    {
+        dsp::DcBlocker a, b;
+        a.set(60.0f, 44100.0f); b.set(60.0f, 44100.0f);
+        CHECK(reset_mismatches(a, b, sig) == 0);
+        dsp::DcBlocker c;
+        c.set(60.0f, 44100.0f);
+        const float r = 1.0f - 2.0f * 3.14159265f * 60.0f / 44100.0f;   // the deleted line at another corner
+        c.process(1.0f);
+        CHECK(same_bits(c.process(0.0f), r * 1.0f + 0.0f - 1.0f));
+    }
+    {
+        dsp::TuningAllpass a, b;
+        a.set_coefficient(0.4f); b.set_coefficient(0.4f);
+        CHECK(reset_mismatches(a, b, sig) == 0);
+    }
+    {
+        dsp::Biquad a, b;
+        a.coefficients.set_raw(0.3f, -0.6f, 0.3f, -1.7f, 0.8f);
+        b.coefficients.set_raw(0.3f, -0.6f, 0.3f, -1.7f, 0.8f);
+        CHECK(reset_mismatches(a, b, sig) == 0);
+    }
+    {
+        dsp::ButterworthSection a(dsp::ButterworthSection::Kind::Highpass, 1, 2, 48000.0f);
+        dsp::ButterworthSection b(dsp::ButterworthSection::Kind::Highpass, 1, 2, 48000.0f);
+        a.update(800.0f); b.update(800.0f);
+        CHECK(reset_mismatches(a, b, sig) == 0);
+    }
+    {
+        dsp::OnePole a, b;
+        for (int i = 0; i < 5; ++i) a.process(sig[size_t(i)], 0.3f);
+        a.reset();
+        int bad = 0;
+        for (size_t i = 5; i < sig.size(); ++i)
+            if (!same_bits(a.process(sig[i], 0.3f), b.process(sig[i], 0.3f))) ++bad;
+        CHECK(bad == 0);
+    }
+}
+
+// The performer's wheel and pressure smoothers, against the lines they replaced.
+static void run_dsp_performer_smoother_tests() {
+    RenderContext ctx{48000};
+    PerformSource ps;
+    auto is = std::make_shared<InstrumentState>();
+    ps.set_instrument_state(is);
+    ps.prepare(ctx);
+    const float a = 1.0f - std::exp(-1.0f / (0.010f * 48000.0f));   // the deleted coefficient line
+    float wheel = 0.0f, press = 0.0f;
+    auto sig = twin_signal(0x5E00u, 300);
+    int bad = 0;
+    for (float sv : sig) {
+        const float w = 0.5f * (sv + 1.0f), pr = 0.25f * (sv + 1.0f);
+        is->wheel.store(w);
+        is->pressure.store(pr);
+        ps.tick();
+        wheel += a * (w - wheel);          // the deleted lines
+        press += a * (pr - press);
+        if (!same_bits(ps.wheel(), wheel) || !same_bits(ps.pressure(), press)) ++bad;
+    }
+    CHECK(bad == 0);
 }
 
 static void run_curve_node_tests() {
@@ -7490,6 +7592,8 @@ int main() {
     run_dsp_biquad_tests();
     run_dsp_biquad_recipe_tests();
     run_dsp_butterworth_tests();
+    run_dsp_reset_tests();
+    run_dsp_performer_smoother_tests();
     if (g_fails) { std::printf("%d/%d FAILED\n", g_fails, g_checks); return 1; }
     std::printf("ALL PASS (%d checks)\n", g_checks);
     return 0;

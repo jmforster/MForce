@@ -16,7 +16,7 @@ namespace mforce::dsp {
 struct ButterworthSection {
   enum class Kind { Lowpass, Highpass };
 
-  ButterworthSection(Kind kind, float k, float n, float sampleRate)
+  ButterworthSection(Kind kind, int k, int n, float sampleRate)
   : kind_(kind), rate_(sampleRate) {
     zeta_ = float(-std::cos(kPiDesign * (2.0 * k + n - 1.0) / (2.0 * n)));
   }
@@ -84,7 +84,7 @@ inline void build_butterworth_sections(std::vector<ButterworthSection>& sections
                                        ButterworthSection::Kind kind, int count, float rate) {
   sections.clear();
   for (int i = 0; i < count; ++i)
-    sections.emplace_back(kind, float(i + 1), float(count * 2), rate);
+    sections.emplace_back(kind, i + 1, count * 2, rate);
 }
 
 } // namespace mforce::dsp
