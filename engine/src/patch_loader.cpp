@@ -26,7 +26,6 @@
 #include "mforce/source/envelope/segment_source.h"
 #include "mforce/source/filter/shaper_source.h"
 #include "mforce/source/envelope/phased_value_source.h"
-#include "mforce/source/wavetable/wave_evolution.h"
 #include "mforce/source/combiner/multiplex_source.h"
 #include "mforce/source/filter/filters.h"
 #include "mforce/source/envelope/vibrato.h"
@@ -266,30 +265,27 @@ static void reject_unknown_keys(const Component& src, const std::string& id,
     // gains a key this list lacks.
     static const std::unordered_set<std::string> kBranchKeys = {
         "a", "absolute", "amplEnvelopes", "amplitudes", "articulation",
-        "attack", "attackCurve", "attackMax", "attackMin", "attackPower",
-        "autoAdjust", "b", "baseValue", "bias", "channels", "count", "curve",
-        "cutoff", "decay", "decayFactor", "decayMax", "decayMin", "delay",
-        "dt1", "dt2", "durVarPct", "duration", "dynamicPins", "endAmplitudes",
-        "endPartials", "endVal", "envelope", "evolution", "evolutionSeed",
+        "attack", "attackCurve", "attackMax", "attackMin", "attackPower", "b",
+        "baseValue", "bias", "channels", "count", "curve", "cutoff", "decay",
+        "decayMax", "decayMin", "delay", "dt1", "dt2", "durVarPct", "duration",
+        "dynamicPins", "endAmplitudes", "endPartials", "endVal", "envelope",
         "expandRule", "exprKnots", "field", "filter", "form", "formants",
         "frames", "freqEnvelopes", "frequency", "from", "gain", "gainAdj",
-        "gains", "gap", "gapVarPct", "glideMs", "graph", "hold", "holdCycles",
-        "id", "inputs", "instrument", "interp", "interpolate", "knots",
-        "leading", "loPct1", "loPct2", "max", "maxSec", "min", "minSec",
-        "mode", "morph", "morphRate", "muting", "name", "nodes", "nominal",
-        "normalized", "note", "oneShot", "onset", "onsets", "operation",
-        "ornament", "output", "overlap", "paramMap", "partialCount",
-        "partialMode", "partials", "percent", "po1", "po2", "polyphony",
-        "power", "power1", "power2", "powers", "powers2", "preset",
+        "gains", "gap", "gapVarPct", "glideMs", "graph", "hold", "id", "inputs",
+        "instrument", "interp", "interpolate", "knots", "loPct1", "loPct2",
+        "max", "maxSec", "min", "minSec", "mode", "morph", "name", "nodes",
+        "nominal", "normalized", "note", "oneShot", "onset", "onsets",
+        "operation", "ornament", "output", "overlap", "paramMap",
+        "partialCount", "partialMode", "partials", "percent", "po1", "po2",
+        "polyphony", "power", "power1", "power2", "powers", "powers2", "preset",
         "ramp_accuracy", "ratio", "recurse", "ref", "release", "releaseCurve",
-        "releaseMax", "releaseMin", "releasePower", "sampleCount",
-        "sampleRate", "score", "seconds", "sections", "seed", "segs", "segs2",
-        "source", "spacing1", "spacing2", "speed",
-        "stage_accuracy", "stages", "startAmplitudes", "startPartials",
-        "startVal", "sustain", "sustainLevel", "sustaining", "tap", "target",
-        "targetLength", "targetPartials", "targetWave", "time", "timeMode",
-        "to", "type", "values", "values2", "varPct", "vcurve", "velocity",
-        "volume", "weight", "x",
+        "releaseMax", "releaseMin", "releasePower", "sampleRate", "score",
+        "seconds", "sections", "seed", "segs", "segs2", "source", "spacing1",
+        "spacing2", "stage_accuracy", "stages", "startAmplitudes",
+        "startPartials", "startVal", "sustain", "sustainLevel", "sustaining",
+        "tap", "target", "targetPartials", "time", "timeMode", "to", "type",
+        "values", "values2", "varPct", "vcurve", "velocity", "volume", "weight",
+        "x",
     };
     auto known = [&](const std::string& k) {
         if (kBranchKeys.count(k)) return true;
@@ -309,25 +305,30 @@ static void reject_unknown_keys(const Component& src, const std::string& id,
                                      + "): unknown key '" + it.key() + "'");
 }
 
+// A string where a pin takes a value. The one legacy string form, the
+// wavetable's evolution by name, is gone, and a string anywhere else was never
+// read: the load fails naming the node, the pin and the string, and for
+// `evolution` the tool that rewrites the old form as an evolution node.
+static void refuse_string_pin(const Component& src, const std::string& id,
+                              const char* pin, const std::string& value)
+{
+    std::string msg = "node '" + id + "' (" + src.type_name() + "): '" + pin
+                    + "' is the string \"" + value + "\"; a pin takes a number, {\"ref\": id} or {\"tap\": id}";
+    if (std::strcmp(pin, "evolution") == 0)
+        msg += "; the string-typed evolution is gone, python tools/string_evolution_to_node.py <patch> rewrites it as an evolution node";
+    throw std::runtime_error(msg);
+}
+
 static void wire_params_generic(
     Component& src,
     const std::string& id,
     const json& params,
     const std::unordered_map<std::string, std::shared_ptr<Component>>& graphNodes)
 {
-    // A STRING in a pin/param slot is always a legacy enum form consumed by a
-    // hand-written branch further down (e.g. WavetableSource's
-    // "evolution": "target", which is ALSO an input descriptor for the newer
-    // ref-wired form). resolve_param can never handle a string, so throwing
-    // here just kills the patch before its own special case runs — that is why
-    // the three ks_morph_*_test patches were unrenderable. Skip strings; keep
-    // throwing on other junk so genuine mistakes stay loud.
-    auto skip_unresolvable = [](const json& v) { return v.is_string(); };
-
     for (const auto& desc : src.input_descriptors()) {
         if (!params.contains(desc.name)) continue;
         const auto& v = params.at(desc.name);
-        if (skip_unresolvable(v)) continue;
+        if (v.is_string()) refuse_string_pin(src, id, desc.name, v.get<std::string>());
         if (desc.multi && v.is_array()) {
             // Multi-input pin with array-of-refs JSON. Iterate and add each.
             src.clear_param(desc.name);
@@ -342,7 +343,7 @@ static void wire_params_generic(
     }
     for (const auto& desc : src.param_descriptors()) {
         if (!params.contains(desc.name)) continue;
-        if (skip_unresolvable(params.at(desc.name))) continue;
+        if (params.at(desc.name).is_string()) refuse_string_pin(src, id, desc.name, params.at(desc.name).get<std::string>());
         auto part = resolve_param(params.at(desc.name), graphNodes);
         if (!src.set_param(desc.name, part)) reject_wire(src, id, desc.name, *part);
     }
@@ -795,52 +796,6 @@ static GraphResult build_graph(
             }
             graphNodes[id] = as2;
             add_mono(g, id, as2);
-        }
-        // ---- WavetableSource (evolution types) ----
-        else if (type == "WavetableSource") {
-            auto wt = std::make_shared<WavetableSource>(seed.value_or(0xC0FFEEu));
-            if (pp) {
-                const auto& p = *pp;
-                wire_params_generic(*wt, id, p, graphNodes);
-                // Legacy patches have evolution as a string ("pluck", "averaging", "target").
-                // New UI patches wire evolution as a ref (handled by wire_params_generic above).
-                std::string evoType = "none";
-                if (p.contains("evolution") && p.at("evolution").is_string())
-                    evoType = p.at("evolution").get<std::string>();
-                if (evoType == "pluck") {
-                    wt->set_evolution(std::make_unique<PluckEvolution>(
-                        p.value("muting", 0.0f), uint32_t(p.value("evolutionSeed", 42))));
-                } else if (evoType == "averaging") {
-                    wt->set_evolution(std::make_unique<AveragingEvolution>(
-                        p.value("sampleCount", 2.0f), p.value("speed", 1.0f),
-                        p.value("decayFactor", 0.996f), p.value("leading", false),
-                        p.value("autoAdjust", false), uint32_t(p.value("evolutionSeed", 42))));
-                } else if (evoType == "target") {
-                    std::vector<float> target;
-                    if (p.contains("targetWave")) {
-                        target = p["targetWave"].get<std::vector<float>>();
-                    } else if (p.contains("targetPartials")) {
-                        auto partials = p["targetPartials"].get<std::vector<float>>();
-                        int tLen = p.value("targetLength", 1024);
-                        target.resize(tLen, 0.0f);
-                        constexpr float TAU = 2.0f * 3.14159265358979323846f;
-                        for (int i = 0; i < tLen; ++i) {
-                            float pos = float(i) / float(tLen);
-                            for (int h = 0; h < int(partials.size()); ++h)
-                                target[i] += partials[h] * std::sin(pos * TAU * float(h + 1));
-                        }
-                        float peak = 0.0f;
-                        for (float v : target) peak = std::max(peak, std::fabs(v));
-                        if (peak > 0.0f) for (float& v : target) v /= peak;
-                    }
-                    wt->set_evolution(std::make_unique<TargetEvolution>(
-                        p.value("morphRate", 0.001f), p.value("holdCycles", 3),
-                        p.value("decayFactor", 0.998f), std::move(target),
-                        uint32_t(p.value("evolutionSeed", 42))));
-                }
-            }
-            graphNodes[id] = wt;
-            add_mono(g, id, wt);
         }
         // ---- HybridKSSource (setting params) ----
         else if (type == "HybridKSSource") {

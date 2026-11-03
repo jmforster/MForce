@@ -26,17 +26,10 @@ struct WavetableSource final : WaveSource {
 
   explicit WavetableSource(uint32_t inputSeed = 0xC0FFEEu);
 
-  // Evolution via graph: wire an IEvolutionHolder node into the `evolution` slot
-  // Evolution via patch_loader: direct ownership for JSON-loaded patches
-  void set_evolution(std::unique_ptr<WaveEvolution> evo) {
-    ownedEvolution_ = std::move(evo);
-    refresh_evolution();
-  }
-
   const char* type_name() const override { return "WavetableSource"; }
 
-  // The evolution read per sample: the holder's, or the one the loader's
-  // string form owns. Refreshed the moment the slot changes.
+  // The evolution read per sample is the holder's, refreshed the moment the
+  // slot changes.
   void on_slot_changed(std::string_view) override { refresh_evolution(); }
 
   void on_prepare(const RenderContext& ctx) override;
@@ -48,14 +41,13 @@ protected:
 private:
   void refresh_evolution() {
     auto* holder = evolution.get();
-    evolution_ = holder ? holder->get_evolution() : ownedEvolution_.get();
+    evolution_ = holder ? holder->get_evolution() : nullptr;
   }
   void fill_table();
   float compute_raw();
   float compute_interpolated();
 
-  std::unique_ptr<WaveEvolution>  ownedEvolution_;      // for patch_loader path
-  WaveEvolution*                  evolution_{nullptr};  // raw ptr: into the holder the slot keeps alive, or ownedEvolution_
+  WaveEvolution*                  evolution_{nullptr};  // raw ptr: into the holder the slot keeps alive
   std::vector<float>              values_;
   int                             maxLen_{0};   // values_ is reserved to this at prepare; fill_table never exceeds it
   int   tablePtr2_{-1};

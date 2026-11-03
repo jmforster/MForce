@@ -3625,8 +3625,8 @@ static void run_wavetable_evolution_tests() {
     n.prepare(ctx); n.start(4800);
     for (int i = 0; i < 10; ++i) CHECK(std::isfinite(n.next()));
 
-    WavetableSource o;  // the loader's direct-ownership path
-    o.set_evolution(std::make_unique<PluckEvolution>(0.0f, 1u));
+    WavetableSource o;  // a pluck in the slot renders a non-zero table
+    o.set_param("evolution", std::make_shared<PluckEvolutionSource>(1u));
     o.prepare(ctx); o.start(4800);
     float peak = 0.0f;
     for (int i = 0; i < 2000; ++i) peak = std::max(peak, std::fabs(o.next()));
@@ -6669,6 +6669,29 @@ static void run_wire_rejection_tests() {
     CHECK(msg.find("node 'v' (VarSource): unknown key 'value'") != std::string::npos);
 }
 
+// A string where a pin takes a value fails the load naming the node, the pin
+// and the string; the wavetable's old string-typed evolution also names the
+// tool that rewrites it as a node, and the node form of the same patch loads.
+static void run_string_pin_refusal_tests() {
+    const char* evo = R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"wt","nodes":[
+        {"id":"wt","type":"WavetableSource","params":{"frequency":330.0,"evolution":"pluck","muting":0.0,"evolutionSeed":42}}]}})";
+    std::string msg;
+    try { load_instrument_patch_json(evo); } catch (const std::runtime_error& e) { msg = e.what(); }
+    CHECK(msg.find("node 'wt' (WavetableSource): 'evolution' is the string \"pluck\"") != std::string::npos);
+    CHECK(msg.find("tools/string_evolution_to_node.py") != std::string::npos);
+    const char* freq = R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"osc","nodes":[
+        {"id":"osc","type":"SineSource","params":{"frequency":"440"}}]}})";
+    msg.clear();
+    try { load_instrument_patch_json(freq); } catch (const std::runtime_error& e) { msg = e.what(); }
+    CHECK(msg.find("node 'osc' (SineSource): 'frequency' is the string \"440\"") != std::string::npos);
+    CHECK(msg.find("string_evolution_to_node") == std::string::npos);
+    const char* node = R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"wt","nodes":[
+        {"id":"wt_evolution","type":"PluckEvolution","params":{"muting":0.0,"seed":42}},
+        {"id":"wt","type":"WavetableSource","params":{"frequency":330.0,"evolution":{"ref":"wt_evolution"}}}]}})";
+    auto ip = load_instrument_patch_json(node);
+    CHECK(ip.instrument != nullptr);
+}
+
 // The allocation probe: counts only while armed, keeps the first armed
 // allocation's stack, and resets to nothing.
 static void run_alloc_probe_tests() {
@@ -6806,7 +6829,7 @@ static void run_allocation_tests_tables() {
     const auto withEvolution = [](const char* evolutionNodes) {
         return std::string(R"({"sampleRate":48000,"instrument":{"polyphony":2},"graph":{"output":"src","nodes":[{"id":"__perf_frequency","type":"PerformNode","params":{"field":"frequency"}},)")
              + evolutionNodes
-             + R"(,{"id":"src","type":"WavetableSource","params":{"seed":12345,"frequency":{"ref":"__perf_frequency"},"amplitude":0.5,"evolution":{"ref":"ev"},"evolutionSeed":42}}]}})";
+             + R"(,{"id":"src","type":"WavetableSource","params":{"seed":12345,"frequency":{"ref":"__perf_frequency"},"amplitude":0.5,"evolution":{"ref":"ev"}}}]}})";
     };
     const char* evolutions[] = {
         R"({"id":"ev","type":"HistogramEqualizeEvolution","params":{"bins":64,"rate":5e-05}})",
@@ -6825,14 +6848,10 @@ static void run_allocation_tests_tables() {
         CHECK(allocations_in_one_note(json.c_str()) == 0);
         CHECK(allocations_in_one_note(json.c_str(), 36.0f) == 0);   // a second, lower pitch on the other voice
     }
-    // The legacy string forms: "target" (the morph target resampled to the
-    // table's length) and "pluck".
-    const char* target = R"({"sampleRate":48000,"instrument":{"polyphony":2},"graph":{"output":"src","nodes":[{"id":"__perf_frequency","type":"PerformNode","params":{"field":"frequency"}},
-      {"id":"src","type":"WavetableSource","params":{"seed":12345,"frequency":{"ref":"__perf_frequency"},"amplitude":0.5,
-         "evolution":"target","morphRate":0.0005,"holdCycles":5,"decayFactor":0.999,"targetPartials":[1.0,0.5,0.33,0.25],"targetLength":2048}}]}})";
-    CHECK(allocations_in_one_note(target) == 0);
+    // The pluck under a wavetable, its seed given on the node.
     const char* pluck = R"({"sampleRate":48000,"instrument":{"polyphony":2},"graph":{"output":"src","nodes":[{"id":"__perf_frequency","type":"PerformNode","params":{"field":"frequency"}},
-      {"id":"src","type":"WavetableSource","params":{"seed":12345,"frequency":{"ref":"__perf_frequency"},"amplitude":0.5,"evolution":"pluck","muting":0.0}}]}})";
+      {"id":"ev","type":"PluckEvolution","params":{"muting":0.0,"seed":42}},
+      {"id":"src","type":"WavetableSource","params":{"seed":12345,"frequency":{"ref":"__perf_frequency"},"amplitude":0.5,"evolution":{"ref":"ev"}}}]}})";
     CHECK(allocations_in_one_note(pluck) == 0);
 }
 
@@ -7520,6 +7539,7 @@ int main() {
     run_noise_layered_tests();
     run_wavetable_pin_tests();
     run_wavetable_evolution_tests();
+    run_string_pin_refusal_tests();
     run_hybrid_ks_tests();
     run_evolution_holder_shape_tests();
     run_evolution_holder_setting_tests();

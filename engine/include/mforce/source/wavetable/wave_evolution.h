@@ -626,7 +626,7 @@ struct PluckEvolutionSource final : Component, IEvolutionHolder {
   Setting<float> muting{this, "muting", 0.0f, 0.0f, 1.0f};
 
   explicit PluckEvolutionSource(uint32_t seed = 0xDEAD'BEEFu)
-  : evo_(muting.value, seed) {}
+  : evo_(muting.value, seed), seed_(seed) {}
 
   const char* type_name() const override { return "PluckEvolution"; }
 
@@ -638,7 +638,7 @@ struct PluckEvolutionSource final : Component, IEvolutionHolder {
 
 private:
   PluckEvolution evo_;
-  uint32_t seed_{0xDEAD'BEEFu};
+  uint32_t seed_;
 };
 
 // ---------------------------------------------------------------------------
