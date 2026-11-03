@@ -86,9 +86,9 @@ Your C# had the shape already: `MComponent` was the root, and
             ┌────────────┴────────────┐
        ValueSource                  the parts
        next(t), compute,            Partials, Formant, the spectra,
-       prepare, start               ExpandRule, the evolution holders:
+       prepare, start               ExpandRule, the evolutions:
             │                       each implements its interface
-     ┌──────┴──────┐                (IPartials, IFormant, IEvolutionHolder)
+     ┌──────┴──────┐                (IPartials, IFormant, WaveEvolution)
  Generator     Processor            and nothing of ValueSource
 ```
 
@@ -186,6 +186,29 @@ node changes sound in this section.
 
 ## 5. The evolution holders disappear
 
+**Landed 2026-11-03 as checkpoint 3.4** (`efd10c7`..`0d1e826`, report R11):
+`WaveEvolution` is the family's abstract base (`: Component`), owning the
+pin lifecycle once — `prepare(ctx, maxLen)` prepares every pin then calls
+`on_prepare`, `start(frames)` starts every pin — with `adjust`,
+`shape_excitation` and `evolve` its work verbs; the thirteen evolutions
+derive from it with their settings and pins as members, read where they
+are used, the draw stream seeded once at construction; the twelve
+`*EvolutionSource` wrappers and `IEvolutionHolder` are gone; the wavetable
+holds `Slot<WaveEvolution>` and reads it per sample; `TargetEvolution` is
+registered (Wavetable, Experimental) with `targetPartials`, `targetLength`,
+`morphRate`, `holdCycles` and `decayFactor`, its target synthesised at
+prepare; the loader's string-typed evolution is deleted — a string in a pin
+position fails the load naming `tools/string_evolution_to_node.py`, which
+rewrites the old form as a node — and the two live patches are converted
+(`delay_test`, `harsh_pluck`), the eight archived ones left in `patches/old/`.
+No render in library + baselines moved (0 of 132). Two things differ,
+neither a render: in the editor a Pluck or Averaging setting edited
+mid-stream no longer restarts the draw stream (the old wrapper rebuilt its
+evolution), and a string-typed evolution is refused by the loader, wherever
+it runs, rather than carried. The base rather than a pure
+interface beside `Component` was the one departure from the sentence below,
+reasoned in the plan's Ledger (ruling 1).
+
 **Why they are called holders.** An evolution (`PluckEvolution` and the
 rest) is the algorithm: a `WaveEvolution` whose `evolve(table, index)`
 the wavetable calls every sample. It has no pins and no descriptors; it
@@ -250,8 +273,8 @@ class) and the null gate proves it.
 The rule for the node folders: one type per file, the file named after
 the type, grouped in a folder per family. In particular:
 
-- `wave_evolution.h` becomes the `WaveEvolution` base, the `EvolutionNode`
-  template, and one file per evolution.
+- `wave_evolution.h` becomes the `WaveEvolution` base (landed in 3.4) and
+  one file per evolution.
 - `noise_sources.h` becomes one file per noise type; the shaping block
   copied between white and red noise goes to one place.
 - `filters.h` becomes the Butterworth section, the three Butterworth
@@ -283,7 +306,7 @@ None of these changes a sample. The allocation test is what proves it.
 | 3.1 | `Component` root; the parts leave `ValueSource` | none — landed 2026-10-30 (`ba097f6`..`f1f8244`): 0 of 132 renders moved over library and baselines; a malformed wire (a signal into a slot, a part into a signal pin) now fails the load with the reason (REVIEW R8) |
 | 3.2 | Families declared at registration; folders; the create menu generated; colours through `Theme` | none — landed 2026-10-31 (`67071f8`..`d5ebbf3`): 0 of 132 renders moved over library and baselines; in the editor seven node colours follow their new family, the Experimental sub-menu lists eight types no menu had, the dividers inside a family are gone, and the Vibrato and Segment strips are the Envelope family's; the meter counts one more include edge, `music/pitch_bend.h` → the envelope header, visible since the header left `core` (REVIEW R9) |
 | 3.3 | `core/dsp` primitives, merged one at a time with the copies compared first | none — landed 2026-11-02 (`0d500fc`..`b3c6160`): 0 of 132 renders moved over library and baselines; the copies that compute a different difference equation were left (report section 7); one departure by construction, EKS's stiffness allpass clearing both memories at a note's start (one LSB over a note's remainder with stiffness > 0; no such patch in scope) (REVIEW R10) |
-| 3.4 | Each evolution becomes a `Component`; the twelve wrappers and `IEvolutionHolder` deleted; `TargetEvolution` registered; the string-typed form deleted and two patches converted | none |
+| 3.4 | Each evolution becomes a `Component`; the twelve wrappers and `IEvolutionHolder` deleted; `TargetEvolution` registered; the string-typed form deleted and two patches converted | none — landed 2026-11-03 (`efd10c7`..`0d1e826`): 0 of 132 renders moved over library and baselines; the eight archived string-form patches in `patches/old/` no longer load (the converter rewrites one on demand); in the editor a Pluck or Averaging setting edited mid-stream no longer restarts its draw stream (REVIEW R11) |
 | 3.5 | Envelope presets collapsed; `KSPianoString` migrated | none; type names change on disk |
 | 3.6 | One type per file | none |
 | 3.7 | The real-time fixes | none; the allocation test goes green for these nodes |

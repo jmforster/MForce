@@ -1,5 +1,75 @@
 # Status — session handoff (Claude reads this first; Matt's queue = */REVIEW.md)
 
+Updated: 2026-11-03 (refactor session VIII, Fable 5.1 xhigh). CHECKPOINT 3.4
+LANDED on main: efd10c7..0d1e826 — the fourth of Part 3's eight. THE SHAPE:
+WaveEvolution is the family's abstract base (struct WaveEvolution : Component)
+owning the pin lifecycle once — prepare(ctx, maxLen) prepares every pin then
+calls the on_prepare hook, start(frames) starts every pin — with adjust (now
+void), shape_excitation and evolve its work verbs; the thirteen evolutions
+derive from it with their settings and pins as members read where used, the
+draw stream seeded once at construction; the twelve *EvolutionSource wrappers
+and IEvolutionHolder are gone; WavetableSource holds Slot<WaveEvolution> and
+reads it per sample (the cached pointer, the on_slot_changed override,
+set_evolution, ownedEvolution_ gone); TargetEvolution is a registered part
+(Wavetable, Experimental, derived label) with targetPartials (Array, default
+[1.0]), targetLength, morphRate, holdCycles, decayFactor, its period
+synthesised at prepare by the loader's loop moved verbatim (2.0f * dsp::kPi).
+THE LOADER: the WavetableSource branch is gone (the generic path builds it);
+a string in a Param/Input/Slot position fails the load naming node, pin and
+string (refuse_string_pin; "a slot takes {ref}" for a slot) and, for
+evolution, tools/string_evolution_to_node.py — the converter (ten unit tests
+under ctest tool_tests) moves the keys onto an evolution node, writes seed
+(evolutionSeed or 42), writes the deleted branch's two averaging defaults
+where the node's differ (sampleCount 2.0, decayFactor 0.996), drops a stray
+evolutionSeed from a node-form wavetable, refuses targetWave. kBranchKeys 142
+-> 130 (the twelve keys the lint's scrape lost). PATCHES: delay_test converted
+(manifest hash unchanged); patches/pending/harsh_pluck.json converted under
+the target's 10-05 line naming it (original at
+renders/scratch/ab34/harsh_pluck_before.json); six algev_test_* baselines
+lost a dead evolutionSeed (the loader stays strict); the eight archived string
+forms in patches/old/baselines_culled_2026-09-14/ left, failing the load by
+name. NO RENDER MOVED: null gate 78/78 after every task and the wave; A/B 0 of
+132 (at c10c386 and after the wave); synthetic set of seven 0 DIFFER at the
+seal — pluck_string and target_evolution written in the STRING form, rendered
+by the old binary, converted in place, rendered by the new: identical (the
+string->node proof); averaging with seed 77 and every setting non-default;
+brass; EKS; harsh_pluck scored and unscored. Two live-edit differences, no
+render: a Pluck/Averaging setting edited mid-stream no longer restarts the
+draw stream (the old Pluck wrapper rebuilt with a constant seed that ignored
+the registered one — a latent bug retired); the string form is refused, not
+carried. REFUTER (report §8): no Critical, no Major; six Minors (converter
+averaging defaults; slot wording; a stale component.h comment; the Part 3 §2
+diagram; two test pins — Averaging's autoAdjust, Target's morph/resample) and
+ten flags; the wave took all six plus the cheap flags (EKS freq_ a local,
+<cstring>, seven redundant = default, the base hook public like ValueSource's,
+a converter int test); wave verified: ALL PASS (7552), the five refuter-named mutations all caught, null gate 78/78, synthetic 7 identical, A/B re-rendered 132 identical. Timing: rows 0.90x-1.05x with the
+refuter running (base arm within 2% of 3.3's clean run); the seven wavetable
+patches in scope 0.97x-1.01x (renders/scratch/ab34/time_wavetable.py) — the
+per-sample slot read is noise. METER (--delta 9d4b74a): files +0, lines -202
+(wave_evolution.h 1281 -> 979, patch_loader.cpp -45, tests +164), thirteen
+types removed, dynamic_cast +0, duplicate_blocks +0, include_violations +0
+(14), unmapped 0. DOCS: report R11
+docs/autonomy/refactor/reports/2026-11-03-checkpoint-3.4.md; REVIEW R11 under
+Resolved (nothing to decide; the pending conversion and the eight archived
+patches named); Part 3 §5 landed paragraph, §2 diagram and §8 wording
+corrected, §10 row 3.4; the target's §5 and §3.2 landed lines; BACKLOG row 2:
+3.4 DONE, 3.5 NEXT — plan 3.5 to write (the six envelope preset classes
+collapsed into Envelope presets, 176 nodes migrated on disk; KSPianoString
+deleted as a name, 116 nodes migrated; byte-identical by construction, the
+null gate the proof); CLEANUP rows 17-21; the plan's Ledger carries every
+execution ruling. HARNESS NOTES: tracked files are a mix of CRLF
+(source_registrations.cpp) and LF (files earlier sessions wrote) — a
+multi-line edit pattern must match either ending or it silently finds nothing
+(memory project_crlf_edit_scripts; cost two cycles); a test placed above the
+test file's registry include cannot see the registry (the include sits
+mid-file). DEBT (report §7): wave_evolution.h one file (3.6); the three part
+interfaces' two conventions (CLEANUP 17); the clamp hooks (Part 4); the eight
+archived patches and the editor's jsonExtras carrying a string evolution
+(Part 4); the wavetable's two first-sample blocks (3.6); the test file 7,8xx
+lines (Part 8); carried from 3.3/3.2/3.1 as listed. GOALS.md stays Matt's
+uncommitted edit. Main is ahead of origin by every commit since 5a07eeb's
+predecessor: ask at close-out whether to push.
+
 Updated: 2026-11-02 (refactor session VII, Fable 5.1 xhigh). CHECKPOINT 3.3
 LANDED on main: 0d500fc..b3c6160 — the third of Part 3's eight. THE
 PRIMITIVES: engine/include/mforce/core/dsp/ holds nine headers in namespace

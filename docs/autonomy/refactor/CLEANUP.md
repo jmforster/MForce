@@ -27,6 +27,11 @@ full record of debt; this file is the short list of what is worth a look.
 | 14 | The quick block (Curve, Envelope, Var, Range) is hand-written twice in the editor's menus. | 3.2 ruling 16 | — |
 | 15 | `dsp::TuningAllpass` is a first-order allpass that one of its four owners (EKS) uses as a dispersion filter; `FirstOrderAllpass` would name the thing rather than its first use. Part 3 §4's table chose the name; one rename. | 3.3 review F4 | stands, 2026-11-02 |
 | 16 | Twenty-three π literals remain outside `core/dsp` after `kPi`; each is a one-line change once checked to be the same float. | 3.3 §7 | — |
+| 17 | The three part interfaces carry two conventions: `IPartials` and `IFormant` are pure and I-prefixed, `WaveEvolution` is an abstract `Component` base that owns its members' pin lifecycle. Whether the two take the same base, and what the three are called, when 3.8 opens `Partials`. | 3.4 rulings 1, 15 | stands, 2026-11-03 |
+| 18 | `TargetEvolution`'s declared ranges (`targetLength` 16..8192, `morphRate` 0.0001..0.1, `holdCycles` 0..100, `decayFactor` 0.9..1.0) and its derived label "Target Evolution" are a session call; the string form had no ranges. | 3.4 ruling 7 | stands, 2026-11-03 |
+| 19 | Four evolutions' `on_setting_changed` hooks restate bounds their declarations carry (lower-only in three); if Part 4's loader clamps every setting to its declared range, the hooks go. | 3.4 ruling 4 | — |
+| 20 | The wavetable's two first-sample blocks (`compute_raw`, `compute_interpolated`) each read the slot and call `adjust`/`shape_excitation`; one block (3.3 ruling 17; 3.6). | 3.4 §7 | — |
+| 21 | A Pluck or Averaging setting edited mid-stream in the editor no longer restarts the evolution's draw stream (the wrapper's rebuild did). One `rng_.reanchor()` in `on_setting_changed` restores the restart if it is ever wanted. | 3.4 ruling 3 | stands, 2026-11-03 |
 
 ## Byte-identity preservations to retire after Part 8
 

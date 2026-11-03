@@ -23,6 +23,47 @@ given.
 
 ## Resolved
 
+**R11 — checkpoint 3.4: each evolution a `Component`; the holders and the string form gone**
+(2026-11-03, commits `efd10c7`..`0d1e826`) — under the standing rule,
+nothing to decide; listed so the chain of reports is unbroken, and so two
+consequences of a deletion you signed on 2026-10-05 are in front of you.
+- Read: `docs/autonomy/refactor/reports/2026-11-03-checkpoint-3.4.md`
+  (its reading guide is ten minutes; section 1 names the two live-edit
+  differences and the deletion's consequences, section 6 the three
+  comparison tables — the string form against the node form, each
+  evolution's moved members, `TargetEvolution`'s synthesis — section 8 the
+  refutation and the wave, section 10 four C++ lessons: an abstract base
+  versus a pure interface, a member that files itself versus a reference to
+  another's, a return nobody reads, idempotence as a contract).
+- Try: `python tools/null_gate_perform_source.py --jobs 3` (78/78); open the
+  editor and right-click the canvas — Experimental > Wavetable now ends with
+  Target Evolution: create one, wire it into a Wavetable's `evolution`, give
+  it two or three partials, play; point the CLI at
+  `patches/old/baselines_culled_2026-09-14/pluck_test.json` — it refuses the
+  load naming `tools/string_evolution_to_node.py`; run that tool on a copy
+  and the copy loads; open
+  `engine/include/mforce/source/wavetable/wave_evolution.h` — one base,
+  thirteen evolutions, no wrappers.
+- Decided, named here and not asked: (0) the A/B, 0 of 132; (1)
+  `WaveEvolution` is an abstract `Component` base rather than a pure
+  interface beside it (the pin lifecycle written once; Part 3 §5's words
+  kept; CLEANUP row 17 holds the naming question); (2) a Pluck or Averaging
+  setting edited mid-stream in the editor no longer restarts its draw stream
+  — the old wrapper rebuilt its evolution on every change, Pluck's with a
+  constant seed that ignored the registered one; no render in scope; one
+  `reanchor()` in a hook brings the restart back if you ever want it
+  (CLEANUP row 21); (3) the eight archived string-form patches in
+  `patches/old/baselines_culled_2026-09-14/` no longer load — never deleted,
+  the converter rewrites one on demand — and `targetWave` has no node form
+  (no patch in the tree ever used it); (4) `patches/pending/harsh_pluck.json`,
+  your sandbox, was converted in place under the target's 2026-10-05 line
+  that names it as one of the two live string forms; the original is at
+  `renders/scratch/ab34/harsh_pluck_before.json`; (5) six `algev_test_*`
+  baselines lost a dead `evolutionSeed` key (only the deleted branch ever
+  read it) rather than the loader tolerating it; (6) `TargetEvolution` sits
+  on the Experimental shelf with the derived label and session-chosen ranges
+  (CLEANUP row 18). The refuter: no Critical, no Major; six Minors — the converter's averaging defaults, the refusal's wording for a slot, a stale `component.h` comment, the Part 3 section 2 diagram, and two missing test pins (Averaging's `autoAdjust` path, `TargetEvolution`'s morph and resample) — and ten flags; the wave took all six and the cheap flags with tests first, the same refuter re-reviewed it (closeable: every finding closed at the cited lines, nothing introduced — its spot A/B of the twelve in-scope wavetable patches, the synthetic seven, the eight archived forms and the pending patch all identical, the 132 re-compared; its one new flag, an unpinned converter default, closed by a test the same hour), and its own renders agreed with the arms: every in-scope wavetable patch, the synthetic seven, and all eight archived string forms converted by the tool render byte-identical across the checkpoint.
+
 **R10 — checkpoint 3.3: the shared DSP primitives in `core/dsp`**
 (2026-11-02, commits `0d500fc`..`b3c6160`) — under the standing rule,
 nothing to decide; listed so the chain of reports is unbroken.

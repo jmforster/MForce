@@ -193,6 +193,11 @@ loader: a voice's note inputs as wireable sources) and `KeyContext`
   family, label, shelf; `SourceCategory` and the per-node `category()` gone);
   the create and Replace-with menus generated from the registry; node colours
   through `Theme` (report `docs/autonomy/refactor/reports/2026-10-31-checkpoint-3.2.md`).
+- **Landed 2026-11-03 as checkpoint 3.4** (`efd10c7`..`0d1e826`): the twelve
+  evolution holders and `IEvolutionHolder` are gone; each evolution is a
+  `Component` on the `WaveEvolution` base, which prepares and starts its
+  pins; `TargetEvolution` is registered
+  (report `docs/autonomy/refactor/reports/2026-11-03-checkpoint-3.4.md`).
 - The family list and its membership are Matt's and are settled in Part
   3, starting from today's menu families (Generators, Noise, Wavetable,
   Additive, Envelopes, Filters, Combiners, Loop).
@@ -550,6 +555,15 @@ when the cut is made.
 - **`TargetEvolution` is kept and becomes a node.** It morphs a plucked
   string's table toward a target waveform and is reachable today only
   through the string form.
+  - **Landed 2026-11-03 as checkpoint 3.4** (`efd10c7`..`0d1e826`): the
+    loader's string branch is gone and a string in a pin position fails
+    the load naming `tools/string_evolution_to_node.py`; `delay_test` and
+    `harsh_pluck` are converted (the pending patch under this line); the
+    eight archived string forms stay as they are in `patches/old/`;
+    `TargetEvolution` is a registered part (Wavetable, Experimental) with
+    `targetPartials`, `targetLength`, `morphRate`, `holdCycles` and
+    `decayFactor`, its target synthesised at prepare by the loader's
+    arithmetic moved verbatim.
 - **`IComposer`, `Genre`, `ClassicalComposer`: deleted.** A wrapper left
   from an earlier migration that nothing uses. Genre lives today as data,
   in the style profile.

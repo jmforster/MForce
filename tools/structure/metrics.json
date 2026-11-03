@@ -20,13 +20,13 @@
    [
     [
      "engine/src/patch_loader.cpp",
-     1487,
-     1548
+     1444,
+     1505
     ],
     [
      "engine/src/patch_loader.cpp",
-     1730,
-     1775
+     1687,
+     1732
     ]
    ]
   ],
@@ -255,8 +255,8 @@
    [
     [
      "engine/src/patch_loader.cpp",
-     581,
-     598
+     584,
+     601
     ],
     [
      "tools/mforce_ui/main.cpp",
@@ -355,13 +355,13 @@
    [
     [
      "tools/engine_tests/main.cpp",
-     4337,
-     4352
+     4515,
+     4530
     ],
     [
      "tools/engine_tests/main.cpp",
-     4628,
-     4643
+     4806,
+     4821
     ]
    ]
   ],
@@ -740,13 +740,13 @@
    [
     [
      "engine/src/patch_loader.cpp",
-     1469,
-     1480
+     1426,
+     1437
     ],
     [
      "engine/src/patch_loader.cpp",
-     1717,
-     1727
+     1674,
+     1684
     ]
    ]
   ],
@@ -840,18 +840,18 @@
    [
     [
      "tools/engine_tests/main.cpp",
-     4339,
-     4349
+     4517,
+     4527
     ],
     [
      "tools/engine_tests/main.cpp",
-     4630,
-     4640
+     4808,
+     4818
     ],
     [
      "tools/engine_tests/main.cpp",
-     5135,
-     5145
+     5313,
+     5323
     ]
    ]
   ],
@@ -995,13 +995,13 @@
    [
     [
      "tools/engine_tests/main.cpp",
-     3973,
-     3982
+     4151,
+     4160
     ],
     [
      "tools/engine_tests/main.cpp",
-     4301,
-     4310
+     4479,
+     4488
     ]
    ]
   ],
@@ -1076,7 +1076,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 2,
-   "lines": 183,
+   "lines": 182,
    "longest_function": [
     20,
     "mforce::Component::register_pin"
@@ -3262,10 +3262,10 @@
    ]
   },
   "engine/include/mforce/source/wavetable/wave_evolution.h": {
-   "changelog_comments": 1,
+   "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 1281,
+   "lines": 961,
    "longest_function": [
     42,
     "mforce::BowedStringEvolution::evolve"
@@ -3281,35 +3281,22 @@
     "ReedEvolution",
     "BowedStringEvolution",
     "BrassEvolution",
-    "IEvolutionHolder",
-    "PluckEvolutionSource",
-    "AveragingEvolutionSource",
-    "EKSEvolutionSource",
-    "ReedEvolutionSource",
-    "BowedStringEvolutionSource",
-    "BrassEvolutionSource",
     "ReactionDiffusionEvolution",
-    "ReactionDiffusionEvolutionSource",
     "SortErosionEvolution",
-    "SortErosionEvolutionSource",
     "CellularAutomatonEvolution",
-    "CellularAutomatonEvolutionSource",
     "HistogramEqualizeEvolution",
-    "HistogramEqualizeEvolutionSource",
     "BezierPullEvolution",
-    "BezierPullEvolutionSource",
-    "BitRotateEvolution",
-    "BitRotateEvolutionSource"
+    "BitRotateEvolution"
    ]
   },
   "engine/include/mforce/source/wavetable/wavetable_source.h": {
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 73,
+   "lines": 57,
    "longest_function": [
-    4,
-    "mforce::WavetableSource::set_evolution"
+    1,
+    "mforce::WavetableSource::type_name"
    ],
    "module": "source",
    "mutable_vars": 0,
@@ -3440,9 +3427,9 @@
    "changelog_comments": 11,
    "const_cast": 0,
    "dynamic_cast": 8,
-   "lines": 1786,
+   "lines": 1743,
    "longest_function": [
-    434,
+    388,
     "mforce::build_graph"
    ],
    "module": "render",
@@ -3473,9 +3460,9 @@
    "changelog_comments": 2,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 648,
+   "lines": 649,
    "longest_function": [
-    590,
+    591,
     "mforce::register_all_sources"
    ],
    "module": "source",
@@ -3525,9 +3512,9 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 139,
+   "lines": 135,
    "longest_function": [
-    47,
+    46,
     "mforce::WavetableSource::compute_raw"
    ],
    "module": "source",
@@ -3683,7 +3670,7 @@
    "changelog_comments": 4,
    "const_cast": 0,
    "dynamic_cast": 18,
-   "lines": 7600,
+   "lines": 7823,
    "longest_function": [
     272,
     "run_walk3_tests"
@@ -4092,7 +4079,7 @@
   }
  ],
  "summary": {
-  "changelog_comments": 249,
+  "changelog_comments": 248,
   "const_cast": 10,
   "duplicate_blocks": 151,
   "dynamic_cast": 60,
@@ -4101,7 +4088,7 @@
   "files_over_limit": 20,
   "functions_over_limit": 98,
   "include_violations": 14,
-  "lines": 61634,
+  "lines": 61474,
   "unmapped_files": 0
  }
 }
