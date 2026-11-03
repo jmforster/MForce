@@ -1,6 +1,6 @@
 #pragma once
 #include "mforce/core/dsp_value_source.h"
-#include "mforce/core/pierce_allpass.h"
+#include "mforce/core/dsp/pierce_allpass.h"
 #include <algorithm>
 #include <cmath>
 #include <memory>
@@ -70,7 +70,7 @@ namespace mforce {
 //               switched by the sign of its own internal state: `coefNeg`
 //               while that state is negative, `coefPos` while it is >= 0.
 //               Equal coefficients = a linear allpass; the distance between
-//               them is the nonlinearity.  See core/pierce_allpass.h and
+//               them is the nonlinearity.  See core/dsp/pierce_allpass.h and
 //               docs/research/stk_port/PIERCE_PASSIVE_NOTES.md.
 //
 //               The reason this mode exists: mode 1's signal-dependent R (the
@@ -106,10 +106,10 @@ struct Mesh2DSource final : Processor {
   Param edgeFc{this, "edgeFc", kChafeFc, 0.0f, 20000.0f, "Hz"};
   Param edgeR {this, "edgeR",  kChafeR,  0.0f, kRMax,    "0-1"};
   // Read per sample in edgeMode 2 only; ignored in modes 0 and 1.
-  Param coefNeg{this, "coefNeg", kPierceNeg, -PierceAllpass::kCoefMax,
-                PierceAllpass::kCoefMax, "stiffness"};
-  Param coefPos{this, "coefPos", kPiercePos, -PierceAllpass::kCoefMax,
-                PierceAllpass::kCoefMax, "stiffness"};
+  Param coefNeg{this, "coefNeg", kPierceNeg, -dsp::PierceAllpass::kCoefMax,
+                dsp::PierceAllpass::kCoefMax, "stiffness"};
+  Param coefPos{this, "coefPos", kPiercePos, -dsp::PierceAllpass::kCoefMax,
+                dsp::PierceAllpass::kCoefMax, "stiffness"};
 
   Setting<int> cols    {this, "cols", 12, 2, kMaxN};
   Setting<int> rows    {this, "rows", 12, 2, kMaxN};
@@ -162,8 +162,8 @@ struct Mesh2DSource final : Processor {
       // Latched once per sample and shared by every edge node, like the mode
       // 1 coefficients — but unlike mode 1 the STATE that selects between
       // them is each node's own, so the nonlinearity is genuinely per-node.
-      cNeg_ = PierceAllpass::clamp_coef(coefNeg.current());
-      cPos_ = PierceAllpass::clamp_coef(coefPos.current());
+      cNeg_ = dsp::PierceAllpass::clamp_coef(coefNeg.current());
+      cPos_ = dsp::PierceAllpass::clamp_coef(coefPos.current());
     }
 
     float out;
@@ -320,7 +320,7 @@ private:
   float fxAp_[kMaxN][4]{}, fyAp_[kMaxN][4]{};
   // edgeMode 2: one Pierce passive nonlinear allpass per edge node, each
   // switching on its OWN state.  Same 64-cap sizing rule as everything above.
-  PierceAllpass fxPc_[kMaxN]{}, fyPc_[kMaxN]{};
+  dsp::PierceAllpass fxPc_[kMaxN]{}, fyPc_[kMaxN]{};
 };
 
 } // namespace mforce

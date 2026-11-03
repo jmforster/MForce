@@ -1,6 +1,6 @@
 #pragma once
 #include "mforce/core/dsp_value_source.h"
-#include "mforce/core/pierce_allpass.h"
+#include "mforce/core/dsp/pierce_allpass.h"
 
 namespace mforce {
 
@@ -8,7 +8,7 @@ namespace mforce {
 // PierceFilter — the Pierce/Van Duyne passive nonlinear allpass as a graph
 // node, so the same filter that terminates the 2D mesh boundary (Mesh2D
 // edgeMode 2) can terminate a 1D delay loop.  All the theory, provenance and
-// the passivity numbers live in core/pierce_allpass.h and
+// the passivity numbers live in core/dsp/pierce_allpass.h and
 // docs/research/stk_port/PIERCE_PASSIVE_NOTES.md.
 //
 // Why a node of its own rather than a mode on Shaper or pins on Biquad:
@@ -31,9 +31,9 @@ namespace mforce {
 // feedback loop without a level clamp.
 // ---------------------------------------------------------------------------
 struct PierceFilterSource final : Processor {
-  Param coefNeg{this, "coefNeg",  0.5f, -PierceAllpass::kCoefMax, PierceAllpass::kCoefMax,
+  Param coefNeg{this, "coefNeg",  0.5f, -dsp::PierceAllpass::kCoefMax, dsp::PierceAllpass::kCoefMax,
                 "stiffness"};
-  Param coefPos{this, "coefPos", -0.5f, -PierceAllpass::kCoefMax, PierceAllpass::kCoefMax,
+  Param coefPos{this, "coefPos", -0.5f, -dsp::PierceAllpass::kCoefMax, dsp::PierceAllpass::kCoefMax,
                 "stiffness"};
 
   const char* type_name() const override { return "PierceFilter"; }
@@ -48,7 +48,7 @@ struct PierceFilterSource final : Processor {
   }
 
 private:
-  PierceAllpass ap_;
+  dsp::PierceAllpass ap_;
 };
 
 } // namespace mforce

@@ -17,6 +17,57 @@ static int g_checks = 0, g_fails = 0;
 #include <memory>
 using namespace mforce;
 
+// ---------------------------------------------------------------------------
+// The twin-test scaffolding for the core/dsp primitives: a merged site is
+// compared bit for bit with the lines it replaced, over a deterministic
+// signal that carries exact zeros of both signs.
+#include "mforce/core/dsp/constants.h"
+#include "mforce/core/randomizer.h"
+#include <bit>
+#include <cstdint>
+#include <vector>
+
+static bool same_bits(float a, float b) {
+    return std::bit_cast<uint32_t>(a) == std::bit_cast<uint32_t>(b);
+}
+// Equal as values: the same bits, or a zero of either sign on both sides.
+static bool same_value(float a, float b) {
+    return same_bits(a, b) || (a == 0.0f && b == 0.0f);
+}
+// n samples in (-1, 1) from the engine's own generator, with an exact zero at
+// every 97th index and a negative zero at every 101st, so a comparison meets
+// both.
+static std::vector<float> twin_signal(uint32_t seed, int n) {
+    Randomizer rng(seed);
+    std::vector<float> v(static_cast<size_t>(n));
+    for (int i = 0; i < n; ++i) {
+        float x = rng.valuePN();
+        if (i % 97 == 0) x = 0.0f;
+        if (i % 101 == 0) x = -0.0f;
+        v[size_t(i)] = x;
+    }
+    return v;
+}
+
+static void run_dsp_scaffold_tests() {
+    CHECK(same_value(-0.0f, 0.0f));
+    CHECK(!same_bits(-0.0f, 0.0f));
+    CHECK(same_bits(0.1f, 0.1f) && !same_value(0.1f, 0.1000001f));
+    auto v = twin_signal(0x5EEDu, 1000);
+    CHECK(v.size() == 1000);
+    CHECK(same_bits(v[0], -0.0f));            // index 0 is both a 97th and a 101st: the last rule wins
+    CHECK(same_bits(v[97], 0.0f) && !std::signbit(v[97]));
+    CHECK(same_bits(v[101], -0.0f) && std::signbit(v[101]));
+    CHECK(v[1] != 0.0f && v[1] > -1.0f && v[1] < 1.0f);
+    auto w = twin_signal(0x5EEDu, 1000);
+    CHECK(same_bits(v[500], w[500]));         // deterministic per seed
+    // The three pi literals the nodes wrote are one float.
+    CHECK(same_bits(dsp::kPi, 3.14159265f));
+    CHECK(same_bits(dsp::kPi, 3.1415926536f));
+    CHECK(same_bits(dsp::kPi, 3.14159265358979323846f));
+    CHECK(same_bits(2.0f * dsp::kPi, 6.28318530717958647692f));
+}
+
 static void run_curve_node_tests() {
     // Linear (vcurve semantics): clamp + linear interp
     CurveNode lin;
@@ -6943,6 +6994,7 @@ int main() {
     run_shaper_morph_tests();
     run_wormhole_tests();
     run_pierce_passivity_tests();
+    run_dsp_scaffold_tests();
     if (g_fails) { std::printf("%d/%d FAILED\n", g_fails, g_checks); return 1; }
     std::printf("ALL PASS (%d checks)\n", g_checks);
     return 0;

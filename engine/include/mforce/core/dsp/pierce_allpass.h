@@ -2,7 +2,7 @@
 #include <algorithm>
 #include <cmath>
 
-namespace mforce {
+namespace mforce::dsp {
 
 // ---------------------------------------------------------------------------
 // PierceAllpass — the Pierce/Van Duyne passive nonlinear filter.
@@ -91,4 +91,4 @@ private:
   double a_{0.0};
 };
 
-} // namespace mforce
+} // namespace mforce::dsp
