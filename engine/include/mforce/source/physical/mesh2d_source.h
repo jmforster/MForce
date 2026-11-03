@@ -1,6 +1,7 @@
 #pragma once
 #include "mforce/core/dsp_value_source.h"
 #include "mforce/core/dsp/pierce_allpass.h"
+#include "mforce/core/dsp/biquad.h"
 #include <algorithm>
 #include <cmath>
 #include <memory>
@@ -156,8 +157,7 @@ struct Mesh2DSource final : Processor {
       // variants.
       const float R  = std::clamp(edgeR.current(), 0.0f, kRMax);
       const float fc = std::clamp(edgeFc.current(), 0.0f, 0.49f * sr_);
-      a1_ = -2.0f * R * std::cos(6.28318530717958647692f * fc / sr_);
-      a2_ = R * R;
+      edge_.set_allpass_chafe(fc, R, sr_);
     } else if (edgeMode.value == 2) {
       // Latched once per sample and shared by every edge node, like the mode
       // 1 coefficients — but unlike mode 1 the STATE that selects between
@@ -199,25 +199,15 @@ private:
     return std::clamp(int(std::clamp(f, 0.0f, 1.0f) * float(n - 1)), 0, n - 1);
   }
 
-  // Chafe 2nd-order allpass, direct form I:
-  //   y[n] = a2 x[n] + a1 x[n-1] + x[n-2] - a1 y[n-1] - a2 y[n-2]
-  // `s` is one edge node's 4-float state (see the state layout below).
-  float allpass(float* s, float x) {
-    const float y = a2_ * x + a1_ * s[0] + s[1] - a1_ * s[2] - a2_ * s[3];
-    s[1] = s[0]; s[0] = x;
-    s[3] = s[2]; s[2] = y;
-    return y;
-  }
-
   float edge_x(int i, float x) {   // filterX_ — the y = 0 face
-    if (edgeMode.value == 1) return allpass(fxAp_[i], gain_ * x);
+    if (edgeMode.value == 1) return edge_.process(fxAp_[i], gain_ * x);
     if (edgeMode.value == 2) return fxPc_[i].tick(gain_ * x, cNeg_, cPos_);
     const float y = kEdgeB0 * (gain_ * x) + kPole * fxState_[i];
     fxState_[i] = y;
     return y;
   }
   float edge_y(int i, float x) {   // filterY_ — the x = 0 face
-    if (edgeMode.value == 1) return allpass(fyAp_[i], gain_ * x);
+    if (edgeMode.value == 1) return edge_.process(fyAp_[i], gain_ * x);
     if (edgeMode.value == 2) return fyPc_[i].tick(gain_ * x, cNeg_, cPos_);
     const float y = kEdgeB0 * (gain_ * x) + kPole * fyState_[i];
     fyState_[i] = y;
@@ -293,7 +283,8 @@ private:
     const float p0 = coefPos.current();
     for (int i = 0; i < kMaxN; ++i) {
       fxState_[i] = fyState_[i] = 0.0f;
-      for (int k = 0; k < 4; ++k) fxAp_[i][k] = fyAp_[i][k] = 0.0f;
+      fxAp_[i].reset();
+      fyAp_[i].reset();
       fxPc_[i].reset(p0);
       fyPc_[i].reset(p0);
     }
@@ -303,7 +294,7 @@ private:
   int counter_{0};
   float gain_{0.99f};
   float sr_{48000.0f};
-  float a1_{0.0f}, a2_{0.0f};   // edgeMode 1 allpass coefficients, per sample
+  dsp::BiquadCoefficients edge_;   // edgeMode 1: the Chafe allpass, one coefficient set per sample
   float cNeg_{kPierceNeg}, cPos_{kPiercePos};  // edgeMode 2, per sample
 
   // Sized for the 64x64 cap at construction — set_setting/prepare/start never
@@ -314,10 +305,11 @@ private:
   float vxp1_[kMaxN][kMaxN]{}, vxm1_[kMaxN][kMaxN]{};
   float vyp1_[kMaxN][kMaxN]{}, vym1_[kMaxN][kMaxN]{};
   float fxState_[kMaxN]{}, fyState_[kMaxN]{};
-  // edgeMode 1: one allpass per edge node, [x[n-1], x[n-2], y[n-1], y[n-2]].
-  // Sized for the 64 cap like the mesh planes, so mode switching and
-  // set_setting never allocate; clear_mesh() zeroes both modes' state.
-  float fxAp_[kMaxN][4]{}, fyAp_[kMaxN][4]{};
+  // edgeMode 1: one allpass section's state per edge node, over the shared
+  // coefficients. Sized for the 64 cap like the mesh planes, so mode
+  // switching and set_setting never allocate; clear_mesh() zeroes both
+  // modes' state.
+  dsp::BiquadState fxAp_[kMaxN]{}, fyAp_[kMaxN]{};
   // edgeMode 2: one Pierce passive nonlinear allpass per edge node, each
   // switching on its OWN state.  Same 64-cap sizing rule as everything above.
   dsp::PierceAllpass fxPc_[kMaxN]{}, fyPc_[kMaxN]{};

@@ -3,6 +3,7 @@
 #include "mforce/core/dsp/dc_blocker.h"
 #include "mforce/core/dsp/one_pole.h"
 #include "mforce/core/dsp/bow_friction.h"
+#include "mforce/core/dsp/biquad.h"
 #include "mforce/core/randomizer.h"
 #include <vector>
 #include <cmath>
@@ -133,7 +134,7 @@ struct KSString final : Processor {
       std::fill(comb_[i].buf.begin(), comb_[i].buf.end(), 0.0f);
       comb_[i].lp.reset();
       comb_[i].apX = comb_[i].apY = 0.0f;
-      for (int b = 0; b < 2; ++b) comb_[i].bq[b] = BiquadState{};
+      for (int b = 0; b < 2; ++b) comb_[i].bq[b].reset();
     }
     std::fill(disp_.buf.begin(), disp_.buf.end(), 0.0f);
     disp_.d1 = disp_.d2 = disp_.d3 = 0.0f;
@@ -272,8 +273,8 @@ struct KSString final : Processor {
       // Loop path: 2 biquad allpasses (dispersion) -> damping LP -> gain
       float v = r;
       if (dispActive_) {
-        v = biquad_ap(v, c.bq[0]);
-        v = biquad_ap(v, c.bq[1]);
+        v = c.bq[0].process(v);
+        v = c.bq[1].process(v);
       }
       c.buf[wpos_] = si + c.gain * damp * c.lp.process(v, brightness.value);
 
@@ -308,8 +309,6 @@ private:
   // The friction curve's top: STK's BowTable maximum.
   static constexpr float kFrictionMax = 0.98f;
 
-  struct BiquadState { float x1{0}, x2{0}, y1{0}, y2{0}; };
-
   float lastD_{0.0f};
   float envFollow_{0.0f};
   float dnAmp_{0.0f};
@@ -325,7 +324,7 @@ private:
     int   lenInt{100};
     float apEta{0.0f};
     float apX{0.0f}, apY{0.0f};
-    BiquadState bq[2];
+    dsp::Biquad bq[2];   // the dispersion allpasses, set per note
   };
 
   struct DispLoop {
@@ -333,19 +332,6 @@ private:
     float d1{0}, d2{0}, d3{0};   // nested allpass unit delays
     float hpX{0}, hpY{0};
   };
-
-  // Double-real-pole allpass biquad: H(z) = (a^2 - 2a z^-1 + z^-2) /
-  // (1 - 2a z^-1 + a^2 z^-2), a = dispersion. Group delay decreases with
-  // frequency -> upper partials see a shorter loop -> stretched (sharp)
-  // partials, the KS route to piano inharmonicity.
-  float biquad_ap(float x, BiquadState& st) const {
-    const float a = dispEff_;
-    float y = a * a * x - 2.0f * a * st.x1 + st.x2
-            + 2.0f * a * st.y1 - a * a * st.y2;
-    st.x2 = st.x1; st.x1 = x;
-    st.y2 = st.y1; st.y1 = y;
-    return y;
-  }
 
   // Phase delay (samples) of the first-order allpass (z^-1 - a)/(1 - a z^-1)
   // at angular frequency w. Used at note init to tune the comb length so the
@@ -448,6 +434,12 @@ private:
     }
 
     for (int i = 0; i < numCombs.value; ++i) {
+      // The dispersion allpasses: a double-real-pole biquad at the per-note
+      // pole, whose group delay falls with frequency, so the upper partials
+      // see a shorter loop and stretch sharp (the KS route to piano
+      // inharmonicity).
+      comb_[i].bq[0].coefficients.set_allpass_double_pole(dispEff_);
+      comb_[i].bq[1].coefficients.set_allpass_double_pole(dispEff_);
       float det = std::pow(2.0f, (off[i] * detune.value) / 1200.0f);
       float len = period / det - apDelay - lpDelay_;
       comb_[i].len = std::clamp(len, 2.0f, float(kBufLen - 4));

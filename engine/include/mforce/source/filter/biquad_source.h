@@ -1,5 +1,6 @@
 #pragma once
 #include "mforce/core/dsp_value_source.h"
+#include "mforce/core/dsp/biquad.h"
 #include <cmath>
 #include <memory>
 
@@ -40,12 +41,16 @@ struct BiquadSource final : Processor {
   void on_start(int frames) override {
     frequency.start(frames);
     radius.start(frames);
-    x1_ = x2_ = y1_ = y2_ = 0.0f;
+    section_.reset();
     cur_ = 0.0f;
     pdHz_ = -1.0f;
     resFreq_ = resRad_ = -1.0f;
   }
 
+  // The settings are the coefficients the user sees; the section is loaded
+  // from them each sample, as the inline form read them. In resonance mode
+  // the two pole coefficients are derived from the pins and written back into
+  // the settings, so the editor and a saved patch show them.
   float compute() override {
     const float x = input.current();
     if (mode.value == kResonance) {
@@ -54,50 +59,35 @@ struct BiquadSource final : Processor {
       const float f = frequency.current(), r = radius.current();
       if (f != resFreq_ || r != resRad_) {
         resFreq_ = f; resRad_ = r;
-        a1.value = -2.0f * r * std::cos(2.0f * 3.14159265358979323846f
-                                        * f / float(sample_rate()));
-        a2.value = r * r;
+        dsp::BiquadCoefficients poles;
+        poles.set_resonance(f, r, float(sample_rate()), b0.value);
+        a1.value = poles.a1();
+        a2.value = poles.a2();
         pdHz_ = -1.0f;
       }
-      const float y = b0.value * x - a1.value * y1_ - a2.value * y2_;
-      y2_ = y1_; y1_ = y;
-      return y;
+      section_.coefficients.set_raw(b0.value, 0.0f, 0.0f, a1.value, a2.value);
+      return section_.process(x);
     }
-    const float y = b0.value * x + b1.value * x1_ + b2.value * x2_
-                  - a1.value * y1_ - a2.value * y2_;
-    x2_ = x1_; x1_ = x;
-    y2_ = y1_; y1_ = y;
-    return y;
+    section_.coefficients.set_raw(b0.value, b1.value, b2.value, a1.value, a2.value);
+    return section_.process(x);
   }
 
-  // Phase delay in samples at `hz`, from the closed-form H(e^{jw}). A
-  // net sign inversion (e.g. negative b0 folding a reflection) contributes
-  // +-pi of phase that is polarity, not delay — arg() is wrapped to
-  // (-pi/2, pi/2] modulo pi before dividing by w so inverted sections
-  // report the same delay as their positive twins.
+  // Phase delay in samples at `hz` (the coefficients' closed form), cached
+  // on the frequency asked for.
   float phase_delay_at(float hz) override {
     if (hz <= 0.0f) return 0.0f;
     if (hz == pdHz_) return pd_;
-    constexpr float pi = 3.14159265358979323846f;
-    const float w = 2.0f * pi * hz / float(sample_rate());
-    const float c1 = std::cos(w), s1 = std::sin(w);
-    const float c2 = std::cos(2.0f * w), s2 = std::sin(2.0f * w);
-    const float nr = b0.value + b1.value * c1 + b2.value * c2;
-    const float ni = -(b1.value * s1 + b2.value * s2);
-    const float dr = 1.0f + a1.value * c1 + a2.value * c2;
-    const float di = -(a1.value * s1 + a2.value * s2);
-    float ph = std::atan2(ni, nr) - std::atan2(di, dr);
-    while (ph >  0.5f * pi) ph -= pi;   // polarity fold (see above)
-    while (ph <= -0.5f * pi) ph += pi;
+    dsp::BiquadCoefficients c;
+    c.set_raw(b0.value, b1.value, b2.value, a1.value, a2.value);
     pdHz_ = hz;
-    pd_ = -ph / w;
+    pd_ = c.phase_delay_at(hz, float(sample_rate()));
     return pd_;
   }
 
 private:
   static constexpr const char* kModeLabels[] = {"Raw", "Resonance", nullptr};
 
-  float x1_{0.0f}, x2_{0.0f}, y1_{0.0f}, y2_{0.0f};
+  dsp::Biquad section_;
   float resFreq_{-1.0f}, resRad_{-1.0f};
   float pdHz_{-1.0f}, pd_{0.0f};
 };

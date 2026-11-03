@@ -2,6 +2,7 @@
 #include "mforce/core/dsp/tuning_allpass.h"
 #include "mforce/core/dsp/one_pole.h"
 #include "mforce/core/dsp/bow_friction.h"
+#include "mforce/core/dsp/biquad.h"
 #include "mforce/core/dsp_value_source.h"
 #include "mforce/core/dsp_wave_source.h"
 #include "mforce/core/randomizer.h"
@@ -560,22 +561,13 @@ struct BrassEvolution final : WaveEvolution {
     lipState_ = 0.0f;
     // Compute RBJ resonant lowpass coefficients for the out-of-loop biquad.
     // Out-of-loop means no feedback through it → no pitch detune.
-    x1_ = x2_ = y1_ = y2_ = 0.0f;
+    lip_.reset();
     float cutoff = std::max(20.0f, frequency * lipFreqRatio.value);
-    float omega = 2.0f * 3.1415926536f * cutoff / float(sampleRate_);
+    float omega = 2.0f * dsp::kPi * cutoff / float(sampleRate_);
     if (omega > 3.0f) omega = 3.0f;
     float q = std::max(0.5f, lipQ.value);
-    float alpha = std::sin(omega) / (2.0f * q);
-    float cosOm = std::cos(omega);
-    float a0 = 1.0f + alpha;
-    float c = 1.0f - cosOm;
-    // Peak-normalize to unity so the biquad is a timbre shaper, not a gain stage.
-    float scale = 1.0f / (a0 * std::max(1.0f, q));
-    b0_ = 0.5f * c * scale;
-    b1_ = c * scale;
-    b2_ = 0.5f * c * scale;
-    a1_ = -2.0f * cosOm / a0;
-    a2_ = (1.0f - alpha) / a0;
+    // Peak-normalized to unity so the biquad is a timbre shaper, not a gain stage.
+    lip_.coefficients.set_resonant_lowpass(omega, q);
     return 0.0f;
   }
 
@@ -605,20 +597,14 @@ struct BrassEvolution final : WaveEvolution {
 
     // Out-of-loop biquad for timbral shaping — colors the output without altering
     // the feedback loop, so pitch stays locked to sampleRate / tableLength.
-    float x = rawLoop_[index];
-    float y = b0_*x + b1_*x1_ + b2_*x2_ - a1_*y1_ - a2_*y2_;
-    x2_ = x1_; x1_ = x;
-    y2_ = y1_; y1_ = y;
-    values[index] = y;
+    values[index] = lip_.process(rawLoop_[index]);
   }
 
 private:
   Randomizer rng_;
   int sampleRate_{48000};
   float lipState_{0.0f};
-  // Out-of-loop biquad state
-  float b0_{0.0f}, b1_{0.0f}, b2_{0.0f}, a1_{0.0f}, a2_{0.0f};
-  float x1_{0.0f}, x2_{0.0f}, y1_{0.0f}, y2_{0.0f};
+  dsp::Biquad lip_;   // the out-of-loop resonant lowpass
   std::vector<float> rawLoop_;
 };
 

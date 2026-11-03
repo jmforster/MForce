@@ -348,6 +348,118 @@ static void run_dsp_bow_friction_tests() {
     CHECK(same_bits(dsp::bow_friction(2.0f, 4.0f, 0.0f, 0.01f, 0.98f), 0.01f));     // the table's floor
 }
 
+// ---------------------------------------------------------------------------
+// Biquad: the five sites' per-sample lines against BiquadCoefficients::process,
+// and the recipes against the coefficient blocks they replaced.
+#include "mforce/core/dsp/biquad.h"
+#include "mforce/source/filter/biquad_source.h"
+
+namespace {
+struct RawRef { float b0, b1, b2, a1, a2, x1{0}, x2{0}, y1{0}, y2{0};
+    float tick(float x) {                       // BiquadSource raw, the brass lip
+        const float y = b0 * x + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2;
+        x2 = x1; x1 = x; y2 = y1; y1 = y; return y;
+    }
+};
+struct DoublePoleRef { float x1{0}, x2{0}, y1{0}, y2{0};
+    float tick(float x, float a) {              // KSString::biquad_ap, the resonator's stiffness
+        float y = a * a * x - 2.0f * a * x1 + x2 + 2.0f * a * y1 - a * a * y2;
+        x2 = x1; x1 = x; y2 = y1; y1 = y; return y;
+    }
+};
+struct ChafeRef { float s[4]{};
+    float tick(float x, float a1, float a2) {   // Mesh2D::allpass
+        const float y = a2 * x + a1 * s[0] + s[1] - a1 * s[2] - a2 * s[3];
+        s[1] = s[0]; s[0] = x; s[3] = s[2]; s[2] = y; return y;
+    }
+};
+struct ResonanceRef { float y1{0}, y2{0};
+    float tick(float x, float b0, float a1, float a2) {   // BiquadSource resonance mode
+        const float y = b0 * x - a1 * y1 - a2 * y2;
+        y2 = y1; y1 = y; return y;
+    }
+};
+}
+
+static void run_dsp_biquad_tests() {
+    auto sig = twin_signal(0xB1Au, 10000);
+    const float sets[3][5] = {{0.2f, 0.1f, 0.05f, -1.2f, 0.5f}, {1.0f, 0.0f, 0.0f, 0.0f, 0.0f}, {0.3f, -0.6f, 0.3f, -1.7f, 0.8f}};
+    for (const auto& c : sets) {
+        RawRef ref{c[0], c[1], c[2], c[3], c[4]};
+        dsp::Biquad bq;
+        bq.coefficients.set_raw(c[0], c[1], c[2], c[3], c[4]);
+        int bad = 0;
+        for (float x : sig) if (!same_bits(bq.process(x), ref.tick(x))) ++bad;
+        CHECK(bad == 0);
+    }
+    for (float a : {0.12f, 0.5f, 0.95f}) {
+        DoublePoleRef ref;
+        dsp::Biquad bq;
+        bq.coefficients.set_allpass_double_pole(a);
+        int bad = 0;
+        for (float x : sig) if (!same_bits(bq.process(x), ref.tick(x, a))) ++bad;
+        CHECK(bad == 0);
+    }
+    {
+        const float fc = 1575.0f, R = 0.75f, sr = 48000.0f;
+        const float a1 = -2.0f * R * std::cos(6.28318530717958647692f * fc / sr), a2 = R * R;   // the mesh's lines
+        ChafeRef ref;
+        dsp::BiquadCoefficients edge;
+        edge.set_allpass_chafe(fc, R, sr);
+        dsp::BiquadState st;
+        int bad = 0;
+        for (float x : sig) if (!same_bits(edge.process(st, x), ref.tick(x, a1, a2))) ++bad;
+        CHECK(bad == 0);
+        CHECK(same_bits(edge.a1(), a1) && same_bits(edge.a2(), a2) && same_bits(edge.b0(), a2) && same_bits(edge.b1(), a1) && same_bits(edge.b2(), 1.0f));
+    }
+    {   // The resonance line has no input memory; process() adds 0*x1 + 0*x2, which
+        // can differ only in the sign of a zero when b0*x is a negative zero.
+        const float b0 = 0.05f, r = 0.997f, f = 440.0f, sr = 48000.0f;
+        const float a1 = -2.0f * r * std::cos(2.0f * 3.14159265358979323846f * f / sr), a2 = r * r;
+        ResonanceRef ref;
+        dsp::Biquad bq;
+        bq.coefficients.set_resonance(f, r, sr, b0);
+        CHECK(same_bits(bq.coefficients.a1(), a1) && same_bits(bq.coefficients.a2(), a2));
+        int badValue = 0, badBits = 0, negZero = 0;
+        for (float x : sig) {
+            const float y = bq.process(x), e = ref.tick(x, b0, a1, a2);
+            if (!same_value(y, e)) ++badValue;
+            if (!same_bits(y, e)) ++badBits;
+            if (same_bits(b0 * x, -0.0f)) ++negZero;
+        }
+        CHECK(badValue == 0);
+        CHECK(badBits <= negZero);
+    }
+}
+
+static void run_dsp_biquad_recipe_tests() {
+    for (float q : {0.5f, 2.0f, 15.0f}) {
+        for (float cutoff : {20.0f, 528.0f, 7000.0f}) {
+            const float omega = 2.0f * 3.1415926536f * cutoff / 48000.0f;   // the brass lines
+            const float alpha = std::sin(omega) / (2.0f * q);
+            const float cosOm = std::cos(omega);
+            const float a0 = 1.0f + alpha;
+            const float c = 1.0f - cosOm;
+            const float scale = 1.0f / (a0 * std::max(1.0f, q));
+            dsp::BiquadCoefficients lip;
+            lip.set_resonant_lowpass(omega, q);
+            CHECK(same_bits(lip.b0(), 0.5f * c * scale) && same_bits(lip.b1(), c * scale) && same_bits(lip.b2(), 0.5f * c * scale));
+            CHECK(same_bits(lip.a1(), -2.0f * cosOm / a0) && same_bits(lip.a2(), (1.0f - alpha) / a0));
+        }
+    }
+    // phase_delay_at: the closed form BiquadSource carried, now the coefficients'.
+    BiquadSource node;
+    node.b0.value = 0.3f; node.b1.value = -0.6f; node.b2.value = 0.3f; node.a1.value = -1.7f; node.a2.value = 0.8f;
+    RenderContext ctx{48000};
+    node.prepare(ctx);
+    node.start(100);
+    dsp::BiquadCoefficients c;
+    c.set_raw(0.3f, -0.6f, 0.3f, -1.7f, 0.8f);
+    for (float hz : {55.0f, 440.0f, 3000.0f, 12000.0f})
+        CHECK(same_bits(node.phase_delay_at(hz), c.phase_delay_at(hz, 48000.0f)));
+    CHECK(same_bits(c.phase_delay_at(0.0f, 48000.0f), 0.0f));
+}
+
 static void run_curve_node_tests() {
     // Linear (vcurve semantics): clamp + linear interp
     CurveNode lin;
@@ -7281,6 +7393,8 @@ int main() {
     run_dsp_tuning_allpass_boundary_tests();
     run_dsp_one_pole_tests();
     run_dsp_bow_friction_tests();
+    run_dsp_biquad_tests();
+    run_dsp_biquad_recipe_tests();
     if (g_fails) { std::printf("%d/%d FAILED\n", g_fails, g_checks); return 1; }
     std::printf("ALL PASS (%d checks)\n", g_checks);
     return 0;

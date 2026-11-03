@@ -3,6 +3,7 @@
 #include "mforce/core/dsp/dc_blocker.h"
 #include "mforce/core/dsp/tuning_allpass.h"
 #include "mforce/core/dsp/one_pole.h"
+#include "mforce/core/dsp/biquad.h"
 #include <vector>
 #include <cmath>
 #include <algorithm>
@@ -70,7 +71,7 @@ struct AllpassResonator final : Processor {
   void on_start(int) override {
     std::fill(buf_.begin(), buf_.end(), 0.0f);
     wpos_ = 0;
-    bq_ = BiquadState{};
+    stiffness_.reset();
     damping_.reset();
     tuning_.reset();
     dc_.reset();
@@ -101,14 +102,12 @@ struct AllpassResonator final : Processor {
     // Fractional tuning allpass (Thiran 1st order)
     float yt = tuning_.process(y);
 
-    // Stiffness allpass (double-real-pole biquad)
+    // Stiffness allpass (double-real-pole biquad); the setting is live, so
+    // the coefficients follow it per sample as the inline form did.
     float ys = yt;
     if (stiffness.value > 0.001f) {
-      const float a = stiffness.value;
-      ys = a * a * yt - 2.0f * a * bq_.x1 + bq_.x2
-         + 2.0f * a * bq_.y1 - a * a * bq_.y2;
-      bq_.x2 = bq_.x1; bq_.x1 = yt;
-      bq_.y2 = bq_.y1; bq_.y1 = ys;
+      stiffness_.coefficients.set_allpass_double_pole(stiffness.value);
+      ys = stiffness_.process(yt);
     }
 
     // Damping lowpass + decay feedback (applied next sample)
@@ -120,8 +119,6 @@ struct AllpassResonator final : Processor {
 private:
   static constexpr int kBufLen = 4096;
   static constexpr float kDcCornerHz = 20.0f;
-
-  struct BiquadState { float x1{0}, x2{0}, y1{0}, y2{0}; };
 
   static float ap1_phase_delay(float a, float w) {
     float cw = std::cos(w), sw = std::sin(w);
@@ -179,7 +176,7 @@ private:
   int   wpos_{0};
   int   loopLen_{100};
   dsp::TuningAllpass tuning_;
-  BiquadState bq_;
+  dsp::Biquad stiffness_;
   dsp::OnePole damping_;
   float fbSample_{0.0f};
   dsp::DcBlocker dc_;
