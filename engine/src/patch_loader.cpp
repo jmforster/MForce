@@ -29,6 +29,7 @@
 #include "mforce/source/combiner/multiplex_source.h"
 #include "mforce/source/filter/filters.h"
 #include "mforce/source/envelope/vibrato.h"
+#include <cstring>
 #include <nlohmann/json.hpp>
 #include <fstream>
 #include <functional>
@@ -310,10 +311,11 @@ static void reject_unknown_keys(const Component& src, const std::string& id,
 // read: the load fails naming the node, the pin and the string, and for
 // `evolution` the tool that rewrites the old form as an evolution node.
 static void refuse_string_pin(const Component& src, const std::string& id,
-                              const char* pin, const std::string& value)
+                              const char* pin, const std::string& value, bool slot)
 {
     std::string msg = "node '" + id + "' (" + src.type_name() + "): '" + pin
-                    + "' is the string \"" + value + "\"; a pin takes a number, {\"ref\": id} or {\"tap\": id}";
+                    + "' is the string \"" + value + "\"; "
+                    + (slot ? "a slot takes {\"ref\": id}" : "a pin takes a number, {\"ref\": id} or {\"tap\": id}");
     if (std::strcmp(pin, "evolution") == 0)
         msg += "; the string-typed evolution is gone, python tools/string_evolution_to_node.py <patch> rewrites it as an evolution node";
     throw std::runtime_error(msg);
@@ -328,7 +330,7 @@ static void wire_params_generic(
     for (const auto& desc : src.input_descriptors()) {
         if (!params.contains(desc.name)) continue;
         const auto& v = params.at(desc.name);
-        if (v.is_string()) refuse_string_pin(src, id, desc.name, v.get<std::string>());
+        if (v.is_string()) refuse_string_pin(src, id, desc.name, v.get<std::string>(), desc.slot);
         if (desc.multi && v.is_array()) {
             // Multi-input pin with array-of-refs JSON. Iterate and add each.
             src.clear_param(desc.name);
@@ -343,7 +345,7 @@ static void wire_params_generic(
     }
     for (const auto& desc : src.param_descriptors()) {
         if (!params.contains(desc.name)) continue;
-        if (params.at(desc.name).is_string()) refuse_string_pin(src, id, desc.name, params.at(desc.name).get<std::string>());
+        if (params.at(desc.name).is_string()) refuse_string_pin(src, id, desc.name, params.at(desc.name).get<std::string>(), false);
         auto part = resolve_param(params.at(desc.name), graphNodes);
         if (!src.set_param(desc.name, part)) reject_wire(src, id, desc.name, *part);
     }

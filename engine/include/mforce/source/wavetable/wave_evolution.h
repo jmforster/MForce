@@ -40,7 +40,6 @@ struct WaveEvolution : Component {
   // Called each sample — modify the wavetable in-place.
   virtual void evolve(std::vector<float>& values, int index) = 0;
 
-protected:
   // maxLen is the longest table the owner will ever fill (its floor
   // frequency's length). An implementation captures ctx.sampleRate here if
   // adjust()/evolve() need it, and reserves every buffer it sizes per note or
@@ -296,14 +295,12 @@ struct EKSEvolution final : WaveEvolution {
 
   void on_prepare(const RenderContext&, int maxLen) override { filtered_.reserve(size_t(maxLen)); }
   void adjust(float frequency) override {
-    freq_ = frequency;
-
     // Stiffness allpass coefficient: higher frequency = more dispersion
     float coeff = 0.0f;
     if (stiffness.value > 0.0f) {
       // Approximate: coefficient grows with harmonic number
       // Use a simple model: C = stiffness * (freq/1000)^0.5
-      coeff = stiffness.value * std::sqrt(freq_ / 1000.0f);
+      coeff = stiffness.value * std::sqrt(frequency / 1000.0f);
       coeff = std::clamp(coeff, 0.0f, 0.9f);
     }
     stiffness_.set_coefficient(coeff);
@@ -368,7 +365,6 @@ struct EKSEvolution final : WaveEvolution {
 private:
   Randomizer rng_;
   std::vector<float> filtered_;   // the pick-position comb's scratch, reserved at prepare
-  float freq_{440.0f};
   dsp::TuningAllpass stiffness_;   // the string's dispersion
 };
 
@@ -455,8 +451,6 @@ struct BowedStringEvolution final : WaveEvolution {
   // patch's sound is locked to that). Applied per line write, so the loop
   // sees it twice per round trip.
   Setting<float> brightness {this, "brightness",  1.0f,   0.05f, 1.0f};
-
-  BowedStringEvolution() = default;
 
   const char* type_name() const override { return "BowedStringEvolution"; }
 
@@ -643,8 +637,6 @@ struct ReactionDiffusionEvolution final : WaveEvolution {
   Setting<float> dt      {this, "dt",       1.0f,    0.05f, 2.0f};   // integration step
   Setting<int>   subSteps{this, "subSteps", 1,       1,     8};      // RD iterations per audio sample (>=1)
 
-  ReactionDiffusionEvolution() = default;
-
   const char* type_name() const override { return "ReactionDiffusionEvolution"; }
 
   void on_setting_changed(std::string_view name) override {
@@ -720,8 +712,6 @@ struct SortErosionEvolution final : WaveEvolution {
   Setting<int>  swapsPerSample{this, "swapsPerSample", 4, 1, 32};
   Setting<bool> descending    {this, "descending", false, false, true};
 
-  SortErosionEvolution() = default;
-
   const char* type_name() const override { return "SortErosionEvolution"; }
 
   void on_setting_changed(std::string_view name) override {
@@ -763,8 +753,6 @@ struct CellularAutomatonEvolution final : WaveEvolution {
   Setting<float> levelHi  {this, "levelHi",   0.8f,  0.0f,  1.0f};
   Setting<float> levelLo  {this, "levelLo",   -0.8f, -1.0f, 0.0f};
   Setting<int>   stepEvery{this, "stepEvery", 8,     1,     256};    // do one CA step every Nth sample (slow tempo)
-
-  CellularAutomatonEvolution() = default;
 
   const char* type_name() const override { return "CellularAutomatonEvolution"; }
 
@@ -833,8 +821,6 @@ struct HistogramEqualizeEvolution final : WaveEvolution {
   Setting<int>   bins{this, "bins", 64,       4,    256};
   Setting<float> rate{this, "rate", 0.00005f, 0.0f, 0.1f};
 
-  HistogramEqualizeEvolution() = default;
-
   const char* type_name() const override { return "HistogramEqualizeEvolution"; }
 
   void on_setting_changed(std::string_view name) override {
@@ -899,8 +885,6 @@ struct BezierPullEvolution final : WaveEvolution {
   Setting<float> p3  {this, "p3",    1.0f,    -2.0f, 2.0f};
   Setting<float> rate{this, "rate",  0.00005f, 0.0f, 0.1f};
 
-  BezierPullEvolution() = default;
-
   const char* type_name() const override { return "BezierPullEvolution"; }
 
   void on_prepare(const RenderContext&, int maxLen) override { target_.reserve(size_t(maxLen)); }
@@ -947,8 +931,6 @@ struct BitRotateEvolution final : WaveEvolution {
   // sample clock even between rotations; they are Manual.
   Param shiftBits{this, "shiftBits", 3.0f, 0.0f, 31.0f,  "int", Pull::Manual};   // rotation depth, int 0..31
   Param stepEvery{this, "stepEvery", 4.0f, 1.0f, 256.0f, "int", Pull::Manual};   // samples between rotations, int >= 1
-
-  BitRotateEvolution() = default;
 
   const char* type_name() const override { return "BitRotateEvolution"; }
 

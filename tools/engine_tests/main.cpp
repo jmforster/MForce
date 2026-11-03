@@ -3846,6 +3846,30 @@ static void run_evolution_live_read_tests() {
     for (size_t i = 0; i < a.size(); ++i) { ab = ab && same_bits(a[i], b[i]); bc = bc && same_bits(b[i], c[i]); }
     CHECK(ab);                                            // setting muting did not restart or reseed the stream
     CHECK(!bc);                                           // the seed is the stream
+
+    // autoAdjust: the per-note decay and window follow the frequency
+    auto averaging_at = [](bool autoAdjust, float sampleCount, float decayFactor, float hz, std::vector<float> t) {
+        AveragingEvolution a;
+        a.set_setting("sampleCount", sampleCount);
+        a.set_setting("speed", 1.0f);
+        a.set_setting("decayFactor", decayFactor);
+        a.set_setting("autoAdjust", autoAdjust ? 1.0f : 0.0f);
+        a.adjust(hz);
+        for (int i = 0; i < int(t.size()); ++i) a.evolve(t, i);
+        return t;
+    };
+    const auto ones = averaging_at(true, 1.0f, 0.5f, 880.0f, std::vector<float>(8, 1.0f));
+    CHECK_NEAR(ones[0], 0.875f, 1e-6f);                  // 1 - (1 - 0.5) * (1 - (880 - 220) / 880): the decay follows the pitch
+    std::vector<float> ramp(16);
+    for (int i = 0; i < 16; ++i) ramp[size_t(i)] = float(i) / 16.0f;
+    const float window = float(2.0f - ((2.0f - 1.0f) - (2.0f - 1.0f) * std::exp(-0.0008 * double(880.0f - 440.0f))));
+    const auto adjusted = averaging_at(true, 2.0f, 1.0f, 880.0f, ramp);
+    const auto stated = averaging_at(false, window, 1.0f, 880.0f, ramp);   // the same window, stated rather than derived
+    const auto plain = averaging_at(false, 2.0f, 1.0f, 880.0f, ramp);
+    bool as = true, ap = true;
+    for (size_t i = 0; i < 16; ++i) { as = as && same_bits(adjusted[i], stated[i]); ap = ap && same_bits(adjusted[i], plain[i]); }
+    CHECK(as);                                            // above 440 Hz the window shrinks to this float, and it is the one evolve draws against
+    CHECK(!ap);
 }
 
 // TargetEvolution: a registered part whose target is synthesised at prepare
@@ -3901,6 +3925,30 @@ static void run_target_evolution_tests() {
     none.adjust(440.0f);
     none.evolve(flat, 0);
     CHECK_NEAR(flat[0], 0.25f, 1e-6f);
+
+    // the morph over a non-zero table: one cycle at morphRate 0.5 and decay 0.9
+    TargetEvolution morph;
+    morph.set_setting("targetLength", 8.0f);
+    morph.set_setting("holdCycles", 0.0f);
+    morph.set_setting("morphRate", 0.5f);
+    morph.set_setting("decayFactor", 0.9f);
+    morph.prepare(ctx, 64);
+    std::vector<float> table(8, 0.5f);
+    morph.adjust(440.0f);
+    for (int i = 0; i < 8; ++i) morph.evolve(table, i);
+    const float s = std::sin(0.125f * (2.0f * dsp::kPi) * 1.0f);  // the synthesised target's second sample
+    CHECK_NEAR(table[0], 0.2375f, 1e-6f);                  // (0.5 * (1 - 0.5) + 0 * 0.5) * (1 - 0.1 * 0.5): half morphed, decayed
+    CHECK_NEAR(table[1], s, 1e-6f);                         // morphAmount saturates at 1: the target, undecayed
+    CHECK_NEAR(table[2], 1.0f, 1e-6f);
+    CHECK_NEAR(table[7], -s, 1e-6f);
+    // the resample: a 12-sample table from an 8-sample target interpolates between neighbours
+    TargetEvolution twelve;
+    twelve.set_setting("targetLength", 8.0f);
+    const auto r = one_cycle(twelve, 12);
+    CHECK_NEAR(r[1], s * (2.0f / 3.0f), 1e-5f);           // position 2/3 of the way from t[0] = 0 to t[1] = s
+    CHECK_NEAR(r[3], 1.0f, 1e-6f);                         // position 2: t[2]
+    CHECK_NEAR(r[6], 0.0f, 1e-6f);                         // position 4: t[4]
+    CHECK_NEAR(r[9], -1.0f, 1e-6f);                        // position 6: t[6]
 
     WavetableSource w;                                     // under a wavetable: finite and sounding
     w.set_param("evolution", std::make_shared<TargetEvolution>());
@@ -6801,12 +6849,14 @@ static void run_string_pin_refusal_tests() {
     try { load_instrument_patch_json(evo); } catch (const std::runtime_error& e) { msg = e.what(); }
     CHECK(msg.find("node 'wt' (WavetableSource): 'evolution' is the string \"pluck\"") != std::string::npos);
     CHECK(msg.find("tools/string_evolution_to_node.py") != std::string::npos);
+    CHECK(msg.find("a slot takes {\"ref\": id}") != std::string::npos);       // a slot, so no number is offered
     const char* freq = R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"osc","nodes":[
         {"id":"osc","type":"SineSource","params":{"frequency":"440"}}]}})";
     msg.clear();
     try { load_instrument_patch_json(freq); } catch (const std::runtime_error& e) { msg = e.what(); }
     CHECK(msg.find("node 'osc' (SineSource): 'frequency' is the string \"440\"") != std::string::npos);
     CHECK(msg.find("string_evolution_to_node") == std::string::npos);
+    CHECK(msg.find("a pin takes a number") != std::string::npos);
     const char* node = R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"wt","nodes":[
         {"id":"wt_evolution","type":"PluckEvolution","params":{"muting":0.0,"seed":42}},
         {"id":"wt","type":"WavetableSource","params":{"frequency":330.0,"evolution":{"ref":"wt_evolution"}}}]}})";

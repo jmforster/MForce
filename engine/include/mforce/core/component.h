@@ -83,9 +83,8 @@ struct Component {
   }
   // Hooks for a node that derives state from a setting, an array or a slot:
   // called after the change, by name. A slot's owner that keeps a view into
-  // its part (the wavetable's evolution pointer, AdditiveSource2's copied
-  // arrays) refreshes it here, so a view into a part the slot no longer holds
-  // is never read.
+  // its part (AdditiveSource2's copied arrays) refreshes it here, so a view
+  // into a part the slot no longer holds is never read.
   virtual void on_setting_changed(std::string_view) {}
   virtual void on_array_changed(std::string_view) {}
   virtual void on_slot_changed(std::string_view) {}

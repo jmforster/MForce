@@ -37,12 +37,22 @@ class ConvertTests(unittest.TestCase):
         conv.convert(doc)
         self.assertEqual(doc["graph"]["nodes"][1]["params"], {"muting": 0.0, "seed": 42})
 
-    def test_only_present_keys_move(self):
+    def test_only_present_keys_move_plus_the_differing_branch_defaults(self):
         doc = wavetable({"evolution": "averaging", "sampleCount": 4.0, "leading": True, "evolutionSeed": 3})
         conv.convert(doc)
         ev = doc["graph"]["nodes"][1]
         self.assertEqual(ev["type"], "AveragingEvolution")
-        self.assertEqual(ev["params"], {"sampleCount": 4.0, "leading": True, "seed": 3})
+        self.assertEqual(ev["params"], {"sampleCount": 4.0, "leading": True, "decayFactor": 0.996, "seed": 3})
+        pluck = wavetable({"evolution": "pluck"})                        # pluck's and target's defaults are equal: nothing added
+        conv.convert(pluck)
+        self.assertEqual(pluck["graph"]["nodes"][1]["params"], {"seed": 42})
+
+    def test_seed_is_written_as_an_int(self):
+        doc = wavetable({"evolution": "pluck", "evolutionSeed": 7.0})
+        conv.convert(doc)
+        seed = doc["graph"]["nodes"][1]["params"]["seed"]
+        self.assertIsInstance(seed, int)
+        self.assertEqual(seed, 7)
 
     def test_target_moves_its_five_keys(self):
         doc = wavetable({"evolution": "target", "morphRate": 0.0005, "holdCycles": 5, "decayFactor": 0.999,

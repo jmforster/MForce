@@ -12,7 +12,8 @@ For each WavetableSource whose "evolution" is a string, a node
 | TargetEvolution>, "params": {<the moved keys>, "seed": <evolutionSeed, or 42
 — the string form's default>}} is inserted immediately before the wavetable,
 and the wavetable's "evolution" becomes {"ref": "<that id>"}. Only the keys
-present move; the node types' defaults equal the string form's. A node-form
+present move, plus the two averaging defaults the node type declares
+differently (sampleCount 2.0, decayFactor 0.996), written out. A node-form
 wavetable that still carries "evolutionSeed" (a key only the string form read)
 loses it. A patch with nothing to convert is left untouched. "targetWave" (an
 explicit period) has no node form and is refused. The file is rewritten with an
@@ -26,6 +27,12 @@ FORMS = {
     "pluck":     ("PluckEvolution",     ("muting",)),
     "averaging": ("AveragingEvolution", ("sampleCount", "speed", "decayFactor", "leading", "autoAdjust")),
     "target":    ("TargetEvolution",    ("morphRate", "holdCycles", "decayFactor", "targetPartials", "targetLength")),
+}
+# Where the deleted branch's default for an absent key differed from the node
+# type's declared default, the converter writes the branch's, so a converted
+# patch renders as the string form did (every other default is equal).
+BRANCH_DEFAULTS = {
+    "averaging": {"sampleCount": 2.0, "decayFactor": 0.996},
 }
 DEFAULT_SEED = 42          # uint32_t(p.value("evolutionSeed", 42)) in the deleted loader branch
 
@@ -78,6 +85,8 @@ def convert(doc):
         ev_id = _fresh_id("%s_evolution" % node.get("id"), taken)
         taken.add(ev_id)
         ev_params = {k: params[k] for k in keys if k in params}
+        for k, v in BRANCH_DEFAULTS.get(form, {}).items():
+            ev_params.setdefault(k, v)
         ev_params["seed"] = int(params.get("evolutionSeed", DEFAULT_SEED))
         moved = set(keys) | {"evolutionSeed"}
         node["params"] = {k: ({"ref": ev_id} if k == "evolution" else v)
