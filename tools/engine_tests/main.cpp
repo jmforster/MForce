@@ -3848,6 +3848,68 @@ static void run_evolution_live_read_tests() {
     CHECK(!bc);                                           // the seed is the stream
 }
 
+// TargetEvolution: a registered part whose target is synthesised at prepare
+// from harmonic amplitudes and peak-normalised; with no hold and a full morph
+// step the table becomes the target in one cycle; an empty target keeps plain
+// averaging; a wavetable renders it.
+static void run_target_evolution_tests() {
+    RenderContext ctx{48000};
+    TargetEvolution t;
+    CHECK(setting_names(t) == "targetLength,morphRate,holdCycles,decayFactor,");
+    CHECK(param_names(t).empty() && input_names(t).empty());
+    CHECK(t.get_array("targetPartials") == std::vector<float>{1.0f});
+    CHECK_NEAR(t.get_setting("targetLength"), 1024.0f, 1e-6f);
+    CHECK_NEAR(t.get_setting("morphRate"), 0.001f, 1e-9f);
+    CHECK_NEAR(t.get_setting("holdCycles"), 3.0f, 1e-6f);
+    CHECK_NEAR(t.get_setting("decayFactor"), 0.998f, 1e-9f);
+
+    // one cycle at full morph over a zero table writes the resampled target
+    auto one_cycle = [&](TargetEvolution& e, int len) {
+        e.set_setting("holdCycles", 0.0f);
+        e.set_setting("morphRate", 1.0f);
+        e.set_setting("decayFactor", 1.0f);
+        e.prepare(ctx, 64);
+        std::vector<float> v(size_t(len), 0.0f);
+        e.adjust(440.0f);
+        e.shape_excitation(v);
+        for (int i = 0; i < len; ++i) e.evolve(v, i);
+        return v;
+    };
+    t.set_setting("targetLength", 8.0f);
+    const auto sine = one_cycle(t, 8);
+    CHECK_NEAR(sine[2], 1.0f, 1e-6f);  CHECK_NEAR(sine[6], -1.0f, 1e-6f);
+    CHECK_NEAR(sine[0], 0.0f, 1e-6f);  CHECK_NEAR(sine[4], 0.0f, 1e-6f);
+    TargetEvolution half;                                  // half amplitude in, unit peak out
+    half.set_array("targetPartials", {0.5f});
+    half.set_setting("targetLength", 8.0f);
+    CHECK_NEAR(one_cycle(half, 8)[2], 1.0f, 1e-6f);
+    TargetEvolution two;                                   // two partials: a different shape, still a unit peak
+    two.set_array("targetPartials", {1.0f, 0.5f});
+    two.set_setting("targetLength", 64.0f);
+    const auto shape = one_cycle(two, 64);
+    float peak = 0.0f; bool differs = false;
+    for (int i = 0; i < 64; ++i) { peak = std::max(peak, std::fabs(shape[size_t(i)])); differs = differs || std::fabs(shape[size_t(i)] - std::sin(float(i) / 64.0f * 2.0f * 3.14159265f)) > 1e-3f; }
+    CHECK_NEAR(peak, 1.0f, 1e-6f);
+    CHECK(differs);
+
+    TargetEvolution none;                                  // no partials: plain averaging with the decay, no division by zero
+    none.set_array("targetPartials", {});
+    none.set_setting("holdCycles", 0.0f);
+    none.set_setting("decayFactor", 0.5f);
+    none.prepare(ctx, 64);
+    std::vector<float> flat(8, 0.5f);
+    none.adjust(440.0f);
+    none.evolve(flat, 0);
+    CHECK_NEAR(flat[0], 0.25f, 1e-6f);
+
+    WavetableSource w;                                     // under a wavetable: finite and sounding
+    w.set_param("evolution", std::make_shared<TargetEvolution>());
+    w.prepare(ctx); w.start(4800);
+    float wpeak = 0.0f; bool finite = true;
+    for (int i = 0; i < 4800; ++i) { const float s = w.next(); finite = finite && std::isfinite(s); wpeak = std::max(wpeak, std::fabs(s)); }
+    CHECK(finite && wpeak > 0.0f);
+}
+
 // Checkpoint 2.1: the additive family (sources, partials, formants).
 #include "mforce/source/additive/additive_source2.h"
 #include "mforce/source/additive/basic_additive_source.h"
@@ -5481,7 +5543,7 @@ static const std::set<std::string> kPartTypes = {
     "FullPartials", "SequencePartials", "ExplicitPartials", "CompositePartials", "ExpandRule",
     "PluckEvolution", "AveragingEvolution", "EKSEvolution", "ReedEvolution", "BowedStringEvolution",
     "BrassEvolution", "ReactionDiffusionEvolution", "SortErosionEvolution", "CellularAutomatonEvolution",
-    "HistogramEqualizeEvolution", "BezierPullEvolution", "BitRotateEvolution",
+    "HistogramEqualizeEvolution", "BezierPullEvolution", "BitRotateEvolution", "TargetEvolution",
 };
 
 static void run_split_equivalence_tests() {
@@ -6913,6 +6975,12 @@ static void run_allocation_tests_tables() {
       {"id":"ev","type":"PluckEvolution","params":{"muting":0.0,"seed":42}},
       {"id":"src","type":"WavetableSource","params":{"seed":12345,"frequency":{"ref":"__perf_frequency"},"amplitude":0.5,"evolution":{"ref":"ev"}}}]}})";
     CHECK(allocations_in_one_note(pluck) == 0);
+    // The morph target: synthesised at prepare, resampled per note within the reserve.
+    const char* target = R"({"sampleRate":48000,"instrument":{"polyphony":2},"graph":{"output":"src","nodes":[{"id":"__perf_frequency","type":"PerformNode","params":{"field":"frequency"}},
+      {"id":"ev","type":"TargetEvolution","params":{"morphRate":0.0005,"holdCycles":5,"decayFactor":0.999,"targetPartials":[1.0,0.5,0.33,0.25],"targetLength":2048}},
+      {"id":"src","type":"WavetableSource","params":{"seed":12345,"frequency":{"ref":"__perf_frequency"},"amplitude":0.5,"evolution":{"ref":"ev"}}}]}})";
+    CHECK(allocations_in_one_note(target) == 0);
+    CHECK(allocations_in_one_note(target, 36.0f) == 0);
 }
 
 // The remaining families: the hybrid table, the stage, segment and basic
@@ -7228,15 +7296,26 @@ static void run_partials_part_tests() {
         CHECK(std::dynamic_pointer_cast<ValueSource>(SourceRegistry::instance().create(type)) == nullptr);
 }
 
+// TargetEvolution is registered as a part: created by name, an evolution and
+// not a signal, on the Experimental shelf of the Wavetable family.
+static void run_target_evolution_registry_tests() {
+    register_all_sources();
+    auto& reg = SourceRegistry::instance();
+    CHECK(std::dynamic_pointer_cast<ValueSource>(reg.create("TargetEvolution")) == nullptr);
+    CHECK(std::dynamic_pointer_cast<WaveEvolution>(reg.create("TargetEvolution")) != nullptr);
+    CHECK(reg.family("TargetEvolution") == Family::Wavetable && reg.shelf("TargetEvolution") == Shelf::Experimental);
+    CHECK(reg.label("TargetEvolution") == "Target Evolution");
+}
+
 // The audit: every registered type is created once; exactly the named parts
-// are not signals, every other type is. The twenty-two parts are the four
-// Partials types and the expand rule, the five formant types and the twelve
-// evolution holders.
+// are not signals, every other type is. The twenty-three parts are the four
+// Partials types and the expand rule, the five formant types and the
+// thirteen evolutions.
 static void run_component_root_tests() {
     std::printf("the root: parts and signals\n");
     register_all_sources();
     auto& reg = SourceRegistry::instance();
-    CHECK(kPartTypes.size() == 22);
+    CHECK(kPartTypes.size() == 23);
     int seen = 0, parts = 0;
     for (const auto& entry : reg.registered_types()) {
         const std::string& name = entry.name;
@@ -7247,7 +7326,7 @@ static void run_component_root_tests() {
         CHECK(isPart == (kPartTypes.count(name) == 1));
         ++seen; parts += isPart;
     }
-    CHECK(parts == 22);
+    CHECK(parts == 23);
     CHECK(seen == int(reg.registered_types().size()));
 }
 
@@ -7436,6 +7515,7 @@ static const FamilyRow kFamilyTable[] = {
     {"HistogramEqualizeEvolution", Family::Wavetable, "Histogram Equalize", Shelf::Experimental},
     {"BezierPullEvolution", Family::Wavetable, "Bezier Pull (->curve)", Shelf::Experimental},
     {"BitRotateEvolution", Family::Wavetable, "Bit Rotate (glitch)", Shelf::Experimental},
+    {"TargetEvolution", Family::Wavetable, "Target Evolution", Shelf::Experimental},
     {"KSPianoString", Family::Physical, "KS Piano String", Shelf::Experimental},
     {"Mesh2D", Family::Physical, "Mesh 2D", Shelf::Experimental},
     {"PierceFilter", Family::Physical, "Pierce Filter", Shelf::Experimental},
@@ -7471,7 +7551,7 @@ static void run_registry_family_tests() {
         CHECK(tag->shelf == row.shelf);
         (row.shelf == Shelf::Main ? main : experimental)++;
     }
-    CHECK(main == 63 && experimental == 22);
+    CHECK(main == 63 && experimental == 23);
     for (const auto& e : reg.registered_types()) {                             // every registered type is in the table
         bool inTable = false;
         for (const auto& row : kFamilyTable) inTable = inTable || e.name == row.name;
@@ -7504,7 +7584,7 @@ static void run_registry_family_tests() {
                 ++walked;
             }
         }
-    CHECK(walked == 85);
+    CHECK(walked == 86);
     CHECK(std::string(family_name(Family::Oscillator)) == "Oscillators" && std::string(family_name(Family::Noise)) == "Noise"
           && std::string(family_name(Family::Filter)) == "Filters" && std::string(family_name(Family::Utility)) == "Utility");
     CHECK(reg.find("NoSuchType") == nullptr && reg.find("SineSource") != nullptr);
@@ -7528,7 +7608,7 @@ static const MenuRow kMenuTable[] = {
     {Family::Noise, Shelf::Main, {"RedNoiseSource", "PinkNoiseSource", "WhiteNoiseSource", "BlueNoiseSource", "VioletNoiseSource", "VelvetNoiseSource", "PerlinNoiseSource", "CrackleNoiseSource"}},
     {Family::Noise, Shelf::Experimental, {"LayeredRedNoiseSource", "MurmurationNoiseSource", "WanderNoiseSource", "WanderNoise2Source", "WanderNoise3Source"}},
     {Family::Wavetable, Shelf::Main, {"WavetableSource", "HybridKSSource", "EKSEvolution", "PluckEvolution", "AveragingEvolution"}},
-    {Family::Wavetable, Shelf::Experimental, {"BowedStringEvolution", "ReedEvolution", "BrassEvolution", "ReactionDiffusionEvolution", "SortErosionEvolution", "CellularAutomatonEvolution", "HistogramEqualizeEvolution", "BezierPullEvolution", "BitRotateEvolution"}},
+    {Family::Wavetable, Shelf::Experimental, {"BowedStringEvolution", "ReedEvolution", "BrassEvolution", "ReactionDiffusionEvolution", "SortErosionEvolution", "CellularAutomatonEvolution", "HistogramEqualizeEvolution", "BezierPullEvolution", "BitRotateEvolution", "TargetEvolution"}},
     {Family::Additive, Shelf::Main, {"AdditiveSource", "BasicAdditiveSource", "AdditiveSource2", "FullPartials", "SequencePartials", "ExplicitPartials", "CompositePartials", "ExpandRule", "Formant", "FormantSequence", "FormantSpectrum", "BandSpectrum", "FixedSpectrum"}},
     {Family::Physical, Shelf::Main, {"KSString", "AllpassResonator", "DelayLine"}},
     {Family::Physical, Shelf::Experimental, {"KSPianoString", "Mesh2D", "PierceFilter", "BowTable"}},
@@ -7574,6 +7654,7 @@ int main() {
     run_formant_part_tests();
     run_partials_part_tests();
     run_component_root_tests();
+    run_target_evolution_registry_tests();
     run_registry_family_tests();   // before the lifecycle test registers its probe
     run_menu_content_tests();
     run_review_gap_tests();
@@ -7606,6 +7687,7 @@ int main() {
     run_evolution_manual_pin_tests();
     run_evolution_lifecycle_tests();
     run_evolution_live_read_tests();
+    run_target_evolution_tests();
     run_additive_source_pin_tests();
     run_additive_structural_pin_tests();
     run_additive_partials_pin_tests();

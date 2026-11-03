@@ -213,6 +213,9 @@ void register_all_sources() {
     reg.register_type("BitRotateEvolution", {.family = Family::Wavetable, .label = "Bit Rotate (glitch)", .shelf = Shelf::Experimental},
         [](auto) { return std::make_shared<BitRotateEvolution>(); });
 
+    reg.register_type("TargetEvolution", {.family = Family::Wavetable, .shelf = Shelf::Experimental},
+        [](auto) { return std::make_shared<TargetEvolution>(); });
+
     // -----------------------------------------------------------------------
     // Additive
     // -----------------------------------------------------------------------
