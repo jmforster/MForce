@@ -2,6 +2,7 @@
 #include "mforce/core/dsp_value_source.h"
 #include "mforce/core/dsp/dc_blocker.h"
 #include "mforce/core/dsp/tuning_allpass.h"
+#include "mforce/core/dsp/one_pole.h"
 #include <vector>
 #include <cmath>
 #include <algorithm>
@@ -70,7 +71,7 @@ struct AllpassResonator final : Processor {
     std::fill(buf_.begin(), buf_.end(), 0.0f);
     wpos_ = 0;
     bq_ = BiquadState{};
-    lp_ = 0.0f;
+    damping_.reset();
     tuning_.reset();
     dc_.reset();
     fbSample_ = 0.0f;
@@ -111,8 +112,7 @@ struct AllpassResonator final : Processor {
     }
 
     // Damping lowpass + decay feedback (applied next sample)
-    lp_ += damping.value * (ys - lp_);
-    fbSample_ = feedback.value * lp_;
+    fbSample_ = feedback.value * damping_.process(ys, damping.value);
 
     return (yt + direct.value * x) * amplitude.current();
   }
@@ -180,7 +180,7 @@ private:
   int   loopLen_{100};
   dsp::TuningAllpass tuning_;
   BiquadState bq_;
-  float lp_{0.0f};
+  dsp::OnePole damping_;
   float fbSample_{0.0f};
   dsp::DcBlocker dc_;
 };

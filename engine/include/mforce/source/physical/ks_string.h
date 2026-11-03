@@ -1,6 +1,7 @@
 #pragma once
 #include "mforce/core/dsp_value_source.h"
 #include "mforce/core/dsp/dc_blocker.h"
+#include "mforce/core/dsp/one_pole.h"
 #include "mforce/core/randomizer.h"
 #include <vector>
 #include <cmath>
@@ -129,7 +130,7 @@ struct KSString final : Processor {
   void on_start(int) override {
     for (int i = 0; i < kMaxCombs; ++i) {
       std::fill(comb_[i].buf.begin(), comb_[i].buf.end(), 0.0f);
-      comb_[i].lp = 0.0f;
+      comb_[i].lp.reset();
       comb_[i].apX = comb_[i].apY = 0.0f;
       for (int b = 0; b < 2; ++b) comb_[i].bq[b] = BiquadState{};
     }
@@ -275,8 +276,7 @@ struct KSString final : Processor {
         v = biquad_ap(v, c.bq[0]);
         v = biquad_ap(v, c.bq[1]);
       }
-      c.lp += brightness.value * (v - c.lp);
-      c.buf[wpos_] = si + c.gain * damp * c.lp;
+      c.buf[wpos_] = si + c.gain * damp * c.lp.process(v, brightness.value);
 
       sum += r;
     }
@@ -318,7 +318,7 @@ private:
     std::vector<float> buf;
     float len{100.0f};   // fractional loop delay (samples)
     float gain{0.99f};   // loop gain from t60
-    float lp{0.0f};      // damping one-pole state
+    dsp::OnePole lp;     // the damping lowpass
     // Allpass fractional read (top of the keyboard; see init_note)
     bool  apRead{false};
     int   lenInt{100};
@@ -488,7 +488,7 @@ private:
     fbScale_ = fbCoeff.value * (1.0f - gmax);
 
     dispLen_ = std::clamp(int(std::lround(period)), 2, kBufLen - 4);
-    hpR_ = std::exp(-2.0f * 3.14159265f * inharmHp.value / sr);
+    hpR_ = dsp::pole_for_cutoff_hz(inharmHp.value, sr);
     dc_.set(kDcCornerHz, sr);
     bowDc_.set(kDcCornerHz, sr);
 

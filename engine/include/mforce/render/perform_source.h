@@ -1,5 +1,6 @@
 #pragma once
 #include "mforce/core/dsp_value_source.h"
+#include "mforce/core/dsp/one_pole.h"
 #include "mforce/source/envelope/envelope.h"
 #include <atomic>
 #include <cmath>
@@ -67,7 +68,7 @@ public:
   // take their coefficient from the rate (one-pole, ~10 ms tau:
   // y += a * (target - y)).
   void prepare(const RenderContext& ctx) {
-    smoothA_ = 1.0f - std::exp(-1.0f / (0.010f * float(ctx.sampleRate)));
+    smoothA_ = 1.0f - dsp::pole_for_seconds(0.010f, float(ctx.sampleRate));
   }
 
   // Once per sample, from the render driver — never from a consumer pull.

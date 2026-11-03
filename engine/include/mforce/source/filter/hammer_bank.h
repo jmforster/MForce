@@ -1,5 +1,6 @@
 #pragma once
 #include "mforce/core/dsp_value_source.h"
+#include "mforce/core/dsp/one_pole.h"
 #include <memory>
 #include <cmath>
 #include <algorithm>
@@ -73,7 +74,7 @@ struct HammerBank final : Processor {
       if (norm > 0.0f)
         for (int i = 0; i < numBands.value; ++i) bandGain_[i] /= norm;
       qDelta_ = std::max(resStart.value - resEnd.value, 0.0f);
-      qDecayMul_ = std::exp(-1.0f / (resDecay.value * float(sample_rate())));
+      qDecayMul_ = dsp::pole_for_seconds(resDecay.value, float(sample_rate()));
       initialized_ = true;
     }
 

@@ -252,6 +252,47 @@ static void run_dsp_tuning_allpass_boundary_tests() {
     }
 }
 
+// ---------------------------------------------------------------------------
+// OnePole and the pole formulas: KSString's comb damping, the resonator's
+// damping and the bowed string's line filters (y += a*(x - y)); the
+// time-constant and corner-frequency lines of the hammer bank, the limiter,
+// the performer, the instrument's ring-out and KSString's inharmonic highpass.
+#include "mforce/core/dsp/one_pole.h"
+
+static void run_dsp_one_pole_tests() {
+    for (float c : {0.05f, 0.6f, 1.0f}) {
+        auto sig = twin_signal(0x1E01u + uint32_t(c * 100.0f), 10000);
+        float lp = 0.0f;
+        dsp::OnePole pole;
+        int bad = 0;
+        for (float v : sig) {
+            lp += c * (v - lp);                    // the deleted line
+            if (!same_bits(pole.process(v, c), lp)) ++bad;
+            if (!same_bits(pole.value(), lp)) ++bad;
+        }
+        CHECK(bad == 0);
+    }
+    dsp::OnePole pole;
+    pole.process(0.9f, 0.5f);
+    pole.reset();
+    CHECK(same_bits(pole.value(), 0.0f));
+    CHECK(same_bits(pole.process(0.4f, 0.25f), 0.25f * (0.4f - 0.0f)));
+    // The hammer bank's and the instrument's lines: exp(-1 / (seconds * rate)).
+    const float sr = 48000.0f;
+    CHECK(same_bits(dsp::pole_for_seconds(0.05f, sr), std::exp(-1.0f / (0.05f * sr))));
+    CHECK(same_bits(dsp::pole_for_seconds(0.37f, 44100.0f), std::exp(-1.0f / (0.37f * 44100.0f))));
+    // The performer's smoother: 1 - exp(-1 / (0.010 * rate)).
+    CHECK(same_bits(1.0f - dsp::pole_for_seconds(0.010f, sr), 1.0f - std::exp(-1.0f / (0.010f * sr))));
+    // The limiter's line, with its floor of one sample applied by the caller.
+    const float relSec = 0.2f;
+    CHECK(same_bits(dsp::pole_for_samples(std::max(1.0f, relSec * sr)),
+                    std::exp(-1.0f / std::max(1.0f, relSec * sr))));
+    CHECK(same_bits(dsp::pole_for_samples(1.0f), std::exp(-1.0f)));
+    // KSString's inharmonic highpass pole: exp(-2*pi*hz / rate).
+    CHECK(same_bits(dsp::pole_for_cutoff_hz(150.0f, sr), std::exp(-2.0f * 3.14159265f * 150.0f / sr)));
+    CHECK(same_bits(dsp::pole_for_cutoff_hz(5000.0f, 96000.0f), std::exp(-2.0f * 3.14159265f * 5000.0f / 96000.0f)));
+}
+
 static void run_curve_node_tests() {
     // Linear (vcurve semantics): clamp + linear interp
     CurveNode lin;
@@ -7183,6 +7224,7 @@ int main() {
     run_dsp_dc_blocker_tests();
     run_dsp_tuning_allpass_tests();
     run_dsp_tuning_allpass_boundary_tests();
+    run_dsp_one_pole_tests();
     if (g_fails) { std::printf("%d/%d FAILED\n", g_fails, g_checks); return 1; }
     std::printf("ALL PASS (%d checks)\n", g_checks);
     return 0;

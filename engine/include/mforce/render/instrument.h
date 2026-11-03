@@ -5,6 +5,7 @@
 #include "mforce/render/mixer.h"
 #include "mforce/render/limiter.h"
 #include "mforce/core/dsp_value_source.h"
+#include "mforce/core/dsp/one_pole.h"
 #include "mforce/core/equal_temperament.h"
 #include "mforce/music/pitch_bend.h"
 #include "mforce/music/pitch_curve.h"
@@ -690,7 +691,7 @@ struct PitchedInstrument final : Instrument {
     buf.reserve(size_t(std::max(renderSamples, maxSamples)));
     float ringEnv = 0.0f;
     // ~50 ms decay follower: per-sample multiplier for the running peak.
-    const float ringDecay = std::exp(-1.0f / (0.05f * float(ctx_.sampleRate)));
+    const float ringDecay = dsp::pole_for_seconds(0.05f, float(ctx_.sampleRate));
     int rendered = 0;
     for (int i = 0; i < maxSamples; ++i) {
       if (i >= renderSamples && ringEnv < kRingFloor) break;
@@ -740,7 +741,7 @@ struct PitchedInstrument final : Instrument {
     const int renderSamples = base + rem + tailSamples;
     const int maxSamples = base + rem + int(kMaxRingSec * float(ctx_.sampleRate));
     buf.reserve(size_t(maxSamples));
-    const float ringDecay = std::exp(-1.0f / (0.05f * float(ctx_.sampleRate)));
+    const float ringDecay = dsp::pole_for_seconds(0.05f, float(ctx_.sampleRate));
     // Prime the ring follower over what the line already rendered, so the
     // ring-out decision sees the same history a single-note render would.
     float ringEnv = 0.0f;

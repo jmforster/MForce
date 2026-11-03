@@ -1,5 +1,6 @@
 #pragma once
 #include "mforce/core/dsp/tuning_allpass.h"
+#include "mforce/core/dsp/one_pole.h"
 #include "mforce/core/dsp_value_source.h"
 #include "mforce/core/dsp_wave_source.h"
 #include "mforce/core/randomizer.h"
@@ -459,8 +460,8 @@ struct BowedStringEvolution final : WaveEvolution {
     neckLine_.assign(2 * Ln, 0.0f);
     bPtr_ = 0;
     nPtr_ = 0;
-    bridgeLp_ = 0.0f;
-    neckLp_ = 0.0f;
+    bridgeLp_.reset();
+    neckLp_.reset();
     return 0.0f;
   }
 
@@ -501,10 +502,8 @@ struct BowedStringEvolution final : WaveEvolution {
     float outNeck   = (bridgeIn + bowImpulse) * (1.0f - tubeLoss.value);
 
     if (brightness.value < 1.0f) {
-      bridgeLp_ += brightness.value * (outBridge - bridgeLp_);
-      outBridge = bridgeLp_;
-      neckLp_ += brightness.value * (outNeck - neckLp_);
-      outNeck = neckLp_;
+      outBridge = bridgeLp_.process(outBridge, brightness.value);
+      outNeck = neckLp_.process(outNeck, brightness.value);
     }
 
     bridgeLine_[bPtr_] = outBridge;
@@ -522,8 +521,8 @@ private:
   std::vector<float> neckLine_;
   int bPtr_{0};
   int nPtr_{0};
-  float bridgeLp_{0.0f};
-  float neckLp_{0.0f};
+  dsp::OnePole bridgeLp_;
+  dsp::OnePole neckLp_;
 };
 
 // ---------------------------------------------------------------------------

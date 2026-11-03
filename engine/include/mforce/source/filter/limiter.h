@@ -1,5 +1,6 @@
 #pragma once
 #include "mforce/core/dsp_value_source.h"
+#include "mforce/core/dsp/one_pole.h"
 #include <algorithm>
 #include <cmath>
 #include <memory>
@@ -50,7 +51,7 @@ struct Limiter final : Processor {
 
     // Per-sample release coefficient: peak decays from 1.0 to ~e^-1 in
     // relSec seconds. release_smooth governs the gain-recovery envelope.
-    float releaseCoef = std::exp(-1.0f / std::max(1.0f, relSec * float(sample_rate())));
+    float releaseCoef = dsp::pole_for_samples(std::max(1.0f, relSec * float(sample_rate())));
 
     float abs_in = std::fabs(in);
 
