@@ -62,7 +62,7 @@ class Preset:
         params = node.get("params") or {}
         dropped = sorted(k for k in params if k in self.dead)
         if dropped:
-            notes.append("node '%s' (%s): %s dropped — the class never read %s, the %s form would"
+            notes.append("node '%s' (%s): %s dropped: the class never read %s, the %s form would"
                          % (node.get("id"), node.get("type"), ", ".join(dropped),
                             "it" if len(dropped) == 1 else "them", self.name))
         rewritten = {"preset": self.name}

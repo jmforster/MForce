@@ -12951,7 +12951,9 @@ int main(int argc, char** argv) {
             for (auto& n : s_nodes) if (n.label == argv[3]) target = &n;
             auto* env = target ? dynamic_cast<Envelope*>(target->dspSource.get()) : nullptr;
             if (!env) { fprintf(stderr, "apply-preset: no Envelope node '%s'\n", argv[3]); return 1; }
-            apply_envelope_preset(*target, *env, argv[4]);
+            std::string preset = argv[4];                 // the engine's names are lower-case; the combo shows them upper
+            for (auto& c : preset) c = char(::tolower((unsigned char)c));
+            apply_envelope_preset(*target, *env, preset.c_str());
             save_patch_graph(argv[5]);
         } catch (const std::exception& e) {
             fprintf(stderr, "apply-preset failed: %s\n", e.what());

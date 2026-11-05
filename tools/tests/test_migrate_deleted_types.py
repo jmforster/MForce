@@ -103,7 +103,8 @@ class RewriteTests(unittest.TestCase):
         notes = []
         self.assertEqual(mig.rewrite(doc, notes), {"AREnvelope": 1})
         self.assertEqual(doc["graph"]["nodes"][0]["params"], {"preset": "ar", "attack": 1.0})
-        self.assertEqual(notes, ["node 'env' (AREnvelope): attackMax, attackMin dropped — the class never read them, the ar form would"])
+        self.assertEqual(notes, ["node 'env' (AREnvelope): attackMax, attackMin dropped: the class never read them, the ar form would"])
+        self.assertTrue(all(ord(c) < 128 for c in notes[0]))                  # the console may not be UTF-8
         # An ADSREnvelope had no clamps and no timeMode; the adsr form reads all seven.
         doc = graph(env_node("ADSREnvelope", {"attack": 0.1, "release": 0.2, "decayMax": 0.9, "timeMode": "seconds"}))
         notes = []
