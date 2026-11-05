@@ -60,12 +60,17 @@ struct TypeEntry {
 };
 
 // The label a type name reads as when its registration gives none: one
-// trailing Source, Filter, Node or Envelope dropped (never the whole name),
+// trailing Source, Filter or Node dropped (never the whole name),
 // then a space before each word — before a capital that follows a lower-case
 // letter, before the last capital of a run that a lower-case letter follows,
 // and before a digit that follows a letter: "HybridKSSource" -> "Hybrid KS",
-// "BWLowpassFilter" -> "BW Lowpass", "Mesh2D" -> "Mesh 2D", "ADSREnvelope" -> "ADSR".
+// "BWLowpassFilter" -> "BW Lowpass", "Mesh2D" -> "Mesh 2D".
 std::string derived_label(std::string_view type_name);
+
+// A name this engine once registered: the tool that rewrites a patch still
+// using it, so a load that fails on the name says what to run. nullptr for
+// any other name.
+const char* retired_type_hint(std::string_view type_name);
 
 class SourceRegistry {
 public:

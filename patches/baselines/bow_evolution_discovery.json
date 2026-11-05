@@ -66,6 +66,7 @@
       {
         "id": "ASREnvelope",
         "params": {
+          "preset": "asr",
           "attack": 0.0,
           "maxValue": 1.0,
           "minValue": 0.0,
@@ -74,7 +75,7 @@
           "stage_accuracy": 1.0,
           "sustainLevel": 1.0
         },
-        "type": "ASREnvelope"
+        "type": "Envelope"
       },
       {
         "id": "Wavetable",

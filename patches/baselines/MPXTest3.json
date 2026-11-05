@@ -4,12 +4,13 @@
       {
         "id": "ADSREnvelope1",
         "params": {
+          "preset": "adsr",
           "attack": 0.29999998211860657,
           "decay": 0.20000000298023224,
           "release": 0.20000000298023224,
           "sustainLevel": 0.800000011920929
         },
-        "type": "ADSREnvelope"
+        "type": "Envelope"
       },
       {
         "id": "LayeredRedNoise1",

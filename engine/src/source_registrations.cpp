@@ -32,7 +32,6 @@
 #include "mforce/source/modulator/range_source.h"
 #include "mforce/source/modulator/curve_node.h"
 #include "mforce/source/envelope/envelope.h"
-#include "mforce/source/envelope/envelope_presets.h"
 #include "mforce/source/combiner/multi_source.h"
 #include "mforce/source/filter/filters.h"
 #include "mforce/source/filter/hammer_bank.h"
@@ -311,11 +310,6 @@ void register_all_sources() {
     // Physical, the Experimental shelf
     // -----------------------------------------------------------------------
 
-    // Loading alias — the node was KSPianoString until 2026-08-24 (bow mode
-    // made the name wrong); library piano patches still say so on disk.
-    reg.register_type("KSPianoString", {.family = Family::Physical, .shelf = Shelf::Experimental},
-        [](auto) { return std::make_shared<KSString>(); });
-
     reg.register_type("Mesh2D", {.family = Family::Physical, .shelf = Shelf::Experimental},
         [](auto) { return std::make_shared<Mesh2DSource>(); });
 
@@ -392,48 +386,6 @@ void register_all_sources() {
     // -----------------------------------------------------------------------
     // Envelopes
     // -----------------------------------------------------------------------
-
-    reg.register_type("ADSREnvelope", {.family = Family::Envelope},
-        [](auto seed) {
-            auto e = std::make_shared<ADSREnvelope>();
-            if (seed) e->set_seed(*seed);
-            return e;
-        });
-
-    reg.register_type("ASREnvelope", {.family = Family::Envelope},
-        [](auto seed) {
-            auto e = std::make_shared<ASREnvelope>();
-            if (seed) e->set_seed(*seed);
-            return e;
-        });
-
-    reg.register_type("ADREnvelope", {.family = Family::Envelope},
-        [](auto seed) {
-            auto e = std::make_shared<ADREnvelope>();
-            if (seed) e->set_seed(*seed);
-            return e;
-        });
-
-    reg.register_type("AREnvelope", {.family = Family::Envelope},
-        [](auto seed) {
-            auto e = std::make_shared<AREnvelope>();
-            if (seed) e->set_seed(*seed);
-            return e;
-        });
-
-    reg.register_type("ASEnvelope", {.family = Family::Envelope},
-        [](auto seed) {
-            auto e = std::make_shared<ASEnvelope>();
-            if (seed) e->set_seed(*seed);
-            return e;
-        });
-
-    reg.register_type("ADSEnvelope", {.family = Family::Envelope},
-        [](auto seed) {
-            auto e = std::make_shared<ADSEnvelope>();
-            if (seed) e->set_seed(*seed);
-            return e;
-        });
 
     reg.register_type("Envelope", {.family = Family::Envelope},
         [](auto seed) {

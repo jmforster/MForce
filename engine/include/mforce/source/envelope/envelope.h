@@ -86,10 +86,6 @@ struct Envelope : Generator {
   // test passed at 0 — an intentional corpus-wide 10 ms layout shift.
   static constexpr float kReflectionAllowanceSec = 0.010f;
 
-  // Names the sustain level a preset declares as its own default, so the
-  // protected constructor cannot be reached by a stray number.
-  struct SustainDefault { float level; };
-
   void set_gated(bool g) { gated_ = g; }
 
   // Live note-off: jump to the START of the release phase NOW — the first
@@ -184,10 +180,9 @@ struct Envelope : Generator {
 
   // Replace this envelope's stage layout with `fresh` while keeping every
   // knob that lives OUTSIDE the layout: the accuracy knobs, seed, timeScale,
-  // the sustain level a preset stores, the minValue/maxValue/trigger wires,
-  // and the live-gate flag. A preset's rebuild() calls this whenever a
-  // layout setting changes, and a JSON load wires params BEFORE settings, so
-  // the wires have to outlive the rebuild: without them the envelope falls
+  // sustainLevel, the minValue/maxValue/trigger wires and the live-gate flag.
+  // The editor's preset combo calls this on a wired, prepared node, so the
+  // wires have to outlive the new layout: without them the envelope falls
   // back to its raw 0..1 range.
   void replace_stages(Envelope&& fresh) {
     fresh.stage_accuracy.value = stage_accuracy.value;
@@ -528,27 +523,13 @@ struct Envelope : Generator {
   // for a single patch duplicated dispatch across both loaders (the exact
   // drift bug class the patch linter exists for). See gen_v6m.py.
 
-protected:
-  // For a preset that stores its own sustain level and whose default is not
-  // the plain envelope's 0.7: the setting is declared once, here, with the
-  // preset's default, so the descriptor and the node agree.
-  explicit Envelope(SustainDefault s)
-    : sustainLevel{this, "sustainLevel", s.level, 0.0f, 1.0f} {}
-
+private:
   // What the settings surface reports as sustainLevel: the stage list's
-  // four-slot value, 0 when the list is not that shape. A preset that
-  // stores its level reports the stored one.
-  virtual float sustain_level() const {
+  // four-slot value, 0 when the list is not that shape.
+  float sustain_level() const {
     return has_adsr_shape_() ? stages_[2].ramp.startVal : 0.0f;
   }
 
-  // The knobs every Envelope owns besides sustainLevel; a preset rebuilds
-  // its stage layout for any other setting.
-  static bool is_common_knob_(std::string_view name) {
-    return name == "stage_accuracy" || name == "ramp_accuracy" || name == "timeScale";
-  }
-
-private:
   // Smoothed-random LFO for ramp_accuracy. Cosine interpolation between
   // random ±1 targets; per-segment period jitters ±50% around base = N/10.
   void start_lfo_segment_() {

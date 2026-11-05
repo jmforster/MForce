@@ -389,6 +389,7 @@
    {
     "id": "Morph_env",
     "params": {
+     "preset": "as",
      "attack": 0.20000000298023224,
      "attackCurve": 0,
      "attackPower": 0.0,
@@ -399,7 +400,7 @@
      "stage_accuracy": 1.0,
      "sustainLevel": 1.0
     },
-    "type": "ASEnvelope"
+    "type": "Envelope"
    }
   ],
   "output": "Reverb"

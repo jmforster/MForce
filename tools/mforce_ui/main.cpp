@@ -33,7 +33,6 @@
 #include "mforce/core/dsp_wave_source.h"
 #include "mforce/source/envelope/envelope.h"      // needed for Envelope::make_adsr
 #include "mforce/source/envelope/envelope_json.h" // shared preset-form dispatch (both loaders)
-#include "mforce/source/envelope/envelope_presets.h" // ADSREnvelope for NT_ENVELOPE nodes
 #include "mforce/source/modulator/var_source.h"     // needed for VarSource constructor
 #include "mforce/source/modulator/range_source.h"   // needed for RangeSource constructor
 #include "mforce/source/modulator/curve_node.h"     // CurveNode knots/interp are modeled (P2b)
@@ -956,7 +955,7 @@ static void update_node_dsp_unlocked(GraphNode& node) {
         }
     }
 
-    // Envelope: apply config values (ADSREnvelope rebuilds internally)
+    // Envelope: apply config values
     if (node.typeName == NT_ENVELOPE) {
         node.apply_config();
     }
@@ -1882,14 +1881,16 @@ static void load_graph_from_path(const std::string& path) {
                         if (k == desc.name) return true;
                     return false;
                 };
-                static const std::unordered_set<std::string> kEnvelopeKeys = {
-                    "stages", "timeMode", "preset", "attack", "decay",
-                    "sustainLevel", "release", "attackMin", "attackMax",
-                    "decayMin", "decayMax", "releaseMin", "releaseMax"};
+                // The Envelope node's own keys: its stage list and the preset
+                // form's keys, the engine's one list of them.
+                auto is_envelope_key = [](const std::string& k) {
+                    const auto& keys = envelope_preset_keys();
+                    return k == "stages" || std::find(keys.begin(), keys.end(), k) != keys.end();
+                };
                 for (auto& [k, v] : params.items()) {
                     if (k == "seed") continue;
                     if (k == "formants") continue;  // rows / ref-pins, both modeled
-                    if (gn.typeName == NT_ENVELOPE && kEnvelopeKeys.count(k)) continue;
+                    if (gn.typeName == NT_ENVELOPE && is_envelope_key(k)) continue;
                     // CurveNode knots/interp are modeled (curveKnots /
                     // curveInterp) so the Properties curve editor can edit them. They
                     // rode jsonExtras verbatim until P2b; a verbatim copy
@@ -2304,6 +2305,8 @@ static void load_graph_from_path(const std::string& path) {
         std::string msg = "Unknown node type(s) not in this build's engine:";
         for (const auto& t : unknownTypes) msg += " " + t;
         msg += " — node(s) loaded inert (no params, no audio)";
+        for (const auto& t : unknownTypes)
+            if (const char* hint = retired_type_hint(t)) { msg += std::string("; ") + hint; break; }
         transport_set_status(msg.c_str(), true);
     }
 }
@@ -9376,33 +9379,11 @@ static void draw_properties_panel() {
     // CombinedSource.operation) render as a dropdown using labels
     // declared on the SettingDescriptor.
     if (!node->settingValues.empty()) {
-        // Envelope nodes lay their settings out differently (Matt
-        // 2026-08-29): accuracy knobs flow inline under the params with no
-        // "Settings" heading; preset envelopes put their time/level knobs
-        // under a "Duration" heading and their per-stage Curve/Power pairs
-        // in a "Shape" table. Every other node keeps the flat list.
+        // An Envelope's settings flow inline under its params with no
+        // "Settings" heading (its stage table follows); every other node
+        // keeps the flat list under the heading.
         const bool isEnvNode =
             dynamic_cast<Envelope*>(node->dspSource.get()) != nullptr;
-        const bool isPresetEnv = isEnvNode && node->typeName != NT_ENVELOPE;
-        auto is_env_inline = [](std::string_view n) {
-            return n == "stage_accuracy" || n == "ramp_accuracy" ||
-                   n == "timeScale";
-        };
-        auto is_env_shape = [](std::string_view n) {
-            return n.size() > 5 && (n.substr(n.size() - 5) == "Curve" ||
-                                    n.substr(n.size() - 5) == "Power");
-        };
-        auto apply_setting_value = [&](const char* name, float v) {
-            if (!node->dspSource) return;
-            {
-                std::lock_guard<std::mutex> lock(g_audioMutex);
-                node->dspSource->set_setting(name, v);
-            }
-            node->jsonExtras.erase(name);
-            for (auto& [d2, v2] : node->arrayValues)
-                v2 = node->dspSource->get_array(d2.name);
-            mark_graph_dirty();
-        };
 
         auto render_setting_row = [&](const SettingDescriptor& desc, float& val) {
             ImGui::Text("%s", desc.name);
@@ -9524,93 +9505,10 @@ static void draw_properties_panel() {
             ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1), "Settings");
             for (auto& [desc, val] : node->settingValues)
                 render_setting_row(desc, val);
-        } else if (!isPresetEnv) {
-            // Generic Envelope: all settings inline, straight under maxValue.
+        } else {
+            // Envelope: all settings inline, straight under maxValue.
             for (auto& [desc, val] : node->settingValues)
                 render_setting_row(desc, val);
-        } else {
-            // Preset envelope: accuracy inline, then Duration, then Shape.
-            for (auto& [desc, val] : node->settingValues)
-                if (is_env_inline(desc.name))
-                    render_setting_row(desc, val);
-
-            bool anyDuration = false;
-            for (auto& [desc, val] : node->settingValues)
-                if (!is_env_inline(desc.name) && !is_env_shape(desc.name))
-                    anyDuration = true;
-            if (anyDuration) {
-                ImGui::Spacing(); ImGui::Separator(); ImGui::Spacing();
-                ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1), "Duration");
-                for (auto& [desc, val] : node->settingValues)
-                    if (!is_env_inline(desc.name) && !is_env_shape(desc.name))
-                        render_setting_row(desc, val);
-            }
-
-            // Shape table: one row per stage that has a Curve setting, the
-            // matching Power beside it.
-            struct ShapeRow { std::string label; int curveIdx; int powerIdx; };
-            std::vector<ShapeRow> shapeRows;
-            for (int i = 0; i < (int)node->settingValues.size(); ++i) {
-                std::string_view n = node->settingValues[i].first.name;
-                if (n.size() <= 5 || n.substr(n.size() - 5) != "Curve") continue;
-                std::string prefix(n.substr(0, n.size() - 5));
-                int pIdx = -1;
-                for (int j = 0; j < (int)node->settingValues.size(); ++j)
-                    if (prefix + "Power" == node->settingValues[j].first.name) {
-                        pIdx = j; break;
-                    }
-                std::string label = prefix;
-                if (!label.empty())
-                    label[0] = char(::toupper((unsigned char)label[0]));
-                shapeRows.push_back({std::move(label), i, pIdx});
-            }
-            if (!shapeRows.empty()) {
-                ImGui::Spacing(); ImGui::Separator(); ImGui::Spacing();
-                ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1), "Shape");
-                if (ImGui::BeginTable("envshape", 3,
-                        ImGuiTableFlags_SizingFixedFit | ImGuiTableFlags_BordersInnerV)) {
-                    ImGui::TableSetupColumn("");
-                    ImGui::TableSetupColumn("Curve");
-                    ImGui::TableSetupColumn("Power");
-                    ImGui::TableHeadersRow();
-                    for (auto& r : shapeRows) {
-                        ImGui::TableNextRow();
-                        ImGui::PushID(r.label.c_str());
-
-                        ImGui::TableNextColumn();
-                        ImGui::AlignTextToFramePadding();
-                        ImGui::Text("%s", r.label.c_str());
-
-                        ImGui::TableNextColumn();
-                        {
-                            auto& [cd, cv] = node->settingValues[r.curveIdx];
-                            int count = 0;
-                            while (cd.enum_labels && cd.enum_labels[count]) ++count;
-                            int iv = std::clamp(int(cv), 0, std::max(0, count - 1));
-                            ImGui::PushItemWidth(110);
-                            if (count > 0 &&
-                                ImGui::Combo("##shpcurve", &iv, cd.enum_labels, count)) {
-                                cv = float(iv);
-                                apply_setting_value(cd.name, cv);
-                            }
-                            ImGui::PopItemWidth();
-                        }
-
-                        ImGui::TableNextColumn();
-                        if (r.powerIdx >= 0) {
-                            auto& [pd, pv] = node->settingValues[r.powerIdx];
-                            ImGui::PushItemWidth(60);
-                            if (ImGui::DragFloat("##shppow", &pv, 0.05f,
-                                                 pd.min_value, pd.max_value, "%.2f"))
-                                apply_setting_value(pd.name, pv);
-                            ImGui::PopItemWidth();
-                        }
-
-                        ImGui::PopID();
-                    }
-                    ImGui::EndTable();
-                }
-            }
         }
     }
 

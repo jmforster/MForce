@@ -884,7 +884,9 @@ static GraphResult build_graph(
         }
         // SoundChannel and StereoMixer handled by caller
         else if (type != "SoundChannel" && type != "StereoMixer") {
-            throw std::runtime_error("Unknown node type: " + type);
+            std::string msg = "Unknown node type: " + type;
+            if (const char* hint = retired_type_hint(type)) msg += std::string("; ") + hint;
+            throw std::runtime_error(msg);
         }
 
         // Whichever path built the node, every key it was given is one the

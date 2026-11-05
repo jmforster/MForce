@@ -28,7 +28,7 @@ const char* family_name(Family f) {
 
 std::string derived_label(std::string_view type_name) {
   std::string s(type_name);
-  for (std::string_view suffix : {"Source", "Filter", "Node", "Envelope"}) {
+  for (std::string_view suffix : {"Source", "Filter", "Node"}) {
     if (s.size() > suffix.size() && std::string_view(s).ends_with(suffix)) {
       s.resize(s.size() - suffix.size());
       break;
@@ -118,6 +118,14 @@ std::string SourceRegistry::label(const std::string& type_name) const {
 
 Shelf SourceRegistry::shelf(const std::string& type_name) const {
   return entry(type_name).tag.shelf;
+}
+
+const char* retired_type_hint(std::string_view type_name) {
+  for (std::string_view retired : {"KSPianoString", "AREnvelope", "ASEnvelope", "ASREnvelope",
+                                   "ADSEnvelope", "ADREnvelope", "ADSREnvelope"})
+    if (type_name == retired)
+      return "python tools/migrate_deleted_types.py <patch> rewrites a type this engine no longer has";
+  return nullptr;
 }
 
 } // namespace mforce

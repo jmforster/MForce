@@ -184,9 +184,10 @@
       {
         "id": "AREnvelope1",
         "params": {
+          "preset": "ar",
           "attack": 0.699999988079071
         },
-        "type": "AREnvelope"
+        "type": "Envelope"
       },
       {
         "id": "FormantSequence1",

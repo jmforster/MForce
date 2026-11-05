@@ -2977,7 +2977,7 @@ static void run_tap_reading_tests() {
     CHECK_NEAR(bareTap->next(), 1.0f, 1e-6f);
 }
 
-#include "mforce/source/envelope/envelope_presets.h"
+#include "mforce/source/envelope/envelope.h"
 
 // The sweep follows every door that changes a pin's source: a source wired
 // after prepare and start is pulled on the next tick, and one cleared is
@@ -3004,18 +3004,19 @@ static void run_sweep_follows_wiring_tests() {
     CHECK_NEAR(p->next(), 1.0f, 1e-6f);       // d's first value + 0
     CHECK(d->computes == 1);
 
-    // A node assigning itself (a preset envelope rebuilding its stages) keeps
-    // its wires in the sweep: the range source is still pulled afterwards.
+    // A node assigning itself (an envelope taking a new layout through
+    // replace_stages) keeps its wires in the sweep: the range source is still
+    // pulled afterwards.
     auto r = std::make_shared<Counter>();
-    AREnvelope env;
-    env.set_param("maxValue", r);
-    env.prepare(h.ctx); env.start(4800);
-    for (int i = 0; i < 3; ++i) { h.clock.tick(); env.next(); }
+    auto env = Envelope::make_ar(0.2f);
+    env->set_param("maxValue", r);
+    env->prepare(h.ctx); env->start(4800);
+    for (int i = 0; i < 3; ++i) { h.clock.tick(); env->next(); }
     CHECK(r->computes == 3);
-    env.set_setting("attack", 0.3f);          // rebuild(): the stages are replaced, the wire must stay swept
-    for (int i = 0; i < 3; ++i) { h.clock.tick(); env.next(); }
+    env->replace_stages(std::move(*Envelope::make_ar(0.3f)));   // the stages are replaced, the wire must stay swept
+    for (int i = 0; i < 3; ++i) { h.clock.tick(); env->next(); }
     CHECK(r->computes == 6);
-    CHECK(env.get_param("maxValue").get() == r.get());
+    CHECK(env->get_param("maxValue").get() == r.get());
 }
 
 // The tap edge reads its source's memo live: a Setup-time read between
@@ -3103,7 +3104,7 @@ static void run_shared_source_tests() {
 
 // Checkpoint 2.1: the core family (envelopes, range/var, multi, name gate)
 // under Generator/Processor with its pins declared once.
-#include "mforce/source/envelope/envelope_presets.h"
+#include "mforce/source/envelope/envelope.h"
 #include "mforce/source/combiner/multi_source.h"
 #include "mforce/source/modulator/range_source.h"
 #include "mforce/source/modulator/var_source.h"
@@ -3252,83 +3253,32 @@ static void run_envelope_pin_tests() {
     }
 }
 
-static void run_envelope_preset_tests() {
-    RenderContext ctx{48000};
-
-    // The six presets: each declares its own settings after the base's,
-    // renders finite values, and keeps the range params and the stored
-    // sustain level across a rebuild.
-    {
-        auto smoke = [&](Envelope& e) {
-            e.prepare(ctx); e.start(4800);
-            for (int i = 0; i < 10; ++i) CHECK(std::isfinite(e.next()));
-        };
-        AREnvelope ar;    smoke(ar);
-        ASEnvelope as;    smoke(as);
-        ASREnvelope asr;  smoke(asr);
-        ADSEnvelope ads;  smoke(ads);
-        ADREnvelope adr;  smoke(adr);
-        ADSREnvelope adsr; smoke(adsr);
-        CHECK(has_name(ar.setting_descriptors(), "releaseCurve"));
-        CHECK(has_name(adr.setting_descriptors(), "decayLevel"));
-        CHECK(has_name(as.setting_descriptors(), "reverse"));
-        CHECK(!has_name(ar.setting_descriptors(), "attackLevel"));
-
-        // the declared default of sustainLevel is each preset's own
-        auto sustainDefault = [](Envelope& e) {
-            for (const auto& d : e.setting_descriptors())
-                if (std::string(d.name) == "sustainLevel") return d.default_value;
-            return -1.0f;
-        };
-        CHECK_NEAR(sustainDefault(as), 1.0f, 1e-6f);
-        CHECK_NEAR(sustainDefault(asr), 1.0f, 1e-6f);
-        CHECK_NEAR(sustainDefault(ads), 0.0f, 1e-6f);
-        CHECK_NEAR(sustainDefault(adsr), 0.7f, 1e-6f);
-        CHECK_NEAR(as.get_setting("sustainLevel"), 1.0f, 1e-6f);
-        CHECK_NEAR(ads.get_setting("sustainLevel"), 0.0f, 1e-6f);
-
-        // a rebuild keeps wired range params, the accuracy knobs and the level
-        adsr.set_param("maxValue", std::make_shared<ConstantSource>(5.0f));
-        adsr.set_setting("stage_accuracy", 0.5f);
-        adsr.set_setting("sustainLevel", 0.3f);
-        adsr.set_setting("release", 0.25f);        // triggers a rebuild
-        CHECK(adsr.get_param("maxValue") != nullptr);
-        CHECK_NEAR(adsr.get_setting("stage_accuracy"), 0.5f, 1e-6f);
-        CHECK_NEAR(adsr.get_setting("sustainLevel"), 0.3f, 1e-6f);
-        CHECK_NEAR(adsr.get_setting("release"), 0.25f, 1e-6f);
-        CHECK_NEAR(adsr.stage(1).ramp.endVal, 0.3f, 1e-6f);
-        CHECK_NEAR(asr.get_setting("sustainLevel"), 1.0f, 1e-6f);
-        asr.set_setting("sustainLevel", 0.6f);     // a preset's level rebuilds its layout
-        CHECK_NEAR(asr.get_setting("sustainLevel"), 0.6f, 1e-6f);
-        CHECK_NEAR(asr.stage(0).ramp.endVal, 0.6f, 1e-6f);
-    }
-}
-
-// A preset rebuilds by assigning a freshly laid-out envelope over itself
-// (replace_stages). The pin registry belongs to the object, not to the
+// replace_stages assigns a freshly laid-out envelope over this one (the
+// editor's preset combo). The pin registry belongs to the object, not to the
 // assignment, so the pins stay the same and a wired one is still prepared
-// and advanced after the rebuilds.
+// and advanced afterwards.
 static void run_envelope_rebuild_pin_tests() {
     RenderContext ctx{48000};
-    ADSREnvelope adsr;
-    const std::vector<PinBase*> pinsBefore = adsr.pins();
+    auto env = Envelope::make_adsr(0.2f, 0.1f, 0.7f, 0.1f);
+    const std::vector<PinBase*> pinsBefore = env->pins();
     auto lo = std::make_shared<PinCounter>();
     auto hi = std::make_shared<PinCounter>();
-    adsr.set_param("minValue", lo);
-    adsr.set_param("maxValue", hi);
-    adsr.set_setting("release", 0.25f);          // each of these rebuilds the layout
-    adsr.set_setting("attack", 0.05f);
-    adsr.set_setting("decayCurve", 1.0f);
-    CHECK(adsr.pins() == pinsBefore);
-    CHECK(adsr.get_param("minValue") == lo && adsr.get_param("maxValue") == hi);
+    env->set_param("minValue", lo);
+    env->set_param("maxValue", hi);
+    env->set_setting("stage_accuracy", 0.5f);
+    env->replace_stages(std::move(*Envelope::make_adsr(0.2f, 0.1f, 0.3f, 0.25f)));   // each of these replaces the layout
+    env->replace_stages(std::move(*Envelope::make_as(0.05f)));
+    CHECK(env->pins() == pinsBefore);
+    CHECK(env->get_param("minValue") == lo && env->get_param("maxValue") == hi);
+    CHECK_NEAR(env->get_setting("stage_accuracy"), 0.5f, 1e-6f);      // a knob outside the layout survives
+    CHECK(env->stage_count() == 2);
 
-    adsr.prepare(ctx); adsr.start(4800);
+    env->prepare(ctx); env->start(4800);
     const int n = 25;
-    for (int i = 0; i < n; ++i) adsr.next();
+    for (int i = 0; i < n; ++i) env->next();
     CHECK(lo->starts == 1 && hi->starts == 1);
     CHECK(lo->nexts == n && hi->nexts == n);
 }
-
 // Checkpoint 2.1: the noise family with its pins declared once.
 #include "mforce/source/noise/layered_red_noise_source.h"
 #include "mforce/source/noise/noise_sources.h"
@@ -5669,18 +5619,17 @@ static bool same_bits(const std::vector<float>& a, const std::vector<float>& b) 
 }
 
 static void run_core_split_envelope_tests() {
-    // A preset keeps the context it was prepared with through a setting
-    // change: the rebuild assigns a fresh, unprepared envelope over it.
+    // An envelope keeps the context it was prepared with through a new
+    // layout: replace_stages assigns a fresh, unprepared envelope over it.
     {
-        AREnvelope e;
-        e.prepare(RenderContext{22050});
-        e.set_setting("attack", 0.5f);
-        e.start(22050);
-        AREnvelope f;
-        f.set_setting("attack", 0.5f);
-        f.prepare(RenderContext{22050});
-        f.start(22050);
-        const auto ra = render_samples(e, 22050), rb = render_samples(f, 22050);
+        auto e = Envelope::make_ar(0.2f);
+        e->prepare(RenderContext{22050});
+        e->replace_stages(std::move(*Envelope::make_ar(0.5f)));
+        e->start(22050);
+        auto f = Envelope::make_ar(0.5f);
+        f->prepare(RenderContext{22050});
+        f->start(22050);
+        const auto ra = render_samples(*e, 22050), rb = render_samples(*f, 22050);
         CHECK(same_bits(ra, rb));
         CHECK(ra[5000] > 0.0f);                      // rendered, not the silent unprepared path
     }
@@ -6093,9 +6042,9 @@ static void run_physical_split_tests() {
         k->set_param("source", noise());
         return k;
     }));
-    {   // the loading alias builds the same type; excited, it sounds
+    {   // the registry's string is the same type; excited, it sounds
         const SplitResult r = split_compare([&] {
-            auto k = std::dynamic_pointer_cast<ValueSource>(SourceRegistry::instance().create("KSPianoString"));
+            auto k = std::dynamic_pointer_cast<ValueSource>(SourceRegistry::instance().create("KSString"));
             k->set_param("source", noise());
             return k;
         });
@@ -6396,7 +6345,7 @@ static std::shared_ptr<ValueSource> make_multiplex_voice() {
       "sampleRate": 48000,
       "instrument": { "polyphony": 1 },
       "graph": { "output": "mux", "nodes": [
-        { "id": "env", "type": "AREnvelope", "params": { "attack": 0.2 } },
+        { "id": "env", "type": "Envelope", "params": { "preset": "ar", "attack": 0.2 } },
         { "id": "osc", "type": "SineSource",
           "params": { "frequency": 220.0, "amplitude": { "ref": "env" } } },
         { "id": "mux", "type": "MultiplexSource",
@@ -6930,81 +6879,73 @@ static void run_envelope_factory_tests() {
         CHECK(!e->has_adsr_shape_() && !e->absolute_time);      // none is the four-slot shape, none in seconds
 }
 
-// The class from the registry with its knobs pushed in the JSON's order; the
-// form from the same keys plus the preset's name.
-static bool class_matches_form(const char* cls, const char* preset, const nlohmann::json& knobs) {
-    auto e = std::dynamic_pointer_cast<Envelope>(SourceRegistry::instance().create(cls));
-    if (!e) return false;
-    for (const auto& [k, v] : knobs.items())
-        e->set_setting(k, v.is_boolean() ? (v.get<bool>() ? 1.0f : 0.0f) : v.get<float>());
-    nlohmann::json p = knobs;
-    p["preset"] = preset;
-    const bool same = same_layout(*e, *envelope_from_preset_json(p));
-    if (!same) std::printf("  layout differs: %s vs %s\n", cls, p.dump().c_str());
-    return same;
-}
-
-struct FormLayout { const char* cls; const char* preset; const char* allOff; std::vector<const char*> curves; const char* level; };
-static const FormLayout kFormLayouts[] = {
-    {"AREnvelope", "ar", R"({"attack":0.4,"attackCurve":2,"attackPower":1.2,"releaseCurve":0,"releasePower":3.0})",
-     {"attackCurve", "releaseCurve"}, nullptr},
-    {"ASEnvelope", "as", R"({"attack":0.35,"attackCurve":1,"attackPower":2.5,"reverse":true,"sustainLevel":0.6})",
-     {"attackCurve"}, "sustainLevel"},
-    {"ASREnvelope", "asr", R"({"attack":0.15,"attackCurve":2,"attackPower":1.5,"release":0.3,"releaseCurve":2,"releasePower":0.5,"sustainLevel":0.4})",
-     {"attackCurve", "releaseCurve"}, "sustainLevel"},
-    {"ADSEnvelope", "ads", R"({"attack":0.1,"attackCurve":3,"decay":0.25,"decayCurve":1,"decayPower":2.0,"sustainLevel":0.3})",
-     {"attackCurve", "decayCurve"}, "sustainLevel"},
-    {"ADREnvelope", "adr", R"({"attack":0.1,"attackPower":0.7,"decay":0.2,"decayCurve":3,"decayLevel":0.55,"releaseCurve":1,"releasePower":1.5})",
-     {"attackCurve", "decayCurve", "releaseCurve"}, "decayLevel"},
-    {"ADSREnvelope", "adsr", R"({"attack":0.12,"attackCurve":1,"attackPower":0.8,"decay":0.2,"decayCurve":2,"decayPower":1.1,"sustainLevel":0.5,"release":0.25,"releaseCurve":0,"releasePower":2.0})",
-     {"attackCurve", "decayCurve", "releaseCurve"}, "sustainLevel"},
-};
-
-static void run_envelope_form_equivalence_tests() {
-    register_all_sources();
-    for (const auto& L : kFormLayouts) {
-        nlohmann::json defaults = nlohmann::json::object();
-        if (std::string(L.cls) == "ADSREnvelope") defaults["release"] = 0.1;   // the class's default; the form's is 0.0
-        CHECK(class_matches_form(L.cls, L.preset, defaults));
-        CHECK(class_matches_form(L.cls, L.preset, nlohmann::json::parse(L.allOff)));
-        for (const char* c : L.curves)
-            for (int v = 0; v < 4; ++v) {
-                nlohmann::json p = defaults;
-                const std::string stage = std::string(c).substr(0, std::string(c).size() - 5);
-                p[c] = v;
-                p[stage + "Power"] = 2.5;
-                CHECK(class_matches_form(L.cls, L.preset, p));
-            }
-        if (L.level)
-            for (float lv : {0.0f, 0.4f, 1.0f}) {
-                nlohmann::json p = defaults;
-                p[L.level] = lv;
-                CHECK(class_matches_form(L.cls, L.preset, p));
-                if (std::string(L.preset) == "as") { p["reverse"] = true; CHECK(class_matches_form(L.cls, L.preset, p)); }
-            }
+// The six preset forms, stage by stage, at their defaults and with every
+// knob off its default. The defaults are the deleted classes' own, but one:
+// a bare adsr form releases over 0.0 where the class released over 0.1 (the
+// migration writes the key).
+static void run_envelope_form_tests() {
+    const RampType L = RampType::Linear, E = RampType::Expo, I = RampType::InverseExpo, S = RampType::Sine;
+    using J = nlohmann::json;
+    CHECK(stages_are(*envelope_from_preset_json(J{{"preset", "ar"}}),
+                     {{0.0f, 1.0f, L, 0.0f, 0.2f, 0.0f, 1.0f}, {1.0f, 0.0f, S, 0.0f, 0.0f, 0.0f, 0.0f}}));
+    CHECK(stages_are(*envelope_from_preset_json(J::parse(R"({"preset":"ar","attack":0.4,"attackCurve":2,"attackPower":1.2,"releaseCurve":0,"releasePower":3.0})")),
+                     {{0.0f, 1.0f, I, 1.2f, 0.4f, 0.0f, 1.0f}, {1.0f, 0.0f, L, 3.0f, 0.0f, 0.0f, 0.0f}}));
+    CHECK(stages_are(*envelope_from_preset_json(J{{"preset", "as"}}),
+                     {{0.0f, 1.0f, L, 0.0f, 0.2f, 0.0f, 1.0f}, {1.0f, 1.0f, L, 0.0f, 0.0f, 0.0f, 0.0f}}));
+    CHECK(stages_are(*envelope_from_preset_json(J::parse(R"({"preset":"as","attack":0.35,"attackCurve":1,"attackPower":2.5,"reverse":true,"sustainLevel":0.6})")),
+                     {{0.6f, 0.0f, E, 2.5f, 0.35f, 0.0f, 1.0f}, {0.0f, 0.0f, L, 0.0f, 0.0f, 0.0f, 0.0f}}));
+    CHECK(stages_are(*envelope_from_preset_json(J{{"preset", "asr"}}),
+                     {{0.0f, 1.0f, L, 0.0f, 0.2f, 0.0f, 1.0f}, {1.0f, 1.0f, L, 0.0f, 0.0f, 0.0f, 0.0f},
+                      {1.0f, 0.0f, S, 0.0f, 0.1f, 0.0f, 0.0f}}));
+    CHECK(stages_are(*envelope_from_preset_json(J::parse(R"({"preset":"asr","attack":0.15,"attackCurve":2,"attackPower":1.5,"release":0.3,"releaseCurve":2,"releasePower":0.5,"sustainLevel":0.4})")),
+                     {{0.0f, 0.4f, I, 1.5f, 0.15f, 0.0f, 1.0f}, {0.4f, 0.4f, L, 0.0f, 0.0f, 0.0f, 0.0f},
+                      {0.4f, 0.0f, I, 0.5f, 0.3f, 0.0f, 0.0f}}));
+    CHECK(stages_are(*envelope_from_preset_json(J{{"preset", "ads"}}),
+                     {{0.0f, 1.0f, L, 0.0f, 0.2f, 0.0f, 1.0f}, {1.0f, 0.0f, L, 0.0f, 0.1f, 0.0f, 0.5f},
+                      {0.0f, 0.0f, L, 0.0f, 0.0f, 0.0f, 0.0f}}));
+    CHECK(stages_are(*envelope_from_preset_json(J::parse(R"({"preset":"ads","attack":0.1,"attackCurve":3,"decay":0.25,"decayCurve":1,"decayPower":2.0,"sustainLevel":0.3})")),
+                     {{0.0f, 1.0f, S, 0.0f, 0.1f, 0.0f, 1.0f}, {1.0f, 0.3f, E, 2.0f, 0.25f, 0.0f, 0.5f},
+                      {0.3f, 0.3f, L, 0.0f, 0.0f, 0.0f, 0.0f}}));
+    CHECK(stages_are(*envelope_from_preset_json(J{{"preset", "adr"}}),
+                     {{0.0f, 1.0f, L, 0.0f, 0.2f, 0.0f, 1.0f}, {1.0f, 0.7f, L, 0.0f, 0.1f, 0.0f, 0.5f},
+                      {0.7f, 0.0f, S, 0.0f, 0.0f, 0.0f, 0.0f}}));
+    CHECK(stages_are(*envelope_from_preset_json(J::parse(R"({"preset":"adr","attack":0.1,"attackPower":0.7,"decay":0.2,"decayCurve":3,"decayLevel":0.55,"releaseCurve":1,"releasePower":1.5})")),
+                     {{0.0f, 1.0f, L, 0.7f, 0.1f, 0.0f, 1.0f}, {1.0f, 0.55f, S, 0.0f, 0.2f, 0.0f, 0.5f},
+                      {0.55f, 0.0f, E, 1.5f, 0.0f, 0.0f, 0.0f}}));
+    CHECK(stages_are(*envelope_from_preset_json(J{{"preset", "adsr"}}),
+                     {{0.0f, 1.0f, L, 0.0f, 0.2f, 0.0f, 1.0f}, {1.0f, 0.7f, L, 0.0f, 0.1f, 0.0f, 0.5f},
+                      {0.7f, 0.7f, L, 0.0f, 0.0f, 0.0f, 0.0f}, {0.7f, 0.0f, S, 0.0f, 0.0f, 0.0f, 0.0f}}));
+    CHECK(stages_are(*envelope_from_preset_json(J::parse(R"({"preset":"adsr","attack":0.12,"attackCurve":1,"attackPower":0.8,"decay":0.2,"decayCurve":2,"decayPower":1.1,"sustainLevel":0.5,"release":0.25,"releaseCurve":0,"releasePower":2.0})")),
+                     {{0.0f, 1.0f, E, 0.8f, 0.12f, 0.0f, 1.0f}, {1.0f, 0.5f, I, 1.1f, 0.2f, 0.0f, 0.5f},
+                      {0.5f, 0.5f, L, 0.0f, 0.0f, 0.0f, 0.0f}, {0.5f, 0.0f, L, 2.0f, 0.25f, 0.0f, 0.0f}}));
+    // adsr is the four-slot shape (the live sustain rewrite applies); the
+    // others are not, and report the four-slot view of sustainLevel, 0; none
+    // is in seconds.
+    CHECK(envelope_from_preset_json(J{{"preset", "adsr"}})->has_adsr_shape_());
+    for (const char* n : {"ar", "as", "asr", "ads", "adr"}) {
+        auto e = envelope_from_preset_json(J{{"preset", n}});
+        CHECK(!e->has_adsr_shape_() && !e->absolute_time);
+        CHECK_NEAR(e->get_setting("sustainLevel"), 0.0f, 1e-6f);
     }
-    // The one default the two paths disagree on: a bare adsr form releases
-    // over 0.0 where the class released over 0.1 (the converter writes it).
-    auto bare = std::dynamic_pointer_cast<Envelope>(SourceRegistry::instance().create("ADSREnvelope"));
-    auto form = envelope_from_preset_json(nlohmann::json{{"preset", "adsr"}});
-    CHECK(!same_layout(*bare, *form));
-    CHECK(bare->stage(3).percent == 0.1f && form->stage(3).percent == 0.0f);
     // A curve outside 0..3 and an unknown preset are refused by name.
     std::string msg;
-    try { envelope_from_preset_json(nlohmann::json{{"preset", "as"}, {"attackCurve", 4}}); } catch (const std::runtime_error& e) { msg = e.what(); }
+    try { envelope_from_preset_json(J{{"preset", "as"}, {"attackCurve", 4}}); } catch (const std::runtime_error& e) { msg = e.what(); }
     CHECK(msg.find("attackCurve is 4") != std::string::npos);
     msg.clear();
-    try { envelope_from_preset_json(nlohmann::json{{"preset", "adsx"}}); } catch (const std::runtime_error& e) { msg = e.what(); }
+    try { envelope_from_preset_json(J{{"preset", "adsx"}}); } catch (const std::runtime_error& e) { msg = e.what(); }
     CHECK(msg.find("Unknown envelope preset: adsx") != std::string::npos);
-    // The key list is what the builders read.
+    // The key list is what the builders read; the table is the six in menu order.
     const auto& keys = envelope_preset_keys();
     CHECK(std::find(keys.begin(), keys.end(), "reverse") != keys.end());
     CHECK(std::find(keys.begin(), keys.end(), "decayLevel") != keys.end());
     CHECK(std::find(keys.begin(), keys.end(), "stages") == keys.end());
+    CHECK(std::size(kEnvelopePresets) == 6 && std::string(kEnvelopePresets[0].name) == "ar"
+          && std::string(kEnvelopePresets[5].name) == "adsr");
 }
 
-// Through the loader: a class node and the form it is rewritten as render the
-// same bytes, and a seed reaches a form node as it reached a class node.
+// Through the loader: a form node and the stages node it lays out as render
+// the same bytes; a seed and the accuracy knobs reach the form node as they
+// reach the stages node.
 static std::vector<float> render_loaded_note(const char* json, int n) {
     auto ip = load_instrument_patch_json(json);
     auto* pi = dynamic_cast<PitchedInstrument*>(ip.instrument.get());
@@ -7015,13 +6956,13 @@ static std::vector<float> render_loaded_note(const char* json, int n) {
 }
 
 static void run_envelope_form_loader_tests() {
-    const char* cls = R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"osc","nodes":[
-        {"id":"Env","type":"ASEnvelope","params":{"attack":0.3,"attackCurve":1,"attackPower":2.0,"reverse":true,"sustainLevel":0.6,"stage_accuracy":0.9,"ramp_accuracy":0.95,"seed":77,"minValue":0.0,"maxValue":0.8}},
-        {"id":"osc","type":"SineSource","params":{"frequency":220.0,"amplitude":{"ref":"Env"}}}]}})";
     const char* form = R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"osc","nodes":[
         {"id":"Env","type":"Envelope","params":{"preset":"as","attack":0.3,"attackCurve":1,"attackPower":2.0,"reverse":true,"sustainLevel":0.6,"stage_accuracy":0.9,"ramp_accuracy":0.95,"seed":77,"minValue":0.0,"maxValue":0.8}},
         {"id":"osc","type":"SineSource","params":{"frequency":220.0,"amplitude":{"ref":"Env"}}}]}})";
-    const auto a = render_loaded_note(cls, 9600), b = render_loaded_note(form, 9600);
+    const char* stages = R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"osc","nodes":[
+        {"id":"Env","type":"Envelope","params":{"stages":[{"startVal":0.6,"endVal":0.0,"type":"Expo","power":2.0,"percent":0.3,"maxSec":1.0},{"startVal":0.0,"endVal":0.0}],"stage_accuracy":0.9,"ramp_accuracy":0.95,"seed":77,"minValue":0.0,"maxValue":0.8}},
+        {"id":"osc","type":"SineSource","params":{"frequency":220.0,"amplitude":{"ref":"Env"}}}]}})";
+    const auto a = render_loaded_note(form, 9600), b = render_loaded_note(stages, 9600);
     CHECK(same_bits(a, b));
     CHECK(a[1000] != 0.0f);                       // inside the attack: reversed, the shape falls to 0 and holds there
     auto env_of = [](const char* json) {
@@ -7029,11 +6970,31 @@ static void run_envelope_form_loader_tests() {
         auto* pi = dynamic_cast<PitchedInstrument*>(ip.instrument.get());
         return std::dynamic_pointer_cast<Envelope>(pi->voicePool.at(0).nodesById.at("Env"));
     };
-    auto ec = env_of(cls), ef = env_of(form);
-    CHECK(ec && ef && same_layout(*ec, *ef));
-    CHECK(ef->get_seed() == ec->get_seed() && ef->get_seed() != 0u);
+    auto ef = env_of(form), es = env_of(stages);
+    CHECK(ef && es && same_layout(*ef, *es));
+    CHECK(ef->get_seed() == es->get_seed() && ef->get_seed() != 0u);
     CHECK_NEAR(ef->get_setting("stage_accuracy"), 0.9f, 1e-6f);
     CHECK_NEAR(ef->get_setting("ramp_accuracy"), 0.95f, 1e-6f);
+}
+
+// A type this engine no longer has fails the load naming the tool that
+// rewrites it; a name it never had does not.
+static void run_retired_type_message_tests() {
+    auto message_for = [](const char* type) {
+        const std::string json = std::string(R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"n","nodes":[
+            {"id":"n","type":")") + type + R"(","params":{}}]}})";
+        try { load_instrument_patch_json(json); } catch (const std::runtime_error& e) { return std::string(e.what()); }
+        return std::string();
+    };
+    for (const char* t : {"ASEnvelope", "ADSREnvelope", "KSPianoString"}) {
+        const std::string msg = message_for(t);
+        CHECK(msg.find(std::string("Unknown node type: ") + t) != std::string::npos);
+        CHECK(msg.find("tools/migrate_deleted_types.py") != std::string::npos);
+    }
+    const std::string none = message_for("NoSuchType");
+    CHECK(none.find("Unknown node type: NoSuchType") != std::string::npos);
+    CHECK(none.find("migrate_deleted_types") == std::string::npos);
+    CHECK(retired_type_hint("Envelope") == nullptr && retired_type_hint("ASREnvelope") != nullptr);
 }
 
 // The allocation probe: counts only while armed, keeps the first armed
@@ -7704,12 +7665,6 @@ static const FamilyRow kFamilyTable[] = {
     {"BWHighpassFilter", Family::Filter, "BW Highpass", Shelf::Main},
     {"SVFSource", Family::Filter, "SVF (State Variable)", Shelf::Main},
     {"Shaper", Family::Filter, "Shaper", Shelf::Main},
-    {"ADSREnvelope", Family::Envelope, "ADSR", Shelf::Main},
-    {"ASREnvelope", Family::Envelope, "ASR", Shelf::Main},
-    {"ADREnvelope", Family::Envelope, "ADR", Shelf::Main},
-    {"AREnvelope", Family::Envelope, "AR", Shelf::Main},
-    {"ASEnvelope", Family::Envelope, "AS", Shelf::Main},
-    {"ADSEnvelope", Family::Envelope, "ADS", Shelf::Main},
     {"Envelope", Family::Envelope, "Envelope", Shelf::Main},
     {"Vibrato", Family::Envelope, "Vibrato", Shelf::Main},
     {"PhasedValueSource", Family::Envelope, "Phased", Shelf::Main},
@@ -7738,7 +7693,6 @@ static const FamilyRow kFamilyTable[] = {
     {"BezierPullEvolution", Family::Wavetable, "Bezier Pull (->curve)", Shelf::Experimental},
     {"BitRotateEvolution", Family::Wavetable, "Bit Rotate (glitch)", Shelf::Experimental},
     {"TargetEvolution", Family::Wavetable, "Target Evolution", Shelf::Experimental},
-    {"KSPianoString", Family::Physical, "KS Piano String", Shelf::Experimental},
     {"Mesh2D", Family::Physical, "Mesh 2D", Shelf::Experimental},
     {"PierceFilter", Family::Physical, "Pierce Filter", Shelf::Experimental},
     {"BowTable", Family::Physical, "Bow Table", Shelf::Experimental},
@@ -7773,7 +7727,7 @@ static void run_registry_family_tests() {
         CHECK(tag->shelf == row.shelf);
         (row.shelf == Shelf::Main ? main : experimental)++;
     }
-    CHECK(main == 63 && experimental == 23);
+    CHECK(main == 57 && experimental == 22);
     for (const auto& e : reg.registered_types()) {                             // every registered type is in the table
         bool inTable = false;
         for (const auto& row : kFamilyTable) inTable = inTable || e.name == row.name;
@@ -7788,12 +7742,10 @@ static void run_registry_family_tests() {
     }
     // the derivation: the suffix off, a space before each word, acronyms kept
     CHECK(derived_label("HybridKSSource") == "Hybrid KS" && derived_label("BWLowpassFilter") == "BW Lowpass");
-    CHECK(derived_label("Mesh2D") == "Mesh 2D" && derived_label("KSPianoString") == "KS Piano String");
-    CHECK(derived_label("ADSREnvelope") == "ADSR" && derived_label("Envelope") == "Envelope" && derived_label("CurveNode") == "Curve");
+    CHECK(derived_label("Mesh2D") == "Mesh 2D" && derived_label("PierceFilterSource") == "Pierce Filter");
+    CHECK(derived_label("Envelope") == "Envelope" && derived_label("CurveNode") == "Curve");
     CHECK(derived_label("WanderNoise2Source") == "Wander Noise 2" && derived_label("StaticVarSource") == "Static Var");
     // the alias still builds its type, on the Experimental shelf of its family
-    CHECK(std::dynamic_pointer_cast<KSString>(reg.create("KSPianoString")) != nullptr);
-    CHECK(reg.family("KSPianoString") == Family::Physical && reg.shelf("KSPianoString") == Shelf::Experimental);
     // labels are non-empty and unique within a family and shelf; types_in walks every type once
     int walked = 0;
     for (Family f : kFamilyOrder)
@@ -7806,7 +7758,7 @@ static void run_registry_family_tests() {
                 ++walked;
             }
         }
-    CHECK(walked == 86);
+    CHECK(walked == 79);
     CHECK(std::string(family_name(Family::Oscillator)) == "Oscillators" && std::string(family_name(Family::Noise)) == "Noise"
           && std::string(family_name(Family::Filter)) == "Filters" && std::string(family_name(Family::Utility)) == "Utility");
     CHECK(reg.find("NoSuchType") == nullptr && reg.find("SineSource") != nullptr);
@@ -7816,8 +7768,7 @@ static void run_registry_family_tests() {
     std::set<std::string> envelopes;
     for (Shelf s : {Shelf::Main, Shelf::Experimental})
         for (const auto& e : reg.types_in(Family::Envelope, s)) envelopes.insert(e.name);
-    CHECK((envelopes == std::set<std::string>{"Envelope", "AREnvelope", "ASEnvelope", "ASREnvelope", "ADSEnvelope", "ADREnvelope",
-                                              "ADSREnvelope", "PhasedValueSource", "SegmentSource", "Vibrato"}));
+    CHECK((envelopes == std::set<std::string>{"Envelope", "PhasedValueSource", "SegmentSource", "Vibrato"}));
 }
 
 // The menu's content is the registry's: for each family and shelf, the types
@@ -7833,10 +7784,10 @@ static const MenuRow kMenuTable[] = {
     {Family::Wavetable, Shelf::Experimental, {"BowedStringEvolution", "ReedEvolution", "BrassEvolution", "ReactionDiffusionEvolution", "SortErosionEvolution", "CellularAutomatonEvolution", "HistogramEqualizeEvolution", "BezierPullEvolution", "BitRotateEvolution", "TargetEvolution"}},
     {Family::Additive, Shelf::Main, {"AdditiveSource", "BasicAdditiveSource", "AdditiveSource2", "FullPartials", "SequencePartials", "ExplicitPartials", "CompositePartials", "ExpandRule", "Formant", "FormantSequence", "FormantSpectrum", "BandSpectrum", "FixedSpectrum"}},
     {Family::Physical, Shelf::Main, {"KSString", "AllpassResonator", "DelayLine"}},
-    {Family::Physical, Shelf::Experimental, {"KSPianoString", "Mesh2D", "PierceFilter", "BowTable"}},
+    {Family::Physical, Shelf::Experimental, {"Mesh2D", "PierceFilter", "BowTable"}},
     {Family::Filter, Shelf::Main, {"DelayFilter", "Reverb", "Limiter", "HammerBank", "DistortedSource", "BWBandpassFilter", "BWLowpassFilter", "BWHighpassFilter", "SVFSource", "Shaper"}},
     {Family::Filter, Shelf::Experimental, {"Biquad"}},
-    {Family::Envelope, Shelf::Main, {"ADSREnvelope", "ASREnvelope", "ADREnvelope", "AREnvelope", "ASEnvelope", "ADSEnvelope", "Envelope", "Vibrato", "PhasedValueSource", "SegmentSource"}},
+    {Family::Envelope, Shelf::Main, {"Envelope", "Vibrato", "PhasedValueSource", "SegmentSource"}},
     {Family::Modulator, Shelf::Main, {"RepeatingSource", "VarSource", "RangeSource", "CurveNode"}},
     {Family::Modulator, Shelf::Experimental, {"NameGate"}},
     {Family::Combiner, Shelf::Main, {"CombinedSource", "CrossfadeSource", "MultiSource", "MultiplexSource"}},
@@ -7892,7 +7843,6 @@ int main() {
     run_range_var_tests();
     run_multi_name_gate_tests();
     run_envelope_pin_tests();
-    run_envelope_preset_tests();
     run_envelope_rebuild_pin_tests();
     run_noise_pin_tests();
     run_noise_white_tests();
@@ -7904,8 +7854,9 @@ int main() {
     run_wavetable_evolution_tests();
     run_string_pin_refusal_tests();
     run_envelope_factory_tests();
-    run_envelope_form_equivalence_tests();
+    run_envelope_form_tests();
     run_envelope_form_loader_tests();
+    run_retired_type_message_tests();
     run_hybrid_ks_tests();
     run_evolution_shape_tests();
     run_evolution_setting_tests();

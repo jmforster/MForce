@@ -550,7 +550,7 @@
           "spreadJitter": 0.0,
           "t60": 10.0
         },
-        "type": "KSPianoString"
+        "type": "KSString"
       },
       {
         "id": "String_detune_curve",
@@ -668,7 +668,7 @@
         -45.29547119140625
       ],
       "String_t60_curve": [
-        -699.4990844726563,
+        -699.4990844726562,
         62.6624755859375
       ],
       "Strings": [

@@ -1,7 +1,7 @@
 #pragma once
 #include "mforce/core/dsp_value_source.h"
 #include "mforce/source/noise/red_noise_source.h"
-#include "mforce/source/envelope/envelope_presets.h"   // ASEnvelope (attack→sustain ramp)
+#include "mforce/source/envelope/envelope.h"           // make_as (attack→sustain ramp)
 #include "mforce/source/modulator/range_source.h"
 #include <algorithm>
 #include <memory>
@@ -87,16 +87,14 @@ struct Vibrato final : Generator {
 private:
   // Build a RedNoise LFO chain from the current scalar config. Speed ramps
   // 1 Hz → speed and depth ramps 0 → depth over the attack, then both HOLD for
-  // the rest of the note — that's an ASEnvelope (attack→sustain).
+  // the rest of the note — the attack→sustain layout.
   std::shared_ptr<RedNoiseSource> build_lfo() const {
-    auto speedRamp = std::make_shared<ASEnvelope>();
-    speedRamp->set_setting("attack", attack.value);
+    auto speedRamp = Envelope::make_as(attack.value);
     auto speedRange = std::make_shared<RangeSource>(
         std::make_shared<ConstantSource>(1.0f),
         std::make_shared<ConstantSource>(speed.value), speedRamp, true);
 
-    auto depthRamp = std::make_shared<ASEnvelope>();
-    depthRamp->set_setting("attack", attack.value);
+    auto depthRamp = Envelope::make_as(attack.value);
     auto depthRange = std::make_shared<RangeSource>(
         std::make_shared<ConstantSource>(0.0f),
         std::make_shared<ConstantSource>(depth.value), depthRamp, true);
