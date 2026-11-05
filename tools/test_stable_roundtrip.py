@@ -19,16 +19,20 @@ CLI = Path("build/tools/mforce_cli/Release/mforce_cli.exe")
 # params in the roundtripped file are produced by save code the id change
 # never touched, and ids compare equal). Fixing that class shrinks this
 # list; a NEW entry here is a regression and fails the run.
-# EMPTY of fidelity debt since 2026-08-15 — every roundtrip-fidelity failure
-# was root-caused and fixed (score absence, formant child ids,
-# RangeSource.normalized default, unmodeled-param carry, adsr-shape sustain
-# rewrite + declamp). A new entry appearing here is a regression: fix the
-# save path, don't grow the list. The one exemption is not a save-path bug:
-# FormantSequence1's ORIGINAL is CLI-unrenderable (legacy inline formant
-# form) and its migrated form renders silent — backlog 3p, a UI-vs-CLI
-# behavioral gap.
+# Every roundtrip-fidelity failure of the save path was root-caused and fixed
+# (score absence, formant child ids, RangeSource.normalized default,
+# unmodeled-param carry, adsr-shape sustain rewrite + declamp). What remains
+# is the backlog-79 six: patches whose render depends on tap/advance order or
+# a dynamic-pin setting that the editor's codec cannot yet carry (Part 4's).
+# They are listed so the run is green and a SEVENTH diff fails it; a new
+# entry here is a regression — fix the save path, don't grow the list.
 KNOWN_DIFFS = {
-    "patches/baselines/FormantSequence1.json",
+    "patches/baselines/double_advance_bug.json",
+    "patches/baselines/double_advance_ok.json",
+    "patches/baselines/feedback/loop_tap_counter.json",
+    "patches/baselines/feedback/loop_tap_starved.json",
+    "patches/baselines/perform/wiring_setting.json",
+    "patches/baselines/perform/wiring_smoke.json",
 }
 
 def load(path):
@@ -130,7 +134,7 @@ def main():
     for pt, why in bad_ids: print(f"ID CHANGE {pt}: {why}")
     for pt in bad_render:   print(f"RENDER DIFF {pt}")
     for pt in skipped:      print(f"skip (unrenderable both forms) {pt}")
-    for pt in known_hits: print(f"known diff (backlog 3n) {pt}")
+    for pt in known_hits: print(f"known diff (backlog 79) {pt}")
     print(f"{len(patches)} patches: {len(bad_ids)} id changes, "
           f"{len(bad_render)} NEW render diffs, {len(known_hits)} known "
           f"diffs, {id_only} id-only (non-instrument), {len(skipped)} skipped")

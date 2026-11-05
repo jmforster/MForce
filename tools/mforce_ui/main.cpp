@@ -966,6 +966,19 @@ static void update_node_dsp(GraphNode& node) {
     update_node_dsp_unlocked(node);
 }
 
+// The Envelope's Preset combo (and the headless --apply-preset): lay this
+// node's stage list out as the named preset with its defaults, under the
+// audio lock (the stream may be mid-next() on the same object), then re-pull
+// the cached settings from the new layout. Never push the cache back: its
+// sustainLevel is the four-slot view, 0 on a two- or three-stage shape, and
+// pushing it would write 0 over the fresh layout's four sustain slots.
+static void apply_envelope_preset(GraphNode& node, Envelope& env, const char* presetName) {
+    std::lock_guard<std::mutex> lock(g_audioMutex);
+    env.replace_stages(std::move(*envelope_from_preset_json(nlohmann::json{{"preset", presetName}})));
+    for (auto& [desc, val] : node.settingValues)
+        val = env.get_setting(desc.name);
+}
+
 // Cycle legality (feedback_loop_design.md §2): a NORMAL wire src->dst is
 // refused when a normal-edge path dst -> ... -> src already exists — the
 // pull would recurse forever. Tap edges are invisible here (they read the
@@ -9937,7 +9950,8 @@ static void draw_properties_panel() {
             // replace_stages (the wires and the knobs outside the layout
             // stay); the table below is where the values are edited.
             {
-                static int presetIdx = int(std::size(kEnvelopePresets)) - 1;     // adsr
+                static std::unordered_map<int, int> presetByNode;                 // the combo's choice, per node
+                int& presetIdx = presetByNode.try_emplace(node->id, int(std::size(kEnvelopePresets)) - 1).first->second;
                 auto upper = [](const char* s) {
                     std::string u(s);
                     for (auto& c : u) c = char(::toupper((unsigned char)c));
@@ -9956,12 +9970,7 @@ static void draw_properties_panel() {
                 ImGui::PopItemWidth();
                 ImGui::SameLine();
                 if (ImGui::SmallButton("Apply")) {
-                    {
-                        std::lock_guard<std::mutex> lock(g_audioMutex);
-                        env->replace_stages(std::move(*envelope_from_preset_json(
-                            nlohmann::json{{"preset", kEnvelopePresets[presetIdx].name}})));
-                    }
-                    node->apply_config();        // the cached knobs back onto the new layout
+                    apply_envelope_preset(*node, *env, kEnvelopePresets[presetIdx].name);
                     changed = true;
                 }
                 if (ImGui::IsItemHovered())
@@ -12926,6 +12935,29 @@ int main(int argc, char** argv) {
             return 1;
         }
         printf("rename ok: %s %s->%s -> %s\n", argv[2], argv[3], argv[4], argv[5]);
+        return 0;
+    }
+
+    // Headless preset apply: load, lay one Envelope node out as a preset, save.
+    // The Preset combo's own path (apply_envelope_preset) without a UI.
+    if (argc >= 6 && std::string(argv[1]) == "--apply-preset") {
+        s_headless = true;
+        ImGui::CreateContext();
+        ImNodes::CreateContext();
+        register_all_sources();
+        try {
+            load_graph_from_path(argv[2]);
+            GraphNode* target = nullptr;
+            for (auto& n : s_nodes) if (n.label == argv[3]) target = &n;
+            auto* env = target ? dynamic_cast<Envelope*>(target->dspSource.get()) : nullptr;
+            if (!env) { fprintf(stderr, "apply-preset: no Envelope node '%s'\n", argv[3]); return 1; }
+            apply_envelope_preset(*target, *env, argv[4]);
+            save_patch_graph(argv[5]);
+        } catch (const std::exception& e) {
+            fprintf(stderr, "apply-preset failed: %s\n", e.what());
+            return 1;
+        }
+        printf("apply-preset ok: %s %s <- %s -> %s\n", argv[2], argv[3], argv[4], argv[5]);
         return 0;
     }
 

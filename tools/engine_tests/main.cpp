@@ -3268,6 +3268,11 @@ static void run_envelope_rebuild_pin_tests() {
     env->set_setting("stage_accuracy", 0.5f);
     env->replace_stages(std::move(*Envelope::make_adsr(0.2f, 0.1f, 0.3f, 0.25f)));   // each of these replaces the layout
     env->replace_stages(std::move(*Envelope::make_as(0.05f)));
+    CHECK_NEAR(env->get_setting("sustainLevel"), 0.0f, 1e-6f);        // the view follows the layout: no four-slot shape
+    env->replace_stages(std::move(*Envelope::make_adsr(0.2f, 0.1f, 0.7f, 0.0f)));
+    CHECK_NEAR(env->get_setting("sustainLevel"), 0.7f, 1e-6f);        // and reads the new layout's slot (what the editor re-pulls)
+    CHECK_NEAR(env->stage(2).ramp.startVal, 0.7f, 1e-6f);
+    env->replace_stages(std::move(*Envelope::make_as(0.05f)));
     CHECK(env->pins() == pinsBefore);
     CHECK(env->get_param("minValue") == lo && env->get_param("maxValue") == hi);
     CHECK_NEAR(env->get_setting("stage_accuracy"), 0.5f, 1e-6f);      // a knob outside the layout survives

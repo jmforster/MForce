@@ -85,14 +85,37 @@ class RewriteTests(unittest.TestCase):
         self.assertEqual(mig.rewrite(nested), {"KSPianoString": 1})
         self.assertEqual(nested["instrument"]["template"]["nodes"][0]["type"], "KSString")
 
-    def test_a_dynamic_pin_on_a_layout_knob_is_refused_by_name(self):
-        doc = graph(env_node("ASEnvelope", {"attack": 0.3}, dynamicPins={"attack": {"ref": "c"}}))
-        with self.assertRaises(ValueError) as cm:
-            mig.rewrite(doc)
-        self.assertIn("node 'env' (ASEnvelope): dynamicPins names attack", str(cm.exception))
-        ok = graph(env_node("ASEnvelope", {"attack": 0.3}, dynamicPins={"sustainLevel": {"ref": "c"}}))
-        self.assertEqual(mig.rewrite(ok), {"ASEnvelope": 1})
-        self.assertEqual(ok["graph"]["nodes"][0]["dynamicPins"], {"sustainLevel": {"ref": "c"}})
+    def test_a_dynamic_pin_on_any_layout_knob_is_refused_by_name(self):
+        self.assertEqual(len(mig.LAYOUT_KNOBS), 11)
+        for knob in sorted(mig.LAYOUT_KNOBS):
+            doc = graph(env_node("ASEnvelope", {"attack": 0.3}, dynamicPins={knob: {"ref": "c"}}))
+            with self.assertRaises(ValueError) as cm:
+                mig.rewrite(doc)
+            self.assertIn("node 'env' (ASEnvelope): dynamicPins names " + knob, str(cm.exception))
+        for knob in ("sustainLevel", "stage_accuracy", "timeScale"):
+            ok = graph(env_node("ASEnvelope", {"attack": 0.3}, dynamicPins={knob: {"ref": "c"}}))
+            self.assertEqual(mig.rewrite(ok), {"ASEnvelope": 1})
+            self.assertEqual(ok["graph"]["nodes"][0]["dynamicPins"], {knob: {"ref": "c"}})
+
+    def test_keys_the_class_never_read_are_dropped_with_a_note(self):
+        # An AREnvelope had no attackMin/attackMax; the ar form reads both.
+        doc = graph(env_node("AREnvelope", {"attack": 1.0, "attackMin": 4.0, "attackMax": 4.0}))
+        notes = []
+        self.assertEqual(mig.rewrite(doc, notes), {"AREnvelope": 1})
+        self.assertEqual(doc["graph"]["nodes"][0]["params"], {"preset": "ar", "attack": 1.0})
+        self.assertEqual(notes, ["node 'env' (AREnvelope): attackMax, attackMin dropped — the class never read them, the ar form would"])
+        # An ADSREnvelope had no clamps and no timeMode; the adsr form reads all seven.
+        doc = graph(env_node("ADSREnvelope", {"attack": 0.1, "release": 0.2, "decayMax": 0.9, "timeMode": "seconds"}))
+        notes = []
+        mig.rewrite(doc, notes)
+        self.assertEqual(doc["graph"]["nodes"][0]["params"], {"preset": "adsr", "attack": 0.1, "release": 0.2})
+        self.assertEqual(len(notes), 1)
+        self.assertIn("decayMax, timeMode dropped", notes[0])
+        # The same keys on a class that read them stay (none of the other four had any).
+        doc = graph(env_node("ASREnvelope", {"attack": 0.1, "release": 0.2}))
+        notes = []
+        mig.rewrite(doc, notes)
+        self.assertEqual(notes, [])
 
 
 class FileTests(unittest.TestCase):
