@@ -17,8 +17,10 @@ The preset form's other defaults are the deleted classes' own, so a key the
 node omitted stays omitted. A dynamicPins entry naming a layout knob (attack,
 decay, release, decayLevel, reverse, a curve or a power) is refused by name:
 those were settings on the class and are keys of a form now, not pins. Key
-order survives; a file with nothing to rewrite is not written; a second run
-changes nothing. A later deletion adds a row to RULES, not a tool.
+order and the file's indent step survive (an inline object or array is laid
+out one value per line, as every other rewrite here does); a file with
+nothing to rewrite is not written; a second run changes nothing. A later
+deletion adds a row to RULES, not a tool.
 """
 import json
 import os
@@ -92,13 +94,24 @@ def rewrite(doc):
     return counts
 
 
+def indent_of(text):
+    """The file's own indent step: the leading spaces of its first indented
+    line (2 when it has none), so a rewrite keeps the file's shape."""
+    for line in text.splitlines():
+        stripped = line.lstrip(" ")
+        if stripped != line and stripped[:1] in "\"{[":
+            return len(line) - len(stripped)
+    return 2
+
+
 def rewrite_file(path, check=False):
     """Rewrite one file in place (unless `check`). Returns the Counter."""
     text = Path(path).read_text(encoding="utf-8")
     doc = json.loads(text)
     counts = rewrite(doc)
     if counts and not check:
-        Path(path).write_text(json.dumps(doc, indent=2) + "\n", encoding="utf-8", newline="\n")
+        Path(path).write_text(json.dumps(doc, indent=indent_of(text)) + "\n",
+                              encoding="utf-8", newline="\n")
     return counts
 
 

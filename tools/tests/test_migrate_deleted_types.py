@@ -123,6 +123,15 @@ class FileTests(unittest.TestCase):
         self.assertTrue(text.endswith("}\n"))
         self.assertEqual(mig.rewrite_file(path), {})                            # a second run changes nothing
 
+    def test_a_rewritten_file_keeps_its_own_indent_step(self):
+        for indent in (1, 4):
+            path = self.write("old%d.json" % indent, graph({"id": "k", "type": "KSPianoString", "params": {}}), indent=indent)
+            self.assertEqual(mig.rewrite_file(path), {"KSPianoString": 1})
+            text = open(path, encoding="utf-8").read()
+            self.assertIn("\n" + " " * indent + '"graph": {\n', text)
+            self.assertEqual(mig.indent_of(text), indent)
+        self.assertEqual(mig.indent_of('{"a": 1}'), 2)                          # no indented line: the default
+
     def test_check_mode_reports_and_writes_nothing(self):
         path = self.write("old.json", graph({"id": "k", "type": "KSPianoString", "params": {}}))
         before = open(path, "rb").read()
