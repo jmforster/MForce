@@ -49,8 +49,10 @@ Sections:
   pairs in `filters.h`.
 - **Six envelope preset classes** (`AR`, `AS`, `ASR`, `ADS`, `ADR`,
   `ADSR`) repeat seventy lines each of stage dispatch, while `Envelope`
-  itself already has a `preset` setting. In the active patch folders
-  1,126 nodes are plain `Envelope` and 176 use a preset class.
+  itself already loads a `preset` form (a load-time form the loader
+  expands into stages — not a setting, as this bullet first said; the
+  3.5 plan corrected it). In the active patch folders 1,126 nodes are
+  plain `Envelope` and 176 use a preset class.
 - **`KSPianoString`** is a registered alias of `KSString`; 116 nodes on
   disk use the alias, 3 the real name.
 - **Files over 400 lines in the node folders:** `wave_evolution.h`
@@ -245,7 +247,7 @@ classes, so the adapter is a layer with no job.
 ## 6. The envelope presets become one type; the alias goes
 
 - The six preset classes are deleted. `Envelope` already builds its
-  stages from a `preset` setting, and 1,126 nodes on disk use it that
+  stages from a `preset` form, and 1,126 nodes on disk use it that
   way; the 176 nodes that name a preset class are migrated on disk to
   `Envelope` with the matching `preset`, the same way paramMap is.
 - `KSPianoString` is deleted as a name; the 116 nodes that use it are
@@ -253,6 +255,27 @@ classes, so the adapter is a layer with no job.
 
 Both migrations are byte-identical by construction (same stages, same
 class) and the null gate proves it.
+
+**Landed 2026-11-04** (`750f70e`..`a2ff727`, report R12). The premise was
+a load-time *form*, not a setting — `envelope_from_preset_json` expands
+`"preset": "ar" | "adsr"` into a stage list and the 1,125 nodes counted
+above load that way — so the collapse went that way: the six `rebuild()`
+bodies are four more `Envelope` factories beside `make_ar`, `make_adsr`
+and `make_adsr_abs` (`make_as`, `make_asr`, `make_ads`, `make_adr`); the
+form is six builders over one table (`kEnvelopePresets`) that read each
+class's keys with the class's defaults and shape the curved stages from
+the `<stage>Curve`/`<stage>Power` keys the classes carried;
+`envelope_preset_keys()` is the one key list both loaders consult. The
+preset is a way of writing a stage list, not node state; the alternative
+(the preset and its knobs as settings on every `Envelope`) needs the same
+on-disk form and stays open as an additive step (REVIEW R12). One tool,
+`tools/migrate_deleted_types.py`, rewrote 497 nodes across every folder
+but `old/`; the registry's `retired_type_hint` names it from both
+loaders' unknown-type messages. The equivalence of the six layouts was
+proved while both existed (the Task 1 test at `750f70e`), the null gate
+is 78/78 across the rewrite and the A/B 0 of 132. In the editor the six
+types left the menu and a Preset combo over the stage table took their
+place; the preset-only knob layout went with the classes.
 
 ## 7. The additive classes
 
@@ -307,7 +330,7 @@ None of these changes a sample. The allocation test is what proves it.
 | 3.2 | Families declared at registration; folders; the create menu generated; colours through `Theme` | none — landed 2026-10-31 (`67071f8`..`d5ebbf3`): 0 of 132 renders moved over library and baselines; in the editor seven node colours follow their new family, the Experimental sub-menu lists eight types no menu had, the dividers inside a family are gone, and the Vibrato and Segment strips are the Envelope family's; the meter counts one more include edge, `music/pitch_bend.h` → the envelope header, visible since the header left `core` (REVIEW R9) |
 | 3.3 | `core/dsp` primitives, merged one at a time with the copies compared first | none — landed 2026-11-02 (`0d500fc`..`b3c6160`): 0 of 132 renders moved over library and baselines; the copies that compute a different difference equation were left (report section 7); one departure by construction, EKS's stiffness allpass clearing both memories at a note's start (one LSB over a note's remainder with stiffness > 0; no such patch in scope) (REVIEW R10) |
 | 3.4 | Each evolution becomes a `Component`; the twelve wrappers and `IEvolutionHolder` deleted; `TargetEvolution` registered; the string-typed form deleted and two patches converted | none — landed 2026-11-03 (`efd10c7`..`0d1e826`): 0 of 132 renders moved over library and baselines; the eight archived string-form patches in `patches/old/` no longer load (the converter rewrites one on demand); in the editor a Pluck or Averaging setting edited mid-stream no longer restarts its draw stream (REVIEW R11) |
-| 3.5 | Envelope presets collapsed; `KSPianoString` migrated | none; type names change on disk |
+| 3.5 | Envelope presets collapsed; `KSPianoString` migrated | none — landed 2026-11-04 (`750f70e`..`a2ff727`): 0 of 132 renders moved over library and baselines; 497 nodes rewritten on disk (11 tracked files), `patches/old/`'s 59 left to fail by name with the tool named; in the editor the six preset types left the menu for a Preset combo over every Envelope's stage table, and the preset-only knob layout went with them (REVIEW R12) |
 | 3.6 | One type per file | none |
 | 3.7 | The real-time fixes | none; the allocation test goes green for these nodes |
 | 3.8 | `Partials` split by responsibility | designed then; byte-identical target |

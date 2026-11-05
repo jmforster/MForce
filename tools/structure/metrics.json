@@ -5,13 +5,13 @@
    [
     [
      "tools/mforce_ui/main.cpp",
-     2991,
-     3065
+     3007,
+     3081
     ],
     [
      "tools/mforce_ui/main.cpp",
-     3306,
-     3375
+     3322,
+     3391
     ]
    ]
   ],
@@ -20,13 +20,13 @@
    [
     [
      "engine/src/patch_loader.cpp",
-     1444,
-     1505
+     1448,
+     1509
     ],
     [
      "engine/src/patch_loader.cpp",
-     1687,
-     1732
+     1691,
+     1736
     ]
    ]
   ],
@@ -132,6 +132,21 @@
      "tools/stk_ref/brass_ref.cpp",
      5,
      30
+    ]
+   ]
+  ],
+  [
+   23,
+   [
+    [
+     "tools/test_figures/main.cpp",
+     158,
+     180
+    ],
+    [
+     "tools/test_figures/main.cpp",
+     716,
+     738
     ]
    ]
   ],
@@ -255,13 +270,13 @@
    [
     [
      "engine/src/patch_loader.cpp",
-     584,
-     601
+     586,
+     603
     ],
     [
      "tools/mforce_ui/main.cpp",
-     1300,
-     1315
+     1312,
+     1327
     ]
    ]
   ],
@@ -270,13 +285,13 @@
    [
     [
      "tools/mforce_ui/main.cpp",
-     12079,
-     12096
+     12023,
+     12040
     ],
     [
      "tools/mforce_ui/main.cpp",
-     12301,
-     12318
+     12245,
+     12262
     ]
    ]
   ],
@@ -355,13 +370,13 @@
    [
     [
      "tools/engine_tests/main.cpp",
-     4515,
-     4530
+     4470,
+     4485
     ],
     [
      "tools/engine_tests/main.cpp",
-     4806,
-     4821
+     4761,
+     4776
     ]
    ]
   ],
@@ -419,26 +434,6 @@
    15,
    [
     [
-     "engine/include/mforce/source/envelope/envelope_presets.h",
-     73,
-     87
-    ],
-    [
-     "engine/include/mforce/source/envelope/envelope_presets.h",
-     112,
-     122
-    ],
-    [
-     "engine/include/mforce/source/envelope/envelope_presets.h",
-     147,
-     157
-    ]
-   ]
-  ],
-  [
-   15,
-   [
-    [
      "tools/mforce_cli/main.cpp",
      640,
      654
@@ -455,13 +450,13 @@
    [
     [
      "tools/mforce_ui/main.cpp",
-     11897,
-     11911
+     11841,
+     11855
     ],
     [
      "tools/mforce_ui/main.cpp",
-     12097,
-     12111
+     12041,
+     12055
     ]
    ]
   ],
@@ -555,13 +550,13 @@
    [
     [
      "tools/mforce_ui/main.cpp",
-     2975,
-     2988
+     2991,
+     3004
     ],
     [
      "tools/mforce_ui/main.cpp",
-     3296,
-     3308
+     3312,
+     3324
     ]
    ]
   ],
@@ -570,13 +565,13 @@
    [
     [
      "tools/mforce_ui/main.cpp",
-     11898,
-     11911
+     11842,
+     11855
     ],
     [
      "tools/mforce_ui/main.cpp",
-     12098,
-     12111
+     12042,
+     12055
     ]
    ]
   ],
@@ -740,13 +735,13 @@
    [
     [
      "engine/src/patch_loader.cpp",
-     1426,
-     1437
+     1430,
+     1441
     ],
     [
      "engine/src/patch_loader.cpp",
-     1674,
-     1684
+     1678,
+     1688
     ]
    ]
   ],
@@ -770,13 +765,13 @@
    [
     [
      "tools/mforce_ui/main.cpp",
-     12652,
-     12663
+     12596,
+     12607
     ],
     [
      "tools/mforce_ui/main.cpp",
-     12714,
-     12724
+     12658,
+     12668
     ]
    ]
   ],
@@ -840,18 +835,18 @@
    [
     [
      "tools/engine_tests/main.cpp",
-     4517,
-     4527
+     4472,
+     4482
     ],
     [
      "tools/engine_tests/main.cpp",
-     4808,
-     4818
+     4763,
+     4773
     ],
     [
      "tools/engine_tests/main.cpp",
-     5313,
-     5323
+     5268,
+     5278
     ]
    ]
   ],
@@ -860,13 +855,13 @@
    [
     [
      "tools/mforce_ui/main.cpp",
-     2896,
-     2906
+     2912,
+     2922
     ],
     [
      "tools/mforce_ui/main.cpp",
-     3264,
-     3273
+     3280,
+     3289
     ]
    ]
   ],
@@ -875,13 +870,13 @@
    [
     [
      "tools/mforce_ui/main.cpp",
-     3153,
-     3163
+     3169,
+     3179
     ],
     [
      "tools/mforce_ui/main.cpp",
-     3384,
-     3394
+     3400,
+     3410
     ]
    ]
   ],
@@ -890,13 +885,13 @@
    [
     [
      "tools/mforce_ui/main.cpp",
-     9328,
-     9338
+     9344,
+     9354
     ],
     [
      "tools/mforce_ui/main.cpp",
-     9361,
-     9370
+     9377,
+     9386
     ]
    ]
   ],
@@ -905,13 +900,13 @@
    [
     [
      "tools/mforce_ui/main.cpp",
-     9953,
-     9963
+     9864,
+     9874
     ],
     [
      "tools/mforce_ui/main.cpp",
-     10055,
-     10065
+     9999,
+     10009
     ]
    ]
   ],
@@ -969,39 +964,14 @@
    10,
    [
     [
-     "engine/include/mforce/source/envelope/envelope_presets.h",
-     73,
-     82
-    ],
-    [
-     "engine/include/mforce/source/envelope/envelope_presets.h",
-     112,
-     121
-    ],
-    [
-     "engine/include/mforce/source/envelope/envelope_presets.h",
-     147,
-     156
-    ],
-    [
-     "engine/include/mforce/source/envelope/envelope_presets.h",
-     222,
-     231
-    ]
-   ]
-  ],
-  [
-   10,
-   [
-    [
      "tools/engine_tests/main.cpp",
-     4151,
-     4160
+     4106,
+     4115
     ],
     [
      "tools/engine_tests/main.cpp",
-     4479,
-     4488
+     4434,
+     4443
     ]
    ]
   ],
@@ -1045,13 +1015,13 @@
    [
     [
      "tools/mforce_ui/main.cpp",
-     6767,
-     6776
+     6783,
+     6792
     ],
     [
      "tools/mforce_ui/main.cpp",
-     6945,
-     6954
+     6961,
+     6970
     ]
    ]
   ],
@@ -1060,13 +1030,28 @@
    [
     [
      "tools/mforce_ui/main.cpp",
-     12974,
-     12983
+     12918,
+     12927
     ],
     [
      "tools/mforce_ui/main.cpp",
-     12999,
-     13008
+     12968,
+     12977
+    ]
+   ]
+  ],
+  [
+   10,
+   [
+    [
+     "tools/mforce_ui/main.cpp",
+     13914,
+     13923
+    ],
+    [
+     "tools/mforce_ui/main.cpp",
+     13955,
+     13967
     ]
    ]
   ]
@@ -1434,7 +1419,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 115,
+   "lines": 120,
    "longest_function": [
     0,
     ""
@@ -2697,7 +2682,7 @@
    "changelog_comments": 11,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 568,
+   "lines": 586,
    "longest_function": [
     70,
     "mforce::Envelope::on_start"
@@ -2709,36 +2694,18 @@
    ]
   },
   "engine/include/mforce/source/envelope/envelope_json.h": {
-   "changelog_comments": 3,
+   "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 58,
+   "lines": 147,
    "longest_function": [
-    40,
-    "mforce::envelope_from_preset_json"
-   ],
-   "module": "source",
-   "mutable_vars": 0,
-   "types": []
-  },
-  "engine/include/mforce/source/envelope/envelope_presets.h": {
-   "changelog_comments": 1,
-   "const_cast": 0,
-   "dynamic_cast": 0,
-   "lines": 244,
-   "longest_function": [
-    12,
-    "mforce::ASEnvelope::rebuild"
+    26,
+    "mforce::envelope_form::adsr"
    ],
    "module": "source",
    "mutable_vars": 0,
    "types": [
-    "AREnvelope",
-    "ASEnvelope",
-    "ASREnvelope",
-    "ADSEnvelope",
-    "ADREnvelope",
-    "ADSREnvelope"
+    "EnvelopePreset"
    ]
   },
   "engine/include/mforce/source/envelope/phased_value_source.h": {
@@ -2775,9 +2742,9 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 126,
+   "lines": 124,
    "longest_function": [
-    23,
+    21,
     "mforce::Vibrato::build_lfo"
    ],
    "module": "source",
@@ -3427,9 +3394,9 @@
    "changelog_comments": 11,
    "const_cast": 0,
    "dynamic_cast": 8,
-   "lines": 1743,
+   "lines": 1747,
    "longest_function": [
-    388,
+    391,
     "mforce::build_graph"
    ],
    "module": "render",
@@ -3457,12 +3424,12 @@
    "types": []
   },
   "engine/src/source_registrations.cpp": {
-   "changelog_comments": 2,
+   "changelog_comments": 1,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 649,
+   "lines": 601,
    "longest_function": [
-    591,
+    544,
     "mforce::register_all_sources"
    ],
    "module": "source",
@@ -3473,7 +3440,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 123,
+   "lines": 131,
    "longest_function": [
     22,
     "mforce::derived_label"
@@ -3669,8 +3636,8 @@
   "tools/engine_tests/main.cpp": {
    "changelog_comments": 4,
    "const_cast": 0,
-   "dynamic_cast": 18,
-   "lines": 7823,
+   "dynamic_cast": 20,
+   "lines": 7946,
    "longest_function": [
     272,
     "run_walk3_tests"
@@ -3697,6 +3664,7 @@
     "OrderProbe",
     "LengthProbe",
     "SplitResult",
+    "StageRow",
     "Plug",
     "ReseedProbe",
     "FamilyRow",
@@ -3761,12 +3729,12 @@
    "types": []
   },
   "tools/mforce_ui/main.cpp": {
-   "changelog_comments": 125,
+   "changelog_comments": 124,
    "const_cast": 0,
-   "dynamic_cast": 21,
-   "lines": 14512,
+   "dynamic_cast": 22,
+   "lines": 14481,
    "longest_function": [
-    1713,
+    1738,
     "main"
    ],
    "module": "ui",
@@ -4079,16 +4047,16 @@
   }
  ],
  "summary": {
-  "changelog_comments": 248,
+  "changelog_comments": 242,
   "const_cast": 10,
-  "duplicate_blocks": 151,
-  "dynamic_cast": 60,
+  "duplicate_blocks": 146,
+  "dynamic_cast": 63,
   "file_level_mutable_vars": 120,
-  "files": 180,
+  "files": 179,
   "files_over_limit": 20,
   "functions_over_limit": 98,
   "include_violations": 14,
-  "lines": 61474,
+  "lines": 61396,
   "unmapped_files": 0
  }
 }

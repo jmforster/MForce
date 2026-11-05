@@ -19,7 +19,54 @@ given.
 
 ## Awaiting
 
-(none)
+**R12 — checkpoint 3.5: the envelope presets become one type; the `KSPianoString` alias goes**
+(2026-11-04, commits `750f70e`..`a2ff727`) — under the standing rule,
+nothing blocks the landing; one interface question is yours (item 1,
+answer any time), and the consequences of the two deletions are named.
+- Read: `docs/autonomy/refactor/reports/2026-11-04-checkpoint-3.5.md`
+  (its reading guide is ten minutes; section 1 names the one correction to
+  Part 3 section 6 — the preset was a load-time form, never a setting —
+  and the three editor-visible differences; section 6 item 3 is the table
+  of the six layouts and the one default that differs; section 8 the
+  refutation and the wave; section 10 four C++ lessons: a table of
+  function pointers as a dispatch, static factories versus subclasses to
+  name a layout, `inline constexpr` in a header, the most vexing parse met
+  in a test).
+- Try: `python tools/null_gate_perform_source.py --jobs 3` (78/78); open the
+  editor and right-click the canvas — Envelopes lists one Envelope; create
+  one and look above its stage table: a Preset combo with Apply; pick ASR
+  and Apply, the table lays out three stages. Open
+  `patches/library/winds/bassoon1.json`: `Morph_env` is an Envelope whose
+  stage table holds what its AS knob group held. Load any file from
+  `patches/old/` that names a preset class: the status line names
+  `tools/migrate_deleted_types.py`.
+- Decide, yours, non-blocking: (1) **the editor's face of an Envelope.**
+  The six preset types are gone from the menu and with them the preset
+  knob groups you laid out on 2026-08-29 (Duration, Shape); every Envelope
+  is the stage table plus the Preset combo, and the 174 rewritten nodes
+  show the table where they showed knobs. If you want the knobs back, the
+  way is `Setting<int> preset` plus the layout knobs as settings on
+  `Envelope` (inert on an authored shape) — additive on top of this
+  checkpoint; the files on disk already carry exactly the keys that design
+  would read, so there is no second rewrite (plan ruling 1). The code as
+  landed is the recommendation: the stage list is the one truth, a preset
+  is a way of writing one, which is what your own note in `envelope.h`
+  says ("presets are UI conveniences").
+- Decided, named here and not asked: (2) `patches/old/`'s 59 nodes (54
+  preset-class, 5 alias) in 41 files fail to load naming the tool; one
+  command rewrites them if ever wanted. (3) `patches/pending/` was
+  rewritten under Part 3 section 6's own count (23 files; originals at
+  `renders/scratch/ab35/pending_before/`), and `sweep/` and `scratch/`
+  too (whitespace reformatted to indent 2 on the first run; the tool keeps
+  a file's indent since). (4) `sustainLevel` reads 0 on an `as`/`asr`/`ads`
+  shape where the class showed its stored level — the knob was inert
+  there (CLEANUP 22). (5) The `adsr` form's `release` default 0.0 against
+  the class's 0.1: every node on disk carries the key; the tool wrote 0.1
+  where a class node lacked one (CLEANUP 23). (6) Two generator scripts'
+  AR ramp drivers now apply the `attackMin`/`attackMax` they always carried
+  (dead on the class). (7) The lint's selftest was passing nothing (its
+  bad key is in the global allowlist); fixed in Task 1's commit.
+- Refuter: byte-identity upheld with the refuter's own A/B (the eleven rewritten scope files and three controls 14/14, eight synthetics of its own 8/8, five archived copies through the tool); no Critical; two Majors, both in the editor's new Preset Apply (the cached `sustainLevel` — 0 on every two- or three-stage node — pushed over a fresh ADSR's four slots, and that push outside the audio lock); three Minors (the tool carried keys a class never read into a form that reads them, seven archived files would have moved; the refusal test pinned one knob of eleven; the whole-corpus roundtrip gate permanently red since 3.2); two Flags. The wave (`b1d0222`) fixed all but the standing Flag — Apply re-pulls under the lock through one function with a headless `--apply-preset` twin that proved it on `bassoon1` and `reed_test`; the tool drops the dead keys by name; the gate's known set is the backlog-79 six and the run is green. Re-review: closeable, nothing introduced, four Flags — two one-line fixes taken (an upper-case preset name; an ASCII note), one coverage correction accepted (the three in-scope `as` nodes are dead in the render, so `as` is render-pinned by the synthetic sets and the tests, not by the scope — CLEANUP 30), one stale scratch label.
 
 ## Resolved
 

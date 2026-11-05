@@ -32,6 +32,15 @@ full record of debt; this file is the short list of what is worth a look.
 | 19 | Four evolutions' `on_setting_changed` hooks restate bounds their declarations carry (lower-only in three); if Part 4's loader clamps every setting to its declared range, the hooks go. | 3.4 ruling 4 | — |
 | 20 | The wavetable's two first-sample blocks (`compute_raw`, `compute_interpolated`) each read the slot and call `adjust`/`shape_excitation`; one block (3.3 ruling 17; 3.6). | 3.4 §7 | — |
 | 21 | A Pluck or Averaging setting edited mid-stream in the editor no longer restarts the evolution's draw stream (the wrapper's rebuild did). One `rng_.reanchor()` in `on_setting_changed` restores the restart if it is ever wanted. | 3.4 ruling 3 | stands, 2026-11-03 |
+| 22 | `sustainLevel` reads the four-slot view (0) on a two- or three-stage Envelope (`as`, `asr`, `ads`) where the deleted classes reported the level they stored; the knob was already inert on such a shape. A per-shape sustain slot (the expand stage's value) would read truthfully. | 3.5 ruling 1 | stands, 2026-11-04 |
+| 23 | The `adsr` form's `release` default is 0.0 where the deleted `ADSREnvelope`'s was 0.1; every `adsr` node in the active folders carries the key (the migration wrote 0.1 where a class node lacked it), so the default could move to 0.1 after Part 8 once `old/` and `sweep/` are surveyed for a bare case. | 3.5 ruling 3 | — |
+| 24 | Six `algev_test_*` baselines carry `release` and `releaseMax` on an `ar`-form Envelope that no form ever read (the AR release is the expand); the global allowlist admits them. A per-form key check belongs to the lint. | 3.5 ruling 13 | — |
+| 25 | The preset form's curves are ints 0..3 (what the class settings were, what 113 nodes carry); the stages form's are strings. One dialect, with backlog 36. | 3.5 ruling 4 | — |
+| 26 | The editor's new-Envelope default (`make_adsr(0.05, 0.1, 0.7, 0.2)`) differs from the registry's `Envelope` factory (`make_ar(0.2)`); one of the two. | 3.5 ruling 9 | — |
+| 27 | `retired_type_hint`'s seven names and `tools/migrate_deleted_types.py`'s `RULES` are one list in two languages; a lint selftest could compare them, or the tool could ask `--dump-descriptors` which names are gone. | 3.5 ruling 8 | — |
+| 28 | `tools/engine_tests/main.cpp` casts `dynamic_cast<PitchedInstrument*>` nineteen times (two new); one helper. | 3.5 §7 | — |
+| 29 | The loader's Envelope stages branch reads `stage_accuracy` and `ramp_accuracy` itself (with a clamp) before `wire_params_generic`'s settings pass reads them again (with the node's own clamp); one read. | 3.5 §7 | — |
+| 30 | `Morph_env` (an `as` Envelope) in `patches/library/winds/bassoon1.json`, `oboe2.json` and `patches/baselines/feedback/loop_hysteresis_bow.json` is dead: nothing reads it as a signal, and the render is the same with it changed or gone (the 3.5 re-review's N1). Delete the node, or wire it to what it was meant to drive. | 3.5 re-review N1 | — |
 
 ## Byte-identity preservations to retire after Part 8
 

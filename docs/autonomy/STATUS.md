@@ -1,5 +1,89 @@
 # Status — session handoff (Claude reads this first; Matt's queue = */REVIEW.md)
 
+Updated: 2026-11-04 (refactor session VIII continued, Fable 5.1 xhigh).
+CHECKPOINT 3.5 LANDED on main: 750f70e..a2ff727 (b1d0222 the review wave, a2ff727 the re-review's two flags) — the fifth of Part 3's
+eight. THE SHAPE: Part 3 §6's premise ("Envelope already has a preset
+setting") was wrong in the letter — the preset is a load-time FORM
+(envelope_from_preset_json expands "preset": "ar"|"adsr" into stages; 1,125
+nodes load that way) — so the six preset classes collapsed in that
+direction: four more Envelope factories beside make_ar/make_adsr/make_adsr_abs
+(make_as, make_asr, make_ads, make_adr — each class's rebuild() body
+verbatim); envelope_json.h is six builders over one table (kEnvelopePresets:
+name, builder) reading each class's keys with the class's defaults and
+shaping curved stages from <stage>Curve/<stage>Power; envelope_preset_keys()
+is the one key list both loaders consult (the editor's hand copy gone); the
+loader's Envelope branch reads seed in both forms; kBranchKeys 130 -> 134.
+DELETED: envelope_presets.h (six classes), their six registrations, the
+KSPianoString registration (86 -> 79 registrations, 57 Main / 22
+Experimental), SustainDefault + the protected ctor + is_common_knob_ (sustain_level()
+a private function), the derived-label "Envelope" suffix, the editor's
+preset-only Duration/Shape layout. ADDED: SourceRegistry::retired_type_hint
+(seven names -> the tool's name; the loader's unknown-type throw and the
+editor's status line both append it); the editor's Preset combo + Apply above
+every Envelope's stage table (replace_stages under the audio mutex, then
+apply_config); tools/migrate_deleted_types.py (RULES table, --check,
+indent-keeping; 14 unit tests) which rewrote 497 nodes in 489 files across
+audition/baselines/library/pending/sweep/scratch (11 tracked: the seven
+preset files and four pianos in scope); patches/old/ left (59 nodes in 41
+files fail by name, the tool named); pending/ originals at
+renders/scratch/ab35/pending_before/. DESIGN CALL (plan ruling 1, REVIEW R12
+item 1, non-blocking): presets are factories and a load form, not node state;
+the alternative (Setting<int> preset + eleven knobs on every Envelope) stays
+open as an ADDITIVE step — the on-disk rewrite is identical under both. NO
+RENDER MOVED: null gate 78/78 after every task and across the rewrite (all
+eleven rewritten in-scope files are in the manifest); A/B 132 identical, 0
+DIFFER (old arm from cli_pre35.exe over the UNREWRITTEN files at Task 0, new
+arm from 6a825a4 over the rewritten); synthetic set of eight written in the
+CLASS form with every knob off its default (as reverse+accuracies+seed, asr,
+ads, adr, ar, adsr with every curve, adsr bare for the written release
+default, as under a 3-clone multiplex for the injected seed): same-binary
+class-vs-form 8/8 under the Task 1 engine, cross-binary old-class vs
+new-form 8/8. The six layouts' equivalence was proved while both existed
+(Task 1's test at 750f70e: class via set_setting over a knob grid vs the
+form, eight stage fields per stage) and the class half deleted at Task 3
+with literal stage tables left. Tests 7552 -> 7656 -> 7457 (ALL PASS).
+Mutations all caught (asr clamp 14 FAIL; asr release ramp 1 FAIL — the form
+shapes the stage from its key's default, so the factory's own ramp is only
+reachable by a direct caller, Vibrato; a factory test was added for exactly
+that; the tool's adsr default; a resurrected ASEnvelope registration 6 FAIL;
+the hint nulled 4 FAIL). Roundtrip whole corpus: the backlog-79 six, 0 id
+changes. Timing: run 1 with the refuter working 0.95x-1.07x (base walls 5-8%
+above 3.4's clean run; nothing per-sample changed); run 2 on a quiet machine
+in the report. METER (--delta 9f0140c): files -1, lines -117, dynamic_cast
++2 (both in the test file's new loader helpers; engine 15 -> 15),
+duplicate_blocks -6, changelog_comments -6, include_violations +0 (14),
+unmapped 0; thirteen types removed, two added. REFUTER (report §8): no Critical; two Majors on the
+editor's Preset Apply (stale cached sustainLevel pushed over a fresh ADSR;
+the push outside g_audioMutex), three Minors (tool carried dead keys into
+the form; refusal test one knob of eleven; the whole-corpus roundtrip gate
+permanently red since 3.2), two Flags; WAVE b1d0222 fixed all but the
+standing Flag (apply_envelope_preset re-pulls under the lock, headless
+--apply-preset twin proved it; the tool's dead keys; KNOWN_DIFFS = the six,
+gate green; per-node combo state); RE-REVIEW closeable, nothing introduced,
+four Flags: upper-case preset name and an ASCII note fixed (the commit after
+the wave), the three in-scope `as` nodes are DEAD in the render (coverage
+corrected: `as` is render-pinned by the synthetics and the tests; Morph_env
+CLEANUP 30), a stale scratch label. DOCS: report R12
+docs/autonomy/refactor/reports/2026-11-04-checkpoint-3.5.md; REVIEW R12 under
+Awaiting (one non-blocking question; six items named); Part 3 §1 bullet and
+§6 corrected ("preset form", the landed paragraph), §10 row 3.5; BACKLOG row
+2: 3.5 DONE, 3.6 NEXT — plan 3.6 to write (one type per file, Part 3 §8);
+CLEANUP rows 22-29; the plan's Ledger carries rulings 1-20 and the execution
+notes. HARNESS NOTES (memory project_crlf_edit_scripts): git stash/pop under
+autocrlf turns LF working copies CRLF; a span edit must end at the NEAREST
+marker (one ran 2,400 lines past and deleted a third of the tests — restored
+from the commit); a failed build leaves the old test binary's ALL PASS line
+in place — read the compiler errors first; the structure meter walks git
+ls-files, so a deleted header must be staged before its tests pass, and its
+known-answer test pins the editor's properties-panel length (re-pin on every
+edit inside it); the lint's selftest had been passing nothing (its bad key
+"frequency" is in the global allowlist) — fixed. DEBT (report §7): CLEANUP
+22-29; replace_stages kept for the combo; the Apply button not clicked in a
+running editor (no headless path; no desktop control this session — the
+roundtrip and the engine tests cover its path); the global allowlist (Part
+4); the test file's nineteen PitchedInstrument casts. GOALS.md stays Matt's
+uncommitted edit.
+
 Updated: 2026-11-03 (refactor session VIII, Fable 5.1 xhigh). CHECKPOINT 3.4
 LANDED on main: efd10c7..0d1e826 — the fourth of Part 3's eight. THE SHAPE:
 WaveEvolution is the family's abstract base (struct WaveEvolution : Component)
