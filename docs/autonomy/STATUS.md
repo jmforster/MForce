@@ -9,8 +9,23 @@ the white/red shaped draw as one twin-tested helper. Execute it after the
 writes plans and refutes where the gates are blind; Sonnet 5.5 executors
 take the mechanical tasks; claude-opus-4-8 (never Opus 5/5.5) reviews 3.6
 in place of a Fable refuter and coordinates if the Fable window is spent.
-At every plan, read get_usage and put the split to Matt in one line. 3.7
-(real-time fixes) keeps a Fable refuter with a narrowed brief; 3.8 is Fable.
+At every plan, read get_usage and put the split to Matt in one line.
+MODEL COMBO PER CHECKPOINT (Matt, 2026-11-04, "Perfect. Proceed."):
+  3.6 — coordinator claude-opus-4-8 (start the session on it: the plan is
+  written, Fable is not needed), one Sonnet 5.5 executor per task in
+  sequence, reviewer claude-opus-4-8 against the plan's tables, no Fable
+  refuter, no re-review unless a Major. The coordinator reruns the null
+  gate before every commit.
+  3.7 (real-time fixes) — Fable writes the plan and executes the engine
+  hot-path tasks; Sonnet the rest; a Fable refuter with a brief narrowed to
+  the live path, sizing and the allocation gate's coverage (roughly half of
+  3.5's spend); Opus 4.8 as refuter only if the week's Fable runs short.
+  3.8 (Partials) — Fable throughout.
+  The session-start model check will flag Opus 4.8 as a change from Fable;
+  that is intended for 3.6 and this paragraph is the authority for it.
+  Matt's new session for 3.6 is planned for 2026-11-05, before the Fable
+  reset (2026-11-07 ~02:00 HST): Opus 4.8 draws on the all-models window
+  (40 percent used on 11-04), not the Fable one (79 percent).
 CHECKPOINT 3.5 LANDED on main: 750f70e..a2ff727 (b1d0222 the review wave, a2ff727 the re-review's two flags) — the fifth of Part 3's
 eight. THE SHAPE: Part 3 §6's premise ("Envelope already has a preset
 setting") was wrong in the letter — the preset is a load-time FORM
