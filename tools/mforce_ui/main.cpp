@@ -9932,6 +9932,43 @@ static void draw_properties_panel() {
             bool changed = false;
             int  removeIdx = -1;
 
+            // Preset: the layouts the engine's one dispatch knows, laid out
+            // with their defaults over this node's stage list through
+            // replace_stages (the wires and the knobs outside the layout
+            // stay); the table below is where the values are edited.
+            {
+                static int presetIdx = int(std::size(kEnvelopePresets)) - 1;     // adsr
+                auto upper = [](const char* s) {
+                    std::string u(s);
+                    for (auto& c : u) c = char(::toupper((unsigned char)c));
+                    return u;
+                };
+                ImGui::AlignTextToFramePadding();
+                ImGui::TextUnformatted("Preset");
+                ImGui::SameLine();
+                ImGui::PushItemWidth(80);
+                if (ImGui::BeginCombo("##envpreset", upper(kEnvelopePresets[presetIdx].name).c_str())) {
+                    for (int i = 0; i < int(std::size(kEnvelopePresets)); ++i)
+                        if (ImGui::Selectable(upper(kEnvelopePresets[i].name).c_str(), i == presetIdx))
+                            presetIdx = i;
+                    ImGui::EndCombo();
+                }
+                ImGui::PopItemWidth();
+                ImGui::SameLine();
+                if (ImGui::SmallButton("Apply")) {
+                    {
+                        std::lock_guard<std::mutex> lock(g_audioMutex);
+                        env->replace_stages(std::move(*envelope_from_preset_json(
+                            nlohmann::json{{"preset", kEnvelopePresets[presetIdx].name}})));
+                    }
+                    node->apply_config();        // the cached knobs back onto the new layout
+                    changed = true;
+                }
+                if (ImGui::IsItemHovered())
+                    ImGui::SetTooltip("Lay the stages out as this preset with its defaults;\n"
+                                      "edit the values in the table below.");
+            }
+
             ImGui::BeginGroup();
             if (ImGui::BeginTable("stages", 8,
                     ImGuiTableFlags_SizingFixedFit | ImGuiTableFlags_BordersInnerV)) {

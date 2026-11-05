@@ -63,8 +63,8 @@ def driver_nodes(driver):
                             "decay": driver[1], "sustainLevel": 0.0,
                             "release": 0.0}}], "menv"
     if driver[0] == "ramp":
-        return [{"id": "menv", "type": "AREnvelope",
-                 "params": {"attack": 1.0, "attackMin": float(SECONDS),
+        return [{"id": "menv", "type": "Envelope",
+                 "params": {"preset": "ar", "attack": 1.0, "attackMin": float(SECONDS),
                             "attackMax": float(SECONDS)}}], "menv"
     if driver[0] == "lfo":
         return [{"id": "mosc", "type": "SineSource",

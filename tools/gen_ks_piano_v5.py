@@ -108,7 +108,7 @@ def base_patch(score, polyphony=1):
                 },
                 {
                     "id": "string",
-                    "type": "KSPianoString",
+                    "type": "KSString",
                     "params": {
                         "source": {"ref": "hammer"},
                         "frequency": 220.0,

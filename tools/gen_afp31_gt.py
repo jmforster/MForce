@@ -94,7 +94,7 @@ PATCH = {
            "minSec": 0.196, "maxSec": 0.196, "holdPct": 0.0, "power": 0.0},
           {"startVal": 1.0, "endVal": 1.0, "type": "Linear", "percent": 0.5,
            "minSec": 0.0, "maxSec": 0.25, "holdPct": 0.0, "power": 0.0}]}},
-      {"id": "string", "type": "KSPianoString",
+      {"id": "string", "type": "KSString",
        "params": {"source": {"ref": "exc_1p"}, "frequency": 220.0,
                    "numCombs": 3, "detune": 0.001, "t60": 10.0,
                    "brightness": 0.926,

@@ -88,7 +88,7 @@ def patch(volume, att_vals, bed=None, bed_sm=0.5, sus=1.0, wt_fill=None, bed_gai
         src = sid
     nodes += [
         {"id": "env_damper", "type": "Envelope", "params": DAMPER},
-        {"id": "string", "type": "KSPianoString",
+        {"id": "string", "type": "KSString",
          "params": {"source": {"ref": src}, "frequency": 220.0, "numCombs": 3,
                     "detune": 0.5, "t60": 10.0, "brightness": 0.926, "exciteGain": 1.0,
                     "direct": 0.0, "dispersion": 0.12, "inharmGain": 0.0, "inharmFb": 0.0,

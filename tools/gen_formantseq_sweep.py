@@ -41,8 +41,8 @@ INHARM = [[(800, 1.0, 70, 2.5), (1900, 0.8, 90, 2.5), (2700, 0.5, 110, 2.5)],
 def driver_nodes(kind):
     """Return (nodes, blend_ref) for a 0..1 blend driver."""
     if kind == "ramp":
-        return ([{"id": "drv", "type": "AREnvelope",
-                  "params": {"attack": 1.0, "attackMin": float(SECONDS),
+        return ([{"id": "drv", "type": "Envelope",
+                  "params": {"preset": "ar", "attack": 1.0, "attackMin": float(SECONDS),
                              "attackMax": float(SECONDS)}}], "drv")
     if kind.startswith("lfo"):
         hz = float(kind[3:])

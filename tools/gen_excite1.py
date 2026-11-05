@@ -74,7 +74,7 @@ def patch(name, values, sm, volume):
                         "widthVarPct": 0.0, "valVarPct": 0.0, "gap": 0.0, "gapVarPct": 0.0,
                         "oneShot": True}},
             {"id": "env_damper", "type": "Envelope", "params": DAMPER},
-            {"id": "string", "type": "KSPianoString",
+            {"id": "string", "type": "KSString",
              "params": {"source": {"ref": "seg"}, "frequency": 220.0, "numCombs": 3,
                         "detune": 0.5, "t60": 10.0, "brightness": 0.926, "exciteGain": 1.0,
                         "direct": 0.0, "dispersion": 0.12, "inharmGain": 0.0, "inharmFb": 0.0,

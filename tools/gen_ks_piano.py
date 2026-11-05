@@ -111,7 +111,7 @@ def string_node(source, full):
         })
     else:
         p.update({"dispersion": 0.0, "inharmGain": 0.0, "fbCoeff": 0.0})
-    return {"id": "string", "type": "KSPianoString", "params": p}
+    return {"id": "string", "type": "KSString", "params": p}
 
 
 def verb_node(source):

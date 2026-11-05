@@ -244,7 +244,7 @@ def base_patch(excite_noise=None, shaping=None, click_env=None, level_curve=None
             "nodes": excite_nodes + [hammer_node] + shaping_nodes + [
                 {
                     "id": "string",
-                    "type": "KSPianoString",
+                    "type": "KSString",
                     "params": {
                         "source": string_source,
                         "frequency": 220.0,
