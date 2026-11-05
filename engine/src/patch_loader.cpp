@@ -268,7 +268,8 @@ static void reject_unknown_keys(const Component& src, const std::string& id,
         "a", "absolute", "amplEnvelopes", "amplitudes", "articulation",
         "attack", "attackCurve", "attackMax", "attackMin", "attackPower", "b",
         "baseValue", "bias", "channels", "count", "curve", "cutoff", "decay",
-        "decayMax", "decayMin", "delay", "dt1", "dt2", "durVarPct", "duration",
+        "decayCurve", "decayLevel", "decayMax", "decayMin", "decayPower", "delay",
+        "dt1", "dt2", "durVarPct", "duration",
         "dynamicPins", "endAmplitudes", "endPartials", "endVal", "envelope",
         "expandRule", "exprKnots", "field", "filter", "form", "formants",
         "frames", "freqEnvelopes", "frequency", "from", "gain", "gainAdj",
@@ -280,7 +281,7 @@ static void reject_unknown_keys(const Component& src, const std::string& id,
         "partialCount", "partialMode", "partials", "percent", "po1", "po2",
         "polyphony", "power", "power1", "power2", "powers", "powers2", "preset",
         "ramp_accuracy", "ratio", "recurse", "ref", "release", "releaseCurve",
-        "releaseMax", "releaseMin", "releasePower", "sampleRate", "score",
+        "releaseMax", "releaseMin", "releasePower", "reverse", "sampleRate", "score",
         "seconds", "sections", "seed", "segs", "segs2", "source", "spacing1",
         "spacing2", "stage_accuracy", "stages", "startAmplitudes",
         "startPartials", "startVal", "sustain", "sustainLevel", "sustaining",
@@ -578,9 +579,10 @@ static GraphResult build_graph(
         else if (type == "Envelope") {
             if (!pp) throw std::runtime_error("Envelope requires params");
             const auto& p = *pp;
+            std::shared_ptr<Envelope> env;
 
             if (p.contains("stages")) {
-                auto env = std::make_shared<Envelope>();
+                env = std::make_shared<Envelope>();
                 for (const auto& sj : p["stages"]) {
                     Envelope::Stage s;
                     s.ramp.startVal = sj.value("startVal", 0.0f);
@@ -600,9 +602,6 @@ static GraphResult build_graph(
                     s.nominal = sj.value("nominal", 0.0f);
                     env->add_stage(s);
                 }
-                // Pick up multiplex-injected seed and any accuracy settings.
-                if (p.contains("seed") && p["seed"].is_number())
-                    env->set_seed(uint32_t(p["seed"].get<int64_t>()));
                 if (p.contains("stage_accuracy") && p["stage_accuracy"].is_number())
                     env->stage_accuracy.value = std::clamp(p["stage_accuracy"].get<float>(), 0.0f, 1.0f);
                 if (p.contains("ramp_accuracy") && p["ramp_accuracy"].is_number())
@@ -611,12 +610,15 @@ static GraphResult build_graph(
                 // absolute_time). Same key as the adsr preset form.
                 if (p.value("timeMode", std::string("fraction")) == "seconds")
                     env->absolute_time = true;
-                graphNodes[id] = env;
             } else {
                 // Shared preset dispatch (envelope_json.h) — the UI graph
                 // loader calls the same function, so the two cannot drift.
-                graphNodes[id] = envelope_from_preset_json(p);
+                env = envelope_from_preset_json(p);
             }
+            // An authored or multiplex-injected seed, in either form.
+            if (p.contains("seed") && p["seed"].is_number())
+                env->set_seed(uint32_t(p["seed"].get<int64_t>()));
+            graphNodes[id] = env;
             // Pullable range params (minValue / maxValue, PerformSource P1,
             // envelope.h param_descriptors). This explicit branch never ran
             // the generic wiring, so from 2026-08-18 to 2026-08-22 the keys
@@ -624,7 +626,7 @@ static GraphResult build_graph(
             // Envelope — proved by A/B, maxValue 0.25 rendered byte-identical
             // to the control. Registry-path envelope types (ADSREnvelope…)
             // were always wired. Null when absent → identity, unchanged.
-            wire_params_generic(*graphNodes[id], id, p, graphNodes);
+            wire_params_generic(*env, id, p, graphNodes);
         }
         else if (type == "CurveNode") {
             auto cn = std::make_shared<CurveNode>();

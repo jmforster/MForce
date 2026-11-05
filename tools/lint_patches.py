@@ -181,8 +181,10 @@ def lint_file(path, desc, special):
 def selftest(desc, special):
     """The linter must flag a known-bad key and stay quiet on a known-good one."""
     import tempfile
+    # The allowlist is global, so the bad key must be one no hand-written
+    # branch reads anywhere: "frequency" is read by several and passes.
     bad = {"graph": {"nodes": [{"id": "vn", "type": "VelvetNoiseSource",
-                                "params": {"frequency": 20.0, "amplitude": 1.0}}]}}
+                                "params": {"densty": 20.0, "amplitude": 1.0}}]}}
     good = {"graph": {"nodes": [{"id": "vn", "type": "VelvetNoiseSource",
                                  "params": {"density": 20.0, "amplitude": 1.0}}]}}
     ok = True

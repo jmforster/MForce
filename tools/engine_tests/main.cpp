@@ -6872,6 +6872,170 @@ static void run_string_pin_refusal_tests() {
     CHECK(ip.instrument != nullptr);
 }
 
+#include "mforce/source/envelope/envelope_json.h"
+
+// ---------------------------------------------------------------------------
+// The preset form against the preset classes: for each of the six layouts a
+// class built through set_setting (what the registry path's generic settings
+// pass does) lays out the same stages as the form built from the same keys
+// at once.
+// ---------------------------------------------------------------------------
+static bool same_layout(const Envelope& a, const Envelope& b) {
+    if (a.stage_count() != b.stage_count()) return false;
+    for (int i = 0; i < a.stage_count(); ++i) {
+        const auto& s = a.stage(i);
+        const auto& t = b.stage(i);
+        if (s.percent != t.percent || s.minSec != t.minSec || s.maxSec != t.maxSec || s.nominal != t.nominal)
+            return false;
+        if (s.ramp.startVal != t.ramp.startVal || s.ramp.endVal != t.ramp.endVal
+            || s.ramp.type != t.ramp.type || s.ramp.power != t.ramp.power)
+            return false;
+    }
+    return a.absolute_time == b.absolute_time && a.has_adsr_shape_() == b.has_adsr_shape_();
+}
+
+// The four layout factories, stage by stage: the form shapes the curved
+// stages afterwards from its keys, so these are the factories' own values,
+// which a direct caller (Vibrato's ramps) gets.
+struct StageRow { float start, end; RampType type; float power, percent, minSec, maxSec; };
+static bool stages_are(const Envelope& e, std::initializer_list<StageRow> rows) {
+    if (e.stage_count() != int(rows.size())) return false;
+    int i = 0;
+    for (const auto& r : rows) {
+        const auto& s = e.stage(i++);
+        if (s.ramp.startVal != r.start || s.ramp.endVal != r.end || s.ramp.type != r.type || s.ramp.power != r.power
+            || s.percent != r.percent || s.minSec != r.minSec || s.maxSec != r.maxSec || s.nominal != 0.0f)
+            return false;
+    }
+    return true;
+}
+
+static void run_envelope_factory_tests() {
+    const RampType L = RampType::Linear, S = RampType::Sine;
+    CHECK(stages_are(*Envelope::make_as(0.3f),
+                     {{0.0f, 1.0f, L, 0.0f, 0.3f, 0.0f, 1.0f}, {1.0f, 1.0f, L, 0.0f, 0.0f, 0.0f, 0.0f}}));
+    CHECK(stages_are(*Envelope::make_as(0.3f, 0.6f, true),
+                     {{0.6f, 0.0f, L, 0.0f, 0.3f, 0.0f, 1.0f}, {0.0f, 0.0f, L, 0.0f, 0.0f, 0.0f, 0.0f}}));
+    CHECK(stages_are(*Envelope::make_asr(0.15f, 0.4f, 0.3f),
+                     {{0.0f, 0.4f, L, 0.0f, 0.15f, 0.0f, 1.0f}, {0.4f, 0.4f, L, 0.0f, 0.0f, 0.0f, 0.0f},
+                      {0.4f, 0.0f, S, 0.0f, 0.3f, 0.0f, 0.0f}}));
+    CHECK(stages_are(*Envelope::make_ads(0.1f, 0.25f, 0.3f),
+                     {{0.0f, 1.0f, L, 0.0f, 0.1f, 0.0f, 1.0f}, {1.0f, 0.3f, L, 0.0f, 0.25f, 0.0f, 0.5f},
+                      {0.3f, 0.3f, L, 0.0f, 0.0f, 0.0f, 0.0f}}));
+    CHECK(stages_are(*Envelope::make_adr(0.1f, 0.2f, 0.55f),
+                     {{0.0f, 1.0f, L, 0.0f, 0.1f, 0.0f, 1.0f}, {1.0f, 0.55f, L, 0.0f, 0.2f, 0.0f, 0.5f},
+                      {0.55f, 0.0f, S, 0.0f, 0.0f, 0.0f, 0.0f}}));
+    for (const auto& e : {Envelope::make_as(0.3f), Envelope::make_asr(0.15f, 0.4f, 0.3f),
+                          Envelope::make_ads(0.1f, 0.25f, 0.3f), Envelope::make_adr(0.1f, 0.2f, 0.55f)})
+        CHECK(!e->has_adsr_shape_() && !e->absolute_time);      // none is the four-slot shape, none in seconds
+}
+
+// The class from the registry with its knobs pushed in the JSON's order; the
+// form from the same keys plus the preset's name.
+static bool class_matches_form(const char* cls, const char* preset, const nlohmann::json& knobs) {
+    auto e = std::dynamic_pointer_cast<Envelope>(SourceRegistry::instance().create(cls));
+    if (!e) return false;
+    for (const auto& [k, v] : knobs.items())
+        e->set_setting(k, v.is_boolean() ? (v.get<bool>() ? 1.0f : 0.0f) : v.get<float>());
+    nlohmann::json p = knobs;
+    p["preset"] = preset;
+    const bool same = same_layout(*e, *envelope_from_preset_json(p));
+    if (!same) std::printf("  layout differs: %s vs %s\n", cls, p.dump().c_str());
+    return same;
+}
+
+struct FormLayout { const char* cls; const char* preset; const char* allOff; std::vector<const char*> curves; const char* level; };
+static const FormLayout kFormLayouts[] = {
+    {"AREnvelope", "ar", R"({"attack":0.4,"attackCurve":2,"attackPower":1.2,"releaseCurve":0,"releasePower":3.0})",
+     {"attackCurve", "releaseCurve"}, nullptr},
+    {"ASEnvelope", "as", R"({"attack":0.35,"attackCurve":1,"attackPower":2.5,"reverse":true,"sustainLevel":0.6})",
+     {"attackCurve"}, "sustainLevel"},
+    {"ASREnvelope", "asr", R"({"attack":0.15,"attackCurve":2,"attackPower":1.5,"release":0.3,"releaseCurve":2,"releasePower":0.5,"sustainLevel":0.4})",
+     {"attackCurve", "releaseCurve"}, "sustainLevel"},
+    {"ADSEnvelope", "ads", R"({"attack":0.1,"attackCurve":3,"decay":0.25,"decayCurve":1,"decayPower":2.0,"sustainLevel":0.3})",
+     {"attackCurve", "decayCurve"}, "sustainLevel"},
+    {"ADREnvelope", "adr", R"({"attack":0.1,"attackPower":0.7,"decay":0.2,"decayCurve":3,"decayLevel":0.55,"releaseCurve":1,"releasePower":1.5})",
+     {"attackCurve", "decayCurve", "releaseCurve"}, "decayLevel"},
+    {"ADSREnvelope", "adsr", R"({"attack":0.12,"attackCurve":1,"attackPower":0.8,"decay":0.2,"decayCurve":2,"decayPower":1.1,"sustainLevel":0.5,"release":0.25,"releaseCurve":0,"releasePower":2.0})",
+     {"attackCurve", "decayCurve", "releaseCurve"}, "sustainLevel"},
+};
+
+static void run_envelope_form_equivalence_tests() {
+    register_all_sources();
+    for (const auto& L : kFormLayouts) {
+        nlohmann::json defaults = nlohmann::json::object();
+        if (std::string(L.cls) == "ADSREnvelope") defaults["release"] = 0.1;   // the class's default; the form's is 0.0
+        CHECK(class_matches_form(L.cls, L.preset, defaults));
+        CHECK(class_matches_form(L.cls, L.preset, nlohmann::json::parse(L.allOff)));
+        for (const char* c : L.curves)
+            for (int v = 0; v < 4; ++v) {
+                nlohmann::json p = defaults;
+                const std::string stage = std::string(c).substr(0, std::string(c).size() - 5);
+                p[c] = v;
+                p[stage + "Power"] = 2.5;
+                CHECK(class_matches_form(L.cls, L.preset, p));
+            }
+        if (L.level)
+            for (float lv : {0.0f, 0.4f, 1.0f}) {
+                nlohmann::json p = defaults;
+                p[L.level] = lv;
+                CHECK(class_matches_form(L.cls, L.preset, p));
+                if (std::string(L.preset) == "as") { p["reverse"] = true; CHECK(class_matches_form(L.cls, L.preset, p)); }
+            }
+    }
+    // The one default the two paths disagree on: a bare adsr form releases
+    // over 0.0 where the class released over 0.1 (the converter writes it).
+    auto bare = std::dynamic_pointer_cast<Envelope>(SourceRegistry::instance().create("ADSREnvelope"));
+    auto form = envelope_from_preset_json(nlohmann::json{{"preset", "adsr"}});
+    CHECK(!same_layout(*bare, *form));
+    CHECK(bare->stage(3).percent == 0.1f && form->stage(3).percent == 0.0f);
+    // A curve outside 0..3 and an unknown preset are refused by name.
+    std::string msg;
+    try { envelope_from_preset_json(nlohmann::json{{"preset", "as"}, {"attackCurve", 4}}); } catch (const std::runtime_error& e) { msg = e.what(); }
+    CHECK(msg.find("attackCurve is 4") != std::string::npos);
+    msg.clear();
+    try { envelope_from_preset_json(nlohmann::json{{"preset", "adsx"}}); } catch (const std::runtime_error& e) { msg = e.what(); }
+    CHECK(msg.find("Unknown envelope preset: adsx") != std::string::npos);
+    // The key list is what the builders read.
+    const auto& keys = envelope_preset_keys();
+    CHECK(std::find(keys.begin(), keys.end(), "reverse") != keys.end());
+    CHECK(std::find(keys.begin(), keys.end(), "decayLevel") != keys.end());
+    CHECK(std::find(keys.begin(), keys.end(), "stages") == keys.end());
+}
+
+// Through the loader: a class node and the form it is rewritten as render the
+// same bytes, and a seed reaches a form node as it reached a class node.
+static std::vector<float> render_loaded_note(const char* json, int n) {
+    auto ip = load_instrument_patch_json(json);
+    auto* pi = dynamic_cast<PitchedInstrument*>(ip.instrument.get());
+    pi->play_note({60.0f, 0.8f, 0.2f, 0.0f, false}, 0.0f);
+    std::vector<float> out(static_cast<size_t>(n));
+    ip.instrument->render(out.data(), n);
+    return out;
+}
+
+static void run_envelope_form_loader_tests() {
+    const char* cls = R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"osc","nodes":[
+        {"id":"Env","type":"ASEnvelope","params":{"attack":0.3,"attackCurve":1,"attackPower":2.0,"reverse":true,"sustainLevel":0.6,"stage_accuracy":0.9,"ramp_accuracy":0.95,"seed":77,"minValue":0.0,"maxValue":0.8}},
+        {"id":"osc","type":"SineSource","params":{"frequency":220.0,"amplitude":{"ref":"Env"}}}]}})";
+    const char* form = R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"osc","nodes":[
+        {"id":"Env","type":"Envelope","params":{"preset":"as","attack":0.3,"attackCurve":1,"attackPower":2.0,"reverse":true,"sustainLevel":0.6,"stage_accuracy":0.9,"ramp_accuracy":0.95,"seed":77,"minValue":0.0,"maxValue":0.8}},
+        {"id":"osc","type":"SineSource","params":{"frequency":220.0,"amplitude":{"ref":"Env"}}}]}})";
+    const auto a = render_loaded_note(cls, 9600), b = render_loaded_note(form, 9600);
+    CHECK(same_bits(a, b));
+    CHECK(a[1000] != 0.0f);                       // inside the attack: reversed, the shape falls to 0 and holds there
+    auto env_of = [](const char* json) {
+        auto ip = load_instrument_patch_json(json);
+        auto* pi = dynamic_cast<PitchedInstrument*>(ip.instrument.get());
+        return std::dynamic_pointer_cast<Envelope>(pi->voicePool.at(0).nodesById.at("Env"));
+    };
+    auto ec = env_of(cls), ef = env_of(form);
+    CHECK(ec && ef && same_layout(*ec, *ef));
+    CHECK(ef->get_seed() == ec->get_seed() && ef->get_seed() != 0u);
+    CHECK_NEAR(ef->get_setting("stage_accuracy"), 0.9f, 1e-6f);
+    CHECK_NEAR(ef->get_setting("ramp_accuracy"), 0.95f, 1e-6f);
+}
+
 // The allocation probe: counts only while armed, keeps the first armed
 // allocation's stack, and resets to nothing.
 static void run_alloc_probe_tests() {
@@ -7739,6 +7903,9 @@ int main() {
     run_wavetable_pin_tests();
     run_wavetable_evolution_tests();
     run_string_pin_refusal_tests();
+    run_envelope_factory_tests();
+    run_envelope_form_equivalence_tests();
+    run_envelope_form_loader_tests();
     run_hybrid_ks_tests();
     run_evolution_shape_tests();
     run_evolution_setting_tests();

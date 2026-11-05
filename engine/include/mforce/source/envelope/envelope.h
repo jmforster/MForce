@@ -483,6 +483,43 @@ struct Envelope : Generator {
     return env;
   }
 
+  // Attack → Sustain (expand): 0 → level, held; reversed, level → 0, held at 0.
+  static std::shared_ptr<Envelope> make_as(float attackPct, float level = 1.0f, bool reverse = false) {
+    const float startV = reverse ? level : 0.0f;
+    const float endV   = reverse ? 0.0f  : level;
+    auto env = std::make_shared<Envelope>();
+    env->add_stage({{startV, endV, RampType::Linear, 0.0f}, attackPct, 0.0f, 1.0f});
+    env->add_stage({{endV, endV, RampType::Linear, 0.0f}, 0.0f, 0.0f, 0.0f});  // expand
+    return env;
+  }
+
+  // Attack → Sustain (expand) → Release: 0 → level, held, → 0.
+  static std::shared_ptr<Envelope> make_asr(float attackPct, float level, float releasePct) {
+    auto env = std::make_shared<Envelope>();
+    env->add_stage({{0.0f, level, RampType::Linear, 0.0f}, attackPct, 0.0f, 1.0f});
+    env->add_stage({{level, level, RampType::Linear, 0.0f}, 0.0f, 0.0f, 0.0f});  // expand
+    env->add_stage({{level, 0.0f, RampType::Sine, 0.0f}, releasePct, 0.0f, 0.0f});
+    return env;
+  }
+
+  // Attack → Decay → Sustain (expand): 0 → 1 → level, held.
+  static std::shared_ptr<Envelope> make_ads(float attackPct, float decayPct, float level) {
+    auto env = std::make_shared<Envelope>();
+    env->add_stage({{0.0f, 1.0f, RampType::Linear, 0.0f}, attackPct, 0.0f, 1.0f});
+    env->add_stage({{1.0f, level, RampType::Linear, 0.0f}, decayPct, 0.0f, 0.5f});
+    env->add_stage({{level, level, RampType::Linear, 0.0f}, 0.0f, 0.0f, 0.0f});  // expand
+    return env;
+  }
+
+  // Attack → Decay → Release (expand): 0 → 1 → decayLevel → 0 over the remainder.
+  static std::shared_ptr<Envelope> make_adr(float attackPct, float decayPct, float decayLevel) {
+    auto env = std::make_shared<Envelope>();
+    env->add_stage({{0.0f, 1.0f, RampType::Linear, 0.0f}, attackPct, 0.0f, 1.0f});
+    env->add_stage({{1.0f, decayLevel, RampType::Linear, 0.0f}, decayPct, 0.0f, 0.5f});
+    env->add_stage({{decayLevel, 0.0f, RampType::Sine, 0.0f}, 0.0f, 0.0f, 0.0f});  // expand
+    return env;
+  }
+
   // NOTE (2026-08-13): a piano damper envelope is a plain 3-stage Envelope
   // authored in stage-list form — hold-open (expand at 0), fast 0->1 drop
   // (the felt lands in ~40 ms; min=max pins it), hold-closed choke window
