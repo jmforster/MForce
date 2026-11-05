@@ -1,6 +1,16 @@
 # Status — session handoff (Claude reads this first; Matt's queue = */REVIEW.md)
 
 Updated: 2026-11-04 (refactor session VIII continued, Fable 5.1 xhigh).
+NEXT SESSION STARTS HERE: the 3.6 plan is written and committed
+(docs/superpowers/plans/2026-11-04-part3-checkpoint-3.6.md) — one type per
+file over six headers, the family .cpp files under src/source/<family>/,
+the white/red shaped draw as one twin-tested helper. Execute it after the
+2026-11-07 Fable reset under the three-tier split Matt set on 11-04: Fable
+writes plans and refutes where the gates are blind; Sonnet 5.5 executors
+take the mechanical tasks; claude-opus-4-8 (never Opus 5/5.5) reviews 3.6
+in place of a Fable refuter and coordinates if the Fable window is spent.
+At every plan, read get_usage and put the split to Matt in one line. 3.7
+(real-time fixes) keeps a Fable refuter with a narrowed brief; 3.8 is Fable.
 CHECKPOINT 3.5 LANDED on main: 750f70e..a2ff727 (b1d0222 the review wave, a2ff727 the re-review's two flags) — the fifth of Part 3's
 eight. THE SHAPE: Part 3 §6's premise ("Envelope already has a preset
 setting") was wrong in the letter — the preset is a load-time FORM
