@@ -3487,6 +3487,20 @@ static void run_noise_layered_tests() {
 // Checkpoint 2.1: the wavetable, the hybrid KS and the evolution holders.
 #include "mforce/source/wavetable/hybrid_ks_source.h"
 #include "mforce/source/wavetable/wavetable_source.h"
+#include "mforce/source/wavetable/wave_evolution.h"
+#include "mforce/source/wavetable/averaging_evolution.h"
+#include "mforce/source/wavetable/bezier_pull_evolution.h"
+#include "mforce/source/wavetable/bit_rotate_evolution.h"
+#include "mforce/source/wavetable/bowed_string_evolution.h"
+#include "mforce/source/wavetable/brass_evolution.h"
+#include "mforce/source/wavetable/cellular_automaton_evolution.h"
+#include "mforce/source/wavetable/eks_evolution.h"
+#include "mforce/source/wavetable/histogram_equalize_evolution.h"
+#include "mforce/source/wavetable/pluck_evolution.h"
+#include "mforce/source/wavetable/reaction_diffusion_evolution.h"
+#include "mforce/source/wavetable/reed_evolution.h"
+#include "mforce/source/wavetable/sort_erosion_evolution.h"
+#include "mforce/source/wavetable/target_evolution.h"
 
 namespace {
 std::string input_names(const mforce::Component& c) {

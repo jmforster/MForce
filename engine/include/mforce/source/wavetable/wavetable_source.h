@@ -2,6 +2,7 @@
 #include "mforce/core/dsp_wave_source.h"
 #include "mforce/core/dsp/tuning_allpass.h"
 #include "mforce/source/wavetable/wave_evolution.h"
+#include "mforce/source/wavetable/pluck_evolution.h"
 #include "mforce/source/noise/white_noise_source.h"
 #include "mforce/core/randomizer.h"
 #include <vector>
