@@ -107,6 +107,15 @@ answer any time), and the consequences of the two deletions are named.
 
 ## Resolved
 
+**3.7 — the real-time fixes** (2026-11-06) — closed without a checkpoint,
+Matt's verdict "skip to 3.8". Part 3 §9's seven items were already landed by
+2.6 and 3.4 (the tables and every evolution buffer reserved at `prepare`,
+fitted within capacity per note); the allocation gate is 0 of 132 and
+`engine_tests` covers each named node. The live-edit class (a structural
+setting read live on the audio path after a prepare-time sizing) stays booked
+to Part 7 (CLEANUP 33); the gate's blind spots are CLEANUP 34. No report:
+nothing was built.
+
 **R11 — checkpoint 3.4: each evolution a `Component`; the holders and the string form gone**
 (2026-11-03, commits `efd10c7`..`0d1e826`) — under the standing rule,
 nothing to decide; listed so the chain of reports is unbroken, and so two

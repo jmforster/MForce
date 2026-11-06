@@ -323,6 +323,19 @@ the type, grouped in a folder per family. In particular:
 
 ## 9. Real-time fixes, node by node
 
+**Landed before any checkpoint carried the number; 3.7 closed 2026-11-06
+without one** (Matt: "skip to 3.8"). Every item below was done by 2.6
+(`6a37849`..`d3df3ea`, report R7: every frequency-dependent table reserved at
+`prepare` for the 20 Hz floor `WaveSource::kMinTableHz` and fitted within
+capacity per note; the hybrid's partial arrays sized with `numPartials` at
+`prepare`) and 3.4 (`efd10c7`..`0d1e826`, report R11:
+`WaveEvolution::on_prepare(ctx, maxLen)`, every evolution reserving its
+buffers there). The allocation gate is 0 of 132 over `library` + `baselines`
+and `engine_tests` covers each node named here. What the rule still leaves
+open is booked, not done: a structural setting changed in the editor after
+`prepare` and read live on the audio path (CLEANUP 33, Part 7's live-edit
+case) and the gate's blind spots (CLEANUP 34).
+
 Under Part 2's rule (`prepare` may allocate, `start` and `next` may not)
 and its allocation test:
 
@@ -347,5 +360,5 @@ None of these changes a sample. The allocation test is what proves it.
 | 3.4 | Each evolution becomes a `Component`; the twelve wrappers and `IEvolutionHolder` deleted; `TargetEvolution` registered; the string-typed form deleted and two patches converted | none — landed 2026-11-03 (`efd10c7`..`0d1e826`): 0 of 132 renders moved over library and baselines; the eight archived string-form patches in `patches/old/` no longer load (the converter rewrites one on demand); in the editor a Pluck or Averaging setting edited mid-stream no longer restarts its draw stream (REVIEW R11) |
 | 3.5 | Envelope presets collapsed; `KSPianoString` migrated | none — landed 2026-11-04 (`750f70e`..`a2ff727`): 0 of 132 renders moved over library and baselines; 497 nodes rewritten on disk (11 tracked files), `patches/old/`'s 59 left to fail by name with the tool named; in the editor the six preset types left the menu for a Preset combo over every Envelope's stage table, and the preset-only knob layout went with them (REVIEW R12) |
 | 3.6 | One type per file | none — landed 2026-11-05 (`ed04dda`..`5c4c5db`, report R13): the six multi-type headers split one-per-type, `noise_sources.h`/`filters.h` deleted, the shaped draw a twin-tested helper, the six family `.cpp` under `src/source/<family>/`; 0 of 132 renders moved; CLEAN review; `duplicate_blocks` +17 accepted as scaffolding (CLEANUP 31, the Butterworth base CLEANUP 32) |
-| 3.7 | The real-time fixes | none; the allocation test goes green for these nodes |
+| 3.7 | The real-time fixes | none — closed 2026-11-06 without a checkpoint: every item of section 9 had landed at 2.6 and 3.4, the allocation gate was already 0 of 132 and `engine_tests` covered each node; the live-edit class booked to Part 7 (CLEANUP 33), the gate's blind spots CLEANUP 34 |
 | 3.8 | `Partials` split by responsibility | designed then; byte-identical target |

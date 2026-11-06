@@ -1,5 +1,46 @@
 # Status — session handoff (Claude reads this first; Matt's queue = */REVIEW.md)
 
+Updated: 2026-11-06 (refactor session X, Fable 5.1 xhigh).
+NEXT SESSION STARTS HERE: checkpoint 3.7 is CLOSED WITHOUT A CHECKPOINT
+(Matt, 2026-11-06: "skip to 3.8"). The 11-05 handoff restated Part 3 §9's
+work list from the spec text; the code shows every item of it landed before
+this session — 2.6 (`6a37849`..`d3df3ea`) reserved every frequency-dependent
+table at `prepare` for the 20 Hz floor and fits it within capacity per note
+(the wavetable's `values_`, the hybrid's `table_` and its three partial
+arrays sized with `numPartials`; Segment's list reserved at 3.1), and 3.4
+(`efd10c7`..`0d1e826`) gave every evolution `on_prepare(ctx, maxLen)` with
+its reserve (Histogram's `cdf_`/`counts_`, Target's `resampledTarget_`,
+Bezier's `target_`, CA's `state_`/`snapshot_`, EKS's `filtered_`). PROOFS
+already standing: `alloc_gate` 132 patches 0 allocate (in `gates.py`'s slow
+list); `engine_tests` allocation tests over the wavetable at four pitches,
+nine evolutions at two pitches, Target, Pluck, HybridKS, Phased, Segment,
+BasicAdditive, Multiplex, Repeating, a held release and a drum hit. Part 3
+§9 and row 3.7 were written before 2.6 and never updated; both now say
+landed. WHAT REMAINS under the real-time rule, booked not done: the
+live-edit class — a structural setting changed in the editor after `prepare`
+and read live on the audio path (HistogramEqualize sizes `cdf_` at `prepare`
+and reads `bins.value` per sample) — stays with Part 7's "UI live-edit case"
+where 2.6 put it (CLEANUP 33; whether the editor re-prepares a node after a
+structural edit is UNVERIFIED); the gate's blind spots (no mid-note edit, no
+per-patch held-release case, the mixer's own render unarmed) CLEANUP 34; the
+wavetable's two first-sample blocks CLEANUP 35; `AdditiveSource2`'s
+`on_slot_changed` override goes with its deletion in 3.8. NEXT is 3.8
+(`Partials` split by responsibility, Part 3 §7: "designed then;
+byte-identical target"), FABLE THROUGHOUT per the 11-04 combo; its plan is
+NOT yet written — the survey of `partials.h` (1,148 lines today, eight types:
+`ExpandRule`, `ExpandRuleNode`, `IPartials`, `Partials` ~750 lines, Full,
+Sequence, Explicit, Composite; in scope 70 FullPartials, 4 Explicit, 1
+Sequence, 75 AdditiveSource; `AdditiveSource2` in one baseline,
+`as2_bright_attack_test`, `BasicAdditiveSource` in none) starts it, and the
+effort offer (xhigh or max) goes to Matt before the design. Model check: Fable 5.1 xhigh this session,
+the change back from 3.6's Opus 4.8 the 11-05 handoff said to expect.
+Budget at session start: Fable weekly 82 percent, reset 2026-11-07 02:00
+HST. GIT: main level with origin at session start. GOALS.md stays Matt's
+uncommitted edit. `docs/matt/MultiplexQ.txt` was ANSWERED on 11-05: not an
+open thread, do not reread it.
+
+---
+
 Updated: 2026-11-05 (refactor session IX, Opus 4.8 high — the 3.6 coordinator
 per the model combo; Fable held for 3.7's plan and 3.8).
 NEXT SESSION STARTS HERE: checkpoint 3.6 LANDED on main (`ed04dda`..`5c4c5db`,
