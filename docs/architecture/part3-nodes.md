@@ -293,6 +293,21 @@ place; the preset-only knob layout went with the classes.
 
 ## 8. One type per file
 
+**Landed 2026-11-05 as checkpoint 3.6** (`ed04dda`..`5c4c5db`, report R13): the
+six headers that still held several types became one file per type, named after
+it, in its family's folder; `noise_sources.h` and `filters.h` had no primary
+and were deleted (no umbrella); `combined_source.h` kept `CombineOp` +
+`CombinedSource`, `formant.h` kept `IFormant` + `Formant`, `wave_evolution.h`
+the base. `DistortedSource` moved to `filter/` and the two statics to
+`utility/` (the families 3.2 registered them in). The shaped noise draw white
+and red share is one `inline` helper, `noise/shaped_draw.h`, twin-tested bit
+for bit. The six family `.cpp` files moved under `engine/src/source/<family>/`
+and the module map's `source` entry became two path prefixes. Every type body
+byte-identical; null gate 78/78 per task, close A/B 132/132 0 DIFFER; the
+independent review was CLEAN. `duplicate_blocks` rose +17 (one-type-per-file
+preamble scaffolding and pre-existing sibling similarity, no new logic —
+accepted, CLEANUP 31).
+
 The rule for the node folders: one type per file, the file named after
 the type, grouped in a folder per family. In particular:
 
@@ -331,6 +346,6 @@ None of these changes a sample. The allocation test is what proves it.
 | 3.3 | `core/dsp` primitives, merged one at a time with the copies compared first | none — landed 2026-11-02 (`0d500fc`..`b3c6160`): 0 of 132 renders moved over library and baselines; the copies that compute a different difference equation were left (report section 7); one departure by construction, EKS's stiffness allpass clearing both memories at a note's start (one LSB over a note's remainder with stiffness > 0; no such patch in scope) (REVIEW R10) |
 | 3.4 | Each evolution becomes a `Component`; the twelve wrappers and `IEvolutionHolder` deleted; `TargetEvolution` registered; the string-typed form deleted and two patches converted | none — landed 2026-11-03 (`efd10c7`..`0d1e826`): 0 of 132 renders moved over library and baselines; the eight archived string-form patches in `patches/old/` no longer load (the converter rewrites one on demand); in the editor a Pluck or Averaging setting edited mid-stream no longer restarts its draw stream (REVIEW R11) |
 | 3.5 | Envelope presets collapsed; `KSPianoString` migrated | none — landed 2026-11-04 (`750f70e`..`a2ff727`): 0 of 132 renders moved over library and baselines; 497 nodes rewritten on disk (11 tracked files), `patches/old/`'s 59 left to fail by name with the tool named; in the editor the six preset types left the menu for a Preset combo over every Envelope's stage table, and the preset-only knob layout went with them (REVIEW R12) |
-| 3.6 | One type per file | none |
+| 3.6 | One type per file | none — landed 2026-11-05 (`ed04dda`..`5c4c5db`, report R13): the six multi-type headers split one-per-type, `noise_sources.h`/`filters.h` deleted, the shaped draw a twin-tested helper, the six family `.cpp` under `src/source/<family>/`; 0 of 132 renders moved; CLEAN review; `duplicate_blocks` +17 accepted as scaffolding (CLEANUP 31, the Butterworth base CLEANUP 32) |
 | 3.7 | The real-time fixes | none; the allocation test goes green for these nodes |
 | 3.8 | `Partials` split by responsibility | designed then; byte-identical target |

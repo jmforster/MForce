@@ -19,6 +19,43 @@ given.
 
 ## Awaiting
 
+**R13 — checkpoint 3.6: one type per file** (2026-11-05, commits
+`ed04dda`..`5c4c5db`) — nothing to decide. A move-only checkpoint: the six
+multi-type node headers each became one file per type, `noise_sources.h` and
+`filters.h` deleted (no umbrella), the shaped noise draw white and red share
+folded into one `inline` helper, the six family `.cpp` moved under
+`engine/src/source/<family>/`. No render moved.
+- Read: `docs/autonomy/refactor/reports/2026-11-05-checkpoint-3.6.md` (ten
+  minutes; section 1 — nothing is audible or editor-visible; section 6 — the
+  two session decisions; section 8 — the CLEAN independent review; section 10
+  — four C++ lessons: what `#include` really does and why an umbrella is a
+  shim, `inline` free functions and the ODR, `git mv` and history across a
+  split, a module map as a build-time contract).
+- Try: `python tools/null_gate_perform_source.py --jobs 3` (78/78); open the
+  editor and right-click the canvas — the Noise, Wavetable, Filter, Combiner
+  and Additive menus list exactly what they did at 3.5 (one type per file is
+  invisible there). `git show 400a587:engine/include/mforce/source/filter/filters.h`
+  against the four new `filter/bw_*`/`delay_filter.h` files — byte-identical
+  bodies.
+- Decided, not asked (2026-11-02 rule): (1) `duplicate_blocks` rose 146→163
+  (+17) against the plan's "must not rise"; the rise is the one-type-per-file
+  preamble replicated per file plus the `bw_lowpass`/`bw_highpass` sibling
+  similarity that already existed inside the umbrella header — no new authored
+  logic (the reviewer confirmed). Accepted; CLEANUP 31. (2) `fm_source.h` and
+  `patch_loader.cpp` dropped transitive-only includes; a stale `filters.h`
+  comment and `lint_patches.py`'s source path were repaired in place.
+- Future cleanup: a shared Butterworth base for the three BW filters would
+  remove the sibling duplication (new design, out of a move-only checkpoint;
+  CLEANUP 32).
+- Review: an independent reviewer in place of the Fable refuter (ruling 8; 3.6
+  touches none of the refuter's surfaces). Verdict CLEAN, nothing above Flag —
+  it body-diffed all 26 types, failed the build on a removed include, failed
+  the twin under two helper mutations, crossed the `.cpp` renames with
+  `git log --follow`, and judged the duplicate rise benign. Two Flags
+  (record-only): the helper's `lastSign==0` guard is a twin blind spot that
+  cannot affect byte-identity; the `lint_patches.py` edit was not in the plan's
+  Task 4 bullet (it is the move's minimal consequence). No Major, no re-review.
+
 **R12 — checkpoint 3.5: the envelope presets become one type; the `KSPianoString` alias goes**
 (2026-11-04, commits `750f70e`..`a2ff727`) — under the standing rule,
 nothing blocks the landing; one interface question is yours (item 1,

@@ -190,6 +190,55 @@ The 3.6 combo (Opus 4.8 coordinator) is put to Matt at the end of Task 0;
 the switch is his, in the model menu, since a session cannot re-price
 its own turns.
 
+**Task 1 (`ed04dda`).** A Sonnet executor split `wave_evolution.h` into the
+base (41 lines) + 13 evolution files by a byte-slice script; each new file
+includes `wave_evolution.h` plus the dsp primitives its body uses (eks→
+tuning_allpass, bowed→one_pole+bow_friction, brass→biquad, target/brass→
+constants, several→randomizer for an `rng_` member). Coordinator verify:
+body-diff 14/14 byte-identical vs `281f5b8`; null gate 78/78; ctest 5/5; meter
+files +13, files_over_limit 20→19, include_violations +0, unmapped 0.
+`duplicate_blocks` +5 — the plan's "must not rise" is corrected: the five are
+one-type-per-file preamble (shared include set across pluck/averaging/eks/
+reaction_diffusion; brass/reed's near-identical breath+tubeLoss declarations),
+not copied logic (ruling, CLEANUP 31).
+
+**Task 2 (`ada05cd`).** Sonnet executor: `noise_sources.h`→six files (deleted);
+`wander_noise_source.h`→three; `shaped_draw.h` the ruling-10 helper; both call
+sites reduced to the call; `run_shaped_draw_twin_tests` written RED-first.
+Coordinator verify: `shaped_draw.h` is ruling 10 verbatim; body-diff 9/9;
+mutation (magnitude draw ahead of the sign decision) → twin FAIL at
+`main.cpp` `CHECK(bad==0)`, restored → ALL PASS 7462; null gate 78/78 (red's
+four in-scope patches pin red's path); synthetic `white_shaped.json` (off the
+fast path) old vs new sha identical; meter +8 files, `duplicate_blocks` +2.
+
+**Task 3 (`3d2bcf1`).** Sonnet executor: `filters.h`→four files (deleted);
+`combined_source.h` keeps `CombineOp`+`CombinedSource`+`kOpLabels`, with
+`CrossfadeSource` beside it, `DistortedSource`→`filter/`, the two statics→
+`utility/`; `formant.h` keeps `IFormant`+`Formant`, four spectra beside it.
+`fm_source.h` and `patch_loader.cpp` dropped transitive-only includes.
+Coordinator verify: body-diff 15/15 (incl. retained IFormant/Formant/
+CombinedSource); null gate 78/78; ctest 5/5; `duplicate_blocks` +~11
+(bw_lowpass/bw_highpass sibling similarity + filter-file preambles, no new
+logic; the Butterworth base → CLEANUP 32). Coordinator also fixed a stale
+`filters.h` comment in `engine_tests`.
+
+**Task 4 (`5c4c5db`).** Sonnet executor: `git mv` the six source-module `.cpp`
+under `engine/src/source/<family>/` (all R100); `modules.json` `source`→two
+prefixes; `CMakeLists.txt` + `MODULES.md` follow; `lint_patches.py`'s
+`SCRAPE_SOURCES` repointed (the move broke `structure_meter_tests` until then).
+Coordinator verify: `git status` shows six renames, content unchanged; null
+gate 78/78; ctest 5/5; the stamp current (dep set covers the moved files);
+unmapped_files 0, include_violations +0, dynamic_cast +0, no new files, no new
+duplicate_blocks.
+
+**Task 5 (close).** Close A/B 132/132 0 DIFFER against `cli_pre36.exe`; timing
+0.92–1.06× (noise); meter --snapshot regenerated. The independent review
+(fresh subagent on the coordinator's inherited Opus 4.8 — the plan named Opus
+4.8 and the subagent tool's `opus` option would select the forbidden flagship,
+so no model override was passed; ruling 8) returned CLEAN, nothing above Flag;
+no Major, no re-review. Report R13, part3 §8/§10, REVIEW R13, BACKLOG row 2,
+CLEANUP 31–32, STATUS, this Ledger.
+
 ## Self-review notes
 
 - The thirteen evolution files average 70 lines; the largest (`TargetEvolution` with its synthesis, `BrassEvolution`) stay well under 600.

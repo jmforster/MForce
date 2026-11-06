@@ -1,5 +1,62 @@
 # Status — session handoff (Claude reads this first; Matt's queue = */REVIEW.md)
 
+Updated: 2026-11-05 (refactor session IX, Opus 4.8 high — the 3.6 coordinator
+per the model combo; Fable held for 3.7's plan and 3.8).
+NEXT SESSION STARTS HERE: checkpoint 3.6 LANDED on main (`ed04dda`..`5c4c5db`,
+report R13 `docs/autonomy/refactor/reports/2026-11-05-checkpoint-3.6.md`) — the
+sixth of Part 3's eight. NEXT is 3.7 (real-time fixes, Part 3 §9): its plan is
+NOT yet written. Per the model combo (Matt 2026-11-04) 3.7 is Fable — Fable
+writes the plan and executes the engine hot-path tasks, Sonnet 5.5 the rest, a
+Fable refuter with a brief narrowed to the live path, sizing, and the
+allocation gate's coverage (Opus 4.8 as refuter only if the week's Fable runs
+short). So the session-start model check should expect Fable again (a change
+back from this session's Opus 4.8). 3.7's work: the wavetable table sized in
+`prepare` not on the first sample, the hybrid-KS DFT scratch in `prepare`, the
+per-cycle vectors of `HistogramEqualize`/`TargetEvolution`/`BezierPull`/
+`CellularAutomaton` as `prepare`-sized members, EKS's per-note table a member
+sized once — none changes a sample; the allocation gate is the proof.
+
+THE SHAPE OF 3.6 (move-only, nothing audible or editor-visible): the six
+multi-type node headers each became one type per file in its family folder.
+`wave_evolution.h` → the `WaveEvolution` base + 13 evolution files (Task 1
+`ed04dda`); `noise_sources.h` → six files, deleted, and the shaped noise draw
+white and red share → one `inline` helper `noise/shaped_draw.h`, plus
+`wander_noise_source.h` → three (Task 2 `ada05cd`); `filters.h` → four files,
+deleted, `combined_source.h` keeps `CombineOp`+`CombinedSource` with
+`CrossfadeSource` beside it and `DistortedSource`→`filter/` and the two
+statics→`utility/`, `formant.h` keeps `IFormant`+`Formant` with four spectra
+beside it (Task 3 `3d2bcf1`); the six family `.cpp` moved under
+`engine/src/source/<family>/` with the module map's `source` now two path
+prefixes (Task 4 `5c4c5db`). PROOFS: null gate 78/78 after every task
+(coordinator rerun before each commit); body-diff byte-identical for all 26
+moved/retained types; the shaped-draw twin (4802 rows) proven to catch a
+reordered draw and a dropped clamp; a synthetic white-shaped patch (no in-scope
+white node leaves the fast path) renders identical old vs new; the close A/B
+over all 132 `library`+`baselines` patches 0 DIFFER; ctest 5/5; timing flat
+(0.92–1.06×, noise). METER (--delta from pre-3.6): files +32, files_over_limit
+20→19, include_violations +0 (14), unmapped 0, dynamic_cast +0,
+`duplicate_blocks` 146→163 (+17 — one-type-per-file scaffolding + bw sibling
+similarity, no new logic; accepted, CLEANUP 31; the Butterworth base CLEANUP
+32). metrics.json regenerated (--snapshot) so 3.7's --delta baseline is current.
+DECISIONS (2026-11-02 rule, nothing for Matt's queue): the duplicate_blocks
+acceptance; `fm_source.h`/`patch_loader.cpp` dropped transitive-only includes;
+a stale `filters.h` comment and `lint_patches.py`'s source path repaired in
+place. REVIEW: an independent reviewer in place of the Fable refuter (ruling 8)
+— verdict CLEAN, two record-only Flags (the helper's `lastSign==0` guard is a
+twin blind spot that can't affect byte-identity; the `lint_patches.py` edit was
+not in the plan's Task 4 bullet). No Major, no re-review. EXECUTION: Opus 4.8
+coordinator, one Sonnet 5.5 executor per task in sequence, each verified by the
+coordinator (null gate rerun, body-diff) before commit. HARNESS NOTES: the
+structure meter walks `git ls-files`, so a deleted header must be STAGED before
+its tests pass (Tasks 2–4 each failed `structure_meter` until the deletion/
+move was staged); `tools/lint_patches.py`'s `SCRAPE_SOURCES` lists source files
+by path and must follow a move. GIT: main is ahead of origin and UNPUSHED
+(ask Matt at close-out per the standing rule). GOALS.md stays Matt's
+uncommitted edit; `docs/matt/MultiplexQ.txt` is Matt's note (both left
+untouched).
+
+---
+
 Updated: 2026-11-04 (refactor session VIII continued, Fable 5.1 xhigh).
 NEXT SESSION STARTS HERE: the 3.6 plan is written and committed
 (docs/superpowers/plans/2026-11-04-part3-checkpoint-3.6.md) — one type per
