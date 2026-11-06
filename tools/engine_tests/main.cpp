@@ -482,10 +482,12 @@ static void run_dsp_biquad_recipe_tests() {
 }
 
 // ---------------------------------------------------------------------------
-// ButterworthSection: the two section kinds of filters.h, against the
-// FIR/IIR-vector sections they replaced, with their operation order.
+// ButterworthSection: the two section kinds of the Butterworth filters,
+// against the FIR/IIR-vector sections they replaced, with their operation order.
 #include "mforce/core/dsp/butterworth_section.h"
-#include "mforce/source/filter/filters.h"
+#include "mforce/source/filter/bw_lowpass_filter.h"
+#include "mforce/source/filter/bw_highpass_filter.h"
+#include "mforce/source/filter/bw_bandpass_filter.h"
 #include "mforce/source/noise/white_noise_source.h"
 #include "mforce/source/noise/shaped_draw.h"
 
@@ -836,6 +838,10 @@ static void run_tap_guard_tests() {
 }
 
 #include "mforce/source/combiner/combined_source.h"
+#include "mforce/source/combiner/crossfade_source.h"
+#include "mforce/source/filter/distorted_source.h"
+#include "mforce/source/utility/static_var_source.h"
+#include "mforce/source/utility/static_range_source.h"
 
 static void run_tap_cycle_tests() {
     // The tap edge's one-sample delay with no host clock: every pull computes
@@ -4010,6 +4016,10 @@ static void run_target_evolution_morph_tests() {
 #include "mforce/source/additive/additive_source2.h"
 #include "mforce/source/additive/basic_additive_source.h"
 #include "mforce/source/additive/formant.h"
+#include "mforce/source/additive/formant_spectrum.h"
+#include "mforce/source/additive/fixed_spectrum.h"
+#include "mforce/source/additive/band_spectrum.h"
+#include "mforce/source/additive/formant_sequence.h"
 #include "mforce/source/additive/full_additive_source.h"
 #include "mforce/source/additive/partials.h"
 
@@ -4674,7 +4684,10 @@ static void run_physical_behavior_tests() {
 // Every filter is a Processor: the signal input is the inherited `source`,
 // declared first. The vibrato has no signal input and is a Generator.
 #include "mforce/source/filter/biquad_source.h"
-#include "mforce/source/filter/filters.h"
+#include "mforce/source/filter/bw_lowpass_filter.h"
+#include "mforce/source/filter/bw_highpass_filter.h"
+#include "mforce/source/filter/bw_bandpass_filter.h"
+#include "mforce/source/filter/delay_filter.h"
 #include "mforce/source/filter/hammer_bank.h"
 #include "mforce/source/filter/limiter.h"
 #include "mforce/source/filter/reverb.h"

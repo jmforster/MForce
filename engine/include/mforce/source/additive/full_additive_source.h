@@ -2,6 +2,7 @@
 #include "mforce/core/dsp_wave_source.h"
 #include "mforce/core/randomizer.h"
 #include "mforce/source/additive/formant.h"
+#include "mforce/source/additive/band_spectrum.h"
 #include "mforce/source/additive/partials.h"
 #include <memory>
 

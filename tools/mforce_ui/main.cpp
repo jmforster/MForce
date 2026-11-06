@@ -38,7 +38,11 @@
 #include "mforce/source/modulator/curve_node.h"     // CurveNode knots/interp are modeled (P2b)
 #include "mforce/source/filter/shaper_source.h" // shape editor Shaper client probe
 #include "mforce/core/smoothness_interpolator.h"  // SegmentSource shape preview
-#include "mforce/source/additive/formant.h" // needed for FormantSpectrum inline table
+#include "mforce/source/additive/formant.h"
+#include "mforce/source/additive/formant_spectrum.h"
+#include "mforce/source/additive/fixed_spectrum.h"
+#include "mforce/source/additive/band_spectrum.h"
+#include "mforce/source/additive/formant_sequence.h"
 #include "mforce/source/additive/partials.h" // for Partials live array access in strip draw
 #include "mforce/render/instrument.h"
 #include "mforce/render/mixer.h"

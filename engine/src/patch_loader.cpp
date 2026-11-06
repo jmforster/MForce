@@ -20,14 +20,15 @@
 #include "mforce/source/additive/full_additive_source.h"
 #include "mforce/source/additive/partials.h"
 #include "mforce/source/additive/additive_source2.h"
-#include "mforce/source/additive/formant.h"
 #include "mforce/source/wavetable/wavetable_source.h"
 #include "mforce/source/wavetable/hybrid_ks_source.h"
 #include "mforce/source/envelope/segment_source.h"
 #include "mforce/source/filter/shaper_source.h"
 #include "mforce/source/envelope/phased_value_source.h"
 #include "mforce/source/combiner/multiplex_source.h"
-#include "mforce/source/filter/filters.h"
+#include "mforce/source/filter/bw_lowpass_filter.h"
+#include "mforce/source/filter/bw_highpass_filter.h"
+#include "mforce/source/filter/bw_bandpass_filter.h"
 #include "mforce/source/envelope/vibrato.h"
 #include <cstring>
 #include <nlohmann/json.hpp>
