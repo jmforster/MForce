@@ -1,9 +1,9 @@
 add_library(mforce_engine
-  src/red_noise_source.cpp
-  src/wavetable_source.cpp
-  src/full_additive_source.cpp
-  src/additive_source2.cpp
-  src/hybrid_ks_source.cpp
+  src/source/noise/red_noise_source.cpp
+  src/source/wavetable/wavetable_source.cpp
+  src/source/additive/full_additive_source.cpp
+  src/source/additive/additive_source2.cpp
+  src/source/wavetable/hybrid_ks_source.cpp
   src/music.cpp
   src/chord.cpp
   src/mixer.cpp
@@ -12,7 +12,7 @@ add_library(mforce_engine
   src/patch_loader.cpp
   src/component.cpp
   src/source_registry.cpp
-  src/source_registrations.cpp
+  src/source/source_registrations.cpp
 )
 
 target_include_directories(mforce_engine PUBLIC

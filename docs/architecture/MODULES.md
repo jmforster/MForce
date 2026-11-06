@@ -6,7 +6,7 @@ Phase 1: describes today's layout. Do not edit by hand.
 | Module | Purpose | Paths | May include |
 |---|---|---|---|
 | core | The ValueSource contract and the primitives every node shares; the node registry. | `engine/include/mforce/core/`, `engine/src/component.cpp`, `engine/src/source_registry.cpp` | nothing |
-| source | Every node type, one folder per family (filter folded in), and the list that registers them. | `engine/include/mforce/source/`, `engine/src/source_registrations.cpp`, `engine/src/red_noise_source.cpp`, `engine/src/wavetable_source.cpp`, `engine/src/full_additive_source.cpp`, `engine/src/additive_source2.cpp`, `engine/src/hybrid_ks_source.cpp` | core |
+| source | Every node type, one folder per family (filter folded in), and the list that registers them. | `engine/include/mforce/source/`, `engine/src/source/` | core |
 | render | Instruments, voices, mixing, patch loading, WAV I/O. | `engine/include/mforce/render/`, `engine/src/patch_loader.cpp`, `engine/src/mixer.cpp`, `engine/src/wav_writer.cpp`, `engine/src/wav_reader.cpp` | core, source |
 | music | The music model and composition. | `engine/include/mforce/music/`, `engine/src/music.cpp`, `engine/src/chord.cpp` | core, render |
 | util | Stand-alone analysis helpers (FFT, signal statistics). | `engine/include/mforce/util/` | nothing |

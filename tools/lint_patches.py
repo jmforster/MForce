@@ -54,7 +54,7 @@ CLI = os.path.join(ROOT, "build", "tools", "mforce_cli", "Release", "mforce_cli.
 # Global rather than per-type so a stale entry can only hide a warning, never
 # invent one.
 SCRAPE_SOURCES = ("engine/src/patch_loader.cpp",
-                  "engine/src/source_registrations.cpp",
+                  "engine/src/source/source_registrations.cpp",
                   # Shared preset-form Envelope dispatch — the adsr/ar keys
                   # moved here from patch_loader.cpp 2026-08-13.
                   "engine/include/mforce/source/envelope/envelope_json.h")
