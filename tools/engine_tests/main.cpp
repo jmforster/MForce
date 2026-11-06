@@ -487,6 +487,7 @@ static void run_dsp_biquad_recipe_tests() {
 #include "mforce/core/dsp/butterworth_section.h"
 #include "mforce/source/filter/filters.h"
 #include "mforce/source/noise/white_noise_source.h"
+#include "mforce/source/noise/shaped_draw.h"
 
 namespace {
 // BWSection, BWLPSection and BWHPSection as they stood.
@@ -3286,10 +3287,17 @@ static void run_envelope_rebuild_pin_tests() {
 }
 // Checkpoint 2.1: the noise family with its pins declared once.
 #include "mforce/source/noise/layered_red_noise_source.h"
-#include "mforce/source/noise/noise_sources.h"
+#include "mforce/source/noise/blue_noise_source.h"
+#include "mforce/source/noise/crackle_noise_source.h"
+#include "mforce/source/noise/murmuration_noise_source.h"
+#include "mforce/source/noise/perlin_noise_source.h"
+#include "mforce/source/noise/velvet_noise_source.h"
+#include "mforce/source/noise/violet_noise_source.h"
 #include "mforce/source/noise/pink_noise_source.h"
 #include "mforce/source/noise/red_noise_source.h"
 #include "mforce/source/noise/wander_noise_source.h"
+#include "mforce/source/noise/wander_noise2_source.h"
+#include "mforce/source/noise/wander_noise3_source.h"
 #include "mforce/source/noise/white_noise_source.h"
 
 namespace {
@@ -3482,6 +3490,69 @@ static void run_noise_layered_tests() {
     float sum = 0.0f;
     for (int i = 0; i < 2000; ++i) sum += std::fabs(l.next());
     CHECK(sum > 0.0f);
+}
+
+// The shaped-noise draw white and red share: two verbatim copies of the
+// deleted call-site blocks against the helper, bit-for-bit over a grid, on
+// three identically seeded Randomizers (same seed, same draws).
+static void run_shaped_draw_twin_tests() {
+    auto white_block = [](Randomizer& rng_, float zct, float bst, float cont,
+                          float lastVal_, float& lastSign_) {
+        float v;
+        if (rng_.decide(zct)) {
+            lastSign_ = -lastSign_;
+        } else {
+            lastSign_ = float(rng_.sign());
+            if (lastSign_ == 0.0f) lastSign_ = 1.0f;
+        }
+        const float b = std::clamp(bst, 0.0f, 1.0f);
+        v = rng_.range(b, 1.0f) * lastSign_;
+        if (cont != 0.0f) {
+            const float influence = std::min(cont, 0.999f);
+            v = rng_.range(lastVal_, v, lastVal_, influence);
+        }
+        return v;
+    };
+    auto red_block = [](Randomizer& rng_, float zct, float boostIn, float contIn,
+                        float lastValue_, float& lastSign_) {
+        float nextValue_;
+        if (rng_.decide(zct)) {
+            lastSign_ = -lastSign_;
+        } else {
+            lastSign_ = float(rng_.sign());
+            if (lastSign_ == 0.0f) lastSign_ = 1.0f;
+        }
+        float b = boostIn;
+        b = std::clamp(b, 0.0f, 1.0f);
+        nextValue_ = rng_.range(b, 1.0f) * lastSign_;
+        float cont = contIn;
+        if (cont != 0.0f) {
+            float influence = std::min(cont, 0.999f);
+            nextValue_ = rng_.range(lastValue_, nextValue_, lastValue_, influence);
+        }
+        return nextValue_;
+    };
+
+    const float grid[] = {0.0f, 0.2f, 0.5f, 0.999f, 1.0f, -0.3f, 1.7f};
+    int bad = 0, rows = 0;
+    uint32_t seed = 0x5A9Du;
+    for (float zct : grid) for (float bst : grid) for (float cont : grid) for (float last : grid) {
+        for (float sign0 : {-1.0f, 1.0f}) {
+            ++seed; ++rows;
+            Randomizer ra(seed), rb(seed), rc(seed);
+            float sa = sign0, sb = sign0, sc = sign0;
+            for (int k = 0; k < 4; ++k) {          // chain: a reordered draw desyncs later rows
+                float a = white_block(ra, zct, bst, cont, last, sa);
+                float b = red_block(rb, zct, bst, cont, last, sb);
+                float c = shaped_draw(rc, zct, bst, cont, last, sc);
+                if (!same_bits(a, b) || !same_bits(a, c)) ++bad;
+                if (!same_bits(sa, sb) || !same_bits(sa, sc)) ++bad;
+            }
+            if (!same_bits(ra.valuePN(), rc.valuePN())) ++bad;   // the draw count agrees too
+        }
+    }
+    CHECK(rows == 7 * 7 * 7 * 7 * 2);
+    CHECK(bad == 0);
 }
 
 // Checkpoint 2.1: the wavetable, the hybrid KS and the evolution holders.
@@ -7869,6 +7940,7 @@ int main() {
     run_noise_red_pin_tests();
     run_noise_manual_amplitude_tests();
     run_noise_layered_tests();
+    run_shaped_draw_twin_tests();
     run_wavetable_pin_tests();
     run_wavetable_evolution_tests();
     run_string_pin_refusal_tests();

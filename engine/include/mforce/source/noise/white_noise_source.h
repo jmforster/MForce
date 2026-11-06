@@ -1,6 +1,7 @@
 #pragma once
 #include "mforce/core/dsp_value_source.h"
 #include "mforce/core/randomizer.h"
+#include "mforce/source/noise/shaped_draw.h"
 #include <algorithm>
 
 namespace mforce {
@@ -54,22 +55,7 @@ struct WhiteNoiseSource final : Generator {
     // Legacy-shaped path.
     float v;
     if (rng_.decide(dens)) {
-      // Sign: random, or flipped from the last emitted value when
-      // zeroCrossTendency draws (RedNoiseSource's rule; not in legacy WhiteNoise).
-      if (rng_.decide(zct)) {
-        lastSign_ = -lastSign_;
-      } else {
-        lastSign_ = float(rng_.sign());
-        if (lastSign_ == 0.0f) lastSign_ = 1.0f;
-      }
-      // Magnitude in [boost, 1], signed. Boost excludes values near zero.
-      const float b = std::clamp(bst, 0.0f, 1.0f);
-      v = rng_.range(b, 1.0f) * lastSign_;
-      // Continuity biases toward the previous output (min(cont, 0.999)).
-      if (cont != 0.0f) {
-        const float influence = std::min(cont, 0.999f);
-        v = rng_.range(lastVal_, v, lastVal_, influence);
-      }
+      v = shaped_draw(rng_, zct, bst, cont, lastVal_, lastSign_);
     } else {
       v = 0.0f;
     }

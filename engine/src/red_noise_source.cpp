@@ -1,4 +1,5 @@
 #include "mforce/source/noise/red_noise_source.h"
+#include "mforce/source/noise/shaped_draw.h"
 #include <cmath>
 #include <algorithm>
 #include <iostream>
@@ -61,28 +62,8 @@ float RedNoiseSource::wave() {
       zeroRamp_ = false;
     } else if (rng_.decide(density.current())) {
 
-      // LastSign = Decide(ZCT) ? -LastSign : Rand.Sign()
-      if (rng_.decide(zeroCrossTendency.current())) {
-        lastSign_ = -lastSign_;
-      } else {
-        lastSign_ = float(rng_.sign());
-        if (lastSign_ == 0.0f) lastSign_ = 1.0f; // avoid 0 sign edge
-      }
-
-      // NextValue = Rand.Range(Boost, 1.0) * LastSign
-      float b = boost.current();
-      b = std::clamp(b, 0.0f, 1.0f);
-      nextValue_ = rng_.range(b, 1.0f) * lastSign_;
-
-      // Continuity: NextValue = Rand.Range(LastVal, NextValue, min(cont,0.999))
-      float cont = continuity.current();
-      if (cont != 0.0f) {
-        float influence = std::min(cont, 0.999f);
-        // NOTE: legacy uses LastVal from SingleValueSource (previous output sample).
-        // In our C++ port, WaveSource doesn't track LastVal; we approximate continuity bias using lastValue_.
-        // If you want perfect equivalence, we can add LastVal tracking to SingleValueSource layer.
-        nextValue_ = rng_.range(lastValue_, nextValue_, lastValue_, influence);
-      }
+      nextValue_ = shaped_draw(rng_, zeroCrossTendency.current(), boost.current(),
+                               continuity.current(), lastValue_, lastSign_);
 
     } else {
       nextValue_ = 0.0f;
