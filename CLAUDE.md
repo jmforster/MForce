@@ -103,7 +103,10 @@ Replicate legacy functionality of node-based UI to:
   the model and effort level (verify with get_session self) and flags any change
   from the last session's recorded value (~/.claude/projects/C---dev-repos-mforce/
   last_model.txt, written by the SessionStart hook flow). Expected: Fable 5.x, High
-  or above. Never Opus 5/5.5; fallback is claude-opus-4-8. Offer xhigh/max before
+  or above. Opus 5.5 is allowed again (Matt 2026-11-06 rescinded the "never
+  Opus 5/5.5" rule: "just delegate to Opus 5.5 agents"); executors and
+  reviewers are Opus 5.5 subagents (the Agent tool's model "opus"), and
+  claude-opus-4-8 is no longer the required fallback. Offer xhigh/max before
   design or review work.
 - Session start: sweep stale renamed UI exes (build/tools/mforce_ui/Release/
   mforce_ui_*.exe — rename-then-link leftovers; skip any still locked/running)

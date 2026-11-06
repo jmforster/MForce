@@ -43,8 +43,13 @@ a CompositePartials, per-group amplEnv; ruling 8) → REVIEW R14 item 1 is a
 render Matt hears. PROOFS: null gate per task, a twin test per moved
 primitive (3.3's method), a synthetic set per layer (ab38/synth), the close
 A/B over 131, alloc gate 0, timing on the additive set. SPLIT: Fable on
-Tasks 2, 4, 5, 6, the replacement patch and the refuter; Sonnet on 0's set,
-1, 3, 7's runs and docs. EXECUTE AFTER the Fable reset (2026-11-07 02:00
+Tasks 2, 4, 5, 6, the replacement patch and the refuter; Opus 5.5 subagents
+on 0's set, 1, 3, 7's runs and docs. MODEL RULE CHANGE (Matt, 2026-11-06):
+the "never Opus 5/5.5" rule is RESCINDED — "just delegate to Opus 5.5
+agents"; executors and reviewers are Opus 5.5 subagents (Agent model
+"opus"), Sonnet is not the executor tier, Opus 4.8 is not the required
+fallback; CLAUDE.md, the SessionStart hook and the memory carry it; the
+plan's ruling 12 amended. EXECUTE AFTER the Fable reset (2026-11-07 02:00
 HST); Task 0 first (`cli_pre38.exe`, the ab36 new arm reused as old, the
 synthetic set). IFormant is NOT moved (ruling 2 records the convention;
 REVIEW R14 item 2 asks the formant base's name). Model check: Fable 5.1 xhigh this session,
