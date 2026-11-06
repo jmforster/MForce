@@ -101,6 +101,95 @@ Rulings made in planning; execution notes are appended per task by the executor.
 8. **The review is an Opus 4.8 reviewer, not a Fable refuter**, with this plan's tables as its oracle; the refuter's catches have all been where the gates are blind (the editor, tools, the record), and 3.6 touches none of those surfaces. The reviewer mutation-tests the twin and body-diffs every moved type.
 9. **Execution is Sonnet 5.5 per task** under the session's coordinator; the plan dictates every file name, folder and the helper's signature so no design is left to the executor. The coordinator reruns the null gate before every commit (the 2.1/2.2 pattern).
 
+
+### Execution notes
+
+**Task 0 (2026-11-05, Fable 5.1 xhigh; base `400a587`).** `date` 2026-11-05;
+no stale `mforce_ui_*.exe`; the editor not running. No engine or tools
+file changed between `a2ff727` (the survey) and `400a587` (`tools/structure/metrics.json` only), and none
+since `594df28`, so the ab35 new arm is this checkpoint's old arm:
+`renders/scratch/ab35/new/hashes.txt` -> `renders/scratch/ab36/old/hashes.txt`
+(132 lines, no re-render). `cli_pre36.exe` copied from the clean build.
+`gates --fast`: ctest 5/5, the stamp current (dep set 105 files, build
+11-04 18:37 @400a587), the allocation gate PASS, the roundtrip smoke FAIL
+on the known wiring diff (5/6 shapes clean, as at 2.4 through 3.5). The
+six headers hold exactly the plan's counts (14, 6, 3, 4, 5, 6 types).
+
+**The Task 0 scan (review focus 3).** `WhiteNoiseSource`: 20 nodes in 11
+files (the three pianos 4 each; bassoon1, flute1, oboe1, oboe2;
+bend_mordent_test_pluck, bow_evolution_discovery, loop_hysteresis_bow,
+loop_selfosc). **None leaves the fast path**: every in-scope white node
+has density 1, boost 0, continuity 0, zeroCrossTendency 0, so the null
+gate and the A/B see white's single-draw path only. `RedNoiseSource`: 9
+nodes in 4 files (bow_evolution_discovery 1, hybrid_breath_horn_test 1,
+repeating_segment_test 2, wander2_mod_test 5); red draws through the
+block on every ramp, so those four pin the helper on real patches. The
+twin is the proof for white's shaped path; ruling 10 adds one synthetic.
+
+10. **Ruling 6 corrected from the code, two ways.** (a) *Both* sites clamp
+`boost`: `red_noise_source.cpp` has `b = std::clamp(b, 0.0f, 1.0f)` before
+its `range(b, 1)` exactly as `white_noise_source.h` does; the plan's "red
+never clamped" was a misreading. The clamp therefore lives INSIDE the
+helper, at the same point of the sequence, and neither call site clamps.
+(b) The `decide(density)` stays at the call sites, outside the helper:
+white's miss writes 0 and red's miss sets `zeroRamp_`, and a helper that
+returned 0 on a miss could not tell red a miss from a drawn 0.0
+(`range(0, 1)` can return 0). The helper is the block from the sign draw
+on: `inline float shaped_draw(Randomizer& rng, float zeroCrossTendency,
+float boost, float continuity, float lastValue, float& lastSign)` -- the
+sign (flip on `decide(zct)`, else `sign()` with 0 -> 1), the magnitude
+`range(clamp(boost), 1) * lastSign`, the continuity bias
+`range(lastValue, v, lastValue, min(continuity, 0.999))` when continuity
+is non-zero -- and each caller reads `if (rng_.decide(density)) v =
+shaped_draw(rng_, zct, bst, cont, lastVal_, lastSign_); else <its own
+miss>`. White passes `lastVal_` (its previous output, amplitude applied),
+red passes `lastValue_` (the previous ramp target), as each does today.
+The twin retypes both blocks from the sign draw on (white's with the
+clamp, red's with the clamp) as lambdas and compares `same_bits` against
+the helper over the parameter walk; a `Randomizer` per row, seeded and
+advanced identically on both sides. The table row for `shaped_draw.h`
+reads with this signature.
+
+11. **One synthetic for white's shaped path.** Since no in-scope white
+node leaves the fast path, Task 2 also writes
+`renders/scratch/ab36/synth/white_shaped.json` (one `WhiteNoiseSource`
+with density 0.7, boost 0.2, continuity 0.4, zeroCrossTendency 0.3, into
+a SoundChannel, two notes, in the shape of an existing baseline) and
+renders it with `cli_pre36.exe` and the Task 2 build: identical, or the
+call site is wrong. The 3.3 method; it joins the close's A/B as a second
+set file.
+
+12. **The include sites, by the types each names** (surveyed at
+`400a587`; the executor confirms at the build). `wavetable_source.h`:
+`WaveEvolution`, `PluckEvolution` -> `wave_evolution.h`,
+`pluck_evolution.h`. `hybrid_ks_source.h`/`.cpp`, `wavetable_source.cpp`:
+no evolution type by name. `fm_source.h`: no filter type by name -> its
+`filters.h` include goes (the build says whether a transitive include was
+carrying something; then that header is named). `full_additive_source.h`:
+`IFormant`, `BandSpectrum` -> `formant.h`, `band_spectrum.h`. `partials.h`:
+`IFormant`, `Formant` -> `formant.h`. `patch_loader.cpp`: `BWLowpassFilter`,
+`BWHighpassFilter`, `BWBandpassFilter`, `CombinedSource`, `CombineOp`; no
+`DelayFilter`, no crossfade/distorted/static, no formant type -> three
+filter files and `combined_source.h`; its `formant.h` include goes.
+`source_registrations.cpp`: one include per registered type (13
+evolutions + the base through `wavetable_source.h`; the six noise types,
+three wander; four filters; the five combiner-table types; the five
+formant-table types). `tools/engine_tests/main.cpp`: every evolution type
+(all 13), the six noise types and `WanderNoiseSource` (not Wander2/3),
+all four filters, all five combiner-table types, all five formant-table
+types -- each include placed in the test block that uses it, where the
+old include sits. `tools/mforce_ui/main.cpp`: `Formant`, `IFormant`,
+`FormantSpectrum`, `FixedSpectrum`, `BandSpectrum`, `FormantSequence` ->
+all five formant files. `noise_sources.h`'s own includes (pink, white) go
+to the types that hold a `PinkNoiseSource`/`WhiteNoiseSource` member
+(Blue holds `pink_`; the executor reads the other five).
+
+13. **The coordinator model.** This session opened on Fable 5.1 xhigh
+(the app's picker, not a choice); Task 0 and these notes were done on it.
+The 3.6 combo (Opus 4.8 coordinator) is put to Matt at the end of Task 0;
+the switch is his, in the model menu, since a session cannot re-price
+its own turns.
+
 ## Self-review notes
 
 - The thirteen evolution files average 70 lines; the largest (`TargetEvolution` with its synthesis, `BrassEvolution`) stay well under 600.
