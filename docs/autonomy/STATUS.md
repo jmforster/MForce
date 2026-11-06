@@ -27,12 +27,27 @@ wavetable's two first-sample blocks CLEANUP 35; `AdditiveSource2`'s
 `on_slot_changed` override goes with its deletion in 3.8. NEXT is 3.8
 (`Partials` split by responsibility, Part 3 §7: "designed then;
 byte-identical target"), FABLE THROUGHOUT per the 11-04 combo; its plan is
-NOT yet written — the survey of `partials.h` (1,148 lines today, eight types:
-`ExpandRule`, `ExpandRuleNode`, `IPartials`, `Partials` ~750 lines, Full,
-Sequence, Explicit, Composite; in scope 70 FullPartials, 4 Explicit, 1
-Sequence, 75 AdditiveSource; `AdditiveSource2` in one baseline,
-`as2_bright_attack_test`, `BasicAdditiveSource` in none) starts it, and the
-effort offer (xhigh or max) goes to Matt before the design. Model check: Fable 5.1 xhigh this session,
+WRITTEN at xhigh (Matt: "stay at xhigh"), committed:
+`docs/superpowers/plans/2026-11-06-part3-checkpoint-3.8.md`. THE SHAPE:
+`IPartials` → `PartialSet`, an abstract `Component` base owning the pin
+lifecycle (3.4's `WaveEvolution` shape; ruling 1); `partials.h` one type per
+file (eight); six value-type layers `Partials` composes — `CoherentWalk`
+(motion and shimmer, over a new `core/dsp/segment_walk.h`), `PairTrade`,
+`BandwidthNoise`, `OnsetGate`, `DecayLaw` — and `PartialLayout` (the six
+arrays, originals, expansion); no layer is a Component (ruling 4);
+`BasicAdditiveSource` and `AdditiveSource2` deleted, `FullAdditiveSource`
+renamed `AdditiveSource`; the ONE render that moves is the AS2 baseline, by
+deletion — retired to `patches/old/additive_source2/`, replaced by a
+hand-authored `additive_bright_attack_test.json` (two ExplicitPartials under
+a CompositePartials, per-group amplEnv; ruling 8) → REVIEW R14 item 1 is a
+render Matt hears. PROOFS: null gate per task, a twin test per moved
+primitive (3.3's method), a synthetic set per layer (ab38/synth), the close
+A/B over 131, alloc gate 0, timing on the additive set. SPLIT: Fable on
+Tasks 2, 4, 5, 6, the replacement patch and the refuter; Sonnet on 0's set,
+1, 3, 7's runs and docs. EXECUTE AFTER the Fable reset (2026-11-07 02:00
+HST); Task 0 first (`cli_pre38.exe`, the ab36 new arm reused as old, the
+synthetic set). IFormant is NOT moved (ruling 2 records the convention;
+REVIEW R14 item 2 asks the formant base's name). Model check: Fable 5.1 xhigh this session,
 the change back from 3.6's Opus 4.8 the 11-05 handoff said to expect.
 Budget at session start: Fable weekly 82 percent, reset 2026-11-07 02:00
 HST. GIT: main level with origin at session start. GOALS.md stays Matt's
