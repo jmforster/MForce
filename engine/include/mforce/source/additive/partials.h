@@ -1,6 +1,8 @@
 #pragma once
 // Partials: a PartialSet.
 #include "mforce/source/additive/partial_set.h"
+#include "mforce/source/additive/coherent_walk.h"
+#include "mforce/source/additive/pair_trade.h"
 #include "mforce/source/additive/expand_rule.h"
 #include "mforce/source/additive/formant.h"
 #include "mforce/core/fast_math.h"
@@ -188,39 +190,15 @@ struct Partials : PartialSet {
     // never in the per-sample path.
     sampleIdx_ = 0;
     motionActive_ = (motionDepth1.value != 0.0f || motionDepth2.value != 0.0f);
-    if (motionActive_) {
-      moLen_ = std::max(1, int(rate_ / std::max(0.01f, motionHz.value)));
-      moSharedRng_ = Randomizer(stream_seed(noteBase_, 0, kRngMotionShared));
-      walk_init(moShared_, moLen_, motionEvolve.value, moSharedRng_);
-      moWalks_.assign(n, MotionWalk{});
-      if (int(moRng_.size()) != n) moRng_.resize(n, Randomizer(0u));
-      for (int i = 0; i < n; ++i) {
-        moRng_[i] = Randomizer(stream_seed(noteBase_, uint32_t(i), kRngMotionInd));
-        walk_init(moWalks_[i], moLen_, motionEvolve.value, moRng_[i]);
-      }
-      moVals_.assign(n, 0.0f);
-    }
+    if (motionActive_)
+      motion_.start(n, noteBase_, kRngMotionShared, kRngMotionInd,
+                    motionHz.value, motionEvolve.value, rate_);
     shimmerActive_ = (shimmerDepth1.value != 0.0f || shimmerDepth2.value != 0.0f);
-    if (shimmerActive_) {
-      shLen_ = std::max(1, int(rate_ / std::max(0.01f, shimmerHz.value)));
-      shSharedRng_ = Randomizer(stream_seed(noteBase_, 0, kRngShimmerShared));
-      walk_init(shShared_, shLen_, shimmerEvolve.value, shSharedRng_);
-      shWalks_.assign(n, MotionWalk{});
-      if (int(shRng_.size()) != n) shRng_.resize(n, Randomizer(0u));
-      for (int i = 0; i < n; ++i) {
-        shRng_[i] = Randomizer(stream_seed(noteBase_, uint32_t(i), kRngShimmerInd));
-        walk_init(shWalks_[i], shLen_, shimmerEvolve.value, shRng_[i]);
-      }
-      shVals_.assign(n, 0.0f);
-    }
+    if (shimmerActive_)
+      shimmer_.start(n, noteBase_, kRngShimmerShared, kRngShimmerInd,
+                     shimmerHz.value, shimmerEvolve.value, rate_);
     tradeActive_ = (tradeDepth.value != 0.0f);
-    if (tradeActive_) {
-      trLen_ = std::max(1, int(rate_ / std::max(0.01f, tradeHz.value)));
-      trRng_ = Randomizer(stream_seed(noteBase_, 0, kRngTrade));
-      trWalks_.assign((n + 1) / 2, MotionWalk{});
-      for (auto& w : trWalks_) walk_init(w, trLen_, 0.0f, trRng_);
-      trVals_.assign((n + 1) / 2, 0.0f);
-    }
+    if (tradeActive_) trade_.start(n, noteBase_, kRngTrade, tradeHz.value, rate_);
     onsetActive_ = (onsetSpread.value > 0.0f);
     if (onsetActive_) {
       // Per-partial onset delay: tilt orders delays by partial height
@@ -248,26 +226,9 @@ struct Partials : PartialSet {
     refresh_sample_scalars();
 
     ++sampleIdx_;
-    if (motionActive_) {
-      float shared = walk_advance(moShared_, moLen_, motionEvolve.value, moSharedRng_);
-      float coh = motionCoherence.value;
-      for (size_t i = 0; i < moWalks_.size(); ++i) {
-        float ind = walk_advance(moWalks_[i], moLen_, motionEvolve.value, moRng_[i]);
-        moVals_[i] = coh * shared + (1.0f - coh) * ind;
-      }
-    }
-    if (shimmerActive_) {
-      float shared = walk_advance(shShared_, shLen_, shimmerEvolve.value, shSharedRng_);
-      float coh = shimmerCoherence.value;
-      for (size_t i = 0; i < shWalks_.size(); ++i) {
-        float ind = walk_advance(shWalks_[i], shLen_, shimmerEvolve.value, shRng_[i]);
-        shVals_[i] = coh * shared + (1.0f - coh) * ind;
-      }
-    }
-    if (tradeActive_) {
-      for (size_t i = 0; i < trWalks_.size(); ++i)
-        trVals_[i] = walk_advance(trWalks_[i], trLen_, 0.0f, trRng_);
-    }
+    if (motionActive_) motion_.advance(motionEvolve.value, motionCoherence.value);
+    if (shimmerActive_) shimmer_.advance(shimmerEvolve.value, shimmerCoherence.value);
+    if (tradeActive_) trade_.advance();
     if (decayActive_) {
       // Advance each partial's running decay gain by its per-sample factor.
       // ensure_partial_cache first: decayGain_ is derived there from the
@@ -335,7 +296,7 @@ private:
     // Hz — fuses like vibrato); independent component broadens lines.
     if (motionActive_) {
       if (sMd_ != 0.0f) {
-        float cents = sMd_ * moVals_[index];
+        float cents = sMd_ * motion_.value(index);
         if (motionScale.value != 0.0f) cents *= moScaleCache_[index];
         // fast_exp2, not std::exp2: this is a CRT call executed once per
         // partial per sample, and it measured at 65.6% of viola_default's
@@ -441,14 +402,14 @@ private:
     // near-silence (measured 14.6 dB mid-note dips at depth ~1.09); the
     // default 0 reproduces the old max(0, g) exactly.
     if (shimmerActive_) {
-      float g = 1.0f + sSd_ * shVals_[index];
+      float g = 1.0f + sSd_ * shimmer_.value(index);
       pampl *= (g < shimmerFloor.value ? shimmerFloor.value : g);
     }
 
     // Energy trading: adjacent pairs share one walk with opposite signs, so
     // energy sloshes between neighbors while the pair sum stays ~constant.
     if (tradeActive_) {
-      float g = 1.0f + ((index & 1) ? -tradeDepth.value : tradeDepth.value) * trVals_[index >> 1];
+      float g = 1.0f + ((index & 1) ? -tradeDepth.value : tradeDepth.value) * trade_.value(index >> 1);
       pampl *= (g < 0.0f ? 0.0f : g);
     }
 
@@ -649,53 +610,13 @@ protected:
     }
     for (auto* v : {&partialPos_, &partialPO_, &partialLPO_, &dtVals_, &pmultCache_,
                     &rolloffCache_, &moScaleCache_, &decayGain_, &decayState_, &bwCur_,
-                    &bwTarget_, &moVals_, &shVals_, &onsetDelay_})
+                    &bwTarget_, &onsetDelay_})
       v->assign(size_t(n), 0.0f);
-    trVals_.assign(size_t((n + 1) / 2), 0.0f);
     bwPos_.assign(size_t(n), 0);
     bwRng_.assign(size_t(n), Randomizer(0u));
-    moRng_.assign(size_t(n), Randomizer(0u));
-    shRng_.assign(size_t(n), Randomizer(0u));
-    moWalks_.assign(size_t(n), MotionWalk{});
-    shWalks_.assign(size_t(n), MotionWalk{});
-    trWalks_.assign(size_t((n + 1) / 2), MotionWalk{});
-  }
-
-  // Smoothed random walk with meta-randomized segments — the primitive under
-  // the motion/shimmer/trade layers. evolve > 0 makes each new segment
-  // re-roll its own length and excursion, so the movement is non-stationary
-  // ("the character of the movement itself changes over time").
-  struct MotionWalk {
-    float cur{0.0f}, target{0.0f};
-    int pos{0}, len{1};
-  };
-
-  int walk_seg_len(int baseLen, float evolve, Randomizer& rng) {
-    float f = (evolve <= 0.0f) ? 1.0f
-                               : std::pow(1.0f + 3.0f * evolve, rng.valuePN());
-    int len = int(float(baseLen) * f);
-    return len < 1 ? 1 : len;
-  }
-
-  void walk_init(MotionWalk& w, int baseLen, float evolve, Randomizer& rng) {
-    w.cur = rng.valuePN();
-    w.target = rng.valuePN();
-    w.len = walk_seg_len(baseLen, evolve, rng);
-    w.pos = int(rng.range(0.0f, float(w.len)));  // stagger segment phase
-  }
-
-  float walk_advance(MotionWalk& w, int baseLen, float evolve, Randomizer& rng) {
-    if (w.pos >= w.len) {
-      w.cur = w.target;
-      float amp = 1.0f + 0.7f * evolve * rng.valuePN();
-      w.target = rng.valuePN() * amp;
-      w.len = walk_seg_len(baseLen, evolve, rng);
-      w.pos = 0;
-    }
-    float u = float(w.pos) / float(w.len);
-    float s = u * u * (3.0f - 2.0f * u);  // smoothstep → low-pass movement
-    ++w.pos;
-    return w.cur + (w.target - w.cur) * s;
+    motion_.prepare(n);
+    shimmer_.prepare(n);
+    trade_.prepare(n);
   }
 
   // Rng streams — one per (partial, layer) for the layers with per-partial
@@ -705,21 +626,20 @@ protected:
   uint32_t baseSeed_;
   uint32_t noteSeq_{0};   // note-on ordinal, hashed into noteBase_
   uint32_t noteBase_{0};
-  Randomizer moSharedRng_{0u}, shSharedRng_{0u}, trRng_{0u}, expandRng_{0u};
-  std::vector<Randomizer> bwRng_, moRng_, shRng_;  // per-partial streams
+  Randomizer expandRng_{0u};
+  std::vector<Randomizer> bwRng_;   // the bandwidth noise's per-partial streams
 
   // Bandwidth-noise segment length in samples (derived from bandwidthHz at start)
   int   bwLen_{1600};
 
-  // Motion layer runtime state (allocated in start)
+  // The layers: each sized at prepare and started per note, inert unless
+  // its flag is on
   bool motionActive_{false}, shimmerActive_{false};
   bool tradeActive_{false}, onsetActive_{false};
   bool decayActive_{false};
   std::vector<float> decayGain_, decayState_;  // per-sample factor / running gain
-  int moLen_{1}, shLen_{1}, trLen_{1};
-  MotionWalk moShared_, shShared_;
-  std::vector<MotionWalk> moWalks_, shWalks_, trWalks_;
-  std::vector<float> moVals_, shVals_, trVals_;
+  CoherentWalk motion_, shimmer_;
+  PairTrade trade_;
   std::vector<float> onsetDelay_;
   float onsetFadeSamples_{1.0f};
   int sampleIdx_{0};

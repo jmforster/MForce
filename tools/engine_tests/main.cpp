@@ -4021,6 +4021,9 @@ static void run_target_evolution_morph_tests() {
 #include "mforce/source/additive/additive_source.h"
 #include "mforce/source/additive/partial_set.h"
 #include "mforce/source/additive/partials.h"
+#include "mforce/source/additive/coherent_walk.h"
+#include "mforce/source/additive/pair_trade.h"
+#include "mforce/core/dsp/segment_walk.h"
 #include "mforce/source/additive/full_partials.h"
 #include "mforce/source/additive/sequence_partials.h"
 #include "mforce/source/additive/explicit_partials.h"
@@ -7459,6 +7462,130 @@ static void run_formant_part_tests() {
 // The partials family are parts: a CompositePartials holds its sets in a multi
 // slot (add appends, set replaces, a signal is refused) and no partials type
 // is a ValueSource.
+// The segment walk, the coherent walk and the pair trade against the blocks
+// they replaced: the deleted walk functions retyped here as they stood in
+// Partials, both sides driven by identically seeded Randomizers, every
+// advance compared bit for bit.
+namespace twin38 {
+struct W { float cur{0.0f}, target{0.0f}; int pos{0}, len{1}; };
+inline int seg_len(int baseLen, float evolve, Randomizer& rng) {
+    float f = (evolve <= 0.0f) ? 1.0f
+                               : std::pow(1.0f + 3.0f * evolve, rng.valuePN());
+    int len = int(float(baseLen) * f);
+    return len < 1 ? 1 : len;
+}
+inline void init(W& w, int baseLen, float evolve, Randomizer& rng) {
+    w.cur = rng.valuePN();
+    w.target = rng.valuePN();
+    w.len = seg_len(baseLen, evolve, rng);
+    w.pos = int(rng.range(0.0f, float(w.len)));
+}
+inline float advance(W& w, int baseLen, float evolve, Randomizer& rng) {
+    if (w.pos >= w.len) {
+        w.cur = w.target;
+        float amp = 1.0f + 0.7f * evolve * rng.valuePN();
+        w.target = rng.valuePN() * amp;
+        w.len = seg_len(baseLen, evolve, rng);
+        w.pos = 0;
+    }
+    float u = float(w.pos) / float(w.len);
+    float s = u * u * (3.0f - 2.0f * u);
+    ++w.pos;
+    return w.cur + (w.target - w.cur) * s;
+}
+}  // namespace twin38
+
+static void run_segment_walk_twin_tests() {
+    std::printf("segment walk: the primitive against the deleted walk\n");
+    int bad = 0, rows = 0;
+    for (int baseLen : {1, 7, 1600, 48000})
+        for (float evolve : {0.0f, 0.3f, 1.0f})
+            for (uint32_t seed = 1; seed <= 8; ++seed) {
+                Randomizer ra(seed), rb(seed);
+                twin38::W a;
+                dsp::SegmentWalk b;
+                twin38::init(a, baseLen, evolve, ra);
+                b.init(baseLen, evolve, rb);
+                if (!same_bits(a.cur, b.cur) || !same_bits(a.target, b.target) || a.pos != b.pos || a.len != b.len) ++bad;
+                for (int k = 0; k < 500; ++k) {
+                    float x = twin38::advance(a, baseLen, evolve, ra);
+                    float y = b.advance(baseLen, evolve, rb);
+                    ++rows;
+                    if (!same_bits(x, y)) ++bad;
+                }
+            }
+    CHECK(bad == 0);
+    CHECK(rows == 4 * 3 * 8 * 500);
+}
+
+static void run_coherent_walk_twin_tests() {
+    std::printf("coherent walk: the motion block against the layer\n");
+    int bad = 0, rows = 0;
+    const float rate = 48000.0f, hz = 4.0f;
+    for (int n : {1, 8, 61})
+        for (float coh : {0.0f, 0.5f, 1.0f})
+            for (float evolve : {0.0f, 0.3f})
+                for (uint32_t noteBase : {0x1234u, 0xBEEFu}) {
+                    // the deleted block, as Partials::start and next ran it
+                    int moLen = std::max(1, int(rate / std::max(0.01f, hz)));
+                    Randomizer moSharedRng(stream_seed(noteBase, 0, kRngMotionShared));
+                    twin38::W moShared;
+                    twin38::init(moShared, moLen, evolve, moSharedRng);
+                    std::vector<twin38::W> moWalks(static_cast<size_t>(n));
+                    std::vector<Randomizer> moRng(size_t(n), Randomizer(0u));
+                    for (int i = 0; i < n; ++i) {
+                        moRng[size_t(i)] = Randomizer(stream_seed(noteBase, uint32_t(i), kRngMotionInd));
+                        twin38::init(moWalks[size_t(i)], moLen, evolve, moRng[size_t(i)]);
+                    }
+                    std::vector<float> moVals(size_t(n), 0.0f);
+                    CoherentWalk layer;
+                    layer.prepare(n);
+                    layer.start(n, noteBase, kRngMotionShared, kRngMotionInd, hz, evolve, rate);
+                    for (int k = 0; k < 300; ++k) {
+                        float shared = twin38::advance(moShared, moLen, evolve, moSharedRng);
+                        for (size_t i = 0; i < moWalks.size(); ++i) {
+                            float ind = twin38::advance(moWalks[i], moLen, evolve, moRng[i]);
+                            moVals[i] = coh * shared + (1.0f - coh) * ind;
+                        }
+                        layer.advance(evolve, coh);
+                        for (int i = 0; i < n; ++i) {
+                            ++rows;
+                            if (!same_bits(moVals[size_t(i)], layer.value(i))) ++bad;
+                        }
+                    }
+                }
+    CHECK(bad == 0);
+    CHECK(rows == (1 + 8 + 61) * 3 * 2 * 2 * 300);
+}
+
+static void run_pair_trade_twin_tests() {
+    std::printf("pair trade: the trade block against the layer\n");
+    int bad = 0, rows = 0;
+    const float rate = 48000.0f, hz = 2.0f;
+    for (int n : {1, 2, 7, 24})
+        for (uint32_t noteBase : {0x1234u, 0xBEEFu}) {
+            int trLen = std::max(1, int(rate / std::max(0.01f, hz)));
+            Randomizer trRng(stream_seed(noteBase, 0, kRngTrade));
+            std::vector<twin38::W> trWalks(size_t((n + 1) / 2));
+            for (auto& w : trWalks) twin38::init(w, trLen, 0.0f, trRng);
+            std::vector<float> trVals(size_t((n + 1) / 2), 0.0f);
+            PairTrade layer;
+            layer.prepare(n);
+            layer.start(n, noteBase, kRngTrade, hz, rate);
+            for (int k = 0; k < 300; ++k) {
+                for (size_t i = 0; i < trWalks.size(); ++i)
+                    trVals[i] = twin38::advance(trWalks[i], trLen, 0.0f, trRng);
+                layer.advance();
+                for (size_t i = 0; i < trVals.size(); ++i) {
+                    ++rows;
+                    if (!same_bits(trVals[i], layer.value(int(i)))) ++bad;
+                }
+            }
+        }
+    CHECK(bad == 0);
+    CHECK(rows == (1 + 1 + 4 + 12) * 2 * 300);
+}
+
 // The base drives a set's pins: each prepared once, started once and
 // advanced once per next(), in declaration order; a composite forwards each
 // verb to its sets and advances no pin of its own.
@@ -7876,6 +8003,9 @@ int main() {
     run_structural_push_refusal_tests();
     run_wiring_door_tests();
     run_formant_part_tests();
+    run_segment_walk_twin_tests();
+    run_coherent_walk_twin_tests();
+    run_pair_trade_twin_tests();
     run_partial_set_lifecycle_tests();
     run_partials_part_tests();
     run_component_root_tests();
