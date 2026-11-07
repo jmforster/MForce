@@ -2,6 +2,8 @@
 // PartialSet: the abstract base of a set of partials.
 #include "mforce/core/dsp_value_source.h"
 #include "mforce/source/additive/formant.h"
+#include <array>
+#include <cassert>
 #include <cmath>
 
 namespace mforce {
@@ -16,8 +18,18 @@ namespace mforce {
 // unprepared. A set's connectable pins are Manual: no sweep runs on a part.
 // ---------------------------------------------------------------------------
 struct PartialSet : Component {
+  // prepare also lists the set's Param pins, so next() walks that list and
+  // not every setting: the same calls Partials once wrote by hand, through
+  // pointers kept inside the node (no heap, as Component's own sweep list).
   void prepare(const RenderContext& ctx) {
-    for (auto* pin : pins()) pin->prepare(ctx);
+    paramCount_ = 0;
+    for (auto* pin : pins()) {
+      pin->prepare(ctx);
+      if (pin->kind == PinKind::Param) {
+        assert(paramCount_ < kMaxParams && "a set declares more Param pins than PartialSet::kMaxParams");
+        params_[size_t(paramCount_++)] = static_cast<Param*>(pin);
+      }
+    }
     on_prepare(ctx);
   }
   void start(int frames) {
@@ -25,8 +37,7 @@ struct PartialSet : Component {
     on_start(frames);
   }
   void next() {
-    for (auto* pin : pins())
-      if (pin->kind == PinKind::Param) static_cast<Param*>(pin)->next();
+    for (int i = 0; i < paramCount_; ++i) params_[size_t(i)]->next();
     on_next();
   }
 
@@ -66,6 +77,13 @@ protected:
   virtual void on_prepare(const RenderContext&) {}
   virtual void on_start(int) {}
   virtual void on_next() {}
+
+private:
+  // The Param pins, listed at prepare in declaration order. No set declares
+  // more than eight today; the assert says when one does.
+  static constexpr int kMaxParams = 16;
+  std::array<Param*, kMaxParams> params_{};
+  int paramCount_{0};
 };
 
 } // namespace mforce

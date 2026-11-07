@@ -4291,7 +4291,7 @@
    "changelog_comments": 4,
    "const_cast": 0,
    "dynamic_cast": 20,
-   "lines": 8369,
+   "lines": 8387,
    "longest_function": [
     272,
     "run_walk3_tests"
@@ -4712,7 +4712,7 @@
   "files_over_limit": 18,
   "functions_over_limit": 98,
   "include_violations": 14,
-  "lines": 61911,
+  "lines": 61929,
   "unmapped_files": 0
  }
 }
