@@ -33,13 +33,17 @@
 #include "mforce/source/envelope/segment_source.h"
 #include "mforce/source/modulator/repeating_source.h"
 #include "mforce/source/envelope/phased_value_source.h"
-#include "mforce/source/additive/full_additive_source.h"
+#include "mforce/source/additive/additive_source.h"
 #include "mforce/source/additive/formant.h"
 #include "mforce/source/additive/formant_spectrum.h"
 #include "mforce/source/additive/fixed_spectrum.h"
 #include "mforce/source/additive/band_spectrum.h"
 #include "mforce/source/additive/formant_sequence.h"
-#include "mforce/source/additive/partials.h"
+#include "mforce/source/additive/full_partials.h"
+#include "mforce/source/additive/sequence_partials.h"
+#include "mforce/source/additive/explicit_partials.h"
+#include "mforce/source/additive/composite_partials.h"
+#include "mforce/source/additive/expand_rule_node.h"
 #include "mforce/source/wavetable/wave_evolution.h"
 #include "mforce/source/wavetable/pluck_evolution.h"
 #include "mforce/source/wavetable/averaging_evolution.h"
@@ -248,10 +252,10 @@ void register_all_sources() {
     // Additive
     // -----------------------------------------------------------------------
 
-    // The real AdditiveSource (thin loop over Partials, was FullAdditiveSource)
-    reg.register_type("AdditiveSource", {.family = Family::Additive, .label = "Full"},
+    // AdditiveSource: the thin loop over a PartialSet.
+    reg.register_type("AdditiveSource", {.family = Family::Additive},
         [](auto seed) {
-            return std::make_shared<FullAdditiveSource>(seed.value_or(0xADD2'0000u));
+            return std::make_shared<AdditiveSource>(seed.value_or(0xADD2'0000u));
         });
 
     reg.register_type("FullPartials", {.family = Family::Additive},

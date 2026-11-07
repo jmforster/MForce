@@ -17,8 +17,9 @@
 #include "mforce/music/pitch_bend.h"
 #include "mforce/music/pitch_curve.h"
 // Types still needed for special-case construction
-#include "mforce/source/additive/full_additive_source.h"
 #include "mforce/source/additive/partials.h"
+#include "mforce/source/additive/expand_rule_node.h"
+#include "mforce/source/additive/expand_rule.h"
 #include "mforce/source/wavetable/wavetable_source.h"
 #include "mforce/source/wavetable/hybrid_ks_source.h"
 #include "mforce/source/envelope/segment_source.h"

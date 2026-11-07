@@ -1,7 +1,7 @@
 add_library(mforce_engine
   src/source/noise/red_noise_source.cpp
   src/source/wavetable/wavetable_source.cpp
-  src/source/additive/full_additive_source.cpp
+  src/source/additive/additive_source.cpp
   src/source/wavetable/hybrid_ks_source.cpp
   src/music.cpp
   src/chord.cpp

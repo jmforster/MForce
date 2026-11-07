@@ -1,0 +1,51 @@
+#pragma once
+// SequencePartials: a Partials.
+#include "mforce/source/additive/partials.h"
+#include <algorithm>
+#include <cmath>
+#include <cstdint>
+
+namespace mforce {
+
+// ---------------------------------------------------------------------------
+// SequencePartials — linear multiplier sequences with evolving spacing.
+// Ported from legacy SequencePartials.cs InitArrays.
+// ---------------------------------------------------------------------------
+struct SequencePartials final : Partials {
+  // Every setting here shapes the partial arrays: structural, rebuilt at prepare.
+  Setting<int>   maxPartials{this, "maxPartials", 30, 1, 200};
+  Setting<float> minMult1   {this, "minMult1",    1.0f, 0.01f, 100.0f, SettingRole::Structural};
+  Setting<float> minMult2   {this, "minMult2",    1.0f, 0.01f, 100.0f, SettingRole::Structural};
+  Setting<float> incr1      {this, "incr1",       1.0f, 0.01f, 100.0f, SettingRole::Structural};
+  Setting<float> incr2      {this, "incr2",       1.0f, 0.01f, 100.0f, SettingRole::Structural};
+  Setting<float> unitPO1    {this, "unitPO1",     0.0f, 0.0f,  1.0f,   SettingRole::Structural};
+  Setting<float> unitPO2    {this, "unitPO2",     0.0f, 0.0f,  1.0f,   SettingRole::Structural};
+
+  SequencePartials(uint32_t seed = 0xADD2'0000u) : Partials(seed) { init_arrays(); }
+
+  const char* type_name() const override { return "SequencePartials"; }
+
+  // A structural setting reshapes the arrays, rebuilt at the next prepare.
+  void on_setting_changed(std::string_view name) override {
+    Partials::on_setting_changed(name);
+    if (name == "maxPartials") maxPartials.value = std::max(1, maxPartials.value);
+    if (structural_setting(name)) arrayUpdateReq_ = true;
+  }
+
+protected:
+  void init_arrays() override {
+    int n = maxPartials.value;
+    mult1_.resize(n); mult2_.resize(n);
+    ampl1_.assign(n, 1.0f); ampl2_.assign(n, 1.0f);
+    po1_.resize(n); po2_.resize(n);
+
+    for (int i = 0; i < n; ++i) {
+      mult1_[i] = minMult1.value + float(i) * incr1.value;
+      mult2_[i] = minMult2.value + float(i) * incr2.value;
+      po1_[i] = std::fmod((mult1_[i] - 1.0f) * unitPO1.value, 1.0f);
+      po2_[i] = std::fmod((mult2_[i] - 1.0f) * unitPO2.value, 1.0f);
+    }
+  }
+};
+
+} // namespace mforce

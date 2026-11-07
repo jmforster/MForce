@@ -1,21 +1,21 @@
-#include "mforce/source/additive/full_additive_source.h"
+#include "mforce/source/additive/additive_source.h"
 #include <algorithm>
 #include <cmath>
 #include <limits>
 
 namespace mforce {
 
-FullAdditiveSource::FullAdditiveSource(uint32_t seed)
+AdditiveSource::AdditiveSource(uint32_t seed)
 : noiseRng_(seed) {}
 
-void FullAdditiveSource::on_prepare(const RenderContext& ctx) {
+void AdditiveSource::on_prepare(const RenderContext& ctx) {
   if (auto* p = partials.get()) p->prepare(ctx);
   if (auto* f = formant.get()) f->prepare(ctx);
   formantWeight.prepare(ctx);
   formantFloor.prepare(ctx);
 }
 
-void FullAdditiveSource::on_start(int frames) {
+void AdditiveSource::on_start(int frames) {
   WaveSource::on_start(frames);
 
   if (auto* p = partials.get()) p->start(frames);
@@ -44,7 +44,7 @@ void FullAdditiveSource::on_start(int frames) {
   }
 }
 
-float FullAdditiveSource::wave() {
+float AdditiveSource::wave() {
   PartialSet* parts = partials.get();
   if (!parts) return 0.0f;
 

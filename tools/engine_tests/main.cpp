@@ -4018,8 +4018,15 @@ static void run_target_evolution_morph_tests() {
 #include "mforce/source/additive/fixed_spectrum.h"
 #include "mforce/source/additive/band_spectrum.h"
 #include "mforce/source/additive/formant_sequence.h"
-#include "mforce/source/additive/full_additive_source.h"
+#include "mforce/source/additive/additive_source.h"
+#include "mforce/source/additive/partial_set.h"
 #include "mforce/source/additive/partials.h"
+#include "mforce/source/additive/full_partials.h"
+#include "mforce/source/additive/sequence_partials.h"
+#include "mforce/source/additive/explicit_partials.h"
+#include "mforce/source/additive/composite_partials.h"
+#include "mforce/source/additive/expand_rule_node.h"
+#include "mforce/source/additive/expand_rule.h"
 
 namespace {
 std::string array_names(const mforce::Component& c) {
@@ -4036,7 +4043,7 @@ const char* const kPartialsEnvNames[8] = {"multEnv", "amplEnv", "poEnv", "roEnv"
 // order wave() advances them; the structural inputs are named but never
 // pulled.
 static void run_additive_source_pin_tests() {
-    FullAdditiveSource full;
+    AdditiveSource full;
     CHECK(param_names(full) == "amplitude,frequency,phase,formantWeight,formantFloor,");
     CHECK(input_names(full) == "formant,partials,");
     CHECK(setting_names(full) == "noiseBedLevel,noiseBedFreq,noiseBedWidth,noiseBedDelay,"
@@ -4138,7 +4145,7 @@ static void run_additive_smoke_tests() {
         s.prepare(ctx); s.start(4800);
         for (int i = 0; i < 10; ++i) CHECK(std::isfinite(s.next()));
     };
-    FullAdditiveSource bare;     smoke(bare);                 // no partials: silent
+    AdditiveSource bare;     smoke(bare);                 // no partials: silent
     // A formant part is driven by its owner; its gain is what it answers.
     auto smokeFormant = [&](IFormant& f) {
         f.prepare(ctx); f.start(4800);
@@ -4160,7 +4167,7 @@ static void run_additive_smoke_tests() {
     SequencePartials sequence;          smokePartials(sequence);
     ExplicitPartials expl;              smokePartials(expl);
 
-    FullAdditiveSource f;
+    AdditiveSource f;
     f.set_param("partials", std::make_shared<FullPartials>());
     f.set_param("formant", std::make_shared<Formant>());
     f.set_param("formantWeight", std::make_shared<ConstantSource>(0.5f));
@@ -4223,11 +4230,11 @@ static void run_additive_manual_pin_tests() {
     CHECK(r1->starts == 0 && r1->nexts == 0);
 }
 
-// FullAdditiveSource reads the formant weight and floor only while a formant
+// AdditiveSource reads the formant weight and floor only while a formant
 // is wired and partials are set, and prepares them either way.
 static void run_additive_formant_pin_tests() {
     RenderContext ctx{48000};
-    FullAdditiveSource f;
+    AdditiveSource f;
     auto w = std::make_shared<PinCounter>(), fl = std::make_shared<PinCounter>();
     f.set_param("formantWeight", w);
     f.set_param("formantFloor", fl);
@@ -4246,7 +4253,7 @@ static void run_additive_formant_pin_tests() {
     CHECK(w->starts == 2 && fl->starts == 2 && freq->starts == 1);
     CHECK(w->nexts == 5 && fl->nexts == 5 && freq->nexts == 5);
 
-    FullAdditiveSource g;                           // no partials: nothing advances
+    AdditiveSource g;                           // no partials: nothing advances
     auto gw = std::make_shared<PinCounter>();
     g.set_param("formantWeight", gw);
     g.set_param("formant", formant);
@@ -4257,7 +4264,7 @@ static void run_additive_formant_pin_tests() {
 
 // The structural inputs are type-checked when wired and keep a typed view.
 static void run_additive_wiring_tests() {
-    FullAdditiveSource f;
+    AdditiveSource f;
     auto fp = std::make_shared<FullPartials>();
     auto fm = std::make_shared<Formant>();
     auto other = std::make_shared<ConstantSource>(1.0f);
@@ -4364,7 +4371,7 @@ static void run_additive_explicit_array_tests() {
     g->set_array("ampl2", {1.0f, 0.5f, 0.2f});
     g->set_array("ampl1", {1.0f, 0.4f, 0.3f});
     g->set_array("mult1", {1.0f, 2.0f, 3.0f});
-    FullAdditiveSource f;
+    AdditiveSource f;
     f.set_param("partials", g);
     f.prepare(ctx); f.start(4800);
     float sum = 0.0f;
@@ -5919,8 +5926,8 @@ static std::shared_ptr<ExplicitPartials> make_split_partials() {
     return p;
 }
 
-static std::shared_ptr<FullAdditiveSource> make_split_full(std::shared_ptr<Component> formant) {
-    auto f = std::make_shared<FullAdditiveSource>();
+static std::shared_ptr<AdditiveSource> make_split_full(std::shared_ptr<Component> formant) {
+    auto f = std::make_shared<AdditiveSource>();
     f->set_param("partials", make_split_partials());
     if (formant) {
         f->set_param("formant", std::move(formant));
@@ -5963,7 +5970,7 @@ static void run_additive_split_tests() {
         auto comp = std::make_shared<CompositePartials>();
         comp->add_param("partials", make_split_partials());
         comp->add_param("partials", std::make_shared<FullPartials>(0x51u));
-        auto f = std::make_shared<FullAdditiveSource>();
+        auto f = std::make_shared<AdditiveSource>();
         f->set_param("partials", comp);
         return f;
     }, 2048, 4));
@@ -6552,7 +6559,7 @@ static void run_wired_split_tests() {
     }
     {
         const SplitResult r = split_compare([] {
-            auto f = std::make_shared<FullAdditiveSource>();
+            auto f = std::make_shared<AdditiveSource>();
             auto seq = std::make_shared<SequencePartials>();
             seq->set_setting("maxPartials", 12.0f);
             seq->set_setting("unitPO1", 0.3f);
@@ -6772,7 +6779,7 @@ static void run_wire_rejection_tests() {
     auto osc = std::make_shared<SineSource>();
     CHECK(osc->set_param("frequency", std::make_shared<ConstantSource>(1.0f)));
     CHECK(!osc->set_param("freq", std::make_shared<ConstantSource>(1.0f)));         // no such pin
-    auto add = std::make_shared<FullAdditiveSource>();                              // registry name "AdditiveSource"
+    auto add = std::make_shared<AdditiveSource>();                              // registry name "AdditiveSource"
     CHECK(!add->set_param("partials", std::make_shared<SineSource>()));              // wrong kind for the slot
     CHECK(add->set_param("partials", std::make_shared<FullPartials>()));
     const char* bad_key = R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"osc","nodes":[
@@ -7379,7 +7386,7 @@ struct Plug final : Component {   // a bare part: a Component that is no signal
 };
 static void run_wiring_door_tests() {
     std::printf("the wiring door: one call for every pin kind\n");
-    FullAdditiveSource add;
+    AdditiveSource add;
     CHECK(add.set_param("frequency", std::make_shared<ConstantSource>(220.0f)));   // a signal into a Param
     CHECK(!add.set_param("frequency", std::make_shared<Plug>()));                  // a part into a Param: refused
     CHECK(add.set_param("partials", std::make_shared<FullPartials>()));            // a part into its slot
@@ -7624,7 +7631,7 @@ static void run_review_gap_lifecycle_tests() {
     // parts three deep: the owner's prepare, start and next reach the innermost pins
     {
         RenderContext ctx{48000};
-        FullAdditiveSource f;
+        AdditiveSource f;
         auto fm = std::make_shared<Formant>();
         auto freq = std::make_shared<PinCounter>();
         fm->set_param("frequency", freq);
@@ -7685,7 +7692,7 @@ static const FamilyRow kFamilyTable[] = {
     {"EKSEvolution", Family::Wavetable, "EKS Evolution", Shelf::Main},
     {"PluckEvolution", Family::Wavetable, "Pluck Evolution", Shelf::Main},
     {"AveragingEvolution", Family::Wavetable, "Averaging Evolution", Shelf::Main},
-    {"AdditiveSource", Family::Additive, "Full", Shelf::Main},
+    {"AdditiveSource", Family::Additive, "Additive", Shelf::Main},
     {"FullPartials", Family::Additive, "Full Partials", Shelf::Main},
     {"SequencePartials", Family::Additive, "Sequence Partials", Shelf::Main},
     {"ExplicitPartials", Family::Additive, "Explicit Partials", Shelf::Main},
