@@ -4013,8 +4013,6 @@ static void run_target_evolution_morph_tests() {
 }
 
 // Checkpoint 2.1: the additive family (sources, partials, formants).
-#include "mforce/source/additive/additive_source2.h"
-#include "mforce/source/additive/basic_additive_source.h"
 #include "mforce/source/additive/formant.h"
 #include "mforce/source/additive/formant_spectrum.h"
 #include "mforce/source/additive/fixed_spectrum.h"
@@ -4034,26 +4032,10 @@ const char* const kPartialsEnvNames[8] = {"multEnv", "amplEnv", "poEnv", "roEnv"
                                           "dtEnv", "bwEnv", "motionEnv", "shimmerEnv"};
 }
 
-// The three sources declare the WaveSource trio and then their own pins, in
-// the order wave() advanced them; the structural inputs are named but never
+// The source declares the WaveSource trio and then its own pins, in the
+// order wave() advances them; the structural inputs are named but never
 // pulled.
 static void run_additive_source_pin_tests() {
-    AdditiveSource2 a2;
-    CHECK(param_names(a2) == "amplitude,frequency,phase,phaseOffset,freqVarDepth,freqVarSpeed,"
-                             "amplVarDepth,amplVarSpeed,");
-    CHECK(input_names(a2) == "partials,");
-    CHECK(setting_names(a2) == "partialCount,");
-    CHECK(a2.setting_descriptors()[0].type == SettingType::Int);
-    CHECK(a2.range() == Generator::Range::Bipolar);
-
-    BasicAdditiveSource basic;
-    CHECK(param_names(basic) == "amplitude,frequency,phase,evenWeight,oddWeight,rolloff,"
-                                "freqVarPct,freqVarSpeed,amplVarPct,amplVarSpeed,");
-    CHECK(input_names(basic).empty());
-    CHECK(setting_names(basic).empty());
-    CHECK_NEAR(param_default(basic, "rolloff"), 1.0f, 1e-6f);
-    CHECK_NEAR(param_default(basic, "evenWeight"), 1.0f, 1e-6f);
-
     FullAdditiveSource full;
     CHECK(param_names(full) == "amplitude,frequency,phase,formantWeight,formantFloor,");
     CHECK(input_names(full) == "formant,partials,");
@@ -4156,8 +4138,6 @@ static void run_additive_smoke_tests() {
         s.prepare(ctx); s.start(4800);
         for (int i = 0; i < 10; ++i) CHECK(std::isfinite(s.next()));
     };
-    AdditiveSource2 a2;          a2.set_default_partials(40); smoke(a2);
-    BasicAdditiveSource basic;   smoke(basic);
     FullAdditiveSource bare;     smoke(bare);                 // no partials: silent
     // A formant part is driven by its owner; its gain is what it answers.
     auto smokeFormant = [&](IFormant& f) {
@@ -4188,43 +4168,6 @@ static void run_additive_smoke_tests() {
     float sum = 0.0f;
     for (int i = 0; i < 400; ++i) sum += std::fabs(f.next());
     CHECK(sum > 0.0f);
-
-    basic.set_param("frequency", std::make_shared<ConstantSource>(220.0f));
-    basic.prepare(ctx); basic.start(4800);
-    sum = 0.0f;
-    for (int i = 0; i < 400; ++i) sum += std::fabs(basic.next());
-    CHECK(sum > 0.0f);
-}
-
-// AdditiveSource2 and BasicAdditiveSource pull their own pins once per
-// sample and prepare them once per note.
-static void run_additive_auto_pin_tests() {
-    RenderContext ctx{48000};
-    auto count = [&](ValueSource& s, std::initializer_list<const char*> names) {
-        std::vector<std::shared_ptr<PinCounter>> probes;
-        for (const char* n : names) {
-            probes.push_back(std::make_shared<PinCounter>());
-            s.set_param(n, probes.back());
-        }
-        s.prepare(ctx); s.start(4800);
-        for (int i = 0; i < 7; ++i) s.next();
-        for (const auto& p : probes) CHECK(p->starts == 1 && p->nexts == 7);
-    };
-    AdditiveSource2 a2;
-    a2.set_default_partials(10);
-    count(a2, {"phaseOffset", "freqVarDepth", "freqVarSpeed", "amplVarDepth", "amplVarSpeed"});
-    BasicAdditiveSource basic;
-    count(basic, {"evenWeight", "oddWeight", "rolloff", "freqVarPct", "freqVarSpeed",
-                  "amplVarPct", "amplVarSpeed"});
-
-    // the envelopes assigned to partials are not pins: pulled once per sample
-    AdditiveSource2 b;
-    b.set_default_partials(10);
-    auto env = std::make_shared<PinCounter>();
-    b.assign_ampl_envelope(env, AdditiveSource2::PartialFilter::All, 1, 10);
-    b.prepare(ctx); b.start(4800);
-    for (int i = 0; i < 7; ++i) b.next();
-    CHECK(env->starts == 1 && env->nexts == 7);
 }
 
 // The pins the additive source drives through the partials and formant
@@ -4327,16 +4270,6 @@ static void run_additive_wiring_tests() {
     f.set_param("formant", nullptr);                       // null clears the slot
     CHECK(f.get_part("formant") == nullptr);
 
-    AdditiveSource2 a2;
-    auto sp = std::make_shared<SequencePartials>();
-    sp->set_setting("maxPartials", 12.0f);
-    sp->get_array("mult1");                                // rebuild the arrays before they are copied
-    a2.set_param("partials", sp);
-    CHECK(a2.get_part("partials") == sp);
-    CHECK_NEAR(a2.get_setting("partialCount"), 12.0f, 1e-6f);
-    CHECK(!a2.set_param("partials", other));               // not a Partials: refused
-    CHECK(a2.get_part("partials") == sp);
-
     FormantSequence seq;
     auto s1 = std::make_shared<FormantSpectrum>(), s2 = std::make_shared<FormantSpectrum>();
     seq.set_param("spectra", s1);
@@ -4394,14 +4327,6 @@ static void run_additive_setting_hook_tests() {
     CHECK_NEAR(expl.get_array("mult1")[4], 5.0f, 1e-6f);
     expl.set_setting("maxPartials", 0.0f);
     CHECK_NEAR(expl.get_setting("maxPartials"), 1.0f, 1e-6f);
-
-    AdditiveSource2 a2;
-    a2.set_setting("partialCount", 50.0f);                 // rebuilds the default partials
-    CHECK_NEAR(a2.get_setting("partialCount"), 50.0f, 1e-6f);
-    RenderContext ctx{48000};
-    a2.prepare(ctx); a2.start(4800);
-    for (int i = 0; i < 10; ++i) CHECK(std::isfinite(a2.next()));
-    CHECK_NEAR(a2.get_setting("partialCount"), 50.0f, 1e-6f);   // prepare does not rewrite it
 }
 
 // ExplicitPartials keeps the four user arrays equal and in step with
@@ -6013,24 +5938,6 @@ static std::shared_ptr<Formant> make_split_formant(float hz) {
     return fm;
 }
 
-static std::shared_ptr<AdditiveSource2> make_split_additive2(bool evolving) {
-    auto a = std::make_shared<AdditiveSource2>();
-    a->set_param("frequency", std::make_shared<ConstantSource>(220.0f));
-    a->set_param("freqVarDepth", std::make_shared<ConstantSource>(0.02f));
-    a->set_param("freqVarSpeed", std::make_shared<ConstantSource>(3.0f));
-    a->set_param("amplVarDepth", std::make_shared<ConstantSource>(0.1f));
-    a->set_param("amplVarSpeed", std::make_shared<ConstantSource>(2.0f));
-    if (evolving) {
-        a->set_partials({1.0f, 2.0f, 3.0f}, {1.0f, 0.5f, 0.25f}, {1.0f, 2.1f, 3.2f}, {0.5f, 0.4f, 0.3f});
-        a->assign_freq_envelope(Envelope::make_ar(0.3f), AdditiveSource2::PartialFilter::All, 1, 3);
-        a->assign_ampl_envelope(Envelope::make_ar(0.5f), AdditiveSource2::PartialFilter::Odd, 1, 3);
-    } else {
-        a->set_default_partials(40);
-        a->assign_ampl_envelope(Envelope::make_ar(0.4f), AdditiveSource2::PartialFilter::All, 1, 40);
-    }
-    return a;
-}
-
 static void run_additive_split_tests() {
     // The note counter advances at start, never at prepare: a node prepared
     // before every note renders what one prepared once does, across four notes.
@@ -6060,17 +5967,6 @@ static void run_additive_split_tests() {
         f->set_param("partials", comp);
         return f;
     }, 2048, 4));
-    CHECK(split_equivalent([] {
-        auto b = std::make_shared<BasicAdditiveSource>();
-        b->set_param("frequency", std::make_shared<ConstantSource>(220.0f));
-        b->set_param("freqVarPct", std::make_shared<ConstantSource>(0.1f));
-        b->set_param("freqVarSpeed", std::make_shared<ConstantSource>(5.0f));
-        b->set_param("amplVarPct", std::make_shared<ConstantSource>(0.1f));
-        b->set_param("amplVarSpeed", std::make_shared<ConstantSource>(3.0f));
-        return b;
-    }, 2048, 4));
-    for (bool evolving : {false, true})
-        CHECK(split_equivalent([evolving] { return make_split_additive2(evolving); }, 2048, 4));
 
     // The rate reaches the partials and the bed only through prepare(ctx).
     auto at = [](int rate) {
@@ -7298,14 +7194,6 @@ static void run_allocation_tests_nodes() {
       {"id":"seg","type":"SegmentSource","params":{"values":[8.0,0.65,8.0,-0.54,8.0,0.74,9.0,0.2],"oneShot":false,"seed":42,"smoothness":0.5,"gap":0.0}}]}})";
     CHECK(allocations_in_one_note(segment) == 0);
     CHECK(allocations_in_one_note(segment, 48.0f) == 0);
-    // BasicAdditiveSource: the five per-partial arrays are reserved at prepare
-    // for the partial count at the floor frequency; a lower note gets that count.
-    const char* basic = R"({"sampleRate":48000,"instrument":{"polyphony":2},"graph":{"output":"src","nodes":[{"id":"__perf_frequency","type":"PerformNode","params":{"field":"frequency"}},
-      {"id":"src","type":"BasicAdditiveSource","params":{"frequency":{"ref":"__perf_frequency"},"amplitude":0.5}}]}})";
-    CHECK(allocations_in_one_note(basic) == 0);
-    CHECK(allocations_in_one_note(basic, 15.49f) == 0);     // the floor: 601 partials, the cap
-    CHECK(allocations_in_one_note(basic, 0.0f) == 0);       // below it: the floor's count
-    CHECK(allocations_in_one_note(basic, 36.0f) == 0);
 
     // A Multiplex voice's push delivery: the paramMap fan-out into the clones
     // at note-on writes a slot registered at prepare, allocating nothing.
@@ -7743,8 +7631,6 @@ static const FamilyRow kFamilyTable[] = {
     {"PluckEvolution", Family::Wavetable, "Pluck Evolution", Shelf::Main},
     {"AveragingEvolution", Family::Wavetable, "Averaging Evolution", Shelf::Main},
     {"AdditiveSource", Family::Additive, "Full", Shelf::Main},
-    {"BasicAdditiveSource", Family::Additive, "Basic", Shelf::Main},
-    {"AdditiveSource2", Family::Additive, "Alternate", Shelf::Main},
     {"FullPartials", Family::Additive, "Full Partials", Shelf::Main},
     {"SequencePartials", Family::Additive, "Sequence Partials", Shelf::Main},
     {"ExplicitPartials", Family::Additive, "Explicit Partials", Shelf::Main},
@@ -7830,7 +7716,7 @@ static void run_registry_family_tests() {
         CHECK(tag->shelf == row.shelf);
         (row.shelf == Shelf::Main ? main : experimental)++;
     }
-    CHECK(main == 57 && experimental == 22);
+    CHECK(main == 55 && experimental == 22);
     for (const auto& e : reg.registered_types()) {                             // every registered type is in the table
         bool inTable = false;
         for (const auto& row : kFamilyTable) inTable = inTable || e.name == row.name;
@@ -7861,7 +7747,7 @@ static void run_registry_family_tests() {
                 ++walked;
             }
         }
-    CHECK(walked == 79);
+    CHECK(walked == 77);
     CHECK(std::string(family_name(Family::Oscillator)) == "Oscillators" && std::string(family_name(Family::Noise)) == "Noise"
           && std::string(family_name(Family::Filter)) == "Filters" && std::string(family_name(Family::Utility)) == "Utility");
     CHECK(reg.find("NoSuchType") == nullptr && reg.find("SineSource") != nullptr);
@@ -7885,7 +7771,7 @@ static const MenuRow kMenuTable[] = {
     {Family::Noise, Shelf::Experimental, {"LayeredRedNoiseSource", "MurmurationNoiseSource", "WanderNoiseSource", "WanderNoise2Source", "WanderNoise3Source"}},
     {Family::Wavetable, Shelf::Main, {"WavetableSource", "HybridKSSource", "EKSEvolution", "PluckEvolution", "AveragingEvolution"}},
     {Family::Wavetable, Shelf::Experimental, {"BowedStringEvolution", "ReedEvolution", "BrassEvolution", "ReactionDiffusionEvolution", "SortErosionEvolution", "CellularAutomatonEvolution", "HistogramEqualizeEvolution", "BezierPullEvolution", "BitRotateEvolution", "TargetEvolution"}},
-    {Family::Additive, Shelf::Main, {"AdditiveSource", "BasicAdditiveSource", "AdditiveSource2", "FullPartials", "SequencePartials", "ExplicitPartials", "CompositePartials", "ExpandRule", "Formant", "FormantSequence", "FormantSpectrum", "BandSpectrum", "FixedSpectrum"}},
+    {Family::Additive, Shelf::Main, {"AdditiveSource", "FullPartials", "SequencePartials", "ExplicitPartials", "CompositePartials", "ExpandRule", "Formant", "FormantSequence", "FormantSpectrum", "BandSpectrum", "FixedSpectrum"}},
     {Family::Physical, Shelf::Main, {"KSString", "AllpassResonator", "DelayLine"}},
     {Family::Physical, Shelf::Experimental, {"Mesh2D", "PierceFilter", "BowTable"}},
     {Family::Filter, Shelf::Main, {"DelayFilter", "Reverb", "Limiter", "HammerBank", "DistortedSource", "BWBandpassFilter", "BWLowpassFilter", "BWHighpassFilter", "SVFSource", "Shaper"}},
@@ -7973,7 +7859,6 @@ int main() {
     run_additive_structural_pin_tests();
     run_additive_partials_pin_tests();
     run_additive_smoke_tests();
-    run_additive_auto_pin_tests();
     run_additive_manual_pin_tests();
     run_additive_formant_pin_tests();
     run_additive_wiring_tests();

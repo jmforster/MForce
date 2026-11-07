@@ -15,7 +15,7 @@ import sys
 from pathlib import Path
 
 SOURCE_TYPES = {
-    "AdditiveSource", "AdditiveSource2", "WavetableSource",
+    "AdditiveSource", "WavetableSource",
     "SineSource", "SawSource", "SquareSource", "TriangleSource",
     "FMSource", "HybridKSSource",
 }

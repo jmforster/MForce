@@ -61,9 +61,8 @@ SCRAPE_SOURCES = ("engine/src/patch_loader.cpp",
 
 # `p.value("k", ...)`, `p.contains("k")`, `p.at("k")`, `p["k"]`, and the
 # `for (const char* k : {"a","b"})` loops patch_loader uses.
-# `.at(` matters as much as `.value(`: AdditiveSource2's evolving/envelope
-# branches read startPartials/endAmplitudes/amplitudes exclusively through
-# at(), so omitting it cost four more false positives on the as2_* patches.
+# `.at(` matters as much as `.value(`: a branch that reads a required key
+# reads it only through at(), so omitting it would report that key unknown.
 _SCRAPE_RE = re.compile(
     r'(?:\.(?:value|contains|at)\(\s*"([A-Za-z_][A-Za-z0-9_]*)"'
     r'|\[\s*"([A-Za-z_][A-Za-z0-9_]*)"\s*\])')

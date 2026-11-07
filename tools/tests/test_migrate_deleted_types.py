@@ -165,6 +165,25 @@ class FileTests(unittest.TestCase):
         self.assertEqual(mig.main([path]), 0)
         self.assertEqual(mig.main(["--check", path]), 0)
 
+    def test_a_refused_type_is_reported_by_name_and_left_unwritten(self):
+        for cls in ("AdditiveSource2", "BasicAdditiveSource"):
+            doc = graph({"id": "as2", "type": cls, "params": {"frequency": 165.0}})
+            with self.assertRaises(ValueError) as cm:
+                mig.rewrite(doc)
+            self.assertIn("node 'as2' (%s): deleted; author an AdditiveSource" % cls, str(cm.exception))
+            self.assertIn("no mechanical rewrite", str(cm.exception))
+        path = self.write("as2.json", graph({"id": "as2", "type": "AdditiveSource2", "params": {}},
+                                            {"id": "k", "type": "KSPianoString", "params": {}}))
+        before = open(path, "rb").read()
+        self.assertEqual(mig.main([path]), 1)
+        self.assertEqual(open(path, "rb").read(), before)                       # not even the rewritable node
+
+    def test_check_mode_exits_1_on_a_refused_type(self):
+        path = self.write("as2.json", graph({"id": "as2", "type": "AdditiveSource2", "params": {}}))
+        before = open(path, "rb").read()
+        self.assertEqual(mig.main(["--check", path]), 1)
+        self.assertEqual(open(path, "rb").read(), before)
+
     def test_a_tree_walk_counts_per_rule_and_a_bad_file_is_reported_not_fatal(self):
         self.write("a.json", graph(env_node("ASREnvelope", {"attack": 0.1}),
                                    {"id": "k", "type": "KSPianoString", "params": {}}))

@@ -16,7 +16,7 @@ struct WaveSource : Generator {
   Param phase    {this, "phase",     0.0f,  -1.0f,  1.0f,     "cycles"};
 
   // The lowest frequency a frequency-dependent table (WavetableSource,
-  // HybridKSSource; BasicAdditiveSource's partial count too) is sized for:
+  // HybridKSSource) is sized for:
   // reserved once, at prepare, for sample_rate() / kMinTableHz samples, and a
   // note below the floor gets the floor's length. The pin's own minimum
   // (0.01 Hz) is no floor; 20 Hz is the DelayLine's floor as well, and nothing

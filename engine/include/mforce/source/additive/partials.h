@@ -210,12 +210,6 @@ struct Partials : Component, IPartials {
     if (name == "bandwidthHz" && bandwidthHz.value < 1.0f) bandwidthHz.value = 1.0f;
   }
 
-  // --- Array accessors (for AdditiveSource2 compat) ---
-  const std::vector<float>& get_mult1() const { return mult1_; }
-  const std::vector<float>& get_mult2() const { return mult2_; }
-  const std::vector<float>& get_ampl1() const { return ampl1_; }
-  const std::vector<float>& get_ampl2() const { return ampl2_; }
-
   // --- Set by the patch loader from an "expandRule" block ---
   void set_expand_rule(ExpandRule rule) { expandRule_ = rule; hasExpand_ = true; }
 

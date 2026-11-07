@@ -871,8 +871,7 @@ static const char* pin_type_compat_error(const std::string& targetType,
     bool needsFormant =
         (targetType == "FormantSpectrum" && targetPin == "formants") ||
         (targetType == "FormantSequence" && targetPin == "spectra") ||
-        ((targetType == "AdditiveSource"   || targetType == "AdditiveSource2" ||
-          targetType == "BasicAdditiveSource") && targetPin == "formant");
+        (targetType == "AdditiveSource" && targetPin == "formant");
     if (needsFormant && !is_iformant(sourceType)) {
         return "Pin needs a Formant-type source (Formant, FormantSpectrum, FixedSpectrum, BandSpectrum, or FormantSequence)";
     }
@@ -880,8 +879,7 @@ static const char* pin_type_compat_error(const std::string& targetType,
     // IPartials-requiring pins
     bool needsPartials =
         (targetType == "CompositePartials" && targetPin == "partials") ||
-        ((targetType == "AdditiveSource"   || targetType == "AdditiveSource2" ||
-          targetType == "BasicAdditiveSource") && targetPin == "partials");
+        (targetType == "AdditiveSource" && targetPin == "partials");
     if (needsPartials && !is_ipartials(sourceType)) {
         return "Pin needs a Partials-type source (FullPartials, SequencePartials, ExplicitPartials, or CompositePartials)";
     }

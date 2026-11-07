@@ -15,7 +15,7 @@ from pathlib import Path
 
 COMBINER_TYPES = {"MultiSource", "CombinedSource", "CrossfadeSource", "MultiplexSource"}
 SOURCE_TYPES = {
-    "AdditiveSource", "AdditiveSource2", "WavetableSource",
+    "AdditiveSource", "WavetableSource",
     "SineSource", "SawSource", "SquareSource", "TriangleSource",
     "FMSource", "HybridKSSource", "SegmentSource",
     "WhiteNoiseSource", "PinkNoiseSource", "RedNoiseSource",

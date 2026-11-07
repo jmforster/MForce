@@ -19,7 +19,6 @@
 // Types still needed for special-case construction
 #include "mforce/source/additive/full_additive_source.h"
 #include "mforce/source/additive/partials.h"
-#include "mforce/source/additive/additive_source2.h"
 #include "mforce/source/wavetable/wavetable_source.h"
 #include "mforce/source/wavetable/hybrid_ks_source.h"
 #include "mforce/source/envelope/segment_source.h"
@@ -266,29 +265,26 @@ static void reject_unknown_keys(const Component& src, const std::string& id,
     // never invent one. The structure meter's tests fail when the scrape
     // gains a key this list lacks.
     static const std::unordered_set<std::string> kBranchKeys = {
-        "a", "absolute", "amplEnvelopes", "amplitudes", "articulation",
-        "attack", "attackCurve", "attackMax", "attackMin", "attackPower", "b",
-        "baseValue", "bias", "channels", "count", "curve", "cutoff", "decay",
-        "decayCurve", "decayLevel", "decayMax", "decayMin", "decayPower", "delay",
-        "dt1", "dt2", "durVarPct", "duration",
-        "dynamicPins", "endAmplitudes", "endPartials", "endVal", "envelope",
-        "expandRule", "exprKnots", "field", "filter", "form", "formants",
-        "frames", "freqEnvelopes", "frequency", "from", "gain", "gainAdj",
-        "gains", "gap", "gapVarPct", "glideMs", "graph", "hold", "id", "inputs",
-        "instrument", "interp", "interpolate", "knots", "loPct1", "loPct2",
-        "max", "maxSec", "min", "minSec", "mode", "morph", "name", "nodes",
-        "nominal", "normalized", "note", "oneShot", "onset", "onsets",
-        "operation", "ornament", "output", "overlap", "paramMap",
-        "partialCount", "partialMode", "partials", "percent", "po1", "po2",
-        "polyphony", "power", "power1", "power2", "powers", "powers2", "preset",
-        "ramp_accuracy", "ratio", "recurse", "ref", "release", "releaseCurve",
-        "releaseMax", "releaseMin", "releasePower", "reverse", "sampleRate", "score",
-        "seconds", "sections", "seed", "segs", "segs2", "source", "spacing1",
-        "spacing2", "stage_accuracy", "stages", "startAmplitudes",
-        "startPartials", "startVal", "sustain", "sustainLevel", "sustaining",
-        "tap", "target", "targetPartials", "time", "timeMode", "to", "type",
-        "values", "values2", "varPct", "vcurve", "velocity", "volume", "weight",
-        "x",
+        "a", "absolute", "articulation", "attack", "attackCurve", "attackMax",
+        "attackMin", "attackPower", "b", "baseValue", "bias", "channels",
+        "count", "curve", "cutoff", "decay", "decayCurve", "decayLevel",
+        "decayMax", "decayMin", "decayPower", "delay", "dt1", "dt2",
+        "durVarPct", "duration", "dynamicPins", "endVal", "expandRule",
+        "exprKnots", "field", "form", "formants", "frames", "frequency", "gain",
+        "gainAdj", "gains", "gap", "gapVarPct", "glideMs", "graph", "hold",
+        "id", "inputs", "instrument", "interp", "interpolate", "knots",
+        "loPct1", "loPct2", "max", "maxSec", "min", "minSec", "mode", "morph",
+        "name", "nodes", "nominal", "normalized", "note", "oneShot", "onset",
+        "onsets", "operation", "ornament", "output", "overlap", "paramMap",
+        "percent", "po1", "po2", "polyphony", "power", "power1", "power2",
+        "powers", "powers2", "preset", "ramp_accuracy", "ratio", "recurse",
+        "ref", "release", "releaseCurve", "releaseMax", "releaseMin",
+        "releasePower", "reverse", "sampleRate", "score", "seconds", "sections",
+        "seed", "segs", "segs2", "source", "spacing1", "spacing2",
+        "stage_accuracy", "stages", "startVal", "sustain", "sustainLevel",
+        "sustaining", "tap", "target", "targetPartials", "time", "timeMode",
+        "type", "values", "values2", "varPct", "vcurve", "velocity", "volume",
+        "weight", "x",
     };
     auto known = [&](const std::string& k) {
         if (kBranchKeys.count(k)) return true;
@@ -758,49 +754,6 @@ static GraphResult build_graph(
             }
             graphNodes[id] = src;
             add_mono(g, id, src);
-        }
-        // ---- AdditiveSource2 (partial modes + per-partial envelopes) ----
-        else if (type == "AdditiveSource2") {
-            auto as2 = std::make_shared<AdditiveSource2>(seed.value_or(0xADD3'0000u));
-            if (pp) {
-                const auto& p = *pp;
-                wire_params_generic(*as2, id, p, graphNodes);
-                std::string pMode = p.value("partialMode", std::string("default"));
-                if (pMode == "default") {
-                    as2->set_default_partials(p.value("partialCount", 500));
-                } else if (pMode == "explicit") {
-                    as2->set_partials(p.at("partials").get<std::vector<float>>(),
-                                      p.at("amplitudes").get<std::vector<float>>());
-                } else if (pMode == "evolving") {
-                    as2->set_partials(
-                        p.at("startPartials").get<std::vector<float>>(),
-                        p.at("startAmplitudes").get<std::vector<float>>(),
-                        p.at("endPartials").get<std::vector<float>>(),
-                        p.at("endAmplitudes").get<std::vector<float>>());
-                }
-                auto parse_filter = [](const std::string& s) -> AdditiveSource2::PartialFilter {
-                    if (s == "even")     return AdditiveSource2::PartialFilter::Even;
-                    if (s == "odd")      return AdditiveSource2::PartialFilter::Odd;
-                    if (s == "mult3")    return AdditiveSource2::PartialFilter::Mult3;
-                    if (s == "nonMult3") return AdditiveSource2::PartialFilter::NonMult3;
-                    return AdditiveSource2::PartialFilter::All;
-                };
-                for (const char* key : {"amplEnvelopes", "freqEnvelopes"}) {
-                    if (p.contains(key)) {
-                        for (const auto& ae : p[key]) {
-                            auto env = resolve_signal(ae.at("envelope"), graphNodes);
-                            auto filt = parse_filter(ae.value("filter", std::string("all")));
-                            int from = ae.value("from", 1), to = ae.value("to", 500);
-                            if (std::string(key) == "amplEnvelopes")
-                                as2->assign_ampl_envelope(std::move(env), filt, from, to);
-                            else
-                                as2->assign_freq_envelope(std::move(env), filt, from, to);
-                        }
-                    }
-                }
-            }
-            graphNodes[id] = as2;
-            add_mono(g, id, as2);
         }
         // ---- HybridKSSource (setting params) ----
         else if (type == "HybridKSSource") {

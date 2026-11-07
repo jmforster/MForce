@@ -12,6 +12,8 @@ RULES, one per deleted name:
   ADREnvelope   -> Envelope, "preset": "adr"
   ADSREnvelope  -> Envelope, "preset": "adsr", plus "release": 0.1 when the node has no release key
                    (the class's default; the adsr form's is 0.0)
+  AdditiveSource2      refused: no mechanical form keeps the render; the node is
+  BasicAdditiveSource  reported by name with the hand form to author instead
 
 The preset form's other defaults are the deleted classes' own, so a key the
 node omitted stays omitted. A key the class never read but the form would —
@@ -44,6 +46,17 @@ class Rename:
         node["type"] = self.to
 
 
+class Refuse:
+    """A deleted type with no mechanical rewrite: the node is reported by name
+    with `hint`, the hand form to author instead, and its file is not written."""
+    def __init__(self, hint):
+        self.hint = hint
+
+    def apply(self, node, notes):
+        raise ValueError("node '%s' (%s): deleted; %s; no mechanical rewrite"
+                         % (node.get("id"), node.get("type"), self.hint))
+
+
 class Preset:
     """`dead` names the keys the class never read but the form would: carried
     across, they would change the render, so they are dropped with a note."""
@@ -73,6 +86,9 @@ class Preset:
         node["params"] = rewritten
 
 
+ADDITIVE_HINT = ("author an AdditiveSource with a FullPartials "
+                 "(or ExplicitPartials under a CompositePartials for per-group envelopes)")
+
 ADSR_CLAMPS = ("attackMin", "attackMax", "decayMin", "decayMax", "releaseMin", "releaseMax")
 
 RULES = {
@@ -83,6 +99,8 @@ RULES = {
     "ADSEnvelope": Preset("ads"),
     "ADREnvelope": Preset("adr"),
     "ADSREnvelope": Preset("adsr", defaults={"release": 0.1}, dead=ADSR_CLAMPS + ("timeMode",)),
+    "AdditiveSource2": Refuse(ADDITIVE_HINT),
+    "BasicAdditiveSource": Refuse(ADDITIVE_HINT),
 }
 
 

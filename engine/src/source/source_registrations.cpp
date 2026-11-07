@@ -33,8 +33,6 @@
 #include "mforce/source/envelope/segment_source.h"
 #include "mforce/source/modulator/repeating_source.h"
 #include "mforce/source/envelope/phased_value_source.h"
-#include "mforce/source/additive/basic_additive_source.h"
-#include "mforce/source/additive/additive_source2.h"
 #include "mforce/source/additive/full_additive_source.h"
 #include "mforce/source/additive/formant.h"
 #include "mforce/source/additive/formant_spectrum.h"
@@ -254,19 +252,6 @@ void register_all_sources() {
     reg.register_type("AdditiveSource", {.family = Family::Additive, .label = "Full"},
         [](auto seed) {
             return std::make_shared<FullAdditiveSource>(seed.value_or(0xADD2'0000u));
-        });
-
-    // BasicAdditiveSource (was "AdditiveSource" — alias kept for backward compat)
-    reg.register_type("BasicAdditiveSource", {.family = Family::Additive, .label = "Basic"},
-        [](auto seed) {
-            return std::make_shared<BasicAdditiveSource>(seed.value_or(0xADD1'0000u));
-        });
-
-    reg.register_type("AdditiveSource2", {.family = Family::Additive, .label = "Alternate"},
-        [](auto seed) {
-            auto as2 = std::make_shared<AdditiveSource2>(seed.value_or(0xADD3'0000u));
-            as2->set_default_partials(500);
-            return as2;
         });
 
     reg.register_type("FullPartials", {.family = Family::Additive},

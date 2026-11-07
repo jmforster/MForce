@@ -125,6 +125,10 @@ const char* retired_type_hint(std::string_view type_name) {
                                    "ADSEnvelope", "ADREnvelope", "ADSREnvelope"})
     if (type_name == retired)
       return "python tools/migrate_deleted_types.py <patch> rewrites a type this engine no longer has";
+  for (std::string_view deleted : {"AdditiveSource2", "BasicAdditiveSource"})
+    if (type_name == deleted)
+      return "deleted; author an AdditiveSource with a FullPartials "
+             "(or ExplicitPartials under a CompositePartials for per-group envelopes)";
   return nullptr;
 }
 

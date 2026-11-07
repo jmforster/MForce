@@ -13,7 +13,7 @@ from pathlib import Path
 
 UNUSED_TYPES = {"SoundChannel", "StereoMixer"}
 SOURCE_TYPES = {
-    "AdditiveSource", "AdditiveSource2", "WavetableSource",
+    "AdditiveSource", "WavetableSource",
     "SineSource", "SawSource", "SquareSource", "TriangleSource",
     "FMSource", "HybridKSSource",
 }
