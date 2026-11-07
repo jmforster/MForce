@@ -1,5 +1,46 @@
 # Status — session handoff (Claude reads this first; Matt's queue = */REVIEW.md)
 
+Updated: 2026-11-06, later the same day (refactor session X, Fable 5.1 xhigh).
+NEXT SESSION STARTS HERE: checkpoint 3.8 LANDED on main (`2dfabe2`..`e27f7ad`,
+the fix waves `b254b5c` and `268fb0a`, plus the docs commit; report R14 `docs/autonomy/refactor/reports/
+2026-11-06-checkpoint-3.8.md`) — the eighth of Part 3's eight: PART 3 IS
+COMPLETE. NEXT is Part 4 (patch): its architecture document is NOT written
+(target architecture section 8 names it; the BACKLOG row says max). THE
+SHAPE OF 3.8: `IPartials` → `PartialSet`, an abstract `Component` base owning
+the pin lifecycle (prepare/start over every pin, next over every Param pin,
+then the hooks); `partials.h` one type per file (`expand_rule.h`,
+`expand_rule_node.h`, `partials.h`, `full_`/`sequence_`/`explicit_`/
+`composite_partials.h`); six value-type layers `Partials` composes —
+`CoherentWalk` (motion and shimmer, over the new `core/dsp/segment_walk.h`),
+`PairTrade`, `BandwidthNoise`, `OnsetGate`, `DecayLaw` — and `PartialLayout`
+(the six arrays, their originals, the expansion); `Partials` 1,148 → 561
+lines; `BasicAdditiveSource` and `AdditiveSource2` deleted,
+`FullAdditiveSource` → `AdditiveSource` (the "Full" label gone, "Additive"
+derived); the one AS2 baseline retired to `patches/old/additive_source2/`
+and re-authored as `patches/baselines/additive_bright_attack_test.json`
+(REVIEW R14 item 1: a render for Matt's ears; the WAV pair under
+`renders/scratch/ab38/review/`). PROOFS: null gate 78/78 after every task;
+the close A/B 131 of 131 identical, 0 DIFFER; thirteen synthetics (`renders/scratch/ab38/synth/`)
+identical after every task; seven twin tests bit for bit, each mutated once
+by the coordinator and caught; allocation gate 132 patches 0 allocate;
+`gates --fast` as before (the known wiring diff). REVIEW: an Opus 5.5
+reviewer, read-only, 0 Critical, 0 Major, 10 Minor, 11 Flag — the Minors fixed in the wave, re-review closeable. EXECUTION: the first checkpoint on the
+11-06 combo — Fable coordinator writing the plan, the part base, the
+layers, the layout and the report; Opus 5.5 executors on the deletions,
+the file split and the close's measurements; the Fable weekly window hit
+93 percent at the close, so the reviewer ran on Opus 5.5 too (ruling 13).
+THE ONE TIMING FINDING, fixed before the seal: `fadd_explicit_test` ~10%
+slower because `PartialSet::next` walked every pin per sample; the Param
+pins are now listed at prepare (`268fb0a`), flat after.
+HARNESS NOTES: `std::vector<T> v(size_t(n));` is a function declaration
+(the most vexing parse) — `static_cast<size_t>(n)`; the committed
+`tools/structure/metrics.json` was 3.6's until the close's `--snapshot`, so a
+mid-checkpoint `--delta` measures the whole checkpoint, not the task. GIT:
+main is ahead of origin and UNPUSHED (ask Matt at close-out per the
+standing rule). GOALS.md stays Matt's uncommitted edit.
+
+---
+
 Updated: 2026-11-06 (refactor session X, Fable 5.1 xhigh).
 NEXT SESSION STARTS HERE: checkpoint 3.7 is CLOSED WITHOUT A CHECKPOINT
 (Matt, 2026-11-06: "skip to 3.8"). The 11-05 handoff restated Part 3 §9's

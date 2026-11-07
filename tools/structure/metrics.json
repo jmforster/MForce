@@ -2862,7 +2862,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 71,
+   "lines": 89,
    "longest_function": [
     12,
     "mforce::PartialSet::sum_partials"
@@ -4712,7 +4712,7 @@
   "files_over_limit": 18,
   "functions_over_limit": 98,
   "include_violations": 14,
-  "lines": 61929,
+  "lines": 61947,
   "unmapped_files": 0
  }
 }

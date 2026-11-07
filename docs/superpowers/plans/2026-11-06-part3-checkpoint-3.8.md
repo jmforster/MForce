@@ -125,9 +125,222 @@ Rulings made in planning; execution notes are appended per task.
 11. **Order of tasks: deletions first.** `AdditiveSource2` holds `Slot<Partials>` and reads `Partials`' four array accessors; deleting it first leaves the layout refactor unconstrained. The base (Task 2) precedes the split (Task 3) so the split moves final text; the layers (4–5) precede the layout (6) so the body's reads change once per block.
 12. **Execution is Fable on the design-bearing tasks** (2, 4, 5, 6, the replacement patch, the refuter) **and Opus 5.5 subagents on the mechanical ones** (0's set, 1, 3, 7's runs and the docs splicing), under this session's Fable coordinator; the coordinator reruns the null gate before every commit and mutates every twin itself once (3.6's verification shape). The plan first named Sonnet executors because that was the 11-04 pattern's tier, not a weighed choice; Matt asked why Fable/Sonnet rather than Fable/Opus and rescinded the "never Opus 5/5.5" rule the same day (2026-11-06: "just delegate to Opus 5.5 agents"), so the executor tier is Opus 5.5 and Opus 4.8 is not required. The Fable weekly window was at 84 percent when this plan was written; execution starts after its reset.
 
+13. **The reviewer for this close is an Opus 5.5 subagent, read-only** (added
+at the close): the Fable weekly window stood at 93 percent when the six
+engine tasks were in, and Matt rescinded the "never Opus 5/5.5" rule the same
+day; the remaining Fable went to the fix waves and the report. The reviewer
+performed no mutations; the coordinator's eight per-task mutations are the
+mutation record.
+
 ### Execution notes
 
-(appended per task)
+**Task 0 (2026-11-06, Fable 5.1 xhigh; base `4d32899`).** `date` 2026-11-06;
+no stale `mforce_ui_*.exe`; the editor not running. The Release build was
+clean and did not relink the CLI (no engine or tools file has changed since
+`5c4c5db`), so `cli_pre38.exe` is the 11-05 binary (sha `ed925180…`) and the
+ab36 new arm is this checkpoint's old arm: `renders/scratch/ab36/new/hashes.txt`
+→ `renders/scratch/ab38/old/hashes.txt` (132 lines, the AS2 entry among them,
+no re-render). The A/B list `renders/scratch/ab38/library_baselines.txt` is
+ab31's minus `as2_bright_attack_test`: 131. `gates --fast` on the base: ctest
+5/5, the stamp current, the allocation gate PASS (62 s), the roundtrip smoke
+FAIL on the known wiring diff (5/6 shapes, as at 2.4 through 3.6). The Task 0
+scan is the Spec's survey, re-read at the base: unchanged.
+
+The synthetic set (an Opus 5.5 executor, the first under the 11-06 rule):
+`renders/scratch/ab38/synth/make_synth.py` wrote the thirteen (instrument
+mode, two notes C4 then C2, `maxPartials` 24 unless the table says less)
+and thirteen feature-off controls; `cli_pre38.exe` rendered 13/13 and 13/13;
+every synthetic's hash differs from its control's (`activity.txt`), and the
+thirteen synthetic hashes are distinct. Controls that reduce to the same
+FullPartials at defaults share a hash, as they should. Set file
+`renders/scratch/ab38/synth/set.txt`; old arm `synth/old/hashes.txt`.
+
+The replacement baseline (Fable, ruling 8): `patches/baselines/
+additive_bright_attack_test.json` — the old file's three envelopes and mixer;
+an `AdditiveSource` (seed 9, 165 Hz, amplitude `ampEnv`) over a
+`CompositePartials` of two `ExplicitPartials`, `lo` (1..5, `amplEnv` = `loEnv`)
+and `hi` (6..60, `amplEnv` = `hiEnv`), each `ampl1` 0 → `ampl2` 1 under the
+default rolloff (so 1/m at the envelope's top, as the old node's law gave at
+e = 1), `evolve` true, shimmer 0.03 at 0.2 Hz with coherence 0 for the old
+amplitude wander. Rendered by `cli_pre38.exe`: sha
+`7ceff8535abf573e77b4d0b88d372a9b011b2bc0faef4c5e85fdc98ed79357d3`, peak
+0.258, rms 0.0476 (the old node: peak 0.285, rms 0.0473, sha `19544bac…`, equal
+to its manifest entry — the manifest hashes are WAV hashes). The pair is kept
+at `renders/scratch/ab38/review/{additive,as2}_bright_attack_test.wav` for
+REVIEW R14 item 1.
+
+**Task 1 (`2dfabe2`, an Opus 5.5 executor; coordinator-verified).** The two
+types, their registrations, the loader branch, `Partials`' four accessors,
+the editor's two strings, the tests on the two types (`run_additive_auto_pin_tests`
+whole; the two halves of `run_additive_source_pin_tests`, which also tests
+the additive source and stays; the smoke lines; the split cases and
+`make_split_additive2`; the `kFamilyTable`/`kMenuTable` rows — Main 57 → 55,
+walked 79 → 77, `kPartTypes` 23), `retired_type_hint`, the tool's `Refuse`
+rule with two tests (17 pass), the baseline's move and the manifest's entry.
+Beyond the named files, three comments and three tool scripts' `SOURCE_TYPES`
+sets named a deleted type and lost the name. **Ruling 10 corrected by the
+meter:** all fourteen candidate keys left `kBranchKeys` — `envelope`,
+`filter`, `from`, `to`, `partials` and `partialCount` were read by the
+deleted branch alone, not shared as the ruling guessed (`structure_meter`
+green with none restored). Coordinator reruns: `engine_tests` ALL PASS (7462
+→ 7375, 87 fewer), null gate 78/78 (the replacement's hash matched). The
+executor's gates: allocation gate 132 patches 0 allocate; `gates --fast` as
+before (the known wiring diff); meter `--delta 4d32899` files 211 → 208,
+`files_over_limit` 19, `include_violations` 14, `dynamic_cast` 63,
+`duplicate_blocks` 163 → 158. `tools/structure/metrics.json` still names the
+deleted files until the close's `--snapshot` (as at 3.6).
+
+**Task 2 (`e900c73`, Fable).** RED watched: the lifecycle test alone, naming
+`PartialSet`, failed the test build with C2065 at its first use. Then
+`partial_set.h` (71 lines: the three non-virtual verbs over `pins()` — every
+pin's `prepare` and `start`, every `Param` pin's `next` — then the hook; the
+three work verbs with the batched sum's default body moved verbatim from
+`IPartials`); `Partials : PartialSet` keeps its work in `on_prepare` (the rate,
+`prepare_note_arrays`), `on_start` (from `noteBase_` on) and `on_next` (from
+`refresh_sample_scalars` on), the twenty-four forward lines gone;
+`CompositePartials : PartialSet` forwards in the hooks; `Slot<PartialSet>` in
+the source and the composite, hint "a PartialSet part"; the editor's three
+comments; the tests' strings. One naming note against the table: the layers'
+sizing method will be `prepare(n)` (it assigns, as `prepare_note_arrays` does
+today), not `reserve(n)` — a method that assigns should not be called reserve.
+Proofs: `engine_tests` ALL PASS 7375 → 7405 (the new test's thirty checks:
+counts 1/1/7 through the base, declaration order `multEnv…shimmerEnv`, a
+composite forwarding to a Full and a Sequence and advancing nothing of its
+own, 60 partials); null gate 78/78; the thirteen synthetics identical to the
+pre-3.8 arm (13/13 rendered, 0 DIFFER); `gates --fast` as before (ctest 5/5,
+the stamp current, the allocation gate PASS, the known wiring diff). `grep
+IPartials` over engine and tools: 0.
+
+**Task 3 (`745eaaf`, an Opus 5.5 executor; coordinator-verified).** A script
+sliced `partials.h` by line spans: `expand_rule.h` (20 lines),
+`expand_rule_node.h` (52), `partials.h` (762: the stream map and `Partials`),
+`full_partials.h` (67), `sequence_partials.h` (51), `explicit_partials.h`
+(105), `composite_partials.h` (69); the coordinator's body-diff found all
+eight spans verbatim in `e900c73`'s text, once each. The alias
+`additive_source.h` removed, `full_additive_source.{h,cpp}` `git mv`'d to
+`additive_source.{h,cpp}` with the class renamed; the only lines beyond the
+rename are the includes (it names `PartialSet`, `IFormant`; `band_spectrum.h`
+and `partials.h` were transitive weight) and the old-name paragraph, now one
+line. The registry's `.label = "Full"` dropped: the derived label is
+"Additive" (`kFamilyTable` row updated). Include sites name their types
+(`patch_loader.cpp` three additive headers, the registrations six, the tests
+nine, the editor `partials.h` alone); removing `composite_partials.h` from
+the registrations fails the build (C3861). The executor's additions to the
+table: `<cstdint>` in the three subclasses (their constructors name
+`uint32_t`), no `<vector>` in `composite_partials.h` (it names no `std::`).
+One comment inside `Partials` named the old class and was edited after the
+body-diff ("the additive source used to run"). Proofs: ALL PASS 7405, null
+gate 78/78, synthetics 13/13 identical, `gates --fast` as before, the meter
+measured against an archive of `e900c73` (the committed snapshot is 3.6's):
+files 209 → 214 (+5: six new headers, the alias gone, the pair renamed),
+`files_over_limit` 19, `include_violations` 14, `dynamic_cast` 63,
+`duplicate_blocks` 156 → 160 (preamble scaffolding, CLEANUP 31).
+
+**Task 4 (`5f25207`, Fable).** RED watched: the three twins alone failed the
+test build (C1083, `coherent_walk.h` missing). GREEN: `core/dsp/segment_walk.h`
+(`dsp::SegmentWalk`: `seg_len`, `init`, `advance`, the three deleted
+functions verbatim), `additive/coherent_walk.h` (`CoherentWalk`: `prepare`,
+`start`, `advance`, `value`; the motion block verbatim with the layer ids as
+arguments), `additive/pair_trade.h` (`PairTrade`); `Partials` holds
+`motion_`, `shimmer_`, `trade_`, its `on_start` calls each layer's `start`
+inside the same `if`, `on_next` each `advance`, the body reads `value(index)`
+and `value(index >> 1)`, `prepare_note_arrays` calls the three `prepare(n)`
+(the assigns the original made at prepare, one per layer — hence `prepare`,
+not the table's `reserve`); the walk functions, `MotionWalk` and twelve
+members gone. One harness lesson: `std::vector<W> w(size_t(n));` is a
+function declaration (the most vexing parse); `static_cast<size_t>(n)` in
+every twin. Proofs: ALL PASS 7405 → 7411 (three twins, two checks each:
+48,000 / 252,000 / 10,800 rows compared bit for bit); null gate 78/78;
+synthetics 13/13 identical; allocation gate PASS; `gates --fast` as before.
+Mutations, each caught by its own twin and only its own: `(1 - coh) * ind`
+reassociated → the coherent twin FAILs (7557); the pair index xor'd → the
+pair twin FAILs (7585); then the primitive's `cur`/`target` draws reordered
+→ the segment twin FAILs (7517) and the two layers built on it with it;
+all restored, ALL PASS.
+
+**Task 5 (`d4218e0`, Fable).** RED watched: the three twins alone failed the
+test build (C1083, `bandwidth_noise.h` missing). GREEN: `additive/
+bandwidth_noise.h` (`BandwidthNoise`: `prepare`, `start`, `factor` — the
+body's block verbatim, returning `dry + wet * noise` so the multiply's right
+operand is the same float expression), `additive/onset_gate.h` (`OnsetGate`:
+`prepare`, `reset`, `start`, `advance`, `apply` — the assignment kept for
+`t <= 0`; `sampleIdx_` lives here, reset at every start and advanced at every
+next as before), `additive/decay_law.h` (`DecayLaw`: `prepare`, `start`,
+`set_gain` in double as the cache loop had it, `advance`, `gain`); `Partials`
+holds `bandwidth_`, `onset_`, `decay_`; the bandwidth start is unconditional
+as it was, the decay and onset starts inside their `if`s; `on_next` calls
+`onset_.advance()` where `++sampleIdx_` stood and `decay_.advance()` after
+`ensure_partial_cache`; the body's three blocks are one call each;
+`ensure_partial_cache` calls `decay_.set_gain` inside its `if`; eleven members
+gone. Proofs: ALL PASS 7411 → 7418 (three twins: 110,400 bandwidth rows,
+144,000 onset rows with the `t <= 0` rows counted and both signs of the input,
+128,000 decay rows); null gate 78/78 (cello, viola and clarinet pin bandwidth
+and onset on real patches); synthetics 13/13 identical; allocation gate PASS;
+`gates --fast` as before. Mutations, each caught by its own twin and only its
+own: the smoothstep reassociated → the bandwidth twin FAILs (7637); the
+onset's assignment made `pampl *= 0.0f` → the onset twin FAILs (7683: the
+sign of the zero); the law in float → the decay twin FAILs (7714); all
+restored, ALL PASS.
+
+**Task 6 (`e27f7ad`, Fable).** RED watched: the twin alone failed the test
+build (C1083, `partial_layout.h` missing). GREEN: `additive/partial_layout.h`
+(113 lines; `PartialLayout`: the six public arrays, `count`,
+`original_count`, `snapshot`, `restore`, `reserve_expanded` — the expansion's
+part of `prepare_note_arrays`, returning the expanded count — and `expand`,
+`apply_expand_rule` verbatim over the members; the originals and the scratch
+private); `Partials` holds `layout_`: `on_start` restores and expands on it,
+`snapshot_originals` forwards to it, `prepare_note_arrays` asks it for the
+count; `apply_expand_rule` and eighteen vector members gone; the array
+members renamed `mult1_` → `layout_.mult1` across `partials.h` and the three
+subclasses by one regex (85 sites; the `Array` pins `mult1` of
+`ExplicitPartials` untouched, having no underscore). `partials.h` is 561
+lines. Proofs: ALL PASS 7418 → 7908 (the twin: 54 rule × size × seed rows,
+every expanded array compared bit for bit, `restore` giving the snapshot back
+per row, and a reserved layout's `restore` + two expansions under the
+allocation probe counting nothing); null gate 78/78; synthetics 13/13
+identical (`expand`, `composite`, `sequence`, `explicit_evolving`,
+`everything` among them); allocation gate PASS; `gates --fast` as before.
+Mutations, each caught by the twin: the left sub-partials' spacing index
+`count - j` → `j` (FAIL 7806); the centre copy dropped (FAIL 7806); restored,
+ALL PASS.
+
+**Task 7 (the close; an Opus 5.5 executor for the measurements, an Opus 5.5
+reviewer, Fable).** Close A/B over the 131: identical 131, DIFFER 0, the
+retired baseline present in the old arm only; the synthetics 13/13; the new
+baseline's close render equals its manifest hash; allocation gate 132
+patches 0 allocate. Meter `--delta 4d32899` (the committed snapshot was 3.6's;
+only docs changed between, so the delta is the whole checkpoint): files 211
+→ 221 (fifteen added, five removed), lines +78, `files_over_limit` 19 → 18,
+`functions_over_limit` 98, `dynamic_cast` 63, `const_cast` 10,
+`duplicate_blocks` 163 → 161, `include_violations` 14, `unmapped_files` 0;
+`partials.h` 561 lines, `partial_value_impl` 149 → 134, `on_start` 131 → 72.
+Timing (the executor, three rounds, `cli_pre38.exe` vs `e27f7ad`): the voice
+patches, clarinet, viola and `fadd_sequence` within noise; `fadd_explicit_test`
+slower in every paired round (render 1.04 / 1.12 / 1.14 over 3-, 5- and
+10-round runs, medians 89.8 → 100.6 ms); `cello_full_range` 1.08 wall once on
+a tight run, then noise. REVIEW (ruling 13): 0 Critical, 0 Major, 10 Minor,
+11 Flag — no render can move, every moved block matches the base; the Minors
+were the twins' grids and the record. The first fix wave `b254b5c` took every
+Minor and four Flags (the grids, the hint test through the loader, four
+comments, `partials_twin`, `is_partial_set`, the orphan); re-review:
+closeable. That commit swept in the executor's staged `metrics.json` (the
+snapshot at `e27f7ad`) — the snapshot is retaken at the docs commit. The
+second fix wave `268fb0a`, for the timing: `PartialSet::next` had walked every
+pin of the set with a kind branch per sample (eight Params and some thirty
+Settings) where `Partials::next` made eight calls; `prepare` now lists the
+Param pins into a `std::array<Param*, 16>` inside the node (an assert on the
+cap; `Component`'s own sweep idiom) and `next` walks the list. Ten paired
+rounds after it on a noisy machine: `fadd_explicit_test` render 0.99 (at or
+below the old arm in nine of ten pairs), `cello_full_range` 0.96,
+`viola_default` 1.02; ALL PASS 7588, null gate 78/78, synthetics 13/13,
+`gates --fast` as before. Corrections to this record: the table's "a two-note
+embedded score as the old file's" for the replacement baseline was wrong —
+neither file has a score, both render four seconds in mixer mode; Task 2's
+"advancing nothing of its own" for a composite is unobservable (it has no
+`Param` pin) — the test proves no double-forward; Task 3's "+5 files" was that
+task's own delta (the checkpoint's is +10). Docs: report R14, Part 3 §7's
+landed paragraph, row 3.8 and the §1/§2 tokens, REVIEW R14, BACKLOG row 2
+(Part 3 complete), CLEANUP 17/36/37/38, STATUS, this Ledger.
 
 ## Self-review notes
 

@@ -19,6 +19,36 @@ given.
 
 ## Awaiting
 
+**R14 — checkpoint 3.8: `Partials` split by responsibility** (2026-11-06,
+commits `2dfabe2`..`e27f7ad`) — Part 3 complete. One render for your ears
+and one non-blocking interface question.
+- Read: `docs/autonomy/refactor/reports/2026-11-06-checkpoint-3.8.md`
+  (fifteen minutes; section 1 — the one audible change and the two
+  editor-visible ones; section 2 — the design: `PartialSet`, six value-type
+  layers, `PartialLayout`; section 6 — the session's decisions, the executor
+  and reviewer tier on Opus 5.5 among them; section 8 — the review,
+  0 Critical, 0 Major, 10 Minor, 11 Flag — the Minors fixed in the wave, re-review closeable; section 10 — five C++ lessons: composition versus
+  inheritance for a layer, an abstract class versus an interface, `reserve`
+  as an owner–layer contract, signed zero, the most vexing parse).
+- Listen: `renders/scratch/ab38/review/as2_bright_attack_test.wav` (the
+  retired `AdditiveSource2` baseline, rendered by the pre-3.8 CLI) against
+  `renders/scratch/ab38/review/additive_bright_attack_test.wav` (its
+  replacement, `patches/baselines/additive_bright_attack_test.json`: two
+  `ExplicitPartials` under a `CompositePartials`, per-group envelopes, the
+  old amplitude wander as shimmer; ruling 8).
+- Try: `python tools/null_gate_perform_source.py --jobs 3` (78/78); open
+  `patches/library/strings/viola_default.json` in the editor and play it:
+  the Additive family's menu now reads Additive / FullPartials / … with
+  no Basic or Alternate.
+- Decide: (1) the retired `AdditiveSource2` baseline's replacement — keep
+  `additive_bright_attack_test.json` as a baseline as authored, re-author
+  it differently, or drop it (the deletion itself is the target's, decided
+  2026-10-05; the old file stays in `patches/old/additive_source2/`); (2)
+  non-blocking: the name of the formant part base when the formant half of
+  CLEANUP 17 moves (`Formant` is taken by the concrete peak; the
+  candidates are `FormantShape` or a spectrum-flavoured name) — the
+  convention itself is recorded in ruling 2 and needs no verdict.
+
 **R13 — checkpoint 3.6: one type per file** (2026-11-05, commits
 `ed04dda`..`5c4c5db`) — nothing to decide. A move-only checkpoint: the six
 multi-type node headers each became one file per type, `noise_sources.h` and

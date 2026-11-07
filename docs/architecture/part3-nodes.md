@@ -57,7 +57,7 @@ Sections:
   disk use the alias, 3 the real name.
 - **Files over 400 lines in the node folders:** `wave_evolution.h`
   1,552; `partials.h` 1,486 (`Partials` alone is 800 lines with about 85
-  data members); `ks_string.h` 638; `noise_sources.h` 536; `filters.h`
+  data members — 561 lines and one type since 3.8); `ks_string.h` 638; `noise_sources.h` 536; `filters.h`
   457.
 - **Real-time violations:** the wavetable allocates its table on the
   first sample of a note; the hybrid KS runs an allocating DFT in the
@@ -90,12 +90,12 @@ Your C# had the shape already: `MComponent` was the root, and
        next(t), compute,            Partials, Formant, the spectra,
        prepare, start               ExpandRule, the evolutions:
             │                       each implements its interface
-     ┌──────┴──────┐                (IPartials, IFormant, WaveEvolution)
+     ┌──────┴──────┐                (PartialSet, IFormant, WaveEvolution)
  Generator     Processor            and nothing of ValueSource
 ```
 
 - The registry creates `Component`s. The graph holds `Component`s. A
-  wire into a `Slot<IPartials>` is type-checked against the interface,
+  wire into a `Slot<PartialSet>` is type-checked against the interface,
   as Part 2 decided; whether the thing is also a ValueSource no longer
   matters, because it is not.
 - The parts lose their fake `next`, `current`, `prepare` and `start`.
@@ -279,10 +279,24 @@ place; the preset-only knob layout went with the classes.
 
 ## 7. The additive classes
 
+**Landed 2026-11-06 as checkpoint 3.8** (`2dfabe2`..`e27f7ad`, report R14):
+`BasicAdditiveSource` and `AdditiveSource2` deleted, the one baseline on the
+latter retired to `patches/old/` and re-authored on `AdditiveSource` (its
+render new, for Matt's ears); `FullAdditiveSource` renamed `AdditiveSource`;
+`partials.h` one type per file; the pure `IPartials` became `PartialSet`, an
+abstract `Component` base owning the pin lifecycle (3.4's `WaveEvolution`
+shape); `Partials` (1,148 → 561 lines) composes six value-type layers —
+`CoherentWalk` (motion and shimmer, over `core/dsp/segment_walk.h`),
+`PairTrade`, `BandwidthNoise`, `OnsetGate`, `DecayLaw` — and a
+`PartialLayout` (the six arrays, their originals, the expansion), keeping
+the render body, the two caches and the array protocol. Every moved block
+verbatim, seven twin tests bit for bit, thirteen synthetics and the close
+A/B (131 of 131 identical, 0 DIFFER) identical; the review 0 Critical, 0 Major, 10 Minor, 11 Flag — the Minors fixed in the wave, re-review closeable. Part 3 is complete.
+
 - `BasicAdditiveSource` and `AdditiveSource2` are deleted (decided,
   target architecture section 5); the one baseline patch on
   `AdditiveSource2` is migrated.
-- `AdditiveSource` is a Generator with `Slot<IPartials>` and
+- `AdditiveSource` is a Generator with `Slot<PartialSet>` and
   `Slot<IFormant>`.
 - `Partials` (800 lines, about 85 members, seven responsibilities per
   the review) is split into files first (base, Full, Sequence, Explicit,
@@ -361,4 +375,4 @@ None of these changes a sample. The allocation test is what proves it.
 | 3.5 | Envelope presets collapsed; `KSPianoString` migrated | none — landed 2026-11-04 (`750f70e`..`a2ff727`): 0 of 132 renders moved over library and baselines; 497 nodes rewritten on disk (11 tracked files), `patches/old/`'s 59 left to fail by name with the tool named; in the editor the six preset types left the menu for a Preset combo over every Envelope's stage table, and the preset-only knob layout went with them (REVIEW R12) |
 | 3.6 | One type per file | none — landed 2026-11-05 (`ed04dda`..`5c4c5db`, report R13): the six multi-type headers split one-per-type, `noise_sources.h`/`filters.h` deleted, the shaped draw a twin-tested helper, the six family `.cpp` under `src/source/<family>/`; 0 of 132 renders moved; CLEAN review; `duplicate_blocks` +17 accepted as scaffolding (CLEANUP 31, the Butterworth base CLEANUP 32) |
 | 3.7 | The real-time fixes | none — closed 2026-11-06 without a checkpoint: every item of section 9 had landed at 2.6 and 3.4, the allocation gate was already 0 of 132 and `engine_tests` covered each node; the live-edit class booked to Part 7 (CLEANUP 33), the gate's blind spots CLEANUP 34 |
-| 3.8 | `Partials` split by responsibility | designed then; byte-identical target |
+| 3.8 | `Partials` split by responsibility | none — landed 2026-11-06 (`2dfabe2`..`e27f7ad`, report R14): 0 of 131 renders moved; the one `AdditiveSource2` baseline retired by deletion and re-authored (its render new, REVIEW R14); `PartialSet` the part base, six layers and a layout composed by `Partials`, one type per file, the two sources deleted; the review 0 Critical, 0 Major, 10 Minor, 11 Flag — the Minors fixed in the wave, re-review closeable. PART 3 COMPLETE |
