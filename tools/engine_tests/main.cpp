@@ -4023,6 +4023,9 @@ static void run_target_evolution_morph_tests() {
 #include "mforce/source/additive/partials.h"
 #include "mforce/source/additive/coherent_walk.h"
 #include "mforce/source/additive/pair_trade.h"
+#include "mforce/source/additive/bandwidth_noise.h"
+#include "mforce/source/additive/onset_gate.h"
+#include "mforce/source/additive/decay_law.h"
 #include "mforce/core/dsp/segment_walk.h"
 #include "mforce/source/additive/full_partials.h"
 #include "mforce/source/additive/sequence_partials.h"
@@ -7586,6 +7589,132 @@ static void run_pair_trade_twin_tests() {
     CHECK(rows == (1 + 1 + 4 + 12) * 2 * 300);
 }
 
+// The bandwidth noise, the onset gate and the decay law against the blocks
+// they replaced: each block retyped here as Partials ran it, both sides on
+// identically seeded streams, every output and every state compared bit for
+// bit — the onset rows with t <= 0 included, where an assignment and a
+// multiply by zero differ in the zero's sign.
+static void run_bandwidth_noise_twin_tests() {
+    std::printf("bandwidth noise: the per-partial walk against the layer\n");
+    int bad = 0, rows = 0;
+    const float rate = 48000.0f;
+    for (int n : {1, 5, 40})
+        for (float hz : {0.5f, 30.0f, 2000.0f})
+            for (uint32_t noteBase : {0x1234u, 0xBEEFu}) {
+                // the start block
+                int bwLen = std::max(1, int(rate / (hz < 1.0f ? 1.0f : hz)));
+                std::vector<float> bwCur(size_t(n), 0.0f), bwTarget(size_t(n), 0.0f);
+                std::vector<int> bwPos(size_t(n), 0);
+                std::vector<Randomizer> bwRng(size_t(n), Randomizer(0u));
+                for (int i = 0; i < n; ++i) {
+                    bwRng[size_t(i)]    = Randomizer(stream_seed(noteBase, uint32_t(i), kRngBandwidth));
+                    bwCur[size_t(i)]    = bwRng[size_t(i)].valuePN();
+                    bwTarget[size_t(i)] = bwRng[size_t(i)].valuePN();
+                    bwPos[size_t(i)]    = int(bwRng[size_t(i)].range(0.0f, float(bwLen)));
+                }
+                BandwidthNoise layer;
+                layer.prepare(n);
+                layer.start(n, noteBase, kRngBandwidth, hz, rate);
+                const float dry = std::sqrt(1.0f - 0.37f), wet = std::sqrt(0.37f);
+                for (int k = 0; k < 400; ++k)
+                    for (int index = 0; index < n; ++index) {
+                        // the body's block
+                        if (bwPos[size_t(index)] >= bwLen) {
+                            bwCur[size_t(index)]    = bwTarget[size_t(index)];
+                            bwTarget[size_t(index)] = bwRng[size_t(index)].valuePN();
+                            bwPos[size_t(index)]    = 0;
+                        }
+                        float u = float(bwPos[size_t(index)]) / float(bwLen);
+                        float s = u * u * (3.0f - 2.0f * u);
+                        float noise = bwCur[size_t(index)] + (bwTarget[size_t(index)] - bwCur[size_t(index)]) * s;
+                        ++bwPos[size_t(index)];
+                        float expected = dry + wet * noise;
+                        float got = layer.factor(index, dry, wet);
+                        ++rows;
+                        if (!same_bits(expected, got)) ++bad;
+                    }
+            }
+    CHECK(bad == 0);
+    CHECK(rows == (1 + 5 + 40) * 3 * 2 * 400);
+}
+
+static void run_onset_gate_twin_tests() {
+    std::printf("onset gate: the delays and the fade against the layer\n");
+    int bad = 0, rows = 0, zeros = 0;
+    const float rate = 48000.0f;
+    for (int n : {1, 6, 33})
+        for (float tilt : {-1.0f, -0.5f, 0.0f, 0.5f, 1.0f})
+            for (float spread : {0.0f, 0.01f, 0.2f})
+                for (uint32_t noteBase : {0x1234u, 0xBEEFu}) {
+                    const float fade = 0.0005f;
+                    // the start block
+                    Randomizer onsetRng(stream_seed(noteBase, 0, kRngOnset));
+                    std::vector<float> onsetDelay(static_cast<size_t>(n));
+                    float at = std::fabs(tilt);
+                    for (int i = 0; i < n; ++i) {
+                        float u = onsetRng.value();
+                        float r = (n > 1) ? float(i) / float(n - 1) : 0.0f;
+                        float ordered = (tilt >= 0.0f) ? r : 1.0f - r;
+                        onsetDelay[size_t(i)] = ((1.0f - at) * u + at * ordered) * spread * rate;
+                    }
+                    float onsetFadeSamples = std::max(1.0f, fade * rate);
+                    OnsetGate layer;
+                    layer.prepare(n);
+                    layer.reset();
+                    layer.start(n, noteBase, kRngOnset, spread, tilt, fade, rate);
+                    int sampleIdx = 0;
+                    for (int k = 0; k < 120; ++k) {
+                        ++sampleIdx;
+                        layer.advance();
+                        for (int index = 0; index < n; ++index) {
+                            const float in = (index & 1) ? -0.75f : 0.75f;   // both signs: the zero's sign is the point
+                            // the body's block
+                            float pampl = in;
+                            float t = (float(sampleIdx) - onsetDelay[size_t(index)]) / onsetFadeSamples;
+                            if (t <= 0.0f) pampl = 0.0f;
+                            else if (t < 1.0f) pampl *= t * t * (3.0f - 2.0f * t);
+                            float got = layer.apply(index, in);
+                            ++rows;
+                            if (t <= 0.0f) ++zeros;
+                            if (!same_bits(pampl, got)) ++bad;
+                        }
+                    }
+                }
+    CHECK(bad == 0);
+    CHECK(zeros > 0);                       // the assignment rows were exercised
+    CHECK(rows == (1 + 6 + 33) * 5 * 3 * 2 * 120);
+}
+
+static void run_decay_law_twin_tests() {
+    std::printf("decay law: the factor and the running gain against the layer\n");
+    int bad = 0, rows = 0;
+    const float rate = 48000.0f;
+    const float pmults[] = {1.0f, 2.5f, 17.0f, 61.3f};
+    for (float decayRate : {0.0f, 1.0f, 40.0f, 400.0f})
+        for (float decayExp : {-2.0f, 0.0f, 0.6f, 4.0f}) {
+            const int n = 4;
+            std::vector<float> decayGain(n, 1.0f), decayState(n, 1.0f);
+            for (int i = 0; i < n; ++i) {
+                const double r = double(decayRate) * std::pow(double(pmults[i]), double(decayExp));
+                decayGain[size_t(i)] = float(std::pow(10.0, -r / (20.0 * double(rate))));
+            }
+            DecayLaw layer;
+            layer.prepare(n);
+            layer.start(n);
+            for (int i = 0; i < n; ++i) layer.set_gain(i, pmults[i], decayRate, decayExp, rate);
+            for (int k = 0; k < 2000; ++k) {
+                for (size_t i = 0; i < size_t(n); ++i) decayState[i] *= decayGain[i];
+                layer.advance();
+                for (int i = 0; i < n; ++i) {
+                    ++rows;
+                    if (!same_bits(decayState[size_t(i)], layer.gain(i))) ++bad;
+                }
+            }
+        }
+    CHECK(bad == 0);
+    CHECK(rows == 4 * 4 * 2000 * 4);
+}
+
 // The base drives a set's pins: each prepared once, started once and
 // advanced once per next(), in declaration order; a composite forwards each
 // verb to its sets and advances no pin of its own.
@@ -8006,6 +8135,9 @@ int main() {
     run_segment_walk_twin_tests();
     run_coherent_walk_twin_tests();
     run_pair_trade_twin_tests();
+    run_bandwidth_noise_twin_tests();
+    run_onset_gate_twin_tests();
+    run_decay_law_twin_tests();
     run_partial_set_lifecycle_tests();
     run_partials_part_tests();
     run_component_root_tests();

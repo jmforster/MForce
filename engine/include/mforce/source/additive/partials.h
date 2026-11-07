@@ -3,6 +3,9 @@
 #include "mforce/source/additive/partial_set.h"
 #include "mforce/source/additive/coherent_walk.h"
 #include "mforce/source/additive/pair_trade.h"
+#include "mforce/source/additive/bandwidth_noise.h"
+#include "mforce/source/additive/onset_gate.h"
+#include "mforce/source/additive/decay_law.h"
 #include "mforce/source/additive/expand_rule.h"
 #include "mforce/source/additive/formant.h"
 #include "mforce/core/fast_math.h"
@@ -165,30 +168,17 @@ struct Partials : PartialSet {
     // alongside pmultCache_ — it depends on the effective (possibly
     // inharmonicity-stretched) multiplier. Sized here; render never allocates.
     decayActive_ = (decayRate.value != 0.0f);
-    if (decayActive_) {
-      decayGain_.assign(n, 1.0f);
-      decayState_.assign(n, 1.0f);
-    }
+    if (decayActive_) decay_.start(n);
 
     // Per-partial bandwidth-noise state. Each partial gets an INDEPENDENT
     // smoothed random walk (decorrelated start phase + targets) so the bands
     // fill in rather than wobbling in unison. Segment length = rate/bandwidthHz.
-    bwLen_ = std::max(1, int(rate_ / (bandwidthHz.value < 1.0f ? 1.0f : bandwidthHz.value)));
-    bwCur_.assign(n, 0.0f);
-    bwTarget_.assign(n, 0.0f);
-    bwPos_.assign(n, 0);
-    if (int(bwRng_.size()) != n) bwRng_.resize(n, Randomizer(0u));
-    for (int i = 0; i < n; ++i) {
-      bwRng_[i]    = Randomizer(stream_seed(noteBase_, uint32_t(i), kRngBandwidth));
-      bwCur_[i]    = bwRng_[i].valuePN();
-      bwTarget_[i] = bwRng_[i].valuePN();
-      bwPos_[i]    = int(bwRng_[i].range(0.0f, float(bwLen_)));  // stagger phase
-    }
+    bandwidth_.start(n, noteBase_, kRngBandwidth, bandwidthHz.value, rate_);
 
     // Motion / shimmer / trade / onset state. All per-note (start fires at
     // every note-on) and inert unless configured. Allocation happens here,
     // never in the per-sample path.
-    sampleIdx_ = 0;
+    onset_.reset();
     motionActive_ = (motionDepth1.value != 0.0f || motionDepth2.value != 0.0f);
     if (motionActive_)
       motion_.start(n, noteBase_, kRngMotionShared, kRngMotionInd,
@@ -200,20 +190,9 @@ struct Partials : PartialSet {
     tradeActive_ = (tradeDepth.value != 0.0f);
     if (tradeActive_) trade_.start(n, noteBase_, kRngTrade, tradeHz.value, rate_);
     onsetActive_ = (onsetSpread.value > 0.0f);
-    if (onsetActive_) {
-      // Per-partial onset delay: tilt orders delays by partial height
-      // (+1 low-first / high partials bloom later, -1 reverse, 0 random).
-      Randomizer onsetRng(stream_seed(noteBase_, 0, kRngOnset));
-      onsetDelay_.resize(n);
-      float at = std::fabs(onsetTilt.value);
-      for (int i = 0; i < n; ++i) {
-        float u = onsetRng.value();
-        float r = (n > 1) ? float(i) / float(n - 1) : 0.0f;
-        float ordered = (onsetTilt.value >= 0.0f) ? r : 1.0f - r;
-        onsetDelay_[i] = ((1.0f - at) * u + at * ordered) * onsetSpread.value * rate_;
-      }
-      onsetFadeSamples_ = std::max(1.0f, onsetFade.value * rate_);
-    }
+    if (onsetActive_)
+      onset_.start(n, noteBase_, kRngOnset, onsetSpread.value, onsetTilt.value,
+                   onsetFade.value, rate_);
 
     init_detune_values();
 
@@ -225,7 +204,7 @@ struct Partials : PartialSet {
   void on_next() override {
     refresh_sample_scalars();
 
-    ++sampleIdx_;
+    onset_.advance();
     if (motionActive_) motion_.advance(motionEvolve.value, motionCoherence.value);
     if (shimmerActive_) shimmer_.advance(shimmerEvolve.value, shimmerCoherence.value);
     if (tradeActive_) trade_.advance();
@@ -234,8 +213,7 @@ struct Partials : PartialSet {
       // ensure_partial_cache first: decayGain_ is derived there from the
       // effective multiplier (cheap no-op once the cache is valid).
       ensure_partial_cache();
-      const size_t n = decayState_.size();
-      for (size_t i = 0; i < n; ++i) decayState_[i] *= decayGain_[i];
+      decay_.advance();
     }
   }
 
@@ -376,7 +354,7 @@ private:
 
     // Per-partial exponential decay (piano): one multiply by the running
     // gain advanced in next(). Inert at decayRate == 0.
-    if (decayActive_) pampl *= decayState_[index];
+    if (decayActive_) pampl *= decay_.gain(index);
 
     // Bandwidth enhancement (Loris / SMS): trade part of this partial's
     // sinusoidal energy for a noise band by amplitude-modulating it with an
@@ -384,18 +362,7 @@ private:
     //   amp *= sqrt(1-bw) + sqrt(bw)*noise   (bw=0 → pure sine; bw=1 → full band)
     // bandwidthHz sets how fast the noise wiggles ≈ the band width. bwEnv lets
     // bandwidth ramp (e.g. high at the attack, settling — a coupled noisy attack).
-    if (sBwActive_) {
-      if (bwPos_[index] >= bwLen_) {
-        bwCur_[index]    = bwTarget_[index];
-        bwTarget_[index] = bwRng_[index].valuePN();  // per-partial stream
-        bwPos_[index]    = 0;
-      }
-      float u = float(bwPos_[index]) / float(bwLen_);
-      float s = u * u * (3.0f - 2.0f * u);  // smoothstep → low-pass noise
-      float noise = bwCur_[index] + (bwTarget_[index] - bwCur_[index]) * s;
-      ++bwPos_[index];
-      pampl *= sBwDry_ + sBwWet_ * noise;   // sqrt(1-bw), sqrt(bw): per-sample
-    }
+    if (sBwActive_) pampl *= bandwidth_.factor(index, sBwDry_, sBwWet_);   // sqrt(1-bw), sqrt(bw): per-sample
 
     // Amplitude shimmer: slow per-partial gain wander (coherence-mixed walk).
     // shimmerFloor clamps the gain from below so high depths can't visit
@@ -416,11 +383,7 @@ private:
     // Onset dispersion: partial stays silent until its per-note delay, then
     // fades in. Phase keeps advancing while gated, so partials "enter" as
     // already-running oscillators rather than all striking at t=0.
-    if (onsetActive_) {
-      float t = (float(sampleIdx_) - onsetDelay_[index]) / onsetFadeSamples_;
-      if (t <= 0.0f) pampl = 0.0f;
-      else if (t < 1.0f) pampl *= t * t * (3.0f - 2.0f * t);
-    }
+    if (onsetActive_) pampl = onset_.apply(index, pampl);
 
     // fast_sin_turns takes the phase directly in turns — no TAU multiply, no
     // libm range reduction. See fast_math.h for the accuracy bound.
@@ -474,15 +437,7 @@ private:
       pmultCache_[i]   = pmult;
       rolloffCache_[i] = (ro == 0.0f) ? 1.0f : (1.0f / std::pow(pmult, ro));
       if (scale) moScaleCache_[i] = std::pow(pmult, motionScale.value);
-      if (decayActive_) {
-        // rate_i = decayRate * pmult^decayExp dB/s -> per-sample amplitude
-        // factor 10^(-rate_i / (20*sr)). Double intermediates: the factor is
-        // within ~1e-7 of 1, where float pow quantisation would bias the
-        // long-run decay audibly.
-        const double rate = double(decayRate.value) *
-                            std::pow(double(pmult), double(decayExp.value));
-        decayGain_[i] = float(std::pow(10.0, -rate / (20.0 * double(rate_))));
-      }
+      if (decayActive_) decay_.set_gain(i, pmult, decayRate.value, decayExp.value, rate_);
     }
     cachedMultE_ = sMultE_;
     cachedRoE_   = sRoE_;
@@ -609,11 +564,11 @@ protected:
         v->reserve(size_t(n));
     }
     for (auto* v : {&partialPos_, &partialPO_, &partialLPO_, &dtVals_, &pmultCache_,
-                    &rolloffCache_, &moScaleCache_, &decayGain_, &decayState_, &bwCur_,
-                    &bwTarget_, &onsetDelay_})
+                    &rolloffCache_, &moScaleCache_})
       v->assign(size_t(n), 0.0f);
-    bwPos_.assign(size_t(n), 0);
-    bwRng_.assign(size_t(n), Randomizer(0u));
+    bandwidth_.prepare(n);
+    onset_.prepare(n);
+    decay_.prepare(n);
     motion_.prepare(n);
     shimmer_.prepare(n);
     trade_.prepare(n);
@@ -627,30 +582,23 @@ protected:
   uint32_t noteSeq_{0};   // note-on ordinal, hashed into noteBase_
   uint32_t noteBase_{0};
   Randomizer expandRng_{0u};
-  std::vector<Randomizer> bwRng_;   // the bandwidth noise's per-partial streams
-
-  // Bandwidth-noise segment length in samples (derived from bandwidthHz at start)
-  int   bwLen_{1600};
 
   // The layers: each sized at prepare and started per note, inert unless
   // its flag is on
   bool motionActive_{false}, shimmerActive_{false};
   bool tradeActive_{false}, onsetActive_{false};
   bool decayActive_{false};
-  std::vector<float> decayGain_, decayState_;  // per-sample factor / running gain
   CoherentWalk motion_, shimmer_;
   PairTrade trade_;
-  std::vector<float> onsetDelay_;
-  float onsetFadeSamples_{1.0f};
-  int sampleIdx_{0};
+  BandwidthNoise bandwidth_;
+  OnsetGate onset_;
+  DecayLaw decay_;
 
   // Per-partial static arrays (set by init_arrays in subclass)
   std::vector<float> mult1_, mult2_, ampl1_, ampl2_, po1_, po2_;
 
   // Per-partial runtime state
   std::vector<float> partialPos_, partialPO_, partialLPO_, dtVals_;
-  std::vector<float> bwCur_, bwTarget_;   // per-partial bandwidth-noise walk
-  std::vector<int>   bwPos_;
 
   // Per-sample scalars, refreshed once per next() (see
   // refresh_sample_scalars) instead of once per partial.
