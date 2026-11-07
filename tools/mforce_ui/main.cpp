@@ -852,7 +852,7 @@ static GraphNode* find_node_for_dyn_link(int linkId, std::string* settingOut) {
 // source's type can't satisfy the target pin's interface requirement, or
 // nullptr if the link is fine. Keeps "lying wires" out of the UI: before
 // this check, the loader silently dropped mismatched refs (non-IFormant
-// wired to FormantSpectrum.formants, non-IPartials wired to partials pins,
+// wired to FormantSpectrum.formants, non-PartialSet wired to partials pins,
 // etc.) and the UI showed the link anyway.
 static const char* pin_type_compat_error(const std::string& targetType,
                                          const std::string& targetPin,
@@ -876,7 +876,7 @@ static const char* pin_type_compat_error(const std::string& targetType,
         return "Pin needs a Formant-type source (Formant, FormantSpectrum, FixedSpectrum, BandSpectrum, or FormantSequence)";
     }
 
-    // IPartials-requiring pins
+    // PartialSet-requiring pins
     bool needsPartials =
         (targetType == "CompositePartials" && targetPin == "partials") ||
         (targetType == "AdditiveSource" && targetPin == "partials");
@@ -14129,7 +14129,7 @@ int main(int argc, char** argv) {
                 int inPin  = (startPin->kind == UiPinKind::Input)  ? startAttr : endAttr;
 
                 // Reject structurally incompatible links. Target pins that
-                // expect IFormant / IPartials can't accept arbitrary sources
+                // expect IFormant / PartialSet can't accept arbitrary sources
                 // — before this check the loader silently dropped mismatched
                 // set_param calls, leaving a "lying wire" in the UI with no
                 // corresponding DSP connection.

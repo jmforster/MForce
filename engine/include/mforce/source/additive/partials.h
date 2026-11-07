@@ -2,6 +2,7 @@
 #include "mforce/core/dsp_value_source.h"
 #include "mforce/core/fast_math.h"
 #include "mforce/source/additive/formant.h"
+#include "mforce/source/additive/partial_set.h"
 #include "mforce/core/randomizer.h"
 #include <vector>
 #include <algorithm>
@@ -69,49 +70,6 @@ struct ExpandRuleNode final : Component {
   const char* type_name() const override { return "ExpandRule"; }
 };
 
-// ---------------------------------------------------------------------------
-// IPartials — the interface of a part that renders partials. The additive
-// source that holds one drives it: prepare once per build, start once per
-// note, next once per sample, then one batched sum per sample. A Partials
-// prepares, starts and pulls its own pins inside those calls.
-// ---------------------------------------------------------------------------
-struct IPartials {
-  virtual ~IPartials() = default;
-  virtual void prepare(const RenderContext& ctx) = 0;
-  virtual void start(int frames) = 0;
-  virtual void next() = 0;
-  virtual int partial_count() const = 0;
-  virtual float get_partial_value(float amplitude, float frequency, float phaseDiff,
-                                  int index, IFormant* formant, float formantWeight,
-                                  float formantFloor) = 0;
-
-  // Batched entry point: add every partial's contribution for one sample to
-  // `acc` and return it. One virtual call per sample instead of one per
-  // partial — that is what lets the per-partial body inline and hoist its
-  // per-sample invariants.
-  //
-  // The accumulator is threaded in/out rather than each implementer returning
-  // a subtotal, so a nested set (MultiPartials) sums in exactly the same order
-  // as one flat loop over all partials. Float addition is not associative:
-  // subtotalling would change the last bits of the output.
-  //
-  // The default body is the exact loop FullAdditiveSource used to run
-  // (NaN = past cutoff, gate that partial only), so an implementer that
-  // doesn't override keeps identical behaviour.
-  virtual float sum_partials(float acc, float amplitude, float frequency,
-                             float phaseDiff, IFormant* formant,
-                             float formantWeight, float formantFloor) {
-    const int n = partial_count();
-    for (int i = 0; i < n; ++i) {
-      float v = get_partial_value(amplitude, frequency, phaseDiff, i,
-                                  formant, formantWeight, formantFloor);
-      if (std::isnan(v)) continue;
-      acc += v;
-    }
-    return acc;
-  }
-};
-
 // Rng stream layer ids (see stream_seed in core/randomizer.h). Every random
 // consumer in Partials draws from its own seeded stream — per (note, partial)
 // for the layers with per-partial state, per note for the single-stream
@@ -140,11 +98,10 @@ enum PartialsRngLayer : uint32_t {
 // static + runtime arrays. Subclasses only implement init_arrays() to
 // populate the static arrays (mult1_, mult2_, ampl1_, ampl2_, po1_, po2_).
 // ---------------------------------------------------------------------------
-struct Partials : Component, IPartials {
-  // The additive source drives a Partials through prepare(), start() and
-  // next(), so the eight envelope pins are Manual: prepare() prepares them,
-  // start() starts them and next() advances them, in this order. All are
-  // unipolar 0-1 blend factors driving a lerp
+struct Partials : PartialSet {
+  // The base prepares, starts and advances the eight envelope pins in this
+  // order, once per call; they are Manual because no sweep runs on a part.
+  // All are unipolar 0-1 blend factors driving a lerp
   // between _1 and _2 endpoints (e.g. roEnv blends rolloff1 -> rolloff2).
   // Wire an Envelope or RangeSource; a bipolar oscillator won't blend right.
   Param multEnv   {this, "multEnv",    0.0f, 0.0f, 1.0f, "0-1", Pull::Manual};
@@ -213,24 +170,15 @@ struct Partials : Component, IPartials {
   // --- Set by the patch loader from an "expandRule" block ---
   void set_expand_rule(ExpandRule rule) { expandRule_ = rule; hasExpand_ = true; }
 
-  // --- IPartials interface ---
+  // --- The set's hooks: after the base has prepared, started or advanced the pins ---
 
-  // The rate and the envelope pins' sources: once per build, idempotent.
-  void prepare(const RenderContext& ctx) override {
+  // The rate, and every array a note fills sized for it: once per build, idempotent.
+  void on_prepare(const RenderContext& ctx) override {
     rate_ = float(ctx.sampleRate);
-
-    multEnv.prepare(ctx);
-    amplEnv.prepare(ctx);
-    poEnv.prepare(ctx);
-    roEnv.prepare(ctx);
-    dtEnv.prepare(ctx);
-    bwEnv.prepare(ctx);
-    motionEnv.prepare(ctx);
-    shimmerEnv.prepare(ctx);
     prepare_note_arrays();
   }
 
-  void start(int frames) override {
+  void on_start(int frames) override {
     // Per-note stream base: baseSeed_ hashed with a note counter. Every rng
     // stream below reseeds from this, so a note's randomness depends only on
     // (baseSeed, note ordinal, partial, layer) — never on how many draws any
@@ -239,15 +187,6 @@ struct Partials : Component, IPartials {
     // note-ons); without it every note would replay identical noise.
     noteBase_ = uint32_t(splitmix64((uint64_t(baseSeed_) << 32) ^ uint64_t(noteSeq_)));
     ++noteSeq_;
-
-    multEnv.start(frames);
-    amplEnv.start(frames);
-    poEnv.start(frames);
-    roEnv.start(frames);
-    dtEnv.start(frames);
-    bwEnv.start(frames);
-    motionEnv.start(frames);
-    shimmerEnv.start(frames);
 
     // Expand partials if rule is set
     if (hasExpand_) {
@@ -362,16 +301,7 @@ struct Partials : Component, IPartials {
     refresh_sample_scalars();
   }
 
-  void next() override {
-    multEnv.next();
-    amplEnv.next();
-    poEnv.next();
-    roEnv.next();
-    dtEnv.next();
-    bwEnv.next();
-    motionEnv.next();
-    shimmerEnv.next();
-
+  void on_next() override {
     refresh_sample_scalars();
 
     ++sampleIdx_;
@@ -410,7 +340,7 @@ struct Partials : Component, IPartials {
   }
 
   // Port of legacy Partials.cs GetPartialValue — the authoritative per-partial
-  // math. Kept as the IPartials entry point for single-partial callers; the
+  // math. Kept as the single-partial entry point; the
   // render path goes through sum_partials() below, which hoists everything
   // that is invariant across partials out of the loop.
   float get_partial_value(float amplitude, float frequency, float phaseDiff,
@@ -1079,27 +1009,27 @@ private:
 };
 
 // ---------------------------------------------------------------------------
-// CompositePartials — combines multiple IPartials into one.
+// CompositePartials — combines several partial sets into one.
 // Concatenates partial arrays from all children. Used to mix, e.g.,
 // SequencePartials + ExplicitPartials in a single AdditiveSource.
 // Ported from legacy CompositePartials.cs.
 // ---------------------------------------------------------------------------
-struct CompositePartials final : Component, IPartials {
+struct CompositePartials final : PartialSet {
   // The sets it concatenates, in wiring order.
-  Slot<IPartials> partials{this, "partials", "an IPartials part", true};
+  Slot<PartialSet> partials{this, "partials", "a PartialSet part", true};
 
   const char* type_name() const override { return "CompositePartials"; }
 
-  // --- IPartials interface ---
-  void prepare(const RenderContext& ctx) override {
+  // --- The set's hooks: each verb forwarded to the sets, in slot order ---
+  void on_prepare(const RenderContext& ctx) override {
     for (auto* p : partials.views) p->prepare(ctx);
   }
 
-  void start(int frames) override {
+  void on_start(int frames) override {
     for (auto* p : partials.views) p->start(frames);
   }
 
-  void next() override {
+  void on_next() override {
     for (auto* p : partials.views) p->next();
   }
 

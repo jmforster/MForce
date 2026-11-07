@@ -45,7 +45,7 @@ void FullAdditiveSource::on_start(int frames) {
 }
 
 float FullAdditiveSource::wave() {
-  IPartials* parts = partials.get();
+  PartialSet* parts = partials.get();
   if (!parts) return 0.0f;
 
   // Advance partials envelopes

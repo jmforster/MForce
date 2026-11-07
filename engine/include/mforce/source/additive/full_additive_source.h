@@ -9,7 +9,7 @@
 namespace mforce {
 
 // ---------------------------------------------------------------------------
-// AdditiveSource — thin source that sums partials via IPartials interface.
+// AdditiveSource — thin source that sums partials through a PartialSet.
 // Ported from legacy AdditiveSource.cs (the thin loop over Partials).
 //
 // All per-partial rendering (envelopes, rolloff, detune, expand) lives in
@@ -28,7 +28,7 @@ struct FullAdditiveSource final : WaveSource {
   Param formantWeight{this, "formantWeight", 0.0f, 0.0f, 1.0f, "0-1", Pull::Manual};
   Param formantFloor {this, "formantFloor",  1.0f, 0.0f, 1.0f, "0-1", Pull::Manual};  // out-of-band suppression, 1.0 = no cut
   Slot<IFormant> formant{this, "formant", "an IFormant part"};
-  Slot<IPartials> partials{this, "partials", "an IPartials part"};
+  Slot<PartialSet> partials{this, "partials", "a PartialSet part"};
 
   // --- NoiseBed configs (scalar so paramMap frequency-curves can drive them
   // per register — e.g. the clarinet noise-lead law 0.15/0.10/0.04 s by f0

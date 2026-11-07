@@ -4150,7 +4150,7 @@ static void run_additive_smoke_tests() {
     BandSpectrum band;                  smokeFormant(band);
     FormantSequence seq;                smokeFormant(seq);
     // A partials part is driven by its owner; its sum is what it answers.
-    auto smokePartials = [&](IPartials& p) {
+    auto smokePartials = [&](PartialSet& p) {
         p.prepare(ctx); p.start(4800);
         for (int i = 0; i < 10; ++i) { p.next(); CHECK(std::isfinite(p.sum_partials(0.0f, 1.0f, 220.0f, 0.0f, nullptr, 0.0f, 1.0f))); }
     };
@@ -4264,7 +4264,7 @@ static void run_additive_wiring_tests() {
     f.set_param("partials", fp);
     f.set_param("formant", fm);
     CHECK(f.get_part("partials") == fp && f.get_part("formant") == fm);
-    CHECK(!f.set_param("partials", other));                // not an IPartials: refused
+    CHECK(!f.set_param("partials", other));                // not a PartialSet: refused
     CHECK(!f.set_param("formant", other));                 // not an IFormant: refused, the slot keeps its part
     CHECK(f.get_part("partials") == fp && f.get_part("formant") == fm);
     f.set_param("formant", nullptr);                       // null clears the slot
@@ -4289,7 +4289,7 @@ static void run_additive_wiring_tests() {
     auto p2 = std::make_shared<ExplicitPartials>();
     comp.add_param("partials", fp);
     comp.add_param("partials", p2);                        // add appends
-    CHECK(!comp.set_param("partials", other));             // not an IPartials: refused, the slot keeps its parts
+    CHECK(!comp.set_param("partials", other));             // not a PartialSet: refused, the slot keeps its parts
     CHECK(comp.partial_count() == 30 + 16);
     comp.clear_param("partials");
     CHECK(comp.partial_count() == 0);
@@ -7452,6 +7452,61 @@ static void run_formant_part_tests() {
 // The partials family are parts: a CompositePartials holds its sets in a multi
 // slot (add appends, set replaces, a signal is refused) and no partials type
 // is a ValueSource.
+// The base drives a set's pins: each prepared once, started once and
+// advanced once per next(), in declaration order; a composite forwards each
+// verb to its sets and advances no pin of its own.
+struct OrderProbe final : Generator {
+    std::vector<std::string>* log{nullptr};
+    std::string tag;
+    float compute() override { if (log) log->push_back(tag); return 0.0f; }
+    const char* type_name() const override { return "OrderProbe"; }
+};
+static void run_partial_set_lifecycle_tests() {
+    std::printf("partial set: the base drives the pins\n");
+    RenderContext ctx{48000};
+    const char* names[] = {"multEnv", "amplEnv", "poEnv", "roEnv", "dtEnv", "bwEnv", "motionEnv", "shimmerEnv"};
+    {
+        FullPartials full;
+        std::vector<std::shared_ptr<PinCounter>> probes;
+        for (const char* n : names) {
+            probes.push_back(std::make_shared<PinCounter>());
+            CHECK(full.set_param(n, probes.back()));
+        }
+        PartialSet& set = full;
+        set.prepare(ctx); set.start(4800);
+        for (int i = 0; i < 7; ++i) set.next();
+        for (const auto& p : probes) CHECK(p->ctxPrepares == 1 && p->starts == 1 && p->nexts == 7);
+    }
+    {
+        FullPartials full;
+        std::vector<std::string> log;
+        for (const char* n : names) {
+            auto o = std::make_shared<OrderProbe>();
+            o->log = &log; o->tag = n;
+            CHECK(full.set_param(n, o));
+        }
+        full.prepare(ctx); full.start(4800); full.next();
+        std::string seen;
+        for (const auto& s : log) seen += s + ",";
+        CHECK(seen == "multEnv,amplEnv,poEnv,roEnv,dtEnv,bwEnv,motionEnv,shimmerEnv,");
+    }
+    {
+        CompositePartials comp;
+        auto a = std::make_shared<FullPartials>();
+        auto b = std::make_shared<SequencePartials>();
+        auto pa = std::make_shared<PinCounter>();
+        auto pb = std::make_shared<PinCounter>();
+        CHECK(a->set_param("multEnv", pa) && b->set_param("amplEnv", pb));
+        CHECK(comp.add_param("partials", a) && comp.add_param("partials", b));
+        PartialSet& set = comp;
+        set.prepare(ctx); set.start(4800);
+        for (int i = 0; i < 7; ++i) set.next();
+        CHECK(pa->ctxPrepares == 1 && pa->starts == 1 && pa->nexts == 7);
+        CHECK(pb->ctxPrepares == 1 && pb->starts == 1 && pb->nexts == 7);
+        CHECK(comp.partial_count() == 60);
+    }
+}
+
 static void run_partials_part_tests() {
     std::printf("partials: parts in slots\n");
     CompositePartials comp;
@@ -7523,7 +7578,7 @@ static void run_review_gap_tests() {
       {"id":"osc","type":"SineSource","params":{"frequency":220.0}},
       {"id":"add","type":"AdditiveSource","params":{"frequency":220.0,"amplitude":0.5,"partials":{"ref":"osc"}}}]}})";
     CHECK(load_fails_naming(sineIntoPartials, "does not accept a SineSource"));
-    CHECK(load_fails_naming(sineIntoPartials, "takes an IPartials part"));
+    CHECK(load_fails_naming(sineIntoPartials, "takes a PartialSet part"));
     // a FormantSequence keyed "formants" (the alias the deleted branch read) is refused by name
     const char* seqAlias = R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"add","nodes":[
       {"id":"parts","type":"FullPartials","params":{"maxPartials":4}},
@@ -7814,6 +7869,7 @@ int main() {
     run_structural_push_refusal_tests();
     run_wiring_door_tests();
     run_formant_part_tests();
+    run_partial_set_lifecycle_tests();
     run_partials_part_tests();
     run_component_root_tests();
     run_target_evolution_registry_tests();
