@@ -13,7 +13,7 @@ namespace mforce {
 //
 // All per-partial rendering (envelopes, rolloff, detune, expand) lives in
 // the Partials object. This source just owns frequency/amplitude/phase,
-// an optional formant, and loops over partials->get_partial_value().
+// an optional formant, and takes the set's batched sum once per sample.
 //
 // AdditiveSource is the WaveSource that renders a PartialSet's sum.
 // ---------------------------------------------------------------------------

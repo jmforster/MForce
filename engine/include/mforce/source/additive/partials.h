@@ -43,9 +43,9 @@ enum PartialsRngLayer : uint32_t {
 // Partials — abstract base class implementing the per-partial rendering
 // engine. Ported faithfully from legacy Partials.cs GetPartialValue().
 //
-// Owns eight envelope pins, rolloff/detune params, expand rule, and all
-// static + runtime arrays. Subclasses only implement init_arrays() to
-// populate the static arrays (layout_.mult1, layout_.mult2, layout_.ampl1, layout_.ampl2, layout_.po1, layout_.po2).
+// Owns eight envelope pins, the rolloff/detune and layer settings, the expand
+// rule, the layout (the partial arrays) and the six layers. Subclasses only
+// implement init_arrays() to populate the layout's arrays.
 // ---------------------------------------------------------------------------
 struct Partials : PartialSet {
   // The base prepares, starts and advances the eight envelope pins in this
@@ -162,10 +162,10 @@ struct Partials : PartialSet {
     moScaleCache_.assign(n, 1.0f);
     partialCacheValid_ = false;
 
-    // Per-partial decay: running gain state, reset to unity at note-on.
-    // decayGain_ (the per-sample factor) is filled by ensure_partial_cache
-    // alongside pmultCache_ — it depends on the effective (possibly
-    // inharmonicity-stretched) multiplier. Sized here; render never allocates.
+    // Per-partial decay: the running gains back to unity at note-on; the
+    // per-sample factors are filled by ensure_partial_cache alongside
+    // pmultCache_ (they depend on the effective, possibly inharmonicity-
+    // stretched, multiplier). Sized at prepare; render never allocates.
     decayActive_ = (decayRate.value != 0.0f);
     if (decayActive_) decay_.start(n);
 
@@ -175,8 +175,8 @@ struct Partials : PartialSet {
     bandwidth_.start(n, noteBase_, kRngBandwidth, bandwidthHz.value, rate_);
 
     // Motion / shimmer / trade / onset state. All per-note (start fires at
-    // every note-on) and inert unless configured. Allocation happens here,
-    // never in the per-sample path.
+    // every note-on) and inert unless configured; every layer was sized at
+    // prepare, so nothing here or in the per-sample path allocates.
     onset_.reset();
     motionActive_ = (motionDepth1.value != 0.0f || motionDepth2.value != 0.0f);
     if (motionActive_)
@@ -209,8 +209,8 @@ struct Partials : PartialSet {
     if (tradeActive_) trade_.advance();
     if (decayActive_) {
       // Advance each partial's running decay gain by its per-sample factor.
-      // ensure_partial_cache first: decayGain_ is derived there from the
-      // effective multiplier (cheap no-op once the cache is valid).
+      // ensure_partial_cache first: the decay's factors are derived there from
+      // the effective multiplier (cheap no-op once the cache is valid).
       ensure_partial_cache();
       decay_.advance();
     }

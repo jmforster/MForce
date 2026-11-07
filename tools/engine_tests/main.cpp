@@ -7008,6 +7008,8 @@ static void run_retired_type_message_tests() {
     CHECK(none.find("Unknown node type: NoSuchType") != std::string::npos);
     CHECK(none.find("migrate_deleted_types") == std::string::npos);
     CHECK(retired_type_hint("Envelope") == nullptr && retired_type_hint("ASREnvelope") != nullptr);
+    CHECK(retired_type_hint("AdditiveSource2") != nullptr && retired_type_hint("BasicAdditiveSource") != nullptr);
+    CHECK(std::string(retired_type_hint("AdditiveSource2")).find("author an AdditiveSource") != std::string::npos);
 }
 
 // The allocation probe: counts only while armed, keeps the first armed
@@ -7463,14 +7465,11 @@ static void run_formant_part_tests() {
     }
 }
 
-// The partials family are parts: a CompositePartials holds its sets in a multi
-// slot (add appends, set replaces, a signal is refused) and no partials type
-// is a ValueSource.
 // The segment walk, the coherent walk and the pair trade against the blocks
 // they replaced: the deleted walk functions retyped here as they stood in
 // Partials, both sides driven by identically seeded Randomizers, every
 // advance compared bit for bit.
-namespace twin38 {
+namespace partials_twin {
 struct W { float cur{0.0f}, target{0.0f}; int pos{0}, len{1}; };
 inline int seg_len(int baseLen, float evolve, Randomizer& rng) {
     float f = (evolve <= 0.0f) ? 1.0f
@@ -7497,58 +7496,59 @@ inline float advance(W& w, int baseLen, float evolve, Randomizer& rng) {
     ++w.pos;
     return w.cur + (w.target - w.cur) * s;
 }
-}  // namespace twin38
+}  // namespace partials_twin
 
 static void run_segment_walk_twin_tests() {
     std::printf("segment walk: the primitive against the deleted walk\n");
     int bad = 0, rows = 0;
     for (int baseLen : {1, 7, 1600, 48000})
-        for (float evolve : {0.0f, 0.3f, 1.0f})
+        for (float evolve : {0.0f, 0.1f, 0.3f, 1.0f})
             for (uint32_t seed = 1; seed <= 8; ++seed) {
                 Randomizer ra(seed), rb(seed);
-                twin38::W a;
+                partials_twin::W a;
                 dsp::SegmentWalk b;
-                twin38::init(a, baseLen, evolve, ra);
+                partials_twin::init(a, baseLen, evolve, ra);
                 b.init(baseLen, evolve, rb);
                 if (!same_bits(a.cur, b.cur) || !same_bits(a.target, b.target) || a.pos != b.pos || a.len != b.len) ++bad;
                 for (int k = 0; k < 500; ++k) {
-                    float x = twin38::advance(a, baseLen, evolve, ra);
+                    float x = partials_twin::advance(a, baseLen, evolve, ra);
                     float y = b.advance(baseLen, evolve, rb);
                     ++rows;
                     if (!same_bits(x, y)) ++bad;
                 }
             }
     CHECK(bad == 0);
-    CHECK(rows == 4 * 3 * 8 * 500);
+    CHECK(rows == 4 * 4 * 8 * 500);
 }
 
 static void run_coherent_walk_twin_tests() {
     std::printf("coherent walk: the motion block against the layer\n");
     int bad = 0, rows = 0;
-    const float rate = 48000.0f, hz = 4.0f;
+    for (auto rh : {std::pair<float, float>{48000.0f, 4.0f}, std::pair<float, float>{44100.0f, 7.3f}})
     for (int n : {1, 8, 61})
-        for (float coh : {0.0f, 0.5f, 1.0f})
+        for (float coh : {0.0f, 0.4f, 0.5f, 0.59f, 1.0f})
             for (float evolve : {0.0f, 0.3f})
                 for (uint32_t noteBase : {0x1234u, 0xBEEFu}) {
+                    const float rate = rh.first, hz = rh.second;
                     // the deleted block, as Partials::start and next ran it
                     int moLen = std::max(1, int(rate / std::max(0.01f, hz)));
                     Randomizer moSharedRng(stream_seed(noteBase, 0, kRngMotionShared));
-                    twin38::W moShared;
-                    twin38::init(moShared, moLen, evolve, moSharedRng);
-                    std::vector<twin38::W> moWalks(static_cast<size_t>(n));
+                    partials_twin::W moShared;
+                    partials_twin::init(moShared, moLen, evolve, moSharedRng);
+                    std::vector<partials_twin::W> moWalks(static_cast<size_t>(n));
                     std::vector<Randomizer> moRng(size_t(n), Randomizer(0u));
                     for (int i = 0; i < n; ++i) {
                         moRng[size_t(i)] = Randomizer(stream_seed(noteBase, uint32_t(i), kRngMotionInd));
-                        twin38::init(moWalks[size_t(i)], moLen, evolve, moRng[size_t(i)]);
+                        partials_twin::init(moWalks[size_t(i)], moLen, evolve, moRng[size_t(i)]);
                     }
                     std::vector<float> moVals(size_t(n), 0.0f);
                     CoherentWalk layer;
                     layer.prepare(n);
                     layer.start(n, noteBase, kRngMotionShared, kRngMotionInd, hz, evolve, rate);
                     for (int k = 0; k < 300; ++k) {
-                        float shared = twin38::advance(moShared, moLen, evolve, moSharedRng);
+                        float shared = partials_twin::advance(moShared, moLen, evolve, moSharedRng);
                         for (size_t i = 0; i < moWalks.size(); ++i) {
-                            float ind = twin38::advance(moWalks[i], moLen, evolve, moRng[i]);
+                            float ind = partials_twin::advance(moWalks[i], moLen, evolve, moRng[i]);
                             moVals[i] = coh * shared + (1.0f - coh) * ind;
                         }
                         layer.advance(evolve, coh);
@@ -7559,26 +7559,27 @@ static void run_coherent_walk_twin_tests() {
                     }
                 }
     CHECK(bad == 0);
-    CHECK(rows == (1 + 8 + 61) * 3 * 2 * 2 * 300);
+    CHECK(rows == 2 * (1 + 8 + 61) * 5 * 2 * 2 * 300);
 }
 
 static void run_pair_trade_twin_tests() {
     std::printf("pair trade: the trade block against the layer\n");
     int bad = 0, rows = 0;
-    const float rate = 48000.0f, hz = 2.0f;
+    const float rate = 48000.0f;
+    for (float hz : {2.0f, 0.37f, 7.3f})
     for (int n : {1, 2, 7, 24})
         for (uint32_t noteBase : {0x1234u, 0xBEEFu}) {
             int trLen = std::max(1, int(rate / std::max(0.01f, hz)));
             Randomizer trRng(stream_seed(noteBase, 0, kRngTrade));
-            std::vector<twin38::W> trWalks(size_t((n + 1) / 2));
-            for (auto& w : trWalks) twin38::init(w, trLen, 0.0f, trRng);
+            std::vector<partials_twin::W> trWalks(size_t((n + 1) / 2));
+            for (auto& w : trWalks) partials_twin::init(w, trLen, 0.0f, trRng);
             std::vector<float> trVals(size_t((n + 1) / 2), 0.0f);
             PairTrade layer;
             layer.prepare(n);
             layer.start(n, noteBase, kRngTrade, hz, rate);
             for (int k = 0; k < 300; ++k) {
                 for (size_t i = 0; i < trWalks.size(); ++i)
-                    trVals[i] = twin38::advance(trWalks[i], trLen, 0.0f, trRng);
+                    trVals[i] = partials_twin::advance(trWalks[i], trLen, 0.0f, trRng);
                 layer.advance();
                 for (size_t i = 0; i < trVals.size(); ++i) {
                     ++rows;
@@ -7587,13 +7588,14 @@ static void run_pair_trade_twin_tests() {
             }
         }
     CHECK(bad == 0);
-    CHECK(rows == (1 + 1 + 4 + 12) * 2 * 300);
+    CHECK(rows == 3 * (1 + 1 + 4 + 12) * 2 * 300);
 }
 
 // The bandwidth noise, the onset gate and the decay law against the blocks
 // they replaced: each block retyped here as Partials ran it, both sides on
-// identically seeded streams, every output and every state compared bit for
-// bit — the onset rows with t <= 0 included, where an assignment and a
+// identically seeded streams, every output compared bit for bit (a layer's
+// state is private and is read through its outputs) — the onset rows with
+// t <= 0 included, where an assignment and a
 // multiply by zero differ in the zero's sign.
 static void run_bandwidth_noise_twin_tests() {
     std::printf("bandwidth noise: the per-partial walk against the layer\n");
@@ -7689,8 +7691,8 @@ static void run_onset_gate_twin_tests() {
 static void run_decay_law_twin_tests() {
     std::printf("decay law: the factor and the running gain against the layer\n");
     int bad = 0, rows = 0;
-    const float rate = 48000.0f;
     const float pmults[] = {1.0f, 2.5f, 17.0f, 61.3f};
+    for (float rate : {48000.0f, 44100.0f})
     for (float decayRate : {0.0f, 1.0f, 40.0f, 400.0f})
         for (float decayExp : {-2.0f, 0.0f, 0.6f, 4.0f}) {
             const int n = 4;
@@ -7713,7 +7715,7 @@ static void run_decay_law_twin_tests() {
             }
         }
     CHECK(bad == 0);
-    CHECK(rows == 4 * 4 * 2000 * 4);
+    CHECK(rows == 2 * 4 * 4 * 2000 * 4);
 }
 
 // The expansion against the deleted apply_expand_rule: the block retyped here
@@ -7738,13 +7740,15 @@ static void run_partial_layout_twin_tests() {
                     for (int i = 0; i < n; ++i) {
                         mult1_[size_t(i)] = float(i + 1) * 1.01f; mult2_[size_t(i)] = float(i + 1);
                         ampl1_[size_t(i)] = 1.0f / float(i + 1);  ampl2_[size_t(i)] = 0.5f / float(i + 1);
-                        po1_[size_t(i)] = 0.1f * float(i);        po2_[size_t(i)] = 0.07f * float(i);
+                        po1_[size_t(i)] = 0.1f * float(i) - 0.25f; po2_[size_t(i)] = 0.07f * float(i) - 0.1f;   // negative for the low partials
                     }
                     PartialLayout layout;
                     layout.mult1 = mult1_; layout.mult2 = mult2_; layout.ampl1 = ampl1_; layout.ampl2 = ampl2_;
                     layout.po1 = po1_; layout.po2 = po2_;
                     layout.snapshot();
+                    const std::vector<float> oM1 = mult1_, oM2 = mult2_, oA1 = ampl1_, oA2 = ampl2_, oP1 = po1_, oP2 = po2_;
                     const int expanded = layout.reserve_expanded(er);
+                    layout.restore();   // the note's path: the originals back, then the expansion
                     std::vector<float> exM1_, exM2_, exA1_, exA2_, exP1_, exP2_;
                     Randomizer expandRng_(seed), layoutRng(seed);
                     for (int r = 0; r <= er.recurse; ++r) {
@@ -7798,10 +7802,16 @@ static void run_partial_layout_twin_tests() {
                             ++rows;
                             if (!same_bits((*mine[a])[i], (*theirs[a])[i])) ++bad;
                         }
-                    // restore gives the snapshot back
+                    // restore gives the snapshot back, all six arrays
                     layout.restore();
                     CHECK(layout.count() == n);
-                    for (int i = 0; i < n; ++i) CHECK(same_bits(layout.mult1[size_t(i)], float(i + 1) * 1.01f));
+                    auto bitsEqual = [](const std::vector<float>& a, const std::vector<float>& b) {
+                        if (a.size() != b.size()) return false;
+                        for (size_t i = 0; i < a.size(); ++i) if (!same_bits(a[i], b[i])) return false;
+                        return true;
+                    };
+                    CHECK(bitsEqual(layout.mult1, oM1) && bitsEqual(layout.mult2, oM2) && bitsEqual(layout.ampl1, oA1)
+                          && bitsEqual(layout.ampl2, oA2) && bitsEqual(layout.po1, oP1) && bitsEqual(layout.po2, oP2));
                 }
     CHECK(bad == 0);
     CHECK(rows > 0);
@@ -7883,6 +7893,9 @@ static void run_partial_set_lifecycle_tests() {
     }
 }
 
+// The partials family are parts: a CompositePartials holds its sets in a multi
+// slot (add appends, set replaces, a signal is refused) and no partials type
+// is a ValueSource.
 static void run_partials_part_tests() {
     std::printf("partials: parts in slots\n");
     CompositePartials comp;
@@ -7955,6 +7968,11 @@ static void run_review_gap_tests() {
       {"id":"add","type":"AdditiveSource","params":{"frequency":220.0,"amplitude":0.5,"partials":{"ref":"osc"}}}]}})";
     CHECK(load_fails_naming(sineIntoPartials, "does not accept a SineSource"));
     CHECK(load_fails_naming(sineIntoPartials, "takes a PartialSet part"));
+    // a deleted additive type fails the load by name, with the hint
+    const char* deletedType = R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"as2","nodes":[
+      {"id":"as2","type":"AdditiveSource2","params":{"frequency":220.0}}]}})";
+    CHECK(load_fails_naming(deletedType, "Unknown node type: AdditiveSource2"));
+    CHECK(load_fails_naming(deletedType, "author an AdditiveSource"));
     // a FormantSequence keyed "formants" (the alias the deleted branch read) is refused by name
     const char* seqAlias = R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"add","nodes":[
       {"id":"parts","type":"FullPartials","params":{"maxPartials":4}},

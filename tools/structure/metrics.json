@@ -5,13 +5,13 @@
    [
     [
      "tools/mforce_ui/main.cpp",
-     3011,
-     3085
+     3009,
+     3083
     ],
     [
      "tools/mforce_ui/main.cpp",
-     3326,
-     3395
+     3324,
+     3393
     ]
    ]
   ],
@@ -20,13 +20,13 @@
    [
     [
      "engine/src/patch_loader.cpp",
-     1449,
-     1510
+     1403,
+     1464
     ],
     [
      "engine/src/patch_loader.cpp",
-     1692,
-     1737
+     1646,
+     1691
     ]
    ]
   ],
@@ -111,6 +111,21 @@
    ]
   ],
   [
+   41,
+   [
+    [
+     "engine/include/mforce/source/filter/bw_highpass_filter.h",
+     8,
+     48
+    ],
+    [
+     "engine/include/mforce/source/filter/bw_lowpass_filter.h",
+     8,
+     53
+    ]
+   ]
+  ],
+  [
    32,
    [
     [
@@ -122,36 +137,6 @@
      "engine/include/mforce/music/random_voicing_profile_selector.h",
      4,
      31
-    ]
-   ]
-  ],
-  [
-   31,
-   [
-    [
-     "engine/include/mforce/source/filter/bw_highpass_filter.h",
-     18,
-     48
-    ],
-    [
-     "engine/include/mforce/source/filter/bw_lowpass_filter.h",
-     18,
-     53
-    ]
-   ]
-  ],
-  [
-   31,
-   [
-    [
-     "engine/include/mforce/source/filter/bw_highpass_filter.h",
-     23,
-     53
-    ],
-    [
-     "engine/include/mforce/source/filter/bw_lowpass_filter.h",
-     25,
-     58
     ]
    ]
   ],
@@ -246,6 +231,31 @@
    ]
   ],
   [
+   20,
+   [
+    [
+     "engine/include/mforce/source/filter/limiter.h",
+     6,
+     25
+    ],
+    [
+     "engine/include/mforce/source/filter/reverb.h",
+     6,
+     21
+    ],
+    [
+     "engine/include/mforce/source/filter/shaper_source.h",
+     5,
+     18
+    ],
+    [
+     "engine/include/mforce/source/physical/delay_line_source.h",
+     4,
+     18
+    ]
+   ]
+  ],
+  [
    19,
    [
     [
@@ -282,6 +292,31 @@
      "engine/include/mforce/source/filter/shaper_source.h",
      8,
      21
+    ]
+   ]
+  ],
+  [
+   19,
+   [
+    [
+     "engine/include/mforce/source/filter/limiter.h",
+     7,
+     25
+    ],
+    [
+     "engine/include/mforce/source/filter/reverb.h",
+     7,
+     21
+    ],
+    [
+     "engine/include/mforce/source/filter/shaper_source.h",
+     6,
+     18
+    ],
+    [
+     "engine/include/mforce/source/oscillator/fm_source.h",
+     6,
+     24
     ]
    ]
   ],
@@ -364,14 +399,29 @@
    18,
    [
     [
+     "engine/include/mforce/source/additive/composite_partials.h",
+     14,
+     31
+    ],
+    [
+     "engine/include/mforce/source/additive/formant_spectrum.h",
+     15,
+     31
+    ]
+   ]
+  ],
+  [
+   18,
+   [
+    [
      "engine/src/patch_loader.cpp",
-     587,
-     604
+     584,
+     601
     ],
     [
      "tools/mforce_ui/main.cpp",
-     1316,
-     1331
+     1314,
+     1329
     ]
    ]
   ],
@@ -380,13 +430,13 @@
    [
     [
      "tools/mforce_ui/main.cpp",
-     12027,
-     12044
+     12025,
+     12042
     ],
     [
      "tools/mforce_ui/main.cpp",
-     12249,
-     12266
+     12247,
+     12264
     ]
    ]
   ],
@@ -465,13 +515,13 @@
    [
     [
      "tools/engine_tests/main.cpp",
-     4565,
-     4580
+     4504,
+     4519
     ],
     [
      "tools/engine_tests/main.cpp",
-     4859,
-     4874
+     4798,
+     4813
     ]
    ]
   ],
@@ -504,24 +554,24 @@
    15,
    [
     [
-     "engine/include/mforce/source/additive/basic_additive_source.h",
-     5,
-     19
+     "engine/include/mforce/source/envelope/segment_source.h",
+     9,
+     23
     ],
     [
-     "engine/include/mforce/source/filter/limiter.h",
-     6,
-     25
+     "engine/include/mforce/source/filter/bw_bandpass_filter.h",
+     10,
+     17
     ],
     [
-     "engine/include/mforce/source/filter/reverb.h",
-     6,
-     21
+     "engine/include/mforce/source/filter/delay_filter.h",
+     9,
+     16
     ],
     [
-     "engine/include/mforce/source/filter/shaper_source.h",
-     5,
-     18
+     "engine/include/mforce/source/filter/distorted_source.h",
+     9,
+     16
     ]
    ]
   ],
@@ -545,13 +595,13 @@
    [
     [
      "tools/mforce_ui/main.cpp",
-     11845,
-     11859
+     11843,
+     11857
     ],
     [
      "tools/mforce_ui/main.cpp",
-     12045,
-     12059
+     12043,
+     12057
     ]
    ]
   ],
@@ -582,31 +632,6 @@
      "tools/test_figures/main.cpp",
      933,
      947
-    ]
-   ]
-  ],
-  [
-   14,
-   [
-    [
-     "engine/include/mforce/source/additive/basic_additive_source.h",
-     6,
-     19
-    ],
-    [
-     "engine/include/mforce/source/filter/limiter.h",
-     7,
-     25
-    ],
-    [
-     "engine/include/mforce/source/filter/reverb.h",
-     7,
-     21
-    ],
-    [
-     "engine/include/mforce/source/filter/shaper_source.h",
-     6,
-     18
     ]
    ]
   ],
@@ -634,21 +659,6 @@
    14,
    [
     [
-     "engine/src/source/additive/additive_source2.cpp",
-     62,
-     75
-    ],
-    [
-     "engine/src/source/additive/additive_source2.cpp",
-     75,
-     93
-    ]
-   ]
-  ],
-  [
-   14,
-   [
-    [
      "tools/mforce_cli/main.cpp",
      111,
      124
@@ -665,13 +675,13 @@
    [
     [
      "tools/mforce_ui/main.cpp",
-     2995,
-     3008
+     2993,
+     3006
     ],
     [
      "tools/mforce_ui/main.cpp",
-     3316,
-     3328
+     3314,
+     3326
     ]
    ]
   ],
@@ -680,13 +690,13 @@
    [
     [
      "tools/mforce_ui/main.cpp",
-     11846,
-     11859
+     11844,
+     11857
     ],
     [
      "tools/mforce_ui/main.cpp",
-     12046,
-     12059
+     12044,
+     12057
     ]
    ]
   ],
@@ -809,81 +819,6 @@
    12,
    [
     [
-     "engine/include/mforce/source/additive/basic_additive_source.h",
-     8,
-     19
-    ],
-    [
-     "engine/include/mforce/source/envelope/segment_source.h",
-     9,
-     23
-    ],
-    [
-     "engine/include/mforce/source/filter/bw_bandpass_filter.h",
-     10,
-     17
-    ],
-    [
-     "engine/include/mforce/source/filter/delay_filter.h",
-     9,
-     16
-    ]
-   ]
-  ],
-  [
-   12,
-   [
-    [
-     "engine/include/mforce/source/additive/basic_additive_source.h",
-     8,
-     19
-    ],
-    [
-     "engine/include/mforce/source/filter/distorted_source.h",
-     9,
-     16
-    ],
-    [
-     "engine/include/mforce/source/oscillator/fm_source.h",
-     8,
-     24
-    ],
-    [
-     "engine/include/mforce/source/oscillator/triangle_source.h",
-     6,
-     24
-    ]
-   ]
-  ],
-  [
-   12,
-   [
-    [
-     "engine/include/mforce/source/additive/basic_additive_source.h",
-     8,
-     19
-    ],
-    [
-     "engine/include/mforce/source/filter/distorted_source.h",
-     9,
-     16
-    ],
-    [
-     "engine/include/mforce/source/physical/allpass_resonator.h",
-     11,
-     47
-    ],
-    [
-     "engine/include/mforce/source/physical/ks_string.h",
-     12,
-     62
-    ]
-   ]
-  ],
-  [
-   12,
-   [
-    [
      "engine/include/mforce/source/filter/bw_bandpass_filter.h",
      6,
      17
@@ -925,13 +860,13 @@
    [
     [
      "engine/src/patch_loader.cpp",
-     1431,
-     1442
+     1385,
+     1396
     ],
     [
      "engine/src/patch_loader.cpp",
-     1679,
-     1689
+     1633,
+     1643
     ]
    ]
   ],
@@ -955,13 +890,13 @@
    [
     [
      "tools/mforce_ui/main.cpp",
-     12600,
-     12611
+     12598,
+     12609
     ],
     [
      "tools/mforce_ui/main.cpp",
-     12662,
-     12672
+     12660,
+     12670
     ]
    ]
   ],
@@ -1117,6 +1052,66 @@
      "engine/include/mforce/source/physical/ks_string.h",
      9,
      62
+    ]
+   ]
+  ],
+  [
+   11,
+   [
+    [
+     "engine/include/mforce/source/modulator/repeating_source.h",
+     7,
+     17
+    ],
+    [
+     "engine/include/mforce/source/wavetable/averaging_evolution.h",
+     9,
+     17
+    ],
+    [
+     "engine/include/mforce/source/wavetable/eks_evolution.h",
+     10,
+     19
+    ],
+    [
+     "engine/include/mforce/source/wavetable/reaction_diffusion_evolution.h",
+     8,
+     24
+    ]
+   ]
+  ],
+  [
+   11,
+   [
+    [
+     "tools/engine_tests/main.cpp",
+     4506,
+     4516
+    ],
+    [
+     "tools/engine_tests/main.cpp",
+     4800,
+     4810
+    ],
+    [
+     "tools/engine_tests/main.cpp",
+     5305,
+     5315
+    ]
+   ]
+  ],
+  [
+   11,
+   [
+    [
+     "tools/mforce_ui/main.cpp",
+     2914,
+     2924
+    ],
+    [
+     "tools/mforce_ui/main.cpp",
+     3282,
+     3291
     ]
    ]
   ]
@@ -1298,6 +1293,21 @@
    "mutable_vars": 0,
    "types": [
     "PierceAllpass"
+   ]
+  },
+  "engine/include/mforce/core/dsp/segment_walk.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 47,
+   "longest_function": [
+    13,
+    "mforce::dsp::SegmentWalk::advance"
+   ],
+   "module": "core",
+   "mutable_vars": 0,
+   "types": [
+    "SegmentWalk"
    ]
   },
   "engine/include/mforce/core/dsp/tuning_allpass.h": {
@@ -2596,28 +2606,15 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 11,
+   "lines": 66,
    "longest_function": [
-    0,
-    ""
-   ],
-   "module": "source",
-   "mutable_vars": 0,
-   "types": []
-  },
-  "engine/include/mforce/source/additive/additive_source2.h": {
-   "changelog_comments": 0,
-   "const_cast": 0,
-   "dynamic_cast": 0,
-   "lines": 116,
-   "longest_function": [
-    13,
-    "mforce::AdditiveSource2::apply_partials"
+    1,
+    "mforce::AdditiveSource::type_name"
    ],
    "module": "source",
    "mutable_vars": 0,
    "types": [
-    "AdditiveSource2"
+    "AdditiveSource"
    ]
   },
   "engine/include/mforce/source/additive/band_spectrum.h": {
@@ -2635,19 +2632,109 @@
     "BandSpectrum"
    ]
   },
-  "engine/include/mforce/source/additive/basic_additive_source.h": {
+  "engine/include/mforce/source/additive/bandwidth_noise.h": {
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 136,
+   "lines": 63,
    "longest_function": [
-    69,
-    "mforce::BasicAdditiveSource::wave"
+    13,
+    "mforce::BandwidthNoise::start"
    ],
    "module": "source",
    "mutable_vars": 0,
    "types": [
-    "BasicAdditiveSource"
+    "BandwidthNoise"
+   ]
+  },
+  "engine/include/mforce/source/additive/coherent_walk.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 60,
+   "longest_function": [
+    13,
+    "mforce::CoherentWalk::start"
+   ],
+   "module": "source",
+   "mutable_vars": 0,
+   "types": [
+    "CoherentWalk"
+   ]
+  },
+  "engine/include/mforce/source/additive/composite_partials.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 69,
+   "longest_function": [
+    14,
+    "mforce::CompositePartials::get_partial_value"
+   ],
+   "module": "source",
+   "mutable_vars": 0,
+   "types": [
+    "CompositePartials"
+   ]
+  },
+  "engine/include/mforce/source/additive/decay_law.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 48,
+   "longest_function": [
+    4,
+    "mforce::DecayLaw::start"
+   ],
+   "module": "source",
+   "mutable_vars": 0,
+   "types": [
+    "DecayLaw"
+   ]
+  },
+  "engine/include/mforce/source/additive/expand_rule.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 20,
+   "longest_function": [
+    0,
+    ""
+   ],
+   "module": "source",
+   "mutable_vars": 0,
+   "types": [
+    "ExpandRule"
+   ]
+  },
+  "engine/include/mforce/source/additive/expand_rule_node.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 52,
+   "longest_function": [
+    16,
+    "mforce::ExpandRuleNode::to_struct"
+   ],
+   "module": "source",
+   "mutable_vars": 0,
+   "types": [
+    "ExpandRuleNode"
+   ]
+  },
+  "engine/include/mforce/source/additive/explicit_partials.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 105,
+   "longest_function": [
+    18,
+    "mforce::ExplicitPartials::init_arrays"
+   ],
+   "module": "source",
+   "mutable_vars": 0,
+   "types": [
+    "ExplicitPartials"
    ]
   },
   "engine/include/mforce/source/additive/fixed_spectrum.h": {
@@ -2711,42 +2798,110 @@
     "FormantSpectrum"
    ]
   },
-  "engine/include/mforce/source/additive/full_additive_source.h": {
+  "engine/include/mforce/source/additive/full_partials.h": {
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 69,
+   "lines": 67,
    "longest_function": [
-    1,
-    "mforce::FullAdditiveSource::type_name"
+    27,
+    "mforce::FullPartials::init_arrays"
    ],
    "module": "source",
    "mutable_vars": 0,
    "types": [
-    "FullAdditiveSource"
+    "FullPartials"
+   ]
+  },
+  "engine/include/mforce/source/additive/onset_gate.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 57,
+   "longest_function": [
+    13,
+    "mforce::OnsetGate::start"
+   ],
+   "module": "source",
+   "mutable_vars": 0,
+   "types": [
+    "OnsetGate"
+   ]
+  },
+  "engine/include/mforce/source/additive/pair_trade.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 45,
+   "longest_function": [
+    7,
+    "mforce::PairTrade::start"
+   ],
+   "module": "source",
+   "mutable_vars": 0,
+   "types": [
+    "PairTrade"
+   ]
+  },
+  "engine/include/mforce/source/additive/partial_layout.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 113,
+   "longest_function": [
+    55,
+    "mforce::PartialLayout::expand"
+   ],
+   "module": "source",
+   "mutable_vars": 0,
+   "types": [
+    "PartialLayout"
+   ]
+  },
+  "engine/include/mforce/source/additive/partial_set.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 71,
+   "longest_function": [
+    12,
+    "mforce::PartialSet::sum_partials"
+   ],
+   "module": "source",
+   "mutable_vars": 0,
+   "types": [
+    "PartialSet"
    ]
   },
   "engine/include/mforce/source/additive/partials.h": {
    "changelog_comments": 0,
    "const_cast": 1,
    "dynamic_cast": 0,
-   "lines": 1148,
+   "lines": 561,
    "longest_function": [
-    149,
+    134,
     "mforce::Partials::partial_value_impl"
    ],
    "module": "source",
    "mutable_vars": 0,
    "types": [
-    "ExpandRule",
-    "ExpandRuleNode",
-    "IPartials",
     "PartialsRngLayer",
-    "Partials",
-    "FullPartials",
-    "SequencePartials",
-    "ExplicitPartials",
-    "CompositePartials"
+    "Partials"
+   ]
+  },
+  "engine/include/mforce/source/additive/sequence_partials.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 51,
+   "longest_function": [
+    13,
+    "mforce::SequencePartials::init_arrays"
+   ],
+   "module": "source",
+   "mutable_vars": 0,
+   "types": [
+    "SequencePartials"
    ]
   },
   "engine/include/mforce/source/combiner/combined_source.h": {
@@ -3867,9 +4022,9 @@
    "changelog_comments": 11,
    "const_cast": 0,
    "dynamic_cast": 8,
-   "lines": 1748,
+   "lines": 1702,
    "longest_function": [
-    391,
+    348,
     "mforce::build_graph"
    ],
    "module": "render",
@@ -3883,27 +4038,14 @@
     "PerformContext"
    ]
   },
-  "engine/src/source/additive/additive_source2.cpp": {
-   "changelog_comments": 0,
-   "const_cast": 0,
-   "dynamic_cast": 0,
-   "lines": 206,
-   "longest_function": [
-    61,
-    "mforce::AdditiveSource2::wave"
-   ],
-   "module": "source",
-   "mutable_vars": 0,
-   "types": []
-  },
-  "engine/src/source/additive/full_additive_source.cpp": {
+  "engine/src/source/additive/additive_source.cpp": {
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
    "lines": 109,
    "longest_function": [
     61,
-    "mforce::FullAdditiveSource::wave"
+    "mforce::AdditiveSource::wave"
    ],
    "module": "source",
    "mutable_vars": 0,
@@ -3926,9 +4068,9 @@
    "changelog_comments": 1,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 632,
+   "lines": 621,
    "longest_function": [
-    544,
+    531,
     "mforce::register_all_sources"
    ],
    "module": "source",
@@ -3965,7 +4107,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 131,
+   "lines": 135,
    "longest_function": [
     22,
     "mforce::derived_label"
@@ -4149,7 +4291,7 @@
    "changelog_comments": 4,
    "const_cast": 0,
    "dynamic_cast": 20,
-   "lines": 8045,
+   "lines": 8369,
    "longest_function": [
     272,
     "run_walk3_tests"
@@ -4178,6 +4320,8 @@
     "SplitResult",
     "StageRow",
     "Plug",
+    "W",
+    "OrderProbe",
     "ReseedProbe",
     "FamilyRow",
     "MenuRow"
@@ -4244,7 +4388,7 @@
    "changelog_comments": 124,
    "const_cast": 0,
    "dynamic_cast": 22,
-   "lines": 14485,
+   "lines": 14483,
    "longest_function": [
     1738,
     "main"
@@ -4561,14 +4705,14 @@
  "summary": {
   "changelog_comments": 242,
   "const_cast": 10,
-  "duplicate_blocks": 163,
+  "duplicate_blocks": 161,
   "dynamic_cast": 63,
   "file_level_mutable_vars": 120,
-  "files": 211,
-  "files_over_limit": 19,
+  "files": 221,
+  "files_over_limit": 18,
   "functions_over_limit": 98,
   "include_violations": 14,
-  "lines": 61833,
+  "lines": 61911,
   "unmapped_files": 0
  }
 }

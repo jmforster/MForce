@@ -862,7 +862,7 @@ static const char* pin_type_compat_error(const std::string& targetType,
                t == "FixedSpectrum" || t == "BandSpectrum" ||
                t == "FormantSequence";
     };
-    auto is_ipartials = [](const std::string& t) {
+    auto is_partial_set = [](const std::string& t) {
         return t == "FullPartials" || t == "SequencePartials" ||
                t == "ExplicitPartials" || t == "CompositePartials";
     };
@@ -880,7 +880,7 @@ static const char* pin_type_compat_error(const std::string& targetType,
     bool needsPartials =
         (targetType == "CompositePartials" && targetPin == "partials") ||
         (targetType == "AdditiveSource" && targetPin == "partials");
-    if (needsPartials && !is_ipartials(sourceType)) {
+    if (needsPartials && !is_partial_set(sourceType)) {
         return "Pin needs a Partials-type source (FullPartials, SequencePartials, ExplicitPartials, or CompositePartials)";
     }
 
