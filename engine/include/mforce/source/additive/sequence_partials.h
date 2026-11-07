@@ -35,15 +35,15 @@ struct SequencePartials final : Partials {
 protected:
   void init_arrays() override {
     int n = maxPartials.value;
-    mult1_.resize(n); mult2_.resize(n);
-    ampl1_.assign(n, 1.0f); ampl2_.assign(n, 1.0f);
-    po1_.resize(n); po2_.resize(n);
+    layout_.mult1.resize(n); layout_.mult2.resize(n);
+    layout_.ampl1.assign(n, 1.0f); layout_.ampl2.assign(n, 1.0f);
+    layout_.po1.resize(n); layout_.po2.resize(n);
 
     for (int i = 0; i < n; ++i) {
-      mult1_[i] = minMult1.value + float(i) * incr1.value;
-      mult2_[i] = minMult2.value + float(i) * incr2.value;
-      po1_[i] = std::fmod((mult1_[i] - 1.0f) * unitPO1.value, 1.0f);
-      po2_[i] = std::fmod((mult2_[i] - 1.0f) * unitPO2.value, 1.0f);
+      layout_.mult1[i] = minMult1.value + float(i) * incr1.value;
+      layout_.mult2[i] = minMult2.value + float(i) * incr2.value;
+      layout_.po1[i] = std::fmod((layout_.mult1[i] - 1.0f) * unitPO1.value, 1.0f);
+      layout_.po2[i] = std::fmod((layout_.mult2[i] - 1.0f) * unitPO2.value, 1.0f);
     }
   }
 };

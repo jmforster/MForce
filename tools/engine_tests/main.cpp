@@ -4026,6 +4026,7 @@ static void run_target_evolution_morph_tests() {
 #include "mforce/source/additive/bandwidth_noise.h"
 #include "mforce/source/additive/onset_gate.h"
 #include "mforce/source/additive/decay_law.h"
+#include "mforce/source/additive/partial_layout.h"
 #include "mforce/core/dsp/segment_walk.h"
 #include "mforce/source/additive/full_partials.h"
 #include "mforce/source/additive/sequence_partials.h"
@@ -7715,6 +7716,118 @@ static void run_decay_law_twin_tests() {
     CHECK(rows == 4 * 4 * 2000 * 4);
 }
 
+// The expansion against the deleted apply_expand_rule: the block retyped here
+// over six local arrays as Partials ran it, the layout on the same originals
+// and an identically seeded stream, all six arrays compared bit for bit; a
+// restore after an expansion gives the snapshot back; a reserved layout
+// expands without allocating.
+static void run_partial_layout_twin_tests() {
+    std::printf("partial layout: the expansion against the deleted block\n");
+    int bad = 0, rows = 0;
+    for (int n : {1, 4, 16})
+        for (int count : {1, 2, 3})
+            for (int recurse : {0, 1, 2})
+                for (uint32_t seed : {0x51u, 0xA7u}) {
+                    ExpandRule er;
+                    er.count = count; er.recurse = recurse;
+                    er.spacing1 = 0.3f; er.spacing2 = 0.4f; er.dt1 = 0.02f; er.dt2 = 0.03f;
+                    er.loPct1 = 0.2f; er.loPct2 = 0.25f; er.power1 = 1.5f; er.power2 = 0.7f;
+                    er.po1 = 0.25f; er.po2 = 0.5f;
+                    // the originals: a deterministic layout
+                    std::vector<float> mult1_(static_cast<size_t>(n)), mult2_(static_cast<size_t>(n)), ampl1_(static_cast<size_t>(n)), ampl2_(static_cast<size_t>(n)), po1_(static_cast<size_t>(n)), po2_(static_cast<size_t>(n));
+                    for (int i = 0; i < n; ++i) {
+                        mult1_[size_t(i)] = float(i + 1) * 1.01f; mult2_[size_t(i)] = float(i + 1);
+                        ampl1_[size_t(i)] = 1.0f / float(i + 1);  ampl2_[size_t(i)] = 0.5f / float(i + 1);
+                        po1_[size_t(i)] = 0.1f * float(i);        po2_[size_t(i)] = 0.07f * float(i);
+                    }
+                    PartialLayout layout;
+                    layout.mult1 = mult1_; layout.mult2 = mult2_; layout.ampl1 = ampl1_; layout.ampl2 = ampl2_;
+                    layout.po1 = po1_; layout.po2 = po2_;
+                    layout.snapshot();
+                    const int expanded = layout.reserve_expanded(er);
+                    std::vector<float> exM1_, exM2_, exA1_, exA2_, exP1_, exP2_;
+                    Randomizer expandRng_(seed), layoutRng(seed);
+                    for (int r = 0; r <= er.recurse; ++r) {
+                        // the deleted block, verbatim over the local arrays
+                        int origN = int(mult1_.size());
+                        int newN = origN * (er.count * 2 + 1);
+                        auto& m1 = exM1_; auto& m2 = exM2_; auto& a1 = exA1_;
+                        auto& a2 = exA2_; auto& p1 = exP1_; auto& p2 = exP2_;
+                        for (auto* v : {&m1, &m2, &a1, &a2, &p1, &p2}) v->assign(size_t(newN), 0.0f);
+                        for (int i = 0; i < origN; ++i) {
+                            int base = i * (er.count * 2 + 1);
+                            for (int j = 0; j < er.count; ++j) {
+                                int idx = base + j;
+                                float semis1 = float(er.count - j) * er.spacing1;
+                                float semis2 = float(er.count - j) * er.spacing2;
+                                m1[idx] = mult1_[i] / std::pow(2.0f, semis1 / 12.0f) * (1.0f + expandRng_.valuePN() * er.dt1);
+                                m2[idx] = mult2_[i] / std::pow(2.0f, semis2 / 12.0f) * (1.0f + expandRng_.valuePN() * er.dt2);
+                                float t = float(j) / float(er.count);
+                                a1[idx] = ampl1_[i] * er.loPct1 + ampl1_[i] * (1.0f - er.loPct1) * std::pow(t, er.power1);
+                                a2[idx] = ampl2_[i] * er.loPct2 + ampl2_[i] * (1.0f - er.loPct2) * std::pow(t, er.power2);
+                                p1[idx] = std::fmod(po1_[i] + float(j + 1) / float(er.count) * er.po1, 1.0f);
+                                p2[idx] = std::fmod(po2_[i] + float(j + 1) / float(er.count) * er.po2, 1.0f);
+                            }
+                            int cIdx = base + er.count;
+                            m1[cIdx] = mult1_[i]; m2[cIdx] = mult2_[i];
+                            a1[cIdx] = ampl1_[i]; a2[cIdx] = ampl2_[i];
+                            p1[cIdx] = po1_[i];   p2[cIdx] = po2_[i];
+                            for (int j = 0; j < er.count; ++j) {
+                                int idx = base + er.count + 1 + j;
+                                float semis1 = float(j + 1) * er.spacing1;
+                                float semis2 = float(j + 1) * er.spacing2;
+                                m1[idx] = mult1_[i] * std::pow(2.0f, semis1 / 12.0f);
+                                m2[idx] = mult2_[i] * std::pow(2.0f, semis2 / 12.0f);
+                                float t = float(er.count - j - 1) / float(er.count);
+                                a1[idx] = ampl1_[i] * er.loPct1 + ampl1_[i] * (1.0f - er.loPct1) * std::pow(t, er.power1);
+                                a2[idx] = ampl2_[i] * er.loPct2 + ampl2_[i] * (1.0f - er.loPct2) * std::pow(t, er.power2);
+                                p1[idx] = std::fmod(po1_[i] + float(er.count - j) / float(er.count) * er.po1, 1.0f);
+                                p2[idx] = std::fmod(po2_[i] + float(er.count - j) / float(er.count) * er.po2, 1.0f);
+                            }
+                        }
+                        mult1_.assign(m1.begin(), m1.end()); mult2_.assign(m2.begin(), m2.end());
+                        ampl1_.assign(a1.begin(), a1.end()); ampl2_.assign(a2.begin(), a2.end());
+                        po1_.assign(p1.begin(), p1.end());   po2_.assign(p2.begin(), p2.end());
+                        layout.expand(er, layoutRng);
+                    }
+                    CHECK(layout.count() == expanded && int(mult1_.size()) == expanded);
+                    const std::vector<float>* mine[] = {&mult1_, &mult2_, &ampl1_, &ampl2_, &po1_, &po2_};
+                    const std::vector<float>* theirs[] = {&layout.mult1, &layout.mult2, &layout.ampl1, &layout.ampl2, &layout.po1, &layout.po2};
+                    for (int a = 0; a < 6; ++a)
+                        for (size_t i = 0; i < mine[a]->size(); ++i) {
+                            ++rows;
+                            if (!same_bits((*mine[a])[i], (*theirs[a])[i])) ++bad;
+                        }
+                    // restore gives the snapshot back
+                    layout.restore();
+                    CHECK(layout.count() == n);
+                    for (int i = 0; i < n; ++i) CHECK(same_bits(layout.mult1[size_t(i)], float(i + 1) * 1.01f));
+                }
+    CHECK(bad == 0);
+    CHECK(rows > 0);
+    // a reserved layout expands without allocating
+    {
+        ExpandRule er;
+        er.count = 2; er.recurse = 1;
+        PartialLayout layout;
+        for (int i = 0; i < 8; ++i) {
+            layout.mult1.push_back(float(i + 1)); layout.mult2.push_back(float(i + 1));
+            layout.ampl1.push_back(1.0f); layout.ampl2.push_back(1.0f);
+            layout.po1.push_back(0.0f); layout.po2.push_back(0.0f);
+        }
+        layout.snapshot();
+        layout.reserve_expanded(er);
+        Randomizer rng(7u);
+        alloc_probe::reset();
+        alloc_probe::arm();
+        layout.restore();
+        for (int r = 0; r <= er.recurse; ++r) layout.expand(er, rng);
+        alloc_probe::disarm();
+        CHECK(alloc_probe::count() == 0);
+        CHECK(layout.count() == 8 * 5 * 5);
+    }
+}
+
 // The base drives a set's pins: each prepared once, started once and
 // advanced once per next(), in declaration order; a composite forwards each
 // verb to its sets and advances no pin of its own.
@@ -8138,6 +8251,7 @@ int main() {
     run_bandwidth_noise_twin_tests();
     run_onset_gate_twin_tests();
     run_decay_law_twin_tests();
+    run_partial_layout_twin_tests();
     run_partial_set_lifecycle_tests();
     run_partials_part_tests();
     run_component_root_tests();

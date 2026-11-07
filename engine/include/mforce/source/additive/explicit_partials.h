@@ -57,13 +57,13 @@ struct ExplicitPartials final : Partials {
     snapshot_originals();
   }
 
-  // Falls back to the working arrays (init_arrays_defaults populates mult1_
+  // Falls back to the working arrays (init_arrays_defaults populates layout_.mult1
   // etc., not the user's copies) so the UI sees current effective values.
   std::vector<float> get_array(std::string_view name) const override {
-    if (name == "mult1") return mult1.values.empty() ? mult1_ : mult1.values;
-    if (name == "mult2") return mult2.values.empty() ? mult2_ : mult2.values;
-    if (name == "ampl1") return ampl1.values.empty() ? ampl1_ : ampl1.values;
-    if (name == "ampl2") return ampl2.values.empty() ? ampl2_ : ampl2.values;
+    if (name == "mult1") return mult1.values.empty() ? layout_.mult1 : mult1.values;
+    if (name == "mult2") return mult2.values.empty() ? layout_.mult2 : mult2.values;
+    if (name == "ampl1") return ampl1.values.empty() ? layout_.ampl1 : ampl1.values;
+    if (name == "ampl2") return ampl2.values.empty() ? layout_.ampl2 : ampl2.values;
     return {};
   }
 
@@ -73,31 +73,31 @@ protected:
       init_arrays_defaults();
       return;
     }
-    mult1_ = mult1.values;
-    mult2_ = mult2.values;
-    ampl1_ = ampl1.values;
-    ampl2_ = ampl2.values;
+    layout_.mult1 = mult1.values;
+    layout_.mult2 = mult2.values;
+    layout_.ampl1 = ampl1.values;
+    layout_.ampl2 = ampl2.values;
 
-    int n = int(mult1_.size());
-    po1_.resize(n);
-    po2_.resize(n);
+    int n = int(layout_.mult1.size());
+    layout_.po1.resize(n);
+    layout_.po2.resize(n);
     for (int i = 0; i < n; ++i) {
-      po1_[i] = std::fmod((mult1_[i] - 1.0f) * unitPO1.value, 1.0f);
-      po2_[i] = std::fmod((mult2_[i] - 1.0f) * unitPO2.value, 1.0f);
+      layout_.po1[i] = std::fmod((layout_.mult1[i] - 1.0f) * unitPO1.value, 1.0f);
+      layout_.po2[i] = std::fmod((layout_.mult2[i] - 1.0f) * unitPO2.value, 1.0f);
     }
   }
 
 private:
   void init_arrays_defaults() {
     int n = maxPartials.value;
-    mult1_.resize(n); mult2_.resize(n);
-    ampl1_.resize(n); ampl2_.resize(n);
-    po1_.resize(n);   po2_.resize(n);
+    layout_.mult1.resize(n); layout_.mult2.resize(n);
+    layout_.ampl1.resize(n); layout_.ampl2.resize(n);
+    layout_.po1.resize(n);   layout_.po2.resize(n);
     for (int i = 0; i < n; ++i) {
       float m = float(i + 1);
-      mult1_[i] = m; mult2_[i] = m;
-      ampl1_[i] = 1.0f; ampl2_[i] = 1.0f;
-      po1_[i] = 0.0f; po2_[i] = 0.0f;
+      layout_.mult1[i] = m; layout_.mult2[i] = m;
+      layout_.ampl1[i] = 1.0f; layout_.ampl2[i] = 1.0f;
+      layout_.po1[i] = 0.0f; layout_.po2[i] = 0.0f;
     }
   }
 };

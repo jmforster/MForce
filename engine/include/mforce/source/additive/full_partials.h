@@ -37,30 +37,30 @@ struct FullPartials final : Partials {
 protected:
   void init_arrays() override {
     int n = maxPartials.value;
-    mult1_.resize(n); mult2_.resize(n);
-    ampl1_.resize(n); ampl2_.resize(n);
-    po1_.resize(n);   po2_.resize(n);
+    layout_.mult1.resize(n); layout_.mult2.resize(n);
+    layout_.ampl1.resize(n); layout_.ampl2.resize(n);
+    layout_.po1.resize(n);   layout_.po2.resize(n);
 
     for (int i = 0; i < n; ++i) {
       float m = float(minMult.value + i);
-      mult1_[i] = m;
+      layout_.mult1[i] = m;
 
       // Even/odd amplitude weights (fundamental always 1) — legacy FullPartials.cs
       if (int(std::trunc(m)) % 2 == 0) {
-        ampl1_[i] = evenWeight1.value;
-        ampl2_[i] = evenWeight2.value;
+        layout_.ampl1[i] = evenWeight1.value;
+        layout_.ampl2[i] = evenWeight2.value;
       } else {
-        ampl1_[i] = (m == 1.0f) ? 1.0f : oddWeight1.value;
-        ampl2_[i] = (m == 1.0f) ? 1.0f : oddWeight2.value;
+        layout_.ampl1[i] = (m == 1.0f) ? 1.0f : oddWeight1.value;
+        layout_.ampl2[i] = (m == 1.0f) ? 1.0f : oddWeight2.value;
       }
 
       // Phase offsets: (mult - 1) * unitPO
-      po1_[i] = std::fmod((m - 1.0f) * unitPO1.value, 1.0f);
-      po2_[i] = std::fmod((m - 1.0f) * unitPO2.value, 1.0f);
+      layout_.po1[i] = std::fmod((m - 1.0f) * unitPO1.value, 1.0f);
+      layout_.po2[i] = std::fmod((m - 1.0f) * unitPO2.value, 1.0f);
     }
 
     // No multiplier evolution for FullPartials
-    mult2_ = mult1_;
+    layout_.mult2 = layout_.mult1;
   }
 };
 

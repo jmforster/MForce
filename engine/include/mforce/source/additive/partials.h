@@ -7,6 +7,7 @@
 #include "mforce/source/additive/onset_gate.h"
 #include "mforce/source/additive/decay_law.h"
 #include "mforce/source/additive/expand_rule.h"
+#include "mforce/source/additive/partial_layout.h"
 #include "mforce/source/additive/formant.h"
 #include "mforce/core/fast_math.h"
 #include "mforce/core/randomizer.h"
@@ -44,7 +45,7 @@ enum PartialsRngLayer : uint32_t {
 //
 // Owns eight envelope pins, rolloff/detune params, expand rule, and all
 // static + runtime arrays. Subclasses only implement init_arrays() to
-// populate the static arrays (mult1_, mult2_, ampl1_, ampl2_, po1_, po2_).
+// populate the static arrays (layout_.mult1, layout_.mult2, layout_.ampl1, layout_.ampl2, layout_.po1, layout_.po2).
 // ---------------------------------------------------------------------------
 struct Partials : PartialSet {
   // The base prepares, starts and advances the eight envelope pins in this
@@ -139,18 +140,16 @@ struct Partials : PartialSet {
     // Expand partials if rule is set
     if (hasExpand_) {
       // Back to the originals the last rebuild kept, then this note's expansion;
-      // every assign below fits the capacity prepare reserved.
-      mult1_.assign(origMult1_.begin(), origMult1_.end()); mult2_.assign(origMult2_.begin(), origMult2_.end());
-      ampl1_.assign(origAmpl1_.begin(), origAmpl1_.end()); ampl2_.assign(origAmpl2_.begin(), origAmpl2_.end());
-      po1_.assign(origPo1_.begin(), origPo1_.end());       po2_.assign(origPo2_.begin(), origPo2_.end());
+      // every assign fits the capacity prepare reserved.
+      layout_.restore();
       expandRng_ = Randomizer(stream_seed(noteBase_, 0, kRngExpand));
       for (int r = 0; r <= expandRule_.recurse; ++r)
-        apply_expand_rule();
+        layout_.expand(expandRule_, expandRng_);
     }
 
     // Every array below was sized in prepare (prepare_note_arrays): each assign
     // and resize here fills within that capacity and allocates nothing.
-    int n = int(mult1_.size());
+    int n = int(layout_.mult1.size());
     partialPos_.assign(n, 0.0f);
     partialPO_.assign(n, 0.0f);
     partialLPO_.assign(n, 0.0f);
@@ -218,7 +217,7 @@ struct Partials : PartialSet {
   }
 
   int partial_count() const override {
-    return int(mult1_.size());
+    return int(layout_.mult1.size());
   }
 
   // Port of legacy Partials.cs GetPartialValue — the authoritative per-partial
@@ -241,7 +240,7 @@ struct Partials : PartialSet {
                      float fmtFloor) override
   {
     ensure_partial_cache();
-    const int n = int(mult1_.size());
+    const int n = int(layout_.mult1.size());
     for (int i = 0; i < n; ++i) {
       float v = partial_value_impl(amplitude, frequency, phaseDiff, i,
                                    formant, fmtWt, fmtFloor);
@@ -263,7 +262,7 @@ private:
     float pmult = pmultCache_[index];
 
     // Phase offset (can evolve)
-    float ppo = po1_[index] + (po2_[index] - po1_[index]) * sPoE_;
+    float ppo = layout_.po1[index] + (layout_.po2[index] - layout_.po1[index]) * sPoE_;
 
     // Frequency = multiplier * base freq * (1 + detune)
     float dt = sDt_ * dtVals_[index];
@@ -349,7 +348,7 @@ private:
     float fade = (pfreq < CUTOFF - 1000.0f) ? 1.0f : (CUTOFF - pfreq) / 1000.0f;
 
     float pampl = amplitude *
-        (ampl1_[index] + (ampl2_[index] - ampl1_[index]) * sAmplE_) *
+        (layout_.ampl1[index] + (layout_.ampl2[index] - layout_.ampl1[index]) * sAmplE_) *
         rolloff * fmtFactor * fade;
 
     // Per-partial exponential decay (piano): one multiply by the running
@@ -424,12 +423,12 @@ private:
   void ensure_partial_cache() {
     if (partialCacheValid_ && sMultE_ == cachedMultE_ && sRoE_ == cachedRoE_)
       return;
-    const int n = int(mult1_.size());
+    const int n = int(layout_.mult1.size());
     const float ro = rolloff1.value + (rolloff2.value - rolloff1.value) * sRoE_;
     const bool scale = (motionScale.value != 0.0f);
     const bool inharm = (inharmonicity.value != 0.0f);
     for (int i = 0; i < n; ++i) {
-      float pmult = mult1_[i] + (mult2_[i] - mult1_[i]) * sMultE_;
+      float pmult = layout_.mult1[i] + (layout_.mult2[i] - layout_.mult1[i]) * sMultE_;
       // Stiff-string stretch: m -> m*sqrt(1 + B*m^2). Applied to the
       // effective multiplier so frequency, rolloff and the decay law all see
       // the stretched partial. Branch keeps B == 0 bit-exact.
@@ -455,15 +454,15 @@ public:
   // wouldn't take effect until the first render call start().
   std::vector<float> get_array(std::string_view name) const override {
     if (arrayUpdateReq_) const_cast<Partials*>(this)->update_arrays();
-    if (name == "mult1") return mult1_;
-    if (name == "mult2") return mult2_;
-    if (name == "ampl1") return ampl1_;
-    if (name == "ampl2") return ampl2_;
+    if (name == "mult1") return layout_.mult1;
+    if (name == "mult2") return layout_.mult2;
+    if (name == "ampl1") return layout_.ampl1;
+    if (name == "ampl2") return layout_.ampl2;
     return {};
   }
 
 protected:
-  // Subclass populates mult1_, mult2_, ampl1_, ampl2_, po1_, po2_
+  // Subclass populates layout_.mult1, layout_.mult2, layout_.ampl1, layout_.ampl2, layout_.po1, layout_.po2
   virtual void init_arrays() {}
 
   void update_arrays() {
@@ -475,77 +474,16 @@ protected:
   // last rebuild made them, before any expansion. Every rebuild — update_arrays
   // here, a subclass's own rebuild on an edit — ends with this, so a note
   // never starts from arrays an earlier note expanded.
-  void snapshot_originals() {
-    origMult1_ = mult1_; origMult2_ = mult2_;
-    origAmpl1_ = ampl1_; origAmpl2_ = ampl2_;
-    origPo1_ = po1_;     origPo2_ = po2_;
-  }
+  void snapshot_originals() { layout_.snapshot(); }
 
   void init_detune_values() {
     Randomizer dtRng(stream_seed(noteBase_, 0, kRngDetune));
-    int n = int(mult1_.size());
+    int n = int(layout_.mult1.size());
     dtVals_.resize(n);
     for (int i = 0; i < n; ++i) {
       // Legacy: sign < 0 -> range(-0.5, 0), else -> range(0, 1)
       dtVals_[i] = (dtRng.sign() < 0) ? dtRng.range(-0.5f, 0.0f) : dtRng.range(0.0f, 1.0f);
     }
-  }
-
-  void apply_expand_rule() {
-    const auto& er = expandRule_;
-    int origN = int(mult1_.size());
-    int newN = origN * (er.count * 2 + 1);
-    auto& m1 = exM1_; auto& m2 = exM2_; auto& a1 = exA1_;
-    auto& a2 = exA2_; auto& p1 = exP1_; auto& p2 = exP2_;
-    for (auto* v : {&m1, &m2, &a1, &a2, &p1, &p2}) v->assign(size_t(newN), 0.0f);   // within capacity
-
-    for (int i = 0; i < origN; ++i) {
-      int base = i * (er.count * 2 + 1);
-
-      // Left sub-partials
-      for (int j = 0; j < er.count; ++j) {
-        int idx = base + j;
-        float semis1 = float(er.count - j) * er.spacing1;
-        float semis2 = float(er.count - j) * er.spacing2;
-
-        m1[idx] = mult1_[i] / std::pow(2.0f, semis1 / 12.0f) * (1.0f + expandRng_.valuePN() * er.dt1);
-        m2[idx] = mult2_[i] / std::pow(2.0f, semis2 / 12.0f) * (1.0f + expandRng_.valuePN() * er.dt2);
-
-        float t = float(j) / float(er.count);
-        a1[idx] = ampl1_[i] * er.loPct1 + ampl1_[i] * (1.0f - er.loPct1) * std::pow(t, er.power1);
-        a2[idx] = ampl2_[i] * er.loPct2 + ampl2_[i] * (1.0f - er.loPct2) * std::pow(t, er.power2);
-
-        p1[idx] = std::fmod(po1_[i] + float(j + 1) / float(er.count) * er.po1, 1.0f);
-        p2[idx] = std::fmod(po2_[i] + float(j + 1) / float(er.count) * er.po2, 1.0f);
-      }
-
-      // Primary (center)
-      int cIdx = base + er.count;
-      m1[cIdx] = mult1_[i]; m2[cIdx] = mult2_[i];
-      a1[cIdx] = ampl1_[i]; a2[cIdx] = ampl2_[i];
-      p1[cIdx] = po1_[i];   p2[cIdx] = po2_[i];
-
-      // Right sub-partials
-      for (int j = 0; j < er.count; ++j) {
-        int idx = base + er.count + 1 + j;
-        float semis1 = float(j + 1) * er.spacing1;
-        float semis2 = float(j + 1) * er.spacing2;
-
-        m1[idx] = mult1_[i] * std::pow(2.0f, semis1 / 12.0f);
-        m2[idx] = mult2_[i] * std::pow(2.0f, semis2 / 12.0f);
-
-        float t = float(er.count - j - 1) / float(er.count);
-        a1[idx] = ampl1_[i] * er.loPct1 + ampl1_[i] * (1.0f - er.loPct1) * std::pow(t, er.power1);
-        a2[idx] = ampl2_[i] * er.loPct2 + ampl2_[i] * (1.0f - er.loPct2) * std::pow(t, er.power2);
-
-        p1[idx] = std::fmod(po1_[i] + float(er.count - j) / float(er.count) * er.po1, 1.0f);
-        p2[idx] = std::fmod(po2_[i] + float(er.count - j) / float(er.count) * er.po2, 1.0f);
-      }
-    }
-
-    mult1_.assign(m1.begin(), m1.end()); mult2_.assign(m2.begin(), m2.end());
-    ampl1_.assign(a1.begin(), a1.end()); ampl2_.assign(a2.begin(), a2.end());
-    po1_.assign(p1.begin(), p1.end());   po2_.assign(p2.begin(), p2.end());
   }
 
   // Every array a note fills, sized once here for the count prepare can see
@@ -556,13 +494,7 @@ protected:
   // so a second prepare after a note changes nothing a render can see.
   void prepare_note_arrays() {
     if (arrayUpdateReq_) update_arrays();
-    int n = int(hasExpand_ ? origMult1_.size() : mult1_.size());
-    if (hasExpand_) {
-      for (int r = 0; r <= expandRule_.recurse; ++r) n *= expandRule_.count * 2 + 1;
-      for (auto* v : {&mult1_, &mult2_, &ampl1_, &ampl2_, &po1_, &po2_,
-                      &exM1_, &exM2_, &exA1_, &exA2_, &exP1_, &exP2_})
-        v->reserve(size_t(n));
-    }
+    int n = hasExpand_ ? layout_.reserve_expanded(expandRule_) : layout_.count();
     for (auto* v : {&partialPos_, &partialPO_, &partialLPO_, &dtVals_, &pmultCache_,
                     &rolloffCache_, &moScaleCache_})
       v->assign(size_t(n), 0.0f);
@@ -594,8 +526,9 @@ protected:
   OnsetGate onset_;
   DecayLaw decay_;
 
-  // Per-partial static arrays (set by init_arrays in subclass)
-  std::vector<float> mult1_, mult2_, ampl1_, ampl2_, po1_, po2_;
+  // The partial arrays, their originals and the expansion (init_arrays in a
+  // subclass writes the arrays)
+  PartialLayout layout_;
 
   // Per-partial runtime state
   std::vector<float> partialPos_, partialPO_, partialLPO_, dtVals_;
@@ -615,8 +548,6 @@ protected:
   // Expand rule
   ExpandRule expandRule_;
   bool hasExpand_{false};
-  std::vector<float> origMult1_, origMult2_, origAmpl1_, origAmpl2_, origPo1_, origPo2_;
-  std::vector<float> exM1_, exM2_, exA1_, exA2_, exP1_, exP2_;   // the expand rule's scratch, reserved at prepare
 
   bool arrayUpdateReq_{true};
 
