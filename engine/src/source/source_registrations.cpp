@@ -36,6 +36,7 @@
 #include "mforce/source/additive/additive_source.h"
 #include "mforce/source/additive/formant.h"
 #include "mforce/source/additive/formant_spectrum.h"
+#include "mforce/source/additive/formant_peaks.h"
 #include "mforce/source/additive/fixed_spectrum.h"
 #include "mforce/source/additive/band_spectrum.h"
 #include "mforce/source/additive/formant_sequence.h"
@@ -280,6 +281,26 @@ void register_all_sources() {
     // a "expandRule": {"ref": "..."} field. Mirrors the Formant pattern.
     reg.register_type("ExpandRule", {.family = Family::Additive, .label = "Partials Expand Rule"},
         [](auto) { return std::make_shared<ExpandRuleNode>(); });
+
+    reg.register_type("FormantPeaks", {.family = Family::Additive},
+        [](auto) { return std::make_shared<FormantPeaks>(); },
+        // The arrays arrive through the generic array pass; rows of unequal
+        // length are an authoring error, not a silent truncation. The rule is
+        // over the node's own array descriptors, so it names no key.
+        [](Component& src, const nlohmann::json& p, const ResolveParamFn&) {
+            std::string lengths;
+            size_t first = 0;
+            bool ragged = false;
+            for (const auto& d : src.array_descriptors()) {
+                const size_t n = p.contains(d.name) && p.at(d.name).is_array() ? p.at(d.name).size() : 0;
+                if (lengths.empty()) first = n;
+                else if (n != first) ragged = true;
+                lengths += std::string(lengths.empty() ? "" : ", ") + d.name + " " + std::to_string(n);
+            }
+            if (ragged)
+                throw std::runtime_error("FormantPeaks takes its arrays at one length, one row per peak (got "
+                                         + lengths + ")");
+        });
 
     reg.register_type("Formant", {.family = Family::Additive},
         [](auto) { return std::make_shared<Formant>(); });

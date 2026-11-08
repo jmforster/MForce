@@ -207,6 +207,59 @@ UI's PDB (C1041, `/FS`); a third pass over the finished tree was clean.
 Ruling 12 (Matt's "2") and the Global Constraints amendment were written at
 this task; the Task 3 brief carries the paramMap fold rule.
 
+**Task 2 (Fable).** RED watched: the twin, the load tests and the live
+comparison alone failed the test build with C1083 (`formant_peaks.h`). GREEN:
+`additive/formant_peaks.h` (80 lines; `FormantPeaks final : Component,
+IFormant` for this task — the four `Array` pins in one group "peaks" with the
+peak's ranges; `prepare` and `on_array_changed` call `cache_edges()`, which
+sizes `lo_`/`hi_` to the shortest of the four arrays and writes `f − w × 0.5f`
+and `f + w × 0.5f`; `contains` is any row's `freq > lo && freq < hi`;
+`get_gain` is the max over the containing rows of `peak_gain`, the deleted
+peak's `get_gain` body verbatim over the cached edges and the row's
+frequency, power and gain, every operand a float so `std::pow(float, float)`
+is the overload the peak called). Registered after `ExpandRule` with a
+configurator that refuses four arrays of unequal length by name (a missing
+array counts as none; four missing is an empty formant); label derived
+"Formant Peaks"; `kPartTypes` 24, `kFamilyTable` Main 56, `kMenuTable`,
+walked 78 for this task. Tests: `run_formant_peaks_twin_tests` (the peak's
+`get_gain`/`contains` and the spectrum's max retyped over rows, five row
+sets — one row, three overlapping with a gain-0 row and powers 0.5/2/6, a
+vowel's five, two equal rows, the editor's default four — over 2,000
+log-spaced frequencies plus every row's exact edges, the floats just inside
+them and the centre: 10,075 rows, `contains` and `get_gain` both bit for bit;
+an array change re-caching the edges), `run_formant_peaks_load_tests` (the
+ragged load named "node 'pk' (FormantPeaks)" with the four lengths, a missing
+array refused, two rows loading and rendering, an edited row reaching the
+next note through prepare, an empty node gaining 0),
+`run_formant_peaks_against_spectrum_tests` (a live `FormantSpectrum` over
+peak nodes against the rows, the same grid; deleted with the old types at
+Task 4). The editor: the hand-folded vowel `renders/scratch/ab39/synth/
+vowel_peaks_E.json` (`sing_alto_E`, whose paramMap drives no peak) renders
+to `107c4404…`, `sing_alto_E`'s old-arm hash; `mforce_ui --roundtrip` over it
+writes one `FormantPeaks` node with four arrays of five and the roundtripped
+file renders to the same hash — the generic grouped table carries the rows
+with no editor code. Proofs: `engine_tests` ALL PASS 7603 → 7667; null gate
+78/78; the nine synthetics identical (9/9, 0 DIFFER). Mutations, each caught
+by the twin (8054) and the live comparison (8137) and nothing else: the
+`contains` lower edge made inclusive; the max made a sum; the rising ramp's
+numerator swapped for the falling one. Two mutations the reviewer might name
+are unobservable by construction and are recorded instead: `get_gain`'s
+outer edge comparison made inclusive is masked by the verbatim inner guard
+(`freq <= lo` returns 0), and a swapped DENOMINATOR is invisible because
+every row is symmetric (`f − lo == hi − f`); the twin's grid holds both exact
+edges and the floats just inside them so the edge class is pinned where it is
+observable. `gates --fast`: the first run FAILED the structure meter's
+known-answer test (`test_loader_allowlist_covers_the_lint_scrape`: `width`
+"a key the loader reads but its allowlist lacks") because the configurator
+named its four keys as string literals and `lint_patches.py` scrapes
+literals out of configurator code as loader keys; the configurator was
+rewritten over the node's own `array_descriptors()` — no literal, and the
+rule is generic ("takes its arrays at one length, one row per peak", the
+message listing each array's length) — rather than adding an array key to
+`kBranchKeys`. Rebuilt: ALL PASS 7667, null gate 78/78 again, `gates --fast`
+as before (ctest 5/5, the stamp current, the allocation gate PASS, the known
+wiring diff).
+
 ## Self-review notes
 
 - Task 2 lands `FormantPeaks` beside the old types so the tool (Task 3) can rewrite the tree while both forms load; Task 4 then deletes the old types. The null gate at Task 3 therefore runs the new engine over the new files, and the close A/B runs old-over-old against new-over-new — the two together pin the rewrite and the engine.
