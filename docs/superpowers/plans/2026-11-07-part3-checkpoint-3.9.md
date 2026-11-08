@@ -13,6 +13,7 @@
 ## Global Constraints
 
 - **Byte-identity is total in scope**: `python tools/null_gate_perform_source.py --jobs 3` → 78/78 after EVERY task (the manifest's files are rewritten in place at Task 3 and their hashes must not move); the A/B at the close over the 132 (`renders/scratch/ab38/library_baselines.txt` plus `patches/baselines/additive_bright_attack_test.json`) against the pre-3.9 renders of the UNREWRITTEN files → 0 DIFFER. The one listed departure is ruling 5's negative-zero factor, proved unreachable in scope by the twin's own scan.
+- **Amendment at Task 0 (ruling 12, Matt's decision "2")**: EIGHT in-scope renders MOVE by the fold — the library vowels whose first peak's `frequency` the instrument paramMap drove through a curve (`sing_alto_A`, `sing_alto_U`, `sing_bass_U`, `sing_soprano_A`, `sing_soprano_E`, `sing_tenor_O`, `sing_tenor_U`, `speech_w_AW`). They are not failures but the checkpoint's listed departures: the null gate manifest takes their new hashes in the Task 3 commit (78/78 against the updated manifest from then on), the close A/B expects exactly those eight DIFFER and nothing else, the WAV pairs (pre-3.9 CLI over the unrewritten file; the close build over the rewritten file) sit under `renders/scratch/ab39/review/`, and REVIEW R15 lists them as renders for Matt's ears.
 - **Every moved expression keeps its operations and order**: the peak formula, the max, the band interpolation, the crossfade; each new `gain` is 0 exactly where the old `contains` was false; a twin per implementer proves it, and the reviewer mutates each.
 - **The real-time rule**: `FormantPeaks` caches its band edges at `prepare` and on `on_array_changed` (control side) and allocates nothing in `gain`; `python tools/alloc_gate.py --jobs 3 patches/library patches/baselines` → 0 allocate after every task.
 - **One type per file, the file named after the type**; `include_violations` +0; `unmapped_files` 0; `dynamic_cast` +0 in the engine (the editor's one cast for the strip stays, retyped).
@@ -115,10 +116,96 @@ Rulings made in planning; execution notes are appended per task.
 9. **Byte-identity is proved on both sides of the rewrite**: the null gate over the rewritten manifest files (the engine still holding both forms at Task 3, the hashes unmoved), and the close A/B with the old arm rendered from the unrewritten files by the pre-3.9 CLI (ab38's new arm, reused: no engine change since `268fb0a`) against the rewritten files on the close build — 3.5's shape.
 10. **The editor loses the bridge; what the generic table gives is what the editor shows.** The row table was hand-written for `FormantSpectrum`; `FormantPeaks`' four `Array` pins fall into the grouped-array table `ExplicitPartials` already uses. If the formant strip's start/end snapshot overlay depended on the row tuples and the generic array snapshot does not serve it, the overlay goes and the report names it as the one editor-visible change (reversible; the 11-02 rule; Part 7 decides whether a part has an overlay at all).
 11. **Execution per the 11-06 rule**: Fable on Tasks 1, 2 and 4 and the refuter; Opus 5.5 on Tasks 0 (the set), 3, 5 and 6's runs; the coordinator reruns the null gate and mutates each twin before every commit. The Fable window reset on 2026-11-07 (5 percent at planning).
+12. **The driven peak (Matt, 2026-11-07, at Task 0: "2").** The 11-07 survey counted a peak's pin as wired only when its JSON value was a `{"ref"}`; eight in-scope library vowels and two `patches/sweep/vowel_pitch_control/` files drive the first peak's `frequency` through the instrument paramMap (`{"target": "f1.frequency", "curve": [[c, c] … [1100, 1100]]}`, which `build_bindings` wires live to a `CurveNode` over the voice's `freqOut`: F1 follows f0 above the curve's knee). Three ways were put to Matt — a slot on `FormantPeaks` for a peak that must stay a node, with the four-pin peak surviving under a new name; rows only, the eight vowels losing the live F1; stop and redesign — and Matt chose rows only: the decided design stands unchanged, no new peak type and no slot. The fold writes the curve's floor (the first knot's output, which in every one of the ten files is also the peak's own constant: 800, 325, 350, 800, 350, 400, 350, 804, 350, 350 Hz) as the row's frequency and removes the paramMap entry that targeted the peak, so the file loads; the tool reports every such rewrite by file and node ("paramMap target folded to a constant") and refuses a file whose first knot's output differs from the peak's constant (that shape is a human's); the two sweep files are rewritten the same way, originals kept. The eight renders move and are REVIEW R15's (ruling 12's amendment in Global Constraints). The capability lost from the library — F1 following f0 through a paramMap curve — goes to the report's section 7 and to IDEAS: spectrum-wide offset/scale pins on `FormantPeaks` (Part 3 §11's later addition) would restore pitch-following for all peaks at once, after the freeze.
 
 ### Execution notes
 
-(appended per task)
+**Task 0 (2026-11-07, Fable 5.1 xhigh; base `857d1b4`).** `date` 2026-11-07;
+no stale `mforce_ui_*.exe`; the editor not running. The Release build was
+clean and did not relink the CLI (no engine or tools file has changed since
+`268fb0a`; the binary is dated 11-06 15:56), so `cli_pre39.exe` is that
+binary (sha `e8566d11…`) and ab38's new arm is this checkpoint's old arm:
+`renders/scratch/ab38/new/hashes.txt` → `renders/scratch/ab39/old/hashes.txt`
+plus the replacement baseline's manifest line (`7ceff853…`), 132 lines; the
+A/B list `renders/scratch/ab39/library_baselines.txt` is ab38's 131 plus
+`patches/baselines/additive_bright_attack_test.json`, 132. `gates --fast` on
+the base: ctest 5/5, the stamp current, the allocation gate PASS (128 s), the
+roundtrip smoke FAIL on the known wiring diff (5/6 shapes). The scan (ruling
+5): 63 in-scope `AdditiveSource`s hold a formant; `formantFloor` is 0.0 on 58,
+1.0 explicit on 2 (`cello_full_range`, `viola_default`), absent (the 1.0
+default) on 3 (`fadd_band_test`, `fadd_formant_test`, `FormantSequence1`);
+none wired by a ref and no paramMap entry names one — every floor in scope is
+a constant parsed as +0 or 1.0, so the negative-zero factor is unreachable.
+The sub-bin (ruling 4): `fadd_band_test` renders a fixed 100 Hz fundamental
+over a band starting at 100 Hz, so no in-scope partial falls in the bin below
+a band's start; the fold is kept for the twin and for any patch that does.
+
+The synthetic set (an Opus 5.5 executor): `renders/scratch/ab39/synth/
+make_synth.py` wrote nine — `bands_edges` (mixer mode, 150 Hz over a band
+300..1350 in eight gains, so the partials sit at 150 in the sub-bin, 300 at
+the start, 1350 at the end and 1500–1800 beyond), `bands_edges_floor0`,
+`bands_edges_notes` (the two-note form), `bands_moving` (`startFreq` on an
+AR envelope 200–400), `peaks_overlap` (three overlapping peaks, one at gain
+0, powers 0.5/2/6), `peaks_one`, `sequence_mixed` (a `FormantSequence` over a
+spectrum and a band, `blend` on an envelope), `floor_weight` (sing_alto_A's
+five peaks, floor 0.2, weight 0.8), `floor_env` (floor on an envelope) — and
+nine formant-off controls; `cli_pre39.exe` rendered 9/9 and 9/9; every
+synthetic's hash differs from its control's (`activity.txt`). Old arm
+`synth/old/hashes.txt`. The executor also wrote `synth/vowel_peaks.json`,
+`sing_alto_A` folded by hand into one `FormantPeaks` (spec's five rows), not
+rendered.
+
+**THE SURVEY GAP (found by the executor, confirmed by a scan of the tree):**
+the 11-07 survey counted a peak's pin as wired only when its JSON value was a
+`{"ref"}`. Eight in-scope library vowels — `sing_alto_A`, `sing_alto_U`,
+`sing_bass_U`, `sing_soprano_A`, `sing_soprano_E`, `sing_tenor_O`,
+`sing_tenor_U`, `speech_w_AW` — and two `patches/sweep/vowel_pitch_control/`
+files drive the first peak's `frequency` through the instrument paramMap
+(`{"target": "f1.frequency", "curve": [[800, 800] … [1100, 1100]]}`), which
+`build_bindings` (matrix case 3/4) wires to a `CurveNode` over the voice's
+`freqOut`: F1 is a live per-sample signal in those renders. The decided
+`FormantPeaks` has no per-row pin, so the plan's fold would turn `f1` into a
+row and the load would fail at `paramMap: unknown node 'f1'` (the null gate
+at Task 3 would have caught it). A question went to Matt through the
+coordinator session before any fold: (1) `FormantPeaks` keeps a multi slot
+for a peak that is a node because something drives its pins, the four-pin
+peak surviving as the smallest `Formant` leaf under a new name, the fold
+putting constants into rows and a driven peak into the slot (byte-identical:
+max is order-free); (2) rows only, the eight vowels lose the live F1, eight
+REVIEW renders; (3) stop after Task 1 and redesign with him. Tasks 1 and 2
+do not depend on the answer and proceed; Task 3's fold rule and Task 4's
+deletion wait on it.
+
+**Task 1 (Fable).** RED watched: the lifecycle test alone, including
+`core/part.h`, failed the test build with C1083. GREEN found a collision the
+survey missed: `mforce::Part` already exists — the music model's part
+(`engine/include/mforce/music/structure.h`, a voice line across the Piece),
+in the same namespace, and `patch_loader.cpp` sees both — so the first build
+failed with C2011 (`'mforce::Part': 'struct' type redefinition`) and every
+`Setting<float>` in `Partials` lost its conversion to `Component*`. Ruling 1
+said the collision with "Part 3" was in prose only; it is in code. **Decided
+under the 11-02 rule: the base is `DrivenPart`** (`core/driven_part.h`), the
+plan's own alternative, rejected then only as redundant ("every part is
+driven"); with `Part` taken, the redundancy is the price of a name that says
+what the base does (the owner drives it through prepare, start and next).
+The music `Part` keeps its name (Matt's domain word). A rename is one regex
+if Matt prefers another; CLEANUP gets the row. Then: `core/driven_part.h`
+(57 lines: the three non-virtual verbs over `pins()`, the three hooks, the
+Param list) with the lifecycle moved from `partial_set.h`, the body-diff
+against `857d1b4` showing one difference, the assert's wording ("a part
+declares more Param pins than DrivenPart::kMaxParams"); `PartialSet :
+DrivenPart` keeps its three work verbs (71 → 48 lines); the test
+(`run_driven_part_lifecycle_tests`, a test-local `TwoPinPart` with a Setting
+between two Params: counts 1/1/5 through the base, a second prepare relisting
+without doubling, declaration order with the setting skipped, the unwired
+constants). Proofs: `engine_tests` ALL PASS 7588 → 7603; null gate 78/78;
+the nine synthetics identical to the pre-3.9 arm (9/9 rendered, 0 DIFFER);
+`gates --fast` as before (ctest 5/5, the stamp current, the allocation gate
+PASS, the known wiring diff). Harness note: the turn was stopped while a
+build ran, a second build started beside it, and the two collided on the
+UI's PDB (C1041, `/FS`); a third pass over the finished tree was clean.
+Ruling 12 (Matt's "2") and the Global Constraints amendment were written at
+this task; the Task 3 brief carries the paramMap fold rule.
 
 ## Self-review notes
 

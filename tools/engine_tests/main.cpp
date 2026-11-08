@@ -4020,6 +4020,7 @@ static void run_target_evolution_morph_tests() {
 #include "mforce/source/additive/formant_sequence.h"
 #include "mforce/source/additive/additive_source.h"
 #include "mforce/source/additive/partial_set.h"
+#include "mforce/core/driven_part.h"
 #include "mforce/source/additive/partials.h"
 #include "mforce/source/additive/coherent_walk.h"
 #include "mforce/source/additive/pair_trade.h"
@@ -7893,6 +7894,66 @@ static void run_partial_set_lifecycle_tests() {
     }
 }
 
+// The owner-driven part's lifecycle lives once, in DrivenPart: every pin prepared
+// and started once by the base, every Param pin advanced once per next() in
+// declaration order, then the hook; a Setting between two Params is neither
+// prepared nor advanced. The part here is test-local; PartialSet and the
+// formant base derive the same way.
+namespace {
+struct TwoPinPart final : DrivenPart {
+    Param a{this, "a", 1.0f, 0.0f, 10.0f, nullptr, Pull::Manual};
+    Setting<int> n{this, "n", 3, 1, 8};
+    Param b{this, "b", 2.0f, 0.0f, 10.0f, nullptr, Pull::Manual};
+    int prepares{0}, starts{0}, nexts{0}, rate{0};
+    const char* type_name() const override { return "TwoPinPart"; }
+protected:
+    void on_prepare(const RenderContext& ctx) override { rate = ctx.sampleRate; ++prepares; }
+    void on_start(int) override { ++starts; }
+    void on_next() override { ++nexts; }
+};
+}
+static void run_driven_part_lifecycle_tests() {
+    std::printf("driven part: the base drives the pins\n");
+    RenderContext ctx{48000};
+    {
+        TwoPinPart part;
+        auto pa = std::make_shared<PinCounter>(), pb = std::make_shared<PinCounter>();
+        CHECK(part.set_param("a", pa) && part.set_param("b", pb));
+        part.prepare(ctx); part.start(4800);
+        for (int i = 0; i < 5; ++i) part.next();
+        CHECK(pa->ctxPrepares == 1 && pa->starts == 1 && pa->nexts == 5);
+        CHECK(pb->ctxPrepares == 1 && pb->starts == 1 && pb->nexts == 5);
+        CHECK(pa->rate == 48000 && pb->rate == 48000);
+        CHECK(part.prepares == 1 && part.starts == 1 && part.nexts == 5 && part.rate == 48000);
+        part.prepare(ctx); part.start(4800); part.next();        // a second prepare relists the pins: nothing doubles
+        CHECK(pa->ctxPrepares == 2 && pa->starts == 2 && pa->nexts == 6);
+        CHECK(pb->ctxPrepares == 2 && pb->starts == 2 && pb->nexts == 6);
+        CHECK(part.prepares == 2 && part.starts == 2 && part.nexts == 6);
+    }
+    {
+        TwoPinPart part;
+        std::vector<std::string> log;
+        auto oa = std::make_shared<OrderProbe>(); oa->log = &log; oa->tag = "a";
+        auto ob = std::make_shared<OrderProbe>(); ob->log = &log; ob->tag = "b";
+        CHECK(part.set_param("a", oa) && part.set_param("b", ob));
+        part.prepare(ctx); part.start(4800);
+        CHECK(log.empty());
+        part.next();
+        CHECK(log == std::vector<std::string>({"a", "b"}));      // declaration order, the setting skipped
+        part.set_setting("n", 5.0f);
+        part.next();
+        CHECK(log.size() == 4 && part.n.value == 5);
+    }
+    {
+        TwoPinPart part;                                          // unwired: the constants, no source to call
+        part.prepare(ctx); part.start(4800);
+        for (int i = 0; i < 3; ++i) part.next();
+        CHECK(part.nexts == 3);
+        CHECK_NEAR(part.a.current(), 1.0f, 1e-6f);
+        CHECK_NEAR(part.b.current(), 2.0f, 1e-6f);
+    }
+}
+
 // The partials family are parts: a CompositePartials holds its sets in a multi
 // slot (add appends, set replaces, a signal is refused) and no partials type
 // is a ValueSource.
@@ -8271,6 +8332,7 @@ int main() {
     run_decay_law_twin_tests();
     run_partial_layout_twin_tests();
     run_partial_set_lifecycle_tests();
+    run_driven_part_lifecycle_tests();
     run_partials_part_tests();
     run_component_root_tests();
     run_target_evolution_registry_tests();
