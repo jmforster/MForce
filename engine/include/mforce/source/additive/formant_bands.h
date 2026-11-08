@@ -1,5 +1,5 @@
 #pragma once
-// BandSpectrum: a spectrum made of frequency bands.
+// FormantBands: a formant of equal bands.
 #include "mforce/core/dsp_value_source.h"
 #include "mforce/source/additive/formant.h"
 #include <cmath>
@@ -10,16 +10,18 @@
 namespace mforce {
 
 // ---------------------------------------------------------------------------
-// Ported from C# BandSpectrum — frequency-band gain lookup.
+// FormantBands — a gain table over equal frequency bands from startFreq in
+// steps of freqIncrement, interpolated between adjacent gains. Ported from
+// C# BandSpectrum.
 // ---------------------------------------------------------------------------
-struct BandSpectrum final : Component, IFormant {
+struct FormantBands final : Component, IFormant {
   // The owner drives it through prepare(), start() and next(); both pins are
   // Manual and this part prepares, starts and pulls them there.
   Param startFreq    {this, "startFreq",     0.0f, 0.0f,  20000.0f, nullptr, Pull::Manual};
   Param freqIncrement{this, "freqIncrement", 1.0f, 0.01f, 1000.0f,  nullptr, Pull::Manual};
   Array gains{this, "gains", nullptr, 0.0f, 0.0f, 1.0f};
 
-  const char* type_name() const override { return "BandSpectrum"; }
+  const char* type_name() const override { return "FormantBands"; }
 
   void prepare(const RenderContext& ctx) override {
     startFreq.prepare(ctx);

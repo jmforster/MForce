@@ -41,7 +41,7 @@
 #include "mforce/source/additive/formant.h"
 #include "mforce/source/additive/formant_spectrum.h"
 #include "mforce/source/additive/fixed_spectrum.h"
-#include "mforce/source/additive/band_spectrum.h"
+#include "mforce/source/additive/formant_bands.h"
 #include "mforce/source/additive/formant_sequence.h"
 #include "mforce/source/additive/partials.h" // for Partials live array access in strip draw
 #include "mforce/render/instrument.h"
@@ -859,7 +859,7 @@ static const char* pin_type_compat_error(const std::string& targetType,
                                          const std::string& sourceType) {
     auto is_iformant = [](const std::string& t) {
         return t == "Formant" || t == "FormantSpectrum" ||
-               t == "FixedSpectrum" || t == "BandSpectrum" ||
+               t == "FixedSpectrum" || t == "FormantBands" ||
                t == "FormantSequence";
     };
     auto is_partial_set = [](const std::string& t) {
@@ -873,7 +873,7 @@ static const char* pin_type_compat_error(const std::string& targetType,
         (targetType == "FormantSequence" && targetPin == "spectra") ||
         (targetType == "AdditiveSource" && targetPin == "formant");
     if (needsFormant && !is_iformant(sourceType)) {
-        return "Pin needs a Formant-type source (Formant, FormantSpectrum, FixedSpectrum, BandSpectrum, or FormantSequence)";
+        return "Pin needs a Formant-type source (Formant, FormantSpectrum, FixedSpectrum, FormantBands, or FormantSequence)";
     }
 
     // PartialSet-requiring pins
@@ -3055,7 +3055,7 @@ static nlohmann::json serialize_patch_graph(
                 jnode["params"][desc.name] = val;
         }
 
-        // Array values (ExplicitPartials mult/ampl, Fixed/BandSpectrum gains, …)
+        // Array values (ExplicitPartials mult/ampl, FormantBands gains, …)
         for (auto& [desc, vec] : node.arrayValues) {
             if (vec.empty()) continue;
             if (!jnode.contains("params")) jnode["params"] = json::object();
@@ -3366,7 +3366,7 @@ static void save_node_graph(const std::string& path) {
                 jnode["params"][desc.name] = val;
         }
 
-        // Array values (ExplicitPartials mult/ampl, Fixed/BandSpectrum gains, …)
+        // Array values (ExplicitPartials mult/ampl, FormantBands gains, …)
         for (auto& [desc, vec] : node.arrayValues) {
             if (vec.empty()) continue;
             if (!jnode.contains("params")) jnode["params"] = json::object();
@@ -3447,7 +3447,7 @@ static bool is_partials_type(const std::string& t) {
 }
 static bool is_formant_type(const std::string& t) {
     return t == "Formant" || t == "FormantSpectrum"
-        || t == "FormantSequence" || t == "BandSpectrum";
+        || t == "FormantSequence" || t == "FormantBands";
 }
 
 // Per-render snapshot of envelope-driven inputs feeding evolving (Partials/

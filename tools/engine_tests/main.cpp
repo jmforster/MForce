@@ -4017,7 +4017,7 @@ static void run_target_evolution_morph_tests() {
 #include "mforce/source/additive/formant_spectrum.h"
 #include "mforce/source/additive/formant_peaks.h"
 #include "mforce/source/additive/fixed_spectrum.h"
-#include "mforce/source/additive/band_spectrum.h"
+#include "mforce/source/additive/formant_bands.h"
 #include "mforce/source/additive/formant_sequence.h"
 #include "mforce/source/additive/additive_source.h"
 #include "mforce/source/additive/partial_set.h"
@@ -4075,7 +4075,7 @@ static void run_additive_structural_pin_tests() {
     CHECK_NEAR(param_default(f, "power"), 2.0f, 1e-6f);
     CHECK_NEAR(f.width.current(), 500.0f, 1e-3f);
 
-    BandSpectrum band;
+    FormantBands band;
     CHECK(param_names(band) == "startFreq,freqIncrement,");
     CHECK(array_names(band) == "gains,");
     FixedSpectrum fixed({0.0f, 1.0f, 0.0f});
@@ -4172,7 +4172,7 @@ static void run_additive_smoke_tests() {
     Formant formant;                    smokeFormant(formant);
     FormantSpectrum spectrum;           spectrum.add_param("formants", std::make_shared<Formant>()); smokeFormant(spectrum);
     FixedSpectrum fixed({0.0f, 1.0f});  smokeFormant(fixed);
-    BandSpectrum band;                  smokeFormant(band);
+    FormantBands band;                  smokeFormant(band);
     FormantPeaks peaks;                 peaks.set_array("frequency", {1000.0f}); peaks.set_array("gain", {1.0f});
                                         peaks.set_array("width", {500.0f}); peaks.set_array("power", {2.0f}); smokeFormant(peaks);
     FormantSequence seq;                smokeFormant(seq);
@@ -4233,7 +4233,7 @@ static void run_additive_manual_pin_tests() {
     CHECK(c1->rate == 48000 && c2->rate == 48000);     // prepare reached the pins
     CHECK(c1->nexts == 2 && c2->nexts == 2);
 
-    BandSpectrum band;
+    FormantBands band;
     FormantSequence seq;
     auto b1 = std::make_shared<PinCounter>(), b2 = std::make_shared<PinCounter>();
     band.set_param("startFreq", b1);
@@ -5600,7 +5600,7 @@ static bool split_equivalent(const std::function<std::shared_ptr<ValueSource>()>
 // interface and nothing of ValueSource. The list grows as the families leave
 // ValueSource and is the audit's oracle at the close.
 static const std::set<std::string> kPartTypes = {
-    "Formant", "FormantSpectrum", "FixedSpectrum", "BandSpectrum", "FormantSequence", "FormantPeaks",
+    "Formant", "FormantSpectrum", "FixedSpectrum", "FormantBands", "FormantSequence", "FormantPeaks",
     "FullPartials", "SequencePartials", "ExplicitPartials", "CompositePartials", "ExpandRule",
     "PluckEvolution", "AveragingEvolution", "EKSEvolution", "ReedEvolution", "BowedStringEvolution",
     "BrassEvolution", "ReactionDiffusionEvolution", "SortErosionEvolution", "CellularAutomatonEvolution",
@@ -7023,6 +7023,8 @@ static void run_retired_type_message_tests() {
     CHECK(retired_type_hint("Envelope") == nullptr && retired_type_hint("ASREnvelope") != nullptr);
     CHECK(retired_type_hint("AdditiveSource2") != nullptr && retired_type_hint("BasicAdditiveSource") != nullptr);
     CHECK(std::string(retired_type_hint("AdditiveSource2")).find("author an AdditiveSource") != std::string::npos);
+    CHECK(std::string(retired_type_hint("BandSpectrum")).find("renamed FormantBands") != std::string::npos);
+    CHECK(message_for("BandSpectrum").find("Unknown node type: BandSpectrum") != std::string::npos);
 }
 
 // The allocation probe: counts only while armed, keeps the first armed
@@ -8333,7 +8335,7 @@ static const FamilyRow kFamilyTable[] = {
     {"Formant", Family::Additive, "Formant", Shelf::Main},
     {"FormantSequence", Family::Additive, "Formant Sequence", Shelf::Main},
     {"FormantSpectrum", Family::Additive, "Formant Spectrum", Shelf::Main},
-    {"BandSpectrum", Family::Additive, "Band Spectrum", Shelf::Main},
+    {"FormantBands", Family::Additive, "Formant Bands", Shelf::Main},
     {"FixedSpectrum", Family::Additive, "Fixed Spectrum", Shelf::Main},
     {"KSString", Family::Physical, "KS String", Shelf::Main},
     {"AllpassResonator", Family::Physical, "Allpass Resonator", Shelf::Main},
@@ -8465,7 +8467,7 @@ static const MenuRow kMenuTable[] = {
     {Family::Noise, Shelf::Experimental, {"LayeredRedNoiseSource", "MurmurationNoiseSource", "WanderNoiseSource", "WanderNoise2Source", "WanderNoise3Source"}},
     {Family::Wavetable, Shelf::Main, {"WavetableSource", "HybridKSSource", "EKSEvolution", "PluckEvolution", "AveragingEvolution"}},
     {Family::Wavetable, Shelf::Experimental, {"BowedStringEvolution", "ReedEvolution", "BrassEvolution", "ReactionDiffusionEvolution", "SortErosionEvolution", "CellularAutomatonEvolution", "HistogramEqualizeEvolution", "BezierPullEvolution", "BitRotateEvolution", "TargetEvolution"}},
-    {Family::Additive, Shelf::Main, {"AdditiveSource", "FullPartials", "SequencePartials", "ExplicitPartials", "CompositePartials", "ExpandRule", "FormantPeaks", "Formant", "FormantSequence", "FormantSpectrum", "BandSpectrum", "FixedSpectrum"}},
+    {Family::Additive, Shelf::Main, {"AdditiveSource", "FullPartials", "SequencePartials", "ExplicitPartials", "CompositePartials", "ExpandRule", "FormantPeaks", "Formant", "FormantSequence", "FormantSpectrum", "FormantBands", "FixedSpectrum"}},
     {Family::Physical, Shelf::Main, {"KSString", "AllpassResonator", "DelayLine"}},
     {Family::Physical, Shelf::Experimental, {"Mesh2D", "PierceFilter", "BowTable"}},
     {Family::Filter, Shelf::Main, {"DelayFilter", "Reverb", "Limiter", "HammerBank", "DistortedSource", "BWBandpassFilter", "BWLowpassFilter", "BWHighpassFilter", "SVFSource", "Shaper"}},

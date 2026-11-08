@@ -129,6 +129,7 @@ const char* retired_type_hint(std::string_view type_name) {
     if (type_name == deleted)
       return "deleted; author an AdditiveSource with a FullPartials "
              "(or ExplicitPartials under a CompositePartials for per-group envelopes)";
+  if (type_name == "BandSpectrum") return "renamed FormantBands (python tools/migrate_deleted_types.py rewrites it)";
   return nullptr;
 }
 

@@ -38,7 +38,7 @@
 #include "mforce/source/additive/formant_spectrum.h"
 #include "mforce/source/additive/formant_peaks.h"
 #include "mforce/source/additive/fixed_spectrum.h"
-#include "mforce/source/additive/band_spectrum.h"
+#include "mforce/source/additive/formant_bands.h"
 #include "mforce/source/additive/formant_sequence.h"
 #include "mforce/source/additive/full_partials.h"
 #include "mforce/source/additive/sequence_partials.h"
@@ -318,13 +318,8 @@ void register_all_sources() {
     reg.register_type("FormantSpectrum", {.family = Family::Additive},
         [](auto) { return std::make_shared<FormantSpectrum>(); });
 
-    reg.register_type("BandSpectrum", {.family = Family::Additive},
-        [](auto) { return std::make_shared<BandSpectrum>(); },
-        // Configurator: gains array
-        [](Component& src, const nlohmann::json& p, const ResolveParamFn&) {
-            auto& bs = static_cast<BandSpectrum&>(src);
-            if (p.contains("gains")) bs.gains.values = p["gains"].get<std::vector<float>>();
-        });
+    reg.register_type("FormantBands", {.family = Family::Additive},
+        [](auto) { return std::make_shared<FormantBands>(); });
 
     reg.register_type("FixedSpectrum", {.family = Family::Additive},
         [](auto) { return std::make_shared<FixedSpectrum>(std::vector<float>{}); },
