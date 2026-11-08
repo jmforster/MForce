@@ -16,7 +16,7 @@
       },
       {
         "id": "band",
-        "type": "BandSpectrum",
+        "type": "FormantBands",
         "params": {
           "startFreq": 100,
           "freqIncrement": 50,

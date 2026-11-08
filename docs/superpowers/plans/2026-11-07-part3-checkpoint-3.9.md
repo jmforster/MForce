@@ -13,7 +13,7 @@
 ## Global Constraints
 
 - **Byte-identity is total in scope**: `python tools/null_gate_perform_source.py --jobs 3` → 78/78 after EVERY task (the manifest's files are rewritten in place at Task 3 and their hashes must not move); the A/B at the close over the 132 (`renders/scratch/ab38/library_baselines.txt` plus `patches/baselines/additive_bright_attack_test.json`) against the pre-3.9 renders of the UNREWRITTEN files → 0 DIFFER. The one listed departure is ruling 5's negative-zero factor, proved unreachable in scope by the twin's own scan.
-- **Amendment at Task 0 (ruling 12, Matt's decision "2")**: EIGHT in-scope renders MOVE by the fold — the library vowels whose first peak's `frequency` the instrument paramMap drove through a curve (`sing_alto_A`, `sing_alto_U`, `sing_bass_U`, `sing_soprano_A`, `sing_soprano_E`, `sing_tenor_O`, `sing_tenor_U`, `speech_w_AW`). They are not failures but the checkpoint's listed departures: the null gate manifest takes their new hashes in the Task 3 commit (78/78 against the updated manifest from then on), the close A/B expects exactly those eight DIFFER and nothing else, the WAV pairs (pre-3.9 CLI over the unrewritten file; the close build over the rewritten file) sit under `renders/scratch/ab39/review/`, and REVIEW R15 lists them as renders for Matt's ears.
+- **Amendment at Task 0 (ruling 12, Matt's decision "2"), corrected at Task 3**: the fold removes the paramMap curve that drove the first peak's `frequency` in eight library vowels (`sing_alto_A`, `sing_alto_U`, `sing_bass_U`, `sing_soprano_A`, `sing_soprano_E`, `sing_tenor_O`, `sing_tenor_U`, `speech_w_AW`). The curve clamps at its first knot and seven of the eight play their rendered note below that knee, so F1 already sat at the row's constant and their renders are byte-identical; ONE in-scope render MOVES, `sing_soprano_E` (note 69, above its 350 Hz knee). It is not a failure but the checkpoint's listed departure: the null gate manifest takes its new hash in the Task 3 commit (78/78 against the updated manifest from then on), the close A/B expects exactly that one DIFFER and nothing else, its WAV pair (pre-3.9 CLI over the unrewritten file; the close build over the rewritten file) sits under `renders/scratch/ab39/review/`, and REVIEW R15 lists it as a render for Matt's ears, with the other seven (and the two sweep files) named as the files whose live F1 above the knee is gone without a render moving.
 - **Every moved expression keeps its operations and order**: the peak formula, the max, the band interpolation, the crossfade; each new `gain` is 0 exactly where the old `contains` was false; a twin per implementer proves it, and the reviewer mutates each.
 - **The real-time rule**: `FormantPeaks` caches its band edges at `prepare` and on `on_array_changed` (control side) and allocates nothing in `gain`; `python tools/alloc_gate.py --jobs 3 patches/library patches/baselines` → 0 allocate after every task.
 - **One type per file, the file named after the type**; `include_violations` +0; `unmapped_files` 0; `dynamic_cast` +0 in the engine (the editor's one cast for the strip stays, retyped).
@@ -259,6 +259,74 @@ message listing each array's length) — rather than adding an array key to
 `kBranchKeys`. Rebuilt: ALL PASS 7667, null gate 78/78 again, `gates --fast`
 as before (ctest 5/5, the stamp current, the allocation gate PASS, the known
 wiring diff).
+
+**Task 3 (an Opus 5.5 executor; coordinator-verified; two commits).** The
+tool: a file-level pass `fold_formant_spectra(doc, notes)` before the
+per-node rules (every spectrum checked and the whole document left untouched
+until none refuses), the per-node rules `BandSpectrum → Rename("FormantBands")`,
+`FixedSpectrum` and a stray `Formant` refused by name, a `FormantSpectrum`
+outside any node list refused; the docstring's rows and two paragraphs; the
+paramMap rule of ruling 12 (an entry `{"target": "<peak>.<pin>", "curve"}`
+aimed at a consumed peak is folded when the pin is one of the four and the
+first knot's output equals the peak's constant; the entry leaves the paramMap,
+a one-string list collapsing to the string; anything else aimed at a peak
+refused). Two additions the executor made beyond the brief, kept: the graph's
+`output` counts as a referrer; a consumed peak's id leaves `ui.positions`. One
+deviation, kept: the fold raises its own refusal rather than leaving the
+spectrum for the per-node walk, which would have met the unconsumed child
+first and said "a stray peak". Tests 18 → 30 (`python -m unittest`, pytest
+is not installed). The run over `library`, `baselines`, `audition`,
+`pending`, `sweep`, `scratch` and the ab39 synthetics (not `old/`): 91 nodes
+in 81 files — 83 `FormantSpectrum` (69 under `patches/`: 58 library, 2
+baselines, 1 pending, 8 sweep; 5 synthetics), 8 `BandSpectrum` (3 under
+`patches/`, 5 synthetics); the four `FormantSequence` files followed their
+children; no default filled; the ten paramMap notes, one per driven file,
+each "node 'spec' (FormantSpectrum): paramMap target 'f1.frequency' folded to
+a constant (c); the curve that drove it is gone" with c = 800, 325, 350, 800,
+350, 400, 350, 804 and 350, 350 for the two sweep files; `--check` over the
+same folders exit 0; `--check patches/old` exit 1 with 459 nodes pending in
+236 files and 28 files refused (17 spectra with a wired peak `frequency`, six
+stray peaks, five `AdditiveSource2`), nothing in `old/` written;
+`lint_patches.py` PASS over library and baselines; `pending/` kept whole under
+`renders/scratch/ab39/pending_before/`, the ten driven originals under
+`review/before/`; the folded `sing_alto_E` equals the hand fold as JSON. 63
+tracked patch files modified (3 baselines, 2 strings, 56 voice, 2 words).
+
+**THE PLAN'S ORDER HAD A HOLE, found by the executor at step 6:** the tool
+renames `BandSpectrum` to `FormantBands` in the tree but the engine learned
+that name only at Task 4, so the three band files and the five band
+synthetics failed to load on the Task 2 build ("Unknown node type:
+FormantBands"). Decided: the class rename moved forward into this task as its
+own commit — `band_spectrum.h` → `formant_bands.h` by `git mv`, the class
+`FormantBands` still `: Component, IFormant` with its lifecycle as it was
+(the rebase onto the base and the predicate fold stay Task 4's), the
+registration renamed and its `gains` configurator dropped (ruling 7), the
+hint `"BandSpectrum" → renamed FormantBands (the tool rewrites it)` with its
+loader test, the tests' and the editor's names and includes. `engine_tests`
+ALL PASS 7667 → 7669; `fadd_band_test` renders to its old-arm hash.
+
+**THE AMENDMENT'S COUNT WAS WRONG, found by the executor at the A/B:** the
+paramMap curve's input is the voice's frequency and the curve clamps at its
+first knot, so a vowel whose rendered note sits below the knee already had F1
+at the constant; seven of the eight do (alto A at 220 Hz against an 800 Hz
+knee, and so on) and their renders are byte-identical. ONE render moves:
+`sing_soprano_E` (note 69, 440 Hz, above its 350 Hz knee) — old `6ae81426…`,
+new `05ee0f7f…`, the pair under `renders/scratch/ab39/review/{old,new}/
+sing_soprano_E.wav`, `review/moved_hashes.txt`. The null gate manifest never
+listed `sing_soprano_E` (its 78 cover `sing_alto_A` and `speech_c_AE` among
+the vowels), so it is unchanged. Ruling 12's amendment in Global Constraints
+is corrected to the one render; the capability loss (live F1 above the knee,
+and under a bend) is the ten files' all the same, named in the report.
+Proofs on the rebuilt engine over the rewritten tree: the A/B over 132 — 131
+identical, 1 DIFFER (`sing_soprano_E`), 0 failed; the nine synthetics and the
+nine controls 0 DIFFER; null gate 78/78 (the executor's run and the
+coordinator's rerun); allocation gate 132 patches 0 allocate; the tool's 30
+tests; `--check` exit 0; lint PASS; the coordinator's body-read of the alto
+A diff (five peaks out, one `FormantPeaks` in at the spectrum's place, the
+paramMap list collapsed to `"src.frequency"`), the band baseline (the type
+line and a trailing newline) and `liar1` (four spectra folded under its
+sequence). `gates --fast` as before (ctest 5/5 with the tool's tests, the stamp
+current, the allocation gate PASS, the known wiring diff).
 
 ## Self-review notes
 

@@ -441,7 +441,7 @@
           ],
           "startFreq": 160.0
         },
-        "type": "BandSpectrum"
+        "type": "FormantBands"
       },
       {
         "id": "ExplicitPartials1",

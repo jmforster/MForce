@@ -14,75 +14,36 @@
     }
    },
    {
-    "id": "f1",
-    "type": "Formant",
-    "params": {
-     "frequency": 804.0,
-     "gain": 1.0,
-     "width": 400.0,
-     "power": 2.0
-    }
-   },
-   {
-    "id": "f2",
-    "type": "Formant",
-    "params": {
-     "frequency": 1188.0,
-     "gain": 0.6768,
-     "width": 560.0,
-     "power": 2.0
-    }
-   },
-   {
-    "id": "f3",
-    "type": "Formant",
-    "params": {
-     "frequency": 2824.0,
-     "gain": 0.2847,
-     "width": 880.0,
-     "power": 2.0
-    }
-   },
-   {
-    "id": "f4",
-    "type": "Formant",
-    "params": {
-     "frequency": 3946.0,
-     "gain": 0.2038,
-     "width": 2000.0,
-     "power": 2.0
-    }
-   },
-   {
-    "id": "f5",
-    "type": "Formant",
-    "params": {
-     "frequency": 4267.4,
-     "gain": 0.1884,
-     "width": 1600.0,
-     "power": 2.0
-    }
-   },
-   {
     "id": "spec",
-    "type": "FormantSpectrum",
+    "type": "FormantPeaks",
     "params": {
-     "formants": [
-      {
-       "ref": "f1"
-      },
-      {
-       "ref": "f2"
-      },
-      {
-       "ref": "f3"
-      },
-      {
-       "ref": "f4"
-      },
-      {
-       "ref": "f5"
-      }
+     "frequency": [
+      804.0,
+      1188.0,
+      2824.0,
+      3946.0,
+      4267.4
+     ],
+     "gain": [
+      1.0,
+      0.6768,
+      0.2847,
+      0.2038,
+      0.1884
+     ],
+     "width": [
+      400.0,
+      560.0,
+      880.0,
+      2000.0,
+      1600.0
+     ],
+     "power": [
+      2.0,
+      2.0,
+      2.0,
+      2.0,
+      2.0
      ]
     }
    },
@@ -120,42 +81,7 @@
  },
  "instrument": {
   "paramMap": {
-   "frequency": [
-    "src.frequency",
-    {
-     "target": "f1.frequency",
-     "curve": [
-      [
-       804.0,
-       804.0
-      ],
-      [
-       851.8,
-       851.8
-      ],
-      [
-       902.5,
-       902.5
-      ],
-      [
-       956.1,
-       956.1
-      ],
-      [
-       1013.0,
-       1013.0
-      ],
-      [
-       1073.2,
-       1073.2
-      ],
-      [
-       1100.0,
-       1100.0
-      ]
-     ]
-    }
-   ]
+   "frequency": "src.frequency"
   },
   "polyphony": 1
  },

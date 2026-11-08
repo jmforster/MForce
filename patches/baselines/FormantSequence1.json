@@ -2,184 +2,94 @@
   "graph": {
     "nodes": [
       {
-        "id": "FormantSpectrum1__f0",
-        "params": {
-          "frequency": 220.0,
-          "gain": 0.699999988079071,
-          "power": 1.0,
-          "width": 400.0
-        },
-        "type": "Formant"
-      },
-      {
-        "id": "FormantSpectrum1__f1",
-        "params": {
-          "frequency": 850.0,
-          "gain": 1.0,
-          "power": 2.0,
-          "width": 900.0
-        },
-        "type": "Formant"
-      },
-      {
-        "id": "FormantSpectrum1__f2",
-        "params": {
-          "frequency": 1850.0,
-          "gain": 0.6000000238418579,
-          "power": 1.0,
-          "width": 1200.0
-        },
-        "type": "Formant"
-      },
-      {
-        "id": "FormantSpectrum1__f3",
-        "params": {
-          "frequency": 3100.0,
-          "gain": 0.6499999761581421,
-          "power": 1.5,
-          "width": 1000.0
-        },
-        "type": "Formant"
-      },
-      {
         "id": "FormantSpectrum1",
+        "type": "FormantPeaks",
         "params": {
-          "formants": [
-            {
-              "ref": "FormantSpectrum1__f0"
-            },
-            {
-              "ref": "FormantSpectrum1__f1"
-            },
-            {
-              "ref": "FormantSpectrum1__f2"
-            },
-            {
-              "ref": "FormantSpectrum1__f3"
-            }
+          "frequency": [
+            220.0,
+            850.0,
+            1850.0,
+            3100.0
+          ],
+          "gain": [
+            0.699999988079071,
+            1.0,
+            0.6000000238418579,
+            0.6499999761581421
+          ],
+          "width": [
+            400.0,
+            900.0,
+            1200.0,
+            1000.0
+          ],
+          "power": [
+            1.0,
+            2.0,
+            1.0,
+            1.5
           ]
-        },
-        "type": "FormantSpectrum"
-      },
-      {
-        "id": "FormantSpectrum2__f0",
-        "params": {
-          "frequency": 350.0,
-          "gain": 0.699999988079071,
-          "power": 1.0,
-          "width": 400.0
-        },
-        "type": "Formant"
-      },
-      {
-        "id": "FormantSpectrum2__f1",
-        "params": {
-          "frequency": 740.0,
-          "gain": 1.0,
-          "power": 2.0,
-          "width": 900.0
-        },
-        "type": "Formant"
-      },
-      {
-        "id": "FormantSpectrum2__f2",
-        "params": {
-          "frequency": 1590.0,
-          "gain": 0.6000000238418579,
-          "power": 1.0,
-          "width": 1200.0
-        },
-        "type": "Formant"
-      },
-      {
-        "id": "FormantSpectrum2__f3",
-        "params": {
-          "frequency": 2880.0,
-          "gain": 0.6499999761581421,
-          "power": 1.5,
-          "width": 1000.0
-        },
-        "type": "Formant"
+        }
       },
       {
         "id": "FormantSpectrum2",
+        "type": "FormantPeaks",
         "params": {
-          "formants": [
-            {
-              "ref": "FormantSpectrum2__f0"
-            },
-            {
-              "ref": "FormantSpectrum2__f1"
-            },
-            {
-              "ref": "FormantSpectrum2__f2"
-            },
-            {
-              "ref": "FormantSpectrum2__f3"
-            }
+          "frequency": [
+            350.0,
+            740.0,
+            1590.0,
+            2880.0
+          ],
+          "gain": [
+            0.699999988079071,
+            1.0,
+            0.6000000238418579,
+            0.6499999761581421
+          ],
+          "width": [
+            400.0,
+            900.0,
+            1200.0,
+            1000.0
+          ],
+          "power": [
+            1.0,
+            2.0,
+            1.0,
+            1.5
           ]
-        },
-        "type": "FormantSpectrum"
-      },
-      {
-        "id": "FormantSpectrum3__f0",
-        "params": {
-          "frequency": 450.0,
-          "gain": 0.699999988079071,
-          "power": 1.0,
-          "width": 400.0
-        },
-        "type": "Formant"
-      },
-      {
-        "id": "FormantSpectrum3__f1",
-        "params": {
-          "frequency": 810.0,
-          "gain": 1.0,
-          "power": 2.0,
-          "width": 900.0
-        },
-        "type": "Formant"
-      },
-      {
-        "id": "FormantSpectrum3__f2",
-        "params": {
-          "frequency": 1150.0,
-          "gain": 0.6000000238418579,
-          "power": 1.0,
-          "width": 1200.0
-        },
-        "type": "Formant"
-      },
-      {
-        "id": "FormantSpectrum3__f3",
-        "params": {
-          "frequency": 3400.0,
-          "gain": 0.6499999761581421,
-          "power": 1.5,
-          "width": 1000.0
-        },
-        "type": "Formant"
+        }
       },
       {
         "id": "FormantSpectrum3",
+        "type": "FormantPeaks",
         "params": {
-          "formants": [
-            {
-              "ref": "FormantSpectrum3__f0"
-            },
-            {
-              "ref": "FormantSpectrum3__f1"
-            },
-            {
-              "ref": "FormantSpectrum3__f2"
-            },
-            {
-              "ref": "FormantSpectrum3__f3"
-            }
+          "frequency": [
+            450.0,
+            810.0,
+            1150.0,
+            3400.0
+          ],
+          "gain": [
+            0.699999988079071,
+            1.0,
+            0.6000000238418579,
+            0.6499999761581421
+          ],
+          "width": [
+            400.0,
+            900.0,
+            1200.0,
+            1000.0
+          ],
+          "power": [
+            1.0,
+            2.0,
+            1.0,
+            1.5
           ]
-        },
-        "type": "FormantSpectrum"
+        }
       },
       {
         "id": "AREnvelope1",

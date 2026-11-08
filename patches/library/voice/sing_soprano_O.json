@@ -14,75 +14,36 @@
         }
       },
       {
-        "id": "f1",
-        "type": "Formant",
-        "params": {
-          "frequency": 450.0,
-          "gain": 1.0,
-          "width": 560.0,
-          "power": 2.0
-        }
-      },
-      {
-        "id": "f2",
-        "type": "Formant",
-        "params": {
-          "frequency": 800.0,
-          "gain": 0.3548,
-          "width": 640.0,
-          "power": 2.0
-        }
-      },
-      {
-        "id": "f3",
-        "type": "Formant",
-        "params": {
-          "frequency": 2830.0,
-          "gain": 0.1585,
-          "width": 800.0,
-          "power": 2.0
-        }
-      },
-      {
-        "id": "f4",
-        "type": "Formant",
-        "params": {
-          "frequency": 3500.0,
-          "gain": 0.0398,
-          "width": 1040.0,
-          "power": 2.0
-        }
-      },
-      {
-        "id": "f5",
-        "type": "Formant",
-        "params": {
-          "frequency": 4950.0,
-          "gain": 0.0018,
-          "width": 1080.0,
-          "power": 2.0
-        }
-      },
-      {
         "id": "spec",
-        "type": "FormantSpectrum",
+        "type": "FormantPeaks",
         "params": {
-          "formants": [
-            {
-              "ref": "f1"
-            },
-            {
-              "ref": "f2"
-            },
-            {
-              "ref": "f3"
-            },
-            {
-              "ref": "f4"
-            },
-            {
-              "ref": "f5"
-            }
+          "frequency": [
+            450.0,
+            800.0,
+            2830.0,
+            3500.0,
+            4950.0
+          ],
+          "gain": [
+            1.0,
+            0.3548,
+            0.1585,
+            0.0398,
+            0.0018
+          ],
+          "width": [
+            560.0,
+            640.0,
+            800.0,
+            1040.0,
+            1080.0
+          ],
+          "power": [
+            2.0,
+            2.0,
+            2.0,
+            2.0,
+            2.0
           ]
         }
       },

@@ -15,49 +15,28 @@
         }
       },
       {
-        "id": "f1",
-        "type": "Formant",
-        "params": {
-          "frequency": 800,
-          "gain": 1.0,
-          "width": 400,
-          "power": 2.0
-        }
-      },
-      {
-        "id": "f2",
-        "type": "Formant",
-        "params": {
-          "frequency": 2500,
-          "gain": 0.8,
-          "width": 600,
-          "power": 2.0
-        }
-      },
-      {
-        "id": "f3",
-        "type": "Formant",
-        "params": {
-          "frequency": 5000,
-          "gain": 0.5,
-          "width": 800,
-          "power": 3.0
-        }
-      },
-      {
         "id": "spec",
-        "type": "FormantSpectrum",
+        "type": "FormantPeaks",
         "params": {
-          "formants": [
-            {
-              "ref": "f1"
-            },
-            {
-              "ref": "f2"
-            },
-            {
-              "ref": "f3"
-            }
+          "frequency": [
+            800,
+            2500,
+            5000
+          ],
+          "gain": [
+            1.0,
+            0.8,
+            0.5
+          ],
+          "width": [
+            400,
+            600,
+            800
+          ],
+          "power": [
+            2.0,
+            2.0,
+            3.0
           ]
         }
       },
