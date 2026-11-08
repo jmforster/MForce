@@ -7942,6 +7942,15 @@ static void run_driven_part_lifecycle_tests() {
     }
 }
 
+// The 2,000-point log grid from 20 Hz to 20 kHz the formant twins share.
+static std::vector<float> formant_log_grid() {
+    std::vector<float> freqs;
+    const float lo = std::log10(20.0f), hi = std::log10(20000.0f);
+    for (int i = 0; i < 2000; ++i)
+        freqs.push_back(std::pow(10.0f, lo + (hi - lo) * float(i) / 1999.0f));
+    return freqs;
+}
+
 // FormantPeaks against the peak node and the spectrum it replaces: the peak's
 // get_gain (band edges from frequency +/- width/2, the two power ramps) and
 // the spectrum's get_gain (the max over the containing children, 0 when none
@@ -7952,14 +7961,6 @@ static void run_driven_part_lifecycle_tests() {
 // two equal rows, a vowel's five. The old contains() is implied: the gain is
 // compared both as the old spectrum gave it and gated to 0 where the old
 // predicate was false, and the two agree.
-// The 2,000-point log grid from 20 Hz to 20 kHz the formant twins share.
-static std::vector<float> formant_log_grid() {
-    std::vector<float> freqs;
-    const float lo = std::log10(20.0f), hi = std::log10(20000.0f);
-    for (int i = 0; i < 2000; ++i)
-        freqs.push_back(std::pow(10.0f, lo + (hi - lo) * float(i) / 1999.0f));
-    return freqs;
-}
 namespace formant_peaks_twin {
 struct Row { float f, g, w, p; };
 static bool old_peak_contains(const Row& r, float freq) {
@@ -8136,6 +8137,7 @@ static void run_formant_bands_twin_tests() {
         band.next();                                                        // both pins step together
         const float s = sfs[k], d = fis[k];
         const float end = s + d * float(int(gains.size()) - 1);
+        if (k == 4) CHECK(old_get_gain(s, d, gains, end) != 0.0f);         // the inexact increment lands the end inside the last bin, so the end comparison is pinned
         std::vector<float> freqs = formant_log_grid();
         for (float f : {s - d * 0.5f, s - d * 0.01f, std::nextafter(s, 0.0f), s, std::nextafter(s, 1.0e9f),
                         s + d * 0.5f, end - d * 0.5f, std::nextafter(end, 0.0f), end, std::nextafter(end, 1.0e9f),

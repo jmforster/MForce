@@ -30,7 +30,8 @@ table). A peak missing a key takes the Formant's default for it (frequency
 name when a peak is wired (a {"ref"} value, which no row can hold), when a
 peak is referenced by anything else in the document, when an entry is not a
 {"ref"} (the legacy inline form), names a node that is not a Formant or names
-no node at all, or when the spectrum has a param besides "formants". A
+no node at all, when the spectrum has a param besides "formants", or when it
+carries a key besides id, type and params (which the fold would drop). A
 FormantSequence names its spectra by id, which the fold keeps, so it follows.
 
 THE PARAMMAP RULE: an instrument.paramMap entry under the "frequency" key,
