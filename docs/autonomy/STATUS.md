@@ -12,8 +12,20 @@ deleted; `FormantSequence` kept, general; `formant`/`formantWeight`/
 in IDEAS for after the freeze. The word was weighed: a formant is a gain over
 absolute frequency imposed on the source, invariant across fundamentals (the
 filter half), where the partials are the source's spectrum — so "spectrum"
-left the names. NEXT is checkpoint 3.9 (its plan NOT written; Fable-planned,
-Opus 5.5 executors per the 11-06 rule), then Part 4. 3.8 is sealed and
+left the names. The 3.9 PLAN IS WRITTEN at xhigh:
+`docs/superpowers/plans/2026-11-07-part3-checkpoint-3.9.md` — eleven rulings;
+the one design the survey added is `Part : Component` (`core/part.h`), the
+owner-driven part's lifecycle once, with `PartialSet` and `Formant` deriving
+from it (ruling 1); `FormantPeaks` caches its band edges; `FormantBands::gain`
+folds the old `contains` predicate in (ruling 4: the sub-bin below `startFreq`
+is where dropping it would move a render); the consumer's factor is
+`floor + weight × gain` with one listed departure, a negative-zero floor, that
+no in-scope patch can reach (58 floors at 0.0, 3 at 1.0, none wired). Task
+order: Part → FormantPeaks beside the old types → the tool rewrites the tree
+(69 + 3 + 4 files; pending/ originals kept) → the base and the deletions →
+the editor's bridge (~250 lines) → the close with a Fable refuter. EXECUTE
+NEXT SESSION (this one is at three quarters of its context): Fable on Tasks
+1, 2, 4 and the refuter, Opus 5.5 executors on 0, 3, 5 and 6. Then Part 4. 3.8 is sealed and
 PUSHED (`f612316..22bdc4b`); main level with origin at this update.
 GOALS.md stays Matt's uncommitted edit.
 
