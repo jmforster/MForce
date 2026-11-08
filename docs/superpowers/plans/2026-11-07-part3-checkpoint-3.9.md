@@ -422,6 +422,50 @@ is unobservable in scope by construction) → all four renders of a check set (f
 `gates --fast` as before (ctest 5/5, the stamp current, the allocation gate
 PASS, the known wiring diff).
 
+**Task 6 (the close; an Opus 5.5 executor for the measurements, a Fable
+refuter, Fable).** Close A/B over the 132: 132 rendered, 131 identical, 1
+DIFFER — `sing_soprano_E`, new `05ee0f7f…`, the hash `moved_hashes.txt`
+records; the nine synthetics and the nine controls 9/9 identical; allocation
+gate 132 patches 0 allocate. Meter `--delta 857d1b4` (the committed snapshot
+was 3.8's, so the delta is the whole checkpoint): files 221 → 221 (three
+added, three removed), lines 61,947 → 61,855, `files_over_limit` 18,
+`functions_over_limit` 98 → 97, `dynamic_cast` 63 → 64 (the tests +2 on
+`FormantPeaks*`, the editor −1, the engine +0), `const_cast` 10,
+`include_violations` 14, `unmapped_files` 0, `duplicate_blocks` 161 → 159;
+`formant.h` 87 → 20, `partial_set.h` 89 → 48, `tools/mforce_ui/main.cpp`
+14,483 → 14,058; `metrics.json` retaken by `--snapshot`. Timing against
+`cli_pre39.exe`, three rounds: the tool's fixed set 0.98–1.06× on every valid
+row (its `viola_default` row void: the old CLI cannot load the rewritten file
+and `ab_render_time.py` does not check exit codes — a harness note); the
+paired measurement over the originals (old) and the rewritten files (new),
+interleaved, minimum of three: the vowels 0.66–0.83× wall (`sing_alto_A`
+0.83, `sing_bass_A` 0.82, `speech_m_AH` 0.77, `liar1` 0.67,
+`FormantSequence1` 0.66 — no pin read per sample where each peak read four),
+`fadd_band_test` 0.98 and `viola_default` 0.99 (the `FormantBands` path
+unchanged); nothing slower. `gates --fast` as before. REVIEW: a Fable refuter, read-only, 0 Critical, 1 Major, 8 Minor, 7 Flag —
+the two claims hold against the files. The Major: the tool's paramMap fold
+applied to every paramMap key where ruling 12's argument holds for a
+`frequency` curve alone (a `velocity` curve is read along its length); no
+in-scope exposure, fixed in the wave `67e8470` with the velocity test made a
+refusal. The Minors taken in the same wave: the spectrum's stray node-level
+keys refused, `count_refs` over any object carrying a ref, the strip's
+comment, four test comments without ruling numbers, one shared log grid,
+the bands twin's fifth grid with an inexact increment (33.3 Hz: the span's
+end lands at position 6.9999995, inside the last bin). Record-only: the
+menu-created `FormantPeaks` with no rows (decision 12, CLEANUP 45); the
+floor census (three explicit 1.0 across every `AdditiveSource`, two of them
+holding a formant — the Task 0 count was of those holding one); `json.dumps`
+re-rendering a number's text; `peak_count()` test-only; the dead `idx < 0`;
+two more Python readers on the old form (CLEANUP 42); the twins' blind spots
+(the peaks twin cannot see `<` → `<=` at the centre, a deleted `on_prepare`
+cache or the four-array `min`; the sequence twin cannot see either clamp;
+the factor twin never calls the consumer's line — the render set does).
+Re-review: closeable; three record items taken in a second wave `aa6a76a`
+(the fold paragraph's clause, the end pin as a CHECK, the helper moved).
+Proofs after each wave: `engine_tests` ALL PASS 7638, the tool's 33 tests,
+`--check` exit 0, null gate 78/78, `gates --fast` as before; `metrics.json`
+retaken on the sealed tree at the docs commit.
+
 ## Self-review notes
 
 - Task 2 lands `FormantPeaks` beside the old types so the tool (Task 3) can rewrite the tree while both forms load; Task 4 then deletes the old types. The null gate at Task 3 therefore runs the new engine over the new files, and the close A/B runs old-over-old against new-over-new — the two together pin the rewrite and the engine.

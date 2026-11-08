@@ -1,21 +1,6 @@
 {
  "duplicate_blocks": [
   [
-   75,
-   [
-    [
-     "tools/mforce_ui/main.cpp",
-     3009,
-     3083
-    ],
-    [
-     "tools/mforce_ui/main.cpp",
-     3324,
-     3393
-    ]
-   ]
-  ],
-  [
    62,
    [
     [
@@ -27,6 +12,21 @@
      "engine/src/patch_loader.cpp",
      1646,
      1691
+    ]
+   ]
+  ],
+  [
+   47,
+   [
+    [
+     "tools/mforce_ui/main.cpp",
+     2834,
+     2880
+    ],
+    [
+     "tools/mforce_ui/main.cpp",
+     3121,
+     3165
     ]
    ]
   ],
@@ -192,6 +192,21 @@
      "engine/include/mforce/source/wavetable/reed_evolution.h",
      3,
      22
+    ]
+   ]
+  ],
+  [
+   23,
+   [
+    [
+     "tools/test_figures/main.cpp",
+     158,
+     180
+    ],
+    [
+     "tools/test_figures/main.cpp",
+     716,
+     738
     ]
    ]
   ],
@@ -399,29 +414,14 @@
    18,
    [
     [
-     "engine/include/mforce/source/additive/composite_partials.h",
-     14,
-     31
-    ],
-    [
-     "engine/include/mforce/source/additive/formant_spectrum.h",
-     15,
-     31
-    ]
-   ]
-  ],
-  [
-   18,
-   [
-    [
      "engine/src/patch_loader.cpp",
      584,
      601
     ],
     [
      "tools/mforce_ui/main.cpp",
-     1314,
-     1329
+     1257,
+     1272
     ]
    ]
   ],
@@ -430,13 +430,13 @@
    [
     [
      "tools/mforce_ui/main.cpp",
-     12025,
-     12042
+     11686,
+     11703
     ],
     [
      "tools/mforce_ui/main.cpp",
-     12247,
-     12264
+     11822,
+     11839
     ]
    ]
   ],
@@ -515,13 +515,13 @@
    [
     [
      "tools/engine_tests/main.cpp",
-     4504,
-     4519
+     4496,
+     4511
     ],
     [
      "tools/engine_tests/main.cpp",
-     4798,
-     4813
+     4790,
+     4805
     ]
    ]
   ],
@@ -595,13 +595,13 @@
    [
     [
      "tools/mforce_ui/main.cpp",
-     11843,
-     11857
+     11504,
+     11518
     ],
     [
      "tools/mforce_ui/main.cpp",
-     12043,
-     12057
+     11704,
+     11718
     ]
    ]
   ],
@@ -675,28 +675,13 @@
    [
     [
      "tools/mforce_ui/main.cpp",
-     2993,
-     3006
+     11505,
+     11518
     ],
     [
      "tools/mforce_ui/main.cpp",
-     3314,
-     3326
-    ]
-   ]
-  ],
-  [
-   14,
-   [
-    [
-     "tools/mforce_ui/main.cpp",
-     11844,
-     11857
-    ],
-    [
-     "tools/mforce_ui/main.cpp",
-     12044,
-     12057
+     11705,
+     11718
     ]
    ]
   ],
@@ -890,13 +875,13 @@
    [
     [
      "tools/mforce_ui/main.cpp",
-     12598,
-     12609
+     12173,
+     12184
     ],
     [
      "tools/mforce_ui/main.cpp",
-     12660,
-     12670
+     12235,
+     12245
     ]
    ]
   ],
@@ -1085,18 +1070,18 @@
    [
     [
      "tools/engine_tests/main.cpp",
-     4506,
-     4516
+     4498,
+     4508
     ],
     [
      "tools/engine_tests/main.cpp",
-     4800,
-     4810
+     4792,
+     4802
     ],
     [
      "tools/engine_tests/main.cpp",
-     5305,
-     5315
+     5297,
+     5307
     ]
    ]
   ],
@@ -1105,13 +1090,28 @@
    [
     [
      "tools/mforce_ui/main.cpp",
-     2914,
-     2924
+     2739,
+     2749
     ],
     [
      "tools/mforce_ui/main.cpp",
-     3282,
-     3291
+     3079,
+     3088
+    ]
+   ]
+  ],
+  [
+   11,
+   [
+    [
+     "tools/mforce_ui/main.cpp",
+     2818,
+     2828
+    ],
+    [
+     "tools/mforce_ui/main.cpp",
+     3111,
+     3121
     ]
    ]
   ]
@@ -1177,6 +1177,21 @@
     "SettingType",
     "SettingDescriptor",
     "ArrayDescriptor"
+   ]
+  },
+  "engine/include/mforce/core/driven_part.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 57,
+   "longest_function": [
+    11,
+    "mforce::DrivenPart::prepare"
+   ],
+   "module": "core",
+   "mutable_vars": 0,
+   "types": [
+    "DrivenPart"
    ]
   },
   "engine/include/mforce/core/dsp/biquad.h": {
@@ -2617,21 +2632,6 @@
     "AdditiveSource"
    ]
   },
-  "engine/include/mforce/source/additive/band_spectrum.h": {
-   "changelog_comments": 0,
-   "const_cast": 0,
-   "dynamic_cast": 0,
-   "lines": 59,
-   "longest_function": [
-    12,
-    "mforce::BandSpectrum::get_gain"
-   ],
-   "module": "source",
-   "mutable_vars": 0,
-   "types": [
-    "BandSpectrum"
-   ]
-  },
   "engine/include/mforce/source/additive/bandwidth_noise.h": {
    "changelog_comments": 0,
    "const_cast": 0,
@@ -2737,65 +2737,64 @@
     "ExplicitPartials"
    ]
   },
-  "engine/include/mforce/source/additive/fixed_spectrum.h": {
-   "changelog_comments": 0,
-   "const_cast": 0,
-   "dynamic_cast": 0,
-   "lines": 36,
-   "longest_function": [
-    6,
-    "mforce::FixedSpectrum::get_gain"
-   ],
-   "module": "source",
-   "mutable_vars": 0,
-   "types": [
-    "FixedSpectrum"
-   ]
-  },
   "engine/include/mforce/source/additive/formant.h": {
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 87,
+   "lines": 20,
    "longest_function": [
-    9,
-    "mforce::Formant::next"
+    0,
+    ""
    ],
    "module": "source",
    "mutable_vars": 0,
    "types": [
-    "IFormant",
     "Formant"
+   ]
+  },
+  "engine/include/mforce/source/additive/formant_bands.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 39,
+   "longest_function": [
+    16,
+    "mforce::FormantBands::gain"
+   ],
+   "module": "source",
+   "mutable_vars": 0,
+   "types": [
+    "FormantBands"
+   ]
+  },
+  "engine/include/mforce/source/additive/formant_peaks.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 75,
+   "longest_function": [
+    12,
+    "mforce::FormantPeaks::cache_edges"
+   ],
+   "module": "source",
+   "mutable_vars": 0,
+   "types": [
+    "FormantPeaks"
    ]
   },
   "engine/include/mforce/source/additive/formant_sequence.h": {
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 73,
+   "lines": 62,
    "longest_function": [
     11,
-    "mforce::FormantSequence::next"
+    "mforce::FormantSequence::gain"
    ],
    "module": "source",
    "mutable_vars": 0,
    "types": [
     "FormantSequence"
-   ]
-  },
-  "engine/include/mforce/source/additive/formant_spectrum.h": {
-   "changelog_comments": 0,
-   "const_cast": 0,
-   "dynamic_cast": 0,
-   "lines": 48,
-   "longest_function": [
-    7,
-    "mforce::FormantSpectrum::get_gain"
-   ],
-   "module": "source",
-   "mutable_vars": 0,
-   "types": [
-    "FormantSpectrum"
    ]
   },
   "engine/include/mforce/source/additive/full_partials.h": {
@@ -2862,7 +2861,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 89,
+   "lines": 48,
    "longest_function": [
     12,
     "mforce::PartialSet::sum_partials"
@@ -2877,9 +2876,9 @@
    "changelog_comments": 0,
    "const_cast": 1,
    "dynamic_cast": 0,
-   "lines": 561,
+   "lines": 558,
    "longest_function": [
-    134,
+    131,
     "mforce::Partials::partial_value_impl"
    ],
    "module": "source",
@@ -4070,7 +4069,7 @@
    "dynamic_cast": 0,
    "lines": 621,
    "longest_function": [
-    531,
+    532,
     "mforce::register_all_sources"
    ],
    "module": "source",
@@ -4107,7 +4106,7 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 135,
+   "lines": 141,
    "longest_function": [
     22,
     "mforce::derived_label"
@@ -4290,8 +4289,8 @@
   "tools/engine_tests/main.cpp": {
    "changelog_comments": 4,
    "const_cast": 0,
-   "dynamic_cast": 20,
-   "lines": 8387,
+   "dynamic_cast": 22,
+   "lines": 8808,
    "longest_function": [
     272,
     "run_walk3_tests"
@@ -4322,6 +4321,9 @@
     "Plug",
     "W",
     "OrderProbe",
+    "TwoPinPart",
+    "Row",
+    "StepSource",
     "ReseedProbe",
     "FamilyRow",
     "MenuRow"
@@ -4385,10 +4387,10 @@
    "types": []
   },
   "tools/mforce_ui/main.cpp": {
-   "changelog_comments": 124,
+   "changelog_comments": 123,
    "const_cast": 0,
-   "dynamic_cast": 22,
-   "lines": 14483,
+   "dynamic_cast": 21,
+   "lines": 14058,
    "longest_function": [
     1738,
     "main"
@@ -4399,7 +4401,6 @@
     "GraphMode",
     "UiPinKind",
     "Pin",
-    "FormantRow",
     "GraphNode",
     "Link",
     "NodeGroup",
@@ -4703,16 +4704,16 @@
   }
  ],
  "summary": {
-  "changelog_comments": 242,
+  "changelog_comments": 241,
   "const_cast": 10,
-  "duplicate_blocks": 161,
-  "dynamic_cast": 63,
+  "duplicate_blocks": 158,
+  "dynamic_cast": 64,
   "file_level_mutable_vars": 120,
   "files": 221,
   "files_over_limit": 18,
-  "functions_over_limit": 98,
+  "functions_over_limit": 97,
   "include_violations": 14,
-  "lines": 61947,
+  "lines": 61855,
   "unmapped_files": 0
  }
 }

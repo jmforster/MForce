@@ -19,6 +19,33 @@ given.
 
 ## Awaiting
 
+**R15 — checkpoint 3.9: the formant family** (2026-11-07, commits
+`6e43ca8`..`f94695b`). One render for your ears, by your own decision; nothing
+else to decide under the 11-02 rule.
+- Read: `docs/autonomy/refactor/reports/2026-11-07-checkpoint-3.9.md`
+  (fifteen minutes; section 1 — the one render that moved and the capability
+  that left the library with it, the editor-visible changes; section 2 — the
+  design: `DrivenPart`, `Formant` with one verb, the three leaves, the fold;
+  section 6 — the session's decisions, the plan's four holes among them;
+  section 8 — the review; section 10 — the C++ lessons).
+- Listen: `renders/scratch/ab39/review/old/sing_soprano_E.wav` (the pre-3.9
+  CLI over the unrewritten file: F1 following the 440 Hz note above its 350 Hz
+  knee) against `renders/scratch/ab39/review/new/sing_soprano_E.wav` (the
+  close build over the rewritten file: F1 at 350 Hz). This is the one in-scope
+  render 3.9 moved — your "2" on 2026-11-07, rows only. The other seven
+  paramMap-driven vowels (`sing_alto_A`, `sing_alto_U`, `sing_bass_U`,
+  `sing_soprano_A`, `sing_tenor_O`, `sing_tenor_U`, `speech_w_AW`) and the two
+  `sweep/vowel_pitch_control/` files lost the same capability without a render
+  moving (they sing below their knees). IDEAS holds the way back (spectrum-wide
+  offset/scale pins on `FormantPeaks`). A verdict decides: does the soprano E
+  stay in the library as it now renders, or is pitch-following wanted back
+  before Part 4 (then IDEAS' entry becomes a backlog row)?
+- Try: `python tools/null_gate_perform_source.py --jobs 3` (78/78); open
+  `patches/library/voice/sing_alto_A.json` in the editor: one `FormantPeaks`
+  node, its five rows in the grouped table; drag a row's frequency and watch
+  the strip; the Additive menu reads Formant Peaks / Formant Bands / Formant
+  Sequence.
+
 **R14 — checkpoint 3.8: `Partials` split by responsibility** (2026-11-06,
 commits `2dfabe2`..`e27f7ad`) — Part 3 complete. One render for your ears
 and one non-blocking interface question.

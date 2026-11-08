@@ -1,5 +1,48 @@
 # Status — session handoff (Claude reads this first; Matt's queue = */REVIEW.md)
 
+Updated: 2026-11-07, evening (refactor session XI, Fable 5.1 xhigh, a side
+session of X).
+NEXT SESSION STARTS HERE: checkpoint 3.9 LANDED on main (`6e43ca8`..
+`f94695b`, the fix waves `67e8470` and `aa6a76a`, plus the docs commit; report
+R15 `docs/autonomy/refactor/reports/2026-11-07-checkpoint-3.9.md`) — the
+formant family, the formant half of CLEANUP 17, as Part 3 §11 decided it
+with Matt: `Formant : DrivenPart` with one verb `gain(freq)`; `FormantPeaks`
+(four `Array` rows, edges cached), `FormantBands` (the old predicate folded
+into `gain`), `FormantSequence` (any `Formant`); `FormantSpectrum`,
+`FixedSpectrum`, the peak node, `IFormant`, `contains()` gone; 77 → 75
+registrations; the tool's file-level fold rewrote 91 nodes in 81 files (63
+tracked); the editor lost 444 lines of bridge. THE ONE THING FOR MATT'S EARS
+(REVIEW R15): `sing_soprano_E` moved, by Matt's own "2" on 2026-11-07 — eight
+library vowels and two sweep files drove F1 through a paramMap curve from f0
+(the 11-07 survey counted only `{"ref"}` wiring and missed it); rows cannot
+hold a driven pin; the curve clamps at its first knot and seven sing below
+the knee (byte-identical), the soprano E above it. The way back is in IDEAS
+(spectrum-wide offset/scale pins on `FormantPeaks`). FOUR PLAN HOLES the
+execution closed, recorded in the Ledger and report §6: the base's name
+(`Part` is the music model's → `DrivenPart`); the `BandSpectrum` rename moved
+forward into Task 3 so the rewritten tree loads; the editor's bridge deletion
+(Task 5a) ran BEFORE Task 4 so every commit builds; `FormantPeaks`' `gain` pin
+member vs the verb → `peakGain`. PROOFS: null gate 78/78 after every task;
+close A/B 131 of 132 identical, the one DIFFER the listed departure; nine
+synthetics and controls 9/9; four twins, six mutations watched; allocation
+gate 0; vowels 0.66–0.83× wall (no pin read per sample); meter engine
+`dynamic_cast` +0, lines −92. REVIEW: a Fable refuter, 0 Critical, 1 Major
+(the fold applied to every paramMap key; fixed: `frequency` only), 8 Minor,
+7 Flag; re-review closeable. EXECUTION: Fable coordinating with Opus 5.5
+executors on Tasks 0, 3, 5a and 6; the Fable weekly window at about 21
+percent after the review. NEXT is Part 4 (patch): its architecture document
+is NOT written (target architecture section 8 names it; the BACKLOG row says
+max). HARNESS NOTES: survey a pin's wiring in BOTH forms (`params` refs and
+`instrument.paramMap` targets); grep the namespace before naming a type;
+`ab_render_time.py` does not check exit codes (a patch the old arm cannot
+load shows as a 0.02× speed-up); two concurrent `cmake --build`s collide on
+the UI's PDB; `lint_patches.py` scrapes string literals out of configurator
+code as loader keys (write a check over the node's descriptors instead).
+GIT: main is ahead of origin and UNPUSHED (ask Matt at close-out per the
+standing rule). GOALS.md stays Matt's uncommitted edit.
+
+---
+
 Updated: 2026-11-07 (refactor session X continued, Fable 5.1 xhigh).
 NEXT SESSION STARTS HERE: the FORMANT FAMILY is decided with Matt (Part 3
 §11, the formant half of CLEANUP 17): `Formant` the abstract base in

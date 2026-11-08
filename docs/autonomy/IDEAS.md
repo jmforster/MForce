@@ -32,6 +32,25 @@ axis: log frequency, or a linear 0–20 kHz curve spends the editor on the top
 octaves. With offset/scale pins it would subsume `FormantBands`. New node —
 after the freeze.
 
+**Spectrum-wide offset and scale pins on `FormantPeaks` (3.9, 2026-11-07;
+Part 3 §11 named them a later addition).** Checkpoint 3.9 folded every vowel's
+peaks into rows, and ten files (eight library vowels and the two
+`sweep/vowel_pitch_control/` files) lost the one driven peak they had: F1
+following f0 above a knee through a paramMap curve, the singer's formant
+tuning. Matt chose rows only (ruling 12). The way back for all the peaks at
+once: two Manual Params on `FormantPeaks`, `offset` (Hz added to every row's
+centre) and `scale` (a factor on every centre, 1 = as written), read per
+sample like `FormantBands`' grid pins, with the edges re-derived from them;
+a `CurveNode` over the voice's frequency into `scale` restores the tuning
+for the whole set, and a per-row choice (which peaks follow) is a third pin
+or a second node. Known issue: the old curve moved F1 alone; a spectrum-wide
+scale moves F2–F5 too, which may be the better vowel or a different one — the
+`vowel_pitch_control` sweep is the test. Decides: whether pitch-following
+peaks are wanted at all (nothing in the library sang above the knee), and
+whether per-peak following needs to come back as a node that is a `Formant`
+(`FormantPeak`, one peak, four pins) rather than as pins on the rows. After
+the freeze.
+
 - ~~**DampedDelayLine — fused delay + damping + internal pitch
   compensation**~~ — RESOLVED 2026-09-01, and NOT as a fused node: Matt
   pushed back on baking a lowpass into the delay ("I'd rather find

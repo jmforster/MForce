@@ -376,12 +376,13 @@ None of these changes a sample. The allocation test is what proves it.
 | 3.6 | One type per file | none — landed 2026-11-05 (`ed04dda`..`5c4c5db`, report R13): the six multi-type headers split one-per-type, `noise_sources.h`/`filters.h` deleted, the shaped draw a twin-tested helper, the six family `.cpp` under `src/source/<family>/`; 0 of 132 renders moved; CLEAN review; `duplicate_blocks` +17 accepted as scaffolding (CLEANUP 31, the Butterworth base CLEANUP 32) |
 | 3.7 | The real-time fixes | none — closed 2026-11-06 without a checkpoint: every item of section 9 had landed at 2.6 and 3.4, the allocation gate was already 0 of 132 and `engine_tests` covered each node; the live-edit class booked to Part 7 (CLEANUP 33), the gate's blind spots CLEANUP 34 |
 | 3.8 | `Partials` split by responsibility | none — landed 2026-11-06 (`2dfabe2`..`e27f7ad`, report R14): 0 of 131 renders moved; the one `AdditiveSource2` baseline retired by deletion and re-authored (its render new, REVIEW R14); `PartialSet` the part base, six layers and a layout composed by `Partials`, one type per file, the two sources deleted; the review 0 Critical, 0 Major, 10 Minor, 11 Flag — the Minors fixed in the wave, re-review closeable. PART 3 COMPLETE |
-| 3.9 | The formant family (section 11): `Formant` the base, `FormantPeaks` rows, `FormantBands`, `FixedSpectrum` deleted, `FormantSequence` general, `contains()` gone | none; the in-scope files rewritten by the tool (added 2026-11-07) |
+| 3.9 | The formant family (section 11): `Formant` the base, `FormantPeaks` rows, `FormantBands`, `FixedSpectrum` deleted, `FormantSequence` general, `contains()` gone | one — landed 2026-11-07 (`6e43ca8`..`f94695b`, report R15): `sing_soprano_E` moved by Matt's decision (its first peak followed f0 above a knee through a paramMap curve; the peaks are rows, the curve is gone), the other 131 of 132 byte-identical; the lifecycle once in `DrivenPart`; 91 nodes in 81 files rewritten by the tool; the editor's bridge gone |
 
 ## 11. The formant family
 
 **Decided with Matt 2026-11-07**, after 3.8, as the formant half of CLEANUP 17;
-it lands as checkpoint 3.9. The word first: a formant is a gain over
+**landed the same day as checkpoint 3.9** (`6e43ca8`..`f94695b`, report R15):
+one render in scope moved, by Matt's decision (the driven peak, below). The word first: a formant is a gain over
 *absolute* frequency imposed on the source and invariant across fundamentals —
 the filter half of the source-filter pair, where the `Partials` are the source's
 spectrum and move with the pitch. "Spectrum" therefore leaves these type names
@@ -420,3 +421,37 @@ stays as the family word.
   refuses the old names with the hint (`Formant` as a *node* type is retired —
   the base is abstract and unregistered). Byte-identity over the 48 vowels and
   the rest of scope is the proof, as at 3.5 and 3.8.
+
+
+**Landed 2026-11-07** (`6e43ca8`..`f94695b`; plan
+`docs/superpowers/plans/2026-11-07-part3-checkpoint-3.9.md`, report R15). As
+decided, with one base the survey added and one departure Matt chose:
+
+- The lifecycle the two part bases share lives once in **`DrivenPart`**
+  (`core/driven_part.h`): prepare and start over every pin, next over the
+  Param pins listed at prepare, then the hooks. `PartialSet` and `Formant`
+  derive from it. The plan called it `Part`; `mforce::Part` is the music
+  model's part, so the plan's alternative stood.
+- **`Formant : DrivenPart`** with the one verb `gain(freq)`; `FormantPeaks`
+  (four `Array` rows, the band edges cached at prepare and on an array
+  change, the peak's ramps and the max verbatim), `FormantBands` (the old
+  `contains` predicate folded into `gain`: the one implementer whose table
+  alone was not 0 in the bin below `startFreq`), `FormantSequence` (any
+  `Formant`, a sequence included); `FormantSpectrum`, `FixedSpectrum`, the
+  peak node, `IFormant` and `contains()` gone; 77 → 75 registrations.
+- **The consumer's factor is `floor + weight × gain`** everywhere; the one
+  arithmetic departure (a negative-zero floor out of band) is unreachable in
+  scope (every floor a constant) and counted by a twin.
+- **The driven peak.** The survey counted a peak's pin as wired only when the
+  JSON value was a `{"ref"}`; eight library vowels and two sweep files drove
+  the first peak's `frequency` through the instrument paramMap (a curve from
+  the voice's frequency, clamped at its first knot: F1 following f0 above the
+  knee). Rows cannot hold a driven pin. Matt chose rows only (plan ruling 12):
+  the tool writes the peak's constant as the row and removes the curve; seven
+  of the eight sing below the knee and are byte-identical, `sing_soprano_E`
+  moves (REVIEW R15), and the capability's way back — spectrum-wide offset
+  and scale pins on `FormantPeaks` — is in IDEAS for after the freeze.
+- **The tree**: 91 nodes in 81 files rewritten by `migrate_deleted_types.py`'s
+  new file-level fold (63 tracked); `old/` left to fail by name with the hint.
+- **The editor** lost its node-to-row bridge (444 lines): a vowel is one node
+  in the generic grouped table; the strip draws one curve from the live node.
