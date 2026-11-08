@@ -376,3 +376,47 @@ None of these changes a sample. The allocation test is what proves it.
 | 3.6 | One type per file | none — landed 2026-11-05 (`ed04dda`..`5c4c5db`, report R13): the six multi-type headers split one-per-type, `noise_sources.h`/`filters.h` deleted, the shaped draw a twin-tested helper, the six family `.cpp` under `src/source/<family>/`; 0 of 132 renders moved; CLEAN review; `duplicate_blocks` +17 accepted as scaffolding (CLEANUP 31, the Butterworth base CLEANUP 32) |
 | 3.7 | The real-time fixes | none — closed 2026-11-06 without a checkpoint: every item of section 9 had landed at 2.6 and 3.4, the allocation gate was already 0 of 132 and `engine_tests` covered each node; the live-edit class booked to Part 7 (CLEANUP 33), the gate's blind spots CLEANUP 34 |
 | 3.8 | `Partials` split by responsibility | none — landed 2026-11-06 (`2dfabe2`..`e27f7ad`, report R14): 0 of 131 renders moved; the one `AdditiveSource2` baseline retired by deletion and re-authored (its render new, REVIEW R14); `PartialSet` the part base, six layers and a layout composed by `Partials`, one type per file, the two sources deleted; the review 0 Critical, 0 Major, 10 Minor, 11 Flag — the Minors fixed in the wave, re-review closeable. PART 3 COMPLETE |
+| 3.9 | The formant family (section 11): `Formant` the base, `FormantPeaks` rows, `FormantBands`, `FixedSpectrum` deleted, `FormantSequence` general, `contains()` gone | none; the in-scope files rewritten by the tool (added 2026-11-07) |
+
+## 11. The formant family
+
+**Decided with Matt 2026-11-07**, after 3.8, as the formant half of CLEANUP 17;
+it lands as checkpoint 3.9. The word first: a formant is a gain over
+*absolute* frequency imposed on the source and invariant across fundamentals —
+the filter half of the source-filter pair, where the `Partials` are the source's
+spectrum and move with the pitch. "Spectrum" therefore leaves these type names
+(it says content, which is what the partials already are), and "formant"
+stays as the family word.
+
+- **`Formant` is the abstract base**, in `PartialSet`'s shape: an abstract
+  `Component` that owns the pin lifecycle (prepare and start over every pin,
+  next over every Param pin, then the hooks), with one work verb,
+  `gain(freq)`. `IFormant` goes. `contains()` goes: every implementer's gain is
+  already 0 where `contains` was false, and the consumer's
+  `floor + weight × gain` is then `floor` to the bit, so the verb was never
+  more than a second way of saying the same thing.
+- **`FormantPeaks`** replaces `FormantSpectrum` and the per-peak `Formant`
+  node together. The peaks are rows — four `Array` pins `frequency`, `gain`,
+  `width`, `power` grouped as one table, as `ExplicitPartials` groups its
+  four — with the per-peak math and the max-over-containing-peaks rule
+  verbatim. The editor's bridge that consumed child `Formant` nodes into a row
+  table, refused their conversion and re-emitted them on save goes with the
+  child nodes; a vowel patch is one node. The per-peak pins go with them (no
+  patch in scope wires one; 335 peaks in 60 files); spectrum-wide offset and
+  scale pins are a later addition if wanted.
+- **`FormantBands`** is today's `BandSpectrum`, as is. Its grid pins are read
+  at audio rate; the sweep of that is in IDEAS (after the freeze).
+- **`FixedSpectrum` is deleted** (no patch anywhere; a 1 Hz integer table was
+  the wrong primitive).
+- **`FormantSequence` keeps its name** and is general: its slot takes any
+  `Formant` (it already did by type; only the hint and the docs said
+  `FormantSpectrum`).
+- **The slot `formant` and the knobs `formantWeight` and `formantFloor` keep
+  their names** — no patch key changes for them.
+- **Later, after the freeze: `FormantCurve`** — a gain curve over log
+  frequency, edited as the Junction shaper's curve is (IDEAS).
+- **Migration:** a tool rewrites each `FormantSpectrum` and its `Formant`s into
+  one `FormantPeaks` and renames `BandSpectrum` → `FormantBands`; the loader
+  refuses the old names with the hint (`Formant` as a *node* type is retired —
+  the base is abstract and unregistered). Byte-identity over the 48 vowels and
+  the rest of scope is the proof, as at 3.5 and 3.8.

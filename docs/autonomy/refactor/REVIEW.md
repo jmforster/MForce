@@ -48,6 +48,8 @@ and one non-blocking interface question.
   CLEANUP 17 moves (`Formant` is taken by the concrete peak; the
   candidates are `FormantShape` or a spectrum-flavoured name) — the
   convention itself is recorded in ruling 2 and needs no verdict.
+  RESOLVED 2026-11-07 in session: Part 3 §11 — `Formant` the base,
+  `FormantPeaks` rows, `FormantBands`, `FormantSequence`; checkpoint 3.9.
 
 **R13 — checkpoint 3.6: one type per file** (2026-11-05, commits
 `ed04dda`..`5c4c5db`) — nothing to decide. A move-only checkpoint: the six

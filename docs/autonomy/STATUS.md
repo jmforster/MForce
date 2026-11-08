@@ -1,5 +1,24 @@
 # Status — session handoff (Claude reads this first; Matt's queue = */REVIEW.md)
 
+Updated: 2026-11-07 (refactor session X continued, Fable 5.1 xhigh).
+NEXT SESSION STARTS HERE: the FORMANT FAMILY is decided with Matt (Part 3
+§11, the formant half of CLEANUP 17): `Formant` the abstract base in
+`PartialSet`'s shape with one verb `gain(freq)`, `contains()` and `IFormant`
+gone; `FormantPeaks` (today's `FormantSpectrum` + its `Formant` nodes, the
+peaks as four `Array` rows, the max rule verbatim; the editor's node-to-row
+bridge goes); `FormantBands` (today's `BandSpectrum`); `FixedSpectrum`
+deleted; `FormantSequence` kept, general; `formant`/`formantWeight`/
+`formantFloor` keep their names; `FormantCurve` and the band-grid sweep are
+in IDEAS for after the freeze. The word was weighed: a formant is a gain over
+absolute frequency imposed on the source, invariant across fundamentals (the
+filter half), where the partials are the source's spectrum — so "spectrum"
+left the names. NEXT is checkpoint 3.9 (its plan NOT written; Fable-planned,
+Opus 5.5 executors per the 11-06 rule), then Part 4. 3.8 is sealed and
+PUSHED (`f612316..22bdc4b`); main level with origin at this update.
+GOALS.md stays Matt's uncommitted edit.
+
+---
+
 Updated: 2026-11-06, later the same day (refactor session X, Fable 5.1 xhigh).
 NEXT SESSION STARTS HERE: checkpoint 3.8 LANDED on main (`2dfabe2`..`e27f7ad`,
 the fix waves `b254b5c` and `268fb0a`, plus the docs commit; report R14 `docs/autonomy/refactor/reports/

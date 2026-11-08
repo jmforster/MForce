@@ -11,6 +11,27 @@ might not decide to do it.")
 
 ## dsp
 
+**Sweep: a spectrum's grid modulated at audio rate (Matt, 2026-11-07,
+during the 3.8 formant/spectrum discussion).** `BandSpectrum`'s `startFreq`
+and `freqIncrement` are Params re-read every sample, so the whole gain table
+can slide and stretch under an envelope or LFO (keytracked spectral envelope,
+a formant glide); nothing in scope wires them (fadd_band_test holds them
+constant). Sketch: one AdditiveSource over a BandSpectrum of 16-32 bins,
+startFreq and freqIncrement each driven by an Envelope, a RedNoise LFO and a
+keytrack curve in turn; listen for whether the moving grid reads as a
+resonance moving or as zipper noise (the table interpolates between bins but
+the grid position is not smoothed). Decides: whether a future CurveSpectrum
+needs offset/scale pins of its own (then BandSpectrum folds into it) or the
+grid modulation is the reason BandSpectrum stays. After the freeze.
+
+**`FormantCurve` (Matt, 2026-11-07, Part 3 §11).** A formant shape as a gain
+curve over frequency, edited as the Junction shaper's curve is (the knots
+and expression modes of `CurveNode`), standing beside `FormantPeaks` and
+`FormantBands` under the `Formant` base. The one design question is the x
+axis: log frequency, or a linear 0–20 kHz curve spends the editor on the top
+octaves. With offset/scale pins it would subsume `FormantBands`. New node —
+after the freeze.
+
 - ~~**DampedDelayLine — fused delay + damping + internal pitch
   compensation**~~ — RESOLVED 2026-09-01, and NOT as a fused node: Matt
   pushed back on baking a lowpass into the delay ("I'd rather find
