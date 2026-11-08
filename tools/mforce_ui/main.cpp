@@ -207,17 +207,6 @@ static constexpr int AUDIO_SAMPLE_RATE = 48000;
 static mforce::SampleClock g_editorClock;
 static mforce::RenderContext g_renderContext{AUDIO_SAMPLE_RATE, &g_editorClock};
 
-// Row data for inline formant table (FormantSpectrum node)
-struct FormantRow {
-    float frequency{1000.0f}, gain{1.0f}, width{500.0f}, power{2.0f};
-    // Original JSON id of the consumed Formant child ("f1"). Save re-emits
-    // the child under this id — paramMap curves target formants by id
-    // (vowel patches: "f1.frequency"), so synthesizing "<spec>__fN" names
-    // orphaned those mappings and made the saved patch unrenderable
-    // (backlog 3n, node:f1 species). Empty = UI-created row, gets __fN.
-    std::string srcId;
-};
-
 static std::string unique_node_label(const std::string& typeName);
 
 struct GraphNode {
@@ -240,9 +229,6 @@ struct GraphNode {
     // Preserves descriptor order; inspector groups consecutive entries with
     // the same groupName into a parallel-columns table.
     std::vector<std::pair<ArrayDescriptor, std::vector<float>>> arrayValues;
-
-    // Inline table data (FormantSpectrum)
-    std::vector<FormantRow> formantRows;
 
     // PatchOutput-specific
     int polyphony{4};
@@ -419,22 +405,6 @@ struct GraphNode {
             return;
         }
 
-        // FormantSpectrum: inline table of formant rows
-        if (typeName == "FormantSpectrum") {
-            dspSource = std::make_shared<FormantSpectrum>();
-            if (formantRows.empty()) {
-                // Default: classic vowel-like formant set
-                formantRows = {
-                    {220.0f, 0.7f, 400.0f, 1.0f},
-                    {850.0f, 1.0f, 900.0f, 2.0f},
-                    {1850.0f, 0.6f, 1200.0f, 1.0f},
-                    {3100.0f, 0.65f, 1000.0f, 1.5f},
-                };
-            }
-            rebuild_formant_spectrum();
-            return;
-        }
-
         // Generic: create via registry, wire all pin defaults
         auto& reg = SourceRegistry::instance();
         if (!reg.has(typeName)) return;
@@ -488,21 +458,6 @@ struct GraphNode {
                 dspSource->set_array(name, v);
                 return;
             }
-        }
-    }
-
-    // Rebuild FormantSpectrum DSP from inline table rows
-    void rebuild_formant_spectrum() {
-        auto spec = std::dynamic_pointer_cast<FormantSpectrum>(dspSource);
-        if (!spec) return;
-        spec->clear_param("formants");
-        for (auto& row : formantRows) {
-            auto f = std::make_shared<Formant>();
-            f->frequency.set(std::make_shared<ConstantSource>(row.frequency));
-            f->gain.set(std::make_shared<ConstantSource>(row.gain));
-            f->width.set(std::make_shared<ConstantSource>(row.width));
-            f->power.set(std::make_shared<ConstantSource>(row.power));
-            spec->add_param("formants", f);
         }
     }
 
@@ -590,8 +545,6 @@ struct GraphNode {
 
         auto tmp = reg.create(typeName);
         for (const auto& desc : tmp->input_descriptors()) {
-            // A FormantSpectrum's formants are its inline table, not a face pin.
-            if (typeName == "FormantSpectrum" && std::string_view(desc.name) == "formants") continue;
             inputs.emplace_back(desc.name, UiPinKind::Input, 0.0f, true, desc.multi, desc.hint);
         }
         for (const auto& desc : tmp->param_descriptors())
@@ -707,16 +660,10 @@ static bool s_headless = false;
 // convertible entry into real PerformNode/CurveNode/CombinedSource nodes, and
 // the curve editors and Mappings dialog derive from the graph, not from here.
 //
-// What is left, and why: a paramMap target pointing INTO a Formant child owned
-// by a FormantSpectrum. The UI consumes those children into the spectrum's row
-// table, and a row holds literal floats — it cannot represent a driven param.
-// Writing a ref into one makes the pre-scan stop consuming it, so the spectrum
-// re-emits synthesized rows and orphans the originals. Those entries stay here
-// and keep working exactly as they always have.
-//
-// So this is expected to be EMPTY for most patches and small for the rest.
-// If it is ever empty for all of them, it can go — that needs the formant row
-// model to carry driven params. Reset on new/clear/load.
+// What is left: entries convert_parammap_to_wiring keeps — a name other than
+// "frequency", an entry with no target, or a target naming no node. Those
+// entries stay here and keep working exactly as they always have. Reset on
+// new/clear/load.
 static nlohmann::json s_loadedParamMap = nlohmann::json::object();
 
 // Verbatim "score" array and "seconds" value from the loaded patch JSON.
@@ -858,7 +805,7 @@ static const char* pin_type_compat_error(const std::string& targetType,
                                          const std::string& targetPin,
                                          const std::string& sourceType) {
     auto is_iformant = [](const std::string& t) {
-        return t == "Formant" || t == "FormantSpectrum" ||
+        return t == "FormantPeaks" || t == "Formant" || t == "FormantSpectrum" ||
                t == "FixedSpectrum" || t == "FormantBands" ||
                t == "FormantSequence";
     };
@@ -873,7 +820,7 @@ static const char* pin_type_compat_error(const std::string& targetType,
         (targetType == "FormantSequence" && targetPin == "spectra") ||
         (targetType == "AdditiveSource" && targetPin == "formant");
     if (needsFormant && !is_iformant(sourceType)) {
-        return "Pin needs a Formant-type source (Formant, FormantSpectrum, FixedSpectrum, FormantBands, or FormantSequence)";
+        return "Pin needs a Formant-type source (FormantPeaks, Formant, FormantSpectrum, FixedSpectrum, FormantBands, or FormantSequence)";
     }
 
     // PartialSet-requiring pins
@@ -1374,30 +1321,6 @@ static bool convert_parammap_to_wiring(nlohmann::json& root) {
     std::unordered_map<std::string, json*> byId;
     for (auto& n : nodes) byId[n["id"].get<std::string>()] = &n;
 
-    // Formant children owned by a FormantSpectrum are NOT convertible. The
-    // UI consumes them into the spectrum's row table, and a row holds literal
-    // floats — it cannot represent a driven param. Writing a ref into one
-    // makes the pre-scan stop consuming it, so the spectrum re-emits
-    // synthesized rows and the original children survive as orphans (caught
-    // by the round-trip gate on 5 voice patches: spec.formants went
-    // [f1..f5] -> [spec__f0..spec__f3] with f1..f5 left loose).
-    // Those entries stay in the paramMap, which still round-trips as it always
-    // has. Converting them needs the row model to carry driven params — real
-    // work, and not this task's.
-    std::unordered_set<std::string> ownedFormants;
-    for (auto& n : nodes) {
-        if (!n.contains("params") || !n["params"].contains("formants")) continue;
-        const auto& arr = n["params"]["formants"];
-        if (!arr.is_array()) continue;
-        for (const auto& f : arr)
-            if (f.is_object() && f.contains("ref")) {
-                const std::string rid = f["ref"].get<std::string>();
-                auto it = byId.find(rid);
-                if (it != byId.end() && (*it->second)["type"] == "Formant")
-                    ownedFormants.insert(rid);
-            }
-    }
-
     std::vector<json> synth;
     std::unordered_map<std::string, bool> havePerf;
     int counter = 0;
@@ -1462,7 +1385,7 @@ static bool convert_parammap_to_wiring(nlohmann::json& root) {
             std::string nodeId = dot == std::string::npos ? target : target.substr(0, dot);
             std::string pin    = dot == std::string::npos ? "frequency" : target.substr(dot + 1);
             auto it = byId.find(nodeId);
-            if (it == byId.end() || ownedFormants.count(nodeId)) { keep(name, e); continue; }
+            if (it == byId.end()) { keep(name, e); continue; }
 
             // Build the chain only once the target is known convertible, so a
             // kept entry leaves no orphan synthesized nodes behind.
@@ -1496,8 +1419,7 @@ static bool convert_parammap_to_wiring(nlohmann::json& root) {
     if (kept) root["instrument"]["paramMap"] = leftover;
     else      root["instrument"].erase("paramMap");
     if (converted || kept)
-        std::fprintf(stderr, "[ui] paramMap: %d converted to wiring, %d kept "
-                     "(owned formant children are not convertible)\n",
+        std::fprintf(stderr, "[ui] paramMap: %d converted to wiring, %d kept\n",
                      converted, kept);
     return converted > 0;
 }
@@ -1562,74 +1484,6 @@ static void load_graph_from_path(const std::string& path) {
     // Map nodeId → tap pin ID ({"tap": id} wires reload onto this pin)
     std::unordered_map<std::string, int> tapPinMap;
 
-    // Pre-scan: count ref occurrences across the whole graph so we can
-    // detect Formant nodes whose sole referrer is a FormantSpectrum.
-    std::unordered_map<std::string, int> refCounts;
-    std::function<void(const json&)> countRefs = [&](const json& val) {
-        if (val.is_object()) {
-            if (val.contains("ref") && val["ref"].is_string()) {
-                refCounts[val["ref"].get<std::string>()]++;
-                return;
-            }
-            for (auto it = val.begin(); it != val.end(); ++it) countRefs(it.value());
-        } else if (val.is_array()) {
-            for (const auto& item : val) countRefs(item);
-        }
-    };
-    for (const auto& jnode : nodes) {
-        if (jnode.contains("params")) countRefs(jnode["params"]);
-    }
-
-    // Locate FormantSpectrum nodes whose params.formants is a ref-array of
-    // bare-constant, single-use Formant nodes. Those formants get consumed
-    // into the spectrum's inline row table (and skipped as graph nodes).
-    std::unordered_map<std::string, std::vector<FormantRow>> specRows;
-    std::unordered_map<std::string, bool> ownedFormants;
-    auto find_json_node = [&](const std::string& id) -> const json* {
-        for (const auto& jn : nodes)
-            if (jn.contains("id") && jn["id"].get<std::string>() == id) return &jn;
-        return nullptr;
-    };
-    for (const auto& jnode : nodes) {
-        if (!jnode.contains("type") || jnode["type"].get<std::string>() != "FormantSpectrum") continue;
-        if (!jnode.contains("params") || !jnode["params"].contains("formants")) continue;
-        const auto& arr = jnode["params"]["formants"];
-        if (!arr.is_array() || arr.empty()) continue;
-        if (!arr[0].is_object() || !arr[0].contains("ref")) continue;  // legacy inline form, skip
-
-        std::vector<FormantRow> rows;
-        std::vector<std::string> ids;
-        bool canConsume = true;
-        for (const auto& item : arr) {
-            if (!item.is_object() || !item.contains("ref")) { canConsume = false; break; }
-            std::string fid = item["ref"].get<std::string>();
-            if (refCounts[fid] != 1) { canConsume = false; break; }
-            const json* fnode = find_json_node(fid);
-            if (!fnode || !fnode->contains("type") ||
-                (*fnode)["type"].get<std::string>() != "Formant" ||
-                !fnode->contains("params")) { canConsume = false; break; }
-            const auto& fp = (*fnode)["params"];
-            if (!fp.contains("frequency") || !fp["frequency"].is_number() ||
-                !fp.contains("gain")      || !fp["gain"].is_number() ||
-                !fp.contains("width")     || !fp["width"].is_number() ||
-                !fp.contains("power")     || !fp["power"].is_number()) {
-                canConsume = false; break;
-            }
-            FormantRow row;
-            row.frequency = fp["frequency"].get<float>();
-            row.gain      = fp["gain"].get<float>();
-            row.width     = fp["width"].get<float>();
-            row.power     = fp["power"].get<float>();
-            row.srcId     = fid;
-            rows.push_back(row);
-            ids.push_back(fid);
-        }
-        if (canConsume) {
-            specRows[jnode["id"].get<std::string>()] = std::move(rows);
-            for (auto& fid : ids) ownedFormants[fid] = true;
-        }
-    }
-
     // PerformNode file nodes are CONSUMED into Note faces: the file keeps
     // one node per field (refs name nodes; a node is one value stream), the
     // editor shows one Note node with an output pin per field — the shape
@@ -1652,8 +1506,6 @@ static void load_graph_from_path(const std::string& path) {
         std::string id = jnode["id"].get<std::string>();
         std::string type = jnode["type"].get<std::string>();
 
-        // Skip Formants owned by a FormantSpectrum — they'll live inside its row table.
-        if (ownedFormants.count(id)) continue;
         // Skip consumed PerformNode file nodes — faces are built after this
         // loop and their pins registered under these ids.
         if (perfFileField.count(id)) continue;
@@ -1670,7 +1522,7 @@ static void load_graph_from_path(const std::string& path) {
                                     // fired a false "loaded inert" on every
                                     // converted patch's first human load
                                     // (Matt, 2026-08-20).
-            type != "FormantSpectrum" && !SourceRegistry::instance().has(type) &&
+            !SourceRegistry::instance().has(type) &&
             std::find(unknownTypes.begin(), unknownTypes.end(), type) == unknownTypes.end())
             unknownTypes.push_back(type);
 
@@ -1763,28 +1615,6 @@ static void load_graph_from_path(const std::string& path) {
                     cn->exprMode = gn.curveExprMode;
                     cn->exprKnots = gn.curveExprKnots;
                 }
-            }
-
-
-            // Restore formant table. New canonical form: params.formants is a
-            // ref-array of owned Formant nodes, pulled into rows via the
-            // pre-scan. Legacy form: inline struct array.
-            if (auto sit = specRows.find(id); sit != specRows.end()) {
-                gn.formantRows = sit->second;
-                gn.rebuild_formant_spectrum();
-            } else if (params.contains("formants") && params["formants"].is_array() &&
-                       !params["formants"].empty() && params["formants"][0].is_object() &&
-                       !params["formants"][0].contains("ref")) {
-                gn.formantRows.clear();
-                for (const auto& fj : params["formants"]) {
-                    FormantRow row;
-                    row.frequency = fj.value("frequency", 1000.0f);
-                    row.gain      = fj.value("gain", 1.0f);
-                    row.width     = fj.value("width", 500.0f);
-                    row.power     = fj.value("power", 2.0f);
-                    gn.formantRows.push_back(row);
-                }
-                gn.rebuild_formant_spectrum();
             }
 
             // Restore preset-form Envelopes (params.preset + attack/decay/…).
@@ -1904,7 +1734,6 @@ static void load_graph_from_path(const std::string& path) {
                 };
                 for (auto& [k, v] : params.items()) {
                     if (k == "seed") continue;
-                    if (k == "formants") continue;  // rows / ref-pins, both modeled
                     if (gn.typeName == NT_ENVELOPE && is_envelope_key(k)) continue;
                     // CurveNode knots/interp are modeled (curveKnots /
                     // curveInterp) so the Properties curve editor can edit them. They
@@ -2558,7 +2387,7 @@ static Pin* find_source_out_pin(int inputPinId) {
 
 // Serialized id = the node's label, made safe: ids embed in "node.pin"
 // paramMap targets (no '.'), "__" is reserved for synthesized keys
-// (__output, __param_*, FormantSpectrum "__fN" children), and duplicates
+// (__output, __param_*), and duplicates
 // from a hand-edited file must not collapse two nodes into one id.
 static std::string sanitize_unique_id(const std::string& want,
                                       std::unordered_set<std::string>& used,
@@ -3008,34 +2837,6 @@ static nlohmann::json serialize_patch_graph(
             jnode["params"]["name"] = node.paramName;
         }
 
-        // FormantSpectrum: synthesize a bare Formant graph node per row and
-        // emit params.formants as a ref-array. On-disk format matches
-        // hand-written patches; the synthesized nodes are hidden from the UI.
-        if (node.typeName == "FormantSpectrum" && !node.formantRows.empty()) {
-            if (!jnode.contains("params")) jnode["params"] = json::object();
-            json refs = json::array();
-            const std::string& specId = nodeIds[node.id];
-            for (size_t i = 0; i < node.formantRows.size(); ++i) {
-                const auto& row = node.formantRows[i];
-                // Keep the consumed child's ORIGINAL id — paramMap curves
-                // target formants by id (3n node:f1); __fN only for rows
-                // created in the UI.
-                std::string fid = row.srcId.empty()
-                    ? specId + "__f" + std::to_string(i)
-                    : sanitize_unique_id(row.srcId, usedIds, "Formant");
-                json fnode;
-                fnode["id"] = fid;
-                fnode["type"] = "Formant";
-                fnode["params"] = {
-                    {"frequency", row.frequency}, {"gain", row.gain},
-                    {"width", row.width}, {"power", row.power},
-                };
-                nodes.push_back(fnode);
-                refs.push_back(json{{"ref", fid}});
-            }
-            jnode["params"]["formants"] = refs;
-        }
-
         // Config values
         for (auto& [desc, val] : node.settingValues) {
             // Envelope sustain lives INSIDE the emitted stages (slot
@@ -3323,31 +3124,6 @@ static void save_node_graph(const std::string& path) {
             }
         }
 
-        if (node.typeName == "FormantSpectrum" && !node.formantRows.empty()) {
-            if (!jnode.contains("params")) jnode["params"] = json::object();
-            json refs = json::array();
-            const std::string& specId = nodeIds[node.id];
-            for (size_t i = 0; i < node.formantRows.size(); ++i) {
-                const auto& row = node.formantRows[i];
-                // Keep the consumed child's ORIGINAL id — paramMap curves
-                // target formants by id (3n node:f1); __fN only for rows
-                // created in the UI.
-                std::string fid = row.srcId.empty()
-                    ? specId + "__f" + std::to_string(i)
-                    : sanitize_unique_id(row.srcId, usedIds, "Formant");
-                json fnode;
-                fnode["id"] = fid;
-                fnode["type"] = "Formant";
-                fnode["params"] = {
-                    {"frequency", row.frequency}, {"gain", row.gain},
-                    {"width", row.width}, {"power", row.power},
-                };
-                nodes.push_back(fnode);
-                refs.push_back(json{{"ref", fid}});
-            }
-            jnode["params"]["formants"] = refs;
-        }
-
         for (auto& [desc, val] : node.settingValues) {
             // Envelope sustain lives INSIDE the emitted stages (slot
             // values); writing the config too made reload rewrite the slots
@@ -3446,7 +3222,7 @@ static bool is_partials_type(const std::string& t) {
     return t == "FullPartials" || t == "SequencePartials" || t == "ExplicitPartials";
 }
 static bool is_formant_type(const std::string& t) {
-    return t == "Formant" || t == "FormantSpectrum"
+    return t == "FormantPeaks" || t == "Formant" || t == "FormantSpectrum"
         || t == "FormantSequence" || t == "FormantBands";
 }
 
@@ -7215,7 +6991,7 @@ static bool draw_one_curve(const std::string& paramName, nlohmann::json& obj) {
 
 // ---------------------------------------------------------------------------
 // Editor for a real CurveNode in the graph (P2b). The stash-based editor above
-// still serves entries that could not be converted (owned formant children);
+// still serves entries that could not be converted;
 // this one edits the node, which is where every converted patch's curves now
 // live. Same table + plot idiom deliberately — Matt asked for the existing
 // table extended, not a new 2D canvas.
@@ -9034,12 +8810,6 @@ static void draw_node(GraphNode& node) {
     ImNodes::PopColorStyle(); // TitleBar
 }
 
-// Forward decl — used by the FormantSpectrum inline preview in the
-// properties panel; defined later in the file with the other strip draws.
-static bool draw_formant_strip(GraphNode* node, ImU32 color,
-                               float x, float y, float width, float height,
-                               bool showPopoutBtn, int popoutBtnId);
-
 // ===========================================================================
 // Collapsed-group drawing + boundary-link projection (spec §3). Rebuilt
 // every frame the editor draws.
@@ -9842,90 +9612,6 @@ static void draw_properties_panel() {
         }
     }
 
-    // Inline formant table (FormantSpectrum)
-    if (node->typeName == "FormantSpectrum" && !node->formantRows.empty()) {
-        ImGui::Spacing(); ImGui::Separator(); ImGui::Spacing();
-        ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1), "Formants");
-
-        bool changed = false;
-        int  removeIdx = -1;
-
-        ImGui::BeginGroup();
-        if (ImGui::BeginTable("formants", 5,
-                ImGuiTableFlags_SizingFixedFit | ImGuiTableFlags_BordersInnerV)) {
-            ImGui::TableSetupColumn("Frequency");
-            ImGui::TableSetupColumn("Gain");
-            ImGui::TableSetupColumn("Width");
-            ImGui::TableSetupColumn("Power");
-            ImGui::TableSetupColumn("");
-
-            // Centered header row
-            {
-                static const char* hdrs[] = { "Frequency", "Gain", "Width", "Power", "" };
-                ImGui::TableNextRow(ImGuiTableRowFlags_Headers);
-                for (int c = 0; c < 5; ++c) {
-                    ImGui::TableSetColumnIndex(c);
-                    float colW = ImGui::GetContentRegionAvail().x;
-                    float txtW = ImGui::CalcTextSize(hdrs[c]).x;
-                    float pad  = (colW - txtW) * 0.5f;
-                    if (pad > 0.0f) ImGui::SetCursorPosX(ImGui::GetCursorPosX() + pad);
-                    ImGui::TableHeader(hdrs[c]);
-                }
-            }
-
-            for (int i = 0; i < (int)node->formantRows.size(); ++i) {
-                auto& row = node->formantRows[i];
-                ImGui::TableNextRow();
-                ImGui::PushID(i);
-
-                ImGui::TableNextColumn(); ImGui::PushItemWidth(70);
-                changed |= ImGui::DragFloat("##freq", &row.frequency, 10.0f, 1.0f, 20000.0f, "%.0f");
-                ImGui::PopItemWidth();
-
-                ImGui::TableNextColumn(); ImGui::PushItemWidth(60);
-                changed |= ImGui::DragFloat("##gain", &row.gain, 0.01f, 0.0f, 10.0f, "%.2f");
-                ImGui::PopItemWidth();
-
-                ImGui::TableNextColumn(); ImGui::PushItemWidth(70);
-                changed |= ImGui::DragFloat("##wid", &row.width, 10.0f, 1.0f, 10000.0f, "%.0f");
-                ImGui::PopItemWidth();
-
-                ImGui::TableNextColumn(); ImGui::PushItemWidth(60);
-                changed |= ImGui::DragFloat("##pow", &row.power, 0.05f, 0.01f, 10.0f, "%.2f");
-                ImGui::PopItemWidth();
-
-                ImGui::TableNextColumn();
-                if (ImGui::SmallButton(" x ")) removeIdx = i;
-
-                ImGui::PopID();
-            }
-            ImGui::EndTable();
-        }
-
-        if (removeIdx >= 0 && node->formantRows.size() > 1) {
-            node->formantRows.erase(node->formantRows.begin() + removeIdx);
-            changed = true;
-        }
-        if (ImGui::SmallButton(" + Add Formant ")) {
-            node->formantRows.push_back({1000.0f, 1.0f, 500.0f, 2.0f});
-            changed = true;
-        }
-        ImGui::EndGroup();
-        ImVec2 leftSize = ImGui::GetItemRectSize();
-
-        if (changed) { node->rebuild_formant_spectrum(); mark_graph_dirty(); }
-
-        // Gain-vs-frequency preview to the right (reuses the existing strip draw)
-        ImGui::SameLine();
-        ImVec2 stripPos = ImGui::GetCursorScreenPos();
-        float plotW = ImGui::GetContentRegionAvail().x;
-        if (plotW < 80.0f) plotW = 200.0f;
-        draw_formant_strip(node, IM_COL32(120, 200, 220, 255),
-                           stripPos.x, stripPos.y, plotW, leftSize.y,
-                           false, 0);
-        ImGui::Dummy(ImVec2(plotW, leftSize.y));
-    }
-
     // Inline stage table (bare Envelope) + envelope display below the
     // settings for ALL envelope types, presets included (Matt 2026-08-29).
     if (auto* env = dynamic_cast<Envelope*>(node->dspSource.get())) {
@@ -10199,7 +9885,7 @@ static void draw_properties_panel() {
 // Node clipboard — Edit > Cut/Copy/Paste, Ctrl+X/C/V.
 //
 // Copy serializes the imnodes selection into an in-memory JSON clipboard:
-// per-node state (pin defaults, configs, arrays, formant rows, Envelope
+// per-node state (pin defaults, configs, arrays, Envelope
 // stages via the shared envelope_stages_* helpers, seed, polyphony,
 // paramName) plus the links whose BOTH endpoints are inside the selection.
 // Paste instantiates fresh nodes (fresh ids) from that state, rewires the
@@ -10248,13 +9934,6 @@ static nlohmann::json clip_node_state(const GraphNode& node) {
     }
     for (const auto& [desc, vec] : node.arrayValues)
         if (!vec.empty()) j["arrays"][desc.name] = vec;
-
-    if (!node.formantRows.empty()) {
-        json rows = json::array();
-        for (const auto& r : node.formantRows)
-            rows.push_back({r.frequency, r.gain, r.width, r.power});
-        j["formants"] = rows;
-    }
 
     if (node.typeName == NT_ENVELOPE) {
         if (const auto* env = dynamic_cast<const Envelope*>(node.dspSource.get())) {
@@ -10313,19 +9992,6 @@ static int clip_instantiate(const nlohmann::json& j) {
         // sync the UI table back from the DSP object, mirroring load.
         for (auto& [desc, val] : gn.settingValues)
             val = gn.dspSource->get_setting(desc.name);
-    }
-
-    if (j.contains("formants")) {
-        gn.formantRows.clear();
-        for (const auto& r : j["formants"]) {
-            FormantRow row;
-            row.frequency = r[0].get<float>();
-            row.gain      = r[1].get<float>();
-            row.width     = r[2].get<float>();
-            row.power     = r[3].get<float>();
-            gn.formantRows.push_back(row);
-        }
-        gn.rebuild_formant_spectrum();
     }
 
     if (j.contains("stages")) {
@@ -12070,87 +11736,18 @@ static bool draw_formant_strip(GraphNode* node, ImU32 color,
     const float logFmax = std::log10(fMax);
     int samples = std::max(64, int(plotX1 - plotX0));
 
-    // Snapshot-driven path: if this is a single Formant node and we have
-    // captured envelope timelines, render up to three overlaid curves —
-    // start (snapshot[0]), end (snapshot[N-1]), and (if scrubber is active)
-    // a scrub overlay at the scrubbed time. For static-input Formants,
-    // start and end coincide, so the overlay looks identical to the
-    // single-curve path.
-    Formant* fp = dynamic_cast<Formant*>(node->dspSource.get());
-    auto sIt = g_evoSnapshots.find(node->id);
-    bool haveSnaps = false;
-    int snapN = 0;
-    if (fp && sIt != g_evoSnapshots.end()) {
-        for (auto& [_, vec] : sIt->second)
-            if ((int)vec.size() > snapN) snapN = (int)vec.size();
-        haveSnaps = (snapN > 1);
-    }
-
-    // Mirror Formant::get_gain math so we can compute gain from arbitrary
-    // (cf, gn, wd, pw) tuples — without poking at the live formant's cache.
-    auto formant_gain_at = [](float f, float cf, float gn, float wd, float pw) {
-        float lo = cf - wd * 0.5f;
-        float hi = cf + wd * 0.5f;
-        if (f <= lo || f >= hi) return 0.0f;
-        if (f < cf) return std::pow((f - lo) / std::max(cf - lo, 1e-6f), pw) * gn;
-        return std::pow((hi - f) / std::max(hi - cf, 1e-6f), pw) * gn;
-    };
-
-    // Read pin value at snapshot index. Fall back to the pin's current
-    // value (its constant when unwired) — handles unsnapshotted pins.
-    auto get_at = [&](const std::string& pin, float fallback, int idx) {
-        if (haveSnaps) {
-            auto pIt = sIt->second.find(pin);
-            if (pIt != sIt->second.end() && !pIt->second.empty()) {
-                int i = std::clamp(idx, 0, int(pIt->second.size()) - 1);
-                return pIt->second[i];
-            }
-        }
-        return fallback;
-    };
-
-    auto sample_curve = [&](int snapIdx, std::vector<float>& out) {
-        float cf = get_at("frequency", fp ? fp->frequency.current() : 0.0f, snapIdx);
-        float gn = get_at("gain",      fp ? fp->gain.current()      : 0.0f, snapIdx);
-        float wd = get_at("width",     fp ? fp->width.current()     : 0.0f, snapIdx);
-        float pw = get_at("power",     fp ? fp->power.current()     : 0.0f, snapIdx);
-        out.resize(samples);
-        for (int i = 0; i < samples; ++i) {
-            float t = float(i) / float(samples - 1);
-            float f = std::pow(10.0f, logFmin + t * (logFmax - logFmin));
-            out[i] = formant_gain_at(f, cf, gn, wd, pw);
-        }
-    };
-
-    // gains = the curve used for hover readout. Fall back path populates it
-    // from ifp->get_gain (works for FormantSpectrum/FormantSequence which
-    // we don't snapshot-overlay).
+    // gains = the one curve, sampled from the live node; the hover readout
+    // reads it too.
     std::vector<float> gains(samples);
-    std::vector<float> startCurve, endCurve, scrubCurve;
-    int scrubIdx = haveSnaps
-        ? std::clamp(int(g_scrubberPos * float(snapN - 1)), 0, snapN - 1)
-        : 0;
-
-    if (haveSnaps && fp) {
-        sample_curve(0,         startCurve);
-        sample_curve(snapN - 1, endCurve);
-        if (g_scrubberPos > 0.0f) sample_curve(scrubIdx, scrubCurve);
-        // Hover reads scrub curve when active, else end (most informative).
-        gains = scrubCurve.empty() ? endCurve : scrubCurve;
-    } else {
-        // Fallback: single curve from cached formant state.
-        ifp->next();
-        for (int i = 0; i < samples; ++i) {
-            float t = float(i) / float(samples - 1);
-            float f = std::pow(10.0f, logFmin + t * (logFmax - logFmin));
-            gains[i] = ifp->contains(f) ? ifp->get_gain(f) : 0.0f;
-        }
+    ifp->next();
+    for (int i = 0; i < samples; ++i) {
+        float t = float(i) / float(samples - 1);
+        float f = std::pow(10.0f, logFmin + t * (logFmax - logFmin));
+        gains[i] = ifp->contains(f) ? ifp->get_gain(f) : 0.0f;
     }
 
     float gMax = 0.0f;
-    for (float v : gains)      gMax = std::max(gMax, v);
-    for (float v : startCurve) gMax = std::max(gMax, v);
-    for (float v : endCurve)   gMax = std::max(gMax, v);
+    for (float v : gains) gMax = std::max(gMax, v);
     if (gMax < 1e-4f) gMax = 1.0f;
 
     auto freq_to_x = [&](float f) {
@@ -12188,8 +11785,7 @@ static bool draw_formant_strip(GraphNode* node, ImU32 color,
     dl->AddLine(ImVec2(plotX0, plotY1), ImVec2(plotX1, plotY1), IM_COL32(80, 80, 80, 255));
 
     // Curve drawing helper. When `fillCol` != 0 the area below the line is
-    // filled — used for the start/end "envelope of motion" curves; the scrub
-    // overlay is drawn line-only so it stays crisp on top.
+    // filled.
     auto draw_curve = [&](const std::vector<float>& c, ImU32 lineCol, ImU32 fillCol_, float thickness) {
         if (c.empty()) return;
         for (size_t i = 1; i < c.size(); ++i) {
@@ -12205,24 +11801,8 @@ static bool draw_formant_strip(GraphNode* node, ImU32 color,
         }
     };
 
-    if (haveSnaps && fp) {
-        // Match Partials: light teal = start (snapshot[0]), dark teal = end
-        // (snapshot[N-1]); for static-input Formants these coincide.
-        ImU32 lightFill = IM_COL32(60, 200, 200, 36);
-        ImU32 lightLine = IM_COL32(120, 220, 220, 220);
-        ImU32 darkFill  = IM_COL32(60, 200, 200, 56);
-        ImU32 darkLine  = IM_COL32(60, 160, 160, 230);
-        draw_curve(startCurve, lightLine, lightFill, 1.3f);
-        draw_curve(endCurve,   darkLine,  darkFill,  1.3f);
-        if (!scrubCurve.empty()) {
-            ImU32 scrubLine = IM_COL32(255, 180, 60, 240);  // amber overlay
-            draw_curve(scrubCurve, scrubLine, 0u, 2.0f);
-        }
-    } else {
-        // Fallback single-curve render (FormantSpectrum etc., or pre-render).
-        ImU32 fillCol = (color & 0x00FFFFFF) | (40u << 24);
-        draw_curve(gains, color, fillCol, 1.5f);
-    }
+    ImU32 fillCol = (color & 0x00FFFFFF) | (40u << 24);
+    draw_curve(gains, color, fillCol, 1.5f);
 
     // Y label (peak gain)
     char ylbl[16]; snprintf(ylbl, sizeof(ylbl), "%.2f", gMax);

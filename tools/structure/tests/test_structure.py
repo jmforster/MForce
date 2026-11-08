@@ -146,7 +146,7 @@ class KnownAnswerTests(unittest.TestCase):
         # per sample, lives inside main()).
         lengths = {name: n for name, _, n in measure.function_lengths(str(ROOT / "tools/mforce_ui/main.cpp"))}
         self.assertEqual(lengths["main"], 1738)
-        self.assertEqual(lengths["draw_properties_panel"], 963)
+        self.assertEqual(lengths["draw_properties_panel"], 879)
 
     def test_instrument_ring_out_duplicate_is_found(self):
         # The audit's known duplicate: the ring-out loop of the fresh voice and

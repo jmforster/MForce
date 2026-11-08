@@ -328,6 +328,48 @@ line and a trailing newline) and `liar1` (four spectra folded under its
 sequence). `gates --fast` as before (ctest 5/5 with the tool's tests, the stamp
 current, the allocation gate PASS, the known wiring diff).
 
+**Task 5a (an Opus 5.5 executor; coordinator-verified) — RUN BEFORE TASK 4.**
+The plan's order had a second hole: the editor includes the headers Task 4
+deletes and casts to the peak class and `IFormant`, so under the plan's order
+the UI would not have built at Task 4's commit, and every commit must build
+and pass the gates. Decided: the bridge's deletion runs first, against the
+old headers (the old types still exist), and Task 4 retypes the strip and the
+includes with the engine change. Deleted from `tools/mforce_ui/main.cpp`
+(14,483 → 14,063 lines; 444 deletions, 24 insertions): `FormantRow`,
+`formantRows`, the `FormantSpectrum` construction branch with its default
+rows (the type goes through the generic registry path), `rebuild_formant_
+spectrum`, the `"formants"` face-pin skip, `ownedFormants` and the "not
+convertible" rule in the paramMap conversion (the stderr suffix with it), the
+load pre-scan with `specRows`, `find_json_node` and the `refCounts`/
+`countRefs` count only the bridge used, the owned-peak skip, the row restore
+in both forms, both save-time re-emissions, the row-table UI with its strip
+preview, the clipboard copy and paste of `formants`, and in the strip the
+peak cast, `formant_gain_at`, `get_at`, `sample_curve` and the start/end/
+scrub curves; four comments and the `jsonExtras` `formants` skip (the pin
+exists now, the generic check consumes the key), the forward declaration the
+preview used, and the redundant `FormantSpectrum` exemption in the
+unknown-type check. The strip keeps the `IFormant*` cast and the one
+sampling line `ifp->contains(f) ? ifp->get_gain(f) : 0.0f` for Task 4 to
+retype, and draws one filled curve for every kind — the snapshot overlay is
+gone (ruling 10's case; report §6). `is_iformant` and `is_formant_type` gain
+`FormantPeaks` (the old names pruned at Task 4). `s_loadedParamMap` stays:
+the conversion still keeps a name other than "frequency", an entry with no
+target, and a target naming no node. Proofs: the build clean, the UI relinked,
+the stamp current; `test_stable_roundtrip.py` over the 58 voice files 0 id
+changes / 0 render diffs, over baselines + library 132 patches, the six
+KNOWN_DIFFS and no new one; the headless check — `sing_alto_A` roundtrips to
+`PerformNode`, `Envelope`, one `FormantPeaks` (four arrays of five), `FullPartials`,
+`AdditiveSource`, and the roundtripped file renders to `157889bc…`, the
+library file's own hash; grep of the bridge's names 0. One gate the executor
+could not fix (outside its files): the structure meter's known-answer test
+pins `draw_properties_panel` at 963 lines and the row table's deletion makes
+it 879 — the coordinator moved the known answer (`main` unchanged at 1,738).
+`gates --fast` after that: as before (ctest 5/5, the stamp current, the
+allocation gate PASS, the known wiring diff); null gate 78/78 (the engine
+binary unchanged by an editor edit, rerun regardless). Dead code the executor
+found and left: the Formant-children exclusions in `test_stable_roundtrip.py`'s
+`ids_of` and in `rt_smoke.py` (CLEANUP).
+
 ## Self-review notes
 
 - Task 2 lands `FormantPeaks` beside the old types so the tool (Task 3) can rewrite the tree while both forms load; Task 4 then deletes the old types. The null gate at Task 3 therefore runs the new engine over the new files, and the close A/B runs old-over-old against new-over-new — the two together pin the rewrite and the engine.
