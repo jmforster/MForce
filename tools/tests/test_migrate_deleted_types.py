@@ -218,9 +218,40 @@ class FormantFoldTests(unittest.TestCase):
         self.assertEqual(notes, ["node 'spec' (FormantSpectrum): paramMap target 'f1.frequency' folded to a "
                                  "constant (800.0); the curve that drove it is gone"])
         # The only entry of its key: the key goes, and an empty paramMap goes.
-        doc = vowel(peak("f1", 800.0), param_map={"velocity": {"target": "f1.gain", "curve": [[0, 1.0], [1, 0.5]]}})
+        doc = vowel(peak("f1", 800.0), param_map={"frequency": {"target": "f1.frequency", "curve": [[800.0, 800.0], [1100.0, 1100.0]]}})
         mig.rewrite(doc)
         self.assertEqual(doc["instrument"], {"polyphony": 1})
+
+    def test_a_parammap_curve_under_another_key_is_refused(self):
+        # A velocity curve is read along its length (the note's velocity is
+        # anywhere in 0..1), so its first knot is not what the render heard.
+        doc = vowel(peak("f1", 800.0), param_map={"velocity": {"target": "f1.gain", "curve": [[0, 1.0], [1, 0.5]]}})
+        before = copy.deepcopy(doc)
+        with self.assertRaises(ValueError) as cm:
+            mig.rewrite(doc)
+        self.assertIn("paramMap 'velocity' aims at 'f1.gain': the fold takes a frequency curve only", str(cm.exception))
+        self.assertEqual(doc, before)
+
+    def test_a_spectrum_with_a_stray_key_is_refused(self):
+        doc = vowel(peak("f1", 800.0))
+        doc["graph"]["nodes"][2]["label"] = "vowel"
+        before = copy.deepcopy(doc)
+        with self.assertRaises(ValueError) as cm:
+            mig.rewrite(doc)
+        self.assertIn("node 'spec' (FormantSpectrum): has label besides its params, which the fold would drop", str(cm.exception))
+        self.assertEqual(doc, before)
+
+    def test_a_peak_referenced_with_a_weight_is_a_referrer(self):
+        # The loader reads any object carrying "ref" as a reference, so a
+        # {"ref", "weight"} entry elsewhere makes the peak shared.
+        doc = vowel(peak("f1", 800.0))
+        doc["graph"]["nodes"].insert(3, {"id": "mix", "type": "MultiSource",
+                                         "params": {"sources": [{"ref": "f1", "weight": 0.5}]}})
+        before = copy.deepcopy(doc)
+        with self.assertRaises(ValueError) as cm:
+            mig.rewrite(doc)
+        self.assertIn("peak 'f1' is referenced by another node too", str(cm.exception))
+        self.assertEqual(doc, before)
 
     def test_a_parammap_aim_the_fold_cannot_take_is_refused(self):
         shapes = [

@@ -33,14 +33,18 @@ peak is referenced by anything else in the document, when an entry is not a
 no node at all, or when the spectrum has a param besides "formants". A
 FormantSequence names its spectra by id, which the fold keeps, so it follows.
 
-THE PARAMMAP RULE: an instrument.paramMap entry {"target": "<peak>.<pin>",
-"curve": [...]} aimed at a consumed peak is folded rather than refused when
-the pin is one of the four and the curve's first knot's output equals the
-peak's constant: the row keeps the constant, the entry leaves the paramMap (a
-key's list left with one string collapses to that string, an empty key or
-paramMap goes) and a note names the target and the constant. Any other aim at
-a peak (a plain string target, a "vcurve", another pin, a first knot that
-moves the pin) is refused by name: that shape is a human's.
+THE PARAMMAP RULE: an instrument.paramMap entry under the "frequency" key,
+{"target": "<peak>.<pin>", "curve": [...]}, aimed at a consumed peak is folded
+rather than refused when the pin is one of the four and the curve's first
+knot's output equals the peak's constant: the row keeps the constant, the
+entry leaves the paramMap (a key's list left with one string collapses to
+that string, an empty key or paramMap goes) and a note names the target and
+the constant. The rule holds for "frequency" alone: that curve is fed the
+voice's frequency and clamps at its first knot, so a note below the knee sat
+at the constant already; another key (velocity, say) is read along its
+length and the constant is not what the render heard. Any other aim at a
+peak (another key, a plain string target, a "vcurve", another pin, a first
+knot that moves the pin) is refused by name: that shape is a human's.
 
 The preset form's other defaults are the deleted classes' own, so a key the
 node omitted stays omitted. A key the class never read but the form would —
@@ -146,10 +150,11 @@ def is_number(v):
 
 
 def count_refs(o, counts):
-    """Count every {"ref": id} under `o`."""
+    """Count every object with a "ref" under `o`: the loader reads any object
+    carrying "ref" as a reference, whatever else it carries (a weight, a delay)."""
     if isinstance(o, dict):
         r = o.get("ref")
-        if isinstance(r, str) and len(o) == 1:
+        if isinstance(r, str):
             counts[r] += 1
         for v in o.values():
             count_refs(v, counts)
@@ -217,6 +222,9 @@ def fold_spectrum(spec, by_id, refs, aims, notes):
     def refuse(why):
         raise ValueError("node '%s' (FormantSpectrum): %s; no mechanical rewrite" % (sid, why))
 
+    stray = sorted(k for k in spec if k not in ("id", "type", "params"))
+    if stray:
+        refuse("has %s besides its params, which the fold would drop" % ", ".join(stray))
     params = spec.get("params") or {}
     extra = sorted(k for k in params if k != "formants")
     if extra:
@@ -257,6 +265,10 @@ def fold_spectrum(spec, by_id, refs, aims, notes):
             tid, _, pin = target.partition(".")
             if tid != cid:
                 continue
+            if key != "frequency":
+                refuse("paramMap '%s' aims at '%s': the fold takes a frequency curve only, whose first "
+                       "knot is the floor a note below the knee sat at; another key is read along its length"
+                       % (key, target))
             if not (isinstance(entry, dict) and sorted(entry) == ["curve", "target"]):
                 refuse("paramMap '%s' aims at '%s' in a form the fold does not take: %s"
                        % (key, target, json.dumps(entry)))

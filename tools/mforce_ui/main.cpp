@@ -11697,7 +11697,7 @@ static bool draw_partials_strip(GraphNode* node, ImU32 color,
 }
 
 // Draw a formant — any Formant: peaks, bands, a sequence — as a gain-vs-frequency curve.
-// Samples get_gain(f) at log-spaced frequencies across 20 Hz → ~Nyquist.
+// Samples gain(f) at log-spaced frequencies across 20 Hz → ~Nyquist.
 // prepare/next must have been called for the formant to have valid internal
 // state — for a static node this happens at load time.
 static bool draw_formant_strip(GraphNode* node, ImU32 color,

@@ -4064,7 +4064,7 @@ static void run_additive_source_pin_tests() {
     CHECK(full.get_param("formant") == nullptr);
 }
 
-// A one-row FormantPeaks: the peak the 2.2-era split tests shaped.
+// A one-row FormantPeaks: the peak the split tests shape.
 static std::shared_ptr<FormantPeaks> make_one_peak(float hz, float width = 500.0f, float gain = 1.0f, float power = 2.0f) {
     auto pk = std::make_shared<FormantPeaks>();
     pk->set_array("frequency", {hz});
@@ -7952,6 +7952,14 @@ static void run_driven_part_lifecycle_tests() {
 // two equal rows, a vowel's five. The old contains() is implied: the gain is
 // compared both as the old spectrum gave it and gated to 0 where the old
 // predicate was false, and the two agree.
+// The 2,000-point log grid from 20 Hz to 20 kHz the formant twins share.
+static std::vector<float> formant_log_grid() {
+    std::vector<float> freqs;
+    const float lo = std::log10(20.0f), hi = std::log10(20000.0f);
+    for (int i = 0; i < 2000; ++i)
+        freqs.push_back(std::pow(10.0f, lo + (hi - lo) * float(i) / 1999.0f));
+    return freqs;
+}
 namespace formant_peaks_twin {
 struct Row { float f, g, w, p; };
 static bool old_peak_contains(const Row& r, float freq) {
@@ -7990,10 +7998,7 @@ static const std::vector<std::vector<Row>> kSets = {
 // The frequency grid for a row set: log-spaced, then each row's edges, the
 // floats just inside them, and the centre.
 static std::vector<float> grid(const std::vector<Row>& set) {
-    std::vector<float> freqs;
-    const float lo = std::log10(20.0f), hi = std::log10(20000.0f);
-    for (int i = 0; i < 2000; ++i)
-        freqs.push_back(std::pow(10.0f, lo + (hi - lo) * float(i) / 1999.0f));
+    std::vector<float> freqs = formant_log_grid();
     for (const auto& r : set) {
         const float a = r.f - r.w * 0.5f, b = r.f + r.w * 0.5f;
         freqs.push_back(a); freqs.push_back(b); freqs.push_back(r.f);
@@ -8086,7 +8091,7 @@ static void run_formant_peaks_load_tests() {
 // FormantBands against the band spectrum it was: the old contains() and
 // get_gain() retyped over (startFreq, freqIncrement, gains) as they stood,
 // and the consumer's gate `contains ? get_gain : 0` compared bit for bit with
-// the predicate-folded gain over the frequencies ruling 4 names — the sub-bin
+// the predicate-folded gain over the frequencies where they could differ — the sub-bin
 // below startFreq (where the old get_gain alone was NOT 0: a negative position
 // truncates to bin 0 and interpolates with a negative fraction), startFreq
 // itself and the floats beside it, every bin edge, the span's end and the
@@ -8106,13 +8111,6 @@ static float old_get_gain(float sf, float fi, const std::vector<float>& gains, f
     float frac = pos - float(idx);
     return gains[idx] + (gains[idx + 1] - gains[idx]) * frac;
 }
-static std::vector<float> log_grid() {
-    std::vector<float> freqs;
-    const float lo = std::log10(20.0f), hi = std::log10(20000.0f);
-    for (int i = 0; i < 2000; ++i)
-        freqs.push_back(std::pow(10.0f, lo + (hi - lo) * float(i) / 1999.0f));
-    return freqs;
-}
 }
 // A Manual pin's source that steps through a list, one value per next().
 struct StepSource final : Generator {
@@ -8125,8 +8123,8 @@ static void run_formant_bands_twin_tests() {
     using namespace formant_bands_twin;
     std::printf("formant bands twin: the predicate folded into the gain\n");
     const std::vector<float> gains = {0.1f, 0.9f, 0.3f, 1.0f, 0.5f, 0.8f, 0.2f, 0.7f};
-    const std::vector<float> sfs = {300.0f, 100.0f, 250.5f, 1000.0f};
-    const std::vector<float> fis = {150.0f, 50.0f, 37.25f, 0.0f};          // the last: fi <= 0 gains nothing
+    const std::vector<float> sfs = {300.0f, 100.0f, 250.5f, 1000.0f, 440.0f};
+    const std::vector<float> fis = {150.0f, 50.0f, 37.25f, 0.0f, 33.3f};    // fi <= 0 gains nothing; 33.3 makes the span's end inexact
     FormantBands band;
     band.set_array("gains", gains);
     auto sf = std::make_shared<StepSource>(); sf->values = sfs;
@@ -8138,7 +8136,7 @@ static void run_formant_bands_twin_tests() {
         band.next();                                                        // both pins step together
         const float s = sfs[k], d = fis[k];
         const float end = s + d * float(int(gains.size()) - 1);
-        std::vector<float> freqs = log_grid();
+        std::vector<float> freqs = formant_log_grid();
         for (float f : {s - d * 0.5f, s - d * 0.01f, std::nextafter(s, 0.0f), s, std::nextafter(s, 1.0e9f),
                         s + d * 0.5f, end - d * 0.5f, std::nextafter(end, 0.0f), end, std::nextafter(end, 1.0e9f),
                         end + d * 0.5f, end + d, end + d * 1.5f})
@@ -8149,14 +8147,14 @@ static void run_formant_bands_twin_tests() {
             const bool oc = old_contains(s, d, gains, f);
             const float og = old_get_gain(s, d, gains, f);
             inBand += oc;
-            if (!oc && og != 0.0f) ++subBinNonZero;                         // ruling 4: the case the fold keeps
+            if (!oc && og != 0.0f) ++subBinNonZero;                         // the sub-bin: the case the fold keeps
             if (!same_bits(band.gain(f), oc ? og : 0.0f)) ++bad;
         }
     }
     CHECK(bad == 0);
     CHECK(subBinNonZero > 0);                                               // the fold is load-bearing
     CHECK(inBand > 0 && inBand < rows);
-    CHECK(rows == 4 * (2000 + 13 + 8));
+    CHECK(rows == 5 * (2000 + 13 + 8));
     // an empty table: nothing contains, nothing gains
     FormantBands empty;
     empty.prepare(RenderContext{48000}); empty.start(4800); empty.next();
@@ -8207,7 +8205,7 @@ static void run_formant_sequence_twin_tests() {
             const int fPtr = std::min(int(bb), n - 2);
             const float w = bb - float(fPtr);
             const int hi = std::min(fPtr + 1, n - 1);
-            for (float f : formant_bands_twin::log_grid()) {
+            for (float f : formant_log_grid()) {
                 ++rows;
                 const float g0 = old_child(kinds[size_t(fPtr)], f);
                 const float g1 = old_child(kinds[size_t(hi)], f);
@@ -8237,7 +8235,7 @@ static void run_formant_sequence_twin_tests() {
 // replaces, `contains ? floor + weight × gain : floor`, over floor in
 // {+0, −0, 0.2, 1}, weight in {0, 0.5, 1}, and (gain, contains) in {(0, in),
 // (0.3, in), (1, in), (0, out)}: identical except the (−0, out-of-band) rows,
-// one per weight, which differ in the sign of the zero only — ruling 5's
+// one per weight, which differ in the sign of the zero only — the one
 // departure, counted here.
 static void run_formant_factor_twin_tests() {
     std::printf("formant factor twin: floor + weight x gain against the gated form\n");

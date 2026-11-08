@@ -52,7 +52,7 @@ private:
   // v1 simplification of the report's "formant-shaped" bed: the measured
   // residual IS band-passed hiss (centroid ~2.9 kHz, band ~1.5-4 kHz), so a
   // single 2nd-order bandpass at (noiseBedFreq, Q = freq/width) stands in for
-  // sharing the formant/BandSpectrum path. Deviation is deliberate; revisit
+  // sharing the formant path. Deviation is deliberate; revisit
   // if the bed should track a patch's formant stack.
   Randomizer noiseRng_;  // seeded from the AdditiveSource seed (reproducible)
 
