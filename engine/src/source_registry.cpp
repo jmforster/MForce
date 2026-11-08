@@ -129,6 +129,11 @@ const char* retired_type_hint(std::string_view type_name) {
     if (type_name == deleted)
       return "deleted; author an AdditiveSource with a FullPartials "
              "(or ExplicitPartials under a CompositePartials for per-group envelopes)";
+  for (std::string_view folded : {"Formant", "FormantSpectrum"})
+    if (type_name == folded)
+      return "deleted; the peaks are rows of a FormantPeaks "
+             "(python tools/migrate_deleted_types.py rewrites a FormantSpectrum and its Formants)";
+  if (type_name == "FixedSpectrum") return "deleted; author a FormantBands or FormantPeaks";
   if (type_name == "BandSpectrum") return "renamed FormantBands (python tools/migrate_deleted_types.py rewrites it)";
   return nullptr;
 }

@@ -370,6 +370,58 @@ binary unchanged by an editor edit, rerun regardless). Dead code the executor
 found and left: the Formant-children exclusions in `test_stable_roundtrip.py`'s
 `ids_of` and in `rt_smoke.py` (CLEANUP).
 
+**Task 4 (Fable).** RED watched: the three twins and the lifecycle test alone
+failed the test build on `gain` missing from `FormantBands` and
+`FormantSequence` and on `Formant` not being a base (C2039, C2440). GREEN:
+`formant.h` is the base alone — `struct Formant : DrivenPart` with one pure
+verb `gain(float) const` and the file comment on what a formant is;
+`formant_spectrum.h` and `fixed_spectrum.h` deleted (`git rm`), the peak
+class and `IFormant` with them; `formant_bands.h` rebased (`: Formant`, no
+lifecycle of its own, `gain` = the old `contains` predicate first, then the
+old `get_gain` body verbatim); `formant_sequence.h` rebased (`Slot<Formant>
+spectra`, the hooks forwarding to the members after the base has done
+`blend`, `gain` = `g0 × (1 − w) + g1 × w` over the members' gains);
+`formant_peaks.h` rebased (`contains` gone, `on_prepare` the hook);
+`AdditiveSource`'s `Slot<Formant>`, `Formant*` through `PartialSet`,
+`CompositePartials` and `Partials`; the consumer's factor `fmtFloor + fmtWt *
+formant->gain(pfreq)` with its comment rewritten; the registrations 77 → 75
+(`Formant`, `FormantSpectrum`, `FixedSpectrum` out; order `FormantPeaks`,
+`FormantBands`, `FormantSequence`), the two hints; the editor's includes, its
+two predicates down to the three leaves, the compat message, the strip cast
+to `Formant*` sampling `fmt->gain(f)`; the tests — the deleted types' tests
+gone, `make_one_peak` for the split cases, `run_formant_part_tests` over a
+`FormantSequence`, the nesting test three deep through a sequence in a
+sequence, `kPartTypes` 21, Main 53, walked 75, the hint tests.
+
+**TWO MORE HOLES, the plan's third and fourth:** (a) `FormantPeaks` declares
+an `Array gain` pin and now inherits the verb `gain(freq)`: a data member and
+a member function of one name (C2039/C2365, with a cascade that made
+`formant_bands.h` look broken). The pin's JSON key stays `gain` (the tree is
+rewritten with it); the C++ member is `peakGain`, with a comment at the
+declaration. (b) The Task 2 twin and load tests called `contains` and
+`get_gain` on `FormantPeaks`; retargeted to `gain` — the twin's `contains`
+line is dropped, since the gain compared both as the old spectrum gave it and
+gated to 0 where the old predicate was false already pins it.
+
+Proofs: `engine_tests` ALL PASS 7669 → 7638 (the old types' tests out, the
+twins in: the bands twin 8,084 rows over four grids, the sub-bin rows where
+the old table alone was not 0 counted and found — the fold load-bearing; the sequence
+twin 16,000 rows with one-sided rows counted; the factor twin 48 rows, 3
+differing, all in the sign of a zero; the lifecycle test on `FormantBands`
+1/1/5 in declaration order, `FormantPeaks` with no Param pin, a sequence's
+`blend` and its child's pin through the hooks); null gate 78/78; the nine
+synthetics identical (9/9, 0 DIFFER); `sing_alto_E` roundtripped through the
+Task 4 editor renders to its library hash; `grep IFormant|FormantSpectrum|
+FixedSpectrum|BandSpectrum` over engine and tools: the hints, their tests
+and two port comments only. Mutations, each restored: M1 the fold's `>=`
+made `>` → the bands twin FAILs (8156) and the sequence twin's one-child
+check with it (8229); M2 the crossfade's weights swapped → the sequence twin
+FAILs (8219) and nothing else; M3 the consumer's factor `fmtWt + fmtFloor *
+gain` (a render-observable change, since the old-conditional form of ruling 5
+is unobservable in scope by construction) → all four renders of a check set (fadd_band_test, fadd_formant_test, sing_alto_E, speech_c_AH) DIFFER from the base build's, and the restored build renders them identical again. The final build: ALL PASS 7638; null gate 78/78 again;
+`gates --fast` as before (ctest 5/5, the stamp current, the allocation gate
+PASS, the known wiring diff).
+
 ## Self-review notes
 
 - Task 2 lands `FormantPeaks` beside the old types so the tool (Task 3) can rewrite the tree while both forms load; Task 4 then deletes the old types. The null gate at Task 3 therefore runs the new engine over the new files, and the close A/B runs old-over-old against new-over-new — the two together pin the rewrite and the engine.

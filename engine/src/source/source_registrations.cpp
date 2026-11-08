@@ -35,9 +35,7 @@
 #include "mforce/source/envelope/phased_value_source.h"
 #include "mforce/source/additive/additive_source.h"
 #include "mforce/source/additive/formant.h"
-#include "mforce/source/additive/formant_spectrum.h"
 #include "mforce/source/additive/formant_peaks.h"
-#include "mforce/source/additive/fixed_spectrum.h"
 #include "mforce/source/additive/formant_bands.h"
 #include "mforce/source/additive/formant_sequence.h"
 #include "mforce/source/additive/full_partials.h"
@@ -278,7 +276,7 @@ void register_all_sources() {
         [](auto) { return std::make_shared<CompositePartials>(); });
 
     // ExpandRule node — parametric block consumed by Partials hosts via
-    // a "expandRule": {"ref": "..."} field. Mirrors the Formant pattern.
+    // a "expandRule": {"ref": "..."} field.
     reg.register_type("ExpandRule", {.family = Family::Additive, .label = "Partials Expand Rule"},
         [](auto) { return std::make_shared<ExpandRuleNode>(); });
 
@@ -302,8 +300,8 @@ void register_all_sources() {
                                          + lengths + ")");
         });
 
-    reg.register_type("Formant", {.family = Family::Additive},
-        [](auto) { return std::make_shared<Formant>(); });
+    reg.register_type("FormantBands", {.family = Family::Additive},
+        [](auto) { return std::make_shared<FormantBands>(); });
 
     reg.register_type("FormantSequence", {.family = Family::Additive},
         [](auto) { return std::make_shared<FormantSequence>(); },
@@ -313,20 +311,6 @@ void register_all_sources() {
         [](Component&, const nlohmann::json& p, const ResolveParamFn&) {
             if (p.contains("formants"))
                 throw std::runtime_error("FormantSequence takes its spectra under 'spectra', not 'formants'");
-        });
-
-    reg.register_type("FormantSpectrum", {.family = Family::Additive},
-        [](auto) { return std::make_shared<FormantSpectrum>(); });
-
-    reg.register_type("FormantBands", {.family = Family::Additive},
-        [](auto) { return std::make_shared<FormantBands>(); });
-
-    reg.register_type("FixedSpectrum", {.family = Family::Additive},
-        [](auto) { return std::make_shared<FixedSpectrum>(std::vector<float>{}); },
-        // The gains arrive through the generic array pass; a spectrum without
-        // them is an authoring error, not a silent zero.
-        [](Component&, const nlohmann::json& p, const ResolveParamFn&) {
-            if (!p.contains("gains")) throw std::runtime_error("FixedSpectrum requires params.gains");
         });
 
     // -----------------------------------------------------------------------

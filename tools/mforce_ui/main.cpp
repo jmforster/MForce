@@ -39,8 +39,7 @@
 #include "mforce/source/filter/shaper_source.h" // shape editor Shaper client probe
 #include "mforce/core/smoothness_interpolator.h"  // SegmentSource shape preview
 #include "mforce/source/additive/formant.h"
-#include "mforce/source/additive/formant_spectrum.h"
-#include "mforce/source/additive/fixed_spectrum.h"
+#include "mforce/source/additive/formant_peaks.h"
 #include "mforce/source/additive/formant_bands.h"
 #include "mforce/source/additive/formant_sequence.h"
 #include "mforce/source/additive/partials.h" // for Partials live array access in strip draw
@@ -798,29 +797,26 @@ static GraphNode* find_node_for_dyn_link(int linkId, std::string* settingOut) {
 // Structural pin compatibility. Returns a user-readable error message if the
 // source's type can't satisfy the target pin's interface requirement, or
 // nullptr if the link is fine. Keeps "lying wires" out of the UI: before
-// this check, the loader silently dropped mismatched refs (non-IFormant
-// wired to FormantSpectrum.formants, non-PartialSet wired to partials pins,
+// this check, the loader silently dropped mismatched refs (a non-Formant
+// wired to FormantSequence.spectra, non-PartialSet wired to partials pins,
 // etc.) and the UI showed the link anyway.
 static const char* pin_type_compat_error(const std::string& targetType,
                                          const std::string& targetPin,
                                          const std::string& sourceType) {
-    auto is_iformant = [](const std::string& t) {
-        return t == "FormantPeaks" || t == "Formant" || t == "FormantSpectrum" ||
-               t == "FixedSpectrum" || t == "FormantBands" ||
-               t == "FormantSequence";
+    auto is_formant = [](const std::string& t) {
+        return t == "FormantPeaks" || t == "FormantBands" || t == "FormantSequence";
     };
     auto is_partial_set = [](const std::string& t) {
         return t == "FullPartials" || t == "SequencePartials" ||
                t == "ExplicitPartials" || t == "CompositePartials";
     };
 
-    // IFormant-requiring pins
+    // Formant-requiring pins
     bool needsFormant =
-        (targetType == "FormantSpectrum" && targetPin == "formants") ||
         (targetType == "FormantSequence" && targetPin == "spectra") ||
         (targetType == "AdditiveSource" && targetPin == "formant");
-    if (needsFormant && !is_iformant(sourceType)) {
-        return "Pin needs a Formant-type source (FormantPeaks, Formant, FormantSpectrum, FixedSpectrum, FormantBands, or FormantSequence)";
+    if (needsFormant && !is_formant(sourceType)) {
+        return "Pin needs a Formant part (FormantPeaks, FormantBands or FormantSequence)";
     }
 
     // PartialSet-requiring pins
@@ -3222,8 +3218,7 @@ static bool is_partials_type(const std::string& t) {
     return t == "FullPartials" || t == "SequencePartials" || t == "ExplicitPartials";
 }
 static bool is_formant_type(const std::string& t) {
-    return t == "FormantPeaks" || t == "Formant" || t == "FormantSpectrum"
-        || t == "FormantSequence" || t == "FormantBands";
+    return t == "FormantPeaks" || t == "FormantBands" || t == "FormantSequence";
 }
 
 // Per-render snapshot of envelope-driven inputs feeding evolving (Partials/
@@ -11701,7 +11696,7 @@ static bool draw_partials_strip(GraphNode* node, ImU32 color,
     return popped;
 }
 
-// Draw a Formant / FormantSpectrum / FormantSequence as a gain-vs-frequency curve.
+// Draw a formant — any Formant: peaks, bands, a sequence — as a gain-vs-frequency curve.
 // Samples get_gain(f) at log-spaced frequencies across 20 Hz → ~Nyquist.
 // prepare/next must have been called for the formant to have valid internal
 // state — for a static node this happens at load time.
@@ -11720,8 +11715,8 @@ static bool draw_formant_strip(GraphNode* node, ImU32 color,
 
     dl->AddText(ImVec2(x + 2, y + 2), IM_COL32(150, 150, 150, 255), node->label.c_str());
 
-    auto* ifp = node->dspSource ? dynamic_cast<IFormant*>(node->dspSource.get()) : nullptr;
-    if (!ifp) {
+    auto* fmt = node->dspSource ? dynamic_cast<Formant*>(node->dspSource.get()) : nullptr;
+    if (!fmt) {
         dl->AddText(ImVec2(plotX0 + 4, plotY0 + 4), IM_COL32(140, 140, 140, 255),
                     "(node not initialized)");
         dl->AddRect(ImVec2(x, y), ImVec2(x + width, y + height), IM_COL32(80, 80, 80, 255));
@@ -11739,11 +11734,11 @@ static bool draw_formant_strip(GraphNode* node, ImU32 color,
     // gains = the one curve, sampled from the live node; the hover readout
     // reads it too.
     std::vector<float> gains(samples);
-    ifp->next();
+    fmt->next();
     for (int i = 0; i < samples; ++i) {
         float t = float(i) / float(samples - 1);
         float f = std::pow(10.0f, logFmin + t * (logFmax - logFmin));
-        gains[i] = ifp->contains(f) ? ifp->get_gain(f) : 0.0f;
+        gains[i] = fmt->gain(f);
     }
 
     float gMax = 0.0f;
@@ -13709,7 +13704,7 @@ int main(int argc, char** argv) {
                 int inPin  = (startPin->kind == UiPinKind::Input)  ? startAttr : endAttr;
 
                 // Reject structurally incompatible links. Target pins that
-                // expect IFormant / PartialSet can't accept arbitrary sources
+                // expect Formant / PartialSet can't accept arbitrary sources
                 // — before this check the loader silently dropped mismatched
                 // set_param calls, leaving a "lying wire" in the UI with no
                 // corresponding DSP connection.

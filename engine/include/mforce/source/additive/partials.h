@@ -225,7 +225,7 @@ struct Partials : PartialSet {
   // render path goes through sum_partials() below, which hoists everything
   // that is invariant across partials out of the loop.
   float get_partial_value(float amplitude, float frequency, float phaseDiff,
-                          int index, IFormant* formant, float fmtWt,
+                          int index, Formant* formant, float fmtWt,
                           float fmtFloor) override
   {
     ensure_partial_cache();
@@ -236,7 +236,7 @@ struct Partials : PartialSet {
   // Batched per-sample sum. Same math, same accumulation order as the loop
   // the additive source used to run — renders are byte-identical.
   float sum_partials(float acc, float amplitude, float frequency,
-                     float phaseDiff, IFormant* formant, float fmtWt,
+                     float phaseDiff, Formant* formant, float fmtWt,
                      float fmtFloor) override
   {
     ensure_partial_cache();
@@ -255,7 +255,7 @@ private:
   // refresh_sample_scalars() and the per-partial values cached by
   // ensure_partial_cache() instead of re-deriving them N times per sample.
   inline float partial_value_impl(float amplitude, float frequency, float phaseDiff,
-                                  int index, IFormant* formant, float fmtWt,
+                                  int index, Formant* formant, float fmtWt,
                                   float fmtFloor)
   {
     // Multiplier (can evolve between mult1 and mult2) — cached on multE.
@@ -325,9 +325,10 @@ private:
     // Amplitude with rolloff (legacy lines 206-216) — cached on (multE, roE).
     float rolloff = rolloffCache_[index];
 
-    // Formant factor — additive-boost with out-of-band floor.
-    //   in-band:      factor = fmtFloor + fmtWt * gain-at-frequency
-    //   out-of-band:  factor = fmtFloor
+    // Formant factor — additive boost with an out-of-band floor:
+    //   factor = fmtFloor + fmtWt * gain-at-frequency
+    // where a formant's gain is 0 outside every band it shapes, so out of
+    // band the factor is fmtFloor.
     // fmtWt is the "resonance amount" knob (0 = flat, higher = stronger
     // peaks). fmtFloor is the inter-formant suppression: at 1.0 (default)
     // this reproduces the pure additive-boost semantic exactly — out-of-band
@@ -338,11 +339,7 @@ private:
     // read as a buzzy sawtooth. Continuity at the band edges holds for any
     // fmtFloor since gain -> 0 there.
     float fmtFactor = 1.0f;
-    if (formant) {
-      fmtFactor = formant->contains(pfreq)
-          ? fmtFloor + fmtWt * formant->get_gain(pfreq)
-          : fmtFloor;
-    }
+    if (formant) fmtFactor = fmtFloor + fmtWt * formant->gain(pfreq);
 
     // Fade out partials near cutoff (within 1000 Hz) — legacy line 216
     float fade = (pfreq < CUTOFF - 1000.0f) ? 1.0f : (CUTOFF - pfreq) / 1000.0f;

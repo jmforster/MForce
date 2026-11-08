@@ -53,7 +53,7 @@ float AdditiveSource::wave() {
 
   float fmtWt = 0.0f;
   float fmtFloor = 1.0f;
-  IFormant* fmt = formant.get();
+  Formant* fmt = formant.get();
   if (fmt) {
     fmt->next();
     formantWeight.next();

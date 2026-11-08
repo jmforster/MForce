@@ -24,7 +24,7 @@ struct AdditiveSource final : WaveSource {
   // node drives through their interfaces, type-checked when wired.
   Param formantWeight{this, "formantWeight", 0.0f, 0.0f, 1.0f, "0-1", Pull::Manual};
   Param formantFloor {this, "formantFloor",  1.0f, 0.0f, 1.0f, "0-1", Pull::Manual};  // out-of-band suppression, 1.0 = no cut
-  Slot<IFormant> formant{this, "formant", "an IFormant part"};
+  Slot<Formant> formant{this, "formant", "a Formant part"};
   Slot<PartialSet> partials{this, "partials", "a PartialSet part"};
 
   // --- NoiseBed configs (scalar so paramMap frequency-curves can drive them

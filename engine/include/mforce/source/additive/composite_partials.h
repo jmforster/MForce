@@ -37,7 +37,7 @@ struct CompositePartials final : PartialSet {
   }
 
   float get_partial_value(float amplitude, float frequency, float phaseDiff,
-                          int index, IFormant* formant, float formantWeight,
+                          int index, Formant* formant, float formantWeight,
                           float formantFloor) override {
     int offset = 0;
     for (auto* p : partials.views) {
@@ -57,7 +57,7 @@ struct CompositePartials final : PartialSet {
   // threading `acc` through keeps the addition order identical to one flat
   // loop over the concatenated index space.
   float sum_partials(float acc, float amplitude, float frequency,
-                     float phaseDiff, IFormant* formant, float fmtWt,
+                     float phaseDiff, Formant* formant, float fmtWt,
                      float fmtFloor) override {
     for (auto* p : partials.views)
       acc = p->sum_partials(acc, amplitude, frequency, phaseDiff,

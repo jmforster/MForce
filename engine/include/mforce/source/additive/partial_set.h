@@ -15,7 +15,7 @@ namespace mforce {
 struct PartialSet : DrivenPart {
   virtual int partial_count() const = 0;
   virtual float get_partial_value(float amplitude, float frequency, float phaseDiff,
-                                  int index, IFormant* formant, float formantWeight,
+                                  int index, Formant* formant, float formantWeight,
                                   float formantFloor) = 0;
 
   // Batched entry point: add every partial's contribution for one sample to
@@ -32,7 +32,7 @@ struct PartialSet : DrivenPart {
   // (NaN = past cutoff, gate that partial only), so an implementer that
   // doesn't override keeps identical behaviour.
   virtual float sum_partials(float acc, float amplitude, float frequency,
-                             float phaseDiff, IFormant* formant,
+                             float phaseDiff, Formant* formant,
                              float formantWeight, float formantFloor) {
     const int n = partial_count();
     for (int i = 0; i < n; ++i) {

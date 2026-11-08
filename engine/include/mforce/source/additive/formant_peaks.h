@@ -17,37 +17,32 @@ namespace mforce {
 // peak is a power ramp from its band's lower edge up to its centre and down
 // to the upper edge, and 0 outside. The band edges are derived from the rows
 // at prepare and whenever an array changes, so the per-sample read is the
-// cached edges and the row's values — no pin.
+// cached edges and the row's values — no pin. Ported from C# FormantSpectrum
+// and Formant, the peaks as rows.
 // ---------------------------------------------------------------------------
-struct FormantPeaks final : Component, IFormant {
+struct FormantPeaks final : Formant {
   Array frequency{this, "frequency", "peaks", 1000.0f, 1.0f,  20000.0f};
-  Array gain     {this, "gain",      "peaks", 1.0f,    0.0f,  10.0f};
+  Array peakGain {this, "gain",      "peaks", 1.0f,    0.0f,  10.0f};   // the member is not the verb below
   Array width    {this, "width",     "peaks", 500.0f,  1.0f,  10000.0f};
   Array power    {this, "power",     "peaks", 2.0f,    0.01f, 10.0f};
 
   const char* type_name() const override { return "FormantPeaks"; }
 
-  void prepare(const RenderContext&) override { cache_edges(); }
-  void start(int) override {}
-  void next() override {}
   void on_array_changed(std::string_view) override { cache_edges(); }
 
   // The rows the edges were cached for: the shortest of the four arrays.
   int peak_count() const { return int(lo_.size()); }
 
-  bool contains(float freq) const override {
-    for (size_t i = 0, n = lo_.size(); i < n; ++i)
-      if (freq > lo_[i] && freq < hi_[i]) return true;
-    return false;
-  }
-
-  float get_gain(float freq) const override {
+  float gain(float freq) const override {
     float g = 0.0f;
     for (size_t i = 0, n = lo_.size(); i < n; ++i)
       if (freq > lo_[i] && freq < hi_[i])
         g = std::max(g, peak_gain(i, freq));
     return g;
   }
+
+protected:
+  void on_prepare(const RenderContext&) override { cache_edges(); }
 
 private:
   // One peak's gain at a frequency: the ramp up to the centre, the ramp down
@@ -57,13 +52,13 @@ private:
     if (freq <= lo || freq >= hi) return 0.0f;
     const float f = frequency.values[i];
     const float p = power.values[i];
-    const float gn = gain.values[i];
+    const float gn = peakGain.values[i];
     if (freq < f)
       return std::pow((freq - lo) / (f - lo), p) * gn;
     return std::pow((hi - freq) / (hi - f), p) * gn;
   }
   void cache_edges() {
-    const size_t n = std::min({frequency.values.size(), gain.values.size(),
+    const size_t n = std::min({frequency.values.size(), peakGain.values.size(),
                                width.values.size(), power.values.size()});
     lo_.resize(n);
     hi_.resize(n);

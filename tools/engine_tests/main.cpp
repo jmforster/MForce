@@ -4014,9 +4014,7 @@ static void run_target_evolution_morph_tests() {
 
 // Checkpoint 2.1: the additive family (sources, partials, formants).
 #include "mforce/source/additive/formant.h"
-#include "mforce/source/additive/formant_spectrum.h"
 #include "mforce/source/additive/formant_peaks.h"
-#include "mforce/source/additive/fixed_spectrum.h"
 #include "mforce/source/additive/formant_bands.h"
 #include "mforce/source/additive/formant_sequence.h"
 #include "mforce/source/additive/additive_source.h"
@@ -4066,26 +4064,24 @@ static void run_additive_source_pin_tests() {
     CHECK(full.get_param("formant") == nullptr);
 }
 
+// A one-row FormantPeaks: the peak the 2.2-era split tests shaped.
+static std::shared_ptr<FormantPeaks> make_one_peak(float hz, float width = 500.0f, float gain = 1.0f, float power = 2.0f) {
+    auto pk = std::make_shared<FormantPeaks>();
+    pk->set_array("frequency", {hz});
+    pk->set_array("gain", {gain});
+    pk->set_array("width", {width});
+    pk->set_array("power", {power});
+    return pk;
+}
+
 // The structural types: the pins they declare, in descriptor order.
 static void run_additive_structural_pin_tests() {
-    Formant f;
-    CHECK(param_names(f) == "frequency,gain,width,power,");
-    CHECK_NEAR(param_default(f, "frequency"), 1000.0f, 1e-3f);
-    CHECK_NEAR(param_default(f, "width"), 500.0f, 1e-3f);
-    CHECK_NEAR(param_default(f, "power"), 2.0f, 1e-6f);
-    CHECK_NEAR(f.width.current(), 500.0f, 1e-3f);
-
     FormantBands band;
     CHECK(param_names(band) == "startFreq,freqIncrement,");
     CHECK(array_names(band) == "gains,");
-    FixedSpectrum fixed({0.0f, 1.0f, 0.0f});
-    CHECK(param_names(fixed).empty());
-    CHECK(array_names(fixed) == "gains,");
-    CHECK(fixed.get_array("gains") == std::vector<float>({0.0f, 1.0f, 0.0f}));
-    CHECK_NEAR(fixed.get_gain(1.0f), 1.0f, 1e-6f);
     band.set_array("gains", {0.0f, 1.0f, 0.0f});
-    CHECK_NEAR(band.get_gain(1.0f), 1.0f, 1e-6f);
-    CHECK(band.contains(1.5f) && !band.contains(2.5f));
+    CHECK_NEAR(band.gain(1.0f), 1.0f, 1e-6f);
+    CHECK(band.gain(1.5f) > 0.0f && band.gain(2.5f) == 0.0f);                 // the span ends at startFreq + 2
 
     FormantPeaks peaks;
     CHECK(param_names(peaks).empty());
@@ -4100,9 +4096,6 @@ static void run_additive_structural_pin_tests() {
     CHECK(param_names(seq) == "blend,");
     CHECK(input_names(seq) == "spectra,");
     CHECK(seq.input_descriptors()[0].multi);
-    FormantSpectrum spec;
-    CHECK(param_names(spec).empty() && input_names(spec) == "formants,");
-
     CompositePartials comp;
     CHECK(param_names(comp).empty());
     CHECK(input_names(comp) == "partials,");
@@ -4165,13 +4158,10 @@ static void run_additive_smoke_tests() {
     };
     AdditiveSource bare;     smoke(bare);                 // no partials: silent
     // A formant part is driven by its owner; its gain is what it answers.
-    auto smokeFormant = [&](IFormant& f) {
+    auto smokeFormant = [&](Formant& f) {
         f.prepare(ctx); f.start(4800);
-        for (int i = 0; i < 10; ++i) { f.next(); CHECK(std::isfinite(f.get_gain(1000.0f))); }
+        for (int i = 0; i < 10; ++i) { f.next(); CHECK(std::isfinite(f.gain(1000.0f))); }
     };
-    Formant formant;                    smokeFormant(formant);
-    FormantSpectrum spectrum;           spectrum.add_param("formants", std::make_shared<Formant>()); smokeFormant(spectrum);
-    FixedSpectrum fixed({0.0f, 1.0f});  smokeFormant(fixed);
     FormantBands band;                  smokeFormant(band);
     FormantPeaks peaks;                 peaks.set_array("frequency", {1000.0f}); peaks.set_array("gain", {1.0f});
                                         peaks.set_array("width", {500.0f}); peaks.set_array("power", {2.0f}); smokeFormant(peaks);
@@ -4189,7 +4179,7 @@ static void run_additive_smoke_tests() {
 
     AdditiveSource f;
     f.set_param("partials", std::make_shared<FullPartials>());
-    f.set_param("formant", std::make_shared<Formant>());
+    f.set_param("formant", make_one_peak(1000.0f));
     f.set_param("formantWeight", std::make_shared<ConstantSource>(0.5f));
     f.prepare(ctx); f.start(4800);
     float sum = 0.0f;
@@ -4222,17 +4212,6 @@ static void run_additive_manual_pin_tests() {
     fp.prepare(ctx); fp.start(4800);                                 // a second prepare and start: the pins start again
     for (const auto& p : probes) CHECK(p->starts == 2);
 
-    Formant fm;
-    auto c1 = std::make_shared<PinCounter>(), c2 = std::make_shared<PinCounter>();
-    fm.set_param("frequency", c1);
-    fm.set_param("power", c2);
-    fm.prepare(ctx); fm.start(4800);
-    fm.next();
-    fm.next();
-    CHECK(c1->starts == 1 && c2->starts == 1);
-    CHECK(c1->rate == 48000 && c2->rate == 48000);     // prepare reached the pins
-    CHECK(c1->nexts == 2 && c2->nexts == 2);
-
     FormantBands band;
     FormantSequence seq;
     auto b1 = std::make_shared<PinCounter>(), b2 = std::make_shared<PinCounter>();
@@ -4264,9 +4243,9 @@ static void run_additive_formant_pin_tests() {
     CHECK(w->starts == 1 && fl->starts == 1);
     CHECK(w->nexts == 0 && fl->nexts == 0);          // no formant: never advanced
 
-    auto formant = std::make_shared<Formant>();
+    auto formant = std::make_shared<FormantBands>();
     auto freq = std::make_shared<PinCounter>();
-    formant->set_param("frequency", freq);
+    formant->set_param("startFreq", freq);
     f.set_param("formant", formant);
     f.prepare(ctx); f.start(4800);
     for (int i = 0; i < 5; ++i) f.next();
@@ -4286,26 +4265,26 @@ static void run_additive_formant_pin_tests() {
 static void run_additive_wiring_tests() {
     AdditiveSource f;
     auto fp = std::make_shared<FullPartials>();
-    auto fm = std::make_shared<Formant>();
+    auto fm = make_one_peak(800.0f);
     auto other = std::make_shared<ConstantSource>(1.0f);
     f.set_param("partials", fp);
     f.set_param("formant", fm);
     CHECK(f.get_part("partials") == fp && f.get_part("formant") == fm);
     CHECK(!f.set_param("partials", other));                // not a PartialSet: refused
-    CHECK(!f.set_param("formant", other));                 // not an IFormant: refused, the slot keeps its part
+    CHECK(!f.set_param("formant", other));                 // not a Formant: refused, the slot keeps its part
     CHECK(f.get_part("partials") == fp && f.get_part("formant") == fm);
     f.set_param("formant", nullptr);                       // null clears the slot
     CHECK(f.get_part("formant") == nullptr);
 
     FormantSequence seq;
-    auto s1 = std::make_shared<FormantSpectrum>(), s2 = std::make_shared<FormantSpectrum>();
+    auto s1 = make_one_peak(500.0f), s2 = make_one_peak(1500.0f);
     seq.set_param("spectra", s1);
     CHECK(seq.spectra.views.size() == 1);
     seq.add_param("spectra", s2);
     CHECK(seq.spectra.views.size() == 2);
     seq.set_param("spectra", s2);                          // set replaces, add appends
     CHECK(seq.spectra.views.size() == 1);
-    seq.add_param("spectra", other);                       // not an IFormant: refused
+    seq.add_param("spectra", other);                       // not a Formant: refused
     CHECK(seq.spectra.views.size() == 1);
     seq.clear_param("spectra");
     CHECK(seq.spectra.views.empty());
@@ -5600,7 +5579,7 @@ static bool split_equivalent(const std::function<std::shared_ptr<ValueSource>()>
 // interface and nothing of ValueSource. The list grows as the families leave
 // ValueSource and is the audit's oracle at the close.
 static const std::set<std::string> kPartTypes = {
-    "Formant", "FormantSpectrum", "FixedSpectrum", "FormantBands", "FormantSequence", "FormantPeaks",
+    "FormantPeaks", "FormantBands", "FormantSequence",
     "FullPartials", "SequencePartials", "ExplicitPartials", "CompositePartials", "ExpandRule",
     "PluckEvolution", "AveragingEvolution", "EKSEvolution", "ReedEvolution", "BowedStringEvolution",
     "BrassEvolution", "ReactionDiffusionEvolution", "SortErosionEvolution", "CellularAutomatonEvolution",
@@ -5958,32 +5937,24 @@ static std::shared_ptr<AdditiveSource> make_split_full(std::shared_ptr<Component
     return f;
 }
 
-static std::shared_ptr<Formant> make_split_formant(float hz) {
-    auto fm = std::make_shared<Formant>();
-    fm->set_param("frequency", std::make_shared<ConstantSource>(hz));
-    fm->set_param("width", std::make_shared<ConstantSource>(900.0f));
-    return fm;
-}
-
 static void run_additive_split_tests() {
     // The note counter advances at start, never at prepare: a node prepared
     // before every note renders what one prepared once does, across four notes.
     CHECK(split_equivalent([] { return make_split_full(nullptr); }, 2048, 4));
-    CHECK(split_equivalent([] { return make_split_full(make_split_formant(800.0f)); }, 2048, 4));
+    CHECK(split_equivalent([] { return make_split_full(make_one_peak(800.0f, 900.0f)); }, 2048, 4));
     CHECK(split_equivalent([] {
-        auto spec = std::make_shared<FormantSpectrum>();
-        spec->add_param("formants", make_split_formant(500.0f));
-        spec->add_param("formants", make_split_formant(1500.0f));
+        auto spec = std::make_shared<FormantPeaks>();
+        spec->set_array("frequency", {500.0f, 1500.0f});
+        spec->set_array("gain", {1.0f, 1.0f});
+        spec->set_array("width", {900.0f, 900.0f});
+        spec->set_array("power", {2.0f, 2.0f});
         return make_split_full(spec);
     }, 2048, 4));
     CHECK(split_equivalent([] {
         auto seq = std::make_shared<FormantSequence>();
         seq->set_param("blend", Envelope::make_ar(0.5f));
-        for (float hz : {400.0f, 1200.0f}) {
-            auto spec = std::make_shared<FormantSpectrum>();
-            spec->add_param("formants", make_split_formant(hz));
-            seq->add_param("spectra", spec);
-        }
+        for (float hz : {400.0f, 1200.0f})
+            seq->add_param("spectra", make_one_peak(hz, 900.0f));
         return make_split_full(seq);
     }, 2048, 4));
     CHECK(split_equivalent([] {
@@ -5997,7 +5968,7 @@ static void run_additive_split_tests() {
 
     // The rate reaches the partials and the bed only through prepare(ctx).
     auto at = [](int rate) {
-        auto f = make_split_full(make_split_formant(800.0f));
+        auto f = make_split_full(make_one_peak(800.0f, 900.0f));
         f->prepare(RenderContext{rate});
         f->start(2048);
         return render_samples(*f, 2048);
@@ -7023,6 +6994,10 @@ static void run_retired_type_message_tests() {
     CHECK(retired_type_hint("Envelope") == nullptr && retired_type_hint("ASREnvelope") != nullptr);
     CHECK(retired_type_hint("AdditiveSource2") != nullptr && retired_type_hint("BasicAdditiveSource") != nullptr);
     CHECK(std::string(retired_type_hint("AdditiveSource2")).find("author an AdditiveSource") != std::string::npos);
+    for (const char* t : {"Formant", "FormantSpectrum"})
+        CHECK(std::string(retired_type_hint(t)).find("rows of a FormantPeaks") != std::string::npos);
+    CHECK(std::string(retired_type_hint("FixedSpectrum")).find("FormantBands or FormantPeaks") != std::string::npos);
+    CHECK(message_for("FormantSpectrum").find("migrate_deleted_types.py") != std::string::npos);
     CHECK(std::string(retired_type_hint("BandSpectrum")).find("renamed FormantBands") != std::string::npos);
     CHECK(message_for("BandSpectrum").find("Unknown node type: BandSpectrum") != std::string::npos);
 }
@@ -7428,7 +7403,7 @@ static void run_wiring_door_tests() {
     // a part where a signal is expected fails the load naming node, pin and kind
     const char* partAsSignal = R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"add","nodes":[
       {"id":"parts","type":"FullPartials","params":{"maxPartials":4}},
-      {"id":"fm","type":"Formant","params":{"frequency":440.0}},
+      {"id":"fm","type":"FormantPeaks","params":{"frequency":[440.0],"gain":[1.0],"width":[300.0],"power":[2.0]}},
       {"id":"add","type":"AdditiveSource","params":{"frequency":{"ref":"fm"},"amplitude":0.5,"partials":{"ref":"parts"}}}]}})";
     CHECK(load_fails_naming(partAsSignal, "add"));
     CHECK(load_fails_naming(partAsSignal, "frequency"));
@@ -7442,38 +7417,37 @@ static void run_wiring_door_tests() {
     CHECK(vg.nodesById.count("parts") == 1 && vg.nodesById.count("add") == 1);
 }
 
-// The formant family are parts: a FormantSpectrum holds its formants in a
+// The formant family are parts: a FormantSequence holds its formants in a
 // multi slot that clears and refills, set replaces and add appends, a signal
-// is refused, a Formant is no longer a ValueSource, and a formant edited on a
+// is refused, no formant type is a ValueSource, and a formant edited on a
 // loaded instrument reaches the next note through the owner's prepare.
 static void run_formant_part_tests() {
     std::printf("formants: parts in slots\n");
     {
-        FormantSpectrum spec;
-        auto f1 = std::make_shared<Formant>(); f1->set_param("frequency", std::make_shared<ConstantSource>(500.0f));
-        auto f2 = std::make_shared<Formant>(); f2->set_param("frequency", std::make_shared<ConstantSource>(2000.0f));
-        CHECK(spec.add_param("formants", f1) && spec.add_param("formants", f2));
-        CHECK(spec.clear_param("formants"));
-        CHECK(spec.add_param("formants", f2));
-        spec.prepare(RenderContext{48000}); spec.start(4800); spec.next();
-        CHECK(!spec.contains(500.0f) && spec.contains(2000.0f));                     // exactly the refilled set
-        CHECK(!spec.add_param("formants", std::make_shared<SineSource>()));          // a signal into the slot: refused
-        CHECK(spec.set_param("formants", f1));                                       // set replaces on a multi slot
-        CHECK(spec.get_part("formants") == f1);
-        CHECK(spec.formants.views.size() == 1);
+        FormantSequence seq;
+        auto f1 = make_one_peak(500.0f), f2 = make_one_peak(2000.0f);
+        CHECK(seq.add_param("spectra", f1) && seq.add_param("spectra", f2));
+        CHECK(seq.clear_param("spectra"));
+        CHECK(seq.add_param("spectra", f2));
+        seq.prepare(RenderContext{48000}); seq.start(4800); seq.next();
+        CHECK(seq.gain(500.0f) == 0.0f && seq.gain(2000.0f) > 0.0f);                 // exactly the refilled set
+        CHECK(!seq.add_param("spectra", std::make_shared<SineSource>()));             // a signal into the slot: refused
+        CHECK(seq.set_param("spectra", f1));                                          // set replaces on a multi slot
+        CHECK(seq.get_part("spectra") == f1);
+        CHECK(seq.spectra.views.size() == 1);
         register_all_sources();
-        CHECK(std::dynamic_pointer_cast<ValueSource>(SourceRegistry::instance().create("Formant")) == nullptr);
-        CHECK(std::dynamic_pointer_cast<ValueSource>(SourceRegistry::instance().create("FormantSequence")) == nullptr);
+        for (const char* type : {"FormantPeaks", "FormantBands", "FormantSequence"})
+            CHECK(std::dynamic_pointer_cast<ValueSource>(SourceRegistry::instance().create(type)) == nullptr);
     }
-    // a formant's gain changed on a loaded instrument, then prepare: the next note hears it
+    // a peak's gain changed on a loaded instrument, then prepare: the next note hears it
     {
         const char* shaped = R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"add","nodes":[
           {"id":"parts","type":"FullPartials","params":{"maxPartials":8}},
-          {"id":"fm","type":"Formant","params":{"frequency":440.0,"gain":1.0,"width":300.0}},
+          {"id":"fm","type":"FormantPeaks","params":{"frequency":[440.0],"gain":[1.0],"width":[300.0],"power":[2.0]}},
           {"id":"add","type":"AdditiveSource","params":{"frequency":220.0,"amplitude":0.5,"partials":{"ref":"parts"},"formant":{"ref":"fm"},"formantWeight":1.0}}]}})";
         auto ip = load_instrument_patch_json(shaped);
         const auto before = render_one_live_note(*ip.instrument, 60.0f);
-        ip.instrument->voicePool[0].nodesById.at("fm")->set_param("gain", std::make_shared<ConstantSource>(0.0f));
+        ip.instrument->voicePool[0].nodesById.at("fm")->set_array("gain", {0.0f});
         ip.instrument->prepare(RenderContext{48000});
         const auto after = render_one_live_note(*ip.instrument, 60.0f);
         CHECK(!same_bits(before, after));
@@ -7975,7 +7949,9 @@ static void run_driven_part_lifecycle_tests() {
 // FormantPeaks over rows x frequencies: 2,000 log-spaced from 20 Hz to
 // 20 kHz plus every row's exact band edges, the float just inside each edge
 // and the centre; a single row, overlapping rows, a gain-0 row, three powers,
-// two equal rows, a vowel's five.
+// two equal rows, a vowel's five. The old contains() is implied: the gain is
+// compared both as the old spectrum gave it and gated to 0 where the old
+// predicate was false, and the two agree.
 namespace formant_peaks_twin {
 struct Row { float f, g, w, p; };
 static bool old_peak_contains(const Row& r, float freq) {
@@ -8048,9 +8024,8 @@ static void run_formant_peaks_twin_tests() {
             const bool oc = old_spectrum_contains(set, freq);
             const float og = old_spectrum_gain(set, freq);
             inBand += oc;
-            if (peaks.contains(freq) != oc) ++bad;
-            if (!same_bits(peaks.get_gain(freq), og)) ++bad;
-            if (!same_bits(peaks.get_gain(freq), oc ? og : 0.0f)) ++bad;      // 0 outside every row: the consumer's gate is implied
+            if (!same_bits(peaks.gain(freq), og)) ++bad;
+            if (!same_bits(peaks.gain(freq), oc ? og : 0.0f)) ++bad;          // 0 outside every row: the old gate is implied
         }
     }
     CHECK(bad == 0);
@@ -8061,11 +8036,11 @@ static void run_formant_peaks_twin_tests() {
         FormantPeaks peaks;
         fill(peaks, kSets[0]);
         peaks.prepare(RenderContext{48000}); peaks.start(4800);
-        CHECK(same_bits(peaks.get_gain(1000.0f), 1.0f) && peaks.contains(1100.0f));
+        CHECK(same_bits(peaks.gain(1000.0f), 1.0f) && peaks.gain(1100.0f) > 0.0f);
         peaks.set_array("width", {100.0f});
-        CHECK(!peaks.contains(1100.0f) && same_bits(peaks.get_gain(1100.0f), 0.0f));
+        CHECK(same_bits(peaks.gain(1100.0f), 0.0f));
         peaks.set_array("frequency", {2000.0f});
-        CHECK(peaks.contains(2000.0f) && same_bits(peaks.get_gain(2000.0f), 1.0f));
+        CHECK(same_bits(peaks.gain(2000.0f), 1.0f));
     }
 }
 
@@ -8105,38 +8080,234 @@ static void run_formant_peaks_load_tests() {
       {"id":"add","type":"AdditiveSource","params":{"frequency":220.0,"amplitude":0.5,"partials":{"ref":"parts"},"formant":{"ref":"pk"},"formantWeight":1.0}}]}})";
     auto empty = load_instrument_patch_json(none);                            // no rows: a formant that gains nothing
     auto* pk0 = dynamic_cast<FormantPeaks*>(empty.instrument->voicePool[0].nodesById.at("pk").get());
-    CHECK(pk0 != nullptr && pk0->peak_count() == 0 && same_bits(pk0->get_gain(1000.0f), 0.0f));
+    CHECK(pk0 != nullptr && pk0->peak_count() == 0 && same_bits(pk0->gain(1000.0f), 0.0f));
 }
 
-// The live comparison while both types exist: a FormantSpectrum over peak
-// nodes with constant pins against a FormantPeaks over the same rows, bit for
-// bit over the twin's grid.
-static void run_formant_peaks_against_spectrum_tests() {
-    using namespace formant_peaks_twin;
-    std::printf("formant peaks: against the spectrum it replaces\n");
-    int bad = 0, rows = 0;
-    for (const auto& set : kSets) {
-        FormantSpectrum spec;
-        for (const auto& r : set) {
-            auto f = std::make_shared<Formant>();
-            f->set_param("frequency", std::make_shared<ConstantSource>(r.f));
-            f->set_param("gain", std::make_shared<ConstantSource>(r.g));
-            f->set_param("width", std::make_shared<ConstantSource>(r.w));
-            f->set_param("power", std::make_shared<ConstantSource>(r.p));
-            CHECK(spec.add_param("formants", f));
-        }
-        FormantPeaks peaks;
-        fill(peaks, set);
-        RenderContext ctx{48000};
-        spec.prepare(ctx); spec.start(4800); spec.next();
-        peaks.prepare(ctx); peaks.start(4800); peaks.next();
-        for (float freq : grid(set)) {
+// FormantBands against the band spectrum it was: the old contains() and
+// get_gain() retyped over (startFreq, freqIncrement, gains) as they stood,
+// and the consumer's gate `contains ? get_gain : 0` compared bit for bit with
+// the predicate-folded gain over the frequencies ruling 4 names — the sub-bin
+// below startFreq (where the old get_gain alone was NOT 0: a negative position
+// truncates to bin 0 and interpolates with a negative fraction), startFreq
+// itself and the floats beside it, every bin edge, the span's end and the
+// floats beside it, one bin beyond — and a log grid; the two pins moved
+// between samples by a stepping source.
+namespace formant_bands_twin {
+static bool old_contains(float sf, float fi, const std::vector<float>& gains, float freq) {
+    return freq >= sf && freq <= sf + fi * float(int(gains.size()) - 1);
+}
+static float old_get_gain(float sf, float fi, const std::vector<float>& gains, float freq) {
+    if (fi <= 0.0f) return 0.0f;
+
+    float pos = (freq - sf) / fi;
+    int idx = int(pos);
+    if (idx < 0 || idx + 1 >= int(gains.size())) return 0.0f;
+
+    float frac = pos - float(idx);
+    return gains[idx] + (gains[idx + 1] - gains[idx]) * frac;
+}
+static std::vector<float> log_grid() {
+    std::vector<float> freqs;
+    const float lo = std::log10(20.0f), hi = std::log10(20000.0f);
+    for (int i = 0; i < 2000; ++i)
+        freqs.push_back(std::pow(10.0f, lo + (hi - lo) * float(i) / 1999.0f));
+    return freqs;
+}
+}
+// A Manual pin's source that steps through a list, one value per next().
+struct StepSource final : Generator {
+    std::vector<float> values;
+    size_t at{0};
+    float compute() override { const float v = values[at % values.size()]; ++at; return v; }
+    const char* type_name() const override { return "StepSource"; }
+};
+static void run_formant_bands_twin_tests() {
+    using namespace formant_bands_twin;
+    std::printf("formant bands twin: the predicate folded into the gain\n");
+    const std::vector<float> gains = {0.1f, 0.9f, 0.3f, 1.0f, 0.5f, 0.8f, 0.2f, 0.7f};
+    const std::vector<float> sfs = {300.0f, 100.0f, 250.5f, 1000.0f};
+    const std::vector<float> fis = {150.0f, 50.0f, 37.25f, 0.0f};          // the last: fi <= 0 gains nothing
+    FormantBands band;
+    band.set_array("gains", gains);
+    auto sf = std::make_shared<StepSource>(); sf->values = sfs;
+    auto fi = std::make_shared<StepSource>(); fi->values = fis;
+    CHECK(band.set_param("startFreq", sf) && band.set_param("freqIncrement", fi));
+    band.prepare(RenderContext{48000}); band.start(4800);
+    int rows = 0, bad = 0, subBinNonZero = 0, inBand = 0;
+    for (size_t k = 0; k < sfs.size(); ++k) {
+        band.next();                                                        // both pins step together
+        const float s = sfs[k], d = fis[k];
+        const float end = s + d * float(int(gains.size()) - 1);
+        std::vector<float> freqs = log_grid();
+        for (float f : {s - d * 0.5f, s - d * 0.01f, std::nextafter(s, 0.0f), s, std::nextafter(s, 1.0e9f),
+                        s + d * 0.5f, end - d * 0.5f, std::nextafter(end, 0.0f), end, std::nextafter(end, 1.0e9f),
+                        end + d * 0.5f, end + d, end + d * 1.5f})
+            freqs.push_back(f);
+        for (int j = 0; j < int(gains.size()); ++j) freqs.push_back(s + d * float(j));
+        for (float f : freqs) {
             ++rows;
-            if (spec.contains(freq) != peaks.contains(freq)) ++bad;
-            if (!same_bits(spec.get_gain(freq), peaks.get_gain(freq))) ++bad;
+            const bool oc = old_contains(s, d, gains, f);
+            const float og = old_get_gain(s, d, gains, f);
+            inBand += oc;
+            if (!oc && og != 0.0f) ++subBinNonZero;                         // ruling 4: the case the fold keeps
+            if (!same_bits(band.gain(f), oc ? og : 0.0f)) ++bad;
         }
     }
-    CHECK(bad == 0 && rows > 0);
+    CHECK(bad == 0);
+    CHECK(subBinNonZero > 0);                                               // the fold is load-bearing
+    CHECK(inBand > 0 && inBand < rows);
+    CHECK(rows == 4 * (2000 + 13 + 8));
+    // an empty table: nothing contains, nothing gains
+    FormantBands empty;
+    empty.prepare(RenderContext{48000}); empty.start(4800); empty.next();
+    CHECK(same_bits(empty.gain(0.0f), 0.0f) && same_bits(empty.gain(100.0f), 0.0f));
+}
+
+// FormantSequence against the crossfade it was: fPtr and fWeight as the old
+// next() computed them, each neighbour gated by its own old contains(), over
+// children of two kinds and blends 0, 0.37, 0.5, 1 (two children) and
+// 0.25, 0.5, 0.75, 1 (three); where only one neighbour contains, the other
+// contributes the 0 the old gate gave it.
+static void run_formant_sequence_twin_tests() {
+    using formant_peaks_twin::Row;
+    std::printf("formant sequence twin: the crossfade over gated children\n");
+    const std::vector<Row>& vowel = formant_peaks_twin::kSets[2];
+    const std::vector<Row>& three = formant_peaks_twin::kSets[1];
+    const std::vector<float> gains = {0.1f, 0.9f, 0.3f, 1.0f, 0.5f, 0.8f, 0.2f, 0.7f};
+    const float bsf = 300.0f, bfi = 150.0f;
+    auto old_child = [&](int which, float f) -> float {                     // 0: vowel rows, 1: bands, 2: three rows
+        if (which == 1)
+            return formant_bands_twin::old_contains(bsf, bfi, gains, f) ? formant_bands_twin::old_get_gain(bsf, bfi, gains, f) : 0.0f;
+        const std::vector<Row>& rows = which == 0 ? vowel : three;
+        return formant_peaks_twin::old_spectrum_contains(rows, f) ? formant_peaks_twin::old_spectrum_gain(rows, f) : 0.0f;
+    };
+    auto make_child = [&](int which) -> std::shared_ptr<Component> {
+        if (which == 1) {
+            auto b = std::make_shared<FormantBands>();
+            b->set_param("startFreq", std::make_shared<ConstantSource>(bsf));
+            b->set_param("freqIncrement", std::make_shared<ConstantSource>(bfi));
+            b->set_array("gains", gains);
+            return b;
+        }
+        auto p = std::make_shared<FormantPeaks>();
+        formant_peaks_twin::fill(*p, which == 0 ? vowel : three);
+        return p;
+    };
+    int rows = 0, bad = 0, oneSided = 0;
+    for (const auto& kinds : std::vector<std::vector<int>>{{0, 1}, {1, 0, 2}}) {
+        const std::vector<float> blends = kinds.size() == 2 ? std::vector<float>{0.0f, 0.37f, 0.5f, 1.0f}
+                                                             : std::vector<float>{0.25f, 0.5f, 0.75f, 1.0f};
+        for (float b : blends) {
+            FormantSequence seq;
+            seq.set_param("blend", std::make_shared<ConstantSource>(b));
+            for (int k : kinds) CHECK(seq.add_param("spectra", make_child(k)));
+            seq.prepare(RenderContext{48000}); seq.start(4800); seq.next();
+            const int n = int(kinds.size());
+            const float bb = std::clamp(b, 0.0f, 1.0f) * float(n - 1);
+            const int fPtr = std::min(int(bb), n - 2);
+            const float w = bb - float(fPtr);
+            const int hi = std::min(fPtr + 1, n - 1);
+            for (float f : formant_bands_twin::log_grid()) {
+                ++rows;
+                const float g0 = old_child(kinds[size_t(fPtr)], f);
+                const float g1 = old_child(kinds[size_t(hi)], f);
+                if ((g0 == 0.0f) != (g1 == 0.0f)) ++oneSided;
+                if (!same_bits(seq.gain(f), g0 * (1.0f - w) + g1 * w)) ++bad;
+            }
+        }
+    }
+    CHECK(bad == 0);
+    CHECK(oneSided > 0);
+    CHECK(rows == 8 * 2000);
+    // fewer than two children: the first alone, or nothing
+    {
+        FormantSequence one;
+        one.set_param("blend", std::make_shared<ConstantSource>(0.7f));
+        CHECK(one.add_param("spectra", make_child(1)));
+        one.prepare(RenderContext{48000}); one.start(4800); one.next();
+        for (float f : {250.0f, 300.0f, 600.0f, 1350.0f, 1500.0f})
+            CHECK(same_bits(one.gain(f), old_child(1, f)));
+        FormantSequence none;
+        none.prepare(RenderContext{48000}); none.start(4800); none.next();
+        CHECK(same_bits(none.gain(600.0f), 0.0f));
+    }
+}
+
+// The consumer's factor `floor + weight × gain` against the gated form it
+// replaces, `contains ? floor + weight × gain : floor`, over floor in
+// {+0, −0, 0.2, 1}, weight in {0, 0.5, 1}, and (gain, contains) in {(0, in),
+// (0.3, in), (1, in), (0, out)}: identical except the (−0, out-of-band) rows,
+// one per weight, which differ in the sign of the zero only — ruling 5's
+// departure, counted here.
+static void run_formant_factor_twin_tests() {
+    std::printf("formant factor twin: floor + weight x gain against the gated form\n");
+    std::vector<float> floors = {0.0f, -0.0f, 0.2f, 1.0f};
+    std::vector<float> weights = {0.0f, 0.5f, 1.0f};
+    std::vector<std::pair<float, bool>> gains = {{0.0f, true}, {0.3f, true}, {1.0f, true}, {0.0f, false}};
+    int rows = 0, differ = 0, signOnly = 0, negZeroOut = 0;
+    for (float fl : floors)
+        for (float wt : weights)
+            for (const auto& [g, in] : gains) {
+                ++rows;
+                const float old = in ? fl + wt * g : fl;
+                const float now = fl + wt * g;
+                if (!same_bits(old, now)) {
+                    ++differ;
+                    if (same_value(old, now)) ++signOnly;
+                    if (std::signbit(fl) && fl == 0.0f && !in) ++negZeroOut;
+                }
+            }
+    CHECK(rows == 48);
+    CHECK(differ == signOnly);                                              // never a value, only a sign
+    CHECK(differ == 3 && negZeroOut == 3);                                  // −0 floor, out of band, each weight
+}
+
+// The base drives a formant's pins: FormantBands' two prepared and started
+// once and advanced once per next() in declaration order; FormantPeaks has
+// no Param pin and its hook caches the rows; a FormantSequence's blend and
+// its child's pins through the hooks.
+static void run_formant_lifecycle_tests() {
+    std::printf("formants: the base drives the pins\n");
+    RenderContext ctx{48000};
+    {
+        FormantBands band;
+        auto a = std::make_shared<PinCounter>(), b = std::make_shared<PinCounter>();
+        CHECK(band.set_param("startFreq", a) && band.set_param("freqIncrement", b));
+        Formant& f = band;
+        f.prepare(ctx); f.start(4800);
+        for (int i = 0; i < 5; ++i) f.next();
+        CHECK(a->ctxPrepares == 1 && a->starts == 1 && a->nexts == 5 && a->rate == 48000);
+        CHECK(b->ctxPrepares == 1 && b->starts == 1 && b->nexts == 5 && b->rate == 48000);
+    }
+    {
+        FormantBands band;
+        std::vector<std::string> log;
+        auto oa = std::make_shared<OrderProbe>(); oa->log = &log; oa->tag = "startFreq";
+        auto ob = std::make_shared<OrderProbe>(); ob->log = &log; ob->tag = "freqIncrement";
+        CHECK(band.set_param("startFreq", oa) && band.set_param("freqIncrement", ob));
+        band.prepare(ctx); band.start(4800); band.next();
+        CHECK(log == std::vector<std::string>({"startFreq", "freqIncrement"}));
+    }
+    {
+        FormantPeaks peaks;
+        peaks.set_array("frequency", {1000.0f}); peaks.set_array("gain", {1.0f});
+        peaks.set_array("width", {500.0f}); peaks.set_array("power", {2.0f});
+        CHECK(peaks.param_descriptors().empty());
+        Formant& f = peaks;
+        f.prepare(ctx); f.start(4800); f.next();
+        CHECK(peaks.peak_count() == 1 && same_bits(f.gain(1000.0f), 1.0f));
+    }
+    {
+        FormantSequence seq;
+        auto bl = std::make_shared<PinCounter>(), c = std::make_shared<PinCounter>();
+        auto band = std::make_shared<FormantBands>();
+        CHECK(band->set_param("startFreq", c));
+        CHECK(seq.set_param("blend", bl) && seq.add_param("spectra", band));
+        seq.prepare(ctx); seq.start(4800);
+        for (int i = 0; i < 3; ++i) seq.next();
+        CHECK(bl->ctxPrepares == 1 && bl->starts == 1 && bl->nexts == 3);
+        CHECK(c->ctxPrepares == 1 && c->starts == 1 && c->nexts == 3);
+    }
 }
 
 // The partials family are parts: a CompositePartials holds its sets in a multi
@@ -8172,14 +8343,14 @@ static void run_target_evolution_registry_tests() {
 }
 
 // The audit: every registered type is created once; exactly the named parts
-// are not signals, every other type is. The twenty-four parts are the four
-// Partials types and the expand rule, the six formant types and the
+// are not signals, every other type is. The twenty-one parts are the four
+// Partials types and the expand rule, the three formant types and the
 // thirteen evolutions.
 static void run_component_root_tests() {
     std::printf("the root: parts and signals\n");
     register_all_sources();
     auto& reg = SourceRegistry::instance();
-    CHECK(kPartTypes.size() == 24);
+    CHECK(kPartTypes.size() == 21);
     int seen = 0, parts = 0;
     for (const auto& entry : reg.registered_types()) {
         const std::string& name = entry.name;
@@ -8190,7 +8361,7 @@ static void run_component_root_tests() {
         CHECK(isPart == (kPartTypes.count(name) == 1));
         ++seen; parts += isPart;
     }
-    CHECK(parts == 24);
+    CHECK(parts == 21);
     CHECK(seen == int(reg.registered_types().size()));
 }
 
@@ -8222,8 +8393,7 @@ static void run_review_gap_tests() {
     // a FormantSequence keyed "formants" (the alias the deleted branch read) is refused by name
     const char* seqAlias = R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"add","nodes":[
       {"id":"parts","type":"FullPartials","params":{"maxPartials":4}},
-      {"id":"f1","type":"Formant","params":{"frequency":500.0}},
-      {"id":"spec","type":"FormantSpectrum","params":{"formants":[{"ref":"f1"}]}},
+      {"id":"spec","type":"FormantPeaks","params":{"frequency":[500.0],"gain":[1.0],"width":[500.0],"power":[2.0]}},
       {"id":"seq","type":"FormantSequence","params":{"blend":0.5,"formants":[{"ref":"spec"}]}},
       {"id":"add","type":"AdditiveSource","params":{"frequency":220.0,"amplitude":0.5,"partials":{"ref":"parts"},"formant":{"ref":"seq"},"formantWeight":1.0}}]}})";
     CHECK(load_fails_naming(seqAlias, "not 'formants'"));
@@ -8265,13 +8435,13 @@ static void run_review_gap_lifecycle_tests() {
     {
         RenderContext ctx{48000};
         AdditiveSource f;
-        auto fm = std::make_shared<Formant>();
+        auto fm = std::make_shared<FormantBands>();
         auto freq = std::make_shared<PinCounter>();
-        fm->set_param("frequency", freq);
-        auto spec = std::make_shared<FormantSpectrum>();
-        CHECK(spec->add_param("formants", fm));
+        fm->set_param("startFreq", freq);
+        auto inner = std::make_shared<FormantSequence>();                     // a sequence is a Formant: it nests
+        CHECK(inner->add_param("spectra", fm));
         auto seq = std::make_shared<FormantSequence>();
-        CHECK(seq->add_param("spectra", spec));
+        CHECK(seq->add_param("spectra", inner));
         CHECK(f.set_param("partials", std::make_shared<FullPartials>()));
         CHECK(f.set_param("formant", seq));
         f.set_param("formantWeight", std::make_shared<ConstantSource>(1.0f));
@@ -8332,11 +8502,8 @@ static const FamilyRow kFamilyTable[] = {
     {"CompositePartials", Family::Additive, "Composite Partials", Shelf::Main},
     {"ExpandRule", Family::Additive, "Partials Expand Rule", Shelf::Main},
     {"FormantPeaks", Family::Additive, "Formant Peaks", Shelf::Main},
-    {"Formant", Family::Additive, "Formant", Shelf::Main},
-    {"FormantSequence", Family::Additive, "Formant Sequence", Shelf::Main},
-    {"FormantSpectrum", Family::Additive, "Formant Spectrum", Shelf::Main},
     {"FormantBands", Family::Additive, "Formant Bands", Shelf::Main},
-    {"FixedSpectrum", Family::Additive, "Fixed Spectrum", Shelf::Main},
+    {"FormantSequence", Family::Additive, "Formant Sequence", Shelf::Main},
     {"KSString", Family::Physical, "KS String", Shelf::Main},
     {"AllpassResonator", Family::Physical, "Allpass Resonator", Shelf::Main},
     {"DelayLine", Family::Physical, "Delay Line", Shelf::Main},
@@ -8412,7 +8579,7 @@ static void run_registry_family_tests() {
         CHECK(tag->shelf == row.shelf);
         (row.shelf == Shelf::Main ? main : experimental)++;
     }
-    CHECK(main == 56 && experimental == 22);
+    CHECK(main == 53 && experimental == 22);
     for (const auto& e : reg.registered_types()) {                             // every registered type is in the table
         bool inTable = false;
         for (const auto& row : kFamilyTable) inTable = inTable || e.name == row.name;
@@ -8443,7 +8610,7 @@ static void run_registry_family_tests() {
                 ++walked;
             }
         }
-    CHECK(walked == 78);
+    CHECK(walked == 75);
     CHECK(std::string(family_name(Family::Oscillator)) == "Oscillators" && std::string(family_name(Family::Noise)) == "Noise"
           && std::string(family_name(Family::Filter)) == "Filters" && std::string(family_name(Family::Utility)) == "Utility");
     CHECK(reg.find("NoSuchType") == nullptr && reg.find("SineSource") != nullptr);
@@ -8467,7 +8634,7 @@ static const MenuRow kMenuTable[] = {
     {Family::Noise, Shelf::Experimental, {"LayeredRedNoiseSource", "MurmurationNoiseSource", "WanderNoiseSource", "WanderNoise2Source", "WanderNoise3Source"}},
     {Family::Wavetable, Shelf::Main, {"WavetableSource", "HybridKSSource", "EKSEvolution", "PluckEvolution", "AveragingEvolution"}},
     {Family::Wavetable, Shelf::Experimental, {"BowedStringEvolution", "ReedEvolution", "BrassEvolution", "ReactionDiffusionEvolution", "SortErosionEvolution", "CellularAutomatonEvolution", "HistogramEqualizeEvolution", "BezierPullEvolution", "BitRotateEvolution", "TargetEvolution"}},
-    {Family::Additive, Shelf::Main, {"AdditiveSource", "FullPartials", "SequencePartials", "ExplicitPartials", "CompositePartials", "ExpandRule", "FormantPeaks", "Formant", "FormantSequence", "FormantSpectrum", "FormantBands", "FixedSpectrum"}},
+    {Family::Additive, Shelf::Main, {"AdditiveSource", "FullPartials", "SequencePartials", "ExplicitPartials", "CompositePartials", "ExpandRule", "FormantPeaks", "FormantBands", "FormantSequence"}},
     {Family::Physical, Shelf::Main, {"KSString", "AllpassResonator", "DelayLine"}},
     {Family::Physical, Shelf::Experimental, {"Mesh2D", "PierceFilter", "BowTable"}},
     {Family::Filter, Shelf::Main, {"DelayFilter", "Reverb", "Limiter", "HammerBank", "DistortedSource", "BWBandpassFilter", "BWLowpassFilter", "BWHighpassFilter", "SVFSource", "Shaper"}},
@@ -8521,7 +8688,10 @@ int main() {
     run_driven_part_lifecycle_tests();
     run_formant_peaks_twin_tests();
     run_formant_peaks_load_tests();
-    run_formant_peaks_against_spectrum_tests();
+    run_formant_bands_twin_tests();
+    run_formant_sequence_twin_tests();
+    run_formant_factor_twin_tests();
+    run_formant_lifecycle_tests();
     run_partials_part_tests();
     run_component_root_tests();
     run_target_evolution_registry_tests();
