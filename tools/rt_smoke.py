@@ -27,7 +27,10 @@ full gate before a commit — it is the check between edits.
 After the shapes, a patch carrying an instrument.paramMap, written to the temp
 folder, must be refused by mforce_ui --roundtrip: a non-zero exit,
 tools/convert_patch.py named in its output, and no file written. It prints its
-own line and is not counted among the shapes.
+own line and is not counted among the shapes. So does make-instrument: mforce_ui
+--convert-roundtrip on patches/baselines/distortion_test.json must exit 0 and
+write an instrument block with no paramMap and a PerformNode whose field is
+frequency wired into the sin node's frequency.
 
 Usage: python tools/rt_smoke.py
 """
@@ -73,6 +76,47 @@ def refusal_failures(td, doc):
     if out.exists():
         why.append("wrote " + out.name)
     return why
+
+
+MAKE_INSTRUMENT_SOURCE = "patches/baselines/distortion_test.json"
+
+
+def make_instrument_doc_failures(doc):
+    """Why `doc`, the editor's make-instrument output for distortion_test.json,
+    is not the wired instrument (empty when it is): an instrument block with no
+    paramMap key, a PerformNode whose params.field is frequency, and the sin
+    node's params.frequency a ref to that node."""
+    why = []
+    inst = doc.get("instrument")
+    if not isinstance(inst, dict):
+        why.append("no instrument block")
+    elif "paramMap" in inst:
+        why.append("instrument.paramMap present")
+    nodes = (doc.get("graph") or {}).get("nodes") or doc.get("nodes") or []
+    perf = [n["id"] for n in nodes if n.get("type") == "PerformNode"
+            and (n.get("params") or {}).get("field") == "frequency"]
+    if not perf:
+        why.append("no frequency PerformNode")
+    sin = next((n for n in nodes if n.get("id") == "sin"), None)
+    if sin is None:
+        why.append("no sin node")
+    elif not perf or (sin.get("params") or {}).get("frequency") != {"ref": perf[0]}:
+        why.append("sin.frequency is %s" % json.dumps((sin.get("params") or {}).get("frequency")))
+    return why
+
+
+def make_instrument_failures(td):
+    """Run the editor's make-instrument on MAKE_INSTRUMENT_SOURCE into `td`;
+    return why it failed (empty when it exited 0 and wrote the wired
+    instrument)."""
+    out = Path(td) / "make_instrument.json"
+    r = subprocess.run([str(UI), "--convert-roundtrip", str(ROOT / MAKE_INSTRUMENT_SOURCE), str(out)],
+                       capture_output=True, text=True, cwd=str(ROOT))
+    if r.returncode != 0:
+        return ["exit %d %s" % (r.returncode, r.stderr.strip()[:70])]
+    if not out.exists():
+        return ["wrote nothing"]
+    return make_instrument_doc_failures(json.loads(out.read_text(encoding="utf-8")))
 
 
 def ids_of(path):
@@ -126,8 +170,10 @@ def main():
             print(f"{label:<16} ok")
         refusal = refusal_failures(td, PARAMMAP_FIXTURE)
         print(f"{'refusal':<16} " + (f"FAIL {', '.join(refusal)}" if refusal else "ok"))
+        make = make_instrument_failures(td)
+        print(f"{'make-instrument':<16} " + (f"FAIL {', '.join(make)}" if make else "ok"))
     print(f"{len(CASES) - bad}/{len(CASES)} shapes clean")
-    sys.exit(1 if bad or refusal else 0)
+    sys.exit(1 if bad or refusal or make else 0)
 
 
 main()

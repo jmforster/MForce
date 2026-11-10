@@ -1276,7 +1276,7 @@ static void load_graph_from_path(const std::string& path) {
     // Refused before anything touches the open graph: the caller reports the
     // throw and the graph on screen stays as it was.
     if (root.contains("instrument") && root["instrument"].contains("paramMap"))
-        throw std::runtime_error("instrument.paramMap is no longer read: python tools/convert_patch.py <patch> rewrites it as wiring");
+        throw std::runtime_error(mforce::kParamMapRefusal);
     stop_playback();  // stream paths hold raw pointers into s_nodes' DSP
     s_currentFilePath = path;
     s_graphDirty = false;

@@ -1113,7 +1113,7 @@ static InstrumentPatch build_instrument_json(const json& root, int minPolyphony)
 
     const auto& instJson = root.at("instrument");
     if (instJson.contains("paramMap"))
-        throw std::runtime_error("instrument.paramMap is no longer read: python tools/convert_patch.py <patch> rewrites it as wiring");
+        throw std::runtime_error(kParamMapRefusal);
     int polyphony = std::max(instJson.value("polyphony", 4), minPolyphony);
 
     auto inst = std::make_unique<PitchedInstrument>();

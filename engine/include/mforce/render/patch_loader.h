@@ -6,6 +6,10 @@
 
 namespace mforce {
 
+// The sentence a file that carries instrument.paramMap is refused with, by the
+// loader and by the editor, which refuses before it touches its open graph.
+inline constexpr char kParamMapRefusal[] = "instrument.paramMap is no longer read: python tools/convert_patch.py <patch> rewrites it as wiring";
+
 struct BuiltSound {
   int sampleRate{48000};
   int frames{48000*5};

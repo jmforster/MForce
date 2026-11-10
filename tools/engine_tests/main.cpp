@@ -1672,6 +1672,55 @@ static void run_note_wire_tests() {
     })");
 }
 
+// A Multiplex voice follows a bend: the same three-clone template as above, one
+// note rendered plain and once carrying a PitchCurve on its PerformedNote (the
+// field the Conductor fills for a bend). The bend holds +7 semitones for the
+// whole note, so every clone's Note node reads the bent frequency and the zero
+// crossings rise by 2^(7/12) = 1.498.
+static void run_multiplex_bend_tests() {
+    std::printf("a Multiplex voice follows a bend\n");
+    const char* patch = R"({
+      "sampleRate": 48000,
+      "instrument": { "polyphony": 2 },
+      "graph": { "output": "mux", "nodes": [
+        { "id": "pf", "type": "PerformNode", "params": { "field": "frequency" } },
+        { "id": "osc", "type": "SineSource", "params": { "frequency": { "ref": "pf" }, "phase": 0.0 } },
+        { "id": "mux", "type": "MultiplexSource",
+          "params": { "count": 3, "source": { "ref": "osc" } } } ] }
+    })";
+    PitchCurve up7;
+    up7.semi = {7.0f};
+    up7.dur = {0.0f};                  // one hold that fills the note
+    const int n = 12000;               // inside the 0.4 s note
+    auto render = [&](const PitchCurve* curve) {
+        auto ip = load_instrument_patch_json(patch);
+        auto* pi = dynamic_cast<PitchedInstrument*>(ip.instrument.get());
+        pi->play_note({60.0f, 0.8f, 0.4f, 0.0f, false, curve}, 0.0f);
+        std::vector<float> b(size_t(n), 0.0f);
+        ip.instrument->render(b.data(), n);
+        return b;
+    };
+    std::vector<float> plain, bent;
+    bool loaded = true;
+    try { plain = render(nullptr); bent = render(&up7); }
+    catch (const std::exception& e) { loaded = false; std::printf("  load failed: %s\n", e.what()); }
+    CHECK(loaded);
+    if (!loaded) return;
+
+    CHECK(plain != bent);
+    float peak = 0.0f;
+    for (float v : bent) peak = std::max(peak, std::fabs(v));
+    CHECK(peak > 0.1f);
+    auto crossings = [](const std::vector<float>& b) {
+        int c = 0;
+        for (size_t i = 1; i < b.size(); ++i) c += (b[i] >= 0.0f) != (b[i - 1] >= 0.0f);
+        return c;
+    };
+    const float ratio = float(crossings(bent)) / float(std::max(1, crossings(plain)));
+    std::printf("  zero crossings plain %d, bent %d, ratio %.3f\n", crossings(plain), crossings(bent), ratio);
+    CHECK(ratio > 1.40f && ratio < 1.60f);    // 2^(7/12) = 1.498, upward
+}
+
 static void run_envelope_retrigger_tests() {
     // Seconds-mode gesture: 10ms 1.0->0.2, 20ms 0.2->1.0, expand@1.0.
     const int sr = 48000;
@@ -7634,14 +7683,18 @@ static void run_structural_push_refusal_tests() {
 
 // An instrument block that carries a paramMap is refused by name, through the
 // text entry point and the file entry point alike, and the message names the
-// converter that rewrites it; an empty map is refused too. The same document
-// without the key loads.
+// converter that rewrites it, in the one sentence kParamMapRefusal holds; an
+// empty map and a null one are refused too. The same document without the key
+// loads.
 static void run_param_map_refusal_tests() {
     std::printf("instrument.paramMap: refused by name, naming the converter\n");
     const char* withMap = R"({"sampleRate":48000,"instrument":{"polyphony":1,"paramMap":{"frequency":"osc.frequency"}},"graph":{"output":"osc","nodes":[
       {"id":"pf","type":"PerformNode","params":{"field":"frequency"}},
       {"id":"osc","type":"SineSource","params":{"amplitude":0.5}}]}})";
     const char* emptyMap = R"({"sampleRate":48000,"instrument":{"polyphony":1,"paramMap":{}},"graph":{"output":"osc","nodes":[
+      {"id":"pf","type":"PerformNode","params":{"field":"frequency"}},
+      {"id":"osc","type":"SineSource","params":{"frequency":{"ref":"pf"},"amplitude":0.5}}]}})";
+    const char* nullMap = R"({"sampleRate":48000,"instrument":{"polyphony":1,"paramMap":null},"graph":{"output":"osc","nodes":[
       {"id":"pf","type":"PerformNode","params":{"field":"frequency"}},
       {"id":"osc","type":"SineSource","params":{"frequency":{"ref":"pf"},"amplitude":0.5}}]}})";
     const char* without = R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"osc","nodes":[
@@ -7651,6 +7704,14 @@ static void run_param_map_refusal_tests() {
     CHECK(load_fails_naming(withMap, "tools/convert_patch.py"));
     CHECK(load_fails_naming(emptyMap, "paramMap"));
     CHECK(load_fails_naming(emptyMap, "tools/convert_patch.py"));
+    CHECK(load_fails_naming(nullMap, "paramMap"));
+    CHECK(load_fails_naming(nullMap, "tools/convert_patch.py"));
+    {
+        std::string msg;
+        try { (void)load_instrument_patch_json(withMap); }
+        catch (const std::exception& e) { msg = e.what(); }
+        CHECK(msg == kParamMapRefusal);
+    }
     {
         ScratchPatch file("renders/scratch/_param_map_refusal.json", withMap);
         std::string msg;
@@ -7670,8 +7731,9 @@ static void run_param_map_refusal_tests() {
 // the curve's value at the note's frequency at Setup; a held line's
 // continuation leaves it at the line's first note; and the curve, which nothing
 // but the binding reaches, reports no fault after a note.
-static std::string dynamic_pin_patch_json() {
-    return R"({"sampleRate":48000,"instrument":{"polyphony":1,"sustaining":true,"glideMs":15.0},"graph":{"output":"sine1","nodes":[
+static std::string dynamic_pin_patch_json(int polyphony) {
+    return R"({"sampleRate":48000,"instrument":{"polyphony":)" + std::to_string(polyphony)
+         + R"(,"sustaining":true,"glideMs":15.0},"graph":{"output":"sine1","nodes":[
       {"id":"pf","type":"PerformNode","params":{"field":"frequency"}},
       {"id":"ts","type":"CurveNode","params":{"source":{"ref":"pf"},"interp":"logx","knots":[[100.0,0.5],[1000.0,2.0]]}},
       {"id":"env1","type":"Envelope","params":{"stages":[
@@ -7690,18 +7752,23 @@ static void run_dynamic_pin_tests() {
     const float at60 = curve.map(note_to_freq(60.0f));
     const float at72 = curve.map(note_to_freq(72.0f));
     CHECK(std::fabs(at60 - at72) > 0.1f);              // the two notes give two values
-    auto timescale = [](PitchedInstrument& pi) {
-        return pi.voicePool[0].nodesById.at("env1")->get_setting("timeScale");
+    auto timescale = [](PitchedInstrument& pi, size_t voice = 0) {
+        return pi.voicePool[voice].nodesById.at("env1")->get_setting("timeScale");
     };
-    // 1. Each fresh note sets the setting to the curve at its own frequency.
+    // 1. Each fresh note sets the setting to the curve at its own frequency,
+    //    on its own voice: with two voices, play_note's rotation hands the
+    //    first fresh note voice 0 and the second voice 1.
     {
-        auto ip = load_instrument_patch_json(dynamic_pin_patch_json());
+        auto ip = load_instrument_patch_json(dynamic_pin_patch_json(2));
         PitchedInstrument& pi = *ip.instrument;
+        CHECK(pi.voicePool.size() == 2);
         pi.play_note({60.0f, 0.8f, 0.4f, 0.0f, false}, 0.0f);
-        CHECK_NEAR(timescale(pi), at60, 1e-5f);
+        CHECK_NEAR(timescale(pi, 0), at60, 1e-5f);
         pi.play_note({72.0f, 0.8f, 0.4f, 0.0f, false}, 1.0f);
-        CHECK_NEAR(timescale(pi), at72, 1e-5f);
-        // 3. The curve was stepped at Setup with the voice's context: no fault.
+        CHECK_NEAR(timescale(pi, 1), at72, 1e-5f);
+        CHECK_NEAR(timescale(pi, 0), at60, 1e-5f);     // the first voice keeps its note's value
+        // 3. Each voice's curve was stepped at Setup with that voice's context:
+        //    no fault on any voice (collect_faults walks the whole pool).
         std::vector<FaultReport> faults;
         pi.collect_faults(faults);
         bool curveFault = false;
@@ -7712,7 +7779,7 @@ static void run_dynamic_pin_tests() {
     // 2. A held line: the second note continues the first, and the setting
     //    keeps the first note's value.
     {
-        auto ip = load_instrument_patch_json(dynamic_pin_patch_json());
+        auto ip = load_instrument_patch_json(dynamic_pin_patch_json(1));
         PitchedInstrument& pi = *ip.instrument;
         pi.play_note({60.0f, 0.8f, 0.4f, 0.0f, true},  0.0f);
         CHECK_NEAR(timescale(pi), at60, 1e-5f);
@@ -9260,6 +9327,7 @@ int main() {
     run_onset_field_tests();
     run_hold_delivery_tests();
     run_note_wire_tests();
+    run_multiplex_bend_tests();
     run_note_reseed_tests();
     run_embedded_score_tests();
     run_embedded_score_end_tests();

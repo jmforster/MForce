@@ -10,8 +10,10 @@
 namespace mforce {
 
 // Transfer node: y = curve(x), knots sorted by x, clamped at the end knots.
-// A patch's per-note frequency and velocity curves are these nodes, pulled
-// like any signal (docs/perform_source_design.md §2.2). Interp modes:
+// A patch's per-note frequency and velocity curves are these nodes, ordinary
+// graph nodes reading the note: a pin they feed pulls them each sample, a
+// dynamic pin steps them once at the note's Setup
+// (docs/perform_source_design.md §2.2). Interp modes:
 //   Linear — y linear in x
 //   LogX   — y linear in log(x)
 //   LogLog — log(y) linear in log(x): a 2-knot segment is exactly y = k*x^n

@@ -1,6 +1,7 @@
 """The driver: --check's exit codes, the rule order on a document that needs
 two rules, the not-written rule for an unchanged and a refused file, the
-file's indent step and line endings, idempotence on disk, the folder walk."""
+file's indent step and line endings, idempotence on disk, the folder walk and
+its sorted order."""
 import contextlib
 import io
 import json
@@ -9,15 +10,16 @@ import sys
 import tempfile
 import time
 import unittest
+from unittest import mock
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 import convert_patch as drv  # noqa: E402
 from convert_rules import Context  # noqa: E402
 
 DESC = {
-    "KSString": {"params": ["frequency", "amplitude"], "settings": [{"name": "t60"}]},
-    "SineSource": {"params": ["amplitude", "frequency", "phase"], "settings": []},
-    "WhiteNoiseSource": {"params": ["amplitude"], "settings": []},
+    "KSString": {"params": ["frequency", "amplitude"], "inputs": ["source"], "settings": [{"name": "t60"}]},
+    "SineSource": {"params": ["amplitude", "frequency", "phase"], "inputs": [], "settings": []},
+    "WhiteNoiseSource": {"params": ["amplitude"], "inputs": [], "settings": []},
 }
 
 
@@ -179,6 +181,25 @@ class DriverTests(unittest.TestCase):
         self.assertIn("2 file(s) rewritten", out)
         self.assertEqual(self.run_main(["--check", self.dir.name])[0], 0)
         self.assertEqual(json.load(open(c, encoding="utf-8")), plain())
+
+    def test_sub_folders_are_visited_in_sorted_order(self):
+        # The walk below hands the folders back reversed, as a file system
+        # that keeps no order may; the driver's own sort must restore it.
+        self.write(os.path.join("b", "p.json"), ks_piano())
+        self.write(os.path.join("a", "p.json"), ks_piano())
+        real_walk = os.walk
+
+        def reversed_walk(top, *args, **kwargs):
+            for dirpath, dirs, names in real_walk(top, *args, **kwargs):
+                dirs.reverse()
+                yield dirpath, dirs, names
+
+        with mock.patch.object(drv.os, "walk", reversed_walk):
+            rc, out = self.run_main([self.dir.name])
+        self.assertEqual(rc, 0)
+        visited = [os.path.basename(os.path.dirname(line.split(": ", 1)[0]))
+                   for line in out.splitlines() if line.split(": ", 1)[0].endswith("p.json")]
+        self.assertEqual(visited, ["a", "b"])
 
 
 if __name__ == "__main__":

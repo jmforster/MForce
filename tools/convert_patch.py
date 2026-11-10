@@ -3,7 +3,8 @@
   python tools/convert_patch.py <file-or-folder> [...]
   python tools/convert_patch.py --check <file-or-folder> [...]   # exit 1 while a rewrite is pending
 
-A folder is walked recursively for .json files, names sorted. A file whose top
+A folder is walked recursively for .json files, folder and file names sorted,
+so a run visits files in one order on every machine. A file whose top
 level is not an object is not a patch and is left as it is. Each other file is
 read, parsed, and handed to the rules in tools/convert_rules/, in this order,
 each on the one document the previous left:
@@ -21,8 +22,9 @@ changed file gets one line with each rule's counts.
 A file is written only when a rule changed it: in place, with the file's own
 indent step (an inline object or array is laid out one value per line), LF
 line endings, a final newline and key order kept. A file with nothing to
-rewrite is not written, so a second run changes nothing. A file any rule
-refuses is not written at all, even when an earlier rule changed the document:
+rewrite is not written, so a second run changes nothing. A file that does not
+read or parse, or that any rule refuses (each rule's docstring says what it
+refuses), is not written at all, even when an earlier rule changed the document:
 it is reported as "NOT rewritten" with the reason, and the run goes on.
 
 Exit 1 if any file was refused or unreadable, else 0. With --check nothing is
@@ -53,7 +55,8 @@ def json_files(roots):
     for root in roots:
         p = Path(root)
         if p.is_dir():
-            for dirpath, _, names in os.walk(p):
+            for dirpath, dirs, names in os.walk(p):
+                dirs.sort()
                 for n in sorted(names):
                     if n.endswith(".json"):
                         yield Path(dirpath) / n
