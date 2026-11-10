@@ -14,6 +14,7 @@
       "engine/include/mforce/music/music_json.h",
       "engine/include/mforce/music/templates_json.h",
       "engine/src/patch_loader.cpp",
+      "engine/src/embedded_score.cpp",
       "tools/"
     ]
   },
@@ -24,7 +25,7 @@
      "paths": ["engine/include/mforce/source/", "engine/src/source/"],
      "may_include": ["core"]},
     {"name": "render", "purpose": "Instruments, voices, mixing, patch loading, WAV I/O.",
-     "paths": ["engine/include/mforce/render/", "engine/src/patch_loader.cpp", "engine/src/mixer.cpp", "engine/src/wav_writer.cpp", "engine/src/wav_reader.cpp"],
+     "paths": ["engine/include/mforce/render/", "engine/src/patch_loader.cpp", "engine/src/embedded_score.cpp", "engine/src/mixer.cpp", "engine/src/wav_writer.cpp", "engine/src/wav_reader.cpp"],
      "may_include": ["core", "source"]},
     {"name": "music",  "purpose": "The music model and composition.",
      "paths": ["engine/include/mforce/music/", "engine/src/music.cpp", "engine/src/chord.cpp"], "may_include": ["core", "render"]},

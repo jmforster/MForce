@@ -7,7 +7,7 @@ Phase 1: describes today's layout. Do not edit by hand.
 |---|---|---|---|
 | core | The ValueSource contract and the primitives every node shares; the node registry. | `engine/include/mforce/core/`, `engine/src/component.cpp`, `engine/src/source_registry.cpp` | nothing |
 | source | Every node type, one folder per family (filter folded in), and the list that registers them. | `engine/include/mforce/source/`, `engine/src/source/` | core |
-| render | Instruments, voices, mixing, patch loading, WAV I/O. | `engine/include/mforce/render/`, `engine/src/patch_loader.cpp`, `engine/src/mixer.cpp`, `engine/src/wav_writer.cpp`, `engine/src/wav_reader.cpp` | core, source |
+| render | Instruments, voices, mixing, patch loading, WAV I/O. | `engine/include/mforce/render/`, `engine/src/patch_loader.cpp`, `engine/src/embedded_score.cpp`, `engine/src/mixer.cpp`, `engine/src/wav_writer.cpp`, `engine/src/wav_reader.cpp` | core, source |
 | music | The music model and composition. | `engine/include/mforce/music/`, `engine/src/music.cpp`, `engine/src/chord.cpp` | core, render |
 | util | Stand-alone analysis helpers (FFT, signal statistics). | `engine/include/mforce/util/` | nothing |
 | cli | mforce_cli, the command-line renderer. | `tools/mforce_cli/` | core, source, render, music, util |
@@ -18,4 +18,4 @@ Phase 1: describes today's layout. Do not edit by hand.
 
 Third-party families: `json`, `imgui`, `rtaudio`, `rtmidi`, `glfw`.
 
-`json` is allowed only in: `engine/include/mforce/source/envelope/envelope_json.h`, `engine/include/mforce/core/source_registry.h`, `engine/include/mforce/music/music_json.h`, `engine/include/mforce/music/templates_json.h`, `engine/src/patch_loader.cpp`, `tools/`.
+`json` is allowed only in: `engine/include/mforce/source/envelope/envelope_json.h`, `engine/include/mforce/core/source_registry.h`, `engine/include/mforce/music/music_json.h`, `engine/include/mforce/music/templates_json.h`, `engine/src/patch_loader.cpp`, `engine/src/embedded_score.cpp`, `tools/`.

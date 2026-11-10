@@ -1865,6 +1865,116 @@ static void run_note_reseed_tests() {
     CHECK(same == total);   // exact replay — draws re-anchored
 }
 
+#include "mforce/render/embedded_score.h"
+#include <filesystem>
+
+// The score a patch file carries under "score": performed at load and its end
+// returned in seconds; the loader turns the end into the frame count.
+static void run_embedded_score_tests() {
+    std::printf("the embedded score: its end, hold, the phrased refusal, the frames\n");
+    const char* plain = R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"osc","nodes":[
+      {"id":"osc","type":"SineSource","params":{"frequency":220.0}}]}})";
+    const char* sustaining = R"({"sampleRate":48000,"instrument":{"polyphony":1,"sustaining":true},"graph":{"output":"osc","nodes":[
+      {"id":"osc","type":"SineSource","params":{"frequency":220.0}}]}})";
+    // A fresh instrument per score.
+    auto end_of = [](const char* patch, const char* score) {
+        auto ip = load_instrument_patch_json(patch);
+        return play_embedded_score(*ip.instrument, score);
+    };
+    // A note with no "time" starts where its predecessor ended.
+    CHECK(end_of(plain, R"([{"note":60,"time":0.5,"duration":1.0},{"note":62,"duration":0.25}])") == 1.75);
+    // The end is the maximum, not the last note's.
+    CHECK(end_of(plain, R"([{"note":60,"time":0,"duration":3},{"note":62,"time":1,"duration":0.5}])") == 3.0);
+    CHECK(end_of(plain, "[]") == 0.0);
+    // "hold" on a non-sustaining instrument is ignored and the end still
+    // counted: no line is open after the first note, so the second takes its
+    // articulation. The same score on a sustaining instrument is refused,
+    // because there the line is open.
+    {
+        const char* heldThenArticulated = R"([{"note":60,"time":0,"duration":1,"hold":true},
+          {"note":62,"duration":1,"articulation":{"type":"Staccato"}}])";
+        bool threw = false;
+        double end = -1.0;
+        try { end = end_of(plain, heldThenArticulated); }
+        catch (const std::exception&) { threw = true; }
+        CHECK(!threw);
+        CHECK(end == 2.0);
+        bool named = false;
+        try { (void)end_of(sustaining, heldThenArticulated); }
+        catch (const std::exception& e) { named = std::string(e.what()).find("phrased") != std::string::npos; }
+        CHECK(named);
+    }
+    // Articulation on a phrased note is refused, naming "phrased".
+    {
+        bool named = false;
+        try { (void)end_of(sustaining, R"([{"note":60,"time":0,"duration":1,"hold":true,"articulation":"staccato"}])"); }
+        catch (const std::exception& e) { named = std::string(e.what()).find("phrased") != std::string::npos; }
+        CHECK(named);
+    }
+    // The loader's frame arithmetic: the render covers at least the score, a
+    // larger "seconds" extends it. Each patch is written to the scratch folder
+    // and removed.
+    auto frames_of = [](const char* path, const char* text) {
+        std::filesystem::create_directories("renders/scratch");
+        { std::ofstream f(path); f << text; }
+        int frames = -1;
+        try { frames = load_patch_file(path).frames; }
+        catch (const std::exception& e) { std::printf("  load failed: %s\n", e.what()); }
+        std::filesystem::remove(path);
+        return frames;
+    };
+    CHECK(frames_of("renders/scratch/_embedded_score_noseconds.json",
+        R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"osc","nodes":[
+          {"id":"osc","type":"SineSource","params":{"frequency":220.0}}]},
+          "score":[{"note":60,"time":0.5,"duration":1.0},{"note":62,"duration":0.25}]})") == 84000);
+    CHECK(frames_of("renders/scratch/_embedded_score_seconds5.json",
+        R"({"sampleRate":48000,"seconds":5,"instrument":{"polyphony":1},"graph":{"output":"osc","nodes":[
+          {"id":"osc","type":"SineSource","params":{"frequency":220.0}}]},
+          "score":[{"note":60,"time":0.5,"duration":1.0},{"note":62,"duration":0.25}]})") == 240000);
+    CHECK(frames_of("renders/scratch/_embedded_score_seconds1.json",
+        R"({"sampleRate":48000,"seconds":1,"instrument":{"polyphony":1},"graph":{"output":"osc","nodes":[
+          {"id":"osc","type":"SineSource","params":{"frequency":220.0}}]},
+          "score":[{"note":60,"time":0.5,"duration":1.0},{"note":62,"duration":0.25}]})") == 84000);
+}
+
+// The loader hands the score over as text. Every score block in
+// patches/library and patches/baselines reads back from its text to the same
+// JSON, the same text, the same float and double of each number and the same
+// number type.
+static void run_embedded_score_text_tests() {
+    std::printf("the embedded score as text: every score in the measurement scope reads back the same\n");
+    int checked = 0;
+    for (const char* dir : {"patches/library", "patches/baselines"}) {
+        for (const auto& entry : std::filesystem::recursive_directory_iterator(dir)) {
+            if (!entry.is_regular_file() || entry.path().extension() != ".json") continue;
+            std::ifstream f(entry.path());
+            std::stringstream ss; ss << f.rdbuf();
+            nlohmann::json root = nlohmann::json::parse(ss.str());
+            if (!root.is_object() || !root.contains("score")) continue;
+            const nlohmann::json& score = root.at("score");
+            nlohmann::json re = nlohmann::json::parse(score.dump());
+            bool same = re == score && re.dump() == score.dump() && re.size() == score.size();
+            for (size_t i = 0; same && i < score.size(); ++i) {
+                for (const char* key : {"note", "velocity", "duration", "time"}) {
+                    if (!score[i].is_object() || !score[i].contains(key)) continue;
+                    const auto& a = score[i].at(key);
+                    const auto& b = re[i].at(key);
+                    same = same
+                        && std::bit_cast<uint32_t>(a.get<float>()) == std::bit_cast<uint32_t>(b.get<float>())
+                        && std::bit_cast<uint64_t>(a.get<double>()) == std::bit_cast<uint64_t>(b.get<double>())
+                        && a.is_number_integer() == b.is_number_integer()
+                        && a.is_number_float() == b.is_number_float();
+                }
+            }
+            if (!same) std::printf("  score text differs: %s\n", entry.path().string().c_str());
+            CHECK(same);
+            ++checked;
+        }
+    }
+    std::printf("  score-bearing files checked: %d\n", checked);
+    CHECK(checked == 96);
+}
+
 #include "mforce/music/passage_melody.h"
 #include "mforce/music/templates_json.h"
 #include <filesystem>
@@ -8769,6 +8879,8 @@ int main() {
     run_param_map_unwired_pin_tests();
     run_param_map_unwired_multiplex_tests();
     run_note_reseed_tests();
+    run_embedded_score_tests();
+    run_embedded_score_text_tests();
     run_envelope_retrigger_tests();
     run_release_relayout_tests();
     run_name_gate_tests();
