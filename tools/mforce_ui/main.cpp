@@ -654,16 +654,6 @@ static std::string unique_node_label(const std::string& typeName) {
 // Set by the --roundtrip headless path so load/save skip ImNodes node-position
 // calls (those need a live editor/frame the headless path doesn't set up).
 static bool s_headless = false;
-// paramMap RESIDUE — the entries convert_parammap_to_wiring could NOT turn
-// into graph nodes. No longer the model (P2b, 2026-08-19): load converts every
-// convertible entry into real PerformNode/CurveNode/CombinedSource nodes, and
-// the curve editors and Mappings dialog derive from the graph, not from here.
-//
-// What is left: entries convert_parammap_to_wiring keeps — a name other than
-// "frequency", an entry with no target, or a target naming no node. Those
-// entries stay here and keep working exactly as they always have. Reset on
-// new/clear/load.
-static nlohmann::json s_loadedParamMap = nlohmann::json::object();
 
 // Verbatim "score" array and "seconds" value from the loaded patch JSON.
 // save_patch_graph used to overwrite these with a hardcoded default note
@@ -685,18 +675,16 @@ static nlohmann::json s_loadedSeconds = nlohmann::json();
 
 // Convert-graph stash (Edit > Convert to <type> graph). Converting a Patch
 // graph to a Node graph strips the instrument-level data the node graph
-// cannot model (paramMap incl. curve entries, score, seconds, polyphony);
-// it is parked here so converting back within the session restores the
-// originals verbatim. Cleared on New and on any file load — the stash
-// belongs to the graph it was stripped from, not to the session at large.
-static nlohmann::json s_convParamMap  = nlohmann::json::object();
+// cannot model (score, seconds, polyphony); it is parked here so converting
+// back within the session restores the originals verbatim. Cleared on New
+// and on any file load — the stash belongs to the graph it was stripped
+// from, not to the session at large.
 static nlohmann::json s_convScore     = nlohmann::json();
 static nlohmann::json s_convSeconds   = nlohmann::json();
 static int  s_convPolyphony  = 1;
 static bool s_convStashValid = false;
 
 static void conv_stash_clear() {
-    s_convParamMap  = nlohmann::json::object();
     s_convScore     = nlohmann::json();
     s_convSeconds   = nlohmann::json();
     s_convPolyphony = 1;
@@ -1082,7 +1070,6 @@ static void new_graph(GraphMode mode) {
     s_currentFilePath.clear();
     s_nodes.clear();
     s_links.clear();
-    s_loadedParamMap = nlohmann::json::object();
     s_loadedScore    = nlohmann::json();
     s_loadedInstrumentExtras = nlohmann::json::object();
     s_loadedSeconds  = nlohmann::json();
@@ -1278,148 +1265,6 @@ static void envelope_stages_from_json(Envelope& env, const nlohmann::json& stage
 // transport status line instead of silently creating inert nodes.
 static void transport_set_status(const char* msg, bool isError);
 
-// ---------------------------------------------------------------------------
-// Legacy paramMap -> wiring format, in JSON, before the graph is built.
-//
-// Deliberately done in JSON space rather than by constructing GraphNodes and
-// Links directly: it is the SAME algorithm on the SAME representation as
-// tools/convert_patch.py's paramMap rule, which is gated at 196/196, so the two cannot
-// drift into disagreement. The existing loader then builds the graph from the
-// converted document and needs no knowledge of paramMap at all.
-//
-// Mirrors build_bindings' matrix (engine/src/patch_loader.cpp):
-//   bare "node.pin"         -> pin refs __perf_freq
-//   {target, curve}         -> CurveNode(logx|loglog) reading __perf_freq
-//   {target, vcurve}        -> multiply of the freq leg and a linear CurveNode
-//                              reading __perf_vel
-//   target with no '.'      -> pin defaults to "frequency"
-//   name != "frequency"     -> dropped; the engine ignored these too
-// A target lands in dynamicPins when it names a SETTING on that node's type,
-// asked of the registry directly.
-// ---------------------------------------------------------------------------
-static bool convert_parammap_to_wiring(nlohmann::json& root) {
-    using json = nlohmann::json;
-    if (!root.contains("instrument") || !root["instrument"].contains("paramMap"))
-        return false;
-    json pm = root["instrument"]["paramMap"];
-    if (!pm.is_object() || pm.empty()) {
-        root["instrument"].erase("paramMap");
-        return false;
-    }
-    json* container = nullptr;
-    if (root.contains("graph") && root["graph"].contains("nodes"))
-        container = &root["graph"];
-    else if (root.contains("nodes"))
-        container = &root;
-    if (!container) return false;
-
-    auto& nodes = (*container)["nodes"];
-    std::unordered_map<std::string, json*> byId;
-    for (auto& n : nodes) byId[n["id"].get<std::string>()] = &n;
-
-    std::vector<json> synth;
-    std::unordered_map<std::string, bool> havePerf;
-    int counter = 0;
-
-    auto need_perf = [&](const char* field) -> std::string {
-        std::string nid = std::string("__perf_") + (std::string(field) == "velocity" ? "vel" : "freq");
-        if (!havePerf[nid]) {
-            synth.push_back({{"id", nid}, {"type", "PerformNode"},
-                             {"params", {{"field", field}}}});
-            havePerf[nid] = true;
-        }
-        return nid;
-    };
-    auto add_curve = [&](const json& knots, const char* interp,
-                         const std::string& srcId) -> std::string {
-        std::string nid = "__curve_" + std::to_string(++counter);
-        synth.push_back({{"id", nid}, {"type", "CurveNode"},
-                         {"params", {{"interp", interp}, {"knots", knots},
-                                     {"source", {{"ref", srcId}}}}}});
-        return nid;
-    };
-    auto add_mul = [&](const std::string& a, const std::string& b) -> std::string {
-        std::string nid = "__mul_" + std::to_string(++counter);
-        synth.push_back({{"id", nid}, {"type", "CombinedSource"},
-                         {"params", {{"source1", {{"ref", a}}},
-                                     {"source2", {{"ref", b}}},
-                                     {"operation", "multiply"}, {"gainAdj", 0.0}}}});
-        return nid;
-    };
-
-    auto& reg = SourceRegistry::instance();
-    auto is_setting = [&](const std::string& type, const std::string& key) {
-        if (!reg.has(type)) return false;
-        auto probe = reg.create(type);
-        if (!probe) return false;
-        for (const auto& d : probe->setting_descriptors())
-            if (key == d.name) return true;
-        return false;
-    };
-
-    int converted = 0, kept = 0;
-    json leftover = json::object();
-    auto keep = [&](const std::string& name, const json& e) {
-        if (!leftover.contains(name)) leftover[name] = json::array();
-        leftover[name].push_back(e);
-        ++kept;
-    };
-
-    for (auto& [name, entries] : pm.items()) {
-        json list = entries.is_array() ? entries : json::array({entries});
-        if (name != "frequency") {   // the engine ignored these too; keep as-is
-            for (const auto& e : list) keep(name, e);
-            continue;
-        }
-        for (const auto& e : list) {
-            std::string target;
-            if (e.is_string())                              target = e.get<std::string>();
-            else if (e.is_object() && e.contains("target")) target = e["target"].get<std::string>();
-            else { keep(name, e); continue; }
-
-            auto dot = target.find('.');
-            std::string nodeId = dot == std::string::npos ? target : target.substr(0, dot);
-            std::string pin    = dot == std::string::npos ? "frequency" : target.substr(dot + 1);
-            auto it = byId.find(nodeId);
-            if (it == byId.end()) { keep(name, e); continue; }
-
-            // Build the chain only once the target is known convertible, so a
-            // kept entry leaves no orphan synthesized nodes behind.
-            std::string head = need_perf("frequency");
-            if (e.is_object()) {
-                if (e.contains("curve"))
-                    head = add_curve(e["curve"],
-                                     e.value("interp", std::string()) == "loglog"
-                                         ? "loglog" : "logx", head);
-                if (e.contains("vcurve"))
-                    head = add_mul(head, add_curve(e["vcurve"], "linear",
-                                                   need_perf("velocity")));
-            }
-            json& tgt = *it->second;
-            const std::string ttype = tgt["type"].get<std::string>();
-            const char* slot = is_setting(ttype, pin) ? "dynamicPins" : "params";
-            if (!tgt.contains(slot)) tgt[slot] = json::object();
-            tgt[slot][pin] = {{"ref", head}};
-            ++converted;
-        }
-    }
-
-    // Prepend in dependency order — refs must resolve against earlier nodes.
-    json merged = json::array();
-    for (auto& n : synth) merged.push_back(n);
-    for (auto& n : nodes) merged.push_back(n);
-    nodes = merged;
-    // Unconvertible entries stay in the paramMap and keep working exactly as
-    // before; the stash path is unchanged for them. Only a fully converted
-    // patch loses its paramMap.
-    if (kept) root["instrument"]["paramMap"] = leftover;
-    else      root["instrument"].erase("paramMap");
-    if (converted || kept)
-        std::fprintf(stderr, "[ui] paramMap: %d converted to wiring, %d kept\n",
-                     converted, kept);
-    return converted > 0;
-}
-
 static void load_graph_from_path(const std::string& path) {
     using json = nlohmann::json;
 
@@ -1428,9 +1273,10 @@ static void load_graph_from_path(const std::string& path) {
     std::ifstream f(path);
     if (!f) return;
     json root = json::parse(f);
-    // Legacy paramMap becomes real nodes before anything else looks at the
-    // document. After this the stash is dead: nothing downstream reads it.
-    convert_parammap_to_wiring(root);
+    // Refused before anything touches the open graph: the caller reports the
+    // throw and the graph on screen stays as it was.
+    if (root.contains("instrument") && root["instrument"].contains("paramMap"))
+        throw std::runtime_error("instrument.paramMap is no longer read: python tools/convert_patch.py <patch> rewrites it as wiring");
     stop_playback();  // stream paths hold raw pointers into s_nodes' DSP
     s_currentFilePath = path;
     s_graphDirty = false;
@@ -1442,7 +1288,6 @@ static void load_graph_from_path(const std::string& path) {
     s_groupListen.clear();
     s_listenTapNode = -1;
     invalidate_instrument_cache();
-    s_loadedParamMap = nlohmann::json::object();
     s_loadedScore    = nlohmann::json();
     s_loadedInstrumentExtras = nlohmann::json::object();
     s_loadedSeconds  = nlohmann::json();
@@ -1463,7 +1308,6 @@ static void load_graph_from_path(const std::string& path) {
     if (root.contains("instrument")) {
         s_loadedInstrumentExtras = root["instrument"];
         s_loadedInstrumentExtras.erase("polyphony");
-        s_loadedInstrumentExtras.erase("paramMap");
     }
     if (root.contains("seconds")) s_loadedSeconds = root["seconds"];
     apply_score_defaults(s_loadedScore);
@@ -1937,13 +1781,6 @@ static void load_graph_from_path(const std::string& path) {
         auto outIt = outputPinMap.find(outputId);
         if (outIt != outputPinMap.end())
             s_links.emplace_back(outIt->second, outNode.inputs[0].id);
-
-        // paramMap: the stash IS the model (2026-08-14 spec §2). No Parameter
-        // nodes are materialized in patch mode — bindings live as data, are
-        // edited in the Mappings dialog / Curve Properties, show as green badges on
-        // Properties rows, and are applied per note by apply_param_map.
-        if (root["instrument"].contains("paramMap"))
-            s_loadedParamMap = root["instrument"]["paramMap"];
     }
 
     // Groups (spec §3): root-level section, engine-blind. Two passes so a
@@ -2016,13 +1853,12 @@ static void load_graph_from_path(const std::string& path) {
                     ImNodes::SetNodeGridSpacePos(node.id, ImVec2(x, y));
             }
         }
-        // Nodes with NO saved position are the ones paramMap conversion just
-        // synthesized (__perf_freq, __curve_N, __mul_N) — the file's ui block
-        // predates them. The first placement pass (2026-08-19) put each one
-        // at consumer.x - 280 with no collision awareness, which on a dense
-        // saved canvas scattered them straight into occupied space — Matt's
-        // 2026-08-20 verdict: still "a pile of nodes". So: a CONTROL STRIP.
-        // The whole synthesized set lays out in clean dependency columns
+        // Nodes with NO saved position are typically the ones
+        // tools/convert_patch.py synthesized (__perf_freq, __curve_N, __mul_N):
+        // it adds them to the graph and leaves the file's ui block as it was.
+        // They are placed as a CONTROL STRIP rather than each beside its
+        // consumer, which on a dense saved canvas lands in occupied space.
+        // The whole unplaced set lays out in clean dependency columns
         // (perform -> curve -> mul) in empty canvas below everything the
         // file positioned, rows sorted by the y of what they feed so wires
         // don't cross more than they must. Guaranteed collision-free with
@@ -2212,8 +2048,14 @@ static void recents_push(const std::string& rawPath) {
 static void load_graph() {
     std::string path = open_file_dialog();
     if (path.empty()) return;
-    load_graph_from_path(path);
-    recents_push(path);
+    try {
+        load_graph_from_path(path);
+        recents_push(path);
+    } catch (const std::exception& e) {
+        char buf[512];
+        snprintf(buf, sizeof(buf), "Failed to load %s: %s", path.c_str(), e.what());
+        transport_set_status(buf, true);
+    }
 }
 
 // ===========================================================================
@@ -2381,10 +2223,10 @@ static Pin* find_source_out_pin(int inputPinId) {
     return nullptr;
 }
 
-// Serialized id = the node's label, made safe: ids embed in "node.pin"
-// paramMap targets (no '.'), "__" is reserved for synthesized keys
-// (__output, __param_*), and duplicates
-// from a hand-edited file must not collapse two nodes into one id.
+// Serialized id = the node's label, made safe: an id holds no '.' (each
+// becomes '_'; the loader keys a pin as "node.pin"), "__" is reserved for
+// synthesized keys (__output, __param_*), and duplicates from a hand-edited
+// file must not collapse two nodes into one id.
 static std::string sanitize_unique_id(const std::string& want,
                                       std::unordered_set<std::string>& used,
                                       const std::string& typeName,
@@ -2486,28 +2328,12 @@ static GraphNode* group_output_node(const NodeGroup& g) {
     return last;
 }
 
-// Rewrite every by-name reference to a node label — paramMap targets
-// ("old.pin"), {"ref"}/{"tap"} refs in extras and dynamic pins, group
-// membership. Shared by rename and Replace-with (which is a rename of the
-// surviving identity onto a new node).
+// Rewrite every by-name reference to a node label — {"ref"}/{"tap"} refs
+// in extras and dynamic pins, group membership. Shared by rename and
+// Replace-with (which is a rename of the surviving identity onto a new node).
 static void rewrite_label_refs(const std::string& oldName,
                                const std::string& newName) {
     if (oldName == newName) return;
-    if (s_loadedParamMap.is_object()) {
-        std::string prefix = oldName + ".";
-        std::function<void(nlohmann::json&)> fix = [&](nlohmann::json& e) {
-            if (e.is_string()) {
-                std::string s = e.get<std::string>();
-                if (s.rfind(prefix, 0) == 0) e = newName + s.substr(oldName.size());
-            } else if (e.is_object() && e.contains("target") && e["target"].is_string()) {
-                std::string s = e["target"].get<std::string>();
-                if (s.rfind(prefix, 0) == 0) e["target"] = newName + s.substr(oldName.size());
-            } else if (e.is_array()) {
-                for (auto& t : e) fix(t);
-            }
-        };
-        for (auto& [k, v] : s_loadedParamMap.items()) fix(v);
-    }
     {
         // Verbatim-carried extras may embed refs ({"ref": "oldName"} inside
         // e.g. an expandRule) — rewrite them so the rename can't strand one.
@@ -2551,7 +2377,7 @@ static bool rename_node(GraphNode& node, const std::string& newName,
                         std::string& err) {
     if (newName.empty())              { err = "name is empty"; return false; }
     if (newName.find('.') != std::string::npos)
-                                      { err = "'.' not allowed (ids embed in node.pin targets)"; return false; }
+                                      { err = "'.' not allowed (a pin is named node.pin)"; return false; }
     if (newName.rfind("__", 0) == 0)  { err = "'__' prefix is reserved"; return false; }
     for (auto& n : s_nodes)
         if (&n != &node && n.label == newName)
@@ -2652,44 +2478,15 @@ static nlohmann::json serialize_patch_graph(
         if (src) outputId = nodeIds[src->id];
     }
 
-    // Old-id → serialized-id map. Ids are labels now, so this is identity
-    // except where sanitize_unique_id had to rename (collision / illegal
-    // name) — exactly when the paramMap stash still needs the remap.
+    // Label → serialized-id map. Ids are labels, so this is identity except
+    // where sanitize_unique_id had to rename (collision / illegal name); the
+    // by-label refs a node carries (dynamic pins) are emitted through it.
     std::unordered_map<std::string, std::string> oldToNew;
     for (auto& node : s_nodes) {
         auto it = nodeIds.find(node.id);
         if (it != nodeIds.end() && !node.label.empty())
             oldToNew[node.label] = it->second;
     }
-    auto remap_target = [&](const std::string& tgt) -> std::string {
-        auto dot = tgt.find('.');
-        if (dot == std::string::npos) return tgt;
-        auto it = oldToNew.find(tgt.substr(0, dot));
-        return it == oldToNew.end() ? tgt : it->second + tgt.substr(dot);
-    };
-    std::function<json(const json&)> remap_entry = [&](const json& e) -> json {
-        if (e.is_string()) return remap_target(e.get<std::string>());
-        if (e.is_object()) {
-            json o = e;
-            if (o.contains("target") && o["target"].is_string())
-                o["target"] = remap_target(o["target"].get<std::string>());
-            return o;
-        }
-        if (e.is_array()) {
-            json a = json::array();
-            for (const auto& t : e) a.push_back(remap_entry(t));
-            return a;
-        }
-        return e;
-    };
-
-    // paramMap: the stash is the model (spec §2) — emit it verbatim through
-    // the collision remap. The old link-derived path (trace Parameter-node
-    // wires) is gone with the Parameter nodes themselves.
-    json paramMap = json::object();
-    if (s_loadedParamMap.is_object())
-        for (auto& [pname, entry] : s_loadedParamMap.items())
-            paramMap[pname] = remap_entry(entry);
 
     // Build graph nodes array (topologically sorted)
     auto sorted = topo_sort();
@@ -2799,7 +2596,7 @@ static nlohmann::json serialize_patch_graph(
 
         // Dynamic pins: the settings this node drives once per note. Their
         // refs name node ids, which sanitize_unique_id may have renamed, so
-        // they go through the same oldToNew map the paramMap targets used.
+        // they go through the oldToNew map.
         if (!node.dynamicPins.empty()) {
             json dp = json::object();
             for (auto& [key, val] : node.dynamicPins.items()) {
@@ -2933,8 +2730,6 @@ static nlohmann::json serialize_patch_graph(
         }
         if (outputNode->glideMsSet)
             root["instrument"]["glideMs"] = outputNode->glideMs;
-        if (!paramMap.empty())
-            root["instrument"]["paramMap"] = paramMap;
     }
 
     // Score: preserve the loaded patch's score/seconds verbatim. Only fall
@@ -4239,51 +4034,6 @@ static bool generate_unified(const std::vector<SchedNote>& notes) {
 // deleted 2026-09-13: generate_unified above IS the engine render — the
 // word "authoritative" retired with the second renderer.)
 
-// Apply the paramMap stash for one note, mirroring the engine's note-on
-// application exactly (instrument.h map/vmap): curve = log-frequency
-// interpolation, end-clamped; vcurve = linear in velocity, multiplicative;
-// bare targets receive the raw note frequency. Pin targets set the pin's
-// ConstantSource; config targets go through set_setting (and refresh the
-// node's cached settingValues so Properties shows the per-note value).
-// Replaces the old Parameter-node scan, which pushed RAW frequency into
-// curve-bearing pin targets — the UI render ignored curves entirely.
-static float eval_map_curve(const nlohmann::json& curve, float freq,
-                            bool loglog = false) {
-    auto x = [&](size_t i) { return curve[i][0].get<float>(); };
-    auto y = [&](size_t i) { return curve[i][1].get<float>(); };
-    size_t n = curve.size();
-    if (n == 0) return freq;
-    if (freq <= x(0))     return y(0);
-    if (freq >= x(n - 1)) return y(n - 1);
-    for (size_t i = 1; i < n; ++i) {
-        if (freq <= x(i)) {
-            float lf = std::log(freq / x(i - 1)) / std::log(x(i) / x(i - 1));
-            // "interp":"loglog" (engine parity): straight line in log-log
-            // = exact y = k*f^n; positive values only.
-            if (loglog && y(i - 1) > 0.0f && y(i) > 0.0f)
-                return y(i - 1) * std::pow(y(i) / y(i - 1), lf);
-            return y(i - 1) + (y(i) - y(i - 1)) * lf;
-        }
-    }
-    return y(n - 1);
-}
-
-static float eval_map_vcurve(const nlohmann::json& vcurve, float vel) {
-    auto x = [&](size_t i) { return vcurve[i][0].get<float>(); };
-    auto y = [&](size_t i) { return vcurve[i][1].get<float>(); };
-    size_t n = vcurve.size();
-    if (n == 0) return 1.0f;
-    if (vel <= x(0))     return y(0);
-    if (vel >= x(n - 1)) return y(n - 1);
-    for (size_t i = 1; i < n; ++i) {
-        if (vel <= x(i)) {
-            float t = (vel - x(i - 1)) / (x(i) - x(i - 1));
-            return y(i - 1) + (y(i) - y(i - 1)) * t;
-        }
-    }
-    return y(n - 1);
-}
-
 // The UI-side equivalent of PerformSource::set_note, for offline note renders
 // (waveform previews and the audition tap). A PerformNode's editor DSP is a
 // stand-in ConstantSource — the real adapter belongs to a voice, and the
@@ -4303,50 +4053,6 @@ static void apply_perform_nodes(float freq, float velocity) {
     }
 }
 
-static void apply_param_map(float freq, float velocity) {
-    if (!s_loadedParamMap.is_object()) return;
-    auto it = s_loadedParamMap.find("frequency");
-    if (it == s_loadedParamMap.end()) return;
-
-    auto apply_one = [&](const nlohmann::json& e) {
-        std::string target;
-        float v = freq;
-        if (e.is_string()) {
-            target = e.get<std::string>();
-        } else if (e.is_object() && e.contains("target") && e["target"].is_string()) {
-            target = e["target"].get<std::string>();
-            if (e.contains("curve"))
-                v = eval_map_curve(e["curve"], freq,
-                                   e.value("interp", std::string()) == "loglog");
-            if (e.contains("vcurve")) v *= eval_map_vcurve(e["vcurve"], velocity);
-        } else {
-            return;
-        }
-        auto dot = target.find('.');
-        std::string nodeId = (dot == std::string::npos) ? target : target.substr(0, dot);
-        std::string pname  = (dot == std::string::npos) ? "frequency" : target.substr(dot + 1);
-        for (auto& n : s_nodes) {
-            if (n.label != nodeId) continue;
-            if (auto* p = n.find_input(pname)) {
-                if (p->constantSrc && !is_pin_connected(p->id)) {
-                    p->defaultValue = v;
-                    p->constantSrc->set(v);
-                }
-            } else if (n.dspSource) {
-                n.dspSource->set_setting(pname, v);
-                for (auto& [desc, val] : n.settingValues)
-                    if (pname == desc.name) val = n.dspSource->get_setting(desc.name);
-            }
-            return;
-        }
-    };
-    if (it->is_array()) {
-        for (const auto& e : *it) apply_one(e);
-    } else {
-        apply_one(*it);
-    }
-}
-
 // (render_waveforms deleted 2026-09-13: generate_unified fills per-node
 // strips and evo snapshots from the engine render itself.)
 
@@ -4354,8 +4060,8 @@ static void apply_param_map(float freq, float velocity) {
 // Also updates the waveform display with the most recent note.
 //
 // Audio path routes through load_instrument_patch(temp) so the CLI loader's
-// voice-pool + paramMap machinery (including MultiplexSource fan-out into
-// internal clones) applies to live-keyboard playback. The UI's in-memory
+// voice pool (including MultiplexSource fan-out into internal clones)
+// applies to live-keyboard playback. The UI's in-memory
 // DSP tree is used only for the waveform display — that path shows the
 // UI's solo-preview state without the fan-out, which is fine for a visual.
 static void note_played(float noteNum, float velocity);
@@ -6797,199 +6503,10 @@ static void draw_shape_editor() {
     if (!keepOpen) s_shapeEd.open = false;
 }
 
-// Curve editors. CurveNode shapes are edited in the node's Properties pane
-// (draw_curve_node); the legacy stash editor (draw_one_curve) lives in the
-// Parameter-mapping dialog. The separate Curves window was retired
-// 2026-08-22 (Matt).
-//
-// Curve-bearing paramMap entries ({"target": "node.paramOrConfig", "curve":
-// [[hz, value], ...]}) live verbatim in s_loadedParamMap (the UI node graph
-// cannot model them — see the stash comment near its declaration). The
-// legacy editor edits that stash directly. Because save_patch_graph carries the
-// stash forward (with node-id remapping) and get_playback_patch_path
-// re-serializes the patch through save_patch_graph whenever the graph is
-// dirty, every edit here is immediately audible on keyboard playback and
-// lands in the file on Save. All edits set s_graphDirty.
-//
-// Engine semantics (CurveNode::map, LogX/LogLog modes, in engine/include/
-// mforce/source/modulator/curve_node.h — ParamSlot retired 2026-08-18, PerformSource
-// P1): breakpoints are ascending (hz, value) pairs, >= 2 of them;
-// evaluation is linear in log-frequency, clamped past the ends; curves are
-// evaluated per note-on from the note frequency, so only entries under the
-// "frequency" paramMap name have any effect at present.
-// ===========================================================================
-
-// Mirror of CurveNode::map (LogX/LogLog) for the plot preview.
-static float curve_eval(const nlohmann::json& curve, float freq) {
-    size_t n = curve.size();
-    if (n == 0) return freq;
-    auto hz  = [&](size_t i) { return curve[i][0].get<float>(); };
-    auto val = [&](size_t i) { return curve[i][1].get<float>(); };
-    if (freq <= hz(0))     return val(0);
-    if (freq >= hz(n - 1)) return val(n - 1);
-    for (size_t i = 1; i < n; ++i) {
-        if (freq <= hz(i)) {
-            float lf = std::log(freq / hz(i - 1)) / std::log(hz(i) / hz(i - 1));
-            return val(i - 1) + (val(i) - val(i - 1)) * lf;
-        }
-    }
-    return val(n - 1);
-}
-
-// Keep breakpoints ascending in hz (engine's map() assumes it). Stable sort
-// so equal-hz rows keep their relative order while the user is mid-edit.
-static void curve_sort(nlohmann::json& curve) {
-    std::stable_sort(curve.begin(), curve.end(),
-        [](const nlohmann::json& a, const nlohmann::json& b) {
-            return a[0].get<float>() < b[0].get<float>();
-        });
-}
-
-// Link-derived targets for a Parameter node, in stash form ("label.pinName" —
-// original loaded node ids; save_patch_graph remaps them to serialized ids).
-// True when the stash already holds a curve entry for target ("label.name")
-// under paramName. Used to annotate the Add-curve dropdown — targets are
-// never hidden, but ones that already carry a curve get flagged so adding a
-// duplicate is a deliberate act, not an accident.
-static bool curve_exists_for(const std::string& paramName, const std::string& target) {
-    auto it = s_loadedParamMap.find(paramName);
-    if (it == s_loadedParamMap.end()) return false;
-    auto matches = [&](const nlohmann::json& o) {
-        return o.is_object() && o.contains("curve") &&
-               o.value("target", std::string()) == target;
-    };
-    if (matches(*it)) return true;
-    if (it->is_array())
-        for (const auto& sub : *it)
-            if (matches(sub)) return true;
-    return false;
-}
-
-// Append a new {target, curve} entry under paramName in the stash.
-static void curves_add_entry(const std::string& paramName, const std::string& target,
-                             float currentValue) {
-    using json = nlohmann::json;
-    // Explicit 20/16000 endpoints per the curve-endpoint convention
-    // (2026-08-13): a clamp is a visible repeated value, never implicit.
-    json curveObj = {
-        {"target", target},
-        {"curve", json::array({ json::array({   20.0f, currentValue}),
-                                json::array({16000.0f, currentValue}) })},
-    };
-    if (!s_loadedParamMap.contains(paramName))
-        s_loadedParamMap[paramName] = json::array();
-    json& e = s_loadedParamMap[paramName];
-    if (e.is_array()) {
-        e.push_back(std::move(curveObj));
-    } else {
-        json arr = json::array();
-        arr.push_back(e);
-        arr.push_back(std::move(curveObj));
-        s_loadedParamMap[paramName] = std::move(arr);
-    }
-    mark_graph_dirty();
-}
-
-// Draw the editor for one curve-bearing entry. Returns true if the user asked
-// to delete the whole curve entry.
-static bool draw_one_curve(const std::string& paramName, nlohmann::json& obj) {
-    using json = nlohmann::json;
-    std::string target = obj.value("target", std::string("?"));
-    json& curve = obj["curve"];
-
-    bool deleteMe = false;
-    char header[256];
-    snprintf(header, sizeof(header), "%s -> %s", paramName.c_str(), target.c_str());
-    if (!ImGui::CollapsingHeader(header, ImGuiTreeNodeFlags_DefaultOpen))
-        return false;
-
-    // --- Breakpoint table ---
-    bool changed = false;
-    bool needSort = false;
-    int removeIdx = -1;
-    const bool canRemove = curve.size() > 2;  // engine requires >= 2 breakpoints
-    if (ImGui::BeginTable("##bp", 3, ImGuiTableFlags_SizingFixedFit)) {
-        ImGui::TableSetupColumn("Freq (Hz)", ImGuiTableColumnFlags_WidthFixed, 90.0f);
-        ImGui::TableSetupColumn("Value", ImGuiTableColumnFlags_WidthFixed, 90.0f);
-        ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed, 30.0f);
-        ImGui::TableHeadersRow();
-        for (int r = 0; r < (int)curve.size(); ++r) {
-            ImGui::PushID(r);
-            ImGui::TableNextRow();
-            ImGui::TableSetColumnIndex(0);
-            ImGui::SetNextItemWidth(-1);
-            float hz = curve[r][0].get<float>();
-            if (ImGui::InputFloat("##hz", &hz, 0.0f, 0.0f, "%.1f")) {
-                curve[r][0] = std::max(1.0f, hz);  // log-x needs > 0
-                changed = true;
-            }
-            // Re-sort only when the edit is committed, so rows don't jump
-            // around under the cursor mid-typing.
-            if (ImGui::IsItemDeactivatedAfterEdit()) needSort = true;
-            ImGui::TableSetColumnIndex(1);
-            ImGui::SetNextItemWidth(-1);
-            float v = curve[r][1].get<float>();
-            if (ImGui::InputFloat("##val", &v, 0.0f, 0.0f, "%.4f")) {
-                curve[r][1] = v;
-                changed = true;
-            }
-            ImGui::TableSetColumnIndex(2);
-            ImGui::BeginDisabled(!canRemove);
-            if (ImGui::SmallButton(" x ")) removeIdx = r;
-            ImGui::EndDisabled();
-            ImGui::PopID();
-        }
-        ImGui::EndTable();
-    }
-    if (removeIdx >= 0) {
-        curve.erase(curve.begin() + removeIdx);
-        changed = true;
-    }
-    if (ImGui::SmallButton(" + Add point ")) {
-        // Extend past the current top breakpoint (keeps ascending order).
-        size_t n = curve.size();
-        float lastHz  = n ? curve[n - 1][0].get<float>() : 50.0f;
-        float lastVal = n ? curve[n - 1][1].get<float>() : 0.0f;
-        curve.push_back(json::array({lastHz * 2.0f, lastVal}));
-        changed = true;
-    }
-    ImGui::SameLine();
-    if (ImGui::SmallButton(" Delete curve ")) deleteMe = true;
-
-    if (needSort) curve_sort(curve);
-    if (changed || needSort) mark_graph_dirty();
-
-    // --- Plot: interpolated curve, log-x from first to last breakpoint ---
-    if (curve.size() >= 2) {
-        // Plot against a sorted copy so an out-of-order row mid-edit doesn't
-        // feed the engine-mirror evaluator garbage.
-        json sorted = curve;
-        curve_sort(sorted);
-        float lo = sorted.front()[0].get<float>();
-        float hi = sorted.back()[0].get<float>();
-        if (lo > 0.0f && hi > lo) {
-            constexpr int N = 128;
-            float samples[N];
-            for (int i = 0; i < N; ++i) {
-                float f = lo * std::pow(hi / lo, float(i) / float(N - 1));
-                samples[i] = curve_eval(sorted, f);
-            }
-            char overlay[64];
-            snprintf(overlay, sizeof(overlay), "%.0f Hz .. %.0f Hz (log)", lo, hi);
-            ImGui::PlotLines("##plot", samples, N, 0, overlay, FLT_MAX, FLT_MAX,
-                             ImVec2(ImGui::GetContentRegionAvail().x, 70.0f));
-        }
-    }
-    ImGui::Spacing();
-    return deleteMe;
-}
-
 // ---------------------------------------------------------------------------
-// Editor for a real CurveNode in the graph (P2b). The stash-based editor above
-// still serves entries that could not be converted;
-// this one edits the node, which is where every converted patch's curves now
-// live. Same table + plot idiom deliberately — Matt asked for the existing
-// table extended, not a new 2D canvas.
+// Editor for a CurveNode in the graph (draw_curve_node), drawn in the node's
+// Properties pane: a curve's shape is edited there. A breakpoint table and a
+// plot, not a 2D canvas.
 //
 // Describes itself by what it FEEDS, not by its own id: "__curve_3" means
 // nothing, "-> KSPianoString1.t60" is the thing being shaped.
@@ -7258,44 +6775,10 @@ static bool draw_curve_node(GraphNode& node) {
     return changed;
 }
 
-// Eligible mapping targets on a node: pins the loader can resolve to a
-// ConstantSource (value pins not wired to a source) plus all scalar
-// configs (delivered via set_setting). Shared by the Mappings dialog Add-with-curve
-// section and the Parameter-mappings dialog.
-struct TargetOpt { std::string name; float current; bool isSetting; };
-static std::vector<TargetOpt> eligible_targets(GraphNode* tn) {
-    std::vector<TargetOpt> opts;
-    for (auto& pin : tn->inputs) {
-        if (pin.inputOnly || pin.kind != UiPinKind::Input) continue;
-        if (pin.name.substr(0, 3) == "ch ") continue;
-        if (is_pin_connected(pin.id)) continue;  // loader rejects ref-wired targets
-        opts.push_back({pin.name, pin.defaultValue, false});
-    }
-    for (auto& [desc, val] : tn->settingValues)
-        opts.push_back({desc.name, val, true});
-    return opts;
-}
-
-// True when target ("label.name") appears under paramName in any form —
-// bare string or {target,...} object. Guards duplicate adds in the dialog.
-static bool target_exists_for(const std::string& paramName, const std::string& target) {
-    auto it = s_loadedParamMap.find(paramName);
-    if (it == s_loadedParamMap.end()) return false;
-    auto matches = [&](const nlohmann::json& e) {
-        if (e.is_string()) return e.get<std::string>() == target;
-        return e.is_object() && e.value("target", std::string()) == target;
-    };
-    if (it->is_array()) {
-        for (const auto& e : *it) if (matches(e)) return true;
-        return false;
-    }
-    return matches(*it);
-}
-
 // ---------------------------------------------------------------------------
-// Parameter-mappings dialog (spec §2): the one table of every binding in the
-// patch. Rows come straight from the stash; deletes edit it in place; adds
-// go through the same append rules as the Mappings dialog.
+// Parameter-mapping dialog: a read-only view of what the note drives,
+// derived from the graph's wires. It edits nothing: a binding is made by
+// wiring a Note node in the graph, a curve by placing a CurveNode.
 // ---------------------------------------------------------------------------
 static bool s_mappingsOpen = false;
 
@@ -7309,8 +6792,8 @@ static void draw_mappings_dialog() {
         return;
     }
 
-    // --- Bindings that live in the GRAPH (P2b) ---
-    // A binding is now a wire, so this table is a VIEW: every pin fed by a
+    // --- Bindings that live in the GRAPH ---
+    // A binding is a wire, so this table is a VIEW: every pin fed by a
     // chain rooted at a PerformNode. Dynamic pins (settings, pushed once per
     // note) and fixed pins (pulled) are listed together but distinguished,
     // because that difference is the whole point of the pin model.
@@ -7387,205 +6870,6 @@ static void draw_mappings_dialog() {
         }
         if (rows == 0)
             ImGui::TextDisabled("Nothing in this patch is driven by the note.");
-    }
-
-    if (!s_loadedParamMap.empty()) {
-        ImGui::Separator();
-        ImGui::TextDisabled("Legacy paramMap entries (not convertible to nodes)");
-    }
-
-    // --- Legacy stash entries ---
-    struct DeleteReq { std::string param; int subIdx; };  // -1 = whole entry
-    std::vector<DeleteReq> deletes;
-    if (ImGui::BeginTable("mappings", 5,
-            ImGuiTableFlags_RowBg | ImGuiTableFlags_BordersInnerH)) {
-        ImGui::TableSetupColumn("Name",   ImGuiTableColumnFlags_WidthFixed, 90.0f);
-        ImGui::TableSetupColumn("Target", ImGuiTableColumnFlags_WidthStretch);
-        ImGui::TableSetupColumn("Curve",  ImGuiTableColumnFlags_WidthFixed, 90.0f);
-        ImGui::TableSetupColumn("VCurve", ImGuiTableColumnFlags_WidthFixed, 60.0f);
-        ImGui::TableSetupColumn("",       ImGuiTableColumnFlags_WidthFixed, 30.0f);
-        ImGui::TableHeadersRow();
-
-        auto row = [&](const std::string& pname, const nlohmann::json& e, int subIdx) {
-            ImGui::TableNextRow();
-            ImGui::TableNextColumn();
-            ImGui::Text("%s", pname.c_str());
-            if (pname != "frequency") {
-                ImGui::SameLine();
-                ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.4f, 1), "(inert)");
-                if (ImGui::IsItemHovered())
-                    ImGui::SetTooltip("Only 'frequency' is evaluated at note-on today.");
-            }
-            ImGui::TableNextColumn();
-            std::string target = e.is_string() ? e.get<std::string>()
-                                               : e.value("target", std::string("?"));
-            ImGui::Text("%s", target.c_str());
-            ImGui::TableNextColumn();
-            if (e.is_object() && e.contains("curve")) {
-                ImGui::Text("%d pts", (int)e["curve"].size());
-                if (ImGui::IsItemHovered())
-                    ImGui::SetTooltip("Shape editor is below the table");
-            } else {
-                ImGui::TextDisabled("-");
-            }
-            ImGui::TableNextColumn();
-            if (e.is_object() && e.contains("vcurve"))
-                ImGui::Text("%d pts", (int)e["vcurve"].size());
-            else
-                ImGui::TextDisabled("-");
-            ImGui::TableNextColumn();
-            char xlbl[48];
-            snprintf(xlbl, sizeof(xlbl), "X##x%s%d", pname.c_str(), subIdx);
-            if (ImGui::SmallButton(xlbl)) deletes.push_back({pname, subIdx});
-            if (ImGui::IsItemHovered())
-                ImGui::SetTooltip("Remove this binding (the target's widget returns)");
-        };
-
-        for (auto& [pname, entry] : s_loadedParamMap.items()) {
-            if (entry.is_array()) {
-                for (int i = 0; i < (int)entry.size(); ++i) row(pname, entry[i], i);
-            } else {
-                row(pname, entry, -1);
-            }
-        }
-        ImGui::EndTable();
-    }
-    if (!s_loadedParamMap.is_object() || s_loadedParamMap.empty())
-        ImGui::TextDisabled("No bindings. Notes will not retune until 'frequency' maps to something.");
-
-    // --- Legacy curve SHAPES (the Curves window retired 2026-08-22) ---
-    // Unconvertible stash entries keep their breakpoint editor here;
-    // CurveNode shapes are edited in the Curve node's Properties pane.
-    // Deleting a shape deletes the BINDING (same semantics as the table's X:
-    // a curveless binding would push raw note frequency into a
-    // non-frequency target, which is never what the delete meant).
-    {
-        bool anyShape = false;
-        auto shape_header = [&]() {
-            if (anyShape) return;
-            ImGui::Separator();
-            ImGui::TextDisabled("Legacy curve shapes");
-            anyShape = true;
-        };
-        for (auto& [pname, entry] : s_loadedParamMap.items()) {
-            ImGui::PushID(pname.c_str());
-            if (entry.is_object() && entry.contains("curve")) {
-                shape_header();
-                if (draw_one_curve(pname, entry)) deletes.push_back({pname, -1});
-            } else if (entry.is_array()) {
-                for (int i = 0; i < (int)entry.size(); ++i) {
-                    if (!entry[i].is_object() || !entry[i].contains("curve")) continue;
-                    shape_header();
-                    ImGui::PushID(i);
-                    if (draw_one_curve(pname, entry[i])) deletes.push_back({pname, i});
-                    ImGui::PopID();
-                }
-            }
-            ImGui::PopID();
-        }
-    }
-
-    for (const auto& d : deletes) {
-        if (!s_loadedParamMap.contains(d.param)) continue;
-        nlohmann::json& entry = s_loadedParamMap[d.param];
-        if (d.subIdx < 0) {
-            s_loadedParamMap.erase(d.param);
-        } else if (entry.is_array() && d.subIdx < (int)entry.size()) {
-            entry.erase(entry.begin() + d.subIdx);
-            if (entry.empty()) s_loadedParamMap.erase(d.param);
-            else if (entry.size() == 1 && entry[0].is_string())
-                s_loadedParamMap[d.param] = entry[0];
-        }
-        mark_graph_dirty();
-    }
-
-    // --- Add a binding ---
-    ImGui::Separator();
-    ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1), "Add binding");
-
-    std::vector<GraphNode*> targetNodes;
-    for (auto& n : s_nodes)
-        if (!is_special_ui_type(n.typeName) && !n.label.empty())
-            targetNodes.push_back(&n);
-    if (targetNodes.empty()) {
-        ImGui::TextDisabled("No target nodes in graph.");
-        ImGui::End();
-        return;
-    }
-
-    static int selNode = 0, selTarget = 0;
-    // Pre-select the node selected in the editor, tracked across changes.
-    static int lastEditorSel = -1;
-    if (ImNodes::NumSelectedNodes() == 1) {
-        int selId = -1;
-        ImNodes::GetSelectedNodes(&selId);
-        if (selId != lastEditorSel) {
-            lastEditorSel = selId;
-            for (int i = 0; i < (int)targetNodes.size(); ++i)
-                if (targetNodes[i]->id == selId) { selNode = i; selTarget = 0; break; }
-        }
-    }
-    selNode = std::clamp(selNode, 0, (int)targetNodes.size() - 1);
-    ImGui::SetNextItemWidth(160.0f);
-    if (ImGui::BeginCombo("Node##map", targetNodes[selNode]->label.c_str())) {
-        for (int i = 0; i < (int)targetNodes.size(); ++i) {
-            ImGui::PushID(i);
-            if (ImGui::Selectable(targetNodes[i]->label.c_str(), i == selNode)) {
-                if (i != selNode) selTarget = 0;
-                selNode = i;
-            }
-            ImGui::PopID();
-        }
-        ImGui::EndCombo();
-    }
-
-    GraphNode* tn = targetNodes[selNode];
-    std::vector<TargetOpt> opts = eligible_targets(tn);
-    if (opts.empty()) {
-        ImGui::TextDisabled("Selected node has no mappable params/settings.");
-        ImGui::End();
-        return;
-    }
-    selTarget = std::clamp(selTarget, 0, (int)opts.size() - 1);
-    ImGui::SameLine();
-    ImGui::SetNextItemWidth(160.0f);
-    if (ImGui::BeginCombo("Param / setting##map", opts[selTarget].name.c_str())) {
-        for (int i = 0; i < (int)opts.size(); ++i) {
-            char lbl[160];
-            snprintf(lbl, sizeof(lbl), "%s%s##mt%d", opts[i].name.c_str(),
-                     opts[i].isSetting ? "  (setting)" : "", i);
-            if (ImGui::Selectable(lbl, i == selTarget)) selTarget = i;
-        }
-        ImGui::EndCombo();
-    }
-
-    std::string target = tn->label + "." + opts[selTarget].name;
-    bool exists = target_exists_for("frequency", target);
-    ImGui::BeginDisabled(exists);
-    if (ImGui::Button("Add (follows note)##mapbare")) {
-        // Bare binding: the target receives the raw note frequency.
-        if (!s_loadedParamMap.contains("frequency")) {
-            s_loadedParamMap["frequency"] = target;
-        } else {
-            nlohmann::json& e = s_loadedParamMap["frequency"];
-            if (!e.is_array()) {
-                nlohmann::json arr = nlohmann::json::array();
-                arr.push_back(e);
-                e = std::move(arr);
-            }
-            e.push_back(target);
-        }
-        mark_graph_dirty();
-    }
-    ImGui::SameLine();
-    if (ImGui::Button("Add with curve##mapcurve")) {
-        curves_add_entry("frequency", target, opts[selTarget].current);
-        mark_graph_dirty();
-    }
-    ImGui::EndDisabled();
-    if (exists) {
-        ImGui::SameLine();
-        ImGui::TextDisabled("(already bound)");
     }
 
     ImGui::End();
@@ -8969,33 +8253,6 @@ static void route_link_through_wormhole(int linkId) {
 // Properties panel — full editing UI for selected node
 // ===========================================================================
 
-// Badge for a pin/config that a paramMap binding drives per note (spec §2,
-// absorbs backlog 3m): "<frequency>" for bare targets, "<curve>" for
-// curve/vcurve entries, nullptr when unmapped. The widget is suppressed
-// while mapped — the mapping stomps the scalar at every note-on, so a
-// live-looking widget is a lie; removing the mapping restores it.
-static const char* mapping_badge(const std::string& nodeLabel, const char* name) {
-    if (!s_loadedParamMap.is_object()) return nullptr;
-    std::string target = nodeLabel + "." + name;
-    const char* badge = nullptr;
-    auto check = [&](const nlohmann::json& e) {
-        if (e.is_string()) {
-            if (e.get<std::string>() == target) badge = "<frequency>";
-        } else if (e.is_object() && e.value("target", std::string()) == target) {
-            badge = (e.contains("curve") || e.contains("vcurve")) ? "<curve>"
-                                                                  : "<frequency>";
-        }
-    };
-    for (auto& [pname, entry] : s_loadedParamMap.items()) {
-        if (entry.is_array()) {
-            for (const auto& e : entry) { check(e); if (badge) return badge; }
-        } else {
-            check(entry); if (badge) return badge;
-        }
-    }
-    return badge;
-}
-
 static void draw_properties_panel() {
     ImGui::Begin("Properties", nullptr,
                  ImGuiWindowFlags_NoCollapse);
@@ -9097,14 +8354,9 @@ static void draw_properties_panel() {
             ImGui::TextColored(ImVec4(0.55f, 0.55f, 0.55f, 1), "(%s)", pin.hint.c_str());
         }
         ImGui::SameLine(labelW);
-        const char* badge = mapping_badge(node->label, pin.name.c_str());
         if (connected) {
             GraphNode* srcNode = find_source_node(pin.id);
             ImGui::TextColored(ImVec4(0.5f, 0.8f, 0.5f, 1), "<-- %s", srcNode ? srcNode->label.c_str() : "?");
-        } else if (badge) {
-            ImGui::TextColored(ImVec4(0.5f, 0.8f, 0.5f, 1), "%s", badge);
-            if (ImGui::IsItemHovered())
-                ImGui::SetTooltip("Driven per note by the paramMap — edit in\nEdit > Parameter mapping (shape editor is there too).");
         } else {
             ImGui::PushItemWidth(widgetW);
             char label[64];
@@ -9227,13 +8479,6 @@ static void draw_properties_panel() {
             }
             ImGui::PopID();
 
-            if (const char* badge = mapping_badge(node->label, desc.name)) {
-                ImGui::TextColored(ImVec4(0.5f, 0.8f, 0.5f, 1), "%s", badge);
-                if (ImGui::IsItemHovered())
-                    ImGui::SetTooltip("Driven per note by a legacy paramMap entry\n"
-                                      "(not convertible to a node). Edit in\nEdit > Parameter mapping.");
-                return;
-            }
             ImGui::PushItemWidth(widgetW);
             char cfgLabel[64];
             snprintf(cfgLabel, sizeof(cfgLabel), "##pcfg_%s_%d", desc.name, node->id);
@@ -10144,30 +9389,27 @@ static void clipboard_cut() {
 // Graph conversion — Edit > Convert to <type> graph.
 //
 // Patch → Node: strip the instrument-level constructs (Output + Parameter
-// nodes, paramMap/score/seconds/polyphony — parked in the conv stash, see
-// its declaration) and terminate the graph with a Channel → Mixer pair fed
-// by whatever fed the Output node.
+// nodes; score, seconds and polyphony are parked in the conv stash, see its
+// declaration) and terminate the graph with a Channel → Mixer pair fed by
+// whatever fed the Output node. Note nodes and their wires stay in the graph.
 //
 // Node → Patch: drop Channel/Mixer, terminate with an Output node instead.
-// If a conv stash exists (same-session round trip), the instrument data is
-// restored verbatim — including paramMap curve entries, which flow back
-// into s_loadedParamMap so save_patch_graph's carry-forward keeps working.
-// Otherwise an instrument block is synthesized with the same heuristic as
-// tools/add_instrument_block.py: first node owning an unconnected numeric
-// `frequency` param drives the note pitch, polyphony 1; save_patch_graph
-// supplies the default score when none is stashed.
+// If a conv stash exists (same-session round trip), score, seconds and
+// polyphony are restored verbatim. Otherwise an instrument block is
+// synthesized: the first node owning an unconnected `frequency` pin takes
+// the note's frequency by a wire from a Note node, polyphony 1;
+// save_patch_graph supplies the default score when none is stashed, unless
+// the loaded file had no score.
 // ===========================================================================
 
 static void convert_patch_to_node_graph() {
     // Stash the instrument-level data for a verbatim same-session round trip.
     GraphNode* outNode = nullptr;
     for (auto& n : s_nodes) if (n.typeName == NT_PATCH_OUTPUT) { outNode = &n; break; }
-    s_convParamMap   = s_loadedParamMap;
     s_convScore      = s_loadedScore;
     s_convSeconds    = s_loadedSeconds;
     s_convPolyphony  = outNode ? outNode->polyphony : 1;
     s_convStashValid = true;
-    s_loadedParamMap = nlohmann::json::object();
     s_loadedScore    = nlohmann::json();
     s_loadedInstrumentExtras = nlohmann::json::object();
     s_loadedSeconds  = nlohmann::json();
@@ -10268,21 +9510,18 @@ static void convert_node_to_patch_graph() {
 
     bool restored = false;
     if (s_convStashValid) {
-        // Same-session round trip: restore the stripped instrument data
-        // verbatim. Curve/config-only paramMap entries flow back through
-        // s_loadedParamMap, so save_patch_graph's carry-forward re-emits
-        // them exactly as loaded.
-        s_loadedParamMap = s_convParamMap;
+        // Same-session round trip: restore the stripped score, seconds and
+        // polyphony (above) verbatim.
         s_loadedScore    = s_convScore;
         s_loadedSeconds  = s_convSeconds;
         conv_stash_clear();
         restored = true;
     } else {
-        // Synthesize: first node owning an unconnected numeric `frequency`
-        // param drives the pitch (add_instrument_block.py heuristic).
-        // Capture ids first — emplace_back below may reallocate s_nodes.
+        // Synthesize: the first node owning an unconnected `frequency` pin
+        // takes the note's frequency, wired from the graph's first Note node,
+        // or from a new one placed to the left of that node.
+        // Capture ids, not pointers — emplace_back below may reallocate s_nodes.
         int freqPinId = -1, freqNodeId = -1;
-        float freqDefault = 440.0f;
         for (auto& n : s_nodes) {
             if (is_special_ui_type(n.typeName)) continue;
             for (auto& p : n.inputs) {
@@ -10290,22 +9529,25 @@ static void convert_node_to_patch_graph() {
                 if (is_pin_connected(p.id)) continue;
                 freqPinId   = p.id;
                 freqNodeId  = n.id;
-                freqDefault = p.defaultValue;
                 break;
             }
             if (freqPinId >= 0) break;
         }
         if (freqPinId >= 0) {
-            // Synthesized binding lives in the stash (no Parameter node):
-            // "frequency" -> the found node's frequency pin.
-            (void)freqDefault;
-            for (auto& n : s_nodes) {
-                if (n.id == freqNodeId && !n.label.empty()) {
-                    s_loadedParamMap = nlohmann::json::object();
-                    s_loadedParamMap["frequency"] = n.label + ".frequency";
-                    break;
+            int noteId = -1;
+            for (auto& n : s_nodes)
+                if (n.typeName == NT_PERFORM) { noteId = n.id; break; }
+            if (noteId < 0) {
+                s_nodes.emplace_back(std::string(NT_PERFORM));
+                noteId = s_nodes.back().id;
+                if (!s_headless) {
+                    ImVec2 p = ImNodes::GetNodeGridSpacePos(freqNodeId);
+                    ImNodes::SetNodeGridSpacePos(noteId, ImVec2(p.x - 240.0f, p.y));
                 }
             }
+            if (GraphNode* note = find_node_by_id(noteId))
+                if (Pin* fp = note->find_output("frequency"))
+                    s_links.emplace_back(fp->id, freqPinId);
         }
     }
 
@@ -10692,7 +9934,7 @@ static void replace_node_with(int nodeId, const char* newType) {
     ImNodes::SetNodeGridSpacePos(newId, pos);
 
     // The new node inherits the old identity's references: group membership,
-    // dynamic-pin refs it drives, paramMap targets, tap refs in extras.
+    // dynamic-pin refs it drives, tap refs in extras.
     rewrite_label_refs(oldLabel, newN->label);
     if (s_listenTapNode == nodeId) s_listenTapNode = newId;
     if (g_selectedNodeId == nodeId) g_selectedNodeId = newId;
@@ -12340,44 +11582,6 @@ int main(int argc, char** argv) {
         }
     }
 
-    // Headless round-trip: load a patch and immediately re-save it, no GL
-    // window. Exists to verify JSON preservation across the UI's load→save
-    // path (dsp BACKLOG 3b — paramMap curve entries must survive). ImGui/ImNodes
-    // contexts are created because load/save read/write node positions; no
-    // frame or renderer is needed for that.
-    // TEMP DEBUG: dump the curve-target options the Add-curve combos would list
-    // for every node in a patch. Mirrors draw_curves_window's opts collection.
-    if (argc >= 3 && std::string(argv[1]) == "--dump-curve-opts") {
-        s_headless = true;
-        ImGui::CreateContext();
-        ImNodes::CreateContext();
-        register_all_sources();
-        try {
-            load_graph_from_path(argv[2]);
-        } catch (const std::exception& e) {
-            fprintf(stderr, "load failed: %s\n", e.what());
-            return 1;
-        }
-        for (auto& n : s_nodes) {
-            if (is_special_ui_type(n.typeName) || n.label.empty()) continue;
-            printf("node '%s' (%s): dsp=%s settingValues=%zu\n",
-                   n.label.c_str(), n.typeName.c_str(),
-                   n.dspSource ? n.dspSource->type_name() : "NULL",
-                   n.settingValues.size());
-            for (auto& pin : n.inputs) {
-                if (pin.inputOnly || pin.kind != UiPinKind::Input) continue;
-                if (pin.name.substr(0, 3) == "ch ") continue;
-                if (is_pin_connected(pin.id)) { printf("    [pin skipped: connected] %s\n", pin.name.c_str()); continue; }
-                printf("    pin  %s = %g%s\n", pin.name.c_str(), pin.defaultValue,
-                       curve_exists_for("frequency", n.label + "." + pin.name) ? "  (has curve)" : "");
-            }
-            for (auto& [desc, val] : n.settingValues)
-                printf("    cfg  %s = %g%s\n", desc.name, val,
-                       curve_exists_for("frequency", n.label + "." + desc.name) ? "  (has curve)" : "");
-        }
-        return 0;
-    }
-
     // Headless readout of the engine-stamp guard (dsp backlog 3c), so the
     // staleness logic is verifiable without launching the GUI.
     if (argc >= 2 && std::string(argv[1]) == "--stamp") {
@@ -12474,6 +11678,10 @@ int main(int argc, char** argv) {
         }
     }
 
+    // Headless round-trip: load a patch and immediately re-save it, no GL
+    // window. Exists to verify JSON preservation across the UI's load→save
+    // path. ImGui/ImNodes contexts are created because load/save read/write
+    // node positions; no frame or renderer is needed for that.
     if (argc >= 4 && std::string(argv[1]) == "--roundtrip") {
         s_headless = true;
         ImGui::CreateContext();
@@ -12491,7 +11699,7 @@ int main(int argc, char** argv) {
     }
 
     // Headless rename: load, rename one node (label = id), save. Exercises
-    // rename_node's validation + paramMap-target rewrite without a UI.
+    // rename_node's validation + by-label ref rewrite without a UI.
     if (argc >= 6 && std::string(argv[1]) == "--rename") {
         s_headless = true;
         ImGui::CreateContext();
@@ -12721,8 +11929,8 @@ int main(int argc, char** argv) {
         return 0;
     }
 
-    // Headless layout dump: load a patch (paramMap conversion + the
-    // synthesized-node placement pass included) and print every node's
+    // Headless layout dump: load a patch (the synthesized-node placement
+    // pass included) and print every node's
     // resolved canvas position, its group (if any), and top-level
     // visibility. Exists because the placement pass could only ever be
     // "verified by construction" — this makes what the user will actually
@@ -13932,7 +13140,7 @@ int main(int argc, char** argv) {
         draw_properties_panel();
 
         // =================================================================
-        // Parameter-mapping dialog (legacy paramMap bindings + shapes)
+        // Parameter-mapping dialog (a view of what the note drives)
         // =================================================================
         draw_mappings_dialog();
 

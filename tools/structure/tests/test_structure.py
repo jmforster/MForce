@@ -145,8 +145,8 @@ class KnownAnswerTests(unittest.TestCase):
         # the two functions (the headless harness, which ticks its clock once
         # per sample, lives inside main()).
         lengths = {name: n for name, _, n in measure.function_lengths(str(ROOT / "tools/mforce_ui/main.cpp"))}
-        self.assertEqual(lengths["main"], 1738)
-        self.assertEqual(lengths["draw_properties_panel"], 879)
+        self.assertEqual(lengths["main"], 1704)
+        self.assertEqual(lengths["draw_properties_panel"], 867)
 
     def test_instrument_ring_out_duplicate_is_found(self):
         # The audit's known duplicate: the ring-out loop of the fresh voice and
