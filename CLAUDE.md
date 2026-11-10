@@ -102,8 +102,11 @@ Replicate legacy functionality of node-based UI to:
 - Session start (hard rule, Matt 2026-10-02): FIRST line of the first reply states
   the model and effort level (verify with get_session self) and flags any change
   from the last session's recorded value (~/.claude/projects/C---dev-repos-mforce/
-  last_model.txt, written by the SessionStart hook flow). Expected: Fable 5.x, High
-  or above. Opus 5.5 is allowed again (Matt 2026-11-06 rescinded the "never
+  last_model.txt, written by the SessionStart hook flow). Expected: Fable 5.2
+  (Matt 2026-11-09; a session on Fable 5.1 is a change to flag), High or above.
+  Nothing in a settings file picks the app's model: the Code tab's model
+  picker remembers its last choice, so a new session comes up on whatever was
+  picked last; Matt sets 5.2 in the picker. Opus 5.5 is allowed again (Matt 2026-11-06 rescinded the "never
   Opus 5/5.5" rule: "just delegate to Opus 5.5 agents"); executors and
   reviewers are Opus 5.5 subagents (the Agent tool's model "opus"), and
   claude-opus-4-8 is no longer the required fallback. Offer xhigh/max before

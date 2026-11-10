@@ -1,5 +1,137 @@
 # Status — session handoff (Claude reads this first; Matt's queue = */REVIEW.md)
 
+Updated: 2026-11-09, afternoon (refactor session XIII, Fable 5.1 xhigh — the
+app's picker had remembered 5.1; Matt wants 5.2 and CLAUDE.md, the hook and the
+model memory now say so).
+NEXT SESSION STARTS HERE: CHECKPOINT 4.1'S PLAN IS WRITTEN —
+`docs/superpowers/plans/2026-11-09-part4-checkpoint-4.1.md`, in 3.9's shape,
+from a survey of the loader, the hosts, the gates and the patch tree (the
+Architecture paragraph lists what the survey established beyond the document:
+the hiBoost deletion is byte-identical on the standalone path by arithmetic;
+the `mix` lookup resolves to the mixer's defaults on all 7 instrument-form
+files tree-wide that carry one; the two mono adapters are one function twice;
+the two voice loops differ only in a floor that is 0 on the render path; the
+score moves as text with a dump/parse identity test). Six tasks, each a
+commit that builds every target; Task 0 commits the plan WITH session XII's
+uncommitted docs (part4-patch.md, BACKLOG rows 2/3/10, this file — never
+GOALS.md). MATT'S GO-AHEAD IS GIVEN with one amendment, taken the same
+afternoon ("Yes, amend the plan"; Fable weekly 48% on Monday 11-09, reset
+Fri 02:00 HST): Opus 5.5 executes ALL six tasks including 1–3, Fable
+coordinates, verifies every commit (null gate rerun, body-diff of each moved
+block, census reproduced) and writes the report, an Opus 5.5 refuter per Part
+4 §8.6 — the plan's Execution paragraph, Task 1–3 headings and Ledger 11 say
+so. THE EXECUTION RUNS IN A FRESH SESSION ON FABLE 5.2 AT XHIGH, which Matt
+starts from the app's picker with the prompt "Execute
+docs/superpowers/plans/2026-11-09-part4-checkpoint-4.1.md. Go." — that
+session reads this block, the plan, and Part 4 §5.8–5.9 and §8.1, then begins
+at Task 0 (the plan commit with session XII's docs). GIT: main
+level with origin; uncommitted — the plan (new), `part4-patch.md` (new),
+BACKLOG, this file; GOALS.md Matt's own. Nothing built; no code changed.
+
+---
+
+Updated: 2026-11-09 (refactor session XII, begun 11-08 on Fable 5.1 —
+xhigh for the survey, max from the Part 4 design on, Matt flipped it in
+the menu — and continued 11-09 on Fable 5.2 at max after a restart).
+NEXT SESSION STARTS HERE: PART 4'S DOCUMENT IS COMPLETE AND DECIDED —
+`docs/architecture/part4-patch.md`, nine sections, written at maximum
+effort one section at a time, each decided with Matt before the next
+(Part 2's method); seven amendments to earlier sections and three
+corrections of fact are recorded in place. NOTHING IS BUILT. THE NEXT
+THING WRITTEN IS CHECKPOINT 4.1'S PLAN ("the seam's render half;
+`hiBoost`": §8.1 row 4.1, §8.3's instruments, §9.1's five 4.1 rows and
+§9.3's `--test-ornaments`, §5.8–5.9, §7.2), in the shape of
+`docs/superpowers/plans/2026-11-07-part3-checkpoint-3.9.md`, for Matt's
+go-ahead before anything is executed; offer xhigh/max first (3.9's plan
+was written at xhigh). The record of how the document was decided
+follows.
+Section 1 (today, from the code) is written from a survey of the loader,
+the editor, the CLI, the tests and the 3,146 patch files; sections 2
+(the module and the vocabulary), 3 (`Patch` and `Graph` as data) and 4
+(the codec) are DECIDED ("Names stand", "Section 3 stands", "Section 4
+stands"): the
+uniform six-map node record with two new kinds — a string setting and
+an enum column; build order not semantic; enum spelling read either
+way, written as the label; the Envelope preset as a read-time form; the
+score as opaque text; `comment` keys; and section 4 (the codec) as
+proposed — one `params` bag + `dynamicPins` + one `layout` block, the
+record's map renamed `Node::dynamicPins`, tables column-major, out-of-
+range settings refused after a lint count, the model complete with
+defaults filled at read, one converter (`tools/convert_patch.py`) over
+library, baselines, audition and all 43 pending files, floats
+shortest-roundtrip; and section 5 (the builder) as proposed ("s5
+stands") — a Param's number the pin's own constant, an Input's a wired
+ConstantSource, the Envelope mapping unconditionally (3.2 amended);
+`BuiltGraph` with nodes, output, signals, advance tails, dynamic pins
+and warnings; `SoundChannel`/`StereoMixer` registered parts in a new
+Output family, render's live mixer renamed `Mixer`, `build_sound` over
+the three forms without the `mix` lookup, cross-loop sharing refused;
+3.4 amended (the output may name the mixer part); three named types
+only (PerformNode a stand-in, NameGate's vocabulary, Multiplex's
+fan-out); Multiplex's template a sub-Graph over every wire kind, the
+clone fan-out deleted with the paramMap; `Component::validate()`;
+`play_embedded_score` in render until Part 5; and section 6 (the edit
+operations) as proposed ("All others stand", the `Fragment` record kept
+after explanation: "Absolutely necessary. Name fine.") — operations
+return refusals as values, `check()` names violations, 3.8 amended so
+`output` may be empty while assembling; `Fragment` its own record (4.1
+amended); fresh seeds on paste and duplicate; connectability from the
+prototypes; `disconnect` restores the declared default, promotion is
+`connect_setting`; make-instrument/make-plain-sound as drafted; groups'
+derived two-output rule, one namespace; Note faces over
+`add_face`/`face_field`; and section 7 (the hosts) as proposed ("Section 7
+stands", 2026-11-09) — the CLI moves first and hiBoost goes with it; the
+explorer edits `Patch` copies; THE EDITOR GETS A TRANSLATION LAYER IN
+PART 4 (`Patch` ⇄ editor state, two functions) replacing its loader's
+parsing, its two savers, the clipboard's staging and the six text
+loads, its model and edit functions staying until Part 7; tests through
+one `load_text` helper with four new families; the lint becomes
+`mforce_cli --check`, the converters become `convert_patch.py` rules;
+`--gatecheck` an engine test; the stale-build guard is Part 8's.
+Section 8 (the byte-identity plan) is DECIDED as proposed ("Section 8
+stands", 2026-11-09; 4.8 and 7.4 amended in the document). EIGHT
+CHECKPOINTS, the rule being that the
+files reach the codec's form before the codec exists: 4.1 the seam's
+render half and hiBoost (`BuiltSound`, `Mixer`, one voice loop,
+`play_embedded_score`, the `mix` lookup gone; comp renders move, the
+comp template gate's 22 re-frozen); 4.2 the paramMap goes (82 in-scope
+files, 111 audition, 9 pending; `convert_patch.py` born); 4.3 tables —
+Envelope and Curve, the enum column; 4.4 every type a declaration (the
+string setting, `validate()`, ten of twelve configurators gone); 4.5 the
+terminal types and the document's spellings (`inputs`→`params`,
+`layout`, `comment`, enum labels; 75→78 registrations); 4.6 the module
+beside the loader with THE TWIN GATE over the real tree; 4.7 the flip
+(the editor's translation layer, hosts re-pointed, the loader deleted,
+no file touched); 4.8 the operations. Two amendments ride on it: 4.8's
+"one pass" becomes one converter whose rules land over four
+checkpoints; 7.4's roundtrip gate keeps `mforce_ui --roundtrip` until
+Part 7 as the translation layer's proof. Two departures by
+construction listed (a Multiplex voice under a bend; an envelope's
+negative zero). Untracked folders: audition (708) and pending (44)
+rewritten at each of 4.2–4.5, pending's originals kept each time;
+sweep, scratch and old on demand (after 4.7 all but four of their
+2,255 patches need the converter).
+Section 9 (the deletions, in order) is DECIDED as proposed ("Section 9
+stands", 2026-11-09): the list by checkpoint, every line open to veto;
+`mforce_cli --test-ornaments` deleted at 4.1 (it loads
+`patches/PluckU.json`, removed by `eb964a1` on 2026-08-10, and has
+failed since); the three existing converters fold into
+`convert_patch.py` at 4.2 and `null_gate_wiring.py` retires after its
+last green run; the two pre-Part-3 migration tools settled by
+measurement at 4.2; what stays for Parts 5, 7 and 8 (the editor's
+model, edit functions and mode flag survive Part 4). THREE FACTS
+CORRECTED in decided sections, each annotated in place: the editor's
+loader is 730 lines, not "about 790" (1.3, 7.3: the translation layer
+replaces ~1,330 lines); 5.3's `ensure_constant` side effect never
+arises (the function goes at 4.2 with its only callers). CLEANUP items
+Part 4 closes: 19, 24, 25, 28, 29, 42, 43, 44. BACKLOG row 3 points at the document with its eight
+checkpoints. NOTHING BUILT; no code changed. GIT: main level with origin;
+uncommitted — `part4-patch.md` (new), BACKLOG rows 2, 3 and 10, this
+file; GOALS.md stays Matt's uncommitted edit and is never staged with
+them.
+
+---
+
 Updated: 2026-11-07, evening (refactor session XI, Fable 5.1 xhigh, a side
 session of X).
 NEXT SESSION STARTS HERE: checkpoint 3.9 LANDED on main (`6e43ca8`..
