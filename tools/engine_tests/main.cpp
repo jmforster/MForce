@@ -8556,13 +8556,106 @@ static void run_review_gap_tests() {
     };
     CHECK(file_fails_naming("renders/scratch/_part_as_output.json",
         R"({"sampleRate":48000,"seconds":0.1,"graph":{"output":"parts","nodes":[{"id":"parts","type":"FullPartials","params":{"maxPartials":4}}]}})",
-        "mono-renderable"));
+        "a part, not a signal"));
     CHECK(file_fails_naming("renders/scratch/_part_as_channel.json",
         R"({"sampleRate":48000,"seconds":0.1,"graph":{"output":"mix","nodes":[
           {"id":"parts","type":"FullPartials","params":{"maxPartials":4}},
           {"id":"ch1","type":"SoundChannel","inputs":{"source":"parts"},"params":{"volume":1.0,"pan":0.0}},
           {"id":"mix","type":"StereoMixer","inputs":{"channels":["ch1"]},"params":{"gainL":1.0,"gainR":1.0}}]}})",
-        "No mono source"));
+        "a part, not a signal"));
+    // a channel as the output, and a channel whose source names no node
+    CHECK(file_fails_naming("renders/scratch/_channel_as_output.json",
+        R"({"sampleRate":48000,"seconds":0.1,"graph":{"output":"ch1","nodes":[
+          {"id":"osc","type":"SineSource","params":{"frequency":220.0}},
+          {"id":"ch1","type":"SoundChannel","inputs":{"source":"osc"},"params":{"volume":1.0,"pan":0.0}}]}})",
+        "mono-renderable"));
+    CHECK(file_fails_naming("renders/scratch/_channel_source_missing.json",
+        R"({"sampleRate":48000,"seconds":0.1,"graph":{"output":"mix","nodes":[
+          {"id":"ch1","type":"SoundChannel","inputs":{"source":"nowhere"},"params":{"volume":1.0,"pan":0.0}},
+          {"id":"mix","type":"StereoMixer","inputs":{"channels":["ch1"]},"params":{"gainL":1.0,"gainR":1.0}}]}})",
+        "No mono source for"));
+}
+
+// A patch the standalone loader reads from the scratch folder (made here, since
+// a fresh clone has none), rendered for its own frame count into `buf`; the
+// file is removed. False, with the reason printed, when the load or the render
+// throws.
+static bool render_scratch_patch(const char* path, const std::string& text, std::vector<float>& buf) {
+    std::filesystem::create_directories("renders/scratch");
+    { std::ofstream f(path); f << text; }
+    bool rendered = false;
+    try {
+        auto p = load_patch_file(path);
+        buf.assign(2 * size_t(p.frames), 0.0f);
+        p.mixer->render(buf.data(), p.frames);
+        rendered = true;
+    }
+    catch (const std::exception& e) { std::printf("  load failed: %s\n", e.what()); }
+    std::filesystem::remove(path);
+    return rendered;
+}
+
+// A channel's source is any signal the graph builds: each of six signal types
+// feeds the one SoundChannel of a StereoMixer and renders, every sample finite.
+static void run_channel_source_tests() {
+    std::printf("channel sources: six signal types feed a SoundChannel and render\n");
+    auto through_channel = [](const char* node, const char* id) {
+        return std::string(R"({"sampleRate":48000,"seconds":0.05,"graph":{"output":"mix","nodes":[)") + node
+            + R"(,{"id":"ch1","type":"SoundChannel","inputs":{"source":")" + id
+            + R"("},"params":{"volume":1.0,"pan":0.0}},)"
+            + R"({"id":"mix","type":"StereoMixer","inputs":{"channels":["ch1"]},"params":{"gainL":1.0,"gainR":1.0}}]}})";
+    };
+    auto all_finite = [](const std::vector<float>& b) {
+        for (float s : b) if (!std::isfinite(s)) return false;
+        return !b.empty();
+    };
+    struct Case { const char* path; const char* node; const char* id; };
+    const Case cases[] = {
+        {"renders/scratch/_channel_envelope.json",
+         R"({"id":"env","type":"Envelope","params":{"preset":"ar","attack":0.2}})", "env"},
+        {"renders/scratch/_channel_curve.json",
+         R"({"id":"cv","type":"CurveNode","params":{"knots":[[0.0,0.25],[1.0,0.75]],"source":0.5}})", "cv"},
+        {"renders/scratch/_channel_range.json",
+         R"({"id":"rng","type":"RangeSource","params":{"min":0.0,"max":1.0,"var":0.5}})", "rng"},
+        {"renders/scratch/_channel_vibrato.json",
+         R"({"id":"vib","type":"Vibrato","params":{"frequency":220.0}})", "vib"},
+        // No vocabulary in a mixer-mode patch: the loader warns and the gate never fires.
+        {"renders/scratch/_channel_name_gate.json",
+         R"({"id":"gate","type":"NameGate","params":{"name":"pluck"}})", "gate"},
+    };
+    for (const auto& c : cases) {
+        std::vector<float> buf;
+        CHECK(render_scratch_patch(c.path, through_channel(c.node, c.id), buf));
+        CHECK(all_finite(buf));
+    }
+    // A constant signal renders as one non-zero value on every left sample:
+    // the adapter really pulls the node.
+    std::vector<float> buf;
+    CHECK(render_scratch_patch("renders/scratch/_channel_var.json",
+        through_channel(R"({"id":"var","type":"VarSource","params":{"val":0.5,"var":0.0}})", "var"), buf));
+    CHECK(all_finite(buf));
+    bool constant = !buf.empty() && buf[0] != 0.0f;
+    for (size_t i = 0; i < buf.size(); i += 2) constant = constant && buf[i] == buf[0];
+    CHECK(constant);
+}
+
+// The instrument form's mixer is one unity channel: a node named "mix" that
+// nothing consumes puts no gain on it.
+static void run_instrument_mixer_unity_tests() {
+    std::printf("the instrument form's mixer: unity, whatever a node named mix says\n");
+    const std::string head = R"({"sampleRate":48000,"instrument":{"polyphony":1},
+      "score":[{"note":60,"time":0,"duration":0.05}],"graph":{"output":"osc","nodes":[
+      {"id":"osc","type":"SineSource","params":{"frequency":220.0,"amplitude":0.5}})";
+    std::vector<float> plain, withMix;
+    CHECK(render_scratch_patch("renders/scratch/_instrument_no_mix.json", head + "]}}", plain));
+    CHECK(render_scratch_patch("renders/scratch/_instrument_quarter_mix.json",
+        head + R"(,{"id":"mix","type":"StereoMixer","inputs":{"channels":[]},"params":{"gainL":0.25,"gainR":0.25}}]}})",
+        withMix));
+    CHECK(!plain.empty() && plain.size() == withMix.size()
+          && std::memcmp(plain.data(), withMix.data(), plain.size() * sizeof(float)) == 0);
+    bool silent = true;
+    for (float s : plain) if (s != 0.0f) silent = false;
+    CHECK(!silent);
 }
 
 // The review's gaps, the lifecycle's: parts nested three deep are prepared and
@@ -8836,6 +8929,8 @@ int main() {
     run_registry_family_tests();   // before the lifecycle test registers its probe
     run_menu_content_tests();
     run_review_gap_tests();
+    run_channel_source_tests();
+    run_instrument_mixer_unity_tests();
     run_review_gap_lifecycle_tests();
     run_pin_tests();
     run_base_tests();

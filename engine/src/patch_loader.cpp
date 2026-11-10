@@ -2,7 +2,6 @@
 #include "mforce/core/source_registry.h"
 #include "mforce/core/dsp_value_source.h"
 #include "mforce/source/modulator/name_gate.h"
-#include "mforce/core/dsp_wave_source.h"
 #include "mforce/source/modulator/range_source.h"
 #include "mforce/source/modulator/var_source.h"
 #include "mforce/source/modulator/curve_node.h"
@@ -53,24 +52,9 @@ static std::string slurp(const std::string& path)
     return ss.str();
 }
 
-// Adapters: WaveSource/ValueSource → MonoSource for channel rendering. Each
-// is its own pull loop: it owns the clock its graph computes on and completes
-// the host's facts with it.
-struct WaveSourceMono final : MonoSource {
-    std::shared_ptr<WaveSource> src;
-    SampleClock clock;
-    RenderContext ctx;
-    explicit WaveSourceMono(std::shared_ptr<WaveSource> s) : src(std::move(s)) {}
-    void prepare(const RenderContext& c) override {
-        ctx = c.with_clock(&clock);
-        src->prepare(ctx);
-    }
-    void render(float* out, int frames) override {
-        src->start(frames);
-        for (int i = 0; i < frames; ++i) { clock.tick(); out[i] = src->next(); }
-    }
-};
-
+// The adapter: a signal as a mono producer for a channel. It is its own pull
+// loop: it owns the clock its graph computes on and completes the host's
+// facts with it.
 struct ValueSourceMono final : MonoSource {
     std::shared_ptr<ValueSource> src;
     SampleClock clock;
@@ -223,13 +207,12 @@ static std::vector<std::string> collect_advance_ids(
 }
 
 // ---------------------------------------------------------------------------
-// Graph building: creates every node from JSON — signals and parts — and the mono adapters for the signals.
+// Graph building: creates every node from JSON — signals and parts.
 // Extracted so it can be called once (normal mode) or N times (instrument voices).
 // ---------------------------------------------------------------------------
 
 struct GraphResult {
     std::unordered_map<std::string, std::shared_ptr<Component>> nodes;        // every node by id, signal or part
-    std::unordered_map<std::string, std::unique_ptr<MonoSource>>  monoNodes;
 };
 
 // Wire all connectable params generically via param_descriptors + input_descriptors + set_param.
@@ -466,17 +449,6 @@ static void wire_params_generic(
         }
     }
 
-}
-
-// Register MonoSource wrapper (WaveSource → WaveSourceMono, else ValueSourceMono).
-static void add_mono(
-    GraphResult& g, const std::string& id, const std::shared_ptr<Component>& node)
-{
-    auto src = std::dynamic_pointer_cast<ValueSource>(node);
-    if (!src) return;                           // a part renders nothing by itself
-    auto ws = std::dynamic_pointer_cast<WaveSource>(src);
-    if (ws) g.monoNodes[id] = std::make_unique<WaveSourceMono>(ws);
-    else    g.monoNodes[id] = std::make_unique<ValueSourceMono>(src);
 }
 
 // Per-voice performance adapters, handed down so PerformNode instances all
@@ -720,7 +692,6 @@ static GraphResult build_graph(
                 std::move(values), oneShot, seed.value_or(0x5E6A'0000u));
             if (pp) wire_params_generic(*src, id, *pp, graphNodes);
             graphNodes[id] = src;
-            add_mono(g, id, src);
         }
         else if (type == "Vibrato") {
             if (!pp) throw std::runtime_error("Vibrato requires params");
@@ -752,7 +723,6 @@ static GraphResult build_graph(
                 }
             }
             graphNodes[id] = src;
-            add_mono(g, id, src);
         }
         // ---- HybridKSSource (setting params) ----
         else if (type == "HybridKSSource") {
@@ -764,7 +734,6 @@ static GraphResult build_graph(
                     hks->set_target_partials(p["targetPartials"].get<std::vector<float>>());
             }
             graphNodes[id] = hks;
-            add_mono(g, id, hks);
         }
         // ---- MultiplexSource: fan template subgraph into N instances ----
         else if (type == "MultiplexSource") {
@@ -815,7 +784,6 @@ static GraphResult build_graph(
                 }
             }
             graphNodes[id] = mux;
-            add_mono(g, id, mux);
         }
         // =================================================================
         // Generic path: registry create + set_param + optional configurator
@@ -833,7 +801,6 @@ static GraphResult build_graph(
                 }
             }
             graphNodes[id] = src;
-            add_mono(g, id, src);
         }
         // SoundChannel and StereoMixer handled by caller
         else if (type != "SoundChannel" && type != "StereoMixer") {
@@ -1411,11 +1378,6 @@ Patch load_patch_file(const std::string& path)
         patch.frames = root.value("frames", sampleRate * 5);
     }
 
-    const IndexedGraph ig = index_graph(root);
-    const auto& nodeMap   = ig.nodeMap;
-    const auto& nodeOrder = ig.nodeOrder;
-    const auto& outputId  = ig.outputId;
-
     // -------------------------------------------------------------------
     // PitchedInstrument mode: build voices, schedule notes
     // -------------------------------------------------------------------
@@ -1444,25 +1406,6 @@ Patch load_patch_file(const std::string& path)
         ch.volume = std::make_shared<ConstantSource>(1.0f);
         ch.pan    = std::make_shared<ConstantSource>(0.0f);
 
-        // Override from graph's mixer node if present
-        auto mixIt = nodeMap.find("mix");
-        if (mixIt != nodeMap.end() && mixIt->second.contains("params")) {
-            // Build a throwaway graph just to resolve mixer/channel params.
-            // It rebuilds the WHOLE node graph, PerformNodes included, so it
-            // needs a context or it throws "no voice context" — which is how
-            // the conversion gate first failed the five Rhodes/FM patches, the
-            // only ones carrying a "mix" node. The context is deliberately a
-            // throwaway: mixer gain is patch-level and must not depend on note
-            // state, so nothing here is ever read per note.
-            PitchedInstrument::VoiceGraph mixThrowaway;
-            PerformContext mixPerf = make_perform_context(
-                mixThrowaway, nullptr);
-            auto gMix = build_graph(nodeMap, nodeOrder, &mixPerf);
-            const auto& mp = mixIt->second["params"];
-            mixer->gainL = resolve_param_or(mp, "gainL", 1.0f, gMix.nodes);
-            mixer->gainR = resolve_param_or(mp, "gainR", 1.0f, gMix.nodes);
-        }
-
         mixer->channels.push_back(std::move(ch));
         mixer->prepare(RenderContext{sampleRate});
         patch.mixer = std::move(mixer);
@@ -1472,9 +1415,13 @@ Patch load_patch_file(const std::string& path)
     // -------------------------------------------------------------------
     // Standard mode (no instrument): single graph instance
     // -------------------------------------------------------------------
+    const IndexedGraph ig = index_graph(root);
+    const auto& nodeMap   = ig.nodeMap;
+    const auto& nodeOrder = ig.nodeOrder;
+    const auto& outputId  = ig.outputId;
+
     auto g = build_graph(nodeMap, nodeOrder);
     auto& graphNodes = g.nodes;
-    auto& monoNodes  = g.monoNodes;
 
     // Mixer-mode patches have no per-sample driver to tick tap-only loop
     // tails (the advance list is a voice concept — feedback_loop_design.md
@@ -1502,15 +1449,15 @@ Patch load_patch_file(const std::string& path)
     // note that centre pan is equal-power, so this inherits the -3dB
     // CLI-vs-UI level difference that is backlog item 3d.
     if (outIt->second.at("type").get<std::string>() != "StereoMixer") {
-        auto monoIt = monoNodes.find(outputId);
-        if (monoIt == monoNodes.end())
+        auto it = graphNodes.find(outputId);
+        if (it == graphNodes.end())
             throw std::runtime_error(
                 "graph.output must be a StereoMixer or a mono-renderable source: " + outputId);
 
         Channel ch;
         ch.volume = std::make_shared<ConstantSource>(1.0f);
         ch.pan    = std::make_shared<ConstantSource>(0.0f);
-        ch.source = std::move(monoIt->second);
+        ch.source = std::make_unique<ValueSourceMono>(as_signal(it->second, outputId));
         mixer->channels.push_back(std::move(ch));
         mixer->prepare(RenderContext{sampleRate});
         patch.mixer = std::move(mixer);
@@ -1546,11 +1493,11 @@ Patch load_patch_file(const std::string& path)
         std::string srcId =
             chNode.at("inputs").at("source").get<std::string>();
 
-        auto monoIt = monoNodes.find(srcId);
-        if (monoIt == monoNodes.end())
+        auto it = graphNodes.find(srcId);
+        if (it == graphNodes.end())
             throw std::runtime_error("No mono source for: " + srcId);
 
-        ch.source = std::move(monoIt->second);
+        ch.source = std::make_unique<ValueSourceMono>(as_signal(it->second, srcId));
         mixer->channels.push_back(std::move(ch));
     }
 
