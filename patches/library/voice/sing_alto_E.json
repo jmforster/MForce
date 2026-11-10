@@ -3,6 +3,13 @@
  "graph": {
   "nodes": [
    {
+    "id": "__perf_freq",
+    "type": "PerformNode",
+    "params": {
+     "field": "frequency"
+    }
+   },
+   {
     "id": "ampEnv",
     "type": "Envelope",
     "params": {
@@ -62,7 +69,9 @@
     "type": "AdditiveSource",
     "params": {
      "seed": 42,
-     "frequency": 220.0,
+     "frequency": {
+      "ref": "__perf_freq"
+     },
      "amplitude": {
       "ref": "ampEnv"
      },
@@ -80,9 +89,6 @@
   "output": "src"
  },
  "instrument": {
-  "paramMap": {
-   "frequency": "src.frequency"
-  },
   "polyphony": 1
  },
  "score": [

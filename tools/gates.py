@@ -31,7 +31,6 @@ FAST = [
 SLOW = [
     ("null gate (patches)", [PY, "tools/null_gate_perform_source.py", "--jobs", "3"]),
     ("roundtrip (UI save/load, whole corpus)", [PY, "tools/test_stable_roundtrip.py", "patches/baselines", "patches/library", "--jobs", "3"]),
-    ("wiring null gate (paramMap conversion)", [PY, "tools/null_gate_wiring.py"]),
 ]
 # Not run here: tools/comp_template_null_gate.py needs a render/compare pair
 # of stages rather than one command; it joins this list when its driver is

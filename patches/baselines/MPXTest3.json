@@ -2,6 +2,13 @@
   "graph": {
     "nodes": [
       {
+        "id": "__perf_freq",
+        "type": "PerformNode",
+        "params": {
+          "field": "frequency"
+        }
+      },
+      {
         "id": "ADSREnvelope1",
         "params": {
           "preset": "adsr",
@@ -33,7 +40,9 @@
         "id": "Var1",
         "params": {
           "absolute": true,
-          "val": 1.0,
+          "val": {
+            "ref": "__perf_freq"
+          },
           "var": {
             "ref": "LayeredRedNoise1"
           },
@@ -69,9 +78,6 @@
     "output": "Multiplex1"
   },
   "instrument": {
-    "paramMap": {
-      "frequency": "Var1.val"
-    },
     "polyphony": 4
   },
   "sampleRate": 48000,

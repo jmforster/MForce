@@ -4,6 +4,13 @@
   "graph": {
     "nodes": [
       {
+        "id": "__perf_freq",
+        "type": "PerformNode",
+        "params": {
+          "field": "frequency"
+        }
+      },
+      {
         "id": "breathEnv",
         "type": "Envelope",
         "params": {
@@ -41,7 +48,9 @@
         "id": "tube",
         "type": "WavetableSource",
         "params": {
-          "frequency": 261.63,
+          "frequency": {
+            "ref": "__perf_freq"
+          },
           "amplitude": 0.7,
           "evolution": {
             "ref": "reed"
@@ -52,9 +61,6 @@
     "output": "tube"
   },
   "instrument": {
-    "paramMap": {
-      "frequency": "tube.frequency"
-    },
     "polyphony": 1
   },
   "score": [

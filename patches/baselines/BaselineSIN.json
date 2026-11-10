@@ -2,6 +2,13 @@
   "graph": {
     "nodes": [
       {
+        "id": "__perf_freq",
+        "type": "PerformNode",
+        "params": {
+          "field": "frequency"
+        }
+      },
+      {
         "id": "env1",
         "params": {
           "ramp_accuracy": 1.0,
@@ -57,7 +64,9 @@
           "amplitude": {
             "ref": "env1"
           },
-          "frequency": 440.0,
+          "frequency": {
+            "ref": "__perf_freq"
+          },
           "phase": 0.0
         },
         "type": "SineSource"
@@ -66,9 +75,6 @@
     "output": "Sine1"
   },
   "instrument": {
-    "paramMap": {
-      "frequency": "Sine1.frequency"
-    },
     "polyphony": 4
   },
   "sampleRate": 48000,

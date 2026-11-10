@@ -2,6 +2,13 @@
   "graph": {
     "nodes": [
       {
+        "id": "__perf_freq",
+        "type": "PerformNode",
+        "params": {
+          "field": "frequency"
+        }
+      },
+      {
         "id": "ampBody",
         "params": {
           "stages": [
@@ -111,7 +118,9 @@
           "depth": {
             "ref": "depthBodyRange"
           },
-          "frequency": 440.0,
+          "frequency": {
+            "ref": "__perf_freq"
+          },
           "modRatio": 1.0,
           "unbounded_pos": false
         },
@@ -127,7 +136,9 @@
           "depth": {
             "ref": "depthTineRange"
           },
-          "frequency": 440.0,
+          "frequency": {
+            "ref": "__perf_freq"
+          },
           "modRatio": 7.0,
           "unbounded_pos": false
         },
@@ -182,12 +193,6 @@
     "output": "mix"
   },
   "instrument": {
-    "paramMap": {
-      "frequency": [
-        "fmBody.frequency",
-        "fmTine.frequency"
-      ]
-    },
     "polyphony": 6
   },
   "sampleRate": 48000,

@@ -2,6 +2,13 @@
   "graph": {
     "nodes": [
       {
+        "id": "__perf_freq",
+        "type": "PerformNode",
+        "params": {
+          "field": "frequency"
+        }
+      },
+      {
         "id": "ampEnv",
         "params": {
           "maxValue": 1.0,
@@ -69,7 +76,9 @@
           "depth": {
             "ref": "depthEnv"
           },
-          "frequency": 1000.0001220703125,
+          "frequency": {
+            "ref": "__perf_freq"
+          },
           "modRatio": 1.399999976158142,
           "oversample": 1,
           "phase": 0.0,
@@ -81,9 +90,6 @@
     "output": "fm"
   },
   "instrument": {
-    "paramMap": {
-      "frequency": "fm.frequency"
-    },
     "polyphony": 1
   },
   "sampleRate": 48000,

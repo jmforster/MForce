@@ -2,6 +2,13 @@
   "graph": {
     "nodes": [
       {
+        "id": "__perf_freq",
+        "type": "PerformNode",
+        "params": {
+          "field": "frequency"
+        }
+      },
+      {
         "id": "FormantSpectrum1",
         "type": "FormantPeaks",
         "params": {
@@ -150,7 +157,9 @@
             "ref": "FormantSequence1"
           },
           "formantWeight": 1.0,
-          "frequency": 77.0,
+          "frequency": {
+            "ref": "__perf_freq"
+          },
           "partials": {
             "ref": "FullPartials1"
           },
@@ -162,9 +171,6 @@
     "output": "Additive1"
   },
   "instrument": {
-    "paramMap": {
-      "frequency": "Additive1.frequency"
-    },
     "polyphony": 4
   },
   "sampleRate": 48000,

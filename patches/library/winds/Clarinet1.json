@@ -2,6 +2,13 @@
   "graph": {
     "nodes": [
       {
+        "id": "__perf_freq",
+        "type": "PerformNode",
+        "params": {
+          "field": "frequency"
+        }
+      },
+      {
         "id": "env1",
         "params": {
           "ramp_accuracy": 1.0,
@@ -273,7 +280,9 @@
           },
           "formantFloor": 1.0,
           "formantWeight": 0.0,
-          "frequency": 293.6600036621094,
+          "frequency": {
+            "ref": "__perf_freq"
+          },
           "noiseBedDelay": 0.15000000596046448,
           "noiseBedFade": 0.5,
           "noiseBedFadePow": 3.0,
@@ -292,9 +301,6 @@
     "output": "Additive1"
   },
   "instrument": {
-    "paramMap": {
-      "frequency": "Additive1.frequency"
-    },
     "polyphony": 1
   },
   "sampleRate": 48000,

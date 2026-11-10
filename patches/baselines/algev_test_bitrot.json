@@ -4,6 +4,13 @@
   "graph": {
     "nodes": [
       {
+        "id": "__perf_freq",
+        "type": "PerformNode",
+        "params": {
+          "field": "frequency"
+        }
+      },
+      {
         "id": "env",
         "type": "Envelope",
         "params": {
@@ -27,7 +34,9 @@
         "type": "WavetableSource",
         "params": {
           "seed": 12345,
-          "frequency": 220.0,
+          "frequency": {
+            "ref": "__perf_freq"
+          },
           "amplitude": {
             "ref": "env"
           },
@@ -40,9 +49,6 @@
     "output": "src"
   },
   "instrument": {
-    "paramMap": {
-      "frequency": "src.frequency"
-    },
     "polyphony": 1
   },
   "score": [
