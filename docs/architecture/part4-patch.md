@@ -1345,7 +1345,13 @@ section 8.
   electric pianos; seven tree-wide) is a `MultiSource` with no gains, so
   both read their defaults. `frames` is `seconds` at the rate, five
   seconds when absent, and for an instrument the larger of that and the
-  score's end (the 2026-09-16 rule).
+  score's end (the 2026-09-16 rule). *(Corrected 2026-11-09, checkpoint
+  4.1's review: the last clause is true only when the file states
+  `seconds`. With no `seconds` an instrument's frame count is the score's
+  end alone, not the larger of five seconds and the end — 69 of the 96
+  in-scope files with a score have no `seconds` — and with neither a
+  score nor `seconds` it is five seconds. `engine_tests` pins all three
+  cases since 4.1.)*
 - **Faults by id.** The `Mixer` keeps the build's `signals` and reports
   through them, which is the "until Part 4 gives it ids" in `mixer.h`.
 - **Cross-loop sharing is refused by name**: a node reachable from two
@@ -2142,6 +2148,28 @@ hosts and the editor into one unreviewable step.
 | 4.7 The flip | the editor's translation layer (7.3), proven first by `mforce_ui --roundtrip` returning every in-scope file byte for byte (Q4); then one commit re-points the command-line tool, `alloc_gate`, `test_figures`, the tests' `load_text` helper and the editor, and deletes `patch_loader.{h,cpp}`, `InstrumentPatch`, `JsonConfigurator`, `ResolveParamFn`, the last two configurators, the JSON include in `source_registry.h`, `lint_patches.py` with its scrape, `kBranchKeys` with its meter test; the module map gains `patch` | nothing | none: 4.6's twin proved the reader. The six roundtrip KNOWN_DIFFS are measured — expected to close; any that stays is listed with its cause |
 | 4.8 The operations | `Patch`'s edit operations with their mutation tests (6.2–6.9), `apply_preset`, make-instrument and make-plain-sound; the explorer on the operations; the editor's text clipboard through `Fragment`, the internal clipboard deleted; `--gatecheck` as an engine test; Part 4's CLEANUP sweep and closing report | nothing | none; the explorer's variants byte-identical to today's over one sample spec |
 
+**4.1 landed 2026-11-09** (`e5518ef`..`7b32205`, the review's fix waves `e0cb2e2` and `3c012ea`; plan
+`docs/superpowers/plans/2026-11-09-part4-checkpoint-4.1.md`; report R16,
+`docs/autonomy/refactor/reports/2026-11-09-checkpoint-4.1.md`). As the
+row says, with these facts the execution added. On disk nothing; 0 of the
+132 moved, and the nine in-scope instrument files that carry no score —
+which render silence, so that no gate had ever heard them — were rendered
+with a score appended under both builds and are identical too. The comp
+template gate holds 21 templates, not 22 (`test_k467_walker.json` is
+prose): 21 piece JSONs identical, 21 WAVs moved, re-frozen at stage
+`post41`. The composition renders moved by more than the row foresaw:
+the gain law is the only change in the code, but on `piano_default`, a
+one-voice patch, each note's rendered length follows its gained level and
+the voice's random streams run on from note to note, so every note after
+the first two is a new realisation (BACKLOG row 11 holds the question
+that raises; it constrains Part 5's byte-identity plan for composition
+renders). One adapter is made for a channel's source *and the bare
+output* (the row says "a channel's source and nothing else"; the bare
+output is the second place a plain sound consumes a signal). Two
+channels naming one source are refused by name already, ahead of 4.5's
+refusal of deeper sharing. 5.8's sentence on `frames` is corrected in
+place.
+
 ### 8.2 Why this order (proposed)
 
 - **4.1 first** because it holds the part's one listening change, and a
@@ -2257,6 +2285,13 @@ rewrites, the editor's deletions, the hosts' re-pointing, the
 measurements — each verified by the coordinator before its commit. An
 Opus 5.5 reviewer refutes with mutation tests. Reports R16 to R23, each
 with its lessons section.
+
+*R16 is 4.1's (2026-11-09). Its plan was amended with Matt before
+execution: Opus 5.5 executed every task, the design-bearing ones included,
+because the plan specified each move to the line; no executor committed,
+and Fable verified each tree and committed it. The reviewer read only; the
+mutation runs were an executor's. What that split caught and what it
+missed is in R16's sections 6 and 8.*
 
 ### 8.7 For the C# reader
 

@@ -19,6 +19,51 @@ given.
 
 ## Awaiting
 
+**R16 — checkpoint 4.1: the seam's render half; `hiBoost`** (2026-11-09,
+commits `e5518ef`..`7b32205`, fix waves `e0cb2e2` and `3c012ea`). One pair for your ears, by your 2026-10-05
+decision, and one question the close raised that is yours and does not block
+4.2.
+- Read: `docs/autonomy/refactor/reports/2026-11-09-checkpoint-4.1.md`
+  (fifteen minutes; section 1 — what moved and what did not, and why the pair is a
+  second take rather than a re-balance; section 2 — `BuiltSound`, `Mixer` and
+  `play_embedded_score` as the first half of Part 4's seam; section 6 — the
+  session's decisions, 17 to 22 from the review and the close; section 8 —
+  the review; section 10 — the C++ lessons).
+- Listen: `renders/scratch/ab41/review/old/template_ode_to_joy_1.wav` (the
+  base build, `hiBoost` 0.3) against
+  `renders/scratch/ab41/review/new/template_ode_to_joy_1.wav` (the close
+  build, the field gone). What changed by the rule: every note above 100 Hz
+  enters the mix lower, by 1.0 dB at middle C up to 3.4 dB at the top of the
+  keyboard. What you will actually be comparing: the first two notes are the
+  old ones scaled by exactly that rule, and from the third note on every note
+  is a different realisation (the same pitch, length and velocity, a
+  different waveform), because `piano_default` plays the whole piece on one
+  voice whose random streams run on from note to note and whose notes now end
+  at different samples. The other twenty templates' pairs are in
+  `renders/scratch/walk3_null_gate/pre41/` and `post41/`. A verdict decides
+  only whether anything in the new take is wrong; the deletion itself is
+  decided.
+- Decide, when you like (non-blocking; BACKLOG row 11): **should an ordinary
+  note re-anchor its random draws when it starts**, as a held line's
+  continuations have since 2026-09-20? Today a pre-rendered note's waveform
+  depends on how many samples every earlier note on its voice rendered, so
+  one early note's level can change every later note's realisation; on a
+  one-voice patch that is the whole piece. Re-anchoring would make a note's
+  realisation a function of the note alone and would move every multi-note
+  render in the library, so it is a Part 5 or post-freeze decision, not a
+  refactor step. Report section 6, decision 22.
+- For your information, nothing to decide: Part 4 section 5.8's sentence on
+  `frames` was wrong for a file with no `seconds` and is corrected in place
+  (the review caught it; 4.6 would have been written from it); an
+  instrument-form file with a `StereoMixer` node named `mix` and gains would
+  now have them ignored (no file has that shape); two channels naming one
+  source is refused by name; `scores/baselines/test_k467_walker.json` is
+  prose, not JSON (CLEANUP 49, your file).
+- Try: `python tools/null_gate_perform_source.py --jobs 3` (78/78);
+  `python tools/comp_template_null_gate.py compare pre41 post41` (21 DIFF,
+  one MISSING: the walker file); `mforce_cli --test-ornaments` (the usage
+  line).
+
 **R15 — checkpoint 3.9: the formant family** (2026-11-07, commits
 `6e43ca8`..`f94695b`). One render for your ears, by your own decision; nothing
 else to decide under the 11-02 rule.

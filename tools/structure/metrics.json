@@ -1,21 +1,6 @@
 {
  "duplicate_blocks": [
   [
-   62,
-   [
-    [
-     "engine/src/patch_loader.cpp",
-     1403,
-     1464
-    ],
-    [
-     "engine/src/patch_loader.cpp",
-     1646,
-     1691
-    ]
-   ]
-  ],
-  [
    47,
    [
     [
@@ -111,21 +96,6 @@
    ]
   ],
   [
-   41,
-   [
-    [
-     "engine/include/mforce/source/filter/bw_highpass_filter.h",
-     8,
-     48
-    ],
-    [
-     "engine/include/mforce/source/filter/bw_lowpass_filter.h",
-     8,
-     53
-    ]
-   ]
-  ],
-  [
    32,
    [
     [
@@ -137,6 +107,36 @@
      "engine/include/mforce/music/random_voicing_profile_selector.h",
      4,
      31
+    ]
+   ]
+  ],
+  [
+   31,
+   [
+    [
+     "engine/include/mforce/source/filter/bw_highpass_filter.h",
+     18,
+     48
+    ],
+    [
+     "engine/include/mforce/source/filter/bw_lowpass_filter.h",
+     18,
+     53
+    ]
+   ]
+  ],
+  [
+   31,
+   [
+    [
+     "engine/include/mforce/source/filter/bw_highpass_filter.h",
+     23,
+     53
+    ],
+    [
+     "engine/include/mforce/source/filter/bw_lowpass_filter.h",
+     25,
+     58
     ]
    ]
   ],
@@ -275,13 +275,13 @@
    [
     [
      "engine/include/mforce/render/instrument.h",
-     698,
-     716
+     690,
+     708
     ],
     [
      "engine/include/mforce/render/instrument.h",
-     753,
-     765
+     745,
+     757
     ]
    ]
   ],
@@ -415,8 +415,8 @@
    [
     [
      "engine/src/patch_loader.cpp",
-     584,
-     601
+     554,
+     571
     ],
     [
      "tools/mforce_ui/main.cpp",
@@ -515,13 +515,13 @@
    [
     [
      "tools/engine_tests/main.cpp",
-     4496,
-     4511
+     4764,
+     4779
     ],
     [
      "tools/engine_tests/main.cpp",
-     4790,
-     4805
+     5058,
+     5073
     ]
    ]
   ],
@@ -547,6 +547,26 @@
      "tools/stk_ref/brass_ref.cpp",
      5,
      20
+    ]
+   ]
+  ],
+  [
+   16,
+   [
+    [
+     "tools/test_figures/main.cpp",
+     84,
+     99
+    ],
+    [
+     "tools/test_figures/main.cpp",
+     165,
+     180
+    ],
+    [
+     "tools/test_figures/main.cpp",
+     723,
+     738
     ]
    ]
   ],
@@ -580,13 +600,13 @@
    [
     [
      "tools/mforce_cli/main.cpp",
-     640,
-     654
+     633,
+     647
     ],
     [
      "tools/mforce_cli/main.cpp",
-     743,
-     757
+     735,
+     749
     ]
    ]
   ],
@@ -660,13 +680,13 @@
    [
     [
      "tools/mforce_cli/main.cpp",
-     111,
-     124
+     107,
+     120
     ],
     [
      "tools/mforce_cli/main.cpp",
-     732,
-     744
+     724,
+     736
     ]
    ]
   ],
@@ -745,18 +765,18 @@
    [
     [
      "tools/mforce_cli/main.cpp",
-     348,
-     360
+     343,
+     355
     ],
     [
      "tools/mforce_cli/main.cpp",
-     642,
-     654
+     635,
+     647
     ],
     [
      "tools/mforce_cli/main.cpp",
-     745,
-     757
+     737,
+     749
     ]
    ]
   ],
@@ -822,36 +842,6 @@
      "engine/include/mforce/source/physical/ks_string.h",
      8,
      62
-    ]
-   ]
-  ],
-  [
-   12,
-   [
-    [
-     "engine/src/patch_loader.cpp",
-     65,
-     76
-    ],
-    [
-     "engine/src/patch_loader.cpp",
-     80,
-     102
-    ]
-   ]
-  ],
-  [
-   12,
-   [
-    [
-     "engine/src/patch_loader.cpp",
-     1385,
-     1396
-    ],
-    [
-     "engine/src/patch_loader.cpp",
-     1633,
-     1643
     ]
    ]
   ],
@@ -1070,18 +1060,18 @@
    [
     [
      "tools/engine_tests/main.cpp",
-     4498,
-     4508
+     4766,
+     4776
     ],
     [
      "tools/engine_tests/main.cpp",
-     4792,
-     4802
+     5060,
+     5070
     ],
     [
      "tools/engine_tests/main.cpp",
-     5297,
-     5307
+     5565,
+     5575
     ]
    ]
   ],
@@ -1112,6 +1102,21 @@
      "tools/mforce_ui/main.cpp",
      3111,
      3121
+    ]
+   ]
+  ],
+  [
+   11,
+   [
+    [
+     "tools/mforce_ui/main.cpp",
+     2968,
+     2978
+    ],
+    [
+     "tools/mforce_ui/main.cpp",
+     3174,
+     3184
     ]
    ]
   ]
@@ -2508,13 +2513,26 @@
     "WrapperPhraseStrategy"
    ]
   },
+  "engine/include/mforce/render/embedded_score.h": {
+   "changelog_comments": 0,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 16,
+   "longest_function": [
+    0,
+    ""
+   ],
+   "module": "render",
+   "mutable_vars": 0,
+   "types": []
+  },
   "engine/include/mforce/render/instrument.h": {
    "changelog_comments": 20,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 840,
+   "lines": 832,
    "longest_function": [
-    134,
+    131,
     "mforce::PitchedInstrument::play_note"
    ],
    "module": "render",
@@ -2554,7 +2572,7 @@
     "FaultReport",
     "MonoSource",
     "Channel",
-    "StereoMixer"
+    "Mixer"
    ]
   },
   "engine/include/mforce/render/patch_loader.h": {
@@ -2569,7 +2587,7 @@
    "module": "render",
    "mutable_vars": 0,
    "types": [
-    "Patch",
+    "BuiltSound",
     "InstrumentPatch"
    ]
   },
@@ -3991,6 +4009,19 @@
    "mutable_vars": 0,
    "types": []
   },
+  "engine/src/embedded_score.cpp": {
+   "changelog_comments": 1,
+   "const_cast": 0,
+   "dynamic_cast": 0,
+   "lines": 113,
+   "longest_function": [
+    67,
+    "mforce::perform_notes"
+   ],
+   "module": "render",
+   "mutable_vars": 0,
+   "types": []
+  },
   "engine/src/mixer.cpp": {
    "changelog_comments": 1,
    "const_cast": 0,
@@ -3998,7 +4029,7 @@
    "lines": 66,
    "longest_function": [
     42,
-    "mforce::StereoMixer::render"
+    "mforce::Mixer::render"
    ],
    "module": "render",
    "mutable_vars": 0,
@@ -4018,23 +4049,23 @@
    "types": []
   },
   "engine/src/patch_loader.cpp": {
-   "changelog_comments": 11,
+   "changelog_comments": 7,
    "const_cast": 0,
-   "dynamic_cast": 8,
-   "lines": 1702,
+   "dynamic_cast": 7,
+   "lines": 1537,
    "longest_function": [
-    348,
+    343,
     "mforce::build_graph"
    ],
    "module": "render",
    "mutable_vars": 1,
    "types": [
-    "WaveSourceMono",
     "ValueSourceMono",
     "TapBind",
     "TapBindScope",
     "GraphResult",
-    "PerformContext"
+    "PerformContext",
+    "IndexedGraph"
    ]
   },
   "engine/src/source/additive/additive_source.cpp": {
@@ -4289,8 +4320,8 @@
   "tools/engine_tests/main.cpp": {
    "changelog_comments": 4,
    "const_cast": 0,
-   "dynamic_cast": 22,
-   "lines": 8808,
+   "dynamic_cast": 23,
+   "lines": 9227,
    "longest_function": [
     272,
     "run_walk3_tests"
@@ -4304,6 +4335,7 @@
     "ResonanceRef",
     "BwRef",
     "Playback",
+    "ScratchPatch",
     "PinProbe",
     "Doubler",
     "UnitRamp",
@@ -4362,9 +4394,9 @@
    "changelog_comments": 1,
    "const_cast": 0,
    "dynamic_cast": 0,
-   "lines": 1268,
+   "lines": 1139,
    "longest_function": [
-    175,
+    174,
     "run_compose"
    ],
    "module": "cli",
@@ -4590,9 +4622,9 @@
    "changelog_comments": 0,
    "const_cast": 0,
    "dynamic_cast": 5,
-   "lines": 1211,
+   "lines": 1210,
    "longest_function": [
-    125,
+    124,
     "run_render"
    ],
    "module": "tests",
@@ -4673,47 +4705,35 @@
    "target": "music"
   },
   {
-   "file": "engine/src/patch_loader.cpp",
+   "file": "engine/src/embedded_score.cpp",
    "include": "mforce/music/basics.h",
    "module": "render",
    "target": "music"
   },
   {
-   "file": "engine/src/patch_loader.cpp",
+   "file": "engine/src/embedded_score.cpp",
    "include": "mforce/music/conductor.h",
    "module": "render",
    "target": "music"
   },
   {
-   "file": "engine/src/patch_loader.cpp",
+   "file": "engine/src/embedded_score.cpp",
    "include": "mforce/music/music_json.h",
-   "module": "render",
-   "target": "music"
-  },
-  {
-   "file": "engine/src/patch_loader.cpp",
-   "include": "mforce/music/pitch_bend.h",
-   "module": "render",
-   "target": "music"
-  },
-  {
-   "file": "engine/src/patch_loader.cpp",
-   "include": "mforce/music/pitch_curve.h",
    "module": "render",
    "target": "music"
   }
  ],
  "summary": {
-  "changelog_comments": 241,
+  "changelog_comments": 238,
   "const_cast": 10,
-  "duplicate_blocks": 158,
+  "duplicate_blocks": 156,
   "dynamic_cast": 64,
   "file_level_mutable_vars": 120,
-  "files": 221,
+  "files": 223,
   "files_over_limit": 18,
-  "functions_over_limit": 97,
-  "include_violations": 14,
-  "lines": 61855,
+  "functions_over_limit": 96,
+  "include_violations": 12,
+  "lines": 62100,
   "unmapped_files": 0
  }
 }

@@ -112,7 +112,16 @@ Tags per WORKFLOW.md.
     chain computes, so pin reads via current() in prepare are STALE (the
     08-29 SegmentSource nondeterminism trap).
 
-19. **[build] hiBoost → explicit curve — the P4 cleanup sweep** — Matt
+19. **[build] hiBoost → explicit curve — the P4 cleanup sweep** —
+    **CLOSED 2026-11-09 by deletion, not conversion** (refactor checkpoint
+    4.1, `7b32205`; Matt's 2026-10-05 decision in
+    `docs/architecture/target-architecture.md`): the field, the `--hiboost`
+    flag and the six host sites that set 0.3 are gone, nothing was pre-added
+    to any patch, and every composition render moved (refactor REVIEW R16
+    holds the before/after pair). A keytracked gain is a patch's own wiring
+    if one is wanted: a CurveNode from the note's frequency into the gain
+    path. The RangeSource migration named below is not part of this
+    closure. Original entry: Matt
     2026-08-18: `PitchedInstrument.hiBoost` is a hidden loudness
     compensation (keytrack curve wearing a scalar's clothing). Convert to
     visible transfer-curve wiring (CurveNode from NoteState frequency into

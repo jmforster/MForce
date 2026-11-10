@@ -1,5 +1,58 @@
 # Status — session handoff (Claude reads this first; Matt's queue = */REVIEW.md)
 
+Updated: 2026-11-09, evening (refactor session XIV, Fable 5.2 xhigh
+coordinating; Opus 5.5 executors and reviewer).
+NEXT SESSION STARTS HERE: CHECKPOINT 4.1 LANDED on main — `e5518ef` (the
+embedded score in its own file), `34092d8` (one voice loop), `22d756d` (one
+mono adapter, the `mix` lookup gone), `f480370` (`BuiltSound`, `Mixer`),
+`7b32205` (`hiBoost` and `--test-ornaments` deleted), `e0cb2e2` and `3c012ea`
+(the review's two fix waves), then the docs commit; base `e83e520`. Report R16
+(`docs/autonomy/refactor/reports/2026-11-09-checkpoint-4.1.md`) awaits Matt in
+`refactor/REVIEW.md`: one before/after pair for his ears and one non-blocking
+question (BACKLOG row 11). THE NEXT THING WRITTEN IS CHECKPOINT 4.2'S PLAN
+("the paramMap goes": Part 4 §8.1 row 4.2, §8.3's instruments, §9.1's 4.2
+rows, §5.5), in 4.1's shape, for Matt's go-ahead before anything is executed;
+offer xhigh/max first. NOTHING OF 4.2 IS BUILT.
+What 4.1 proved: 0 of the 132 moved (A/B at `7b32205` and again at
+`e0cb2e2`); the nine score-less in-scope instrument files, which render
+silence and so had never been heard by any gate, identical with a score
+appended (scratch copies and set file in `renders/scratch/ab41/scoreless/` —
+REUSE THEM at every later checkpoint: render `set.txt` under the old and new
+CLI); the comp template gate re-frozen at stage `post41` (21 piece JSONs
+identical, 21 WAVs moved). FACTS THE NEXT PLAN MUST CARRY, each learned here:
+(1) the comp gate has 21 templates, not 22 — `scores/baselines/
+test_k467_walker.json` is prose (CLEANUP 49, Matt's file); (2) `gates --fast`
+prints FAILED on a clean tree (the roundtrip smoke's standing `wiring` diff,
+5/6), so a task's criterion is "the base's result", stated in the brief;
+(3) Part 4 §5.8's `frames` sentence was wrong and is corrected in place — with
+no `seconds`, an instrument's frames are the score's end alone (69 of the 96);
+(4) THE FINDING OF THE CLOSE: deleting `hiBoost` re-rolled every composition
+note after the first two on `piano_default` (polyphony 1), because a note's
+rendered length follows its gained level through the adaptive ring-out and
+the classic note path does not reseed — so composition renders are a
+byte-identity instrument only while every note's ring-out length is kept
+exactly (this constrains Part 5), and whether ordinary notes should re-anchor
+their draws is Matt's (BACKLOG row 11, REVIEW R16); (5) no CMake file sets
+`/fp:precise` — it is MSVC's default (CLEANUP 52); (6) the meter's duplicate
+count is lizard's and not additive — cite the list's entries (CLEANUP 50).
+THE EXECUTION PATTERN THAT WORKED (keep it for 4.2): one Opus 5.5 executor per
+task with a brief that names the files, the exact moves and the verification;
+NO EXECUTOR COMMITS — it leaves the tree ready, Fable reads the diff, body-diffs
+moved blocks against the base, reruns the null gate itself, edits where its
+reading calls for it, and commits; a mutation run before the close
+measurements (the first one found the streaming path's `volume` unpinned);
+the read-only reviewer runs in parallel with the measurements, reading code
+ONLY at the commits (`git show <sha>:<path>`) while a mutation run edits the
+tree; a fix-wave executor ends by re-rendering the close arms. What only the
+close's measurements found, after a clean review: finding (4) and the
+unpinned gain. Usage: the 5-hour window 33% → about 75%, weekly all-models
+25% → about 31%, weekly Fable 49% → about 56% for the whole checkpoint (3.9's
+split cost about 16 Fable points). GIT: main ahead of origin by the
+checkpoint's commits, NOT pushed (ask at close-out); GOALS.md stays Matt's
+uncommitted edit, never staged.
+
+---
+
 Updated: 2026-11-09, afternoon (refactor session XIII, Fable 5.1 xhigh — the
 app's picker had remembered 5.1; Matt wants 5.2 and CLAUDE.md, the hook and the
 model memory now say so).
