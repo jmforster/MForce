@@ -45,9 +45,9 @@ the read-only reviewer runs in parallel with the measurements, reading code
 ONLY at the commits (`git show <sha>:<path>`) while a mutation run edits the
 tree; a fix-wave executor ends by re-rendering the close arms. What only the
 close's measurements found, after a clean review: finding (4) and the
-unpinned gain. Usage: the 5-hour window 33% → about 75%, weekly all-models
-25% → about 31%, weekly Fable 49% → about 56% for the whole checkpoint (3.9's
-split cost about 16 Fable points). GIT: main ahead of origin by the
+unpinned gain. Usage, measured at the docs commit: weekly all-models 25% → 31%, weekly Fable
+49% → 57% for the whole checkpoint (3.9's split cost about 16 Fable points);
+the 5-hour window stood at 67% (from 33%) when last read before it reset. GIT: main ahead of origin by the
 checkpoint's commits, NOT pushed (ask at close-out); GOALS.md stays Matt's
 uncommitted edit, never staged.
 
