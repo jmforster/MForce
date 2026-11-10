@@ -1,5 +1,38 @@
 # Status — session handoff (Claude reads this first; Matt's queue = */REVIEW.md)
 
+Updated: 2026-11-09, evening, later (session XIV, after 4.1's close; Matt:
+"Yes, at xhigh").
+NEXT SESSION STARTS HERE: CHECKPOINT 4.2'S PLAN IS WRITTEN —
+`docs/superpowers/plans/2026-11-09-part4-checkpoint-4.2.md` ("the paramMap
+goes"), in 4.1's shape, from a survey of the loader, the instrument, the
+Multiplex, the editor's 43 paramMap references, the nine Python tools and a
+census of all 3,146 patch files (its Architecture paragraph, seven numbered
+facts). IT AWAITS MATT'S GO-AHEAD; nothing of 4.2 is built and the plan is
+uncommitted with this file (Task 0 commits both). Seven tasks, each a commit
+that builds every target: 0 the base, the arms, a synthetic set of every
+paramMap form audition holds and one departure patch; 1 `convert_patch.py`
+born (a driver and `tools/convert_rules/`, the three existing converters as
+its first rules, proved equal to the old tools file by file); 2 the tree
+converted (82 tracked files, 111 audition, 9 pending) and proved under the
+BASE engine; 3 the editor (the largest and least-gated task: the stash, its
+converter, the Mappings dialog's legacy half and Add row deleted, a paramMap
+file refused by name, make-instrument wiring the Note face); 4 the engine
+(`build_bindings`, the non-setting push, the Multiplex clone fan-out,
+`ensure_constant` deleted; the refusal); 5 the tools; 6 the close. What the
+plan asks Matt to notice: Ledger 7 (the headless mode `--dump-curve-opts` is
+deleted now, where Part 4 §7.6 left it for Part 7, because its subject goes);
+Ledger 16 (the editor refuses a paramMap file instead of converting it — the
+326 unconverted files in sweep and old need `python tools/convert_patch.py
+<file>` first, as §8.4 says); the Mappings dialog becomes read-only. Execution
+as 4.1 ran: Opus 5.5 on every task, no executor commits, Fable verifies and
+commits, a mutation run, a read-only reviewer at the commits — IN A FRESH
+SESSION on Fable 5.2 at xhigh (this one stands at 680k tokens). Usage as read
+Mon 11-09 at 18:09 HST: weekly all-models 32%, weekly Fable 59%, 4d 7h left
+(the weekly windows reset Saturday 2026-11-14 at 02:00 HST). Read again Tue
+11-10 at 07:38 HST: 33% and 61%, 3d 18h left.
+
+---
+
 Updated: 2026-11-09, evening (refactor session XIV, Fable 5.2 xhigh
 coordinating; Opus 5.5 executors and reviewer).
 NEXT SESSION STARTS HERE: CHECKPOINT 4.1 LANDED on main — `e5518ef` (the
@@ -69,7 +102,7 @@ commit that builds every target; Task 0 commits the plan WITH session XII's
 uncommitted docs (part4-patch.md, BACKLOG rows 2/3/10, this file — never
 GOALS.md). MATT'S GO-AHEAD IS GIVEN with one amendment, taken the same
 afternoon ("Yes, amend the plan"; Fable weekly 48% on Monday 11-09, reset
-Fri 02:00 HST): Opus 5.5 executes ALL six tasks including 1–3, Fable
+Sat 02:00 HST — corrected 11-09, this line first said Fri): Opus 5.5 executes ALL six tasks including 1–3, Fable
 coordinates, verifies every commit (null gate rerun, body-diff of each moved
 block, census reproduced) and writes the report, an Opus 5.5 refuter per Part
 4 §8.6 — the plan's Execution paragraph, Task 1–3 headings and Ledger 11 say
