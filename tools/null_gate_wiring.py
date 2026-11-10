@@ -1,7 +1,8 @@
 """Conversion null gate (plan_perform_source_p2a.md Task 6).
 
-Every patch in the P1 manifest is rewritten into wiring format by
-tools/parammap_to_wiring.py, rendered, and compared against the hash the SAME
+Every patch in the P1 manifest is copied to a scratch file, rewritten there
+into wiring format by tools/convert_patch.py (whose paramMap rule does the
+conversion), rendered, and compared against the hash the SAME
 patch produced before PerformSource existed. A converted patch that renders one
 byte differently means the wiring format does not say what the paramMap said.
 
@@ -15,21 +16,24 @@ Classification mirrors tools/null_gate_perform_source.py:
   GONE          manifest entry with no file on disk. Fails.
 Nothing is silently absorbed into a shrinking denominator.
 """
-import hashlib, json, subprocess, sys
+import hashlib, json, shutil, subprocess, sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 CLI = ROOT / "build/tools/mforce_cli/Release/mforce_cli.exe"
-CONVERTER = ROOT / "tools/parammap_to_wiring.py"
+CONVERTER = ROOT / "tools/convert_patch.py"
 MANIFEST = ROOT / "tools/null_gate_manifest.json"
 TMP_JSON = ROOT / "renders/scratch/wiring_gate.json"
 TMP_WAV = ROOT / "renders/scratch/wiring_gate.wav"
 
 
 def convert_file(src: Path):
-    r = subprocess.run([sys.executable, str(CONVERTER), str(src), str(TMP_JSON)],
+    shutil.copyfile(src, TMP_JSON)
+    r = subprocess.run([sys.executable, str(CONVERTER), str(TMP_JSON)],
                        capture_output=True, text=True, cwd=str(ROOT))
-    return r.returncode, (r.stderr or "").strip()
+    out = (r.stdout or "") + (r.stderr or "")
+    refused = [line for line in out.splitlines() if "NOT rewritten" in line]
+    return r.returncode, (refused[0] if refused else out).strip()
 
 
 def render_hash(patch: Path) -> str:

@@ -1,13 +1,10 @@
-"""Rewrite a patch's legacy instrument.paramMap as pure graph wiring
-(plan_perform_source_p2a.md Task 5).
+"""Rewrite a patch's instrument.paramMap as graph wiring.
 
-Mirrors the loader's build_bindings matrix (engine/src/patch_loader.cpp) in
-JSON space. The proof that the mirror is faithful is the conversion null gate
-(tools/null_gate_wiring.py): every converted patch must render bit-identical
-to the frozen manifest.
-
-  python tools/parammap_to_wiring.py in.json out.json
-  python tools/parammap_to_wiring.py --check in.json      # 0 = nothing to do
+A paramMap entry under the "frequency" name says: at each note, drive this
+target from the note's frequency, through an optional curve, scaled by an
+optional curve of the note's velocity. The rule says the same thing in nodes:
+a PerformNode per field read, a CurveNode per curve, a CombinedSource for the
+product, and the target wired to the head of that chain.
 
 Emission rules, per paramMap entry:
   bare "node.pin"          -> pin refs __perf_freq
@@ -16,38 +13,26 @@ Emission rules, per paramMap entry:
                               linear CurveNode reading __perf_vel
   {target, curve, vcurve}  -> both
   target with no "."       -> pin name defaults to "frequency"
-  name != "frequency"      -> dropped with a note; the engine ignored these too
+  name != "frequency"      -> dropped with a note: no other name ever drove
+                              anything
 
 A target lands in "dynamicPins" when it names a SETTING on that node type, and
 in "params" when it names a fixed pin. The registry decides, via
-`mforce_cli --dump-descriptors` — never a hand-copied list, which is how the
-patch linter produced 59 false findings in run 25.
-"""
-import json, subprocess, sys
-from collections import OrderedDict
-from pathlib import Path
+`mforce_cli --dump-descriptors` — never a hand-copied list.
 
-ROOT = Path(__file__).resolve().parent.parent
-CLI = ROOT / "build/tools/mforce_cli/Release/mforce_cli.exe"
-DESC_CACHE = ROOT / "renders/scratch/descriptors.json"
+Refused, naming the id or the target, for a human to resolve by hand: an entry
+that is neither a string nor an object with a target; an id the rule
+synthesizes for this document (__perf_freq, __perf_vel, __curve_N, __mul_N)
+that is already a node id in it; a target that already holds an object or a
+list (a {"ref"}, a {"tap"}, a multi-input list) in its slot, or that an
+earlier entry of the same paramMap named. Each shape was made by hand, and a
+rewrite that picked a winner would invent a meaning.
+"""
+import json
+from collections import Counter, OrderedDict
 
 PERF_F = "__perf_freq"
 PERF_V = "__perf_vel"
-
-
-def descriptors():
-    """{typeName: {"params": [...], "settings": [...], ...}} straight from the
-    registry. Regenerated whenever the exe is newer than the cache, so a
-    rebuilt engine cannot leave a stale map behind."""
-    if DESC_CACHE.exists() and DESC_CACHE.stat().st_mtime > CLI.stat().st_mtime:
-        return json.loads(DESC_CACHE.read_text(encoding="utf-8"))
-    r = subprocess.run([str(CLI), "--dump-descriptors"],
-                       capture_output=True, text=True, cwd=str(ROOT))
-    if r.returncode != 0:
-        raise RuntimeError("mforce_cli --dump-descriptors failed: " + r.stderr)
-    DESC_CACHE.parent.mkdir(parents=True, exist_ok=True)
-    DESC_CACHE.write_text(r.stdout, encoding="utf-8")
-    return json.loads(r.stdout)
 
 
 def node_container(doc):
@@ -62,11 +47,14 @@ def node_container(doc):
     raise ValueError("patch has no node list at doc['nodes'] or doc['graph']['nodes']")
 
 
-def convert(doc):
-    """Returns (doc, n_entries_converted). Raises ValueError if inexpressible."""
+def convert(doc, notes, ctx):
+    """Returns a Counter: "paramMap entry" per entry converted and "paramMap"
+    once for the map removed, empty when the document has none. Appends a line
+    to `notes` per name dropped. Raises ValueError if inexpressible, before
+    anything in `doc` changes."""
     inst = doc.get("instrument")
     if not inst or "paramMap" not in inst:
-        return doc, 0
+        return Counter()
     pm = inst["paramMap"]
 
     container = node_container(doc)
@@ -112,14 +100,20 @@ def convert(doc):
             head = add_mul(head, v)
         return target, head
 
-    desc = descriptors()
-    converted = 0
+    desc = ctx.descriptors()
+    converted = Counter()
+    writes = []
+    claimed = set()
     for name, entries in pm.items():
         if name != "frequency":
-            print("  note: paramMap name %r dropped (the engine never consumed "
-                  "it either)" % name, file=sys.stderr)
+            notes.append("paramMap name %r dropped (no name but \"frequency\" "
+                         "ever drove anything)" % name)
             continue
         for entry in (entries if isinstance(entries, list) else [entries]):
+            if not (isinstance(entry, str)
+                    or isinstance(entry, dict) and isinstance(entry.get("target"), str)):
+                raise ValueError("paramMap entry %s is neither a \"node.pin\" string "
+                                 "nor an object with a target" % json.dumps(entry))
             target, head = chain_for(entry)
             node_id, _, pin = target.partition(".")
             pin = pin or "frequency"
@@ -132,26 +126,30 @@ def convert(doc):
                                  "a setting from a fixed pin" % (node_id, ntype))
             settings = {s["name"] for s in desc[ntype]["settings"]}
             slot = "dynamicPins" if pin in settings else "params"
-            node.setdefault(slot, {})[pin] = {"ref": head}
-            converted += 1
+            if (node_id, pin) in claimed:
+                raise ValueError("paramMap target '%s.%s' is named more than once"
+                                 % (node_id, pin))
+            if isinstance((node.get(slot) or {}).get(pin), (dict, list)):
+                raise ValueError("paramMap target '%s.%s' is already wired in %s"
+                                 % (node_id, pin, slot))
+            claimed.add((node_id, pin))
+            writes.append((node, slot, pin, head))
+            converted["paramMap entry"] += 1
 
+    taken = sorted(nid for nid in new_nodes if nid in by_id)
+    if taken:
+        raise ValueError("node id %s is already in the document; the paramMap "
+                         "rule synthesizes it" % ", ".join("'%s'" % t for t in taken))
+    for node, slot, pin, head in writes:
+        node.setdefault(slot, {})[pin] = {"ref": head}
     del inst["paramMap"]
+    converted["paramMap"] += 1
     # Prepended in dependency order: build_graph resolves refs against nodes
     # already built, walking the array in order.
     container["nodes"] = list(new_nodes.values()) + container["nodes"]
-    return doc, converted
+    return converted
 
 
-def main():
-    if "--check" in sys.argv:
-        doc = json.load(open(sys.argv[-1], encoding="utf-8"))
-        sys.exit(2 if "paramMap" in doc.get("instrument", {}) else 0)
-    src, dst = sys.argv[1], sys.argv[2]
-    doc = json.load(open(src, encoding="utf-8"), object_pairs_hook=OrderedDict)
-    doc, n = convert(doc)
-    with open(dst, "w", encoding="utf-8") as f:
-        json.dump(doc, f, indent=1)
-    print("converted %d entr%s -> %s" % (n, "y" if n == 1 else "ies", dst))
-
-
-main()
+def apply(doc, notes, ctx):
+    """The rule's entry point: `convert`'s Counter."""
+    return convert(doc, notes, ctx)

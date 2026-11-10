@@ -1,5 +1,6 @@
-"""The string-typed evolution converter: the three forms, the seed default,
-the insertion point, idempotence, and the forms it refuses."""
+"""The string-evolution rule: the three forms, the seed default, the
+insertion point, idempotence, and the forms it refuses; through the driver,
+the file round trip."""
 import copy
 import json
 import os
@@ -8,7 +9,9 @@ import tempfile
 import unittest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-import string_evolution_to_node as conv  # noqa: E402
+import convert_patch as drv  # noqa: E402
+from convert_rules import Context  # noqa: E402
+from convert_rules import string_evolution as conv  # noqa: E402
 
 
 def wavetable(params):
@@ -108,11 +111,12 @@ class ConvertTests(unittest.TestCase):
             path = os.path.join(d, "p.json")
             with open(path, "w", encoding="utf-8") as f:
                 json.dump(doc, f)
-            self.assertEqual(conv.convert_file(path), 1)
+            self.assertEqual(drv.convert_file(path, ctx=Context(descriptors={})),
+                             {"string_evolution": {"wavetable": 1}})
             text = open(path, encoding="utf-8").read()
             self.assertTrue(text.endswith("}\n"))
             self.assertEqual(json.loads(text)["graph"]["nodes"][1]["params"], {"muting": 0.1, "seed": 9})
-            self.assertEqual(conv.convert_file(path), 0)
+            self.assertEqual(drv.convert_file(path, ctx=Context(descriptors={})), {})
 
 
 if __name__ == "__main__":

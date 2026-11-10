@@ -124,7 +124,7 @@ const char* retired_type_hint(std::string_view type_name) {
   for (std::string_view retired : {"KSPianoString", "AREnvelope", "ASEnvelope", "ASREnvelope",
                                    "ADSEnvelope", "ADREnvelope", "ADSREnvelope"})
     if (type_name == retired)
-      return "python tools/migrate_deleted_types.py <patch> rewrites a type this engine no longer has";
+      return "python tools/convert_patch.py <patch> rewrites a type this engine no longer has";
   for (std::string_view deleted : {"AdditiveSource2", "BasicAdditiveSource"})
     if (type_name == deleted)
       return "deleted; author an AdditiveSource with a FullPartials "
@@ -132,9 +132,9 @@ const char* retired_type_hint(std::string_view type_name) {
   for (std::string_view folded : {"Formant", "FormantSpectrum"})
     if (type_name == folded)
       return "deleted; the peaks are rows of a FormantPeaks "
-             "(python tools/migrate_deleted_types.py rewrites a FormantSpectrum and its Formants)";
+             "(python tools/convert_patch.py <patch> rewrites a FormantSpectrum and its Formants)";
   if (type_name == "FixedSpectrum") return "deleted; author a FormantBands or FormantPeaks";
-  if (type_name == "BandSpectrum") return "renamed FormantBands (python tools/migrate_deleted_types.py rewrites it)";
+  if (type_name == "BandSpectrum") return "renamed FormantBands (python tools/convert_patch.py <patch> rewrites it)";
   return nullptr;
 }
 

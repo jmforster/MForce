@@ -7070,14 +7070,14 @@ static void run_string_pin_refusal_tests() {
     std::string msg;
     try { load_instrument_patch_json(evo); } catch (const std::runtime_error& e) { msg = e.what(); }
     CHECK(msg.find("node 'wt' (WavetableSource): 'evolution' is the string \"pluck\"") != std::string::npos);
-    CHECK(msg.find("tools/string_evolution_to_node.py") != std::string::npos);
+    CHECK(msg.find("tools/convert_patch.py") != std::string::npos);
     CHECK(msg.find("a slot takes {\"ref\": id}") != std::string::npos);       // a slot, so no number is offered
     const char* freq = R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"osc","nodes":[
         {"id":"osc","type":"SineSource","params":{"frequency":"440"}}]}})";
     msg.clear();
     try { load_instrument_patch_json(freq); } catch (const std::runtime_error& e) { msg = e.what(); }
     CHECK(msg.find("node 'osc' (SineSource): 'frequency' is the string \"440\"") != std::string::npos);
-    CHECK(msg.find("string_evolution_to_node") == std::string::npos);
+    CHECK(msg.find("convert_patch") == std::string::npos);
     CHECK(msg.find("a pin takes a number") != std::string::npos);
     const char* node = R"({"sampleRate":48000,"instrument":{"polyphony":1},"graph":{"output":"wt","nodes":[
         {"id":"wt_evolution","type":"PluckEvolution","params":{"muting":0.0,"seed":42}},
@@ -7254,18 +7254,18 @@ static void run_retired_type_message_tests() {
     for (const char* t : {"ASEnvelope", "ADSREnvelope", "KSPianoString"}) {
         const std::string msg = message_for(t);
         CHECK(msg.find(std::string("Unknown node type: ") + t) != std::string::npos);
-        CHECK(msg.find("tools/migrate_deleted_types.py") != std::string::npos);
+        CHECK(msg.find("tools/convert_patch.py") != std::string::npos);
     }
     const std::string none = message_for("NoSuchType");
     CHECK(none.find("Unknown node type: NoSuchType") != std::string::npos);
-    CHECK(none.find("migrate_deleted_types") == std::string::npos);
+    CHECK(none.find("convert_patch") == std::string::npos);
     CHECK(retired_type_hint("Envelope") == nullptr && retired_type_hint("ASREnvelope") != nullptr);
     CHECK(retired_type_hint("AdditiveSource2") != nullptr && retired_type_hint("BasicAdditiveSource") != nullptr);
     CHECK(std::string(retired_type_hint("AdditiveSource2")).find("author an AdditiveSource") != std::string::npos);
     for (const char* t : {"Formant", "FormantSpectrum"})
         CHECK(std::string(retired_type_hint(t)).find("rows of a FormantPeaks") != std::string::npos);
     CHECK(std::string(retired_type_hint("FixedSpectrum")).find("FormantBands or FormantPeaks") != std::string::npos);
-    CHECK(message_for("FormantSpectrum").find("migrate_deleted_types.py") != std::string::npos);
+    CHECK(message_for("FormantSpectrum").find("convert_patch.py") != std::string::npos);
     CHECK(std::string(retired_type_hint("BandSpectrum")).find("renamed FormantBands") != std::string::npos);
     CHECK(message_for("BandSpectrum").find("Unknown node type: BandSpectrum") != std::string::npos);
 }

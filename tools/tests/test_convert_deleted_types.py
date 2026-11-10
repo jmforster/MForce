@@ -1,5 +1,6 @@
-"""The deleted-type migration: each rule, the adsr release default, key order,
-idempotence, the refusal, check mode, the tree walk and the formant fold."""
+"""The deleted-type rule: each rule, the adsr release default, key order,
+idempotence, the refusal, and the formant fold; through the driver, check
+mode, the file's indent step and the tree walk."""
 import copy
 import json
 import os
@@ -8,7 +9,9 @@ import tempfile
 import unittest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-import migrate_deleted_types as mig  # noqa: E402
+import convert_patch as drv  # noqa: E402
+from convert_rules import Context  # noqa: E402
+from convert_rules import deleted_types as mig  # noqa: E402
 
 PRESET_NAMES = {"AREnvelope": "ar", "ASEnvelope": "as", "ASREnvelope": "asr",
                 "ADSEnvelope": "ads", "ADREnvelope": "adr", "ADSREnvelope": "adsr"}
@@ -312,6 +315,19 @@ class FormantFoldTests(unittest.TestCase):
         self.assertEqual(notes, [])
 
 
+# The one type a file case's paramMap names; no case needs the built CLI.
+CTX = Context(descriptors={"AdditiveSource": {"params": ["frequency"], "settings": []}})
+
+
+def rewrite_file(path, check=False):
+    """The driver over one file, as the deleted-type rule's counts."""
+    return drv.convert_file(path, check, CTX).get("deleted_types", {})
+
+
+def main(argv):
+    return drv.main(argv, CTX)
+
+
 class FileTests(unittest.TestCase):
     def setUp(self):
         self.dir = tempfile.TemporaryDirectory()
@@ -328,35 +344,35 @@ class FileTests(unittest.TestCase):
     def test_a_file_with_nothing_to_rewrite_is_byte_identical(self):
         path = self.write("live.json", graph({"id": "s", "type": "KSString", "params": {"t60": 1.0}}), indent=4)
         before = open(path, "rb").read()
-        self.assertEqual(mig.rewrite_file(path), {})
+        self.assertEqual(rewrite_file(path), {})
         self.assertEqual(open(path, "rb").read(), before)
 
     def test_a_rewritten_file_keeps_key_order_and_float_text(self):
         path = self.write("old.json", graph(env_node("ASEnvelope", {"attack": 0.699999988079071, "sustainLevel": 1.0}),
                                             {"id": "osc", "type": "SineSource", "params": {"amplitude": {"ref": "env"}}}))
-        self.assertEqual(mig.rewrite_file(path), {"ASEnvelope": 1})
+        self.assertEqual(rewrite_file(path), {"ASEnvelope": 1})
         text = open(path, encoding="utf-8").read()
         self.assertIn('"preset": "as",\n          "attack": 0.699999988079071,\n          "sustainLevel": 1.0', text)
         self.assertTrue(text.endswith("}\n"))
-        self.assertEqual(mig.rewrite_file(path), {})                            # a second run changes nothing
+        self.assertEqual(rewrite_file(path), {})                            # a second run changes nothing
 
     def test_a_rewritten_file_keeps_its_own_indent_step(self):
         for indent in (1, 4):
             path = self.write("old%d.json" % indent, graph({"id": "k", "type": "KSPianoString", "params": {}}), indent=indent)
-            self.assertEqual(mig.rewrite_file(path), {"KSPianoString": 1})
+            self.assertEqual(rewrite_file(path), {"KSPianoString": 1})
             text = open(path, encoding="utf-8").read()
             self.assertIn("\n" + " " * indent + '"graph": {\n', text)
-            self.assertEqual(mig.indent_of(text), indent)
-        self.assertEqual(mig.indent_of('{"a": 1}'), 2)                          # no indented line: the default
+            self.assertEqual(drv.indent_of(text), indent)
+        self.assertEqual(drv.indent_of('{"a": 1}'), 2)                          # no indented line: the default
 
     def test_check_mode_reports_and_writes_nothing(self):
         path = self.write("old.json", graph({"id": "k", "type": "KSPianoString", "params": {}}))
         before = open(path, "rb").read()
-        self.assertEqual(mig.rewrite_file(path, check=True), {"KSPianoString": 1})
+        self.assertEqual(rewrite_file(path, check=True), {"KSPianoString": 1})
         self.assertEqual(open(path, "rb").read(), before)
-        self.assertEqual(mig.main(["--check", path]), 1)
-        self.assertEqual(mig.main([path]), 0)
-        self.assertEqual(mig.main(["--check", path]), 0)
+        self.assertEqual(main(["--check", path]), 1)
+        self.assertEqual(main([path]), 0)
+        self.assertEqual(main(["--check", path]), 0)
 
     def test_a_refused_type_is_reported_by_name_and_left_unwritten(self):
         for cls in ("AdditiveSource2", "BasicAdditiveSource"):
@@ -368,26 +384,26 @@ class FileTests(unittest.TestCase):
         path = self.write("as2.json", graph({"id": "as2", "type": "AdditiveSource2", "params": {}},
                                             {"id": "k", "type": "KSPianoString", "params": {}}))
         before = open(path, "rb").read()
-        self.assertEqual(mig.main([path]), 1)
+        self.assertEqual(main([path]), 1)
         self.assertEqual(open(path, "rb").read(), before)                       # not even the rewritable node
 
     def test_check_mode_before_and_after_the_fold(self):
         path = self.write("vowel.json", vowel(*THREE()), indent=1)
         before = open(path, "rb").read()
-        self.assertEqual(mig.main(["--check", path]), 1)
+        self.assertEqual(main(["--check", path]), 1)
         self.assertEqual(open(path, "rb").read(), before)
-        self.assertEqual(mig.main([path]), 0)
+        self.assertEqual(main([path]), 0)
         text = open(path, encoding="utf-8").read()
         self.assertIn('\n     "frequency": [\n      400.0,\n      1600.0,\n      2700\n     ],', text)   # one value per line
-        self.assertEqual(mig.main(["--check", path]), 0)
+        self.assertEqual(main(["--check", path]), 0)
         after = open(path, "rb").read()
-        self.assertEqual(mig.main([path]), 0)
+        self.assertEqual(main([path]), 0)
         self.assertEqual(open(path, "rb").read(), after)                           # idempotent on disk
 
     def test_check_mode_exits_1_on_a_refused_type(self):
         path = self.write("as2.json", graph({"id": "as2", "type": "AdditiveSource2", "params": {}}))
         before = open(path, "rb").read()
-        self.assertEqual(mig.main(["--check", path]), 1)
+        self.assertEqual(main(["--check", path]), 1)
         self.assertEqual(open(path, "rb").read(), before)
 
     def test_a_tree_walk_counts_per_rule_and_a_bad_file_is_reported_not_fatal(self):
@@ -397,11 +413,11 @@ class FileTests(unittest.TestCase):
         self.write(os.path.join("sub", "b.json"), graph(env_node("ADSREnvelope", {"attack": 0.1})))
         with open(os.path.join(self.dir.name, "broken.json"), "w", encoding="utf-8") as f:
             f.write("{not json")
-        self.assertEqual(mig.main([self.dir.name]), 1)                           # the broken file is a failure
+        self.assertEqual(main([self.dir.name]), 1)                           # the broken file is a failure
         for name in ("a.json", os.path.join("sub", "b.json")):
             doc = json.load(open(os.path.join(self.dir.name, name), encoding="utf-8"))
             self.assertNotIn("Envelope", [n["type"] for n in doc["graph"]["nodes"] if n["type"] != "Envelope"])
-        self.assertEqual(mig.main(["--check", os.path.join(self.dir.name, "a.json"),
+        self.assertEqual(main(["--check", os.path.join(self.dir.name, "a.json"),
                                    os.path.join(self.dir.name, "sub", "b.json")]), 0)
 
 

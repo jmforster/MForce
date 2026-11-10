@@ -1,11 +1,9 @@
 """Rewrite a wavetable's string-typed evolution as an evolution node.
 
-The loader once built an evolution from a string on the WavetableSource node
-("evolution": "pluck" | "averaging" | "target", with the evolution's settings
-and "evolutionSeed" beside it). That path is gone: an evolution is a node of
-its own, wired into the wavetable's `evolution` slot. This tool moves the keys.
-
-  python tools/string_evolution_to_node.py patch.json [more.json ...]
+A WavetableSource that names its evolution by a string ("evolution": "pluck" |
+"averaging" | "target", with the evolution's settings and "evolutionSeed"
+beside it) is a form the loader refuses: an evolution is a node of its own,
+wired into the wavetable's `evolution` slot. This rule moves the keys.
 
 For each WavetableSource whose "evolution" is a string, a node
 {"id": "<wavetable id>_evolution", "type": <PluckEvolution | AveragingEvolution
@@ -16,12 +14,9 @@ present move, plus the two averaging defaults the node type declares
 differently (sampleCount 2.0, decayFactor 0.996), written out. A node-form
 wavetable that still carries "evolutionSeed" (a key only the string form read)
 loses it. A patch with nothing to convert is left untouched. "targetWave" (an
-explicit period) has no node form and is refused. The file is rewritten with an
-indent of 2.
+explicit period) has no node form and is refused.
 """
-import json
-import sys
-from pathlib import Path
+from collections import Counter
 
 FORMS = {
     "pluck":     ("PluckEvolution",     ("muting",)),
@@ -98,29 +93,8 @@ def convert(doc):
     return converted
 
 
-def convert_file(path):
-    doc = json.loads(Path(path).read_text(encoding="utf-8"))
+def apply(doc, notes, ctx):
+    """The rule's entry point: `convert`'s count of wavetables as a Counter,
+    empty when nothing converted. Asks nothing of `ctx`."""
     n = convert(doc)
-    if n:
-        Path(path).write_text(json.dumps(doc, indent=2) + "\n", encoding="utf-8", newline="\n")
-    return n
-
-
-def main(argv):
-    if not argv:
-        print(__doc__)
-        return 2
-    failed = 0
-    for arg in argv:
-        try:
-            n = convert_file(arg)
-        except (ValueError, OSError, json.JSONDecodeError) as e:
-            print("%s: NOT converted: %s" % (arg, e))
-            failed += 1
-            continue
-        print("%s: %s" % (arg, ("converted %d wavetable(s)" % n) if n else "nothing to convert"))
-    return 1 if failed else 0
-
-
-if __name__ == "__main__":
-    sys.exit(main(sys.argv[1:]))
+    return Counter({"wavetable": n}) if n else Counter()

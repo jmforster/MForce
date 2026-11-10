@@ -297,7 +297,7 @@ static void refuse_string_pin(const Component& src, const std::string& id,
                     + "' is the string \"" + value + "\"; "
                     + (slot ? "a slot takes {\"ref\": id}" : "a pin takes a number, {\"ref\": id} or {\"tap\": id}");
     if (std::strcmp(pin, "evolution") == 0)
-        msg += "; the string-typed evolution is gone, python tools/string_evolution_to_node.py <patch> rewrites it as an evolution node";
+        msg += "; the string-typed evolution is gone, python tools/convert_patch.py <patch> rewrites it as an evolution node";
     throw std::runtime_error(msg);
 }
 

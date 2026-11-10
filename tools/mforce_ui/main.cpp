@@ -1283,7 +1283,7 @@ static void transport_set_status(const char* msg, bool isError);
 //
 // Deliberately done in JSON space rather than by constructing GraphNodes and
 // Links directly: it is the SAME algorithm on the SAME representation as
-// tools/parammap_to_wiring.py, which is gated at 196/196, so the two cannot
+// tools/convert_patch.py's paramMap rule, which is gated at 196/196, so the two cannot
 // drift into disagreement. The existing loader then builds the graph from the
 // converted document and needs no knowledge of paramMap at all.
 //

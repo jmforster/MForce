@@ -1,7 +1,4 @@
-"""Rewrite the node types this engine no longer has, in place.
-
-  python tools/migrate_deleted_types.py <patch-or-dir> [...]
-  python tools/migrate_deleted_types.py --check <patch-or-dir> [...]   # exit 1 while a rewrite is pending
+"""Rewrite the node types this engine no longer has.
 
 RULES, one per deleted name:
   KSPianoString -> KSString                   a registered alias of the same class; params untouched
@@ -34,13 +31,13 @@ no node at all, when the spectrum has a param besides "formants", or when it
 carries a key besides id, type and params (which the fold would drop). A
 FormantSequence names its spectra by id, which the fold keeps, so it follows.
 
-THE PARAMMAP RULE: an instrument.paramMap entry under the "frequency" key,
+A PARAMMAP ENTRY AIMED AT A PEAK: an instrument.paramMap entry under the "frequency" key,
 {"target": "<peak>.<pin>", "curve": [...]}, aimed at a consumed peak is folded
 rather than refused when the pin is one of the four and the curve's first
 knot's output equals the peak's constant: the row keeps the constant, the
 entry leaves the paramMap (a key's list left with one string collapses to
 that string, an empty key or paramMap goes) and a note names the target and
-the constant. The rule holds for "frequency" alone: that curve is fed the
+the constant. This holds for "frequency" alone: that curve is fed the
 voice's frequency and clamps at its first knot, so a note below the knee sat
 at the constant already; another key (velocity, say) is read along its
 length and the constant is not what the render heard. Any other aim at a
@@ -54,17 +51,12 @@ ADSREnvelope (the global allowlist let them through, dead) — is dropped and
 reported by node, since carrying it across would change the render. A
 dynamicPins entry naming a layout knob (attack, decay, release, decayLevel,
 reverse, a curve or a power) is refused by name: those were settings on the
-class and are keys of a form now, not pins. Key
-order and the file's indent step survive (an inline object or array is laid
-out one value per line, as every other rewrite here does); a file with
-nothing to rewrite is not written; a second run changes nothing. A later
-deletion adds a row to RULES, not a tool.
+class and are keys of a form now, not pins. Key order survives; a second run
+changes nothing. A later deletion adds a row to RULES, not a tool.
 """
 import json
-import os
-import sys
 from collections import Counter
-from pathlib import Path
+
 
 LAYOUT_KNOBS = {"attack", "attackCurve", "attackPower", "decay", "decayCurve", "decayPower",
                 "decayLevel", "release", "releaseCurve", "releasePower", "reverse"}
@@ -359,67 +351,6 @@ def rewrite(doc, notes=None):
     return counts
 
 
-def indent_of(text):
-    """The file's own indent step: the leading spaces of its first indented
-    line (2 when it has none), so a rewrite keeps the file's shape."""
-    for line in text.splitlines():
-        stripped = line.lstrip(" ")
-        if stripped != line and stripped[:1] in "\"{[":
-            return len(line) - len(stripped)
-    return 2
-
-
-def rewrite_file(path, check=False):
-    """Rewrite one file in place (unless `check`). Returns the Counter."""
-    text = Path(path).read_text(encoding="utf-8")
-    doc = json.loads(text)
-    notes = []
-    counts = rewrite(doc, notes)
-    for line in notes:
-        print("%s: %s" % (path, line))
-    if counts and not check:
-        Path(path).write_text(json.dumps(doc, indent=indent_of(text)) + "\n",
-                              encoding="utf-8", newline="\n")
-    return counts
-
-
-def json_files(roots):
-    for root in roots:
-        p = Path(root)
-        if p.is_dir():
-            for dirpath, _, names in os.walk(p):
-                for n in sorted(names):
-                    if n.endswith(".json"):
-                        yield Path(dirpath) / n
-        else:
-            yield p
-
-
-def main(argv):
-    check = "--check" in argv
-    roots = [a for a in argv if a != "--check"]
-    if not roots:
-        print(__doc__)
-        return 2
-    total, pending_files, failed = Counter(), 0, 0
-    for path in json_files(roots):
-        try:
-            counts = rewrite_file(path, check)
-        except (ValueError, OSError, json.JSONDecodeError) as e:
-            print("%s: NOT rewritten: %s" % (path, e))
-            failed += 1
-            continue
-        if counts:
-            pending_files += 1
-            total.update(counts)
-            print("%s: %s" % (path, ", ".join("%s x%d" % kv for kv in sorted(counts.items()))))
-    verb = "pending in" if check else "rewritten in"
-    print("%d node(s) %s %d file(s): %s" % (sum(total.values()), verb, pending_files,
-                                             dict(sorted(total.items())) or "nothing"))
-    if check:
-        return 1 if pending_files or failed else 0
-    return 1 if failed else 0
-
-
-if __name__ == "__main__":
-    sys.exit(main(sys.argv[1:]))
+def apply(doc, notes, ctx):
+    """The rule's entry point: `rewrite`, which asks nothing of `ctx`."""
+    return rewrite(doc, notes)
